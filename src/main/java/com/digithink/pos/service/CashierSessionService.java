@@ -858,24 +858,24 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			totalDeclared = 0.0;
 		}
 
-		// Group by payment method: key = payment method name (or "Cash"), value = sum
-		// of lineTotal
+		// Group by payment method — skip null-payment lines (fond de caisse fallback)
 		Map<String, Double> methodToAmount = new HashMap<>();
+		double especeTotal = 0.0;
 		if (cashCountLines != null) {
 			for (SessionCashCount line : cashCountLines) {
-				String name = (line.getPaymentMethod() != null && line.getPaymentMethod().getName() != null)
+				if (line.getPaymentMethod() == null) continue;
+				String name = line.getPaymentMethod().getName() != null
 						? line.getPaymentMethod().getName()
 						: "Cash";
 				Double amount = line.getLineTotal() != null ? line.getLineTotal() : 0.0;
 				methodToAmount.merge(name, amount, Double::sum);
+				if (PaymentMethodType.CLIENT_ESPECES.equals(line.getPaymentMethod().getType())) {
+					especeTotal += amount;
+				}
 			}
 		}
-		// If no lines but we have posUserClosureCash (legacy close), show as single
-		// "Total" or "Cash"
-		if (methodToAmount.isEmpty() && session.getPosUserClosureCash() != null
-				&& session.getPosUserClosureCash() > 0) {
-			methodToAmount.put("Cash", session.getPosUserClosureCash());
-		}
+		double opening = session.getOpeningCash() != null ? session.getOpeningCash() : 0.0;
+		double netEspeces = Math.max(0.0, especeTotal - opening);
 
 		List<SessionCloseTicketDTO.PaymentMethodAmount> paymentMethodAmounts = methodToAmount.entrySet().stream()
 				.sorted(Comparator.comparing(Map.Entry::getKey))
@@ -889,7 +889,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 
 		return SessionCloseTicketDTO.builder().sessionNumber(session.getSessionNumber()).cashierName(cashierName)
 				.openedAt(session.getOpenedAt()).closedAt(session.getClosedAt()).openingCash(session.getOpeningCash())
-				.totalDeclared(totalDeclared).paymentMethodAmounts(paymentMethodAmounts).ticketsCount(ticketsCount)
-				.returnsCount(returnsCount).build();
+				.totalDeclared(totalDeclared).netEspeces(netEspeces).paymentMethodAmounts(paymentMethodAmounts)
+				.ticketsCount(ticketsCount).returnsCount(returnsCount).build();
 	}
 }

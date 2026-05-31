@@ -87,20 +87,23 @@ public class ReportService {
                 break;
         }
 
+        // Header-level discount is distributed proportionally to each line via discountPercentage.
+        // discountPercentage is always stored (for fixed-amount discounts the frontend computes it).
+        String hdrRate = "COALESCE(sl.salesHeader.discountPercentage, 0.0) / 100.0";
         String jpql =
                 "SELECT " + selectLabel + ", " +
                 "COUNT(DISTINCT sl.salesHeader.id), " +
                 "SUM(sl.quantity), " +
-                "SUM(sl.lineTotal), " +
-                "SUM(COALESCE(sl.vatAmount, 0)), " +
-                "SUM(sl.lineTotalIncludingVat), " +
-                "SUM(COALESCE(sl.discountAmount, 0)) " +
+                "SUM(sl.lineTotal                * (1.0 - " + hdrRate + ")), " +
+                "SUM(COALESCE(sl.vatAmount, 0)   * (1.0 - " + hdrRate + ")), " +
+                "SUM(sl.lineTotalIncludingVat    * (1.0 - " + hdrRate + ")), " +
+                "SUM(COALESCE(sl.discountAmount, 0) + sl.lineTotalIncludingVat * " + hdrRate + ") " +
                 "FROM SalesLine sl " +
                 extraJoin +
                 "WHERE sl.salesHeader.status = 'COMPLETED' " +
                 "AND sl.salesHeader.salesDate BETWEEN :from AND :to " +
                 "GROUP BY " + groupByClause + " " +
-                "ORDER BY SUM(sl.lineTotalIncludingVat) DESC";
+                "ORDER BY SUM(sl.lineTotalIncludingVat * (1.0 - " + hdrRate + ")) DESC";
 
         List<Object[]> rows = em.createQuery(jpql)
                 .setParameter("from", from)

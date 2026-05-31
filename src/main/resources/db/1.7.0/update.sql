@@ -7,6 +7,7 @@ UPDATE APP_VERSION SET version = '1.7.0';
 INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
 
 -- Bug Fixes
+('1.7.0', 'FIX',     'Sales Report: Revenue (TTC) and Discount figures now include ticket-level (header) discounts. Previously only line-level discounts were reflected, causing Revenue to be overstated and the Discount column to be understated on tickets where a header discount was applied. The header discount is now distributed proportionally across lines.'),
 ('1.7.0', 'FIX',     'Cash drawer total (ESPECE SYSTEM): change amount was incorrectly subtracted from the cash total for all sales including pure TPE tickets. Fixed: change is now only deducted when the sale includes at least one CLIENT_ESPECES payment.'),
 ('1.7.0', 'FIX',     'Payment recording: change amount was saved on the sales header even when no cash payment was involved (e.g. TPE overpayment). Fixed: changeAmount is now set to 0 when no CLIENT_ESPECES payment is present, both on standard and split-bill payment paths.'),
 ('1.7.0', 'FIX',     'Payment screen: the UI previously allowed completing a payment with an overpayment via non-cash methods (e.g. TPE). Fixed: overpayment is now blocked unless at least one cash payment is included in the transaction.'),

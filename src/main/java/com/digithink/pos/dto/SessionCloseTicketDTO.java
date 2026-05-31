@@ -38,6 +38,7 @@ public class SessionCloseTicketDTO {
 
 	private Long ticketsCount;
 	private Long returnsCount;
+	private Double netEspeces;
 
 	@Data
 	@NoArgsConstructor
