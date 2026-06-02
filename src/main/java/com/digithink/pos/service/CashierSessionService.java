@@ -858,16 +858,20 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			totalDeclared = 0.0;
 		}
 
-		// Group by payment method — skip null-payment lines (fond de caisse fallback)
+		// Group by payment method — null-payment lines (fond de caisse) count toward
+		// especeTotal (they are cash) but are not shown separately in the display list
 		Map<String, Double> methodToAmount = new HashMap<>();
 		double especeTotal = 0.0;
 		if (cashCountLines != null) {
 			for (SessionCashCount line : cashCountLines) {
-				if (line.getPaymentMethod() == null) continue;
+				Double amount = line.getLineTotal() != null ? line.getLineTotal() : 0.0;
+				if (line.getPaymentMethod() == null) {
+					especeTotal += amount; // null line = cash in drawer, counts toward net
+					continue;
+				}
 				String name = line.getPaymentMethod().getName() != null
 						? line.getPaymentMethod().getName()
 						: "Cash";
-				Double amount = line.getLineTotal() != null ? line.getLineTotal() : 0.0;
 				methodToAmount.merge(name, amount, Double::sum);
 				if (PaymentMethodType.CLIENT_ESPECES.equals(line.getPaymentMethod().getType())) {
 					especeTotal += amount;
