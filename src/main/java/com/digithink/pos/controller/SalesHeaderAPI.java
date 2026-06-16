@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.digithink.pos.dto.ChangePaymentMethodRequestDTO;
 import com.digithink.pos.dto.PrepareInvoiceRequestDTO;
 import com.digithink.pos.dto.ProcessSaleRequestDTO;
 import com.digithink.pos.dto.SplitBillRequestDTO;
@@ -20,6 +21,7 @@ import com.digithink.pos.model.Payment;
 import com.digithink.pos.model.SalesHeader;
 import com.digithink.pos.model.SalesLine;
 import com.digithink.pos.model.UserAccount;
+import com.digithink.pos.model.enumeration.Role;
 import com.digithink.pos.repository.GeneralSetupRepository;
 import com.digithink.pos.repository.PaymentRepository;
 import com.digithink.pos.repository.SalesLineRepository;
@@ -49,6 +51,52 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 		return generalSetupRepository.findByCode(code)
 				.map(s -> Boolean.parseBoolean(s.getValeur()))
 				.orElse(true);
+	}
+
+	private boolean isAdmin() {
+		try {
+			UserAccount currentUser = currentUserProvider.getCurrentUser();
+			return currentUser != null && currentUser.getRole() == Role.ADMIN;
+		} catch (Exception e) {
+			return false;
+		}
+	}
+
+	/**
+	 * Change the payment method of a single payment on a completed ticket, without
+	 * changing amounts. Admin only; allowed while the ticket's session is not yet
+	 * synchronized with NAV. See {@link SalesHeaderService#changePaymentMethod}.
+	 */
+	@PostMapping("/{id}/change-payment-method")
+	public ResponseEntity<?> changePaymentMethod(@PathVariable Long id,
+			@RequestBody ChangePaymentMethodRequestDTO request) {
+		try {
+			log.info("SalesHeaderAPI::changePaymentMethod: " + id);
+			if (!isAdmin()) {
+				return ResponseEntity.status(HttpStatus.FORBIDDEN)
+						.body(createErrorResponse("Only administrators can change a payment method"));
+			}
+			UserAccount currentUser = currentUserProvider.getCurrentUser();
+			Payment updated = service.changePaymentMethod(id, request, currentUser);
+			Map<String, Object> response = new HashMap<>();
+			response.put("paymentId", updated.getId());
+			response.put("paymentMethodId",
+					updated.getPaymentMethod() != null ? updated.getPaymentMethod().getId() : null);
+			response.put("paymentMethodName",
+					updated.getPaymentMethod() != null ? updated.getPaymentMethod().getName() : null);
+			response.put("totalAmount", updated.getTotalAmount());
+			return ResponseEntity.ok(response);
+		} catch (IllegalArgumentException e) {
+			log.error("SalesHeaderAPI::changePaymentMethod: " + e.getMessage(), e);
+			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+		} catch (IllegalStateException e) {
+			log.error("SalesHeaderAPI::changePaymentMethod (conflict): " + e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(e.getMessage()));
+		} catch (Exception e) {
+			log.error("SalesHeaderAPI::changePaymentMethod:error: " + getDetailedMessage(e), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(createErrorResponse(getDetailedMessage(e)));
+		}
 	}
 
 	/**

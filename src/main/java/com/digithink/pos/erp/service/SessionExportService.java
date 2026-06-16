@@ -4,8 +4,10 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -300,25 +302,38 @@ private final PaymentHeaderRepository paymentHeaderRepository;
 	}
 
 	/**
-	 * Async method to create PaymentHeader and PaymentLine records for new payments
-	 * after ticket creation. This is called after each ticket is created to store
-	 * payments immediately.
+	 * Async post-sale entry point: creates PaymentHeader/PaymentLine records for new
+	 * payments after ticket creation. Non-fatal on failure (logs only). Delegates to
+	 * {@link #createPaymentHeadersAndLines}.
 	 */
 	@Async("asyncExecutor")
 	@Transactional
 	public void createPaymentHeadersAndLinesAsync(List<Payment> payments, SalesHeader salesHeader) {
+		try {
+			createPaymentHeadersAndLines(payments, salesHeader);
+		} catch (Exception ex) {
+			LOGGER.error("Error creating payment headers and lines asynchronously: {}", ex.getMessage(), ex);
+		}
+	}
+
+	/**
+	 * Core creation logic shared by the async post-sale path and the rebuild path.
+	 * Throws on failure so callers can roll back. The caller MUST hold a write lock
+	 * on the cashier session (acquired here via {@link #lockSession}).
+	 */
+	private void createPaymentHeadersAndLines(List<Payment> payments, SalesHeader salesHeader) {
 		if (payments == null || payments.isEmpty()) {
-			LOGGER.debug("No payments provided to createPaymentHeadersAndLinesAsync");
+			LOGGER.debug("No payments provided to createPaymentHeadersAndLines");
 			return;
 		}
 
-		try {
-			// Get session from first payment
-			CashierSession session = payments.get(0).getSalesHeader().getCashierSession();
-			if (session == null) {
-				LOGGER.warn("Cannot create payment headers/lines: session is null");
-				return;
-			}
+		// Get session from first payment
+		CashierSession session = payments.get(0).getSalesHeader().getCashierSession();
+		if (session == null) {
+			LOGGER.warn("Cannot create payment headers/lines: session is null");
+			return;
+		}
+		lockSession(session.getId());
 
 			// Filter out RETURN_VOUCHER payments and optionally CLIENT_CHEQUE payments
 			boolean skipCheque = "true".equalsIgnoreCase(generalSetupService.findValueByCode("ERP_SKIP_CHEQUE_PAYMENTS"));
@@ -401,9 +416,8 @@ private final PaymentHeaderRepository paymentHeaderRepository;
 
 						double newAmount = custPayments.stream()
 								.mapToDouble(p -> p.getTotalAmount() != null ? p.getTotalAmount() : 0.0).sum();
-						double adjustedAmount = (newAmount - salesHeader.getChangeAmount()) > 0
-								? (newAmount - salesHeader.getChangeAmount())
-								: newAmount;
+						double change = salesHeader.getChangeAmount() != null ? salesHeader.getChangeAmount() : 0.0;
+						double adjustedAmount = (newAmount - change) > 0 ? (newAmount - change) : newAmount;
 
 						// Look for an existing line for this customer in this header
 						PaymentLine existingLine = existingLines.stream()
@@ -472,13 +486,82 @@ private final PaymentHeaderRepository paymentHeaderRepository;
 				}
 			}
 
-			LOGGER.info("Successfully created payment headers and lines asynchronously for session {}",
-					session.getSessionNumber());
-		} catch (
+		LOGGER.info("Successfully created payment headers and lines for session {}",
+				session.getSessionNumber());
+	}
 
-		Exception ex) {
-			LOGGER.error("Error creating payment headers and lines asynchronously: {}", ex.getMessage(), ex);
+	/**
+	 * Acquire a pessimistic write lock on the session row to serialize all
+	 * PaymentHeader/PaymentLine mutations for that session.
+	 */
+	private void lockSession(Long sessionId) {
+		if (sessionId != null) {
+			cashierSessionRepository.findByIdForUpdate(sessionId);
 		}
+	}
+
+	/**
+	 * Rebuild ALL PaymentHeader/PaymentLine rows for a session from the current
+	 * Payment rows. Allowed only when nothing in the session has been synced to NAV
+	 * (every header NOT_SYNCHED). Used after an admin changes a ticket's payment
+	 * method, so the eventual NAV export reflects the new method exactly.
+	 */
+	@Transactional
+	public void rebuildSessionPaymentRows(CashierSession session) {
+		if (session == null) {
+			return;
+		}
+		lockSession(session.getId());
+
+		List<PaymentHeader> headers = paymentHeaderRepository.findByCashierSession(session);
+		boolean anySynced = headers.stream()
+				.anyMatch(h -> h.getSynchronizationStatus() != SynchronizationStatus.NOT_SYNCHED);
+		if (anySynced) {
+			throw new IllegalStateException("Cannot rebuild payment rows: session " + session.getSessionNumber()
+					+ " already has payment headers synchronized with NAV");
+		}
+
+		// Capture which sales currently HAVE export rows, BEFORE deleting. The rebuild must
+		// reproduce EXACTLY this set — only the sales the normal post-sale creator processed.
+		// In particular split-bill tickets (splitAndPay) never get export rows, so they must
+		// NOT be synthesized here or the NAV payment export would be inflated.
+		Set<Long> exportedSaleIds = new HashSet<>();
+		for (PaymentHeader header : headers) {
+			List<PaymentLine> lines = paymentLineRepository.findByPaymentHeader(header);
+			for (PaymentLine line : lines) {
+				for (Payment p : line.getPayments()) {
+					if (p.getSalesHeader() != null) {
+						exportedSaleIds.add(p.getSalesHeader().getId());
+					}
+				}
+				if (line.getPayment() != null && line.getPayment().getSalesHeader() != null) {
+					exportedSaleIds.add(line.getPayment().getSalesHeader().getId());
+				}
+			}
+			if (!lines.isEmpty()) {
+				paymentLineRepository.deleteAll(lines);
+			}
+		}
+		paymentLineRepository.flush();
+		if (!headers.isEmpty()) {
+			paymentHeaderRepository.deleteAll(headers);
+			paymentHeaderRepository.flush();
+		}
+
+		// Regenerate from current payments, sale by sale (reuses the exact creation logic),
+		// restricted to the sales that previously had export rows.
+		List<SalesHeader> sales = salesHeaderRepository.findByCashierSession(session).stream()
+				.filter(s -> s.getStatus() == TransactionStatus.COMPLETED)
+				.filter(s -> exportedSaleIds.contains(s.getId()))
+				.collect(Collectors.toList());
+		for (SalesHeader sale : sales) {
+			List<Payment> salePayments = paymentRepository.findBySalesHeader(sale);
+			if (!salePayments.isEmpty()) {
+				createPaymentHeadersAndLines(salePayments, sale);
+			}
+		}
+		LOGGER.info("Rebuilt payment headers/lines for session {} ({} completed sales)",
+				session.getSessionNumber(), sales.size());
 	}
 
 	/**

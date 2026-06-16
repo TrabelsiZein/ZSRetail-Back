@@ -205,13 +205,33 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	}
 
 	/**
+	 * Recompute and persist the expected cash (realCash) for a CLOSED session. For an
+	 * OPENED session realCash is always computed on the fly, so nothing is stored; for
+	 * a CLOSED session the value was frozen at closure and must be refreshed after an
+	 * admin changes a ticket's payment method (cash &lt;-&gt; non-cash). Returns the new
+	 * realCash, or the unchanged stored value when the session is not CLOSED.
+	 */
+	@Transactional(rollbackFor = Exception.class)
+	public Double recalculateRealCashForClosedSession(CashierSession session) throws Exception {
+		if (session == null || session.getStatus() != SessionStatus.CLOSED) {
+			return session != null ? session.getRealCash() : null;
+		}
+		Double realCash = calculateRealCash(session);
+		session.setRealCash(realCash);
+		save(session);
+		log.info("Recalculated realCash for closed session {}: {}", session.getSessionNumber(), realCash);
+		return realCash;
+	}
+
+	/**
 	 * Close a cashier session with detailed cash count lines
 	 * 
 	 * @throws Exception
 	 */
 	@Transactional(rollbackFor = Exception.class)
 	public CashierSession closeSessionWithCashCount(Long sessionId, CloseSessionRequestDTO request) throws Exception {
-		CashierSession session = findById(sessionId)
+		// Pessimistic lock: serialize against admin payment-method changes that recompute realCash.
+		CashierSession session = cashierSessionRepository.findByIdForUpdate(sessionId)
 				.orElseThrow(() -> new IllegalArgumentException("Session not found"));
 
 		if (session.getStatus() != SessionStatus.OPENED) {
@@ -344,7 +364,8 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	@Transactional(rollbackFor = Exception.class)
 	public CashierSession verifySession(Long sessionId, Double responsibleClosureCash, String verificationNotes,
 			UserAccount responsibleUser, List<Map<String, Object>> paymentDetails) throws Exception {
-		CashierSession session = findById(sessionId)
+		// Pessimistic lock: serialize against admin payment-method changes that recompute realCash.
+		CashierSession session = cashierSessionRepository.findByIdForUpdate(sessionId)
 				.orElseThrow(() -> new IllegalArgumentException("Session not found"));
 
 		if (session.getStatus() != SessionStatus.CLOSED) {

@@ -763,6 +763,9 @@ public class ZZDataInitializer {
 		ensureConfig("ENABLE_CASH_DISCREPANCY_CHECK", "false",
 				"Enable cash discrepancy check when closing session. If true, system validates closing amount matches expected real cash.",
 				false, ConfigType.BOOLEAN);
+		ensureConfig("ENABLE_PAYMENT_METHOD_CHANGE", "false",
+				"Allow an admin to change a ticket's payment method (without changing amounts) from Ticket History, while the ticket's session is not yet synchronized with NAV. Disabled by default.",
+				false, ConfigType.BOOLEAN);
 		ensureConfig("PLAFOND_ESPECE", "",
 				"Plafond espèce (TND). Empty = no limit. When set (e.g. 1000), maximum cash amount allowed per sale in TND.",
 				false, ConfigType.STRING);

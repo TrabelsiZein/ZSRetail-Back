@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.digithink.pos.dto.ChangePaymentMethodRequestDTO;
 import com.digithink.pos.dto.PricingResult;
 import com.digithink.pos.dto.ProcessSaleRequestDTO;
 import com.digithink.pos.dto.SplitBillRequestDTO;
@@ -18,12 +19,14 @@ import com.digithink.pos.model.GeneralSetup;
 import com.digithink.pos.model.Item;
 import com.digithink.pos.model.LoyaltyMember;
 import com.digithink.pos.model.Payment;
+import com.digithink.pos.model.PaymentChangeLog;
 import com.digithink.pos.model.PaymentMethod;
 import com.digithink.pos.model.ReturnVoucher;
 import com.digithink.pos.model.SalesHeader;
 import com.digithink.pos.model.SalesLine;
 import com.digithink.pos.model.UserAccount;
 import com.digithink.pos.model.enumeration.PaymentMethodType;
+import com.digithink.pos.model.enumeration.SessionStatus;
 import com.digithink.pos.model.enumeration.SynchronizationStatus;
 import com.digithink.pos.model.enumeration.TransactionStatus;
 import com.digithink.pos.repository.CashierSessionRepository;
@@ -31,7 +34,9 @@ import com.digithink.pos.repository.CustomerRepository;
 import com.digithink.pos.repository.GeneralSetupRepository;
 import com.digithink.pos.repository.ItemRepository;
 import com.digithink.pos.repository.LoyaltyMemberRepository;
+import com.digithink.pos.repository.PaymentChangeLogRepository;
 import com.digithink.pos.repository.PaymentMethodRepository;
+import com.digithink.pos.repository.PaymentRepository;
 import com.digithink.pos.repository.PromotionRepository;
 import com.digithink.pos.repository.SalesHeaderRepository;
 import com.digithink.pos.repository.SalesLineRepository;
@@ -96,6 +101,12 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 	@Autowired
 	private PromotionRepository promotionRepository;
+
+	@Autowired
+	private PaymentRepository paymentRepository;
+
+	@Autowired
+	private PaymentChangeLogRepository paymentChangeLogRepository;
 
 	@Override
 	protected _BaseRepository<SalesHeader, Long> getRepository() {
@@ -866,6 +877,178 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		double change = totalPaid - request.getTotalAmount();
 		salesHeader.setChangeAmount((change > 0 && hasCashPayment) ? change : 0.0);
 		return payments;
+	}
+
+	/**
+	 * Change the payment method of a single payment on a COMPLETED ticket, WITHOUT
+	 * changing any amount. Allowed only while the ticket's cashier session has not yet
+	 * been synchronized with NAV (OPENED or CLOSED — never TERMINATED). The session is
+	 * pessimistically locked for the whole operation, the ERP payment-export rows are
+	 * rebuilt from the current payments, and (for CLOSED sessions) the frozen realCash
+	 * is recomputed. Every change is recorded in {@link PaymentChangeLog}.
+	 */
+	@Transactional(rollbackFor = Exception.class)
+	public Payment changePaymentMethod(Long salesHeaderId, ChangePaymentMethodRequestDTO request,
+			UserAccount currentUser) throws Exception {
+		if (request == null || request.getPaymentId() == null || request.getNewPaymentMethodId() == null) {
+			throw new IllegalArgumentException("paymentId and newPaymentMethodId are required");
+		}
+
+		// Feature flag (GeneralSetup) — disabled by default.
+		String featureEnabled = generalSetupRepository.findByCode("ENABLE_PAYMENT_METHOD_CHANGE")
+				.map(GeneralSetup::getValeur).orElse("false");
+		if (!"true".equalsIgnoreCase(featureEnabled)) {
+			throw new IllegalStateException("Payment method change is disabled");
+		}
+
+		SalesHeader ticket = salesHeaderRepository.findById(salesHeaderId)
+				.orElseThrow(() -> new IllegalArgumentException("Ticket not found: " + salesHeaderId));
+
+		CashierSession session = ticket.getCashierSession();
+		if (session == null) {
+			throw new IllegalStateException("Ticket has no cashier session");
+		}
+		// Lock the session for the whole operation (serializes against the async export
+		// creator and concurrent edits). Use the locked instance from here on.
+		session = cashierSessionRepository.findByIdForUpdate(session.getId())
+				.orElseThrow(() -> new IllegalStateException("Session not found"));
+
+		// --- Guards ---
+		if (ticket.getStatus() != TransactionStatus.COMPLETED) {
+			throw new IllegalStateException("Only completed tickets can be modified");
+		}
+		if (session.getStatus() == SessionStatus.TERMINATED) {
+			throw new IllegalStateException("Session is terminated; payment method can no longer be changed");
+		}
+		// NOTE: we intentionally gate on the SESSION (payment-export) sync state, NOT on
+		// SalesHeader.synchronizationStatus. Payment method only reaches NAV via the session
+		// PaymentHeader/PaymentLine track; the ticket/sales export carries no payment method.
+		// So a ticket whose sales lines are already in NAV can still have its payment method
+		// corrected, as long as the session's payments have not been exported yet.
+		if (session.getSynchronizationStatus() != SynchronizationStatus.NOT_SYNCHED) {
+			throw new IllegalStateException("Session already synchronized with NAV; payment method cannot be changed");
+		}
+		if (Boolean.TRUE.equals(ticket.getInvoiced())) {
+			throw new IllegalStateException("Ticket is invoiced; payment method cannot be changed");
+		}
+
+		Payment payment = paymentService.findById(request.getPaymentId())
+				.orElseThrow(() -> new IllegalArgumentException("Payment not found: " + request.getPaymentId()));
+		if (payment.getSalesHeader() == null || !payment.getSalesHeader().getId().equals(ticket.getId())) {
+			throw new IllegalArgumentException("Payment does not belong to this ticket");
+		}
+		if (Boolean.TRUE.equals(payment.getSynched())) {
+			throw new IllegalStateException("Payment already synchronized with NAV");
+		}
+
+		PaymentMethod oldMethod = payment.getPaymentMethod();
+		if (oldMethod != null && oldMethod.getType() == PaymentMethodType.RETURN_VOUCHER) {
+			throw new IllegalStateException("Return voucher payments cannot be changed");
+		}
+
+		PaymentMethod newMethod = paymentMethodRepository.findById(request.getNewPaymentMethodId())
+				.orElseThrow(() -> new IllegalArgumentException(
+						"Payment method not found: " + request.getNewPaymentMethodId()));
+		if (!Boolean.TRUE.equals(newMethod.getActive())) {
+			throw new IllegalArgumentException("Selected payment method is not active");
+		}
+		if (newMethod.getType() == PaymentMethodType.RETURN_VOUCHER) {
+			throw new IllegalArgumentException("Cannot change a payment to a return voucher");
+		}
+		if (oldMethod != null && oldMethod.getId().equals(newMethod.getId())) {
+			throw new IllegalArgumentException("New payment method is the same as the current one");
+		}
+
+		// Validate the new method's required fields (title number, due date, drawer, bank).
+		ProcessSaleRequestDTO.PaymentDTO fieldDto = new ProcessSaleRequestDTO.PaymentDTO();
+		fieldDto.setPaymentMethodId(newMethod.getId());
+		fieldDto.setAmount(payment.getTotalAmount());
+		fieldDto.setTitleNumber(request.getTitleNumber());
+		fieldDto.setDueDate(request.getDueDate());
+		fieldDto.setDrawerName(request.getDrawerName());
+		fieldDto.setIssuingBank(request.getIssuingBank());
+		validateAdditionalPaymentFields(newMethod, fieldDto);
+
+		// If switching TO cash, re-validate the ticket's total cash against PLAFOND_ESPECE.
+		if (newMethod.getType() == PaymentMethodType.CLIENT_ESPECES) {
+			List<ProcessSaleRequestDTO.PaymentDTO> ticketCashView = new ArrayList<>();
+			for (Payment p : paymentRepository.findBySalesHeader(ticket)) {
+				ProcessSaleRequestDTO.PaymentDTO d = new ProcessSaleRequestDTO.PaymentDTO();
+				boolean isTarget = p.getId().equals(payment.getId());
+				d.setPaymentMethodId(isTarget ? newMethod.getId()
+						: (p.getPaymentMethod() != null ? p.getPaymentMethod().getId() : null));
+				d.setAmount(p.getTotalAmount());
+				ticketCashView.add(d);
+			}
+			validateCashPlafond(ticketCashView);
+		}
+
+		Double changeAmountOld = ticket.getChangeAmount();
+		Double realCashOld = session.getStatus() == SessionStatus.CLOSED ? session.getRealCash() : null;
+
+		// --- Apply the change (UPDATE in place; amount untouched) ---
+		payment.setPaymentMethod(newMethod);
+		payment.setTitleNumber(Boolean.TRUE.equals(newMethod.getRequireTitleNumber()) ? request.getTitleNumber() : null);
+		payment.setDueDate(Boolean.TRUE.equals(newMethod.getRequireDueDate()) ? request.getDueDate() : null);
+		payment.setDrawerName(Boolean.TRUE.equals(newMethod.getRequireDrawerName()) ? request.getDrawerName() : null);
+		payment.setIssuingBank(Boolean.TRUE.equals(newMethod.getRequireIssuingBank()) ? request.getIssuingBank() : null);
+		if (currentUser != null) {
+			payment.setUpdatedBy(currentUser.getUsername());
+		}
+		paymentService.save(payment);
+
+		// Recompute the ticket's cash change from its current payments, then persist.
+		recomputeChangeAmount(ticket);
+		save(ticket);
+
+		// Rebuild the session's (all NOT_SYNCHED) ERP payment-export rows from current payments.
+		sessionExportService.rebuildSessionPaymentRows(session);
+
+		// For a CLOSED session the expected cash is frozen — recompute & persist it.
+		Double realCashNew = null;
+		if (session.getStatus() == SessionStatus.CLOSED) {
+			realCashNew = cashierSessionService.recalculateRealCashForClosedSession(session);
+		}
+
+		// --- Audit ---
+		PaymentChangeLog audit = new PaymentChangeLog();
+		audit.setSalesHeader(ticket);
+		audit.setPayment(payment);
+		audit.setOldPaymentMethod(oldMethod);
+		audit.setNewPaymentMethod(newMethod);
+		audit.setAmount(payment.getTotalAmount());
+		audit.setChangeAmountOld(changeAmountOld);
+		audit.setChangeAmountNew(ticket.getChangeAmount());
+		audit.setRealCashOld(realCashOld);
+		audit.setRealCashNew(realCashNew);
+		audit.setChangedByUser(currentUser);
+		audit.setSessionStatus(session.getStatus() != null ? session.getStatus().name() : null);
+		audit.setReason(request.getReason());
+		if (currentUser != null) {
+			audit.setCreatedBy(currentUser.getUsername());
+		}
+		paymentChangeLogRepository.save(audit);
+
+		log.info("Payment method changed: ticket={}, payment={}, {} -> {}, by={}, session={}", ticket.getSalesNumber(),
+				payment.getId(), oldMethod != null ? oldMethod.getCode() : "?", newMethod.getCode(),
+				currentUser != null ? currentUser.getUsername() : "?", session.getSessionNumber());
+
+		return payment;
+	}
+
+	/**
+	 * Recompute a ticket's cash change from its current payments: change is only given
+	 * when at least one CLIENT_ESPECES payment is present (mirrors createAndSavePaymentsForSale).
+	 */
+	private void recomputeChangeAmount(SalesHeader ticket) {
+		List<Payment> ticketPayments = paymentRepository.findBySalesHeader(ticket);
+		double totalPaid = ticketPayments.stream()
+				.mapToDouble(p -> p.getTotalAmount() != null ? p.getTotalAmount() : 0.0).sum();
+		boolean hasCashPayment = ticketPayments.stream().anyMatch(p -> p.getPaymentMethod() != null
+				&& p.getPaymentMethod().getType() == PaymentMethodType.CLIENT_ESPECES);
+		double total = ticket.getTotalAmount() != null ? ticket.getTotalAmount() : 0.0;
+		double change = totalPaid - total;
+		ticket.setChangeAmount((change > 0 && hasCashPayment) ? change : 0.0);
 	}
 
 	/**
