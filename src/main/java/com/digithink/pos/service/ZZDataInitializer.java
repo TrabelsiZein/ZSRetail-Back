@@ -13,6 +13,7 @@ import com.digithink.pos.erp.model.ErpSyncJob;
 import com.digithink.pos.erp.repository.ErpSyncJobRepository;
 import com.digithink.pos.erp.service.ErpSyncCheckpointService;
 import com.digithink.pos.model.AppReleaseNote;
+import com.digithink.pos.model.AppRole;
 import com.digithink.pos.model.AppVersion;
 import com.digithink.pos.model.GeneralSetup;
 import com.digithink.pos.model.Item;
@@ -23,6 +24,7 @@ import com.digithink.pos.model.enumeration.ConfigType;
 import com.digithink.pos.model.enumeration.ItemType;
 import com.digithink.pos.model.enumeration.PaymentMethodType;
 import com.digithink.pos.model.enumeration.Role;
+import com.digithink.pos.repository.AppRoleRepository;
 import com.digithink.pos.repository.AppReleaseNoteRepository;
 import com.digithink.pos.repository.AppVersionRepository;
 import com.digithink.pos.repository.CustomerRepository;
@@ -43,6 +45,7 @@ import org.springframework.beans.factory.annotation.Value;
 public class ZZDataInitializer {
 
 	@Autowired private UserAccountRepository userRepository;
+	@Autowired private AppRoleRepository appRoleRepository;
 	@Autowired private PasswordEncoder passwordEncoder;
 	@Autowired private PaymentMethodRepository paymentMethodRepository;
 	@Autowired private CustomerRepository customerRepository;
@@ -64,6 +67,9 @@ public class ZZDataInitializer {
 
 	@PostConstruct
 	public void init() {
+		// Always run — idempotent, seeds default roles if they don't exist yet
+		ensureDefaultRoles();
+
 		if (userRepository.count() == 0) {
 			initUsers();
 		}
@@ -105,9 +111,152 @@ public class ZZDataInitializer {
 	}
 
 	/**
+	 * Ensures the three built-in AppRoles exist and migrates existing users.
+	 * Runs on every startup — idempotent.
+	 */
+	private void ensureDefaultRoles() {
+		AppRole adminRole = ensureRole("ADMIN", "Administrateur", false, ADMIN_PERMISSIONS);
+		AppRole responsibleRole = ensureRole("RESPONSIBLE", "Responsable", false, RESPONSIBLE_PERMISSIONS);
+		ensureRole("POS_USER", "Caissier", true, POS_PERMISSIONS);
+
+		// Migrate existing users that have no appRole yet
+		userRepository.findAll().forEach(user -> {
+			if (user.getAppRole() == null && user.getRole() != null) {
+				switch (user.getRole()) {
+					case ADMIN:
+						user.setAppRole(adminRole);
+						break;
+					case RESPONSIBLE:
+						user.setAppRole(responsibleRole);
+						break;
+					case POS_USER:
+						appRoleRepository.findByName("POS_USER").ifPresent(user::setAppRole);
+						break;
+				}
+				user.setUpdatedBy("System");
+				userRepository.save(user);
+			}
+		});
+	}
+
+	private AppRole ensureRole(String name, String label, boolean isPosRole, java.util.Set<String> permissions) {
+		return appRoleRepository.findByName(name).orElseGet(() -> {
+			AppRole role = new AppRole(name, label, isPosRole);
+			role.setPermissions(permissions);
+			role.setCreatedBy("System");
+			role.setUpdatedBy("System");
+			return appRoleRepository.save(role);
+		});
+	}
+
+	// ── Default permission sets ────────────────────────────────────────────────
+
+	private static final java.util.Set<String> ADMIN_PERMISSIONS = new java.util.HashSet<>(java.util.Arrays.asList(
+		"read:home",
+		"read:admin-users", "write:admin-users", "delete:admin-users",
+		"read:admin-sessions",
+		"read:admin-sessions-history",
+		"read:tickets-history",
+		"read:admin-item-barcodes",
+		"read:admin-item-management",
+		"read:admin-print-product-labels",
+		"read:admin-item-families",
+		"read:admin-item-subfamilies",
+		"read:admin-customers", "write:admin-customers", "delete:admin-customers",
+		"read:admin-vendors", "write:admin-vendors",
+		"read:admin-locations",
+		"read:admin-sales-prices",
+		"read:admin-sales-discounts",
+		"read:admin-promotions",
+		"read:admin-payment-methods", "write:admin-payment-methods",
+		"read:admin-general-setup",
+		"read:admin-sales",
+		"read:admin-returns",
+		"read:admin-statistics",
+		"read:admin-purchases",
+		"read:purchase-history",
+		"read:purchase-new", "write:purchase-new",
+		"read:vendor-balance",
+		"read:admin-purchase-invoices",
+		"read:admin-warranty", "write:admin-warranty",
+		"read:admin-erp-jobs",
+		"read:admin-erp-communications",
+		"read:admin-invoices",
+		"read:admin-badge-scan-history",
+		"read:admin-loyalty-members", "write:admin-loyalty-members",
+		"read:admin-loyalty-programs", "write:admin-loyalty-programs",
+		"read:admin-loyalty-transactions",
+		"read:admin-loyalty-member-functions", "write:admin-loyalty-member-functions",
+		"read:admin-data-import", "write:admin-data-import",
+		"read:admin-report-sales",
+		"read:admin-report-purchases",
+		"read:admin-report-stock",
+		"read:admin-report-stock-movements",
+		"read:admin-report-loyalty",
+		"read:admin-report-sessions",
+		"read:admin-report-promotions",
+		"read:admin-franchise",
+		"read:admin-franchise-sales-tracking",
+		"read:admin-franchise-sync-dashboard",
+		"read:admin-company-information", "write:admin-company-information",
+		"read:admin-roles", "write:admin-roles", "delete:admin-roles",
+		"read:change-payment-method",
+		"read:view-session-amounts",
+		"read:verify-session",
+		"read:prepare-invoice"
+	));
+
+	private static final java.util.Set<String> RESPONSIBLE_PERMISSIONS = new java.util.HashSet<>(java.util.Arrays.asList(
+		"read:home",
+		"read:responsible-sessions", "write:responsible-sessions",
+		"read:admin-sessions-history",
+		"read:tickets-history",
+		"read:admin-item-barcodes",
+		"read:admin-item-management",
+		"read:admin-item-families",
+		"read:admin-item-subfamilies",
+		"read:admin-print-product-labels",
+		"read:admin-sales-prices",
+		"read:admin-sales-discounts",
+		"read:admin-promotions",
+		"read:admin-customers", "write:admin-customers", "delete:admin-customers",
+		"read:admin-vendors", "write:admin-vendors",
+		"read:admin-sales",
+		"read:admin-returns",
+		"read:admin-statistics",
+		"read:admin-purchases",
+		"read:purchase-history",
+		"read:purchase-new", "write:purchase-new",
+		"read:vendor-balance",
+		"read:admin-purchase-invoices",
+		"read:admin-warranty", "write:admin-warranty",
+		"read:admin-badge-scan-history",
+		"read:admin-loyalty-members", "write:admin-loyalty-members",
+		"read:admin-loyalty-programs", "write:admin-loyalty-programs",
+		"read:admin-loyalty-transactions",
+		"read:admin-loyalty-member-functions", "write:admin-loyalty-member-functions",
+		"read:admin-report-sales",
+		"read:admin-report-loyalty",
+		"read:admin-report-sessions",
+		"read:admin-report-promotions",
+		"read:admin-franchise",
+		"read:admin-franchise-sales-tracking",
+		"read:admin-franchise-sync-dashboard",
+		"read:verify-session"
+	));
+
+	private static final java.util.Set<String> POS_PERMISSIONS = new java.util.HashSet<>(java.util.Arrays.asList(
+		"read:cashier-interface"
+	));
+
+	/**
 	 * Create initial users: Admin, Responsible, POS User
 	 */
 	private void initUsers() {
+		AppRole adminRole = appRoleRepository.findByName("ADMIN").orElse(null);
+		AppRole responsibleRole = appRoleRepository.findByName("RESPONSIBLE").orElse(null);
+		AppRole posRole = appRoleRepository.findByName("POS_USER").orElse(null);
+
 		// System Administrator
 		UserAccount admin = new UserAccount();
 		admin.setUsername("admin");
@@ -116,6 +265,7 @@ public class ZZDataInitializer {
 		admin.setEmail("admin@zsretail.tn");
 		admin.setActive(true);
 		admin.setRole(Role.ADMIN);
+		admin.setAppRole(adminRole);
 		admin.setCreatedBy("System");
 		admin.setUpdatedBy("System");
 		userRepository.save(admin);
@@ -128,10 +278,10 @@ public class ZZDataInitializer {
 		responsible.setEmail("responsible@zsretail.tn");
 		responsible.setActive(true);
 		responsible.setRole(Role.RESPONSIBLE);
-		// Assign default badge code and all permissions to RESPONSIBLE role
+		responsible.setAppRole(responsibleRole);
 		responsible.setBadgeCode("RESP-BADGE-001");
 		responsible.setBadgePermissions("CONSULT_CUSTOMER_LIST,MAKE_RETURN,APPLY_LINE_DISCOUNT,APPLY_TOTAL_DISCOUNT");
-		responsible.setBadgeExpirationDate(LocalDateTime.now().plusYears(10)); // 10 years from now
+		responsible.setBadgeExpirationDate(LocalDateTime.now().plusYears(10));
 		responsible.setBadgeRevoked(false);
 		responsible.setCreatedBy("System");
 		responsible.setUpdatedBy("System");
@@ -145,6 +295,7 @@ public class ZZDataInitializer {
 		posUser.setEmail("123");
 		posUser.setActive(true);
 		posUser.setRole(Role.POS_USER);
+		posUser.setAppRole(posRole);
 		posUser.setCreatedBy("System");
 		posUser.setUpdatedBy("System");
 		userRepository.save(posUser);

@@ -21,7 +21,6 @@ import com.digithink.pos.model.Payment;
 import com.digithink.pos.model.SalesHeader;
 import com.digithink.pos.model.SalesLine;
 import com.digithink.pos.model.UserAccount;
-import com.digithink.pos.model.enumeration.Role;
 import com.digithink.pos.repository.GeneralSetupRepository;
 import com.digithink.pos.repository.PaymentRepository;
 import com.digithink.pos.repository.SalesLineRepository;
@@ -53,15 +52,6 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 				.orElse(true);
 	}
 
-	private boolean isAdmin() {
-		try {
-			UserAccount currentUser = currentUserProvider.getCurrentUser();
-			return currentUser != null && currentUser.getRole() == Role.ADMIN;
-		} catch (Exception e) {
-			return false;
-		}
-	}
-
 	/**
 	 * Change the payment method of a single payment on a completed ticket, without
 	 * changing amounts. Admin only; allowed while the ticket's session is not yet
@@ -72,10 +62,6 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			@RequestBody ChangePaymentMethodRequestDTO request) {
 		try {
 			log.info("SalesHeaderAPI::changePaymentMethod: " + id);
-			if (!isAdmin()) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-						.body(createErrorResponse("Only administrators can change a payment method"));
-			}
 			UserAccount currentUser = currentUserProvider.getCurrentUser();
 			Payment updated = service.changePaymentMethod(id, request, currentUser);
 			Map<String, Object> response = new HashMap<>();

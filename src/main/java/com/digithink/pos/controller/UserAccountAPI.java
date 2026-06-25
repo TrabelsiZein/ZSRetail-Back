@@ -49,35 +49,11 @@ public class UserAccountAPI {
 	private com.digithink.pos.repository.UserAccountRepository accountRepository;
 
 	/**
-	 * Check if current user is admin
-	 */
-	private boolean isAdmin() {
-		try {
-			UserAccount currentUser = currentUserProvider.getCurrentUser();
-			return currentUser != null && currentUser.getRole() == Role.ADMIN;
-		} catch (Exception e) {
-			return false;
-		}
-	}
-
-	private boolean isAdminOrResponsible() {
-		try {
-			UserAccount currentUser = currentUserProvider.getCurrentUser();
-			return currentUser != null && (currentUser.getRole() == Role.ADMIN || currentUser.getRole() == Role.RESPONSIBLE);
-		} catch (Exception e) {
-			return false;
-		}
-	}
-
-	/**
 	 * Get minimal cashier list (id + names) — accessible to ADMIN and RESPONSIBLE for filter dropdowns
 	 */
 	@GetMapping("/cashiers")
 	public ResponseEntity<?> getCashierList() {
 		try {
-			if (!isAdminOrResponsible()) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN).body(createErrorResponse("Only administrators can access this resource"));
-			}
 			List<Map<String, Object>> result = accountRepository.findAll().stream()
 				.filter(u -> !Boolean.FALSE.equals(u.getActive()))
 				.map(u -> {
@@ -103,11 +79,6 @@ public class UserAccountAPI {
 	public ResponseEntity<?> getAllUsers() {
 		try {
 			log.info("UserAccountAPI::getAllUsers");
-			
-			if (!isAdmin()) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN).body(createErrorResponse("Only administrators can access this resource"));
-			}
-
 			return ResponseEntity.ok(userAccountService.getAllUsers());
 		} catch (Exception e) {
 			log.error("UserAccountAPI::getAllUsers:error: " + e.getMessage(), e);
@@ -123,11 +94,6 @@ public class UserAccountAPI {
         public ResponseEntity<?> getUserById(@PathVariable Long id) {
             try {
                 log.info("UserAccountAPI::getUserById: " + id);
-                
-                if (!isAdmin()) {
-                    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(createErrorResponse("Only administrators can access this resource"));
-                }
-
                 UserAccountDTO user = userAccountService.getUserById(id);
                 return ResponseEntity.ok(user);
             } catch (Exception e) {
@@ -163,10 +129,6 @@ public class UserAccountAPI {
 	public ResponseEntity<?> createUser(@RequestBody CreateUserRequestDTO request) {
 		try {
 			log.info("UserAccountAPI::createUser");
-			
-			if (!isAdmin()) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN).body(createErrorResponse("Only administrators can create users"));
-			}
 
 			// Validate request
 			if (request.getUsername() == null || request.getUsername().trim().isEmpty()) {
@@ -198,11 +160,6 @@ public class UserAccountAPI {
 	public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody Map<String, Object> request) {
 		try {
 			log.info("UserAccountAPI::updateUser: " + id);
-			
-			if (!isAdmin()) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN).body(createErrorResponse("Only administrators can update users"));
-			}
-
 			UserAccount user = userAccountService.findById(id)
 					.orElseThrow(() -> new RuntimeException("User not found with id: " + id));
 
@@ -313,11 +270,6 @@ public class UserAccountAPI {
 	public ResponseEntity<?> deleteUser(@PathVariable Long id) {
 		try {
 			log.info("UserAccountAPI::deleteUser: " + id);
-			
-			if (!isAdmin()) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN).body(createErrorResponse("Only administrators can delete users"));
-			}
-
 			UserAccount user = userAccountService.findById(id)
 					.orElseThrow(() -> new RuntimeException("User not found with id: " + id));
 
@@ -346,11 +298,6 @@ public class UserAccountAPI {
 	public ResponseEntity<?> toggleUserStatus(@PathVariable Long id) {
 		try {
 			log.info("UserAccountAPI::toggleUserStatus: " + id);
-			
-			if (!isAdmin()) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN).body(createErrorResponse("Only administrators can toggle user status"));
-			}
-
 			UserAccountDTO updatedUser = userAccountService.toggleUserStatus(id);
 			return ResponseEntity.ok(updatedUser);
 		} catch (RuntimeException e) {
@@ -407,12 +354,6 @@ public class UserAccountAPI {
 	public ResponseEntity<?> getUserBadge(@PathVariable Long id) {
 		try {
 			log.info("UserAccountAPI::getUserBadge: {}", id);
-			
-			if (!isAdmin()) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-						.body(createErrorResponse("Only administrators can access badge info"));
-			}
-
 			UserAccount user = userAccountService.findById(id)
 					.orElseThrow(() -> new RuntimeException("User not found with id: " + id));
 
@@ -445,12 +386,6 @@ public class UserAccountAPI {
 	public ResponseEntity<?> updateUserBadge(@PathVariable Long id, @RequestBody Map<String, Object> request) {
 		try {
 			log.info("UserAccountAPI::updateUserBadge: {}", id);
-			
-			if (!isAdmin()) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-						.body(createErrorResponse("Only administrators can update badges"));
-			}
-
 			UserAccount user = userAccountService.findById(id)
 					.orElseThrow(() -> new RuntimeException("User not found with id: " + id));
 
@@ -525,12 +460,6 @@ public class UserAccountAPI {
 	public ResponseEntity<?> generateBadgeCode(@PathVariable Long id) {
 		try {
 			log.info("UserAccountAPI::generateBadgeCode: {}", id);
-			
-			if (!isAdmin()) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-						.body(createErrorResponse("Only administrators can generate badge codes"));
-			}
-
 			UserAccount user = userAccountService.findById(id)
 					.orElseThrow(() -> new RuntimeException("User not found with id: " + id));
 
@@ -567,12 +496,6 @@ public class UserAccountAPI {
 	public ResponseEntity<?> revokeBadge(@PathVariable Long id, @RequestBody Map<String, String> request) {
 		try {
 			log.info("UserAccountAPI::revokeBadge: {}", id);
-			
-			if (!isAdmin()) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-						.body(createErrorResponse("Only administrators can revoke badges"));
-			}
-
 			UserAccount user = userAccountService.findById(id)
 					.orElseThrow(() -> new RuntimeException("User not found with id: " + id));
 
@@ -600,12 +523,6 @@ public class UserAccountAPI {
 	public ResponseEntity<?> reactivateBadge(@PathVariable Long id) {
 		try {
 			log.info("UserAccountAPI::reactivateBadge: {}", id);
-			
-			if (!isAdmin()) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-						.body(createErrorResponse("Only administrators can reactivate badges"));
-			}
-
 			UserAccount user = userAccountService.findById(id)
 					.orElseThrow(() -> new RuntimeException("User not found with id: " + id));
 

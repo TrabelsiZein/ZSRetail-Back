@@ -69,6 +69,17 @@ public class JWTAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 		authRep.put("token", token);
 		authRep.put("status", 200);
 
+		// Return dynamic permissions from the user's assigned role
+		if (user.getAppRole() != null) {
+			authRep.put("permissions", user.getAppRole().getPermissions());
+			authRep.put("appRoleId", user.getAppRole().getId());
+			authRep.put("appRoleName", user.getAppRole().getName());
+			authRep.put("appRoleLabel", user.getAppRole().getLabel());
+			authRep.put("isPosRole", user.getAppRole().getIsPosRole());
+		} else {
+			authRep.put("permissions", new java.util.HashSet<>());
+		}
+
 		response.setContentType("application/json");
 		response.setCharacterEncoding("UTF-8");
 		response.getWriter().write(authRep.toString());

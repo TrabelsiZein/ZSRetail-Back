@@ -9,8 +9,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.pos.dto.CompanyInformationDTO;
-import com.digithink.pos.model.UserAccount;
-import com.digithink.pos.model.enumeration.Role;
 import com.digithink.pos.security.CurrentUserProvider;
 import com.digithink.pos.service.CompanyInformationService;
 
@@ -34,15 +32,6 @@ public class CompanyInformationAPI {
     private final CompanyInformationService service;
     private final CurrentUserProvider currentUserProvider;
 
-    private boolean isAdmin() {
-        try {
-            UserAccount currentUser = currentUserProvider.getCurrentUser();
-            return currentUser != null && currentUser.getRole() == Role.ADMIN;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
     /**
      * Returns the company information.
      * Public — allowed without authentication so the frontend can load it on startup.
@@ -57,9 +46,6 @@ public class CompanyInformationAPI {
      */
     @PutMapping
     public ResponseEntity<?> update(@RequestBody CompanyInformationDTO dto) {
-        if (!isAdmin()) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Only administrators can update company information");
-        }
         try {
             String updatedBy = currentUserProvider.getCurrentUser().getUsername();
             return ResponseEntity.ok(service.update(dto, updatedBy));

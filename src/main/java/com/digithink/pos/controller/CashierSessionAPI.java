@@ -211,13 +211,7 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	public ResponseEntity<?> closeSessionById(@PathVariable Long id, @RequestBody Map<String, Object> request) {
 		try {
 			log.info("CashierSessionAPI::closeSessionById: " + id);
-			UserAccount currentUser = currentUserProvider.getCurrentUser();
-			
-			// Check if user is ADMIN
-			if (currentUser.getRole() == null || !currentUser.getRole().name().equals("ADMIN")) {
-				return ResponseEntity.status(403).body(createErrorResponse("Only administrators can close sessions by ID"));
-			}
-			
+
 			// Get session
 			java.util.Optional<CashierSession> sessionOpt = service.findById(id);
 			if (!sessionOpt.isPresent()) {
@@ -313,12 +307,6 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			log.info("CashierSessionAPI::verifySession");
 			UserAccount currentUser = currentUserProvider.getCurrentUser();
 
-			// Check if user is RESPONSIBLE or ADMIN
-			if (currentUser.getRole() != com.digithink.pos.model.enumeration.Role.RESPONSIBLE && 
-				currentUser.getRole() != com.digithink.pos.model.enumeration.Role.ADMIN) {
-				return ResponseEntity.status(403).body(createErrorResponse("Only responsible users and administrators can verify sessions"));
-			}
-
 			Long sessionId = null;
 			if (request.get("sessionId") instanceof Number) {
 				sessionId = ((Number) request.get("sessionId")).longValue();
@@ -378,11 +366,6 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			@RequestParam(defaultValue = "10") int size) {
 		try {
 			log.info("CashierSessionAPI::getSessionHistory");
-			UserAccount currentUser = currentUserProvider.getCurrentUser();
-			if (currentUser.getRole() != com.digithink.pos.model.enumeration.Role.ADMIN &&
-					currentUser.getRole() != com.digithink.pos.model.enumeration.Role.RESPONSIBLE) {
-				return ResponseEntity.status(403).body(createErrorResponse("Only administrators and responsible users can access this resource"));
-			}
 			return ResponseEntity.ok(service.getSessionHistory(search, dateFrom, dateTo, status, syncStatus, cashierId, minTotalSales, maxTotalSales, minSalesCount, maxSalesCount, differenceSign, page, size));
 		} catch (Exception e) {
 			log.error("CashierSessionAPI::getSessionHistory:error: " + e.getMessage(), e);
@@ -397,13 +380,6 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	public ResponseEntity<?> getSessionDashboard() {
 		try {
 			log.info("CashierSessionAPI::getSessionDashboard");
-			UserAccount currentUser = currentUserProvider.getCurrentUser();
-
-			// Check if user is ADMIN or RESPONSIBLE
-			if (currentUser.getRole() != com.digithink.pos.model.enumeration.Role.ADMIN && 
-				currentUser.getRole() != com.digithink.pos.model.enumeration.Role.RESPONSIBLE) {
-				return ResponseEntity.status(403).body(createErrorResponse("Only administrators and responsible users can access this resource"));
-			}
 
 			return ResponseEntity.ok(service.getSessionDashboard());
 		} catch (Exception e) {
@@ -419,13 +395,6 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	public ResponseEntity<?> getSessionDetails(@PathVariable Long id) {
 		try {
 			log.info("CashierSessionAPI::getSessionDetails: " + id);
-			UserAccount currentUser = currentUserProvider.getCurrentUser();
-
-			// Check if user is ADMIN or RESPONSIBLE
-			if (currentUser.getRole() != com.digithink.pos.model.enumeration.Role.ADMIN && 
-				currentUser.getRole() != com.digithink.pos.model.enumeration.Role.RESPONSIBLE) {
-				return ResponseEntity.status(403).body(createErrorResponse("Only administrators and responsible users can access this resource"));
-			}
 
 			return ResponseEntity.ok(service.getSessionDetails(id));
 		} catch (Exception e) {

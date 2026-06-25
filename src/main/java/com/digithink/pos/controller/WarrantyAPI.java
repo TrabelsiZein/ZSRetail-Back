@@ -19,10 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.pos.model.SalesHeader;
 import com.digithink.pos.model.SalesLine;
-import com.digithink.pos.model.UserAccount;
 import com.digithink.pos.model.Warranty;
-import com.digithink.pos.model.enumeration.Role;
-import com.digithink.pos.security.CurrentUserProvider;
 import com.digithink.pos.service.WarrantyService;
 
 import lombok.extern.log4j.Log4j2;
@@ -35,22 +32,11 @@ public class WarrantyAPI {
 	@Autowired
 	private WarrantyService warrantyService;
 
-	@Autowired
-	private CurrentUserProvider currentUserProvider;
-
-	private boolean isAdminOrResponsible() {
-		UserAccount user = currentUserProvider.getCurrentUser();
-		return user != null && (user.getRole() == Role.ADMIN || user.getRole() == Role.RESPONSIBLE);
-	}
-
 	/**
 	 * Get ticket details by ticket number (for warranty registration). Returns sale and lines; optionally existing warranties for this ticket.
 	 */
 	@GetMapping("/ticket-details")
 	public ResponseEntity<?> getTicketDetails(@RequestParam String ticketNumber) {
-		if (!isAdminOrResponsible()) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(createErrorResponse("Access denied. Admin or Responsible role required."));
-		}
 		try {
 			log.info("WarrantyAPI::getTicketDetails: ticketNumber={}", ticketNumber);
 			SalesHeader salesHeader = warrantyService.findSalesHeaderByTicketNumber(ticketNumber)
@@ -90,9 +76,6 @@ public class WarrantyAPI {
 	 */
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody Map<String, Object> body) {
-		if (!isAdminOrResponsible()) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(createErrorResponse("Access denied. Admin or Responsible role required."));
-		}
 		try {
 			Long salesLineId = body.get("salesLineId") != null ? Long.valueOf(body.get("salesLineId").toString()) : null;
 			if (salesLineId == null) {
@@ -126,9 +109,6 @@ public class WarrantyAPI {
 	@GetMapping
 	public ResponseEntity<?> list(@RequestParam(required = false) String ticketNumber,
 			@RequestParam(required = false) String status) {
-		if (!isAdminOrResponsible()) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(createErrorResponse("Access denied. Admin or Responsible role required."));
-		}
 		try {
 			List<Warranty> list = ticketNumber != null && !ticketNumber.trim().isEmpty()
 					? warrantyService.findByTicketNumber(ticketNumber.trim())
@@ -163,9 +143,6 @@ public class WarrantyAPI {
 
 	@GetMapping("/{id}")
 	public ResponseEntity<?> getById(@PathVariable Long id) {
-		if (!isAdminOrResponsible()) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(createErrorResponse("Access denied. Admin or Responsible role required."));
-		}
 		return warrantyService.findById(id)
 				.map(ResponseEntity::ok)
 				.orElse(ResponseEntity.notFound().build());
@@ -176,9 +153,6 @@ public class WarrantyAPI {
 	 */
 	@PatchMapping("/{id}/use")
 	public ResponseEntity<?> markAsUsed(@PathVariable Long id) {
-		if (!isAdminOrResponsible()) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(createErrorResponse("Access denied. Admin or Responsible role required."));
-		}
 		try {
 			Warranty w = warrantyService.markAsUsed(id);
 			return ResponseEntity.ok(w);

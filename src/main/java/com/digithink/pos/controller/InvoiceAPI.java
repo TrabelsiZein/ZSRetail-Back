@@ -25,7 +25,6 @@ import com.digithink.pos.model.Customer;
 import com.digithink.pos.model.InvoiceHeader;
 import com.digithink.pos.model.SalesHeader;
 import com.digithink.pos.model.enumeration.InvoiceLineGroupingMode;
-import com.digithink.pos.model.enumeration.Role;
 import com.digithink.pos.security.CurrentUserProvider;
 import com.digithink.pos.service.InvoiceService;
 import com.digithink.pos.service.InvoiceService.InvoiceSnapshotData;
@@ -79,8 +78,6 @@ public class InvoiceAPI {
 			log.info("InvoiceAPI::listInvoices from={}, to={}, customerId={}, invoiceNumber={}, page={}, size={}",
 					from, to, customerId, invoiceNumber, page, size);
 
-			ensureAdminAccess();
-
 			LocalDate fromDate = (from != null && !from.trim().isEmpty()) ? LocalDate.parse(from) : null;
 			LocalDate toDate = (to != null && !to.trim().isEmpty()) ? LocalDate.parse(to) : null;
 
@@ -121,8 +118,6 @@ public class InvoiceAPI {
 			log.info("InvoiceAPI::getEligibleTickets customerId={}, dateFrom={}, dateTo={}", customerId, dateFrom,
 					dateTo);
 
-			ensureAdminAccess();
-
 			if (!applicationModeService.isStandalone()) {
 				return ResponseEntity.status(HttpStatus.FORBIDDEN)
 						.body(createErrorResponse("Invoice creation from POS is only available in standalone mode."));
@@ -155,8 +150,6 @@ public class InvoiceAPI {
 			log.info("InvoiceAPI::createInvoice customerId={}, tickets={}",
 					request.getCustomerId(),
 					request.getTicketIds() != null ? request.getTicketIds().size() : 0);
-
-			ensureAdminAccess();
 
 			if (!applicationModeService.isStandalone()) {
 				return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -208,8 +201,6 @@ public class InvoiceAPI {
 			@RequestBody(required = false) Map<String, Object> body) {
 		try {
 			log.info("InvoiceAPI::createInvoiceFromTicket ticketId={}", ticketId);
-
-			ensureAdminAccess();
 
 			if (!applicationModeService.isStandalone()) {
 				return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -263,7 +254,6 @@ public class InvoiceAPI {
 	public ResponseEntity<?> getInvoiceDetails(@PathVariable Long id) {
 		try {
 			log.info("InvoiceAPI::getInvoiceDetails id={}", id);
-			ensureAdminAccess();
 			Map<String, Object> details = service.getInvoiceDetails(id);
 			return ResponseEntity.ok(details);
 		} catch (IllegalArgumentException e) {
@@ -299,14 +289,6 @@ public class InvoiceAPI {
 				h.getLineGroupingMode(),
 				h.getFranchiseLocationCode(),
 				h.getFranchiseReceivedAt());
-	}
-
-	private void ensureAdminAccess() {
-		var user = currentUserProvider.getCurrentUser();
-		if (user == null || user.getRole() != Role.ADMIN) {
-			throw new org.springframework.web.server.ResponseStatusException(HttpStatus.FORBIDDEN,
-					"Access denied: admin role required");
-		}
 	}
 
 	protected String getDetailedMessage(Throwable e) {

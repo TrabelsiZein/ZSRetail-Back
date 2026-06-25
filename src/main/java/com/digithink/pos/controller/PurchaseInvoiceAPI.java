@@ -25,7 +25,6 @@ import com.digithink.pos.model.PurchaseHeader;
 import com.digithink.pos.model.PurchaseInvoiceHeader;
 import com.digithink.pos.model.Vendor;
 import com.digithink.pos.model.enumeration.InvoiceLineGroupingMode;
-import com.digithink.pos.model.enumeration.Role;
 import com.digithink.pos.security.CurrentUserProvider;
 import com.digithink.pos.service.InvoiceService.InvoiceSnapshotData;
 import com.digithink.pos.service.PurchaseInvoiceService;
@@ -57,14 +56,6 @@ public class PurchaseInvoiceAPI {
 		}
 	}
 
-	private void ensureAdminAccess() {
-		var user = currentUserProvider.getCurrentUser();
-		if (user == null || user.getRole() != Role.ADMIN) {
-			throw new org.springframework.web.server.ResponseStatusException(HttpStatus.FORBIDDEN,
-					"Access denied: admin role required");
-		}
-	}
-
 	@Data
 	public static class CreatePurchaseInvoiceRequest {
 		private Long vendorId;
@@ -91,7 +82,6 @@ public class PurchaseInvoiceAPI {
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "20") int size) {
 		try {
-			ensureAdminAccess();
 			ensureStandalone();
 
 			LocalDate fromDate = (from != null && !from.trim().isEmpty()) ? LocalDate.parse(from) : null;
@@ -133,7 +123,6 @@ public class PurchaseInvoiceAPI {
 			@RequestParam(required = false) String dateFrom,
 			@RequestParam(required = false) String dateTo) {
 		try {
-			ensureAdminAccess();
 			ensureStandalone();
 
 			LocalDate from = (dateFrom != null && !dateFrom.trim().isEmpty()) ? LocalDate.parse(dateFrom) : null;
@@ -163,7 +152,6 @@ public class PurchaseInvoiceAPI {
 	@PostMapping
 	public ResponseEntity<?> createPurchaseInvoice(@RequestBody CreatePurchaseInvoiceRequest request) {
 		try {
-			ensureAdminAccess();
 			ensureStandalone();
 
 			if (request.getVendorId() == null) {
@@ -211,7 +199,6 @@ public class PurchaseInvoiceAPI {
 	@GetMapping("/{id}/details")
 	public ResponseEntity<?> getPurchaseInvoiceDetails(@PathVariable Long id) {
 		try {
-			ensureAdminAccess();
 			ensureStandalone();
 
 			Map<String, Object> details = purchaseInvoiceService.getPurchaseInvoiceDetails(id);

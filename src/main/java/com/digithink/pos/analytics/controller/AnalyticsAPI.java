@@ -5,15 +5,12 @@ import com.digithink.pos.analytics.dto.PaymentBreakdownDTO;
 import com.digithink.pos.analytics.dto.SalesTrendPointDTO;
 import com.digithink.pos.analytics.dto.TopProductDTO;
 import com.digithink.pos.analytics.service.AnalyticsService;
-import com.digithink.pos.model.UserAccount;
-import com.digithink.pos.model.enumeration.Role;
 import com.digithink.pos.security.CurrentUserProvider;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,17 +24,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class AnalyticsAPI {
 
 	private final AnalyticsService analyticsService;
-	private final CurrentUserProvider currentUserProvider;
-
-	private boolean hasAnalyticsAccess() {
-		try {
-			UserAccount currentUser = currentUserProvider.getCurrentUser();
-			return currentUser != null && (currentUser.getRole() == Role.ADMIN
-					|| currentUser.getRole() == Role.RESPONSIBLE);
-		} catch (Exception e) {
-			return false;
-		}
-	}
 
 	private static LocalDate parseLocalDate(String value) {
 		try {
@@ -51,11 +37,6 @@ public class AnalyticsAPI {
 	public ResponseEntity<?> getSummary(
 			@RequestParam String from,
 			@RequestParam String to) {
-		if (!hasAnalyticsAccess()) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body("Only administrators and responsible users can access analytics");
-		}
-
 		try {
 			LocalDate fromDate = parseLocalDate(from);
 			LocalDate toDate = parseLocalDate(to);
@@ -73,11 +54,6 @@ public class AnalyticsAPI {
 	public ResponseEntity<?> getSalesTrend(
 			@RequestParam String from,
 			@RequestParam String to) {
-		if (!hasAnalyticsAccess()) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body("Only administrators and responsible users can access analytics");
-		}
-
 		try {
 			LocalDate fromDate = parseLocalDate(from);
 			LocalDate toDate = parseLocalDate(to);
@@ -96,11 +72,6 @@ public class AnalyticsAPI {
 			@RequestParam String from,
 			@RequestParam String to,
 			@RequestParam(defaultValue = "5") int limit) {
-		if (!hasAnalyticsAccess()) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body("Only administrators and responsible users can access analytics");
-		}
-
 		try {
 			if (limit > 10) {
 				limit = 10; // MVP safety clamp
@@ -125,11 +96,6 @@ public class AnalyticsAPI {
 	public ResponseEntity<?> getPaymentBreakdown(
 			@RequestParam String from,
 			@RequestParam String to) {
-		if (!hasAnalyticsAccess()) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body("Only administrators and responsible users can access analytics");
-		}
-
 		try {
 			LocalDate fromDate = parseLocalDate(from);
 			LocalDate toDate = parseLocalDate(to);

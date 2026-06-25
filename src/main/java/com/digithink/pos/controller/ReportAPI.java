@@ -19,9 +19,6 @@ import com.digithink.pos.dto.report.SalesReportRowDTO;
 import com.digithink.pos.dto.report.SessionReportRowDTO;
 import com.digithink.pos.dto.report.StockMovementReportRowDTO;
 import com.digithink.pos.dto.report.StockReportRowDTO;
-import com.digithink.pos.model.UserAccount;
-import com.digithink.pos.model.enumeration.Role;
-import com.digithink.pos.security.CurrentUserProvider;
 import com.digithink.pos.service.ReportService;
 
 import lombok.RequiredArgsConstructor;
@@ -34,33 +31,12 @@ import lombok.extern.log4j.Log4j2;
 public class ReportAPI {
 
     private final ReportService reportService;
-    private final CurrentUserProvider currentUserProvider;
-
-    private boolean isAdmin() {
-        try {
-            UserAccount currentUser = currentUserProvider.getCurrentUser();
-            return currentUser != null && currentUser.getRole() == Role.ADMIN;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private boolean isAdminOrResponsible() {
-        try {
-            UserAccount currentUser = currentUserProvider.getCurrentUser();
-            return currentUser != null &&
-                    (currentUser.getRole() == Role.ADMIN || currentUser.getRole() == Role.RESPONSIBLE);
-        } catch (Exception e) {
-            return false;
-        }
-    }
 
     @GetMapping("/sales")
     public ResponseEntity<?> getSalesReport(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
             @RequestParam(defaultValue = "ITEM") String groupBy) {
-        if (!isAdminOrResponsible()) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         try {
             List<SalesReportRowDTO> data = reportService.getSalesReport(dateFrom, dateTo, groupBy);
             return ResponseEntity.ok(data);
@@ -75,7 +51,6 @@ public class ReportAPI {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
             @RequestParam(defaultValue = "ITEM") String groupBy) {
-        if (!isAdmin()) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         try {
             List<PurchaseReportRowDTO> data = reportService.getPurchaseReport(dateFrom, dateTo, groupBy);
             return ResponseEntity.ok(data);
@@ -89,7 +64,6 @@ public class ReportAPI {
     public ResponseEntity<?> getStockReport(
             @RequestParam(defaultValue = "ITEM") String groupBy,
             @RequestParam(required = false) Boolean belowMinStock) {
-        if (!isAdmin()) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         try {
             List<StockReportRowDTO> data = reportService.getStockReport(groupBy, belowMinStock);
             return ResponseEntity.ok(data);
@@ -105,7 +79,6 @@ public class ReportAPI {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
             @RequestParam(defaultValue = "ITEM") String groupBy,
             @RequestParam(required = false) String movementType) {
-        if (!isAdmin()) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         try {
             List<StockMovementReportRowDTO> data = reportService.getStockMovementsReport(dateFrom, dateTo, groupBy, movementType);
             return ResponseEntity.ok(data);
@@ -121,7 +94,6 @@ public class ReportAPI {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
             @RequestParam(defaultValue = "MEMBER") String groupBy,
             @RequestParam(required = false) String transactionType) {
-        if (!isAdminOrResponsible()) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         try {
             List<LoyaltyReportRowDTO> data = reportService.getLoyaltyReport(dateFrom, dateTo, groupBy, transactionType);
             return ResponseEntity.ok(data);
@@ -135,7 +107,6 @@ public class ReportAPI {
     public ResponseEntity<?> getPromotionReport(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
-        if (!isAdminOrResponsible()) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         try {
             List<PromotionReportRowDTO> data = reportService.getPromotionReport(dateFrom, dateTo);
             return ResponseEntity.ok(data);
@@ -150,7 +121,6 @@ public class ReportAPI {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
             @RequestParam(defaultValue = "CASHIER") String groupBy) {
-        if (!isAdminOrResponsible()) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         try {
             List<SessionReportRowDTO> data = reportService.getSessionReport(dateFrom, dateTo, groupBy);
             return ResponseEntity.ok(data);
