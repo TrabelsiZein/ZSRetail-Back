@@ -137,7 +137,7 @@ public class UserAccountAPI {
 			if (request.getPassword() == null || request.getPassword().trim().isEmpty()) {
 				return ResponseEntity.badRequest().body(createErrorResponse("Password is required"));
 			}
-			if (request.getRole() == null) {
+			if (request.getAppRoleId() == null) {
 				return ResponseEntity.badRequest().body(createErrorResponse("Role is required"));
 			}
 
@@ -176,7 +176,20 @@ public class UserAccountAPI {
 					user.setPassword(password);
 				}
 			}
-			if (request.containsKey("role")) {
+			if (request.containsKey("appRoleId")) {
+				Object appRoleObj = request.get("appRoleId");
+				Long appRoleId = null;
+				if (appRoleObj instanceof Number) {
+					appRoleId = ((Number) appRoleObj).longValue();
+				} else if (appRoleObj instanceof String && !((String) appRoleObj).trim().isEmpty()) {
+					appRoleId = Long.valueOf(((String) appRoleObj).trim());
+				}
+				if (appRoleId != null) {
+					// Sets the AppRole (permissions source) and keeps the legacy Role enum in sync.
+					userAccountService.applyAppRole(user, appRoleId);
+				}
+			} else if (request.containsKey("role")) {
+				// Backward compatibility: legacy callers that still send only the Role enum.
 				Object roleObj = request.get("role");
 				if (roleObj instanceof String) {
 					user.setRole(Role.valueOf((String) roleObj));

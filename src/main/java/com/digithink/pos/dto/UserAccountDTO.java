@@ -19,8 +19,13 @@ public class UserAccountDTO {
 	private String fullName;
 	private String email;
 	private Boolean active;
-	private Role role;
-	
+	private Role role; // legacy enum (backward compat)
+
+	// Dynamic role assignment
+	private Long appRoleId;
+	private String appRoleName;
+	private String appRoleLabel;
+
 	// Badge-related fields
 	private String badgeCode;
 	private String badgePermissions; // Comma-separated string
@@ -38,7 +43,13 @@ public class UserAccountDTO {
 		dto.setEmail(user.getEmail());
 		dto.setActive(user.getActive());
 		dto.setRole(user.getRole());
-		
+
+		if (user.getAppRole() != null) {
+			dto.setAppRoleId(user.getAppRole().getId());
+			dto.setAppRoleName(user.getAppRole().getName());
+			dto.setAppRoleLabel(user.getAppRole().getLabel());
+		}
+
 		// Badge fields
 		dto.setBadgeCode(user.getBadgeCode());
 		dto.setBadgePermissions(user.getBadgePermissions());

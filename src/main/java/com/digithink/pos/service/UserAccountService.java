@@ -12,7 +12,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.digithink.pos.dto.CreateUserRequestDTO;
 import com.digithink.pos.dto.UserAccountDTO;
+import com.digithink.pos.model.AppRole;
 import com.digithink.pos.model.UserAccount;
+import com.digithink.pos.model.enumeration.Role;
+import com.digithink.pos.repository.AppRoleRepository;
 import com.digithink.pos.repository.UserAccountRepository;
 import com.digithink.pos.repository._BaseRepository;
 
@@ -27,6 +30,9 @@ public class UserAccountService extends _BaseService<UserAccount, Long> {
 
 	@Autowired
 	private PasswordEncoder passwordEncoder;
+
+	@Autowired
+	private AppRoleRepository appRoleRepository;
 
 	@Override
 	protected _BaseRepository<UserAccount, Long> getRepository() {
@@ -82,13 +88,41 @@ public class UserAccountService extends _BaseService<UserAccount, Long> {
 		user.setFullName(request.getFullName());
 		user.setEmail(request.getEmail());
 		user.setPassword(request.getPassword());
-		user.setRole(request.getRole());
 		user.setActive(true);
+
+		// Assign the dynamic AppRole (source of permissions) and keep the legacy enum in sync.
+		if (request.getAppRoleId() != null) {
+			applyAppRole(user, request.getAppRoleId());
+		} else {
+			// Backward compatibility: legacy callers that still send only the Role enum.
+			user.setRole(request.getRole());
+		}
 
 		// Save user (password will be encrypted in save method)
 		UserAccount savedUser = save(user);
-		
+
 		return UserAccountDTO.fromEntity(savedUser);
+	}
+
+	/**
+	 * Assign the given AppRole to a user and keep the legacy {@link Role} enum in sync.
+	 * The enum is still consulted by ERP-admin endpoints and badge logic, so it must stay set.
+	 * Built-in role names (ADMIN/RESPONSIBLE/POS_USER) map to the matching enum; custom roles
+	 * map to POS_USER when they target the cashier interface, otherwise RESPONSIBLE.
+	 */
+	public void applyAppRole(UserAccount user, Long appRoleId) {
+		AppRole appRole = appRoleRepository.findById(appRoleId)
+				.orElseThrow(() -> new RuntimeException("Role not found with id: " + appRoleId));
+		user.setAppRole(appRole);
+		user.setRole(deriveLegacyRole(appRole));
+	}
+
+	private Role deriveLegacyRole(AppRole appRole) {
+		try {
+			return Role.valueOf(appRole.getName());
+		} catch (IllegalArgumentException ex) {
+			return Boolean.TRUE.equals(appRole.getIsPosRole()) ? Role.POS_USER : Role.RESPONSIBLE;
+		}
 	}
 
 	/**

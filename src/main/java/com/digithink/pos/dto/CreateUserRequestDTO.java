@@ -15,5 +15,6 @@ public class CreateUserRequestDTO {
 	private String password;
 	private String fullName;
 	private String email;
-	private Role role;
+	private Role role; // legacy/optional — kept for backward compat
+	private Long appRoleId; // dynamic AppRole assignment (source of permissions)
 }
