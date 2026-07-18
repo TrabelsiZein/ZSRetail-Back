@@ -13,6 +13,7 @@ import javax.persistence.Transient;
 import com.digithink.pos.model.enumeration.SynchronizationStatus;
 import com.digithink.pos.model.LoyaltyMember;
 import com.digithink.pos.model.enumeration.TransactionStatus;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -120,9 +121,12 @@ public class SalesHeader extends _BaseEntity {
 	/**
 	 * Cart-level promotion that produced the header discount.
 	 * Set only when discountSource = PROMOTION.
+	 * groupItems/getItem are excluded from serialization here so ticket responses
+	 * keep their pre-1.10 shape and never lazy-load the group member list.
 	 */
 	@ManyToOne
 	@JoinColumn(name = "promotion_id")
+	@JsonIgnoreProperties({"groupItems", "getItem"})
 	private Promotion promotion;
 
 	/**

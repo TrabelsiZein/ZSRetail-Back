@@ -87,6 +87,7 @@ public class PriceCalculateController {
 
 			CartCalculateResponseDTO response = promotionCalculationService.calculateCartPromotion(
 					request.getCartTotal(),
+					request.getCartItems(),
 					request.getAppliedCodes());
 
 			return ResponseEntity.ok(response);

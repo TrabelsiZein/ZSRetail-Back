@@ -5,6 +5,7 @@ package com.digithink.pos.model.enumeration;
  */
 public enum PromotionScope {
 	ITEM("Item"),
+	ITEM_GROUP("Item Group"),
 	ITEM_FAMILY("Item Family"),
 	ITEM_SUBFAMILY("Item SubFamily"),
 	CART("Cart");

@@ -2,13 +2,18 @@ package com.digithink.pos.model;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.HashSet;
+import java.util.Set;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
+import javax.persistence.FetchType;
 import javax.persistence.Index;
 import javax.persistence.JoinColumn;
+import javax.persistence.JoinTable;
+import javax.persistence.ManyToMany;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
 
@@ -91,6 +96,41 @@ public class Promotion extends _BaseEntity {
 	@ManyToOne
 	@JoinColumn(name = "item_sub_family_id")
 	private ItemSubFamily itemSubFamily;
+
+	/**
+	 * Populated when scope = ITEM_GROUP — an arbitrary curated set of items this
+	 * promotion targets (not necessarily a family/subfamily).
+	 * Kept LAZY and excluded from equals/hashCode/toString so the POS scan path
+	 * (which matches promotions by item/family/subfamily FK) never loads it.
+	 */
+	@ManyToMany(fetch = FetchType.LAZY)
+	@JoinTable(
+		name = "promotion_group_item",
+		joinColumns = @JoinColumn(name = "promotion_id"),
+		inverseJoinColumns = @JoinColumn(name = "item_id"),
+		indexes = @Index(name = "idx_promo_group_item_item", columnList = "item_id"))
+	// Admin UI only needs id/itemCode/name per member — keep the JSON payload flat
+	@com.fasterxml.jackson.annotation.JsonIgnoreProperties({"itemFamily", "itemSubFamily"})
+	@lombok.ToString.Exclude
+	@lombok.EqualsAndHashCode.Exclude
+	private Set<Item> groupItems = new HashSet<>();
+
+	/**
+	 * Optional cross-product benefit target (QUANTITY_PROMOTION only).
+	 * When set, the benefit (percentage / fixed / free units) applies to THIS
+	 * item instead of the purchased one: "buy N of <target> → benefit on getItem".
+	 * Null = benefit applies to the purchased product itself (previous behavior).
+	 * Cross-product promotions are evaluated exclusively by the cart pass —
+	 * the per-item scan path skips them so the buy line is never discounted.
+	 * LAZY: the scan path only null-checks / reads the id, which a proxy
+	 * serves without loading the Item (and its EAGER family/subfamily).
+	 */
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "get_item_id")
+	@com.fasterxml.jackson.annotation.JsonIgnoreProperties(
+			{"itemFamily", "itemSubFamily", "hibernateLazyInitializer", "handler"})
+	@lombok.ToString.Exclude
+	private Item getItem;
 
 	// ─── Thresholds (conditions) ──────────────────────────────────────────────
 

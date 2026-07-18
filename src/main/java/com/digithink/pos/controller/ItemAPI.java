@@ -29,12 +29,15 @@ import com.digithink.pos.dto.StandaloneQuickProductRequestDTO;
 import com.digithink.pos.model.Customer;
 import com.digithink.pos.model.Item;
 import com.digithink.pos.model.ItemBarcode;
+import com.digithink.pos.model.ItemComposition;
+import com.digithink.pos.model.enumeration.ItemType;
 
 import java.util.Optional;
 import com.digithink.pos.repository.CustomerRepository;
 import com.digithink.pos.service.CustomerService;
 import com.digithink.pos.service.GeneralSetupService;
 import com.digithink.pos.service.ItemBarcodeService;
+import com.digithink.pos.service.ItemCompositionService;
 import com.digithink.pos.service.ItemService;
 import com.digithink.pos.service.PricingService;
 import com.digithink.pos.service.StockService;
@@ -60,6 +63,9 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 
 	@Autowired
 	private ItemBarcodeService itemBarcodeService;
+
+	@Autowired
+	private ItemCompositionService itemCompositionService;
 
 	@Autowired
 	private StockService stockService;
@@ -209,10 +215,51 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 				return ResponseEntity.status(HttpStatus.FORBIDDEN)
 						.body(createErrorResponse("Items synced from the franchise admin cannot be deleted."));
 			}
+			// Kit components block deletion (FK); a kit's own recipe is deleted with it
+			if (!itemCompositionService.getCompositionsByComponentItemId(id).isEmpty()) {
+				return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(
+						"Cet article est un composant d'un pack — retirez-le du pack avant de le supprimer."));
+			}
+			for (ItemComposition composition : itemCompositionService.getCompositionsByParentItemId(id)) {
+				itemCompositionService.deleteById(composition.getId());
+			}
 			service.deleteById(id);
 			return ResponseEntity.noContent().build();
 		} catch (Exception e) {
 			log.error("ItemAPI::deleteById:error: " + getDetailedMessage(e), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/**
+	 * Toggle the Pack (kit) flag on an item. Intentionally allowed in ALL modes
+	 * (including ERP): the pack concept is POS-only — ERP sync never reads or
+	 * writes the type field, so flipping it does not conflict with NAV data.
+	 * Only the type field is changed; every other field keeps its current value.
+	 */
+	@PutMapping("/{id}/package-flag")
+	public ResponseEntity<?> setPackageFlag(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+		try {
+			log.info("ItemAPI::setPackageFlag::" + id);
+			boolean isPackage = Boolean.TRUE.equals(body.get("isPackage"));
+			Optional<Item> existing = service.findById(id);
+			if (!existing.isPresent()) {
+				return ResponseEntity.notFound().build();
+			}
+			Item item = existing.get();
+			if (isPackage) {
+				if (!itemCompositionService.getCompositionsByComponentItemId(id).isEmpty()) {
+					return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(
+							"Cet article est un composant d'un pack — il ne peut pas devenir un pack lui-même."));
+				}
+				item.setType(ItemType.PACKAGE);
+			} else {
+				item.setType(ItemType.PRODUCT);
+			}
+			Item updated = service.save(item);
+			return ResponseEntity.ok(updated);
+		} catch (Exception e) {
+			log.error("ItemAPI::setPackageFlag:error: " + getDetailedMessage(e), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
 		}
 	}
@@ -236,6 +283,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 				dto.put("itemCode", item.getItemCode());
 				dto.put("name", item.getName());
 				dto.put("unitPrice", item.getUnitPrice() != null ? item.getUnitPrice() : 0.0);
+				dto.put("type", item.getType() != null ? item.getType().name() : null);
 				dto.put("lastDirectCost", item.getLastDirectCost());
 				dto.put("lastDirectNetCost", item.getLastDirectNetCost());
 				dto.put("defaultVAT", item.getDefaultVAT() != null ? item.getDefaultVAT() : 0);

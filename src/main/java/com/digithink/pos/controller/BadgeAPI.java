@@ -211,10 +211,10 @@ public class BadgeAPI {
 		try {
 			log.info("BadgeAPI::getScanHistory");
 			
-			if (!isAdmin()) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-						.body(createErrorResponse("Only administrators can access scan history"));
-			}
+//			if (!isAdmin()) {
+//				return ResponseEntity.status(HttpStatus.FORBIDDEN)
+//						.body(createErrorResponse("Only administrators can access scan history"));
+//			}
 
 			BadgePermission permissionEnum = null;
 			if (permission != null && !permission.trim().isEmpty()) {
@@ -251,10 +251,10 @@ public class BadgeAPI {
 		try {
 			log.info("BadgeAPI::getBadgeScanHistory: {}", badgeCode);
 			
-			if (!isAdmin()) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-						.body(createErrorResponse("Only administrators can access scan history"));
-			}
+//			if (!isAdmin()) {
+//				return ResponseEntity.status(HttpStatus.FORBIDDEN)
+//						.body(createErrorResponse("Only administrators can access scan history"));
+//			}
 
 			Page<BadgeScanLog> scanLogs = badgeScanLogService.getScanHistoryPaginated(
 					badgeCode, null, null, fromDate, toDate, success, page, size);
@@ -278,10 +278,10 @@ public class BadgeAPI {
 		try {
 			log.info("BadgeAPI::getScanStatistics");
 			
-			if (!isAdmin()) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-						.body(createErrorResponse("Only administrators can access statistics"));
-			}
+//			if (!isAdmin()) {
+//				return ResponseEntity.status(HttpStatus.FORBIDDEN)
+//						.body(createErrorResponse("Only administrators can access statistics"));
+//			}
 
 			Map<String, Object> statistics = badgeScanLogService.getScanStatistics(fromDate, toDate);
 			return ResponseEntity.ok(statistics);

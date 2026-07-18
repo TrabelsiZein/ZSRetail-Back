@@ -6,6 +6,7 @@ import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -70,8 +71,11 @@ public class SalesLine extends _BaseEntity {
 	/**
 	 * Promotion that produced the discount on this line. Set only when
 	 * discountSource = PROMOTION.
+	 * groupItems/getItem are excluded from serialization here so ticket responses
+	 * keep their pre-1.10 shape and never lazy-load the group member list.
 	 */
 	@ManyToOne
 	@JoinColumn(name = "promotion_id")
+	@JsonIgnoreProperties({"groupItems", "getItem"})
 	private Promotion promotion;
 }

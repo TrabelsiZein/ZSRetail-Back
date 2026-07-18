@@ -10,12 +10,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import com.digithink.pos.dto.CartCalculateRequestDTO;
 import com.digithink.pos.dto.CartCalculateResponseDTO;
+import com.digithink.pos.dto.CrossProductAdjustmentDTO;
 import com.digithink.pos.dto.PriceCalculateResponseDTO;
 import com.digithink.pos.dto.PricingResult;
 import com.digithink.pos.model.Customer;
@@ -41,7 +44,7 @@ import lombok.extern.log4j.Log4j2;
  * Cart promotions (CART scope) are independent and always considered.
  *
  * Promotion selection:
- *   - Scope priority: ITEM > ITEM_SUBFAMILY > ITEM_FAMILY (most specific wins)
+ *   - Scope priority: ITEM > ITEM_GROUP > ITEM_SUBFAMILY > ITEM_FAMILY (most specific wins)
  *   - Within scope: highest priority wins (ABSOLUTE — no best-value override)
  *   - requiresCode promotions: only active when their code is in appliedCodes
  *   - Filters: active + date valid + time valid + day valid + minimum quantity met
@@ -173,26 +176,33 @@ public class PromotionCalculationService {
 	// ─── Cart Promotion Calculation ──────────────────────────────────────────────
 
 	/**
-	 * Calculate the best CART-scope promotion for the current cart.
-	 * Called when the cashier clicks "Proceed to Payment" or enters a CART-scoped promo code.
+	 * Calculate the best CART-scope promotion for the current cart, plus any
+	 * cross-product adjustments ("buy N of A → benefit on Z") triggered by the
+	 * cart lines. Called on cart changes, promo-code entry, and before payment.
 	 *
 	 * @param cartTotal    Cart total TTC (after all line-level discounts)
+	 * @param cartItems    Current cart lines (auto-added free lines excluded by the POS)
 	 * @param appliedCodes List of promo codes entered by the cashier
 	 * @return Cart discount result (cartDiscountAmount=0 if no promotion matched)
 	 */
-	public CartCalculateResponseDTO calculateCartPromotion(Double cartTotal, List<String> appliedCodes) {
+	public CartCalculateResponseDTO calculateCartPromotion(Double cartTotal,
+			List<CartCalculateRequestDTO.CartItemDTO> cartItems, List<String> appliedCodes) {
 		CartCalculateResponseDTO response = new CartCalculateResponseDTO();
 		response.setCartDiscountAmount(0.0);
 		response.setFinalTotal(cartTotal != null ? cartTotal : 0.0);
-
-		if (cartTotal == null || cartTotal <= 0) {
-			return response;
-		}
 
 		LocalDate today = LocalDate.now();
 		LocalTime now = LocalTime.now();
 		DayOfWeek todayDay = today.getDayOfWeek();
 		List<String> codes = (appliedCodes != null) ? appliedCodes : new ArrayList<>();
+
+		// Cross-product benefits are independent of the CART-scope promotion below
+		response.setCrossProductAdjustments(
+				evaluateCrossProductPromotions(cartItems, codes, today, now, todayDay));
+
+		if (cartTotal == null || cartTotal <= 0) {
+			return response;
+		}
 
 		// Find all active CART-scope promotions valid today
 		List<Promotion> cartPromos = promotionRepository.findActiveByScope(PromotionScope.CART, today);
@@ -302,15 +312,130 @@ public class PromotionCalculationService {
 		result.put("itemId", p.getItem() != null ? p.getItem().getId() : null);
 		result.put("itemFamilyId", p.getItemFamily() != null ? p.getItemFamily().getId() : null);
 		result.put("itemSubFamilyId", p.getItemSubFamily() != null ? p.getItemSubFamily().getId() : null);
+		result.put("groupItemIds", p.getScope() == PromotionScope.ITEM_GROUP
+				? p.getGroupItems().stream().map(Item::getId).collect(Collectors.toList())
+				: null);
+		result.put("getItemId", p.getGetItem() != null ? p.getGetItem().getId() : null);
 
 		return result;
+	}
+
+	// ─── Cross-Product Promotions ("buy N of A → benefit on Z") ─────────────────
+
+	/**
+	 * Evaluate active cross-product quantity promotions against the cart lines.
+	 * Entitlement per promotion = sum over matching buy lines of
+	 * floor(lineQuantity / minimumQuantity). One adjustment per get-item:
+	 * the highest-priority matching promotion wins.
+	 */
+	private List<CrossProductAdjustmentDTO> evaluateCrossProductPromotions(
+			List<CartCalculateRequestDTO.CartItemDTO> cartItems, List<String> codes,
+			LocalDate today, LocalTime now, DayOfWeek todayDay) {
+
+		List<CrossProductAdjustmentDTO> adjustments = new ArrayList<>();
+		if (cartItems == null || cartItems.isEmpty()) {
+			return adjustments;
+		}
+
+		List<Promotion> crossPromos = promotionRepository.findActiveCrossProductPromotions(today);
+		if (crossPromos.isEmpty()) {
+			return adjustments;
+		}
+
+		// Load the cart's items once for buy-target matching (family/subfamily/group)
+		List<Long> cartItemIds = cartItems.stream()
+				.map(CartCalculateRequestDTO.CartItemDTO::getItemId)
+				.filter(id -> id != null)
+				.distinct()
+				.collect(Collectors.toList());
+		Map<Long, Item> itemsById = itemRepository.findAllById(cartItemIds).stream()
+				.collect(Collectors.toMap(Item::getId, i -> i));
+
+		java.util.Set<Long> targetedGetItems = new java.util.HashSet<>();
+
+		for (Promotion p : crossPromos) { // already ordered by priority DESC
+			if (p.getPromotionType() != com.digithink.pos.model.enumeration.PromotionType.QUANTITY_PROMOTION) continue;
+			if (p.getMinimumQuantity() == null || p.getMinimumQuantity() <= 0) continue;
+			if (p.getGetItem() == null || p.getGetItem().getId() == null) continue;
+			if (!passesCodeFilter(p, codes)) continue;
+			if (!passesTimeFilter(p, now)) continue;
+			if (!passesDayFilter(p, todayDay)) continue;
+
+			Long getItemId = p.getGetItem().getId();
+			if (targetedGetItems.contains(getItemId)) continue; // best promo per get-item already found
+
+			int entitled = 0;
+			for (CartCalculateRequestDTO.CartItemDTO line : cartItems) {
+				if (line.getItemId() == null || line.getQuantity() == null || line.getQuantity() <= 0) continue;
+				// The benefit item itself never counts as buy quantity — otherwise a
+				// family/group buy-side containing the get-item would self-trigger
+				if (line.getItemId().equals(getItemId)) continue;
+				Item cartItem = itemsById.get(line.getItemId());
+				if (cartItem != null && matchesBuyTarget(p, cartItem)) {
+					entitled += line.getQuantity() / p.getMinimumQuantity();
+				}
+			}
+			if (entitled <= 0) continue;
+
+			CrossProductAdjustmentDTO adj = new CrossProductAdjustmentDTO();
+			adj.setPromotionId(p.getId());
+			adj.setPromotionName(p.getName());
+			adj.setPromotionCode(p.getCode());
+			adj.setBenefitType(p.getBenefitType().name());
+			Item getItem = p.getGetItem();
+			adj.setGetItemId(getItem.getId());
+			adj.setGetItemCode(getItem.getItemCode());
+			adj.setGetItemName(getItem.getName());
+			adj.setGetItemUnitPrice(getItem.getUnitPrice());
+			adj.setGetItemDefaultVat(getItem.getDefaultVAT());
+			adj.setEntitledUnits(entitled);
+
+			if (p.getBenefitType() == PromotionBenefitType.FREE_QUANTITY) {
+				int freeUnits = entitled * (p.getFreeQuantity() != null ? p.getFreeQuantity() : 0);
+				if (freeUnits <= 0) continue;
+				adj.setFreeUnits(freeUnits);
+			} else if (p.getBenefitType() == PromotionBenefitType.PERCENTAGE_DISCOUNT) {
+				if (p.getDiscountPercentage() == null || p.getDiscountPercentage() <= 0) continue;
+				adj.setDiscountPercentage(p.getDiscountPercentage());
+			} else { // FIXED_DISCOUNT
+				if (p.getDiscountAmount() == null || p.getDiscountAmount() <= 0) continue;
+				adj.setDiscountAmount(p.getDiscountAmount());
+			}
+
+			adjustments.add(adj);
+			targetedGetItems.add(getItemId);
+
+			log.debug("evaluateCrossProductPromotions: promo '{}' → get item {} entitled={}",
+					p.getName(), getItemId, entitled);
+		}
+
+		return adjustments;
+	}
+
+	/** Does this cart item match the promotion's buy-side target (any scope)? */
+	private boolean matchesBuyTarget(Promotion p, Item item) {
+		switch (p.getScope()) {
+			case ITEM:
+				return p.getItem() != null && p.getItem().getId().equals(item.getId());
+			case ITEM_GROUP:
+				return p.getGroupItems().stream()
+						.anyMatch(gi -> gi.getId() != null && gi.getId().equals(item.getId()));
+			case ITEM_SUBFAMILY:
+				return p.getItemSubFamily() != null && item.getItemSubFamily() != null
+						&& p.getItemSubFamily().getId().equals(item.getItemSubFamily().getId());
+			case ITEM_FAMILY:
+				return p.getItemFamily() != null && item.getItemFamily() != null
+						&& p.getItemFamily().getId().equals(item.getItemFamily().getId());
+			default:
+				return false;
+		}
 	}
 
 	// ─── Private Helpers ────────────────────────────────────────────────────────
 
 	/**
 	 * Find the best promotion for a single item.
-	 * Scope priority: ITEM > ITEM_SUBFAMILY > ITEM_FAMILY (most specific wins).
+	 * Scope priority: ITEM > ITEM_GROUP > ITEM_SUBFAMILY > ITEM_FAMILY (most specific wins).
 	 * Within scope: highest priority wins (ABSOLUTE).
 	 */
 	private Promotion findBestItemPromotion(Item item, int quantity, List<String> codes) {
@@ -322,6 +447,14 @@ public class PromotionCalculationService {
 		if (item.getId() != null) {
 			Promotion best = selectBestFromList(
 					promotionRepository.findActiveByItemId(item.getId(), today),
+					quantity, codes, now, todayDay);
+			if (best != null) return best;
+		}
+
+		// ITEM_GROUP scope (curated set — more specific than taxonomy, less than direct item)
+		if (item.getId() != null) {
+			Promotion best = selectBestFromList(
+					promotionRepository.findActiveByGroupItemId(item.getId(), today),
 					quantity, codes, now, todayDay);
 			if (best != null) return best;
 		}
@@ -353,6 +486,10 @@ public class PromotionCalculationService {
 	private Promotion selectBestFromList(List<Promotion> candidates, int quantity,
 			List<String> codes, LocalTime now, DayOfWeek todayDay) {
 		return candidates.stream()
+				// Cross-product promotions (getItem set) never discount the buy line
+				// itself — they are evaluated by the cart pass and applied to the
+				// get-item's line. Existing promotions all have getItem = null.
+				.filter(p -> p.getGetItem() == null)
 				.filter(p -> passesCodeFilter(p, codes))
 				.filter(p -> passesQuantityFilter(p, quantity))
 				.filter(p -> passesTimeFilter(p, now))

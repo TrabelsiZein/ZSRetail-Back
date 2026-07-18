@@ -1,6 +1,9 @@
 package com.digithink.pos.service;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 import javax.annotation.PostConstruct;
 
@@ -44,23 +47,40 @@ import org.springframework.beans.factory.annotation.Value;
 @Component
 public class ZZDataInitializer {
 
-	@Autowired private UserAccountRepository userRepository;
-	@Autowired private AppRoleRepository appRoleRepository;
-	@Autowired private PasswordEncoder passwordEncoder;
-	@Autowired private PaymentMethodRepository paymentMethodRepository;
-	@Autowired private CustomerRepository customerRepository;
-	@Autowired private ItemRepository itemRepository;
-	@Autowired private ItemFamilyRepository itemFamilyRepository;
-	@Autowired private ItemSubFamilyRepository itemSubFamilyRepository;
-	@Autowired private ItemBarcodeRepository itemBarcodeRepository;
-	@Autowired private LocationRepository locationRepository;
-	@Autowired private GeneralSetupRepository generalSetupRepository;
-	@Autowired private VendorRepository vendorRepository;
-	@Autowired private ErpSyncJobRepository erpSyncJobRepository;
-	@Autowired private ApplicationModeService applicationModeService;
-	@Autowired private CompanyInformationService companyInformationService;
-	@Autowired private AppVersionRepository appVersionRepository;
-	@Autowired private AppReleaseNoteRepository appReleaseNoteRepository;
+	@Autowired
+	private UserAccountRepository userRepository;
+	@Autowired
+	private AppRoleRepository appRoleRepository;
+	@Autowired
+	private PasswordEncoder passwordEncoder;
+	@Autowired
+	private PaymentMethodRepository paymentMethodRepository;
+	@Autowired
+	private CustomerRepository customerRepository;
+	@Autowired
+	private ItemRepository itemRepository;
+	@Autowired
+	private ItemFamilyRepository itemFamilyRepository;
+	@Autowired
+	private ItemSubFamilyRepository itemSubFamilyRepository;
+	@Autowired
+	private ItemBarcodeRepository itemBarcodeRepository;
+	@Autowired
+	private LocationRepository locationRepository;
+	@Autowired
+	private GeneralSetupRepository generalSetupRepository;
+	@Autowired
+	private VendorRepository vendorRepository;
+	@Autowired
+	private ErpSyncJobRepository erpSyncJobRepository;
+	@Autowired
+	private ApplicationModeService applicationModeService;
+	@Autowired
+	private CompanyInformationService companyInformationService;
+	@Autowired
+	private AppVersionRepository appVersionRepository;
+	@Autowired
+	private AppReleaseNoteRepository appReleaseNoteRepository;
 
 	@Value("${app.version:unknown}")
 	private String appVersion;
@@ -82,7 +102,8 @@ public class ZZDataInitializer {
 		// Always run on startup — idempotent (each key guarded by findByCode check)
 		ensureAllGeneralSetupConfigs();
 
-		// Standalone first-run: auto-create passenger customer and wire its code in config
+		// Standalone first-run: auto-create passenger customer and wire its code in
+		// config
 		if (applicationModeService.isStandalone() && customerRepository.count() == 0) {
 			ensurePassengerCustomer();
 		}
@@ -95,7 +116,8 @@ public class ZZDataInitializer {
 			}
 		}
 
-		// Franchise client: ensure vendor seed exists (config keys are in ensureAllGeneralSetupConfigs)
+		// Franchise client: ensure vendor seed exists (config keys are in
+		// ensureAllGeneralSetupConfigs)
 		if (applicationModeService.isFranchiseClient()) {
 			ensureFranchiseClientSetup();
 		}
@@ -111,8 +133,8 @@ public class ZZDataInitializer {
 	}
 
 	/**
-	 * Ensures the three built-in AppRoles exist and migrates existing users.
-	 * Runs on every startup — idempotent.
+	 * Ensures the three built-in AppRoles exist and migrates existing users. Runs
+	 * on every startup — idempotent.
 	 */
 	private void ensureDefaultRoles() {
 		AppRole adminRole = ensureRole("ADMIN", "Administrateur", false, ADMIN_PERMISSIONS);
@@ -123,15 +145,15 @@ public class ZZDataInitializer {
 		userRepository.findAll().forEach(user -> {
 			if (user.getAppRole() == null && user.getRole() != null) {
 				switch (user.getRole()) {
-					case ADMIN:
-						user.setAppRole(adminRole);
-						break;
-					case RESPONSIBLE:
-						user.setAppRole(responsibleRole);
-						break;
-					case POS_USER:
-						appRoleRepository.findByName("POS_USER").ifPresent(user::setAppRole);
-						break;
+				case ADMIN:
+					user.setAppRole(adminRole);
+					break;
+				case RESPONSIBLE:
+					user.setAppRole(responsibleRole);
+					break;
+				case POS_USER:
+					appRoleRepository.findByName("POS_USER").ifPresent(user::setAppRole);
+					break;
 				}
 				user.setUpdatedBy("System");
 				userRepository.save(user);
@@ -151,103 +173,47 @@ public class ZZDataInitializer {
 
 	// ── Default permission sets ────────────────────────────────────────────────
 
-	private static final java.util.Set<String> ADMIN_PERMISSIONS = new java.util.HashSet<>(java.util.Arrays.asList(
-		"read:home",
-		"read:admin-users", "write:admin-users", "delete:admin-users",
-		"read:admin-sessions",
-		"read:admin-sessions-history",
-		"read:tickets-history",
-		"read:admin-item-barcodes",
-		"read:admin-item-management",
-		"read:admin-print-product-labels",
-		"read:admin-item-families",
-		"read:admin-item-subfamilies",
-		"read:admin-customers", "write:admin-customers", "delete:admin-customers",
-		"read:admin-vendors", "write:admin-vendors",
-		"read:admin-locations",
-		"read:admin-sales-prices",
-		"read:admin-sales-discounts",
-		"read:admin-promotions",
-		"read:admin-payment-methods", "write:admin-payment-methods",
-		"read:admin-general-setup",
-		"read:admin-sales",
-		"read:admin-returns",
-		"read:admin-statistics",
-		"read:admin-purchases",
-		"read:purchase-history",
-		"read:purchase-new", "write:purchase-new",
-		"read:vendor-balance",
-		"read:admin-purchase-invoices",
-		"read:admin-warranty", "write:admin-warranty",
-		"read:admin-erp-jobs",
-		"read:admin-erp-communications",
-		"read:admin-invoices",
-		"read:admin-badge-scan-history",
-		"read:admin-loyalty-members", "write:admin-loyalty-members",
-		"read:admin-loyalty-programs", "write:admin-loyalty-programs",
-		"read:admin-loyalty-transactions",
-		"read:admin-loyalty-member-functions", "write:admin-loyalty-member-functions",
-		"read:admin-data-import", "write:admin-data-import",
-		"read:admin-report-sales",
-		"read:admin-report-purchases",
-		"read:admin-report-stock",
-		"read:admin-report-stock-movements",
-		"read:admin-report-loyalty",
-		"read:admin-report-sessions",
-		"read:admin-report-promotions",
-		"read:admin-franchise",
-		"read:admin-franchise-sales-tracking",
-		"read:admin-franchise-sync-dashboard",
-		"read:admin-company-information", "write:admin-company-information",
-		"read:admin-roles", "write:admin-roles", "delete:admin-roles",
-		"read:change-payment-method",
-		"read:view-session-amounts",
-		"read:verify-session",
-		"read:prepare-invoice"
-	));
+	private static final Set<String> ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:home",
+			"read:admin-users", "write:admin-users", "delete:admin-users", "read:admin-sessions",
+			"read:admin-sessions-history", "read:tickets-history", "read:admin-item-barcodes",
+			"read:admin-item-management", "read:admin-print-product-labels", "read:admin-item-families",
+			"read:admin-item-subfamilies", "read:admin-customers", "write:admin-customers", "delete:admin-customers",
+			"read:admin-vendors", "write:admin-vendors", "read:admin-locations", "read:admin-sales-prices",
+			"read:admin-sales-discounts", "read:admin-promotions", "read:admin-payment-methods",
+			"write:admin-payment-methods", "read:admin-general-setup", "read:admin-sales", "read:admin-returns",
+			"read:admin-statistics", "read:admin-purchases", "read:purchase-history", "read:purchase-new",
+			"write:purchase-new", "read:vendor-balance", "read:admin-purchase-invoices", "read:admin-warranty",
+			"write:admin-warranty", "read:admin-erp-jobs", "read:admin-erp-communications", "read:admin-invoices",
+			"read:admin-badge-scan-history", "read:admin-loyalty-members", "write:admin-loyalty-members",
+			"read:admin-loyalty-programs", "write:admin-loyalty-programs", "read:admin-loyalty-transactions",
+			"read:admin-loyalty-member-functions", "write:admin-loyalty-member-functions", "read:admin-data-import",
+			"write:admin-data-import", "read:admin-report-sales", "read:admin-report-purchases",
+			"read:admin-report-stock", "read:admin-report-stock-movements", "read:admin-report-loyalty",
+			"read:admin-report-sessions", "read:admin-report-promotions", "read:admin-franchise",
+			"read:admin-franchise-sales-tracking", "read:admin-franchise-sync-dashboard",
+			"read:admin-company-information", "write:admin-company-information", "read:admin-roles",
+			"write:admin-roles", "delete:admin-roles", "read:change-payment-method", "read:view-session-amounts",
+			"read:verify-session", "read:prepare-invoice"));
 
-	private static final java.util.Set<String> RESPONSIBLE_PERMISSIONS = new java.util.HashSet<>(java.util.Arrays.asList(
-		"read:home",
-		"read:responsible-sessions", "write:responsible-sessions",
-		"read:admin-sessions-history",
-		"read:tickets-history",
-		"read:admin-item-barcodes",
-		"read:admin-item-management",
-		"read:admin-item-families",
-		"read:admin-item-subfamilies",
-		"read:admin-print-product-labels",
-		"read:admin-sales-prices",
-		"read:admin-sales-discounts",
-		"read:admin-promotions",
-		"read:admin-customers", "write:admin-customers", "delete:admin-customers",
-		"read:admin-vendors", "write:admin-vendors",
-		"read:admin-sales",
-		"read:admin-returns",
-		"read:admin-statistics",
-		"read:admin-purchases",
-		"read:purchase-history",
-		"read:purchase-new", "write:purchase-new",
-		"read:vendor-balance",
-		"read:admin-purchase-invoices",
-		"read:admin-warranty", "write:admin-warranty",
-		"read:admin-badge-scan-history",
-		"read:admin-loyalty-members", "write:admin-loyalty-members",
-		"read:admin-loyalty-programs", "write:admin-loyalty-programs",
-		"read:admin-loyalty-transactions",
-		"read:admin-loyalty-member-functions", "write:admin-loyalty-member-functions",
-		"read:admin-report-sales",
-		"read:admin-report-loyalty",
-		"read:admin-report-sessions",
-		"read:admin-report-promotions",
-		"read:admin-franchise",
-		"read:admin-franchise-sales-tracking",
-		"read:admin-franchise-sync-dashboard",
-		"read:verify-session"
-	));
+	private static final java.util.Set<String> RESPONSIBLE_PERMISSIONS = new java.util.HashSet<>(
+			java.util.Arrays.asList("read:home", "read:responsible-sessions", "write:responsible-sessions",
+					"read:admin-sessions-history", "read:tickets-history", "read:admin-item-barcodes",
+					"read:admin-item-management", "read:admin-item-families", "read:admin-item-subfamilies",
+					"read:admin-print-product-labels", "read:admin-sales-prices", "read:admin-sales-discounts",
+					"read:admin-promotions", "read:admin-customers", "write:admin-customers", "delete:admin-customers",
+					"read:admin-vendors", "write:admin-vendors", "read:admin-sales", "read:admin-returns",
+					"read:admin-statistics", "read:admin-purchases", "read:purchase-history", "read:purchase-new",
+					"write:purchase-new", "read:vendor-balance", "read:admin-purchase-invoices", "read:admin-warranty",
+					"write:admin-warranty", "read:admin-badge-scan-history", "read:admin-loyalty-members",
+					"write:admin-loyalty-members", "read:admin-loyalty-programs", "write:admin-loyalty-programs",
+					"read:admin-loyalty-transactions", "read:admin-loyalty-member-functions",
+					"write:admin-loyalty-member-functions", "read:admin-report-sales", "read:admin-report-loyalty",
+					"read:admin-report-sessions", "read:admin-report-promotions", "read:admin-franchise",
+					"read:admin-franchise-sales-tracking", "read:admin-franchise-sync-dashboard",
+					"read:verify-session"));
 
-	private static final java.util.Set<String> POS_PERMISSIONS = new java.util.HashSet<>(java.util.Arrays.asList(
-		"read:cashier-interface"
-	));
+	private static final java.util.Set<String> POS_PERMISSIONS = new java.util.HashSet<>(
+			java.util.Arrays.asList("read:cashier-interface"));
 
 	/**
 	 * Create initial users: Admin, Responsible, POS User
@@ -863,16 +829,15 @@ public class ZZDataInitializer {
 	// ─────────────────────────────────────────────────────────────────────────
 
 	/**
-	 * Ensures every known GeneralSetup config key exists in the database.
-	 * Called unconditionally on every startup — each key is individually guarded
-	 * by a findByCode check, so already-existing entries are never touched.
+	 * Ensures every known GeneralSetup config key exists in the database. Called
+	 * unconditionally on every startup — each key is individually guarded by a
+	 * findByCode check, so already-existing entries are never touched.
 	 * Mode-specific keys are only inserted when the matching mode is active.
 	 */
 	private void ensureAllGeneralSetupConfigs() {
 
 		// ── POS / Location ────────────────────────────────────────────────────
-		ensureConfig("DEFAULT_LOCATION", "", "Default location code for the system",
-				false, ConfigType.STRING);
+		ensureConfig("DEFAULT_LOCATION", "", "Default location code for the system", false, ConfigType.STRING);
 		ensureConfig("PASSENGER_CUSTOMER", "", "Passenger customer code for POS tickets when no customer is selected",
 				false, ConfigType.STRING);
 		ensureConfig("ALWAYS_SHOW_BADGE_SCAN_POPUP", "false",
@@ -886,23 +851,18 @@ public class ZZDataInitializer {
 				false, ConfigType.BOOLEAN);
 
 		// ── Table management ──────────────────────────────────────────────────
-		ensureConfig("TABLE_MANAGEMENT_ENABLED", "false",
-				"Enable table management mode in POS",
-				false, ConfigType.BOOLEAN);
-		ensureConfig("TABLE_MANAGEMENT_TABLE_COUNT", "10",
-				"Number of tables to display in the table selection grid",
+		ensureConfig("TABLE_MANAGEMENT_ENABLED", "false", "Enable table management mode in POS", false,
+				ConfigType.BOOLEAN);
+		ensureConfig("TABLE_MANAGEMENT_TABLE_COUNT", "10", "Number of tables to display in the table selection grid",
 				false, ConfigType.NUMBER);
 
 		// ── Returns ───────────────────────────────────────────────────────────
-		ensureConfig("MAX_DAYS_FOR_RETURN", "10",
-				"Maximum number of days allowed for product returns",
-				false, ConfigType.NUMBER);
-		ensureConfig("ENABLE_SIMPLE_RETURN", "true",
-				"Enable simple return (cash refund without voucher)",
-				false, ConfigType.BOOLEAN);
-		ensureConfig("RETURN_VOUCHER_VALIDITY_DAYS", "30",
-				"Number of days a return voucher remains valid",
-				false, ConfigType.NUMBER);
+		ensureConfig("MAX_DAYS_FOR_RETURN", "10", "Maximum number of days allowed for product returns", false,
+				ConfigType.NUMBER);
+		ensureConfig("ENABLE_SIMPLE_RETURN", "true", "Enable simple return (cash refund without voucher)", false,
+				ConfigType.BOOLEAN);
+		ensureConfig("RETURN_VOUCHER_VALIDITY_DAYS", "30", "Number of days a return voucher remains valid", false,
+				ConfigType.NUMBER);
 		ensureConfig("BLOCK_RETURN_FOR_PROMOTION", "false",
 				"Block returns for items sold via a promotion. When enabled: lines with discount source PROMOTION cannot be returned; tickets with a cart-level promotion are fully blocked.",
 				false, ConfigType.BOOLEAN);
@@ -938,8 +898,7 @@ public class ZZDataInitializer {
 				"Enable tax stamp (timbre fiscal) per receipt. When true, adds configured amount (e.g. 100 millimes in Tunisia) as a line per sale.",
 				false, ConfigType.BOOLEAN);
 		ensureConfig("TAX_STAMP_VALUE_MILLIMES", "100",
-				"Tax stamp amount in millimes (e.g. 100 = 0.100 TND per receipt).",
-				false, ConfigType.NUMBER);
+				"Tax stamp amount in millimes (e.g. 100 = 0.100 TND per receipt).", false, ConfigType.NUMBER);
 		ensureConfig("TAX_STAMP_ERP_ITEM_CODE", "",
 				"ERP item code for the tax stamp line. Used when exporting ticket lines to ERP. Leave empty if not configured.",
 				false, ConfigType.STRING);
@@ -952,8 +911,8 @@ public class ZZDataInitializer {
 				"Show the loyalty points balance (Solde points) on the printed sales ticket when a loyalty member is attached.",
 				false, ConfigType.BOOLEAN);
 		ensureConfig("TICKET_SHOW_LOYALTY_EARNED", "true",
-				"Show the points earned from the current purchase (Points gagnés) on the printed sales ticket.",
-				false, ConfigType.BOOLEAN);
+				"Show the points earned from the current purchase (Points gagnés) on the printed sales ticket.", false,
+				ConfigType.BOOLEAN);
 		ensureConfig("TOMBOLA_ENABLED", "false",
 				"When enabled, a small tombola slip (ticket number + barcode + customer name + phone) is automatically printed alongside the main receipt for tickets attached to a loyalty member.",
 				false, ConfigType.BOOLEAN);
@@ -966,8 +925,8 @@ public class ZZDataInitializer {
 		// ── ERP-only configs ──────────────────────────────────────────────────
 		if (!applicationModeService.isStandalone()) {
 			ensureConfigWithOptions("ERP_SYNC_TRACKING_LEVEL", "ALL",
-					"ERP communication tracking level (ERRORS_ONLY | ERRORS_AND_WARNINGS | ALL)",
-					false, ConfigType.SELECT, "ERRORS_ONLY,ERRORS_AND_WARNINGS,ALL");
+					"ERP communication tracking level (ERRORS_ONLY | ERRORS_AND_WARNINGS | ALL)", false,
+					ConfigType.SELECT, "ERRORS_ONLY,ERRORS_AND_WARNINGS,ALL");
 			ensureConfig("ERP_SKIP_CHEQUE_PAYMENTS", "false",
 					"When enabled, cheque payments (CLIENT_CHEQUE) are excluded from ERP session synchronization. Payment headers and lines for cheques will not be sent to NAV.",
 					false, ConfigType.BOOLEAN);
@@ -987,8 +946,7 @@ public class ZZDataInitializer {
 	/**
 	 * Inserts a GeneralSetup entry if the code does not yet exist.
 	 */
-	private void ensureConfig(String code, String defaultValue, String description,
-			boolean readOnly, ConfigType type) {
+	private void ensureConfig(String code, String defaultValue, String description, boolean readOnly, ConfigType type) {
 		ensureConfigWithOptions(code, defaultValue, description, readOnly, type, null);
 	}
 
@@ -996,8 +954,8 @@ public class ZZDataInitializer {
 	 * Inserts a GeneralSetup entry if the code does not yet exist (SELECT variant
 	 * with comma-separated options).
 	 */
-	private void ensureConfigWithOptions(String code, String defaultValue, String description,
-			boolean readOnly, ConfigType type, String options) {
+	private void ensureConfigWithOptions(String code, String defaultValue, String description, boolean readOnly,
+			ConfigType type, String options) {
 		if (generalSetupRepository.findByCode(code).isPresent()) {
 			return;
 		}
@@ -1026,7 +984,8 @@ public class ZZDataInitializer {
 		Item taxStamp = new Item();
 		taxStamp.setItemCode("TAX_STAMP");
 		taxStamp.setName("Timbre Fiscal");
-		taxStamp.setDescription("Tax stamp (timbre fiscal) added automatically per sale when ENABLE_TAX_STAMP is true.");
+		taxStamp.setDescription(
+				"Tax stamp (timbre fiscal) added automatically per sale when ENABLE_TAX_STAMP is true.");
 		taxStamp.setType(ItemType.SERVICE);
 		taxStamp.setUnitPrice(0.0);
 		taxStamp.setDefaultVAT(0);
@@ -1075,8 +1034,8 @@ public class ZZDataInitializer {
 	}
 
 	/**
-	 * Franchise client: ensures the FRANCHISE_ADMIN vendor is seeded.
-	 * Config keys (FRANCHISE_LAST_ITEM_SYNC, etc.) are handled by ensureAllGeneralSetupConfigs.
+	 * Franchise client: ensures the FRANCHISE_ADMIN vendor is seeded. Config keys
+	 * (FRANCHISE_LAST_ITEM_SYNC, etc.) are handled by ensureAllGeneralSetupConfigs.
 	 */
 	private void ensureFranchiseClientSetup() {
 		if (!vendorRepository.findByVendorCode("FRANCHISE_ADMIN").isPresent()) {
@@ -1092,9 +1051,9 @@ public class ZZDataInitializer {
 	}
 
 	/**
-	 * Seeds APP_VERSION and a single setup record on fresh install.
-	 * On existing installs the row already exists — nothing is written.
-	 * Detailed release notes are managed via db/X.Y.Z/update.sql on upgrades.
+	 * Seeds APP_VERSION and a single setup record on fresh install. On existing
+	 * installs the row already exists — nothing is written. Detailed release notes
+	 * are managed via db/X.Y.Z/update.sql on upgrades.
 	 */
 	private void ensureAppVersion() {
 		if (appVersionRepository.count() > 0) {

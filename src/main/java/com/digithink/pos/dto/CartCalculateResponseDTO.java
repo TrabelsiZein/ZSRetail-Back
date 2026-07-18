@@ -1,5 +1,8 @@
 package com.digithink.pos.dto;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -29,4 +32,11 @@ public class CartCalculateResponseDTO {
 
 	/** Cart total after applying the cart promotion. Equals cartTotal - cartDiscountAmount. */
 	private Double finalTotal;
+
+	/**
+	 * Cross-product benefits triggered by the current cart lines
+	 * ("buy N of A → benefit on Z"). Empty when none apply.
+	 * Independent of the CART-scope promotion above.
+	 */
+	private List<CrossProductAdjustmentDTO> crossProductAdjustments = new ArrayList<>();
 }

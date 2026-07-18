@@ -56,4 +56,29 @@ public interface PromotionRepository extends _BaseRepository<Promotion, Long> {
 	List<Promotion> findActiveByItemSubFamilyId(
 		@Param("subFamilyId") Long subFamilyId,
 		@Param("today") LocalDate today);
+
+	/**
+	 * Active ITEM_GROUP promotions whose item group contains the given item, valid today.
+	 * The scope filter guarantees promotions of other scopes are never returned,
+	 * even if stale promotion_group_item rows were ever left behind.
+	 */
+	@Query("SELECT p FROM Promotion p JOIN p.groupItems gi WHERE p.active = true "
+		+ "AND p.scope = com.digithink.pos.model.enumeration.PromotionScope.ITEM_GROUP "
+		+ "AND gi.id = :itemId "
+		+ "AND (p.startDate IS NULL OR p.startDate <= :today) "
+		+ "AND (p.endDate   IS NULL OR p.endDate   >= :today) "
+		+ "ORDER BY p.priority DESC")
+	List<Promotion> findActiveByGroupItemId(
+		@Param("itemId") Long itemId,
+		@Param("today") LocalDate today);
+
+	/**
+	 * Active cross-product promotions (benefit lands on getItem instead of the
+	 * purchased product), valid today. Evaluated only by the cart pass.
+	 */
+	@Query("SELECT p FROM Promotion p WHERE p.active = true AND p.getItem IS NOT NULL "
+		+ "AND (p.startDate IS NULL OR p.startDate <= :today) "
+		+ "AND (p.endDate   IS NULL OR p.endDate   >= :today) "
+		+ "ORDER BY p.priority DESC")
+	List<Promotion> findActiveCrossProductPromotions(@Param("today") LocalDate today);
 }

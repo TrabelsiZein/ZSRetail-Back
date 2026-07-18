@@ -1,8 +1,12 @@
 package com.digithink.pos.service;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.persistence.criteria.Predicate;
 
@@ -13,8 +17,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.digithink.pos.model.Item;
 import com.digithink.pos.model.Promotion;
 import com.digithink.pos.model.enumeration.PromotionBenefitType;
 import com.digithink.pos.model.enumeration.PromotionScope;
@@ -46,12 +52,46 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 	}
 
 	/**
+	 * Validates and normalizes the ITEM_GROUP target before delegating to the base save.
+	 * ITEM_GROUP scope requires at least one group item and owns the target exclusively
+	 * (single-target FKs are cleared); all other scopes must not carry group items.
+	 */
+	@Override
+	@Transactional
+	public Promotion save(Promotion promotion) throws Exception {
+		if (promotion.getScope() == PromotionScope.ITEM_GROUP) {
+			if (promotion.getGroupItems() == null || promotion.getGroupItems().isEmpty()) {
+				throw new IllegalArgumentException("An ITEM_GROUP promotion must target at least one item");
+			}
+			promotion.setItem(null);
+			promotion.setItemFamily(null);
+			promotion.setItemSubFamily(null);
+		} else if (promotion.getGroupItems() == null) {
+			// A null collection would be skipped by merge and could leave stale join rows
+			promotion.setGroupItems(new HashSet<>());
+		} else {
+			promotion.getGroupItems().clear();
+		}
+
+		// Cross-product benefit target: only meaningful for quantity promotions;
+		// "benefit on the same purchased product" is expressed as getItem = null.
+		if (promotion.getPromotionType() != PromotionType.QUANTITY_PROMOTION) {
+			promotion.setGetItem(null);
+		} else if (promotion.getGetItem() != null && promotion.getScope() == PromotionScope.ITEM
+				&& promotion.getItem() != null
+				&& entityIdEqual(promotion.getGetItem(), promotion.getItem())) {
+			promotion.setGetItem(null);
+		}
+		return super.save(promotion);
+	}
+
+	/**
 	 * Validates that an update does not change locked fields when the promotion
 	 * has already been used in sales. Throws IllegalStateException if violations found.
 	 *
 	 * Locked fields (when used): promotionType, benefitType, discountPercentage,
 	 * discountAmount, freeQuantity, scope, item, itemFamily, itemSubFamily,
-	 * minimumQuantity, minimumAmount, requiresCode, code.
+	 * groupItems, getItem, minimumQuantity, minimumAmount, requiresCode, code.
 	 *
 	 * Allowed fields (always): name, description, startDate, endDate, active,
 	 * priority, timeStart, timeEnd, dayOfWeek.
@@ -83,6 +123,10 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 			violations.add("itemFamily");
 		if (!entityIdEqual(existing.getItemSubFamily(), updated.getItemSubFamily()))
 			violations.add("itemSubFamily");
+		if (!groupItemIdsEqual(existing.getGroupItems(), updated.getGroupItems()))
+			violations.add("groupItems");
+		if (!entityIdEqual(existing.getGetItem(), updated.getGetItem()))
+			violations.add("getItem");
 		if (!Objects.equals(existing.getMinimumQuantity(), updated.getMinimumQuantity()))
 			violations.add("minimumQuantity");
 		if (!Objects.equals(existing.getMinimumAmount(), updated.getMinimumAmount()))
@@ -96,6 +140,15 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 			throw new IllegalStateException(
 				"Promotion has been used in " + usageCount + " sale(s). Cannot modify: " + violations);
 		}
+	}
+
+	/** Compares two group-item sets by item IDs (order-independent; null == empty). */
+	private boolean groupItemIdsEqual(Set<Item> a, Set<Item> b) {
+		Set<Long> idsA = (a == null) ? Collections.emptySet()
+				: a.stream().map(Item::getId).collect(Collectors.toSet());
+		Set<Long> idsB = (b == null) ? Collections.emptySet()
+				: b.stream().map(Item::getId).collect(Collectors.toSet());
+		return idsA.equals(idsB);
 	}
 
 	private boolean entityIdEqual(Object a, Object b) {

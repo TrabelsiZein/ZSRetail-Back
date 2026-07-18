@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import com.digithink.pos.model.Item;
 import com.digithink.pos.model.ItemBarcode;
+import com.digithink.pos.model.enumeration.ItemType;
 import com.digithink.pos.repository.ItemBarcodeRepository;
 import com.digithink.pos.repository._BaseRepository;
 
@@ -46,7 +47,10 @@ public class ItemBarcodeService extends _BaseService<ItemBarcode, Long> {
 	public Optional<Item> getItemByBarcode(String barcode) {
 		Optional<ItemBarcode> itemBarcode = itemBarcodeRepository.findByBarcode(barcode);
 		return itemBarcode.filter(bc -> bc.getActive() == null || Boolean.TRUE.equals(bc.getActive()))
-				.map(ItemBarcode::getItem).filter(item -> item.getUnitPrice() != null && item.getUnitPrice() > 0);
+				.map(ItemBarcode::getItem)
+				// PACKAGE (kit) items have no price of their own — they explode into components
+				.filter(item -> item.getType() == ItemType.PACKAGE
+						|| (item.getUnitPrice() != null && item.getUnitPrice() > 0));
 	}
 
 	/**
