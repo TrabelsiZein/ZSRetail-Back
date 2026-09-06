@@ -1,7 +1,7 @@
 # ZS Retail Documentation
 
 Reference documentation for the ZS Retail POS suite (backend + frontend). It lives in
-the `POS_Back` repo so it is versioned alongside the code, but it describes **both**
+the `ZSRetail-Back` repo so it is versioned alongside the code, but it describes **both**
 applications.
 
 Split out of the former single `AI_CONTEXT_POS.md` so each topic can be read on its own.

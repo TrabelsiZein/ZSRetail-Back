@@ -1,4 +1,4 @@
-# POS Backend Application
+# ZS Retail Backend Application
 
 ## Overview
 Complete Point of Sale (POS) backend application with role-based access control and full POS functionality.

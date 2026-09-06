@@ -67,7 +67,7 @@
 - Layout transition warning fixed by wrapping banner + router view in a single root node in vertical layout.
 
 ### License Generator (Developer-side)
-- File: `POS_Back/LicenseGenerator/LicenseGenerator.java`
+- File: `ZSRetail-Back/LicenseGenerator/LicenseGenerator.java`
 - New usage:
   - `java LicenseGenerator.java "<company>" "<installationId>" "<expiresAt>"`
 - Example:

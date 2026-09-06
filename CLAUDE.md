@@ -1,4 +1,4 @@
-# POS_Back — Backend Guide
+# ZSRetail-Back — Backend Guide
 
 Spring Boot backend for ZS Retail. See `../../CLAUDE.md` for the project-wide map and
 the development contract; this file covers backend specifics only.
