@@ -1,0 +1,11 @@
+# Frontend Notes
+
+- `ReceiptTemplate.vue`, `Payment.vue`, `ReturnProducts.vue`: unified barcode generation using `JsBarcode`; async print flows.
+- Admin views: Returns, Locations, General Setup (with guarded editing), Item Families, Item Subfamilies; consistent pagination UI (per-page selector + "Showing X–Y of Z").
+- Navigation (`src/navigation/vertical/index.js`) cleaned to avoid duplicate keys; new menu entries added for recent admin pages.
+- ERP Jobs view now shows a compact table (no checkpoint columns) with row-click modal that surfaces full job details plus a modal "Run Now" button (with progress indicator) instead of inline buttons.
+- New `ErpCommunications.vue` admin page lists ERP communication logs with search, status/operation filters, date range picker, pagination, and a detail modal for payloads.
+- Item Barcodes admin view switched to a paginated table (server-driven search/filter/per-page) with expandable barcode details, mirroring the Locations view layout and offering "Has Barcode" filter options.
+- POS cashier experience: `ItemSelection.vue` now tuned for kiosk usage—alphabetically sorted families/subfamilies, compact responsive cards, two-row max action panel, on-screen keyboard, and TND-only pricing with VAT-inclusive formatting throughout the cart.
+- **Line-Level Discounts**: `ItemSelection.vue` now supports applying discounts to individual cart items. Users can apply discounts as a percentage or fixed amount via a modal dialog. Discounts are applied to totals including VAT, and all calculations (subtotal, tax, total) account for discounts correctly. Discount percentage is formatted to 3 decimal places (e.g., "78.463%"). Discount badge and chip display in cart items.
+- **Internationalization (i18n)**: Comprehensive translation support added for all POS pages. All hardcoded strings replaced with translation keys using Vue i18n. Supported languages: English (en), Arabic (ar), French (fr). Translation files located in `src/libs/i18n/locales/`. RTL support for Arabic with proper styling adjustments. Language switcher added to login page. All pages fully translated including: Login, Open Session, Item Selection, Payment, Return Products, Customer Management, Tickets History, Returns Management, Item Barcodes, Item Families, Item Subfamilies, Session History.
