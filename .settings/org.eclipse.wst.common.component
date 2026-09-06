@@ -9,7 +9,7 @@
     
     
     
-    <wb-module deploy-name="posws">
+    <wb-module deploy-name="zsretailws">
                                                                                         
         
         
@@ -65,7 +65,7 @@
         
         
         
-        <property name="java-output-path" value="/pos/target/classes"/>
+        <property name="java-output-path" value="/zsretailws/target/classes"/>
                                                                 
         
         
@@ -73,7 +73,7 @@
         
         
         
-        <property name="context-root" value="posws"/>
+        <property name="context-root" value="zsretailws"/>
                                                                                     
     
     

@@ -204,17 +204,17 @@ public class ProductAPI extends _BaseController<Product, Long, ProductService> {
 
 ### Get All Products
 ```bash
-GET /pos/api/product
+GET /zsretail/api/product
 ```
 
 ### Get Product by ID
 ```bash
-GET /pos/api/product/1
+GET /zsretail/api/product/1
 ```
 
 ### Create Product
 ```bash
-POST /pos/api/product
+POST /zsretail/api/product
 Content-Type: application/json
 
 {
@@ -226,7 +226,7 @@ Content-Type: application/json
 
 ### Update Product
 ```bash
-PUT /pos/api/product/1
+PUT /zsretail/api/product/1
 Content-Type: application/json
 
 {
@@ -239,23 +239,23 @@ Content-Type: application/json
 
 ### Delete Product
 ```bash
-DELETE /pos/api/product/1
+DELETE /zsretail/api/product/1
 ```
 
 ### Search by Field
 ```bash
-GET /pos/api/product/findByField?fieldName=price&operation=>&value=500
+GET /zsretail/api/product/findByField?fieldName=price&operation=>&value=500
 ```
 
 ### Check if Exists
 ```bash
-GET /pos/api/product/1/exists
+GET /zsretail/api/product/1/exists
 Response: true
 ```
 
 ### Get Count
 ```bash
-GET /pos/api/product/count
+GET /zsretail/api/product/count
 Response: 42
 ```
 

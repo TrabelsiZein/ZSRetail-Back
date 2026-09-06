@@ -10,9 +10,9 @@
 		<relativePath /> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.digithink</groupId>
-	<artifactId>pos</artifactId>
+	<artifactId>zsretailws</artifactId>
 	<version>1.11.0</version>
-	<name>pos</name>
+	<name>ZS Retail WS</name>
 	<description></description>
 	<packaging>war</packaging>
 	<properties>
@@ -246,7 +246,7 @@
 				</configuration>
 			</plugin>
 		</plugins>
-		<finalName>posws</finalName>
+		<finalName>zsretailws</finalName>
 	</build>
 
 	<!--

@@ -66,7 +66,7 @@ mvn spring-boot:run
 ## API Documentation
 Once running, access Swagger UI at:
 ```
-http://localhost:444/pos/api/swagger-ui.html
+http://localhost:444/zsretail/api/swagger-ui.html
 ```
 
 ## Role System
@@ -84,23 +84,23 @@ Basic POS operations - cashier access to sell products and create tickets.
 
 ### Authentication
 ```bash
-POST /pos/api/login
+POST /zsretail/api/login
 Headers: username=admin, password=Admin@123
 ```
 
 ### User Management
 ```bash
-GET  /pos/api/user/all                  # List all users
-GET  /pos/api/user/detail/{id}          # Get user details
-POST /pos/api/user/create               # Create new user
-PUT  /pos/api/user/{id}/role            # Update user role
-PUT  /pos/api/user/{id}/toggle-status   # Enable/disable user
-DELETE /pos/api/user/{id}               # Delete user
+GET  /zsretail/api/user/all                  # List all users
+GET  /zsretail/api/user/detail/{id}          # Get user details
+POST /zsretail/api/user/create               # Create new user
+PUT  /zsretail/api/user/{id}/role            # Update user role
+PUT  /zsretail/api/user/{id}/toggle-status   # Enable/disable user
+DELETE /zsretail/api/user/{id}               # Delete user
 ```
 
 ## Example: Create a Cashier
 ```bash
-POST /pos/api/user/create
+POST /zsretail/api/user/create
 Content-Type: application/json
 {
   "username": "cashier01",
@@ -126,13 +126,13 @@ GET    /{entity}/count            # Count total
 ```
 
 **Examples:**
-- `/pos/api/customer` - Customer management
-- `/pos/api/item` - Product catalog
-- `/pos/api/payment-method` - Payment methods
-- `/pos/api/sales-header` - Sales transactions
-- `/pos/api/payment-header` - Payment processing
-- `/pos/api/cashier-session` - Cashier shift management
-- `/pos/api/cash-count-detail` - Cash counting details
+- `/zsretail/api/customer` - Customer management
+- `/zsretail/api/item` - Product catalog
+- `/zsretail/api/payment-method` - Payment methods
+- `/zsretail/api/sales-header` - Sales transactions
+- `/zsretail/api/payment-header` - Payment processing
+- `/zsretail/api/cashier-session` - Cashier shift management
+- `/zsretail/api/cash-count-detail` - Cash counting details
 
 See [ENTITIES_IMPLEMENTATION.md](ENTITIES_IMPLEMENTATION.md) for complete details.
 
