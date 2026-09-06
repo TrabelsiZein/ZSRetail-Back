@@ -11,7 +11,7 @@ the development contract; this file covers backend specifics only.
 - springdoc-openapi UI for API docs
 - Context path `/zsretail/api`, port `444`
 
-## Layout — `src/main/java/com/digithink/pos/`
+## Layout — `src/main/java/com/digithink/zsretail/`
 
 ```
 POSMainApp.java      entry point

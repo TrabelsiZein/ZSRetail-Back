@@ -1,0 +1,6 @@
+package com.digithink.zsretail.model.enumeration;
+
+public enum PaymentMethodType {
+	CLIENT_ESPECES, CLIENT_CHEQUE, CLIENT_TPE, CLIENT_TRAITE, CHEQUE_CADEAU, TICKET_RESTAURANT, DEPOT_BANQUE,
+	RETURN_VOUCHER, VIREMENT_BANCAIRE
+}

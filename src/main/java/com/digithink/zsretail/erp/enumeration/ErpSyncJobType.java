@@ -1,0 +1,20 @@
+package com.digithink.zsretail.erp.enumeration;
+
+/**
+ * Job types representing scheduled ERP synchronization routines.
+ */
+public enum ErpSyncJobType {
+	IMPORT_ITEM_FAMILIES,
+	IMPORT_ITEM_SUBFAMILIES,
+	IMPORT_ITEMS,
+	IMPORT_ITEM_BARCODES,
+	IMPORT_LOCATIONS,
+	IMPORT_CUSTOMERS,
+	IMPORT_SALES_PRICES_AND_DISCOUNTS,
+	EXPORT_CUSTOMERS,
+	EXPORT_TICKETS,
+	EXPORT_RETURNS,
+	EXPORT_SESSIONS,
+	SYNC_ERP_DELETIONS
+}
+

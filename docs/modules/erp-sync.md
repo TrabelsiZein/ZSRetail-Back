@@ -118,15 +118,15 @@
   - Both success and error responses are logged in `ErpCommunication` table
 
 **Key Files:**
-- `src/main/java/com/digithink/pos/model/SalesHeader.java` - Entity with sync fields
-- `src/main/java/com/digithink/pos/model/SalesLine.java` - Entity with synched field
-- `src/main/java/com/digithink/pos/model/enumeration/SynchronizationStatus.java` - Sync status enum
-- `src/main/java/com/digithink/pos/erp/dynamicsnav/dto/DynamicsNavSalesOrderHeaderDTO.java` - Header DTO
-- `src/main/java/com/digithink/pos/erp/dynamicsnav/dto/DynamicsNavSalesOrderLineDTO.java` - Line DTO
-- `src/main/java/com/digithink/pos/erp/service/TicketExportService.java` - Export service
-- `src/main/java/com/digithink/pos/erp/dynamicsnav/client/DynamicsNavRestClient.java` - NAV client
-- `src/main/java/com/digithink/pos/erp/dynamicsnav/config/DynamicsNavConfig.java` - RestTemplate config
-- `src/main/java/com/digithink/pos/erp/service/ErpSyncJobRunner.java` - Job runner integration
+- `src/main/java/com/digithink/zsretail/model/SalesHeader.java` - Entity with sync fields
+- `src/main/java/com/digithink/zsretail/model/SalesLine.java` - Entity with synched field
+- `src/main/java/com/digithink/zsretail/model/enumeration/SynchronizationStatus.java` - Sync status enum
+- `src/main/java/com/digithink/zsretail/erp/dynamicsnav/dto/DynamicsNavSalesOrderHeaderDTO.java` - Header DTO
+- `src/main/java/com/digithink/zsretail/erp/dynamicsnav/dto/DynamicsNavSalesOrderLineDTO.java` - Line DTO
+- `src/main/java/com/digithink/zsretail/erp/service/TicketExportService.java` - Export service
+- `src/main/java/com/digithink/zsretail/erp/dynamicsnav/client/DynamicsNavRestClient.java` - NAV client
+- `src/main/java/com/digithink/zsretail/erp/dynamicsnav/config/DynamicsNavConfig.java` - RestTemplate config
+- `src/main/java/com/digithink/zsretail/erp/service/ErpSyncJobRunner.java` - Job runner integration
 
 
 ## ERP Synchronization Operations
@@ -156,7 +156,7 @@
 
 **Design Philosophy:**
 - POS system is decoupled from specific ERP implementations (e.g., Dynamics NAV)
-- Abstract `ErpConnector` interface (`com.digithink.pos.erp.spi.ErpConnector`) defines ERP-agnostic methods
+- Abstract `ErpConnector` interface (`com.digithink.zsretail.erp.spi.ErpConnector`) defines ERP-agnostic methods
 - Specific ERP implementations (e.g., `DynamicsNavConnector`) implement the interface
 - `NoOpErpConnector` provides stub implementation when ERP is disabled
 

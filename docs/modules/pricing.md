@@ -77,11 +77,11 @@
 5. User sees updated prices → Can proceed to Payment
 
 **Key Files:**
-- `src/main/java/com/digithink/pos/service/PricingService.java` - Core pricing logic
-- `src/main/java/com/digithink/pos/model/SalesPrice.java` - Entity with enums and indexes
-- `src/main/java/com/digithink/pos/model/SalesDiscount.java` - Entity with enums and indexes
-- `src/main/java/com/digithink/pos/repository/SalesPriceRepository.java` - Best-value query
-- `src/main/java/com/digithink/pos/repository/SalesDiscountRepository.java` - Best-value query
-- `src/main/java/com/digithink/pos/controller/ItemAPI.java` - Price calculation endpoint
+- `src/main/java/com/digithink/zsretail/service/PricingService.java` - Core pricing logic
+- `src/main/java/com/digithink/zsretail/model/SalesPrice.java` - Entity with enums and indexes
+- `src/main/java/com/digithink/zsretail/model/SalesDiscount.java` - Entity with enums and indexes
+- `src/main/java/com/digithink/zsretail/repository/SalesPriceRepository.java` - Best-value query
+- `src/main/java/com/digithink/zsretail/repository/SalesDiscountRepository.java` - Best-value query
+- `src/main/java/com/digithink/zsretail/controller/ItemAPI.java` - Price calculation endpoint
 - `src/views/pos/ItemSelection.vue` - Frontend integration
 - `src/views/pos/CustomerList.vue` - Customer selection with pagination

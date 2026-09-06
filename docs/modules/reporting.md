@@ -73,8 +73,8 @@
 - `src/views/admin/reports/LoyaltyReport.vue`
 - `src/views/admin/reports/SessionReport.vue`
 - `src/views/admin/reports/PromotionReport.vue`
-- `src/main/java/com/digithink/pos/service/ReportService.java`
-- `src/main/java/com/digithink/pos/controller/ReportAPI.java`
+- `src/main/java/com/digithink/zsretail/service/ReportService.java`
+- `src/main/java/com/digithink/zsretail/controller/ReportAPI.java`
 
 ### Navigation & Router
 - Reports menu group in `navigation/vertical/index.js` with 7 entries (Sales, Purchases, Stock, StockMovements, Loyalty, Sessions, Promotions).

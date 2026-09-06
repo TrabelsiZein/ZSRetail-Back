@@ -11,7 +11,7 @@ A comprehensive badge-based permission system has been implemented to control ac
 ### 1. Backend Implementation
 
 #### 1.1 BadgePermission Enum
-**File**: `src/main/java/com/digithink/pos/model/enumeration/BadgePermission.java`
+**File**: `src/main/java/com/digithink/zsretail/model/enumeration/BadgePermission.java`
 - Created enum with 5 permission types:
   - `CONSULT_CUSTOMER_LIST` - Access customer list
   - `OPEN_TICKET_HISTORY` - Access ticket history
@@ -20,7 +20,7 @@ A comprehensive badge-based permission system has been implemented to control ac
   - `VERIFY_SESSION` - Verify cashier session
 
 #### 1.2 UserAccount Entity Updates
-**File**: `src/main/java/com/digithink/pos/model/UserAccount.java`
+**File**: `src/main/java/com/digithink/zsretail/model/UserAccount.java`
 - Added badge-related fields:
   - `badgeCode` (String, unique, nullable) - Unique identifier for the badge
   - `badgePermissions` (String, nullable) - Comma-separated list of permissions
@@ -31,7 +31,7 @@ A comprehensive badge-based permission system has been implemented to control ac
   - `badgeRevokeReason` (String, nullable) - Reason for revocation
 
 #### 1.3 BadgeScanLog Entity
-**File**: `src/main/java/com/digithink/pos/model/BadgeScanLog.java`
+**File**: `src/main/java/com/digithink/zsretail/model/BadgeScanLog.java`
 - New entity to track all badge scan attempts:
   - `scannedBy` - User who performed the scan
   - `scannedBadgeCode` - Badge code that was scanned
@@ -44,7 +44,7 @@ A comprehensive badge-based permission system has been implemented to control ac
   - `scanType` - BARCODE or QR_CODE
 
 #### 1.4 BadgeScanRateLimit Entity
-**File**: `src/main/java/com/digithink/pos/model/BadgeScanRateLimit.java`
+**File**: `src/main/java/com/digithink/zsretail/model/BadgeScanRateLimit.java`
 - New entity for rate limiting:
   - `badgeCode` - Badge being rate limited
   - `windowStart` - Start of rate limit window
@@ -53,7 +53,7 @@ A comprehensive badge-based permission system has been implemented to control ac
   - `windowDurationMinutes` - Window duration
 
 #### 1.5 BadgeService
-**File**: `src/main/java/com/digithink/pos/service/BadgeService.java`
+**File**: `src/main/java/com/digithink/zsretail/service/BadgeService.java`
 - Core business logic for badge operations:
   - `findUserByBadgeCode()` - Find user by badge code
   - `hasPermission()` - Check if user has specific permission
@@ -64,7 +64,7 @@ A comprehensive badge-based permission system has been implemented to control ac
   - Rate limiting logic to prevent abuse
 
 #### 1.6 BadgeAPI Controller
-**File**: `src/main/java/com/digithink/pos/controller/BadgeAPI.java`
+**File**: `src/main/java/com/digithink/zsretail/controller/BadgeAPI.java`
 - REST endpoints:
   - `GET /badge/by-badge/{badgeCode}` - Find user by badge code
   - `POST /badge/check-permission` - Check badge permission (no logging)
@@ -74,13 +74,13 @@ A comprehensive badge-based permission system has been implemented to control ac
   - `GET /badge/scan-statistics` - Get scan statistics (admin only)
 
 #### 1.7 UserAccountAPI Updates
-**File**: `src/main/java/com/digithink/pos/controller/UserAccountAPI.java`
+**File**: `src/main/java/com/digithink/zsretail/controller/UserAccountAPI.java`
 - Added endpoints:
   - `GET /user-account/current` - Get current authenticated user
   - Badge management integrated into user update/create endpoints
 
 #### 1.8 GeneralSetup Configuration
-**File**: `src/main/java/com/digithink/pos/service/ZZDataInitializer.java`
+**File**: `src/main/java/com/digithink/zsretail/service/ZZDataInitializer.java`
 - Added configuration entries:
   - `BADGE_RATE_LIMIT_ATTEMPTS` - Max failed attempts (default: 5)
   - `BADGE_RATE_LIMIT_WINDOW_HOURS` - Rate limit window (default: 1 hour)
