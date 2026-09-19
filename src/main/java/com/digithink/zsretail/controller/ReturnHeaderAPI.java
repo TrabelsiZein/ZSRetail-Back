@@ -304,6 +304,11 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 			ticketSummary.put("discountAmount", salesHeader.getDiscountAmount());
 			ticketSummary.put("discountPercentage", salesHeader.getDiscountPercentage());
 			ticketSummary.put("discountSource", salesHeader.getDiscountSource());
+			// Loyalty points paid on the ticket: the return screen uses the same refund factors as processReturn
+			ticketSummary.put("loyaltyPointsRedeemed", salesHeader.getLoyaltyPointsRedeemed());
+			ticketSummary.put("loyaltyDeductionAmount", salesHeader.getLoyaltyDeductionAmount());
+			ticketSummary.put("loyaltyRefundFactor", ReturnHeaderService.loyaltyRefundFactor(salesHeader, salesLines));
+			ticketSummary.put("loyaltyHeaderFactor", ReturnHeaderService.loyaltyHeaderFactor(salesHeader, salesLines));
 			ticketSummary.put("status", salesHeader.getStatus());
 			if (salesHeader.getCustomer() != null) {
 				ticketSummary.put("customerId", salesHeader.getCustomer().getId());

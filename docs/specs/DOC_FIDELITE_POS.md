@@ -16,7 +16,7 @@ Le module **Fidélité** permet à votre enseigne de récompenser ses clients r�
 - Un **membre fidélité** possède une **carte** (numéro unique auto-généré au format `LYL-000001`).
 - Il **gagne** des points proportionnellement au montant de ses achats.
 - Il peut **utiliser** (redeem) ses points pour payer une partie d'une vente future.
-- En cas de **retour** de marchandise, les points gagnés sur la vente d'origine sont automatiquement **annulés**.
+- En cas de **retour** de marchandise, seuls les points gagnés par les articles retournés sont **annulés**, et les points utilisés sur le ticket sont **re-crédités** en proportion (voir 4.5).
 - Chaque mouvement de points est tracé dans un **journal d'audit immuable** (aucune suppression, aucune modification possible après coup).
 
 ### Spécificités de conception
@@ -69,9 +69,10 @@ Cliquer sur **"Nouveau programme"** et renseigner :
 | **Date de début** | Date d'entrée en vigueur | `01/01/2026` |
 | **Date de fin** | Optionnelle | `31/12/2026` |
 | **Points par dinar** (`points_per_dinar`) | Nombre de points gagnés par 1 TND dépensé | `10` |
+| **Paliers de gain** (optionnel) | Taux différent selon le montant du ticket : « au-delà de X TND → Y points par TND ». Le taux du palier atteint s'applique à **tout** le ticket ; un ticket pile sur une limite reste dans le palier inférieur. Sans palier, « Points par dinar » s'applique à tous les tickets. | au-delà de 200 TND → 1,5 ; au-delà de 500 TND → 2 |
 | **Valeur d'un point en millimes** (`point_value_millimes`) | Valeur monétaire d'un point lors de l'utilisation | `10` (1 pt = 10 millimes = 0,010 TND) |
 | **Points minimum pour utilisation** | Solde minimum requis pour pouvoir utiliser | `100` |
-| **% maximum d'utilisation** | Part maximale de la vente payable en points | `30` (max 30 % du total) |
+| **% maximum d'utilisation** | Part maximale du ticket payable en points, calculée sur le montant après remises et hors timbre fiscal (les points ne paient jamais le timbre) | `30` (max 30 % du total) ; `100` = pas de limite |
 | **Durée de validité (jours)** | `null` = sans expiration | `365` |
 
 > [Capture à insérer — SS3 : Formulaire de création d'un programme]
@@ -91,6 +92,18 @@ Avec les valeurs ci-dessus :
   - Plafond 30 % → max **30 TND** payables en points.
   - 30 TND = 30 000 millimes → max **3 000 points** utilisables.
   - S'il utilise 1 000 points → déduction de **10 TND** sur la vente.
+
+Exemple avec paliers (taux de base 1 point par TND, au-delà de 200 TND → 1,5, au-delà de 500 TND → 2) :
+
+| Montant du ticket | Taux appliqué | Points gagnés |
+|---|---|---|
+| 150 TND | 1 | 150 |
+| 200 TND | 1 | 200 |
+| 350 TND | 1,5 | 525 |
+| 500 TND | 1,5 | 750 |
+| 650 TND | 2 | 1 300 |
+
+Avec des paliers, le timbre fiscal n'est pas compté dans le montant du ticket. Les points sont toujours arrondis à l'entier inférieur.
 
 ---
 
@@ -198,7 +211,7 @@ Sur l'écran **Paiement** (Payment), un panneau dédié à la fidélité s'affic
 
 À la validation de la vente :
 
-- Les **points gagnés** sont crédités (selon `points_per_dinar` appliqué au total TTC).
+- Les **points gagnés** sont crédités (selon `points_per_dinar` appliqué au total TTC ; avec des paliers, le taux du palier atteint s'applique au total TTC hors timbre fiscal).
 - Les **points utilisés** sont débités.
 - Une ligne **`EARNED`** et, le cas échéant, une ligne **`REDEEMED`** sont ajoutées au journal d'audit.
 - Le ticket imprimé contient un **bloc fidélité** :
@@ -222,11 +235,13 @@ Sur l'écran **Paiement** (Payment), un panneau dédié à la fidélité s'affic
 
 Lorsqu'un ticket contenant des points est retourné (totalement ou partiellement) :
 
-- Une ligne **`REVERSED`** est créée automatiquement.
-- Les points précédemment gagnés sont **débités** du solde du membre.
-- Si la vente d'origine avait aussi consommé des points, ceux-ci sont **re-crédités**.
+- Seuls les points gagnés **par les articles retournés** sont débités : les points du ticket sont recalculés sur ce qui reste (les paliers s'appliquent), dans une ligne **`REVERSED`**. Un ticket retourné en plusieurs fois n'est jamais débité deux fois.
+- Si la vente d'origine avait consommé des points, ceux-ci sont **re-crédités** en proportion des articles retournés, dans une ligne **`ADJUSTED`** liée à la vente et au retour.
+- La part du ticket payée en points n'est **jamais remboursée en argent** : le remboursement (espèces ou bon d'achat) correspond uniquement à l'argent payé pour les articles retournés.
 
-Le membre voit donc son solde revenir à l'état antérieur à la vente annulée.
+Après un retour total, le membre retrouve donc le solde qu'il avait avant la vente.
+
+Exemple : ticket de 650 TND (1 300 points au palier 2). Le client retourne 200 TND d'articles : il reste 450 TND, qui valent 675 points au palier 1,5, donc 625 points sont débités.
 
 ---
 
@@ -253,8 +268,8 @@ Page d'audit globale, **tous membres confondus**, avec :
 |---|---|---|
 | **EARNED** | Vente finalisée | + points |
 | **REDEEMED** | Vente finalisée avec utilisation | − points |
-| **REVERSED** | Retour de marchandise | ± (annulation d'une ligne antérieure) |
-| **ADJUSTED** | Ajustement manuel par un admin | + ou − |
+| **REVERSED** | Retour de marchandise | − (points gagnés par les articles retournés) |
+| **ADJUSTED** | Ajustement manuel par un admin, ou points utilisés re-crédités après un retour | + ou − |
 
 ### 5.3 Ajustement manuel (réservé Admin)
 

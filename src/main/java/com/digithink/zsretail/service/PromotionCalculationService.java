@@ -44,7 +44,8 @@ import lombok.extern.log4j.Log4j2;
  * Cart promotions (CART scope) are independent and always considered.
  *
  * Promotion selection:
- *   - Scope priority: ITEM > ITEM_GROUP > ITEM_SUBFAMILY > ITEM_FAMILY (most specific wins)
+ *   - Scope priority: ITEM > ITEM_GROUP > ITEM_SUBFAMILY > ITEM_FAMILY > ALL_ITEMS (most specific wins;
+ *     a scope with no eligible candidate falls through to the next one)
  *   - Within scope: highest priority wins (ABSOLUTE — no best-value override)
  *   - requiresCode promotions: only active when their code is in appliedCodes
  *   - Filters: active + date valid + time valid + day valid + minimum quantity met
@@ -426,6 +427,9 @@ public class PromotionCalculationService {
 			case ITEM_FAMILY:
 				return p.getItemFamily() != null && item.getItemFamily() != null
 						&& p.getItemFamily().getId().equals(item.getItemFamily().getId());
+			case ALL_ITEMS:
+				// Every cart line is a buy line; the caller already skips the get-item's own line
+				return true;
 			default:
 				return false;
 		}
@@ -435,7 +439,8 @@ public class PromotionCalculationService {
 
 	/**
 	 * Find the best promotion for a single item.
-	 * Scope priority: ITEM > ITEM_GROUP > ITEM_SUBFAMILY > ITEM_FAMILY (most specific wins).
+	 * Scope priority: ITEM > ITEM_GROUP > ITEM_SUBFAMILY > ITEM_FAMILY > ALL_ITEMS (most specific wins).
+	 * Filters are applied per scope: a scope with no eligible candidate falls through to the next one.
 	 * Within scope: highest priority wins (ABSOLUTE).
 	 */
 	private Promotion findBestItemPromotion(Item item, int quantity, List<String> codes) {
@@ -467,7 +472,7 @@ public class PromotionCalculationService {
 			if (best != null) return best;
 		}
 
-		// ITEM_FAMILY scope (least specific)
+		// ITEM_FAMILY scope
 		if (item.getItemFamily() != null) {
 			Promotion best = selectBestFromList(
 					promotionRepository.findActiveByItemFamilyId(item.getItemFamily().getId(), today),
@@ -475,7 +480,10 @@ public class PromotionCalculationService {
 			if (best != null) return best;
 		}
 
-		return null;
+		// ALL_ITEMS scope (least specific): fallback when no targeted promotion matched
+		return selectBestFromList(
+				promotionRepository.findActiveByScope(PromotionScope.ALL_ITEMS, today),
+				quantity, codes, now, todayDay);
 	}
 
 	/**

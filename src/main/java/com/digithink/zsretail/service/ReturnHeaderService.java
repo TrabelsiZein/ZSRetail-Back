@@ -16,6 +16,7 @@ import com.digithink.zsretail.dto.ProcessReturnRequestDTO;
 import com.digithink.zsretail.model.CashierSession;
 import com.digithink.zsretail.model.Customer;
 import com.digithink.zsretail.model.GeneralSetup;
+import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.ReturnHeader;
 import com.digithink.zsretail.model.ReturnLine;
 import com.digithink.zsretail.model.ReturnVoucher;
@@ -151,6 +152,62 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 		}
 	}
 
+	// ─── Loyalty points on returns ──────────────────────────────────
+
+	/** True for the fiscal stamp item, which is never part of the goods. */
+	static boolean isTaxStamp(Item item) {
+		return item != null && "TAX_STAMP".equals(item.getItemCode());
+	}
+
+	/** Goods TTC of a ticket (fiscal stamp lines excluded) and its stamp amount: {goods, stamp}. */
+	static double[] goodsAndStamp(List<SalesLine> ticketLines) {
+		double goods = 0.0;
+		double stamp = 0.0;
+		for (SalesLine line : ticketLines) {
+			double ttc = line.getLineTotalIncludingVat() != null ? line.getLineTotalIncludingVat() : 0.0;
+			if (isTaxStamp(line.getItem())) {
+				stamp += ttc;
+			} else {
+				goods += ttc;
+			}
+		}
+		return new double[] { goods, stamp };
+	}
+
+	/**
+	 * For a ticket partly paid with loyalty points: the part of each goods dinar paid in money,
+	 * (total - fiscal stamp) / goods. A return refunds the returned goods TTC times this factor.
+	 * Null when the ticket used no points: the existing refund rules then apply unchanged.
+	 */
+	public static Double loyaltyRefundFactor(SalesHeader ticket, List<SalesLine> ticketLines) {
+		Double deduction = ticket.getLoyaltyDeductionAmount();
+		if (deduction == null || deduction <= 0 || ticket.getTotalAmount() == null) {
+			return null;
+		}
+		double[] goodsAndStamp = goodsAndStamp(ticketLines);
+		if (goodsAndStamp[0] <= 0) {
+			return null;
+		}
+		return Math.max(0.0, ticket.getTotalAmount() - goodsAndStamp[1]) / goodsAndStamp[0];
+	}
+
+	/**
+	 * For a ticket partly paid with loyalty points: goods after the header discount and before the
+	 * points, over goods. Lets the return screen show the real discount and the points share on
+	 * separate lines. Null when the ticket used no points.
+	 */
+	public static Double loyaltyHeaderFactor(SalesHeader ticket, List<SalesLine> ticketLines) {
+		Double deduction = ticket.getLoyaltyDeductionAmount();
+		if (deduction == null || deduction <= 0 || ticket.getTotalAmount() == null) {
+			return null;
+		}
+		double[] goodsAndStamp = goodsAndStamp(ticketLines);
+		if (goodsAndStamp[0] <= 0) {
+			return null;
+		}
+		return Math.max(0.0, ticket.getTotalAmount() + deduction - goodsAndStamp[1]) / goodsAndStamp[0];
+	}
+
 	/**
 	 * Process return transactionally
 	 */
@@ -200,14 +257,19 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 		// quantities
 		List<ReturnHeader> previousReturns = returnHeaderRepository.findAllByOriginalSalesHeader(originalSalesHeader);
 
-		// Calculate already returned quantities for each sales line
+		// Calculate already returned quantities for each sales line, and the goods amount already
+		// returned (fiscal stamp excluded) for the cumulative loyalty points adjustment
 		Map<Long, Integer> returnedQuantities = new HashMap<>();
+		double previouslyReturnedGoods = 0.0;
 		for (ReturnHeader prevReturn : previousReturns) {
 			List<ReturnLine> prevReturnLines = returnLineRepository.findByReturnHeader(prevReturn);
 			for (ReturnLine prevReturnLine : prevReturnLines) {
 				Long salesLineId = prevReturnLine.getOriginalSalesLine().getId();
 				int returnedQty = prevReturnLine.getQuantity();
 				returnedQuantities.put(salesLineId, returnedQuantities.getOrDefault(salesLineId, 0) + returnedQty);
+				if (!isTaxStamp(prevReturnLine.getItem()) && prevReturnLine.getLineTotalIncludingVat() != null) {
+					previouslyReturnedGoods += prevReturnLine.getLineTotalIncludingVat();
+				}
 			}
 		}
 
@@ -293,6 +355,20 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 			}
 		}
 
+		// Ticket partly paid with loyalty points: refund only the money actually paid for the returned
+		// goods; the points go back as points (LoyaltyService.applyReturn). The header discount and the
+		// points share are folded into one rate so NAV reconciles lines x (1 - pct) = refund.
+		// Tickets without points keep the amount computed above, unchanged.
+		Double returnDiscountPercentage = originalSalesHeader.getDiscountPercentage();
+		Double loyaltyRefundFactor = loyaltyRefundFactor(originalSalesHeader, originalSalesLines);
+		if (loyaltyRefundFactor != null) {
+			effectiveTotalReturnAmount = totalReturnAmount * loyaltyRefundFactor;
+			// Rounded to 5 decimals, the precision NAV keeps; the refund above uses the exact factor
+			returnDiscountPercentage = Math.round((1.0 - loyaltyRefundFactor) * 100.0 * 100000.0) / 100000.0;
+			log.info("Applied loyalty refund factor to return amount: factor={}, totalReturnAmount={}, effectiveTotalReturnAmount={}",
+					loyaltyRefundFactor, totalReturnAmount, effectiveTotalReturnAmount);
+		}
+
 		// Generate return number
 		String returnNumber = generateReturnNumber();
 
@@ -307,7 +383,7 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 		returnHeader.setStatus(TransactionStatus.COMPLETED);
 		returnHeader.setTotalReturnAmount(effectiveTotalReturnAmount);
 		returnHeader.setNotes(request.getNotes());
-		returnHeader.setDiscountPercentage(originalSalesHeader.getDiscountPercentage());
+		returnHeader.setDiscountPercentage(returnDiscountPercentage);
 
 		// Save return header
 		returnHeader = save(returnHeader);
@@ -344,17 +420,20 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 			returnHeader = save(returnHeader);
 		}
 
-		// Reverse loyalty points earned from the original sale (if any)
+		// Loyalty: give converted points back and remove only the points the returned goods earned,
+		// cumulatively over every return of this ticket (LoyaltyService.applyReturn). Not caught on
+		// purpose: applyReturn joins this transaction, so a failure there fails the return anyway,
+		// and letting it propagate gives the POS the real reason.
 		if (originalSalesHeader.getLoyaltyMember() != null) {
-			try {
-				loyaltyService.reversePoints(
-						originalSalesHeader.getLoyaltyMember().getId(),
-						originalSalesHeader,
-						returnHeader);
-			} catch (Exception e) {
-				log.error("Error reversing loyalty points for return {}: {}", returnHeader.getReturnNumber(), e.getMessage(), e);
-				// Do not fail the return if loyalty reversal fails
+			double[] goodsAndStamp = goodsAndStamp(originalSalesLines);
+			double returnedGoodsNow = 0.0;
+			for (ReturnLine returnLine : returnLines) {
+				if (!isTaxStamp(returnLine.getItem()) && returnLine.getLineTotalIncludingVat() != null) {
+					returnedGoodsNow += returnLine.getLineTotalIncludingVat();
+				}
 			}
+			loyaltyService.applyReturn(originalSalesHeader.getLoyaltyMember().getId(), originalSalesHeader,
+					returnHeader, goodsAndStamp[0], previouslyReturnedGoods + returnedGoodsNow, goodsAndStamp[1]);
 		}
 
 		return returnHeader;

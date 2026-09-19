@@ -1,10 +1,15 @@
 package com.digithink.zsretail.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +26,7 @@ import com.digithink.zsretail.dto.LoyaltyProgramDTO;
 import com.digithink.zsretail.dto.LoyaltyTransactionDTO;
 import com.digithink.zsretail.model.CashierSession;
 import com.digithink.zsretail.model.Customer;
+import com.digithink.zsretail.model.LoyaltyEarningTier;
 import com.digithink.zsretail.model.LoyaltyMember;
 import com.digithink.zsretail.model.LoyaltyProgram;
 import com.digithink.zsretail.model.LoyaltyTransaction;
@@ -231,11 +237,23 @@ public class LoyaltyService {
 	// ───────────────────────────────────────────────────────────────
 
 	/**
-	 * Earn points after a completed sale.
-	 * Points = floor(totalAmountTND × pointsPerDinar).
+	 * Earn points after a completed sale, with no fiscal stamp to exclude.
+	 * See {@link #earnPoints(Long, SalesHeader, CashierSession, double)}.
 	 */
 	@Transactional
 	public int earnPoints(Long memberId, SalesHeader salesHeader, CashierSession cashierSession) {
+		return earnPoints(memberId, salesHeader, cashierSession, 0.0);
+	}
+
+	/**
+	 * Earn points after a completed sale.
+	 * Flat program (no tiers): points = floor(totalAmountTND × pointsPerDinar), unchanged.
+	 * Tiered program: amount = total minus the fiscal stamp; the rate of the tier the
+	 * amount is strictly above applies to the whole ticket; points = floor(amount × rate).
+	 */
+	@Transactional
+	public int earnPoints(Long memberId, SalesHeader salesHeader, CashierSession cashierSession,
+			double taxStampAmount) {
 		if (!isLoyaltyEnabled()) return 0;
 
 		LoyaltyMember member = loyaltyMemberRepository.findById(memberId)
@@ -253,7 +271,17 @@ public class LoyaltyService {
 		}
 
 		double saleAmount = salesHeader.getTotalAmount() != null ? salesHeader.getTotalAmount() : 0.0;
-		int earnedPoints = (int) Math.floor(saleAmount * program.getPointsPerDinar());
+		int earnedPoints;
+		Double tierRate = null;
+		if (sortedTierCopies(program).isEmpty()) {
+			// Flat program: base amount and formula unchanged
+			earnedPoints = (int) Math.floor(saleAmount * program.getPointsPerDinar());
+		} else {
+			double earnableAmount = roundToMillimes(Math.max(0.0, saleAmount - Math.max(0.0, taxStampAmount)));
+			tierRate = resolvePointsPerDinar(program, earnableAmount);
+			// The epsilon only absorbs binary rounding (524.9999999999 must count as 525)
+			earnedPoints = (int) Math.floor(earnableAmount * tierRate + 1e-9);
+		}
 
 		if (earnedPoints <= 0) return 0;
 
@@ -274,7 +302,11 @@ public class LoyaltyService {
 		tx.setPoints(earnedPoints);
 		tx.setBalanceBefore(balanceBefore);
 		tx.setBalanceAfter(balanceAfter);
-		tx.setDescription("Points earned from sale #" + salesHeader.getSalesNumber());
+		String description = "Points earned from sale #" + salesHeader.getSalesNumber();
+		if (tierRate != null) {
+			description += " (" + formatRate(tierRate) + " pts/TND)";
+		}
+		tx.setDescription(description);
 		tx.setCreatedBy("System");
 
 		if (program.getPointsExpiryDays() != null) {
@@ -287,11 +319,23 @@ public class LoyaltyService {
 	}
 
 	/**
-	 * Redeem points at payment time.
-	 * Validates the member has enough points and redemption is within program limits.
+	 * Redeem points at payment time, for a ticket without fiscal stamp.
+	 * See {@link #redeemPoints(Long, int, SalesHeader, CashierSession, double)}.
 	 */
 	@Transactional
 	public double redeemPoints(Long memberId, int pointsToRedeem, SalesHeader salesHeader, CashierSession cashierSession) {
+		return redeemPoints(memberId, pointsToRedeem, salesHeader, cashierSession, 0.0);
+	}
+
+	/**
+	 * Redeem points at payment time.
+	 * Validates the member has enough points and redemption is within program limits.
+	 * The maximum percentage applies to the ticket amount after other discounts and before
+	 * points, fiscal stamp excluded (points never pay the stamp): the same base as the POS.
+	 */
+	@Transactional
+	public double redeemPoints(Long memberId, int pointsToRedeem, SalesHeader salesHeader, CashierSession cashierSession,
+			double taxStampAmount) {
 		if (!isLoyaltyEnabled() || pointsToRedeem <= 0) return 0.0;
 
 		LoyaltyMember member = loyaltyMemberRepository.findById(memberId)
@@ -312,10 +356,12 @@ public class LoyaltyService {
 
 		double deductionTND = (pointsToRedeem * program.getPointValueMillimes()) / 1000.0;
 
-		// Validate against maximum redemption percentage
-		if (salesHeader.getTotalAmount() != null && salesHeader.getTotalAmount() > 0) {
-			double maxDeduction = salesHeader.getTotalAmount() * (program.getMaximumRedemptionPercentage() / 100.0);
-			if (deductionTND > maxDeduction) {
+		// Validate against maximum redemption percentage. The POS sends the ticket total already net
+		// of this deduction, so the limit applies to that total plus the deduction, minus the stamp.
+		if (salesHeader.getTotalAmount() != null) {
+			double amountBeforePoints = salesHeader.getTotalAmount() + deductionTND - Math.max(0.0, taxStampAmount);
+			double maxDeduction = amountBeforePoints * (program.getMaximumRedemptionPercentage() / 100.0);
+			if (deductionTND > maxDeduction + 0.0005) { // half-millime tolerance for binary rounding
 				throw new IllegalArgumentException(
 						"Redemption exceeds maximum allowed (" + program.getMaximumRedemptionPercentage() + "% of sale total)");
 			}
@@ -347,42 +393,88 @@ public class LoyaltyService {
 	}
 
 	/**
-	 * Reverse the earned points when a sale is returned.
+	 * Adjusts the member's points after a full or partial return of a sale. Cumulative over every
+	 * return of the same ticket, so nothing is ever given back or removed twice:
+	 * 1) points converted on the sale are given back in proportion to the goods returned so far
+	 *    (an ADJUSTED row linked to the sale and the return, shown as "+" in the history);
+	 * 2) points earned by the sale are recalculated with the sale's program on the money kept for
+	 *    the goods not returned, and only the difference is removed (REVERSED row).
+	 *
+	 * @param goodsGross    goods TTC of the original ticket before header discount, fiscal stamp excluded
+	 * @param returnedGross goods TTC returned so far on this ticket, this return included
+	 * @param stampAmount   the original ticket's fiscal stamp amount (0 if none)
 	 */
 	@Transactional
-	public void reversePoints(Long memberId, SalesHeader originalSale, ReturnHeader returnHeader) {
+	public void applyReturn(Long memberId, SalesHeader originalSale, ReturnHeader returnHeader,
+			double goodsGross, double returnedGross, double stampAmount) {
 		if (!isLoyaltyEnabled()) return;
 
 		LoyaltyMember member = loyaltyMemberRepository.findById(memberId)
 				.orElseThrow(() -> new IllegalArgumentException("Loyalty member not found: " + memberId));
 
-		// Find the original EARNED transaction for this sale
-		Optional<LoyaltyTransaction> earnedTx = loyaltyTransactionRepository
-				.findTopByLoyaltyMemberAndSalesHeaderAndTypeOrderByCreatedAtDesc(
-						member, originalSale, LoyaltyTransactionType.EARNED);
+		// Share of the ticket's goods returned so far; a full return counts as exactly 1
+		double returnedShare = (goodsGross <= 0 || returnedGross >= goodsGross - 0.0005)
+				? 1.0 : Math.max(0.0, returnedGross / goodsGross);
 
-		if (earnedTx.isEmpty()) {
-			log.warn("No EARNED transaction found for member {} sale {}, skipping reversal",
-					member.getCardNumber(), originalSale.getSalesNumber());
-			return;
+		// 1) Give converted points back in proportion to the goods returned
+		List<LoyaltyTransaction> redeemedTxs = loyaltyTransactionRepository
+				.findByLoyaltyMemberAndSalesHeaderAndType(member, originalSale, LoyaltyTransactionType.REDEEMED);
+		int redeemed = sumPoints(redeemedTxs);
+		// Manual adjustments are never linked to a sale, so ADJUSTED rows on the sale are give-backs
+		int alreadyGivenBack = sumPoints(loyaltyTransactionRepository
+				.findByLoyaltyMemberAndSalesHeaderAndType(member, originalSale, LoyaltyTransactionType.ADJUSTED));
+		int toGiveBack = (int) Math.floor(redeemed * returnedShare + 1e-9) - alreadyGivenBack;
+		if (toGiveBack > 0) {
+			int balanceBefore = member.getLoyaltyPoints();
+			int balanceAfter = balanceBefore + toGiveBack;
+			member.setLoyaltyPoints(balanceAfter);
+			member.setTotalPointsRedeemed(Math.max(0, member.getTotalPointsRedeemed() - toGiveBack));
+			member.setUpdatedBy("System");
+			loyaltyMemberRepository.save(member);
+
+			LoyaltyTransaction tx = new LoyaltyTransaction();
+			tx.setLoyaltyMember(member);
+			tx.setLoyaltyProgram(redeemedTxs.get(0).getLoyaltyProgram());
+			tx.setSalesHeader(originalSale);
+			tx.setReturnHeader(returnHeader);
+			tx.setType(LoyaltyTransactionType.ADJUSTED);
+			tx.setPoints(toGiveBack);
+			tx.setBalanceBefore(balanceBefore);
+			tx.setBalanceAfter(balanceAfter);
+			tx.setDescription("Points given back after return #" + returnHeader.getReturnNumber()
+					+ " of sale #" + originalSale.getSalesNumber() + " (points converted on the sale)");
+			tx.setCreatedBy("System");
+			loyaltyTransactionRepository.save(tx);
+			log.info("Gave back {} converted points to member {} due to return {}", toGiveBack,
+					member.getCardNumber(), returnHeader.getReturnNumber());
 		}
 
-		int pointsToReverse = earnedTx.get().getPoints();
-		int balanceBefore = member.getLoyaltyPoints();
-		int balanceAfter = Math.max(0, balanceBefore - pointsToReverse);
+		// 2) Remove only the points the returned goods earned, recalculated on what is kept
+		List<LoyaltyTransaction> earnedTxs = loyaltyTransactionRepository
+				.findByLoyaltyMemberAndSalesHeaderAndType(member, originalSale, LoyaltyTransactionType.EARNED);
+		int earned = sumPoints(earnedTxs);
+		if (earned <= 0) return;
+		int alreadyReversed = sumPoints(loyaltyTransactionRepository
+				.findByLoyaltyMemberAndSalesHeaderAndType(member, originalSale, LoyaltyTransactionType.REVERSED));
+		LoyaltyProgram program = earnedTxs.get(0).getLoyaltyProgram();
+		int kept = pointsKeptAfterReturn(program, originalSale, returnedShare, stampAmount);
+		int toReverse = Math.max(0, earned - alreadyReversed - kept);
+		if (toReverse <= 0) return;
 
+		int balanceBefore = member.getLoyaltyPoints();
+		int balanceAfter = Math.max(0, balanceBefore - toReverse);
 		member.setLoyaltyPoints(balanceAfter);
-		member.setTotalPointsEarned(Math.max(0, member.getTotalPointsEarned() - pointsToReverse));
+		member.setTotalPointsEarned(Math.max(0, member.getTotalPointsEarned() - toReverse));
 		member.setUpdatedBy("System");
 		loyaltyMemberRepository.save(member);
 
 		LoyaltyTransaction tx = new LoyaltyTransaction();
 		tx.setLoyaltyMember(member);
-		tx.setLoyaltyProgram(earnedTx.get().getLoyaltyProgram());
+		tx.setLoyaltyProgram(program);
 		tx.setSalesHeader(originalSale);
 		tx.setReturnHeader(returnHeader);
 		tx.setType(LoyaltyTransactionType.REVERSED);
-		tx.setPoints(pointsToReverse);
+		tx.setPoints(toReverse);
 		tx.setBalanceBefore(balanceBefore);
 		tx.setBalanceAfter(balanceAfter);
 		tx.setDescription("Points reversed due to return #" + returnHeader.getReturnNumber()
@@ -390,8 +482,32 @@ public class LoyaltyService {
 		tx.setCreatedBy("System");
 		loyaltyTransactionRepository.save(tx);
 
-		log.info("Reversed {} points for member {} due to return {}", pointsToReverse, member.getCardNumber(), returnHeader.getReturnNumber());
+		log.info("Reversed {} points for member {} due to return {}", toReverse, member.getCardNumber(), returnHeader.getReturnNumber());
 	}
+
+	/**
+	 * Points a sale should still carry once returnedShare of its goods was returned, recalculated
+	 * with the sale's program the way earnPoints computed them: flat programs on the total with the
+	 * fiscal stamp, tiered programs on the goods money without it.
+	 */
+	static int pointsKeptAfterReturn(LoyaltyProgram program, SalesHeader sale, double returnedShare, double stampAmount) {
+		if (program == null || returnedShare >= 1.0) return 0;
+		double total = sale.getTotalAmount() != null ? sale.getTotalAmount() : 0.0;
+		double stamp = Math.max(0.0, stampAmount);
+		double goodsMoneyKept = roundToMillimes(Math.max(0.0, total - stamp) * (1.0 - returnedShare));
+		if (sortedTierCopies(program).isEmpty()) {
+			double base = roundToMillimes(goodsMoneyKept + stamp);
+			return (int) Math.floor(base * program.getPointsPerDinar());
+		}
+		double rate = resolvePointsPerDinar(program, goodsMoneyKept);
+		return (int) Math.floor(goodsMoneyKept * rate + 1e-9);
+	}
+
+	private static int sumPoints(List<LoyaltyTransaction> transactions) {
+		if (transactions == null) return 0;
+		return transactions.stream().mapToInt(t -> t.getPoints() != null ? t.getPoints() : 0).sum();
+	}
+
 
 	/**
 	 * Admin manual point adjustment.
@@ -448,6 +564,10 @@ public class LoyaltyService {
 
 	@Transactional
 	public LoyaltyProgramDTO activateNewProgram(LoyaltyProgram newProgram) {
+		// Validate tiers before any side effect (closing the current program)
+		List<LoyaltyEarningTier> tiers = normalizeTiers(newProgram.getEarningTiers());
+		newProgram.setEarningTiers(tiers != null ? tiers : new ArrayList<>());
+
 		LocalDate today = LocalDate.now();
 
 		// Close any currently-active programs (ignore endDate — may be null or set in future)
@@ -515,6 +635,9 @@ public class LoyaltyService {
 				existing.setMaximumRedemptionPercentage(patch.getMaximumRedemptionPercentage());
 			}
 			existing.setPointsExpiryDays(patch.getPointsExpiryDays());
+			if (patch.getEarningTiers() != null) {
+				replaceTiers(existing, normalizeTiers(patch.getEarningTiers()));
+			}
 		} else {
 			// Reject if the caller tried to change a locked field (value differs from existing)
 			rejectLockedChange("programCode", existing.getProgramCode(), patch.getProgramCode());
@@ -524,6 +647,11 @@ public class LoyaltyService {
 			rejectLockedChange("minimumRedemptionPoints", existing.getMinimumRedemptionPoints(), patch.getMinimumRedemptionPoints());
 			rejectLockedChange("maximumRedemptionPercentage", existing.getMaximumRedemptionPercentage(), patch.getMaximumRedemptionPercentage());
 			rejectLockedChange("pointsExpiryDays", existing.getPointsExpiryDays(), patch.getPointsExpiryDays());
+			if (patch.getEarningTiers() != null
+					&& !sortedTierCopies(existing).equals(normalizeTiers(patch.getEarningTiers()))) {
+				throw new IllegalStateException(
+						"Field 'earningTiers' is locked: this program already has loyalty transactions.");
+			}
 		}
 
 		existing.setUpdatedBy("System");
@@ -572,6 +700,81 @@ public class LoyaltyService {
 		}
 	}
 
+	// ─── Earning tiers ───────────────────────────────────────────────
+
+	/**
+	 * Points-per-TND rate for a ticket amount: the rate of the highest tier whose
+	 * threshold the amount is strictly above, else the program's base rate.
+	 * A ticket exactly on a threshold stays in the lower tier.
+	 */
+	public static double resolvePointsPerDinar(LoyaltyProgram program, double amount) {
+		double rate = program.getPointsPerDinar() != null ? program.getPointsPerDinar() : 0.0;
+		for (LoyaltyEarningTier tier : sortedTierCopies(program)) { // ascending thresholds
+			if (amount > tier.getThresholdAmount()) {
+				rate = tier.getPointsPerDinar();
+			}
+		}
+		return rate;
+	}
+
+	/** The program's tiers as sorted copies (ascending threshold); never null. */
+	static List<LoyaltyEarningTier> sortedTierCopies(LoyaltyProgram program) {
+		List<LoyaltyEarningTier> copies = new ArrayList<>();
+		if (program.getEarningTiers() != null) {
+			for (LoyaltyEarningTier t : program.getEarningTiers()) {
+				if (t != null && t.getThresholdAmount() != null && t.getPointsPerDinar() != null) {
+					copies.add(new LoyaltyEarningTier(t.getThresholdAmount(), t.getPointsPerDinar()));
+				}
+			}
+		}
+		copies.sort(Comparator.comparing(LoyaltyEarningTier::getThresholdAmount));
+		return copies;
+	}
+
+	/**
+	 * Validates tiers from a create/update request. Returns them sorted by threshold,
+	 * thresholds rounded to the millime. Null stays null ("not provided").
+	 */
+	static List<LoyaltyEarningTier> normalizeTiers(List<LoyaltyEarningTier> tiers) {
+		if (tiers == null) return null;
+		List<LoyaltyEarningTier> result = new ArrayList<>();
+		Set<Double> thresholds = new HashSet<>();
+		for (LoyaltyEarningTier t : tiers) {
+			if (t == null || t.getThresholdAmount() == null || t.getPointsPerDinar() == null
+					|| t.getThresholdAmount().isInfinite() || t.getPointsPerDinar().isInfinite()
+					|| !(t.getPointsPerDinar() > 0)) {
+				throw new IllegalArgumentException("Each earning tier needs an amount and a rate greater than 0");
+			}
+			double threshold = roundToMillimes(t.getThresholdAmount());
+			if (!(threshold > 0)) {
+				throw new IllegalArgumentException("Each earning tier needs an amount and a rate greater than 0");
+			}
+			if (!thresholds.add(threshold)) {
+				throw new IllegalArgumentException("Two earning tiers cannot start at the same amount: " + threshold + " TND");
+			}
+			result.add(new LoyaltyEarningTier(threshold, t.getPointsPerDinar()));
+		}
+		result.sort(Comparator.comparing(LoyaltyEarningTier::getThresholdAmount));
+		return result;
+	}
+
+	private static void replaceTiers(LoyaltyProgram program, List<LoyaltyEarningTier> tiers) {
+		if (program.getEarningTiers() == null) {
+			program.setEarningTiers(new ArrayList<>(tiers));
+		} else {
+			program.getEarningTiers().clear();
+			program.getEarningTiers().addAll(tiers);
+		}
+	}
+
+	private static double roundToMillimes(double amount) {
+		return Math.round(amount * 1000.0) / 1000.0;
+	}
+
+	private static String formatRate(double rate) {
+		return BigDecimal.valueOf(rate).stripTrailingZeros().toPlainString();
+	}
+
 	private LoyaltyProgramDTO toProgramDTO(LoyaltyProgram p, LocalDate today) {
 		long txCount = loyaltyTransactionRepository.countByLoyaltyProgram(p);
 		boolean started = p.getStartDate() != null && !p.getStartDate().isAfter(today);
@@ -591,6 +794,7 @@ public class LoyaltyService {
 		dto.setMinimumRedemptionPoints(p.getMinimumRedemptionPoints());
 		dto.setMaximumRedemptionPercentage(p.getMaximumRedemptionPercentage());
 		dto.setPointsExpiryDays(p.getPointsExpiryDays());
+		dto.setEarningTiers(sortedTierCopies(p));
 		dto.setActive(p.getActive());
 		dto.setTransactionCount(txCount);
 		dto.setCurrent(current);

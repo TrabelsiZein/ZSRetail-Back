@@ -435,6 +435,13 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			saleResponse.put("customer", salesHeader.getCustomer());
 			saleResponse.put("salesLines", salesLines);
 			saleResponse.put("paymentHeaders", payments);
+			// Same loyalty fields as process-sale, so the receipt prints points and the new balance
+			saleResponse.put("loyaltyMember", salesHeader.getLoyaltyMember());
+			saleResponse.put("loyaltyPointsEarned", salesHeader.getLoyaltyPointsEarned());
+			saleResponse.put("loyaltyPointsRedeemed", salesHeader.getLoyaltyPointsRedeemed());
+			saleResponse.put("loyaltyDeductionAmount", salesHeader.getLoyaltyDeductionAmount());
+			saleResponse.put("showLoyaltyBalance", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_BALANCE"));
+			saleResponse.put("showLoyaltyEarned", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_EARNED"));
 
 			return ResponseEntity.ok(saleResponse);
 

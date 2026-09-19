@@ -55,6 +55,7 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 	 * Validates and normalizes the ITEM_GROUP target before delegating to the base save.
 	 * ITEM_GROUP scope requires at least one group item and owns the target exclusively
 	 * (single-target FKs are cleared); all other scopes must not carry group items.
+	 * ALL_ITEMS scope carries no target at all (single-target FKs and group items cleared).
 	 */
 	@Override
 	@Transactional
@@ -71,6 +72,14 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 			promotion.setGroupItems(new HashSet<>());
 		} else {
 			promotion.getGroupItems().clear();
+		}
+
+		// ALL_ITEMS has no target. The per-item lookups match by FK without a scope filter,
+		// so a leftover FK would make this promotion win at a more specific scope.
+		if (promotion.getScope() == PromotionScope.ALL_ITEMS) {
+			promotion.setItem(null);
+			promotion.setItemFamily(null);
+			promotion.setItemSubFamily(null);
 		}
 
 		// Cross-product benefit target: only meaningful for quantity promotions;

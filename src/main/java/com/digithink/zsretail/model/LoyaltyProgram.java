@@ -1,10 +1,18 @@
 package com.digithink.zsretail.model;
 
 import java.time.LocalDate;
+import java.util.List;
 
+import javax.persistence.CollectionTable;
 import javax.persistence.Column;
+import javax.persistence.ElementCollection;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
+import javax.persistence.JoinColumn;
 import javax.persistence.Table;
+
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -57,4 +65,15 @@ public class LoyaltyProgram extends _BaseEntity {
 	/** Days after earning before points expire. Null = points never expire */
 	@Column(name = "points_expiry_days")
 	private Integer pointsExpiryDays;
+
+	/**
+	 * Optional earning tiers ("above X TND: Y points per TND", applied to the whole
+	 * ticket). Empty = pointsPerDinar for every ticket (flat program).
+	 * Null in a create/update request = not provided (update leaves tiers unchanged).
+	 * Loaded eagerly with its own SELECT so it is never join-fetched with other collections.
+	 */
+	@ElementCollection(fetch = FetchType.EAGER)
+	@Fetch(FetchMode.SELECT)
+	@CollectionTable(name = "loyalty_program_tier", joinColumns = @JoinColumn(name = "loyalty_program_id"))
+	private List<LoyaltyEarningTier> earningTiers;
 }

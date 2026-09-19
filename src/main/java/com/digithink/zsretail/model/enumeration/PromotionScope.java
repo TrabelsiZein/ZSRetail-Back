@@ -8,6 +8,8 @@ public enum PromotionScope {
 	ITEM_GROUP("Item Group"),
 	ITEM_FAMILY("Item Family"),
 	ITEM_SUBFAMILY("Item SubFamily"),
+	/** Every item, no target. Least specific item-level scope: used only when no other scope matched. */
+	ALL_ITEMS("All Items"),
 	CART("Cart");
 
 	private final String displayName;

@@ -11,7 +11,7 @@
 	</parent>
 	<groupId>com.digithink</groupId>
 	<artifactId>zsretail</artifactId>
-	<version>1.11.0</version>
+	<version>1.12.0</version>
 	<name>ZS Retail</name>
 	<description></description>
 	<packaging>war</packaging>

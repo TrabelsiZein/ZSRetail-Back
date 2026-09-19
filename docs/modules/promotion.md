@@ -4,7 +4,7 @@
 
 **Overview:**
 - Full promotion engine covering item-level discounts (percentage, fixed amount, free quantity) and cart-level discounts.
-- Promotions stack on top of the existing SalesPrice/SalesDiscount system with strict precedence: SalesPrice → SalesDiscount → Promotion (mutually exclusive at item level; cart promotions always apply alongside).
+- Promotions work on top of the SalesPrice/SalesDiscount system: SalesPrice sets the base price, then the item's promotion and the customer's SalesDiscount are compared and only the better one applies (never both on a line). Cart promotions always apply alongside. See **Resolution order** below.
 - Supports promo codes (cashier-entered at ItemSelection or Payment page) and automatic promotions.
 - Full audit trail: every sales line and header stores `discountSource` (MANUAL / PROMOTION / SALES_PRICE / SALES_DISCOUNT) and a `promotion` FK.
 
@@ -13,8 +13,11 @@
 **`promotion`** (Flyway migrations 018–021):
 - `code` (UNIQUE), `name`, `description`
 - `promotion_type` (SIMPLE_DISCOUNT / QUANTITY_PROMOTION / CART_DISCOUNT)
-- `scope` (ITEM / ITEM_FAMILY / ITEM_SUBFAMILY / CART)
+- `scope` (ITEM / ITEM_GROUP / ITEM_FAMILY / ITEM_SUBFAMILY / ALL_ITEMS / CART)
 - `item_id`, `item_family_id`, `item_sub_family_id` (nullable FKs — scope determines which is used)
+- `promotion_group_item` join table (1.10.0): the item set of an ITEM_GROUP promotion
+- ALL_ITEMS has no target: `PromotionService.save` clears the three FKs and the group items (the per-item FK lookups have no scope filter, so a leftover FK would make it match early)
+- `get_item_id` (nullable FK, 1.10.0): cross-product benefit target, QUANTITY_PROMOTION only, evaluated by the cart pass
 - `minimum_quantity`, `minimum_amount`
 - `benefit_type` (PERCENTAGE_DISCOUNT / FIXED_DISCOUNT / FREE_QUANTITY)
 - `discount_percentage`, `discount_amount`, `free_quantity`
@@ -33,13 +36,13 @@
 
 - **`model/Promotion.java`** — Entity with all fields above
 - **`model/enumeration/PromotionType.java`** — SIMPLE_DISCOUNT, QUANTITY_PROMOTION, CART_DISCOUNT
-- **`model/enumeration/PromotionScope.java`** — ITEM, ITEM_FAMILY, ITEM_SUBFAMILY, CART
+- **`model/enumeration/PromotionScope.java`** — ITEM, ITEM_GROUP, ITEM_FAMILY, ITEM_SUBFAMILY, ALL_ITEMS, CART
 - **`model/enumeration/PromotionBenefitType.java`** — PERCENTAGE_DISCOUNT, FIXED_DISCOUNT, FREE_QUANTITY
 - **`repository/PromotionRepository.java`** — standard JpaRepository + `GET /promotion/{id}/usage-count` support
 - **`service/PromotionService.java`** — CRUD + `getUsageCount(id)` (counts distinct sales headers linked to promotion)
 - **`controller/PromotionAPI.java`** — full CRUD + `GET /promotion/{id}/usage-count`
 - **`service/PromotionCalculationService.java`** — Core engine:
-  - `calculateItemPrice(itemId, quantity, customerId, appliedCodes)`: SalesPrice → SalesDiscount → Promotion precedence; scope priority ITEM > ITEM_SUBFAMILY > ITEM_FAMILY; within same scope: priority field wins, tiebreak = best value; filters active, date, time, day-of-week
+  - `calculateItemPrice(itemId, quantity, customerId, appliedCodes)`: selects one promotion for the item (see **Resolution order** below), then compares it with ERP pricing
   - `calculateCartDiscount(cartTotal, cartItems, customerId, appliedCodes)`: finds best CART-scope promotion
   - `validatePromoCode(code)`: returns `{ valid, scope, promotionName, reason }`
 - **`controller/PriceCalculateController.java`** — Three endpoints:
@@ -72,6 +75,7 @@ When a promotion grants free items (`benefit_type = FREE_QUANTITY`):
 - **`src/views/admin/PromotionsManagement.vue`** — Full CRUD admin page:
   - Type picker (3 cards: Simple Discount, Quantity Promotion, Cart Discount)
   - Two-column modal with all fields; item search autocomplete for ITEM scope
+  - Scope select: Item / Group of items / Family / Subfamily / All items. ALL_ITEMS shows no target picker, only a hint that more specific promotions take precedence (`admin.promotions.fields.allItemsHint`); the list shows just the scope badge
   - Fields locked when `usageCount > 0`: code, requiresCode, scope, item/family/subfamily, min quantity/amount, benefitType, discount/freeQuantity fields (name, dates, active, priority, time/day remain editable)
   - Deactivate (Pause) button on active promotions — calls `PUT /promotion/{id}` with `active: false`
   - Yellow warning banner in modal when promotion has been used
@@ -127,12 +131,35 @@ When a promotion grants free items (`benefit_type = FREE_QUANTITY`):
   - `pos.itemSelection.promoCode.*` (placeholder, applied, alreadyApplied, invalid, reason.*)
   - `pos.returnProducts.freeItem`, `pos.returnProducts.freeNoRefund`, `pos.returnProducts.freeLinesInfo`, `pos.returnProducts.promotion`
 
+### Resolution order (per item)
+
+`PromotionCalculationService.findBestItemPromotion` then `calculateItemPrice`:
+
+1. **Scope cascade**, most specific first: ITEM > ITEM_GROUP > ITEM_SUBFAMILY > ITEM_FAMILY > ALL_ITEMS.
+   Each scope loads its active, in-date promotions, then drops those failing the promo-code,
+   minimum-quantity, time-window or day-of-week filters. A scope left with no candidate falls
+   through to the next one. The first scope with a candidate wins; less specific scopes are not consulted.
+   Cross-product promotions (`get_item_id` set) are skipped here; the cart pass handles them.
+2. **Within that scope**: highest `priority`; on a tie, highest `discount_percentage`, then
+   `discount_amount`, then `free_quantity` (raw field values, not converted to money).
+3. **ERP comparison**: SalesPrice, if any, is the base price. FREE_QUANTITY always applies.
+   Otherwise the promotion applies only if its effective % (fixed amount ÷ unit price) beats the
+   customer's SalesDiscount %. If it loses, ERP pricing is kept and no other scope is tried.
+
+ALL_ITEMS (next release after 1.11.0) is the storewide fallback. Example: "family Desserts 5%" +
+"all items 10%" gives desserts 5% and every other item 10%. To give desserts 10% too, raise or
+deactivate the family promotion. If the family promotion is filtered out (wrong day, code not
+entered, quantity not met), desserts fall through to the 10%. Minimum quantity is checked per cart
+line, as for every scope. As the buy side of a cross-product promotion, ALL_ITEMS matches every
+cart line except the benefit item's own line. The TAX_STAMP line is added server-side at a fixed
+price and never goes through promotion pricing.
+
 ### Key Design Decisions
 
 - **Zero Preloading**: No Vuex preloading of promotions; all calculation is server-side per event (<5ms with DB indexes)
-- **Single promotion per item**: Most specific scope wins (ITEM > ITEM_SUBFAMILY > ITEM_FAMILY), then highest priority, then best value — never stacked at item level
+- **Single promotion per item**: Most specific scope wins (ITEM > ITEM_GROUP > ITEM_SUBFAMILY > ITEM_FAMILY > ALL_ITEMS), then highest priority, then best value — never stacked at item level
 - **ITEM-level + CART-level can coexist**: A line can have an ITEM-scope promotion AND the cart can have a CART-scope discount simultaneously
-- **Priority is absolute**: Higher `priority` value always wins regardless of discount value — intentional business control
-- **SalesPrice/SalesDiscount blocks promotion**: If a SalesPrice or SalesDiscount exists for the customer+item, promotions are skipped for that item
+- **Priority is absolute within a scope**: Higher `priority` value always wins regardless of discount value — intentional business control. It never overrides scope specificity
+- **ERP pricing vs promotion**: SalesPrice sets the base price the promotion applies to; a percentage/fixed promotion applies only if it beats the customer's SalesDiscount; FREE_QUANTITY always applies
 - **Free lines are real DB rows**: `lineTotalIncludingVat=0` ensures return flow gives 0 TND refund without special-casing
 - **discountSource tracks origin**: MANUAL (cashier entered), PROMOTION (promo engine), SALES_PRICE, SALES_DISCOUNT — stored on both header and each line for audit and reporting

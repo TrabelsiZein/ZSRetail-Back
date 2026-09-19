@@ -1,5 +1,10 @@
 package com.digithink.zsretail.dto;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import com.digithink.zsretail.model.LoyaltyEarningTier;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -24,6 +29,8 @@ public class LoyaltyProgramDTO {
 	private Integer minimumRedemptionPoints;
 	private Double maximumRedemptionPercentage;
 	private Integer pointsExpiryDays;
+	/** Earning tiers sorted by threshold. Empty = flat program (pointsPerDinar for every ticket). */
+	private List<LoyaltyEarningTier> earningTiers = new ArrayList<>();
 	private Boolean active;
 
 	/** Number of loyalty transactions that reference this program. 0 = never used. */

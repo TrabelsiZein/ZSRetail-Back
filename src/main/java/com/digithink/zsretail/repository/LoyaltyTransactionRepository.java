@@ -24,6 +24,10 @@ public interface LoyaltyTransactionRepository extends _BaseRepository<LoyaltyTra
 	Optional<LoyaltyTransaction> findTopByLoyaltyMemberAndSalesHeaderAndTypeOrderByCreatedAtDesc(
 			LoyaltyMember member, SalesHeader salesHeader, LoyaltyTransactionType type);
 
+	/** All transactions of one type for a member on one sale (its EARNED, REDEEMED, ADJUSTED or REVERSED rows). */
+	List<LoyaltyTransaction> findByLoyaltyMemberAndSalesHeaderAndType(
+			LoyaltyMember member, SalesHeader salesHeader, LoyaltyTransactionType type);
+
 	List<LoyaltyTransaction> findByLoyaltyMemberAndType(LoyaltyMember member, LoyaltyTransactionType type);
 
 	long countByLoyaltyProgram(LoyaltyProgram program);

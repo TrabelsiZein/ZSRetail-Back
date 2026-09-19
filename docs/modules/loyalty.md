@@ -19,13 +19,17 @@
 **`loyalty_program`**
 - `id` (PK), `program_code` (UNIQUE), `name`, `description`, `start_date`, `end_date`
 - `points_per_dinar` (e.g. 10 → 10 pts per 1 TND), `point_value_millimes` (e.g. 10 → 1 pt = 10 millimes = 0.010 TND)
-- `minimum_redemption_points`, `maximum_redemption_percentage` (caps redemption as % of sale total — e.g. 30% means max 30 TND can be paid with points on a 100 TND sale)
+- `minimum_redemption_points`, `maximum_redemption_percentage` (caps redemption as % of the ticket amount after other discounts, before points, fiscal stamp excluded — e.g. 30% means max 30 TND can be paid with points on a 100 TND sale; see **Redemption limit**)
 - `points_expiry_days` (null = never expires), `active`
 - Only ONE row can have `active = true` at a time (enforced in service)
 
+**`loyalty_program_tier`** (optional earning tiers; created by Hibernate `ddl-auto=update`, no SQL script needed)
+- `loyalty_program_id` (FK → `loyalty_program`), `threshold_amount` (TND), `points_per_dinar`
+- No rows = flat program: the program's `points_per_dinar` applies to every ticket
+
 **`loyalty_transaction`** (immutable audit log — records never updated/deleted)
 - `id`, `loyalty_member_id` (FK), `loyalty_program_id` (FK, nullable), `sales_header_id` (FK, nullable), `return_header_id` (FK, nullable), `cashier_session_id` (FK, nullable)
-- `type` (ENUM: `EARNED`, `REDEEMED`, `ADJUSTED`, `REVERSED`), `points` (always positive), `balance_before`, `balance_after`
+- `type` (ENUM: `EARNED`, `REDEEMED`, `ADJUSTED`, `REVERSED`), `points` (always positive), `balance_before`, `balance_after`. An `ADJUSTED` row linked to a sale is points given back after a return (manual adjustments are never linked to a sale); the UI shows its sign from the balance before/after
 - `description`, `expiry_date`, `created_at`, `created_by`
 
 **`sales_header`** — added columns:
@@ -36,20 +40,21 @@
 - **Entities**: `model/LoyaltyMember.java`, `model/LoyaltyProgram.java`, `model/LoyaltyTransaction.java`, `model/enumeration/LoyaltyTransactionType.java`
 - **Repositories**: `LoyaltyMemberRepository` (with `findMaxCardSequence` native SQL Server query using `SUBSTRING(col, 5, LEN(col)-4)`), `LoyaltyProgramRepository`, `LoyaltyTransactionRepository` (with `findAllFiltered` JPQL cross-member query)
 - **DTOs**: `LoyaltyConfigDTO`, `LoyaltyMemberDTO` (includes `pointsValueDinars`), `CreateLoyaltyMemberRequestDTO`, `LoyaltyTransactionDTO` (includes `memberCardNumber`, `memberFullName` for cross-member queries), `LoyaltyAdjustmentRequestDTO`
-- **Service**: `LoyaltyService` — methods: `getLoyaltyConfig`, `searchMembers`, `createMember`, `updateMember`, `toggleActive`, `earnPoints`, `redeemPoints`, `reversePoints`, `adjustPoints`, `activateNewProgram`, `getAllPrograms`, `getTransactionHistory`, `getAllTransactionsFiltered`, `getPointsValueInDinars`
+- **Service**: `LoyaltyService` — methods: `getLoyaltyConfig`, `searchMembers`, `createMember`, `updateMember`, `toggleActive`, `earnPoints`, `redeemPoints`, `applyReturn`, `adjustPoints`, `activateNewProgram`, `getAllPrograms`, `getTransactionHistory`, `getAllTransactionsFiltered`, `getPointsValueInDinars`
 - **Controller**: `LoyaltyAPI` (`/loyalty/*`) — endpoints for config, member CRUD/search/toggle, balance, per-member transactions, cross-member transactions (paginated + filtered), adjustment, programs CRUD
 
 ### Backend — Modified Files
 - `ProcessSaleRequestDTO`: added `loyaltyMemberId`, `loyaltyPointsToRedeem`
-- `SalesHeaderService.processCompleteSale()`: calls `earnPoints` and `redeemPoints`
-- `ReturnHeaderService.processReturn()`: calls `reversePoints`
+- `SalesHeaderService`: both ways of completing a sale, `processCompleteSale()` (direct sale) and `completePendingSale()` (parked ticket completed later), attach the card and call `redeemPoints` then `earnPoints` through the shared helpers `attachLoyaltyMember` / `processLoyaltyPoints`, before the NAV export. Before 2026-09, parked tickets ignored the card: no points earned, and a conversion was discounted without debiting the points. Split bills (`splitAndPay`, restaurant tables) have no loyalty.
+- `SalesHeaderAPI`: `POST /sales-header/process-sale` and `POST /sales-header/complete-pending/{id}` both return `loyaltyMember` (with the new balance), `loyaltyPointsEarned`, `loyaltyPointsRedeemed`, `loyaltyDeductionAmount` and the receipt flags `showLoyaltyBalance` / `showLoyaltyEarned` (settings `TICKET_SHOW_LOYALTY_BALANCE` / `TICKET_SHOW_LOYALTY_EARNED`, default true). Before 2026-09 the parked-ticket response had none of them, so its receipt printed no loyalty block.
+- `ReturnHeaderService.processReturn()`: calls `applyReturn` (see **Returns**); for a ticket paid partly with points, refunds only the money paid (`loyaltyRefundFactor`). `ReturnHeaderAPI /ticket-details` sends `loyaltyPointsRedeemed`, `loyaltyDeductionAmount`, `loyaltyRefundFactor`, `loyaltyHeaderFactor` so `ReturnProducts.vue` shows the same refund, with the points share on its own line.
 - `ZZDataInitializer`: seeds `LOYALTY_ENABLED=false` in `GeneralSetup`
 - `AppConfigDTO` / `AppConfigAPI` (`GET /config`): exposes `loyaltyEnabled` flag
 - `LoyaltyTransactionRepository`: `findMaxCardSequence` uses **native SQL Server query** (`SUBSTRING(card_number, 5, LEN(card_number)-4)`) because SQL Server's `SUBSTRING` requires 3 arguments (unlike MySQL/H2)
 
 ### Frontend — New Files
 - `src/views/admin/LoyaltyMembersManagement.vue`: paginated member table with search + status filter; detail modal with member info, edit form, points summary, last 5 transactions + "View All" button; adjust points modal; create member modal
-- `src/views/admin/LoyaltyProgramManagement.vue`: list of all programs (active highlighted); create new program form (auto-deactivates current); immutable past programs; detail modal
+- `src/views/admin/LoyaltyProgramManagement.vue`: list of all programs (active highlighted); create new program form (auto-deactivates current); immutable past programs; detail modal; optional earning-tier editor ("above X TND → Y pts/TND") with a live range preview, tiers shown in the detail modal and as a badge in the list
 - `src/views/admin/LoyaltyTransactions.vue`: full audit page — search (card/name/phone), type filter (EARNED/REDEEMED/ADJUSTED/REVERSED), date-from/to range, Member column (card # + name, clickable → navigates to member detail), paginated; supports `?memberId=X` query param from member popup "View All" link
 
 ### Frontend — Modified Files
@@ -62,7 +67,36 @@
 - **`src/store/app-config/index.js`**: `loyaltyEnabled` state fetched from `GET /config`
 - **i18n** (`en.json`, `fr.json`, `ar.json`): added `pos.loyalty.*`, `admin.loyaltyMembers.*`, `admin.loyaltyPrograms.*`, `admin.loyaltyTransactions.*`, `admin.loyaltyMembersMenu`, `admin.loyaltyProgramsMenu`, `admin.loyaltyTransactionsMenu`; also added `common.all`, `common.active`, `common.inactive` (were missing from `common` block — caused raw key display in status dropdowns)
 
+### Earning tiers (points by ticket amount)
+
+- A program may define tiers "above X TND → Y points per TND". The ticket amount picks the highest tier it is **strictly above**, and that rate applies to the **whole ticket** (not progressive). A ticket exactly on a limit stays in the lower tier.
+- Amount used: the sale total sent by the POS (after discounts and after points redeemed on the same ticket) **minus the fiscal stamp**; `SalesHeaderService` passes the stamp amount returned by `addTaxStampLineIfEnabled` to `earnPoints`. Points are rounded down.
+- Example: base 1, above 200 → 1.5, above 500 → 2 gives 150 TND → 150 pts, 200 → 200, 350 → 525, 500 → 750, 650 → 1300.
+- **Flat programs are unchanged**: without tiers, `earnPoints` keeps the previous formula `floor(total × points_per_dinar)` on the total including the stamp, with the same history text. Tiered EARNED rows add the rate used: `Points earned from sale #X (1.5 pts/TND)`.
+- Validation (`LoyaltyService.normalizeTiers`): amount > 0 (rounded to the millime), rate > 0, no two tiers on the same amount; stored sorted. Invalid tiers return HTTP 400 before the current program is closed.
+- Locking follows the rate fields: editable while the program has no transactions, then any change returns HTTP 409 (resending the same tiers is accepted). In `PUT /loyalty/programs/{id}`, `earningTiers` absent or null = unchanged, `[]` = remove all tiers.
+- Mapping: `@ElementCollection(fetch = EAGER)` + `@Fetch(FetchMode.SELECT)`, so tiers are never join-fetched with another collection (no `MultipleBagFetchException` at startup).
+- Tests: `src/test/java/com/digithink/zsretail/service/LoyaltyEarningTiersTest.java` (plain JUnit 5 with in-memory stubs, no Spring context).
+
+### Returns
+
+`LoyaltyService.applyReturn` runs on every return of a ticket with a member card. It is cumulative over all returns of the ticket (it reads the ticket's EARNED / REDEEMED / ADJUSTED / REVERSED rows), so nothing is given back or removed twice:
+- **Converted points go back** in proportion to the goods returned so far (`ADJUSTED` row linked to the sale and the return). A full return gives all of them back.
+- **Earned points are recalculated** with the sale's program on the money kept for the goods not returned (flat programs on that amount plus the stamp, tiered programs without it); only the difference is removed (`REVERSED`). Example: 650 TND ticket, 1300 pts; returning 200 TND keeps 450 TND = 675 pts at 1.5, so 625 are removed. The balance never goes below 0 (unchanged).
+- **Money refund** (`ReturnHeaderService`): for a ticket with `loyaltyDeductionAmount > 0`, refund = returned goods TTC × (total − stamp) / goods TTC, i.e. only the money actually paid. The return's `discountPercentage` stores the combined rate (header discount + points share, 5 decimals) so NAV reconciles lines × (1 − pct) = refund, as the sales export already does. Tickets without points keep the previous pct / ratio rules unchanged.
+- Before 2026-09: any return removed all of the ticket's earned points (again on each later return), converted points were never given back, and with a percentage header discount the refund paid the points share back in money.
+- Tests: `src/test/java/com/digithink/zsretail/service/ReturnRefundLoyaltyTest.java` (also pins the unchanged refunds of tickets without points).
+
+### Redemption limit
+
+- The POS (`Payment.vue`, computed `maxRedeemablePoints`) and the server (`LoyaltyService.redeemPoints`) use the same base: ticket amount after other discounts and before points, **fiscal stamp excluded**. Points never pay the stamp, so with a stamp enabled there is always something left to pay.
+- The POS sends `totalAmount` already net of the points deduction, so the server rebuilds the base as `totalAmount + deduction - stamp` (the stamp comes from `addTaxStampLineIfEnabled`), with a half-millime tolerance.
+- Before 2026-09 the server applied the percentage to the total net of the deduction: at 100%, any conversion over half the ticket was refused.
+- Edge case: with no fiscal stamp and points covering the whole ticket, nothing remains to pay and the POS cannot complete the sale; the cashier converts slightly fewer points.
+- Tests: `SaleCompletionLoyaltyStampTest` (conversion tests) and `LoyaltyEarningTiersTest#redeemWithoutStampOverload`.
+
 ### Key Design Decisions
+- **Loyalty failures refuse the sale with their reason**: `redeemPoints` / `earnPoints` are `@Transactional` and join the sale's transaction, so any failure there rolls the whole sale back. `SalesHeaderService.processLoyaltyPoints` therefore does not catch: the real reason (e.g. "Insufficient points", "Minimum redemption is 600 points", "Redemption exceeds maximum allowed") reaches the POS as HTTP 400/409. Before 2026-09 it caught the exception, and the cashier got Spring's generic `UnexpectedRollbackException` instead.
 - **LoyaltyMember ≠ Customer**: Loyalty is lightweight — any walk-in can get a card; linking to a formal ERP customer is optional via nullable FK
 - **LOYALTY_ENABLED only in GeneralSetup**: Full program config (rates, limits, expiry) lives in `loyalty_program` table
 - **Immutable transaction log**: `loyalty_transaction` rows are never edited; adjustments create new `ADJUSTED` rows

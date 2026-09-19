@@ -15,7 +15,7 @@ Le module **Promotions** permet de configurer et d'exploiter des remises commerc
 
 - Chaque promotion possède un **code unique** (ex. `PROMO-ETE`) qui sert à la fois d'identifiant interne et, lorsque l'option est activée, de **code promotionnel** saisi en caisse.
 - Les promotions peuvent être **automatiques** (appliquées dès qu'un article éligible est ajouté au panier) ou **sur code** (nécessitent une saisie manuelle par le caissier).
-- Une promotion peut viser un **article précis**, une **famille**, une **sous-famille**, ou **le panier entier**.
+- Une promotion peut viser un **article précis**, un **groupe d'articles**, une **famille**, une **sous-famille**, **tous les articles**, ou **le panier entier**.
 - Les règles de précédence garantissent qu'une seule promotion s'applique par ligne (la plus prioritaire), et une seule promotion panier globale.
 - Les **champs sensibles** (type de remise, montant, scope…) sont **verrouillés** automatiquement dès qu'une promotion a été utilisée sur au moins une vente, afin de préserver la traçabilité comptable.
 - Toutes les utilisations sont **traçables** via le rapport Promotions.
@@ -26,7 +26,7 @@ Le module **Promotions** permet de configurer et d'exploiter des remises commerc
 |---|---|
 | **Précédence claire** | Au **niveau ligne** : la tarification ERP (**SalesPrice** et/ou **SalesDiscount**, qui peuvent se cumuler) prime ; si aucune règle ERP ne s'applique, une **promotion POS article/famille** est cherchée ; sinon le prix de base s'applique. Les **promotions panier (CART)** s'ajoutent indépendamment, quel que soit le tarif ligne. |
 | **Priorité absolue** | Entre plusieurs promotions éligibles, la valeur du champ `priorité` décide (valeur supérieure = appliquée en premier). Pas de stacking automatique. |
-| **Scope spécifique** | Si plusieurs promotions s'appliquent à un même article, l'ordre de spécificité est : Article > Sous-famille > Famille. |
+| **Scope spécifique** | Si plusieurs promotions s'appliquent à un même article, l'ordre de spécificité est : Article > Groupe d'articles > Sous-famille > Famille > Tous les articles. Une promotion « Tous les articles » ne s'applique donc qu'aux articles qu'aucune promotion plus ciblée, valide à ce moment, ne couvre. |
 | **Planification fine** | Chaque promotion peut être limitée à une plage de dates, à certains jours de la semaine, et à une plage horaire (happy hour). |
 | **Protection post-usage** | Une fois qu'une vente utilise la promotion, les paramètres de base (type, montant, scope, seuil) deviennent non modifiables — seuls le nom, la description, les dates et l'activation restent éditables. |
 
@@ -40,7 +40,7 @@ Trois grands types sont disponibles. Le choix du type détermine les champs à r
 
 Remise appliquée automatiquement sur un article, une famille ou une sous-famille, sans seuil de quantité.
 
-- **Cible possible** : Article, Famille, Sous-famille
+- **Cible possible** : Article, Groupe d'articles, Famille, Sous-famille, Tous les articles
 - **Types d'avantage** : % de remise OU montant fixe (TND)
 - **Exemple** : « 10 % de remise sur la famille Desserts »
 
@@ -48,8 +48,9 @@ Remise appliquée automatiquement sur un article, une famille ou une sous-famill
 
 S'active uniquement quand le client achète une **quantité minimale** du produit/famille ciblé.
 
-- **Cible possible** : Article, Famille, Sous-famille
+- **Cible possible** : Article, Groupe d'articles, Famille, Sous-famille, Tous les articles
 - **Condition** : `quantité_minimale` requise
+- **Avec « Tous les articles »** : le seuil porte sur la quantité d'un même article (ex. « 3 achetés = 1 offert » sur n'importe quel article), pas sur le nombre total d'articles du panier.
 - **Types d'avantage** :
   - % de remise sur la ligne
   - Montant fixe de remise
@@ -98,7 +99,7 @@ La page affiche un tableau paginé avec :
 - **Code** (et description en sous-titre)
 - **Nom**
 - **Type** (Simple / Quantité / Panier — badge coloré)
-- **Cible** (scope + article / famille / sous-famille)
+- **Cible** (scope + article / groupe / famille / sous-famille ; « Tous les articles » n'a pas de cible)
 - **Avantage** (ex. « 15 % », « 3,50 TND », « Buy 3 Get 1 »)
 - **Dates de validité**
 - **Priorité**
@@ -152,7 +153,7 @@ Les champs de cette colonne dépendent du **type** choisi :
 
 | Type | Champs principaux |
 |---|---|
-| **SIMPLE_DISCOUNT** | Scope (Article / Famille / Sous-famille), cible, type d'avantage (% ou fixe), valeur |
+| **SIMPLE_DISCOUNT** | Scope (Article / Groupe d'articles / Famille / Sous-famille / Tous les articles), cible (aucune pour « Tous les articles »), type d'avantage (% ou fixe), valeur |
 | **QUANTITY_PROMOTION** | Scope, cible, **quantité minimale**, type d'avantage (% / fixe / quantité offerte), valeur |
 | **CART_DISCOUNT** | **Montant minimum** du panier, type d'avantage (% ou fixe), valeur |
 

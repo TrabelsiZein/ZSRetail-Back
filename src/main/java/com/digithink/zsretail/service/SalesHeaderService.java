@@ -279,77 +279,17 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		}
 
 		// Tax stamp (timbre fiscal) - add one line per receipt when enabled (e.g. Tunisia 100 millimes)
-		Optional<GeneralSetup> enableTaxStampOpt = generalSetupRepository.findByCode("ENABLE_TAX_STAMP");
-		if (enableTaxStampOpt.isPresent() && "true".equalsIgnoreCase(enableTaxStampOpt.get().getValeur())) {
-			Optional<Item> taxStampItemOpt = itemRepository.findByItemCode("TAX_STAMP");
-			if (taxStampItemOpt.isPresent()) {
-				String valueStr = generalSetupRepository.findByCode("TAX_STAMP_VALUE_MILLIMES")
-						.map(GeneralSetup::getValeur).orElse("100");
-				int millimes = 100;
-				try {
-					if (valueStr != null && !valueStr.trim().isEmpty()) {
-						millimes = Integer.parseInt(valueStr.trim());
-					}
-				} catch (NumberFormatException e) {
-					log.warn("Invalid TAX_STAMP_VALUE_MILLIMES: {}, using 100", valueStr);
-				}
-				double stampAmount = millimes / 1000.0; // millimes to TND
-				Item taxStampItem = taxStampItemOpt.get();
-				SalesLine taxStampLine = new SalesLine();
-				taxStampLine.setSalesHeader(salesHeader);
-				taxStampLine.setItem(taxStampItem);
-				taxStampLine.setQuantity(1);
-				taxStampLine.setUnitPrice(stampAmount);
-				taxStampLine.setLineTotal(stampAmount);
-				taxStampLine.setVatPercent(0);
-				taxStampLine.setVatAmount(0.0);
-				taxStampLine.setUnitPriceIncludingVat(stampAmount);
-				taxStampLine.setLineTotalIncludingVat(stampAmount);
-				taxStampLine = salesLineService.save(taxStampLine);
-				salesLines.add(taxStampLine);
-				// Header totals are set from request; frontend includes tax stamp when enabled
-				log.info("Tax stamp line added: {} TND", stampAmount);
-			} else {
-				log.warn("Tax stamp enabled but TAX_STAMP item not found");
-			}
-		}
+		double taxStampAmount = addTaxStampLineIfEnabled(salesHeader, salesLines);
 
 		// Attach loyalty member if provided
-		LoyaltyMember loyaltyMember = null;
-		if (request.getLoyaltyMemberId() != null) {
-			loyaltyMember = loyaltyMemberRepository.findById(request.getLoyaltyMemberId()).orElse(null);
-			if (loyaltyMember != null) {
-				salesHeader.setLoyaltyMember(loyaltyMember);
-			}
-		}
+		LoyaltyMember loyaltyMember = attachLoyaltyMember(salesHeader, request);
 
 		// Create payments and update header paid/change (shared with completePendingSale)
 		List<Payment> payments = createAndSavePaymentsForSale(salesHeader, request, currentUser);
 		salesHeader = save(salesHeader);
 
 		// Process loyalty points (earn and/or redeem) after sale is committed
-		if (loyaltyMember != null) {
-			try {
-				// Redeem points first (if requested)
-				int pointsToRedeem = request.getLoyaltyPointsToRedeem() != null ? request.getLoyaltyPointsToRedeem() : 0;
-				if (pointsToRedeem > 0) {
-					double deduction = loyaltyService.redeemPoints(loyaltyMember.getId(), pointsToRedeem, salesHeader, currentSession);
-					salesHeader.setLoyaltyPointsRedeemed(pointsToRedeem);
-					salesHeader.setLoyaltyDeductionAmount(deduction);
-				}
-
-				// Earn points on the sale total (always, after redemption)
-				int earned = loyaltyService.earnPoints(loyaltyMember.getId(), salesHeader, currentSession);
-				if (earned > 0) {
-					salesHeader.setLoyaltyPointsEarned(earned);
-				}
-
-				salesHeader = save(salesHeader);
-			} catch (Exception e) {
-				log.error("Error processing loyalty points for sale {}: {}", salesNumber, e.getMessage(), e);
-				// Do not fail the sale if loyalty points processing fails
-			}
-		}
+		salesHeader = processLoyaltyPoints(salesHeader, loyaltyMember, request, currentSession, taxStampAmount);
 
 		// Update stock (standalone only; shared helper)
 		decrementStockForSalesLines(salesLines, salesHeader);
@@ -623,6 +563,12 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			}
 		}
 
+		// Tax stamp line, as for a direct sale (the ticket's previous lines were deleted above)
+		double taxStampAmount = addTaxStampLineIfEnabled(salesHeader, salesLines);
+
+		// Attach the loyalty card sent at payment, as for a direct sale
+		LoyaltyMember loyaltyMember = attachLoyaltyMember(salesHeader, request);
+
 		// Create payments and update header paid/change (shared with processCompleteSale)
 		List<Payment> payments = createAndSavePaymentsForSale(salesHeader, request, currentUser);
 
@@ -633,6 +579,9 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		salesHeader.setStatus(TransactionStatus.COMPLETED);
 		salesHeader.setCompletedDate(LocalDateTime.now());
 		salesHeader = save(salesHeader);
+
+		// Loyalty points, as for a direct sale; before the export so the deduction is included
+		salesHeader = processLoyaltyPoints(salesHeader, loyaltyMember, request, currentSession, taxStampAmount);
 
 		log.info("Pending sale completed successfully: " + salesHeader.getSalesNumber());
 
@@ -805,6 +754,93 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		salesHeader.setTableNumber(targetTableNumber);
 		save(salesHeader);
 		log.info("Table ticket {} transferred to table {}", salesHeaderId, targetTableNumber);
+	}
+
+	/**
+	 * Tax stamp (timbre fiscal): adds one TAX_STAMP line per receipt when ENABLE_TAX_STAMP is true
+	 * (e.g. Tunisia 100 millimes). Header totals are set from the request; the frontend includes
+	 * the stamp in them when enabled. Shared by processCompleteSale and completePendingSale.
+	 *
+	 * @return the stamp amount in TND, or 0 when no stamp line was added
+	 */
+	private double addTaxStampLineIfEnabled(SalesHeader salesHeader, List<SalesLine> salesLines) throws Exception {
+		Optional<GeneralSetup> enableTaxStampOpt = generalSetupRepository.findByCode("ENABLE_TAX_STAMP");
+		if (!enableTaxStampOpt.isPresent() || !"true".equalsIgnoreCase(enableTaxStampOpt.get().getValeur())) {
+			return 0.0;
+		}
+		Optional<Item> taxStampItemOpt = itemRepository.findByItemCode("TAX_STAMP");
+		if (!taxStampItemOpt.isPresent()) {
+			log.warn("Tax stamp enabled but TAX_STAMP item not found");
+			return 0.0;
+		}
+		String valueStr = generalSetupRepository.findByCode("TAX_STAMP_VALUE_MILLIMES")
+				.map(GeneralSetup::getValeur).orElse("100");
+		int millimes = 100;
+		try {
+			if (valueStr != null && !valueStr.trim().isEmpty()) {
+				millimes = Integer.parseInt(valueStr.trim());
+			}
+		} catch (NumberFormatException e) {
+			log.warn("Invalid TAX_STAMP_VALUE_MILLIMES: {}, using 100", valueStr);
+		}
+		double stampAmount = millimes / 1000.0; // millimes to TND
+		SalesLine taxStampLine = new SalesLine();
+		taxStampLine.setSalesHeader(salesHeader);
+		taxStampLine.setItem(taxStampItemOpt.get());
+		taxStampLine.setQuantity(1);
+		taxStampLine.setUnitPrice(stampAmount);
+		taxStampLine.setLineTotal(stampAmount);
+		taxStampLine.setVatPercent(0);
+		taxStampLine.setVatAmount(0.0);
+		taxStampLine.setUnitPriceIncludingVat(stampAmount);
+		taxStampLine.setLineTotalIncludingVat(stampAmount);
+		taxStampLine = salesLineService.save(taxStampLine);
+		salesLines.add(taxStampLine);
+		log.info("Tax stamp line added: {} TND", stampAmount);
+		return stampAmount;
+	}
+
+	/** Attaches the loyalty card sent with the sale, if any. Returns the member, or null. */
+	private LoyaltyMember attachLoyaltyMember(SalesHeader salesHeader, ProcessSaleRequestDTO request) {
+		if (request.getLoyaltyMemberId() == null) {
+			return null;
+		}
+		LoyaltyMember loyaltyMember = loyaltyMemberRepository.findById(request.getLoyaltyMemberId()).orElse(null);
+		if (loyaltyMember != null) {
+			salesHeader.setLoyaltyMember(loyaltyMember);
+		}
+		return loyaltyMember;
+	}
+
+	/**
+	 * Redeems then earns loyalty points once the sale is saved. Shared by processCompleteSale and
+	 * completePendingSale; must run before the NAV export so the points deduction is included.
+	 * Errors are deliberately not caught: redeemPoints/earnPoints are @Transactional and join the
+	 * sale's transaction, so a failure there rolls the whole sale back in any case. Letting it
+	 * propagate gives the POS the real reason (e.g. "Insufficient points") instead of Spring's
+	 * generic UnexpectedRollbackException.
+	 */
+	private SalesHeader processLoyaltyPoints(SalesHeader salesHeader, LoyaltyMember loyaltyMember,
+			ProcessSaleRequestDTO request, CashierSession currentSession, double taxStampAmount) throws Exception {
+		if (loyaltyMember == null) {
+			return salesHeader;
+		}
+		// Redeem points first (if requested)
+		int pointsToRedeem = request.getLoyaltyPointsToRedeem() != null ? request.getLoyaltyPointsToRedeem() : 0;
+		if (pointsToRedeem > 0) {
+			double deduction = loyaltyService.redeemPoints(loyaltyMember.getId(), pointsToRedeem, salesHeader,
+					currentSession, taxStampAmount);
+			salesHeader.setLoyaltyPointsRedeemed(pointsToRedeem);
+			salesHeader.setLoyaltyDeductionAmount(deduction);
+		}
+
+		// Earn points on the sale total (always, after redemption)
+		int earned = loyaltyService.earnPoints(loyaltyMember.getId(), salesHeader, currentSession, taxStampAmount);
+		if (earned > 0) {
+			salesHeader.setLoyaltyPointsEarned(earned);
+		}
+
+		return save(salesHeader);
 	}
 
 	/**
