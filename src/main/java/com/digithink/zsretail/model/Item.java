@@ -8,15 +8,20 @@ import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 
 import com.digithink.zsretail.model.enumeration.ItemType;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 /**
- * Item entity - represents products/services in the POS system
+ * Item entity - represents products/services in the POS system.
+ * Promotion.getItem is LAZY, so an Item can reach JSON as a Hibernate proxy (also
+ * through Promotion.item / groupItems sharing that instance): the proxy-only
+ * properties are ignored so it serializes like a loaded Item.
  */
 @Entity
+@JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
