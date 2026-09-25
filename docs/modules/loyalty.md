@@ -11,7 +11,7 @@
 ### Database — New Tables
 
 **`loyalty_member`**
-- `id` (PK), `card_number` (UNIQUE, auto-generated format `LYL-000001`), `first_name`, `last_name`, `phone`, `email`, `birth_date`
+- `id` (PK), `card_number` (UNIQUE, auto-generated format `LYL-000001`), `first_name`, `last_name`, `phone` (required, 8 digits, unique: enforced by the service, not the database; see **Member phone number**), `email`, `birth_date`
 - `customer_id` (FK → `customer`, nullable — optional ERP link)
 - `loyalty_points` (current balance, DEFAULT 0), `total_points_earned`, `total_points_redeemed`
 - `erp_external_id` (for future ERP sync), `active`, audit fields
@@ -94,6 +94,17 @@
 - Before 2026-09 the server applied the percentage to the total net of the deduction: at 100%, any conversion over half the ticket was refused.
 - Edge case: with no fiscal stamp and points covering the whole ticket, nothing remains to pay and the POS cannot complete the sale; the cashier converts slightly fewer points.
 - Tests: `SaleCompletionLoyaltyStampTest` (conversion tests) and `LoyaltyEarningTiersTest#redeemWithoutStampOverload`.
+
+### Member phone number
+
+Requested by Groupe Hammami (2026-09): the phone is required when a member is created and must be unique, so a cashier who can't find a member by name (spelling variants) can't give them a second card.
+- `LoyaltyService.normalizePhone` removes spaces, dots, dashes, slashes, brackets and a `+216` / `00216` prefix. The number is saved in that form and must then be exactly 8 digits.
+- Unique across **all** members, deactivated ones included. `LoyaltyService.validatePhone` rejects a duplicate by naming the card that holds the number, the active one first: « Ce numéro est déjà utilisé par la carte LYL-000090 (ALI KHARAT) », followed by « , carte désactivée » when that card is inactive.
+- Create (`POST /loyalty/member`): always checked. Edit (`PUT /loyalty/member/{id}`): checked only when the normalized number changes, so members saved before the rule (shared or 7-digit numbers) can still be edited without retyping the number. A member saved with no phone must be given one on the next edit.
+- HTTP: missing or badly formatted number → 400, duplicate → 409 (`IllegalStateException`). `POST /loyalty/member` used to answer 500 for every validation error.
+- Frontend: phone marked `*`, `required` and `type="tel"` in the POS modal (`ItemSelection.vue`) and in the admin create and edit forms (`LoyaltyMembersManagement.vue`). The admin create button is disabled while the request runs.
+- No database constraint: members that already share a number would block a unique index. In Hammami production (2026-09-25, 250 members) 9 pairs share a number, almost all the same person entered twice. Merge them by hand: **Adjust points** to move the balance to the card being kept, then deactivate the other card. Uniqueness holds per database only; members are not synced between installations.
+- Tests: `src/test/java/com/digithink/zsretail/service/LoyaltyMemberPhoneTest.java`.
 
 ### Key Design Decisions
 - **Loyalty failures refuse the sale with their reason**: `redeemPoints` / `earnPoints` are `@Transactional` and join the sale's transaction, so any failure there rolls the whole sale back. `SalesHeaderService.processLoyaltyPoints` therefore does not catch: the real reason (e.g. "Insufficient points", "Minimum redemption is 600 points", "Redemption exceeds maximum allowed") reaches the POS as HTTP 400/409. Before 2026-09 it caught the exception, and the cashier got Spring's generic `UnexpectedRollbackException` instead.

@@ -17,6 +17,9 @@ public interface LoyaltyMemberRepository extends _BaseRepository<LoyaltyMember, 
 
 	List<LoyaltyMember> findByCustomer(Customer customer);
 
+	/** A list, not an Optional: members saved before the phone became unique may share a number. */
+	List<LoyaltyMember> findByPhone(String phone);
+
 	@Query("SELECT m FROM LoyaltyMember m WHERE " +
 		   "LOWER(m.cardNumber) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
 		   "LOWER(m.firstName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +

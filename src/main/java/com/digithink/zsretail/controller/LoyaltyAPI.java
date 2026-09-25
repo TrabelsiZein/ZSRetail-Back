@@ -90,6 +90,10 @@ public class LoyaltyAPI {
 			}
 			LoyaltyMemberDTO created = loyaltyService.createMember(request);
 			return ResponseEntity.ok(created);
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+		} catch (IllegalStateException e) {
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
 		} catch (Exception e) {
 			log.error("Error creating loyalty member", e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -140,6 +144,8 @@ public class LoyaltyAPI {
 			return ResponseEntity.ok(updated);
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+		} catch (IllegalStateException e) {
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
 		} catch (Exception e) {
 			log.error("Error updating loyalty member", e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

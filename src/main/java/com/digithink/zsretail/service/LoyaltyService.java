@@ -137,11 +137,13 @@ public class LoyaltyService {
 		MemberFunction memberFunction = memberFunctionRepository.findById(request.getMemberFunctionId())
 				.orElseThrow(() -> new IllegalArgumentException("Fonction du membre introuvable: " + request.getMemberFunctionId()));
 
+		String phone = validatePhone(request.getPhone(), null);
+
 		LoyaltyMember member = new LoyaltyMember();
 		member.setCardNumber(generateCardNumber());
 		member.setFirstName(request.getFirstName());
 		member.setLastName(request.getLastName());
-		member.setPhone(request.getPhone());
+		member.setPhone(phone);
 		member.setEmail(request.getEmail());
 		member.setMemberFunction(memberFunction);
 		member.setActive(true);
@@ -177,9 +179,16 @@ public class LoyaltyService {
 		MemberFunction memberFunction = memberFunctionRepository.findById(request.getMemberFunctionId())
 				.orElseThrow(() -> new IllegalArgumentException("Fonction du membre introuvable: " + request.getMemberFunctionId()));
 
+		// The phone rules run only when the number changes, so a member saved before them
+		// (shared or 7-digit number) can still be edited without retyping it.
+		String phone = normalizePhone(request.getPhone());
+		if (!phone.equals(member.getPhone())) {
+			phone = validatePhone(request.getPhone(), member.getId());
+		}
+
 		member.setFirstName(request.getFirstName());
 		member.setLastName(request.getLastName());
-		member.setPhone(request.getPhone());
+		member.setPhone(phone);
 		member.setEmail(request.getEmail());
 		member.setMemberFunction(memberFunction);
 		member.setUpdatedBy("System");
@@ -838,6 +847,49 @@ public class LoyaltyService {
 		return getActiveProgram()
 				.map(p -> (points * p.getPointValueMillimes()) / 1000.0)
 				.orElse(0.0);
+	}
+
+	/**
+	 * Removes spaces, dots, dashes, slashes, brackets and a +216 / 00216 prefix, so
+	 * "29 954 290" and "+216 29954290" are the same number. Null becomes "".
+	 */
+	static String normalizePhone(String raw) {
+		if (raw == null) {
+			return "";
+		}
+		String phone = raw.replaceAll("[\\s.\\-/()]", "");
+		if (phone.startsWith("+216")) {
+			return phone.substring(4);
+		}
+		if (phone.startsWith("00216")) {
+			return phone.substring(5);
+		}
+		return phone;
+	}
+
+	/**
+	 * Member phone rules: required, 8 digits, and not used by another member, active or not.
+	 * Returns the normalized number. excludeId is the member being edited (null on create).
+	 */
+	private String validatePhone(String raw, Long excludeId) {
+		String phone = normalizePhone(raw);
+		if (phone.isEmpty()) {
+			throw new IllegalArgumentException("Le numéro de téléphone est obligatoire");
+		}
+		if (!phone.matches("\\d{8}")) {
+			throw new IllegalArgumentException("Le numéro de téléphone doit contenir 8 chiffres");
+		}
+		Optional<LoyaltyMember> holder = loyaltyMemberRepository.findByPhone(phone).stream()
+				.filter(m -> !m.getId().equals(excludeId))
+				.min(Comparator.comparing((LoyaltyMember m) -> !Boolean.TRUE.equals(m.getActive()))
+						.thenComparing(LoyaltyMember::getId));
+		if (holder.isPresent()) {
+			LoyaltyMember m = holder.get();
+			throw new IllegalStateException("Ce numéro est déjà utilisé par la carte " + m.getCardNumber()
+					+ " (" + m.getFirstName() + " " + m.getLastName() + ")"
+					+ (Boolean.TRUE.equals(m.getActive()) ? "" : ", carte désactivée"));
+		}
+		return phone;
 	}
 
 	private String generateCardNumber() {
