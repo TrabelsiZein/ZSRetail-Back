@@ -22,14 +22,15 @@ import com.digithink.zsretail.headoffice.dto.StoreWithKeyDTO;
 import com.digithink.zsretail.headoffice.enumeration.StoreKind;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
+import com.digithink.zsretail.headoffice.service.StoreService.KeyCheck;
 import com.digithink.zsretail.security.CurrentUserProvider;
 import com.digithink.zsretail.service._BaseService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * Head office plan, task 1.2: the stores list. Server-generated key stored as a hash, the key check for task 1.3,
- * the code rules, the fields the client cannot write, the delete rule. Plain JUnit with an in-memory repository
- * (no Spring context).
+ * Head office plan, task 1.2: the stores list. Server-generated key stored as a hash, the key check and its reason
+ * (task 1.3), the code rules, the fields the client cannot write, the delete rule. Plain JUnit with an in-memory
+ * repository (no Spring context).
  */
 class StoreServiceTest {
 
@@ -153,6 +154,32 @@ class StoreServiceTest {
 
 		table.values().iterator().next().setActive(false);
 		assertFalse(service.authenticate("RS01", key).isPresent(), "inactive store");
+	}
+
+	@Test
+	@DisplayName("Key check reason (task 1.3): unknown store, wrong key, inactive store only with its right key")
+	void checkReason() throws Exception {
+		String key = service.create(input("RS01", "Store Sousse")).getApiKey();
+
+		KeyCheck accepted = service.check(" rs01 ", key);
+		assertEquals(KeyCheck.Outcome.ACCEPTED, accepted.getOutcome());
+		assertTrue(accepted.isAccepted());
+		assertEquals("RS01", accepted.getStore().getCode());
+
+		assertRefused(KeyCheck.Outcome.UNKNOWN_STORE, service.check("RS99", key));
+		assertRefused(KeyCheck.Outcome.UNKNOWN_STORE, service.check(null, key));
+		assertRefused(KeyCheck.Outcome.WRONG_KEY, service.check("RS01", key + "x"));
+		assertRefused(KeyCheck.Outcome.WRONG_KEY, service.check("RS01", null));
+
+		table.values().iterator().next().setActive(false);
+		assertRefused(KeyCheck.Outcome.INACTIVE_STORE, service.check("RS01", key));
+		assertRefused(KeyCheck.Outcome.WRONG_KEY, service.check("RS01", key + "x"));
+	}
+
+	private static void assertRefused(KeyCheck.Outcome expected, KeyCheck check) {
+		assertEquals(expected, check.getOutcome());
+		assertFalse(check.isAccepted());
+		assertNull(check.getStore());
 	}
 
 	@Test

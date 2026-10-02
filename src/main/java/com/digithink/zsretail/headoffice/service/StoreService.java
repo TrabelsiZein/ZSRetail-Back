@@ -19,6 +19,9 @@ import com.digithink.zsretail.headoffice.repository.StoreRepository;
 import com.digithink.zsretail.repository._BaseRepository;
 import com.digithink.zsretail.service._BaseService;
 
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.extern.log4j.Log4j2;
 
 /**
@@ -133,16 +136,59 @@ public class StoreService extends _BaseService<Store, Long> {
 	}
 
 	/**
-	 * For the /ho/** API key filter (task 1.3): the active store with this code (trimmed, case-insensitive) whose
-	 * key hash matches the presented key, compared in constant time. Empty otherwise.
+	 * The active store with this code (trimmed, case-insensitive) whose key hash matches the presented key, compared
+	 * in constant time. Empty otherwise.
 	 */
 	public Optional<Store> authenticate(String code, String presentedKey) {
+		return Optional.ofNullable(check(code, presentedKey).getStore());
+	}
+
+	/**
+	 * The key check of the /ho/** filter (task 1.3): the store when accepted, otherwise the reason, for the head
+	 * office log only (the caller always gets the same 401). An unknown code is compared against a fixed hash, so
+	 * the answer time does not tell which codes exist. An inactive store is reported only when its key is right.
+	 */
+	public KeyCheck check(String code, String presentedKey) {
 		Optional<Store> found = code == null ? Optional.empty() : storeRepository.findByCodeIgnoreCase(code.trim());
 		String expected = found.map(Store::getApiKeyHash).orElse(UNKNOWN_STORE_HASH);
 		String presented = sha256Hex(presentedKey == null ? "" : presentedKey);
 		boolean keyMatches = presentedKey != null && MessageDigest.isEqual(
 				presented.getBytes(StandardCharsets.US_ASCII), expected.getBytes(StandardCharsets.US_ASCII));
-		return found.filter(store -> keyMatches && Boolean.TRUE.equals(store.getActive()));
+		if (!found.isPresent()) {
+			return new KeyCheck(KeyCheck.Outcome.UNKNOWN_STORE, null);
+		}
+		if (!keyMatches) {
+			return new KeyCheck(KeyCheck.Outcome.WRONG_KEY, null);
+		}
+		if (!Boolean.TRUE.equals(found.get().getActive())) {
+			return new KeyCheck(KeyCheck.Outcome.INACTIVE_STORE, null);
+		}
+		return new KeyCheck(KeyCheck.Outcome.ACCEPTED, found.get());
+	}
+
+	/** Result of {@link StoreService#check}: the store only when the outcome is ACCEPTED. */
+	@Getter
+	@AllArgsConstructor(access = AccessLevel.PRIVATE)
+	public static final class KeyCheck {
+
+		public enum Outcome {
+			ACCEPTED("accepted"), UNKNOWN_STORE("unknown store"), WRONG_KEY("wrong key"), INACTIVE_STORE("inactive store");
+
+			/** Written in the head office log. */
+			@Getter
+			private final String reason;
+
+			Outcome(String reason) {
+				this.reason = reason;
+			}
+		}
+
+		private final Outcome outcome;
+		private final Store store;
+
+		public boolean isAccepted() {
+			return outcome == Outcome.ACCEPTED;
+		}
 	}
 
 	/** Trimmed and uppercase; empty when null. */
