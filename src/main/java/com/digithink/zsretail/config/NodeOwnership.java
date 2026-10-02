@@ -48,11 +48,19 @@ public final class NodeOwnership {
 		this.salesUpstreams = Collections.unmodifiableSet(salesUpstreams);
 	}
 
-	public static NodeOwnership resolve(PropertyResolver env, boolean standalone, boolean franchiseAdmin,
-			boolean franchiseCustomer) {
-		NodeType nodeType = env.containsProperty(NODE_TYPE_KEY)
+	/**
+	 * node.type, trimmed and case-insensitive; STORE when absent. Throws on an unknown value. Also used by
+	 * {@link OnHeadOfficeCondition}, so the head office beans and the startup read the key the same way.
+	 */
+	public static NodeType nodeTypeOf(PropertyResolver env) {
+		return env.containsProperty(NODE_TYPE_KEY)
 				? parse(NodeType.class, NODE_TYPE_KEY, env.getProperty(NODE_TYPE_KEY))
 				: NodeType.STORE;
+	}
+
+	public static NodeOwnership resolve(PropertyResolver env, boolean standalone, boolean franchiseAdmin,
+			boolean franchiseCustomer) {
+		NodeType nodeType = nodeTypeOf(env);
 		boolean headOffice = nodeType == NodeType.HEAD_OFFICE;
 		if (headOffice && (franchiseAdmin || franchiseCustomer)) {
 			throw new IllegalStateException("Invalid combination: " + NODE_TYPE_KEY + "=HEAD_OFFICE with "

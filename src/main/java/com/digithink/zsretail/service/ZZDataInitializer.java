@@ -137,7 +137,7 @@ public class ZZDataInitializer {
 	 * on every startup — idempotent.
 	 */
 	private void ensureDefaultRoles() {
-		AppRole adminRole = ensureRole("ADMIN", "Administrateur", false, ADMIN_PERMISSIONS);
+		AppRole adminRole = ensureRole("ADMIN", "Administrateur", false, adminPermissions());
 		AppRole responsibleRole = ensureRole("RESPONSIBLE", "Responsable", false, RESPONSIBLE_PERMISSIONS);
 		ensureRole("POS_USER", "Caissier", true, POS_PERMISSIONS);
 
@@ -171,7 +171,24 @@ public class ZZDataInitializer {
 		});
 	}
 
+	/**
+	 * Default ADMIN permissions; a head office adds the Network menu (docs/modules/head-office.md). Used only when
+	 * the role is created: an existing role is never changed.
+	 */
+	private Set<String> adminPermissions() {
+		if (!applicationModeService.isHeadOffice()) {
+			return ADMIN_PERMISSIONS;
+		}
+		Set<String> permissions = new HashSet<>(ADMIN_PERMISSIONS);
+		permissions.addAll(HEAD_OFFICE_ADMIN_PERMISSIONS);
+		return permissions;
+	}
+
 	// ── Default permission sets ────────────────────────────────────────────────
+
+	/** Head office only: the Network menu and its Stores page. Never seeded on a store. */
+	static final Set<String> HEAD_OFFICE_ADMIN_PERMISSIONS = new HashSet<>(
+			Arrays.asList("read:admin-headoffice", "read:admin-headoffice-stores"));
 
 	private static final Set<String> ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:home",
 			"read:admin-users", "write:admin-users", "delete:admin-users", "read:admin-sessions",
