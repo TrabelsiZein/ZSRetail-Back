@@ -1,5 +1,10 @@
 package com.digithink.zsretail.controller;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -9,6 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.dto.AppConfigDTO;
+import com.digithink.zsretail.model.enumeration.DataDomain;
+import com.digithink.zsretail.model.enumeration.SalesUpstream;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.LicenseService;
 import com.digithink.zsretail.service.LoyaltyService;
@@ -70,7 +77,28 @@ public class AppConfigAPI {
 				tableManagementEnabled,
 				tableManagementTableCount,
 				appVersion,
-				tombolaEnabled
+				tombolaEnabled,
+				applicationModeService.getNodeType().name(),
+				ownership(),
+				salesUpstreams()
 		));
+	}
+
+	/** Every DataDomain name to its DataOwner name, in DataDomain order. */
+	private Map<String, String> ownership() {
+		Map<String, String> ownership = new LinkedHashMap<>();
+		for (DataDomain domain : DataDomain.values()) {
+			ownership.put(domain.name(), applicationModeService.ownerOf(domain).name());
+		}
+		return ownership;
+	}
+
+	/** SalesUpstream names in enum order; empty when sales go nowhere. */
+	private List<String> salesUpstreams() {
+		List<String> upstreams = new ArrayList<>();
+		for (SalesUpstream upstream : applicationModeService.salesUpstreams()) {
+			upstreams.add(upstream.name());
+		}
+		return upstreams;
 	}
 }

@@ -1,7 +1,18 @@
 package com.digithink.zsretail.config;
 
+import java.util.Set;
+
+import javax.annotation.PostConstruct;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
+
+import com.digithink.zsretail.model.enumeration.DataDomain;
+import com.digithink.zsretail.model.enumeration.DataOwner;
+import com.digithink.zsretail.model.enumeration.NodeType;
+import com.digithink.zsretail.model.enumeration.SalesUpstream;
 
 /**
  * Exposes the application run mode: ERP, Standalone, Franchise Admin, or Franchise Customer.
@@ -34,6 +45,33 @@ public class ApplicationModeService {
 	 */
 	@Value("${franchise.customer.allow-local-items:false}")
 	private boolean allowLocalItems;
+
+	@Autowired
+	private Environment environment;
+
+	/** Head office model (design 2.1, 2.2), resolved at startup. Not used by the application yet. */
+	private NodeOwnership ownership;
+
+	/** Fails the startup when node.type, ownership.* or sales.upstream holds an invalid value. */
+	@PostConstruct
+	void initOwnership() {
+		ownership = NodeOwnership.resolve(environment, standalone, franchiseAdmin, franchiseCustomer);
+	}
+
+	/** Installation type: node.type, STORE when absent. */
+	public NodeType getNodeType() {
+		return ownership.getNodeType();
+	}
+
+	/** Owner of a data domain: ownership.&lt;domain&gt;, derived from the mode flags when absent. */
+	public DataOwner ownerOf(DataDomain domain) {
+		return ownership.ownerOf(domain);
+	}
+
+	/** Where sales copies go: sales.upstream, derived from the mode flags when absent. Empty = nowhere. */
+	public Set<SalesUpstream> salesUpstreams() {
+		return ownership.getSalesUpstreams();
+	}
 
 	/**
 	 * True when the POS runs without an ERP (standalone mode).
