@@ -9,7 +9,7 @@
 **Backend:**
 - **ApplicationModeService** (`config/ApplicationModeService.java`): Reads `application.standalone`, exposes `isStandalone()` / `isErpMode()`.
 - **application-standalone.properties**: `application.standalone=true`, `erp.dynamicsnav.enabled=false`, `erp.sync.enabled=false`. Use with `spring.profiles.active=standalone` (or `standalone,dev` / `standalone,production`).
-- **GET /config** (public): Returns `{ standalone: boolean, enableSalesPriceGroup: boolean }`. Used by frontend to hide/show UI.
+- **GET /config** (public, loaded by the frontend before login): returns `AppConfigDTO`. Fields in JSON order: `standalone`, `enableSalesPriceGroup`, `loyaltyEnabled`, `franchiseAdmin`, `franchiseCustomer`, `allowLocalItems`, `licenseStatus`, `licenseDaysUntilExpiry`, `posShowImages`, `posShowStock`, `tableManagementEnabled`, `tableManagementTableCount`, `appVersion`, `tombolaEnabled`, then `nodeType`, `ownership`, `salesUpstreams` (see "Ownership model" below). Used by frontend to hide/show UI.
 - **ZZDataInitializer**: When `isStandalone()`, skips `ensureErpSyncCheckpointConfigs()` and `initErpSyncJobs()`. Payment methods, users, GeneralSetup (including DEFAULT_LOCATION, PASSENGER_CUSTOMER) still initialized.
 - **NoOpErpConnector**: Active when `erp.dynamicsnav.enabled=false` (standalone). Export/push methods are no-op; no NAV calls.
 - **Standalone-only APIs** (403 when not standalone):
@@ -20,7 +20,7 @@
 - **ItemFamiliesManagement / ItemSubFamiliesManagement**: Backend allows PUT/DELETE; frontend controls visibility of Edit/Delete (standalone only).
 
 **Frontend:**
-- **appConfig store** (`store/app-config/index.js`): State `standalone`, `enableSalesPriceGroup`. Fetched via GET config on load (`main.js`). Getters: `isStandalone`, `enableSalesPriceGroup`.
+- **appConfig store** (`store/app-config/index.js`): one state field per GET /config field, filled by `fetchAppConfig` on load (`main.js`), with a default when a field is missing or the call fails. Getters used for the modes on this page: `isStandalone`, `enableSalesPriceGroup`.
 - **VerticalNavMenu**: Hides "admin.erp" menu group when `standalone === true`. Hides "Sales Prices" and "Sales Discounts" when `enableSalesPriceGroup === false`.
 - **TicketsHistory.vue**: Sync status filter, Sync Status column, ERP doc #, ERP sync card in modal, and Synced column in lines hidden when `isStandalone`.
 - **ReturnsManagement.vue**: Same sync-related UI hidden when `isStandalone` (sync filter, Sync Status column, ERP sync card in modal, Synced column in return lines).
@@ -37,7 +37,7 @@
 - Sales, payment, returns, sessions, and printing work without ERP. Ticket/return export and sync jobs are disabled; SessionExportService still creates PaymentHeader/PaymentLine records locally (export to ERP is no-op with NoOpErpConnector). No code path blocks sale/payment/return when standalone.
 
 **Ownership model (not used yet):**
-- Head office plan task 0.4 (`docs/roadmap/head-office-design.md` sections 2.1, 2.2, 5.1). Nothing in the application reads these values yet; existing mode checks are unchanged.
+- Head office plan tasks 0.4 and 0.5 (`docs/roadmap/head-office-design.md` sections 2.1, 2.2, 5.1). Nothing in the application acts on these values yet: GET /config and the frontend store only expose them, and existing mode checks are unchanged.
 - **ApplicationModeService** also exposes `getNodeType()`, `ownerOf(DataDomain)` and `salesUpstreams()` (empty = sales go nowhere), resolved once at startup by `config/NodeOwnership.java`. Enums in `model/enumeration`: `NodeType`, `DataDomain`, `DataOwner`, `SalesUpstream`.
 - Optional keys, not present in any `application*.properties` file. Values are trimmed and case-insensitive.
 
@@ -61,4 +61,9 @@
 | otherwise (ERP) | STORE | ERP | ERP | LOCAL | LOCAL | ERP | ERP |
 
 - An explicit key overrides only its own value. An unknown value, or `ERP` for promotions or loyalty, stops the startup with `Invalid value '<value>' for property <key>: allowed values are [...]`. Checks across keys (e.g. a head office that sells) come with step 1.
-- Tests: `ApplicationModeOwnershipTest` (L1).
+- **GET /config** (task 0.5) returns three more fields after the existing ones, enums as their names:
+  - `nodeType`: `"STORE"` or `"HEAD_OFFICE"`.
+  - `ownership`: every domain to its owner, in `DataDomain` order. ERP profile: `{"CATALOGUE":"ERP","CUSTOMERS":"ERP","PROMOTIONS":"LOCAL","LOYALTY":"LOCAL","SUPPLY":"ERP"}`.
+  - `salesUpstreams`: array of `"ERP"`, `"HEAD_OFFICE"`; `[]` when sales go nowhere.
+- **Frontend store** (`store/app-config/index.js`, task 0.5): state `nodeType` (default `'STORE'`), `ownership` (default `{}`), `salesUpstreams` (default `[]`). Getters `nodeType`, `ownerOf(domain)` (owner name, `null` when unknown) and `salesUpstreams`. Defaults when talking to an older backend, or when the call fails: a missing or unknown `nodeType` gives `'STORE'`, a missing or non-object `ownership` gives `{}`, a missing or non-array `salesUpstreams` gives `[]`. No component, route or menu reads them yet.
+- Tests: `ApplicationModeOwnershipTest` (L1, task 0.4); `AppConfigAPITest` (L1, task 0.5: for the four profiles, the old /config fields keep their names, order and values, and the new fields match the table above).

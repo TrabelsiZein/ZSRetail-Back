@@ -1,5 +1,8 @@
 package com.digithink.zsretail.dto;
 
+import java.util.List;
+import java.util.Map;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -97,4 +100,23 @@ public class AppConfigDTO {
 	 * Controlled by GeneralSetup TOMBOLA_ENABLED.
 	 */
 	private boolean tombolaEnabled;
+
+	/**
+	 * Installation type (head office design 2.1): "STORE" or "HEAD_OFFICE".
+	 * From ApplicationModeService.getNodeType(). Not used by the frontend yet.
+	 */
+	private String nodeType;
+
+	/**
+	 * Owner of every data domain (head office design 2.2), DataDomain name to DataOwner name,
+	 * e.g. {"CATALOGUE": "ERP", ...}. Every domain is present, in DataDomain order.
+	 * From ApplicationModeService.ownerOf(domain). Not used by the frontend yet.
+	 */
+	private Map<String, String> ownership;
+
+	/**
+	 * Where copies of tickets, returns and session closings go: SalesUpstream names, empty = nowhere.
+	 * From ApplicationModeService.salesUpstreams(). Not used by the frontend yet.
+	 */
+	private List<String> salesUpstreams;
 }
