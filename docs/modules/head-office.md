@@ -43,7 +43,7 @@ Menu entry hidden and URL redirected to `home`:
 |---|---|
 | Replaced in step 2 by new head office pages fed by the consolidated copies, with a store filter and a store column | Tickets history (`tickets-history`), Sessions history (`admin-sessions-history`), Returns (`admin-returns`) |
 | Waiting for the head office dashboards | Statistics (`admin-statistics`), Reports: sales, sessions, promotions (`admin-report-sales`, `admin-report-sessions`, `admin-report-promotions`) |
-| Not relevant on a head office | Sales invoices (`admin-invoices`), Payment methods (`admin-payment-methods`), Badge scan log (`admin-badge-scan-history`), Session dashboard (`admin-sessions`, `responsible-sessions`, not in the menu) |
+| Not relevant on a head office | Locations (`admin-locations`: a head office shows stores, never locations), Sales invoices (`admin-invoices`), Payment methods (`admin-payment-methods`), Badge scan log (`admin-badge-scan-history`), Session dashboard (`admin-sessions`, `responsible-sessions`, not in the menu) |
 
 Everything else stays: items, families, prices, promotions, customers, loyalty, purchases, stock reports, users, roles, settings.
 
