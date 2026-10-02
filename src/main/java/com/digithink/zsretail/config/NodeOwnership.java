@@ -28,7 +28,10 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  *
  * The first matching row wins, in this order. An explicit value that is unknown, or an owner the domain
  * does not allow, throws {@link IllegalStateException} naming the key, so the application does not start.
- * Not used by the application yet.
+ *
+ * Head office ({@code node.type=HEAD_OFFICE}, docs/modules/head-office.md): it never sells, so sales go nowhere
+ * when {@code sales.upstream} is absent. The startup also fails on a head office with franchise.admin or
+ * franchise.customer set to true, with an explicit owner HEAD_OFFICE, or with a non-empty sales.upstream.
  */
 public final class NodeOwnership {
 
@@ -47,6 +50,16 @@ public final class NodeOwnership {
 
 	public static NodeOwnership resolve(PropertyResolver env, boolean standalone, boolean franchiseAdmin,
 			boolean franchiseCustomer) {
+		NodeType nodeType = env.containsProperty(NODE_TYPE_KEY)
+				? parse(NodeType.class, NODE_TYPE_KEY, env.getProperty(NODE_TYPE_KEY))
+				: NodeType.STORE;
+		boolean headOffice = nodeType == NodeType.HEAD_OFFICE;
+		if (headOffice && (franchiseAdmin || franchiseCustomer)) {
+			throw new IllegalStateException("Invalid combination: " + NODE_TYPE_KEY + "=HEAD_OFFICE with "
+					+ (franchiseAdmin ? "franchise.admin=true" : "franchise.customer=true")
+					+ ". A head office uses neither franchise profile.");
+		}
+
 		Map<DataDomain, DataOwner> derivedOwners;
 		Set<SalesUpstream> derivedUpstreams;
 		if (franchiseCustomer) {
@@ -61,10 +74,9 @@ public final class NodeOwnership {
 			derivedOwners = owners(DataOwner.ERP, DataOwner.ERP, DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.ERP);
 			derivedUpstreams = EnumSet.of(SalesUpstream.ERP);
 		}
-
-		NodeType nodeType = env.containsProperty(NODE_TYPE_KEY)
-				? parse(NodeType.class, NODE_TYPE_KEY, env.getProperty(NODE_TYPE_KEY))
-				: NodeType.STORE;
+		if (headOffice) {
+			derivedUpstreams = EnumSet.noneOf(SalesUpstream.class); // a head office never sells
+		}
 
 		Map<DataDomain, DataOwner> owners = new EnumMap<>(DataDomain.class);
 		for (DataDomain domain : DataDomain.values()) {
@@ -75,6 +87,10 @@ public final class NodeOwnership {
 				if (!domain.allows(owner)) {
 					throw invalid(key, raw, domain.getAllowedOwners());
 				}
+				if (headOffice && owner == DataOwner.HEAD_OFFICE) {
+					throw new IllegalStateException("Invalid value '" + raw + "' for property " + key + ": on a head office ("
+							+ NODE_TYPE_KEY + "=HEAD_OFFICE) the owner cannot be HEAD_OFFICE");
+				}
 				owners.put(domain, owner);
 			} else {
 				owners.put(domain, derivedOwners.get(domain));
@@ -84,6 +100,11 @@ public final class NodeOwnership {
 		Set<SalesUpstream> upstreams = env.containsProperty(SALES_UPSTREAM_KEY)
 				? parseUpstreams(env.getProperty(SALES_UPSTREAM_KEY))
 				: derivedUpstreams;
+		if (headOffice && !upstreams.isEmpty()) {
+			throw new IllegalStateException("Invalid value '" + env.getProperty(SALES_UPSTREAM_KEY) + "' for property "
+					+ SALES_UPSTREAM_KEY + ": a head office (" + NODE_TYPE_KEY
+					+ "=HEAD_OFFICE) never sells; leave it empty or absent");
+		}
 
 		return new NodeOwnership(nodeType, owners, upstreams);
 	}

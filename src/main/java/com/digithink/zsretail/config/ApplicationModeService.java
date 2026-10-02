@@ -63,6 +63,11 @@ public class ApplicationModeService {
 		return ownership.getNodeType();
 	}
 
+	/** True on a head office (node.type=HEAD_OFFICE): no cashier session, no cashier login. See docs/modules/head-office.md. */
+	public boolean isHeadOffice() {
+		return ownership.getNodeType() == NodeType.HEAD_OFFICE;
+	}
+
 	/** Owner of a data domain: ownership.&lt;domain&gt;, derived from the mode flags when absent. */
 	public DataOwner ownerOf(DataDomain domain) {
 		return ownership.ownerOf(domain);

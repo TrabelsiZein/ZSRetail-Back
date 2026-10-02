@@ -17,6 +17,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import com.digithink.zsretail.config.ApplicationModeService;
+
 @Configuration
 @Order(1)
 @EnableWebSecurity
@@ -35,6 +37,9 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
 	@Autowired
 	private LicenseFilter licenseFilter;
+
+	@Autowired
+	private ApplicationModeService applicationModeService;
 
 	@Autowired
 	@Override
@@ -56,7 +61,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 						// Image serving is public (browser loads directly, no auth header)
 						"/item-image/**")
 				.permitAll().anyRequest().authenticated().and()
-				.addFilter(new JWTAuthenticationFilter(authenticationManagerBean()))
+				.addFilter(new JWTAuthenticationFilter(authenticationManagerBean(), applicationModeService))
 				.addFilterBefore(new JWTAuthorizationFilter(), UsernamePasswordAuthenticationFilter.class);
 
 		// License filter runs after JWT auth so we have the authenticated user context when needed

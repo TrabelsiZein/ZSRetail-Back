@@ -29,7 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 /**
  * Head office plan, task 0.5: GET /config keeps its 14 existing fields (names, order, values) and adds
  * nodeType, ownership and salesUpstreams from ApplicationModeService, for each of today's profiles
- * (design table 5.1). Plain JUnit with in-memory stubs (no Spring context).
+ * (design table 5.1). Task 1.1 adds the headoffice-dev row. Plain JUnit with in-memory stubs (no Spring context).
  */
 class AppConfigAPITest {
 
@@ -78,10 +78,20 @@ class AppConfigAPITest {
 		return config(true, true, false, false); // application-franchise-admin
 	}
 
+	private static AppConfigDTO headOffice() throws Exception {
+		// application-headoffice-dev: standalone flags plus node.type
+		return config(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE"), true, false, false, true);
+	}
+
 	private static AppConfigDTO config(boolean standalone, boolean franchiseAdmin, boolean franchiseCustomer,
 			boolean enableSalesPriceGroup) throws Exception {
+		return config(new MockEnvironment(), standalone, franchiseAdmin, franchiseCustomer, enableSalesPriceGroup);
+	}
+
+	private static AppConfigDTO config(MockEnvironment env, boolean standalone, boolean franchiseAdmin,
+			boolean franchiseCustomer, boolean enableSalesPriceGroup) throws Exception {
 		ApplicationModeService mode = new ApplicationModeService();
-		inject(mode, ApplicationModeService.class, "environment", new MockEnvironment());
+		inject(mode, ApplicationModeService.class, "environment", env);
 		inject(mode, ApplicationModeService.class, "standalone", standalone);
 		inject(mode, ApplicationModeService.class, "franchiseAdmin", franchiseAdmin);
 		inject(mode, ApplicationModeService.class, "franchiseCustomer", franchiseCustomer);
@@ -189,12 +199,21 @@ class AppConfigAPITest {
 	}
 
 	@Test
+	@DisplayName("Head office (headoffice-dev): old fields unchanged; head office, everything local, sales go nowhere")
+	void headOfficeProfile() throws Exception {
+		AppConfigDTO c = headOffice();
+		assertOldFields(c, true, true, false, false);
+		assertNewFields(c, "HEAD_OFFICE", L, L, L, L, L);
+	}
+
+	@Test
 	@DisplayName("JSON: the 14 old keys keep their names and order, the 3 new keys come last")
 	void jsonKeys() throws Exception {
 		ObjectMapper mapper = new ObjectMapper();
 		List<String> expected = new ArrayList<>(OLD_KEYS);
 		expected.addAll(NEW_KEYS);
-		for (AppConfigDTO c : Arrays.asList(standalone(), dynamics(), franchiseCustomer(), franchiseAdmin())) {
+		for (AppConfigDTO c : Arrays.asList(standalone(), dynamics(), franchiseCustomer(), franchiseAdmin(),
+				headOffice())) {
 			JsonNode json = mapper.valueToTree(c);
 			List<String> keys = new ArrayList<>();
 			json.fieldNames().forEachRemaining(keys::add);

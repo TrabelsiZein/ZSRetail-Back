@@ -236,6 +236,11 @@ public class ZZDataInitializer {
 		admin.setUpdatedBy("System");
 		userRepository.save(admin);
 
+		// A head office has no till: only the admin account (docs/modules/head-office.md)
+		if (applicationModeService.isHeadOffice()) {
+			return;
+		}
+
 		// Responsible
 		UserAccount responsible = new UserAccount();
 		responsible.setUsername("responsible");

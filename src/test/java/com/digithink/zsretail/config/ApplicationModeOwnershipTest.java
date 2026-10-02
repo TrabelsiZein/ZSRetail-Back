@@ -1,6 +1,7 @@
 package com.digithink.zsretail.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -20,6 +21,7 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
 /**
  * Head office plan, task 0.4: node type, data ownership and sales upstreams derived from today's mode
  * flags (design table 5.1), overridden by the optional keys, and rejected at startup when invalid.
+ * Task 1.1: the head office rows and the startup checks across keys.
  * Plain JUnit with a MockEnvironment (no Spring context).
  */
 class ApplicationModeOwnershipTest {
@@ -107,17 +109,17 @@ class ApplicationModeOwnershipTest {
 	}
 
 	@Test
-	@DisplayName("Every domain and the node type can be set explicitly")
+	@DisplayName("Every domain and the node type can be set explicitly (on a store)")
 	void allKeysExplicit() {
 		MockEnvironment env = new MockEnvironment()
-				.withProperty("node.type", "HEAD_OFFICE")
+				.withProperty("node.type", "STORE")
 				.withProperty("ownership.catalogue", "ERP")
 				.withProperty("ownership.customers", "HEAD_OFFICE")
 				.withProperty("ownership.promotions", "LOCAL")
 				.withProperty("ownership.loyalty", "HEAD_OFFICE")
 				.withProperty("ownership.supply", "LOCAL")
 				.withProperty("sales.upstream", "HEAD_OFFICE");
-		assertRow(standalone(env), NodeType.HEAD_OFFICE, ERP, HO, L, HO, L, EnumSet.of(SalesUpstream.HEAD_OFFICE));
+		assertRow(standalone(env), NodeType.STORE, ERP, HO, L, HO, L, EnumSet.of(SalesUpstream.HEAD_OFFICE));
 	}
 
 	@Test
@@ -134,10 +136,10 @@ class ApplicationModeOwnershipTest {
 	void lenientCase() {
 		MockEnvironment env = new MockEnvironment()
 				.withProperty("node.type", " head_office ")
-				.withProperty("ownership.loyalty", "Head_Office");
+				.withProperty("ownership.catalogue", "Erp");
 		NodeOwnership o = standalone(env);
 		assertEquals(NodeType.HEAD_OFFICE, o.getNodeType());
-		assertEquals(HO, o.ownerOf(DataDomain.LOYALTY));
+		assertEquals(ERP, o.ownerOf(DataDomain.CATALOGUE));
 	}
 
 	// --- Invalid values fail with the key in the message ---
@@ -170,6 +172,56 @@ class ApplicationModeOwnershipTest {
 		assertInvalid("ownership.customers", "");
 	}
 
+	// --- Head office (task 1.1): sales go nowhere, startup checks across keys ---
+
+	private static MockEnvironment headOfficeEnv() {
+		return new MockEnvironment().withProperty("node.type", "HEAD_OFFICE");
+	}
+
+	@Test
+	@DisplayName("Head office on standalone flags (headoffice-dev): everything local, sales go nowhere")
+	void headOfficeRow() {
+		assertRow(standalone(headOfficeEnv()), NodeType.HEAD_OFFICE, L, L, L, L, L, none());
+	}
+
+	@Test
+	@DisplayName("Head office on ERP flags: owners from the ERP row, but sales go nowhere")
+	void headOfficeOnErpFlags() {
+		assertRow(erp(headOfficeEnv()), NodeType.HEAD_OFFICE, ERP, ERP, L, L, ERP, none());
+	}
+
+	@Test
+	@DisplayName("Head office refuses franchise.admin=true and franchise.customer=true")
+	void headOfficeRefusesFranchiseFlags() {
+		IllegalStateException admin = assertThrows(IllegalStateException.class, () -> franchiseAdmin(headOfficeEnv()));
+		assertTrue(admin.getMessage().contains("node.type=HEAD_OFFICE"), admin.getMessage());
+		assertTrue(admin.getMessage().contains("franchise.admin=true"), admin.getMessage());
+		IllegalStateException customer = assertThrows(IllegalStateException.class,
+				() -> franchiseCustomer(headOfficeEnv()));
+		assertTrue(customer.getMessage().contains("franchise.customer=true"), customer.getMessage());
+	}
+
+	@Test
+	@DisplayName("Head office refuses an explicit owner HEAD_OFFICE, for every domain")
+	void headOfficeRefusesHeadOfficeOwner() {
+		for (DataDomain domain : DataDomain.values()) {
+			MockEnvironment env = headOfficeEnv().withProperty(domain.getPropertyKey(), "HEAD_OFFICE");
+			IllegalStateException e = assertThrows(IllegalStateException.class, () -> standalone(env));
+			assertTrue(e.getMessage().contains(domain.getPropertyKey()), e.getMessage());
+		}
+	}
+
+	@Test
+	@DisplayName("Head office refuses a non-empty sales.upstream; an empty value is accepted")
+	void headOfficeRefusesSalesUpstream() {
+		for (String value : new String[] { "ERP", "HEAD_OFFICE", "ERP,HEAD_OFFICE" }) {
+			MockEnvironment env = headOfficeEnv().withProperty("sales.upstream", value);
+			IllegalStateException e = assertThrows(IllegalStateException.class, () -> standalone(env));
+			assertTrue(e.getMessage().contains("sales.upstream"), e.getMessage());
+		}
+		assertEquals(none(), standalone(headOfficeEnv().withProperty("sales.upstream", "")).getSalesUpstreams());
+	}
+
 	// --- Through ApplicationModeService ---
 
 	private static ApplicationModeService service(MockEnvironment env, boolean standalone, boolean franchiseAdmin,
@@ -199,6 +251,16 @@ class ApplicationModeOwnershipTest {
 		assertEquals(EnumSet.of(SalesUpstream.ERP), s.salesUpstreams());
 		assertTrue(s.isErpMode());
 		assertThrows(UnsupportedOperationException.class, () -> s.salesUpstreams().add(SalesUpstream.HEAD_OFFICE));
+	}
+
+	@Test
+	@DisplayName("ApplicationModeService.isHeadOffice: true only with node.type=HEAD_OFFICE, false on the 4 profiles")
+	void serviceIsHeadOffice() throws Exception {
+		assertTrue(service(headOfficeEnv(), true, false, false).isHeadOffice());
+		assertFalse(service(new MockEnvironment(), true, false, false).isHeadOffice());
+		assertFalse(service(new MockEnvironment(), false, false, false).isHeadOffice());
+		assertFalse(service(new MockEnvironment(), true, false, true).isHeadOffice());
+		assertFalse(service(new MockEnvironment(), true, true, false).isHeadOffice());
 	}
 
 	@Test
