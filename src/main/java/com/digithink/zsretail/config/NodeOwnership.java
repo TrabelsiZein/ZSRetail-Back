@@ -144,6 +144,14 @@ public final class NodeOwnership {
 		return isHeadOfficeLinkSet(env) && resolveFromEnvironment(env).ownerOf(domain) == DataOwner.HEAD_OFFICE;
 	}
 
+	/**
+	 * True on a head office with an ERP (task 3.4): node.type=HEAD_OFFICE and application.standalone false or absent
+	 * (read like ApplicationModeService). Also used by {@link OnHeadOfficeErpCondition}.
+	 */
+	public static boolean isHeadOfficeErpSet(PropertyResolver env) {
+		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && !flag(env, STANDALONE_KEY);
+	}
+
 	/** The mode flags read from the environment like {@link ApplicationModeService}. */
 	private static NodeOwnership resolveFromEnvironment(PropertyResolver env) {
 		return resolve(env, flag(env, STANDALONE_KEY), flag(env, FRANCHISE_ADMIN_KEY), flag(env, FRANCHISE_CUSTOMER_KEY));
