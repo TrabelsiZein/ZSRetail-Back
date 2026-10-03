@@ -176,17 +176,16 @@ IF COL_LENGTH('promotion', 'origin') IS NULL
     ALTER TABLE promotion ADD origin VARCHAR(20) NULL;
 ```
 
-The origin is sent in the promotion JSON and never read from a request (`@JsonProperty(access = READ_ONLY)`): the client can never set it. Only the pull job writes `HEAD_OFFICE`.
+The origin is sent in the promotion JSON and never read from a request (`@JsonProperty(access = READ_ONLY)`): the client can never set it. Only the pull job writes `HEAD_OFFICE`; a write through the API keeps the origin the promotion has.
 
 **Write guards** (`PromotionAPI`, task 3.2, with Zein's correction of 2026-10-03: no `promotions.allow-local` setting). The generic CRUD of `_BaseController` is covered: `create`, `update` and `deleteById` are overridden. Reads (`GET /promotion`, `/{id}`, `/paginated`, `/findByField`, `/{id}/usage-count`) are unchanged.
 
 | Store | Request | Answer |
 |---|---|---|
 | Promotions owned by the head office (`ApplicationModeService.isPromotionsOwnedByHeadOffice()`) | `POST /promotion`, `PUT /promotion/{id}` (deactivating included), `DELETE /promotion/{id}`, for every promotion whatever its origin | 409 `Promotions are managed by the head office: on this store they can only be consulted.` (`PUT` on an unknown id: 404) |
-| Any store | `PUT` or `DELETE` of a promotion whose origin is `HEAD_OFFICE`; `POST` whose body `id` is such a promotion | 409 `This promotion comes from the head office: it cannot be changed or deleted on this store.` |
-| Promotions local | Local promotions | As before: usage lock (409 with the locked fields), delete refused once used (409), origin kept (a local one stays local) |
+| Promotions local | Every promotion of the table, whatever its origin (rule fix of step 3, Zein, 2026-10-03: the store owns them all) | As before: usage lock (409 with the locked fields), delete refused once used (409). The origin is kept: a promotion that came from the head office can be edited, deactivated and deleted, and still shows where it came from |
 
-The page uses `ownership.PROMOTIONS` from `GET /config` (no new field) and `origin` on each promotion to show them read-only.
+The page is read-only when `ownership.PROMOTIONS` from `GET /config` is `HEAD_OFFICE` (no new field); `origin` on each promotion is information for a badge only. The guard "origin `HEAD_OFFICE` is always read-only" of the first version of task 3.2 is removed.
 
 **Received promotions** (task 3.3): the head office sends each promotion by codes (`PromotionCopyDTO`: item, family, sub-family, group item and benefit item codes, never an id); the store saves it by its code with `origin=HEAD_OFFICE` through `PromotionService.saveReceived` (same normalisation as `save`, no usage lock, audit user `HEAD_OFFICE`), its codes resolved to the store's own records. Removed or no longer addressed to the store: deleted when never used in a sale here, otherwise set inactive and kept. While promotions are owned by the head office, the store's local promotions are set inactive by the pull job (kept, origin `LOCAL`). Details and the store/head office tables: `docs/modules/head-office.md`, "Promotions owned by the head office".
 

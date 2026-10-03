@@ -31,10 +31,6 @@ public class PromotionAPI extends _BaseController<Promotion, Long, PromotionServ
 	static final String OWNED_BY_HEAD_OFFICE = "Promotions are managed by the head office: on this store they can only "
 			+ "be consulted.";
 
-	/** Head office plan, task 3.2: a promotion received from the head office is never written through the API. */
-	static final String FROM_HEAD_OFFICE = "This promotion comes from the head office: it cannot be changed or deleted "
-			+ "on this store.";
-
 	@Autowired
 	private PromotionService promotionService;
 
@@ -80,8 +76,8 @@ public class PromotionAPI extends _BaseController<Promotion, Long, PromotionServ
 
 	/**
 	 * POST /promotion
-	 * The generic create, guarded (task 3.2): 409 when promotions are owned by the head office, or when the body's id
-	 * is a promotion received from the head office. The origin is never taken from the request.
+	 * The generic create, guarded (task 3.2): 409 when promotions are owned by the head office. The origin is never taken
+	 * from the request: a new promotion is local, a body with the id of an existing one keeps that one's origin.
 	 */
 	@Override
 	@PostMapping
@@ -90,13 +86,9 @@ public class PromotionAPI extends _BaseController<Promotion, Long, PromotionServ
 			if (applicationModeService.isPromotionsOwnedByHeadOffice()) {
 				return conflict(OWNED_BY_HEAD_OFFICE);
 			}
-			if (promotion.getId() != null) {
-				Optional<Promotion> existing = promotionService.findById(promotion.getId());
-				if (existing.isPresent() && PromotionService.isFromHeadOffice(existing.get())) {
-					return conflict(FROM_HEAD_OFFICE);
-				}
-			}
-			promotion.setOrigin(null); // local
+			Optional<Promotion> existing = promotion.getId() == null ? Optional.empty()
+					: promotionService.findById(promotion.getId());
+			promotion.setOrigin(existing.map(Promotion::getOrigin).orElse(null)); // new: local
 			return ResponseEntity.status(HttpStatus.CREATED).body(promotionService.save(promotion));
 		} catch (Exception e) {
 			String detailedMessage = getDetailedMessage(e);
@@ -108,7 +100,8 @@ public class PromotionAPI extends _BaseController<Promotion, Long, PromotionServ
 	/**
 	 * DELETE /promotion/{id}
 	 * Blocked with 409 + friendly message if the promotion has been used in sales.
-	 * Task 3.2: 409 when promotions are owned by the head office, or for a promotion received from the head office.
+	 * Task 3.2: 409 when promotions are owned by the head office. Otherwise the store owns every promotion of its table,
+	 * whatever its origin (step 3, rule fix).
 	 */
 	@Override
 	@DeleteMapping("/{id}")
@@ -116,10 +109,6 @@ public class PromotionAPI extends _BaseController<Promotion, Long, PromotionServ
 		try {
 			if (applicationModeService.isPromotionsOwnedByHeadOffice()) {
 				return conflict(OWNED_BY_HEAD_OFFICE);
-			}
-			Optional<Promotion> existing = promotionService.findById(id);
-			if (existing.isPresent() && PromotionService.isFromHeadOffice(existing.get())) {
-				return conflict(FROM_HEAD_OFFICE);
 			}
 			long usageCount = promotionService.getUsageCount(id);
 			if (usageCount > 0) {
@@ -140,8 +129,8 @@ public class PromotionAPI extends _BaseController<Promotion, Long, PromotionServ
 	 * PUT /promotion/{id}
 	 * Validates that locked fields are not changed when the promotion has been used in sales.
 	 * Returns 409 with list of violated fields if check fails.
-	 * Task 3.2: 409 when promotions are owned by the head office (deactivating included), or for a promotion received
-	 * from the head office. A local promotion stays local.
+	 * Task 3.2: 409 when promotions are owned by the head office (deactivating included). Otherwise every promotion is
+	 * edited as before, whatever its origin, which is kept (information for a badge).
 	 */
 	@Override
 	@PutMapping("/{id}")
@@ -153,9 +142,6 @@ public class PromotionAPI extends _BaseController<Promotion, Long, PromotionServ
 			}
 			if (applicationModeService.isPromotionsOwnedByHeadOffice()) {
 				return conflict(OWNED_BY_HEAD_OFFICE);
-			}
-			if (PromotionService.isFromHeadOffice(existing.get())) {
-				return conflict(FROM_HEAD_OFFICE);
 			}
 			promotionService.validateUpdateAllowed(id, promotion);
 			promotion.setId(id);

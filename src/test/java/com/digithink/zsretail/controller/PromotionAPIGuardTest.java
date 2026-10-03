@@ -34,10 +34,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Head office plan, task 3.2 (with Zein's correction of 2026-10-03): on a store whose promotions are owned by the head
- * office, every promotion is only consulted (create, edit, deactivate, delete: 409, whatever its origin). Elsewhere, a
- * promotion received from the head office is never written through the API (generic create with its id included), the
- * client never sets the origin, and local promotions behave as before (usage lock, delete refusal). Real PromotionAPI
- * and PromotionService over an in-memory promotion table; no Spring context.
+ * office, every promotion is only consulted (create, edit, deactivate, delete: 409, whatever its origin). Elsewhere (rule
+ * fix of step 3) the store owns every promotion of its table: one that came from the head office is written like a
+ * local one and keeps its origin; the client never sets the origin, and local promotions behave as before (usage lock,
+ * delete refusal). Real PromotionAPI and PromotionService over an in-memory promotion table; no Spring context.
  */
 class PromotionAPIGuardTest {
 
@@ -109,15 +109,32 @@ class PromotionAPIGuardTest {
 	}
 
 	@Test
-	@DisplayName("Promotions local: a promotion received from the head office cannot be edited, deleted, or overwritten by a create")
+	@DisplayName("Promotions local (rule fix): a promotion that came from the head office is edited, deactivated and deleted like a local one; origin kept")
 	void headOfficeRecordOnLocalStore() throws Exception {
 		PromotionAPI api = api(local());
-		Map<Long, String> before = snapshot();
 
-		assertConflict(api.update(2L, body(2L, "HO1")), PromotionAPI.FROM_HEAD_OFFICE);
-		assertConflict(api.deleteById(2L), PromotionAPI.FROM_HEAD_OFFICE);
-		assertConflict(api.create(body(2L, "HO1")), PromotionAPI.FROM_HEAD_OFFICE);
-		assertEquals(before, snapshot());
+		assertEquals(200, api.update(2L, body(2L, "HO1")).getStatusCodeValue());
+		assertEquals("Edited HO1", table.get(2L).getName());
+		assertEquals(RecordOrigin.HEAD_OFFICE, table.get(2L).getOrigin(), "origin kept, for the badge");
+
+		Promotion deactivate = body(2L, "HO1");
+		deactivate.setActive(false);
+		assertEquals(200, api.update(2L, deactivate).getStatusCodeValue());
+		assertFalse(table.get(2L).getActive());
+
+		Promotion again = body(2L, "HO1");
+		again.setName("Through the generic create");
+		assertEquals(201, api.create(again).getStatusCodeValue());
+		assertEquals(RecordOrigin.HEAD_OFFICE, table.get(2L).getOrigin(), "a create with its id keeps its origin");
+
+		usages.put(2L, 1L);
+		Promotion locked = body(2L, "HO1");
+		locked.setDiscountPercentage(70.0);
+		assertEquals(409, api.update(2L, locked).getStatusCodeValue(), "the usage lock applies as to a local one");
+		usages.remove(2L);
+
+		assertEquals(204, api.deleteById(2L).getStatusCodeValue());
+		assertFalse(table.containsKey(2L));
 	}
 
 	@Test
