@@ -49,7 +49,7 @@ The exact prompts are written during the session, from the code as it is that da
 |---|---|---|---|---|---|
 | 0 | Foundations: vocabulary and safety net, no behaviour change | Everyone | No | Small | Merged into release/1.12.0 (backend 29c897d, frontend aa82ab3) |
 | 1 | Head office installation and stores list: a store shows as online | ParaFendri; Happyness from step 8 | No | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 91cb3a8, frontend de4ed05) |
-| 2 | Sales copies up: tickets, returns, sessions of every store visible at head office | ParaFendri; Happyness from step 8 | No | Medium | Not started |
+| 2 | Sales copies up: tickets, returns, sessions of every store visible at head office | ParaFendri; Happyness from step 8 | No | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 3a10957, frontend b90ab84) |
 | 3 | Promotions owned by head office | ParaFendri | No (engine untouched) | Medium | Not started |
 | 4 | Shared loyalty, part 1: members and earning | ParaFendri | Enrol only | Large | Not started |
 | 5 | Shared loyalty, part 2: spending and returns | ParaFendri | Yes, only when loyalty is owned by head office | Large | Not started |
@@ -125,6 +125,31 @@ Goal: every ticket, return and session closing of a store reaches the head offic
 L2 scenarios: a sale appears at head office; head office stopped, tickets wait then catch up; an ERP store with a head office shows the NAV status and the head office status moving independently.
 
 Done when: L2 passes, and an ERP store's NAV export is unchanged.
+
+**Status: done 2026-10-03.**
+
+| Task | Backend | Frontend |
+|---|---|---|
+| 2.1 | 17e490b | — |
+| 2.2 | 9509038 | — |
+| 2.3 | 91f6a85 | — |
+| 2.4 | 313c6b1, then 6321761 (a document that leaves its finished status after it was sent is sent again) | — |
+| 2.5 | c7d301a, then 65c7f62 (store filter of the consolidated lists) | b3f6174, then cc399b4 (screen check fixes) |
+| 2.6 | 2c57c58 | 3399d43 |
+| Docs | f85e1b4 | — |
+| Merge into release/2.1.0 | 3a10957 | b90ab84 |
+
+What exists after the step:
+- Store with `headoffice.url` and `sales.upstream` including `HEAD_OFFICE`: every ticket, return and session closing is tracked in `hol_sales_copy` and pushed by the `SALES_PUSH` job (30 s settle delay, batches, retry, nothing written to the selling tables). The Head office link page shows the status with pending / sent / error counts, the jobs (frequency, run now) and the exchange log.
+- Head office: consolidation tables `ho_ticket`, `ho_return`, `ho_session` and their lines, saved by store and document number; pages Tickets history, Sessions, Returns (menu Sales) and the home cards on the consolidated dashboard.
+- A store without `headoffice.url`: no new bean; the `ho_` and `hol_` tables exist through `ddl-auto` and stay empty.
+
+Tests:
+- Backend at the merge: 35 classes, 265 tests, all green (also on the feature branch before the merge).
+- Frontend: build passes. A cache-free production build stops on 200 `no-console` errors in 48 files that step 2 does not touch (already on release/2.1.0); the regular build passes from the ESLint cache. Step 2's own files pass the production lint.
+- L2 on this PC (standalone store + head office pair), all passed: a new cash sale reaches the head office (ticket, lines, payment, home cards); a return reaches it linked to its original ticket and a session closing with the same totals as the store; head office stopped: the link goes OFFLINE with one heartbeat row, a sale completes normally, the document stays PENDING with 0 attempts over two push cycles, then is sent once the head office is back, with no duplicate ticket.
+- Diff proof against release/2.1.0: 0 files in `erp/`, 0 franchise files, `SalesHeaderService`, `PromotionCalculationService`, `PricingService`, `ReturnHeaderService` unchanged; no new code reads or writes `SalesHeader.synchronizationStatus`.
+- Not run at this step: the ERP store scenario (NAV status and head office status moving independently), and the full regression checklist (once, before 2.1 is delivered).
 
 ### Step 3 — Promotions owned by head office
 
