@@ -24,10 +24,16 @@ The exact prompts are written during the session, from the code as it is that da
 - The module doc in `docs/modules/` is updated in the same commit.
 - Nothing in `erp/` and nothing in the selling services (`SalesHeaderService`, `PromotionCalculationService`, `PricingService`, `ReturnHeaderService`) is touched unless the task says so.
 
-**Branch and release**
+**Branch and release** (decided 2026-10-03)
 
-- One branch per step, `feature/ho-step-N`, from the current release branch. It is merged only after the regression checklist passes.
-- A step that ships is a version: bump the version and add `db/<version>/update.sql` (`AppVersionGuard` blocks the start otherwise).
+- Every step has its branch `feature/ho-step-N`, created from `release/2.1.0` in both repos and merged back into `release/2.1.0` with `--no-ff`. The feature branch is kept.
+- `release/1.12.0` stays for the customers: their fixes go there, not into the head office work.
+- No version bump and no `update.sql` per step. The version becomes 2.1.0 once, at the end of the plan, with one `db/2.1.0/update.sql` (`AppVersionGuard` blocks the start without both).
+
+**Regression** (decided 2026-10-03)
+
+- Per step, before its merge: the tests (`mvn test`, plus the frontend checks of the step) and the diff proof. The diff proof shows that nothing in `erp/`, no franchise file and none of the four selling services changed, and it explains every changed file a store also runs.
+- The full regression checklist (`docs/roadmap/regression-checklist.md`) runs once, before 2.1 is delivered. It includes the standalone selling pass skipped at step 1.
 
 ## 2. Test levels
 
@@ -35,14 +41,14 @@ The exact prompts are written during the session, from the code as it is that da
 |---|---|---|
 | L1 | Unit tests: plain JUnit 5 with in-memory stubs, like the 6 existing classes | Every task |
 | L2 | Two instances on the dev PC: a head office and a store, each with its own database (same pattern as today's franchise pair: backends on 444 and 888, frontends on 8080 and 8081) | End of every step |
-| L3 | Regression checklist on the existing profiles (ERP dev, standalone, franchise pair) | Before every merge |
+| L3 | Per step: the tests and the diff proof. Full regression checklist on the existing profiles (ERP dev, standalone, franchise pair) | Per step before its merge; the full checklist once, before 2.1 is delivered |
 
 ## 3. Overview
 
 | Step | Result | Needed first by | Changes selling code? | Size | Status |
 |---|---|---|---|---|---|
 | 0 | Foundations: vocabulary and safety net, no behaviour change | Everyone | No | Small | Merged into release/1.12.0 (backend 29c897d, frontend aa82ab3) |
-| 1 | Head office installation and stores list: a store shows as online | ParaFendri; Happyness from step 8 | No | Medium | Not started |
+| 1 | Head office installation and stores list: a store shows as online | ParaFendri; Happyness from step 8 | No | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 91cb3a8, frontend de4ed05) |
 | 2 | Sales copies up: tickets, returns, sessions of every store visible at head office | ParaFendri; Happyness from step 8 | No | Medium | Not started |
 | 3 | Promotions owned by head office | ParaFendri | No (engine untouched) | Medium | Not started |
 | 4 | Shared loyalty, part 1: members and earning | ParaFendri | Enrol only | Large | Not started |
@@ -86,10 +92,22 @@ Goal: start an instance as head office, register stores, and see each store onli
 | 1.3 | Head office: API key filter on `/ho/**` that identifies the calling store. The legacy franchise filter is not touched | L1 good key, bad key, missing key, inactive store |
 | 1.4 | Store: `HeadOfficeClient` and settings `headoffice.url`, `headoffice.api-key`. Every new bean exists only when the URL is set. A heartbeat sends store code and version | L1 no bean without URL |
 | 1.5 | Stores page shows last contact and online/offline. Store admin gets a "Head office link" status card | L2 |
+| 1.6 | Separate head office routes and menu: a page exists on a head office only when declared in its route file, and a shared page reuses the store component (`meta.twinOf`). Horizontal layout (menu on top) on a head office; the store keeps the vertical one | L1 seed of the head office permissions; frontend script for the router rule and the menu; build |
 
 L2 scenarios: the store appears online; head office stopped, the store keeps selling and shows offline; wrong key is rejected.
 
-Done when: L2 passes and the checklist shows no difference on the existing profiles.
+Done when: L2 passes, the tests and the diff proof are clean.
+
+**Status: done 2026-10-03.**
+
+| Task | Backend | Frontend |
+|---|---|---|
+| 1.4 | 2c8f7d4 | — |
+| 1.5 | d1911dd | aa49e31 |
+| 1.6 | 0a9b55a, then 9618a1e (default profile back to `dynamics-dev`) | ea80103 |
+| Merge into release/2.1.0 | 91cb3a8 | de4ed05 |
+
+Backend tests at the merge: 22 classes, 177 tests, all green. The standalone selling pass of the regression checklist was skipped at this step; it is part of the full checklist before 2.1 is delivered.
 
 ### Step 2 — Sales copies up
 
@@ -102,6 +120,7 @@ Goal: every ticket, return and session closing of a store reaches the head offic
 | 2.3 | Head office: consolidation tables and receiving endpoints, saved by store code + document number | L1 a repeated push creates one row |
 | 2.4 | Store: push job with retry; pending, sent and error counts on the status card | L1 retry after error |
 | 2.5 | Tickets history with store (new head office page): list, filters by store and dates, ticket detail | L2 |
+| 2.6 | Store: the Head office link page grows into status, jobs (frequency, last run, run now) and an exchange log; own tables, `erp/` untouched | Defined in the session (L1 and L2) |
 
 L2 scenarios: a sale appears at head office; head office stopped, tickets wait then catch up; an ERP store with a head office shows the NAV status and the head office status moving independently.
 
