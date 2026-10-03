@@ -26,7 +26,8 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * Task 1.1: the head office rows and the startup checks across keys.
  * Task 1.4: the head office link startup checks (headoffice.url on a head office, missing key, interval).
  * Task 1.5: headoffice.offline-after-seconds on a head office; isHeadOfficeLinked().
- * Task 2.1: headoffice.sales-push.from-date.
+ * Task 2.1: headoffice.sales-push.from-date. Task 2.4: a head office upstream needs headoffice.url; batch size and
+ * interval of the sales push.
  * Plain JUnit with a MockEnvironment (no Spring context).
  */
 class ApplicationModeOwnershipTest {
@@ -116,7 +117,7 @@ class ApplicationModeOwnershipTest {
 	@Test
 	@DisplayName("Every domain and the node type can be set explicitly (on a store)")
 	void allKeysExplicit() {
-		MockEnvironment env = new MockEnvironment()
+		MockEnvironment env = linkEnv() // task 2.4: a head office upstream needs headoffice.url
 				.withProperty("node.type", "STORE")
 				.withProperty("ownership.catalogue", "ERP")
 				.withProperty("ownership.customers", "HEAD_OFFICE")
@@ -131,7 +132,7 @@ class ApplicationModeOwnershipTest {
 	@DisplayName("sales.upstream: a comma list gives both, an empty value gives none even in ERP mode")
 	void salesUpstreamList() {
 		assertEquals(EnumSet.of(SalesUpstream.ERP, SalesUpstream.HEAD_OFFICE),
-				erp(new MockEnvironment().withProperty("sales.upstream", "ERP, HEAD_OFFICE")).getSalesUpstreams());
+				erp(linkEnv().withProperty("sales.upstream", "ERP, HEAD_OFFICE")).getSalesUpstreams());
 		assertEquals(none(), erp(new MockEnvironment().withProperty("sales.upstream", "")).getSalesUpstreams());
 		assertEquals(none(), erp(new MockEnvironment().withProperty("sales.upstream", "  ")).getSalesUpstreams());
 	}
@@ -321,6 +322,60 @@ class ApplicationModeOwnershipTest {
 		assertEquals(LocalDate.of(2026, 9, 30), NodeOwnership.parseSalesPushFromDate(" 2026-09-30 "));
 		assertNull(NodeOwnership.parseSalesPushFromDate(null));
 		assertNull(NodeOwnership.parseSalesPushFromDate(" "));
+	}
+
+	@Test
+	@DisplayName("Task 2.4: an explicit sales.upstream with HEAD_OFFICE needs headoffice.url; ERP alone, empty, or with the URL is accepted")
+	void headOfficeUpstreamNeedsUrl() {
+		for (String value : new String[] { "HEAD_OFFICE", " erp , head_office " }) {
+			MockEnvironment env = new MockEnvironment().withProperty("sales.upstream", value);
+			IllegalStateException e = assertThrows(IllegalStateException.class, () -> standalone(env), value);
+			assertTrue(e.getMessage().startsWith("Missing value for property headoffice.url: required when sales.upstream"
+					+ " includes HEAD_OFFICE ('" + value + "')"), e.getMessage());
+			assertThrows(IllegalStateException.class, () -> erp(env), value);
+		}
+		assertEquals(EnumSet.of(SalesUpstream.ERP), erp(new MockEnvironment().withProperty("sales.upstream", "ERP"))
+				.getSalesUpstreams());
+		assertEquals(none(), standalone(new MockEnvironment().withProperty("sales.upstream", "")).getSalesUpstreams());
+		assertEquals(EnumSet.of(SalesUpstream.HEAD_OFFICE),
+				standalone(linkEnv().withProperty("sales.upstream", "HEAD_OFFICE")).getSalesUpstreams());
+	}
+
+	@Test
+	@DisplayName("Task 2.4: the franchise customer profile derives HEAD_OFFICE and still starts without headoffice.url")
+	void franchiseCustomerDerivedUpstreamNotChecked() {
+		assertRow(franchiseCustomer(new MockEnvironment()), NodeType.STORE, HO, L, L, L, HO,
+				EnumSet.of(SalesUpstream.HEAD_OFFICE));
+	}
+
+	@Test
+	@DisplayName("Task 2.4: a head office with sales.upstream=HEAD_OFFICE keeps the head office message")
+	void headOfficeUpstreamMessage() {
+		MockEnvironment env = headOfficeEnv().withProperty("sales.upstream", "HEAD_OFFICE");
+		IllegalStateException e = assertThrows(IllegalStateException.class, () -> standalone(env));
+		assertTrue(e.getMessage().contains("never sells"), e.getMessage());
+	}
+
+	@Test
+	@DisplayName("Task 2.4: batch-size 1 to 1000 and interval-seconds at least 1 accepted; other values refused; not checked without headoffice.url")
+	void salesPushBatchSizeAndInterval() {
+		for (String value : new String[] { "0", "1001", "-1", "abc", "2.5", "" }) {
+			MockEnvironment env = linkEnv().withProperty("headoffice.sales-push.batch-size", value);
+			IllegalStateException e = assertThrows(IllegalStateException.class, () -> standalone(env), value);
+			assertTrue(e.getMessage().startsWith("Invalid value '" + value
+					+ "' for property headoffice.sales-push.batch-size: a whole number from 1 to 1000"), e.getMessage());
+		}
+		for (String value : new String[] { "1", " 50 ", "1000" }) {
+			standalone(linkEnv().withProperty("headoffice.sales-push.batch-size", value));
+		}
+		for (String value : new String[] { "0", "-5", "1m", "" }) {
+			MockEnvironment env = linkEnv().withProperty("headoffice.sales-push.interval-seconds", value);
+			IllegalStateException e = assertThrows(IllegalStateException.class, () -> standalone(env), value);
+			assertTrue(e.getMessage().contains("headoffice.sales-push.interval-seconds"), e.getMessage());
+		}
+		standalone(linkEnv().withProperty("headoffice.sales-push.interval-seconds", " 30 "));
+		standalone(new MockEnvironment().withProperty("headoffice.sales-push.batch-size", "0")
+				.withProperty("headoffice.sales-push.interval-seconds", "0"));
 	}
 
 	// --- Through ApplicationModeService ---

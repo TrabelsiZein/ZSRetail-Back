@@ -167,7 +167,7 @@ public class SalesCopyFinder {
 	}
 
 	/** The most specific cause, e.g. "SQLServerException: The query has timed out." */
-	static String cause(Exception e) {
+	public static String cause(Exception e) {
 		Throwable cause = NestedExceptionUtils.getMostSpecificCause(e);
 		return cause.getClass().getSimpleName() + (cause.getMessage() == null ? "" : ": " + cause.getMessage());
 	}

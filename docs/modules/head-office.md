@@ -1,6 +1,6 @@
 # Head Office Module
 
-**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office). Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
+**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office); task 2.4 done (the store's push job with retry, counts on `GET admin/holink/status`). Tasks 2.5 and 2.6 (pages) to come. Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
 
 ### Overview
 - Two installation types, same WAR: a **store** sells; a **head office** manages several stores and never sells (no cashier session, no ticket).
@@ -234,6 +234,11 @@ A store with `headoffice.url` set sends a heartbeat to its head office. Store-si
 | `node.type=HEAD_OFFICE` | `Invalid combination: node.type=HEAD_OFFICE with headoffice.url set` |
 | `headoffice.api-key` missing or blank | `Missing value for property headoffice.api-key: required when headoffice.url is set` |
 | `headoffice.heartbeat-interval-seconds` below 1 or not a whole number | `Invalid value '<value>' for property headoffice.heartbeat-interval-seconds` |
+| `headoffice.sales-push.from-date` not a `yyyy-MM-dd` date (task 2.1) | `Invalid value '<value>' for property headoffice.sales-push.from-date` |
+| `headoffice.sales-push.batch-size` outside 1..1000 or not a whole number (task 2.4) | `Invalid value '<value>' for property headoffice.sales-push.batch-size` |
+| `headoffice.sales-push.interval-seconds` below 1 or not a whole number (task 2.4) | `Invalid value '<value>' for property headoffice.sales-push.interval-seconds` |
+
+And whether the URL is set or not (task 2.4, decision 4): a store whose explicit `sales.upstream` includes `HEAD_OFFICE` without `headoffice.url` does not start (`Missing value for property headoffice.url: required when sales.upstream includes HEAD_OFFICE ('<value>')`). Only an explicit value is checked: the franchise customer profile derives `HEAD_OFFICE` for its legacy push and has no `headoffice.url`, and it starts as before. A head office with a non-empty `sales.upstream` keeps its own message (step 1).
 
 Without the URL these keys are not checked. The URL scheme is not checked: HTTP is accepted inside the tunnel (decision D1).
 
@@ -253,7 +258,7 @@ Without the URL these keys are not checked. The URL scheme is not checked: HTTP 
 
 **Status**: `HeadOfficeLinkStatus`, in memory only (no table; `PENDING` again after a restart): state, last attempt and last success (store clock), last message, head office `serverTime` of the last success. A failure keeps the last success. Shown on the store's "Head office link" page (task 1.5, below).
 
-**Thread**: `HeadOfficeHeartbeatScheduler` starts on `ApplicationReadyEvent`: first heartbeat 15 s later, then every interval (fixed delay, counted from the end of the previous call). It runs on its own thread `ho-link-1`, not with `@Scheduled`: Spring Boot's default scheduler has one thread (`scheduling-1`) shared by `ErpSyncScheduler` and `FranchiseSalesPushScheduler`, so a call blocked up to 15 s would delay them, and a long ERP job would hold the heartbeat back. The thread pool is deliberately not a bean: a `TaskScheduler` bean would replace Spring Boot's default one and move the existing jobs onto it. Only this thread calls the head office; no request, sale or session waits for it.
+**Thread**: `HeadOfficeHeartbeatScheduler` starts on `ApplicationReadyEvent`: first heartbeat 15 s later, then every interval (fixed delay, counted from the end of the previous call). It runs on its own thread `ho-link-1`, not with `@Scheduled`: Spring Boot's default scheduler has one thread (`scheduling-1`) shared by `ErpSyncScheduler` and `FranchiseSalesPushScheduler`, so a call blocked up to 15 s would delay them, and a long ERP job would hold the heartbeat back. The thread pool is deliberately not a bean: a `TaskScheduler` bean would replace Spring Boot's default one and move the existing jobs onto it. Only this thread calls the head office; no request, sale or session waits for it. Since task 2.4 the sales push runs on the same thread (`HeadOfficeHeartbeatScheduler.scheduleOnLinkThread`), so the two jobs never run at the same time.
 
 **Log** (store): one INFO line at start (`Head office link: heartbeat to <url> every <n> s`), one INFO line per state change (e.g. `Head office link: ONLINE -> OFFLINE (head office unreachable (ConnectException: Connection refused))`), DEBUG while the state stays the same. The key is never written in a log line.
 
@@ -262,7 +267,7 @@ Without the URL these keys are not checked. The URL scheme is not checked: HTTP 
 
 | Request | Answer (`HeadOfficeLinkStatusDTO`) |
 |---|---|
-| `GET /status` | `{state, message, lastAttempt, lastSuccess, serverTime, headOfficeUrl, storeCode, intervalSeconds}`: the in-memory status, the URL without trailing slashes, `DEFAULT_LOCATION` read now (null when empty or unreadable), the interval. Never the key |
+| `GET /status` | `{state, message, lastAttempt, lastSuccess, serverTime, headOfficeUrl, storeCode, intervalSeconds, pendingCount, sentCount, errorCount}`: the in-memory status, the URL without trailing slashes, `DEFAULT_LOCATION` read now (null when empty or unreadable), the interval. Never the key. Task 2.4: the three counts of `hol_sales_copy` by status (0 for a status without rows); null when the store does not copy its sales to the head office (no push job), or when the count cannot be read (the status is still answered) |
 | `POST /check` | Runs one heartbeat now and answers the status after it. The heartbeat runs on `ho-link-1` like every heartbeat (`HeadOfficeHeartbeatScheduler.checkNow`), queued behind one in progress, waited for up to 30 s; when the wait ends first, or before the heartbeat thread is started, the current status is answered and no call is made from the request thread |
 
 **`GET /config`** gets `headOfficeLinked` (task 1.5), last field: true when `headoffice.url` is set (`ApplicationModeService.isHeadOfficeLinked()`, same check as the condition). The frontend store keeps it as `appConfig/isHeadOfficeLinked` (default false, also when `/config` fails).
@@ -304,7 +309,7 @@ The ERP export takes `COMPLETED` tickets and returns and `TERMINATED` sessions. 
 | `last_push_date` | Store clock of the last push that got an answer for this document |
 | `content_hash` | SHA-256 of the copy last accepted by the head office: a document marked as changed whose copy is unchanged (e.g. the ERP export wrote its own fields) is marked `SENT` again without being sent |
 
-Index `ix_hol_sales_copy_queue` (`status`, `attempts`, `document_date`). Plus `_BaseEntity` columns (`created_at`, `updated_at`...).
+Index `ix_hol_sales_copy_queue` (`document_type`, `status`, `attempts`, `document_date`): the push's queue query (task 2.4). Plus `_BaseEntity` columns (`created_at`, `updated_at`...).
 
 **Cursor table** `hol_sales_cursor` (`SalesCopyCursor`), one row per type: change time and id of the last document read.
 
@@ -369,13 +374,43 @@ A header owns its lines (`cascade = ALL`, `orphanRemoval`, ordered by `line_no`)
 
 | Key | Rule |
 |---|---|
+| `sales.upstream` | Where sales copies go (step 0 key): `HEAD_OFFICE` on a store without ERP, `ERP,HEAD_OFFICE` on an ERP store (the ERP export does not read this key today; ERP stays in the list so the value tells the truth). Without `headoffice.url` an explicit `HEAD_OFFICE` stops the startup (task 2.4) |
 | `headoffice.sales-push.from-date` | Optional. `yyyy-MM-dd`, trimmed; documents dated before that day are ignored. Absent or blank: the whole history. Any other value stops the startup: `Invalid value '<value>' for property headoffice.sales-push.from-date: a date as yyyy-MM-dd` |
+| `headoffice.sales-push.batch-size` | Documents per request, default `50`, from 1 to 1000 (task 2.4) |
+| `headoffice.sales-push.interval-seconds` | Seconds between two push cycles, default `60`, at least 1 (task 2.4). Read through `SalesPushSettings.getIntervalSeconds()` at each cycle, so task 2.6 can make it editable from a page by changing that class only |
+
+### Sales copies: the push (task 2.4)
+`holink/service/SalesPushService`, run by `holink/scheduler/SalesPushScheduler`; both `@ConditionalOnHeadOfficeSalesPush`.
+
+**When**: on the `ho-link-1` thread, after the heartbeat. First cycle 20 s after the start (the first heartbeat is at 15 s), then `headoffice.sales-push.interval-seconds` after the end of the previous cycle. While a long history is caught up (a search page full, a full batch with documents never tried, or the cycle time bound reached) the next cycle comes 5 s later; the heartbeat, due in between, runs first. A cycle never throws: a failure is logged and the next cycle comes at the usual interval. Nothing in the selling path or the ERP export calls it, and it writes no selling table (copies are built in read-only transactions).
+
+**One cycle**:
+1. The search (task 2.1).
+2. Up to 2 batches per document type, types in turn (tickets, returns, sessions, tickets...), each of `batch-size` documents: never tried first (fewest attempts), then oldest document first. The first round also takes `ERROR` documents (retried); the second takes `PENDING` only, so a document is sent at most once per cycle.
+3. Per batch: each copy is built in its own read-only transaction (15 s timeout). A copy whose hash equals the hash of the copy the head office accepted last is marked `SENT` without being sent. The others go in one request (`HeadOfficeClient.push`, `POST /ho/sales/<type>`, same headers and timeouts as the heartbeat; the body is written by the client's own mapper, dates as ISO strings).
+4. No new batch is started once the cycle has run 20 s: catching up a long history does not hold the heartbeat back.
+
+| Outcome | Tracking row |
+|---|---|
+| Accepted | `SENT`, `content_hash` of the copy sent, attempts + 1, `last_error` null, `last_push_date` now |
+| Rejected (one result with `accepted: false`) | `ERROR`, the reason in `last_error`, attempts + 1, `last_push_date` now; retried at later cycles, after the documents never tried |
+| Missing from a delivered answer | `ERROR`, `no result from the head office for this document`, attempts + 1 |
+| The store cannot build it (deleted: `the document no longer exists in the store`; read failure: `the store could not build the copy (...)`) | `ERROR`, attempts + 1; the rest of the batch is sent |
+| Not delivered: head office unreachable, key refused (401), no license (402), any other status, unreadable answer, `DEFAULT_LOCATION` empty or unreadable | **No change** (no attempt, no error stored); the cycle stops and the documents wait for the next one |
+| Copy unchanged since accepted | `SENT` again, not sent, no attempt |
+
+One rejected document never stops the others: each follows its own result.
+
+**Log** (store): one INFO line at start (`Head office sales push: every 60 s, 50 documents per request, whole history`); one INFO line per cycle that found or sent something (`Head office sales push: 50 sent, 0 rejected, 0 not built, 0 unchanged; 120 new, 0 changed; now 70 pending, 905 sent, 0 in error`); one INFO line when delivery fails (`not delivered, documents stay pending (OFFLINE: head office unreachable (...))`), DEBUG while it keeps failing, INFO `delivered again`; one WARN line the first time a document is not accepted, DEBUG on its next tries; WARN when a search or a cycle fails. Nothing at INFO on an idle cycle.
+
+**Counts**: `GET admin/holink/status` gives `pendingCount`, `sentCount`, `errorCount` (see "Head office link page").
 
 ### Connect a store
 1. At the head office, **Network → Stores**, create the store with **code = the store's `DEFAULT_LOCATION`** (General Setup of the store). For an ERP store that is its NAV location code.
 2. Copy the key from the dialog: it is shown once (a lost key is replaced with regenerate-key).
 3. In the store's properties file (the profile it runs with), set `headoffice.url` (the head office base URL, with `/zsretail/api`) and `headoffice.api-key` (the key). In `application-standalone-dev.properties` and `application-dynamics-dev.properties`: uncomment the two `headoffice.*` lines at the end and replace `PASTE_KEY_HERE` with the key.
-4. Restart the store. About 15 s after the start its log shows `Head office link: PENDING -> ONLINE`; the head office Stores page shows the store's last contact and version.
+4. To copy the store's sales to the head office (step 2), also set `sales.upstream`: `HEAD_OFFICE` on a store without ERP, `ERP,HEAD_OFFICE` on an ERP store (the NAV export is not affected). In the two dev profiles: uncomment the `#sales.upstream=...` line under the `headoffice.*` lines. Optional: `headoffice.sales-push.from-date`, `batch-size`, `interval-seconds` (see "Sales copies"). Without `sales.upstream` the store keeps the heartbeat only.
+5. Restart the store. About 15 s after the start its log shows `Head office link: PENDING -> ONLINE`; the head office Stores page shows the store's last contact and version. With `sales.upstream`, the log also shows `Head office sales push: every 60 s, ...` at start, then from about 20 s one `... sent ...` line per cycle until the history is caught up.
 
 **L2 checks (task 1.4)** (the pair on this PC, `RS01` connected as above):
 
@@ -458,6 +493,13 @@ A header owns its lines (`cascade = ALL`, `orphanRemoval`, ordered by `line_no`)
 - `SalesCopyReceiverTest` (task 2.3): a repeated push creates one row with its lines and payments once; a changed ticket replaces its row's header, lines and payments (same row, first reception kept); two stores with the same sales number keep two rows and a push replaces only the sender's; in one batch, a missing number, a line without item code, an empty document, a payment without method and a missing date are each rejected with their reason, in order, while the others are saved, one transaction per document; a document refused by the database is rejected with the cause and the next ones are saved; the row references the store by id, never the principal object; empty and null batches; the reason cut to 500 characters; returns and sessions (repeat, replace, two stores, `TERMINATED` replacing `CLOSED` with its count lines). In-memory repositories and a counting transaction stub.
 - `HeadOfficeSalesAPITest` (task 2.3): the three endpoints answer `{"results":[{documentNumber, accepted, message}]}`, one per document.
 - `OnHeadOfficeConditionTest` (task 2.3): `SalesCopyReceiver` and `HeadOfficeSalesAPI` exist only on a head office.
+- `SalesPushServiceTest` (task 2.4): retry after a rejection (`ERROR` with the reason and one attempt, then `SENT` with two attempts and the accepted hash at the next cycle, then no request); head office unreachable, 401, 402, 503 and an HTML answer leave every tracking row exactly as it was (pending, rejected and changed rows), stop the cycle after one request and do not speed up the next one; one rejected document in a batch does not stop the others, and a document missing from the answer is `ERROR`; a copy equal to the accepted one is `SENT` without a request, a changed one is sent; a deleted document and a read failure are `ERROR` with an attempt while the rest is sent; batches of `batch-size`, oldest first, rejected after never tried, 2 per type per cycle with the types in turn, a rejected document not resent in the same cycle, a full batch speeding up the next cycle until caught up; rejected-only batches do not; the 20 s cycle bound; the hash (equal after a JSON round trip, different when a line changes); the counts. Real `HeadOfficeClient` over `MockRestServiceServer`, in-memory `hol_` tables.
+- `SalesPushSchedulerTest` (task 2.4): first cycle 20 s after the start, then the interval after the end of the previous cycle, read at each cycle (changed at runtime); the start log line; a cycle that throws is logged at WARN and the scheduler does not throw; a job scheduled on the link runs on `ho-link-1`.
+- `HeadOfficeClientTest` (task 2.4): the push POSTs a JSON array (dates as ISO strings) to `/ho/sales/tickets`, `/returns`, `/sessions` with both headers and reads one result per document; 401, 402, 500, connection refused, an HTML answer, `{"results":null}` and an empty `DEFAULT_LOCATION` (no request) are not delivered and give no result. The heartbeat cases are unchanged on the shared `post` method.
+- `HeadOfficeLinkAPITest` (task 2.4): the 11 fields in order; counts null without the push; with it the count per status (0 when none), and null when the count fails while the link fields are still answered.
+- `ApplicationModeOwnershipTest` (task 2.4): an explicit `HEAD_OFFICE` upstream (alone or with `ERP`, any case) without `headoffice.url` is refused on standalone and ERP flags; `ERP`, empty, or with the URL accepted; the franchise customer profile (derived `HEAD_OFFICE`) still starts without the URL; a head office keeps its own message; `batch-size` 1 to 1000 and `interval-seconds` at least 1, not checked without the URL. Two step-0 tests that set `sales.upstream=HEAD_OFFICE` now also set the URL and key.
+- `OnHeadOfficeSalesPushConditionTest` (task 2.4): `SalesPushService` and `SalesPushScheduler` added to the sales copy beans.
+- Not covered by L1 (checked at L2 on the pair): the JPQL against SQL Server, the transaction timeouts, the real timer, the head office endpoints through the `/ho/**` chain. The JPQL and the entity mappings were translated with Hibernate (SQL Server 2012 dialect, no database) during the tasks.
 - Frontend (task 1.5): eslint on the changed files; a Node script (not committed) for the route guard with and without the link, the `appConfig` mutation, getter and fetch (true, false, absent, failure), "x min ago" and the status badges, the wiring of the five points and the 75 i18n keys in en, fr and ar; a build with the eslint plugin skipped (the production build stops on four `console` statements that were already there before task 1.5, in `Home.vue`, `Login.vue` and `store/app-config/index.js`).
 - Not covered by L1 (needs a started context): the chain wiring itself (store installation answers 401, a JWT is not read on `/ho/**`, other paths unchanged). Checked by the L2 table under "Store API". Also the real timer (first heartbeat after 15 s), timeouts on a real network and the bulk update on SQL Server: L2 table under "Connect a store".
 - Frontend: no test runner; the guard, the home helper, the menu filter, the Network group and the Roles page filter are checked with a Node script during the task, and by L2.

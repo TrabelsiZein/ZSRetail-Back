@@ -14,12 +14,22 @@ import org.springframework.stereotype.Repository;
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeSalesPush;
 import com.digithink.zsretail.holink.dto.SalesDocumentRef;
 import com.digithink.zsretail.holink.enumeration.SalesCopyType;
+import com.digithink.zsretail.holink.service.SalesCopyMapper;
 import com.digithink.zsretail.holink.service.SalesDocumentSource;
+import com.digithink.zsretail.repository.CashierSessionRepository;
+import com.digithink.zsretail.repository.PaymentRepository;
+import com.digithink.zsretail.repository.ReturnHeaderRepository;
+import com.digithink.zsretail.repository.ReturnLineRepository;
+import com.digithink.zsretail.repository.SalesHeaderRepository;
+import com.digithink.zsretail.repository.SalesLineRepository;
+import com.digithink.zsretail.repository.SessionCashCountRepository;
 
 /**
- * The store's documents read with JPQL for the sales copies (task 2.1): SalesHeader, ReturnHeader, CashierSession.
- * Read only, through the shared entity manager; no selling service and no existing repository is changed. Called in
- * transactions with a timeout (see SalesCopyFinder), so a row locked by a long ERP export cannot hold the link thread.
+ * The store's documents read for the sales copies (tasks 2.1, 2.4): SalesHeader, ReturnHeader, CashierSession and
+ * their lines. Read only: the search is a JPQL query through the shared entity manager, the copies are built from the
+ * existing repositories' find methods; no selling service and no existing repository is changed. Called in
+ * transactions with a timeout (read only for the copies), so a row locked by a long ERP export cannot hold the link
+ * thread.
  */
 @Repository
 @ConditionalOnHeadOfficeSalesPush
@@ -35,6 +45,26 @@ public class JpaSalesDocumentSource implements SalesDocumentSource {
 
 	@PersistenceContext
 	private EntityManager entityManager;
+
+	private final SalesHeaderRepository salesHeaders;
+	private final SalesLineRepository salesLines;
+	private final PaymentRepository payments;
+	private final ReturnHeaderRepository returnHeaders;
+	private final ReturnLineRepository returnLines;
+	private final CashierSessionRepository sessions;
+	private final SessionCashCountRepository cashCounts;
+
+	public JpaSalesDocumentSource(SalesHeaderRepository salesHeaders, SalesLineRepository salesLines,
+			PaymentRepository payments, ReturnHeaderRepository returnHeaders, ReturnLineRepository returnLines,
+			CashierSessionRepository sessions, SessionCashCountRepository cashCounts) {
+		this.salesHeaders = salesHeaders;
+		this.salesLines = salesLines;
+		this.payments = payments;
+		this.returnHeaders = returnHeaders;
+		this.returnLines = returnLines;
+		this.sessions = sessions;
+		this.cashCounts = cashCounts;
+	}
 
 	/** Keyset query on (change time, id); the change time is updated_at, or the document date when it is empty. */
 	static String changedQuery(String entity, String numberField, String dateField) {
@@ -62,5 +92,24 @@ public class JpaSalesDocumentSource implements SalesDocumentSource {
 					status == null ? null : status.name(), (LocalDateTime) row[4]));
 		}
 		return refs;
+	}
+
+	@Override
+	public Object loadCopy(SalesCopyType type, Long localId) {
+		switch (type) {
+			case TICKET:
+				return salesHeaders.findById(localId)
+						.map(header -> SalesCopyMapper.ticket(header, salesLines.findBySalesHeader(header),
+								payments.findBySalesHeader(header)))
+						.orElse(null);
+			case RETURN:
+				return returnHeaders.findById(localId)
+						.map(header -> SalesCopyMapper.returnCopy(header, returnLines.findByReturnHeader(header)))
+						.orElse(null);
+			default:
+				return sessions.findById(localId)
+						.map(session -> SalesCopyMapper.session(session, cashCounts.findByCashierSession(session)))
+						.orElse(null);
+		}
 	}
 }

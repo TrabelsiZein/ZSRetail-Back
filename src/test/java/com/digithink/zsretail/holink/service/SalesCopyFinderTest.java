@@ -66,23 +66,32 @@ class SalesCopyFinderTest {
 	}
 
 	private SalesCopyFinder finder() {
-		SalesDocumentSource source = (type, from, afterChangedAt, afterId, until, limit) -> {
-			if (type == failingType) {
-				throw new IllegalStateException("The query has timed out.");
+		SalesDocumentSource source = new SalesDocumentSource() {
+			@Override
+			public List<SalesDocumentRef> findChanged(SalesCopyType type, LocalDateTime from,
+					LocalDateTime afterChangedAt, long afterId, LocalDateTime until, int limit) {
+				if (type == failingType) {
+					throw new IllegalStateException("The query has timed out.");
+				}
+				fromAsked.put(type, from);
+				List<SalesDocumentRef> page = documents.stream()
+						.filter(d -> d.type == type)
+						.filter(d -> d.date != null && !d.date.isBefore(from))
+						.filter(d -> !d.changedAt().isAfter(until))
+						.filter(d -> d.changedAt().isAfter(afterChangedAt)
+								|| d.changedAt().isEqual(afterChangedAt) && d.id > afterId)
+						.sorted(Comparator.comparing(Doc::changedAt).thenComparing(d -> d.id))
+						.limit(limit)
+						.map(Doc::ref)
+						.collect(Collectors.toList());
+				rowsRead += page.size();
+				return page;
 			}
-			fromAsked.put(type, from);
-			List<SalesDocumentRef> page = documents.stream()
-					.filter(d -> d.type == type)
-					.filter(d -> d.date != null && !d.date.isBefore(from))
-					.filter(d -> !d.changedAt().isAfter(until))
-					.filter(d -> d.changedAt().isAfter(afterChangedAt)
-							|| d.changedAt().isEqual(afterChangedAt) && d.id > afterId)
-					.sorted(Comparator.comparing(Doc::changedAt).thenComparing(d -> d.id))
-					.limit(limit)
-					.map(Doc::ref)
-					.collect(Collectors.toList());
-			rowsRead += page.size();
-			return page;
+
+			@Override
+			public Object loadCopy(SalesCopyType type, Long localId) {
+				throw new UnsupportedOperationException("not used by the search");
+			}
 		};
 		SalesCopyRepository copies = stub(SalesCopyRepository.class, (method, args) -> {
 			repositoryCalls.add(method);
@@ -119,7 +128,7 @@ class SalesCopyFinderTest {
 					return UNHANDLED;
 			}
 		});
-		return new SalesCopyFinder(source, copies, cursors, new SalesPushSettings(fromDate),
+		return new SalesCopyFinder(source, copies, cursors, new SalesPushSettings(fromDate, 50, 60),
 				TransactionOperations.withoutTransaction());
 	}
 

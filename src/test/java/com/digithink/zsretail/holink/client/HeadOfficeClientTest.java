@@ -1,6 +1,7 @@
 package com.digithink.zsretail.holink.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
@@ -14,6 +15,8 @@ import java.io.IOException;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
+import java.time.LocalDateTime;
+import java.util.Arrays;
 
 import org.apache.http.client.config.RequestConfig;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,15 +33,22 @@ import org.springframework.test.web.client.ResponseActions;
 import org.springframework.test.web.client.ResponseCreator;
 import org.springframework.web.client.RestTemplate;
 
+import com.digithink.zsretail.headoffice.dto.ReturnCopyDTO;
+import com.digithink.zsretail.headoffice.dto.SalesCopyResultDTO;
+import com.digithink.zsretail.headoffice.dto.SessionCopyDTO;
+import com.digithink.zsretail.headoffice.dto.TicketCopyDTO;
 import com.digithink.zsretail.holink.dto.HeadOfficeCallResult;
+import com.digithink.zsretail.holink.dto.SalesPushAnswer;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
+import com.digithink.zsretail.holink.enumeration.SalesCopyType;
 import com.digithink.zsretail.service.GeneralSetupService;
 
 /**
  * Head office plan, task 1.4: the store's HeadOfficeClient. Every line of the result mapping, both headers on every
  * call, the store code read from DEFAULT_LOCATION at each call, a trailing slash in headoffice.url tolerated, and
  * never an exception. The transport is Spring's MockRestServiceServer on a plain RestTemplate (no Spring context), so
- * RestTemplate's own error handling is exercised. An unexpected request fails the test.
+ * RestTemplate's own error handling is exercised. An unexpected request fails the test. Task 2.4: the push of a batch
+ * of sales copies, delivered or not, on the same mapping.
  */
 class HeadOfficeClientTest {
 
@@ -227,5 +237,92 @@ class HeadOfficeClientTest {
 		assertEquals(5_000, config.getConnectTimeout());
 		assertEquals(10_000, config.getSocketTimeout());
 		assertEquals(5_000, config.getConnectionRequestTimeout());
+	}
+
+	// --- Task 2.4: sales copies ---
+
+	private static final String SALES = "http://ho.example:888/zsretail/api/ho/sales/";
+
+	private static TicketCopyDTO ticketCopy(String number) {
+		TicketCopyDTO copy = new TicketCopyDTO();
+		copy.setSalesNumber(number);
+		copy.setSalesDate(LocalDateTime.of(2026, 10, 3, 10, 15, 30));
+		return copy;
+	}
+
+	/** One push of a ticket against this answer; the request is checked. */
+	private SalesPushAnswer push(ResponseCreator response) {
+		server.reset();
+		server.expect(requestTo(SALES + "tickets")).andRespond(response);
+		SalesPushAnswer answer = client.push(SalesCopyType.TICKET, Arrays.asList(ticketCopy("T-1")));
+		server.verify();
+		return answer;
+	}
+
+	@Test
+	@DisplayName("Task 2.4: push POSTs the batch as a JSON array to /ho/sales/<type> with both headers; 200 gives one result per document")
+	void pushDelivered() {
+		server.expect(requestTo(SALES + "tickets"))
+				.andExpect(method(HttpMethod.POST))
+				.andExpect(header("X-Store-Code", "RS01"))
+				.andExpect(header("X-Store-Key", KEY))
+				.andExpect(content().json("[{\"salesNumber\":\"T-1\",\"salesDate\":\"2026-10-03T10:15:30\"},"
+						+ "{\"salesNumber\":\"T-2\"}]"))
+				.andRespond(withSuccess("{\"results\":[{\"documentNumber\":\"T-1\",\"accepted\":true,\"message\":null},"
+						+ "{\"documentNumber\":\"T-2\",\"accepted\":false,\"message\":\"salesDate is required\"}]}",
+						MediaType.APPLICATION_JSON));
+		TicketCopyDTO second = new TicketCopyDTO();
+		second.setSalesNumber("T-2");
+
+		SalesPushAnswer answer = client.push(SalesCopyType.TICKET, Arrays.asList(ticketCopy("T-1"), second));
+
+		server.verify();
+		assertTrue(answer.isDelivered());
+		assertEquals(HeadOfficeLinkState.ONLINE, answer.getState());
+		assertNull(answer.getMessage());
+		assertEquals(Arrays.asList(SalesCopyResultDTO.accepted("T-1"),
+				SalesCopyResultDTO.rejected("T-2", "salesDate is required")), answer.getResults());
+
+		for (SalesCopyType type : new SalesCopyType[] { SalesCopyType.RETURN, SalesCopyType.SESSION }) {
+			server.reset();
+			server.expect(requestTo(SALES + (type == SalesCopyType.RETURN ? "returns" : "sessions")))
+					.andExpect(method(HttpMethod.POST))
+					.andRespond(withSuccess("{\"results\":[]}", MediaType.APPLICATION_JSON));
+			assertTrue(client.push(type, Arrays.asList(type == SalesCopyType.RETURN ? new ReturnCopyDTO()
+					: new SessionCopyDTO())).isDelivered(), type.name());
+			server.verify();
+		}
+	}
+
+	@Test
+	@DisplayName("Task 2.4: a push that is not delivered follows the heartbeat table and has no result")
+	void pushNotDelivered() {
+		SalesPushAnswer refused = push(withStatus(HttpStatus.UNAUTHORIZED));
+		assertEquals(HeadOfficeLinkState.REFUSED, refused.getState());
+		assertEquals("store code or key refused by the head office", refused.getMessage());
+		assertTrue(refused.getResults().isEmpty());
+
+		assertEquals("the head office has no valid license", push(withStatus(HttpStatus.PAYMENT_REQUIRED)).getMessage());
+		SalesPushAnswer error = push(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+		assertEquals(HeadOfficeLinkState.ERROR, error.getState());
+		assertEquals("unexpected answer from the head office: HTTP 500", error.getMessage());
+
+		SalesPushAnswer offline = push(failWith(new ConnectException("Connection refused")));
+		assertEquals(HeadOfficeLinkState.OFFLINE, offline.getState());
+		assertEquals("head office unreachable (ConnectException: Connection refused)", offline.getMessage());
+		assertFalse(offline.isDelivered());
+
+		assertEquals(HeadOfficeLinkState.ERROR,
+				push(withSuccess("<html>proxy</html>", MediaType.TEXT_HTML)).getState());
+		SalesPushAnswer noResults = push(withSuccess("{\"results\":null}", MediaType.APPLICATION_JSON));
+		assertEquals(HeadOfficeLinkState.ERROR, noResults.getState());
+		assertEquals("unreadable answer from the head office (no results)", noResults.getMessage());
+
+		location = " ";
+		server.reset();
+		SalesPushAnswer notConfigured = client.push(SalesCopyType.TICKET, Arrays.asList(ticketCopy("T-1")));
+		server.verify(); // no request
+		assertEquals(HeadOfficeLinkState.NOT_CONFIGURED, notConfigured.getState());
+		assertFalse(notConfigured.isDelivered());
 	}
 }

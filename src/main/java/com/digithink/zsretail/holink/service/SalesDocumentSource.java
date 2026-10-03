@@ -20,4 +20,10 @@ public interface SalesDocumentSource {
 	 */
 	List<SalesDocumentRef> findChanged(SalesCopyType type, LocalDateTime from, LocalDateTime afterChangedAt, long afterId,
 			LocalDateTime until, int limit);
+
+	/**
+	 * Task 2.4: the copy of one document as it is now ({@code TicketCopyDTO}, {@code ReturnCopyDTO} or
+	 * {@code SessionCopyDTO}, built by {@link SalesCopyMapper}); null when the document no longer exists.
+	 */
+	Object loadCopy(SalesCopyType type, Long localId);
 }

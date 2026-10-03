@@ -37,9 +37,12 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  *
  * Head office link (task 1.4): when {@code headoffice.url} is set, the startup fails on a head office, with a blank
  * {@code headoffice.api-key}, or with a {@code headoffice.heartbeat-interval-seconds} below 1. Stores page (task 1.5):
- * on a head office, the startup fails with a {@code headoffice.offline-after-seconds} below 1. Sales copies (task 2.1):
- * when {@code headoffice.url} is set, the startup fails with a {@code headoffice.sales-push.from-date} that is not a
- * date.
+ * on a head office, the startup fails with a {@code headoffice.offline-after-seconds} below 1. Sales copies (tasks 2.1,
+ * 2.4): when {@code headoffice.url} is set, the startup fails with a {@code headoffice.sales-push.from-date} that is
+ * not a date, a {@code headoffice.sales-push.batch-size} outside 1..1000 or a
+ * {@code headoffice.sales-push.interval-seconds} below 1; on a store, an explicit {@code sales.upstream} that includes
+ * HEAD_OFFICE without {@code headoffice.url} fails too (a derived upstream is not checked: the franchise customer
+ * profile derives HEAD_OFFICE for its legacy push and has no headoffice.url).
  */
 public final class NodeOwnership {
 
@@ -50,6 +53,11 @@ public final class NodeOwnership {
 	static final String HEARTBEAT_INTERVAL_KEY = "headoffice.heartbeat-interval-seconds";
 	static final String OFFLINE_AFTER_KEY = "headoffice.offline-after-seconds";
 	static final String SALES_PUSH_FROM_DATE_KEY = "headoffice.sales-push.from-date";
+	static final String SALES_PUSH_BATCH_SIZE_KEY = "headoffice.sales-push.batch-size";
+	static final String SALES_PUSH_INTERVAL_KEY = "headoffice.sales-push.interval-seconds";
+
+	/** Largest batch a store may send in one request. */
+	public static final int SALES_PUSH_MAX_BATCH_SIZE = 1000;
 
 	// Mode flags, read like ApplicationModeService (@Value with a false default)
 	static final String STANDALONE_KEY = "application.standalone";
@@ -179,6 +187,12 @@ public final class NodeOwnership {
 					+ SALES_UPSTREAM_KEY + ": a head office (" + NODE_TYPE_KEY
 					+ "=HEAD_OFFICE) never sells; leave it empty or absent");
 		}
+		if (env.containsProperty(SALES_UPSTREAM_KEY) && upstreams.contains(SalesUpstream.HEAD_OFFICE)
+				&& !isHeadOfficeLinkSet(env)) {
+			throw new IllegalStateException("Missing value for property " + HEADOFFICE_URL_KEY + ": required when "
+					+ SALES_UPSTREAM_KEY + " includes HEAD_OFFICE ('" + env.getProperty(SALES_UPSTREAM_KEY)
+					+ "'). Set the head office URL and key, or remove HEAD_OFFICE from " + SALES_UPSTREAM_KEY + ".");
+		}
 
 		return new NodeOwnership(nodeType, owners, upstreams);
 	}
@@ -213,6 +227,26 @@ public final class NodeOwnership {
 		}
 		checkWholeSeconds(env, HEARTBEAT_INTERVAL_KEY);
 		parseSalesPushFromDate(env.getProperty(SALES_PUSH_FROM_DATE_KEY));
+		checkWholeSeconds(env, SALES_PUSH_INTERVAL_KEY);
+		checkBatchSize(env);
+	}
+
+	/** When present, a whole number from 1 to {@value #SALES_PUSH_MAX_BATCH_SIZE}. */
+	private static void checkBatchSize(PropertyResolver env) {
+		if (!env.containsProperty(SALES_PUSH_BATCH_SIZE_KEY)) {
+			return;
+		}
+		String raw = env.getProperty(SALES_PUSH_BATCH_SIZE_KEY);
+		long size;
+		try {
+			size = Long.parseLong(raw == null ? "" : raw.trim());
+		} catch (NumberFormatException e) {
+			size = 0;
+		}
+		if (size < 1 || size > SALES_PUSH_MAX_BATCH_SIZE) {
+			throw new IllegalStateException("Invalid value '" + raw + "' for property " + SALES_PUSH_BATCH_SIZE_KEY
+					+ ": a whole number from 1 to " + SALES_PUSH_MAX_BATCH_SIZE);
+		}
 	}
 
 	/** When present, the key must hold a whole number of seconds, at least 1. */

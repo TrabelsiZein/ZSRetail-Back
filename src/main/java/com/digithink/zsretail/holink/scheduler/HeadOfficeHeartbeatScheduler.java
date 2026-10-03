@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -13,6 +14,7 @@ import javax.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.Trigger;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 
@@ -31,7 +33,8 @@ import lombok.extern.log4j.Log4j2;
  * Runs on its own thread (ho-link-1), not with {@code @Scheduled}: the shared scheduler has one thread, and a call
  * blocked up to 15 s would delay the ERP and franchise jobs, while a long ERP job would hold the heartbeat back. The
  * thread pool is deliberately not a bean: a TaskScheduler bean would replace Spring Boot's default one, and the
- * existing {@code @Scheduled} jobs would move onto it.
+ * existing {@code @Scheduled} jobs would move onto it. Since task 2.4 the sales push runs on the same thread
+ * ({@link #scheduleOnLinkThread}).
  */
 @Component
 @ConditionalOnHeadOfficeLink
@@ -68,6 +71,15 @@ public class HeadOfficeHeartbeatScheduler {
 		scheduler.scheduleWithFixedDelay(this::beat, Instant.now().plus(FIRST_DELAY), interval);
 		taskScheduler = scheduler;
 		log.info("Head office link: heartbeat to {} every {} s", client.getBaseUrl(), interval.getSeconds());
+	}
+
+	/**
+	 * Task 2.4: runs another job of the link (the sales push) on the same ho-link thread, so the jobs never run at the
+	 * same time and only this thread calls the head office. Starts the thread (and the heartbeat) if needed.
+	 */
+	public synchronized ScheduledFuture<?> scheduleOnLinkThread(Runnable job, Trigger trigger) {
+		start();
+		return taskScheduler.schedule(job, trigger);
 	}
 
 	@PreDestroy

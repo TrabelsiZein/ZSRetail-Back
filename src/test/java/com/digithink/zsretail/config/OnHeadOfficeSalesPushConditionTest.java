@@ -12,18 +12,20 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.holink.repository.JpaSalesDocumentSource;
+import com.digithink.zsretail.holink.scheduler.SalesPushScheduler;
 import com.digithink.zsretail.holink.service.SalesCopyFinder;
+import com.digithink.zsretail.holink.service.SalesPushService;
 import com.digithink.zsretail.holink.service.SalesPushSettings;
 
 /**
- * Head office plan, task 2.1 (decision 4): the sales copy beans exist only when headoffice.url is set and the sales
+ * Head office plan, tasks 2.1 and 2.4 (decision 4): the sales copy beans (search, push job) exist only when headoffice.url is set and the sales
  * upstreams include HEAD_OFFICE (sales.upstream, or derived from the mode flags). A linked store without that upstream
  * keeps the heartbeat only. Bare bean registry: nothing is created and no context is started.
  */
 class OnHeadOfficeSalesPushConditionTest {
 
 	private static final Class<?>[] PUSH_BEANS = { SalesPushSettings.class, SalesCopyFinder.class,
-			JpaSalesDocumentSource.class };
+			JpaSalesDocumentSource.class, SalesPushService.class, SalesPushScheduler.class };
 
 	private static MockEnvironment link() {
 		return new MockEnvironment().withProperty("headoffice.url", "http://localhost:888/zsretail/api")

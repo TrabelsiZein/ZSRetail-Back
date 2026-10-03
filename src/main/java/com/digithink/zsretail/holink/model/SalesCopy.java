@@ -27,7 +27,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "hol_sales_copy",
 		uniqueConstraints = @UniqueConstraint(name = "uk_hol_sales_copy_document", columnNames = { "document_type", "local_id" }),
-		indexes = @Index(name = "ix_hol_sales_copy_queue", columnList = "status, attempts, document_date"))
+		indexes = @Index(name = "ix_hol_sales_copy_queue", columnList = "document_type, status, attempts, document_date"))
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
