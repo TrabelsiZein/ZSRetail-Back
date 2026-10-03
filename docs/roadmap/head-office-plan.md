@@ -46,6 +46,7 @@ The exact prompts are written during the session, from the code as it is that da
 
 - Step 3: `promotion.origin` `varchar(20)` null (null = local).
 - Step 3: `ho_store.owner_catalogue`, `owner_customers`, `owner_promotions`, `owner_loyalty`, `owner_supply` `varchar(20)` null, and `ho_store.sales_upstreams` `varchar(50)` null (null = the store has not reported yet).
+- Step 4: `loyalty_member.origin` and `loyalty_program.origin` `varchar(20)` null (null = local); `ho_store.can_edit_members` and `ho_store.can_adjust_points` `bit` null (null = false). New tables through `ddl-auto`: `ho_loyalty_alias`, `ho_loyalty_movement`, `hol_loyalty_member_copy`, `hol_loyalty_movement_copy`.
 
 ## 2. Test levels
 
@@ -63,7 +64,7 @@ The exact prompts are written during the session, from the code as it is that da
 | 1 | Head office installation and stores list: a store shows as online | ParaFendri; Happyness from step 8 | No | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 91cb3a8, frontend de4ed05) |
 | 2 | Sales copies up: tickets, returns, sessions of every store visible at head office | ParaFendri; Happyness from step 8 | No | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 3a10957, frontend b90ab84) |
 | 3 | Promotions owned by head office | ParaFendri | No (engine untouched) | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 604a97c, frontend 57acf81) |
-| 4 | Shared loyalty, part 1: members and earning | ParaFendri | Enrol only | Large | Not started |
+| 4 | Shared loyalty, part 1: members and earning | ParaFendri | No (enrol and member changes in LoyaltyAPI and LoyaltyService hooks; the four selling services untouched) | Large | Backend done 2026-10-03 on feature/ho-step-4 (see "Step 4 backend"); frontend and L2 to come |
 | 5 | Shared loyalty, part 2: spending and returns | ParaFendri | No (decided 2026-10-03: no hold and confirm, selling services untouched) | Large | Not started |
 | 6 | Catalogue owned by head office | Own stores without ERP, franchise | No | Medium | Not started |
 | 7 | Shipments (BL) | Own stores without ERP, franchise | No (stock in only) | Large | Not started |
@@ -241,6 +242,26 @@ Goal: one member register for the network; points earned anywhere are known ever
 | 4.4 | Store pages: program and members read-only except enrol; clear message when head office is unreachable | L2 |
 
 L2 scenarios (two stores and a head office): enrol in A, visible in B; earn in A, balance in B after sync; head office stopped, enrol refused with a message and earning still works.
+
+**Step 4 backend** (done 2026-10-03, branch `feature/ho-step-4`; the tasks above are replaced by the decisions of steps 4 and 5 and the step 4 prompt). Described in `docs/modules/head-office.md`, "Shared loyalty (step 4)".
+
+| Part | Backend |
+|---|---|
+| 1. Head office side: register on the copies down (`PROGRAM:`, `MEMBER:`), members up with merge (alias), movements up once with the overspend, phone check, member edit, store rights on the Stores API and in the heartbeat answer, `LYL-HO-000001`, startup check | 2b71f94 |
+| 2. Store side: enrol (live phone check, then local, `LYL-<store>-000001`), job `LOYALTY_PUSH`, `LOYALTY` pull (balance = head office + not applied yet), local records switched off, member changes through the head office, program and adjustments refused, `GET /loyalty/network`, link page API | a2c9cc7 |
+
+Choices made in the session (listed in the report to Zein):
+- The phone uniqueness at a store counts only the members of the network register held there: the local cards switched off at the switch do not block a number (otherwise a customer with an old card could never enrol).
+- A member function travels by code; the side that receives a code it does not have creates it with the name sent.
+- A phone held only by a deactivated card is merged into it, as today's rule names a deactivated card.
+- A card received from the head office whose number belongs to a local card of the store (only possible with pre-step-4 `LYL-000001` cards at the head office) is not applied: `ERROR`, retried, shown on the link page.
+- The store code `HO` is refused on the Stores page (its cards would take the head office's numbers).
+- Member deactivation and customer link from a store go through the same head office edit as the form; a blank function there keeps the member's own.
+- An answer lost after the head office applied a movement counts it twice at the store until it is sent again (forwards, never backwards); the head office sends the member again on the repeat.
+
+Tests: 49 classes, 382 tests, all green (the four loyalty tests unchanged). Diff proof against release/2.1.0: 0 files in `erp/`, 0 franchise files, the four selling services and the four loyalty tests unchanged. Intended contract changes: the heartbeat answer has two more fields (`canEditMembers`, `canAdjustPoints`), the link status a 13th field (`loyalty`).
+
+Still owed for step 4: the frontend (store loyalty pages, link page block, Stores page rights), L2 with a second dev store (rewritten scenarios: enrol in A visible in B; earn in A, balance in B; head office stopped, enrol in A still works and is merged later; rights; local members switched off), the `update.sql` lines of section 1, the merge into release/2.1.0.
 
 ### Step 5 — Shared loyalty, part 2: spending and returns
 
