@@ -21,7 +21,7 @@ public interface HoTicketRepository extends _BaseRepository<HoTicket, Long> {
 	 * Task 2.5: the tickets list. No parameter is null (SQL Server cannot type a null date): storeId 0 = every store,
 	 * number "%" = any, status and sessionNumber "" = any; the dates are always given.
 	 */
-	@Query("select t from HoTicket t where (:storeId = 0 or t.store.id = :storeId)"
+	@Query("select t from HoTicket t where (:storeId = 0L or t.store.id = :storeId)"
 			+ " and t.salesDate >= :dateFrom and t.salesDate <= :dateTo and lower(t.salesNumber) like :number"
 			+ " and (:status = '' or t.status = :status) and (:sessionNumber = '' or t.sessionNumber = :sessionNumber)")
 	Page<HoTicket> search(@Param("storeId") long storeId, @Param("dateFrom") LocalDateTime dateFrom,

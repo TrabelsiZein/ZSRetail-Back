@@ -18,7 +18,7 @@ public interface HoReturnRepository extends _BaseRepository<HoReturn, Long> {
 	Optional<HoReturn> findByStoreIdAndReturnNumber(Long storeId, String returnNumber);
 
 	/** Task 2.5: the returns list; parameters as in HoTicketRepository.search (never null). */
-	@Query("select r from HoReturn r where (:storeId = 0 or r.store.id = :storeId)"
+	@Query("select r from HoReturn r where (:storeId = 0L or r.store.id = :storeId)"
 			+ " and r.returnDate >= :dateFrom and r.returnDate <= :dateTo and lower(r.returnNumber) like :number"
 			+ " and (:status = '' or r.status = :status) and (:sessionNumber = '' or r.sessionNumber = :sessionNumber)")
 	Page<HoReturn> search(@Param("storeId") long storeId, @Param("dateFrom") LocalDateTime dateFrom,

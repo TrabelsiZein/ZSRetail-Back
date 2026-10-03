@@ -19,7 +19,7 @@ public interface HoSessionRepository extends _BaseRepository<HoSession, Long> {
 	 * Task 2.5: the sessions list, by opening date; parameters as in HoTicketRepository.search (never null), the
 	 * number filter on the session number.
 	 */
-	@Query("select s from HoSession s where (:storeId = 0 or s.store.id = :storeId)"
+	@Query("select s from HoSession s where (:storeId = 0L or s.store.id = :storeId)"
 			+ " and s.openedAt >= :dateFrom and s.openedAt <= :dateTo and lower(s.sessionNumber) like :number"
 			+ " and (:status = '' or s.status = :status)")
 	Page<HoSession> search(@Param("storeId") long storeId, @Param("dateFrom") LocalDateTime dateFrom,
