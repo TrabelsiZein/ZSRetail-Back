@@ -35,6 +35,18 @@ The exact prompts are written during the session, from the code as it is that da
 - Per step, before its merge: the tests (`mvn test`, plus the frontend checks of the step) and the diff proof. The diff proof shows that nothing in `erp/`, no franchise file and none of the four selling services changed, and it explains every changed file a store also runs.
 - The full regression checklist (`docs/roadmap/regression-checklist.md`) runs once, before 2.1 is delivered. It includes the standalone selling pass skipped at step 1.
 
+**Working rules** (decided 2026-10-03, from step 3)
+
+- During tests Claude Code starts and stops the dev backends itself, on JDK 21.
+- L2 is a script through the API and the databases (sqlcmd). The browser is used only for one look per new screen.
+- A clear mistake with a clear fix is fixed without asking and listed in the report.
+- NAV: never 192.168.10.156 (production). Only the test instance 192.168.10.166, only GET. The VPN is opened by Zein on request.
+
+**`db/2.1.0/update.sql`: what it must contain** (written once, at the end of the plan; new `ho_` and `hol_` tables come through `ddl-auto` and are listed when the script is written)
+
+- Step 3: `promotion.origin` `varchar(20)` null (null = local).
+- Step 3: `ho_store.owner_catalogue`, `owner_customers`, `owner_promotions`, `owner_loyalty`, `owner_supply` `varchar(20)` null, and `ho_store.sales_upstreams` `varchar(50)` null (null = the store has not reported yet).
+
 ## 2. Test levels
 
 | Level | What | When |
@@ -50,9 +62,9 @@ The exact prompts are written during the session, from the code as it is that da
 | 0 | Foundations: vocabulary and safety net, no behaviour change | Everyone | No | Small | Merged into release/1.12.0 (backend 29c897d, frontend aa82ab3) |
 | 1 | Head office installation and stores list: a store shows as online | ParaFendri; Happyness from step 8 | No | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 91cb3a8, frontend de4ed05) |
 | 2 | Sales copies up: tickets, returns, sessions of every store visible at head office | ParaFendri; Happyness from step 8 | No | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 3a10957, frontend b90ab84) |
-| 3 | Promotions owned by head office | ParaFendri | No (engine untouched) | Medium | Not started |
+| 3 | Promotions owned by head office | ParaFendri | No (engine untouched) | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 604a97c, frontend 57acf81) |
 | 4 | Shared loyalty, part 1: members and earning | ParaFendri | Enrol only | Large | Not started |
-| 5 | Shared loyalty, part 2: spending and returns | ParaFendri | Yes, only when loyalty is owned by head office | Large | Not started |
+| 5 | Shared loyalty, part 2: spending and returns | ParaFendri | No (decided 2026-10-03: no hold and confirm, selling services untouched) | Large | Not started |
 | 6 | Catalogue owned by head office | Own stores without ERP, franchise | No | Medium | Not started |
 | 7 | Shipments (BL) | Own stores without ERP, franchise | No (stock in only) | Large | Not started |
 | 8 | Franchise profiles moved onto the model | Happyness | No | Medium | Not started |
@@ -167,6 +179,56 @@ L2 scenarios: created at head office, applied at the store till; changed and dea
 
 Done when: L2 passes and the promotion engine files are unchanged.
 
+**Status: done 2026-10-03.**
+
+| Task | Backend | Frontend |
+|---|---|---|
+| 3.0 lint (`no-console` off in every mode) | — | 1997f0c |
+| 3.1 copies down | a3b664e | 836c790 |
+| 3.2 origin and guards | ddf2769, then 0683d83 (rule fix: a store that owns its promotions edits every promotion) | 9af050d |
+| 3.3 payload by codes, target stores | d0c86c0 | 9af050d |
+| 3.4 head office with an ERP | 597f16a, then d19c1ef (dev profile on the NAV test instance) | 09c0ca4 |
+| 3.5 missing targets, tracking | b2b6521 | 836c790 |
+| 3.6 ownership in the heartbeat | 96cfba0 | 4088ed3 |
+| Docs | adb768a | — |
+| L2 fixes | 800bd04 (changing a promotion's store list while keeping a store: unique key violation), 1cd57d8 (docs) | 8c7ce9b (an item group promotion kept only one item) |
+| Merge into release/2.1.0 | 604a97c | 57acf81 |
+
+Decisions of step 3:
+- When the head office owns promotions (`ownership.promotions=HEAD_OFFICE`, needs `headoffice.url`), the store only consults them: create, edit, delete and deactivate answer 409 for every promotion, and the page is consult-only. There is no `promotions.allow-local`.
+- Its local promotions are switched off automatically: the first pull sets them inactive, with one exchange log row.
+- A store that owns its promotions edits everything in its table, whatever the origin (the origin only shows a "Head office" badge).
+- Each store reports what it owns (and where its sales go) with its heartbeat (3.6). The head office picker offers only stores whose promotions are not LOCAL; unknown (older version) can be chosen.
+- A head office with an ERP (D2) imports from one reference location, which must hold all the items. It imports locations, families, sub-families, items and barcodes, and never exports: export jobs are switched off at startup and refused by a guard.
+
+What exists after the step:
+- Head office: promotions page with target stores (all or a list); every change goes into `ho_down_change` under a per-domain sequence; `GET /ho/down/{domain}` gives the changes since a cursor. The usage count of a promotion is the tickets of every store. Stores page shows what each store owns. With an ERP: ERP jobs, communications log and reference location pages.
+- Store that pulls: job `COPIES_DOWN` (thread ho-link), saves by promotion code with origin `HEAD_OFFICE`; a promotion whose item, family or group item is missing waits and is retried; a code used by a local promotion is an error; tracking in `hol_down_record`, cursor in `hol_down_cursor`. The link page shows "Received from the head office".
+- A store without `headoffice.url`: no new bean, the promotion API and page work as before; `promotion.origin` exists through `ddl-auto` and stays null. The group promotion fix (8c7ce9b) is an intended change for every store.
+
+Tests:
+- Backend at the merge: 45 classes, 334 tests, all green (run in a separate worktree of the feature branch).
+- Frontend: lint of the changed files in production mode and `npm run build`, clean; cache-free build proved in a worktree (task 3.0).
+- L2 on this PC (standalone store + head office pair), 12 scenarios, all passed: created at the head office and sold at the store till with the promotion; changed and deactivated, followed; store list (outside the list receives nothing, added arrives, taken off is deleted when unused and kept inactive when used); delete and lock of a used promotion; one promotion per type checked with the price calculation API; missing item waits then applies; code clash; local promotions switched off and writes refused; head office stopped, the store keeps its last copy and sells; ownership reported; received counts. Head office with an ERP on the NAV test instance (GET only): export jobs blocked (seen in the log, the API and a forced due job), imports 60 locations, 34 families, 375 sub-families, 1,776 items, 1,542 barcodes.
+- Diff proof against release/2.1.0: 0 files in `erp/`, 0 franchise files, `SalesHeaderService`, `PromotionCalculationService`, `PricingService`, `ReturnHeaderService` and `PromotionAllItemsScopeTest` unchanged. Every changed file a store also runs is either behind the head office link, pull or owned conditions, or answers as before when `ownership.promotions` is not `HEAD_OFFICE` (no shipped profile sets it).
+
+Still owed:
+- The full regression checklist, once, before 2.1 is delivered (with the ERP store scenario of step 2).
+- Group promotions already saved in stores keep one item until they are edited again.
+- `db/2.1.0/update.sql` lines of step 3 (see section 1).
+- Test data of L2 stays in the dev databases (decided 2026-10-03).
+
+### Steps 4 and 5 — decisions (Zein, 2026-10-03)
+
+These decisions replace the tables below where they differ (enrol as a live question in 4.2, enrol refused when the head office is stopped, the hold and confirm of 5.1 and 5.2). The tasks are rewritten at the start of step 4.
+
+- Nothing at the till is ever blocked by the head office being unreachable.
+- Enrol: the store always creates the member locally, with a card number that carries the store code. When the head office answers, the phone is checked across the network first. The member is sent up later. A duplicate phone found at the head office is merged: points moved to the existing card, the extra card deactivated.
+- Spend: against the store's balance, never blocked by default. When a member is selected at the till, the store asks the head office for the current balance (short timeout). Overspends are listed in a report at the head office. A per-store setting can require the head office online to spend. No hold and confirm, and the selling services stay untouched.
+- Per store, set at the head office and enforced there: "can edit members" and "can adjust points". Both go through the head office and need it online.
+- A store's members that existed before the switch are switched off. Importing an existing member list is a later tool.
+- Step 4 needs a second dev store.
+
 ### Step 4 — Shared loyalty, part 1: members and earning
 
 Goal: one member register for the network; points earned anywhere are known everywhere. Needs decision D4.
@@ -239,6 +301,10 @@ Goal: no more `isStandalone` in the code; every check asks an ownership question
 ## 5. Later, not scheduled
 
 - Returns and vouchers across stores (live questions).
-- Head office dashboards.
+- A new head office dashboard: today the head office home is the store's `Home.vue`.
+- Head office reports: maybe the store reports with a store filter, to discuss; the queries need a version on the `ho_` tables.
+- Profile cleanup at step 9.3: presets for what the installation is, one file per machine outside git for where it runs.
+- The group promotion fix (frontend 8c7ce9b) is not in release/1.12.0.
+- Importing an existing member list into a head office (step 4 decision).
 - Shipments created in the franchisor's ERP.
 - Store-to-store transfers without an ERP.
