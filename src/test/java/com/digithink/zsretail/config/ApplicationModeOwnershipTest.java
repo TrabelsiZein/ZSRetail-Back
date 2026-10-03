@@ -110,7 +110,8 @@ class ApplicationModeOwnershipTest {
 	@Test
 	@DisplayName("An explicit owner overrides only its own domain")
 	void explicitOwnerOverridesOneDomain() {
-		MockEnvironment env = new MockEnvironment().withProperty("ownership.promotions", "HEAD_OFFICE");
+		// task 3.1: promotions owned by the head office need headoffice.url
+		MockEnvironment env = linkEnv().withProperty("ownership.promotions", "HEAD_OFFICE");
 		assertRow(erp(env), NodeType.STORE, ERP, ERP, HO, L, ERP, EnumSet.of(SalesUpstream.ERP));
 	}
 
@@ -442,6 +443,65 @@ class ApplicationModeOwnershipTest {
 		assertFalse(service(new MockEnvironment().withProperty("headoffice.url", " "), true, false, false)
 				.isHeadOfficeLinked());
 		assertFalse(service(headOfficeEnv(), true, false, false).isHeadOfficeLinked());
+	}
+
+	// --- Copies down (task 3.1) ---
+
+	@Test
+	@DisplayName("Task 3.1: an explicit ownership.promotions=HEAD_OFFICE without headoffice.url is refused on standalone and ERP flags")
+	void headOfficePromotionsNeedUrl() {
+		for (String value : new String[] { "HEAD_OFFICE", " head_office " }) {
+			MockEnvironment env = new MockEnvironment().withProperty("ownership.promotions", value);
+			IllegalStateException standalone = assertThrows(IllegalStateException.class, () -> standalone(env));
+			assertTrue(standalone.getMessage().startsWith("Missing value for property headoffice.url: required when "
+					+ "ownership.promotions is HEAD_OFFICE ('" + value + "')"), standalone.getMessage());
+			assertThrows(IllegalStateException.class, () -> erp(env));
+		}
+		assertThrows(IllegalStateException.class,
+				() -> standalone(new MockEnvironment().withProperty("headoffice.url", " ")
+						.withProperty("ownership.promotions", "HEAD_OFFICE")), "a blank URL is no URL");
+	}
+
+	@Test
+	@DisplayName("Task 3.1: promotions LOCAL without the URL, HEAD_OFFICE with it, and the 4 profiles without the key start as before")
+	void headOfficePromotionsAccepted() {
+		assertEquals(L, standalone(new MockEnvironment().withProperty("ownership.promotions", "LOCAL"))
+				.ownerOf(DataDomain.PROMOTIONS));
+		assertEquals(HO, standalone(linkEnv().withProperty("ownership.promotions", "HEAD_OFFICE"))
+				.ownerOf(DataDomain.PROMOTIONS));
+		assertEquals(HO, erp(linkEnv().withProperty("ownership.promotions", "HEAD_OFFICE"))
+				.ownerOf(DataDomain.PROMOTIONS));
+		assertEquals(L, standalone(new MockEnvironment()).ownerOf(DataDomain.PROMOTIONS));
+		assertEquals(L, erp(new MockEnvironment()).ownerOf(DataDomain.PROMOTIONS));
+		assertEquals(L, franchiseCustomer(new MockEnvironment()).ownerOf(DataDomain.PROMOTIONS));
+		assertEquals(L, franchiseAdmin(new MockEnvironment()).ownerOf(DataDomain.PROMOTIONS));
+		// Only promotions are copied down in step 3: an explicit catalogue HEAD_OFFICE is not checked yet
+		assertEquals(HO, standalone(new MockEnvironment().withProperty("ownership.catalogue", "HEAD_OFFICE"))
+				.ownerOf(DataDomain.CATALOGUE));
+	}
+
+	@Test
+	@DisplayName("Task 3.1: a head office keeps its own message for ownership.promotions=HEAD_OFFICE")
+	void headOfficePromotionsOnHeadOffice() {
+		IllegalStateException e = assertThrows(IllegalStateException.class,
+				() -> standalone(headOfficeEnv().withProperty("ownership.promotions", "HEAD_OFFICE")));
+		assertTrue(e.getMessage().startsWith("Invalid value 'HEAD_OFFICE' for property ownership.promotions: on a head office"),
+				e.getMessage());
+	}
+
+	@Test
+	@DisplayName("Task 3.1: headoffice.pull.interval-seconds at least 1 accepted; below 1 or not a number refused; not checked without headoffice.url")
+	void pullInterval() {
+		for (String value : new String[] { "0", "-5", "abc", "", "1.5" }) {
+			IllegalStateException e = assertThrows(IllegalStateException.class,
+					() -> standalone(linkEnv().withProperty("headoffice.pull.interval-seconds", value)), value);
+			assertTrue(e.getMessage().startsWith("Invalid value '" + value
+					+ "' for property headoffice.pull.interval-seconds: a whole number of seconds, at least 1"),
+					e.getMessage());
+		}
+		standalone(linkEnv().withProperty("headoffice.pull.interval-seconds", "1"));
+		standalone(linkEnv().withProperty("headoffice.pull.interval-seconds", " 120 "));
+		standalone(new MockEnvironment().withProperty("headoffice.pull.interval-seconds", "0"));
 	}
 
 	@Test

@@ -164,3 +164,7 @@ price and never goes through promotion pricing.
 - **Free lines are real DB rows**: `lineTotalIncludingVat=0` ensures return flow gives 0 TND refund without special-casing
 - **discountSource tracks origin**: MANUAL (cashier entered), PROMOTION (promo engine), SALES_PRICE, SALES_DISCOUNT — stored on both header and each line for audit and reporting
 - **`getItem` is LAZY, so an Item can reach JSON as a Hibernate proxy**: when a page of promotions holds a cross-product promotion whose benefit item is also the `item` (or a group item) of a later promotion, both fields share one proxy. `Item` ignores `hibernateLazyInitializer` / `handler` at class level, so the proxy serializes like a loaded Item. Before 1.12.0 the promotion list returned HTTP 500 in that case ("No serializer found for class ByteBuddyInterceptor"). Test: `src/test/java/com/digithink/zsretail/model/ItemJsonProxyTest.java`
+
+### Promotions owned by the head office (step 3)
+
+A store with `headoffice.url` and `ownership.promotions=HEAD_OFFICE` receives its promotions from the head office as copies down (task 3.1, `docs/modules/head-office.md`, "Copies down"): the job `COPIES_DOWN` pulls the promotions changed since its cursor. The calculation engine is not changed: it keeps reading the local `promotion` table. Without `headoffice.url`, or with `ownership.promotions` absent or `LOCAL`, nothing changes.

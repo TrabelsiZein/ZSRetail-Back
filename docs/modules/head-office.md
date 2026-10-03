@@ -1,6 +1,6 @@
 # Head Office Module
 
-**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office); task 2.4 done (the store's push job with retry, counts on `GET admin/holink/status`). Task 2.5 backend done (consolidated sales API, home cards, page permissions; see "Consolidated sales API"; its pages to come); task 2.6 backend done (jobs with editable frequency and run now, exchange log; see "Head office link: jobs and exchange log"); the pages of 2.5 and 2.6 come with the frontend session. Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
+**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office); task 2.4 done (the store's push job with retry, counts on `GET admin/holink/status`). Task 2.5 backend done (consolidated sales API, home cards, page permissions; see "Consolidated sales API"; its pages to come); task 2.6 backend done (jobs with editable frequency and run now, exchange log; see "Head office link: jobs and exchange log"); the pages of 2.5 and 2.6 come with the frontend session. Step 3 in progress: task 3.1 done (the copies down mechanism, see "Copies down"). Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
 
 ### Overview
 - Two installation types, same WAR: a **store** sells; a **head office** manages several stores and never sells (no cashier session, no ticket).
@@ -243,6 +243,7 @@ A store with `headoffice.url` set sends a heartbeat to its head office. Store-si
 | `headoffice.sales-push.batch-size` outside 1..1000 or not a whole number (task 2.4) | `Invalid value '<value>' for property headoffice.sales-push.batch-size` |
 | `headoffice.sales-push.interval-seconds` below 1 or not a whole number (task 2.4) | `Invalid value '<value>' for property headoffice.sales-push.interval-seconds` |
 | `headoffice.log-retention-days` below 1 or not a whole number (task 2.6) | `Invalid value '<value>' for property headoffice.log-retention-days` |
+| `headoffice.pull.interval-seconds` below 1 or not a whole number (task 3.1) | `Invalid value '<value>' for property headoffice.pull.interval-seconds` |
 
 And whether the URL is set or not (task 2.4, decision 4): a store whose explicit `sales.upstream` includes `HEAD_OFFICE` without `headoffice.url` does not start (`Missing value for property headoffice.url: required when sales.upstream includes HEAD_OFFICE ('<value>')`). Only an explicit value is checked: the franchise customer profile derives `HEAD_OFFICE` for its legacy push and has no `headoffice.url`, and it starts as before. A head office with a non-empty `sales.upstream` keeps its own message (step 1).
 
@@ -428,6 +429,7 @@ Backend of the jobs and exchange log of the store's Head office link page (model
 |---|---|---|---|---|---|
 | `HEARTBEAT` | `HeartbeatJob` | `headoffice.url` set | 1 | 15 s after the start | `headoffice.heartbeat-interval-seconds` (60) |
 | `SALES_PUSH` | `SalesPushJob` | and the sales upstreams include the head office (decision 4) | 2 | 20 s | `headoffice.sales-push.interval-seconds` (60) |
+| `COPIES_DOWN` | `CopiesDownJob` (task 3.1) | and at least one domain is owned by the head office | 3 | 25 s | `headoffice.pull.interval-seconds` (60) |
 
 **Add a job** (later steps): one bean implementing `LinkJob` with the condition that decides whether it exists, an `@Order` for its place in the list and a new code; it writes its own exchange log rows through `LinkExchangeLog`. Nothing else changes: the scheduler, the jobs list, the frequency, run now and the log pick it up.
 
@@ -466,6 +468,54 @@ Backend of the jobs and exchange log of the store's Head office link page (model
 The page had no automatic refresh before task 2.6; the three parts now refresh silently every 30 s (no spinner, no toast, skipped while a load or a check runs). Labels in `admin.holink.*` (en, fr, ar).
 
 **Settings**: `headoffice.log-retention-days`, default `30`, a whole number of days at least 1; checked at startup only when `headoffice.url` is set (`Invalid value '<value>' for property headoffice.log-retention-days: a whole number of days, at least 1`).
+
+### Copies down (step 3)
+Data the head office owns reaches its stores as copies down (design 2.3): the store pulls what changed since its cursor and saves it by business code. Generic: one class per domain on each side, so a later step (loyalty, catalogue, shipments) adds two classes and its domain in `NodeOwnership.COPIES_DOWN_DOMAINS`. Step 3 serves `PROMOTIONS`.
+
+**When it runs** (store): only with `headoffice.url` set and the domain owned by the head office (`ownership.<domain>=HEAD_OFFICE`). The job and the puller carry `@ConditionalOnHeadOfficePull` (URL set and at least one domain owned by the head office, `NodeOwnership.isHeadOfficePullSet`); a domain's handler carries `@ConditionalOnHeadOfficeOwned(<domain>)` (`NodeOwnership.isOwnedByHeadOffice`). A store without `headoffice.url`, or with every domain local, has none of these beans. An explicit `ownership.promotions=HEAD_OFFICE` without `headoffice.url` stops the startup: `Missing value for property headoffice.url: required when ownership.promotions is HEAD_OFFICE ('<value>')`. A head office keeps its own message for an owner `HEAD_OFFICE`. Known case: a franchise customer (catalogue and supply derived `HEAD_OFFICE`) that also sets `headoffice.url` gets the job without a handler ("no domain to pull") until step 6.
+
+**Head office side** (package `headoffice`, `@ConditionalOnHeadOffice`):
+
+| Table (entity) | Content |
+|---|---|
+| `ho_down_sequence` (`HoDownSequence`) | One row per domain: `last_version`, the domain's last change number |
+| `ho_down_change` (`HoDownChange`) | One row per (`domain`, `record_code`, `store_id`), `store_id` null = every store (also stores created later); `change_version` = the number of the record's last change for that store. Unique `uk_ho_down_change`, index `ix_ho_down_change_version` (`domain`, `change_version`) |
+
+- `CopiesDownFeed.recordChange(domain, code, stores)`, called inside the writer's transaction (`Propagation.MANDATORY`): increments the domain's number (`update ... set last_version = last_version + 1`, the row stays locked until the commit, so one domain's numbers are given in commit order), then moves the rows of the stores concerned to it. A change of targets passes the old and the new stores together (`StoreTargets.union`): a store taken off gets the code as removed.
+- "Changed" covers created, edited, activated or deactivated, deleted, and targets changed: each is one `recordChange`.
+- **Cursor**: the change number, made from the head office data only; never a clock. A pull reads the domain's committed number first (the horizon), then the codes changed for the store (its rows and the every-store rows) after the cursor and up to the horizon, oldest first. A change committed during the pull has a higher number and comes with the next pull. A cursor above the horizon (head office database restored) starts again from 0.
+- Startup (`ApplicationReadyEvent`): each served domain gets its sequence row, and each existing record without a change row gets one with its targets (backfill: promotions created before step 3 reach every store).
+- One `DownDomainProvider` per domain: `load(store, codes)` answers the copy of each code that exists and is addressed to the store; any other code is answered as removed.
+
+**`GET /ho/down/{domain}?cursor=&limit=`** (`HeadOfficeDownAPI`, `/ho/**` chain: store key, then license). `domain` any case (`promotions`). `cursor` blank for the first pull. `limit` codes per page, default 100, at most 500 (0 or less: 100).
+
+| Case | Answer |
+|---|---|
+| OK | 200 `{"domain":"PROMOTIONS","records":[...],"removed":["P7"],"cursor":"42","more":false}` (`CopiesDownAnswerDTO`); records by business codes, never a database id |
+| `more` true | another page waits; `cursor` is the number of the page's last code |
+| Cursor not a whole number ≥ 0 | 400 `{"error":"Invalid cursor '<value>': send back the cursor of the last answer"}` |
+| Domain unknown or without copies down | 404 `{"error":"No copies down for domain '<value>'"}` |
+
+**Store side** (package `holink`):
+- `HeadOfficeClient.pull(domain, cursor, limit)`: `GET` with the two store headers, the cursor encoded strictly. Same failure states as the heartbeat; a page without a cursor, with a cursor over 200 characters or of another domain is `ERROR` "unreadable answer".
+- `hol_down_cursor` (`DownCursor`): one row per `domain`, `cursor_value` (200) saved exactly as received and sent back unchanged.
+- `CopiesDownPuller`, run by the job `COPIES_DOWN` (`CopiesDownJob`, order 3, after the sales push, first run 25 s after the start, default frequency `headoffice.pull.interval-seconds`, 60; editable on the page like the other jobs). Per domain, in `DataDomain` order:
+  1. `deactivateLocal()`: the handler sets inactive the active local records of the domain (they are kept); when there were some, one exchange log row (`WARNING`, records = how many, `<DOMAIN>: <n> local records set inactive: the domain is owned by the head office`).
+  2. Pages of 100 codes: pull, `apply(records, removed)` by the domain's `DownHandler`, then save the page's cursor. Up to 10 pages per cycle and no new page after 20 s; while `more` stays true the next cycle comes 5 s later.
+  3. `retry()`: the handler applies again what it could not apply earlier (task 3.5), at every cycle, also when the head office is unreachable.
+
+| Outcome of a pull | Store |
+|---|---|
+| Delivered | Records saved, removed codes handled, then the cursor saved. Exchange row only when the page had records or removed codes: `SUCCESS`, or `WARNING` with the first problem (`<DOMAIN>: <code>: <reason>`) |
+| Nothing new | No change, no exchange row |
+| Unreachable, 401, 402, other status, unreadable answer | Nothing changes: no record, no cursor; the store keeps its last copy. One `ERROR` row, 0 records, `<DOMAIN>: <state>: <message>` |
+| The handler cannot apply the page (database) | Cursor not moved; one `ERROR` row; the page comes again |
+| Cursor not saved | One `ERROR` row; the page comes again and applying it again changes nothing |
+
+- Job run: `SUCCESS`, `WARNING` (records waiting or in error) or `ERROR` (not delivered, not applied); message per domain, e.g. `PROMOTIONS: 3 applied, 1 unchanged, 1 removed, 0 waiting, 0 in error`, `PROMOTIONS: nothing new`, `PROMOTIONS: not delivered, the store keeps its last copy (OFFLINE: ...)`.
+- Log (store): INFO when a pull brought something, when local records were set inactive and when delivery fails or comes back; DEBUG otherwise.
+
+**Settings** (store): `headoffice.pull.interval-seconds`, default `60`, a whole number of seconds at least 1, checked only when `headoffice.url` is set.
 
 ### Consolidated sales API (task 2.5, head office)
 What the head office pages Tickets history, Sessions history and Returns, and the home cards, read (pages: task 2.5 frontend, "Head office pages" below).
@@ -643,6 +693,12 @@ The three permissions are in `ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS` (
 - `SalesPushServiceTest` (task 2.6): with the push as a job over an in-memory log: a cycle with nothing to send writes no row (`nothing to send`); one row per batch that sent something (2 batches: records, `WARNING` with `T-2: <reason>`, then `SUCCESS`); not delivered gives one `ERROR` row with the state and message, a failed search one `ERROR` row with 0 records; a log that cannot be written does not break the push (documents `SENT`, run `SUCCESS`).
 - `HeadOfficeLinkAPITest` (task 2.6): `GET jobs` (only the heartbeat without the push, fields in order); `PUT jobs/{code}/interval` saves (status shows it), `null` resets, 400 below 10 or not a number (nothing changed), 404 for a job this store does not have; `POST jobs/{code}/run` runs on `ho-link-1` and answers the job after the run (one exchange row on `PENDING -> ONLINE`), 404 unknown; `GET log` answers the page, 400 on a bad result or date.
 - `ApplicationModeOwnershipTest` (task 2.6): `headoffice.log-retention-days` below 1 or not a whole number refused, `1` and ` 90 ` accepted, not checked without the URL.
+- `ApplicationModeOwnershipTest` (task 3.1): an explicit `ownership.promotions=HEAD_OFFICE` (any case) without `headoffice.url` (absent or blank) refused on standalone and ERP flags; `LOCAL` without, `HEAD_OFFICE` with the URL accepted; the 4 profiles unchanged; a head office keeps its message; `headoffice.pull.interval-seconds` checked only with the URL. `explicitOwnerOverridesOneDomain` now sets the URL.
+- `OnHeadOfficePullConditionTest` (task 3.1): no pull without the URL, with every domain local (standalone, ERP), with sales copies only, on a head office; pull with the URL and promotions owned by the head office (any case); `isOwnedByHeadOffice` per domain; `CopiesDownPuller` and `CopiesDownJob` registered only then and carry the annotation. Bare bean registry.
+- `OnHeadOfficeConditionTest` (task 3.1): `CopiesDownFeed` and `HeadOfficeDownAPI` exist only on a head office.
+- `CopiesDownFeedTest` (task 3.1): the cursor is the change number (blank first, sent back, a clock or a negative value refused, an absent cursor starts again); a change committed during a pull comes with the next one; a change numbered above the committed number is not read until it is committed; targets (every store, also a store created later; a list; a store outside the list receives nothing, not even a removal; an edit for another store brings nothing); targets changed (taken off: removal; added: record; back to all; from all to a list: removal for the others); deletions; pages (limit, `more`, cursor of the last code, last page at the horizon); a cursor above the horizon; limits and unknown domains; one change row per (code, store); the startup backfill. In-memory tables that apply the JPQL rules.
+- `CopiesDownPullerTest` (task 3.1): the cursor saved exactly as received (`41`, then an opaque `v2:opaque/+=`) and read back unchanged by the head office (strict encoding); the same page applied twice changes nothing, also after a cursor that could not be saved; 401, 402, 503, connection refused, HTML, another domain and no cursor change nothing (no apply, cursor unchanged, one `ERROR` row) while the retries still run; `more` pulls the next page in the same cycle, 10 pages then the next cycle soon; a page that cannot be applied leaves the cursor; handler problems give `WARNING` with the first problem; local records set inactive give one row with how many; the job's code, first delay, frequency, no handler, a cycle that throws. Real `HeadOfficeClient` over `MockRestServiceServer`.
+- `QueryParameterBindingTest` (task 3.1): `HoDownChangeRepository` and `HoDownSequenceRepository` added.
 - Not covered by L1 (checked at L2 on the pair): the JPQL against SQL Server, the transaction timeouts, the real timer, the head office endpoints through the `/ho/**` chain. The JPQL and the entity mappings were translated with Hibernate (SQL Server 2012 dialect, no database) during the tasks.
 - Frontend (task 1.5): eslint on the changed files; a Node script (not committed) for the route guard with and without the link, the `appConfig` mutation, getter and fetch (true, false, absent, failure), "x min ago" and the status badges, the wiring of the five points and the 75 i18n keys in en, fr and ar; a build with the eslint plugin skipped (the production build stops on four `console` statements that were already there before task 1.5, in `Home.vue`, `Login.vue` and `store/app-config/index.js`).
 - Not covered by L1 (needs a started context): the chain wiring itself (store installation answers 401, a JWT is not read on `/ho/**`, other paths unchanged). Checked by the L2 table under "Store API". Also the real timer (first heartbeat after 15 s), timeouts on a real network and the bulk update on SQL Server: L2 table under "Connect a store".

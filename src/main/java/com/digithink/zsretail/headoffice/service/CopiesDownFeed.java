@@ -1,0 +1,252 @@
+package com.digithink.zsretail.headoffice.service;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
+import com.digithink.zsretail.headoffice.model.HoDownChange;
+import com.digithink.zsretail.headoffice.model.HoDownSequence;
+import com.digithink.zsretail.headoffice.model.Store;
+import com.digithink.zsretail.headoffice.repository.HoDownChangeRepository;
+import com.digithink.zsretail.headoffice.repository.HoDownSequenceRepository;
+import com.digithink.zsretail.holink.service.SalesCopyFinder;
+import com.digithink.zsretail.model.enumeration.DataDomain;
+import com.fasterxml.jackson.databind.JsonNode;
+
+import lombok.extern.log4j.Log4j2;
+
+/**
+ * Head office side of the copies down mechanism (step 3, design 2.3): records the changes of the data the head office
+ * owns and answers the pulls of the stores. Generic: one {@link DownDomainProvider} per domain.
+ * <p>
+ * <b>Cursor.</b> Each change takes the next number of its domain (ho_down_sequence), incremented inside the writer's
+ * transaction: the row stays locked until that transaction commits, so the numbers of one domain are given in commit
+ * order. A pull first reads the domain's number as committed (the horizon), then the changes up to it: every change
+ * numbered up to the horizon is committed, and a change committed during the pull gets a higher number and comes with
+ * a later pull. The cursor is that number, made from the head office data only; the store's clock is never used.
+ * <p>
+ * See docs/modules/head-office.md, "Copies down".
+ */
+@Service
+@ConditionalOnHeadOffice
+@Log4j2
+public class CopiesDownFeed {
+
+	static final int DEFAULT_LIMIT = 100;
+	static final int MAX_LIMIT = 500;
+	static final int TIMEOUT_SECONDS = 15;
+
+	private final HoDownChangeRepository changes;
+	private final HoDownSequenceRepository sequences;
+	private final Map<DataDomain, DownDomainProvider> providers = new EnumMap<>(DataDomain.class);
+	private final TransactionOperations readTransactions;
+	private final TransactionOperations writeTransactions;
+
+	/** The providers are optional: a domain without one is answered 404. */
+	@Autowired
+	public CopiesDownFeed(HoDownChangeRepository changes, HoDownSequenceRepository sequences,
+			ObjectProvider<DownDomainProvider> providers, PlatformTransactionManager transactionManager) {
+		this(changes, sequences, providers.orderedStream().collect(Collectors.toList()), readOnly(transactionManager),
+				write(transactionManager));
+	}
+
+	/** With given transactions: used by the tests. */
+	public CopiesDownFeed(HoDownChangeRepository changes, HoDownSequenceRepository sequences,
+			List<DownDomainProvider> providers, TransactionOperations readTransactions,
+			TransactionOperations writeTransactions) {
+		this.changes = changes;
+		this.sequences = sequences;
+		for (DownDomainProvider provider : providers) {
+			this.providers.put(provider.getDomain(), provider);
+		}
+		this.readTransactions = readTransactions;
+		this.writeTransactions = writeTransactions;
+	}
+
+	private static TransactionTemplate readOnly(PlatformTransactionManager transactionManager) {
+		TransactionTemplate template = new TransactionTemplate(transactionManager);
+		template.setReadOnly(true);
+		template.setTimeout(TIMEOUT_SECONDS);
+		return template;
+	}
+
+	private static TransactionTemplate write(PlatformTransactionManager transactionManager) {
+		TransactionTemplate template = new TransactionTemplate(transactionManager);
+		template.setTimeout(TIMEOUT_SECONDS);
+		return template;
+	}
+
+	/**
+	 * Records a change of one record for the stores concerned, inside the writer's transaction (created, edited,
+	 * activated, deactivated, deleted, or targets changed). For a change of targets, pass the old and the new targets
+	 * together ({@link StoreTargets#union}): a store taken off gets the code as removed. A blank code is ignored.
+	 */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void recordChange(DataDomain domain, String code, StoreTargets stores) {
+		if (code == null || code.trim().isEmpty()) {
+			return;
+		}
+		long version = nextVersion(domain);
+		if (stores.isAllStores()) {
+			touch(domain, code, null, version);
+		}
+		for (Long storeId : stores.getStoreIds()) {
+			touch(domain, code, storeId, version);
+		}
+	}
+
+	private long nextVersion(DataDomain domain) {
+		if (sequences.increment(domain) == 0) {
+			HoDownSequence sequence = new HoDownSequence();
+			sequence.setDomain(domain);
+			sequence.setLastVersion(1);
+			sequences.save(sequence);
+			return 1;
+		}
+		return sequences.lastVersion(domain).get(0);
+	}
+
+	private void touch(DataDomain domain, String code, Long storeId, long version) {
+		HoDownChange change = (storeId == null ? changes.findByDomainAndRecordCodeAndStoreIdIsNull(domain, code)
+				: changes.findByDomainAndRecordCodeAndStoreId(domain, code, storeId)).orElseGet(() -> {
+					HoDownChange created = new HoDownChange();
+					created.setDomain(domain);
+					created.setRecordCode(code);
+					created.setStoreId(storeId);
+					return created;
+				});
+		change.setChangeVersion(version);
+		changes.save(change);
+	}
+
+	/**
+	 * One page of changes for the calling store: GET /ho/down/{domain}. cursor: blank for the first pull, then the cursor
+	 * of the previous answer; a cursor after the domain's last change (head office database restored) starts again from
+	 * the beginning. limit: codes per page, {@value #DEFAULT_LIMIT} by default, at most {@value #MAX_LIMIT}. Throws
+	 * {@link NoSuchElementException} for a domain without copies down, IllegalArgumentException for a cursor that
+	 * cannot be read.
+	 */
+	public CopiesDownAnswerDTO pull(Store store, String domainName, String cursor, Integer limit) {
+		DownDomainProvider provider = providerOf(domainName);
+		long after = parseCursor(cursor);
+		int size = limit == null || limit < 1 ? DEFAULT_LIMIT : Math.min(limit, MAX_LIMIT);
+		return readTransactions.execute(status -> answer(provider, store, after, size));
+	}
+
+	private CopiesDownAnswerDTO answer(DownDomainProvider provider, Store store, long after, int size) {
+		DataDomain domain = provider.getDomain();
+		List<Long> last = sequences.lastVersion(domain);
+		long horizon = last.isEmpty() ? 0 : last.get(0); // read first: every change up to it is committed
+		long from = after > horizon ? 0 : after;
+		List<Object[]> rows = changes.findChanged(domain, store.getId(), from, horizon, PageRequest.of(0, size + 1));
+		boolean more = rows.size() > size;
+		List<Object[]> page = more ? rows.subList(0, size) : rows;
+		List<String> codes = new ArrayList<>();
+		for (Object[] row : page) {
+			codes.add((String) row[0]);
+		}
+		long next = more ? ((Number) page.get(page.size() - 1)[1]).longValue() : horizon;
+		Map<String, JsonNode> copies = codes.isEmpty() ? Collections.emptyMap() : provider.load(store, codes);
+		List<JsonNode> records = new ArrayList<>();
+		List<String> removed = new ArrayList<>();
+		for (String code : codes) {
+			JsonNode copy = copies.get(code);
+			if (copy != null) {
+				records.add(copy);
+			} else {
+				removed.add(code);
+			}
+		}
+		return new CopiesDownAnswerDTO(domain.name(), records, removed, String.valueOf(next), more);
+	}
+
+	private DownDomainProvider providerOf(String domainName) {
+		String name = domainName == null ? "" : domainName.trim().toUpperCase(Locale.ROOT);
+		for (DataDomain domain : DataDomain.values()) {
+			if (domain.name().equals(name) && providers.containsKey(domain)) {
+				return providers.get(domain);
+			}
+		}
+		throw new NoSuchElementException("No copies down for domain '" + domainName + "'");
+	}
+
+	/** Blank: 0 (first pull). Otherwise a whole number, 0 or more. */
+	static long parseCursor(String cursor) {
+		if (cursor == null || cursor.trim().isEmpty()) {
+			return 0;
+		}
+		try {
+			long value = Long.parseLong(cursor.trim());
+			if (value >= 0) {
+				return value;
+			}
+		} catch (NumberFormatException e) {
+			// refused below
+		}
+		throw new IllegalArgumentException("Invalid cursor '" + cursor + "': send back the cursor of the last answer");
+	}
+
+	/** At the start: each domain gets its sequence row, and every record without a change row gets one (backfill). */
+	@EventListener(ApplicationReadyEvent.class)
+	public void initialise() {
+		for (DownDomainProvider provider : providers.values()) {
+			try {
+				Integer added = writeTransactions.execute(status -> backfill(provider));
+				if (added != null && added > 0) {
+					log.info("Head office copies down: {} {} records made available to the stores", added,
+							provider.getDomain());
+				}
+			} catch (RuntimeException e) {
+				log.warn("Head office copies down: backfill of {} failed ({})", provider.getDomain(),
+						SalesCopyFinder.cause(e));
+			}
+		}
+	}
+
+	/** Returns how many records got their first change row. */
+	int backfill(DownDomainProvider provider) {
+		DataDomain domain = provider.getDomain();
+		if (sequences.lastVersion(domain).isEmpty()) {
+			HoDownSequence sequence = new HoDownSequence();
+			sequence.setDomain(domain);
+			sequence.setLastVersion(0);
+			sequences.save(sequence);
+		}
+		Set<String> known = new HashSet<>(changes.findCodes(domain));
+		int added = 0;
+		for (Map.Entry<String, StoreTargets> record : provider.currentTargets().entrySet()) {
+			if (!known.contains(record.getKey())) {
+				recordChange(domain, record.getKey(), record.getValue());
+				added++;
+			}
+		}
+		return added;
+	}
+
+	/** The domains served, in DataDomain order. */
+	public Collection<DataDomain> domains() {
+		return providers.keySet();
+	}
+}

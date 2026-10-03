@@ -40,6 +40,7 @@ import com.digithink.zsretail.holink.repository.SalesCopyRepository;
 class QueryParameterBindingTest {
 
 	private static final Class<?>[] REPOSITORIES = { HoTicketRepository.class, HoReturnRepository.class,
+			HoDownChangeRepository.class, HoDownSequenceRepository.class,
 			HoSessionRepository.class, LinkExchangeRepository.class, SalesCopyRepository.class };
 
 	private static SessionFactory sessionFactory;

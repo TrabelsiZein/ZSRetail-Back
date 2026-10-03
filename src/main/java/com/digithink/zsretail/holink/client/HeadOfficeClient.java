@@ -1,7 +1,10 @@
 package com.digithink.zsretail.holink.client;
 
+import java.net.URI;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,15 +20,20 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeLink;
+import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
 import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatDTO;
 import com.digithink.zsretail.headoffice.dto.HeadOfficePingDTO;
 import com.digithink.zsretail.headoffice.dto.SalesCopyAnswerDTO;
 import com.digithink.zsretail.holink.dto.HeadOfficeCallResult;
+import com.digithink.zsretail.holink.dto.PullAnswer;
 import com.digithink.zsretail.holink.dto.SalesPushAnswer;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
 import com.digithink.zsretail.holink.enumeration.SalesCopyType;
+import com.digithink.zsretail.holink.model.DownCursor;
+import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,7 +43,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 /**
  * Store side of the head office link (task 1.4): calls the head office on /ho/** with the store code
  * (DEFAULT_LOCATION, read at each call) and the API key. Never throws: every outcome is a
- * {@link HeadOfficeCallResult}. Called only by the ho-link thread (heartbeat, and the sales push of task 2.4). The key
+ * {@link HeadOfficeCallResult}. Called only by the ho-link thread (heartbeat, the sales push of task 2.4 and the pull
+ * of copies down of step 3). The key
  * is never logged.
  * See docs/modules/head-office.md, "Head office link".
  */
@@ -47,6 +56,7 @@ public class HeadOfficeClient {
 	static final String STORE_KEY_HEADER = "X-Store-Key";
 	static final String HEARTBEAT_PATH = "/ho/heartbeat";
 	static final String SALES_PATH = "/ho/sales";
+	static final String DOWN_PATH = "/ho/down";
 	static final String STORE_CODE_SETTING = "DEFAULT_LOCATION";
 
 	static final int CONNECT_TIMEOUT_MS = 5_000;
@@ -137,10 +147,53 @@ public class HeadOfficeClient {
 	}
 
 	/**
+	 * Step 3: GET one page of copies down of a domain, /ho/down/&lt;domain&gt;?limit=&amp;cursor= with the cursor of the last
+	 * answer, sent back unchanged (empty for the first pull). Delivered with the page; otherwise the state and message of
+	 * the heartbeat table, and no page. A page of another domain or without a cursor is unreadable.
+	 */
+	public PullAnswer pull(DataDomain domain, String cursor, int limit) {
+		URI uri;
+		try {
+			// The cursor is encoded strictly (+, = and & too): the head office reads back exactly what it sent
+			uri = UriComponentsBuilder.fromHttpUrl(baseUrl + DOWN_PATH + "/" + domain.name().toLowerCase(Locale.ROOT))
+					.queryParam("limit", limit).queryParam("cursor", "{cursor}").encode()
+					.buildAndExpand(cursor == null ? "" : cursor).toUri();
+		} catch (RuntimeException e) {
+			return PullAnswer.failed(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"head office call failed (" + cause(e) + ")"));
+		}
+		Answer<CopiesDownAnswerDTO> answer = call(HttpMethod.GET, null, uri, null, CopiesDownAnswerDTO.class);
+		if (answer.failure != null) {
+			return PullAnswer.failed(answer.failure);
+		}
+		CopiesDownAnswerDTO page = answer.body;
+		if (page.getCursor() == null || page.getCursor().trim().isEmpty()
+				|| page.getCursor().length() > DownCursor.CURSOR_LENGTH || !domain.name().equals(page.getDomain())) {
+			return PullAnswer.failed(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"unreadable answer from the head office (no cursor, or another domain)"));
+		}
+		if (page.getRecords() == null) {
+			page.setRecords(new ArrayList<>());
+		}
+		if (page.getRemoved() == null) {
+			page.setRemoved(new ArrayList<>());
+		}
+		return PullAnswer.delivered(page);
+	}
+
+	/**
 	 * POST to the head office with the store code and key; the answer body, or why there is none (the state table of
 	 * docs/modules/head-office.md). Never throws.
 	 */
 	private <T> Answer<T> post(String path, Object body, Class<T> answerType) {
+		return call(HttpMethod.POST, path, null, body, answerType);
+	}
+
+	/**
+	 * A call to the head office with the store code and key: POST with a JSON body, or GET without one (body null).
+	 * The address is the base URL plus {@code path}, or {@code uri} when given (already encoded). Never throws.
+	 */
+	private <T> Answer<T> call(HttpMethod method, String path, URI uri, Object body, Class<T> answerType) {
 		String storeCode;
 		try {
 			storeCode = readStoreCode();
@@ -151,15 +204,18 @@ public class HeadOfficeClient {
 			return Answer.failed(HeadOfficeLinkState.NOT_CONFIGURED, NO_STORE_CODE);
 		}
 		HttpHeaders headers = new HttpHeaders();
-		headers.setContentType(MediaType.APPLICATION_JSON);
+		if (method != HttpMethod.GET) {
+			headers.setContentType(MediaType.APPLICATION_JSON);
+		}
 		headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
 		headers.set(STORE_CODE_HEADER, storeCode);
 		headers.set(STORE_KEY_HEADER, apiKey);
 		try {
 			// The body is written here (UTF-8, dates as ISO strings), whatever the RestTemplate's converters
-			byte[] json = WIRE_MAPPER.writeValueAsBytes(body);
-			ResponseEntity<T> response = restTemplate.exchange(baseUrl + path, HttpMethod.POST,
-					new HttpEntity<>(json, headers), answerType);
+			HttpEntity<?> entity = method == HttpMethod.GET ? new HttpEntity<>(headers)
+					: new HttpEntity<>(WIRE_MAPPER.writeValueAsBytes(body), headers);
+			ResponseEntity<T> response = uri != null ? restTemplate.exchange(uri, method, entity, answerType)
+					: restTemplate.exchange(baseUrl + path, method, entity, answerType);
 			if (response.getStatusCodeValue() != 200) {
 				return new Answer<>(null, fromStatus(response.getStatusCodeValue()));
 			}
