@@ -82,6 +82,14 @@ public class ApplicationModeService {
 		return ownership.ownerOf(domain);
 	}
 
+	/**
+	 * True on a store whose promotions are owned by its head office (ownership.promotions=HEAD_OFFICE, which needs
+	 * headoffice.url): promotions are only consulted there, the pull job writes them (step 3).
+	 */
+	public boolean isPromotionsOwnedByHeadOffice() {
+		return ownership.ownerOf(DataDomain.PROMOTIONS) == DataOwner.HEAD_OFFICE;
+	}
+
 	/** Where sales copies go: sales.upstream, derived from the mode flags when absent. Empty = nowhere. */
 	public Set<SalesUpstream> salesUpstreams() {
 		return ownership.getSalesUpstreams();

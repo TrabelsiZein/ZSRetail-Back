@@ -168,3 +168,22 @@ price and never goes through promotion pricing.
 ### Promotions owned by the head office (step 3)
 
 A store with `headoffice.url` and `ownership.promotions=HEAD_OFFICE` receives its promotions from the head office as copies down (task 3.1, `docs/modules/head-office.md`, "Copies down"): the job `COPIES_DOWN` pulls the promotions changed since its cursor. The calculation engine is not changed: it keeps reading the local `promotion` table. Without `headoffice.url`, or with `ownership.promotions` absent or `LOCAL`, nothing changes.
+
+**Origin** (task 3.2): column `promotion.origin` (`VARCHAR(20)`, nullable; entity field `Promotion.origin`, enum `RecordOrigin`): `HEAD_OFFICE` for a promotion received from the head office, `LOCAL` or null for a promotion made at the store. Null means local, so existing rows need no update. Hibernate adds the column (`ddl-auto=update`); for `db/2.1.0/update.sql` (written once at the end of the plan):
+
+```sql
+IF COL_LENGTH('promotion', 'origin') IS NULL
+    ALTER TABLE promotion ADD origin VARCHAR(20) NULL;
+```
+
+The origin is sent in the promotion JSON and never read from a request (`@JsonProperty(access = READ_ONLY)`): the client can never set it. Only the pull job writes `HEAD_OFFICE`.
+
+**Write guards** (`PromotionAPI`, task 3.2, with Zein's correction of 2026-10-03: no `promotions.allow-local` setting). The generic CRUD of `_BaseController` is covered: `create`, `update` and `deleteById` are overridden. Reads (`GET /promotion`, `/{id}`, `/paginated`, `/findByField`, `/{id}/usage-count`) are unchanged.
+
+| Store | Request | Answer |
+|---|---|---|
+| Promotions owned by the head office (`ApplicationModeService.isPromotionsOwnedByHeadOffice()`) | `POST /promotion`, `PUT /promotion/{id}` (deactivating included), `DELETE /promotion/{id}`, for every promotion whatever its origin | 409 `Promotions are managed by the head office: on this store they can only be consulted.` (`PUT` on an unknown id: 404) |
+| Any store | `PUT` or `DELETE` of a promotion whose origin is `HEAD_OFFICE`; `POST` whose body `id` is such a promotion | 409 `This promotion comes from the head office: it cannot be changed or deleted on this store.` |
+| Promotions local | Local promotions | As before: usage lock (409 with the locked fields), delete refused once used (409), origin kept (a local one stays local) |
+
+The page uses `ownership.PROMOTIONS` from `GET /config` (no new field) and `origin` on each promotion to show them read-only.

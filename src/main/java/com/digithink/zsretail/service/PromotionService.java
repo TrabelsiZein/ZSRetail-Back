@@ -25,6 +25,7 @@ import com.digithink.zsretail.model.Promotion;
 import com.digithink.zsretail.model.enumeration.PromotionBenefitType;
 import com.digithink.zsretail.model.enumeration.PromotionScope;
 import com.digithink.zsretail.model.enumeration.PromotionType;
+import com.digithink.zsretail.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.repository.PromotionRepository;
 import com.digithink.zsretail.repository._BaseRepository;
 
@@ -44,6 +45,11 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 
 	public PromotionRepository getPromotionRepository() {
 		return promotionRepository;
+	}
+
+	/** True for a promotion received from the head office (task 3.2); null origin means local. */
+	public static boolean isFromHeadOffice(Promotion promotion) {
+		return promotion.getOrigin() == RecordOrigin.HEAD_OFFICE;
 	}
 
 	/** Returns total number of sales lines + headers that reference this promotion. */
