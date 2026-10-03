@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
@@ -29,6 +30,7 @@ import org.springframework.data.repository.query.Param;
 
 import com.digithink.zsretail.holink.repository.LinkExchangeRepository;
 import com.digithink.zsretail.holink.repository.SalesCopyRepository;
+import com.digithink.zsretail.repository.PromotionRepository;
 
 /**
  * Head office plan, step 2: every JPQL {@code @Query} of the step 2 repositories is parsed by Hibernate and a value of
@@ -40,7 +42,7 @@ import com.digithink.zsretail.holink.repository.SalesCopyRepository;
 class QueryParameterBindingTest {
 
 	private static final Class<?>[] REPOSITORIES = { HoTicketRepository.class, HoReturnRepository.class,
-			HoDownChangeRepository.class, HoDownSequenceRepository.class,
+			HoDownChangeRepository.class, HoDownSequenceRepository.class, PromotionRepository.class,
 			HoSessionRepository.class, LinkExchangeRepository.class, SalesCopyRepository.class };
 
 	private static SessionFactory sessionFactory;
@@ -75,7 +77,7 @@ class QueryParameterBindingTest {
 				for (Method method : repository.getDeclaredMethods()) {
 					org.springframework.data.jpa.repository.Query annotation = method
 							.getAnnotation(org.springframework.data.jpa.repository.Query.class);
-					if (annotation == null) {
+					if (annotation == null || annotation.nativeQuery()) {
 						continue;
 					}
 					Query<?> query = session.createQuery(annotation.value());
@@ -118,6 +120,9 @@ class QueryParameterBindingTest {
 		}
 		if (type == LocalDateTime.class) {
 			return LocalDateTime.of(2026, 10, 3, 12, 0);
+		}
+		if (type == LocalDate.class) {
+			return LocalDate.of(2026, 10, 3);
 		}
 		if (type.isEnum()) {
 			return type.getEnumConstants()[0];

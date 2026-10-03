@@ -13,6 +13,7 @@ import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.holink.scheduler.CopiesDownJob;
 import com.digithink.zsretail.holink.service.CopiesDownPuller;
+import com.digithink.zsretail.holink.service.PromotionDownHandler;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 
 /**
@@ -81,6 +82,15 @@ class OnHeadOfficePullConditionTest {
 		for (Class<?> bean : PULL_BEANS) {
 			assertTrue(registered(on, bean), bean.getSimpleName());
 		}
+		assertTrue(registered(on, PromotionDownHandler.class), "the promotions handler with promotions owned");
+		for (MockEnvironment env : off) {
+			assertFalse(registered(env, PromotionDownHandler.class));
+		}
+		assertFalse(registered(link().withProperty("ownership.catalogue", "HEAD_OFFICE"), PromotionDownHandler.class),
+				"another domain owned: the job exists, not the promotions handler");
+		assertTrue(registered(link().withProperty("ownership.catalogue", "HEAD_OFFICE"), CopiesDownJob.class));
+		assertEquals(DataDomain.PROMOTIONS,
+				PromotionDownHandler.class.getAnnotation(ConditionalOnHeadOfficeOwned.class).value());
 	}
 
 	@Test

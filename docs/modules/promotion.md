@@ -187,3 +187,9 @@ The origin is sent in the promotion JSON and never read from a request (`@JsonPr
 | Promotions local | Local promotions | As before: usage lock (409 with the locked fields), delete refused once used (409), origin kept (a local one stays local) |
 
 The page uses `ownership.PROMOTIONS` from `GET /config` (no new field) and `origin` on each promotion to show them read-only.
+
+**Received promotions** (task 3.3): the head office sends each promotion by codes (`PromotionCopyDTO`: item, family, sub-family, group item and benefit item codes, never an id); the store saves it by its code with `origin=HEAD_OFFICE` through `PromotionService.saveReceived` (same normalisation as `save`, no usage lock, audit user `HEAD_OFFICE`), its codes resolved to the store's own records. Removed or no longer addressed to the store: deleted when never used in a sale here, otherwise set inactive and kept. While promotions are owned by the head office, the store's local promotions are set inactive by the pull job (kept, origin `LOCAL`). Details and the store/head office tables: `docs/modules/head-office.md`, "Promotions owned by the head office".
+
+**Head office** (task 3.3): `PromotionService` calls `PromotionHeadOfficeHooks` (head office only bean): every save and delete is recorded for the promotion's target stores, and `getUsageCount` adds the tickets and lines received from every store with the promotion code, so the edit lock and the delete refusal of a used promotion work for the whole network. Target stores: `/admin/headoffice/promotions/...`.
+
+`PromotionService` changes for this, outside the engine: `normalise` (extracted from `save`, unchanged), `saveReceived`, `getLocalUsageCount`, `deleteById` (transactional, calls the hook on a head office). `PromotionRepository` gains `findByCodeIn` and `findActiveNotFrom`. `PromotionCalculationService`, `PricingService`, `SalesHeaderService` and `ReturnHeaderService` are unchanged.

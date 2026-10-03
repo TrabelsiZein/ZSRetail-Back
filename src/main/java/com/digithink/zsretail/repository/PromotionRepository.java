@@ -1,6 +1,7 @@
 package com.digithink.zsretail.repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -9,10 +10,21 @@ import org.springframework.data.repository.query.Param;
 
 import com.digithink.zsretail.model.Promotion;
 import com.digithink.zsretail.model.enumeration.PromotionScope;
+import com.digithink.zsretail.model.enumeration.RecordOrigin;
 
 public interface PromotionRepository extends _BaseRepository<Promotion, Long> {
 
 	Optional<Promotion> findByCode(String code);
+
+	/** Head office plan, task 3.3: the promotions with these codes (copies down). */
+	List<Promotion> findByCodeIn(Collection<String> codes);
+
+	/**
+	 * Head office plan, task 3.3: the active promotions made at this store (origin null or LOCAL), set inactive by the
+	 * pull job when promotions are owned by the head office.
+	 */
+	@Query("SELECT p FROM Promotion p WHERE p.active = true AND (p.origin IS NULL OR p.origin <> :headOffice)")
+	List<Promotion> findActiveNotFrom(@Param("headOffice") RecordOrigin headOffice);
 
 	/** Total number of sales lines + sales headers that reference this promotion. */
 	@Query(value =

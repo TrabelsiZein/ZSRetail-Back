@@ -17,6 +17,13 @@ public interface HoTicketRepository extends _BaseRepository<HoTicket, Long> {
 
 	Optional<HoTicket> findByStoreIdAndSalesNumber(Long storeId, String salesNumber);
 
+	/** Task 3.3: tickets of every store whose header discount came from this promotion code. */
+	long countByPromotionCode(String promotionCode);
+
+	/** Task 3.3: ticket lines of every store discounted by this promotion code. */
+	@Query("select count(l) from HoTicketLine l where l.promotionCode = :code")
+	long countLinesByPromotionCode(@Param("code") String code);
+
 	/**
 	 * Task 2.5: the tickets list. No parameter is null (SQL Server cannot type a null date): storeId 0 = every store,
 	 * number "%" = any, status and sessionNumber "" = any; the dates are always given.
