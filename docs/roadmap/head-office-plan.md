@@ -47,6 +47,7 @@ The exact prompts are written during the session, from the code as it is that da
 - Step 3: `promotion.origin` `varchar(20)` null (null = local).
 - Step 3: `ho_store.owner_catalogue`, `owner_customers`, `owner_promotions`, `owner_loyalty`, `owner_supply` `varchar(20)` null, and `ho_store.sales_upstreams` `varchar(50)` null (null = the store has not reported yet).
 - Step 4: `loyalty_member.origin` and `loyalty_program.origin` `varchar(20)` null (null = local); `ho_store.can_edit_members` and `ho_store.can_adjust_points` `bit` null (null = false). New tables through `ddl-auto`: `ho_loyalty_alias`, `ho_loyalty_movement`, `hol_loyalty_member_copy`, `hol_loyalty_movement_copy`.
+- Step 5: `ho_store.redeem_requires_online` `bit` null (null = false). The new permission `read:admin-headoffice-loyalty-overspends` is added at startup (no script).
 
 ## 2. Test levels
 
@@ -65,7 +66,7 @@ The exact prompts are written during the session, from the code as it is that da
 | 2 | Sales copies up: tickets, returns, sessions of every store visible at head office | ParaFendri; Happyness from step 8 | No | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 3a10957, frontend b90ab84) |
 | 3 | Promotions owned by head office | ParaFendri | No (engine untouched) | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 604a97c, frontend 57acf81) |
 | 4 | Shared loyalty, part 1: members and earning | ParaFendri | No (enrol and member changes in LoyaltyAPI and LoyaltyService hooks; the four selling services untouched) | Large | Backend done 2026-10-03 on feature/ho-step-4 (see "Step 4 backend"); frontend and L2 to come |
-| 5 | Shared loyalty, part 2: spending and returns | ParaFendri | No (decided 2026-10-03: no hold and confirm, selling services untouched) | Large | Not started |
+| 5 | Shared loyalty, part 2: spending and returns | ParaFendri | No (decided 2026-10-03: no hold and confirm, selling services untouched) | Large | Backend done 2026-10-03 on feature/ho-step-4 (see "Step 5 backend"); frontend and L2 with step 4 |
 | 6 | Catalogue owned by head office | Own stores without ERP, franchise | No | Medium | Not started |
 | 7 | Shipments (BL) | Own stores without ERP, franchise | No (stock in only) | Large | Not started |
 | 8 | Franchise profiles moved onto the model | Happyness | No | Medium | Not started |
@@ -237,11 +238,11 @@ Goal: one member register for the network; points earned anywhere are known ever
 | Task | What | Test |
 |---|---|---|
 | 4.1 | Program and members as copies down (keys: program code, card number) | L1 |
-| 4.2 | Enrol as a live question: head office issues the card number and checks the phone across the network. Local loyalty keeps today's path | L1 `LoyaltyMemberPhoneTest` green; new test for the head office path |
+| 4.2 | Enrol at the store, never blocked: when the head office answers within 3 s the phone is checked across the network first (a known phone is refused naming its card); otherwise checked at the store. The store creates the member with its own card number (`LYL-<store code>-000001`) and sends it up later; a phone found at the head office on upload is merged into the existing card (alias, points moved). Local loyalty keeps today's path | L1 `LoyaltyMemberPhoneTest` unchanged and green; enrol online, known phone, offline; merge with points moved |
 | 4.3 | Loyalty movements travel up with the ticket; head office applies them to its ledger and balances | L1 applying twice changes nothing |
 | 4.4 | Store pages: program and members read-only except enrol; clear message when head office is unreachable | L2 |
 
-L2 scenarios (two stores and a head office): enrol in A, visible in B; earn in A, balance in B after sync; head office stopped, enrol refused with a message and earning still works.
+L2 scenarios (two stores and a head office): enrol in A, visible in B; earn in A, balance in B after sync; head office stopped, enrol in A still works (checked in A only) and is merged later when the phone was known; earning still works.
 
 **Step 4 backend** (done 2026-10-03, branch `feature/ho-step-4`; the tasks above are replaced by the decisions of steps 4 and 5 and the step 4 prompt). Described in `docs/modules/head-office.md`, "Shared loyalty (step 4)".
 
@@ -265,16 +266,34 @@ Still owed for step 4: the frontend (store loyalty pages, link page block, Store
 
 ### Step 5 — Shared loyalty, part 2: spending and returns
 
-Goal: points earned in one store can be spent in another, with no double spending. Needs decision D5. This is the only step that changes the sale itself.
+Goal: points earned in one store can be spent in another. Decided 2026-10-03 (decisions of steps 4 and 5): spending stays against the store's balance and is never blocked by default; the till asks the head office for a fresh balance when a member is selected; overspends are reported at the head office; a per-store setting can require a fresh balance to spend. No hold and confirm: the selling services are not changed. Steps 4 and 5 are delivered together (one L2, one merge).
 
 | Task | What | Test |
 |---|---|---|
-| 5.1 | Head office: hold, confirm and release of points; old holds released automatically | L1 two holds on the same points: the second is refused |
-| 5.2 | Store: when loyalty is owned by head office, `redeemPoints` asks for a hold before the sale is saved; the confirmation travels with the ticket | L1 `SaleCompletionLoyaltyStampTest` and `LoyaltyEarningTiersTest` unchanged and green; sale fails after a hold, the hold is released |
+| 5.1 | Fresh balance at the till: when a member is selected the store asks the head office for the member (short timeout), saves it with the pull's balance rule and answers whether the balance is fresh; head office unreachable: the store's copy, never failing. Head office: overspend report (list and count) of the removals that found the balance lower | L1 fresh balance online and offline; overspend listed once |
+| 5.2 | Spending in the sale exactly as today, against the store's balance; its movement goes up (step 4). Per store at the head office, `redeemRequiresOnline` (default false, sent with the heartbeat answer): when true, `LoyaltyService.redeemPoints` (hook, head-office-owned path only) refuses spending unless the member was refreshed from the head office in the last 2 minutes; earning and the sale without points still work. Manual adjustments from a store go through the head office (`canAdjustPoints`). The selling services are not changed | L1 `SaleCompletionLoyaltyStampTest` and `LoyaltyEarningTiersTest` unchanged and green; strict store refuses without a fresh balance and allows with one; a lenient store never refuses; adjustment with and without the right |
 | 5.3 | Returns: movements travel up; head office applies them, balance never below zero | L1 `ReturnRefundLoyaltyTest` unchanged and green |
 | 5.4 | Receipt and POS messages | L2 |
 
-L2 scenarios: spend in B the points earned in A; head office stopped, spending is disabled and the sale goes through; with local loyalty everything is identical to today.
+L2 scenarios: spend in B the points earned in A (fresh balance shown when the member is selected); head office stopped: a lenient store spends against its own balance and the overspend appears in the head office report once the movements arrive, a strict store refuses spending with the message and the sale without points goes through; a partial then full return in A gives the same balance at the head office; a store adjustment with and without the right; with local loyalty everything is identical to today.
+
+**Step 5 backend** (done 2026-10-03, on `feature/ho-step-4`, delivered with step 4). Described in `docs/modules/head-office.md`, "Shared loyalty (step 4)" and "Overspend report".
+
+| Part | Backend |
+|---|---|
+| 1. Head office: `GET /ho/loyalty/members/{card}`, `POST /ho/loyalty/members/{card}/adjust`, `redeemRequiresOnline` on the store row and in the heartbeat answer, overspend report and its permission | 0b2d3eb |
+| 2. Store: `GET /loyalty/member/{id}/fresh`, the `beforeRedeem` guard, adjustments through the head office, returns proved | af952aa |
+| 3. Exchange log: a repeated failure of any link job written once, one row when it works again | 22e4891 |
+| 4. Docs: plan rows 4.2, 5.1, 5.2, design 4.3 and 5.2 | this commit |
+
+Choices made in the session:
+- The freshness of a card is kept in memory: a restart forgets it and the till asks again. A change answered by the head office (edit, adjustment) also makes the card fresh.
+- Before the first heartbeat answer after a start (about 15 s), `redeemRequiresOnline` is unknown and spending is not refused.
+- The 2-minute window is inclusive (exactly 2 minutes is still fresh).
+- The overspend report lists by head office reception time and reuses the filters of the consolidated sales lists; new page permission `read:admin-headoffice-loyalty-overspends` (24 head office permissions).
+- The exchange log episode is per job: an exchange of one domain that goes through ends the episode of the copies down job.
+
+Tests: 49 classes, 395 tests, all green; the four loyalty tests unchanged.
 
 Done when: the checklist with local loyalty shows no difference. After this step ParaFendri is fully served.
 
