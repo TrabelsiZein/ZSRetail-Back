@@ -33,9 +33,13 @@ import com.digithink.zsretail.repository.UserAccountRepository;
  */
 class ZZDataInitializerRolesTest {
 
-	/** The head office routes of ZSRetail-Front src/router/headoffice-routes.js, as read:<meta.resource>. */
+	/**
+	 * The head office routes of ZSRetail-Front src/router/headoffice-routes.js, as read:<meta.resource>. Task 2.5 adds
+	 * tickets, sessions and returns before their frontend routes (next frontend session).
+	 */
 	private static final Set<String> HEAD_OFFICE_PERMISSIONS = new HashSet<>(java.util.Arrays.asList(
-			"read:admin-headoffice-home", "read:admin-headoffice-stores", "read:admin-headoffice-items",
+			"read:admin-headoffice-home", "read:admin-headoffice-stores", "read:admin-headoffice-tickets",
+			"read:admin-headoffice-sessions", "read:admin-headoffice-returns", "read:admin-headoffice-items",
 			"read:admin-headoffice-item-families", "read:admin-headoffice-item-subfamilies",
 			"read:admin-headoffice-item-barcodes", "read:admin-headoffice-promotions", "read:admin-headoffice-customers",
 			"read:admin-headoffice-loyalty-programs", "read:admin-headoffice-loyalty-members",

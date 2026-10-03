@@ -214,6 +214,9 @@ public class ZZDataInitializer {
 	static final Set<String> HEAD_OFFICE_ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList(
 			"read:admin-headoffice-home",
 			"read:admin-headoffice-stores",
+			"read:admin-headoffice-tickets", // task 2.5: Tickets history, Sessions history, Returns
+			"read:admin-headoffice-sessions",
+			"read:admin-headoffice-returns",
 			"read:admin-headoffice-items",
 			"read:admin-headoffice-item-families",
 			"read:admin-headoffice-item-subfamilies",

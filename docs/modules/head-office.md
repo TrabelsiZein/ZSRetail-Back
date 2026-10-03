@@ -1,6 +1,6 @@
 # Head Office Module
 
-**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office); task 2.4 done (the store's push job with retry, counts on `GET admin/holink/status`). Tasks 2.5 and 2.6 (pages) to come. Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
+**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office); task 2.4 done (the store's push job with retry, counts on `GET admin/holink/status`). Task 2.5 backend done (consolidated sales API, home cards, page permissions; see "Consolidated sales API"); its pages and task 2.6 to come. Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
 
 ### Overview
 - Two installation types, same WAR: a **store** sells; a **head office** manages several stores and never sells (no cashier session, no ticket).
@@ -80,7 +80,9 @@ Frontend: since task 1.6 a head office has only its own routes (see "Head office
 
 Each page is one route: details and edits are dialogs on the page. Every other store page is absent until its step adds it: print labels, sales prices and discounts, warranty, purchases, vendors, reports, ERP and franchise pages, and the selling pages hidden in task 1.1.
 
-The home page is the store's `Home.vue`. Its sales cards show zero on a head office until step 2; its quick links come from the head office menu.
+The home page is the store's `Home.vue`. Its sales cards read the store's `GET admin/dashboard/today`, which shows zero on a head office; since task 2.5 the head office has `GET admin/headoffice/dashboard/today` with the same fields, fed by the copies of all stores (see "Consolidated sales API"; the frontend switches to it in its step 2 session). Its quick links come from the head office menu.
+
+Three more head office pages come with the step 2 frontend session (task 2.5); their backend and permissions exist: Tickets history (`admin-headoffice-tickets`), Sessions history (`admin-headoffice-sessions`), Returns (`admin-headoffice-returns`). See "Consolidated sales API".
 
 **Menu** (`src/navigation/headoffice/index.js`): Home · Network · Catalogue · Customers & loyalty · Settings.
 - Two levels only: links, and groups of links. A link names its head office route and takes the route's permission. A group has no permission of its own and shows when one of its links is allowed.
@@ -411,6 +413,71 @@ One rejected document never stops the others: each follows its own result.
 
 **Counts**: `GET admin/holink/status` gives `pendingCount`, `sentCount`, `errorCount` (see "Head office link page").
 
+### Consolidated sales API (task 2.5, head office)
+What the head office pages Tickets history, Sessions history and Returns, and the home cards, read. Backend only so far: the pages come with the step 2 frontend session, which follows this contract.
+
+**Common rules**
+- `ConsolidatedSalesAPI` (`headoffice/controller`) and `ConsolidatedSalesService` (`headoffice/service`), both `@ConditionalOnHeadOffice`: on a store these URLs answer 404. JWT like the other admin APIs; the license filter applies (402). As everywhere in the application, the API checks no permission: the pages are protected by their route permission in the frontend.
+- They read the consolidation tables only (`ho_ticket`, `ho_return`, `ho_session` and their lines), never the store tables.
+- Field names follow the store's own pages (`GET /sales-header/history`, `/cashier-session/history`, `/return-header/history` and their details) where the data is the same, so the new pages can follow the store pages. References are small objects with the store's property names (`customer.name`, `createdByUser.fullName`, `cashierSession.sessionNumber`, `item.itemCode`, `paymentMethod.name`). Every row adds `storeId`, `storeCode`, `storeName`, `receivedAt` (first reception) and `lastReceivedAt` (last reception), head office clock.
+- Not there, compared with the store pages: ERP fields (`synchronizationStatus`, `erpNo`, `synched`, `fiscalRegistration`), the store's database ids (`cashierId`, user and item ids), voucher use (`usedAmount`, voucher status), the session `paymentSummary` (the count lines are given instead).
+- Dates are ISO strings (`2026-10-03T10:15:30`); `id` is the head office row id.
+
+**Lists**: `GET /admin/headoffice/tickets`, `GET /admin/headoffice/sessions`, `GET /admin/headoffice/returns`.
+
+| Parameter | Tickets | Sessions | Returns | Rule |
+|---|---|---|---|---|
+| `page` | yes | yes | yes | From 0, default 0; below 0: 400 |
+| `size` | yes | yes | yes | Default 10; from 1 to 200 (0 or less gives 10, more than 200 gives 200) |
+| `storeId` | yes | yes | yes | Head office store id (from `store-options`); absent: every store |
+| `dateFrom`, `dateTo` | `salesDate` | `openedAt` | `returnDate` | `yyyy-MM-dd` (from: 00:00, to: end of the day) or `yyyy-MM-ddTHH:mm[:ss]` (exact, inclusive). Anything else: 400 `{"error":"Invalid dateFrom '<value>': expected yyyy-MM-dd or yyyy-MM-ddTHH:mm"}` |
+| number | `salesNumber` | `sessionNumber` | `returnNumber` | Contains, any case |
+| `status` | `TransactionStatus` | `SessionStatus` | `TransactionStatus` | Name, any case; blank or `all`: any |
+| `sessionNumber` | yes (exact) | — (it is the number filter) | yes (exact) | With `storeId`, the "View tickets / View returns" links of a session, as on the store pages (`?session=`) |
+
+Order: newest first (`salesDate`, `openedAt`, `returnDate` descending, then id). Answer: `{"content":[rows], "totalElements":n, "totalPages":n, "number":page, "size":size}`, the shape of the store history endpoints.
+
+**Ticket row** (`content[]` of tickets): `id`, `storeId`, `storeCode`, `storeName`, `salesNumber`, `salesDate`, `subtotal`, `taxAmount`, `discountAmount`, `discountPercentage`, `totalAmount`, `paidAmount`, `changeAmount`, `status`, `notes`, `invoiced`, `invoiceNumber`, `customer` (`{customerCode, name}`, null for a walk-in ticket), `createdByUser` (`{username, fullName}`; `fullName` is the login when the store sent no name), `cashierSession` (`{sessionNumber}` or null), `receivedAt`, `lastReceivedAt`, `salesLinesCount`, `paymentsCount`.
+
+**`GET /admin/headoffice/tickets/{id}`**: the row without the two counts, plus `completedDate`, `discountSource`, `promotion` (`{code, name}` or null), `loyaltyMember` (`{cardNumber, name}` or null), `loyaltyPointsEarned`, `loyaltyPointsRedeemed`, `loyaltyDeductionAmount`, `tableNumber`, and
+- `salesLines[]`: `lineNo`, `item` (`{itemCode, name}`), `quantity`, `unitPrice`, `discountPercentage`, `discountAmount`, `discountSource`, `promotion` (`{code}` or null), `vatPercent`, `vatAmount`, `unitPriceIncludingVat`, `lineTotal`, `lineTotalIncludingVat`;
+- `payments[]`: `lineNo`, `paymentMethod` (`{code, name}`), `totalAmount`, `paymentDate`, `titleNumber`, `dueDate`.
+
+404 `{"error":"Not found"}` for an unknown id (the same for sessions and returns).
+
+**Session row**: `id`, `storeId`, `storeCode`, `storeName`, `sessionNumber`, `cashierFullName` (the login when there is no name), `cashierUsername`, `openedAt`, `closedAt`, `status`, `openingCash`, `realCash`, `posUserClosureCash`, `responsibleClosureCash`, `salesCount`, `totalSalesAmount`, `returnsCount`, `totalReturnsAmount`, `simpleReturnsAmount`, `voucherReturnsAmount`, `cashDifference`, `responsibleDifference`, `verificationNotes`, `verifiedByName`, `verifiedAt`, `receivedAt`, `lastReceivedAt`.
+- The totals come from the copies of the same store with that session number: finished tickets (`COMPLETED`, `REFUNDED`) and completed returns (simple or voucher by `returnType`). They are complete once the session's tickets and returns have arrived.
+- `cashDifference` = `posUserClosureCash` − (`openingCash` + `totalSalesAmount` − `simpleReturnsAmount`), `responsibleDifference` the same with `responsibleClosureCash`, rounded to 2 decimals, null when that count is empty: the store page's formula.
+
+**`GET /admin/headoffice/sessions/{id}`**: `{session: <row>, salesCount, totalSalesAmount, returnsCount, totalReturnsAmount, simpleReturnsAmount, voucherReturnsAmount, counts: [...]}`, `counts[]`: `lineNo`, `counterType` (`POS_USER`, `RESPONSIBLE`), `paymentMethod` (`{code, name}`, null for cash), `denominationValue`, `quantity`, `lineTotal`, `referenceNumber`.
+
+**Return row**: `id`, `storeId`, `storeCode`, `storeName`, `returnNumber`, `returnDate`, `returnType`, `totalReturnAmount`, `notes`, `status`, `discountPercentage`, `originalSalesHeader` (`{id, salesNumber, salesDate, totalAmount}`: the head office ticket of the same store with that number; `id`, `salesDate`, `totalAmount` null when that ticket has not arrived), `returnVoucher` (`{voucherNumber, voucherAmount, expiryDate}` or null), `createdByUser` (`{username, fullName}` or null), `cashierSession` (`{sessionNumber}` or null), `receivedAt`, `lastReceivedAt`.
+
+**`GET /admin/headoffice/returns/{id}`**: `{returnHeader: <row>, returnLines: [...]}`, `returnLines[]`: `lineNo`, `item` (`{itemCode, name}`), `quantity`, `unitPrice`, `unitPriceIncludingVat`, `lineTotal`, `lineTotalIncludingVat`, `notes`.
+
+**`GET /admin/headoffice/store-options`**: `[{id, code, name, active}]` by code, for the store filter of the three pages (the Stores page's `GET /admin/headoffice/stores` belongs to that page and carries more).
+
+**`GET /admin/headoffice/dashboard/today`** (home cards): the fields of the store's `GET admin/dashboard/today`, all stores together, today on the head office clock.
+
+| Field | Head office value |
+|---|---|
+| `todaySalesCount`, `todaySalesAmount` | Tickets with `salesDate` today and a finished status (`COMPLETED`, `REFUNDED`): count and sum of `totalAmount`. A ticket cancelled after it was sent no longer counts |
+| `todayReturnsCount`, `todayReturnsAmount` | Returns with `returnDate` today and status `COMPLETED` (the store counts by `createdAt`, without a status) |
+| `openSessionsCount` | Sessions `OPENED`: 0 by design (sessions arrive once closed) |
+| `pendingTicketsCount` | Tickets `PENDING`: 0 by design (parked tickets are never sent) |
+
+The frontend may hide the last two cards on a head office.
+
+**Pages and permissions** (for the frontend session; "Add a page to the head office" applies): three head office only pages (no `twinOf`), components under `src/views/admin/headoffice/`.
+
+| Page | Route name = `meta.resource` | Suggested path | Permission (seeded on a head office ADMIN since task 2.5) | Calls |
+|---|---|---|---|---|
+| Tickets history | `admin-headoffice-tickets` | `/headoffice/tickets` | `read:admin-headoffice-tickets` | `tickets`, `tickets/{id}`, `store-options` |
+| Sessions history | `admin-headoffice-sessions` | `/headoffice/sessions` | `read:admin-headoffice-sessions` | `sessions`, `sessions/{id}`, `store-options` |
+| Returns | `admin-headoffice-returns` | `/headoffice/returns` | `read:admin-headoffice-returns` | `returns`, `returns/{id}`, `store-options` |
+
+The three permissions are in `ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS` (and the copy in `ZZDataInitializerRolesTest`); an existing head office ADMIN role gets them at the next start (`addMissingHeadOfficePermissions`). The frontend must add the three routes with these exact names, so the two lists stay equal.
+
 ### Connect a store
 1. At the head office, **Network → Stores**, create the store with **code = the store's `DEFAULT_LOCATION`** (General Setup of the store). For an ERP store that is its NAV location code.
 2. Copy the key from the dialog: it is shown once (a lost key is replaced with regenerate-key).
@@ -478,7 +545,7 @@ One rejected document never stops the others: each follows its own result.
 - `JWTAuthenticationFilterTest`: cashier refused on a head office; admin and a user without AppRole accepted; a cashier login on the 4 store profiles answers exactly as before.
 - `ZZDataInitializerUsersTest`: head office seeds `admin` only; the 4 store profiles seed admin, responsible and cashier. The "empty user table" guard in `init()` is not covered.
 - `ZZDataInitializerRolesTest`: covers the 4 store profiles and the head office.
-  - New head office database: ADMIN gets today's permissions plus the 17 head office ones, each role saved once. `HEAD_OFFICE_ADMIN_PERMISSIONS` equals the test's copy of the frontend list, without `read:admin-headoffice`.
+  - New head office database: ADMIN gets today's permissions plus the 20 head office ones (17, plus tickets, sessions and returns in task 2.5), each role saved once. `HEAD_OFFICE_ADMIN_PERMISSIONS` equals the test's copy of the frontend list, without `read:admin-headoffice`.
   - Existing head office ADMIN: it receives the missing permissions once and keeps its others (also `read:admin-headoffice`); the next start saves nothing; RESPONSIBLE and POS_USER are untouched.
   - Stores: the 4 profiles seed exactly today's roles. With and without `headoffice.url`, an existing role is never saved or changed.
   - Task 1.5: with `headoffice.url`, ADMIN also gets `read:admin-holink-status` on the 4 profiles; a head office never does.
@@ -500,7 +567,9 @@ One rejected document never stops the others: each follows its own result.
 - `SalesCopyFinderTest` (step 2, item 1): a sent session reopened later (`OPENED`, closing date cleared) is found again; a ticket cancelled before it was finished is read at each change but never tracked.
 - `SalesCopyRoundTripTest` (step 2, item 1): the real search and push talk through `MockRestServiceServer` to the real `SalesCopyReceiver`, all over in-memory tables. A ticket sent as `COMPLETED`, then cancelled, is sent again and the head office row becomes `CANCELLED` (one row, lines replaced); a parked ticket cancelled before being finished is never tracked nor sent; the next cycle sends nothing.
 - `HeadOfficeSalesAPITest` (task 2.3): the three endpoints answer `{"results":[{documentNumber, accepted, message}]}`, one per document.
-- `OnHeadOfficeConditionTest` (task 2.3): `SalesCopyReceiver` and `HeadOfficeSalesAPI` exist only on a head office.
+- `OnHeadOfficeConditionTest` (task 2.3): `SalesCopyReceiver` and `HeadOfficeSalesAPI` exist only on a head office; task 2.5: `ConsolidatedSalesService` and `ConsolidatedSalesAPI` too.
+- `ConsolidatedSalesServiceTest` (task 2.5): ticket filters by store (unknown store: nothing), dates (a whole day, or from a time), number (contains, any case), status (`all` = any), session; newest first; store code and name on every row; paging (defaults, page 2 of 25, answer keys and order, size bounds, page below 0 refused); parsing (absent filters become non-null bounds, end of day at 23:59:59.9999999, bad date refused with its name); ticket row and detail with the store's field names, counts, lines and payments in order, 404; session totals from its own store only (finished tickets, simple and voucher returns), the store page's differences, count lines; return row with the returned ticket of the same store or only its number, voucher, lines; store options; home cards (finished tickets of today only, completed returns of today, zeros when empty). In-memory lists; the stubs apply the rules of the JPQL queries, which were translated with Hibernate during the task and are checked at L2.
+- `ZZDataInitializerRolesTest` (task 2.5): the head office list now has 20 permissions (tickets, sessions, returns added).
 - `SalesPushServiceTest` (task 2.4): retry after a rejection (`ERROR` with the reason and one attempt, then `SENT` with two attempts and the accepted hash at the next cycle, then no request); head office unreachable, 401, 402, 503 and an HTML answer leave every tracking row exactly as it was (pending, rejected and changed rows), stop the cycle after one request and do not speed up the next one; one rejected document in a batch does not stop the others, and a document missing from the answer is `ERROR`; a copy equal to the accepted one is `SENT` without a request, a changed one is sent; a deleted document and a read failure are `ERROR` with an attempt while the rest is sent; batches of `batch-size`, oldest first, rejected after never tried, 2 per type per cycle with the types in turn, a rejected document not resent in the same cycle, a full batch speeding up the next cycle until caught up; rejected-only batches do not; the 20 s cycle bound; the hash (equal after a JSON round trip, different when a line changes); the counts. Real `HeadOfficeClient` over `MockRestServiceServer`, in-memory `hol_` tables.
 - `SalesPushSchedulerTest` (task 2.4): first cycle 20 s after the start, then the interval after the end of the previous cycle, read at each cycle (changed at runtime); the start log line; a cycle that throws is logged at WARN and the scheduler does not throw; a job scheduled on the link runs on `ho-link-1`.
 - `HeadOfficeClientTest` (task 2.4): the push POSTs a JSON array (dates as ISO strings) to `/ho/sales/tickets`, `/returns`, `/sessions` with both headers and reads one result per document; 401, 402, 500, connection refused, an HTML answer, `{"results":null}` and an empty `DEFAULT_LOCATION` (no request) are not delivered and give no result. The heartbeat cases are unchanged on the shared `post` method.

@@ -14,12 +14,14 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.core.annotation.Order;
 import org.springframework.mock.env.MockEnvironment;
 
+import com.digithink.zsretail.headoffice.controller.ConsolidatedSalesAPI;
 import com.digithink.zsretail.headoffice.controller.HeadOfficeHeartbeatAPI;
 import com.digithink.zsretail.headoffice.controller.HeadOfficePingAPI;
 import com.digithink.zsretail.headoffice.controller.HeadOfficeSalesAPI;
 import com.digithink.zsretail.headoffice.controller.StoreAPI;
 import com.digithink.zsretail.headoffice.security.HeadOfficeApiSecurityConfig;
 import com.digithink.zsretail.headoffice.security.StoreApiKeyFilter;
+import com.digithink.zsretail.headoffice.service.ConsolidatedSalesService;
 import com.digithink.zsretail.headoffice.service.SalesCopyReceiver;
 import com.digithink.zsretail.headoffice.service.StoreService;
 
@@ -33,7 +35,8 @@ import com.digithink.zsretail.headoffice.service.StoreService;
 class OnHeadOfficeConditionTest {
 
 	private static final Class<?>[] STORE_BEANS = { StoreService.class, StoreAPI.class, StoreApiKeyFilter.class,
-			HeadOfficePingAPI.class, HeadOfficeHeartbeatAPI.class, SalesCopyReceiver.class, HeadOfficeSalesAPI.class };
+			HeadOfficePingAPI.class, HeadOfficeHeartbeatAPI.class, SalesCopyReceiver.class, HeadOfficeSalesAPI.class,
+			ConsolidatedSalesService.class, ConsolidatedSalesAPI.class };
 
 	/** True when the class gets a bean definition with this environment. */
 	private static boolean registered(MockEnvironment env, Class<?> beanClass) {
