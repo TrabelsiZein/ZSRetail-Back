@@ -52,15 +52,29 @@ public class ApplicationModeService {
 	/** Head office model (design 2.1, 2.2), resolved at startup. Not used by the application yet. */
 	private NodeOwnership ownership;
 
+	/** headoffice.url is set (task 1.4), resolved at startup like the head office link beans. */
+	private boolean headOfficeLinked;
+
 	/** Fails the startup when node.type, ownership.* or sales.upstream holds an invalid value. */
 	@PostConstruct
 	void initOwnership() {
 		ownership = NodeOwnership.resolve(environment, standalone, franchiseAdmin, franchiseCustomer);
+		headOfficeLinked = NodeOwnership.isHeadOfficeLinkSet(environment);
+	}
+
+	/** True on a store that calls a head office (headoffice.url set): the "Head office link" page exists. */
+	public boolean isHeadOfficeLinked() {
+		return headOfficeLinked;
 	}
 
 	/** Installation type: node.type, STORE when absent. */
 	public NodeType getNodeType() {
 		return ownership.getNodeType();
+	}
+
+	/** True on a head office (node.type=HEAD_OFFICE): no cashier session, no cashier login. See docs/modules/head-office.md. */
+	public boolean isHeadOffice() {
+		return ownership.getNodeType() == NodeType.HEAD_OFFICE;
 	}
 
 	/** Owner of a data domain: ownership.&lt;domain&gt;, derived from the mode flags when absent. */

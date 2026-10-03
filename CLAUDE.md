@@ -41,8 +41,9 @@ exception/  utils/
 - **Controllers are named `<Entity>API.java`**, not `*Controller`.
 - **DB changes ship as a numbered SQL script** under `src/main/resources/db/<next version>/`
   and are reflected in the matching module doc. Never edit a released script.
-- **Role enforcement** happens in the router, the navigation, *and* the API
-  (`@PreAuthorize`). All three must agree: `ADMIN`, `RESPONSIBLE`, `POS_USER`.
+- **Role enforcement** is in the frontend only: the menu shows entries by CASL permission, and
+  the route guard checks only routes with `meta.resource` (today `/admin/roles`). The API does
+  not check roles: there is no `@PreAuthorize`, and the JWT carries no authorities.
 - **Money and VAT**: totals are computed VAT-inclusive first, then reduced backwards to
   the excluding-VAT amounts. See `docs/modules/discounts.md`.
 - New public endpoints must be added to `SecurityConfig` `permitAll()` explicitly.

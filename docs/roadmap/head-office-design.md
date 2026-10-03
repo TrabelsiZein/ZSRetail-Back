@@ -70,7 +70,7 @@ Everything that travels between a store and the head office is one of three move
 
 Rules:
 
-- **The store always starts the exchange.** The head office never calls a store, so stores need no public address. Only the head office must be reachable, over HTTPS.
+- **The store always starts the exchange.** The head office never calls a store, so stores need no public address. Only the head office must be reachable by the stores, over the LAN/VPN: HTTP is acceptable inside the tunnel, HTTPS if it is ever exposed outside it.
 - **Records are matched by business code, never by database id**: item code, family code, promotion code, card number, sales number.
 - **The cursor comes from the head office**, not from the store's clock. (Today `FranchiseSyncService` saves the store's own `now()`, which can miss changes.)
 - **No conflict is possible by construction**: owned data flows one way, documents are created in one place and only added, and shared balances change only at the head office.
@@ -173,7 +173,7 @@ The first two are live questions and fit the model. None is needed to start.
 
 | # | Decision | Needed before |
 |---|---|---|
-| D1 | Where the head office is hosted and how stores reach it (customer server, VPS, VPN) | Step 1 |
+| D1 | Decided 2026-10-02: the head office runs on the customer's server; stores reach it over LAN/VPN. HTTP is acceptable inside the tunnel; the head office URL is a setting | Decided |
 | D2 | How the ParaFendri head office gets the item list (import from BC with a reference location) | Step 3 |
 | D3 | May a store with head office promotions also create its own | Step 3 |
 | D4 | Is enrolling a member allowed offline (recommended: no in the first version) | Step 4 |

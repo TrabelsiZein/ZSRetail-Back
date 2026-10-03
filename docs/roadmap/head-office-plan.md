@@ -41,7 +41,7 @@ The exact prompts are written during the session, from the code as it is that da
 
 | Step | Result | Needed first by | Changes selling code? | Size | Status |
 |---|---|---|---|---|---|
-| 0 | Foundations: vocabulary and safety net, no behaviour change | Everyone | No | Small | In progress |
+| 0 | Foundations: vocabulary and safety net, no behaviour change | Everyone | No | Small | Merged into release/1.12.0 (backend 29c897d, frontend aa82ab3) |
 | 1 | Head office installation and stores list: a store shows as online | ParaFendri; Happyness from step 8 | No | Medium | Not started |
 | 2 | Sales copies up: tickets, returns, sessions of every store visible at head office | ParaFendri; Happyness from step 8 | No | Medium | Not started |
 | 3 | Promotions owned by head office | ParaFendri | No (engine untouched) | Medium | Not started |
@@ -101,7 +101,7 @@ Goal: every ticket, return and session closing of a store reaches the head offic
 | 2.2 | Payloads for ticket (header, lines, payments, loyalty fields), return and session closing, built from codes, not ids | L1 mapper |
 | 2.3 | Head office: consolidation tables and receiving endpoints, saved by store code + document number | L1 a repeated push creates one row |
 | 2.4 | Store: push job with retry; pending, sent and error counts on the status card | L1 retry after error |
-| 2.5 | Head office page "Sales by store": list, filters by store and dates, ticket detail | L2 |
+| 2.5 | Tickets history with store (new head office page): list, filters by store and dates, ticket detail | L2 |
 
 L2 scenarios: a sale appears at head office; head office stopped, tickets wait then catch up; an ERP store with a head office shows the NAV status and the head office status moving independently.
 

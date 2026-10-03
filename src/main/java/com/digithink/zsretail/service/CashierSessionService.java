@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.dto.CloseSessionRequestDTO;
 import com.digithink.zsretail.dto.SessionCloseTicketDTO;
 import com.digithink.zsretail.dto.SessionDashboardDTO;
@@ -84,9 +85,33 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	@Autowired
 	private BadgeService badgeService;
 
+	@Autowired
+	private ApplicationModeService applicationModeService;
+
+	static final String HEAD_OFFICE_REFUSAL = "This installation is a head office: cashier sessions cannot be opened.";
+
 	@Override
 	protected _BaseRepository<CashierSession, Long> getRepository() {
 		return cashierSessionRepository;
+	}
+
+	/**
+	 * A new session (openSession, or the generic POST /cashier-session) is refused on a head office.
+	 * Existing sessions are saved as before.
+	 */
+	@Override
+	public CashierSession save(CashierSession entity) throws Exception {
+		if (entity.getId() == null) {
+			refuseOnHeadOffice();
+		}
+		return super.save(entity);
+	}
+
+	/** A head office has no till (docs/modules/head-office.md). */
+	private void refuseOnHeadOffice() {
+		if (applicationModeService.isHeadOffice()) {
+			throw new IllegalStateException(HEAD_OFFICE_REFUSAL);
+		}
 	}
 
 	/**
@@ -102,6 +127,8 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	 * @throws Exception
 	 */
 	public CashierSession openSession(UserAccount cashier, Double openingCash) throws Exception {
+		refuseOnHeadOffice();
+
 		// Check if cashier already has an open session
 		Optional<CashierSession> existingSession = getCurrentOpenSession(cashier);
 		if (existingSession.isPresent()) {

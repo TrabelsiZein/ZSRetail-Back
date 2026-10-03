@@ -137,7 +137,10 @@ public class ZZDataInitializer {
 	 * on every startup — idempotent.
 	 */
 	private void ensureDefaultRoles() {
-		AppRole adminRole = ensureRole("ADMIN", "Administrateur", false, ADMIN_PERMISSIONS);
+		AppRole adminRole = ensureRole("ADMIN", "Administrateur", false, adminPermissions());
+		if (applicationModeService.isHeadOffice()) {
+			addMissingHeadOfficePermissions(adminRole);
+		}
 		AppRole responsibleRole = ensureRole("RESPONSIBLE", "Responsable", false, RESPONSIBLE_PERMISSIONS);
 		ensureRole("POS_USER", "Caissier", true, POS_PERMISSIONS);
 
@@ -171,7 +174,65 @@ public class ZZDataInitializer {
 		});
 	}
 
+	/**
+	 * Head office: gives the ADMIN role every head office permission it lacks (a page added by a later step, or a
+	 * database created before), so they are never ticked by hand. Removes nothing, saves only when one is missing.
+	 */
+	private void addMissingHeadOfficePermissions(AppRole adminRole) {
+		if (adminRole.getPermissions().containsAll(HEAD_OFFICE_ADMIN_PERMISSIONS)) {
+			return;
+		}
+		Set<String> permissions = new HashSet<>(adminRole.getPermissions());
+		permissions.addAll(HEAD_OFFICE_ADMIN_PERMISSIONS);
+		adminRole.setPermissions(permissions);
+		adminRole.setUpdatedBy("System");
+		appRoleRepository.save(adminRole);
+	}
+
+	/**
+	 * Default ADMIN permissions; a head office adds its pages, a store linked to a head office adds the "Head office
+	 * link" page (docs/modules/head-office.md). Used when the role is created; afterwards only a head office tops up
+	 * its ADMIN role (addMissingHeadOfficePermissions), other roles and store roles are never changed.
+	 */
+	private Set<String> adminPermissions() {
+		Set<String> extra = applicationModeService.isHeadOffice() ? HEAD_OFFICE_ADMIN_PERMISSIONS
+				: applicationModeService.isHeadOfficeLinked() ? HEAD_OFFICE_LINK_ADMIN_PERMISSIONS : null;
+		if (extra == null) {
+			return ADMIN_PERMISSIONS;
+		}
+		Set<String> permissions = new HashSet<>(ADMIN_PERMISSIONS);
+		permissions.addAll(extra);
+		return permissions;
+	}
+
 	// ── Default permission sets ────────────────────────────────────────────────
+
+	/**
+	 * Head office only: one permission per head office route, "read:" + the route's meta.resource in ZSRetail-Front
+	 * src/router/headoffice-routes.js (the two lists must stay equal). Never seeded on a store.
+	 */
+	static final Set<String> HEAD_OFFICE_ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList(
+			"read:admin-headoffice-home",
+			"read:admin-headoffice-stores",
+			"read:admin-headoffice-items",
+			"read:admin-headoffice-item-families",
+			"read:admin-headoffice-item-subfamilies",
+			"read:admin-headoffice-item-barcodes",
+			"read:admin-headoffice-promotions",
+			"read:admin-headoffice-customers",
+			"read:admin-headoffice-loyalty-programs",
+			"read:admin-headoffice-loyalty-members",
+			"read:admin-headoffice-loyalty-member-functions",
+			"read:admin-headoffice-loyalty-transactions",
+			"read:admin-headoffice-company-information",
+			"read:admin-headoffice-general-setup",
+			"read:admin-headoffice-users",
+			"read:admin-headoffice-roles",
+			"read:admin-headoffice-data-import"));
+
+	/** Store with headoffice.url only: the "Head office link" page (task 1.5). */
+	static final Set<String> HEAD_OFFICE_LINK_ADMIN_PERMISSIONS = new HashSet<>(
+			Arrays.asList("read:admin-holink-status"));
 
 	private static final Set<String> ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:home",
 			"read:admin-users", "write:admin-users", "delete:admin-users", "read:admin-sessions",
@@ -235,6 +296,11 @@ public class ZZDataInitializer {
 		admin.setCreatedBy("System");
 		admin.setUpdatedBy("System");
 		userRepository.save(admin);
+
+		// A head office has no till: only the admin account (docs/modules/head-office.md)
+		if (applicationModeService.isHeadOffice()) {
+			return;
+		}
 
 		// Responsible
 		UserAccount responsible = new UserAccount();

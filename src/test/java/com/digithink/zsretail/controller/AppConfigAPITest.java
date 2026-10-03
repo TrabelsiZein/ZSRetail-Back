@@ -29,7 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 /**
  * Head office plan, task 0.5: GET /config keeps its 14 existing fields (names, order, values) and adds
  * nodeType, ownership and salesUpstreams from ApplicationModeService, for each of today's profiles
- * (design table 5.1). Plain JUnit with in-memory stubs (no Spring context).
+ * (design table 5.1). Task 1.1 adds the headoffice-dev row. Task 1.5 adds headOfficeLinked, last. Plain JUnit with in-memory stubs (no Spring context).
  */
 class AppConfigAPITest {
 
@@ -39,7 +39,9 @@ class AppConfigAPITest {
 			"licenseDaysUntilExpiry", "posShowImages", "posShowStock", "tableManagementEnabled",
 			"tableManagementTableCount", "appVersion", "tombolaEnabled");
 
-	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams");
+	/** Keys added by the head office plan: tasks 0.5 (first three) and 1.5 (headOfficeLinked), always last. */
+	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
+			"headOfficeLinked");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";
@@ -78,10 +80,26 @@ class AppConfigAPITest {
 		return config(true, true, false, false); // application-franchise-admin
 	}
 
+	private static AppConfigDTO headOffice() throws Exception {
+		// application-headoffice-dev: standalone flags plus node.type
+		return config(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE"), true, false, false, true);
+	}
+
+	private static AppConfigDTO linkedStore() throws Exception {
+		// application-standalone-dev with the two headoffice.* lines uncommented (task 1.4)
+		return config(new MockEnvironment().withProperty("headoffice.url", "http://localhost:888/zsretail/api")
+				.withProperty("headoffice.api-key", "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde"), true, false, false, true);
+	}
+
 	private static AppConfigDTO config(boolean standalone, boolean franchiseAdmin, boolean franchiseCustomer,
 			boolean enableSalesPriceGroup) throws Exception {
+		return config(new MockEnvironment(), standalone, franchiseAdmin, franchiseCustomer, enableSalesPriceGroup);
+	}
+
+	private static AppConfigDTO config(MockEnvironment env, boolean standalone, boolean franchiseAdmin,
+			boolean franchiseCustomer, boolean enableSalesPriceGroup) throws Exception {
 		ApplicationModeService mode = new ApplicationModeService();
-		inject(mode, ApplicationModeService.class, "environment", new MockEnvironment());
+		inject(mode, ApplicationModeService.class, "environment", env);
 		inject(mode, ApplicationModeService.class, "standalone", standalone);
 		inject(mode, ApplicationModeService.class, "franchiseAdmin", franchiseAdmin);
 		inject(mode, ApplicationModeService.class, "franchiseCustomer", franchiseCustomer);
@@ -189,12 +207,36 @@ class AppConfigAPITest {
 	}
 
 	@Test
-	@DisplayName("JSON: the 14 old keys keep their names and order, the 3 new keys come last")
+	@DisplayName("Head office (headoffice-dev): old fields unchanged; head office, everything local, sales go nowhere")
+	void headOfficeProfile() throws Exception {
+		AppConfigDTO c = headOffice();
+		assertOldFields(c, true, true, false, false);
+		assertNewFields(c, "HEAD_OFFICE", L, L, L, L, L);
+	}
+
+	@Test
+	@DisplayName("headOfficeLinked: true only on a store with headoffice.url; false on the 4 profiles and the head office")
+	void headOfficeLinked() throws Exception {
+		AppConfigDTO linked = linkedStore();
+		assertTrue(linked.isHeadOfficeLinked());
+		assertOldFields(linked, true, true, false, false);
+		assertNewFields(linked, "STORE", L, L, L, L, L);
+		for (AppConfigDTO c : Arrays.asList(standalone(), dynamics(), franchiseCustomer(), franchiseAdmin(),
+				headOffice())) {
+			assertFalse(c.isHeadOfficeLinked());
+		}
+		assertFalse(config(new MockEnvironment().withProperty("headoffice.url", " "), true, false, false, true)
+				.isHeadOfficeLinked(), "a blank URL is no link");
+	}
+
+	@Test
+	@DisplayName("JSON: the 14 old keys keep their names and order, the 4 new keys come last")
 	void jsonKeys() throws Exception {
 		ObjectMapper mapper = new ObjectMapper();
 		List<String> expected = new ArrayList<>(OLD_KEYS);
 		expected.addAll(NEW_KEYS);
-		for (AppConfigDTO c : Arrays.asList(standalone(), dynamics(), franchiseCustomer(), franchiseAdmin())) {
+		for (AppConfigDTO c : Arrays.asList(standalone(), dynamics(), franchiseCustomer(), franchiseAdmin(),
+				headOffice(), linkedStore())) {
 			JsonNode json = mapper.valueToTree(c);
 			List<String> keys = new ArrayList<>();
 			json.fieldNames().forEachRemaining(keys::add);
@@ -207,6 +249,8 @@ class AppConfigAPITest {
 				erp.get("ownership").toString());
 		assertEquals("[\"ERP\"]", erp.get("salesUpstreams").toString());
 		assertEquals("[]", mapper.valueToTree(standalone()).get("salesUpstreams").toString());
+		assertEquals("false", erp.get("headOfficeLinked").toString());
+		assertEquals("true", mapper.valueToTree(linkedStore()).get("headOfficeLinked").toString());
 	}
 
 	private static void inject(Object target, Class<?> declaringClass, String fieldName, Object value) throws Exception {

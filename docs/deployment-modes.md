@@ -36,10 +36,11 @@
 **Core POS flows in Standalone:**
 - Sales, payment, returns, sessions, and printing work without ERP. Ticket/return export and sync jobs are disabled; SessionExportService still creates PaymentHeader/PaymentLine records locally (export to ERP is no-op with NoOpErpConnector). No code path blocks sale/payment/return when standalone.
 
-**Ownership model (not used yet):**
-- Head office plan tasks 0.4 and 0.5 (`docs/roadmap/head-office-design.md` sections 2.1, 2.2, 5.1). Nothing in the application acts on these values yet: GET /config and the frontend store only expose them, and existing mode checks are unchanged.
+**Ownership model:**
+- **Head office installation** (`node.type=HEAD_OFFICE`, profile `headoffice-dev`, task 1.1): no cashier session, no cashier login, no selling pages. See `docs/modules/head-office.md`.
+- Head office plan tasks 0.4 and 0.5 (`docs/roadmap/head-office-design.md` sections 2.1, 2.2, 5.1). Apart from the node type (head office guards above), nothing in the application acts on these values yet: GET /config and the frontend store only expose them, and existing mode checks are unchanged.
 - **ApplicationModeService** also exposes `getNodeType()`, `ownerOf(DataDomain)` and `salesUpstreams()` (empty = sales go nowhere), resolved once at startup by `config/NodeOwnership.java`. Enums in `model/enumeration`: `NodeType`, `DataDomain`, `DataOwner`, `SalesUpstream`.
-- Optional keys, not present in any `application*.properties` file. Values are trimmed and case-insensitive.
+- Optional keys. Only `node.type` is set in a profile file today (`application-headoffice-dev.properties`). Values are trimmed and case-insensitive.
 
 | Key | Values | When absent |
 |---|---|---|
@@ -60,10 +61,20 @@
 | `application.standalone=true` | STORE | LOCAL | LOCAL | LOCAL | LOCAL | LOCAL | none |
 | otherwise (ERP) | STORE | ERP | ERP | LOCAL | LOCAL | ERP | ERP |
 
-- An explicit key overrides only its own value. An unknown value, or `ERP` for promotions or loyalty, stops the startup with `Invalid value '<value>' for property <key>: allowed values are [...]`. Checks across keys (e.g. a head office that sells) come with step 1.
+- An explicit key overrides only its own value. An unknown value, or `ERP` for promotions or loyalty, stops the startup with `Invalid value '<value>' for property <key>: allowed values are [...]`. Checks across keys for a head office (franchise flags, owner `HEAD_OFFICE`, `sales.upstream`): see `docs/modules/head-office.md`.
+- **Head office link** (task 1.4): a store that calls a head office. Three optional keys; without `headoffice.url` none of the link beans exists and every profile behaves as before. The two dev profiles (`standalone-dev`, `dynamics-dev`) carry the first two lines commented out. Details, startup checks and the "Connect a store" procedure: `docs/modules/head-office.md`, "Head office link".
+
+| Key | Value | When absent |
+|---|---|---|
+| `headoffice.url` | Head office base URL including the context path, e.g. `http://localhost:888/zsretail/api`; a trailing slash is tolerated | no link (blank = absent) |
+| `headoffice.api-key` | The store's key, shown once on the head office Stores page | required when the URL is set |
+| `headoffice.heartbeat-interval-seconds` | Whole number, at least 1 | `60` |
+
+- **Stores page threshold** (task 1.5), head office only: `headoffice.offline-after-seconds`, whole number, at least 1, default `180`. A store whose last heartbeat is older is shown OFFLINE (exactly at the threshold it is still ONLINE). A wrong value stops the head office at startup. See `docs/modules/head-office.md`, "Status".
 - **GET /config** (task 0.5) returns three more fields after the existing ones, enums as their names:
   - `nodeType`: `"STORE"` or `"HEAD_OFFICE"`.
   - `ownership`: every domain to its owner, in `DataDomain` order. ERP profile: `{"CATALOGUE":"ERP","CUSTOMERS":"ERP","PROMOTIONS":"LOCAL","LOYALTY":"LOCAL","SUPPLY":"ERP"}`.
   - `salesUpstreams`: array of `"ERP"`, `"HEAD_OFFICE"`; `[]` when sales go nowhere.
+  - `headOfficeLinked` (task 1.5, last field): `true` when `headoffice.url` is set; the frontend shows the "Head office link" page only then (`appConfig/isHeadOfficeLinked`, default `false`).
 - **Frontend store** (`store/app-config/index.js`, task 0.5): state `nodeType` (default `'STORE'`), `ownership` (default `{}`), `salesUpstreams` (default `[]`). Getters `nodeType`, `ownerOf(domain)` (owner name, `null` when unknown) and `salesUpstreams`. Defaults when talking to an older backend, or when the call fails: a missing or unknown `nodeType` gives `'STORE'`, a missing or non-object `ownership` gives `{}`, a missing or non-array `salesUpstreams` gives `[]`. No component, route or menu reads them yet.
 - Tests: `ApplicationModeOwnershipTest` (L1, task 0.4); `AppConfigAPITest` (L1, task 0.5: for the four profiles, the old /config fields keep their names, order and values, and the new fields match the table above).

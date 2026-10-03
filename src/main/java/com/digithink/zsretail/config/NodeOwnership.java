@@ -28,12 +28,23 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  *
  * The first matching row wins, in this order. An explicit value that is unknown, or an owner the domain
  * does not allow, throws {@link IllegalStateException} naming the key, so the application does not start.
- * Not used by the application yet.
+ *
+ * Head office ({@code node.type=HEAD_OFFICE}, docs/modules/head-office.md): it never sells, so sales go nowhere
+ * when {@code sales.upstream} is absent. The startup also fails on a head office with franchise.admin or
+ * franchise.customer set to true, with an explicit owner HEAD_OFFICE, or with a non-empty sales.upstream.
+ *
+ * Head office link (task 1.4): when {@code headoffice.url} is set, the startup fails on a head office, with a blank
+ * {@code headoffice.api-key}, or with a {@code headoffice.heartbeat-interval-seconds} below 1. Stores page (task 1.5):
+ * on a head office, the startup fails with a {@code headoffice.offline-after-seconds} below 1.
  */
 public final class NodeOwnership {
 
 	static final String NODE_TYPE_KEY = "node.type";
 	static final String SALES_UPSTREAM_KEY = "sales.upstream";
+	static final String HEADOFFICE_URL_KEY = "headoffice.url";
+	static final String HEADOFFICE_API_KEY_KEY = "headoffice.api-key";
+	static final String HEARTBEAT_INTERVAL_KEY = "headoffice.heartbeat-interval-seconds";
+	static final String OFFLINE_AFTER_KEY = "headoffice.offline-after-seconds";
 
 	private final NodeType nodeType;
 	private final Map<DataDomain, DataOwner> owners;
@@ -45,8 +56,39 @@ public final class NodeOwnership {
 		this.salesUpstreams = Collections.unmodifiableSet(salesUpstreams);
 	}
 
+	/**
+	 * node.type, trimmed and case-insensitive; STORE when absent. Throws on an unknown value. Also used by
+	 * {@link OnHeadOfficeCondition}, so the head office beans and the startup read the key the same way.
+	 */
+	public static NodeType nodeTypeOf(PropertyResolver env) {
+		return env.containsProperty(NODE_TYPE_KEY)
+				? parse(NodeType.class, NODE_TYPE_KEY, env.getProperty(NODE_TYPE_KEY))
+				: NodeType.STORE;
+	}
+
+	/**
+	 * True when headoffice.url is present and not blank: this store calls a head office (task 1.4). Also used by
+	 * {@link OnHeadOfficeLinkCondition}, so the head office link beans and the startup read the key the same way.
+	 */
+	public static boolean isHeadOfficeLinkSet(PropertyResolver env) {
+		String url = env.getProperty(HEADOFFICE_URL_KEY);
+		return url != null && !url.trim().isEmpty();
+	}
+
 	public static NodeOwnership resolve(PropertyResolver env, boolean standalone, boolean franchiseAdmin,
 			boolean franchiseCustomer) {
+		NodeType nodeType = nodeTypeOf(env);
+		boolean headOffice = nodeType == NodeType.HEAD_OFFICE;
+		if (headOffice && (franchiseAdmin || franchiseCustomer)) {
+			throw new IllegalStateException("Invalid combination: " + NODE_TYPE_KEY + "=HEAD_OFFICE with "
+					+ (franchiseAdmin ? "franchise.admin=true" : "franchise.customer=true")
+					+ ". A head office uses neither franchise profile.");
+		}
+		checkHeadOfficeLink(env, headOffice);
+		if (headOffice) {
+			checkWholeSeconds(env, OFFLINE_AFTER_KEY);
+		}
+
 		Map<DataDomain, DataOwner> derivedOwners;
 		Set<SalesUpstream> derivedUpstreams;
 		if (franchiseCustomer) {
@@ -61,10 +103,9 @@ public final class NodeOwnership {
 			derivedOwners = owners(DataOwner.ERP, DataOwner.ERP, DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.ERP);
 			derivedUpstreams = EnumSet.of(SalesUpstream.ERP);
 		}
-
-		NodeType nodeType = env.containsProperty(NODE_TYPE_KEY)
-				? parse(NodeType.class, NODE_TYPE_KEY, env.getProperty(NODE_TYPE_KEY))
-				: NodeType.STORE;
+		if (headOffice) {
+			derivedUpstreams = EnumSet.noneOf(SalesUpstream.class); // a head office never sells
+		}
 
 		Map<DataDomain, DataOwner> owners = new EnumMap<>(DataDomain.class);
 		for (DataDomain domain : DataDomain.values()) {
@@ -75,6 +116,10 @@ public final class NodeOwnership {
 				if (!domain.allows(owner)) {
 					throw invalid(key, raw, domain.getAllowedOwners());
 				}
+				if (headOffice && owner == DataOwner.HEAD_OFFICE) {
+					throw new IllegalStateException("Invalid value '" + raw + "' for property " + key + ": on a head office ("
+							+ NODE_TYPE_KEY + "=HEAD_OFFICE) the owner cannot be HEAD_OFFICE");
+				}
 				owners.put(domain, owner);
 			} else {
 				owners.put(domain, derivedOwners.get(domain));
@@ -84,6 +129,11 @@ public final class NodeOwnership {
 		Set<SalesUpstream> upstreams = env.containsProperty(SALES_UPSTREAM_KEY)
 				? parseUpstreams(env.getProperty(SALES_UPSTREAM_KEY))
 				: derivedUpstreams;
+		if (headOffice && !upstreams.isEmpty()) {
+			throw new IllegalStateException("Invalid value '" + env.getProperty(SALES_UPSTREAM_KEY) + "' for property "
+					+ SALES_UPSTREAM_KEY + ": a head office (" + NODE_TYPE_KEY
+					+ "=HEAD_OFFICE) never sells; leave it empty or absent");
+		}
 
 		return new NodeOwnership(nodeType, owners, upstreams);
 	}
@@ -99,6 +149,42 @@ public final class NodeOwnership {
 	/** Unmodifiable; empty means sales go nowhere. */
 	public Set<SalesUpstream> getSalesUpstreams() {
 		return salesUpstreams;
+	}
+
+	/** Checked only when headoffice.url is set; otherwise the other headoffice.* keys are ignored. */
+	private static void checkHeadOfficeLink(PropertyResolver env, boolean headOffice) {
+		if (!isHeadOfficeLinkSet(env)) {
+			return;
+		}
+		if (headOffice) {
+			throw new IllegalStateException("Invalid combination: " + NODE_TYPE_KEY + "=HEAD_OFFICE with "
+					+ HEADOFFICE_URL_KEY + " set. A head office does not call a head office; remove " + HEADOFFICE_URL_KEY
+					+ ".");
+		}
+		String key = env.getProperty(HEADOFFICE_API_KEY_KEY);
+		if (key == null || key.trim().isEmpty()) {
+			throw new IllegalStateException("Missing value for property " + HEADOFFICE_API_KEY_KEY + ": required when "
+					+ HEADOFFICE_URL_KEY + " is set. Paste the key shown once on the head office Stores page.");
+		}
+		checkWholeSeconds(env, HEARTBEAT_INTERVAL_KEY);
+	}
+
+	/** When present, the key must hold a whole number of seconds, at least 1. */
+	private static void checkWholeSeconds(PropertyResolver env, String key) {
+		if (!env.containsProperty(key)) {
+			return;
+		}
+		String raw = env.getProperty(key);
+		long seconds;
+		try {
+			seconds = Long.parseLong(raw == null ? "" : raw.trim());
+		} catch (NumberFormatException e) {
+			seconds = 0;
+		}
+		if (seconds < 1) {
+			throw new IllegalStateException(
+					"Invalid value '" + raw + "' for property " + key + ": a whole number of seconds, at least 1");
+		}
 	}
 
 	/** Owners in DataDomain order: catalogue, customers, promotions, loyalty, supply. */

@@ -80,7 +80,8 @@ public class AppConfigAPI {
 				tombolaEnabled,
 				applicationModeService.getNodeType().name(),
 				ownership(),
-				salesUpstreams()
+				salesUpstreams(),
+				applicationModeService.isHeadOfficeLinked()
 		));
 	}
 

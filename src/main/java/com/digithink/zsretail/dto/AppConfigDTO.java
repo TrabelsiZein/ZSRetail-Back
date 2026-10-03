@@ -119,4 +119,10 @@ public class AppConfigDTO {
 	 * From ApplicationModeService.salesUpstreams(). Not used by the frontend yet.
 	 */
 	private List<String> salesUpstreams;
+
+	/**
+	 * True on a store that calls a head office (headoffice.url set, task 1.4). The frontend shows the
+	 * "Head office link" page only then. From ApplicationModeService.isHeadOfficeLinked().
+	 */
+	private boolean headOfficeLinked;
 }
