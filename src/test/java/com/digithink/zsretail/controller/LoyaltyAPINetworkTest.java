@@ -113,6 +113,34 @@ class LoyaltyAPINetworkTest {
 		assertEquals(50, db.card("LYL-000001").get().getLoyaltyPoints());
 	}
 
+	@Test
+	@DisplayName("Enrol 409 with loyalty owned by the head office: the message plus existingCardNumber and existingCardActive")
+	void enrolConflictFields() {
+		InMemoryLoyalty.inject(api, "network", network(null));
+		ResponseEntity<?> answer = api.createMember(request("29954290"));
+		assertEquals(409, answer.getStatusCodeValue());
+		assertEquals(Map.of("error", "Ce numéro est déjà utilisé par la carte LYL-STORE-B-000001 (SAMI BEN), carte désactivée",
+				"existingCardNumber", "LYL-STORE-B-000001", "existingCardActive", false), answer.getBody());
+	}
+
+	@Test
+	@DisplayName("Enrol 409 with loyalty LOCAL: exactly {error} as before")
+	void enrolConflictLocal() {
+		db.member("LYL-000090", "ALI", "KHARAT", "22984935", true, null);
+		ResponseEntity<?> answer = api.createMember(request("22984935"));
+		assertEquals(409, answer.getStatusCodeValue());
+		assertEquals(Map.of("error", "Ce numéro est déjà utilisé par la carte LYL-000090 (ALI KHARAT)"), answer.getBody());
+	}
+
+	private CreateLoyaltyMemberRequestDTO request(String phone) {
+		CreateLoyaltyMemberRequestDTO request = new CreateLoyaltyMemberRequestDTO();
+		request.setFirstName("SAMI");
+		request.setLastName("BEN");
+		request.setPhone(phone);
+		request.setMemberFunctionId(client.getId());
+		return request;
+	}
+
 	private static void assertRefused(ResponseEntity<?> answer, String message) {
 		assertEquals(409, answer.getStatusCodeValue());
 		assertEquals(Map.of("error", message), answer.getBody());
@@ -122,6 +150,11 @@ class LoyaltyAPINetworkTest {
 	private static StoreLoyaltyNetwork network(StoreLoyaltyNetwork.NetworkException refusal) {
 		return new StoreLoyaltyNetwork(null, null, null, null, null, null, null, null,
 				org.springframework.transaction.support.TransactionOperations.withoutTransaction()) {
+			@Override
+			public LoyaltyMemberDTO enrol(CreateLoyaltyMemberRequestDTO request) {
+				throw new StoreLoyaltyNetwork.PhoneTakenException("LYL-STORE-B-000001", "SAMI", "BEN", false);
+			}
+
 			@Override
 			public LoyaltyMemberDTO edit(Long id, CreateLoyaltyMemberRequestDTO request) {
 				throw refusal;

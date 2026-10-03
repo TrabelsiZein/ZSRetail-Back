@@ -118,6 +118,7 @@ With `ownership.loyalty=HEAD_OFFICE` (store with `headoffice.url`), one member r
 - The balance shown at the store is the head office balance plus the store's movements not applied there yet: it never goes backwards because of the order of sync.
 - The members and the program made at the store before the switch are switched off at the first pull (kept); their points are not moved to the network (importing an existing member list is a later tool).
 - `GET /loyalty/network` (only then): `{ownedByHeadOffice, linkState, canEditMembers, canAdjustPoints, programEditable: false, pointsAdjustable, redeemRequiresOnline, freshWindowSeconds}` for the pages.
+- Pages (step 4 frontend): members page shared with the head office (edit and deactivate with the right), program read-only, the POS offers the existing card on a duplicate phone; see `docs/modules/head-office.md`, "Step 4 pages (frontend)". The enrol 409 gives `existingCardNumber` and `existingCardActive` beside the message when loyalty is owned by the head office.
 
 ### Key Design Decisions
 - **Loyalty failures refuse the sale with their reason**: `redeemPoints` / `earnPoints` are `@Transactional` and join the sale's transaction, so any failure there rolls the whole sale back. `SalesHeaderService.processLoyaltyPoints` therefore does not catch: the real reason (e.g. "Insufficient points", "Minimum redemption is 600 points", "Redemption exceeds maximum allowed") reaches the POS as HTTP 400/409. Before 2026-09 it caught the exception, and the cashier got Spring's generic `UnexpectedRollbackException` instead.

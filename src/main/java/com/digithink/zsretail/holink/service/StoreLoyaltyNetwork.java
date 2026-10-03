@@ -129,15 +129,48 @@ public class StoreLoyaltyNetwork {
 					log.warn("Loyalty: member {} of the network could not be saved here ({})", holder.getCardNumber(),
 							SalesCopyFinder.cause(e));
 				}
-				throw new IllegalStateException(LoyaltyService.phoneTakenMessage(holder.getCardNumber(),
-						holder.getFirstName(), holder.getLastName(), holder.getActive()));
+				throw new PhoneTakenException(holder.getCardNumber(), holder.getFirstName(), holder.getLastName(),
+						holder.getActive());
 			}
 			if (!answer.isOk()) {
 				log.info("Loyalty: phone not checked at the head office, checked here only ({})",
 						answer.isAnswered() ? "HTTP " + answer.getStatus() : answer.getState() + ": " + answer.getMessage());
 			}
+			// The check of LoyaltyService, here first so the 409 names the card in its fields too
+			members.findByPhone(phone).stream().filter(m -> m.getOrigin() == RecordOrigin.HEAD_OFFICE)
+					.min(LoyaltyService.PHONE_HOLDER_ORDER).ifPresent(m -> {
+						throw new PhoneTakenException(m.getCardNumber(), m.getFirstName(), m.getLastName(),
+								m.getActive());
+					});
 		}
 		return loyaltyService.createMember(request);
+	}
+
+	/**
+	 * Enrol refused: the phone already has a card in the network (head office answer, or a member of the register held
+	 * here). Today's 409 message, plus the card for the caller: LoyaltyAPI adds existingCardNumber and
+	 * existingCardActive to the body. Thrown only when loyalty is owned by the head office.
+	 */
+	public static class PhoneTakenException extends IllegalStateException {
+
+		private static final long serialVersionUID = 1L;
+
+		private final String cardNumber;
+		private final boolean cardActive;
+
+		public PhoneTakenException(String cardNumber, String firstName, String lastName, Boolean active) {
+			super(LoyaltyService.phoneTakenMessage(cardNumber, firstName, lastName, active));
+			this.cardNumber = cardNumber;
+			this.cardActive = Boolean.TRUE.equals(active);
+		}
+
+		public String getCardNumber() {
+			return cardNumber;
+		}
+
+		public boolean isCardActive() {
+			return cardActive;
+		}
 	}
 
 	// ─── Changes through the head office ─────────────────────────

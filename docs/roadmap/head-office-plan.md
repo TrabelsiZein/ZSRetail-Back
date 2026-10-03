@@ -240,7 +240,7 @@ Goal: one member register for the network; points earned anywhere are known ever
 | 4.1 | Program and members as copies down (keys: program code, card number) | L1 |
 | 4.2 | Enrol at the store, never blocked: when the head office answers within 3 s the phone is checked across the network first (a known phone is refused naming its card); otherwise checked at the store. The store creates the member with its own card number (`LYL-<store code>-000001`) and sends it up later; a phone found at the head office on upload is merged into the existing card (alias, points moved). Local loyalty keeps today's path | L1 `LoyaltyMemberPhoneTest` unchanged and green; enrol online, known phone, offline; merge with points moved |
 | 4.3 | Loyalty movements travel up with the ticket; head office applies them to its ledger and balances | L1 applying twice changes nothing |
-| 4.4 | Store pages: program and members read-only except enrol; clear message when head office is unreachable | L2 |
+| 4.4 | Store pages: members shared with the head office (edit and deactivate with the right, clear messages for 403, 409, 503), program read-only, POS offers the existing card on a duplicate phone; link page block of what is sent; Stores page rights. Done: frontend adace27, 934e417, ece22dd (described in `docs/modules/head-office.md`, "Step 4 pages (frontend)") | L2 |
 
 L2 scenarios (two stores and a head office): enrol in A, visible in B; earn in A, balance in B after sync; head office stopped, enrol in A still works (checked in A only) and is merged later when the phone was known; earning still works.
 

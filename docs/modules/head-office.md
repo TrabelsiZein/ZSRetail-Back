@@ -140,6 +140,20 @@ Task 3.0: `.eslintrc.js` has `no-console` off in every mode (decided 2026-10-03:
 
 **Checks (2026-10-03)**: lint of the changed files in production mode and `npm run build`, both clean. Screens through Chrome, both dev backends with the step 3 code, nothing saved: head office Stores page (columns, details), promotions list and form (Stores column; Stores section; a store owning its promotions not choosable, unknown choosable, the empty list warning); store link page (a store with local promotions: no received block, no `COPIES_DOWN` job, as before); store promotions page as before; with `ownership.PROMOTIONS` set to `HEAD_OFFICE` in memory: banner, no Add, view buttons, a row opens the form read-only; the "Head office" badge; ERP route sent home in standalone mode; with ERP in memory the ERP menu group and the reference location page (its API answers 404 on `headoffice-dev`, which has no ERP). Not seen: the received block with data and the ERP pages against an ERP head office (closing prompt). After the restart with the 3.4 code a head office ADMIN must log out and in to get the three ERP permissions (abilities are built at login).
 
+### Step 4 pages (frontend)
+Frontend commits adace27 (store loyalty pages), 934e417 (link page), ece22dd (Stores page), on `feature/ho-step-4`.
+
+**Store loyalty pages** (only when `/config` gives `ownership.LOYALTY = HEAD_OFFICE`; a store with local loyalty, or without a head office, renders as before). Shared helper `src/views/admin/holink/loyalty-network.js` (reads `GET /loyalty/network`).
+- Members (`LoyaltyMembersManagement.vue`): a banner (members shared with the head office); edit and deactivate only with `canEditMembers`; adjust points hidden (step 4; step 5 brings it back with `canAdjustPoints`); the 403, 409 and 503 answers shown in the member card with a translated title. A 409 on enrol reloads the list (the network member was saved here).
+- Program (`LoyaltyProgramManagement.vue`): read-only with a banner, no create, no actions.
+- POS loyalty modal (`ItemSelection.vue`): a duplicate phone naming an active card offers that member (`GET /loyalty/member/by-card/{card}`); an inactive card is only named. From the step 5 backend the 409 also gives `existingCardNumber` and `existingCardActive`, so the card no longer needs to be read from the message.
+
+**Head office link page**: the job `LOYALTY_PUSH` labelled "Loyalty to the head office"; a new block "Sent to the head office: loyalty" (`HeadOfficeLinkLoyalty.vue`), only when `GET /admin/holink/status` gives `loyalty`: the store's rights, the `PENDING` / `SENT` / `ERROR` counts of members and movements (a click picks the list), and `GET /admin/holink/loyalty/{members|movements}` with a status filter, errors first, 20 per page, refreshed with the rest of the page. The received block shows the counts of every domain received (promotions, loyalty); `LOYALTY` labelled.
+
+**Stores page** (`StoresManagement.vue`): two switches "Can edit members" and "Can adjust points" in the store form (sent with `POST` and `PUT`) and in the details (saved at once with a `PUT` of that field; the switch goes back when the save fails). The code `HO` is refused in the form with a clear message; the backend's 400 stays the guard.
+
+Labels in `en`, `fr`, `ar`. The step 5 pages (fresh balance at the till, spending setting, store adjustments, overspend report) come with the step 5 frontend session.
+
 ### Add a page to the head office
 1. **Shared page** (the same data as on the store): add a route to `src/router/headoffice-routes.js` with path `/headoffice/<...>`, name and `meta.resource` `admin-headoffice-<page>`, `meta.action: 'read'`, `meta.headOffice: true`, `meta.requiresAuth: true`, the store page's component, and `meta.twinOf` set to the store route name. Do not modify the store page, its store route or the store menu.
    **Head office only page** (different data): put the component under `src/views/admin/headoffice/` and add the route the same way, without `twinOf`.
@@ -682,7 +696,7 @@ Member edit from a store: a blank `memberFunctionCode` keeps the member's own fu
 
 **Enrol** (`POST /loyalty/member`, till and admin page; `LoyaltyAPI` calls `StoreLoyaltyNetwork.enrol`):
 1. When the phone has 8 digits, `GET /ho/loyalty/members/by-phone` with the live timeouts (connect 2 s, read 3 s, `HeadOfficeClient.findLoyaltyMemberByPhone`, its own `RestTemplate`; the request thread waits for it).
-2. Found: that member is saved here (origin `HEAD_OFFICE`, so the cashier finds it at once) and the answer is today's 409 `Ce numéro est déjà utilisé par la carte LYL-HO-000001 (SAMI BEN)` (with `, carte désactivée` for an inactive card). No card is created.
+2. Found: that member is saved here (origin `HEAD_OFFICE`, so the cashier finds it at once) and the answer is today's 409 `Ce numéro est déjà utilisé par la carte LYL-HO-000001 (SAMI BEN)` (with `, carte désactivée` for an inactive card). No card is created. The 409 body also names the card: `{"error": "...", "existingCardNumber": "LYL-HO-000001", "existingCardActive": true}` (`StoreLoyaltyNetwork.PhoneTakenException`); the same body when the phone belongs to a member of the register held here (checked before `LoyaltyService`). With loyalty `LOCAL` the 409 body stays `{"error": "..."}`.
 3. Not found, or no answer (unreachable, refused, timeout; an INFO line `Loyalty: phone not checked at the head office, checked here only (...)`): `LoyaltyService.createMember` as today, with the hooks above. Enrolling never fails because of the head office.
 4. The `LOYALTY_PUSH` job sends the member up. A merge answer (the phone had another card in the network, enrolled elsewhere while this store was offline or before its pull) deactivates the card here and saves the surviving member; this card's movements go to it at the head office.
 

@@ -99,6 +99,10 @@ public class LoyaltyAPI {
 			}
 			LoyaltyMemberDTO created = network != null ? network.enrol(request) : loyaltyService.createMember(request);
 			return ResponseEntity.ok(created);
+		} catch (StoreLoyaltyNetwork.PhoneTakenException e) {
+			// Loyalty owned by the head office only: the card in fields beside today's message
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage(),
+					"existingCardNumber", e.getCardNumber(), "existingCardActive", e.isCardActive()));
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
 		} catch (IllegalStateException e) {
