@@ -40,7 +40,8 @@ public class JpaSalesDocumentSource implements SalesDocumentSource {
 	static {
 		CHANGED.put(SalesCopyType.TICKET, changedQuery("SalesHeader", "salesNumber", "salesDate"));
 		CHANGED.put(SalesCopyType.RETURN, changedQuery("ReturnHeader", "returnNumber", "returnDate"));
-		CHANGED.put(SalesCopyType.SESSION, changedQuery("CashierSession", "sessionNumber", "closedAt"));
+		// Opening date, never empty: a session reopened after it was sent (closing date cleared) is still read
+		CHANGED.put(SalesCopyType.SESSION, changedQuery("CashierSession", "sessionNumber", "openedAt"));
 	}
 
 	@PersistenceContext

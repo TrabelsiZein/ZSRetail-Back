@@ -48,7 +48,7 @@ public class SalesCopy extends _BaseEntity {
 	@Column(name = "document_number", nullable = false)
 	private String documentNumber;
 
-	/** Sales date, return date or session closing date: pending copies are sent oldest first. */
+	/** Sales date, return date or session opening date: pending copies are sent oldest first. */
 	@Column(name = "document_date")
 	private LocalDateTime documentDate;
 

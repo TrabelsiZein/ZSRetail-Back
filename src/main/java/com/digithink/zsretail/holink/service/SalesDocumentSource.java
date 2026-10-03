@@ -15,8 +15,8 @@ public interface SalesDocumentSource {
 	/**
 	 * Documents of one type, of any status, whose change time (updated_at, or the document date when it is empty) is
 	 * after the cursor ({@code afterChangedAt}, then {@code afterId}) and not after {@code until}, dated from
-	 * {@code from} (sales date, return date, session closing date; a session not closed has no date and is not read).
-	 * In cursor order (change time, then id), at most {@code limit}.
+	 * {@code from} (sales date, return date, session opening date: never empty, so a tracked document is always read
+	 * again after a change, whatever its status). In cursor order (change time, then id), at most {@code limit}.
 	 */
 	List<SalesDocumentRef> findChanged(SalesCopyType type, LocalDateTime from, LocalDateTime afterChangedAt, long afterId,
 			LocalDateTime until, int limit);

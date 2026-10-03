@@ -20,7 +20,7 @@ public final class SalesDocumentRef {
 
 	private final String documentNumber;
 
-	/** Sales date, return date or session closing date. */
+	/** Sales date, return date or session opening date. */
 	private final LocalDateTime documentDate;
 
 	/** Name of its TransactionStatus or SessionStatus; null when empty. */

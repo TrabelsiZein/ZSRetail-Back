@@ -407,12 +407,12 @@ class SalesCopyFinderTest {
 	}
 
 	@Test
-	@DisplayName("Returns: COMPLETED found. Sessions: CLOSED and TERMINATED found, OPENED not (no closing date yet)")
+	@DisplayName("Returns: COMPLETED found. Sessions (dated by their opening): CLOSED and TERMINATED found, OPENED read but not tracked")
 	void returnsAndSessions() {
 		add(SalesCopyType.RETURN, 1, NOW.minusHours(1), TransactionStatus.COMPLETED, NOW.minusHours(1));
 		add(SalesCopyType.SESSION, 2, NOW.minusHours(2), SessionStatus.CLOSED, NOW.minusHours(2));
 		add(SalesCopyType.SESSION, 3, NOW.minusHours(3), SessionStatus.TERMINATED, NOW.minusHours(3));
-		Doc open = add(SalesCopyType.SESSION, 4, null, SessionStatus.OPENED, NOW.minusHours(4));
+		add(SalesCopyType.SESSION, 4, NOW.minusHours(5), SessionStatus.OPENED, NOW.minusHours(4));
 
 		Discovery discovery = finder().discover(NOW);
 
@@ -420,8 +420,41 @@ class SalesCopyFinderTest {
 		assertNotNull(row(SalesCopyType.RETURN, 1));
 		assertNotNull(row(SalesCopyType.SESSION, 2));
 		assertNotNull(row(SalesCopyType.SESSION, 3));
-		assertNull(row(SalesCopyType.SESSION, 4));
-		assertNull(open.date);
+		assertNull(row(SalesCopyType.SESSION, 4), "never finished: never sent");
+		assertEquals(4, rowsRead, "the open session is read, then skipped");
+	}
+
+	@Test
+	@DisplayName("Item 1: a sent session reopened later (OPENED, closing date cleared) is found again: it keeps its opening date")
+	void sentThenReopened() {
+		Doc session = add(SalesCopyType.SESSION, 1, NOW.minusHours(8), SessionStatus.CLOSED, NOW.minusHours(1));
+		SalesCopyFinder finder = finder();
+		finder.discover(NOW);
+		markSent(row(SalesCopyType.SESSION, 1));
+
+		session.status = SessionStatus.OPENED.name();
+		session.updatedAt = NOW.plusMinutes(1);
+		Discovery discovery = finder.discover(NOW.plusMinutes(2));
+
+		assertEquals(1, discovery.getChanged());
+		assertEquals(SalesCopyStatus.PENDING, row(SalesCopyType.SESSION, 1).getStatus());
+	}
+
+	@Test
+	@DisplayName("Item 1: a ticket cancelled before it was finished is never tracked, even after more changes")
+	void cancelledBeforeFinishedNeverTracked() {
+		Doc parked = ticket(1, TransactionStatus.PENDING, NOW.minusMinutes(9));
+		SalesCopyFinder finder = finder();
+		finder.discover(NOW);
+
+		parked.status = TransactionStatus.CANCELLED.name();
+		parked.updatedAt = NOW.plusMinutes(1);
+		finder.discover(NOW.plusMinutes(2));
+		parked.updatedAt = NOW.plusMinutes(3);
+		finder.discover(NOW.plusMinutes(4));
+
+		assertNull(row(SalesCopyType.TICKET, 1));
+		assertEquals(3, rowsRead, "read at each change, never tracked");
 	}
 
 	@Test
