@@ -148,6 +148,7 @@ public class LinkJobScheduler {
 		}
 		catchingUp.put(job.getCode(), run.isRunAgainSoon());
 		jobService.recordRun(job.getCode(), run, at, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
+		exchangeLog.afterRun(job.getCode(), run.getResult(), LocalDateTime.now()); // step 5: one row when it works again
 		exchangeLog.purgeIfDue(LocalDateTime.now());
 		return run;
 	}

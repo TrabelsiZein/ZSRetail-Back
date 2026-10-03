@@ -204,9 +204,13 @@ public class CopiesDownPuller {
 
 	private void log(DataDomain domain, int records, LinkJobResult result, String error, LocalDateTime at,
 			long started) {
-		exchangeLog.record(CopiesDownJob.CODE, ExchangeDirection.DOWN, records, result,
-				error == null ? null : domain + ": " + error, at,
-				TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
+		String text = error == null ? null : domain + ": " + error;
+		long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+		if (result == LinkJobResult.ERROR) { // step 5: a failure writes one row when it starts, not one per cycle
+			exchangeLog.recordFailure(CopiesDownJob.CODE, ExchangeDirection.DOWN, records, text, at, durationMs);
+		} else {
+			exchangeLog.record(CopiesDownJob.CODE, ExchangeDirection.DOWN, records, result, text, at, durationMs);
+		}
 	}
 
 	/** Outcome of one cycle: one run per domain, in order. */

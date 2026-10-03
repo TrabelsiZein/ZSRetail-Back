@@ -217,14 +217,20 @@ public final class InMemoryStoreLink {
 		});
 	}
 
+	private LinkExchangeLog exchangeLog;
+
+	/** One instance, like the bean: it remembers the failures of the jobs (step 5). */
 	public LinkExchangeLog exchangeLog() {
-		return new LinkExchangeLog(proxy(LinkExchangeRepository.class, (method, a) -> {
-			if ("save".equals(method)) {
-				exchanges.add((LinkExchange) a[0]);
-				return a[0];
-			}
-			return UNHANDLED;
-		}), TransactionOperations.withoutTransaction(), 30);
+		if (exchangeLog == null) {
+			exchangeLog = new LinkExchangeLog(proxy(LinkExchangeRepository.class, (method, a) -> {
+				if ("save".equals(method)) {
+					exchanges.add((LinkExchange) a[0]);
+					return a[0];
+				}
+				return UNHANDLED;
+			}), TransactionOperations.withoutTransaction(), 30);
+		}
+		return exchangeLog;
 	}
 
 	/** The tracking row of a movement, by its loyalty_transaction. */

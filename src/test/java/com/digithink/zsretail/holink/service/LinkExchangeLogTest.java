@@ -159,4 +159,50 @@ class LinkExchangeLogTest {
 		assertTrue(result.getMessage().startsWith("Invalid result 'FAILED'"));
 		assertThrows(IllegalArgumentException.class, () -> log.search(null, null, "03/10/2026", null, null, null));
 	}
+
+	// --- Step 5: a failure that repeats is written once ---
+
+	@Test
+	@DisplayName("Step 5: a repeated failure writes one row, a new reason one more, recovery one SUCCESS row, then a new episode")
+	void repeatedFailureOnce() {
+		LocalDateTime at = LocalDateTime.of(2026, 10, 3, 12, 0);
+		for (int cycle = 0; cycle < 5; cycle++) {
+			log.recordFailure("SALES_PUSH", ExchangeDirection.UP, 50, "OFFLINE: head office unreachable", at, 3);
+			log.afterRun("SALES_PUSH", LinkJobResult.ERROR, at);
+		}
+		assertEquals(1, table.size());
+		assertEquals(LinkJobResult.ERROR, table.get(0).getResult());
+		assertEquals(50, table.get(0).getRecordCount());
+		log.recordFailure("SALES_PUSH", ExchangeDirection.UP, 0, "REFUSED: the head office has no valid license", at, 3);
+		log.recordFailure("SALES_PUSH", ExchangeDirection.UP, 0, "REFUSED: the head office has no valid license", at, 3);
+		assertEquals(2, table.size(), "a new reason is written once");
+		log.recordFailure("COPIES_DOWN", ExchangeDirection.DOWN, 0, "LOYALTY: OFFLINE", at, 3);
+		assertEquals(3, table.size(), "another job has its own episode");
+
+		log.afterRun("SALES_PUSH", LinkJobResult.SUCCESS, at.plusMinutes(5));
+		assertEquals(4, table.size());
+		LinkExchange back = table.get(3);
+		assertEquals("SALES_PUSH", back.getJob());
+		assertEquals(LinkJobResult.SUCCESS, back.getResult());
+		assertEquals(ExchangeDirection.UP, back.getDirection());
+		assertEquals(0, back.getRecordCount());
+		log.afterRun("SALES_PUSH", LinkJobResult.SUCCESS, at.plusMinutes(6));
+		assertEquals(4, table.size(), "working: nothing more");
+		log.recordFailure("SALES_PUSH", ExchangeDirection.UP, 50, "OFFLINE: head office unreachable", at, 3);
+		assertEquals(5, table.size(), "a new failure episode is written again");
+	}
+
+	@Test
+	@DisplayName("Step 5: an exchange that goes through ends the episode without an extra row; WARNING runs count as working")
+	void exchangeEndsEpisode() {
+		LocalDateTime at = LocalDateTime.of(2026, 10, 3, 12, 0);
+		log.recordFailure("COPIES_DOWN", ExchangeDirection.DOWN, 0, "PROMOTIONS: OFFLINE", at, 3);
+		log.record("COPIES_DOWN", ExchangeDirection.DOWN, 4, LinkJobResult.SUCCESS, null, at, 3);
+		log.afterRun("COPIES_DOWN", LinkJobResult.SUCCESS, at);
+		assertEquals(2, table.size(), "the batch row shows it works again");
+		log.recordFailure("COPIES_DOWN", ExchangeDirection.DOWN, 0, "PROMOTIONS: OFFLINE", at, 3);
+		log.afterRun("COPIES_DOWN", LinkJobResult.WARNING, at);
+		assertEquals(4, table.size());
+		assertEquals(LinkJobResult.SUCCESS, table.get(3).getResult());
+	}
 }

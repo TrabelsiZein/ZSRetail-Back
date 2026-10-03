@@ -58,10 +58,12 @@ import com.digithink.zsretail.headoffice.service.HoLoyaltyService;
 import com.digithink.zsretail.headoffice.service.InMemoryDownTables;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.holink.dto.HeadOfficeCallResult;
+import com.digithink.zsretail.holink.dto.LinkJobRun;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
 import com.digithink.zsretail.holink.enumeration.LinkJobResult;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
 import com.digithink.zsretail.holink.model.LinkExchange;
+import com.digithink.zsretail.holink.scheduler.LoyaltyPushJob;
 import com.digithink.zsretail.holink.model.LoyaltyMemberCopy;
 import com.digithink.zsretail.holink.model.LoyaltyMovementCopy;
 import com.digithink.zsretail.model.LoyaltyMember;
@@ -720,6 +722,48 @@ class SharedLoyaltyRoundTripTest {
 		assertTrue(ho.movements.stream().allMatch(m -> m.getOverspendPoints() == 0));
 		assertEquals(Arrays.asList("REDEEMED", "EARNED", "ADJUSTED", "REVERSED", "ADJUSTED", "REVERSED"),
 				ho.movements.stream().map(m -> m.getType().name()).collect(Collectors.toList()));
+	}
+
+	@Test
+	@DisplayName("Step 5, exchange log: head office stopped for 3 cycles: one row for the push and one for the pull; back: rows again")
+	void failureLoggedOnce() {
+		pull();
+		network.enrol(request("SAMI", "29954290"));
+		headOfficeDown = true;
+		LoyaltyPushJob job = new LoyaltyPushJob(push);
+		int before = link.exchanges.size();
+		for (int cycle = 0; cycle < 3; cycle++) {
+			assertEquals(LinkJobResult.ERROR, runAsScheduled(job));
+			CopiesDownPuller.Cycle pulled = puller.runCycle();
+			link.exchangeLog().afterRun("COPIES_DOWN",
+					pulled.getRuns().get(0).getFailure() == null ? LinkJobResult.SUCCESS : LinkJobResult.ERROR, NOW);
+		}
+		List<LinkExchange> failures = link.exchanges.subList(before, link.exchanges.size());
+		assertEquals(2, failures.size(), failures.toString());
+		assertEquals(Arrays.asList("LOYALTY_PUSH", "COPIES_DOWN"),
+				failures.stream().map(LinkExchange::getJob).collect(Collectors.toList()));
+		assertTrue(failures.stream().allMatch(x -> x.getResult() == LinkJobResult.ERROR));
+
+		headOfficeDown = false;
+		assertEquals(LinkJobResult.SUCCESS, runAsScheduled(job));
+		pull();
+		List<LinkExchange> after = link.exchanges.subList(before + 2, link.exchanges.size());
+		assertEquals(Arrays.asList("LOYALTY_PUSH", "COPIES_DOWN"),
+				after.stream().map(LinkExchange::getJob).collect(Collectors.toList()), "the batch rows show it works");
+		assertTrue(after.stream().allMatch(x -> x.getResult() == LinkJobResult.SUCCESS && x.getRecordCount() > 0));
+
+		headOfficeDown = true;
+		network.enrol(request("ALI", "22984935"));
+		runAsScheduled(job);
+		assertEquals(LinkJobResult.ERROR, link.exchanges.get(link.exchanges.size() - 1).getResult(),
+				"a new failure episode is written again");
+	}
+
+	/** One run of the job as LinkJobScheduler does it: the run, then afterRun with its result. */
+	private LinkJobResult runAsScheduled(LoyaltyPushJob job) {
+		LinkJobRun run = job.run();
+		link.exchangeLog().afterRun(job.getCode(), run.getResult(), NOW);
+		return run.getResult();
 	}
 
 	// ─── Helpers ─────────────────────────────────────────────────

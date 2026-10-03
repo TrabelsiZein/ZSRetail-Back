@@ -180,7 +180,7 @@ public class LoyaltyPushService {
 			cycle.more |= cycle.found >= SEARCH_PAGE;
 		} catch (RuntimeException e) {
 			cycle.searchFailure = SalesCopyFinder.cause(e);
-			log(0, LinkJobResult.ERROR, "search failed (" + cycle.searchFailure + ")", at, started);
+			logFailure("search failed (" + cycle.searchFailure + ")", at, started);
 		}
 	}
 
@@ -227,7 +227,7 @@ public class LoyaltyPushService {
 		LoyaltyMemberPushAnswer answer = client.pushLoyaltyMembers(copies);
 		if (!answer.isDelivered()) {
 			cycle.notDelivered(answer.getState(), answer.getMessage());
-			log(0, LinkJobResult.ERROR, answer.getState() + ": " + answer.getMessage(), at, started);
+			logFailure(answer.getState() + ": " + answer.getMessage(), at, started);
 			return false;
 		}
 		cycle.state = HeadOfficeLinkState.ONLINE;
@@ -325,7 +325,7 @@ public class LoyaltyPushService {
 		SalesPushAnswer answer = client.pushLoyaltyMovements(body);
 		if (!answer.isDelivered()) {
 			cycle.notDelivered(answer.getState(), answer.getMessage());
-			log(0, LinkJobResult.ERROR, answer.getState() + ": " + answer.getMessage(), at, started);
+			logFailure(answer.getState() + ": " + answer.getMessage(), at, started);
 			return false;
 		}
 		cycle.state = HeadOfficeLinkState.ONLINE;
@@ -496,6 +496,12 @@ public class LoyaltyPushService {
 			throw new IllegalArgumentException(
 					"Invalid status '" + status + "': allowed values are " + Arrays.toString(SalesCopyStatus.values()));
 		}
+	}
+
+	/** Step 5: not delivered or search failed: one row when the failure starts, not one per cycle. */
+	private void logFailure(String error, LocalDateTime at, long started) {
+		exchangeLog.recordFailure(JOB_CODE, ExchangeDirection.UP, 0, error, at,
+				TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
 	}
 
 	private void log(int records, LinkJobResult result, String error, LocalDateTime at, long started) {
