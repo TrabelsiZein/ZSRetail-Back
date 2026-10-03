@@ -62,6 +62,9 @@ Frontend: since task 1.6 a head office has only its own routes (see "Head office
 |---|---|---|---|---|
 | Home | Dashboard | `admin-headoffice-home` | `/headoffice` | `home` |
 | Network | Stores | `admin-headoffice-stores` | `/headoffice/stores` | none (head office only) |
+| Sales | Tickets history | `admin-headoffice-tickets` | `/headoffice/tickets` | none (head office only, task 2.5) |
+| Sales | Sessions | `admin-headoffice-sessions` | `/headoffice/sessions` | none (head office only, task 2.5) |
+| Sales | Returns | `admin-headoffice-returns` | `/headoffice/returns` | none (head office only, task 2.5) |
 | Catalogue | Items | `admin-headoffice-items` | `/headoffice/items` | `admin-item-management` |
 | Catalogue | Families | `admin-headoffice-item-families` | `/headoffice/item-families` | `admin-item-families` |
 | Catalogue | Sub-families | `admin-headoffice-item-subfamilies` | `/headoffice/item-subfamilies` | `admin-item-subfamilies` |
@@ -80,11 +83,11 @@ Frontend: since task 1.6 a head office has only its own routes (see "Head office
 
 Each page is one route: details and edits are dialogs on the page. Every other store page is absent until its step adds it: print labels, sales prices and discounts, warranty, purchases, vendors, reports, ERP and franchise pages, and the selling pages hidden in task 1.1.
 
-The home page is the store's `Home.vue`. Its sales cards read the store's `GET admin/dashboard/today`, which shows zero on a head office; since task 2.5 the head office has `GET admin/headoffice/dashboard/today` with the same fields, fed by the copies of all stores (see "Consolidated sales API"; the frontend switches to it in its step 2 session). Its quick links come from the head office menu.
+The home page is the store's `Home.vue`. On a head office its sales cards read `GET admin/headoffice/dashboard/today` (task 2.5, the copies of all stores, see "Consolidated sales API") and show Today's sales and Today's returns only, each half a row: open sessions and pending tickets are always 0 there. A store still reads `GET admin/dashboard/today` and shows its four cards. Its quick links come from the head office menu: Stores, Tickets history, Sessions, Items, Promotions, Customers, Loyalty members, Users.
 
-Three more head office pages come with the step 2 frontend session (task 2.5); their backend and permissions exist: Tickets history (`admin-headoffice-tickets`), Sessions history (`admin-headoffice-sessions`), Returns (`admin-headoffice-returns`). See "Consolidated sales API".
+The three Sales pages are described under "Consolidated sales API", "Head office pages".
 
-**Menu** (`src/navigation/headoffice/index.js`): Home · Network · Catalogue · Customers & loyalty · Settings.
+**Menu** (`src/navigation/headoffice/index.js`): Home · Network · Sales · Catalogue · Customers & loyalty · Settings. The Sales links use the store menu's titles (Sales history, Sessions, Returns).
 - Two levels only: links, and groups of links. A link names its head office route and takes the route's permission. A group has no permission of its own and shows when one of its links is allowed.
 - An unknown route name throws when the module loads.
 - Read on a head office only:
@@ -279,6 +282,7 @@ Without the URL these keys are not checked. The URL scheme is not checked: HTTP 
 **Frontend**: page `src/views/admin/holink/HeadOfficeLinkStatus.vue`, route `admin-holink-status` (`/admin/holink/status`, `meta.resource` checked by CASL), menu **Settings** → **Head office link** (last entry).
 - Shows the state as a badge with a translated label for each of the six states (PENDING grey, ONLINE green, OFFLINE and REFUSED red, ERROR and NOT_CONFIGURED orange), the backend message as a detail line (English, as sent), last success, last attempt, the head office URL, the store code (or "not set" when `DEFAULT_LOCATION` is empty), and a **Check now** button (disabled while the check runs). A failed `DEFAULT_LOCATION` read is `ERROR` with its own message, not a separate state.
 - Exists only when `headOfficeLinked` is true: otherwise the route is redirected to `home`, the menu entry is hidden and the Roles page does not list the permission (`HEAD_OFFICE_LINK_ROUTES`, `HEAD_OFFICE_LINK_PERMISSIONS` in `src/navigation/head-office.js`). A head office is never linked.
+- Task 2.6: the page has three parts, see "Head office link: jobs and exchange log", "Page".
 
 **Permission** `read:admin-holink-status` ("Lien siège", Roles page group "Paramètres & Outils"), ADMIN only by default. Seeded (`ZZDataInitializer.HEAD_OFFICE_LINK_ADMIN_PERMISSIONS`) when the ADMIN role is created on a store that has `headoffice.url`; the 4 profiles without the URL seed exactly the roles of before. **A store database whose ADMIN role already exists** (every existing install, and a store linked after its first start) does not get it: on that store, once `headoffice.url` is set, open the Roles page, tick "Lien siège" for ADMIN, save, then log out and in (abilities are built at login). No startup top-up.
 
@@ -454,10 +458,17 @@ Backend of the jobs and exchange log of the store's Head office link page (model
 | `POST /jobs/{code}/run` | Runs the job now (see "Run now"); 200 with the job after the run (or as it is when the 30 s wait ended first); 404 unknown job |
 | `GET /log` | Parameters `job` (a code; blank = every job), `result` (`SUCCESS`, `WARNING`, `ERROR`, any case; blank or `all` = every result), `dateFrom`, `dateTo` (`yyyy-MM-dd`: whole day, or `yyyy-MM-ddTHH:mm[:ss]`), `page` (from 0), `size` (default 20, 1 to 200). Newest first. Answer `{content: [{id, exchangeDate, job, direction, recordCount, result, error, durationMs}], totalElements, totalPages, number, size}`; 400 `{"error": ...}` on a value that cannot be read |
 
+**Page** (task 2.6 frontend, `HeadOfficeLinkStatus.vue`, same route and permission), modelled on the ERP jobs page and the ERP communications log:
+1. **Status**: as in task 1.5, plus the sales copies counts (waiting to be sent, sent, in error) from `GET /status`; hidden when the three counts are null (no push job).
+2. **Jobs**: one row per job of `GET /jobs`, never more: translated name and code, frequency ("every 1 min", with a default or custom badge), last run and its duration, next run, last result, last message, and two buttons. The pencil opens a dialog: a whole number of seconds within `minimumIntervalSeconds` and `maximumIntervalSeconds` (Save is disabled outside them), or **Back to default** (body `null`, enabled only when `customInterval`). **Run now** is disabled for that job while its call runs (up to 30 s), then the row shows the answer.
+3. **Exchange log**: `GET /log` with the filters job (the jobs of `GET /jobs`), result and from / to (`yyyy-MM-ddTHH:mm`), 20 rows per page by default, newest first; a row opens a dialog with the full error.
+
+The page had no automatic refresh before task 2.6; the three parts now refresh silently every 30 s (no spinner, no toast, skipped while a load or a check runs). Labels in `admin.holink.*` (en, fr, ar).
+
 **Settings**: `headoffice.log-retention-days`, default `30`, a whole number of days at least 1; checked at startup only when `headoffice.url` is set (`Invalid value '<value>' for property headoffice.log-retention-days: a whole number of days, at least 1`).
 
 ### Consolidated sales API (task 2.5, head office)
-What the head office pages Tickets history, Sessions history and Returns, and the home cards, read. Backend only so far: the pages come with the step 2 frontend session, which follows this contract.
+What the head office pages Tickets history, Sessions history and Returns, and the home cards, read (pages: task 2.5 frontend, "Head office pages" below).
 
 **Common rules**
 - `ConsolidatedSalesAPI` (`headoffice/controller`) and `ConsolidatedSalesService` (`headoffice/service`), both `@ConditionalOnHeadOffice`: on a store these URLs answer 404. JWT like the other admin APIs; the license filter applies (402). As everywhere in the application, the API checks no permission: the pages are protected by their route permission in the frontend.
@@ -474,7 +485,7 @@ What the head office pages Tickets history, Sessions history and Returns, and th
 | `size` | yes | yes | yes | Default 10; from 1 to 200 (0 or less gives 10, more than 200 gives 200) |
 | `storeId` | yes | yes | yes | Head office store id (from `store-options`); absent: every store |
 | `dateFrom`, `dateTo` | `salesDate` | `openedAt` | `returnDate` | `yyyy-MM-dd` (from: 00:00, to: end of the day) or `yyyy-MM-ddTHH:mm[:ss]` (exact, inclusive). Anything else: 400 `{"error":"Invalid dateFrom '<value>': expected yyyy-MM-dd or yyyy-MM-ddTHH:mm"}` |
-| number | `salesNumber` | `sessionNumber` | `returnNumber` | Contains, any case |
+| number: parameter `salesNumber`, `sessionNumber`, `returnNumber` | `salesNumber` | `sessionNumber` | `returnNumber` | Contains, any case |
 | `status` | `TransactionStatus` | `SessionStatus` | `TransactionStatus` | Name, any case; blank or `all`: any |
 | `sessionNumber` | yes (exact) | — (it is the number filter) | yes (exact) | With `storeId`, the "View tickets / View returns" links of a session, as on the store pages (`?session=`) |
 
@@ -509,7 +520,7 @@ Order: newest first (`salesDate`, `openedAt`, `returnDate` descending, then id).
 | `openSessionsCount` | Sessions `OPENED`: 0 by design (sessions arrive once closed) |
 | `pendingTicketsCount` | Tickets `PENDING`: 0 by design (parked tickets are never sent) |
 
-The frontend may hide the last two cards on a head office.
+The head office home hides these last two cards.
 
 **Pages and permissions** (for the frontend session; "Add a page to the head office" applies): three head office only pages (no `twinOf`), components under `src/views/admin/headoffice/`.
 
@@ -520,6 +531,12 @@ The frontend may hide the last two cards on a head office.
 | Returns | `admin-headoffice-returns` | `/headoffice/returns` | `read:admin-headoffice-returns` | `returns`, `returns/{id}`, `store-options` |
 
 The three permissions are in `ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS` (and the copy in `ZZDataInitializerRolesTest`); an existing head office ADMIN role gets them at the next start (`addMissingHeadOfficePermissions`). The frontend must add the three routes with these exact names, so the two lists stay equal.
+
+**Head office pages** (task 2.5 frontend): `src/views/admin/headoffice/HeadOfficeTicketsHistory.vue`, `HeadOfficeSessionsHistory.vue`, `HeadOfficeReturns.vue`, shared code in `consolidated-sales.js` (store options, status labels, formats). New pages, not the store pages: they follow the store pages' layout, columns and detail, read only.
+- Lists: a Store column first (code and name), then the store page's columns; the cashier on tickets; a status column on returns. Filters: number, from / to (date and time on tickets, day on sessions and returns, as on the store pages), store (`store-options`, inactive stores marked), status, and the exact session number on tickets and returns.
+- Details: ticket with lines, payments (reference = `titleNumber`, due date) and summary, the loyalty member, the reception dates; session with its totals (sales, returns simple and voucher, both differences, as computed by the API), verification and the count lines in two tables (cashier, responsible); return with its original ticket (date and total, or "not received from the store yet"), voucher and lines.
+- Links open in a new tab, filtered on the store: a session's View tickets / View returns (`?storeId=&session=`), a ticket's or a return's session (`/headoffice/sessions?storeId=&number=`), a return's original ticket (`/headoffice/tickets?storeId=&ticketId=`, opens its detail).
+- Labels in `admin.headoffice.sales.*` and the store pages' keys (en, fr, ar). Nothing changed in the store pages, routes or menu.
 
 ### Connect a store
 1. At the head office, **Network → Stores**, create the store with **code = the store's `DEFAULT_LOCATION`** (General Setup of the store). For an ERP store that is its NAV location code.
