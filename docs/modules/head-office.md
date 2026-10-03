@@ -552,7 +552,7 @@ Data the head office owns reaches its stores as copies down (design 2.3): the st
 A promotion created at the head office reaches the chosen stores and applies at their tills; the promotion engine is not changed (it reads the store's `promotion` table). Store side: `ownership.promotions=HEAD_OFFICE` with `headoffice.url`. Write guards and the `origin` column: `docs/modules/promotion.md`.
 
 **Head office: target stores** (task 3.3, head office only data, no column on `promotion`):
-- Table `ho_promotion_store` (`HoPromotionStore`): `promotion_id`, `store_id` (plain ids), unique `uk_ho_promotion_store`. No row: every store (the default, including stores created later). Rows: only those stores. An empty list is refused.
+- Table `ho_promotion_store` (`HoPromotionStore`): `promotion_id`, `store_id` (plain ids), unique `uk_ho_promotion_store`. No row: every store (the default, including stores created later). Rows: only those stores. An empty list is refused. A change of list keeps the rows of the stores that stay and only deletes or inserts the others (L2 fix: Hibernate flushes inserts before deletes, so deleting and inserting the same key in one transaction broke the unique key).
 - `HoPromotionService` (`@ConditionalOnHeadOffice`) is the `PROMOTIONS` provider of the feed and implements `PromotionHeadOfficeHooks`, which `PromotionService` calls on a head office only (`ObjectProvider`, no bean on a store):
   - `PromotionService.save` (create, edit, activate, deactivate through `POST`/`PUT /promotion`): a change for the promotion's stores; a code changed (unused promotion) also records the old code, so its stores remove it.
   - `PromotionService.deleteById`: a change for its stores (they get a removal), its target rows deleted.

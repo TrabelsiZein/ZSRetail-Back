@@ -242,16 +242,30 @@ public class HoPromotionService implements DownDomainProvider, PromotionHeadOffi
 		return list;
 	}
 
+	/**
+	 * The rows of the stores taken off are deleted, the rows of the stores added are inserted, the others are kept. Never
+	 * a delete and an insert of the same (promotion, store) in one transaction: Hibernate flushes the inserts before the
+	 * deletes, so that would break uk_ho_promotion_store (found at L2: a store kept in a changed list).
+	 */
 	private void replaceRows(Long promotionId, StoreTargets wanted) {
-		List<HoPromotionStore> rows = targets.findByPromotionId(promotionId);
-		if (!rows.isEmpty()) {
-			targets.deleteAll(rows);
+		Set<Long> kept = new TreeSet<>();
+		List<HoPromotionStore> takenOff = new ArrayList<>();
+		for (HoPromotionStore row : targets.findByPromotionId(promotionId)) {
+			if (wanted.getStoreIds().contains(row.getStoreId()) && kept.add(row.getStoreId())) {
+				continue;
+			}
+			takenOff.add(row);
+		}
+		if (!takenOff.isEmpty()) {
+			targets.deleteAll(takenOff);
 		}
 		for (Long storeId : wanted.getStoreIds()) {
-			HoPromotionStore row = new HoPromotionStore();
-			row.setPromotionId(promotionId);
-			row.setStoreId(storeId);
-			targets.save(row);
+			if (!kept.contains(storeId)) {
+				HoPromotionStore row = new HoPromotionStore();
+				row.setPromotionId(promotionId);
+				row.setStoreId(storeId);
+				targets.save(row);
+			}
 		}
 	}
 

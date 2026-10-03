@@ -61,6 +61,12 @@ class HoPromotionServiceTest {
 	/** The head office promotion table, by id. */
 	private final Map<Long, Promotion> promotions = new LinkedHashMap<>();
 	private final List<HoPromotionStore> targetRows = new ArrayList<>();
+
+	/**
+	 * Rows deleted in the current transaction: Hibernate flushes inserts before deletes, so until the transaction ends
+	 * they still hold the unique key (promotion_id, store_id). Cleared by {@link #newTransaction}.
+	 */
+	private final List<HoPromotionStore> pendingDeletes = new ArrayList<>();
 	private final Map<Long, Store> stores = new LinkedHashMap<>();
 
 	/** Consolidated tickets: promotion code to [headers, lines]. */
@@ -322,6 +328,30 @@ class HoPromotionServiceTest {
 		assertNothing(pull(b, ""));
 	}
 
+	@Test
+	@DisplayName("L2 fix: a store kept in a changed list keeps its row; never a delete and an insert of the same key in one transaction")
+	void storeKeptInChangedList() throws Exception {
+		Promotion p = createFor("P1", a.getId());
+		newTransaction();
+		HoPromotionStore rowOfA = targetRows.get(0);
+		service.setTargets(p.getId(), targets(false, a.getId(), b.getId()));
+		newTransaction();
+		assertEquals(2, targetRows.size());
+		assertTrue(targetRows.contains(rowOfA) && targetRows.stream().anyMatch(r -> r == rowOfA), "A's row kept, not re-inserted");
+		service.setTargets(p.getId(), targets(false, b.getId()));
+		newTransaction();
+		assertEquals(Collections.singletonList(b.getId()),
+				targetRows.stream().map(HoPromotionStore::getStoreId).collect(Collectors.toList()));
+		service.setTargets(p.getId(), targets(false, a.getId(), b.getId()));
+		newTransaction();
+		service.setTargets(p.getId(), targets(true));
+		assertTrue(targetRows.isEmpty(), "every store: no row");
+	}
+
+	private void newTransaction() {
+		pendingDeletes.clear();
+	}
+
 	// ─── Stubs ────────────────────────────────────────────────────
 
 	private static Item item(Long id, String code) {
@@ -372,11 +402,19 @@ class HoPromotionServiceTest {
 					Collection<?> ids = (Collection<?>) args[0];
 					return targetRows.stream().filter(r -> ids.contains(r.getPromotionId())).collect(Collectors.toList());
 				case "save":
-					targetRows.add((HoPromotionStore) args[0]);
-					return args[0];
+					HoPromotionStore saved = (HoPromotionStore) args[0];
+					List<HoPromotionStore> holdingKey = new ArrayList<>(targetRows);
+					holdingKey.addAll(pendingDeletes);
+					if (holdingKey.stream().anyMatch(r -> r != saved && r.getPromotionId().equals(saved.getPromotionId())
+							&& r.getStoreId().equals(saved.getStoreId()))) {
+						throw new IllegalStateException("Violation of UNIQUE KEY constraint 'uk_ho_promotion_store'");
+					}
+					targetRows.add(saved);
+					return saved;
 				case "deleteAll":
 					for (Object row : (Iterable<?>) args[0]) {
 						targetRows.removeIf(r -> r == row);
+						pendingDeletes.add((HoPromotionStore) row);
 					}
 					return null;
 				default:
