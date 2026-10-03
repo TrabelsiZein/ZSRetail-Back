@@ -1,5 +1,7 @@
 package com.digithink.zsretail.config;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -35,7 +37,9 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  *
  * Head office link (task 1.4): when {@code headoffice.url} is set, the startup fails on a head office, with a blank
  * {@code headoffice.api-key}, or with a {@code headoffice.heartbeat-interval-seconds} below 1. Stores page (task 1.5):
- * on a head office, the startup fails with a {@code headoffice.offline-after-seconds} below 1.
+ * on a head office, the startup fails with a {@code headoffice.offline-after-seconds} below 1. Sales copies (task 2.1):
+ * when {@code headoffice.url} is set, the startup fails with a {@code headoffice.sales-push.from-date} that is not a
+ * date.
  */
 public final class NodeOwnership {
 
@@ -45,6 +49,12 @@ public final class NodeOwnership {
 	static final String HEADOFFICE_API_KEY_KEY = "headoffice.api-key";
 	static final String HEARTBEAT_INTERVAL_KEY = "headoffice.heartbeat-interval-seconds";
 	static final String OFFLINE_AFTER_KEY = "headoffice.offline-after-seconds";
+	static final String SALES_PUSH_FROM_DATE_KEY = "headoffice.sales-push.from-date";
+
+	// Mode flags, read like ApplicationModeService (@Value with a false default)
+	static final String STANDALONE_KEY = "application.standalone";
+	static final String FRANCHISE_ADMIN_KEY = "franchise.admin";
+	static final String FRANCHISE_CUSTOMER_KEY = "franchise.customer";
 
 	private final NodeType nodeType;
 	private final Map<DataDomain, DataOwner> owners;
@@ -73,6 +83,41 @@ public final class NodeOwnership {
 	public static boolean isHeadOfficeLinkSet(PropertyResolver env) {
 		String url = env.getProperty(HEADOFFICE_URL_KEY);
 		return url != null && !url.trim().isEmpty();
+	}
+
+	/**
+	 * True when this store pushes copies of its tickets, returns and session closings to the head office (task 2.1,
+	 * decision 4): headoffice.url is set and the sales upstreams (sales.upstream, or derived from the mode flags) include
+	 * HEAD_OFFICE. The mode flags are read from the environment like {@link ApplicationModeService}. Also used by
+	 * {@link OnHeadOfficeSalesPushCondition}. Throws like the startup on an invalid configuration.
+	 */
+	public static boolean isHeadOfficeSalesPushSet(PropertyResolver env) {
+		if (!isHeadOfficeLinkSet(env)) {
+			return false;
+		}
+		NodeOwnership ownership = resolve(env, flag(env, STANDALONE_KEY), flag(env, FRANCHISE_ADMIN_KEY),
+				flag(env, FRANCHISE_CUSTOMER_KEY));
+		return ownership.getSalesUpstreams().contains(SalesUpstream.HEAD_OFFICE);
+	}
+
+	/**
+	 * headoffice.sales-push.from-date (task 2.1): a date as yyyy-MM-dd, trimmed; null when absent or blank (the whole
+	 * history is sent). Throws {@link IllegalStateException} naming the key on any other value.
+	 */
+	public static LocalDate parseSalesPushFromDate(String raw) {
+		if (raw == null || raw.trim().isEmpty()) {
+			return null;
+		}
+		try {
+			return LocalDate.parse(raw.trim());
+		} catch (DateTimeParseException e) {
+			throw new IllegalStateException("Invalid value '" + raw + "' for property " + SALES_PUSH_FROM_DATE_KEY
+					+ ": a date as yyyy-MM-dd, e.g. 2026-01-01");
+		}
+	}
+
+	private static boolean flag(PropertyResolver env, String key) {
+		return Boolean.TRUE.equals(env.getProperty(key, Boolean.class, Boolean.FALSE));
 	}
 
 	public static NodeOwnership resolve(PropertyResolver env, boolean standalone, boolean franchiseAdmin,
@@ -167,6 +212,7 @@ public final class NodeOwnership {
 					+ HEADOFFICE_URL_KEY + " is set. Paste the key shown once on the head office Stores page.");
 		}
 		checkWholeSeconds(env, HEARTBEAT_INTERVAL_KEY);
+		parseSalesPushFromDate(env.getProperty(SALES_PUSH_FROM_DATE_KEY));
 	}
 
 	/** When present, the key must hold a whole number of seconds, at least 1. */

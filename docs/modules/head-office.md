@@ -1,6 +1,6 @@
 # Head Office Module
 
-**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
+**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"). Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
 
 ### Overview
 - Two installation types, same WAR: a **store** sells; a **head office** manages several stores and never sells (no cashier session, no ticket).
@@ -273,6 +273,62 @@ Without the URL these keys are not checked. The URL scheme is not checked: HTTP 
 
 **Permission** `read:admin-holink-status` ("Lien siège", Roles page group "Paramètres & Outils"), ADMIN only by default. Seeded (`ZZDataInitializer.HEAD_OFFICE_LINK_ADMIN_PERMISSIONS`) when the ADMIN role is created on a store that has `headoffice.url`; the 4 profiles without the URL seed exactly the roles of before. **A store database whose ADMIN role already exists** (every existing install, and a store linked after its first start) does not get it: on that store, once `headoffice.url` is set, open the Roles page, tick "Lien siège" for ADMIN, save, then log out and in (abilities are built at login). No startup top-up.
 
+### Sales copies: the store side (step 2)
+Every finished ticket, return and session closing of a store reaches the head office as a copy (design 2.3 and 4.1, "documents up"). Nothing changes in how the store sells: the documents are found by a query, not by a hook in the selling services, and no column of theirs is added or written. A store that also exports to NAV keeps its ERP export as it is: the two upstreams are independent, each with its own tracking. `SalesHeader.synchronizationStatus` belongs to the ERP export and is neither read nor written here.
+
+**When it runs** (decision 4): only on a store with `headoffice.url` set whose sales upstreams include the head office (`ApplicationModeService.salesUpstreams()`, key `sales.upstream`). Its beans carry `@ConditionalOnHeadOfficeSalesPush` (`config/OnHeadOfficeSalesPushCondition`, which calls `NodeOwnership.isHeadOfficeSalesPushSet`: the same reading as the startup, mode flags read from the environment). A linked store without that upstream keeps the heartbeat only.
+
+**Finished documents.** Only a finished document is sent the first time. A document already sent is sent again after any later change, whatever its status then (a ticket cancelled after it was sent would be sent again as cancelled).
+
+| Type | Entity | Finished | Not finished |
+|---|---|---|---|
+| `TICKET` | `SalesHeader` | `COMPLETED`; `REFUNDED` (never written by the code today, but a refunded ticket was completed first) | `PENDING` (parked), `CANCELLED` (a parked ticket cancelled, or emptied by a split bill) |
+| `RETURN` | `ReturnHeader` | `COMPLETED`, the only status a return gets (validated when it is created) | — |
+| `SESSION` | `CashierSession` | `CLOSED` (counted by the cashier), `TERMINATED` (verified by the responsible) | `OPENED` |
+
+The ERP export takes `COMPLETED` tickets and returns and `TERMINATED` sessions. The head office also gets a session when it is `CLOSED`, then again when it is `TERMINATED`. In the code today a completed ticket never becomes cancelled: its later changes are a payment method change and an invoice prepared.
+
+**Change detection relies on `updated_at`.** Every change to a document once it is finished goes through a save of its header, which moves `updated_at` (`_BaseService.save`, `@PreUpdate`): payment method changed (the ticket is saved), invoice prepared, session closed then verified (the cash count lines are saved in the same transaction as the session), real cash recomputed. Lines and payments of a completed ticket are not edited in any other way; return lines and the voucher amount are written once. What changes without its header (a voucher's status and used amount, an item or customer renamed) is not in the copy, or travels with the next copy.
+
+**Tracking table** `hol_sales_copy` (entity `holink/model/SalesCopy`), one row per document. Prefix `hol_`: store tables of the head office link (`ho_` is kept for head office tables). Like `ho_store`, the `hol_` tables exist in every database through `ddl-auto` and stay empty where nothing writes to them. No `update.sql` (decided for the plan: one `db/2.1.0/update.sql` at the end).
+
+| Column | Meaning |
+|---|---|
+| `document_type` | `TICKET`, `RETURN`, `SESSION`. Unique with `local_id` (`uk_hol_sales_copy_document`) |
+| `local_id` | Id of the document in `sales_header`, `return_header` or `cashier_session` |
+| `document_number` | Sales number, return number, session number |
+| `document_date` | Sales date, return date, session closing date: pending copies are sent oldest first |
+| `status` | `PENDING` (to send), `SENT` (accepted by the head office as it is now), `ERROR` (rejected, or the store could not build it; retried) |
+| `attempts` | Pushes of this version of the document that got an answer for it, or that the store could not build. An unreachable head office is not counted. Back to 0 when the document changes |
+| `last_error` | Reason of the last rejection or build failure (1000 characters); null after an accepted push or a change |
+| `last_push_date` | Store clock of the last push that got an answer for this document |
+| `content_hash` | SHA-256 of the copy last accepted by the head office: a document marked as changed whose copy is unchanged (e.g. the ERP export wrote its own fields) is marked `SENT` again without being sent |
+
+Index `ix_hol_sales_copy_queue` (`status`, `attempts`, `document_date`). Plus `_BaseEntity` columns (`created_at`, `updated_at`...).
+
+**Cursor table** `hol_sales_cursor` (`SalesCopyCursor`), one row per type: change time and id of the last document read.
+
+**The search** (task 2.1): `SalesCopyFinder.discover`, over `SalesDocumentSource` (JPQL in `holink/repository/JpaSalesDocumentSource`, read only, through the shared entity manager; no existing repository is changed). Per type, in its own transaction:
+1. Read the documents of any status whose change time (`updated_at`, or the document date when it is empty) comes after the cursor, in (change time, id) order, dated from `headoffice.sales-push.from-date` (sales date, return date, session closing date: an open session has no closing date and is not read).
+2. A finished document without a row gets a `PENDING` row. A tracked document that is `SENT` or `ERROR` becomes `PENDING` again, attempts back to 0 and error cleared; the accepted hash is kept. A tracked `PENDING` document is left as it is. An unfinished document without a row is skipped: when it is finished later, its `updated_at` moves and it is read again.
+3. The cursor moves to the last document read.
+
+| Bound | Value | Why |
+|---|---|---|
+| Page | 500 documents per type per search | A long history is read over several cycles |
+| Settle delay | Documents changed less than 30 s ago wait for a later search | `updated_at` is written before the transaction commits: read too early, an uncommitted change could be passed by the cursor |
+| Timeout | 15 s per type (transaction timeout, applied to each statement) | The store database reads with locks (`READ_COMMITTED_SNAPSHOT` is off in `pos_db_prod`): a row held by a long ERP export transaction makes the read wait. On timeout that type is reported and searched again at the next cycle, from the same cursor; the other types go on |
+
+A cycle with nothing new runs three queries that start after the cursor and return nothing; no tracking row is read or written. There is no index on `updated_at` in the existing tables (no change to them): the database scans the table, which is the price of not touching them.
+
+Known limit: the cursor follows the store clock. If the clock goes back, a document changed while it is behind the cursor is missed until its next change. Tunisia has no daylight saving time.
+
+**Settings** (the store's properties file; checked at startup only when `headoffice.url` is set, in `NodeOwnership.resolve`):
+
+| Key | Rule |
+|---|---|
+| `headoffice.sales-push.from-date` | Optional. `yyyy-MM-dd`, trimmed; documents dated before that day are ignored. Absent or blank: the whole history. Any other value stops the startup: `Invalid value '<value>' for property headoffice.sales-push.from-date: a date as yyyy-MM-dd` |
+
 ### Connect a store
 1. At the head office, **Network → Stores**, create the store with **code = the store's `DEFAULT_LOCATION`** (General Setup of the store). For an ERP store that is its NAV location code.
 2. Copy the key from the dialog: it is shown once (a lost key is replaced with regenerate-key).
@@ -306,7 +362,7 @@ Without the URL these keys are not checked. The URL scheme is not checked: HTTP 
   - backend: feature package `com.digithink.zsretail.headoffice`, with the same sub-packages as `erp/` (`controller`, `service`, `model`, `repository`, `dto`, `scheduler`);
   - frontend: `src/views/admin/headoffice/` (admin pages of a feature live under `views/admin/<feature>`, like `views/admin/franchise`), routes `admin-headoffice-*` under `/headoffice/...` in `src/router/headoffice-routes.js` (task 1.6, "Add a page to the head office").
 - Existing store pages are not modified to serve the head office: a shared page gets a head office route with `meta.twinOf`. First content: the stores list (task 1.2).
-- **Store side of the link.** Code that runs on a store and calls the head office lives in `com.digithink.zsretail.holink`, never in `headoffice`; its beans carry `@ConditionalOnHeadOfficeLink` (task 1.4). Its pages live in `src/views/admin/holink/`, routes `admin-holink-*` (task 1.5).
+- **Store side of the link.** Code that runs on a store and calls the head office lives in `com.digithink.zsretail.holink`, never in `headoffice`; its beans carry `@ConditionalOnHeadOfficeLink` (task 1.4), or `@ConditionalOnHeadOfficeSalesPush` for the sales copies (task 2.1). Its tables are prefixed `hol_` (task 2.1). Its pages live in `src/views/admin/holink/`, routes `admin-holink-*` (task 1.5).
 
 ### Profile `headoffice-dev`
 `src/main/resources/application-headoffice-dev.properties`:
@@ -353,6 +409,9 @@ Without the URL these keys are not checked. The URL scheme is not checked: HTTP 
 - `HeadOfficeHeartbeatSchedulerTest` (task 1.4): `PENDING` at start; a failure keeps the last success and its head office time; one INFO line per state change, DEBUG otherwise; `start` creates the single thread `ho-link-1` and makes no call at once.
 - `StoreStatusTest` (task 1.5): INACTIVE (also with a recent contact), NEVER, ONLINE up to and including the threshold, OFFLINE 1 ms after it, a contact in the future ONLINE, another threshold applied; the list item JSON is the store's JSON plus `status` and `secondsSinceContact`, never the hash; read by id.
 - `HeadOfficeLinkAPITest` (task 1.5): `GET status` has exactly the 8 fields and never the key (also after a refusal); `POST check` before the thread is started makes no call; after it, the heartbeat runs on `ho-link-1` and the answer is the new state (ONLINE, then REFUSED with the last success kept); `DEFAULT_LOCATION` empty gives NOT_CONFIGURED and a null store code.
+- `ApplicationModeOwnershipTest` (task 2.1): `headoffice.sales-push.from-date` accepted as `yyyy-MM-dd` (trimmed) or blank, refused otherwise with the key in the message, not checked without `headoffice.url`.
+- `OnHeadOfficeSalesPushConditionTest` (task 2.1): false without the URL, and with the URL when the upstreams do not include the head office (standalone and ERP flags without `sales.upstream`, `ERP`, empty, franchise admin); true with an explicit `HEAD_OFFICE` (any case, alone or with `ERP`) and on franchise customer flags (derived); the sales copy beans registered only then, all carrying the annotation. Bare bean registry.
+- `SalesCopyFinderTest` (task 2.1): the finished statuses of each type; a new finished ticket gives one `PENDING` row (number, date, no attempt); a ticket changed after it was sent is `PENDING` again (attempts and error reset, accepted hash kept, same row); parked and cancelled tickets are not found, a parked ticket completed later is; from-date ignores the day before and keeps the day itself, for every type; without it the whole history; a cycle with nothing new reads no document and touches no tracking row; the 30 s settle delay; a sent ticket cancelled later is found again; an `ERROR` row that changes is `PENDING` with attempts 0, a `PENDING` one is not rewritten; 1001 tickets read 500 per cycle, each once, with equal change times across page boundaries; returns and sessions (`OPENED` not found); one failing type is reported, the others are searched and its cursor does not move. The store documents are an in-memory list read with the rules of the JPQL query; the query itself is checked at L2.
 - Frontend (task 1.5): eslint on the changed files; a Node script (not committed) for the route guard with and without the link, the `appConfig` mutation, getter and fetch (true, false, absent, failure), "x min ago" and the status badges, the wiring of the five points and the 75 i18n keys in en, fr and ar; a build with the eslint plugin skipped (the production build stops on four `console` statements that were already there before task 1.5, in `Home.vue`, `Login.vue` and `store/app-config/index.js`).
 - Not covered by L1 (needs a started context): the chain wiring itself (store installation answers 401, a JWT is not read on `/ho/**`, other paths unchanged). Checked by the L2 table under "Store API". Also the real timer (first heartbeat after 15 s), timeouts on a real network and the bulk update on SQL Server: L2 table under "Connect a store".
 - Frontend: no test runner; the guard, the home helper, the menu filter, the Network group and the Roles page filter are checked with a Node script during the task, and by L2.

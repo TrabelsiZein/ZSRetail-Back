@@ -2,10 +2,12 @@ package com.digithink.zsretail.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
+import java.time.LocalDate;
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -24,6 +26,7 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * Task 1.1: the head office rows and the startup checks across keys.
  * Task 1.4: the head office link startup checks (headoffice.url on a head office, missing key, interval).
  * Task 1.5: headoffice.offline-after-seconds on a head office; isHeadOfficeLinked().
+ * Task 2.1: headoffice.sales-push.from-date.
  * Plain JUnit with a MockEnvironment (no Spring context).
  */
 class ApplicationModeOwnershipTest {
@@ -300,6 +303,24 @@ class ApplicationModeOwnershipTest {
 		standalone(headOfficeEnv().withProperty("headoffice.offline-after-seconds", " 180 "));
 		assertEquals(NodeType.STORE,
 				standalone(new MockEnvironment().withProperty("headoffice.offline-after-seconds", "0")).getNodeType());
+	}
+
+	@Test
+	@DisplayName("headoffice.sales-push.from-date: yyyy-MM-dd (trimmed) or blank accepted, anything else refused; not checked without headoffice.url")
+	void salesPushFromDate() {
+		String key = "headoffice.sales-push.from-date";
+		for (String value : new String[] { "2026-01-01", " 2026-09-30 ", "", "  " }) {
+			standalone(linkEnv().withProperty(key, value));
+		}
+		for (String value : new String[] { "01/09/2026", "2026-13-01", "2026-09-01T00:00", "yesterday" }) {
+			MockEnvironment env = linkEnv().withProperty(key, value);
+			IllegalStateException e = assertThrows(IllegalStateException.class, () -> erp(env), value);
+			assertTrue(e.getMessage().startsWith("Invalid value '" + value + "' for property " + key), e.getMessage());
+		}
+		standalone(new MockEnvironment().withProperty(key, "yesterday"));
+		assertEquals(LocalDate.of(2026, 9, 30), NodeOwnership.parseSalesPushFromDate(" 2026-09-30 "));
+		assertNull(NodeOwnership.parseSalesPushFromDate(null));
+		assertNull(NodeOwnership.parseSalesPushFromDate(" "));
 	}
 
 	// --- Through ApplicationModeService ---
