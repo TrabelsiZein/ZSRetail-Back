@@ -50,7 +50,7 @@
 - `ReturnHeaderService.processReturn()`: calls `applyReturn` (see **Returns**); for a ticket paid partly with points, refunds only the money paid (`loyaltyRefundFactor`). `ReturnHeaderAPI /ticket-details` sends `loyaltyPointsRedeemed`, `loyaltyDeductionAmount`, `loyaltyRefundFactor`, `loyaltyHeaderFactor` so `ReturnProducts.vue` shows the same refund, with the points share on its own line.
 - `ZZDataInitializer`: seeds `LOYALTY_ENABLED=false` in `GeneralSetup`
 - `AppConfigDTO` / `AppConfigAPI` (`GET /config`): exposes `loyaltyEnabled` flag
-- `LoyaltyTransactionRepository`: `findMaxCardSequence` uses **native SQL Server query** (`SUBSTRING(card_number, 5, LEN(card_number)-4)`) because SQL Server's `SUBSTRING` requires 3 arguments (unlike MySQL/H2)
+- `LoyaltyTransactionRepository`: `findMaxCardSequence` uses **native SQL Server query** (`SUBSTRING(card_number, 5, LEN(card_number)-4)`) because SQL Server's `SUBSTRING` requires 3 arguments (unlike MySQL/H2) Since the L2 of steps 4 and 5 (2026-10-04) only cards whose part after `LYL-` is all digits count (a `CASE` guards the cast): a store back to local loyalty that holds network cards (`LYL-HO-000001`, `LYL-STORE-B-000001`) failed every enrol with "Conversion failed"; the result is unchanged for a store that only has `LYL-000001` cards (checked read-only on `pos_db_prod`: 250 with both queries).
 
 ### Frontend — New Files
 - `src/views/admin/LoyaltyMembersManagement.vue`: paginated member table with search + status filter; detail modal with member info, edit form, points summary, last 5 transactions + "View All" button; adjust points modal; create member modal

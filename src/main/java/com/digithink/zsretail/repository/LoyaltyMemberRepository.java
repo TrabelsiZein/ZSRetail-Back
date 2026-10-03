@@ -54,6 +54,14 @@ public interface LoyaltyMemberRepository extends _BaseRepository<LoyaltyMember, 
 		   "m.phone LIKE CONCAT('%', :search, '%'))")
 	Page<LoyaltyMember> findAllBySearchTerm(@Param("search") String search, Pageable pageable);
 
-	@Query(value = "SELECT COALESCE(MAX(CAST(SUBSTRING(card_number, 5, LEN(card_number) - 4) AS INT)), 0) FROM loyalty_member WHERE card_number LIKE 'LYL-%'", nativeQuery = true)
+	/**
+	 * Highest number of today's LYL-000001 cards (loyalty LOCAL). Only cards whose part after LYL- is all digits count
+	 * (L2 of step 4: a store back to LOCAL after holding network cards LYL-HO-000001, LYL-STORE-B-000001 failed with
+	 * "Conversion failed"); the CASE keeps SQL Server from casting any other card. Same result for a store that only
+	 * ever had LYL-000001 cards.
+	 */
+	@Query(value = "SELECT COALESCE(MAX(CASE WHEN LEN(card_number) > 4 AND SUBSTRING(card_number, 5, LEN(card_number) - 4)"
+			+ " NOT LIKE '%[^0-9]%' THEN CAST(SUBSTRING(card_number, 5, LEN(card_number) - 4) AS INT) END), 0)"
+			+ " FROM loyalty_member WHERE card_number LIKE 'LYL-%'", nativeQuery = true)
 	Integer findMaxCardSequence();
 }
