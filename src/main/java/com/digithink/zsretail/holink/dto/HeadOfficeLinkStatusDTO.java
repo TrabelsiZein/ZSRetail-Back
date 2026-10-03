@@ -33,4 +33,13 @@ public class HeadOfficeLinkStatusDTO {
 	private final String storeCode;
 
 	private final long intervalSeconds;
+
+	/** Task 2.4: sales copies waiting to be sent; null when this store does not copy its sales to the head office. */
+	private final Long pendingCount;
+
+	/** Task 2.4: sales copies accepted by the head office; null when this store does not copy its sales. */
+	private final Long sentCount;
+
+	/** Task 2.4: sales copies rejected or not built, retried; null when this store does not copy its sales. */
+	private final Long errorCount;
 }

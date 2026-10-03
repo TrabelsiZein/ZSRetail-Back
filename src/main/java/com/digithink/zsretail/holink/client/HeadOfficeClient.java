@@ -1,6 +1,7 @@
 package com.digithink.zsretail.holink.client;
 
 import java.util.Collections;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,14 +21,22 @@ import org.springframework.web.client.RestTemplate;
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeLink;
 import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatDTO;
 import com.digithink.zsretail.headoffice.dto.HeadOfficePingDTO;
+import com.digithink.zsretail.headoffice.dto.SalesCopyAnswerDTO;
 import com.digithink.zsretail.holink.dto.HeadOfficeCallResult;
+import com.digithink.zsretail.holink.dto.SalesPushAnswer;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
+import com.digithink.zsretail.holink.enumeration.SalesCopyType;
 import com.digithink.zsretail.service.GeneralSetupService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 /**
  * Store side of the head office link (task 1.4): calls the head office on /ho/** with the store code
  * (DEFAULT_LOCATION, read at each call) and the API key. Never throws: every outcome is a
- * {@link HeadOfficeCallResult}. Called only by the heartbeat thread. The key is never logged.
+ * {@link HeadOfficeCallResult}. Called only by the ho-link thread (heartbeat, and the sales push of task 2.4). The key
+ * is never logged.
  * See docs/modules/head-office.md, "Head office link".
  */
 @Component
@@ -37,6 +46,7 @@ public class HeadOfficeClient {
 	static final String STORE_CODE_HEADER = "X-Store-Code";
 	static final String STORE_KEY_HEADER = "X-Store-Key";
 	static final String HEARTBEAT_PATH = "/ho/heartbeat";
+	static final String SALES_PATH = "/ho/sales";
 	static final String STORE_CODE_SETTING = "DEFAULT_LOCATION";
 
 	static final int CONNECT_TIMEOUT_MS = 5_000;
@@ -45,6 +55,10 @@ public class HeadOfficeClient {
 	static final String KEY_REFUSED = "store code or key refused by the head office";
 	static final String NO_LICENSE = "the head office has no valid license";
 	static final String NO_STORE_CODE = "DEFAULT_LOCATION is empty in the general setup: no call to the head office";
+
+	/** Writes the request bodies: java.time as ISO strings (e.g. 2026-10-03T10:15:30), like the head office expects. */
+	private static final ObjectMapper WIRE_MAPPER = new ObjectMapper().registerModule(new JavaTimeModule())
+			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
 	private final RestTemplate restTemplate;
 	private final GeneralSetupService generalSetupService;
@@ -90,15 +104,51 @@ public class HeadOfficeClient {
 
 	/** POST /ho/heartbeat with the application version. */
 	public HeadOfficeCallResult heartbeat() {
+		Answer<HeadOfficePingDTO> answer = post(HEARTBEAT_PATH, new HeadOfficeHeartbeatDTO(appVersion),
+				HeadOfficePingDTO.class);
+		return answer.failure != null ? answer.failure : HeadOfficeCallResult.online(answer.body.getServerTime());
+	}
+
+	/**
+	 * Task 2.4: POST one batch of copies of one type to /ho/sales/tickets, /returns or /sessions. Delivered (state
+	 * ONLINE) with one result per document; otherwise the state and message of the heartbeat table, and no result.
+	 */
+	public SalesPushAnswer push(SalesCopyType type, List<?> copies) {
+		Answer<SalesCopyAnswerDTO> answer = post(salesPath(type), copies, SalesCopyAnswerDTO.class);
+		if (answer.failure != null) {
+			return SalesPushAnswer.failed(answer.failure);
+		}
+		if (answer.body.getResults() == null) {
+			return SalesPushAnswer.failed(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"unreadable answer from the head office (no results)"));
+		}
+		return SalesPushAnswer.delivered(answer.body.getResults());
+	}
+
+	static String salesPath(SalesCopyType type) {
+		switch (type) {
+			case TICKET:
+				return SALES_PATH + "/tickets";
+			case RETURN:
+				return SALES_PATH + "/returns";
+			default:
+				return SALES_PATH + "/sessions";
+		}
+	}
+
+	/**
+	 * POST to the head office with the store code and key; the answer body, or why there is none (the state table of
+	 * docs/modules/head-office.md). Never throws.
+	 */
+	private <T> Answer<T> post(String path, Object body, Class<T> answerType) {
 		String storeCode;
 		try {
 			storeCode = readStoreCode();
 		} catch (RuntimeException e) {
-			return HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
-					STORE_CODE_SETTING + " could not be read (" + cause(e) + ")");
+			return Answer.failed(HeadOfficeLinkState.ERROR, STORE_CODE_SETTING + " could not be read (" + cause(e) + ")");
 		}
 		if (storeCode == null) {
-			return HeadOfficeCallResult.failure(HeadOfficeLinkState.NOT_CONFIGURED, NO_STORE_CODE);
+			return Answer.failed(HeadOfficeLinkState.NOT_CONFIGURED, NO_STORE_CODE);
 		}
 		HttpHeaders headers = new HttpHeaders();
 		headers.setContentType(MediaType.APPLICATION_JSON);
@@ -106,25 +156,43 @@ public class HeadOfficeClient {
 		headers.set(STORE_CODE_HEADER, storeCode);
 		headers.set(STORE_KEY_HEADER, apiKey);
 		try {
-			ResponseEntity<HeadOfficePingDTO> response = restTemplate.exchange(baseUrl + HEARTBEAT_PATH, HttpMethod.POST,
-					new HttpEntity<>(new HeadOfficeHeartbeatDTO(appVersion), headers), HeadOfficePingDTO.class);
+			// The body is written here (UTF-8, dates as ISO strings), whatever the RestTemplate's converters
+			byte[] json = WIRE_MAPPER.writeValueAsBytes(body);
+			ResponseEntity<T> response = restTemplate.exchange(baseUrl + path, HttpMethod.POST,
+					new HttpEntity<>(json, headers), answerType);
 			if (response.getStatusCodeValue() != 200) {
-				return fromStatus(response.getStatusCodeValue());
+				return new Answer<>(null, fromStatus(response.getStatusCodeValue()));
 			}
 			if (response.getBody() == null) {
-				return HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
-						"unreadable answer from the head office (empty body)");
+				return Answer.failed(HeadOfficeLinkState.ERROR, "unreadable answer from the head office (empty body)");
 			}
-			return HeadOfficeCallResult.online(response.getBody().getServerTime());
+			return new Answer<>(response.getBody(), null);
+		} catch (JsonProcessingException e) {
+			return Answer.failed(HeadOfficeLinkState.ERROR, "request could not be written (" + cause(e) + ")");
 		} catch (RestClientResponseException e) {
-			return fromStatus(e.getRawStatusCode());
+			return new Answer<>(null, fromStatus(e.getRawStatusCode()));
 		} catch (ResourceAccessException e) {
-			return HeadOfficeCallResult.failure(HeadOfficeLinkState.OFFLINE, "head office unreachable (" + cause(e) + ")");
+			return Answer.failed(HeadOfficeLinkState.OFFLINE, "head office unreachable (" + cause(e) + ")");
 		} catch (RestClientException e) {
-			return HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
-					"unreadable answer from the head office (" + cause(e) + ")");
+			return Answer.failed(HeadOfficeLinkState.ERROR, "unreadable answer from the head office (" + cause(e) + ")");
 		} catch (RuntimeException e) {
-			return HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR, "head office call failed (" + cause(e) + ")");
+			return Answer.failed(HeadOfficeLinkState.ERROR, "head office call failed (" + cause(e) + ")");
+		}
+	}
+
+	/** The body of a 200 answer, or the failure; exactly one of the two is set. */
+	private static final class Answer<T> {
+
+		final T body;
+		final HeadOfficeCallResult failure;
+
+		Answer(T body, HeadOfficeCallResult failure) {
+			this.body = body;
+			this.failure = failure;
+		}
+
+		static <T> Answer<T> failed(HeadOfficeLinkState state, String message) {
+			return new Answer<>(null, HeadOfficeCallResult.failure(state, message));
 		}
 	}
 
