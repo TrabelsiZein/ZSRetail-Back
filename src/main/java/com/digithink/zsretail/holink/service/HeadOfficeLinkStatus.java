@@ -24,7 +24,7 @@ public class HeadOfficeLinkStatus {
 	static final String NO_HEARTBEAT_YET = "no heartbeat yet";
 
 	private volatile Snapshot snapshot = new Snapshot(HeadOfficeLinkState.PENDING, null, null, NO_HEARTBEAT_YET, null,
-			null, null);
+			null, null, null);
 
 	public Snapshot get() {
 		return snapshot;
@@ -37,11 +37,13 @@ public class HeadOfficeLinkStatus {
 	public synchronized HeadOfficeLinkState record(HeadOfficeCallResult result, LocalDateTime at) {
 		Snapshot previous = snapshot;
 		boolean online = result.getState() == HeadOfficeLinkState.ONLINE;
-		boolean rights = online && (result.getCanEditMembers() != null || result.getCanAdjustPoints() != null);
+		boolean rights = online && (result.getCanEditMembers() != null || result.getCanAdjustPoints() != null
+				|| result.getRedeemRequiresOnline() != null);
 		snapshot = new Snapshot(result.getState(), at, online ? at : previous.getLastSuccess(), result.getMessage(),
 				online ? result.getServerTime() : previous.getServerTime(),
 				rights ? result.getCanEditMembers() : previous.getCanEditMembers(),
-				rights ? result.getCanAdjustPoints() : previous.getCanAdjustPoints());
+				rights ? result.getCanAdjustPoints() : previous.getCanAdjustPoints(),
+				rights ? result.getRedeemRequiresOnline() : previous.getRedeemRequiresOnline());
 		return previous.getState();
 	}
 
@@ -68,5 +70,8 @@ public class HeadOfficeLinkStatus {
 		/** Step 4: the store's loyalty rights from the last heartbeat answer that carried them; null until then. */
 		private final Boolean canEditMembers;
 		private final Boolean canAdjustPoints;
+
+		/** Step 5: spending needs a fresh balance (null until the first heartbeat answer: not required). */
+		private final Boolean redeemRequiresOnline;
 	}
 }

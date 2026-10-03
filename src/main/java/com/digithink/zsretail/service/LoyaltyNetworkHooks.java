@@ -29,4 +29,11 @@ public interface LoyaltyNetworkHooks {
 
 	/** Before a program is deleted. */
 	void beforeProgramDeleted(LoyaltyProgram program);
+
+	/**
+	 * Step 5: before points of this member are spent in a sale; throws (with the reason the cashier sees) to refuse.
+	 * Nothing by default (a head office never sells).
+	 */
+	default void beforeRedeem(LoyaltyMember member, int points) {
+	}
 }

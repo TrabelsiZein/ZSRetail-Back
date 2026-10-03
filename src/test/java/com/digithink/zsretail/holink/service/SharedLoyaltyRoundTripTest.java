@@ -48,6 +48,7 @@ import com.digithink.zsretail.headoffice.dto.LoyaltyMemberCopyDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberEditDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberResultDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMovementCopyDTO;
+import com.digithink.zsretail.headoffice.dto.LoyaltyPointsAdjustDTO;
 import com.digithink.zsretail.headoffice.dto.SalesCopyAnswerDTO;
 import com.digithink.zsretail.headoffice.model.HoLoyaltyMovement;
 import com.digithink.zsretail.headoffice.model.Store;
@@ -67,6 +68,7 @@ import com.digithink.zsretail.model.LoyaltyMember;
 import com.digithink.zsretail.model.LoyaltyProgram;
 import com.digithink.zsretail.model.LoyaltyTransaction;
 import com.digithink.zsretail.model.MemberFunction;
+import com.digithink.zsretail.model.ReturnHeader;
 import com.digithink.zsretail.model.SalesHeader;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.RecordOrigin;
@@ -108,6 +110,9 @@ class SharedLoyaltyRoundTripTest {
 	private CopiesDownPuller puller;
 	private MemberFunction storeClient;
 	private String storeCode = "rs01";
+	private final HeadOfficeLinkStatus linkStatus = new HeadOfficeLinkStatus();
+	private LocalDateTime clock = NOW;
+	private final LoyaltyFreshness freshness = new LoyaltyFreshness(() -> clock);
 
 	// The line between them
 	private boolean headOfficeDown;
@@ -145,7 +150,8 @@ class SharedLoyaltyRoundTripTest {
 		};
 		HeadOfficeClient client = new HeadOfficeClient(rest, setup, URL, "key", "2.1.0");
 		storeClient = db.function("CLIENT", "Client");
-		StoreLoyaltyHooks hooks = new StoreLoyaltyHooks(client, db.memberRepository(), link.memberCopyRepository());
+		StoreLoyaltyHooks hooks = new StoreLoyaltyHooks(client, db.memberRepository(), link.memberCopyRepository(),
+				linkStatus, freshness);
 		storeLoyalty = db.loyaltyService(hooks);
 		LoyaltyCopyWriter writer = new LoyaltyCopyWriter(db.memberRepository(), db.programRepository(),
 				db.functionRepository(), db.customerRepository(), link.memberCopyRepository(),
@@ -155,7 +161,7 @@ class SharedLoyaltyRoundTripTest {
 		puller = new CopiesDownPuller(client, Collections.singletonList(handler), link.cursorRepository(),
 				link.exchangeLog(), TransactionOperations.withoutTransaction());
 		network = new StoreLoyaltyNetwork(client, storeLoyalty, db.memberRepository(), db.functionRepository(),
-				db.customerRepository(), writer, new HeadOfficeLinkStatus(), TransactionOperations.withoutTransaction());
+				db.customerRepository(), writer, linkStatus, freshness, TransactionOperations.withoutTransaction());
 		push = new LoyaltyPushService(client, link.memberCopyRepository(), link.movementCopyRepository(),
 				db.memberRepository(), writer, link.exchangeLog(), TransactionOperations.withoutTransaction(),
 				() -> NOW, 60);
@@ -531,6 +537,9 @@ class SharedLoyaltyRoundTripTest {
 		assertEquals(Boolean.FALSE, status.get().getCanAdjustPoints());
 		status.record(HeadOfficeCallResult.online("t2"), NOW);
 		assertEquals(Boolean.TRUE, status.get().getCanEditMembers());
+		status.record(HeadOfficeCallResult.online("t2b", true, false, true), NOW);
+		status.record(HeadOfficeCallResult.failure(HeadOfficeLinkState.OFFLINE, "down"), NOW);
+		assertEquals(Boolean.TRUE, status.get().getRedeemRequiresOnline(), "step 5: kept through a failure");
 		status.record(HeadOfficeCallResult.online("t3", false, false), NOW);
 		assertEquals(Boolean.FALSE, status.get().getCanEditMembers());
 	}
@@ -548,7 +557,178 @@ class SharedLoyaltyRoundTripTest {
 		assertEquals(StoreLoyaltyHooks.NO_STORE_CODE, e.getMessage());
 	}
 
+	// ─── Step 5: fresh balance, spending, adjustments, returns ───
+
+	@Test
+	@DisplayName("Step 5, fresh balance online: asked from the head office, saved with the pull rule (+ ours not sent), fresh")
+	void freshOnline() {
+		LoyaltyMember atHo = ho.member("LYL-HO-000009", "SAMI", "BEN", "29954290", true, null);
+		atHo.setLoyaltyPoints(240);
+		feed.initialise();
+		pull();
+		earn("LYL-HO-000009", 20.0, "S1"); // ours, not sent yet
+		receiver.receiveMovements(stores.get("RS02"), Collections.singletonList(movement("5", "LYL-HO-000009", 60)));
+		Long id = db.card("LYL-HO-000009").get().getId();
+
+		Map<String, Object> answer = network.refresh(id);
+		assertTrue(calls.contains("GET member"));
+		assertEquals(Boolean.TRUE, answer.get("fresh"));
+		assertEquals(NOW, answer.get("refreshedAt"));
+		assertNull(answer.get("message"));
+		assertEquals(320, ((LoyaltyMemberDTO) answer.get("member")).getLoyaltyPoints(), "300 there + our 20");
+		assertEquals(320, db.card("LYL-HO-000009").get().getLoyaltyPoints());
+		assertEquals(Boolean.FALSE, answer.get("redeemRequiresOnline"));
+		assertEquals(Boolean.TRUE, answer.get("canRedeem"));
+		assertTrue(freshness.isFresh("LYL-HO-000009"));
+	}
+
+	@Test
+	@DisplayName("Step 5, fresh balance offline or unknown there: this store's copy, fresh false with the reason; never fails")
+	void freshOffline() {
+		LoyaltyMember atHo = ho.member("LYL-HO-000009", "SAMI", "BEN", "29954290", true, null);
+		atHo.setLoyaltyPoints(240);
+		feed.initialise();
+		pull();
+		Long id = db.card("LYL-HO-000009").get().getId();
+		atHo.setLoyaltyPoints(999);
+		headOfficeDown = true;
+		Map<String, Object> answer = network.refresh(id);
+		assertEquals(Boolean.FALSE, answer.get("fresh"));
+		assertNull(answer.get("refreshedAt"));
+		assertEquals(StoreLoyaltyNetwork.NOT_FRESH_UNREACHABLE, answer.get("message"));
+		assertEquals(240, ((LoyaltyMemberDTO) answer.get("member")).getLoyaltyPoints());
+		assertEquals(Boolean.TRUE, answer.get("canRedeem"), "a lenient store spends anyway");
+		linkStatus.record(HeadOfficeCallResult.online("t", false, false, true), NOW);
+		assertEquals(Boolean.FALSE, network.refresh(id).get("canRedeem"), "a strict store needs a fresh balance");
+
+		headOfficeDown = false;
+		pull();
+		Long fresh = network.enrol(request("ALI", "22984935")).getId(); // not sent yet
+		Map<String, Object> unknown = network.refresh(fresh);
+		assertEquals(Boolean.FALSE, unknown.get("fresh"));
+		assertEquals(StoreLoyaltyNetwork.NOT_FRESH_UNKNOWN, unknown.get("message"));
+	}
+
+	@Test
+	@DisplayName("Step 5, strict store: spending refused without a balance refreshed in the last 2 minutes; earning still works")
+	void strictStore() {
+		LoyaltyMember atHo = ho.member("LYL-HO-000009", "SAMI", "BEN", "29954290", true, null);
+		atHo.setLoyaltyPoints(500);
+		feed.initialise();
+		pull();
+		linkStatus.record(HeadOfficeCallResult.online("t", false, false, true), NOW);
+		LoyaltyMember local = db.card("LYL-HO-000009").get();
+
+		IllegalStateException refused = assertThrows(IllegalStateException.class,
+				() -> storeLoyalty.redeemPoints(local.getId(), 100, sale(101.0, "S1"), null));
+		assertEquals(StoreLoyaltyHooks.FRESH_BALANCE_REQUIRED, refused.getMessage());
+		assertEquals(500, local.getLoyaltyPoints());
+		assertTrue(db.transactions.isEmpty(), "nothing written");
+		assertEquals(30, earn("LYL-HO-000009", 30.0, "S2").getPoints(), "earning is not concerned");
+
+		assertEquals(Boolean.TRUE, network.refresh(local.getId()).get("canRedeem"));
+		assertEquals(1.0, storeLoyalty.redeemPoints(local.getId(), 100, sale(101.0, "S3"), null));
+		clock = NOW.plusMinutes(2);
+		storeLoyalty.redeemPoints(local.getId(), 100, sale(101.0, "S4"), null); // exactly 2 minutes: still fresh
+		clock = NOW.plusMinutes(2).plusSeconds(1);
+		assertThrows(IllegalStateException.class,
+				() -> storeLoyalty.redeemPoints(local.getId(), 100, sale(101.0, "S5"), null));
+		headOfficeDown = true;
+		assertEquals(Boolean.FALSE, network.refresh(local.getId()).get("canRedeem"), "offline: still refused");
+	}
+
+	@Test
+	@DisplayName("Step 5, lenient store (false, or not known yet): spending never refused, head office stopped or not")
+	void lenientStore() {
+		LoyaltyMember atHo = ho.member("LYL-HO-000009", "SAMI", "BEN", "29954290", true, null);
+		atHo.setLoyaltyPoints(500);
+		feed.initialise();
+		pull();
+		headOfficeDown = true;
+		LoyaltyMember local = db.card("LYL-HO-000009").get();
+		storeLoyalty.redeemPoints(local.getId(), 100, sale(101.0, "S1"), null); // no heartbeat answer yet
+		linkStatus.record(HeadOfficeCallResult.online("t", false, false, false), NOW);
+		storeLoyalty.redeemPoints(local.getId(), 100, sale(101.0, "S2"), null);
+		assertEquals(300, local.getLoyaltyPoints());
+		assertEquals(2, db.transactions.size());
+	}
+
+	@Test
+	@DisplayName("Step 5, adjustment from the store: refused without the right (403) or unreachable (503); applied there with it")
+	void adjustThroughHeadOffice() {
+		LoyaltyMember atHo = ho.member("LYL-HO-000009", "SAMI", "BEN", "29954290", true, null);
+		atHo.setLoyaltyPoints(100);
+		feed.initialise();
+		pull();
+		Long id = db.card("LYL-HO-000009").get().getId();
+		StoreLoyaltyNetwork.NetworkException refused = assertThrows(StoreLoyaltyNetwork.NetworkException.class,
+				() -> network.adjust(id, 50, "goodwill", "cashier1"));
+		assertEquals(403, refused.getStatus());
+		assertEquals("This store may not adjust points: the head office gives the right on its Stores page.",
+				refused.getMessage());
+		assertEquals(100, atHo.getLoyaltyPoints());
+
+		stores.get("RS01").setCanAdjustPoints(true);
+		earn("LYL-HO-000009", 10.0, "S1"); // ours, not sent yet
+		assertEquals(160, network.adjust(id, 50, "goodwill", "cashier1").getLoyaltyPoints(), "150 there + our 10");
+		assertEquals(150, atHo.getLoyaltyPoints());
+		assertEquals("STORE:RS01 (cashier1)", ho.transactions.get(ho.transactions.size() - 1).getCreatedBy());
+		assertEquals(1, db.transactions.size(), "no movement written here for the adjustment");
+		assertTrue(freshness.isFresh("LYL-HO-000009"));
+
+		headOfficeDown = true;
+		StoreLoyaltyNetwork.NetworkException down = assertThrows(StoreLoyaltyNetwork.NetworkException.class,
+				() -> network.adjust(id, 5, "x", "cashier1"));
+		assertEquals(503, down.getStatus());
+		headOfficeDown = false;
+		push.runCycle();
+		pull();
+		assertEquals(160, atHo.getLoyaltyPoints());
+		assertEquals(160, db.card("LYL-HO-000009").get().getLoyaltyPoints());
+	}
+
+	@Test
+	@DisplayName("Step 5, returns: sale with points spent and earned, partial then full return: head office = store, each time")
+	void returnsMatch() {
+		LoyaltyMember atHo = ho.member("LYL-HO-000009", "SAMI", "BEN", "29954290", true, null);
+		atHo.setLoyaltyPoints(300);
+		feed.initialise();
+		pull();
+		LoyaltyMember local = db.card("LYL-HO-000009").get();
+		SalesHeader sale = sale(100.0, "RS01-20261003-0007");
+		storeLoyalty.redeemPoints(local.getId(), 200, sale, null);
+		storeLoyalty.earnPoints(local.getId(), sale, null);
+		assertEquals(200, local.getLoyaltyPoints());
+		push.runCycle();
+		assertEquals(200, atHo.getLoyaltyPoints());
+
+		storeLoyalty.applyReturn(local.getId(), sale, returnOf("R1"), 102.0, 51.0, 0.0); // half the goods
+		assertEquals(200 + 100 - 50, local.getLoyaltyPoints());
+		push.runCycle();
+		assertEquals(local.getLoyaltyPoints(), atHo.getLoyaltyPoints());
+		assertEquals(local.getTotalPointsEarned(), atHo.getTotalPointsEarned());
+		assertEquals(local.getTotalPointsRedeemed(), atHo.getTotalPointsRedeemed());
+
+		storeLoyalty.applyReturn(local.getId(), sale, returnOf("R2"), 102.0, 102.0, 0.0); // the rest
+		assertEquals(300, local.getLoyaltyPoints(), "points spent given back, points earned removed");
+		push.runCycle();
+		assertEquals(300, atHo.getLoyaltyPoints());
+		assertEquals(local.getTotalPointsEarned(), atHo.getTotalPointsEarned());
+		assertEquals(local.getTotalPointsRedeemed(), atHo.getTotalPointsRedeemed());
+		pull();
+		assertEquals(300, db.card("LYL-HO-000009").get().getLoyaltyPoints());
+		assertTrue(ho.movements.stream().allMatch(m -> m.getOverspendPoints() == 0));
+		assertEquals(Arrays.asList("REDEEMED", "EARNED", "ADJUSTED", "REVERSED", "ADJUSTED", "REVERSED"),
+				ho.movements.stream().map(m -> m.getType().name()).collect(Collectors.toList()));
+	}
+
 	// ─── Helpers ─────────────────────────────────────────────────
+
+	private static ReturnHeader returnOf(String number) {
+		ReturnHeader ret = new ReturnHeader();
+		ret.setReturnNumber(number);
+		return ret;
+	}
 
 	private void pull() {
 		CopiesDownPuller.Cycle cycle = puller.runCycle();
@@ -629,6 +809,26 @@ class SharedLoyaltyRoundTripTest {
 			if (loseNextMovementAnswer) {
 				loseNextMovementAnswer = false;
 				throw new SocketTimeoutException("Read timed out"); // applied there, the answer never arrives
+			}
+		} else if (call.getMethod() == HttpMethod.GET && path.startsWith("/ho/loyalty/members/")) {
+			calls.add("GET member");
+			try {
+				answer = receiver.findMember(decode(path.substring("/ho/loyalty/members/".length())));
+			} catch (NoSuchElementException e) {
+				return error(request, HttpStatus.NOT_FOUND, e.getMessage());
+			}
+		} else if (call.getMethod() == HttpMethod.POST && path.startsWith("/ho/loyalty/members/")
+				&& path.endsWith("/adjust")) {
+			String card = decode(path.substring("/ho/loyalty/members/".length(), path.length() - "/adjust".length()));
+			try {
+				answer = receiver.adjustPoints(store, card,
+						MAPPER.readValue(call.getBodyAsString(), LoyaltyPointsAdjustDTO.class));
+			} catch (HoLoyaltyReceiver.NoRightException e) {
+				return error(request, HttpStatus.FORBIDDEN, e.getMessage());
+			} catch (NoSuchElementException e) {
+				return error(request, HttpStatus.NOT_FOUND, e.getMessage());
+			} catch (IllegalArgumentException e) {
+				return error(request, HttpStatus.BAD_REQUEST, e.getMessage());
 			}
 		} else if (call.getMethod() == HttpMethod.PUT && path.startsWith("/ho/loyalty/members/")) {
 			String card = decode(path.substring("/ho/loyalty/members/".length()));

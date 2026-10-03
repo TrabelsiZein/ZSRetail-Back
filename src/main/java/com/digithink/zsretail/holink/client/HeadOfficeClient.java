@@ -34,6 +34,7 @@ import com.digithink.zsretail.headoffice.dto.LoyaltyMemberCopyDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberEditDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMovementCopyDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyPhoneCheckDTO;
+import com.digithink.zsretail.headoffice.dto.LoyaltyPointsAdjustDTO;
 import com.digithink.zsretail.headoffice.dto.SalesCopyAnswerDTO;
 import com.digithink.zsretail.holink.dto.HeadOfficeCallResult;
 import com.digithink.zsretail.holink.dto.LiveAnswer;
@@ -168,7 +169,7 @@ public class HeadOfficeClient {
 				HeadOfficeHeartbeatAnswerDTO.class);
 		return answer.failure != null ? answer.failure
 				: HeadOfficeCallResult.online(answer.body.getServerTime(), answer.body.getCanEditMembers(),
-						answer.body.getCanAdjustPoints());
+						answer.body.getCanAdjustPoints(), answer.body.getRedeemRequiresOnline());
 	}
 
 	HeadOfficeHeartbeatDTO heartbeatBody() {
@@ -296,6 +297,30 @@ public class HeadOfficeClient {
 			URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl + LOYALTY_PATH + "/members/{card}").encode()
 					.buildAndExpand(cardNumber).toUri();
 			return live(HttpMethod.PUT, uri, edit, LoyaltyMemberCopyDTO.class);
+		} catch (RuntimeException e) {
+			return LiveAnswer.notAnswered(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"head office call failed (" + cause(e) + ")"));
+		}
+	}
+
+	/** Step 5, live question: the member as the head office holds it now, GET /ho/loyalty/members/{cardNumber}. */
+	public LiveAnswer<LoyaltyMemberCopyDTO> fetchLoyaltyMember(String cardNumber) {
+		try {
+			URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl + LOYALTY_PATH + "/members/{card}").encode()
+					.buildAndExpand(cardNumber).toUri();
+			return live(HttpMethod.GET, uri, null, LoyaltyMemberCopyDTO.class);
+		} catch (RuntimeException e) {
+			return LiveAnswer.notAnswered(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"head office call failed (" + cause(e) + ")"));
+		}
+	}
+
+	/** Step 5, live question: a manual adjustment, POST /ho/loyalty/members/{cardNumber}/adjust. */
+	public LiveAnswer<LoyaltyMemberCopyDTO> adjustLoyaltyPoints(String cardNumber, LoyaltyPointsAdjustDTO request) {
+		try {
+			URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl + LOYALTY_PATH + "/members/{card}/adjust").encode()
+					.buildAndExpand(cardNumber).toUri();
+			return live(HttpMethod.POST, uri, request, LoyaltyMemberCopyDTO.class);
 		} catch (RuntimeException e) {
 			return LiveAnswer.notAnswered(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
 					"head office call failed (" + cause(e) + ")"));

@@ -1,8 +1,11 @@
 package com.digithink.zsretail.holink.controller;
 
+import java.util.Collections;
 import java.util.Map;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -30,5 +33,18 @@ public class LoyaltyNetworkAPI {
 	@GetMapping("/network")
 	public Map<String, Object> network() {
 		return network.status();
+	}
+
+	/**
+	 * Step 5: called by the POS when a member is selected: {member, fresh, refreshedAt, message, redeemRequiresOnline,
+	 * canRedeem}. Never fails because of the head office (fresh false and this store's copy); 400 for an unknown id.
+	 */
+	@GetMapping("/member/{id}/fresh")
+	public ResponseEntity<?> fresh(@PathVariable Long id) {
+		try {
+			return ResponseEntity.ok(network.refresh(id));
+		} catch (StoreLoyaltyNetwork.NetworkException e) {
+			return ResponseEntity.status(e.getStatus()).body(Collections.singletonMap("error", e.getMessage()));
+		}
 	}
 }

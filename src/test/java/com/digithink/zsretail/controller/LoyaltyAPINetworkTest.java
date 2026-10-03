@@ -49,9 +49,10 @@ class LoyaltyAPINetworkTest {
 	}
 
 	@Test
-	@DisplayName("Loyalty owned by the head office: program writes and manual adjustments answer 409, nothing written")
+	@DisplayName("Loyalty owned by the head office: program writes answer 409; an adjustment goes through the network only")
 	void headOfficeOnlyWrites() {
-		InMemoryLoyalty.inject(api, "network", network(null));
+		InMemoryLoyalty.inject(api, "network",
+				network(new StoreLoyaltyNetwork.NetworkException(403, "This store may not adjust points.")));
 		LoyaltyProgram program = db.program("P1", 1.0, true, null);
 		LoyaltyMember member = db.member("LYL-HO-000001", "A", "B", "21000000", true, null);
 		assertRefused(api.createProgram(new LoyaltyProgram()), StoreLoyaltyNetwork.PROGRAM_AT_HEAD_OFFICE);
@@ -61,7 +62,11 @@ class LoyaltyAPINetworkTest {
 		LoyaltyAdjustmentRequestDTO adjust = new LoyaltyAdjustmentRequestDTO();
 		adjust.setDelta(50);
 		adjust.setReason("gift");
-		assertRefused(api.adjustPoints(member.getId(), adjust), StoreLoyaltyNetwork.ADJUST_AT_HEAD_OFFICE);
+		ResponseEntity<?> refused = api.adjustPoints(member.getId(), adjust);
+		assertEquals(403, refused.getStatusCodeValue());
+		assertEquals(Map.of("error", "This store may not adjust points."), refused.getBody());
+		adjust.setDelta(0);
+		assertEquals(400, api.adjustPoints(member.getId(), adjust).getStatusCodeValue(), "checked before the call");
 		assertEquals(1, db.programs.size());
 		assertTrue(program.getActive());
 		assertEquals(0, member.getLoyaltyPoints());
@@ -115,7 +120,7 @@ class LoyaltyAPINetworkTest {
 
 	/** A network whose member changes all fail with this refusal (null: never called). */
 	private static StoreLoyaltyNetwork network(StoreLoyaltyNetwork.NetworkException refusal) {
-		return new StoreLoyaltyNetwork(null, null, null, null, null, null, null,
+		return new StoreLoyaltyNetwork(null, null, null, null, null, null, null, null,
 				org.springframework.transaction.support.TransactionOperations.withoutTransaction()) {
 			@Override
 			public LoyaltyMemberDTO edit(Long id, CreateLoyaltyMemberRequestDTO request) {
@@ -124,6 +129,11 @@ class LoyaltyAPINetworkTest {
 
 			@Override
 			public LoyaltyMemberDTO toggleActive(Long id) {
+				throw refusal;
+			}
+
+			@Override
+			public LoyaltyMemberDTO adjust(Long id, int delta, String reason, String adjustedBy) {
 				throw refusal;
 			}
 

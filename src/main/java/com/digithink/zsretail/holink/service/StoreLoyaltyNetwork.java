@@ -1,6 +1,7 @@
 package com.digithink.zsretail.holink.service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -17,6 +18,7 @@ import com.digithink.zsretail.dto.LoyaltyMemberDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberCopyDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberEditDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyPhoneCheckDTO;
+import com.digithink.zsretail.headoffice.dto.LoyaltyPointsAdjustDTO;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.holink.dto.LiveAnswer;
 import com.digithink.zsretail.model.Customer;
@@ -45,7 +47,8 @@ import lombok.extern.log4j.Log4j2;
  * a store without the right; the answer is saved here. Refused with a clear message when the head office is
  * unreachable.</li>
  * </ul>
- * The program and the manual point adjustments are refused at the store in this step (LoyaltyAPI).
+ * The program is refused at the store (LoyaltyAPI). Step 5: the fresh balance at the till ({@link #refresh}) and the
+ * manual point adjustments ({@link #adjust}), through the head office.
  */
 @Service
 @ConditionalOnHeadOfficeOwned(DataDomain.LOYALTY)
@@ -53,13 +56,17 @@ import lombok.extern.log4j.Log4j2;
 public class StoreLoyaltyNetwork {
 
 	public static final String PROGRAM_AT_HEAD_OFFICE = "The loyalty program is managed by the head office.";
-	public static final String ADJUST_AT_HEAD_OFFICE = "Points are adjusted at the head office.";
 	static final String UNREACHABLE = "The head office cannot be reached: changing a loyalty member needs it."
 			+ " Try again later.";
 	static final String NOT_IN_REGISTER = "This card is not in the network register (a local card switched off when"
 			+ " loyalty moved to the head office).";
 	static final String NOT_KNOWN_YET = "The head office does not know this card yet: it is sent within a minute."
 			+ " Try again later.";
+	static final String ADJUST_UNREACHABLE = "The head office cannot be reached: adjusting points needs it. Try again"
+			+ " later.";
+	static final String NOT_FRESH_UNREACHABLE = "The head office does not answer: the balance shown is this store's.";
+	static final String NOT_FRESH_UNKNOWN = "The head office does not know this card yet: the balance shown is this"
+			+ " store's.";
 	static final int TIMEOUT_SECONDS = 15;
 
 	private final HeadOfficeClient client;
@@ -71,17 +78,23 @@ public class StoreLoyaltyNetwork {
 	private final HeadOfficeLinkStatus linkStatus;
 	private final TransactionOperations transactions;
 
+	/** Step 5: when each card was last refreshed from the head office. */
+	private final LoyaltyFreshness freshness;
+
 	@Autowired
 	public StoreLoyaltyNetwork(HeadOfficeClient client, LoyaltyService loyaltyService, LoyaltyMemberRepository members,
 			MemberFunctionRepository functions, CustomerRepository customers, LoyaltyCopyWriter writer,
-			HeadOfficeLinkStatus linkStatus, PlatformTransactionManager transactionManager) {
-		this(client, loyaltyService, members, functions, customers, writer, linkStatus, timed(transactionManager));
+			HeadOfficeLinkStatus linkStatus, LoyaltyFreshness freshness,
+			PlatformTransactionManager transactionManager) {
+		this(client, loyaltyService, members, functions, customers, writer, linkStatus, freshness,
+				timed(transactionManager));
 	}
 
 	/** With given transactions: used by the tests. */
 	public StoreLoyaltyNetwork(HeadOfficeClient client, LoyaltyService loyaltyService, LoyaltyMemberRepository members,
 			MemberFunctionRepository functions, CustomerRepository customers, LoyaltyCopyWriter writer,
-			HeadOfficeLinkStatus linkStatus, TransactionOperations transactions) {
+			HeadOfficeLinkStatus linkStatus, LoyaltyFreshness freshness, TransactionOperations transactions) {
+		this.freshness = freshness;
 		this.client = client;
 		this.loyaltyService = loyaltyService;
 		this.members = members;
@@ -180,8 +193,69 @@ public class StoreLoyaltyNetwork {
 		status.put("canEditMembers", snapshot.getCanEditMembers());
 		status.put("canAdjustPoints", snapshot.getCanAdjustPoints());
 		status.put("programEditable", false);
-		status.put("pointsAdjustable", false);
+		status.put("pointsAdjustable", Boolean.TRUE.equals(snapshot.getCanAdjustPoints()));
+		status.put("redeemRequiresOnline", snapshot.getRedeemRequiresOnline());
+		status.put("freshWindowSeconds", LoyaltyFreshness.WINDOW.getSeconds());
 		return status;
+	}
+
+	// ─── Step 5: fresh balance and adjustments ───────────────────
+
+	/**
+	 * GET /loyalty/member/{id}/fresh, called by the POS when a member is selected: the member asked from the head
+	 * office with the live timeouts, saved here with the balance rule of the pull, and answered with fresh true; when the
+	 * head office does not answer (or does not know the card yet), this store's copy with fresh false and the reason.
+	 * Never fails the till: {member, fresh, refreshedAt, message, redeemRequiresOnline, canRedeem}. 400 for an unknown id.
+	 */
+	public Map<String, Object> refresh(Long id) {
+		LoyaltyMember member = members.findById(id)
+				.orElseThrow(() -> new NetworkException(400, "Loyalty member not found: " + id));
+		LoyaltyMember shown = member;
+		LocalDateTime refreshedAt = null;
+		String message;
+		if (member.getOrigin() != RecordOrigin.HEAD_OFFICE) {
+			message = NOT_IN_REGISTER;
+		} else {
+			LiveAnswer<LoyaltyMemberCopyDTO> answer = client.fetchLoyaltyMember(member.getCardNumber());
+			if (answer.isOk()) {
+				LoyaltyMemberCopyDTO copy = answer.getBody();
+				LoyaltyCopyWriter.Outcome outcome = transactions.execute(status -> writer.saveMember(copy));
+				if (outcome != null && outcome.isApplied()) {
+					shown = members.findByCardNumber(copy.getCardNumber()).orElse(member);
+					refreshedAt = freshness.markFresh(copy.getCardNumber());
+					message = null;
+				} else {
+					message = outcome == null ? "not saved" : outcome.getError();
+				}
+			} else if (!answer.isAnswered()) {
+				message = NOT_FRESH_UNREACHABLE;
+			} else if (answer.getStatus() == 404) {
+				message = NOT_FRESH_UNKNOWN;
+			} else {
+				message = "Unexpected answer from the head office: HTTP " + answer.getStatus()
+						+ "; the balance shown is this store's.";
+			}
+		}
+		boolean strict = Boolean.TRUE.equals(linkStatus.get().getRedeemRequiresOnline());
+		Map<String, Object> answer = new LinkedHashMap<>();
+		answer.put("member", loyaltyService.toMemberDTO(shown));
+		answer.put("fresh", refreshedAt != null);
+		answer.put("refreshedAt", refreshedAt);
+		answer.put("message", message);
+		answer.put("redeemRequiresOnline", strict);
+		answer.put("canRedeem", !strict || freshness.isFresh(shown.getCardNumber()));
+		return answer;
+	}
+
+	/**
+	 * POST /loyalty/member/{id}/adjust, through the head office (needs canAdjustPoints there): applied there, the new
+	 * balance saved here. Nothing is written here as a movement, so nothing is sent twice.
+	 */
+	public LoyaltyMemberDTO adjust(Long id, int delta, String reason, String adjustedBy) {
+		LoyaltyMember member = networkMember(id);
+		LiveAnswer<LoyaltyMemberCopyDTO> answer = client.adjustLoyaltyPoints(member.getCardNumber(),
+				new LoyaltyPointsAdjustDTO(delta, reason, adjustedBy));
+		return save(member, answer, ADJUST_UNREACHABLE, "This store may not adjust points.", "points adjusted");
 	}
 
 	private LoyaltyMember networkMember(Long id) {
@@ -207,14 +281,20 @@ public class StoreLoyaltyNetwork {
 
 	/** The change at the head office, then its answer saved here. */
 	private LoyaltyMemberDTO send(LoyaltyMember member, LoyaltyMemberEditDTO edit) {
-		LiveAnswer<LoyaltyMemberCopyDTO> answer = client.editLoyaltyMember(member.getCardNumber(), edit);
+		return save(member, client.editLoyaltyMember(member.getCardNumber(), edit), UNREACHABLE,
+				"This store may not change loyalty members.", "changed");
+	}
+
+	/** A head office answer to a change: refusals with their status, or the member saved here (and fresh). */
+	private LoyaltyMemberDTO save(LoyaltyMember member, LiveAnswer<LoyaltyMemberCopyDTO> answer, String unreachable,
+			String forbidden, String what) {
 		if (!answer.isAnswered()) {
-			throw new NetworkException(503, UNREACHABLE);
+			throw new NetworkException(503, unreachable);
 		}
 		if (!answer.isOk()) {
 			switch (answer.getStatus()) {
 				case 403:
-					throw new NetworkException(403, message(answer, "This store may not change loyalty members."));
+					throw new NetworkException(403, message(answer, forbidden));
 				case 404:
 					throw new NetworkException(409, NOT_KNOWN_YET);
 				case 400:
@@ -226,8 +306,9 @@ public class StoreLoyaltyNetwork {
 		}
 		LoyaltyMemberCopyDTO copy = answer.getBody();
 		transactions.executeWithoutResult(status -> writer.saveMember(copy));
+		freshness.markFresh(copy.getCardNumber());
 		LoyaltyMember saved = members.findByCardNumber(copy.getCardNumber()).orElse(member);
-		log.info("Loyalty: member {} changed through the head office", copy.getCardNumber());
+		log.info("Loyalty: member {} {} through the head office", copy.getCardNumber(), what);
 		return loyaltyService.toMemberDTO(saved);
 	}
 

@@ -228,6 +228,7 @@ public class HeadOfficeLinkAPI {
 			Map<String, Object> loyalty = new LinkedHashMap<>(loyaltyPush.get().counts());
 			loyalty.put("canEditMembers", snapshot.getCanEditMembers());
 			loyalty.put("canAdjustPoints", snapshot.getCanAdjustPoints());
+			loyalty.put("redeemRequiresOnline", snapshot.getRedeemRequiresOnline());
 			return loyalty;
 		} catch (RuntimeException e) {
 			return null; // the status is still answered

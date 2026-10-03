@@ -18,6 +18,7 @@ import com.digithink.zsretail.holink.controller.LoyaltyNetworkAPI;
 import com.digithink.zsretail.holink.scheduler.LoyaltyPushJob;
 import com.digithink.zsretail.holink.service.LoyaltyCopyWriter;
 import com.digithink.zsretail.holink.service.LoyaltyDownHandler;
+import com.digithink.zsretail.holink.service.LoyaltyFreshness;
 import com.digithink.zsretail.holink.service.LoyaltyPushService;
 import com.digithink.zsretail.holink.service.PromotionDownHandler;
 import com.digithink.zsretail.holink.service.StoreLoyaltyHooks;
@@ -102,7 +103,7 @@ class OnHeadOfficePullConditionTest {
 	}
 
 	/** Step 4: the store's shared loyalty beans. */
-	private static final Class<?>[] LOYALTY_BEANS = { StoreLoyaltyHooks.class, LoyaltyCopyWriter.class,
+	private static final Class<?>[] LOYALTY_BEANS = { StoreLoyaltyHooks.class, LoyaltyCopyWriter.class, LoyaltyFreshness.class,
 			LoyaltyDownHandler.class, StoreLoyaltyNetwork.class, LoyaltyPushService.class, LoyaltyPushJob.class,
 			LoyaltyNetworkAPI.class };
 

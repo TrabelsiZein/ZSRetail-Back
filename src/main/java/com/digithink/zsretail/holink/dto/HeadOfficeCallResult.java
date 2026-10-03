@@ -25,16 +25,26 @@ public final class HeadOfficeCallResult {
 	private final Boolean canEditMembers;
 	private final Boolean canAdjustPoints;
 
+	/** Step 5: spending needs a fresh balance; null when not sent. */
+	private final Boolean redeemRequiresOnline;
+
 	public static HeadOfficeCallResult online(String serverTime) {
-		return new HeadOfficeCallResult(HeadOfficeLinkState.ONLINE, null, serverTime, null, null);
+		return new HeadOfficeCallResult(HeadOfficeLinkState.ONLINE, null, serverTime, null, null, null);
 	}
 
 	/** Step 4: a heartbeat answer with the store's loyalty rights. */
 	public static HeadOfficeCallResult online(String serverTime, Boolean canEditMembers, Boolean canAdjustPoints) {
-		return new HeadOfficeCallResult(HeadOfficeLinkState.ONLINE, null, serverTime, canEditMembers, canAdjustPoints);
+		return online(serverTime, canEditMembers, canAdjustPoints, null);
+	}
+
+	/** Step 5: a heartbeat answer with the store's loyalty rights and its spending setting. */
+	public static HeadOfficeCallResult online(String serverTime, Boolean canEditMembers, Boolean canAdjustPoints,
+			Boolean redeemRequiresOnline) {
+		return new HeadOfficeCallResult(HeadOfficeLinkState.ONLINE, null, serverTime, canEditMembers, canAdjustPoints,
+				redeemRequiresOnline);
 	}
 
 	public static HeadOfficeCallResult failure(HeadOfficeLinkState state, String message) {
-		return new HeadOfficeCallResult(state, message, null, null, null);
+		return new HeadOfficeCallResult(state, message, null, null, null, null);
 	}
 }

@@ -47,8 +47,8 @@ public class LoyaltyAPI {
 
 	/**
 	 * Head office plan, step 4: present only on a store whose loyalty is owned by its head office. Then enrolling checks
-	 * the phone across the network first, member changes go through the head office, and the program and the manual
-	 * point adjustments are refused here (409). Null otherwise: every endpoint works as before.
+	 * the phone across the network first, member changes and (step 5) manual point adjustments go through the head
+	 * office, and the program is refused here (409). Null otherwise: every endpoint works as before.
 	 */
 	@Autowired(required = false)
 	private StoreLoyaltyNetwork network;
@@ -227,9 +227,6 @@ public class LoyaltyAPI {
 	public ResponseEntity<?> adjustPoints(
 			@PathVariable Long id,
 			@RequestBody LoyaltyAdjustmentRequestDTO request) {
-		if (network != null) {
-			return headOfficeOnly(StoreLoyaltyNetwork.ADJUST_AT_HEAD_OFFICE);
-		}
 		try {
 			if (request.getDelta() == null || request.getDelta() == 0) {
 				return ResponseEntity.badRequest().body(Map.of("error", "Delta cannot be zero"));
@@ -240,8 +237,13 @@ public class LoyaltyAPI {
 			String adjustedBy = currentUserProvider.getCurrentUser() != null
 					? currentUserProvider.getCurrentUser().getUsername()
 					: "admin";
-			LoyaltyMemberDTO updated = loyaltyService.adjustPoints(id, request.getDelta(), request.getReason(), adjustedBy);
+			// Step 5: loyalty owned by the head office: through it (403 without canAdjustPoints, 503 unreachable)
+			LoyaltyMemberDTO updated = network != null
+					? network.adjust(id, request.getDelta(), request.getReason(), adjustedBy)
+					: loyaltyService.adjustPoints(id, request.getDelta(), request.getReason(), adjustedBy);
 			return ResponseEntity.ok(updated);
+		} catch (StoreLoyaltyNetwork.NetworkException e) {
+			return networkRefusal(e);
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
 		} catch (Exception e) {

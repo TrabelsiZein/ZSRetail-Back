@@ -372,6 +372,10 @@ public class LoyaltyService {
 		LoyaltyMember member = loyaltyMemberRepository.findById(memberId)
 				.orElseThrow(() -> new IllegalArgumentException("Loyalty member not found: " + memberId));
 
+		if (networkHooks != null) {
+			networkHooks.beforeRedeem(member, pointsToRedeem); // step 5: a store may need a fresh balance
+		}
+
 		LoyaltyProgram program = getActiveProgram()
 				.orElseThrow(() -> new IllegalStateException("No active loyalty program found"));
 
