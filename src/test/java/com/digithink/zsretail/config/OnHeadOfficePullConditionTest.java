@@ -14,7 +14,14 @@ import org.springframework.mock.env.MockEnvironment;
 import com.digithink.zsretail.holink.scheduler.CopiesDownJob;
 import com.digithink.zsretail.holink.service.CopiesDownPuller;
 import com.digithink.zsretail.holink.service.DownRecordLog;
+import com.digithink.zsretail.holink.controller.LoyaltyNetworkAPI;
+import com.digithink.zsretail.holink.scheduler.LoyaltyPushJob;
+import com.digithink.zsretail.holink.service.LoyaltyCopyWriter;
+import com.digithink.zsretail.holink.service.LoyaltyDownHandler;
+import com.digithink.zsretail.holink.service.LoyaltyPushService;
 import com.digithink.zsretail.holink.service.PromotionDownHandler;
+import com.digithink.zsretail.holink.service.StoreLoyaltyHooks;
+import com.digithink.zsretail.holink.service.StoreLoyaltyNetwork;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 
 /**
@@ -92,6 +99,36 @@ class OnHeadOfficePullConditionTest {
 		assertTrue(registered(link().withProperty("ownership.catalogue", "HEAD_OFFICE"), CopiesDownJob.class));
 		assertEquals(DataDomain.PROMOTIONS,
 				PromotionDownHandler.class.getAnnotation(ConditionalOnHeadOfficeOwned.class).value());
+	}
+
+	/** Step 4: the store's shared loyalty beans. */
+	private static final Class<?>[] LOYALTY_BEANS = { StoreLoyaltyHooks.class, LoyaltyCopyWriter.class,
+			LoyaltyDownHandler.class, StoreLoyaltyNetwork.class, LoyaltyPushService.class, LoyaltyPushJob.class,
+			LoyaltyNetworkAPI.class };
+
+	@Test
+	@DisplayName("Step 4: the store's loyalty beans exist only with the URL and loyalty owned by the head office; the pull too")
+	void loyaltyBeans() {
+		MockEnvironment on = standalone(link()).withProperty("ownership.loyalty", "HEAD_OFFICE");
+		assertTrue(NodeOwnership.isHeadOfficePullSet(on));
+		for (Class<?> bean : LOYALTY_BEANS) {
+			assertTrue(registered(on, bean), bean.getSimpleName());
+			assertEquals(DataDomain.LOYALTY, bean.getAnnotation(ConditionalOnHeadOfficeOwned.class).value(),
+					bean.getSimpleName());
+		}
+		for (Class<?> bean : PULL_BEANS) {
+			assertTrue(registered(on, bean), bean.getSimpleName());
+		}
+		assertFalse(registered(on, PromotionDownHandler.class), "promotions stay local");
+		MockEnvironment[] off = { new MockEnvironment(), standalone(new MockEnvironment()), standalone(link()), link(),
+				standalone(link()).withProperty("ownership.loyalty", "LOCAL"),
+				standalone(link()).withProperty("ownership.promotions", "HEAD_OFFICE"),
+				standalone(new MockEnvironment()).withProperty("node.type", "HEAD_OFFICE") };
+		for (MockEnvironment env : off) {
+			for (Class<?> bean : LOYALTY_BEANS) {
+				assertFalse(registered(env, bean), bean.getSimpleName());
+			}
+		}
 	}
 
 	@Test

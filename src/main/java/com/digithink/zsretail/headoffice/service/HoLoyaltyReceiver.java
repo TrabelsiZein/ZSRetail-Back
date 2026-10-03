@@ -385,7 +385,8 @@ public class HoLoyaltyReceiver {
 		if (trim(edit.getFirstName()) == null || trim(edit.getLastName()) == null) {
 			throw new IllegalArgumentException("First name and last name are required");
 		}
-		if (trim(edit.getMemberFunctionCode()) == null) {
+		// A blank function keeps the member's own (a deactivation sends the member as it is); none at all is refused
+		if (trim(edit.getMemberFunctionCode()) == null && member.getMemberFunction() == null) {
 			throw new IllegalArgumentException("La fonction du membre est obligatoire");
 		}
 		String phone = LoyaltyService.normalizePhone(edit.getPhone());
@@ -408,8 +409,10 @@ public class HoLoyaltyReceiver {
 		member.setPhone(phone);
 		member.setEmail(edit.getEmail());
 		member.setBirthDate(edit.getBirthDate());
-		member.setMemberFunction(MemberFunctionCodes.resolve(memberFunctions, edit.getMemberFunctionCode(),
-				edit.getMemberFunctionName()));
+		if (trim(edit.getMemberFunctionCode()) != null) {
+			member.setMemberFunction(MemberFunctionCodes.resolve(memberFunctions, edit.getMemberFunctionCode(),
+					edit.getMemberFunctionName()));
+		}
 		member.setCustomer(trim(edit.getCustomerCode()) == null ? null
 				: customers.findByCustomerCode(edit.getCustomerCode().trim()).orElse(null));
 		if (edit.getActive() != null) {

@@ -23,7 +23,8 @@ public class HeadOfficeLinkStatus {
 
 	static final String NO_HEARTBEAT_YET = "no heartbeat yet";
 
-	private volatile Snapshot snapshot = new Snapshot(HeadOfficeLinkState.PENDING, null, null, NO_HEARTBEAT_YET, null);
+	private volatile Snapshot snapshot = new Snapshot(HeadOfficeLinkState.PENDING, null, null, NO_HEARTBEAT_YET, null,
+			null, null);
 
 	public Snapshot get() {
 		return snapshot;
@@ -31,13 +32,16 @@ public class HeadOfficeLinkStatus {
 
 	/**
 	 * Records the result of a call made at {@code at} (store clock) and returns the previous state. A failure keeps
-	 * the last success and its head office time.
+	 * the last success and its head office time. Step 4: the loyalty rights of the last answer that carried them are kept.
 	 */
 	public synchronized HeadOfficeLinkState record(HeadOfficeCallResult result, LocalDateTime at) {
 		Snapshot previous = snapshot;
 		boolean online = result.getState() == HeadOfficeLinkState.ONLINE;
+		boolean rights = online && (result.getCanEditMembers() != null || result.getCanAdjustPoints() != null);
 		snapshot = new Snapshot(result.getState(), at, online ? at : previous.getLastSuccess(), result.getMessage(),
-				online ? result.getServerTime() : previous.getServerTime());
+				online ? result.getServerTime() : previous.getServerTime(),
+				rights ? result.getCanEditMembers() : previous.getCanEditMembers(),
+				rights ? result.getCanAdjustPoints() : previous.getCanAdjustPoints());
 		return previous.getState();
 	}
 
@@ -60,5 +64,9 @@ public class HeadOfficeLinkStatus {
 
 		/** Head office time sent with the last ONLINE answer (ISO-8601 with offset); null until then. */
 		private final String serverTime;
+
+		/** Step 4: the store's loyalty rights from the last heartbeat answer that carried them; null until then. */
+		private final Boolean canEditMembers;
+		private final Boolean canAdjustPoints;
 	}
 }

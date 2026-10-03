@@ -21,11 +21,20 @@ public final class HeadOfficeCallResult {
 	/** Head office time sent with the answer (ISO-8601 with offset); only when ONLINE. */
 	private final String serverTime;
 
+	/** Step 4: the store's loyalty rights sent with a heartbeat answer; null when not sent (older head office). */
+	private final Boolean canEditMembers;
+	private final Boolean canAdjustPoints;
+
 	public static HeadOfficeCallResult online(String serverTime) {
-		return new HeadOfficeCallResult(HeadOfficeLinkState.ONLINE, null, serverTime);
+		return new HeadOfficeCallResult(HeadOfficeLinkState.ONLINE, null, serverTime, null, null);
+	}
+
+	/** Step 4: a heartbeat answer with the store's loyalty rights. */
+	public static HeadOfficeCallResult online(String serverTime, Boolean canEditMembers, Boolean canAdjustPoints) {
+		return new HeadOfficeCallResult(HeadOfficeLinkState.ONLINE, null, serverTime, canEditMembers, canAdjustPoints);
 	}
 
 	public static HeadOfficeCallResult failure(HeadOfficeLinkState state, String message) {
-		return new HeadOfficeCallResult(state, message, null);
+		return new HeadOfficeCallResult(state, message, null, null, null);
 	}
 }
