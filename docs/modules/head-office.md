@@ -1,6 +1,6 @@
 # Head Office Module
 
-**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing). Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
+**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office). Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
 
 ### Overview
 - Two installation types, same WAR: a **store** sells; a **head office** manages several stores and never sells (no cashier session, no ticket).
@@ -337,6 +337,34 @@ Known limit: the cursor follows the store clock. If the clock goes back, a docum
 
 The item, customer, member and payment method names are the store's names when the copy is built: a rename travels with the next copy of that document.
 
+### Sales copies: the head office side (task 2.3)
+**Tables** (head office only, package `headoffice`, prefix `ho_`; like `ho_store` they also exist empty in a store database). The store tables are not reused: a ticket there points to a session, a user and a customer that do not exist at the head office. No `update.sql`: Hibernate creates the tables and constraints.
+
+| Table (entity) | Content | Key |
+|---|---|---|
+| `ho_ticket` (`HoTicket`) | The fields of `TicketCopyDTO`, `store_id` (FK to `ho_store`) | Unique `uk_ho_ticket_store_number` (`store_id`, `sales_number`) |
+| `ho_ticket_line` (`HoTicketLine`) | The fields of `TicketLineCopyDTO`, `ticket_id` | — |
+| `ho_ticket_payment` (`HoTicketPayment`) | The fields of `PaymentCopyDTO`, `line_no` in the order received, `ticket_id` | — |
+| `ho_return` (`HoReturn`) / `ho_return_line` (`HoReturnLine`) | The fields of `ReturnCopyDTO` / `ReturnLineCopyDTO`, `return_id` | Unique `uk_ho_return_store_number` (`store_id`, `return_number`) |
+| `ho_session` (`HoSession`) / `ho_session_count` (`HoSessionCount`) | The fields of `SessionCopyDTO` / `SessionCountCopyDTO`, `session_id` | Unique `uk_ho_session_store_number` (`store_id`, `session_number`) |
+
+A header owns its lines (`cascade = ALL`, `orphanRemoval`, ordered by `line_no`). `created_at` is the first reception, `updated_at` the last one. Sales numbers are already unique across stores (location code + date + sequence); the key includes the store anyway, so two stores with the same number never collide.
+
+**Endpoints** (`HeadOfficeSalesAPI`, head office only, under the `/ho/**` chain: store key, then license, see "Store API"):
+
+| Request | Body | Answer |
+|---|---|---|
+| `POST /ho/sales/tickets` | JSON array of `TicketCopyDTO` | 200 `{"results":[{"documentNumber":"...","accepted":true,"message":null}, ...]}` (`SalesCopyAnswerDTO`), one result per document in batch order |
+| `POST /ho/sales/returns` | JSON array of `ReturnCopyDTO` | same |
+| `POST /ho/sales/sessions` | JSON array of `SessionCopyDTO` | same |
+
+**Rules** (`headoffice/service/SalesCopyReceiver`):
+- The store is the authenticated principal from `StoreApiKeyFilter`; a store code in the body is ignored. The principal is never saved: new rows reference it by id (`StoreRepository.getOne`).
+- Each document is saved in its own transaction and gets its own result: a bad document is rejected and the next ones are saved.
+- Saved by store + document number. A document received again replaces its row's content, lines and payments included (cleared and added again): a repeated push leaves one row, a changed document is not duplicated.
+- Rejected (`accepted: false`, the reason in `message`, at most 500 characters): an empty document (`empty document`); a missing number, date or status (`salesNumber is required`, `returnDate is required`...); a line without item code or quantity (`line 2: itemCode is required`); a payment without method code or amount (`payment 1: paymentMethodCode is required`); a session without `openedAt`; anything the database refuses (most specific cause, e.g. `SQLException: String or binary data would be truncated.`).
+- Log (head office): one INFO line per batch, `Head office: 50 tickets received from store 'RS01' (49 accepted, 1 rejected)`, and one WARN line per rejected document with its number and reason.
+
 **Settings** (the store's properties file; checked at startup only when `headoffice.url` is set, in `NodeOwnership.resolve`):
 
 | Key | Rule |
@@ -372,7 +400,7 @@ The item, customer, member and payment method names are the store's names when t
 
 ### Convention for the head office code
 - **Same data, same page.** Pages that edit data the head office owns (items, promotions, loyalty, customers, users, settings) are the existing pages, never copies.
-- **Different data, new page.** What exists only on a head office (stores list, tickets / sessions / returns of the stores, shipments, the `/ho/**` endpoints) is new code in its own folder:
+- **Different data, new page.** What exists only on a head office (stores list, tickets / sessions / returns of the stores in `ho_ticket`, `ho_return`, `ho_session` since task 2.3, shipments, the `/ho/**` endpoints) is new code in its own folder:
   - backend: feature package `com.digithink.zsretail.headoffice`, with the same sub-packages as `erp/` (`controller`, `service`, `model`, `repository`, `dto`, `scheduler`);
   - frontend: `src/views/admin/headoffice/` (admin pages of a feature live under `views/admin/<feature>`, like `views/admin/franchise`), routes `admin-headoffice-*` under `/headoffice/...` in `src/router/headoffice-routes.js` (task 1.6, "Add a page to the head office").
 - Existing store pages are not modified to serve the head office: a shared page gets a head office route with `meta.twinOf`. First content: the stores list (task 1.2).
@@ -427,6 +455,9 @@ The item, customer, member and payment method names are the store's names when t
 - `OnHeadOfficeSalesPushConditionTest` (task 2.1): false without the URL, and with the URL when the upstreams do not include the head office (standalone and ERP flags without `sales.upstream`, `ERP`, empty, franchise admin); true with an explicit `HEAD_OFFICE` (any case, alone or with `ERP`) and on franchise customer flags (derived); the sales copy beans registered only then, all carrying the annotation. Bare bean registry.
 - `SalesCopyFinderTest` (task 2.1): the finished statuses of each type; a new finished ticket gives one `PENDING` row (number, date, no attempt); a ticket changed after it was sent is `PENDING` again (attempts and error reset, accepted hash kept, same row); parked and cancelled tickets are not found, a parked ticket completed later is; from-date ignores the day before and keeps the day itself, for every type; without it the whole history; a cycle with nothing new reads no document and touches no tracking row; the 30 s settle delay; a sent ticket cancelled later is found again; an `ERROR` row that changes is `PENDING` with attempts 0, a `PENDING` one is not rewritten; 1001 tickets read 500 per cycle, each once, with equal change times across page boundaries; returns and sessions (`OPENED` not found); one failing type is reported, the others are searched and its cursor does not move. The store documents are an in-memory list read with the rules of the JPQL query; the query itself is checked at L2.
 - `SalesCopyMapperTest` (task 2.2): every field of the ticket copy (header, promotion, customer, cashier, session, loyalty, invoice), lines and payments in store order whatever the input order, no ERP field; a walk-in ticket (no customer, member, promotion, cashier, lines or payments) and a member with only a first name; the return copy with its voucher (not its later use) and a simple return; the session copy with cashier, verifier and count lines (cash without a payment method), and a `CLOSED` session; in every copy no field named `id` or `...Id` and none of the entity ids; JSON dates as ISO strings, read back equal, a `storeCode` or `id` in the body ignored even by a strict mapper.
+- `SalesCopyReceiverTest` (task 2.3): a repeated push creates one row with its lines and payments once; a changed ticket replaces its row's header, lines and payments (same row, first reception kept); two stores with the same sales number keep two rows and a push replaces only the sender's; in one batch, a missing number, a line without item code, an empty document, a payment without method and a missing date are each rejected with their reason, in order, while the others are saved, one transaction per document; a document refused by the database is rejected with the cause and the next ones are saved; the row references the store by id, never the principal object; empty and null batches; the reason cut to 500 characters; returns and sessions (repeat, replace, two stores, `TERMINATED` replacing `CLOSED` with its count lines). In-memory repositories and a counting transaction stub.
+- `HeadOfficeSalesAPITest` (task 2.3): the three endpoints answer `{"results":[{documentNumber, accepted, message}]}`, one per document.
+- `OnHeadOfficeConditionTest` (task 2.3): `SalesCopyReceiver` and `HeadOfficeSalesAPI` exist only on a head office.
 - Frontend (task 1.5): eslint on the changed files; a Node script (not committed) for the route guard with and without the link, the `appConfig` mutation, getter and fetch (true, false, absent, failure), "x min ago" and the status badges, the wiring of the five points and the 75 i18n keys in en, fr and ar; a build with the eslint plugin skipped (the production build stops on four `console` statements that were already there before task 1.5, in `Home.vue`, `Login.vue` and `store/app-config/index.js`).
 - Not covered by L1 (needs a started context): the chain wiring itself (store installation answers 401, a JWT is not read on `/ho/**`, other paths unchanged). Checked by the L2 table under "Store API". Also the real timer (first heartbeat after 15 s), timeouts on a real network and the bulk update on SQL Server: L2 table under "Connect a store".
 - Frontend: no test runner; the guard, the home helper, the menu filter, the Network group and the Roles page filter are checked with a Node script during the task, and by L2.
