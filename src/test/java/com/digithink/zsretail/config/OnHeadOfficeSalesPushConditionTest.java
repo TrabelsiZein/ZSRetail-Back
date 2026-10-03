@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.holink.repository.JpaSalesDocumentSource;
-import com.digithink.zsretail.holink.scheduler.SalesPushScheduler;
+import com.digithink.zsretail.holink.scheduler.SalesPushJob;
 import com.digithink.zsretail.holink.service.SalesCopyFinder;
 import com.digithink.zsretail.holink.service.SalesPushService;
 import com.digithink.zsretail.holink.service.SalesPushSettings;
@@ -25,7 +25,7 @@ import com.digithink.zsretail.holink.service.SalesPushSettings;
 class OnHeadOfficeSalesPushConditionTest {
 
 	private static final Class<?>[] PUSH_BEANS = { SalesPushSettings.class, SalesCopyFinder.class,
-			JpaSalesDocumentSource.class, SalesPushService.class, SalesPushScheduler.class };
+			JpaSalesDocumentSource.class, SalesPushService.class, SalesPushJob.class };
 
 	private static MockEnvironment link() {
 		return new MockEnvironment().withProperty("headoffice.url", "http://localhost:888/zsretail/api")

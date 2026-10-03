@@ -378,6 +378,20 @@ class ApplicationModeOwnershipTest {
 				.withProperty("headoffice.sales-push.interval-seconds", "0"));
 	}
 
+	@Test
+	@DisplayName("Task 2.6: headoffice.log-retention-days a whole number of days, at least 1; not checked without headoffice.url")
+	void logRetentionDays() {
+		for (String value : new String[] { "0", "-1", "30d", "" }) {
+			MockEnvironment env = linkEnv().withProperty("headoffice.log-retention-days", value);
+			IllegalStateException e = assertThrows(IllegalStateException.class, () -> erp(env), value);
+			assertTrue(e.getMessage().startsWith("Invalid value '" + value
+					+ "' for property headoffice.log-retention-days: a whole number of days, at least 1"), e.getMessage());
+		}
+		standalone(linkEnv().withProperty("headoffice.log-retention-days", "1"));
+		standalone(linkEnv().withProperty("headoffice.log-retention-days", " 90 "));
+		standalone(new MockEnvironment().withProperty("headoffice.log-retention-days", "0"));
+	}
+
 	// --- Through ApplicationModeService ---
 
 	private static ApplicationModeService service(MockEnvironment env, boolean standalone, boolean franchiseAdmin,

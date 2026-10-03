@@ -11,6 +11,9 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.Optional;
 import java.util.ArrayList;
@@ -21,16 +24,29 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.client.ResponseCreator;
 import org.springframework.web.client.RestTemplate;
 
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.holink.dto.HeadOfficeLinkStatusDTO;
+import com.digithink.zsretail.holink.dto.LinkJobDTO;
+import com.digithink.zsretail.holink.enumeration.LinkJobResult;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
 import com.digithink.zsretail.holink.repository.SalesCopyRepository;
-import com.digithink.zsretail.holink.scheduler.HeadOfficeHeartbeatScheduler;
+import com.digithink.zsretail.holink.model.LinkExchange;
+import com.digithink.zsretail.holink.model.LinkJobState;
+import com.digithink.zsretail.holink.repository.LinkExchangeRepository;
+import com.digithink.zsretail.holink.repository.LinkJobStateRepository;
+import com.digithink.zsretail.holink.scheduler.HeartbeatJob;
+import com.digithink.zsretail.holink.scheduler.LinkJobScheduler;
+import com.digithink.zsretail.holink.service.LinkExchangeLog;
+import com.digithink.zsretail.holink.service.LinkJobService;
 import com.digithink.zsretail.holink.service.HeadOfficeLinkStatus;
 import com.digithink.zsretail.holink.service.SalesPushService;
 import com.digithink.zsretail.service.GeneralSetupService;
@@ -42,7 +58,9 @@ import com.fasterxml.jackson.databind.SerializationFeature;
  * Head office plan, task 1.5: GET admin/holink/status answers the link status with the URL, the store code and the
  * interval, never the key; POST admin/holink/check runs one heartbeat on the ho-link thread and answers the new state.
  * Task 2.4: the sales copy counts, after the existing fields.
- * Real client, status and scheduler over MockRestServiceServer, no Spring context.
+ * Task 2.6: the jobs (list, frequency, run now) and the exchange log endpoints.
+ * Real client, status, heartbeat job and job scheduler over MockRestServiceServer, in-memory hol_ tables, no Spring
+ * context.
  */
 class HeadOfficeLinkAPITest {
 
@@ -56,10 +74,14 @@ class HeadOfficeLinkAPITest {
 	private String location = "SHOWROOM-S";
 	private volatile String callThread;
 	private MockRestServiceServer server;
-	private HeadOfficeHeartbeatScheduler scheduler;
+	private LinkJobScheduler scheduler;
+	private LinkJobService jobService;
+	private LinkExchangeLog exchangeLog;
 	private HeadOfficeClient client;
 	private HeadOfficeLinkStatus status;
 	private HeadOfficeLinkAPI api;
+	private final Map<String, LinkJobState> jobTable = new LinkedHashMap<>();
+	private final List<LinkExchange> logTable = new ArrayList<>();
 
 	@BeforeEach
 	void setUp() {
@@ -73,8 +95,42 @@ class HeadOfficeLinkAPITest {
 		};
 		client = new HeadOfficeClient(restTemplate, generalSetup, "http://localhost:888/zsretail/api/", KEY, "1.12.0");
 		status = new HeadOfficeLinkStatus();
-		scheduler = new HeadOfficeHeartbeatScheduler(client, status, 60);
-		api = new HeadOfficeLinkAPI(status, scheduler, client, Optional.empty());
+		jobService = new LinkJobService(proxy(LinkJobStateRepository.class, (method, args) -> {
+			switch (method) {
+				case "findAll":
+					return new ArrayList<>(jobTable.values());
+				case "findByCode":
+					return Optional.ofNullable(jobTable.get(args[0]));
+				default: // save
+					LinkJobState row = (LinkJobState) args[0];
+					jobTable.put(row.getCode(), row);
+					return row;
+			}
+		}), TransactionOperations.withoutTransaction());
+		exchangeLog = new LinkExchangeLog(proxy(LinkExchangeRepository.class, (method, args) -> {
+			switch (method) {
+				case "save":
+					logTable.add((LinkExchange) args[0]);
+					return args[0];
+				case "search":
+					return new PageImpl<>(new ArrayList<>(logTable), (Pageable) args[4], logTable.size());
+				default: // deleteOlderThan
+					return 0;
+			}
+		}), TransactionOperations.withoutTransaction(), 30);
+		HeartbeatJob heartbeat = new HeartbeatJob(client, status, exchangeLog, 60);
+		scheduler = new LinkJobScheduler(Collections.singletonList(heartbeat), jobService, exchangeLog);
+		api = new HeadOfficeLinkAPI(status, scheduler, jobService, exchangeLog, client, Optional.empty());
+	}
+
+	private interface Handler {
+		Object handle(String method, Object[] args);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static <T> T proxy(Class<T> type, Handler handler) {
+		return (T) Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type },
+				(proxy, method, args) -> handler.handle(method.getName(), args));
 	}
 
 	@AfterEach
@@ -134,7 +190,8 @@ class HeadOfficeLinkAPITest {
 					return rows;
 				});
 		SalesPushService push = new SalesPushService(null, null, repository, null, null, null, null, null);
-		HeadOfficeLinkAPI withPush = new HeadOfficeLinkAPI(status, scheduler, client, Optional.of(push));
+		HeadOfficeLinkAPI withPush = new HeadOfficeLinkAPI(status, scheduler, jobService, exchangeLog, client,
+				Optional.of(push));
 
 		JsonNode json = json(withPush.status());
 		assertEquals(12, json.get("pendingCount").asLong());
@@ -192,5 +249,86 @@ class HeadOfficeLinkAPITest {
 		assertEquals(HeadOfficeLinkState.NOT_CONFIGURED, answer.getState());
 		assertNull(answer.getStoreCode());
 		assertNull(json(answer).get("storeCode").textValue());
+	}
+
+	// --- Task 2.6: jobs and exchange log ---
+
+	private static Map<String, Object> body(Object seconds) {
+		Map<String, Object> body = new LinkedHashMap<>();
+		body.put("intervalSeconds", seconds);
+		return body;
+	}
+
+	@Test
+	@DisplayName("Task 2.6: GET jobs lists the jobs of this store with their frequency and limits (only the heartbeat without the push)")
+	void jobsList() {
+		List<LinkJobDTO> jobs = api.jobs();
+		assertEquals(1, jobs.size());
+		LinkJobDTO heartbeat = jobs.get(0);
+		assertEquals("HEARTBEAT", heartbeat.getCode());
+		assertEquals(60, heartbeat.getIntervalSeconds());
+		assertFalse(heartbeat.isCustomInterval());
+		assertNull(heartbeat.getLastRunAt());
+		JsonNode json = mapper.valueToTree(heartbeat);
+		List<String> keys = new ArrayList<>();
+		json.fieldNames().forEachRemaining(keys::add);
+		assertEquals(Arrays.asList("code", "intervalSeconds", "defaultIntervalSeconds", "customInterval",
+				"minimumIntervalSeconds", "maximumIntervalSeconds", "lastRunAt", "lastResult", "lastMessage",
+				"lastDurationMs", "nextRunAt"), keys);
+	}
+
+	@Test
+	@DisplayName("Task 2.6: PUT jobs/{code}/interval saves the frequency (status shows it), null resets; 400 outside the limits or not a number; 404 unknown job")
+	void setInterval() {
+		ResponseEntity<?> saved = api.setInterval("heartbeat", body(120));
+		assertEquals(HttpStatus.OK, saved.getStatusCode());
+		assertEquals(120, ((LinkJobDTO) saved.getBody()).getIntervalSeconds());
+		assertTrue(((LinkJobDTO) saved.getBody()).isCustomInterval());
+		assertEquals(Long.valueOf(120), jobTable.get("HEARTBEAT").getIntervalSeconds());
+		assertEquals(120, api.status().getIntervalSeconds(), "the status shows the frequency in force");
+
+		ResponseEntity<?> tooLow = api.setInterval("HEARTBEAT", body(5));
+		assertEquals(HttpStatus.BAD_REQUEST, tooLow.getStatusCode());
+		assertEquals(Collections.singletonMap("error", "intervalSeconds must be from 10 to 86400 seconds"), tooLow.getBody());
+		assertEquals(HttpStatus.BAD_REQUEST, api.setInterval("HEARTBEAT", body("ten")).getStatusCode());
+		assertEquals(120, api.status().getIntervalSeconds(), "a refused value changes nothing");
+
+		assertEquals(HttpStatus.OK, api.setInterval("HEARTBEAT", body(null)).getStatusCode());
+		assertEquals(60, api.status().getIntervalSeconds());
+
+		ResponseEntity<?> unknown = api.setInterval("SALES_PUSH", body(60));
+		assertEquals(HttpStatus.NOT_FOUND, unknown.getStatusCode(), "no push job on this store");
+	}
+
+	@Test
+	@DisplayName("Task 2.6: POST jobs/{code}/run runs the job on ho-link-1 and answers it after the run; 404 unknown job")
+	void runNow() {
+		scheduler.start();
+		server.expect(requestTo(HEARTBEAT)).andRespond(recordingThread(withSuccess(
+				"{\"storeCode\":\"SHOWROOM-S\",\"serverTime\":\"2026-10-03T12:30:00.000+01:00\"}", MediaType.APPLICATION_JSON)));
+
+		ResponseEntity<?> answer = api.runNow("HEARTBEAT");
+
+		server.verify();
+		assertEquals("ho-link-1", callThread);
+		LinkJobDTO job = (LinkJobDTO) answer.getBody();
+		assertEquals(LinkJobResult.SUCCESS, job.getLastResult());
+		assertEquals("ONLINE", job.getLastMessage());
+		assertNotNull(job.getLastRunAt());
+		assertEquals(1, logTable.size(), "PENDING -> ONLINE: one exchange row");
+		assertEquals(HttpStatus.NOT_FOUND, api.runNow("PROMOTIONS").getStatusCode());
+	}
+
+	@Test
+	@DisplayName("Task 2.6: GET log answers the page; 400 on a filter that cannot be read")
+	void log() {
+		exchangeLog.record("HEARTBEAT", com.digithink.zsretail.holink.enumeration.ExchangeDirection.UP, 0,
+				LinkJobResult.SUCCESS, null, java.time.LocalDateTime.of(2026, 10, 3, 12, 0), 12);
+
+		ResponseEntity<?> page = api.log(null, null, null, null, null, null);
+		assertEquals(HttpStatus.OK, page.getStatusCode());
+		assertEquals(1L, ((Map<?, ?>) page.getBody()).get("totalElements"));
+		assertEquals(HttpStatus.BAD_REQUEST, api.log(null, "BROKEN", null, null, null, null).getStatusCode());
+		assertEquals(HttpStatus.BAD_REQUEST, api.log(null, null, "yesterday", null, null, null).getStatusCode());
 	}
 }

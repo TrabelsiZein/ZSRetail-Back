@@ -13,7 +13,10 @@ import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.holink.controller.HeadOfficeLinkAPI;
-import com.digithink.zsretail.holink.scheduler.HeadOfficeHeartbeatScheduler;
+import com.digithink.zsretail.holink.scheduler.HeartbeatJob;
+import com.digithink.zsretail.holink.scheduler.LinkJobScheduler;
+import com.digithink.zsretail.holink.service.LinkExchangeLog;
+import com.digithink.zsretail.holink.service.LinkJobService;
 import com.digithink.zsretail.holink.service.HeadOfficeLinkStatus;
 
 /**
@@ -24,7 +27,7 @@ import com.digithink.zsretail.holink.service.HeadOfficeLinkStatus;
 class OnHeadOfficeLinkConditionTest {
 
 	private static final Class<?>[] LINK_BEANS = { HeadOfficeClient.class, HeadOfficeLinkStatus.class,
-			HeadOfficeHeartbeatScheduler.class, HeadOfficeLinkAPI.class };
+			HeartbeatJob.class, HeadOfficeLinkAPI.class, LinkJobScheduler.class, LinkJobService.class, LinkExchangeLog.class };
 
 	/** True when the class gets a bean definition with this environment. */
 	private static boolean registered(MockEnvironment env, Class<?> beanClass) {

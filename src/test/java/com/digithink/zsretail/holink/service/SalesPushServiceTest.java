@@ -44,6 +44,12 @@ import com.digithink.zsretail.headoffice.dto.SessionCopyDTO;
 import com.digithink.zsretail.headoffice.dto.TicketCopyDTO;
 import com.digithink.zsretail.headoffice.dto.TicketLineCopyDTO;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
+import com.digithink.zsretail.holink.dto.LinkJobRun;
+import com.digithink.zsretail.holink.enumeration.ExchangeDirection;
+import com.digithink.zsretail.holink.enumeration.LinkJobResult;
+import com.digithink.zsretail.holink.model.LinkExchange;
+import com.digithink.zsretail.holink.repository.LinkExchangeRepository;
+import com.digithink.zsretail.holink.scheduler.SalesPushJob;
 import com.digithink.zsretail.holink.dto.SalesDocumentRef;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
@@ -85,6 +91,7 @@ class SalesPushServiceTest {
 
 	private MockRestServiceServer server;
 	private int batchSize = 50;
+	private boolean searchFails;
 
 	@BeforeEach
 	void setUp() {
@@ -108,6 +115,9 @@ class SalesPushServiceTest {
 			@Override
 			public List<SalesDocumentRef> findChanged(SalesCopyType type, LocalDateTime from,
 					LocalDateTime afterChangedAt, long afterId, LocalDateTime until, int limit) {
+				if (searchFails) {
+					throw new IllegalStateException("The query has timed out.");
+				}
 				return new ArrayList<>(); // the search finds nothing new: the rows below are the queue
 			}
 
@@ -534,6 +544,117 @@ class SalesPushServiceTest {
 		ReturnCopyDTO copy = new ReturnCopyDTO();
 		copy.setReturnNumber(number);
 		return copy;
+	}
+
+	// --- Task 2.6: the job and its exchange log rows ---
+
+	private final List<LinkExchange> logRows = new ArrayList<>();
+	private boolean logDown;
+
+	/** The push as a job of the head office link, over an in-memory exchange log (or one that cannot write). */
+	private SalesPushJob job() {
+		SalesPushService service = service();
+		LinkExchangeRepository repository = stub(LinkExchangeRepository.class, (method, args) -> {
+			if (logDown) {
+				throw new IllegalStateException("hol_exchange_log unavailable");
+			}
+			if ("save".equals(method)) {
+				logRows.add((LinkExchange) args[0]);
+				return args[0];
+			}
+			return "deleteOlderThan".equals(method) ? 0 : UNHANDLED;
+		});
+		return new SalesPushJob(service, new SalesPushSettings("", batchSize, 60),
+				new LinkExchangeLog(repository, TransactionOperations.withoutTransaction(), 30));
+	}
+
+	@Test
+	@DisplayName("Task 2.6: a cycle with nothing to send writes no exchange row; the job says 'nothing to send'")
+	void emptyCycleNoRow() {
+		SalesPushJob job = job();
+
+		LinkJobRun run = job.run();
+
+		server.verify(); // no request
+		assertTrue(logRows.isEmpty());
+		assertEquals(LinkJobResult.SUCCESS, run.getResult());
+		assertEquals("nothing to send", run.getMessage());
+	}
+
+	@Test
+	@DisplayName("Task 2.6: one row per batch that sent something: records, result (WARNING with a rejection), first problem, duration")
+	void batchRows() {
+		batchSize = 2;
+		ticket(1, "T-1", NOW.minusDays(3));
+		ticket(2, "T-2", NOW.minusDays(2));
+		ticket(3, "T-3", NOW.minusDays(1));
+		SalesPushJob job = job();
+		server.expect(ExpectedCount.manyTimes(), requestTo(startsWith(SALES)))
+				.andRespond(answering(rejecting("T-2", "line 1: itemCode is required")));
+
+		LinkJobRun run = job.run();
+
+		assertEquals(2, logRows.size(), "two batches: [T-1, T-2] and [T-3]");
+		LinkExchange first = logRows.get(0);
+		assertEquals("SALES_PUSH", first.getJob());
+		assertEquals(ExchangeDirection.UP, first.getDirection());
+		assertEquals(2, first.getRecordCount());
+		assertEquals(LinkJobResult.WARNING, first.getResult());
+		assertEquals("T-2: line 1: itemCode is required", first.getError());
+		assertEquals(NOW, first.getExchangeDate());
+		assertTrue(first.getDurationMs() >= 0);
+		assertEquals(LinkJobResult.SUCCESS, logRows.get(1).getResult());
+		assertEquals(1, logRows.get(1).getRecordCount());
+		assertEquals(LinkJobResult.WARNING, run.getResult());
+		assertEquals("2 sent, 1 rejected, 0 not built, 0 unchanged", run.getMessage());
+	}
+
+	@Test
+	@DisplayName("Task 2.6: not delivered gives one ERROR row with the state and message; a failed search one ERROR row too")
+	void failureRows() {
+		ticket(1, "T-1", NOW.minusDays(1));
+		SalesPushJob job = job();
+		server.expect(requestTo(SALES + "tickets")).andRespond(request -> {
+			throw new ConnectException("Connection refused");
+		});
+
+		LinkJobRun run = job.run();
+
+		assertEquals(1, logRows.size());
+		assertEquals(LinkJobResult.ERROR, logRows.get(0).getResult());
+		assertEquals(1, logRows.get(0).getRecordCount());
+		assertEquals("OFFLINE: head office unreachable (ConnectException: Connection refused)", logRows.get(0).getError());
+		assertEquals(LinkJobResult.ERROR, run.getResult());
+		assertTrue(run.getMessage().startsWith("not delivered, documents stay pending (OFFLINE"), run.getMessage());
+
+		logRows.clear();
+		searchFails = true;
+		SalesPushJob searching = job();
+		server.expect(requestTo(SALES + "tickets")).andRespond(acceptingAll());
+		searching.run();
+		LinkExchange search = logRows.get(0);
+		assertEquals(LinkJobResult.ERROR, search.getResult());
+		assertEquals(0, search.getRecordCount());
+		assertTrue(search.getError().startsWith("search failed: TICKET: IllegalStateException: The query has timed out."),
+				search.getError());
+	}
+
+	@Test
+	@DisplayName("Task 2.6: a log that cannot be written does not break the push: documents SENT, job result SUCCESS, no exception")
+	void logFailureDoesNotBreakPush() {
+		ticket(1, "T-1", NOW.minusDays(2));
+		ticket(2, "T-2", NOW.minusDays(1));
+		logDown = true;
+		SalesPushJob job = job();
+		server.expect(requestTo(SALES + "tickets")).andRespond(acceptingAll());
+
+		LinkJobRun run = job.run();
+
+		server.verify();
+		assertEquals(SalesCopyStatus.SENT, stored("T-1").getStatus());
+		assertEquals(SalesCopyStatus.SENT, stored("T-2").getStatus());
+		assertEquals(LinkJobResult.SUCCESS, run.getResult());
+		assertTrue(logRows.isEmpty());
 	}
 
 	// --- Stubs ---

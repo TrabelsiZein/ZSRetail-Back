@@ -10,6 +10,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,7 @@ import com.digithink.zsretail.headoffice.dto.SalesCopyResultDTO;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.holink.dto.SalesPushAnswer;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
+import com.digithink.zsretail.holink.enumeration.LinkJobResult;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
 import com.digithink.zsretail.holink.enumeration.SalesCopyType;
 import com.digithink.zsretail.holink.model.SalesCopy;
@@ -122,6 +124,9 @@ public class SalesPushService {
 	public Cycle runCycle() {
 		LocalDateTime start = clock.get();
 		Cycle cycle = new Cycle(finder.discover(start));
+		if (cycle.discoveryFailure != null) {
+			cycle.exchanges.add(Exchange.searchFailed(start, cycle.discoveryFailure));
+		}
 		for (int round = 0; round < BATCHES_PER_TYPE; round++) {
 			for (SalesCopyType type : SalesCopyType.values()) {
 				if (cycle.stopped) {
@@ -148,6 +153,8 @@ public class SalesPushService {
 		}
 
 		LocalDateTime now = clock.get();
+		long started = System.nanoTime();
+		Exchange exchange = new Exchange(type, now);
 		List<SalesCopy> toSave = new ArrayList<>();
 		List<SalesCopy> toSend = new ArrayList<>();
 		List<Object> payloads = new ArrayList<>();
@@ -162,12 +169,14 @@ public class SalesPushService {
 				notBuilt(row, "the store could not build the copy (" + SalesCopyFinder.cause(e) + ")", now);
 				toSave.add(row);
 				cycle.notBuilt++;
+				exchange.notBuilt(row);
 				continue;
 			}
 			if (copy == null) {
 				notBuilt(row, NOT_FOUND, now);
 				toSave.add(row);
 				cycle.notBuilt++;
+				exchange.notBuilt(row);
 			} else if (hash.equals(row.getContentHash())) {
 				// The head office already has this content (e.g. only an ERP field of the document moved)
 				row.setStatus(SalesCopyStatus.SENT);
@@ -185,8 +194,10 @@ public class SalesPushService {
 			SalesPushAnswer answer = client.push(type, payloads);
 			cycle.state = answer.getState();
 			cycle.message = answer.getMessage();
+			exchange.records += toSend.size();
 			if (!answer.isDelivered()) {
 				cycle.stopped = true; // the rows to send stay exactly as they are
+				exchange.notDelivered(answer.getState() + ": " + answer.getMessage());
 			} else {
 				Map<String, SalesCopyResultDTO> results = new HashMap<>();
 				answer.getResults().forEach(result -> results.put(result.getDocumentNumber(), result));
@@ -200,12 +211,14 @@ public class SalesPushService {
 						row.setContentHash(hashes.get(i));
 						row.setLastError(null);
 						cycle.sent++;
+						exchange.accepted++;
 					} else {
 						// Rejected, or missing from the answer (an anomaly, made visible rather than resent at once)
 						row.setStatus(SalesCopyStatus.ERROR);
 						row.setLastError(cut(result == null ? NO_RESULT
 								: result.getMessage() == null ? REJECTED : result.getMessage()));
 						cycle.rejected++;
+						exchange.rejected(row);
 						logRejection(row);
 					}
 					toSave.add(row);
@@ -214,6 +227,11 @@ public class SalesPushService {
 		}
 		if (!toSave.isEmpty()) {
 			writes.executeWithoutResult(status -> copies.saveAll(toSave));
+		}
+		// One exchange for the log when something was sent or failed (copies marked unchanged are not an exchange)
+		if (exchange.records > 0) {
+			exchange.durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+			cycle.exchanges.add(exchange);
 		}
 	}
 
@@ -301,6 +319,9 @@ public class SalesPushService {
 		private boolean fullBatch;
 		private final boolean moreToSearch;
 
+		/** Task 2.6: the batches that sent something or failed, and a failed search; for the exchange log. */
+		private final List<Exchange> exchanges = new ArrayList<>();
+
 		Cycle(Discovery discovery) {
 			this.found = discovery.getFound();
 			this.changed = discovery.getChanged();
@@ -317,6 +338,76 @@ public class SalesPushService {
 		public boolean isIdle() {
 			return found + changed + sent + rejected + notBuilt + unchanged == 0 && state == null
 					&& discoveryFailure == null;
+		}
+	}
+
+	/**
+	 * Task 2.6: one batch that sent something or failed (or a failed search), as the exchange log shows it: records sent
+	 * or failed, result, first problem, duration.
+	 */
+	@Getter
+	@ToString
+	public static final class Exchange {
+
+		/** Null for a failed search. */
+		private final SalesCopyType type;
+
+		/** Start of the batch, store clock. */
+		private final LocalDateTime at;
+
+		/** Documents sent in the request, plus those the store could not build. */
+		private int records;
+
+		private int accepted;
+
+		/** Rejected, missing from the answer, or not built. */
+		private int problems;
+
+		/** First problem ("<number>: <reason>"), or why the request was not delivered; null when all went through. */
+		private String error;
+
+		private boolean delivered = true;
+
+		private long durationMs;
+
+		Exchange(SalesCopyType type, LocalDateTime at) {
+			this.type = type;
+			this.at = at;
+		}
+
+		static Exchange searchFailed(LocalDateTime at, String failure) {
+			Exchange exchange = new Exchange(null, at);
+			exchange.notDelivered("search failed: " + failure);
+			return exchange;
+		}
+
+		void notBuilt(SalesCopy row) {
+			records++;
+			problem(row);
+		}
+
+		void rejected(SalesCopy row) {
+			problem(row);
+		}
+
+		private void problem(SalesCopy row) {
+			problems++;
+			if (error == null) {
+				error = row.getDocumentNumber() + ": " + row.getLastError();
+			}
+		}
+
+		void notDelivered(String message) {
+			delivered = false;
+			error = message;
+		}
+
+		/** ERROR when not delivered or nothing went through; WARNING when some documents failed; SUCCESS otherwise. */
+		public LinkJobResult getResult() {
+			if (!delivered || accepted == 0 && problems > 0) {
+				return LinkJobResult.ERROR;
+			}
+			return problems > 0 ? LinkJobResult.WARNING : LinkJobResult.SUCCESS;
 		}
 	}
 }

@@ -9,8 +9,9 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.lang.reflect.Proxy;
 import java.net.ConnectException;
-import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -23,11 +24,18 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.client.ResponseCreator;
+import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.web.client.RestTemplate;
 
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
+import com.digithink.zsretail.holink.dto.LinkJobRun;
+import com.digithink.zsretail.holink.enumeration.ExchangeDirection;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
+import com.digithink.zsretail.holink.enumeration.LinkJobResult;
+import com.digithink.zsretail.holink.model.LinkExchange;
+import com.digithink.zsretail.holink.repository.LinkExchangeRepository;
 import com.digithink.zsretail.holink.service.HeadOfficeLinkStatus;
+import com.digithink.zsretail.holink.service.LinkExchangeLog;
 import com.digithink.zsretail.service.GeneralSetupService;
 
 import ch.qos.logback.classic.Level;
@@ -36,18 +44,19 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 
 /**
- * Head office plan, task 1.4: each heartbeat updates the in-memory link status (a failure keeps the last success and
- * its head office time) and logs one INFO line when the state changes, DEBUG otherwise. The heartbeat runs on its own
- * thread and the first call is not made at start. Real HeadOfficeClient over MockRestServiceServer, log captured with
- * a Logback ListAppender, no Spring context.
+ * Head office plan, task 1.4, a job since task 2.6: each heartbeat updates the in-memory link status (a failure keeps
+ * the last success and its head office time) and logs one INFO line when the state changes, DEBUG otherwise. Task 2.6:
+ * it writes an exchange log row only when its state changes, and its run result is SUCCESS when ONLINE, ERROR
+ * otherwise. Real HeadOfficeClient over MockRestServiceServer, in-memory exchange log, no Spring context.
  */
-class HeadOfficeHeartbeatSchedulerTest {
+class HeartbeatJobTest {
 
 	private static final String HEARTBEAT = "http://localhost:888/zsretail/api/ho/heartbeat";
 
 	private MockRestServiceServer server;
 	private HeadOfficeLinkStatus status;
-	private HeadOfficeHeartbeatScheduler scheduler;
+	private HeartbeatJob job;
+	private final List<LinkExchange> logRows = new ArrayList<>();
 	private ListAppender<ILoggingEvent> logs;
 	private Level previousLevel;
 
@@ -64,7 +73,17 @@ class HeadOfficeHeartbeatSchedulerTest {
 		HeadOfficeClient client = new HeadOfficeClient(restTemplate, generalSetup, "http://localhost:888/zsretail/api",
 				"AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde", "1.12.0");
 		status = new HeadOfficeLinkStatus();
-		scheduler = new HeadOfficeHeartbeatScheduler(client, status, 60);
+		LinkExchangeRepository repository = (LinkExchangeRepository) Proxy.newProxyInstance(
+				LinkExchangeRepository.class.getClassLoader(), new Class<?>[] { LinkExchangeRepository.class },
+				(proxy, method, args) -> {
+					if ("save".equals(method.getName())) {
+						logRows.add((LinkExchange) args[0]);
+						return args[0];
+					}
+					throw new UnsupportedOperationException(method.getName());
+				});
+		job = new HeartbeatJob(client, status, new LinkExchangeLog(repository, TransactionOperations.withoutTransaction(), 30),
+				60);
 
 		logs = new ListAppender<>();
 		logs.start();
@@ -75,13 +94,12 @@ class HeadOfficeHeartbeatSchedulerTest {
 
 	@AfterEach
 	void tearDown() {
-		scheduler.stop();
 		logger().detachAppender(logs);
 		logger().setLevel(previousLevel);
 	}
 
 	private static Logger logger() {
-		return (Logger) LoggerFactory.getLogger(HeadOfficeHeartbeatScheduler.class);
+		return (Logger) LoggerFactory.getLogger(HeartbeatJob.class);
 	}
 
 	private List<String> lines(Level level) {
@@ -89,11 +107,12 @@ class HeadOfficeHeartbeatSchedulerTest {
 				.collect(Collectors.toList());
 	}
 
-	private void beat(ResponseCreator response) {
+	private LinkJobRun beat(ResponseCreator response) {
 		server.reset();
 		server.expect(requestTo(HEARTBEAT)).andRespond(response);
-		scheduler.beat();
+		LinkJobRun run = job.run();
 		server.verify();
+		return run;
 	}
 
 	private static ResponseCreator online(String serverTime) {
@@ -104,6 +123,14 @@ class HeadOfficeHeartbeatSchedulerTest {
 		return request -> {
 			throw new ConnectException("Connection refused");
 		};
+	}
+
+	@Test
+	@DisplayName("Job: code HEARTBEAT, first run 15 s after the start, default frequency from headoffice.heartbeat-interval-seconds")
+	void job() {
+		assertEquals("HEARTBEAT", job.getCode());
+		assertEquals(15, job.getFirstDelay().getSeconds());
+		assertEquals(60, job.getDefaultIntervalSeconds());
 	}
 
 	@Test
@@ -139,10 +166,11 @@ class HeadOfficeHeartbeatSchedulerTest {
 	}
 
 	@Test
-	@DisplayName("Log: one INFO line per state change, DEBUG while the state stays the same")
-	void infoOnlyOnChange() {
+	@DisplayName("Log: one INFO line and one exchange row per state change; DEBUG and no row while the state stays the same")
+	void onlyStateChanges() {
 		beat(online("2026-10-03T10:00:00.000+01:00")); // PENDING -> ONLINE
 		beat(online("2026-10-03T10:01:00.000+01:00")); // same
+		beat(online("2026-10-03T10:02:00.000+01:00")); // same
 		beat(refused());                               // ONLINE -> OFFLINE
 		beat(refused());                               // same
 		beat(withStatus(HttpStatus.UNAUTHORIZED));     // OFFLINE -> REFUSED
@@ -155,29 +183,36 @@ class HeadOfficeHeartbeatSchedulerTest {
 				info.get(1));
 		assertEquals("Head office link: OFFLINE -> REFUSED (store code or key refused by the head office)", info.get(2));
 		assertTrue(info.get(3).startsWith("Head office link: REFUSED -> ONLINE"), info.get(3));
-
 		List<String> debug = lines(Level.DEBUG);
-		assertEquals(2, debug.size(), debug.toString());
+		assertEquals(3, debug.size(), debug.toString());
 		assertEquals("Head office link: ONLINE (head office time 2026-10-03T10:01:00.000+01:00)", debug.get(0));
-		assertTrue(debug.get(1).startsWith("Head office link: OFFLINE (head office unreachable"), debug.get(1));
+
+		assertEquals(4, logRows.size(), "rows only on the 4 state changes");
+		assertEquals(LinkJobResult.SUCCESS, logRows.get(0).getResult());
+		assertNull(logRows.get(0).getError());
+		assertEquals(LinkJobResult.ERROR, logRows.get(1).getResult());
+		assertEquals("OFFLINE: head office unreachable (ConnectException: Connection refused)", logRows.get(1).getError());
+		assertEquals("REFUSED: store code or key refused by the head office", logRows.get(2).getError());
+		assertEquals(LinkJobResult.SUCCESS, logRows.get(3).getResult());
+		for (LinkExchange row : logRows) {
+			assertEquals("HEARTBEAT", row.getJob());
+			assertEquals(ExchangeDirection.UP, row.getDirection());
+			assertEquals(0, row.getRecordCount());
+			assertNotNull(row.getExchangeDate());
+			assertNotNull(row.getDurationMs());
+		}
 	}
 
 	@Test
-	@DisplayName("start: own thread ho-link-1, no call at once (first heartbeat 15 s later); stop ends it")
-	void ownThread() throws Exception {
-		LocalDateTime before = LocalDateTime.now();
-		scheduler.start();
-		scheduler.start(); // a second ready event does not start a second thread
-		assertTrue(Thread.getAllStackTraces().keySet().stream().anyMatch(t -> t.getName().equals("ho-link-1")),
-				"thread ho-link-1");
-		assertTrue(Thread.getAllStackTraces().keySet().stream().noneMatch(t -> t.getName().equals("ho-link-2")));
-		assertEquals(15, HeadOfficeHeartbeatScheduler.FIRST_DELAY.getSeconds());
-		assertTrue(lines(Level.INFO).contains("Head office link: heartbeat to http://localhost:888/zsretail/api every 60 s"),
-				lines(Level.INFO).toString());
+	@DisplayName("Run result: SUCCESS 'ONLINE', or ERROR with the state and message; never 'more to do'")
+	void runResult() {
+		LinkJobRun up = beat(online("2026-10-03T10:00:00.000+01:00"));
+		assertEquals(LinkJobResult.SUCCESS, up.getResult());
+		assertEquals("ONLINE", up.getMessage());
+		assertFalse(up.isRunAgainSoon());
 
-		scheduler.stop();
-		server.verify(); // no request expected: any call would have failed
-		assertEquals(HeadOfficeLinkState.PENDING, status.get().getState());
-		assertTrue(LocalDateTime.now().isBefore(before.plusSeconds(15)), "checked before the first heartbeat");
+		LinkJobRun down = beat(refused());
+		assertEquals(LinkJobResult.ERROR, down.getResult());
+		assertEquals("OFFLINE: head office unreachable (ConnectException: Connection refused)", down.getMessage());
 	}
 }

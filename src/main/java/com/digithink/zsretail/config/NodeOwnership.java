@@ -40,7 +40,8 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * on a head office, the startup fails with a {@code headoffice.offline-after-seconds} below 1. Sales copies (tasks 2.1,
  * 2.4): when {@code headoffice.url} is set, the startup fails with a {@code headoffice.sales-push.from-date} that is
  * not a date, a {@code headoffice.sales-push.batch-size} outside 1..1000 or a
- * {@code headoffice.sales-push.interval-seconds} below 1; on a store, an explicit {@code sales.upstream} that includes
+ * {@code headoffice.sales-push.interval-seconds} below 1 or (task 2.6) a {@code headoffice.log-retention-days} below 1;
+ * on a store, an explicit {@code sales.upstream} that includes
  * HEAD_OFFICE without {@code headoffice.url} fails too (a derived upstream is not checked: the franchise customer
  * profile derives HEAD_OFFICE for its legacy push and has no headoffice.url).
  */
@@ -55,6 +56,7 @@ public final class NodeOwnership {
 	static final String SALES_PUSH_FROM_DATE_KEY = "headoffice.sales-push.from-date";
 	static final String SALES_PUSH_BATCH_SIZE_KEY = "headoffice.sales-push.batch-size";
 	static final String SALES_PUSH_INTERVAL_KEY = "headoffice.sales-push.interval-seconds";
+	static final String LOG_RETENTION_KEY = "headoffice.log-retention-days";
 
 	/** Largest batch a store may send in one request. */
 	public static final int SALES_PUSH_MAX_BATCH_SIZE = 1000;
@@ -229,6 +231,7 @@ public final class NodeOwnership {
 		parseSalesPushFromDate(env.getProperty(SALES_PUSH_FROM_DATE_KEY));
 		checkWholeSeconds(env, SALES_PUSH_INTERVAL_KEY);
 		checkBatchSize(env);
+		checkWholeDays(env, LOG_RETENTION_KEY);
 	}
 
 	/** When present, a whole number from 1 to {@value #SALES_PUSH_MAX_BATCH_SIZE}. */
@@ -246,6 +249,23 @@ public final class NodeOwnership {
 		if (size < 1 || size > SALES_PUSH_MAX_BATCH_SIZE) {
 			throw new IllegalStateException("Invalid value '" + raw + "' for property " + SALES_PUSH_BATCH_SIZE_KEY
 					+ ": a whole number from 1 to " + SALES_PUSH_MAX_BATCH_SIZE);
+		}
+	}
+
+	/** When present, the key must hold a whole number of days, at least 1 (task 2.6). */
+	private static void checkWholeDays(PropertyResolver env, String key) {
+		if (env.containsProperty(key) && wholeNumber(env.getProperty(key)) < 1) {
+			throw new IllegalStateException("Invalid value '" + env.getProperty(key) + "' for property " + key
+					+ ": a whole number of days, at least 1");
+		}
+	}
+
+	/** The trimmed value as a whole number; 0 when it is not one. */
+	private static long wholeNumber(String raw) {
+		try {
+			return Long.parseLong(raw == null ? "" : raw.trim());
+		} catch (NumberFormatException e) {
+			return 0;
 		}
 	}
 
