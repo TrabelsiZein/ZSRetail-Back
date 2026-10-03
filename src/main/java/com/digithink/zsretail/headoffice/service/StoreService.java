@@ -6,9 +6,11 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -18,12 +20,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatDTO;
 import com.digithink.zsretail.headoffice.dto.StoreListItemDTO;
 import com.digithink.zsretail.headoffice.dto.StoreWithKeyDTO;
 import com.digithink.zsretail.headoffice.enumeration.StoreKind;
 import com.digithink.zsretail.headoffice.enumeration.StoreStatus;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
+import com.digithink.zsretail.model.enumeration.DataDomain;
+import com.digithink.zsretail.model.enumeration.DataOwner;
+import com.digithink.zsretail.model.enumeration.SalesUpstream;
 import com.digithink.zsretail.repository._BaseRepository;
 import com.digithink.zsretail.service._BaseService;
 
@@ -189,7 +195,56 @@ public class StoreService extends _BaseService<Store, Long> {
 	 */
 	@Transactional
 	public void recordContact(Long id, String appVersion, LocalDateTime when) {
-		storeRepository.updateContact(id, when, normalizeVersion(appVersion));
+		recordContact(id, new HeadOfficeHeartbeatDTO(appVersion), when);
+	}
+
+	/**
+	 * Task 3.6: the heartbeat with what the store owns, in the same update as the contact. Each owner is kept only when
+	 * it is an owner its domain allows, otherwise null (unknown); an absent map leaves every domain unknown. Upstreams:
+	 * the known names in enum order, "" for an empty list (nowhere), null when absent (unknown). Lenient: a value it
+	 * cannot read never refuses the heartbeat.
+	 */
+	@Transactional
+	public void recordContact(Long id, HeadOfficeHeartbeatDTO heartbeat, LocalDateTime when) {
+		Map<String, String> ownership = heartbeat == null ? null : heartbeat.getOwnership();
+		storeRepository.updateContact(id, when, normalizeVersion(heartbeat == null ? null : heartbeat.getAppVersion()),
+				owner(ownership, DataDomain.CATALOGUE), owner(ownership, DataDomain.CUSTOMERS),
+				owner(ownership, DataDomain.PROMOTIONS), owner(ownership, DataDomain.LOYALTY),
+				owner(ownership, DataDomain.SUPPLY), upstreams(heartbeat == null ? null : heartbeat.getSalesUpstreams()));
+	}
+
+	/** The owner reported for a domain (key and value trimmed, any case), when the domain allows it; null otherwise. */
+	static String owner(Map<String, String> ownership, DataDomain domain) {
+		if (ownership == null) {
+			return null;
+		}
+		for (Map.Entry<String, String> entry : ownership.entrySet()) {
+			if (entry.getKey() != null && entry.getValue() != null
+					&& domain.name().equalsIgnoreCase(entry.getKey().trim())) {
+				for (DataOwner owner : DataOwner.values()) {
+					if (owner.name().equalsIgnoreCase(entry.getValue().trim()) && domain.allows(owner)) {
+						return owner.name();
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	/** Known SalesUpstream names, in enum order, comma-separated; "" for none; null when the list is absent. */
+	static String upstreams(List<String> reported) {
+		if (reported == null) {
+			return null;
+		}
+		List<String> known = new ArrayList<>();
+		for (SalesUpstream upstream : SalesUpstream.values()) {
+			for (String value : reported) {
+				if (value != null && upstream.name().equalsIgnoreCase(value.trim()) && !known.contains(upstream.name())) {
+					known.add(upstream.name());
+				}
+			}
+		}
+		return String.join(",", known);
 	}
 
 	/**

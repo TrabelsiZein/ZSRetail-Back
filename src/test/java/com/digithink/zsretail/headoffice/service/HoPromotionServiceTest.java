@@ -2,6 +2,7 @@ package com.digithink.zsretail.headoffice.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -265,8 +266,12 @@ class HoPromotionServiceTest {
 		assertThrows(NoSuchElementException.class, () -> service.getTargets(999L));
 		assertTrue(targetRows.isEmpty(), "nothing written");
 
+		a.setOwnerPromotions("LOCAL"); // task 3.6: RS01 reported it owns its promotions
 		service.setTargets(p.getId(), targets(false, b.getId(), a.getId()));
 		PromotionTargetsDTO view = service.getTargets(p.getId());
+		assertEquals("LOCAL", view.getStores().get(0).getOwnership().get("PROMOTIONS"),
+				"task 3.6: accepted, and shown as owning its promotions");
+		assertNull(view.getStores().get(1).getOwnership(), "RS02 reported nothing: unknown");
 		assertFalse(view.getAllStores());
 		assertEquals(Arrays.asList(1L, 2L), view.getStoreIds());
 		assertEquals(Arrays.asList("RS01", "RS02"),

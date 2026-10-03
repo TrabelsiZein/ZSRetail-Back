@@ -290,7 +290,7 @@ public class HoPromotionService implements DownDomainProvider, PromotionHeadOffi
 			if (!current.getStoreIds().isEmpty()) {
 				stores.findAllById(current.getStoreIds()).forEach(store -> options.add(
 						new PromotionTargetsDTO.StoreOptionDTO(store.getId(), store.getCode(), store.getName(),
-								store.getActive())));
+								store.getActive(), store.getOwnership())));
 			}
 			options.sort((a, b) -> a.getCode().compareToIgnoreCase(b.getCode()));
 			dto.setStores(options);

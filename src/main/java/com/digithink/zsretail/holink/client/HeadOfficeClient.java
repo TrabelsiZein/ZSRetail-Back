@@ -4,7 +4,9 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +24,7 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeLink;
 import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
 import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatDTO;
@@ -34,6 +37,7 @@ import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
 import com.digithink.zsretail.holink.enumeration.SalesCopyType;
 import com.digithink.zsretail.holink.model.DownCursor;
 import com.digithink.zsretail.model.enumeration.DataDomain;
+import com.digithink.zsretail.model.enumeration.SalesUpstream;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -76,15 +80,26 @@ public class HeadOfficeClient {
 	private final String apiKey;
 	private final String appVersion;
 
+	/** Task 3.6: what this store owns, sent with each heartbeat; null sends the version only. */
+	private final ApplicationModeService ownership;
+
 	@Autowired
-	public HeadOfficeClient(GeneralSetupService generalSetupService, @Value("${headoffice.url}") String url,
-			@Value("${headoffice.api-key:}") String apiKey, @Value("${app.version:unknown}") String appVersion) {
-		this(newRestTemplate(), generalSetupService, url, apiKey, appVersion);
+	public HeadOfficeClient(GeneralSetupService generalSetupService, ApplicationModeService applicationModeService,
+			@Value("${headoffice.url}") String url, @Value("${headoffice.api-key:}") String apiKey,
+			@Value("${app.version:unknown}") String appVersion) {
+		this(newRestTemplate(), generalSetupService, url, apiKey, appVersion, applicationModeService);
 	}
 
-	/** With a given RestTemplate: used by the tests (MockRestServiceServer). */
+	/** With a given RestTemplate: used by the tests (MockRestServiceServer). The heartbeat sends the version only. */
 	public HeadOfficeClient(RestTemplate restTemplate, GeneralSetupService generalSetupService, String url,
 			String apiKey, String appVersion) {
+		this(restTemplate, generalSetupService, url, apiKey, appVersion, null);
+	}
+
+	/** With a given RestTemplate and the store's ownership: used by the tests. */
+	public HeadOfficeClient(RestTemplate restTemplate, GeneralSetupService generalSetupService, String url,
+			String apiKey, String appVersion, ApplicationModeService ownership) {
+		this.ownership = ownership;
 		this.restTemplate = restTemplate;
 		this.generalSetupService = generalSetupService;
 		this.baseUrl = withoutTrailingSlash(url.trim());
@@ -112,11 +127,30 @@ public class HeadOfficeClient {
 		return storeCode == null || storeCode.trim().isEmpty() ? null : storeCode.trim();
 	}
 
-	/** POST /ho/heartbeat with the application version. */
+	/**
+	 * POST /ho/heartbeat with the application version and (task 3.6) the owner of each domain and the sales upstreams,
+	 * as GET /config gives them.
+	 */
 	public HeadOfficeCallResult heartbeat() {
-		Answer<HeadOfficePingDTO> answer = post(HEARTBEAT_PATH, new HeadOfficeHeartbeatDTO(appVersion),
-				HeadOfficePingDTO.class);
+		Answer<HeadOfficePingDTO> answer = post(HEARTBEAT_PATH, heartbeatBody(), HeadOfficePingDTO.class);
 		return answer.failure != null ? answer.failure : HeadOfficeCallResult.online(answer.body.getServerTime());
+	}
+
+	HeadOfficeHeartbeatDTO heartbeatBody() {
+		HeadOfficeHeartbeatDTO body = new HeadOfficeHeartbeatDTO(appVersion);
+		if (ownership != null) {
+			Map<String, String> owners = new LinkedHashMap<>();
+			for (DataDomain domain : DataDomain.values()) {
+				owners.put(domain.name(), ownership.ownerOf(domain).name());
+			}
+			List<String> upstreams = new ArrayList<>();
+			for (SalesUpstream upstream : ownership.salesUpstreams()) {
+				upstreams.add(upstream.name());
+			}
+			body.setOwnership(owners);
+			body.setSalesUpstreams(upstreams);
+		}
+		return body;
 	}
 
 	/**

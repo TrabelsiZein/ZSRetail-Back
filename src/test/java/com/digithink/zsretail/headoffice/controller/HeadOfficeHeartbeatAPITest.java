@@ -1,11 +1,15 @@
 package com.digithink.zsretail.headoffice.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -13,7 +17,10 @@ import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.TreeSet;
 
@@ -21,13 +28,22 @@ import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+import org.springframework.mock.env.MockEnvironment;
+import org.springframework.mock.http.client.MockClientHttpRequest;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestTemplate;
 
+import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatDTO;
 import com.digithink.zsretail.headoffice.dto.HeadOfficePingDTO;
 import com.digithink.zsretail.headoffice.enumeration.StoreKind;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
 import com.digithink.zsretail.headoffice.service.StoreService;
+import com.digithink.zsretail.holink.client.HeadOfficeClient;
+import com.digithink.zsretail.service.GeneralSetupService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -67,13 +83,19 @@ class HeadOfficeHeartbeatAPITest {
 							saves++;
 							return args[0];
 						case "updateContact":
-							// Same effect as the JPQL update: these two columns of the row with this id
+							// Same effect as the JPQL update: these columns of the row with this id (task 3.6: and the owners)
 							contactUpdates.add(args);
 							if (!row.getId().equals(args[0])) {
 								return 0;
 							}
 							row.setLastContact((LocalDateTime) args[1]);
 							row.setAppVersion((String) args[2]);
+							row.setOwnerCatalogue((String) args[3]);
+							row.setOwnerCustomers((String) args[4]);
+							row.setOwnerPromotions((String) args[5]);
+							row.setOwnerLoyalty((String) args[6]);
+							row.setOwnerSupply((String) args[7]);
+							row.setReportedSalesUpstreams((String) args[8]);
 							return 1;
 						default:
 							throw new UnsupportedOperationException("Unexpected call: StoreRepository." + method.getName());
@@ -155,5 +177,112 @@ class HeadOfficeHeartbeatAPITest {
 		String exact = longVersion.substring(0, Store.APP_VERSION_LENGTH);
 		assertEquals(exact, beat(exact));
 		assertEquals(0, saves);
+	}
+
+	// ─── Task 3.6: what the store owns ────────────────────────────
+
+	private static Map<String, String> owners(String... pairs) {
+		Map<String, String> owners = new LinkedHashMap<>();
+		for (int i = 0; i < pairs.length; i += 2) {
+			owners.put(pairs[i], pairs[i + 1]);
+		}
+		return owners;
+	}
+
+	@Test
+	@DisplayName("Task 3.6: owners and sales upstreams saved in the same update; values read leniently; JSON ownership and salesUpstreams")
+	void ownershipReported() throws Exception {
+		api.heartbeat(principal(), new HeadOfficeHeartbeatDTO("2.1.0",
+				owners("CATALOGUE", "ERP", " customers ", "erp", "PROMOTIONS", "HEAD_OFFICE", "LOYALTY", "ERP",
+						"SUPPLY", "bogus", "SHOES", "LOCAL"),
+				Arrays.asList(" head_office ", "X", "ERP", "ERP")));
+		assertEquals(1, contactUpdates.size(), "one update with the contact");
+		assertEquals("ERP", row.getOwnerCatalogue());
+		assertEquals("ERP", row.getOwnerCustomers());
+		assertEquals("HEAD_OFFICE", row.getOwnerPromotions());
+		assertNull(row.getOwnerLoyalty(), "ERP is not an owner loyalty allows: unknown");
+		assertNull(row.getOwnerSupply(), "unreadable: unknown");
+		assertEquals("ERP,HEAD_OFFICE", row.getReportedSalesUpstreams(), "known names, enum order, once");
+		assertEquals(0, saves);
+
+		JsonNode json = new ObjectMapper().findAndRegisterModules().valueToTree(row);
+		assertEquals("{\"CATALOGUE\":\"ERP\",\"CUSTOMERS\":\"ERP\",\"PROMOTIONS\":\"HEAD_OFFICE\",\"LOYALTY\":null,"
+				+ "\"SUPPLY\":null}", json.get("ownership").toString());
+		assertEquals("[\"ERP\",\"HEAD_OFFICE\"]", json.get("salesUpstreams").toString());
+		assertFalse(json.has("ownerPromotions") || json.has("reportedSalesUpstreams"), json.toString());
+
+		Store read = new ObjectMapper().findAndRegisterModules().readValue(json.toString(), Store.class);
+		assertNull(read.getOwnerPromotions(), "never read from a client");
+
+		api.heartbeat(principal(), new HeadOfficeHeartbeatDTO("2.1.0", owners("PROMOTIONS", "LOCAL"),
+				Collections.emptyList()));
+		assertEquals("LOCAL", row.getOwnerPromotions());
+		assertNull(row.getOwnerCatalogue());
+		assertEquals("", row.getReportedSalesUpstreams());
+		assertEquals("[]", new ObjectMapper().findAndRegisterModules().valueToTree(row).get("salesUpstreams").toString(),
+				"sales go nowhere");
+	}
+
+	@Test
+	@DisplayName("Task 3.6: a store that sends nothing (older version, or no body) is unknown, also after an earlier report")
+	void olderStoreUnknown() {
+		api.heartbeat(principal(), new HeadOfficeHeartbeatDTO("2.1.0", owners("PROMOTIONS", "HEAD_OFFICE"),
+				Collections.singletonList("HEAD_OFFICE")));
+		api.heartbeat(principal(), new HeadOfficeHeartbeatDTO("1.12.0"));
+		assertNull(row.getOwnership());
+		assertNull(row.getSalesUpstreams());
+		JsonNode json = new ObjectMapper().findAndRegisterModules().valueToTree(row);
+		assertTrue(json.get("ownership").isNull());
+		assertTrue(json.get("salesUpstreams").isNull());
+		api.heartbeat(principal(), null);
+		assertNull(row.getOwnership());
+		assertEquals("1.12.0", beat("1.12.0"), "the version rules are unchanged");
+	}
+
+	@Test
+	@DisplayName("Task 3.6: round trip from the store's client: owners and upstreams as GET /config gives them; no mode, version only")
+	void fromTheStoreClient() throws Exception {
+		ApplicationModeService mode = new ApplicationModeService();
+		MockEnvironment env = new MockEnvironment().withProperty("headoffice.url", "http://ho:888/zsretail/api")
+				.withProperty("headoffice.api-key", "k").withProperty("ownership.promotions", "HEAD_OFFICE")
+				.withProperty("sales.upstream", "HEAD_OFFICE");
+		inject(mode, "environment", env);
+		inject(mode, "standalone", true);
+		Method init = ApplicationModeService.class.getDeclaredMethod("initOwnership");
+		init.setAccessible(true);
+		init.invoke(mode);
+		GeneralSetupService setup = new GeneralSetupService() {
+			@Override
+			public String findValueByCode(String code) {
+				return "RS01";
+			}
+		};
+		List<String> bodies = new ArrayList<>();
+		for (ApplicationModeService withMode : Arrays.asList(mode, null)) {
+			RestTemplate restTemplate = new RestTemplate();
+			MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+			server.expect(requestTo("http://ho:888/zsretail/api/ho/heartbeat")).andRespond(request -> {
+				bodies.add(((MockClientHttpRequest) request).getBodyAsString());
+				return withSuccess("{\"storeCode\":\"RS01\",\"serverTime\":\"2026-10-03T12:00:00.000Z\"}",
+						MediaType.APPLICATION_JSON).createResponse(request);
+			});
+			new HeadOfficeClient(restTemplate, setup, "http://ho:888/zsretail/api", "k", "2.1.0", withMode).heartbeat();
+			server.verify();
+		}
+		assertEquals("{\"appVersion\":\"2.1.0\",\"ownership\":{\"CATALOGUE\":\"LOCAL\",\"CUSTOMERS\":\"LOCAL\","
+				+ "\"PROMOTIONS\":\"HEAD_OFFICE\",\"LOYALTY\":\"LOCAL\",\"SUPPLY\":\"LOCAL\"},\"salesUpstreams\":[\"HEAD_OFFICE\"]}",
+				bodies.get(0));
+		assertEquals("{\"appVersion\":\"2.1.0\"}", bodies.get(1), "as before task 3.6");
+
+		api.heartbeat(principal(), new ObjectMapper().readValue(bodies.get(0), HeadOfficeHeartbeatDTO.class));
+		assertEquals("HEAD_OFFICE", row.getOwnerPromotions());
+		assertEquals("LOCAL", row.getOwnerCatalogue());
+		assertEquals("HEAD_OFFICE", row.getReportedSalesUpstreams());
+	}
+
+	private static void inject(Object target, String field, Object value) throws Exception {
+		Field f = ApplicationModeService.class.getDeclaredField(field);
+		f.setAccessible(true);
+		f.set(target, value);
 	}
 }
