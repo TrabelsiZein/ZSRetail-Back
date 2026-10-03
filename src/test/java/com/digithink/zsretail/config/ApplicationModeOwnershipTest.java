@@ -504,6 +504,59 @@ class ApplicationModeOwnershipTest {
 		standalone(new MockEnvironment().withProperty("headoffice.pull.interval-seconds", "0"));
 	}
 
+	// --- Shared loyalty (step 4) ---
+
+	@Test
+	@DisplayName("Step 4: an explicit ownership.loyalty=HEAD_OFFICE without headoffice.url is refused on standalone and ERP flags")
+	void headOfficeLoyaltyNeedsUrl() {
+		for (String value : new String[] { "HEAD_OFFICE", " head_office " }) {
+			MockEnvironment env = new MockEnvironment().withProperty("ownership.loyalty", value);
+			IllegalStateException standalone = assertThrows(IllegalStateException.class, () -> standalone(env));
+			assertTrue(standalone.getMessage().startsWith("Missing value for property headoffice.url: required when "
+					+ "ownership.loyalty is HEAD_OFFICE ('" + value + "')"), standalone.getMessage());
+			assertThrows(IllegalStateException.class, () -> erp(env));
+		}
+		assertThrows(IllegalStateException.class,
+				() -> standalone(new MockEnvironment().withProperty("headoffice.url", " ")
+						.withProperty("ownership.loyalty", "HEAD_OFFICE")), "a blank URL is no URL");
+	}
+
+	@Test
+	@DisplayName("Step 4: loyalty LOCAL without the URL, HEAD_OFFICE with it; the 4 profiles keep loyalty LOCAL; a head office keeps its message")
+	void headOfficeLoyaltyAccepted() throws Exception {
+		assertEquals(L, standalone(new MockEnvironment().withProperty("ownership.loyalty", "LOCAL"))
+				.ownerOf(DataDomain.LOYALTY));
+		assertEquals(HO, standalone(linkEnv().withProperty("ownership.loyalty", "HEAD_OFFICE"))
+				.ownerOf(DataDomain.LOYALTY));
+		assertEquals(HO, erp(linkEnv().withProperty("ownership.loyalty", "HEAD_OFFICE")).ownerOf(DataDomain.LOYALTY));
+		assertEquals(L, standalone(new MockEnvironment()).ownerOf(DataDomain.LOYALTY));
+		assertEquals(L, erp(new MockEnvironment()).ownerOf(DataDomain.LOYALTY));
+		assertEquals(L, franchiseCustomer(new MockEnvironment()).ownerOf(DataDomain.LOYALTY));
+		assertEquals(L, franchiseAdmin(new MockEnvironment()).ownerOf(DataDomain.LOYALTY));
+		assertTrue(service(linkEnv().withProperty("ownership.loyalty", "HEAD_OFFICE"), true, false, false)
+				.isLoyaltyOwnedByHeadOffice());
+		assertFalse(service(linkEnv(), true, false, false).isLoyaltyOwnedByHeadOffice());
+		assertFalse(service(new MockEnvironment(), false, false, false).isLoyaltyOwnedByHeadOffice());
+		IllegalStateException e = assertThrows(IllegalStateException.class,
+				() -> standalone(headOfficeEnv().withProperty("ownership.loyalty", "HEAD_OFFICE")));
+		assertTrue(e.getMessage().startsWith("Invalid value 'HEAD_OFFICE' for property ownership.loyalty: on a head office"),
+				e.getMessage());
+	}
+
+	@Test
+	@DisplayName("Step 4: headoffice.loyalty-push.interval-seconds at least 1 accepted; below 1 or not a number refused; not checked without headoffice.url")
+	void loyaltyPushInterval() {
+		for (String value : new String[] { "0", "-5", "abc", "", "1.5" }) {
+			IllegalStateException e = assertThrows(IllegalStateException.class,
+					() -> standalone(linkEnv().withProperty("headoffice.loyalty-push.interval-seconds", value)), value);
+			assertTrue(e.getMessage().startsWith("Invalid value '" + value
+					+ "' for property headoffice.loyalty-push.interval-seconds: a whole number of seconds, at least 1"),
+					e.getMessage());
+		}
+		standalone(linkEnv().withProperty("headoffice.loyalty-push.interval-seconds", " 30 "));
+		standalone(new MockEnvironment().withProperty("headoffice.loyalty-push.interval-seconds", "0"));
+	}
+
 	@Test
 	@DisplayName("ApplicationModeService fails at startup on an invalid value")
 	void serviceFailsOnInvalidValue() {

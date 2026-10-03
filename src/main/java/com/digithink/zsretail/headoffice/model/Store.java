@@ -66,6 +66,18 @@ public class Store extends _BaseEntity {
 	@Column(nullable = false, length = 64)
 	private String apiKeyHash;
 
+	// ─── Loyalty rights of the store (step 4) ─────────────────────────────────
+	// Set on the Stores page, sent to the store with each heartbeat answer, enforced by the head office. Null in rows
+	// made before step 4: read as false. No default here: a PUT without the field must leave it as it is.
+
+	/** The store may change members (edit, deactivate) through the head office. */
+	@Column(name = "can_edit_members")
+	private Boolean canEditMembers;
+
+	/** The store may adjust points by hand (refused at the store in step 4 whatever the right). */
+	@Column(name = "can_adjust_points")
+	private Boolean canAdjustPoints;
+
 	// ─── What the store owns, reported with each heartbeat (task 3.6) ─────────
 	// Written only by POST /ho/heartbeat, in the same update as lastContact; null = unknown (no report yet, or a store
 	// of an older version). Exposed in JSON as "ownership" and "salesUpstreams" below, never read from the client.

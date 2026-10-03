@@ -24,12 +24,12 @@ import com.digithink.zsretail.model.enumeration.DataDomain;
  * Test support (task 3.3): ho_down_change and ho_down_sequence in memory, applying the rules of the JPQL queries, and a
  * real {@link CopiesDownFeed} over them.
  */
-final class InMemoryDownTables {
+public final class InMemoryDownTables {
 
 	final List<HoDownChange> changes = new ArrayList<>();
 	final Map<DataDomain, Long> sequences = new EnumMap<>(DataDomain.class);
 
-	CopiesDownFeed feed(List<DownDomainProvider> providers) {
+	public CopiesDownFeed feed(List<DownDomainProvider> providers) {
 		return new CopiesDownFeed(changeRepository(), sequenceRepository(), providers,
 				TransactionOperations.withoutTransaction(), TransactionOperations.withoutTransaction());
 	}

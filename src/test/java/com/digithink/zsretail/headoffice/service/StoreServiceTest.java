@@ -252,6 +252,44 @@ class StoreServiceTest {
 		assertFalse(service.update(99L, input).isPresent());
 	}
 
+	// --- Loyalty rights (step 4) ---
+
+	@Test
+	@DisplayName("Step 4: loyalty rights false by default, set on create and update; an update without them keeps them")
+	void loyaltyRights() throws Exception {
+		Store created = service.create(input("RS01", "Store Sousse")).getStore();
+		assertFalse(created.getCanEditMembers());
+		assertFalse(created.getCanAdjustPoints());
+
+		Store rights = new Store();
+		rights.setCanEditMembers(true);
+		Store updated = service.update(created.getId(), rights).get();
+		assertTrue(updated.getCanEditMembers());
+		assertFalse(updated.getCanAdjustPoints());
+
+		Store rename = new ObjectMapper().findAndRegisterModules().readValue("{\"name\":\"Sousse 2\"}", Store.class);
+		updated = service.update(created.getId(), rename).get();
+		assertEquals("Sousse 2", updated.getName());
+		assertTrue(updated.getCanEditMembers(), "a PUT without the rights leaves them as they are");
+
+		Store withRights = input("RS02", "Store Tunis");
+		withRights.setCanAdjustPoints(true);
+		assertTrue(service.create(withRights).getStore().getCanAdjustPoints());
+		String json = new ObjectMapper().findAndRegisterModules().writeValueAsString(updated);
+		assertTrue(json.contains("\"canEditMembers\":true") && json.contains("\"canAdjustPoints\":false"), json);
+	}
+
+	@Test
+	@DisplayName("Step 4: the code HO is kept for the head office's loyalty cards (LYL-HO-...)")
+	void headOfficeCodeReserved() {
+		for (String code : new String[] { "HO", " ho " }) {
+			IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+					() -> service.create(input(code, "Store")));
+			assertEquals(StoreService.CODE_RESERVED, e.getMessage());
+		}
+		assertTrue(table.isEmpty());
+	}
+
 	// --- Delete ---
 
 	@Test

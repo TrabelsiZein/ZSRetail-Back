@@ -4,9 +4,13 @@ import java.time.LocalDate;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.EnumType;
+import javax.persistence.Enumerated;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
+
+import com.digithink.zsretail.model.enumeration.RecordOrigin;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -63,4 +67,13 @@ public class LoyaltyMember extends _BaseEntity {
 	/** Reserved for future ERP synchronization */
 	@Column(name = "erp_external_id")
 	private String erpExternalId;
+
+	/**
+	 * Head office plan, step 4: on a store whose loyalty is owned by the head office, HEAD_OFFICE for a member of the
+	 * network register (received from the head office, or enrolled here and sent up); null or LOCAL for a member made
+	 * before the switch, set inactive at the first pull. Null everywhere else.
+	 */
+	@Enumerated(EnumType.STRING)
+	@Column(length = 20)
+	private RecordOrigin origin;
 }

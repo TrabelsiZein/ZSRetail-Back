@@ -1,5 +1,6 @@
 package com.digithink.zsretail.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -10,10 +11,28 @@ import org.springframework.data.repository.query.Param;
 
 import com.digithink.zsretail.model.Customer;
 import com.digithink.zsretail.model.LoyaltyMember;
+import com.digithink.zsretail.model.enumeration.RecordOrigin;
 
 public interface LoyaltyMemberRepository extends _BaseRepository<LoyaltyMember, Long> {
 
 	Optional<LoyaltyMember> findByCardNumber(String cardNumber);
+
+	/** Step 4: the members whose card number is one of these (head office copies down). */
+	List<LoyaltyMember> findByCardNumberIn(Collection<String> cardNumbers);
+
+	/**
+	 * Step 4: card numbers matching a LIKE pattern whose escape character is '!' (the network numbering
+	 * LYL-&lt;code&gt;-000001 takes the highest sequence of its prefix).
+	 */
+	@Query("select m.cardNumber from LoyaltyMember m where m.cardNumber like :pattern escape '!'")
+	List<String> findCardNumbersLike(@Param("pattern") String pattern);
+
+	/**
+	 * Step 4: active members not from this origin (null counts as LOCAL): on a store whose loyalty is owned by the head
+	 * office, the members made before the switch, set inactive at the pull.
+	 */
+	@Query("select m from LoyaltyMember m where m.active = true and (m.origin is null or m.origin <> :origin)")
+	List<LoyaltyMember> findActiveNotFrom(@Param("origin") RecordOrigin origin);
 
 	List<LoyaltyMember> findByCustomer(Customer customer);
 

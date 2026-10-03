@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.config.ConditionalOnHeadOffice;
 import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatDTO;
-import com.digithink.zsretail.headoffice.dto.HeadOfficePingDTO;
+import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatAnswerDTO;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.security.StoreApiKeyFilter;
 import com.digithink.zsretail.headoffice.service.StoreService;
@@ -32,11 +32,13 @@ public class HeadOfficeHeartbeatAPI {
 		this.storeService = storeService;
 	}
 
+	/** Step 4: the answer also carries the store's loyalty rights (null in a row made before step 4: false). */
 	@PostMapping("/heartbeat")
-	public HeadOfficePingDTO heartbeat(@AuthenticationPrincipal Store store,
+	public HeadOfficeHeartbeatAnswerDTO heartbeat(@AuthenticationPrincipal Store store,
 			@RequestBody(required = false) HeadOfficeHeartbeatDTO body) {
 		OffsetDateTime now = OffsetDateTime.now();
 		storeService.recordContact(store.getId(), body, now.toLocalDateTime());
-		return new HeadOfficePingDTO(store.getCode(), now.format(HeadOfficePingAPI.SERVER_TIME));
+		return new HeadOfficeHeartbeatAnswerDTO(store.getCode(), now.format(HeadOfficePingAPI.SERVER_TIME),
+				Boolean.TRUE.equals(store.getCanEditMembers()), Boolean.TRUE.equals(store.getCanAdjustPoints()));
 	}
 }

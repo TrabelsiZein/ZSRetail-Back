@@ -46,7 +46,9 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * profile derives HEAD_OFFICE for its legacy push and has no headoffice.url).
  * <p>
  * Copies down (step 3): a store with an explicit {@code ownership.promotions=HEAD_OFFICE} without {@code headoffice.url}
- * fails; with the URL set, a {@code headoffice.pull.interval-seconds} below 1 fails.
+ * fails; with the URL set, a {@code headoffice.pull.interval-seconds} below 1 fails. Shared loyalty (step 4): the same
+ * for {@code ownership.loyalty=HEAD_OFFICE}, and with the URL set a {@code headoffice.loyalty-push.interval-seconds}
+ * below 1 fails.
  */
 public final class NodeOwnership {
 
@@ -61,12 +63,14 @@ public final class NodeOwnership {
 	static final String SALES_PUSH_INTERVAL_KEY = "headoffice.sales-push.interval-seconds";
 	static final String LOG_RETENTION_KEY = "headoffice.log-retention-days";
 	static final String PULL_INTERVAL_KEY = "headoffice.pull.interval-seconds";
+	static final String LOYALTY_PUSH_INTERVAL_KEY = "headoffice.loyalty-push.interval-seconds";
 
 	/**
-	 * Domains a store receives as copies down from its head office today (step 3: promotions). An explicit owner
-	 * HEAD_OFFICE for one of them needs headoffice.url. Later steps add theirs.
+	 * Domains a store receives as copies down from its head office today (step 3: promotions; step 4: loyalty). An
+	 * explicit owner HEAD_OFFICE for one of them needs headoffice.url. Later steps add theirs.
 	 */
-	static final Set<DataDomain> COPIES_DOWN_DOMAINS = Collections.unmodifiableSet(EnumSet.of(DataDomain.PROMOTIONS));
+	static final Set<DataDomain> COPIES_DOWN_DOMAINS = Collections
+			.unmodifiableSet(EnumSet.of(DataDomain.PROMOTIONS, DataDomain.LOYALTY));
 
 	/** Largest batch a store may send in one request. */
 	public static final int SALES_PUSH_MAX_BATCH_SIZE = 1000;
@@ -286,6 +290,7 @@ public final class NodeOwnership {
 		checkBatchSize(env);
 		checkWholeDays(env, LOG_RETENTION_KEY);
 		checkWholeSeconds(env, PULL_INTERVAL_KEY);
+		checkWholeSeconds(env, LOYALTY_PUSH_INTERVAL_KEY);
 	}
 
 	/** When present, a whole number from 1 to {@value #SALES_PUSH_MAX_BATCH_SIZE}. */

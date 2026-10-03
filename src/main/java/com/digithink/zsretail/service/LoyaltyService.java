@@ -65,6 +65,13 @@ public class LoyaltyService {
 	@Autowired
 	private MemberFunctionRepository memberFunctionRepository;
 
+	/**
+	 * Head office plan, step 4 (shared loyalty): present on a head office and on a store whose loyalty is owned by its
+	 * head office; null otherwise (loyalty LOCAL), and in the tests that build this service by hand.
+	 */
+	@Autowired(required = false)
+	private LoyaltyNetworkHooks networkHooks;
+
 	// ───────────────────────────────────────────────────────────────
 	// Configuration
 	// ───────────────────────────────────────────────────────────────
@@ -163,7 +170,13 @@ public class LoyaltyService {
 					.ifPresent(member::setCustomer);
 		}
 
+		if (networkHooks != null) {
+			networkHooks.beforeMemberCreated(member);
+		}
 		member = loyaltyMemberRepository.save(member);
+		if (networkHooks != null) {
+			networkHooks.afterMemberSaved(member, true);
+		}
 		log.info("Created loyalty member: {}", member.getCardNumber());
 		return toMemberDTO(member);
 	}
@@ -211,6 +224,9 @@ public class LoyaltyService {
 		}
 
 		member = loyaltyMemberRepository.save(member);
+		if (networkHooks != null) {
+			networkHooks.afterMemberSaved(member, false);
+		}
 		return toMemberDTO(member);
 	}
 
@@ -221,6 +237,9 @@ public class LoyaltyService {
 		member.setActive(!Boolean.TRUE.equals(member.getActive()));
 		member.setUpdatedBy("System");
 		member = loyaltyMemberRepository.save(member);
+		if (networkHooks != null) {
+			networkHooks.afterMemberSaved(member, false);
+		}
 		return toMemberDTO(member);
 	}
 
@@ -238,6 +257,9 @@ public class LoyaltyService {
 		}
 		member.setUpdatedBy("System");
 		member = loyaltyMemberRepository.save(member);
+		if (networkHooks != null) {
+			networkHooks.afterMemberSaved(member, false);
+		}
 		return toMemberDTO(member);
 	}
 
@@ -555,6 +577,9 @@ public class LoyaltyService {
 		tx.setDescription("Manual adjustment by " + adjustedBy + ": " + reason + " (delta: " + (delta > 0 ? "+" : "") + delta + ")");
 		tx.setCreatedBy(adjustedBy);
 		loyaltyTransactionRepository.save(tx);
+		if (networkHooks != null) {
+			networkHooks.afterMemberSaved(member, false);
+		}
 
 		log.info("Manual adjustment of {} points for member {} by {}. Reason: {}", delta, member.getCardNumber(), adjustedBy, reason);
 		return toMemberDTO(member);
@@ -592,6 +617,9 @@ public class LoyaltyService {
 			current.setActive(false);
 			current.setUpdatedBy("System");
 			loyaltyProgramRepository.save(current);
+			if (networkHooks != null) {
+				networkHooks.afterProgramSaved(current);
+			}
 			log.info("Closed loyalty program: {} (endDate={})", current.getProgramCode(), closeOn);
 		}
 
@@ -604,6 +632,9 @@ public class LoyaltyService {
 		}
 
 		LoyaltyProgram saved = loyaltyProgramRepository.save(newProgram);
+		if (networkHooks != null) {
+			networkHooks.afterProgramSaved(saved);
+		}
 		log.info("Activated new loyalty program: {}", saved.getProgramCode());
 		return toProgramDTO(saved, today);
 	}
@@ -665,6 +696,9 @@ public class LoyaltyService {
 
 		existing.setUpdatedBy("System");
 		LoyaltyProgram saved = loyaltyProgramRepository.save(existing);
+		if (networkHooks != null) {
+			networkHooks.afterProgramSaved(saved);
+		}
 		log.info("Updated loyalty program: {} (canEditAll={})", saved.getProgramCode(), canEditAll);
 		return toProgramDTO(saved, LocalDate.now());
 	}
@@ -677,6 +711,9 @@ public class LoyaltyService {
 		if (txCount > 0) {
 			throw new IllegalStateException(
 					"Cannot delete program '" + existing.getProgramCode() + "': it has " + txCount + " related transaction(s).");
+		}
+		if (networkHooks != null) {
+			networkHooks.beforeProgramDeleted(existing);
 		}
 		loyaltyProgramRepository.delete(existing);
 		log.info("Deleted loyalty program: {}", existing.getProgramCode());
@@ -697,6 +734,9 @@ public class LoyaltyService {
 		}
 		existing.setUpdatedBy("System");
 		LoyaltyProgram saved = loyaltyProgramRepository.save(existing);
+		if (networkHooks != null) {
+			networkHooks.afterProgramSaved(saved);
+		}
 		log.info("Deactivated loyalty program: {}", saved.getProgramCode());
 		return toProgramDTO(saved, today);
 	}
@@ -853,7 +893,7 @@ public class LoyaltyService {
 	 * Removes spaces, dots, dashes, slashes, brackets and a +216 / 00216 prefix, so
 	 * "29 954 290" and "+216 29954290" are the same number. Null becomes "".
 	 */
-	static String normalizePhone(String raw) {
+	public static String normalizePhone(String raw) {
 		if (raw == null) {
 			return "";
 		}
@@ -881,18 +921,30 @@ public class LoyaltyService {
 		}
 		Optional<LoyaltyMember> holder = loyaltyMemberRepository.findByPhone(phone).stream()
 				.filter(m -> !m.getId().equals(excludeId))
-				.min(Comparator.comparing((LoyaltyMember m) -> !Boolean.TRUE.equals(m.getActive()))
-						.thenComparing(LoyaltyMember::getId));
+				.filter(m -> networkHooks == null || networkHooks.holdsPhone(m))
+				.min(PHONE_HOLDER_ORDER);
 		if (holder.isPresent()) {
 			LoyaltyMember m = holder.get();
-			throw new IllegalStateException("Ce numéro est déjà utilisé par la carte " + m.getCardNumber()
-					+ " (" + m.getFirstName() + " " + m.getLastName() + ")"
-					+ (Boolean.TRUE.equals(m.getActive()) ? "" : ", carte désactivée"));
+			throw new IllegalStateException(phoneTakenMessage(m.getCardNumber(), m.getFirstName(), m.getLastName(),
+					m.getActive()));
 		}
 		return phone;
 	}
 
+	/** Among the members holding a phone number, the one named in the duplicate message: the active one first. */
+	public static final Comparator<LoyaltyMember> PHONE_HOLDER_ORDER = Comparator
+			.comparing((LoyaltyMember m) -> !Boolean.TRUE.equals(m.getActive())).thenComparing(LoyaltyMember::getId);
+
+	/** The duplicate phone message naming the card that holds the number (409). */
+	public static String phoneTakenMessage(String cardNumber, String firstName, String lastName, Boolean active) {
+		return "Ce numéro est déjà utilisé par la carte " + cardNumber + " (" + firstName + " " + lastName + ")"
+				+ (Boolean.TRUE.equals(active) ? "" : ", carte désactivée");
+	}
+
 	private String generateCardNumber() {
+		if (networkHooks != null) {
+			return networkHooks.nextCardNumber();
+		}
 		Integer maxSeq = loyaltyMemberRepository.findMaxCardSequence();
 		int next = (maxSeq != null ? maxSeq : 0) + 1;
 		return String.format("LYL-%06d", next);
