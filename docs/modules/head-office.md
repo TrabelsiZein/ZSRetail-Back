@@ -1,6 +1,6 @@
 # Head Office Module
 
-**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
+**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
 
 ### Overview
 - Two installation types, same WAR: a **store** sells; a **head office** manages several stores and never sells (no cashier session, no ticket).
@@ -20,6 +20,7 @@
 | `franchise.admin=true` or `franchise.customer=true` | `Invalid combination: node.type=HEAD_OFFICE with franchise...=true` |
 | an explicit owner `HEAD_OFFICE` (`ownership.<domain>`) | `Invalid value 'HEAD_OFFICE' for property ownership.<domain>: on a head office ... the owner cannot be HEAD_OFFICE` |
 | a non-empty `sales.upstream` | `Invalid value '<value>' for property sales.upstream: a head office ... never sells` |
+| `headoffice.offline-after-seconds` below 1 or not a whole number (task 1.5) | `Invalid value '<value>' for property headoffice.offline-after-seconds: a whole number of seconds, at least 1` |
 
 An explicit owner `ERP` or `LOCAL` is accepted (for example a head office that imports items from the ERP, decision D2).
 
@@ -70,7 +71,8 @@ The head office keeps one record per store; a store's API key (task 1.3) identif
 
 | Request | Answer |
 |---|---|
-| `GET /`, `GET /{id}`, `GET /count`, `GET /{id}/exists` | Generic `_BaseController` reads; no hash in the JSON |
+| `GET /`, `GET /{id}` | The store's JSON as before (no hash) plus `status` and `secondsSinceContact` (task 1.5, see "Status" below); `GET /{id}` 404 when unknown |
+| `GET /count`, `GET /{id}/exists` | Generic `_BaseController` reads |
 | `GET /findByField` | Generic search; 400 on `apiKeyHash` |
 | `POST /` `{code, name, kind, active}` | 201 `{store, apiKey}`. 400 when code or name is missing, 409 when the code exists. `lastContact`, `appVersion` and any hash sent are ignored |
 | `PUT /{id}` | Applies `name`, `kind`, `active` (each when sent). 400 when the code differs from the stored one |
@@ -81,8 +83,21 @@ The head office keeps one record per store; a store's API key (task 1.3) identif
 
 **Key check**: `StoreService.check(code, key)` returns a `KeyCheck`: the outcome `ACCEPTED`, `UNKNOWN_STORE`, `WRONG_KEY` or `INACTIVE_STORE`, and the store when accepted. The code is trimmed and compared without regard to case; the key's hash is compared with `MessageDigest.isEqual` (constant time). An unknown code is compared against a fixed hash too, so the answer time does not tell which codes exist. An inactive store is reported as such only when its key is right (otherwise `WRONG_KEY`). `authenticate(code, key)` keeps its contract (the accepted store, or empty) and uses `check`.
 
+**Status** (task 1.5): computed by `StoreService.statusOf` on each read, with the head office clock; never stored (no column).
+
+| `status` | When |
+|---|---|
+| `INACTIVE` | `active` is false, whatever the last contact |
+| `NEVER` | active, no `lastContact` |
+| `ONLINE` | active, `lastContact` no older than `headoffice.offline-after-seconds` (exactly at the threshold is still ONLINE) |
+| `OFFLINE` | active, `lastContact` older than the threshold |
+
+- `headoffice.offline-after-seconds`: head office setting, default `180` (three missed heartbeats at the default 60 s interval). Below 1 or not a whole number: the head office does not start.
+- `secondsSinceContact`: whole seconds since `lastContact`, same clock, never negative; null before the first contact. The page shows "x min ago" from it, so a browser with a wrong clock does not contradict the badge.
+- The list item is `StoreListItemDTO`: the `Store` with `@JsonUnwrapped` (same fields as before, the hash still out), then the two values. `StoreAPI` overrides `getAll` and `getById`; create, update, regenerate-key and `findByField` answer as before.
+
 **Frontend**: page `src/views/admin/headoffice/StoresManagement.vue`, route `admin-headoffice-stores` (`/admin/headoffice/stores`, `meta.resource` checked by CASL), menu group **Network** → **Stores**.
-- Columns: code, name, kind, status, last contact, version. Actions: create, edit (code read-only), deactivate / activate, regenerate key (with confirmation), delete (shown only while `lastContact` is empty).
+- Columns: code, name, kind, status, last contact, version. Status is the computed badge (ONLINE green, OFFLINE red, NEVER light grey, INACTIVE dark; `store-status.js`); last contact shows the date and time and "x min ago" under it (task 1.5). The list refreshes silently every 30 s while the page is open (no spinner, no toast; a load in progress is not doubled), stopped when the page is left. Actions: create, edit (code read-only), deactivate / activate, regenerate key (with confirmation), delete (shown only while `lastContact` is empty).
 - After create or regenerate, a dialog shows the key once, with a copy button (Clipboard API on HTTPS or localhost, otherwise copy from the selected field: plain HTTP on the LAN has no Clipboard API) and the warning that it cannot be shown again.
 - On a store: the route is redirected to `home`, the Network group is hidden, and the Roles page does not list the two permissions (`HEAD_OFFICE_ONLY_ROUTES`, `HEAD_OFFICE_ONLY_PERMISSIONS` in `src/navigation/head-office.js`). On a store the Roles page and the menu are as before.
 - Permissions: ADMIN only, by default. **A head office database created before 1.2** keeps its ADMIN role as it was, so the Network menu does not appear: tick "Réseau (menu)" and "Magasins du réseau" for the role on the Roles page, or recreate the database. No startup top-up.
@@ -162,11 +177,27 @@ Without the URL these keys are not checked. The URL scheme is not checked: HTTP 
 | `OFFLINE` | Connection error, unknown host, timeout | `head office unreachable (<cause>)` |
 | `NOT_CONFIGURED` | `DEFAULT_LOCATION` empty | no call is made |
 
-**Status**: `HeadOfficeLinkStatus`, in memory only (no table; `PENDING` again after a restart): state, last attempt and last success (store clock), last message, head office `serverTime` of the last success. A failure keeps the last success. Not exposed yet: task 1.5 adds the endpoint, the "Head office link" status card and online/offline on the Stores page.
+**Status**: `HeadOfficeLinkStatus`, in memory only (no table; `PENDING` again after a restart): state, last attempt and last success (store clock), last message, head office `serverTime` of the last success. A failure keeps the last success. Shown on the store's "Head office link" page (task 1.5, below).
 
 **Thread**: `HeadOfficeHeartbeatScheduler` starts on `ApplicationReadyEvent`: first heartbeat 15 s later, then every interval (fixed delay, counted from the end of the previous call). It runs on its own thread `ho-link-1`, not with `@Scheduled`: Spring Boot's default scheduler has one thread (`scheduling-1`) shared by `ErpSyncScheduler` and `FranchiseSalesPushScheduler`, so a call blocked up to 15 s would delay them, and a long ERP job would hold the heartbeat back. The thread pool is deliberately not a bean: a `TaskScheduler` bean would replace Spring Boot's default one and move the existing jobs onto it. Only this thread calls the head office; no request, sale or session waits for it.
 
 **Log** (store): one INFO line at start (`Head office link: heartbeat to <url> every <n> s`), one INFO line per state change (e.g. `Head office link: ONLINE -> OFFLINE (head office unreachable (ConnectException: Connection refused))`), DEBUG while the state stays the same. The key is never written in a log line.
+
+### Head office link page: the store side (task 1.5)
+**API**: `HeadOfficeLinkAPI`, `/admin/holink` (JWT, like the other admin APIs), `@ConditionalOnHeadOfficeLink`: without `headoffice.url` (and on a head office) these URLs answer 404. Nothing in the selling path calls them.
+
+| Request | Answer (`HeadOfficeLinkStatusDTO`) |
+|---|---|
+| `GET /status` | `{state, message, lastAttempt, lastSuccess, serverTime, headOfficeUrl, storeCode, intervalSeconds}`: the in-memory status, the URL without trailing slashes, `DEFAULT_LOCATION` read now (null when empty or unreadable), the interval. Never the key |
+| `POST /check` | Runs one heartbeat now and answers the status after it. The heartbeat runs on `ho-link-1` like every heartbeat (`HeadOfficeHeartbeatScheduler.checkNow`), queued behind one in progress, waited for up to 30 s; when the wait ends first, or before the heartbeat thread is started, the current status is answered and no call is made from the request thread |
+
+**`GET /config`** gets `headOfficeLinked` (task 1.5), last field: true when `headoffice.url` is set (`ApplicationModeService.isHeadOfficeLinked()`, same check as the condition). The frontend store keeps it as `appConfig/isHeadOfficeLinked` (default false, also when `/config` fails).
+
+**Frontend**: page `src/views/admin/holink/HeadOfficeLinkStatus.vue`, route `admin-holink-status` (`/admin/holink/status`, `meta.resource` checked by CASL), menu **Settings** → **Head office link** (last entry).
+- Shows the state as a badge with a translated label for each of the six states (PENDING grey, ONLINE green, OFFLINE and REFUSED red, ERROR and NOT_CONFIGURED orange), the backend message as a detail line (English, as sent), last success, last attempt, the head office URL, the store code (or "not set" when `DEFAULT_LOCATION` is empty), and a **Check now** button (disabled while the check runs). A failed `DEFAULT_LOCATION` read is `ERROR` with its own message, not a separate state.
+- Exists only when `headOfficeLinked` is true: otherwise the route is redirected to `home`, the menu entry is hidden and the Roles page does not list the permission (`HEAD_OFFICE_LINK_ROUTES`, `HEAD_OFFICE_LINK_PERMISSIONS` in `src/navigation/head-office.js`). A head office is never linked.
+
+**Permission** `read:admin-holink-status` ("Lien siège", Roles page group "Paramètres & Outils"), ADMIN only by default. Seeded (`ZZDataInitializer.HEAD_OFFICE_LINK_ADMIN_PERMISSIONS`) when the ADMIN role is created on a store that has `headoffice.url`; the 4 profiles without the URL seed exactly the roles of before. **A store database whose ADMIN role already exists** (every existing install, and a store linked after its first start) does not get it: on that store, once `headoffice.url` is set, open the Roles page, tick "Lien siège" for ADMIN, save, then log out and in (abilities are built at login). No startup top-up.
 
 ### Connect a store
 1. At the head office, **Network → Stores**, create the store with **code = the store's `DEFAULT_LOCATION`** (General Setup of the store). For an ERP store that is its NAV location code.
@@ -185,13 +216,23 @@ Without the URL these keys are not checked. The URL scheme is not checked: HTTP 
 | `DEFAULT_LOCATION` emptied in the store | `-> NOT_CONFIGURED` | last contact stops |
 | `headoffice.url` commented out again | no `Head office link` line | — |
 
+**L2 checks (task 1.5)** (same pair; on the store, "Lien siège" ticked for ADMIN as described above):
+
+| Case | Store: Head office link page | Head office: Stores page |
+|---|---|---|
+| Both running | ONLINE, last success and last attempt within the last minute, URL, store code | `SHOWROOM-S` ONLINE, "just now" or "1 min ago"; a store never connected shows NEVER |
+| Head office stopped | Check now: OFFLINE with "head office unreachable (...)"; last success kept | (stopped) |
+| Head office started, store stopped for more than 3 min | — | the store turns OFFLINE within 30 s of passing 180 s, without reloading the page |
+| Store deactivated at the head office | Check now: REFUSED, "store code or key refused by the head office" | INACTIVE |
+| Store without `headoffice.url` | no menu entry; `/admin/holink/status` redirected to home; `GET /admin/holink/status` 404 | — |
+
 ### Convention for the head office code
 - **Same data, same page.** Pages that edit data the head office owns (items, promotions, loyalty, customers, users, settings) are the existing pages, never copies.
 - **Different data, new page.** What exists only on a head office (stores list, tickets / sessions / returns of the stores, shipments, the `/ho/**` endpoints) is new code in its own folder:
   - backend: feature package `com.digithink.zsretail.headoffice`, with the same sub-packages as `erp/` (`controller`, `service`, `model`, `repository`, `dto`, `scheduler`);
   - frontend: `src/views/admin/headoffice/` (admin pages of a feature live under `views/admin/<feature>`, like `views/admin/franchise`), routes `admin-headoffice-*` under `/admin/headoffice/...`.
 - Existing store pages are not modified to serve the head office. First content: the stores list (task 1.2).
-- **Store side of the link.** Code that runs on a store and calls the head office lives in `com.digithink.zsretail.holink`, never in `headoffice`; its beans carry `@ConditionalOnHeadOfficeLink` (task 1.4).
+- **Store side of the link.** Code that runs on a store and calls the head office lives in `com.digithink.zsretail.holink`, never in `headoffice`; its beans carry `@ConditionalOnHeadOfficeLink` (task 1.4). Its pages live in `src/views/admin/holink/`, routes `admin-holink-*` (task 1.5).
 
 ### Profile `headoffice-dev`
 `src/main/resources/application-headoffice-dev.properties`:
@@ -218,19 +259,22 @@ Without the URL these keys are not checked. The URL scheme is not checked: HTTP 
 5. Check `GET http://localhost:888/zsretail/api/config`: `"nodeType":"HEAD_OFFICE"`, all owners `LOCAL`, `"salesUpstreams":[]`.
 
 ### Tests (L1)
-- `ApplicationModeOwnershipTest`: head office rows (standalone and ERP flags), the startup checks, `isHeadOffice()`. Task 1.4: a store with `headoffice.url` and a key is accepted on the 4 profiles; refused on a head office, without a key, with an interval below 1 or not a number; without the URL the other `headoffice.*` keys are not checked.
-- `AppConfigAPITest`: `headoffice-dev` row, old `/config` fields unchanged.
+- `ApplicationModeOwnershipTest`: head office rows (standalone and ERP flags), the startup checks, `isHeadOffice()`. Task 1.4: a store with `headoffice.url` and a key is accepted on the 4 profiles; refused on a head office, without a key, with an interval below 1 or not a number; without the URL the other `headoffice.*` keys are not checked. Task 1.5: `headoffice.offline-after-seconds` on a head office (below 1 or not a number refused, not checked on a store); `isHeadOfficeLinked()`.
+- `AppConfigAPITest`: `headoffice-dev` row, old `/config` fields unchanged. Task 1.5: `headOfficeLinked` true only with a non-blank `headoffice.url`, last in the key order.
 - `CashierSessionHeadOfficeTest`: `openSession` and a new-session `save()` refused on a head office; existing session saved; the 4 store profiles open sessions as today.
 - `JWTAuthenticationFilterTest`: cashier refused on a head office; admin and a user without AppRole accepted; a cashier login on the 4 store profiles answers exactly as before.
 - `ZZDataInitializerUsersTest`: head office seeds `admin` only; the 4 store profiles seed admin, responsible and cashier. The "empty user table" guard in `init()` is not covered.
-- `ZZDataInitializerRolesTest`: head office ADMIN gets the two Network permissions; the 4 store profiles seed exactly today's roles; an existing role is not changed.
+- `ZZDataInitializerRolesTest`: head office ADMIN gets the two Network permissions; the 4 store profiles seed exactly today's roles; an existing role is not changed. Task 1.5: with `headoffice.url`, ADMIN also gets `read:admin-holink-status` on the 4 profiles; a head office never does.
 - `StoreServiceTest`: key generated and stored only as a hash; key check (good, bad, inactive store, unknown code, missing key) and its reason from `check` (an inactive store with a wrong key is `WRONG_KEY`); regenerate; code trimmed, uppercase, unique and final; `lastContact`, `appVersion` and the hash never written by the client (service and JSON); delete refused after a contact.
 - `OnHeadOfficeConditionTest`: `StoreService`, `StoreAPI`, `StoreApiKeyFilter`, `HeadOfficePingAPI` and `HeadOfficeHeartbeatAPI` are registered on a head office (any case and spacing of `node.type`) and not on a store; an unknown value fails like at startup. The `/ho/**` chain is registered on both, with an optional filter, a head-office-only servlet registration and order 0. Uses a bare bean registry, no context started.
 - `StoreApiKeyFilterTest`: good key (store principal, authority `HO_STORE`); wrong key, missing headers (none, one, blank: no store lookup), unknown store, inactive store: the same 401 and body, one WARN line with reason, code, remote address and path, never the key; control characters kept out of the log; paths outside `/ho/**` untouched even with a valid key; a user JWT alone refused, and dropped when a valid store key comes with it. Real `StoreService` over an in-memory repository, log captured with a Logback `ListAppender`.
 - `HeadOfficePingAPITest`: code and server time format, the store not changed, the JSON has only `storeCode` and `serverTime`.
 - `HeadOfficeHeartbeatAPITest` (task 1.4): `lastContact` and `appVersion` written by id through the two-column update; hash, code, name, kind, active and `updatedAt` unchanged; the detached principal (changed in memory) never saved; `lastContact` and `serverTime` the same instant; version trimmed, blank, empty, null or no body gives null, longer than 255 cut. Real `StoreService` over an in-memory repository.
-- `OnHeadOfficeLinkConditionTest` (task 1.4): no URL, empty or blank URL gives false, a URL gives true; `HeadOfficeClient`, `HeadOfficeLinkStatus` and `HeadOfficeHeartbeatScheduler` registered only with a URL and all carry the annotation. Bare bean registry.
+- `OnHeadOfficeLinkConditionTest` (task 1.4): no URL, empty or blank URL gives false, a URL gives true; `HeadOfficeClient`, `HeadOfficeLinkStatus`, `HeadOfficeHeartbeatScheduler` and `HeadOfficeLinkAPI` (1.5) registered only with a URL and all carry the annotation. Bare bean registry.
 - `HeadOfficeClientTest` (task 1.4): every line of the state table (200; 401; 402; 403, 404, 500, 503, 204, 302; HTML, broken JSON, empty body; connection refused, unknown host, timeout; `DEFAULT_LOCATION` null, empty, blank and unreadable with no call); both headers and the body on every call, the key trimmed; the store code read at each call; trailing slashes; the 5 s / 10 s timeouts of the own `RestTemplate`. Transport: Spring's `MockRestServiceServer` on a plain `RestTemplate`, so its own error handling is exercised.
 - `HeadOfficeHeartbeatSchedulerTest` (task 1.4): `PENDING` at start; a failure keeps the last success and its head office time; one INFO line per state change, DEBUG otherwise; `start` creates the single thread `ho-link-1` and makes no call at once.
+- `StoreStatusTest` (task 1.5): INACTIVE (also with a recent contact), NEVER, ONLINE up to and including the threshold, OFFLINE 1 ms after it, a contact in the future ONLINE, another threshold applied; the list item JSON is the store's JSON plus `status` and `secondsSinceContact`, never the hash; read by id.
+- `HeadOfficeLinkAPITest` (task 1.5): `GET status` has exactly the 8 fields and never the key (also after a refusal); `POST check` before the thread is started makes no call; after it, the heartbeat runs on `ho-link-1` and the answer is the new state (ONLINE, then REFUSED with the last success kept); `DEFAULT_LOCATION` empty gives NOT_CONFIGURED and a null store code.
+- Frontend (task 1.5): eslint on the changed files; a Node script (not committed) for the route guard with and without the link, the `appConfig` mutation, getter and fetch (true, false, absent, failure), "x min ago" and the status badges, the wiring of the five points and the 75 i18n keys in en, fr and ar; a build with the eslint plugin skipped (the production build stops on four `console` statements that were already there before task 1.5, in `Home.vue`, `Login.vue` and `store/app-config/index.js`).
 - Not covered by L1 (needs a started context): the chain wiring itself (store installation answers 401, a JWT is not read on `/ho/**`, other paths unchanged). Checked by the L2 table under "Store API". Also the real timer (first heartbeat after 15 s), timeouts on a real network and the bulk update on SQL Server: L2 table under "Connect a store".
 - Frontend: no test runner; the guard, the home helper, the menu filter, the Network group and the Roles page filter are checked with a Node script during the task, and by L2.

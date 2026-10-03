@@ -3,6 +3,10 @@ package com.digithink.zsretail.holink.scheduler;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import javax.annotation.PreDestroy;
 
@@ -35,6 +39,9 @@ import lombok.extern.log4j.Log4j2;
 public class HeadOfficeHeartbeatScheduler {
 
 	static final Duration FIRST_DELAY = Duration.ofSeconds(15);
+
+	/** Longest wait of "Check now": a heartbeat in progress (up to 15 s) plus its own. */
+	static final Duration CHECK_TIMEOUT = Duration.ofSeconds(30);
 
 	private final HeadOfficeClient client;
 	private final HeadOfficeLinkStatus status;
@@ -69,6 +76,33 @@ public class HeadOfficeHeartbeatScheduler {
 			taskScheduler.shutdown();
 			taskScheduler = null;
 		}
+	}
+
+	/**
+	 * One heartbeat now, for the admin "Check now" (task 1.5). It runs on the ho-link thread like every heartbeat,
+	 * queued behind one in progress, and is waited for up to {@link #CHECK_TIMEOUT}. Returns the status after it, or
+	 * the current status when the wait ends first or the heartbeat is not started yet (no call is made then).
+	 */
+	public HeadOfficeLinkStatus.Snapshot checkNow() {
+		ThreadPoolTaskScheduler scheduler;
+		synchronized (this) {
+			scheduler = taskScheduler;
+		}
+		if (scheduler == null) {
+			return status.get();
+		}
+		try {
+			scheduler.submit(this::beat).get(CHECK_TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		} catch (ExecutionException | TimeoutException | RejectedExecutionException e) {
+			log.debug("Head office link: check now did not complete ({})", e.toString());
+		}
+		return status.get();
+	}
+
+	public long getIntervalSeconds() {
+		return interval.getSeconds();
 	}
 
 	/** One heartbeat. INFO when the state changes, DEBUG otherwise. */

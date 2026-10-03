@@ -82,22 +82,28 @@ public class HeadOfficeClient {
 		return baseUrl;
 	}
 
+	/** The store code sent to the head office: DEFAULT_LOCATION, trimmed; null when empty. Read at each call. */
+	public String readStoreCode() {
+		String storeCode = generalSetupService.findValueByCode(STORE_CODE_SETTING);
+		return storeCode == null || storeCode.trim().isEmpty() ? null : storeCode.trim();
+	}
+
 	/** POST /ho/heartbeat with the application version. */
 	public HeadOfficeCallResult heartbeat() {
 		String storeCode;
 		try {
-			storeCode = generalSetupService.findValueByCode(STORE_CODE_SETTING);
+			storeCode = readStoreCode();
 		} catch (RuntimeException e) {
 			return HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
 					STORE_CODE_SETTING + " could not be read (" + cause(e) + ")");
 		}
-		if (storeCode == null || storeCode.trim().isEmpty()) {
+		if (storeCode == null) {
 			return HeadOfficeCallResult.failure(HeadOfficeLinkState.NOT_CONFIGURED, NO_STORE_CODE);
 		}
 		HttpHeaders headers = new HttpHeaders();
 		headers.setContentType(MediaType.APPLICATION_JSON);
 		headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-		headers.set(STORE_CODE_HEADER, storeCode.trim());
+		headers.set(STORE_CODE_HEADER, storeCode);
 		headers.set(STORE_KEY_HEADER, apiKey);
 		try {
 			ResponseEntity<HeadOfficePingDTO> response = restTemplate.exchange(baseUrl + HEARTBEAT_PATH, HttpMethod.POST,

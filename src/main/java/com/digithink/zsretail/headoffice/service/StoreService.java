@@ -4,18 +4,24 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.headoffice.dto.StoreListItemDTO;
 import com.digithink.zsretail.headoffice.dto.StoreWithKeyDTO;
 import com.digithink.zsretail.headoffice.enumeration.StoreKind;
+import com.digithink.zsretail.headoffice.enumeration.StoreStatus;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
 import com.digithink.zsretail.repository._BaseRepository;
@@ -49,12 +55,51 @@ public class StoreService extends _BaseService<Store, Long> {
 	/** Compared when the code is unknown, so the answer time does not tell which codes exist. */
 	private static final String UNKNOWN_STORE_HASH = sha256Hex("unknown-store");
 
+	/** Default of headoffice.offline-after-seconds: three missed heartbeats at the default 60 s interval. */
+	static final long DEFAULT_OFFLINE_AFTER_SECONDS = 180;
+
 	@Autowired
 	private StoreRepository storeRepository;
+
+	/** A store whose last contact is older than this is OFFLINE (task 1.5). */
+	@Value("${headoffice.offline-after-seconds:" + DEFAULT_OFFLINE_AFTER_SECONDS + "}")
+	private long offlineAfterSeconds = DEFAULT_OFFLINE_AFTER_SECONDS;
 
 	@Override
 	protected _BaseRepository<Store, Long> getRepository() {
 		return storeRepository;
+	}
+
+	/** Every store with its status, computed now with the head office clock (Stores page, task 1.5). */
+	public List<StoreListItemDTO> findAllWithStatus() {
+		LocalDateTime now = LocalDateTime.now();
+		return findAll().stream().map(store -> listItem(store, now)).collect(Collectors.toList());
+	}
+
+	/** One store with its status; empty when it does not exist. */
+	public Optional<StoreListItemDTO> findByIdWithStatus(Long id) {
+		return storeRepository.findById(id).map(store -> listItem(store, LocalDateTime.now()));
+	}
+
+	StoreListItemDTO listItem(Store store, LocalDateTime now) {
+		Long seconds = store.getLastContact() == null ? null
+				: Math.max(0, Duration.between(store.getLastContact(), now).getSeconds());
+		return new StoreListItemDTO(store, statusOf(store, now, offlineAfterSeconds), seconds);
+	}
+
+	/**
+	 * INACTIVE when deactivated, NEVER without a contact, otherwise ONLINE while the last contact is no older than
+	 * the threshold (exactly at the threshold included) and OFFLINE after it.
+	 */
+	static StoreStatus statusOf(Store store, LocalDateTime now, long offlineAfterSeconds) {
+		if (!Boolean.TRUE.equals(store.getActive())) {
+			return StoreStatus.INACTIVE;
+		}
+		if (store.getLastContact() == null) {
+			return StoreStatus.NEVER;
+		}
+		Duration age = Duration.between(store.getLastContact(), now);
+		return age.compareTo(Duration.ofSeconds(offlineAfterSeconds)) <= 0 ? StoreStatus.ONLINE : StoreStatus.OFFLINE;
 	}
 
 	/** New store with a server-generated key. Ignores lastContact, appVersion and any hash sent by the client. */

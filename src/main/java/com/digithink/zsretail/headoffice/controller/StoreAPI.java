@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.config.ConditionalOnHeadOffice;
 import com.digithink.zsretail.controller._BaseController;
+import com.digithink.zsretail.headoffice.dto.StoreListItemDTO;
 import com.digithink.zsretail.headoffice.dto.StoreWithKeyDTO;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.service.StoreService;
@@ -24,7 +25,8 @@ import lombok.extern.log4j.Log4j2;
 
 /**
  * Head office stores list (task 1.2). Exists only on a head office: on a store these URLs answer 404.
- * The generic GET endpoints are inherited; create, update and delete apply the rules of {@link StoreService}.
+ * The list and the read by id add the computed status (task 1.5); create, update and delete apply the rules of
+ * {@link StoreService}.
  * The API key appears only in the answers of create and regenerate-key.
  */
 @RestController
@@ -32,6 +34,33 @@ import lombok.extern.log4j.Log4j2;
 @ConditionalOnHeadOffice
 @Log4j2
 public class StoreAPI extends _BaseController<Store, Long, StoreService> {
+
+	/** Every store with its computed status and the age of its last contact (task 1.5). */
+	@Override
+	@GetMapping
+	public ResponseEntity<?> getAll() {
+		try {
+			log.info("StoreAPI::getAll");
+			return ResponseEntity.ok(service.findAllWithStatus());
+		} catch (Exception e) {
+			log.error("StoreAPI::getAll:error: " + getDetailedMessage(e), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/** One store with its computed status, like the list. */
+	@Override
+	@GetMapping("/{id}")
+	public ResponseEntity<?> getById(@PathVariable Long id) {
+		try {
+			log.info("StoreAPI::getById::" + id);
+			Optional<StoreListItemDTO> store = service.findByIdWithStatus(id);
+			return store.<ResponseEntity<?>>map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+		} catch (Exception e) {
+			log.error("StoreAPI::getById:error: " + getDetailedMessage(e), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
 
 	/** 201 {store, apiKey}. 400 when code or name is missing, 409 when the code exists. */
 	@Override

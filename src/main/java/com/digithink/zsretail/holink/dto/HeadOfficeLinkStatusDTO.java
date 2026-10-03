@@ -1,0 +1,36 @@
+package com.digithink.zsretail.holink.dto;
+
+import java.time.LocalDateTime;
+
+import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+
+/** Answer of GET admin/holink/status and POST admin/holink/check (task 1.5). Never carries the API key. */
+@Getter
+@AllArgsConstructor
+public class HeadOfficeLinkStatusDTO {
+
+	private final HeadOfficeLinkState state;
+
+	/** Message of the last call, as written by the store (English); null when it was ONLINE. */
+	private final String message;
+
+	/** Store clock; null before the first heartbeat. */
+	private final LocalDateTime lastAttempt;
+
+	/** Store clock of the last ONLINE answer; null until then. */
+	private final LocalDateTime lastSuccess;
+
+	/** Head office time sent with the last ONLINE answer (ISO-8601 with offset); null until then. */
+	private final String serverTime;
+
+	/** headoffice.url without its trailing slashes. */
+	private final String headOfficeUrl;
+
+	/** DEFAULT_LOCATION now; null when empty or unreadable. */
+	private final String storeCode;
+
+	private final long intervalSeconds;
+}

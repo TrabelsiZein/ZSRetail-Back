@@ -12,18 +12,19 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
+import com.digithink.zsretail.holink.controller.HeadOfficeLinkAPI;
 import com.digithink.zsretail.holink.scheduler.HeadOfficeHeartbeatScheduler;
 import com.digithink.zsretail.holink.service.HeadOfficeLinkStatus;
 
 /**
- * Head office plan, task 1.4: the store-side beans of the head office link (client, status, heartbeat) exist only
- * when headoffice.url is present and not blank. Without it the existing profiles behave as before. Uses a bare bean
+ * Head office plan, tasks 1.4 and 1.5: the store-side beans of the head office link (client, status, heartbeat, the
+ * admin/holink API) exist only when headoffice.url is present and not blank. Without it the existing profiles behave as before. Uses a bare bean
  * registry: each bean definition is evaluated against its condition, nothing is created and no context is started.
  */
 class OnHeadOfficeLinkConditionTest {
 
 	private static final Class<?>[] LINK_BEANS = { HeadOfficeClient.class, HeadOfficeLinkStatus.class,
-			HeadOfficeHeartbeatScheduler.class };
+			HeadOfficeHeartbeatScheduler.class, HeadOfficeLinkAPI.class };
 
 	/** True when the class gets a bean definition with this environment. */
 	private static boolean registered(MockEnvironment env, Class<?> beanClass) {

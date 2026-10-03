@@ -34,7 +34,8 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * franchise.customer set to true, with an explicit owner HEAD_OFFICE, or with a non-empty sales.upstream.
  *
  * Head office link (task 1.4): when {@code headoffice.url} is set, the startup fails on a head office, with a blank
- * {@code headoffice.api-key}, or with a {@code headoffice.heartbeat-interval-seconds} below 1.
+ * {@code headoffice.api-key}, or with a {@code headoffice.heartbeat-interval-seconds} below 1. Stores page (task 1.5):
+ * on a head office, the startup fails with a {@code headoffice.offline-after-seconds} below 1.
  */
 public final class NodeOwnership {
 
@@ -43,6 +44,7 @@ public final class NodeOwnership {
 	static final String HEADOFFICE_URL_KEY = "headoffice.url";
 	static final String HEADOFFICE_API_KEY_KEY = "headoffice.api-key";
 	static final String HEARTBEAT_INTERVAL_KEY = "headoffice.heartbeat-interval-seconds";
+	static final String OFFLINE_AFTER_KEY = "headoffice.offline-after-seconds";
 
 	private final NodeType nodeType;
 	private final Map<DataDomain, DataOwner> owners;
@@ -83,6 +85,9 @@ public final class NodeOwnership {
 					+ ". A head office uses neither franchise profile.");
 		}
 		checkHeadOfficeLink(env, headOffice);
+		if (headOffice) {
+			checkWholeSeconds(env, OFFLINE_AFTER_KEY);
+		}
 
 		Map<DataDomain, DataOwner> derivedOwners;
 		Set<SalesUpstream> derivedUpstreams;
@@ -161,18 +166,24 @@ public final class NodeOwnership {
 			throw new IllegalStateException("Missing value for property " + HEADOFFICE_API_KEY_KEY + ": required when "
 					+ HEADOFFICE_URL_KEY + " is set. Paste the key shown once on the head office Stores page.");
 		}
-		if (env.containsProperty(HEARTBEAT_INTERVAL_KEY)) {
-			String raw = env.getProperty(HEARTBEAT_INTERVAL_KEY);
-			long seconds;
-			try {
-				seconds = Long.parseLong(raw == null ? "" : raw.trim());
-			} catch (NumberFormatException e) {
-				seconds = 0;
-			}
-			if (seconds < 1) {
-				throw new IllegalStateException("Invalid value '" + raw + "' for property " + HEARTBEAT_INTERVAL_KEY
-						+ ": a whole number of seconds, at least 1");
-			}
+		checkWholeSeconds(env, HEARTBEAT_INTERVAL_KEY);
+	}
+
+	/** When present, the key must hold a whole number of seconds, at least 1. */
+	private static void checkWholeSeconds(PropertyResolver env, String key) {
+		if (!env.containsProperty(key)) {
+			return;
+		}
+		String raw = env.getProperty(key);
+		long seconds;
+		try {
+			seconds = Long.parseLong(raw == null ? "" : raw.trim());
+		} catch (NumberFormatException e) {
+			seconds = 0;
+		}
+		if (seconds < 1) {
+			throw new IllegalStateException(
+					"Invalid value '" + raw + "' for property " + key + ": a whole number of seconds, at least 1");
 		}
 	}
 

@@ -172,15 +172,18 @@ public class ZZDataInitializer {
 	}
 
 	/**
-	 * Default ADMIN permissions; a head office adds the Network menu (docs/modules/head-office.md). Used only when
-	 * the role is created: an existing role is never changed.
+	 * Default ADMIN permissions; a head office adds the Network menu, a store linked to a head office adds the
+	 * "Head office link" page (docs/modules/head-office.md). Used only when the role is created: an existing role is
+	 * never changed.
 	 */
 	private Set<String> adminPermissions() {
-		if (!applicationModeService.isHeadOffice()) {
+		Set<String> extra = applicationModeService.isHeadOffice() ? HEAD_OFFICE_ADMIN_PERMISSIONS
+				: applicationModeService.isHeadOfficeLinked() ? HEAD_OFFICE_LINK_ADMIN_PERMISSIONS : null;
+		if (extra == null) {
 			return ADMIN_PERMISSIONS;
 		}
 		Set<String> permissions = new HashSet<>(ADMIN_PERMISSIONS);
-		permissions.addAll(HEAD_OFFICE_ADMIN_PERMISSIONS);
+		permissions.addAll(extra);
 		return permissions;
 	}
 
@@ -189,6 +192,10 @@ public class ZZDataInitializer {
 	/** Head office only: the Network menu and its Stores page. Never seeded on a store. */
 	static final Set<String> HEAD_OFFICE_ADMIN_PERMISSIONS = new HashSet<>(
 			Arrays.asList("read:admin-headoffice", "read:admin-headoffice-stores"));
+
+	/** Store with headoffice.url only: the "Head office link" page (task 1.5). */
+	static final Set<String> HEAD_OFFICE_LINK_ADMIN_PERMISSIONS = new HashSet<>(
+			Arrays.asList("read:admin-holink-status"));
 
 	private static final Set<String> ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:home",
 			"read:admin-users", "write:admin-users", "delete:admin-users", "read:admin-sessions",

@@ -27,7 +27,8 @@ import com.digithink.zsretail.repository.UserAccountRepository;
 
 /**
  * Head office plan, task 1.2: on a new database a head office's ADMIN role gets the Network permissions
- * (read:admin-headoffice, read:admin-headoffice-stores); the 4 store profiles seed exactly today's roles; an existing
+ * (read:admin-headoffice, read:admin-headoffice-stores); task 1.5: a store with headoffice.url gets
+ * read:admin-holink-status for ADMIN; the 4 store profiles seed exactly today's roles; an existing
  * role is never changed. Calls the private ensureDefaultRoles() with in-memory stubs (no Spring context).
  */
 class ZZDataInitializerRolesTest {
@@ -118,6 +119,28 @@ class ZZDataInitializerRolesTest {
 				assertFalse(hasHeadOfficePermission(role), role.getName());
 			}
 		}
+	}
+
+	@Test
+	@DisplayName("Store linked to a head office (headoffice.url): ADMIN gets today's permissions plus read:admin-holink-status; other roles as today")
+	void linkedStoreAdminGetsHeadOfficeLink() throws Exception {
+		MockEnvironment linked = new MockEnvironment()
+				.withProperty("headoffice.url", "http://localhost:888/zsretail/api")
+				.withProperty("headoffice.api-key", "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde");
+		for (boolean[] flags : STORE_PROFILES) {
+			Map<String, AppRole> roles = seedRoles(linked, flags[0], flags[1], flags[2], Collections.emptyMap());
+
+			Set<String> expected = new HashSet<>(staticSet("ADMIN_PERMISSIONS"));
+			expected.add("read:admin-holink-status");
+			assertEquals(expected, roles.get("ADMIN").getPermissions());
+			assertEquals(staticSet("RESPONSIBLE_PERMISSIONS"), roles.get("RESPONSIBLE").getPermissions());
+			assertEquals(staticSet("POS_PERMISSIONS"), roles.get("POS_USER").getPermissions());
+			assertFalse(hasHeadOfficePermission(roles.get("ADMIN")));
+		}
+		Map<String, AppRole> headOffice = seedRoles(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE"), true,
+				false, false, Collections.emptyMap());
+		assertFalse(headOffice.get("ADMIN").getPermissions().contains("read:admin-holink-status"));
+		assertFalse(staticSet("ADMIN_PERMISSIONS").contains("read:admin-holink-status"), "store set untouched");
 	}
 
 	@Test

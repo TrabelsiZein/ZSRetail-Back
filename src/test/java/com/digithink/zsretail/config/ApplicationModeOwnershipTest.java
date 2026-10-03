@@ -23,6 +23,7 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * flags (design table 5.1), overridden by the optional keys, and rejected at startup when invalid.
  * Task 1.1: the head office rows and the startup checks across keys.
  * Task 1.4: the head office link startup checks (headoffice.url on a head office, missing key, interval).
+ * Task 1.5: headoffice.offline-after-seconds on a head office; isHeadOfficeLinked().
  * Plain JUnit with a MockEnvironment (no Spring context).
  */
 class ApplicationModeOwnershipTest {
@@ -286,6 +287,21 @@ class ApplicationModeOwnershipTest {
 				NodeType.HEAD_OFFICE, L, L, L, L, L, none());
 	}
 
+	@Test
+	@DisplayName("Head office: headoffice.offline-after-seconds below 1 or not a whole number is refused; 1 and ' 180 ' accepted; not checked on a store")
+	void offlineAfterSeconds() {
+		for (String value : new String[] { "0", "-1", "3m", "" }) {
+			MockEnvironment env = headOfficeEnv().withProperty("headoffice.offline-after-seconds", value);
+			IllegalStateException e = assertThrows(IllegalStateException.class, () -> standalone(env), value);
+			assertTrue(e.getMessage().contains("headoffice.offline-after-seconds"), e.getMessage());
+			assertTrue(e.getMessage().contains("'" + value + "'"), e.getMessage());
+		}
+		standalone(headOfficeEnv().withProperty("headoffice.offline-after-seconds", "1"));
+		standalone(headOfficeEnv().withProperty("headoffice.offline-after-seconds", " 180 "));
+		assertEquals(NodeType.STORE,
+				standalone(new MockEnvironment().withProperty("headoffice.offline-after-seconds", "0")).getNodeType());
+	}
+
 	// --- Through ApplicationModeService ---
 
 	private static ApplicationModeService service(MockEnvironment env, boolean standalone, boolean franchiseAdmin,
@@ -325,6 +341,17 @@ class ApplicationModeOwnershipTest {
 		assertFalse(service(new MockEnvironment(), false, false, false).isHeadOffice());
 		assertFalse(service(new MockEnvironment(), true, false, true).isHeadOffice());
 		assertFalse(service(new MockEnvironment(), true, true, false).isHeadOffice());
+	}
+
+	@Test
+	@DisplayName("ApplicationModeService.isHeadOfficeLinked: true only with a non-blank headoffice.url")
+	void serviceIsHeadOfficeLinked() throws Exception {
+		assertTrue(service(linkEnv(), true, false, false).isHeadOfficeLinked());
+		assertTrue(service(linkEnv(), false, false, false).isHeadOfficeLinked());
+		assertFalse(service(new MockEnvironment(), true, false, false).isHeadOfficeLinked());
+		assertFalse(service(new MockEnvironment().withProperty("headoffice.url", " "), true, false, false)
+				.isHeadOfficeLinked());
+		assertFalse(service(headOfficeEnv(), true, false, false).isHeadOfficeLinked());
 	}
 
 	@Test
