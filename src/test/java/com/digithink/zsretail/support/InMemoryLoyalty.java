@@ -3,8 +3,10 @@ package com.digithink.zsretail.support;
 import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -13,6 +15,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import com.digithink.zsretail.headoffice.model.HoLoyaltyAlias;
 import com.digithink.zsretail.headoffice.model.HoLoyaltyMovement;
@@ -285,6 +290,40 @@ public final class InMemoryLoyalty {
 					return movements.stream()
 							.filter(x -> Objects.equals(x.getStoreId(), a[0]) && x.getStoreKey().equals(a[1]))
 							.findFirst();
+				case "findOverspends": {
+					long storeId = (Long) a[0];
+					LocalDateTime from = (LocalDateTime) a[1];
+					LocalDateTime to = (LocalDateTime) a[2];
+					Pattern search = like(((String) a[3]).replace("!", "!!"));
+					List<Object[]> rows = movements.stream()
+							.filter(m -> m.getOverspendPoints() > 0 && (storeId == 0L || m.getStoreId() == storeId)
+									&& !m.getCreatedAt().isBefore(from) && !m.getCreatedAt().isAfter(to))
+							.map(m -> new Object[] { m, members.get(m.getMemberId()) })
+							.filter(r -> {
+								HoLoyaltyMovement m = (HoLoyaltyMovement) r[0];
+								LoyaltyMember l = (LoyaltyMember) r[1];
+								return l != null && (search.matcher(m.getCardNumber().toLowerCase()).matches()
+										|| search.matcher(l.getCardNumber().toLowerCase()).matches()
+										|| search.matcher((l.getFirstName() + " " + l.getLastName()).toLowerCase()).matches()
+										|| search.matcher(Objects.toString(m.getSalesNumber(), "").toLowerCase()).matches()
+										|| search.matcher(Objects.toString(m.getReturnNumber(), "").toLowerCase()).matches());
+							})
+							.sorted(Comparator.comparing((Object[] r) -> ((HoLoyaltyMovement) r[0]).getCreatedAt())
+									.thenComparing(r -> ((HoLoyaltyMovement) r[0]).getId()).reversed())
+							.collect(Collectors.toList());
+					Pageable pageable = (Pageable) a[4];
+					int fromIndex = (int) Math.min(rows.size(), pageable.getOffset());
+					int toIndex = Math.min(rows.size(), fromIndex + pageable.getPageSize());
+					return new PageImpl<>(new ArrayList<>(rows.subList(fromIndex, toIndex)), pageable, rows.size());
+				}
+				case "overspendTotals": {
+					LocalDateTime from = (LocalDateTime) a[0];
+					LocalDateTime to = (LocalDateTime) a[1];
+					List<HoLoyaltyMovement> found = movements.stream().filter(m -> m.getOverspendPoints() > 0
+							&& !m.getCreatedAt().isBefore(from) && !m.getCreatedAt().isAfter(to)).collect(Collectors.toList());
+					return Collections.singletonList(new Object[] { (long) found.size(),
+							found.stream().mapToLong(HoLoyaltyMovement::getOverspendPoints).sum() });
+				}
 				case "save": {
 					HoLoyaltyMovement movement = (HoLoyaltyMovement) a[0];
 					if (movement.getId() == null) {

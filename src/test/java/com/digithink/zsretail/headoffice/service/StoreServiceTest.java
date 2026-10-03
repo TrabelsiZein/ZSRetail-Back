@@ -260,6 +260,12 @@ class StoreServiceTest {
 		Store created = service.create(input("RS01", "Store Sousse")).getStore();
 		assertFalse(created.getCanEditMembers());
 		assertFalse(created.getCanAdjustPoints());
+		assertFalse(created.getRedeemRequiresOnline(), "step 5: lenient by default");
+		Store strict = new Store();
+		strict.setRedeemRequiresOnline(true);
+		assertTrue(service.update(created.getId(), strict).get().getRedeemRequiresOnline());
+		strict.setRedeemRequiresOnline(false);
+		assertFalse(service.update(created.getId(), strict).get().getRedeemRequiresOnline());
 
 		Store rights = new Store();
 		rights.setCanEditMembers(true);

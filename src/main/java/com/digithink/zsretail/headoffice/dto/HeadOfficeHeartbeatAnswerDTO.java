@@ -24,10 +24,14 @@ public class HeadOfficeHeartbeatAnswerDTO extends HeadOfficePingDTO {
 	/** Step 4: the store may adjust points by hand (refused at the store in step 4 whatever the right). */
 	private Boolean canAdjustPoints;
 
+	/** Step 5: spending needs a balance refreshed from the head office in the last 2 minutes. */
+	private Boolean redeemRequiresOnline;
+
 	public HeadOfficeHeartbeatAnswerDTO(String storeCode, String serverTime, Boolean canEditMembers,
-			Boolean canAdjustPoints) {
+			Boolean canAdjustPoints, Boolean redeemRequiresOnline) {
 		super(storeCode, serverTime);
 		this.canEditMembers = canEditMembers;
 		this.canAdjustPoints = canAdjustPoints;
+		this.redeemRequiresOnline = redeemRequiresOnline;
 	}
 }

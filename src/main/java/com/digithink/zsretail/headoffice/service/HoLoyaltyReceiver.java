@@ -5,7 +5,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.function.Supplier;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -18,6 +20,7 @@ import com.digithink.zsretail.headoffice.dto.LoyaltyMemberEditDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberResultDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMovementCopyDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyPhoneCheckDTO;
+import com.digithink.zsretail.headoffice.dto.LoyaltyPointsAdjustDTO;
 import com.digithink.zsretail.headoffice.dto.SalesCopyResultDTO;
 import com.digithink.zsretail.headoffice.model.HoLoyaltyAlias;
 import com.digithink.zsretail.headoffice.model.HoLoyaltyMovement;
@@ -69,6 +72,7 @@ public class HoLoyaltyReceiver {
 	static final String ALREADY_APPLIED = "already applied";
 	static final String NO_EDIT_RIGHT = "This store may not change loyalty members: the head office gives the right on its Stores page.";
 	static final String NO_ADJUST_RIGHT = "this store may not adjust points (right off on the head office Stores page)";
+	static final String NO_ADJUST_POINTS_RIGHT = "This store may not adjust points: the head office gives the right on its Stores page.";
 
 	private final LoyaltyMemberRepository members;
 	private final LoyaltyProgramRepository programs;
@@ -80,6 +84,9 @@ public class HoLoyaltyReceiver {
 	private final HoLoyaltyService register;
 	private final TransactionOperations writes;
 
+	/** Step 5: the head office's own LoyaltyService, for a store's point adjustment (looked up at the call). */
+	private final Supplier<LoyaltyService> loyaltyService;
+
 	/** One record at a time: the phone checks and the balances are read then written. */
 	private final Object lock = new Object();
 
@@ -87,16 +94,18 @@ public class HoLoyaltyReceiver {
 	public HoLoyaltyReceiver(LoyaltyMemberRepository members, LoyaltyProgramRepository programs,
 			LoyaltyTransactionRepository transactions, MemberFunctionRepository memberFunctions,
 			CustomerRepository customers, HoLoyaltyAliasRepository aliases, HoLoyaltyMovementRepository movements,
-			HoLoyaltyService register, PlatformTransactionManager transactionManager) {
+			HoLoyaltyService register, ObjectProvider<LoyaltyService> loyaltyService,
+			PlatformTransactionManager transactionManager) {
 		this(members, programs, transactions, memberFunctions, customers, aliases, movements, register,
-				timed(transactionManager));
+				(Supplier<LoyaltyService>) loyaltyService::getObject, timed(transactionManager));
 	}
 
-	/** With given transactions: used by the tests. */
+	/** With given collaborators and transactions: used by the tests. */
 	public HoLoyaltyReceiver(LoyaltyMemberRepository members, LoyaltyProgramRepository programs,
 			LoyaltyTransactionRepository transactions, MemberFunctionRepository memberFunctions,
 			CustomerRepository customers, HoLoyaltyAliasRepository aliases, HoLoyaltyMovementRepository movements,
-			HoLoyaltyService register, TransactionOperations writes) {
+			HoLoyaltyService register, Supplier<LoyaltyService> loyaltyService, TransactionOperations writes) {
+		this.loyaltyService = loyaltyService;
 		this.members = members;
 		this.programs = programs;
 		this.transactions = transactions;
@@ -423,6 +432,47 @@ public class HoLoyaltyReceiver {
 		register.recordMember(saved.getCardNumber());
 		log.info("Head office: loyalty member {} changed by store '{}'", saved.getCardNumber(), store.getCode());
 		return LoyaltyMemberCopyDTO.of(saved);
+	}
+
+	/**
+	 * Step 5, GET /ho/loyalty/members/{cardNumber}: the member as the head office holds it now (the fresh balance a till
+	 * asks for when a member is selected); an alias card answers its surviving member. NoSuchElementException (404).
+	 */
+	public LoyaltyMemberCopyDTO findMember(String cardNumber) {
+		String card = trim(cardNumber);
+		return (card == null ? Optional.<LoyaltyMember>empty() : memberOfCard(card)).map(LoyaltyMemberCopyDTO::of)
+				.orElseThrow(() -> new NoSuchElementException("Unknown card " + cardNumber + " at the head office"));
+	}
+
+	/**
+	 * Step 5, POST /ho/loyalty/members/{cardNumber}/adjust: a manual adjustment asked by a store with canAdjustPoints,
+	 * applied as at the head office (LoyaltyService.adjustPoints: ADJUSTED row, never below zero), by
+	 * "STORE:&lt;code&gt; (&lt;user&gt;)"; every store gets the new balance. Throws {@link NoRightException} (403),
+	 * NoSuchElementException (404), IllegalArgumentException (400).
+	 */
+	public LoyaltyMemberCopyDTO adjustPoints(Store store, String cardNumber, LoyaltyPointsAdjustDTO request) {
+		if (!Boolean.TRUE.equals(store.getCanAdjustPoints())) {
+			throw new NoRightException(NO_ADJUST_POINTS_RIGHT);
+		}
+		if (request == null || request.getDelta() == null || request.getDelta() == 0) {
+			throw new IllegalArgumentException("Delta cannot be zero");
+		}
+		if (trim(request.getReason()) == null) {
+			throw new IllegalArgumentException("Reason is required");
+		}
+		String card = trim(cardNumber);
+		synchronized (lock) {
+			return writes.execute(status -> {
+				LoyaltyMember member = (card == null ? Optional.<LoyaltyMember>empty() : memberOfCard(card)).orElseThrow(
+						() -> new NoSuchElementException("Unknown card " + cardNumber + " at the head office"));
+				String by = storeUser(store)
+						+ (trim(request.getAdjustedBy()) == null ? "" : " (" + request.getAdjustedBy().trim() + ")");
+				loyaltyService.get().adjustPoints(member.getId(), request.getDelta(), request.getReason().trim(), by);
+				log.info("Head office: {} points adjusted on card {} by store '{}'", request.getDelta(),
+						member.getCardNumber(), store.getCode());
+				return LoyaltyMemberCopyDTO.of(members.findById(member.getId()).orElse(member));
+			});
+		}
 	}
 
 	// ─── Helpers ─────────────────────────────────────────────────

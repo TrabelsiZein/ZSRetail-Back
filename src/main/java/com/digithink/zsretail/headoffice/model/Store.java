@@ -78,6 +78,14 @@ public class Store extends _BaseEntity {
 	@Column(name = "can_adjust_points")
 	private Boolean canAdjustPoints;
 
+	/**
+	 * Step 5: the store spends points only with a balance refreshed from the head office in the last 2 minutes
+	 * (otherwise spending is refused there; earning and the sale still work). False: the store spends against its own
+	 * balance, never blocked.
+	 */
+	@Column(name = "redeem_requires_online")
+	private Boolean redeemRequiresOnline;
+
 	// ─── What the store owns, reported with each heartbeat (task 3.6) ─────────
 	// Written only by POST /ho/heartbeat, in the same update as lastContact; null = unknown (no report yet, or a store
 	// of an older version). Exposed in JSON as "ownership" and "salesUpstreams" below, never read from the client.

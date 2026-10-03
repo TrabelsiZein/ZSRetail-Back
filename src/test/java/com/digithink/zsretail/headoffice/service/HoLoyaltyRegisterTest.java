@@ -26,6 +26,7 @@ import com.digithink.zsretail.headoffice.dto.LoyaltyMemberEditDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberResultDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMovementCopyDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyPhoneCheckDTO;
+import com.digithink.zsretail.headoffice.dto.LoyaltyPointsAdjustDTO;
 import com.digithink.zsretail.headoffice.dto.SalesCopyResultDTO;
 import com.digithink.zsretail.headoffice.model.HoLoyaltyMovement;
 import com.digithink.zsretail.headoffice.model.Store;
@@ -66,7 +67,7 @@ class HoLoyaltyRegisterTest {
 		holder[0] = feed;
 		receiver = new HoLoyaltyReceiver(db.memberRepository(), db.programRepository(), db.transactionRepository(),
 				db.functionRepository(), db.customerRepository(), db.aliasRepository(), db.movementRepository(),
-				register, TransactionOperations.withoutTransaction());
+				register, () -> loyaltyService, TransactionOperations.withoutTransaction());
 		loyaltyService = db.loyaltyService(register);
 		client = db.function("CLIENT", "Client");
 		rs01 = store(1L, "RS01");
@@ -390,6 +391,50 @@ class HoLoyaltyRegisterTest {
 		receiver.receiveMembers(rs01, Collections.singletonList(upload("LYL-RS01-000003", "SAMI", "29954290")));
 		assertEquals("LYL-HO-000001",
 				receiver.editMember(rs01, "LYL-RS01-000003", edit("SAMI", "B.", "29954290")).getCardNumber());
+	}
+
+	// ─── Step 5 ──────────────────────────────────────────────────
+
+	@Test
+	@DisplayName("Step 5, fresh balance: the member as held now; an alias card answers its surviving member; unknown 404")
+	void findMember() {
+		LoyaltyMember member = db.member("LYL-HO-000001", "SAMI", "BEN", "29954290", true, null);
+		member.setLoyaltyPoints(240);
+		assertEquals(240, receiver.findMember("LYL-HO-000001").getLoyaltyPoints());
+		receiver.receiveMembers(rs01, Collections.singletonList(upload("LYL-RS01-000003", "SAMI", "29954290")));
+		assertEquals("LYL-HO-000001", receiver.findMember("LYL-RS01-000003").getCardNumber());
+		assertThrows(NoSuchElementException.class, () -> receiver.findMember("LYL-XX-000001"));
+		assertThrows(NoSuchElementException.class, () -> receiver.findMember(" "));
+	}
+
+	@Test
+	@DisplayName("Step 5, adjustment from a store: refused without canAdjustPoints; with it as at the head office, sent to all")
+	void adjustFromStore() {
+		LoyaltyMember member = db.member("LYL-HO-000001", "SAMI", "BEN", "29954290", true, null);
+		member.setLoyaltyPoints(30);
+		LoyaltyPointsAdjustDTO plus = new LoyaltyPointsAdjustDTO(50, "goodwill", "cashier1");
+		HoLoyaltyReceiver.NoRightException refused = assertThrows(HoLoyaltyReceiver.NoRightException.class,
+				() -> receiver.adjustPoints(rs01, "LYL-HO-000001", plus));
+		assertEquals(HoLoyaltyReceiver.NO_ADJUST_POINTS_RIGHT, refused.getMessage());
+		assertEquals(30, member.getLoyaltyPoints());
+		assertTrue(db.transactions.isEmpty());
+
+		rs01.setCanAdjustPoints(true);
+		assertEquals(80, receiver.adjustPoints(rs01, "LYL-HO-000001", plus).getLoyaltyPoints());
+		LoyaltyTransaction tx = db.transactions.get(0);
+		assertEquals(LoyaltyTransactionType.ADJUSTED, tx.getType());
+		assertEquals("STORE:RS01 (cashier1)", tx.getCreatedBy());
+		assertTrue(tx.getDescription().contains("goodwill"), tx.getDescription());
+		assertEquals(Collections.singletonList("MEMBER:LYL-HO-000001"), codes(feed.pull(rs02, "LOYALTY", "", 100)));
+		assertEquals(0, receiver.adjustPoints(rs01, "LYL-HO-000001", new LoyaltyPointsAdjustDTO(-500, "error", null))
+				.getLoyaltyPoints(), "never below zero");
+
+		assertThrows(IllegalArgumentException.class,
+				() -> receiver.adjustPoints(rs01, "LYL-HO-000001", new LoyaltyPointsAdjustDTO(0, "x", null)));
+		assertThrows(IllegalArgumentException.class,
+				() -> receiver.adjustPoints(rs01, "LYL-HO-000001", new LoyaltyPointsAdjustDTO(5, " ", null)));
+		assertThrows(NoSuchElementException.class,
+				() -> receiver.adjustPoints(rs01, "LYL-XX-000001", new LoyaltyPointsAdjustDTO(5, "x", null)));
 	}
 
 	// ─── Helpers ─────────────────────────────────────────────────

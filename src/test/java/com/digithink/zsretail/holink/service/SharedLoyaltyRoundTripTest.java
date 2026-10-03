@@ -123,7 +123,7 @@ class SharedLoyaltyRoundTripTest {
 		holder[0] = feed;
 		receiver = new HoLoyaltyReceiver(ho.memberRepository(), ho.programRepository(), ho.transactionRepository(),
 				ho.functionRepository(), ho.customerRepository(), ho.aliasRepository(), ho.movementRepository(),
-				register, TransactionOperations.withoutTransaction());
+				register, () -> hoLoyalty, TransactionOperations.withoutTransaction());
 		hoLoyalty = ho.loyaltyService(register);
 		ho.function("CLIENT", "Client");
 		stores.put("RS01", store(1L, "RS01"));

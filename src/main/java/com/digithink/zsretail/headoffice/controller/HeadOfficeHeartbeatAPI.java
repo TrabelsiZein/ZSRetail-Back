@@ -39,6 +39,7 @@ public class HeadOfficeHeartbeatAPI {
 		OffsetDateTime now = OffsetDateTime.now();
 		storeService.recordContact(store.getId(), body, now.toLocalDateTime());
 		return new HeadOfficeHeartbeatAnswerDTO(store.getCode(), now.format(HeadOfficePingAPI.SERVER_TIME),
-				Boolean.TRUE.equals(store.getCanEditMembers()), Boolean.TRUE.equals(store.getCanAdjustPoints()));
+				Boolean.TRUE.equals(store.getCanEditMembers()), Boolean.TRUE.equals(store.getCanAdjustPoints()),
+				Boolean.TRUE.equals(store.getRedeemRequiresOnline()));
 	}
 }

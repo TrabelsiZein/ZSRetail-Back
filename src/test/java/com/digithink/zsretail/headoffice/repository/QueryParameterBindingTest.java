@@ -50,7 +50,7 @@ class QueryParameterBindingTest {
 			HoDownChangeRepository.class, HoDownSequenceRepository.class, PromotionRepository.class,
 			HoSessionRepository.class, LinkExchangeRepository.class, SalesCopyRepository.class,
 			DownRecordRepository.class, LoyaltyMemberRepository.class, LoyaltyProgramRepository.class,
-			LoyaltyMemberCopyRepository.class, LoyaltyMovementCopyRepository.class };
+			LoyaltyMemberCopyRepository.class, LoyaltyMovementCopyRepository.class, HoLoyaltyMovementRepository.class };
 
 	private static SessionFactory sessionFactory;
 

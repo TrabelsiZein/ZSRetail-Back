@@ -22,6 +22,7 @@ import com.digithink.zsretail.headoffice.dto.LoyaltyMemberCopyDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberEditDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMovementCopyDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyPhoneCheckDTO;
+import com.digithink.zsretail.headoffice.dto.LoyaltyPointsAdjustDTO;
 import com.digithink.zsretail.headoffice.dto.SalesCopyAnswerDTO;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.security.StoreApiKeyFilter;
@@ -64,6 +65,31 @@ public class HeadOfficeLoyaltyAPI {
 	@GetMapping("/members/by-phone")
 	public LoyaltyPhoneCheckDTO byPhone(@RequestParam(required = false) String phone) {
 		return receiver.checkPhone(phone);
+	}
+
+	/** Step 5: the member as the head office holds it now (fresh balance at the till); 404 for an unknown card. */
+	@GetMapping("/members/{cardNumber}")
+	public ResponseEntity<?> member(@PathVariable String cardNumber) {
+		try {
+			return ResponseEntity.ok(receiver.findMember(cardNumber));
+		} catch (NoSuchElementException e) {
+			return error(HttpStatus.NOT_FOUND, e.getMessage());
+		}
+	}
+
+	/** Step 5: a manual adjustment from a store with canAdjustPoints: 200 the member; 403, 404, 400 {"error"}. */
+	@PostMapping("/members/{cardNumber}/adjust")
+	public ResponseEntity<?> adjust(@AuthenticationPrincipal Store store, @PathVariable String cardNumber,
+			@RequestBody(required = false) LoyaltyPointsAdjustDTO request) {
+		try {
+			return ResponseEntity.ok(receiver.adjustPoints(store, cardNumber, request));
+		} catch (HoLoyaltyReceiver.NoRightException e) {
+			return error(HttpStatus.FORBIDDEN, e.getMessage());
+		} catch (NoSuchElementException e) {
+			return error(HttpStatus.NOT_FOUND, e.getMessage());
+		} catch (IllegalArgumentException e) {
+			return error(HttpStatus.BAD_REQUEST, e.getMessage());
+		}
 	}
 
 	@PutMapping("/members/{cardNumber}")
