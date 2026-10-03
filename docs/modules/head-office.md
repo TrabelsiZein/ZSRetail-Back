@@ -1,6 +1,6 @@
 # Head Office Module
 
-**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office); task 2.4 done (the store's push job with retry, counts on `GET admin/holink/status`). Task 2.5 backend done (consolidated sales API, home cards, page permissions; see "Consolidated sales API"; its pages to come); task 2.6 backend done (jobs with editable frequency and run now, exchange log; see "Head office link: jobs and exchange log"); the pages of 2.5 and 2.6 come with the frontend session. Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
+**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office); task 2.4 done (the store's push job with retry, counts on `GET admin/holink/status`). Task 2.5 backend done (consolidated sales API, home cards, page permissions; see "Consolidated sales API"; its pages to come); task 2.6 backend done (jobs with editable frequency and run now, exchange log; see "Head office link: jobs and exchange log"); the pages of 2.5 and 2.6 come with the frontend session. Step 3 in progress: task 3.1 done (the copies down mechanism, see "Copies down"); task 3.2 done (`origin` on `promotion` and the write guards, see `docs/modules/promotion.md`); task 3.3 done (target stores, payload by codes, received promotions, network usage count; see "Promotions owned by the head office"); task 3.5 done (missing targets WAITING and retried, tracking table, `GET admin/holink/received/{domain}`, counts in the link status). Rule fix: on a store whose promotions are local every promotion is written as before, whatever its origin (`docs/modules/promotion.md`). Task 3.6 done (what each store owns, sent with the heartbeat, see "Store API"). Task 3.4 done (head office with an ERP: imports only, export jobs never run, ERP reference location, profile `headoffice-dynamics-dev`; see "Head office with an ERP"). Step 3 frontend done: task 3.0 (lint) and the pages of tasks 3.2 to 3.6, see "Step 3 pages (frontend)". Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
 
 ### Overview
 - Two installation types, same WAR: a **store** sells; a **head office** manages several stores and never sells (no cashier session, no ticket).
@@ -80,6 +80,10 @@ Frontend: since task 1.6 a head office has only its own routes (see "Head office
 | Settings | Users | `admin-headoffice-users` | `/headoffice/settings/users` | `admin-users` |
 | Settings | Roles | `admin-headoffice-roles` | `/headoffice/settings/roles` | `admin-roles` |
 | Settings | Data import (standalone only) | `admin-headoffice-data-import` | `/headoffice/settings/data-import` | `admin-data-import` |
+| ERP (with an ERP only, task 3.4) | ERP jobs | `admin-headoffice-erp-jobs` | `/headoffice/erp/jobs` | `admin-erp-jobs` |
+| ERP (no menu link) | ERP job statistics, opened from ERP jobs; permission of ERP jobs | `admin-headoffice-erp-job-statistics` | `/headoffice/erp/jobs/statistics/:jobId?` | `erp-job-statistics` |
+| ERP (with an ERP only) | ERP communications log | `admin-headoffice-erp-communications` | `/headoffice/erp/communications` | `admin-erp-communications` |
+| ERP (with an ERP only) | ERP reference location | `admin-headoffice-erp-reference-location` | `/headoffice/erp/reference-location` | none (head office only) |
 
 Each page is one route: details and edits are dialogs on the page. Every other store page is absent until its step adds it: print labels, sales prices and discounts, warranty, purchases, vendors, reports, ERP and franchise pages, and the selling pages hidden in task 1.1.
 
@@ -87,7 +91,7 @@ The home page is the store's `Home.vue`. On a head office its sales cards read `
 
 The three Sales pages are described under "Consolidated sales API", "Head office pages".
 
-**Menu** (`src/navigation/headoffice/index.js`): Home · Network · Sales · Catalogue · Customers & loyalty · Settings. The Sales links use the store menu's titles (Sales history, Sessions, Returns).
+**Menu** (`src/navigation/headoffice/index.js`): Home · Network · Sales · Catalogue · Customers & loyalty · ERP (only on a head office with an ERP, task 3.4) · Settings. The Sales links use the store menu's titles (Sales history, Sessions, Returns).
 - Two levels only: links, and groups of links. A link names its head office route and takes the route's permission. A group has no permission of its own and shows when one of its links is allowed.
 - An unknown route name throws when the module loads.
 - Read on a head office only:
@@ -114,6 +118,27 @@ The three Sales pages are described under "Consolidated sales API", "Head office
 **Navbar.** The search bar shows when the user can read the home page of the installation: `admin-headoffice-home` on a head office, `home` on a store.
 
 **Roles page.** On a head office it lists only the head office permissions, grouped like the menu and named by the menu titles (translated), and the counters count only those. A role keeps its store permissions, which are unused there. On a store the list is as before, without any head office permission.
+
+### Step 3 pages (frontend)
+Task 3.0: `.eslintrc.js` has `no-console` off in every mode (decided 2026-10-03: the console calls of the old files stay). Proved with `npm run build` in a fresh git worktree with the ESLint cache moved aside: build complete, 186 files linted, no error.
+
+**Promotions, on a head office** (`PromotionsManagement.vue`, shared; the head office part only when `nodeType` is `HEAD_OFFICE`):
+- Form: a Stores section, component `src/views/admin/headoffice/PromotionStoresField.vue` (loaded only there): All stores (default) or Chosen stores. In the list a store whose `ownership.PROMOTIONS` is `LOCAL` shows "Owns its promotions" and cannot be checked (one already in the list can be unchecked); a store with unknown ownership shows "Ownership unknown (older version)" and can be chosen; an inactive store is marked. Chosen stores with none checked: Create / Save disabled, "Choose at least one store."
+- Create: `POST /admin/headoffice/promotions` `{promotion, allStores, storeIds}`. Edit: `PUT /promotion/{id}`, then `PUT /admin/headoffice/promotions/{id}/targets` only when the stores changed.
+- List: a Stores column before Status from `GET /admin/headoffice/promotions/targets`: "All stores", or "n stores" with the codes and names on hover. Stores from `GET /admin/headoffice/store-options`.
+
+**Promotions, on a store**:
+- `ownership.PROMOTIONS === 'HEAD_OFFICE'` (`/config`): consult only. No Add button; the actions column has only a view button; a click on a row opens the form read-only (title "Promotion", every field disabled through a disabled `fieldset`, only Close); a banner "Promotions are managed by the head office" above the list and in the form.
+- Otherwise the page works as before, and a store without a head office renders exactly as before (no column, no listener on the rows, no badge).
+- In both cases a "Head office" badge next to the code of a promotion whose `origin` is `HEAD_OFFICE`.
+
+**Head office link page** (`HeadOfficeLinkStatus.vue`): label of the job `COPIES_DOWN` ("Copies from the head office"); the exchange log already shows `DOWN` ("From the head office"). New block "Received from the head office", only when `GET status` gives `received` (a store that pulls): Applied / Waiting / Error counts of the domain (a domain selector when there are several), the list of `GET received/{domain}` (code, name, status, reason, information, since) with a status filter, errors first; refreshed with the rest of the page.
+
+**Stores page** (`StoresManagement.vue`): columns "Owned by the head office" (the domains whose owner is `HEAD_OFFICE`, or "Nothing") and "Sales go to" (ERP, Head office, or "Nowhere"); "Unknown (older version)" when the store reported nothing. A details button (eye) opens the table of the five domains (the store, Head office or ERP) and the sales upstreams.
+
+**ERP pages** (task 3.4): routes with `meta.erpOnly`; the router guard sends them to the home page when `/config` gives `standalone: true`, and the menu hides the ERP group then (`ERP_ONLY` in `src/navigation/headoffice/index.js`). No store route carries `erpOnly`. The jobs, statistics and communications pages are the store pages (twins); the ERP reference location page (`src/views/admin/headoffice/ErpReferenceLocation.vue`) shows the setup order (import the locations, choose the location, enable the item imports, with links to the ERP jobs page) and the choice among the imported locations. `HEAD_OFFICE_PERMISSIONS` lists each permission once (the statistics route shares the ERP jobs permission): 23, equal to the backend list.
+
+**Checks (2026-10-03)**: lint of the changed files in production mode and `npm run build`, both clean. Screens through Chrome, both dev backends with the step 3 code, nothing saved: head office Stores page (columns, details), promotions list and form (Stores column; Stores section; a store owning its promotions not choosable, unknown choosable, the empty list warning); store link page (a store with local promotions: no received block, no `COPIES_DOWN` job, as before); store promotions page as before; with `ownership.PROMOTIONS` set to `HEAD_OFFICE` in memory: banner, no Add, view buttons, a row opens the form read-only; the "Head office" badge; ERP route sent home in standalone mode; with ERP in memory the ERP menu group and the reference location page (its API answers 404 on `headoffice-dev`, which has no ERP). Not seen: the received block with data and the ERP pages against an ERP head office (closing prompt). After the restart with the 3.4 code a head office ADMIN must log out and in to get the three ERP permissions (abilities are built at login).
 
 ### Add a page to the head office
 1. **Shared page** (the same data as on the store): add a route to `src/router/headoffice-routes.js` with path `/headoffice/<...>`, name and `meta.resource` `admin-headoffice-<page>`, `meta.action: 'read'`, `meta.headOffice: true`, `meta.requiresAuth: true`, the store page's component, and `meta.twinOf` set to the store route name. Do not modify the store page, its store route or the store menu.
@@ -210,6 +235,10 @@ Store-to-head-office calls, server to server: no user, no JWT, no CORS. The stor
 
 **`POST /ho/heartbeat`** (`HeadOfficeHeartbeatAPI`, head office only, task 1.4): body `{"appVersion":"1.12.0"}` (`HeadOfficeHeartbeatDTO`; a missing body counts as no version). Sets `lastContact` (head office clock) and `appVersion` on the calling store through `StoreService.recordContact`, by id with a two-column update (`StoreRepository.updateContact`): the principal is never saved, and `apiKeyHash`, `code`, `name`, `kind`, `active` and `updatedAt` are not touched. Answers like `/ho/ping`: `{"storeCode":"RS01","serverTime":"..."}`, the same instant as `lastContact`. The store side is described under "Head office link".
 
+**What each store owns** (task 3.6): with each heartbeat the store also sends `ownership` (every `DataDomain` to its `DataOwner`, as `GET /config` gives it) and `salesUpstreams` (empty list = nowhere), e.g. `{"appVersion":"2.1.0","ownership":{"CATALOGUE":"ERP","CUSTOMERS":"ERP","PROMOTIONS":"HEAD_OFFICE","LOYALTY":"LOCAL","SUPPLY":"ERP"},"salesUpstreams":["ERP","HEAD_OFFICE"]}` (`HeadOfficeClient.heartbeatBody`, from `ApplicationModeService`). The head office saves them in the same two-column update, now eight columns (`StoreRepository.updateContact`): `ho_store.owner_catalogue`, `owner_customers`, `owner_promotions`, `owner_loyalty`, `owner_supply` (`VARCHAR(20)`) and `sales_upstreams` (`VARCHAR(50)`, names comma-separated in enum order, `""` = nowhere). Lenient: keys and values trimmed, any case; an owner its domain does not allow, or a value it cannot read, is saved as null; unknown upstream names are dropped; the heartbeat is never refused for them. A heartbeat without these fields (a store of an older version, or no body) saves null everywhere: **unknown**, also after an earlier report. Never read from the admin API.
+
+JSON (`Store`, so the stores list and `GET /admin/headoffice/stores/{id}`): `ownership` `{"CATALOGUE":"ERP",...,"SUPPLY":null}` in `DataDomain` order, null when unknown; `salesUpstreams` `["ERP","HEAD_OFFICE"]`, `[]` for nowhere, null when unknown. The columns themselves are not in the JSON; both fields are ignored when a client sends them back. Also in `GET /admin/headoffice/store-options` (`ownership`, last key) and in the `stores` of `GET /admin/headoffice/promotions/{id}/targets`. A store whose `PROMOTIONS` owner is `LOCAL` owns its promotions and never pulls them: the targets API still accepts it (the report can be late), the page marks it.
+
 **L2 checks** (pair on this PC, license valid on both, a store `RS01` created on the head office's Stores page):
 
 | Request | Head office (888) | Store (444) |
@@ -243,6 +272,7 @@ A store with `headoffice.url` set sends a heartbeat to its head office. Store-si
 | `headoffice.sales-push.batch-size` outside 1..1000 or not a whole number (task 2.4) | `Invalid value '<value>' for property headoffice.sales-push.batch-size` |
 | `headoffice.sales-push.interval-seconds` below 1 or not a whole number (task 2.4) | `Invalid value '<value>' for property headoffice.sales-push.interval-seconds` |
 | `headoffice.log-retention-days` below 1 or not a whole number (task 2.6) | `Invalid value '<value>' for property headoffice.log-retention-days` |
+| `headoffice.pull.interval-seconds` below 1 or not a whole number (task 3.1) | `Invalid value '<value>' for property headoffice.pull.interval-seconds` |
 
 And whether the URL is set or not (task 2.4, decision 4): a store whose explicit `sales.upstream` includes `HEAD_OFFICE` without `headoffice.url` does not start (`Missing value for property headoffice.url: required when sales.upstream includes HEAD_OFFICE ('<value>')`). Only an explicit value is checked: the franchise customer profile derives `HEAD_OFFICE` for its legacy push and has no `headoffice.url`, and it starts as before. A head office with a non-empty `sales.upstream` keeps its own message (step 1).
 
@@ -276,6 +306,8 @@ Without the URL these keys are not checked. The URL scheme is not checked: HTTP 
 | `GET /status` | `{state, message, lastAttempt, lastSuccess, serverTime, headOfficeUrl, storeCode, intervalSeconds, pendingCount, sentCount, errorCount}`: the in-memory status, the URL without trailing slashes, `DEFAULT_LOCATION` read now (null when empty or unreadable), the interval. Never the key. Task 2.4: the three counts of `hol_sales_copy` by status (0 for a status without rows); null when the store does not copy its sales to the head office (no push job), or when the count cannot be read (the status is still answered) |
 | `POST /check` | Runs one heartbeat now and answers the status after it: the "Run now" of the `HEARTBEAT` job (`LinkJobScheduler.runNow`), on `ho-link-1`, queued behind a run in progress, waited for up to 30 s; when the wait ends first, or before the thread is started, the current status is answered and no call is made from the request thread |
 | `GET /jobs`, `PUT /jobs/{code}/interval`, `POST /jobs/{code}/run`, `GET /log` | Task 2.6, see "Head office link: jobs and exchange log". `intervalSeconds` in `GET /status` is the heartbeat frequency in force (saved or default) |
+| `GET /status`, field `received` (task 3.5, last field) | Per domain pulled, the received records by status: `{"PROMOTIONS": {"APPLIED": 12, "WAITING": 1, "ERROR": 0}}` (every status present); null when the store pulls nothing, or when the counts cannot be read (the status is still answered) |
+| `GET /received/{domain}?status=` (task 3.5) | `{domain, counts: {APPLIED, WAITING, ERROR}, records: [{code, name, status, reason, info, receivedAt, statusSince}]}`, `ERROR` first, then `WAITING`, then `APPLIED`, each by code. `domain` any case (`promotions`); `status` one status (any case), blank or `all` = every status. 404 `{"error":"No copies down of '<domain>' on this store"}` when the store does not pull that domain; 400 `{"error":"Invalid status ..."}` |
 
 **`GET /config`** gets `headOfficeLinked` (task 1.5), last field: true when `headoffice.url` is set (`ApplicationModeService.isHeadOfficeLinked()`, same check as the condition). The frontend store keeps it as `appConfig/isHeadOfficeLinked` (default false, also when `/config` fails).
 
@@ -428,6 +460,7 @@ Backend of the jobs and exchange log of the store's Head office link page (model
 |---|---|---|---|---|---|
 | `HEARTBEAT` | `HeartbeatJob` | `headoffice.url` set | 1 | 15 s after the start | `headoffice.heartbeat-interval-seconds` (60) |
 | `SALES_PUSH` | `SalesPushJob` | and the sales upstreams include the head office (decision 4) | 2 | 20 s | `headoffice.sales-push.interval-seconds` (60) |
+| `COPIES_DOWN` | `CopiesDownJob` (task 3.1) | and at least one domain is owned by the head office | 3 | 25 s | `headoffice.pull.interval-seconds` (60) |
 
 **Add a job** (later steps): one bean implementing `LinkJob` with the condition that decides whether it exists, an `@Order` for its place in the list and a new code; it writes its own exchange log rows through `LinkExchangeLog`. Nothing else changes: the scheduler, the jobs list, the frequency, run now and the log pick it up.
 
@@ -466,6 +499,101 @@ Backend of the jobs and exchange log of the store's Head office link page (model
 The page had no automatic refresh before task 2.6; the three parts now refresh silently every 30 s (no spinner, no toast, skipped while a load or a check runs). Labels in `admin.holink.*` (en, fr, ar).
 
 **Settings**: `headoffice.log-retention-days`, default `30`, a whole number of days at least 1; checked at startup only when `headoffice.url` is set (`Invalid value '<value>' for property headoffice.log-retention-days: a whole number of days, at least 1`).
+
+### Copies down (step 3)
+Data the head office owns reaches its stores as copies down (design 2.3): the store pulls what changed since its cursor and saves it by business code. Generic: one class per domain on each side, so a later step (loyalty, catalogue, shipments) adds two classes and its domain in `NodeOwnership.COPIES_DOWN_DOMAINS`. Step 3 serves `PROMOTIONS`.
+
+**When it runs** (store): only with `headoffice.url` set and the domain owned by the head office (`ownership.<domain>=HEAD_OFFICE`). The job and the puller carry `@ConditionalOnHeadOfficePull` (URL set and at least one domain owned by the head office, `NodeOwnership.isHeadOfficePullSet`); a domain's handler carries `@ConditionalOnHeadOfficeOwned(<domain>)` (`NodeOwnership.isOwnedByHeadOffice`). A store without `headoffice.url`, or with every domain local, has none of these beans. An explicit `ownership.promotions=HEAD_OFFICE` without `headoffice.url` stops the startup: `Missing value for property headoffice.url: required when ownership.promotions is HEAD_OFFICE ('<value>')`. A head office keeps its own message for an owner `HEAD_OFFICE`. Known case: a franchise customer (catalogue and supply derived `HEAD_OFFICE`) that also sets `headoffice.url` gets the job without a handler ("no domain to pull") until step 6.
+
+**Head office side** (package `headoffice`, `@ConditionalOnHeadOffice`):
+
+| Table (entity) | Content |
+|---|---|
+| `ho_down_sequence` (`HoDownSequence`) | One row per domain: `last_version`, the domain's last change number |
+| `ho_down_change` (`HoDownChange`) | One row per (`domain`, `record_code`, `store_id`), `store_id` null = every store (also stores created later); `change_version` = the number of the record's last change for that store. Unique `uk_ho_down_change`, index `ix_ho_down_change_version` (`domain`, `change_version`) |
+
+- `CopiesDownFeed.recordChange(domain, code, stores)`, called inside the writer's transaction (`Propagation.MANDATORY`): increments the domain's number (`update ... set last_version = last_version + 1`, the row stays locked until the commit, so one domain's numbers are given in commit order), then moves the rows of the stores concerned to it. A change of targets passes the old and the new stores together (`StoreTargets.union`): a store taken off gets the code as removed.
+- "Changed" covers created, edited, activated or deactivated, deleted, and targets changed: each is one `recordChange`.
+- **Cursor**: the change number, made from the head office data only; never a clock. A pull reads the domain's committed number first (the horizon), then the codes changed for the store (its rows and the every-store rows) after the cursor and up to the horizon, oldest first. A change committed during the pull has a higher number and comes with the next pull. A cursor above the horizon (head office database restored) starts again from 0.
+- Startup (`ApplicationReadyEvent`): each served domain gets its sequence row, and each existing record without a change row gets one with its targets (backfill: promotions created before step 3 reach every store).
+- One `DownDomainProvider` per domain: `load(store, codes)` answers the copy of each code that exists and is addressed to the store; any other code is answered as removed.
+
+**`GET /ho/down/{domain}?cursor=&limit=`** (`HeadOfficeDownAPI`, `/ho/**` chain: store key, then license). `domain` any case (`promotions`). `cursor` blank for the first pull. `limit` codes per page, default 100, at most 500 (0 or less: 100).
+
+| Case | Answer |
+|---|---|
+| OK | 200 `{"domain":"PROMOTIONS","records":[...],"removed":["P7"],"cursor":"42","more":false}` (`CopiesDownAnswerDTO`); records by business codes, never a database id |
+| `more` true | another page waits; `cursor` is the number of the page's last code |
+| Cursor not a whole number ≥ 0 | 400 `{"error":"Invalid cursor '<value>': send back the cursor of the last answer"}` |
+| Domain unknown or without copies down | 404 `{"error":"No copies down for domain '<value>'"}` |
+
+**Store side** (package `holink`):
+- `HeadOfficeClient.pull(domain, cursor, limit)`: `GET` with the two store headers, the cursor encoded strictly. Same failure states as the heartbeat; a page without a cursor, with a cursor over 200 characters or of another domain is `ERROR` "unreadable answer".
+- `hol_down_cursor` (`DownCursor`): one row per `domain`, `cursor_value` (200) saved exactly as received and sent back unchanged.
+- `CopiesDownPuller`, run by the job `COPIES_DOWN` (`CopiesDownJob`, order 3, after the sales push, first run 25 s after the start, default frequency `headoffice.pull.interval-seconds`, 60; editable on the page like the other jobs). Per domain, in `DataDomain` order:
+  1. `deactivateLocal()`: the handler sets inactive the active local records of the domain (they are kept); when there were some, one exchange log row (`WARNING`, records = how many, `<DOMAIN>: <n> local records set inactive: the domain is owned by the head office`).
+  2. Pages of 100 codes: pull, `apply(records, removed)` by the domain's `DownHandler`, then save the page's cursor. Up to 10 pages per cycle and no new page after 20 s; while `more` stays true the next cycle comes 5 s later.
+  3. `retry()`: the handler applies again what it could not apply earlier (task 3.5), at every cycle, also when the head office is unreachable.
+
+| Outcome of a pull | Store |
+|---|---|
+| Delivered | Records saved, removed codes handled, then the cursor saved. Exchange row only when the page had records or removed codes: `SUCCESS`, or `WARNING` with the first problem (`<DOMAIN>: <code>: <reason>`) |
+| Nothing new | No change, no exchange row |
+| Unreachable, 401, 402, other status, unreadable answer | Nothing changes: no record, no cursor; the store keeps its last copy. One `ERROR` row, 0 records, `<DOMAIN>: <state>: <message>` |
+| The handler cannot apply the page (database) | Cursor not moved; one `ERROR` row; the page comes again |
+| Cursor not saved | One `ERROR` row; the page comes again and applying it again changes nothing |
+
+- Job run: `SUCCESS`, `WARNING` (records waiting or in error) or `ERROR` (not delivered, not applied); message per domain, e.g. `PROMOTIONS: 3 applied, 1 unchanged, 1 removed, 0 waiting, 0 in error`, `PROMOTIONS: nothing new`, `PROMOTIONS: not delivered, the store keeps its last copy (OFFLINE: ...)`.
+- Log (store): INFO when a pull brought something, when local records were set inactive and when delivery fails or comes back; DEBUG otherwise.
+
+**Settings** (store): `headoffice.pull.interval-seconds`, default `60`, a whole number of seconds at least 1, checked only when `headoffice.url` is set.
+
+### Promotions owned by the head office (step 3)
+A promotion created at the head office reaches the chosen stores and applies at their tills; the promotion engine is not changed (it reads the store's `promotion` table). Store side: `ownership.promotions=HEAD_OFFICE` with `headoffice.url`. Write guards and the `origin` column: `docs/modules/promotion.md`.
+
+**Head office: target stores** (task 3.3, head office only data, no column on `promotion`):
+- Table `ho_promotion_store` (`HoPromotionStore`): `promotion_id`, `store_id` (plain ids), unique `uk_ho_promotion_store`. No row: every store (the default, including stores created later). Rows: only those stores. An empty list is refused. A change of list keeps the rows of the stores that stay and only deletes or inserts the others (L2 fix: Hibernate flushes inserts before deletes, so deleting and inserting the same key in one transaction broke the unique key).
+- `HoPromotionService` (`@ConditionalOnHeadOffice`) is the `PROMOTIONS` provider of the feed and implements `PromotionHeadOfficeHooks`, which `PromotionService` calls on a head office only (`ObjectProvider`, no bean on a store):
+  - `PromotionService.save` (create, edit, activate, deactivate through `POST`/`PUT /promotion`): a change for the promotion's stores; a code changed (unused promotion) also records the old code, so its stores remove it.
+  - `PromotionService.deleteById`: a change for its stores (they get a removal), its target rows deleted.
+  - Target change: a change for the old and the new stores together.
+  - `getUsageCount` adds `networkUsageCount(code)`: the consolidated tickets (`ho_ticket.promotion_code`) and lines (`ho_ticket_line.promotion_code`) of every store with that code. A head office never sells (its own count is 0), so the edit lock of a used promotion and the delete refusal work for the whole network. Known limit: a store's local promotion that has the same code counts too (stricter lock, never looser).
+
+**Admin API** (`HoPromotionTargetAPI`, `/admin/headoffice/promotions`, JWT, head office only):
+
+| Request | Answer |
+|---|---|
+| `GET /targets` | `[{promotionId, code, allStores, storeIds, stores: null}]`, one per promotion (the list column) |
+| `GET /{id}/targets` | `{promotionId, code, allStores, storeIds, stores: [{id, code, name, active}]}` (stores sorted by code); 404 `{"error":"Not found"}` |
+| `PUT /{id}/targets` | Body `{"allStores": true}` or `{"allStores": false, "storeIds": [1, 2]}`. 200 with the view above; 400 `{"error":"Choose every store, or at least one store."}` (empty list, or no body) or `{"error":"Unknown store id(s): [9]"}`; 404. Unchanged targets record nothing |
+| `POST /` | Body `{"promotion": {...as POST /promotion...}, "allStores": false, "storeIds": [1]}`; targets absent: every store. Creates the promotion and its targets in one transaction, so no store outside the list ever hears of it. 201 `{promotion, targets}`; 400 `{"error"}` for invalid targets or promotion (e.g. an empty ITEM_GROUP); 500 `{"error"}` otherwise |
+
+The head office page creates a promotion for a list with `POST /admin/headoffice/promotions`. Created with `POST /promotion` and then given a list, the other stores would get a removal of a code they never applied (harmless, but noise in their exchange log). Editing a promotion stays `PUT /promotion/{id}`; deleting `DELETE /promotion/{id}`.
+
+**Payload** (`PromotionCopyDTO`, `headoffice/dto`, by codes only, never a database id): `code`, `name`, `description`, `promotionType`, `scope`, `itemCode`, `itemFamilyCode`, `itemSubFamilyCode`, `groupItemCodes` (sorted), `getItemCode` (benefit item), `minimumQuantity`, `minimumAmount`, `benefitType`, `discountPercentage`, `discountAmount`, `freeQuantity`, `startDate`, `endDate` (`yyyy-MM-dd`), `requiresCode`, `dayOfWeek`, `timeStart`, `timeEnd` (`HH:mm:ss`), `priority`, `active`. Unknown fields are ignored. `PromotionCopyDTO.of(promotion)` builds it on both sides: two promotions with equal copies are the same promotion.
+
+Known limit: the copy names its item, family, sub-family and benefit item by code at the moment of the pull. A code renamed at the head office (an item or family code changed after the promotion was sent) does not send the promotion again: it travels with the promotion's next change (edit, target change). A store whose item kept the old code keeps applying the promotion as received; one whose item has the new code only gets it at that next change.
+
+**Store: received promotions** (`PromotionDownHandler`, `@ConditionalOnHeadOfficeOwned(PROMOTIONS)`), each record in its own transaction:
+
+| Case | Store |
+|---|---|
+| New code | Saved with `origin=HEAD_OFFICE`, codes resolved to the store's item, family, sub-family, group items and benefit item (`PromotionService.saveReceived`: the normalisation of `save`, audit user `HEAD_OFFICE`) |
+| Code of a `HEAD_OFFICE` promotion | Updated on the same row; the "used promotion" lock does not apply (the head office decides) |
+| Same copy as the promotion the store has (compared by `PromotionCopyDTO`, after the normalisation) | Nothing written (`unchanged`) |
+| Code of a local promotion | Not saved, `ERROR` `code already used by a local promotion of this store`; the local promotion is not touched. The head office admin changes its code. Retried at every cycle (applies if the local one is gone) |
+| Item, family, sub-family or benefit item not in the store; ITEM_GROUP with none of its items (task 3.5) | Not applied: `WAITING`, reason `not in this store: item I9` (also `family F9`, `sub-family SF9`, `benefit item I7`, `group items I8, I9`). A promotion the store already has becomes inactive (the rest unchanged). Retried at every cycle from the copy kept in `hol_down_record`, without a new change from the head office: it applies by itself once the record exists |
+| ITEM_GROUP with some items missing | Saved with the items the store has, `APPLIED` with the information `group items not in this store: I9` |
+| Unreadable record, no code | Error; the next records go on |
+| Removed: a `HEAD_OFFICE` promotion never used in a sale here | Deleted |
+| Removed: used here | `active=false`, kept (an inactive one stays as it is); targeted again later: updated again (and active as sent) |
+| Removed: a local promotion with that code, or no promotion | Nothing |
+
+**Tracking** (task 3.5): table `hol_down_record` (`DownRecord`, `DownRecordLog`), one row per (`domain`, `record_code`), unique `uk_hol_down_record`: `record_name`, `status` (`APPLIED`, `WAITING`, `ERROR`), `reason` (1000), `info` (1000), `payload` (the copy last received, `NVARCHAR(MAX)`), `received_at` (store clock of the copy; a copy received again unchanged does not move it), `status_since`, plus `_BaseEntity` columns. A row is written only when something changed, so the same answer applied twice writes nothing. A removal deletes the row. Generic: later domains use the same table.
+- Every cycle, after the pulls, `retry()` applies again the `WAITING` and `ERROR` rows (by code) from their copy; the codes the pulls of this cycle just applied are skipped. The retries run also when the head office is unreachable (they need only the store's data). A record still waiting keeps the job result `WARNING`; it writes no exchange log row (a retry is not a pull).
+- Job counts: `applied`, `unchanged`, `removed`, `waiting`, `in error` cover the pulls and the retries of the cycle.
+
+**Local promotions** (Zein's correction, 2026-10-03): at every cycle, before the pull, the active promotions whose origin is null or `LOCAL` are set inactive (kept, origin unchanged; `PromotionRepository.findActiveNotFrom`), with one exchange log row giving how many. While promotions are owned by the head office no write through the API can activate them again.
 
 ### Consolidated sales API (task 2.5, head office)
 What the head office pages Tickets history, Sessions history and Returns, and the home cards, read (pages: task 2.5 frontend, "Head office pages" below).
@@ -580,6 +708,56 @@ The three permissions are in `ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS` (
 - `application.standalone=true`, ERP and ERP sync off, `franchise.admin=false`, `franchise.customer=false`.
 - Own log file `C:/zsretail-headoffice/backend.log` and image folder `uploads/headoffice/pos-images`, so it does not share them with the store instance.
 
+### Profile `headoffice-dynamics-dev` (task 3.4)
+`src/main/resources/application-headoffice-dynamics-dev.properties`: the head office with an ERP. Same database `pos_headoffice`, port 888, log file and image folder as `headoffice-dev`, which stays the head office without ERP.
+- `node.type=HEAD_OFFICE`, `application.standalone=false`, `franchise.admin=false`, `franchise.customer=false`.
+- `erp.dynamicsnav.*`: the settings of `application-dynamics-test.properties`, the **NAV test instance** (`192.168.10.166:24/test4`). Never the NAV of `application-dynamics-dev.properties` or `application-dynamics-prod.properties`: that is the customer's production NAV (correction from Zein, 2026-10-03). A comment at the top of the file says so, and `HeadOfficeErpProfileTest` fails if the URL or host of the dev or prod profile appears in it.
+- `erp.sync.enabled=true`, `erp.sync.scheduler.delay=60000`: the import jobs enabled from the ERP jobs page run; all are seeded disabled.
+- Switching one `pos_headoffice` database between the two profiles: the ERP jobs are seeded at the first start in ERP mode; started again with `headoffice-dev` (standalone) nothing runs them (no scheduler) and the item pages allow creating by hand again.
+
+### Head office with an ERP (task 3.4, decision D2)
+The head office of an ERP customer (ParaFendri) gets its items, families, sub-families and barcodes from Business Central with the existing import jobs, filtered on one **ERP reference location** chosen at the head office. It exports nothing. A head office without ERP keeps creating items by hand or by data import. Nothing in `erp/` is changed: what is specific lives in `headoffice` and only exists on a head office.
+
+**What happens with `node.type=HEAD_OFFICE`, `application.standalone=false`, `erp.dynamicsnav.enabled=true`, `erp.sync.enabled=true`** (read in the code, every place where ERP mode changes behaviour):
+
+| Place | ERP mode does | On a head office |
+|---|---|---|
+| Startup (`NodeOwnership`) | Owners derived from the ERP row: catalogue, customers, supply `ERP`; promotions, loyalty `LOCAL` | Accepted. Sales go nowhere (a head office never sells, whatever the flags). An explicit owner `HEAD_OFFICE` stays refused |
+| `GET /config` | `standalone: false`, `ownership` with `ERP` | Fine: the frontend uses `standalone` to show the ERP pages of the head office (below) |
+| `ZZDataInitializer` (every start) | Seeds the ERP checkpoint settings and, on an empty table, the 12 ERP jobs: imports disabled, `EXPORT_RETURNS` and `EXPORT_SESSIONS` **enabled**; seeds `ERP_SYNC_TRACKING_LEVEL`, `ERP_SKIP_CHEQUE_PAYMENTS`; no passenger customer | Guarded: `HeadOfficeErpJobs.switchOff` runs right after it (it takes the initializer as a dependency) and before any scheduled task: the exports and the price import disabled, no next run. The settings are harmless; no passenger customer is needed (no sale) |
+| `ErpSyncScheduler` (`erp.sync.enabled`) | Runs every enabled job when due, through `ErpSyncJobRunner.run` | Guarded: `HeadOfficeErpGuard` (aspect) refuses the jobs of `NOT_ON_HEAD_OFFICE` in the runner with a warning (status `WARNING: This ERP job does not run on a head office: ...`); imports run as on a store |
+| ERP jobs API `admin/erp/jobs` | Lists every job; run now, enable, change, statistics by id | Guarded by the same aspect: the list leaves them out; `POST {id}/run`, `PATCH {id}`, `PUT {id}`, `GET {id}/statistics` answer 404 `{"error":"This ERP job does not run on a head office"}`. The store page works as it is |
+| ERP communications log `admin/erp/communications` | Read-only log of the ERP calls | Fine as it is |
+| Import jobs (`DynamicsNavRestClient`) | Items through the stock keeping units of `DEFAULT_LOCATION` (warning "DEFAULT_LOCATION is not configured" without it); prices and discounts on the responsibility center of the location marked default; locations, families, sub-families, barcodes, customers, deletions unfiltered | Fine once the reference location is chosen (below). Consequence: the head office has the items that have a stock keeping unit at that location; choose the location that carries the network's catalogue (e.g. the central warehouse) |
+| `ItemAPI`, `ItemFamilyAPI`, `ItemSubFamilyAPI`, `CustomerAPI`, `LocationAPI` | Create (and change or delete locations) refused: the data comes from the ERP | Intended: the head office catalogue is the ERP's. Promotions target the imported items by code |
+| `DataImportAPI` | Refused (standalone only) | Intended; the head office Data import page is already hidden when not standalone (task 1.6) |
+| `PurchaseHeaderAPI`, `PurchaseInvoiceAPI`, `VendorAPI` | Refused | Fine: a head office does not buy (shipments come at step 7) |
+| `StockService`, `StockMovementService` | No local stock | Fine: no stock at the head office before step 7 |
+| `InvoiceAPI` (from POS tickets) | Refused | Fine: no ticket at the head office |
+| `DynamicsNavRestClient`, `DynamicsNavConnector`, `DynamicsNavConfig` (`erp.dynamicsnav.enabled`) | The NAV connector instead of the no-op one | Needed for the imports |
+| Selling services, franchise code | Not reached: no cashier session or cashier login on a head office (task 1.1), franchise flags refused | Unchanged |
+
+**Jobs on a head office** (`HeadOfficeErpJobs.NOT_ON_HEAD_OFFICE`, never run, never offered): `EXPORT_CUSTOMERS`, `EXPORT_TICKETS`, `EXPORT_RETURNS`, `EXPORT_SESSIONS` (a head office has no ticket, return or session, and a customer created there must not reach the ERP) and `IMPORT_SALES_PRICES_AND_DISCOUNTS` (filtered on the responsibility center of one location, it would give one store's prices as if they were the network's; a head office does not sell, and each ERP store imports its own prices). Offered: `IMPORT_ITEM_FAMILIES`, `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS`, `IMPORT_ITEM_BARCODES`, `IMPORT_LOCATIONS` (needed to choose the reference location), `SYNC_ERP_DELETIONS`, and `IMPORT_CUSTOMERS` (import only, disabled as seeded: the head office Customers page can show the ERP customers; nothing goes back to the ERP).
+
+**ERP reference location** (`ErpReferenceLocationService`, `ErpReferenceLocationAPI`, `@ConditionalOnHeadOfficeErp`: head office with `application.standalone=false`; 404 elsewhere). The import needs `DEFAULT_LOCATION` and, for the price filter, the location marked default; choosing the reference location is the store's "set as default" (`LocationService.setAsDefault`), without the store's Locations page. `RESPONSIBILITY_CENTER` (general setup) is read only by the exports, which never run here: not written.
+
+| Request | Answer |
+|---|---|
+| `GET /admin/headoffice/erp/reference-location` | `{locationCode, name, responsibilityCenter, locations: [{locationCode, name, responsibilityCenter}]}`: the current choice (`DEFAULT_LOCATION`, null when none; name and responsibility center null when that code is not among the imported locations) and the imported locations by code |
+| `PUT /admin/headoffice/erp/reference-location` | Body `{"locationCode": "MAG01"}` (trimmed, any case): 200 with the view above; 400 `{"error":"locationCode is required"}` or `{"error":"Unknown ERP location 'X': choose one of the locations imported from the ERP (job IMPORT_LOCATIONS)"}` |
+
+Order at a new head office with an ERP: enable and run `IMPORT_LOCATIONS`, choose the reference location, then enable the item imports (families, sub-families, items, barcodes).
+
+**Pages** (permissions now, routes and menu with the frontend prompt; seeded on every head office ADMIN like the others, the frontend shows the pages only when `GET /config` says `standalone: false`):
+
+| Page | Permission (= route name `admin-headoffice-...`) | API |
+|---|---|---|
+| ERP jobs (store page as a twin) | `read:admin-headoffice-erp-jobs` | `admin/erp/jobs` (guarded as above) |
+| ERP communications log (store page as a twin) | `read:admin-headoffice-erp-communications` | `admin/erp/communications` |
+| ERP reference location (new page) | `read:admin-headoffice-erp-reference-location` | `admin/headoffice/erp/reference-location` |
+
+**NAV**: only the test instance of `application-dynamics-test.properties` may be called from this PC, and only with GET; never the production NAV of the dev and prod profiles. Reaching the test instance needs the VPN (closing prompt of step 3).
+
 ### Start the pair on this PC (test level L2)
 
 | Instance | Backend | Frontend |
@@ -605,7 +783,7 @@ The three permissions are in `ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS` (
 - `JWTAuthenticationFilterTest`: cashier refused on a head office; admin and a user without AppRole accepted; a cashier login on the 4 store profiles answers exactly as before.
 - `ZZDataInitializerUsersTest`: head office seeds `admin` only; the 4 store profiles seed admin, responsible and cashier. The "empty user table" guard in `init()` is not covered.
 - `ZZDataInitializerRolesTest`: covers the 4 store profiles and the head office.
-  - New head office database: ADMIN gets today's permissions plus the 20 head office ones (17, plus tickets, sessions and returns in task 2.5), each role saved once. `HEAD_OFFICE_ADMIN_PERMISSIONS` equals the test's copy of the frontend list, without `read:admin-headoffice`.
+  - New head office database: ADMIN gets today's permissions plus the 23 head office ones (17, plus tickets, sessions and returns in task 2.5, plus the three ERP pages in task 3.4), each role saved once. `HEAD_OFFICE_ADMIN_PERMISSIONS` equals the test's copy of the frontend list, without `read:admin-headoffice`.
   - Existing head office ADMIN: it receives the missing permissions once and keeps its others (also `read:admin-headoffice`); the next start saves nothing; RESPONSIBLE and POS_USER are untouched.
   - Stores: the 4 profiles seed exactly today's roles. With and without `headoffice.url`, an existing role is never saved or changed.
   - Task 1.5: with `headoffice.url`, ADMIN also gets `read:admin-holink-status` on the 4 profiles; a head office never does.
@@ -643,6 +821,28 @@ The three permissions are in `ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS` (
 - `SalesPushServiceTest` (task 2.6): with the push as a job over an in-memory log: a cycle with nothing to send writes no row (`nothing to send`); one row per batch that sent something (2 batches: records, `WARNING` with `T-2: <reason>`, then `SUCCESS`); not delivered gives one `ERROR` row with the state and message, a failed search one `ERROR` row with 0 records; a log that cannot be written does not break the push (documents `SENT`, run `SUCCESS`).
 - `HeadOfficeLinkAPITest` (task 2.6): `GET jobs` (only the heartbeat without the push, fields in order); `PUT jobs/{code}/interval` saves (status shows it), `null` resets, 400 below 10 or not a number (nothing changed), 404 for a job this store does not have; `POST jobs/{code}/run` runs on `ho-link-1` and answers the job after the run (one exchange row on `PENDING -> ONLINE`), 404 unknown; `GET log` answers the page, 400 on a bad result or date.
 - `ApplicationModeOwnershipTest` (task 2.6): `headoffice.log-retention-days` below 1 or not a whole number refused, `1` and ` 90 ` accepted, not checked without the URL.
+- `ApplicationModeOwnershipTest` (task 3.1): an explicit `ownership.promotions=HEAD_OFFICE` (any case) without `headoffice.url` (absent or blank) refused on standalone and ERP flags; `LOCAL` without, `HEAD_OFFICE` with the URL accepted; the 4 profiles unchanged; a head office keeps its message; `headoffice.pull.interval-seconds` checked only with the URL. `explicitOwnerOverridesOneDomain` now sets the URL.
+- `OnHeadOfficePullConditionTest` (task 3.1): no pull without the URL, with every domain local (standalone, ERP), with sales copies only, on a head office; pull with the URL and promotions owned by the head office (any case); `isOwnedByHeadOffice` per domain; `CopiesDownPuller` and `CopiesDownJob` registered only then and carry the annotation. Bare bean registry.
+- `OnHeadOfficeConditionTest` (task 3.1): `CopiesDownFeed` and `HeadOfficeDownAPI` exist only on a head office.
+- `CopiesDownFeedTest` (task 3.1): the cursor is the change number (blank first, sent back, a clock or a negative value refused, an absent cursor starts again); a change committed during a pull comes with the next one; a change numbered above the committed number is not read until it is committed; targets (every store, also a store created later; a list; a store outside the list receives nothing, not even a removal; an edit for another store brings nothing); targets changed (taken off: removal; added: record; back to all; from all to a list: removal for the others); deletions; pages (limit, `more`, cursor of the last code, last page at the horizon); a cursor above the horizon; limits and unknown domains; one change row per (code, store); the startup backfill. In-memory tables that apply the JPQL rules.
+- `CopiesDownPullerTest` (task 3.1): the cursor saved exactly as received (`41`, then an opaque `v2:opaque/+=`) and read back unchanged by the head office (strict encoding); the same page applied twice changes nothing, also after a cursor that could not be saved; 401, 402, 503, connection refused, HTML, another domain and no cursor change nothing (no apply, cursor unchanged, one `ERROR` row) while the retries still run; `more` pulls the next page in the same cycle, 10 pages then the next cycle soon; a page that cannot be applied leaves the cursor; handler problems give `WARNING` with the first problem; local records set inactive give one row with how many; the job's code, first delay, frequency, no handler, a cycle that throws. Real `HeadOfficeClient` over `MockRestServiceServer`.
+- `QueryParameterBindingTest` (task 3.1): `HoDownChangeRepository` and `HoDownSequenceRepository` added.
+- `PromotionAPIGuardTest` (task 3.2): promotions owned by the head office: create, edit, deactivate and delete answer 409 for a local, a `LOCAL` and a `HEAD_OFFICE` promotion, nothing written, reads allowed; promotions local (rule fix): a promotion that came from the head office is edited, deactivated, written by a create with its id, locked once used and deleted like a local one, its origin kept; local promotions as before (create, edit, deactivate, usage lock, delete refusal, delete), the origin never read from JSON and kept on update; `isPromotionsOwnedByHeadOffice` only with the URL and the owner.
+- `HoPromotionServiceTest` (task 3.3): real `PromotionService`, `HoPromotionService` and `CopiesDownFeed` over in-memory tables. Every store by default (and a store created later), an edit and a deactivation reach them; a list reaches only its stores and a store outside it receives nothing, also when the promotion is created with its list; targets changed (removal for the store taken off, record for the store added, same targets record nothing); deleted (removal for its stores, nothing for the others, target rows gone); code changed (old code removed, new one sent); the payload by codes (sorted group items, benefit item, no field named `id` or `...Id`, no item id); target requests (empty list, no body, unknown store, unknown promotion refused, nothing written; get with the stores sorted, list, create without targets = every store); usage count from the consolidated tickets and lines, the lock follows it; the startup backfill with an existing list.
+- `PromotionDownHandlerTest` (task 3.3): copies built from head office promotions (other ids) through JSON. Every scope (ITEM, ITEM_FAMILY, ITEM_SUBFAMILY, ITEM_GROUP, ALL_ITEMS, CART, a cross-product benefit item) resolved to the store's records with every field and `origin=HEAD_OFFICE`; the same copy twice writes nothing, a changed one updates the same row; the normalisation kept (stray targets cleared) and the usage lock skipped; a local code not saved and reported; removal (unused deleted, used deactivated, local and unknown codes left alone, already inactive unchanged, targeted again updated and active); missing targets not saved and reported, a partial group saved with its items; local promotions set inactive once; unreadable records reported while the next ones are applied.
+- `OnHeadOfficeConditionTest`, `OnHeadOfficePullConditionTest` (task 3.3): `HoPromotionService` and `HoPromotionTargetAPI` on a head office only; `PromotionDownHandler` only with promotions owned by the head office (another domain owned: the job exists, not this handler).
+- `QueryParameterBindingTest` (task 3.3): `PromotionRepository` added (its JPQL queries; the native `countUsages` is skipped) and the two count queries of `HoTicketRepository`.
+- `PromotionAllItemsScopeTest`: unchanged and green (its `PromotionService` has no head office hooks).
+- `PromotionDownHandlerTest` (task 3.5): an item missing gives `WAITING` with the reason, a retry with the same outcome writes nothing, the item added: the next retry applies it with the store's item, an applied record is not retried; family, sub-family and benefit item missing give `WAITING`; a promotion the store has, now pointing to a missing item, becomes inactive (rest unchanged), the same answer again writes nothing, and it is active again once the item exists; ITEM_GROUP with no item `WAITING`, with some `APPLIED` and the missing codes as information; a code clash `ERROR` retried and applied once the local promotion is gone; the same answer twice writes no tracking row; a removal deletes the rows; the records of this cycle's pull are not retried in the same cycle.
+- `DownRecordLogTest` (task 3.5): a row written only when something changed; reception time moves only with a new copy, status time only with a new status; a retry keeps the copy; texts cut to 1000; rows to retry by code; counts with every status; removal; a bad status refused.
+- `HeadOfficeLinkAPITest` (task 3.5): `received` is the 12th and last field, null without a pull; with it the counts per domain; `GET received/{domain}` in order (`ERROR`, `WAITING`, `APPLIED`, by code) with its fields, the status filter, 400 for a bad status, 404 for a domain not pulled and on a store without pull.
+- `OnHeadOfficePullConditionTest`, `QueryParameterBindingTest` (task 3.5): `DownRecordLog` among the pull beans; `DownRecordRepository` added.
+- `HeadOfficeHeartbeatAPITest` (task 3.6): owners and upstreams saved in the same update as the contact, read leniently (any case and spaces, an owner the domain does not allow and an unreadable value give null, an unknown domain key and unknown upstreams dropped, upstreams in enum order once); the JSON `ownership` and `salesUpstreams`, the columns hidden, nothing read back from a client; an empty list is `[]`; a heartbeat without the fields (older store, no body) makes the store unknown, also after a report; round trip from the real store client (`MockRestServiceServer`): the body carries what `GET /config` gives, a client without the mode sends the version only, byte for byte as before.
+- `ConsolidatedSalesServiceTest`, `HoPromotionServiceTest` (task 3.6): `ownership` last in the store options; in the targets view, a store owning its promotions is accepted and shown, a store without a report is null.
+- `HeadOfficeErpTest` (task 3.4): at each start the exports and the price import are disabled with no next run (the two exports seeded enabled, one enabled by hand later), imports untouched, the next start writes nothing, a database without ERP jobs is fine; through Spring AOP on test subclasses of the ERP runner and controller: the runner refuses each of the five jobs with a warning and runs the others; `GET admin/erp/jobs` leaves them out; run, enable, update and statistics of one of them answer 404 without reaching the controller; the others and an unknown id as before.
+- `ErpReferenceLocationServiceTest` (task 3.4): none chosen (imported locations by code, blank setting = none); chosen by code in any case through the store's set-as-default, the view with name and responsibility center; blank and unknown codes refused, nothing changed; a `DEFAULT_LOCATION` not imported shows its code only.
+- `HeadOfficeErpProfileTest` (task 3.4): the real `application-headoffice-dynamics-dev.properties` starts (head office, owners ERP, ERP, LOCAL, LOCAL, ERP, sales nowhere), same database and port as `headoffice-dev`, NAV settings equal to `dynamics-test` (the test instance), never the URL or host of `dynamics-dev` or `dynamics-prod`; the reference location beans only there; the export guard on both head office profiles, never on `dynamics-dev` or `standalone-dev`.
+- `ZZDataInitializerRolesTest` (task 3.4): the head office list has 23 permissions (the three ERP pages added).
 - Not covered by L1 (checked at L2 on the pair): the JPQL against SQL Server, the transaction timeouts, the real timer, the head office endpoints through the `/ho/**` chain. The JPQL and the entity mappings were translated with Hibernate (SQL Server 2012 dialect, no database) during the tasks.
 - Frontend (task 1.5): eslint on the changed files; a Node script (not committed) for the route guard with and without the link, the `appConfig` mutation, getter and fetch (true, false, absent, failure), "x min ago" and the status badges, the wiring of the five points and the 75 i18n keys in en, fr and ar; a build with the eslint plugin skipped (the production build stops on four `console` statements that were already there before task 1.5, in `Home.vue`, `Login.vue` and `store/app-config/index.js`).
 - Not covered by L1 (needs a started context): the chain wiring itself (store installation answers 401, a JWT is not read on `/ho/**`, other paths unchanged). Checked by the L2 table under "Store API". Also the real timer (first heartbeat after 15 s), timeouts on a real network and the bulk update on SQL Server: L2 table under "Connect a store".

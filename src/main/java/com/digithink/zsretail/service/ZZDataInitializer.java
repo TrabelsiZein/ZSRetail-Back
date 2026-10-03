@@ -231,7 +231,10 @@ public class ZZDataInitializer {
 			"read:admin-headoffice-general-setup",
 			"read:admin-headoffice-users",
 			"read:admin-headoffice-roles",
-			"read:admin-headoffice-data-import"));
+			"read:admin-headoffice-data-import",
+			"read:admin-headoffice-erp-jobs", // task 3.4: shown only on a head office with an ERP
+			"read:admin-headoffice-erp-communications",
+			"read:admin-headoffice-erp-reference-location"));
 
 	/** Store with headoffice.url only: the "Head office link" page (task 1.5). */
 	static final Set<String> HEAD_OFFICE_LINK_ADMIN_PERMISSIONS = new HashSet<>(

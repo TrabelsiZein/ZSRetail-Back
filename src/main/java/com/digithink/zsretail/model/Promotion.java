@@ -20,6 +20,7 @@ import javax.persistence.Table;
 import com.digithink.zsretail.model.enumeration.PromotionBenefitType;
 import com.digithink.zsretail.model.enumeration.PromotionScope;
 import com.digithink.zsretail.model.enumeration.PromotionType;
+import com.digithink.zsretail.model.enumeration.RecordOrigin;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -208,4 +209,15 @@ public class Promotion extends _BaseEntity {
 	 */
 	@Column(nullable = false)
 	private Integer priority = 0;
+
+	// ─── Origin (head office plan, task 3.2) ──────────────────────────────────
+
+	/**
+	 * HEAD_OFFICE for a promotion received from the head office (read-only at the store); null or LOCAL for a promotion
+	 * made at the store. Written only by the pull job: sent in JSON, never read from a request.
+	 */
+	@Enumerated(EnumType.STRING)
+	@Column(length = 20)
+	@com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY)
+	private RecordOrigin origin;
 }

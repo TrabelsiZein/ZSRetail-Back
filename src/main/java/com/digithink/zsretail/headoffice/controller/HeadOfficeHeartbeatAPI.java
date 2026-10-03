@@ -18,7 +18,8 @@ import com.digithink.zsretail.headoffice.service.StoreService;
 /**
  * Head office plan, task 1.4: the store's heartbeat. Head office only. The store is the principal set by
  * {@link StoreApiKeyFilter}; lastContact (head office clock) and the version sent are written by id through
- * {@link StoreService#recordContact}, never by saving the principal. Answers like GET /ho/ping.
+ * {@link StoreService#recordContact}, never by saving the principal. Answers like GET /ho/ping. Task 3.6: also what
+ * the store owns (ownership, sales upstreams), in the same update; a store that sends nothing is unknown.
  */
 @RestController
 @RequestMapping("ho")
@@ -35,7 +36,7 @@ public class HeadOfficeHeartbeatAPI {
 	public HeadOfficePingDTO heartbeat(@AuthenticationPrincipal Store store,
 			@RequestBody(required = false) HeadOfficeHeartbeatDTO body) {
 		OffsetDateTime now = OffsetDateTime.now();
-		storeService.recordContact(store.getId(), body == null ? null : body.getAppVersion(), now.toLocalDateTime());
+		storeService.recordContact(store.getId(), body, now.toLocalDateTime());
 		return new HeadOfficePingDTO(store.getCode(), now.format(HeadOfficePingAPI.SERVER_TIME));
 	}
 }

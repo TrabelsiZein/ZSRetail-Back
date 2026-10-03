@@ -164,3 +164,37 @@ price and never goes through promotion pricing.
 - **Free lines are real DB rows**: `lineTotalIncludingVat=0` ensures return flow gives 0 TND refund without special-casing
 - **discountSource tracks origin**: MANUAL (cashier entered), PROMOTION (promo engine), SALES_PRICE, SALES_DISCOUNT — stored on both header and each line for audit and reporting
 - **`getItem` is LAZY, so an Item can reach JSON as a Hibernate proxy**: when a page of promotions holds a cross-product promotion whose benefit item is also the `item` (or a group item) of a later promotion, both fields share one proxy. `Item` ignores `hibernateLazyInitializer` / `handler` at class level, so the proxy serializes like a loaded Item. Before 1.12.0 the promotion list returned HTTP 500 in that case ("No serializer found for class ByteBuddyInterceptor"). Test: `src/test/java/com/digithink/zsretail/model/ItemJsonProxyTest.java`
+
+### Promotions owned by the head office (step 3)
+
+A store with `headoffice.url` and `ownership.promotions=HEAD_OFFICE` receives its promotions from the head office as copies down (task 3.1, `docs/modules/head-office.md`, "Copies down"): the job `COPIES_DOWN` pulls the promotions changed since its cursor. The calculation engine is not changed: it keeps reading the local `promotion` table. Without `headoffice.url`, or with `ownership.promotions` absent or `LOCAL`, nothing changes.
+
+**Origin** (task 3.2): column `promotion.origin` (`VARCHAR(20)`, nullable; entity field `Promotion.origin`, enum `RecordOrigin`): `HEAD_OFFICE` for a promotion received from the head office, `LOCAL` or null for a promotion made at the store. Null means local, so existing rows need no update. Hibernate adds the column (`ddl-auto=update`); for `db/2.1.0/update.sql` (written once at the end of the plan):
+
+```sql
+IF COL_LENGTH('promotion', 'origin') IS NULL
+    ALTER TABLE promotion ADD origin VARCHAR(20) NULL;
+```
+
+The origin is sent in the promotion JSON and never read from a request (`@JsonProperty(access = READ_ONLY)`): the client can never set it. Only the pull job writes `HEAD_OFFICE`; a write through the API keeps the origin the promotion has.
+
+**Write guards** (`PromotionAPI`, task 3.2, with Zein's correction of 2026-10-03: no `promotions.allow-local` setting). The generic CRUD of `_BaseController` is covered: `create`, `update` and `deleteById` are overridden. Reads (`GET /promotion`, `/{id}`, `/paginated`, `/findByField`, `/{id}/usage-count`) are unchanged.
+
+| Store | Request | Answer |
+|---|---|---|
+| Promotions owned by the head office (`ApplicationModeService.isPromotionsOwnedByHeadOffice()`) | `POST /promotion`, `PUT /promotion/{id}` (deactivating included), `DELETE /promotion/{id}`, for every promotion whatever its origin | 409 `Promotions are managed by the head office: on this store they can only be consulted.` (`PUT` on an unknown id: 404) |
+| Promotions local | Every promotion of the table, whatever its origin (rule fix of step 3, Zein, 2026-10-03: the store owns them all) | As before: usage lock (409 with the locked fields), delete refused once used (409). The origin is kept: a promotion that came from the head office can be edited, deactivated and deleted, and still shows where it came from |
+
+The page is read-only when `ownership.PROMOTIONS` from `GET /config` is `HEAD_OFFICE` (no new field); `origin` on each promotion is information for a badge only. The guard "origin `HEAD_OFFICE` is always read-only" of the first version of task 3.2 is removed.
+
+**Received promotions** (task 3.3): the head office sends each promotion by codes (`PromotionCopyDTO`: item, family, sub-family, group item and benefit item codes, never an id); the store saves it by its code with `origin=HEAD_OFFICE` through `PromotionService.saveReceived` (same normalisation as `save`, no usage lock, audit user `HEAD_OFFICE`), its codes resolved to the store's own records. Removed or no longer addressed to the store: deleted when never used in a sale here, otherwise set inactive and kept. While promotions are owned by the head office, the store's local promotions are set inactive by the pull job (kept, origin `LOCAL`). Details and the store/head office tables: `docs/modules/head-office.md`, "Promotions owned by the head office".
+
+**Head office** (task 3.3): `PromotionService` calls `PromotionHeadOfficeHooks` (head office only bean): every save and delete is recorded for the promotion's target stores, and `getUsageCount` adds the tickets and lines received from every store with the promotion code, so the edit lock and the delete refusal of a used promotion work for the whole network. Target stores: `/admin/headoffice/promotions/...`.
+
+`PromotionService` changes for this, outside the engine: `normalise` (extracted from `save`, unchanged), `saveReceived`, `getLocalUsageCount`, `deleteById` (transactional, calls the hook on a head office). `PromotionRepository` gains `findByCodeIn` and `findActiveNotFrom`. `PromotionCalculationService`, `PricingService`, `SalesHeaderService` and `ReturnHeaderService` are unchanged.
+
+**Missing targets** (task 3.5): a received promotion whose item, family, sub-family or benefit item is not in the store (or an ITEM_GROUP with none of its items) is not applied: `WAITING` with the reason in `hol_down_record`, and a promotion the store already had becomes inactive. It is retried at every cycle and applies by itself once the record exists. An ITEM_GROUP with some items missing is saved with the items the store has (the missing codes are shown as information). The list and the counts are on the store's Head office link page (`GET admin/holink/received/PROMOTIONS`, `received` in `GET admin/holink/status`).
+
+**Pages** (step 3 frontend, `PromotionsManagement.vue`): on a head office, a Stores section in the form (all stores or a chosen list; a store that owns its promotions cannot be chosen) and a Stores column in the list; on a store whose promotions are owned by the head office, consult only (no create, edit, pause or delete, the form opens read-only, a banner); a "Head office" badge on a promotion whose origin is `HEAD_OFFICE`. A store without a head office sees the page as before. Details: `docs/modules/head-office.md`, "Step 3 pages (frontend)".
+
+**Item groups saved with one item (fixed 2026-10-03, found at L2 of step 3)**: the promotions page sent each group item as `{id}` only. `Promotion.groupItems` is a `Set<Item>` and `Item` uses `@EqualsAndHashCode(callSuper = false)`, which leaves out the id (it is in `_BaseEntity`): items with only an id are all equal, so the set kept one item. Every ITEM_GROUP promotion created or edited from the page before the fix holds one item (two such promotions in `pos_db_prod`, ids from 1.10.0 on). The page now sends `{id, itemCode}` (frontend `PromotionsManagement.vue`); the backend is unchanged. An existing group promotion is corrected by editing it and saving its items again.

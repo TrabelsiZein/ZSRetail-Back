@@ -10,6 +10,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.lang.reflect.Proxy;
+import java.time.LocalDateTime;
+import java.util.stream.Collectors;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -33,9 +35,17 @@ import org.springframework.test.web.client.ResponseCreator;
 import org.springframework.web.client.RestTemplate;
 
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
+import com.digithink.zsretail.holink.dto.DownApplyResult;
 import com.digithink.zsretail.holink.dto.HeadOfficeLinkStatusDTO;
 import com.digithink.zsretail.holink.dto.LinkJobDTO;
+import com.digithink.zsretail.holink.enumeration.DownRecordStatus;
 import com.digithink.zsretail.holink.enumeration.LinkJobResult;
+import com.digithink.zsretail.holink.model.DownRecord;
+import com.digithink.zsretail.holink.repository.DownRecordRepository;
+import com.digithink.zsretail.holink.service.CopiesDownPuller;
+import com.digithink.zsretail.holink.service.DownHandler;
+import com.digithink.zsretail.holink.service.DownRecordLog;
+import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
 import com.digithink.zsretail.holink.repository.SalesCopyRepository;
@@ -59,6 +69,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
  * interval, never the key; POST admin/holink/check runs one heartbeat on the ho-link thread and answers the new state.
  * Task 2.4: the sales copy counts, after the existing fields.
  * Task 2.6: the jobs (list, frequency, run now) and the exchange log endpoints.
+ * Task 3.5: the counts of the records received from the head office (last field) and their list.
  * Real client, status, heartbeat job and job scheduler over MockRestServiceServer, in-memory hol_ tables, no Spring
  * context.
  */
@@ -67,7 +78,8 @@ class HeadOfficeLinkAPITest {
 	private static final String KEY = "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde";
 	private static final String HEARTBEAT = "http://localhost:888/zsretail/api/ho/heartbeat";
 	private static final List<String> KEYS = Arrays.asList("state", "message", "lastAttempt", "lastSuccess",
-			"serverTime", "headOfficeUrl", "storeCode", "intervalSeconds", "pendingCount", "sentCount", "errorCount");
+			"serverTime", "headOfficeUrl", "storeCode", "intervalSeconds", "pendingCount", "sentCount", "errorCount",
+			"received");
 
 	private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules()
 			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -120,7 +132,8 @@ class HeadOfficeLinkAPITest {
 		}), TransactionOperations.withoutTransaction(), 30);
 		HeartbeatJob heartbeat = new HeartbeatJob(client, status, exchangeLog, 60);
 		scheduler = new LinkJobScheduler(Collections.singletonList(heartbeat), jobService, exchangeLog);
-		api = new HeadOfficeLinkAPI(status, scheduler, jobService, exchangeLog, client, Optional.empty());
+		api = new HeadOfficeLinkAPI(status, scheduler, jobService, exchangeLog, client, Optional.empty(),
+				Optional.empty(), Optional.empty());
 	}
 
 	private interface Handler {
@@ -169,6 +182,7 @@ class HeadOfficeLinkAPITest {
 		assertTrue(json.get("pendingCount").isNull(), "no sales push on this store: no counts");
 		assertTrue(json.get("sentCount").isNull());
 		assertTrue(json.get("errorCount").isNull());
+		assertTrue(json.get("received").isNull(), "task 3.5: no pull on this store: no counts");
 	}
 
 	@Test
@@ -191,7 +205,7 @@ class HeadOfficeLinkAPITest {
 				});
 		SalesPushService push = new SalesPushService(null, null, repository, null, null, null, null, null);
 		HeadOfficeLinkAPI withPush = new HeadOfficeLinkAPI(status, scheduler, jobService, exchangeLog, client,
-				Optional.of(push));
+				Optional.of(push), Optional.empty(), Optional.empty());
 
 		JsonNode json = json(withPush.status());
 		assertEquals(12, json.get("pendingCount").asLong());
@@ -330,5 +344,81 @@ class HeadOfficeLinkAPITest {
 		assertEquals(1L, ((Map<?, ?>) page.getBody()).get("totalElements"));
 		assertEquals(HttpStatus.BAD_REQUEST, api.log(null, "BROKEN", null, null, null, null).getStatusCode());
 		assertEquals(HttpStatus.BAD_REQUEST, api.log(null, null, "yesterday", null, null, null).getStatusCode());
+	}
+
+	@Test
+	@DisplayName("Task 3.5: received counts per domain pulled (last field), the list ERROR, WAITING then APPLIED, filters, 404 and 400")
+	void receivedRecords() {
+		List<DownRecord> rows = new ArrayList<>();
+		rows.add(row("P-B", DownRecordStatus.APPLIED, null, "group items not in this store: I9"));
+		rows.add(row("P-A", DownRecordStatus.APPLIED, null, null));
+		rows.add(row("P-W", DownRecordStatus.WAITING, "not in this store: item I9", null));
+		DownRecordRepository repository = proxy(DownRecordRepository.class, (method, args) -> {
+			switch (method) {
+				case "findByDomainAndStatusIn":
+					java.util.Collection<?> statuses = (java.util.Collection<?>) args[1];
+					return rows.stream().filter(r -> r.getDomain() == args[0] && statuses.contains(r.getStatus()))
+							.collect(Collectors.toList());
+				case "countByStatus":
+					Map<DownRecordStatus, Long> counts = rows.stream().filter(r -> r.getDomain() == args[0])
+							.collect(Collectors.groupingBy(DownRecord::getStatus, Collectors.counting()));
+					return counts.entrySet().stream().map(e -> new Object[] { e.getKey(), e.getValue() })
+							.collect(Collectors.toList());
+				default:
+					throw new UnsupportedOperationException(method);
+			}
+		});
+		DownHandler promotions = new DownHandler() {
+			@Override
+			public DataDomain getDomain() {
+				return DataDomain.PROMOTIONS;
+			}
+
+			@Override
+			public DownApplyResult apply(List<JsonNode> records, List<String> removed) {
+				return DownApplyResult.none();
+			}
+		};
+		CopiesDownPuller puller = new CopiesDownPuller(client, Collections.singletonList(promotions), null, exchangeLog,
+				TransactionOperations.withoutTransaction());
+		HeadOfficeLinkAPI withPull = new HeadOfficeLinkAPI(status, scheduler, jobService, exchangeLog, client,
+				Optional.empty(), Optional.of(puller), Optional.of(new DownRecordLog(repository)));
+
+		JsonNode json = json(withPull.status());
+		assertEquals("{\"PROMOTIONS\":{\"APPLIED\":2,\"WAITING\":1,\"ERROR\":0}}", json.get("received").toString());
+
+		ResponseEntity<?> all = withPull.received("promotions", null);
+		assertEquals(200, all.getStatusCodeValue());
+		JsonNode list = mapper.valueToTree(all.getBody());
+		assertEquals("PROMOTIONS", list.get("domain").asText());
+		assertEquals(2, list.get("counts").get("APPLIED").asLong());
+		List<String> codes = new ArrayList<>();
+		list.get("records").forEach(r -> codes.add(r.get("code").asText()));
+		assertEquals(Arrays.asList("P-W", "P-A", "P-B"), codes);
+		JsonNode waiting = list.get("records").get(0);
+		assertEquals("WAITING", waiting.get("status").asText());
+		assertEquals("not in this store: item I9", waiting.get("reason").asText());
+		List<String> fields = new ArrayList<>();
+		waiting.fieldNames().forEachRemaining(fields::add);
+		assertEquals(Arrays.asList("code", "name", "status", "reason", "info", "receivedAt", "statusSince"), fields);
+
+		JsonNode onlyWaiting = mapper.valueToTree(withPull.received("PROMOTIONS", "waiting").getBody());
+		assertEquals(1, onlyWaiting.get("records").size());
+		assertEquals(400, withPull.received("PROMOTIONS", "LATE").getStatusCodeValue());
+		assertEquals(404, withPull.received("LOYALTY", null).getStatusCodeValue());
+		assertEquals(404, api.received("PROMOTIONS", null).getStatusCodeValue(), "no pull on this store");
+	}
+
+	private static DownRecord row(String code, DownRecordStatus status, String reason, String info) {
+		DownRecord row = new DownRecord();
+		row.setDomain(DataDomain.PROMOTIONS);
+		row.setRecordCode(code);
+		row.setRecordName("Promo " + code);
+		row.setStatus(status);
+		row.setReason(reason);
+		row.setInfo(info);
+		row.setReceivedAt(LocalDateTime.of(2026, 10, 3, 9, 0));
+		row.setStatusSince(LocalDateTime.of(2026, 10, 3, 9, 0));
+		return row;
 	}
 }

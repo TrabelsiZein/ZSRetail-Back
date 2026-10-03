@@ -15,6 +15,8 @@ import org.springframework.core.annotation.Order;
 import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.headoffice.controller.ConsolidatedSalesAPI;
+import com.digithink.zsretail.headoffice.controller.HeadOfficeDownAPI;
+import com.digithink.zsretail.headoffice.controller.HoPromotionTargetAPI;
 import com.digithink.zsretail.headoffice.controller.HeadOfficeHeartbeatAPI;
 import com.digithink.zsretail.headoffice.controller.HeadOfficePingAPI;
 import com.digithink.zsretail.headoffice.controller.HeadOfficeSalesAPI;
@@ -22,6 +24,8 @@ import com.digithink.zsretail.headoffice.controller.StoreAPI;
 import com.digithink.zsretail.headoffice.security.HeadOfficeApiSecurityConfig;
 import com.digithink.zsretail.headoffice.security.StoreApiKeyFilter;
 import com.digithink.zsretail.headoffice.service.ConsolidatedSalesService;
+import com.digithink.zsretail.headoffice.service.CopiesDownFeed;
+import com.digithink.zsretail.headoffice.service.HoPromotionService;
 import com.digithink.zsretail.headoffice.service.SalesCopyReceiver;
 import com.digithink.zsretail.headoffice.service.StoreService;
 
@@ -36,7 +40,8 @@ class OnHeadOfficeConditionTest {
 
 	private static final Class<?>[] STORE_BEANS = { StoreService.class, StoreAPI.class, StoreApiKeyFilter.class,
 			HeadOfficePingAPI.class, HeadOfficeHeartbeatAPI.class, SalesCopyReceiver.class, HeadOfficeSalesAPI.class,
-			ConsolidatedSalesService.class, ConsolidatedSalesAPI.class };
+			ConsolidatedSalesService.class, ConsolidatedSalesAPI.class, CopiesDownFeed.class, HeadOfficeDownAPI.class,
+			HoPromotionService.class, HoPromotionTargetAPI.class };
 
 	/** True when the class gets a bean definition with this environment. */
 	private static boolean registered(MockEnvironment env, Class<?> beanClass) {

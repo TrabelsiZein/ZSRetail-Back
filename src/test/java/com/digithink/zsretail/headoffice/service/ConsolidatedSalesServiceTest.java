@@ -480,7 +480,8 @@ class ConsolidatedSalesServiceTest {
 	void storeOptions() {
 		List<Map<String, Object>> options = service.storeOptions();
 		assertEquals(Arrays.asList("RS01", "RS02"), options.stream().map(o -> o.get("code")).collect(Collectors.toList()));
-		assertEquals(Arrays.asList("id", "code", "name", "active"), new ArrayList<>(options.get(0).keySet()));
+		assertEquals(Arrays.asList("id", "code", "name", "active", "ownership"), new ArrayList<>(options.get(0).keySet()),
+				"task 3.6: ownership last (null while the store has reported nothing)");
 	}
 
 	@Test

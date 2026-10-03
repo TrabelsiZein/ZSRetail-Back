@@ -1,5 +1,6 @@
 package com.digithink.zsretail.service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -10,6 +11,7 @@ import java.util.stream.Collectors;
 
 import javax.persistence.criteria.Predicate;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -25,6 +27,7 @@ import com.digithink.zsretail.model.Promotion;
 import com.digithink.zsretail.model.enumeration.PromotionBenefitType;
 import com.digithink.zsretail.model.enumeration.PromotionScope;
 import com.digithink.zsretail.model.enumeration.PromotionType;
+import com.digithink.zsretail.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.repository.PromotionRepository;
 import com.digithink.zsretail.repository._BaseRepository;
 
@@ -37,6 +40,13 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 	@Autowired
 	private PromotionRepository promotionRepository;
 
+	/** Audit user of a promotion received from the head office (task 3.3). */
+	public static final String HEAD_OFFICE_USER = "HEAD_OFFICE";
+
+	/** Task 3.3: present on a head office only. */
+	@Autowired
+	private ObjectProvider<PromotionHeadOfficeHooks> headOfficeHooks;
+
 	@Override
 	protected _BaseRepository<Promotion, Long> getRepository() {
 		return promotionRepository;
@@ -46,8 +56,25 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 		return promotionRepository;
 	}
 
+	/** True for a promotion received from the head office (task 3.2); null origin means local. */
+	public static boolean isFromHeadOffice(Promotion promotion) {
+		return promotion.getOrigin() == RecordOrigin.HEAD_OFFICE;
+	}
+
 	/** Returns total number of sales lines + headers that reference this promotion. */
 	public long getUsageCount(Long promotionId) {
+		long local = promotionRepository.countUsages(promotionId);
+		PromotionHeadOfficeHooks hooks = headOfficeHooks();
+		if (hooks == null) {
+			return local;
+		}
+		// Head office (task 3.3): it never sells, its count is the tickets of every store with this code
+		return local + promotionRepository.findById(promotionId)
+				.map(promotion -> hooks.networkUsageCount(promotion.getCode())).orElse(0L);
+	}
+
+	/** Usages in this store's own sales only (lines + headers), never the network count. */
+	public long getLocalUsageCount(Long promotionId) {
 		return promotionRepository.countUsages(promotionId);
 	}
 
@@ -56,10 +83,57 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 	 * ITEM_GROUP scope requires at least one group item and owns the target exclusively
 	 * (single-target FKs are cleared); all other scopes must not carry group items.
 	 * ALL_ITEMS scope carries no target at all (single-target FKs and group items cleared).
+	 * On a head office (task 3.3) the stores of the promotion get the change.
 	 */
 	@Override
 	@Transactional
 	public Promotion save(Promotion promotion) throws Exception {
+		normalise(promotion);
+		PromotionHeadOfficeHooks hooks = headOfficeHooks();
+		String previousCode = hooks == null || promotion.getId() == null ? null
+				: promotionRepository.findById(promotion.getId()).map(Promotion::getCode).orElse(null);
+		Promotion saved = super.save(promotion);
+		if (hooks != null) {
+			hooks.afterSave(previousCode, saved);
+		}
+		return saved;
+	}
+
+	/**
+	 * Task 3.3: saves a promotion received from the head office (the pull job, no user). Same normalisation as
+	 * {@link #save}, without the "used promotion" lock (the head office decides); audit user {@value #HEAD_OFFICE_USER}.
+	 */
+	@Transactional
+	public Promotion saveReceived(Promotion promotion) {
+		normalise(promotion);
+		if (promotion.getId() == null) {
+			promotion.setCreatedBy(HEAD_OFFICE_USER);
+			promotion.setCreatedAt(LocalDateTime.now());
+		} else {
+			promotion.setUpdatedBy(HEAD_OFFICE_USER);
+			promotion.setUpdatedAt(LocalDateTime.now());
+		}
+		return promotionRepository.save(promotion);
+	}
+
+	/** On a head office (task 3.3) the stores of the promotion get a removal before it is deleted. */
+	@Override
+	@Transactional
+	public void deleteById(Long id) {
+		PromotionHeadOfficeHooks hooks = headOfficeHooks();
+		if (hooks != null) {
+			promotionRepository.findById(id).ifPresent(hooks::beforeDelete);
+		}
+		super.deleteById(id);
+	}
+
+	/** The head office hooks; null on a store (no such bean) and in tests that do not set them. */
+	private PromotionHeadOfficeHooks headOfficeHooks() {
+		return headOfficeHooks == null ? null : headOfficeHooks.getIfAvailable();
+	}
+
+	/** The target normalisation of {@link #save}, also applied to a promotion received from the head office. */
+	public void normalise(Promotion promotion) {
 		if (promotion.getScope() == PromotionScope.ITEM_GROUP) {
 			if (promotion.getGroupItems() == null || promotion.getGroupItems().isEmpty()) {
 				throw new IllegalArgumentException("An ITEM_GROUP promotion must target at least one item");
@@ -91,7 +165,6 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 				&& entityIdEqual(promotion.getGetItem(), promotion.getItem())) {
 			promotion.setGetItem(null);
 		}
-		return super.save(promotion);
 	}
 
 	/**
@@ -109,7 +182,7 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 		Promotion existing = findById(promotionId)
 				.orElseThrow(() -> new IllegalArgumentException("Promotion not found: " + promotionId));
 
-		long usageCount = promotionRepository.countUsages(promotionId);
+		long usageCount = getUsageCount(promotionId);
 		if (usageCount == 0) return; // Never used — full edit allowed
 
 		List<String> violations = new ArrayList<>();

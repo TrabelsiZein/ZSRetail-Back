@@ -44,6 +44,9 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * on a store, an explicit {@code sales.upstream} that includes
  * HEAD_OFFICE without {@code headoffice.url} fails too (a derived upstream is not checked: the franchise customer
  * profile derives HEAD_OFFICE for its legacy push and has no headoffice.url).
+ * <p>
+ * Copies down (step 3): a store with an explicit {@code ownership.promotions=HEAD_OFFICE} without {@code headoffice.url}
+ * fails; with the URL set, a {@code headoffice.pull.interval-seconds} below 1 fails.
  */
 public final class NodeOwnership {
 
@@ -57,6 +60,13 @@ public final class NodeOwnership {
 	static final String SALES_PUSH_BATCH_SIZE_KEY = "headoffice.sales-push.batch-size";
 	static final String SALES_PUSH_INTERVAL_KEY = "headoffice.sales-push.interval-seconds";
 	static final String LOG_RETENTION_KEY = "headoffice.log-retention-days";
+	static final String PULL_INTERVAL_KEY = "headoffice.pull.interval-seconds";
+
+	/**
+	 * Domains a store receives as copies down from its head office today (step 3: promotions). An explicit owner
+	 * HEAD_OFFICE for one of them needs headoffice.url. Later steps add theirs.
+	 */
+	static final Set<DataDomain> COPIES_DOWN_DOMAINS = Collections.unmodifiableSet(EnumSet.of(DataDomain.PROMOTIONS));
 
 	/** Largest batch a store may send in one request. */
 	public static final int SALES_PUSH_MAX_BATCH_SIZE = 1000;
@@ -105,9 +115,46 @@ public final class NodeOwnership {
 		if (!isHeadOfficeLinkSet(env)) {
 			return false;
 		}
-		NodeOwnership ownership = resolve(env, flag(env, STANDALONE_KEY), flag(env, FRANCHISE_ADMIN_KEY),
-				flag(env, FRANCHISE_CUSTOMER_KEY));
-		return ownership.getSalesUpstreams().contains(SalesUpstream.HEAD_OFFICE);
+		return resolveFromEnvironment(env).getSalesUpstreams().contains(SalesUpstream.HEAD_OFFICE);
+	}
+
+	/**
+	 * True when this store pulls copies down from its head office (step 3): headoffice.url is set and at least one domain
+	 * is owned by the head office. Also used by {@link OnHeadOfficePullCondition}. Throws like the startup on an invalid
+	 * configuration.
+	 */
+	public static boolean isHeadOfficePullSet(PropertyResolver env) {
+		if (!isHeadOfficeLinkSet(env)) {
+			return false;
+		}
+		NodeOwnership ownership = resolveFromEnvironment(env);
+		for (DataDomain domain : DataDomain.values()) {
+			if (ownership.ownerOf(domain) == DataOwner.HEAD_OFFICE) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * True when headoffice.url is set and the domain is owned by the head office (step 3): the domain's copies down
+	 * handler exists. Also used by {@link OnHeadOfficeOwnedCondition}.
+	 */
+	public static boolean isOwnedByHeadOffice(PropertyResolver env, DataDomain domain) {
+		return isHeadOfficeLinkSet(env) && resolveFromEnvironment(env).ownerOf(domain) == DataOwner.HEAD_OFFICE;
+	}
+
+	/**
+	 * True on a head office with an ERP (task 3.4): node.type=HEAD_OFFICE and application.standalone false or absent
+	 * (read like ApplicationModeService). Also used by {@link OnHeadOfficeErpCondition}.
+	 */
+	public static boolean isHeadOfficeErpSet(PropertyResolver env) {
+		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && !flag(env, STANDALONE_KEY);
+	}
+
+	/** The mode flags read from the environment like {@link ApplicationModeService}. */
+	private static NodeOwnership resolveFromEnvironment(PropertyResolver env) {
+		return resolve(env, flag(env, STANDALONE_KEY), flag(env, FRANCHISE_ADMIN_KEY), flag(env, FRANCHISE_CUSTOMER_KEY));
 	}
 
 	/**
@@ -175,6 +222,12 @@ public final class NodeOwnership {
 					throw new IllegalStateException("Invalid value '" + raw + "' for property " + key + ": on a head office ("
 							+ NODE_TYPE_KEY + "=HEAD_OFFICE) the owner cannot be HEAD_OFFICE");
 				}
+				if (!headOffice && owner == DataOwner.HEAD_OFFICE && COPIES_DOWN_DOMAINS.contains(domain)
+						&& !isHeadOfficeLinkSet(env)) {
+					throw new IllegalStateException("Missing value for property " + HEADOFFICE_URL_KEY + ": required when "
+							+ key + " is HEAD_OFFICE ('" + raw + "'). Set the head office URL and key, or set " + key
+							+ " to LOCAL.");
+				}
 				owners.put(domain, owner);
 			} else {
 				owners.put(domain, derivedOwners.get(domain));
@@ -232,6 +285,7 @@ public final class NodeOwnership {
 		checkWholeSeconds(env, SALES_PUSH_INTERVAL_KEY);
 		checkBatchSize(env);
 		checkWholeDays(env, LOG_RETENTION_KEY);
+		checkWholeSeconds(env, PULL_INTERVAL_KEY);
 	}
 
 	/** When present, a whole number from 1 to {@value #SALES_PUSH_MAX_BATCH_SIZE}. */

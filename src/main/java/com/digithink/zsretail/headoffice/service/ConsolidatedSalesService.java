@@ -237,13 +237,13 @@ public class ConsolidatedSalesService {
 
 	// --- Filter and home ---
 
-	/** The stores for the page filters: id, code, name, active; by code. */
+	/** The stores for the page filters: id, code, name, active, ownership (task 3.6, null when unknown); by code. */
 	@Transactional(readOnly = true)
 	public List<Map<String, Object>> storeOptions() {
 		List<Map<String, Object>> options = new ArrayList<>();
 		for (Store store : stores.findAll(Sort.by("code"))) {
 			options.add(object("id", store.getId(), "code", store.getCode(), "name", store.getName(), "active",
-					store.getActive()));
+					store.getActive(), "ownership", store.getOwnership()));
 		}
 		return options;
 	}

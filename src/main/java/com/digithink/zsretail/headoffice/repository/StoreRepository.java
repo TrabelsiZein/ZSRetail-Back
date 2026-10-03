@@ -16,10 +16,15 @@ public interface StoreRepository extends _BaseRepository<Store, Long> {
 
 	/**
 	 * Heartbeat (task 1.4): writes lastContact and appVersion only, by id. A bulk update skips {@code @PreUpdate},
-	 * so updatedAt is unchanged. Returns the number of rows updated.
+	 * so updatedAt is unchanged. Returns the number of rows updated. Task 3.6: in the same update, what the store owns
+	 * (null = unknown), see Store.
 	 */
 	@Modifying
-	@Query("update Store s set s.lastContact = :lastContact, s.appVersion = :appVersion where s.id = :id")
+	@Query("update Store s set s.lastContact = :lastContact, s.appVersion = :appVersion,"
+			+ " s.ownerCatalogue = :catalogue, s.ownerCustomers = :customers, s.ownerPromotions = :promotions,"
+			+ " s.ownerLoyalty = :loyalty, s.ownerSupply = :supply, s.reportedSalesUpstreams = :upstreams where s.id = :id")
 	int updateContact(@Param("id") Long id, @Param("lastContact") LocalDateTime lastContact,
-			@Param("appVersion") String appVersion);
+			@Param("appVersion") String appVersion, @Param("catalogue") String catalogue,
+			@Param("customers") String customers, @Param("promotions") String promotions,
+			@Param("loyalty") String loyalty, @Param("supply") String supply, @Param("upstreams") String upstreams);
 }

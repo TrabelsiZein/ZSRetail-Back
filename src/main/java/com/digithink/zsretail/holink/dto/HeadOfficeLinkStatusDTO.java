@@ -1,6 +1,7 @@
 package com.digithink.zsretail.holink.dto;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
 
@@ -42,4 +43,10 @@ public class HeadOfficeLinkStatusDTO {
 
 	/** Task 2.4: sales copies rejected or not built, retried; null when this store does not copy its sales. */
 	private final Long errorCount;
+
+	/**
+	 * Task 3.5: per domain pulled from the head office, the records received by status, e.g. {"PROMOTIONS": {"APPLIED":
+	 * 12, "WAITING": 1, "ERROR": 0}}; null when this store pulls nothing, or when the counts cannot be read.
+	 */
+	private final Map<String, Map<String, Long>> received;
 }

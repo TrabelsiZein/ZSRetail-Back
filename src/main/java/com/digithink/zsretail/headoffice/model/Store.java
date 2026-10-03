@@ -1,6 +1,10 @@
 package com.digithink.zsretail.headoffice.model;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
@@ -10,7 +14,9 @@ import javax.persistence.Table;
 
 import com.digithink.zsretail.headoffice.enumeration.StoreKind;
 import com.digithink.zsretail.model._BaseEntity;
+import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import lombok.Data;
@@ -24,6 +30,8 @@ import lombok.ToString;
  */
 @Entity
 @Table(name = "ho_store")
+// Task 3.6: computed from the owner columns, sent, never read back (a getter-only Map would otherwise be filled)
+@JsonIgnoreProperties(value = { "ownership", "salesUpstreams" }, allowGetters = true)
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
@@ -57,4 +65,69 @@ public class Store extends _BaseEntity {
 	@ToString.Exclude
 	@Column(nullable = false, length = 64)
 	private String apiKeyHash;
+
+	// ─── What the store owns, reported with each heartbeat (task 3.6) ─────────
+	// Written only by POST /ho/heartbeat, in the same update as lastContact; null = unknown (no report yet, or a store
+	// of an older version). Exposed in JSON as "ownership" and "salesUpstreams" below, never read from the client.
+
+	/** DataOwner name the store reported for CATALOGUE; null when unknown. */
+	@JsonIgnore
+	@Column(name = "owner_catalogue", length = 20)
+	private String ownerCatalogue;
+
+	@JsonIgnore
+	@Column(name = "owner_customers", length = 20)
+	private String ownerCustomers;
+
+	@JsonIgnore
+	@Column(name = "owner_promotions", length = 20)
+	private String ownerPromotions;
+
+	@JsonIgnore
+	@Column(name = "owner_loyalty", length = 20)
+	private String ownerLoyalty;
+
+	@JsonIgnore
+	@Column(name = "owner_supply", length = 20)
+	private String ownerSupply;
+
+	/** SalesUpstream names reported, comma-separated in enum order; "" = nowhere; null = unknown. */
+	@JsonIgnore
+	@Column(name = "sales_upstreams", length = 50)
+	private String reportedSalesUpstreams;
+
+	/**
+	 * Task 3.6: DataDomain name to DataOwner name as the store reported it at its last heartbeat, in DataDomain order
+	 * (the shape of GET /config "ownership"); null when the store reported nothing (unknown). A domain whose report
+	 * could not be read is null.
+	 */
+	@JsonProperty("ownership")
+	public Map<String, String> getOwnership() {
+		if (ownerCatalogue == null && ownerCustomers == null && ownerPromotions == null && ownerLoyalty == null
+				&& ownerSupply == null) {
+			return null;
+		}
+		Map<String, String> ownership = new LinkedHashMap<>();
+		ownership.put(DataDomain.CATALOGUE.name(), ownerCatalogue);
+		ownership.put(DataDomain.CUSTOMERS.name(), ownerCustomers);
+		ownership.put(DataDomain.PROMOTIONS.name(), ownerPromotions);
+		ownership.put(DataDomain.LOYALTY.name(), ownerLoyalty);
+		ownership.put(DataDomain.SUPPLY.name(), ownerSupply);
+		return ownership;
+	}
+
+	/** Task 3.6: the SalesUpstream names reported (empty = nowhere); null when unknown. */
+	@JsonProperty("salesUpstreams")
+	public List<String> getSalesUpstreams() {
+		if (reportedSalesUpstreams == null) {
+			return null;
+		}
+		List<String> upstreams = new ArrayList<>();
+		for (String part : reportedSalesUpstreams.split(",")) {
+			if (!part.isEmpty()) {
+				upstreams.add(part);
+			}
+		}
+		return upstreams;
+	}
 }
