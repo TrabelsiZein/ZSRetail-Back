@@ -26,15 +26,22 @@ import com.digithink.zsretail.repository.AppRoleRepository;
 import com.digithink.zsretail.repository.UserAccountRepository;
 
 /**
- * Head office plan, task 1.2: on a new database a head office's ADMIN role gets the Network permissions
- * (read:admin-headoffice, read:admin-headoffice-stores); task 1.5: a store with headoffice.url gets
- * read:admin-holink-status for ADMIN; the 4 store profiles seed exactly today's roles; an existing
- * role is never changed. Calls the private ensureDefaultRoles() with in-memory stubs (no Spring context).
+ * Head office plan, task 1.6: a head office's ADMIN role gets one permission per head office route, on a new
+ * database and at each start for an existing role (only the missing ones, nothing removed); task 1.5: a store with
+ * headoffice.url gets read:admin-holink-status for ADMIN; the 4 store profiles seed exactly today's roles and never
+ * change an existing role. Calls the private ensureDefaultRoles() with in-memory stubs (no Spring context).
  */
 class ZZDataInitializerRolesTest {
 
-	private static final Set<String> HEAD_OFFICE_PERMISSIONS = new HashSet<>(
-			java.util.Arrays.asList("read:admin-headoffice", "read:admin-headoffice-stores"));
+	/** The head office routes of ZSRetail-Front src/router/headoffice-routes.js, as read:<meta.resource>. */
+	private static final Set<String> HEAD_OFFICE_PERMISSIONS = new HashSet<>(java.util.Arrays.asList(
+			"read:admin-headoffice-home", "read:admin-headoffice-stores", "read:admin-headoffice-items",
+			"read:admin-headoffice-item-families", "read:admin-headoffice-item-subfamilies",
+			"read:admin-headoffice-item-barcodes", "read:admin-headoffice-promotions", "read:admin-headoffice-customers",
+			"read:admin-headoffice-loyalty-programs", "read:admin-headoffice-loyalty-members",
+			"read:admin-headoffice-loyalty-member-functions", "read:admin-headoffice-loyalty-transactions",
+			"read:admin-headoffice-company-information", "read:admin-headoffice-general-setup",
+			"read:admin-headoffice-users", "read:admin-headoffice-roles", "read:admin-headoffice-data-import"));
 
 	// Mode flags of today's profile files: application.standalone, franchise.admin, franchise.customer
 	private static final boolean[][] STORE_PROFILES = {
@@ -47,6 +54,12 @@ class ZZDataInitializerRolesTest {
 	/** Roles saved by ensureDefaultRoles(), by name. {@code existing}: roles already in the database. */
 	private static Map<String, AppRole> seedRoles(MockEnvironment env, boolean standalone, boolean franchiseAdmin,
 			boolean franchiseCustomer, Map<String, AppRole> existing) throws Exception {
+		return seedRoles(env, standalone, franchiseAdmin, franchiseCustomer, existing, new ArrayList<>());
+	}
+
+	/** Same; {@code saves} receives the name of the role of each save call, in order. */
+	private static Map<String, AppRole> seedRoles(MockEnvironment env, boolean standalone, boolean franchiseAdmin,
+			boolean franchiseCustomer, Map<String, AppRole> existing, List<String> saves) throws Exception {
 		ApplicationModeService mode = new ApplicationModeService();
 		inject(mode, ApplicationModeService.class, "environment", env);
 		inject(mode, ApplicationModeService.class, "standalone", standalone);
@@ -63,6 +76,7 @@ class ZZDataInitializerRolesTest {
 				case "save":
 					AppRole role = (AppRole) args[0];
 					saved.put(role.getName(), role);
+					saves.add(role.getName());
 					return role;
 				default: return UNHANDLED;
 			}
@@ -87,22 +101,36 @@ class ZZDataInitializerRolesTest {
 		return (Set<String>) f.get(null);
 	}
 
+	/** Any head office permission, also the Network menu permission of tasks 1.2 to 1.5 (read:admin-headoffice). */
 	private static boolean hasHeadOfficePermission(AppRole role) {
-		return role.getPermissions().stream().anyMatch(HEAD_OFFICE_PERMISSIONS::contains);
+		return role.getPermissions().stream().anyMatch(p -> p.startsWith("read:admin-headoffice"));
+	}
+
+	private static MockEnvironment headOffice() {
+		return new MockEnvironment().withProperty("node.type", "HEAD_OFFICE");
 	}
 
 	@Test
-	@DisplayName("Head office: ADMIN gets today's permissions plus the two Network permissions; other roles none")
-	void headOfficeAdminGetsNetwork() throws Exception {
-		Map<String, AppRole> roles = seedRoles(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE"), true,
-				false, false, Collections.emptyMap());
+	@DisplayName("Head office, new database: ADMIN gets today's permissions plus one per head office route, saved once; other roles none")
+	void headOfficeAdminGetsHeadOfficePages() throws Exception {
+		List<String> saves = new ArrayList<>();
+		Map<String, AppRole> roles = seedRoles(headOffice(), true, false, false, Collections.emptyMap(), saves);
 
+		assertEquals(HEAD_OFFICE_PERMISSIONS, staticSet("HEAD_OFFICE_ADMIN_PERMISSIONS"), "same list as the frontend routes");
+		assertFalse(HEAD_OFFICE_PERMISSIONS.contains("read:admin-headoffice"), "Network menu permission dropped");
 		Set<String> expected = new HashSet<>(staticSet("ADMIN_PERMISSIONS"));
 		expected.addAll(HEAD_OFFICE_PERMISSIONS);
 		assertEquals(expected, roles.get("ADMIN").getPermissions());
+		assertEquals(java.util.Arrays.asList("ADMIN", "RESPONSIBLE", "POS_USER"), saves, "each role saved once");
 		assertFalse(hasHeadOfficePermission(roles.get("RESPONSIBLE")));
 		assertFalse(hasHeadOfficePermission(roles.get("POS_USER")));
-		assertFalse(staticSet("ADMIN_PERMISSIONS").containsAll(HEAD_OFFICE_PERMISSIONS), "store set untouched");
+		assertFalse(hasHeadOfficePermission(roleWith(staticSet("ADMIN_PERMISSIONS"))), "store set untouched");
+	}
+
+	private static AppRole roleWith(Set<String> permissions) {
+		AppRole role = new AppRole("ROLE", "ROLE", false);
+		role.setPermissions(new HashSet<>(permissions));
+		return role;
 	}
 
 	@Test
@@ -143,21 +171,59 @@ class ZZDataInitializerRolesTest {
 		assertFalse(staticSet("ADMIN_PERMISSIONS").contains("read:admin-holink-status"), "store set untouched");
 	}
 
-	@Test
-	@DisplayName("Head office with existing roles (database created before 1.2): nothing is saved or changed")
-	void existingRolesUntouched() throws Exception {
+	/** The three roles already in the database, ADMIN with {@code adminPermissions}, the others with read:home. */
+	private static Map<String, AppRole> existingRoles(String... adminPermissions) {
 		Map<String, AppRole> existing = new LinkedHashMap<>();
 		for (String name : new String[] { "ADMIN", "RESPONSIBLE", "POS_USER" }) {
 			AppRole role = new AppRole(name, name, "POS_USER".equals(name));
-			role.setPermissions(new HashSet<>(Collections.singleton("read:home")));
+			role.setPermissions(new HashSet<>("ADMIN".equals(name) ? java.util.Arrays.asList(adminPermissions)
+					: Collections.singleton("read:home")));
 			existing.put(name, role);
 		}
+		return existing;
+	}
 
-		Map<String, AppRole> saved = seedRoles(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE"), true,
-				false, false, existing);
+	@Test
+	@DisplayName("Head office with existing roles: ADMIN receives the missing head office permissions once, keeps the others; other roles untouched")
+	void headOfficeExistingAdminToppedUp() throws Exception {
+		// A head office database created at task 1.2: ADMIN has the Network menu and Stores permissions
+		Map<String, AppRole> existing = existingRoles("read:home", "read:admin-headoffice", "read:admin-headoffice-stores");
 
-		assertTrue(saved.isEmpty(), "saved: " + saved.keySet());
-		assertEquals(Collections.singleton("read:home"), existing.get("ADMIN").getPermissions());
+		List<String> saves = new ArrayList<>();
+		seedRoles(headOffice(), true, false, false, existing, saves);
+
+		assertEquals(Collections.singletonList("ADMIN"), saves);
+		Set<String> expected = new HashSet<>(HEAD_OFFICE_PERMISSIONS);
+		expected.add("read:home");
+		expected.add("read:admin-headoffice");
+		assertEquals(expected, existing.get("ADMIN").getPermissions(), "nothing removed");
+		assertEquals(Collections.singleton("read:home"), existing.get("RESPONSIBLE").getPermissions());
+		assertEquals(Collections.singleton("read:home"), existing.get("POS_USER").getPermissions());
+
+		// Next start: nothing is missing, nothing is saved
+		List<String> nextSaves = new ArrayList<>();
+		seedRoles(headOffice(), true, false, false, existing, nextSaves);
+		assertTrue(nextSaves.isEmpty(), "saved: " + nextSaves);
+		assertEquals(expected, existing.get("ADMIN").getPermissions());
+	}
+
+	@Test
+	@DisplayName("Stores (4 profiles, with and without headoffice.url) with existing roles: nothing is saved or changed")
+	void storeExistingRolesUntouched() throws Exception {
+		MockEnvironment linked = new MockEnvironment()
+				.withProperty("headoffice.url", "http://localhost:888/zsretail/api")
+				.withProperty("headoffice.api-key", "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde");
+		for (MockEnvironment env : new MockEnvironment[] { new MockEnvironment(), linked }) {
+			for (boolean[] flags : STORE_PROFILES) {
+				Map<String, AppRole> existing = existingRoles("read:home");
+
+				List<String> saves = new ArrayList<>();
+				seedRoles(env, flags[0], flags[1], flags[2], existing, saves);
+
+				assertTrue(saves.isEmpty(), "saved: " + saves);
+				assertEquals(Collections.singleton("read:home"), existing.get("ADMIN").getPermissions());
+			}
+		}
 	}
 
 	// --- Stubs ---
