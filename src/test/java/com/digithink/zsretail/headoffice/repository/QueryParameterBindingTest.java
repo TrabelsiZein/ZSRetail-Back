@@ -28,6 +28,7 @@ import org.springframework.context.annotation.ClassPathScanningCandidateComponen
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.data.repository.query.Param;
 
+import com.digithink.zsretail.holink.repository.DownRecordRepository;
 import com.digithink.zsretail.holink.repository.LinkExchangeRepository;
 import com.digithink.zsretail.holink.repository.SalesCopyRepository;
 import com.digithink.zsretail.repository.PromotionRepository;
@@ -43,7 +44,8 @@ class QueryParameterBindingTest {
 
 	private static final Class<?>[] REPOSITORIES = { HoTicketRepository.class, HoReturnRepository.class,
 			HoDownChangeRepository.class, HoDownSequenceRepository.class, PromotionRepository.class,
-			HoSessionRepository.class, LinkExchangeRepository.class, SalesCopyRepository.class };
+			HoSessionRepository.class, LinkExchangeRepository.class, SalesCopyRepository.class,
+			DownRecordRepository.class };
 
 	private static SessionFactory sessionFactory;
 

@@ -1,6 +1,7 @@
 package com.digithink.zsretail.holink.controller;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -24,17 +25,21 @@ import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
 import com.digithink.zsretail.holink.scheduler.HeartbeatJob;
 import com.digithink.zsretail.holink.scheduler.LinkJob;
 import com.digithink.zsretail.holink.scheduler.LinkJobScheduler;
+import com.digithink.zsretail.holink.service.CopiesDownPuller;
+import com.digithink.zsretail.holink.service.DownRecordLog;
 import com.digithink.zsretail.holink.service.HeadOfficeLinkStatus;
 import com.digithink.zsretail.holink.service.LinkExchangeLog;
 import com.digithink.zsretail.holink.service.LinkJobService;
 import com.digithink.zsretail.holink.service.SalesCopyFinder;
 import com.digithink.zsretail.holink.service.SalesPushService;
+import com.digithink.zsretail.model.enumeration.DataDomain;
 
 /**
  * Head office plan, task 1.5: the store's "Head office link" page. Exists only when headoffice.url is set (otherwise
  * 404). Admin endpoints (JWT, like the other admin APIs); nothing in the selling path calls them. The key is never
  * returned. Task 2.4: the status also gives the sales copy counts. Task 2.6: the jobs (frequency, run now) and the
- * exchange log. Contract: docs/modules/head-office.md, "Head office link page".
+ * exchange log. Task 3.5: the records received from the head office and their counts. Contract:
+ * docs/modules/head-office.md, "Head office link page".
  */
 @RestController
 @RequestMapping("admin/holink")
@@ -50,14 +55,21 @@ public class HeadOfficeLinkAPI {
 	/** Task 2.4: present only when the store copies its sales to the head office. */
 	private final Optional<SalesPushService> salesPush;
 
+	/** Task 3.5: present only when the store pulls copies down from the head office. */
+	private final Optional<CopiesDownPuller> puller;
+	private final Optional<DownRecordLog> downRecords;
+
 	public HeadOfficeLinkAPI(HeadOfficeLinkStatus status, LinkJobScheduler jobs, LinkJobService jobService,
-			LinkExchangeLog exchangeLog, HeadOfficeClient client, Optional<SalesPushService> salesPush) {
+			LinkExchangeLog exchangeLog, HeadOfficeClient client, Optional<SalesPushService> salesPush,
+			Optional<CopiesDownPuller> puller, Optional<DownRecordLog> downRecords) {
 		this.status = status;
 		this.jobs = jobs;
 		this.jobService = jobService;
 		this.exchangeLog = exchangeLog;
 		this.client = client;
 		this.salesPush = salesPush;
+		this.puller = puller;
+		this.downRecords = downRecords;
 	}
 
 	@GetMapping("/status")
@@ -131,6 +143,26 @@ public class HeadOfficeLinkAPI {
 		}
 	}
 
+	/**
+	 * Task 3.5: the records of a domain received from the head office, with their status and the counts:
+	 * {domain, counts: {APPLIED, WAITING, ERROR}, records: [{code, name, status, reason, info, receivedAt, statusSince}]}.
+	 * status: one status, blank or "all" = every status. 404 when this store does not pull the domain; 400 on a bad status.
+	 */
+	@GetMapping("/received/{domain}")
+	public ResponseEntity<?> received(@PathVariable String domain, @RequestParam(required = false) String status) {
+		Optional<DataDomain> pulled = puller.flatMap(p -> p.getDomains().stream()
+				.filter(d -> d.name().equalsIgnoreCase(domain == null ? "" : domain.trim())).findFirst());
+		if (!pulled.isPresent() || !downRecords.isPresent()) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(Collections.singletonMap("error", "No copies down of '" + domain + "' on this store"));
+		}
+		try {
+			return ResponseEntity.ok(downRecords.get().list(pulled.get(), status));
+		} catch (IllegalArgumentException e) {
+			return badRequest(e.getMessage());
+		}
+	}
+
 	private static ResponseEntity<?> notFound(String code) {
 		return ResponseEntity.status(HttpStatus.NOT_FOUND)
 				.body(Collections.singletonMap("error", "No job '" + code + "' on this store"));
@@ -151,7 +183,23 @@ public class HeadOfficeLinkAPI {
 		return new HeadOfficeLinkStatusDTO(snapshot.getState(), snapshot.getLastMessage(), snapshot.getLastAttempt(),
 				snapshot.getLastSuccess(), snapshot.getServerTime(), client.getBaseUrl(), storeCode(), interval,
 				count(counts, SalesCopyStatus.PENDING), count(counts, SalesCopyStatus.SENT),
-				count(counts, SalesCopyStatus.ERROR));
+				count(counts, SalesCopyStatus.ERROR), received());
+	}
+
+	/** Task 3.5: the counts per domain pulled; null without a pull or when they cannot be read. */
+	private Map<String, Map<String, Long>> received() {
+		if (!puller.isPresent() || !downRecords.isPresent()) {
+			return null;
+		}
+		try {
+			Map<String, Map<String, Long>> received = new LinkedHashMap<>();
+			for (DataDomain domain : puller.get().getDomains()) {
+				received.put(domain.name(), downRecords.get().counts(domain));
+			}
+			return received;
+		} catch (RuntimeException e) {
+			return null; // the status is still answered
+		}
 	}
 
 	private static Long count(Map<SalesCopyStatus, Long> counts, SalesCopyStatus status) {

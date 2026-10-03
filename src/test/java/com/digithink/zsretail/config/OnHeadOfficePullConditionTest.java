@@ -13,6 +13,7 @@ import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.holink.scheduler.CopiesDownJob;
 import com.digithink.zsretail.holink.service.CopiesDownPuller;
+import com.digithink.zsretail.holink.service.DownRecordLog;
 import com.digithink.zsretail.holink.service.PromotionDownHandler;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 
@@ -23,7 +24,7 @@ import com.digithink.zsretail.model.enumeration.DataDomain;
  */
 class OnHeadOfficePullConditionTest {
 
-	private static final Class<?>[] PULL_BEANS = { CopiesDownPuller.class, CopiesDownJob.class };
+	private static final Class<?>[] PULL_BEANS = { CopiesDownPuller.class, CopiesDownJob.class, DownRecordLog.class };
 
 	private static MockEnvironment link() {
 		return new MockEnvironment().withProperty("headoffice.url", "http://localhost:888/zsretail/api")

@@ -27,6 +27,9 @@ import org.springframework.transaction.support.TransactionOperations;
 
 import com.digithink.zsretail.headoffice.dto.PromotionCopyDTO;
 import com.digithink.zsretail.holink.dto.DownApplyResult;
+import com.digithink.zsretail.holink.enumeration.DownRecordStatus;
+import com.digithink.zsretail.holink.model.DownRecord;
+import com.digithink.zsretail.holink.repository.DownRecordRepository;
 import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.ItemFamily;
 import com.digithink.zsretail.model.ItemSubFamily;
@@ -49,7 +52,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
  * Head office plan, task 3.3: the store side of the promotions. Mapping by codes for every scope (ITEM_GROUP and the
  * benefit item included) to this store's records; saved by code with origin HEAD_OFFICE, normalised, without the usage
  * lock; the same copy twice changes nothing; a code used by a local promotion is not saved; removal (unused deleted,
- * used deactivated, local left alone, targeted again updated); local promotions set inactive (Zein's correction). The
+ * used deactivated, local left alone, targeted again updated); local promotions set inactive (Zein's correction).
+ * Task 3.5: missing targets WAITING and retried until they apply, ITEM_GROUP information, the tracking rows. The
  * copies are built from head office promotions with other database ids and go through JSON. In-memory store tables.
  */
 class PromotionDownHandlerTest {
@@ -64,6 +68,10 @@ class PromotionDownHandlerTest {
 	private final Map<String, ItemSubFamily> subFamilies = new HashMap<>();
 	private final Map<Long, Long> usages = new HashMap<>();
 	private int saves;
+
+	/** hol_down_record, by code, and its writes. */
+	private final Map<String, DownRecord> tracking = new LinkedHashMap<>();
+	private int trackingWrites;
 	private long nextId;
 
 	private PromotionDownHandler handler;
@@ -76,6 +84,8 @@ class PromotionDownHandlerTest {
 		subFamilies.clear();
 		usages.clear();
 		saves = 0;
+		tracking.clear();
+		trackingWrites = 0;
 		nextId = 1;
 		ItemFamily family = new ItemFamily();
 		family.setId(7101L);
@@ -97,7 +107,8 @@ class PromotionDownHandlerTest {
 		repository.setAccessible(true);
 		repository.set(promotionService, promotionRepository());
 		handler = new PromotionDownHandler(promotionService, promotionRepository(), itemRepository(),
-				familyRepository(), subFamilyRepository(), TransactionOperations.withoutTransaction());
+				familyRepository(), subFamilyRepository(), new DownRecordLog(trackingRepository()),
+				TransactionOperations.withoutTransaction());
 	}
 
 	// ─── Head office promotions (other ids) and their copies ──────
@@ -143,6 +154,18 @@ class PromotionDownHandlerTest {
 
 	private DownApplyResult remove(String... codes) {
 		return handler.apply(Collections.emptyList(), Arrays.asList(codes));
+	}
+
+	private DownRecord tracked(String code) {
+		return tracking.get(code);
+	}
+
+	private void addItem(String code, long id) {
+		Item item = new Item();
+		item.setId(id);
+		item.setItemCode(code);
+		item.setName(code);
+		items.put(code, item);
 	}
 
 	private Promotion stored(String code) {
@@ -294,23 +317,126 @@ class PromotionDownHandlerTest {
 	}
 
 	@Test
-	@DisplayName("A target this store does not have: not saved, reported; a group with some items saved with those")
-	void missingTargets() throws Exception {
+	@DisplayName("Task 3.5: an item not in the store: WAITING with the reason, retried at every cycle, applies by itself once the item exists")
+	void missingItemWaitingThenApplied() throws Exception {
 		Promotion missing = hoPromotion("MISS", PromotionScope.ITEM);
 		missing.setItem(hoItem("I9"));
+		DownApplyResult result = apply(missing);
+		assertEquals(1, result.getWaiting());
+		assertEquals("MISS: not in this store: item I9", result.getFirstProblem());
+		assertNull(stored("MISS"), "not applied");
+		DownRecord row = tracked("MISS");
+		assertEquals(DownRecordStatus.WAITING, row.getStatus());
+		assertEquals("not in this store: item I9", row.getReason());
+		assertEquals("HO MISS", row.getRecordName());
+		handler.retry(); // end of the pull's cycle: the record it just tried is not retried
+
+		int rowWrites = trackingWrites;
+		DownApplyResult retry = handler.retry();
+		assertEquals(1, retry.getWaiting(), "still waiting");
+		assertEquals(rowWrites, trackingWrites, "a retry that changes nothing writes nothing");
+		assertNull(stored("MISS"));
+
+		addItem("I9", 7009L);
+		retry = handler.retry();
+		assertEquals(1, retry.getApplied());
+		assertEquals(7009L, stored("MISS").getItem().getId());
+		assertEquals(DownRecordStatus.APPLIED, tracked("MISS").getStatus());
+		assertNull(tracked("MISS").getReason());
+		assertEquals(0, handler.retry().getApplied(), "an applied record is not retried");
+	}
+
+	@Test
+	@DisplayName("Task 3.5: family, sub-family and benefit item missing are WAITING too; a promotion the store has becomes inactive")
+	void otherTargetsAndExisting() throws Exception {
+		Promotion family = hoPromotion("FAM", PromotionScope.ITEM_FAMILY);
+		ItemFamily f9 = new ItemFamily();
+		f9.setCode("F9");
+		family.setItemFamily(f9);
+		Promotion sub = hoPromotion("SUB", PromotionScope.ITEM_SUBFAMILY);
+		ItemSubFamily s9 = new ItemSubFamily();
+		s9.setCode("SF9");
+		sub.setItemSubFamily(s9);
+		Promotion gift = hoPromotion("GIFT", PromotionScope.ITEM);
+		gift.setPromotionType(PromotionType.QUANTITY_PROMOTION);
+		gift.setMinimumQuantity(2);
+		gift.setItem(hoItem("I1"));
+		gift.setGetItem(hoItem("I7"));
+		assertEquals(3, apply(family, sub, gift).getWaiting());
+		assertEquals("not in this store: family F9", tracked("FAM").getReason());
+		assertEquals("not in this store: sub-family SF9", tracked("SUB").getReason());
+		assertEquals("not in this store: benefit item I7", tracked("GIFT").getReason());
+
+		Promotion item = hoPromotion("P1", PromotionScope.ITEM);
+		item.setItem(hoItem("I1"));
+		apply(item);
+		assertTrue(stored("P1").getActive());
+		item.setItem(hoItem("I9")); // the head office now targets an item this store does not have
+		assertEquals(1, apply(item).getWaiting());
+		assertFalse(stored("P1").getActive(), "not applied: inactive until its item is here");
+		assertEquals(7001L, stored("P1").getItem().getId(), "the rest unchanged");
+		int writes = saves;
+		apply(item);
+		assertEquals(writes, saves, "the same answer again writes nothing");
+		handler.retry(); // end of the cycle
+		addItem("I9", 7009L);
+		handler.retry();
+		assertTrue(stored("P1").getActive());
+		assertEquals(7009L, stored("P1").getItem().getId());
+	}
+
+	@Test
+	@DisplayName("Task 3.5: ITEM_GROUP saved with the items the store has, the missing codes as information; none present: WAITING")
+	void groupItems() throws Exception {
 		Promotion none = hoPromotion("NONE", PromotionScope.ITEM_GROUP);
 		none.getGroupItems().add(hoItem("I8"));
 		none.getGroupItems().add(hoItem("I9"));
 		Promotion some = hoPromotion("SOME", PromotionScope.ITEM_GROUP);
 		some.getGroupItems().add(hoItem("I1"));
 		some.getGroupItems().add(hoItem("I9"));
-		DownApplyResult result = apply(missing, none, some);
-		assertEquals(2, result.getProblems());
-		assertEquals("MISS: not applied: item I9 not in this store", result.getFirstProblem());
-		assertNull(stored("MISS"));
+		DownApplyResult result = apply(none, some);
+		assertEquals(1, result.getWaiting());
+		assertEquals(1, result.getApplied());
 		assertNull(stored("NONE"));
+		assertEquals("not in this store: group items I8, I9", tracked("NONE").getReason());
 		assertEquals(Collections.singletonList(7001L), stored("SOME").getGroupItems().stream().map(Item::getId)
 				.collect(Collectors.toList()));
+		assertEquals(DownRecordStatus.APPLIED, tracked("SOME").getStatus());
+		assertEquals("group items not in this store: I9", tracked("SOME").getInfo());
+	}
+
+	@Test
+	@DisplayName("Task 3.5: a code clash is ERROR, retried; once the local promotion is gone, the head office one applies")
+	void clashRetried() throws Exception {
+		Promotion mine = local("SALE", null, true);
+		apply(hoPromotion("SALE", PromotionScope.CART));
+		assertEquals(DownRecordStatus.ERROR, tracked("SALE").getStatus());
+		assertEquals(PromotionDownHandler.CODE_CLASH, tracked("SALE").getReason());
+		handler.retry(); // end of the cycle
+		assertEquals(1, handler.retry().getErrors());
+		promotions.remove(mine.getId());
+		assertEquals(1, handler.retry().getApplied());
+		assertEquals(RecordOrigin.HEAD_OFFICE, stored("SALE").getOrigin());
+		assertEquals(DownRecordStatus.APPLIED, tracked("SALE").getStatus());
+	}
+
+	@Test
+	@DisplayName("Task 3.5: the same answer twice writes no tracking row; a removal deletes the row; this cycle's records are not retried")
+	void trackingRows() throws Exception {
+		Promotion p = hoPromotion("P1", PromotionScope.CART);
+		Promotion w = hoPromotion("W1", PromotionScope.ITEM);
+		w.setItem(hoItem("I9"));
+		apply(p, w);
+		int writes = trackingWrites;
+		apply(p, w);
+		assertEquals(writes, trackingWrites, "same answer: no write");
+		assertEquals(0, handler.retry().getWaiting(), "W1 was just tried by this cycle's pull");
+		assertEquals(1, handler.retry().getWaiting(), "next cycle: retried");
+
+		remove("P1", "W1");
+		assertNull(tracked("P1"));
+		assertNull(tracked("W1"));
+		assertTrue(tracking.isEmpty());
 	}
 
 	@Test
@@ -364,6 +490,29 @@ class PromotionDownHandlerTest {
 				case "findActiveNotFrom":
 					return promotions.values().stream()
 							.filter(p -> Boolean.TRUE.equals(p.getActive()) && p.getOrigin() != args[0])
+							.collect(Collectors.toList());
+				default:
+					throw new UnsupportedOperationException(method);
+			}
+		});
+	}
+
+	private DownRecordRepository trackingRepository() {
+		return proxy(DownRecordRepository.class, (method, args) -> {
+			switch (method) {
+				case "findByDomainAndRecordCode":
+					return Optional.ofNullable(tracking.get(args[1]));
+				case "save":
+					DownRecord row = (DownRecord) args[0];
+					tracking.put(row.getRecordCode(), row);
+					trackingWrites++;
+					return row;
+				case "delete":
+					tracking.remove(((DownRecord) args[0]).getRecordCode());
+					return null;
+				case "findByDomainAndStatusIn":
+					java.util.Collection<?> statuses = (java.util.Collection<?>) args[1];
+					return tracking.values().stream().filter(r -> statuses.contains(r.getStatus()))
 							.collect(Collectors.toList());
 				default:
 					throw new UnsupportedOperationException(method);
