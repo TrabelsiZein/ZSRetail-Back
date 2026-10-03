@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.core.annotation.Order;
 import org.springframework.mock.env.MockEnvironment;
 
+import com.digithink.zsretail.headoffice.controller.HeadOfficeHeartbeatAPI;
 import com.digithink.zsretail.headoffice.controller.HeadOfficePingAPI;
 import com.digithink.zsretail.headoffice.controller.StoreAPI;
 import com.digithink.zsretail.headoffice.security.HeadOfficeApiSecurityConfig;
@@ -21,15 +22,15 @@ import com.digithink.zsretail.headoffice.security.StoreApiKeyFilter;
 import com.digithink.zsretail.headoffice.service.StoreService;
 
 /**
- * Head office plan, tasks 1.2 and 1.3: the stores beans, the /ho/** store key filter and GET /ho/ping exist only on
- * a head office; the /ho/** security chain exists on both. node.type is read as at startup (trimmed,
+ * Head office plan, tasks 1.2 to 1.4: the stores beans, the /ho/** store key filter, GET /ho/ping and
+ * POST /ho/heartbeat exist only on a head office; the /ho/** security chain exists on both. node.type is read as at startup (trimmed,
  * case-insensitive). The registration check uses a bare bean registry: each bean definition is evaluated against its
  * condition, nothing is created and no context is started.
  */
 class OnHeadOfficeConditionTest {
 
 	private static final Class<?>[] STORE_BEANS = { StoreService.class, StoreAPI.class, StoreApiKeyFilter.class,
-			HeadOfficePingAPI.class };
+			HeadOfficePingAPI.class, HeadOfficeHeartbeatAPI.class };
 
 	/** True when the class gets a bean definition with this environment. */
 	private static boolean registered(MockEnvironment env, Class<?> beanClass) {

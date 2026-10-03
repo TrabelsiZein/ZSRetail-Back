@@ -62,6 +62,13 @@
 | otherwise (ERP) | STORE | ERP | ERP | LOCAL | LOCAL | ERP | ERP |
 
 - An explicit key overrides only its own value. An unknown value, or `ERP` for promotions or loyalty, stops the startup with `Invalid value '<value>' for property <key>: allowed values are [...]`. Checks across keys for a head office (franchise flags, owner `HEAD_OFFICE`, `sales.upstream`): see `docs/modules/head-office.md`.
+- **Head office link** (task 1.4): a store that calls a head office. Three optional keys; without `headoffice.url` none of the link beans exists and every profile behaves as before. The two dev profiles (`standalone-dev`, `dynamics-dev`) carry the first two lines commented out. Details, startup checks and the "Connect a store" procedure: `docs/modules/head-office.md`, "Head office link".
+
+| Key | Value | When absent |
+|---|---|---|
+| `headoffice.url` | Head office base URL including the context path, e.g. `http://localhost:888/zsretail/api`; a trailing slash is tolerated | no link (blank = absent) |
+| `headoffice.api-key` | The store's key, shown once on the head office Stores page | required when the URL is set |
+| `headoffice.heartbeat-interval-seconds` | Whole number, at least 1 | `60` |
 - **GET /config** (task 0.5) returns three more fields after the existing ones, enums as their names:
   - `nodeType`: `"STORE"` or `"HEAD_OFFICE"`.
   - `ownership`: every domain to its owner, in `DataDomain` order. ERP profile: `{"CATALOGUE":"ERP","CUSTOMERS":"ERP","PROMOTIONS":"LOCAL","LOYALTY":"LOCAL","SUPPLY":"ERP"}`.

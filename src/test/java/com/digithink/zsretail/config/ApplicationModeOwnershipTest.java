@@ -22,6 +22,7 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * Head office plan, task 0.4: node type, data ownership and sales upstreams derived from today's mode
  * flags (design table 5.1), overridden by the optional keys, and rejected at startup when invalid.
  * Task 1.1: the head office rows and the startup checks across keys.
+ * Task 1.4: the head office link startup checks (headoffice.url on a head office, missing key, interval).
  * Plain JUnit with a MockEnvironment (no Spring context).
  */
 class ApplicationModeOwnershipTest {
@@ -220,6 +221,69 @@ class ApplicationModeOwnershipTest {
 			assertTrue(e.getMessage().contains("sales.upstream"), e.getMessage());
 		}
 		assertEquals(none(), standalone(headOfficeEnv().withProperty("sales.upstream", "")).getSalesUpstreams());
+	}
+
+	// --- Head office link (task 1.4): startup checks when headoffice.url is set ---
+
+	private static MockEnvironment linkEnv() {
+		return new MockEnvironment()
+				.withProperty("headoffice.url", "http://localhost:888/zsretail/api/")
+				.withProperty("headoffice.api-key", "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde");
+	}
+
+	@Test
+	@DisplayName("Store with headoffice.url and a key: accepted on the 4 profiles (trailing slash tolerated), rows unchanged")
+	void headOfficeLinkAcceptedOnStore() {
+		assertRow(standalone(linkEnv()), NodeType.STORE, L, L, L, L, L, none());
+		assertRow(erp(linkEnv()), NodeType.STORE, ERP, ERP, L, L, ERP, EnumSet.of(SalesUpstream.ERP));
+		assertRow(franchiseCustomer(linkEnv()), NodeType.STORE, HO, L, L, L, HO, EnumSet.of(SalesUpstream.HEAD_OFFICE));
+		assertRow(franchiseAdmin(linkEnv()), NodeType.STORE, L, L, L, L, L, none());
+		assertEquals(NodeType.STORE, standalone(linkEnv().withProperty("node.type", "STORE")).getNodeType());
+	}
+
+	@Test
+	@DisplayName("headoffice.url on a head office is refused")
+	void headOfficeLinkRefusedOnHeadOffice() {
+		MockEnvironment env = linkEnv().withProperty("node.type", "HEAD_OFFICE");
+		IllegalStateException e = assertThrows(IllegalStateException.class, () -> standalone(env));
+		assertTrue(e.getMessage().contains("node.type=HEAD_OFFICE"), e.getMessage());
+		assertTrue(e.getMessage().contains("headoffice.url"), e.getMessage());
+	}
+
+	@Test
+	@DisplayName("headoffice.url with a missing, empty or blank headoffice.api-key is refused")
+	void headOfficeLinkRefusedWithoutKey() {
+		MockEnvironment missing = new MockEnvironment().withProperty("headoffice.url", "http://localhost:888/zsretail/api");
+		for (MockEnvironment env : new MockEnvironment[] { missing, linkEnv().withProperty("headoffice.api-key", ""),
+				linkEnv().withProperty("headoffice.api-key", "  ") }) {
+			IllegalStateException e = assertThrows(IllegalStateException.class, () -> erp(env));
+			assertTrue(e.getMessage().startsWith("Missing value for property headoffice.api-key"), e.getMessage());
+		}
+	}
+
+	@Test
+	@DisplayName("headoffice.heartbeat-interval-seconds below 1 or not a whole number is refused; 1 and ' 30 ' accepted")
+	void headOfficeLinkInterval() {
+		for (String value : new String[] { "0", "-5", "abc", "1.5", "" }) {
+			MockEnvironment env = linkEnv().withProperty("headoffice.heartbeat-interval-seconds", value);
+			IllegalStateException e = assertThrows(IllegalStateException.class, () -> standalone(env), value);
+			assertTrue(e.getMessage().contains("headoffice.heartbeat-interval-seconds"), e.getMessage());
+			assertTrue(e.getMessage().contains("'" + value + "'"), e.getMessage());
+		}
+		standalone(linkEnv().withProperty("headoffice.heartbeat-interval-seconds", "1"));
+		standalone(linkEnv().withProperty("headoffice.heartbeat-interval-seconds", " 30 "));
+	}
+
+	@Test
+	@DisplayName("Without headoffice.url (absent or blank) the other headoffice.* keys are not checked, on a head office too")
+	void headOfficeLinkKeysIgnoredWithoutUrl() {
+		MockEnvironment env = new MockEnvironment()
+				.withProperty("headoffice.url", " ")
+				.withProperty("headoffice.api-key", "")
+				.withProperty("headoffice.heartbeat-interval-seconds", "0");
+		assertRow(standalone(env), NodeType.STORE, L, L, L, L, L, none());
+		assertRow(standalone(headOfficeEnv().withProperty("headoffice.heartbeat-interval-seconds", "0")),
+				NodeType.HEAD_OFFICE, L, L, L, L, L, none());
 	}
 
 	// --- Through ApplicationModeService ---

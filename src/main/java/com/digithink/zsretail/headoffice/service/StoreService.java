@@ -4,12 +4,14 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.digithink.zsretail.config.ConditionalOnHeadOffice;
 import com.digithink.zsretail.headoffice.dto.StoreWithKeyDTO;
@@ -136,6 +138,16 @@ public class StoreService extends _BaseService<Store, Long> {
 	}
 
 	/**
+	 * Heartbeat (task 1.4): the store's last contact (head office clock) and the version it sent. Writes these two
+	 * columns only, by id: the /ho/** principal is detached and is never saved. The version is trimmed; blank gives
+	 * null, longer than the column is cut.
+	 */
+	@Transactional
+	public void recordContact(Long id, String appVersion, LocalDateTime when) {
+		storeRepository.updateContact(id, when, normalizeVersion(appVersion));
+	}
+
+	/**
 	 * The active store with this code (trimmed, case-insensitive) whose key hash matches the presented key, compared
 	 * in constant time. Empty otherwise.
 	 */
@@ -194,6 +206,15 @@ public class StoreService extends _BaseService<Store, Long> {
 	/** Trimmed and uppercase; empty when null. */
 	static String normalizeCode(String code) {
 		return code == null ? "" : code.trim().toUpperCase(Locale.ROOT);
+	}
+
+	/** Trimmed; null when blank; cut to the column length. */
+	static String normalizeVersion(String version) {
+		if (version == null || version.trim().isEmpty()) {
+			return null;
+		}
+		String trimmed = version.trim();
+		return trimmed.length() > Store.APP_VERSION_LENGTH ? trimmed.substring(0, Store.APP_VERSION_LENGTH) : trimmed;
 	}
 
 	static String newKey() {

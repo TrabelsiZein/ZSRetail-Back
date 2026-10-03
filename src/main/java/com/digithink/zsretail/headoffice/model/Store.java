@@ -29,6 +29,9 @@ import lombok.ToString;
 @NoArgsConstructor
 public class Store extends _BaseEntity {
 
+	/** Length of the app_version column (the JPA default); a longer version sent by a store is cut. */
+	public static final int APP_VERSION_LENGTH = 255;
+
 	/** The store's DEFAULT_LOCATION value: trimmed, uppercase, unique. Cannot be changed after creation. */
 	@Column(nullable = false, unique = true, length = 50)
 	private String code;
@@ -40,12 +43,13 @@ public class Store extends _BaseEntity {
 	@Column(nullable = false, length = 20)
 	private StoreKind kind = StoreKind.OWN;
 
-	/** Last call from the store (task 1.3 onwards); null until the first contact. Never written by the client. */
+	/** Last heartbeat of the store (task 1.4), head office clock; null until the first contact. Never written by the client. */
 	@JsonProperty(access = JsonProperty.Access.READ_ONLY)
 	private LocalDateTime lastContact;
 
-	/** Application version the store sent at its last contact; null until then. Never written by the client. */
+	/** Application version the store sent at its last heartbeat; null until then. Never written by the client. */
 	@JsonProperty(access = JsonProperty.Access.READ_ONLY)
+	@Column(length = APP_VERSION_LENGTH)
 	private String appVersion;
 
 	/** SHA-256 (hex) of the store's API key; the key itself is never stored. Never serialized, never logged. */

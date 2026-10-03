@@ -32,11 +32,17 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * Head office ({@code node.type=HEAD_OFFICE}, docs/modules/head-office.md): it never sells, so sales go nowhere
  * when {@code sales.upstream} is absent. The startup also fails on a head office with franchise.admin or
  * franchise.customer set to true, with an explicit owner HEAD_OFFICE, or with a non-empty sales.upstream.
+ *
+ * Head office link (task 1.4): when {@code headoffice.url} is set, the startup fails on a head office, with a blank
+ * {@code headoffice.api-key}, or with a {@code headoffice.heartbeat-interval-seconds} below 1.
  */
 public final class NodeOwnership {
 
 	static final String NODE_TYPE_KEY = "node.type";
 	static final String SALES_UPSTREAM_KEY = "sales.upstream";
+	static final String HEADOFFICE_URL_KEY = "headoffice.url";
+	static final String HEADOFFICE_API_KEY_KEY = "headoffice.api-key";
+	static final String HEARTBEAT_INTERVAL_KEY = "headoffice.heartbeat-interval-seconds";
 
 	private final NodeType nodeType;
 	private final Map<DataDomain, DataOwner> owners;
@@ -58,6 +64,15 @@ public final class NodeOwnership {
 				: NodeType.STORE;
 	}
 
+	/**
+	 * True when headoffice.url is present and not blank: this store calls a head office (task 1.4). Also used by
+	 * {@link OnHeadOfficeLinkCondition}, so the head office link beans and the startup read the key the same way.
+	 */
+	public static boolean isHeadOfficeLinkSet(PropertyResolver env) {
+		String url = env.getProperty(HEADOFFICE_URL_KEY);
+		return url != null && !url.trim().isEmpty();
+	}
+
 	public static NodeOwnership resolve(PropertyResolver env, boolean standalone, boolean franchiseAdmin,
 			boolean franchiseCustomer) {
 		NodeType nodeType = nodeTypeOf(env);
@@ -67,6 +82,7 @@ public final class NodeOwnership {
 					+ (franchiseAdmin ? "franchise.admin=true" : "franchise.customer=true")
 					+ ". A head office uses neither franchise profile.");
 		}
+		checkHeadOfficeLink(env, headOffice);
 
 		Map<DataDomain, DataOwner> derivedOwners;
 		Set<SalesUpstream> derivedUpstreams;
@@ -128,6 +144,36 @@ public final class NodeOwnership {
 	/** Unmodifiable; empty means sales go nowhere. */
 	public Set<SalesUpstream> getSalesUpstreams() {
 		return salesUpstreams;
+	}
+
+	/** Checked only when headoffice.url is set; otherwise the other headoffice.* keys are ignored. */
+	private static void checkHeadOfficeLink(PropertyResolver env, boolean headOffice) {
+		if (!isHeadOfficeLinkSet(env)) {
+			return;
+		}
+		if (headOffice) {
+			throw new IllegalStateException("Invalid combination: " + NODE_TYPE_KEY + "=HEAD_OFFICE with "
+					+ HEADOFFICE_URL_KEY + " set. A head office does not call a head office; remove " + HEADOFFICE_URL_KEY
+					+ ".");
+		}
+		String key = env.getProperty(HEADOFFICE_API_KEY_KEY);
+		if (key == null || key.trim().isEmpty()) {
+			throw new IllegalStateException("Missing value for property " + HEADOFFICE_API_KEY_KEY + ": required when "
+					+ HEADOFFICE_URL_KEY + " is set. Paste the key shown once on the head office Stores page.");
+		}
+		if (env.containsProperty(HEARTBEAT_INTERVAL_KEY)) {
+			String raw = env.getProperty(HEARTBEAT_INTERVAL_KEY);
+			long seconds;
+			try {
+				seconds = Long.parseLong(raw == null ? "" : raw.trim());
+			} catch (NumberFormatException e) {
+				seconds = 0;
+			}
+			if (seconds < 1) {
+				throw new IllegalStateException("Invalid value '" + raw + "' for property " + HEARTBEAT_INTERVAL_KEY
+						+ ": a whole number of seconds, at least 1");
+			}
+		}
 	}
 
 	/** Owners in DataDomain order: catalogue, customers, promotions, loyalty, supply. */
