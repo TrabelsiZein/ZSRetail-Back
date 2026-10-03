@@ -295,6 +295,12 @@ Choices made in the session:
 
 Tests: 49 classes, 395 tests, all green; the four loyalty tests unchanged.
 
+**L2 of steps 4 and 5** (2026-10-04, by script, `devenv/l2-loyalty.ps1`; environment in `devenv/`, described in the root `CLAUDE.md`): head office (888, `pos_headoffice`), store B (555, `pos_store_b`, code `STORE-B`) and store C (556, `pos_store_c`, code `STORE-C`), new databases with 20 items copied read-only from `pos_db_prod`; store A not started. 16 scenarios, all passed on the third run (report `C:\zsretail-dev\logs\l2-loyalty-002550.txt`): local loyalty at C; C switched (3 local records off, one row, phone enrolled again); program at B and C, writes 409; enrol at B known at the head office and C; same phone at C refused with `existingCardNumber`; offline enrol at B and C merged (698 on the surviving card everywhere); earn at B in the ledger with the store code; spend at C equal everywhere; fresh balance online and offline; strict store (canRedeem false, 409, sale without points, works when back); overspend (0 everywhere, one row of 34850, count +1); partial then full return equal everywhere; rights (403, 200, 503); head office edit and adjustment reach B and C; one failure row and one recovery row per job; tickets with loyalty fields at the head office.
+
+Bugs found and fixed: 5725e14, the local card numbering (`findMaxCardSequence`) failed on a store back to local loyalty that holds network cards ("Conversion failed"); only all-digit cards count now, same result elsewhere. Earlier commits of the session: cb357dd (enrol 409 fields, step 4 frontend docs), dae555b (devenv and store profiles).
+
+Still owed: the step 5 frontend (in progress in the frontend repo) and its screen check, then the merge of steps 4 and 5 into release/2.1.0, the `update.sql` lines of section 1.
+
 Done when: the checklist with local loyalty shows no difference. After this step ParaFendri is fully served.
 
 ### Step 6 — Catalogue owned by head office
