@@ -686,7 +686,7 @@ The three permissions are in `ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS` (
 ### Profile `headoffice-dynamics-dev` (task 3.4)
 `src/main/resources/application-headoffice-dynamics-dev.properties`: the head office with an ERP. Same database `pos_headoffice`, port 888, log file and image folder as `headoffice-dev`, which stays the head office without ERP.
 - `node.type=HEAD_OFFICE`, `application.standalone=false`, `franchise.admin=false`, `franchise.customer=false`.
-- `erp.dynamicsnav.*`: the settings of `application-dynamics-dev.properties` (same NAV, company and account).
+- `erp.dynamicsnav.*`: the settings of `application-dynamics-test.properties`, the **NAV test instance** (`192.168.10.166:24/test4`). Never the NAV of `application-dynamics-dev.properties` or `application-dynamics-prod.properties`: that is the customer's production NAV (correction from Zein, 2026-10-03). A comment at the top of the file says so, and `HeadOfficeErpProfileTest` fails if the URL or host of the dev or prod profile appears in it.
 - `erp.sync.enabled=true`, `erp.sync.scheduler.delay=60000`: the import jobs enabled from the ERP jobs page run; all are seeded disabled.
 - Switching one `pos_headoffice` database between the two profiles: the ERP jobs are seeded at the first start in ERP mode; started again with `headoffice-dev` (standalone) nothing runs them (no scheduler) and the item pages allow creating by hand again.
 
@@ -731,7 +731,7 @@ Order at a new head office with an ERP: enable and run `IMPORT_LOCATIONS`, choos
 | ERP communications log (store page as a twin) | `read:admin-headoffice-erp-communications` | `admin/erp/communications` |
 | ERP reference location (new page) | `read:admin-headoffice-erp-reference-location` | `admin/headoffice/erp/reference-location` |
 
-**NAV from this PC** (2026-10-03): not reachable. The NAV of `dynamics-dev` (`192.168.10.156:7048`) does not answer: one GET of `LocationList` (`$top=1`) timed out after 15 s, and a TCP test on port 7048 and a ping both failed (this PC is on `192.168.100.x`). Nothing was written to NAV.
+**NAV**: only the test instance of `application-dynamics-test.properties` may be called from this PC, and only with GET; never the production NAV of the dev and prod profiles. Reaching the test instance needs the VPN (closing prompt of step 3).
 
 ### Start the pair on this PC (test level L2)
 
@@ -816,7 +816,7 @@ Order at a new head office with an ERP: enable and run `IMPORT_LOCATIONS`, choos
 - `ConsolidatedSalesServiceTest`, `HoPromotionServiceTest` (task 3.6): `ownership` last in the store options; in the targets view, a store owning its promotions is accepted and shown, a store without a report is null.
 - `HeadOfficeErpTest` (task 3.4): at each start the exports and the price import are disabled with no next run (the two exports seeded enabled, one enabled by hand later), imports untouched, the next start writes nothing, a database without ERP jobs is fine; through Spring AOP on test subclasses of the ERP runner and controller: the runner refuses each of the five jobs with a warning and runs the others; `GET admin/erp/jobs` leaves them out; run, enable, update and statistics of one of them answer 404 without reaching the controller; the others and an unknown id as before.
 - `ErpReferenceLocationServiceTest` (task 3.4): none chosen (imported locations by code, blank setting = none); chosen by code in any case through the store's set-as-default, the view with name and responsibility center; blank and unknown codes refused, nothing changed; a `DEFAULT_LOCATION` not imported shows its code only.
-- `HeadOfficeErpProfileTest` (task 3.4): the real `application-headoffice-dynamics-dev.properties` starts (head office, owners ERP, ERP, LOCAL, LOCAL, ERP, sales nowhere), same database and port as `headoffice-dev`, NAV settings equal to `dynamics-dev`; the reference location beans only there; the export guard on both head office profiles, never on `dynamics-dev` or `standalone-dev`.
+- `HeadOfficeErpProfileTest` (task 3.4): the real `application-headoffice-dynamics-dev.properties` starts (head office, owners ERP, ERP, LOCAL, LOCAL, ERP, sales nowhere), same database and port as `headoffice-dev`, NAV settings equal to `dynamics-test` (the test instance), never the URL or host of `dynamics-dev` or `dynamics-prod`; the reference location beans only there; the export guard on both head office profiles, never on `dynamics-dev` or `standalone-dev`.
 - `ZZDataInitializerRolesTest` (task 3.4): the head office list has 23 permissions (the three ERP pages added).
 - Not covered by L1 (checked at L2 on the pair): the JPQL against SQL Server, the transaction timeouts, the real timer, the head office endpoints through the `/ho/**` chain. The JPQL and the entity mappings were translated with Hibernate (SQL Server 2012 dialect, no database) during the tasks.
 - Frontend (task 1.5): eslint on the changed files; a Node script (not committed) for the route guard with and without the link, the `appConfig` mutation, getter and fetch (true, false, absent, failure), "x min ago" and the status badges, the wiring of the five points and the 75 i18n keys in en, fr and ar; a build with the eslint plugin skipped (the production build stops on four `console` statements that were already there before task 1.5, in `Home.vue`, `Login.vue` and `store/app-config/index.js`).

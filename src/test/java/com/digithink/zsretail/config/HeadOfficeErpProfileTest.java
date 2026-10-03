@@ -56,7 +56,7 @@ class HeadOfficeErpProfileTest {
 	}
 
 	@Test
-	@DisplayName("headoffice-dynamics-dev starts: head office, ERP owners, sales nowhere, same database and port, NAV settings of dynamics-dev")
+	@DisplayName("headoffice-dynamics-dev starts: head office, ERP owners, sales nowhere, same database and port, NAV settings of the TEST instance (dynamics-test), never dev or prod")
 	void profileAccepted() throws Exception {
 		MockEnvironment env = profile("headoffice-dynamics-dev");
 		NodeOwnership ownership = resolve(env);
@@ -73,10 +73,18 @@ class HeadOfficeErpProfileTest {
 		MockEnvironment plain = profile("headoffice-dev");
 		assertEquals(plain.getProperty("spring.datasource.url"), env.getProperty("spring.datasource.url"));
 		assertEquals(plain.getProperty("server.port"), env.getProperty("server.port"));
-		MockEnvironment store = profile("dynamics-dev");
+		// The TEST NAV instance only: the dev and prod profiles point to the customer's production NAV
+		MockEnvironment test = profile("dynamics-test");
 		for (String key : new String[] { "erp.dynamicsnav.base-url", "erp.dynamicsnav.company", "erp.dynamicsnav.domain",
 				"erp.dynamicsnav.username", "erp.dynamicsnav.password" }) {
-			assertEquals(store.getProperty(key), env.getProperty(key), key);
+			assertEquals(test.getProperty(key), env.getProperty(key), key);
+		}
+		for (String production : new String[] { "dynamics-dev", "dynamics-prod" }) {
+			String url = profile(production).getProperty("erp.dynamicsnav.base-url");
+			assertFalse(env.getProperty("erp.dynamicsnav.base-url").equalsIgnoreCase(url),
+					"never the NAV of " + production);
+			assertFalse(env.getProperty("erp.dynamicsnav.base-url").contains(java.net.URI.create(url).getHost()),
+					"never the host of " + production);
 		}
 	}
 
