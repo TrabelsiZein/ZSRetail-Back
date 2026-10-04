@@ -22,4 +22,6 @@ public class PriceListDTO {
 	private Boolean active;
 	private Long lineCount;
 	private Long storeCount;
+	/** Step 7B: SELLING (default on create) or SUPPLY; cannot change. */
+	private String kind;
 }

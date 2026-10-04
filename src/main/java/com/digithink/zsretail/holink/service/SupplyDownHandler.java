@@ -12,6 +12,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeSupply;
 import com.digithink.zsretail.headoffice.dto.DeliveryCopyDTO;
+import com.digithink.zsretail.headoffice.dto.SupplyInvoiceCopyDTO;
 import com.digithink.zsretail.holink.dto.DownApplyResult;
 import com.digithink.zsretail.holink.enumeration.DownRecordStatus;
 import com.digithink.zsretail.holink.model.DownRecord;
@@ -46,15 +47,25 @@ public class SupplyDownHandler implements DownHandler {
 	private final DownRecordLog records;
 	private final TransactionOperations transactions;
 
+	/** Step 7B: writes the invoices (records INV:, kind INVOICE). */
+	private final SupplyInvoiceWriter invoices;
+
 	@Autowired
-	public SupplyDownHandler(DeliveryReceptionService reception, DownRecordLog records,
+	public SupplyDownHandler(DeliveryReceptionService reception, DownRecordLog records, SupplyInvoiceWriter invoices,
 			PlatformTransactionManager transactionManager) {
-		this(reception, records, timed(transactionManager));
+		this(reception, records, timed(transactionManager), invoices);
 	}
 
-	/** With given transactions: used by the tests. */
+	/** With given transactions, without invoices (7A): used by the tests. */
 	public SupplyDownHandler(DeliveryReceptionService reception, DownRecordLog records,
 			TransactionOperations transactions) {
+		this(reception, records, transactions, null);
+	}
+
+	/** With given transactions and invoices: used by the tests. */
+	public SupplyDownHandler(DeliveryReceptionService reception, DownRecordLog records,
+			TransactionOperations transactions, SupplyInvoiceWriter invoices) {
+		this.invoices = invoices;
 		this.reception = reception;
 		this.records = records;
 		this.transactions = transactions;
@@ -75,6 +86,11 @@ public class SupplyDownHandler implements DownHandler {
 	public DownApplyResult apply(List<JsonNode> page, List<String> removed) {
 		DownApplyResult result = DownApplyResult.none();
 		for (JsonNode record : page) {
+			JsonNode kind = record == null ? null : record.get("kind");
+			if (kind != null && SupplyInvoiceCopyDTO.KIND.equals(kind.asText())) {
+				applyInvoice(record, result); // step 7B
+				continue;
+			}
 			DeliveryCopyDTO copy;
 			try {
 				copy = COPY_MAPPER.treeToValue(record, DeliveryCopyDTO.class);
@@ -126,7 +142,54 @@ public class SupplyDownHandler implements DownHandler {
 	}
 
 	/**
-	 * Every cycle: BLs in ERROR are saved again from their copy; the lines waiting for their item are completed and their
+	 * Step 7B: an invoice (record INV:&lt;number&gt;) saved once as a purchase invoice by {@link SupplyInvoiceWriter}, in
+	 * its own transaction, tracked APPLIED (the information names the items not in this store) or ERROR (retried).
+	 */
+	private void applyInvoice(JsonNode record, DownApplyResult result) {
+		SupplyInvoiceCopyDTO copy;
+		try {
+			copy = COPY_MAPPER.treeToValue(record, SupplyInvoiceCopyDTO.class);
+		} catch (Exception e) {
+			result.addError(NO_CODE, "unreadable record (" + SalesCopyFinder.cause(e) + ")");
+			return;
+		}
+		if (copy.getInvoiceNumber() == null || copy.getInvoiceNumber().trim().isEmpty()) {
+			result.addError(NO_CODE, "record without an invoice number");
+			return;
+		}
+		String code = SupplyInvoiceCopyDTO.recordCode(copy.getInvoiceNumber());
+		String payload = record.toString();
+		try {
+			if (invoices == null) {
+				throw new IllegalStateException("no invoice writer on this store");
+			}
+			SupplyInvoiceWriter.Outcome outcome = transactions.execute(status -> {
+				SupplyInvoiceWriter.Outcome saved = invoices.save(copy);
+				String info = saved.getMissingItems().isEmpty() ? null
+						: "items not in this store: " + String.join(", ", saved.getMissingItems());
+				records.track(DataDomain.SUPPLY, code, copy.getInvoiceNumber(), DownRecordStatus.APPLIED, null, info,
+						payload);
+				return saved;
+			});
+			if (outcome.isWritten()) {
+				result.addApplied();
+			} else {
+				result.addUnchanged();
+			}
+		} catch (RuntimeException e) {
+			String reason = "not saved (" + SalesCopyFinder.cause(e) + ")";
+			result.addError(code, reason);
+			try {
+				transactions.executeWithoutResult(status -> records.track(DataDomain.SUPPLY, code,
+						copy.getInvoiceNumber(), DownRecordStatus.ERROR, reason, null, payload));
+			} catch (RuntimeException ignored) {
+				// counted; retried below at the next cycle
+			}
+		}
+	}
+
+	/**
+	 * Every cycle: BLs and invoices in ERROR are saved again from their copy; the lines waiting for their item are completed and their
 	 * stock applied once (see {@link DeliveryReceptionService#applyWaitingStock}). A BL whose stock still waits counts
 	 * as waiting (the job result is WARNING).
 	 */

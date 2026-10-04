@@ -85,6 +85,10 @@ public class ReceivedDelivery extends _BaseEntity {
 	@Column(name = "last_push_date")
 	private LocalDateTime lastPushDate;
 
+	/** Step 7B: the head office invoice of this BL, once it arrived; null otherwise. */
+	@Column(name = "invoice_number", length = 30)
+	private String invoiceNumber;
+
 	@OneToMany(mappedBy = "delivery", cascade = CascadeType.ALL, orphanRemoval = true)
 	@OrderBy("lineNo")
 	private List<ReceivedDeliveryLine> lines = new ArrayList<>();

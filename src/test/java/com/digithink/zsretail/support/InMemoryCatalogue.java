@@ -13,7 +13,9 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.digithink.zsretail.headoffice.model.HoPriceList;
+import com.digithink.zsretail.headoffice.model.HoItemSupplyPrice;
 import com.digithink.zsretail.headoffice.model.HoPriceListLine;
+import com.digithink.zsretail.headoffice.repository.HoItemSupplyPriceRepository;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.HoPriceListLineRepository;
 import com.digithink.zsretail.headoffice.repository.HoPriceListRepository;
@@ -46,6 +48,7 @@ public final class InMemoryCatalogue {
 	public final Map<Long, Store> stores = new LinkedHashMap<>();
 	public final Map<Long, HoPriceList> priceLists = new LinkedHashMap<>();
 	public final Map<Long, HoPriceListLine> priceLines = new LinkedHashMap<>();
+	public final Map<Long, HoItemSupplyPrice> supplyPrices = new LinkedHashMap<>();
 
 	private long nextId;
 
@@ -288,6 +291,11 @@ public final class InMemoryCatalogue {
 				case "countBySellingPriceListId":
 					return stores.values().stream().filter(s -> Objects.equals(s.getSellingPriceListId(), args[0]))
 							.count();
+				case "findByCodeIgnoreCase":
+					return stores.values().stream().filter(s -> s.getCode().equalsIgnoreCase((String) args[0])).findFirst();
+				case "countBySupplyPriceListId":
+					return stores.values().stream().filter(s -> Objects.equals(s.getSupplyPriceListId(), args[0]))
+							.count();
 				default:
 					return common(stores, method, args);
 			}
@@ -301,6 +309,51 @@ public final class InMemoryCatalogue {
 			}
 			return common(priceLists, method, args);
 		});
+	}
+
+	/** Step 7B: a base supply price for the item. */
+	public HoItemSupplyPrice supplyPrice(Item item, double price) {
+		HoItemSupplyPrice row = new HoItemSupplyPrice();
+		row.setItemId(item.getId());
+		row.setPrice(price);
+		return put(supplyPrices, row);
+	}
+
+	/** Step 7B: ho_item_supply_price, with the rules of its queries. */
+	public HoItemSupplyPriceRepository supplyPriceRepository() {
+		return proxy(HoItemSupplyPriceRepository.class, (method, args) -> {
+			switch (method) {
+				case "findByItemId":
+					return supplyPrices.values().stream().filter(s -> s.getItemId().equals(args[0])).findFirst();
+				case "findByItemIdIn":
+					return supplyPrices.values().stream().filter(s -> ((Collection<?>) args[0]).contains(s.getItemId()))
+							.collect(Collectors.toList());
+				case "findPage": {
+					Collection<?> types = (Collection<?>) args[0];
+					String search = (String) args[2];
+					List<Object[]> rows = items.values().stream()
+							.filter(i -> i.getType() == null || types.contains(i.getType()))
+							.filter(i -> !args[1].equals(i.getItemCode()))
+							.filter(i -> search == null || contains(i.getItemCode(), search) || contains(i.getName(), search))
+							.sorted(java.util.Comparator.comparing(Item::getItemCode))
+							.map(i -> new Object[] { i, supplyPrices.values().stream()
+									.filter(s -> s.getItemId().equals(i.getId())).map(HoItemSupplyPrice::getPrice)
+									.findFirst().orElse(null) })
+							.collect(Collectors.toList());
+					org.springframework.data.domain.Pageable page = (org.springframework.data.domain.Pageable) args[3];
+					int from = (int) Math.min(rows.size(), page.getOffset());
+					int to = Math.min(rows.size(), from + page.getPageSize());
+					return new org.springframework.data.domain.PageImpl<>(new java.util.ArrayList<>(rows.subList(from, to)),
+							page, rows.size());
+				}
+				default:
+					return common(supplyPrices, method, args);
+			}
+		});
+	}
+
+	private static boolean contains(String column, String pattern) {
+		return column != null && column.toLowerCase().contains(pattern.substring(1, pattern.length() - 1));
 	}
 
 	public HoPriceListLineRepository priceLineRepository() {
@@ -317,6 +370,14 @@ public final class InMemoryCatalogue {
 					return lines(l -> l.getItemId().equals(args[0]));
 				case "countByPriceListId":
 					return (long) lines(l -> l.getPriceListId().equals(args[0])).size();
+				case "findLines": { // [line, item] of a list by item code; search ignored by the tests that use it
+					List<Object[]> rows = lines(l -> l.getPriceListId().equals(args[0])).stream()
+							.map(l -> new Object[] { l, items.get(l.getItemId()) })
+							.sorted(java.util.Comparator.comparing(r -> ((Item) r[1]).getItemCode()))
+							.collect(Collectors.toList());
+					org.springframework.data.domain.Pageable page = (org.springframework.data.domain.Pageable) args[2];
+					return new org.springframework.data.domain.PageImpl<>(rows, page, rows.size());
+				}
 				case "findItemCodes":
 					return lines(l -> l.getPriceListId().equals(args[0])).stream()
 							.map(l -> items.get(l.getItemId()).getItemCode()).collect(Collectors.toList());

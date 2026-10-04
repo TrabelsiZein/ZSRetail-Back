@@ -61,7 +61,8 @@ class QueryParameterBindingTest {
 			HoPriceListLineRepository.class, StoreRepository.class, ItemRepository.class, ItemFamilyRepository.class,
 			ItemSubFamilyRepository.class, ItemBarcodeRepository.class, SalesPriceRepository.class,
 			HoDeliveryRepository.class, HoNumberSequenceRepository.class, ReceivedDeliveryRepository.class,
-			StockCopyRepository.class, HoStoreStockRepository.class };
+			StockCopyRepository.class, HoStoreStockRepository.class, HoItemSupplyPriceRepository.class,
+			HoSupplyInvoiceRepository.class };
 
 	private static SessionFactory sessionFactory;
 
