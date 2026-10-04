@@ -883,6 +883,8 @@ New columns (`ddl-auto`): `origin` `VARCHAR(20)` (`RecordOrigin`, null = local, 
 | The store's own items | Sellable and editable whatever the rights |
 | `ItemImageController` | Not guarded: images do not travel (task 6.8); a store may put its own picture on a head office item and the pull never overwrites it |
 
+**Item search**: `GET /item/search` (the purchase item picker) gives `origin` for each item: `HEAD_OFFICE`, or null for an own item (on every installation; null where the catalogue is not the head office's).
+
 **Status**: `GET /catalogue/network` (JWT; 404 on any other store) and the `catalogue` block of `GET /admin/holink/status`: `{fromHeadOffice, linkState, mayChangePrices, canPurchase, ownPriceCount, salesPriceRowsOnHeadOfficeItems}`. `GET /admin/holink/received/catalogue` lists the records like any domain. `GET /config` field `catalogueFromHeadOffice` (last).
 
 **Images** (task 6.8, not started): files `uploads/pos-images/{family|subfamily|item}/{database id}.jpg` (JPEG, at most 400×400), the entity holding only `"<id>.jpg"`. Sending them would need an `imageVersion` in the copy, a `GET /ho/catalogue/images/{type}/{code}` and a store step that saves the file under its own id; to decide after L2.
