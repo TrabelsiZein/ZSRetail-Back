@@ -89,6 +89,19 @@ class MachineFileTest {
 	}
 
 	@Test
+	@DisplayName("A spring.profiles.active left in the server's options with an old profile name is refused, whatever the machine file says")
+	void oldProfileInServerOptions() throws Exception {
+		Path file = folder.resolve("store-erp.properties");
+		Files.write(file, Collections.singletonList("spring.profiles.active=store-erp"));
+		StandardEnvironment env = new StandardEnvironment();
+		env.getPropertySources().addFirst(new MapPropertySource("systemProperties-test",
+				java.util.Map.of("zsretail.machine-file", file.toString(), "spring.profiles.active", "dynamics-prod")));
+		String message = refusal(() -> new MachineFileEnvironmentPostProcessor().postProcessEnvironment(env, null));
+		assertTrue(message.startsWith("The active profile is 'dynamics-prod' while the machine file"), message);
+		assertTrue(message.contains("remove spring.profiles.active from the server's options"), message);
+	}
+
+	@Test
 	@DisplayName("Loaded above the configuration files and below the system properties; the path read is kept")
 	void propertySource() throws Exception {
 		Path file = folder.resolve("store-x.properties");

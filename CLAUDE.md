@@ -28,9 +28,12 @@ exception/  utils/
 ```
 
 `src/main/resources/`
-- `application.properties` + one file per profile:
-  `standalone-dev|prod`, `dynamics-dev|test|prod`, `headoffice-dev`, `headoffice-dynamics-dev`, `store-b-dev`, `store-c-dev`,
-  and the presets `network-headoffice`, `network-store` (the franchise profiles were removed at head office plan step 9)
+- `application.properties` (common keys, no default profile) + six presets, mode keys only: `store`, `store-erp`,
+  `headoffice`, `headoffice-erp`, `network-store`, `network-store-erp` (task 9.3)
+- No machine-specific value in the WAR: each installation has a machine file outside it (database, port, log, NAV,
+  head office address and key, and its preset), `-Dzsretail.machine-file=<path>` or
+  `${catalina.base}/conf/zsretail/<context name>.properties`. Without one the application refuses to start.
+  Machine files of this repo: `deploy/` (model, dev machines, customer values). See `docs/deployment-modes.md`.
 - `db/<product-version>/` — SQL migration scripts grouped by release (e.g. `db/1.11.0/`)
 - `license/` — public key material for offline licensing
 

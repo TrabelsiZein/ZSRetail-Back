@@ -1,8 +1,8 @@
 # One-time setup of stores B and C (L2 of the head office plan). Run in this order:
 #   1. powershell -File devenv\setup-stores.ps1 -Phase databases   # creates pos_store_b, pos_store_c (empty)
 #   2. build.ps1, start.ps1 -Instance headoffice
-#   3. powershell -File devenv\setup-stores.ps1 -Phase register    # STORE-B, STORE-C at the head office; keys into the profiles
-#   4. build.ps1 (the profiles are in the WAR), start.ps1 -Instance store-b,store-c (Hibernate creates the tables)
+#   3. powershell -File devenv\setup-stores.ps1 -Phase register    # STORE-B, STORE-C at the head office; keys into their machine files
+#   4. start.ps1 -Instance store-b,store-c (Hibernate creates the tables; the machine files are read at start, no rebuild)
 #   5. powershell -File devenv\setup-stores.ps1 -Phase seed        # code, loyalty on, items, license, member function
 # pos_db_prod (store A) is only read (items and families copied by SQL), never written.
 param([Parameter(Mandatory = $true)][ValidateSet('databases', 'register', 'seed')][string]$Phase,
@@ -31,13 +31,10 @@ switch ($Phase) {
 				$answer = Invoke-DevApi 'headoffice' POST '/admin/headoffice/stores' @{ code = $inst.Code; name = "Store $($inst.Code.Substring(6))"; kind = 'OWN'; active = $true } $token
 			}
 			if ($answer.Status -notin 200, 201) { throw "Store $($inst.Code) not registered: $($answer.Status) $($answer.Raw)" }
-			$file = Join-Path $DevResources "application-$($inst.Profile).properties"
-			$text = [IO.File]::ReadAllText($file)
-			$text = [Text.RegularExpressions.Regex]::Replace($text, '(?m)^headoffice\.api-key=.*$', "headoffice.api-key=$($answer.Body.apiKey)")
-			[IO.File]::WriteAllText($file, $text, (New-Object Text.UTF8Encoding($false)))
+			$file = Set-DevMachineValue $name 'headoffice.api-key' $answer.Body.apiKey
 			Write-Output "$($inst.Code) registered at the head office (id $($answer.Body.store.id)); key written to $file"
 		}
-		Write-Output 'Now: build.ps1, then start.ps1 -Instance store-b,store-c, then -Phase seed'
+		Write-Output 'Now: start.ps1 -Instance store-b,store-c (they read their machine files at start), then -Phase seed'
 	}
 
 	'seed' {

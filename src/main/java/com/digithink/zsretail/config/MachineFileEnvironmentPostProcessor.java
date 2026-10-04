@@ -62,6 +62,22 @@ public class MachineFileEnvironmentPostProcessor implements EnvironmentPostProce
 			sources.addLast(machine);
 		}
 		properties.setProperty(MACHINE_FILE_KEY + ".loaded", file.toString());
+		checkEffectivePreset(file, environment.getProperty("spring.profiles.active"));
+	}
+
+	/**
+	 * The active profiles in effect, the machine file included, are one preset: a spring.profiles.active left in the
+	 * server's options (a system property or SPRING_PROFILES_ACTIVE, which win over the machine file) with an old profile
+	 * name would otherwise start the installation without its preset.
+	 */
+	static void checkEffectivePreset(Path file, String effective) {
+		List<String> profiles = effective == null ? List.of()
+				: Arrays.stream(effective.split(",")).map(String::trim).filter(p -> !p.isEmpty()).collect(Collectors.toList());
+		if (profiles.size() != 1 || !NodeOwnership.PRESETS.contains(profiles.get(0))) {
+			throw new IllegalStateException("The active profile is '" + effective + "' while the machine file " + file
+					+ " names a preset: remove spring.profiles.active from the server's options (system property,"
+					+ " SPRING_PROFILES_ACTIVE), the machine file names the preset (" + presets() + ").");
+		}
 	}
 
 	/** The machine file: the system property, else the Tomcat convention; refuses to start without one. */
