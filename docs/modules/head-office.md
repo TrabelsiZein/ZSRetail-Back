@@ -1,6 +1,6 @@
 # Head Office Module
 
-**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office); task 2.4 done (the store's push job with retry, counts on `GET admin/holink/status`). Task 2.5 backend done (consolidated sales API, home cards, page permissions; see "Consolidated sales API"; its pages to come); task 2.6 backend done (jobs with editable frequency and run now, exchange log; see "Head office link: jobs and exchange log"); the pages of 2.5 and 2.6 come with the frontend session. Step 3 in progress: task 3.1 done (the copies down mechanism, see "Copies down"); task 3.2 done (`origin` on `promotion` and the write guards, see `docs/modules/promotion.md`); task 3.3 done (target stores, payload by codes, received promotions, network usage count; see "Promotions owned by the head office"); task 3.5 done (missing targets WAITING and retried, tracking table, `GET admin/holink/received/{domain}`, counts in the link status). Rule fix: on a store whose promotions are local every promotion is written as before, whatever its origin (`docs/modules/promotion.md`). Task 3.6 done (what each store owns, sent with the heartbeat, see "Store API"). Task 3.4 done (head office with an ERP: imports only, export jobs never run, ERP reference location, profile `headoffice-dynamics-dev`; see "Head office with an ERP"). Step 3 frontend done: task 3.0 (lint) and the pages of tasks 3.2 to 3.6, see "Step 3 pages (frontend)". Step 4 backend done (shared loyalty: members and earning, see "Shared loyalty (step 4)"): part 1 the head office side (register, copies down, members and movements up, phone check, member edit, store rights), part 2 the store side (enrol, `LOYALTY_PUSH`, `LOYALTY` pull, member changes through the head office, link page API); steps 4 and 5 done and merged (frontend and L2 included). Step 6 backend done (catalogue and selling prices decided by the head office, price lists, store rights and guards; see "Catalogue owned by the head office (step 6)" and "Price lists (task 6.4)"); frontend (task 6.7), L2 and task 6.8 (images) to come. Step 7A backend done on `feature/ho-step-7a` (the head office as a warehouse, BLs, reception at the store, confirmation up, stock of the stores; see "Head office as a warehouse (task 7A.1)", "BLs (task 7A.2, head office)", "BLs at the store (tasks 7A.3, 7A.4)", "Stock of the stores (task 7A.5)"); its pages are listed in "Step 7A pages (frontend, to build)". Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
+**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office); task 2.4 done (the store's push job with retry, counts on `GET admin/holink/status`). Task 2.5 backend done (consolidated sales API, home cards, page permissions; see "Consolidated sales API"; its pages to come); task 2.6 backend done (jobs with editable frequency and run now, exchange log; see "Head office link: jobs and exchange log"); the pages of 2.5 and 2.6 come with the frontend session. Step 3 in progress: task 3.1 done (the copies down mechanism, see "Copies down"); task 3.2 done (`origin` on `promotion` and the write guards, see `docs/modules/promotion.md`); task 3.3 done (target stores, payload by codes, received promotions, network usage count; see "Promotions owned by the head office"); task 3.5 done (missing targets WAITING and retried, tracking table, `GET admin/holink/received/{domain}`, counts in the link status). Rule fix: on a store whose promotions are local every promotion is written as before, whatever its origin (`docs/modules/promotion.md`). Task 3.6 done (what each store owns, sent with the heartbeat, see "Store API"). Task 3.4 done (head office with an ERP: imports only, export jobs never run, ERP reference location, profile `headoffice-dynamics-dev`; see "Head office with an ERP"). Step 3 frontend done: task 3.0 (lint) and the pages of tasks 3.2 to 3.6, see "Step 3 pages (frontend)". Step 4 backend done (shared loyalty: members and earning, see "Shared loyalty (step 4)"): part 1 the head office side (register, copies down, members and movements up, phone check, member edit, store rights), part 2 the store side (enrol, `LOYALTY_PUSH`, `LOYALTY` pull, member changes through the head office, link page API); steps 4 and 5 done and merged (frontend and L2 included). Step 6 backend done (catalogue and selling prices decided by the head office, price lists, store rights and guards; see "Catalogue owned by the head office (step 6)" and "Price lists (task 6.4)"); step 6 done and merged (frontend and L2 included), task 6.8 (images) after step 7B. Step 7A done (backend, frontend, L2 of 12 scenarios) (the head office as a warehouse, BLs, reception at the store, confirmation up, stock of the stores; see "Head office as a warehouse (task 7A.1)", "BLs (task 7A.2, head office)", "BLs at the store (tasks 7A.3, 7A.4)", "Stock of the stores (task 7A.5)"); its pages: "Step 7A pages (frontend)", four sections. Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
 
 ### Overview
 - Two installation types, same WAR: a **store** sells; a **head office** manages several stores and never sells (no cashier session, no ticket).
@@ -226,7 +226,7 @@ Frontend commits 0928f9e, 68c027a, 32cd1be, on `feature/ho-step-6`.
 - Purchases, purchase invoices and vendors stay readable, with a warning banner. Hidden: new purchase, set paid, create invoice from a purchase, new invoice, add and edit vendor.
 - The new purchase page shows the banner and no Create button.
 
-**With the purchase right:** the new purchase item picker offers only the store's own items. It reads `/item-barcode/items-with-barcodes` (active items shown at the POS), because `/item/search` gives no `origin`. An info banner says so.
+**With the purchase right:** the new purchase item picker offers only the store's own items. It reads `/item/search`, which gives `origin` for each item since backend 2c92282, and keeps the items whose origin is not `HEAD_OFFICE` (frontend e7f1556; own items hidden from the POS can be purchased again). An info banner says so.
 
 **Data import** (`DataImport.vue`): Families, Sub-families, Items, Barcodes and Sales prices cannot be chosen, with a note. Vendors follow the purchase right.
 
@@ -240,29 +240,113 @@ Labels in `en`, `fr`, `ar` (`admin.catalogueNetwork.*`, `admin.holink.catalogue.
 
 **Checks**: lint of the changed files in production mode and `npm run build`, clean before each commit. Not yet seen in the browser (L2).
 
-### Step 7A pages (frontend, to build)
-Backend done on `feature/ho-step-7a`; the pages are built by the frontend session. Labels in `en`, `fr`, `ar`.
+### Step 7A pages (frontend): head office warehouse
+Frontend commit 6208e7b, on `feature/ho-step-7a`. Head office without an ERP only.
 
-Head office, every route `standaloneOnly` (a head office with an ERP has none), menu group "Supply":
+**Supply pages.** A menu group Supply holds seven twins of the store pages: Vendors, Purchase history, New purchase, Vendor balance, Purchase invoices, Stock report, Stock movements.
+- Routes `admin-headoffice-vendors`, `-purchases`, `-purchase-new`, `-vendor-balance`, `-purchase-invoices`, `-stock`, `-stock-movements`, under `/headoffice/supply/...`. The permission of each is `read:<route name>`. There are 32 head office permissions, the same list as `ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS`.
+- Every route carries `meta.standaloneOnly`. The router guard sends them home when `/config` gives `standalone: false`, and the menu hides them then (`STANDALONE_ONLY`).
+- The later guard steps read `twinOf`, so the store's "standalone only" rule for purchases and vendors applies to the twins as well.
 
-| Page | Route (`meta.resource`) | Twin of | API |
-|---|---|---|---|
-| Vendors | `admin-headoffice-vendors` | `admin-vendors` | `/vendor` |
-| Purchase history | `admin-headoffice-purchases` | `purchase-history` | `/purchase-header/history` |
-| New purchase | `admin-headoffice-purchase-new` | `purchase-new` | `/purchase-header/process-purchase` |
-| Vendor balance | `admin-headoffice-vendor-balance` | `vendor-balance` | `/purchase-header/vendor-balance` |
-| Purchase invoices | `admin-headoffice-purchase-invoices` | `admin-purchase-invoices` | `/admin/purchase-invoices` |
-| Stock report | `admin-headoffice-stock` | `admin-report-stock` | `/report/stock` |
-| Stock movements | `admin-headoffice-stock-movements` | `admin-report-stock-movements` | `/report/stock-movements`; labels for `DELIVERY_OUT`, `DELIVERY_IN` (and `ADJUSTMENT_IN` / `ADJUSTMENT_OUT`, written since step 7A) |
-| BLs (new, `views/admin/headoffice/`) | `admin-headoffice-deliveries` | none | `/admin/headoffice/deliveries`: list by store, status, dates, difference; draft dialog (store from `/admin/headoffice/store-options`, item search, quantities, head office stock per line); validate with a confirmation; the 409 texts as sent (stock shortage lists the items); detail with sent, received, difference and the store's note |
-| Stock of the stores (new) | `admin-headoffice-network-stock` | none | `/admin/headoffice/stock` (one column per store, the head office stock first, store filter, search) and `/admin/headoffice/stock/own` (the stores' own items) |
+**Links.** The pages link to each other by route name: vendors → vendor balance, and purchase history ↔ new purchase. All three targets have a twin, so no link falls back to the head office home.
 
-The shared store pages must be checked for navigation by route name between them (`PurchaseNew` → history, etc.): each target needs its twin (see "Add a page to the head office"). The Items page already has the stock adjustment, now with its movement.
+**Head office checks.** None of these pages needs a cashier session, a till or a location. The step 6 purchase-right check is off on a head office, so every write action is shown there.
 
-Store, only when `/config` `supplyFromHeadOffice` is true:
-- New `views/admin/holink/DeliveryReception.vue`, route `admin-holink-deliveries` (permission `read:admin-holink-deliveries`, topped up on ADMIN at start): list of BLs to receive and received; reception screen with the quantity per line (default the quantity sent), a line whose item is not here flagged ("waits for the item"), a warning before confirming more than sent, the note; after confirmation the stock and the push status.
-- Head office link page: the `supply` block of `GET /admin/holink/status` (to receive, received, confirmations by status, lines waiting, stock to send, last stock push); the job `SUPPLY_PUSH` label; `SUPPLY` in the received records.
-- Stock movements report: labels `DELIVERY_IN`, `ADJUSTMENT_IN`, `ADJUSTMENT_OUT`.
+**Stock movements.** The BL types `DELIVERY_OUT` and `DELIVERY_IN` have translated labels (`admin.reports.stockMovements.types`) in the type filter, the table, the chart and the Excel export. The other types still show their code, as before. This is the one change to a store page; the store routes and the store menu are unchanged.
+
+Labels in `en`, `fr`, `ar` (`admin.headoffice.supplyMenu`, the two types).
+
+**Checks:** lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
+
+**Not in this part:** the BL page, the network stock page and the store reception page. They wait for the backend API.
+
+### Step 7A pages (frontend): BLs at the head office
+Frontend commit 8ac5489, on `feature/ho-step-7a`. Head office without an ERP only.
+
+**Page** `src/views/admin/headoffice/Deliveries.vue`:
+- Route `admin-headoffice-deliveries`, path `/headoffice/supply/deliveries`, `meta.standaloneOnly`.
+- First link of the Supply menu, permission `read:admin-headoffice-deliveries` (33 head office permissions, the same list as the backend).
+- API `/admin/headoffice/deliveries`.
+
+**List.** Number (or "Draft (no number yet)"), store, status badge (Draft, Sent, Received, Invoiced), document date, sent, received, quantities sent / received, and a "Difference" badge.
+- Filters: search (number, note), store, status, date from and to (on the document date), "With a difference only".
+- Paging by the API, 20 per page.
+
+**New BL and draft edit**, in a dialog:
+- Store: the active stores from `store-options`. A store that reported `ownership.SUPPLY` other than `HEAD_OFFICE` is listed but cannot be chosen.
+- Date (today by default) and note.
+- Lines from the item search (`/item/search`: active items, products and packs only, never the tax stamp). The head office stock is read when an item is added (`GET /item/{id}`), and from `headOfficeStock` when a draft is opened.
+- A quantity above the stock is highlighted and named in a warning, without blocking the save. The same item twice is refused in the page.
+- `POST` creates, `PUT /{id}` replaces the draft.
+
+**Draft actions.** Edit, delete (after a confirmation), and validate.
+- Validate asks for a confirmation: the BL gets its number, the goods leave the head office stock and the store will see it.
+- A stock shortage (409) is shown as the list of short items, cut from the backend text. Any other 400 or 409 shows the backend text.
+
+**Sent, Received, Invoiced: consult-only.**
+- The detail (`GET /{id}`) shows store, status, date, sent at and by, received at and by (store clock), when the confirmation reached the head office, the note and the store's note.
+- Per line: quantity sent, quantity received and the difference (received − sent, coloured).
+
+**Print** (non-draft, from the list or the detail):
+- `DeliveryNoteTemplate.vue`, written with the purchase invoice print styles and document builder (`getPurchaseInvoicePrintDocumentHtml`).
+- Content: company header, number, date, store, lines with quantities sent and received (received blank until confirmed), total sent, the note, and two signature areas (sent by, received by).
+
+Labels in `en`, `fr`, `ar` (`admin.headoffice.deliveries.*`).
+
+**Checks**: lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
+
+### Step 7A pages (frontend): reception at the store
+Frontend commit ef799b0, on `feature/ho-step-7a`.
+
+**Rule.** The page exists only when `GET /config` gives `supplyFromHeadOffice: true` (`appConfig/isSupplyFromHeadOffice`), never on a franchise customer. `navigation/head-office.js` lists it in `SUPPLY_ROUTES` and `SUPPLY_PERMISSIONS`:
+- The router guard sends the route home without the flag. On a head office it has no twin and goes to the head office home.
+- `VerticalNavMenu` removes its link without the flag.
+- The Roles page lists `read:admin-holink-deliveries` ("Réception des BL", group "Paramètres & Outils") only with the flag.
+
+Without the flag every store page renders as before.
+
+**Page** `src/views/admin/holink/DeliveryReception.vue`, route `admin-holink-deliveries`, path `/admin/holink/deliveries`. Its menu link sits right after "Head office link". API `/admin/deliveries`.
+- **List.** The BLs to receive first (all of them, up to 200), then the received ones (paged). Columns: number, document date, quantities sent / received, a "Difference" badge, and badges for items not here yet or lines whose stock waits. Received BLs also show the confirmation to the head office: Waiting to be sent, Sent, or Refused (the reason on hover).
+- **Receive**, in a dialog (`GET /{id}`, then `POST /{id}/receive {note, lines: [{lineNo, quantityReceived}]}`):
+  - One quantity per line, a whole number of 0 or more, defaulting to the quantity sent.
+  - A line whose item is not in the store yet is flagged: its stock goes in once the item arrives.
+  - A note (500 characters).
+  - A quantity above the quantity sent asks for a confirmation that names the items.
+  - Afterwards: the stock went up, and the confirmation goes to the head office now or as soon as it can be reached, plus how many lines still wait for their item.
+  - 400 and 409 (already received) show the backend text.
+- **A received BL is consult-only.** The detail shows the head office note, sent at, received at and by, the store's note, the confirmation status and its error. Per line: sent, received, difference, and "stock waits for the item".
+- **Print** uses `DeliveryNoteTemplate.vue` from the head office page. Its "Deliver to" block shows only when the BL has store fields, so the store prints its own company header.
+
+**Head office link page** (`HeadOfficeLinkStatus.vue`):
+- A block "Delivery notes from the head office" when the status gives `supply`. It shows counts to receive and received, the confirmations Waiting to be sent / Sent / Refused, and a warning when `stockWaiting` is above 0. A button opens the reception page when the user has its permission.
+- The job `SUPPLY_PUSH` and the received domain `SUPPLY` are labelled.
+
+Labels in `en`, `fr`, `ar` (`admin.holink.deliveries.*`, `admin.holink.supply.*`).
+
+**Checks:** lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
+
+### Step 7A pages (frontend): network stock
+Frontend commit 5d7743b, on `feature/ho-step-7a`. Head office without an ERP only.
+
+**Page** `src/views/admin/headoffice/NetworkStock.vue`:
+- Route `admin-headoffice-network-stock`, path `/headoffice/supply/network-stock`, `meta.standaloneOnly`.
+- Supply menu, after Stock movements. Permission `read:admin-headoffice-network-stock` (34 head office permissions, the same list as the backend).
+
+**Tab "Head office items"** (`GET /admin/headoffice/stock`):
+- One row per head office item: code, name, head office stock, then one column per store from `stores`.
+- Each store header shows its code, its name, and the time of its last stock report (`lastStockAt`, head office clock), or "No report yet".
+- A store that never reported the item shows "-". Below zero is red, zero is grey.
+- The item code and name columns stay fixed (`stickyColumn`) while the store columns scroll sideways.
+
+**Tab "Stores' own items"** (`GET /admin/headoffice/stock/own`): store, item code, item name, stock, read at the store (`storeTime`), received (`receivedAt`).
+
+**Filters:**
+- Search (code, name) and store (`storeId`, from `store-options`), with paging by the API, 20 rows by default.
+- "Below zero only" has no API parameter. The page reads the API pages (200 rows each, at most 25) and keeps the rows below zero: at the head office or in a store shown, or the quantity on the own items tab. It then pages them itself, with a note when the list was cut at 5,000 items.
+
+Labels in `en`, `fr`, `ar` (`admin.headoffice.networkStock.*`).
+
+**Checks:** lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
 
 ### Add a page to the head office
 1. **Shared page** (the same data as on the store): add a route to `src/router/headoffice-routes.js` with path `/headoffice/<...>`, name and `meta.resource` `admin-headoffice-<page>`, `meta.action: 'read'`, `meta.headOffice: true`, `meta.requiresAuth: true`, the store page's component, and `meta.twinOf` set to the store route name. Do not modify the store page, its store route or the store menu.
