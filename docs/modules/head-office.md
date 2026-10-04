@@ -168,7 +168,13 @@ Frontend commits 25cd826 (till and members page), 581ce28 (link page), 0756bb0 (
 
 **Overspend report** (head office, `src/views/admin/headoffice/LoyaltyOverspends.vue`): route `admin-headoffice-loyalty-overspends`, path `/headoffice/loyalty/overspends`, permission `read:admin-headoffice-loyalty-overspends` (24 head office permissions, as the backend), menu Customers & loyalty. `GET /admin/headoffice/loyalty/overspends` with search, store and date filters and paging; the count and points of the period from `overspends/count` above the table. Head office home: a tile with the count and points of every period, opening the page, shown with the page's permission only (the tiles go to 3 per row).
 
-Labels in `en`, `fr`, `ar`. Not in these commits: the enrol switch `enrolRequiresOnline` (backend 21f1984, after them): its switch on the Stores page, its line on the link page and the 503 of an enrol at the till and on the members page.
+Labels in `en`, `fr`, `ar`.
+
+**Enrol switch** (frontend 37c50a0, backend 21f1984):
+- Stores page: a fourth switch "Enrolling a member requires the head office online" (`enrolRequiresOnline`) in the form (`POST`, `PUT`) and in the details (saved at once); the help text rewritten for the four switches.
+- Link page, loyalty block: the setting (Yes, No, Unknown before the first heartbeat answer).
+- Enrol at a store whose loyalty is owned by the head office: a 503 shows the backend text titled "Head office unreachable", in the POS loyalty modal (with "Continue without a card": the sale goes on) and in the create dialog of the members page. Local loyalty unchanged.
+- Labels in `en`, `fr`, `ar`.
 
 ### Add a page to the head office
 1. **Shared page** (the same data as on the store): add a route to `src/router/headoffice-routes.js` with path `/headoffice/<...>`, name and `meta.resource` `admin-headoffice-<page>`, `meta.action: 'read'`, `meta.headOffice: true`, `meta.requiresAuth: true`, the store page's component, and `meta.twinOf` set to the store route name. Do not modify the store page, its store route or the store menu.
