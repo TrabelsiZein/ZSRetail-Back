@@ -28,12 +28,14 @@ exception/  utils/
 ```
 
 `src/main/resources/`
-- `application.properties` (common keys, no default profile) + six presets, mode keys only: `store`, `store-erp`,
-  `headoffice`, `headoffice-erp`, `network-store`, `network-store-erp` (task 9.3)
-- No machine-specific value in the WAR: each installation has a machine file outside it (database, port, log, NAV,
-  head office address and key, and its preset), `-Dzsretail.machine-file=<path>` or
-  `${catalina.base}/conf/zsretail/<context name>.properties`. Without one the application refuses to start.
-  Machine files of this repo: `deploy/` (model, dev machines, customer values). See `docs/deployment-modes.md`.
+- Three files (configuration step C1): `application.properties` (common keys, default `spring.profiles.active=store`),
+  `application-store.properties` and `application-headoffice.properties` (the two types: "what this installation is"
+  and "where it runs" with the dev values; the database password from `ZSRETAIL_DB_PASSWORD`)
+- An optional outside file per installation (usually where it runs; it may name the type and change owners), named by
+  `-Dzsretail.machine-file=<path>` or found as
+  `${catalina.base}/conf/zsretail/<context name>.properties`; without one the type file applies. Any active profile
+  other than exactly `store` or `headoffice` is refused. Outside files of this repo: `deploy/` (model, dev machines,
+  customer values). See `docs/deployment-modes.md`.
 - `db/<product-version>/` — SQL migration scripts grouped by release (e.g. `db/1.11.0/`)
 - `license/` — public key material for offline licensing
 

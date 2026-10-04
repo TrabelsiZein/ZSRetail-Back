@@ -1433,8 +1433,8 @@ The three permissions are in `ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS` (
 ### Connect a store
 1. At the head office, **Network → Stores**, create the store with **code = the store's `DEFAULT_LOCATION`** (General Setup of the store). For an ERP store that is its NAV location code.
 2. Copy the key from the dialog: it is shown once (a lost key is replaced with regenerate-key).
-3. In the store's machine file (task 9.3, `docs/deployment-modes.md`), set `headoffice.url` (the head office base URL, with `/zsretail/api`) and `headoffice.api-key` (the key), then restart the store. A store of a network runs the preset `network-store` or `network-store-erp`, which already says where its sales go; the dev scripts write the key with `Set-DevMachineValue`.
-4. To copy the store's sales to the head office (step 2), also set `sales.upstream`: `HEAD_OFFICE` on a store without ERP, `ERP,HEAD_OFFICE` on an ERP store (the NAV export is not affected). (The network presets set it.) Optional: `headoffice.sales-push.from-date`, `batch-size`, `interval-seconds` (see "Sales copies"). Without `sales.upstream` the store keeps the heartbeat only.
+3. In the store's outside file (configuration step C1, `docs/deployment-modes.md`), set `headoffice.url` (the head office base URL, with `/zsretail/api`) and `headoffice.api-key` (the key), then restart the store. A store of a network states its network lines there (`sales.upstream` among them); the dev scripts write the key with `Set-DevMachineValue`.
+4. To copy the store's sales to the head office (step 2), also set `sales.upstream`: `HEAD_OFFICE` on a store without ERP, `ERP,HEAD_OFFICE` on an ERP store (the NAV export is not affected). (The network lines set it.) Optional: `headoffice.sales-push.from-date`, `batch-size`, `interval-seconds` (see "Sales copies"). Without `sales.upstream` the store keeps the heartbeat only.
    Shared loyalty (step 4): set `ownership.loyalty=HEAD_OFFICE` too. At the first pull the store's own members and program are switched off (kept); give the store its rights on the head office Stores page (`canEditMembers`). Optional: `headoffice.loyalty-push.interval-seconds`.
 5. Restart the store. About 15 s after the start its log shows `Head office link: PENDING -> ONLINE`; the head office Stores page shows the store's last contact and version. At start the log lists the jobs (`Head office link: jobs on ho-link-1: HEARTBEAT every 60 s, SALES_PUSH every 60 s` with `sales.upstream`); then from about 20 s one `Head office sales push: ... sent ...` line per cycle until the history is caught up.
 
@@ -1468,15 +1468,15 @@ The three permissions are in `ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS` (
 - **Store side of the link.** Code that runs on a store and calls the head office lives in `com.digithink.zsretail.holink`, never in `headoffice`; its beans carry `@ConditionalOnHeadOfficeLink` (task 1.4), or `@ConditionalOnHeadOfficeSalesPush` for the sales copies (task 2.1). Its tables are prefixed `hol_` (task 2.1). Its pages live in `src/views/admin/holink/`, routes `admin-holink-*` (task 1.5).
 
 ### Dev head office: `deploy/dev/headoffice.properties` (was the profile `headoffice-dev`)
-Preset `headoffice` (task 9.3): `node.type=HEAD_OFFICE`, no ERP. Machine file: `server.port=888`, database `pos_headoffice` (same SQL
+Type `headoffice` (configuration step C1): `node.type=HEAD_OFFICE`, no ERP. Outside file: `server.port=888`, database `pos_headoffice` (same SQL
 Server and login as the dev stores), ERP sync off.
 - Own log file `C:/zsretail-headoffice/backend.log` and image folder `uploads/headoffice/pos-images`, so it does not share them with the store instance.
 
 ### Dev head office with an ERP: `deploy/dev/headoffice-erp.properties` (task 3.4, was the profile `headoffice-dynamics-dev`)
-Preset `headoffice-erp`. Same database `pos_headoffice`, port 888, log file and image folder as `dev/headoffice.properties`, which stays the head office without ERP.
+Type `headoffice` with catalogue, customers and supply `ERP` and the NAV connector on (the preset `headoffice-erp` until configuration step C1). Same database `pos_headoffice`, port 888, log file and image folder as `dev/headoffice.properties`, which stays the head office without ERP.
 - `erp.dynamicsnav.*`: the settings of `deploy/dev/store-test-nav.properties`, the **NAV test instance** (`192.168.10.166:24/test4`). Never the NAV of `deploy/dev/store-a-erp.properties` or `deploy/customers/erp-prod.properties`: that is the customer's production NAV (correction from Zein, 2026-10-03). A comment in the file says so, and `HeadOfficeErpProfileTest` fails if the URL or host of those files appears in it.
 - `erp.sync.enabled=true`, `erp.sync.scheduler.delay=60000`: the import jobs enabled from the ERP jobs page run; all are seeded disabled.
-- Switching one `pos_headoffice` database between the two machine files: the ERP jobs are seeded at the first start in ERP mode; started again with `headoffice-dev` (no ERP) nothing runs them (no scheduler) and the item pages allow creating by hand again.
+- Switching one `pos_headoffice` database between the two outside files: the ERP jobs are seeded at the first start in ERP mode; started again with `headoffice-dev` (no ERP) nothing runs them (no scheduler) and the item pages allow creating by hand again.
 
 ### Head office with an ERP (task 3.4, decision D2)
 The head office of an ERP customer (ParaFendri) gets its items, families, sub-families and barcodes from Business Central with the existing import jobs, filtered on one **ERP reference location** chosen at the head office. It exports nothing. A head office without ERP keeps creating items by hand or by data import. Nothing in `erp/` is changed: what is specific lives in `headoffice` and only exists on a head office.
@@ -1528,7 +1528,7 @@ Order at a new head office with an ERP: enable and run `IMPORT_LOCATIONS`, choos
 | Store | any store machine file (e.g. `deploy/dev/store-a.properties`), port 444 | `npm run serve` (`.env.development.local` → 444) |
 | Head office | machine file `deploy/dev/headoffice.properties`, port 888 (set in the machine file) | `npm run serve:headoffice` → http://localhost:8081 (`.env.headoffice` → 888) |
 
-- In STS, duplicate the backend run configuration and set its VM argument to `-Dzsretail.machine-file="D:ZS RetailAppsZSRetail-Backdeploydevheadoffice.properties"` (task 9.3; there is no default profile any more). The devenv scripts start the L2 instances themselves (CLAUDE.md, "Dev environment for L2").
+- In STS, duplicate the backend run configuration and set its VM argument to `-Dzsretail.machine-file="D:ZS RetailAppsZSRetail-Backdeploydevheadoffice.properties"` (without an outside file `POSMainApp` starts as a store, the default type; `-Dspring.profiles.active=headoffice` alone gives the head office type file, configuration step C1). The devenv scripts start the L2 instances themselves (CLAUDE.md, "Dev environment for L2").
 - 888 and 8081 were also the ports of the franchise customer profile (removed at step 9).
 
 ### Rehearsal environment (step 9)
@@ -1536,11 +1536,11 @@ A head office and two stores of a franchise network on new empty databases, besi
 databases; the L2 databases are never touched), from the latest artifact: `devenv\rehearsal.ps1 -Action setup | start | stop |
 status | set-key | reset`.
 
-| Instance | Port | Database | Preset | Store code |
+| Instance | Port | Database | Type | Store code |
 |---|---|---|---|---|
 | `reh-headoffice` | 889 | `pos_rehearsal_ho` | `headoffice` | — |
-| `reh-store-1` | 557 | `pos_rehearsal_s1` | `network-store` | `STORE-1` |
-| `reh-store-2` | 558 | `pos_rehearsal_s2` | `network-store` | `STORE-2` |
+| `reh-store-1` | 557 | `pos_rehearsal_s1` | `store` + network lines | `STORE-1` |
+| `reh-store-2` | 558 | `pos_rehearsal_s2` | `store` + network lines | `STORE-2` |
 
 - Machine files `deploy/rehearsal/`, logs `C:\zsretail-rehearsal\<name>\backend.log`. Logins as on a new database.
 - The stores are not registered at the head office: create them on its Stores page with their codes, then

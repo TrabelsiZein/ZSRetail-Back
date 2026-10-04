@@ -73,7 +73,7 @@ class ModeQuestionTruthTableTest {
 	@DisplayName("Every preset and every machine file of deploy/ starts, and the four questions agree")
 	void presetsAndMachineFiles() {
 		Map<String, MockEnvironment> installations = new LinkedHashMap<>();
-		for (String preset : NodeOwnership.PRESETS) {
+		for (String preset : Installations.variants()) {
 			MockEnvironment env = Installations.preset(preset);
 			if (preset.startsWith("network-")) {
 				env.setProperty("headoffice.url", "http://localhost:888/zsretail/api");
@@ -84,7 +84,7 @@ class ModeQuestionTruthTableTest {
 		for (String machine : Installations.machineFiles()) {
 			installations.put("machine " + machine, Installations.machine(machine));
 		}
-		assertTrue(installations.size() >= NodeOwnership.PRESETS.size() + 9, "presets and machine files read");
+		assertTrue(installations.size() >= Installations.variants().size() + 9, "presets and machine files read");
 		for (Map.Entry<String, MockEnvironment> installation : installations.entrySet()) {
 			NodeOwnership ownership = accepted(installation.getValue());
 			if (ownership == null) {

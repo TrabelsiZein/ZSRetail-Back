@@ -101,7 +101,7 @@ class ApplicationModeOwnershipTest {
 							});
 					assertTrue(e.getMessage().startsWith("Invalid value ' TRUE ' for property " + key
 							+ ": the franchise profiles were removed (head office plan, step 9)"), e.getMessage());
-					assertTrue(e.getMessage().contains("headoffice and network-store"), e.getMessage());
+					assertTrue(e.getMessage().contains("of the types headoffice and store"), e.getMessage());
 				}
 			}
 		}
@@ -174,13 +174,13 @@ class ApplicationModeOwnershipTest {
 	}
 
 	@Test
-	@DisplayName("9.3: application.standalone (true or false) stops the startup, on a store and on a head office, with a message naming the presets")
+	@DisplayName("9.3: application.standalone (true or false) stops the startup, on a store and on a head office, with a message naming the types")
 	void standalonePropertyRefused() {
 		for (String value : new String[] { "true", "false", "" }) {
 			for (MockEnvironment env : new MockEnvironment[] { new MockEnvironment(), headOfficeEnv() }) {
 				assertRefused(env.withProperty("application.standalone", value),
 						"The property application.standalone was removed (head office plan, step 9, task 9.3)",
-						"spring.profiles.active=store | store-erp | headoffice | headoffice-erp | network-store | network-store-erp");
+						"spring.profiles.active=store | headoffice) and the ownership.* keys");
 			}
 		}
 	}

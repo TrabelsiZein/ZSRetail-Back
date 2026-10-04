@@ -20,9 +20,9 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * Installation type, owner of each data domain and sales upstreams (head office design 2.1, 2.2).
  *
  * Each value comes from its optional property when present ({@code node.type}, {@code ownership.<domain>},
- * {@code sales.upstream}); a preset states every one of them (task 9.3, docs/deployment-modes.md). Absent: the owner is
- * LOCAL, the node type STORE and the sales go nowhere. The property application.standalone was removed (task 9.3): a
- * configuration that still sets it stops the startup with a message naming the presets.
+ * {@code sales.upstream}); the type file states every one of them (configuration step C1, docs/deployment-modes.md).
+ * Absent: the owner is LOCAL, the node type STORE and the sales go nowhere. The property application.standalone was
+ * removed (task 9.3): a configuration that still sets it stops the startup with a message naming the types.
  *
  * An explicit value that is unknown, or an owner the domain does not allow, throws {@link IllegalStateException}
  * naming the key, so the application does not start. The franchise profiles were removed (step 9, task 9.4a):
@@ -82,9 +82,12 @@ public final class NodeOwnership {
 	/** Removed at task 9.3: refused at startup (checkNoStandaloneProperty). */
 	static final String STANDALONE_KEY = "application.standalone";
 
-	/** The presets of task 9.3 (src/main/resources/application-<name>.properties), named by the machine file. */
-	public static final java.util.List<String> PRESETS = java.util.Collections.unmodifiableList(java.util.Arrays.asList("store",
-			"store-erp", "headoffice", "headoffice-erp", "network-store", "network-store-erp"));
+	/**
+	 * The installation types of configuration step C1 (src/main/resources/application-&lt;type&gt;.properties): the active
+	 * profile is exactly one of them, store by default.
+	 */
+	public static final java.util.List<String> TYPES = java.util.Collections
+			.unmodifiableList(java.util.Arrays.asList("store", "headoffice"));
 	static final String FRANCHISE_ADMIN_KEY = "franchise.admin";
 	static final String FRANCHISE_CUSTOMER_KEY = "franchise.customer";
 
@@ -174,7 +177,7 @@ public final class NodeOwnership {
 	}
 
 	/**
-	 * True on a head office with an ERP (task 3.4): node.type=HEAD_OFFICE and an owner ERP (preset headoffice-erp). Also used by {@link OnHeadOfficeErpCondition}.
+	 * True on a head office with an ERP (task 3.4): node.type=HEAD_OFFICE and an owner ERP (type headoffice with the ERP owners). Also used by {@link OnHeadOfficeErpCondition}.
 	 */
 	public static boolean isHeadOfficeErpSet(PropertyResolver env) {
 		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && resolve(env).hasErp();
@@ -223,7 +226,7 @@ public final class NodeOwnership {
 			checkWholeSeconds(env, OFFLINE_AFTER_KEY);
 		}
 
-		// Absent keys: everything LOCAL, sales nowhere (a preset states them all)
+		// Absent keys: everything LOCAL, sales nowhere (the type file states them all)
 		Map<DataDomain, DataOwner> derivedOwners = owners(DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.LOCAL,
 				DataOwner.LOCAL, DataOwner.LOCAL);
 		Set<SalesUpstream> derivedUpstreams = EnumSet.noneOf(SalesUpstream.class);
@@ -333,21 +336,21 @@ public final class NodeOwnership {
 			if (flag(env, key)) {
 				throw new IllegalStateException("Invalid value '" + env.getProperty(key) + "' for property " + key
 						+ ": the franchise profiles were removed (head office plan, step 9). A franchise network runs as"
-						+ " a head office and stores, from the presets headoffice and network-store"
+						+ " a head office and stores, of the types headoffice and store"
 						+ " (docs/modules/franchise.md); remove " + key + ".");
 			}
 		}
 	}
 
 	/**
-	 * Task 9.3: application.standalone was removed. A configuration that still sets it (an old profile or machine file)
-	 * stops the startup: a preset states who owns what.
+	 * Task 9.3: application.standalone was removed. A configuration that still sets it (an old profile or outside file)
+	 * stops the startup: the type file and the ownership.* keys state who owns what (configuration step C1).
 	 */
 	private static void checkNoStandaloneProperty(PropertyResolver env) {
 		if (env.containsProperty(STANDALONE_KEY)) {
 			throw new IllegalStateException("The property " + STANDALONE_KEY + " was removed (head office plan, step 9, task"
-					+ " 9.3): name a preset in the machine file instead, spring.profiles.active=" + String.join(" | ", PRESETS)
-					+ " (docs/deployment-modes.md); remove " + STANDALONE_KEY + ".");
+					+ " 9.3): the installation type (spring.profiles.active=" + String.join(" | ", TYPES) + ") and the"
+					+ " ownership.* keys say who owns what (docs/deployment-modes.md); remove " + STANDALONE_KEY + ".");
 		}
 	}
 
@@ -370,8 +373,8 @@ public final class NodeOwnership {
 		if (erpDomain != null && otherDomain != null) {
 			throw new IllegalStateException("Invalid combination: " + erpDomain.getPropertyKey() + "=ERP with "
 					+ otherDomain.getPropertyKey() + "=" + owners.get(otherDomain) + ". The ERP owns the catalogue, the"
-					+ " customers and the supply together: set all three to ERP (presets store-erp, headoffice-erp,"
-					+ " network-store-erp) or none of them.");
+					+ " customers and the supply together: set all three to ERP or none of them"
+					+ " (docs/deployment-modes.md).");
 		}
 	}
 
