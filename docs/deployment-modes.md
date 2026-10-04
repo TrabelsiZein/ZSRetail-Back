@@ -21,7 +21,8 @@ Each type file has two titled blocks:
   (commented) and, in the store file, `headoffice.url` / `headoffice.api-key` (commented). The values are the dev ones: store A
   (`pos_db_prod`, 444) and the dev head office (`pos_headoffice`, 888). The database password is not in the WAR:
   `spring.datasource.password=${ZSRETAIL_DB_PASSWORD:}`, an environment variable for an IDE start without an outside file,
-  or the key in the outside file.
+  or the key in the outside file. On a developer PC the variable is set once as a Windows user variable, so `POSMainApp`
+  starts directly from the IDE with nothing else to set.
 
 So `POSMainApp` starts from the IDE with no argument as a store (or `-Dspring.profiles.active=headoffice`).
 
