@@ -48,7 +48,10 @@ class ZZDataInitializerRolesTest {
 			"read:admin-headoffice-users", "read:admin-headoffice-roles", "read:admin-headoffice-data-import",
 			"read:admin-headoffice-erp-jobs", "read:admin-headoffice-erp-communications",
 			"read:admin-headoffice-erp-reference-location", "read:admin-headoffice-loyalty-overspends",
-			"read:admin-headoffice-price-lists"));
+			"read:admin-headoffice-price-lists", "read:admin-headoffice-vendors", "read:admin-headoffice-purchases",
+			"read:admin-headoffice-purchase-new", "read:admin-headoffice-vendor-balance",
+			"read:admin-headoffice-purchase-invoices", "read:admin-headoffice-stock",
+			"read:admin-headoffice-stock-movements"));
 
 	// Mode flags of today's profile files: application.standalone, franchise.admin, franchise.customer
 	private static final boolean[][] STORE_PROFILES = {

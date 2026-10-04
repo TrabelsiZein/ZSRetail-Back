@@ -915,6 +915,15 @@ Rules:
 
 Page permission `read:admin-headoffice-price-lists` (seeded on a head office ADMIN, 25 head office permissions; the page comes with the frontend session, task 6.7).
 
+### Head office as a warehouse (task 7A.1)
+A head office **without an ERP** buys from its suppliers and keeps its own stock with the store's code and pages (design 3.5); it still has no till. Nothing in the purchase or stock code changes for it:
+- `isStandalone()` means "no ERP". A head office without an ERP has `application.standalone=true`, so the 17 checks of `PurchaseHeaderAPI`, `VendorAPI`, `PurchaseInvoiceAPI`, `StockService` and `StockMovementService` let it purchase, keep vendors and purchase invoices, raise its stock and write `stock_movement` rows, exactly as a standalone store. `StoreCatalogueGuard` (the purchase right) does not exist on a head office.
+- A head office **with an ERP** (`standalone=false`) answers as before: purchases, vendors and purchase invoices 403, stock not kept. Its frontend pages are `standaloneOnly`.
+- **No CATALOGUE change from stock or cost** (checked in step 7A): a purchase writes the item's last costs with `itemRepository.save` (no catalogue hook), the stock moves with the native updates of `ItemRepository` (no hook), a stock adjustment goes through `ItemService.adjustStock` (no item save) and a BL validation through `StockService` (task 7A.2). None records a change, so no store pulls the item again; the item copy carries no stock and no cost anyway. Only a save through `ItemService.save` records one: an edit on the Items page (whatever field changed, cost and minimum stock included) and an image upload (`ItemImageController`); the stores then pull that one item and write nothing (`unchanged`). Proved by `HeadOfficeWarehouseTest`.
+- Known limit (as on a store): the Items page sends the whole item, `stockQuantity` included, so an edit made while the stock moves writes back the quantity the page loaded.
+
+Page permissions, one per head office route (seeded on a head office ADMIN at each start; frontend routes `standaloneOnly`, twins of the store pages): `read:admin-headoffice-vendors`, `-purchases` (history), `-purchase-new`, `-vendor-balance`, `-purchase-invoices`, `-stock` (stock report), `-stock-movements` (32 head office permissions).
+
 ### Consolidated sales API (task 2.5, head office)
 What the head office pages Tickets history, Sessions history and Returns, and the home cards, read (pages: task 2.5 frontend, "Head office pages" below).
 
