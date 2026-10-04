@@ -243,7 +243,8 @@ public class ZZDataInitializer {
 			"read:admin-headoffice-vendor-balance",
 			"read:admin-headoffice-purchase-invoices",
 			"read:admin-headoffice-stock",
-			"read:admin-headoffice-stock-movements"));
+			"read:admin-headoffice-stock-movements",
+			"read:admin-headoffice-deliveries")); // step 7A: BLs
 
 	/** Store with headoffice.url only: the "Head office link" page (task 1.5). */
 	static final Set<String> HEAD_OFFICE_LINK_ADMIN_PERMISSIONS = new HashSet<>(

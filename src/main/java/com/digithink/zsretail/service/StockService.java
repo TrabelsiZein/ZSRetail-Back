@@ -124,4 +124,39 @@ public class StockService {
 		itemRepository.addToStockQuantity(itemId, delta);
 		log.debug("Stock adjusted: itemId={}, delta={}, reason={}", itemId, delta, reason);
 	}
+
+	/** True when ALLOW_NEGATIVE_STOCK=true in GeneralSetup: a sale or a BL may take the stock below zero. */
+	public boolean isNegativeStockAllowed() {
+		return "true".equalsIgnoreCase(generalSetupService.findValueByCode("ALLOW_NEGATIVE_STOCK"));
+	}
+
+	/**
+	 * Step 7A: goods leave the head office stock with a BL (one call per line, at its validation). Same rule as a sale:
+	 * with ALLOW_NEGATIVE_STOCK=true the stock is decremented unconditionally; otherwise only when it is sufficient, in
+	 * one atomic update. Returns false (nothing changed) when the stock is not sufficient; true otherwise. No-op (true)
+	 * when not in standalone mode.
+	 */
+	@Transactional(rollbackFor = Exception.class)
+	public boolean decrementForDelivery(Long itemId, int quantity) {
+		if (!applicationModeService.isStandalone() || quantity <= 0) {
+			return true;
+		}
+		if (isNegativeStockAllowed()) {
+			itemRepository.decrementStockQuantityUnconditional(itemId, quantity);
+		} else if (itemRepository.decrementStockQuantityIfSufficient(itemId, quantity) == 0) {
+			return false;
+		}
+		log.debug("Stock decremented for a BL: itemId={}, quantity={}", itemId, quantity);
+		return true;
+	}
+
+	/** Step 7A: goods received by a store with a BL (one call per line, at its confirmation). No-op when not standalone. */
+	@Transactional(rollbackFor = Exception.class)
+	public void incrementForDelivery(Long itemId, int quantity) {
+		if (!applicationModeService.isStandalone() || quantity <= 0) {
+			return;
+		}
+		itemRepository.addToStockQuantity(itemId, quantity);
+		log.debug("Stock incremented for a BL: itemId={}, quantity={}", itemId, quantity);
+	}
 }

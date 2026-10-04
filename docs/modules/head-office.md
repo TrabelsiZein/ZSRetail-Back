@@ -924,6 +924,45 @@ A head office **without an ERP** buys from its suppliers and keeps its own stock
 
 Page permissions, one per head office route (seeded on a head office ADMIN at each start; frontend routes `standaloneOnly`, twins of the store pages): `read:admin-headoffice-vendors`, `-purchases` (history), `-purchase-new`, `-vendor-balance`, `-purchase-invoices`, `-stock` (stock report), `-stock-movements` (32 head office permissions).
 
+### BLs (task 7A.2, head office)
+A BL (delivery note) sends goods from the head office stock to one store (design 3.5, decision D12). Head office without an ERP only (`HoDeliveryService`, `HoDeliveryAPI`, `@ConditionalOnHeadOfficeStandalone`); elsewhere the API answers 404 and the domain `SUPPLY` is not served. No price on a BL: step 7B invoices the received BLs.
+
+| Table (entity) | Content |
+|---|---|
+| `ho_delivery` (`HoDelivery`) | `delivery_number` (`BL-000001`, null while `DRAFT`; index `ix_ho_delivery_number`, no unique constraint because SQL Server allows one null only in a unique column: the sequence makes the numbers unique), `store_id` (`ho_store.id`), `status` (`DRAFT`, `SENT`, `RECEIVED`, `INVOICED`; index with the store), `document_date`, `sent_at`, `sent_by`, `received_at` (store clock), `received_by` (store login), `confirmation_received_at` (head office clock), `note` (500), `store_note` (500) |
+| `ho_delivery_line` (`HoDeliveryLine`) | `delivery_id`, `line_no` (unique with the BL), `item_id` (head office item), `item_code`, `item_name` (as when the line was written), `quantity_sent`, `quantity_received` (null until received) |
+| `ho_number_sequence` (`HoNumberSequence`) | `code` (unique; `BL`), `last_value`: incremented inside the validation's transaction (the row stays locked until the commit; a rollback gives the number back). The row is created at the start (`HoDeliveryService.initialise`) |
+
+**Status rules**
+
+| Status | Set by | Allowed |
+|---|---|---|
+| `DRAFT` | `POST` | Edit (`PUT`: store, date, note, lines replaced), delete, validate. No number, no stock moved, not visible to any store |
+| `SENT` | `POST /{id}/validate` | Nothing at the head office; the store receives it (task 7A.3). Cancelling a sent BL is not in 7A (plan, section 5): the store confirms 0 and the head office corrects its stock |
+| `RECEIVED` | the store's confirmation (task 7A.4) | — |
+| `INVOICED` | step 7B | never set in 7A |
+
+**Validation**, all or nothing in one transaction: the BL row is locked (`findForUpdate`, SQL Server `UPDLOCK`: a second validation waits and then gets 409); the store is checked again; each line's item must still be deliverable; unless `ALLOW_NEGATIVE_STOCK=true` (general setup of the head office) the stock of every line must be sufficient, otherwise 409 listing each short item (`Stock not sufficient at the head office: B001: 20 in stock, 50 on the BL; B003: 0 in stock, 1 on the BL.`) and nothing changes. Then: the number, `SENT`, `sent_at` and `sent_by`; each line leaves the stock with `StockService.decrementForDelivery` (atomic; a stock taken meanwhile by another validation is caught there and everything rolls back) and one `DELIVERY_OUT` movement (`reference_type` `BL`, `reference_id` the BL, the number as note); the BL is recorded for its store only: `CopiesDownFeed.recordChange(SUPPLY, "BL:<number>", StoreTargets.of(store))`. No item is saved: no CATALOGUE change (`HoDeliveryServiceTest.noCatalogueChange`).
+
+**Lines**: an item by `itemId` or `itemCode`, active, of type `PRODUCT` or `PACKAGE` (a pack leaves as one item, as at the till), never `TAX_STAMP`, once per BL; quantity a whole number above 0. A BL holds head office items only: a store's own items never exist at the head office.
+
+**Store of a BL**: known and active (400); when the store reported `ownership.supply` (heartbeat, `ho_store.owner_supply`) and it is not `HEAD_OFFICE`: 409 `The store C does not receive goods from the head office (ownership.supply=LOCAL in its settings).` A store that has not reported yet is accepted.
+
+**Copy down** (`DeliveryCopyDTO`, record `BL:<number>`, domain `SUPPLY`): `number`, `documentDate` (`yyyy-MM-dd`), `sentAt` (`yyyy-MM-ddTHH:mm:ss`, head office clock), `status`, `note`, `lines` `[{lineNo, itemCode, itemName, quantitySent}]`; never a database id. `load` answers only the numbered BLs of the pulling store (any other code is removed), so a BL for C is never seen by B. Startup backfill: every numbered BL for its store.
+
+**API** `/admin/headoffice/deliveries` (JWT; errors `{"error"}`):
+
+| Request | Answer |
+|---|---|
+| `GET /?storeId=&status=&search=&dateFrom=&dateTo=&difference=&page=&size=` | `{content, totalElements, totalPages, number, size}`, newest first. `status` one status or `all`; `search` on the number and the note; dates `yyyy-MM-dd` on the document date; `difference=true`: BLs with a line received in another quantity; size 20 by default, at most 200. Row: `{id, number, storeId, storeCode, storeName, status, documentDate, sentAt, sentBy, receivedAt, receivedBy, confirmationReceivedAt, note, storeNote, lineCount, quantitySent, quantityReceived, difference, lines: null}`. 400 for a status, date or page that cannot be read |
+| `GET /{id}` | The same with `lines` `[{lineNo, itemId, itemCode, itemName, quantitySent, quantityReceived, difference, headOfficeStock}]` (`difference` = received − sent); 404 |
+| `POST /` `{storeId, documentDate, note, lines: [{itemCode or itemId, quantity}]}` | 201 the draft. 400 with the line: `Choose the store of the BL.`, `Unknown store id 9.`, `The store C is inactive.`, `A BL needs at least one line.`, `Line 2: unknown item B999.`, `Line 1: the item OFF is inactive.`, `Line 1: the item S1 is a service: it has no stock.`, `Line 1: the tax stamp cannot be delivered.`, `Line 1: the quantity must be a whole number above 0.`, `Line 3: the item B001 is already on line 1.`; 409 for a store whose goods do not come from the head office |
+| `PUT /{id}` | 200 the draft replaced; 409 `Only a draft BL can be changed: BL-000001 is SENT.`; 404 |
+| `DELETE /{id}` | 204; 409 when not a draft; 404 |
+| `POST /{id}/validate` | 200 the BL `SENT`; 409 not a draft, store, stock; 400 an item no longer deliverable; 404 |
+
+Page permission `read:admin-headoffice-deliveries` (33 head office permissions).
+
 ### Consolidated sales API (task 2.5, head office)
 What the head office pages Tickets history, Sessions history and Returns, and the home cards, read (pages: task 2.5 frontend, "Head office pages" below).
 
