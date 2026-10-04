@@ -77,7 +77,7 @@ The exact prompts are written during the session, from the code as it is that da
 | 4 | Shared loyalty, part 1: members and earning | ParaFendri | No (enrol and member changes in LoyaltyAPI and LoyaltyService hooks; the four selling services untouched) | Large | Done 2026-10-04, merged into release/2.1.0 with step 5 (backend 27e981c, frontend 07b9970) |
 | 5 | Shared loyalty, part 2: spending and returns | ParaFendri | No (decided 2026-10-03: no hold and confirm, selling services untouched) | Large | Done 2026-10-04, merged into release/2.1.0 with step 4 (backend 27e981c, frontend 07b9970) |
 | 6 | Items and selling prices decided by the head office: price lists, purchase right | Own stores without ERP, franchise | No | Large | Done 2026-10-04, merged into release/2.1.0 (backend 5f8cb30, frontend 47bd949); task 6.8 (images) not started, after step 7B |
-| 7A | BLs and stock: head office warehouse, delivery to a store, stock of all stores | Own stores without ERP, franchise | No (stock in only) | Large | Done 2026-10-04, merged into release/2.1.0 (backend pending; frontend by the frontend session) |
+| 7A | BLs and stock: head office warehouse, delivery to a store, stock of all stores | Own stores without ERP, franchise | No (stock in only) | Large | Done 2026-10-04, merged into release/2.1.0 (backend e697444; frontend by the frontend session) |
 | 7B | Invoices and supply price for the stores that pay | Franchise | No | Medium | Not started |
 | 8 | Franchise profiles moved onto the model | Happyness | No | Medium | Not started |
 | 9 | Cleanup: mode checks replaced by ownership questions | Everyone | Yes, mechanical | Medium | Not started |
@@ -555,7 +555,7 @@ Diff proof against the base 5e1c581: 0 files in `erp/`, 0 franchise files; `Sale
 
 ### Step 7A — record
 
-**Status: done 2026-10-04, merged into release/2.1.0 (backend pending; the frontend is merged by the frontend session).** Branch `feature/ho-step-7a` in both repos. Described in `docs/modules/head-office.md` ("Head office as a warehouse (task 7A.1)", "BLs (task 7A.2, head office)", "BLs at the store (tasks 7A.3, 7A.4)", "Stock of the stores (task 7A.5)" and the four "Step 7A pages (frontend)" sections).
+**Status: done 2026-10-04, merged into release/2.1.0 (backend e697444; the frontend is merged by the frontend session).** Branch `feature/ho-step-7a` in both repos. Described in `docs/modules/head-office.md` ("Head office as a warehouse (task 7A.1)", "BLs (task 7A.2, head office)", "BLs at the store (tasks 7A.3, 7A.4)", "Stock of the stores (task 7A.5)" and the four "Step 7A pages (frontend)" sections).
 
 | Part | Backend | Frontend |
 |---|---|---|
@@ -570,7 +570,7 @@ Diff proof against the base 5e1c581: 0 files in `erp/`, 0 franchise files; `Sale
 | `belowZero` on the two head office stock endpoints | a8dc85b | — |
 | L2 script, store B profile with `ownership.supply=HEAD_OFFICE` | c231b2c | — |
 | Docs: the four frontend sections, this record, step 6 hashes | this commit | — |
-| Merge into release/2.1.0 | pending | by the frontend session |
+| Merge into release/2.1.0 | e697444 | by the frontend session |
 
 Decisions: see the step 7A backend notes above (stock not sufficient refused all or nothing unless `ALLOW_NEGATIVE_STOCK`; no cancel of a Sent BL; more received than sent accepted and shown, the head office stock unchanged for any difference; supply needs the catalogue; a BL line only on a head office item; number at validation; stock copied up only by the stores supplied by the head office; a waiting line counted and sent up at once, its stock in applied once later; the reception permission topped up on ADMIN at each start).
 
@@ -579,7 +579,7 @@ What exists after the step:
 - Store with `ownership.supply=HEAD_OFFICE` (and the catalogue from the head office): BLs received by the copies down, a reception page, stock in at once (also offline), the confirmations and the stock copied up by `SUPPLY_PUSH`, the `supply` block of the link page.
 - Every other store (supply local, ERP, franchise customer even with `headoffice.url`): unchanged, except that a stock adjustment now writes its movement and an item edit keeps the stored stock (both intended for every standalone store).
 
-Tests at the merge: backend pending, all green, run in a separate worktree of the merge. Frontend: production lint and build per frontend commit (frontend session).
+Tests at the merge: backend 63 classes, 487 tests, all green, run in a separate worktree of the merge. Frontend: production lint and build per frontend commit (frontend session).
 
 L2 (2026-10-04, `devenv/l2-supply.ps1`, instances built from the worktree; head office 888, store B 555 with the catalogue and `ownership.supply=HEAD_OFFICE`, store C 556 with the catalogue and its supply local): 12 scenarios, all passed on the third run (report `C:\zsretail-dev\logs\l2-supply-145427.txt`); the second run found the two fixes above. 1 the head office buys 100: stock 100, one movement; 2 a draft for B edited, deleted, created again, validated (`BL-000006`, Sent, stock out with one `DELIVERY_OUT` per line), a second validation 409 with the stock unchanged; 3 a shortage 409 listing both items, nothing changed; 4 B receives the BL, C sees nothing, has no reception API (404), a BL for C 409; 5 B confirms 48 of 50: stock +48 with one movement, a second confirmation 409, the head office BL Received with 48 and −2; 6 head office stopped while B confirms: stock up at once, the BL Received when it is back, once; 7 the same confirmation sent twice accepted twice and changes nothing, other quantities rejected; 8 a line whose item is missing at B (paging: the item's family arrives after it) waits, then its stock goes in exactly once; 9 3 received for 2 sent: accepted, +1 shown; 10 a sale at B: its stock at the head office stock API, then nothing to send; 11 an adjustment writes `ADJUSTMENT_IN`, an item edit sending an old stock keeps the stored one; 12 ADMIN of B has `read:admin-holink-deliveries` without a manual step, C has not. On the same build: `l2-catalogue.ps1` 15 of 15 (report `l2-catalogue-145702.txt`; its scenario 1 now also sets `ownership.supply=LOCAL`) and `l2-loyalty.ps1` 17 of 17 (`l2-loyalty-150357.txt`). Head office catalogue backfill during that run: 16.6 s for 4,370 records, 8.0 s for 4,500 measured alone right after (1.7 to 2.6 s at step 6): not investigated further.
 
