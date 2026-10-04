@@ -124,6 +124,21 @@ class LoyaltyAPINetworkTest {
 	}
 
 	@Test
+	@DisplayName("Enrol switch: the 503 of the network reaches the caller as {error}")
+	void enrolNeedsHeadOffice() {
+		InMemoryLoyalty.inject(api, "network", new StoreLoyaltyNetwork(null, null, null, null, null, null, null, null,
+				org.springframework.transaction.support.TransactionOperations.withoutTransaction()) {
+			@Override
+			public LoyaltyMemberDTO enrol(CreateLoyaltyMemberRequestDTO request) {
+				throw new StoreLoyaltyNetwork.NetworkException(503, StoreLoyaltyNetwork.ENROL_NEEDS_HEAD_OFFICE);
+			}
+		});
+		ResponseEntity<?> answer = api.createMember(request("29954290"));
+		assertEquals(503, answer.getStatusCodeValue());
+		assertEquals(Map.of("error", StoreLoyaltyNetwork.ENROL_NEEDS_HEAD_OFFICE), answer.getBody());
+	}
+
+	@Test
 	@DisplayName("Enrol 409 with loyalty LOCAL: exactly {error} as before")
 	void enrolConflictLocal() {
 		db.member("LYL-000090", "ALI", "KHARAT", "22984935", true, null);

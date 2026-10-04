@@ -107,7 +107,7 @@ Say "L2 shared loyalty, run $Run, $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 
 # ─── Setup ───────────────────────────────────────────────────────
 Restart 'store-c' @('ownership.loyalty=LOCAL')
-foreach ($code in 'STORE-B', 'STORE-C') { $null = SetStore $code @{ canEditMembers = $false; canAdjustPoints = $false; redeemRequiresOnline = $false } }
+foreach ($code in 'STORE-B', 'STORE-C') { $null = SetStore $code @{ canEditMembers = $false; canAdjustPoints = $false; redeemRequiresOnline = $false; enrolRequiresOnline = $false } }
 if (-not (@((Api 'headoffice' GET '/member-function').Body) | Where-Object { $_.code -eq 'CLIENT' })) {
 	$null = Api 'headoffice' POST '/member-function' @{ code = 'CLIENT'; name = 'Client'; displayOrder = 1 }
 }
@@ -325,6 +325,23 @@ foreach ($s in $Sales) {
 	if ($parts[0] -eq '-' -or [int]$parts[1] -ne [int]$s.Earned -or [int]$parts[2] -ne [int]$s.Redeemed -or $parts[3] -ne $expectedStore) { $missing += "$($s.Number) [$row]" }
 }
 Result 16 ($missing.Count -eq 0) "$($Sales.Count) tickets of B and C at the head office with their loyalty fields$(if ($missing) { '; problems: ' + ($missing -join ', ') })"
+
+# ─── 17. Enrol switch at B ───────────────────────────────────────
+$null = SetStore 'STORE-B' @{ enrolRequiresOnline = $true }
+Heartbeat 'store-b'
+$net17 = (Api 'store-b' GET '/loyalty/network').Body
+StopHo
+$e17 = Enrol 'store-b' 'STRICT' (Phone 7)
+$s17 = Sale 'store-b' $id4b 0
+StartHo
+Heartbeat 'store-b'
+$e17b = Enrol 'store-b' 'STRICT' (Phone 7)
+$null = SetStore 'STORE-B' @{ enrolRequiresOnline = $false }
+Heartbeat 'store-b'
+$ok = $net17.enrolRequiresOnline -eq $true -and $e17.Status -eq 503 -and $e17.Body.error -like 'The head office cannot be reached*' -and
+	$null -eq (Scalar 'store-b' "SELECT card_number FROM loyalty_member WHERE phone = '$(Phone 7)' AND card_number <> '$($e17b.Body.cardNumber)'") -and
+	$s17.Status -eq 200 -and $e17b.Status -eq 200 -and $e17b.Body.cardNumber -match '^LYL-STORE-B-\d{6}$'
+Result 17 $ok "strict enrol at B: network flag $($net17.enrolRequiresOnline); head office stopped: enrol $($e17.Status) [$($e17.Body.error)], sale $($s17.Status); back: enrol $($e17b.Status) $($e17b.Body.cardNumber)"
 
 Say ''
 Say ("{0} passed, {1} failed. Report: {2}" -f @($Results | Where-Object { $_.StartsWith('PASS') }).Count, @($Results | Where-Object { $_.StartsWith('FAIL') }).Count, $Report)

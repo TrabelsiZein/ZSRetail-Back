@@ -86,6 +86,13 @@ public class Store extends _BaseEntity {
 	@Column(name = "redeem_requires_online")
 	private Boolean redeemRequiresOnline;
 
+	/**
+	 * Enrol switch (decided 2026-10-04): the store enrols a member only when the head office answers the phone check of
+	 * that enrol (otherwise 503 there). False (default): the store enrols offline and the duplicate is merged later.
+	 */
+	@Column(name = "enrol_requires_online")
+	private Boolean enrolRequiresOnline;
+
 	// ─── What the store owns, reported with each heartbeat (task 3.6) ─────────
 	// Written only by POST /ho/heartbeat, in the same update as lastContact; null = unknown (no report yet, or a store
 	// of an older version). Exposed in JSON as "ownership" and "salesUpstreams" below, never read from the client.

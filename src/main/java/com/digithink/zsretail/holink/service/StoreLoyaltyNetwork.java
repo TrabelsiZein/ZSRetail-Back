@@ -64,6 +64,9 @@ public class StoreLoyaltyNetwork {
 			+ " Try again later.";
 	static final String ADJUST_UNREACHABLE = "The head office cannot be reached: adjusting points needs it. Try again"
 			+ " later.";
+	public static final String ENROL_NEEDS_HEAD_OFFICE = "The head office cannot be reached: this store enrols a"
+			+ " member only after the head office has checked the phone number. Try again later; the sale can go on"
+			+ " without the card.";
 	static final String NOT_FRESH_UNREACHABLE = "The head office does not answer: the balance shown is this store's.";
 	static final String NOT_FRESH_UNKNOWN = "The head office does not know this card yet: the balance shown is this"
 			+ " store's.";
@@ -133,8 +136,13 @@ public class StoreLoyaltyNetwork {
 						holder.getActive());
 			}
 			if (!answer.isOk()) {
-				log.info("Loyalty: phone not checked at the head office, checked here only ({})",
-						answer.isAnswered() ? "HTTP " + answer.getStatus() : answer.getState() + ": " + answer.getMessage());
+				String why = answer.isAnswered() ? "HTTP " + answer.getStatus() : answer.getState() + ": " + answer.getMessage();
+				// Enrol switch (2026-10-04): this store enrols only with the head office's answer to the phone check
+				if (Boolean.TRUE.equals(linkStatus.get().getEnrolRequiresOnline())) {
+					log.info("Loyalty: enrol refused, the head office did not answer the phone check ({})", why);
+					throw new NetworkException(503, ENROL_NEEDS_HEAD_OFFICE);
+				}
+				log.info("Loyalty: phone not checked at the head office, checked here only ({})", why);
 			}
 			// The check of LoyaltyService, here first so the 409 names the card in its fields too
 			members.findByPhone(phone).stream().filter(m -> m.getOrigin() == RecordOrigin.HEAD_OFFICE)
@@ -228,6 +236,7 @@ public class StoreLoyaltyNetwork {
 		status.put("programEditable", false);
 		status.put("pointsAdjustable", Boolean.TRUE.equals(snapshot.getCanAdjustPoints()));
 		status.put("redeemRequiresOnline", snapshot.getRedeemRequiresOnline());
+		status.put("enrolRequiresOnline", snapshot.getEnrolRequiresOnline());
 		status.put("freshWindowSeconds", LoyaltyFreshness.WINDOW.getSeconds());
 		return status;
 	}

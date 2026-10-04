@@ -27,11 +27,15 @@ public class HeadOfficeHeartbeatAnswerDTO extends HeadOfficePingDTO {
 	/** Step 5: spending needs a balance refreshed from the head office in the last 2 minutes. */
 	private Boolean redeemRequiresOnline;
 
+	/** Enrol switch (2026-10-04): an enrol needs the head office's answer to its phone check. */
+	private Boolean enrolRequiresOnline;
+
 	public HeadOfficeHeartbeatAnswerDTO(String storeCode, String serverTime, Boolean canEditMembers,
-			Boolean canAdjustPoints, Boolean redeemRequiresOnline) {
+			Boolean canAdjustPoints, Boolean redeemRequiresOnline, Boolean enrolRequiresOnline) {
 		super(storeCode, serverTime);
 		this.canEditMembers = canEditMembers;
 		this.canAdjustPoints = canAdjustPoints;
 		this.redeemRequiresOnline = redeemRequiresOnline;
+		this.enrolRequiresOnline = enrolRequiresOnline;
 	}
 }

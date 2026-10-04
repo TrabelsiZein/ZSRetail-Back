@@ -169,7 +169,8 @@ public class HeadOfficeClient {
 				HeadOfficeHeartbeatAnswerDTO.class);
 		return answer.failure != null ? answer.failure
 				: HeadOfficeCallResult.online(answer.body.getServerTime(), answer.body.getCanEditMembers(),
-						answer.body.getCanAdjustPoints(), answer.body.getRedeemRequiresOnline());
+						answer.body.getCanAdjustPoints(), answer.body.getRedeemRequiresOnline(),
+						answer.body.getEnrolRequiresOnline());
 	}
 
 	HeadOfficeHeartbeatDTO heartbeatBody() {

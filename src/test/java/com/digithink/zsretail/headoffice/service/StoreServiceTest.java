@@ -266,6 +266,12 @@ class StoreServiceTest {
 		assertTrue(service.update(created.getId(), strict).get().getRedeemRequiresOnline());
 		strict.setRedeemRequiresOnline(false);
 		assertFalse(service.update(created.getId(), strict).get().getRedeemRequiresOnline());
+		assertFalse(created.getEnrolRequiresOnline(), "enrol switch: off by default");
+		Store enrol = new Store();
+		enrol.setEnrolRequiresOnline(true);
+		assertTrue(service.update(created.getId(), enrol).get().getEnrolRequiresOnline());
+		assertFalse(service.update(created.getId(), new Store()).get().getRedeemRequiresOnline(), "others kept");
+		assertTrue(service.update(created.getId(), new Store()).get().getEnrolRequiresOnline(), "kept when absent");
 
 		Store rights = new Store();
 		rights.setCanEditMembers(true);

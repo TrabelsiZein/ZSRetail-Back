@@ -136,6 +136,7 @@ public class StoreService extends _BaseService<Store, Long> {
 		store.setCanEditMembers(Boolean.TRUE.equals(input.getCanEditMembers()));
 		store.setCanAdjustPoints(Boolean.TRUE.equals(input.getCanAdjustPoints()));
 		store.setRedeemRequiresOnline(Boolean.TRUE.equals(input.getRedeemRequiresOnline()));
+		store.setEnrolRequiresOnline(Boolean.TRUE.equals(input.getEnrolRequiresOnline()));
 		String key = newKey();
 		store.setApiKeyHash(sha256Hex(key));
 		Store saved = save(store);
@@ -177,6 +178,9 @@ public class StoreService extends _BaseService<Store, Long> {
 		}
 		if (input.getRedeemRequiresOnline() != null) {
 			store.setRedeemRequiresOnline(input.getRedeemRequiresOnline());
+		}
+		if (input.getEnrolRequiresOnline() != null) {
+			store.setEnrolRequiresOnline(input.getEnrolRequiresOnline());
 		}
 		return Optional.of(save(store));
 	}

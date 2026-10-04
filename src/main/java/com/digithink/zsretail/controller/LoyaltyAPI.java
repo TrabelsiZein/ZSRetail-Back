@@ -103,6 +103,8 @@ public class LoyaltyAPI {
 			// Loyalty owned by the head office only: the card in fields beside today's message
 			return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage(),
 					"existingCardNumber", e.getCardNumber(), "existingCardActive", e.isCardActive()));
+		} catch (StoreLoyaltyNetwork.NetworkException e) {
+			return networkRefusal(e); // enrol switch: 503 when the head office did not answer the phone check
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
 		} catch (IllegalStateException e) {

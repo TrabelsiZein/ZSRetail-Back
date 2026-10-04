@@ -229,6 +229,7 @@ public class HeadOfficeLinkAPI {
 			loyalty.put("canEditMembers", snapshot.getCanEditMembers());
 			loyalty.put("canAdjustPoints", snapshot.getCanAdjustPoints());
 			loyalty.put("redeemRequiresOnline", snapshot.getRedeemRequiresOnline());
+			loyalty.put("enrolRequiresOnline", snapshot.getEnrolRequiresOnline());
 			return loyalty;
 		} catch (RuntimeException e) {
 			return null; // the status is still answered

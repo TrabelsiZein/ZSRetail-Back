@@ -725,6 +725,28 @@ class SharedLoyaltyRoundTripTest {
 	}
 
 	@Test
+	@DisplayName("Enrol switch: head office stopped, enrol refused 503 (nothing created) and a sale works; back, enrol works")
+	void strictEnrol() {
+		pull();
+		Long existing = network.enrol(request("SAMI", "29954290")).getId();
+		linkStatus.record(HeadOfficeCallResult.online("t", false, false, false, true), NOW);
+		assertEquals(Boolean.TRUE, network.status().get("enrolRequiresOnline"));
+		headOfficeDown = true;
+		StoreLoyaltyNetwork.NetworkException refused = assertThrows(StoreLoyaltyNetwork.NetworkException.class,
+				() -> network.enrol(request("ALI", "22984935")));
+		assertEquals(503, refused.getStatus());
+		assertEquals(StoreLoyaltyNetwork.ENROL_NEEDS_HEAD_OFFICE, refused.getMessage());
+		assertTrue(db.members.values().stream().noneMatch(m -> "22984935".equals(m.getPhone())), "nothing created");
+		assertEquals(349, storeLoyalty.earnPoints(existing, sale(349.0, "S1"), null), "sales and earning go on");
+		assertEquals(1, storeLoyalty.searchMembers("2995").size(), "finding a member goes on");
+		headOfficeDown = false;
+		assertEquals("LYL-RS01-000002", network.enrol(request("ALI", "22984935")).getCardNumber());
+		IllegalArgumentException badPhone = assertThrows(IllegalArgumentException.class,
+				() -> network.enrol(request("BAD", "123")));
+		assertEquals("Le numéro de téléphone doit contenir 8 chiffres", badPhone.getMessage(), "no check asked: 400 first");
+	}
+
+	@Test
 	@DisplayName("Step 5, exchange log: head office stopped for 3 cycles: one row for the push and one for the pull; back: rows again")
 	void failureLoggedOnce() {
 		pull();
