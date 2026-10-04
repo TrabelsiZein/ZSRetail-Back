@@ -619,6 +619,17 @@ Goal: a franchise network runs as a head office and stores; the franchise modes 
 | 8.2 | Dropped 2026-10-04: no franchise install with real data to migrate | — |
 | 8.3 | Remove the franchise code (`/franchise/**`, the two profiles, the franchise flags and fields): to do with step 9 | L3 |
 
+**Step 8 backend** (2026-10-04, branch `feature/ho-step-8` from `release/2.1.0` at cb5c2e5, before step 7B is merged; not merged). Described in `docs/deployment-modes.md`, "Presets", and `docs/modules/franchise.md`, "Installing a franchise network on the model".
+
+| Part | Backend |
+|---|---|
+| 8.0 Recut (no install to migrate, 8.2 dropped, 8.3 with step 9 as 9.4, D7, D15 and D16), task 6.8 out of 2.1 | 2e3a803 |
+| 8.1 Profiles `network-headoffice` and `network-store`, `NetworkPresetTruthTableTest` (the four real files: owners, sales upstreams, the head office switches, the beans of each side; the two franchise profiles locked as they resolve today), the procedure | this commit |
+
+No Java file is changed and no franchise file is touched: two new profile files, one new test, docs. Nothing changes for an install that does not start with one of the two new profiles. The procedure names the step 7B settings and pages; it is complete once step 7B and its pages are merged. Frontend: nothing (the presets give flags the frontend already reads).
+
+Still owed: the merge after step 7B (the overview rows 7B and 8 and the section after the step 7B table are edited on both branches: a small conflict to resolve in the docs); an L2 of the procedure on the dev pair once 7B is merged (head office from `network-headoffice`, a store from `network-store`, the chain of step 5 of the procedure).
+
 ### Step 9 — Cleanup of the mode checks
 
 Goal: no more `isStandalone` in the code; every check asks an ownership question.

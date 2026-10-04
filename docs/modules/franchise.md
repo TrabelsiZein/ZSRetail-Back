@@ -86,3 +86,20 @@
   - `Received At` (`franchiseReceivedAt`)
 - Backend list serialization fixed by extending:
   - `InvoiceListDTO` + `InvoiceAPI.toListDTO()` to include these fields.
+
+### Installing a franchise network on the model
+Head office plan, step 8 (2026-10-04). A new franchise network runs as a head office and stores, from the presets `application-network-headoffice.properties` and `application-network-store.properties` (settings: `docs/deployment-modes.md`, "Presets"). It never uses the two profiles above. The store-row invoicing settings and the supply prices come with step 7B; they are on its branch (`feature/ho-step-7b`), not yet in `release/2.1.0`, and the step 7B pages (Supply prices, store invoicing settings, supply invoices) are still to be built.
+
+1. **Head office.** Create an empty database. Copy `application-network-headoffice.properties`, replace `CHANGE_ME` (database password) and start with `spring.profiles.active=network-headoffice` (port 888, its own log and image folder, so a store can run on the same server). Log in as `admin`. Fill **Company information**: it is the seller on the supply invoices. Tax stamp on supply invoices: head office setting `SUPPLY_INVOICE_TAX_STAMP` (off by default).
+2. **Items at the head office.** Create families, sub-families and items with their barcodes. The item's price is the **base selling price**, imposed on every store. Enter the **base supply price** of each item on the Supply prices page: it is what a store pays. Buy the goods from vendors at the head office (purchases, stock).
+3. **One store row per store** on **Network → Stores**:
+   - code = the store's future `DEFAULT_LOCATION`;
+   - copy the key from the dialog (shown once, otherwise use regenerate-key);
+   - price right and purchase right **off** (the default): imposed selling price, no own suppliers;
+   - deliveries invoiced **on**, with the billing details (legal name, tax number, address);
+   - supply price mode `PRICE_LIST` with no supply price list (base supply price), invoice rhythm `PER_BL`;
+   - no selling price list (base selling price).
+4. **Each store.** Create an empty database. Copy `application-network-store.properties`, replace `CHANGE_ME` (database password, head office host in `headoffice.url`, the key of step 3 in `headoffice.api-key`) and start with `spring.profiles.active=network-store`. Set `DEFAULT_LOCATION` to the store's code in General Setup, and upload the license. The **Head office link** page shows ONLINE; the items arrive with the copies down.
+5. **Check the chain once.** Validate a BL for the store at the head office. The store confirms the received quantities on its reception page. The invoice is created at the confirmation, at the supply price, and arrives at the store as a consult-only purchase invoice from vendor `HEAD_OFFICE`. The store's sales appear in the head office tickets.
+
+Every answer of step 3 is a setting of the store row and can be changed per store later: a selling price list, a supply price list or a percentage off the selling price, grouped invoices, or the rights.
