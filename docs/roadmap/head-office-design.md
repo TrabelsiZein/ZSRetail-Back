@@ -8,7 +8,7 @@ Design principle (Zein, 2026-10-03): "No specific cases, everything configurable
 
 - One model that covers every customer type: one shop, one shop with an ERP, a company with many stores (with or without an ERP), franchise networks, and mixes of them.
 - No code that knows the word "franchise". A type of customer is a set of settings.
-- No regression for existing installs: EMTOP on Business Central, and the franchise profiles being delivered to Happyness.
+- No regression for existing installs: EMTOP on Business Central, and the franchise profiles (no install runs them with real data: 2026-10-04, see D7).
 - New code is added beside existing code. An existing profile keeps working unchanged until it is migrated on purpose.
 
 ## 2. The model
@@ -54,7 +54,7 @@ Each answer is set per store, so one network can mix stores with different answe
 | Head office sees the sales | No head office | No head office | Yes | Yes | Yes |
 
 - ParaFendri (for now): the ERP keeps the stock and handles the shipments between its locations. Its head office ships nothing: no BL, no invoice, no purchases and no stock pages. It decides promotions and loyalty, and sees the sales.
-- The Happyness answers on own suppliers and on imposed prices are assumptions to confirm with the customer; both are switches.
+- The Happyness answers on own suppliers and on imposed prices are the settings a franchise network starts with (D15, 2026-10-04); both are switches on the store row.
 
 ### 2.4 Three movements
 
@@ -210,7 +210,7 @@ Example: `B001`, selling price 10.000, a BL of 50 received. Store A (same compan
 
 Later, on the same model: royalties (a percentage of the store's sales, computed from the ticket copies the head office already has).
 
-This replaces today's franchise flow (ticket at the franchise admin, then invoice tagged with the customer's location, pulled by the franchisee as a purchase reception). The legacy flow is not touched until the migration step.
+This replaces today's franchise flow (ticket at the franchise admin, then invoice tagged with the customer's location, pulled by the franchisee as a purchase reception). The legacy flow is not touched; it is removed with step 9 (no install uses it with real data, D7).
 
 ### 3.7 Promotions and loyalty (question 5, built, steps 3 to 5)
 
@@ -274,7 +274,9 @@ When the ownership settings are absent they are derived from the existing proper
 | `standalone` | Store | Local | Local | Local | Local | Local | Nowhere |
 | `dynamics` (ERP) | Store | ERP | ERP | Local | Local | ERP | ERP |
 | `franchise-customer` | Store | Head office | Local | Local | Local | Head office, plus local purchases | Head office |
-| `franchise-admin` | Kept as it is until the migration step (it sells and supplies at the same time) | | | | | | |
+| `franchise-admin` | Kept as it is until its removal with step 9 (it sells and supplies at the same time) | | | | | | |
+
+A franchise network is installed on the model from the presets `network-headoffice` and `network-store` (step 8, `docs/deployment-modes.md` and `docs/modules/franchise.md`); no install moves from the legacy profiles.
 
 ### 5.2 Regression rules
 
@@ -283,7 +285,7 @@ When the ownership settings are absent they are derived from the existing proper
 3. No column or table is removed or renamed. The release ships its `update.sql`.
 4. The selling services (`SalesHeaderService`, `PromotionCalculationService`, `PricingService`, `ReturnHeaderService`) are not changed.
 5. The `erp/` package is not modified.
-6. The legacy franchise profiles and endpoints are not modified until the migration step.
+6. The legacy franchise profiles and endpoints are not modified until their removal with step 9.
 
 ## 6. Facts from the code that this design relies on
 
@@ -325,7 +327,7 @@ Read on 2026-10-04 (backend `release/2.1.0`):
 | D4 | Enrolling is allowed offline; duplicates are merged later | Decided 2026-10-03 |
 | D5 | Spending never needs the head office by default; per-store switches make a store strict | Decided 2026-10-03 and 04 |
 | D6 | Returns and vouchers across stores | Open, after the plan |
-| D7 | Happyness goes live on today's franchise profiles and migrates at step 8 | Decided 2026-10-02 |
+| D7 | Happyness goes live on today's franchise profiles and migrates at step 8 | Decided 2026-10-02. Replaced 2026-10-04: Happyness never ran the franchise profiles with real data; it starts on the model with new databases, from the step 8 presets; no migration |
 | D8 | Remove the locations list from the store and keep two settings | Open, step 9 |
 | D9 | No own / franchise label: a franchise store is a store with settings | Decided 2026-10-04 |
 | D10 | Selling price: base price plus price lists at the head office, one list per store or none, one price per item sent to the store | Decided 2026-10-04 |
@@ -333,5 +335,5 @@ Read on 2026-10-04 (backend `release/2.1.0`):
 | D12 | A BL always goes to a store; it is invoiced only once received, on the confirmed quantities | Decided 2026-10-04 |
 | D13 | Customers stay the store's (or the ERP's); shared customers later | Decided 2026-10-04 |
 | D14 | A store has one head office; several head offices are separate networks | Decided 2026-10-04 |
-| D15 | Happyness: is the selling price imposed, and may a store buy from its own suppliers | Open, to ask the customer before step 8 |
-| D16 | Happyness: supply price per item or a percentage off the selling price; invoice per BL or per period | Open, to ask the customer before step 7B |
+| D15 | Happyness: is the selling price imposed, and may a store buy from its own suppliers | Starting settings 2026-10-04: imposed (price right off), no own suppliers (purchase right off); per store, can be changed |
+| D16 | Happyness: supply price per item or a percentage off the selling price; invoice per BL or per period | Starting settings 2026-10-04: a base supply price per item (mode `PRICE_LIST`, no list), one invoice per BL; per store, can be changed |

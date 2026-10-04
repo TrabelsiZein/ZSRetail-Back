@@ -76,10 +76,10 @@ The exact prompts are written during the session, from the code as it is that da
 | 3 | Promotions owned by head office | ParaFendri | No (engine untouched) | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 604a97c, frontend 57acf81) |
 | 4 | Shared loyalty, part 1: members and earning | ParaFendri | No (enrol and member changes in LoyaltyAPI and LoyaltyService hooks; the four selling services untouched) | Large | Done 2026-10-04, merged into release/2.1.0 with step 5 (backend 27e981c, frontend 07b9970) |
 | 5 | Shared loyalty, part 2: spending and returns | ParaFendri | No (decided 2026-10-03: no hold and confirm, selling services untouched) | Large | Done 2026-10-04, merged into release/2.1.0 with step 4 (backend 27e981c, frontend 07b9970) |
-| 6 | Items and selling prices decided by the head office: price lists, purchase right | Own stores without ERP, franchise | No | Large | Done 2026-10-04, merged into release/2.1.0 (backend 5f8cb30, frontend 47bd949); task 6.8 (images) not started, after step 7B |
+| 6 | Items and selling prices decided by the head office: price lists, purchase right | Own stores without ERP, franchise | No | Large | Done 2026-10-04, merged into release/2.1.0 (backend 5f8cb30, frontend 47bd949); task 6.8 (images) removed from 2.1, in section 5 |
 | 7A | BLs and stock: head office warehouse, delivery to a store, stock of all stores | Own stores without ERP, franchise | No (stock in only) | Large | Done 2026-10-04, merged into release/2.1.0 (backend e697444; frontend by the frontend session) |
 | 7B | Invoices and supply price for the stores that pay | Franchise | No | Medium | Not started |
-| 8 | Franchise profiles moved onto the model | Happyness | No | Medium | Not started |
+| 8 | Franchise profiles moved onto the model | Happyness | No | Small (recut 2026-10-04: presets only, no migration) | In progress on feature/ho-step-8 |
 | 9 | Cleanup: mode checks replaced by ownership questions | Everyone | Yes, mechanical | Medium | Not started |
 
 Sizes are estimates from reading the code.
@@ -88,6 +88,7 @@ Sizes are estimates from reading the code.
 - EMTOP is not affected by steps 1 to 8: it has no head office configured.
 - Steps 1 and 2 are the base for every customer with a head office, Happyness included. Happyness does not wait for them only because today's franchise profiles already contain an older version of the same two things (one shared key, sales push to the admin). It moves onto steps 1 and 2 at step 8.
 - Happyness stays on today's franchise profiles until step 8. Decided on 2026-10-02 (D7): Happyness goes live soon, so the order of the steps does not change.
+- Update 2026-10-04 (step 8 recut): Happyness never ran the franchise profiles with real data. It starts on the model, with new databases, installed from the step 8 presets. No install needs a migration.
 
 ## 4. Steps
 
@@ -403,7 +404,7 @@ Goal: a store whose items are decided by the head office receives its items and 
 | 6.5 | "May change its selling prices" on the store's row (sent with the heartbeat answer). On: the store can put its own price on a head office item and the pull keeps it. Off: refused | L1 own price kept across a pull; refused when off |
 | 6.6 | "Can purchase from its own suppliers" on the store's row. Off: no purchases, no suppliers and no own items on a store whose items are the head office's. On: purchases and suppliers open, own items can be created, purchase lines accept own items only | L1 off and on; a head office item in a purchase line is refused; a store that decides its own items purchases as today |
 | 6.7 | Stores page: the three new settings; the own / franchise label leaves the page (the column stays) | L2 |
-| 6.8 | Item images from the head office. Not started: to do after step 7B (how they are stored and what sending them would take: `docs/modules/head-office.md`, "Catalogue owned by the head office", Images) | Defined when decided |
+| 6.8 | Item images from the head office. Removed from version 2.1 (Zein, 2026-10-04): moved to section 5, "Later, not scheduled" | — |
 
 L2 scenarios (head office, stores B and C): an item created at the head office is sold at B and C; changed and deactivated, followed; an item of C with the same code becomes the head office item; a price list set on C only: C sells at the list price and B at the base price; a list line change reaches C only; "may change" on at C: its own price survives a pull; purchase right off at B: purchases refused; on at C: own item created, purchased, stock up, sold, and seen in the head office tickets; head office stopped: both stores sell with their last copy.
 
@@ -428,7 +429,7 @@ Choices made in the session (inventory approved by Zein, 2026-10-04):
 - The own price has its own endpoints (`PUT`/`DELETE /item/{id}/own-price`); a full `PUT` of a head office item is always 409. When the right goes off, the own prices give way to the head office price at the next cycle (`DownHandler.prepare`).
 - Only the two new rights are saved at the store; the four loyalty switches stay in memory.
 - Purchase right off: writes 409, reads open. Catalogue and sales price imports refused; vendor import follows the right. `sales_price` writes refused, a WARN at startup and a count in the status when rows exist on head office items (`PricingService` not changed).
-- Images do not travel (task 6.8, after L2); `ItemImageController` has no guard.
+- Images do not travel (task 6.8, removed from 2.1: section 5); `ItemImageController` has no guard.
 - A data import at the head office records its codes at the end, in chunks of 500.
 - Startup backfill in chunks of 500 with one number per record.
 - L2 (decision 18): stores B and C receive the head office items (1,778 imported from NAV in `pos_headoffice`) as a volume test; their profiles get `ownership.catalogue=HEAD_OFFICE` at L2.
@@ -464,7 +465,7 @@ Decisions (inventory approved by Zein, 2026-10-04; see "Steps 6 and 7 — recut"
 - Base price `item.unitPrice` plus price lists (one list per store or none); the store receives one price per item; `PricingService` unchanged. A list used by a store cannot be deleted or deactivated.
 - A head office record is consult-only at the store; stock adjustment is always allowed. `mayChangePrices`: an own price kept across pulls, given back by one action, reset at the next cycle when the right goes off. `canPurchase`: off, no purchases, vendors or own items; on, own items only in purchases. Both rights are saved at the store; never received = off.
 - The code of an item, family or sub-family is final at the head office; a barcode clash moves the barcode to the head office item (one `WARNING` row) and clears an old `item.barcode` field; packs travel with their components; `sales_price` writes and catalogue imports are refused at the store.
-- Images are not sent (task 6.8, after step 7B). `Store.kind` stays in the table and the API, read by no rule, off the Stores page.
+- Images are not sent (task 6.8, removed from 2.1: section 5). `Store.kind` stays in the table and the API, read by no rule, off the Stores page.
 
 **The three settings of a store for step 6** (head office Stores page; the two rights sent with the heartbeat answer and saved at the store):
 
@@ -498,7 +499,7 @@ Diff proof against release/2.1.0 (before the merge): 0 files in `erp/`, 0 franch
 | `PurchaseInvoiceService`, `InvoiceService` | Without a date filter the lists and eligible documents use 0001-01-01 and 9999-12-31 instead of `LocalDate.MIN`/`MAX` (500 before): an intended fix for every store |
 | `application-store-b-dev.properties`, `application-store-c-dev.properties` | Dev profiles only |
 
-Still owed: the screen check of the step 6 pages on the dev pair; the full regression checklist (once, before 2.1 is delivered); the `update.sql` lines of section 1. Task 6.8 (images) is not started, to do after step 7B.
+Still owed: the screen check of the step 6 pages on the dev pair; the full regression checklist (once, before 2.1 is delivered); the `update.sql` lines of section 1. Task 6.8 (images) is removed from 2.1 (section 5).
 
 ### Step 7A — BLs and stock
 
@@ -605,11 +606,18 @@ L2 scenarios: a store that does not pay: its Received BL cannot be invoiced; a s
 
 Goal: a franchise network runs as a head office and stores; the franchise modes disappear. Needs decisions D7 and D15.
 
+**Recut (Zein, 2026-10-04, after the step 8 inventory).** No install runs the franchise profiles with real data. Happyness was only set up on them: its stores still run their old POS, and it starts on the model with new databases at the head office and at the stores. A franchise network is therefore installed directly from the two presets of task 8.1. Nothing has to be migrated. Consequences:
+
+- The franchisor's head office never sells; the stores sell (inventory decision 1, design 2.1).
+- Task 8.2 (migration of a franchise install) is dropped, not on hold. The questions it raised (sales history to send up, a fresh database or a converted one) no longer apply.
+- The starting settings of a franchise network (inventory decisions 2 and 4, design D15 and D16): price right and purchase right both off (imposed selling price, no own suppliers); a base selling price and a base supply price on the items, supply price mode `PRICE_LIST` without a list, invoice rhythm `PER_BL`. Each one stays a setting of the store row and can be changed per store.
+- The legacy profiles and `/franchise/**` stay as they are during step 8 (design 5.2, rule 6). Their removal (task 8.3) is now possible and is done with step 9.
+
 | Task | What | Test |
 |---|---|---|
-| 8.1 | Settings presets that replace `franchise-admin` and `franchise-customer` (the franchise column of the design, section 2.3) | L1 truth table |
-| 8.2 | Migration of a franchise install: stores list from the customers' location codes with their billing details, cursors, keys; `franchise_sales_price` becomes a selling price list | L2 on a copy of the franchise databases |
-| 8.3 | Remove `/franchise/**` code once no install uses it | L3 |
+| 8.1 | Settings presets that replace `franchise-admin` and `franchise-customer` (the franchise column of the design, section 2.3): profiles `network-headoffice` and `network-store`; procedure "Installing a franchise network on the model" in `docs/modules/franchise.md` | L1 truth table on the real profile files |
+| 8.2 | Dropped 2026-10-04: no franchise install with real data to migrate | — |
+| 8.3 | Remove the franchise code (`/franchise/**`, the two profiles, the franchise flags and fields): to do with step 9 | L3 |
 
 ### Step 9 — Cleanup of the mode checks
 
@@ -620,6 +628,7 @@ Goal: no more `isStandalone` in the code; every check asks an ownership question
 | 9.1 | Backend: the 51 checks replaced file by file | L1 old and new answers identical for every profile |
 | 9.2 | Frontend: the about 120 references replaced | L3 |
 | 9.3 | Profile files renamed to presets; `deployment-modes.md` rewritten | L3 |
+| 9.4 | Task 8.3, moved here: the franchise code removed (`/franchise/**`, `franchise-admin` and `franchise-customer`, the franchise flags, the franchise branches of `ItemAPI`, `ItemService`, `InvoiceService`, `ZZDataInitializer`, the franchise pages); no column dropped (design 5.2, rule 3) | L3 |
 
 ## 5. Later, not scheduled
 
@@ -632,6 +641,7 @@ Notes of Zein, 2026-10-03 and 04:
 - A new head office dashboard (today the head office home is the store's `Home.vue`) and head office reports (maybe the store reports with a store filter, to discuss; the queries need a version on the `ho_` tables).
 
 Also:
+- Item images from the head office (former task 6.8, removed from version 2.1 by Zein on 2026-10-04). Today images do not travel: a store keeps its own picture on a head office item and the pull never overwrites it. How they are stored and what sending them would take (an `imageVersion` in the item copy, a head office image endpoint, a store step that saves the file under its own id): `docs/modules/head-office.md`, "Catalogue owned by the head office", Images.
 - Profile cleanup at step 9.3: presets for what the installation is, one file per machine outside git for where it runs.
 - The group promotion fix (frontend 8c7ce9b) is not in release/1.12.0.
 - The purchase invoice fix (backend be626d3) and the invoice fix (backend bc45f3a), lists and eligible documents without a date filter (`LocalDate.MIN`/`MAX` outside the SQL Server date range, 500), are not in release/1.12.0.

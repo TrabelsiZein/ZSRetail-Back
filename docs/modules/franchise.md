@@ -1,6 +1,6 @@
 # Franchise Module
 
-**Status**: ✅ Implemented (franchise admin + franchise customer)
+**Status**: ✅ Implemented (franchise admin + franchise customer). Legacy since the head office plan, step 8 (2026-10-04): no install runs these two profiles with real data, and a new franchise network is installed on the head office model instead (head office plan, step 8). The profiles and `/franchise/**` stay unchanged until they are removed with step 9.
 
 ### Overview
 - Goal: allow launching multiple independent franchise local stores (franchise customers) while centralizing product catalog and supply invoices (franchise admin).
