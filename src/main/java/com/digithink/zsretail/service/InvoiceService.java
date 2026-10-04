@@ -45,6 +45,13 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class InvoiceService extends _BaseService<InvoiceHeader, Long> {
 
+	/**
+	 * Bounds used when no date is given: the range of the SQL Server date and datetime2 types (LocalDate.MIN and MAX are
+	 * outside it; same fix as PurchaseInvoiceService, found at L2 of step 6).
+	 */
+	static final LocalDate FIRST_DATE = LocalDate.of(1, 1, 1);
+	static final LocalDate LAST_DATE = LocalDate.of(9999, 12, 31);
+
 	@Autowired
 	private InvoiceHeaderRepository invoiceHeaderRepository;
 
@@ -84,8 +91,8 @@ public class InvoiceService extends _BaseService<InvoiceHeader, Long> {
 		Customer customer = customerRepository.findById(customerId)
 				.orElseThrow(() -> new IllegalArgumentException("Customer not found: " + customerId));
 
-		LocalDateTime fromDateTime = from != null ? from.atStartOfDay() : LocalDate.MIN.atStartOfDay();
-		LocalDateTime toDateTime = to != null ? to.atTime(LocalTime.MAX) : LocalDate.MAX.atTime(LocalTime.MAX);
+		LocalDateTime fromDateTime = from != null ? from.atStartOfDay() : FIRST_DATE.atStartOfDay();
+		LocalDateTime toDateTime = to != null ? to.atTime(LocalTime.MAX) : LAST_DATE.atStartOfDay();
 
 		List<SalesHeader> tickets = salesHeaderRepository
 				.findBySalesDateBetweenAndStatus(fromDateTime, toDateTime, TransactionStatus.COMPLETED);
@@ -465,8 +472,8 @@ public class InvoiceService extends _BaseService<InvoiceHeader, Long> {
 			int page, int size) {
 		Pageable pageable = PageRequest.of(page, size);
 
-		LocalDate fromDate = from != null ? from : LocalDate.MIN;
-		LocalDate toDate = to != null ? to : LocalDate.MAX;
+		LocalDate fromDate = from != null ? from : FIRST_DATE;
+		LocalDate toDate = to != null ? to : LAST_DATE;
 
 		Page<InvoiceHeader> basePage;
 
