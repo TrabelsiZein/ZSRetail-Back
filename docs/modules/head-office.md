@@ -1,244 +1,82 @@
-# Head Office Module
+### Step 7B pages (frontend): supply prices and invoicing settings
+Frontend commits b398fea (Stores page), 273aba9 (price lists), 0c513a4 (supply prices), on `feature/ho-step-7b`. Head office without an ERP only. Backend: step 7B part 1 (435ab69), "Supply prices and invoicing settings (step 7B, part 1)".
 
-**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office); task 2.4 done (the store's push job with retry, counts on `GET admin/holink/status`). Task 2.5 backend done (consolidated sales API, home cards, page permissions; see "Consolidated sales API"; its pages to come); task 2.6 backend done (jobs with editable frequency and run now, exchange log; see "Head office link: jobs and exchange log"); the pages of 2.5 and 2.6 come with the frontend session. Step 3 in progress: task 3.1 done (the copies down mechanism, see "Copies down"); task 3.2 done (`origin` on `promotion` and the write guards, see `docs/modules/promotion.md`); task 3.3 done (target stores, payload by codes, received promotions, network usage count; see "Promotions owned by the head office"); task 3.5 done (missing targets WAITING and retried, tracking table, `GET admin/holink/received/{domain}`, counts in the link status). Rule fix: on a store whose promotions are local every promotion is written as before, whatever its origin (`docs/modules/promotion.md`). Task 3.6 done (what each store owns, sent with the heartbeat, see "Store API"). Task 3.4 done (head office with an ERP: imports only, export jobs never run, ERP reference location, profile `headoffice-dynamics-dev`; see "Head office with an ERP"). Step 3 frontend done: task 3.0 (lint) and the pages of tasks 3.2 to 3.6, see "Step 3 pages (frontend)". Step 4 backend done (shared loyalty: members and earning, see "Shared loyalty (step 4)"): part 1 the head office side (register, copies down, members and movements up, phone check, member edit, store rights), part 2 the store side (enrol, `LOYALTY_PUSH`, `LOYALTY` pull, member changes through the head office, link page API); steps 4 and 5 done and merged (frontend and L2 included). Step 6 backend done (catalogue and selling prices decided by the head office, price lists, store rights and guards; see "Catalogue owned by the head office (step 6)" and "Price lists (task 6.4)"); frontend (task 6.7), L2 and task 6.8 (images) to come. Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
+**Stores page** (`StoresManagement.vue`): a block "Invoicing of the deliveries" in the store form and in the details, after the selling prices block, shown only when `/config` gives `standalone: true` (like the selling price list). The fields are a shared component, `src/views/admin/headoffice/StoreInvoicingFields.vue`.
+- Switch "Deliveries invoiced" (`deliveriesInvoiced`). The other fields show only when it is on.
+- Billing legal name (200), tax number (50), billing address (500).
+- Supply price: "Price list" (`supplyPriceMode` `PRICE_LIST`, the default) or "Percentage off the selling price" (`PERCENT_OFF`).
+  - Price list: a select of the active lists of kind `SUPPLY`, plus "None (base supply price)".
+  - Percentage: a number from 0 to 100; out of range blocks the save.
+- Invoices: "One per delivery note" (`invoiceRhythm` `PER_BL`, the default) or "Grouped (made by hand)" (`GROUPED`).
+- Saving. The fields go with the store's `POST` / `PUT`. With the switch off, only `deliveriesInvoiced: false` is sent and the other settings stay as they are. Blank billing fields are sent empty, which clears them.
+- The supply price list goes with the `POST` at creation; afterwards `PUT /admin/headoffice/stores/{id}/supply-price-list {priceListId}`, only for an invoiced store in price list mode, when it changed.
+- In the details the block is saved with its own button ("Save the invoicing"), enabled when something changed. A refusal (400) shows the backend text and reloads the stores.
+- The selling price list select now offers selling lists only (a list without a kind is a selling list).
 
-### Overview
-- Two installation types, same WAR: a **store** sells; a **head office** manages several stores and never sells (no cashier session, no ticket).
-- Set by `node.type=STORE` (default) or `node.type=HEAD_OFFICE`. Not a user role: `ADMIN`, `RESPONSIBLE`, `POS_USER` and the role tables are unchanged.
-- A head office runs as its own instance with its own database, possibly on the same machine as a store.
+**Price lists page** (`PriceLists.vue`):
+- Kind "Selling" or "Supply" chosen at creation (`POST` with `kind`), read-only on edit ("The kind cannot change once the list is created").
+- A Kind column (badge) and a kind filter (All kinds, Selling, Supply), applied to the lists already loaded.
+- Lines of a supply list: the help text speaks of supply prices before VAT. Since backend cee300c (frontend 4a0504c, part 2) the reference column is "Base supply price" (`basePrice` is the base supply price on a supply list, null when none), and a new line starts at the item's base supply price, read from `GET /admin/headoffice/supply-prices` by its exact code (empty when none). A selling list is unchanged: base selling price, a new line starts at it.
 
-### Installation type
-- Backend: `ApplicationModeService.getNodeType()` and `isHeadOffice()`, resolved at startup by `config/NodeOwnership.java` (see `docs/deployment-modes.md`, "Ownership model").
-- Head office only beans: `@ConditionalOnHeadOffice` (`config/OnHeadOfficeCondition.java`) reads `node.type` with the same parsing as the startup (`NodeOwnership.nodeTypeOf`: trimmed, case-insensitive, `STORE` when absent). On a store such a bean is not created, so its endpoints answer 404 (except under `/ho/**`, which answers 401 on a store: see "Store API").
-- `GET /config` returns `nodeType`; the frontend store exposes the getter `appConfig/nodeType`.
-- On a head office, sales go nowhere when `sales.upstream` is absent, whatever the mode flags.
+**Supply prices page** (`src/views/admin/headoffice/SupplyPrices.vue`):
+- Route `admin-headoffice-supply-prices`, path `/headoffice/supply/supply-prices`, `meta.standaloneOnly`. Supply menu, right after Delivery notes. Permission `read:admin-headoffice-supply-prices` (35 head office permissions, the same list as the backend).
+- `GET /admin/headoffice/supply-prices` with search (code, name) and paging, 20 rows by default. Columns: item code, item name, base selling price, base supply price (before VAT).
+- The supply price is edited in the row; a changed row is highlighted, and a wrong value (not a number, below 0) blocks the save.
+- Changes are kept across pages and searches. "Save (n)" sends them together with one `PUT` `[{itemCode, supplyPrice}]`; an empty price is sent as `null`, which deletes the base supply price. "Discard" drops them.
+- All or none: on a refusal (400) nothing is saved, the backend text is shown, and the edits stay so they can be corrected.
 
-**Startup checks** (the application does not start):
+Labels in `en`, `fr`, `ar` (`admin.headoffice.stores.invoicing.*`, `admin.headoffice.priceLists.kind*`, `admin.headoffice.supplyPrices.*`).
 
-| Head office with | Message starts with |
-|---|---|
-| `franchise.admin=true` or `franchise.customer=true` | `Invalid combination: node.type=HEAD_OFFICE with franchise...=true` |
-| an explicit owner `HEAD_OFFICE` (`ownership.<domain>`) | `Invalid value 'HEAD_OFFICE' for property ownership.<domain>: on a head office ... the owner cannot be HEAD_OFFICE` |
-| a non-empty `sales.upstream` | `Invalid value '<value>' for property sales.upstream: a head office ... never sells` |
-| `headoffice.offline-after-seconds` below 1 or not a whole number (task 1.5) | `Invalid value '<value>' for property headoffice.offline-after-seconds: a whole number of seconds, at least 1` |
+**Checks:** lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
 
-An explicit owner `ERP` or `LOCAL` is accepted (for example a head office that imports items from the ERP, decision D2).
+**Not in this part:** the invoices pages (step 7B parts 2 and 3). They wait for the backend API.
 
-### Guards (task 1.1)
-Backend:
-- **No cashier session.** `CashierSessionService.openSession` and `save()` of a **new** session throw `IllegalStateException("This installation is a head office: cashier sessions cannot be opened.")`. `POST /cashier-session/open` answers 400 with that plain string (shown by `OpenSession.vue`); the generic `POST /cashier-session` answers 500 with the same string. Existing sessions are saved as before.
-- Every selling endpoint that needs an open session (`process-sale`, `save-pending`, `complete-pending`, `cancel-pending`, `process-return`) is therefore refused too, with today's "No open cashier session found".
-- **No cashier login.** `JWTAuthenticationFilter.successfulAuthentication`: when `isHeadOffice()` and the user's `AppRole.isPosRole` is true (the flag the login response sends as `isPosRole`), the answer is 403 `{"code":403,"msg":"This installation is a head office: cashier accounts cannot sign in here."}` and no token. `Login.vue` shows `msg`. On a store the check is not evaluated.
-- Known gap, out of task 1.1: the generic CRUD endpoints (`POST`/`PUT` on `/sales-header`, `/payment`, `/sales-line`, `/return-header`, `/return-voucher`) are not guarded, on a head office as on a store.
+### Step 7B pages (frontend): supply invoices
+Frontend commits 067dbf6 (invoices), d765b1d (to invoice), 51d8582 (what the stores owe), af18201 (BL page), 7bbef7f (store side), 4a0504c (supply list base price), 16fb967 (preview lines without a supply price), on `feature/ho-step-7b`. Backend 055757b and the fix cee300c. Head office pages without an ERP only (`meta.standaloneOnly`); 37 head office permissions, the same list as the backend.
 
-Frontend: since task 1.6 a head office has only its own routes (see "Head office pages and menu"), so no POS route and no selling page exists there.
-- Router guard (`src/router/index.js`), before the cashier session check: a store route redirects to its head office twin, or to the head office home. A head office never calls `/cashier-session/current`.
-- `getHomeRouteForLoggedInUser` (`src/auth/utils.js`) returns the head office home (`admin-headoffice-home`) on a head office; `Login.vue` uses it instead of sending cashier roles straight to the POS.
-- The six POS routes still carry `meta.pos: true` (store routes are not changed); nothing reads it since task 1.6.
+**Supply invoices page** (`src/views/admin/headoffice/SupplyInvoices.vue`):
+- Route `admin-headoffice-supply-invoices`, path `/headoffice/supply/supply-invoices`. Supply menu, after Supply prices. Permission `read:admin-headoffice-supply-invoices`. API `/admin/headoffice/supply-invoices`.
+- Tab "Invoices": number (with its BL numbers), store and buyer, date, total before VAT, total with VAT, Paid / Unpaid badge (with the paid date).
+  - Filters: store (`store-options`), payment (paid and unpaid, unpaid, paid), date from and to.
+  - Paging by the API, 20 rows by default.
+  - The query `storeId`, `paid` (`true` / `false`) and `invoiceId` (opens that invoice) set the page when it opens.
+- Detail (`GET /{id}`): seller and buyer as the invoice recorded them, date, BLs, note, lines (`SupplyInvoiceLines.vue`: BL, code, name, quantity, unit price before VAT, VAT %, totals before and with VAT), totals (`SupplyInvoiceTotals.vue`).
+- Paid: a switch with the paid date (today by default) and a note, saved with `PATCH /{id}/paid {paid, paidDate, note}`; unpaid sends `{paid: false}`.
+- Print (list and detail): `SupplyInvoiceTemplate.vue`, mounted the way of the BL print with the purchase invoice print styles. It shows the seller snapshot (and the head office logo), the number, date, buyer with tax number and store code, lines by BL, totals, BL numbers and the note.
+- Tab "To invoice":
+  - Store: the active stores whose deliveries are invoiced (`GET /admin/headoffice/stores`, `deliveriesInvoiced`), with their invoice rhythm.
+  - Its received BLs not invoiced (`GET /to-invoice?storeId=`): number, date, received, quantity received. `invoiceNote` (why the automatic invoice failed) is shown in orange. BLs are ticked one by one or all at once.
+  - Date (today by default) and note.
+  - "Preview" (`POST /preview {storeId, deliveryIds, invoiceDate}`) shows the lines and totals. The items without a supply price (`missingPrices`) are listed in a red alert. Since backend 01f51ca (frontend 16fb967) each BL line of such an item also comes as a preview line in its place (`missingPrice: true`: BL, item code, name, quantity, no line number and no price; outside the totals): the table shows it in red with "No supply price".
+  - "Create the invoice" (`POST /` with the note) is enabled only after a preview of the current choice and date with no price missing; changing the BLs or the date drops the preview. The new invoice then opens.
+  - Every 400 and 409 shows the backend text: the BLs, the store setting, a percentage missing, nothing received, a date in the future or before the last invoice.
 
-### Head office pages and menu (task 1.6)
-**Rule.** On a head office nothing is visible by default: a page exists there only when it is declared in `src/router/headoffice-routes.js`. A page shared with the store is never copied: its head office route points to the same component.
+**What the stores owe** (`src/views/admin/headoffice/StoreBalances.vue`):
+- Route `admin-headoffice-store-balances`, path `/headoffice/supply/store-balances`, Supply menu after Supply invoices, permission `read:admin-headoffice-store-balances`.
+- `GET /admin/headoffice/supply-invoices/balances`: one row per store with an invoice: invoices, total, paid, unpaid (with the number of unpaid invoices), amounts with VAT, and the unpaid total above the table.
+- A click on a row opens the supply invoices page filtered on that store, unpaid.
 
-**Routes** (`src/router/headoffice-routes.js`, spread into the router):
-- Paths start with `/headoffice`; route name and `meta.resource` are `admin-headoffice-<page>`, `meta.action` is `read`, and every route has `meta.headOffice: true`.
-- A shared page names its store route in `meta.twinOf`.
-- The guard step uses `installationRedirect(to)` in `src/navigation/head-office.js`, right after the login check:
+**BL page** (`Deliveries.vue`): the `INVOICED` status is labelled (Invoiced, Facturé, مفوتر). The invoice number (`invoiceNumber`) is shown under the status in the list and in the detail, as a link to the supply invoices page opened on that invoice (`invoiceId`). Without an invoice, `invoiceNote` is shown as "Not invoiced automatically" (on hover in the list, in full in the detail).
 
-| Installation | Route | Goes to |
-|---|---|---|
-| Head office | head office route, or a common page (`login`, `misc-not-authorized`, `error-404`, `admin-license-expired`: `HEAD_OFFICE_COMMON_ROUTES`) | itself |
-| Head office | store route with a twin | the twin, params, query and hash kept (e.g. `/admin/users?userId=7` → `/headoffice/settings/users?userId=7`) |
-| Head office | any other store route (POS, selling pages, reports, Head office link...) | head office home |
-| Store | head office route | `home` |
-| Store | Head office link page without `headoffice.url` | `home` (task 1.5, unchanged) |
+**Store side**, only when `/config` gives `supplyFromHeadOffice: true` (without it the pages render as before):
+- Purchase invoices (`PurchaseInvoiceManagement.vue`): a "Head office" badge on the invoices whose vendor code is `HEAD_OFFICE`, in the list and the detail. The page has no edit or delete on an invoice, so they stay consult-only; their notes give the BL numbers.
+- Vendors (`VendorManagement.vue`): the `HEAD_OFFICE` vendor is marked "Head office" and has no edit button (the API answers 409).
+- BL reception (`DeliveryReception.vue`, a page that exists only with the flag): "Invoiced by the head office: <number>" under each received BL and in its detail.
 
-- The later guard steps read `to.meta.twinOf || to.name`, so a twin follows the rules of its store route. The license exception covers the company information twin, which holds the license upload. "Standalone only" sends data import home on a head office without `application.standalone=true`.
-- Store routes and the store menu entries are unchanged. The Stores route moved from `/admin/headoffice/stores` to `/headoffice/stores`; the old address shows the 404 page. The backend API keeps `/admin/headoffice/stores`.
-- `HEAD_OFFICE_HIDDEN_ROUTES` and `HEAD_OFFICE_ONLY_ROUTES` (tasks 1.1, 1.2) are gone.
+Labels in `en`, `fr`, `ar` (`admin.headoffice.supplyInvoices.*`, `admin.headoffice.storeBalances.*`, `admin.headoffice.deliveries.notInvoiced`, `admin.holink.deliveries.invoice`).
 
-**Pages on a head office today:**
+**Checks:** lint of the changed files in production mode and `npm run build`, both clean before each commit. Not seen in the browser (L2).
 
-| Menu | Page | Head office route | Path | Store twin (`twinOf`) |
-|---|---|---|---|---|
-| Home | Dashboard | `admin-headoffice-home` | `/headoffice` | `home` |
-| Network | Stores | `admin-headoffice-stores` | `/headoffice/stores` | none (head office only) |
-| Sales | Tickets history | `admin-headoffice-tickets` | `/headoffice/tickets` | none (head office only, task 2.5) |
-| Sales | Sessions | `admin-headoffice-sessions` | `/headoffice/sessions` | none (head office only, task 2.5) |
-| Sales | Returns | `admin-headoffice-returns` | `/headoffice/returns` | none (head office only, task 2.5) |
-| Catalogue | Items | `admin-headoffice-items` | `/headoffice/items` | `admin-item-management` |
-| Catalogue | Families | `admin-headoffice-item-families` | `/headoffice/item-families` | `admin-item-families` |
-| Catalogue | Sub-families | `admin-headoffice-item-subfamilies` | `/headoffice/item-subfamilies` | `admin-item-subfamilies` |
-| Catalogue | Barcodes | `admin-headoffice-item-barcodes` | `/headoffice/item-barcodes` | `admin-item-barcodes` |
-| Catalogue | Promotions | `admin-headoffice-promotions` | `/headoffice/promotions` | `admin-promotions` |
-| Customers & loyalty | Customers | `admin-headoffice-customers` | `/headoffice/customers` | `admin-customers` |
-| Customers & loyalty | Loyalty programs | `admin-headoffice-loyalty-programs` | `/headoffice/loyalty/programs` | `admin-loyalty-programs` |
-| Customers & loyalty | Loyalty members | `admin-headoffice-loyalty-members` | `/headoffice/loyalty/members` | `admin-loyalty-members` |
-| Customers & loyalty | Member functions (required to enrol a member) | `admin-headoffice-loyalty-member-functions` | `/headoffice/loyalty/member-functions` | `admin-loyalty-member-functions` |
-| Customers & loyalty | Loyalty transactions (empty until step 4) | `admin-headoffice-loyalty-transactions` | `/headoffice/loyalty/transactions` | `admin-loyalty-transactions` |
-| Customers & loyalty | Loyalty overspends (step 5) | `admin-headoffice-loyalty-overspends` | `/headoffice/loyalty/overspends` | none (head office only) |
-| Settings | Company information and license | `admin-headoffice-company-information` | `/headoffice/settings/company-information` | `admin-company-information` |
-| Settings | General setup | `admin-headoffice-general-setup` | `/headoffice/settings/general-setup` | `admin-general-setup` |
-| Settings | Users | `admin-headoffice-users` | `/headoffice/settings/users` | `admin-users` |
-| Settings | Roles | `admin-headoffice-roles` | `/headoffice/settings/roles` | `admin-roles` |
-| Settings | Data import (standalone only) | `admin-headoffice-data-import` | `/headoffice/settings/data-import` | `admin-data-import` |
-| ERP (with an ERP only, task 3.4) | ERP jobs | `admin-headoffice-erp-jobs` | `/headoffice/erp/jobs` | `admin-erp-jobs` |
-| ERP (no menu link) | ERP job statistics, opened from ERP jobs; permission of ERP jobs | `admin-headoffice-erp-job-statistics` | `/headoffice/erp/jobs/statistics/:jobId?` | `erp-job-statistics` |
-| ERP (with an ERP only) | ERP communications log | `admin-headoffice-erp-communications` | `/headoffice/erp/communications` | `admin-erp-communications` |
-| ERP (with an ERP only) | ERP reference location | `admin-headoffice-erp-reference-location` | `/headoffice/erp/reference-location` | none (head office only) |
+### Network stock: "below zero only" through the API
+Frontend commit d7a60a5, on `feature/ho-step-7b`. Backend a8dc85b.
 
-Each page is one route: details and edits are dialogs on the page. Every other store page is absent until its step adds it: print labels, sales prices and discounts, warranty, purchases, vendors, reports, ERP and franchise pages, and the selling pages hidden in task 1.1.
+The network stock page (`NetworkStock.vue`, step 7A) sends `belowZero=true` to `GET /admin/headoffice/stock` and `GET /admin/headoffice/stock/own` when "Below zero only" is on, together with the search, the store and the paging.
+- Head office items: an item whose stock is below zero at the head office, or in the store chosen, or in any active store when no store is chosen.
+- Stores' own items: an item whose stock is below zero.
 
-The home page is the store's `Home.vue`. On a head office its sales cards read `GET admin/headoffice/dashboard/today` (task 2.5, the copies of all stores, see "Consolidated sales API") and show Today's sales and Today's returns only, each half a row: open sessions and pending tickets are always 0 there. A store still reads `GET admin/dashboard/today` and shows its four cards. Its quick links come from the head office menu: Stores, Tickets history, Sessions, Items, Promotions, Customers, Loyalty members, Users.
+The page no longer reads up to 25 pages of 200 rows to filter them itself, and the note "Below zero among the first 5,000 items only" and its label are gone. The help text under the tabs stays.
 
-The three Sales pages are described under "Consolidated sales API", "Head office pages".
-
-**Menu** (`src/navigation/headoffice/index.js`): Home · Network · Sales · Catalogue · Customers & loyalty · ERP (only on a head office with an ERP, task 3.4) · Settings. The Sales links use the store menu's titles (Sales history, Sessions, Returns).
-- Two levels only: links, and groups of links. A link names its head office route and takes the route's permission. A group has no permission of its own and shows when one of its links is allowed.
-- An unknown route name throws when the module loads.
-- Read on a head office only:
-
-| Reader | Function |
-|---|---|
-| `VerticalNavMenu.vue`: the small-screen menu of the horizontal layout. The store filters stay for a store | `headOfficeMenu()` |
-| `HorizontalNavMenu.vue` (top bar): a top-level group carries its title in `header`. The template's stub `src/navigation/horizontal/index.js` is gone | `headOfficeHorizontalMenu()` |
-| `SearchBar.vue`: the menu links filtered with `$can`, instead of the store list and its legacy roles | `headOfficeSearchData()` |
-| `Home.vue`: Stores, Items, Promotions, Customers, Loyalty members, Users, filtered with `$can` | `headOfficeQuickLinks()` |
-| `RoleManagement.vue` | `headOfficePermissionGroups()`, `headOfficePermissionTitle()` |
-
-- Data import is left out when not standalone, the same rule as on a store.
-- The store menu is still `src/navigation/vertical/index.js`; only the Network group moved out (it was hidden on a store).
-
-**Layout.** `appConfig/fetchAppConfig` sets the layout from `nodeType` before the app is mounted: `horizontal` (menu on top) on a head office, `vertical` on a store, and also when `/config` fails.
-- The horizontal wrapper `src/layouts/horizontal/LayoutHorizontal.vue` has the Navbar (language, search, user menu), the license warning banner and the API error popup.
-- Arabic right to left and small screens (below 1200 px the menu is the slide-in vertical menu) work in the Vuexy template. This was checked in the browser during the inventory, with the layout switched in memory; the finished task is checked at L2 (table below).
-- Shared code, used by the horizontal wrapper only for now:
-  - `src/layouts/mixinApiErrorPopup.js`: listens for `show-sweetalert-error` (emitted by `jwtService`) and shows the error. It removes its listener when the layout is destroyed, and its title is the i18n key `common.unexpectedError`.
-  - `src/layouts/components/LicenseWarningBanner.vue`: shown while the license status is `WARNING`.
-- `LayoutVertical.vue` keeps its own copy of both, unchanged, and can switch to the mixin and the component at step 9.
-
-**Navbar.** The search bar shows when the user can read the home page of the installation: `admin-headoffice-home` on a head office, `home` on a store.
-
-**Roles page.** On a head office it lists only the head office permissions, grouped like the menu and named by the menu titles (translated), and the counters count only those. A role keeps its store permissions, which are unused there. On a store the list is as before, without any head office permission.
-
-### Step 3 pages (frontend)
-Task 3.0: `.eslintrc.js` has `no-console` off in every mode (decided 2026-10-03: the console calls of the old files stay). Proved with `npm run build` in a fresh git worktree with the ESLint cache moved aside: build complete, 186 files linted, no error.
-
-**Promotions, on a head office** (`PromotionsManagement.vue`, shared; the head office part only when `nodeType` is `HEAD_OFFICE`):
-- Form: a Stores section, component `src/views/admin/headoffice/PromotionStoresField.vue` (loaded only there): All stores (default) or Chosen stores. In the list a store whose `ownership.PROMOTIONS` is `LOCAL` shows "Owns its promotions" and cannot be checked (one already in the list can be unchecked); a store with unknown ownership shows "Ownership unknown (older version)" and can be chosen; an inactive store is marked. Chosen stores with none checked: Create / Save disabled, "Choose at least one store."
-- Create: `POST /admin/headoffice/promotions` `{promotion, allStores, storeIds}`. Edit: `PUT /promotion/{id}`, then `PUT /admin/headoffice/promotions/{id}/targets` only when the stores changed.
-- List: a Stores column before Status from `GET /admin/headoffice/promotions/targets`: "All stores", or "n stores" with the codes and names on hover. Stores from `GET /admin/headoffice/store-options`.
-
-**Promotions, on a store**:
-- `ownership.PROMOTIONS === 'HEAD_OFFICE'` (`/config`): consult only. No Add button; the actions column has only a view button; a click on a row opens the form read-only (title "Promotion", every field disabled through a disabled `fieldset`, only Close); a banner "Promotions are managed by the head office" above the list and in the form.
-- Otherwise the page works as before, and a store without a head office renders exactly as before (no column, no listener on the rows, no badge).
-- In both cases a "Head office" badge next to the code of a promotion whose `origin` is `HEAD_OFFICE`.
-
-**Head office link page** (`HeadOfficeLinkStatus.vue`): label of the job `COPIES_DOWN` ("Copies from the head office"); the exchange log already shows `DOWN` ("From the head office"). New block "Received from the head office", only when `GET status` gives `received` (a store that pulls): Applied / Waiting / Error counts of the domain (a domain selector when there are several), the list of `GET received/{domain}` (code, name, status, reason, information, since) with a status filter, errors first; refreshed with the rest of the page.
-
-**Stores page** (`StoresManagement.vue`): columns "Owned by the head office" (the domains whose owner is `HEAD_OFFICE`, or "Nothing") and "Sales go to" (ERP, Head office, or "Nowhere"); "Unknown (older version)" when the store reported nothing. A details button (eye) opens the table of the five domains (the store, Head office or ERP) and the sales upstreams.
-
-**ERP pages** (task 3.4): routes with `meta.erpOnly`; the router guard sends them to the home page when `/config` gives `standalone: true`, and the menu hides the ERP group then (`ERP_ONLY` in `src/navigation/headoffice/index.js`). No store route carries `erpOnly`. The jobs, statistics and communications pages are the store pages (twins); the ERP reference location page (`src/views/admin/headoffice/ErpReferenceLocation.vue`) shows the setup order (import the locations, choose the location, enable the item imports, with links to the ERP jobs page) and the choice among the imported locations. `HEAD_OFFICE_PERMISSIONS` lists each permission once (the statistics route shares the ERP jobs permission): 23, equal to the backend list.
-
-**Checks (2026-10-03)**: lint of the changed files in production mode and `npm run build`, both clean. Screens through Chrome, both dev backends with the step 3 code, nothing saved: head office Stores page (columns, details), promotions list and form (Stores column; Stores section; a store owning its promotions not choosable, unknown choosable, the empty list warning); store link page (a store with local promotions: no received block, no `COPIES_DOWN` job, as before); store promotions page as before; with `ownership.PROMOTIONS` set to `HEAD_OFFICE` in memory: banner, no Add, view buttons, a row opens the form read-only; the "Head office" badge; ERP route sent home in standalone mode; with ERP in memory the ERP menu group and the reference location page (its API answers 404 on `headoffice-dev`, which has no ERP). Not seen: the received block with data and the ERP pages against an ERP head office (closing prompt). After the restart with the 3.4 code a head office ADMIN must log out and in to get the three ERP permissions (abilities are built at login).
-
-### Step 4 pages (frontend)
-Frontend commits adace27 (store loyalty pages), 934e417 (link page), ece22dd (Stores page), on `feature/ho-step-4`.
-
-**Store loyalty pages** (only when `/config` gives `ownership.LOYALTY = HEAD_OFFICE`; a store with local loyalty, or without a head office, renders as before). Shared helper `src/views/admin/holink/loyalty-network.js` (reads `GET /loyalty/network`).
-- Members (`LoyaltyMembersManagement.vue`): a banner (members shared with the head office); edit and deactivate only with `canEditMembers`; adjust points hidden (step 4; step 5 brings it back with `canAdjustPoints`); the 403, 409 and 503 answers shown in the member card with a translated title. A 409 on enrol reloads the list (the network member was saved here).
-- Program (`LoyaltyProgramManagement.vue`): read-only with a banner, no create, no actions.
-- POS loyalty modal (`ItemSelection.vue`): a duplicate phone naming an active card offers that member (`GET /loyalty/member/by-card/{card}`); an inactive card is only named. From the step 5 backend the 409 also gives `existingCardNumber` and `existingCardActive`, so the card no longer needs to be read from the message.
-
-**Head office link page**: the job `LOYALTY_PUSH` labelled "Loyalty to the head office"; a new block "Sent to the head office: loyalty" (`HeadOfficeLinkLoyalty.vue`), only when `GET /admin/holink/status` gives `loyalty`: the store's rights, the `PENDING` / `SENT` / `ERROR` counts of members and movements (a click picks the list), and `GET /admin/holink/loyalty/{members|movements}` with a status filter, errors first, 20 per page, refreshed with the rest of the page. The received block shows the counts of every domain received (promotions, loyalty); `LOYALTY` labelled.
-
-**Stores page** (`StoresManagement.vue`): two switches "Can edit members" and "Can adjust points" in the store form (sent with `POST` and `PUT`) and in the details (saved at once with a `PUT` of that field; the switch goes back when the save fails). The code `HO` is refused in the form with a clear message; the backend's 400 stays the guard.
-
-Labels in `en`, `fr`, `ar`. The step 5 pages (fresh balance at the till, spending setting, store adjustments, overspend report) come with the step 5 frontend session.
-
-### Step 5 pages (frontend)
-Frontend commits 25cd826 (till and members page), 581ce28 (link page), 0756bb0 (Stores page), 7b0c1e3 (overspend report), on `feature/ho-step-4`. Store parts only when `/config` gives `ownership.LOYALTY = HEAD_OFFICE`; a store with local loyalty, or without a head office, renders as before.
-
-**Till** (`ItemSelection.vue`, `Payment.vue`, helper `loyalty-network.js`): when a member is selected, and when the Payment page opens with one, `GET /loyalty/member/{id}/fresh` is called without waiting: the member shows at once with the store's balance and is updated when the answer comes. `fresh` false: "Balance of the last sync" with the reason. `canRedeem` false: the points input and Apply are disabled with the reason, and points already applied are removed (also when the new balance is lower). A duplicate phone offers the card from `existingCardNumber` / `existingCardActive` (the message text only when the fields are absent).
-
-**Members page** (`LoyaltyMembersManagement.vue`): Adjust points when `GET /loyalty/network` gives `pointsAdjustable`; its 400, 403, 409 and 503 answers shown in the member card.
-
-**Head office link page** (`HeadOfficeLinkLoyalty.vue`): the loyalty block shows whether spending needs the head office online (`status.loyalty.redeemRequiresOnline`: Yes, No, or Unknown before the first heartbeat answer).
-
-**Stores page** (`StoresManagement.vue`): a third switch "Spending points requires the head office online" (`redeemRequiresOnline`) in the form (`POST`, `PUT`) and in the details (saved at once), like the two loyalty rights.
-
-**Overspend report** (head office, `src/views/admin/headoffice/LoyaltyOverspends.vue`): route `admin-headoffice-loyalty-overspends`, path `/headoffice/loyalty/overspends`, permission `read:admin-headoffice-loyalty-overspends` (24 head office permissions, as the backend), menu Customers & loyalty. `GET /admin/headoffice/loyalty/overspends` with search, store and date filters and paging; the count and points of the period from `overspends/count` above the table. Head office home: a tile with the count and points of every period, opening the page, shown with the page's permission only (the tiles go to 3 per row).
-
-Labels in `en`, `fr`, `ar`.
-
-**Enrol switch** (frontend 37c50a0, backend 21f1984):
-- Stores page: a fourth switch "Enrolling a member requires the head office online" (`enrolRequiresOnline`) in the form (`POST`, `PUT`) and in the details (saved at once); the help text rewritten for the four switches.
-- Link page, loyalty block: the setting (Yes, No, Unknown before the first heartbeat answer).
-- Enrol at a store whose loyalty is owned by the head office: a 503 shows the backend text titled "Head office unreachable", in the POS loyalty modal (with "Continue without a card": the sale goes on) and in the create dialog of the members page. Local loyalty unchanged.
-- Labels in `en`, `fr`, `ar`.
-
-### Step 6 pages (frontend): head office
-Frontend commits e35b381 (price lists), 5fb5c1b (Stores page), on `feature/ho-step-6`. Head office without an ERP only.
-
-**Price lists** (`src/views/admin/headoffice/PriceLists.vue`): route `admin-headoffice-price-lists`, path `/headoffice/price-lists`, permission `read:admin-headoffice-price-lists` (25 head office permissions, as in the backend), menu Catalogue. The route carries `meta.standaloneOnly`, the inverse of `erpOnly`: the router guard sends it to the home page when `/config` gives `standalone: false`, and the menu hides it then (`STANDALONE_ONLY` in `src/navigation/headoffice/index.js`).
-- Lists: `GET /admin/headoffice/price-lists`. Columns: code, name, status, line count, store count. Search and paging run in the browser. Create (code in upper case, name, active) with `POST`. Edit (name, active; the code is read-only and not sent) with `PUT /{id}`. Delete with `DELETE /{id}` after a confirmation. The 400 and 409 answers show the backend's `error` text.
-- Lines, in a dialog: `GET /{id}/lines` with `search`, `page`, `size` (10). Columns: item code, item name, base price (excl. VAT), list price (excl. VAT).
-  - The price is changed in place and saved on Enter or blur with `PUT /{id}/lines [{itemCode, price}]`. An invalid or refused price goes back to the saved value.
-  - Add a line: the item picker of the promotions page (`GET /item/search`, active items). The price starts at the item's base price. A warning shows when the item is already on the list (its price is replaced).
-  - Delete a line: `DELETE /{id}/lines/{lineId}` after a confirmation.
-  - The list counts are reloaded when the dialog closes after a change.
-
-**Stores page** (`StoresManagement.vue`): a block "Selling prices and purchases" in the form and in the details, after the loyalty switches, shown only when `/config` gives `standalone: true`.
-- "Selling price list": a select of the active lists by code, plus "None (base price)".
-- Switches "May change its selling prices" (`mayChangePrices`) and "Can purchase from its own suppliers" (`canPurchase`), with one help text for the three settings.
-- Create: `sellingPriceListId`, `mayChangePrices` and `canPurchase` are sent with the `POST`.
-- Edit: the two switches go with the `PUT`, then `PUT /admin/headoffice/stores/{id}/selling-price-list {priceListId}` only when the list changed.
-- Details: each setting is saved at once (list with `selling-price-list`, switches with a `PUT` of that field). It goes back when the save fails, and the backend's text is shown.
-- The own / franchise kind left the page: no column, no form field, and it is no longer sent. The backend uses `OWN` at creation and keeps the stored value on edit. The labels `kind`, `kindOwn` and `kindFranchise` were removed.
-
-Labels in `en`, `fr`, `ar`.
-
-**Checks**: lint of the changed files in production mode and `npm run build`, both clean before each commit. Not seen in the browser: the dev backends were down and the latest artifact predates step 6 (left for L2).
-
-### Step 6 pages (frontend): store
-Frontend commits 0928f9e, 68c027a, 32cd1be, on `feature/ho-step-6`.
-
-**Rule.** The new behaviour exists only when `GET /config` gives `catalogueFromHeadOffice: true` (`appConfig/isCatalogueFromHeadOffice`). `ownership.CATALOGUE` is never read: a franchise customer shows `HEAD_OFFICE` there and keeps its own branches. Without the flag every page renders as before.
-
-**Shared code** `src/views/admin/holink/catalogue-network.js`:
-- A mixin with `catalogueFromHeadOffice`, `catalogueCanPurchase`, `catalogueMayChangePrices`, `catalogueCreateClosed` and `isHeadOfficeRecord(record)` (`origin === 'HEAD_OFFICE'`).
-- `GET /catalogue/network` is read only with the flag. Until it answers, and when it fails, both rights count as off.
-- `apiErrorText(error, fallback)` returns a plain-text body, else `{error}`, else `{message}`.
-
-**Items** (`ItemManagement.vue`):
-- A "Head office" badge on head office items. Such an item has View (the form read-only, with a consult-only note: no barcode, pack or image changes), the barcode list and Adjust stock. It has no Edit and no Delete.
-- With `mayChangePrices`: "Change the price" (`PUT /item/{id}/own-price {unitPrice}`, not for packs) and, when the item has an own price, "Back to the head office price" (`DELETE`, after a confirmation). Without the right, neither action is shown.
-- The pricing cell shows an "Own price" badge with the head office price beside it.
-- The store's own items keep every action.
-
-**Families, sub-families** (`ItemFamiliesManagement.vue`, `ItemSubFamiliesManagement.vue`):
-- Badge, and an eye button that opens the form read-only (fieldset disabled, Close only).
-- On a head office (`nodeType` `HEAD_OFFICE`), the code is read-only on edit. The item code already was everywhere.
-
-**Barcodes** (`ItemBarcodes.vue`): badge. "Add product" (`/item/standalone-quick-product`) only with the purchase right. It is the only quick product creation; the POS has none.
-
-**Without the purchase right:**
-- No Add item, family, sub-family or product, with a note in the table toolbar.
-- Purchases, purchase invoices and vendors stay readable, with a warning banner. Hidden: new purchase, set paid, create invoice from a purchase, new invoice, add and edit vendor.
-- The new purchase page shows the banner and no Create button.
-
-**With the purchase right:** the new purchase item picker offers only the store's own items. It reads `/item-barcode/items-with-barcodes` (active items shown at the POS), because `/item/search` gives no `origin`. An info banner says so.
-
-**Data import** (`DataImport.vue`): Families, Sub-families, Items, Barcodes and Sales prices cannot be chosen, with a note. Vendors follow the purchase right.
-
-**Head office link page** (`HeadOfficeLinkStatus.vue`):
-- A block "Catalogue from the head office" when the status gives `catalogue`: the two rights (Yes, No), the number of items with an own price, and a warning when `salesPriceRowsOnHeadOfficeItems` is above 0.
-- The received block labels the `CATALOGUE` domain.
-
-**409 answers:** these APIs answer in plain text. The store layout's error popup and the page toasts show the backend text.
-
-Labels in `en`, `fr`, `ar` (`admin.catalogueNetwork.*`, `admin.holink.catalogue.*`).
-
-**Checks**: lint of the changed files in production mode and `npm run build`, clean before each commit. Not yet seen in the browser (L2).
+**Checks:** lint of the changed file in production mode and `npm run build`, both clean. Not seen in the browser (L2).
 
 ### Add a page to the head office
 1. **Shared page** (the same data as on the store): add a route to `src/router/headoffice-routes.js` with path `/headoffice/<...>`, name and `meta.resource` `admin-headoffice-<page>`, `meta.action: 'read'`, `meta.headOffice: true`, `meta.requiresAuth: true`, the store page's component, and `meta.twinOf` set to the store route name. Do not modify the store page, its store route or the store menu.
