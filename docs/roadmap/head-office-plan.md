@@ -80,8 +80,8 @@ The exact prompts are written during the session, from the code as it is that da
 | 6 | Items and selling prices decided by the head office: price lists, purchase right | Own stores without ERP, franchise | No | Large | Done 2026-10-04, merged into release/2.1.0 (backend 5f8cb30, frontend 47bd949); task 6.8 (images) removed from 2.1, in section 5 |
 | 7A | BLs and stock: head office warehouse, delivery to a store, stock of all stores | Own stores without ERP, franchise | No (stock in only) | Large | Done 2026-10-04, merged into release/2.1.0 (backend e697444; frontend by the frontend session) |
 | 7B | Invoices and supply price for the stores that pay | Franchise | No | Medium | Done 2026-10-04, merged into release/2.1.0 (backend 7083298; frontend by the frontend session) |
-| 8 | Franchise profiles moved onto the model | Happyness | No | Small (recut 2026-10-04: presets only, no migration) | In progress on feature/ho-step-8 |
-| 9 | Cleanup: mode checks replaced by ownership questions | Everyone | Yes, mechanical | Medium | Not started |
+| 8 | Franchise profiles moved onto the model | Happyness | No | Small (recut 2026-10-04: presets only, no migration) | Done 2026-10-04, merged into release/2.1.0 (backend b93a926) |
+| 9 | Cleanup: mode checks replaced by ownership questions, franchise code removed, presets and machine files | Everyone | Stock checks only (StockService, StockMovementService), same answers | Large | Done 2026-10-04, merged into release/2.1.0 (backend 2cf62a0; frontend by the frontend session) |
 
 Sizes are estimates from reading the code.
 
@@ -684,16 +684,16 @@ Goal: a franchise network runs as a head office and stores; the franchise modes 
 | 8.2 | Dropped 2026-10-04: no franchise install with real data to migrate | — |
 | 8.3 | Remove the franchise code (`/franchise/**`, the two profiles, the franchise flags and fields): to do with step 9 | L3 |
 
-**Step 8 backend** (2026-10-04, branch `feature/ho-step-8` from `release/2.1.0` at cb5c2e5, before step 7B is merged; not merged). Described in `docs/deployment-modes.md`, "Presets", and `docs/modules/franchise.md`, "Installing a franchise network on the model".
+**Step 8 backend** (done 2026-10-04, branch `feature/ho-step-8` from `release/2.1.0` at cb5c2e5; release/2.1.0 with step 7B merged into it at b193ead; merged into release/2.1.0 at b93a926, tests at the merge 67 classes, 510 tests). Described in `docs/deployment-modes.md`, "Presets", and `docs/modules/franchise.md`, "Installing a franchise network on the model".
 
 | Part | Backend |
 |---|---|
 | 8.0 Recut (no install to migrate, 8.2 dropped, 8.3 with step 9 as 9.4, D7, D15 and D16), task 6.8 out of 2.1 | 2e3a803 |
-| 8.1 Profiles `network-headoffice` and `network-store`, `NetworkPresetTruthTableTest` (the four real files: owners, sales upstreams, the head office switches, the beans of each side; the two franchise profiles locked as they resolve today), the procedure | this commit |
+| 8.1 Profiles `network-headoffice` and `network-store`, `NetworkPresetTruthTableTest` (the four real files: owners, sales upstreams, the head office switches, the beans of each side; the two franchise profiles locked as they resolve today), the procedure | 7d263dd |
 
 No Java file is changed and no franchise file is touched: two new profile files, one new test, docs. Nothing changes for an install that does not start with one of the two new profiles. The procedure names the step 7B settings and pages; it is complete once step 7B and its pages are merged. Frontend: nothing (the presets give flags the frontend already reads).
 
-Still owed: the merge after step 7B (the overview rows 7B and 8 and the section after the step 7B table are edited on both branches: a small conflict to resolve in the docs); an L2 of the procedure on the dev pair once 7B is merged (head office from `network-headoffice`, a store from `network-store`, the chain of step 5 of the procedure).
+Since step 9 (task 9.3) the two profiles are presets `headoffice` and `network-store` with a machine file each. The L2 of the procedure is the rehearsal environment of step 9 (`devenv/rehearsal.ps1`): a head office and two stores on new databases, the stores created by hand on the Stores page, run by Zein in the browser.
 
 ### Step 9 — Cleanup of the mode checks
 
@@ -706,7 +706,7 @@ Goal: no more `isStandalone` in the code; every check asks an ownership question
 | 9.3 | Profile files renamed to presets; `deployment-modes.md` rewritten | L3 |
 | 9.4 | Task 8.3, moved here: the franchise code removed (`/franchise/**`, `franchise-admin` and `franchise-customer`, the franchise flags, the franchise branches of `ItemAPI`, `ItemService`, `InvoiceService`, `ZZDataInitializer`, the franchise pages); no column dropped (design 5.2, rule 3) | L3 (backend done with 9.4a; the frontend part with task 9.2) |
 
-**Step 9 backend** (in progress, branch `feature/ho-step-9` from `feature/ho-step-8` at 7d263dd). Decisions of the inventory (Zein, 2026-10-04): explicit owners that contradict `application.standalone` are refused at startup; invoices from POS tickets ask `CUSTOMERS != ERP`, locations ask `SUPPLY != ERP`; a leftover `franchise.admin` / `franchise.customer=true` is refused once 9.4 is done; `/config` keeps `standalone`, the three franchise fields leave with 9.4. Scope: the whole step in 2.1, no `isStandalone` check left at the end; the stock checks of the selling path after the L2 of step 7B frees the dev instances.
+**Step 9 backend** (done 2026-10-04, branch `feature/ho-step-9` from `feature/ho-step-8` at 7d263dd; merged into release/2.1.0 at 2cf62a0, tests at the merge 74 classes, 522 tests). Decisions of the inventory (Zein, 2026-10-04): explicit owners that contradict `application.standalone` are refused at startup; invoices from POS tickets ask `CUSTOMERS != ERP`, locations ask `SUPPLY != ERP`; a leftover `franchise.admin` / `franchise.customer=true` is refused once 9.4 is done; `/config` keeps `standalone`, the three franchise fields leave with 9.4. Scope: the whole step in 2.1, no `isStandalone` check left at the end; the stock checks of the selling path after the L2 of step 7B frees the dev instances.
 
 | Part | Backend |
 |---|---|
@@ -718,19 +718,22 @@ Goal: no more `isStandalone` in the code; every check asks an ownership question
 | 9.4a Franchise code removed (task 8.3 → 9.4): `controller/franchise`, `service/franchise`, `dto/franchise`, `FranchiseApiKeyFilter`, `FranchiseSales*` entities and repositories, the two franchise profiles; the franchise branches of `ItemAPI`, `ItemService`, `InvoiceService`, `InvoiceAPI`, `ZZDataInitializer`, `AppRoleAPI`, `LicenseFilter`, `SecurityConfig`; the franchise fields of `Item`, `Customer`, `InvoiceHeader` (columns kept; old payloads ignored, never refused); `/config` without `franchiseAdmin`, `franchiseCustomer`, `allowLocalItems`; `ApplicationModeService` and `NodeOwnership` without the franchise flags, `NodeOwnership.resolve(env, standalone)`; a leftover `franchise.admin` / `franchise.customer=true` stops the startup; the `franchise.*=false` lines out of the profile files. Tests: `LegacyFranchiseFieldsTest`, refusals in `ApplicationModeOwnershipTest` and the condition tests, the franchise rows out of eight test classes | cb68ac4 |
 | 9.1f Stock (13): `StockService` ×6, `StockMovementService` ×7 → `isSupplyFromErp`; `StockModeTest` (every profile file); `InMemoryStock` takes the installation. Selling path: called at every sale and return; the L2 replay of a sale and a return waits for the dev instances | dfb39c1 |
 | 9.1g `isStandalone()` and `isErpMode()` deleted; `NodeOwnership.resolve(env)` the one reader of `application.standalone` (`ApplicationModeService` has no mode field left); `isCatalogueFromHeadOffice`, `isSupplyFromHeadOffice`, `isHeadOfficeErpSet`, `isHeadOfficeStandaloneSet` without a direct read (an owner question; the dropped `standalone` terms were redundant with the startup checks); `/item/standalone-quick-product` renamed `/item/quick-product` (`QuickProductRequestDTO`, `createQuickProduct`); every message, comment and doc line that said "standalone" for "without an ERP" reworded (list in the report of 2026-10-04) | 61d8675 |
-| Test: `ZZDataInitializerModeTest`, the three startup branches of 9.1e on the real `init()` (with an ERP, without one) | this commit |
+| Test: `ZZDataInitializerModeTest`, the three startup branches of 9.1e on the real `init()` (with an ERP, without one) | 7406e71 |
 | Merges: release/2.1.0 (step 7B) into feature/ho-step-8 (b193ead, 67 classes, 510 tests), feature/ho-step-8 into feature/ho-step-9 (3710bc9, 72 classes, 515 tests) | — |
 | 9.3a The six presets (`store`, `store-erp`, `headoffice`, `headoffice-erp`, `network-store-erp`; `network-store` rewritten in 9.3b), mode keys only, every owner stated; `PresetTruthTableTest` freezes the answers of the old profile files (ten rows: the six shapes and the dev machines) | 596f1bb |
 | 9.3b `application.standalone` removed (refused at startup, the message names the presets); the ERP owns catalogue, customers and supply together or none; the machine file (`MachineFileEnvironmentPostProcessor`: `-Dzsretail.machine-file`, else `${catalina.base}/conf/zsretail/<context name>.properties`; no default, refused without one); the eleven old profile files removed, their values moved as they were into `deploy/dev` and `deploy/customers`, plus `deploy/machine-model.properties`; `network-store` rewritten as a preset, `network-headoffice` folded into `headoffice`; `PresetTruthTableTest` on the presets and machine files, `MachineFileTest`, `support/Installations` | 6aa0d88 |
 | 9.3c The devenv scripts on machine files (`common.ps1` `Machine`, `start.ps1` `-Dzsretail.machine-file`, `Set-DevMachineValue`, `setup-stores.ps1`, `l2-supply.ps1`); a `spring.profiles.active` left in the server's options refused; `deployment-modes.md` rewritten (presets, machine file, the `deploy/` table, IDE setting, new installation and upgrade procedures); `franchise.md`, `head-office.md`, `CLAUDE.md` on machine files | 61990ef |
-| Rehearsal environment: `devenv/rehearsal.ps1`, three instances `reh-*` in `common.ps1`, machine files `deploy/rehearsal/` (889, 557, 558; `pos_rehearsal_*`) | this commit |
+| Rehearsal environment: `devenv/rehearsal.ps1`, three instances `reh-*` in `common.ps1`, machine files `deploy/rehearsal/` (889, 557, 558; `pos_rehearsal_*`) | 8b547a9 |
 
 Grid of `ModeQuestionTruthTableTest` (61,440 configurations; `node.type=STORE` reads like absent, promotions and loyalty only absent or `HEAD_OFFICE`):
 - Before 9.1a: 10,418 accepted, 8,580 answering differently. 4,830 had a franchise flag with ERP flags (`application.standalone` false or absent); 2,386 had `application.standalone=true` with an explicit owner `ERP`; 1,364 had ERP flags with catalogue, customers or supply not `ERP` (e.g. `ownership.supply=LOCAL` alone). The full first grid (368,640, with `STORE` and promotions or loyalty `LOCAL`/`ERP`) gave 51,336 accepted and 42,354 differing, of the same three kinds.
 - After 9.1a: 1,700 accepted, none differing. The 138 accepted ones that agreed and are now refused have a franchise flag with ERP flags (all three ERP domains set to `ERP` explicitly).
 - After 9.4a: 872 accepted (every configuration with a franchise flag is refused), none differing.
+- After 9.3: the grid redone without application.standalone as an input (15,360 configurations; any one that sets it is refused): 497 accepted, 25 of them with an ERP, none with the four questions disagreeing. Every preset and every machine file of `deploy/` starts and gives its frozen row (PresetTruthTableTest).
 - Every profile file agreed before and after.
-Still owed for step 9: the L2 replay of a sale and a return on the stock checks of 9.1f (selling path), once the L2 of step 7B frees the dev instances; the frontend one-line change to `/item/quick-product` (task 9.2); after the step 7B merge, the annotation `ConditionalOnHeadOfficeStandalone` and `isHeadOfficeStandaloneSet` renamed (7B adds beans that use them); task 9.3 (presets and a file per machine); the merge after step 7B. Zein, 2026-10-04: the whole step goes into 2.1.
+L2 on the 9.3 build (61990ef), 2026-10-04, the replay for the stock checks of 9.1f (sales, returns, BLs, adjustments) and the proof that steps 4 to 7B still pass: `l2-invoices` 13 of 13 (`C:zsretail-devogs2-invoices-181016.txt`), `l2-supply` 12 of 12 (`l2-supply-181453.txt`), `l2-catalogue` 15 of 15 (`l2-catalogue-181524.txt`), `l2-loyalty` 17 of 17 (`l2-loyalty-182035.txt`). The three instances ran from their machine files (`deploy/dev`).
+
+Still owed for step 9: the frontend of step 9 (on its branch, `/item/quick-product` included) merged by the frontend session; the rename of `ConditionalOnHeadOfficeStandalone` and `isHeadOfficeStandaloneSet` (possible now that 7B is merged); the `update.sql` lines of section 1; the screen check and the full regression checklist before 2.1 is delivered; Zein's rehearsal of the Happyness process (`devenv/rehearsal.ps1`).
 
 ## 5. Later, not scheduled
 
