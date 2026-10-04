@@ -47,6 +47,23 @@ public class ItemService extends _BaseService<Item, Long> {
 	@Autowired(required = false)
 	private ObjectProvider<CatalogueHeadOfficeHooks> catalogueHooks;
 
+	@Autowired
+	private StockService stockService;
+
+	@Autowired
+	private StockMovementService stockMovementService;
+
+	/**
+	 * Manual stock adjustment (POST /item/{id}/adjust-stock): the quantity as before (StockService) and, since step 7A,
+	 * its ADJUSTMENT_IN or ADJUSTMENT_OUT movement with the reason as note, in one transaction. Both do nothing outside
+	 * standalone mode. No item save: no catalogue change is recorded on a head office.
+	 */
+	@Transactional(rollbackFor = Exception.class)
+	public void adjustStock(Long itemId, int delta, String reason) {
+		stockService.adjustStock(itemId, delta, reason);
+		stockMovementService.recordAdjustment(itemId, delta, reason);
+	}
+
 	@Override
 	protected _BaseRepository<Item, Long> getRepository() {
 		return itemRepository;

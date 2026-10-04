@@ -18,6 +18,8 @@
 - `getSessionReport(dateFrom, dateTo, groupBy)` — session totals; returns `SessionReportRowDTO { label, totalAmount, nbSessions }`
 - `getPromotionReport(dateFrom, dateTo)` — promotion performance; returns `PromotionReportRowDTO { promotionCode, promotionName, promotionType, nbTickets, totalDiscount, revenueInfluenced }`
 
+**Rows of `stock_movement`** (standalone only; one row per stock change, never updated): `SALE`, `CUSTOMER_RETURN_SIMPLE`, `CUSTOMER_RETURN_VOUCHER`, `PURCHASE_RECEPTION`, and since step 7A `ADJUSTMENT_IN` / `ADJUSTMENT_OUT`: `POST /item/{id}/adjust-stock` (`ItemService.adjustStock`) writes the quantity as before and its movement in the same transaction (quantity = the absolute delta, `reference_type` `ADJUSTMENT`, the reason `COUNT`, `CORRECTION` or `DAMAGE` as note). Before step 7A an adjustment wrote no movement. `OPENING_STOCK` is never written.
+
 **CRITICAL FIX — CAST for DAY/MONTH grouping:**
 - Bug: `CONCAT(YEAR(date), '-', MONTH(date))` produced arithmetic (2026 + 3 = 2029) because Hibernate treats YEAR()/MONTH()/DAY() as integers.
 - Fix applied to all 5 time-based methods: `CONCAT(CAST(YEAR(date) AS string), '-', CAST(MONTH(date) AS string))` (and same for DAY).
