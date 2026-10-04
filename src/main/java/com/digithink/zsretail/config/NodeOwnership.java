@@ -53,6 +53,11 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * for {@code ownership.supply=HEAD_OFFICE}, which also fails with a franchise flag, with application.standalone=false,
  * or without {@code ownership.catalogue=HEAD_OFFICE} (a BL names head office items by code); with the URL set a
  * {@code headoffice.supply-push.interval-seconds} below 1 fails.
+ * <p>
+ * Owners and application.standalone agree (step 9, task 9.1a): with application.standalone=true an explicit owner ERP
+ * fails; with application.standalone=false (or absent) an explicit owner other than ERP for the catalogue, the customers
+ * or the supply fails, and so does franchise.admin or franchise.customer set to true. Every configuration that starts
+ * then answers "an owner is the ERP" exactly as application.standalone=false (ModeQuestionTruthTableTest).
  */
 public final class NodeOwnership {
 
@@ -310,6 +315,7 @@ public final class NodeOwnership {
 						+ ".");
 			}
 		}
+		checkOwnersAgreeWithStandalone(env, standalone, franchiseAdmin, franchiseCustomer, owners);
 
 		Set<SalesUpstream> upstreams = env.containsProperty(SALES_UPSTREAM_KEY)
 				? parseUpstreams(env.getProperty(SALES_UPSTREAM_KEY))
@@ -340,6 +346,37 @@ public final class NodeOwnership {
 	/** Unmodifiable; empty means sales go nowhere. */
 	public Set<SalesUpstream> getSalesUpstreams() {
 		return salesUpstreams;
+	}
+
+	/**
+	 * Step 9, task 9.1a: application.standalone and the owners say the same thing about the ERP. Without an ERP nothing is
+	 * owned by the ERP; with an ERP the catalogue, the customers and the supply (the domains an ERP can own) are the
+	 * ERP's, and the franchise profiles (which run without an ERP) are refused.
+	 */
+	private static void checkOwnersAgreeWithStandalone(PropertyResolver env, boolean standalone, boolean franchiseAdmin,
+			boolean franchiseCustomer, Map<DataDomain, DataOwner> owners) {
+		if (!standalone && (franchiseAdmin || franchiseCustomer)) {
+			throw new IllegalStateException("Invalid combination: "
+					+ (franchiseAdmin ? "franchise.admin=true" : "franchise.customer=true") + " with " + STANDALONE_KEY
+					+ "=false. The franchise profiles run without an ERP; set " + STANDALONE_KEY + " to true.");
+		}
+		for (DataDomain domain : DataDomain.values()) {
+			String key = domain.getPropertyKey();
+			if (!env.containsProperty(key)) {
+				continue;
+			}
+			DataOwner owner = owners.get(domain);
+			if (standalone && owner == DataOwner.ERP) {
+				throw new IllegalStateException("Invalid combination: " + key + "=ERP with " + STANDALONE_KEY
+						+ "=true. Without an ERP nothing is owned by the ERP; set " + key + " to LOCAL, or "
+						+ STANDALONE_KEY + " to false.");
+			}
+			if (!standalone && domain.allows(DataOwner.ERP) && owner != DataOwner.ERP) {
+				throw new IllegalStateException("Invalid combination: " + key + "=" + owner + " with " + STANDALONE_KEY
+						+ "=false. With an ERP the catalogue, the customers and the supply are the ERP's; set " + key
+						+ " to ERP or remove it, or set " + STANDALONE_KEY + " to true.");
+			}
+		}
 	}
 
 	/** Checked only when headoffice.url is set; otherwise the other headoffice.* keys are ignored. */

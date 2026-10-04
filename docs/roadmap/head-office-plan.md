@@ -641,6 +641,12 @@ Goal: no more `isStandalone` in the code; every check asks an ownership question
 | 9.3 | Profile files renamed to presets; `deployment-modes.md` rewritten | L3 |
 | 9.4 | Task 8.3, moved here: the franchise code removed (`/franchise/**`, `franchise-admin` and `franchise-customer`, the franchise flags, the franchise branches of `ItemAPI`, `ItemService`, `InvoiceService`, `ZZDataInitializer`, the franchise pages); no column dropped (design 5.2, rule 3) | L3 |
 
+**Step 9 backend** (in progress, branch `feature/ho-step-9` from `feature/ho-step-8` at 7d263dd). Decisions of the inventory (Zein, 2026-10-04): explicit owners that contradict `application.standalone` are refused at startup; invoices from POS tickets ask `CUSTOMERS != ERP`, locations ask `SUPPLY != ERP`; a leftover `franchise.admin` / `franchise.customer=true` is refused once 9.4 is done; `/config` keeps `standalone`, the three franchise fields leave with 9.4. Scope: the whole step in 2.1; the stock checks of the selling path after the L2 of step 7B frees the dev instances.
+
+| Part | Backend |
+|---|---|
+| 9.1a Startup: owners agree with `application.standalone` (and no franchise flag with ERP flags) | this commit |
+
 ## 5. Later, not scheduled
 
 Notes of Zein, 2026-10-03 and 04:

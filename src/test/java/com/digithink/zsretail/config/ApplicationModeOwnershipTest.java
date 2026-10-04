@@ -97,11 +97,11 @@ class ApplicationModeOwnershipTest {
 	}
 
 	@Test
-	@DisplayName("Precedence: franchise customer beats franchise admin, which beats standalone and ERP")
+	@DisplayName("Precedence: franchise customer beats franchise admin, which beats standalone (task 9.1a: never with ERP flags)")
 	void precedence() {
-		assertRow(NodeOwnership.resolve(new MockEnvironment(), false, true, true), NodeType.STORE, HO, L, L, L, HO,
+		assertRow(NodeOwnership.resolve(new MockEnvironment(), true, true, true), NodeType.STORE, HO, L, L, L, HO,
 				EnumSet.of(SalesUpstream.HEAD_OFFICE));
-		assertRow(NodeOwnership.resolve(new MockEnvironment(), false, true, false), NodeType.STORE, L, L, L, L, L,
+		assertRow(NodeOwnership.resolve(new MockEnvironment(), true, true, false), NodeType.STORE, L, L, L, L, L,
 				none());
 	}
 
@@ -120,13 +120,23 @@ class ApplicationModeOwnershipTest {
 	void allKeysExplicit() {
 		MockEnvironment env = linkEnv() // task 2.4: a head office upstream needs headoffice.url
 				.withProperty("node.type", "STORE")
-				.withProperty("ownership.catalogue", "ERP")
+				.withProperty("ownership.catalogue", "HEAD_OFFICE")
 				.withProperty("ownership.customers", "HEAD_OFFICE")
 				.withProperty("ownership.promotions", "LOCAL")
 				.withProperty("ownership.loyalty", "HEAD_OFFICE")
 				.withProperty("ownership.supply", "LOCAL")
 				.withProperty("sales.upstream", "HEAD_OFFICE");
-		assertRow(standalone(env), NodeType.STORE, ERP, HO, L, HO, L, EnumSet.of(SalesUpstream.HEAD_OFFICE));
+		assertRow(standalone(env), NodeType.STORE, HO, HO, L, HO, L, EnumSet.of(SalesUpstream.HEAD_OFFICE));
+		// With ERP flags (task 9.1a: catalogue, customers and supply can only be ERP there)
+		MockEnvironment erpEnv = linkEnv()
+				.withProperty("ownership.catalogue", "ERP")
+				.withProperty("ownership.customers", "ERP")
+				.withProperty("ownership.promotions", "HEAD_OFFICE")
+				.withProperty("ownership.loyalty", "LOCAL")
+				.withProperty("ownership.supply", "ERP")
+				.withProperty("sales.upstream", "ERP,HEAD_OFFICE");
+		assertRow(erp(erpEnv), NodeType.STORE, ERP, ERP, HO, L, ERP,
+				EnumSet.of(SalesUpstream.ERP, SalesUpstream.HEAD_OFFICE));
 	}
 
 	@Test
@@ -144,9 +154,60 @@ class ApplicationModeOwnershipTest {
 		MockEnvironment env = new MockEnvironment()
 				.withProperty("node.type", " head_office ")
 				.withProperty("ownership.catalogue", "Erp");
-		NodeOwnership o = standalone(env);
+		NodeOwnership o = erp(env);
 		assertEquals(NodeType.HEAD_OFFICE, o.getNodeType());
 		assertEquals(ERP, o.ownerOf(DataDomain.CATALOGUE));
+	}
+
+	// --- Task 9.1a: owners and application.standalone agree ---
+
+	private static void assertRefused(MockEnvironment env, boolean standalone, boolean admin, boolean customer,
+			String... parts) {
+		IllegalStateException e = assertThrows(IllegalStateException.class,
+				() -> NodeOwnership.resolve(env, standalone, admin, customer));
+		for (String part : parts) {
+			assertTrue(e.getMessage().contains(part), "message contains '" + part + "': " + e.getMessage());
+		}
+	}
+
+	@Test
+	@DisplayName("9.1a: without an ERP (standalone=true) an explicit owner ERP is refused, on a store and on a head office")
+	void standaloneRefusesErpOwner() {
+		for (String domain : new String[] { "ownership.catalogue", "ownership.customers", "ownership.supply" }) {
+			assertRefused(new MockEnvironment().withProperty(domain, "ERP"), true, false, false,
+					"Invalid combination: " + domain + "=ERP with application.standalone=true");
+			assertRefused(headOfficeEnv().withProperty(domain, " erp "), true, false, false, domain + "=ERP");
+		}
+	}
+
+	@Test
+	@DisplayName("9.1a: with an ERP (standalone=false) catalogue, customers and supply other than ERP are refused; promotions and loyalty stay free")
+	void erpRefusesOtherOwners() {
+		assertRefused(new MockEnvironment().withProperty("ownership.customers", "LOCAL"), false, false, false,
+				"Invalid combination: ownership.customers=LOCAL with application.standalone=false");
+		assertRefused(linkEnv().withProperty("ownership.customers", "HEAD_OFFICE"), false, false, false,
+				"ownership.customers=HEAD_OFFICE");
+		assertRefused(new MockEnvironment().withProperty("ownership.supply", "LOCAL"), false, false, false,
+				"ownership.supply=LOCAL");
+		assertRefused(new MockEnvironment().withProperty("ownership.catalogue", "LOCAL"), false, false, false,
+				"ownership.catalogue=LOCAL");
+		assertRefused(headOfficeEnv().withProperty("ownership.catalogue", "LOCAL"), false, false, false,
+				"ownership.catalogue=LOCAL");
+		// The step 6 and 7A messages for HEAD_OFFICE with ERP flags are unchanged
+		assertRefused(linkEnv().withProperty("ownership.catalogue", "HEAD_OFFICE"), false, false, false,
+				"A store whose items come from an ERP");
+		assertRow(erp(linkEnv().withProperty("ownership.promotions", "HEAD_OFFICE").withProperty("ownership.loyalty",
+				"HEAD_OFFICE")), NodeType.STORE, ERP, ERP, HO, HO, ERP, EnumSet.of(SalesUpstream.ERP));
+		assertRow(erp(new MockEnvironment().withProperty("ownership.catalogue", "ERP")), NodeType.STORE, ERP, ERP, L, L,
+				ERP, EnumSet.of(SalesUpstream.ERP));
+	}
+
+	@Test
+	@DisplayName("9.1a: franchise.admin or franchise.customer with ERP flags is refused")
+	void franchiseRefusedWithErpFlags() {
+		assertRefused(new MockEnvironment(), false, false, true,
+				"Invalid combination: franchise.customer=true with application.standalone=false");
+		assertRefused(new MockEnvironment(), false, true, false, "franchise.admin=true with application.standalone=false");
 	}
 
 	// --- Invalid values fail with the key in the message ---
