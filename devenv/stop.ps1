@@ -11,6 +11,8 @@ foreach ($name in $Instance) {
 		Stop-Process -Id $id -Force
 		Wait-Process -Id $id -Timeout 30 -ErrorAction SilentlyContinue
 		Write-Output "$name stopped (pid $id)"
+	} elseif (Test-DevUp $name) {
+		Write-Output "$name is up but not started by devenv (Eclipse?): stop it where it was started"
 	} else {
 		Write-Output "$name not running"
 	}

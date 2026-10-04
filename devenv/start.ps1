@@ -19,6 +19,8 @@ if (-not (Test-Path (Join-Path $artifact 'WEB-INF'))) { throw "$artifact is not 
 foreach ($name in $Instance) {
 	$inst = Get-DevInstance $name
 	if (Get-DevPid $name) { Write-Output "$name already running (pid $(Get-DevPid $name))"; continue }
+	# Up without a devenv pid: started elsewhere (Eclipse, eclipse\*.launch). A second start would fight for its port.
+	if (Test-DevUp $name) { Write-Output "$name already up, not started by devenv (Eclipse?): left as is"; continue }
 	foreach ($dir in 'pids', 'logs', "work\$name") { New-Item -ItemType Directory -Force (Join-Path $DevRoot $dir) | Out-Null }
 	New-Item -ItemType Directory -Force (Split-Path -Parent $inst.Log) | Out-Null
 	# The exploded WAR, started by Spring Boot's WarLauncher (classes read from plain files, not nested jars)

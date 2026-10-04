@@ -80,7 +80,7 @@ function Test-DevUp([string]$Name) {
 function Set-DevMachineValue([string]$Name, [string]$Key, [string]$Value) {
 	$file = Get-DevMachineFile $Name
 	$text = [IO.File]::ReadAllText($file)
-	$pattern = '(?m)^' + [Text.RegularExpressions.Regex]::Escape($Key) + '=.*$'
+	$pattern = '(?m)^' + [Text.RegularExpressions.Regex]::Escape($Key) + '=[^\r\n]*'   # keeps a CRLF line's \r
 	if ([Text.RegularExpressions.Regex]::IsMatch($text, $pattern)) {
 		$text = [Text.RegularExpressions.Regex]::Replace($text, $pattern, "$Key=$Value")
 	} else {

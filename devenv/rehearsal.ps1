@@ -10,6 +10,11 @@
 #   powershell -File devenv\rehearsal.ps1 -Action set-key -Store store-1 -Key <key shown once on the Stores page>
 #   powershell -File devenv\rehearsal.ps1 -Action reset      # stop, drop the 3 rehearsal databases, keys back to none, setup
 #
+# From Eclipse: the launch configurations eclipse\rehearsal-1-headoffice, rehearsal-2-store-1 and rehearsal-3-store-2 run the
+# same three instances (same machine files, ports and databases) from the project's classes. The script sees an instance
+# started there (it answers on its port, without a devenv pid) and leaves it alone: start skips it, stop names it, set-key
+# only writes the key (restart the store from Eclipse), reset refuses while one is up.
+#
 # Instances (devenv\common.ps1): reh-headoffice 889 pos_rehearsal_ho, reh-store-1 557 pos_rehearsal_s1 (STORE-1),
 # reh-store-2 558 pos_rehearsal_s2 (STORE-2). Machine files: deploy\rehearsal\. Logs: C:\zsretail-rehearsal\<name>\backend.log.
 # Logins (a new database): head office admin / P@ssw0rd; stores admin / P@ssw0rd, responsible / 123.0, cashier / cashier.
@@ -35,6 +40,11 @@ function Start-Rehearsal([string[]]$Names) {
 
 function Stop-Rehearsal([string[]]$Names) {
 	& "$PSScriptRoot\stop.ps1" -Instance $Names
+}
+
+# Up without a devenv pid: started from Eclipse (or by hand), so this script neither stops nor restarts it.
+function Test-OutsideDevenv([string]$Name) {
+	return (-not (Get-DevPid $Name)) -and (Test-DevUp $Name)
 }
 
 function Initialize-Rehearsal {
@@ -94,12 +104,21 @@ switch ($Action) {
 		$name = "reh-$Store"
 		$file = Set-DevMachineValue $name 'headoffice.api-key' $Key.Trim()
 		Write-Output "key written to $file"
-		Stop-Rehearsal @($name)
-		Start-Rehearsal @($name)
-		Start-Sleep -Seconds 20   # the first heartbeat comes about 15 s after the start
-		Show-Rehearsal
+		if (Test-OutsideDevenv $name) {
+			# Started from Eclipse: the key is read at the next start, which is done there
+			Write-Output "$name runs outside devenv (Eclipse): restart it there (launch rehearsal-$(if ($Store -eq 'store-1') { '2' } else { '3' })-$Store) to take the key"
+		} elseif (Get-DevPid $name) {
+			Stop-Rehearsal @($name)
+			Start-Rehearsal @($name)
+			Start-Sleep -Seconds 20   # the first heartbeat comes about 15 s after the start
+			Show-Rehearsal
+		} else {
+			Write-Output "$name is not running: the key is read when it starts (Eclipse launch or -Action start)"
+		}
 	}
 	'reset' {
+		$outside = @($Rehearsal | Where-Object { Test-OutsideDevenv $_ })
+		if ($outside) { throw "Refused: $($outside -join ', ') up outside devenv (Eclipse). Stop them there, then reset." }
 		Stop-Rehearsal $Rehearsal
 		foreach ($name in $Rehearsal) {
 			$db = (Get-DevInstance $name).Db

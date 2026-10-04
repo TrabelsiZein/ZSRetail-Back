@@ -72,6 +72,9 @@ that differs stays as an override, and `application.standalone` is commented out
 Java Application), Arguments, VM arguments:
 `-Dzsretail.machine-file="D:\ZS Retail\Apps\ZSRetail-Back\deploy\dev\store-a.properties"` (store A; or `dev\headoffice.properties`
 for the head office, and so on). Nothing else changes: the WAR, `application.properties` and the presets are the same everywhere.
+A launch configuration from before 2.1 with `-Dspring.profiles.active=<old profile>` no longer starts (the profile is gone and
+the startup refuses it): replace that argument with the machine file. Shared launch configurations of the rehearsal environment:
+`eclipse/*.launch` (`docs/modules/head-office.md`, "Rehearsal environment").
 
 **Dev scripts** (`devenv/`): each instance runs from its machine file (`common.ps1`: `Machine = 'dev\store-b.properties'`),
 started with `-Dzsretail.machine-file`. A key written into a machine file (the store's key by `setup-stores.ps1 -Phase register`)

@@ -1545,9 +1545,19 @@ status | set-key | reset`.
 - Machine files `deploy/rehearsal/`, logs `C:\zsretail-rehearsal\<name>\backend.log`. Logins as on a new database.
 - The stores are not registered at the head office: create them on its Stores page with their codes, then
   `-Action set-key -Store store-1 -Key <key>` writes the key into the store's machine file and restarts it (until then the
-  head office refuses the store, 401).
+  head office refuses the store, 401). A store started from Eclipse is not restarted: the script writes the key and says to
+  restart it there.
 - `reset` stops, drops the three `pos_rehearsal_*` databases (refused for any other name), puts the keys back to none and
-  sets up again.
+  sets up again. Refused while an instance started from Eclipse is up.
+- **From Eclipse**: three shared launch configurations in the project, `eclipse/rehearsal-1-headoffice.launch`,
+  `rehearsal-2-store-1.launch`, `rehearsal-3-store-2.launch` (Run menu, favourites). Java Application `POSMainApp` on the
+  JRE `jdk-21.0.10`, project `zsretail` (the workspace name of this folder), with
+  `-Dzsretail.machine-file="${project_loc:zsretail}/deploy/rehearsal/<name>.properties"`: same machine files, ports, databases
+  and logs as the script, from the project's classes instead of the artifact. Head office first, then the stores. An instance
+  is up when its console shows `Tomcat started on port(s): 889` (557, 558) and `Started POSMainApp`, or when
+  `http://localhost:889/zsretail/api/config` answers. The scripts see such an instance (it answers without a devenv pid):
+  `start` skips it, `stop` names it, `status` shows it. The databases must exist (`-Action setup` once, or kept from an
+  earlier setup).
 - Frontends: `$env:VUE_APP_API_BASE_URL='http://127.0.0.1:889/zsretail/api/'; npx vue-cli-service serve --port 8091 --mode headoffice`
   for the head office; 557 / 558 on ports 8092 / 8093, without `--mode`, for the stores. CORS is open to any origin.
 - To make the store call the head office: "Connect a store" above.
