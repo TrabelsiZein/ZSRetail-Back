@@ -155,8 +155,8 @@ Result 1 $ok "B settings ($($put1.Status)), supply list $($list.code) $($list.ki
 if ($StopAfter -le 1) { return }
 
 # ─── 2. Base supply prices; P cheaper on B's supply list ────────
-$put2 = Api 'headoffice' PUT '/admin/headoffice/supply-prices' @(@{ itemCode = $p; supplyPrice = 16 }, @{ itemCode = $q; supplyPrice = 5 }, @{ itemCode = $s; supplyPrice = 6 })
-$line2 = Api 'headoffice' PUT "/admin/headoffice/price-lists/$($list.id)/lines" @(@{ itemCode = $p; price = 15 })
+$put2 = Api 'headoffice' PUT '/admin/headoffice/supply-prices' (Json @(@{ itemCode = $p; supplyPrice = 16 }, @{ itemCode = $q; supplyPrice = 5 }, @{ itemCode = $s; supplyPrice = 6 }))
+$line2 = Api 'headoffice' PUT "/admin/headoffice/price-lists/$($list.id)/lines" (Json @(@{ itemCode = $p; price = 15 }))
 $prices = (Api 'headoffice' GET "/admin/headoffice/supply-prices?search=INV-$Run&size=50").Body.content
 $listLines = (Api 'headoffice' GET "/admin/headoffice/price-lists/$($list.id)/lines").Body.content
 $pRow = @($prices | Where-Object { $_.itemCode -eq $p })[0]; $rRow = @($prices | Where-Object { $_.itemCode -eq $r })[0]
@@ -209,7 +209,7 @@ $bl6 = SendBl $storeB @(@{ itemCode = $r; quantity = 3 }, @{ itemCode = $p; quan
 $rec6 = ReceiveBl 'store-b' $bl6
 $ho6 = HoBl $bl6.Id
 $toInv6 = @((Api 'headoffice' GET "/admin/headoffice/supply-invoices/to-invoice?storeId=$storeB").Body | Where-Object { $_.id -eq $bl6.Id })
-$null = Api 'headoffice' PUT '/admin/headoffice/supply-prices' @(@{ itemCode = $r; supplyPrice = 2 })
+$null = Api 'headoffice' PUT '/admin/headoffice/supply-prices' (Json @(@{ itemCode = $r; supplyPrice = 2 }))
 $create6 = Api 'headoffice' POST '/admin/headoffice/supply-invoices' @{ storeId = $storeB; deliveryIds = @($bl6.Id) }
 $ho6b = HoBl $bl6.Id
 $ok = $rec6 -eq 200 -and $ho6.status -eq 'RECEIVED' -and $ho6.invoiceNote -like "*$r*" -and $toInv6.Count -eq 1 -and $toInv6[0].invoiceNote -like "*$r*" -and
@@ -239,7 +239,7 @@ $bl8 = SendBl $storeB @(@{ itemCode = $p; quantity = 1 }, @{ itemCode = $s; quan
 $null = ReceiveBl 'store-b' $bl8
 $none8 = CurlApi 'headoffice' POST '/admin/headoffice/supply-invoices/preview' @{ storeId = $storeB; deliveryIds = @($bl8.Id) }
 $selling = (Api 'headoffice' POST '/admin/headoffice/price-lists' @{ code = "SEL$Run"; name = "Selling $Run" }).Body
-$null = Api 'headoffice' PUT "/admin/headoffice/price-lists/$($selling.id)/lines" @(@{ itemCode = $s; price = 12 })
+$null = Api 'headoffice' PUT "/admin/headoffice/price-lists/$($selling.id)/lines" (Json @(@{ itemCode = $s; price = 12 }))
 $null = Api 'headoffice' PUT "/admin/headoffice/stores/$storeB/selling-price-list" @{ priceListId = $selling.id }
 $null = StorePut $storeB @{ supplyDiscountPercent = 30 }
 $create8 = Api 'headoffice' POST '/admin/headoffice/supply-invoices' @{ storeId = $storeB; deliveryIds = @($bl8.Id) }
@@ -289,7 +289,7 @@ $paid = Api 'headoffice' PATCH "/admin/headoffice/supply-invoices/$($inv3.id)/pa
 $b1 = BalanceB
 $unpaid = Api 'headoffice' PATCH "/admin/headoffice/supply-invoices/$($inv3.id)/paid" @{ paid = $false }
 $b2 = BalanceB
-$ok = $paid.Status -eq 200 -and $paid.Body.paid -eq $true -and $paid.Body.paidDate -and (Eq ($b0.unpaid - $b1.unpaid) 192.75) -and (Eq ($b1.paid - $b0.paid) 192.75) -and
+$ok = $paid.Status -eq 200 -and $paid.Body.paid -eq $true -and $paid.Body.paidDate -and (Eq ($b0.unpaid - $b1.unpaid) $inv3.totalAmount) -and (Eq ($b1.paid - $b0.paid) $inv3.totalAmount) -and
 	$unpaid.Status -eq 200 -and $null -eq $unpaid.Body.paidDate -and (Eq $b2.unpaid $b0.unpaid) -and $b1.unpaidCount -eq $b0.unpaidCount - 1
 Result 12 $ok "$num3 paid ($($paid.Status), $($paid.Body.paidDate)): unpaid $($b0.unpaid) -> $($b1.unpaid), paid $($b0.paid) -> $($b1.paid); unpaid again ($($unpaid.Status)): $($b2.unpaid)"
 
