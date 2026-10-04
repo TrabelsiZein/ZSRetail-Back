@@ -236,6 +236,39 @@ class ZZDataInitializerRolesTest {
 		}
 	}
 
+	private static MockEnvironment suppliedStore() {
+		return new MockEnvironment().withProperty("headoffice.url", "http://localhost:888/zsretail/api")
+				.withProperty("headoffice.api-key", "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde")
+				.withProperty("ownership.catalogue", "HEAD_OFFICE").withProperty("ownership.supply", "HEAD_OFFICE");
+	}
+
+	@Test
+	@DisplayName("Step 7A, store whose goods come from the head office: ADMIN gets the BL reception page on a new database"
+			+ " (saved once) and at the next start of an existing database (only that permission); other roles untouched")
+	void suppliedStoreAdminGetsReception() throws Exception {
+		List<String> saves = new ArrayList<>();
+		Map<String, AppRole> roles = seedRoles(suppliedStore(), true, false, false, Collections.emptyMap(), saves);
+		Set<String> expected = new HashSet<>(staticSet("ADMIN_PERMISSIONS"));
+		expected.add("read:admin-holink-status");
+		expected.add("read:admin-holink-deliveries");
+		assertEquals(expected, roles.get("ADMIN").getPermissions());
+		assertEquals(java.util.Arrays.asList("ADMIN", "RESPONSIBLE", "POS_USER"), saves, "each role saved once");
+		assertEquals(staticSet("RESPONSIBLE_PERMISSIONS"), roles.get("RESPONSIBLE").getPermissions());
+
+		Map<String, AppRole> existing = existingRoles("read:home", "read:admin-holink-status");
+		List<String> topUp = new ArrayList<>();
+		seedRoles(suppliedStore(), true, false, false, existing, topUp);
+		assertEquals(Collections.singletonList("ADMIN"), topUp);
+		assertEquals(new HashSet<>(java.util.Arrays.asList("read:home", "read:admin-holink-status",
+				"read:admin-holink-deliveries")), existing.get("ADMIN").getPermissions(), "nothing else added or removed");
+		assertEquals(Collections.singleton("read:home"), existing.get("RESPONSIBLE").getPermissions());
+
+		List<String> nextStart = new ArrayList<>();
+		seedRoles(suppliedStore(), true, false, false, existing, nextStart);
+		assertTrue(nextStart.isEmpty(), "saved: " + nextStart);
+		assertFalse(staticSet("ADMIN_PERMISSIONS").contains("read:admin-holink-deliveries"), "store set untouched");
+	}
+
 	// --- Stubs ---
 
 	private interface Handler {

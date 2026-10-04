@@ -26,9 +26,11 @@ import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeStandalone;
+import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryCopyDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryInputDTO;
+import com.digithink.zsretail.headoffice.dto.SalesCopyResultDTO;
 import com.digithink.zsretail.headoffice.enumeration.DeliveryStatus;
 import com.digithink.zsretail.headoffice.model.HoDelivery;
 import com.digithink.zsretail.headoffice.model.HoDeliveryLine;
@@ -145,7 +147,7 @@ public class HoDeliveryService implements DownDomainProvider {
 		Map<Long, Store> byId = storesById();
 		Map<String, Object> answer = new LinkedHashMap<>();
 		answer.put("content",
-				result.getContent().stream().map(d -> view(d, byId.get(d.getStoreId()), false)).collect(Collectors.toList()));
+				result.getContent().stream().map(d -> view(d, byId.get(d.getStoreId()), false, false)).collect(Collectors.toList()));
 		answer.put("totalElements", result.getTotalElements());
 		answer.put("totalPages", result.getTotalPages());
 		answer.put("number", result.getNumber());
@@ -156,7 +158,7 @@ public class HoDeliveryService implements DownDomainProvider {
 	/** One BL with its lines and the head office stock of each item; empty when unknown. */
 	@Transactional(readOnly = true)
 	public Optional<DeliveryDTO> get(Long id) {
-		return deliveries.findById(id).map(d -> view(d, stores.findById(d.getStoreId()).orElse(null), true));
+		return deliveries.findById(id).map(d -> view(d, stores.findById(d.getStoreId()).orElse(null), true, true));
 	}
 
 	// ─── Drafts ──────────────────────────────────────────────────
@@ -168,7 +170,7 @@ public class HoDeliveryService implements DownDomainProvider {
 		delivery.setStatus(DeliveryStatus.DRAFT);
 		fill(delivery, input);
 		HoDelivery saved = deliveries.save(delivery);
-		return view(saved, stores.findById(saved.getStoreId()).orElse(null), true);
+		return view(saved, stores.findById(saved.getStoreId()).orElse(null), true, true);
 	}
 
 	/** The draft replaced by the input (store, date, note, lines). Empty when unknown; 409 when it is not a draft. */
@@ -182,7 +184,7 @@ public class HoDeliveryService implements DownDomainProvider {
 		requireDraft(delivery, "changed");
 		fill(delivery, input);
 		HoDelivery saved = deliveries.save(delivery);
-		return Optional.of(view(saved, stores.findById(saved.getStoreId()).orElse(null), true));
+		return Optional.of(view(saved, stores.findById(saved.getStoreId()).orElse(null), true, true));
 	}
 
 	/** False when unknown; 409 when it is not a draft. */
@@ -246,7 +248,7 @@ public class HoDeliveryService implements DownDomainProvider {
 		feed.get().recordChange(DataDomain.SUPPLY, DeliveryCopyDTO.recordCode(number),
 				StoreTargets.of(Collections.singletonList(saved.getStoreId())));
 		log.info("Head office BL {} sent to store {}: {} lines", number, store.getCode(), saved.getLines().size());
-		return Optional.of(view(saved, store, true));
+		return Optional.of(view(saved, store, true, false)); // the stock was changed by native updates: GET /{id} reads it
 	}
 
 	private static String shortage(String itemCode, int inStock, int onBl) {
@@ -273,6 +275,113 @@ public class HoDeliveryService implements DownDomainProvider {
 		sequence.setCode(SEQUENCE_CODE);
 		sequence.setLastValue(lastValue);
 		return sequence;
+	}
+
+	// ─── Confirmations up (task 7A.4) ────────────────────────────
+
+	/**
+	 * A store's confirmations (POST /ho/supply/confirmations), each in its own transaction, one result per BL in batch
+	 * order. A SENT BL of this store becomes RECEIVED with the confirmed quantities (the difference with the quantities
+	 * sent is kept; the head office stock is not changed: the goods left at the validation). A BL already received with
+	 * the same quantities is accepted again and nothing changes (a confirmation sent again after a lost answer); with
+	 * other quantities it is rejected. A BL of another store, unknown or still a draft is rejected as unknown.
+	 */
+	public List<SalesCopyResultDTO> receiveConfirmations(Store store, List<DeliveryConfirmationDTO> confirmations) {
+		List<SalesCopyResultDTO> results = new ArrayList<>();
+		if (confirmations == null) {
+			return results;
+		}
+		int accepted = 0;
+		for (DeliveryConfirmationDTO confirmation : confirmations) {
+			String number = confirmation == null ? null : confirmation.getNumber();
+			SalesCopyResultDTO result;
+			try {
+				result = writeTransactions.execute(status -> receiveOne(store, confirmation));
+			} catch (RuntimeException e) {
+				result = SalesCopyResultDTO.rejected(number, cut(causeOf(e), 500));
+			}
+			if (result.isAccepted()) {
+				accepted++;
+			} else {
+				log.warn("Head office BLs: confirmation of {} from store '{}' rejected: {}", number, store.getCode(),
+						result.getMessage());
+			}
+			results.add(result);
+		}
+		log.info("Head office BLs: {} confirmations received from store '{}' ({} accepted, {} rejected)",
+				confirmations.size(), store.getCode(), accepted, confirmations.size() - accepted);
+		return results;
+	}
+
+	private SalesCopyResultDTO receiveOne(Store store, DeliveryConfirmationDTO confirmation) {
+		if (confirmation == null || confirmation.getNumber() == null || confirmation.getNumber().trim().isEmpty()) {
+			return SalesCopyResultDTO.rejected(null, "number is required");
+		}
+		String number = confirmation.getNumber().trim();
+		Optional<HoDelivery> found = deliveries.findForUpdateByStoreAndNumber(store.getId(), number);
+		if (!found.isPresent() || found.get().getStatus() == DeliveryStatus.DRAFT) {
+			return SalesCopyResultDTO.rejected(number, "unknown BL " + number + " for this store");
+		}
+		HoDelivery delivery = found.get();
+		Map<Integer, Integer> received = new HashMap<>();
+		for (DeliveryConfirmationDTO.Line line : confirmation.getLines() == null
+				? Collections.<DeliveryConfirmationDTO.Line>emptyList()
+				: confirmation.getLines()) {
+			HoDeliveryLine sent = line == null || line.getLineNo() == null ? null
+					: delivery.getLines().stream().filter(l -> l.getLineNo().equals(line.getLineNo())).findFirst()
+							.orElse(null);
+			if (sent == null || (line.getItemCode() != null && !line.getItemCode().equals(sent.getItemCode()))) {
+				return SalesCopyResultDTO.rejected(number,
+						"line " + (line == null ? null : line.getLineNo()) + " does not match the BL");
+			}
+			if (line.getQuantityReceived() == null || line.getQuantityReceived() < 0) {
+				return SalesCopyResultDTO.rejected(number,
+						"line " + line.getLineNo() + ": quantityReceived must be 0 or more");
+			}
+			if (received.put(line.getLineNo(), line.getQuantityReceived()) != null) {
+				return SalesCopyResultDTO.rejected(number, "line " + line.getLineNo() + " is given twice");
+			}
+		}
+		if (received.size() != delivery.getLines().size()) {
+			return SalesCopyResultDTO.rejected(number, "every line of the BL is required");
+		}
+		if (delivery.getStatus() != DeliveryStatus.SENT) {
+			boolean same = delivery.getLines().stream()
+					.allMatch(l -> received.get(l.getLineNo()).equals(l.getQuantityReceived()));
+			return same ? SalesCopyResultDTO.accepted(number)
+					: SalesCopyResultDTO.rejected(number, "already received with other quantities");
+		}
+		for (HoDeliveryLine line : delivery.getLines()) {
+			line.setQuantityReceived(received.get(line.getLineNo()));
+		}
+		delivery.setStatus(DeliveryStatus.RECEIVED);
+		delivery.setReceivedAt(parseDateTime(confirmation.getReceivedAt()));
+		delivery.setReceivedBy(cut(confirmation.getReceivedBy(), HoDelivery.USER_LENGTH));
+		delivery.setStoreNote(cut(confirmation.getNote(), HoDelivery.NOTE_LENGTH));
+		delivery.setConfirmationReceivedAt(clock.get());
+		deliveries.save(delivery);
+		return SalesCopyResultDTO.accepted(number);
+	}
+
+	private static LocalDateTime parseDateTime(String value) {
+		if (value == null || value.trim().isEmpty()) {
+			return null;
+		}
+		try {
+			return LocalDateTime.parse(value.trim());
+		} catch (DateTimeParseException e) {
+			throw new IllegalArgumentException("receivedAt must be a date and time as yyyy-MM-ddTHH:mm:ss");
+		}
+	}
+
+	/** The most specific cause of a failure, for the result message. */
+	private static String causeOf(RuntimeException e) {
+		Throwable cause = e;
+		while (cause.getCause() != null && cause.getCause() != cause) {
+			cause = cause.getCause();
+		}
+		return cause instanceof IllegalArgumentException ? cause.getMessage()
+				: cause.getClass().getSimpleName() + ": " + cause.getMessage();
 	}
 
 	// ─── Copies down (domain SUPPLY) ─────────────────────────────
@@ -441,7 +550,7 @@ public class HoDeliveryService implements DownDomainProvider {
 		return byId;
 	}
 
-	private DeliveryDTO view(HoDelivery delivery, Store store, boolean withLines) {
+	private DeliveryDTO view(HoDelivery delivery, Store store, boolean withLines, boolean withStock) {
 		DeliveryDTO view = new DeliveryDTO();
 		view.setId(delivery.getId());
 		view.setNumber(delivery.getNumber());
@@ -477,7 +586,7 @@ public class HoDeliveryService implements DownDomainProvider {
 				row.setQuantityReceived(line.getQuantityReceived());
 				row.setDifference(line.getQuantityReceived() == null ? null
 						: line.getQuantityReceived() - line.getQuantitySent());
-				row.setHeadOfficeStock(items.findById(line.getItemId())
+				row.setHeadOfficeStock(!withStock ? null : items.findById(line.getItemId())
 						.map(i -> i.getStockQuantity() == null ? 0 : i.getStockQuantity()).orElse(null));
 				lines.add(row);
 			}

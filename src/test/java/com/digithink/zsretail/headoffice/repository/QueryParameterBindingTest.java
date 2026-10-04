@@ -32,6 +32,7 @@ import com.digithink.zsretail.holink.repository.DownRecordRepository;
 import com.digithink.zsretail.holink.repository.LoyaltyMemberCopyRepository;
 import com.digithink.zsretail.holink.repository.LoyaltyMovementCopyRepository;
 import com.digithink.zsretail.holink.repository.LinkExchangeRepository;
+import com.digithink.zsretail.holink.repository.ReceivedDeliveryRepository;
 import com.digithink.zsretail.holink.repository.SalesCopyRepository;
 import com.digithink.zsretail.repository.ItemBarcodeRepository;
 import com.digithink.zsretail.repository.ItemFamilyRepository;
@@ -58,7 +59,7 @@ class QueryParameterBindingTest {
 			LoyaltyMemberCopyRepository.class, LoyaltyMovementCopyRepository.class, HoLoyaltyMovementRepository.class,
 			HoPriceListLineRepository.class, StoreRepository.class, ItemRepository.class, ItemFamilyRepository.class,
 			ItemSubFamilyRepository.class, ItemBarcodeRepository.class, SalesPriceRepository.class,
-			HoDeliveryRepository.class, HoNumberSequenceRepository.class };
+			HoDeliveryRepository.class, HoNumberSequenceRepository.class, ReceivedDeliveryRepository.class };
 
 	private static SessionFactory sessionFactory;
 
@@ -138,6 +139,9 @@ class QueryParameterBindingTest {
 		}
 		if (type == LocalDate.class) {
 			return LocalDate.of(2026, 10, 3);
+		}
+		if (type == Boolean.class || type == boolean.class) {
+			return Boolean.FALSE;
 		}
 		if (type.isEnum()) {
 			return type.getEnumConstants()[0];

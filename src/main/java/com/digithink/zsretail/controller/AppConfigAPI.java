@@ -82,7 +82,8 @@ public class AppConfigAPI {
 				ownership(),
 				salesUpstreams(),
 				applicationModeService.isHeadOfficeLinked(),
-				applicationModeService.isCatalogueFromHeadOffice()
+				applicationModeService.isCatalogueFromHeadOffice(),
+				applicationModeService.isSupplyFromHeadOffice()
 		));
 	}
 

@@ -27,6 +27,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeLink;
 import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
+import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
 import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatDTO;
 import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatAnswerDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberAnswerDTO;
@@ -77,6 +78,7 @@ public class HeadOfficeClient {
 	static final int LIVE_CONNECT_TIMEOUT_MS = 2_000;
 	static final int LIVE_READ_TIMEOUT_MS = 3_000;
 	static final String LOYALTY_PATH = "/ho/loyalty";
+	static final String SUPPLY_PATH = "/ho/supply";
 
 	static final String KEY_REFUSED = "store code or key refused by the head office";
 	static final String NO_LICENSE = "the head office has no valid license";
@@ -271,6 +273,21 @@ public class HeadOfficeClient {
 	/** Step 4: POST one batch of loyalty movements to /ho/loyalty/movements; one result per movement, by key. */
 	public SalesPushAnswer pushLoyaltyMovements(List<LoyaltyMovementCopyDTO> copies) {
 		Answer<SalesCopyAnswerDTO> answer = post(LOYALTY_PATH + "/movements", copies, SalesCopyAnswerDTO.class);
+		if (answer.failure != null) {
+			return SalesPushAnswer.failed(answer.failure);
+		}
+		if (answer.body.getResults() == null) {
+			return SalesPushAnswer.failed(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"unreadable answer from the head office (no results)"));
+		}
+		return SalesPushAnswer.delivered(answer.body.getResults());
+	}
+
+	// ─── Supply (step 7A) ────────────────────────────────────────
+
+	/** Step 7A: POST one batch of BL confirmations to /ho/supply/confirmations; one result per BL, by its number. */
+	public SalesPushAnswer pushDeliveryConfirmations(List<DeliveryConfirmationDTO> confirmations) {
+		Answer<SalesCopyAnswerDTO> answer = post(SUPPLY_PATH + "/confirmations", confirmations, SalesCopyAnswerDTO.class);
 		if (answer.failure != null) {
 			return SalesPushAnswer.failed(answer.failure);
 		}

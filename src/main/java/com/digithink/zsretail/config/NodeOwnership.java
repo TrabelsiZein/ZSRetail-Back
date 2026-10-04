@@ -49,7 +49,10 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * fails; with the URL set, a {@code headoffice.pull.interval-seconds} below 1 fails. Shared loyalty (step 4): the same
  * for {@code ownership.loyalty=HEAD_OFFICE}, and with the URL set a {@code headoffice.loyalty-push.interval-seconds}
  * below 1 fails. Catalogue (step 6): the same for {@code ownership.catalogue=HEAD_OFFICE}, which also fails with
- * franchise.customer or franchise.admin set to true, or with application.standalone=false.
+ * franchise.customer or franchise.admin set to true, or with application.standalone=false. Supply (step 7A): the same
+ * for {@code ownership.supply=HEAD_OFFICE}, which also fails with a franchise flag, with application.standalone=false,
+ * or without {@code ownership.catalogue=HEAD_OFFICE} (a BL names head office items by code); with the URL set a
+ * {@code headoffice.supply-push.interval-seconds} below 1 fails.
  */
 public final class NodeOwnership {
 
@@ -65,13 +68,14 @@ public final class NodeOwnership {
 	static final String LOG_RETENTION_KEY = "headoffice.log-retention-days";
 	static final String PULL_INTERVAL_KEY = "headoffice.pull.interval-seconds";
 	static final String LOYALTY_PUSH_INTERVAL_KEY = "headoffice.loyalty-push.interval-seconds";
+	static final String SUPPLY_PUSH_INTERVAL_KEY = "headoffice.supply-push.interval-seconds";
 
 	/**
 	 * Domains a store receives as copies down from its head office today (step 3: promotions; step 4: loyalty; step 6:
-	 * catalogue). An explicit owner HEAD_OFFICE for one of them needs headoffice.url. Later steps add theirs.
+	 * catalogue; step 7A: supply, the BLs). An explicit owner HEAD_OFFICE for one of them needs headoffice.url.
 	 */
-	static final Set<DataDomain> COPIES_DOWN_DOMAINS = Collections
-			.unmodifiableSet(EnumSet.of(DataDomain.CATALOGUE, DataDomain.PROMOTIONS, DataDomain.LOYALTY));
+	static final Set<DataDomain> COPIES_DOWN_DOMAINS = Collections.unmodifiableSet(
+			EnumSet.of(DataDomain.CATALOGUE, DataDomain.PROMOTIONS, DataDomain.LOYALTY, DataDomain.SUPPLY));
 
 	/** Largest batch a store may send in one request. */
 	public static final int SALES_PUSH_MAX_BATCH_SIZE = 1000;
@@ -158,6 +162,18 @@ public final class NodeOwnership {
 	public static boolean isCatalogueFromHeadOffice(PropertyResolver env) {
 		return isOwnedByHeadOffice(env, DataDomain.CATALOGUE) && flag(env, STANDALONE_KEY)
 				&& !flag(env, FRANCHISE_CUSTOMER_KEY) && !flag(env, FRANCHISE_ADMIN_KEY);
+	}
+
+	/**
+	 * True on a store whose goods come from the head office by BL (step 7A): headoffice.url set, an explicit
+	 * ownership.supply=HEAD_OFFICE, application.standalone=true and neither franchise flag (the startup also requires
+	 * ownership.catalogue=HEAD_OFFICE then). The franchise customer profile derives a supply owned by HEAD_OFFICE for its
+	 * legacy reception (FranchiseSupplyReceptionService): it never matches, even with headoffice.url set. Also used by
+	 * {@link OnHeadOfficeSupplyCondition}.
+	 */
+	public static boolean isSupplyFromHeadOffice(PropertyResolver env) {
+		return env.containsProperty(DataDomain.SUPPLY.getPropertyKey()) && isOwnedByHeadOffice(env, DataDomain.SUPPLY)
+				&& flag(env, STANDALONE_KEY) && !flag(env, FRANCHISE_CUSTOMER_KEY) && !flag(env, FRANCHISE_ADMIN_KEY);
 	}
 
 	/**
@@ -274,6 +290,27 @@ public final class NodeOwnership {
 			}
 		}
 
+		String supplyKey = DataDomain.SUPPLY.getPropertyKey();
+		if (!headOffice && env.containsProperty(supplyKey) && owners.get(DataDomain.SUPPLY) == DataOwner.HEAD_OFFICE) {
+			if (franchiseCustomer || franchiseAdmin) { // step 7A: the legacy profiles keep their own supply reception
+				throw new IllegalStateException("Invalid combination: " + supplyKey + "=HEAD_OFFICE with "
+						+ (franchiseAdmin ? "franchise.admin=true" : "franchise.customer=true")
+						+ ". The franchise profiles keep their own supply reception until they are migrated; remove "
+						+ supplyKey + ".");
+			}
+			if (!standalone) {
+				throw new IllegalStateException("Invalid combination: " + supplyKey + "=HEAD_OFFICE with "
+						+ STANDALONE_KEY + "=false. A store whose stock is kept by an ERP cannot receive BLs from a head"
+						+ " office; set " + supplyKey + " to ERP, or " + STANDALONE_KEY + " to true.");
+			}
+			if (owners.get(DataDomain.CATALOGUE) != DataOwner.HEAD_OFFICE) {
+				throw new IllegalStateException("Invalid combination: " + supplyKey + "=HEAD_OFFICE without "
+						+ catalogueKey + "=HEAD_OFFICE. A BL names head office items by their code: the store's items must"
+						+ " come from the head office; set " + catalogueKey + " to HEAD_OFFICE, or remove " + supplyKey
+						+ ".");
+			}
+		}
+
 		Set<SalesUpstream> upstreams = env.containsProperty(SALES_UPSTREAM_KEY)
 				? parseUpstreams(env.getProperty(SALES_UPSTREAM_KEY))
 				: derivedUpstreams;
@@ -327,6 +364,7 @@ public final class NodeOwnership {
 		checkWholeDays(env, LOG_RETENTION_KEY);
 		checkWholeSeconds(env, PULL_INTERVAL_KEY);
 		checkWholeSeconds(env, LOYALTY_PUSH_INTERVAL_KEY);
+		checkWholeSeconds(env, SUPPLY_PUSH_INTERVAL_KEY);
 	}
 
 	/** When present, a whole number from 1 to {@value #SALES_PUSH_MAX_BATCH_SIZE}. */
