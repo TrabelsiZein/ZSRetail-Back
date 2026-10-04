@@ -44,7 +44,6 @@ import com.digithink.zsretail.service.ItemBarcodeService;
 import com.digithink.zsretail.service.ItemCompositionService;
 import com.digithink.zsretail.service.ItemService;
 import com.digithink.zsretail.service.PricingService;
-import com.digithink.zsretail.service.StockService;
 
 import java.util.Optional;
 
@@ -72,9 +71,6 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 
 	@Autowired
 	private ItemCompositionService itemCompositionService;
-
-	@Autowired
-	private StockService stockService;
 
 	@Autowired
 	private GeneralSetupService generalSetupService;
@@ -229,6 +225,9 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			// so we must preserve existing values to avoid wiping them to null.
 			entity.setLastDirectCost(existingItem.getLastDirectCost());
 			entity.setLastDirectNetCost(existingItem.getLastDirectNetCost());
+			// The stock changes only through sales, returns, purchases, adjustments and BLs (the form shows it read-only):
+			// an edit made while the stock moves must not write back the quantity the page loaded
+			entity.setStockQuantity(existingItem.getStockQuantity());
 			// Step 6: never read from JSON; null on every store whose catalogue is not the head office's
 			entity.setOwnPrice(existingItem.getOwnPrice());
 			entity.setHeadOfficePrice(existingItem.getHeadOfficePrice());
@@ -484,7 +483,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			}
 			Item item = service.findById(id)
 					.orElseThrow(() -> new IllegalArgumentException("Item not found: " + id));
-			stockService.adjustStock(id, delta, reason);
+			service.adjustStock(id, delta, reason); // step 7A: with its stock movement
 			Item updated = service.findById(id).orElse(item);
 			return ResponseEntity.ok(updated);
 		} catch (IllegalArgumentException e) {

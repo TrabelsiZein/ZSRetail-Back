@@ -115,6 +115,36 @@ public class StockMovementService {
         log.debug("Stock movement recorded: {} itemId={} delta={}", type, itemId, delta);
     }
 
+    /**
+     * Step 7A: a BL line leaving the head office stock (OUT, at the validation). Reference: the BL (ho_delivery.id),
+     * reference type BL, its number as note. No price on a BL.
+     */
+    @Transactional
+    public void recordDeliveryOut(Long itemId, int quantity, Long deliveryId, String deliveryNumber) {
+        if (!applicationModeService.isStandalone()) return;
+        if (quantity <= 0) return;
+        stockMovementRepository.save(build(
+                itemId, StockMovementType.DELIVERY_OUT, StockMovementDirection.OUT,
+                quantity, null, null, null,
+                deliveryId, "BL", null, deliveryNumber));
+        log.debug("Stock movement recorded: DELIVERY_OUT itemId={} qty={}", itemId, quantity);
+    }
+
+    /**
+     * Step 7A: a BL line received by a store (IN, at its confirmation). Reference: the store's received BL
+     * (hol_delivery.id), reference type BL, its number as note.
+     */
+    @Transactional
+    public void recordDeliveryIn(Long itemId, int quantity, Long receivedDeliveryId, String deliveryNumber) {
+        if (!applicationModeService.isStandalone()) return;
+        if (quantity <= 0) return;
+        stockMovementRepository.save(build(
+                itemId, StockMovementType.DELIVERY_IN, StockMovementDirection.IN,
+                quantity, null, null, null,
+                receivedDeliveryId, "BL", null, deliveryNumber));
+        log.debug("Stock movement recorded: DELIVERY_IN itemId={} qty={}", itemId, quantity);
+    }
+
     // -------------------------------------------------------------------------
 
     private StockMovement build(Long itemId, StockMovementType type, StockMovementDirection direction,

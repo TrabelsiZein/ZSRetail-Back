@@ -139,7 +139,9 @@ public class ZZDataInitializer {
 	private void ensureDefaultRoles() {
 		AppRole adminRole = ensureRole("ADMIN", "Administrateur", false, adminPermissions());
 		if (applicationModeService.isHeadOffice()) {
-			addMissingHeadOfficePermissions(adminRole);
+			addMissingPermissions(adminRole, HEAD_OFFICE_ADMIN_PERMISSIONS);
+		} else if (applicationModeService.isSupplyFromHeadOffice()) {
+			addMissingPermissions(adminRole, SUPPLY_ADMIN_PERMISSIONS); // step 7A: the BL reception page
 		}
 		AppRole responsibleRole = ensureRole("RESPONSIBLE", "Responsable", false, RESPONSIBLE_PERMISSIONS);
 		ensureRole("POS_USER", "Caissier", true, POS_PERMISSIONS);
@@ -176,14 +178,15 @@ public class ZZDataInitializer {
 
 	/**
 	 * Head office: gives the ADMIN role every head office permission it lacks (a page added by a later step, or a
-	 * database created before), so they are never ticked by hand. Removes nothing, saves only when one is missing.
+	 * database created before), so they are never ticked by hand. Step 7A: the same on a store whose goods come from the
+	 * head office, for its BL reception page only. Removes nothing, saves only when one is missing.
 	 */
-	private void addMissingHeadOfficePermissions(AppRole adminRole) {
-		if (adminRole.getPermissions().containsAll(HEAD_OFFICE_ADMIN_PERMISSIONS)) {
+	private void addMissingPermissions(AppRole adminRole, Set<String> wanted) {
+		if (adminRole.getPermissions().containsAll(wanted)) {
 			return;
 		}
 		Set<String> permissions = new HashSet<>(adminRole.getPermissions());
-		permissions.addAll(HEAD_OFFICE_ADMIN_PERMISSIONS);
+		permissions.addAll(wanted);
 		adminRole.setPermissions(permissions);
 		adminRole.setUpdatedBy("System");
 		appRoleRepository.save(adminRole);
@@ -191,8 +194,9 @@ public class ZZDataInitializer {
 
 	/**
 	 * Default ADMIN permissions; a head office adds its pages, a store linked to a head office adds the "Head office
-	 * link" page (docs/modules/head-office.md). Used when the role is created; afterwards only a head office tops up
-	 * its ADMIN role (addMissingHeadOfficePermissions), other roles and store roles are never changed.
+	 * link" page (docs/modules/head-office.md) and, when its goods come from the head office, the BL reception page.
+	 * Used when the role is created; afterwards a head office tops up its ADMIN role, and a store whose goods come from
+	 * the head office its BL reception page only (addMissingPermissions); other roles and permissions are never changed.
 	 */
 	private Set<String> adminPermissions() {
 		Set<String> extra = applicationModeService.isHeadOffice() ? HEAD_OFFICE_ADMIN_PERMISSIONS
@@ -202,6 +206,9 @@ public class ZZDataInitializer {
 		}
 		Set<String> permissions = new HashSet<>(ADMIN_PERMISSIONS);
 		permissions.addAll(extra);
+		if (!applicationModeService.isHeadOffice() && applicationModeService.isSupplyFromHeadOffice()) {
+			permissions.addAll(SUPPLY_ADMIN_PERMISSIONS);
+		}
 		return permissions;
 	}
 
@@ -236,11 +243,23 @@ public class ZZDataInitializer {
 			"read:admin-headoffice-erp-communications",
 			"read:admin-headoffice-erp-reference-location",
 			"read:admin-headoffice-loyalty-overspends", // step 5: overspend report
-			"read:admin-headoffice-price-lists")); // step 6: selling price lists (head office without an ERP)
+			"read:admin-headoffice-price-lists", // step 6: selling price lists (head office without an ERP)
+			"read:admin-headoffice-vendors", // step 7A: the head office as a warehouse (without an ERP)
+			"read:admin-headoffice-purchases",
+			"read:admin-headoffice-purchase-new",
+			"read:admin-headoffice-vendor-balance",
+			"read:admin-headoffice-purchase-invoices",
+			"read:admin-headoffice-stock",
+			"read:admin-headoffice-stock-movements",
+			"read:admin-headoffice-deliveries", // step 7A: BLs
+			"read:admin-headoffice-network-stock")); // step 7A: stock of the stores
 
 	/** Store with headoffice.url only: the "Head office link" page (task 1.5). */
 	static final Set<String> HEAD_OFFICE_LINK_ADMIN_PERMISSIONS = new HashSet<>(
 			Arrays.asList("read:admin-holink-status"));
+
+	/** Store whose goods come from the head office (step 7A): the BL reception page; given to ADMIN at every start. */
+	static final Set<String> SUPPLY_ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:admin-holink-deliveries"));
 
 	private static final Set<String> ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:home",
 			"read:admin-users", "write:admin-users", "delete:admin-users", "read:admin-sessions",

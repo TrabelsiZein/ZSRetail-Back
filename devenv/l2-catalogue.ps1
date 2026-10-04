@@ -177,11 +177,11 @@ Say "L2 catalogue (step 6), run $Run, $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 # ─── Setup ───────────────────────────────────────────────────────
 if (-not (Test-DevUp 'headoffice')) { StartInst 'headoffice' }
 foreach ($code in 'STORE-B', 'STORE-C') { $null = SetStore $code @{ mayChangePrices = $false; canPurchase = $false }; $null = SetList $code $null }
-Restart $Stores @('ownership.catalogue=LOCAL')
+Restart $Stores @('ownership.catalogue=LOCAL', 'ownership.supply=LOCAL')   # since step 7A store B gets its goods from the head office, which needs the catalogue
 foreach ($s in $Stores) { Heartbeat $s }
 $famBois = HoFamily 'BOIS'; $subBois = HoSubFamily $famBois
 $famBrique = HoFamily 'BRIQUE'; $subBrique = HoSubFamily $famBrique
-Say "   setup: rights off, no list, B and C restarted with ownership.catalogue=LOCAL"
+Say "   setup: rights off, no list, B and C restarted with ownership.catalogue=LOCAL (and supply LOCAL)"
 
 # ─── 1. Local catalogue at B and C ───────────────────────────────
 $details = @(); $ok = $true

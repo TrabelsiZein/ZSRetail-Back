@@ -132,4 +132,11 @@ public class AppConfigDTO {
 	 * franchise customer reports HEAD_OFFICE there for its legacy sync). From ApplicationModeService.isCatalogueFromHeadOffice().
 	 */
 	private boolean catalogueFromHeadOffice;
+
+	/**
+	 * Step 7A: true on a store whose goods come from the head office by BL (headoffice.url, ownership.supply=HEAD_OFFICE,
+	 * standalone, no franchise flag): the BL reception page exists. Read this flag, not ownership.SUPPLY (a franchise
+	 * customer reports HEAD_OFFICE there for its legacy reception). From ApplicationModeService.isSupplyFromHeadOffice().
+	 */
+	private boolean supplyFromHeadOffice;
 }

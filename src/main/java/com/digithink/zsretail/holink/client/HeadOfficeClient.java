@@ -27,6 +27,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeLink;
 import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
+import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
 import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatDTO;
 import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatAnswerDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberAnswerDTO;
@@ -36,6 +37,7 @@ import com.digithink.zsretail.headoffice.dto.LoyaltyMovementCopyDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyPhoneCheckDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyPointsAdjustDTO;
 import com.digithink.zsretail.headoffice.dto.SalesCopyAnswerDTO;
+import com.digithink.zsretail.headoffice.dto.StockReportDTO;
 import com.digithink.zsretail.holink.dto.HeadOfficeCallResult;
 import com.digithink.zsretail.holink.dto.LiveAnswer;
 import com.digithink.zsretail.holink.dto.LoyaltyMemberPushAnswer;
@@ -77,6 +79,7 @@ public class HeadOfficeClient {
 	static final int LIVE_CONNECT_TIMEOUT_MS = 2_000;
 	static final int LIVE_READ_TIMEOUT_MS = 3_000;
 	static final String LOYALTY_PATH = "/ho/loyalty";
+	static final String SUPPLY_PATH = "/ho/supply";
 
 	static final String KEY_REFUSED = "store code or key refused by the head office";
 	static final String NO_LICENSE = "the head office has no valid license";
@@ -279,6 +282,37 @@ public class HeadOfficeClient {
 					"unreadable answer from the head office (no results)"));
 		}
 		return SalesPushAnswer.delivered(answer.body.getResults());
+	}
+
+	// ─── Supply (step 7A) ────────────────────────────────────────
+
+	/** Step 7A: POST one batch of BL confirmations to /ho/supply/confirmations; one result per BL, by its number. */
+	public SalesPushAnswer pushDeliveryConfirmations(List<DeliveryConfirmationDTO> confirmations) {
+		Answer<SalesCopyAnswerDTO> answer = post(SUPPLY_PATH + "/confirmations", confirmations, SalesCopyAnswerDTO.class);
+		if (answer.failure != null) {
+			return SalesPushAnswer.failed(answer.failure);
+		}
+		if (answer.body.getResults() == null) {
+			return SalesPushAnswer.failed(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"unreadable answer from the head office (no results)"));
+		}
+		return SalesPushAnswer.delivered(answer.body.getResults());
+	}
+
+	/**
+	 * Step 7A: POST one batch of this store's stock to /ho/supply/stock (items changed, codes removed). Delivered (no
+	 * per-item result: the batch is saved as a whole) or the state and message of the failed call.
+	 */
+	public SalesPushAnswer pushStock(StockReportDTO report) {
+		Answer<StockReportDTO.Answer> answer = post(SUPPLY_PATH + "/stock", report, StockReportDTO.Answer.class);
+		if (answer.failure != null) {
+			return SalesPushAnswer.failed(answer.failure);
+		}
+		if (answer.body.getSaved() == null) {
+			return SalesPushAnswer.failed(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"unreadable answer from the head office (no saved count)"));
+		}
+		return SalesPushAnswer.delivered(Collections.emptyList());
 	}
 
 	/** Step 4, live question: the card holding this phone in the network, GET /ho/loyalty/members/by-phone. */

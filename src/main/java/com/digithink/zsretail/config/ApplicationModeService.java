@@ -55,11 +55,18 @@ public class ApplicationModeService {
 	/** headoffice.url is set (task 1.4), resolved at startup like the head office link beans. */
 	private boolean headOfficeLinked;
 
+	/** Step 7A: the supply beans exist (NodeOwnership.isSupplyFromHeadOffice), resolved at startup. */
+	private boolean supplyFromHeadOffice;
+
 	/** Fails the startup when node.type, ownership.* or sales.upstream holds an invalid value. */
 	@PostConstruct
 	void initOwnership() {
 		ownership = NodeOwnership.resolve(environment, standalone, franchiseAdmin, franchiseCustomer);
 		headOfficeLinked = NodeOwnership.isHeadOfficeLinkSet(environment);
+		// Same rule as NodeOwnership.isSupplyFromHeadOffice, on the mode flags of this service (like the catalogue)
+		supplyFromHeadOffice = headOfficeLinked && environment.containsProperty(DataDomain.SUPPLY.getPropertyKey())
+				&& ownership.ownerOf(DataDomain.SUPPLY) == DataOwner.HEAD_OFFICE && standalone && !franchiseCustomer
+				&& !franchiseAdmin;
 	}
 
 	/** True on a store that calls a head office (headoffice.url set): the "Head office link" page exists. */
@@ -98,6 +105,16 @@ public class ApplicationModeService {
 	public boolean isCatalogueFromHeadOffice() {
 		return headOfficeLinked && ownership.ownerOf(DataDomain.CATALOGUE) == DataOwner.HEAD_OFFICE && standalone
 				&& !franchiseCustomer && !franchiseAdmin;
+	}
+
+	/**
+	 * True on a store whose goods come from its head office by BL (step 7A): headoffice.url set, an explicit
+	 * ownership.supply=HEAD_OFFICE, standalone, no franchise flag (the franchise customer profile derives a supply owned by
+	 * HEAD_OFFICE for its legacy reception and is never this case). Same rule as the supply beans
+	 * ({@link NodeOwnership#isSupplyFromHeadOffice}).
+	 */
+	public boolean isSupplyFromHeadOffice() {
+		return supplyFromHeadOffice;
 	}
 
 	/**

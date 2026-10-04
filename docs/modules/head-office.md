@@ -1,6 +1,6 @@
 # Head Office Module
 
-**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office); task 2.4 done (the store's push job with retry, counts on `GET admin/holink/status`). Task 2.5 backend done (consolidated sales API, home cards, page permissions; see "Consolidated sales API"; its pages to come); task 2.6 backend done (jobs with editable frequency and run now, exchange log; see "Head office link: jobs and exchange log"); the pages of 2.5 and 2.6 come with the frontend session. Step 3 in progress: task 3.1 done (the copies down mechanism, see "Copies down"); task 3.2 done (`origin` on `promotion` and the write guards, see `docs/modules/promotion.md`); task 3.3 done (target stores, payload by codes, received promotions, network usage count; see "Promotions owned by the head office"); task 3.5 done (missing targets WAITING and retried, tracking table, `GET admin/holink/received/{domain}`, counts in the link status). Rule fix: on a store whose promotions are local every promotion is written as before, whatever its origin (`docs/modules/promotion.md`). Task 3.6 done (what each store owns, sent with the heartbeat, see "Store API"). Task 3.4 done (head office with an ERP: imports only, export jobs never run, ERP reference location, profile `headoffice-dynamics-dev`; see "Head office with an ERP"). Step 3 frontend done: task 3.0 (lint) and the pages of tasks 3.2 to 3.6, see "Step 3 pages (frontend)". Step 4 backend done (shared loyalty: members and earning, see "Shared loyalty (step 4)"): part 1 the head office side (register, copies down, members and movements up, phone check, member edit, store rights), part 2 the store side (enrol, `LOYALTY_PUSH`, `LOYALTY` pull, member changes through the head office, link page API); steps 4 and 5 done and merged (frontend and L2 included). Step 6 backend done (catalogue and selling prices decided by the head office, price lists, store rights and guards; see "Catalogue owned by the head office (step 6)" and "Price lists (task 6.4)"); frontend (task 6.7), L2 and task 6.8 (images) to come. Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
+**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office); task 2.4 done (the store's push job with retry, counts on `GET admin/holink/status`). Task 2.5 backend done (consolidated sales API, home cards, page permissions; see "Consolidated sales API"; its pages to come); task 2.6 backend done (jobs with editable frequency and run now, exchange log; see "Head office link: jobs and exchange log"); the pages of 2.5 and 2.6 come with the frontend session. Step 3 in progress: task 3.1 done (the copies down mechanism, see "Copies down"); task 3.2 done (`origin` on `promotion` and the write guards, see `docs/modules/promotion.md`); task 3.3 done (target stores, payload by codes, received promotions, network usage count; see "Promotions owned by the head office"); task 3.5 done (missing targets WAITING and retried, tracking table, `GET admin/holink/received/{domain}`, counts in the link status). Rule fix: on a store whose promotions are local every promotion is written as before, whatever its origin (`docs/modules/promotion.md`). Task 3.6 done (what each store owns, sent with the heartbeat, see "Store API"). Task 3.4 done (head office with an ERP: imports only, export jobs never run, ERP reference location, profile `headoffice-dynamics-dev`; see "Head office with an ERP"). Step 3 frontend done: task 3.0 (lint) and the pages of tasks 3.2 to 3.6, see "Step 3 pages (frontend)". Step 4 backend done (shared loyalty: members and earning, see "Shared loyalty (step 4)"): part 1 the head office side (register, copies down, members and movements up, phone check, member edit, store rights), part 2 the store side (enrol, `LOYALTY_PUSH`, `LOYALTY` pull, member changes through the head office, link page API); steps 4 and 5 done and merged (frontend and L2 included). Step 6 backend done (catalogue and selling prices decided by the head office, price lists, store rights and guards; see "Catalogue owned by the head office (step 6)" and "Price lists (task 6.4)"); step 6 done and merged (frontend and L2 included), task 6.8 (images) after step 7B. Step 7A done (backend, frontend, L2 of 12 scenarios) (the head office as a warehouse, BLs, reception at the store, confirmation up, stock of the stores; see "Head office as a warehouse (task 7A.1)", "BLs (task 7A.2, head office)", "BLs at the store (tasks 7A.3, 7A.4)", "Stock of the stores (task 7A.5)"); its pages: "Step 7A pages (frontend)", four sections. Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
 
 ### Overview
 - Two installation types, same WAR: a **store** sells; a **head office** manages several stores and never sells (no cashier session, no ticket).
@@ -226,7 +226,7 @@ Frontend commits 0928f9e, 68c027a, 32cd1be, on `feature/ho-step-6`.
 - Purchases, purchase invoices and vendors stay readable, with a warning banner. Hidden: new purchase, set paid, create invoice from a purchase, new invoice, add and edit vendor.
 - The new purchase page shows the banner and no Create button.
 
-**With the purchase right:** the new purchase item picker offers only the store's own items. It reads `/item-barcode/items-with-barcodes` (active items shown at the POS), because `/item/search` gives no `origin`. An info banner says so.
+**With the purchase right:** the new purchase item picker offers only the store's own items. It reads `/item/search`, which gives `origin` for each item since backend 2c92282, and keeps the items whose origin is not `HEAD_OFFICE` (frontend e7f1556; own items hidden from the POS can be purchased again). An info banner says so.
 
 **Data import** (`DataImport.vue`): Families, Sub-families, Items, Barcodes and Sales prices cannot be chosen, with a note. Vendors follow the purchase right.
 
@@ -239,6 +239,114 @@ Frontend commits 0928f9e, 68c027a, 32cd1be, on `feature/ho-step-6`.
 Labels in `en`, `fr`, `ar` (`admin.catalogueNetwork.*`, `admin.holink.catalogue.*`).
 
 **Checks**: lint of the changed files in production mode and `npm run build`, clean before each commit. Not yet seen in the browser (L2).
+
+### Step 7A pages (frontend): head office warehouse
+Frontend commit 6208e7b, on `feature/ho-step-7a`. Head office without an ERP only.
+
+**Supply pages.** A menu group Supply holds seven twins of the store pages: Vendors, Purchase history, New purchase, Vendor balance, Purchase invoices, Stock report, Stock movements.
+- Routes `admin-headoffice-vendors`, `-purchases`, `-purchase-new`, `-vendor-balance`, `-purchase-invoices`, `-stock`, `-stock-movements`, under `/headoffice/supply/...`. The permission of each is `read:<route name>`. There are 32 head office permissions, the same list as `ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS`.
+- Every route carries `meta.standaloneOnly`. The router guard sends them home when `/config` gives `standalone: false`, and the menu hides them then (`STANDALONE_ONLY`).
+- The later guard steps read `twinOf`, so the store's "standalone only" rule for purchases and vendors applies to the twins as well.
+
+**Links.** The pages link to each other by route name: vendors → vendor balance, and purchase history ↔ new purchase. All three targets have a twin, so no link falls back to the head office home.
+
+**Head office checks.** None of these pages needs a cashier session, a till or a location. The step 6 purchase-right check is off on a head office, so every write action is shown there.
+
+**Stock movements.** The BL types `DELIVERY_OUT` and `DELIVERY_IN` have translated labels (`admin.reports.stockMovements.types`) in the type filter, the table, the chart and the Excel export. The other types still show their code, as before. This is the one change to a store page; the store routes and the store menu are unchanged.
+
+Labels in `en`, `fr`, `ar` (`admin.headoffice.supplyMenu`, the two types).
+
+**Checks:** lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
+
+**Not in this part:** the BL page, the network stock page and the store reception page. They wait for the backend API.
+
+### Step 7A pages (frontend): BLs at the head office
+Frontend commit 8ac5489, on `feature/ho-step-7a`. Head office without an ERP only.
+
+**Page** `src/views/admin/headoffice/Deliveries.vue`:
+- Route `admin-headoffice-deliveries`, path `/headoffice/supply/deliveries`, `meta.standaloneOnly`.
+- First link of the Supply menu, permission `read:admin-headoffice-deliveries` (33 head office permissions, the same list as the backend).
+- API `/admin/headoffice/deliveries`.
+
+**List.** Number (or "Draft (no number yet)"), store, status badge (Draft, Sent, Received, Invoiced), document date, sent, received, quantities sent / received, and a "Difference" badge.
+- Filters: search (number, note), store, status, date from and to (on the document date), "With a difference only".
+- Paging by the API, 20 per page.
+
+**New BL and draft edit**, in a dialog:
+- Store: the active stores from `store-options`. A store that reported `ownership.SUPPLY` other than `HEAD_OFFICE` is listed but cannot be chosen.
+- Date (today by default) and note.
+- Lines from the item search (`/item/search`: active items, products and packs only, never the tax stamp). The head office stock is read when an item is added (`GET /item/{id}`), and from `headOfficeStock` when a draft is opened.
+- A quantity above the stock is highlighted and named in a warning, without blocking the save. The same item twice is refused in the page.
+- `POST` creates, `PUT /{id}` replaces the draft.
+
+**Draft actions.** Edit, delete (after a confirmation), and validate.
+- Validate asks for a confirmation: the BL gets its number, the goods leave the head office stock and the store will see it.
+- A stock shortage (409) is shown as the list of short items, cut from the backend text. Any other 400 or 409 shows the backend text.
+
+**Sent, Received, Invoiced: consult-only.**
+- The detail (`GET /{id}`) shows store, status, date, sent at and by, received at and by (store clock), when the confirmation reached the head office, the note and the store's note.
+- Per line: quantity sent, quantity received and the difference (received − sent, coloured).
+
+**Print** (non-draft, from the list or the detail):
+- `DeliveryNoteTemplate.vue`, written with the purchase invoice print styles and document builder (`getPurchaseInvoicePrintDocumentHtml`).
+- Content: company header, number, date, store, lines with quantities sent and received (received blank until confirmed), total sent, the note, and two signature areas (sent by, received by).
+
+Labels in `en`, `fr`, `ar` (`admin.headoffice.deliveries.*`).
+
+**Checks**: lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
+
+### Step 7A pages (frontend): reception at the store
+Frontend commit ef799b0, on `feature/ho-step-7a`.
+
+**Rule.** The page exists only when `GET /config` gives `supplyFromHeadOffice: true` (`appConfig/isSupplyFromHeadOffice`), never on a franchise customer. `navigation/head-office.js` lists it in `SUPPLY_ROUTES` and `SUPPLY_PERMISSIONS`:
+- The router guard sends the route home without the flag. On a head office it has no twin and goes to the head office home.
+- `VerticalNavMenu` removes its link without the flag.
+- The Roles page lists `read:admin-holink-deliveries` ("Réception des BL", group "Paramètres & Outils") only with the flag.
+
+Without the flag every store page renders as before.
+
+**Page** `src/views/admin/holink/DeliveryReception.vue`, route `admin-holink-deliveries`, path `/admin/holink/deliveries`. Its menu link sits right after "Head office link". API `/admin/deliveries`.
+- **List.** The BLs to receive first (all of them, up to 200), then the received ones (paged). Columns: number, document date, quantities sent / received, a "Difference" badge, and badges for items not here yet or lines whose stock waits. Received BLs also show the confirmation to the head office: Waiting to be sent, Sent, or Refused (the reason on hover).
+- **Receive**, in a dialog (`GET /{id}`, then `POST /{id}/receive {note, lines: [{lineNo, quantityReceived}]}`):
+  - One quantity per line, a whole number of 0 or more, defaulting to the quantity sent.
+  - A line whose item is not in the store yet is flagged: its stock goes in once the item arrives.
+  - A note (500 characters).
+  - A quantity above the quantity sent asks for a confirmation that names the items.
+  - Afterwards: the stock went up, and the confirmation goes to the head office now or as soon as it can be reached, plus how many lines still wait for their item.
+  - 400 and 409 (already received) show the backend text.
+- **A received BL is consult-only.** The detail shows the head office note, sent at, received at and by, the store's note, the confirmation status and its error. Per line: sent, received, difference, and "stock waits for the item".
+- **Print** uses `DeliveryNoteTemplate.vue` from the head office page. Its "Deliver to" block shows only when the BL has store fields, so the store prints its own company header.
+
+**Head office link page** (`HeadOfficeLinkStatus.vue`):
+- A block "Delivery notes from the head office" when the status gives `supply`. It shows counts to receive and received, the confirmations Waiting to be sent / Sent / Refused, and a warning when `stockWaiting` is above 0. A button opens the reception page when the user has its permission.
+- The job `SUPPLY_PUSH` and the received domain `SUPPLY` are labelled.
+
+Labels in `en`, `fr`, `ar` (`admin.holink.deliveries.*`, `admin.holink.supply.*`).
+
+**Checks:** lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
+
+### Step 7A pages (frontend): network stock
+Frontend commit 5d7743b, on `feature/ho-step-7a`. Head office without an ERP only.
+
+**Page** `src/views/admin/headoffice/NetworkStock.vue`:
+- Route `admin-headoffice-network-stock`, path `/headoffice/supply/network-stock`, `meta.standaloneOnly`.
+- Supply menu, after Stock movements. Permission `read:admin-headoffice-network-stock` (34 head office permissions, the same list as the backend).
+
+**Tab "Head office items"** (`GET /admin/headoffice/stock`):
+- One row per head office item: code, name, head office stock, then one column per store from `stores`.
+- Each store header shows its code, its name, and the time of its last stock report (`lastStockAt`, head office clock), or "No report yet".
+- A store that never reported the item shows "-". Below zero is red, zero is grey.
+- The item code and name columns stay fixed (`stickyColumn`) while the store columns scroll sideways.
+
+**Tab "Stores' own items"** (`GET /admin/headoffice/stock/own`): store, item code, item name, stock, read at the store (`storeTime`), received (`receivedAt`).
+
+**Filters:**
+- Search (code, name) and store (`storeId`, from `store-options`), with paging by the API, 20 rows by default.
+- "Below zero only" has no API parameter. The page reads the API pages (200 rows each, at most 25) and keeps the rows below zero: at the head office or in a store shown, or the quantity on the own items tab. It then pages them itself, with a note when the list was cut at 5,000 items.
+
+Labels in `en`, `fr`, `ar` (`admin.headoffice.networkStock.*`).
+
+**Checks:** lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
 
 ### Add a page to the head office
 1. **Shared page** (the same data as on the store): add a route to `src/router/headoffice-routes.js` with path `/headoffice/<...>`, name and `meta.resource` `admin-headoffice-<page>`, `meta.action: 'read'`, `meta.headOffice: true`, `meta.requiresAuth: true`, the store page's component, and `meta.twinOf` set to the store route name. Do not modify the store page, its store route or the store menu.
@@ -383,6 +491,7 @@ A store with `headoffice.url` set sends a heartbeat to its head office. Store-si
 | `headoffice.log-retention-days` below 1 or not a whole number (task 2.6) | `Invalid value '<value>' for property headoffice.log-retention-days` |
 | `headoffice.pull.interval-seconds` below 1 or not a whole number (task 3.1) | `Invalid value '<value>' for property headoffice.pull.interval-seconds` |
 | `headoffice.loyalty-push.interval-seconds` below 1 or not a whole number (step 4) | `Invalid value '<value>' for property headoffice.loyalty-push.interval-seconds` |
+| `headoffice.supply-push.interval-seconds` below 1 or not a whole number (step 7A) | `Invalid value '<value>' for property headoffice.supply-push.interval-seconds` |
 
 And whether the URL is set or not (task 2.4, decision 4): a store whose explicit `sales.upstream` includes `HEAD_OFFICE` without `headoffice.url` does not start (`Missing value for property headoffice.url: required when sales.upstream includes HEAD_OFFICE ('<value>')`). Only an explicit value is checked: the franchise customer profile derives `HEAD_OFFICE` for its legacy push and has no `headoffice.url`, and it starts as before. A head office with a non-empty `sales.upstream` keeps its own message (step 1).
 
@@ -418,11 +527,12 @@ Without the URL these keys are not checked. The URL scheme is not checked: HTTP 
 | `GET /jobs`, `PUT /jobs/{code}/interval`, `POST /jobs/{code}/run`, `GET /log` | Task 2.6, see "Head office link: jobs and exchange log". `intervalSeconds` in `GET /status` is the heartbeat frequency in force (saved or default) |
 | `GET /status`, field `received` (task 3.5, last field) | Per domain pulled, the received records by status: `{"PROMOTIONS": {"APPLIED": 12, "WAITING": 1, "ERROR": 0}}` (every status present); null when the store pulls nothing, or when the counts cannot be read (the status is still answered) |
 | `GET /status`, field `loyalty` (step 4, last field) | When loyalty is owned by the head office: `{"members": {"PENDING": 0, "SENT": 3, "ERROR": 0}, "movements": {"PENDING": 2, "SENT": 40, "ERROR": 0}, "canEditMembers": true, "canAdjustPoints": false, "redeemRequiresOnline": false, "enrolRequiresOnline": false}` (every status present; rights and settings from the last heartbeat answer, null before it); null otherwise, or when the counts cannot be read |
-| `GET /status`, field `catalogue` (step 6, last field) | When the catalogue is the head office's: `{"fromHeadOffice": true, "linkState": "ONLINE", "mayChangePrices": false, "canPurchase": true, "ownPriceCount": 0, "salesPriceRowsOnHeadOfficeItems": 0}` (the rights as saved, null when never received); null otherwise, or when it cannot be read. Same map as `GET /catalogue/network` |
+| `GET /status`, field `catalogue` (step 6) | When the catalogue is the head office's: `{"fromHeadOffice": true, "linkState": "ONLINE", "mayChangePrices": false, "canPurchase": true, "ownPriceCount": 0, "salesPriceRowsOnHeadOfficeItems": 0}` (the rights as saved, null when never received); null otherwise, or when it cannot be read. Same map as `GET /catalogue/network` |
+| `GET /status`, field `supply` (step 7A, last field) | When the store's goods come from the head office: `{"toReceive": 1, "received": 4, "confirmations": {"PENDING": 0, "SENT": 4, "ERROR": 0}, "stockWaiting": 0}` (BLs by status, confirmations up by status, confirmed lines whose stock waits for their item; task 7A.5 adds `stockToSend` and `stockSentAt`); null otherwise, or when the counts cannot be read |
 | `GET /loyalty/{kind}?status=&page=&size=` (step 4) | `kind` `members` or `movements` (any case). `{kind, counts, records, totalElements, page, size}`, `ERROR` first, then `PENDING`, then `SENT`, newest first in each; `size` default 20, at most 200. Members: `{cardNumber, name, phone, status, attempts, lastError, lastPushDate, outcome, survivingCardNumber}`; movements: `{key, cardNumber, type, points, delta, date, status, attempts, lastError, lastPushDate}`. 404 `{"error":"Loyalty is not owned by the head office on this store"}`; 400 for another kind or a bad status |
 | `GET /received/{domain}?status=` (task 3.5) | `{domain, counts: {APPLIED, WAITING, ERROR}, records: [{code, name, status, reason, info, receivedAt, statusSince}]}`, `ERROR` first, then `WAITING`, then `APPLIED`, each by code. `domain` any case (`promotions`); `status` one status (any case), blank or `all` = every status. 404 `{"error":"No copies down of '<domain>' on this store"}` when the store does not pull that domain; 400 `{"error":"Invalid status ..."}` |
 
-**`GET /config`** gets `headOfficeLinked` (task 1.5): true when `headoffice.url` is set (`ApplicationModeService.isHeadOfficeLinked()`, same check as the condition). The frontend store keeps it as `appConfig/isHeadOfficeLinked` (default false, also when `/config` fails). Step 6 adds `catalogueFromHeadOffice`, last field (see "Catalogue owned by the head office").
+**`GET /config`** gets `headOfficeLinked` (task 1.5): true when `headoffice.url` is set (`ApplicationModeService.isHeadOfficeLinked()`, same check as the condition). The frontend store keeps it as `appConfig/isHeadOfficeLinked` (default false, also when `/config` fails). Step 6 adds `catalogueFromHeadOffice` (see "Catalogue owned by the head office"), step 7A `supplyFromHeadOffice`, last field (see "BLs at the store").
 
 **Frontend**: page `src/views/admin/holink/HeadOfficeLinkStatus.vue`, route `admin-holink-status` (`/admin/holink/status`, `meta.resource` checked by CASL), menu **Settings** → **Head office link** (last entry).
 - Shows the state as a badge with a translated label for each of the six states (PENDING grey, ONLINE green, OFFLINE and REFUSED red, ERROR and NOT_CONFIGURED orange), the backend message as a detail line (English, as sent), last success, last attempt, the head office URL, the store code (or "not set" when `DEFAULT_LOCATION` is empty), and a **Check now** button (disabled while the check runs). A failed `DEFAULT_LOCATION` read is `ERROR` with its own message, not a separate state.
@@ -575,6 +685,7 @@ Backend of the jobs and exchange log of the store's Head office link page (model
 | `SALES_PUSH` | `SalesPushJob` | and the sales upstreams include the head office (decision 4) | 2 | 20 s | `headoffice.sales-push.interval-seconds` (60) |
 | `COPIES_DOWN` | `CopiesDownJob` (task 3.1) | and at least one domain is owned by the head office | 3 | 25 s | `headoffice.pull.interval-seconds` (60) |
 | `LOYALTY_PUSH` | `LoyaltyPushJob` (step 4) | and loyalty is owned by the head office | 4 | 30 s | `headoffice.loyalty-push.interval-seconds` (60) |
+| `SUPPLY_PUSH` | `SupplyPushJob` (step 7A) | and the goods come from the head office (`NodeOwnership.isSupplyFromHeadOffice`) | 5 | 35 s | `headoffice.supply-push.interval-seconds` (60) |
 
 **Add a job** (later steps): one bean implementing `LinkJob` with the condition that decides whether it exists, an `@Order` for its place in the list and a new code; it writes its own exchange log rows through `LinkExchangeLog`. Nothing else changes: the scheduler, the jobs list, the frequency, run now and the log pick it up.
 
@@ -618,7 +729,7 @@ The page had no automatic refresh before task 2.6; the three parts now refresh s
 ### Copies down (step 3)
 Data the head office owns reaches its stores as copies down (design 2.3): the store pulls what changed since its cursor and saves it by business code. Generic: one class per domain on each side, so a later step (loyalty, catalogue, shipments) adds two classes and its domain in `NodeOwnership.COPIES_DOWN_DOMAINS`. Step 3 serves `PROMOTIONS`.
 
-**When it runs** (store): only with `headoffice.url` set and the domain owned by the head office (`ownership.<domain>=HEAD_OFFICE`). The job and the puller carry `@ConditionalOnHeadOfficePull` (URL set and at least one domain owned by the head office, `NodeOwnership.isHeadOfficePullSet`); a domain's handler carries `@ConditionalOnHeadOfficeOwned(<domain>)` (`NodeOwnership.isOwnedByHeadOffice`). A store without `headoffice.url`, or with every domain local, has none of these beans. An explicit `ownership.promotions=HEAD_OFFICE` without `headoffice.url` stops the startup: `Missing value for property headoffice.url: required when ownership.promotions is HEAD_OFFICE ('<value>')`. Step 4: the same for `ownership.loyalty=HEAD_OFFICE`; step 6 for `ownership.catalogue=HEAD_OFFICE` (`NodeOwnership.COPIES_DOWN_DOMAINS` is `CATALOGUE`, `PROMOTIONS`, `LOYALTY`). A head office keeps its own message for an owner `HEAD_OFFICE`. Known case: a franchise customer (catalogue and supply derived `HEAD_OFFICE`) that also sets `headoffice.url` gets the job without a handler: the catalogue handler needs `NodeOwnership.isCatalogueFromHeadOffice` (an explicit value, standalone, no franchise flag), so it never pulls the catalogue (step 6, "Catalogue owned by the head office").
+**When it runs** (store): only with `headoffice.url` set and the domain owned by the head office (`ownership.<domain>=HEAD_OFFICE`). The job and the puller carry `@ConditionalOnHeadOfficePull` (URL set and at least one domain owned by the head office, `NodeOwnership.isHeadOfficePullSet`); a domain's handler carries `@ConditionalOnHeadOfficeOwned(<domain>)` (`NodeOwnership.isOwnedByHeadOffice`). A store without `headoffice.url`, or with every domain local, has none of these beans. An explicit `ownership.promotions=HEAD_OFFICE` without `headoffice.url` stops the startup: `Missing value for property headoffice.url: required when ownership.promotions is HEAD_OFFICE ('<value>')`. Step 4: the same for `ownership.loyalty=HEAD_OFFICE`; step 6 for `ownership.catalogue=HEAD_OFFICE`; step 7A for `ownership.supply=HEAD_OFFICE` (`NodeOwnership.COPIES_DOWN_DOMAINS` is `CATALOGUE`, `PROMOTIONS`, `LOYALTY`, `SUPPLY`). A head office keeps its own message for an owner `HEAD_OFFICE`. Known case: a franchise customer (catalogue and supply derived `HEAD_OFFICE`) that also sets `headoffice.url` gets the job without a handler: the catalogue handler needs `NodeOwnership.isCatalogueFromHeadOffice` (an explicit value, standalone, no franchise flag), so it never pulls the catalogue (step 6, "Catalogue owned by the head office").
 
 **Head office side** (package `headoffice`, `@ConditionalOnHeadOffice`):
 
@@ -981,6 +1092,117 @@ Rules:
 
 Page permission `read:admin-headoffice-price-lists` (seeded on a head office ADMIN, 25 head office permissions; the page comes with the frontend session, task 6.7).
 
+### Head office as a warehouse (task 7A.1)
+A head office **without an ERP** buys from its suppliers and keeps its own stock with the store's code and pages (design 3.5); it still has no till. Nothing in the purchase or stock code changes for it:
+- `isStandalone()` means "no ERP". A head office without an ERP has `application.standalone=true`, so the 17 checks of `PurchaseHeaderAPI`, `VendorAPI`, `PurchaseInvoiceAPI`, `StockService` and `StockMovementService` let it purchase, keep vendors and purchase invoices, raise its stock and write `stock_movement` rows, exactly as a standalone store. `StoreCatalogueGuard` (the purchase right) does not exist on a head office.
+- A head office **with an ERP** (`standalone=false`) answers as before: purchases, vendors and purchase invoices 403, stock not kept. Its frontend pages are `standaloneOnly`.
+- **No CATALOGUE change from stock or cost** (checked in step 7A): a purchase writes the item's last costs with `itemRepository.save` (no catalogue hook), the stock moves with the native updates of `ItemRepository` (no hook), a stock adjustment goes through `ItemService.adjustStock` (no item save) and a BL validation through `StockService` (task 7A.2). None records a change, so no store pulls the item again; the item copy carries no stock and no cost anyway. Only a save through `ItemService.save` records one: an edit on the Items page (whatever field changed, cost and minimum stock included) and an image upload (`ItemImageController`); the stores then pull that one item and write nothing (`unchanged`). Proved by `HeadOfficeWarehouseTest`.
+- The Items page sends the whole item, `stockQuantity` included (shown read-only there). Since step 7A `ItemAPI.update` keeps the stored stock, as it keeps the last costs: an edit made while the stock moves no longer writes back the quantity the page loaded (head office and store alike, `ItemStockAdjustmentTest.editKeepsStoredStock`).
+
+Page permissions, one per head office route (seeded on a head office ADMIN at each start; frontend routes `standaloneOnly`, twins of the store pages): `read:admin-headoffice-vendors`, `-purchases` (history), `-purchase-new`, `-vendor-balance`, `-purchase-invoices`, `-stock` (stock report), `-stock-movements` (32 head office permissions).
+
+### BLs (task 7A.2, head office)
+A BL (delivery note) sends goods from the head office stock to one store (design 3.5, decision D12). Head office without an ERP only (`HoDeliveryService`, `HoDeliveryAPI`, `@ConditionalOnHeadOfficeStandalone`); elsewhere the API answers 404 and the domain `SUPPLY` is not served. No price on a BL: step 7B invoices the received BLs.
+
+| Table (entity) | Content |
+|---|---|
+| `ho_delivery` (`HoDelivery`) | `delivery_number` (`BL-000001`, null while `DRAFT`; index `ix_ho_delivery_number`, no unique constraint because SQL Server allows one null only in a unique column: the sequence makes the numbers unique), `store_id` (`ho_store.id`), `status` (`DRAFT`, `SENT`, `RECEIVED`, `INVOICED`; index with the store), `document_date`, `sent_at`, `sent_by`, `received_at` (store clock), `received_by` (store login), `confirmation_received_at` (head office clock), `note` (500), `store_note` (500) |
+| `ho_delivery_line` (`HoDeliveryLine`) | `delivery_id`, `line_no` (unique with the BL), `item_id` (head office item), `item_code`, `item_name` (as when the line was written), `quantity_sent`, `quantity_received` (null until received) |
+| `ho_number_sequence` (`HoNumberSequence`) | `code` (unique; `BL`), `last_value`: incremented inside the validation's transaction (the row stays locked until the commit; a rollback gives the number back). The row is created at the start (`HoDeliveryService.initialise`) |
+
+**Status rules**
+
+| Status | Set by | Allowed |
+|---|---|---|
+| `DRAFT` | `POST` | Edit (`PUT`: store, date, note, lines replaced), delete, validate. No number, no stock moved, not visible to any store |
+| `SENT` | `POST /{id}/validate` | Nothing at the head office; the store receives it (task 7A.3). Cancelling a sent BL is not in 7A (plan, section 5): the store confirms 0 and the head office corrects its stock |
+| `RECEIVED` | the store's confirmation (task 7A.4) | — |
+| `INVOICED` | step 7B | never set in 7A |
+
+**Validation**, all or nothing in one transaction: the BL row is locked (`findForUpdate`, SQL Server `UPDLOCK`: a second validation waits and then gets 409); the store is checked again; each line's item must still be deliverable; unless `ALLOW_NEGATIVE_STOCK=true` (general setup of the head office) the stock of every line must be sufficient, otherwise 409 listing each short item (`Stock not sufficient at the head office: B001: 20 in stock, 50 on the BL; B003: 0 in stock, 1 on the BL.`) and nothing changes. Then: the number, `SENT`, `sent_at` and `sent_by`; each line leaves the stock with `StockService.decrementForDelivery` (atomic; a stock taken meanwhile by another validation is caught there and everything rolls back) and one `DELIVERY_OUT` movement (`reference_type` `BL`, `reference_id` the BL, the number as note); the BL is recorded for its store only: `CopiesDownFeed.recordChange(SUPPLY, "BL:<number>", StoreTargets.of(store))`. No item is saved: no CATALOGUE change (`HoDeliveryServiceTest.noCatalogueChange`).
+
+**Lines**: an item by `itemId` or `itemCode`, active, of type `PRODUCT` or `PACKAGE` (a pack leaves as one item, as at the till), never `TAX_STAMP`, once per BL; quantity a whole number above 0. A BL holds head office items only: a store's own items never exist at the head office.
+
+**Store of a BL**: known and active (400); when the store reported `ownership.supply` (heartbeat, `ho_store.owner_supply`) and it is not `HEAD_OFFICE`: 409 `The store C does not receive goods from the head office (ownership.supply=LOCAL in its settings).` A store that has not reported yet is accepted.
+
+**Copy down** (`DeliveryCopyDTO`, record `BL:<number>`, domain `SUPPLY`): `number`, `documentDate` (`yyyy-MM-dd`), `sentAt` (`yyyy-MM-ddTHH:mm:ss`, head office clock), `status`, `note`, `lines` `[{lineNo, itemCode, itemName, quantitySent}]`; never a database id. `load` answers only the numbered BLs of the pulling store (any other code is removed), so a BL for C is never seen by B. Startup backfill: every numbered BL for its store.
+
+**API** `/admin/headoffice/deliveries` (JWT; errors `{"error"}`):
+
+| Request | Answer |
+|---|---|
+| `GET /?storeId=&status=&search=&dateFrom=&dateTo=&difference=&page=&size=` | `{content, totalElements, totalPages, number, size}`, newest first. `status` one status or `all`; `search` on the number and the note; dates `yyyy-MM-dd` on the document date; `difference=true`: BLs with a line received in another quantity; size 20 by default, at most 200. Row: `{id, number, storeId, storeCode, storeName, status, documentDate, sentAt, sentBy, receivedAt, receivedBy, confirmationReceivedAt, note, storeNote, lineCount, quantitySent, quantityReceived, difference, lines: null}`. 400 for a status, date or page that cannot be read |
+| `GET /{id}` | The same with `lines` `[{lineNo, itemId, itemCode, itemName, quantitySent, quantityReceived, difference, headOfficeStock}]` (`difference` = received − sent); 404 |
+| `POST /` `{storeId, documentDate, note, lines: [{itemCode or itemId, quantity}]}` | 201 the draft. 400 with the line: `Choose the store of the BL.`, `Unknown store id 9.`, `The store C is inactive.`, `A BL needs at least one line.`, `Line 2: unknown item B999.`, `Line 1: the item OFF is inactive.`, `Line 1: the item S1 is a service: it has no stock.`, `Line 1: the tax stamp cannot be delivered.`, `Line 1: the quantity must be a whole number above 0.`, `Line 3: the item B001 is already on line 1.`; 409 for a store whose goods do not come from the head office |
+| `PUT /{id}` | 200 the draft replaced; 409 `Only a draft BL can be changed: BL-000001 is SENT.`; 404 |
+| `DELETE /{id}` | 204; 409 when not a draft; 404 |
+| `POST /{id}/validate` | 200 the BL `SENT`; 409 not a draft, store, stock; 400 an item no longer deliverable; 404 |
+
+Page permission `read:admin-headoffice-deliveries` (33 head office permissions).
+
+### BLs at the store (tasks 7A.3, 7A.4)
+A store whose goods come from the head office receives its BLs by the copies down, confirms what it counted, and its stock goes up at once; the confirmation travels up as a document (design 2.4, 3.5).
+
+**When it is active**: `@ConditionalOnHeadOfficeSupply` (`NodeOwnership.isSupplyFromHeadOffice`): `headoffice.url` set, an **explicit** `ownership.supply=HEAD_OFFICE`, `application.standalone=true`, no franchise flag. Startup refusals of an explicit `ownership.supply=HEAD_OFFICE`: without the URL (`SUPPLY` is now in `COPIES_DOWN_DOMAINS`), with `franchise.customer=true` or `franchise.admin=true`, with `application.standalone=false`, and without `ownership.catalogue=HEAD_OFFICE` (`Invalid combination: ownership.supply=HEAD_OFFICE without ownership.catalogue=HEAD_OFFICE. A BL names head office items by their code ...`). Beans: `DeliveryReceptionService`, `SupplyDownHandler`, `SupplyPushService`, `SupplyPushJob`, `DeliveryReceptionAPI`.
+- **A franchise customer never gets them**, even with `headoffice.url`: it derives `SUPPLY=HEAD_OFFICE` for its legacy reception, but the condition requires an explicit value and no franchise flag, and an explicit value with the flag stops the startup. `FranchiseSupplyReceptionService` (`@ConditionalOnProperty franchise.customer`), `/franchise/**` and `FranchiseClientSyncController` are not touched.
+- Every other store (no setting, ERP, `ownership.supply=LOCAL`): none of the beans; `/admin/deliveries` answers 404; `/config` `supplyFromHeadOffice` false; no `SUPPLY_PUSH` job.
+
+**Tables** (store, prefix `hol_`, `ddl-auto`):
+
+| Table (entity) | Content |
+|---|---|
+| `hol_delivery` (`ReceivedDelivery`) | `delivery_number` (unique), `document_date`, `sent_at`, `note` (the head office note), `status` (`TO_RECEIVE`, `RECEIVED`), `received_at` (store clock), `received_by` (login), `store_note`, and the confirmation up: `push_status` (null until confirmed, then `PENDING`, `SENT`, `ERROR`), `attempts`, `last_error` (1000), `last_push_date`; index `ix_hol_delivery_push` |
+| `hol_delivery_line` (`ReceivedDeliveryLine`) | `delivery_id`, `line_no` (unique with the BL), `item_code`, `item_name`, `item_id` (this store's item; null while it is not here), `quantity_sent`, `quantity_received` (null until confirmed), `stock_applied` (null until confirmed; false while the item is missing) |
+
+**Received** (`SupplyDownHandler`, domain `SUPPLY`, after the catalogue in the same cycle): a new BL number is saved `TO_RECEIVE`, each line resolved to this store's item with that code **and origin `HEAD_OFFICE`** (a store's own item with the same code is never used); tracked in `hol_down_record` (`APPLIED`; information `items not in this store yet: B009`). A number already here is never changed (a BL does not change once sent; a received one belongs to the store's count). A removed code only drops its tracking row: a BL is a document, never deleted.
+
+**Reception** (`DeliveryReceptionService.receive`, one transaction, the row locked): the store confirms the quantity of each line; a line absent from the body, or without a quantity, is received as sent; a quantity above the quantity sent is accepted (the store counted it; the frontend asks to confirm). Each line whose item is here and whose quantity is above 0 goes into the stock (`StockService.incrementForDelivery`) with one `DELIVERY_IN` movement (`reference_type` `BL`, `reference_id` the `hol_delivery` row, the number as note), `stock_applied` true; a line of 0 needs nothing. A line whose item is missing keeps its quantity and waits (`stock_applied` false). The BL becomes `RECEIVED`, `push_status` `PENDING`. Nothing calls the head office: it works offline. A second confirmation: 409 `This BL has already been received: BL-000001.`, nothing changes.
+
+**Waiting lines** (`SupplyDownHandler.retry`, every cycle, also when the head office is unreachable): the lines of the BLs to receive get their item when it has arrived; the confirmed lines that wait get their stock once their item is here (each BL in its own transaction, locked). A BL whose stock still waits counts as waiting: the `COPIES_DOWN` run is `WARNING` with `BL:BL-000001: stock in waits: not in this store: item B009`.
+
+**Confirmation up** (`SupplyPushService`, job `SUPPLY_PUSH`, order 5, first run 35 s, then `headoffice.supply-push.interval-seconds`, 60, editable on the link page): `POST /ho/supply/confirmations` with `[{number, receivedAt, receivedBy, note, lines: [{lineNo, itemCode, quantityReceived}]}]` (`DeliveryConfirmationDTO`), batches of 20, at most 2 per cycle (the first retries the rejected ones). It does not wait for the waiting lines: the quantities are facts of the count. Accepted: `SENT`, never sent again. Rejected: `ERROR` with the reason, retried. Not delivered (unreachable, 401, 402, unreadable answer): nothing changes, the cycle stops, one exchange log row per failure episode (`LinkExchangeLog.recordFailure`). One exchange row per batch.
+
+**Head office receiver** (`HeadOfficeSupplyAPI`, `/ho/**` chain, head office without an ERP; `HoDeliveryService.receiveConfirmations`, one transaction per BL, the row locked, one result per BL in batch order `{documentNumber, accepted, message}`):
+
+| Case | Answer |
+|---|---|
+| A `SENT` BL of this store, every line once, item codes matching, quantities 0 or more | Accepted: `RECEIVED`, `quantity_received` per line, `received_at`, `received_by`, `store_note`, `confirmation_received_at` (head office clock). The head office stock is not changed (the goods left at the validation): a difference is shown, not booked |
+| The same BL again with the same quantities (an answer lost) | Accepted, nothing changes |
+| Already received with other quantities | Rejected `already received with other quantities` |
+| Unknown number, another store's BL, a draft | Rejected `unknown BL BL-000001 for this store` |
+| No number; a line not on the BL or with another item code; a quantity missing or below 0; a line twice; a line missing | Rejected (`number is required`, `line 3 does not match the BL`, `line 1: quantityReceived must be 0 or more`, `line 1 is given twice`, `every line of the BL is required`) |
+
+Log (head office): one INFO line per batch, one WARN line per rejected confirmation.
+
+**API** `/admin/deliveries` (store, JWT; 404 elsewhere; errors `{"error"}`):
+
+| Request | Answer |
+|---|---|
+| `GET /?status=&page=&size=` | `{content, totalElements, totalPages, number, size}`, newest first; `status` `TO_RECEIVE`, `RECEIVED` or `all` (400 otherwise). Row: `{id, number, documentDate, sentAt, note, status, receivedAt, receivedBy, storeNote, pushStatus, lastError, lineCount, quantitySent, quantityReceived, difference, missingItems, stockWaiting, lines: null}` |
+| `GET /{id}` | The same with `lines` `[{lineNo, itemCode, itemName, itemHere, quantitySent, quantityReceived, difference, stockApplied, storeStock}]`; 404 |
+| `POST /{id}/receive` `{note, lines: [{lineNo, quantityReceived}]}` | 200 the BL `RECEIVED` (`storeStock` null in this answer: `GET /{id}` reads the new stock); 409 already received; 400 `Unknown line 9 on BL-000001.`, `Line 1 is given twice.`, `Line 1: the quantity received must be a whole number, 0 or more.`, a note over 500; 404 |
+
+**Link page**: `GET /admin/holink/status` field `supply` (see "Head office link page"); `GET /admin/holink/received/supply` lists the BLs received like any domain; the job `SUPPLY_PUSH` in the jobs list and the exchange log.
+
+**Permission** `read:admin-holink-deliveries` (the reception page): ADMIN gets it when the role is created on such a store, and **at every start** when it lacks it (`ZZDataInitializer.addMissingPermissions`, the same top-up as a head office's pages; decision 13): an existing store switched to `ownership.supply=HEAD_OFFICE` needs no manual tick. Only that permission is added; nothing is removed; other roles are not changed.
+
+### Stock of the stores (task 7A.5)
+Every store whose goods come from the head office copies its stock up; the head office shows it per store and item, next to its own stock (design 3.5, 3.9). Only those stores (decision 10): a linked store without `ownership.supply=HEAD_OFFICE` sends no stock, as before.
+
+**Store** (`SupplyPushService`, the same job `SUPPLY_PUSH`, after the confirmations): table `hol_stock_copy` (`StockCopy`: `item_id` unique, `item_code`, `quantity_sent`, `sent_at`), the quantity the head office accepted last. Each run sends, in batches of 500 (at most 2 per run), the items of type `PRODUCT`, `PACKAGE` or none, except `TAX_STAMP`, whose `coalesce(stock_quantity, 0)` differs from `quantity_sent` or without a row (`StockCopyRepository.findToSend`), and the codes of the rows whose item no longer exists (`findRemoved`): `POST /ho/supply/stock` `{takenAt, items: [{itemCode, itemName, quantity, own}], removed: [codes]}` (`StockReportDTO`; `own` true for an item whose origin is not `HEAD_OFFICE`). Delivered: `quantity_sent` is the quantity sent (a change made after the read goes with a later batch), removed rows deleted, one exchange row `SUCCESS`. Not delivered: nothing changes (one failure row per episode). Nothing changed: nothing sent, no row. Nothing in the selling path reads or writes `hol_stock_copy`: the change is found by a query.
+
+**Head office** (`HoNetworkStockService`, head office without an ERP): `POST /ho/supply/stock` saves the batch in one transaction: table `ho_store_stock` (`HoStoreStock`: `store_id`, `item_code` unique together, `item_name`, `quantity`, `own_item`, `store_time` (store clock of the read), `received_at`); a code without a value or over 100 characters is skipped; removed codes are deleted. Answer `{saved, removed}`; 400 `{"error"}` for a `takenAt` that cannot be read.
+
+**API** `/admin/headoffice/stock` (JWT; 404 elsewhere):
+
+| Request | Answer |
+|---|---|
+| `GET /?storeId=&search=&page=&size=` | `{stores: [{id, code, name, lastStockAt}], content: [{itemCode, itemName, headOffice, byStore: {"<storeId>": quantity}}], totalElements, totalPages, number, size}`: the head office items (products and packs, not `TAX_STAMP`) by code, search on code and name, with the head office stock and each store's; `storeId` one store, absent: every active store by code. A store that never sent an item has no entry for it. 400 for an unknown store or a page below 0 |
+| `GET /own?storeId=&search=&page=&size=` | The stores' own items (not from the head office): `{content: [{storeId, storeCode, storeName, itemCode, itemName, quantity, storeTime, receivedAt}], ...}` by store and code |
+| `belowZero=true` on both (optional, filtered in the query) | `GET /`: only the items whose stock is below zero in a column shown (the head office, or the store `storeId`, or any active store); `GET /own`: only the own items below zero. Absent or false: as above |
+
+`GET /admin/holink/status` field `supply` gets two keys at the store: `stockToSend` (items whose stock waits to be sent) and `stockSentAt` (last accepted push, null before). Page permission `read:admin-headoffice-network-stock` (34 head office permissions).
+
 ### Consolidated sales API (task 2.5, head office)
 What the head office pages Tickets history, Sessions history and Returns, and the home cards, read (pages: task 2.5 frontend, "Head office pages" below).
 
@@ -1255,6 +1477,13 @@ Order at a new head office with an ERP: enable and run `IMPORT_LOCATIONS`, choos
 - `StoreCatalogueGuardTest` (step 6): head office records consult-only; purchase right off (never received) and on (head office item in a purchase line refused, head office codes); rights saved and kept after a restart and through an older answer; own price rules; imports and sales prices; the status block and the startup count.
 - `ItemAPICatalogueGuardTest` (step 6): the real `ItemAPI` with the guard (409 on edit, delete and pack flag of a head office item; create needs the right and a free code; own price endpoints) and without it (as before: own price 404, every item edited, own price and head office price kept on update).
 - `HeartbeatJobTest` (step 6): the rights of an ONLINE answer saved, kept through a failure and an older answer. `AppConfigAPITest`: `catalogueFromHeadOffice` last, true only with the setting, false for a franchise customer with the URL. `HeadOfficeLinkAPITest`: `catalogue` is the 14th and last field. `ApplicationModeOwnershipTest`, `OnHeadOfficePullConditionTest`: an explicit catalogue `HEAD_OFFICE` is now checked (intended change).
+- `ItemStockAdjustmentTest` (step 7A, decision 6): `adjust-stock` changes the quantity as before (one update) and writes one `ADJUSTMENT_IN` / `ADJUSTMENT_OUT` movement with the reason; refusals (delta 0 or missing, unknown item, ERP mode) write nothing.
+- `HeadOfficeWarehouseTest` (task 7A.1): a purchase at a head office raises its stock with a `PURCHASE_RECEPTION` movement and the last costs, a stock adjustment writes its movement, neither records a CATALOGUE change; a head office with an ERP keeps its 403s (purchases, history, vendors, purchase invoices).
+- `HoDeliveryServiceTest` (task 7A.2): drafts (lines numbered, snapshots, no number, no stock, nothing for the stores), every draft rule with its message, a store reporting another supply owner (409) or none (accepted), edit and delete of a draft and 409 once sent; validation (`BL-000001`, `SENT`, stock out once with one `DELIVERY_OUT` per line, one change row for its store only, a second validation 409 with nothing moved, the next number); stock not sufficient (409 listing each short item, all or nothing, no number used); `ALLOW_NEGATIVE_STOCK`; the copy by codes for its store only (C gets nothing, also when it asks for the code); the startup backfill; no CATALOGUE change; the list filters and paging. `support/InMemoryStock` (stock updates with the rules of the native queries, real `StockService` and `StockMovementService`), `headoffice/service/InMemoryDeliveries`.
+- `SupplyRoundTripTest` (tasks 7A.3, 7A.4): the real head office and the real store B through `MockRestServiceServer` (`support/InMemoryReceivedDeliveries`): a BL reaches B only, lines resolved; B confirms 48 of 50 and B002 as sent (stock up once, two `DELIVERY_IN`), sent up, `RECEIVED` there with the quantities, the store's note and user, −2 shown, the head office stock unchanged by the reception; a second confirmation 409 with nothing moved; head office stopped (stock up at once, the confirmation `PENDING` with no attempt, one failure row for two cycles; back: `RECEIVED`); an answer lost after it was applied (sent again, accepted, nothing changes); an item not in B (its line waits, the confirmation goes up, the retry reports it, then its stock goes in once); a store's own item with the same code never used; more than sent (+2); reception rules; the head office receiver's rules (another store, unknown, no number, lines not matching, quantity missing, a line missing, same again accepted, other quantities rejected); the link counts and the list.
+- `SupplyRoundTripTest` (task 7A.5): stock up: every item the first time (a null stock as 0, own items flagged, the store clock), then only the item that changed, nothing when nothing changed, a deleted item removed there and its row here; head office stopped: nothing marked, sent once back; the head office page (its items without the tax stamp, its stock and each store's, the stores with their last push, one store, search, an unknown store 400) and the stores' own items. `support/InMemoryNetworkStock`.
+- `OnHeadOfficeSupplyConditionTest` (step 7A): the five store beans only on a standalone store with the URL, the catalogue and an explicit supply from the head office; never with supply `LOCAL` or `ERP`, the catalogue alone, loyalty alone, the 4 profiles, a head office; never on a franchise customer, with or without the URL (its `FranchiseSupplyReceptionService` still registered); the startup refusals (no URL, franchise customer, franchise admin, ERP, no catalogue from the head office, a bad `headoffice.supply-push.interval-seconds` with the URL only); the receiver only on a head office without an ERP.
+- `OnHeadOfficeCatalogueConditionTest`, `QueryParameterBindingTest`, `ZZDataInitializerRolesTest`, `AppConfigAPITest`, `HeadOfficeLinkAPITest` (step 7A): `HoDeliveryService`, `HoDeliveryAPI`, `HoNetworkStockService` and `HoNetworkStockAPI` on a head office without an ERP only; `HoDeliveryRepository`, `HoNumberSequenceRepository`, `ReceivedDeliveryRepository`, `StockCopyRepository`, `HoStoreStockRepository` bound (a `Boolean` sample added); 34 head office permissions, and a store whose goods come from the head office gets `read:admin-holink-deliveries` on a new database and at the next start of an existing one (only that one, saved once, then nothing); `/config` `supplyFromHeadOffice` last, true only with the setting, false for a franchise customer with the URL; the link status `supply` is the 15th and last field, null without the setting.
 - Not covered by L1 (checked at L2 on the pair): the JPQL against SQL Server, the transaction timeouts, the real timer, the head office endpoints through the `/ho/**` chain. The JPQL and the entity mappings were translated with Hibernate (SQL Server 2012 dialect, no database) during the tasks.
 - Frontend (task 1.5): eslint on the changed files; a Node script (not committed) for the route guard with and without the link, the `appConfig` mutation, getter and fetch (true, false, absent, failure), "x min ago" and the status badges, the wiring of the five points and the 75 i18n keys in en, fr and ar; a build with the eslint plugin skipped (the production build stops on four `console` statements that were already there before task 1.5, in `Home.vue`, `Login.vue` and `store/app-config/index.js`).
 - Not covered by L1 (needs a started context): the chain wiring itself (store installation answers 401, a JWT is not read on `/ho/**`, other paths unchanged). Checked by the L2 table under "Store API". Also the real timer (first heartbeat after 15 s), timeouts on a real network and the bulk update on SQL Server: L2 table under "Connect a store".

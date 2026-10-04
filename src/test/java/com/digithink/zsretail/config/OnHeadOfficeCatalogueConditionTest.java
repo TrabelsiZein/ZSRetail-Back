@@ -12,8 +12,12 @@ import org.springframework.context.annotation.AnnotatedBeanDefinitionReader;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.mock.env.MockEnvironment;
 
+import com.digithink.zsretail.headoffice.controller.HoDeliveryAPI;
+import com.digithink.zsretail.headoffice.controller.HoNetworkStockAPI;
 import com.digithink.zsretail.headoffice.controller.HoPriceListAPI;
 import com.digithink.zsretail.headoffice.service.HoCatalogueService;
+import com.digithink.zsretail.headoffice.service.HoDeliveryService;
+import com.digithink.zsretail.headoffice.service.HoNetworkStockService;
 import com.digithink.zsretail.headoffice.service.HoPriceListService;
 import com.digithink.zsretail.holink.controller.CatalogueNetworkAPI;
 import com.digithink.zsretail.holink.scheduler.CopiesDownJob;
@@ -37,7 +41,8 @@ class OnHeadOfficeCatalogueConditionTest {
 			CatalogueRights.class, StoreCatalogueGuard.class, CatalogueNetworkAPI.class };
 
 	private static final Class<?>[] HEAD_OFFICE_BEANS = { HoCatalogueService.class, HoPriceListService.class,
-			HoPriceListAPI.class };
+			HoPriceListAPI.class, HoDeliveryService.class, HoDeliveryAPI.class, HoNetworkStockService.class,
+			HoNetworkStockAPI.class }; // step 7A: BLs, stock of the stores
 
 	private static MockEnvironment link() {
 		return new MockEnvironment().withProperty("headoffice.url", "http://localhost:888/zsretail/api")

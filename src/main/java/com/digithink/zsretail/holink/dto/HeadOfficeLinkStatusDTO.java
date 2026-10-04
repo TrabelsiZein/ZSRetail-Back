@@ -63,4 +63,11 @@ public class HeadOfficeLinkStatusDTO {
 	 * otherwise, or when it cannot be read.
 	 */
 	private final Map<String, Object> catalogue;
+
+	/**
+	 * Step 7A: on a store whose goods come from the head office, the BLs: {"toReceive": n, "received": n,
+	 * "confirmations": {"PENDING": n, "SENT": n, "ERROR": n}, "stockWaiting": lines}; null otherwise, or when the counts
+	 * cannot be read.
+	 */
+	private final Map<String, Object> supply;
 }

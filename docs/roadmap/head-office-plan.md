@@ -56,6 +56,7 @@ The exact prompts are written during the session, from the code as it is that da
 - Step 6: `item.own_price` `bit` null (null = false), `item.head_office_price` `float` null.
 - Step 6: `ho_store.selling_price_list_id` `bigint` null, `ho_store.may_change_prices` and `ho_store.can_purchase` `bit` null (null = false).
 - Step 6: new tables through `ddl-auto`: `ho_price_list`, `ho_price_list_line`, `hol_link_right`. The permission `read:admin-headoffice-price-lists` is added at startup (no script). No data change (a store's items become head office items at the first pull, not by the script).
+- Step 7A: no column on an existing table. New tables through `ddl-auto`: `ho_delivery`, `ho_delivery_line`, `ho_number_sequence`, `ho_store_stock` (head office), `hol_delivery`, `hol_delivery_line`, `hol_stock_copy` (store). Two new `stock_movement.movement_type` values (`DELIVERY_OUT`, `DELIVERY_IN`, within `varchar(40)`). The permissions `read:admin-headoffice-vendors`, `-purchases`, `-purchase-new`, `-vendor-balance`, `-purchase-invoices`, `-stock`, `-stock-movements`, `-deliveries`, `-network-stock` (head office) and `read:admin-holink-deliveries` (supply store) are added at startup (no script). No data change.
 
 ## 2. Test levels
 
@@ -75,8 +76,8 @@ The exact prompts are written during the session, from the code as it is that da
 | 3 | Promotions owned by head office | ParaFendri | No (engine untouched) | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 604a97c, frontend 57acf81) |
 | 4 | Shared loyalty, part 1: members and earning | ParaFendri | No (enrol and member changes in LoyaltyAPI and LoyaltyService hooks; the four selling services untouched) | Large | Done 2026-10-04, merged into release/2.1.0 with step 5 (backend 27e981c, frontend 07b9970) |
 | 5 | Shared loyalty, part 2: spending and returns | ParaFendri | No (decided 2026-10-03: no hold and confirm, selling services untouched) | Large | Done 2026-10-04, merged into release/2.1.0 with step 4 (backend 27e981c, frontend 07b9970) |
-| 6 | Items and selling prices decided by the head office: price lists, purchase right | Own stores without ERP, franchise | No | Large | Done 2026-10-04, merged into release/2.1.0 (backend 5f8cb30; frontend by the frontend session); task 6.8 (images) not started, after step 7B |
-| 7A | BLs and stock: head office warehouse, delivery to a store, stock of all stores | Own stores without ERP, franchise | No (stock in only) | Large | Not started |
+| 6 | Items and selling prices decided by the head office: price lists, purchase right | Own stores without ERP, franchise | No | Large | Done 2026-10-04, merged into release/2.1.0 (backend 5f8cb30, frontend 47bd949); task 6.8 (images) not started, after step 7B |
+| 7A | BLs and stock: head office warehouse, delivery to a store, stock of all stores | Own stores without ERP, franchise | No (stock in only) | Large | Done 2026-10-04, merged into release/2.1.0 (backend pending; frontend by the frontend session) |
 | 7B | Invoices and supply price for the stores that pay | Franchise | No | Medium | Not started |
 | 8 | Franchise profiles moved onto the model | Happyness | No | Medium | Not started |
 | 9 | Cleanup: mode checks replaced by ownership questions | Everyone | Yes, mechanical | Medium | Not started |
@@ -443,7 +444,7 @@ Fixes found at L2: 103132e (a barcode over 90 characters answered 500 on a head 
 
 ### Step 6 — record
 
-**Status: done 2026-10-04, merged into release/2.1.0 (backend 5f8cb30; the frontend is merged by the frontend session).** Branch `feature/ho-step-6` in both repos. Described in `docs/modules/head-office.md` ("Catalogue owned by the head office (step 6)", "Price lists (task 6.4)", "Step 6 pages (frontend): head office", "Step 6 pages (frontend): store"), `docs/deployment-modes.md` and `docs/modules/pricing.md`.
+**Status: done 2026-10-04, merged into release/2.1.0 (backend 5f8cb30, frontend 47bd949).** Branch `feature/ho-step-6` in both repos. Described in `docs/modules/head-office.md` ("Catalogue owned by the head office (step 6)", "Price lists (task 6.4)", "Step 6 pages (frontend): head office", "Step 6 pages (frontend): store"), `docs/deployment-modes.md` and `docs/modules/pricing.md`.
 
 | Part | Backend | Frontend |
 |---|---|---|
@@ -453,10 +454,10 @@ Fixes found at L2: 103132e (a barcode over 90 characters answered 500 on a head 
 | Docs, startup WARN on `sales_price` rows, 400 for a code too long | 5e1c581 | — |
 | Fixes found at L2: a barcode over 90 characters (400), the purchase invoice list without a date filter | 103132e, be626d3 | — |
 | L2 script, store B and C profiles on the head office catalogue | d40d9e3 | — |
-| `GET /item/search` gives `origin` (purchase item picker) | 2c92282 | the picker fix of the frontend session (new purchase page on `/item/search` with `origin`; hash added by that session) |
+| `GET /item/search` gives `origin` (purchase item picker) | 2c92282 | e7f1556 (picker of the new purchase page back on `/item/search`, own items by `origin`) |
 | The invoice list and eligible tickets without a date filter (same fix as be626d3) | bc45f3a | — |
 | Frontend pages in the module doc, this record | this commit | — |
-| Merge into release/2.1.0 | 5f8cb30 | by the frontend session |
+| Merge into release/2.1.0 | 5f8cb30 | 47bd949 |
 
 Decisions (inventory approved by Zein, 2026-10-04; see "Steps 6 and 7 — recut" and the step 6 backend notes above):
 - The catalogue and the price lists exist only on a head office without an ERP. Every item goes to every store; a store's item with the same code becomes the head office item (stock and cost kept); deleted or deactivated at the head office gives inactive at the store; the store's other local items stay its own.
@@ -513,6 +514,79 @@ Goal: the head office buys, keeps its stock and sends goods to a store with a BL
 
 L2 scenarios: a BL sent to B is received and confirmed with a difference, stock up at B and down at the head office; head office stopped during the confirmation, stock up at B at once and the BL Received when it is back; a BL for C is not visible at B; a store with an ERP or with `ownership.supply` not `HEAD_OFFICE` has no BL page.
 
+**Step 7A backend** (done 2026-10-04, branch `feature/ho-step-7a` from `feature/ho-step-6` at 5e1c581, not merged). Described in `docs/modules/head-office.md`, "Head office as a warehouse (task 7A.1)", "BLs (task 7A.2, head office)", "BLs at the store (tasks 7A.3, 7A.4)", "Stock of the stores (task 7A.5)" and the four "Step 7A pages (frontend)" sections.
+
+| Part | Backend |
+|---|---|
+| Decision 6: a stock adjustment writes its `ADJUSTMENT_IN` / `ADJUSTMENT_OUT` movement (`ItemService.adjustStock`), no quantity change | 73c961f |
+| 7A.1 Head office as a warehouse: no purchase or stock code changed (`isStandalone()` = no ERP); seven page permissions; no CATALOGUE change from a purchase or a stock change, proved | f78cc8c |
+| 7A.2 BLs at the head office: `ho_delivery`, `ho_delivery_line`, `ho_number_sequence`; drafts; validation all or nothing (row locked, stock checked, `BL-000001`, `DELIVERY_OUT` per line, recorded for its store only, domain `SUPPLY`) | 9900f91 |
+| 7A.3 + 7A.4 Store: `ownership.supply=HEAD_OFFICE` (startup rules), `hol_delivery`, `hol_delivery_line`, `SupplyDownHandler`, reception (`/admin/deliveries`, stock in once, offline, waiting lines), job `SUPPLY_PUSH`; head office `POST /ho/supply/confirmations` (Received, exactly once per number); `/config` `supplyFromHeadOffice`; link status `supply`; ADMIN topped up with `read:admin-holink-deliveries` at start | c035941 |
+| 7A.5 Stock of the stores up (`hol_stock_copy`, `POST /ho/supply/stock`, `ho_store_stock`) and the head office stock API; docs, this record | this commit |
+
+Choices made in the session (inventory approved by Zein, 2026-10-04):
+- Stock not sufficient at validation: all or nothing, 409 listing each short item, unless `ALLOW_NEGATIVE_STOCK=true` at the head office.
+- Cancelling a Sent BL: not in 7A (section 5). The store confirms 0 and the head office corrects its stock with an adjustment (which now writes its movement).
+- More received than sent: accepted; the store's stock goes up by what it counted; the head office shows the difference with its sign and does not change its own stock (for any difference).
+- `ownership.supply=HEAD_OFFICE` requires `ownership.catalogue=HEAD_OFFICE` (startup refusal); a BL line resolves only to an item of origin `HEAD_OFFICE`; a store's own item never receives a BL.
+- `isStandalone()` on a head office means "no ERP": the purchase, vendor, purchase invoice and stock code works unchanged there; with an ERP it answers 403 as before.
+- BL number given at validation (`BL-000001`); a draft has none. No unique constraint on the number column (one null only in SQL Server): the locked sequence row makes it unique.
+- Items on a BL: active products and packs, never `TAX_STAMP`, once per BL. A store that reported another `ownership.supply`: 409; not reported yet: accepted.
+- Stock copied up only by the stores whose goods come from the head office; all their products and packs, own items flagged; one job `SUPPLY_PUSH` for confirmations then stock.
+- A line whose item is missing at the store: received (counted) and sent up at once; only its stock in waits, applied once by the next cycles.
+- Permission of the store page given to ADMIN at every start when it lacks it (decision 13, the head office's top-up generalised: `addMissingPermissions`).
+- CATALOGUE check (Zein): a purchase saves the item through `itemRepository.save` (no catalogue hook), the stock moves with native updates (no hook), an adjustment and a BL validation save no item: none records a CATALOGUE change (tests `HeadOfficeWarehouseTest`, `HoDeliveryServiceTest.noCatalogueChange`). Only a save through `ItemService.save` records one: an Items page edit (whatever field, cost and minimum stock included) and an image upload; each makes every store pull that one item and write nothing. Not changed: telling a real change from a cost-only edit needs the stored state before the save, which the persistence context hides when a caller edits the loaded item in place, so a filter there could lose a real change.
+
+Tests: 61 classes, 481 tests, all green, in the worktree `D:\ZS Retail\Apps\_worktrees\back-7a` (JDK 21). New: `ItemStockAdjustmentTest`, `HeadOfficeWarehouseTest`, `HoDeliveryServiceTest`, `SupplyRoundTripTest`, `OnHeadOfficeSupplyConditionTest`; extended: `OnHeadOfficeCatalogueConditionTest`, `QueryParameterBindingTest`, `ZZDataInitializerRolesTest`, `AppConfigAPITest`, `HeadOfficeLinkAPITest`.
+
+Diff proof against the base 5e1c581: 0 files in `erp/`, 0 franchise files; `SalesHeaderService`, `PromotionCalculationService`, `PricingService`, `ReturnHeaderService`, the four loyalty tests and `PromotionAllItemsScopeTest` unchanged. Intended contract changes: `/config` a last field (`supplyFromHeadOffice`), the link status a 15th field (`supply`), an explicit `ownership.supply=HEAD_OFFICE` now checked at startup (no shipped profile sets it), two `StockMovementType` values, adjustments now write a movement. Changed files a store also runs:
+
+| File | Why a store without `ownership.supply=HEAD_OFFICE` behaves as before |
+|---|---|
+| `ItemAPI`, `ItemService` | `adjust-stock` calls `ItemService.adjustStock`: the same quantity update, plus its movement (decision 6, every standalone store); `ItemAPI` lost an unused field |
+| `StockService`, `StockMovementService`, `StockMovementType` | New methods and two enum values, called only by the BL code (head office, supply stores) |
+| `NodeOwnership`, `ApplicationModeService`, `ConditionalOnHeadOfficeSupply`, `OnHeadOfficeSupplyCondition` | New checks only on an explicit `ownership.supply`; `isSupplyFromHeadOffice` false otherwise; the derived owners are unchanged (a franchise customer still derives `SUPPLY=HEAD_OFFICE` and never matches) |
+| `AppConfigAPI`, `AppConfigDTO` | A last field, false |
+| `ZZDataInitializer` | Head office list longer; the supply top-up only when `isSupplyFromHeadOffice`; other stores seed and keep exactly their roles |
+| `HeadOfficeClient`, `HeadOfficeLinkAPI`, `HeadOfficeLinkStatusDTO` | Link beans only (`headoffice.url`); two new calls never made without the supply beans; `supply` null |
+| `holink/*` new classes | `@ConditionalOnHeadOfficeSupply`: absent |
+| `headoffice/*` new classes | Head office without an ERP only; `ho_` tables exist empty in a store database |
+
+
+### Step 7A — record
+
+**Status: done 2026-10-04, merged into release/2.1.0 (backend pending; the frontend is merged by the frontend session).** Branch `feature/ho-step-7a` in both repos. Described in `docs/modules/head-office.md` ("Head office as a warehouse (task 7A.1)", "BLs (task 7A.2, head office)", "BLs at the store (tasks 7A.3, 7A.4)", "Stock of the stores (task 7A.5)" and the four "Step 7A pages (frontend)" sections).
+
+| Part | Backend | Frontend |
+|---|---|---|
+| Decision 6: a stock adjustment writes its movement | 73c961f | — |
+| 7A.1 Head office as a warehouse (purchases, vendors, purchase invoices, stock, seven page permissions) | f78cc8c | 6208e7b (Supply pages) |
+| 7A.2 BLs at the head office (drafts, validation all or nothing, `BL-000001`, `DELIVERY_OUT`, domain `SUPPLY`) | 9900f91 | 8ac5489 (BL page) |
+| 7A.3, 7A.4 Store: BLs received, reception (stock in once, offline, waiting lines), `SUPPLY_PUSH`, head office confirmations | c035941 | ef799b0 (reception page) |
+| 7A.5 Stock of the stores up, head office stock API | 9c913c2 | 5d7743b (network stock page) |
+| An item edit keeps the stored stock | 1eccde8 | — |
+| Merge of release/2.1.0 (step 6) into the branch | 63203c9 | 933799d |
+| Fixes found at L2: the confirmation push failed every time (lazy BL lines built outside the transaction); editing a draft BL answered 500 (unique key of the lines) | 5c0488f, e9495c2 | — |
+| `belowZero` on the two head office stock endpoints | a8dc85b | — |
+| L2 script, store B profile with `ownership.supply=HEAD_OFFICE` | c231b2c | — |
+| Docs: the four frontend sections, this record, step 6 hashes | this commit | — |
+| Merge into release/2.1.0 | pending | by the frontend session |
+
+Decisions: see the step 7A backend notes above (stock not sufficient refused all or nothing unless `ALLOW_NEGATIVE_STOCK`; no cancel of a Sent BL; more received than sent accepted and shown, the head office stock unchanged for any difference; supply needs the catalogue; a BL line only on a head office item; number at validation; stock copied up only by the stores supplied by the head office; a waiting line counted and sent up at once, its stock in applied once later; the reception permission topped up on ADMIN at each start).
+
+What exists after the step:
+- Head office without an ERP: a warehouse (vendors, purchases, purchase invoices, stock and movements on its own routes, no till); BLs (draft, validate, list per store and status with the differences); the stock of every supplied store next to its own, with `belowZero`.
+- Store with `ownership.supply=HEAD_OFFICE` (and the catalogue from the head office): BLs received by the copies down, a reception page, stock in at once (also offline), the confirmations and the stock copied up by `SUPPLY_PUSH`, the `supply` block of the link page.
+- Every other store (supply local, ERP, franchise customer even with `headoffice.url`): unchanged, except that a stock adjustment now writes its movement and an item edit keeps the stored stock (both intended for every standalone store).
+
+Tests at the merge: backend pending, all green, run in a separate worktree of the merge. Frontend: production lint and build per frontend commit (frontend session).
+
+L2 (2026-10-04, `devenv/l2-supply.ps1`, instances built from the worktree; head office 888, store B 555 with the catalogue and `ownership.supply=HEAD_OFFICE`, store C 556 with the catalogue and its supply local): 12 scenarios, all passed on the third run (report `C:\zsretail-dev\logs\l2-supply-145427.txt`); the second run found the two fixes above. 1 the head office buys 100: stock 100, one movement; 2 a draft for B edited, deleted, created again, validated (`BL-000006`, Sent, stock out with one `DELIVERY_OUT` per line), a second validation 409 with the stock unchanged; 3 a shortage 409 listing both items, nothing changed; 4 B receives the BL, C sees nothing, has no reception API (404), a BL for C 409; 5 B confirms 48 of 50: stock +48 with one movement, a second confirmation 409, the head office BL Received with 48 and −2; 6 head office stopped while B confirms: stock up at once, the BL Received when it is back, once; 7 the same confirmation sent twice accepted twice and changes nothing, other quantities rejected; 8 a line whose item is missing at B (paging: the item's family arrives after it) waits, then its stock goes in exactly once; 9 3 received for 2 sent: accepted, +1 shown; 10 a sale at B: its stock at the head office stock API, then nothing to send; 11 an adjustment writes `ADJUSTMENT_IN`, an item edit sending an old stock keeps the stored one; 12 ADMIN of B has `read:admin-holink-deliveries` without a manual step, C has not. On the same build: `l2-catalogue.ps1` 15 of 15 (report `l2-catalogue-145702.txt`; its scenario 1 now also sets `ownership.supply=LOCAL`) and `l2-loyalty.ps1` 17 of 17 (`l2-loyalty-150357.txt`). Head office catalogue backfill during that run: 16.6 s for 4,370 records, 8.0 s for 4,500 measured alone right after (1.7 to 2.6 s at step 6): not investigated further.
+
+Diff proof against release/2.1.0 (before the merge): 0 files in `erp/`, 0 franchise files; `SalesHeaderService`, `PromotionCalculationService`, `PricingService`, `ReturnHeaderService`, the four loyalty tests and `PromotionAllItemsScopeTest` unchanged. The changed files a store also runs are those of the step 7A backend table above (`ItemAPI`, `ItemService`, `StockService`, `StockMovementService`, `StockMovementType`, `NodeOwnership`, `ApplicationModeService`, the supply condition, `AppConfigAPI`, `AppConfigDTO`, `ZZDataInitializer`, the link classes), plus `SupplyPushService` and `HoDeliveryService` (the two fixes, supply beans and head office only) and the store B dev profile.
+
+Still owed: the screen check of the step 7A pages on the dev pair; the full regression checklist (once, before 2.1 is delivered); the `update.sql` lines of section 1 (the 7A tables come through `ddl-auto`; `hol_stock_copy`, `ho_store_stock`, `ho_delivery`, `ho_delivery_line`, `ho_number_sequence`, `hol_delivery`, `hol_delivery_line` to list when the script is written).
+
 ### Step 7B — Invoices and supply price
 
 Goal: a store that pays receives, for its received BLs, an invoice at its supply price. Needs decision D16 (Happyness: supply price per item or a percentage; invoice per BL or per period).
@@ -564,5 +638,8 @@ Also:
 - Importing an existing member list into a head office (step 4 decision).
 - BLs created in the franchisor's ERP.
 - Store-to-store transfers without an ERP; goods sent back to the head office; a store asking the head office for goods.
+- Cancelling a Sent BL that is not received yet (decided 2026-10-04: not in 7A). It needs a Cancelled status, the head office stock given back with a movement, and a rule for a store that confirmed offline before the cancellation reached it (its count wins: the BL becomes Received again and the stock goes out again).
+- Price frozen on the BL line: today a BL carries no price (step 7B invoices the received BLs at the supply price); keeping the price of the day of validation on each line, to discuss with step 7B.
 - A second purchase switch: a store buying head office items from its own suppliers.
+- Network setup screen at the head office: a map of all the stores, checks of their settings, "add a store" models. Logged as an improvement, not scheduled.
 - An item or a family limited to some stores; prices with dates; royalties; shared customers.
