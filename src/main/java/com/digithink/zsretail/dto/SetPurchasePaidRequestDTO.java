@@ -4,7 +4,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Request body for setting paid amount/date on a purchase (standalone).
+ * Request body for setting paid amount/date on a purchase (without an ERP).
  */
 @Data
 @NoArgsConstructor

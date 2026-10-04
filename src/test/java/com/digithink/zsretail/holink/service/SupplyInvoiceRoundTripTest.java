@@ -58,6 +58,7 @@ import com.digithink.zsretail.support.InMemoryLoyalty;
 import com.digithink.zsretail.support.InMemoryReceivedDeliveries;
 import com.digithink.zsretail.support.InMemoryStock;
 import com.digithink.zsretail.support.InMemoryStoreLink;
+import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, step 7B, part 3, end to end over the copies down: the real head office (HoDeliveryService,
@@ -259,8 +260,7 @@ class SupplyInvoiceRoundTripTest {
 		SupplyVendorGuard guard = new SupplyVendorGuard(vendorRepository());
 
 		VendorAPI api = new VendorAPI();
-		ApplicationModeService mode = new ApplicationModeService();
-		set(mode, ApplicationModeService.class, "standalone", true);
+		ApplicationModeService mode = TestModes.standalone(); // step 9: a mode service built from properties
 		set(api, VendorAPI.class, "applicationModeService", mode);
 		set(api, VendorAPI.class, "supplyVendorGuard",
 				new StaticListableBeanFactory(Collections.singletonMap("guard", guard)).getBeanProvider(SupplyVendorGuard.class));

@@ -29,6 +29,7 @@ import com.digithink.zsretail.repository.PromotionRepository;
 import com.digithink.zsretail.security.CurrentUserProvider;
 import com.digithink.zsretail.service.PromotionService;
 import com.digithink.zsretail.service._BaseService;
+import com.digithink.zsretail.support.TestModes;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -220,7 +221,9 @@ class PromotionAPIGuardTest {
 	private static ApplicationModeService mode(MockEnvironment env, boolean standalone) throws Exception {
 		ApplicationModeService mode = new ApplicationModeService();
 		inject(mode, ApplicationModeService.class, "environment", env);
-		inject(mode, ApplicationModeService.class, "standalone", standalone);
+		if (!standalone) {
+			TestModes.erpOwners(env); // task 9.3: the ERP owners instead of application.standalone=false
+		}
 		Method init = ApplicationModeService.class.getDeclaredMethod("initOwnership");
 		init.setAccessible(true);
 		init.invoke(mode);

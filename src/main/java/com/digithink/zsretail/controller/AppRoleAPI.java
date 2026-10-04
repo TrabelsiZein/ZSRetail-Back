@@ -76,9 +76,6 @@ public class AppRoleAPI {
         "read:admin-report-loyalty",
         "read:admin-report-sessions",
         "read:admin-report-promotions",
-        "read:admin-franchise",
-        "read:admin-franchise-sales-tracking",
-        "read:admin-franchise-sync-dashboard",
         "read:admin-company-information", "write:admin-company-information",
         // Role management
         "read:admin-roles", "write:admin-roles", "delete:admin-roles",

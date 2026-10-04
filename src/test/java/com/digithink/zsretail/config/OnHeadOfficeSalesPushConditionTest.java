@@ -2,6 +2,7 @@ package com.digithink.zsretail.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.DisplayName;
@@ -16,6 +17,7 @@ import com.digithink.zsretail.holink.scheduler.SalesPushJob;
 import com.digithink.zsretail.holink.service.SalesCopyFinder;
 import com.digithink.zsretail.holink.service.SalesPushService;
 import com.digithink.zsretail.holink.service.SalesPushSettings;
+import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, tasks 2.1 and 2.4 (decision 4): the sales copy beans (search, push job) exist only when headoffice.url is set and the sales
@@ -33,7 +35,7 @@ class OnHeadOfficeSalesPushConditionTest {
 	}
 
 	private static MockEnvironment standalone(MockEnvironment env) {
-		return env.withProperty("application.standalone", "true");
+		return env; // task 9.3: without an ERP is the default (no owner key)
 	}
 
 	private static boolean registered(MockEnvironment env, Class<?> beanClass) {
@@ -49,19 +51,18 @@ class OnHeadOfficeSalesPushConditionTest {
 		assertFalse(NodeOwnership.isHeadOfficeSalesPushSet(
 				standalone(new MockEnvironment()).withProperty("sales.upstream", "HEAD_OFFICE")), "no URL");
 		assertFalse(NodeOwnership.isHeadOfficeSalesPushSet(standalone(link())), "standalone: sales go nowhere");
-		assertFalse(NodeOwnership.isHeadOfficeSalesPushSet(link()), "ERP flags: sales go to the ERP");
+		assertFalse(NodeOwnership.isHeadOfficeSalesPushSet(TestModes.erpOwners(link())), "ERP flags: sales go to the ERP");
 		assertFalse(NodeOwnership.isHeadOfficeSalesPushSet(standalone(link()).withProperty("sales.upstream", "ERP")));
 		assertFalse(NodeOwnership.isHeadOfficeSalesPushSet(link().withProperty("sales.upstream", "")));
-		assertFalse(NodeOwnership.isHeadOfficeSalesPushSet(standalone(link()).withProperty("franchise.admin", "true")));
 	}
 
 	@Test
-	@DisplayName("Head office upstream with the URL: true (explicit on standalone or ERP flags, any case; derived on franchise customer)")
+	@DisplayName("Head office upstream with the URL: true (explicit on standalone or ERP flags, any case); a franchise flag is refused (task 9.4a)")
 	void withHeadOfficeUpstream() {
 		assertTrue(NodeOwnership.isHeadOfficeSalesPushSet(standalone(link()).withProperty("sales.upstream", "HEAD_OFFICE")));
 		assertTrue(NodeOwnership.isHeadOfficeSalesPushSet(link().withProperty("sales.upstream", " erp , head_office ")));
-		assertTrue(NodeOwnership.isHeadOfficeSalesPushSet(
-				standalone(link()).withProperty("franchise.customer", " true ")), "franchise customer: derived");
+		assertThrows(IllegalStateException.class, () -> NodeOwnership.isHeadOfficeSalesPushSet(
+				standalone(link()).withProperty("franchise.customer", " true ")), "the franchise profiles were removed");
 	}
 
 	@Test

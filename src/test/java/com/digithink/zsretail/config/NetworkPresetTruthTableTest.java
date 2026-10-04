@@ -3,6 +3,7 @@ package com.digithink.zsretail.config;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
@@ -16,9 +17,6 @@ import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.context.annotation.AnnotatedBeanDefinitionReader;
 import org.springframework.mock.env.MockEnvironment;
 
-import com.digithink.zsretail.controller.franchise.FranchiseInvoiceSyncController;
-import com.digithink.zsretail.controller.franchise.FranchiseItemSyncController;
-import com.digithink.zsretail.controller.franchise.FranchiseSalesReceiverController;
 import com.digithink.zsretail.headoffice.service.HoDeliveryService;
 import com.digithink.zsretail.headoffice.service.HoPriceListService;
 import com.digithink.zsretail.holink.scheduler.HeartbeatJob;
@@ -27,39 +25,31 @@ import com.digithink.zsretail.holink.service.CatalogueDownHandler;
 import com.digithink.zsretail.holink.service.DeliveryReceptionService;
 import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.enumeration.DataDomain;
+import com.digithink.zsretail.support.Installations;
 import com.digithink.zsretail.model.enumeration.DataOwner;
 import com.digithink.zsretail.model.enumeration.NodeType;
 import com.digithink.zsretail.model.enumeration.SalesUpstream;
-import com.digithink.zsretail.security.FranchiseApiKeyFilter;
-import com.digithink.zsretail.service.franchise.FranchiseSalesPushScheduler;
-import com.digithink.zsretail.service.franchise.FranchiseSupplyReceptionService;
-import com.digithink.zsretail.service.franchise.FranchiseSyncService;
 
 /**
  * Head office plan, task 8.1: the presets network-headoffice and network-store give a franchise network as a head office
- * and stores (design 2.3, franchise column), and the legacy profiles franchise-admin and franchise-customer resolve
- * exactly as before (design 5.2, rule 6). The real profile files are read from the classpath, no context; the table is
- * the one of docs/deployment-modes.md, "Presets".
+ * and stores (design 2.3, franchise column). The real profile files are read from the classpath, no context; the table
+ * is the one of docs/deployment-modes.md, "Presets". Since task 9.4a the legacy franchise profiles no longer exist.
  */
 class NetworkPresetTruthTableTest {
 
-	private static MockEnvironment profile(String name) throws Exception {
-		Properties properties = new Properties();
-		try (InputStream in = NetworkPresetTruthTableTest.class.getResourceAsStream("/application-" + name + ".properties")) {
-			assertNotNull(in, "profile " + name);
-			properties.load(in);
+	/** Task 9.3: network-headoffice became the preset headoffice; a network store gets its link from its machine file. */
+	private static MockEnvironment profile(String name) {
+		if (name.equals("network-headoffice")) {
+			return Installations.preset("headoffice");
 		}
-		MockEnvironment env = new MockEnvironment();
-		for (String key : properties.stringPropertyNames()) {
-			env.setProperty(key, properties.getProperty(key));
-		}
+		MockEnvironment env = Installations.preset(name);
+		env.setProperty("headoffice.url", "http://CHANGE_ME:888/zsretail/api");
+		env.setProperty("headoffice.api-key", "CHANGE_ME");
 		return env;
 	}
 
 	private static NodeOwnership resolve(MockEnvironment env) {
-		return NodeOwnership.resolve(env, Boolean.parseBoolean(env.getProperty("application.standalone", "false")),
-				Boolean.parseBoolean(env.getProperty("franchise.admin", "false")),
-				Boolean.parseBoolean(env.getProperty("franchise.customer", "false")));
+		return NodeOwnership.resolve(env);
 	}
 
 	private static boolean registered(MockEnvironment env, Class<?> beanClass) {
@@ -77,7 +67,7 @@ class NetworkPresetTruthTableTest {
 		assertEquals(supply, ownership.ownerOf(DataDomain.SUPPLY), "supply");
 	}
 
-	/** Link, sales push, pull, catalogue, supply, head office without ERP, head office with ERP. */
+	/** Link, sales push, pull, catalogue, supply, head office without ERP; never a head office with ERP. */
 	private static void switches(MockEnvironment env, boolean link, boolean salesPush, boolean pull, boolean catalogue,
 			boolean supply, boolean headOfficeStandalone) {
 		assertEquals(link, NodeOwnership.isHeadOfficeLinkSet(env), "link");
@@ -87,12 +77,13 @@ class NetworkPresetTruthTableTest {
 		assertEquals(supply, NodeOwnership.isSupplyFromHeadOffice(env), "supply from the head office");
 		assertEquals(headOfficeStandalone, NodeOwnership.isHeadOfficeStandaloneSet(env), "head office without ERP");
 		assertFalse(NodeOwnership.isHeadOfficeErpSet(env), "head office with ERP");
-		assertEquals("true", env.getProperty("application.standalone"));
-		assertEquals("false", env.getProperty("pos.pricing.enable-sales-price-group"));
+		assertNull(env.getProperty("application.standalone"), "removed at task 9.3");
+		assertNull(env.getProperty("franchise.admin"), "no franchise key (task 9.4a)");
+		assertNull(env.getProperty("franchise.customer"), "no franchise key (task 9.4a)");
 	}
 
 	@Test
-	@DisplayName("network-headoffice: head office without ERP, everything local, sales nowhere, no franchise flag")
+	@DisplayName("network-headoffice: head office without ERP, everything local, sales nowhere")
 	void headOfficePreset() throws Exception {
 		MockEnvironment env = profile("network-headoffice");
 		NodeOwnership ownership = resolve(env);
@@ -100,8 +91,6 @@ class NetworkPresetTruthTableTest {
 		owners(ownership, DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.LOCAL);
 		assertEquals(Collections.emptySet(), ownership.getSalesUpstreams());
 		switches(env, false, false, false, false, false, true);
-		assertEquals("false", env.getProperty("franchise.admin"));
-		assertEquals("false", env.getProperty("franchise.customer"));
 	}
 
 	@Test
@@ -113,62 +102,19 @@ class NetworkPresetTruthTableTest {
 		owners(ownership, DataOwner.HEAD_OFFICE, DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.HEAD_OFFICE);
 		assertEquals(EnumSet.of(SalesUpstream.HEAD_OFFICE), ownership.getSalesUpstreams());
 		switches(env, true, true, true, true, true, false);
-		assertEquals("false", env.getProperty("franchise.admin"));
-		assertEquals("false", env.getProperty("franchise.customer"));
 	}
 
 	@Test
-	@DisplayName("franchise-admin and franchise-customer resolve as before: legacy owners, none of the head office switches")
-	void legacyProfilesUnchanged() throws Exception {
-		MockEnvironment admin = profile("franchise-admin");
-		NodeOwnership adminOwnership = resolve(admin);
-		assertEquals(NodeType.STORE, adminOwnership.getNodeType());
-		owners(adminOwnership, DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.LOCAL);
-		assertEquals(Collections.emptySet(), adminOwnership.getSalesUpstreams());
-		switches(admin, false, false, false, false, false, false);
-
-		MockEnvironment customer = profile("franchise-customer");
-		NodeOwnership customerOwnership = resolve(customer);
-		assertEquals(NodeType.STORE, customerOwnership.getNodeType());
-		owners(customerOwnership, DataOwner.HEAD_OFFICE, DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.LOCAL,
-				DataOwner.HEAD_OFFICE);
-		assertEquals(EnumSet.of(SalesUpstream.HEAD_OFFICE), customerOwnership.getSalesUpstreams());
-		switches(customer, false, false, false, false, false, false);
-		assertEquals("false", customer.getProperty("franchise.customer.allow-local-items"));
-	}
-
-	@Test
-	@DisplayName("Beans: the franchise beans only on their legacy profile, the head office and store beans only on the presets")
+	@DisplayName("Beans: the head office beans only on network-headoffice, the store beans only on network-store")
 	void beans() throws Exception {
-		MockEnvironment admin = profile("franchise-admin");
-		MockEnvironment customer = profile("franchise-customer");
 		MockEnvironment headOffice = profile("network-headoffice");
 		MockEnvironment store = profile("network-store");
-
-		for (Class<?> bean : new Class<?>[] { FranchiseApiKeyFilter.class, FranchiseItemSyncController.class,
-				FranchiseInvoiceSyncController.class, FranchiseSalesReceiverController.class }) {
-			assertTrue(registered(admin, bean), bean.getSimpleName());
-			assertFalse(registered(customer, bean), bean.getSimpleName());
-			assertFalse(registered(headOffice, bean), bean.getSimpleName());
-			assertFalse(registered(store, bean), bean.getSimpleName());
-		}
-		for (Class<?> bean : new Class<?>[] { FranchiseSyncService.class, FranchiseSupplyReceptionService.class,
-				FranchiseSalesPushScheduler.class }) {
-			assertFalse(registered(admin, bean), bean.getSimpleName());
-			assertTrue(registered(customer, bean), bean.getSimpleName());
-			assertFalse(registered(headOffice, bean), bean.getSimpleName());
-			assertFalse(registered(store, bean), bean.getSimpleName());
-		}
 		for (Class<?> bean : new Class<?>[] { HeartbeatJob.class, SalesPushJob.class, CatalogueDownHandler.class,
 				StoreCatalogueGuard.class, DeliveryReceptionService.class }) {
-			assertFalse(registered(admin, bean), bean.getSimpleName());
-			assertFalse(registered(customer, bean), bean.getSimpleName());
 			assertFalse(registered(headOffice, bean), bean.getSimpleName());
 			assertTrue(registered(store, bean), bean.getSimpleName());
 		}
 		for (Class<?> bean : new Class<?>[] { HoPriceListService.class, HoDeliveryService.class }) {
-			assertFalse(registered(admin, bean), bean.getSimpleName());
-			assertFalse(registered(customer, bean), bean.getSimpleName());
 			assertTrue(registered(headOffice, bean), bean.getSimpleName());
 			assertFalse(registered(store, bean), bean.getSimpleName());
 		}

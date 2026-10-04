@@ -237,7 +237,7 @@ $ok = $r6.Status -eq 200 -and $x6b -eq $x6 + 5 -and $pending6 -eq 'PENDING' -and
 Result 6 $ok "head office stopped: $number2 confirmed ($($r6.Status)), stock $x6->$x6b at once, push [$($push6.lastMessage)] status $pending6; back: head office $($ho6.status) at $at6, after another push $at6b"
 
 # ─── 7. A confirmation sent twice ────────────────────────────────
-$key = (Select-String -Path (Join-Path $DevResources 'application-store-b-dev.properties') -Pattern '^headoffice.api-key=(.*)$').Matches[0].Groups[1].Value.Trim()
+$key = (Select-String -Path (Get-DevMachineFile 'store-b') -Pattern '^headoffice.api-key=(.*)$').Matches[0].Groups[1].Value.Trim()
 $conf = @(@{ number = $number1; receivedAt = (Scalar 'store-b' "SELECT CONVERT(varchar, received_at, 126) FROM hol_delivery WHERE delivery_number = '$number1'").Substring(0, 19)
 		receivedBy = 'admin'; note = "L2 $Run"; lines = @($ho5.lines | ForEach-Object { @{ lineNo = $_.lineNo; itemCode = $_.itemCode; quantityReceived = $_.quantityReceived } }) })
 $before7 = Scalar 'headoffice' "SELECT CONVERT(varchar, confirmation_received_at, 126) FROM ho_delivery WHERE id = $($bl1.Body.id)"

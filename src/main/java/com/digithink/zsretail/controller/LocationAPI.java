@@ -41,14 +41,14 @@ public class LocationAPI extends _BaseController<Location, Long, LocationService
 	}
 
 	/**
-	 * Create location. Only allowed in standalone mode.
+	 * Create location. Refused with an ERP.
 	 */
 	@PostMapping
 	@Override
 	public ResponseEntity<?> create(@RequestBody Location entity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Location creation is only available in standalone mode. In ERP mode locations are synchronized from the ERP."));
+					.body(createErrorResponse("Location creation is not available with an ERP: locations are synchronized from the ERP."));
 		}
 		try {
 			log.info("LocationAPI::create");
@@ -61,14 +61,14 @@ public class LocationAPI extends _BaseController<Location, Long, LocationService
 	}
 
 	/**
-	 * Update location. Only allowed in standalone mode.
+	 * Update location. Refused with an ERP.
 	 */
 	@PutMapping("/{id}")
 	@Override
 	public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Location entity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Location update is only available in standalone mode. In ERP mode locations are synchronized from the ERP."));
+					.body(createErrorResponse("Location update is not available with an ERP: locations are synchronized from the ERP."));
 		}
 		try {
 			log.info("LocationAPI::update::" + id);
@@ -86,14 +86,14 @@ public class LocationAPI extends _BaseController<Location, Long, LocationService
 	}
 
 	/**
-	 * Delete location. Only allowed in standalone mode.
+	 * Delete location. Refused with an ERP.
 	 */
 	@DeleteMapping("/{id}")
 	@Override
 	public ResponseEntity<?> deleteById(@PathVariable Long id) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Location deletion is only available in standalone mode. In ERP mode locations are synchronized from the ERP."));
+					.body(createErrorResponse("Location deletion is not available with an ERP: locations are synchronized from the ERP."));
 		}
 		try {
 			log.info("LocationAPI::deleteById::" + id);

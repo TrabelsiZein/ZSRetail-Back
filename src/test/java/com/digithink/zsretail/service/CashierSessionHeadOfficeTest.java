@@ -22,6 +22,7 @@ import com.digithink.zsretail.model.UserAccount;
 import com.digithink.zsretail.model.enumeration.SessionStatus;
 import com.digithink.zsretail.repository.CashierSessionRepository;
 import com.digithink.zsretail.security.CurrentUserProvider;
+import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, task 1.1: a head office opens no cashier session, through openSession or through a
@@ -34,21 +35,18 @@ class CashierSessionHeadOfficeTest {
 	private final List<String> repositoryCalls = new ArrayList<>();
 	private final List<CashierSession> saved = new ArrayList<>();
 
-	// Mode flags of today's profile files: application.standalone, franchise.admin, franchise.customer
+	// Mode of today's presets: without an ERP (store) or with one (store-erp); task 9.3
 	private static final boolean[][] STORE_PROFILES = {
-			{ true, false, false }, // standalone
-			{ false, false, false }, // dynamics (ERP)
-			{ true, false, true }, // franchise-customer
-			{ true, true, false }, // franchise-admin
+			{ true }, // standalone
+			{ false }, // dynamics (ERP)
 	};
 
-	private CashierSessionService service(MockEnvironment env, boolean standalone, boolean franchiseAdmin,
-			boolean franchiseCustomer) throws Exception {
+	private CashierSessionService service(MockEnvironment env, boolean standalone) throws Exception {
 		ApplicationModeService mode = new ApplicationModeService();
 		inject(mode, ApplicationModeService.class, "environment", env);
-		inject(mode, ApplicationModeService.class, "standalone", standalone);
-		inject(mode, ApplicationModeService.class, "franchiseAdmin", franchiseAdmin);
-		inject(mode, ApplicationModeService.class, "franchiseCustomer", franchiseCustomer);
+		if (!standalone) {
+			TestModes.erpOwners(env); // task 9.3: the ERP owners instead of application.standalone=false
+		}
 		Method initOwnership = ApplicationModeService.class.getDeclaredMethod("initOwnership");
 		initOwnership.setAccessible(true);
 		initOwnership.invoke(mode);
@@ -79,7 +77,7 @@ class CashierSessionHeadOfficeTest {
 	}
 
 	private CashierSessionService headOffice() throws Exception {
-		return service(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE"), true, false, false);
+		return service(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE"), true);
 	}
 
 	private static UserAccount cashier() {
@@ -122,12 +120,12 @@ class CashierSessionHeadOfficeTest {
 	}
 
 	@Test
-	@DisplayName("Stores (4 profiles): openSession opens a session as today")
+	@DisplayName("Stores (standalone and ERP profiles): openSession opens a session as today")
 	void storesOpenSessionAsToday() throws Exception {
 		for (boolean[] flags : STORE_PROFILES) {
 			repositoryCalls.clear();
 			saved.clear();
-			CashierSessionService service = service(new MockEnvironment(), flags[0], flags[1], flags[2]);
+			CashierSessionService service = service(new MockEnvironment(), flags[0]);
 			UserAccount cashier = cashier();
 
 			CashierSession session = service.openSession(cashier, 100.0);
@@ -144,7 +142,7 @@ class CashierSessionHeadOfficeTest {
 	@Test
 	@DisplayName("Stores: an open session for the same cashier is still refused with today's message")
 	void storeKeepsAlreadyOpenCheck() throws Exception {
-		CashierSessionService service = service(new MockEnvironment(), true, false, false);
+		CashierSessionService service = service(new MockEnvironment(), true);
 		inject(service, CashierSessionService.class, "cashierSessionRepository",
 				stub(CashierSessionRepository.class, (method, args) -> "findByCashierAndStatus".equals(method)
 						? Optional.of(new CashierSession())

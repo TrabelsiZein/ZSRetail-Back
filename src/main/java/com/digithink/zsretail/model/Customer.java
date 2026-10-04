@@ -3,6 +3,8 @@ package com.digithink.zsretail.model;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -11,6 +13,9 @@ import lombok.NoArgsConstructor;
  * Customer entity - represents customers in the POS system
  */
 @Entity
+// defaultLocation: field of the franchise profiles removed at step 9 (task 9.4a), still sent by older screens: ignored,
+// never refused. Its column default_location stays in the table.
+@JsonIgnoreProperties({ "defaultLocation" })
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
@@ -49,13 +54,4 @@ public class Customer extends _BaseEntity {
 	private String customerPriceGroup;
 	private String customerDiscGroup;
 	private String auxiliaryIndex1;
-
-	/**
-	 * Franchise: location code identifying this customer as a franchise client.
-	 * When set, invoices created for this customer will be automatically tagged
-	 * with this location code so the franchise client can pull them via the sync API.
-	 * Null for regular (non-franchise) customers — no impact on existing behaviour.
-	 */
-	@Column(name = "default_location")
-	private String defaultLocation;
 }

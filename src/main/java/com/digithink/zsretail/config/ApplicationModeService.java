@@ -5,7 +5,6 @@ import java.util.Set;
 import javax.annotation.PostConstruct;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
@@ -15,36 +14,15 @@ import com.digithink.zsretail.model.enumeration.NodeType;
 import com.digithink.zsretail.model.enumeration.SalesUpstream;
 
 /**
- * Exposes the application run mode: ERP, Standalone, Franchise Admin, or Franchise Customer.
- * All mode-dependent behaviour should use this service so each mode flag has a single source
- * of truth in application properties.
- *
- * Modes are not mutually exclusive at the property level but should be treated as such:
- *   - Normal standalone:       standalone=true,  franchise.admin=false, franchise.customer=false
- *   - Normal ERP:              standalone=false, franchise.admin=false, franchise.customer=false
- *   - Franchise Admin:         standalone=true,  franchise.admin=true,  franchise.customer=false
- *   - Franchise Customer:      standalone=true,  franchise.admin=false, franchise.customer=true
+ * Exposes the installation type, the owner of each data domain and where the sales go (head office design 2.1, 2.2),
+ * resolved once at startup from application.standalone, node.type, ownership.* and sales.upstream
+ * ({@link NodeOwnership#resolve(org.springframework.core.env.PropertyResolver)}, the one place that reads
+ * application.standalone).
+ * All mode-dependent behaviour should use this service. Step 9: every check asks one of its questions; the franchise
+ * profiles were removed (task 9.4a) and a leftover franchise.admin or franchise.customer=true stops the startup.
  */
 @Service
 public class ApplicationModeService {
-
-	@Value("${application.standalone:false}")
-	private boolean standalone;
-
-	@Value("${franchise.admin:false}")
-	private boolean franchiseAdmin;
-
-	@Value("${franchise.customer:false}")
-	private boolean franchiseCustomer;
-
-	/**
-	 * True when the franchise client is allowed to add and manage its own locally-created items
-	 * (e.g. products sourced from other vendors). Items synced from the franchise admin always
-	 * remain read-only, regardless of this flag.
-	 * Only meaningful when franchise.customer=true; ignored in all other modes.
-	 */
-	@Value("${franchise.customer.allow-local-items:false}")
-	private boolean allowLocalItems;
 
 	@Autowired
 	private Environment environment;
@@ -61,12 +39,11 @@ public class ApplicationModeService {
 	/** Fails the startup when node.type, ownership.* or sales.upstream holds an invalid value. */
 	@PostConstruct
 	void initOwnership() {
-		ownership = NodeOwnership.resolve(environment, standalone, franchiseAdmin, franchiseCustomer);
+		ownership = NodeOwnership.resolve(environment);
 		headOfficeLinked = NodeOwnership.isHeadOfficeLinkSet(environment);
-		// Same rule as NodeOwnership.isSupplyFromHeadOffice, on the mode flags of this service (like the catalogue)
+		// Same rule as NodeOwnership.isSupplyFromHeadOffice (accepted only without an ERP, with the catalogue too)
 		supplyFromHeadOffice = headOfficeLinked && environment.containsProperty(DataDomain.SUPPLY.getPropertyKey())
-				&& ownership.ownerOf(DataDomain.SUPPLY) == DataOwner.HEAD_OFFICE && standalone && !franchiseCustomer
-				&& !franchiseAdmin;
+				&& ownership.ownerOf(DataDomain.SUPPLY) == DataOwner.HEAD_OFFICE;
 	}
 
 	/** True on a store that calls a head office (headoffice.url set): the "Head office link" page exists. */
@@ -98,20 +75,16 @@ public class ApplicationModeService {
 	}
 
 	/**
-	 * True on a store whose catalogue is its head office's (step 6): headoffice.url set, ownership.catalogue=HEAD_OFFICE,
-	 * standalone, no franchise flag (the franchise customer profile derives a catalogue owned by HEAD_OFFICE for its
-	 * legacy sync and is never this case). Same rule as the catalogue beans ({@link NodeOwnership#isCatalogueFromHeadOffice}).
+	 * True on a store whose catalogue is its head office's (step 6): headoffice.url set, ownership.catalogue=HEAD_OFFICE
+	 * (accepted only without an ERP). Same rule as the catalogue beans ({@link NodeOwnership#isCatalogueFromHeadOffice}).
 	 */
 	public boolean isCatalogueFromHeadOffice() {
-		return headOfficeLinked && ownership.ownerOf(DataDomain.CATALOGUE) == DataOwner.HEAD_OFFICE && standalone
-				&& !franchiseCustomer && !franchiseAdmin;
+		return headOfficeLinked && ownership.ownerOf(DataDomain.CATALOGUE) == DataOwner.HEAD_OFFICE;
 	}
 
 	/**
 	 * True on a store whose goods come from its head office by BL (step 7A): headoffice.url set, an explicit
-	 * ownership.supply=HEAD_OFFICE, standalone, no franchise flag (the franchise customer profile derives a supply owned by
-	 * HEAD_OFFICE for its legacy reception and is never this case). Same rule as the supply beans
-	 * ({@link NodeOwnership#isSupplyFromHeadOffice}).
+	 * ownership.supply=HEAD_OFFICE (accepted only without an ERP). Same rule as the supply beans ({@link NodeOwnership#isSupplyFromHeadOffice}).
 	 */
 	public boolean isSupplyFromHeadOffice() {
 		return supplyFromHeadOffice;
@@ -130,43 +103,23 @@ public class ApplicationModeService {
 		return ownership.getSalesUpstreams();
 	}
 
-	/**
-	 * True when the POS runs without an ERP (standalone mode).
-	 * False when the POS is integrated with ERP (e.g. Dynamics NAV / Business Central).
-	 */
-	public boolean isStandalone() {
-		return standalone;
+	/** Step 9 (task 9.1b): see {@link NodeOwnership#isCatalogueFromErp()}. Same answer as the old isStandalone() check, negated. */
+	public boolean isCatalogueFromErp() {
+		return ownership.isCatalogueFromErp();
 	}
 
-	/**
-	 * True when the POS is integrated with an ERP (current mode for e.g. MTOP).
-	 */
-	public boolean isErpMode() {
-		return !standalone;
+	/** Step 9 (task 9.1b): see {@link NodeOwnership#isCustomersFromErp()}. Same answer as the old isStandalone() check, negated. */
+	public boolean isCustomersFromErp() {
+		return ownership.isCustomersFromErp();
 	}
 
-	/**
-	 * True when this instance is the central franchise admin (HQ).
-	 * Exposes sync APIs for franchise clients and applies franchise-specific validations.
-	 */
-	public boolean isFranchiseAdmin() {
-		return franchiseAdmin;
+	/** Step 9 (task 9.1b): see {@link NodeOwnership#isSupplyFromErp()}. Same answer as the old isStandalone() check, negated. */
+	public boolean isSupplyFromErp() {
+		return ownership.isSupplyFromErp();
 	}
 
-	/**
-	 * True when this instance is a franchise client.
-	 * Item CRUD and manual purchases are blocked; data is synced from the franchise admin.
-	 */
-	public boolean isFranchiseClient() {
-		return franchiseCustomer;
-	}
-
-	/**
-	 * True when the franchise client is allowed to create and manage its own local items.
-	 * Items that were synced from the franchise admin ({@code fromFranchiseAdmin=true}) are always read-only.
-	 * Returns false when not in franchise client mode.
-	 */
-	public boolean isLocalItemsAllowed() {
-		return franchiseCustomer && allowLocalItems;
+	/** Step 9 (task 9.1b): see {@link NodeOwnership#hasErp()}. Same answer as the old isStandalone() check, negated. */
+	public boolean hasErp() {
+		return ownership.hasErp();
 	}
 }

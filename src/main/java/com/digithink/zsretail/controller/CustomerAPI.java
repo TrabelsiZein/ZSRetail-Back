@@ -40,13 +40,13 @@ public class CustomerAPI extends _BaseController<Customer, Long, CustomerService
 	private ApplicationModeService applicationModeService;
 
 	/**
-	 * Create customer. Only allowed in standalone mode (in ERP mode customers come from sync).
+	 * Create customer. Refused with an ERP (customers come from the ERP sync).
 	 */
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody Customer entity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isCustomersFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Customer creation is only available in standalone mode. In ERP mode customers are synchronized from the ERP."));
+					.body(createErrorResponse("Customer creation is not available with an ERP: customers are synchronized from the ERP."));
 		}
 		try {
 			log.info("CustomerAPI::create");

@@ -29,6 +29,7 @@ import com.digithink.zsretail.service.ItemService;
 import com.digithink.zsretail.service.StockMovementService;
 import com.digithink.zsretail.service.StockService;
 import com.digithink.zsretail.service._BaseService;
+import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, step 7A (decision 6): POST /item/{id}/adjust-stock changes the quantity exactly as before and now
@@ -52,8 +53,7 @@ class ItemStockAdjustmentTest {
 	}
 
 	private ItemAPI api(boolean standalone) throws Exception {
-		ApplicationModeService mode = new ApplicationModeService();
-		set(mode, ApplicationModeService.class, "standalone", standalone);
+		ApplicationModeService mode = TestModes.of(standalone);
 		ItemRepository itemRepository = proxy(ItemRepository.class, (method, args) -> {
 			switch (method) {
 				case "findById":
@@ -90,7 +90,6 @@ class ItemStockAdjustmentTest {
 		set(stockMovements, StockMovementService.class, "itemRepository", itemRepository);
 		ItemService service = new ItemService();
 		set(service, ItemService.class, "itemRepository", itemRepository);
-		set(service, ItemService.class, "applicationModeService", mode);
 		set(service, ItemService.class, "stockService", stock);
 		set(service, ItemService.class, "stockMovementService", stockMovements);
 		set(service, _BaseService.class, "currentUserProvider", new CurrentUserProvider() {

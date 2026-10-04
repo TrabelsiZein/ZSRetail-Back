@@ -19,16 +19,5 @@ public interface InvoiceHeaderRepository extends _BaseRepository<InvoiceHeader, 
 	Page<InvoiceHeader> findByCustomer(Customer customer, Pageable pageable);
 
 	List<InvoiceHeader> findByInvoiceNumberContainingIgnoreCase(String invoiceNumberPart);
-
-	/**
-	 * Franchise: returns invoices tagged for the given location code that have not yet
-	 * been acknowledged (received) by the franchise client.
-	 */
-	List<InvoiceHeader> findByFranchiseLocationCodeAndFranchiseReceivedAtIsNull(String franchiseLocationCode);
-
-	/**
-	 * Franchise: returns all invoices tagged with the given location code (received and pending).
-	 */
-	Page<InvoiceHeader> findByFranchiseLocationCodeIsNotNull(Pageable pageable);
 }
 

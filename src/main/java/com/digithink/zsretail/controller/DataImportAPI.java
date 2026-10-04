@@ -44,9 +44,9 @@ public class DataImportAPI {
      */
     @PostMapping(value = "/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> preview(@RequestPart("file") MultipartFile file) {
-        if (!applicationModeService.isStandalone()) {
+        if (applicationModeService.isCatalogueFromErp()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body("Data import is only available in standalone mode.");
+                    .body("Data import is not available with an ERP.");
         }
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body("No file provided.");
@@ -71,9 +71,9 @@ public class DataImportAPI {
             @RequestParam("entityType") String entityType,
             @RequestParam("mapping") String mappingJson) {
 
-        if (!applicationModeService.isStandalone()) {
+        if (applicationModeService.isCatalogueFromErp()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body("Data import is only available in standalone mode.");
+                    .body("Data import is not available with an ERP.");
         }
         StoreCatalogueGuard guard = catalogueGuard.getIfAvailable();
         String refusal = guard == null ? null : guard.dataImport(entityType); // step 6

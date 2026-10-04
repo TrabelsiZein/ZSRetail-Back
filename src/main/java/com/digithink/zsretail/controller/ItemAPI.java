@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.dto.AdjustStockRequestDTO;
 import com.digithink.zsretail.dto.PricingResult;
-import com.digithink.zsretail.dto.StandaloneQuickProductRequestDTO;
+import com.digithink.zsretail.dto.QuickProductRequestDTO;
 import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.Customer;
 import com.digithink.zsretail.model.Item;
@@ -98,13 +98,13 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	}
 
 	/**
-	 * Create a product with default family/subfamily and one barcode. Only allowed in standalone mode.
+	 * Create a product with default family/subfamily and one barcode. Refused with an ERP.
 	 */
-	@PostMapping("/standalone-quick-product")
-	public ResponseEntity<?> createStandaloneQuickProduct(@RequestBody StandaloneQuickProductRequestDTO request) {
-		if (!applicationModeService.isStandalone()) {
+	@PostMapping("/quick-product")
+	public ResponseEntity<?> createQuickProduct(@RequestBody QuickProductRequestDTO request) {
+		if (applicationModeService.isCatalogueFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Product creation is only available in standalone mode. In ERP mode products are synchronized from the ERP."));
+					.body(createErrorResponse("Product creation is not available with an ERP: products are synchronized from the ERP."));
 		}
 		StoreCatalogueGuard guard = catalogueGuard();
 		if (guard != null) { // step 6: an own item, only with the purchase right, never a head office code
@@ -123,7 +123,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			if (request.getUnitPrice() == null || request.getUnitPrice() < 0) {
 				return ResponseEntity.badRequest().body(createErrorResponse("Unit price is required and must be >= 0"));
 			}
-			Item item = service.createStandaloneQuickProduct(
+			Item item = service.createQuickProduct(
 					request.getName(),
 					request.getItemCode(),
 					request.getUnitPrice());
@@ -143,29 +143,20 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
 		} catch (Exception e) {
-			log.error("ItemAPI::createStandaloneQuickProduct:error: " + e.getMessage(), e);
+			log.error("ItemAPI::createQuickProduct:error: " + e.getMessage(), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
 		}
 	}
 
 	/**
-	 * Create item. Requires standalone mode.
-	 * Franchise clients: only allowed when allow-local-items=true; new items are always local (fromFranchiseAdmin=false).
+	 * Create item. Refused when the catalogue comes from an ERP.
 	 */
 	@Override
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody Item entity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isCatalogueFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Item creation is only available in standalone mode. In ERP mode items are synchronized from the ERP."));
-		}
-		if (applicationModeService.isFranchiseClient() && !applicationModeService.isLocalItemsAllowed()) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Item creation is not allowed in franchise client mode. Items are synchronized from the franchise admin."));
-		}
-		// Locally-created items by franchise client are never from the admin
-		if (applicationModeService.isFranchiseClient()) {
-			entity.setFromFranchiseAdmin(false);
+					.body(createErrorResponse("Item creation is not available with an ERP: items are synchronized from the ERP."));
 		}
 		StoreCatalogueGuard guard = catalogueGuard();
 		if (guard != null) { // step 6: an own item, only with the purchase right, never a head office code
@@ -187,19 +178,14 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	}
 
 	/**
-	 * Update item. Requires standalone mode.
-	 * Franchise clients with allow-local-items=true may only edit their own local items (fromFranchiseAdmin=false).
+	 * Update item. Refused when the catalogue comes from an ERP.
 	 */
 	@Override
 	@PutMapping("/{id}")
 	public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Item entity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isCatalogueFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Item update is only available in standalone mode. In ERP mode items are synchronized from the ERP."));
-		}
-		if (applicationModeService.isFranchiseClient() && !applicationModeService.isLocalItemsAllowed()) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Item update is not allowed in franchise client mode. Items are synchronized from the franchise admin."));
+					.body(createErrorResponse("Item update is not available with an ERP: items are synchronized from the ERP."));
 		}
 		try {
 			log.info("ItemAPI::update::" + id);
@@ -208,18 +194,11 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 				return ResponseEntity.notFound().build();
 			}
 			Item existingItem = existing.get();
-			// Franchise client cannot edit items that originated from the admin
-			if (applicationModeService.isFranchiseClient() && Boolean.TRUE.equals(existingItem.getFromFranchiseAdmin())) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-						.body(createErrorResponse("Items synced from the franchise admin are read-only and cannot be edited."));
-			}
 			StoreCatalogueGuard guard = catalogueGuard();
 			if (guard != null && guard.itemWrite(id) != null) { // step 6: the price has its own endpoint
 				return refused(guard.itemWrite(id));
 			}
 			entity.setId(existingItem.getId());
-			// Preserve the fromFranchiseAdmin flag — cannot be changed via update
-			entity.setFromFranchiseAdmin(existingItem.getFromFranchiseAdmin());
 			// These fields are computed automatically after each validated purchase.
 			// The frontend modal shows them as read-only and may omit them from the update payload,
 			// so we must preserve existing values to avoid wiping them to null.
@@ -244,30 +223,20 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	}
 
 	/**
-	 * Delete item. Requires standalone mode.
-	 * Franchise clients with allow-local-items=true may only delete their own local items (fromFranchiseAdmin=false).
+	 * Delete item. Refused when the catalogue comes from an ERP.
 	 */
 	@Override
 	@DeleteMapping("/{id}")
 	public ResponseEntity<?> deleteById(@PathVariable Long id) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isCatalogueFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Item deletion is only available in standalone mode. In ERP mode items are synchronized from the ERP."));
-		}
-		if (applicationModeService.isFranchiseClient() && !applicationModeService.isLocalItemsAllowed()) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Item deletion is not allowed in franchise client mode. Items are synchronized from the franchise admin."));
+					.body(createErrorResponse("Item deletion is not available with an ERP: items are synchronized from the ERP."));
 		}
 		try {
 			log.info("ItemAPI::deleteById::" + id);
 			Optional<Item> existing = service.findById(id);
 			if (!existing.isPresent()) {
 				return ResponseEntity.notFound().build();
-			}
-			// Franchise client cannot delete items that originated from the admin
-			if (applicationModeService.isFranchiseClient() && Boolean.TRUE.equals(existing.get().getFromFranchiseAdmin())) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-						.body(createErrorResponse("Items synced from the franchise admin cannot be deleted."));
 			}
 			StoreCatalogueGuard guard = catalogueGuard();
 			if (guard != null && guard.itemWrite(id) != null) { // step 6
@@ -457,14 +426,14 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	}
 
 	/**
-	 * Adjust stock for an item (standalone only). Delta can be positive or negative.
+	 * Adjust stock for an item (without an ERP only). Delta can be positive or negative.
 	 * Body: { "delta": number, "reason": "COUNT" | "CORRECTION" | "DAMAGE" }.
 	 */
 	@PostMapping("/{id}/adjust-stock")
 	public ResponseEntity<?> adjustStock(@PathVariable Long id, @RequestBody AdjustStockRequestDTO request) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Stock adjustment is only available in standalone mode."));
+					.body(createErrorResponse("Stock adjustment is not available with an ERP."));
 		}
 		try {
 			if (request.getDelta() == null) {

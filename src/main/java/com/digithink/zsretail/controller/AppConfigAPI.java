@@ -23,7 +23,7 @@ import com.digithink.zsretail.service.LoyaltyService;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Exposes application configuration for the frontend (e.g. ERP vs Standalone mode).
+ * Exposes application configuration for the frontend (e.g. with or without an ERP).
  * Used to control UI visibility (ERP menu, sync columns) without changing backend behaviour.
  */
 @RestController
@@ -64,12 +64,9 @@ public class AppConfigAPI {
 		}
 		boolean tombolaEnabled = "true".equalsIgnoreCase(generalSetupService.findValueByCode("TOMBOLA_ENABLED"));
 		return ResponseEntity.ok(new AppConfigDTO(
-				applicationModeService.isStandalone(),
+				!applicationModeService.hasErp(), // step 9: the field keeps its name and value (no ERP)
 				enableSalesPriceGroup,
 				loyaltyEnabled,
-				applicationModeService.isFranchiseAdmin(),
-				applicationModeService.isFranchiseClient(),
-				applicationModeService.isLocalItemsAllowed(),
 				licenseService.getStatus().name(),
 				licenseService.getDaysUntilExpiry(),
 				posShowImages,

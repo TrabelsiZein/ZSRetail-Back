@@ -22,7 +22,6 @@ import com.digithink.zsretail.model.GeneralSetup;
 import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.PaymentMethod;
 import com.digithink.zsretail.model.UserAccount;
-import com.digithink.zsretail.model.Vendor;
 import com.digithink.zsretail.model.enumeration.ConfigType;
 import com.digithink.zsretail.model.enumeration.ItemType;
 import com.digithink.zsretail.model.enumeration.PaymentMethodType;
@@ -39,7 +38,6 @@ import com.digithink.zsretail.repository.ItemSubFamilyRepository;
 import com.digithink.zsretail.repository.LocationRepository;
 import com.digithink.zsretail.repository.PaymentMethodRepository;
 import com.digithink.zsretail.repository.UserAccountRepository;
-import com.digithink.zsretail.repository.VendorRepository;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -69,8 +67,6 @@ public class ZZDataInitializer {
 	private LocationRepository locationRepository;
 	@Autowired
 	private GeneralSetupRepository generalSetupRepository;
-	@Autowired
-	private VendorRepository vendorRepository;
 	@Autowired
 	private ErpSyncJobRepository erpSyncJobRepository;
 	@Autowired
@@ -102,24 +98,18 @@ public class ZZDataInitializer {
 		// Always run on startup — idempotent (each key guarded by findByCode check)
 		ensureAllGeneralSetupConfigs();
 
-		// Standalone first-run: auto-create passenger customer and wire its code in
+		// First run without an ERP: auto-create passenger customer and wire its code in
 		// config
-		if (applicationModeService.isStandalone() && customerRepository.count() == 0) {
+		if (!applicationModeService.isCustomersFromErp() && customerRepository.count() == 0) {
 			ensurePassengerCustomer();
 		}
 
-		// ERP-related configs and sync jobs only when not in standalone mode
-		if (!applicationModeService.isStandalone()) {
+		// ERP-related configs and sync jobs only with an ERP
+		if (applicationModeService.hasErp()) {
 			ensureErpSyncCheckpointConfigs();
 			if (erpSyncJobRepository.count() == 0) {
 				initErpSyncJobs();
 			}
-		}
-
-		// Franchise client: ensure vendor seed exists (config keys are in
-		// ensureAllGeneralSetupConfigs)
-		if (applicationModeService.isFranchiseClient()) {
-			ensureFranchiseClientSetup();
 		}
 
 		// Ensure tax stamp item exists (idempotent)
@@ -280,8 +270,7 @@ public class ZZDataInitializer {
 			"read:admin-loyalty-member-functions", "write:admin-loyalty-member-functions", "read:admin-data-import",
 			"write:admin-data-import", "read:admin-report-sales", "read:admin-report-purchases",
 			"read:admin-report-stock", "read:admin-report-stock-movements", "read:admin-report-loyalty",
-			"read:admin-report-sessions", "read:admin-report-promotions", "read:admin-franchise",
-			"read:admin-franchise-sales-tracking", "read:admin-franchise-sync-dashboard",
+			"read:admin-report-sessions", "read:admin-report-promotions",
 			"read:admin-company-information", "write:admin-company-information", "read:admin-roles",
 			"write:admin-roles", "delete:admin-roles", "read:change-payment-method", "read:view-session-amounts",
 			"read:verify-session", "read:prepare-invoice"));
@@ -299,8 +288,7 @@ public class ZZDataInitializer {
 					"write:admin-loyalty-members", "read:admin-loyalty-programs", "write:admin-loyalty-programs",
 					"read:admin-loyalty-transactions", "read:admin-loyalty-member-functions",
 					"write:admin-loyalty-member-functions", "read:admin-report-sales", "read:admin-report-loyalty",
-					"read:admin-report-sessions", "read:admin-report-promotions", "read:admin-franchise",
-					"read:admin-franchise-sales-tracking", "read:admin-franchise-sync-dashboard",
+					"read:admin-report-sessions", "read:admin-report-promotions",
 					"read:verify-session"));
 
 	private static final java.util.Set<String> POS_PERMISSIONS = new java.util.HashSet<>(
@@ -894,7 +882,7 @@ public class ZZDataInitializer {
 //	}
 
 	/**
-	 * Standalone first-run: creates the "Passenger Customer" and writes its code
+	 * First run without an ERP: creates the "Passenger Customer" and writes its code
 	 * into the PASSENGER_CUSTOMER general-setup entry so the POS can use it
 	 * immediately without any manual configuration.
 	 */
@@ -943,7 +931,7 @@ public class ZZDataInitializer {
 				"Show product/family/subfamily images in POS cashier screen. Set to false to disable images if the system is slow.",
 				false, ConfigType.BOOLEAN);
 		ensureConfig("POS_SHOW_STOCK", "false",
-				"Show stock quantity on item cards in the POS cashier screen. Only relevant in standalone/franchise mode.",
+				"Show stock quantity on item cards in the POS cashier screen. Only relevant without an ERP.",
 				false, ConfigType.BOOLEAN);
 
 		// ── Table management ──────────────────────────────────────────────────
@@ -1023,27 +1011,17 @@ public class ZZDataInitializer {
 
 		// ── Stock ─────────────────────────────────────────────────────────────
 		ensureConfig("ALLOW_NEGATIVE_STOCK", "true",
-				"Allow stock to go negative during sales. Applies only in standalone/franchise mode. When false, sale is blocked if stock is insufficient.",
+				"Allow stock to go negative during sales. Applies only without an ERP. When false, sale is blocked if stock is insufficient.",
 				false, ConfigType.BOOLEAN);
 
 		// ── ERP-only configs ──────────────────────────────────────────────────
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.hasErp()) {
 			ensureConfigWithOptions("ERP_SYNC_TRACKING_LEVEL", "ALL",
 					"ERP communication tracking level (ERRORS_ONLY | ERRORS_AND_WARNINGS | ALL)", false,
 					ConfigType.SELECT, "ERRORS_ONLY,ERRORS_AND_WARNINGS,ALL");
 			ensureConfig("ERP_SKIP_CHEQUE_PAYMENTS", "false",
 					"When enabled, cheque payments (CLIENT_CHEQUE) are excluded from ERP session synchronization. Payment headers and lines for cheques will not be sent to NAV.",
 					false, ConfigType.BOOLEAN);
-		}
-
-		// ── Franchise client configs ──────────────────────────────────────────
-		if (applicationModeService.isFranchiseClient()) {
-			ensureConfig("FRANCHISE_LAST_ITEM_SYNC", "",
-					"Timestamp of last successful item sync from franchise admin (ISO-8601). Empty = full sync on next run.",
-					true, ConfigType.DATETIME);
-			ensureConfig("FRANCHISE_LAST_SUPPLY_RECEPTION_SYNC", "",
-					"Timestamp of last supply reception check from franchise admin (ISO-8601). Empty = never checked.",
-					true, ConfigType.DATETIME);
 		}
 	}
 
@@ -1135,23 +1113,6 @@ public class ZZDataInitializer {
 				"Template job for exporting tickets (disabled by default)", false);
 		createErpJob("0 0 * * * *", ErpSyncJobType.EXPORT_RETURNS, "Export returns to ERP (runs every 1 hour)", true);
 		createErpJob("0 0 * * * *", ErpSyncJobType.EXPORT_SESSIONS, "Export sessions to ERP (runs every 1 hour)", true);
-	}
-
-	/**
-	 * Franchise client: ensures the FRANCHISE_ADMIN vendor is seeded. Config keys
-	 * (FRANCHISE_LAST_ITEM_SYNC, etc.) are handled by ensureAllGeneralSetupConfigs.
-	 */
-	private void ensureFranchiseClientSetup() {
-		if (!vendorRepository.findByVendorCode("FRANCHISE_ADMIN").isPresent()) {
-			Vendor franchiseVendor = new Vendor();
-			franchiseVendor.setVendorCode("FRANCHISE_ADMIN");
-			franchiseVendor.setName("Franchise Admin (HQ)");
-			franchiseVendor.setPhone("N/A");
-			franchiseVendor.setActive(true);
-			franchiseVendor.setCreatedBy("System");
-			franchiseVendor.setUpdatedBy("System");
-			vendorRepository.save(franchiseVendor);
-		}
 	}
 
 	/**

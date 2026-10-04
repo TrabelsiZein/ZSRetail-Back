@@ -1,0 +1,2 @@
+# Head office plan, task 9.3: the machine file of the installation, read before the configuration files
+org.springframework.boot.env.EnvironmentPostProcessor=com.digithink.zsretail.config.MachineFileEnvironmentPostProcessor

@@ -23,7 +23,9 @@ import lombok.NoArgsConstructor;
  * properties are ignored so it serializes like a loaded Item.
  */
 @Entity
-@JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
+// franchiseSalesPrice, fromFranchiseAdmin: fields of the franchise profiles removed at step 9 (task 9.4a), still sent
+// by older screens: ignored, never refused. Their columns stay in the table.
+@JsonIgnoreProperties({ "hibernateLazyInitializer", "handler", "franchiseSalesPrice", "fromFranchiseAdmin" })
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
@@ -93,26 +95,9 @@ public class Item extends _BaseEntity {
 	private Boolean showInPos = true;
 
 	/**
-	 * Franchise: mandatory selling price for franchise clients.
-	 * When franchise admin mode is active, this field is required on save.
-	 * Franchise clients receive this as their unitPrice during item sync.
-	 * Null in normal (non-franchise) mode — no impact on existing behaviour.
-	 */
-	@Column(name = "franchise_sales_price")
-	private Double franchiseSalesPrice;
-
-	/**
-	 * True when this item was synced from the franchise admin (read-only for franchise clients).
-	 * False (default) when the item was created locally.
-	 * Only meaningful when franchise.customer=true; ignored in all other modes.
-	 */
-	@Column(name = "from_franchise_admin")
-	private Boolean fromFranchiseAdmin = false;
-
-	/**
 	 * Head office plan, step 6: HEAD_OFFICE when received from the head office (copies down of the catalogue); null =
 	 * LOCAL, made here. Written only by the pull (on insert, or by a query when a local item of the same code becomes the
-	 * head office item): never read from JSON, never changed by a save. Not the legacy fromFranchiseAdmin.
+	 * head office item): never read from JSON, never changed by a save.
 	 */
 	@Enumerated(EnumType.STRING)
 	@Column(length = 20, updatable = false)

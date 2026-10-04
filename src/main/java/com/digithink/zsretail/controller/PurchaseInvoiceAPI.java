@@ -35,7 +35,7 @@ import lombok.Data;
 import lombok.extern.log4j.Log4j2;
 
 /**
- * REST API for purchase invoices (supplier invoices). Standalone mode only.
+ * REST API for purchase invoices (supplier invoices). Without an ERP only.
  */
 @RestController
 @RequestMapping("admin/purchase-invoices")
@@ -55,10 +55,10 @@ public class PurchaseInvoiceAPI {
 	@Autowired(required = false)
 	private ObjectProvider<StoreCatalogueGuard> catalogueGuard;
 
-	private void ensureStandalone() {
-		if (!applicationModeService.isStandalone()) {
+	private void ensureSupplyNotFromErp() {
+		if (applicationModeService.isSupplyFromErp()) {
 			throw new org.springframework.web.server.ResponseStatusException(HttpStatus.FORBIDDEN,
-					"Purchase invoices are only available in standalone mode.");
+					"Purchase invoices are not available with an ERP.");
 		}
 	}
 
@@ -77,7 +77,7 @@ public class PurchaseInvoiceAPI {
 	}
 
 	/**
-	 * List purchase invoices with filters. Standalone only.
+	 * List purchase invoices with filters. Not available with an ERP.
 	 */
 	@GetMapping
 	public ResponseEntity<?> listPurchaseInvoices(
@@ -88,7 +88,7 @@ public class PurchaseInvoiceAPI {
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "20") int size) {
 		try {
-			ensureStandalone();
+			ensureSupplyNotFromErp();
 
 			LocalDate fromDate = (from != null && !from.trim().isEmpty()) ? LocalDate.parse(from) : null;
 			LocalDate toDate = (to != null && !to.trim().isEmpty()) ? LocalDate.parse(to) : null;
@@ -121,7 +121,7 @@ public class PurchaseInvoiceAPI {
 	}
 
 	/**
-	 * Get eligible purchases (completed, non-invoiced) for a vendor and date range. Standalone only.
+	 * Get eligible purchases (completed, non-invoiced) for a vendor and date range. Not available with an ERP.
 	 */
 	@GetMapping("/eligible-purchases")
 	public ResponseEntity<?> getEligiblePurchases(
@@ -129,7 +129,7 @@ public class PurchaseInvoiceAPI {
 			@RequestParam(required = false) String dateFrom,
 			@RequestParam(required = false) String dateTo) {
 		try {
-			ensureStandalone();
+			ensureSupplyNotFromErp();
 
 			LocalDate from = (dateFrom != null && !dateFrom.trim().isEmpty()) ? LocalDate.parse(dateFrom) : null;
 			LocalDate to = (dateTo != null && !dateTo.trim().isEmpty()) ? LocalDate.parse(dateTo) : null;
@@ -153,12 +153,12 @@ public class PurchaseInvoiceAPI {
 	}
 
 	/**
-	 * Create purchase invoice from selected purchases. Standalone only.
+	 * Create purchase invoice from selected purchases. Not available with an ERP.
 	 */
 	@PostMapping
 	public ResponseEntity<?> createPurchaseInvoice(@RequestBody CreatePurchaseInvoiceRequest request) {
 		try {
-			ensureStandalone();
+			ensureSupplyNotFromErp();
 			StoreCatalogueGuard guard = catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
 			if (guard != null && guard.purchase() != null) { // step 6: no purchases without the purchase right
 				return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(guard.purchase()));
@@ -204,12 +204,12 @@ public class PurchaseInvoiceAPI {
 	}
 
 	/**
-	 * Get purchase invoice details for viewing/printing. Standalone only.
+	 * Get purchase invoice details for viewing/printing. Not available with an ERP.
 	 */
 	@GetMapping("/{id}/details")
 	public ResponseEntity<?> getPurchaseInvoiceDetails(@PathVariable Long id) {
 		try {
-			ensureStandalone();
+			ensureSupplyNotFromErp();
 
 			Map<String, Object> details = purchaseInvoiceService.getPurchaseInvoiceDetails(id);
 			return ResponseEntity.ok(details);

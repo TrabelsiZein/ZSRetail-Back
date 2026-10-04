@@ -66,13 +66,13 @@ public class ItemFamilyAPI extends _BaseController<ItemFamily, Long, ItemFamilyS
 	}
 
 	/**
-	 * Create family. Only allowed in standalone mode (in ERP mode families come from sync).
+	 * Create family. Refused with an ERP (families come from the ERP sync).
 	 */
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody ItemFamily entity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isCatalogueFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Item family creation is only available in standalone mode. In ERP mode families are synchronized from the ERP."));
+					.body(createErrorResponse("Item family creation is not available with an ERP: families are synchronized from the ERP."));
 		}
 		StoreCatalogueGuard guard = catalogueGuard();
 		if (guard != null) { // step 6: an own record, only with the purchase right, never a head office code

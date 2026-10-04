@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * Purchase invoice (supplier invoice) header - aggregates one or more completed
- * purchases for a vendor. Standalone mode only.
+ * purchases for a vendor. Without an ERP only.
  */
 @Entity
 @Data

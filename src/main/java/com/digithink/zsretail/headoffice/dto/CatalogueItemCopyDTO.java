@@ -17,7 +17,7 @@ import lombok.NoArgsConstructor;
 /**
  * Head office plan, step 6: an item as it travels down (record ITEM:&lt;code&gt;), by codes only, with the one selling
  * price worked out for the store that pulls (its price list's line, otherwise the base price). Never: stock, minimum
- * stock, cost fields, franchise fields, ERP id, image. A pack carries its components by item code.
+ * stock, cost fields, ERP id, image. A pack carries its components by item code.
  */
 @Data
 @NoArgsConstructor

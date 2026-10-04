@@ -31,10 +31,6 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 	@Autowired
 	private BCryptPasswordEncoder bCryptPasswordEncoder;
 
-	/** Null when franchise.admin=false (ConditionalOnProperty prevents bean creation). */
-	@Autowired(required = false)
-	private FranchiseApiKeyFilter franchiseApiKeyFilter;
-
 	@Autowired
 	private LicenseFilter licenseFilter;
 
@@ -55,9 +51,6 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 						"/license/**",
 						"/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
 						"/thymeleaf/**",
-						// Franchise sync API: authenticated by X-Franchise-Api-Key header via FranchiseApiKeyFilter,
-						// not by JWT. Only active endpoints when franchise.admin=true (ConditionalOnProperty).
-						"/franchise/**",
 						// Image serving is public (browser loads directly, no auth header)
 						"/item-image/**")
 				.permitAll().anyRequest().authenticated().and()
@@ -66,11 +59,6 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
 		// License filter runs after JWT auth so we have the authenticated user context when needed
 		http.addFilterAfter(licenseFilter, UsernamePasswordAuthenticationFilter.class);
-
-		// Register the franchise API key filter before JWT processing (only when franchise.admin=true)
-		if (franchiseApiKeyFilter != null) {
-			http.addFilterBefore(franchiseApiKeyFilter, UsernamePasswordAuthenticationFilter.class);
-		}
 	}
 
 	@Bean

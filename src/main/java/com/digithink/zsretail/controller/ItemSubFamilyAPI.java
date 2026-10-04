@@ -46,13 +46,13 @@ public class ItemSubFamilyAPI extends _BaseController<ItemSubFamily, Long, ItemS
 	private GeneralSetupService generalSetupService;
 
 	/**
-	 * Create subfamily. Only allowed in standalone mode (in ERP mode subfamilies come from sync).
+	 * Create subfamily. Refused with an ERP (subfamilies come from the ERP sync).
 	 */
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody ItemSubFamily entity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isCatalogueFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Item subfamily creation is only available in standalone mode. In ERP mode subfamilies are synchronized from the ERP."));
+					.body(createErrorResponse("Item subfamily creation is not available with an ERP: subfamilies are synchronized from the ERP."));
 		}
 		StoreCatalogueGuard guard = catalogueGuard();
 		if (guard != null) { // step 6: an own record, only with the purchase right, never a head office code

@@ -118,9 +118,9 @@ public class InvoiceAPI {
 			log.info("InvoiceAPI::getEligibleTickets customerId={}, dateFrom={}, dateTo={}", customerId, dateFrom,
 					dateTo);
 
-			if (!applicationModeService.isStandalone()) {
+			if (applicationModeService.isCustomersFromErp()) {
 				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-						.body(createErrorResponse("Invoice creation from POS is only available in standalone mode."));
+						.body(createErrorResponse("Invoice creation from POS is not available with an ERP."));
 			}
 
 			LocalDate from = (dateFrom != null && !dateFrom.trim().isEmpty()) ? LocalDate.parse(dateFrom) : null;
@@ -151,9 +151,9 @@ public class InvoiceAPI {
 					request.getCustomerId(),
 					request.getTicketIds() != null ? request.getTicketIds().size() : 0);
 
-			if (!applicationModeService.isStandalone()) {
+			if (applicationModeService.isCustomersFromErp()) {
 				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-						.body(createErrorResponse("Invoice creation from POS is only available in standalone mode."));
+						.body(createErrorResponse("Invoice creation from POS is not available with an ERP."));
 			}
 
 			if (request.getCustomerId() == null) {
@@ -202,9 +202,9 @@ public class InvoiceAPI {
 		try {
 			log.info("InvoiceAPI::createInvoiceFromTicket ticketId={}", ticketId);
 
-			if (!applicationModeService.isStandalone()) {
+			if (applicationModeService.isCustomersFromErp()) {
 				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-						.body(createErrorResponse("Invoice creation from POS is only available in standalone mode."));
+						.body(createErrorResponse("Invoice creation from POS is not available with an ERP."));
 			}
 
 			String notes = null;
@@ -286,9 +286,7 @@ public class InvoiceAPI {
 				h.getDiscountAmount(),
 				h.getTotalAmount(),
 				h.getNotes(),
-				h.getLineGroupingMode(),
-				h.getFranchiseLocationCode(),
-				h.getFranchiseReceivedAt());
+				h.getLineGroupingMode());
 	}
 
 	protected String getDetailedMessage(Throwable e) {

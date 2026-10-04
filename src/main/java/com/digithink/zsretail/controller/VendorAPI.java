@@ -62,9 +62,9 @@ public class VendorAPI extends _BaseController<Vendor, Long, VendorService> {
 
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody Vendor entity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Vendor creation is only available in standalone mode. In ERP mode vendors are managed by the ERP."));
+					.body(createErrorResponse("Vendor creation is not available with an ERP: vendors are managed by the ERP."));
 		}
 		ResponseEntity<?> refusal = purchaseRefused(); // step 6
 		if (refusal == null) {
@@ -86,9 +86,9 @@ public class VendorAPI extends _BaseController<Vendor, Long, VendorService> {
 
 	@PutMapping("/{id}")
 	public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Vendor entity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Vendor update is only available in standalone mode."));
+					.body(createErrorResponse("Vendor update is not available with an ERP."));
 		}
 		ResponseEntity<?> refusal = purchaseRefused(); // step 6
 		if (refusal == null) {
@@ -109,9 +109,9 @@ public class VendorAPI extends _BaseController<Vendor, Long, VendorService> {
 
 	@DeleteMapping("/{id}")
 	public ResponseEntity<?> deleteById(@PathVariable Long id) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Vendor deletion is only available in standalone mode."));
+					.body(createErrorResponse("Vendor deletion is not available with an ERP."));
 		}
 		ResponseEntity<?> refusal = purchaseRefused(); // step 6
 		if (refusal == null) {

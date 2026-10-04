@@ -38,11 +38,12 @@ import com.digithink.zsretail.service.ItemCompositionService;
 import com.digithink.zsretail.service.ItemService;
 import com.digithink.zsretail.service._BaseService;
 import com.digithink.zsretail.support.InMemoryCatalogue;
+import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, task 6.3 and 6.5: the real ItemAPI with and without the step 6 guard. With it (a store whose
  * catalogue is the head office's): a head office item answers 409 on edit, delete and pack flag, creating needs the
- * purchase right, the own price has its endpoints. Without it (every other store, a franchise customer): the same
+ * purchase right, the own price has its endpoints. Without it (every other store): the same
  * requests answer as before. Real ItemService over an in-memory item table; no Spring context.
  */
 class ItemAPICatalogueGuardTest {
@@ -74,11 +75,9 @@ class ItemAPICatalogueGuardTest {
 	}
 
 	private ItemAPI api(boolean withGuard) throws Exception {
-		ApplicationModeService mode = new ApplicationModeService();
-		set(mode, ApplicationModeService.class, "standalone", true);
+		ApplicationModeService mode = TestModes.standalone();
 		ItemService service = new ItemService();
 		set(service, ItemService.class, "itemRepository", store.itemRepository());
-		set(service, ItemService.class, "applicationModeService", mode);
 		set(service, _BaseService.class, "currentUserProvider", new CurrentUserProvider() {
 			@Override
 			public String getCurrentUserName() {
@@ -169,7 +168,7 @@ class ItemAPICatalogueGuardTest {
 	}
 
 	@Test
-	@DisplayName("Without the guard (every other store, a franchise customer): as before, whatever the origin")
+	@DisplayName("Without the guard (every other store): as before, whatever the origin")
 	void withoutTheGuard() throws Exception {
 		ItemAPI api = api(false);
 		assertEquals(404, api.setOwnPrice(hoItem.getId(), Collections.singletonMap("unitPrice", 12.0)).getStatusCodeValue());

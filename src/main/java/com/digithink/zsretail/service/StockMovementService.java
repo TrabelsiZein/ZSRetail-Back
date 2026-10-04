@@ -18,7 +18,7 @@ import lombok.extern.log4j.Log4j2;
 /**
  * Records every stock quantity change as an immutable audit row in stock_movement.
  * Must be called alongside StockService (which updates the actual item quantity).
- * Only meaningful in standalone mode — all methods are no-ops when not in standalone mode,
+ * Only meaningful when the stock is kept here — all methods are no-ops when the supply is the ERP's,
  * mirroring the behaviour of StockService.
  */
 @Service
@@ -41,7 +41,7 @@ public class StockMovementService {
     public void recordSale(Long itemId, int quantity,
                            Double unitPriceHt, Integer vatPercent, Double unitPriceTtc,
                            Long salesHeaderId, CashierSession session) {
-        if (!applicationModeService.isStandalone()) return;
+        if (applicationModeService.isSupplyFromErp()) return;
         StockMovement movement = build(
                 itemId, StockMovementType.SALE, StockMovementDirection.OUT,
                 quantity, unitPriceHt, vatPercent, unitPriceTtc,
@@ -57,7 +57,7 @@ public class StockMovementService {
     public void recordSimpleReturn(Long itemId, int quantity,
                                    Double unitPriceHt, Integer vatPercent, Double unitPriceTtc,
                                    Long returnHeaderId, CashierSession session) {
-        if (!applicationModeService.isStandalone()) return;
+        if (applicationModeService.isSupplyFromErp()) return;
         StockMovement movement = build(
                 itemId, StockMovementType.CUSTOMER_RETURN_SIMPLE, StockMovementDirection.IN,
                 quantity, unitPriceHt, vatPercent, unitPriceTtc,
@@ -73,7 +73,7 @@ public class StockMovementService {
     public void recordVoucherReturn(Long itemId, int quantity,
                                     Double unitPriceHt, Integer vatPercent, Double unitPriceTtc,
                                     Long returnHeaderId, CashierSession session) {
-        if (!applicationModeService.isStandalone()) return;
+        if (applicationModeService.isSupplyFromErp()) return;
         StockMovement movement = build(
                 itemId, StockMovementType.CUSTOMER_RETURN_VOUCHER, StockMovementDirection.IN,
                 quantity, unitPriceHt, vatPercent, unitPriceTtc,
@@ -89,7 +89,7 @@ public class StockMovementService {
     public void recordPurchase(Long itemId, int quantity,
                                Double unitPriceHt, Integer vatPercent, Double unitPriceTtc,
                                Long purchaseHeaderId) {
-        if (!applicationModeService.isStandalone()) return;
+        if (applicationModeService.isSupplyFromErp()) return;
         StockMovement movement = build(
                 itemId, StockMovementType.PURCHASE_RECEPTION, StockMovementDirection.IN,
                 quantity, unitPriceHt, vatPercent, unitPriceTtc,
@@ -103,7 +103,7 @@ public class StockMovementService {
      */
     @Transactional
     public void recordAdjustment(Long itemId, int delta, String notes) {
-        if (!applicationModeService.isStandalone()) return;
+        if (applicationModeService.isSupplyFromErp()) return;
         if (delta == 0) return;
         StockMovementType type = delta > 0 ? StockMovementType.ADJUSTMENT_IN : StockMovementType.ADJUSTMENT_OUT;
         StockMovementDirection direction = delta > 0 ? StockMovementDirection.IN : StockMovementDirection.OUT;
@@ -121,7 +121,7 @@ public class StockMovementService {
      */
     @Transactional
     public void recordDeliveryOut(Long itemId, int quantity, Long deliveryId, String deliveryNumber) {
-        if (!applicationModeService.isStandalone()) return;
+        if (applicationModeService.isSupplyFromErp()) return;
         if (quantity <= 0) return;
         stockMovementRepository.save(build(
                 itemId, StockMovementType.DELIVERY_OUT, StockMovementDirection.OUT,
@@ -136,7 +136,7 @@ public class StockMovementService {
      */
     @Transactional
     public void recordDeliveryIn(Long itemId, int quantity, Long receivedDeliveryId, String deliveryNumber) {
-        if (!applicationModeService.isStandalone()) return;
+        if (applicationModeService.isSupplyFromErp()) return;
         if (quantity <= 0) return;
         stockMovementRepository.save(build(
                 itemId, StockMovementType.DELIVERY_IN, StockMovementDirection.IN,

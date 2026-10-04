@@ -8,7 +8,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Public application configuration for the frontend (e.g. dual mode: ERP vs Standalone, franchise flags).
+ * Public application configuration for the frontend (e.g. with or without an ERP). The three franchise fields
+ * (franchiseAdmin, franchiseCustomer, allowLocalItems) left with step 9, task 9.4a: the frontend reads a missing one as false.
  */
 @Data
 @NoArgsConstructor
@@ -16,7 +17,7 @@ import lombok.NoArgsConstructor;
 public class AppConfigDTO {
 
 	/**
-	 * True when the POS runs in standalone mode (no ERP). False when integrated with ERP.
+	 * True when the POS runs without an ERP. False when integrated with ERP.
 	 */
 	private boolean standalone;
 
@@ -29,25 +30,6 @@ public class AppConfigDTO {
 	 * True when the loyalty (fidélité) program is enabled. Controlled by GeneralSetup LOYALTY_ENABLED.
 	 */
 	private boolean loyaltyEnabled;
-
-	/**
-	 * True when this instance is the central franchise admin (HQ).
-	 * Enables franchise sync APIs and franchise-specific admin UI.
-	 */
-	private boolean franchiseAdmin;
-
-	/**
-	 * True when this instance is a franchise client.
-	 * Disables item CRUD and manual purchases; enables sync UI from admin.
-	 */
-	private boolean franchiseCustomer;
-
-	/**
-	 * True when the franchise client is allowed to add/manage its own local items.
-	 * Items synced from the franchise admin remain read-only regardless.
-	 * Always false when not in franchise client mode.
-	 */
-	private boolean allowLocalItems;
 
 	/**
 	 * Current license status: VALID, WARNING, EXPIRED, or MISSING.
@@ -71,7 +53,7 @@ public class AppConfigDTO {
 	/**
 	 * True when POS should display stock quantity on item cards.
 	 * Controlled by GeneralSetup POS_SHOW_STOCK. Defaults to false.
-	 * Only meaningful in standalone/franchise mode where stock is tracked locally.
+	 * Only meaningful where stock is tracked locally (no ERP).
 	 */
 	private boolean posShowStock;
 
@@ -127,16 +109,16 @@ public class AppConfigDTO {
 	private boolean headOfficeLinked;
 
 	/**
-	 * Step 6: true on a store whose catalogue is the head office's (headoffice.url, ownership.catalogue=HEAD_OFFICE,
-	 * standalone, no franchise flag): head office records are consult-only. Read this flag, not ownership.CATALOGUE (a
-	 * franchise customer reports HEAD_OFFICE there for its legacy sync). From ApplicationModeService.isCatalogueFromHeadOffice().
+	 * Step 6: true on a store whose catalogue is the head office's (headoffice.url, ownership.catalogue=HEAD_OFFICE):
+	 * head office records are consult-only. Since step 9 the same as ownership.CATALOGUE == HEAD_OFFICE (no franchise
+	 * profile derives it any more). From ApplicationModeService.isCatalogueFromHeadOffice().
 	 */
 	private boolean catalogueFromHeadOffice;
 
 	/**
-	 * Step 7A: true on a store whose goods come from the head office by BL (headoffice.url, ownership.supply=HEAD_OFFICE,
-	 * standalone, no franchise flag): the BL reception page exists. Read this flag, not ownership.SUPPLY (a franchise
-	 * customer reports HEAD_OFFICE there for its legacy reception). From ApplicationModeService.isSupplyFromHeadOffice().
+	 * Step 7A: true on a store whose goods come from the head office by BL (headoffice.url, ownership.supply=HEAD_OFFICE):
+	 * the BL reception page exists. Since step 9 the same as ownership.SUPPLY == HEAD_OFFICE (no franchise profile
+	 * derives it any more). From ApplicationModeService.isSupplyFromHeadOffice().
 	 */
 	private boolean supplyFromHeadOffice;
 }

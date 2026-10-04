@@ -25,7 +25,8 @@ import com.digithink.zsretail.service.StockService;
  * Test support (step 7A): the stock of one installation in memory, over its {@link InMemoryCatalogue}: the item
  * repository with the three stock updates of ItemRepository (native queries, applied with their rules: null counts as
  * 0, the conditional decrement only when enough), the stock_movement rows, and a real {@link StockService} and
- * {@link StockMovementService} in standalone mode. Every other item repository call goes to the catalogue's stub.
+ * {@link StockMovementService} of the installation in {@link #mode} (without an ERP by default). Every other item
+ * repository call goes to the catalogue's stub.
  */
 public final class InMemoryStock {
 
@@ -35,6 +36,9 @@ public final class InMemoryStock {
 
 	/** ALLOW_NEGATIVE_STOCK of the general setup. */
 	public boolean allowNegative;
+
+	/** The installation the two services ask (step 9: isSupplyFromErp); without an ERP unless a test sets another. */
+	public ApplicationModeService mode = TestModes.standalone();
 
 	private final ItemRepository items;
 
@@ -81,7 +85,7 @@ public final class InMemoryStock {
 
 	public StockService stockService() {
 		StockService service = new StockService();
-		set(service, StockService.class, "applicationModeService", standalone());
+		set(service, StockService.class, "applicationModeService", mode);
 		set(service, StockService.class, "itemRepository", items);
 		set(service, StockService.class, "generalSetupService", new GeneralSetupService() {
 			@Override
@@ -94,7 +98,7 @@ public final class InMemoryStock {
 
 	public StockMovementService stockMovementService() {
 		StockMovementService service = new StockMovementService();
-		set(service, StockMovementService.class, "applicationModeService", standalone());
+		set(service, StockMovementService.class, "applicationModeService", mode);
 		set(service, StockMovementService.class, "stockMovementRepository", movementRepository());
 		set(service, StockMovementService.class, "itemRepository", items);
 		return service;
@@ -122,12 +126,6 @@ public final class InMemoryStock {
 
 	private static int stock(Item item) {
 		return item.getStockQuantity() == null ? 0 : item.getStockQuantity();
-	}
-
-	private static ApplicationModeService standalone() {
-		ApplicationModeService mode = new ApplicationModeService();
-		set(mode, ApplicationModeService.class, "standalone", true);
-		return mode;
 	}
 
 	private static Object call(Object target, String name, Object[] args) {
