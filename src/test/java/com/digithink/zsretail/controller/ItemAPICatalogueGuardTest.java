@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -17,6 +18,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 
 import com.digithink.zsretail.config.ApplicationModeService;
@@ -179,5 +183,27 @@ class ItemAPICatalogueGuardTest {
 		assertEquals(Boolean.TRUE, after.getOwnPrice(), "never read from JSON: kept");
 		assertEquals(10.0, after.getHeadOfficePrice());
 		assertEquals(204, api.deleteById(ownItem.getId()).getStatusCodeValue());
+	}
+
+	@Test
+	@DisplayName("Step 6: GET /item/search gives origin for each item (HEAD_OFFICE, null for an own item)")
+	@SuppressWarnings("unchecked")
+	void searchGivesOrigin() throws Exception {
+		ItemAPI api = api(false);
+		ItemService search = new ItemService() {
+			@Override
+			public Page<Item> searchItemsForPurchase(String text, Pageable pageable) {
+				return new PageImpl<>(Arrays.asList(hoItem, ownItem), pageable, 2);
+			}
+		};
+		set(api, _BaseController.class, "service", search);
+		ResponseEntity<?> answer = api.searchItems("", 0, 10);
+		assertEquals(200, answer.getStatusCodeValue());
+		java.util.List<Map<String, Object>> content = (java.util.List<Map<String, Object>>) ((Map<String, Object>) answer
+				.getBody()).get("content");
+		assertEquals("HEAD_OFFICE", content.get(0).get("origin"));
+		assertTrue(content.get(1).containsKey("origin"));
+		assertNull(content.get(1).get("origin"));
+		assertEquals("B001", content.get(0).get("itemCode"));
 	}
 }

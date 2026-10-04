@@ -176,6 +176,70 @@ Labels in `en`, `fr`, `ar`.
 - Enrol at a store whose loyalty is owned by the head office: a 503 shows the backend text titled "Head office unreachable", in the POS loyalty modal (with "Continue without a card": the sale goes on) and in the create dialog of the members page. Local loyalty unchanged.
 - Labels in `en`, `fr`, `ar`.
 
+### Step 6 pages (frontend): head office
+Frontend commits e35b381 (price lists), 5fb5c1b (Stores page), on `feature/ho-step-6`. Head office without an ERP only.
+
+**Price lists** (`src/views/admin/headoffice/PriceLists.vue`): route `admin-headoffice-price-lists`, path `/headoffice/price-lists`, permission `read:admin-headoffice-price-lists` (25 head office permissions, as in the backend), menu Catalogue. The route carries `meta.standaloneOnly`, the inverse of `erpOnly`: the router guard sends it to the home page when `/config` gives `standalone: false`, and the menu hides it then (`STANDALONE_ONLY` in `src/navigation/headoffice/index.js`).
+- Lists: `GET /admin/headoffice/price-lists`. Columns: code, name, status, line count, store count. Search and paging run in the browser. Create (code in upper case, name, active) with `POST`. Edit (name, active; the code is read-only and not sent) with `PUT /{id}`. Delete with `DELETE /{id}` after a confirmation. The 400 and 409 answers show the backend's `error` text.
+- Lines, in a dialog: `GET /{id}/lines` with `search`, `page`, `size` (10). Columns: item code, item name, base price (excl. VAT), list price (excl. VAT).
+  - The price is changed in place and saved on Enter or blur with `PUT /{id}/lines [{itemCode, price}]`. An invalid or refused price goes back to the saved value.
+  - Add a line: the item picker of the promotions page (`GET /item/search`, active items). The price starts at the item's base price. A warning shows when the item is already on the list (its price is replaced).
+  - Delete a line: `DELETE /{id}/lines/{lineId}` after a confirmation.
+  - The list counts are reloaded when the dialog closes after a change.
+
+**Stores page** (`StoresManagement.vue`): a block "Selling prices and purchases" in the form and in the details, after the loyalty switches, shown only when `/config` gives `standalone: true`.
+- "Selling price list": a select of the active lists by code, plus "None (base price)".
+- Switches "May change its selling prices" (`mayChangePrices`) and "Can purchase from its own suppliers" (`canPurchase`), with one help text for the three settings.
+- Create: `sellingPriceListId`, `mayChangePrices` and `canPurchase` are sent with the `POST`.
+- Edit: the two switches go with the `PUT`, then `PUT /admin/headoffice/stores/{id}/selling-price-list {priceListId}` only when the list changed.
+- Details: each setting is saved at once (list with `selling-price-list`, switches with a `PUT` of that field). It goes back when the save fails, and the backend's text is shown.
+- The own / franchise kind left the page: no column, no form field, and it is no longer sent. The backend uses `OWN` at creation and keeps the stored value on edit. The labels `kind`, `kindOwn` and `kindFranchise` were removed.
+
+Labels in `en`, `fr`, `ar`.
+
+**Checks**: lint of the changed files in production mode and `npm run build`, both clean before each commit. Not seen in the browser: the dev backends were down and the latest artifact predates step 6 (left for L2).
+
+### Step 6 pages (frontend): store
+Frontend commits 0928f9e, 68c027a, 32cd1be, on `feature/ho-step-6`.
+
+**Rule.** The new behaviour exists only when `GET /config` gives `catalogueFromHeadOffice: true` (`appConfig/isCatalogueFromHeadOffice`). `ownership.CATALOGUE` is never read: a franchise customer shows `HEAD_OFFICE` there and keeps its own branches. Without the flag every page renders as before.
+
+**Shared code** `src/views/admin/holink/catalogue-network.js`:
+- A mixin with `catalogueFromHeadOffice`, `catalogueCanPurchase`, `catalogueMayChangePrices`, `catalogueCreateClosed` and `isHeadOfficeRecord(record)` (`origin === 'HEAD_OFFICE'`).
+- `GET /catalogue/network` is read only with the flag. Until it answers, and when it fails, both rights count as off.
+- `apiErrorText(error, fallback)` returns a plain-text body, else `{error}`, else `{message}`.
+
+**Items** (`ItemManagement.vue`):
+- A "Head office" badge on head office items. Such an item has View (the form read-only, with a consult-only note: no barcode, pack or image changes), the barcode list and Adjust stock. It has no Edit and no Delete.
+- With `mayChangePrices`: "Change the price" (`PUT /item/{id}/own-price {unitPrice}`, not for packs) and, when the item has an own price, "Back to the head office price" (`DELETE`, after a confirmation). Without the right, neither action is shown.
+- The pricing cell shows an "Own price" badge with the head office price beside it.
+- The store's own items keep every action.
+
+**Families, sub-families** (`ItemFamiliesManagement.vue`, `ItemSubFamiliesManagement.vue`):
+- Badge, and an eye button that opens the form read-only (fieldset disabled, Close only).
+- On a head office (`nodeType` `HEAD_OFFICE`), the code is read-only on edit. The item code already was everywhere.
+
+**Barcodes** (`ItemBarcodes.vue`): badge. "Add product" (`/item/standalone-quick-product`) only with the purchase right. It is the only quick product creation; the POS has none.
+
+**Without the purchase right:**
+- No Add item, family, sub-family or product, with a note in the table toolbar.
+- Purchases, purchase invoices and vendors stay readable, with a warning banner. Hidden: new purchase, set paid, create invoice from a purchase, new invoice, add and edit vendor.
+- The new purchase page shows the banner and no Create button.
+
+**With the purchase right:** the new purchase item picker offers only the store's own items. It reads `/item-barcode/items-with-barcodes` (active items shown at the POS), because `/item/search` gives no `origin`. An info banner says so.
+
+**Data import** (`DataImport.vue`): Families, Sub-families, Items, Barcodes and Sales prices cannot be chosen, with a note. Vendors follow the purchase right.
+
+**Head office link page** (`HeadOfficeLinkStatus.vue`):
+- A block "Catalogue from the head office" when the status gives `catalogue`: the two rights (Yes, No), the number of items with an own price, and a warning when `salesPriceRowsOnHeadOfficeItems` is above 0.
+- The received block labels the `CATALOGUE` domain.
+
+**409 answers:** these APIs answer in plain text. The store layout's error popup and the page toasts show the backend text.
+
+Labels in `en`, `fr`, `ar` (`admin.catalogueNetwork.*`, `admin.holink.catalogue.*`).
+
+**Checks**: lint of the changed files in production mode and `npm run build`, clean before each commit. Not yet seen in the browser (L2).
+
 ### Step 7A pages (frontend, to build)
 Backend done on `feature/ho-step-7a`; the pages are built by the frontend session. Labels in `en`, `fr`, `ar`.
 
@@ -846,7 +910,7 @@ Items, families, sub-families and barcodes decided by the head office reach ever
 **Head office side** (`HoCatalogueService`, the `CATALOGUE` provider of the feed and `CatalogueHeadOfficeHooks`):
 - Record codes `FAMILY:<code>`, `SUBFAMILY:<code>`, `ITEM:<code>`, `BARCODE:<barcode>` (`CatalogueKind`), every record for every store (`StoreTargets.all()`), plus per-store rows for the price lists (below). Inside a page a store applies families, then sub-families, items, barcodes.
 - Every save and delete through `ItemService`, `ItemFamilyService`, `ItemSubFamilyService`, `ItemBarcodeService` (hooks in the services, inside their transaction), every pack change (`ItemCompositionService`: the parent item, old and new parent) and the quick product (default family and sub-family included) is one change. A data import (`DataImportService`, FAMILIES, SUBFAMILIES, ITEMS, BARCODES) records the codes it saved at the end, in chunks of 500 per transaction (a crash between the import and the recording loses those changes; they travel with the next change of each record). An item's save also records its barcodes; deleting an item deletes its price list lines and records its barcodes.
-- The code of an item, a family or a sub-family cannot change once created: 409 `The code of the item B001 cannot be changed: the stores know it by its code. Create a new one and deactivate this one.` (`CatalogueCodeChangeException`). A barcode value may change: the old value is answered as removed. A code longer than 90 characters (record codes hold 100) is refused with 400 on the item, family and sub-family APIs (`CatalogueCodeTooLongException`; a barcode answers 500 with the same text); an existing or imported one is skipped with a WARN line.
+- The code of an item, a family or a sub-family cannot change once created: 409 `The code of the item B001 cannot be changed: the stores know it by its code. Create a new one and deactivate this one.` (`CatalogueCodeChangeException`). A barcode value may change: the old value is answered as removed. A code longer than 90 characters (record codes hold 100) is refused with 400 on the item, family, sub-family and barcode APIs (`CatalogueCodeTooLongException`); an existing or imported one is skipped with a WARN line.
 - The system item `TAX_STAMP` (created by every installation) and its barcodes never travel.
 - On a store every API of these services answers as before (no hooks bean).
 
@@ -909,6 +973,8 @@ New columns (`ddl-auto`): `origin` `VARCHAR(20)` (`RecordOrigin`, null = local, 
 | `POST`, `PUT`, `DELETE /sales-price` | 409 `Selling prices come from the head office on this store: sales prices cannot be written here.` (see `docs/modules/pricing.md`) |
 | The store's own items | Sellable and editable whatever the rights |
 | `ItemImageController` | Not guarded: images do not travel (task 6.8); a store may put its own picture on a head office item and the pull never overwrites it |
+
+**Item search**: `GET /item/search` (the purchase item picker) gives `origin` for each item: `HEAD_OFFICE`, or null for an own item (on every installation; null where the catalogue is not the head office's).
 
 **Status**: `GET /catalogue/network` (JWT; 404 on any other store) and the `catalogue` block of `GET /admin/holink/status`: `{fromHeadOffice, linkState, mayChangePrices, canPurchase, ownPriceCount, salesPriceRowsOnHeadOfficeItems}`. `GET /admin/holink/received/catalogue` lists the records like any domain. `GET /config` field `catalogueFromHeadOffice` (last).
 

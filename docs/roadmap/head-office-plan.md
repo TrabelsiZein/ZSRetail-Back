@@ -76,7 +76,7 @@ The exact prompts are written during the session, from the code as it is that da
 | 3 | Promotions owned by head office | ParaFendri | No (engine untouched) | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 604a97c, frontend 57acf81) |
 | 4 | Shared loyalty, part 1: members and earning | ParaFendri | No (enrol and member changes in LoyaltyAPI and LoyaltyService hooks; the four selling services untouched) | Large | Done 2026-10-04, merged into release/2.1.0 with step 5 (backend 27e981c, frontend 07b9970) |
 | 5 | Shared loyalty, part 2: spending and returns | ParaFendri | No (decided 2026-10-03: no hold and confirm, selling services untouched) | Large | Done 2026-10-04, merged into release/2.1.0 with step 4 (backend 27e981c, frontend 07b9970) |
-| 6 | Items and selling prices decided by the head office: price lists, purchase right | Own stores without ERP, franchise | No | Large | Backend done 2026-10-04 on feature/ho-step-6 (09de724, 72166a0); frontend, L2 and 6.8 to come |
+| 6 | Items and selling prices decided by the head office: price lists, purchase right | Own stores without ERP, franchise | No | Large | Done 2026-10-04, merged into release/2.1.0 (backend 5f8cb30; frontend by the frontend session); task 6.8 (images) not started, after step 7B |
 | 7A | BLs and stock: head office warehouse, delivery to a store, stock of all stores | Own stores without ERP, franchise | No (stock in only) | Large | Backend done 2026-10-04 on feature/ho-step-7a (73c961f, f78cc8c, 9900f91, c035941, and the 7A.5 commit); frontend and L2 to come |
 | 7B | Invoices and supply price for the stores that pay | Franchise | No | Medium | Not started |
 | 8 | Franchise profiles moved onto the model | Happyness | No | Medium | Not started |
@@ -403,7 +403,7 @@ Goal: a store whose items are decided by the head office receives its items and 
 | 6.5 | "May change its selling prices" on the store's row (sent with the heartbeat answer). On: the store can put its own price on a head office item and the pull keeps it. Off: refused | L1 own price kept across a pull; refused when off |
 | 6.6 | "Can purchase from its own suppliers" on the store's row. Off: no purchases, no suppliers and no own items on a store whose items are the head office's. On: purchases and suppliers open, own items can be created, purchase lines accept own items only | L1 off and on; a head office item in a purchase line is refused; a store that decides its own items purchases as today |
 | 6.7 | Stores page: the three new settings; the own / franchise label leaves the page (the column stays) | L2 |
-| 6.8 | Item images from the head office. Not started: to decide after L2 (how they are stored and what sending them would take: `docs/modules/head-office.md`, "Catalogue owned by the head office", Images) | Defined when decided |
+| 6.8 | Item images from the head office. Not started: to do after step 7B (how they are stored and what sending them would take: `docs/modules/head-office.md`, "Catalogue owned by the head office", Images) | Defined when decided |
 
 L2 scenarios (head office, stores B and C): an item created at the head office is sold at B and C; changed and deactivated, followed; an item of C with the same code becomes the head office item; a price list set on C only: C sells at the list price and B at the base price; a list line change reaches C only; "may change" on at C: its own price survives a pull; purchase right off at B: purchases refused; on at C: own item created, purchased, stock up, sold, and seen in the head office tickets; head office stopped: both stores sell with their last copy.
 
@@ -435,7 +435,70 @@ Choices made in the session (inventory approved by Zein, 2026-10-04):
 
 Tests: 56 classes, 443 tests, all green. Diff proof against release/2.1.0: 0 files in `erp/`, 0 franchise files; `SalesHeaderService`, `PromotionCalculationService`, `PricingService`, `ReturnHeaderService`, the four loyalty tests and `PromotionAllItemsScopeTest` unchanged. Intended contract changes: the heartbeat answer has two more fields (`mayChangePrices`, `canPurchase`), the link status a 14th field (`catalogue`), `/config` a last field (`catalogueFromHeadOffice`); an explicit `ownership.catalogue=HEAD_OFFICE` is now checked at startup (no shipped profile sets it).
 
-Still owed for step 6: the frontend (6.7 and the store item pages: badge, hidden actions, own price, purchase pages), L2, task 6.8, the merge into release/2.1.0.
+**L2 of step 6 backend** (2026-10-04, `devenv/l2-catalogue.ps1`, head office 888, store B 555, store C 556; the store B and C profiles now carry `ownership.catalogue=HEAD_OFFICE`). 15 scenarios, all passed on the third run (report `C:\zsretail-dev\logs\l2-catalogue-134535.txt`): 1 B and C with a local catalogue as before (item create, edit, delete; vendor; purchase), C's `LOCAL-C1` with stock, a barcode row and the old barcode field, the cost of two of its items noted; 2 switch and first pull (all records applied, the noted items head office items with stock and cost kept, `LOCAL-C1` active and sold, `TAX_STAMP` not replaced); 3 an item created at the head office sold at B and C, both tickets at the head office; 4 changed (name, base price, VAT, family), deactivated, reactivated, deleted (inactive at the stores, rows kept); 5 an item and its sub-family received before their family (paging): waiting, then applied; 6 a new barcode scanned at B, a clash with `LOCAL-C1` (row and old field) moved with one `WARNING` row each, a scan finds only the head office item; 7 a pack with its component, waiting while the component is missing; 8 a price list on C only, a line change reaching C only, a line deleted, C moved to another list, a used list neither deleted nor deactivated; 9 guards 409 at C on item, family, sub-family, barcode, adjust-stock allowed, a code change at the head office 409; 10 own price kept across pulls and a head office price change, given back, refused when the right is off and reset at the next cycle with the head office stopped (one row); 11 purchase right off at B (writes 409, reads 200), on at C (own item, vendor, purchase, stock, sale, ticket at the head office; a head office item in a purchase and a head office code 409); 12 rights kept through a restart of C with the head office stopped; 13 head office stopped: both stores sell, back: the change and the tickets arrive; 14 `sales_price` count in the status and the network answer, writes and catalogue imports 409, a head office import of 121 items reaching B and C; 15 a barcode of 91 characters 400.
+
+Timings on this PC (head office backfill measured from the `Started` log line; first pull from the moment the stores answer, until their cursor reaches the head office's last change): first run (1,777 items, 3,728 records) backfill about 1.7 s, first pull 54 s at B and 55 s at C; later runs (3,858 and 3,988 records) 2.6 s and 2 s, 54 to 62 s.
+
+Fixes found at L2: 103132e (a barcode over 90 characters answered 500 on a head office, now 400), be626d3 (`GET /admin/purchase-invoices` and the eligible purchases answered 500 without a date filter: `LocalDate.MIN`/`MAX` are outside the SQL Server date range; `InvoiceService` has the same pattern, not changed, not tested). `l2-loyalty.ps1` passed 17 of 17 on the same databases with the catalogue switched (report `l2-loyalty-135523.txt`); its scenario 15 now expects one `COPIES_DOWN` failure row per pulled domain (CATALOGUE and LOYALTY each write theirs).
+
+
+### Step 6 — record
+
+**Status: done 2026-10-04, merged into release/2.1.0 (backend 5f8cb30; the frontend is merged by the frontend session).** Branch `feature/ho-step-6` in both repos. Described in `docs/modules/head-office.md` ("Catalogue owned by the head office (step 6)", "Price lists (task 6.4)", "Step 6 pages (frontend): head office", "Step 6 pages (frontend): store"), `docs/deployment-modes.md` and `docs/modules/pricing.md`.
+
+| Part | Backend | Frontend |
+|---|---|---|
+| 6.0 Design version 2, steps 6 to 8 recut | a61f027 | — |
+| 6.1, 6.4 Head office: domain `CATALOGUE` (every record for every store, by codes, price per store), hooks in the catalogue services and the data import, code change refused, `TAX_STAMP` never sent; price lists and their API; the three settings on the store row, the two rights in the heartbeat answer; startup backfill in chunks | 09de724 | e35b381 (price lists page), 5fb5c1b (Stores page settings, kind removed) |
+| 6.2, 6.3, 6.5, 6.6 Store: `CATALOGUE` pull, guards, own price, purchase right, rights saved, `GET /catalogue/network`, link status block, `/config` `catalogueFromHeadOffice` | 72166a0 | 0928f9e (item pages), 68c027a (purchase, vendor, data import pages), 32cd1be (link page block) |
+| Docs, startup WARN on `sales_price` rows, 400 for a code too long | 5e1c581 | — |
+| Fixes found at L2: a barcode over 90 characters (400), the purchase invoice list without a date filter | 103132e, be626d3 | — |
+| L2 script, store B and C profiles on the head office catalogue | d40d9e3 | — |
+| `GET /item/search` gives `origin` (purchase item picker) | 2c92282 | the picker fix of the frontend session (new purchase page on `/item/search` with `origin`; hash added by that session) |
+| The invoice list and eligible tickets without a date filter (same fix as be626d3) | bc45f3a | — |
+| Frontend pages in the module doc, this record | this commit | — |
+| Merge into release/2.1.0 | 5f8cb30 | by the frontend session |
+
+Decisions (inventory approved by Zein, 2026-10-04; see "Steps 6 and 7 — recut" and the step 6 backend notes above):
+- The catalogue and the price lists exist only on a head office without an ERP. Every item goes to every store; a store's item with the same code becomes the head office item (stock and cost kept); deleted or deactivated at the head office gives inactive at the store; the store's other local items stay its own.
+- Base price `item.unitPrice` plus price lists (one list per store or none); the store receives one price per item; `PricingService` unchanged. A list used by a store cannot be deleted or deactivated.
+- A head office record is consult-only at the store; stock adjustment is always allowed. `mayChangePrices`: an own price kept across pulls, given back by one action, reset at the next cycle when the right goes off. `canPurchase`: off, no purchases, vendors or own items; on, own items only in purchases. Both rights are saved at the store; never received = off.
+- The code of an item, family or sub-family is final at the head office; a barcode clash moves the barcode to the head office item (one `WARNING` row) and clears an old `item.barcode` field; packs travel with their components; `sales_price` writes and catalogue imports are refused at the store.
+- Images are not sent (task 6.8, after step 7B). `Store.kind` stays in the table and the API, read by no rule, off the Stores page.
+
+**The three settings of a store for step 6** (head office Stores page; the two rights sent with the heartbeat answer and saved at the store):
+
+| Setting | Default | When set |
+|---|---|---|
+| Selling price list | None (base price) | The store receives the list's price for the items on the list |
+| `mayChangePrices` | Off | The store may put its own price on a head office item and keeps it |
+| `canPurchase` | Off | The store may purchase from its own suppliers and create its own items (own items only in purchases) |
+
+What exists after the step:
+- Head office without an ERP: items, families, sub-families, barcodes and packs on the copies down (`CATALOGUE`); the price lists page and API; the three settings on the Stores page.
+- Store with `ownership.catalogue=HEAD_OFFICE` (URL, standalone, no franchise flag): the catalogue received and consult-only, own price with the right, purchases with the right, `hol_link_right`, the catalogue block of the link page; the item, purchase, vendor and data import pages follow `/config` `catalogueFromHeadOffice`.
+- Every other store (no setting, ERP, franchise customer even with `headoffice.url`): unchanged, no catalogue bean.
+
+Tests at the merge: backend 57 classes, 446 tests, all green, run in a separate worktree of the merge. Frontend: production lint and build per frontend commit (frontend session).
+
+L2 (2026-10-04, `devenv/l2-catalogue.ps1`, head office 888, store B 555, store C 556): 15 scenarios, all passed (report `C:\zsretail-dev\logs\l2-catalogue-134535.txt`), listed under "L2 of step 6 backend" above. Timings: head office startup backfill about 1.7 s for 3,728 records (2 to 2.6 s for 3,858 to 3,988 records); full first pull 54 s at B and 55 s at C (54 to 62 s at the later runs). `l2-loyalty.ps1`: 17 of 17 on the same databases with the catalogue switched.
+
+Diff proof against release/2.1.0 (before the merge): 0 files in `erp/`, 0 franchise files; `SalesHeaderService`, `PromotionCalculationService`, `PricingService`, `ReturnHeaderService`, the four loyalty tests and `PromotionAllItemsScopeTest` unchanged. Changed files a store also runs, and why a store without the catalogue setting behaves as before:
+
+| File | Why unchanged for such a store |
+|---|---|
+| `ItemAPI`, `ItemFamilyAPI`, `ItemSubFamilyAPI`, `ItemBarcodeAPI`, `ItemCompositionAPI`, `PurchaseHeaderAPI`, `PurchaseInvoiceAPI`, `VendorAPI`, `DataImportAPI`, `SalesPriceAPI` | The guard is looked up with `ObjectProvider`: no bean, the request runs as before. `ItemAPI.update` keeps `ownPrice` and `headOfficePrice` from the stored row (null there). The own price endpoints answer 404. `/item/search` has one more field, `origin` (null). The code change (409) and code length (400) answers come only from head office hooks |
+| `ItemService`, `ItemFamilyService`, `ItemSubFamilyService`, `ItemBarcodeService`, `ItemCompositionService`, `DataImportService` | The head office hooks are looked up with `ObjectProvider`: none on a store. `deleteById` (and the pack `save`) now run in a transaction: same result |
+| `Item`, `ItemFamily`, `ItemSubFamily`, `ItemBarcode` | Nullable columns (`origin`, `own_price`, `head_office_price`), read-only in JSON, not read without the setting |
+| `ItemRepository`, `ItemFamilyRepository`, `ItemSubFamilyRepository`, `ItemBarcodeRepository`, `ItemCompositionRepository`, `SalesPriceRepository` | New query methods only |
+| `NodeOwnership`, `ApplicationModeService`, `AppConfigAPI`, `AppConfigDTO` | An explicit `ownership.catalogue=HEAD_OFFICE` is now checked (no shipped profile sets it); `/config` has one more last field, false |
+| `holink/*` (`HeadOfficeClient`, `HeadOfficeCallResult`, `HeadOfficeLinkStatusDTO`, `HeadOfficeLinkAPI`, `HeartbeatJob`, `CopiesDownPuller`, `DownHandler`, `LinkExchangeLog`) | Exist only with `headoffice.url`; with it and a local catalogue the two rights are read and unused, the status `catalogue` is null, `prepare()` does nothing |
+| `headoffice/*` | Head office beans only; `ho_price_list` and `ho_price_list_line` exist empty on a store |
+| `ZZDataInitializer` | One permission added to the head office list only |
+| `PurchaseInvoiceService`, `InvoiceService` | Without a date filter the lists and eligible documents use 0001-01-01 and 9999-12-31 instead of `LocalDate.MIN`/`MAX` (500 before): an intended fix for every store |
+| `application-store-b-dev.properties`, `application-store-c-dev.properties` | Dev profiles only |
+
+Still owed: the screen check of the step 6 pages on the dev pair; the full regression checklist (once, before 2.1 is delivered); the `update.sql` lines of section 1. Task 6.8 (images) is not started, to do after step 7B.
 
 ### Step 7A — BLs and stock
 
@@ -538,6 +601,7 @@ Notes of Zein, 2026-10-03 and 04:
 Also:
 - Profile cleanup at step 9.3: presets for what the installation is, one file per machine outside git for where it runs.
 - The group promotion fix (frontend 8c7ce9b) is not in release/1.12.0.
+- The purchase invoice fix (backend be626d3) and the invoice fix (backend bc45f3a), lists and eligible documents without a date filter (`LocalDate.MIN`/`MAX` outside the SQL Server date range, 500), are not in release/1.12.0.
 - Importing an existing member list into a head office (step 4 decision).
 - BLs created in the franchisor's ERP.
 - Store-to-store transfers without an ERP; goods sent back to the head office; a store asking the head office for goods.
