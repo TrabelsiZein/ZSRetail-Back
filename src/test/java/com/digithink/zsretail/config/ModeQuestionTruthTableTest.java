@@ -126,6 +126,11 @@ class ModeQuestionTruthTableTest {
 		Map<String, Map<String, Object>> profiles = new TreeMap<>();
 		profiles.put("(no profile)", new HashMap<>(base));
 		for (Resource file : files.getResources("classpath*:application-*.properties")) {
+			if (java.util.Arrays.asList("application-store.properties", "application-store-erp.properties",
+					"application-headoffice.properties", "application-headoffice-erp.properties",
+					"application-network-store-erp.properties").contains(file.getFilename())) {
+				continue; // task 9.3a: the presets are active from task 9.3b (PresetTruthTableTest)
+			}
 			Map<String, Object> merged = new HashMap<>(base);
 			merged.putAll(load(file)); // a profile file overrides application.properties, as in Spring
 			profiles.put(file.getFilename(), merged);

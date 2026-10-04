@@ -48,6 +48,11 @@ class StockModeTest {
 		Properties base = load(files.getResource("classpath:application.properties"));
 		Map<String, MockEnvironment> profiles = new TreeMap<>();
 		for (Resource file : files.getResources("classpath*:application-*.properties")) {
+			if (java.util.Arrays.asList("application-store.properties", "application-store-erp.properties",
+					"application-headoffice.properties", "application-headoffice-erp.properties",
+					"application-network-store-erp.properties").contains(file.getFilename())) {
+				continue; // task 9.3a: the presets are active from task 9.3b (PresetTruthTableTest)
+			}
 			Properties merged = new Properties();
 			merged.putAll(base);
 			merged.putAll(load(file));
