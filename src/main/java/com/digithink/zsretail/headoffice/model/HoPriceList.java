@@ -2,8 +2,11 @@ package com.digithink.zsretail.headoffice.model;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.EnumType;
+import javax.persistence.Enumerated;
 import javax.persistence.Table;
 
+import com.digithink.zsretail.headoffice.enumeration.PriceListKind;
 import com.digithink.zsretail.model._BaseEntity;
 
 import lombok.Data;
@@ -31,4 +34,14 @@ public class HoPriceList extends _BaseEntity {
 
 	@Column(nullable = false)
 	private String name;
+
+	/** Step 7B: SELLING or SUPPLY; null = SELLING (every list made before). Cannot be changed after creation. */
+	@Enumerated(EnumType.STRING)
+	@Column(length = 10)
+	private PriceListKind kind;
+
+	/** The kind, null read as SELLING. */
+	public PriceListKind kindOrSelling() {
+		return kind == null ? PriceListKind.SELLING : kind;
+	}
 }

@@ -21,6 +21,9 @@ public interface StoreRepository extends _BaseRepository<Store, Long> {
 
 	long countBySellingPriceListId(Long listId);
 
+	/** Step 7B: how many stores have this supply price list. */
+	long countBySupplyPriceListId(Long listId);
+
 	/**
 	 * Heartbeat (task 1.4): writes lastContact and appVersion only, by id. A bulk update skips {@code @PreUpdate},
 	 * so updatedAt is unchanged. Returns the number of rows updated. Task 3.6: in the same update, what the store owns

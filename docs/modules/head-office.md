@@ -1118,6 +1118,36 @@ Every store whose goods come from the head office copies its stock up; the head 
 
 `GET /admin/holink/status` field `supply` gets two keys at the store: `stockToSend` (items whose stock waits to be sent) and `stockSentAt` (last accepted push, null before). Page permission `read:admin-headoffice-network-stock` (34 head office permissions).
 
+
+### Supply prices and invoicing settings (step 7B, part 1)
+What a store whose deliveries are invoiced pays for the goods (design 3.6). Head office without an ERP only. Nothing here is ever sent to a store: the supply price is used only when an invoice is created (part 2).
+
+**Settings on the store row** (`ho_store`, set with the generic `POST` / `PUT /admin/headoffice/stores`, each field applied when sent, kept when absent; never sent with the heartbeat):
+
+| Column | Rule |
+|---|---|
+| `deliveries_invoiced` bit | The store's received BLs are invoiced; null read as false |
+| `billing_legal_name` (200), `billing_tax_number` (50), `billing_address` (500) | Trimmed; blank clears; longer: 400 `The billing legal name is longer than 200 characters.` Copied onto each invoice |
+| `supply_price_mode` | `PRICE_LIST` (null reads as it) or `PERCENT_OFF` |
+| `supply_price_list_id` | A price list of kind `SUPPLY`; null = the base supply price. Set at creation or with `PUT /admin/headoffice/stores/{id}/supply-price-list` `{"priceListId": 4}` (or null); the generic `PUT` ignores it. 400 for an unknown, inactive or selling list |
+| `supply_discount_percent` | `PERCENT_OFF` mode, from 0 to 100 (400 `The supply discount must be from 0 to 100 %.`) |
+| `invoice_rhythm` | `PER_BL` (null reads as it): one invoice per BL, created when the confirmation arrives; `GROUPED`: by hand |
+
+**Price list kinds**: `ho_price_list.kind` `SELLING` (null = every list made before) or `SUPPLY`, given at creation (`POST` `{"kind": "SUPPLY"}`, default `SELLING`), cannot change (400). `GET /admin/headoffice/price-lists?kind=SUPPLY` filters (400 for another value); `kind` is in every answer and `storeCount` counts the stores using the list as their list of its kind. A selling list given as a supply list, or the reverse: 400 `The price list FRANCHISE is a supply price list, not a selling price list.` A list used by a store as its supply list cannot be deactivated or deleted (409 `This price list is the supply price list of 1 store(s): ...`). A supply list line records nothing on the copies down (no store has it as its selling list).
+
+**Base supply price**: table `ho_item_supply_price` (`item_id` unique, `price` before VAT), kept apart from `item` (the item form sends the whole item, and the item copy must never carry it). `HoSupplyPriceAPI` `/admin/headoffice/supply-prices`:
+
+| Request | Answer |
+|---|---|
+| `GET /?search=&page=&size=` | `{content: [{itemId, itemCode, itemName, sellingPrice, supplyPrice}], totalElements, totalPages, number, size}`: products and packs (not `TAX_STAMP`), by code; `supplyPrice` null when none |
+| `PUT /` `[{itemCode or itemId, supplyPrice}]` | All or none; `supplyPrice: null` deletes; 400 for an unknown item or a price below 0 |
+
+**The supply price of a store** (`HoSupplyPriceService.pricesFor`, before VAT, to the millime half up):
+- `PRICE_LIST`: the line of the store's supply list for the item, else the base supply price, else none (the invoice then refuses the item, part 2).
+- `PERCENT_OFF`: the selling price the head office works out for that store (its selling list line, else `item.unitPrice`; never a price the store set itself) × (1 − percent / 100). No percentage set: 409.
+
+Page permission `read:admin-headoffice-supply-prices` (35 head office permissions).
+
 ### Consolidated sales API (task 2.5, head office)
 What the head office pages Tickets history, Sessions history and Returns, and the home cards, read (pages: task 2.5 frontend, "Head office pages" below).
 
@@ -1397,6 +1427,7 @@ Order at a new head office with an ERP: enable and run `IMPORT_LOCATIONS`, choos
 - `HoDeliveryServiceTest` (task 7A.2): drafts (lines numbered, snapshots, no number, no stock, nothing for the stores), every draft rule with its message, a store reporting another supply owner (409) or none (accepted), edit and delete of a draft and 409 once sent; validation (`BL-000001`, `SENT`, stock out once with one `DELIVERY_OUT` per line, one change row for its store only, a second validation 409 with nothing moved, the next number); stock not sufficient (409 listing each short item, all or nothing, no number used); `ALLOW_NEGATIVE_STOCK`; the copy by codes for its store only (C gets nothing, also when it asks for the code); the startup backfill; no CATALOGUE change; the list filters and paging. `support/InMemoryStock` (stock updates with the rules of the native queries, real `StockService` and `StockMovementService`), `headoffice/service/InMemoryDeliveries`.
 - `SupplyRoundTripTest` (tasks 7A.3, 7A.4): the real head office and the real store B through `MockRestServiceServer` (`support/InMemoryReceivedDeliveries`): a BL reaches B only, lines resolved; B confirms 48 of 50 and B002 as sent (stock up once, two `DELIVERY_IN`), sent up, `RECEIVED` there with the quantities, the store's note and user, −2 shown, the head office stock unchanged by the reception; a second confirmation 409 with nothing moved; head office stopped (stock up at once, the confirmation `PENDING` with no attempt, one failure row for two cycles; back: `RECEIVED`); an answer lost after it was applied (sent again, accepted, nothing changes); an item not in B (its line waits, the confirmation goes up, the retry reports it, then its stock goes in once); a store's own item with the same code never used; more than sent (+2); reception rules; the head office receiver's rules (another store, unknown, no number, lines not matching, quantity missing, a line missing, same again accepted, other quantities rejected); the link counts and the list.
 - `SupplyRoundTripTest` (task 7A.5): stock up: every item the first time (a null stock as 0, own items flagged, the store clock), then only the item that changed, nothing when nothing changed, a deleted item removed there and its row here; head office stopped: nothing marked, sent once back; the head office page (its items without the tax stamp, its stock and each store's, the stores with their last push, one store, search, an unknown store 400) and the stores' own items. `support/InMemoryNetworkStock`.
+- `HoSupplyPriceServiceTest` (step 7B, part 1): PRICE_LIST mode (the supply list line, else the base price, else none, to the millime); PERCENT_OFF mode (the selling list line or base price minus the percentage, 409 without a percentage); base supply prices set, changed, deleted, all or none, the page without the tax stamp or services, never a change for a store; price list kinds (created, listed by kind, final, a supply line records nothing, assignment by kind both ways, a used supply list cannot be deleted); the store invoicing settings (create, update, kept when absent, blank cleared, limits). `support/InMemoryCatalogue` has `ho_item_supply_price`.
 - `OnHeadOfficeSupplyConditionTest` (step 7A): the five store beans only on a standalone store with the URL, the catalogue and an explicit supply from the head office; never with supply `LOCAL` or `ERP`, the catalogue alone, loyalty alone, the 4 profiles, a head office; never on a franchise customer, with or without the URL (its `FranchiseSupplyReceptionService` still registered); the startup refusals (no URL, franchise customer, franchise admin, ERP, no catalogue from the head office, a bad `headoffice.supply-push.interval-seconds` with the URL only); the receiver only on a head office without an ERP.
 - `OnHeadOfficeCatalogueConditionTest`, `QueryParameterBindingTest`, `ZZDataInitializerRolesTest`, `AppConfigAPITest`, `HeadOfficeLinkAPITest` (step 7A): `HoDeliveryService`, `HoDeliveryAPI`, `HoNetworkStockService` and `HoNetworkStockAPI` on a head office without an ERP only; `HoDeliveryRepository`, `HoNumberSequenceRepository`, `ReceivedDeliveryRepository`, `StockCopyRepository`, `HoStoreStockRepository` bound (a `Boolean` sample added); 34 head office permissions, and a store whose goods come from the head office gets `read:admin-holink-deliveries` on a new database and at the next start of an existing one (only that one, saved once, then nothing); `/config` `supplyFromHeadOffice` last, true only with the setting, false for a franchise customer with the URL; the link status `supply` is the 15th and last field, null without the setting.
 - Not covered by L1 (checked at L2 on the pair): the JPQL against SQL Server, the transaction timeouts, the real timer, the head office endpoints through the `/ho/**` chain. The JPQL and the entity mappings were translated with Hibernate (SQL Server 2012 dialect, no database) during the tasks.

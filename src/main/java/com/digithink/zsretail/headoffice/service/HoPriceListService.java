@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeStandalone;
 import com.digithink.zsretail.headoffice.dto.PriceListDTO;
 import com.digithink.zsretail.headoffice.dto.PriceListLineDTO;
+import com.digithink.zsretail.headoffice.enumeration.PriceListKind;
 import com.digithink.zsretail.headoffice.model.HoPriceList;
 import com.digithink.zsretail.headoffice.model.HoPriceListLine;
 import com.digithink.zsretail.headoffice.repository.HoPriceListLineRepository;
@@ -48,6 +49,8 @@ public class HoPriceListService {
 	static final String CODE_IS_FINAL = "The price list code cannot be changed after creation.";
 	static final String USED_BY_STORE = "This price list is the selling price list of %d store(s): choose another list"
 			+ " for them on the Stores page first.";
+	static final String USED_AS_SUPPLY = "This price list is the supply price list of %d store(s): choose another list"
+			+ " for them on the Stores page first.";
 
 	private final HoPriceListRepository lists;
 	private final HoPriceListLineRepository lines;
@@ -74,8 +77,22 @@ public class HoPriceListService {
 	// ─── Lists ───────────────────────────────────────────────────
 
 	public List<PriceListDTO> findAll() {
-		return lists.findAll().stream().sorted((a, b) -> a.getCode().compareTo(b.getCode())).map(this::view)
-				.collect(Collectors.toList());
+		return findAll(null);
+	}
+
+	/** Step 7B: the lists of one kind (SELLING, SUPPLY, any case), every list when blank; 400 for another value. */
+	public List<PriceListDTO> findAll(String kind) {
+		PriceListKind wanted = kind == null || kind.trim().isEmpty() ? null : parseKind(kind);
+		return lists.findAll().stream().filter(list -> wanted == null || list.kindOrSelling() == wanted)
+				.sorted((a, b) -> a.getCode().compareTo(b.getCode())).map(this::view).collect(Collectors.toList());
+	}
+
+	static PriceListKind parseKind(String kind) {
+		try {
+			return PriceListKind.valueOf(kind.trim().toUpperCase(Locale.ROOT));
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("Invalid kind '" + kind + "': allowed values are SELLING, SUPPLY.");
+		}
 	}
 
 	public Optional<PriceListDTO> findById(Long id) {
@@ -100,9 +117,12 @@ public class HoPriceListService {
 		if (lists.findByCodeIgnoreCase(code).isPresent()) {
 			throw new IllegalStateException("A price list with the code " + code + " already exists.");
 		}
+		PriceListKind kind = input.getKind() == null || input.getKind().trim().isEmpty() ? PriceListKind.SELLING
+				: parseKind(input.getKind());
 		HoPriceList list = new HoPriceList();
 		list.setCode(code);
 		list.setName(name);
+		list.setKind(kind);
 		list.setActive(input.getActive() == null || input.getActive());
 		return view(lists.save(list));
 	}
@@ -120,6 +140,10 @@ public class HoPriceListService {
 		HoPriceList list = found.get();
 		if (input.getCode() != null && !normalizeCode(input.getCode()).equals(list.getCode())) {
 			throw new IllegalArgumentException(CODE_IS_FINAL);
+		}
+		if (input.getKind() != null && !input.getKind().trim().isEmpty()
+				&& parseKind(input.getKind()) != list.kindOrSelling()) {
+			throw new IllegalArgumentException("The kind of a price list cannot be changed after creation.");
 		}
 		if (input.getName() != null) {
 			String name = input.getName().trim();
@@ -157,14 +181,28 @@ public class HoPriceListService {
 		if (used > 0) {
 			throw new IllegalStateException(String.format(USED_BY_STORE, used));
 		}
+		long supplied = stores.countBySupplyPriceListId(id); // step 7B
+		if (supplied > 0) {
+			throw new IllegalStateException(String.format(USED_AS_SUPPLY, supplied));
+		}
 	}
 
-	/** For the stores page: 400 (IllegalArgument) unless the list exists and is active. */
+	/** For the stores page, a selling price list: 400 (IllegalArgument) unless it exists, is active and SELLING. */
 	public void checkAssignable(Long id) {
+		checkAssignable(id, PriceListKind.SELLING);
+	}
+
+	/** Step 7B: 400 (IllegalArgument) unless the list exists, is active and of this kind. */
+	public void checkAssignable(Long id, PriceListKind kind) {
 		HoPriceList list = lists.findById(id)
 				.orElseThrow(() -> new IllegalArgumentException("Unknown price list id " + id + "."));
 		if (Boolean.FALSE.equals(list.getActive())) {
 			throw new IllegalArgumentException("The price list " + list.getCode() + " is inactive.");
+		}
+		if (list.kindOrSelling() != kind) {
+			throw new IllegalArgumentException("The price list " + list.getCode() + " is a "
+					+ list.kindOrSelling().name().toLowerCase(Locale.ROOT) + " price list, not a "
+					+ kind.name().toLowerCase(Locale.ROOT) + " price list.");
 		}
 	}
 
@@ -276,8 +314,11 @@ public class HoPriceListService {
 	}
 
 	private PriceListDTO view(HoPriceList list) {
+		boolean supply = list.kindOrSelling() == PriceListKind.SUPPLY;
 		return new PriceListDTO(list.getId(), list.getCode(), list.getName(), !Boolean.FALSE.equals(list.getActive()),
-				lines.countByPriceListId(list.getId()), stores.countBySellingPriceListId(list.getId()));
+				lines.countByPriceListId(list.getId()), supply ? stores.countBySupplyPriceListId(list.getId())
+						: stores.countBySellingPriceListId(list.getId()),
+				list.kindOrSelling().name());
 	}
 
 	private static PriceListLineDTO lineView(HoPriceListLine line, Item item) {

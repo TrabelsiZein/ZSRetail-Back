@@ -43,9 +43,10 @@ public class HoPriceListAPI {
 		this.service = service;
 	}
 
+	/** Step 7B: kind SELLING or SUPPLY filters; absent, every list. */
 	@GetMapping
-	public ResponseEntity<?> list() {
-		return answer(() -> ResponseEntity.ok(service.findAll()));
+	public ResponseEntity<?> list(@RequestParam(required = false) String kind) {
+		return answer(() -> ResponseEntity.ok(service.findAll(kind)));
 	}
 
 	@GetMapping("/{id}")

@@ -143,6 +143,28 @@ public class StoreAPI extends _BaseController<Store, Long, StoreService> {
 		}
 	}
 
+	/**
+	 * Step 7B: the store's supply price list. Body {"priceListId": 4}, or {"priceListId": null} for none (the base
+	 * supply price). 200 the store; 400 for an unknown, inactive or selling list; 404 for an unknown store.
+	 */
+	@PutMapping("/{id}/supply-price-list")
+	public ResponseEntity<?> setSupplyPriceList(@PathVariable Long id, @RequestBody(required = false) Map<String, Object> body) {
+		try {
+			log.info("StoreAPI::setSupplyPriceList::" + id);
+			Object raw = body == null ? null : body.get("priceListId");
+			if (raw != null && !(raw instanceof Number)) {
+				return ResponseEntity.badRequest().body(createErrorResponse("priceListId must be a number or null."));
+			}
+			Optional<Store> updated = service.setSupplyPriceList(id, raw == null ? null : ((Number) raw).longValue());
+			return updated.<ResponseEntity<?>>map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+		} catch (Exception e) {
+			log.error("StoreAPI::setSupplyPriceList:error: " + getDetailedMessage(e), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
 	/** 200 {store, apiKey}: the new key, shown once; the old key stops working. */
 	@PostMapping("/{id}/regenerate-key")
 	public ResponseEntity<?> regenerateKey(@PathVariable Long id) {
