@@ -18,7 +18,7 @@ import lombok.extern.log4j.Log4j2;
  * (e.g. two tickets for the same item at the same time, or a sale and a purchase simultaneously)
  * cannot produce wrong stock values (no lost updates).
  * <p>
- * When the application is not in standalone mode ({@link ApplicationModeService#isStandalone()} is false),
+ * When the supply is the ERP's ({@link ApplicationModeService#isSupplyFromErp()} is true),
  * all methods are no-ops: stock is not updated. In ERP mode, inventory is typically managed by the ERP.
  */
 @Service
@@ -38,7 +38,7 @@ public class StockService {
 	 * Decrement stock for a sale (one completed ticket line). Called once per item line.
 	 * When ALLOW_NEGATIVE_STOCK=true in GeneralSetup, stock is decremented unconditionally (may go negative).
 	 * When false (default), throws {@link InsufficientStockException} if stock would go negative.
-	 * No-op when not in standalone mode.
+	 * No-op when the supply is the ERP's.
 	 *
 	 * @param itemId   item id
 	 * @param quantity quantity sold (positive)
@@ -46,7 +46,7 @@ public class StockService {
 	 */
 	@Transactional(rollbackFor = Exception.class)
 	public void decrementForSale(Long itemId, int quantity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return;
 		}
 		if (quantity <= 0) {
@@ -69,14 +69,14 @@ public class StockService {
 
 	/**
 	 * Increment stock for a return. Called once per return line.
-	 * No-op when not in standalone mode.
+	 * No-op when the supply is the ERP's.
 	 *
 	 * @param itemId   item id
 	 * @param quantity quantity returned (positive)
 	 */
 	@Transactional(rollbackFor = Exception.class)
 	public void incrementForReturn(Long itemId, int quantity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return;
 		}
 		if (quantity <= 0) {
@@ -88,14 +88,14 @@ public class StockService {
 
 	/**
 	 * Increment stock for a purchase. Called once per purchase line.
-	 * No-op when not in standalone mode.
+	 * No-op when the supply is the ERP's.
 	 *
 	 * @param itemId   item id
 	 * @param quantity quantity purchased (positive)
 	 */
 	@Transactional(rollbackFor = Exception.class)
 	public void incrementForPurchase(Long itemId, int quantity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return;
 		}
 		if (quantity <= 0) {
@@ -107,7 +107,7 @@ public class StockService {
 
 	/**
 	 * Adjust stock by a delta (positive or negative). Used for inventory count, correction, damage.
-	 * No-op when not in standalone mode.
+	 * No-op when the supply is the ERP's.
 	 *
 	 * @param itemId item id
 	 * @param delta  quantity to add (positive) or subtract (negative)
@@ -115,7 +115,7 @@ public class StockService {
 	 */
 	@Transactional(rollbackFor = Exception.class)
 	public void adjustStock(Long itemId, int delta, String reason) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return;
 		}
 		if (delta == 0) {
@@ -134,11 +134,11 @@ public class StockService {
 	 * Step 7A: goods leave the head office stock with a BL (one call per line, at its validation). Same rule as a sale:
 	 * with ALLOW_NEGATIVE_STOCK=true the stock is decremented unconditionally; otherwise only when it is sufficient, in
 	 * one atomic update. Returns false (nothing changed) when the stock is not sufficient; true otherwise. No-op (true)
-	 * when not in standalone mode.
+	 * when the supply is the ERP's.
 	 */
 	@Transactional(rollbackFor = Exception.class)
 	public boolean decrementForDelivery(Long itemId, int quantity) {
-		if (!applicationModeService.isStandalone() || quantity <= 0) {
+		if (applicationModeService.isSupplyFromErp() || quantity <= 0) {
 			return true;
 		}
 		if (isNegativeStockAllowed()) {
@@ -150,10 +150,13 @@ public class StockService {
 		return true;
 	}
 
-	/** Step 7A: goods received by a store with a BL (one call per line, at its confirmation). No-op when not standalone. */
+	/**
+	 * Step 7A: goods received by a store with a BL (one call per line, at its confirmation). No-op when the supply is the
+	 * ERP's.
+	 */
 	@Transactional(rollbackFor = Exception.class)
 	public void incrementForDelivery(Long itemId, int quantity) {
-		if (!applicationModeService.isStandalone() || quantity <= 0) {
+		if (applicationModeService.isSupplyFromErp() || quantity <= 0) {
 			return;
 		}
 		itemRepository.addToStockQuantity(itemId, quantity);
