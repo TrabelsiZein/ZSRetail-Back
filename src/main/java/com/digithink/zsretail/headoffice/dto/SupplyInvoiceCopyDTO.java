@@ -6,6 +6,7 @@ import java.util.List;
 import com.digithink.zsretail.headoffice.model.HoSupplyInvoice;
 import com.digithink.zsretail.headoffice.model.HoSupplyInvoiceLine;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -75,7 +76,10 @@ public class SupplyInvoiceCopyDTO {
 		return copy;
 	}
 
-	/** One line: a BL line (deliveryNumber) or the tax stamp (deliveryNumber null). */
+	/**
+	 * One line: a BL line (deliveryNumber) or the tax stamp (deliveryNumber null). In a preview only, a BL line of an item
+	 * without a supply price: missingPrice true, no line number, no price or amounts, outside the totals.
+	 */
 	@Data
 	@NoArgsConstructor
 	@JsonIgnoreProperties(ignoreUnknown = true)
@@ -90,6 +94,20 @@ public class SupplyInvoiceCopyDTO {
 		private Double vatAmount;
 		private Double lineTotal;
 		private Double lineTotalIncludingVat;
+		/** Preview only; absent from the JSON otherwise (the copies sent to the stores are unchanged). */
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private Boolean missingPrice;
+
+		/** A preview line of an item without a supply price. */
+		public static Line missingPrice(String deliveryNumber, String itemCode, String itemName, int quantity) {
+			Line line = new Line();
+			line.deliveryNumber = deliveryNumber;
+			line.itemCode = itemCode;
+			line.itemName = itemName;
+			line.quantity = quantity;
+			line.missingPrice = Boolean.TRUE;
+			return line;
+		}
 
 		public static Line of(HoSupplyInvoiceLine line) {
 			Line copy = new Line();

@@ -142,7 +142,10 @@ public class HoSupplyInvoiceService {
 		return rows;
 	}
 
-	/** What the invoice would be, written nowhere: lines, totals, and the items without a supply price. */
+	/**
+	 * What the invoice would be, written nowhere: lines, totals, and the items without a supply price (in missingPrices,
+	 * and as lines flagged missingPrice, without a price, outside the totals).
+	 */
 	@Transactional(readOnly = true)
 	public SupplyInvoiceDTO preview(SupplyInvoiceDTO request) {
 		Store store = store(request == null ? null : request.getStoreId());
@@ -151,7 +154,8 @@ public class HoSupplyInvoiceService {
 		LocalDate date = invoiceDate(request.getInvoiceDate());
 		checkDate(date);
 		Draft draft = draft(store, chosen, date);
-		SupplyInvoiceDTO view = view(draft.invoice, store, true);
+		SupplyInvoiceDTO view = view(draft.invoice, store, false);
+		view.setLines(draft.previewLines);
 		view.setMissingPrices(draft.missing);
 		return view;
 	}
@@ -269,6 +273,7 @@ public class HoSupplyInvoiceService {
 		}
 		Map<Long, Double> prices = supplyPrices.pricesFor(store, byId.values());
 		Set<String> missing = new LinkedHashSet<>();
+		List<SupplyInvoiceCopyDTO.Line> previewLines = new ArrayList<>();
 		HoSupplyInvoice invoice = new HoSupplyInvoice();
 		invoice.setStoreId(store.getId());
 		invoice.setInvoiceDate(invoiceDate);
@@ -293,10 +298,14 @@ public class HoSupplyInvoiceService {
 				Double price = prices.get(item.getId());
 				if (price == null) {
 					missing.add(item.getItemCode());
+					previewLines.add(SupplyInvoiceCopyDTO.Line.missingPrice(delivery.getNumber(), item.getItemCode(),
+							item.getName(), quantity));
 					continue;
 				}
 				int vat = item.getDefaultVAT() == null ? 0 : item.getDefaultVAT();
-				invoice.getLines().add(line(invoice, ++lineNo, delivery.getNumber(), item, quantity, price, vat));
+				HoSupplyInvoiceLine priced = line(invoice, ++lineNo, delivery.getNumber(), item, quantity, price, vat);
+				invoice.getLines().add(priced);
+				previewLines.add(SupplyInvoiceCopyDTO.Line.of(priced));
 			}
 		}
 		if (Boolean.parseBoolean(String.valueOf(setup.findValueByCode(TAX_STAMP_SETTING)).trim())) {
@@ -307,6 +316,7 @@ public class HoSupplyInvoiceService {
 				line.setItemName("Tax stamp");
 			}
 			invoice.getLines().add(line);
+			previewLines.add(SupplyInvoiceCopyDTO.Line.of(line));
 		}
 		double subtotal = 0;
 		double tax = 0;
@@ -319,7 +329,7 @@ public class HoSupplyInvoiceService {
 		invoice.setSubtotal(HoSupplyPriceService.round(subtotal));
 		invoice.setTaxAmount(HoSupplyPriceService.round(tax));
 		invoice.setTotalAmount(HoSupplyPriceService.round(total));
-		return new Draft(invoice, new ArrayList<>(missing));
+		return new Draft(invoice, new ArrayList<>(missing), previewLines);
 	}
 
 	private static HoSupplyInvoiceLine line(HoSupplyInvoice invoice, int lineNo, String deliveryNumber, Item item,
@@ -419,10 +429,13 @@ public class HoSupplyInvoiceService {
 	private static final class Draft {
 		final HoSupplyInvoice invoice;
 		final List<String> missing;
+		/** In BL order: the invoice lines and, in their place, the lines of the items without a supply price. */
+		final List<SupplyInvoiceCopyDTO.Line> previewLines;
 
-		Draft(HoSupplyInvoice invoice, List<String> missing) {
+		Draft(HoSupplyInvoice invoice, List<String> missing, List<SupplyInvoiceCopyDTO.Line> previewLines) {
 			this.invoice = invoice;
 			this.missing = missing;
+			this.previewLines = previewLines;
 		}
 	}
 

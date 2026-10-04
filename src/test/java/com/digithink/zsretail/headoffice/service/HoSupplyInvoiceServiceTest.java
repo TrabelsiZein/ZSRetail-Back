@@ -43,6 +43,7 @@ import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.support.InMemoryCatalogue;
 import com.digithink.zsretail.support.InMemoryStock;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Head office plan, step 7B, part 2: the supply invoices. Grouped rhythm (preview writing nothing, the invoice from two
@@ -217,6 +218,39 @@ class HoSupplyInvoiceServiceTest {
 		invoices.create(request(b, ok), "a");
 		assertConflict(ok.getNumber() + " is already invoiced.", request(b, ok));
 		assertEquals(1, invoiceTables.invoices.size());
+	}
+
+	@Test
+	@DisplayName("Preview with an item without a supply price: its line in place (code, name, BL, quantity, flagged missing, no price), totals of the priced lines only")
+	void previewMissingPriceLines() throws Exception {
+		HoDelivery first = received(b, 48, 10);
+		HoDelivery second = received(b, 50, 3);
+		ho.supplyPrices.clear();
+		ho.supplyPrice(b001, 6.0); // B002 without a supply price now
+
+		SupplyInvoiceDTO preview = invoices.preview(request(b, first, second));
+
+		assertEquals(Collections.singletonList("B002"), preview.getMissingPrices(), "missingPrices unchanged");
+		assertEquals(4, preview.getLines().size(), "two priced lines and two lines without a price");
+		List<String> order = preview.getLines().stream()
+				.map(l -> l.getDeliveryNumber() + "/" + l.getItemCode() + "/" + l.getLineNo()).collect(Collectors.toList());
+		assertEquals(Arrays.asList(first.getNumber() + "/B001/1", first.getNumber() + "/B002/null",
+				second.getNumber() + "/B001/2", second.getNumber() + "/B002/null"), order, "in BL order");
+		SupplyInvoiceCopyDTO.Line missing = preview.getLines().get(1);
+		assertEquals(Boolean.TRUE, missing.getMissingPrice());
+		assertEquals(b002.getName(), missing.getItemName());
+		assertEquals(10, missing.getQuantity());
+		assertNull(missing.getUnitPrice());
+		assertNull(missing.getLineTotal());
+		assertNull(missing.getLineTotalIncludingVat());
+		assertEquals(3, preview.getLines().get(3).getQuantity());
+		assertNull(preview.getLines().get(0).getMissingPrice());
+		assertEquals(288.0 + 300.0, preview.getSubtotal(), "priced lines only");
+		assertEquals(54.72 + 57.0, preview.getTaxAmount(), 0.0005);
+		assertEquals(342.72 + 357.0, preview.getTotalAmount());
+		String json = new ObjectMapper().writeValueAsString(preview.getLines().get(0));
+		assertFalse(json.contains("missingPrice"), "a priced line has no flag: " + json);
+		assertTrue(invoiceTables.invoices.isEmpty());
 	}
 
 	private void assertConflict(String message, SupplyInvoiceDTO request) {
