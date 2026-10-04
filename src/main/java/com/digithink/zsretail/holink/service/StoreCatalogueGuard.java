@@ -9,6 +9,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,8 @@ import com.digithink.zsretail.repository.ItemFamilyRepository;
 import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.repository.ItemSubFamilyRepository;
 import com.digithink.zsretail.repository.SalesPriceRepository;
+
+import lombok.extern.log4j.Log4j2;
 
 /**
  * Head office plan, tasks 6.3, 6.5, 6.6: the rules of a store whose catalogue is the head office's. The APIs ask it
@@ -38,6 +42,7 @@ import com.digithink.zsretail.repository.SalesPriceRepository;
  */
 @Service
 @ConditionalOnHeadOfficeCatalogue
+@Log4j2
 public class StoreCatalogueGuard {
 
 	public static final String ITEM_MANAGED = "This item is managed by the head office: it is consult-only on this store.";
@@ -233,6 +238,26 @@ public class StoreCatalogueGuard {
 		status.put("ownPriceCount", items.countByOwnPriceTrue());
 		status.put("salesPriceRowsOnHeadOfficeItems", salesPrices.countOnItemsOfOrigin(RecordOrigin.HEAD_OFFICE));
 		return status;
+	}
+
+	/**
+	 * At the start: one WARN line when sales_price rows exist on head office items (with the price group enabled they
+	 * would win over the head office price when lower; PricingService is not changed). Returns the count, -1 when it
+	 * could not be read.
+	 */
+	@EventListener(ApplicationReadyEvent.class)
+	public long warnAboutSalesPrices() {
+		try {
+			long rows = salesPrices.countOnItemsOfOrigin(RecordOrigin.HEAD_OFFICE);
+			if (rows > 0) {
+				log.warn("Head office catalogue: {} sales_price rows on head office items; with"
+						+ " pos.pricing.enable-sales-price-group=true they win over the head office price when lower", rows);
+			}
+			return rows;
+		} catch (RuntimeException e) {
+			log.warn("Head office catalogue: sales_price rows not counted ({})", e.getMessage());
+			return -1;
+		}
 	}
 
 	private boolean fromHeadOffice(Item item) {

@@ -20,6 +20,7 @@ import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.ItemFamily;
 import com.digithink.zsretail.service.CatalogueCodeChangeException;
+import com.digithink.zsretail.service.CatalogueCodeTooLongException;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.ItemFamilyService;
 
@@ -84,6 +85,8 @@ public class ItemFamilyAPI extends _BaseController<ItemFamily, Long, ItemFamilyS
 			log.info("ItemFamilyAPI::create");
 			ItemFamily created = service.save(entity);
 			return ResponseEntity.status(HttpStatus.CREATED).body(created);
+		} catch (CatalogueCodeTooLongException e) {
+			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage())); // step 6, head office
 		} catch (Exception e) {
 			log.error("ItemFamilyAPI::create:error: " + getDetailedMessage(e), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
@@ -111,6 +114,8 @@ public class ItemFamilyAPI extends _BaseController<ItemFamily, Long, ItemFamilyS
 			return ResponseEntity.ok(service.save(entity));
 		} catch (CatalogueCodeChangeException e) {
 			return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(e.getMessage()));
+		} catch (CatalogueCodeTooLongException e) {
+			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage())); // step 6, head office
 		} catch (Exception e) {
 			log.error("ItemFamilyAPI::update:error: " + getDetailedMessage(e), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));

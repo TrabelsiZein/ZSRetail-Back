@@ -37,6 +37,7 @@ import com.digithink.zsretail.model.ItemComposition;
 import com.digithink.zsretail.model.enumeration.ItemType;
 import com.digithink.zsretail.repository.CustomerRepository;
 import com.digithink.zsretail.service.CatalogueCodeChangeException;
+import com.digithink.zsretail.service.CatalogueCodeTooLongException;
 import com.digithink.zsretail.service.CustomerService;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.ItemBarcodeService;
@@ -181,6 +182,8 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			log.info("ItemAPI::create");
 			Item created = service.save(entity);
 			return ResponseEntity.status(HttpStatus.CREATED).body(created);
+		} catch (CatalogueCodeTooLongException e) {
+			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage())); // step 6, head office
 		} catch (Exception e) {
 			log.error("ItemAPI::create:error: " + getDetailedMessage(e), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
@@ -233,6 +236,8 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			return ResponseEntity.ok(updated);
 		} catch (CatalogueCodeChangeException e) {
 			return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(e.getMessage())); // step 6
+		} catch (CatalogueCodeTooLongException e) {
+			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage())); // step 6, head office
 		} catch (Exception e) {
 			log.error("ItemAPI::update:error: " + getDetailedMessage(e), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));

@@ -205,6 +205,7 @@ class StoreCatalogueGuardTest {
 		assertNull(status.get("canPurchase"));
 		assertEquals(0L, status.get("ownPriceCount"));
 		assertEquals(3L, status.get("salesPriceRowsOnHeadOfficeItems"));
+		assertEquals(3L, guard.warnAboutSalesPrices(), "the startup WARN gives the same count");
 		rights.received(true, false, LocalDateTime.now());
 		guard.setOwnPrice(hoItem.getId(), 11.0);
 		status = guard.status();

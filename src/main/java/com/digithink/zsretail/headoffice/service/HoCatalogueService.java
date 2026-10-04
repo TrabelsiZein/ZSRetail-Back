@@ -40,6 +40,7 @@ import com.digithink.zsretail.repository.ItemFamilyRepository;
 import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.repository.ItemSubFamilyRepository;
 import com.digithink.zsretail.service.CatalogueCodeChangeException;
+import com.digithink.zsretail.service.CatalogueCodeTooLongException;
 import com.digithink.zsretail.service.CatalogueHeadOfficeHooks;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -194,7 +195,7 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 	public void beforeSave(CatalogueKind kind, String previousCode, _BaseEntity record) {
 		String code = codeOf(kind, record);
 		if (code != null && code.trim().length() > CatalogueKind.MAX_CODE_LENGTH) {
-			throw new IllegalArgumentException("The code '" + code + "' is longer than " + CatalogueKind.MAX_CODE_LENGTH
+			throw new CatalogueCodeTooLongException("The code '" + code + "' is longer than " + CatalogueKind.MAX_CODE_LENGTH
 					+ " characters: the stores could not receive it.");
 		}
 		if (kind != CatalogueKind.BARCODE && previousCode != null && !previousCode.equals(code)) {

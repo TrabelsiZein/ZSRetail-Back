@@ -52,6 +52,10 @@ The exact prompts are written during the session, from the code as it is that da
 - Step 5: `ho_store.redeem_requires_online` `bit` null (null = false). The new permission `read:admin-headoffice-loyalty-overspends` is added at startup (no script).
 - Enrol switch (2026-10-04): `ho_store.enrol_requires_online` `bit` null (null = false).
 - Steps 4 and 5 together: the four `ho_store` switch columns and the two `origin` columns above; no data change (a store's own members are switched off by the first pull, not by the script).
+- Step 6: `item.origin`, `item_family.origin`, `item_sub_family.origin`, `item_barcode.origin` `varchar(20)` null (null = local).
+- Step 6: `item.own_price` `bit` null (null = false), `item.head_office_price` `float` null.
+- Step 6: `ho_store.selling_price_list_id` `bigint` null, `ho_store.may_change_prices` and `ho_store.can_purchase` `bit` null (null = false).
+- Step 6: new tables through `ddl-auto`: `ho_price_list`, `ho_price_list_line`, `hol_link_right`. The permission `read:admin-headoffice-price-lists` is added at startup (no script). No data change (a store's items become head office items at the first pull, not by the script).
 
 ## 2. Test levels
 
@@ -71,7 +75,7 @@ The exact prompts are written during the session, from the code as it is that da
 | 3 | Promotions owned by head office | ParaFendri | No (engine untouched) | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 604a97c, frontend 57acf81) |
 | 4 | Shared loyalty, part 1: members and earning | ParaFendri | No (enrol and member changes in LoyaltyAPI and LoyaltyService hooks; the four selling services untouched) | Large | Done 2026-10-04, merged into release/2.1.0 with step 5 (backend 27e981c, frontend 07b9970) |
 | 5 | Shared loyalty, part 2: spending and returns | ParaFendri | No (decided 2026-10-03: no hold and confirm, selling services untouched) | Large | Done 2026-10-04, merged into release/2.1.0 with step 4 (backend 27e981c, frontend 07b9970) |
-| 6 | Items and selling prices decided by the head office: price lists, purchase right | Own stores without ERP, franchise | No | Large | Not started |
+| 6 | Items and selling prices decided by the head office: price lists, purchase right | Own stores without ERP, franchise | No | Large | Backend done 2026-10-04 on feature/ho-step-6 (09de724, 72166a0); frontend, L2 and 6.8 to come |
 | 7A | BLs and stock: head office warehouse, delivery to a store, stock of all stores | Own stores without ERP, franchise | No (stock in only) | Large | Not started |
 | 7B | Invoices and supply price for the stores that pay | Franchise | No | Medium | Not started |
 | 8 | Franchise profiles moved onto the model | Happyness | No | Medium | Not started |
@@ -398,12 +402,39 @@ Goal: a store whose items are decided by the head office receives its items and 
 | 6.5 | "May change its selling prices" on the store's row (sent with the heartbeat answer). On: the store can put its own price on a head office item and the pull keeps it. Off: refused | L1 own price kept across a pull; refused when off |
 | 6.6 | "Can purchase from its own suppliers" on the store's row. Off: no purchases, no suppliers and no own items on a store whose items are the head office's. On: purchases and suppliers open, own items can be created, purchase lines accept own items only | L1 off and on; a head office item in a purchase line is refused; a store that decides its own items purchases as today |
 | 6.7 | Stores page: the three new settings; the own / franchise label leaves the page (the column stays) | L2 |
+| 6.8 | Item images from the head office. Not started: to decide after L2 (how they are stored and what sending them would take: `docs/modules/head-office.md`, "Catalogue owned by the head office", Images) | Defined when decided |
 
 L2 scenarios (head office, stores B and C): an item created at the head office is sold at B and C; changed and deactivated, followed; an item of C with the same code becomes the head office item; a price list set on C only: C sells at the list price and B at the base price; a list line change reaches C only; "may change" on at C: its own price survives a pull; purchase right off at B: purchases refused; on at C: own item created, purchased, stock up, sold, and seen in the head office tickets; head office stopped: both stores sell with their last copy.
 
 Done when: L2 passes, the four selling services are unchanged, and the franchise profiles answer as before.
 
 Not in this step: a head office item's stock at a store rises only by BLs, which arrive at step 7A; until then the tests use opening stock or an adjustment.
+
+**Step 6 backend** (done 2026-10-04, branch `feature/ho-step-6`). Described in `docs/modules/head-office.md`, "Catalogue owned by the head office (step 6)" and "Price lists (task 6.4)".
+
+| Part | Backend |
+|---|---|
+| 6.0 Docs: design version 2, steps 6 to 8 recut | a61f027 |
+| 1. Head office (6.1, 6.4): domain `CATALOGUE` (families, sub-families, items, barcodes, every record for every store, by codes, price per store), hooks in the catalogue services and the data import, code change refused, `TAX_STAMP` never sent; price lists and their API; `ho_store` selling price list, `mayChangePrices`, `canPurchase` (the two rights in the heartbeat answer); startup backfill in chunks | 09de724 |
+| 2. Store (6.2, 6.3, 6.5, 6.6): `CATALOGUE` pull (same code taken over, inactive never deleted, missing family or item waiting, barcode moved with its exchange row and the old `item.barcode` field cleared), own price, guards (head office records consult-only, purchase right, sales prices, imports), rights saved in `hol_link_right`, `GET /catalogue/network`, link status block, `/config` `catalogueFromHeadOffice` | 72166a0 |
+| 3. Docs, the startup WARN on `sales_price` rows, 400 for a code too long | this commit |
+
+Choices made in the session (inventory approved by Zein, 2026-10-04):
+- The catalogue and the price lists exist only on a head office without an ERP; ParaFendri's stores keep `CATALOGUE=ERP`.
+- The code of an item, family or sub-family cannot change at the head office once created (409); a barcode value can (the old one becomes inactive at the stores).
+- Packs travel with their components inside the item record. A barcode is sent active only while its item is active (the scan does not check the item).
+- A barcode clash: the head office wins, one `WARNING` exchange row per moved barcode; an old `item.barcode` field of another item with the same value is cleared.
+- The own price has its own endpoints (`PUT`/`DELETE /item/{id}/own-price`); a full `PUT` of a head office item is always 409. When the right goes off, the own prices give way to the head office price at the next cycle (`DownHandler.prepare`).
+- Only the two new rights are saved at the store; the four loyalty switches stay in memory.
+- Purchase right off: writes 409, reads open. Catalogue and sales price imports refused; vendor import follows the right. `sales_price` writes refused, a WARN at startup and a count in the status when rows exist on head office items (`PricingService` not changed).
+- Images do not travel (task 6.8, after L2); `ItemImageController` has no guard.
+- A data import at the head office records its codes at the end, in chunks of 500.
+- Startup backfill in chunks of 500 with one number per record.
+- L2 (decision 18): stores B and C receive the head office items (1,778 imported from NAV in `pos_headoffice`) as a volume test; their profiles get `ownership.catalogue=HEAD_OFFICE` at L2.
+
+Tests: 56 classes, 443 tests, all green. Diff proof against release/2.1.0: 0 files in `erp/`, 0 franchise files; `SalesHeaderService`, `PromotionCalculationService`, `PricingService`, `ReturnHeaderService`, the four loyalty tests and `PromotionAllItemsScopeTest` unchanged. Intended contract changes: the heartbeat answer has two more fields (`mayChangePrices`, `canPurchase`), the link status a 14th field (`catalogue`), `/config` a last field (`catalogueFromHeadOffice`); an explicit `ownership.catalogue=HEAD_OFFICE` is now checked at startup (no shipped profile sets it).
+
+Still owed for step 6: the frontend (6.7 and the store item pages: badge, hidden actions, own price, purchase pages), L2, task 6.8, the merge into release/2.1.0.
 
 ### Step 7A — BLs and stock
 
