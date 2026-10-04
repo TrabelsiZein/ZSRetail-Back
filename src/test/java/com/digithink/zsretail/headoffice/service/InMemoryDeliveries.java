@@ -8,14 +8,18 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.support.TransactionOperations;
@@ -55,6 +59,13 @@ public final class InMemoryDeliveries {
 		return deliveries.values().stream().filter(d -> Objects.equals(d.getNumber(), number)).findFirst().orElse(null);
 	}
 
+	/** The line numbers stored per BL (as of the last save or flush). */
+	private final Map<Long, Set<Integer>> storedLineNos = new HashMap<>();
+
+	private static Set<Integer> lineNos(HoDelivery delivery) {
+		return delivery.getLines().stream().map(HoDeliveryLine::getLineNo).collect(Collectors.toSet());
+	}
+
 	public HoDeliveryRepository deliveryRepository() {
 		return proxy(HoDeliveryRepository.class, (method, args) -> {
 			switch (method) {
@@ -70,14 +81,27 @@ public final class InMemoryDeliveries {
 					if (delivery.getId() == null) {
 						delivery.setId(ho.nextId());
 					}
+					// uk_ho_delivery_line as Hibernate orders the statements: new lines are inserted before the removed ones are
+					// deleted, unless a flush came between (L2 of step 7A)
+					Set<Integer> stored = storedLineNos.getOrDefault(delivery.getId(), new HashSet<>());
+					for (HoDeliveryLine line : delivery.getLines()) {
+						if (line.getId() == null && stored.contains(line.getLineNo())) {
+							throw new DataIntegrityViolationException("uk_ho_delivery_line: duplicate ("
+									+ delivery.getId() + ", " + line.getLineNo() + ")");
+						}
+					}
 					for (HoDeliveryLine line : delivery.getLines()) {
 						if (line.getId() == null) {
 							line.setId(ho.nextId());
 						}
 					}
 					deliveries.put(delivery.getId(), delivery);
+					storedLineNos.put(delivery.getId(), lineNos(delivery));
 					return delivery;
 				}
+				case "flush":
+					deliveries.values().forEach(each -> storedLineNos.put(each.getId(), lineNos(each)));
+					return null;
 				case "delete":
 					deliveries.remove(((HoDelivery) args[0]).getId());
 					return null;

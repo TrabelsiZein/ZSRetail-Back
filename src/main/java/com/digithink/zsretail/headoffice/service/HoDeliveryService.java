@@ -182,6 +182,10 @@ public class HoDeliveryService implements DownDomainProvider {
 		}
 		HoDelivery delivery = found.get();
 		requireDraft(delivery, "changed");
+		// The old lines are deleted first: the new ones reuse their line numbers (uk_ho_delivery_line) and Hibernate inserts
+		// before it deletes within one flush (L2 of step 7A: every edit of a draft answered 500)
+		delivery.getLines().clear();
+		deliveries.flush();
 		fill(delivery, input);
 		HoDelivery saved = deliveries.save(delivery);
 		return Optional.of(view(saved, stores.findById(saved.getStoreId()).orElse(null), true, true));
