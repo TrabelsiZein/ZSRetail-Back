@@ -44,7 +44,7 @@ The exact prompts are written during the session, from the code as it is that da
 - Dev environment (from steps 4 and 5): the head office (888, `pos_headoffice`), store B (555, `pos_store_b`) and store C (556, `pos_store_c`) are run by the `devenv` scripts of the backend repo from the unpacked WAR (`build.ps1`, `start.ps1`, `stop.ps1`, `status.ps1`; described in the root `CLAUDE.md`), not by STS. Store A (`standalone-dev`, `pos_db_prod`) is not part of the loyalty tests and its data is not changed.
 - After any Maven build by Claude Code, STS needs F5 (refresh) and Project > Clean before its Problems list is valid.
 
-**`db/2.1.0/update.sql`: what it must contain** (written once, at the end of the plan; new `ho_` and `hol_` tables come through `ddl-auto` and are listed when the script is written)
+**`db/2.1.0/update.sql`: what it must contain** (written 2026-10-04 on `feature/ho-2.1-cleanup`: the 35 columns below, each guarded, checked against the columns Hibernate created in `pos_headoffice`, and run in a rolled-back transaction on an old and on a 2.1 database; it lists the new `ho_` and `hol_` tables, which come through `ddl-auto`. The pom version goes to 2.1.0 with the delivery: until then the dev and rehearsal databases stay on 1.12.0)
 
 - Step 3: `promotion.origin` `varchar(20)` null (null = local).
 - Step 3: `ho_store.owner_catalogue`, `owner_customers`, `owner_promotions`, `owner_loyalty`, `owner_supply` `varchar(20)` null, and `ho_store.sales_upstreams` `varchar(50)` null (null = the store has not reported yet).
@@ -733,7 +733,7 @@ Grid of `ModeQuestionTruthTableTest` (61,440 configurations; `node.type=STORE` r
 - Every profile file agreed before and after.
 L2 on the 9.3 build (61990ef), 2026-10-04, the replay for the stock checks of 9.1f (sales, returns, BLs, adjustments) and the proof that steps 4 to 7B still pass: `l2-invoices` 13 of 13 (`C:zsretail-devogs2-invoices-181016.txt`), `l2-supply` 12 of 12 (`l2-supply-181453.txt`), `l2-catalogue` 15 of 15 (`l2-catalogue-181524.txt`), `l2-loyalty` 17 of 17 (`l2-loyalty-182035.txt`). The three instances ran from their machine files (`deploy/dev`).
 
-Still owed for step 9: the frontend of step 9 (on its branch, `/item/quick-product` included) merged by the frontend session; the rename of `ConditionalOnHeadOfficeStandalone` and `isHeadOfficeStandaloneSet` to `ConditionalOnHeadOfficeWithoutErp`, `OnHeadOfficeWithoutErpCondition` and `isHeadOfficeWithoutErpSet` (done on `feature/ho-2.1-cleanup`); the `update.sql` lines of section 1; the screen check and the full regression checklist before 2.1 is delivered; Zein's rehearsal of the Happyness process (`devenv/rehearsal.ps1`).
+Still owed for step 9: the frontend of step 9 (on its branch, `/item/quick-product` included) merged by the frontend session; the rename of `ConditionalOnHeadOfficeStandalone` and `isHeadOfficeStandaloneSet` to `ConditionalOnHeadOfficeWithoutErp`, `OnHeadOfficeWithoutErpCondition` and `isHeadOfficeWithoutErpSet` (done on `feature/ho-2.1-cleanup`); `db/2.1.0/update.sql` (written on `feature/ho-2.1-cleanup`), with the pom version 2.1.0 at the delivery; the screen check and the full regression checklist before 2.1 is delivered; Zein's rehearsal of the Happyness process (`devenv/rehearsal.ps1`).
 
 ## 5. Later, not scheduled
 
