@@ -41,6 +41,8 @@ The exact prompts are written during the session, from the code as it is that da
 - L2 is a script through the API and the databases (sqlcmd). The browser is used only for one look per new screen.
 - A clear mistake with a clear fix is fixed without asking and listed in the report.
 - NAV: never 192.168.10.156 (production). Only the test instance 192.168.10.166, only GET. The VPN is opened by Zein on request.
+- Dev environment (from steps 4 and 5): the head office (888, `pos_headoffice`), store B (555, `pos_store_b`) and store C (556, `pos_store_c`) are run by the `devenv` scripts of the backend repo from the unpacked WAR (`build.ps1`, `start.ps1`, `stop.ps1`, `status.ps1`; described in the root `CLAUDE.md`), not by STS. Store A (`standalone-dev`, `pos_db_prod`) is not part of the loyalty tests and its data is not changed.
+- After any Maven build by Claude Code, STS needs F5 (refresh) and Project > Clean before its Problems list is valid.
 
 **`db/2.1.0/update.sql`: what it must contain** (written once, at the end of the plan; new `ho_` and `hol_` tables come through `ddl-auto` and are listed when the script is written)
 
@@ -49,6 +51,7 @@ The exact prompts are written during the session, from the code as it is that da
 - Step 4: `loyalty_member.origin` and `loyalty_program.origin` `varchar(20)` null (null = local); `ho_store.can_edit_members` and `ho_store.can_adjust_points` `bit` null (null = false). New tables through `ddl-auto`: `ho_loyalty_alias`, `ho_loyalty_movement`, `hol_loyalty_member_copy`, `hol_loyalty_movement_copy`.
 - Step 5: `ho_store.redeem_requires_online` `bit` null (null = false). The new permission `read:admin-headoffice-loyalty-overspends` is added at startup (no script).
 - Enrol switch (2026-10-04): `ho_store.enrol_requires_online` `bit` null (null = false).
+- Steps 4 and 5 together: the four `ho_store` switch columns and the two `origin` columns above; no data change (a store's own members are switched off by the first pull, not by the script).
 
 ## 2. Test levels
 
@@ -66,8 +69,8 @@ The exact prompts are written during the session, from the code as it is that da
 | 1 | Head office installation and stores list: a store shows as online | ParaFendri; Happyness from step 8 | No | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 91cb3a8, frontend de4ed05) |
 | 2 | Sales copies up: tickets, returns, sessions of every store visible at head office | ParaFendri; Happyness from step 8 | No | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 3a10957, frontend b90ab84) |
 | 3 | Promotions owned by head office | ParaFendri | No (engine untouched) | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 604a97c, frontend 57acf81) |
-| 4 | Shared loyalty, part 1: members and earning | ParaFendri | No (enrol and member changes in LoyaltyAPI and LoyaltyService hooks; the four selling services untouched) | Large | Backend done 2026-10-03 on feature/ho-step-4 (see "Step 4 backend"); frontend and L2 to come |
-| 5 | Shared loyalty, part 2: spending and returns | ParaFendri | No (decided 2026-10-03: no hold and confirm, selling services untouched) | Large | Backend done 2026-10-03 on feature/ho-step-4 (see "Step 5 backend"); frontend and L2 with step 4 |
+| 4 | Shared loyalty, part 1: members and earning | ParaFendri | No (enrol and member changes in LoyaltyAPI and LoyaltyService hooks; the four selling services untouched) | Large | Done 2026-10-04, merged into release/2.1.0 with step 5 (backend 27e981c, frontend 07b9970) |
+| 5 | Shared loyalty, part 2: spending and returns | ParaFendri | No (decided 2026-10-03: no hold and confirm, selling services untouched) | Large | Done 2026-10-04, merged into release/2.1.0 with step 4 (backend 27e981c, frontend 07b9970) |
 | 6 | Catalogue owned by head office | Own stores without ERP, franchise | No | Medium | Not started |
 | 7 | Shipments (BL) | Own stores without ERP, franchise | No (stock in only) | Large | Not started |
 | 8 | Franchise profiles moved onto the model | Happyness | No | Medium | Not started |
@@ -304,9 +307,66 @@ Bugs found and fixed: 5725e14, the local card numbering (`findMaxCardSequence`) 
 
 Enrol switch (2026-10-04, backend 21f1984): scenario 17 added (strict enrol at B: head office stopped, enrol 503 with the message and a sale works; back, enrol works). All 17 passed (report `C:\zsretail-dev\logs\l2-loyalty-103425.txt`). Runs 4 to 6 failed scenarios 4, 5, 11 and 12 on a dev environment problem, not the code: right after a head office start, loading classes out of the nested jars of the 162 MB WAR took tens of seconds; a thread dump showed the request holding the receiver's lock in the class loader and the stores' retries queued behind it. The instances now run from the exploded WAR (devenv build.ps1 and start.ps1); starts went from 121 to 214 s down to 77, 36 and 17 s. Observation for production: the head office applies loyalty uploads one at a time; when it is slow, the stores time out after 10 s and resend, which the exactly-once keys make harmless.
 
-Still owed: the frontend of the enrol switch (Stores page switch, link page line, the 503 at the till and on the members page) and the screen check of steps 4 and 5, then the merge of steps 4 and 5 into release/2.1.0, the `update.sql` lines of section 1.
-
 Done when: the checklist with local loyalty shows no difference. After this step ParaFendri is fully served.
+
+### Steps 4 and 5 — record
+
+**Status: done 2026-10-04, merged into release/2.1.0 (backend 27e981c, frontend 07b9970).** Delivered together on one branch `feature/ho-step-4`: one L2, one merge. Described in `docs/modules/head-office.md` ("Shared loyalty (step 4)", "Overspend report", "Step 4 pages (frontend)", "Step 5 pages (frontend)") and `docs/modules/loyalty.md`.
+
+| Part | Backend | Frontend |
+|---|---|---|
+| Head office register: copies down of the program and every member, members up with merge, movements up once (overspend), phone check, member edit, store rights, `LYL-HO-000001`, startup check | 2b71f94 | ece22dd (Stores page rights) |
+| Store side: enrol (live phone check, then local, `LYL-<store>-000001`), job `LOYALTY_PUSH`, `LOYALTY` pull (balance = head office + not applied yet), local records switched off, member changes through the head office, program refused, `GET /loyalty/network`, link page API | a2c9cc7 | adace27 (store loyalty pages, POS duplicate card), 934e417 (link page block) |
+| Step 5 head office: fresh member, store adjustments, `redeemRequiresOnline`, overspend report and permission | 0b2d3eb | 0756bb0 (Stores page switch), 7b0c1e3 (overspend page and home tile) |
+| Step 5 store: fresh balance at the till, spend guard (`beforeRedeem` hook), adjustments through the head office, returns proved | af952aa | 25cd826 (fresh balance at the till, adjust points), 581ce28 (link page setting) |
+| Exchange log: a failing link job writes one row when it starts and one when it works again | 22e4891 | — |
+| Enrol 409 with `existingCardNumber`, `existingCardActive` | cb357dd | 25cd826 |
+| Enrol switch `enrolRequiresOnline` (decision 2026-10-04) | 21f1984 | 37c50a0 |
+| Fix found at L2: local card numbering ignores network cards | 5725e14 | — |
+| Dev environment (`devenv/`, store B and C profiles; exploded WAR) and `standalone-dev` linked to the dev head office | dae555b, e613cbd, 5b87ffb | — |
+| Docs | e6dacd7, 38253cc, 16ba74c, ceca4af, a9481a7 | — |
+| Merge into release/2.1.0 | 27e981c | 07b9970 |
+
+Decisions: see "Steps 4 and 5 — decisions" above and the step 5 rows. In short: nothing at the till waits for the head office; enrol is local with the store's card prefix (phone checked across the network when the head office answers; duplicates found later are merged into the card that has the phone, the other card an inactive alias); spending is against the store's balance (overspends reported at the head office); no hold and confirm, the selling services untouched; member edit, deactivation and point adjustment from a store go through the head office with per-store rights; the program is the head office's; a store's members from before the switch are switched off.
+
+**The four per-store switches** (head office Stores page, sent with the heartbeat answer, enforced by the head office or by the store's hook), all **off by default**, so a store keeps working through a long head office outage; a store is made stricter on purpose:
+
+| Switch | When on |
+|---|---|
+| `canEditMembers` | The store may edit and deactivate members (through the head office) |
+| `canAdjustPoints` | The store may adjust points (through the head office) |
+| `redeemRequiresOnline` | Spending needs a balance refreshed from the head office in the last 2 minutes |
+| `enrolRequiresOnline` | Enrolling needs the head office's answer to the phone check (503 otherwise) |
+
+What exists after the steps:
+- Head office: the loyalty pages own the network register (program, members, ledger with the stores' movements as `STORE:<code>`); tables `ho_loyalty_alias`, `ho_loyalty_movement`; `/ho/loyalty/*` for the stores; the overspend report and its home tile; the four switches on the Stores page.
+- Store with `ownership.loyalty=HEAD_OFFICE`: members and program received (`LOYALTY` copies down), enrol, earning, spending and returns as today plus the job `LOYALTY_PUSH` (tables `hol_loyalty_member_copy`, `hol_loyalty_movement_copy`); the fresh balance at the till; the pages consult-only except what the rights allow; the link page shows what is sent.
+- Store with local loyalty, or without a head office: unchanged (no new bean; the four loyalty tests unchanged).
+
+Tests at the merge: backend 50 classes, 399 tests, all green, run in a separate worktree of the branch head. Frontend: production lint and build per frontend commit (frontend session).
+
+L2 (2026-10-04, `devenv/l2-loyalty.ps1`, head office 888, store B 555, store C 556): 17 scenarios, all passed (report `C:\zsretail-dev\logs\l2-loyalty-103425.txt`): 1 local loyalty at C as before; 2 C switched, local members off with one log row, a phone enrolled again; 3 program at B and C, program writes 409; 4 enrol at B known at the head office and C; 5 same phone at C refused with `existingCardNumber`; 6 offline enrol at B and C merged, one surviving card with both stores' points, equal everywhere; 7 earning at B in the head office ledger with the store code, right at C; 8 spending at C of points earned at B, equal everywhere; 9 fresh balance online true, offline false with spending allowed; 10 strict store: canRedeem false, 409, sale without points, spending back when online; 11 overspend: 0 everywhere, one overspend row with the right points, the count agrees; 12 partial then full return, equal after each sync; 13 rights 403, 200, 503; 14 head office edit and adjustment reach B and C; 15 one failure row and one recovery row per job; 16 tickets with loyalty fields at the head office; 17 strict enrol 503 offline, sale works, enrol works when back.
+
+Diff proof against release/2.1.0 (before the merge): 0 files in `erp/`, 0 franchise files; `SalesHeaderService`, `PromotionCalculationService`, `PricingService`, `ReturnHeaderService`, the four loyalty tests (`LoyaltyMemberPhoneTest`, `LoyaltyEarningTiersTest`, `SaleCompletionLoyaltyStampTest`, `ReturnRefundLoyaltyTest`) and `PromotionAllItemsScopeTest` unchanged. Changed files a store also runs, and why a store with local loyalty or without a head office behaves as before:
+
+| File | Why unchanged for such a store |
+|---|---|
+| `LoyaltyService` | Calls `LoyaltyNetworkHooks` only when such a bean exists (head office, or loyalty owned by the head office); none otherwise. `normalizePhone` public, the duplicate message extracted, same text |
+| `LoyaltyAPI` | New branches only when `StoreLoyaltyNetwork` exists (loyalty owned by the head office) |
+| `LoyaltyMemberRepository` | New query methods; `findMaxCardSequence` counts only all-digit cards: same result where only `LYL-000001` cards exist (250 = 250 on `pos_db_prod`, read only) |
+| `LoyaltyProgramRepository` | A new query method only |
+| `LoyaltyMember`, `LoyaltyProgram` | A nullable `origin` column (`ddl-auto`), not read with local loyalty |
+| `ApplicationModeService`, `NodeOwnership` | A new getter; an explicit `ownership.loyalty=HEAD_OFFICE` without the URL is refused (no shipped profile sets it); the new interval key is checked only with the URL |
+| `ZZDataInitializer` | One permission added to the head office list only |
+| `headoffice/*` (`Store`, `StoreService`, `HeadOfficeHeartbeatAPI`) | Head office beans only; `ho_store` exists empty on a store |
+| `holink/*` (`HeadOfficeClient`, `HeadOfficeLinkAPI`, `HeadOfficeCallResult`, `HeadOfficeLinkStatusDTO`, `HeadOfficeLinkStatus`, `LinkJobScheduler`, `SalesPushJob`, `CopiesDownPuller`, `LinkExchangeLog`) | Exist only with `headoffice.url`. With the URL and local loyalty: the new heartbeat fields are read and unused, the link status `loyalty` is null; the exchange log writes a repeated failure once (intended for every link job, step 5 F) |
+| `application-standalone-dev.properties` | Dev profile only (store A linked to the dev head office, on request) |
+
+Frontend shared pages changed, each with its guard: `LoyaltyMembersManagement.vue`, `LoyaltyProgramManagement.vue`, `ItemSelection.vue`, `Payment.vue` — `loyaltyFromHeadOffice` (not a head office and `/config` `ownership.LOYALTY === 'HEAD_OFFICE'`); `fresh` checks only then, `loyaltyCanRedeem` true without one. `Home.vue` — overspend tile and columns only on a head office with the permission (store columns unchanged, `xl=3`). `HeadOfficeLinkStatus.vue` — the loyalty block only when `GET /admin/holink/status` gives `loyalty`. Head office only: `StoresManagement.vue`, `LoyaltyOverspends.vue`, the head office routes and menu. Labels added in `en`, `fr`, `ar`.
+
+**Production note**: the head office applies loyalty uploads (members, movements, member changes) one at a time, to keep the phone checks and the balances right. When it is slow, stores time out after 10 s and resend, which the exactly-once keys make harmless, but uploads of all stores queue behind each other: consider it when sizing the head office server.
+
+Still owed to the full L3 (once, before 2.1 is delivered): the regression checklist on the existing profiles (ERP dev, standalone, franchise pair) with local loyalty, including a sale with points, a return and a parked ticket; the screen check of the steps 4 and 5 pages on the dev pair; the `update.sql` lines of section 1.
 
 ### Step 6 — Catalogue owned by head office
 
@@ -351,9 +411,17 @@ Goal: no more `isStandalone` in the code; every check asks an ownership question
 
 ## 5. Later, not scheduled
 
-- Returns and vouchers across stores (live questions).
-- A new head office dashboard: today the head office home is the store's `Home.vue`.
-- Head office reports: maybe the store reports with a store filter, to discuss; the queries need a version on the `ho_` tables.
+Notes of Zein, 2026-10-03 and 04:
+
+- Design principle, in his words: "No specific cases, everything configurable, so we could make a solution dynamic and cover all needs."
+- How loyalty movements are shared, to discuss: today each store keeps its own movements and only the balance is shared. Open idea: a "full history, all stores" view on a store's member page that asks the head office.
+- Returns in one store of a ticket sold in another; vouchers across stores (live questions).
+- Step 6, agreed before it starts: every item goes to every store in the first version; head office items are consult-only at the store; a store's item with the same code becomes the head office item, and its other items stay sellable as local; an item deleted or deactivated at the head office becomes inactive at the store.
+- Steps 6 to 8, direction to work out with Zein before coding: no franchise-specific code; the own or franchise label on a store is replaced by settings per store; the franchise price field is replaced by price lists (selling price list per store, whether the store may change its selling prices, whether shipments to it are invoiced, the price list the head office charges it); the right "can purchase from its own suppliers", off by default, opens purchases and the store's own items; the head office buys and holds the stock, so it gets the purchases and stock pages at step 7; royalties on sales to consider.
+- Shared customers (task 6.3): undecided.
+- A new head office dashboard (today the head office home is the store's `Home.vue`) and head office reports (maybe the store reports with a store filter, to discuss; the queries need a version on the `ho_` tables).
+
+Also:
 - Profile cleanup at step 9.3: presets for what the installation is, one file per machine outside git for where it runs.
 - The group promotion fix (frontend 8c7ce9b) is not in release/1.12.0.
 - Importing an existing member list into a head office (step 4 decision).
