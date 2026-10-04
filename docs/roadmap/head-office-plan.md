@@ -57,6 +57,7 @@ The exact prompts are written during the session, from the code as it is that da
 - Step 6: `ho_store.selling_price_list_id` `bigint` null, `ho_store.may_change_prices` and `ho_store.can_purchase` `bit` null (null = false).
 - Step 6: new tables through `ddl-auto`: `ho_price_list`, `ho_price_list_line`, `hol_link_right`. The permission `read:admin-headoffice-price-lists` is added at startup (no script). No data change (a store's items become head office items at the first pull, not by the script).
 - Step 7A: no column on an existing table. New tables through `ddl-auto`: `ho_delivery`, `ho_delivery_line`, `ho_number_sequence`, `ho_store_stock` (head office), `hol_delivery`, `hol_delivery_line`, `hol_stock_copy` (store). Two new `stock_movement.movement_type` values (`DELIVERY_OUT`, `DELIVERY_IN`, within `varchar(40)`). The permissions `read:admin-headoffice-vendors`, `-purchases`, `-purchase-new`, `-vendor-balance`, `-purchase-invoices`, `-stock`, `-stock-movements`, `-deliveries`, `-network-stock` (head office) and `read:admin-holink-deliveries` (supply store) are added at startup (no script). No data change.
+- Step 7B: `ho_store.deliveries_invoiced` `bit`, `billing_legal_name` `varchar(200)`, `billing_tax_number` `varchar(50)`, `billing_address` `varchar(500)`, `supply_price_mode` `varchar(20)`, `supply_price_list_id` `bigint`, `supply_discount_percent` `float`, `invoice_rhythm` `varchar(20)`, all null; `ho_price_list.kind` `varchar(10)` null (null = SELLING); `ho_delivery.invoice_id` `bigint` and `invoice_note` `varchar(500)` null; `hol_delivery.invoice_number` `varchar(30)` null; `purchase_invoice_header.origin` `varchar(20)` null (null = the store's own). New tables through `ddl-auto`: `ho_item_supply_price`, `ho_supply_invoice`, `ho_supply_invoice_line`. Permissions `read:admin-headoffice-supply-prices`, `-supply-invoices`, `-store-balances` and the head office setting `SUPPLY_INVOICE_TAX_STAMP` added at startup (no script). No data change.
 
 ## 2. Test levels
 
@@ -78,7 +79,7 @@ The exact prompts are written during the session, from the code as it is that da
 | 5 | Shared loyalty, part 2: spending and returns | ParaFendri | No (decided 2026-10-03: no hold and confirm, selling services untouched) | Large | Done 2026-10-04, merged into release/2.1.0 with step 4 (backend 27e981c, frontend 07b9970) |
 | 6 | Items and selling prices decided by the head office: price lists, purchase right | Own stores without ERP, franchise | No | Large | Done 2026-10-04, merged into release/2.1.0 (backend 5f8cb30; frontend by the frontend session); task 6.8 (images) not started, after step 7B |
 | 7A | BLs and stock: head office warehouse, delivery to a store, stock of all stores | Own stores without ERP, franchise | No (stock in only) | Large | Backend done 2026-10-04 on feature/ho-step-7a (73c961f, f78cc8c, 9900f91, c035941, and the 7A.5 commit); frontend and L2 to come |
-| 7B | Invoices and supply price for the stores that pay | Franchise | No | Medium | Not started |
+| 7B | Invoices and supply price for the stores that pay | Franchise | No | Medium | Backend done 2026-10-04 on feature/ho-step-7b (435ab69, e3e74fb, and the part 3 commit); frontend and L2 to come |
 | 8 | Franchise profiles moved onto the model | Happyness | No | Medium | Not started |
 | 9 | Cleanup: mode checks replaced by ownership questions | Everyone | Yes, mechanical | Medium | Not started |
 
@@ -568,6 +569,37 @@ Goal: a store that pays receives, for its received BLs, an invoice at its supply
 
 L2 scenarios: a store that does not pay: its Received BL cannot be invoiced; a store that pays, per BL: 50 sent, 48 confirmed, an invoice of 48 at the supply price arrives at the store as a purchase invoice and the item's cost follows; grouped rhythm: two Received BLs in one invoice, a third one still Sent is refused; percentage mode gives the selling price minus the percentage.
 
+**Step 7B backend** (done 2026-10-04, branch `feature/ho-step-7b` from `feature/ho-step-7a` at 63203c9, release/2.1.0 with step 6 merged in; not merged). Described in `docs/modules/head-office.md`, "Supply prices and invoicing settings (step 7B, part 1)", "Supply invoices (step 7B, part 2)", "Supply invoices at the store (step 7B, part 3)", "Step 7B pages (frontend, to build)".
+
+| Part | Backend |
+|---|---|
+| 1. Store invoicing settings (`ho_store`), price list kind `SELLING` / `SUPPLY`, base supply price (`ho_item_supply_price`), the supply price of a store (`PRICE_LIST`, `PERCENT_OFF`) | 435ab69 |
+| 2. Supply invoices at the head office (`ho_supply_invoice`, lines, `FHO-yyyy-000001`, BLs `INVOICED`, per-BL invoice at the confirmation, tax stamp setting, paid / unpaid, balances, records `INV:` on the copies down) | e3e74fb |
+| 3. Store: the invoice received as a purchase invoice (vendor `HEAD_OFFICE`, origin, cost of the head office items, BL numbered, vendor guard); docs, this record | this commit |
+
+Choices made in the session (inventory approved by Zein):
+- VAT per line from the item's `defaultVAT`, amounts to the millime. Tax stamp: head office setting `SUPPLY_INVOICE_TAX_STAMP`, off by default; when on, one `TAX_STAMP` line at VAT 0 with `TAX_STAMP_VALUE_MILLIMES`.
+- The price is the supply price of the invoicing date (section 5: price frozen on the BL line at validation).
+- An item without a supply price: refused, listed; an automatic invoice is not created and the BL keeps the reason (`invoice_note`), the confirmation is accepted.
+- Vendor `HEAD_OFFICE` at the store, created at the first invoice, consult-only. The supply price becomes `lastDirectCost`, `lastDirectNetCost` and `costPrice` of head office items only.
+- No cancellation (credit notes later), no partial payment. Settings changed later never touch an existing invoice.
+- Base supply price in its own table, not on `item`. Invoice numbers `FHO-yyyy-NNNNNN`, one sequence per year. One invoice line per BL line.
+- The store purchase invoice tables are reused (`purchase_invoice_header` / `purchase_invoice_line` + `origin`); no `purchase_header` is created; `PurchaseInvoiceService` is not changed.
+
+Tests: 65 classes, 500 tests, all green, in the worktree `D:\ZS Retail\Apps\_worktrees\back-7b`. New: `HoSupplyPriceServiceTest`, `HoSupplyInvoiceServiceTest`, `SupplyInvoiceRoundTripTest`; extended: `OnHeadOfficeCatalogueConditionTest`, `OnHeadOfficeSupplyConditionTest`, `QueryParameterBindingTest`, `ZZDataInitializerRolesTest`.
+
+Diff proof against `feature/ho-step-7a` (63203c9): 0 files in `erp/`, 0 franchise files; `SalesHeaderService`, `PromotionCalculationService`, `PricingService`, `ReturnHeaderService`, `PurchaseInvoiceService`, the four loyalty tests and `PromotionAllItemsScopeTest` unchanged. Changed files a store also runs:
+
+| File | Why a store behaves as before |
+|---|---|
+| `VendorAPI` | The head office vendor guard is looked up with an `ObjectProvider`: absent on every store without `ownership.supply=HEAD_OFFICE` |
+| `PurchaseInvoiceHeader`, `PurchaseInvoiceHeaderRepository` | A nullable `origin` column (null on every existing invoice) and a new query method |
+| `ReceivedDelivery`, `ReceivedDeliveryDTO`, `DeliveryReceptionService`, `SupplyDownHandler` | Supply beans only (7A condition); a BL record without `kind` is handled as in 7A |
+| `ZZDataInitializer` | The setting `SUPPLY_INVOICE_TAX_STAMP` and three permissions on a head office only |
+| `headoffice/*` | Head office without an ERP only; the new `ho_` tables and columns exist empty in a store database |
+
+Still owed for step 7B: the frontend pages (list in the module doc), L2 on the dev pair (B with `ownership.supply=HEAD_OFFICE` and its deliveries invoiced), the merge of `feature/ho-step-7a` (or `release/2.1.0`) into this branch once 7A moves, then the merge into `release/2.1.0`.
+
 ### Step 8 — Franchise profiles moved onto the model
 
 Goal: a franchise network runs as a head office and stores; the franchise modes disappear. Needs decisions D7 and D15.
@@ -606,5 +638,7 @@ Also:
 - BLs created in the franchisor's ERP.
 - Store-to-store transfers without an ERP; goods sent back to the head office; a store asking the head office for goods.
 - Cancelling a Sent BL that is not received yet (decided 2026-10-04: not in 7A). It needs a Cancelled status, the head office stock given back with a movement, and a rule for a store that confirmed offline before the cancellation reached it (its count wins: the BL becomes Received again and the stock goes out again).
+- Price frozen on the BL line at validation (decided 2026-10-04: not in 7B, the invoice takes the supply price of its date). It would add a `supply_price` to `ho_delivery_line`, set at validation for a store whose deliveries are invoiced, and the invoice would use it.
+- Credit notes for a supply invoice (cancellation or correction) and partial payments.
 - A second purchase switch: a store buying head office items from its own suppliers.
 - An item or a family limited to some stores; prices with dates; royalties; shared customers.
