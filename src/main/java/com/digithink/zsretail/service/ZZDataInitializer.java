@@ -104,12 +104,12 @@ public class ZZDataInitializer {
 
 		// Standalone first-run: auto-create passenger customer and wire its code in
 		// config
-		if (applicationModeService.isStandalone() && customerRepository.count() == 0) {
+		if (!applicationModeService.isCustomersFromErp() && customerRepository.count() == 0) {
 			ensurePassengerCustomer();
 		}
 
 		// ERP-related configs and sync jobs only when not in standalone mode
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.hasErp()) {
 			ensureErpSyncCheckpointConfigs();
 			if (erpSyncJobRepository.count() == 0) {
 				initErpSyncJobs();
@@ -1016,7 +1016,7 @@ public class ZZDataInitializer {
 				false, ConfigType.BOOLEAN);
 
 		// ── ERP-only configs ──────────────────────────────────────────────────
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.hasErp()) {
 			ensureConfigWithOptions("ERP_SYNC_TRACKING_LEVEL", "ALL",
 					"ERP communication tracking level (ERRORS_ONLY | ERRORS_AND_WARNINGS | ALL)", false,
 					ConfigType.SELECT, "ERRORS_ONLY,ERRORS_AND_WARNINGS,ALL");

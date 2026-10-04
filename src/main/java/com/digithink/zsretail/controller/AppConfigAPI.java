@@ -64,7 +64,7 @@ public class AppConfigAPI {
 		}
 		boolean tombolaEnabled = "true".equalsIgnoreCase(generalSetupService.findValueByCode("TOMBOLA_ENABLED"));
 		return ResponseEntity.ok(new AppConfigDTO(
-				applicationModeService.isStandalone(),
+				!applicationModeService.hasErp(), // step 9: the field keeps its name and value (no ERP)
 				enableSalesPriceGroup,
 				loyaltyEnabled,
 				applicationModeService.isFranchiseAdmin(),
