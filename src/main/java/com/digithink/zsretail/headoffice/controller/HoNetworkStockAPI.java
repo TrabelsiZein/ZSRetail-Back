@@ -37,16 +37,16 @@ public class HoNetworkStockAPI {
 	@GetMapping
 	public ResponseEntity<?> page(@RequestParam(required = false) Long storeId,
 			@RequestParam(required = false) String search, @RequestParam(required = false) Integer page,
-			@RequestParam(required = false) Integer size) {
-		return answer(() -> ResponseEntity.ok(service.page(storeId, search, page, size)));
+			@RequestParam(required = false) Integer size, @RequestParam(required = false) Boolean belowZero) {
+		return answer(() -> ResponseEntity.ok(service.page(storeId, search, page, size, Boolean.TRUE.equals(belowZero))));
 	}
 
 	/** The stores' own items (not from the head office) with their stock. */
 	@GetMapping("/own")
 	public ResponseEntity<?> own(@RequestParam(required = false) Long storeId,
 			@RequestParam(required = false) String search, @RequestParam(required = false) Integer page,
-			@RequestParam(required = false) Integer size) {
-		return answer(() -> ResponseEntity.ok(service.ownItems(storeId, search, page, size)));
+			@RequestParam(required = false) Integer size, @RequestParam(required = false) Boolean belowZero) {
+		return answer(() -> ResponseEntity.ok(service.ownItems(storeId, search, page, size, Boolean.TRUE.equals(belowZero))));
 	}
 
 	private ResponseEntity<?> answer(Supplier<ResponseEntity<?>> call) {

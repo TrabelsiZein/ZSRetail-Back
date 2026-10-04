@@ -1115,6 +1115,7 @@ Every store whose goods come from the head office copies its stock up; the head 
 |---|---|
 | `GET /?storeId=&search=&page=&size=` | `{stores: [{id, code, name, lastStockAt}], content: [{itemCode, itemName, headOffice, byStore: {"<storeId>": quantity}}], totalElements, totalPages, number, size}`: the head office items (products and packs, not `TAX_STAMP`) by code, search on code and name, with the head office stock and each store's; `storeId` one store, absent: every active store by code. A store that never sent an item has no entry for it. 400 for an unknown store or a page below 0 |
 | `GET /own?storeId=&search=&page=&size=` | The stores' own items (not from the head office): `{content: [{storeId, storeCode, storeName, itemCode, itemName, quantity, storeTime, receivedAt}], ...}` by store and code |
+| `belowZero=true` on both (optional, filtered in the query) | `GET /`: only the items whose stock is below zero in a column shown (the head office, or the store `storeId`, or any active store); `GET /own`: only the own items below zero. Absent or false: as above |
 
 `GET /admin/holink/status` field `supply` gets two keys at the store: `stockToSend` (items whose stock waits to be sent) and `stockSentAt` (last accepted push, null before). Page permission `read:admin-headoffice-network-stock` (34 head office permissions).
 
