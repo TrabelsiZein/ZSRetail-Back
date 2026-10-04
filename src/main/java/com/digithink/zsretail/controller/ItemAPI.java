@@ -102,7 +102,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	 */
 	@PostMapping("/standalone-quick-product")
 	public ResponseEntity<?> createStandaloneQuickProduct(@RequestBody StandaloneQuickProductRequestDTO request) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isCatalogueFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Product creation is only available in standalone mode. In ERP mode products are synchronized from the ERP."));
 		}
@@ -155,7 +155,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	@Override
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody Item entity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isCatalogueFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Item creation is only available in standalone mode. In ERP mode items are synchronized from the ERP."));
 		}
@@ -193,7 +193,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	@Override
 	@PutMapping("/{id}")
 	public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Item entity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isCatalogueFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Item update is only available in standalone mode. In ERP mode items are synchronized from the ERP."));
 		}
@@ -250,7 +250,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	@Override
 	@DeleteMapping("/{id}")
 	public ResponseEntity<?> deleteById(@PathVariable Long id) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isCatalogueFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Item deletion is only available in standalone mode. In ERP mode items are synchronized from the ERP."));
 		}

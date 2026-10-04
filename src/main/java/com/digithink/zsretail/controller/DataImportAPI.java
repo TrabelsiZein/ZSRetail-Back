@@ -44,7 +44,7 @@ public class DataImportAPI {
      */
     @PostMapping(value = "/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> preview(@RequestPart("file") MultipartFile file) {
-        if (!applicationModeService.isStandalone()) {
+        if (applicationModeService.isCatalogueFromErp()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body("Data import is only available in standalone mode.");
         }
@@ -71,7 +71,7 @@ public class DataImportAPI {
             @RequestParam("entityType") String entityType,
             @RequestParam("mapping") String mappingJson) {
 
-        if (!applicationModeService.isStandalone()) {
+        if (applicationModeService.isCatalogueFromErp()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body("Data import is only available in standalone mode.");
         }

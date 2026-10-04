@@ -70,7 +70,7 @@ public class ItemFamilyAPI extends _BaseController<ItemFamily, Long, ItemFamilyS
 	 */
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody ItemFamily entity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isCatalogueFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Item family creation is only available in standalone mode. In ERP mode families are synchronized from the ERP."));
 		}

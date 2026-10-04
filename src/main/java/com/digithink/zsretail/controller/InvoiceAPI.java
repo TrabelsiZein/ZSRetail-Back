@@ -118,7 +118,7 @@ public class InvoiceAPI {
 			log.info("InvoiceAPI::getEligibleTickets customerId={}, dateFrom={}, dateTo={}", customerId, dateFrom,
 					dateTo);
 
-			if (!applicationModeService.isStandalone()) {
+			if (applicationModeService.isCustomersFromErp()) {
 				return ResponseEntity.status(HttpStatus.FORBIDDEN)
 						.body(createErrorResponse("Invoice creation from POS is only available in standalone mode."));
 			}
@@ -151,7 +151,7 @@ public class InvoiceAPI {
 					request.getCustomerId(),
 					request.getTicketIds() != null ? request.getTicketIds().size() : 0);
 
-			if (!applicationModeService.isStandalone()) {
+			if (applicationModeService.isCustomersFromErp()) {
 				return ResponseEntity.status(HttpStatus.FORBIDDEN)
 						.body(createErrorResponse("Invoice creation from POS is only available in standalone mode."));
 			}
@@ -202,7 +202,7 @@ public class InvoiceAPI {
 		try {
 			log.info("InvoiceAPI::createInvoiceFromTicket ticketId={}", ticketId);
 
-			if (!applicationModeService.isStandalone()) {
+			if (applicationModeService.isCustomersFromErp()) {
 				return ResponseEntity.status(HttpStatus.FORBIDDEN)
 						.body(createErrorResponse("Invoice creation from POS is only available in standalone mode."));
 			}

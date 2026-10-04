@@ -38,6 +38,7 @@ import com.digithink.zsretail.service.ItemCompositionService;
 import com.digithink.zsretail.service.ItemService;
 import com.digithink.zsretail.service._BaseService;
 import com.digithink.zsretail.support.InMemoryCatalogue;
+import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, task 6.3 and 6.5: the real ItemAPI with and without the step 6 guard. With it (a store whose
@@ -74,8 +75,7 @@ class ItemAPICatalogueGuardTest {
 	}
 
 	private ItemAPI api(boolean withGuard) throws Exception {
-		ApplicationModeService mode = new ApplicationModeService();
-		set(mode, ApplicationModeService.class, "standalone", true);
+		ApplicationModeService mode = TestModes.standalone();
 		ItemService service = new ItemService();
 		set(service, ItemService.class, "itemRepository", store.itemRepository());
 		set(service, ItemService.class, "applicationModeService", mode);

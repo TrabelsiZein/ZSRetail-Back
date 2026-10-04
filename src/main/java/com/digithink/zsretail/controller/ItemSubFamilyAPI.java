@@ -50,7 +50,7 @@ public class ItemSubFamilyAPI extends _BaseController<ItemSubFamily, Long, ItemS
 	 */
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody ItemSubFamily entity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isCatalogueFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Item subfamily creation is only available in standalone mode. In ERP mode subfamilies are synchronized from the ERP."));
 		}

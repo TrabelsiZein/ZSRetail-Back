@@ -44,7 +44,7 @@ public class CustomerAPI extends _BaseController<Customer, Long, CustomerService
 	 */
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody Customer entity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isCustomersFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Customer creation is only available in standalone mode. In ERP mode customers are synchronized from the ERP."));
 		}
