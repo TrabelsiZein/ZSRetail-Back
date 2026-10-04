@@ -4,7 +4,8 @@
 # for the run, invoiced. Store C: supplied for the run only (restarted with -Set ownership.supply=HEAD_OFFICE), never
 # invoiced. Everything the run changes outside its own data is restored at the end: B's invoicing settings, supply and
 # selling price lists, purchase right; the head office settings SUPPLY_INVOICE_TAX_STAMP and ALLOW_NEGATIVE_STOCK;
-# C restarted with its profile. Each run uses its own item codes (run tag); test data stays in the dev databases.
+# C restarted with its profile, after its supply traces were cleaned (its BLs, stock copies and deliveries permission,
+# its stock rows at the head office; l2-supply expects none on C). Each run uses its own item codes (run tag); test data stays in the dev databases.
 #   powershell -File devenv\l2-invoices.ps1
 # Output: one PASS / FAIL line per scenario, also written to C:\zsretail-dev\logs\l2-invoices-<tag>.txt
 param([int]$StopAfter = 99)
@@ -314,7 +315,13 @@ Result 13 $ok "C: $($blC.Number) received ($recC): $($hoC.status), invoices of C
 	SetSetting 'SUPPLY_INVOICE_TAX_STAMP' $savedStamp
 	SetSetting 'ALLOW_NEGATIVE_STOCK' $negative
 	Heartbeat 'store-b'
-	StopInst 'store-c'; StartInst 'store-c'; Heartbeat 'store-c'
+	StopInst 'store-c'
+	# C is never supplied in its profile: no trace of the run's supply (l2-supply counts them). Its SUPPLY cursor and
+	# tracking rows stay, so a later supplied C never pulls these BLs again; without its stock copy it sends all again.
+	$cleanC = Sql 'store-c' "SET NOCOUNT ON; DECLARE @d int, @s int, @p int; DELETE FROM hol_delivery_line; DELETE FROM hol_delivery; SET @d = @@ROWCOUNT; DELETE FROM hol_stock_copy; SET @s = @@ROWCOUNT; DELETE FROM app_role_permission WHERE permission_key = 'read:admin-holink-deliveries'; SET @p = @@ROWCOUNT; SELECT CAST(@d AS varchar) + ' BLs, ' + CAST(@s AS varchar) + ' stock copies, ' + CAST(@p AS varchar) + ' deliveries permission'"
+	$cleanHo = Sql 'headoffice' "SET NOCOUNT ON; DELETE FROM ho_store_stock WHERE store_id = $storeC; SELECT CAST(@@ROWCOUNT AS varchar)"
+	StartInst 'store-c'; Heartbeat 'store-c'
+	Say "   cleaned C: $(@($cleanC)[-1]); its stock rows at the head office: $(@($cleanHo)[-1])"
 	Say "   restored: B invoiced=$($restore.deliveriesInvoiced) $($restore.supplyPriceMode) $($restore.invoiceRhythm) canPurchase=$($restore.canPurchase), supply list '$($saved[2])', selling list '$($saved[4])', percent $percent; SUPPLY_INVOICE_TAX_STAMP $savedStamp; ALLOW_NEGATIVE_STOCK $negative; store C restarted with its profile (owner_supply $(Scalar 'headoffice' "SELECT ISNULL(owner_supply,'?') FROM ho_store WHERE id = $storeC"))"
 }
 Say ""
