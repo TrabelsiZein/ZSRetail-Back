@@ -25,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeStandalone;
+import com.digithink.zsretail.config.ConditionalOnHeadOfficeWithoutErp;
 import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryCopyDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryDTO;
@@ -61,7 +61,7 @@ import lombok.extern.log4j.Log4j2;
  * No item save: no CATALOGUE change. See docs/modules/head-office.md, "BLs".
  */
 @Service
-@ConditionalOnHeadOfficeStandalone
+@ConditionalOnHeadOfficeWithoutErp
 @Log4j2
 public class HoDeliveryService implements DownDomainProvider {
 

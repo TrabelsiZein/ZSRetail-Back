@@ -182,10 +182,9 @@ public final class NodeOwnership {
 
 	/**
 	 * True on a head office without an ERP (step 6): node.type=HEAD_OFFICE and no owner ERP. It sends its catalogue to its
-	 * stores and keeps the price lists. Also used by {@link OnHeadOfficeStandaloneCondition} (the name keeps "standalone"
-	 * until the step 7B merge: its beans use the annotation).
+	 * stores and keeps the price lists. Also used by {@link OnHeadOfficeWithoutErpCondition}.
 	 */
-	public static boolean isHeadOfficeStandaloneSet(PropertyResolver env) {
+	public static boolean isHeadOfficeWithoutErpSet(PropertyResolver env) {
 		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && !resolve(env).hasErp();
 	}
 

@@ -5,9 +5,8 @@ import org.springframework.context.annotation.ConditionContext;
 import org.springframework.core.type.AnnotatedTypeMetadata;
 
 /**
- * Matches on a head office with an ERP (task 3.4, decision D2): node.type=HEAD_OFFICE and application.standalone false
- * or absent, read like the startup ({@link NodeOwnership#nodeTypeOf}) and like ApplicationModeService (a boolean,
- * false when absent). Used through {@link ConditionalOnHeadOfficeErp}.
+ * Matches on a head office with an ERP (task 3.4, decision D2): node.type=HEAD_OFFICE and an owner ERP (preset
+ * headoffice-erp), resolved like the startup ({@link NodeOwnership#isHeadOfficeErpSet}). Used through {@link ConditionalOnHeadOfficeErp}.
  */
 public class OnHeadOfficeErpCondition implements Condition {
 

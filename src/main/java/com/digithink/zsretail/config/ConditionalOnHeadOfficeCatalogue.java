@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Conditional;
 
 /**
  * The bean exists only on a store whose catalogue is the head office's (step 6): headoffice.url set,
- * ownership.catalogue=HEAD_OFFICE, application.standalone=true. See
+ * ownership.catalogue=HEAD_OFFICE (accepted only without an ERP). See
  * docs/modules/head-office.md, "Catalogue owned by the head office".
  */
 @Target({ ElementType.TYPE, ElementType.METHOD })

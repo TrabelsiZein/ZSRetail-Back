@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Conditional;
 
 /**
  * The bean exists only on a store whose goods come from the head office by BL (step 7A): headoffice.url set, an
- * explicit ownership.supply=HEAD_OFFICE, application.standalone=true. See docs/modules/head-office.md, "BLs at the
+ * explicit ownership.supply=HEAD_OFFICE (accepted only without an ERP). See docs/modules/head-office.md, "BLs at the
  * store".
  */
 @Target({ ElementType.TYPE, ElementType.METHOD })

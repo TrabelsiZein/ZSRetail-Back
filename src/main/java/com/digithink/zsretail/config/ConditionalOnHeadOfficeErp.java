@@ -9,7 +9,8 @@ import java.lang.annotation.Target;
 import org.springframework.context.annotation.Conditional;
 
 /**
- * The bean exists only on a head office with an ERP (task 3.4): node.type=HEAD_OFFICE and application.standalone=false.
+ * The bean exists only on a head office with an ERP (task 3.4): node.type=HEAD_OFFICE and the ERP owning the catalogue,
+ * the customers and the supply (preset headoffice-erp).
  * See docs/modules/head-office.md, "Head office with an ERP".
  */
 @Target({ ElementType.TYPE, ElementType.METHOD })

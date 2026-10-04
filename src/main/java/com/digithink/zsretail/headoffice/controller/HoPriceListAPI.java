@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeStandalone;
+import com.digithink.zsretail.config.ConditionalOnHeadOfficeWithoutErp;
 import com.digithink.zsretail.headoffice.dto.PriceListDTO;
 import com.digithink.zsretail.headoffice.dto.PriceListLineDTO;
 import com.digithink.zsretail.headoffice.service.HoPriceListService;
@@ -31,7 +31,7 @@ import lombok.extern.log4j.Log4j2;
  */
 @RestController
 @RequestMapping("admin/headoffice/price-lists")
-@ConditionalOnHeadOfficeStandalone
+@ConditionalOnHeadOfficeWithoutErp
 @Log4j2
 public class HoPriceListAPI {
 

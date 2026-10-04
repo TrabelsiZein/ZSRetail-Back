@@ -84,7 +84,7 @@ class PresetTruthTableTest {
 		row.add("catalogueHO=" + NodeOwnership.isCatalogueFromHeadOffice(env));
 		row.add("supplyHO=" + NodeOwnership.isSupplyFromHeadOffice(env));
 		row.add("hoErp=" + NodeOwnership.isHeadOfficeErpSet(env));
-		row.add("hoNoErp=" + NodeOwnership.isHeadOfficeStandaloneSet(env));
+		row.add("hoNoErp=" + NodeOwnership.isHeadOfficeWithoutErpSet(env));
 		row.add("erp=" + o.hasErp());
 		row.add("nav=" + Boolean.parseBoolean(env.getProperty("erp.dynamicsnav.enabled", "false")));
 		return row.toString();

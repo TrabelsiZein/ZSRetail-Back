@@ -136,6 +136,6 @@ class OnHeadOfficeSupplyConditionTest {
 		assertFalse(registered(TestModes.erpOwners(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")),
 				HeadOfficeSupplyAPI.class));
 		assertFalse(registered(supplied(), HeadOfficeSupplyAPI.class));
-		assertTrue(HeadOfficeSupplyAPI.class.isAnnotationPresent(ConditionalOnHeadOfficeStandalone.class));
+		assertTrue(HeadOfficeSupplyAPI.class.isAnnotationPresent(ConditionalOnHeadOfficeWithoutErp.class));
 	}
 }

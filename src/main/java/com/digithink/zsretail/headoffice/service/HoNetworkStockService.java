@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeStandalone;
+import com.digithink.zsretail.config.ConditionalOnHeadOfficeWithoutErp;
 import com.digithink.zsretail.headoffice.dto.StockReportDTO;
 import com.digithink.zsretail.headoffice.model.HoStoreStock;
 import com.digithink.zsretail.headoffice.model.Store;
@@ -41,7 +41,7 @@ import lombok.extern.log4j.Log4j2;
  * of the stores".
  */
 @Service
-@ConditionalOnHeadOfficeStandalone
+@ConditionalOnHeadOfficeWithoutErp
 @Log4j2
 public class HoNetworkStockService {
 

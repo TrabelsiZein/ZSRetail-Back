@@ -75,7 +75,7 @@ class NetworkPresetTruthTableTest {
 		assertEquals(pull, NodeOwnership.isHeadOfficePullSet(env), "pull");
 		assertEquals(catalogue, NodeOwnership.isCatalogueFromHeadOffice(env), "catalogue from the head office");
 		assertEquals(supply, NodeOwnership.isSupplyFromHeadOffice(env), "supply from the head office");
-		assertEquals(headOfficeStandalone, NodeOwnership.isHeadOfficeStandaloneSet(env), "head office without ERP");
+		assertEquals(headOfficeStandalone, NodeOwnership.isHeadOfficeWithoutErpSet(env), "head office without ERP");
 		assertFalse(NodeOwnership.isHeadOfficeErpSet(env), "head office with ERP");
 		assertNull(env.getProperty("application.standalone"), "removed at task 9.3");
 		assertNull(env.getProperty("franchise.admin"), "no franchise key (task 9.4a)");
