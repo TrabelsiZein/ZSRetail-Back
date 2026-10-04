@@ -10,6 +10,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -53,6 +55,9 @@ public class LinkExchangeLog {
 	private final int retentionDays;
 	private volatile LocalDateTime lastPurge;
 
+	/** Step 5: the jobs in a failure episode, with the failures already written. */
+	private final Map<String, Failure> failing = new ConcurrentHashMap<>();
+
 	@Autowired
 	public LinkExchangeLog(LinkExchangeRepository repository, PlatformTransactionManager transactionManager,
 			@Value("${headoffice.log-retention-days:30}") int retentionDays) {
@@ -80,6 +85,59 @@ public class LinkExchangeLog {
 
 	/** Writes one row. Never throws: a failure is logged at WARN and the exchange goes on. */
 	public void record(String job, ExchangeDirection direction, int records, LinkJobResult result, String error,
+			LocalDateTime at, long durationMs) {
+		if (job != null) {
+			failing.remove(job); // an exchange went through: the job works again, this row shows it
+		}
+		write(job, direction, records, result, error, at, durationMs);
+	}
+
+	/**
+	 * Step 5: a job's failure (not delivered, search failed, page not applied...), written only when it starts: while
+	 * the job keeps failing, a failure already written in this episode (same text) writes nothing more. A new reason
+	 * writes its row. The episode ends at the job's next exchange that goes through, or at its next run that is not an
+	 * ERROR ({@link #afterRun}, which then writes one SUCCESS row). In memory: a restart starts a new episode.
+	 */
+	public void recordFailure(String job, ExchangeDirection direction, int records, String error, LocalDateTime at,
+			long durationMs) {
+		Failure failure = failing.computeIfAbsent(job, key -> new Failure(direction));
+		if (!failure.texts.add(String.valueOf(error))) {
+			log.debug("Head office link: {} still failing ({}), no new exchange row", job, error);
+			return;
+		}
+		write(job, direction, records, LinkJobResult.ERROR, error, at, durationMs);
+	}
+
+	/**
+	 * Step 5, called by the scheduler after each run: a job that was failing and whose run is no longer an ERROR writes
+	 * one SUCCESS row (0 records), its "works again", unless an exchange of the run already showed it.
+	 */
+	public void afterRun(String job, LinkJobResult result, LocalDateTime at) {
+		if (result == LinkJobResult.ERROR) {
+			return;
+		}
+		Failure failure = failing.remove(job);
+		if (failure != null) {
+			write(job, failure.direction, 0, LinkJobResult.SUCCESS, null, at, 0);
+		}
+	}
+
+	/** True while the job is in a failure episode (for the tests). */
+	boolean isFailing(String job) {
+		return failing.containsKey(job);
+	}
+
+	/** The failures written in the current episode of a job. */
+	private static final class Failure {
+		final ExchangeDirection direction;
+		final Set<String> texts = ConcurrentHashMap.newKeySet();
+
+		Failure(ExchangeDirection direction) {
+			this.direction = direction;
+		}
+	}
+
+	private void write(String job, ExchangeDirection direction, int records, LinkJobResult result, String error,
 			LocalDateTime at, long durationMs) {
 		try {
 			LinkExchange row = new LinkExchange();

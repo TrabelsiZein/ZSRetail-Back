@@ -66,7 +66,7 @@ Everything that travels between a store and the head office is one of three move
 |---|---|---|---|---|
 | Copies down | Head office to store | Data the head office owns: promotions, loyalty program and members, catalogue, shipments addressed to the store | The store pulls what changed since its last cursor and saves it by business code | The store keeps working with its last copy |
 | Documents up | Store to head office | Tickets, returns, session closings, loyalty movements | The store pushes; the head office saves by store code + document number, so a repeat is harmless | Documents wait and are sent later; the till is never blocked |
-| Live questions | Store asks, head office answers | Shared balances: enrol a member, spend points; later vouchers and tickets of another store | A direct call at the moment of use | Only that one feature is unavailable, with a clear message; the sale continues |
+| Live questions | Store asks, head office answers | Shared data at the moment of use: the phone check of an enrol, a fresh balance at the till, a member change or a point adjustment from a store; later vouchers and tickets of another store | A direct call at the moment of use | Only that one feature is unavailable, with a clear message; the sale continues |
 
 Rules:
 
@@ -101,9 +101,9 @@ Rules:
 
 - The head office holds the program, the member register and the ledger of all point movements, in the existing loyalty tables and pages.
 - Each store keeps a local copy of the program and the members (copies down), so search and earning work offline.
-- **Enrol**: live question. The head office issues the card number and checks the phone number across the whole network.
-- **Earn**: computed locally inside the sale exactly as today, then sent up with the ticket. Other stores see the new balance at their next pull.
-- **Spend**: live question. Points are held at the head office when the cashier validates the payment and confirmed when the ticket copy arrives. A hold with no ticket after a delay is released automatically. Offline: no spending, earning still works.
+- **Enrol** (decided 2026-10-03): the store always creates the member, with a card number that carries its code; when the head office answers within a short timeout the phone is checked across the network first. The member is sent up later; a phone found at the head office then is merged into the existing card (points moved, the extra card an inactive alias). Never blocked by the head office.
+- **Earn**: computed locally inside the sale exactly as today; the movement is sent up by the store's loyalty job. Other stores see the new balance at their next pull.
+- **Spend** (decided 2026-10-03): against the store's balance, never blocked by default. When a member is selected the till asks the head office for a fresh balance (short timeout; the store's copy when it does not answer). Removals that find the head office balance lower stop at zero and are listed in an overspend report. A per-store setting (`redeemRequiresOnline`) refuses spending without a balance refreshed in the last 2 minutes. No hold and confirm.
 - **Returns**: in the store that sold the ticket; the movements go up like any other.
 - With `LOYALTY=LOCAL` nothing changes: the current code path stays as it is.
 
@@ -143,7 +143,7 @@ When the new settings are absent, they are derived from the existing properties,
 1. With no head office URL configured, none of the new beans or schedulers exist (same technique as the franchise code today: `@ConditionalOnProperty`).
 2. With the new settings absent, behaviour is derived from the old properties and is identical.
 3. No column or table is removed or renamed. Every release ships its `db/<version>/update.sql`.
-4. The selling services (`SalesHeaderService`, `PromotionCalculationService`, `PricingService`, `ReturnHeaderService`) are changed only by the loyalty steps, and only on the path where loyalty is owned by the head office.
+4. The selling services (`SalesHeaderService`, `PromotionCalculationService`, `PricingService`, `ReturnHeaderService`) are not changed (decided 2026-10-03, steps 4 and 5: no hold and confirm). Shared loyalty changes `LoyaltyService` only through hooks that exist when loyalty is owned by the head office.
 5. The `erp/` package is not modified.
 6. The legacy franchise profiles and endpoints are not modified until the migration step.
 
@@ -176,8 +176,8 @@ The first two are live questions and fit the model. None is needed to start.
 | D1 | Decided 2026-10-02: the head office runs on the customer's server; stores reach it over LAN/VPN. HTTP is acceptable inside the tunnel; the head office URL is a setting | Decided |
 | D2 | How the ParaFendri head office gets the item list (import from BC with a reference location) | Step 3 |
 | D3 | May a store with head office promotions also create its own | Step 3 |
-| D4 | Is enrolling a member allowed offline (recommended: no in the first version) | Step 4 |
-| D5 | How reliable the internet is in ParaFendri stores (spending points needs the head office) | Step 5 |
+| D4 | Decided 2026-10-03: enrolling is allowed offline; the store creates the member with its own card number, the phone is checked at the head office when it answers, a duplicate is merged later | Decided |
+| D5 | Decided 2026-10-03: spending never needs the head office by default (store balance, overspend report); a per-store setting can require a fresh balance | Decided |
 | D6 | Does ParaFendri need returns and vouchers across stores at launch | After step 5 |
 | D7 | Decided 2026-10-02: Happyness goes live soon on today's franchise profiles and migrates at step 8 | Decided |
 | D8 | Remove the locations list from the store and keep two settings, `DEFAULT_LOCATION` and `RESPONSIBILITY_CENTER`. Today the list is used only to pick the default location and to give the responsibility center that filters NAV prices and discounts (`DynamicsNavRestClient`); ticket and return export already read `RESPONSIBILITY_CENTER` from the general setup. No sale, session or stock record points to a location | Step 9 |

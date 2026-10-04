@@ -28,9 +28,17 @@ import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeLink;
 import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
 import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatDTO;
-import com.digithink.zsretail.headoffice.dto.HeadOfficePingDTO;
+import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatAnswerDTO;
+import com.digithink.zsretail.headoffice.dto.LoyaltyMemberAnswerDTO;
+import com.digithink.zsretail.headoffice.dto.LoyaltyMemberCopyDTO;
+import com.digithink.zsretail.headoffice.dto.LoyaltyMemberEditDTO;
+import com.digithink.zsretail.headoffice.dto.LoyaltyMovementCopyDTO;
+import com.digithink.zsretail.headoffice.dto.LoyaltyPhoneCheckDTO;
+import com.digithink.zsretail.headoffice.dto.LoyaltyPointsAdjustDTO;
 import com.digithink.zsretail.headoffice.dto.SalesCopyAnswerDTO;
 import com.digithink.zsretail.holink.dto.HeadOfficeCallResult;
+import com.digithink.zsretail.holink.dto.LiveAnswer;
+import com.digithink.zsretail.holink.dto.LoyaltyMemberPushAnswer;
 import com.digithink.zsretail.holink.dto.PullAnswer;
 import com.digithink.zsretail.holink.dto.SalesPushAnswer;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
@@ -40,6 +48,7 @@ import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.SalesUpstream;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -65,6 +74,9 @@ public class HeadOfficeClient {
 
 	static final int CONNECT_TIMEOUT_MS = 5_000;
 	static final int READ_TIMEOUT_MS = 10_000;
+	static final int LIVE_CONNECT_TIMEOUT_MS = 2_000;
+	static final int LIVE_READ_TIMEOUT_MS = 3_000;
+	static final String LOYALTY_PATH = "/ho/loyalty";
 
 	static final String KEY_REFUSED = "store code or key refused by the head office";
 	static final String NO_LICENSE = "the head office has no valid license";
@@ -75,6 +87,10 @@ public class HeadOfficeClient {
 			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
 	private final RestTemplate restTemplate;
+
+	/** Step 4: the live questions (enrol phone check, member edit), on a request thread: short timeouts. */
+	private final RestTemplate liveTemplate;
+
 	private final GeneralSetupService generalSetupService;
 	private final String baseUrl;
 	private final String apiKey;
@@ -87,7 +103,8 @@ public class HeadOfficeClient {
 	public HeadOfficeClient(GeneralSetupService generalSetupService, ApplicationModeService applicationModeService,
 			@Value("${headoffice.url}") String url, @Value("${headoffice.api-key:}") String apiKey,
 			@Value("${app.version:unknown}") String appVersion) {
-		this(newRestTemplate(), generalSetupService, url, apiKey, appVersion, applicationModeService);
+		this(newRestTemplate(), newLiveRestTemplate(), generalSetupService, url, apiKey, appVersion,
+				applicationModeService);
 	}
 
 	/** With a given RestTemplate: used by the tests (MockRestServiceServer). The heartbeat sends the version only. */
@@ -96,11 +113,18 @@ public class HeadOfficeClient {
 		this(restTemplate, generalSetupService, url, apiKey, appVersion, null);
 	}
 
-	/** With a given RestTemplate and the store's ownership: used by the tests. */
+	/** With a given RestTemplate and the store's ownership: used by the tests. The live questions use it too. */
 	public HeadOfficeClient(RestTemplate restTemplate, GeneralSetupService generalSetupService, String url,
 			String apiKey, String appVersion, ApplicationModeService ownership) {
+		this(restTemplate, restTemplate, generalSetupService, url, apiKey, appVersion, ownership);
+	}
+
+	private HeadOfficeClient(RestTemplate restTemplate, RestTemplate liveTemplate,
+			GeneralSetupService generalSetupService, String url, String apiKey, String appVersion,
+			ApplicationModeService ownership) {
 		this.ownership = ownership;
 		this.restTemplate = restTemplate;
+		this.liveTemplate = liveTemplate;
 		this.generalSetupService = generalSetupService;
 		this.baseUrl = withoutTrailingSlash(url.trim());
 		this.apiKey = apiKey == null ? "" : apiKey.trim();
@@ -109,10 +133,19 @@ public class HeadOfficeClient {
 
 	/** Own instance, not the shared RestTemplate bean: connect 5 s, read 10 s. */
 	static RestTemplate newRestTemplate() {
+		return newRestTemplate(CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS);
+	}
+
+	/** Step 4: the live questions, which a user's request waits for: connect 2 s, read 3 s. */
+	static RestTemplate newLiveRestTemplate() {
+		return newRestTemplate(LIVE_CONNECT_TIMEOUT_MS, LIVE_READ_TIMEOUT_MS);
+	}
+
+	private static RestTemplate newRestTemplate(int connectMs, int readMs) {
 		HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory();
-		factory.setConnectTimeout(CONNECT_TIMEOUT_MS);
-		factory.setConnectionRequestTimeout(CONNECT_TIMEOUT_MS);
-		factory.setReadTimeout(READ_TIMEOUT_MS);
+		factory.setConnectTimeout(connectMs);
+		factory.setConnectionRequestTimeout(connectMs);
+		factory.setReadTimeout(readMs);
 		return new RestTemplate(factory);
 	}
 
@@ -132,8 +165,12 @@ public class HeadOfficeClient {
 	 * as GET /config gives them.
 	 */
 	public HeadOfficeCallResult heartbeat() {
-		Answer<HeadOfficePingDTO> answer = post(HEARTBEAT_PATH, heartbeatBody(), HeadOfficePingDTO.class);
-		return answer.failure != null ? answer.failure : HeadOfficeCallResult.online(answer.body.getServerTime());
+		Answer<HeadOfficeHeartbeatAnswerDTO> answer = post(HEARTBEAT_PATH, heartbeatBody(),
+				HeadOfficeHeartbeatAnswerDTO.class);
+		return answer.failure != null ? answer.failure
+				: HeadOfficeCallResult.online(answer.body.getServerTime(), answer.body.getCanEditMembers(),
+						answer.body.getCanAdjustPoints(), answer.body.getRedeemRequiresOnline(),
+						answer.body.getEnrolRequiresOnline());
 	}
 
 	HeadOfficeHeartbeatDTO heartbeatBody() {
@@ -213,6 +250,146 @@ public class HeadOfficeClient {
 			page.setRemoved(new ArrayList<>());
 		}
 		return PullAnswer.delivered(page);
+	}
+
+	// ─── Shared loyalty (step 4) ─────────────────────────────────
+
+	/** Step 4: POST one batch of members enrolled at this store to /ho/loyalty/members; one result per member. */
+	public LoyaltyMemberPushAnswer pushLoyaltyMembers(List<LoyaltyMemberCopyDTO> copies) {
+		Answer<LoyaltyMemberAnswerDTO> answer = post(LOYALTY_PATH + "/members", copies, LoyaltyMemberAnswerDTO.class);
+		if (answer.failure != null) {
+			return LoyaltyMemberPushAnswer.failed(answer.failure);
+		}
+		if (answer.body.getResults() == null) {
+			return LoyaltyMemberPushAnswer.failed(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"unreadable answer from the head office (no results)"));
+		}
+		return LoyaltyMemberPushAnswer.delivered(answer.body.getResults());
+	}
+
+	/** Step 4: POST one batch of loyalty movements to /ho/loyalty/movements; one result per movement, by key. */
+	public SalesPushAnswer pushLoyaltyMovements(List<LoyaltyMovementCopyDTO> copies) {
+		Answer<SalesCopyAnswerDTO> answer = post(LOYALTY_PATH + "/movements", copies, SalesCopyAnswerDTO.class);
+		if (answer.failure != null) {
+			return SalesPushAnswer.failed(answer.failure);
+		}
+		if (answer.body.getResults() == null) {
+			return SalesPushAnswer.failed(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"unreadable answer from the head office (no results)"));
+		}
+		return SalesPushAnswer.delivered(answer.body.getResults());
+	}
+
+	/** Step 4, live question: the card holding this phone in the network, GET /ho/loyalty/members/by-phone. */
+	public LiveAnswer<LoyaltyPhoneCheckDTO> findLoyaltyMemberByPhone(String phone) {
+		try {
+			URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl + LOYALTY_PATH + "/members/by-phone")
+					.queryParam("phone", "{phone}").encode().buildAndExpand(phone == null ? "" : phone).toUri();
+			return live(HttpMethod.GET, uri, null, LoyaltyPhoneCheckDTO.class);
+		} catch (RuntimeException e) {
+			return LiveAnswer.notAnswered(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"head office call failed (" + cause(e) + ")"));
+		}
+	}
+
+	/** Step 4, live question: a member changed at this store, PUT /ho/loyalty/members/{cardNumber}. */
+	public LiveAnswer<LoyaltyMemberCopyDTO> editLoyaltyMember(String cardNumber, LoyaltyMemberEditDTO edit) {
+		try {
+			URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl + LOYALTY_PATH + "/members/{card}").encode()
+					.buildAndExpand(cardNumber).toUri();
+			return live(HttpMethod.PUT, uri, edit, LoyaltyMemberCopyDTO.class);
+		} catch (RuntimeException e) {
+			return LiveAnswer.notAnswered(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"head office call failed (" + cause(e) + ")"));
+		}
+	}
+
+	/** Step 5, live question: the member as the head office holds it now, GET /ho/loyalty/members/{cardNumber}. */
+	public LiveAnswer<LoyaltyMemberCopyDTO> fetchLoyaltyMember(String cardNumber) {
+		try {
+			URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl + LOYALTY_PATH + "/members/{card}").encode()
+					.buildAndExpand(cardNumber).toUri();
+			return live(HttpMethod.GET, uri, null, LoyaltyMemberCopyDTO.class);
+		} catch (RuntimeException e) {
+			return LiveAnswer.notAnswered(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"head office call failed (" + cause(e) + ")"));
+		}
+	}
+
+	/** Step 5, live question: a manual adjustment, POST /ho/loyalty/members/{cardNumber}/adjust. */
+	public LiveAnswer<LoyaltyMemberCopyDTO> adjustLoyaltyPoints(String cardNumber, LoyaltyPointsAdjustDTO request) {
+		try {
+			URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl + LOYALTY_PATH + "/members/{card}/adjust").encode()
+					.buildAndExpand(cardNumber).toUri();
+			return live(HttpMethod.POST, uri, request, LoyaltyMemberCopyDTO.class);
+		} catch (RuntimeException e) {
+			return LiveAnswer.notAnswered(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"head office call failed (" + cause(e) + ")"));
+		}
+	}
+
+	/**
+	 * A live question, on the live RestTemplate (short timeouts): the 200 body, the head office's refusal with its
+	 * status and {"error"} text, or why there is no answer (401 and 402 as for the heartbeat). Never throws.
+	 */
+	private <T> LiveAnswer<T> live(HttpMethod method, URI uri, Object body, Class<T> answerType) {
+		String storeCode;
+		try {
+			storeCode = readStoreCode();
+		} catch (RuntimeException e) {
+			return LiveAnswer.notAnswered(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					STORE_CODE_SETTING + " could not be read (" + cause(e) + ")"));
+		}
+		if (storeCode == null) {
+			return LiveAnswer.notAnswered(HeadOfficeCallResult.failure(HeadOfficeLinkState.NOT_CONFIGURED, NO_STORE_CODE));
+		}
+		HttpHeaders headers = new HttpHeaders();
+		if (body != null) {
+			headers.setContentType(MediaType.APPLICATION_JSON);
+		}
+		headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+		headers.set(STORE_CODE_HEADER, storeCode);
+		headers.set(STORE_KEY_HEADER, apiKey);
+		try {
+			HttpEntity<?> entity = body == null ? new HttpEntity<>(headers)
+					: new HttpEntity<>(WIRE_MAPPER.writeValueAsBytes(body), headers);
+			ResponseEntity<T> response = liveTemplate.exchange(uri, method, entity, answerType);
+			if (response.getStatusCodeValue() != 200 || response.getBody() == null) {
+				return LiveAnswer.notAnswered(response.getStatusCodeValue() != 200
+						? fromStatus(response.getStatusCodeValue())
+						: HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+								"unreadable answer from the head office (empty body)"));
+			}
+			return LiveAnswer.ok(response.getBody());
+		} catch (JsonProcessingException e) {
+			return LiveAnswer.notAnswered(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"request could not be written (" + cause(e) + ")"));
+		} catch (RestClientResponseException e) {
+			int status = e.getRawStatusCode();
+			if (status == 401 || status == 402 || status >= 500) {
+				return LiveAnswer.notAnswered(fromStatus(status));
+			}
+			return LiveAnswer.refused(status, errorText(e.getResponseBodyAsString()));
+		} catch (ResourceAccessException e) {
+			return LiveAnswer.notAnswered(HeadOfficeCallResult.failure(HeadOfficeLinkState.OFFLINE,
+					"head office unreachable (" + cause(e) + ")"));
+		} catch (RestClientException e) {
+			return LiveAnswer.notAnswered(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"unreadable answer from the head office (" + cause(e) + ")"));
+		} catch (RuntimeException e) {
+			return LiveAnswer.notAnswered(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"head office call failed (" + cause(e) + ")"));
+		}
+	}
+
+	/** The "error" of a {"error": "..."} body; null when there is none. */
+	private static String errorText(String body) {
+		try {
+			JsonNode error = WIRE_MAPPER.readTree(body == null ? "" : body).get("error");
+			return error == null || error.isNull() ? null : error.asText();
+		} catch (Exception e) {
+			return null;
+		}
 	}
 
 	/**

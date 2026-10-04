@@ -35,6 +35,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 
 import com.digithink.zsretail.config.ApplicationModeService;
+import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatAnswerDTO;
 import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatDTO;
 import com.digithink.zsretail.headoffice.dto.HeadOfficePingDTO;
 import com.digithink.zsretail.headoffice.enumeration.StoreKind;
@@ -43,6 +44,7 @@ import com.digithink.zsretail.headoffice.repository.StoreRepository;
 import com.digithink.zsretail.headoffice.service.StoreService;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.service.GeneralSetupService;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -126,6 +128,34 @@ class HeadOfficeHeartbeatAPITest {
 	}
 
 	@Test
+	@DisplayName("Step 4: the answer carries the store's loyalty rights (null in an older row: false); nothing else changes")
+	void answerCarriesLoyaltyRights() throws Exception {
+		HeadOfficeHeartbeatAnswerDTO none = api.heartbeat(principal(), new HeadOfficeHeartbeatDTO("2.1.0"));
+		assertEquals(Boolean.FALSE, none.getCanEditMembers());
+		assertEquals(Boolean.FALSE, none.getCanAdjustPoints());
+		Store allowed = principal();
+		allowed.setCanEditMembers(true);
+		HeadOfficeHeartbeatAnswerDTO answer = api.heartbeat(allowed, new HeadOfficeHeartbeatDTO("2.1.0"));
+		assertEquals(Boolean.TRUE, answer.getCanEditMembers());
+		assertEquals(Boolean.FALSE, answer.getCanAdjustPoints());
+		assertEquals(Boolean.FALSE, answer.getRedeemRequiresOnline(), "step 5: null in the row is false");
+		allowed.setRedeemRequiresOnline(true);
+		assertEquals(Boolean.TRUE, api.heartbeat(allowed, new HeadOfficeHeartbeatDTO("2.1.0")).getRedeemRequiresOnline());
+		assertEquals(Boolean.FALSE, answer.getEnrolRequiresOnline(), "enrol switch: null in the row is false");
+		allowed.setEnrolRequiresOnline(true);
+		assertEquals(Boolean.TRUE, api.heartbeat(allowed, new HeadOfficeHeartbeatDTO("2.1.0")).getEnrolRequiresOnline());
+		assertEquals("RS01", answer.getStoreCode());
+		String json = new ObjectMapper().writeValueAsString(answer);
+		assertTrue(json.contains("\"storeCode\":\"RS01\"") && json.contains("\"serverTime\":")
+				&& json.contains("\"canEditMembers\":true"), json);
+		// A store of an older version reads the ping fields only
+		HeadOfficePingDTO old = new ObjectMapper().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+				.readValue(json, HeadOfficePingDTO.class);
+		assertEquals("RS01", old.getStoreCode());
+		assertEquals(0, saves);
+	}
+
+	@Test
 	@DisplayName("Heartbeat: lastContact and appVersion written by id; hash, code, name, kind, active, updatedAt unchanged; nothing saved")
 	void recordsContactById() throws Exception {
 		OffsetDateTime before = OffsetDateTime.now();
@@ -151,7 +181,10 @@ class HeadOfficeHeartbeatAPITest {
 		assertEquals(OffsetDateTime.parse(answer.getServerTime()).toLocalDateTime(),
 				row.getLastContact().truncatedTo(ChronoUnit.MILLIS), "lastContact and serverTime are the same instant");
 		String json = new ObjectMapper().writeValueAsString(answer);
-		assertEquals(new TreeSet<>(Arrays.asList("storeCode", "serverTime")), new TreeSet<>(new JSONObject(json).keySet()));
+		// Step 4: the store's loyalty rights travel with the answer (decided); GET /ho/ping keeps its two fields
+		assertEquals(new TreeSet<>(Arrays.asList("storeCode", "serverTime", "canEditMembers", "canAdjustPoints",
+				"redeemRequiresOnline", "enrolRequiresOnline")),
+				new TreeSet<>(new JSONObject(json).keySet()));
 	}
 
 	@Test

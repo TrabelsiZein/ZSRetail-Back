@@ -49,4 +49,11 @@ public class HeadOfficeLinkStatusDTO {
 	 * 12, "WAITING": 1, "ERROR": 0}}; null when this store pulls nothing, or when the counts cannot be read.
 	 */
 	private final Map<String, Map<String, Long>> received;
+
+	/**
+	 * Step 4: when loyalty is owned by the head office, what the store sends up and its rights: {"members": {"PENDING":
+	 * 0, "SENT": 3, "ERROR": 0}, "movements": {...}, "canEditMembers": true, "canAdjustPoints": false} (rights null
+	 * before the first heartbeat answer); null otherwise, or when the counts cannot be read.
+	 */
+	private final Map<String, Object> loyalty;
 }

@@ -7,12 +7,17 @@ import javax.persistence.CollectionTable;
 import javax.persistence.Column;
 import javax.persistence.ElementCollection;
 import javax.persistence.Entity;
+import javax.persistence.EnumType;
+import javax.persistence.Enumerated;
 import javax.persistence.FetchType;
 import javax.persistence.JoinColumn;
 import javax.persistence.Table;
 
 import org.hibernate.annotations.Fetch;
 import org.hibernate.annotations.FetchMode;
+
+import com.digithink.zsretail.model.enumeration.RecordOrigin;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -76,4 +81,13 @@ public class LoyaltyProgram extends _BaseEntity {
 	@Fetch(FetchMode.SELECT)
 	@CollectionTable(name = "loyalty_program_tier", joinColumns = @JoinColumn(name = "loyalty_program_id"))
 	private List<LoyaltyEarningTier> earningTiers;
+
+	/**
+	 * Head office plan, step 4: HEAD_OFFICE for the program received from the head office on a store whose loyalty it
+	 * owns; null or LOCAL otherwise (set inactive at the first pull there). Never read from JSON.
+	 */
+	@Enumerated(EnumType.STRING)
+	@Column(length = 20)
+	@JsonProperty(access = JsonProperty.Access.READ_ONLY)
+	private RecordOrigin origin;
 }

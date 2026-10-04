@@ -21,11 +21,39 @@ public final class HeadOfficeCallResult {
 	/** Head office time sent with the answer (ISO-8601 with offset); only when ONLINE. */
 	private final String serverTime;
 
+	/** Step 4: the store's loyalty rights sent with a heartbeat answer; null when not sent (older head office). */
+	private final Boolean canEditMembers;
+	private final Boolean canAdjustPoints;
+
+	/** Step 5: spending needs a fresh balance; null when not sent. */
+	private final Boolean redeemRequiresOnline;
+
+	/** Enrol switch (2026-10-04): an enrol needs the head office answer to its phone check; null when not sent. */
+	private final Boolean enrolRequiresOnline;
+
 	public static HeadOfficeCallResult online(String serverTime) {
-		return new HeadOfficeCallResult(HeadOfficeLinkState.ONLINE, null, serverTime);
+		return new HeadOfficeCallResult(HeadOfficeLinkState.ONLINE, null, serverTime, null, null, null, null);
+	}
+
+	/** Step 4: a heartbeat answer with the store's loyalty rights. */
+	public static HeadOfficeCallResult online(String serverTime, Boolean canEditMembers, Boolean canAdjustPoints) {
+		return online(serverTime, canEditMembers, canAdjustPoints, null);
+	}
+
+	/** Step 5: a heartbeat answer with the store's loyalty rights and its spending setting. */
+	public static HeadOfficeCallResult online(String serverTime, Boolean canEditMembers, Boolean canAdjustPoints,
+			Boolean redeemRequiresOnline) {
+		return online(serverTime, canEditMembers, canAdjustPoints, redeemRequiresOnline, null);
+	}
+
+	/** Enrol switch: a heartbeat answer with the store's rights and its two "requires the head office" settings. */
+	public static HeadOfficeCallResult online(String serverTime, Boolean canEditMembers, Boolean canAdjustPoints,
+			Boolean redeemRequiresOnline, Boolean enrolRequiresOnline) {
+		return new HeadOfficeCallResult(HeadOfficeLinkState.ONLINE, null, serverTime, canEditMembers, canAdjustPoints,
+				redeemRequiresOnline, enrolRequiresOnline);
 	}
 
 	public static HeadOfficeCallResult failure(HeadOfficeLinkState state, String message) {
-		return new HeadOfficeCallResult(state, message, null);
+		return new HeadOfficeCallResult(state, message, null, null, null, null, null);
 	}
 }

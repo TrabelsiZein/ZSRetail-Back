@@ -8,8 +8,13 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.digithink.zsretail.model.LoyaltyProgram;
+import com.digithink.zsretail.model.enumeration.RecordOrigin;
 
 public interface LoyaltyProgramRepository extends _BaseRepository<LoyaltyProgram, Long> {
+
+	/** Step 4: active programs not from this origin (null counts as LOCAL), set inactive at the pull. */
+	@Query("select p from LoyaltyProgram p where p.active = true and (p.origin is null or p.origin <> :origin)")
+	List<LoyaltyProgram> findActiveNotFrom(@Param("origin") RecordOrigin origin);
 
 	/** Legacy: returns the one open-ended program (endDate null and active=true). Kept for backward compat. */
 	Optional<LoyaltyProgram> findByActiveTrueAndEndDateIsNull();

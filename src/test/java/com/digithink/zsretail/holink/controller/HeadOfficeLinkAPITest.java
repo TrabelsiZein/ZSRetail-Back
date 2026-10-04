@@ -79,7 +79,7 @@ class HeadOfficeLinkAPITest {
 	private static final String HEARTBEAT = "http://localhost:888/zsretail/api/ho/heartbeat";
 	private static final List<String> KEYS = Arrays.asList("state", "message", "lastAttempt", "lastSuccess",
 			"serverTime", "headOfficeUrl", "storeCode", "intervalSeconds", "pendingCount", "sentCount", "errorCount",
-			"received");
+			"received", "loyalty");
 
 	private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules()
 			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -183,6 +183,7 @@ class HeadOfficeLinkAPITest {
 		assertTrue(json.get("sentCount").isNull());
 		assertTrue(json.get("errorCount").isNull());
 		assertTrue(json.get("received").isNull(), "task 3.5: no pull on this store: no counts");
+		assertTrue(json.get("loyalty").isNull(), "step 4: loyalty not owned by the head office: no block");
 	}
 
 	@Test

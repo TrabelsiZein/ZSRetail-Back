@@ -31,6 +31,7 @@ import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.DataOwner;
 import com.digithink.zsretail.model.enumeration.SalesUpstream;
 import com.digithink.zsretail.repository._BaseRepository;
+import com.digithink.zsretail.service.LoyaltyCardNumbers;
 import com.digithink.zsretail.service._BaseService;
 
 import lombok.AccessLevel;
@@ -52,6 +53,8 @@ public class StoreService extends _BaseService<Store, Long> {
 	static final String NAME_REQUIRED = "The store name is required.";
 	static final String CODE_IS_FINAL = "The store code cannot be changed after creation.";
 	static final String DELETE_AFTER_CONTACT = "This store has already contacted the head office: deactivate it instead.";
+	static final String CODE_RESERVED = "The code " + LoyaltyCardNumbers.HEAD_OFFICE_CODE
+			+ " is kept for the head office's own loyalty cards (LYL-HO-...): choose another code.";
 
 	/** 32 random bytes: a 43-character URL-safe key. */
 	static final int KEY_BYTES = 32;
@@ -114,6 +117,9 @@ public class StoreService extends _BaseService<Store, Long> {
 		if (code.isEmpty()) {
 			throw new IllegalArgumentException(CODE_REQUIRED);
 		}
+		if (LoyaltyCardNumbers.HEAD_OFFICE_CODE.equals(code)) {
+			throw new IllegalArgumentException(CODE_RESERVED); // step 4: its cards would take the head office's numbers
+		}
 		String name = input.getName() == null ? "" : input.getName().trim();
 		if (name.isEmpty()) {
 			throw new IllegalArgumentException(NAME_REQUIRED);
@@ -127,6 +133,10 @@ public class StoreService extends _BaseService<Store, Long> {
 		store.setName(name);
 		store.setKind(input.getKind() != null ? input.getKind() : StoreKind.OWN);
 		store.setActive(input.getActive() != null ? input.getActive() : Boolean.TRUE);
+		store.setCanEditMembers(Boolean.TRUE.equals(input.getCanEditMembers()));
+		store.setCanAdjustPoints(Boolean.TRUE.equals(input.getCanAdjustPoints()));
+		store.setRedeemRequiresOnline(Boolean.TRUE.equals(input.getRedeemRequiresOnline()));
+		store.setEnrolRequiresOnline(Boolean.TRUE.equals(input.getEnrolRequiresOnline()));
 		String key = newKey();
 		store.setApiKeyHash(sha256Hex(key));
 		Store saved = save(store);
@@ -159,6 +169,18 @@ public class StoreService extends _BaseService<Store, Long> {
 		}
 		if (input.getActive() != null) {
 			store.setActive(input.getActive());
+		}
+		if (input.getCanEditMembers() != null) {
+			store.setCanEditMembers(input.getCanEditMembers());
+		}
+		if (input.getCanAdjustPoints() != null) {
+			store.setCanAdjustPoints(input.getCanAdjustPoints());
+		}
+		if (input.getRedeemRequiresOnline() != null) {
+			store.setRedeemRequiresOnline(input.getRedeemRequiresOnline());
+		}
+		if (input.getEnrolRequiresOnline() != null) {
+			store.setEnrolRequiresOnline(input.getEnrolRequiresOnline());
 		}
 		return Optional.of(save(store));
 	}

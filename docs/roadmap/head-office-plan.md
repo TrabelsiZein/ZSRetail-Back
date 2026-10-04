@@ -46,6 +46,9 @@ The exact prompts are written during the session, from the code as it is that da
 
 - Step 3: `promotion.origin` `varchar(20)` null (null = local).
 - Step 3: `ho_store.owner_catalogue`, `owner_customers`, `owner_promotions`, `owner_loyalty`, `owner_supply` `varchar(20)` null, and `ho_store.sales_upstreams` `varchar(50)` null (null = the store has not reported yet).
+- Step 4: `loyalty_member.origin` and `loyalty_program.origin` `varchar(20)` null (null = local); `ho_store.can_edit_members` and `ho_store.can_adjust_points` `bit` null (null = false). New tables through `ddl-auto`: `ho_loyalty_alias`, `ho_loyalty_movement`, `hol_loyalty_member_copy`, `hol_loyalty_movement_copy`.
+- Step 5: `ho_store.redeem_requires_online` `bit` null (null = false). The new permission `read:admin-headoffice-loyalty-overspends` is added at startup (no script).
+- Enrol switch (2026-10-04): `ho_store.enrol_requires_online` `bit` null (null = false).
 
 ## 2. Test levels
 
@@ -63,8 +66,8 @@ The exact prompts are written during the session, from the code as it is that da
 | 1 | Head office installation and stores list: a store shows as online | ParaFendri; Happyness from step 8 | No | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 91cb3a8, frontend de4ed05) |
 | 2 | Sales copies up: tickets, returns, sessions of every store visible at head office | ParaFendri; Happyness from step 8 | No | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 3a10957, frontend b90ab84) |
 | 3 | Promotions owned by head office | ParaFendri | No (engine untouched) | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 604a97c, frontend 57acf81) |
-| 4 | Shared loyalty, part 1: members and earning | ParaFendri | Enrol only | Large | Not started |
-| 5 | Shared loyalty, part 2: spending and returns | ParaFendri | No (decided 2026-10-03: no hold and confirm, selling services untouched) | Large | Not started |
+| 4 | Shared loyalty, part 1: members and earning | ParaFendri | No (enrol and member changes in LoyaltyAPI and LoyaltyService hooks; the four selling services untouched) | Large | Backend done 2026-10-03 on feature/ho-step-4 (see "Step 4 backend"); frontend and L2 to come |
+| 5 | Shared loyalty, part 2: spending and returns | ParaFendri | No (decided 2026-10-03: no hold and confirm, selling services untouched) | Large | Backend done 2026-10-03 on feature/ho-step-4 (see "Step 5 backend"); frontend and L2 with step 4 |
 | 6 | Catalogue owned by head office | Own stores without ERP, franchise | No | Medium | Not started |
 | 7 | Shipments (BL) | Own stores without ERP, franchise | No (stock in only) | Large | Not started |
 | 8 | Franchise profiles moved onto the model | Happyness | No | Medium | Not started |
@@ -227,6 +230,8 @@ These decisions replace the tables below where they differ (enrol as a live ques
 - Spend: against the store's balance, never blocked by default. When a member is selected at the till, the store asks the head office for the current balance (short timeout). Overspends are listed in a report at the head office. A per-store setting can require the head office online to spend. No hold and confirm, and the selling services stay untouched.
 - Per store, set at the head office and enforced there: "can edit members" and "can adjust points". Both go through the head office and need it online.
 - A store's members that existed before the switch are switched off. Importing an existing member list is a later tool.
+- Enrol switch (Zein, 2026-10-04): per store at the head office, `enrolRequiresOnline` (default false, sent with the heartbeat answer like the rights). When true, the store enrols a member only when the head office answers the phone check of that enrol (503 with a clear message otherwise); sales, earning and finding a member are not affected. Backend 21f1984, L2 scenario 17.
+- All the "requires the head office online" switches (`redeemRequiresOnline`, `enrolRequiresOnline`) are off by default (Zein, 2026-10-04): the till keeps working through a long outage; a store is made strict on purpose, on the head office Stores page.
 - Step 4 needs a second dev store.
 
 ### Step 4 — Shared loyalty, part 1: members and earning
@@ -236,24 +241,70 @@ Goal: one member register for the network; points earned anywhere are known ever
 | Task | What | Test |
 |---|---|---|
 | 4.1 | Program and members as copies down (keys: program code, card number) | L1 |
-| 4.2 | Enrol as a live question: head office issues the card number and checks the phone across the network. Local loyalty keeps today's path | L1 `LoyaltyMemberPhoneTest` green; new test for the head office path |
+| 4.2 | Enrol at the store, never blocked: when the head office answers within 3 s the phone is checked across the network first (a known phone is refused naming its card); otherwise checked at the store. The store creates the member with its own card number (`LYL-<store code>-000001`) and sends it up later; a phone found at the head office on upload is merged into the existing card (alias, points moved). Local loyalty keeps today's path | L1 `LoyaltyMemberPhoneTest` unchanged and green; enrol online, known phone, offline; merge with points moved |
 | 4.3 | Loyalty movements travel up with the ticket; head office applies them to its ledger and balances | L1 applying twice changes nothing |
-| 4.4 | Store pages: program and members read-only except enrol; clear message when head office is unreachable | L2 |
+| 4.4 | Store pages: members shared with the head office (edit and deactivate with the right, clear messages for 403, 409, 503), program read-only, POS offers the existing card on a duplicate phone; link page block of what is sent; Stores page rights. Done: frontend adace27, 934e417, ece22dd (described in `docs/modules/head-office.md`, "Step 4 pages (frontend)") | L2 |
 
-L2 scenarios (two stores and a head office): enrol in A, visible in B; earn in A, balance in B after sync; head office stopped, enrol refused with a message and earning still works.
+L2 scenarios (two stores and a head office): enrol in A, visible in B; earn in A, balance in B after sync; head office stopped, enrol in A still works (checked in A only) and is merged later when the phone was known; earning still works.
+
+**Step 4 backend** (done 2026-10-03, branch `feature/ho-step-4`; the tasks above are replaced by the decisions of steps 4 and 5 and the step 4 prompt). Described in `docs/modules/head-office.md`, "Shared loyalty (step 4)".
+
+| Part | Backend |
+|---|---|
+| 1. Head office side: register on the copies down (`PROGRAM:`, `MEMBER:`), members up with merge (alias), movements up once with the overspend, phone check, member edit, store rights on the Stores API and in the heartbeat answer, `LYL-HO-000001`, startup check | 2b71f94 |
+| 2. Store side: enrol (live phone check, then local, `LYL-<store>-000001`), job `LOYALTY_PUSH`, `LOYALTY` pull (balance = head office + not applied yet), local records switched off, member changes through the head office, program and adjustments refused, `GET /loyalty/network`, link page API | a2c9cc7 |
+
+Choices made in the session (listed in the report to Zein):
+- The phone uniqueness at a store counts only the members of the network register held there: the local cards switched off at the switch do not block a number (otherwise a customer with an old card could never enrol).
+- A member function travels by code; the side that receives a code it does not have creates it with the name sent.
+- A phone held only by a deactivated card is merged into it, as today's rule names a deactivated card.
+- A card received from the head office whose number belongs to a local card of the store (only possible with pre-step-4 `LYL-000001` cards at the head office) is not applied: `ERROR`, retried, shown on the link page.
+- The store code `HO` is refused on the Stores page (its cards would take the head office's numbers).
+- Member deactivation and customer link from a store go through the same head office edit as the form; a blank function there keeps the member's own.
+- An answer lost after the head office applied a movement counts it twice at the store until it is sent again (forwards, never backwards); the head office sends the member again on the repeat.
+
+Tests: 49 classes, 382 tests, all green (the four loyalty tests unchanged). Diff proof against release/2.1.0: 0 files in `erp/`, 0 franchise files, the four selling services and the four loyalty tests unchanged. Intended contract changes: the heartbeat answer has two more fields (`canEditMembers`, `canAdjustPoints`), the link status a 13th field (`loyalty`).
+
+Still owed for step 4: the frontend (store loyalty pages, link page block, Stores page rights), L2 with a second dev store (rewritten scenarios: enrol in A visible in B; earn in A, balance in B; head office stopped, enrol in A still works and is merged later; rights; local members switched off), the `update.sql` lines of section 1, the merge into release/2.1.0.
 
 ### Step 5 — Shared loyalty, part 2: spending and returns
 
-Goal: points earned in one store can be spent in another, with no double spending. Needs decision D5. This is the only step that changes the sale itself.
+Goal: points earned in one store can be spent in another. Decided 2026-10-03 (decisions of steps 4 and 5): spending stays against the store's balance and is never blocked by default; the till asks the head office for a fresh balance when a member is selected; overspends are reported at the head office; a per-store setting can require a fresh balance to spend. No hold and confirm: the selling services are not changed. Steps 4 and 5 are delivered together (one L2, one merge).
 
 | Task | What | Test |
 |---|---|---|
-| 5.1 | Head office: hold, confirm and release of points; old holds released automatically | L1 two holds on the same points: the second is refused |
-| 5.2 | Store: when loyalty is owned by head office, `redeemPoints` asks for a hold before the sale is saved; the confirmation travels with the ticket | L1 `SaleCompletionLoyaltyStampTest` and `LoyaltyEarningTiersTest` unchanged and green; sale fails after a hold, the hold is released |
+| 5.1 | Fresh balance at the till: when a member is selected the store asks the head office for the member (short timeout), saves it with the pull's balance rule and answers whether the balance is fresh; head office unreachable: the store's copy, never failing. Head office: overspend report (list and count) of the removals that found the balance lower | L1 fresh balance online and offline; overspend listed once |
+| 5.2 | Spending in the sale exactly as today, against the store's balance; its movement goes up (step 4). Per store at the head office, `redeemRequiresOnline` (default false, sent with the heartbeat answer): when true, `LoyaltyService.redeemPoints` (hook, head-office-owned path only) refuses spending unless the member was refreshed from the head office in the last 2 minutes; earning and the sale without points still work. Manual adjustments from a store go through the head office (`canAdjustPoints`). The selling services are not changed | L1 `SaleCompletionLoyaltyStampTest` and `LoyaltyEarningTiersTest` unchanged and green; strict store refuses without a fresh balance and allows with one; a lenient store never refuses; adjustment with and without the right |
 | 5.3 | Returns: movements travel up; head office applies them, balance never below zero | L1 `ReturnRefundLoyaltyTest` unchanged and green |
-| 5.4 | Receipt and POS messages | L2 |
+| 5.4 | Receipt and POS messages; pages: fresh balance at the till, adjust points with the right, spending setting on the Stores page and the link page, overspend report and home tile. Done: frontend 25cd826, 581ce28, 0756bb0, 7b0c1e3, and the enrol switch pages 37c50a0 (described in `docs/modules/head-office.md`, "Step 5 pages (frontend)") | L2 |
 
-L2 scenarios: spend in B the points earned in A; head office stopped, spending is disabled and the sale goes through; with local loyalty everything is identical to today.
+L2 scenarios: spend in B the points earned in A (fresh balance shown when the member is selected); head office stopped: a lenient store spends against its own balance and the overspend appears in the head office report once the movements arrive, a strict store refuses spending with the message and the sale without points goes through; a partial then full return in A gives the same balance at the head office; a store adjustment with and without the right; with local loyalty everything is identical to today.
+
+**Step 5 backend** (done 2026-10-03, on `feature/ho-step-4`, delivered with step 4). Described in `docs/modules/head-office.md`, "Shared loyalty (step 4)" and "Overspend report".
+
+| Part | Backend |
+|---|---|
+| 1. Head office: `GET /ho/loyalty/members/{card}`, `POST /ho/loyalty/members/{card}/adjust`, `redeemRequiresOnline` on the store row and in the heartbeat answer, overspend report and its permission | 0b2d3eb |
+| 2. Store: `GET /loyalty/member/{id}/fresh`, the `beforeRedeem` guard, adjustments through the head office, returns proved | af952aa |
+| 3. Exchange log: a repeated failure of any link job written once, one row when it works again | 22e4891 |
+| 4. Docs: plan rows 4.2, 5.1, 5.2, design 4.3 and 5.2 | this commit |
+
+Choices made in the session:
+- The freshness of a card is kept in memory: a restart forgets it and the till asks again. A change answered by the head office (edit, adjustment) also makes the card fresh.
+- Before the first heartbeat answer after a start (about 15 s), `redeemRequiresOnline` is unknown and spending is not refused.
+- The 2-minute window is inclusive (exactly 2 minutes is still fresh).
+- The overspend report lists by head office reception time and reuses the filters of the consolidated sales lists; new page permission `read:admin-headoffice-loyalty-overspends` (24 head office permissions).
+- The exchange log episode is per job: an exchange of one domain that goes through ends the episode of the copies down job.
+
+Tests: 49 classes, 395 tests, all green; the four loyalty tests unchanged.
+
+**L2 of steps 4 and 5** (2026-10-04, by script, `devenv/l2-loyalty.ps1`; environment in `devenv/`, described in the root `CLAUDE.md`): head office (888, `pos_headoffice`), store B (555, `pos_store_b`, code `STORE-B`) and store C (556, `pos_store_c`, code `STORE-C`), new databases with 20 items copied read-only from `pos_db_prod`; store A not started. 16 scenarios, all passed on the third run (report `C:\zsretail-dev\logs\l2-loyalty-002550.txt`): local loyalty at C; C switched (3 local records off, one row, phone enrolled again); program at B and C, writes 409; enrol at B known at the head office and C; same phone at C refused with `existingCardNumber`; offline enrol at B and C merged (698 on the surviving card everywhere); earn at B in the ledger with the store code; spend at C equal everywhere; fresh balance online and offline; strict store (canRedeem false, 409, sale without points, works when back); overspend (0 everywhere, one row of 34850, count +1); partial then full return equal everywhere; rights (403, 200, 503); head office edit and adjustment reach B and C; one failure row and one recovery row per job; tickets with loyalty fields at the head office.
+
+Bugs found and fixed: 5725e14, the local card numbering (`findMaxCardSequence`) failed on a store back to local loyalty that holds network cards ("Conversion failed"); only all-digit cards count now, same result elsewhere. Earlier commits of the session: cb357dd (enrol 409 fields, step 4 frontend docs), dae555b (devenv and store profiles).
+
+Enrol switch (2026-10-04, backend 21f1984): scenario 17 added (strict enrol at B: head office stopped, enrol 503 with the message and a sale works; back, enrol works). All 17 passed (report `C:\zsretail-dev\logs\l2-loyalty-103425.txt`). Runs 4 to 6 failed scenarios 4, 5, 11 and 12 on a dev environment problem, not the code: right after a head office start, loading classes out of the nested jars of the 162 MB WAR took tens of seconds; a thread dump showed the request holding the receiver's lock in the class loader and the stores' retries queued behind it. The instances now run from the exploded WAR (devenv build.ps1 and start.ps1); starts went from 121 to 214 s down to 77, 36 and 17 s. Observation for production: the head office applies loyalty uploads one at a time; when it is slow, the stores time out after 10 s and resend, which the exactly-once keys make harmless.
+
+Still owed: the frontend of the enrol switch (Stores page switch, link page line, the 503 at the till and on the members page) and the screen check of steps 4 and 5, then the merge of steps 4 and 5 into release/2.1.0, the `update.sql` lines of section 1.
 
 Done when: the checklist with local loyalty shows no difference. After this step ParaFendri is fully served.
 

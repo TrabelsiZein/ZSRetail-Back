@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,6 +31,7 @@ import com.digithink.zsretail.holink.service.DownRecordLog;
 import com.digithink.zsretail.holink.service.HeadOfficeLinkStatus;
 import com.digithink.zsretail.holink.service.LinkExchangeLog;
 import com.digithink.zsretail.holink.service.LinkJobService;
+import com.digithink.zsretail.holink.service.LoyaltyPushService;
 import com.digithink.zsretail.holink.service.SalesCopyFinder;
 import com.digithink.zsretail.holink.service.SalesPushService;
 import com.digithink.zsretail.model.enumeration.DataDomain;
@@ -59,9 +61,20 @@ public class HeadOfficeLinkAPI {
 	private final Optional<CopiesDownPuller> puller;
 	private final Optional<DownRecordLog> downRecords;
 
+	/** Step 4: present only when loyalty is owned by the head office. */
+	private final Optional<LoyaltyPushService> loyaltyPush;
+
 	public HeadOfficeLinkAPI(HeadOfficeLinkStatus status, LinkJobScheduler jobs, LinkJobService jobService,
 			LinkExchangeLog exchangeLog, HeadOfficeClient client, Optional<SalesPushService> salesPush,
 			Optional<CopiesDownPuller> puller, Optional<DownRecordLog> downRecords) {
+		this(status, jobs, jobService, exchangeLog, client, salesPush, puller, downRecords, Optional.empty());
+	}
+
+	@Autowired
+	public HeadOfficeLinkAPI(HeadOfficeLinkStatus status, LinkJobScheduler jobs, LinkJobService jobService,
+			LinkExchangeLog exchangeLog, HeadOfficeClient client, Optional<SalesPushService> salesPush,
+			Optional<CopiesDownPuller> puller, Optional<DownRecordLog> downRecords,
+			Optional<LoyaltyPushService> loyaltyPush) {
 		this.status = status;
 		this.jobs = jobs;
 		this.jobService = jobService;
@@ -70,6 +83,7 @@ public class HeadOfficeLinkAPI {
 		this.salesPush = salesPush;
 		this.puller = puller;
 		this.downRecords = downRecords;
+		this.loyaltyPush = loyaltyPush;
 	}
 
 	@GetMapping("/status")
@@ -163,6 +177,25 @@ public class HeadOfficeLinkAPI {
 		}
 	}
 
+	/**
+	 * Step 4: what the store sends up to the shared loyalty register, kind "members" or "movements": {kind, counts,
+	 * records, totalElements, page, size}, ERROR first, then PENDING, then SENT, newest first. status: one status, blank
+	 * or "all" = every status. 404 when loyalty is not owned by the head office; 400 for a bad kind or status.
+	 */
+	@GetMapping("/loyalty/{kind}")
+	public ResponseEntity<?> loyalty(@PathVariable String kind, @RequestParam(required = false) String status,
+			@RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
+		if (!loyaltyPush.isPresent()) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(Collections.singletonMap("error", "Loyalty is not owned by the head office on this store"));
+		}
+		try {
+			return ResponseEntity.ok(loyaltyPush.get().list(kind, status, page, size));
+		} catch (IllegalArgumentException e) {
+			return badRequest(e.getMessage());
+		}
+	}
+
 	private static ResponseEntity<?> notFound(String code) {
 		return ResponseEntity.status(HttpStatus.NOT_FOUND)
 				.body(Collections.singletonMap("error", "No job '" + code + "' on this store"));
@@ -183,7 +216,24 @@ public class HeadOfficeLinkAPI {
 		return new HeadOfficeLinkStatusDTO(snapshot.getState(), snapshot.getLastMessage(), snapshot.getLastAttempt(),
 				snapshot.getLastSuccess(), snapshot.getServerTime(), client.getBaseUrl(), storeCode(), interval,
 				count(counts, SalesCopyStatus.PENDING), count(counts, SalesCopyStatus.SENT),
-				count(counts, SalesCopyStatus.ERROR), received());
+				count(counts, SalesCopyStatus.ERROR), received(), loyalty(snapshot));
+	}
+
+	/** Step 4: the loyalty counts and rights; null when loyalty is not owned by the head office or unreadable. */
+	private Map<String, Object> loyalty(HeadOfficeLinkStatus.Snapshot snapshot) {
+		if (!loyaltyPush.isPresent()) {
+			return null;
+		}
+		try {
+			Map<String, Object> loyalty = new LinkedHashMap<>(loyaltyPush.get().counts());
+			loyalty.put("canEditMembers", snapshot.getCanEditMembers());
+			loyalty.put("canAdjustPoints", snapshot.getCanAdjustPoints());
+			loyalty.put("redeemRequiresOnline", snapshot.getRedeemRequiresOnline());
+			loyalty.put("enrolRequiresOnline", snapshot.getEnrolRequiresOnline());
+			return loyalty;
+		} catch (RuntimeException e) {
+			return null; // the status is still answered
+		}
 	}
 
 	/** Task 3.5: the counts per domain pulled; null without a pull or when they cannot be read. */

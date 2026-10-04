@@ -76,8 +76,13 @@ public class SalesPushJob implements LinkJob {
 			return LinkJobRun.error("cycle failed (" + cause + ")");
 		}
 		for (SalesPushService.Exchange exchange : cycle.getExchanges()) {
-			exchangeLog.record(CODE, ExchangeDirection.UP, exchange.getRecords(), exchange.getResult(),
-					exchange.getError(), exchange.getAt(), exchange.getDurationMs());
+			if (exchange.isDelivered()) {
+				exchangeLog.record(CODE, ExchangeDirection.UP, exchange.getRecords(), exchange.getResult(),
+						exchange.getError(), exchange.getAt(), exchange.getDurationMs());
+			} else { // step 5: not delivered or search failed: one row when it starts, not one per cycle
+				exchangeLog.recordFailure(CODE, ExchangeDirection.UP, exchange.getRecords(), exchange.getError(),
+						exchange.getAt(), exchange.getDurationMs());
+			}
 		}
 		report(cycle);
 		return LinkJobRun.of(result(cycle), message(cycle), cycle.isMore());
