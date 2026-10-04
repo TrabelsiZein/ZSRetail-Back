@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * Vendor / Supplier entity - same structure as Customer for consistency.
- * Used in standalone mode only; in ERP mode vendors may be synced from ERP.
+ * Used without an ERP only; with an ERP, vendors may be synced from it.
  */
 @Entity
 @Data

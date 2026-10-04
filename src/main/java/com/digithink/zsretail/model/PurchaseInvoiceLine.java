@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * Purchase invoice line - can represent a single purchase line or an aggregated
- * item, family, or sub-family. Standalone mode only.
+ * item, family, or sub-family. Without an ERP only.
  */
 @Entity
 @Data

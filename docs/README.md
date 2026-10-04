@@ -13,7 +13,7 @@ Split out of the former single `AI_CONTEXT_POS.md` so each topic can be read on 
 | `overview.md` | Domains implemented, roles, high-level architecture |
 | `backend.md` | Backend behaviour notes and recent changes |
 | `frontend.md` | Frontend behaviour notes and recent changes |
-| `deployment-modes.md` | Standalone vs Dynamics NAV, ownership settings, head office presets |
+| `deployment-modes.md` | With or without an ERP (Dynamics NAV), ownership settings, head office presets |
 | `generics.md` | `_BaseEntity` / `_BaseService` / `_BaseController` CRUD scaffolding |
 | `ui-design-system.md` | Touch-screen POS layout rules (Payment, ItemSelection) |
 | `admin-pages.md` | Inventory of admin screens |

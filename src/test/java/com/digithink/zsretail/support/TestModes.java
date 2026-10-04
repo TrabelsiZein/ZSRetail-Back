@@ -37,7 +37,6 @@ public final class TestModes {
 		try {
 			ApplicationModeService mode = new ApplicationModeService();
 			set(mode, "environment", env);
-			set(mode, "standalone", flag(env, "application.standalone"));
 			Method init = ApplicationModeService.class.getDeclaredMethod("initOwnership");
 			init.setAccessible(true);
 			init.invoke(mode);

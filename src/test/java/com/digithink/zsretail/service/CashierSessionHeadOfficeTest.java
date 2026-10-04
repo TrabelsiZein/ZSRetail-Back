@@ -43,7 +43,7 @@ class CashierSessionHeadOfficeTest {
 	private CashierSessionService service(MockEnvironment env, boolean standalone) throws Exception {
 		ApplicationModeService mode = new ApplicationModeService();
 		inject(mode, ApplicationModeService.class, "environment", env);
-		inject(mode, ApplicationModeService.class, "standalone", standalone);
+		env.setProperty("application.standalone", String.valueOf(standalone)); // step 9: read from the environment, no field
 		Method initOwnership = ApplicationModeService.class.getDeclaredMethod("initOwnership");
 		initOwnership.setAccessible(true);
 		initOwnership.invoke(mode);

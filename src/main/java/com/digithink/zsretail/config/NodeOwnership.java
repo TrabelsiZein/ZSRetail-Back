@@ -127,7 +127,7 @@ public final class NodeOwnership {
 		if (!isHeadOfficeLinkSet(env)) {
 			return false;
 		}
-		return resolveFromEnvironment(env).getSalesUpstreams().contains(SalesUpstream.HEAD_OFFICE);
+		return resolve(env).getSalesUpstreams().contains(SalesUpstream.HEAD_OFFICE);
 	}
 
 	/**
@@ -139,7 +139,7 @@ public final class NodeOwnership {
 		if (!isHeadOfficeLinkSet(env)) {
 			return false;
 		}
-		NodeOwnership ownership = resolveFromEnvironment(env);
+		NodeOwnership ownership = resolve(env);
 		for (DataDomain domain : DataDomain.values()) {
 			if (ownership.ownerOf(domain) == DataOwner.HEAD_OFFICE) {
 				return true;
@@ -153,47 +153,49 @@ public final class NodeOwnership {
 	 * handler exists. Also used by {@link OnHeadOfficeOwnedCondition}.
 	 */
 	public static boolean isOwnedByHeadOffice(PropertyResolver env, DataDomain domain) {
-		return isHeadOfficeLinkSet(env) && resolveFromEnvironment(env).ownerOf(domain) == DataOwner.HEAD_OFFICE;
+		return isHeadOfficeLinkSet(env) && resolve(env).ownerOf(domain) == DataOwner.HEAD_OFFICE;
 	}
 
 	/**
-	 * True on a store whose catalogue is the head office's (step 6): headoffice.url set, ownership.catalogue=HEAD_OFFICE,
-	 * application.standalone=true (an explicit value with an ERP stops the startup). Also used by
-	 * {@link OnHeadOfficeCatalogueCondition}.
+	 * True on a store whose catalogue is the head office's (step 6): headoffice.url set, ownership.catalogue=HEAD_OFFICE
+	 * (only accepted without an ERP: with one the startup stops). Also used by {@link OnHeadOfficeCatalogueCondition}.
 	 */
 	public static boolean isCatalogueFromHeadOffice(PropertyResolver env) {
-		return isOwnedByHeadOffice(env, DataDomain.CATALOGUE) && flag(env, STANDALONE_KEY);
+		return isOwnedByHeadOffice(env, DataDomain.CATALOGUE);
 	}
 
 	/**
 	 * True on a store whose goods come from the head office by BL (step 7A): headoffice.url set, an explicit
-	 * ownership.supply=HEAD_OFFICE, application.standalone=true (the startup also requires ownership.catalogue=HEAD_OFFICE
-	 * then). Also used by {@link OnHeadOfficeSupplyCondition}.
+	 * ownership.supply=HEAD_OFFICE (only accepted without an ERP and with ownership.catalogue=HEAD_OFFICE: otherwise the
+	 * startup stops). Also used by {@link OnHeadOfficeSupplyCondition}.
 	 */
 	public static boolean isSupplyFromHeadOffice(PropertyResolver env) {
-		return env.containsProperty(DataDomain.SUPPLY.getPropertyKey()) && isOwnedByHeadOffice(env, DataDomain.SUPPLY)
-				&& flag(env, STANDALONE_KEY);
+		return env.containsProperty(DataDomain.SUPPLY.getPropertyKey()) && isOwnedByHeadOffice(env, DataDomain.SUPPLY);
 	}
 
 	/**
-	 * True on a head office with an ERP (task 3.4): node.type=HEAD_OFFICE and application.standalone false or absent
-	 * (read like ApplicationModeService). Also used by {@link OnHeadOfficeErpCondition}.
+	 * True on a head office with an ERP (task 3.4): node.type=HEAD_OFFICE and an owner ERP (step 9: no direct read of
+	 * application.standalone). Also used by {@link OnHeadOfficeErpCondition}.
 	 */
 	public static boolean isHeadOfficeErpSet(PropertyResolver env) {
-		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && !flag(env, STANDALONE_KEY);
+		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && resolve(env).hasErp();
 	}
 
 	/**
-	 * True on a head office without an ERP (step 6): node.type=HEAD_OFFICE and application.standalone true (read like
-	 * ApplicationModeService). It sends its catalogue to its stores and keeps the price lists. Also used by
-	 * {@link OnHeadOfficeStandaloneCondition}.
+	 * True on a head office without an ERP (step 6): node.type=HEAD_OFFICE and no owner ERP. It sends its catalogue to its
+	 * stores and keeps the price lists. Also used by {@link OnHeadOfficeStandaloneCondition} (the name keeps "standalone"
+	 * until the step 7B merge: its beans use the annotation).
 	 */
 	public static boolean isHeadOfficeStandaloneSet(PropertyResolver env) {
-		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && flag(env, STANDALONE_KEY);
+		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && !resolve(env).hasErp();
 	}
 
-	/** application.standalone read from the environment like {@link ApplicationModeService}. */
-	private static NodeOwnership resolveFromEnvironment(PropertyResolver env) {
+	/**
+	 * The installation of this environment, as ApplicationModeService resolves it at startup. The one place where
+	 * application.standalone is read (false when absent): it is the input of the derivation (design 5.1) until task 9.3.
+	 * Throws {@link IllegalStateException} naming the key when the configuration cannot start.
+	 */
+	public static NodeOwnership resolve(PropertyResolver env) {
 		return resolve(env, flag(env, STANDALONE_KEY));
 	}
 
@@ -218,8 +220,9 @@ public final class NodeOwnership {
 	}
 
 	/**
-	 * {@code standalone}: application.standalone as ApplicationModeService reads it (false when absent). Throws
-	 * {@link IllegalStateException} naming the key when the configuration cannot start (see the class comment).
+	 * The derivation with application.standalone given ({@code standalone}, false when absent): used by
+	 * {@link #resolve(PropertyResolver)} and by the tests. Throws {@link IllegalStateException} naming the key when the
+	 * configuration cannot start (see the class comment).
 	 */
 	public static NodeOwnership resolve(PropertyResolver env, boolean standalone) {
 		checkNoFranchiseFlag(env);

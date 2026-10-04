@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.dto.AdjustStockRequestDTO;
 import com.digithink.zsretail.dto.PricingResult;
-import com.digithink.zsretail.dto.StandaloneQuickProductRequestDTO;
+import com.digithink.zsretail.dto.QuickProductRequestDTO;
 import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.Customer;
 import com.digithink.zsretail.model.Item;
@@ -98,13 +98,13 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	}
 
 	/**
-	 * Create a product with default family/subfamily and one barcode. Only allowed in standalone mode.
+	 * Create a product with default family/subfamily and one barcode. Refused with an ERP.
 	 */
-	@PostMapping("/standalone-quick-product")
-	public ResponseEntity<?> createStandaloneQuickProduct(@RequestBody StandaloneQuickProductRequestDTO request) {
+	@PostMapping("/quick-product")
+	public ResponseEntity<?> createQuickProduct(@RequestBody QuickProductRequestDTO request) {
 		if (applicationModeService.isCatalogueFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Product creation is only available in standalone mode. In ERP mode products are synchronized from the ERP."));
+					.body(createErrorResponse("Product creation is not available with an ERP: products are synchronized from the ERP."));
 		}
 		StoreCatalogueGuard guard = catalogueGuard();
 		if (guard != null) { // step 6: an own item, only with the purchase right, never a head office code
@@ -123,7 +123,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			if (request.getUnitPrice() == null || request.getUnitPrice() < 0) {
 				return ResponseEntity.badRequest().body(createErrorResponse("Unit price is required and must be >= 0"));
 			}
-			Item item = service.createStandaloneQuickProduct(
+			Item item = service.createQuickProduct(
 					request.getName(),
 					request.getItemCode(),
 					request.getUnitPrice());
@@ -143,7 +143,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
 		} catch (Exception e) {
-			log.error("ItemAPI::createStandaloneQuickProduct:error: " + e.getMessage(), e);
+			log.error("ItemAPI::createQuickProduct:error: " + e.getMessage(), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
 		}
 	}
@@ -156,7 +156,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	public ResponseEntity<?> create(@RequestBody Item entity) {
 		if (applicationModeService.isCatalogueFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Item creation is only available in standalone mode. In ERP mode items are synchronized from the ERP."));
+					.body(createErrorResponse("Item creation is not available with an ERP: items are synchronized from the ERP."));
 		}
 		StoreCatalogueGuard guard = catalogueGuard();
 		if (guard != null) { // step 6: an own item, only with the purchase right, never a head office code
@@ -185,7 +185,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Item entity) {
 		if (applicationModeService.isCatalogueFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Item update is only available in standalone mode. In ERP mode items are synchronized from the ERP."));
+					.body(createErrorResponse("Item update is not available with an ERP: items are synchronized from the ERP."));
 		}
 		try {
 			log.info("ItemAPI::update::" + id);
@@ -230,7 +230,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	public ResponseEntity<?> deleteById(@PathVariable Long id) {
 		if (applicationModeService.isCatalogueFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Item deletion is only available in standalone mode. In ERP mode items are synchronized from the ERP."));
+					.body(createErrorResponse("Item deletion is not available with an ERP: items are synchronized from the ERP."));
 		}
 		try {
 			log.info("ItemAPI::deleteById::" + id);
@@ -426,14 +426,14 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	}
 
 	/**
-	 * Adjust stock for an item (standalone only). Delta can be positive or negative.
+	 * Adjust stock for an item (without an ERP only). Delta can be positive or negative.
 	 * Body: { "delta": number, "reason": "COUNT" | "CORRECTION" | "DAMAGE" }.
 	 */
 	@PostMapping("/{id}/adjust-stock")
 	public ResponseEntity<?> adjustStock(@PathVariable Long id, @RequestBody AdjustStockRequestDTO request) {
 		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Stock adjustment is only available in standalone mode."));
+					.body(createErrorResponse("Stock adjustment is not available with an ERP."));
 		}
 		try {
 			if (request.getDelta() == null) {

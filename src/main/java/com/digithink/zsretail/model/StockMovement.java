@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 /**
  * Stock movement entity - immutable audit log of every stock quantity change.
  * Records are never updated or deleted; all corrections create new rows.
- * Only active in standalone mode (ERP manages stock in ERP mode).
+ * Only active when the stock is kept here (the ERP manages it otherwise).
  */
 @Entity
 @Table(name = "stock_movement")

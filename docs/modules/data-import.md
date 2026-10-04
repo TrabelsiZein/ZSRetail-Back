@@ -1,10 +1,10 @@
 # Data Import
 
-**Status**: ✅ Complete (Standalone mode only)
+**Status**: ✅ Complete (without an ERP only)
 
 **Overview:**
 - Admin-only wizard for bulk-importing data from Excel files (`.xlsx` / `.xls`)
-- Visible and accessible **only in standalone mode** (menu hidden + route guarded in ERP mode)
+- Visible and accessible **only without an ERP** (menu hidden + route guarded with an ERP)
 - Supports 5 entity types: **Item Families**, **Item Subfamilies**, **Items/Products**, **Vendors**, **Customers**
 - Uses **Apache POI** (already in `pom.xml` at version 5.0.0) for Excel parsing
 - **Upsert logic**: updates existing records if the unique code already exists, creates new ones otherwise — safe for re-imports
@@ -36,7 +36,7 @@
 
 ### Backend — New Files
 
-- **`DataImportAPI.java`** (`controller/`) — Two endpoints, both return HTTP 403 if `!applicationModeService.isStandalone()`:
+- **`DataImportAPI.java`** (`controller/`) — Two endpoints, both return HTTP 403 when `applicationModeService.isCatalogueFromErp()` (step 9; before, `!isStandalone()`):
   - `POST /admin/import/preview` — multipart: `file` → returns `ImportPreviewDTO`
   - `POST /admin/import/execute` — multipart: `file` + `entityType` + `mapping` (JSON string) → returns `ImportResultDTO`
 - **`DataImportService.java`** (`service/`) — Excel parsing and upsert logic for all 5 entity types; resolves FK for subfamilies (`familyCode` → `ItemFamily`) and items (`familyCode`, `subFamilyCode`)

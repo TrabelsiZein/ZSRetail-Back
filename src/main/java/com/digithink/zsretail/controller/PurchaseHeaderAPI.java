@@ -86,7 +86,7 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 	}
 
 	/**
-	 * Vendor balance / AP summary: per vendor total purchased, total paid, unpaid. Optional date range. Standalone only.
+	 * Vendor balance / AP summary: per vendor total purchased, total paid, unpaid. Optional date range. Not available with an ERP.
 	 */
 	@GetMapping("/vendor-balance")
 	public ResponseEntity<?> getVendorBalance(
@@ -94,7 +94,7 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 			@RequestParam(required = false) String dateTo) {
 		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Vendor balance report is only available in standalone mode."));
+					.body(createErrorResponse("Vendor balance report is not available with an ERP."));
 		}
 		try {
 			java.util.List<VendorBalanceSummaryDTO> list = service.getVendorBalanceSummary(dateFrom, dateTo);
@@ -106,7 +106,7 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 	}
 
 	/**
-	 * Paginated purchase history with optional filters. Standalone only.
+	 * Paginated purchase history with optional filters. Not available with an ERP.
 	 */
 	@GetMapping("/history")
 	public ResponseEntity<?> getHistory(
@@ -119,7 +119,7 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 			@RequestParam(required = false) Long vendorId) {
 		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Purchase history is only available in standalone mode."));
+					.body(createErrorResponse("Purchase history is not available with an ERP."));
 		}
 		try {
 			log.info("PurchaseHeaderAPI::getHistory: page={}, size={}", page, size);
@@ -143,13 +143,13 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 	}
 
 	/**
-	 * Get purchase details with lines. Standalone only.
+	 * Get purchase details with lines. Not available with an ERP.
 	 */
 	@GetMapping("/{id}/details")
 	public ResponseEntity<?> getDetails(@PathVariable Long id) {
 		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Purchase details are only available in standalone mode."));
+					.body(createErrorResponse("Purchase details are not available with an ERP."));
 		}
 		try {
 			log.info("PurchaseHeaderAPI::getDetails: id=" + id);
@@ -164,13 +164,13 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 	}
 
 	/**
-	 * Create a purchase (process-purchase). Standalone only.
+	 * Create a purchase (process-purchase). Not available with an ERP.
 	 */
 	@PostMapping("/process-purchase")
 	public ResponseEntity<?> processPurchase(@RequestBody ProcessPurchaseRequestDTO request) {
 		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Purchases are only available in standalone mode. In ERP mode use the ERP for purchasing."));
+					.body(createErrorResponse("Purchases are not available with an ERP: use the ERP for purchasing."));
 		}
 		ResponseEntity<?> refusal = refused(guard -> guard.purchaseLines(request.getLines() == null ? new ArrayList<Long>()
 				: request.getLines().stream().map(ProcessPurchaseRequestDTO.PurchaseLineDTO::getItemId)
@@ -194,14 +194,14 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 	}
 
 	/**
-	 * Set paid amount and/or date on a purchase. Standalone only.
+	 * Set paid amount and/or date on a purchase. Not available with an ERP.
 	 * Body: { "paidAmount": number or null, "paidDate": "yyyy-MM-ddTHH:mm:ss" or null }. Use null paidAmount to clear.
 	 */
 	@PatchMapping("/{id}/set-paid")
 	public ResponseEntity<?> setPaid(@PathVariable Long id, @RequestBody SetPurchasePaidRequestDTO request) {
 		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Purchase paid status is only available in standalone mode."));
+					.body(createErrorResponse("Purchase paid status is not available with an ERP."));
 		}
 		ResponseEntity<?> refusal = refused(StoreCatalogueGuard::purchase); // step 6
 		if (refusal != null) {

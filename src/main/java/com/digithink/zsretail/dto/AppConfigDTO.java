@@ -8,7 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Public application configuration for the frontend (e.g. dual mode: ERP vs Standalone). The three franchise fields
+ * Public application configuration for the frontend (e.g. with or without an ERP). The three franchise fields
  * (franchiseAdmin, franchiseCustomer, allowLocalItems) left with step 9, task 9.4a: the frontend reads a missing one as false.
  */
 @Data
@@ -17,7 +17,7 @@ import lombok.NoArgsConstructor;
 public class AppConfigDTO {
 
 	/**
-	 * True when the POS runs in standalone mode (no ERP). False when integrated with ERP.
+	 * True when the POS runs without an ERP. False when integrated with ERP.
 	 */
 	private boolean standalone;
 

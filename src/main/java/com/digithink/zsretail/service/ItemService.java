@@ -52,8 +52,8 @@ public class ItemService extends _BaseService<Item, Long> {
 
 	/**
 	 * Manual stock adjustment (POST /item/{id}/adjust-stock): the quantity as before (StockService) and, since step 7A,
-	 * its ADJUSTMENT_IN or ADJUSTMENT_OUT movement with the reason as note, in one transaction. Both do nothing outside
-	 * standalone mode. No item save: no catalogue change is recorded on a head office.
+	 * its ADJUSTMENT_IN or ADJUSTMENT_OUT movement with the reason as note, in one transaction. Both do nothing when the
+	 * supply is the ERP's. No item save: no catalogue change is recorded on a head office.
 	 */
 	@Transactional(rollbackFor = Exception.class)
 	public void adjustStock(Long itemId, int delta, String reason) {
@@ -226,12 +226,12 @@ public class ItemService extends _BaseService<Item, Long> {
 	}
 
 	/**
-	 * For standalone mode only: ensure a default family and subfamily exist, then
+	 * Without an ERP only: ensure a default family and subfamily exist, then
 	 * create an item. Caller is responsible for creating ItemBarcode. Returns the
 	 * created item.
 	 */
 	@Transactional(rollbackFor = Exception.class)
-	public Item createStandaloneQuickProduct(String name, String itemCode, Double unitPrice) throws Exception {
+	public Item createQuickProduct(String name, String itemCode, Double unitPrice) throws Exception {
 		if (name == null || name.trim().isEmpty()) {
 			throw new IllegalArgumentException("Product name is required");
 		}
@@ -255,7 +255,7 @@ public class ItemService extends _BaseService<Item, Long> {
 			sf.setActive(true);
 			return itemSubFamilyRepository.save(sf);
 		});
-		String code = StringUtils.hasText(itemCode) ? itemCode.trim() : generateStandaloneItemCode();
+		String code = StringUtils.hasText(itemCode) ? itemCode.trim() : generateQuickProductItemCode();
 		if (itemRepository.findByItemCode(code).isPresent()) {
 			throw new IllegalArgumentException("Item code already exists: " + code);
 		}
@@ -276,7 +276,7 @@ public class ItemService extends _BaseService<Item, Long> {
 		return saveWithHooks(item);
 	}
 
-	private String generateStandaloneItemCode() {
+	private String generateQuickProductItemCode() {
 		String dateStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
 		long count = itemRepository.count();
 		return "ITEM-" + dateStr + "-" + String.format("%03d", (count % 1000) + 1);

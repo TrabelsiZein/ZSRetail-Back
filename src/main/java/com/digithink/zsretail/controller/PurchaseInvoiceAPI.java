@@ -35,7 +35,7 @@ import lombok.Data;
 import lombok.extern.log4j.Log4j2;
 
 /**
- * REST API for purchase invoices (supplier invoices). Standalone mode only.
+ * REST API for purchase invoices (supplier invoices). Without an ERP only.
  */
 @RestController
 @RequestMapping("admin/purchase-invoices")
@@ -58,7 +58,7 @@ public class PurchaseInvoiceAPI {
 	private void ensureSupplyNotFromErp() {
 		if (applicationModeService.isSupplyFromErp()) {
 			throw new org.springframework.web.server.ResponseStatusException(HttpStatus.FORBIDDEN,
-					"Purchase invoices are only available in standalone mode.");
+					"Purchase invoices are not available with an ERP.");
 		}
 	}
 
@@ -77,7 +77,7 @@ public class PurchaseInvoiceAPI {
 	}
 
 	/**
-	 * List purchase invoices with filters. Standalone only.
+	 * List purchase invoices with filters. Not available with an ERP.
 	 */
 	@GetMapping
 	public ResponseEntity<?> listPurchaseInvoices(
@@ -121,7 +121,7 @@ public class PurchaseInvoiceAPI {
 	}
 
 	/**
-	 * Get eligible purchases (completed, non-invoiced) for a vendor and date range. Standalone only.
+	 * Get eligible purchases (completed, non-invoiced) for a vendor and date range. Not available with an ERP.
 	 */
 	@GetMapping("/eligible-purchases")
 	public ResponseEntity<?> getEligiblePurchases(
@@ -153,7 +153,7 @@ public class PurchaseInvoiceAPI {
 	}
 
 	/**
-	 * Create purchase invoice from selected purchases. Standalone only.
+	 * Create purchase invoice from selected purchases. Not available with an ERP.
 	 */
 	@PostMapping
 	public ResponseEntity<?> createPurchaseInvoice(@RequestBody CreatePurchaseInvoiceRequest request) {
@@ -204,7 +204,7 @@ public class PurchaseInvoiceAPI {
 	}
 
 	/**
-	 * Get purchase invoice details for viewing/printing. Standalone only.
+	 * Get purchase invoice details for viewing/printing. Not available with an ERP.
 	 */
 	@GetMapping("/{id}/details")
 	public ResponseEntity<?> getPurchaseInvoiceDetails(@PathVariable Long id) {

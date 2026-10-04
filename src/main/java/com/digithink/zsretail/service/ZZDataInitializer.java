@@ -98,13 +98,13 @@ public class ZZDataInitializer {
 		// Always run on startup — idempotent (each key guarded by findByCode check)
 		ensureAllGeneralSetupConfigs();
 
-		// Standalone first-run: auto-create passenger customer and wire its code in
+		// First run without an ERP: auto-create passenger customer and wire its code in
 		// config
 		if (!applicationModeService.isCustomersFromErp() && customerRepository.count() == 0) {
 			ensurePassengerCustomer();
 		}
 
-		// ERP-related configs and sync jobs only when not in standalone mode
+		// ERP-related configs and sync jobs only with an ERP
 		if (applicationModeService.hasErp()) {
 			ensureErpSyncCheckpointConfigs();
 			if (erpSyncJobRepository.count() == 0) {
@@ -879,7 +879,7 @@ public class ZZDataInitializer {
 //	}
 
 	/**
-	 * Standalone first-run: creates the "Passenger Customer" and writes its code
+	 * First run without an ERP: creates the "Passenger Customer" and writes its code
 	 * into the PASSENGER_CUSTOMER general-setup entry so the POS can use it
 	 * immediately without any manual configuration.
 	 */

@@ -20,7 +20,7 @@ import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.dto.AdjustStockRequestDTO;
 import com.digithink.zsretail.dto.ProcessPurchaseRequestDTO;
 import com.digithink.zsretail.dto.SetPurchasePaidRequestDTO;
-import com.digithink.zsretail.dto.StandaloneQuickProductRequestDTO;
+import com.digithink.zsretail.dto.QuickProductRequestDTO;
 import com.digithink.zsretail.model.Customer;
 import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.ItemFamily;
@@ -76,20 +76,20 @@ class ModeGateTest {
 	void catalogueGates() {
 		eachErp(mode -> () -> {
 			ItemAPI items = itemApi(mode);
-			refused("quick product", items.createStandaloneQuickProduct(new StandaloneQuickProductRequestDTO()),
-					"Product creation is only available in standalone mode.");
-			refused("item create", items.create(new Item()), "Item creation is only available in standalone mode.");
-			refused("item update", items.update(1L, new Item()), "Item update is only available in standalone mode.");
-			refused("item delete", items.deleteById(1L), "Item deletion is only available in standalone mode.");
-			refused("family create", new ItemFamilyAPI(mode, null).create(new ItemFamily()), "Item family creation is only available in standalone mode.");
+			refused("quick product", items.createQuickProduct(new QuickProductRequestDTO()),
+					"Product creation is not available with an ERP");
+			refused("item create", items.create(new Item()), "Item creation is not available with an ERP");
+			refused("item update", items.update(1L, new Item()), "Item update is not available with an ERP");
+			refused("item delete", items.deleteById(1L), "Item deletion is not available with an ERP");
+			refused("family create", new ItemFamilyAPI(mode, null).create(new ItemFamily()), "Item family creation is not available with an ERP");
 			ItemSubFamilyAPI subFamilies = new ItemSubFamilyAPI();
 			set(subFamilies, ItemSubFamilyAPI.class, "applicationModeService", mode);
-			refused("sub-family create", subFamilies.create(new ItemSubFamily()), "standalone mode");
+			refused("sub-family create", subFamilies.create(new ItemSubFamily()), "not available with an ERP");
 			DataImportAPI imports = new DataImportAPI(mode, null, null, null);
 			MockMultipartFile file = new MockMultipartFile("file", "items.xlsx", null, new byte[] { 1 });
-			refused("import preview", imports.preview(file), "Data import is only available in standalone mode.");
+			refused("import preview", imports.preview(file), "Data import is not available with an ERP");
 			refused("import execute", imports.execute(file, "ITEMS", "{}"),
-					"Data import is only available in standalone mode.");
+					"Data import is not available with an ERP");
 		});
 	}
 
@@ -99,10 +99,10 @@ class ModeGateTest {
 		eachErp(mode -> () -> {
 			CustomerAPI customers = new CustomerAPI();
 			set(customers, CustomerAPI.class, "applicationModeService", mode);
-			refused("customer create", customers.create(new Customer()), "Customer creation is only available in standalone mode.");
+			refused("customer create", customers.create(new Customer()), "Customer creation is not available with an ERP");
 			InvoiceAPI invoices = new InvoiceAPI();
 			set(invoices, InvoiceAPI.class, "applicationModeService", mode);
-			String message = "Invoice creation from POS is only available in standalone mode.";
+			String message = "Invoice creation from POS is not available with an ERP";
 			refused("eligible tickets", invoices.getEligibleTickets(1L, null, null), message);
 			InvoiceAPI.CreateInvoiceRequest request = new InvoiceAPI.CreateInvoiceRequest();
 			request.setTicketIds(Collections.singletonList(1L));
@@ -118,18 +118,18 @@ class ModeGateTest {
 			PurchaseHeaderAPI purchases = new PurchaseHeaderAPI();
 			set(purchases, PurchaseHeaderAPI.class, "applicationModeService", mode);
 			refused("vendor balance", purchases.getVendorBalance(null, null),
-					"Vendor balance report is only available in standalone mode.");
+					"Vendor balance report is not available with an ERP");
 			refused("purchase history", purchases.getHistory(0, 10, null, null, null, null, null),
-					"Purchase history is only available in standalone mode.");
-			refused("purchase details", purchases.getDetails(1L), "Purchase details are only available in standalone mode.");
+					"Purchase history is not available with an ERP");
+			refused("purchase details", purchases.getDetails(1L), "Purchase details are not available with an ERP");
 			refused("process purchase", purchases.processPurchase(new ProcessPurchaseRequestDTO()),
-					"Purchases are only available in standalone mode.");
+					"Purchases are not available with an ERP");
 			refused("purchase paid", purchases.setPaid(1L, new SetPurchasePaidRequestDTO()),
-					"Purchase paid status is only available in standalone mode.");
+					"Purchase paid status is not available with an ERP");
 
 			PurchaseInvoiceAPI purchaseInvoices = new PurchaseInvoiceAPI();
 			set(purchaseInvoices, PurchaseInvoiceAPI.class, "applicationModeService", mode);
-			String invoiceMessage = "Purchase invoices are only available in standalone mode.";
+			String invoiceMessage = "Purchase invoices are not available with an ERP";
 			forbidden("purchase invoice list", () -> purchaseInvoices.listPurchaseInvoices(null, null, null, null, 0, 20),
 					invoiceMessage);
 			forbidden("eligible purchases", () -> purchaseInvoices.getEligiblePurchases(1L, null, null), invoiceMessage);
@@ -140,19 +140,19 @@ class ModeGateTest {
 
 			VendorAPI vendors = new VendorAPI();
 			set(vendors, VendorAPI.class, "applicationModeService", mode);
-			refused("vendor create", vendors.create(new Vendor()), "Vendor creation is only available in standalone mode.");
-			refused("vendor update", vendors.update(1L, new Vendor()), "Vendor update is only available in standalone mode.");
-			refused("vendor delete", vendors.deleteById(1L), "Vendor deletion is only available in standalone mode.");
+			refused("vendor create", vendors.create(new Vendor()), "Vendor creation is not available with an ERP");
+			refused("vendor update", vendors.update(1L, new Vendor()), "Vendor update is not available with an ERP");
+			refused("vendor delete", vendors.deleteById(1L), "Vendor deletion is not available with an ERP");
 
 			LocationAPI locations = new LocationAPI(mode);
 			refused("location create", locations.create(new Location()),
-					"Location creation is only available in standalone mode.");
+					"Location creation is not available with an ERP");
 			refused("location update", locations.update(1L, new Location()),
-					"Location update is only available in standalone mode.");
-			refused("location delete", locations.deleteById(1L), "Location deletion is only available in standalone mode.");
+					"Location update is not available with an ERP");
+			refused("location delete", locations.deleteById(1L), "Location deletion is not available with an ERP");
 
 			refused("stock adjustment", itemApi(mode).adjustStock(1L, new AdjustStockRequestDTO()),
-					"Stock adjustment is only available in standalone mode.");
+					"Stock adjustment is not available with an ERP");
 		});
 	}
 

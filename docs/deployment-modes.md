@@ -1,23 +1,23 @@
-# Deployment Modes (ERP vs Standalone)
+# Deployment Modes (with or without an ERP)
 
-**Status**: Implemented (T1–T8 complete). T9 (guard ERP APIs) and T10 (full standalone features) optional/later.
+**Status**: Implemented (T1–T8 complete). T9 (guard ERP APIs) and T10 (full features without an ERP) optional/later.
 
 **Overview:**
-- POS can run in **ERP mode** (integrated with Dynamics NAV/Business Central) or **Standalone mode** (no ERP).
+- POS can run in **ERP mode** (integrated with Dynamics NAV/Business Central) or **without an ERP** (the property `application.standalone=true`, called "standalone" in the code until task 9.3).
 - Mode is driven by `application.standalone` (config/env). Profile `standalone` sets `application.standalone=true` and disables ERP sync.
 
 **Backend:**
-- **ApplicationModeService** (`config/ApplicationModeService.java`): Reads `application.standalone`, exposes `isStandalone()` / `isErpMode()`.
+- **ApplicationModeService** (`config/ApplicationModeService.java`): resolves the installation once at startup through `NodeOwnership.resolve(env)`, the one place that reads `application.standalone`; exposes the ownership questions (`isCatalogueFromErp()`, `isCustomersFromErp()`, `isSupplyFromErp()`, `hasErp()`, `ownerOf`, ...). `isStandalone()` and `isErpMode()` were deleted at step 9 (task 9.1g).
 - **application-standalone.properties**: `application.standalone=true`, `erp.dynamicsnav.enabled=false`, `erp.sync.enabled=false`. Use with `spring.profiles.active=standalone` (or `standalone,dev` / `standalone,production`).
 - **GET /config** (public, loaded by the frontend before login): returns `AppConfigDTO`. Fields in JSON order: `standalone` (since step 9 computed as "no ERP owner", same value), `enableSalesPriceGroup`, `loyaltyEnabled`, `licenseStatus`, `licenseDaysUntilExpiry`, `posShowImages`, `posShowStock`, `tableManagementEnabled`, `tableManagementTableCount`, `appVersion`, `tombolaEnabled`, then `nodeType`, `ownership`, `salesUpstreams` (see "Ownership model" below). Used by frontend to hide/show UI. The three franchise fields (`franchiseAdmin`, `franchiseCustomer`, `allowLocalItems`, after `loyaltyEnabled`) left with the franchise profiles (step 9, task 9.4a).
-- **ZZDataInitializer**: When `isStandalone()`, skips `ensureErpSyncCheckpointConfigs()` and `initErpSyncJobs()`. Payment methods, users, GeneralSetup (including DEFAULT_LOCATION, PASSENGER_CUSTOMER) still initialized.
-- **NoOpErpConnector**: Active when `erp.dynamicsnav.enabled=false` (standalone). Export/push methods are no-op; no NAV calls.
-- **Standalone-only APIs** (403 when not standalone):
+- **ZZDataInitializer**: Without an ERP (`hasErp()` false since step 9), skips `ensureErpSyncCheckpointConfigs()` and `initErpSyncJobs()`. Payment methods, users, GeneralSetup (including DEFAULT_LOCATION, PASSENGER_CUSTOMER) still initialized.
+- **NoOpErpConnector**: Active when `erp.dynamicsnav.enabled=false` (no ERP). Export/push methods are no-op; no NAV calls.
+- **APIs refused with an ERP** (403; since step 9 each asks an ownership question, table "Step 9 questions" below):
   - POST /customer (create customer)
-  - POST /item/standalone-quick-product (create product with default family/subfamily + one barcode)
+  - POST /item/quick-product (create product with default family/subfamily + one barcode)
   - POST /item-family (create family)
   - POST /item-subfamily (create subfamily)
-- **ItemFamiliesManagement / ItemSubFamiliesManagement**: Backend allows PUT/DELETE; frontend controls visibility of Edit/Delete (standalone only).
+- **ItemFamiliesManagement / ItemSubFamiliesManagement**: Backend allows PUT/DELETE; frontend controls visibility of Edit/Delete (without an ERP only).
 
 **Frontend:**
 - **appConfig store** (`store/app-config/index.js`): one state field per GET /config field, filled by `fetchAppConfig` on load (`main.js`), with a default when a field is missing or the call fails. Getters used for the modes on this page: `isStandalone`, `enableSalesPriceGroup`.
@@ -33,7 +33,7 @@
 - `pos.pricing.enable-sales-price-group` (false in application-standalone.properties) exposed as `enableSalesPriceGroup` in GET /config.
 - When false: Sales Prices and Sales Discounts admin menu entries and routes are hidden/redirected.
 
-**Core POS flows in Standalone:**
+**Core POS flows without an ERP:**
 - Sales, payment, returns, sessions, and printing work without ERP. Ticket/return export and sync jobs are disabled; SessionExportService still creates PaymentHeader/PaymentLine records locally (export to ERP is no-op with NoOpErpConnector). No code path blocks sale/payment/return when standalone.
 
 **Ownership model:**
@@ -66,7 +66,7 @@
 
   | Gate (task) | Question | Answer with an ERP |
   |---|---|---|
-  | `POST /item`, `PUT` / `DELETE /item/{id}`, `POST /item/standalone-quick-product`, `POST /item-family`, `POST /item-sub-family`, `POST /admin/import/preview` and `/execute` (9.1c) | `isCatalogueFromErp()` | 403, same messages as before |
+  | `POST /item`, `PUT` / `DELETE /item/{id}`, `POST /item/quick-product`, `POST /item-family`, `POST /item-sub-family`, `POST /admin/import/preview` and `/execute` (9.1c) | `isCatalogueFromErp()` | 403, same messages as before |
   | `POST /customer`; invoices from POS tickets: `GET /admin/invoices/eligible-tickets`, `POST /admin/invoices`, `POST /admin/invoices/from-ticket/{ticketId}` (9.1c) | `isCustomersFromErp()` | 403, same messages |
   | Purchases: `GET /purchase-header/vendor-balance`, `/history`, `/{id}/details`, `POST /process-purchase`, `PATCH /{id}/set-paid`; purchase invoices: every `/admin/purchase-invoices` endpoint; `POST`, `PUT`, `DELETE /vendor`; `POST`, `PUT`, `DELETE /location` (decision: locations follow the supply until D8); `POST /item/{id}/adjust-stock` (9.1d) | `isSupplyFromErp()` | 403, same messages (purchase invoices: a 403 `ResponseStatusException`, as before) |
   | Startup (`ZZDataInitializer`, 9.1e): passenger customer on a first run | `!isCustomersFromErp()` | not created |
@@ -107,7 +107,7 @@
   - `ownership`: every domain to its owner, in `DataDomain` order. ERP profile: `{"CATALOGUE":"ERP","CUSTOMERS":"ERP","PROMOTIONS":"LOCAL","LOYALTY":"LOCAL","SUPPLY":"ERP"}`.
   - `salesUpstreams`: array of `"ERP"`, `"HEAD_OFFICE"`; `[]` when sales go nowhere.
   - `headOfficeLinked` (task 1.5): `true` when `headoffice.url` is set; the frontend shows the "Head office link" page only then (`appConfig/isHeadOfficeLinked`, default `false`).
-  - `catalogueFromHeadOffice` (step 6): `true` on a store whose catalogue is the head office's (URL, explicit `ownership.catalogue=HEAD_OFFICE`, standalone). Since step 9 the same as `ownership.CATALOGUE` = `HEAD_OFFICE` (no franchise customer derives it any more); the frontend reads this flag.
-  - `supplyFromHeadOffice` (step 7A, last field): `true` on a store whose goods come from the head office by BL (URL, explicit `ownership.supply=HEAD_OFFICE`, standalone). Since step 9 the same as `ownership.SUPPLY` = `HEAD_OFFICE`; the frontend reads this flag.
+  - `catalogueFromHeadOffice` (step 6): `true` on a store whose catalogue is the head office's (URL, explicit `ownership.catalogue=HEAD_OFFICE`, no ERP). Since step 9 the same as `ownership.CATALOGUE` = `HEAD_OFFICE` (no franchise customer derives it any more); the frontend reads this flag.
+  - `supplyFromHeadOffice` (step 7A, last field): `true` on a store whose goods come from the head office by BL (URL, explicit `ownership.supply=HEAD_OFFICE`, no ERP). Since step 9 the same as `ownership.SUPPLY` = `HEAD_OFFICE`; the frontend reads this flag.
 - **Frontend store** (`store/app-config/index.js`, task 0.5): state `nodeType` (default `'STORE'`), `ownership` (default `{}`), `salesUpstreams` (default `[]`). Getters `nodeType`, `ownerOf(domain)` (owner name, `null` when unknown) and `salesUpstreams`. Defaults when talking to an older backend, or when the call fails: a missing or unknown `nodeType` gives `'STORE'`, a missing or non-object `ownership` gives `{}`, a missing or non-array `salesUpstreams` gives `[]`. No component, route or menu reads them yet.
 - Tests: `ApplicationModeOwnershipTest` (L1, task 0.4); `AppConfigAPITest` (L1, task 0.5: for the four profiles, the old /config fields keep their names, order and values, and the new fields match the table above).

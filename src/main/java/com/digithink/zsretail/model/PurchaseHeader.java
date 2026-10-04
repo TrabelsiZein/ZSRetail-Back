@@ -23,7 +23,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 /**
- * Purchase header entity - represents a purchase from a vendor (standalone mode only).
+ * Purchase header entity - represents a purchase from a vendor (without an ERP only).
  */
 @Entity
 @Data
@@ -57,10 +57,10 @@ public class PurchaseHeader extends _BaseEntity {
 	@Column(name = "total_amount")
 	private Double totalAmount;
 
-	/** Amount paid to vendor (standalone). Null = unpaid. */
+	/** Amount paid to vendor (without an ERP). Null = unpaid. */
 	private Double paidAmount;
 
-	/** Date when (partial or full) payment was recorded (standalone). */
+	/** Date when (partial or full) payment was recorded (without an ERP). */
 	private LocalDateTime paidDate;
 
 	private String notes;

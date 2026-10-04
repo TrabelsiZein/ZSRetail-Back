@@ -1,6 +1,6 @@
 # Loyalty (Fidélité) Program
 
-**Status**: ✅ Complete (Standalone-first, ERP-ready design)
+**Status**: ✅ Complete (designed first for stores without an ERP, ERP-ready)
 
 **Overview:**
 - Separate `LoyaltyMember` entity (distinct from `Customer`) — a loyalty cardholder can be a walk-in "passenger" or optionally linked to an existing `Customer`.

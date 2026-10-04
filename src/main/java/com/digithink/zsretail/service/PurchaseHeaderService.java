@@ -61,7 +61,7 @@ public class PurchaseHeaderService extends _BaseService<PurchaseHeader, Long> {
 	}
 
 	/**
-	 * Create a purchase from the request (standalone only).
+	 * Create a purchase from the request (without an ERP only).
 	 */
 	@Transactional
 	public PurchaseHeader processPurchase(ProcessPurchaseRequestDTO request, UserAccount currentUser) {
@@ -147,7 +147,7 @@ public class PurchaseHeaderService extends _BaseService<PurchaseHeader, Long> {
 			item.setLastDirectNetCost(netUnitPrice);
 			itemRepository.save(item);
 
-			// Update stock (standalone only; single service, atomic updates, concurrency-safe)
+			// Update stock (without an ERP only; single service, atomic updates, concurrency-safe)
 			stockService.incrementForPurchase(item.getId(), lineDto.getQuantity());
 			stockMovementService.recordPurchase(
 					item.getId(), lineDto.getQuantity(),
@@ -229,7 +229,7 @@ public class PurchaseHeaderService extends _BaseService<PurchaseHeader, Long> {
 	}
 
 	/**
-	 * Set paid amount and/or date on a purchase (standalone). Use null paidAmount to clear paid status.
+	 * Set paid amount and/or date on a purchase (without an ERP). Use null paidAmount to clear paid status.
 	 */
 	@Transactional
 	public PurchaseHeader setPaidStatus(Long id, Double paidAmount, LocalDateTime paidDate) {

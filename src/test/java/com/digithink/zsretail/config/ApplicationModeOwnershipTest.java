@@ -418,7 +418,7 @@ class ApplicationModeOwnershipTest {
 	private static ApplicationModeService service(MockEnvironment env, boolean standalone) throws Exception {
 		ApplicationModeService service = new ApplicationModeService();
 		inject(service, "environment", env);
-		inject(service, "standalone", standalone);
+		env.setProperty("application.standalone", String.valueOf(standalone)); // step 9: read from the environment, no field
 		service.initOwnership();
 		return service;
 	}
@@ -437,7 +437,7 @@ class ApplicationModeOwnershipTest {
 		assertEquals(ERP, s.ownerOf(DataDomain.CATALOGUE));
 		assertEquals(L, s.ownerOf(DataDomain.LOYALTY));
 		assertEquals(EnumSet.of(SalesUpstream.ERP), s.salesUpstreams());
-		assertTrue(s.isErpMode());
+		assertTrue(s.hasErp());
 		assertThrows(UnsupportedOperationException.class, () -> s.salesUpstreams().add(SalesUpstream.HEAD_OFFICE));
 	}
 

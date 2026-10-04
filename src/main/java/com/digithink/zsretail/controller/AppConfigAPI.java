@@ -23,7 +23,7 @@ import com.digithink.zsretail.service.LoyaltyService;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Exposes application configuration for the frontend (e.g. ERP vs Standalone mode).
+ * Exposes application configuration for the frontend (e.g. with or without an ERP).
  * Used to control UI visibility (ERP menu, sync columns) without changing backend behaviour.
  */
 @RestController

@@ -5,7 +5,6 @@ import java.util.Set;
 import javax.annotation.PostConstruct;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
@@ -16,15 +15,14 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
 
 /**
  * Exposes the installation type, the owner of each data domain and where the sales go (head office design 2.1, 2.2),
- * resolved once at startup from application.standalone, node.type, ownership.* and sales.upstream (NodeOwnership).
+ * resolved once at startup from application.standalone, node.type, ownership.* and sales.upstream
+ * ({@link NodeOwnership#resolve(org.springframework.core.env.PropertyResolver)}, the one place that reads
+ * application.standalone).
  * All mode-dependent behaviour should use this service. Step 9: every check asks one of its questions; the franchise
  * profiles were removed (task 9.4a) and a leftover franchise.admin or franchise.customer=true stops the startup.
  */
 @Service
 public class ApplicationModeService {
-
-	@Value("${application.standalone:false}")
-	private boolean standalone;
 
 	@Autowired
 	private Environment environment;
@@ -41,11 +39,11 @@ public class ApplicationModeService {
 	/** Fails the startup when node.type, ownership.* or sales.upstream holds an invalid value. */
 	@PostConstruct
 	void initOwnership() {
-		ownership = NodeOwnership.resolve(environment, standalone);
+		ownership = NodeOwnership.resolve(environment);
 		headOfficeLinked = NodeOwnership.isHeadOfficeLinkSet(environment);
-		// Same rule as NodeOwnership.isSupplyFromHeadOffice, on the mode flag of this service (like the catalogue)
+		// Same rule as NodeOwnership.isSupplyFromHeadOffice (accepted only without an ERP, with the catalogue too)
 		supplyFromHeadOffice = headOfficeLinked && environment.containsProperty(DataDomain.SUPPLY.getPropertyKey())
-				&& ownership.ownerOf(DataDomain.SUPPLY) == DataOwner.HEAD_OFFICE && standalone;
+				&& ownership.ownerOf(DataDomain.SUPPLY) == DataOwner.HEAD_OFFICE;
 	}
 
 	/** True on a store that calls a head office (headoffice.url set): the "Head office link" page exists. */
@@ -77,16 +75,16 @@ public class ApplicationModeService {
 	}
 
 	/**
-	 * True on a store whose catalogue is its head office's (step 6): headoffice.url set, ownership.catalogue=HEAD_OFFICE,
-	 * standalone. Same rule as the catalogue beans ({@link NodeOwnership#isCatalogueFromHeadOffice}).
+	 * True on a store whose catalogue is its head office's (step 6): headoffice.url set, ownership.catalogue=HEAD_OFFICE
+	 * (accepted only without an ERP). Same rule as the catalogue beans ({@link NodeOwnership#isCatalogueFromHeadOffice}).
 	 */
 	public boolean isCatalogueFromHeadOffice() {
-		return headOfficeLinked && ownership.ownerOf(DataDomain.CATALOGUE) == DataOwner.HEAD_OFFICE && standalone;
+		return headOfficeLinked && ownership.ownerOf(DataDomain.CATALOGUE) == DataOwner.HEAD_OFFICE;
 	}
 
 	/**
 	 * True on a store whose goods come from its head office by BL (step 7A): headoffice.url set, an explicit
-	 * ownership.supply=HEAD_OFFICE, standalone. Same rule as the supply beans ({@link NodeOwnership#isSupplyFromHeadOffice}).
+	 * ownership.supply=HEAD_OFFICE (accepted only without an ERP). Same rule as the supply beans ({@link NodeOwnership#isSupplyFromHeadOffice}).
 	 */
 	public boolean isSupplyFromHeadOffice() {
 		return supplyFromHeadOffice;
@@ -105,38 +103,23 @@ public class ApplicationModeService {
 		return ownership.getSalesUpstreams();
 	}
 
-	/** Step 9 (task 9.1b): see {@link NodeOwnership#isCatalogueFromErp()}. Same answer as {@code !isStandalone()}. */
+	/** Step 9 (task 9.1b): see {@link NodeOwnership#isCatalogueFromErp()}. Same answer as the old isStandalone() check, negated. */
 	public boolean isCatalogueFromErp() {
 		return ownership.isCatalogueFromErp();
 	}
 
-	/** Step 9 (task 9.1b): see {@link NodeOwnership#isCustomersFromErp()}. Same answer as {@code !isStandalone()}. */
+	/** Step 9 (task 9.1b): see {@link NodeOwnership#isCustomersFromErp()}. Same answer as the old isStandalone() check, negated. */
 	public boolean isCustomersFromErp() {
 		return ownership.isCustomersFromErp();
 	}
 
-	/** Step 9 (task 9.1b): see {@link NodeOwnership#isSupplyFromErp()}. Same answer as {@code !isStandalone()}. */
+	/** Step 9 (task 9.1b): see {@link NodeOwnership#isSupplyFromErp()}. Same answer as the old isStandalone() check, negated. */
 	public boolean isSupplyFromErp() {
 		return ownership.isSupplyFromErp();
 	}
 
-	/** Step 9 (task 9.1b): see {@link NodeOwnership#hasErp()}. Same answer as {@code !isStandalone()}. */
+	/** Step 9 (task 9.1b): see {@link NodeOwnership#hasErp()}. Same answer as the old isStandalone() check, negated. */
 	public boolean hasErp() {
 		return ownership.hasErp();
-	}
-
-	/**
-	 * True when the POS runs without an ERP (standalone mode).
-	 * False when the POS is integrated with ERP (e.g. Dynamics NAV / Business Central).
-	 */
-	public boolean isStandalone() {
-		return standalone;
-	}
-
-	/**
-	 * True when the POS is integrated with an ERP (current mode for e.g. MTOP).
-	 */
-	public boolean isErpMode() {
-		return !standalone;
 	}
 }

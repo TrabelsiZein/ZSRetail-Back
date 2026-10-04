@@ -4,11 +4,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Request body for creating a product in standalone mode (no ERP).
+ * Request body for creating a product without an ERP.
  */
 @Data
 @NoArgsConstructor
-public class StandaloneQuickProductRequestDTO {
+public class QuickProductRequestDTO {
 
 	private String name;
 	private String itemCode;
