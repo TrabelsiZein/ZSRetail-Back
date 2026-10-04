@@ -125,4 +125,11 @@ public class AppConfigDTO {
 	 * "Head office link" page only then. From ApplicationModeService.isHeadOfficeLinked().
 	 */
 	private boolean headOfficeLinked;
+
+	/**
+	 * Step 6: true on a store whose catalogue is the head office's (headoffice.url, ownership.catalogue=HEAD_OFFICE,
+	 * standalone, no franchise flag): head office records are consult-only. Read this flag, not ownership.CATALOGUE (a
+	 * franchise customer reports HEAD_OFFICE there for its legacy sync). From ApplicationModeService.isCatalogueFromHeadOffice().
+	 */
+	private boolean catalogueFromHeadOffice;
 }

@@ -91,6 +91,16 @@ public class ApplicationModeService {
 	}
 
 	/**
+	 * True on a store whose catalogue is its head office's (step 6): headoffice.url set, ownership.catalogue=HEAD_OFFICE,
+	 * standalone, no franchise flag (the franchise customer profile derives a catalogue owned by HEAD_OFFICE for its
+	 * legacy sync and is never this case). Same rule as the catalogue beans ({@link NodeOwnership#isCatalogueFromHeadOffice}).
+	 */
+	public boolean isCatalogueFromHeadOffice() {
+		return headOfficeLinked && ownership.ownerOf(DataDomain.CATALOGUE) == DataOwner.HEAD_OFFICE && standalone
+				&& !franchiseCustomer && !franchiseAdmin;
+	}
+
+	/**
 	 * True on a store whose loyalty is owned by its head office (ownership.loyalty=HEAD_OFFICE, which needs
 	 * headoffice.url): one member register for the network; the program is only consulted there (step 4).
 	 */

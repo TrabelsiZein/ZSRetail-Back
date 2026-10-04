@@ -48,7 +48,8 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * Copies down (step 3): a store with an explicit {@code ownership.promotions=HEAD_OFFICE} without {@code headoffice.url}
  * fails; with the URL set, a {@code headoffice.pull.interval-seconds} below 1 fails. Shared loyalty (step 4): the same
  * for {@code ownership.loyalty=HEAD_OFFICE}, and with the URL set a {@code headoffice.loyalty-push.interval-seconds}
- * below 1 fails.
+ * below 1 fails. Catalogue (step 6): the same for {@code ownership.catalogue=HEAD_OFFICE}, which also fails with
+ * franchise.customer or franchise.admin set to true, or with application.standalone=false.
  */
 public final class NodeOwnership {
 
@@ -66,11 +67,11 @@ public final class NodeOwnership {
 	static final String LOYALTY_PUSH_INTERVAL_KEY = "headoffice.loyalty-push.interval-seconds";
 
 	/**
-	 * Domains a store receives as copies down from its head office today (step 3: promotions; step 4: loyalty). An
-	 * explicit owner HEAD_OFFICE for one of them needs headoffice.url. Later steps add theirs.
+	 * Domains a store receives as copies down from its head office today (step 3: promotions; step 4: loyalty; step 6:
+	 * catalogue). An explicit owner HEAD_OFFICE for one of them needs headoffice.url. Later steps add theirs.
 	 */
 	static final Set<DataDomain> COPIES_DOWN_DOMAINS = Collections
-			.unmodifiableSet(EnumSet.of(DataDomain.PROMOTIONS, DataDomain.LOYALTY));
+			.unmodifiableSet(EnumSet.of(DataDomain.CATALOGUE, DataDomain.PROMOTIONS, DataDomain.LOYALTY));
 
 	/** Largest batch a store may send in one request. */
 	public static final int SALES_PUSH_MAX_BATCH_SIZE = 1000;
@@ -146,6 +147,17 @@ public final class NodeOwnership {
 	 */
 	public static boolean isOwnedByHeadOffice(PropertyResolver env, DataDomain domain) {
 		return isHeadOfficeLinkSet(env) && resolveFromEnvironment(env).ownerOf(domain) == DataOwner.HEAD_OFFICE;
+	}
+
+	/**
+	 * True on a store whose catalogue is the head office's (step 6): headoffice.url set, ownership.catalogue=HEAD_OFFICE,
+	 * application.standalone=true and neither franchise flag. The franchise customer profile derives a catalogue owned by
+	 * HEAD_OFFICE for its legacy item sync: it never matches, even with headoffice.url set (an explicit value with a
+	 * franchise flag, or with an ERP, stops the startup). Also used by {@link OnHeadOfficeCatalogueCondition}.
+	 */
+	public static boolean isCatalogueFromHeadOffice(PropertyResolver env) {
+		return isOwnedByHeadOffice(env, DataDomain.CATALOGUE) && flag(env, STANDALONE_KEY)
+				&& !flag(env, FRANCHISE_CUSTOMER_KEY) && !flag(env, FRANCHISE_ADMIN_KEY);
 	}
 
 	/**
@@ -244,6 +256,21 @@ public final class NodeOwnership {
 				owners.put(domain, owner);
 			} else {
 				owners.put(domain, derivedOwners.get(domain));
+			}
+		}
+
+		String catalogueKey = DataDomain.CATALOGUE.getPropertyKey();
+		if (!headOffice && env.containsProperty(catalogueKey) && owners.get(DataDomain.CATALOGUE) == DataOwner.HEAD_OFFICE) {
+			if (franchiseCustomer || franchiseAdmin) { // step 6: the legacy profiles keep their own item sync
+				throw new IllegalStateException("Invalid combination: " + catalogueKey + "=HEAD_OFFICE with "
+						+ (franchiseAdmin ? "franchise.admin=true" : "franchise.customer=true")
+						+ ". The franchise profiles keep their own item sync until they are migrated; remove "
+						+ catalogueKey + ".");
+			}
+			if (!standalone) {
+				throw new IllegalStateException("Invalid combination: " + catalogueKey + "=HEAD_OFFICE with "
+						+ STANDALONE_KEY + "=false. A store whose items come from an ERP cannot receive them from a head"
+						+ " office; set " + catalogueKey + " to ERP, or " + STANDALONE_KEY + " to true.");
 			}
 		}
 

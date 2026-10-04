@@ -39,9 +39,10 @@ class AppConfigAPITest {
 			"licenseDaysUntilExpiry", "posShowImages", "posShowStock", "tableManagementEnabled",
 			"tableManagementTableCount", "appVersion", "tombolaEnabled");
 
-	/** Keys added by the head office plan: tasks 0.5 (first three) and 1.5 (headOfficeLinked), always last. */
+	/** Keys added by the head office plan: tasks 0.5 (first three) and 1.5 (headOfficeLinked),
+	 * step 6 (catalogueFromHeadOffice), always last. */
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
-			"headOfficeLinked");
+			"headOfficeLinked", "catalogueFromHeadOffice");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";
@@ -230,7 +231,26 @@ class AppConfigAPITest {
 	}
 
 	@Test
-	@DisplayName("JSON: the 14 old keys keep their names and order, the 4 new keys come last")
+	@DisplayName("Step 6: catalogueFromHeadOffice only on a standalone store with headoffice.url and ownership.catalogue=HEAD_OFFICE;"
+			+ " never on a franchise customer, even with headoffice.url")
+	void catalogueFromHeadOffice() throws Exception {
+		MockEnvironment catalogue = new MockEnvironment().withProperty("headoffice.url", "http://localhost:888/zsretail/api")
+				.withProperty("headoffice.api-key", "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde")
+				.withProperty("ownership.catalogue", "HEAD_OFFICE");
+		assertTrue(config(catalogue, true, false, false, true).isCatalogueFromHeadOffice());
+		for (AppConfigDTO c : Arrays.asList(standalone(), dynamics(), franchiseCustomer(), franchiseAdmin(),
+				headOffice(), linkedStore())) {
+			assertFalse(c.isCatalogueFromHeadOffice());
+		}
+		MockEnvironment franchiseLinked = new MockEnvironment().withProperty("headoffice.url", "http://localhost:888/zsretail/api")
+				.withProperty("headoffice.api-key", "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde");
+		AppConfigDTO franchise = config(franchiseLinked, true, false, true, false);
+		assertEquals(HO, franchise.getOwnership().get("CATALOGUE"), "derived for the legacy sync");
+		assertFalse(franchise.isCatalogueFromHeadOffice());
+	}
+
+	@Test
+	@DisplayName("JSON: the 14 old keys keep their names and order, the 5 new keys come last")
 	void jsonKeys() throws Exception {
 		ObjectMapper mapper = new ObjectMapper();
 		List<String> expected = new ArrayList<>(OLD_KEYS);

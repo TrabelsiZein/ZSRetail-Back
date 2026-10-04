@@ -56,4 +56,11 @@ public class HeadOfficeLinkStatusDTO {
 	 * before the first heartbeat answer); null otherwise, or when the counts cannot be read.
 	 */
 	private final Map<String, Object> loyalty;
+
+	/**
+	 * Step 6: when the catalogue is the head office's, {fromHeadOffice, linkState, mayChangePrices, canPurchase,
+	 * ownPriceCount, salesPriceRowsOnHeadOfficeItems} (rights: the saved values, null when never received); null
+	 * otherwise, or when it cannot be read.
+	 */
+	private final Map<String, Object> catalogue;
 }

@@ -9,10 +9,15 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.net.ConnectException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.AfterEach;
@@ -20,6 +25,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -33,7 +39,10 @@ import com.digithink.zsretail.holink.enumeration.ExchangeDirection;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
 import com.digithink.zsretail.holink.enumeration.LinkJobResult;
 import com.digithink.zsretail.holink.model.LinkExchange;
+import com.digithink.zsretail.holink.model.LinkRight;
 import com.digithink.zsretail.holink.repository.LinkExchangeRepository;
+import com.digithink.zsretail.holink.repository.LinkRightRepository;
+import com.digithink.zsretail.holink.service.CatalogueRights;
 import com.digithink.zsretail.holink.service.HeadOfficeLinkStatus;
 import com.digithink.zsretail.holink.service.LinkExchangeLog;
 import com.digithink.zsretail.service.GeneralSetupService;
@@ -214,5 +223,42 @@ class HeartbeatJobTest {
 		LinkJobRun down = beat(refused());
 		assertEquals(LinkJobResult.ERROR, down.getResult());
 		assertEquals("OFFLINE: head office unreachable (ConnectException: Connection refused)", down.getMessage());
+	}
+
+	@Test
+	@DisplayName("Step 6: with the catalogue owned by the head office, the rights of an ONLINE answer are saved; a failure"
+			+ " or an answer without them keeps the saved values")
+	void catalogueRightsSaved() throws Exception {
+		Map<String, LinkRight> saved = new HashMap<>();
+		LinkRightRepository repository = (LinkRightRepository) Proxy.newProxyInstance(
+				LinkRightRepository.class.getClassLoader(), new Class<?>[] { LinkRightRepository.class },
+				(proxy, method, args) -> {
+					switch (method.getName()) {
+						case "findByCode":
+							return Optional.ofNullable(saved.get(args[0]));
+						case "save":
+							saved.put(((LinkRight) args[0]).getCode(), (LinkRight) args[0]);
+							return args[0];
+						default:
+							throw new UnsupportedOperationException(method.getName());
+					}
+				});
+		CatalogueRights rights = new CatalogueRights(repository);
+		Field field = HeartbeatJob.class.getDeclaredField("catalogueRights");
+		field.setAccessible(true);
+		field.set(job, new StaticListableBeanFactory(Collections.singletonMap("rights", rights))
+				.getBeanProvider(CatalogueRights.class));
+
+		beat(withSuccess("{\"storeCode\":\"RS01\",\"serverTime\":\"2026-10-04T10:00:00.000+01:00\","
+				+ "\"mayChangePrices\":true,\"canPurchase\":true}", MediaType.APPLICATION_JSON));
+		assertTrue(rights.mayChangePrices());
+		assertTrue(rights.canPurchase());
+		beat(refused());
+		assertTrue(new CatalogueRights(repository).canPurchase(), "unreachable: the saved value");
+		beat(online("2026-10-04T10:01:00.000+01:00"));
+		assertTrue(new CatalogueRights(repository).canPurchase(), "an older head office: kept");
+		beat(withSuccess("{\"storeCode\":\"RS01\",\"serverTime\":\"2026-10-04T10:02:00.000+01:00\","
+				+ "\"mayChangePrices\":false,\"canPurchase\":true}", MediaType.APPLICATION_JSON));
+		assertFalse(new CatalogueRights(repository).mayChangePrices());
 	}
 }

@@ -8,7 +8,9 @@ import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 
 import com.digithink.zsretail.model.enumeration.ItemType;
+import com.digithink.zsretail.model.enumeration.RecordOrigin;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -106,4 +108,28 @@ public class Item extends _BaseEntity {
 	 */
 	@Column(name = "from_franchise_admin")
 	private Boolean fromFranchiseAdmin = false;
+
+	/**
+	 * Head office plan, step 6: HEAD_OFFICE when received from the head office (copies down of the catalogue); null =
+	 * LOCAL, made here. Written only by the pull (on insert, or by a query when a local item of the same code becomes the
+	 * head office item): never read from JSON, never changed by a save. Not the legacy fromFranchiseAdmin.
+	 */
+	@Enumerated(EnumType.STRING)
+	@Column(length = 20, updatable = false)
+	@JsonProperty(access = JsonProperty.Access.READ_ONLY)
+	private RecordOrigin origin;
+
+	/**
+	 * Step 6 (task 6.5): true when this store put its own selling price on a head office item (right "may change its
+	 * selling prices"). The pull then keeps unitPrice and only saves the head office price in headOfficePrice. Null =
+	 * false. Never read from JSON.
+	 */
+	@Column(name = "own_price")
+	@JsonProperty(access = JsonProperty.Access.READ_ONLY)
+	private Boolean ownPrice;
+
+	/** Step 6: the selling price the head office sent for this store, kept beside unitPrice. Never read from JSON. */
+	@Column(name = "head_office_price")
+	@JsonProperty(access = JsonProperty.Access.READ_ONLY)
+	private Double headOfficePrice;
 }

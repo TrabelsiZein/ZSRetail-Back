@@ -13,6 +13,7 @@ import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.ItemFamily;
 import com.digithink.zsretail.model.ItemSubFamily;
 import com.digithink.zsretail.model.enumeration.ItemType;
+import com.digithink.zsretail.model.enumeration.RecordOrigin;
 
 public interface ItemRepository extends _BaseRepository<Item, Long> {
 
@@ -70,4 +71,21 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 	/** Step 6: every item code (the startup backfill of the catalogue copies). */
 	@Query("select i.itemCode from Item i")
 	List<String> findAllCodes();
+
+	/**
+	 * Head office plan, step 6: the origin of one row (the column is not updatable through a save). Pending changes are
+	 * flushed first. Returns the number of rows updated.
+	 */
+	@Modifying(flushAutomatically = true)
+	@Query("update Item x set x.origin = :origin where x.id = :id")
+	int setOrigin(@Param("id") Long id, @Param("origin") RecordOrigin origin);
+
+	/** Step 6: the head office items that carry an own price of this store. */
+	List<Item> findByOwnPriceTrue();
+
+	/** Step 6: how many head office items carry an own price of this store. */
+	long countByOwnPriceTrue();
+
+	/** Step 6: the items whose old single barcode field holds this value (several may). */
+	List<Item> findAllByBarcode(String barcode);
 }

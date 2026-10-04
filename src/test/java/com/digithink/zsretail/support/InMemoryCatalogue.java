@@ -24,6 +24,7 @@ import com.digithink.zsretail.model.ItemComposition;
 import com.digithink.zsretail.model.ItemFamily;
 import com.digithink.zsretail.model.ItemSubFamily;
 import com.digithink.zsretail.model._BaseEntity;
+import com.digithink.zsretail.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.repository.ItemBarcodeRepository;
 import com.digithink.zsretail.repository.ItemCompositionRepository;
 import com.digithink.zsretail.repository.ItemFamilyRepository;
@@ -154,6 +155,14 @@ public final class InMemoryCatalogue {
 				@SuppressWarnings("unchecked")
 				T row = (T) args[0];
 				return put(table, row);
+			case "setOrigin": {
+				T target = table.get(args[0]);
+				if (target == null) {
+					return 0;
+				}
+				setOrigin(target, (RecordOrigin) args[1]);
+				return 1;
+			}
 			case "deleteById":
 				table.remove(args[0]);
 				return null;
@@ -216,6 +225,12 @@ public final class InMemoryCatalogue {
 					return items.values().stream().map(Item::getItemCode).collect(Collectors.toList());
 				case "findByBarcode":
 					return items.values().stream().filter(i -> Objects.equals(i.getBarcode(), args[0])).findFirst();
+				case "findAllByBarcode":
+					return items.values().stream().filter(i -> Objects.equals(i.getBarcode(), args[0])).collect(Collectors.toList());
+				case "findByOwnPriceTrue":
+					return items.values().stream().filter(i -> Boolean.TRUE.equals(i.getOwnPrice())).collect(Collectors.toList());
+				case "countByOwnPriceTrue":
+					return items.values().stream().filter(i -> Boolean.TRUE.equals(i.getOwnPrice())).count();
 				case "save":
 					itemSaves++;
 					return common(items, method, args);
@@ -309,6 +324,19 @@ public final class InMemoryCatalogue {
 					return common(priceLines, method, args);
 			}
 		});
+	}
+
+	/** The origin as the @Modifying query writes it (the column is not updatable through a save). */
+	private static void setOrigin(_BaseEntity row, RecordOrigin origin) {
+		if (row instanceof Item) {
+			((Item) row).setOrigin(origin);
+		} else if (row instanceof ItemFamily) {
+			((ItemFamily) row).setOrigin(origin);
+		} else if (row instanceof ItemSubFamily) {
+			((ItemSubFamily) row).setOrigin(origin);
+		} else if (row instanceof ItemBarcode) {
+			((ItemBarcode) row).setOrigin(origin);
+		}
 	}
 
 	private List<HoPriceListLine> lines(java.util.function.Predicate<HoPriceListLine> filter) {

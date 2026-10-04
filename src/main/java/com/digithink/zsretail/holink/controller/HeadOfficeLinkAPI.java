@@ -32,6 +32,7 @@ import com.digithink.zsretail.holink.service.HeadOfficeLinkStatus;
 import com.digithink.zsretail.holink.service.LinkExchangeLog;
 import com.digithink.zsretail.holink.service.LinkJobService;
 import com.digithink.zsretail.holink.service.LoyaltyPushService;
+import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.holink.service.SalesCopyFinder;
 import com.digithink.zsretail.holink.service.SalesPushService;
 import com.digithink.zsretail.model.enumeration.DataDomain;
@@ -64,17 +65,27 @@ public class HeadOfficeLinkAPI {
 	/** Step 4: present only when loyalty is owned by the head office. */
 	private final Optional<LoyaltyPushService> loyaltyPush;
 
+	/** Step 6: present only when the catalogue is the head office's. */
+	private final Optional<StoreCatalogueGuard> catalogueGuard;
+
 	public HeadOfficeLinkAPI(HeadOfficeLinkStatus status, LinkJobScheduler jobs, LinkJobService jobService,
 			LinkExchangeLog exchangeLog, HeadOfficeClient client, Optional<SalesPushService> salesPush,
 			Optional<CopiesDownPuller> puller, Optional<DownRecordLog> downRecords) {
 		this(status, jobs, jobService, exchangeLog, client, salesPush, puller, downRecords, Optional.empty());
 	}
 
-	@Autowired
 	public HeadOfficeLinkAPI(HeadOfficeLinkStatus status, LinkJobScheduler jobs, LinkJobService jobService,
 			LinkExchangeLog exchangeLog, HeadOfficeClient client, Optional<SalesPushService> salesPush,
 			Optional<CopiesDownPuller> puller, Optional<DownRecordLog> downRecords,
 			Optional<LoyaltyPushService> loyaltyPush) {
+		this(status, jobs, jobService, exchangeLog, client, salesPush, puller, downRecords, loyaltyPush, Optional.empty());
+	}
+
+	@Autowired
+	public HeadOfficeLinkAPI(HeadOfficeLinkStatus status, LinkJobScheduler jobs, LinkJobService jobService,
+			LinkExchangeLog exchangeLog, HeadOfficeClient client, Optional<SalesPushService> salesPush,
+			Optional<CopiesDownPuller> puller, Optional<DownRecordLog> downRecords,
+			Optional<LoyaltyPushService> loyaltyPush, Optional<StoreCatalogueGuard> catalogueGuard) {
 		this.status = status;
 		this.jobs = jobs;
 		this.jobService = jobService;
@@ -84,6 +95,7 @@ public class HeadOfficeLinkAPI {
 		this.puller = puller;
 		this.downRecords = downRecords;
 		this.loyaltyPush = loyaltyPush;
+		this.catalogueGuard = catalogueGuard;
 	}
 
 	@GetMapping("/status")
@@ -216,7 +228,16 @@ public class HeadOfficeLinkAPI {
 		return new HeadOfficeLinkStatusDTO(snapshot.getState(), snapshot.getLastMessage(), snapshot.getLastAttempt(),
 				snapshot.getLastSuccess(), snapshot.getServerTime(), client.getBaseUrl(), storeCode(), interval,
 				count(counts, SalesCopyStatus.PENDING), count(counts, SalesCopyStatus.SENT),
-				count(counts, SalesCopyStatus.ERROR), received(), loyalty(snapshot));
+				count(counts, SalesCopyStatus.ERROR), received(), loyalty(snapshot), catalogue());
+	}
+
+	/** Step 6: the catalogue rights and counts; null when the catalogue is not the head office's or unreadable. */
+	private Map<String, Object> catalogue() {
+		try {
+			return catalogueGuard.map(StoreCatalogueGuard::status).orElse(null);
+		} catch (RuntimeException e) {
+			return null; // the status is still answered
+		}
 	}
 
 	/** Step 4: the loyalty counts and rights; null when loyalty is not owned by the head office or unreadable. */

@@ -81,7 +81,8 @@ public class AppConfigAPI {
 				applicationModeService.getNodeType().name(),
 				ownership(),
 				salesUpstreams(),
-				applicationModeService.isHeadOfficeLinked()
+				applicationModeService.isHeadOfficeLinked(),
+				applicationModeService.isCatalogueFromHeadOffice()
 		));
 	}
 

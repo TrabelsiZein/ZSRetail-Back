@@ -6,13 +6,20 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.ItemBarcode;
 import com.digithink.zsretail.service.ItemBarcodeService;
@@ -30,6 +37,55 @@ public class ItemBarcodeAPI extends _BaseController<ItemBarcode, Long, ItemBarco
 
 	@Autowired
 	private ItemService itemService;
+
+	/** Step 6: the rules of a store whose catalogue is the head office's; no bean on every other installation. */
+	@Autowired(required = false)
+	private ObjectProvider<StoreCatalogueGuard> catalogueGuard;
+
+	private StoreCatalogueGuard catalogueGuard() {
+		return catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
+	}
+
+	/** The generic create. Step 6: 409 for a head office item, without the purchase right, or a head office barcode. */
+	@Override
+	@PostMapping
+	public ResponseEntity<?> create(@RequestBody ItemBarcode entity) {
+		StoreCatalogueGuard guard = catalogueGuard();
+		String refusal = guard == null ? null : guard.barcodeCreate(entity);
+		if (refusal != null) {
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
+		}
+		return super.create(entity);
+	}
+
+	/** The generic update. Step 6: 409 for a head office barcode, or moving a barcode to a head office item. */
+	@Override
+	@PutMapping("/{id}")
+	public ResponseEntity<?> update(@PathVariable Long id, @RequestBody ItemBarcode entity) {
+		StoreCatalogueGuard guard = catalogueGuard();
+		if (guard != null) {
+			String refusal = guard.barcodeWrite(id);
+			if (refusal == null && entity != null && entity.getItem() != null) {
+				refusal = guard.itemWrite(entity.getItem().getId());
+			}
+			if (refusal != null) {
+				return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
+			}
+		}
+		return super.update(id, entity);
+	}
+
+	/** The generic delete. Step 6: 409 for a head office barcode. */
+	@Override
+	@DeleteMapping("/{id}")
+	public ResponseEntity<?> deleteById(@PathVariable Long id) {
+		StoreCatalogueGuard guard = catalogueGuard();
+		String refusal = guard == null ? null : guard.barcodeWrite(id);
+		if (refusal != null) {
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
+		}
+		return super.deleteById(id);
+	}
 
 	/**
 	 * Get all barcodes for an item

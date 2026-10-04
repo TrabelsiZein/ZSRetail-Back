@@ -40,6 +40,7 @@ import com.digithink.zsretail.repository.ItemSubFamilyRepository;
 import com.digithink.zsretail.repository.LoyaltyMemberRepository;
 import com.digithink.zsretail.repository.LoyaltyProgramRepository;
 import com.digithink.zsretail.repository.PromotionRepository;
+import com.digithink.zsretail.repository.SalesPriceRepository;
 
 /**
  * Head office plan, step 2: every JPQL {@code @Query} of the step 2 repositories is parsed by Hibernate and a value of
@@ -56,7 +57,7 @@ class QueryParameterBindingTest {
 			DownRecordRepository.class, LoyaltyMemberRepository.class, LoyaltyProgramRepository.class,
 			LoyaltyMemberCopyRepository.class, LoyaltyMovementCopyRepository.class, HoLoyaltyMovementRepository.class,
 			HoPriceListLineRepository.class, StoreRepository.class, ItemRepository.class, ItemFamilyRepository.class,
-			ItemSubFamilyRepository.class, ItemBarcodeRepository.class };
+			ItemSubFamilyRepository.class, ItemBarcodeRepository.class, SalesPriceRepository.class };
 
 	private static SessionFactory sessionFactory;
 

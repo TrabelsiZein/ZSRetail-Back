@@ -122,6 +122,15 @@ public class LinkExchangeLog {
 		}
 	}
 
+	/**
+	 * Step 6: a row about one record of an exchange (a barcode the catalogue pull moved to a head office item, own prices
+	 * given back). Neither starts nor ends a failure episode of the job. Never throws.
+	 */
+	public void recordNote(String job, ExchangeDirection direction, int records, LinkJobResult result, String text,
+			LocalDateTime at) {
+		write(job, direction, records, result, text, at, 0);
+	}
+
 	/** True while the job is in a failure episode (for the tests). */
 	boolean isFailing(String job) {
 		return failing.containsKey(job);

@@ -95,9 +95,10 @@ class OnHeadOfficePullConditionTest {
 		for (MockEnvironment env : off) {
 			assertFalse(registered(env, PromotionDownHandler.class));
 		}
-		assertFalse(registered(link().withProperty("ownership.catalogue", "HEAD_OFFICE"), PromotionDownHandler.class),
+		assertFalse(registered(standalone(link()).withProperty("ownership.catalogue", "HEAD_OFFICE"),
+				PromotionDownHandler.class),
 				"another domain owned: the job exists, not the promotions handler");
-		assertTrue(registered(link().withProperty("ownership.catalogue", "HEAD_OFFICE"), CopiesDownJob.class));
+		assertTrue(registered(standalone(link()).withProperty("ownership.catalogue", "HEAD_OFFICE"), CopiesDownJob.class));
 		assertEquals(DataDomain.PROMOTIONS,
 				PromotionDownHandler.class.getAnnotation(ConditionalOnHeadOfficeOwned.class).value());
 	}

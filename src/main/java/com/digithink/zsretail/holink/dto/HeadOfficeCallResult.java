@@ -31,8 +31,12 @@ public final class HeadOfficeCallResult {
 	/** Enrol switch (2026-10-04): an enrol needs the head office answer to its phone check; null when not sent. */
 	private final Boolean enrolRequiresOnline;
 
+	/** Step 6: the store's catalogue rights sent with a heartbeat answer; null when not sent (older head office). */
+	private final Boolean mayChangePrices;
+	private final Boolean canPurchase;
+
 	public static HeadOfficeCallResult online(String serverTime) {
-		return new HeadOfficeCallResult(HeadOfficeLinkState.ONLINE, null, serverTime, null, null, null, null);
+		return new HeadOfficeCallResult(HeadOfficeLinkState.ONLINE, null, serverTime, null, null, null, null, null, null);
 	}
 
 	/** Step 4: a heartbeat answer with the store's loyalty rights. */
@@ -50,10 +54,16 @@ public final class HeadOfficeCallResult {
 	public static HeadOfficeCallResult online(String serverTime, Boolean canEditMembers, Boolean canAdjustPoints,
 			Boolean redeemRequiresOnline, Boolean enrolRequiresOnline) {
 		return new HeadOfficeCallResult(HeadOfficeLinkState.ONLINE, null, serverTime, canEditMembers, canAdjustPoints,
-				redeemRequiresOnline, enrolRequiresOnline);
+				redeemRequiresOnline, enrolRequiresOnline, null, null);
+	}
+
+	/** Step 6: the same answer with the store's catalogue rights (mayChangePrices, canPurchase). */
+	public HeadOfficeCallResult withCatalogueRights(Boolean mayChangePrices, Boolean canPurchase) {
+		return new HeadOfficeCallResult(state, message, serverTime, canEditMembers, canAdjustPoints, redeemRequiresOnline,
+				enrolRequiresOnline, mayChangePrices, canPurchase);
 	}
 
 	public static HeadOfficeCallResult failure(HeadOfficeLinkState state, String message) {
-		return new HeadOfficeCallResult(state, message, null, null, null, null, null);
+		return new HeadOfficeCallResult(state, message, null, null, null, null, null, null, null);
 	}
 }
