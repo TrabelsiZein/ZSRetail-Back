@@ -52,7 +52,8 @@ class ZZDataInitializerRolesTest {
 			"read:admin-headoffice-purchase-new", "read:admin-headoffice-vendor-balance",
 			"read:admin-headoffice-purchase-invoices", "read:admin-headoffice-stock",
 			"read:admin-headoffice-stock-movements", "read:admin-headoffice-deliveries",
-			"read:admin-headoffice-network-stock", "read:admin-headoffice-supply-prices"));
+			"read:admin-headoffice-network-stock", "read:admin-headoffice-supply-prices",
+			"read:admin-headoffice-supply-invoices", "read:admin-headoffice-store-balances"));
 
 	// Mode flags of today's profile files: application.standalone, franchise.admin, franchise.customer
 	private static final boolean[][] STORE_PROFILES = {

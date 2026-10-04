@@ -84,18 +84,32 @@ public class HoDeliveryService implements DownDomainProvider {
 	private final TransactionOperations writeTransactions;
 	private final Supplier<LocalDateTime> clock;
 
+	/** Step 7B: the invoices (records INV: of the same domain, the per-BL invoice); null in the 7A tests. */
+	private final Supplier<HoSupplyInvoiceService> invoices;
+
 	@Autowired
 	public HoDeliveryService(HoDeliveryRepository deliveries, StoreRepository stores, ItemRepository items,
 			HoNumberSequenceRepository sequences, StockService stock, StockMovementService movements,
-			ObjectProvider<CopiesDownFeed> feed, PlatformTransactionManager transactionManager) {
+			ObjectProvider<CopiesDownFeed> feed, ObjectProvider<HoSupplyInvoiceService> invoices,
+			PlatformTransactionManager transactionManager) {
 		this(deliveries, stores, items, sequences, stock, movements, (Supplier<CopiesDownFeed>) feed::getObject,
-				new TransactionTemplate(transactionManager), LocalDateTime::now);
+				new TransactionTemplate(transactionManager), LocalDateTime::now,
+				(Supplier<HoSupplyInvoiceService>) invoices::getIfAvailable);
 	}
 
-	/** With given collaborators, transactions and clock: used by the tests. */
+	/** With given collaborators, transactions and clock, without invoices: used by the tests. */
 	public HoDeliveryService(HoDeliveryRepository deliveries, StoreRepository stores, ItemRepository items,
 			HoNumberSequenceRepository sequences, StockService stock, StockMovementService movements,
 			Supplier<CopiesDownFeed> feed, TransactionOperations writeTransactions, Supplier<LocalDateTime> clock) {
+		this(deliveries, stores, items, sequences, stock, movements, feed, writeTransactions, clock, () -> null);
+	}
+
+	/** With given collaborators, transactions, clock and invoices: used by the tests. */
+	public HoDeliveryService(HoDeliveryRepository deliveries, StoreRepository stores, ItemRepository items,
+			HoNumberSequenceRepository sequences, StockService stock, StockMovementService movements,
+			Supplier<CopiesDownFeed> feed, TransactionOperations writeTransactions, Supplier<LocalDateTime> clock,
+			Supplier<HoSupplyInvoiceService> invoices) {
+		this.invoices = invoices;
 		this.deliveries = deliveries;
 		this.stores = stores;
 		this.items = items;
@@ -292,12 +306,15 @@ public class HoDeliveryService implements DownDomainProvider {
 			return results;
 		}
 		int accepted = 0;
+		List<Long> newlyReceived = new ArrayList<>();
 		for (DeliveryConfirmationDTO confirmation : confirmations) {
 			String number = confirmation == null ? null : confirmation.getNumber();
 			SalesCopyResultDTO result;
+			int before = newlyReceived.size();
 			try {
-				result = writeTransactions.execute(status -> receiveOne(store, confirmation));
+				result = writeTransactions.execute(status -> receiveOne(store, confirmation, newlyReceived));
 			} catch (RuntimeException e) {
+				newlyReceived.subList(before, newlyReceived.size()).clear(); // not committed: no invoice
 				result = SalesCopyResultDTO.rejected(number, cut(causeOf(e), 500));
 			}
 			if (result.isAccepted()) {
@@ -310,10 +327,16 @@ public class HoDeliveryService implements DownDomainProvider {
 		}
 		log.info("Head office BLs: {} confirmations received from store '{}' ({} accepted, {} rejected)",
 				confirmations.size(), store.getCode(), accepted, confirmations.size() - accepted);
+		HoSupplyInvoiceService invoiceService = invoices.get();
+		if (invoiceService != null) { // step 7B: rhythm PER_BL, each in its own transaction after the confirmation
+			for (Long id : newlyReceived) {
+				invoiceService.afterReceived(store.getId(), id);
+			}
+		}
 		return results;
 	}
 
-	private SalesCopyResultDTO receiveOne(Store store, DeliveryConfirmationDTO confirmation) {
+	private SalesCopyResultDTO receiveOne(Store store, DeliveryConfirmationDTO confirmation, List<Long> newlyReceived) {
 		if (confirmation == null || confirmation.getNumber() == null || confirmation.getNumber().trim().isEmpty()) {
 			return SalesCopyResultDTO.rejected(null, "number is required");
 		}
@@ -360,6 +383,7 @@ public class HoDeliveryService implements DownDomainProvider {
 		delivery.setStoreNote(cut(confirmation.getNote(), HoDelivery.NOTE_LENGTH));
 		delivery.setConfirmationReceivedAt(clock.get());
 		deliveries.save(delivery);
+		newlyReceived.add(delivery.getId());
 		return SalesCopyResultDTO.accepted(number);
 	}
 
@@ -397,12 +421,15 @@ public class HoDeliveryService implements DownDomainProvider {
 		List<String> numbers = codes.stream().map(DeliveryCopyDTO::numberOf).filter(n -> n != null)
 				.collect(Collectors.toList());
 		Map<String, JsonNode> copies = new HashMap<>();
-		if (numbers.isEmpty()) {
-			return copies;
+		if (!numbers.isEmpty()) {
+			for (HoDelivery delivery : deliveries.findSent(store.getId(), numbers, DeliveryStatus.DRAFT)) {
+				copies.put(DeliveryCopyDTO.recordCode(delivery.getNumber()),
+						COPY_MAPPER.valueToTree(DeliveryCopyDTO.of(delivery)));
+			}
 		}
-		for (HoDelivery delivery : deliveries.findSent(store.getId(), numbers, DeliveryStatus.DRAFT)) {
-			copies.put(DeliveryCopyDTO.recordCode(delivery.getNumber()),
-					COPY_MAPPER.valueToTree(DeliveryCopyDTO.of(delivery)));
+		HoSupplyInvoiceService invoiceService = invoices.get();
+		if (invoiceService != null) {
+			copies.putAll(invoiceService.load(store, codes)); // step 7B: records INV:
 		}
 		return copies;
 	}
@@ -413,6 +440,10 @@ public class HoDeliveryService implements DownDomainProvider {
 		for (Object[] row : deliveries.findSentTargets(DeliveryStatus.DRAFT)) {
 			targets.put(DeliveryCopyDTO.recordCode((String) row[0]),
 					StoreTargets.of(Collections.singletonList(((Number) row[1]).longValue())));
+		}
+		HoSupplyInvoiceService invoiceService = invoices.get();
+		if (invoiceService != null) {
+			targets.putAll(invoiceService.currentTargets()); // step 7B
 		}
 		return targets;
 	}
@@ -566,6 +597,12 @@ public class HoDeliveryService implements DownDomainProvider {
 		view.setConfirmationReceivedAt(delivery.getConfirmationReceivedAt());
 		view.setNote(delivery.getNote());
 		view.setStoreNote(delivery.getStoreNote());
+		view.setInvoiceId(delivery.getInvoiceId());
+		view.setInvoiceNote(delivery.getInvoiceNote());
+		HoSupplyInvoiceService invoiceService = invoices.get();
+		if (delivery.getInvoiceId() != null && invoiceService != null) {
+			view.setInvoiceNumber(invoiceService.numberOf(delivery.getInvoiceId()));
+		}
 		int sent = 0;
 		Integer received = null;
 		boolean difference = false;

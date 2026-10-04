@@ -15,11 +15,13 @@ import org.springframework.mock.env.MockEnvironment;
 import com.digithink.zsretail.headoffice.controller.HoDeliveryAPI;
 import com.digithink.zsretail.headoffice.controller.HoNetworkStockAPI;
 import com.digithink.zsretail.headoffice.controller.HoPriceListAPI;
+import com.digithink.zsretail.headoffice.controller.HoSupplyInvoiceAPI;
 import com.digithink.zsretail.headoffice.controller.HoSupplyPriceAPI;
 import com.digithink.zsretail.headoffice.service.HoCatalogueService;
 import com.digithink.zsretail.headoffice.service.HoDeliveryService;
 import com.digithink.zsretail.headoffice.service.HoNetworkStockService;
 import com.digithink.zsretail.headoffice.service.HoPriceListService;
+import com.digithink.zsretail.headoffice.service.HoSupplyInvoiceService;
 import com.digithink.zsretail.headoffice.service.HoSupplyPriceService;
 import com.digithink.zsretail.holink.controller.CatalogueNetworkAPI;
 import com.digithink.zsretail.holink.scheduler.CopiesDownJob;
@@ -44,7 +46,8 @@ class OnHeadOfficeCatalogueConditionTest {
 
 	private static final Class<?>[] HEAD_OFFICE_BEANS = { HoCatalogueService.class, HoPriceListService.class,
 			HoPriceListAPI.class, HoDeliveryService.class, HoDeliveryAPI.class, HoNetworkStockService.class,
-			HoNetworkStockAPI.class, HoSupplyPriceService.class, HoSupplyPriceAPI.class }; // step 7A, 7B
+			HoNetworkStockAPI.class, HoSupplyPriceService.class, HoSupplyPriceAPI.class,
+			HoSupplyInvoiceService.class, HoSupplyInvoiceAPI.class }; // step 7A, 7B
 
 	private static MockEnvironment link() {
 		return new MockEnvironment().withProperty("headoffice.url", "http://localhost:888/zsretail/api")
