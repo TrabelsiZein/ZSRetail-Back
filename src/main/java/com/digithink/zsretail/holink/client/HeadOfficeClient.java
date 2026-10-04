@@ -37,6 +37,7 @@ import com.digithink.zsretail.headoffice.dto.LoyaltyMovementCopyDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyPhoneCheckDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyPointsAdjustDTO;
 import com.digithink.zsretail.headoffice.dto.SalesCopyAnswerDTO;
+import com.digithink.zsretail.headoffice.dto.StockReportDTO;
 import com.digithink.zsretail.holink.dto.HeadOfficeCallResult;
 import com.digithink.zsretail.holink.dto.LiveAnswer;
 import com.digithink.zsretail.holink.dto.LoyaltyMemberPushAnswer;
@@ -296,6 +297,22 @@ public class HeadOfficeClient {
 					"unreadable answer from the head office (no results)"));
 		}
 		return SalesPushAnswer.delivered(answer.body.getResults());
+	}
+
+	/**
+	 * Step 7A: POST one batch of this store's stock to /ho/supply/stock (items changed, codes removed). Delivered (no
+	 * per-item result: the batch is saved as a whole) or the state and message of the failed call.
+	 */
+	public SalesPushAnswer pushStock(StockReportDTO report) {
+		Answer<StockReportDTO.Answer> answer = post(SUPPLY_PATH + "/stock", report, StockReportDTO.Answer.class);
+		if (answer.failure != null) {
+			return SalesPushAnswer.failed(answer.failure);
+		}
+		if (answer.body.getSaved() == null) {
+			return SalesPushAnswer.failed(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"unreadable answer from the head office (no saved count)"));
+		}
+		return SalesPushAnswer.delivered(Collections.emptyList());
 	}
 
 	/** Step 4, live question: the card holding this phone in the network, GET /ho/loyalty/members/by-phone. */

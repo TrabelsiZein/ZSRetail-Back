@@ -34,6 +34,7 @@ import com.digithink.zsretail.holink.service.LinkExchangeLog;
 import com.digithink.zsretail.holink.service.LinkJobService;
 import com.digithink.zsretail.holink.service.LoyaltyPushService;
 import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
+import com.digithink.zsretail.holink.service.SupplyPushService;
 import com.digithink.zsretail.holink.service.SalesCopyFinder;
 import com.digithink.zsretail.holink.service.SalesPushService;
 import com.digithink.zsretail.model.enumeration.DataDomain;
@@ -71,6 +72,7 @@ public class HeadOfficeLinkAPI {
 
 	/** Step 7A: present only when the store's goods come from the head office. */
 	private final Optional<DeliveryReceptionService> reception;
+	private final Optional<SupplyPushService> supplyPush;
 
 	public HeadOfficeLinkAPI(HeadOfficeLinkStatus status, LinkJobScheduler jobs, LinkJobService jobService,
 			LinkExchangeLog exchangeLog, HeadOfficeClient client, Optional<SalesPushService> salesPush,
@@ -90,7 +92,7 @@ public class HeadOfficeLinkAPI {
 			Optional<CopiesDownPuller> puller, Optional<DownRecordLog> downRecords,
 			Optional<LoyaltyPushService> loyaltyPush, Optional<StoreCatalogueGuard> catalogueGuard) {
 		this(status, jobs, jobService, exchangeLog, client, salesPush, puller, downRecords, loyaltyPush, catalogueGuard,
-				Optional.empty());
+				Optional.empty(), Optional.empty());
 	}
 
 	@Autowired
@@ -98,8 +100,9 @@ public class HeadOfficeLinkAPI {
 			LinkExchangeLog exchangeLog, HeadOfficeClient client, Optional<SalesPushService> salesPush,
 			Optional<CopiesDownPuller> puller, Optional<DownRecordLog> downRecords,
 			Optional<LoyaltyPushService> loyaltyPush, Optional<StoreCatalogueGuard> catalogueGuard,
-			Optional<DeliveryReceptionService> reception) {
+			Optional<DeliveryReceptionService> reception, Optional<SupplyPushService> supplyPush) {
 		this.reception = reception;
+		this.supplyPush = supplyPush;
 		this.status = status;
 		this.jobs = jobs;
 		this.jobService = jobService;
@@ -248,7 +251,12 @@ public class HeadOfficeLinkAPI {
 	/** Step 7A: the BL counts; null when the store's goods do not come from the head office, or unreadable. */
 	private Map<String, Object> supply() {
 		try {
-			return reception.map(DeliveryReceptionService::counts).orElse(null);
+			if (!reception.isPresent()) {
+				return null;
+			}
+			Map<String, Object> supply = new LinkedHashMap<>(reception.get().counts());
+			supplyPush.ifPresent(push -> supply.putAll(push.stockCounts())); // task 7A.5
+			return supply;
 		} catch (RuntimeException e) {
 			return null; // the status is still answered
 		}

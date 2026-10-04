@@ -33,6 +33,7 @@ import com.digithink.zsretail.holink.repository.LoyaltyMemberCopyRepository;
 import com.digithink.zsretail.holink.repository.LoyaltyMovementCopyRepository;
 import com.digithink.zsretail.holink.repository.LinkExchangeRepository;
 import com.digithink.zsretail.holink.repository.ReceivedDeliveryRepository;
+import com.digithink.zsretail.holink.repository.StockCopyRepository;
 import com.digithink.zsretail.holink.repository.SalesCopyRepository;
 import com.digithink.zsretail.repository.ItemBarcodeRepository;
 import com.digithink.zsretail.repository.ItemFamilyRepository;
@@ -59,7 +60,8 @@ class QueryParameterBindingTest {
 			LoyaltyMemberCopyRepository.class, LoyaltyMovementCopyRepository.class, HoLoyaltyMovementRepository.class,
 			HoPriceListLineRepository.class, StoreRepository.class, ItemRepository.class, ItemFamilyRepository.class,
 			ItemSubFamilyRepository.class, ItemBarcodeRepository.class, SalesPriceRepository.class,
-			HoDeliveryRepository.class, HoNumberSequenceRepository.class, ReceivedDeliveryRepository.class };
+			HoDeliveryRepository.class, HoNumberSequenceRepository.class, ReceivedDeliveryRepository.class,
+			StockCopyRepository.class, HoStoreStockRepository.class };
 
 	private static SessionFactory sessionFactory;
 

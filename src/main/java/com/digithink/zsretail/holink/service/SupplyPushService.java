@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -24,6 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeSupply;
 import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
 import com.digithink.zsretail.headoffice.dto.SalesCopyResultDTO;
+import com.digithink.zsretail.headoffice.dto.StockReportDTO;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.holink.dto.SalesPushAnswer;
 import com.digithink.zsretail.holink.enumeration.ExchangeDirection;
@@ -32,18 +34,27 @@ import com.digithink.zsretail.holink.enumeration.LinkJobResult;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
 import com.digithink.zsretail.holink.model.ReceivedDelivery;
 import com.digithink.zsretail.holink.model.ReceivedDeliveryLine;
+import com.digithink.zsretail.holink.model.StockCopy;
 import com.digithink.zsretail.holink.repository.ReceivedDeliveryRepository;
+import com.digithink.zsretail.holink.repository.StockCopyRepository;
+import com.digithink.zsretail.model.enumeration.CatalogueKind;
+import com.digithink.zsretail.model.enumeration.ItemType;
+import com.digithink.zsretail.model.enumeration.RecordOrigin;
 
 import lombok.Getter;
 import lombok.ToString;
 
 /**
- * Head office plan, task 7A.4: sends up the store's BL confirmations, run by the SUPPLY_PUSH job on the ho-link thread.
+ * Head office plan, tasks 7A.4 and 7A.5: sends up the store's BL confirmations, then its stock, run by the SUPPLY_PUSH
+ * job on the ho-link thread.
  * A confirmed BL (push_status PENDING) is sent in a batch, by its number; accepted: SENT, never sent again; rejected:
  * ERROR with the reason, retried at later cycles after the BLs never tried. Not delivered (unreachable, key refused,
  * no license, unreadable answer): nothing changes, the cycle stops. The head office applies a BL number once, so a
  * confirmation sent again after a lost answer changes nothing there. One exchange log row per batch; a failure that
  * repeats is written once.
+ * <p>
+ * Stock (task 7A.5): after the confirmations, the items whose stock differs from what the head office accepted last
+ * (hol_stock_copy) and the items gone since, in batches of {@value #STOCK_BATCH_SIZE} (POST /ho/supply/stock).
  */
 @Service
 @ConditionalOnHeadOfficeSupply
@@ -56,27 +67,34 @@ public class SupplyPushService {
 	static final Duration CYCLE_BOUND = Duration.ofSeconds(20);
 	static final int TIMEOUT_SECONDS = 15;
 
+	static final int STOCK_BATCH_SIZE = 500;
+	static final int STOCK_BATCHES = 2;
+	static final List<ItemType> STOCK_TYPES = Arrays.asList(ItemType.PRODUCT, ItemType.PACKAGE);
+
 	static final List<SalesCopyStatus> TO_SEND = Arrays.asList(SalesCopyStatus.PENDING, SalesCopyStatus.ERROR);
 
 	private final HeadOfficeClient client;
 	private final ReceivedDeliveryRepository deliveries;
+	private final StockCopyRepository stockCopies;
 	private final LinkExchangeLog exchangeLog;
 	private final TransactionOperations transactions;
 	private final Supplier<LocalDateTime> clock;
 	private final long defaultIntervalSeconds;
 
 	@Autowired
-	public SupplyPushService(HeadOfficeClient client, ReceivedDeliveryRepository deliveries, LinkExchangeLog exchangeLog,
-			PlatformTransactionManager transactionManager,
+	public SupplyPushService(HeadOfficeClient client, ReceivedDeliveryRepository deliveries,
+			StockCopyRepository stockCopies, LinkExchangeLog exchangeLog, PlatformTransactionManager transactionManager,
 			@Value("${headoffice.supply-push.interval-seconds:60}") long intervalSeconds) {
-		this(client, deliveries, exchangeLog, timed(transactionManager), LocalDateTime::now, intervalSeconds);
+		this(client, deliveries, stockCopies, exchangeLog, timed(transactionManager), LocalDateTime::now, intervalSeconds);
 	}
 
 	/** With given transactions and clock: used by the tests. */
-	public SupplyPushService(HeadOfficeClient client, ReceivedDeliveryRepository deliveries, LinkExchangeLog exchangeLog,
-			TransactionOperations transactions, Supplier<LocalDateTime> clock, long intervalSeconds) {
+	public SupplyPushService(HeadOfficeClient client, ReceivedDeliveryRepository deliveries,
+			StockCopyRepository stockCopies, LinkExchangeLog exchangeLog, TransactionOperations transactions,
+			Supplier<LocalDateTime> clock, long intervalSeconds) {
 		this.client = client;
 		this.deliveries = deliveries;
+		this.stockCopies = stockCopies;
 		this.exchangeLog = exchangeLog;
 		this.transactions = transactions;
 		this.clock = clock;
@@ -107,7 +125,102 @@ public class SupplyPushService {
 				break;
 			}
 		}
+		for (int batch = 0; batch < STOCK_BATCHES && cycle.delivering(); batch++) {
+			if (System.nanoTime() - started > CYCLE_BOUND.toNanos()) {
+				cycle.more = true;
+				break;
+			}
+			if (!pushStock(cycle)) {
+				break;
+			}
+		}
 		return cycle;
+	}
+
+	// ─── Stock up (task 7A.5) ────────────────────────────────────
+
+	/**
+	 * One batch of the store's stock: the items (products and packs, not the tax stamp) whose stock differs from what the
+	 * head office accepted last, and the items gone since. Delivered: their quantity sent is saved (a change made since
+	 * the read goes with a later batch); not delivered: nothing changes. False when there was nothing to send or it was
+	 * not delivered.
+	 */
+	private boolean pushStock(Cycle cycle) {
+		List<Object[]> changed = transactions.execute(status -> stockCopies.findToSend(STOCK_TYPES,
+				CatalogueKind.TAX_STAMP_CODE, PageRequest.of(0, STOCK_BATCH_SIZE)));
+		List<StockCopy> gone = transactions
+				.execute(status -> stockCopies.findRemoved(PageRequest.of(0, STOCK_BATCH_SIZE)));
+		changed = changed == null ? new ArrayList<>() : changed;
+		gone = gone == null ? new ArrayList<>() : gone;
+		if (changed.isEmpty() && gone.isEmpty()) {
+			return false;
+		}
+		LocalDateTime at = clock.get();
+		long started = System.nanoTime();
+		StockReportDTO report = new StockReportDTO();
+		report.setTakenAt(at.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+		Map<Long, Object[]> byId = new HashMap<>();
+		for (Object[] row : changed) {
+			byId.put(((Number) row[0]).longValue(), row);
+			report.getItems().add(new StockReportDTO.Item((String) row[1], (String) row[2], quantityOf(row),
+					row[4] != RecordOrigin.HEAD_OFFICE));
+		}
+		for (StockCopy row : gone) {
+			report.getRemoved().add(row.getItemCode());
+		}
+		SalesPushAnswer answer = client.pushStock(report);
+		if (!answer.isDelivered()) {
+			cycle.notDelivered(answer.getState(), answer.getMessage());
+			exchangeLog.recordFailure(JOB_CODE, ExchangeDirection.UP, 0, answer.getState() + ": " + answer.getMessage(),
+					at, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
+			return false;
+		}
+		cycle.state = HeadOfficeLinkState.ONLINE;
+		List<StockCopy> sentGone = gone;
+		transactions.executeWithoutResult(status -> {
+			Map<Long, StockCopy> rows = new HashMap<>();
+			if (!byId.isEmpty()) {
+				for (StockCopy row : stockCopies.findByItemIdIn(byId.keySet())) {
+					rows.put(row.getItemId(), row);
+				}
+			}
+			List<StockCopy> saved = new ArrayList<>();
+			for (Map.Entry<Long, Object[]> entry : byId.entrySet()) {
+				StockCopy row = rows.computeIfAbsent(entry.getKey(), id -> {
+					StockCopy created = new StockCopy();
+					created.setItemId(id);
+					return created;
+				});
+				row.setItemCode((String) entry.getValue()[1]);
+				row.setQuantitySent(quantityOf(entry.getValue()));
+				row.setSentAt(at);
+				saved.add(row);
+			}
+			stockCopies.saveAll(saved);
+			if (!sentGone.isEmpty()) {
+				stockCopies.deleteAll(sentGone);
+			}
+		});
+		cycle.stockSent += changed.size();
+		cycle.stockRemoved += gone.size();
+		exchangeLog.record(JOB_CODE, ExchangeDirection.UP, changed.size() + gone.size(), LinkJobResult.SUCCESS, null, at,
+				TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
+		cycle.more |= changed.size() >= STOCK_BATCH_SIZE || gone.size() >= STOCK_BATCH_SIZE;
+		return true;
+	}
+
+	private static int quantityOf(Object[] row) {
+		return row[3] == null ? 0 : ((Number) row[3]).intValue();
+	}
+
+	/** For the link page: {"stockToSend": items, "stockSentAt": "yyyy-MM-ddTHH:mm:ss" or null}. */
+	public Map<String, Object> stockCounts() {
+		Map<String, Object> counts = new LinkedHashMap<>();
+		counts.put("stockToSend", stockCopies.countToSend(STOCK_TYPES, CatalogueKind.TAX_STAMP_CODE));
+		List<LocalDateTime> last = stockCopies.lastSentAt();
+		LocalDateTime at = last == null || last.isEmpty() ? null : last.get(0);
+		counts.put("stockSentAt", at == null ? null : at.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+		return counts;
 	}
 
 	private boolean pushConfirmations(Cycle cycle, Collection<SalesCopyStatus> statuses) {
@@ -196,6 +309,8 @@ public class SupplyPushService {
 
 		private int confirmationsSent;
 		private int confirmationsRejected;
+		private int stockSent;
+		private int stockRemoved;
 
 		/** State of the last request; null when nothing was sent. */
 		private HeadOfficeLinkState state;
@@ -222,7 +337,7 @@ public class SupplyPushService {
 		}
 
 		public boolean isIdle() {
-			return confirmationsSent + confirmationsRejected == 0 && delivering();
+			return confirmationsSent + confirmationsRejected + stockSent + stockRemoved == 0 && delivering();
 		}
 	}
 }

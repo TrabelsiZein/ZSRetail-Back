@@ -78,13 +78,14 @@ public class SupplyPushJob implements LinkJob {
 
 	static String message(SupplyPushService.Cycle cycle) {
 		if (!cycle.isDelivered()) {
-			return "not delivered, confirmations stay pending (" + cycle.getState() + ": " + cycle.getMessage() + ")";
+			return "not delivered, confirmations and stock stay pending (" + cycle.getState() + ": " + cycle.getMessage()
+					+ ")";
 		}
 		if (cycle.isIdle()) {
 			return "nothing to send";
 		}
 		return "BL confirmations: " + cycle.getConfirmationsSent() + " sent, " + cycle.getConfirmationsRejected()
-				+ " rejected";
+				+ " rejected; stock: " + cycle.getStockSent() + " items sent, " + cycle.getStockRemoved() + " removed";
 	}
 
 	/** INFO when something was sent, or when delivery fails or comes back; DEBUG otherwise. */
@@ -92,7 +93,7 @@ public class SupplyPushJob implements LinkJob {
 		HeadOfficeLinkState state = cycle.getState();
 		if (state != null && state != HeadOfficeLinkState.ONLINE) {
 			if (state != lastState) {
-				log.info("Head office supply push: not delivered, confirmations stay pending ({}: {})", state,
+				log.info("Head office supply push: not delivered, confirmations and stock stay pending ({}: {})", state,
 						cycle.getMessage());
 			} else {
 				log.debug("Head office supply push: still not delivered ({}: {})", state, cycle.getMessage());

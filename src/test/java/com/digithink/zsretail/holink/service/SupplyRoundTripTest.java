@@ -47,12 +47,14 @@ import com.digithink.zsretail.headoffice.dto.DeliveryDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryInputDTO;
 import com.digithink.zsretail.headoffice.dto.SalesCopyAnswerDTO;
 import com.digithink.zsretail.headoffice.dto.SalesCopyResultDTO;
+import com.digithink.zsretail.headoffice.dto.StockReportDTO;
 import com.digithink.zsretail.headoffice.enumeration.DeliveryStatus;
 import com.digithink.zsretail.headoffice.model.HoDelivery;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.service.CopiesDownFeed;
 import com.digithink.zsretail.headoffice.service.HoCatalogueService;
 import com.digithink.zsretail.headoffice.service.HoDeliveryService;
+import com.digithink.zsretail.headoffice.service.HoNetworkStockService;
 import com.digithink.zsretail.headoffice.service.InMemoryDeliveries;
 import com.digithink.zsretail.headoffice.service.InMemoryDownTables;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
@@ -78,6 +80,7 @@ import com.digithink.zsretail.model.enumeration.StockMovementType;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.support.InMemoryCatalogue;
 import com.digithink.zsretail.support.InMemoryLoyalty;
+import com.digithink.zsretail.support.InMemoryNetworkStock;
 import com.digithink.zsretail.support.InMemoryReceivedDeliveries;
 import com.digithink.zsretail.support.InMemoryStock;
 import com.digithink.zsretail.support.InMemoryStoreLink;
@@ -106,6 +109,8 @@ class SupplyRoundTripTest {
 	private CopiesDownFeed feed;
 	private HoDeliveryService hoDeliveries;
 	private final Map<String, Store> stores = new LinkedHashMap<>();
+	private final InMemoryNetworkStock network = new InMemoryNetworkStock();
+	private HoNetworkStockService hoNetwork;
 
 	// Store B
 	private final InMemoryCatalogue db = new InMemoryCatalogue(100_000);
@@ -132,6 +137,8 @@ class SupplyRoundTripTest {
 				hoStock.itemRepository(), ho.barcodeRepository(), ho.compositionRepository(), ho.priceLineRepository(),
 				() -> holder[0], TransactionOperations.withoutTransaction());
 		hoDeliveries = hoTables.service(hoStock, () -> holder[0], () -> NOW);
+		hoNetwork = new HoNetworkStockService(network.storeStockRepository(ho), ho.storeRepository(),
+				TransactionOperations.withoutTransaction(), () -> NOW);
 		feed = new InMemoryDownTables().feed(Arrays.asList(catalogue, hoDeliveries));
 		holder[0] = feed;
 		ItemFamily f1 = ho.family("F1");
@@ -165,7 +172,7 @@ class SupplyRoundTripTest {
 		supplyHandler = new SupplyDownHandler(reception, link.downRecordLog(), TransactionOperations.withoutTransaction());
 		puller = new CopiesDownPuller(client, Arrays.asList(catalogueHandler, supplyHandler), link.cursorRepository(),
 				link.exchangeLog(), TransactionOperations.withoutTransaction());
-		push = new SupplyPushService(client, received.repository(), link.exchangeLog(),
+		push = new SupplyPushService(client, received.repository(), network.copyRepository(db), link.exchangeLog(),
 				TransactionOperations.withoutTransaction(), () -> NOW, 60);
 		puller.runCycle(); // the catalogue reaches B
 	}
@@ -498,6 +505,95 @@ class SupplyRoundTripTest {
 		assertThrows(IllegalArgumentException.class, () -> reception.list("LOST", 0, 20));
 	}
 
+	// ─── Stock copied up (task 7A.5) ─────────────────────────────
+
+	@Test
+	@DisplayName("Stock up: every item the first time, then only what changed; own items flagged; a deleted item removed there")
+	void stockCopiedUp() {
+		sendBl(b, line("B001", 50));
+		puller.runCycle();
+		reception.receive(received.byNumber("BL-000001").getId(), null, "responsible");
+		Item own = db.item("OWN1", 3.0, null);
+		own.setStockQuantity(3);
+		assertEquals(4L, push.stockCounts().get("stockToSend"), "B001, B002, B009 and OWN1");
+
+		SupplyPushService.Cycle first = push.runCycle();
+
+		assertEquals(4, first.getStockSent());
+		assertEquals(50, network.stockAt(b.getId(), "B001").getQuantity());
+		assertEquals(0, network.stockAt(b.getId(), "B002").getQuantity(), "a null stock is sent as 0");
+		assertFalse(network.stockAt(b.getId(), "B001").getOwnItem());
+		assertTrue(network.stockAt(b.getId(), "OWN1").getOwnItem());
+		assertEquals(NOW, network.stockAt(b.getId(), "B001").getStoreTime());
+		assertEquals(0L, push.stockCounts().get("stockToSend"));
+		assertEquals("2026-10-05T10:00:00", push.stockCounts().get("stockSentAt"));
+		assertTrue(push.runCycle().isIdle(), "nothing changed: nothing sent");
+
+		stock.stockService().decrementForSale(db.itemByCode("B001").get().getId(), 2);
+		SupplyPushService.Cycle second = push.runCycle();
+		assertEquals(1, second.getStockSent(), "only the item that changed");
+		assertEquals(48, network.stockAt(b.getId(), "B001").getQuantity());
+
+		db.items.remove(own.getId());
+		SupplyPushService.Cycle third = push.runCycle();
+		assertEquals(1, third.getStockRemoved());
+		assertNull(network.stockAt(b.getId(), "OWN1"));
+		assertTrue(network.copies.values().stream().noneMatch(c -> c.getItemId().equals(own.getId())));
+		assertTrue(push.runCycle().isIdle());
+	}
+
+	@Test
+	@DisplayName("Stock up with the head office stopped: nothing is marked sent; back: sent once")
+	void stockOffline() {
+		db.itemByCode("B001").get().setStockQuantity(7);
+		headOfficeDown = true;
+		assertFalse(push.runCycle().isDelivered());
+		assertTrue(network.copies.isEmpty());
+		assertTrue(network.storeStock.isEmpty());
+
+		headOfficeDown = false;
+		assertEquals(3, push.runCycle().getStockSent());
+		assertEquals(7, network.stockAt(b.getId(), "B001").getQuantity());
+	}
+
+	@Test
+	@DisplayName("Head office page: its items with its stock and each store's; one store; search; the stores' own items apart")
+	void headOfficePage() {
+		sendBl(b, line("B001", 50));
+		puller.runCycle();
+		reception.receive(received.byNumber("BL-000001").getId(), counted(count(1, 48)), "responsible");
+		db.item("OWN1", 3.0, null).setStockQuantity(3);
+		ho.item("TAX_STAMP", 1.0, null);
+		push.runCycle();
+
+		Map<String, Object> page = hoNetwork.page(null, null, 0, 20);
+		@SuppressWarnings("unchecked")
+		List<Map<String, Object>> storesShown = (List<Map<String, Object>>) page.get("stores");
+		assertEquals(Arrays.asList("B", "C"), storesShown.stream().map(s -> s.get("code")).collect(Collectors.toList()));
+		assertEquals("2026-10-05T10:00", storesShown.get(0).get("lastStockAt"));
+		assertNull(storesShown.get(1).get("lastStockAt"), "C never sent its stock");
+		@SuppressWarnings("unchecked")
+		List<Map<String, Object>> rows = (List<Map<String, Object>>) page.get("content");
+		assertEquals(Arrays.asList("B001", "B002", "B009"),
+				rows.stream().map(r -> r.get("itemCode")).collect(Collectors.toList()), "head office items, no tax stamp");
+		assertEquals(50, rows.get(0).get("headOffice"));
+		assertEquals("{" + b.getId() + "=48}", rows.get(0).get("byStore").toString());
+		assertEquals(3L, page.get("totalElements"));
+
+		assertEquals(1, ((List<?>) hoNetwork.page(c.getId(), null, 0, 20).get("stores")).size());
+		assertEquals("{}", ((List<Map<String, Object>>) hoNetwork.page(c.getId(), null, 0, 20).get("content")).get(0)
+				.get("byStore").toString());
+		assertEquals(1L, hoNetwork.page(null, "b009", 0, 20).get("totalElements"));
+		assertThrows(IllegalArgumentException.class, () -> hoNetwork.page(999L, null, 0, 20));
+
+		@SuppressWarnings("unchecked")
+		List<Map<String, Object>> own = (List<Map<String, Object>>) hoNetwork.ownItems(null, null, 0, 20).get("content");
+		assertEquals(1, own.size());
+		assertEquals("OWN1", own.get(0).get("itemCode"));
+		assertEquals("B", own.get(0).get("storeCode"));
+		assertEquals(3, own.get(0).get("quantity"));
+	}
+
 	// ─── The head office as the store sees it ────────────────────
 
 	private ClientHttpResponse headOffice(ClientHttpRequest request) throws IOException {
@@ -519,6 +615,8 @@ class SupplyRoundTripTest {
 				loseNextAnswer = false;
 				throw new SocketTimeoutException("Read timed out"); // applied there, the answer never arrives
 			}
+		} else if (call.getMethod() == HttpMethod.POST && path.equals("/ho/supply/stock")) {
+			answer = hoNetwork.receive(store, MAPPER.readValue(call.getBodyAsString(), StockReportDTO.class));
 		} else {
 			return withStatus(HttpStatus.NOT_FOUND).contentType(MediaType.APPLICATION_JSON)
 					.body("{\"error\":\"no route\"}").createResponse(request);
