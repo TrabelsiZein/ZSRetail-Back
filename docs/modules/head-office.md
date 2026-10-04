@@ -1,6 +1,6 @@
 # Head Office Module
 
-**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office); task 2.4 done (the store's push job with retry, counts on `GET admin/holink/status`). Task 2.5 backend done (consolidated sales API, home cards, page permissions; see "Consolidated sales API"; its pages to come); task 2.6 backend done (jobs with editable frequency and run now, exchange log; see "Head office link: jobs and exchange log"); the pages of 2.5 and 2.6 come with the frontend session. Step 3 in progress: task 3.1 done (the copies down mechanism, see "Copies down"); task 3.2 done (`origin` on `promotion` and the write guards, see `docs/modules/promotion.md`); task 3.3 done (target stores, payload by codes, received promotions, network usage count; see "Promotions owned by the head office"); task 3.5 done (missing targets WAITING and retried, tracking table, `GET admin/holink/received/{domain}`, counts in the link status). Rule fix: on a store whose promotions are local every promotion is written as before, whatever its origin (`docs/modules/promotion.md`). Task 3.6 done (what each store owns, sent with the heartbeat, see "Store API"). Task 3.4 done (head office with an ERP: imports only, export jobs never run, ERP reference location, profile `headoffice-dynamics-dev`; see "Head office with an ERP"). Step 3 frontend done: task 3.0 (lint) and the pages of tasks 3.2 to 3.6, see "Step 3 pages (frontend)". Step 4 backend done (shared loyalty: members and earning, see "Shared loyalty (step 4)"): part 1 the head office side (register, copies down, members and movements up, phone check, member edit, store rights), part 2 the store side (enrol, `LOYALTY_PUSH`, `LOYALTY` pull, member changes through the head office, link page API); steps 4 and 5 done and merged (frontend and L2 included). Step 6 backend done (catalogue and selling prices decided by the head office, price lists, store rights and guards; see "Catalogue owned by the head office (step 6)" and "Price lists (task 6.4)"); step 6 done and merged (frontend and L2 included), task 6.8 (images) after step 7B. Step 7A done (backend, frontend, L2 of 12 scenarios) (the head office as a warehouse, BLs, reception at the store, confirmation up, stock of the stores; see "Head office as a warehouse (task 7A.1)", "BLs (task 7A.2, head office)", "BLs at the store (tasks 7A.3, 7A.4)", "Stock of the stores (task 7A.5)"); its pages: "Step 7A pages (frontend)", four sections. Step 7B backend done on `feature/ho-step-7b` (supply prices, invoices at the head office, invoices received at the store; see "Supply prices and invoicing settings (step 7B, part 1)", "Supply invoices (step 7B, part 2)", "Supply invoices at the store (step 7B, part 3)", "Step 7B pages (frontend, to build)"). Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
+**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office); task 2.4 done (the store's push job with retry, counts on `GET admin/holink/status`). Task 2.5 backend done (consolidated sales API, home cards, page permissions; see "Consolidated sales API"; its pages to come); task 2.6 backend done (jobs with editable frequency and run now, exchange log; see "Head office link: jobs and exchange log"); the pages of 2.5 and 2.6 come with the frontend session. Step 3 in progress: task 3.1 done (the copies down mechanism, see "Copies down"); task 3.2 done (`origin` on `promotion` and the write guards, see `docs/modules/promotion.md`); task 3.3 done (target stores, payload by codes, received promotions, network usage count; see "Promotions owned by the head office"); task 3.5 done (missing targets WAITING and retried, tracking table, `GET admin/holink/received/{domain}`, counts in the link status). Rule fix: on a store whose promotions are local every promotion is written as before, whatever its origin (`docs/modules/promotion.md`). Task 3.6 done (what each store owns, sent with the heartbeat, see "Store API"). Task 3.4 done (head office with an ERP: imports only, export jobs never run, ERP reference location, profile `headoffice-dynamics-dev`; see "Head office with an ERP"). Step 3 frontend done: task 3.0 (lint) and the pages of tasks 3.2 to 3.6, see "Step 3 pages (frontend)". Step 4 backend done (shared loyalty: members and earning, see "Shared loyalty (step 4)"): part 1 the head office side (register, copies down, members and movements up, phone check, member edit, store rights), part 2 the store side (enrol, `LOYALTY_PUSH`, `LOYALTY` pull, member changes through the head office, link page API); steps 4 and 5 done and merged (frontend and L2 included). Step 6 backend done (catalogue and selling prices decided by the head office, price lists, store rights and guards; see "Catalogue owned by the head office (step 6)" and "Price lists (task 6.4)"); step 6 done and merged (frontend and L2 included), task 6.8 (images) after step 7B. Step 7A done (backend, frontend, L2 of 12 scenarios) (the head office as a warehouse, BLs, reception at the store, confirmation up, stock of the stores; see "Head office as a warehouse (task 7A.1)", "BLs (task 7A.2, head office)", "BLs at the store (tasks 7A.3, 7A.4)", "Stock of the stores (task 7A.5)"); its pages: "Step 7A pages (frontend)", four sections. Step 7B done (backend, frontend, L2 of 13 scenarios) (supply prices, invoices at the head office, invoices received at the store; see "Supply prices and invoicing settings (step 7B, part 1)", "Supply invoices (step 7B, part 2)", "Supply invoices at the store (step 7B, part 3)"); its pages: "Step 7B pages (frontend)", two sections, and "Network stock: "below zero only" through the API". Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
 
 ### Overview
 - Two installation types, same WAR: a **store** sells; a **head office** manages several stores and never sells (no cashier session, no ticket).
@@ -342,29 +342,91 @@ Frontend commit 5d7743b, on `feature/ho-step-7a`. Head office without an ERP onl
 
 **Filters:**
 - Search (code, name) and store (`storeId`, from `store-options`), with paging by the API, 20 rows by default.
-- "Below zero only" has no API parameter. The page reads the API pages (200 rows each, at most 25) and keeps the rows below zero: at the head office or in a store shown, or the quantity on the own items tab. It then pages them itself, with a note when the list was cut at 5,000 items.
+- "Below zero only": since step 7B the page sends `belowZero=true` to the API (see "Network stock: "below zero only" through the API" below).
 
 Labels in `en`, `fr`, `ar` (`admin.headoffice.networkStock.*`).
 
 **Checks:** lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
 
-### Step 7B pages (frontend, to build)
-Backend done on `feature/ho-step-7b`; built by the frontend session. Labels in `en`, `fr`, `ar`. Head office pages `standaloneOnly`.
+### Step 7B pages (frontend): supply prices and invoicing settings
+Frontend commits b398fea (Stores page), 273aba9 (price lists), 0c513a4 (supply prices), on `feature/ho-step-7b`. Head office without an ERP only. Backend: step 7B part 1 (435ab69), "Supply prices and invoicing settings (step 7B, part 1)".
 
-| Page | Route (`meta.resource`) | API |
-|---|---|---|
-| Stores (existing page, new block "Invoicing") | `admin-headoffice-stores` | `PUT /admin/headoffice/stores/{id}` with `deliveriesInvoiced`, `billingLegalName`, `billingTaxNumber`, `billingAddress`, `supplyPriceMode` (`PRICE_LIST`, `PERCENT_OFF`), `supplyDiscountPercent`, `invoiceRhythm` (`PER_BL`, `GROUPED`); `PUT /{id}/supply-price-list` `{priceListId}` (lists from `GET /admin/headoffice/price-lists?kind=SUPPLY`) |
-| Price lists (existing page) | `admin-headoffice-price-lists` | `GET /admin/headoffice/price-lists?kind=SELLING|SUPPLY` (a tab or filter), `POST` with `kind`; the store selling list picker reads `?kind=SELLING` |
-| Supply prices (new) | `admin-headoffice-supply-prices` | `GET /admin/headoffice/supply-prices?search=&page=&size=` (selling price next to the supply price), `PUT /admin/headoffice/supply-prices` `[{itemCode, supplyPrice}]` (null deletes) |
-| Supply invoices (new) | `admin-headoffice-supply-invoices` | `GET /admin/headoffice/supply-invoices?storeId=&paid=&dateFrom=&dateTo=&page=&size=`, `GET /{id}` (detail and print: seller, buyer, lines by BL, VAT, stamp, totals), tab "To invoice": `GET /to-invoice?storeId=` (with `invoiceNote`), `POST /preview` (shows `missingPrices` and the lines flagged `missingPrice`), `POST /`; `PATCH /{id}/paid` `{paid, paidDate, note}` |
-| What the stores owe (new) | `admin-headoffice-store-balances` | `GET /admin/headoffice/supply-invoices/balances`; a row opens the store's unpaid invoices |
-| BLs (existing page) | `admin-headoffice-deliveries` | `invoiceNumber`, `invoiceNote` on the list and the detail; status `INVOICED` label |
-| General setup (existing) | `admin-headoffice-general-setup` | the new setting `SUPPLY_INVOICE_TAX_STAMP` (boolean) appears by itself |
+**Stores page** (`StoresManagement.vue`): a block "Invoicing of the deliveries" in the store form and in the details, after the selling prices block, shown only when `/config` gives `standalone: true` (like the selling price list). The fields are a shared component, `src/views/admin/headoffice/StoreInvoicingFields.vue`.
+- Switch "Deliveries invoiced" (`deliveriesInvoiced`). The other fields show only when it is on.
+- Billing legal name (200), tax number (50), billing address (500).
+- Supply price: "Price list" (`supplyPriceMode` `PRICE_LIST`, the default) or "Percentage off the selling price" (`PERCENT_OFF`).
+  - Price list: a select of the active lists of kind `SUPPLY`, plus "None (base supply price)".
+  - Percentage: a number from 0 to 100; out of range blocks the save.
+- Invoices: "One per delivery note" (`invoiceRhythm` `PER_BL`, the default) or "Grouped (made by hand)" (`GROUPED`).
+- Saving. The fields go with the store's `POST` / `PUT`. With the switch off, only `deliveriesInvoiced: false` is sent and the other settings stay as they are. Blank billing fields are sent empty, which clears them.
+- The supply price list goes with the `POST` at creation; afterwards `PUT /admin/headoffice/stores/{id}/supply-price-list {priceListId}`, only for an invoiced store in price list mode, when it changed.
+- In the details the block is saved with its own button ("Save the invoicing"), enabled when something changed. A refusal (400) shows the backend text and reloads the stores.
+- The selling price list select now offers selling lists only (a list without a kind is a selling list).
 
-Store, only when `/config` `supplyFromHeadOffice`:
-- Purchase invoices page (existing): a "Head office" badge when `vendor.vendorCode === 'HEAD_OFFICE'`, no action on those invoices; the notes give the BL numbers.
-- BL reception page: `invoiceNumber` of each BL (`GET /admin/deliveries`).
-- Vendors page: the `HEAD_OFFICE` vendor read-only (the API answers 409 on edit and delete).
+**Price lists page** (`PriceLists.vue`):
+- Kind "Selling" or "Supply" chosen at creation (`POST` with `kind`), read-only on edit ("The kind cannot change once the list is created").
+- A Kind column (badge) and a kind filter (All kinds, Selling, Supply), applied to the lists already loaded.
+- Lines of a supply list: the help text speaks of supply prices before VAT. Since backend cee300c (frontend 4a0504c, part 2) the reference column is "Base supply price" (`basePrice` is the base supply price on a supply list, null when none), and a new line starts at the item's base supply price, read from `GET /admin/headoffice/supply-prices` by its exact code (empty when none). A selling list is unchanged: base selling price, a new line starts at it.
+
+**Supply prices page** (`src/views/admin/headoffice/SupplyPrices.vue`):
+- Route `admin-headoffice-supply-prices`, path `/headoffice/supply/supply-prices`, `meta.standaloneOnly`. Supply menu, right after Delivery notes. Permission `read:admin-headoffice-supply-prices` (35 head office permissions, the same list as the backend).
+- `GET /admin/headoffice/supply-prices` with search (code, name) and paging, 20 rows by default. Columns: item code, item name, base selling price, base supply price (before VAT).
+- The supply price is edited in the row; a changed row is highlighted, and a wrong value (not a number, below 0) blocks the save.
+- Changes are kept across pages and searches. "Save (n)" sends them together with one `PUT` `[{itemCode, supplyPrice}]`; an empty price is sent as `null`, which deletes the base supply price. "Discard" drops them.
+- All or none: on a refusal (400) nothing is saved, the backend text is shown, and the edits stay so they can be corrected.
+
+Labels in `en`, `fr`, `ar` (`admin.headoffice.stores.invoicing.*`, `admin.headoffice.priceLists.kind*`, `admin.headoffice.supplyPrices.*`).
+
+**Checks:** lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
+
+**Not in this part:** the invoices pages (step 7B parts 2 and 3). They wait for the backend API.
+
+### Step 7B pages (frontend): supply invoices
+Frontend commits 067dbf6 (invoices), d765b1d (to invoice), 51d8582 (what the stores owe), af18201 (BL page), 7bbef7f (store side), 4a0504c (supply list base price), 16fb967 (preview lines without a supply price), on `feature/ho-step-7b`. Backend 055757b and the fix cee300c. Head office pages without an ERP only (`meta.standaloneOnly`); 37 head office permissions, the same list as the backend.
+
+**Supply invoices page** (`src/views/admin/headoffice/SupplyInvoices.vue`):
+- Route `admin-headoffice-supply-invoices`, path `/headoffice/supply/supply-invoices`. Supply menu, after Supply prices. Permission `read:admin-headoffice-supply-invoices`. API `/admin/headoffice/supply-invoices`.
+- Tab "Invoices": number (with its BL numbers), store and buyer, date, total before VAT, total with VAT, Paid / Unpaid badge (with the paid date).
+  - Filters: store (`store-options`), payment (paid and unpaid, unpaid, paid), date from and to.
+  - Paging by the API, 20 rows by default.
+  - The query `storeId`, `paid` (`true` / `false`) and `invoiceId` (opens that invoice) set the page when it opens.
+- Detail (`GET /{id}`): seller and buyer as the invoice recorded them, date, BLs, note, lines (`SupplyInvoiceLines.vue`: BL, code, name, quantity, unit price before VAT, VAT %, totals before and with VAT), totals (`SupplyInvoiceTotals.vue`).
+- Paid: a switch with the paid date (today by default) and a note, saved with `PATCH /{id}/paid {paid, paidDate, note}`; unpaid sends `{paid: false}`.
+- Print (list and detail): `SupplyInvoiceTemplate.vue`, mounted the way of the BL print with the purchase invoice print styles. It shows the seller snapshot (and the head office logo), the number, date, buyer with tax number and store code, lines by BL, totals, BL numbers and the note.
+- Tab "To invoice":
+  - Store: the active stores whose deliveries are invoiced (`GET /admin/headoffice/stores`, `deliveriesInvoiced`), with their invoice rhythm.
+  - Its received BLs not invoiced (`GET /to-invoice?storeId=`): number, date, received, quantity received. `invoiceNote` (why the automatic invoice failed) is shown in orange. BLs are ticked one by one or all at once.
+  - Date (today by default) and note.
+  - "Preview" (`POST /preview {storeId, deliveryIds, invoiceDate}`) shows the lines and totals. The items without a supply price (`missingPrices`) are listed in a red alert. Since backend 01f51ca (frontend 16fb967) each BL line of such an item also comes as a preview line in its place (`missingPrice: true`: BL, item code, name, quantity, no line number and no price; outside the totals): the table shows it in red with "No supply price".
+  - "Create the invoice" (`POST /` with the note) is enabled only after a preview of the current choice and date with no price missing; changing the BLs or the date drops the preview. The new invoice then opens.
+  - Every 400 and 409 shows the backend text: the BLs, the store setting, a percentage missing, nothing received, a date in the future or before the last invoice.
+
+**What the stores owe** (`src/views/admin/headoffice/StoreBalances.vue`):
+- Route `admin-headoffice-store-balances`, path `/headoffice/supply/store-balances`, Supply menu after Supply invoices, permission `read:admin-headoffice-store-balances`.
+- `GET /admin/headoffice/supply-invoices/balances`: one row per store with an invoice: invoices, total, paid, unpaid (with the number of unpaid invoices), amounts with VAT, and the unpaid total above the table.
+- A click on a row opens the supply invoices page filtered on that store, unpaid.
+
+**BL page** (`Deliveries.vue`): the `INVOICED` status is labelled (Invoiced, Facturé, مفوتر). The invoice number (`invoiceNumber`) is shown under the status in the list and in the detail, as a link to the supply invoices page opened on that invoice (`invoiceId`). Without an invoice, `invoiceNote` is shown as "Not invoiced automatically" (on hover in the list, in full in the detail).
+
+**Store side**, only when `/config` gives `supplyFromHeadOffice: true` (without it the pages render as before):
+- Purchase invoices (`PurchaseInvoiceManagement.vue`): a "Head office" badge on the invoices whose vendor code is `HEAD_OFFICE`, in the list and the detail. The page has no edit or delete on an invoice, so they stay consult-only; their notes give the BL numbers.
+- Vendors (`VendorManagement.vue`): the `HEAD_OFFICE` vendor is marked "Head office" and has no edit button (the API answers 409).
+- BL reception (`DeliveryReception.vue`, a page that exists only with the flag): "Invoiced by the head office: <number>" under each received BL and in its detail.
+
+Labels in `en`, `fr`, `ar` (`admin.headoffice.supplyInvoices.*`, `admin.headoffice.storeBalances.*`, `admin.headoffice.deliveries.notInvoiced`, `admin.holink.deliveries.invoice`).
+
+**Checks:** lint of the changed files in production mode and `npm run build`, both clean before each commit. Not seen in the browser (L2).
+
+### Network stock: "below zero only" through the API
+Frontend commit d7a60a5, on `feature/ho-step-7b`. Backend a8dc85b.
+
+The network stock page (`NetworkStock.vue`, step 7A) sends `belowZero=true` to `GET /admin/headoffice/stock` and `GET /admin/headoffice/stock/own` when "Below zero only" is on, together with the search, the store and the paging.
+- Head office items: an item whose stock is below zero at the head office, or in the store chosen, or in any active store when no store is chosen.
+- Stores' own items: an item whose stock is below zero.
+
+The page no longer reads up to 25 pages of 200 rows to filter them itself, and the note "Below zero among the first 5,000 items only" and its label are gone. The help text under the tabs stays.
+
+**Checks:** lint of the changed file in production mode and `npm run build`, both clean. Not seen in the browser (L2).
 
 ### Add a page to the head office
 1. **Shared page** (the same data as on the store): add a route to `src/router/headoffice-routes.js` with path `/headoffice/<...>`, name and `meta.resource` `admin-headoffice-<page>`, `meta.action: 'read'`, `meta.headOffice: true`, `meta.requiresAuth: true`, the store page's component, and `meta.twinOf` set to the store route name. Do not modify the store page, its store route or the store menu.
