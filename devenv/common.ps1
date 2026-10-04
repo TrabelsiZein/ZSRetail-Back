@@ -15,6 +15,10 @@ $DevInstances = [ordered]@{
 	'headoffice' = @{ Machine = 'dev\headoffice.properties'; Port = 888; Db = 'pos_headoffice'; Code = $null;     Log = 'C:\zsretail-headoffice\backend.log' }
 	'store-b'    = @{ Machine = 'dev\store-b.properties';    Port = 555; Db = 'pos_store_b';    Code = 'STORE-B'; Log = 'C:\zsretail-store-b\backend.log' }
 	'store-c'    = @{ Machine = 'dev\store-c.properties';    Port = 556; Db = 'pos_store_c';    Code = 'STORE-C'; Log = 'C:\zsretail-store-c\backend.log' }
+	# Rehearsal environment (devenv\rehearsal.ps1): beside the L2 instances, never started by start.ps1 without -Instance
+	'reh-headoffice' = @{ Machine = 'rehearsal\headoffice.properties'; Port = 889; Db = 'pos_rehearsal_ho'; Code = $null;     Log = 'C:\zsretail-rehearsal\headoffice\backend.log' }
+	'reh-store-1'    = @{ Machine = 'rehearsal\store-1.properties';    Port = 557; Db = 'pos_rehearsal_s1'; Code = 'STORE-1'; Log = 'C:\zsretail-rehearsal\store-1\backend.log' }
+	'reh-store-2'    = @{ Machine = 'rehearsal\store-2.properties';    Port = 558; Db = 'pos_rehearsal_s2'; Code = 'STORE-2'; Log = 'C:\zsretail-rehearsal\store-2\backend.log' }
 }
 
 function Get-DevInstance([string]$Name) {

@@ -1530,6 +1530,26 @@ Order at a new head office with an ERP: enable and run `IMPORT_LOCATIONS`, choos
 
 - In STS, duplicate the backend run configuration and set its VM argument to `-Dzsretail.machine-file="D:ZS RetailAppsZSRetail-Backdeploydevheadoffice.properties"` (task 9.3; there is no default profile any more). The devenv scripts start the L2 instances themselves (CLAUDE.md, "Dev environment for L2").
 - 888 and 8081 were also the ports of the franchise customer profile (removed at step 9).
+
+### Rehearsal environment (step 9)
+A head office and two stores of a franchise network on new empty databases, beside the L2 instances (other ports and
+databases; the L2 databases are never touched), from the latest artifact: `devenv\rehearsal.ps1 -Action setup | start | stop |
+status | set-key | reset`.
+
+| Instance | Port | Database | Preset | Store code |
+|---|---|---|---|---|
+| `reh-headoffice` | 889 | `pos_rehearsal_ho` | `headoffice` | — |
+| `reh-store-1` | 557 | `pos_rehearsal_s1` | `network-store` | `STORE-1` |
+| `reh-store-2` | 558 | `pos_rehearsal_s2` | `network-store` | `STORE-2` |
+
+- Machine files `deploy/rehearsal/`, logs `C:\zsretail-rehearsal\<name>\backend.log`. Logins as on a new database.
+- The stores are not registered at the head office: create them on its Stores page with their codes, then
+  `-Action set-key -Store store-1 -Key <key>` writes the key into the store's machine file and restarts it (until then the
+  head office refuses the store, 401).
+- `reset` stops, drops the three `pos_rehearsal_*` databases (refused for any other name), puts the keys back to none and
+  sets up again.
+- Frontends: `$env:VUE_APP_API_BASE_URL='http://127.0.0.1:889/zsretail/api/'; npx vue-cli-service serve --port 8091 --mode headoffice`
+  for the head office; 557 / 558 on ports 8092 / 8093, without `--mode`, for the stores. CORS is open to any origin.
 - To make the store call the head office: "Connect a store" above.
 
 ### New head office database: manual steps
