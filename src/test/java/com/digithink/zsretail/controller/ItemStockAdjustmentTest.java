@@ -24,14 +24,16 @@ import com.digithink.zsretail.model.enumeration.StockMovementDirection;
 import com.digithink.zsretail.model.enumeration.StockMovementType;
 import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.repository.StockMovementRepository;
+import com.digithink.zsretail.security.CurrentUserProvider;
 import com.digithink.zsretail.service.ItemService;
 import com.digithink.zsretail.service.StockMovementService;
 import com.digithink.zsretail.service.StockService;
+import com.digithink.zsretail.service._BaseService;
 
 /**
  * Head office plan, step 7A (decision 6): POST /item/{id}/adjust-stock changes the quantity exactly as before and now
  * also writes its ADJUSTMENT_IN or ADJUSTMENT_OUT movement, with the reason as note; outside standalone mode it is
- * still refused and writes nothing. Real ItemAPI, ItemService, StockService and StockMovementService over stubs.
+ * still refused and writes nothing. An item edit (PUT /item/{id}) keeps the stored stock. Real ItemAPI, ItemService, StockService and StockMovementService over stubs.
  */
 class ItemStockAdjustmentTest {
 
@@ -56,6 +58,11 @@ class ItemStockAdjustmentTest {
 			switch (method) {
 				case "findById":
 					return Optional.ofNullable(items.get(args[0]));
+				case "save": {
+					Item saved = (Item) args[0];
+					items.put(saved.getId(), saved);
+					return saved;
+				}
 				case "addToStockQuantity": {
 					Item row = items.get(args[0]);
 					int delta = (Integer) args[1];
@@ -86,6 +93,12 @@ class ItemStockAdjustmentTest {
 		set(service, ItemService.class, "applicationModeService", mode);
 		set(service, ItemService.class, "stockService", stock);
 		set(service, ItemService.class, "stockMovementService", stockMovements);
+		set(service, _BaseService.class, "currentUserProvider", new CurrentUserProvider() {
+			@Override
+			public String getCurrentUserName() {
+				return "admin";
+			}
+		});
 		ItemAPI api = new ItemAPI();
 		set(api, _BaseController.class, "service", service);
 		set(api, ItemAPI.class, "applicationModeService", mode);
@@ -103,6 +116,24 @@ class ItemStockAdjustmentTest {
 		Field field = declaring.getDeclaredField(name);
 		field.setAccessible(true);
 		field.set(target, value);
+	}
+
+	@Test
+	@DisplayName("An edit keeps the stored stock: the quantity the page sends back (read-only there) is ignored, the other fields saved")
+	void editKeepsStoredStock() throws Exception {
+		Item body = new Item();
+		body.setItemCode("B001");
+		body.setName("Renamed");
+		body.setUnitPrice(12.0);
+		body.setStockQuantity(3); // loaded before a sale took the stock from 13 to 10
+
+		assertEquals(200, api(true).update(7L, body).getStatusCodeValue());
+
+		Item stored = items.get(7L);
+		assertEquals("Renamed", stored.getName());
+		assertEquals(10, stored.getStockQuantity());
+		assertTrue(stockUpdates.isEmpty());
+		assertTrue(movements.isEmpty());
 	}
 
 	@Test

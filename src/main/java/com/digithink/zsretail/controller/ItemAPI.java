@@ -225,6 +225,9 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			// so we must preserve existing values to avoid wiping them to null.
 			entity.setLastDirectCost(existingItem.getLastDirectCost());
 			entity.setLastDirectNetCost(existingItem.getLastDirectNetCost());
+			// The stock changes only through sales, returns, purchases, adjustments and BLs (the form shows it read-only):
+			// an edit made while the stock moves must not write back the quantity the page loaded
+			entity.setStockQuantity(existingItem.getStockQuantity());
 			// Step 6: never read from JSON; null on every store whose catalogue is not the head office's
 			entity.setOwnPrice(existingItem.getOwnPrice());
 			entity.setHeadOfficePrice(existingItem.getHeadOfficePrice());
