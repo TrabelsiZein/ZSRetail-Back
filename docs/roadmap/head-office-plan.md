@@ -75,7 +75,7 @@ The exact prompts are written during the session, from the code as it is that da
 | 3 | Promotions owned by head office | ParaFendri | No (engine untouched) | Medium | Done 2026-10-03, merged into release/2.1.0 (backend 604a97c, frontend 57acf81) |
 | 4 | Shared loyalty, part 1: members and earning | ParaFendri | No (enrol and member changes in LoyaltyAPI and LoyaltyService hooks; the four selling services untouched) | Large | Done 2026-10-04, merged into release/2.1.0 with step 5 (backend 27e981c, frontend 07b9970) |
 | 5 | Shared loyalty, part 2: spending and returns | ParaFendri | No (decided 2026-10-03: no hold and confirm, selling services untouched) | Large | Done 2026-10-04, merged into release/2.1.0 with step 4 (backend 27e981c, frontend 07b9970) |
-| 6 | Items and selling prices decided by the head office: price lists, purchase right | Own stores without ERP, franchise | No | Large | Done 2026-10-04, merged into release/2.1.0 (backend pending; frontend by the frontend session); task 6.8 (images) not started, after step 7B |
+| 6 | Items and selling prices decided by the head office: price lists, purchase right | Own stores without ERP, franchise | No | Large | Done 2026-10-04, merged into release/2.1.0 (backend 5f8cb30; frontend by the frontend session); task 6.8 (images) not started, after step 7B |
 | 7A | BLs and stock: head office warehouse, delivery to a store, stock of all stores | Own stores without ERP, franchise | No (stock in only) | Large | Not started |
 | 7B | Invoices and supply price for the stores that pay | Franchise | No | Medium | Not started |
 | 8 | Franchise profiles moved onto the model | Happyness | No | Medium | Not started |
@@ -443,7 +443,7 @@ Fixes found at L2: 103132e (a barcode over 90 characters answered 500 on a head 
 
 ### Step 6 — record
 
-**Status: done 2026-10-04, merged into release/2.1.0 (backend pending; the frontend is merged by the frontend session).** Branch `feature/ho-step-6` in both repos. Described in `docs/modules/head-office.md` ("Catalogue owned by the head office (step 6)", "Price lists (task 6.4)", "Step 6 pages (frontend): head office", "Step 6 pages (frontend): store"), `docs/deployment-modes.md` and `docs/modules/pricing.md`.
+**Status: done 2026-10-04, merged into release/2.1.0 (backend 5f8cb30; the frontend is merged by the frontend session).** Branch `feature/ho-step-6` in both repos. Described in `docs/modules/head-office.md` ("Catalogue owned by the head office (step 6)", "Price lists (task 6.4)", "Step 6 pages (frontend): head office", "Step 6 pages (frontend): store"), `docs/deployment-modes.md` and `docs/modules/pricing.md`.
 
 | Part | Backend | Frontend |
 |---|---|---|
@@ -456,7 +456,7 @@ Fixes found at L2: 103132e (a barcode over 90 characters answered 500 on a head 
 | `GET /item/search` gives `origin` (purchase item picker) | 2c92282 | the picker fix of the frontend session (new purchase page on `/item/search` with `origin`; hash added by that session) |
 | The invoice list and eligible tickets without a date filter (same fix as be626d3) | bc45f3a | — |
 | Frontend pages in the module doc, this record | this commit | — |
-| Merge into release/2.1.0 | pending | by the frontend session |
+| Merge into release/2.1.0 | 5f8cb30 | by the frontend session |
 
 Decisions (inventory approved by Zein, 2026-10-04; see "Steps 6 and 7 — recut" and the step 6 backend notes above):
 - The catalogue and the price lists exist only on a head office without an ERP. Every item goes to every store; a store's item with the same code becomes the head office item (stock and cost kept); deleted or deactivated at the head office gives inactive at the store; the store's other local items stay its own.
@@ -478,7 +478,7 @@ What exists after the step:
 - Store with `ownership.catalogue=HEAD_OFFICE` (URL, standalone, no franchise flag): the catalogue received and consult-only, own price with the right, purchases with the right, `hol_link_right`, the catalogue block of the link page; the item, purchase, vendor and data import pages follow `/config` `catalogueFromHeadOffice`.
 - Every other store (no setting, ERP, franchise customer even with `headoffice.url`): unchanged, no catalogue bean.
 
-Tests at the merge: backend pending, all green, run in a separate worktree of the merge. Frontend: production lint and build per frontend commit (frontend session).
+Tests at the merge: backend 57 classes, 446 tests, all green, run in a separate worktree of the merge. Frontend: production lint and build per frontend commit (frontend session).
 
 L2 (2026-10-04, `devenv/l2-catalogue.ps1`, head office 888, store B 555, store C 556): 15 scenarios, all passed (report `C:\zsretail-dev\logs\l2-catalogue-134535.txt`), listed under "L2 of step 6 backend" above. Timings: head office startup backfill about 1.7 s for 3,728 records (2 to 2.6 s for 3,858 to 3,988 records); full first pull 54 s at B and 55 s at C (54 to 62 s at the later runs). `l2-loyalty.ps1`: 17 of 17 on the same databases with the catalogue switched.
 
