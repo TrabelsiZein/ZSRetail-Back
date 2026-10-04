@@ -252,7 +252,7 @@ class HoSupplyInvoiceServiceTest {
 	}
 
 	@Test
-	@DisplayName("Tax stamp: off, no line; on, one TAX_STAMP line at VAT 0 with the stamp setting (100 millimes, then 600)")
+	@DisplayName("Tax stamp: off, no line; on, one TAX_STAMP line at VAT 0 of SUPPLY_INVOICE_TAX_STAMP_MILLIMES (1000 by default, then 600); the till stamp setting is not read")
 	void taxStamp() {
 		ho.item("TAX_STAMP", 0.1, null);
 		HoDelivery first = received(b, 48, 10);
@@ -267,13 +267,14 @@ class HoSupplyInvoiceServiceTest {
 		assertEquals("TAX_STAMP", stamp.getItemCode());
 		assertNull(stamp.getDeliveryNumber());
 		assertEquals(1, stamp.getQuantity());
-		assertEquals(0.1, stamp.getUnitPrice());
+		assertEquals(1.0, stamp.getUnitPrice(), "SUPPLY_INVOICE_TAX_STAMP_MILLIMES absent: 1000 millimes");
 		assertEquals(0, stamp.getVatPercent());
 		assertEquals(0.0, stamp.getVatAmount());
-		assertEquals(HoSupplyPriceService.round(without.getTotalAmount() + 0.1), with.getTotalAmount());
+		assertEquals(HoSupplyPriceService.round(without.getTotalAmount() + 1.0), with.getTotalAmount());
 		assertEquals(without.getTaxAmount(), with.getTaxAmount(), "no VAT on the stamp");
 
-		settings.put("TAX_STAMP_VALUE_MILLIMES", "600");
+		settings.put("TAX_STAMP_VALUE_MILLIMES", "100"); // the till ticket's stamp: not read
+		settings.put(HoSupplyInvoiceService.TAX_STAMP_MILLIMES_SETTING, "600");
 		HoDelivery third = received(b, 1, 0);
 		assertEquals(0.6, invoices.create(request(b, third), "a").getLines().get(1).getUnitPrice());
 	}
@@ -326,5 +327,54 @@ class HoSupplyInvoiceServiceTest {
 		for (HoSupplyInvoiceLine line : reopened.getLines()) {
 			assertTrue(line.getLineNo() > 0);
 		}
+	}
+
+	@Test
+	@DisplayName("Nothing received: 409 (also with the stamp on, also in the preview); left out of /to-invoice; PER_BL: no invoice, no invoice_note")
+	void nothingReceived() {
+		settings.put(HoSupplyInvoiceService.TAX_STAMP_SETTING, "true");
+		HoDelivery zero = received(b, 0, 0);
+		HoDelivery some = received(b, 1, 0);
+
+		assertEquals("Nothing was received on these BLs: nothing to invoice.",
+				assertThrows(IllegalStateException.class, () -> invoices.create(request(b, zero), "a")).getMessage());
+		assertThrows(IllegalStateException.class, () -> invoices.preview(request(b, zero)));
+		assertTrue(invoiceTables.invoices.isEmpty(), "never an invoice of the stamp alone");
+		assertEquals(Collections.singletonList(some.getId()),
+				invoices.toInvoice(b.getId()).stream().map(r -> r.get("id")).collect(Collectors.toList()));
+		assertEquals(2, invoices.create(request(b, zero, some), "a").getLines().size(), "with another BL: B001 and the stamp");
+
+		b.setInvoiceRhythm(InvoiceRhythm.PER_BL);
+		HoDelivery perBlZero = received(b, 0, 0);
+		assertEquals(DeliveryStatus.RECEIVED, perBlZero.getStatus());
+		assertNull(perBlZero.getInvoiceNote());
+		assertEquals(1, invoiceTables.invoices.size());
+	}
+
+	@Test
+	@DisplayName("Invoice date: in the future 400; before the last invoice 400 (numbers follow dates); the same day and later accepted; the preview too")
+	void invoiceDates() {
+		HoDelivery first = received(b, 1, 0);
+		HoDelivery second = received(b, 2, 0);
+		HoDelivery third = received(b, 3, 0);
+		SupplyInvoiceDTO tomorrow = request(b, first);
+		tomorrow.setInvoiceDate("2026-10-07");
+		assertEquals("The invoice date cannot be in the future.",
+				assertThrows(IllegalArgumentException.class, () -> invoices.create(tomorrow, "a")).getMessage());
+		assertThrows(IllegalArgumentException.class, () -> invoices.preview(tomorrow));
+
+		SupplyInvoiceDTO lastWeek = request(b, first);
+		lastWeek.setInvoiceDate("2026-09-30");
+		assertEquals("FHO-2026-000001", invoices.create(lastWeek, "a").getInvoiceNumber(), "a past date, no invoice yet");
+		SupplyInvoiceDTO today = request(b, second);
+		assertEquals("FHO-2026-000002", invoices.create(today, "a").getInvoiceNumber());
+
+		SupplyInvoiceDTO before = request(b, third);
+		before.setInvoiceDate("2026-10-05");
+		assertEquals("The invoice date cannot be before the date of the last invoice (FHO-2026-000002 of 2026-10-06).",
+				assertThrows(IllegalArgumentException.class, () -> invoices.create(before, "a")).getMessage());
+		assertThrows(IllegalArgumentException.class, () -> invoices.preview(before));
+		assertEquals(DeliveryStatus.RECEIVED, third.getStatus());
+		assertEquals(2, invoiceTables.invoices.size());
 	}
 }

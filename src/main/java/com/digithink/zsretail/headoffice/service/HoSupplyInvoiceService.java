@@ -68,7 +68,10 @@ import lombok.extern.log4j.Log4j2;
 public class HoSupplyInvoiceService {
 
 	public static final String TAX_STAMP_SETTING = "SUPPLY_INVOICE_TAX_STAMP";
-	static final String TAX_STAMP_VALUE_SETTING = "TAX_STAMP_VALUE_MILLIMES";
+	/** The supply invoice stamp in millimes (1000 by default); the till ticket's TAX_STAMP_VALUE_MILLIMES is not used. */
+	public static final String TAX_STAMP_MILLIMES_SETTING = "SUPPLY_INVOICE_TAX_STAMP_MILLIMES";
+	static final int DEFAULT_STAMP_MILLIMES = 1000;
+	static final String NOTHING_RECEIVED = "Nothing was received on these BLs: nothing to invoice.";
 	static final String NUMBER_PREFIX = "FHO-";
 	static final int DEFAULT_SIZE = 20;
 	static final int MAX_SIZE = 200;
@@ -123,6 +126,9 @@ public class HoSupplyInvoiceService {
 		Store store = store(storeId);
 		List<Map<String, Object>> rows = new ArrayList<>();
 		for (HoDelivery delivery : deliveries.findToInvoice(store.getId(), DeliveryStatus.RECEIVED)) {
+			if (received(delivery) == 0) {
+				continue; // received at 0 on every line: nothing to invoice
+			}
 			Map<String, Object> row = new LinkedHashMap<>();
 			row.put("id", delivery.getId());
 			row.put("number", delivery.getNumber());
@@ -141,7 +147,10 @@ public class HoSupplyInvoiceService {
 	public SupplyInvoiceDTO preview(SupplyInvoiceDTO request) {
 		Store store = store(request == null ? null : request.getStoreId());
 		List<HoDelivery> chosen = checkDeliveries(store, request.getDeliveryIds(), false);
-		Draft draft = draft(store, chosen, invoiceDate(request.getInvoiceDate()));
+		checkSomethingReceived(chosen);
+		LocalDate date = invoiceDate(request.getInvoiceDate());
+		checkDate(date);
+		Draft draft = draft(store, chosen, date);
 		SupplyInvoiceDTO view = view(draft.invoice, store, true);
 		view.setMissingPrices(draft.missing);
 		return view;
@@ -162,6 +171,8 @@ public class HoSupplyInvoiceService {
 	private HoSupplyInvoice create(Store store, List<Long> deliveryIds, LocalDate invoiceDate, String note,
 			String user) {
 		List<HoDelivery> chosen = checkDeliveries(store, deliveryIds, true);
+		checkSomethingReceived(chosen);
+		checkDate(invoiceDate);
 		Draft draft = draft(store, chosen, invoiceDate);
 		if (!draft.missing.isEmpty()) {
 			throw new IllegalStateException("No supply price for the store " + store.getCode() + ": "
@@ -196,6 +207,9 @@ public class HoSupplyInvoiceService {
 			if (store == null || !Boolean.TRUE.equals(store.getDeliveriesInvoiced())
 					|| store.getInvoiceRhythm() == InvoiceRhythm.GROUPED) {
 				return;
+			}
+			if (deliveries.findById(deliveryId).map(HoSupplyInvoiceService::received).orElse(0) == 0) {
+				return; // nothing received: no invoice, no invoice_note
 			}
 			writeTransactions.executeWithoutResult(status -> create(store, Collections.singletonList(deliveryId),
 					clock.get().toLocalDate(), null, AUTO_USER));
@@ -330,18 +344,46 @@ public class HoSupplyInvoiceService {
 		return line;
 	}
 
-	/** TAX_STAMP_VALUE_MILLIMES (100 when absent or unreadable), in dinars. */
+	/** SUPPLY_INVOICE_TAX_STAMP_MILLIMES (1000 when absent or unreadable), in dinars. */
 	private double stampAmount() {
-		String value = setup.findValueByCode(TAX_STAMP_VALUE_SETTING);
-		int millimes = 100;
+		String value = setup.findValueByCode(TAX_STAMP_MILLIMES_SETTING);
+		int millimes = DEFAULT_STAMP_MILLIMES;
 		try {
 			if (value != null && !value.trim().isEmpty()) {
 				millimes = Integer.parseInt(value.trim());
 			}
 		} catch (NumberFormatException e) {
-			log.warn("Invalid {}: {}, using 100", TAX_STAMP_VALUE_SETTING, value);
+			log.warn("Invalid {}: {}, using {}", TAX_STAMP_MILLIMES_SETTING, value, DEFAULT_STAMP_MILLIMES);
 		}
 		return millimes / 1000.0;
+	}
+
+	/** The quantity received on the whole BL. */
+	static int received(HoDelivery delivery) {
+		return delivery.getLines().stream().mapToInt(HoSupplyInvoiceService::quantity).sum();
+	}
+
+	/** 409 when every chosen BL was received at 0: an invoice is never the stamp alone. */
+	private static void checkSomethingReceived(List<HoDelivery> chosen) {
+		if (chosen.stream().mapToInt(HoSupplyInvoiceService::received).sum() == 0) {
+			throw new IllegalStateException(NOTHING_RECEIVED);
+		}
+	}
+
+	/**
+	 * 400 (IllegalArgument) for a date in the future, or before the date of the last invoice issued: the numbers follow
+	 * the dates.
+	 */
+	private void checkDate(LocalDate invoiceDate) {
+		if (invoiceDate.isAfter(clock.get().toLocalDate())) {
+			throw new IllegalArgumentException("The invoice date cannot be in the future.");
+		}
+		invoices.findFirstByOrderByInvoiceDateDescIdDesc().ifPresent(last -> {
+			if (invoiceDate.isBefore(last.getInvoiceDate())) {
+				throw new IllegalArgumentException("The invoice date cannot be before the date of the last invoice ("
+						+ last.getInvoiceNumber() + " of " + last.getInvoiceDate() + ").");
+			}
+		});
 	}
 
 	private static int quantity(HoDeliveryLine line) {

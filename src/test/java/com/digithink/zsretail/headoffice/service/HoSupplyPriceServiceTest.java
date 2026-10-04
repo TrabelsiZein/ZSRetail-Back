@@ -66,7 +66,7 @@ class HoSupplyPriceServiceTest {
 				() -> feedRef[0], TransactionOperations.withoutTransaction());
 		feedRef[0] = down.feed(Collections.singletonList(catalogue));
 		lists = new HoPriceListService(ho.priceListRepository(), ho.priceLineRepository(), ho.storeRepository(),
-				ho.itemRepository(), () -> catalogue);
+				ho.itemRepository(), () -> catalogue, ho.supplyPriceRepository());
 		supply = new HoSupplyPriceService(ho.supplyPriceRepository(), ho.priceLineRepository(), ho.itemRepository());
 		stores = new StoreService();
 		set(stores, StoreService.class, "storeRepository", ho.storeRepository());
@@ -254,6 +254,27 @@ class HoSupplyPriceServiceTest {
 		unknownList.setName("H2");
 		unknownList.setSupplyPriceListId(tourist.getId());
 		assertThrows(IllegalArgumentException.class, () -> stores.create(unknownList), "a selling list is refused");
+	}
+
+	@Test
+	@DisplayName("Lines of a supply list show the base supply price (null when none); a selling list still shows the selling price")
+	void lineBasePrices() {
+		ho.supplyPrice(b001, 6.0);
+		ho.priceLine(franchise, b001, 5.5);
+		ho.priceLine(franchise, b002, 11.0);
+		ho.priceLine(tourist, b001, 12.0);
+
+		List<PriceListLineDTO> supplyLines = lists.lines(franchise.getId(), null, 0, 20).get().getContent();
+		assertEquals(6.0, supplyLines.get(0).getBasePrice(), "B001: its base supply price");
+		assertEquals(5.5, supplyLines.get(0).getPrice());
+		assertNull(supplyLines.get(1).getBasePrice(), "B002 has no base supply price");
+		assertEquals(10.0, lists.lines(tourist.getId(), null, 0, 20).get().getContent().get(0).getBasePrice(),
+				"selling list: the selling price");
+
+		PriceListLineDTO put = new PriceListLineDTO();
+		put.setItemCode("B001");
+		put.setPrice(5.0);
+		assertEquals(6.0, lists.putLines(franchise.getId(), Collections.singletonList(put)).get().get(0).getBasePrice());
 	}
 
 	private static String sorted(Map<Long, Double> prices) {

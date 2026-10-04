@@ -55,6 +55,9 @@ public final class InMemoryInvoices {
 					invoices.put(invoice.getId(), invoice);
 					return invoice;
 				}
+				case "findFirstByOrderByInvoiceDateDescIdDesc":
+					return invoices.values().stream().max(Comparator.comparing(HoSupplyInvoice::getInvoiceDate)
+							.thenComparing(HoSupplyInvoice::getId));
 				case "findOfStore":
 					return invoices.values().stream().filter(i -> i.getStoreId().equals(args[0])
 							&& ((Collection<?>) args[1]).contains(i.getInvoiceNumber())).collect(Collectors.toList());

@@ -1,6 +1,8 @@
 package com.digithink.zsretail.headoffice.service;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -22,8 +24,10 @@ import com.digithink.zsretail.config.ConditionalOnHeadOfficeStandalone;
 import com.digithink.zsretail.headoffice.dto.PriceListDTO;
 import com.digithink.zsretail.headoffice.dto.PriceListLineDTO;
 import com.digithink.zsretail.headoffice.enumeration.PriceListKind;
+import com.digithink.zsretail.headoffice.model.HoItemSupplyPrice;
 import com.digithink.zsretail.headoffice.model.HoPriceList;
 import com.digithink.zsretail.headoffice.model.HoPriceListLine;
+import com.digithink.zsretail.headoffice.repository.HoItemSupplyPriceRepository;
 import com.digithink.zsretail.headoffice.repository.HoPriceListLineRepository;
 import com.digithink.zsretail.headoffice.repository.HoPriceListRepository;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
@@ -58,15 +62,25 @@ public class HoPriceListService {
 	private final ItemRepository items;
 	private final Supplier<HoCatalogueService> catalogue;
 
+	/** Step 7B: the base supply prices, shown as the base price of a supply list's lines; null in the step 6 tests. */
+	private final HoItemSupplyPriceRepository supplyPrices;
+
 	@Autowired
 	public HoPriceListService(HoPriceListRepository lists, HoPriceListLineRepository lines, StoreRepository stores,
-			ItemRepository items, ObjectProvider<HoCatalogueService> catalogue) {
-		this(lists, lines, stores, items, (Supplier<HoCatalogueService>) catalogue::getObject);
+			ItemRepository items, ObjectProvider<HoCatalogueService> catalogue, HoItemSupplyPriceRepository supplyPrices) {
+		this(lists, lines, stores, items, (Supplier<HoCatalogueService>) catalogue::getObject, supplyPrices);
+	}
+
+	/** With given collaborators, without supply prices: used by the tests. */
+	public HoPriceListService(HoPriceListRepository lists, HoPriceListLineRepository lines, StoreRepository stores,
+			ItemRepository items, Supplier<HoCatalogueService> catalogue) {
+		this(lists, lines, stores, items, catalogue, null);
 	}
 
 	/** With given collaborators: used by the tests. */
 	public HoPriceListService(HoPriceListRepository lists, HoPriceListLineRepository lines, StoreRepository stores,
-			ItemRepository items, Supplier<HoCatalogueService> catalogue) {
+			ItemRepository items, Supplier<HoCatalogueService> catalogue, HoItemSupplyPriceRepository supplyPrices) {
+		this.supplyPrices = supplyPrices;
 		this.lists = lists;
 		this.lines = lines;
 		this.stores = stores;
@@ -210,13 +224,37 @@ public class HoPriceListService {
 
 	/** A page of the list's lines by item code; search on the item code and name (contains, any case). */
 	public Optional<Page<PriceListLineDTO>> lines(Long id, String search, int page, int size) {
-		if (!lists.findById(id).isPresent()) {
+		Optional<HoPriceList> list = lists.findById(id);
+		if (!list.isPresent()) {
 			return Optional.empty();
 		}
 		String like = search == null || search.trim().isEmpty() ? null
 				: "%" + search.trim().toLowerCase(Locale.ROOT) + "%";
 		PageRequest request = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200));
-		return Optional.of(lines.findLines(id, like, request).map(row -> lineView((HoPriceListLine) row[0], (Item) row[1])));
+		Page<Object[]> rows = lines.findLines(id, like, request);
+		Map<Long, Double> bases = basePrices(list.get(),
+				rows.getContent().stream().map(row -> ((Item) row[1]).getId()).collect(Collectors.toList()));
+		return Optional.of(rows.map(row -> lineView((HoPriceListLine) row[0], (Item) row[1],
+				basePrice(list.get(), bases, (Item) row[1]))));
+	}
+
+	/**
+	 * Step 7B: the base supply prices of these items, by item id, for a supply list; empty for a selling list (its lines
+	 * show item.unitPrice).
+	 */
+	private Map<Long, Double> basePrices(HoPriceList list, Collection<Long> itemIds) {
+		Map<Long, Double> bases = new HashMap<>();
+		if (list.kindOrSelling() == PriceListKind.SUPPLY && supplyPrices != null && !itemIds.isEmpty()) {
+			for (HoItemSupplyPrice row : supplyPrices.findByItemIdIn(itemIds)) {
+				bases.put(row.getItemId(), row.getPrice());
+			}
+		}
+		return bases;
+	}
+
+	/** The base price of a line: a selling list, item.unitPrice; a supply list, the base supply price or null. */
+	private static Double basePrice(HoPriceList list, Map<Long, Double> supplyBases, Item item) {
+		return list.kindOrSelling() == PriceListKind.SUPPLY ? supplyBases.get(item.getId()) : item.getUnitPrice();
 	}
 
 	/**
@@ -226,7 +264,8 @@ public class HoPriceListService {
 	 */
 	@Transactional
 	public Optional<List<PriceListLineDTO>> putLines(Long id, List<PriceListLineDTO> input) {
-		if (!lists.findById(id).isPresent()) {
+		Optional<HoPriceList> list = lists.findById(id);
+		if (!list.isPresent()) {
 			return Optional.empty();
 		}
 		if (input == null || input.isEmpty()) {
@@ -244,6 +283,7 @@ public class HoPriceListService {
 			prices.put(item.getId(), price);
 		}
 		StoreTargets onList = StoreTargets.of(stores.findIdsBySellingPriceListId(id));
+		Map<Long, Double> bases = basePrices(list.get(), byItem.keySet());
 		List<PriceListLineDTO> result = new ArrayList<>();
 		for (Map.Entry<Long, Item> entry : byItem.entrySet()) {
 			Item item = entry.getValue();
@@ -260,7 +300,7 @@ public class HoPriceListService {
 			if (changed && !onList.getStoreIds().isEmpty()) {
 				catalogue.get().recordItem(item.getItemCode(), onList);
 			}
-			result.add(lineView(line, item));
+			result.add(lineView(line, item, basePrice(list.get(), bases, item)));
 		}
 		return Optional.of(result);
 	}
@@ -321,9 +361,9 @@ public class HoPriceListService {
 				list.kindOrSelling().name());
 	}
 
-	private static PriceListLineDTO lineView(HoPriceListLine line, Item item) {
-		return new PriceListLineDTO(line.getId(), item.getId(), item.getItemCode(), item.getName(), item.getUnitPrice(),
-				line.getPrice());
+	/** base: the price shown next to the line ({@link #basePrice}). */
+	private static PriceListLineDTO lineView(HoPriceListLine line, Item item, Double base) {
+		return new PriceListLineDTO(line.getId(), item.getId(), item.getItemCode(), item.getName(), base, line.getPrice());
 	}
 
 	static String normalizeCode(String code) {

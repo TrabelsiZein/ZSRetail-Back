@@ -225,7 +225,7 @@ class SupplyInvoiceRoundTripTest {
 		assertEquals(1, vendors.size(), "the vendor HEAD_OFFICE created once");
 		PurchaseInvoiceLine stamp = lines.get(lines.size() - 1);
 		assertEquals("TAX_STAMP", stamp.getItem().getItemCode());
-		assertEquals(0.1, stamp.getUnitPrice());
+		assertEquals(1.0, stamp.getUnitPrice());
 		assertEquals(0, stamp.getVatPercent());
 		assertNull(db.itemByCode("TAX_STAMP").get().getCostPrice(), "the stamp is not a cost");
 		assertEquals(2.5, db.itemByCode("B002").get().getCostPrice());

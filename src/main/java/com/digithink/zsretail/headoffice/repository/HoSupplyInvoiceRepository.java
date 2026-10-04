@@ -23,6 +23,9 @@ public interface HoSupplyInvoiceRepository extends _BaseRepository<HoSupplyInvoi
 	@Query("select i from HoSupplyInvoice i where i.id = :id")
 	Optional<HoSupplyInvoice> findForUpdate(@Param("id") Long id);
 
+	/** The last invoice issued (latest date, then latest id): a new one may not be dated before it. */
+	Optional<HoSupplyInvoice> findFirstByOrderByInvoiceDateDescIdDesc();
+
 	/** The invoices of one store among these numbers (the copies down). */
 	@Query("select i from HoSupplyInvoice i where i.storeId = :storeId and i.invoiceNumber in :numbers")
 	List<HoSupplyInvoice> findOfStore(@Param("storeId") Long storeId, @Param("numbers") Collection<String> numbers);

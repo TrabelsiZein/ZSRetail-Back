@@ -370,6 +370,14 @@ public final class InMemoryCatalogue {
 					return lines(l -> l.getItemId().equals(args[0]));
 				case "countByPriceListId":
 					return (long) lines(l -> l.getPriceListId().equals(args[0])).size();
+				case "findLines": { // [line, item] of a list by item code; search ignored by the tests that use it
+					List<Object[]> rows = lines(l -> l.getPriceListId().equals(args[0])).stream()
+							.map(l -> new Object[] { l, items.get(l.getItemId()) })
+							.sorted(java.util.Comparator.comparing(r -> ((Item) r[1]).getItemCode()))
+							.collect(Collectors.toList());
+					org.springframework.data.domain.Pageable page = (org.springframework.data.domain.Pageable) args[2];
+					return new org.springframework.data.domain.PageImpl<>(rows, page, rows.size());
+				}
 				case "findItemCodes":
 					return lines(l -> l.getPriceListId().equals(args[0])).stream()
 							.map(l -> items.get(l.getItemId()).getItemCode()).collect(Collectors.toList());

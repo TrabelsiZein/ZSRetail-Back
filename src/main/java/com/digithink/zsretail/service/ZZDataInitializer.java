@@ -997,8 +997,11 @@ public class ZZDataInitializer {
 				"Tax stamp amount in millimes (e.g. 100 = 0.100 TND per receipt).", false, ConfigType.NUMBER);
 		if (applicationModeService.isHeadOffice()) { // step 7B: head office only, a store never sees it
 			ensureConfig("SUPPLY_INVOICE_TAX_STAMP", "false",
-					"Add the tax stamp (TAX_STAMP_VALUE_MILLIMES, VAT 0) as one line to each supply invoice to a store.",
+					"Add the tax stamp (SUPPLY_INVOICE_TAX_STAMP_MILLIMES, VAT 0) as one line to each supply invoice to a store.",
 					false, ConfigType.BOOLEAN);
+			ensureConfig("SUPPLY_INVOICE_TAX_STAMP_MILLIMES", "1000",
+					"Tax stamp of a supply invoice, in millimes (1000 = 1.000 TND); not the till ticket's stamp.", false,
+					ConfigType.NUMBER);
 		}
 		ensureConfig("TAX_STAMP_ERP_ITEM_CODE", "",
 				"ERP item code for the tax stamp line. Used when exporting ticket lines to ERP. Leave empty if not configured.",
