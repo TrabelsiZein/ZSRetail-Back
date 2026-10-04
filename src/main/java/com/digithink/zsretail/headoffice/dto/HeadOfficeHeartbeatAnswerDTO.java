@@ -30,12 +30,27 @@ public class HeadOfficeHeartbeatAnswerDTO extends HeadOfficePingDTO {
 	/** Enrol switch (2026-10-04): an enrol needs the head office's answer to its phone check. */
 	private Boolean enrolRequiresOnline;
 
+	/** Step 6: the store may change the selling price of a head office item. */
+	private Boolean mayChangePrices;
+
+	/** Step 6: the store may purchase from its own suppliers and create its own items. */
+	private Boolean canPurchase;
+
 	public HeadOfficeHeartbeatAnswerDTO(String storeCode, String serverTime, Boolean canEditMembers,
 			Boolean canAdjustPoints, Boolean redeemRequiresOnline, Boolean enrolRequiresOnline) {
+		this(storeCode, serverTime, canEditMembers, canAdjustPoints, redeemRequiresOnline, enrolRequiresOnline, null,
+				null);
+	}
+
+	public HeadOfficeHeartbeatAnswerDTO(String storeCode, String serverTime, Boolean canEditMembers,
+			Boolean canAdjustPoints, Boolean redeemRequiresOnline, Boolean enrolRequiresOnline, Boolean mayChangePrices,
+			Boolean canPurchase) {
 		super(storeCode, serverTime);
 		this.canEditMembers = canEditMembers;
 		this.canAdjustPoints = canAdjustPoints;
 		this.redeemRequiresOnline = redeemRequiresOnline;
 		this.enrolRequiresOnline = enrolRequiresOnline;
+		this.mayChangePrices = mayChangePrices;
+		this.canPurchase = canPurchase;
 	}
 }

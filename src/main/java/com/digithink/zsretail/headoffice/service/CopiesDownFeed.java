@@ -58,6 +58,9 @@ public class CopiesDownFeed {
 	static final int MAX_LIMIT = 500;
 	static final int TIMEOUT_SECONDS = 15;
 
+	/** Records written per transaction by the startup backfill (step 6). */
+	static final int BACKFILL_CHUNK = 500;
+
 	private final HoDownChangeRepository changes;
 	private final HoDownSequenceRepository sequences;
 	private final Map<DataDomain, DownDomainProvider> providers = new EnumMap<>(DataDomain.class);
@@ -213,8 +216,8 @@ public class CopiesDownFeed {
 	public void initialise() {
 		for (DownDomainProvider provider : providers.values()) {
 			try {
-				Integer added = writeTransactions.execute(status -> backfill(provider));
-				if (added != null && added > 0) {
+				int added = backfill(provider);
+				if (added > 0) {
 					log.info("Head office copies down: {} {} records made available to the stores", added,
 							provider.getDomain());
 				}
@@ -225,24 +228,65 @@ public class CopiesDownFeed {
 		}
 	}
 
-	/** Returns how many records got their first change row. */
+	/**
+	 * Returns how many records got their first change row. Step 6 (a catalogue holds thousands of records): the records
+	 * without a row are written in chunks of {@value #BACKFILL_CHUNK}, each in its own transaction with one update of the
+	 * sequence. Each record still gets its own number, in the order of {@link DownDomainProvider#currentTargets} (a pull
+	 * pages by number, so two codes never share one), and the same rows as one {@link #recordChange} per record. A start
+	 * stopped in the middle goes on at the next start.
+	 */
 	int backfill(DownDomainProvider provider) {
 		DataDomain domain = provider.getDomain();
-		if (sequences.lastVersion(domain).isEmpty()) {
-			HoDownSequence sequence = new HoDownSequence();
-			sequence.setDomain(domain);
-			sequence.setLastVersion(0);
-			sequences.save(sequence);
-		}
-		Set<String> known = new HashSet<>(changes.findCodes(domain));
-		int added = 0;
-		for (Map.Entry<String, StoreTargets> record : provider.currentTargets().entrySet()) {
-			if (!known.contains(record.getKey())) {
-				recordChange(domain, record.getKey(), record.getValue());
-				added++;
+		List<Map.Entry<String, StoreTargets>> missing = writeTransactions.execute(status -> {
+			if (sequences.lastVersion(domain).isEmpty()) {
+				HoDownSequence sequence = new HoDownSequence();
+				sequence.setDomain(domain);
+				sequence.setLastVersion(0);
+				sequences.save(sequence);
 			}
+			Set<String> known = new HashSet<>(changes.findCodes(domain));
+			List<Map.Entry<String, StoreTargets>> records = new ArrayList<>();
+			for (Map.Entry<String, StoreTargets> record : provider.currentTargets().entrySet()) {
+				if (record.getKey() != null && !record.getKey().trim().isEmpty() && !known.contains(record.getKey())) {
+					records.add(record);
+				}
+			}
+			return records;
+		});
+		int added = 0;
+		for (int from = 0; from < missing.size(); from += BACKFILL_CHUNK) {
+			List<Map.Entry<String, StoreTargets>> chunk = missing.subList(from,
+					Math.min(from + BACKFILL_CHUNK, missing.size()));
+			writeTransactions.executeWithoutResult(status -> addFirstChanges(domain, chunk));
+			added += chunk.size();
 		}
 		return added;
+	}
+
+	/** One number per record, reserved with one update of the sequence; the rows of each record's targets. */
+	private void addFirstChanges(DataDomain domain, List<Map.Entry<String, StoreTargets>> records) {
+		sequences.incrementBy(domain, records.size()); // the row stays locked until the commit
+		long version = sequences.lastVersion(domain).get(0) - records.size();
+		List<HoDownChange> rows = new ArrayList<>();
+		for (Map.Entry<String, StoreTargets> record : records) {
+			version++;
+			if (record.getValue().isAllStores()) {
+				rows.add(newChange(domain, record.getKey(), null, version));
+			}
+			for (Long storeId : record.getValue().getStoreIds()) {
+				rows.add(newChange(domain, record.getKey(), storeId, version));
+			}
+		}
+		changes.saveAll(rows);
+	}
+
+	private static HoDownChange newChange(DataDomain domain, String code, Long storeId, long version) {
+		HoDownChange change = new HoDownChange();
+		change.setDomain(domain);
+		change.setRecordCode(code);
+		change.setStoreId(storeId);
+		change.setChangeVersion(version);
+		return change;
 	}
 
 	/** The domains served, in DataDomain order. */

@@ -16,6 +16,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -32,6 +33,7 @@ import com.digithink.zsretail.model.Location;
 import com.digithink.zsretail.model.SalesDiscount;
 import com.digithink.zsretail.model.SalesPrice;
 import com.digithink.zsretail.model.Vendor;
+import com.digithink.zsretail.model.enumeration.CatalogueKind;
 import com.digithink.zsretail.model.enumeration.SalesDiscountSalesType;
 import com.digithink.zsretail.model.enumeration.SalesDiscountType;
 import com.digithink.zsretail.model.enumeration.SalesPriceType;
@@ -64,6 +66,17 @@ public class DataImportService {
     private final LocationRepository locationRepository;
     private final SalesPriceRepository salesPriceRepository;
     private final SalesDiscountRepository salesDiscountRepository;
+
+    /** Step 6: a head office that sends its catalogue records what an import saved; no bean on a store. */
+    private final ObjectProvider<CatalogueHeadOfficeHooks> catalogueHooks;
+
+    /** Step 6: the codes an import saved go to the stores of a head office (nothing elsewhere). */
+    private void afterImport(CatalogueKind kind, List<String> codes) {
+        CatalogueHeadOfficeHooks hooks = catalogueHooks.getIfAvailable();
+        if (hooks != null && !codes.isEmpty()) {
+            hooks.afterImport(kind, codes);
+        }
+    }
 
     public ImportPreviewDTO previewFile(MultipartFile file) throws IOException {
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
@@ -127,6 +140,7 @@ public class DataImportService {
             throws IOException {
         List<RowError> errors = new ArrayList<>();
         int successCount = 0;
+        List<String> imported = new ArrayList<>(); // step 6: sent to the stores by a head office
         int totalRows = 0;
 
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
@@ -159,6 +173,7 @@ public class DataImportService {
                     family.setUpdatedAt(LocalDateTime.now());
                     family.setUpdatedBy("Import");
                     itemFamilyRepository.save(family);
+                    imported.add(family.getCode());
                     successCount++;
                 } catch (Exception e) {
                     errors.add(new RowError(i + 1, e.getMessage()));
@@ -166,6 +181,7 @@ public class DataImportService {
                 }
             }
         }
+        afterImport(CatalogueKind.FAMILY, imported);
         return new ImportResultDTO(totalRows, successCount, errors.size(), errors);
     }
 
@@ -175,6 +191,7 @@ public class DataImportService {
             throws IOException {
         List<RowError> errors = new ArrayList<>();
         int successCount = 0;
+        List<String> imported = new ArrayList<>(); // step 6: sent to the stores by a head office
         int totalRows = 0;
 
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
@@ -212,6 +229,7 @@ public class DataImportService {
                     subFamily.setUpdatedAt(LocalDateTime.now());
                     subFamily.setUpdatedBy("Import");
                     itemSubFamilyRepository.save(subFamily);
+                    imported.add(subFamily.getCode());
                     successCount++;
                 } catch (Exception e) {
                     errors.add(new RowError(i + 1, e.getMessage()));
@@ -219,6 +237,7 @@ public class DataImportService {
                 }
             }
         }
+        afterImport(CatalogueKind.SUBFAMILY, imported);
         return new ImportResultDTO(totalRows, successCount, errors.size(), errors);
     }
 
@@ -228,6 +247,7 @@ public class DataImportService {
             throws IOException {
         List<RowError> errors = new ArrayList<>();
         int successCount = 0;
+        List<String> imported = new ArrayList<>(); // step 6: sent to the stores by a head office
         int totalRows = 0;
 
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
@@ -300,6 +320,7 @@ public class DataImportService {
                     item.setUpdatedAt(LocalDateTime.now());
                     item.setUpdatedBy("Import");
                     itemRepository.save(item);
+                    imported.add(item.getItemCode());
                     successCount++;
                 } catch (Exception e) {
                     errors.add(new RowError(i + 1, e.getMessage()));
@@ -307,6 +328,7 @@ public class DataImportService {
                 }
             }
         }
+        afterImport(CatalogueKind.ITEM, imported);
         return new ImportResultDTO(totalRows, successCount, errors.size(), errors);
     }
 
@@ -483,6 +505,7 @@ public class DataImportService {
             throws IOException {
         List<RowError> errors = new ArrayList<>();
         int successCount = 0;
+        List<String> imported = new ArrayList<>(); // step 6: sent to the stores by a head office
         int totalRows = 0;
 
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
@@ -527,6 +550,7 @@ public class DataImportService {
                     barcode.setUpdatedAt(LocalDateTime.now());
                     barcode.setUpdatedBy("Import");
                     itemBarcodeRepository.save(barcode);
+                    imported.add(barcode.getBarcode());
                     successCount++;
                 } catch (Exception e) {
                     errors.add(new RowError(i + 1, e.getMessage()));
@@ -534,6 +558,7 @@ public class DataImportService {
                 }
             }
         }
+        afterImport(CatalogueKind.BARCODE, imported);
         return new ImportResultDTO(totalRows, successCount, errors.size(), errors);
     }
 

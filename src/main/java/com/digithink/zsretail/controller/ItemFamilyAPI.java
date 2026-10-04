@@ -1,17 +1,21 @@
 package com.digithink.zsretail.controller;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.model.ItemFamily;
+import com.digithink.zsretail.service.CatalogueCodeChangeException;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.ItemFamilyService;
 
@@ -68,6 +72,28 @@ public class ItemFamilyAPI extends _BaseController<ItemFamily, Long, ItemFamilyS
 			return ResponseEntity.status(HttpStatus.CREATED).body(created);
 		} catch (Exception e) {
 			log.error("ItemFamilyAPI::create:error: " + getDetailedMessage(e), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/**
+	 * The generic update. Step 6: 409 when a head office that sends its catalogue would change the family's code.
+	 */
+	@Override
+	@PutMapping("/{id}")
+	public ResponseEntity<?> update(@PathVariable Long id, @RequestBody ItemFamily entity) {
+		try {
+			log.info("ItemFamilyAPI::update::" + id);
+			Optional<ItemFamily> existing = service.findById(id);
+			if (!existing.isPresent()) {
+				return ResponseEntity.notFound().build();
+			}
+			entity.setId(existing.get().getId());
+			return ResponseEntity.ok(service.save(entity));
+		} catch (CatalogueCodeChangeException e) {
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(e.getMessage()));
+		} catch (Exception e) {
+			log.error("ItemFamilyAPI::update:error: " + getDetailedMessage(e), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
 		}
 	}

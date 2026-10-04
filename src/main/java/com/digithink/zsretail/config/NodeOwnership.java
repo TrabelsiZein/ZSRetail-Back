@@ -156,6 +156,15 @@ public final class NodeOwnership {
 		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && !flag(env, STANDALONE_KEY);
 	}
 
+	/**
+	 * True on a head office without an ERP (step 6): node.type=HEAD_OFFICE and application.standalone true (read like
+	 * ApplicationModeService). It sends its catalogue to its stores and keeps the price lists. Also used by
+	 * {@link OnHeadOfficeStandaloneCondition}.
+	 */
+	public static boolean isHeadOfficeStandaloneSet(PropertyResolver env) {
+		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && flag(env, STANDALONE_KEY);
+	}
+
 	/** The mode flags read from the environment like {@link ApplicationModeService}. */
 	private static NodeOwnership resolveFromEnvironment(PropertyResolver env) {
 		return resolve(env, flag(env, STANDALONE_KEY), flag(env, FRANCHISE_ADMIN_KEY), flag(env, FRANCHISE_CUSTOMER_KEY));

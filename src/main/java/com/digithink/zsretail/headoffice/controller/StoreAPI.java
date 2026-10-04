@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.controller;
 
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
@@ -111,6 +112,33 @@ public class StoreAPI extends _BaseController<Store, Long, StoreService> {
 			return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(e.getMessage()));
 		} catch (Exception e) {
 			log.error("StoreAPI::deleteById:error: " + getDetailedMessage(e), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/**
+	 * Task 6.4: the store's selling price list. Body {"priceListId": 3}, or {"priceListId": null} for none (the base
+	 * price). 200 the store; 400 for an unknown or inactive list; 404 for an unknown store.
+	 */
+	@PutMapping("/{id}/selling-price-list")
+	public ResponseEntity<?> setSellingPriceList(@PathVariable Long id, @RequestBody(required = false) Map<String, Object> body) {
+		try {
+			log.info("StoreAPI::setSellingPriceList::" + id);
+			Object raw = body == null ? null : body.get("priceListId");
+			Long priceListId;
+			if (raw == null) {
+				priceListId = null;
+			} else if (raw instanceof Number) {
+				priceListId = ((Number) raw).longValue();
+			} else {
+				return ResponseEntity.badRequest().body(createErrorResponse("priceListId must be a number or null."));
+			}
+			Optional<Store> updated = service.setSellingPriceList(id, priceListId);
+			return updated.<ResponseEntity<?>>map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+		} catch (Exception e) {
+			log.error("StoreAPI::setSellingPriceList:error: " + getDetailedMessage(e), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
 		}
 	}

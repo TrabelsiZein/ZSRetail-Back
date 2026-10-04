@@ -1,6 +1,7 @@
 package com.digithink.zsretail.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -62,4 +63,11 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 
 	/** Franchise: returns all items (active and inactive) modified after the given datetime. */
 	List<Item> findByUpdatedAtAfter(LocalDateTime updatedAt);
+
+	/** Head office plan, step 6: the items of these codes. */
+	List<Item> findByItemCodeIn(Collection<String> itemCodes);
+
+	/** Step 6: every item code (the startup backfill of the catalogue copies). */
+	@Query("select i.itemCode from Item i")
+	List<String> findAllCodes();
 }

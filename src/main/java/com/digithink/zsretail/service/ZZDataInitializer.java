@@ -235,7 +235,8 @@ public class ZZDataInitializer {
 			"read:admin-headoffice-erp-jobs", // task 3.4: shown only on a head office with an ERP
 			"read:admin-headoffice-erp-communications",
 			"read:admin-headoffice-erp-reference-location",
-			"read:admin-headoffice-loyalty-overspends")); // step 5: overspend report
+			"read:admin-headoffice-loyalty-overspends", // step 5: overspend report
+			"read:admin-headoffice-price-lists")); // step 6: selling price lists (head office without an ERP)
 
 	/** Store with headoffice.url only: the "Head office link" page (task 1.5). */
 	static final Set<String> HEAD_OFFICE_LINK_ADMIN_PERMISSIONS = new HashSet<>(

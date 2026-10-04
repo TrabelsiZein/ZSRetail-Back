@@ -32,6 +32,7 @@ import com.digithink.zsretail.model.ItemBarcode;
 import com.digithink.zsretail.model.ItemComposition;
 import com.digithink.zsretail.model.enumeration.ItemType;
 import com.digithink.zsretail.repository.CustomerRepository;
+import com.digithink.zsretail.service.CatalogueCodeChangeException;
 import com.digithink.zsretail.service.CustomerService;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.ItemBarcodeService;
@@ -183,6 +184,8 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			entity.setLastDirectNetCost(existingItem.getLastDirectNetCost());
 			Item updated = service.save(entity);
 			return ResponseEntity.ok(updated);
+		} catch (CatalogueCodeChangeException e) {
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(e.getMessage())); // step 6
 		} catch (Exception e) {
 			log.error("ItemAPI::update:error: " + getDetailedMessage(e), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));

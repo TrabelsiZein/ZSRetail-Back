@@ -2,8 +2,10 @@ package com.digithink.zsretail.service;
 
 import java.util.List;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.ItemComposition;
@@ -20,6 +22,10 @@ public class ItemCompositionService extends _BaseService<ItemComposition, Long> 
 
 	@Autowired
 	private ItemRepository itemRepository;
+
+	/** Step 6: a head office that sends its catalogue sends a pack again when its components change; none on a store. */
+	@Autowired(required = false)
+	private ObjectProvider<CatalogueHeadOfficeHooks> catalogueHooks;
 
 	@Override
 	protected _BaseRepository<ItemComposition, Long> getRepository() {
@@ -42,6 +48,7 @@ public class ItemCompositionService extends _BaseService<ItemComposition, Long> 
 	}
 
 	@Override
+	@Transactional
 	public ItemComposition save(ItemComposition entity) throws Exception {
 		if (entity.getParentItem() == null || entity.getParentItem().getId() == null) {
 			throw new IllegalArgumentException("L'article parent est obligatoire");
@@ -80,6 +87,28 @@ public class ItemCompositionService extends _BaseService<ItemComposition, Long> 
 
 		entity.setParentItem(parent);
 		entity.setComponentItem(component);
-		return super.save(entity);
+		CatalogueHeadOfficeHooks hooks = CatalogueHookCalls.hooks(catalogueHooks);
+		Long previousParentId = hooks == null || entity.getId() == null ? null
+				: itemCompositionRepository.findById(entity.getId()).map(c -> c.getParentItem().getId()).orElse(null);
+		ItemComposition saved = super.save(entity);
+		if (hooks != null) {
+			if (previousParentId != null && !previousParentId.equals(parentId)) {
+				hooks.afterPackChanged(previousParentId);
+			}
+			hooks.afterPackChanged(parentId);
+		}
+		return saved;
+	}
+
+	@Override
+	@Transactional
+	public void deleteById(Long id) {
+		CatalogueHeadOfficeHooks hooks = CatalogueHookCalls.hooks(catalogueHooks);
+		Long parentId = hooks == null ? null
+				: itemCompositionRepository.findById(id).map(c -> c.getParentItem().getId()).orElse(null);
+		super.deleteById(id);
+		if (parentId != null) {
+			hooks.afterPackChanged(parentId);
+		}
 	}
 }

@@ -3,11 +3,14 @@ package com.digithink.zsretail.service;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.ItemBarcode;
+import com.digithink.zsretail.model.enumeration.CatalogueKind;
 import com.digithink.zsretail.model.enumeration.ItemType;
 import com.digithink.zsretail.repository.ItemBarcodeRepository;
 import com.digithink.zsretail.repository._BaseRepository;
@@ -21,9 +24,30 @@ public class ItemBarcodeService extends _BaseService<ItemBarcode, Long> {
 //	@Autowired
 //	private ItemRepository itemRepository;
 
+	/** Step 6: a head office that sends its catalogue records each change; no bean on a store. */
+	@Autowired(required = false)
+	private ObjectProvider<CatalogueHeadOfficeHooks> catalogueHooks;
+
 	@Override
 	protected _BaseRepository<ItemBarcode, Long> getRepository() {
 		return itemBarcodeRepository;
+	}
+
+	@Override
+	@Transactional
+	public ItemBarcode save(ItemBarcode barcode) throws Exception {
+		return CatalogueHookCalls.save(CatalogueHookCalls.hooks(catalogueHooks), CatalogueKind.BARCODE, barcode,
+				id -> itemBarcodeRepository.findById(id).map(ItemBarcode::getBarcode), super::save);
+	}
+
+	@Override
+	@Transactional
+	public void deleteById(Long id) {
+		CatalogueHeadOfficeHooks hooks = CatalogueHookCalls.hooks(catalogueHooks);
+		if (hooks != null) {
+			itemBarcodeRepository.findById(id).ifPresent(barcode -> hooks.beforeDelete(CatalogueKind.BARCODE, barcode));
+		}
+		super.deleteById(id);
 	}
 
 	/**

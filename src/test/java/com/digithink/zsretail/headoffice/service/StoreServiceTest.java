@@ -292,6 +292,33 @@ class StoreServiceTest {
 	}
 
 	@Test
+	@DisplayName("Step 6: mayChangePrices and canPurchase false by default, set on create and update, kept when absent;"
+			+ " a selling price list needs the price lists (none on a head office with an ERP)")
+	void catalogueSettings() throws Exception {
+		Store created = service.create(input("RS01", "Store Sousse")).getStore();
+		assertFalse(created.getMayChangePrices());
+		assertFalse(created.getCanPurchase());
+		assertNull(created.getSellingPriceListId());
+		Store prices = new Store();
+		prices.setMayChangePrices(true);
+		assertTrue(service.update(created.getId(), prices).get().getMayChangePrices());
+		Store purchase = new Store();
+		purchase.setCanPurchase(true);
+		Store updated = service.update(created.getId(), purchase).get();
+		assertTrue(updated.getCanPurchase());
+		assertTrue(updated.getMayChangePrices(), "kept when absent");
+		Store list = new Store();
+		list.setSellingPriceListId(3L);
+		assertNull(service.update(created.getId(), list).get().getSellingPriceListId(), "the generic PUT ignores the list");
+
+		Store withList = input("RS02", "Store Tunis");
+		withList.setSellingPriceListId(3L);
+		assertThrows(IllegalArgumentException.class, () -> service.create(withList), "no price lists here");
+		assertThrows(IllegalArgumentException.class, () -> service.setSellingPriceList(created.getId(), 3L));
+		assertFalse(service.setSellingPriceList(999L, null).isPresent());
+	}
+
+	@Test
 	@DisplayName("Step 4: the code HO is kept for the head office's loyalty cards (LYL-HO-...)")
 	void headOfficeCodeReserved() {
 		for (String code : new String[] { "HO", " ho " }) {

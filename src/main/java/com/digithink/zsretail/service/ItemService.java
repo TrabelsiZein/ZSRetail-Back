@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 import javax.persistence.criteria.Predicate;
 import javax.persistence.criteria.Subquery;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +21,7 @@ import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.ItemFamily;
 import com.digithink.zsretail.model.ItemSubFamily;
+import com.digithink.zsretail.model.enumeration.CatalogueKind;
 import com.digithink.zsretail.model.enumeration.ItemType;
 import com.digithink.zsretail.repository.ItemFamilyRepository;
 import com.digithink.zsretail.repository.ItemRepository;
@@ -40,6 +42,10 @@ public class ItemService extends _BaseService<Item, Long> {
 
 	@Autowired
 	private ApplicationModeService applicationModeService;
+
+	/** Step 6: a head office that sends its catalogue records each change; no bean on a store. */
+	@Autowired(required = false)
+	private ObjectProvider<CatalogueHeadOfficeHooks> catalogueHooks;
 
 	@Override
 	protected _BaseRepository<Item, Long> getRepository() {
@@ -143,7 +149,23 @@ public class ItemService extends _BaseService<Item, Long> {
 			item.setItemFamily(persistedFamily);
 		}
 
-		return super.save(item);
+		return saveWithHooks(item);
+	}
+
+	/** super.save, with the head office catalogue hooks around it when they exist (step 6). */
+	private Item saveWithHooks(Item item) throws Exception {
+		return CatalogueHookCalls.save(CatalogueHookCalls.hooks(catalogueHooks), CatalogueKind.ITEM, item,
+				id -> itemRepository.findById(id).map(Item::getItemCode), super::save);
+	}
+
+	@Override
+	@Transactional
+	public void deleteById(Long id) {
+		CatalogueHeadOfficeHooks hooks = CatalogueHookCalls.hooks(catalogueHooks);
+		if (hooks != null) {
+			itemRepository.findById(id).ifPresent(item -> hooks.beforeDelete(CatalogueKind.ITEM, item));
+		}
+		super.deleteById(id);
 	}
 
 	/**
@@ -239,7 +261,12 @@ public class ItemService extends _BaseService<Item, Long> {
 		item.setType(ItemType.PRODUCT);
 		item.setShowInPos(true);
 		item.setActive(true);
-		return super.save(item);
+		CatalogueHeadOfficeHooks hooks = CatalogueHookCalls.hooks(catalogueHooks);
+		if (hooks != null) { // step 6: the default family and sub-family may have just been created
+			hooks.afterSave(CatalogueKind.FAMILY, family.getCode(), family);
+			hooks.afterSave(CatalogueKind.SUBFAMILY, subFamily.getCode(), subFamily);
+		}
+		return saveWithHooks(item);
 	}
 
 	private String generateStandaloneItemCode() {
