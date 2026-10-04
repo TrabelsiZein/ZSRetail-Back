@@ -12,14 +12,16 @@ param(
 
 $latest = Join-Path $DevRoot 'artifacts\latest.txt'
 if (-not (Test-Path $latest)) { throw "No artifact: run devenv\build.ps1 first" }
-$war = (Get-Content $latest -Raw).Trim()
+$artifact = (Get-Content $latest -Raw).Trim()
+if (-not (Test-Path (Join-Path $artifact 'WEB-INF'))) { throw "$artifact is not an exploded WAR: run devenv\build.ps1" }
 
 foreach ($name in $Instance) {
 	$inst = Get-DevInstance $name
 	if (Get-DevPid $name) { Write-Output "$name already running (pid $(Get-DevPid $name))"; continue }
 	foreach ($dir in 'pids', 'logs', "work\$name") { New-Item -ItemType Directory -Force (Join-Path $DevRoot $dir) | Out-Null }
 	New-Item -ItemType Directory -Force (Split-Path -Parent $inst.Log) | Out-Null
-	$arguments = @('-jar', "`"$war`"", "--spring.profiles.active=$($inst.Profile)")
+	# The exploded WAR, started by Spring Boot's WarLauncher (classes read from plain files, not nested jars)
+	$arguments = @('-cp', "`"$artifact`"", 'org.springframework.boot.loader.WarLauncher', "--spring.profiles.active=$($inst.Profile)")
 	foreach ($pair in $Set) { $arguments += "--$pair" }
 	$proc = Start-Process -FilePath (Join-Path $DevJdk 'bin\java.exe') -ArgumentList $arguments `
 		-WorkingDirectory (Join-Path $DevRoot "work\$name") -WindowStyle Hidden -PassThru `
