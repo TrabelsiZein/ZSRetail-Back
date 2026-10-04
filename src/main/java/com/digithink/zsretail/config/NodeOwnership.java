@@ -20,11 +20,9 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * Installation type, owner of each data domain and sales upstreams (head office design 2.1, 2.2).
  *
  * Each value comes from its optional property when present ({@code node.type}, {@code ownership.<domain>},
- * {@code sales.upstream}); otherwise it is derived from application.standalone (design 5.1):
- *
- *   mode                 type   catalogue    customers  promotions  loyalty  supply       sales go to
- *   standalone           STORE  LOCAL        LOCAL      LOCAL       LOCAL    LOCAL        nowhere
- *   ERP                  STORE  ERP          ERP        LOCAL       LOCAL    ERP          ERP
+ * {@code sales.upstream}); a preset states every one of them (task 9.3, docs/deployment-modes.md). Absent: the owner is
+ * LOCAL, the node type STORE and the sales go nowhere. The property application.standalone was removed (task 9.3): a
+ * configuration that still sets it stops the startup with a message naming the presets.
  *
  * An explicit value that is unknown, or an owner the domain does not allow, throws {@link IllegalStateException}
  * naming the key, so the application does not start. The franchise profiles were removed (step 9, task 9.4a):
@@ -46,16 +44,13 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * Copies down (step 3): a store with an explicit {@code ownership.promotions=HEAD_OFFICE} without {@code headoffice.url}
  * fails; with the URL set, a {@code headoffice.pull.interval-seconds} below 1 fails. Shared loyalty (step 4): the same
  * for {@code ownership.loyalty=HEAD_OFFICE}, and with the URL set a {@code headoffice.loyalty-push.interval-seconds}
- * below 1 fails. Catalogue (step 6): the same for {@code ownership.catalogue=HEAD_OFFICE}, which also fails with
- * application.standalone=false. Supply (step 7A): the same for {@code ownership.supply=HEAD_OFFICE}, which also fails
- * with application.standalone=false,
- * or without {@code ownership.catalogue=HEAD_OFFICE} (a BL names head office items by code); with the URL set a
+ * below 1 fails. Catalogue (step 6): the same for {@code ownership.catalogue=HEAD_OFFICE}. Supply (step 7A): the same for
+ * {@code ownership.supply=HEAD_OFFICE}, which also fails without {@code ownership.catalogue=HEAD_OFFICE} (a BL names head office items by code); with the URL set a
  * {@code headoffice.supply-push.interval-seconds} below 1 fails.
  * <p>
- * Owners and application.standalone agree (step 9, task 9.1a): with application.standalone=true an explicit owner ERP
- * fails; with application.standalone=false (or absent) an explicit owner other than ERP for the catalogue, the customers
- * or the supply fails. Every configuration that starts
- * then answers "an owner is the ERP" exactly as application.standalone=false (ModeQuestionTruthTableTest).
+ * The ERP owns all or nothing (step 9, tasks 9.1a and 9.3): the catalogue, the customers and the supply (the domains an
+ * ERP can own) are the ERP's together, or none of them is. Any other mix stops the startup (an ERP store, its items
+ * from a head office, for example), so "an owner is the ERP" answers every step 9 question (ModeQuestionTruthTableTest).
  */
 public final class NodeOwnership {
 
@@ -84,7 +79,12 @@ public final class NodeOwnership {
 	public static final int SALES_PUSH_MAX_BATCH_SIZE = 1000;
 
 	// Mode flags, read like ApplicationModeService (@Value with a false default)
+	/** Removed at task 9.3: refused at startup (checkNoStandaloneProperty). */
 	static final String STANDALONE_KEY = "application.standalone";
+
+	/** The presets of task 9.3 (src/main/resources/application-<name>.properties), named by the machine file. */
+	public static final java.util.List<String> PRESETS = java.util.Collections.unmodifiableList(java.util.Arrays.asList("store",
+			"store-erp", "headoffice", "headoffice-erp", "network-store", "network-store-erp"));
 	static final String FRANCHISE_ADMIN_KEY = "franchise.admin";
 	static final String FRANCHISE_CUSTOMER_KEY = "franchise.customer";
 
@@ -174,8 +174,7 @@ public final class NodeOwnership {
 	}
 
 	/**
-	 * True on a head office with an ERP (task 3.4): node.type=HEAD_OFFICE and an owner ERP (step 9: no direct read of
-	 * application.standalone). Also used by {@link OnHeadOfficeErpCondition}.
+	 * True on a head office with an ERP (task 3.4): node.type=HEAD_OFFICE and an owner ERP (preset headoffice-erp). Also used by {@link OnHeadOfficeErpCondition}.
 	 */
 	public static boolean isHeadOfficeErpSet(PropertyResolver env) {
 		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && resolve(env).hasErp();
@@ -188,15 +187,6 @@ public final class NodeOwnership {
 	 */
 	public static boolean isHeadOfficeStandaloneSet(PropertyResolver env) {
 		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && !resolve(env).hasErp();
-	}
-
-	/**
-	 * The installation of this environment, as ApplicationModeService resolves it at startup. The one place where
-	 * application.standalone is read (false when absent): it is the input of the derivation (design 5.1) until task 9.3.
-	 * Throws {@link IllegalStateException} naming the key when the configuration cannot start.
-	 */
-	public static NodeOwnership resolve(PropertyResolver env) {
-		return resolve(env, flag(env, STANDALONE_KEY));
 	}
 
 	/**
@@ -220,11 +210,12 @@ public final class NodeOwnership {
 	}
 
 	/**
-	 * The derivation with application.standalone given ({@code standalone}, false when absent): used by
-	 * {@link #resolve(PropertyResolver)} and by the tests. Throws {@link IllegalStateException} naming the key when the
-	 * configuration cannot start (see the class comment).
+	 * The installation of this environment, as ApplicationModeService resolves it at startup (and every head office
+	 * condition). Throws {@link IllegalStateException} naming the key when the configuration cannot start (see the class
+	 * comment).
 	 */
-	public static NodeOwnership resolve(PropertyResolver env, boolean standalone) {
+	public static NodeOwnership resolve(PropertyResolver env) {
+		checkNoStandaloneProperty(env);
 		checkNoFranchiseFlag(env);
 		NodeType nodeType = nodeTypeOf(env);
 		boolean headOffice = nodeType == NodeType.HEAD_OFFICE;
@@ -233,19 +224,10 @@ public final class NodeOwnership {
 			checkWholeSeconds(env, OFFLINE_AFTER_KEY);
 		}
 
-		Map<DataDomain, DataOwner> derivedOwners;
-		Set<SalesUpstream> derivedUpstreams;
-		if (standalone) {
-			derivedOwners = owners(DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.LOCAL,
-					DataOwner.LOCAL);
-			derivedUpstreams = EnumSet.noneOf(SalesUpstream.class);
-		} else {
-			derivedOwners = owners(DataOwner.ERP, DataOwner.ERP, DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.ERP);
-			derivedUpstreams = EnumSet.of(SalesUpstream.ERP);
-		}
-		if (headOffice) {
-			derivedUpstreams = EnumSet.noneOf(SalesUpstream.class); // a head office never sells
-		}
+		// Absent keys: everything LOCAL, sales nowhere (a preset states them all)
+		Map<DataDomain, DataOwner> derivedOwners = owners(DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.LOCAL,
+				DataOwner.LOCAL, DataOwner.LOCAL);
+		Set<SalesUpstream> derivedUpstreams = EnumSet.noneOf(SalesUpstream.class);
 
 		Map<DataDomain, DataOwner> owners = new EnumMap<>(DataDomain.class);
 		for (DataDomain domain : DataDomain.values()) {
@@ -272,22 +254,11 @@ public final class NodeOwnership {
 			}
 		}
 
-		String catalogueKey = DataDomain.CATALOGUE.getPropertyKey();
-		if (!headOffice && env.containsProperty(catalogueKey) && owners.get(DataDomain.CATALOGUE) == DataOwner.HEAD_OFFICE) {
-			if (!standalone) {
-				throw new IllegalStateException("Invalid combination: " + catalogueKey + "=HEAD_OFFICE with "
-						+ STANDALONE_KEY + "=false. A store whose items come from an ERP cannot receive them from a head"
-						+ " office; set " + catalogueKey + " to ERP, or " + STANDALONE_KEY + " to true.");
-			}
-		}
+		checkErpOwnsAllOrNothing(owners);
 
+		String catalogueKey = DataDomain.CATALOGUE.getPropertyKey();
 		String supplyKey = DataDomain.SUPPLY.getPropertyKey();
 		if (!headOffice && env.containsProperty(supplyKey) && owners.get(DataDomain.SUPPLY) == DataOwner.HEAD_OFFICE) {
-			if (!standalone) {
-				throw new IllegalStateException("Invalid combination: " + supplyKey + "=HEAD_OFFICE with "
-						+ STANDALONE_KEY + "=false. A store whose stock is kept by an ERP cannot receive BLs from a head"
-						+ " office; set " + supplyKey + " to ERP, or " + STANDALONE_KEY + " to true.");
-			}
 			if (owners.get(DataDomain.CATALOGUE) != DataOwner.HEAD_OFFICE) {
 				throw new IllegalStateException("Invalid combination: " + supplyKey + "=HEAD_OFFICE without "
 						+ catalogueKey + "=HEAD_OFFICE. A BL names head office items by their code: the store's items must"
@@ -295,7 +266,6 @@ public final class NodeOwnership {
 						+ ".");
 			}
 		}
-		checkOwnersAgreeWithStandalone(env, standalone, owners);
 
 		Set<SalesUpstream> upstreams = env.containsProperty(SALES_UPSTREAM_KEY)
 				? parseUpstreams(env.getProperty(SALES_UPSTREAM_KEY))
@@ -329,7 +299,7 @@ public final class NodeOwnership {
 	}
 
 	/**
-	 * Step 9 questions (task 9.1b), replacing the reads of application.standalone one group at a time: the items and
+	 * Step 9 questions (task 9.1b), which replaced the old standalone checks one group at a time: the items and
 	 * families come from the ERP (they cannot be written here).
 	 */
 	public boolean isCatalogueFromErp() {
@@ -347,9 +317,9 @@ public final class NodeOwnership {
 	}
 
 	/**
-	 * Step 9 question: this installation works with an ERP (some domain is owned by the ERP). With the startup check of
-	 * task 9.1a each of the four questions answers exactly {@code application.standalone=false}, for every configuration
-	 * that starts ({@code ModeQuestionTruthTableTest}).
+	 * Step 9 question: this installation works with an ERP (some domain is owned by the ERP). The ERP owns the catalogue,
+	 * the customers and the supply together or none of them (checked at startup), so the four questions answer alike for
+	 * every configuration that starts ({@code ModeQuestionTruthTableTest}).
 	 */
 	public boolean hasErp() {
 		return owners.containsValue(DataOwner.ERP);
@@ -364,35 +334,45 @@ public final class NodeOwnership {
 			if (flag(env, key)) {
 				throw new IllegalStateException("Invalid value '" + env.getProperty(key) + "' for property " + key
 						+ ": the franchise profiles were removed (head office plan, step 9). A franchise network runs as"
-						+ " a head office and stores, from the presets network-headoffice and network-store"
+						+ " a head office and stores, from the presets headoffice and network-store"
 						+ " (docs/modules/franchise.md); remove " + key + ".");
 			}
 		}
 	}
 
 	/**
-	 * Step 9, task 9.1a: application.standalone and the owners say the same thing about the ERP. Without an ERP nothing is
-	 * owned by the ERP; with an ERP the catalogue, the customers and the supply (the domains an ERP can own) are the
-	 * ERP's.
+	 * Task 9.3: application.standalone was removed. A configuration that still sets it (an old profile or machine file)
+	 * stops the startup: a preset states who owns what.
 	 */
-	private static void checkOwnersAgreeWithStandalone(PropertyResolver env, boolean standalone,
-			Map<DataDomain, DataOwner> owners) {
+	private static void checkNoStandaloneProperty(PropertyResolver env) {
+		if (env.containsProperty(STANDALONE_KEY)) {
+			throw new IllegalStateException("The property " + STANDALONE_KEY + " was removed (head office plan, step 9, task"
+					+ " 9.3): name a preset in the machine file instead, spring.profiles.active=" + String.join(" | ", PRESETS)
+					+ " (docs/deployment-modes.md); remove " + STANDALONE_KEY + ".");
+		}
+	}
+
+	/**
+	 * Steps 9.1a and 9.3: the ERP owns the catalogue, the customers and the supply together, or none of them.
+	 */
+	private static void checkErpOwnsAllOrNothing(Map<DataDomain, DataOwner> owners) {
+		DataDomain erpDomain = null;
+		DataDomain otherDomain = null;
 		for (DataDomain domain : DataDomain.values()) {
-			String key = domain.getPropertyKey();
-			if (!env.containsProperty(key)) {
+			if (!domain.allows(DataOwner.ERP)) {
 				continue;
 			}
-			DataOwner owner = owners.get(domain);
-			if (standalone && owner == DataOwner.ERP) {
-				throw new IllegalStateException("Invalid combination: " + key + "=ERP with " + STANDALONE_KEY
-						+ "=true. Without an ERP nothing is owned by the ERP; set " + key + " to LOCAL, or "
-						+ STANDALONE_KEY + " to false.");
+			if (owners.get(domain) == DataOwner.ERP) {
+				erpDomain = erpDomain == null ? domain : erpDomain;
+			} else if (otherDomain == null) {
+				otherDomain = domain;
 			}
-			if (!standalone && domain.allows(DataOwner.ERP) && owner != DataOwner.ERP) {
-				throw new IllegalStateException("Invalid combination: " + key + "=" + owner + " with " + STANDALONE_KEY
-						+ "=false. With an ERP the catalogue, the customers and the supply are the ERP's; set " + key
-						+ " to ERP or remove it, or set " + STANDALONE_KEY + " to true.");
-			}
+		}
+		if (erpDomain != null && otherDomain != null) {
+			throw new IllegalStateException("Invalid combination: " + erpDomain.getPropertyKey() + "=ERP with "
+					+ otherDomain.getPropertyKey() + "=" + owners.get(otherDomain) + ". The ERP owns the catalogue, the"
+					+ " customers and the supply together: set all three to ERP (presets store-erp, headoffice-erp,"
+					+ " network-store-erp) or none of them.");
 		}
 	}
 

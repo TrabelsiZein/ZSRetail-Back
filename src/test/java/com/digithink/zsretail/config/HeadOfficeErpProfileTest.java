@@ -20,8 +20,10 @@ import com.digithink.zsretail.headoffice.service.ErpReferenceLocationService;
 import com.digithink.zsretail.headoffice.service.HeadOfficeErpGuard;
 import com.digithink.zsretail.headoffice.service.HeadOfficeErpJobs;
 import com.digithink.zsretail.model.enumeration.DataDomain;
+import com.digithink.zsretail.support.Installations;
 import com.digithink.zsretail.model.enumeration.DataOwner;
 import com.digithink.zsretail.model.enumeration.NodeType;
+import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, task 3.4: a head office with an ERP starts. The real profile files are read
@@ -31,20 +33,28 @@ import com.digithink.zsretail.model.enumeration.NodeType;
  */
 class HeadOfficeErpProfileTest {
 
-	private static MockEnvironment profile(String name) throws Exception {
-		Properties properties = new Properties();
-		try (InputStream in = HeadOfficeErpProfileTest.class.getResourceAsStream("/application-" + name + ".properties")) {
-			properties.load(in);
+	/** Task 9.3: the old profile names, now presets with their machine files of deploy/. */
+	private static MockEnvironment profile(String name) {
+		switch (name) {
+			case "headoffice-dynamics-dev":
+				return Installations.machine("dev/headoffice-erp.properties");
+			case "headoffice-dev":
+				return Installations.machine("dev/headoffice.properties");
+			case "dynamics-test":
+				return Installations.machine("dev/store-test-nav.properties");
+			case "dynamics-dev":
+				return Installations.machine("dev/store-a-erp.properties");
+			case "dynamics-prod":
+				return Installations.machine("customers/erp-prod.properties");
+			case "standalone-dev":
+				return Installations.machine("dev/store-a.properties");
+			default:
+				throw new IllegalArgumentException(name);
 		}
-		MockEnvironment env = new MockEnvironment();
-		for (String key : properties.stringPropertyNames()) {
-			env.setProperty(key, properties.getProperty(key));
-		}
-		return env;
 	}
 
 	private static NodeOwnership resolve(MockEnvironment env) {
-		return NodeOwnership.resolve(env, Boolean.parseBoolean(env.getProperty("application.standalone", "false")));
+		return NodeOwnership.resolve(env);
 	}
 
 	private static boolean registered(MockEnvironment env, Class<?> beanClass) {
@@ -111,7 +121,10 @@ class HeadOfficeErpProfileTest {
 		assertFalse(NodeOwnership.isHeadOfficeErpSet(stores[0]), "an ERP store is not a head office");
 		assertEquals(OnHeadOfficeErpCondition.class,
 				ConditionalOnHeadOfficeErp.class.getAnnotation(Conditional.class).value()[0]);
-		assertTrue(NodeOwnership.isHeadOfficeErpSet(new MockEnvironment().withProperty("node.type", "head_office")),
-				"standalone absent: ERP mode");
+		// Task 9.3: no owner key is a head office without an ERP; the ERP owners make it one with an ERP
+		assertFalse(NodeOwnership.isHeadOfficeErpSet(new MockEnvironment().withProperty("node.type", "head_office")),
+				"no owner key: without an ERP");
+		assertTrue(NodeOwnership.isHeadOfficeErpSet(
+				TestModes.erpOwners(new MockEnvironment().withProperty("node.type", "head_office"))), "the ERP owners");
 	}
 }

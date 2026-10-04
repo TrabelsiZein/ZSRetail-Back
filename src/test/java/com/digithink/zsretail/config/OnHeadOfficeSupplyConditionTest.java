@@ -21,6 +21,7 @@ import com.digithink.zsretail.holink.service.SupplyPushService;
 import com.digithink.zsretail.holink.service.SupplyVendorGuard;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.DataOwner;
+import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, step 7A: the supply beans of a store (BL reception, the SUPPLY handler, the SUPPLY_PUSH job) exist
@@ -40,7 +41,7 @@ class OnHeadOfficeSupplyConditionTest {
 	}
 
 	private static MockEnvironment standalone(MockEnvironment env) {
-		return env.withProperty("application.standalone", "true");
+		return env; // task 9.3: without an ERP is the default (no owner key)
 	}
 
 	/** The store of step 7A: standalone, linked, catalogue and supply from the head office. */
@@ -54,7 +55,7 @@ class OnHeadOfficeSupplyConditionTest {
 	}
 
 	private static NodeOwnership resolve(MockEnvironment env) {
-		return NodeOwnership.resolve(env, Boolean.parseBoolean(env.getProperty("application.standalone", "false")));
+		return NodeOwnership.resolve(env);
 	}
 
 	@Test
@@ -81,7 +82,7 @@ class OnHeadOfficeSupplyConditionTest {
 				standalone(link()).withProperty("ownership.catalogue", "HEAD_OFFICE"),
 				standalone(link()).withProperty("ownership.catalogue", "HEAD_OFFICE").withProperty("ownership.supply",
 						"LOCAL"),
-				link().withProperty("ownership.supply", "ERP"),
+				TestModes.erpOwners(link()), // an ERP store, linked
 				standalone(link()).withProperty("ownership.loyalty", "HEAD_OFFICE"),
 				standalone(new MockEnvironment()).withProperty("node.type", "HEAD_OFFICE"),
 				new MockEnvironment().withProperty("node.type", "HEAD_OFFICE") };
@@ -109,8 +110,8 @@ class OnHeadOfficeSupplyConditionTest {
 		assertStartsWith("Missing value for property headoffice.url: required when ownership.supply is HEAD_OFFICE",
 				standalone(new MockEnvironment()).withProperty("ownership.catalogue", "LOCAL")
 						.withProperty("ownership.supply", "HEAD_OFFICE"));
-		assertStartsWith("Invalid combination: ownership.supply=HEAD_OFFICE with application.standalone=false",
-				link().withProperty("ownership.supply", "HEAD_OFFICE"));
+		assertStartsWith("Invalid combination: ownership.catalogue=ERP with ownership.supply=HEAD_OFFICE",
+				TestModes.erpOwners(link()).withProperty("ownership.supply", "HEAD_OFFICE"));
 		assertStartsWith("Invalid combination: ownership.supply=HEAD_OFFICE without ownership.catalogue=HEAD_OFFICE",
 				standalone(link()).withProperty("ownership.supply", "HEAD_OFFICE"));
 		assertStartsWith("Invalid combination: ownership.supply=HEAD_OFFICE without ownership.catalogue=HEAD_OFFICE",
@@ -132,7 +133,8 @@ class OnHeadOfficeSupplyConditionTest {
 	void headOfficeReceiver() {
 		assertTrue(registered(standalone(new MockEnvironment()).withProperty("node.type", "HEAD_OFFICE"),
 				HeadOfficeSupplyAPI.class));
-		assertFalse(registered(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE"), HeadOfficeSupplyAPI.class));
+		assertFalse(registered(TestModes.erpOwners(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")),
+				HeadOfficeSupplyAPI.class));
 		assertFalse(registered(supplied(), HeadOfficeSupplyAPI.class));
 		assertTrue(HeadOfficeSupplyAPI.class.isAnnotationPresent(ConditionalOnHeadOfficeStandalone.class));
 	}

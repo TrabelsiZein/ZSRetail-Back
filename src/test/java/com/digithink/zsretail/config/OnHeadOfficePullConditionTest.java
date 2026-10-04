@@ -24,6 +24,7 @@ import com.digithink.zsretail.holink.service.PromotionDownHandler;
 import com.digithink.zsretail.holink.service.StoreLoyaltyHooks;
 import com.digithink.zsretail.holink.service.StoreLoyaltyNetwork;
 import com.digithink.zsretail.model.enumeration.DataDomain;
+import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, task 3.1: the pull beans exist only on a store with headoffice.url and at least one domain owned by
@@ -40,7 +41,7 @@ class OnHeadOfficePullConditionTest {
 	}
 
 	private static MockEnvironment standalone(MockEnvironment env) {
-		return env.withProperty("application.standalone", "true");
+		return env; // task 9.3: without an ERP is the default (no owner key)
 	}
 
 	static boolean registered(MockEnvironment env, Class<?> beanClass) {
@@ -55,7 +56,7 @@ class OnHeadOfficePullConditionTest {
 		assertFalse(NodeOwnership.isHeadOfficePullSet(new MockEnvironment()));
 		assertFalse(NodeOwnership.isHeadOfficePullSet(standalone(new MockEnvironment())));
 		assertFalse(NodeOwnership.isHeadOfficePullSet(standalone(link())), "standalone: every domain local");
-		assertFalse(NodeOwnership.isHeadOfficePullSet(link()), "ERP flags: ERP and local");
+		assertFalse(NodeOwnership.isHeadOfficePullSet(TestModes.erpOwners(link())), "ERP flags: ERP and local");
 		assertFalse(NodeOwnership.isHeadOfficePullSet(standalone(link()).withProperty("ownership.promotions", "LOCAL")));
 		assertFalse(NodeOwnership.isHeadOfficePullSet(standalone(link()).withProperty("sales.upstream", "HEAD_OFFICE")),
 				"sales copies up only");

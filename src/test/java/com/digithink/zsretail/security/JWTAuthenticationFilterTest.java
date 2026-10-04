@@ -24,6 +24,7 @@ import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.model.AppRole;
 import com.digithink.zsretail.model.UserAccount;
 import com.digithink.zsretail.model.enumeration.Role;
+import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, task 1.1: on a head office a cashier role (AppRole.isPosRole, the flag the frontend reads)
@@ -36,7 +37,7 @@ class JWTAuthenticationFilterTest {
 	private static final TreeSet<String> LOGIN_KEYS = new TreeSet<>(Arrays.asList("role", "fullName", "token",
 			"status", "permissions", "appRoleId", "appRoleName", "appRoleLabel", "isPosRole"));
 
-	// Mode flag of today's profile files: application.standalone (the franchise profiles were removed, step 9)
+	// Mode of today's presets: without an ERP (store) or with one (store-erp); task 9.3
 	private static final boolean[][] STORE_PROFILES = {
 			{ true }, // standalone
 			{ false }, // dynamics (ERP)
@@ -45,7 +46,9 @@ class JWTAuthenticationFilterTest {
 	private static ApplicationModeService mode(MockEnvironment env, boolean standalone) throws Exception {
 		ApplicationModeService mode = new ApplicationModeService();
 		inject(mode, "environment", env);
-		env.setProperty("application.standalone", String.valueOf(standalone)); // step 9: read from the environment, no field
+		if (!standalone) {
+			TestModes.erpOwners(env); // task 9.3: the ERP owners instead of application.standalone=false
+		}
 		Method initOwnership = ApplicationModeService.class.getDeclaredMethod("initOwnership");
 		initOwnership.setAccessible(true);
 		initOwnership.invoke(mode);

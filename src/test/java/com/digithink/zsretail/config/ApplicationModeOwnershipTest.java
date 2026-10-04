@@ -19,6 +19,7 @@ import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.DataOwner;
 import com.digithink.zsretail.model.enumeration.NodeType;
 import com.digithink.zsretail.model.enumeration.SalesUpstream;
+import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, task 0.4: node type, data ownership and sales upstreams derived from today's mode
@@ -36,13 +37,22 @@ class ApplicationModeOwnershipTest {
 	private static final DataOwner HO = DataOwner.HEAD_OFFICE;
 	private static final DataOwner ERP = DataOwner.ERP;
 
-	// Mode flag of today's profiles: application.standalone
+	// Task 9.3: without an ERP is the default (no owner key); with an ERP, the owners application.standalone=false used to
+	// imply are added when absent, on a copy (the test may resolve the same environment both ways)
 	private static NodeOwnership standalone(MockEnvironment env) {
-		return NodeOwnership.resolve(env, true);
+		return NodeOwnership.resolve(env);
 	}
 
 	private static NodeOwnership erp(MockEnvironment env) {
-		return NodeOwnership.resolve(env, false);
+		return NodeOwnership.resolve(TestModes.erpOwners(copy(env)));
+	}
+
+	private static MockEnvironment copy(MockEnvironment env) {
+		MockEnvironment copy = new MockEnvironment();
+		java.util.Map<String, Object> source = ((org.springframework.mock.env.MockPropertySource) env.getPropertySources()
+				.get(org.springframework.mock.env.MockPropertySource.MOCK_PROPERTIES_PROPERTY_SOURCE_NAME)).getSource();
+		source.forEach((key, value) -> copy.setProperty(key, String.valueOf(value)));
+		return copy;
 	}
 
 	/** Owners in DataDomain order: catalogue, customers, promotions, loyalty, supply. */
@@ -82,10 +92,16 @@ class ApplicationModeOwnershipTest {
 			for (MockEnvironment env : new MockEnvironment[] { new MockEnvironment(), linkEnv(), headOfficeEnv() }) {
 				for (boolean standalone : new boolean[] { true, false }) {
 					IllegalStateException e = assertThrows(IllegalStateException.class,
-							() -> NodeOwnership.resolve(env.withProperty(key, " TRUE "), standalone));
+							() -> {
+								if (standalone) {
+									standalone(env.withProperty(key, " TRUE "));
+								} else {
+									erp(env.withProperty(key, " TRUE "));
+								}
+							});
 					assertTrue(e.getMessage().startsWith("Invalid value ' TRUE ' for property " + key
 							+ ": the franchise profiles were removed (head office plan, step 9)"), e.getMessage());
-					assertTrue(e.getMessage().contains("network-headoffice and network-store"), e.getMessage());
+					assertTrue(e.getMessage().contains("headoffice and network-store"), e.getMessage());
 				}
 			}
 		}
@@ -148,45 +164,50 @@ class ApplicationModeOwnershipTest {
 		assertEquals(ERP, o.ownerOf(DataDomain.CATALOGUE));
 	}
 
-	// --- Task 9.1a: owners and application.standalone agree ---
+	// --- Tasks 9.1a and 9.3: the ERP owns all or nothing; application.standalone refused ---
 
-	private static void assertRefused(MockEnvironment env, boolean standalone, String... parts) {
-		IllegalStateException e = assertThrows(IllegalStateException.class, () -> NodeOwnership.resolve(env, standalone));
+	private static void assertRefused(MockEnvironment env, String... parts) {
+		IllegalStateException e = assertThrows(IllegalStateException.class, () -> NodeOwnership.resolve(env));
 		for (String part : parts) {
 			assertTrue(e.getMessage().contains(part), "message contains '" + part + "': " + e.getMessage());
 		}
 	}
 
 	@Test
-	@DisplayName("9.1a: without an ERP (standalone=true) an explicit owner ERP is refused, on a store and on a head office")
-	void standaloneRefusesErpOwner() {
-		for (String domain : new String[] { "ownership.catalogue", "ownership.customers", "ownership.supply" }) {
-			assertRefused(new MockEnvironment().withProperty(domain, "ERP"), true,
-					"Invalid combination: " + domain + "=ERP with application.standalone=true");
-			assertRefused(headOfficeEnv().withProperty(domain, " erp "), true, domain + "=ERP");
+	@DisplayName("9.3: application.standalone (true or false) stops the startup, on a store and on a head office, with a message naming the presets")
+	void standalonePropertyRefused() {
+		for (String value : new String[] { "true", "false", "" }) {
+			for (MockEnvironment env : new MockEnvironment[] { new MockEnvironment(), headOfficeEnv() }) {
+				assertRefused(env.withProperty("application.standalone", value),
+						"The property application.standalone was removed (head office plan, step 9, task 9.3)",
+						"spring.profiles.active=store | store-erp | headoffice | headoffice-erp | network-store | network-store-erp");
+			}
 		}
 	}
 
 	@Test
-	@DisplayName("9.1a: with an ERP (standalone=false) catalogue, customers and supply other than ERP are refused; promotions and loyalty stay free")
-	void erpRefusesOtherOwners() {
-		assertRefused(new MockEnvironment().withProperty("ownership.customers", "LOCAL"), false,
-				"Invalid combination: ownership.customers=LOCAL with application.standalone=false");
-		assertRefused(linkEnv().withProperty("ownership.customers", "HEAD_OFFICE"), false,
-				"ownership.customers=HEAD_OFFICE");
-		assertRefused(new MockEnvironment().withProperty("ownership.supply", "LOCAL"), false,
-				"ownership.supply=LOCAL");
-		assertRefused(new MockEnvironment().withProperty("ownership.catalogue", "LOCAL"), false,
-				"ownership.catalogue=LOCAL");
-		assertRefused(headOfficeEnv().withProperty("ownership.catalogue", "LOCAL"), false,
-				"ownership.catalogue=LOCAL");
-		// The step 6 and 7A messages for HEAD_OFFICE with ERP flags are unchanged
-		assertRefused(linkEnv().withProperty("ownership.catalogue", "HEAD_OFFICE"), false,
-				"A store whose items come from an ERP");
+	@DisplayName("9.1a and 9.3: the ERP owns the catalogue, the customers and the supply together or none of them, on a store and on a head office; promotions and loyalty stay free")
+	void erpOwnsAllOrNothing() {
+		String rule = "The ERP owns the catalogue, the customers and the supply together";
+		for (String domain : new String[] { "ownership.catalogue", "ownership.customers", "ownership.supply" }) {
+			assertRefused(new MockEnvironment().withProperty(domain, "ERP"), domain.equals("ownership.catalogue")
+					? "Invalid combination: ownership.catalogue=ERP with ownership.customers=LOCAL" : domain + "=ERP", rule);
+			assertRefused(headOfficeEnv().withProperty(domain, " erp "), rule);
+		}
+		assertRefused(TestModes.erpOwners(new MockEnvironment().withProperty("ownership.customers", "LOCAL")),
+				"Invalid combination: ownership.catalogue=ERP with ownership.customers=LOCAL", rule);
+		assertRefused(TestModes.erpOwners(linkEnv().withProperty("ownership.customers", "HEAD_OFFICE")),
+				"ownership.customers=HEAD_OFFICE", rule);
+		assertRefused(TestModes.erpOwners(new MockEnvironment().withProperty("ownership.supply", "LOCAL")),
+				"ownership.supply=LOCAL", rule);
+		// An ERP store whose items would come from a head office: refused by the same rule
+		assertRefused(TestModes.erpOwners(linkEnv().withProperty("ownership.catalogue", "HEAD_OFFICE")),
+				"Invalid combination: ownership.customers=ERP with ownership.catalogue=HEAD_OFFICE", rule);
 		assertRow(erp(linkEnv().withProperty("ownership.promotions", "HEAD_OFFICE").withProperty("ownership.loyalty",
 				"HEAD_OFFICE")), NodeType.STORE, ERP, ERP, HO, HO, ERP, EnumSet.of(SalesUpstream.ERP));
-		assertRow(erp(new MockEnvironment().withProperty("ownership.catalogue", "ERP")), NodeType.STORE, ERP, ERP, L, L,
-				ERP, EnumSet.of(SalesUpstream.ERP));
+		assertRow(standalone(new MockEnvironment().withProperty("ownership.catalogue", "ERP")
+				.withProperty("ownership.customers", "ERP").withProperty("ownership.supply", "ERP")), NodeType.STORE, ERP,
+				ERP, L, L, ERP, none());
 	}
 
 	// --- Invalid values fail with the key in the message ---
@@ -418,7 +439,9 @@ class ApplicationModeOwnershipTest {
 	private static ApplicationModeService service(MockEnvironment env, boolean standalone) throws Exception {
 		ApplicationModeService service = new ApplicationModeService();
 		inject(service, "environment", env);
-		env.setProperty("application.standalone", String.valueOf(standalone)); // step 9: read from the environment, no field
+		if (!standalone) {
+			TestModes.erpOwners(env); // task 9.3: the ERP owners instead of application.standalone=false
+		}
 		service.initOwnership();
 		return service;
 	}

@@ -39,8 +39,8 @@ class ModeGateTest {
 
 	/** An ERP store and a head office with an ERP (headoffice-dynamics-dev flags). */
 	private static ApplicationModeService[] erpInstallations() {
-		return new ApplicationModeService[] { TestModes.erp(), TestModes.of(new MockEnvironment()
-				.withProperty("application.standalone", "false").withProperty("node.type", "HEAD_OFFICE")) };
+		return new ApplicationModeService[] { TestModes.erp(), TestModes.of(TestModes.erpOwners(new MockEnvironment()
+				.withProperty("node.type", "HEAD_OFFICE"))) };
 	}
 
 	private static void set(Object target, Class<?> declaring, String name, Object value) {

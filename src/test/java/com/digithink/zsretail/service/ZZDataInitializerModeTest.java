@@ -154,11 +154,11 @@ class ZZDataInitializerModeTest {
 	@Test
 	@DisplayName("Without an ERP (a store, a store fed by its head office, a head office): passenger customer created, nothing of the ERP")
 	void withoutErp() throws Exception {
-		ApplicationModeService fed = TestModes.of(new MockEnvironment().withProperty("application.standalone", "true")
+		ApplicationModeService fed = TestModes.of(new MockEnvironment()
 				.withProperty("headoffice.url", "http://localhost:888/zsretail/api").withProperty("headoffice.api-key", "k")
 				.withProperty("ownership.catalogue", "HEAD_OFFICE").withProperty("ownership.supply", "HEAD_OFFICE"));
 		ApplicationModeService headOffice = TestModes.of(new MockEnvironment()
-				.withProperty("application.standalone", "true").withProperty("node.type", "HEAD_OFFICE"));
+				.withProperty("node.type", "HEAD_OFFICE"));
 		for (ApplicationModeService mode : new ApplicationModeService[] { TestModes.standalone(), fed, headOffice }) {
 			Writes writes = init(mode);
 			assertEquals(1, writes.customers, "the passenger customer");
@@ -170,8 +170,8 @@ class ZZDataInitializerModeTest {
 	@Test
 	@DisplayName("With an ERP (a store, a head office): ERP checkpoints, ERP-only settings and ERP jobs seeded, no passenger customer")
 	void withErp() throws Exception {
-		ApplicationModeService headOffice = TestModes.of(new MockEnvironment()
-				.withProperty("application.standalone", "false").withProperty("node.type", "HEAD_OFFICE"));
+		ApplicationModeService headOffice = TestModes.of(TestModes.erpOwners(new MockEnvironment()
+				.withProperty("node.type", "HEAD_OFFICE")));
 		for (ApplicationModeService mode : new ApplicationModeService[] { TestModes.erp(), headOffice }) {
 			Writes writes = init(mode);
 			assertEquals(0, writes.customers, "no passenger customer");

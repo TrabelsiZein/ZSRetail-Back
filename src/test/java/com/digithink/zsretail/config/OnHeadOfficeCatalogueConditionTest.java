@@ -31,6 +31,7 @@ import com.digithink.zsretail.holink.service.CatalogueRights;
 import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.DataOwner;
+import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, step 6: the catalogue beans of a store exist only on a standalone store with headoffice.url and an
@@ -54,7 +55,7 @@ class OnHeadOfficeCatalogueConditionTest {
 	}
 
 	private static MockEnvironment standalone(MockEnvironment env) {
-		return env.withProperty("application.standalone", "true");
+		return env; // task 9.3: without an ERP is the default (no owner key)
 	}
 
 	private static boolean registered(MockEnvironment env, Class<?> beanClass) {
@@ -62,7 +63,7 @@ class OnHeadOfficeCatalogueConditionTest {
 	}
 
 	private static NodeOwnership resolve(MockEnvironment env) {
-		return NodeOwnership.resolve(env, Boolean.parseBoolean(env.getProperty("application.standalone", "false")));
+		return NodeOwnership.resolve(env);
 	}
 
 	@Test
@@ -87,7 +88,7 @@ class OnHeadOfficeCatalogueConditionTest {
 	void off() {
 		MockEnvironment[] off = { new MockEnvironment(), standalone(new MockEnvironment()), standalone(link()), link(),
 				standalone(link()).withProperty("ownership.catalogue", "LOCAL"),
-				link().withProperty("ownership.catalogue", "ERP"),
+				TestModes.erpOwners(link()), // an ERP store, linked
 				standalone(link()).withProperty("ownership.promotions", "HEAD_OFFICE"),
 				standalone(link()).withProperty("ownership.loyalty", "HEAD_OFFICE"),
 				standalone(new MockEnvironment()).withProperty("node.type", "HEAD_OFFICE") };
@@ -114,18 +115,18 @@ class OnHeadOfficeCatalogueConditionTest {
 				"Invalid value 'true' for property franchise.customer: the franchise profiles were removed"),
 				franchise.getMessage());
 		IllegalStateException erp = assertThrows(IllegalStateException.class,
-				() -> resolve(link().withProperty("ownership.catalogue", "HEAD_OFFICE")));
+				() -> resolve(TestModes.erpOwners(link()).withProperty("ownership.catalogue", "HEAD_OFFICE")));
 		assertTrue(erp.getMessage().startsWith(
-				"Invalid combination: ownership.catalogue=HEAD_OFFICE with application.standalone=false"), erp.getMessage());
+				"Invalid combination: ownership.customers=ERP with ownership.catalogue=HEAD_OFFICE"), erp.getMessage());
 		assertThrows(IllegalStateException.class,
-				() -> NodeOwnership.isCatalogueFromHeadOffice(link().withProperty("ownership.catalogue", "HEAD_OFFICE")));
+				() -> NodeOwnership.isCatalogueFromHeadOffice(TestModes.erpOwners(link()).withProperty("ownership.catalogue", "HEAD_OFFICE")));
 	}
 
 	@Test
 	@DisplayName("Head office side: the catalogue and price lists only on a head office without an ERP")
 	void headOfficeBeans() {
 		MockEnvironment standaloneHeadOffice = standalone(new MockEnvironment()).withProperty("node.type", "HEAD_OFFICE");
-		MockEnvironment erpHeadOffice = new MockEnvironment().withProperty("node.type", "HEAD_OFFICE");
+		MockEnvironment erpHeadOffice = TestModes.erpOwners(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE"));
 		for (Class<?> bean : HEAD_OFFICE_BEANS) {
 			assertTrue(registered(standaloneHeadOffice, bean), bean.getSimpleName());
 			assertFalse(registered(erpHeadOffice, bean), bean.getSimpleName());

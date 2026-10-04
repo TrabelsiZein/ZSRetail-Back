@@ -1,12 +1,9 @@
 package com.digithink.zsretail.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import java.io.InputStream;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Properties;
 import java.util.StringJoiner;
 
 import org.junit.jupiter.api.DisplayName;
@@ -14,59 +11,52 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.model.enumeration.DataDomain;
+import com.digithink.zsretail.support.Installations;
 
 /**
  * Head office plan, task 9.3: the answers of every installation shape, frozen. Each row is what the old profile file
- * gave (task 9.3a: read from the old files, still in the WAR); since task 9.3b the same rows are what each preset gives
- * with its machine file. A row: node type, the five owners, where the sales go, the head office switches (link, sales
+ * gave (task 9.3a, commit 596f1bb, checked them against the old files while they were still in the WAR); since task 9.3b
+ * each preset gives the same row with its machine file (deploy/), the old files being gone. A row: node type, the five owners, where the sales go, the head office switches (link, sales
  * push, pull, catalogue and supply from the head office, head office with / without an ERP), an ERP owner, and
  * erp.dynamicsnav.enabled.
  */
 class PresetTruthTableTest {
 
-	/** Old profile [+ keys of the machine] to its frozen row. */
+	/** Installation (machine:<file of deploy/> or preset:<name>) [+ keys of the machine] to its frozen row. */
 	private static final Map<String, String> ROWS = new LinkedHashMap<>();
-	private static final Map<String, String[]> OLD_SOURCES = new LinkedHashMap<>();
+	private static final Map<String, String[]> SOURCES = new LinkedHashMap<>();
 
 	private static final String LINK = "headoffice.url=http://localhost:888/zsretail/api|headoffice.api-key=k";
 
 	static {
-		row("store", "standalone-prod", "",
+		row("store", "machine:customers/store-prod.properties", "",
 				"STORE CATALOGUE=LOCAL CUSTOMERS=LOCAL PROMOTIONS=LOCAL LOYALTY=LOCAL SUPPLY=LOCAL up=[] link=false push=false pull=false catalogueHO=false supplyHO=false hoErp=false hoNoErp=false erp=false nav=false");
-		row("store-erp", "dynamics-prod", "",
+		row("store-erp", "machine:customers/erp-prod.properties", "",
 				"STORE CATALOGUE=ERP CUSTOMERS=ERP PROMOTIONS=LOCAL LOYALTY=LOCAL SUPPLY=ERP up=[ERP] link=false push=false pull=false catalogueHO=false supplyHO=false hoErp=false hoNoErp=false erp=true nav=true");
-		row("headoffice", "headoffice-dev", "",
+		row("headoffice", "machine:dev/headoffice.properties", "",
 				"HEAD_OFFICE CATALOGUE=LOCAL CUSTOMERS=LOCAL PROMOTIONS=LOCAL LOYALTY=LOCAL SUPPLY=LOCAL up=[] link=false push=false pull=false catalogueHO=false supplyHO=false hoErp=false hoNoErp=true erp=false nav=false");
-		row("headoffice-erp", "headoffice-dynamics-dev", "",
+		row("headoffice-erp", "machine:dev/headoffice-erp.properties", "",
 				"HEAD_OFFICE CATALOGUE=ERP CUSTOMERS=ERP PROMOTIONS=LOCAL LOYALTY=LOCAL SUPPLY=ERP up=[] link=false push=false pull=false catalogueHO=false supplyHO=false hoErp=true hoNoErp=false erp=true nav=true");
-		row("network-store", "network-store", LINK,
+		row("network-store", "preset:network-store", LINK,
 				"STORE CATALOGUE=HEAD_OFFICE CUSTOMERS=LOCAL PROMOTIONS=LOCAL LOYALTY=LOCAL SUPPLY=HEAD_OFFICE up=[HEAD_OFFICE] link=true push=true pull=true catalogueHO=true supplyHO=true hoErp=false hoNoErp=false erp=false nav=false");
-		row("network-store-erp", "dynamics-dev",
-				LINK + "|ownership.promotions=HEAD_OFFICE|ownership.loyalty=HEAD_OFFICE|sales.upstream=ERP,HEAD_OFFICE",
+		row("network-store-erp", "preset:network-store-erp", LINK,
 				"STORE CATALOGUE=ERP CUSTOMERS=ERP PROMOTIONS=HEAD_OFFICE LOYALTY=HEAD_OFFICE SUPPLY=ERP up=[ERP, HEAD_OFFICE] link=true push=true pull=true catalogueHO=false supplyHO=false hoErp=false hoNoErp=false erp=true nav=true");
 		// The dev machines of the L2 (devenv): store A linked for its sales, stores B and C of the pair
-		row("dev store A (store + link)", "standalone-dev", "",
+		row("dev store A (store + link)", "machine:dev/store-a.properties", "",
 				"STORE CATALOGUE=LOCAL CUSTOMERS=LOCAL PROMOTIONS=LOCAL LOYALTY=LOCAL SUPPLY=LOCAL up=[HEAD_OFFICE] link=true push=true pull=false catalogueHO=false supplyHO=false hoErp=false hoNoErp=false erp=false nav=false");
-		row("dev store B (network-store + loyalty)", "store-b-dev", "",
+		row("dev store B (network-store + loyalty)", "machine:dev/store-b.properties", "",
 				"STORE CATALOGUE=HEAD_OFFICE CUSTOMERS=LOCAL PROMOTIONS=LOCAL LOYALTY=HEAD_OFFICE SUPPLY=HEAD_OFFICE up=[HEAD_OFFICE] link=true push=true pull=true catalogueHO=true supplyHO=true hoErp=false hoNoErp=false erp=false nav=false");
-		row("dev store C (network-store + loyalty, supply local)", "store-c-dev", "",
+		row("dev store C (network-store + loyalty, supply local)", "machine:dev/store-c.properties", "",
 				"STORE CATALOGUE=HEAD_OFFICE CUSTOMERS=LOCAL PROMOTIONS=LOCAL LOYALTY=HEAD_OFFICE SUPPLY=LOCAL up=[HEAD_OFFICE] link=true push=true pull=true catalogueHO=true supplyHO=false hoErp=false hoNoErp=false erp=false nav=false");
-		row("dev test NAV (store-erp)", "dynamics-test", "",
+		row("dev test NAV (store-erp)", "machine:dev/store-test-nav.properties", "",
+				"STORE CATALOGUE=ERP CUSTOMERS=ERP PROMOTIONS=LOCAL LOYALTY=LOCAL SUPPLY=ERP up=[ERP] link=false push=false pull=false catalogueHO=false supplyHO=false hoErp=false hoNoErp=false erp=true nav=true");
+		row("dev store A on the ERP (store-erp)", "machine:dev/store-a-erp.properties", "",
 				"STORE CATALOGUE=ERP CUSTOMERS=ERP PROMOTIONS=LOCAL LOYALTY=LOCAL SUPPLY=ERP up=[ERP] link=false push=false pull=false catalogueHO=false supplyHO=false hoErp=false hoNoErp=false erp=true nav=true");
 	}
 
-	private static void row(String shape, String oldProfile, String extraKeys, String expected) {
+	private static void row(String shape, String source, String extraKeys, String expected) {
 		ROWS.put(shape, expected);
-		OLD_SOURCES.put(shape, new String[] { oldProfile, extraKeys });
-	}
-
-	static Properties load(String resource) throws Exception {
-		Properties properties = new Properties();
-		try (InputStream in = PresetTruthTableTest.class.getResourceAsStream(resource)) {
-			assertNotNull(in, resource);
-			properties.load(in);
-		}
-		return properties;
+		SOURCES.put(shape, new String[] { source, extraKeys });
 	}
 
 	static void putKeys(MockEnvironment env, String keys) {
@@ -101,17 +91,14 @@ class PresetTruthTableTest {
 	}
 
 	@Test
-	@DisplayName("9.3a: every old profile file gives its frozen row (the answers each preset must keep)")
-	void oldProfilesGiveTheFrozenRows() throws Exception {
-		Properties base = load("/application.properties");
-		for (Map.Entry<String, String[]> source : OLD_SOURCES.entrySet()) {
-			MockEnvironment env = new MockEnvironment();
-			Properties merged = new Properties();
-			merged.putAll(base);
-			merged.putAll(load("/application-" + source.getValue()[0] + ".properties"));
-			merged.stringPropertyNames().forEach(key -> env.setProperty(key, merged.getProperty(key)));
+	@DisplayName("9.3: every preset, with its machine file, gives the frozen row of the old profile it replaces")
+	void presetsGiveTheFrozenRows() {
+		for (Map.Entry<String, String[]> source : SOURCES.entrySet()) {
+			String spec = source.getValue()[0];
+			MockEnvironment env = spec.startsWith("machine:") ? Installations.machine(spec.substring("machine:".length()))
+					: Installations.preset(spec.substring("preset:".length()));
 			putKeys(env, source.getValue()[1]);
-			assertEquals(ROWS.get(source.getKey()), answer(env), source.getKey() + " <- " + source.getValue()[0]);
+			assertEquals(ROWS.get(source.getKey()), answer(env), source.getKey() + " <- " + spec);
 		}
 	}
 }

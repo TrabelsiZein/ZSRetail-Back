@@ -22,6 +22,7 @@ import com.digithink.zsretail.model.UserAccount;
 import com.digithink.zsretail.model.enumeration.SessionStatus;
 import com.digithink.zsretail.repository.CashierSessionRepository;
 import com.digithink.zsretail.security.CurrentUserProvider;
+import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, task 1.1: a head office opens no cashier session, through openSession or through a
@@ -34,7 +35,7 @@ class CashierSessionHeadOfficeTest {
 	private final List<String> repositoryCalls = new ArrayList<>();
 	private final List<CashierSession> saved = new ArrayList<>();
 
-	// Mode flag of today's profile files: application.standalone (the franchise profiles were removed, step 9)
+	// Mode of today's presets: without an ERP (store) or with one (store-erp); task 9.3
 	private static final boolean[][] STORE_PROFILES = {
 			{ true }, // standalone
 			{ false }, // dynamics (ERP)
@@ -43,7 +44,9 @@ class CashierSessionHeadOfficeTest {
 	private CashierSessionService service(MockEnvironment env, boolean standalone) throws Exception {
 		ApplicationModeService mode = new ApplicationModeService();
 		inject(mode, ApplicationModeService.class, "environment", env);
-		env.setProperty("application.standalone", String.valueOf(standalone)); // step 9: read from the environment, no field
+		if (!standalone) {
+			TestModes.erpOwners(env); // task 9.3: the ERP owners instead of application.standalone=false
+		}
 		Method initOwnership = ApplicationModeService.class.getDeclaredMethod("initOwnership");
 		initOwnership.setAccessible(true);
 		initOwnership.invoke(mode);

@@ -23,6 +23,7 @@ import com.digithink.zsretail.model.enumeration.LicenseStatus;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.LicenseService;
 import com.digithink.zsretail.service.LoyaltyService;
+import com.digithink.zsretail.support.TestModes;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -64,7 +65,7 @@ class AppConfigAPITest {
 		return values;
 	}
 
-	// Flags of today's profile files: application.standalone, pos.pricing.enable-sales-price-group
+	// Mode of today's presets (with or without an ERP) and pos.pricing.enable-sales-price-group
 
 	private static AppConfigDTO standalone() throws Exception {
 		return config(true, true); // application-standalone-dev
@@ -93,7 +94,9 @@ class AppConfigAPITest {
 			throws Exception {
 		ApplicationModeService mode = new ApplicationModeService();
 		inject(mode, ApplicationModeService.class, "environment", env);
-		env.setProperty("application.standalone", String.valueOf(standalone)); // step 9: read from the environment, no field
+		if (!standalone) {
+			TestModes.erpOwners(env); // task 9.3: the ERP owners instead of application.standalone=false
+		}
 		Method initOwnership = ApplicationModeService.class.getDeclaredMethod("initOwnership");
 		initOwnership.setAccessible(true);
 		initOwnership.invoke(mode);

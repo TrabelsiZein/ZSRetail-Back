@@ -25,6 +25,7 @@ import com.digithink.zsretail.holink.service.CatalogueDownHandler;
 import com.digithink.zsretail.holink.service.DeliveryReceptionService;
 import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.enumeration.DataDomain;
+import com.digithink.zsretail.support.Installations;
 import com.digithink.zsretail.model.enumeration.DataOwner;
 import com.digithink.zsretail.model.enumeration.NodeType;
 import com.digithink.zsretail.model.enumeration.SalesUpstream;
@@ -36,21 +37,19 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  */
 class NetworkPresetTruthTableTest {
 
-	private static MockEnvironment profile(String name) throws Exception {
-		Properties properties = new Properties();
-		try (InputStream in = NetworkPresetTruthTableTest.class.getResourceAsStream("/application-" + name + ".properties")) {
-			assertNotNull(in, "profile " + name);
-			properties.load(in);
+	/** Task 9.3: network-headoffice became the preset headoffice; a network store gets its link from its machine file. */
+	private static MockEnvironment profile(String name) {
+		if (name.equals("network-headoffice")) {
+			return Installations.preset("headoffice");
 		}
-		MockEnvironment env = new MockEnvironment();
-		for (String key : properties.stringPropertyNames()) {
-			env.setProperty(key, properties.getProperty(key));
-		}
+		MockEnvironment env = Installations.preset(name);
+		env.setProperty("headoffice.url", "http://CHANGE_ME:888/zsretail/api");
+		env.setProperty("headoffice.api-key", "CHANGE_ME");
 		return env;
 	}
 
 	private static NodeOwnership resolve(MockEnvironment env) {
-		return NodeOwnership.resolve(env, Boolean.parseBoolean(env.getProperty("application.standalone", "false")));
+		return NodeOwnership.resolve(env);
 	}
 
 	private static boolean registered(MockEnvironment env, Class<?> beanClass) {
@@ -78,8 +77,7 @@ class NetworkPresetTruthTableTest {
 		assertEquals(supply, NodeOwnership.isSupplyFromHeadOffice(env), "supply from the head office");
 		assertEquals(headOfficeStandalone, NodeOwnership.isHeadOfficeStandaloneSet(env), "head office without ERP");
 		assertFalse(NodeOwnership.isHeadOfficeErpSet(env), "head office with ERP");
-		assertEquals("true", env.getProperty("application.standalone"));
-		assertEquals("false", env.getProperty("pos.pricing.enable-sales-price-group"));
+		assertNull(env.getProperty("application.standalone"), "removed at task 9.3");
 		assertNull(env.getProperty("franchise.admin"), "no franchise key (task 9.4a)");
 		assertNull(env.getProperty("franchise.customer"), "no franchise key (task 9.4a)");
 	}

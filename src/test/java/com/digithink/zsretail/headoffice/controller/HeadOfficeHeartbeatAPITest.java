@@ -287,7 +287,6 @@ class HeadOfficeHeartbeatAPITest {
 				.withProperty("headoffice.api-key", "k").withProperty("ownership.promotions", "HEAD_OFFICE")
 				.withProperty("sales.upstream", "HEAD_OFFICE");
 		inject(mode, "environment", env);
-		env.setProperty("application.standalone", String.valueOf(true)); // step 9: read from the environment, no field
 		Method init = ApplicationModeService.class.getDeclaredMethod("initOwnership");
 		init.setAccessible(true);
 		init.invoke(mode);

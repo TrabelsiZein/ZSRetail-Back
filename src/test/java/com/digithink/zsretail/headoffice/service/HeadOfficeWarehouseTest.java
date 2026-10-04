@@ -165,8 +165,8 @@ class HeadOfficeWarehouseTest {
 	@Test
 	@DisplayName("A head office with an ERP (standalone false): purchases, purchase history, vendors and purchase invoices refused as today")
 	void headOfficeWithErpRefused() throws Exception {
-		ApplicationModeService erp = TestModes.of(new org.springframework.mock.env.MockEnvironment()
-				.withProperty("application.standalone", "false").withProperty("node.type", "HEAD_OFFICE"));
+		ApplicationModeService erp = TestModes.of(TestModes.erpOwners(new org.springframework.mock.env.MockEnvironment()
+				.withProperty("node.type", "HEAD_OFFICE")));
 
 		PurchaseHeaderAPI purchasesApi = new PurchaseHeaderAPI();
 		set(purchasesApi, PurchaseHeaderAPI.class, "applicationModeService", erp);
