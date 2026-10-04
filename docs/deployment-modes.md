@@ -64,6 +64,24 @@
 - An explicit key overrides only its own value. An unknown value, or `ERP` for promotions or loyalty, stops the startup with `Invalid value '<value>' for property <key>: allowed values are [...]`. Checks across keys for a head office (franchise flags, owner `HEAD_OFFICE`, `sales.upstream`): see `docs/modules/head-office.md`.
 - **Catalogue owned by the head office** (step 6): an explicit `ownership.catalogue=HEAD_OFFICE` needs `headoffice.url` (like promotions and loyalty) and stops the startup with `franchise.customer=true` or `franchise.admin=true` (`Invalid combination: ownership.catalogue=HEAD_OFFICE with franchise.customer=true ...`) or with `application.standalone=false` (`... with application.standalone=false. A store whose items come from an ERP ...`). The franchise customer row above still derives `CATALOGUE=HEAD_OFFICE` for its legacy item sync: it never gets the step 6 catalogue beans, even with `headoffice.url` (`NodeOwnership.isCatalogueFromHeadOffice`). See `docs/modules/head-office.md`, "Catalogue owned by the head office".
 - **Supply from the head office** (step 7A): an explicit `ownership.supply=HEAD_OFFICE` needs `headoffice.url` and stops the startup with a franchise flag (`Invalid combination: ownership.supply=HEAD_OFFICE with franchise.customer=true ...`), with `application.standalone=false`, or without `ownership.catalogue=HEAD_OFFICE` (a BL names head office items by code). The franchise customer row above still derives `SUPPLY=HEAD_OFFICE` for its legacy reception (`FranchiseSupplyReceptionService`): it never gets the step 7A beans, even with `headoffice.url` (`NodeOwnership.isSupplyFromHeadOffice` needs the explicit value and no franchise flag). See `docs/modules/head-office.md`, "BLs at the store".
+- **Presets** (head office plan, task 8.1): two profile files that give a network without an ERP, and replace `franchise-admin` and `franchise-customer` for a new franchise network (design 2.3, franchise column). Each install copies its file and replaces every `CHANGE_ME` (database password, head office host, store key). Procedure: `docs/modules/franchise.md`, "Installing a franchise network on the model". The legacy profiles are unchanged (removed with step 9).
+
+| | `franchise-admin` (legacy) | `network-headoffice` | `franchise-customer` (legacy) | `network-store` |
+|---|---|---|---|---|
+| `node.type` | STORE | `HEAD_OFFICE` | STORE | STORE |
+| `application.standalone`, ERP off, `pos.pricing.enable-sales-price-group=false` | yes | yes | yes | yes |
+| `franchise.admin` / `franchise.customer` | true / false | false / false | false / true | false / false |
+| Link (`headoffice.url`, `headoffice.api-key`) | — | — (a head office never links) | — (`franchise.remote.url`, shared key) | set, one key per store |
+| Catalogue / supply | LOCAL / LOCAL | LOCAL / LOCAL | HEAD_OFFICE / HEAD_OFFICE (derived, legacy sync) | `HEAD_OFFICE` / `HEAD_OFFICE` (explicit) |
+| Customers / promotions / loyalty | LOCAL | LOCAL | LOCAL | LOCAL (promotions and loyalty explicit) |
+| Sales go to | nowhere | nowhere | HEAD_OFFICE (legacy push) | `HEAD_OFFICE` (explicit `sales.upstream`) |
+| Heartbeat, sales copies, copies down | no | — (serves them) | no | yes |
+| Step 6 catalogue and step 7A supply beans of a store (`catalogueFromHeadOffice`, `supplyFromHeadOffice` in `/config`) | no | no | no | yes |
+| Head office beans without ERP (price lists, BLs) | no | yes | no | no |
+| `/franchise/**` beans | the admin ones | no | the customer ones | no |
+| Port, log, images | 444 | 888, `C:/zsretail-headoffice/...` (a store may run on the same server) | 444 | 444 |
+
+- Presets, continued: set on the store's row at the head office, not in the file: the two rights (price, purchase), whether its deliveries are invoiced, the billing details, the supply price mode and the invoice rhythm (step 7B). Test: `NetworkPresetTruthTableTest` (L1) reads the four real files and checks this table, the two legacy columns included.
 - **Head office link** (task 1.4): a store that calls a head office. Three optional keys; without `headoffice.url` none of the link beans exists and every profile behaves as before. The two dev profiles (`standalone-dev`, `dynamics-dev`) carry the first two lines commented out. Details, startup checks and the "Connect a store" procedure: `docs/modules/head-office.md`, "Head office link".
 
 | Key | Value | When absent |
