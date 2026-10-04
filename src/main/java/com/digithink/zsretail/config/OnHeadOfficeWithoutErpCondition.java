@@ -5,7 +5,7 @@ import org.springframework.context.annotation.ConditionContext;
 import org.springframework.core.type.AnnotatedTypeMetadata;
 
 /**
- * Matches on a head office without an ERP (step 6): node.type=HEAD_OFFICE and no owner ERP (preset
+ * Matches on a head office without an ERP (step 6): node.type=HEAD_OFFICE and no owner ERP (type
  * headoffice), resolved like the startup ({@link NodeOwnership#isHeadOfficeWithoutErpSet}). Used through
  * {@link ConditionalOnHeadOfficeWithoutErp}.
  */

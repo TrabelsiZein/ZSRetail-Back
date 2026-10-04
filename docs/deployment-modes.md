@@ -1,106 +1,108 @@
-# Deployment modes: presets and machine files
+# Deployment modes: two types, three files
 
-**Status**: since the head office plan, step 9 (task 9.3, 2026-10-04). An installation is a **preset** (what it is) plus
-a **machine file** (where it runs). The old profile files (`standalone-dev|prod`, `dynamics-dev|test|prod`,
-`headoffice-dev`, ...) and the property `application.standalone` are gone; their values live on as machine files in
-`deploy/` (every value kept).
+**Status**: configuration step C1 (decision of 2026-10-04 evening), replacing the six presets and the mandatory machine
+file of task 9.3. An installation is a **type**, `store` or `headoffice`, plus an optional **outside file**. The rule "the ERP
+owns the catalogue, the customers and the supply together" is unchanged (step C2 will revisit it).
 
-## 1. Presets (inside the WAR)
+## 1. The three files (inside the WAR)
 
-`src/main/resources/application-<preset>.properties`: mode keys only, every owner stated.
+| File | Holds |
+|---|---|
+| `application.properties` | common lines: context path, upload limits, SQL Server driver, Hibernate dialect, `ddl-auto=update`, log rotation, and the default type `spring.profiles.active=store` |
+| `application-store.properties` | the type store |
+| `application-headoffice.properties` | the type headoffice |
 
-| Preset | What it is | Catalogue | Customers | Promotions | Loyalty | Supply | Sales go to | ERP connector |
-|---|---|---|---|---|---|---|---|---|
-| `store` | a store without an ERP (one shop alone) | LOCAL | LOCAL | LOCAL | LOCAL | LOCAL | nowhere | off |
-| `store-erp` | a store on Dynamics NAV / Business Central | ERP | ERP | LOCAL | LOCAL | ERP | ERP | on |
-| `headoffice` | a head office without an ERP (never sells; replaces step 8's `network-headoffice`) | LOCAL | LOCAL | LOCAL | LOCAL | LOCAL | nowhere | off |
-| `headoffice-erp` | a head office with an ERP (imports only) | ERP | ERP | LOCAL | LOCAL | ERP | nowhere | on |
-| `network-store` | a store fed by its head office (own store or franchise store) | HEAD_OFFICE | LOCAL | LOCAL | LOCAL | HEAD_OFFICE | HEAD_OFFICE | off |
-| `network-store-erp` | an ERP store linked to a head office (ParaFendri) | ERP | ERP | HEAD_OFFICE | HEAD_OFFICE | ERP | ERP, HEAD_OFFICE | on |
+Each type file has two titled blocks:
+- **What this installation is**: `node.type`, the five `ownership.*`, `sales.upstream`, `erp.dynamicsnav.enabled`, each with a
+  comment giving its allowed values. Both types ship with every owner `LOCAL`, sales nowhere, no NAV connector. The store
+  file shows the two usual variants as comments: a store on NAV (catalogue, customers, supply `ERP`, sales to `ERP`, connector
+  on) and a store of a network (catalogue and supply `HEAD_OFFICE`, sales to `HEAD_OFFICE`, plus the head office link).
+- **Where it runs**: database, `server.port`, log file, upload folder, `pos.pricing.enable-sales-price-group`, the NAV connection
+  (commented) and, in the store file, `headoffice.url` / `headoffice.api-key` (commented). The values are the dev ones: store A
+  (`pos_db_prod`, 444) and the dev head office (`pos_headoffice`, 888). The database password is not in the WAR:
+  `spring.datasource.password=${ZSRETAIL_DB_PASSWORD:}`, an environment variable for an IDE start without an outside file,
+  or the key in the outside file. On a developer PC the variable is set once as a Windows user variable, so `POSMainApp`
+  starts directly from the IDE with nothing else to set.
 
-`node.type` is `HEAD_OFFICE` for the two head office presets, `STORE` otherwise. "ERP connector" is
-`erp.dynamicsnav.enabled`. A store's own answer may differ from its preset: an `ownership.*` or `sales.upstream` key in
-its machine file wins (the dev stores B and C take their loyalty from the head office this way).
+So `POSMainApp` starts from the IDE with no argument as a store (or `-Dspring.profiles.active=headoffice`).
 
-Each preset gives exactly the answers of the old profile it replaces: `PresetTruthTableTest` holds the rows frozen from
-the old files (commit 596f1bb, task 9.3a) and checks every preset with its machine file against them.
+## 2. The outside file (optional)
 
-## 2. Machine file (outside the WAR)
+Usually only the "where it runs" block of a real installation; it may also name the type and change any mode line. Model:
+`deploy/machine-model.properties`. Loaded by `config/MachineFileEnvironmentPostProcessor`, before Spring reads its
+configuration files (so its `spring.profiles.active` picks the type), when:
+1. `-Dzsretail.machine-file=<path>` names it (dev scripts, IDE, or to override the Tomcat convention); a path that does not
+   exist stops the startup (`Outside file not found: <path> ...`);
+2. otherwise, in Tomcat, `${catalina.base}/conf/zsretail/<context name>.properties` exists (`zsretailws.war` deploys as
+   `zsretailws`: `conf/zsretail/zsretailws.properties`; a head office and a store on one Tomcat are two WARs, two files).
 
-One per installation: database, port, log, uploads, NAV settings, head office address and key, sales-push start date,
-pricing groups, and the preset (`spring.profiles.active=<preset>`). Model with comments: `deploy/machine-model.properties`.
+Neither: no outside file, the type file applies as it is.
 
-**Where it is found** (`config/MachineFileEnvironmentPostProcessor`):
-1. the system property `-Dzsretail.machine-file=<path>` (dev scripts, the IDE; on a server it overrides the convention);
-2. otherwise, in Tomcat, `${catalina.base}/conf/zsretail/<context name>.properties`, the context name of the WAR
-   (`zsretailws.war` deploys as `zsretailws`, so `conf/zsretail/zsretailws.properties`). A head office and a store can run
-   on one Tomcat as two WARs with two context names, so two files.
+**Precedence**: command-line arguments and system properties, then the outside file, then the type file, then
+`application.properties`.
 
-**Precedence**: command-line arguments and system properties, then the machine file, then the preset, then
-`application.properties`. The machine file is read before Spring reads its configuration files, so its
-`spring.profiles.active` picks the preset.
+**Type check** (`config/InstallationTypeEnvironmentPostProcessor`, after the configuration files are read): the active profile
+in effect is exactly `store` or `headoffice`; anything else (none, two, an old preset name such as `store-erp`, an old profile
+such as `dynamics-prod` left in the server's options) stops the startup: `The active profile is [<names>]: it must be one
+installation type, spring.profiles.active=store | headoffice ...`. `application.standalone` stays refused.
 
-**No default**: the application refuses to start, with a message that says what is missing, when there is no machine
-file (`No machine file: start with -Dzsretail.machine-file=<path of the file> ...`), when the file is not there
-(`Machine file not found: <path> ...`), when it names no preset or an unknown one (`The machine file <path> must name one
-preset: spring.profiles.active=store | store-erp | headoffice | headoffice-erp | network-store | network-store-erp`),
-when a `spring.profiles.active` left in the server's options names something else (`The active profile is '<name>' while
-the machine file <path> names a preset: remove spring.profiles.active from the server's options ...`), and when any
-source still sets `application.standalone` (`The property application.standalone was removed (head office plan, step 9,
-task 9.3): name a preset in the machine file instead, spring.profiles.active=store | ...`). `mvn test` needs none: no test
-starts a Spring context; the tests read the presets and the machine files of `deploy/` directly (`support/Installations`).
+**Startup summary**: one INFO line once the application is up (`config/InstallationSummary`), e.g.
+`Installation: type STORE, database pos_store_b, catalogue HEAD_OFFICE, customers LOCAL, promotions LOCAL, loyalty HEAD_OFFICE,
+supply HEAD_OFFICE, sales to [HEAD_OFFICE], outside file D:\...\deploy\dev\store-b.properties`. With the NAV connector on it
+adds `NAV <base-url>`; never a password or a key.
 
-**The `deploy/` folder** (versioned in this repository):
+**The `deploy/` folder** (versioned): every file names its type and, when the old preset differed from the type file, states
+the mode lines that preset gave, so every key of every file resolves exactly as before step C1 (checked key by key).
 
-| File | Preset | Was |
+| File | Type + mode lines | Was |
 |---|---|---|
-| `machine-model.properties` | — | the model, every key commented |
-| `dev/headoffice.properties` | `headoffice` | `application-headoffice-dev.properties` (devenv instance headoffice, 888) |
-| `dev/headoffice-erp.properties` | `headoffice-erp` | `application-headoffice-dynamics-dev.properties` (TEST NAV) |
-| `dev/store-b.properties` | `network-store` + loyalty from the head office | `application-store-b-dev.properties` (555) |
-| `dev/store-c.properties` | `network-store` + loyalty from the head office, supply local | `application-store-c-dev.properties` (556) |
-| `dev/store-a.properties` | `store` + sales copied to the dev head office | `application-standalone-dev.properties` (store A, `pos_db_prod`) |
-| `dev/store-a-erp.properties` | `store-erp` | `application-dynamics-dev.properties`: **its NAV is the customer's production NAV, never start it against that NAV** |
-| `dev/store-test-nav.properties` | `store-erp` | `application-dynamics-test.properties` (TEST NAV 192.168.10.166) |
-| `customers/erp-prod.properties` | `store-erp` | `application-dynamics-prod.properties` |
-| `customers/store-prod.properties` | `store` | `application-standalone-prod.properties` |
+| `machine-model.properties` | — | the model |
+| `dev/headoffice.properties` | `headoffice` | devenv instance headoffice (888) |
+| `dev/headoffice-erp.properties` | `headoffice` + catalogue, customers, supply `ERP`, connector on | TEST NAV head office |
+| `dev/store-a.properties` | `store` + sales to `HEAD_OFFICE` | store A (`pos_db_prod`) |
+| `dev/store-a-erp.properties` | `store` + the NAV lines | **its NAV is the customer's production NAV, never start it against that NAV** |
+| `dev/store-test-nav.properties` | `store` + the NAV lines | TEST NAV 192.168.10.166 |
+| `dev/store-b.properties` | `store` + catalogue, supply, loyalty `HEAD_OFFICE`, sales to `HEAD_OFFICE` | devenv store-b (555) |
+| `dev/store-c.properties` | `store` + catalogue, loyalty `HEAD_OFFICE`, supply `LOCAL`, sales to `HEAD_OFFICE` | devenv store-c (556) |
+| `rehearsal/headoffice.properties` | `headoffice` | rehearsal (889) |
+| `rehearsal/store-1.properties`, `store-2.properties` | `store` + the network lines | rehearsal (557, 558) |
+| `customers/erp-prod.properties` | `store` + the NAV lines | the customer on Dynamics NAV |
+| `customers/store-prod.properties` | `store` | the customer without an ERP |
 
-In each moved file the mode keys the preset gives are commented out (`# key=value (given by the preset ...)`), a mode key
-that differs stays as an override, and `application.standalone` is commented out (`# ... (removed at task 9.3 ...)`).
+"The NAV lines": catalogue, customers, supply `ERP`, sales to `ERP`, connector on. "The network lines": catalogue and supply
+`HEAD_OFFICE`, sales to `HEAD_OFFICE`.
 
-**From the IDE (Eclipse / STS)**: one setting picks the dev machine. Run Configurations, `POSMainApp` (Spring Boot App or
-Java Application), Arguments, VM arguments:
-`-Dzsretail.machine-file="D:\ZS Retail\Apps\ZSRetail-Back\deploy\dev\store-a.properties"` (store A; or `dev\headoffice.properties`
-for the head office, and so on). Nothing else changes: the WAR, `application.properties` and the presets are the same everywhere.
-A launch configuration from before 2.1 with `-Dspring.profiles.active=<old profile>` no longer starts (the profile is gone and
-the startup refuses it): replace that argument with the machine file. Shared launch configurations of the rehearsal environment:
-`eclipse/*.launch` (`docs/modules/head-office.md`, "Rehearsal environment").
+**IDE (Eclipse / STS)**: `POSMainApp` as it is is a store on the type file (set `ZSRETAIL_DB_PASSWORD` in the launch's
+Environment tab). For a dev machine, VM arguments `-Dzsretail.machine-file="D:\ZS Retail\Apps\ZSRetail-Back\deploy\dev\store-b.properties"`
+(the shared `eclipse/*.launch` do this). A launch with `-Dspring.profiles.active=<old profile>` is refused.
 
-**Dev scripts** (`devenv/`): each instance runs from its machine file (`common.ps1`: `Machine = 'dev\store-b.properties'`),
-started with `-Dzsretail.machine-file`. A key written into a machine file (the store's key by `setup-stores.ps1 -Phase register`)
-is read at the next start: no rebuild.
+**Dev scripts** (`devenv/`): unchanged, each instance starts with `-Dzsretail.machine-file` (`common.ps1`).
+
+**Tests**: no test starts a Spring context. `support/Installations` merges `application.properties`, the type file and an
+outside file of `deploy/` like the application; it keeps the six shapes of task 9.3 as variants (type file + mode lines), so
+`PresetTruthTableTest`, `NetworkPresetTruthTableTest` and `ModeQuestionTruthTableTest` check their frozen rows unchanged.
+`MachineFileTest` runs real starts (the two post-processors around Spring Boot's `ConfigFileApplicationListener`).
 
 ## 3. Procedures
 
 **New installation**
 1. Create the empty SQL Server database.
-2. Copy `deploy/machine-model.properties`, set `spring.profiles.active` to the preset, the database, the log file and image
-   folder (their own per installation), and what the preset needs (NAV settings for an `-erp` preset).
+2. Copy `deploy/machine-model.properties`: database, log file and image folder (their own per installation), the type
+   (`headoffice` for a head office), and the mode lines when the installation is not a plain store or head office (a store on
+   NAV, a store of a network: the variants in `application-store.properties`), with the NAV connection or the head office link.
 3. Put it at `${catalina.base}/conf/zsretail/<context name>.properties` (or point `-Dzsretail.machine-file` to it), deploy the
    WAR, start Tomcat. Hibernate creates the tables; the logins of a new database are created at the first start.
-4. A store of a network (`network-store`, `network-store-erp`): create its row on the head office Stores page (code = the
-   store's `DEFAULT_LOCATION`), put the key shown once into `headoffice.api-key` with `headoffice.url`, restart the store.
-   Franchise network: `docs/modules/franchise.md`, "Installing a franchise network on the model".
-5. Check `GET /config`: `nodeType`, `ownership` and `salesUpstreams` are those of the preset.
+4. A store of a network: create its row on the head office Stores page (code = the store's `DEFAULT_LOCATION`), put the key
+   shown once into `headoffice.api-key` with `headoffice.url`, restart the store. Franchise network: `docs/modules/franchise.md`.
+5. Check the startup summary line in the log, and `GET /config` (`nodeType`, `ownership`, `salesUpstreams`).
 
-**Upgrade of an existing installation to 2.1** (it ran an old profile)
-1. Before stopping it, note the profile it runs (`spring.profiles.active` in its `application.properties`, the Tomcat options or
-   `SPRING_PROFILES_ACTIVE`). Its machine file: the matching file of `deploy/customers/` when there is one; otherwise copy the
-   old profile file, add `spring.profiles.active=<preset>` (standalone-* gives `store`, dynamics-* gives `store-erp`,
-   headoffice-dev gives `headoffice`), and remove `application.standalone`.
-2. Put the machine file at `${catalina.base}/conf/zsretail/<context name>.properties`, and remove any `spring.profiles.active`
-   and `application.standalone` from the Tomcat options (the startup refuses them).
-3. Run the release's `update.sql`, deploy the 2.1 WAR, start, check `GET /config` as above.
+**Upgrade of a 2.1 installation built on the presets**: in its outside file, replace `spring.profiles.active=<preset>` with the
+type and the mode lines of that preset (table above, or `support/Installations`); `store` and `headoffice` need nothing.
+
+**Upgrade from before 2.1** (an old profile): its outside file is the matching file of `deploy/customers/` when there is one;
+otherwise copy the old profile file, add the type and mode lines (standalone-* is `store`; dynamics-* is `store` + the NAV
+lines; headoffice-dev is `headoffice`), remove `application.standalone`, and remove any `spring.profiles.active` from the Tomcat
+options. Then the release's `update.sql`, the WAR, a start, and the checks above.
 
 ## 4. Ownership model (resolved at startup)
 
@@ -125,7 +127,7 @@ task 9.3). Head office details: `docs/modules/head-office.md`.
 
 **Step 9 questions** (tasks 9.1b to 9.1g): `isCatalogueFromErp()`, `isCustomersFromErp()`, `isSupplyFromErp()`, `hasErp()` (some
 owner is the ERP). With the ERP owning all or nothing they answer alike for every configuration that starts
-(`ModeQuestionTruthTableTest`: every preset and machine file, and a grid of 15,360 configurations). They replaced the old
+(`ModeQuestionTruthTableTest`: every variant and outside file, and a grid of 15,360 configurations). They replaced the old
 standalone checks:
 
 | Gate (task) | Question | Answer with an ERP |
@@ -138,7 +140,7 @@ standalone checks:
 | `GET /config` field `standalone` (9.1e): kept, with its name and value, for the frontend | `!hasErp()` | `false` |
 | Stock (9.1f): `StockService` (sale, return, purchase, adjustment, the two BL movements) and `StockMovementService` (their seven movements), called by the till at every sale and return | `isSupplyFromErp()` | no-op (no stock change, no movement), as before |
 
-Tests: `ModeGateTest` (each gate on an ERP store and on a head office with an ERP: 403 with its message), the existing guard and stock adjustment tests on a mode service built from properties (`support/TestModes`), `StockModeTest` (every stock change and movement on every real profile file: no-op when the supply is the ERP's, applied when local or fed by the head office), `ZZDataInitializerModeTest` (the real `init()` on a first start: passenger customer without an ERP, ERP checkpoints, ERP-only settings and ERP jobs with one).
+Tests: `ModeGateTest` (each gate on an ERP store and on a head office with an ERP: 403 with its message), the existing guard and stock adjustment tests on a mode service built from properties (`support/TestModes`), `StockModeTest` (every stock change and movement on every variant and outside file of `deploy/`: no-op when the supply is the ERP's, applied when local or fed by the head office), `ZZDataInitializerModeTest` (the real `init()` on a first start: passenger customer without an ERP, ERP checkpoints, ERP-only settings and ERP jobs with one).
 
 ## 5. Head office link (store side)
 
@@ -166,6 +168,6 @@ the "Connect a store" procedure: `docs/modules/head-office.md`, "Head office lin
 - `GET /config` is public, loaded before login (`store/app-config/index.js`, one state field per field, with a default when a
   field is missing or the call fails). `standalone` (no ERP owner) drives the ERP-only and no-ERP-only screens: the ERP menu
   group, the sync columns of the tickets and returns history, "Add customer", "Add product" (quick product), the family and
-  sub-family actions, purchases and vendors. `enableSalesPriceGroup` (`pos.pricing.enable-sales-price-group` of the machine
+  sub-family actions, purchases and vendors. `enableSalesPriceGroup` (`pos.pricing.enable-sales-price-group` of the type or outside
   file) shows the Sales Prices and Sales Discounts pages.
 - The quick product endpoint is `POST /item/quick-product` since task 9.1g (it was `/item/standalone-quick-product`).

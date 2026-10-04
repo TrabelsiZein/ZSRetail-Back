@@ -19,7 +19,7 @@ import com.digithink.zsretail.config.MachineFileEnvironmentPostProcessor;
 @EnableScheduling
 public class POSMainApp extends SpringBootServletInitializer {
 
-	/** The WAR's context name in Tomcat (task 9.3): it names the machine file in conf/zsretail. */
+	/** The WAR's context name in Tomcat (task 9.3): it names the optional outside file in conf/zsretail. */
 	private String contextName;
 
 	public static void main(String[] args) {

@@ -46,7 +46,7 @@ class StockModeTest {
 		for (String machine : Installations.machineFiles()) {
 			profiles.put("machine " + machine, Installations.machine(machine));
 		}
-		for (String preset : NodeOwnership.PRESETS) {
+		for (String preset : Installations.variants()) {
 			MockEnvironment env = Installations.preset(preset);
 			if (preset.startsWith("network-")) {
 				env.setProperty("headoffice.url", "http://localhost:888/zsretail/api");
