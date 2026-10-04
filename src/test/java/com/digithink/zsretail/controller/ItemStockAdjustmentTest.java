@@ -90,7 +90,6 @@ class ItemStockAdjustmentTest {
 		set(stockMovements, StockMovementService.class, "itemRepository", itemRepository);
 		ItemService service = new ItemService();
 		set(service, ItemService.class, "itemRepository", itemRepository);
-		set(service, ItemService.class, "applicationModeService", mode);
 		set(service, ItemService.class, "stockService", stock);
 		set(service, ItemService.class, "stockMovementService", stockMovements);
 		set(service, _BaseService.class, "currentUserProvider", new CurrentUserProvider() {

@@ -44,9 +44,7 @@ class HeadOfficeErpProfileTest {
 	}
 
 	private static NodeOwnership resolve(MockEnvironment env) {
-		return NodeOwnership.resolve(env, Boolean.parseBoolean(env.getProperty("application.standalone", "false")),
-				Boolean.parseBoolean(env.getProperty("franchise.admin", "false")),
-				Boolean.parseBoolean(env.getProperty("franchise.customer", "false")));
+		return NodeOwnership.resolve(env, Boolean.parseBoolean(env.getProperty("application.standalone", "false")));
 	}
 
 	private static boolean registered(MockEnvironment env, Class<?> beanClass) {

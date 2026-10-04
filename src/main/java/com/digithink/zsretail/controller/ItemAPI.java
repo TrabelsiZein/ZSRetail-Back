@@ -149,8 +149,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	}
 
 	/**
-	 * Create item. Requires standalone mode.
-	 * Franchise clients: only allowed when allow-local-items=true; new items are always local (fromFranchiseAdmin=false).
+	 * Create item. Refused when the catalogue comes from an ERP.
 	 */
 	@Override
 	@PostMapping
@@ -158,14 +157,6 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 		if (applicationModeService.isCatalogueFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Item creation is only available in standalone mode. In ERP mode items are synchronized from the ERP."));
-		}
-		if (applicationModeService.isFranchiseClient() && !applicationModeService.isLocalItemsAllowed()) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Item creation is not allowed in franchise client mode. Items are synchronized from the franchise admin."));
-		}
-		// Locally-created items by franchise client are never from the admin
-		if (applicationModeService.isFranchiseClient()) {
-			entity.setFromFranchiseAdmin(false);
 		}
 		StoreCatalogueGuard guard = catalogueGuard();
 		if (guard != null) { // step 6: an own item, only with the purchase right, never a head office code
@@ -187,8 +178,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	}
 
 	/**
-	 * Update item. Requires standalone mode.
-	 * Franchise clients with allow-local-items=true may only edit their own local items (fromFranchiseAdmin=false).
+	 * Update item. Refused when the catalogue comes from an ERP.
 	 */
 	@Override
 	@PutMapping("/{id}")
@@ -197,10 +187,6 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Item update is only available in standalone mode. In ERP mode items are synchronized from the ERP."));
 		}
-		if (applicationModeService.isFranchiseClient() && !applicationModeService.isLocalItemsAllowed()) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Item update is not allowed in franchise client mode. Items are synchronized from the franchise admin."));
-		}
 		try {
 			log.info("ItemAPI::update::" + id);
 			Optional<Item> existing = service.findById(id);
@@ -208,18 +194,11 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 				return ResponseEntity.notFound().build();
 			}
 			Item existingItem = existing.get();
-			// Franchise client cannot edit items that originated from the admin
-			if (applicationModeService.isFranchiseClient() && Boolean.TRUE.equals(existingItem.getFromFranchiseAdmin())) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-						.body(createErrorResponse("Items synced from the franchise admin are read-only and cannot be edited."));
-			}
 			StoreCatalogueGuard guard = catalogueGuard();
 			if (guard != null && guard.itemWrite(id) != null) { // step 6: the price has its own endpoint
 				return refused(guard.itemWrite(id));
 			}
 			entity.setId(existingItem.getId());
-			// Preserve the fromFranchiseAdmin flag — cannot be changed via update
-			entity.setFromFranchiseAdmin(existingItem.getFromFranchiseAdmin());
 			// These fields are computed automatically after each validated purchase.
 			// The frontend modal shows them as read-only and may omit them from the update payload,
 			// so we must preserve existing values to avoid wiping them to null.
@@ -244,8 +223,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	}
 
 	/**
-	 * Delete item. Requires standalone mode.
-	 * Franchise clients with allow-local-items=true may only delete their own local items (fromFranchiseAdmin=false).
+	 * Delete item. Refused when the catalogue comes from an ERP.
 	 */
 	@Override
 	@DeleteMapping("/{id}")
@@ -254,20 +232,11 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Item deletion is only available in standalone mode. In ERP mode items are synchronized from the ERP."));
 		}
-		if (applicationModeService.isFranchiseClient() && !applicationModeService.isLocalItemsAllowed()) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Item deletion is not allowed in franchise client mode. Items are synchronized from the franchise admin."));
-		}
 		try {
 			log.info("ItemAPI::deleteById::" + id);
 			Optional<Item> existing = service.findById(id);
 			if (!existing.isPresent()) {
 				return ResponseEntity.notFound().build();
-			}
-			// Franchise client cannot delete items that originated from the admin
-			if (applicationModeService.isFranchiseClient() && Boolean.TRUE.equals(existing.get().getFromFranchiseAdmin())) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-						.body(createErrorResponse("Items synced from the franchise admin cannot be deleted."));
 			}
 			StoreCatalogueGuard guard = catalogueGuard();
 			if (guard != null && guard.itemWrite(id) != null) { // step 6

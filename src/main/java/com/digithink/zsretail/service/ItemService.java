@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.ItemFamily;
 import com.digithink.zsretail.model.ItemSubFamily;
@@ -40,8 +39,6 @@ public class ItemService extends _BaseService<Item, Long> {
 	@Autowired
 	private ItemSubFamilyRepository itemSubFamilyRepository;
 
-	@Autowired
-	private ApplicationModeService applicationModeService;
 
 	/** Step 6: a head office that sends its catalogue records each change; no bean on a store. */
 	@Autowired(required = false)
@@ -141,13 +138,6 @@ public class ItemService extends _BaseService<Item, Long> {
 	@Override
 	@Transactional(rollbackFor = Exception.class)
 	public Item save(Item item) throws Exception {
-		if (applicationModeService.isFranchiseAdmin()) {
-			if (item.getFranchiseSalesPrice() == null || item.getFranchiseSalesPrice() <= 0) {
-				throw new IllegalArgumentException(
-						"Franchise sales price is required and must be greater than zero in franchise admin mode");
-			}
-		}
-
 		if (item.getItemSubFamily() != null) {
 			if (item.getItemSubFamily().getId() == null) {
 				throw new IllegalArgumentException("Item sub-family ID is required");

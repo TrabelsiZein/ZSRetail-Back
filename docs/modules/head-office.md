@@ -17,7 +17,7 @@
 
 | Head office with | Message starts with |
 |---|---|
-| `franchise.admin=true` or `franchise.customer=true` | `Invalid combination: node.type=HEAD_OFFICE with franchise...=true` |
+| `franchise.admin=true` or `franchise.customer=true` | Since step 9 (task 9.4a) refused on every installation: `Invalid value 'true' for property franchise.customer: the franchise profiles were removed ...` |
 | an explicit owner `HEAD_OFFICE` (`ownership.<domain>`) | `Invalid value 'HEAD_OFFICE' for property ownership.<domain>: on a head office ... the owner cannot be HEAD_OFFICE` |
 | a non-empty `sales.upstream` | `Invalid value '<value>' for property sales.upstream: a head office ... never sells` |
 | `headoffice.offline-after-seconds` below 1 or not a whole number (task 1.5) | `Invalid value '<value>' for property headoffice.offline-after-seconds: a whole number of seconds, at least 1` |
@@ -202,7 +202,7 @@ Labels in `en`, `fr`, `ar`.
 ### Step 6 pages (frontend): store
 Frontend commits 0928f9e, 68c027a, 32cd1be, on `feature/ho-step-6`.
 
-**Rule.** The new behaviour exists only when `GET /config` gives `catalogueFromHeadOffice: true` (`appConfig/isCatalogueFromHeadOffice`). `ownership.CATALOGUE` is never read: a franchise customer shows `HEAD_OFFICE` there and keeps its own branches. Without the flag every page renders as before.
+**Rule.** The new behaviour exists only when `GET /config` gives `catalogueFromHeadOffice: true` (`appConfig/isCatalogueFromHeadOffice`). `ownership.CATALOGUE` is not read (since step 9 it gives the same answer: no franchise customer derives `HEAD_OFFICE` any more). Without the flag every page renders as before.
 
 **Shared code** `src/views/admin/holink/catalogue-network.js`:
 - A mixin with `catalogueFromHeadOffice`, `catalogueCanPurchase`, `catalogueMayChangePrices`, `catalogueCreateClosed` and `isHeadOfficeRecord(record)` (`origin === 'HEAD_OFFICE'`).
@@ -298,7 +298,7 @@ Labels in `en`, `fr`, `ar` (`admin.headoffice.deliveries.*`).
 ### Step 7A pages (frontend): reception at the store
 Frontend commit ef799b0, on `feature/ho-step-7a`.
 
-**Rule.** The page exists only when `GET /config` gives `supplyFromHeadOffice: true` (`appConfig/isSupplyFromHeadOffice`), never on a franchise customer. `navigation/head-office.js` lists it in `SUPPLY_ROUTES` and `SUPPLY_PERMISSIONS`:
+**Rule.** The page exists only when `GET /config` gives `supplyFromHeadOffice: true` (`appConfig/isSupplyFromHeadOffice`). `navigation/head-office.js` lists it in `SUPPLY_ROUTES` and `SUPPLY_PERMISSIONS`:
 - The router guard sends the route home without the flag. On a head office it has no twin and goes to the head office home.
 - `VerticalNavMenu` removes its link without the flag.
 - The Roles page lists `read:admin-holink-deliveries` ("Réception des BL", group "Paramètres & Outils") only with the flag.
@@ -987,9 +987,9 @@ Items, families, sub-families and barcodes decided by the head office reach ever
 
 **When it is active**
 - Head office side: only on a head office **without an ERP** (`node.type=HEAD_OFFICE` and `application.standalone=true`, `@ConditionalOnHeadOfficeStandalone`, `NodeOwnership.isHeadOfficeStandaloneSet`). A head office with an ERP (ParaFendri) serves no `CATALOGUE` domain and has no price lists: its items come from `erp/`, which has no hooks, and its stores keep `CATALOGUE=ERP`.
-- Store side: `@ConditionalOnHeadOfficeCatalogue` (`NodeOwnership.isCatalogueFromHeadOffice`): `headoffice.url` set, `ownership.catalogue=HEAD_OFFICE`, `application.standalone=true`, no franchise flag. Startup refusals: an explicit `ownership.catalogue=HEAD_OFFICE` without the URL, with `franchise.customer=true` or `franchise.admin=true`, or with `application.standalone=false` (see `docs/deployment-modes.md`).
-- **A franchise customer never gets it**, even with `headoffice.url`: it derives `CATALOGUE=HEAD_OFFICE` for its legacy item sync, but the condition requires no franchise flag, and an explicit value with the flag stops the startup. `fromFranchiseAdmin`, `FranchiseSyncService`, `/franchise/**` and the franchise branches of `ItemAPI` are not touched and still run first. `/config` reports `ownership.CATALOGUE=HEAD_OFFICE` for it as before; the frontend reads `catalogueFromHeadOffice` instead.
-- Every other store (no setting, ERP, franchise): no catalogue bean, every API answers as before (the guards below are looked up with `ObjectProvider` and absent).
+- Store side: `@ConditionalOnHeadOfficeCatalogue` (`NodeOwnership.isCatalogueFromHeadOffice`): `headoffice.url` set, `ownership.catalogue=HEAD_OFFICE`, `application.standalone=true`. Startup refusals: an explicit `ownership.catalogue=HEAD_OFFICE` without the URL or with `application.standalone=false` (see `docs/deployment-modes.md`).
+- Until step 9 a franchise customer derived `CATALOGUE=HEAD_OFFICE` for its legacy item sync and never got these beans; the franchise profiles were removed at task 9.4a (`docs/modules/franchise.md`).
+- Every other store (no setting, ERP): no catalogue bean, every API answers as before (the guards below are looked up with `ObjectProvider` and absent).
 
 **Head office side** (`HoCatalogueService`, the `CATALOGUE` provider of the feed and `CatalogueHeadOfficeHooks`):
 - Record codes `FAMILY:<code>`, `SUBFAMILY:<code>`, `ITEM:<code>`, `BARCODE:<barcode>` (`CatalogueKind`), every record for every store (`StoreTargets.all()`), plus per-store rows for the price lists (below). Inside a page a store applies families, then sub-families, items, barcodes.
@@ -1143,8 +1143,8 @@ Page permission `read:admin-headoffice-deliveries` (33 head office permissions).
 ### BLs at the store (tasks 7A.3, 7A.4)
 A store whose goods come from the head office receives its BLs by the copies down, confirms what it counted, and its stock goes up at once; the confirmation travels up as a document (design 2.4, 3.5).
 
-**When it is active**: `@ConditionalOnHeadOfficeSupply` (`NodeOwnership.isSupplyFromHeadOffice`): `headoffice.url` set, an **explicit** `ownership.supply=HEAD_OFFICE`, `application.standalone=true`, no franchise flag. Startup refusals of an explicit `ownership.supply=HEAD_OFFICE`: without the URL (`SUPPLY` is now in `COPIES_DOWN_DOMAINS`), with `franchise.customer=true` or `franchise.admin=true`, with `application.standalone=false`, and without `ownership.catalogue=HEAD_OFFICE` (`Invalid combination: ownership.supply=HEAD_OFFICE without ownership.catalogue=HEAD_OFFICE. A BL names head office items by their code ...`). Beans: `DeliveryReceptionService`, `SupplyDownHandler`, `SupplyPushService`, `SupplyPushJob`, `DeliveryReceptionAPI`.
-- **A franchise customer never gets them**, even with `headoffice.url`: it derives `SUPPLY=HEAD_OFFICE` for its legacy reception, but the condition requires an explicit value and no franchise flag, and an explicit value with the flag stops the startup. `FranchiseSupplyReceptionService` (`@ConditionalOnProperty franchise.customer`), `/franchise/**` and `FranchiseClientSyncController` are not touched.
+**When it is active**: `@ConditionalOnHeadOfficeSupply` (`NodeOwnership.isSupplyFromHeadOffice`): `headoffice.url` set, an **explicit** `ownership.supply=HEAD_OFFICE`, `application.standalone=true`. Startup refusals of an explicit `ownership.supply=HEAD_OFFICE`: without the URL (`SUPPLY` is now in `COPIES_DOWN_DOMAINS`), with `application.standalone=false`, and without `ownership.catalogue=HEAD_OFFICE` (`Invalid combination: ownership.supply=HEAD_OFFICE without ownership.catalogue=HEAD_OFFICE. A BL names head office items by their code ...`). Beans: `DeliveryReceptionService`, `SupplyDownHandler`, `SupplyPushService`, `SupplyPushJob`, `DeliveryReceptionAPI`.
+- Until step 9 a franchise customer derived `SUPPLY=HEAD_OFFICE` for its legacy reception and never got these beans; the franchise profiles were removed at task 9.4a.
 - Every other store (no setting, ERP, `ownership.supply=LOCAL`): none of the beans; `/admin/deliveries` answers 404; `/config` `supplyFromHeadOffice` false; no `SUPPLY_PUSH` job.
 
 **Tables** (store, prefix `hol_`, `ddl-auto`):
@@ -1314,12 +1314,12 @@ The three permissions are in `ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS` (
 ### Profile `headoffice-dev`
 `src/main/resources/application-headoffice-dev.properties`:
 - `node.type=HEAD_OFFICE`, `server.port=888`, database `pos_headoffice` (same SQL Server and login as the dev profiles).
-- `application.standalone=true`, ERP and ERP sync off, `franchise.admin=false`, `franchise.customer=false`.
+- `application.standalone=true`, ERP and ERP sync off.
 - Own log file `C:/zsretail-headoffice/backend.log` and image folder `uploads/headoffice/pos-images`, so it does not share them with the store instance.
 
 ### Profile `headoffice-dynamics-dev` (task 3.4)
 `src/main/resources/application-headoffice-dynamics-dev.properties`: the head office with an ERP. Same database `pos_headoffice`, port 888, log file and image folder as `headoffice-dev`, which stays the head office without ERP.
-- `node.type=HEAD_OFFICE`, `application.standalone=false`, `franchise.admin=false`, `franchise.customer=false`.
+- `node.type=HEAD_OFFICE`, `application.standalone=false`.
 - `erp.dynamicsnav.*`: the settings of `application-dynamics-test.properties`, the **NAV test instance** (`192.168.10.166:24/test4`). Never the NAV of `application-dynamics-dev.properties` or `application-dynamics-prod.properties`: that is the customer's production NAV (correction from Zein, 2026-10-03). A comment at the top of the file says so, and `HeadOfficeErpProfileTest` fails if the URL or host of the dev or prod profile appears in it.
 - `erp.sync.enabled=true`, `erp.sync.scheduler.delay=60000`: the import jobs enabled from the ERP jobs page run; all are seeded disabled.
 - Switching one `pos_headoffice` database between the two profiles: the ERP jobs are seeded at the first start in ERP mode; started again with `headoffice-dev` (standalone) nothing runs them (no scheduler) and the item pages allow creating by hand again.
@@ -1344,7 +1344,7 @@ The head office of an ERP customer (ParaFendri) gets its items, families, sub-fa
 | `StockService`, `StockMovementService` | No local stock | Fine: no stock at the head office before step 7 |
 | `InvoiceAPI` (from POS tickets) | Refused | Fine: no ticket at the head office |
 | `DynamicsNavRestClient`, `DynamicsNavConnector`, `DynamicsNavConfig` (`erp.dynamicsnav.enabled`) | The NAV connector instead of the no-op one | Needed for the imports |
-| Selling services, franchise code | Not reached: no cashier session or cashier login on a head office (task 1.1), franchise flags refused | Unchanged |
+| Selling services | Not reached: no cashier session or cashier login on a head office (task 1.1); franchise flags refused everywhere since task 9.4a | Unchanged |
 
 **Jobs on a head office** (`HeadOfficeErpJobs.NOT_ON_HEAD_OFFICE`, never run, never offered): `EXPORT_CUSTOMERS`, `EXPORT_TICKETS`, `EXPORT_RETURNS`, `EXPORT_SESSIONS` (a head office has no ticket, return or session, and a customer created there must not reach the ERP) and `IMPORT_SALES_PRICES_AND_DISCOUNTS` (filtered on the responsibility center of one location, it would give one store's prices as if they were the network's; a head office does not sell, and each ERP store imports its own prices). Offered: `IMPORT_ITEM_FAMILIES`, `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS`, `IMPORT_ITEM_BARCODES`, `IMPORT_LOCATIONS` (needed to choose the reference location), `SYNC_ERP_DELETIONS`, and `IMPORT_CUSTOMERS` (import only, disabled as seeded: the head office Customers page can show the ERP customers; nothing goes back to the ERP).
 
@@ -1375,7 +1375,7 @@ Order at a new head office with an ERP: enable and run `IMPORT_LOCATIONS`, choos
 | Head office | profile `headoffice-dev`, port 888 (set in the profile) | `npm run serve:headoffice` → http://localhost:8081 (`.env.headoffice` → 888) |
 
 - In STS, duplicate the backend run configuration and set its profile to `headoffice-dev` (`--spring.profiles.active=headoffice-dev`); the active profile in `application.properties` is overridden.
-- 888 and 8081 are also the franchise customer's ports: the franchise pair and the head office pair do not run at the same time.
+- 888 and 8081 were also the ports of the franchise customer profile (removed at step 9).
 - To make the store call the head office: "Connect a store" above.
 
 ### New head office database: manual steps

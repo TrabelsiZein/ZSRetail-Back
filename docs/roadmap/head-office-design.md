@@ -273,8 +273,8 @@ When the ownership settings are absent they are derived from the existing proper
 |---|---|---|---|---|---|---|---|
 | `standalone` | Store | Local | Local | Local | Local | Local | Nowhere |
 | `dynamics` (ERP) | Store | ERP | ERP | Local | Local | ERP | ERP |
-| `franchise-customer` | Store | Head office | Local | Local | Local | Head office, plus local purchases | Head office |
-| `franchise-admin` | Kept as it is until its removal with step 9 (it sells and supplies at the same time) | | | | | | |
+| `franchise-customer` | Removed at step 9 (task 9.4a); a franchise store runs `network-store` | | | | | | |
+| `franchise-admin` | Removed at step 9 (task 9.4a); a franchise head office runs `network-headoffice` | | | | | | |
 
 A franchise network is installed on the model from the presets `network-headoffice` and `network-store` (step 8, `docs/deployment-modes.md` and `docs/modules/franchise.md`); no install moves from the legacy profiles.
 
@@ -285,7 +285,7 @@ A franchise network is installed on the model from the presets `network-headoffi
 3. No column or table is removed or renamed. The release ships its `update.sql`.
 4. The selling services (`SalesHeaderService`, `PromotionCalculationService`, `PricingService`, `ReturnHeaderService`) are not changed.
 5. The `erp/` package is not modified.
-6. The legacy franchise profiles and endpoints are not modified until their removal with step 9.
+6. The legacy franchise profiles and endpoints were not modified until their removal at step 9 (task 9.4a, done).
 
 ## 6. Facts from the code that this design relies on
 

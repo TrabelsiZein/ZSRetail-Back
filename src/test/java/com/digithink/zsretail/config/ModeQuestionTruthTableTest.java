@@ -56,8 +56,7 @@ class ModeQuestionTruthTableTest {
 	/** Resolves like ApplicationModeService; null when the startup refuses the configuration. */
 	private static NodeOwnership accepted(PropertyResolver env) {
 		try {
-			return NodeOwnership.resolve(env, oldStandalone(env), flag(env, "franchise.admin"),
-					flag(env, "franchise.customer"));
+			return NodeOwnership.resolve(env, oldStandalone(env));
 		} catch (IllegalStateException refused) {
 			return null;
 		}

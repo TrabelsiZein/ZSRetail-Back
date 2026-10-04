@@ -28,7 +28,7 @@ import lombok.extern.log4j.Log4j2;
 
 /**
  * Head office plan, tasks 6.3, 6.5, 6.6: the rules of a store whose catalogue is the head office's. The APIs ask it
- * first; without this bean (every other store, a franchise customer) they run exactly as before. Each check returns the
+ * first; without this bean (every other store) they run exactly as before. Each check returns the
  * text of a 409 answer, or null when the request goes on.
  * <ul>
  * <li>A head office record (origin HEAD_OFFICE) is consult-only: edit and delete answer 409. Exceptions: the stock

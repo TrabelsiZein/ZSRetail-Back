@@ -67,9 +67,6 @@ public class AppConfigAPI {
 				!applicationModeService.hasErp(), // step 9: the field keeps its name and value (no ERP)
 				enableSalesPriceGroup,
 				loyaltyEnabled,
-				applicationModeService.isFranchiseAdmin(),
-				applicationModeService.isFranchiseClient(),
-				applicationModeService.isLocalItemsAllowed(),
 				licenseService.getStatus().name(),
 				licenseService.getDaysUntilExpiry(),
 				posShowImages,

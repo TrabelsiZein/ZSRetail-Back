@@ -1,7 +1,6 @@
 package com.digithink.zsretail.dto;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 import com.digithink.zsretail.model.enumeration.InvoiceLineGroupingMode;
 
@@ -28,8 +27,6 @@ public class InvoiceListDTO {
 	private Double totalAmount;
 	private String notes;
 	private InvoiceLineGroupingMode lineGroupingMode;
-	private String franchiseLocationCode;
-	private LocalDateTime franchiseReceivedAt;
 
 	/** Minimal customer info for list display. */
 	@Data

@@ -29,7 +29,8 @@ exception/  utils/
 
 `src/main/resources/`
 - `application.properties` + one file per profile:
-  `standalone-dev|prod`, `dynamics-dev|test|prod`, `franchise-admin`, `franchise-customer`
+  `standalone-dev|prod`, `dynamics-dev|test|prod`, `headoffice-dev`, `headoffice-dynamics-dev`, `store-b-dev`, `store-c-dev`,
+  and the presets `network-headoffice`, `network-store` (the franchise profiles were removed at head office plan step 9)
 - `db/<product-version>/` — SQL migration scripts grouped by release (e.g. `db/1.11.0/`)
 - `license/` — public key material for offline licensing
 

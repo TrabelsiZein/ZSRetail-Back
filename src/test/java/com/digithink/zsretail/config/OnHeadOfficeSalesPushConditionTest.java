@@ -2,6 +2,7 @@ package com.digithink.zsretail.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.DisplayName;
@@ -52,16 +53,15 @@ class OnHeadOfficeSalesPushConditionTest {
 		assertFalse(NodeOwnership.isHeadOfficeSalesPushSet(link()), "ERP flags: sales go to the ERP");
 		assertFalse(NodeOwnership.isHeadOfficeSalesPushSet(standalone(link()).withProperty("sales.upstream", "ERP")));
 		assertFalse(NodeOwnership.isHeadOfficeSalesPushSet(link().withProperty("sales.upstream", "")));
-		assertFalse(NodeOwnership.isHeadOfficeSalesPushSet(standalone(link()).withProperty("franchise.admin", "true")));
 	}
 
 	@Test
-	@DisplayName("Head office upstream with the URL: true (explicit on standalone or ERP flags, any case; derived on franchise customer)")
+	@DisplayName("Head office upstream with the URL: true (explicit on standalone or ERP flags, any case); a franchise flag is refused (task 9.4a)")
 	void withHeadOfficeUpstream() {
 		assertTrue(NodeOwnership.isHeadOfficeSalesPushSet(standalone(link()).withProperty("sales.upstream", "HEAD_OFFICE")));
 		assertTrue(NodeOwnership.isHeadOfficeSalesPushSet(link().withProperty("sales.upstream", " erp , head_office ")));
-		assertTrue(NodeOwnership.isHeadOfficeSalesPushSet(
-				standalone(link()).withProperty("franchise.customer", " true ")), "franchise customer: derived");
+		assertThrows(IllegalStateException.class, () -> NodeOwnership.isHeadOfficeSalesPushSet(
+				standalone(link()).withProperty("franchise.customer", " true ")), "the franchise profiles were removed");
 	}
 
 	@Test

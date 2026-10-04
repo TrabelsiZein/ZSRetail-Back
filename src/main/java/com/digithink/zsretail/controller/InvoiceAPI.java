@@ -286,9 +286,7 @@ public class InvoiceAPI {
 				h.getDiscountAmount(),
 				h.getTotalAmount(),
 				h.getNotes(),
-				h.getLineGroupingMode(),
-				h.getFranchiseLocationCode(),
-				h.getFranchiseReceivedAt());
+				h.getLineGroupingMode());
 	}
 
 	protected String getDetailedMessage(Throwable e) {

@@ -36,7 +36,7 @@ import lombok.Getter;
  * <ul>
  * <li>A new code is saved with origin HEAD_OFFICE.</li>
  * <li>A local record with the same code becomes the head office record: the head office values replace the store's,
- * price included; the stock, the costs, the image and the ERP and franchise fields are kept.</li>
+ * price included; the stock, the costs, the image and the ERP fields are kept.</li>
  * <li>An item marked as own price keeps its unitPrice; the head office price is saved beside it.</li>
  * <li>A barcode used by another item of the store moves to the head office item, and an old item.barcode field of
  * another item holding the same value is cleared, so a scan finds only the head office item (one exchange log row per

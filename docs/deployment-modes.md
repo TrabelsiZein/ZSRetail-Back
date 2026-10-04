@@ -9,7 +9,7 @@
 **Backend:**
 - **ApplicationModeService** (`config/ApplicationModeService.java`): Reads `application.standalone`, exposes `isStandalone()` / `isErpMode()`.
 - **application-standalone.properties**: `application.standalone=true`, `erp.dynamicsnav.enabled=false`, `erp.sync.enabled=false`. Use with `spring.profiles.active=standalone` (or `standalone,dev` / `standalone,production`).
-- **GET /config** (public, loaded by the frontend before login): returns `AppConfigDTO`. Fields in JSON order: `standalone`, `enableSalesPriceGroup`, `loyaltyEnabled`, `franchiseAdmin`, `franchiseCustomer`, `allowLocalItems`, `licenseStatus`, `licenseDaysUntilExpiry`, `posShowImages`, `posShowStock`, `tableManagementEnabled`, `tableManagementTableCount`, `appVersion`, `tombolaEnabled`, then `nodeType`, `ownership`, `salesUpstreams` (see "Ownership model" below). Used by frontend to hide/show UI.
+- **GET /config** (public, loaded by the frontend before login): returns `AppConfigDTO`. Fields in JSON order: `standalone` (since step 9 computed as "no ERP owner", same value), `enableSalesPriceGroup`, `loyaltyEnabled`, `licenseStatus`, `licenseDaysUntilExpiry`, `posShowImages`, `posShowStock`, `tableManagementEnabled`, `tableManagementTableCount`, `appVersion`, `tombolaEnabled`, then `nodeType`, `ownership`, `salesUpstreams` (see "Ownership model" below). Used by frontend to hide/show UI. The three franchise fields (`franchiseAdmin`, `franchiseCustomer`, `allowLocalItems`, after `loyaltyEnabled`) left with the franchise profiles (step 9, task 9.4a).
 - **ZZDataInitializer**: When `isStandalone()`, skips `ensureErpSyncCheckpointConfigs()` and `initErpSyncJobs()`. Payment methods, users, GeneralSetup (including DEFAULT_LOCATION, PASSENGER_CUSTOMER) still initialized.
 - **NoOpErpConnector**: Active when `erp.dynamicsnav.enabled=false` (standalone). Export/push methods are no-op; no NAV calls.
 - **Standalone-only APIs** (403 when not standalone):
@@ -52,18 +52,17 @@
 | `ownership.supply` | `LOCAL`, `HEAD_OFFICE`, `ERP` | derived |
 | `sales.upstream` | comma list of `ERP`, `HEAD_OFFICE`; empty = none | derived |
 
-- Derivation from the existing flags (first matching row wins):
+- Derivation from `application.standalone`:
 
-| Mode flags | Type | Catalogue | Customers | Promotions | Loyalty | Supply | Sales go to |
+| Mode flag | Type | Catalogue | Customers | Promotions | Loyalty | Supply | Sales go to |
 |---|---|---|---|---|---|---|---|
-| `franchise.customer=true` | STORE | HEAD_OFFICE | LOCAL | LOCAL | LOCAL | HEAD_OFFICE | HEAD_OFFICE |
-| `franchise.admin=true` (legacy until step 8) | STORE | LOCAL | LOCAL | LOCAL | LOCAL | LOCAL | none |
 | `application.standalone=true` | STORE | LOCAL | LOCAL | LOCAL | LOCAL | LOCAL | none |
 | otherwise (ERP) | STORE | ERP | ERP | LOCAL | LOCAL | ERP | ERP |
 
-- An explicit key overrides only its own value. An unknown value, or `ERP` for promotions or loyalty, stops the startup with `Invalid value '<value>' for property <key>: allowed values are [...]`. Checks across keys for a head office (franchise flags, owner `HEAD_OFFICE`, `sales.upstream`): see `docs/modules/head-office.md`.
-- **Owners agree with `application.standalone`** (step 9, task 9.1a), on a store and on a head office. With `application.standalone=true`, an explicit owner `ERP` stops the startup (`Invalid combination: ownership.supply=ERP with application.standalone=true. Without an ERP nothing is owned by the ERP; ...`). With `application.standalone=false` (or absent), an explicit `ownership.catalogue`, `ownership.customers` or `ownership.supply` other than `ERP` stops it (`Invalid combination: ownership.customers=LOCAL with application.standalone=false. With an ERP the catalogue, the customers and the supply are the ERP's; ...`), and so does `franchise.admin=true` or `franchise.customer=true` (`... The franchise profiles run without an ERP; ...`). Promotions and loyalty are not concerned. No profile file sets such a combination. Every configuration that starts then has an owner `ERP` exactly when `application.standalone=false`, which the step 9 questions rely on.
-- **Step 9 questions** (task 9.1b): `NodeOwnership` and `ApplicationModeService` answer `isCatalogueFromErp()`, `isCustomersFromErp()`, `isSupplyFromErp()` and `hasErp()` (some owner is the ERP). They replace the `isStandalone()` checks group by group (tasks 9.1c and after). Each one equals `application.standalone=false` for every configuration that starts. `ModeQuestionTruthTableTest` proves it over every real profile file (found by pattern, `application.properties` underneath, and alone) and over a grid of 61,440 configurations of the mode keys, the five owners, `node.type`, `headoffice.url` and `sales.upstream` (1,700 start, none answers differently). It also checks `isHeadOfficeErpSet` / `isHeadOfficeStandaloneSet` against a head office with / without an ERP owner. Before task 9.1a the same grid had 10,418 accepted configurations and 8,580 that answered differently.
+- The two franchise rows (`franchise.customer=true`, `franchise.admin=true`) left with the franchise profiles (step 9, task 9.4a): `franchise.admin` or `franchise.customer` set to `true` now stops the startup (`Invalid value 'true' for property franchise.customer: the franchise profiles were removed (head office plan, step 9). ...`), on a store and on a head office. See `docs/modules/franchise.md`.
+- An explicit key overrides only its own value. An unknown value, or `ERP` for promotions or loyalty, stops the startup with `Invalid value '<value>' for property <key>: allowed values are [...]`. Checks across keys for a head office (owner `HEAD_OFFICE`, `sales.upstream`): see `docs/modules/head-office.md`.
+- **Owners agree with `application.standalone`** (step 9, task 9.1a), on a store and on a head office. With `application.standalone=true`, an explicit owner `ERP` stops the startup (`Invalid combination: ownership.supply=ERP with application.standalone=true. Without an ERP nothing is owned by the ERP; ...`). With `application.standalone=false` (or absent), an explicit `ownership.catalogue`, `ownership.customers` or `ownership.supply` other than `ERP` stops it (`Invalid combination: ownership.customers=LOCAL with application.standalone=false. With an ERP the catalogue, the customers and the supply are the ERP's; ...`). Promotions and loyalty are not concerned. No profile file sets such a combination. Every configuration that starts then has an owner `ERP` exactly when `application.standalone=false`, which the step 9 questions rely on.
+- **Step 9 questions** (task 9.1b): `NodeOwnership` and `ApplicationModeService` answer `isCatalogueFromErp()`, `isCustomersFromErp()`, `isSupplyFromErp()` and `hasErp()` (some owner is the ERP). They replace the `isStandalone()` checks group by group (tasks 9.1c and after). Each one equals `application.standalone=false` for every configuration that starts. `ModeQuestionTruthTableTest` proves it over every real profile file (found by pattern, `application.properties` underneath, and alone) and over a grid of 61,440 configurations of the mode keys, the five owners, `node.type`, `headoffice.url` and `sales.upstream` (1,700 start, none answers differently; 872 since task 9.4a, which refuses every configuration with a franchise flag). It also checks `isHeadOfficeErpSet` / `isHeadOfficeStandaloneSet` against a head office with / without an ERP owner. Before task 9.1a the same grid had 10,418 accepted configurations and 8,580 that answered differently.
 
   | Gate (task) | Question | Answer with an ERP |
   |---|---|---|
@@ -75,26 +74,24 @@
   | `GET /config` field `standalone` (9.1e): kept, with its name and value, for the frontend | `!hasErp()` | `false` |
 
   Tests: `ModeGateTest` (each gate on an ERP store and on a head office with an ERP: 403 with its message), the existing guard and stock adjustment tests on a mode service built from properties (`support/TestModes`).
-- **Catalogue owned by the head office** (step 6): an explicit `ownership.catalogue=HEAD_OFFICE` needs `headoffice.url` (like promotions and loyalty) and stops the startup with `franchise.customer=true` or `franchise.admin=true` (`Invalid combination: ownership.catalogue=HEAD_OFFICE with franchise.customer=true ...`) or with `application.standalone=false` (`... with application.standalone=false. A store whose items come from an ERP ...`). The franchise customer row above still derives `CATALOGUE=HEAD_OFFICE` for its legacy item sync: it never gets the step 6 catalogue beans, even with `headoffice.url` (`NodeOwnership.isCatalogueFromHeadOffice`). See `docs/modules/head-office.md`, "Catalogue owned by the head office".
-- **Supply from the head office** (step 7A): an explicit `ownership.supply=HEAD_OFFICE` needs `headoffice.url` and stops the startup with a franchise flag (`Invalid combination: ownership.supply=HEAD_OFFICE with franchise.customer=true ...`), with `application.standalone=false`, or without `ownership.catalogue=HEAD_OFFICE` (a BL names head office items by code). The franchise customer row above still derives `SUPPLY=HEAD_OFFICE` for its legacy reception (`FranchiseSupplyReceptionService`): it never gets the step 7A beans, even with `headoffice.url` (`NodeOwnership.isSupplyFromHeadOffice` needs the explicit value and no franchise flag). See `docs/modules/head-office.md`, "BLs at the store".
-- **Presets** (head office plan, task 8.1): two profile files that give a network without an ERP, and replace `franchise-admin` and `franchise-customer` for a new franchise network (design 2.3, franchise column). Each install copies its file and replaces every `CHANGE_ME` (database password, head office host, store key). Procedure: `docs/modules/franchise.md`, "Installing a franchise network on the model". The legacy profiles are unchanged (removed with step 9).
+- **Catalogue owned by the head office** (step 6): an explicit `ownership.catalogue=HEAD_OFFICE` needs `headoffice.url` (like promotions and loyalty) and stops the startup with `application.standalone=false` (`... with application.standalone=false. A store whose items come from an ERP ...`). See `docs/modules/head-office.md`, "Catalogue owned by the head office".
+- **Supply from the head office** (step 7A): an explicit `ownership.supply=HEAD_OFFICE` needs `headoffice.url` and stops the startup with `application.standalone=false`, or without `ownership.catalogue=HEAD_OFFICE` (a BL names head office items by code). The store's supply beans need the explicit value (`NodeOwnership.isSupplyFromHeadOffice`). See `docs/modules/head-office.md`, "BLs at the store".
+- **Presets** (head office plan, task 8.1): two profile files that give a network without an ERP; a franchise network is installed from them (design 2.3, franchise column; the franchise profiles were removed at step 9). Each install copies its file and replaces every `CHANGE_ME` (database password, head office host, store key). Procedure: `docs/modules/franchise.md`, "Installing a franchise network on the model".
 
-| | `franchise-admin` (legacy) | `network-headoffice` | `franchise-customer` (legacy) | `network-store` |
-|---|---|---|---|---|
-| `node.type` | STORE | `HEAD_OFFICE` | STORE | STORE |
-| `application.standalone`, ERP off, `pos.pricing.enable-sales-price-group=false` | yes | yes | yes | yes |
-| `franchise.admin` / `franchise.customer` | true / false | false / false | false / true | false / false |
-| Link (`headoffice.url`, `headoffice.api-key`) | — | — (a head office never links) | — (`franchise.remote.url`, shared key) | set, one key per store |
-| Catalogue / supply | LOCAL / LOCAL | LOCAL / LOCAL | HEAD_OFFICE / HEAD_OFFICE (derived, legacy sync) | `HEAD_OFFICE` / `HEAD_OFFICE` (explicit) |
-| Customers / promotions / loyalty | LOCAL | LOCAL | LOCAL | LOCAL (promotions and loyalty explicit) |
-| Sales go to | nowhere | nowhere | HEAD_OFFICE (legacy push) | `HEAD_OFFICE` (explicit `sales.upstream`) |
-| Heartbeat, sales copies, copies down | no | — (serves them) | no | yes |
-| Step 6 catalogue and step 7A supply beans of a store (`catalogueFromHeadOffice`, `supplyFromHeadOffice` in `/config`) | no | no | no | yes |
-| Head office beans without ERP (price lists, BLs) | no | yes | no | no |
-| `/franchise/**` beans | the admin ones | no | the customer ones | no |
-| Port, log, images | 444 | 888, `C:/zsretail-headoffice/...` (a store may run on the same server) | 444 | 444 |
+| | `network-headoffice` | `network-store` |
+|---|---|---|
+| `node.type` | `HEAD_OFFICE` | STORE |
+| `application.standalone`, ERP off, `pos.pricing.enable-sales-price-group=false` | yes | yes |
+| Link (`headoffice.url`, `headoffice.api-key`) | — (a head office never links) | set, one key per store |
+| Catalogue / supply | LOCAL / LOCAL | `HEAD_OFFICE` / `HEAD_OFFICE` (explicit) |
+| Customers / promotions / loyalty | LOCAL | LOCAL (promotions and loyalty explicit) |
+| Sales go to | nowhere | `HEAD_OFFICE` (explicit `sales.upstream`) |
+| Heartbeat, sales copies, copies down | — (serves them) | yes |
+| Step 6 catalogue and step 7A supply beans of a store (`catalogueFromHeadOffice`, `supplyFromHeadOffice` in `/config`) | no | yes |
+| Head office beans without ERP (price lists, BLs) | yes | no |
+| Port, log, images | 888, `C:/zsretail-headoffice/...` (a store may run on the same server) | 444 |
 
-- Presets, continued: set on the store's row at the head office, not in the file: the two rights (price, purchase), whether its deliveries are invoiced, the billing details, the supply price mode and the invoice rhythm (step 7B). Test: `NetworkPresetTruthTableTest` (L1) reads the four real files and checks this table, the two legacy columns included.
+- Presets, continued: set on the store's row at the head office, not in the file: the two rights (price, purchase), whether its deliveries are invoiced, the billing details, the supply price mode and the invoice rhythm (step 7B). Test: `NetworkPresetTruthTableTest` (L1) reads the two real files and checks this table (until task 9.4a it also locked the two franchise profiles).
 - **Head office link** (task 1.4): a store that calls a head office. Three optional keys; without `headoffice.url` none of the link beans exists and every profile behaves as before. The two dev profiles (`standalone-dev`, `dynamics-dev`) carry the first two lines commented out. Details, startup checks and the "Connect a store" procedure: `docs/modules/head-office.md`, "Head office link".
 
 | Key | Value | When absent |
@@ -109,7 +106,7 @@
   - `ownership`: every domain to its owner, in `DataDomain` order. ERP profile: `{"CATALOGUE":"ERP","CUSTOMERS":"ERP","PROMOTIONS":"LOCAL","LOYALTY":"LOCAL","SUPPLY":"ERP"}`.
   - `salesUpstreams`: array of `"ERP"`, `"HEAD_OFFICE"`; `[]` when sales go nowhere.
   - `headOfficeLinked` (task 1.5): `true` when `headoffice.url` is set; the frontend shows the "Head office link" page only then (`appConfig/isHeadOfficeLinked`, default `false`).
-  - `catalogueFromHeadOffice` (step 6): `true` on a store whose catalogue is the head office's (URL, explicit `ownership.catalogue=HEAD_OFFICE`, standalone, no franchise flag). The frontend reads this flag, not `ownership.CATALOGUE`, which a franchise customer reports as `HEAD_OFFICE`.
-  - `supplyFromHeadOffice` (step 7A, last field): `true` on a store whose goods come from the head office by BL (URL, explicit `ownership.supply=HEAD_OFFICE`, standalone, no franchise flag). The frontend reads this flag, not `ownership.SUPPLY`, which a franchise customer reports as `HEAD_OFFICE`.
+  - `catalogueFromHeadOffice` (step 6): `true` on a store whose catalogue is the head office's (URL, explicit `ownership.catalogue=HEAD_OFFICE`, standalone). Since step 9 the same as `ownership.CATALOGUE` = `HEAD_OFFICE` (no franchise customer derives it any more); the frontend reads this flag.
+  - `supplyFromHeadOffice` (step 7A, last field): `true` on a store whose goods come from the head office by BL (URL, explicit `ownership.supply=HEAD_OFFICE`, standalone). Since step 9 the same as `ownership.SUPPLY` = `HEAD_OFFICE`; the frontend reads this flag.
 - **Frontend store** (`store/app-config/index.js`, task 0.5): state `nodeType` (default `'STORE'`), `ownership` (default `{}`), `salesUpstreams` (default `[]`). Getters `nodeType`, `ownerOf(domain)` (owner name, `null` when unknown) and `salesUpstreams`. Defaults when talking to an older backend, or when the call fails: a missing or unknown `nodeType` gives `'STORE'`, a missing or non-object `ownership` gives `{}`, a missing or non-array `salesUpstreams` gives `[]`. No component, route or menu reads them yet.
 - Tests: `ApplicationModeOwnershipTest` (L1, task 0.4); `AppConfigAPITest` (L1, task 0.5: for the four profiles, the old /config fields keep their names, order and values, and the new fields match the table above).

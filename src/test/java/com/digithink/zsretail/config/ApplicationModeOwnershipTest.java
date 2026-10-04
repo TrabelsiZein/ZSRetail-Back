@@ -36,21 +36,13 @@ class ApplicationModeOwnershipTest {
 	private static final DataOwner HO = DataOwner.HEAD_OFFICE;
 	private static final DataOwner ERP = DataOwner.ERP;
 
-	// Mode flags of today's profiles: standalone, franchise.admin, franchise.customer
+	// Mode flag of today's profiles: application.standalone
 	private static NodeOwnership standalone(MockEnvironment env) {
-		return NodeOwnership.resolve(env, true, false, false);
+		return NodeOwnership.resolve(env, true);
 	}
 
 	private static NodeOwnership erp(MockEnvironment env) {
-		return NodeOwnership.resolve(env, false, false, false);
-	}
-
-	private static NodeOwnership franchiseCustomer(MockEnvironment env) {
-		return NodeOwnership.resolve(env, true, false, true);
-	}
-
-	private static NodeOwnership franchiseAdmin(MockEnvironment env) {
-		return NodeOwnership.resolve(env, true, true, false);
+		return NodeOwnership.resolve(env, false);
 	}
 
 	/** Owners in DataDomain order: catalogue, customers, promotions, loyalty, supply. */
@@ -84,25 +76,22 @@ class ApplicationModeOwnershipTest {
 	}
 
 	@Test
-	@DisplayName("Franchise customer: store, catalogue and supply from head office, the rest local, sales go to head office")
-	void franchiseCustomerRow() {
-		assertRow(franchiseCustomer(new MockEnvironment()), NodeType.STORE, HO, L, L, L, HO,
-				EnumSet.of(SalesUpstream.HEAD_OFFICE));
-	}
-
-	@Test
-	@DisplayName("Franchise admin (legacy): store, everything local, sales go nowhere")
-	void franchiseAdminRow() {
-		assertRow(franchiseAdmin(new MockEnvironment()), NodeType.STORE, L, L, L, L, L, none());
-	}
-
-	@Test
-	@DisplayName("Precedence: franchise customer beats franchise admin, which beats standalone (task 9.1a: never with ERP flags)")
-	void precedence() {
-		assertRow(NodeOwnership.resolve(new MockEnvironment(), true, true, true), NodeType.STORE, HO, L, L, L, HO,
-				EnumSet.of(SalesUpstream.HEAD_OFFICE));
-		assertRow(NodeOwnership.resolve(new MockEnvironment(), true, true, false), NodeType.STORE, L, L, L, L, L,
-				none());
+	@DisplayName("9.4a: franchise.admin or franchise.customer set to true stops the startup, on a store (with or without an ERP), linked or not, and on a head office; false or absent is accepted")
+	void franchiseFlagsRefused() {
+		for (String key : new String[] { "franchise.admin", "franchise.customer" }) {
+			for (MockEnvironment env : new MockEnvironment[] { new MockEnvironment(), linkEnv(), headOfficeEnv() }) {
+				for (boolean standalone : new boolean[] { true, false }) {
+					IllegalStateException e = assertThrows(IllegalStateException.class,
+							() -> NodeOwnership.resolve(env.withProperty(key, " TRUE "), standalone));
+					assertTrue(e.getMessage().startsWith("Invalid value ' TRUE ' for property " + key
+							+ ": the franchise profiles were removed (head office plan, step 9)"), e.getMessage());
+					assertTrue(e.getMessage().contains("network-headoffice and network-store"), e.getMessage());
+				}
+			}
+		}
+		assertRow(standalone(new MockEnvironment().withProperty("franchise.admin", "false").withProperty(
+				"franchise.customer", "false").withProperty("franchise.customer.allow-local-items", "true")),
+				NodeType.STORE, L, L, L, L, L, none());
 	}
 
 	// --- Explicit keys ---
@@ -161,10 +150,8 @@ class ApplicationModeOwnershipTest {
 
 	// --- Task 9.1a: owners and application.standalone agree ---
 
-	private static void assertRefused(MockEnvironment env, boolean standalone, boolean admin, boolean customer,
-			String... parts) {
-		IllegalStateException e = assertThrows(IllegalStateException.class,
-				() -> NodeOwnership.resolve(env, standalone, admin, customer));
+	private static void assertRefused(MockEnvironment env, boolean standalone, String... parts) {
+		IllegalStateException e = assertThrows(IllegalStateException.class, () -> NodeOwnership.resolve(env, standalone));
 		for (String part : parts) {
 			assertTrue(e.getMessage().contains(part), "message contains '" + part + "': " + e.getMessage());
 		}
@@ -174,40 +161,32 @@ class ApplicationModeOwnershipTest {
 	@DisplayName("9.1a: without an ERP (standalone=true) an explicit owner ERP is refused, on a store and on a head office")
 	void standaloneRefusesErpOwner() {
 		for (String domain : new String[] { "ownership.catalogue", "ownership.customers", "ownership.supply" }) {
-			assertRefused(new MockEnvironment().withProperty(domain, "ERP"), true, false, false,
+			assertRefused(new MockEnvironment().withProperty(domain, "ERP"), true,
 					"Invalid combination: " + domain + "=ERP with application.standalone=true");
-			assertRefused(headOfficeEnv().withProperty(domain, " erp "), true, false, false, domain + "=ERP");
+			assertRefused(headOfficeEnv().withProperty(domain, " erp "), true, domain + "=ERP");
 		}
 	}
 
 	@Test
 	@DisplayName("9.1a: with an ERP (standalone=false) catalogue, customers and supply other than ERP are refused; promotions and loyalty stay free")
 	void erpRefusesOtherOwners() {
-		assertRefused(new MockEnvironment().withProperty("ownership.customers", "LOCAL"), false, false, false,
+		assertRefused(new MockEnvironment().withProperty("ownership.customers", "LOCAL"), false,
 				"Invalid combination: ownership.customers=LOCAL with application.standalone=false");
-		assertRefused(linkEnv().withProperty("ownership.customers", "HEAD_OFFICE"), false, false, false,
+		assertRefused(linkEnv().withProperty("ownership.customers", "HEAD_OFFICE"), false,
 				"ownership.customers=HEAD_OFFICE");
-		assertRefused(new MockEnvironment().withProperty("ownership.supply", "LOCAL"), false, false, false,
+		assertRefused(new MockEnvironment().withProperty("ownership.supply", "LOCAL"), false,
 				"ownership.supply=LOCAL");
-		assertRefused(new MockEnvironment().withProperty("ownership.catalogue", "LOCAL"), false, false, false,
+		assertRefused(new MockEnvironment().withProperty("ownership.catalogue", "LOCAL"), false,
 				"ownership.catalogue=LOCAL");
-		assertRefused(headOfficeEnv().withProperty("ownership.catalogue", "LOCAL"), false, false, false,
+		assertRefused(headOfficeEnv().withProperty("ownership.catalogue", "LOCAL"), false,
 				"ownership.catalogue=LOCAL");
 		// The step 6 and 7A messages for HEAD_OFFICE with ERP flags are unchanged
-		assertRefused(linkEnv().withProperty("ownership.catalogue", "HEAD_OFFICE"), false, false, false,
+		assertRefused(linkEnv().withProperty("ownership.catalogue", "HEAD_OFFICE"), false,
 				"A store whose items come from an ERP");
 		assertRow(erp(linkEnv().withProperty("ownership.promotions", "HEAD_OFFICE").withProperty("ownership.loyalty",
 				"HEAD_OFFICE")), NodeType.STORE, ERP, ERP, HO, HO, ERP, EnumSet.of(SalesUpstream.ERP));
 		assertRow(erp(new MockEnvironment().withProperty("ownership.catalogue", "ERP")), NodeType.STORE, ERP, ERP, L, L,
 				ERP, EnumSet.of(SalesUpstream.ERP));
-	}
-
-	@Test
-	@DisplayName("9.1a: franchise.admin or franchise.customer with ERP flags is refused")
-	void franchiseRefusedWithErpFlags() {
-		assertRefused(new MockEnvironment(), false, false, true,
-				"Invalid combination: franchise.customer=true with application.standalone=false");
-		assertRefused(new MockEnvironment(), false, true, false, "franchise.admin=true with application.standalone=false");
 	}
 
 	// --- Invalid values fail with the key in the message ---
@@ -259,17 +238,6 @@ class ApplicationModeOwnershipTest {
 	}
 
 	@Test
-	@DisplayName("Head office refuses franchise.admin=true and franchise.customer=true")
-	void headOfficeRefusesFranchiseFlags() {
-		IllegalStateException admin = assertThrows(IllegalStateException.class, () -> franchiseAdmin(headOfficeEnv()));
-		assertTrue(admin.getMessage().contains("node.type=HEAD_OFFICE"), admin.getMessage());
-		assertTrue(admin.getMessage().contains("franchise.admin=true"), admin.getMessage());
-		IllegalStateException customer = assertThrows(IllegalStateException.class,
-				() -> franchiseCustomer(headOfficeEnv()));
-		assertTrue(customer.getMessage().contains("franchise.customer=true"), customer.getMessage());
-	}
-
-	@Test
 	@DisplayName("Head office refuses an explicit owner HEAD_OFFICE, for every domain")
 	void headOfficeRefusesHeadOfficeOwner() {
 		for (DataDomain domain : DataDomain.values()) {
@@ -299,12 +267,10 @@ class ApplicationModeOwnershipTest {
 	}
 
 	@Test
-	@DisplayName("Store with headoffice.url and a key: accepted on the 4 profiles (trailing slash tolerated), rows unchanged")
+	@DisplayName("Store with headoffice.url and a key: accepted on both flags (trailing slash tolerated), rows unchanged")
 	void headOfficeLinkAcceptedOnStore() {
 		assertRow(standalone(linkEnv()), NodeType.STORE, L, L, L, L, L, none());
 		assertRow(erp(linkEnv()), NodeType.STORE, ERP, ERP, L, L, ERP, EnumSet.of(SalesUpstream.ERP));
-		assertRow(franchiseCustomer(linkEnv()), NodeType.STORE, HO, L, L, L, HO, EnumSet.of(SalesUpstream.HEAD_OFFICE));
-		assertRow(franchiseAdmin(linkEnv()), NodeType.STORE, L, L, L, L, L, none());
 		assertEquals(NodeType.STORE, standalone(linkEnv().withProperty("node.type", "STORE")).getNodeType());
 	}
 
@@ -404,13 +370,6 @@ class ApplicationModeOwnershipTest {
 	}
 
 	@Test
-	@DisplayName("Task 2.4: the franchise customer profile derives HEAD_OFFICE and still starts without headoffice.url")
-	void franchiseCustomerDerivedUpstreamNotChecked() {
-		assertRow(franchiseCustomer(new MockEnvironment()), NodeType.STORE, HO, L, L, L, HO,
-				EnumSet.of(SalesUpstream.HEAD_OFFICE));
-	}
-
-	@Test
 	@DisplayName("Task 2.4: a head office with sales.upstream=HEAD_OFFICE keeps the head office message")
 	void headOfficeUpstreamMessage() {
 		MockEnvironment env = headOfficeEnv().withProperty("sales.upstream", "HEAD_OFFICE");
@@ -456,13 +415,10 @@ class ApplicationModeOwnershipTest {
 
 	// --- Through ApplicationModeService ---
 
-	private static ApplicationModeService service(MockEnvironment env, boolean standalone, boolean franchiseAdmin,
-			boolean franchiseCustomer) throws Exception {
+	private static ApplicationModeService service(MockEnvironment env, boolean standalone) throws Exception {
 		ApplicationModeService service = new ApplicationModeService();
 		inject(service, "environment", env);
 		inject(service, "standalone", standalone);
-		inject(service, "franchiseAdmin", franchiseAdmin);
-		inject(service, "franchiseCustomer", franchiseCustomer);
 		service.initOwnership();
 		return service;
 	}
@@ -476,7 +432,7 @@ class ApplicationModeOwnershipTest {
 	@Test
 	@DisplayName("ApplicationModeService exposes the resolved values; existing mode methods unchanged")
 	void serviceDelegates() throws Exception {
-		ApplicationModeService s = service(new MockEnvironment(), false, false, false);
+		ApplicationModeService s = service(new MockEnvironment(), false);
 		assertEquals(NodeType.STORE, s.getNodeType());
 		assertEquals(ERP, s.ownerOf(DataDomain.CATALOGUE));
 		assertEquals(L, s.ownerOf(DataDomain.LOYALTY));
@@ -486,24 +442,22 @@ class ApplicationModeOwnershipTest {
 	}
 
 	@Test
-	@DisplayName("ApplicationModeService.isHeadOffice: true only with node.type=HEAD_OFFICE, false on the 4 profiles")
+	@DisplayName("ApplicationModeService.isHeadOffice: true only with node.type=HEAD_OFFICE, false on the standalone and ERP profiles")
 	void serviceIsHeadOffice() throws Exception {
-		assertTrue(service(headOfficeEnv(), true, false, false).isHeadOffice());
-		assertFalse(service(new MockEnvironment(), true, false, false).isHeadOffice());
-		assertFalse(service(new MockEnvironment(), false, false, false).isHeadOffice());
-		assertFalse(service(new MockEnvironment(), true, false, true).isHeadOffice());
-		assertFalse(service(new MockEnvironment(), true, true, false).isHeadOffice());
+		assertTrue(service(headOfficeEnv(), true).isHeadOffice());
+		assertFalse(service(new MockEnvironment(), true).isHeadOffice());
+		assertFalse(service(new MockEnvironment(), false).isHeadOffice());
 	}
 
 	@Test
 	@DisplayName("ApplicationModeService.isHeadOfficeLinked: true only with a non-blank headoffice.url")
 	void serviceIsHeadOfficeLinked() throws Exception {
-		assertTrue(service(linkEnv(), true, false, false).isHeadOfficeLinked());
-		assertTrue(service(linkEnv(), false, false, false).isHeadOfficeLinked());
-		assertFalse(service(new MockEnvironment(), true, false, false).isHeadOfficeLinked());
-		assertFalse(service(new MockEnvironment().withProperty("headoffice.url", " "), true, false, false)
+		assertTrue(service(linkEnv(), true).isHeadOfficeLinked());
+		assertTrue(service(linkEnv(), false).isHeadOfficeLinked());
+		assertFalse(service(new MockEnvironment(), true).isHeadOfficeLinked());
+		assertFalse(service(new MockEnvironment().withProperty("headoffice.url", " "), true)
 				.isHeadOfficeLinked());
-		assertFalse(service(headOfficeEnv(), true, false, false).isHeadOfficeLinked());
+		assertFalse(service(headOfficeEnv(), true).isHeadOfficeLinked());
 	}
 
 	// --- Copies down (task 3.1) ---
@@ -524,7 +478,7 @@ class ApplicationModeOwnershipTest {
 	}
 
 	@Test
-	@DisplayName("Task 3.1: promotions LOCAL without the URL, HEAD_OFFICE with it, and the 4 profiles without the key start as before")
+	@DisplayName("Task 3.1: promotions LOCAL without the URL, HEAD_OFFICE with it, and the standalone and ERP profiles without the key start as before")
 	void headOfficePromotionsAccepted() {
 		assertEquals(L, standalone(new MockEnvironment().withProperty("ownership.promotions", "LOCAL"))
 				.ownerOf(DataDomain.PROMOTIONS));
@@ -534,8 +488,6 @@ class ApplicationModeOwnershipTest {
 				.ownerOf(DataDomain.PROMOTIONS));
 		assertEquals(L, standalone(new MockEnvironment()).ownerOf(DataDomain.PROMOTIONS));
 		assertEquals(L, erp(new MockEnvironment()).ownerOf(DataDomain.PROMOTIONS));
-		assertEquals(L, franchiseCustomer(new MockEnvironment()).ownerOf(DataDomain.PROMOTIONS));
-		assertEquals(L, franchiseAdmin(new MockEnvironment()).ownerOf(DataDomain.PROMOTIONS));
 		// Step 6: an explicit catalogue HEAD_OFFICE is checked like promotions (it was accepted without the URL before)
 		assertThrows(IllegalStateException.class,
 				() -> standalone(new MockEnvironment().withProperty("ownership.catalogue", "HEAD_OFFICE")));
@@ -584,7 +536,7 @@ class ApplicationModeOwnershipTest {
 	}
 
 	@Test
-	@DisplayName("Step 4: loyalty LOCAL without the URL, HEAD_OFFICE with it; the 4 profiles keep loyalty LOCAL; a head office keeps its message")
+	@DisplayName("Step 4: loyalty LOCAL without the URL, HEAD_OFFICE with it; the standalone and ERP profiles keep loyalty LOCAL; a head office keeps its message")
 	void headOfficeLoyaltyAccepted() throws Exception {
 		assertEquals(L, standalone(new MockEnvironment().withProperty("ownership.loyalty", "LOCAL"))
 				.ownerOf(DataDomain.LOYALTY));
@@ -593,12 +545,10 @@ class ApplicationModeOwnershipTest {
 		assertEquals(HO, erp(linkEnv().withProperty("ownership.loyalty", "HEAD_OFFICE")).ownerOf(DataDomain.LOYALTY));
 		assertEquals(L, standalone(new MockEnvironment()).ownerOf(DataDomain.LOYALTY));
 		assertEquals(L, erp(new MockEnvironment()).ownerOf(DataDomain.LOYALTY));
-		assertEquals(L, franchiseCustomer(new MockEnvironment()).ownerOf(DataDomain.LOYALTY));
-		assertEquals(L, franchiseAdmin(new MockEnvironment()).ownerOf(DataDomain.LOYALTY));
-		assertTrue(service(linkEnv().withProperty("ownership.loyalty", "HEAD_OFFICE"), true, false, false)
+		assertTrue(service(linkEnv().withProperty("ownership.loyalty", "HEAD_OFFICE"), true)
 				.isLoyaltyOwnedByHeadOffice());
-		assertFalse(service(linkEnv(), true, false, false).isLoyaltyOwnedByHeadOffice());
-		assertFalse(service(new MockEnvironment(), false, false, false).isLoyaltyOwnedByHeadOffice());
+		assertFalse(service(linkEnv(), true).isLoyaltyOwnedByHeadOffice());
+		assertFalse(service(new MockEnvironment(), false).isLoyaltyOwnedByHeadOffice());
 		IllegalStateException e = assertThrows(IllegalStateException.class,
 				() -> standalone(headOfficeEnv().withProperty("ownership.loyalty", "HEAD_OFFICE")));
 		assertTrue(e.getMessage().startsWith("Invalid value 'HEAD_OFFICE' for property ownership.loyalty: on a head office"),
@@ -623,7 +573,7 @@ class ApplicationModeOwnershipTest {
 	@DisplayName("ApplicationModeService fails at startup on an invalid value")
 	void serviceFailsOnInvalidValue() {
 		MockEnvironment env = new MockEnvironment().withProperty("ownership.loyalty", "ERP");
-		IllegalStateException e = assertThrows(IllegalStateException.class, () -> service(env, true, false, false));
+		IllegalStateException e = assertThrows(IllegalStateException.class, () -> service(env, true));
 		assertTrue(e.getMessage().contains("ownership.loyalty"));
 	}
 }

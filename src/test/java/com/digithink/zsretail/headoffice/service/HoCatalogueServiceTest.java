@@ -70,8 +70,6 @@ class HoCatalogueServiceTest {
 		b001.setCostPrice(6.0);
 		b001.setLastDirectCost(6.1);
 		b001.setLastDirectNetCost(5.9);
-		b001.setFranchiseSalesPrice(12.0);
-		b001.setFromFranchiseAdmin(true);
 		b001.setErpExternalId("NAV-1");
 		b001.setImageUrl("3.jpg");
 		b001.setBrand("ACME");

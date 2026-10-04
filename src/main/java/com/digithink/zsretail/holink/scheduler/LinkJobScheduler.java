@@ -42,7 +42,7 @@ import lombok.extern.log4j.Log4j2;
  * exchange log is purged when due.
  * <p>
  * The thread pool is deliberately not a bean: a TaskScheduler bean would replace Spring Boot's default one, and the
- * existing {@code @Scheduled} jobs (ERP, franchise) would move onto it.
+ * existing {@code @Scheduled} jobs (ERP) would move onto it.
  */
 @Component
 @ConditionalOnHeadOfficeLink

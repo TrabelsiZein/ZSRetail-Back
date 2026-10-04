@@ -20,20 +20,19 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * Installation type, owner of each data domain and sales upstreams (head office design 2.1, 2.2).
  *
  * Each value comes from its optional property when present ({@code node.type}, {@code ownership.<domain>},
- * {@code sales.upstream}); otherwise it is derived from the existing mode flags (design 5.1):
+ * {@code sales.upstream}); otherwise it is derived from application.standalone (design 5.1):
  *
  *   mode                 type   catalogue    customers  promotions  loyalty  supply       sales go to
- *   franchise customer   STORE  HEAD_OFFICE  LOCAL      LOCAL       LOCAL    HEAD_OFFICE  HEAD_OFFICE
- *   franchise admin      STORE  LOCAL        LOCAL      LOCAL       LOCAL    LOCAL        nowhere   (legacy, until step 8)
  *   standalone           STORE  LOCAL        LOCAL      LOCAL       LOCAL    LOCAL        nowhere
  *   ERP                  STORE  ERP          ERP        LOCAL       LOCAL    ERP          ERP
  *
- * The first matching row wins, in this order. An explicit value that is unknown, or an owner the domain
- * does not allow, throws {@link IllegalStateException} naming the key, so the application does not start.
+ * An explicit value that is unknown, or an owner the domain does not allow, throws {@link IllegalStateException}
+ * naming the key, so the application does not start. The franchise profiles were removed (step 9, task 9.4a):
+ * franchise.admin or franchise.customer set to true stops the startup, on a store and on a head office.
  *
  * Head office ({@code node.type=HEAD_OFFICE}, docs/modules/head-office.md): it never sells, so sales go nowhere
- * when {@code sales.upstream} is absent. The startup also fails on a head office with franchise.admin or
- * franchise.customer set to true, with an explicit owner HEAD_OFFICE, or with a non-empty sales.upstream.
+ * when {@code sales.upstream} is absent. The startup also fails on a head office with an explicit owner HEAD_OFFICE,
+ * or with a non-empty sales.upstream.
  *
  * Head office link (task 1.4): when {@code headoffice.url} is set, the startup fails on a head office, with a blank
  * {@code headoffice.api-key}, or with a {@code headoffice.heartbeat-interval-seconds} below 1. Stores page (task 1.5):
@@ -42,21 +41,20 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * not a date, a {@code headoffice.sales-push.batch-size} outside 1..1000 or a
  * {@code headoffice.sales-push.interval-seconds} below 1 or (task 2.6) a {@code headoffice.log-retention-days} below 1;
  * on a store, an explicit {@code sales.upstream} that includes
- * HEAD_OFFICE without {@code headoffice.url} fails too (a derived upstream is not checked: the franchise customer
- * profile derives HEAD_OFFICE for its legacy push and has no headoffice.url).
+ * HEAD_OFFICE without {@code headoffice.url} fails too.
  * <p>
  * Copies down (step 3): a store with an explicit {@code ownership.promotions=HEAD_OFFICE} without {@code headoffice.url}
  * fails; with the URL set, a {@code headoffice.pull.interval-seconds} below 1 fails. Shared loyalty (step 4): the same
  * for {@code ownership.loyalty=HEAD_OFFICE}, and with the URL set a {@code headoffice.loyalty-push.interval-seconds}
  * below 1 fails. Catalogue (step 6): the same for {@code ownership.catalogue=HEAD_OFFICE}, which also fails with
- * franchise.customer or franchise.admin set to true, or with application.standalone=false. Supply (step 7A): the same
- * for {@code ownership.supply=HEAD_OFFICE}, which also fails with a franchise flag, with application.standalone=false,
+ * application.standalone=false. Supply (step 7A): the same for {@code ownership.supply=HEAD_OFFICE}, which also fails
+ * with application.standalone=false,
  * or without {@code ownership.catalogue=HEAD_OFFICE} (a BL names head office items by code); with the URL set a
  * {@code headoffice.supply-push.interval-seconds} below 1 fails.
  * <p>
  * Owners and application.standalone agree (step 9, task 9.1a): with application.standalone=true an explicit owner ERP
  * fails; with application.standalone=false (or absent) an explicit owner other than ERP for the catalogue, the customers
- * or the supply fails, and so does franchise.admin or franchise.customer set to true. Every configuration that starts
+ * or the supply fails. Every configuration that starts
  * then answers "an owner is the ERP" exactly as application.standalone=false (ModeQuestionTruthTableTest).
  */
 public final class NodeOwnership {
@@ -160,25 +158,21 @@ public final class NodeOwnership {
 
 	/**
 	 * True on a store whose catalogue is the head office's (step 6): headoffice.url set, ownership.catalogue=HEAD_OFFICE,
-	 * application.standalone=true and neither franchise flag. The franchise customer profile derives a catalogue owned by
-	 * HEAD_OFFICE for its legacy item sync: it never matches, even with headoffice.url set (an explicit value with a
-	 * franchise flag, or with an ERP, stops the startup). Also used by {@link OnHeadOfficeCatalogueCondition}.
+	 * application.standalone=true (an explicit value with an ERP stops the startup). Also used by
+	 * {@link OnHeadOfficeCatalogueCondition}.
 	 */
 	public static boolean isCatalogueFromHeadOffice(PropertyResolver env) {
-		return isOwnedByHeadOffice(env, DataDomain.CATALOGUE) && flag(env, STANDALONE_KEY)
-				&& !flag(env, FRANCHISE_CUSTOMER_KEY) && !flag(env, FRANCHISE_ADMIN_KEY);
+		return isOwnedByHeadOffice(env, DataDomain.CATALOGUE) && flag(env, STANDALONE_KEY);
 	}
 
 	/**
 	 * True on a store whose goods come from the head office by BL (step 7A): headoffice.url set, an explicit
-	 * ownership.supply=HEAD_OFFICE, application.standalone=true and neither franchise flag (the startup also requires
-	 * ownership.catalogue=HEAD_OFFICE then). The franchise customer profile derives a supply owned by HEAD_OFFICE for its
-	 * legacy reception (FranchiseSupplyReceptionService): it never matches, even with headoffice.url set. Also used by
-	 * {@link OnHeadOfficeSupplyCondition}.
+	 * ownership.supply=HEAD_OFFICE, application.standalone=true (the startup also requires ownership.catalogue=HEAD_OFFICE
+	 * then). Also used by {@link OnHeadOfficeSupplyCondition}.
 	 */
 	public static boolean isSupplyFromHeadOffice(PropertyResolver env) {
 		return env.containsProperty(DataDomain.SUPPLY.getPropertyKey()) && isOwnedByHeadOffice(env, DataDomain.SUPPLY)
-				&& flag(env, STANDALONE_KEY) && !flag(env, FRANCHISE_CUSTOMER_KEY) && !flag(env, FRANCHISE_ADMIN_KEY);
+				&& flag(env, STANDALONE_KEY);
 	}
 
 	/**
@@ -198,9 +192,9 @@ public final class NodeOwnership {
 		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && flag(env, STANDALONE_KEY);
 	}
 
-	/** The mode flags read from the environment like {@link ApplicationModeService}. */
+	/** application.standalone read from the environment like {@link ApplicationModeService}. */
 	private static NodeOwnership resolveFromEnvironment(PropertyResolver env) {
-		return resolve(env, flag(env, STANDALONE_KEY), flag(env, FRANCHISE_ADMIN_KEY), flag(env, FRANCHISE_CUSTOMER_KEY));
+		return resolve(env, flag(env, STANDALONE_KEY));
 	}
 
 	/**
@@ -223,15 +217,14 @@ public final class NodeOwnership {
 		return Boolean.TRUE.equals(env.getProperty(key, Boolean.class, Boolean.FALSE));
 	}
 
-	public static NodeOwnership resolve(PropertyResolver env, boolean standalone, boolean franchiseAdmin,
-			boolean franchiseCustomer) {
+	/**
+	 * {@code standalone}: application.standalone as ApplicationModeService reads it (false when absent). Throws
+	 * {@link IllegalStateException} naming the key when the configuration cannot start (see the class comment).
+	 */
+	public static NodeOwnership resolve(PropertyResolver env, boolean standalone) {
+		checkNoFranchiseFlag(env);
 		NodeType nodeType = nodeTypeOf(env);
 		boolean headOffice = nodeType == NodeType.HEAD_OFFICE;
-		if (headOffice && (franchiseAdmin || franchiseCustomer)) {
-			throw new IllegalStateException("Invalid combination: " + NODE_TYPE_KEY + "=HEAD_OFFICE with "
-					+ (franchiseAdmin ? "franchise.admin=true" : "franchise.customer=true")
-					+ ". A head office uses neither franchise profile.");
-		}
 		checkHeadOfficeLink(env, headOffice);
 		if (headOffice) {
 			checkWholeSeconds(env, OFFLINE_AFTER_KEY);
@@ -239,11 +232,7 @@ public final class NodeOwnership {
 
 		Map<DataDomain, DataOwner> derivedOwners;
 		Set<SalesUpstream> derivedUpstreams;
-		if (franchiseCustomer) {
-			derivedOwners = owners(DataOwner.HEAD_OFFICE, DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.LOCAL,
-					DataOwner.HEAD_OFFICE);
-			derivedUpstreams = EnumSet.of(SalesUpstream.HEAD_OFFICE);
-		} else if (franchiseAdmin || standalone) {
+		if (standalone) {
 			derivedOwners = owners(DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.LOCAL, DataOwner.LOCAL,
 					DataOwner.LOCAL);
 			derivedUpstreams = EnumSet.noneOf(SalesUpstream.class);
@@ -282,12 +271,6 @@ public final class NodeOwnership {
 
 		String catalogueKey = DataDomain.CATALOGUE.getPropertyKey();
 		if (!headOffice && env.containsProperty(catalogueKey) && owners.get(DataDomain.CATALOGUE) == DataOwner.HEAD_OFFICE) {
-			if (franchiseCustomer || franchiseAdmin) { // step 6: the legacy profiles keep their own item sync
-				throw new IllegalStateException("Invalid combination: " + catalogueKey + "=HEAD_OFFICE with "
-						+ (franchiseAdmin ? "franchise.admin=true" : "franchise.customer=true")
-						+ ". The franchise profiles keep their own item sync until they are migrated; remove "
-						+ catalogueKey + ".");
-			}
 			if (!standalone) {
 				throw new IllegalStateException("Invalid combination: " + catalogueKey + "=HEAD_OFFICE with "
 						+ STANDALONE_KEY + "=false. A store whose items come from an ERP cannot receive them from a head"
@@ -297,12 +280,6 @@ public final class NodeOwnership {
 
 		String supplyKey = DataDomain.SUPPLY.getPropertyKey();
 		if (!headOffice && env.containsProperty(supplyKey) && owners.get(DataDomain.SUPPLY) == DataOwner.HEAD_OFFICE) {
-			if (franchiseCustomer || franchiseAdmin) { // step 7A: the legacy profiles keep their own supply reception
-				throw new IllegalStateException("Invalid combination: " + supplyKey + "=HEAD_OFFICE with "
-						+ (franchiseAdmin ? "franchise.admin=true" : "franchise.customer=true")
-						+ ". The franchise profiles keep their own supply reception until they are migrated; remove "
-						+ supplyKey + ".");
-			}
 			if (!standalone) {
 				throw new IllegalStateException("Invalid combination: " + supplyKey + "=HEAD_OFFICE with "
 						+ STANDALONE_KEY + "=false. A store whose stock is kept by an ERP cannot receive BLs from a head"
@@ -315,7 +292,7 @@ public final class NodeOwnership {
 						+ ".");
 			}
 		}
-		checkOwnersAgreeWithStandalone(env, standalone, franchiseAdmin, franchiseCustomer, owners);
+		checkOwnersAgreeWithStandalone(env, standalone, owners);
 
 		Set<SalesUpstream> upstreams = env.containsProperty(SALES_UPSTREAM_KEY)
 				? parseUpstreams(env.getProperty(SALES_UPSTREAM_KEY))
@@ -376,17 +353,27 @@ public final class NodeOwnership {
 	}
 
 	/**
+	 * Step 9, task 9.4a: the franchise profiles were removed. A leftover franchise.admin or franchise.customer set to true
+	 * (an old profile file) stops the startup instead of silently running as a plain store.
+	 */
+	private static void checkNoFranchiseFlag(PropertyResolver env) {
+		for (String key : new String[] { FRANCHISE_ADMIN_KEY, FRANCHISE_CUSTOMER_KEY }) {
+			if (flag(env, key)) {
+				throw new IllegalStateException("Invalid value '" + env.getProperty(key) + "' for property " + key
+						+ ": the franchise profiles were removed (head office plan, step 9). A franchise network runs as"
+						+ " a head office and stores, from the presets network-headoffice and network-store"
+						+ " (docs/modules/franchise.md); remove " + key + ".");
+			}
+		}
+	}
+
+	/**
 	 * Step 9, task 9.1a: application.standalone and the owners say the same thing about the ERP. Without an ERP nothing is
 	 * owned by the ERP; with an ERP the catalogue, the customers and the supply (the domains an ERP can own) are the
-	 * ERP's, and the franchise profiles (which run without an ERP) are refused.
+	 * ERP's.
 	 */
-	private static void checkOwnersAgreeWithStandalone(PropertyResolver env, boolean standalone, boolean franchiseAdmin,
-			boolean franchiseCustomer, Map<DataDomain, DataOwner> owners) {
-		if (!standalone && (franchiseAdmin || franchiseCustomer)) {
-			throw new IllegalStateException("Invalid combination: "
-					+ (franchiseAdmin ? "franchise.admin=true" : "franchise.customer=true") + " with " + STANDALONE_KEY
-					+ "=false. The franchise profiles run without an ERP; set " + STANDALONE_KEY + " to true.");
-		}
+	private static void checkOwnersAgreeWithStandalone(PropertyResolver env, boolean standalone,
+			Map<DataDomain, DataOwner> owners) {
 		for (DataDomain domain : DataDomain.values()) {
 			String key = domain.getPropertyKey();
 			if (!env.containsProperty(key)) {

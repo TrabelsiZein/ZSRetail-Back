@@ -19,14 +19,12 @@ import com.digithink.zsretail.holink.service.SupplyDownHandler;
 import com.digithink.zsretail.holink.service.SupplyPushService;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.DataOwner;
-import com.digithink.zsretail.service.franchise.FranchiseSupplyReceptionService;
 
 /**
  * Head office plan, step 7A: the supply beans of a store (BL reception, the SUPPLY handler, the SUPPLY_PUSH job) exist
  * only on a standalone store with headoffice.url and an explicit ownership.supply=HEAD_OFFICE (with
- * ownership.catalogue=HEAD_OFFICE, required at startup). A franchise customer (supply derived HEAD_OFFICE for its
- * legacy reception) never gets them, even with headoffice.url, and keeps FranchiseSupplyReceptionService. The startup
- * refusals. The head office receiver exists only on a head office without an ERP. Bare bean registry.
+ * ownership.catalogue=HEAD_OFFICE, required at startup). The startup refusals (since task 9.4a a franchise flag stops
+ * the startup before anything else). The head office receiver exists only on a head office without an ERP. Bare bean registry.
  */
 class OnHeadOfficeSupplyConditionTest {
 
@@ -53,9 +51,7 @@ class OnHeadOfficeSupplyConditionTest {
 	}
 
 	private static NodeOwnership resolve(MockEnvironment env) {
-		return NodeOwnership.resolve(env, Boolean.parseBoolean(env.getProperty("application.standalone", "false")),
-				Boolean.parseBoolean(env.getProperty("franchise.admin", "false")),
-				Boolean.parseBoolean(env.getProperty("franchise.customer", "false")));
+		return NodeOwnership.resolve(env, Boolean.parseBoolean(env.getProperty("application.standalone", "false")));
 	}
 
 	@Test
@@ -70,14 +66,13 @@ class OnHeadOfficeSupplyConditionTest {
 			assertTrue(bean.isAnnotationPresent(ConditionalOnHeadOfficeSupply.class), bean.getSimpleName());
 		}
 		assertTrue(registered(on, CopiesDownJob.class));
-		assertFalse(registered(on, FranchiseSupplyReceptionService.class));
 		assertFalse(registered(on, HeadOfficeSupplyAPI.class));
 		assertEquals(OnHeadOfficeSupplyCondition.class,
 				ConditionalOnHeadOfficeSupply.class.getAnnotation(Conditional.class).value()[0]);
 	}
 
 	@Test
-	@DisplayName("Off: no URL, supply LOCAL, ERP or absent, the catalogue alone, loyalty alone, the 4 profiles, a head office")
+	@DisplayName("Off: no URL, supply LOCAL, ERP or absent, the catalogue alone, loyalty alone, the standalone and ERP profiles, a head office")
 	void off() {
 		MockEnvironment[] off = { new MockEnvironment(), standalone(new MockEnvironment()), standalone(link()), link(),
 				standalone(link()).withProperty("ownership.catalogue", "HEAD_OFFICE"),
@@ -86,8 +81,7 @@ class OnHeadOfficeSupplyConditionTest {
 				link().withProperty("ownership.supply", "ERP"),
 				standalone(link()).withProperty("ownership.loyalty", "HEAD_OFFICE"),
 				standalone(new MockEnvironment()).withProperty("node.type", "HEAD_OFFICE"),
-				new MockEnvironment().withProperty("node.type", "HEAD_OFFICE"),
-				standalone(new MockEnvironment()).withProperty("franchise.admin", "true") };
+				new MockEnvironment().withProperty("node.type", "HEAD_OFFICE") };
 		for (MockEnvironment env : off) {
 			assertFalse(NodeOwnership.isSupplyFromHeadOffice(env));
 			for (Class<?> bean : STORE_BEANS) {
@@ -97,32 +91,21 @@ class OnHeadOfficeSupplyConditionTest {
 	}
 
 	@Test
-	@DisplayName("A franchise customer never gets them, even with headoffice.url; its legacy supply reception stays")
-	void franchiseCustomer() {
-		MockEnvironment customer = standalone(new MockEnvironment()).withProperty("franchise.customer", "true");
-		MockEnvironment customerLinked = standalone(link()).withProperty("franchise.customer", "true");
-		for (MockEnvironment env : new MockEnvironment[] { customer, customerLinked }) {
-			assertEquals(DataOwner.HEAD_OFFICE, resolve(env).ownerOf(DataDomain.SUPPLY), "derived for the legacy flow");
-			assertFalse(NodeOwnership.isSupplyFromHeadOffice(env));
-			for (Class<?> bean : STORE_BEANS) {
-				assertFalse(registered(env, bean), bean.getSimpleName());
-			}
-			assertTrue(registered(env, FranchiseSupplyReceptionService.class), "legacy reception untouched");
-		}
+	@DisplayName("9.4a: a leftover franchise flag stops the startup, even with the supply from the head office")
+	void franchiseFlagRefused() {
+		assertStartsWith("Invalid value 'true' for property franchise.customer: the franchise profiles were removed",
+				supplied().withProperty("franchise.customer", "true"));
+		assertStartsWith("Invalid value 'true' for property franchise.admin: the franchise profiles were removed",
+				standalone(link()).withProperty("franchise.admin", "true"));
 	}
 
 	@Test
-	@DisplayName("The startup stops on an explicit ownership.supply=HEAD_OFFICE without the URL, with a franchise flag, with an ERP,"
+	@DisplayName("The startup stops on an explicit ownership.supply=HEAD_OFFICE without the URL, with an ERP,"
 			+ " or without ownership.catalogue=HEAD_OFFICE; a bad supply-push interval is refused with the URL only")
 	void startupRefusals() {
 		assertStartsWith("Missing value for property headoffice.url: required when ownership.supply is HEAD_OFFICE",
 				standalone(new MockEnvironment()).withProperty("ownership.catalogue", "LOCAL")
 						.withProperty("ownership.supply", "HEAD_OFFICE"));
-		assertStartsWith("Invalid combination: ownership.supply=HEAD_OFFICE with franchise.customer=true",
-				standalone(link()).withProperty("franchise.customer", "true").withProperty("ownership.supply",
-						"HEAD_OFFICE"));
-		assertStartsWith("Invalid combination: ownership.supply=HEAD_OFFICE with franchise.admin=true",
-				standalone(link()).withProperty("franchise.admin", "true").withProperty("ownership.supply", "HEAD_OFFICE"));
 		assertStartsWith("Invalid combination: ownership.supply=HEAD_OFFICE with application.standalone=false",
 				link().withProperty("ownership.supply", "HEAD_OFFICE"));
 		assertStartsWith("Invalid combination: ownership.supply=HEAD_OFFICE without ownership.catalogue=HEAD_OFFICE",

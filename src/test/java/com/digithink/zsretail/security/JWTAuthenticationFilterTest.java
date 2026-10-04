@@ -36,21 +36,16 @@ class JWTAuthenticationFilterTest {
 	private static final TreeSet<String> LOGIN_KEYS = new TreeSet<>(Arrays.asList("role", "fullName", "token",
 			"status", "permissions", "appRoleId", "appRoleName", "appRoleLabel", "isPosRole"));
 
-	// Mode flags of today's profile files: application.standalone, franchise.admin, franchise.customer
+	// Mode flag of today's profile files: application.standalone (the franchise profiles were removed, step 9)
 	private static final boolean[][] STORE_PROFILES = {
-			{ true, false, false }, // standalone
-			{ false, false, false }, // dynamics (ERP)
-			{ true, false, true }, // franchise-customer
-			{ true, true, false }, // franchise-admin
+			{ true }, // standalone
+			{ false }, // dynamics (ERP)
 	};
 
-	private static ApplicationModeService mode(MockEnvironment env, boolean standalone, boolean franchiseAdmin,
-			boolean franchiseCustomer) throws Exception {
+	private static ApplicationModeService mode(MockEnvironment env, boolean standalone) throws Exception {
 		ApplicationModeService mode = new ApplicationModeService();
 		inject(mode, "environment", env);
 		inject(mode, "standalone", standalone);
-		inject(mode, "franchiseAdmin", franchiseAdmin);
-		inject(mode, "franchiseCustomer", franchiseCustomer);
 		Method initOwnership = ApplicationModeService.class.getDeclaredMethod("initOwnership");
 		initOwnership.setAccessible(true);
 		initOwnership.invoke(mode);
@@ -58,7 +53,7 @@ class JWTAuthenticationFilterTest {
 	}
 
 	private static ApplicationModeService headOffice() throws Exception {
-		return mode(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE"), true, false, false);
+		return mode(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE"), true);
 	}
 
 	private static UserAccount user(String username, Role role, AppRole appRole) {
@@ -118,10 +113,10 @@ class JWTAuthenticationFilterTest {
 	}
 
 	@Test
-	@DisplayName("Stores (4 profiles): a cashier login answers exactly as today")
+	@DisplayName("Stores (standalone and ERP profiles): a cashier login answers exactly as today")
 	void storeCashierLoginUnchanged() throws Exception {
 		for (boolean[] flags : STORE_PROFILES) {
-			MockHttpServletResponse response = login(mode(new MockEnvironment(), flags[0], flags[1], flags[2]),
+			MockHttpServletResponse response = login(mode(new MockEnvironment(), flags[0]),
 					cashier());
 
 			assertEquals(200, response.getStatus());

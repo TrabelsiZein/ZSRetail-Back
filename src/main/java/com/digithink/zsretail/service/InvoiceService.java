@@ -18,7 +18,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.dto.InvoiceDetailsDTO;
 import com.digithink.zsretail.model.Customer;
 import com.digithink.zsretail.model.InvoiceHeader;
@@ -67,8 +66,6 @@ public class InvoiceService extends _BaseService<InvoiceHeader, Long> {
 	@Autowired
 	private CustomerRepository customerRepository;
 
-	@Autowired
-	private ApplicationModeService applicationModeService;
 
 	/** Snapshot data passed by caller before invoice creation (editable customer info). */
 	@Data
@@ -148,14 +145,6 @@ public class InvoiceService extends _BaseService<InvoiceHeader, Long> {
 		invoice.setCreatedByUser(createdByUser);
 		invoice.setLineGroupingMode(effectiveMode);
 		invoice.setNotes(notes);
-
-		// Franchise admin: auto-tag invoice with the customer's default location code
-		// so franchise clients can pull it via the sync API. No impact in normal mode.
-		if (applicationModeService.isFranchiseAdmin()
-				&& customer.getDefaultLocation() != null
-				&& !customer.getDefaultLocation().isBlank()) {
-			invoice.setFranchiseLocationCode(customer.getDefaultLocation());
-		}
 
 		// Apply snapshot data (fall back to customer FK data)
 		if (snapshot != null) {

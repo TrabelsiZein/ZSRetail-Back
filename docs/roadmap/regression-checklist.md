@@ -4,7 +4,7 @@ Companion of `docs/roadmap/head-office-plan.md` (test level L3). The scenarios r
 
 ## 1. How to use
 
-**When:** before every merge of a `feature/ho-step-N` branch, on each profile: ERP dev, standalone, franchise pair. The first run on release 1.12.0 is the baseline (section 7).
+**When:** before every merge of a `feature/ho-step-N` branch, on each profile: ERP dev, standalone, franchise pair (the franchise pair on 1.12.x only: its profiles are removed from 2.1, head office plan step 9, task 9.4a). The first run on release 1.12.0 is the baseline (section 7).
 
 **Prepare once per database:**
 
@@ -30,7 +30,7 @@ Companion of `docs/roadmap/head-office-plan.md` (test level L3). The scenarios r
 
 ## 2. Common scenarios (every profile)
 
-Run them on the selling instance: the ERP dev instance, the standalone instance, the franchise customer. C0 also runs on the franchise admin.
+Run them on the selling instance: the ERP dev instance, the standalone instance, the franchise customer (1.12.x only). C0 also runs on the franchise admin (1.12.x only).
 
 **C0 — Start and login**
 
@@ -169,7 +169,7 @@ Jobs run from ERP → ERP Sync Jobs → open the job → **Run Now** (the schedu
 
 ## 5. Franchise pair
 
-Two instances: the admin and the customer. The common scenarios run on the customer; C0 runs on both.
+**1.12.x only.** The franchise profiles are removed from 2.1 (head office plan, step 9, task 9.4a): a franchise network runs as a head office and stores (`docs/modules/franchise.md`), checked by the head office L2 scripts. Two instances: the admin and the customer. The common scenarios run on the customer; C0 runs on both.
 
 **F1 — Item sync, admin to customer**
 
@@ -212,4 +212,4 @@ Two instances: the admin and the customer. The common scenarios run on the custo
 |---|---|---|---|---|
 | ERP dev | | 1.12.0 | | |
 | Standalone | | 1.12.0 | | |
-| Franchise pair | | 1.12.0 | | |
+| Franchise pair (1.12.x only) | | 1.12.0 | | |

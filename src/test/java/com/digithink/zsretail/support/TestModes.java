@@ -38,9 +38,6 @@ public final class TestModes {
 			ApplicationModeService mode = new ApplicationModeService();
 			set(mode, "environment", env);
 			set(mode, "standalone", flag(env, "application.standalone"));
-			set(mode, "franchiseAdmin", flag(env, "franchise.admin"));
-			set(mode, "franchiseCustomer", flag(env, "franchise.customer"));
-			set(mode, "allowLocalItems", flag(env, "franchise.customer.allow-local-items"));
 			Method init = ApplicationModeService.class.getDeclaredMethod("initOwnership");
 			init.setAccessible(true);
 			init.invoke(mode);
