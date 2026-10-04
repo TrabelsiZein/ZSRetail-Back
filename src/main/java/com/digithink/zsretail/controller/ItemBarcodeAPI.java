@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.ItemBarcode;
+import com.digithink.zsretail.service.CatalogueCodeTooLongException;
 import com.digithink.zsretail.service.ItemBarcodeService;
 import com.digithink.zsretail.service.ItemService;
 
@@ -46,7 +47,10 @@ public class ItemBarcodeAPI extends _BaseController<ItemBarcode, Long, ItemBarco
 		return catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
 	}
 
-	/** The generic create. Step 6: 409 for a head office item, without the purchase right, or a head office barcode. */
+	/**
+	 * The generic create. Step 6: 409 for a head office item, without the purchase right, or a head office barcode; 400
+	 * for a barcode longer than 90 characters on a head office that sends its catalogue.
+	 */
 	@Override
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody ItemBarcode entity) {
@@ -55,7 +59,15 @@ public class ItemBarcodeAPI extends _BaseController<ItemBarcode, Long, ItemBarco
 		if (refusal != null) {
 			return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
 		}
-		return super.create(entity);
+		try {
+			log.info("ItemBarcodeAPI::create");
+			return ResponseEntity.status(HttpStatus.CREATED).body(service.save(entity));
+		} catch (CatalogueCodeTooLongException e) {
+			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage())); // step 6, head office
+		} catch (Exception e) {
+			log.error("ItemBarcodeAPI::create:error: " + getDetailedMessage(e), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
 	}
 
 	/** The generic update. Step 6: 409 for a head office barcode, or moving a barcode to a head office item. */
@@ -72,7 +84,20 @@ public class ItemBarcodeAPI extends _BaseController<ItemBarcode, Long, ItemBarco
 				return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
 			}
 		}
-		return super.update(id, entity);
+		try {
+			log.info("ItemBarcodeAPI::update::" + id);
+			Optional<ItemBarcode> existing = service.findById(id);
+			if (!existing.isPresent()) {
+				return ResponseEntity.notFound().build();
+			}
+			entity.setId(existing.get().getId());
+			return ResponseEntity.ok(service.save(entity));
+		} catch (CatalogueCodeTooLongException e) {
+			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage())); // step 6, head office
+		} catch (Exception e) {
+			log.error("ItemBarcodeAPI::update:error: " + getDetailedMessage(e), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
 	}
 
 	/** The generic delete. Step 6: 409 for a head office barcode. */
