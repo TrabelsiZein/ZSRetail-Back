@@ -21,6 +21,14 @@ public interface HoDownSequenceRepository extends _BaseRepository<HoDownSequence
 	@Query("update HoDownSequence s set s.lastVersion = s.lastVersion + 1 where s.domain = :domain")
 	int increment(@Param("domain") DataDomain domain);
 
+	/**
+	 * Step 6: adds count to the domain's change number in one update (the startup backfill reserves one number per record
+	 * of a chunk); the row stays locked until the caller's transaction ends. Returns the number of rows updated.
+	 */
+	@Modifying(flushAutomatically = true)
+	@Query("update HoDownSequence s set s.lastVersion = s.lastVersion + :count where s.domain = :domain")
+	int incrementBy(@Param("domain") DataDomain domain, @Param("count") long count);
+
 	/** The domain's change number as committed (or as written by this transaction); empty when it has no row. */
 	@Query("select s.lastVersion from HoDownSequence s where s.domain = :domain")
 	List<Long> lastVersion(@Param("domain") DataDomain domain);

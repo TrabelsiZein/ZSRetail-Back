@@ -475,9 +475,10 @@ class ApplicationModeOwnershipTest {
 		assertEquals(L, erp(new MockEnvironment()).ownerOf(DataDomain.PROMOTIONS));
 		assertEquals(L, franchiseCustomer(new MockEnvironment()).ownerOf(DataDomain.PROMOTIONS));
 		assertEquals(L, franchiseAdmin(new MockEnvironment()).ownerOf(DataDomain.PROMOTIONS));
-		// Only promotions are copied down in step 3: an explicit catalogue HEAD_OFFICE is not checked yet
-		assertEquals(HO, standalone(new MockEnvironment().withProperty("ownership.catalogue", "HEAD_OFFICE"))
-				.ownerOf(DataDomain.CATALOGUE));
+		// Step 6: an explicit catalogue HEAD_OFFICE is checked like promotions (it was accepted without the URL before)
+		assertThrows(IllegalStateException.class,
+				() -> standalone(new MockEnvironment().withProperty("ownership.catalogue", "HEAD_OFFICE")));
+		assertEquals(HO, standalone(linkEnv().withProperty("ownership.catalogue", "HEAD_OFFICE")).ownerOf(DataDomain.CATALOGUE));
 	}
 
 	@Test

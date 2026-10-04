@@ -2,6 +2,7 @@ package com.digithink.zsretail.controller;
 
 import java.util.List;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +17,7 @@ import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.dto.ImportFieldMappingDTO;
 import com.digithink.zsretail.dto.ImportPreviewDTO;
 import com.digithink.zsretail.dto.ImportResultDTO;
+import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.service.DataImportService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,6 +34,9 @@ public class DataImportAPI {
     private final ApplicationModeService applicationModeService;
     private final DataImportService dataImportService;
     private final ObjectMapper objectMapper;
+
+    /** Step 6: the rules of a store whose catalogue is the head office's; no bean on every other installation. */
+    private final ObjectProvider<StoreCatalogueGuard> catalogueGuard;
 
     /**
      * Upload an Excel file and return the detected column names plus a few preview rows.
@@ -69,6 +74,11 @@ public class DataImportAPI {
         if (!applicationModeService.isStandalone()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body("Data import is only available in standalone mode.");
+        }
+        StoreCatalogueGuard guard = catalogueGuard.getIfAvailable();
+        String refusal = guard == null ? null : guard.dataImport(entityType); // step 6
+        if (refusal != null) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(refusal);
         }
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body("No file provided.");

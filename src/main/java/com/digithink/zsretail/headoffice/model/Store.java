@@ -93,6 +93,30 @@ public class Store extends _BaseEntity {
 	@Column(name = "enrol_requires_online")
 	private Boolean enrolRequiresOnline;
 
+	// ─── Catalogue and selling price settings (step 6) ────────────────────────
+	// Same rules as the loyalty switches: null read as false; a PUT without the field leaves it as it is.
+
+	/**
+	 * Task 6.4: ho_price_list.id of the store's selling price list; null = the base price. Set at creation or with
+	 * PUT /admin/headoffice/stores/{id}/selling-price-list (the generic PUT ignores it). Never sent to the store.
+	 */
+	@Column(name = "selling_price_list_id")
+	private Long sellingPriceListId;
+
+	/**
+	 * Task 6.5: the store may put its own selling price on a head office item and keeps it across the pulls. Sent with
+	 * each heartbeat answer.
+	 */
+	@Column(name = "may_change_prices")
+	private Boolean mayChangePrices;
+
+	/**
+	 * Task 6.6: the store may purchase from its own suppliers and create its own items (only on a store whose catalogue
+	 * is the head office's). Sent with each heartbeat answer.
+	 */
+	@Column(name = "can_purchase")
+	private Boolean canPurchase;
+
 	// ─── What the store owns, reported with each heartbeat (task 3.6) ─────────
 	// Written only by POST /ho/heartbeat, in the same update as lastContact; null = unknown (no report yet, or a store
 	// of an older version). Exposed in JSON as "ownership" and "salesUpstreams" below, never read from the client.

@@ -1,8 +1,12 @@
 package com.digithink.zsretail.controller;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -12,10 +16,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -25,6 +31,7 @@ import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.dto.ProcessPurchaseRequestDTO;
 import com.digithink.zsretail.dto.SetPurchasePaidRequestDTO;
 import com.digithink.zsretail.dto.VendorBalanceSummaryDTO;
+import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.PurchaseHeader;
 import com.digithink.zsretail.model.UserAccount;
 import com.digithink.zsretail.security.CurrentUserProvider;
@@ -42,6 +49,41 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 
 	@Autowired
 	private ApplicationModeService applicationModeService;
+
+	/** Step 6: the rules of a store whose catalogue is the head office's; no bean on every other installation. */
+	@Autowired(required = false)
+	private ObjectProvider<StoreCatalogueGuard> catalogueGuard;
+
+	/** Step 6: 409 with the guard's text; null when the request goes on (always without the guard). */
+	private ResponseEntity<?> refused(Function<StoreCatalogueGuard, String> rule) {
+		StoreCatalogueGuard guard = catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
+		String refusal = guard == null ? null : rule.apply(guard);
+		return refusal == null ? null : ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
+	}
+
+	/** The generic create; step 6: 409 without the purchase right on a store whose items come from the head office. */
+	@Override
+	@PostMapping
+	public ResponseEntity<?> create(@RequestBody PurchaseHeader entity) {
+		ResponseEntity<?> refusal = refused(StoreCatalogueGuard::purchase);
+		return refusal != null ? refusal : super.create(entity);
+	}
+
+	/** The generic update; step 6: as create. */
+	@Override
+	@PutMapping("/{id}")
+	public ResponseEntity<?> update(@PathVariable Long id, @RequestBody PurchaseHeader entity) {
+		ResponseEntity<?> refusal = refused(StoreCatalogueGuard::purchase);
+		return refusal != null ? refusal : super.update(id, entity);
+	}
+
+	/** The generic delete; step 6: as create. */
+	@Override
+	@DeleteMapping("/{id}")
+	public ResponseEntity<?> deleteById(@PathVariable Long id) {
+		ResponseEntity<?> refusal = refused(StoreCatalogueGuard::purchase);
+		return refusal != null ? refusal : super.deleteById(id);
+	}
 
 	/**
 	 * Vendor balance / AP summary: per vendor total purchased, total paid, unpaid. Optional date range. Standalone only.
@@ -130,6 +172,12 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Purchases are only available in standalone mode. In ERP mode use the ERP for purchasing."));
 		}
+		ResponseEntity<?> refusal = refused(guard -> guard.purchaseLines(request.getLines() == null ? new ArrayList<Long>()
+				: request.getLines().stream().map(ProcessPurchaseRequestDTO.PurchaseLineDTO::getItemId)
+						.collect(Collectors.toList()))); // step 6
+		if (refusal != null) {
+			return refusal;
+		}
 		try {
 			UserAccount currentUser = currentUserProvider.getCurrentUser();
 			log.info("PurchaseHeaderAPI::processPurchase: vendorId=" + request.getVendorId());
@@ -154,6 +202,10 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 		if (!applicationModeService.isStandalone()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Purchase paid status is only available in standalone mode."));
+		}
+		ResponseEntity<?> refusal = refused(StoreCatalogueGuard::purchase); // step 6
+		if (refusal != null) {
+			return refusal;
 		}
 		try {
 			Double paidAmount = request.getPaidAmount();

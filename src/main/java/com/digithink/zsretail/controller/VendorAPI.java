@@ -3,6 +3,7 @@ package com.digithink.zsretail.controller;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.config.ApplicationModeService;
+import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.Vendor;
 import com.digithink.zsretail.service.VendorService;
 
@@ -34,11 +36,26 @@ public class VendorAPI extends _BaseController<Vendor, Long, VendorService> {
 	@Autowired
 	private ApplicationModeService applicationModeService;
 
+	/** Step 6: the rules of a store whose catalogue is the head office's; no bean on every other installation. */
+	@Autowired(required = false)
+	private ObjectProvider<StoreCatalogueGuard> catalogueGuard;
+
+	/** Step 6: 409 without the purchase right on a store whose items come from the head office; null otherwise. */
+	private ResponseEntity<?> purchaseRefused() {
+		StoreCatalogueGuard guard = catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
+		String refusal = guard == null ? null : guard.purchase();
+		return refusal == null ? null : ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
+	}
+
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody Vendor entity) {
 		if (!applicationModeService.isStandalone()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Vendor creation is only available in standalone mode. In ERP mode vendors are managed by the ERP."));
+		}
+		ResponseEntity<?> refusal = purchaseRefused(); // step 6
+		if (refusal != null) {
+			return refusal;
 		}
 		try {
 			log.info("VendorAPI::create");
@@ -57,6 +74,10 @@ public class VendorAPI extends _BaseController<Vendor, Long, VendorService> {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Vendor update is only available in standalone mode."));
 		}
+		ResponseEntity<?> refusal = purchaseRefused(); // step 6
+		if (refusal != null) {
+			return refusal;
+		}
 		try {
 			log.info("VendorAPI::update::" + id);
 			return super.update(id, entity);
@@ -72,6 +93,10 @@ public class VendorAPI extends _BaseController<Vendor, Long, VendorService> {
 		if (!applicationModeService.isStandalone()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Vendor deletion is only available in standalone mode."));
+		}
+		ResponseEntity<?> refusal = purchaseRefused(); // step 6
+		if (refusal != null) {
+			return refusal;
 		}
 		try {
 			log.info("VendorAPI::deleteById::" + id);

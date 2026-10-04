@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -69,6 +70,10 @@ public class StoreService extends _BaseService<Store, Long> {
 
 	@Autowired
 	private StoreRepository storeRepository;
+
+	/** Step 6: the price lists, on a head office without an ERP only (no bean on a head office with an ERP). */
+	@Autowired(required = false)
+	private ObjectProvider<HoPriceListService> priceLists;
 
 	/** A store whose last contact is older than this is OFFLINE (task 1.5). */
 	@Value("${headoffice.offline-after-seconds:" + DEFAULT_OFFLINE_AFTER_SECONDS + "}")
@@ -137,6 +142,12 @@ public class StoreService extends _BaseService<Store, Long> {
 		store.setCanAdjustPoints(Boolean.TRUE.equals(input.getCanAdjustPoints()));
 		store.setRedeemRequiresOnline(Boolean.TRUE.equals(input.getRedeemRequiresOnline()));
 		store.setEnrolRequiresOnline(Boolean.TRUE.equals(input.getEnrolRequiresOnline()));
+		store.setMayChangePrices(Boolean.TRUE.equals(input.getMayChangePrices()));
+		store.setCanPurchase(Boolean.TRUE.equals(input.getCanPurchase()));
+		if (input.getSellingPriceListId() != null) {
+			priceListService().checkAssignable(input.getSellingPriceListId());
+			store.setSellingPriceListId(input.getSellingPriceListId()); // a new store has nothing to send again
+		}
 		String key = newKey();
 		store.setApiKeyHash(sha256Hex(key));
 		Store saved = save(store);
@@ -182,7 +193,49 @@ public class StoreService extends _BaseService<Store, Long> {
 		if (input.getEnrolRequiresOnline() != null) {
 			store.setEnrolRequiresOnline(input.getEnrolRequiresOnline());
 		}
+		if (input.getMayChangePrices() != null) {
+			store.setMayChangePrices(input.getMayChangePrices());
+		}
+		if (input.getCanPurchase() != null) {
+			store.setCanPurchase(input.getCanPurchase());
+		}
 		return Optional.of(save(store));
+	}
+
+	/**
+	 * Task 6.4: the store's selling price list (null: none, the base price). The items of the old and the new list are
+	 * sent again to this store only, in the same transaction. 400 (IllegalArgument) for an unknown or inactive list, or
+	 * on a head office with an ERP (no price lists there). Empty when the store does not exist.
+	 */
+	@Transactional
+	public Optional<Store> setSellingPriceList(Long id, Long priceListId) throws Exception {
+		Optional<Store> found = storeRepository.findById(id);
+		if (!found.isPresent()) {
+			return Optional.empty();
+		}
+		Store store = found.get();
+		HoPriceListService lists = priceListService();
+		if (priceListId != null) {
+			lists.checkAssignable(priceListId);
+		}
+		Long previous = store.getSellingPriceListId();
+		if (java.util.Objects.equals(previous, priceListId)) {
+			return Optional.of(store);
+		}
+		store.setSellingPriceListId(priceListId);
+		Store saved = save(store);
+		lists.storeListChanged(saved.getId(), previous, priceListId);
+		log.info("Head office: store {} selling price list {} -> {}", saved.getCode(), previous, priceListId);
+		return Optional.of(saved);
+	}
+
+	private HoPriceListService priceListService() {
+		HoPriceListService lists = priceLists == null ? null : priceLists.getIfAvailable();
+		if (lists == null) {
+			throw new IllegalArgumentException(
+					"Price lists exist only on a head office without an ERP: this head office has none.");
+		}
+		return lists;
 	}
 
 	/** New key for the store; the old one stops working. Empty when the store does not exist. */

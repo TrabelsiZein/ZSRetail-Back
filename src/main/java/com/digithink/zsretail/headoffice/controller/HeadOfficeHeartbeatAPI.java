@@ -32,7 +32,10 @@ public class HeadOfficeHeartbeatAPI {
 		this.storeService = storeService;
 	}
 
-	/** Step 4: the answer also carries the store's loyalty rights (null in a row made before step 4: false). */
+	/**
+	 * Step 4: the answer also carries the store's loyalty rights (null in a row made before step 4: false). Step 6: and
+	 * its catalogue rights, mayChangePrices and canPurchase (null: false).
+	 */
 	@PostMapping("/heartbeat")
 	public HeadOfficeHeartbeatAnswerDTO heartbeat(@AuthenticationPrincipal Store store,
 			@RequestBody(required = false) HeadOfficeHeartbeatDTO body) {
@@ -40,6 +43,7 @@ public class HeadOfficeHeartbeatAPI {
 		storeService.recordContact(store.getId(), body, now.toLocalDateTime());
 		return new HeadOfficeHeartbeatAnswerDTO(store.getCode(), now.format(HeadOfficePingAPI.SERVER_TIME),
 				Boolean.TRUE.equals(store.getCanEditMembers()), Boolean.TRUE.equals(store.getCanAdjustPoints()),
-				Boolean.TRUE.equals(store.getRedeemRequiresOnline()), Boolean.TRUE.equals(store.getEnrolRequiresOnline()));
+				Boolean.TRUE.equals(store.getRedeemRequiresOnline()), Boolean.TRUE.equals(store.getEnrolRequiresOnline()),
+				Boolean.TRUE.equals(store.getMayChangePrices()), Boolean.TRUE.equals(store.getCanPurchase()));
 	}
 }

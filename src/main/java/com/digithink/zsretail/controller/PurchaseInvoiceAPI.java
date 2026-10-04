@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.dto.EligiblePurchaseDTO;
 import com.digithink.zsretail.dto.PurchaseInvoiceListDTO;
+import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.PurchaseHeader;
 import com.digithink.zsretail.model.PurchaseInvoiceHeader;
 import com.digithink.zsretail.model.Vendor;
@@ -48,6 +50,10 @@ public class PurchaseInvoiceAPI {
 
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
+
+	/** Step 6: the rules of a store whose catalogue is the head office's; no bean on every other installation. */
+	@Autowired(required = false)
+	private ObjectProvider<StoreCatalogueGuard> catalogueGuard;
 
 	private void ensureStandalone() {
 		if (!applicationModeService.isStandalone()) {
@@ -153,6 +159,10 @@ public class PurchaseInvoiceAPI {
 	public ResponseEntity<?> createPurchaseInvoice(@RequestBody CreatePurchaseInvoiceRequest request) {
 		try {
 			ensureStandalone();
+			StoreCatalogueGuard guard = catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
+			if (guard != null && guard.purchase() != null) { // step 6: no purchases without the purchase right
+				return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(guard.purchase()));
+			}
 
 			if (request.getVendorId() == null) {
 				return ResponseEntity.badRequest().body(createErrorResponse("Vendor is mandatory"));

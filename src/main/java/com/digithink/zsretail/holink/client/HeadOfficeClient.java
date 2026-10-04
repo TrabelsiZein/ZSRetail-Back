@@ -170,7 +170,8 @@ public class HeadOfficeClient {
 		return answer.failure != null ? answer.failure
 				: HeadOfficeCallResult.online(answer.body.getServerTime(), answer.body.getCanEditMembers(),
 						answer.body.getCanAdjustPoints(), answer.body.getRedeemRequiresOnline(),
-						answer.body.getEnrolRequiresOnline());
+						answer.body.getEnrolRequiresOnline())
+						.withCatalogueRights(answer.body.getMayChangePrices(), answer.body.getCanPurchase());
 	}
 
 	HeadOfficeHeartbeatDTO heartbeatBody() {

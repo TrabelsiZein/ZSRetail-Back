@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.digithink.zsretail.model.SalesPrice;
+import com.digithink.zsretail.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.model.enumeration.SalesPriceType;
 
 public interface SalesPriceRepository extends _BaseRepository<SalesPrice, Long> {
@@ -75,4 +76,11 @@ public interface SalesPriceRepository extends _BaseRepository<SalesPrice, Long> 
 			@Param("customerCode") String customerCode,
 			@Param("allCustomersType") SalesPriceType allCustomersType,
 			@Param("currentDate") LocalDate currentDate);
+
+	/**
+	 * Head office plan, step 6: the sales_price rows on items of this origin (on a store whose catalogue is the head
+	 * office's, rows that may win over the head office price when the price group is enabled).
+	 */
+	@Query("select count(p) from SalesPrice p, Item i where p.itemNo = i.itemCode and i.origin = :origin")
+	long countOnItemsOfOrigin(@Param("origin") RecordOrigin origin);
 }

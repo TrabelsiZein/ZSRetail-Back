@@ -4,6 +4,8 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -15,6 +17,7 @@ import com.digithink.zsretail.holink.dto.LinkJobRun;
 import com.digithink.zsretail.holink.enumeration.ExchangeDirection;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
 import com.digithink.zsretail.holink.enumeration.LinkJobResult;
+import com.digithink.zsretail.holink.service.CatalogueRights;
 import com.digithink.zsretail.holink.service.HeadOfficeLinkStatus;
 import com.digithink.zsretail.holink.service.LinkExchangeLog;
 
@@ -40,6 +43,10 @@ public class HeartbeatJob implements LinkJob {
 	private final HeadOfficeLinkStatus status;
 	private final LinkExchangeLog exchangeLog;
 	private final long defaultIntervalSeconds;
+
+	/** Step 6: the catalogue rights are saved when the catalogue is the head office's; no bean otherwise. */
+	@Autowired(required = false)
+	private ObjectProvider<CatalogueRights> catalogueRights;
 
 	public HeartbeatJob(HeadOfficeClient client, HeadOfficeLinkStatus status, LinkExchangeLog exchangeLog,
 			@Value("${headoffice.heartbeat-interval-seconds:60}") long intervalSeconds) {
@@ -73,6 +80,14 @@ public class HeartbeatJob implements LinkJob {
 		long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
 		HeadOfficeLinkState previous = status.record(result, at);
 		boolean online = result.getState() == HeadOfficeLinkState.ONLINE;
+		CatalogueRights rights = catalogueRights == null ? null : catalogueRights.getIfAvailable();
+		if (online && rights != null) {
+			try {
+				rights.received(result.getMayChangePrices(), result.getCanPurchase(), at);
+			} catch (RuntimeException e) {
+				log.warn("Head office link: catalogue rights not saved ({})", e.getMessage());
+			}
+		}
 		String detail = online ? "head office time " + result.getServerTime() : result.getMessage();
 		if (previous != result.getState()) {
 			log.info("Head office link: {} -> {} ({})", previous, result.getState(), detail);

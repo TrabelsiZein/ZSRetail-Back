@@ -1,6 +1,7 @@
 package com.digithink.zsretail.headoffice.repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.Modifying;
@@ -13,6 +14,12 @@ import com.digithink.zsretail.repository._BaseRepository;
 public interface StoreRepository extends _BaseRepository<Store, Long> {
 
 	Optional<Store> findByCodeIgnoreCase(String code);
+
+	/** Step 6: the stores whose selling price list is this one. */
+	@Query("select s.id from Store s where s.sellingPriceListId = :listId")
+	List<Long> findIdsBySellingPriceListId(@Param("listId") Long listId);
+
+	long countBySellingPriceListId(Long listId);
 
 	/**
 	 * Heartbeat (task 1.4): writes lastContact and appVersion only, by id. A bulk update skips {@code @PreUpdate},

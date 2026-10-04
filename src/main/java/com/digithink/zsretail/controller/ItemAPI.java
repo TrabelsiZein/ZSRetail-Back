@@ -3,8 +3,11 @@ package com.digithink.zsretail.controller;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -26,12 +29,15 @@ import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.dto.AdjustStockRequestDTO;
 import com.digithink.zsretail.dto.PricingResult;
 import com.digithink.zsretail.dto.StandaloneQuickProductRequestDTO;
+import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.Customer;
 import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.ItemBarcode;
 import com.digithink.zsretail.model.ItemComposition;
 import com.digithink.zsretail.model.enumeration.ItemType;
 import com.digithink.zsretail.repository.CustomerRepository;
+import com.digithink.zsretail.service.CatalogueCodeChangeException;
+import com.digithink.zsretail.service.CatalogueCodeTooLongException;
 import com.digithink.zsretail.service.CustomerService;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.ItemBarcodeService;
@@ -76,6 +82,25 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	@Value("${pos.pricing.enable-sales-price-group:false}")
 	private boolean priceGroupEnabled;
 
+	/** Step 6: the rules of a store whose catalogue is the head office's; no bean on every other installation. */
+	@Autowired(required = false)
+	private ObjectProvider<StoreCatalogueGuard> catalogueGuard;
+
+	/** The step 6 guard, or null: then every request runs exactly as before. */
+	private StoreCatalogueGuard catalogueGuard() {
+		return catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
+	}
+
+	/** The first refusal (409) among the guard's answers; null when all are null. */
+	private ResponseEntity<?> refused(String... messages) {
+		for (String message : messages) {
+			if (message != null) {
+				return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(message));
+			}
+		}
+		return null;
+	}
+
 	/**
 	 * Create a product with default family/subfamily and one barcode. Only allowed in standalone mode.
 	 */
@@ -84,6 +109,16 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 		if (!applicationModeService.isStandalone()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Product creation is only available in standalone mode. In ERP mode products are synchronized from the ERP."));
+		}
+		StoreCatalogueGuard guard = catalogueGuard();
+		if (guard != null) { // step 6: an own item, only with the purchase right, never a head office code
+			ItemBarcode wanted = new ItemBarcode();
+			wanted.setBarcode(request.getBarcode());
+			ResponseEntity<?> refusal = refused(guard.create(), guard.itemCodeTaken(request.getItemCode()),
+					guard.barcodeCreate(wanted));
+			if (refusal != null) {
+				return refusal;
+			}
 		}
 		try {
 			if (request.getName() == null || request.getName().trim().isEmpty()) {
@@ -136,10 +171,19 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 		if (applicationModeService.isFranchiseClient()) {
 			entity.setFromFranchiseAdmin(false);
 		}
+		StoreCatalogueGuard guard = catalogueGuard();
+		if (guard != null) { // step 6: an own item, only with the purchase right, never a head office code
+			ResponseEntity<?> refusal = refused(guard.create(), guard.itemCodeTaken(entity.getItemCode()));
+			if (refusal != null) {
+				return refusal;
+			}
+		}
 		try {
 			log.info("ItemAPI::create");
 			Item created = service.save(entity);
 			return ResponseEntity.status(HttpStatus.CREATED).body(created);
+		} catch (CatalogueCodeTooLongException e) {
+			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage())); // step 6, head office
 		} catch (Exception e) {
 			log.error("ItemAPI::create:error: " + getDetailedMessage(e), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
@@ -173,6 +217,10 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 				return ResponseEntity.status(HttpStatus.FORBIDDEN)
 						.body(createErrorResponse("Items synced from the franchise admin are read-only and cannot be edited."));
 			}
+			StoreCatalogueGuard guard = catalogueGuard();
+			if (guard != null && guard.itemWrite(id) != null) { // step 6: the price has its own endpoint
+				return refused(guard.itemWrite(id));
+			}
 			entity.setId(existingItem.getId());
 			// Preserve the fromFranchiseAdmin flag — cannot be changed via update
 			entity.setFromFranchiseAdmin(existingItem.getFromFranchiseAdmin());
@@ -181,8 +229,15 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			// so we must preserve existing values to avoid wiping them to null.
 			entity.setLastDirectCost(existingItem.getLastDirectCost());
 			entity.setLastDirectNetCost(existingItem.getLastDirectNetCost());
+			// Step 6: never read from JSON; null on every store whose catalogue is not the head office's
+			entity.setOwnPrice(existingItem.getOwnPrice());
+			entity.setHeadOfficePrice(existingItem.getHeadOfficePrice());
 			Item updated = service.save(entity);
 			return ResponseEntity.ok(updated);
+		} catch (CatalogueCodeChangeException e) {
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(e.getMessage())); // step 6
+		} catch (CatalogueCodeTooLongException e) {
+			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage())); // step 6, head office
 		} catch (Exception e) {
 			log.error("ItemAPI::update:error: " + getDetailedMessage(e), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
@@ -215,6 +270,10 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 				return ResponseEntity.status(HttpStatus.FORBIDDEN)
 						.body(createErrorResponse("Items synced from the franchise admin cannot be deleted."));
 			}
+			StoreCatalogueGuard guard = catalogueGuard();
+			if (guard != null && guard.itemWrite(id) != null) { // step 6
+				return refused(guard.itemWrite(id));
+			}
 			// Kit components block deletion (FK); a kit's own recipe is deleted with it
 			if (!itemCompositionService.getCompositionsByComponentItemId(id).isEmpty()) {
 				return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(
@@ -245,6 +304,10 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			Optional<Item> existing = service.findById(id);
 			if (!existing.isPresent()) {
 				return ResponseEntity.notFound().build();
+			}
+			StoreCatalogueGuard guard = catalogueGuard();
+			if (guard != null && guard.itemWrite(id) != null) { // step 6: the head office decides the pack
+				return refused(guard.itemWrite(id));
 			}
 			Item item = existing.get();
 			if (isPackage) {
@@ -287,6 +350,8 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 				dto.put("lastDirectCost", item.getLastDirectCost());
 				dto.put("lastDirectNetCost", item.getLastDirectNetCost());
 				dto.put("defaultVAT", item.getDefaultVAT() != null ? item.getDefaultVAT() : 0);
+				// Step 6: HEAD_OFFICE for a head office item, null for an own item (read by the purchase item picker)
+				dto.put("origin", item.getOrigin() != null ? item.getOrigin().name() : null);
 				return dto;
 			}).collect(Collectors.toList());
 			Map<String, Object> response = new HashMap<>();
@@ -426,6 +491,54 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
 		} catch (Exception e) {
 			log.error("ItemAPI::adjustStock:error: " + e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/**
+	 * Step 6 (task 6.5): the store's own selling price on a head office item, kept across the pulls. Body {"unitPrice":
+	 * 12.5}. 200 the item; 409 without the right "may change its selling prices"; 400 for a local item or a bad price; 404
+	 * for an unknown item, or on a store whose catalogue is not the head office's.
+	 */
+	@PutMapping("/{id}/own-price")
+	public ResponseEntity<?> setOwnPrice(@PathVariable Long id, @RequestBody(required = false) Map<String, Object> body) {
+		StoreCatalogueGuard guard = catalogueGuard();
+		if (guard == null) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(createErrorResponse(NOT_FROM_HEAD_OFFICE));
+		}
+		Object raw = body == null ? null : body.get("unitPrice");
+		if (raw != null && !(raw instanceof Number)) {
+			return ResponseEntity.badRequest().body(createErrorResponse("unitPrice must be a number."));
+		}
+		return ownPrice(() -> guard.setOwnPrice(id, raw == null ? null : ((Number) raw).doubleValue()));
+	}
+
+	/**
+	 * Step 6: the head office price back on a head office item (allowed whatever the right). 200 the item; 400 for a
+	 * local item; 404 as above.
+	 */
+	@DeleteMapping("/{id}/own-price")
+	public ResponseEntity<?> giveBackPrice(@PathVariable Long id) {
+		StoreCatalogueGuard guard = catalogueGuard();
+		if (guard == null) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(createErrorResponse(NOT_FROM_HEAD_OFFICE));
+		}
+		return ownPrice(() -> guard.giveBackPrice(id));
+	}
+
+	private static final String NOT_FROM_HEAD_OFFICE = "The items of this store are not decided by a head office.";
+
+	private ResponseEntity<?> ownPrice(Supplier<Item> call) {
+		try {
+			return ResponseEntity.ok(call.get());
+		} catch (NoSuchElementException e) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(createErrorResponse(e.getMessage()));
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+		} catch (IllegalStateException e) {
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(e.getMessage()));
+		} catch (RuntimeException e) {
+			log.error("ItemAPI::ownPrice:error: " + e.getMessage(), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
 		}
 	}

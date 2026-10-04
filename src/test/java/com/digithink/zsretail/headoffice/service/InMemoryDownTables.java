@@ -49,6 +49,11 @@ public final class InMemoryDownTables {
 						changes.add(change);
 					}
 					return change;
+				case "saveAll":
+					for (Object o : (Iterable<?>) args[0]) {
+						changes.add((HoDownChange) o);
+					}
+					return args[0];
 				case "findChanged": {
 					long storeId = (Long) args[1];
 					Map<String, Long> max = new LinkedHashMap<>();
@@ -79,6 +84,12 @@ public final class InMemoryDownTables {
 						return 0;
 					}
 					sequences.merge((DataDomain) args[0], 1L, Long::sum);
+					return 1;
+				case "incrementBy":
+					if (!sequences.containsKey(args[0])) {
+						return 0;
+					}
+					sequences.merge((DataDomain) args[0], (Long) args[1], Long::sum);
 					return 1;
 				case "lastVersion":
 					Long value = sequences.get(args[0]);

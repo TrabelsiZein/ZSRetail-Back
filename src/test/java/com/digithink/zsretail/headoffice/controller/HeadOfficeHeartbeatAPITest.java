@@ -144,6 +144,13 @@ class HeadOfficeHeartbeatAPITest {
 		assertEquals(Boolean.FALSE, answer.getEnrolRequiresOnline(), "enrol switch: null in the row is false");
 		allowed.setEnrolRequiresOnline(true);
 		assertEquals(Boolean.TRUE, api.heartbeat(allowed, new HeadOfficeHeartbeatDTO("2.1.0")).getEnrolRequiresOnline());
+		assertEquals(Boolean.FALSE, answer.getMayChangePrices(), "step 6: null in the row is false");
+		assertEquals(Boolean.FALSE, answer.getCanPurchase(), "step 6: null in the row is false");
+		allowed.setMayChangePrices(true);
+		allowed.setCanPurchase(true);
+		HeadOfficeHeartbeatAnswerDTO catalogue = api.heartbeat(allowed, new HeadOfficeHeartbeatDTO("2.1.0"));
+		assertEquals(Boolean.TRUE, catalogue.getMayChangePrices());
+		assertEquals(Boolean.TRUE, catalogue.getCanPurchase());
 		assertEquals("RS01", answer.getStoreCode());
 		String json = new ObjectMapper().writeValueAsString(answer);
 		assertTrue(json.contains("\"storeCode\":\"RS01\"") && json.contains("\"serverTime\":")
@@ -183,7 +190,7 @@ class HeadOfficeHeartbeatAPITest {
 		String json = new ObjectMapper().writeValueAsString(answer);
 		// Step 4: the store's loyalty rights travel with the answer (decided); GET /ho/ping keeps its two fields
 		assertEquals(new TreeSet<>(Arrays.asList("storeCode", "serverTime", "canEditMembers", "canAdjustPoints",
-				"redeemRequiresOnline", "enrolRequiresOnline")),
+				"redeemRequiresOnline", "enrolRequiresOnline", "mayChangePrices", "canPurchase")),
 				new TreeSet<>(new JSONObject(json).keySet()));
 	}
 

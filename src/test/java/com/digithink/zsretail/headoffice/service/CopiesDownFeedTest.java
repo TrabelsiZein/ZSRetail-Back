@@ -297,6 +297,90 @@ class CopiesDownFeedTest {
 		assertEquals(0L, sequences.get(D), "an empty domain gets its row at 0");
 	}
 
+	@Test
+	@DisplayName("Step 6: the chunked backfill of promotions and loyalty gives exactly the rows of one recordChange per record")
+	void backfillGivesTheSameRowsAsBefore() {
+		// Promotions: every store or a list (both stores, one store, a store not created yet); loyalty: every store.
+		// 1,234 + 777 records: more than two chunks of 500 in one domain, a chunk boundary in the other.
+		Map<String, StoreTargets> promotions = new LinkedHashMap<>();
+		for (int i = 1; i <= 1234; i++) {
+			StoreTargets targets = i % 4 == 0 ? StoreTargets.all()
+					: i % 4 == 1 ? StoreTargets.of(Arrays.asList(a.getId(), b.getId()))
+							: i % 4 == 2 ? StoreTargets.of(Collections.singletonList(b.getId()))
+									: StoreTargets.of(Collections.singletonList(9L));
+			promotions.put("P" + i, targets);
+		}
+		Map<String, StoreTargets> loyalty = new LinkedHashMap<>();
+		loyalty.put("PROGRAM:FID", StoreTargets.all());
+		for (int i = 1; i <= 776; i++) {
+			loyalty.put("MEMBER:LYL-" + i, StoreTargets.all());
+		}
+
+		// Before step 6: one recordChange per record, in the order of currentTargets, domain after domain.
+		sequences.put(DataDomain.PROMOTIONS, 0L);
+		sequences.put(DataDomain.LOYALTY, 0L);
+		promotions.forEach((code, targets) -> feed.recordChange(DataDomain.PROMOTIONS, code, targets));
+		loyalty.forEach((code, targets) -> feed.recordChange(DataDomain.LOYALTY, code, targets));
+		List<String> before = rows();
+		Map<DataDomain, Long> sequencesBefore = new EnumMap<>(sequences);
+
+		changes.clear();
+		sequences.clear();
+		CopiesDownFeed chunked = new CopiesDownFeed(changeRepository(), sequenceRepository(),
+				Arrays.asList(fixedProvider(DataDomain.PROMOTIONS, promotions), fixedProvider(DataDomain.LOYALTY, loyalty)),
+				TransactionOperations.withoutTransaction(), TransactionOperations.withoutTransaction());
+		chunked.initialise();
+
+		assertEquals(before, rows());
+		assertEquals(sequencesBefore, sequences);
+		assertEquals(Long.valueOf(1234), sequences.get(DataDomain.PROMOTIONS));
+		chunked.initialise();
+		assertEquals(before, rows(), "the next start adds nothing");
+
+		// Every code once, in order, through pages of 100 (one number per code).
+		List<String> pulled = new ArrayList<>();
+		String cursor = "";
+		boolean more = true;
+		while (more) {
+			CopiesDownAnswerDTO page = chunked.pull(b, "LOYALTY", cursor, 100);
+			page.getRecords().forEach(r -> pulled.add(r.get("code").asText()));
+			cursor = page.getCursor();
+			more = page.isMore();
+		}
+		assertEquals(new ArrayList<>(loyalty.keySet()), pulled);
+	}
+
+	/** domain|code|store|number of every row, sorted. */
+	private List<String> rows() {
+		return changes.stream().map(c -> c.getDomain() + "|" + c.getRecordCode() + "|" + c.getStoreId() + "|"
+				+ c.getChangeVersion()).sorted().collect(Collectors.toList());
+	}
+
+	private DownDomainProvider fixedProvider(DataDomain domain, Map<String, StoreTargets> targets) {
+		return new DownDomainProvider() {
+			@Override
+			public DataDomain getDomain() {
+				return domain;
+			}
+
+			@Override
+			public Map<String, JsonNode> load(Store store, List<String> codes) {
+				Map<String, JsonNode> copies = new LinkedHashMap<>();
+				for (String code : codes) {
+					if (targets.containsKey(code) && targets.get(code).includes(store.getId())) {
+						copies.put(code, mapper.createObjectNode().put("code", code));
+					}
+				}
+				return copies;
+			}
+
+			@Override
+			public Map<String, StoreTargets> currentTargets() {
+				return new LinkedHashMap<>(targets);
+			}
+		};
+	}
+
 	// ─── Stubs ────────────────────────────────────────────────────
 
 	private DownDomainProvider provider() {
@@ -362,6 +446,13 @@ class CopiesDownFeedTest {
 				case "findCodes":
 					return changes.stream().filter(c -> c.getDomain() == args[0]).map(HoDownChange::getRecordCode)
 							.distinct().collect(Collectors.toList());
+				case "saveAll":
+					for (Object o : (Iterable<?>) args[0]) {
+						HoDownChange row = (HoDownChange) o;
+						row.setId((long) changes.size() + 1);
+						changes.add(row);
+					}
+					return args[0];
 				default:
 					return UNHANDLED;
 			}
@@ -376,6 +467,12 @@ class CopiesDownFeedTest {
 						return 0;
 					}
 					sequences.merge((DataDomain) args[0], 1L, Long::sum);
+					return 1;
+				case "incrementBy":
+					if (!sequences.containsKey(args[0])) {
+						return 0;
+					}
+					sequences.merge((DataDomain) args[0], (Long) args[1], Long::sum);
 					return 1;
 				case "lastVersion":
 					Long value = sequences.get(args[0]);

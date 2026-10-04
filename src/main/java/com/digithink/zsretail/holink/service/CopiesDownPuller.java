@@ -114,6 +114,12 @@ public class CopiesDownPuller {
 		LocalDateTime localAt = LocalDateTime.now();
 		long localStarted = System.nanoTime();
 		try {
+			handler.prepare(); // step 6
+		} catch (RuntimeException e) {
+			log(domain, 0, LinkJobResult.ERROR, "preparation failed (" + SalesCopyFinder.cause(e) + ")", localAt,
+					localStarted);
+		}
+		try {
 			run.localDeactivated = handler.deactivateLocal();
 			if (run.localDeactivated > 0) {
 				log(domain, run.localDeactivated, LinkJobResult.WARNING, run.localDeactivated

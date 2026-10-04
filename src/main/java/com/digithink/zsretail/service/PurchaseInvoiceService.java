@@ -44,6 +44,13 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class PurchaseInvoiceService extends _BaseService<PurchaseInvoiceHeader, Long> {
 
+	/**
+	 * Bounds used when no date is given: the range of the SQL Server date and datetime2 types (LocalDate.MIN and MAX are
+	 * outside it: the list answered 500 without a date filter, found at L2 of step 6).
+	 */
+	static final LocalDate FIRST_DATE = LocalDate.of(1, 1, 1);
+	static final LocalDate LAST_DATE = LocalDate.of(9999, 12, 31);
+
 	@Autowired
 	private PurchaseInvoiceHeaderRepository purchaseInvoiceHeaderRepository;
 
@@ -71,8 +78,8 @@ public class PurchaseInvoiceService extends _BaseService<PurchaseInvoiceHeader, 
 		Vendor vendor = vendorRepository.findById(vendorId)
 				.orElseThrow(() -> new IllegalArgumentException("Vendor not found: " + vendorId));
 
-		LocalDateTime fromDateTime = from != null ? from.atStartOfDay() : LocalDate.MIN.atStartOfDay();
-		LocalDateTime toDateTime = to != null ? to.atTime(LocalTime.MAX) : LocalDate.MAX.atTime(LocalTime.MAX);
+		LocalDateTime fromDateTime = from != null ? from.atStartOfDay() : FIRST_DATE.atStartOfDay();
+		LocalDateTime toDateTime = to != null ? to.atTime(LocalTime.MAX) : LAST_DATE.atStartOfDay();
 
 		List<PurchaseHeader> purchases = purchaseHeaderRepository
 				.findByVendorAndPurchaseDateBetweenAndStatus(vendor, fromDateTime, toDateTime,
@@ -379,8 +386,8 @@ public class PurchaseInvoiceService extends _BaseService<PurchaseInvoiceHeader, 
 	public Page<PurchaseInvoiceHeader> listPurchaseInvoices(LocalDate from, LocalDate to, Long vendorId,
 			String invoiceNumber, int page, int size) {
 		Pageable pageable = PageRequest.of(page, size);
-		LocalDate fromDate = from != null ? from : LocalDate.MIN;
-		LocalDate toDate = to != null ? to : LocalDate.MAX;
+		LocalDate fromDate = from != null ? from : FIRST_DATE;
+		LocalDate toDate = to != null ? to : LAST_DATE;
 
 		Page<PurchaseInvoiceHeader> basePage;
 		if (vendorId != null) {

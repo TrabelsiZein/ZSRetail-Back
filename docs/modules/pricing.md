@@ -76,6 +76,8 @@
 4. ItemSelection detects customer change → Auto-recalculates all cart items
 5. User sees updated prices → Can proceed to Payment
 
+**Head office prices (step 6):** on a store whose catalogue is the head office's, the selling price is `item.unitPrice` as the head office sends it (its base price, or the line of the store's selling price list; see `docs/modules/head-office.md`, "Catalogue owned by the head office" and "Price lists"). `PricingService` is not changed: with `pos.pricing.enable-sales-price-group=true`, a `sales_price` row of the store for a head office item would still win when it is lower. So on such a store `POST`/`PUT`/`DELETE /sales-price` and the `SALES_PRICES` import answer 409, and the rows already there are counted in `salesPriceRowsOnHeadOfficeItems` (`GET /catalogue/network` and the `catalogue` block of `GET /admin/holink/status`). `sales_discount` is unchanged.
+
 **Key Files:**
 - `src/main/java/com/digithink/zsretail/service/PricingService.java` - Core pricing logic
 - `src/main/java/com/digithink/zsretail/model/SalesPrice.java` - Entity with enums and indexes

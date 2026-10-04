@@ -32,6 +32,14 @@ public interface DownHandler {
 		return 0;
 	}
 
+	/**
+	 * Step 6: run at every cycle before anything else of the domain, also when the head office is unreachable (e.g. the
+	 * catalogue gives the head office price back to its own prices when the right is off). Nothing by default; never
+	 * throws for the pull: a failure is logged by the handler.
+	 */
+	default void prepare() {
+	}
+
 	/** Applies again the records received earlier and not applied yet, at every cycle; none by default. */
 	default DownApplyResult retry() {
 		return DownApplyResult.none();
