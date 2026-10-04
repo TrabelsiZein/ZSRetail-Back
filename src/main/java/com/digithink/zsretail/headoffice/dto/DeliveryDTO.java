@@ -35,6 +35,10 @@ public class DeliveryDTO {
 	private LocalDateTime confirmationReceivedAt;
 	private String note;
 	private String storeNote;
+	/** Step 7B: the invoice of the BL (id and number), null until invoiced; why the automatic invoice failed. */
+	private Long invoiceId;
+	private String invoiceNumber;
+	private String invoiceNote;
 	private int lineCount;
 	private int quantitySent;
 	/** Null until received. */

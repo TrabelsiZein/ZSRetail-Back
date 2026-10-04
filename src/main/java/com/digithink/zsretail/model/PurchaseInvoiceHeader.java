@@ -12,6 +12,7 @@ import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
 
 import com.digithink.zsretail.model.enumeration.InvoiceLineGroupingMode;
+import com.digithink.zsretail.model.enumeration.RecordOrigin;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -63,4 +64,9 @@ public class PurchaseInvoiceHeader extends _BaseEntity {
 
 	@OneToMany(mappedBy = "purchaseInvoice")
 	private List<PurchaseInvoiceLine> lines;
+
+	/** Step 7B: HEAD_OFFICE for an invoice received from the head office (consult-only); null = the store's own. */
+	@Enumerated(EnumType.STRING)
+	@Column(length = 20)
+	private RecordOrigin origin;
 }

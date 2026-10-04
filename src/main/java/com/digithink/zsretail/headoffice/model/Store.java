@@ -12,7 +12,9 @@ import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
 import javax.persistence.Table;
 
+import com.digithink.zsretail.headoffice.enumeration.InvoiceRhythm;
 import com.digithink.zsretail.headoffice.enumeration.StoreKind;
+import com.digithink.zsretail.headoffice.enumeration.SupplyPriceMode;
 import com.digithink.zsretail.model._BaseEntity;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -116,6 +118,48 @@ public class Store extends _BaseEntity {
 	 */
 	@Column(name = "can_purchase")
 	private Boolean canPurchase;
+
+	// ─── Invoicing of the deliveries (step 7B) ──────────────────────────────
+	// Set on the Stores page; never sent to the store. Same PUT rule: a field absent from the body is kept.
+
+	public static final int BILLING_NAME_LENGTH = 200;
+	public static final int BILLING_TAX_NUMBER_LENGTH = 50;
+	public static final int BILLING_ADDRESS_LENGTH = 500;
+
+	/** The store's received BLs are invoiced (a store of another company). Null read as false. */
+	@Column(name = "deliveries_invoiced")
+	private Boolean deliveriesInvoiced;
+
+	/** Billing details, copied onto each invoice when it is created. */
+	@Column(name = "billing_legal_name", length = BILLING_NAME_LENGTH)
+	private String billingLegalName;
+
+	@Column(name = "billing_tax_number", length = BILLING_TAX_NUMBER_LENGTH)
+	private String billingTaxNumber;
+
+	@Column(name = "billing_address", length = BILLING_ADDRESS_LENGTH)
+	private String billingAddress;
+
+	/** How the supply price is worked out; null = PRICE_LIST. */
+	@Enumerated(EnumType.STRING)
+	@Column(name = "supply_price_mode", length = 20)
+	private SupplyPriceMode supplyPriceMode;
+
+	/**
+	 * ho_price_list.id of a list of kind SUPPLY; null = the base supply price. Set at creation or with PUT
+	 * /admin/headoffice/stores/{id}/supply-price-list (the generic PUT ignores it).
+	 */
+	@Column(name = "supply_price_list_id")
+	private Long supplyPriceListId;
+
+	/** PERCENT_OFF mode: the percentage taken off the store's selling price, from 0 to 100. */
+	@Column(name = "supply_discount_percent")
+	private Double supplyDiscountPercent;
+
+	/** When the received BLs are invoiced; null = PER_BL. */
+	@Enumerated(EnumType.STRING)
+	@Column(name = "invoice_rhythm", length = 20)
+	private InvoiceRhythm invoiceRhythm;
 
 	// ─── What the store owns, reported with each heartbeat (task 3.6) ─────────
 	// Written only by POST /ho/heartbeat, in the same update as lastContact; null = unknown (no report yet, or a store

@@ -21,7 +21,10 @@ import lombok.NoArgsConstructor;
 public class DeliveryCopyDTO {
 
 	public static final String RECORD_PREFIX = "BL:";
+	public static final String KIND = "BL";
 
+	/** Step 7B: the kind of SUPPLY record (BL or INVOICE); a record without a kind is a BL (step 7A). */
+	private String kind = KIND;
 	private String number;
 	/** yyyy-MM-dd. */
 	private String documentDate;

@@ -29,6 +29,8 @@ public class ReceivedDeliveryDTO {
 	private LocalDateTime receivedAt;
 	private String receivedBy;
 	private String storeNote;
+	/** Step 7B: the head office invoice of this BL; null until it arrives. */
+	private String invoiceNumber;
 	/** The confirmation up: null until confirmed, then PENDING, SENT or ERROR. */
 	private String pushStatus;
 	private String lastError;

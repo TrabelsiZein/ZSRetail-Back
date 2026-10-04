@@ -242,7 +242,10 @@ public class ZZDataInitializer {
 			"read:admin-headoffice-stock",
 			"read:admin-headoffice-stock-movements",
 			"read:admin-headoffice-deliveries", // step 7A: BLs
-			"read:admin-headoffice-network-stock")); // step 7A: stock of the stores
+			"read:admin-headoffice-network-stock", // step 7A: stock of the stores
+			"read:admin-headoffice-supply-prices", // step 7B: base supply prices
+			"read:admin-headoffice-supply-invoices",
+			"read:admin-headoffice-store-balances"));
 
 	/** Store with headoffice.url only: the "Head office link" page (task 1.5). */
 	static final Set<String> HEAD_OFFICE_LINK_ADMIN_PERMISSIONS = new HashSet<>(
@@ -980,6 +983,14 @@ public class ZZDataInitializer {
 				false, ConfigType.BOOLEAN);
 		ensureConfig("TAX_STAMP_VALUE_MILLIMES", "100",
 				"Tax stamp amount in millimes (e.g. 100 = 0.100 TND per receipt).", false, ConfigType.NUMBER);
+		if (applicationModeService.isHeadOffice()) { // step 7B: head office only, a store never sees it
+			ensureConfig("SUPPLY_INVOICE_TAX_STAMP", "false",
+					"Add the tax stamp (SUPPLY_INVOICE_TAX_STAMP_MILLIMES, VAT 0) as one line to each supply invoice to a store.",
+					false, ConfigType.BOOLEAN);
+			ensureConfig("SUPPLY_INVOICE_TAX_STAMP_MILLIMES", "1000",
+					"Tax stamp of a supply invoice, in millimes (1000 = 1.000 TND); not the till ticket's stamp.", false,
+					ConfigType.NUMBER);
+		}
 		ensureConfig("TAX_STAMP_ERP_ITEM_CODE", "",
 				"ERP item code for the tax stamp line. Used when exporting ticket lines to ERP. Leave empty if not configured.",
 				false, ConfigType.STRING);

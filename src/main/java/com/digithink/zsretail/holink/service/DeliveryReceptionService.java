@@ -367,6 +367,7 @@ public class DeliveryReceptionService {
 		view.setReceivedAt(delivery.getReceivedAt());
 		view.setReceivedBy(delivery.getReceivedBy());
 		view.setStoreNote(delivery.getStoreNote());
+		view.setInvoiceNumber(delivery.getInvoiceNumber());
 		view.setPushStatus(delivery.getPushStatus() == null ? null : delivery.getPushStatus().name());
 		view.setLastError(delivery.getLastError());
 		Integer received = null;

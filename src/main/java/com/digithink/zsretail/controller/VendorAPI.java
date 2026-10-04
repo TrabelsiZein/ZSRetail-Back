@@ -2,6 +2,7 @@ package com.digithink.zsretail.controller;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
+import com.digithink.zsretail.holink.service.SupplyVendorGuard;
 import com.digithink.zsretail.model.Vendor;
 import com.digithink.zsretail.service.VendorService;
 
@@ -47,6 +49,17 @@ public class VendorAPI extends _BaseController<Vendor, Long, VendorService> {
 		return refusal == null ? null : ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
 	}
 
+	/** Step 7B: the head office vendor of a store whose goods come from the head office; no bean elsewhere. */
+	@Autowired(required = false)
+	private ObjectProvider<SupplyVendorGuard> supplyVendorGuard;
+
+	/** Step 7B: 409 for the head office vendor (consult-only, code kept); null otherwise and without the guard. */
+	private ResponseEntity<?> headOfficeVendorRefused(Function<SupplyVendorGuard, String> rule) {
+		SupplyVendorGuard guard = supplyVendorGuard == null ? null : supplyVendorGuard.getIfAvailable();
+		String refusal = guard == null ? null : rule.apply(guard);
+		return refusal == null ? null : ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
+	}
+
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody Vendor entity) {
 		if (applicationModeService.isSupplyFromErp()) {
@@ -54,6 +67,9 @@ public class VendorAPI extends _BaseController<Vendor, Long, VendorService> {
 					.body(createErrorResponse("Vendor creation is not available with an ERP: vendors are managed by the ERP."));
 		}
 		ResponseEntity<?> refusal = purchaseRefused(); // step 6
+		if (refusal == null) {
+			refusal = headOfficeVendorRefused(guard -> guard.create(entity)); // step 7B
+		}
 		if (refusal != null) {
 			return refusal;
 		}
@@ -75,6 +91,9 @@ public class VendorAPI extends _BaseController<Vendor, Long, VendorService> {
 					.body(createErrorResponse("Vendor update is not available with an ERP."));
 		}
 		ResponseEntity<?> refusal = purchaseRefused(); // step 6
+		if (refusal == null) {
+			refusal = headOfficeVendorRefused(guard -> guard.update(id, entity)); // step 7B
+		}
 		if (refusal != null) {
 			return refusal;
 		}
@@ -95,6 +114,9 @@ public class VendorAPI extends _BaseController<Vendor, Long, VendorService> {
 					.body(createErrorResponse("Vendor deletion is not available with an ERP."));
 		}
 		ResponseEntity<?> refusal = purchaseRefused(); // step 6
+		if (refusal == null) {
+			refusal = headOfficeVendorRefused(guard -> guard.delete(id)); // step 7B
+		}
 		if (refusal != null) {
 			return refusal;
 		}
