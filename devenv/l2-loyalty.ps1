@@ -301,13 +301,16 @@ foreach ($i in 1, 2) { Heartbeat 'store-b'; foreach ($job in 'SALES_PUSH', 'COPI
 StartHo
 Heartbeat 'store-b'; foreach ($job in 'SALES_PUSH', 'COPIES_DOWN', 'LOYALTY_PUSH') { $null = RunJob 'store-b' $job }
 $log15 = @(Sql 'store-b' "SELECT job + '|' + result FROM hol_exchange_log WHERE exchange_date >= '$t15' ORDER BY id")
+# COPIES_DOWN writes one failure row per domain it pulls (CATALOGUE too since step 6: each text is its own reason)
+$pulled = @(Sql 'store-b' "SELECT DISTINCT LEFT(error, CHARINDEX(':', error)) FROM hol_exchange_log WHERE job = 'COPIES_DOWN' AND result = 'ERROR' AND exchange_date >= '$t15'").Count
 $ok = $true
 $detail = @()
 foreach ($job in 'HEARTBEAT', 'SALES_PUSH', 'COPIES_DOWN', 'LOYALTY_PUSH') {
 	$jobRows = @($log15 | Where-Object { $_.StartsWith("$job|") })
 	$errors = @($jobRows | Where-Object { $_ -eq "$job|ERROR" }).Count
 	$after = if ($jobRows.Count -gt 0) { $jobRows[-1] } else { '' }
-	$good = $errors -eq 1 -and $after -ne "$job|ERROR" -and $jobRows.Count -ge 2
+	$expected = if ($job -eq 'COPIES_DOWN') { [math]::Max(1, $pulled) } else { 1 }
+	$good = $errors -eq $expected -and $after -ne "$job|ERROR" -and $jobRows.Count -ge 2
 	$ok = $ok -and $good
 	$detail += "$job $errors error / $($jobRows.Count) rows, last $($after.Split('|')[1])"
 }
