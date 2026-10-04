@@ -462,7 +462,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	 */
 	@PostMapping("/{id}/adjust-stock")
 	public ResponseEntity<?> adjustStock(@PathVariable Long id, @RequestBody AdjustStockRequestDTO request) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Stock adjustment is only available in standalone mode."));
 		}

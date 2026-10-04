@@ -46,7 +46,7 @@ public class LocationAPI extends _BaseController<Location, Long, LocationService
 	@PostMapping
 	@Override
 	public ResponseEntity<?> create(@RequestBody Location entity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Location creation is only available in standalone mode. In ERP mode locations are synchronized from the ERP."));
 		}
@@ -66,7 +66,7 @@ public class LocationAPI extends _BaseController<Location, Long, LocationService
 	@PutMapping("/{id}")
 	@Override
 	public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Location entity) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Location update is only available in standalone mode. In ERP mode locations are synchronized from the ERP."));
 		}
@@ -91,7 +91,7 @@ public class LocationAPI extends _BaseController<Location, Long, LocationService
 	@DeleteMapping("/{id}")
 	@Override
 	public ResponseEntity<?> deleteById(@PathVariable Long id) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Location deletion is only available in standalone mode. In ERP mode locations are synchronized from the ERP."));
 		}

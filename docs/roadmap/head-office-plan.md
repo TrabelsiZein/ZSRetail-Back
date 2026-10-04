@@ -647,7 +647,8 @@ Goal: no more `isStandalone` in the code; every check asks an ownership question
 |---|---|
 | 9.1a Startup: owners agree with `application.standalone` (and no franchise flag with ERP flags) | 9ef8247 |
 | 9.1b The four questions (`isCatalogueFromErp`, `isCustomersFromErp`, `isSupplyFromErp`, `hasErp`), no call site changed; `ModeQuestionTruthTableTest` (profile files and grid) | a278363 |
-| 9.1c Catalogue and customer gates (13): `ItemAPI` ×4, `ItemFamilyAPI`, `ItemSubFamilyAPI`, `DataImportAPI` ×2 → `isCatalogueFromErp`; `CustomerAPI`, `InvoiceAPI` ×3 → `isCustomersFromErp`; `ModeGateTest`, `support/TestModes` | this commit |
+| 9.1c Catalogue and customer gates (13): `ItemAPI` ×4, `ItemFamilyAPI`, `ItemSubFamilyAPI`, `DataImportAPI` ×2 → `isCatalogueFromErp`; `CustomerAPI`, `InvoiceAPI` ×3 → `isCustomersFromErp`; `ModeGateTest`, `support/TestModes` | 5432604 |
+| 9.1d Supply gates (13): `PurchaseHeaderAPI` ×5, `PurchaseInvoiceAPI` (its `ensureStandalone` renamed `ensureSupplyNotFromErp`), `VendorAPI` ×3, `LocationAPI` ×3, `ItemAPI` adjust-stock → `isSupplyFromErp` | this commit |
 
 Grid of `ModeQuestionTruthTableTest` (61,440 configurations; `node.type=STORE` reads like absent, promotions and loyalty only absent or `HEAD_OFFICE`):
 - Before 9.1a: 10,418 accepted, 8,580 answering differently. 4,830 had a franchise flag with ERP flags (`application.standalone` false or absent); 2,386 had `application.standalone=true` with an explicit owner `ERP`; 1,364 had ERP flags with catalogue, customers or supply not `ERP` (e.g. `ownership.supply=LOCAL` alone). The full first grid (368,640, with `STORE` and promotions or loyalty `LOCAL`/`ERP`) gave 51,336 accepted and 42,354 differing, of the same three kinds.

@@ -55,8 +55,8 @@ public class PurchaseInvoiceAPI {
 	@Autowired(required = false)
 	private ObjectProvider<StoreCatalogueGuard> catalogueGuard;
 
-	private void ensureStandalone() {
-		if (!applicationModeService.isStandalone()) {
+	private void ensureSupplyNotFromErp() {
+		if (applicationModeService.isSupplyFromErp()) {
 			throw new org.springframework.web.server.ResponseStatusException(HttpStatus.FORBIDDEN,
 					"Purchase invoices are only available in standalone mode.");
 		}
@@ -88,7 +88,7 @@ public class PurchaseInvoiceAPI {
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "20") int size) {
 		try {
-			ensureStandalone();
+			ensureSupplyNotFromErp();
 
 			LocalDate fromDate = (from != null && !from.trim().isEmpty()) ? LocalDate.parse(from) : null;
 			LocalDate toDate = (to != null && !to.trim().isEmpty()) ? LocalDate.parse(to) : null;
@@ -129,7 +129,7 @@ public class PurchaseInvoiceAPI {
 			@RequestParam(required = false) String dateFrom,
 			@RequestParam(required = false) String dateTo) {
 		try {
-			ensureStandalone();
+			ensureSupplyNotFromErp();
 
 			LocalDate from = (dateFrom != null && !dateFrom.trim().isEmpty()) ? LocalDate.parse(dateFrom) : null;
 			LocalDate to = (dateTo != null && !dateTo.trim().isEmpty()) ? LocalDate.parse(dateTo) : null;
@@ -158,7 +158,7 @@ public class PurchaseInvoiceAPI {
 	@PostMapping
 	public ResponseEntity<?> createPurchaseInvoice(@RequestBody CreatePurchaseInvoiceRequest request) {
 		try {
-			ensureStandalone();
+			ensureSupplyNotFromErp();
 			StoreCatalogueGuard guard = catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
 			if (guard != null && guard.purchase() != null) { // step 6: no purchases without the purchase right
 				return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(guard.purchase()));
@@ -209,7 +209,7 @@ public class PurchaseInvoiceAPI {
 	@GetMapping("/{id}/details")
 	public ResponseEntity<?> getPurchaseInvoiceDetails(@PathVariable Long id) {
 		try {
-			ensureStandalone();
+			ensureSupplyNotFromErp();
 
 			Map<String, Object> details = purchaseInvoiceService.getPurchaseInvoiceDetails(id);
 			return ResponseEntity.ok(details);

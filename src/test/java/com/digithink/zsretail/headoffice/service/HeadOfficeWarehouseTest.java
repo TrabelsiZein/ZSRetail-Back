@@ -37,6 +37,7 @@ import com.digithink.zsretail.service.ItemService;
 import com.digithink.zsretail.service.PurchaseHeaderService;
 import com.digithink.zsretail.support.InMemoryCatalogue;
 import com.digithink.zsretail.support.InMemoryStock;
+import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, task 7A.1: the head office as a warehouse. On a head office without an ERP (standalone) a purchase
@@ -164,8 +165,8 @@ class HeadOfficeWarehouseTest {
 	@Test
 	@DisplayName("A head office with an ERP (standalone false): purchases, purchase history, vendors and purchase invoices refused as today")
 	void headOfficeWithErpRefused() throws Exception {
-		ApplicationModeService erp = new ApplicationModeService();
-		set(erp, ApplicationModeService.class, "standalone", false);
+		ApplicationModeService erp = TestModes.of(new org.springframework.mock.env.MockEnvironment()
+				.withProperty("application.standalone", "false").withProperty("node.type", "HEAD_OFFICE"));
 
 		PurchaseHeaderAPI purchasesApi = new PurchaseHeaderAPI();
 		set(purchasesApi, PurchaseHeaderAPI.class, "applicationModeService", erp);

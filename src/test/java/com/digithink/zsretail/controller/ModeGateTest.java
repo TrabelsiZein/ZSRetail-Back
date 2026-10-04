@@ -1,6 +1,7 @@
 package com.digithink.zsretail.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
@@ -13,13 +14,19 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.digithink.zsretail.config.ApplicationModeService;
+import com.digithink.zsretail.dto.AdjustStockRequestDTO;
+import com.digithink.zsretail.dto.ProcessPurchaseRequestDTO;
+import com.digithink.zsretail.dto.SetPurchasePaidRequestDTO;
 import com.digithink.zsretail.dto.StandaloneQuickProductRequestDTO;
 import com.digithink.zsretail.model.Customer;
 import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.ItemFamily;
 import com.digithink.zsretail.model.ItemSubFamily;
+import com.digithink.zsretail.model.Location;
+import com.digithink.zsretail.model.Vendor;
 import com.digithink.zsretail.support.TestModes;
 
 /**
@@ -102,5 +109,57 @@ class ModeGateTest {
 			refused("create invoice", invoices.createInvoice(request), message);
 			refused("invoice from ticket", invoices.createInvoiceFromTicket(1L, null), message);
 		});
+	}
+
+	@Test
+	@DisplayName("9.1d supply: purchases, purchase invoices, vendors, locations, stock adjustment: 403 with an ERP")
+	void supplyGates() {
+		eachErp(mode -> () -> {
+			PurchaseHeaderAPI purchases = new PurchaseHeaderAPI();
+			set(purchases, PurchaseHeaderAPI.class, "applicationModeService", mode);
+			refused("vendor balance", purchases.getVendorBalance(null, null),
+					"Vendor balance report is only available in standalone mode.");
+			refused("purchase history", purchases.getHistory(0, 10, null, null, null, null, null),
+					"Purchase history is only available in standalone mode.");
+			refused("purchase details", purchases.getDetails(1L), "Purchase details are only available in standalone mode.");
+			refused("process purchase", purchases.processPurchase(new ProcessPurchaseRequestDTO()),
+					"Purchases are only available in standalone mode.");
+			refused("purchase paid", purchases.setPaid(1L, new SetPurchasePaidRequestDTO()),
+					"Purchase paid status is only available in standalone mode.");
+
+			PurchaseInvoiceAPI purchaseInvoices = new PurchaseInvoiceAPI();
+			set(purchaseInvoices, PurchaseInvoiceAPI.class, "applicationModeService", mode);
+			String invoiceMessage = "Purchase invoices are only available in standalone mode.";
+			forbidden("purchase invoice list", () -> purchaseInvoices.listPurchaseInvoices(null, null, null, null, 0, 20),
+					invoiceMessage);
+			forbidden("eligible purchases", () -> purchaseInvoices.getEligiblePurchases(1L, null, null), invoiceMessage);
+			forbidden("purchase invoice create",
+					() -> purchaseInvoices.createPurchaseInvoice(new PurchaseInvoiceAPI.CreatePurchaseInvoiceRequest()),
+					invoiceMessage);
+			forbidden("purchase invoice details", () -> purchaseInvoices.getPurchaseInvoiceDetails(1L), invoiceMessage);
+
+			VendorAPI vendors = new VendorAPI();
+			set(vendors, VendorAPI.class, "applicationModeService", mode);
+			refused("vendor create", vendors.create(new Vendor()), "Vendor creation is only available in standalone mode.");
+			refused("vendor update", vendors.update(1L, new Vendor()), "Vendor update is only available in standalone mode.");
+			refused("vendor delete", vendors.deleteById(1L), "Vendor deletion is only available in standalone mode.");
+
+			LocationAPI locations = new LocationAPI(mode);
+			refused("location create", locations.create(new Location()),
+					"Location creation is only available in standalone mode.");
+			refused("location update", locations.update(1L, new Location()),
+					"Location update is only available in standalone mode.");
+			refused("location delete", locations.deleteById(1L), "Location deletion is only available in standalone mode.");
+
+			refused("stock adjustment", itemApi(mode).adjustStock(1L, new AdjustStockRequestDTO()),
+					"Stock adjustment is only available in standalone mode.");
+		});
+	}
+
+	/** PurchaseInvoiceAPI refuses with a ResponseStatusException (403), as before. */
+	private static void forbidden(String gate, Runnable call, String message) {
+		ResponseStatusException e = assertThrows(ResponseStatusException.class, call::run, gate);
+		assertEquals(HttpStatus.FORBIDDEN, e.getStatus(), gate);
+		assertTrue(String.valueOf(e.getReason()).contains(message), gate + ": " + e.getReason());
 	}
 }

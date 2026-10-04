@@ -92,7 +92,7 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 	public ResponseEntity<?> getVendorBalance(
 			@RequestParam(required = false) String dateFrom,
 			@RequestParam(required = false) String dateTo) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Vendor balance report is only available in standalone mode."));
 		}
@@ -117,7 +117,7 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 			@RequestParam(required = false) String dateTo,
 			@RequestParam(required = false) String status,
 			@RequestParam(required = false) Long vendorId) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Purchase history is only available in standalone mode."));
 		}
@@ -147,7 +147,7 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 	 */
 	@GetMapping("/{id}/details")
 	public ResponseEntity<?> getDetails(@PathVariable Long id) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Purchase details are only available in standalone mode."));
 		}
@@ -168,7 +168,7 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 	 */
 	@PostMapping("/process-purchase")
 	public ResponseEntity<?> processPurchase(@RequestBody ProcessPurchaseRequestDTO request) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Purchases are only available in standalone mode. In ERP mode use the ERP for purchasing."));
 		}
@@ -199,7 +199,7 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 	 */
 	@PatchMapping("/{id}/set-paid")
 	public ResponseEntity<?> setPaid(@PathVariable Long id, @RequestBody SetPurchasePaidRequestDTO request) {
-		if (!applicationModeService.isStandalone()) {
+		if (applicationModeService.isSupplyFromErp()) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Purchase paid status is only available in standalone mode."));
 		}
