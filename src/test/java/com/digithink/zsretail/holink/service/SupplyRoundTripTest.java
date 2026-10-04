@@ -566,7 +566,7 @@ class SupplyRoundTripTest {
 		ho.item("TAX_STAMP", 1.0, null);
 		push.runCycle();
 
-		Map<String, Object> page = hoNetwork.page(null, null, 0, 20);
+		Map<String, Object> page = hoNetwork.page(null, null, 0, 20, false);
 		@SuppressWarnings("unchecked")
 		List<Map<String, Object>> storesShown = (List<Map<String, Object>>) page.get("stores");
 		assertEquals(Arrays.asList("B", "C"), storesShown.stream().map(s -> s.get("code")).collect(Collectors.toList()));
@@ -580,18 +580,52 @@ class SupplyRoundTripTest {
 		assertEquals("{" + b.getId() + "=48}", rows.get(0).get("byStore").toString());
 		assertEquals(3L, page.get("totalElements"));
 
-		assertEquals(1, ((List<?>) hoNetwork.page(c.getId(), null, 0, 20).get("stores")).size());
-		assertEquals("{}", ((List<Map<String, Object>>) hoNetwork.page(c.getId(), null, 0, 20).get("content")).get(0)
+		assertEquals(1, ((List<?>) hoNetwork.page(c.getId(), null, 0, 20, false).get("stores")).size());
+		assertEquals("{}", ((List<Map<String, Object>>) hoNetwork.page(c.getId(), null, 0, 20, false).get("content")).get(0)
 				.get("byStore").toString());
-		assertEquals(1L, hoNetwork.page(null, "b009", 0, 20).get("totalElements"));
-		assertThrows(IllegalArgumentException.class, () -> hoNetwork.page(999L, null, 0, 20));
+		assertEquals(1L, hoNetwork.page(null, "b009", 0, 20, false).get("totalElements"));
+		assertThrows(IllegalArgumentException.class, () -> hoNetwork.page(999L, null, 0, 20, false));
 
 		@SuppressWarnings("unchecked")
-		List<Map<String, Object>> own = (List<Map<String, Object>>) hoNetwork.ownItems(null, null, 0, 20).get("content");
+		List<Map<String, Object>> own = (List<Map<String, Object>>) hoNetwork.ownItems(null, null, 0, 20, false)
+				.get("content");
 		assertEquals(1, own.size());
 		assertEquals("OWN1", own.get(0).get("itemCode"));
 		assertEquals("B", own.get(0).get("storeCode"));
 		assertEquals(3, own.get(0).get("quantity"));
+	}
+
+	@SuppressWarnings("unchecked")
+	private static List<Object> codes(Map<String, Object> page) {
+		return ((List<Map<String, Object>>) page.get("content")).stream().map(r -> r.get("itemCode"))
+				.collect(Collectors.toList());
+	}
+
+	@Test
+	@DisplayName("belowZero: only the items below zero at the head office or in a store shown (active stores by default);"
+			+ " own items below zero")
+	void belowZero() {
+		sendBl(b, line("B001", 50));
+		puller.runCycle();
+		reception.receive(received.byNumber("BL-000001").getId(), counted(count(1, 48)), "responsible");
+		db.itemByCode("B001").get().setStockQuantity(-2); // B sold more than it had
+		db.item("OWN1", 3.0, null).setStockQuantity(-1);
+		db.item("OWN2", 3.0, null).setStockQuantity(4);
+		ho.itemByCode("B002").get().setStockQuantity(-5); // the head office below zero
+		push.runCycle();
+
+		assertEquals(Arrays.asList("B001", "B002", "B009"), codes(hoNetwork.page(null, null, 0, 20, false)));
+		assertEquals(Arrays.asList("B001", "B002"), codes(hoNetwork.page(null, null, 0, 20, true)));
+		assertEquals(2L, hoNetwork.page(null, null, 0, 20, true).get("totalElements"));
+		assertEquals(Collections.singletonList("B002"), codes(hoNetwork.page(c.getId(), null, 0, 20, true)),
+				"C shown alone: only the head office column is below zero");
+		assertEquals(Arrays.asList("B001", "B002"), codes(hoNetwork.page(b.getId(), null, 0, 20, true)));
+		b.setActive(false);
+		assertEquals(Collections.singletonList("B002"), codes(hoNetwork.page(null, null, 0, 20, true)),
+				"an inactive store is not shown by default");
+		b.setActive(true);
+		assertEquals(Collections.singletonList("OWN1"), codes(hoNetwork.ownItems(null, null, 0, 20, true)));
+		assertEquals(Arrays.asList("OWN1", "OWN2"), codes(hoNetwork.ownItems(null, null, 0, 20, false)));
 	}
 
 	// ─── The head office as the store sees it ────────────────────

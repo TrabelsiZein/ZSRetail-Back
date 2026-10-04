@@ -128,14 +128,20 @@ public final class InMemoryNetworkStock {
 				case "findHeadOfficeItems": {
 					Collection<?> types = (Collection<?>) args[0];
 					String search = (String) args[2];
+					long storeId = (Long) args[3];
+					boolean belowZero = Boolean.TRUE.equals(args[4]);
 					List<Object[]> items = ho.items.values().stream()
 							.filter(i -> i.getType() == null || types.contains(i.getType()))
 							.filter(i -> !args[1].equals(i.getItemCode()))
 							.filter(i -> search == null || like(i.getItemCode(), search) || like(i.getName(), search))
+							.filter(i -> !belowZero || (i.getStockQuantity() != null && i.getStockQuantity() < 0)
+									|| storeStock.values().stream().anyMatch(s -> s.getItemCode().equals(i.getItemCode())
+											&& s.getQuantity() < 0 && (storeId == 0 ? ho.stores.get(s.getStoreId()) != null && Boolean.TRUE.equals(ho.stores.get(s.getStoreId()).getActive())
+													: s.getStoreId() == storeId)))
 							.sorted(Comparator.comparing(Item::getItemCode))
 							.map(i -> new Object[] { i.getItemCode(), i.getName(), i.getStockQuantity() })
 							.collect(Collectors.toList());
-					return page(items, (Pageable) args[3]);
+					return page(items, (Pageable) args[5]);
 				}
 				case "findOwnItems": {
 					long storeId = (Long) args[1];
@@ -144,9 +150,10 @@ public final class InMemoryNetworkStock {
 							.filter(s -> Objects.equals(s.getOwnItem(), args[0]))
 							.filter(s -> storeId == 0 || s.getStoreId() == storeId)
 							.filter(s -> search == null || like(s.getItemCode(), search) || like(s.getItemName(), search))
+							.filter(s -> !Boolean.TRUE.equals(args[3]) || s.getQuantity() < 0)
 							.sorted(Comparator.comparing(HoStoreStock::getStoreId).thenComparing(HoStoreStock::getItemCode))
 							.collect(Collectors.toList());
-					return page(own, (Pageable) args[3]);
+					return page(own, (Pageable) args[4]);
 				}
 				default:
 					return UNHANDLED;

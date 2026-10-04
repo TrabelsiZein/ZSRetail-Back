@@ -126,13 +126,14 @@ public class HoNetworkStockService {
 	 * The head office items, by code, with the head office stock and the stock of each store:
 	 * {stores: [{id, code, name, lastStockAt}], content: [{itemCode, itemName, headOffice, byStore: {"&lt;storeId&gt;":
 	 * quantity}}], totalElements, totalPages, number, size}. storeId: one store, null or 0: every active store. A store
-	 * that never sent an item has no entry for it.
+	 * that never sent an item has no entry for it. belowZero true: only the items whose stock is below zero in a column
+	 * shown (the head office, or the store asked for, or any active store).
 	 */
 	@Transactional(readOnly = true)
-	public Map<String, Object> page(Long storeId, String search, Integer page, Integer size) {
+	public Map<String, Object> page(Long storeId, String search, Integer page, Integer size, boolean belowZero) {
 		long wanted = storeId == null ? 0L : storeId;
 		List<Store> shown = shownStores(wanted);
-		Page<Object[]> items = stocks.findHeadOfficeItems(STOCK_TYPES, CatalogueKind.TAX_STAMP_CODE, like(search),
+		Page<Object[]> items = stocks.findHeadOfficeItems(STOCK_TYPES, CatalogueKind.TAX_STAMP_CODE, like(search), wanted, belowZero,
 				PageRequest.of(pageNumber(page), pageSize(size)));
 		List<String> codes = items.getContent().stream().map(row -> (String) row[0]).collect(Collectors.toList());
 		Map<String, Map<String, Integer>> byCode = new HashMap<>();
@@ -163,11 +164,12 @@ public class HoNetworkStockService {
 
 	/**
 	 * The stores' own items (not from the head office): {content: [{storeId, storeCode, storeName, itemCode, itemName,
-	 * quantity, storeTime, receivedAt}], totalElements, totalPages, number, size}, by store and code.
+	 * quantity, storeTime, receivedAt}], totalElements, totalPages, number, size}, by store and code. belowZero true: only
+	 * those whose stock is below zero.
 	 */
 	@Transactional(readOnly = true)
-	public Map<String, Object> ownItems(Long storeId, String search, Integer page, Integer size) {
-		Page<HoStoreStock> rows = stocks.findOwnItems(Boolean.TRUE, storeId == null ? 0L : storeId, like(search),
+	public Map<String, Object> ownItems(Long storeId, String search, Integer page, Integer size, boolean belowZero) {
+		Page<HoStoreStock> rows = stocks.findOwnItems(Boolean.TRUE, storeId == null ? 0L : storeId, like(search), belowZero,
 				PageRequest.of(pageNumber(page), pageSize(size)));
 		Map<Long, Store> byId = new HashMap<>();
 		for (Store store : stores.findAll()) {

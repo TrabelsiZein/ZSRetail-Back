@@ -224,19 +224,27 @@ public class SupplyPushService {
 	}
 
 	private boolean pushConfirmations(Cycle cycle, Collection<SalesCopyStatus> statuses) {
-		List<ReceivedDelivery> rows = transactions
-				.execute(status -> deliveries.findPushQueue(statuses, PageRequest.of(0, BATCH_SIZE)));
-		rows = rows == null ? new ArrayList<>() : new ArrayList<>(rows);
-		rows.removeIf(row -> cycle.tried.contains(row.getId()));
+		// The copies are built inside the read transaction: the lines of a BL are a lazy collection (L2 of step 7A: built
+		// after it, every push failed with a LazyInitializationException)
+		List<Queued> queued = transactions.execute(status -> {
+			List<Queued> built = new ArrayList<>();
+			for (ReceivedDelivery row : deliveries.findPushQueue(statuses, PageRequest.of(0, BATCH_SIZE))) {
+				if (!cycle.tried.contains(row.getId())) {
+					built.add(new Queued(row.getId(), row.getNumber(), confirmationOf(row)));
+				}
+			}
+			return built;
+		});
+		List<Queued> rows = queued == null ? new ArrayList<>() : queued;
 		if (rows.isEmpty()) {
 			return false;
 		}
 		LocalDateTime at = clock.get();
 		long started = System.nanoTime();
 		List<DeliveryConfirmationDTO> body = new ArrayList<>();
-		for (ReceivedDelivery row : rows) {
-			cycle.tried.add(row.getId());
-			body.add(confirmationOf(row));
+		for (Queued row : rows) {
+			cycle.tried.add(row.id);
+			body.add(row.confirmation);
 		}
 		SalesPushAnswer answer = client.pushDeliveryConfirmations(body);
 		if (!answer.isDelivered()) {
@@ -255,17 +263,17 @@ public class SupplyPushService {
 		int accepted = 0;
 		int rejected = 0;
 		String firstProblem = null;
-		for (ReceivedDelivery row : rows) {
-			SalesCopyResultDTO result = results.get(row.getNumber());
+		for (Queued row : rows) {
+			SalesCopyResultDTO result = results.get(row.number);
 			if (result != null && result.isAccepted()) {
-				transactions.executeWithoutResult(status -> mark(row.getId(), SalesCopyStatus.SENT, null, at));
+				transactions.executeWithoutResult(status -> mark(row.id, SalesCopyStatus.SENT, null, at));
 				accepted++;
 			} else {
 				String reason = result == null ? "no result from the head office for this BL"
 						: result.getMessage() == null ? "rejected" : result.getMessage();
-				transactions.executeWithoutResult(status -> mark(row.getId(), SalesCopyStatus.ERROR, reason, at));
+				transactions.executeWithoutResult(status -> mark(row.id, SalesCopyStatus.ERROR, reason, at));
 				rejected++;
-				firstProblem = firstProblem == null ? row.getNumber() + ": " + reason : firstProblem;
+				firstProblem = firstProblem == null ? row.number + ": " + reason : firstProblem;
 			}
 		}
 		cycle.confirmationsSent += accepted;
@@ -275,6 +283,19 @@ public class SupplyPushService {
 				firstProblem, at, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
 		cycle.more |= rows.size() >= BATCH_SIZE;
 		return true;
+	}
+
+	/** One confirmation of the batch, built inside the read transaction. */
+	private static final class Queued {
+		final Long id;
+		final String number;
+		final DeliveryConfirmationDTO confirmation;
+
+		Queued(Long id, String number, DeliveryConfirmationDTO confirmation) {
+			this.id = id;
+			this.number = number;
+			this.confirmation = confirmation;
+		}
 	}
 
 	/** The tracking columns of the row as it is now (read again: the user may not change it, but the row is fresh). */
