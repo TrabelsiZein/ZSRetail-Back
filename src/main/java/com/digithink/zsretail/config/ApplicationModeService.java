@@ -130,6 +130,26 @@ public class ApplicationModeService {
 		return ownership.getSalesUpstreams();
 	}
 
+	/** Step 9 (task 9.1b): see {@link NodeOwnership#isCatalogueFromErp()}. Same answer as {@code !isStandalone()}. */
+	public boolean isCatalogueFromErp() {
+		return ownership.isCatalogueFromErp();
+	}
+
+	/** Step 9 (task 9.1b): see {@link NodeOwnership#isCustomersFromErp()}. Same answer as {@code !isStandalone()}. */
+	public boolean isCustomersFromErp() {
+		return ownership.isCustomersFromErp();
+	}
+
+	/** Step 9 (task 9.1b): see {@link NodeOwnership#isSupplyFromErp()}. Same answer as {@code !isStandalone()}. */
+	public boolean isSupplyFromErp() {
+		return ownership.isSupplyFromErp();
+	}
+
+	/** Step 9 (task 9.1b): see {@link NodeOwnership#hasErp()}. Same answer as {@code !isStandalone()}. */
+	public boolean hasErp() {
+		return ownership.hasErp();
+	}
+
 	/**
 	 * True when the POS runs without an ERP (standalone mode).
 	 * False when the POS is integrated with ERP (e.g. Dynamics NAV / Business Central).

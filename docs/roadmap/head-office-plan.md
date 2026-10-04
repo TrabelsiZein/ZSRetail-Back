@@ -645,7 +645,13 @@ Goal: no more `isStandalone` in the code; every check asks an ownership question
 
 | Part | Backend |
 |---|---|
-| 9.1a Startup: owners agree with `application.standalone` (and no franchise flag with ERP flags) | this commit |
+| 9.1a Startup: owners agree with `application.standalone` (and no franchise flag with ERP flags) | 9ef8247 |
+| 9.1b The four questions (`isCatalogueFromErp`, `isCustomersFromErp`, `isSupplyFromErp`, `hasErp`), no call site changed; `ModeQuestionTruthTableTest` (profile files and grid) | this commit |
+
+Grid of `ModeQuestionTruthTableTest` (61,440 configurations; `node.type=STORE` reads like absent, promotions and loyalty only absent or `HEAD_OFFICE`):
+- Before 9.1a: 10,418 accepted, 8,580 answering differently. 4,830 had a franchise flag with ERP flags (`application.standalone` false or absent); 2,386 had `application.standalone=true` with an explicit owner `ERP`; 1,364 had ERP flags with catalogue, customers or supply not `ERP` (e.g. `ownership.supply=LOCAL` alone). The full first grid (368,640, with `STORE` and promotions or loyalty `LOCAL`/`ERP`) gave 51,336 accepted and 42,354 differing, of the same three kinds.
+- After 9.1a: 1,700 accepted, none differing. The 138 accepted ones that agreed and are now refused have a franchise flag with ERP flags (all three ERP domains set to `ERP` explicitly).
+- Every profile file agreed before and after.
 
 ## 5. Later, not scheduled
 

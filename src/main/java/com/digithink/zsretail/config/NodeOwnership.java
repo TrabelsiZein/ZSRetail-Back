@@ -349,6 +349,33 @@ public final class NodeOwnership {
 	}
 
 	/**
+	 * Step 9 questions (task 9.1b), replacing the reads of application.standalone one group at a time: the items and
+	 * families come from the ERP (they cannot be written here).
+	 */
+	public boolean isCatalogueFromErp() {
+		return ownerOf(DataDomain.CATALOGUE) == DataOwner.ERP;
+	}
+
+	/** Step 9 question: the customers come from the ERP (they are not created here, POS tickets are not invoiced here). */
+	public boolean isCustomersFromErp() {
+		return ownerOf(DataDomain.CUSTOMERS) == DataOwner.ERP;
+	}
+
+	/** Step 9 question: the stock, purchases, vendors and locations are the ERP's (no stock kept here). */
+	public boolean isSupplyFromErp() {
+		return ownerOf(DataDomain.SUPPLY) == DataOwner.ERP;
+	}
+
+	/**
+	 * Step 9 question: this installation works with an ERP (some domain is owned by the ERP). With the startup check of
+	 * task 9.1a each of the four questions answers exactly {@code application.standalone=false}, for every configuration
+	 * that starts ({@code ModeQuestionTruthTableTest}).
+	 */
+	public boolean hasErp() {
+		return owners.containsValue(DataOwner.ERP);
+	}
+
+	/**
 	 * Step 9, task 9.1a: application.standalone and the owners say the same thing about the ERP. Without an ERP nothing is
 	 * owned by the ERP; with an ERP the catalogue, the customers and the supply (the domains an ERP can own) are the
 	 * ERP's, and the franchise profiles (which run without an ERP) are refused.
