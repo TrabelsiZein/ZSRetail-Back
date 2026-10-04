@@ -75,6 +75,7 @@ Frontend: since task 1.6 a head office has only its own routes (see "Head office
 | Customers & loyalty | Loyalty members | `admin-headoffice-loyalty-members` | `/headoffice/loyalty/members` | `admin-loyalty-members` |
 | Customers & loyalty | Member functions (required to enrol a member) | `admin-headoffice-loyalty-member-functions` | `/headoffice/loyalty/member-functions` | `admin-loyalty-member-functions` |
 | Customers & loyalty | Loyalty transactions (empty until step 4) | `admin-headoffice-loyalty-transactions` | `/headoffice/loyalty/transactions` | `admin-loyalty-transactions` |
+| Customers & loyalty | Loyalty overspends (step 5) | `admin-headoffice-loyalty-overspends` | `/headoffice/loyalty/overspends` | none (head office only) |
 | Settings | Company information and license | `admin-headoffice-company-information` | `/headoffice/settings/company-information` | `admin-company-information` |
 | Settings | General setup | `admin-headoffice-general-setup` | `/headoffice/settings/general-setup` | `admin-general-setup` |
 | Settings | Users | `admin-headoffice-users` | `/headoffice/settings/users` | `admin-users` |
@@ -153,6 +154,21 @@ Frontend commits adace27 (store loyalty pages), 934e417 (link page), ece22dd (St
 **Stores page** (`StoresManagement.vue`): two switches "Can edit members" and "Can adjust points" in the store form (sent with `POST` and `PUT`) and in the details (saved at once with a `PUT` of that field; the switch goes back when the save fails). The code `HO` is refused in the form with a clear message; the backend's 400 stays the guard.
 
 Labels in `en`, `fr`, `ar`. The step 5 pages (fresh balance at the till, spending setting, store adjustments, overspend report) come with the step 5 frontend session.
+
+### Step 5 pages (frontend)
+Frontend commits 25cd826 (till and members page), 581ce28 (link page), 0756bb0 (Stores page), 7b0c1e3 (overspend report), on `feature/ho-step-4`. Store parts only when `/config` gives `ownership.LOYALTY = HEAD_OFFICE`; a store with local loyalty, or without a head office, renders as before.
+
+**Till** (`ItemSelection.vue`, `Payment.vue`, helper `loyalty-network.js`): when a member is selected, and when the Payment page opens with one, `GET /loyalty/member/{id}/fresh` is called without waiting: the member shows at once with the store's balance and is updated when the answer comes. `fresh` false: "Balance of the last sync" with the reason. `canRedeem` false: the points input and Apply are disabled with the reason, and points already applied are removed (also when the new balance is lower). A duplicate phone offers the card from `existingCardNumber` / `existingCardActive` (the message text only when the fields are absent).
+
+**Members page** (`LoyaltyMembersManagement.vue`): Adjust points when `GET /loyalty/network` gives `pointsAdjustable`; its 400, 403, 409 and 503 answers shown in the member card.
+
+**Head office link page** (`HeadOfficeLinkLoyalty.vue`): the loyalty block shows whether spending needs the head office online (`status.loyalty.redeemRequiresOnline`: Yes, No, or Unknown before the first heartbeat answer).
+
+**Stores page** (`StoresManagement.vue`): a third switch "Spending points requires the head office online" (`redeemRequiresOnline`) in the form (`POST`, `PUT`) and in the details (saved at once), like the two loyalty rights.
+
+**Overspend report** (head office, `src/views/admin/headoffice/LoyaltyOverspends.vue`): route `admin-headoffice-loyalty-overspends`, path `/headoffice/loyalty/overspends`, permission `read:admin-headoffice-loyalty-overspends` (24 head office permissions, as the backend), menu Customers & loyalty. `GET /admin/headoffice/loyalty/overspends` with search, store and date filters and paging; the count and points of the period from `overspends/count` above the table. Head office home: a tile with the count and points of every period, opening the page, shown with the page's permission only (the tiles go to 3 per row).
+
+Labels in `en`, `fr`, `ar`. Not in these commits: the enrol switch `enrolRequiresOnline` (backend 21f1984, after them): its switch on the Stores page, its line on the link page and the 503 of an enrol at the till and on the members page.
 
 ### Add a page to the head office
 1. **Shared page** (the same data as on the store): add a route to `src/router/headoffice-routes.js` with path `/headoffice/<...>`, name and `meta.resource` `admin-headoffice-<page>`, `meta.action: 'read'`, `meta.headOffice: true`, `meta.requiresAuth: true`, the store page's component, and `meta.twinOf` set to the store route name. Do not modify the store page, its store route or the store menu.

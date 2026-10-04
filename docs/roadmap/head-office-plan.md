@@ -48,6 +48,7 @@ The exact prompts are written during the session, from the code as it is that da
 - Step 3: `ho_store.owner_catalogue`, `owner_customers`, `owner_promotions`, `owner_loyalty`, `owner_supply` `varchar(20)` null, and `ho_store.sales_upstreams` `varchar(50)` null (null = the store has not reported yet).
 - Step 4: `loyalty_member.origin` and `loyalty_program.origin` `varchar(20)` null (null = local); `ho_store.can_edit_members` and `ho_store.can_adjust_points` `bit` null (null = false). New tables through `ddl-auto`: `ho_loyalty_alias`, `ho_loyalty_movement`, `hol_loyalty_member_copy`, `hol_loyalty_movement_copy`.
 - Step 5: `ho_store.redeem_requires_online` `bit` null (null = false). The new permission `read:admin-headoffice-loyalty-overspends` is added at startup (no script).
+- Enrol switch (2026-10-04): `ho_store.enrol_requires_online` `bit` null (null = false).
 
 ## 2. Test levels
 
@@ -229,6 +230,8 @@ These decisions replace the tables below where they differ (enrol as a live ques
 - Spend: against the store's balance, never blocked by default. When a member is selected at the till, the store asks the head office for the current balance (short timeout). Overspends are listed in a report at the head office. A per-store setting can require the head office online to spend. No hold and confirm, and the selling services stay untouched.
 - Per store, set at the head office and enforced there: "can edit members" and "can adjust points". Both go through the head office and need it online.
 - A store's members that existed before the switch are switched off. Importing an existing member list is a later tool.
+- Enrol switch (Zein, 2026-10-04): per store at the head office, `enrolRequiresOnline` (default false, sent with the heartbeat answer like the rights). When true, the store enrols a member only when the head office answers the phone check of that enrol (503 with a clear message otherwise); sales, earning and finding a member are not affected. Backend 21f1984, L2 scenario 17.
+- All the "requires the head office online" switches (`redeemRequiresOnline`, `enrolRequiresOnline`) are off by default (Zein, 2026-10-04): the till keeps working through a long outage; a store is made strict on purpose, on the head office Stores page.
 - Step 4 needs a second dev store.
 
 ### Step 4 — Shared loyalty, part 1: members and earning
@@ -273,7 +276,7 @@ Goal: points earned in one store can be spent in another. Decided 2026-10-03 (de
 | 5.1 | Fresh balance at the till: when a member is selected the store asks the head office for the member (short timeout), saves it with the pull's balance rule and answers whether the balance is fresh; head office unreachable: the store's copy, never failing. Head office: overspend report (list and count) of the removals that found the balance lower | L1 fresh balance online and offline; overspend listed once |
 | 5.2 | Spending in the sale exactly as today, against the store's balance; its movement goes up (step 4). Per store at the head office, `redeemRequiresOnline` (default false, sent with the heartbeat answer): when true, `LoyaltyService.redeemPoints` (hook, head-office-owned path only) refuses spending unless the member was refreshed from the head office in the last 2 minutes; earning and the sale without points still work. Manual adjustments from a store go through the head office (`canAdjustPoints`). The selling services are not changed | L1 `SaleCompletionLoyaltyStampTest` and `LoyaltyEarningTiersTest` unchanged and green; strict store refuses without a fresh balance and allows with one; a lenient store never refuses; adjustment with and without the right |
 | 5.3 | Returns: movements travel up; head office applies them, balance never below zero | L1 `ReturnRefundLoyaltyTest` unchanged and green |
-| 5.4 | Receipt and POS messages | L2 |
+| 5.4 | Receipt and POS messages; pages: fresh balance at the till, adjust points with the right, spending setting on the Stores page and the link page, overspend report and home tile. Done: frontend 25cd826, 581ce28, 0756bb0, 7b0c1e3 (described in `docs/modules/head-office.md`, "Step 5 pages (frontend)") | L2 |
 
 L2 scenarios: spend in B the points earned in A (fresh balance shown when the member is selected); head office stopped: a lenient store spends against its own balance and the overspend appears in the head office report once the movements arrive, a strict store refuses spending with the message and the sale without points goes through; a partial then full return in A gives the same balance at the head office; a store adjustment with and without the right; with local loyalty everything is identical to today.
 
@@ -299,7 +302,9 @@ Tests: 49 classes, 395 tests, all green; the four loyalty tests unchanged.
 
 Bugs found and fixed: 5725e14, the local card numbering (`findMaxCardSequence`) failed on a store back to local loyalty that holds network cards ("Conversion failed"); only all-digit cards count now, same result elsewhere. Earlier commits of the session: cb357dd (enrol 409 fields, step 4 frontend docs), dae555b (devenv and store profiles).
 
-Still owed: the step 5 frontend (in progress in the frontend repo) and its screen check, then the merge of steps 4 and 5 into release/2.1.0, the `update.sql` lines of section 1.
+Enrol switch (2026-10-04, backend 21f1984): scenario 17 added (strict enrol at B: head office stopped, enrol 503 with the message and a sale works; back, enrol works). All 17 passed (report `C:\zsretail-dev\logs\l2-loyalty-103425.txt`). Runs 4 to 6 failed scenarios 4, 5, 11 and 12 on a dev environment problem, not the code: right after a head office start, loading classes out of the nested jars of the 162 MB WAR took tens of seconds; a thread dump showed the request holding the receiver's lock in the class loader and the stores' retries queued behind it. The instances now run from the exploded WAR (devenv build.ps1 and start.ps1); starts went from 121 to 214 s down to 77, 36 and 17 s. Observation for production: the head office applies loyalty uploads one at a time; when it is slow, the stores time out after 10 s and resend, which the exactly-once keys make harmless.
+
+Still owed: the frontend of the enrol switch (Stores page switch, link page line, the 503 at the till and on the members page) and the screen check of steps 4 and 5, then the merge of steps 4 and 5 into release/2.1.0, the `update.sql` lines of section 1.
 
 Done when: the checklist with local loyalty shows no difference. After this step ParaFendri is fully served.
 
