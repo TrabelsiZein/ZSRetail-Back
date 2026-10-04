@@ -1,6 +1,6 @@
 # Head Office Module
 
-**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office); task 2.4 done (the store's push job with retry, counts on `GET admin/holink/status`). Task 2.5 backend done (consolidated sales API, home cards, page permissions; see "Consolidated sales API"; its pages to come); task 2.6 backend done (jobs with editable frequency and run now, exchange log; see "Head office link: jobs and exchange log"); the pages of 2.5 and 2.6 come with the frontend session. Step 3 in progress: task 3.1 done (the copies down mechanism, see "Copies down"); task 3.2 done (`origin` on `promotion` and the write guards, see `docs/modules/promotion.md`); task 3.3 done (target stores, payload by codes, received promotions, network usage count; see "Promotions owned by the head office"); task 3.5 done (missing targets WAITING and retried, tracking table, `GET admin/holink/received/{domain}`, counts in the link status). Rule fix: on a store whose promotions are local every promotion is written as before, whatever its origin (`docs/modules/promotion.md`). Task 3.6 done (what each store owns, sent with the heartbeat, see "Store API"). Task 3.4 done (head office with an ERP: imports only, export jobs never run, ERP reference location, profile `headoffice-dynamics-dev`; see "Head office with an ERP"). Step 3 frontend done: task 3.0 (lint) and the pages of tasks 3.2 to 3.6, see "Step 3 pages (frontend)". Step 4 backend done (shared loyalty: members and earning, see "Shared loyalty (step 4)"): part 1 the head office side (register, copies down, members and movements up, phone check, member edit, store rights), part 2 the store side (enrol, `LOYALTY_PUSH`, `LOYALTY` pull, member changes through the head office, link page API); steps 4 and 5 done and merged (frontend and L2 included). Step 6 backend done (catalogue and selling prices decided by the head office, price lists, store rights and guards; see "Catalogue owned by the head office (step 6)" and "Price lists (task 6.4)"); step 6 done and merged (frontend and L2 included), task 6.8 (images) after step 7B. Step 7A done (backend, frontend, L2 of 12 scenarios) (the head office as a warehouse, BLs, reception at the store, confirmation up, stock of the stores; see "Head office as a warehouse (task 7A.1)", "BLs (task 7A.2, head office)", "BLs at the store (tasks 7A.3, 7A.4)", "Stock of the stores (task 7A.5)"); its pages: "Step 7A pages (frontend)", four sections. Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
+**Status**: in progress. Task 1.1 done: installation type, `headoffice-dev` profile, guards. Task 1.2 done: stores list and API keys. Task 1.3 done: store key filter on `/ho/**`, `GET /ho/ping`. Task 1.4 done: the store's heartbeat to the head office (`POST /ho/heartbeat`, head office link on the store). Task 1.5 done: computed status on the Stores page, "Head office link" page on the store. Task 1.6 done: separate head office routes and menu, horizontal layout on a head office. Step 2 in progress: task 2.1 done (the store's tracking table and the search for documents to send, see "Sales copies"); task 2.2 done (the copies of a ticket, a return and a session closing); task 2.3 done (consolidation tables and `POST /ho/sales/*` on the head office); task 2.4 done (the store's push job with retry, counts on `GET admin/holink/status`). Task 2.5 backend done (consolidated sales API, home cards, page permissions; see "Consolidated sales API"; its pages to come); task 2.6 backend done (jobs with editable frequency and run now, exchange log; see "Head office link: jobs and exchange log"); the pages of 2.5 and 2.6 come with the frontend session. Step 3 in progress: task 3.1 done (the copies down mechanism, see "Copies down"); task 3.2 done (`origin` on `promotion` and the write guards, see `docs/modules/promotion.md`); task 3.3 done (target stores, payload by codes, received promotions, network usage count; see "Promotions owned by the head office"); task 3.5 done (missing targets WAITING and retried, tracking table, `GET admin/holink/received/{domain}`, counts in the link status). Rule fix: on a store whose promotions are local every promotion is written as before, whatever its origin (`docs/modules/promotion.md`). Task 3.6 done (what each store owns, sent with the heartbeat, see "Store API"). Task 3.4 done (head office with an ERP: imports only, export jobs never run, ERP reference location, profile `headoffice-dynamics-dev`; see "Head office with an ERP"). Step 3 frontend done: task 3.0 (lint) and the pages of tasks 3.2 to 3.6, see "Step 3 pages (frontend)". Step 4 backend done (shared loyalty: members and earning, see "Shared loyalty (step 4)"): part 1 the head office side (register, copies down, members and movements up, phone check, member edit, store rights), part 2 the store side (enrol, `LOYALTY_PUSH`, `LOYALTY` pull, member changes through the head office, link page API); steps 4 and 5 done and merged (frontend and L2 included). Step 6 backend done (catalogue and selling prices decided by the head office, price lists, store rights and guards; see "Catalogue owned by the head office (step 6)" and "Price lists (task 6.4)"); step 6 done and merged (frontend and L2 included), task 6.8 (images) after step 7B. Step 7A done (backend, frontend, L2 of 12 scenarios) (the head office as a warehouse, BLs, reception at the store, confirmation up, stock of the stores; see "Head office as a warehouse (task 7A.1)", "BLs (task 7A.2, head office)", "BLs at the store (tasks 7A.3, 7A.4)", "Stock of the stores (task 7A.5)"); its pages: "Step 7A pages (frontend)", four sections. Step 7B done (backend, frontend, L2 of 13 scenarios) (supply prices, invoices at the head office, invoices received at the store; see "Supply prices and invoicing settings (step 7B, part 1)", "Supply invoices (step 7B, part 2)", "Supply invoices at the store (step 7B, part 3)"); its pages: "Step 7B pages (frontend)", two sections, and "Network stock: "below zero only" through the API". Target model and steps: `docs/roadmap/head-office-design.md` and `docs/roadmap/head-office-plan.md`.
 
 ### Overview
 - Two installation types, same WAR: a **store** sells; a **head office** manages several stores and never sells (no cashier session, no ticket).
@@ -342,11 +342,91 @@ Frontend commit 5d7743b, on `feature/ho-step-7a`. Head office without an ERP onl
 
 **Filters:**
 - Search (code, name) and store (`storeId`, from `store-options`), with paging by the API, 20 rows by default.
-- "Below zero only" has no API parameter. The page reads the API pages (200 rows each, at most 25) and keeps the rows below zero: at the head office or in a store shown, or the quantity on the own items tab. It then pages them itself, with a note when the list was cut at 5,000 items.
+- "Below zero only": since step 7B the page sends `belowZero=true` to the API (see "Network stock: "below zero only" through the API" below).
 
 Labels in `en`, `fr`, `ar` (`admin.headoffice.networkStock.*`).
 
 **Checks:** lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
+
+### Step 7B pages (frontend): supply prices and invoicing settings
+Frontend commits b398fea (Stores page), 273aba9 (price lists), 0c513a4 (supply prices), on `feature/ho-step-7b`. Head office without an ERP only. Backend: step 7B part 1 (435ab69), "Supply prices and invoicing settings (step 7B, part 1)".
+
+**Stores page** (`StoresManagement.vue`): a block "Invoicing of the deliveries" in the store form and in the details, after the selling prices block, shown only when `/config` gives `standalone: true` (like the selling price list). The fields are a shared component, `src/views/admin/headoffice/StoreInvoicingFields.vue`.
+- Switch "Deliveries invoiced" (`deliveriesInvoiced`). The other fields show only when it is on.
+- Billing legal name (200), tax number (50), billing address (500).
+- Supply price: "Price list" (`supplyPriceMode` `PRICE_LIST`, the default) or "Percentage off the selling price" (`PERCENT_OFF`).
+  - Price list: a select of the active lists of kind `SUPPLY`, plus "None (base supply price)".
+  - Percentage: a number from 0 to 100; out of range blocks the save.
+- Invoices: "One per delivery note" (`invoiceRhythm` `PER_BL`, the default) or "Grouped (made by hand)" (`GROUPED`).
+- Saving. The fields go with the store's `POST` / `PUT`. With the switch off, only `deliveriesInvoiced: false` is sent and the other settings stay as they are. Blank billing fields are sent empty, which clears them.
+- The supply price list goes with the `POST` at creation; afterwards `PUT /admin/headoffice/stores/{id}/supply-price-list {priceListId}`, only for an invoiced store in price list mode, when it changed.
+- In the details the block is saved with its own button ("Save the invoicing"), enabled when something changed. A refusal (400) shows the backend text and reloads the stores.
+- The selling price list select now offers selling lists only (a list without a kind is a selling list).
+
+**Price lists page** (`PriceLists.vue`):
+- Kind "Selling" or "Supply" chosen at creation (`POST` with `kind`), read-only on edit ("The kind cannot change once the list is created").
+- A Kind column (badge) and a kind filter (All kinds, Selling, Supply), applied to the lists already loaded.
+- Lines of a supply list: the help text speaks of supply prices before VAT. Since backend cee300c (frontend 4a0504c, part 2) the reference column is "Base supply price" (`basePrice` is the base supply price on a supply list, null when none), and a new line starts at the item's base supply price, read from `GET /admin/headoffice/supply-prices` by its exact code (empty when none). A selling list is unchanged: base selling price, a new line starts at it.
+
+**Supply prices page** (`src/views/admin/headoffice/SupplyPrices.vue`):
+- Route `admin-headoffice-supply-prices`, path `/headoffice/supply/supply-prices`, `meta.standaloneOnly`. Supply menu, right after Delivery notes. Permission `read:admin-headoffice-supply-prices` (35 head office permissions, the same list as the backend).
+- `GET /admin/headoffice/supply-prices` with search (code, name) and paging, 20 rows by default. Columns: item code, item name, base selling price, base supply price (before VAT).
+- The supply price is edited in the row; a changed row is highlighted, and a wrong value (not a number, below 0) blocks the save.
+- Changes are kept across pages and searches. "Save (n)" sends them together with one `PUT` `[{itemCode, supplyPrice}]`; an empty price is sent as `null`, which deletes the base supply price. "Discard" drops them.
+- All or none: on a refusal (400) nothing is saved, the backend text is shown, and the edits stay so they can be corrected.
+
+Labels in `en`, `fr`, `ar` (`admin.headoffice.stores.invoicing.*`, `admin.headoffice.priceLists.kind*`, `admin.headoffice.supplyPrices.*`).
+
+**Checks:** lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
+
+**Not in this part:** the invoices pages (step 7B parts 2 and 3). They wait for the backend API.
+
+### Step 7B pages (frontend): supply invoices
+Frontend commits 067dbf6 (invoices), d765b1d (to invoice), 51d8582 (what the stores owe), af18201 (BL page), 7bbef7f (store side), 4a0504c (supply list base price), 16fb967 (preview lines without a supply price), on `feature/ho-step-7b`. Backend 055757b and the fix cee300c. Head office pages without an ERP only (`meta.standaloneOnly`); 37 head office permissions, the same list as the backend.
+
+**Supply invoices page** (`src/views/admin/headoffice/SupplyInvoices.vue`):
+- Route `admin-headoffice-supply-invoices`, path `/headoffice/supply/supply-invoices`. Supply menu, after Supply prices. Permission `read:admin-headoffice-supply-invoices`. API `/admin/headoffice/supply-invoices`.
+- Tab "Invoices": number (with its BL numbers), store and buyer, date, total before VAT, total with VAT, Paid / Unpaid badge (with the paid date).
+  - Filters: store (`store-options`), payment (paid and unpaid, unpaid, paid), date from and to.
+  - Paging by the API, 20 rows by default.
+  - The query `storeId`, `paid` (`true` / `false`) and `invoiceId` (opens that invoice) set the page when it opens.
+- Detail (`GET /{id}`): seller and buyer as the invoice recorded them, date, BLs, note, lines (`SupplyInvoiceLines.vue`: BL, code, name, quantity, unit price before VAT, VAT %, totals before and with VAT), totals (`SupplyInvoiceTotals.vue`).
+- Paid: a switch with the paid date (today by default) and a note, saved with `PATCH /{id}/paid {paid, paidDate, note}`; unpaid sends `{paid: false}`.
+- Print (list and detail): `SupplyInvoiceTemplate.vue`, mounted the way of the BL print with the purchase invoice print styles. It shows the seller snapshot (and the head office logo), the number, date, buyer with tax number and store code, lines by BL, totals, BL numbers and the note.
+- Tab "To invoice":
+  - Store: the active stores whose deliveries are invoiced (`GET /admin/headoffice/stores`, `deliveriesInvoiced`), with their invoice rhythm.
+  - Its received BLs not invoiced (`GET /to-invoice?storeId=`): number, date, received, quantity received. `invoiceNote` (why the automatic invoice failed) is shown in orange. BLs are ticked one by one or all at once.
+  - Date (today by default) and note.
+  - "Preview" (`POST /preview {storeId, deliveryIds, invoiceDate}`) shows the lines and totals. The items without a supply price (`missingPrices`) are listed in a red alert. Since backend 01f51ca (frontend 16fb967) each BL line of such an item also comes as a preview line in its place (`missingPrice: true`: BL, item code, name, quantity, no line number and no price; outside the totals): the table shows it in red with "No supply price".
+  - "Create the invoice" (`POST /` with the note) is enabled only after a preview of the current choice and date with no price missing; changing the BLs or the date drops the preview. The new invoice then opens.
+  - Every 400 and 409 shows the backend text: the BLs, the store setting, a percentage missing, nothing received, a date in the future or before the last invoice.
+
+**What the stores owe** (`src/views/admin/headoffice/StoreBalances.vue`):
+- Route `admin-headoffice-store-balances`, path `/headoffice/supply/store-balances`, Supply menu after Supply invoices, permission `read:admin-headoffice-store-balances`.
+- `GET /admin/headoffice/supply-invoices/balances`: one row per store with an invoice: invoices, total, paid, unpaid (with the number of unpaid invoices), amounts with VAT, and the unpaid total above the table.
+- A click on a row opens the supply invoices page filtered on that store, unpaid.
+
+**BL page** (`Deliveries.vue`): the `INVOICED` status is labelled (Invoiced, Facturé, مفوتر). The invoice number (`invoiceNumber`) is shown under the status in the list and in the detail, as a link to the supply invoices page opened on that invoice (`invoiceId`). Without an invoice, `invoiceNote` is shown as "Not invoiced automatically" (on hover in the list, in full in the detail).
+
+**Store side**, only when `/config` gives `supplyFromHeadOffice: true` (without it the pages render as before):
+- Purchase invoices (`PurchaseInvoiceManagement.vue`): a "Head office" badge on the invoices whose vendor code is `HEAD_OFFICE`, in the list and the detail. The page has no edit or delete on an invoice, so they stay consult-only; their notes give the BL numbers.
+- Vendors (`VendorManagement.vue`): the `HEAD_OFFICE` vendor is marked "Head office" and has no edit button (the API answers 409).
+- BL reception (`DeliveryReception.vue`, a page that exists only with the flag): "Invoiced by the head office: <number>" under each received BL and in its detail.
+
+Labels in `en`, `fr`, `ar` (`admin.headoffice.supplyInvoices.*`, `admin.headoffice.storeBalances.*`, `admin.headoffice.deliveries.notInvoiced`, `admin.holink.deliveries.invoice`).
+
+**Checks:** lint of the changed files in production mode and `npm run build`, both clean before each commit. Not seen in the browser (L2).
+
+### Network stock: "below zero only" through the API
+Frontend commit d7a60a5, on `feature/ho-step-7b`. Backend a8dc85b.
+
+The network stock page (`NetworkStock.vue`, step 7A) sends `belowZero=true` to `GET /admin/headoffice/stock` and `GET /admin/headoffice/stock/own` when "Below zero only" is on, together with the search, the store and the paging.
+- Head office items: an item whose stock is below zero at the head office, or in the store chosen, or in any active store when no store is chosen.
+- Stores' own items: an item whose stock is below zero.
+
+The page no longer reads up to 25 pages of 200 rows to filter them itself, and the note "Below zero among the first 5,000 items only" and its label are gone. The help text under the tabs stays.
+
+**Checks:** lint of the changed file in production mode and `npm run build`, both clean. Not seen in the browser (L2).
 
 ### Add a page to the head office
 1. **Shared page** (the same data as on the store): add a route to `src/router/headoffice-routes.js` with path `/headoffice/<...>`, name and `meta.resource` `admin-headoffice-<page>`, `meta.action: 'read'`, `meta.headOffice: true`, `meta.requiresAuth: true`, the store page's component, and `meta.twinOf` set to the store route name. Do not modify the store page, its store route or the store menu.
@@ -1203,6 +1283,82 @@ Every store whose goods come from the head office copies its stock up; the head 
 
 `GET /admin/holink/status` field `supply` gets two keys at the store: `stockToSend` (items whose stock waits to be sent) and `stockSentAt` (last accepted push, null before). Page permission `read:admin-headoffice-network-stock` (34 head office permissions).
 
+
+### Supply prices and invoicing settings (step 7B, part 1)
+What a store whose deliveries are invoiced pays for the goods (design 3.6). Head office without an ERP only. Nothing here is ever sent to a store: the supply price is used only when an invoice is created (part 2).
+
+**Settings on the store row** (`ho_store`, set with the generic `POST` / `PUT /admin/headoffice/stores`, each field applied when sent, kept when absent; never sent with the heartbeat):
+
+| Column | Rule |
+|---|---|
+| `deliveries_invoiced` bit | The store's received BLs are invoiced; null read as false |
+| `billing_legal_name` (200), `billing_tax_number` (50), `billing_address` (500) | Trimmed; blank clears; longer: 400 `The billing legal name is longer than 200 characters.` Copied onto each invoice |
+| `supply_price_mode` | `PRICE_LIST` (null reads as it) or `PERCENT_OFF` |
+| `supply_price_list_id` | A price list of kind `SUPPLY`; null = the base supply price. Set at creation or with `PUT /admin/headoffice/stores/{id}/supply-price-list` `{"priceListId": 4}` (or null); the generic `PUT` ignores it. 400 for an unknown, inactive or selling list |
+| `supply_discount_percent` | `PERCENT_OFF` mode, from 0 to 100 (400 `The supply discount must be from 0 to 100 %.`) |
+| `invoice_rhythm` | `PER_BL` (null reads as it): one invoice per BL, created when the confirmation arrives; `GROUPED`: by hand |
+
+**Price list kinds**: `ho_price_list.kind` `SELLING` (null = every list made before) or `SUPPLY`, given at creation (`POST` `{"kind": "SUPPLY"}`, default `SELLING`), cannot change (400). `GET /admin/headoffice/price-lists?kind=SUPPLY` filters (400 for another value); `kind` is in every answer and `storeCount` counts the stores using the list as their list of its kind. A selling list given as a supply list, or the reverse: 400 `The price list FRANCHISE is a supply price list, not a selling price list.` A list used by a store as its supply list cannot be deactivated or deleted (409 `This price list is the supply price list of 1 store(s): ...`). A supply list line records nothing on the copies down (no store has it as its selling list). The lines of a supply list (`GET /{id}/lines`, and the answer of `PUT /{id}/lines`) give the base supply price as `basePrice` (null when none); a selling list still gives the selling price.
+
+**Base supply price**: table `ho_item_supply_price` (`item_id` unique, `price` before VAT), kept apart from `item` (the item form sends the whole item, and the item copy must never carry it). `HoSupplyPriceAPI` `/admin/headoffice/supply-prices`:
+
+| Request | Answer |
+|---|---|
+| `GET /?search=&page=&size=` | `{content: [{itemId, itemCode, itemName, sellingPrice, supplyPrice}], totalElements, totalPages, number, size}`: products and packs (not `TAX_STAMP`), by code; `supplyPrice` null when none |
+| `PUT /` `[{itemCode or itemId, supplyPrice}]` | All or none; `supplyPrice: null` deletes; 400 for an unknown item or a price below 0 |
+
+**The supply price of a store** (`HoSupplyPriceService.pricesFor`, before VAT, to the millime half up):
+- `PRICE_LIST`: the line of the store's supply list for the item, else the base supply price, else none (the invoice then refuses the item, part 2).
+- `PERCENT_OFF`: the selling price the head office works out for that store (its selling list line, else `item.unitPrice`; never a price the store set itself) × (1 − percent / 100). No percentage set: 409.
+
+Page permission `read:admin-headoffice-supply-prices` (35 head office permissions).
+
+
+### Supply invoices (step 7B, part 2)
+The head office invoices the received BLs of a store whose deliveries are invoiced (design 3.6, decision D12). `HoSupplyInvoiceService`, `HoSupplyInvoiceAPI`, head office without an ERP only.
+
+| Table (entity) | Content |
+|---|---|
+| `ho_supply_invoice` (`HoSupplyInvoice`) | `invoice_number` (unique, `FHO-yyyy-000001`), `store_id`, `invoice_date`, `subtotal` (before VAT), `tax_amount`, `total_amount` (with VAT and the stamp), buyer snapshot (`buyer_name`: the billing legal name, else the store name; `buyer_tax_number`, `buyer_address`), seller snapshot (`seller_name`, `seller_tax_number`, `seller_address` from the head office `CompanyInformation`: company name, matricule fiscal, address, postal code, city, country), `note`, `paid` (false at creation), `paid_date`, `paid_note`, `created_by` (`AUTO` for a per-BL invoice) |
+| `ho_supply_invoice_line` (`HoSupplyInvoiceLine`) | `invoice_id`, `line_no`, `delivery_number` (null for the stamp), `item_id`, `item_code`, `item_name`, `quantity` (confirmed), `unit_price` (supply price before VAT), `vat_percent` (the item's `defaultVAT`, 0 when none), `vat_amount`, `line_total`, `line_total_including_vat`; one line per BL line received above 0 |
+| `ho_delivery` + `invoice_id`, `invoice_note` | The invoice of the BL; why its automatic invoice was not created |
+| `ho_number_sequence` | Code `FHO-<year>`: one sequence per year of the invoice date |
+
+**Creating** (one transaction, the BL rows locked): every BL `RECEIVED`, of that store, not invoiced; the store's deliveries invoiced. Amounts to the millime: line total = quantity × supply price; VAT = line total × rate; header sums. Supply prices of the invoice date (`HoSupplyPriceService`; price frozen at BL validation: plan, section 5). **Tax stamp**: head office setting `SUPPLY_INVOICE_TAX_STAMP` (seeded `false` on a head office only); when `true`, one last line `TAX_STAMP`, quantity 1, `SUPPLY_INVOICE_TAX_STAMP_MILLIMES` / 1000 (its own head office setting, seeded 1000; the till ticket's `TAX_STAMP_VALUE_MILLIMES` is not read), VAT 0, no BL. **Nothing received**: when every chosen BL was received at 0, 409 `Nothing was received on these BLs: nothing to invoice.` (never an invoice of the stamp alone). **Invoice date**: 400 when in the future (`The invoice date cannot be in the future.`) or before the date of the last invoice issued (`The invoice date cannot be before the date of the last invoice (FHO-2026-000002 of 2026-10-06).`): the numbers follow the dates. The preview applies both rules. Then: the number, the BLs `INVOICED` with `invoice_id` (`invoice_note` cleared), and the record `INV:<number>` of the domain `SUPPLY` for that store only (`HoDeliveryService.load` and `currentTargets` hand the `INV:` codes to the invoice service; a store never receives another store's invoice or supply price).
+
+**Rhythm `PER_BL`**: `HoDeliveryService.receiveConfirmations` calls `afterReceived` for each BL it set `RECEIVED` (not for a confirmation sent again), after that BL's transaction: the invoice is created in its own transaction with today's date. When it fails (no supply price, no percentage) the confirmation is still accepted, the BL stays `RECEIVED` and keeps the reason in `invoice_note` (e.g. `No supply price for the store B: B002.`); it is invoiced by hand once fixed. A store whose deliveries are not invoiced, or `GROUPED`, or a BL received at 0 on every line: nothing happens (no invoice, no `invoice_note`).
+
+**Not in 7B**: cancelling an invoice (a credit note, later), partial payments.
+
+**API** `/admin/headoffice/supply-invoices` (JWT; errors `{"error"}`):
+
+| Request | Answer |
+|---|---|
+| `GET /?storeId=&paid=&dateFrom=&dateTo=&page=&size=` | `{content, totalElements, totalPages, number, size}`, newest first. Row: `{id, invoiceNumber, storeId, storeCode, storeName, invoiceDate, subtotal, taxAmount, totalAmount, buyer..., seller..., note, paid, paidDate, paidNote, deliveryNumbers, lines: null}` |
+| `GET /{id}` | The same with `lines` `[{lineNo, deliveryNumber, itemCode, itemName, quantity, unitPrice, vatPercent, vatAmount, lineTotal, lineTotalIncludingVat}]`; 404 |
+| `GET /to-invoice?storeId=` | `[{id, number, documentDate, receivedAt, quantityReceived, invoiceNote}]`: the store's `RECEIVED` BLs not invoiced, oldest first, without those received at 0 on every line; 400 unknown store |
+| `POST /preview` `{storeId, deliveryIds, invoiceDate}` | The invoice it would be (no id, no number), `missingPrices` listing the items without a supply price; those items are also in `lines`, in their place by BL: item code, item name, BL number, quantity, `missingPrice: true`, no line number, price or amounts (the flag is absent from priced lines and from the copies sent to the stores); totals count only the priced lines; writes nothing; same 400 / 409 on the BLs |
+| `POST /` `{storeId, deliveryIds, invoiceDate, note}` | 201. 400: `Choose the store of the invoice.`, `Choose at least one received BL.`, `Unknown BL id 9.`, a date that cannot be read. 409: `The deliveries of the store C are not invoiced (setting on the Stores page).`, `BL-000004 is SENT: only received BLs can be invoiced.`, `BL-000003 is not a BL of the store B.`, `BL-000001 is already invoiced.`, `No supply price for the store B: B002, B009.`, a percentage missing |
+| `PATCH /{id}/paid` `{paid, paidDate, note}` | Paid (date today when absent) or unpaid (date cleared); 400 without `paid`; 404 |
+| `GET /balances` | What each store owes: `[{storeId, storeCode, storeName, invoiceCount, total, paid, unpaid, unpaidCount}]`, stores with an invoice, by code (amounts with VAT) |
+
+`GET /admin/headoffice/deliveries/{id}` (and the list) gives `invoiceId`, `invoiceNumber`, `invoiceNote`.
+
+Page permissions `read:admin-headoffice-supply-invoices`, `read:admin-headoffice-store-balances` (37 head office permissions).
+
+
+### Supply invoices at the store (step 7B, part 3)
+On a store whose goods come from the head office (the 7A supply beans), an invoice of the head office arrives by the copies down (record `INV:<number>`, kind `INVOICE`; a record without `kind` is a BL) and becomes a purchase invoice, consult-only, once. No store setting: an invoice arrives only when the head office invoices that store.
+
+| Part | Rule |
+|---|---|
+| `SupplyDownHandler` | Dispatches on `kind`; `INVOICE` goes to `SupplyInvoiceWriter` in its own transaction, tracked in `hol_down_record` (`APPLIED`, information `items not in this store: B009`; `ERROR` retried every cycle) |
+| `SupplyInvoiceWriter` | Saved once by `invoice_number` (`PurchaseInvoiceHeaderRepository.findByInvoiceNumber`); the same number again writes nothing. Header: vendor `HEAD_OFFICE`, `NO_GROUPING`, totals copied (never recomputed), notes `Head office invoice - BL BL-000001, BL-000002 - <note>`, seller snapshot into `snapshotVendor*`, `origin` `HEAD_OFFICE`, written by `HEAD_OFFICE`. Lines: one per invoice line, the item with that code and origin `HEAD_OFFICE` (the stamp: the store's `TAX_STAMP` item); an item not here: no item, description `BL-000001 - B009 <name>`. No `purchase_header` is created (the BL moved the stock), so the store can never invoice it again |
+| Vendor `HEAD_OFFICE` | Created at the first invoice: the seller's name ("Head office" when none), phone `N/A`, address and tax number. `SupplyVendorGuard` (in `VendorAPI` through an `ObjectProvider`, absent elsewhere): create with that code (any case), update or delete it, or give that code to another vendor: 409 `The head office vendor is consult-only: it holds the invoices of the head office.` / `The vendor code HEAD_OFFICE is kept for the head office's invoices.` |
+| Cost | For each line naming a head office item: `lastDirectCost`, `lastDirectNetCost` and `costPrice` = the supply price before VAT (`itemRepository.save`, no stock change). The store's own items and the tax stamp are never touched |
+| `purchase_invoice_header.origin` (new, null = the store's own) | `HEAD_OFFICE` for a received invoice. The purchase invoice list already gives the vendor code (badge on `HEAD_OFFICE`); `PurchaseInvoiceService` is not changed. The purchase invoice API has no edit or delete, so a received invoice is consult-only by construction |
+| `hol_delivery.invoice_number` (new) | Set on each BL of the invoice; `GET /admin/deliveries` and `/{id}` give `invoiceNumber` |
+
 ### Consolidated sales API (task 2.5, head office)
 What the head office pages Tickets history, Sessions history and Returns, and the home cards, read (pages: task 2.5 frontend, "Head office pages" below).
 
@@ -1482,6 +1638,9 @@ Order at a new head office with an ERP: enable and run `IMPORT_LOCATIONS`, choos
 - `HoDeliveryServiceTest` (task 7A.2): drafts (lines numbered, snapshots, no number, no stock, nothing for the stores), every draft rule with its message, a store reporting another supply owner (409) or none (accepted), edit and delete of a draft and 409 once sent; validation (`BL-000001`, `SENT`, stock out once with one `DELIVERY_OUT` per line, one change row for its store only, a second validation 409 with nothing moved, the next number); stock not sufficient (409 listing each short item, all or nothing, no number used); `ALLOW_NEGATIVE_STOCK`; the copy by codes for its store only (C gets nothing, also when it asks for the code); the startup backfill; no CATALOGUE change; the list filters and paging. `support/InMemoryStock` (stock updates with the rules of the native queries, real `StockService` and `StockMovementService`), `headoffice/service/InMemoryDeliveries`.
 - `SupplyRoundTripTest` (tasks 7A.3, 7A.4): the real head office and the real store B through `MockRestServiceServer` (`support/InMemoryReceivedDeliveries`): a BL reaches B only, lines resolved; B confirms 48 of 50 and B002 as sent (stock up once, two `DELIVERY_IN`), sent up, `RECEIVED` there with the quantities, the store's note and user, −2 shown, the head office stock unchanged by the reception; a second confirmation 409 with nothing moved; head office stopped (stock up at once, the confirmation `PENDING` with no attempt, one failure row for two cycles; back: `RECEIVED`); an answer lost after it was applied (sent again, accepted, nothing changes); an item not in B (its line waits, the confirmation goes up, the retry reports it, then its stock goes in once); a store's own item with the same code never used; more than sent (+2); reception rules; the head office receiver's rules (another store, unknown, no number, lines not matching, quantity missing, a line missing, same again accepted, other quantities rejected); the link counts and the list.
 - `SupplyRoundTripTest` (task 7A.5): stock up: every item the first time (a null stock as 0, own items flagged, the store clock), then only the item that changed, nothing when nothing changed, a deleted item removed there and its row here; head office stopped: nothing marked, sent once back; the head office page (its items without the tax stamp, its stock and each store's, the stores with their last push, one store, search, an unknown store 400) and the stores' own items. `support/InMemoryNetworkStock`.
+- `HoSupplyPriceServiceTest` (step 7B, part 1): PRICE_LIST mode (the supply list line, else the base price, else none, to the millime); PERCENT_OFF mode (the selling list line or base price minus the percentage, 409 without a percentage); base supply prices set, changed, deleted, all or none, the page without the tax stamp or services, never a change for a store; price list kinds (created, listed by kind, final, a supply line records nothing, assignment by kind both ways, a used supply list cannot be deleted); the store invoicing settings (create, update, kept when absent, blank cleared, limits); the lines of a supply list show the base supply price (null when none), a selling list the selling price. `support/InMemoryCatalogue` has `ho_item_supply_price`.
+- `HoSupplyInvoiceServiceTest` (step 7B, part 2): grouped rhythm (preview writing nothing; two received BLs on the confirmed quantities at the supply price with each item's VAT, a line received 0 left out, totals to the millime, `FHO-2026-000001`, BLs `INVOICED`, buyer and seller copied, the `INV:` record for its store only, no id); every refusal with nothing written; a preview with an item without a supply price (its lines in place by BL, flagged, without a price, totals of the priced lines only, no flag in a priced line's JSON); rhythm `PER_BL` (invoiced at the confirmation; a missing price keeps the BL received with its reason and the confirmation accepted; then invoiced by hand; a store not invoiced untouched); the tax stamp off and on (`SUPPLY_INVOICE_TAX_STAMP_MILLIMES`, 1000 by default then 600, VAT 0; the till stamp setting not read); nothing received (409, also with the stamp and in the preview; left out of `/to-invoice`; `PER_BL` no invoice and no note); invoice dates (future and before the last invoice refused, the preview too); percentage mode; paid and unpaid, list filters, balances; one sequence per year. `headoffice/service/InMemoryInvoices`.
+- `SupplyInvoiceRoundTripTest` (step 7B, part 3): the real head office and store B over the copies down: a per-BL invoice arrives once as a purchase invoice (vendor `HEAD_OFFICE` created once with the seller, origin `HEAD_OFFICE`, totals and lines copied, notes with the BL), the cost of the head office item (last costs and `costPrice`), the BL numbered, pulled again from the start: nothing new; a second invoice with the tax stamp (the store's `TAX_STAMP` item, no cost); an item not here or only the store's own: a line without item, own cost kept, the tracking information; the head office vendor consult-only through `VendorAPI` (create with its code, update, delete, taking its code: 409; another vendor goes on). `OnHeadOfficeSupplyConditionTest`: `SupplyInvoiceWriter` and `SupplyVendorGuard` among the supply beans.
 - `OnHeadOfficeSupplyConditionTest` (step 7A): the five store beans only on a standalone store with the URL, the catalogue and an explicit supply from the head office; never with supply `LOCAL` or `ERP`, the catalogue alone, loyalty alone, the 4 profiles, a head office; never on a franchise customer, with or without the URL (its `FranchiseSupplyReceptionService` still registered); the startup refusals (no URL, franchise customer, franchise admin, ERP, no catalogue from the head office, a bad `headoffice.supply-push.interval-seconds` with the URL only); the receiver only on a head office without an ERP.
 - `OnHeadOfficeCatalogueConditionTest`, `QueryParameterBindingTest`, `ZZDataInitializerRolesTest`, `AppConfigAPITest`, `HeadOfficeLinkAPITest` (step 7A): `HoDeliveryService`, `HoDeliveryAPI`, `HoNetworkStockService` and `HoNetworkStockAPI` on a head office without an ERP only; `HoDeliveryRepository`, `HoNumberSequenceRepository`, `ReceivedDeliveryRepository`, `StockCopyRepository`, `HoStoreStockRepository` bound (a `Boolean` sample added); 34 head office permissions, and a store whose goods come from the head office gets `read:admin-holink-deliveries` on a new database and at the next start of an existing one (only that one, saved once, then nothing); `/config` `supplyFromHeadOffice` last, true only with the setting, false for a franchise customer with the URL; the link status `supply` is the 15th and last field, null without the setting.
 - Not covered by L1 (checked at L2 on the pair): the JPQL against SQL Server, the transaction timeouts, the real timer, the head office endpoints through the `/ho/**` chain. The JPQL and the entity mappings were translated with Hibernate (SQL Server 2012 dialect, no database) during the tasks.

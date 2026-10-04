@@ -24,6 +24,7 @@ import com.digithink.zsretail.config.ConditionalOnHeadOffice;
 import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatDTO;
 import com.digithink.zsretail.headoffice.dto.StoreListItemDTO;
 import com.digithink.zsretail.headoffice.dto.StoreWithKeyDTO;
+import com.digithink.zsretail.headoffice.enumeration.PriceListKind;
 import com.digithink.zsretail.headoffice.enumeration.StoreKind;
 import com.digithink.zsretail.headoffice.enumeration.StoreStatus;
 import com.digithink.zsretail.headoffice.model.Store;
@@ -148,6 +149,11 @@ public class StoreService extends _BaseService<Store, Long> {
 			priceListService().checkAssignable(input.getSellingPriceListId());
 			store.setSellingPriceListId(input.getSellingPriceListId()); // a new store has nothing to send again
 		}
+		applyInvoicing(store, input); // step 7B
+		if (input.getSupplyPriceListId() != null) {
+			priceListService().checkAssignable(input.getSupplyPriceListId(), PriceListKind.SUPPLY);
+			store.setSupplyPriceListId(input.getSupplyPriceListId());
+		}
 		String key = newKey();
 		store.setApiKeyHash(sha256Hex(key));
 		Store saved = save(store);
@@ -199,6 +205,67 @@ public class StoreService extends _BaseService<Store, Long> {
 		if (input.getCanPurchase() != null) {
 			store.setCanPurchase(input.getCanPurchase());
 		}
+		applyInvoicing(store, input); // step 7B; the supply price list has its own endpoint
+		return Optional.of(save(store));
+	}
+
+	/**
+	 * Step 7B: the invoicing settings sent (each one when present; a blank billing field clears it). 400
+	 * (IllegalArgument) for a billing field too long or a discount outside 0..100.
+	 */
+	static void applyInvoicing(Store store, Store input) {
+		if (input.getDeliveriesInvoiced() != null) {
+			store.setDeliveriesInvoiced(input.getDeliveriesInvoiced());
+		}
+		if (input.getBillingLegalName() != null) {
+			store.setBillingLegalName(billing("legal name", input.getBillingLegalName(), Store.BILLING_NAME_LENGTH));
+		}
+		if (input.getBillingTaxNumber() != null) {
+			store.setBillingTaxNumber(billing("tax number", input.getBillingTaxNumber(), Store.BILLING_TAX_NUMBER_LENGTH));
+		}
+		if (input.getBillingAddress() != null) {
+			store.setBillingAddress(billing("address", input.getBillingAddress(), Store.BILLING_ADDRESS_LENGTH));
+		}
+		if (input.getSupplyPriceMode() != null) {
+			store.setSupplyPriceMode(input.getSupplyPriceMode());
+		}
+		if (input.getSupplyDiscountPercent() != null) {
+			double percent = input.getSupplyDiscountPercent();
+			if (Double.isNaN(percent) || percent < 0 || percent > 100) {
+				throw new IllegalArgumentException("The supply discount must be from 0 to 100 %.");
+			}
+			store.setSupplyDiscountPercent(percent);
+		}
+		if (input.getInvoiceRhythm() != null) {
+			store.setInvoiceRhythm(input.getInvoiceRhythm());
+		}
+	}
+
+	private static String billing(String what, String value, int length) {
+		String trimmed = value.trim();
+		if (trimmed.length() > length) {
+			throw new IllegalArgumentException("The billing " + what + " is longer than " + length + " characters.");
+		}
+		return trimmed.isEmpty() ? null : trimmed;
+	}
+
+	/**
+	 * Step 7B: the store's supply price list (a list of kind SUPPLY; null: none, the base supply price). Nothing is sent
+	 * to the store: the supply price is used only when an invoice is created. 400 for an unknown, inactive or selling
+	 * list, or on a head office with an ERP. Empty when the store does not exist.
+	 */
+	@Transactional
+	public Optional<Store> setSupplyPriceList(Long id, Long priceListId) throws Exception {
+		Optional<Store> found = storeRepository.findById(id);
+		if (!found.isPresent()) {
+			return Optional.empty();
+		}
+		Store store = found.get();
+		HoPriceListService lists = priceListService();
+		if (priceListId != null) {
+			lists.checkAssignable(priceListId, PriceListKind.SUPPLY);
+		}
+		store.setSupplyPriceListId(priceListId);
 		return Optional.of(save(store));
 	}
 

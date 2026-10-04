@@ -16,7 +16,9 @@ import com.digithink.zsretail.holink.scheduler.CopiesDownJob;
 import com.digithink.zsretail.holink.scheduler.SupplyPushJob;
 import com.digithink.zsretail.holink.service.DeliveryReceptionService;
 import com.digithink.zsretail.holink.service.SupplyDownHandler;
+import com.digithink.zsretail.holink.service.SupplyInvoiceWriter;
 import com.digithink.zsretail.holink.service.SupplyPushService;
+import com.digithink.zsretail.holink.service.SupplyVendorGuard;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.DataOwner;
 import com.digithink.zsretail.service.franchise.FranchiseSupplyReceptionService;
@@ -31,7 +33,8 @@ import com.digithink.zsretail.service.franchise.FranchiseSupplyReceptionService;
 class OnHeadOfficeSupplyConditionTest {
 
 	private static final Class<?>[] STORE_BEANS = { DeliveryReceptionService.class, SupplyDownHandler.class,
-			SupplyPushService.class, SupplyPushJob.class, DeliveryReceptionAPI.class };
+			SupplyPushService.class, SupplyPushJob.class, DeliveryReceptionAPI.class, SupplyInvoiceWriter.class,
+			SupplyVendorGuard.class }; // step 7B: invoices at the store
 
 	private static MockEnvironment link() {
 		return new MockEnvironment().withProperty("headoffice.url", "http://localhost:888/zsretail/api")

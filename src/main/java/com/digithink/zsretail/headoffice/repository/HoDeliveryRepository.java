@@ -37,6 +37,11 @@ public interface HoDeliveryRepository extends _BaseRepository<HoDelivery, Long> 
 	List<HoDelivery> findSent(@Param("storeId") Long storeId, @Param("numbers") Collection<String> numbers,
 			@Param("draft") DeliveryStatus draft);
 
+	/** Step 7B: the BLs of this store in this status and not invoiced, oldest first (the "to invoice" list). */
+	@Query("select d from HoDelivery d where d.storeId = :storeId and d.status = :status and d.invoiceId is null"
+			+ " order by d.id")
+	List<HoDelivery> findToInvoice(@Param("storeId") Long storeId, @Param("status") DeliveryStatus status);
+
 	/** [number, storeId] of every numbered BL (the startup backfill of the copies down). */
 	@Query("select d.number, d.storeId from HoDelivery d where d.number is not null and d.status <> :draft")
 	List<Object[]> findSentTargets(@Param("draft") DeliveryStatus draft);

@@ -1,6 +1,8 @@
 package com.digithink.zsretail.headoffice.service;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -21,8 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeStandalone;
 import com.digithink.zsretail.headoffice.dto.PriceListDTO;
 import com.digithink.zsretail.headoffice.dto.PriceListLineDTO;
+import com.digithink.zsretail.headoffice.enumeration.PriceListKind;
+import com.digithink.zsretail.headoffice.model.HoItemSupplyPrice;
 import com.digithink.zsretail.headoffice.model.HoPriceList;
 import com.digithink.zsretail.headoffice.model.HoPriceListLine;
+import com.digithink.zsretail.headoffice.repository.HoItemSupplyPriceRepository;
 import com.digithink.zsretail.headoffice.repository.HoPriceListLineRepository;
 import com.digithink.zsretail.headoffice.repository.HoPriceListRepository;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
@@ -48,6 +53,8 @@ public class HoPriceListService {
 	static final String CODE_IS_FINAL = "The price list code cannot be changed after creation.";
 	static final String USED_BY_STORE = "This price list is the selling price list of %d store(s): choose another list"
 			+ " for them on the Stores page first.";
+	static final String USED_AS_SUPPLY = "This price list is the supply price list of %d store(s): choose another list"
+			+ " for them on the Stores page first.";
 
 	private final HoPriceListRepository lists;
 	private final HoPriceListLineRepository lines;
@@ -55,15 +62,25 @@ public class HoPriceListService {
 	private final ItemRepository items;
 	private final Supplier<HoCatalogueService> catalogue;
 
+	/** Step 7B: the base supply prices, shown as the base price of a supply list's lines; null in the step 6 tests. */
+	private final HoItemSupplyPriceRepository supplyPrices;
+
 	@Autowired
 	public HoPriceListService(HoPriceListRepository lists, HoPriceListLineRepository lines, StoreRepository stores,
-			ItemRepository items, ObjectProvider<HoCatalogueService> catalogue) {
-		this(lists, lines, stores, items, (Supplier<HoCatalogueService>) catalogue::getObject);
+			ItemRepository items, ObjectProvider<HoCatalogueService> catalogue, HoItemSupplyPriceRepository supplyPrices) {
+		this(lists, lines, stores, items, (Supplier<HoCatalogueService>) catalogue::getObject, supplyPrices);
+	}
+
+	/** With given collaborators, without supply prices: used by the tests. */
+	public HoPriceListService(HoPriceListRepository lists, HoPriceListLineRepository lines, StoreRepository stores,
+			ItemRepository items, Supplier<HoCatalogueService> catalogue) {
+		this(lists, lines, stores, items, catalogue, null);
 	}
 
 	/** With given collaborators: used by the tests. */
 	public HoPriceListService(HoPriceListRepository lists, HoPriceListLineRepository lines, StoreRepository stores,
-			ItemRepository items, Supplier<HoCatalogueService> catalogue) {
+			ItemRepository items, Supplier<HoCatalogueService> catalogue, HoItemSupplyPriceRepository supplyPrices) {
+		this.supplyPrices = supplyPrices;
 		this.lists = lists;
 		this.lines = lines;
 		this.stores = stores;
@@ -74,8 +91,22 @@ public class HoPriceListService {
 	// ─── Lists ───────────────────────────────────────────────────
 
 	public List<PriceListDTO> findAll() {
-		return lists.findAll().stream().sorted((a, b) -> a.getCode().compareTo(b.getCode())).map(this::view)
-				.collect(Collectors.toList());
+		return findAll(null);
+	}
+
+	/** Step 7B: the lists of one kind (SELLING, SUPPLY, any case), every list when blank; 400 for another value. */
+	public List<PriceListDTO> findAll(String kind) {
+		PriceListKind wanted = kind == null || kind.trim().isEmpty() ? null : parseKind(kind);
+		return lists.findAll().stream().filter(list -> wanted == null || list.kindOrSelling() == wanted)
+				.sorted((a, b) -> a.getCode().compareTo(b.getCode())).map(this::view).collect(Collectors.toList());
+	}
+
+	static PriceListKind parseKind(String kind) {
+		try {
+			return PriceListKind.valueOf(kind.trim().toUpperCase(Locale.ROOT));
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("Invalid kind '" + kind + "': allowed values are SELLING, SUPPLY.");
+		}
 	}
 
 	public Optional<PriceListDTO> findById(Long id) {
@@ -100,9 +131,12 @@ public class HoPriceListService {
 		if (lists.findByCodeIgnoreCase(code).isPresent()) {
 			throw new IllegalStateException("A price list with the code " + code + " already exists.");
 		}
+		PriceListKind kind = input.getKind() == null || input.getKind().trim().isEmpty() ? PriceListKind.SELLING
+				: parseKind(input.getKind());
 		HoPriceList list = new HoPriceList();
 		list.setCode(code);
 		list.setName(name);
+		list.setKind(kind);
 		list.setActive(input.getActive() == null || input.getActive());
 		return view(lists.save(list));
 	}
@@ -120,6 +154,10 @@ public class HoPriceListService {
 		HoPriceList list = found.get();
 		if (input.getCode() != null && !normalizeCode(input.getCode()).equals(list.getCode())) {
 			throw new IllegalArgumentException(CODE_IS_FINAL);
+		}
+		if (input.getKind() != null && !input.getKind().trim().isEmpty()
+				&& parseKind(input.getKind()) != list.kindOrSelling()) {
+			throw new IllegalArgumentException("The kind of a price list cannot be changed after creation.");
 		}
 		if (input.getName() != null) {
 			String name = input.getName().trim();
@@ -157,14 +195,28 @@ public class HoPriceListService {
 		if (used > 0) {
 			throw new IllegalStateException(String.format(USED_BY_STORE, used));
 		}
+		long supplied = stores.countBySupplyPriceListId(id); // step 7B
+		if (supplied > 0) {
+			throw new IllegalStateException(String.format(USED_AS_SUPPLY, supplied));
+		}
 	}
 
-	/** For the stores page: 400 (IllegalArgument) unless the list exists and is active. */
+	/** For the stores page, a selling price list: 400 (IllegalArgument) unless it exists, is active and SELLING. */
 	public void checkAssignable(Long id) {
+		checkAssignable(id, PriceListKind.SELLING);
+	}
+
+	/** Step 7B: 400 (IllegalArgument) unless the list exists, is active and of this kind. */
+	public void checkAssignable(Long id, PriceListKind kind) {
 		HoPriceList list = lists.findById(id)
 				.orElseThrow(() -> new IllegalArgumentException("Unknown price list id " + id + "."));
 		if (Boolean.FALSE.equals(list.getActive())) {
 			throw new IllegalArgumentException("The price list " + list.getCode() + " is inactive.");
+		}
+		if (list.kindOrSelling() != kind) {
+			throw new IllegalArgumentException("The price list " + list.getCode() + " is a "
+					+ list.kindOrSelling().name().toLowerCase(Locale.ROOT) + " price list, not a "
+					+ kind.name().toLowerCase(Locale.ROOT) + " price list.");
 		}
 	}
 
@@ -172,13 +224,37 @@ public class HoPriceListService {
 
 	/** A page of the list's lines by item code; search on the item code and name (contains, any case). */
 	public Optional<Page<PriceListLineDTO>> lines(Long id, String search, int page, int size) {
-		if (!lists.findById(id).isPresent()) {
+		Optional<HoPriceList> list = lists.findById(id);
+		if (!list.isPresent()) {
 			return Optional.empty();
 		}
 		String like = search == null || search.trim().isEmpty() ? null
 				: "%" + search.trim().toLowerCase(Locale.ROOT) + "%";
 		PageRequest request = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200));
-		return Optional.of(lines.findLines(id, like, request).map(row -> lineView((HoPriceListLine) row[0], (Item) row[1])));
+		Page<Object[]> rows = lines.findLines(id, like, request);
+		Map<Long, Double> bases = basePrices(list.get(),
+				rows.getContent().stream().map(row -> ((Item) row[1]).getId()).collect(Collectors.toList()));
+		return Optional.of(rows.map(row -> lineView((HoPriceListLine) row[0], (Item) row[1],
+				basePrice(list.get(), bases, (Item) row[1]))));
+	}
+
+	/**
+	 * Step 7B: the base supply prices of these items, by item id, for a supply list; empty for a selling list (its lines
+	 * show item.unitPrice).
+	 */
+	private Map<Long, Double> basePrices(HoPriceList list, Collection<Long> itemIds) {
+		Map<Long, Double> bases = new HashMap<>();
+		if (list.kindOrSelling() == PriceListKind.SUPPLY && supplyPrices != null && !itemIds.isEmpty()) {
+			for (HoItemSupplyPrice row : supplyPrices.findByItemIdIn(itemIds)) {
+				bases.put(row.getItemId(), row.getPrice());
+			}
+		}
+		return bases;
+	}
+
+	/** The base price of a line: a selling list, item.unitPrice; a supply list, the base supply price or null. */
+	private static Double basePrice(HoPriceList list, Map<Long, Double> supplyBases, Item item) {
+		return list.kindOrSelling() == PriceListKind.SUPPLY ? supplyBases.get(item.getId()) : item.getUnitPrice();
 	}
 
 	/**
@@ -188,7 +264,8 @@ public class HoPriceListService {
 	 */
 	@Transactional
 	public Optional<List<PriceListLineDTO>> putLines(Long id, List<PriceListLineDTO> input) {
-		if (!lists.findById(id).isPresent()) {
+		Optional<HoPriceList> list = lists.findById(id);
+		if (!list.isPresent()) {
 			return Optional.empty();
 		}
 		if (input == null || input.isEmpty()) {
@@ -206,6 +283,7 @@ public class HoPriceListService {
 			prices.put(item.getId(), price);
 		}
 		StoreTargets onList = StoreTargets.of(stores.findIdsBySellingPriceListId(id));
+		Map<Long, Double> bases = basePrices(list.get(), byItem.keySet());
 		List<PriceListLineDTO> result = new ArrayList<>();
 		for (Map.Entry<Long, Item> entry : byItem.entrySet()) {
 			Item item = entry.getValue();
@@ -222,7 +300,7 @@ public class HoPriceListService {
 			if (changed && !onList.getStoreIds().isEmpty()) {
 				catalogue.get().recordItem(item.getItemCode(), onList);
 			}
-			result.add(lineView(line, item));
+			result.add(lineView(line, item, basePrice(list.get(), bases, item)));
 		}
 		return Optional.of(result);
 	}
@@ -276,13 +354,16 @@ public class HoPriceListService {
 	}
 
 	private PriceListDTO view(HoPriceList list) {
+		boolean supply = list.kindOrSelling() == PriceListKind.SUPPLY;
 		return new PriceListDTO(list.getId(), list.getCode(), list.getName(), !Boolean.FALSE.equals(list.getActive()),
-				lines.countByPriceListId(list.getId()), stores.countBySellingPriceListId(list.getId()));
+				lines.countByPriceListId(list.getId()), supply ? stores.countBySupplyPriceListId(list.getId())
+						: stores.countBySellingPriceListId(list.getId()),
+				list.kindOrSelling().name());
 	}
 
-	private static PriceListLineDTO lineView(HoPriceListLine line, Item item) {
-		return new PriceListLineDTO(line.getId(), item.getId(), item.getItemCode(), item.getName(), item.getUnitPrice(),
-				line.getPrice());
+	/** base: the price shown next to the line ({@link #basePrice}). */
+	private static PriceListLineDTO lineView(HoPriceListLine line, Item item, Double base) {
+		return new PriceListLineDTO(line.getId(), item.getId(), item.getItemCode(), item.getName(), base, line.getPrice());
 	}
 
 	static String normalizeCode(String code) {

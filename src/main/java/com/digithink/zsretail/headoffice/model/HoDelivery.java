@@ -81,6 +81,14 @@ public class HoDelivery extends _BaseEntity {
 	@Column(name = "store_note", length = NOTE_LENGTH)
 	private String storeNote;
 
+	/** Step 7B: ho_supply_invoice.id of the invoice of this BL; null until invoiced. */
+	@Column(name = "invoice_id")
+	private Long invoiceId;
+
+	/** Step 7B: why the automatic invoice (rhythm PER_BL) was not created; null otherwise. */
+	@Column(name = "invoice_note", length = NOTE_LENGTH)
+	private String invoiceNote;
+
 	@OneToMany(mappedBy = "delivery", cascade = CascadeType.ALL, orphanRemoval = true)
 	@OrderBy("lineNo")
 	private List<HoDeliveryLine> lines = new ArrayList<>();

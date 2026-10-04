@@ -110,6 +110,10 @@ public final class InMemoryDeliveries {
 					return deliveries.values().stream().filter(d -> d.getStoreId().equals(args[0])
 							&& numbers.contains(d.getNumber()) && d.getStatus() != args[2]).collect(Collectors.toList());
 				}
+				case "findToInvoice":
+					return deliveries.values().stream().filter(d -> d.getStoreId().equals(args[0]) && d.getStatus() == args[1]
+							&& d.getInvoiceId() == null).sorted(Comparator.comparing(HoDelivery::getId))
+							.collect(Collectors.toList());
 				case "findSentTargets":
 					return deliveries.values().stream().filter(d -> d.getNumber() != null && d.getStatus() != args[0])
 							.map(d -> new Object[] { d.getNumber(), d.getStoreId() }).collect(Collectors.toList());
