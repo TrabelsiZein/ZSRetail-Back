@@ -1066,7 +1066,7 @@ Tables (store, prefix `hol_`, `ddl-auto`):
 Items, families, sub-families and barcodes decided by the head office reach every store whose catalogue is the head office's; each item carries the one selling price worked out for that store (design 3.3, 3.4). `PricingService` and the selling services are not changed: the till reads `item.unitPrice` as before.
 
 **When it is active**
-- Head office side: only on a head office **without an ERP** (`node.type=HEAD_OFFICE` and `application.standalone=true`, `@ConditionalOnHeadOfficeStandalone`, `NodeOwnership.isHeadOfficeStandaloneSet`). A head office with an ERP (ParaFendri) serves no `CATALOGUE` domain and has no price lists: its items come from `erp/`, which has no hooks, and its stores keep `CATALOGUE=ERP`.
+- Head office side: only on a head office **without an ERP** (`node.type=HEAD_OFFICE` and `application.standalone=true`, `@ConditionalOnHeadOfficeWithoutErp`, `NodeOwnership.isHeadOfficeWithoutErpSet`). A head office with an ERP (ParaFendri) serves no `CATALOGUE` domain and has no price lists: its items come from `erp/`, which has no hooks, and its stores keep `CATALOGUE=ERP`.
 - Store side: `@ConditionalOnHeadOfficeCatalogue` (`NodeOwnership.isCatalogueFromHeadOffice`): `headoffice.url` set, `ownership.catalogue=HEAD_OFFICE`, `application.standalone=true`. Startup refusals: an explicit `ownership.catalogue=HEAD_OFFICE` without the URL or with `application.standalone=false` (see `docs/deployment-modes.md`).
 - Until step 9 a franchise customer derived `CATALOGUE=HEAD_OFFICE` for its legacy item sync and never got these beans; the franchise profiles were removed at task 9.4a (`docs/modules/franchise.md`).
 - Every other store (no setting, ERP): no catalogue bean, every API answers as before (the guards below are looked up with `ObjectProvider` and absent).
@@ -1145,7 +1145,7 @@ New columns (`ddl-auto`): `origin` `VARCHAR(20)` (`RecordOrigin`, null = local, 
 **Images** (task 6.8, removed from version 2.1: plan, section 5, "Later, not scheduled"): files `uploads/pos-images/{family|subfamily|item}/{database id}.jpg` (JPEG, at most 400×400), the entity holding only `"<id>.jpg"`. Sending them would need an `imageVersion` in the copy, a `GET /ho/catalogue/images/{type}/{code}` and a store step that saves the file under its own id; to decide after L2.
 
 ### Price lists (task 6.4)
-Head office without an ERP only (`HoPriceListService`, `HoPriceListAPI`, `@ConditionalOnHeadOfficeStandalone`).
+Head office without an ERP only (`HoPriceListService`, `HoPriceListAPI`, `@ConditionalOnHeadOfficeWithoutErp`).
 
 | Table (entity) | Content | Key |
 |---|---|---|
@@ -1182,7 +1182,7 @@ A head office **without an ERP** buys from its suppliers and keeps its own stock
 Page permissions, one per head office route (seeded on a head office ADMIN at each start; frontend routes `standaloneOnly`, twins of the store pages): `read:admin-headoffice-vendors`, `-purchases` (history), `-purchase-new`, `-vendor-balance`, `-purchase-invoices`, `-stock` (stock report), `-stock-movements` (32 head office permissions).
 
 ### BLs (task 7A.2, head office)
-A BL (delivery note) sends goods from the head office stock to one store (design 3.5, decision D12). Head office without an ERP only (`HoDeliveryService`, `HoDeliveryAPI`, `@ConditionalOnHeadOfficeStandalone`); elsewhere the API answers 404 and the domain `SUPPLY` is not served. No price on a BL: step 7B invoices the received BLs.
+A BL (delivery note) sends goods from the head office stock to one store (design 3.5, decision D12). Head office without an ERP only (`HoDeliveryService`, `HoDeliveryAPI`, `@ConditionalOnHeadOfficeWithoutErp`); elsewhere the API answers 404 and the domain `SUPPLY` is not served. No price on a BL: step 7B invoices the received BLs.
 
 | Table (entity) | Content |
 |---|---|

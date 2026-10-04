@@ -33,7 +33,7 @@ import com.digithink.zsretail.support.Installations;
  * <li>a grid of configurations of the owners, node.type, headoffice.url, sales.upstream and application.standalone:
  * any one with application.standalone is refused; in every accepted one the catalogue, the customers and the supply are
  * the ERP's together or not at all, so isCatalogueFromErp, isCustomersFromErp, isSupplyFromErp and hasErp answer
- * alike, and isHeadOfficeErpSet / isHeadOfficeStandaloneSet split a head office by that answer.</li>
+ * alike, and isHeadOfficeErpSet / isHeadOfficeWithoutErpSet split a head office by that answer.</li>
  * </ul>
  */
 class ModeQuestionTruthTableTest {
@@ -55,8 +55,8 @@ class ModeQuestionTruthTableTest {
 		if (NodeOwnership.isHeadOfficeErpSet(env) != (headOffice && erp)) {
 			out.add("isHeadOfficeErpSet=" + NodeOwnership.isHeadOfficeErpSet(env));
 		}
-		if (NodeOwnership.isHeadOfficeStandaloneSet(env) != (headOffice && !erp)) {
-			out.add("isHeadOfficeStandaloneSet=" + NodeOwnership.isHeadOfficeStandaloneSet(env));
+		if (NodeOwnership.isHeadOfficeWithoutErpSet(env) != (headOffice && !erp)) {
+			out.add("isHeadOfficeWithoutErpSet=" + NodeOwnership.isHeadOfficeWithoutErpSet(env));
 		}
 		return out;
 	}

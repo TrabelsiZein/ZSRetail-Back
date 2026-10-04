@@ -15,9 +15,9 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
 
 /**
  * Exposes the installation type, the owner of each data domain and where the sales go (head office design 2.1, 2.2),
- * resolved once at startup from application.standalone, node.type, ownership.* and sales.upstream
- * ({@link NodeOwnership#resolve(org.springframework.core.env.PropertyResolver)}, the one place that reads
- * application.standalone).
+ * resolved once at startup from node.type, ownership.* and sales.upstream, which the preset states and the machine file
+ * may override ({@link NodeOwnership#resolve(org.springframework.core.env.PropertyResolver)}; task 9.3: the removed
+ * application.standalone stops the startup).
  * All mode-dependent behaviour should use this service. Step 9: every check asks one of its questions; the franchise
  * profiles were removed (task 9.4a) and a leftover franchise.admin or franchise.customer=true stops the startup.
  */

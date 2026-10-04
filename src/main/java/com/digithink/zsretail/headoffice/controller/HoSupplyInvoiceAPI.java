@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeStandalone;
+import com.digithink.zsretail.config.ConditionalOnHeadOfficeWithoutErp;
 import com.digithink.zsretail.headoffice.dto.SupplyInvoiceDTO;
 import com.digithink.zsretail.headoffice.service.HoSupplyInvoiceService;
 import com.digithink.zsretail.security.CurrentUserProvider;
@@ -30,7 +30,7 @@ import lombok.extern.log4j.Log4j2;
  */
 @RestController
 @RequestMapping("admin/headoffice/supply-invoices")
-@ConditionalOnHeadOfficeStandalone
+@ConditionalOnHeadOfficeWithoutErp
 @Log4j2
 public class HoSupplyInvoiceAPI {
 

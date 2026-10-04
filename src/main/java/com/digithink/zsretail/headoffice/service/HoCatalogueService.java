@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeStandalone;
+import com.digithink.zsretail.config.ConditionalOnHeadOfficeWithoutErp;
 import com.digithink.zsretail.headoffice.dto.CatalogueBarcodeCopyDTO;
 import com.digithink.zsretail.headoffice.dto.CatalogueFamilyCopyDTO;
 import com.digithink.zsretail.headoffice.dto.CatalogueItemCopyDTO;
@@ -56,7 +56,7 @@ import lombok.extern.log4j.Log4j2;
  * docs/modules/head-office.md, "Catalogue owned by the head office".
  */
 @Service
-@ConditionalOnHeadOfficeStandalone
+@ConditionalOnHeadOfficeWithoutErp
 @Log4j2
 public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOfficeHooks {
 
