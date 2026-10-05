@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -36,9 +37,13 @@ import com.digithink.zsretail.headoffice.repository.HoReturnRepository;
 import com.digithink.zsretail.headoffice.repository.HoSessionRepository;
 import com.digithink.zsretail.headoffice.repository.HoTicketRepository;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
+import com.digithink.zsretail.model.PaymentMethod;
+import com.digithink.zsretail.model.enumeration.CounterType;
+import com.digithink.zsretail.model.enumeration.PaymentMethodType;
 import com.digithink.zsretail.model.enumeration.ReturnType;
 import com.digithink.zsretail.model.enumeration.SessionStatus;
 import com.digithink.zsretail.model.enumeration.TransactionStatus;
+import com.digithink.zsretail.repository.PaymentMethodRepository;
 
 import lombok.Getter;
 
@@ -70,13 +75,16 @@ public class ConsolidatedSalesService {
 	private final HoSessionRepository sessions;
 	private final HoReturnRepository returns;
 	private final StoreRepository stores;
+	/** The head office's own payment methods: its CLIENT_ESPECES method is the cash row of a session's summary. */
+	private final PaymentMethodRepository paymentMethods;
 
 	public ConsolidatedSalesService(HoTicketRepository tickets, HoSessionRepository sessions,
-			HoReturnRepository returns, StoreRepository stores) {
+			HoReturnRepository returns, StoreRepository stores, PaymentMethodRepository paymentMethods) {
 		this.tickets = tickets;
 		this.sessions = sessions;
 		this.returns = returns;
 		this.stores = stores;
+		this.paymentMethods = paymentMethods;
 	}
 
 	// --- Lists ---
@@ -207,8 +215,89 @@ public class ConsolidatedSalesService {
 				counts.add(row);
 			}
 			detail.put("counts", counts);
+			putPaymentSummary(detail, session);
 			return detail;
 		});
+	}
+
+	/**
+	 * The store's session details payment summary (CashierSessionService.getSessionDetails), from the head office's
+	 * copies: one row per method found in the session's ticket payments or count lines, with the same names and rules,
+	 * without the store's ERP data (syncStatus, erpNo). The tickets are the finished ones of the same store and session
+	 * number, as for the session totals. A count line without a method code is the cash count (the store sends no code
+	 * for it): it goes to the head office's CLIENT_ESPECES method, which is also the row whose system amount is the
+	 * session's realCash. Puts paymentSummary and hasPerMethodRespClosure.
+	 */
+	private void putPaymentSummary(Map<String, Object> detail, HoSession session) {
+		PaymentMethod especeMethod = paymentMethods.findByType(PaymentMethodType.CLIENT_ESPECES).orElse(null);
+		String especeCode = especeMethod != null ? especeMethod.getCode() : null;
+
+		// Payments of the session's tickets: code -> name / distinct ticket ids / amount sum
+		Map<String, String> codeToName = new LinkedHashMap<>();
+		Map<String, Set<Long>> codeToTicketIds = new LinkedHashMap<>();
+		Map<String, Double> codeToRawAmount = new LinkedHashMap<>();
+		for (Object[] row : tickets.paymentsBySession(session.getStore().getId(), session.getSessionNumber(),
+				FINISHED_TICKETS)) {
+			String code = (String) row[1];
+			if (code == null) {
+				continue; // as on the store: a payment without a method is not summarised
+			}
+			codeToName.put(code, (String) row[2]);
+			codeToTicketIds.computeIfAbsent(code, k -> new HashSet<>()).add((Long) row[0]);
+			codeToRawAmount.merge(code, doubleOf(row[3]), Double::sum);
+		}
+
+		// Count lines by method and counter: POS_USER the cashier's, RESPONSIBLE the responsible's
+		Map<String, Double> posClosureByCode = new LinkedHashMap<>();
+		Map<String, Double> respClosureByCode = new LinkedHashMap<>();
+		for (HoSessionCount count : session.getCounts()) {
+			String code = count.getPaymentMethodCode() != null ? count.getPaymentMethodCode() : especeCode;
+			if (code == null) {
+				continue;
+			}
+			if (count.getPaymentMethodCode() != null && count.getPaymentMethodName() != null) {
+				codeToName.putIfAbsent(code, count.getPaymentMethodName());
+			}
+			if (CounterType.POS_USER.name().equals(count.getCounterType())) {
+				posClosureByCode.merge(code, doubleOf(count.getLineTotal()), Double::sum);
+			} else if (CounterType.RESPONSIBLE.name().equals(count.getCounterType())) {
+				respClosureByCode.merge(code, doubleOf(count.getLineTotal()), Double::sum);
+			}
+		}
+		if (especeCode != null) {
+			codeToName.putIfAbsent(especeCode, especeMethod.getName());
+		}
+
+		Set<String> allCodes = new LinkedHashSet<>();
+		allCodes.addAll(codeToTicketIds.keySet());
+		allCodes.addAll(posClosureByCode.keySet());
+		allCodes.addAll(respClosureByCode.keySet());
+
+		List<Map<String, Object>> paymentSummary = new ArrayList<>();
+		for (String code : allCodes) {
+			Map<String, Object> row = new LinkedHashMap<>();
+			row.put("code", code);
+			row.put("name", codeToName.getOrDefault(code, code));
+			row.put("ticketCount", codeToTicketIds.containsKey(code) ? (long) codeToTicketIds.get(code).size() : 0L);
+			boolean isEspece = code.equals(especeCode);
+			// Cash: the expected cash in the drawer (the store's realCash); other methods: the sum of the payments
+			double sysAmount = isEspece ? doubleOf(session.getRealCash()) : codeToRawAmount.getOrDefault(code, 0.0);
+			row.put("systemAmount", sysAmount);
+			row.put("isEspece", isEspece);
+			Double posClosure = posClosureByCode.get(code);
+			row.put("posClosureAmount", posClosure);
+			row.put("deltaPOS", posClosure != null ? posClosure - sysAmount : null);
+			Double respClosure = respClosureByCode.get(code);
+			row.put("respClosureAmount", respClosure);
+			row.put("deltaResp", respClosure != null ? respClosure - sysAmount : null);
+			boolean hasSystem = codeToRawAmount.containsKey(code) || (isEspece && sysAmount > 0);
+			boolean hasClosure = posClosureByCode.containsKey(code) || respClosureByCode.containsKey(code);
+			row.put("countOnly", !hasSystem && hasClosure);
+			row.put("systemOnly", hasSystem && !hasClosure);
+			paymentSummary.add(row);
+		}
+		detail.put("paymentSummary", paymentSummary);
+		detail.put("hasPerMethodRespClosure", !respClosureByCode.isEmpty());
 	}
 
 	@Transactional(readOnly = true)

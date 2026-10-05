@@ -53,6 +53,16 @@ public interface HoTicketRepository extends _BaseRepository<HoTicket, Long> {
 	List<Object[]> salesBySession(@Param("storeIds") Collection<Long> storeIds,
 			@Param("sessionNumbers") Collection<String> sessionNumbers, @Param("statuses") Collection<String> statuses);
 
+	/**
+	 * Session details, payment summary: [ticket id, payment method code, payment method name, amount] of every payment
+	 * of the tickets with these statuses of one store's session (the tickets salesBySession counts). One query.
+	 */
+	@Query("select p.ticket.id, p.paymentMethodCode, p.paymentMethodName, p.amount from HoTicketPayment p"
+			+ " where p.ticket.store.id = :storeId and p.ticket.sessionNumber = :sessionNumber"
+			+ " and p.ticket.status in :statuses")
+	List<Object[]> paymentsBySession(@Param("storeId") Long storeId, @Param("sessionNumber") String sessionNumber,
+			@Param("statuses") Collection<String> statuses);
+
 	/** Task 2.5: one row [tickets, total amount] of the tickets with these statuses sold in [from, to). */
 	@Query("select count(t), sum(t.totalAmount) from HoTicket t"
 			+ " where t.salesDate >= :from and t.salesDate < :to and t.status in :statuses")

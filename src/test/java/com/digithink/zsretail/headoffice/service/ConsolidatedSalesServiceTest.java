@@ -16,6 +16,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -41,6 +42,9 @@ import com.digithink.zsretail.headoffice.repository.HoSessionRepository;
 import com.digithink.zsretail.headoffice.repository.HoTicketRepository;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
 import com.digithink.zsretail.headoffice.service.ConsolidatedSalesService.HistoryQuery;
+import com.digithink.zsretail.model.PaymentMethod;
+import com.digithink.zsretail.model.enumeration.PaymentMethodType;
+import com.digithink.zsretail.repository.PaymentMethodRepository;
 
 /**
  * Head office plan, task 2.5: what the head office pages read. Filters (store, dates, number, status, session),
@@ -85,6 +89,13 @@ class ConsolidatedSalesServiceTest {
 							.collect(Collectors.toList()), t -> t.getStore().getId() + "|" + t.getSessionNumber(),
 							rows -> new Object[] { rows.get(0).getStore().getId(), rows.get(0).getSessionNumber(),
 									(long) rows.size(), rows.stream().mapToDouble(HoTicket::getTotalAmount).sum() });
+				case "paymentsBySession":
+					return ticketTable.stream()
+							.filter(t -> t.getStore().getId().equals(args[0]) && args[1].equals(t.getSessionNumber())
+									&& ((Collection<?>) args[2]).contains(t.getStatus()))
+							.flatMap(t -> t.getPayments().stream().map(p -> new Object[] { t.getId(),
+									p.getPaymentMethodCode(), p.getPaymentMethodName(), p.getAmount() }))
+							.collect(Collectors.toList());
 				case "salesBetween":
 					List<HoTicket> sold = ticketTable.stream().filter(t -> !t.getSalesDate().isBefore((LocalDateTime) args[0])
 							&& t.getSalesDate().isBefore((LocalDateTime) args[1])
@@ -151,7 +162,19 @@ class ConsolidatedSalesServiceTest {
 			}
 			return UNHANDLED;
 		});
-		service = new ConsolidatedSalesService(tickets, sessions, returns, stores);
+		// The head office's own payment methods, as ZZDataInitializer seeds them: the cash method is CLIENT_ESPECES
+		PaymentMethodRepository paymentMethods = stub(PaymentMethodRepository.class, (method, args) -> {
+			if ("findByType".equals(method)) {
+				assertEquals(PaymentMethodType.CLIENT_ESPECES, args[0]);
+				PaymentMethod cash = new PaymentMethod();
+				cash.setCode("CLIENT_ESPECES");
+				cash.setName("Client Espèce");
+				cash.setType(PaymentMethodType.CLIENT_ESPECES);
+				return Optional.of(cash);
+			}
+			return UNHANDLED;
+		});
+		service = new ConsolidatedSalesService(tickets, sessions, returns, stores, paymentMethods);
 	}
 
 	/** The JPQL search, in memory: store (0 = all), dates inclusive, lower-case LIKE on the number, status ("" = any). */
@@ -434,6 +457,138 @@ class ConsolidatedSalesServiceTest {
 		assertEquals(1, counts.size());
 		assertEquals("POS_USER", counts.get(0).get("counterType"));
 		assertNull(counts.get(0).get("paymentMethod"), "cash");
+	}
+
+	// --- Session details: payment summary (the store's session details block) ---
+
+	private static void pay(HoTicket ticket, String code, String name, double amount) {
+		HoTicketPayment payment = new HoTicketPayment();
+		payment.setLineNo(ticket.getPayments().size() + 1);
+		payment.setPaymentMethodCode(code);
+		payment.setPaymentMethodName(name);
+		payment.setAmount(amount);
+		ticket.getPayments().add(payment);
+	}
+
+	/** A count line; code null = a cash denomination line, as the store sends it. */
+	private static void count(HoSession session, String counterType, String code, String name, double total) {
+		HoSessionCount count = new HoSessionCount();
+		count.setLineNo(session.getCounts().size() + 1);
+		count.setCounterType(counterType);
+		count.setPaymentMethodCode(code);
+		count.setPaymentMethodName(name);
+		count.setLineTotal(total);
+		session.getCounts().add(count);
+	}
+
+	@SuppressWarnings("unchecked")
+	private Map<String, Map<String, Object>> summary(HoSession session) {
+		List<Map<String, Object>> rows = (List<Map<String, Object>>) service.session(session.getId()).get()
+				.get("paymentSummary");
+		Map<String, Map<String, Object>> byCode = new LinkedHashMap<>();
+		rows.forEach(row -> byCode.put((String) row.get("code"), row));
+		return byCode;
+	}
+
+	@Test
+	@DisplayName("Payment summary, the real case of SESSION261005001 at HS01: two cash tickets, the cashier counted 833 for 843 expected")
+	void paymentSummaryRealCase() {
+		Store hs01 = store(1L, "HS01", "Franchise 1");
+		HoSession session = session(hs01, "SESSION261005001", LocalDateTime.of(2026, 10, 5, 9, 0), "CLOSED");
+		session.setOpeningCash(10.0);
+		session.setRealCash(843.0); // the store's expected cash: 10 + 595 + 238
+		session.setPosUserClosureCash(833.0);
+		pay(ticket(hs01, "T-1", LocalDateTime.of(2026, 10, 5, 9, 10), "COMPLETED", 595, "SESSION261005001"),
+				"CLIENT_ESPECES", "Client Espèce", 595);
+		pay(ticket(hs01, "T-2", LocalDateTime.of(2026, 10, 5, 9, 20), "COMPLETED", 238, "SESSION261005001"),
+				"CLIENT_ESPECES", "Client Espèce", 238);
+		count(session, "POS_USER", null, null, 833); // the cashier's cash count: denomination lines, no method code
+
+		Map<String, Map<String, Object>> rows = summary(session);
+		assertEquals(Arrays.asList("CLIENT_ESPECES"), new ArrayList<>(rows.keySet()), "one row: cash");
+		Map<String, Object> cash = rows.get("CLIENT_ESPECES");
+		assertEquals("Client Espèce", cash.get("name"));
+		assertEquals(2L, cash.get("ticketCount"));
+		assertEquals(843.0, cash.get("systemAmount"));
+		assertEquals(true, cash.get("isEspece"));
+		assertEquals(833.0, cash.get("posClosureAmount"));
+		assertEquals(-10.0, cash.get("deltaPOS"));
+		assertNull(cash.get("respClosureAmount"));
+		assertNull(cash.get("deltaResp"));
+		assertEquals(false, cash.get("countOnly"));
+		assertEquals(false, cash.get("systemOnly"));
+		assertEquals(false, service.session(session.getId()).get().get("hasPerMethodRespClosure"));
+	}
+
+	@Test
+	@DisplayName("Payment summary: cash and other methods, the cashier's count then the responsible's; a count line without a method is cash; same row names as the store")
+	void paymentSummary() {
+		HoSession session = session(rs01, "S5", LocalDateTime.of(2026, 10, 1, 8, 0), "CLOSED");
+		session.setOpeningCash(10.0);
+		session.setRealCash(130.0); // 10 + 100 + 20 in cash
+		HoTicket t1 = ticket(rs01, "T-1", LocalDateTime.of(2026, 10, 1, 9, 0), "COMPLETED", 115, "S5");
+		pay(t1, "CLIENT_ESPECES", "Client Espèce", 100);
+		pay(t1, "TICKET_RESTAURANT", "Ticket restaurant", 15);
+		HoTicket t2 = ticket(rs01, "T-2", LocalDateTime.of(2026, 10, 1, 9, 5), "COMPLETED", 70, "S5");
+		pay(t2, "CLIENT_TPE", "Client TPE", 50);
+		pay(t2, "CLIENT_ESPECES", "Client Espèce", 20);
+		pay(ticket(rs01, "T-3", LocalDateTime.of(2026, 10, 1, 9, 9), "CANCELLED", 999, "S5"), "CLIENT_TPE", "Client TPE", 999);
+		pay(ticket(rs02, "T-9", LocalDateTime.of(2026, 10, 1, 9, 9), "COMPLETED", 777, "S5"), "CLIENT_TPE", "Client TPE", 777);
+		// The cashier's count only: cash in two denomination lines (no method), the card terminal, a cheque never paid
+		count(session, "POS_USER", null, null, 100);
+		count(session, "POS_USER", null, null, 30);
+		count(session, "POS_USER", "CLIENT_TPE", "Client TPE", 45);
+		count(session, "POS_USER", "CLIENT_CHEQUE", "Client Chèque", 12);
+
+		Map<String, Map<String, Object>> rows = summary(session);
+		assertEquals(Arrays.asList("CLIENT_ESPECES", "TICKET_RESTAURANT", "CLIENT_TPE", "CLIENT_CHEQUE"),
+				new ArrayList<>(rows.keySet()), "the union of the paid and the counted methods");
+		assertEquals(Arrays.asList("code", "name", "ticketCount", "systemAmount", "isEspece", "posClosureAmount", "deltaPOS",
+				"respClosureAmount", "deltaResp", "countOnly", "systemOnly"), new ArrayList<>(rows.get("CLIENT_TPE").keySet()),
+				"the store's names, without syncStatus and erpNo");
+
+		Map<String, Object> cash = rows.get("CLIENT_ESPECES");
+		assertEquals(2L, cash.get("ticketCount"), "distinct tickets");
+		assertEquals(130.0, cash.get("systemAmount"), "cash: the session's realCash, not the sum of the payments");
+		assertEquals(130.0, cash.get("posClosureAmount"), "the two lines without a method");
+		assertEquals(0.0, cash.get("deltaPOS"));
+		assertNull(cash.get("respClosureAmount"));
+
+		Map<String, Object> card = rows.get("CLIENT_TPE");
+		assertEquals(false, card.get("isEspece"));
+		assertEquals(1L, card.get("ticketCount"), "the cancelled ticket and the other store's ticket do not count");
+		assertEquals(50.0, card.get("systemAmount"));
+		assertEquals(-5.0, card.get("deltaPOS"));
+		assertNull(card.get("deltaResp"));
+
+		Map<String, Object> meal = rows.get("TICKET_RESTAURANT");
+		assertEquals(true, meal.get("systemOnly"));
+		assertEquals(false, meal.get("countOnly"));
+		assertNull(meal.get("posClosureAmount"));
+		assertNull(meal.get("deltaPOS"));
+
+		Map<String, Object> cheque = rows.get("CLIENT_CHEQUE");
+		assertEquals("Client Chèque", cheque.get("name"));
+		assertEquals(0L, cheque.get("ticketCount"));
+		assertEquals(0.0, cheque.get("systemAmount"));
+		assertEquals(true, cheque.get("countOnly"));
+		assertEquals(false, cheque.get("systemOnly"));
+		assertEquals(false, service.session(session.getId()).get().get("hasPerMethodRespClosure"));
+
+		// Then the responsible's count: cash without a method, the card terminal
+		count(session, "RESPONSIBLE", null, null, 125);
+		count(session, "RESPONSIBLE", "CLIENT_TPE", "Client TPE", 50);
+		rows = summary(session);
+		assertEquals(125.0, rows.get("CLIENT_ESPECES").get("respClosureAmount"));
+		assertEquals(-5.0, rows.get("CLIENT_ESPECES").get("deltaResp"));
+		assertEquals(50.0, rows.get("CLIENT_TPE").get("respClosureAmount"));
+		assertEquals(0.0, rows.get("CLIENT_TPE").get("deltaResp"));
+		assertNull(rows.get("CLIENT_CHEQUE").get("respClosureAmount"));
+		assertEquals(true, service.session(session.getId()).get().get("hasPerMethodRespClosure"));
+
+		Map<String, Object> detail = service.session(session.getId()).get();
+		assertEquals(6, ((List<?>) detail.get("counts")).size(), "the raw count lines are still returned");
+		assertEquals(185.0, detail.get("totalSalesAmount"));
 	}
 
 	@Test
