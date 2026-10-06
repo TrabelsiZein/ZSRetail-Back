@@ -130,8 +130,17 @@ public class ZZDataInitializer {
 		AppRole adminRole = ensureRole("ADMIN", "Administrateur", false, adminPermissions());
 		if (applicationModeService.isHeadOffice()) {
 			addMissingPermissions(adminRole, HEAD_OFFICE_ADMIN_PERMISSIONS);
-		} else if (applicationModeService.isSupplyFromHeadOffice()) {
-			addMissingPermissions(adminRole, SUPPLY_ADMIN_PERMISSIONS); // step 7A: the BL reception page
+		} else {
+			Set<String> wanted = new HashSet<>();
+			if (applicationModeService.isSupplyFromHeadOffice()) {
+				wanted.addAll(SUPPLY_ADMIN_PERMISSIONS); // step 7A: the BL reception page
+			}
+			if (!applicationModeService.isSupplyFromErp()) {
+				wanted.addAll(INVENTORY_ADMIN_PERMISSIONS); // inventory count: a store that keeps its own stock
+			}
+			if (!wanted.isEmpty()) {
+				addMissingPermissions(adminRole, wanted);
+			}
 		}
 		AppRole responsibleRole = ensureRole("RESPONSIBLE", "Responsable", false, RESPONSIBLE_PERMISSIONS);
 		ensureRole("POS_USER", "Caissier", true, POS_PERMISSIONS);
@@ -186,8 +195,10 @@ public class ZZDataInitializer {
 	 * Default ADMIN permissions; a head office adds its pages, a store linked to a head office adds the "Head office
 	 * link" page (docs/modules/head-office.md) and, when its goods come from the head office, the BL reception page.
 	 * A store's ADMIN may also open the till (read:cashier-interface, the frontend's "POS" button); a head office never.
-	 * Used when the role is created; afterwards a head office tops up its ADMIN role, and a store whose goods come from
-	 * the head office its BL reception page only (addMissingPermissions); other roles and permissions are never changed.
+	 * A store that keeps its own stock (the supply is not the ERP's) adds the inventory count pages.
+	 * Used when the role is created; afterwards a head office tops up its ADMIN role, and a store its BL reception page
+	 * (goods from the head office) and its inventory count pages (stock kept here) only (addMissingPermissions); other
+	 * roles and permissions are never changed.
 	 */
 	private Set<String> adminPermissions() {
 		Set<String> permissions = new HashSet<>(ADMIN_PERMISSIONS);
@@ -196,6 +207,9 @@ public class ZZDataInitializer {
 			return permissions;
 		}
 		permissions.add("read:cashier-interface");
+		if (!applicationModeService.isSupplyFromErp()) {
+			permissions.addAll(INVENTORY_ADMIN_PERMISSIONS);
+		}
 		if (applicationModeService.isHeadOfficeLinked()) {
 			permissions.addAll(HEAD_OFFICE_LINK_ADMIN_PERMISSIONS);
 			if (applicationModeService.isSupplyFromHeadOffice()) {
@@ -253,6 +267,13 @@ public class ZZDataInitializer {
 	/** Store with headoffice.url only: the "Head office link" page (task 1.5). */
 	static final Set<String> HEAD_OFFICE_LINK_ADMIN_PERMISSIONS = new HashSet<>(
 			Arrays.asList("read:admin-holink-status"));
+
+	/**
+	 * Store that keeps its own stock (the supply is not the ERP's): the inventory count pages
+	 * (docs/modules/inventory-count.md); given to ADMIN at every start. Never on a head office.
+	 */
+	static final Set<String> INVENTORY_ADMIN_PERMISSIONS = new HashSet<>(
+			Arrays.asList("read:admin-inventory-counts", "write:admin-inventory-counts"));
 
 	/** Store whose goods come from the head office (step 7A): the BL reception page; given to ADMIN at every start. */
 	static final Set<String> SUPPLY_ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:admin-holink-deliveries"));

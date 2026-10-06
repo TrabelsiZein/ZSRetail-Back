@@ -24,7 +24,7 @@ Split out of the former single `AI_CONTEXT_POS.md` so each topic can be read on 
 
 `promotion` · `discounts` · `pricing` · `loyalty` · `franchise` · `head-office` · `licensing` ·
 `erp-sync` · `reporting` · `global-search` · `i18n` · `data-import` · `customers` ·
-`company-information` · `general-setup` · `table-management` · `badge-permissions`
+`company-information` · `general-setup` · `table-management` · `badge-permissions` · `inventory-count`
 
 ## Specs and plans
 

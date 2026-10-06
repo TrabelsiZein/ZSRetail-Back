@@ -59,6 +59,8 @@ public class AppRoleAPI {
         "read:purchase-new", "write:purchase-new",
         "read:vendor-balance",
         "read:admin-purchase-invoices",
+        // Inventory count (a store that keeps its own stock)
+        "read:admin-inventory-counts", "write:admin-inventory-counts",
         "read:admin-warranty", "write:admin-warranty",
         "read:admin-erp-jobs",
         "read:admin-erp-communications",

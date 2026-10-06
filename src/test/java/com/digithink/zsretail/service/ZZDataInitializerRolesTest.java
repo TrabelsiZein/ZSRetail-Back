@@ -119,10 +119,20 @@ class ZZDataInitializerRolesTest {
 
 	private static final String CASHIER_INTERFACE = "read:cashier-interface";
 
-	/** ADMIN of a new store database: today's set plus the till (the frontend's "POS" button). */
-	private static Set<String> storeAdminPermissions() throws Exception {
+	/** Inventory count pages: ADMIN of a store that keeps its own stock (not the ERP's supply), never a head office. */
+	private static final Set<String> INVENTORY = new HashSet<>(
+			java.util.Arrays.asList("read:admin-inventory-counts", "write:admin-inventory-counts"));
+
+	/**
+	 * ADMIN of a new store database: today's set plus the till (the frontend's "POS" button), and the inventory count
+	 * pages when the stock is kept here ({@code standalone}: the supply is not the ERP's).
+	 */
+	private static Set<String> storeAdminPermissions(boolean standalone) throws Exception {
 		Set<String> expected = new HashSet<>(staticSet("ADMIN_PERMISSIONS"));
 		expected.add(CASHIER_INTERFACE);
+		if (standalone) {
+			expected.addAll(INVENTORY);
+		}
 		return expected;
 	}
 
@@ -142,6 +152,7 @@ class ZZDataInitializerRolesTest {
 		expected.addAll(HEAD_OFFICE_PERMISSIONS);
 		assertEquals(expected, roles.get("ADMIN").getPermissions());
 		assertFalse(roles.get("ADMIN").getPermissions().contains(CASHIER_INTERFACE), "a head office never opens the till");
+		assertTrue(java.util.Collections.disjoint(INVENTORY, roles.get("ADMIN").getPermissions()), "no inventory count");
 		assertEquals(java.util.Arrays.asList("ADMIN", "RESPONSIBLE", "POS_USER"), saves, "each role saved once");
 		assertFalse(hasHeadOfficePermission(roles.get("RESPONSIBLE")));
 		assertFalse(hasHeadOfficePermission(roles.get("POS_USER")));
@@ -155,13 +166,13 @@ class ZZDataInitializerRolesTest {
 	}
 
 	@Test
-	@DisplayName("Stores (standalone and ERP profiles): ADMIN gets today's set plus read:cashier-interface, the other roles exactly today's sets, no Network permission")
+	@DisplayName("Stores (standalone and ERP profiles): ADMIN gets today's set plus read:cashier-interface (and the inventory count pages without an ERP), the other roles exactly today's sets, no Network permission")
 	void storesSeedAsToday() throws Exception {
 		for (boolean[] flags : STORE_PROFILES) {
 			Map<String, AppRole> roles = seedRoles(new MockEnvironment(), flags[0],
 					Collections.emptyMap());
 
-			assertEquals(storeAdminPermissions(), roles.get("ADMIN").getPermissions());
+			assertEquals(storeAdminPermissions(flags[0]), roles.get("ADMIN").getPermissions());
 			assertEquals(staticSet("RESPONSIBLE_PERMISSIONS"), roles.get("RESPONSIBLE").getPermissions());
 			assertEquals(staticSet("POS_PERMISSIONS"), roles.get("POS_USER").getPermissions());
 			for (AppRole role : roles.values()) {
@@ -179,7 +190,7 @@ class ZZDataInitializerRolesTest {
 		for (boolean[] flags : STORE_PROFILES) {
 			Map<String, AppRole> roles = seedRoles(linked, flags[0], Collections.emptyMap());
 
-			Set<String> expected = storeAdminPermissions();
+			Set<String> expected = storeAdminPermissions(flags[0]);
 			expected.add("read:admin-holink-status");
 			assertEquals(expected, roles.get("ADMIN").getPermissions());
 			assertEquals(staticSet("RESPONSIBLE_PERMISSIONS"), roles.get("RESPONSIBLE").getPermissions());
@@ -228,20 +239,34 @@ class ZZDataInitializerRolesTest {
 	}
 
 	@Test
-	@DisplayName("Stores (standalone and ERP profiles, with and without headoffice.url) with existing roles: nothing is saved or changed")
+	@DisplayName("Stores (standalone and ERP profiles, with and without headoffice.url) with existing roles: with an ERP nothing"
+			+ " is saved or changed; without, ADMIN receives only the inventory count pages, once; other roles untouched")
 	void storeExistingRolesUntouched() throws Exception {
 		MockEnvironment linked = new MockEnvironment()
 				.withProperty("headoffice.url", "http://localhost:888/zsretail/api")
 				.withProperty("headoffice.api-key", "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde");
-		for (MockEnvironment env : new MockEnvironment[] { new MockEnvironment(), linked }) {
+		for (boolean linkedStore : new boolean[] { false, true }) {
 			for (boolean[] flags : STORE_PROFILES) {
+				MockEnvironment env = linkedStore ? linked : new MockEnvironment();
 				Map<String, AppRole> existing = existingRoles("read:home");
 
 				List<String> saves = new ArrayList<>();
 				seedRoles(env, flags[0], existing, saves);
 
-				assertTrue(saves.isEmpty(), "saved: " + saves);
-				assertEquals(Collections.singleton("read:home"), existing.get("ADMIN").getPermissions());
+				Set<String> expected = new HashSet<>(Collections.singleton("read:home"));
+				if (flags[0]) {
+					expected.addAll(INVENTORY);
+					assertEquals(Collections.singletonList("ADMIN"), saves);
+				} else {
+					assertTrue(saves.isEmpty(), "saved: " + saves);
+				}
+				assertEquals(expected, existing.get("ADMIN").getPermissions(), "nothing else added or removed");
+				assertEquals(Collections.singleton("read:home"), existing.get("RESPONSIBLE").getPermissions());
+				assertEquals(Collections.singleton("read:home"), existing.get("POS_USER").getPermissions());
+
+				List<String> nextStart = new ArrayList<>();
+				seedRoles(linkedStore ? linked : new MockEnvironment(), flags[0], existing, nextStart);
+				assertTrue(nextStart.isEmpty(), "next start, saved: " + nextStart);
 			}
 		}
 	}
@@ -258,7 +283,7 @@ class ZZDataInitializerRolesTest {
 	void suppliedStoreAdminGetsReception() throws Exception {
 		List<String> saves = new ArrayList<>();
 		Map<String, AppRole> roles = seedRoles(suppliedStore(), true, Collections.emptyMap(), saves);
-		Set<String> expected = storeAdminPermissions();
+		Set<String> expected = storeAdminPermissions(true);
 		expected.add("read:admin-holink-status");
 		expected.add("read:admin-holink-deliveries");
 		assertEquals(expected, roles.get("ADMIN").getPermissions());
@@ -269,8 +294,10 @@ class ZZDataInitializerRolesTest {
 		List<String> topUp = new ArrayList<>();
 		seedRoles(suppliedStore(), true, existing, topUp);
 		assertEquals(Collections.singletonList("ADMIN"), topUp);
-		assertEquals(new HashSet<>(java.util.Arrays.asList("read:home", "read:admin-holink-status",
-				"read:admin-holink-deliveries")), existing.get("ADMIN").getPermissions(), "nothing else added or removed");
+		Set<String> toppedUp = new HashSet<>(java.util.Arrays.asList("read:home", "read:admin-holink-status",
+				"read:admin-holink-deliveries"));
+		toppedUp.addAll(INVENTORY);
+		assertEquals(toppedUp, existing.get("ADMIN").getPermissions(), "nothing else added or removed");
 		assertEquals(Collections.singleton("read:home"), existing.get("RESPONSIBLE").getPermissions());
 
 		List<String> nextStart = new ArrayList<>();

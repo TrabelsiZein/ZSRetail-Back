@@ -80,6 +80,58 @@ IF OBJECT_ID('hol_delivery') IS NOT NULL AND COL_LENGTH('hol_delivery', 'invoice
 	ALTER TABLE hol_delivery ADD invoice_number varchar(30) NULL;
 GO
 
+-- Inventory count (docs/modules/inventory-count.md): two new tables, created here (re-runnable: only when missing) with
+-- the names Hibernate uses, so ddl-auto finds them complete. Used on a store that keeps its own stock; they exist,
+-- empty, everywhere. stock_movement.movement_type gets two new values (INVENTORY_IN, INVENTORY_OUT) within its varchar.
+-- The permissions read:admin-inventory-counts and write:admin-inventory-counts are added to ADMIN at startup.
+IF OBJECT_ID('inventory_count') IS NULL
+BEGIN
+	CREATE TABLE inventory_count (
+		id bigint IDENTITY(1,1) NOT NULL,
+		active bit NULL,
+		created_at datetime2 NULL,
+		created_by varchar(255) NULL,
+		updated_at datetime2 NULL,
+		updated_by varchar(255) NULL,
+		number varchar(30) NOT NULL,
+		count_date date NOT NULL,
+		note varchar(500) NULL,
+		file_name varchar(255) NULL,
+		rows_read int NULL,
+		status varchar(20) NOT NULL,
+		validated_at datetime2 NULL,
+		validated_by varchar(100) NULL,
+		CONSTRAINT PK_inventory_count PRIMARY KEY (id),
+		CONSTRAINT uk_inventory_count_number UNIQUE (number)
+	);
+END
+GO
+IF OBJECT_ID('inventory_count_line') IS NULL
+BEGIN
+	CREATE TABLE inventory_count_line (
+		id bigint IDENTITY(1,1) NOT NULL,
+		active bit NULL,
+		created_at datetime2 NULL,
+		created_by varchar(255) NULL,
+		updated_at datetime2 NULL,
+		updated_by varchar(255) NULL,
+		count_id bigint NOT NULL,
+		item_id bigint NULL,
+		code varchar(100) NULL,
+		counted_quantity int NULL,
+		merged_rows int NULL,
+		system_quantity_at_import int NULL,
+		system_quantity_at_validation int NULL,
+		difference_applied int NULL,
+		status varchar(20) NOT NULL,
+		message varchar(255) NULL,
+		CONSTRAINT PK_inventory_count_line PRIMARY KEY (id),
+		CONSTRAINT fk_inventory_count_line_count FOREIGN KEY (count_id) REFERENCES inventory_count (id)
+	);
+	CREATE INDEX ix_inventory_count_line_count ON inventory_count_line (count_id);
+END
+GO
+
 UPDATE APP_VERSION SET version = '2.1.0';
 
 INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
@@ -89,4 +141,5 @@ INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
 ('2.1.0', 'NEW', 'Approvisionnement par le siège : achats et stock au siège, bons de livraison vers les magasins, réception et écarts au magasin, stock de tous les magasins au siège.'),
 ('2.1.0', 'NEW', 'Facturation des livraisons aux magasins qui paient (franchise) : prix de cession par article ou en pourcentage, facture par BL ou groupée, reçue au magasin comme facture d''achat, payé ou non payé et ce que doit chaque magasin.'),
 ('2.1.0', 'IMPROVE', 'Installation : chaque installation a son fichier machine hors du WAR (base, port, journal, ERP, adresse et clé du siège) et un préréglage (magasin, magasin ERP, siège, siège ERP, magasin du réseau, magasin ERP du réseau). Les anciens profils franchise-admin et franchise-customer sont retirés ; un réseau de franchise s''installe avec les préréglages siège et magasin du réseau.'),
-('2.1.0', 'IMPROVE', 'Le stock d''un ajustement manuel enregistre maintenant son mouvement, et la modification d''un article ne remplace plus le stock en cours.');
+('2.1.0', 'IMPROVE', 'Le stock d''un ajustement manuel enregistre maintenant son mouvement, et la modification d''un article ne remplace plus le stock en cours.'),
+('2.1.0', 'NEW', 'Inventaire : import d''un comptage physique depuis un fichier Excel (code ou code-barres, quantité), écarts avec le stock avant validation, puis le stock prend la quantité comptée avec un mouvement d''inventaire par écart. Magasin qui gère son propre stock uniquement.');

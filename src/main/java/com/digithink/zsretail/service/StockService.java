@@ -1,5 +1,7 @@
 package com.digithink.zsretail.service;
 
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -7,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.exception.InsufficientStockException;
 import com.digithink.zsretail.repository.ItemRepository;
+import com.digithink.zsretail.repository.StockBatchRepository;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -33,6 +36,9 @@ public class StockService {
 
 	@Autowired
 	private GeneralSetupService generalSetupService;
+
+	@Autowired
+	private StockBatchRepository stockBatchRepository;
 
 	/**
 	 * Decrement stock for a sale (one completed ticket line). Called once per item line.
@@ -123,6 +129,28 @@ public class StockService {
 		}
 		itemRepository.addToStockQuantity(itemId, delta);
 		log.debug("Stock adjusted: itemId={}, delta={}, reason={}", itemId, delta, reason);
+	}
+
+	/**
+	 * Inventory count: adds each difference (item id to counted minus the stock read) to the item's stock, in JDBC
+	 * batches of the same atomic relative update as {@link #adjustStock} (a sale between the read and the update stays
+	 * counted: the movements always add up to the stock). Zero differences are skipped. No-op when the supply is the ERP's.
+	 */
+	@Transactional(rollbackFor = Exception.class)
+	public void applyInventoryDifferences(Map<Long, Integer> differences) {
+		if (applicationModeService.isSupplyFromErp()) {
+			return;
+		}
+		Map<Long, Integer> nonZero = new java.util.LinkedHashMap<>();
+		differences.forEach((itemId, delta) -> {
+			if (delta != null && delta != 0) {
+				nonZero.put(itemId, delta);
+			}
+		});
+		if (!nonZero.isEmpty()) {
+			stockBatchRepository.addToStockQuantities(nonZero);
+		}
+		log.debug("Stock adjusted by an inventory count: {} items", nonZero.size());
 	}
 
 	/** True when ALLOW_NEGATIVE_STOCK=true in GeneralSetup: a sale or a BL may take the stock below zero. */

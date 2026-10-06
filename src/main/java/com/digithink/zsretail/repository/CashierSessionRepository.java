@@ -32,6 +32,9 @@ public interface CashierSessionRepository extends _BaseRepository<CashierSession
 
 	List<CashierSession> findByStatus(SessionStatus status);
 
+	/** Inventory count: how many sessions are open now (a warning on the screen, it blocks nothing). */
+	long countByStatus(SessionStatus status);
+
 	Optional<CashierSession> findByCashierAndStatus(UserAccount cashier, SessionStatus status);
 
 	List<CashierSession> findByVerifiedBy(UserAccount user);

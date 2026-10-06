@@ -34,6 +34,10 @@ public interface ItemBarcodeRepository extends _BaseRepository<ItemBarcode, Long
 	@Query("select b.barcode from ItemBarcode b where b.item.itemCode <> :excludedItemCode")
 	List<String> findAllBarcodesExceptItem(@Param("excludedItemCode") String excludedItemCode);
 
+	/** Inventory count, at the import: [barcode, item id] of every active barcode (active null counts as active). */
+	@Query("select b.barcode, b.item.id from ItemBarcode b where b.active is null or b.active = true")
+	List<Object[]> findActiveBarcodeItemIds();
+
 	/**
 	 * Head office plan, step 6: the origin of one row (the column is not updatable through a save). Pending changes are
 	 * flushed first. Returns the number of rows updated.

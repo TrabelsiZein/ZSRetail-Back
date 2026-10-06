@@ -1,5 +1,9 @@
 package com.digithink.zsretail.service;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +15,7 @@ import com.digithink.zsretail.model.StockMovement;
 import com.digithink.zsretail.model.enumeration.StockMovementDirection;
 import com.digithink.zsretail.model.enumeration.StockMovementType;
 import com.digithink.zsretail.repository.ItemRepository;
+import com.digithink.zsretail.repository.StockBatchRepository;
 import com.digithink.zsretail.repository.StockMovementRepository;
 
 import lombok.extern.log4j.Log4j2;
@@ -33,6 +38,9 @@ public class StockMovementService {
 
     @Autowired
     private ItemRepository itemRepository;
+
+    @Autowired
+    private StockBatchRepository stockBatchRepository;
 
     /**
      * Record a stock movement for a completed sale line (OUT).
@@ -143,6 +151,29 @@ public class StockMovementService {
                 quantity, null, null, null,
                 receivedDeliveryId, "BL", null, deliveryNumber));
         log.debug("Stock movement recorded: DELIVERY_IN itemId={} qty={}", itemId, quantity);
+    }
+
+    /**
+     * Inventory count, at its validation: one INVENTORY_IN or INVENTORY_OUT movement per item whose difference (item id
+     * to counted minus the stock read) is not zero; quantity the absolute difference, reference type INVENTORY, the
+     * count id as reference and its number as note. Written in JDBC batches. Returns the number of movements.
+     */
+    @Transactional
+    public int recordInventory(Map<Long, Integer> differences, Long countId, String countNumber, String user) {
+        if (applicationModeService.isSupplyFromErp()) return 0;
+        List<StockBatchRepository.MovementRow> rows = new ArrayList<>();
+        differences.forEach((itemId, delta) -> {
+            if (delta == null || delta == 0) return;
+            rows.add(new StockBatchRepository.MovementRow(itemId,
+                    delta > 0 ? StockMovementType.INVENTORY_IN : StockMovementType.INVENTORY_OUT,
+                    delta > 0 ? StockMovementDirection.IN : StockMovementDirection.OUT,
+                    Math.abs(delta), countId, "INVENTORY", countNumber));
+        });
+        if (!rows.isEmpty()) {
+            stockBatchRepository.insertMovements(rows, user == null ? "System" : user);
+        }
+        log.debug("Stock movements recorded: inventory count {} ({} movements)", countNumber, rows.size());
+        return rows.size();
     }
 
     // -------------------------------------------------------------------------

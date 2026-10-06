@@ -84,4 +84,12 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 
 	/** Step 6: the items whose old single barcode field holds this value (several may). */
 	List<Item> findAllByBarcode(String barcode);
+
+	/** Inventory count, at the import: [id, itemCode, type, stockQuantity] of every item, read once. */
+	@Query("select i.id, i.itemCode, i.type, i.stockQuantity from Item i")
+	List<Object[]> findInventorySnapshot();
+
+	/** Inventory count, at the validation: [id, stockQuantity] of these items (at most 2,000 ids per call). */
+	@Query("select i.id, i.stockQuantity from Item i where i.id in :ids")
+	List<Object[]> findStockByIds(@Param("ids") Collection<Long> ids);
 }
