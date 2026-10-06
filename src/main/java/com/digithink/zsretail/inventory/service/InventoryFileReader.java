@@ -26,16 +26,21 @@ public final class InventoryFileReader {
 	/** Above this, the file is refused (30,000 rows expected at most). */
 	public static final int MAX_ROWS = 100_000;
 
-	/** One row of the file: its number in Excel (1-based), the code, and the quantity or why it is not valid. */
+	/**
+	 * One row of the file: its number in Excel (1-based), the code, whether it was a number cell (Excel dropped its
+	 * leading zeros), and the quantity or why it is not valid.
+	 */
 	public static final class FileRow {
 		public final int rowNumber;
 		public final String code;
+		public final boolean numericCode;
 		public final Integer quantity;
 		public final String quantityError;
 
-		FileRow(int rowNumber, String code, Integer quantity, String quantityError) {
+		FileRow(int rowNumber, String code, boolean numericCode, Integer quantity, String quantityError) {
 			this.rowNumber = rowNumber;
 			this.code = code;
+			this.numericCode = numericCode;
 			this.quantity = quantity;
 			this.quantityError = quantityError;
 		}
@@ -86,28 +91,35 @@ public final class InventoryFileReader {
 			if (rows.size() >= MAX_ROWS) {
 				throw new IllegalArgumentException("The file has more than " + MAX_ROWS + " rows.");
 			}
-			rows.add(row(r + 1, code, quantityText, number));
+			rows.add(row(r + 1, code, isNumber(row.getCell(0)), quantityText, number));
 		}
 		return rows;
 	}
 
-	private static FileRow row(int rowNumber, String code, String quantityText, BigDecimal number) {
+	private static FileRow row(int rowNumber, String code, boolean numericCode, String quantityText,
+			BigDecimal number) {
+		String error = null;
 		if (quantityText.isEmpty()) {
-			return new FileRow(rowNumber, code, null, "no quantity");
+			error = "no quantity";
+		} else if (number == null) {
+			error = "not a number: " + quantityText;
+		} else if (number.signum() < 0) {
+			error = "negative quantity: " + plain(number);
+		} else if (number.stripTrailingZeros().scale() > 0) {
+			error = "not a whole number: " + plain(number);
+		} else if (number.compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)) > 0) {
+			error = "quantity too large: " + plain(number);
 		}
-		if (number == null) {
-			return new FileRow(rowNumber, code, null, "not a number: " + quantityText);
+		return new FileRow(rowNumber, code, numericCode, error == null ? number.intValueExact() : null, error);
+	}
+
+	/** True for a number cell (also a formula giving a number). */
+	private static boolean isNumber(Cell cell) {
+		if (cell == null) {
+			return false;
 		}
-		if (number.signum() < 0) {
-			return new FileRow(rowNumber, code, null, "negative quantity: " + plain(number));
-		}
-		if (number.stripTrailingZeros().scale() > 0) {
-			return new FileRow(rowNumber, code, null, "not a whole number: " + plain(number));
-		}
-		if (number.compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)) > 0) {
-			return new FileRow(rowNumber, code, null, "quantity too large: " + plain(number));
-		}
-		return new FileRow(rowNumber, code, number.intValueExact(), null);
+		CellType type = cell.getCellType() == CellType.FORMULA ? cell.getCachedFormulaResultType() : cell.getCellType();
+		return type == CellType.NUMERIC;
 	}
 
 	/** Column A: a text trimmed, a number as a plain number text. */

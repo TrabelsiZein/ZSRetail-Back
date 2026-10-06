@@ -56,8 +56,7 @@ tables when the script was not run.
 - `.xlsx` or `.xls`, **first sheet**, column **A** = barcode or item code, column **B** = counted quantity.
 - Empty rows are skipped. The first row with content is skipped when its column B is not a number (a header).
 - A numeric cell in column A is read as a plain whole number text: an EAN-13 typed as a number gives `6191234567890`,
-  never `6.19E+12` nor `6191234567890.0`. Text is trimmed (a non-breaking space counts as a space). An EAN that starts
-  with 0 and was typed as a number has lost that 0 in Excel: it is not found.
+  never `6.19E+12` nor `6191234567890.0`. Text is trimmed (a non-breaking space counts as a space).
 - Quantity: a whole number ≥ 0, numeric cell or text (`12`, `12.0`, `4,0`). Otherwise the row keeps its reason: `no
   quantity`, `not a number: x`, `negative quantity: -2`, `not a whole number: 1.5`, `quantity too large`.
 - At most 100,000 rows (30,000 expected).
@@ -68,7 +67,11 @@ tables when the script was not run.
 2. Every item `[id, code, type, stock]` and every active barcode (`active` true or null) are loaded once. The
    barcode filter on price of `ItemBarcodeService.getItemByBarcode` is **not** used.
 3. Each code is looked up as a **barcode first, then as an item code**, without case (SQL Server compares codes
-   without case).
+   without case). A code read from a **number cell** and not found is tried again with zeros added in front, up to 14
+   digits (Excel drops the leading 0 of an EAN or UPC typed as a number: `12345678905` for `0012345678905`), as a
+   barcode and as an item code; it is taken only when **exactly one item** matches (none or several: `NOT_FOUND`,
+   never a guess). The line keeps the code as read, with the message `Found with leading zeros: 0012345678905`. A text
+   cell is never padded.
 4. Rows of the same item are merged into one line (quantities added, `merged_rows` counted), whatever code found them.
    Unknown codes are merged by value.
 5. Line status:
@@ -182,7 +185,8 @@ non-zero difference with the right type and quantity, the other items unchanged.
 
 - `InventoryFileReaderTest`: number cell as code, header and empty rows, bad quantities, `.xls`, not Excel.
 - `InventoryCountServiceTest` (real service over `InMemoryInventory`, the stock of `InMemoryStock`): lookup by barcode
-  then code, merged rows, the four statuses and the summary; validation (stock = counted, a sale after the import,
+  then code, a number cell found with leading zeros (barcode or item code, two matches not found, a text cell never
+  padded), merged rows, the four statuses and the summary; validation (stock = counted, a sale after the import,
   one movement per difference, items not in the file untouched); a second validation 409 with nothing changed;
   validated: no new import, no delete; a draft imported again and deleted; empty file 400; 403 on every endpoint with
   the supply from the ERP and on a head office; available on a store fed by its head office.

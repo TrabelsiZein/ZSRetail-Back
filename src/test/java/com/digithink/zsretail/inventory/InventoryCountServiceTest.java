@@ -224,6 +224,40 @@ class InventoryCountServiceTest {
 	}
 
 	@Test
+	@DisplayName("A number cell not found: tried with leading zeros up to 14 digits, as a barcode and as an item code,"
+			+ " taken only when exactly one item matches")
+	void leadingZerosOfANumberCell() {
+		InMemoryCatalogue catalogue = inventory.catalogue;
+		catalogue.barcode("0012345678905", item(catalogue, "U001", 1, null)); // a UPC stored as an EAN-13
+		catalogue.barcode("0555", item(catalogue, "X001", 1, null));
+		item(catalogue, "00555", 1, null); // 555 matches two items: never a guess
+		item(catalogue, "00777", 2, null); // an item code with leading zeros
+
+		long id = (Long) service.create(null, null, "zeros.xlsx", InventoryFiles.xlsx(row("Code", "Qty"),
+				row(12345678905d, 4d), row(555d, 1d), row(777d, 3d)), "admin").get("id");
+
+		InventoryCountLine upc = inventory.line(id, "12345678905");
+		assertEquals(InventoryLineStatus.OK, upc.getStatus());
+		assertEquals(catalogue.itemByCode("U001").get().getId(), upc.getItemId());
+		assertEquals(Integer.valueOf(4), upc.getCountedQuantity());
+		assertEquals("Found with leading zeros: 0012345678905", upc.getMessage());
+
+		assertEquals(InventoryLineStatus.NOT_FOUND, inventory.line(id, "555").getStatus(), "two matches");
+		InventoryCountLine code = inventory.line(id, "777");
+		assertEquals(InventoryLineStatus.OK, code.getStatus());
+		assertEquals(catalogue.itemByCode("00777").get().getId(), code.getItemId(), "an item code too");
+	}
+
+	@Test
+	@DisplayName("A text cell is never padded: only Excel's number cells lose their zeros")
+	void textCellNotPadded() {
+		inventory.catalogue.barcode("0012345678905", item(inventory.catalogue, "U001", 1, null));
+		long id = (Long) service.create(null, null, "text.xlsx", InventoryFiles.xlsx(row("12345678905", 1d)), "admin")
+				.get("id");
+		assertEquals(InventoryLineStatus.NOT_FOUND, inventory.line(id, "12345678905").getStatus());
+	}
+
+	@Test
 	@DisplayName("A file without data rows is refused (400)")
 	void emptyFile() {
 		IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,

@@ -2,6 +2,7 @@ package com.digithink.zsretail.inventory;
 
 import static com.digithink.zsretail.inventory.InventoryFiles.row;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -34,6 +35,8 @@ class InventoryFileReaderTest {
 		assertEquals("B002", rows.get(1).code);
 		assertEquals("12", rows.get(2).code);
 		assertEquals(1, rows.get(0).rowNumber, "Excel row numbers, 1-based");
+		assertTrue(rows.get(0).numericCode, "a number cell: its leading zeros may be lost");
+		assertFalse(rows.get(1).numericCode);
 	}
 
 	@Test

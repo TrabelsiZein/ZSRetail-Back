@@ -8,10 +8,12 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -258,7 +260,34 @@ public class InventoryCountService {
 			ItemInfo item = byBarcode.get(key);
 			return item != null ? item : byCode.get(key);
 		}
+
+		/**
+		 * A code read from a number cell and not found: Excel dropped the leading zeros of an EAN or UPC typed as a
+		 * number. Tries it with zeros added in front, up to 14 digits, as a barcode and as an item code; the padded code
+		 * when exactly one item matches, null otherwise (none, or several: never a guess).
+		 */
+		String findPadded(String code) {
+			if (code == null || code.isEmpty() || code.length() >= MAX_PADDED_LENGTH
+					|| !code.chars().allMatch(Character::isDigit)) {
+				return null;
+			}
+			Map<Long, String> matches = new LinkedHashMap<>();
+			StringBuilder padded = new StringBuilder(code);
+			while (padded.length() < MAX_PADDED_LENGTH) {
+				padded.insert(0, '0');
+				String candidate = padded.toString();
+				for (ItemInfo item : new ItemInfo[] { byBarcode.get(candidate), byCode.get(candidate) }) {
+					if (item != null) {
+						matches.putIfAbsent(item.id, candidate);
+					}
+				}
+			}
+			return matches.size() == 1 ? matches.values().iterator().next() : null;
+		}
 	}
+
+	/** EAN-13, UPC-A (12) and GTIN-14: a number cell is padded with zeros up to this length at most. */
+	static final int MAX_PADDED_LENGTH = 14;
 
 	static final class ItemInfo {
 		final long id;
@@ -278,10 +307,15 @@ public class InventoryCountService {
 	static List<InventoryCountLine> buildLines(List<FileRow> rows, Catalogue catalogue) {
 		Map<String, Draft> drafts = new LinkedHashMap<>();
 		for (FileRow row : rows) {
-			ItemInfo item = catalogue.find(row.code);
+			ItemInfo found = catalogue.find(row.code);
+			String padded = found == null && row.numericCode ? catalogue.findPadded(row.code) : null;
+			ItemInfo item = padded != null ? catalogue.find(padded) : found;
 			String groupKey = item != null ? "I" + item.id : "C" + key(row.code);
 			Draft draft = drafts.computeIfAbsent(groupKey, k -> new Draft(row.code, item));
 			draft.rows++;
+			if (padded != null) {
+				draft.foundAs.add(padded);
+			}
 			if (row.quantityError != null) {
 				draft.errors.add("row " + row.rowNumber + ": " + row.quantityError);
 			} else {
@@ -297,6 +331,8 @@ public class InventoryCountService {
 		int rows;
 		long sum;
 		final List<String> errors = new ArrayList<>();
+		/** The codes found with leading zeros added (a number cell). */
+		final Set<String> foundAs = new LinkedHashSet<>();
 
 		Draft(String code, ItemInfo item) {
 			this.code = code;
@@ -329,6 +365,9 @@ public class InventoryCountService {
 			} else {
 				line.setStatus(InventoryLineStatus.OK);
 				line.setCountedQuantity((int) sum);
+				if (!foundAs.isEmpty()) {
+					line.setMessage(message("Found with leading zeros: " + String.join(", ", foundAs)));
+				}
 			}
 			return line;
 		}
