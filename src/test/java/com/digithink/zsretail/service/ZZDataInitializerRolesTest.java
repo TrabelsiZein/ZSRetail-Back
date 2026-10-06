@@ -117,6 +117,15 @@ class ZZDataInitializerRolesTest {
 		return role.getPermissions().stream().anyMatch(p -> p.startsWith("read:admin-headoffice"));
 	}
 
+	private static final String CASHIER_INTERFACE = "read:cashier-interface";
+
+	/** ADMIN of a new store database: today's set plus the till (the frontend's "POS" button). */
+	private static Set<String> storeAdminPermissions() throws Exception {
+		Set<String> expected = new HashSet<>(staticSet("ADMIN_PERMISSIONS"));
+		expected.add(CASHIER_INTERFACE);
+		return expected;
+	}
+
 	private static MockEnvironment headOffice() {
 		return new MockEnvironment().withProperty("node.type", "HEAD_OFFICE");
 	}
@@ -132,6 +141,7 @@ class ZZDataInitializerRolesTest {
 		Set<String> expected = new HashSet<>(staticSet("ADMIN_PERMISSIONS"));
 		expected.addAll(HEAD_OFFICE_PERMISSIONS);
 		assertEquals(expected, roles.get("ADMIN").getPermissions());
+		assertFalse(roles.get("ADMIN").getPermissions().contains(CASHIER_INTERFACE), "a head office never opens the till");
 		assertEquals(java.util.Arrays.asList("ADMIN", "RESPONSIBLE", "POS_USER"), saves, "each role saved once");
 		assertFalse(hasHeadOfficePermission(roles.get("RESPONSIBLE")));
 		assertFalse(hasHeadOfficePermission(roles.get("POS_USER")));
@@ -145,13 +155,13 @@ class ZZDataInitializerRolesTest {
 	}
 
 	@Test
-	@DisplayName("Stores (standalone and ERP profiles): the three roles get exactly today's permission sets, no Network permission")
+	@DisplayName("Stores (standalone and ERP profiles): ADMIN gets today's set plus read:cashier-interface, the other roles exactly today's sets, no Network permission")
 	void storesSeedAsToday() throws Exception {
 		for (boolean[] flags : STORE_PROFILES) {
 			Map<String, AppRole> roles = seedRoles(new MockEnvironment(), flags[0],
 					Collections.emptyMap());
 
-			assertEquals(staticSet("ADMIN_PERMISSIONS"), roles.get("ADMIN").getPermissions());
+			assertEquals(storeAdminPermissions(), roles.get("ADMIN").getPermissions());
 			assertEquals(staticSet("RESPONSIBLE_PERMISSIONS"), roles.get("RESPONSIBLE").getPermissions());
 			assertEquals(staticSet("POS_PERMISSIONS"), roles.get("POS_USER").getPermissions());
 			for (AppRole role : roles.values()) {
@@ -169,7 +179,7 @@ class ZZDataInitializerRolesTest {
 		for (boolean[] flags : STORE_PROFILES) {
 			Map<String, AppRole> roles = seedRoles(linked, flags[0], Collections.emptyMap());
 
-			Set<String> expected = new HashSet<>(staticSet("ADMIN_PERMISSIONS"));
+			Set<String> expected = storeAdminPermissions();
 			expected.add("read:admin-holink-status");
 			assertEquals(expected, roles.get("ADMIN").getPermissions());
 			assertEquals(staticSet("RESPONSIBLE_PERMISSIONS"), roles.get("RESPONSIBLE").getPermissions());
@@ -248,7 +258,7 @@ class ZZDataInitializerRolesTest {
 	void suppliedStoreAdminGetsReception() throws Exception {
 		List<String> saves = new ArrayList<>();
 		Map<String, AppRole> roles = seedRoles(suppliedStore(), true, Collections.emptyMap(), saves);
-		Set<String> expected = new HashSet<>(staticSet("ADMIN_PERMISSIONS"));
+		Set<String> expected = storeAdminPermissions();
 		expected.add("read:admin-holink-status");
 		expected.add("read:admin-holink-deliveries");
 		assertEquals(expected, roles.get("ADMIN").getPermissions());

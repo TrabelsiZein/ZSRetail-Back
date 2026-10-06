@@ -185,19 +185,22 @@ public class ZZDataInitializer {
 	/**
 	 * Default ADMIN permissions; a head office adds its pages, a store linked to a head office adds the "Head office
 	 * link" page (docs/modules/head-office.md) and, when its goods come from the head office, the BL reception page.
+	 * A store's ADMIN may also open the till (read:cashier-interface, the frontend's "POS" button); a head office never.
 	 * Used when the role is created; afterwards a head office tops up its ADMIN role, and a store whose goods come from
 	 * the head office its BL reception page only (addMissingPermissions); other roles and permissions are never changed.
 	 */
 	private Set<String> adminPermissions() {
-		Set<String> extra = applicationModeService.isHeadOffice() ? HEAD_OFFICE_ADMIN_PERMISSIONS
-				: applicationModeService.isHeadOfficeLinked() ? HEAD_OFFICE_LINK_ADMIN_PERMISSIONS : null;
-		if (extra == null) {
-			return ADMIN_PERMISSIONS;
-		}
 		Set<String> permissions = new HashSet<>(ADMIN_PERMISSIONS);
-		permissions.addAll(extra);
-		if (!applicationModeService.isHeadOffice() && applicationModeService.isSupplyFromHeadOffice()) {
-			permissions.addAll(SUPPLY_ADMIN_PERMISSIONS);
+		if (applicationModeService.isHeadOffice()) {
+			permissions.addAll(HEAD_OFFICE_ADMIN_PERMISSIONS);
+			return permissions;
+		}
+		permissions.add("read:cashier-interface");
+		if (applicationModeService.isHeadOfficeLinked()) {
+			permissions.addAll(HEAD_OFFICE_LINK_ADMIN_PERMISSIONS);
+			if (applicationModeService.isSupplyFromHeadOffice()) {
+				permissions.addAll(SUPPLY_ADMIN_PERMISSIONS);
+			}
 		}
 		return permissions;
 	}
