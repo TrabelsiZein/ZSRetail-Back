@@ -1,6 +1,6 @@
 # Inventory count (Inventaire)
 
-**Status**: backend done (2.1.0, first version); frontend to do.
+**Status**: done (2.1.0, first version): backend and the store admin page (`admin-pages.md`, "Inventory counts").
 
 A store that keeps its own stock imports an Excel file of a physical count, sees the differences with the stock, and
 validates: the stock of each counted item becomes the counted quantity, with one stock movement per difference.
@@ -193,8 +193,9 @@ non-zero difference with the right type and quantity, the other items unchanged.
 - `ZZDataInitializerRolesTest`: the two permissions on a new store database without an ERP, topped up once on an
   existing one, never with an ERP nor on a head office.
 
-## To do (frontend)
+## Frontend
 
-The page (list, import, summary with the open sessions warning, lines with the filters, validate, delete), its route
-and menu entry with the two permissions, the labels of `INVENTORY_IN` / `INVENTORY_OUT` in the stock movements report
-(its type filter is a fixed list in `StockMovementsReport.vue`), and the two permissions on the Roles page.
+Store admin pages `InventoryCounts.vue` and `InventoryCountDetail.vue` (routes `admin-inventory-counts` and
+`admin-inventory-count`, hidden when the supply is the ERP's with `STOCK_ROUTES` of `navigation/store-mode-routes.js`);
+see `admin-pages.md`, "Inventory counts". The stock movements report lists `INVENTORY_IN` / `INVENTORY_OUT` with their
+labels; the Roles page offers the two permissions in the group Stock. The line messages are the backend's (English).
