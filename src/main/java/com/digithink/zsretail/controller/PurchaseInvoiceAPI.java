@@ -23,6 +23,7 @@ import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.dto.EligiblePurchaseDTO;
 import com.digithink.zsretail.dto.PurchaseInvoiceListDTO;
 import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
+import com.digithink.zsretail.holink.service.SupplyVendorGuard;
 import com.digithink.zsretail.model.PurchaseHeader;
 import com.digithink.zsretail.model.PurchaseInvoiceHeader;
 import com.digithink.zsretail.model.Vendor;
@@ -54,6 +55,10 @@ public class PurchaseInvoiceAPI {
 	/** Step 6: the rules of a store whose catalogue is the head office's; no bean on every other installation. */
 	@Autowired(required = false)
 	private ObjectProvider<StoreCatalogueGuard> catalogueGuard;
+
+	/** Step 7B: the head office vendor of a store whose goods come from the head office; no bean elsewhere. */
+	@Autowired(required = false)
+	private ObjectProvider<SupplyVendorGuard> supplyVendorGuard;
 
 	private void ensureSupplyNotFromErp() {
 		if (applicationModeService.isSupplyFromErp()) {
@@ -162,6 +167,11 @@ public class PurchaseInvoiceAPI {
 			StoreCatalogueGuard guard = catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
 			if (guard != null && guard.purchase() != null) { // step 6: no purchases without the purchase right
 				return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(guard.purchase()));
+			}
+			SupplyVendorGuard vendorGuard = supplyVendorGuard == null ? null : supplyVendorGuard.getIfAvailable();
+			String vendorRefusal = vendorGuard == null ? null : vendorGuard.purchase(request.getVendorId());
+			if (vendorRefusal != null) { // step 7B: the head office's invoices arrive from the head office only
+				return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(vendorRefusal));
 			}
 
 			if (request.getVendorId() == null) {

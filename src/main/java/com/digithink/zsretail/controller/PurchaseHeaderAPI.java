@@ -32,6 +32,7 @@ import com.digithink.zsretail.dto.ProcessPurchaseRequestDTO;
 import com.digithink.zsretail.dto.SetPurchasePaidRequestDTO;
 import com.digithink.zsretail.dto.VendorBalanceSummaryDTO;
 import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
+import com.digithink.zsretail.holink.service.SupplyVendorGuard;
 import com.digithink.zsretail.model.PurchaseHeader;
 import com.digithink.zsretail.model.UserAccount;
 import com.digithink.zsretail.security.CurrentUserProvider;
@@ -61,19 +62,43 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 		return refusal == null ? null : ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
 	}
 
-	/** The generic create; step 6: 409 without the purchase right on a store whose items come from the head office. */
+	/** Step 7B: the head office vendor of a store whose goods come from the head office; no bean elsewhere. */
+	@Autowired(required = false)
+	private ObjectProvider<SupplyVendorGuard> supplyVendorGuard;
+
+	/** Step 7B: 409 for a purchase by hand on the head office vendor; null otherwise and without the guard. */
+	private ResponseEntity<?> headOfficeVendorRefused(Long vendorId) {
+		SupplyVendorGuard guard = supplyVendorGuard == null ? null : supplyVendorGuard.getIfAvailable();
+		String refusal = guard == null ? null : guard.purchase(vendorId);
+		return refusal == null ? null : ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
+	}
+
+	private static Long vendorId(PurchaseHeader entity) {
+		return entity == null || entity.getVendor() == null ? null : entity.getVendor().getId();
+	}
+
+	/**
+	 * The generic create; step 6: 409 without the purchase right on a store whose items come from the head office;
+	 * step 7B: 409 on the head office vendor.
+	 */
 	@Override
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody PurchaseHeader entity) {
 		ResponseEntity<?> refusal = refused(StoreCatalogueGuard::purchase);
+		if (refusal == null) {
+			refusal = headOfficeVendorRefused(vendorId(entity));
+		}
 		return refusal != null ? refusal : super.create(entity);
 	}
 
-	/** The generic update; step 6: as create. */
+	/** The generic update (the body may change the vendor); steps 6 and 7B: as create. */
 	@Override
 	@PutMapping("/{id}")
 	public ResponseEntity<?> update(@PathVariable Long id, @RequestBody PurchaseHeader entity) {
 		ResponseEntity<?> refusal = refused(StoreCatalogueGuard::purchase);
+		if (refusal == null) {
+			refusal = headOfficeVendorRefused(vendorId(entity));
+		}
 		return refusal != null ? refusal : super.update(id, entity);
 	}
 
@@ -175,6 +200,9 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 		ResponseEntity<?> refusal = refused(guard -> guard.purchaseLines(request.getLines() == null ? new ArrayList<Long>()
 				: request.getLines().stream().map(ProcessPurchaseRequestDTO.PurchaseLineDTO::getItemId)
 						.collect(Collectors.toList()))); // step 6
+		if (refusal == null) {
+			refusal = headOfficeVendorRefused(request.getVendorId()); // step 7B
+		}
 		if (refusal != null) {
 			return refusal;
 		}

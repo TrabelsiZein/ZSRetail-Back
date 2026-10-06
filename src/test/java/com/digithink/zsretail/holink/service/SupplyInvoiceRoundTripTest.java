@@ -23,10 +23,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
+import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.support.TransactionOperations;
 
 import com.digithink.zsretail.config.ApplicationModeService;
+import com.digithink.zsretail.controller.PurchaseHeaderAPI;
+import com.digithink.zsretail.controller.PurchaseInvoiceAPI;
 import com.digithink.zsretail.controller.VendorAPI;
+import com.digithink.zsretail.dto.ProcessPurchaseRequestDTO;
 import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryInputDTO;
@@ -44,6 +48,7 @@ import com.digithink.zsretail.holink.model.DownRecord;
 import com.digithink.zsretail.holink.model.ReceivedDelivery;
 import com.digithink.zsretail.model.CompanyInformation;
 import com.digithink.zsretail.model.Item;
+import com.digithink.zsretail.model.PurchaseHeader;
 import com.digithink.zsretail.model.PurchaseInvoiceHeader;
 import com.digithink.zsretail.model.PurchaseInvoiceLine;
 import com.digithink.zsretail.model.Vendor;
@@ -275,6 +280,48 @@ class SupplyInvoiceRoundTripTest {
 		assertNull(guard.update(other.getId(), new Vendor()));
 		assertNull(guard.delete(other.getId()));
 		assertNull(guard.create(new Vendor()));
+	}
+
+	@Test
+	@DisplayName("No purchase by hand on the head office vendor: process-purchase, create, update and a purchase invoice answer 409; another vendor goes on")
+	void noPurchaseByHandOnHeadOfficeVendor() throws Exception {
+		deliverAndConfirm("B001");
+		pull();
+		Vendor headOffice = vendors.values().iterator().next();
+		Vendor other = new Vendor();
+		other.setId(nextId++);
+		other.setVendorCode("V1");
+		vendors.put(other.getId(), other);
+		int invoices = headers.size();
+		SupplyVendorGuard guard = new SupplyVendorGuard(vendorRepository());
+		ApplicationModeService mode = TestModes.standalone();
+
+		PurchaseHeaderAPI purchases = new PurchaseHeaderAPI();
+		set(purchases, PurchaseHeaderAPI.class, "applicationModeService", mode);
+		set(purchases, PurchaseHeaderAPI.class, "supplyVendorGuard",
+				new StaticListableBeanFactory(Collections.singletonMap("guard", guard)).getBeanProvider(SupplyVendorGuard.class));
+		ProcessPurchaseRequestDTO request = new ProcessPurchaseRequestDTO();
+		request.setVendorId(headOffice.getId());
+		ResponseEntity<?> answer = purchases.processPurchase(request);
+		assertEquals(409, answer.getStatusCodeValue());
+		assertEquals(SupplyVendorGuard.NO_PURCHASE, answer.getBody());
+		PurchaseHeader onHeadOffice = new PurchaseHeader();
+		onHeadOffice.setVendor(headOffice);
+		assertEquals(409, purchases.create(onHeadOffice).getStatusCodeValue());
+		assertEquals(409, purchases.update(1L, onHeadOffice).getStatusCodeValue(), "moving a purchase onto it");
+
+		PurchaseInvoiceAPI purchaseInvoices = new PurchaseInvoiceAPI();
+		set(purchaseInvoices, PurchaseInvoiceAPI.class, "applicationModeService", mode);
+		set(purchaseInvoices, PurchaseInvoiceAPI.class, "supplyVendorGuard",
+				new StaticListableBeanFactory(Collections.singletonMap("guard", guard)).getBeanProvider(SupplyVendorGuard.class));
+		PurchaseInvoiceAPI.CreatePurchaseInvoiceRequest invoice = new PurchaseInvoiceAPI.CreatePurchaseInvoiceRequest();
+		invoice.setVendorId(headOffice.getId());
+		invoice.setPurchaseIds(Collections.singletonList(1L));
+		assertEquals(409, purchaseInvoices.createPurchaseInvoice(invoice).getStatusCodeValue());
+
+		assertNull(guard.purchase(other.getId()), "another vendor goes on");
+		assertNull(guard.purchase(null), "no vendor: left to the existing validation");
+		assertEquals(invoices, headers.size(), "the head office's invoices are untouched");
 	}
 
 	private static void set(Object target, Class<?> declaring, String name, Object value) throws Exception {
