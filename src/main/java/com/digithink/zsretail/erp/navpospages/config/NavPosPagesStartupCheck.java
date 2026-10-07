@@ -60,6 +60,15 @@ public class NavPosPagesStartupCheck {
 					+ "price-includes-vat: true (Unit_Price includes the VAT) or false (Unit_Price is before VAT)");
 		}
 		checkRange(env, "barcode-page-size", 1, 5000);
+		checkRange(env, "max-changes-per-run", 1, Integer.MAX_VALUE);
+		checkRange(env, "deactivate-guard-percent", 0, 100);
+		if (env.containsProperty(P + "dry-run")) {
+			String dryRun = trimmed(env.getProperty(P + "dry-run"));
+			if (!"true".equalsIgnoreCase(dryRun) && !"false".equalsIgnoreCase(dryRun)) {
+				throw new IllegalStateException("Invalid value '" + dryRun + "' for property " + P
+						+ "dry-run: true (read and compare only) or false");
+			}
+		}
 		checkRange(env, "connect-timeout-seconds", 1, Integer.MAX_VALUE);
 		checkRange(env, "read-timeout-seconds", 1, Integer.MAX_VALUE);
 	}

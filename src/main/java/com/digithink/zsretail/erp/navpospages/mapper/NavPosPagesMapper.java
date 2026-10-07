@@ -27,7 +27,7 @@ import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
  * ignored; a blank Code is left out.</li>
  * <li>Items: one item per Item_No, the row with a blank Variant_Code first, else the lowest Variant_Code; the VAT is
  * the configured one; with price-includes-vat the price is brought back before VAT (10 decimals, HALF_UP). A null or
- * zero price is kept as 0 and noted.</li>
+ * zero price is kept as 0, noted, and the item is inactive (step 6).</li>
  * <li>Barcodes: the same barcode twice keeps the highest Entry_No.</li>
  * </ul>
  */
@@ -142,13 +142,15 @@ public class NavPosPagesMapper {
 			item.setFamilyExternalId(blankToNull(row.getFamily()));
 			item.setSubFamilyExternalId(blankToNull(row.getSubfamily()));
 			item.setDefaultVAT(defaultVat);
-			item.setActive(Boolean.TRUE);
 			BigDecimal price = row.getUnitPrice();
 			if (price == null || price.signum() == 0) {
+				// Step 6: an item without a price is not sold: inactive, active again when the ERP gives it a price
 				count(notes, ZERO_PRICE);
 				item.setUnitPrice(BigDecimal.ZERO);
+				item.setActive(Boolean.FALSE);
 			} else {
 				item.setUnitPrice(priceBeforeVat(price));
+				item.setActive(Boolean.TRUE);
 			}
 			items.add(item);
 		}

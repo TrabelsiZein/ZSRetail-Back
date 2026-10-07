@@ -111,6 +111,24 @@ class NavPosPagesRestClientTest {
 	}
 
 	@Test
+	@DisplayName("Step 6: the barcodes of some items, $filter on Item_No (quotes doubled), every row, next link followed")
+	void barcodesOfItems() {
+		String first = NavPosPagesTestSupport.COMPANY_URL + "ItemBarCodePOS?$filter=Item_No%20eq%20'000002'%20or%20Item_No"
+				+ "%20eq%20'O''B'&$select=Item_No,Cross_Reference_No,Entry_No";
+		String next = NavPosPagesTestSupport.COMPANY_URL + "ItemBarCodePOS?$skiptoken='2'";
+		server.expect(requestTo(first)).andExpect(method(HttpMethod.GET)).andRespond(withSuccess(
+				"{\"value\":[{\"Item_No\":\"000002\",\"Cross_Reference_No\":\"000002\",\"Entry_No\":20661}],"
+						+ "\"@odata.nextLink\":\"" + next + "\"}", MediaType.APPLICATION_JSON));
+		server.expect(requestTo(next)).andExpect(method(HttpMethod.GET)).andRespond(withSuccess(
+				"{\"value\":[{\"Item_No\":\"O'B\",\"Cross_Reference_No\":\"619\",\"Entry_No\":3}]}", MediaType.APPLICATION_JSON));
+		List<NavPosBarcodeRow> rows = client.readBarcodesOfItems(java.util.Arrays.asList("000002", "O'B"));
+		server.verify();
+		assertEquals(2, rows.size());
+		assertTrue(client.readBarcodesOfItems(new java.util.ArrayList<>()).isEmpty(), "no call without items");
+		assertEquals(NavPosPagesTestSupport.COMPANY_URL + "PointStockPOS", client.pageUrl("PointStockPOS"));
+	}
+
+	@Test
 	@DisplayName("An HTTP error names the page and the status; a timeout names the page")
 	void errors() {
 		server.expect(requestTo(NavPosPagesTestSupport.COMPANY_URL + "PointStockPOS?$filter=Location_Code%20eq%20'FRANCHISE'"

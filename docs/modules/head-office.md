@@ -1213,7 +1213,7 @@ A second ERP connector, package `erp/navpospages`, for a Dynamics NAV / Business
 (`ItemCategory`, `PointStockPOS`, `ItemBarCodePOS`): same ERP as `erp/dynamicsnav`, other pages. **Read only**: its RestTemplate
 refuses any method other than GET before it leaves (`NavPosPagesConfig.GetOnly`). In step 5 it reads and translates; it hands
 nothing to the import (every fetch of `NavPosPagesConnector` answers an empty list, every push a failure "read only"); step 6
-makes the four catalogue fetches return the changes. No existing class changed: `@Primary` wins over `NoOpErpConnector`.
+makes the four catalogue fetches return the changes (below). No existing class changed: `@Primary` wins over `NoOpErpConnector`.
 
 | Class | Role |
 |---|---|
@@ -1246,6 +1246,34 @@ sub-family without its family, a `Categorie` row, `price-includes-vat=false`), `
 `NavPosPagesConnectorTest` (empty lists and failures; the connector injected in `ErpSynchronizationManager`: NoOp, Dynamics NAV,
 navpospages), `NavPosPagesLiveReadTest` (skipped unless `-Dnavpospages.live=true`: a GET-only read of the ERP named in
 `configs/local/happyness_ho.properties`, counts, five rows and the time per page, two barcode pages).
+
+**Step 6: changes only** (`erp/navpospages/sync`). The four catalogue fetches of `NavPosPagesConnector` now hand to the import
+(`ErpSyncJobRunner` → `ErpItemBootstrapService`, both unchanged) only what differs between the ERP and the head office tables
+(`NavPosPagesSync`): the head office tables are the memory of what was seen, so a row the import did not save is handed again
+at the next run. At most `max-changes-per-run` rows per fetch, by code (barcodes by `Entry_No`); the rest at the next runs.
+
+| Rule | Detail |
+|---|---|
+| Compared | Families, sub-families: name (the import falls back to the code), description, active, ERP id, the family of a sub-family. Items: what the import applies: name, description, VAT, active, ERP id, the price **with VAT at 3 decimals** (a stored price before VAT is never seen as changed), family and sub-family (only when the ERP's one is at the head office: the import keeps the current one otherwise), discount group and maximum discount (the import clears them) |
+| Price null or 0 | The item is handed inactive; active again when the ERP gives it a price |
+| Item gone from the location | Handed inactive with the head office values, never deleted. Only items of the ERP: `item.erp_external_id` is set only by the ERP import; hand-made items, packs made at the head office, the data import and `TAX_STAMP` have none and are never touched |
+| Guard | An empty ERP answer, or more missing items than `deactivate-guard-percent` (default 10) of the active ERP items: nothing deactivated in that run, a warning in the summary. Price-0 items do not count |
+| `TAX_STAMP_ERP_ITEM_CODE` | That ERP item is left out (the import never saves it) |
+| Order | Sub-families wait while a family of the ERP is not at the head office; items while a family or sub-family is not (checked on the categories page itself). Barcodes wait while the last item run counted new items not at the head office yet (counted **before** handing over: 0 proves the last batch was saved), or no item run happened |
+| Barcode cursor | On `Entry_No`, pages of `barcode-page-size`. It moves only over rows already at the head office (checked in its barcode table), left out (blank, item not at the head office) or replaced by a later row of the same barcode: it never passes a row handed but not saved. Gaps in `Entry_No` are no problem |
+| New item later | An item handed as new once the cursor has started is listed ("needs its barcodes"); the next barcode run reads its barcodes by `Item_No` (20 items per call), hands the missing ones, and the item leaves the list once all its barcodes are at the head office; the cursor goes on when the list has nothing to hand |
+| Summary | One entry per run in the communications log (the response of the pull, when `ERP_SYNC_TRACKING_LEVEL` is `ALL`, the default seeded): run, page, read, new, changed, deactivated, handed, held back by the cap, left out by reason, notes, waiting, guard, cursor from/to. Never the list |
+| Dry run | `dry-run=true`: reads, compares and writes the summary; hands nothing; the state table is not written |
+
+**State table** `navpospages_state` (`state_key`, `state_value`, `updated_at`): the barcode cursor, the count of the last item
+run, the items that need their barcodes. Not a JPA entity (Hibernate would create it on every installation): created with plain
+SQL when missing, at the start, by `JdbcNavPosPagesState`, which exists only with `erp.navpospages.enabled=true`. A store or a
+head office without this connector never gets it.
+
+Tests: `NavPosPagesSyncTest` (15: first load with the cap over several runs, nothing changed, price change, price 0 then a price,
+item gone, guard, empty answer, tax stamp item, barcodes waiting for items, cursor over gaps with an item outside the location,
+cursor not moved when not saved, a new item's barcodes by item number, no list during the first load, dry run, the summary
+kept for the log).
 
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter

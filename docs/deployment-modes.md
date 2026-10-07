@@ -161,12 +161,16 @@ writes to the ERP). The lines go in the head office's **outside file** (e.g. `co
 | `erp.navpospages.default-vat` | The VAT of every item, whole number 0 to 100 | required |
 | `erp.navpospages.price-includes-vat` | `true` (Unit_Price includes the VAT) \| `false` | required |
 | `erp.navpospages.connect-timeout-seconds`, `.read-timeout-seconds` | At least 1 | `10`, `60` |
+| `erp.navpospages.max-changes-per-run` (step 6) | Rows handed to the import per fetch, at least 1 | `1000` |
+| `erp.navpospages.deactivate-guard-percent` (step 6) | 0 to 100: above this share of the active ERP items missing, nothing is deactivated | `10` |
+| `erp.navpospages.dry-run` (step 6) | `true` (read, compare, summary only) \| `false` | `false` |
 
 Startup refusals with `enabled=true` (the message names the key, the application does not start): `erp.dynamicsnav.enabled=true`
 as well (one ERP connector per installation); not a head office whose catalogue only comes from the ERP; a blank address,
 company, username, password or location; a wrong `default-vat`, `price-includes-vat`, `barcode-page-size` or timeout. One INFO
 line at startup: `ERP connector navpospages (read only, GET): <address>, company <company>, location <code>, pages <three>`.
-Step 5 reads and translates only; no ERP job is switched on (`erp.sync.enabled` is not set).
+Step 6: the four catalogue import jobs hand the changes only (`docs/modules/head-office.md`); they run when `erp.sync.enabled=true`
+and the jobs are enabled on the ERP jobs page (none is switched on by these files).
 
 **Step 9 questions** (tasks 9.1b to 9.1g): `isCatalogueFromErp()`, `isCustomersFromErp()`, `isSupplyFromErp()`, `hasErp()` (some
 owner is the ERP). With the ERP owning all or nothing they answer alike for every configuration that starts, except the

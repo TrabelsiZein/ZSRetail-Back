@@ -10,12 +10,15 @@ import static org.mockito.Mockito.mock;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.persistence.EntityManager;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.digithink.zsretail.erp.dto.ErpOperationResult;
@@ -30,6 +33,9 @@ import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesStartupCheck;
 import com.digithink.zsretail.erp.navpospages.connector.NavPosPagesConnector;
 import com.digithink.zsretail.erp.navpospages.reader.NavPosPagesReader;
+import com.digithink.zsretail.erp.navpospages.sync.JdbcNavPosPagesState;
+import com.digithink.zsretail.erp.navpospages.sync.JpaNavPosPagesHeadOffice;
+import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesSync;
 import com.digithink.zsretail.erp.service.ErpCommunicationService;
 import com.digithink.zsretail.erp.service.ErpSynchronizationManager;
 import com.digithink.zsretail.erp.spi.ErpConnector;
@@ -56,12 +62,15 @@ class NavPosPagesConnectorTest {
 						DynamicsNavConfig.class, DynamicsNavMapper.class, DynamicsNavRestClient.class,
 						DynamicsNavConnector.class, NavPosPagesStartupCheck.class, NavPosPagesProperties.class,
 						NavPosPagesConfig.class, NavPosPagesRestClient.class, NavPosPagesReader.class,
-						NavPosPagesConnector.class, ErpSynchronizationManager.class)
+						NavPosPagesConnector.class, JdbcNavPosPagesState.class, JpaNavPosPagesHeadOffice.class,
+						NavPosPagesSync.class, ErpSynchronizationManager.class)
 				// Plain singletons: never called here, and not autowired
 				.withInitializer(ctx -> {
 					ctx.getBeanFactory().registerSingleton("generalSetupService", mock(GeneralSetupService.class));
 					ctx.getBeanFactory().registerSingleton("locationService", mock(LocationService.class));
 					ctx.getBeanFactory().registerSingleton("erpCommunicationService", mock(ErpCommunicationService.class));
+					ctx.getBeanFactory().registerSingleton("jdbcTemplate", mock(JdbcTemplate.class));
+					ctx.getBeanFactory().registerSingleton("entityManager", mock(EntityManager.class));
 				});
 	}
 
@@ -80,13 +89,10 @@ class NavPosPagesConnectorTest {
 	}
 
 	@Test
-	@DisplayName("Every fetch answers an empty list, every push or update a read-only failure")
+	@DisplayName("Every fetch but the catalogue answers an empty list, every push or update a read-only failure")
 	void readOnly() {
-		NavPosPagesConnector connector = new NavPosPagesConnector();
-		assertTrue(connector.fetchItemFamilies(null).isEmpty());
-		assertTrue(connector.fetchItemSubFamilies(null).isEmpty());
-		assertTrue(connector.fetchItems(null).isEmpty());
-		assertTrue(connector.fetchItemBarcodes(null).isEmpty());
+		// Step 6: the four catalogue fetches hand the changes (NavPosPagesSyncTest); every other fetch is empty
+		NavPosPagesConnector connector = new NavPosPagesConnector(null);
 		assertTrue(connector.fetchLocations(null).isEmpty());
 		assertTrue(connector.fetchCustomers(null).isEmpty());
 		assertTrue(connector.fetchSalesPrices(null).isEmpty());

@@ -2,6 +2,7 @@ package com.digithink.zsretail.erp.navpospages.connector;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
@@ -25,7 +26,10 @@ import com.digithink.zsretail.erp.dto.ErpSessionDTO;
 import com.digithink.zsretail.erp.dto.ErpSyncFilter;
 import com.digithink.zsretail.erp.dto.ErpTicketDTO;
 import com.digithink.zsretail.erp.dto.ErpTicketLineDTO;
+import com.digithink.zsretail.erp.dto.PullOperationResult;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
+import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesSync;
+import com.digithink.zsretail.erp.navpospages.sync.NavPosRun;
 import com.digithink.zsretail.erp.spi.ErpConnector;
 
 /**
@@ -35,9 +39,10 @@ import com.digithink.zsretail.erp.spi.ErpConnector;
  * {@code @Primary} so that it wins over NoOpErpConnector (also present, since erp.dynamicsnav.enabled is false) without
  * changing it.
  * <p>
- * In this step every fetch answers an empty list (nothing is handed to the import) and every push or update a failure:
- * the pages are read and translated by {@link com.digithink.zsretail.erp.navpospages.reader.NavPosPagesReader}. Step 6
- * makes the four catalogue fetches (families, sub-families, items, barcodes) return the changes.
+ * Step 6: the four catalogue fetches (families, sub-families, items, barcodes) hand to the import only the changes
+ * against the head office tables ({@link NavPosPagesSync}); the summary of each run is the response written to the
+ * communications log ({@link #getLastPullOperationResult()}), never the list. Every other fetch answers an empty list,
+ * every push or update a failure.
  */
 @Component
 @Primary
@@ -46,24 +51,51 @@ public class NavPosPagesConnector implements ErpConnector {
 
 	static final String READ_ONLY = "The navpospages ERP connector is read only: it sends nothing to the ERP.";
 
+	/** The summary of the last fetch of this thread, for the communications log (like the Dynamics NAV connector). */
+	private static final ThreadLocal<PullOperationResult<?>> LAST_PULL = new ThreadLocal<>();
+
+	private final NavPosPagesSync sync;
+
+	public NavPosPagesConnector(NavPosPagesSync sync) {
+		this.sync = sync;
+	}
+
 	@Override
 	public List<ErpItemFamilyDTO> fetchItemFamilies(ErpSyncFilter filter) {
-		return Collections.emptyList();
+		return changes(sync::families);
 	}
 
 	@Override
 	public List<ErpItemSubFamilyDTO> fetchItemSubFamilies(ErpSyncFilter filter) {
-		return Collections.emptyList();
+		return changes(sync::subFamilies);
 	}
 
 	@Override
 	public List<ErpItemDTO> fetchItems(ErpSyncFilter filter) {
-		return Collections.emptyList();
+		return changes(sync::items);
 	}
 
 	@Override
 	public List<ErpItemBarcodeDTO> fetchItemBarcodes(ErpSyncFilter filter) {
-		return Collections.emptyList();
+		return changes(sync::barcodes);
+	}
+
+	/** One run: the rows handed to the import; its summary kept for the communications log. */
+	private <T> List<T> changes(Supplier<NavPosRun<T>> run) {
+		LAST_PULL.remove();
+		NavPosRun<T> result = run.get();
+		LAST_PULL.set(new PullOperationResult<>(result.getHanded(), result.getUrl(), result.getSummary()));
+		return result.getHanded();
+	}
+
+	@Override
+	public PullOperationResult<?> getLastPullOperationResult() {
+		return LAST_PULL.get();
+	}
+
+	@Override
+	public void clearLastPullOperationResult() {
+		LAST_PULL.remove();
 	}
 
 	@Override

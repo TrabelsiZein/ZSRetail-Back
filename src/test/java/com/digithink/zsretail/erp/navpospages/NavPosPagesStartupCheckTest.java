@@ -105,6 +105,19 @@ class NavPosPagesStartupCheckTest {
 			assertEquals("Invalid value '" + size + "' for property erp.navpospages.barcode-page-size: a whole number"
 					+ " from 1 to 5000", refusal(with("erp.navpospages.barcode-page-size", size)), "size " + size);
 		}
+		// Step 6
+		for (String cap : new String[] { "0", "-1", "many" }) {
+			assertEquals("Invalid value '" + cap + "' for property erp.navpospages.max-changes-per-run: a whole number, at"
+					+ " least 1", refusal(with("erp.navpospages.max-changes-per-run", cap)), "cap " + cap);
+		}
+		for (String percent : new String[] { "101", "-1", "10%" }) {
+			assertEquals("Invalid value '" + percent + "' for property erp.navpospages.deactivate-guard-percent: a whole"
+					+ " number from 0 to 100", refusal(with("erp.navpospages.deactivate-guard-percent", percent)), percent);
+		}
+		NavPosPagesStartupCheck.check(with("erp.navpospages.deactivate-guard-percent", "0"));
+		assertEquals("Invalid value 'yes' for property erp.navpospages.dry-run: true (read and compare only) or false",
+				refusal(with("erp.navpospages.dry-run", "yes")));
+		NavPosPagesStartupCheck.check(with("erp.navpospages.dry-run", " TRUE "));
 		for (String key : new String[] { "connect-timeout-seconds", "read-timeout-seconds" }) {
 			for (String timeout : new String[] { "0", "-5", "ten" }) {
 				assertEquals("Invalid value '" + timeout + "' for property erp.navpospages." + key + ": a whole number,"

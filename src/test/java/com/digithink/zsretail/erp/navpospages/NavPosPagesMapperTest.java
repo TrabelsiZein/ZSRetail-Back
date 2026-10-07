@@ -129,7 +129,7 @@ class NavPosPagesMapperTest {
 	}
 
 	@Test
-	@DisplayName("Variants: the blank Variant_Code wins, else the lowest; the other rows counted; blank Item_No and zero price")
+	@DisplayName("Variants: the blank Variant_Code wins, else the lowest; the other rows counted; blank Item_No; zero price inactive")
 	void itemsRules() {
 		List<NavPosStockRow> rows = Arrays.asList(new NavPosStockRow("A", "V2", "A v2", new BigDecimal("11.9"), "F", "S"),
 				new NavPosStockRow("A", "", "A plain", new BigDecimal("11.9"), "F", "S"),
@@ -149,6 +149,10 @@ class NavPosPagesMapperTest {
 		assertEquals(new BigDecimal("10.0000000000"), result.getRows().get(0).getUnitPrice());
 		assertEquals(BigDecimal.ZERO, result.getRows().get(2).getUnitPrice());
 		assertEquals(BigDecimal.ZERO, result.getRows().get(3).getUnitPrice());
+		// Step 6: an item without a price is inactive; with a price it is active
+		assertEquals(Boolean.TRUE, result.getRows().get(0).getActive());
+		assertEquals(Boolean.FALSE, result.getRows().get(2).getActive());
+		assertEquals(Boolean.FALSE, result.getRows().get(3).getActive());
 		assertEquals(8, result.getRead());
 		assertEquals(4, result.getKept());
 		assertEquals(3, result.getLeftOut(NavPosPagesMapper.VARIANT_ROW));

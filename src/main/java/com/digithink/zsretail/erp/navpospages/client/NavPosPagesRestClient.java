@@ -31,7 +31,7 @@ import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
  */
 @Component
 @ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
-public class NavPosPagesRestClient {
+public class NavPosPagesRestClient implements NavPosPagesSource {
 
 	static final String CATEGORY_FIELDS = "Code,Description,Parent_Category,Type";
 	static final String ITEM_FIELDS = "Item_No,Variant_Code,Description,Unit_Price,Family,Subfamily";
@@ -47,6 +47,7 @@ public class NavPosPagesRestClient {
 	}
 
 	/** Every row of the categories page. */
+	@Override
 	public List<NavPosCategoryRow> readCategories() {
 		String page = properties.getPage().getCategories();
 		URI uri = page(page).queryParam("$select", CATEGORY_FIELDS).build().encode().toUri();
@@ -55,6 +56,7 @@ public class NavPosPagesRestClient {
 	}
 
 	/** Every row of the items page for the configured location (a quote in the code is doubled). */
+	@Override
 	public List<NavPosStockRow> readItems() {
 		String page = properties.getPage().getItems();
 		URI uri = page(page).queryParam("$filter", "Location_Code eq '" + quoted(properties.getLocationCode()) + "'")
@@ -64,6 +66,7 @@ public class NavPosPagesRestClient {
 	}
 
 	/** At most barcode-page-size rows with an Entry_No above entryNo, by Entry_No: one call, one page. */
+	@Override
 	public List<NavPosBarcodeRow> readBarcodesAfter(long entryNo) {
 		String page = properties.getPage().getBarcodes();
 		URI uri = page(page).queryParam("$filter", "Entry_No gt " + entryNo).queryParam("$orderby", "Entry_No")
@@ -73,6 +76,31 @@ public class NavPosPagesRestClient {
 				new ParameterizedTypeReference<NavPosCollection<NavPosBarcodeRow>>() {
 				});
 		return body == null || body.getValue() == null ? new ArrayList<>() : new ArrayList<>(body.getValue());
+	}
+
+	/**
+	 * Step 6: every barcode of these items, $filter=(Item_No eq 'A' or Item_No eq 'B'), quotes doubled, next links
+	 * followed. The caller sends a few item numbers per call.
+	 */
+	@Override
+	public List<NavPosBarcodeRow> readBarcodesOfItems(List<String> itemNos) {
+		if (itemNos == null || itemNos.isEmpty()) {
+			return new ArrayList<>();
+		}
+		String page = properties.getPage().getBarcodes();
+		StringBuilder filter = new StringBuilder();
+		for (String itemNo : itemNos) {
+			filter.append(filter.length() == 0 ? "" : " or ").append("Item_No eq '").append(quoted(itemNo)).append("'");
+		}
+		URI uri = page(page).queryParam("$filter", filter.toString()).queryParam("$select", BARCODE_FIELDS).build()
+				.encode().toUri();
+		return readAll(page, uri, new ParameterizedTypeReference<NavPosCollection<NavPosBarcodeRow>>() {
+		});
+	}
+
+	@Override
+	public String pageUrl(String page) {
+		return page(page).build().toUriString();
 	}
 
 	/** base-url / Company('...') / page */
