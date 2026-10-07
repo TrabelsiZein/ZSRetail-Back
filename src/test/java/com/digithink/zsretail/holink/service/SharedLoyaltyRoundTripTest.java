@@ -467,6 +467,41 @@ class SharedLoyaltyRoundTripTest {
 	}
 
 	@Test
+	@DisplayName("Customer link: a copy without a link (or with a code unknown here) never erases the store's own link;"
+			+ " a code known here is applied")
+	void customerLinkKept() {
+		stores.get("RS01").setCanEditMembers(true);
+		hoLoyalty.createMember(hoRequest("SAMI", "29954290"));
+		pull();
+		com.digithink.zsretail.model.Customer c001 = new com.digithink.zsretail.model.Customer();
+		c001.setId(500L);
+		c001.setCustomerCode("C001");
+		db.customers.put(500L, c001);
+		LoyaltyMember local = db.card("LYL-HO-000001").get();
+		local.setCustomer(c001); // the store's own link; the head office has no customer C001
+		CreateLoyaltyMemberRequestDTO change = request("SAMI", "29954290");
+		change.setLastName("BEN SALAH");
+
+		network.edit(local.getId(), change); // the head office answers a copy without a link
+		assertEquals("BEN SALAH", db.card("LYL-HO-000001").get().getLastName());
+		assertNull(ho.card("LYL-HO-000001").get().getCustomer(), "unknown at the head office");
+		assertEquals("C001", db.card("LYL-HO-000001").get().getCustomer().getCustomerCode(), "kept after the answer");
+		pull();
+		assertEquals("C001", db.card("LYL-HO-000001").get().getCustomer().getCustomerCode(), "kept after a pull");
+
+		com.digithink.zsretail.model.Customer c002 = new com.digithink.zsretail.model.Customer();
+		c002.setId(501L);
+		c002.setCustomerCode("C002");
+		db.customers.put(501L, c002);
+		com.digithink.zsretail.model.Customer hoC002 = new com.digithink.zsretail.model.Customer();
+		hoC002.setId(9L);
+		hoC002.setCustomerCode("C002");
+		ho.customers.put(9L, hoC002);
+		network.linkCustomer(local.getId(), 501L); // known at the head office too: the link travels and is applied
+		assertEquals("C002", db.card("LYL-HO-000001").get().getCustomer().getCustomerCode());
+	}
+
+	@Test
 	@DisplayName("Member change: refused when unreachable, for a local card, for a card the head office does not know yet")
 	void editRefusals() {
 		stores.get("RS01").setCanEditMembers(true);

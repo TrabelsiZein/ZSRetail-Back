@@ -903,6 +903,8 @@ Known limit: the copy names its item, family, sub-family and benefit item by cod
 **Local promotions** (Zein's correction, 2026-10-03): at every cycle, before the pull, the active promotions whose origin is null or `LOCAL` are set inactive (kept, origin unchanged; `PromotionRepository.findActiveNotFrom`), with one exchange log row giving how many. While promotions are owned by the head office no write through the API can activate them again.
 
 ### Shared loyalty (step 4)
+**Customer link of a member (known limit, 2026-10-07):** the head office resolves a member's customer code against its own customer table, which is empty in practice (customers stay each store's own; the head office Customers page is hidden), so the link does not travel; a copy without a link, or with a code unknown at the store, never erases the store's own link (`LoyaltyCopyWriter`). To be redesigned with shared customers: carry the code as text.
+
 One member register for the network (design 2.3, 4.3; decisions of the step 4 prompt). A member enrolled in any store is known in every store, and the points earned anywhere are known everywhere. Nothing at the till depends on the head office being reachable: finding a member and earning work from the store's own copy; only enrolling (phone check), changing a member and, from step 5, spending, ask the head office.
 
 **When it is active**: on a store with `ownership.loyalty=HEAD_OFFICE` and `headoffice.url` set (without the URL the store does not start, see "Copies down"). With loyalty `LOCAL` nothing changes: no new bean, `LoyaltyService` runs exactly as before (the four loyalty tests are unchanged). Every head office holds a register (owned there) and serves the `LOYALTY` domain; a store that keeps its loyalty local never pulls it.

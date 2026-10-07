@@ -99,8 +99,11 @@ public class LoyaltyCopyWriter {
 			member.setMemberFunction(MemberFunctionCodes.resolve(functions, copy.getMemberFunctionCode(),
 					copy.getMemberFunctionName()));
 		}
-		member.setCustomer(copy.getCustomerCode() == null ? null
-				: customers.findByCustomerCode(copy.getCustomerCode()).orElse(null));
+		// The head office resolves the link against its own customer table (empty in practice): a copy without a link,
+		// or with a code unknown here, never erases the store's own link
+		if (copy.getCustomerCode() != null) {
+			customers.findByCustomerCode(copy.getCustomerCode()).ifPresent(member::setCustomer);
+		}
 		member.setActive(copy.getActive() == null ? Boolean.TRUE : copy.getActive());
 		LoyaltyLedger.State state = balance(copy, member.getId());
 		member.setLoyaltyPoints(state.getBalance());
