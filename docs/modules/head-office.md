@@ -1208,6 +1208,26 @@ Frontend commit d5cb48e. Getter `appConfig/headOfficeKeepsStock`: `false` only o
 
 The home quick links hold no supply card, so nothing changes there. Labels in `en`, `fr`, `ar`. Checks: lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
 
+### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
+Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter
+`appConfig/erpOwnsOnlyCatalogue`): `nodeType` `HEAD_OFFICE`, `ownership.CATALOGUE` `ERP`, `CUSTOMERS` and `SUPPLY` not `ERP`,
+read from `GET /config` as it is (no new field). Always false on a store and when `/config` fails. `hasErp` is true there
+(an owner is the ERP), so the existing ERP rules apply, with these exceptions:
+
+| Part | On this head office |
+|---|---|
+| Pages of a head office without an ERP (menu `WITHOUT_ERP`, routes `meta.withoutErp`): price lists, BLs, supply prices, supply invoices, store balances, network stock, and vendors, purchases, stock pages | Shown and reachable; the stock and purchase pages still follow `headOfficeStock` (hidden when `false`) |
+| Data import | Hidden (menu `HIDDEN_WHEN_CATALOGUE_ONLY`; the router's twin rule redirects it, `hasErp`) |
+| ERP group | ERP jobs (with statistics) and ERP communications log shown (`hasErp`) |
+| ERP reference location | Hidden from the menu, route redirected home (new route meta `erpOwnsAll`) |
+| Stores page (`StoresManagement.vue` `withoutErp()`) | Price list, rights and supply settings shown |
+| Items, families, sub-families, barcodes | Read-only, pack configuration shown (`catalogueFromErp`, unchanged) |
+
+Every other installation keeps its menu, routes and guards. `tools/mode-truth-table.mjs`: the 40 existing rows answer as
+before on every profile, 3 rows added (`HM-dataImport`, `HM-refLocation`, `R-erpOwnsAll`), and the new profile of
+`tools/mode-fixtures.json` (`newModes.headoffice-erp-catalogue`) is checked against its intended answers. Lint of the
+changed files in production mode, a build without the eslint cache and the truth table: clean. Not seen in the browser (L2).
+
 ### Head office with the catalogue only from the ERP: the refusals (ERP catalogue, step 2)
 A head office with `ownership.catalogue=ERP` and its customers and supply not the ERP's (`isErpCatalogueOnly`, see
 `docs/deployment-modes.md`) reads its catalogue from the ERP: families, sub-families, items and barcodes are read-only there.
