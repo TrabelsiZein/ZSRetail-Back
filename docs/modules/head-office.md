@@ -1208,6 +1208,23 @@ Frontend commit d5cb48e. Getter `appConfig/headOfficeKeepsStock`: `false` only o
 
 The home quick links hold no supply card, so nothing changes there. Labels in `en`, `fr`, `ar`. Checks: lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
 
+### Head office with the catalogue only from the ERP: the refusals (ERP catalogue, step 2)
+A head office with `ownership.catalogue=ERP` and its customers and supply not the ERP's (`isErpCatalogueOnly`, see
+`docs/deployment-modes.md`) reads its catalogue from the ERP: families, sub-families, items and barcodes are read-only there.
+- **Refusal filter** `HeadOfficeErpCatalogueFilter` (`@ConditionalOnHeadOfficeErpCatalogue`: the bean exists only there, never
+  on a store, a head office without an ERP or one whose ERP owns all three; in no file of `deploy/` or `configs/`). A servlet
+  filter after the security chain, like `HeadOfficeWithoutStockFilter`: 403 `{"error":"The catalogue of this head office comes
+  from the ERP: families, sub-families, items and barcodes are read-only here."}` on `PUT`, `PATCH`, `DELETE` under
+  `/item-family/` and `/item-sub-family/` (and any write but `POST` on the two paths themselves), and every `POST`, `PUT`,
+  `PATCH`, `DELETE` on `/item-barcode` and below. A `GET` always passes. No controller changes.
+- **Already refused by the controllers** (`isCatalogueFromErp`, their own 403 message, unchanged): `POST /item`, `PUT` and
+  `DELETE /item/{id}`, `POST /item/quick-product`, `POST /item-family`, `POST /item-sub-family`, `POST /admin/import/preview`
+  and `/execute`.
+- **Open on purpose**: the packs (`PUT /item/{id}/package-flag`, `/item-composition`), the item images (`/item-image`), the
+  price lists, the supply prices. The own price endpoints answer 404 on any head office (no store catalogue guard).
+- The ERP import writes through the repositories and never reaches the filter.
+- Tests: `HeadOfficeErpCatalogueFilterTest` (refused and passed paths, the message, where the bean exists).
+
 ### BLs (task 7A.2, head office)
 A BL (delivery note) sends goods from the head office stock to one store (design 3.5, decision D12). Head office without an ERP only (`HoDeliveryService`, `HoDeliveryAPI`, `@ConditionalOnHeadOfficeWithoutErp`); elsewhere the API answers 404 and the domain `SUPPLY` is not served. No price on a BL: step 7B invoices the received BLs.
 
