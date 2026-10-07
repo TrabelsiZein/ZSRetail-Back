@@ -123,8 +123,10 @@ class HeadOfficeErpCatalogueFilterTest {
 		for (String machine : Installations.machineFiles()) {
 			assertFalse(registered(Installations.machine(machine)), "deploy/" + machine);
 		}
+		// configs/: only the Happyness head office, the real example of this mode, has the filter
 		for (String config : Installations.configFiles()) {
-			assertFalse(registered(Installations.config(config)), "configs/" + config);
+			assertEquals(config.equals(ModeQuestionTruthTableTest.HAPPYNESS_HEAD_OFFICE),
+					registered(Installations.config(config)), "configs/" + config);
 		}
 	}
 }

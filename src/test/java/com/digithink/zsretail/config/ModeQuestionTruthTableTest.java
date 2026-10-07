@@ -1,7 +1,6 @@
 package com.digithink.zsretail.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -53,6 +52,9 @@ class ModeQuestionTruthTableTest {
 	 * (2 x 2), sales.upstream absent or empty (2); every other axis at the only value a head office accepts.
 	 */
 	static final int NEW_HEAD_OFFICE_ROWS = 8;
+
+	/** The installation file of configs/ whose catalogue only comes from the ERP (Zein, ERP catalogue step 5). */
+	static final String HAPPYNESS_HEAD_OFFICE = "local/happyness_ho.properties";
 
 	/** ERP catalogue, step 1: the head office combination, read from the owners (not from the class under test). */
 	private static boolean catalogueOnly(NodeOwnership ownership) {
@@ -128,8 +130,10 @@ class ModeQuestionTruthTableTest {
 			if (ownership == null) {
 				fail(installation.getKey() + " does not start");
 			}
-			// None of them is the new head office combination, so each one is checked against the old answers
-			assertFalse(catalogueOnly(ownership), installation.getKey());
+			// The Happyness head office is the real example of the new head office combination (ERP catalogue, step 5),
+			// checked against its answers; every other installation is checked against the old answers
+			assertEquals(installation.getKey().equals("config " + HAPPYNESS_HEAD_OFFICE), catalogueOnly(ownership),
+					installation.getKey());
 			assertEquals(new ArrayList<>(), differences(installation.getValue(), ownership), installation.getKey());
 		}
 	}

@@ -180,9 +180,11 @@ class ErpCatalogueHeadOfficeTest {
 			MockEnvironment other = Installations.machine(machine);
 			assertFalse(InstallationSummary.summary(other, NodeOwnership.resolve(other)).contains(phrase), machine);
 		}
+		// configs/: only the Happyness head office, the real example of this mode, says it
 		for (String config : Installations.configFiles()) {
 			MockEnvironment other = Installations.config(config);
-			assertFalse(InstallationSummary.summary(other, NodeOwnership.resolve(other)).contains(phrase), config);
+			assertEquals(config.equals(ModeQuestionTruthTableTest.HAPPYNESS_HEAD_OFFICE),
+					InstallationSummary.summary(other, NodeOwnership.resolve(other)).contains(phrase), config);
 		}
 	}
 }
