@@ -153,6 +153,9 @@ the "Connect a store" procedure: `docs/modules/head-office.md`, "Head office lin
 | `headoffice.api-key` | The store's key, shown once on the head office Stores page | required when the URL is set |
 | `headoffice.heartbeat-interval-seconds` | Whole number, at least 1 | `60` |
 
+- **Head office stock**, head office only: `headoffice.stock.enabled`, `true` (default, stated in the head office type file)
+  or `false` (no stock, no purchases, a BL moves no stock); any other value stops a head office at startup; a store never
+  reads it. `GET /config` field `headOfficeStock`. See `docs/modules/head-office.md`, "Head office without stock".
 - **Stores page threshold** (task 1.5), head office only: `headoffice.offline-after-seconds`, whole number, at least 1, default `180`. A store whose last heartbeat is older is shown OFFLINE (exactly at the threshold it is still ONLINE). A wrong value stops the head office at startup. See `docs/modules/head-office.md`, "Status".
 - **GET /config** (task 0.5) returns three more fields after the existing ones, enums as their names:
   - `nodeType`: `"STORE"` or `"HEAD_OFFICE"`.

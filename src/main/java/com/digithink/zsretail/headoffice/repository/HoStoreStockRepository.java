@@ -47,6 +47,27 @@ public interface HoStoreStockRepository extends _BaseRepository<HoStoreStock, Lo
 			Pageable page);
 
 	/**
+	 * The same as {@link #findHeadOfficeItems}, for a head office without stock (headoffice.stock.enabled=false): belowZero
+	 * looks at the stores' columns only, never at the head office's own stock.
+	 */
+	@Query(value = "select i.itemCode, i.name, i.stockQuantity from Item i where (i.type is null or i.type in :types)"
+			+ " and i.itemCode <> :excluded and (:search is null or lower(i.itemCode) like :search"
+			+ " or lower(i.name) like :search)"
+			+ " and (:belowZero = false or exists (select s.id from HoStoreStock s, Store st"
+			+ " where st.id = s.storeId and s.itemCode = i.itemCode and s.quantity < 0"
+			+ " and ((:storeId = 0L and st.active = true) or s.storeId = :storeId)))"
+			+ " order by i.itemCode",
+			countQuery = "select count(i) from Item i where (i.type is null or i.type in :types)"
+					+ " and i.itemCode <> :excluded and (:search is null or lower(i.itemCode) like :search"
+					+ " or lower(i.name) like :search)"
+					+ " and (:belowZero = false or exists (select s.id from HoStoreStock s, Store st"
+					+ " where st.id = s.storeId and s.itemCode = i.itemCode and s.quantity < 0"
+					+ " and ((:storeId = 0L and st.active = true) or s.storeId = :storeId)))")
+	Page<Object[]> findHeadOfficeItemsStoresOnly(@Param("types") Collection<ItemType> types,
+			@Param("excluded") String excluded, @Param("search") String search, @Param("storeId") Long storeId,
+			@Param("belowZero") Boolean belowZero, Pageable page);
+
+	/**
 	 * The stores own items (own TRUE: not from the head office), by store and code; storeId 0 = every store. belowZero
 	 * true: only those whose stock is below zero.
 	 */

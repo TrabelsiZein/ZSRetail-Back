@@ -121,4 +121,10 @@ public class AppConfigDTO {
 	 * derives it any more). From ApplicationModeService.isSupplyFromHeadOffice().
 	 */
 	private boolean supplyFromHeadOffice;
+
+	/**
+	 * False only on a head office with headoffice.stock.enabled=false (no stock, no purchases); true on every store, which
+	 * never reads the key. From ApplicationModeService.isHeadOfficeWithoutStock(), negated.
+	 */
+	private boolean headOfficeStock;
 }

@@ -41,6 +41,9 @@ public class InstallationSummary {
 			line.add(domain.name().toLowerCase() + " " + ownership.ownerOf(domain));
 		}
 		line.add("sales to " + (ownership.getSalesUpstreams().isEmpty() ? "nowhere" : ownership.getSalesUpstreams()));
+		if (NodeOwnership.isHeadOfficeWithoutStockSet(env)) {
+			line.add("head office stock off");
+		}
 		if (Boolean.parseBoolean(env.getProperty("erp.dynamicsnav.enabled", "false").trim())) {
 			line.add("NAV " + env.getProperty("erp.dynamicsnav.base-url", "(no address)"));
 		}

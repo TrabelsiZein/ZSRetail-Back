@@ -125,7 +125,9 @@ public final class InMemoryNetworkStock {
 					return last.entrySet().stream().map(e -> new Object[] { e.getKey(), e.getValue() })
 							.collect(Collectors.toList());
 				}
-				case "findHeadOfficeItems": {
+				case "findHeadOfficeItems":
+				case "findHeadOfficeItemsStoresOnly": { // the second: belowZero never looks at the head office stock
+					boolean headOfficeColumn = "findHeadOfficeItems".equals(method);
 					Collection<?> types = (Collection<?>) args[0];
 					String search = (String) args[2];
 					long storeId = (Long) args[3];
@@ -134,7 +136,8 @@ public final class InMemoryNetworkStock {
 							.filter(i -> i.getType() == null || types.contains(i.getType()))
 							.filter(i -> !args[1].equals(i.getItemCode()))
 							.filter(i -> search == null || like(i.getItemCode(), search) || like(i.getName(), search))
-							.filter(i -> !belowZero || (i.getStockQuantity() != null && i.getStockQuantity() < 0)
+							.filter(i -> !belowZero
+									|| (headOfficeColumn && i.getStockQuantity() != null && i.getStockQuantity() < 0)
 									|| storeStock.values().stream().anyMatch(s -> s.getItemCode().equals(i.getItemCode())
 											&& s.getQuantity() < 0 && (storeId == 0 ? ho.stores.get(s.getStoreId()) != null && Boolean.TRUE.equals(ho.stores.get(s.getStoreId()).getActive())
 													: s.getStoreId() == storeId)))

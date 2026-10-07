@@ -80,7 +80,8 @@ public class AppConfigAPI {
 				salesUpstreams(),
 				applicationModeService.isHeadOfficeLinked(),
 				applicationModeService.isCatalogueFromHeadOffice(),
-				applicationModeService.isSupplyFromHeadOffice()
+				applicationModeService.isSupplyFromHeadOffice(),
+				!applicationModeService.isHeadOfficeWithoutStock()
 		));
 	}
 

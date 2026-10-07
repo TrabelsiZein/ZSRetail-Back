@@ -602,6 +602,36 @@ class SupplyRoundTripTest {
 	}
 
 	@Test
+	@DisplayName("Without stock (headoffice.stock.enabled=false): the head office column is null and belowZero looks at"
+			+ " the stores only")
+	void withoutHeadOfficeStock() {
+		sendBl(b, line("B001", 50));
+		puller.runCycle();
+		reception.receive(received.byNumber("BL-000001").getId(), counted(count(1, 48)), "responsible");
+		db.itemByCode("B001").get().setStockQuantity(-2); // B below zero
+		ho.itemByCode("B002").get().setStockQuantity(-5); // a head office value left from before: ignored
+		push.runCycle();
+		HoNetworkStockService noStock = new HoNetworkStockService(network.storeStockRepository(ho), ho.storeRepository(),
+				TransactionOperations.withoutTransaction(), () -> NOW, false);
+
+		Map<String, Object> page = noStock.page(null, null, 0, 20, false);
+		assertEquals(Arrays.asList("B001", "B002", "B009"), codes(page));
+		@SuppressWarnings("unchecked")
+		List<Map<String, Object>> rows = (List<Map<String, Object>>) page.get("content");
+		rows.forEach(r -> {
+			assertTrue(r.containsKey("headOffice"));
+			assertNull(r.get("headOffice"), (String) r.get("itemCode"));
+		});
+		assertEquals("{" + b.getId() + "=-2}", rows.get(0).get("byStore").toString());
+		assertEquals(Collections.singletonList("B001"), codes(noStock.page(null, null, 0, 20, true)));
+		assertEquals(1L, noStock.page(null, null, 0, 20, true).get("totalElements"));
+		assertEquals(Collections.emptyList(), codes(noStock.page(c.getId(), null, 0, 20, true)),
+				"C shown alone: nothing below zero, the head office column is not looked at");
+		assertEquals(Arrays.asList("B001", "B002"), codes(hoNetwork.page(null, null, 0, 20, true)),
+				"the head office that keeps its stock still looks at its column");
+	}
+
+	@Test
 	@DisplayName("belowZero: only the items below zero at the head office or in a store shown (active stores by default);"
 			+ " own items below zero")
 	void belowZero() {

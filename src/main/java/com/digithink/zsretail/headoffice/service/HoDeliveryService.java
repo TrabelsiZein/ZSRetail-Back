@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeWithoutErp;
 import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryCopyDTO;
@@ -59,6 +60,9 @@ import lombok.extern.log4j.Log4j2;
  * ALLOW_NEGATIVE_STOCK=true), the BL gets its number (BL-000001), becomes SENT, each line leaves the head office stock
  * with one DELIVERY_OUT movement, and the BL is recorded for its store only (domain SUPPLY, record BL:&lt;number&gt;).
  * No item save: no CATALOGUE change. See docs/modules/head-office.md, "BLs".
+ * <p>
+ * A head office without stock (headoffice.stock.enabled=false): validating checks no stock, moves no stock and writes no
+ * movement; a line gives no head office stock (null). Everything else is the same.
  */
 @Service
 @ConditionalOnHeadOfficeWithoutErp
@@ -87,14 +91,17 @@ public class HoDeliveryService implements DownDomainProvider {
 	/** Step 7B: the invoices (records INV: of the same domain, the per-BL invoice); null in the 7A tests. */
 	private final Supplier<HoSupplyInvoiceService> invoices;
 
+	/** False on a head office with headoffice.stock.enabled=false: a BL checks and moves no stock. */
+	private final boolean keepsStock;
+
 	@Autowired
 	public HoDeliveryService(HoDeliveryRepository deliveries, StoreRepository stores, ItemRepository items,
 			HoNumberSequenceRepository sequences, StockService stock, StockMovementService movements,
 			ObjectProvider<CopiesDownFeed> feed, ObjectProvider<HoSupplyInvoiceService> invoices,
-			PlatformTransactionManager transactionManager) {
+			PlatformTransactionManager transactionManager, ApplicationModeService mode) {
 		this(deliveries, stores, items, sequences, stock, movements, (Supplier<CopiesDownFeed>) feed::getObject,
 				new TransactionTemplate(transactionManager), LocalDateTime::now,
-				(Supplier<HoSupplyInvoiceService>) invoices::getIfAvailable);
+				(Supplier<HoSupplyInvoiceService>) invoices::getIfAvailable, !mode.isHeadOfficeWithoutStock());
 	}
 
 	/** With given collaborators, transactions and clock, without invoices: used by the tests. */
@@ -104,11 +111,20 @@ public class HoDeliveryService implements DownDomainProvider {
 		this(deliveries, stores, items, sequences, stock, movements, feed, writeTransactions, clock, () -> null);
 	}
 
-	/** With given collaborators, transactions, clock and invoices: used by the tests. */
+	/** With given collaborators, transactions, clock and invoices, the head office keeping its stock: used by the tests. */
 	public HoDeliveryService(HoDeliveryRepository deliveries, StoreRepository stores, ItemRepository items,
 			HoNumberSequenceRepository sequences, StockService stock, StockMovementService movements,
 			Supplier<CopiesDownFeed> feed, TransactionOperations writeTransactions, Supplier<LocalDateTime> clock,
 			Supplier<HoSupplyInvoiceService> invoices) {
+		this(deliveries, stores, items, sequences, stock, movements, feed, writeTransactions, clock, invoices, true);
+	}
+
+	/** With given collaborators, transactions, clock, invoices, and whether the head office keeps its stock. */
+	public HoDeliveryService(HoDeliveryRepository deliveries, StoreRepository stores, ItemRepository items,
+			HoNumberSequenceRepository sequences, StockService stock, StockMovementService movements,
+			Supplier<CopiesDownFeed> feed, TransactionOperations writeTransactions, Supplier<LocalDateTime> clock,
+			Supplier<HoSupplyInvoiceService> invoices, boolean keepsStock) {
+		this.keepsStock = keepsStock;
 		this.invoices = invoices;
 		this.deliveries = deliveries;
 		this.stores = stores;
@@ -233,14 +249,15 @@ public class HoDeliveryService implements DownDomainProvider {
 		HoDelivery delivery = found.get();
 		requireDraft(delivery, "validated");
 		Store store = checkStore(delivery.getStoreId());
-		boolean negativeAllowed = stock.isNegativeStockAllowed();
+		// Without stock (headoffice.stock.enabled=false): no check, ALLOW_NEGATIVE_STOCK is not read
+		boolean checkStock = keepsStock && !stock.isNegativeStockAllowed();
 		List<String> shortages = new ArrayList<>();
 		for (HoDeliveryLine line : delivery.getLines()) {
 			Item item = items.findById(line.getItemId()).orElseThrow(() -> new IllegalArgumentException(
 					"Line " + line.getLineNo() + ": the item " + line.getItemCode() + " no longer exists."));
 			checkDeliverable(line.getLineNo(), item);
 			int inStock = item.getStockQuantity() == null ? 0 : item.getStockQuantity();
-			if (!negativeAllowed && inStock < line.getQuantitySent()) {
+			if (checkStock && inStock < line.getQuantitySent()) {
 				shortages.add(shortage(item.getItemCode(), inStock, line.getQuantitySent()));
 			}
 		}
@@ -253,15 +270,17 @@ public class HoDeliveryService implements DownDomainProvider {
 		delivery.setSentAt(clock.get());
 		delivery.setSentBy(cut(user, HoDelivery.USER_LENGTH));
 		HoDelivery saved = deliveries.save(delivery);
-		for (HoDeliveryLine line : saved.getLines()) {
-			// Atomic: a stock taken meanwhile by another validation is caught here, and everything rolls back
-			if (!stock.decrementForDelivery(line.getItemId(), line.getQuantitySent())) {
-				int now = items.findById(line.getItemId()).map(i -> i.getStockQuantity() == null ? 0 : i.getStockQuantity())
-						.orElse(0);
-				throw new IllegalStateException(
-						shortageMessage(Collections.singletonList(shortage(line.getItemCode(), now, line.getQuantitySent()))));
+		if (keepsStock) { // without stock: no decrease, no movement
+			for (HoDeliveryLine line : saved.getLines()) {
+				// Atomic: a stock taken meanwhile by another validation is caught here, and everything rolls back
+				if (!stock.decrementForDelivery(line.getItemId(), line.getQuantitySent())) {
+					int now = items.findById(line.getItemId())
+							.map(i -> i.getStockQuantity() == null ? 0 : i.getStockQuantity()).orElse(0);
+					throw new IllegalStateException(shortageMessage(
+							Collections.singletonList(shortage(line.getItemCode(), now, line.getQuantitySent()))));
+				}
+				movements.recordDeliveryOut(line.getItemId(), line.getQuantitySent(), saved.getId(), number);
 			}
-			movements.recordDeliveryOut(line.getItemId(), line.getQuantitySent(), saved.getId(), number);
 		}
 		feed.get().recordChange(DataDomain.SUPPLY, DeliveryCopyDTO.recordCode(number),
 				StoreTargets.of(Collections.singletonList(saved.getStoreId())));
@@ -627,7 +646,7 @@ public class HoDeliveryService implements DownDomainProvider {
 				row.setQuantityReceived(line.getQuantityReceived());
 				row.setDifference(line.getQuantityReceived() == null ? null
 						: line.getQuantityReceived() - line.getQuantitySent());
-				row.setHeadOfficeStock(!withStock ? null : items.findById(line.getItemId())
+				row.setHeadOfficeStock(!withStock || !keepsStock ? null : items.findById(line.getItemId())
 						.map(i -> i.getStockQuantity() == null ? 0 : i.getStockQuantity()).orElse(null));
 				lines.add(row);
 			}

@@ -43,9 +43,10 @@ class AppConfigAPITest {
 			"tableManagementTableCount", "appVersion", "tombolaEnabled");
 
 	/** Keys added by the head office plan: tasks 0.5 (first three) and 1.5 (headOfficeLinked),
-	 * step 6 (catalogueFromHeadOffice), always last. */
+	 * step 6 (catalogueFromHeadOffice), step 7A (supplyFromHeadOffice), headoffice.stock.enabled (headOfficeStock),
+	 * always last. */
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
-			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice");
+			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";

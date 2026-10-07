@@ -36,6 +36,9 @@ public class ApplicationModeService {
 	/** Step 7A: the supply beans exist (NodeOwnership.isSupplyFromHeadOffice), resolved at startup. */
 	private boolean supplyFromHeadOffice;
 
+	/** A head office with headoffice.stock.enabled=false (NodeOwnership.isHeadOfficeWithoutStockSet); false on a store. */
+	private boolean headOfficeWithoutStock;
+
 	/** Fails the startup when node.type, ownership.* or sales.upstream holds an invalid value. */
 	@PostConstruct
 	void initOwnership() {
@@ -44,6 +47,16 @@ public class ApplicationModeService {
 		// Same rule as NodeOwnership.isSupplyFromHeadOffice (accepted only without an ERP, with the catalogue too)
 		supplyFromHeadOffice = headOfficeLinked && environment.containsProperty(DataDomain.SUPPLY.getPropertyKey())
 				&& ownership.ownerOf(DataDomain.SUPPLY) == DataOwner.HEAD_OFFICE;
+		// Read on a head office only: a store never reads headoffice.stock.enabled
+		headOfficeWithoutStock = NodeOwnership.isHeadOfficeWithoutStockSet(environment);
+	}
+
+	/**
+	 * True on a head office with headoffice.stock.enabled=false: no stock, no purchases, its BLs move no stock. Always
+	 * false on a store. It adds to the other gates and never replaces one (docs/modules/head-office.md).
+	 */
+	public boolean isHeadOfficeWithoutStock() {
+		return headOfficeWithoutStock;
 	}
 
 	/** True on a store that calls a head office (headoffice.url set): the "Head office link" page exists. */

@@ -55,6 +55,14 @@ public final class InMemoryDeliveries {
 				TransactionOperations.withoutTransaction(), clock);
 	}
 
+	/** The same service on a head office without stock (headoffice.stock.enabled=false), over the same tables. */
+	public HoDeliveryService serviceWithoutStock(InMemoryStock stock, Supplier<CopiesDownFeed> feed,
+			Supplier<java.time.LocalDateTime> clock) {
+		return new HoDeliveryService(deliveryRepository(), ho.storeRepository(), stock.itemRepository(),
+				sequenceRepository(), stock.stockService(), stock.stockMovementService(), feed,
+				TransactionOperations.withoutTransaction(), clock, () -> null, false);
+	}
+
 	public HoDelivery byNumber(String number) {
 		return deliveries.values().stream().filter(d -> Objects.equals(d.getNumber(), number)).findFirst().orElse(null);
 	}

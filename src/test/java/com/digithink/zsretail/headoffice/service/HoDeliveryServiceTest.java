@@ -258,6 +258,39 @@ class HoDeliveryServiceTest {
 	}
 
 	@Test
+	@DisplayName("Without stock (headoffice.stock.enabled=false): no shortage check, no decrease, no movement, headOfficeStock"
+			+ " null; the number, SENT and the record for its store as usual")
+	void withoutStock() {
+		HoDeliveryService noStock = tables.serviceWithoutStock(stock, () -> feed, () -> NOW);
+		ho.item("B003", 1.0, null); // never in stock
+		assertTrue(!stock.allowNegative, "ALLOW_NEGATIVE_STOCK false: the head office that keeps its stock would refuse");
+		DeliveryDTO draft = noStock.create(input(b.getId(), line("B001", 150), line("B002", 5), line("B003", 1)));
+		draft.getLines().forEach(l -> assertNull(l.getHeadOfficeStock(), l.getItemCode()));
+
+		DeliveryDTO sent = noStock.validate(draft.getId(), "admin").get();
+
+		assertEquals("BL-000001", sent.getNumber());
+		assertEquals("SENT", sent.getStatus());
+		assertEquals(100, stock.stockOf("B001"));
+		assertEquals(10, stock.stockOf("B002"));
+		assertTrue(stock.movements.isEmpty(), "no stock movement");
+		assertEquals(1, supplyChanges(), "recorded for store B");
+		noStock.get(draft.getId()).get().getLines().forEach(l -> assertNull(l.getHeadOfficeStock(), l.getItemCode()));
+		assertEquals(100, service.get(draft.getId()).get().getLines().get(0).getHeadOfficeStock(),
+				"the head office that keeps its stock still reads it");
+	}
+
+	@Test
+	@DisplayName("Without stock: the item rules stay (a service item cannot be delivered)")
+	void withoutStockItemRules() {
+		HoDeliveryService noStock = tables.serviceWithoutStock(stock, () -> feed, () -> NOW);
+		ho.item("S1", 5.0, null).setType(ItemType.SERVICE);
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+				() -> noStock.create(input(b.getId(), line("S1", 1))));
+		assertEquals("Line 1: the item S1 is a service: it has no stock.", e.getMessage());
+	}
+
+	@Test
 	@DisplayName("ALLOW_NEGATIVE_STOCK=true: the BL is validated and the head office stock goes below zero")
 	void negativeAllowed() {
 		stock.allowNegative = true;

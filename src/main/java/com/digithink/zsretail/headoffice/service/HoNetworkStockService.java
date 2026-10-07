@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeWithoutErp;
 import com.digithink.zsretail.headoffice.dto.StockReportDTO;
 import com.digithink.zsretail.headoffice.model.HoStoreStock;
@@ -55,15 +56,26 @@ public class HoNetworkStockService {
 	private final TransactionOperations writeTransactions;
 	private final Supplier<LocalDateTime> clock;
 
+	/** False on a head office with headoffice.stock.enabled=false: no head office column, belowZero ignores it. */
+	private final boolean keepsStock;
+
 	@Autowired
 	public HoNetworkStockService(HoStoreStockRepository stocks, StoreRepository stores,
-			PlatformTransactionManager transactionManager) {
-		this(stocks, stores, new TransactionTemplate(transactionManager), LocalDateTime::now);
+			PlatformTransactionManager transactionManager, ApplicationModeService mode) {
+		this(stocks, stores, new TransactionTemplate(transactionManager), LocalDateTime::now,
+				!mode.isHeadOfficeWithoutStock());
 	}
 
-	/** With given transactions and clock: used by the tests. */
+	/** With given transactions and clock, the head office keeping its stock: used by the tests. */
 	public HoNetworkStockService(HoStoreStockRepository stocks, StoreRepository stores,
 			TransactionOperations writeTransactions, Supplier<LocalDateTime> clock) {
+		this(stocks, stores, writeTransactions, clock, true);
+	}
+
+	/** With given transactions, clock, and whether the head office keeps its stock. */
+	public HoNetworkStockService(HoStoreStockRepository stocks, StoreRepository stores,
+			TransactionOperations writeTransactions, Supplier<LocalDateTime> clock, boolean keepsStock) {
+		this.keepsStock = keepsStock;
 		this.stocks = stocks;
 		this.stores = stores;
 		this.writeTransactions = writeTransactions;
@@ -127,14 +139,19 @@ public class HoNetworkStockService {
 	 * {stores: [{id, code, name, lastStockAt}], content: [{itemCode, itemName, headOffice, byStore: {"&lt;storeId&gt;":
 	 * quantity}}], totalElements, totalPages, number, size}. storeId: one store, null or 0: every active store. A store
 	 * that never sent an item has no entry for it. belowZero true: only the items whose stock is below zero in a column
-	 * shown (the head office, or the store asked for, or any active store).
+	 * shown (the head office, or the store asked for, or any active store). A head office without stock
+	 * (headoffice.stock.enabled=false): headOffice is null and belowZero looks at the stores only.
 	 */
 	@Transactional(readOnly = true)
 	public Map<String, Object> page(Long storeId, String search, Integer page, Integer size, boolean belowZero) {
 		long wanted = storeId == null ? 0L : storeId;
 		List<Store> shown = shownStores(wanted);
-		Page<Object[]> items = stocks.findHeadOfficeItems(STOCK_TYPES, CatalogueKind.TAX_STAMP_CODE, like(search), wanted, belowZero,
-				PageRequest.of(pageNumber(page), pageSize(size)));
+		PageRequest request = PageRequest.of(pageNumber(page), pageSize(size));
+		Page<Object[]> items = keepsStock
+				? stocks.findHeadOfficeItems(STOCK_TYPES, CatalogueKind.TAX_STAMP_CODE, like(search), wanted, belowZero,
+						request)
+				: stocks.findHeadOfficeItemsStoresOnly(STOCK_TYPES, CatalogueKind.TAX_STAMP_CODE, like(search), wanted,
+						belowZero, request);
 		List<String> codes = items.getContent().stream().map(row -> (String) row[0]).collect(Collectors.toList());
 		Map<String, Map<String, Integer>> byCode = new HashMap<>();
 		if (!codes.isEmpty()) {
@@ -148,7 +165,7 @@ public class HoNetworkStockService {
 			Map<String, Object> line = new LinkedHashMap<>();
 			line.put("itemCode", row[0]);
 			line.put("itemName", row[1]);
-			line.put("headOffice", row[2] == null ? 0 : ((Number) row[2]).intValue());
+			line.put("headOffice", !keepsStock ? null : row[2] == null ? 0 : ((Number) row[2]).intValue());
 			line.put("byStore", byCode.getOrDefault((String) row[0], new LinkedHashMap<>()));
 			content.add(line);
 		}

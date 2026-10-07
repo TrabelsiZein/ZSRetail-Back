@@ -34,7 +34,8 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  *
  * Head office link (task 1.4): when {@code headoffice.url} is set, the startup fails on a head office, with a blank
  * {@code headoffice.api-key}, or with a {@code headoffice.heartbeat-interval-seconds} below 1. Stores page (task 1.5):
- * on a head office, the startup fails with a {@code headoffice.offline-after-seconds} below 1. Sales copies (tasks 2.1,
+ * on a head office, the startup fails with a {@code headoffice.offline-after-seconds} below 1, or with a
+ * {@code headoffice.stock.enabled} other than true or false (never read on a store). Sales copies (tasks 2.1,
  * 2.4): when {@code headoffice.url} is set, the startup fails with a {@code headoffice.sales-push.from-date} that is
  * not a date, a {@code headoffice.sales-push.batch-size} outside 1..1000 or a
  * {@code headoffice.sales-push.interval-seconds} below 1 or (task 2.6) a {@code headoffice.log-retention-days} below 1;
@@ -67,6 +68,8 @@ public final class NodeOwnership {
 	static final String PULL_INTERVAL_KEY = "headoffice.pull.interval-seconds";
 	static final String LOYALTY_PUSH_INTERVAL_KEY = "headoffice.loyalty-push.interval-seconds";
 	static final String SUPPLY_PUSH_INTERVAL_KEY = "headoffice.supply-push.interval-seconds";
+	/** Head office only: it keeps its own stock and makes purchases (true, the default) or not (false). */
+	static final String HEADOFFICE_STOCK_KEY = "headoffice.stock.enabled";
 
 	/**
 	 * Domains a store receives as copies down from its head office today (step 3: promotions; step 4: loyalty; step 6:
@@ -192,6 +195,35 @@ public final class NodeOwnership {
 	}
 
 	/**
+	 * True on a head office with headoffice.stock.enabled=false: it keeps no stock and makes no purchases (its BLs move no
+	 * stock). The key is read on a head office only: a store never reads it, whatever its value. Also used by
+	 * {@link OnHeadOfficeWithoutStockCondition}. Throws like the startup on a value other than true or false.
+	 */
+	public static boolean isHeadOfficeWithoutStockSet(PropertyResolver env) {
+		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && !headOfficeStockEnabled(env);
+	}
+
+	/**
+	 * headoffice.stock.enabled, trimmed and case-insensitive: true when absent. Any value other than true or false (blank
+	 * included) throws {@link IllegalStateException} naming the key. Called on a head office only.
+	 */
+	private static boolean headOfficeStockEnabled(PropertyResolver env) {
+		if (!env.containsProperty(HEADOFFICE_STOCK_KEY)) {
+			return true;
+		}
+		String raw = env.getProperty(HEADOFFICE_STOCK_KEY);
+		String value = raw == null ? "" : raw.trim();
+		if ("true".equalsIgnoreCase(value)) {
+			return true;
+		}
+		if ("false".equalsIgnoreCase(value)) {
+			return false;
+		}
+		throw new IllegalStateException("Invalid value '" + raw + "' for property " + HEADOFFICE_STOCK_KEY
+				+ ": true (the head office keeps its own stock and makes purchases) or false (no stock, no purchases)");
+	}
+
+	/**
 	 * headoffice.sales-push.from-date (task 2.1): a date as yyyy-MM-dd, trimmed; null when absent or blank (the whole
 	 * history is sent). Throws {@link IllegalStateException} naming the key on any other value.
 	 */
@@ -224,6 +256,7 @@ public final class NodeOwnership {
 		checkHeadOfficeLink(env, headOffice);
 		if (headOffice) {
 			checkWholeSeconds(env, OFFLINE_AFTER_KEY);
+			headOfficeStockEnabled(env);
 		}
 
 		// Absent keys: everything LOCAL, sales nowhere (the type file states them all)
