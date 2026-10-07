@@ -110,26 +110,27 @@ class MachineFileTest {
 	}
 
 	@Test
-	@DisplayName("C1: a start with no outside file runs the default type, store, from its type file")
+	@DisplayName("C1: a start with no outside file runs the default type, store, from its type file; where it runs (port,"
+			+ " database) is not in the WAR (since aa6fa48)")
 	void noOutsideFileDefaultType() {
 		StandardEnvironment env = start(new HashMap<>());
 		assertArrayEquals(new String[] { "store" }, env.getActiveProfiles());
 		assertEquals("STORE", env.getProperty("node.type"));
 		assertEquals("LOCAL", env.getProperty("ownership.catalogue"));
-		assertEquals("444", env.getProperty("server.port"));
-		assertEquals("jdbc:sqlserver://localhost;databaseName=pos_db_prod", env.getProperty("spring.datasource.url"));
+		assertNull(env.getProperty("server.port"), "the port is in the outside file only");
+		assertNull(env.getProperty("spring.datasource.url"), "the database is in the outside file only");
 		assertEquals("com.microsoft.sqlserver.jdbc.SQLServerDriver", env.getProperty("spring.datasource.driverClassName"));
 		assertNull(env.getProperty(MachineFileEnvironmentPostProcessor.LOADED_KEY));
 		NodeOwnership.resolve(env);
 	}
 
 	@Test
-	@DisplayName("C1: the type named by -Dspring.profiles.active alone (no outside file) is used")
+	@DisplayName("C1: the type named by -Dspring.profiles.active alone (no outside file) is used; no port without the outside file")
 	void typeWithoutOutsideFile() {
 		StandardEnvironment env = start(Map.of("spring.profiles.active", "headoffice"));
 		assertArrayEquals(new String[] { "headoffice" }, env.getActiveProfiles());
 		assertEquals("HEAD_OFFICE", env.getProperty("node.type"));
-		assertEquals("888", env.getProperty("server.port"));
+		assertNull(env.getProperty("server.port"));
 	}
 
 	@Test
@@ -155,13 +156,17 @@ class MachineFileTest {
 	@DisplayName("C1: a key of the outside file wins over the type file and application.properties; a key it leaves out comes from the type file")
 	void outsideKeyWins() throws Exception {
 		Path file = outsideFile("ho.properties", "spring.profiles.active=headoffice", "server.port=999",
-				"ownership.catalogue=ERP", "ownership.customers=ERP", "ownership.supply=ERP");
+				"spring.datasource.url=jdbc:sqlserver://localhost;databaseName=pos_ho_x", "ownership.catalogue=ERP",
+				"ownership.customers=ERP", "ownership.supply=ERP");
 		StandardEnvironment env = start(Map.of("zsretail.machine-file", file.toString()));
 		assertArrayEquals(new String[] { "headoffice" }, env.getActiveProfiles());
 		assertEquals("999", env.getProperty("server.port"));
+		assertEquals("jdbc:sqlserver://localhost;databaseName=pos_ho_x", env.getProperty("spring.datasource.url"));
 		assertEquals("ERP", env.getProperty("ownership.catalogue"));
-		assertEquals("HEAD_OFFICE", env.getProperty("node.type"));
-		assertEquals("jdbc:sqlserver://localhost;databaseName=pos_headoffice", env.getProperty("spring.datasource.url"));
+		assertEquals("HEAD_OFFICE", env.getProperty("node.type"), "left out: from the type file");
+		assertEquals("LOCAL", env.getProperty("ownership.promotions"), "left out: from the type file");
+		assertEquals("com.microsoft.sqlserver.jdbc.SQLServerDriver", env.getProperty("spring.datasource.driverClassName"),
+				"left out: from application.properties");
 		assertEquals(file.toString(), env.getProperty(MachineFileEnvironmentPostProcessor.LOADED_KEY));
 		assertTrue(NodeOwnership.isHeadOfficeErpSet(env));
 
