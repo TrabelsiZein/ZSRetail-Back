@@ -1208,6 +1208,45 @@ Frontend commit d5cb48e. Getter `appConfig/headOfficeKeepsStock`: `false` only o
 
 The home quick links hold no supply card, so nothing changes there. Labels in `en`, `fr`, `ar`. Checks: lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
 
+### Head office with the catalogue only from the ERP: the connector "navpospages" (ERP catalogue, step 5)
+A second ERP connector, package `erp/navpospages`, for a Dynamics NAV / Business Central whose web services are the "POS pages"
+(`ItemCategory`, `PointStockPOS`, `ItemBarCodePOS`): same ERP as `erp/dynamicsnav`, other pages. **Read only**: its RestTemplate
+refuses any method other than GET before it leaves (`NavPosPagesConfig.GetOnly`). In step 5 it reads and translates; it hands
+nothing to the import (every fetch of `NavPosPagesConnector` answers an empty list, every push a failure "read only"); step 6
+makes the four catalogue fetches return the changes. No existing class changed: `@Primary` wins over `NoOpErpConnector`.
+
+| Class | Role |
+|---|---|
+| `NavPosPagesProperties` | Settings `erp.navpospages.*` (see `docs/deployment-modes.md`) |
+| `NavPosPagesStartupCheck` | Startup refusals (the settings bean depends on it, so its message comes before a binding error) and one INFO line: address, company, location, pages |
+| `NavPosPagesConfig` | Bean `navPosPagesRestTemplate`: NTLM, connect and read timeouts, GET only |
+| `NavPosPagesRestClient` | `readCategories()` (`$select=Code,Description,Parent_Category,Type`, next links followed), `readItems()` (`$filter=Location_Code eq '<location-code>'`, a quote doubled, `$select=Item_No,Variant_Code,Description,Unit_Price,Family,Subfamily`, next links), `readBarcodesAfter(n)` (`$filter=Entry_No gt n&$orderby=Entry_No&$top=<barcode-page-size>&$select=Item_No,Cross_Reference_No,Entry_No`, one page per call). An HTTP error or a timeout: `NavPosPagesReadException` naming the page and the status, no retry |
+| `NavPosPagesMapper` (no Spring) | To `ErpItemFamilyDTO`, `ErpItemSubFamilyDTO`, `ErpItemDTO`, `ErpItemBarcodeDTO`; each `NavPosResult` gives the rows, read, kept, left out by reason, notes, and for barcodes the highest `Entry_No` read |
+| `NavPosPagesReader` | Client + mapper: `readFamilies()`, `readSubFamilies()`, `readItems()`, `readBarcodesAfter(n)` |
+| `NavPosPagesConnector` | The `ErpConnector` (`@Primary`), read only |
+
+Translation rules:
+- **Categories**: `Type` trimmed, any case. `Family` rows: families (`externalId` = `code` = `Code`, `name` = `description` =
+  `Description` trimmed, active). `Subfamily` rows: sub-families, family = `Parent_Category`, left out when that parent is not a
+  `Family` row of the same read. Other types (`Categorie`) ignored. Blank `Code` left out.
+- **Items**: one item per `Item_No` (trimmed; blank left out): the row with a blank `Variant_Code`, else the lowest; the other
+  rows counted as variant rows. `name` = `description` = `Description` trimmed, family and sub-family codes (blank: null), VAT =
+  `default-vat`, active. Price: with `price-includes-vat=true` `Unit_Price / (1 + default-vat/100)`, BigDecimal, 10 decimals,
+  HALF_UP (`2.45` at 19 % gives `2.0588235294`); with `false` as it is. A null or zero price is kept as 0 and noted.
+- **Barcodes**: trimmed; blank barcode or `Item_No` left out; `externalId` = barcode = `Cross_Reference_No`, item = `Item_No`;
+  the same barcode twice keeps the highest `Entry_No`.
+
+The price at the till: the till computes `unitPrice x (1 + VAT/100) x quantity` in floating point and shows 3 decimals; the
+backend stores those values unrounded. For every price from 0.001 to 500.000 at 19 %, the price before VAT of 10 decimals comes
+back to the ERP price at 3 decimals (1 unit and more; at most 6e-11 above it).
+
+Tests: `NavPosPagesRestClientTest` (the URLs, GET, next link, HTTP error, timeout, non-GET refused before it leaves),
+`NavPosPagesMapperTest` (the samples of `src/test/resources/navpospages/`, location `DA-MG-GREM`; variants, a barcode twice, a
+sub-family without its family, a `Categorie` row, `price-includes-vat=false`), `NavPosPagesStartupCheckTest`,
+`NavPosPagesConnectorTest` (empty lists and failures; the connector injected in `ErpSynchronizationManager`: NoOp, Dynamics NAV,
+navpospages), `NavPosPagesLiveReadTest` (skipped unless `-Dnavpospages.live=true`: a GET-only read of the ERP named in
+`configs/local/happyness_ho.properties`, counts, five rows and the time per page, two barcode pages).
+
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter
 `appConfig/erpOwnsOnlyCatalogue`): `nodeType` `HEAD_OFFICE`, `ownership.CATALOGUE` `ERP`, `CUSTOMERS` and `SUPPLY` not `ERP`,

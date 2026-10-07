@@ -142,9 +142,31 @@ task 9.3). Head office details: `docs/modules/head-office.md`.
 The startup summary line adds `only the catalogue from the ERP (customers and supply kept here)`. The existing gates
 follow the questions: item, family, sub-family creation and the data import answer 403 (`isCatalogueFromErp`); customers,
 purchases, vendors, locations and stock are not refused by the ERP gates (purchases and stock by the no-stock filter when
-`headoffice.stock.enabled=false`). Still to come in later steps: the connector, the refusal of the other catalogue writes,
-the ERP jobs offered, `GET /config` and the frontend (today the frontend reads `hasErp` and shows this head office as one
-with an ERP).
+`headoffice.stock.enabled=false`). Steps 2 to 4 added the refusal of the other catalogue writes, the ERP jobs offered and the
+frontend (`docs/modules/head-office.md`).
+
+**The connector of this head office: `erp.navpospages.*`** (ERP catalogue, step 5; package `erp/navpospages`, GET only, it never
+writes to the ERP). The lines go in the head office's **outside file** (e.g. `configs/local/happyness_ho.properties`), never in
+`src/main/resources`. Every bean of the package exists only with `erp.navpospages.enabled=true`.
+
+| Key | Value | Default |
+|---|---|---|
+| `erp.navpospages.enabled` | `true` \| `false` | `false` |
+| `erp.navpospages.base-url` | OData V4 address, e.g. `http://host:7048/BC140/ODataV4` | required |
+| `erp.navpospages.company` | Company name | required |
+| `erp.navpospages.domain`, `.username`, `.password` | NTLM account (domain may be blank) | username and password required |
+| `erp.navpospages.location-code` | The one location whose items are read | required |
+| `erp.navpospages.page.categories`, `.page.items`, `.page.barcodes` | Web service names | `ItemCategory`, `PointStockPOS`, `ItemBarCodePOS` |
+| `erp.navpospages.barcode-page-size` | Barcodes per call, 1 to 5000 | `1000` |
+| `erp.navpospages.default-vat` | The VAT of every item, whole number 0 to 100 | required |
+| `erp.navpospages.price-includes-vat` | `true` (Unit_Price includes the VAT) \| `false` | required |
+| `erp.navpospages.connect-timeout-seconds`, `.read-timeout-seconds` | At least 1 | `10`, `60` |
+
+Startup refusals with `enabled=true` (the message names the key, the application does not start): `erp.dynamicsnav.enabled=true`
+as well (one ERP connector per installation); not a head office whose catalogue only comes from the ERP; a blank address,
+company, username, password or location; a wrong `default-vat`, `price-includes-vat`, `barcode-page-size` or timeout. One INFO
+line at startup: `ERP connector navpospages (read only, GET): <address>, company <company>, location <code>, pages <three>`.
+Step 5 reads and translates only; no ERP job is switched on (`erp.sync.enabled` is not set).
 
 **Step 9 questions** (tasks 9.1b to 9.1g): `isCatalogueFromErp()`, `isCustomersFromErp()`, `isSupplyFromErp()`, `hasErp()` (some
 owner is the ERP). With the ERP owning all or nothing they answer alike for every configuration that starts, except the
