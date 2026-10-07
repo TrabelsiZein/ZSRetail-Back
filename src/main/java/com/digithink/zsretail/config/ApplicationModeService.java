@@ -135,4 +135,12 @@ public class ApplicationModeService {
 	public boolean hasErp() {
 		return ownership.hasErp();
 	}
+
+	/**
+	 * ERP catalogue, step 1: a head office whose catalogue only comes from the ERP (customers and supply not the ERP's).
+	 * Always false on a store. See {@link NodeOwnership#isErpCatalogueOnly()}.
+	 */
+	public boolean isErpCatalogueOnly() {
+		return ownership.isErpCatalogueOnly();
+	}
 }

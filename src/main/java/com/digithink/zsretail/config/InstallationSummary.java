@@ -41,6 +41,9 @@ public class InstallationSummary {
 			line.add(domain.name().toLowerCase() + " " + ownership.ownerOf(domain));
 		}
 		line.add("sales to " + (ownership.getSalesUpstreams().isEmpty() ? "nowhere" : ownership.getSalesUpstreams()));
+		if (ownership.isErpCatalogueOnly()) {
+			line.add("only the catalogue from the ERP (customers and supply kept here)");
+		}
 		if (NodeOwnership.isHeadOfficeWithoutStockSet(env)) {
 			line.add("head office stock off");
 		}

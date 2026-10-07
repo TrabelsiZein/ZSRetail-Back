@@ -52,6 +52,9 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * The ERP owns all or nothing (step 9, tasks 9.1a and 9.3): the catalogue, the customers and the supply (the domains an
  * ERP can own) are the ERP's together, or none of them is. Any other mix stops the startup (an ERP store, its items
  * from a head office, for example), so "an owner is the ERP" answers every step 9 question (ModeQuestionTruthTableTest).
+ * One exception, on a head office only (ERP catalogue, step 1): the catalogue from the ERP with the customers and the
+ * supply not the ERP's ({@link #isErpCatalogueOnly()}). Such a head office reads its items from the ERP and keeps
+ * everything else of a head office without an ERP (catalogue feed, price lists, BLs, supply prices and invoices).
  */
 public final class NodeOwnership {
 
@@ -180,18 +183,38 @@ public final class NodeOwnership {
 	}
 
 	/**
-	 * True on a head office with an ERP (task 3.4): node.type=HEAD_OFFICE and an owner ERP (type headoffice with the ERP owners). Also used by {@link OnHeadOfficeErpCondition}.
+	 * True on a head office with an ERP (task 3.4): node.type=HEAD_OFFICE and an owner ERP (type headoffice with the ERP
+	 * owners), except a head office whose catalogue only is the ERP's ({@link #isErpCatalogueOnly()}): that one has no ERP
+	 * reference location. Also used by {@link OnHeadOfficeErpCondition}.
 	 */
 	public static boolean isHeadOfficeErpSet(PropertyResolver env) {
-		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && resolve(env).hasErp();
+		if (nodeTypeOf(env) != NodeType.HEAD_OFFICE) {
+			return false;
+		}
+		NodeOwnership ownership = resolve(env);
+		return ownership.hasErp() && !ownership.isErpCatalogueOnly();
 	}
 
 	/**
-	 * True on a head office without an ERP (step 6): node.type=HEAD_OFFICE and no owner ERP. It sends its catalogue to its
-	 * stores and keeps the price lists. Also used by {@link OnHeadOfficeWithoutErpCondition}.
+	 * True on a head office that sends its catalogue to its stores and supplies them (step 6): node.type=HEAD_OFFICE and
+	 * no owner ERP, or the catalogue only from the ERP ({@link #isErpCatalogueOnly()}). It keeps the catalogue feed, the
+	 * price lists, the BLs, the supply prices and invoices and the network stock. The name is kept from step 6. Also used
+	 * by {@link OnHeadOfficeWithoutErpCondition}.
 	 */
 	public static boolean isHeadOfficeWithoutErpSet(PropertyResolver env) {
-		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && !resolve(env).hasErp();
+		if (nodeTypeOf(env) != NodeType.HEAD_OFFICE) {
+			return false;
+		}
+		NodeOwnership ownership = resolve(env);
+		return !ownership.hasErp() || ownership.isErpCatalogueOnly();
+	}
+
+	/**
+	 * Static form of {@link #isErpCatalogueOnly()} for the conditions: a head office whose catalogue only is the ERP's.
+	 * False on a store without resolving it. Throws like the startup on an invalid configuration.
+	 */
+	public static boolean isErpCatalogueOnlySet(PropertyResolver env) {
+		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && resolve(env).isErpCatalogueOnly();
 	}
 
 	/**
@@ -289,7 +312,7 @@ public final class NodeOwnership {
 			}
 		}
 
-		checkErpOwnsAllOrNothing(owners);
+		checkErpOwnsAllOrNothing(owners, headOffice);
 
 		String catalogueKey = DataDomain.CATALOGUE.getPropertyKey();
 		String supplyKey = DataDomain.SUPPLY.getPropertyKey();
@@ -354,10 +377,25 @@ public final class NodeOwnership {
 	/**
 	 * Step 9 question: this installation works with an ERP (some domain is owned by the ERP). The ERP owns the catalogue,
 	 * the customers and the supply together or none of them (checked at startup), so the four questions answer alike for
-	 * every configuration that starts ({@code ModeQuestionTruthTableTest}).
+	 * every configuration that starts ({@code ModeQuestionTruthTableTest}), except on a head office whose catalogue only
+	 * is the ERP's ({@link #isErpCatalogueOnly()}): there hasErp and isCatalogueFromErp are true, the two others false.
 	 */
 	public boolean hasErp() {
 		return owners.containsValue(DataOwner.ERP);
+	}
+
+	/**
+	 * ERP catalogue, step 1: a head office whose catalogue comes from the ERP while its customers and its supply are not
+	 * the ERP's (the one partial combination accepted, on a head office only). Always false on a store.
+	 */
+	public boolean isErpCatalogueOnly() {
+		return nodeType == NodeType.HEAD_OFFICE && isCatalogueOnly(owners);
+	}
+
+	/** The catalogue is the ERP's, the customers and the supply are not. */
+	private static boolean isCatalogueOnly(Map<DataDomain, DataOwner> owners) {
+		return owners.get(DataDomain.CATALOGUE) == DataOwner.ERP && owners.get(DataDomain.CUSTOMERS) != DataOwner.ERP
+				&& owners.get(DataDomain.SUPPLY) != DataOwner.ERP;
 	}
 
 	/**
@@ -388,9 +426,14 @@ public final class NodeOwnership {
 	}
 
 	/**
-	 * Steps 9.1a and 9.3: the ERP owns the catalogue, the customers and the supply together, or none of them.
+	 * Steps 9.1a and 9.3: the ERP owns the catalogue, the customers and the supply together, or none of them. ERP
+	 * catalogue, step 1: on a head office only, the catalogue alone from the ERP is accepted too; every other partial
+	 * combination is refused with the same message, on a head office and on a store.
 	 */
-	private static void checkErpOwnsAllOrNothing(Map<DataDomain, DataOwner> owners) {
+	private static void checkErpOwnsAllOrNothing(Map<DataDomain, DataOwner> owners, boolean headOffice) {
+		if (headOffice && isCatalogueOnly(owners)) {
+			return;
+		}
 		DataDomain erpDomain = null;
 		DataDomain otherDomain = null;
 		for (DataDomain domain : DataDomain.values()) {

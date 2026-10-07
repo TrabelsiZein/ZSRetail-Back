@@ -1,6 +1,7 @@
 package com.digithink.zsretail.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -29,33 +30,66 @@ import com.digithink.zsretail.support.Installations;
  * property is gone (a configuration that sets it is refused), and the answers of each old profile are frozen in
  * PresetTruthTableTest. Here:
  * <ul>
- * <li>every preset (with a head office address for the network presets) and every machine file of deploy/ starts;</li>
+ * <li>every preset (with a head office address for the network presets), every machine file of deploy/ and every
+ * installation file of configs/ starts, none is the new head office combination, and each answers the old way;</li>
  * <li>a grid of configurations of the owners, node.type, headoffice.url, sales.upstream and application.standalone:
  * any one with application.standalone is refused; in every accepted one the catalogue, the customers and the supply are
  * the ERP's together or not at all, so isCatalogueFromErp, isCustomersFromErp, isSupplyFromErp and hasErp answer
  * alike, and isHeadOfficeErpSet / isHeadOfficeWithoutErpSet split a head office by that answer.</li>
+ * <li>ERP catalogue, step 1: the one exception is a head office with the catalogue from the ERP and the customers and
+ * the supply not (isErpCatalogueOnly). The grid's counts before that step are frozen: the only rows added are those
+ * head offices, where isCustomersFromErp and isSupplyFromErp are false, isHeadOfficeWithoutErpSet true and
+ * isHeadOfficeErpSet false.</li>
  * </ul>
  */
 class ModeQuestionTruthTableTest {
 
-	/** The disagreements between the questions; empty when they agree. */
+	/** Grid answers before ERP catalogue step 1 (frozen from the run of 2026-10-07): accepted, accepted with an ERP. */
+	static final int ACCEPTED_BEFORE = 497;
+	static final int ACCEPTED_WITH_ERP_BEFORE = 25;
+
+	/**
+	 * Grid rows accepted since ERP catalogue step 1: a head office, catalogue ERP, customers and supply absent or LOCAL
+	 * (2 x 2), sales.upstream absent or empty (2); every other axis at the only value a head office accepts.
+	 */
+	static final int NEW_HEAD_OFFICE_ROWS = 8;
+
+	/** ERP catalogue, step 1: the head office combination, read from the owners (not from the class under test). */
+	private static boolean catalogueOnly(NodeOwnership ownership) {
+		return ownership.getNodeType() == NodeType.HEAD_OFFICE
+				&& ownership.ownerOf(DataDomain.CATALOGUE) == DataOwner.ERP
+				&& ownership.ownerOf(DataDomain.CUSTOMERS) != DataOwner.ERP
+				&& ownership.ownerOf(DataDomain.SUPPLY) != DataOwner.ERP;
+	}
+
+	/**
+	 * The disagreements with the expected answers; empty when they agree. Outside the new head office combination the
+	 * expected answers are the old ones: the four questions alike, the two head office predicates split by hasErp.
+	 */
 	private static List<String> differences(PropertyResolver env, NodeOwnership ownership) {
 		boolean erp = ownership.hasErp();
+		boolean catalogueOnly = catalogueOnly(ownership);
 		List<String> out = new ArrayList<>();
+		if (ownership.isErpCatalogueOnly() != catalogueOnly) {
+			out.add("isErpCatalogueOnly=" + ownership.isErpCatalogueOnly());
+		}
+		if (NodeOwnership.isErpCatalogueOnlySet(env) != catalogueOnly) {
+			out.add("isErpCatalogueOnlySet=" + NodeOwnership.isErpCatalogueOnlySet(env));
+		}
 		if (ownership.isCatalogueFromErp() != erp) {
 			out.add("isCatalogueFromErp=" + ownership.isCatalogueFromErp());
 		}
-		if (ownership.isCustomersFromErp() != erp) {
+		if (ownership.isCustomersFromErp() != (erp && !catalogueOnly)) {
 			out.add("isCustomersFromErp=" + ownership.isCustomersFromErp());
 		}
-		if (ownership.isSupplyFromErp() != erp) {
+		if (ownership.isSupplyFromErp() != (erp && !catalogueOnly)) {
 			out.add("isSupplyFromErp=" + ownership.isSupplyFromErp());
 		}
 		boolean headOffice = ownership.getNodeType() == NodeType.HEAD_OFFICE;
-		if (NodeOwnership.isHeadOfficeErpSet(env) != (headOffice && erp)) {
+		if (NodeOwnership.isHeadOfficeErpSet(env) != (headOffice && erp && !catalogueOnly)) {
 			out.add("isHeadOfficeErpSet=" + NodeOwnership.isHeadOfficeErpSet(env));
 		}
-		if (NodeOwnership.isHeadOfficeWithoutErpSet(env) != (headOffice && !erp)) {
+		if (NodeOwnership.isHeadOfficeWithoutErpSet(env) != (headOffice && (!erp || catalogueOnly))) {
 			out.add("isHeadOfficeWithoutErpSet=" + NodeOwnership.isHeadOfficeWithoutErpSet(env));
 		}
 		return out;
@@ -84,12 +118,18 @@ class ModeQuestionTruthTableTest {
 		for (String machine : Installations.machineFiles()) {
 			installations.put("machine " + machine, Installations.machine(machine));
 		}
-		assertTrue(installations.size() >= Installations.variants().size() + 9, "presets and machine files read");
+		for (String config : Installations.configFiles()) {
+			installations.put("config " + config, Installations.config(config));
+		}
+		assertTrue(installations.size() >= Installations.variants().size() + 9 + 3,
+				"presets, machine files and configs read");
 		for (Map.Entry<String, MockEnvironment> installation : installations.entrySet()) {
 			NodeOwnership ownership = accepted(installation.getValue());
 			if (ownership == null) {
 				fail(installation.getKey() + " does not start");
 			}
+			// None of them is the new head office combination, so each one is checked against the old answers
+			assertFalse(catalogueOnly(ownership), installation.getKey());
 			assertEquals(new ArrayList<>(), differences(installation.getValue(), ownership), installation.getKey());
 		}
 	}
@@ -118,6 +158,7 @@ class ModeQuestionTruthTableTest {
 		int combinations = 0;
 		int acceptedCount = 0;
 		int acceptedWithErp = 0;
+		int newRows = 0;
 		List<String> wrong = new ArrayList<>();
 		while (true) {
 			map.clear();
@@ -135,6 +176,7 @@ class ModeQuestionTruthTableTest {
 			if (ownership != null) {
 				acceptedCount++;
 				acceptedWithErp += ownership.hasErp() ? 1 : 0;
+				newRows += catalogueOnly(ownership) ? 1 : 0;
 				List<String> diff = differences(env, ownership);
 				if (map.containsKey("application.standalone")) {
 					diff.add("accepted with application.standalone");
@@ -153,8 +195,14 @@ class ModeQuestionTruthTableTest {
 			}
 		}
 		System.out.println("ModeQuestionTruthTableTest grid: " + combinations + " configurations, " + acceptedCount
-				+ " accepted (" + acceptedWithErp + " with an ERP), " + wrong.size() + " wrong");
+				+ " accepted (" + acceptedWithErp + " with an ERP, " + newRows + " head offices with the catalogue only"
+				+ " from the ERP), " + wrong.size() + " wrong");
 		assertTrue(acceptedWithErp > 0 && acceptedCount > acceptedWithErp, "both kinds accepted");
+		// ERP catalogue, step 1: the old rows answer as before, the only rows added are the new head office combination
+		assertEquals(15360, combinations, "grid size");
+		assertEquals(NEW_HEAD_OFFICE_ROWS, newRows, "new head office rows");
+		assertEquals(ACCEPTED_BEFORE, acceptedCount - newRows, "accepted before step 1");
+		assertEquals(ACCEPTED_WITH_ERP_BEFORE, acceptedWithErp - newRows, "accepted with an ERP before step 1");
 		assertEquals(0, wrong.size(), "e.g. " + wrong.subList(0, Math.min(5, wrong.size())));
 	}
 }

@@ -30,6 +30,9 @@ public final class Installations {
 	/** The repository's deploy folder (the tests run from the project directory). */
 	public static final Path DEPLOY = Paths.get("deploy");
 
+	/** The repository's configs folder: one file per installation (ERP catalogue, step 1: checked like deploy/). */
+	public static final Path CONFIGS = Paths.get("configs");
+
 	/** Old preset name to its type and the mode lines it gave (task 9.3 files, removed at step C1). */
 	private static final Map<String, String[]> VARIANTS = new LinkedHashMap<>();
 
@@ -61,7 +64,21 @@ public final class Installations {
 
 	/** An outside file of deploy/ (e.g. "dev/store-b.properties") over its type file and application.properties. */
 	public static MockEnvironment machine(String relativePath) {
-		Properties machine = file(DEPLOY.resolve(relativePath));
+		return outside(DEPLOY.resolve(relativePath));
+	}
+
+	/** An installation file of configs/ (e.g. "local/happyness_ho.properties") over its type file and application.properties. */
+	public static MockEnvironment config(String relativePath) {
+		return outside(CONFIGS.resolve(relativePath));
+	}
+
+	/** Every installation file of configs/, as paths relative to configs/. */
+	public static List<String> configFiles() {
+		return propertiesFiles(CONFIGS);
+	}
+
+	private static MockEnvironment outside(Path path) {
+		Properties machine = file(path);
 		String type = machine.getProperty("spring.profiles.active", resource("/application.properties")
 				.getProperty("spring.profiles.active"));
 		MockEnvironment env = type(type.trim());
@@ -97,10 +114,14 @@ public final class Installations {
 
 	/** Every outside file of deploy/ (the model excluded), as paths relative to deploy/. */
 	public static List<String> machineFiles() {
-		try (Stream<Path> files = Files.walk(DEPLOY)) {
+		return propertiesFiles(DEPLOY);
+	}
+
+	private static List<String> propertiesFiles(Path folder) {
+		try (Stream<Path> files = Files.walk(folder)) {
 			return files.filter(p -> p.toString().endsWith(".properties"))
 					.filter(p -> !p.getFileName().toString().equals("machine-model.properties"))
-					.map(p -> DEPLOY.relativize(p).toString().replace('\\', '/')).sorted().collect(Collectors.toList());
+					.map(p -> folder.relativize(p).toString().replace('\\', '/')).sorted().collect(Collectors.toList());
 		} catch (IOException e) {
 			throw new UncheckedIOException(e);
 		}

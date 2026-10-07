@@ -186,13 +186,18 @@ class ApplicationModeOwnershipTest {
 	}
 
 	@Test
-	@DisplayName("9.1a and 9.3: the ERP owns the catalogue, the customers and the supply together or none of them, on a store and on a head office; promotions and loyalty stay free")
+	@DisplayName("9.1a and 9.3: the ERP owns the catalogue, the customers and the supply together or none of them, on a store and on a head office (except the catalogue alone on a head office, ERP catalogue step 1); promotions and loyalty stay free")
 	void erpOwnsAllOrNothing() {
 		String rule = "The ERP owns the catalogue, the customers and the supply together";
 		for (String domain : new String[] { "ownership.catalogue", "ownership.customers", "ownership.supply" }) {
 			assertRefused(new MockEnvironment().withProperty(domain, "ERP"), domain.equals("ownership.catalogue")
 					? "Invalid combination: ownership.catalogue=ERP with ownership.customers=LOCAL" : domain + "=ERP", rule);
-			assertRefused(headOfficeEnv().withProperty(domain, " erp "), rule);
+			if (domain.equals("ownership.catalogue")) {
+				// ERP catalogue, step 1: the catalogue alone from the ERP is accepted on a head office only
+				assertTrue(NodeOwnership.resolve(headOfficeEnv().withProperty(domain, " erp ")).isErpCatalogueOnly());
+			} else {
+				assertRefused(headOfficeEnv().withProperty(domain, " erp "), rule);
+			}
 		}
 		assertRefused(TestModes.erpOwners(new MockEnvironment().withProperty("ownership.customers", "LOCAL")),
 				"Invalid combination: ownership.catalogue=ERP with ownership.customers=LOCAL", rule);

@@ -2,7 +2,8 @@
 
 **Status**: configuration step C1 (decision of 2026-10-04 evening), replacing the six presets and the mandatory machine
 file of task 9.3. An installation is a **type**, `store` or `headoffice`, plus an optional **outside file**. The rule "the ERP
-owns the catalogue, the customers and the supply together" is unchanged (step C2 will revisit it).
+owns the catalogue, the customers and the supply together" is unchanged (step C2 will revisit it), with one exception on a
+head office since ERP catalogue step 1: the catalogue alone from the ERP (section 4).
 
 ## 1. The three files (inside the WAR)
 
@@ -119,15 +120,37 @@ questions). Values are trimmed and case-insensitive.
 
 Startup checks (the application does not start, the message names the key): an unknown value; `ERP` for promotions or
 loyalty; the ERP owning only part of the catalogue, the customers and the supply (`Invalid combination: ownership.catalogue=ERP
-with ownership.customers=LOCAL. The ERP owns the catalogue, the customers and the supply together ...`); an owner
+with ownership.customers=LOCAL. The ERP owns the catalogue, the customers and the supply together ...`), except the one
+combination below on a head office (on a store the catalogue alone from the ERP stays refused); an owner
 `HEAD_OFFICE` on a store without `headoffice.url`; `ownership.supply=HEAD_OFFICE` without `ownership.catalogue=HEAD_OFFICE`;
 on a head office, an owner `HEAD_OFFICE`, a non-empty `sales.upstream` or `headoffice.url`; `franchise.admin` or
 `franchise.customer` set to `true` (the franchise profiles were removed, task 9.4a); `application.standalone` (removed,
 task 9.3). Head office details: `docs/modules/head-office.md`.
 
+**Catalogue only from the ERP, head office only** (ERP catalogue, step 1: ownership only, no connector yet):
+`node.type=HEAD_OFFICE`, `ownership.catalogue=ERP`, `ownership.customers` and `ownership.supply` not `ERP` (absent or
+`LOCAL`). Every other partial combination is refused with the message above, on a head office and on a store.
+
+| Question | This head office | Every other configuration |
+|---|---|---|
+| `isErpCatalogueOnly()` (`ApplicationModeService`, `NodeOwnership`; static `NodeOwnership.isErpCatalogueOnlySet(env)` for conditions) | `true` | `false` |
+| `hasErp()`, `isCatalogueFromErp()` | `true` | as before |
+| `isCustomersFromErp()`, `isSupplyFromErp()` | `false` | as before |
+| `isHeadOfficeWithoutErpSet` (head office AND (no ERP owner OR catalogue only)): catalogue feed, price lists, BLs, supply prices and invoices, network stock | `true` | as before |
+| `isHeadOfficeErpSet` (head office AND an ERP owner AND NOT catalogue only): ERP reference location | `false` | as before |
+
+The startup summary line adds `only the catalogue from the ERP (customers and supply kept here)`. The existing gates
+follow the questions: item, family, sub-family creation and the data import answer 403 (`isCatalogueFromErp`); customers,
+purchases, vendors, locations and stock are not refused by the ERP gates (purchases and stock by the no-stock filter when
+`headoffice.stock.enabled=false`). Still to come in later steps: the connector, the refusal of the other catalogue writes,
+the ERP jobs offered, `GET /config` and the frontend (today the frontend reads `hasErp` and shows this head office as one
+with an ERP).
+
 **Step 9 questions** (tasks 9.1b to 9.1g): `isCatalogueFromErp()`, `isCustomersFromErp()`, `isSupplyFromErp()`, `hasErp()` (some
-owner is the ERP). With the ERP owning all or nothing they answer alike for every configuration that starts
-(`ModeQuestionTruthTableTest`: every variant and outside file, and a grid of 15,360 configurations). They replaced the old
+owner is the ERP). With the ERP owning all or nothing they answer alike for every configuration that starts, except the
+head office above (`ModeQuestionTruthTableTest`: every variant, every outside file of `deploy/` and `configs/`, and a grid
+of 15,360 configurations whose counts before ERP catalogue step 1 are frozen, 497 accepted of which 25 with an ERP; the
+only rows added are the 8 head offices of that combination; `ErpCatalogueHeadOfficeTest`). They replaced the old
 standalone checks:
 
 | Gate (task) | Question | Answer with an ERP |
