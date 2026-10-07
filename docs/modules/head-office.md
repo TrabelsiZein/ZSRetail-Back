@@ -1182,7 +1182,7 @@ A head office **without an ERP** buys from its suppliers and keeps its own stock
 Page permissions, one per head office route (seeded on a head office ADMIN at each start; frontend routes `standaloneOnly`, twins of the store pages): `read:admin-headoffice-vendors`, `-purchases` (history), `-purchase-new`, `-vendor-balance`, `-purchase-invoices`, `-stock` (stock report), `-stock-movements` (32 head office permissions).
 
 ### Head office without stock (`headoffice.stock.enabled`, backend)
-A head office that is only a consolidation layer (Happyness: catalogue, BLs, supply prices and supply invoices; its stock lives elsewhere) keeps no stock and makes no purchases. Key `headoffice.stock.enabled` in the "What this installation is" block of `application-headoffice.properties`: `true` (default, the warehouse above) or `false`. Frontend: next step (pages, menu, guard still unchanged).
+A head office that is only a consolidation layer (Happyness: catalogue, BLs, supply prices and supply invoices; its stock lives elsewhere) keeps no stock and makes no purchases. Key `headoffice.stock.enabled` in the "What this installation is" block of `application-headoffice.properties`: `true` (default, the warehouse above) or `false`. Frontend: see "Head office without stock: the pages" below.
 - **Read on a head office only** (`NodeOwnership.isHeadOfficeWithoutStockSet`: `node.type=HEAD_OFFICE` and the key `false`). A store never reads it, whatever its value. On a head office, trimmed and case-insensitive; any other value (blank included) stops the startup: `Invalid value 'flase' for property headoffice.stock.enabled: true (...) or false (...)`. `ApplicationModeService.isHeadOfficeWithoutStock()`; startup summary `..., sales to nowhere, head office stock off, ...`.
 - **An added gate**: it never replaces or changes `isSupplyFromErp`, the ownership, the store rights or the permissions. With an ERP it changes nothing visible (no BL, no stock there already).
 - `GET /config` field `headOfficeStock` (last): `false` only on such a head office, `true` on every store.
@@ -1192,6 +1192,19 @@ A head office that is only a consolidation layer (Happyness: catalogue, BLs, sup
 - Item answers unchanged (`costPrice` stays). The data import is not changed.
 - Switching `false` back to `true`: the stock was not moved by the BLs sent meanwhile; correct it item by item (adjust stock) before relying on it.
 - Tests: `HeadOfficeStockKeyTest` (default, `false`, strict values, ERP head office, every store kind with the key absent, `false` or unreadable: `/config` true and no filter bean; the filter's refused and passed paths), `HoDeliveryServiceTest.withoutStock`, `withoutStockItemRules`, `SupplyRoundTripTest.withoutHeadOfficeStock`.
+
+### Head office without stock: the pages (frontend)
+Frontend commit d5cb48e. Getter `appConfig/headOfficeKeepsStock`: `false` only on a head office whose `/config` gives `headOfficeStock: false`; `true` by default, when the field is absent or `/config` fails, and always on a store. Every part below is shown by its existing condition (`withoutErp`, `supplyFromErp`, permissions, store rights) **and** this getter, so no store page changes.
+
+| Part | Without stock |
+|---|---|
+| Routes Vendors, Purchase history, New purchase, Vendor balance, Purchase invoices, Stock report, Stock movements | `meta.headOfficeStock: true` (`router/headoffice-routes.js`). Hidden from the menu, the small-screen menu and the search (`headOfficeMenu()`); a typed URL goes to the head office home (router guard, after the `withoutErp` step); the Roles page neither lists nor counts their permissions (`headOfficePermissionGroups()`; a role keeps them) |
+| Items page (`ItemManagement.vue`) | No stock and last direct cost columns (with the low stock badge), no "Adjust stock" action, no Stock card (stock, minimum stock) and no Purchase costs card. The cost price stays |
+| BL page (`Deliveries.vue`) | No head office stock column, no "above stock" warning or highlight, no `GET /item/{id}` when a line is added; the validation confirmation leaves out "the goods leave the head office stock" (`confirmValidateNoStock`) |
+| Network stock (`NetworkStock.vue`) | No head office column, the stores' columns stay; subtitle and "below zero" help speak of the stores only (`subtitleNoStock`, `belowZeroHelpNoStock`) |
+| Data import (`DataImport.vue`) | No Vendors type; the Items mapping offers no stock quantity and no minimum stock. The backend import is unchanged |
+
+The home quick links hold no supply card, so nothing changes there. Labels in `en`, `fr`, `ar`. Checks: lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
 
 ### BLs (task 7A.2, head office)
 A BL (delivery note) sends goods from the head office stock to one store (design 3.5, decision D12). Head office without an ERP only (`HoDeliveryService`, `HoDeliveryAPI`, `@ConditionalOnHeadOfficeWithoutErp`); elsewhere the API answers 404 and the domain `SUPPLY` is not served. No price on a BL: step 7B invoices the received BLs.
