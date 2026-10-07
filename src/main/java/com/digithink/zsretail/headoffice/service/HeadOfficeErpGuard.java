@@ -16,7 +16,9 @@ import com.digithink.zsretail.erp.model.ErpSyncJob;
 import com.digithink.zsretail.erp.service.ErpSyncWarningException;
 
 /**
- * Head office plan, task 3.4: keeps the ERP jobs of {@link HeadOfficeErpJobs#NOT_ON_HEAD_OFFICE} out of a head office
+ * Head office plan, task 3.4: keeps the ERP jobs of {@link HeadOfficeErpJobs#refusedTypes()} (the exports and the price
+ * import; on a head office whose catalogue only comes from the ERP, every job but the four catalogue imports) out of a
+ * head office
  * without changing erp/ (an aspect, head office only; on a store it does not exist):
  * <ul>
  * <li>the runner refuses them ({@code ErpSyncJobRunner.run}, used by the scheduler and by "run now"): a warning, the
@@ -41,7 +43,7 @@ public class HeadOfficeErpGuard {
 
 	@Around("execution(* com.digithink.zsretail.erp.service.ErpSyncJobRunner.run(..)) && args(job)")
 	public Object refuseRun(ProceedingJoinPoint call, ErpSyncJob job) throws Throwable {
-		if (job != null && HeadOfficeErpJobs.isRefused(job.getJobType())) {
+		if (job != null && jobs.refuses(job.getJobType())) {
 			throw new ErpSyncWarningException(HeadOfficeErpJobs.REFUSED + ": " + job.getJobType());
 		}
 		return call.proceed();

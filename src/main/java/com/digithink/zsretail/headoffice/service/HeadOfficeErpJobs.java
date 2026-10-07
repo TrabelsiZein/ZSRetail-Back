@@ -12,6 +12,7 @@ import javax.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.config.ConditionalOnHeadOffice;
 import com.digithink.zsretail.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.erp.model.ErpSyncJob;
@@ -27,6 +28,11 @@ import lombok.extern.log4j.Log4j2;
  * is left out too: it is filtered on the responsibility center of one location, so it would give one store's prices,
  * and a head office does not sell. Nothing in erp/ is changed: these jobs are switched off here at each start,
  * hidden from the ERP jobs API and refused by the runner ({@link HeadOfficeErpGuard}).
+ * <p>
+ * ERP catalogue, step 3: on a head office whose catalogue only comes from the ERP
+ * ({@link ApplicationModeService#isErpCatalogueOnly()}) only the four catalogue imports are offered
+ * ({@link #OFFERED_WHEN_CATALOGUE_ONLY}); every other job is treated like the exports ({@link #refusedTypes()}). Any
+ * other head office keeps {@link #NOT_ON_HEAD_OFFICE}.
  */
 @Service
 @ConditionalOnHeadOffice
@@ -38,34 +44,73 @@ public class HeadOfficeErpJobs {
 			ErpSyncJobType.EXPORT_CUSTOMERS, ErpSyncJobType.EXPORT_TICKETS, ErpSyncJobType.EXPORT_RETURNS,
 			ErpSyncJobType.EXPORT_SESSIONS, ErpSyncJobType.IMPORT_SALES_PRICES_AND_DISCOUNTS));
 
+	/**
+	 * ERP catalogue, step 3: the only jobs offered on a head office whose catalogue only comes from the ERP; every other
+	 * job type is refused there.
+	 */
+	public static final Set<ErpSyncJobType> OFFERED_WHEN_CATALOGUE_ONLY = Collections.unmodifiableSet(EnumSet.of(
+			ErpSyncJobType.IMPORT_ITEM_FAMILIES, ErpSyncJobType.IMPORT_ITEM_SUBFAMILIES, ErpSyncJobType.IMPORT_ITEMS,
+			ErpSyncJobType.IMPORT_ITEM_BARCODES));
+
 	static final String REFUSED = "This ERP job does not run on a head office";
 
 	private final ErpSyncJobRepository jobs;
 
+	/** The job types refused on this head office, chosen once by mode. */
+	private final Set<ErpSyncJobType> refused;
+
 	/**
 	 * The data initializer is a parameter only so that it runs first: it seeds the ERP jobs (two exports enabled) in
-	 * its own {@code @PostConstruct}, and this one switches them off before any scheduled task starts.
+	 * its own {@code @PostConstruct}, and this one switches them off before any scheduled task starts. The mode chooses
+	 * the refused jobs (ERP catalogue, step 3).
 	 */
 	@Autowired
+	public HeadOfficeErpJobs(ErpSyncJobRepository jobs, ZZDataInitializer seededFirst, ApplicationModeService mode) {
+		this(jobs, mode.isErpCatalogueOnly());
+	}
+
+	/** Without the mode: the refused jobs of a head office whose ERP owns all three, or without an ERP. */
 	public HeadOfficeErpJobs(ErpSyncJobRepository jobs, ZZDataInitializer seededFirst) {
-		this.jobs = jobs;
+		this(jobs, false);
 	}
 
 	/** With the repository only: used by the tests. */
 	public HeadOfficeErpJobs(ErpSyncJobRepository jobs) {
-		this.jobs = jobs;
+		this(jobs, false);
 	}
 
+	/** catalogueOnly: a head office whose catalogue only comes from the ERP. Used by the tests too. */
+	public HeadOfficeErpJobs(ErpSyncJobRepository jobs, boolean catalogueOnly) {
+		this.jobs = jobs;
+		this.refused = catalogueOnly
+				? Collections.unmodifiableSet(EnumSet.complementOf(EnumSet.copyOf(OFFERED_WHEN_CATALOGUE_ONLY)))
+				: NOT_ON_HEAD_OFFICE;
+	}
+
+	/** The jobs refused on any head office whatever its mode ({@link #NOT_ON_HEAD_OFFICE}). See {@link #refuses}. */
 	public static boolean isRefused(ErpSyncJobType type) {
 		return type != null && NOT_ON_HEAD_OFFICE.contains(type);
 	}
 
-	/** At each start: the jobs of {@link #NOT_ON_HEAD_OFFICE} disabled, no next run. Returns how many were switched off. */
+	/**
+	 * The job types refused on this head office: {@link #NOT_ON_HEAD_OFFICE}, or on a head office whose catalogue only
+	 * comes from the ERP every type but {@link #OFFERED_WHEN_CATALOGUE_ONLY}.
+	 */
+	public Set<ErpSyncJobType> refusedTypes() {
+		return refused;
+	}
+
+	/** True when this head office never runs this job type. */
+	public boolean refuses(ErpSyncJobType type) {
+		return type != null && refused.contains(type);
+	}
+
+	/** At each start: the refused jobs ({@link #refusedTypes()}) disabled, no next run. Returns how many were switched off. */
 	@PostConstruct
 	public int switchOff() {
 		int switched = 0;
 		try {
-			for (ErpSyncJobType type : NOT_ON_HEAD_OFFICE) {
+			for (ErpSyncJobType type : refused) {
 				Optional<ErpSyncJob> job = jobs.findByJobType(type);
 				if (job.isPresent() && (!Boolean.FALSE.equals(job.get().getEnabled()) || job.get().getNextRunAt() != null)) {
 					job.get().setEnabled(false);
@@ -76,23 +121,22 @@ public class HeadOfficeErpJobs {
 			}
 		} catch (RuntimeException e) {
 			// The runner refuses them anyway (HeadOfficeErpGuard)
-			log.warn("Head office: ERP export jobs not switched off at start ({})", e.toString());
+			log.warn("Head office: ERP jobs not switched off at start ({})", e.toString());
 			return switched;
 		}
 		if (switched > 0) {
-			log.info("Head office: {} ERP jobs switched off (a head office exports nothing to the ERP: {})", switched,
-					NOT_ON_HEAD_OFFICE);
+			log.info("Head office: {} ERP jobs switched off (never run on this head office: {})", switched, refused);
 		}
 		return switched;
 	}
 
-	/** True when the job with this id exists and is one a head office never runs. */
+	/** True when the job with this id exists and is one this head office never runs. */
 	public boolean isRefusedJob(Long id) {
-		return id != null && jobs.findById(id).map(job -> isRefused(job.getJobType())).orElse(false);
+		return id != null && jobs.findById(id).map(job -> refuses(job.getJobType())).orElse(false);
 	}
 
-	/** The list without the jobs a head office never runs. */
+	/** The list without the jobs this head office never runs. */
 	public <T> List<T> withoutRefused(List<T> views, java.util.function.Function<T, ErpSyncJobType> typeOf) {
-		return views.stream().filter(view -> !isRefused(typeOf.apply(view))).collect(Collectors.toList());
+		return views.stream().filter(view -> !refuses(typeOf.apply(view))).collect(Collectors.toList());
 	}
 }

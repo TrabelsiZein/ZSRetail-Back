@@ -23,6 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.erp.controller.ErpSyncJobAdminController;
 import com.digithink.zsretail.erp.dto.ErpJobStatisticsDTO;
@@ -34,6 +35,8 @@ import com.digithink.zsretail.erp.model.ErpSyncJob;
 import com.digithink.zsretail.erp.repository.ErpSyncJobRepository;
 import com.digithink.zsretail.erp.service.ErpSyncJobRunner;
 import com.digithink.zsretail.erp.service.ErpSyncWarningException;
+import com.digithink.zsretail.support.Installations;
+import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, task 3.4: on a head office the ERP export jobs (and the price import) never run. They are switched
@@ -191,6 +194,166 @@ class HeadOfficeErpTest {
 		guarded.getStatistics(items, null, null);
 		assertEquals(200, guarded.runJobNow(999L).getStatusCodeValue(), "unknown id: the controller answers as before");
 		assertEquals(5, calls.size(), calls.toString());
+	}
+
+	// ─── ERP catalogue, step 3: a head office whose catalogue only comes from the ERP ───
+
+	private static final Set<ErpSyncJobType> OFFERED = EnumSet.of(ErpSyncJobType.IMPORT_ITEM_FAMILIES,
+			ErpSyncJobType.IMPORT_ITEM_SUBFAMILIES, ErpSyncJobType.IMPORT_ITEMS, ErpSyncJobType.IMPORT_ITEM_BARCODES);
+
+	private static final Set<ErpSyncJobType> REFUSED_WHEN_CATALOGUE_ONLY = EnumSet.complementOf(EnumSet.copyOf(OFFERED));
+
+	private static MockEnvironment catalogueOnlyHeadOffice() {
+		MockEnvironment env = Installations.type("headoffice");
+		env.setProperty("ownership.catalogue", "ERP");
+		return env;
+	}
+
+	@Test
+	@DisplayName("Catalogue only from the ERP: the mode chooses the refused set; any other head office keeps today's set")
+	void refusedSetByMode() {
+		assertEquals(OFFERED, HeadOfficeErpJobs.OFFERED_WHEN_CATALOGUE_ONLY);
+		HeadOfficeErpJobs catalogueOnly = new HeadOfficeErpJobs(repository(), null,
+				TestModes.of(catalogueOnlyHeadOffice()));
+		assertEquals(REFUSED_WHEN_CATALOGUE_ONLY, catalogueOnly.refusedTypes());
+		assertTrue(REFUSED_WHEN_CATALOGUE_ONLY.containsAll(HeadOfficeErpJobs.NOT_ON_HEAD_OFFICE));
+		assertTrue(catalogueOnly.refuses(ErpSyncJobType.IMPORT_LOCATIONS));
+		assertFalse(catalogueOnly.refuses(ErpSyncJobType.IMPORT_ITEMS));
+		assertFalse(catalogueOnly.refuses(null));
+
+		MockEnvironment[] others = { Installations.type("headoffice"), Installations.preset("headoffice-erp"),
+				Installations.machine("dev/headoffice-erp.properties"), Installations.machine("dev/headoffice.properties") };
+		for (MockEnvironment other : others) {
+			HeadOfficeErpJobs kept = new HeadOfficeErpJobs(repository(), null, TestModes.of(other));
+			assertEquals(REFUSED, kept.refusedTypes());
+			for (ErpSyncJobType type : ErpSyncJobType.values()) {
+				assertEquals(HeadOfficeErpJobs.isRefused(type), kept.refuses(type), type.name());
+			}
+		}
+		assertEquals(REFUSED, jobs.refusedTypes(), "the test constructor keeps today's set");
+	}
+
+	@Test
+	@DisplayName("Catalogue only from the ERP, at each start: every job but the four imports disabled, no next run; the four untouched")
+	void catalogueOnlySwitchedOffAtStart() {
+		job(ErpSyncJobType.IMPORT_LOCATIONS).setEnabled(true);
+		job(ErpSyncJobType.IMPORT_LOCATIONS).setNextRunAt(LocalDateTime.of(2026, 10, 3, 13, 0));
+		job(ErpSyncJobType.IMPORT_ITEM_BARCODES).setEnabled(true);
+		job(ErpSyncJobType.IMPORT_ITEM_BARCODES).setNextRunAt(LocalDateTime.of(2026, 10, 3, 13, 10));
+		jobs = new HeadOfficeErpJobs(repository(), true);
+
+		assertEquals(3, jobs.switchOff(), "the two exports seeded enabled and the locations enabled by hand");
+		for (ErpSyncJobType type : REFUSED_WHEN_CATALOGUE_ONLY) {
+			assertFalse(job(type).getEnabled(), type.name());
+			assertNull(job(type).getNextRunAt(), type.name());
+		}
+		for (ErpSyncJobType type : new ErpSyncJobType[] { ErpSyncJobType.IMPORT_ITEMS,
+				ErpSyncJobType.IMPORT_ITEM_BARCODES }) {
+			assertTrue(job(type).getEnabled(), type.name());
+			assertNotNull(job(type).getNextRunAt(), type.name());
+		}
+		assertFalse(job(ErpSyncJobType.IMPORT_ITEM_FAMILIES).getEnabled(), "left as seeded (disabled)");
+		assertEquals(0, jobs.switchOff(), "the next start writes nothing");
+	}
+
+	@Test
+	@DisplayName("Catalogue only from the ERP: the runner refuses every job but the four imports with the warning; the four run")
+	void catalogueOnlyRunnerRefuses() {
+		jobs = new HeadOfficeErpJobs(repository(), true);
+		List<ErpSyncJobType> ran = new ArrayList<>();
+		ErpSyncJobRunner runner = new ErpSyncJobRunner(null, null, null, null, null, null, null) {
+			@Override
+			public void run(ErpSyncJob job) {
+				ran.add(job.getJobType());
+			}
+		};
+		ErpSyncJobRunner guarded = guarded(runner);
+		for (ErpSyncJobType type : REFUSED_WHEN_CATALOGUE_ONLY) {
+			ErpSyncWarningException refused = assertThrows(ErpSyncWarningException.class, () -> guarded.run(job(type)));
+			assertEquals("This ERP job does not run on a head office: " + type, refused.getMessage());
+		}
+		for (ErpSyncJobType type : OFFERED) {
+			guarded.run(job(type));
+		}
+		assertEquals(OFFERED, EnumSet.copyOf(ran));
+	}
+
+	@Test
+	@DisplayName("Catalogue only from the ERP: GET admin/erp/jobs lists the four imports; run, enable, update, statistics of any other: 404")
+	void catalogueOnlyApi() {
+		jobs = new HeadOfficeErpJobs(repository(), true);
+		List<String> calls = new ArrayList<>();
+		ErpSyncJobAdminController guarded = guarded(recordingController(calls));
+
+		List<ErpSyncJobType> listed = guarded.getJobs().getBody().stream().map(ErpSyncJobViewDTO::getJobType)
+				.collect(Collectors.toList());
+		assertEquals(OFFERED, EnumSet.copyOf(listed));
+		assertEquals(OFFERED.size(), listed.size());
+
+		for (ErpSyncJobType type : REFUSED_WHEN_CATALOGUE_ONLY) {
+			Long id = job(type).getId();
+			List<ResponseEntity<?>> answers = new ArrayList<>();
+			answers.add(guarded.runJobNow(id));
+			answers.add(guarded.updateEnabled(id, new ErpSyncJobEnabledDTO()));
+			answers.add(guarded.updateJob(id, new ErpSyncJobUpdateDTO()));
+			answers.add(guarded.getStatistics(id, null, null));
+			for (ResponseEntity<?> answer : answers) {
+				assertEquals(404, answer.getStatusCodeValue(), type.name());
+				assertEquals(Collections.singletonMap("error", "This ERP job does not run on a head office"),
+						answer.getBody());
+			}
+		}
+		assertTrue(calls.isEmpty(), calls.toString());
+
+		for (ErpSyncJobType type : OFFERED) {
+			Long id = job(type).getId();
+			assertEquals(200, guarded.runJobNow(id).getStatusCodeValue(), type.name());
+			guarded.updateEnabled(id, new ErpSyncJobEnabledDTO());
+			guarded.updateJob(id, new ErpSyncJobUpdateDTO());
+			guarded.getStatistics(id, null, null);
+		}
+		assertEquals(4 * OFFERED.size(), calls.size(), calls.toString());
+	}
+
+	/** The ERP jobs controller over the in-memory table, recording the calls that reach it. */
+	private ErpSyncJobAdminController recordingController(List<String> calls) {
+		return new ErpSyncJobAdminController(null, null, null, null, null, null) {
+			@Override
+			public ResponseEntity<List<ErpSyncJobViewDTO>> getJobs() {
+				List<ErpSyncJobViewDTO> views = new ArrayList<>();
+				for (ErpSyncJob job : table.values()) {
+					ErpSyncJobViewDTO view = new ErpSyncJobViewDTO();
+					view.setId(job.getId());
+					view.setJobType(job.getJobType());
+					views.add(view);
+				}
+				return ResponseEntity.ok(views);
+			}
+
+			@Override
+			public ResponseEntity<?> runJobNow(Long id) {
+				calls.add("run " + id);
+				return ResponseEntity.ok("ran");
+			}
+
+			@Override
+			public ResponseEntity<ErpSyncJobViewDTO> updateEnabled(Long id, ErpSyncJobEnabledDTO enabled) {
+				calls.add("enable " + id);
+				return ResponseEntity.ok(new ErpSyncJobViewDTO());
+			}
+
+			@Override
+			public ResponseEntity<ErpSyncJobViewDTO> updateJob(Long id, ErpSyncJobUpdateDTO update) {
+				calls.add("update " + id);
+				return ResponseEntity.ok(new ErpSyncJobViewDTO());
+			}
+
+			@Override
+			public ResponseEntity<ErpJobStatisticsDTO> getStatistics(Long id, LocalDateTime from, LocalDateTime to) {
+				calls.add("statistics " + id);
+				return ResponseEntity.ok(null);
+			}
+		};
 	}
 
 	@SuppressWarnings("unchecked")

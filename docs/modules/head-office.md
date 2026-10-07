@@ -1548,6 +1548,16 @@ The head office of an ERP customer (ParaFendri) gets its items, families, sub-fa
 
 **Jobs on a head office** (`HeadOfficeErpJobs.NOT_ON_HEAD_OFFICE`, never run, never offered): `EXPORT_CUSTOMERS`, `EXPORT_TICKETS`, `EXPORT_RETURNS`, `EXPORT_SESSIONS` (a head office has no ticket, return or session, and a customer created there must not reach the ERP) and `IMPORT_SALES_PRICES_AND_DISCOUNTS` (filtered on the responsibility center of one location, it would give one store's prices as if they were the network's; a head office does not sell, and each ERP store imports its own prices). Offered: `IMPORT_ITEM_FAMILIES`, `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS`, `IMPORT_ITEM_BARCODES`, `IMPORT_LOCATIONS` (needed to choose the reference location), `SYNC_ERP_DELETIONS`, and `IMPORT_CUSTOMERS` (import only, disabled as seeded: the head office Customers page can show the ERP customers; nothing goes back to the ERP).
 
+**Jobs on a head office whose catalogue only comes from the ERP** (ERP catalogue, step 3; `isErpCatalogueOnly`): only
+`IMPORT_ITEM_FAMILIES`, `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS` and `IMPORT_ITEM_BARCODES` are offered
+(`HeadOfficeErpJobs.OFFERED_WHEN_CATALOGUE_ONLY`). Every other job (the exports, the price import, `IMPORT_LOCATIONS`,
+`IMPORT_CUSTOMERS`, `SYNC_ERP_DELETIONS`) is treated like the exports above: switched off at each start with no next run,
+left out of `GET admin/erp/jobs`, 404 `{"error":"This ERP job does not run on a head office"}` on run, enable, update and
+statistics by id, refused by the runner with the warning. The set is chosen once by mode (`HeadOfficeErpJobs.refusedTypes()`,
+read by `HeadOfficeErpGuard`); a head office whose ERP owns all three, or without an ERP, keeps `NOT_ON_HEAD_OFFICE`. The
+static `NOT_ON_HEAD_OFFICE` and `isRefused` are unchanged. Tests: `HeadOfficeErpTest` (`refusedSetByMode`,
+`catalogueOnlySwitchedOffAtStart`, `catalogueOnlyRunnerRefuses`, `catalogueOnlyApi`).
+
 **ERP reference location** (`ErpReferenceLocationService`, `ErpReferenceLocationAPI`, `@ConditionalOnHeadOfficeErp`: head office with `application.standalone=false`; 404 elsewhere). The import needs `DEFAULT_LOCATION` and, for the price filter, the location marked default; choosing the reference location is the store's "set as default" (`LocationService.setAsDefault`), without the store's Locations page. `RESPONSIBILITY_CENTER` (general setup) is read only by the exports, which never run here: not written.
 
 | Request | Answer |
