@@ -1275,6 +1275,26 @@ item gone, guard, empty answer, tax stamp item, barcodes waiting for items, curs
 cursor not moved when not saved, a new item's barcodes by item number, no list during the first load, dry run, the summary
 kept for the log).
 
+**Step 7: the changes of an ERP import reach the stores** (`HeadOfficeErpCatalogueRecorder`, an aspect beside
+`HeadOfficeErpGuard`, `@ConditionalOnHeadOfficeErpCatalogue`; nothing in `erp/`, `holink/` or `service/` changes). The four
+imports of `ErpItemBootstrapService` save with the repositories and never call the catalogue hooks. Around each of them the
+aspect lets the import run, then calls `CatalogueHeadOfficeHooks.afterSave(kind, null, saved)` for each record of the returned
+list (`FAMILY`, `SUBFAMILY`, `ITEM`, `BARCODE`), as a save on the item pages does: one change row per record, an item also
+records its barcodes, `TAX_STAMP` is never recorded.
+- One transaction: the aspect opens it (`TransactionTemplate`, REQUIRED) around the import and the recording; the import's
+  `@Transactional` joins it whatever the order of the advices. A failure while recording rolls back the import too, and the
+  job ends in error (retried at its next run: the changes engine hands the same rows again).
+- Recorded after the import: the `ho_down_sequence` row is locked only while recording. Before recording and every 200
+  records the persistence context is flushed and cleared, so each query of the recording does not re-check the rows the
+  import loaded.
+- No hooks bean, or a null or empty list: nothing recorded, the sequence untouched.
+- Lock and pulls: the head office databases do not use read-committed snapshot, so a store's pull (`GET /ho/down`, read-only
+  transaction of 15 s) waits on the sequence row while a batch records, and fails if the recording lasts longer; the store
+  pulls again at its next cycle. Keep `erp.navpospages.max-changes-per-run` such that a batch records in a few seconds
+  (to measure at L2).
+- Tests: `HeadOfficeErpCatalogueRecorderTest` (one change per record, an item's barcodes again, rollback on a recording
+  failure and on an import failure, null or empty list, `TAX_STAMP`, no hooks bean, flush every 200, where the bean exists).
+
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter
 `appConfig/erpOwnsOnlyCatalogue`): `nodeType` `HEAD_OFFICE`, `ownership.CATALOGUE` `ERP`, `CUSTOMERS` and `SUPPLY` not `ERP`,
