@@ -50,14 +50,17 @@ public class HoErpInvoiceAPI {
 
 	/**
 	 * A page {content, totalElements, totalPages, number, size, lastRun}, newest number first. status READ, SENT,
-	 * RECEIVED; mapping ASSIGNED, NO_CUSTOMER, NO_STORE, STORE_INACTIVE, STORE_NOT_SUPPLIED; held true or false.
+	 * RECEIVED; mapping ASSIGNED, NO_CUSTOMER, NO_STORE, STORE_INACTIVE, STORE_NOT_SUPPLIED; held true or false;
+	 * withWarnings, withDifference true = only those (absent or false: no filter).
 	 */
 	@GetMapping
 	public ResponseEntity<?> list(@RequestParam(required = false) Long storeId,
 			@RequestParam(required = false) String status, @RequestParam(required = false) String mapping,
-			@RequestParam(required = false) Boolean held, @RequestParam(required = false) String search,
+			@RequestParam(required = false) Boolean held, @RequestParam(required = false) Boolean withWarnings,
+			@RequestParam(required = false) Boolean withDifference, @RequestParam(required = false) String search,
 			@RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
-		return answer(() -> ResponseEntity.ok(service.list(storeId, status, mapping, held, search, page, size)));
+		return answer(() -> ResponseEntity.ok(service.list(storeId, status, mapping, held, withWarnings, withDifference,
+				search, page, size)));
 	}
 
 	@GetMapping("/{id}")

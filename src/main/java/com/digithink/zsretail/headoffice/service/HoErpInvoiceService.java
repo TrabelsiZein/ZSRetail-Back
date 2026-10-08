@@ -550,12 +550,13 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 
 	/**
 	 * The page {content, totalElements, totalPages, number, size}, newest number first. storeId null or 0: every store;
-	 * status and mapping blank or "all": every one; held null: both; search on the number and the customer. 400
-	 * (IllegalArgument) for a status, a mapping or a page that cannot be read.
+	 * status and mapping blank or "all": every one; held null: both; withWarnings / withDifference true: only the
+	 * invoices with warnings / received with a difference, null or false: all; search on the number and the customer.
+	 * 400 (IllegalArgument) for a status, a mapping or a page that cannot be read.
 	 */
 	@Transactional(readOnly = true)
-	public Map<String, Object> list(Long storeId, String status, String mapping, Boolean held, String search,
-			Integer page, Integer size) {
+	public Map<String, Object> list(Long storeId, String status, String mapping, Boolean held, Boolean withWarnings,
+			Boolean withDifference, String search, Integer page, Integer size) {
 		ErpInvoiceStatus wantedStatus = parse(ErpInvoiceStatus.class, "status", status);
 		ErpInvoiceMapping wantedMapping = parse(ErpInvoiceMapping.class, "mapping", mapping);
 		int pageNumber = page == null ? 0 : page;
@@ -567,7 +568,8 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 		Page<HoErpInvoice> result = invoices.findPage(storeId == null ? 0L : storeId, wantedStatus == null ? 1L : 0L,
 				wantedStatus == null ? ErpInvoiceStatus.READ : wantedStatus, wantedMapping == null ? 1L : 0L,
 				wantedMapping == null ? ErpInvoiceMapping.ASSIGNED : wantedMapping,
-				held == null ? 0L : held ? 1L : 2L, like, PageRequest.of(pageNumber, pageSize));
+				held == null ? 0L : held ? 1L : 2L, Boolean.TRUE.equals(withWarnings) ? 1L : 0L,
+				Boolean.TRUE.equals(withDifference) ? 1L : 0L, like, PageRequest.of(pageNumber, pageSize));
 		Map<Long, Store> byId = storesById();
 		Map<String, Object> answer = new LinkedHashMap<>();
 		answer.put("content", result.getContent().stream().map(i -> view(i, byId.get(i.getStoreId()), false))

@@ -418,8 +418,9 @@ class HoErpInvoiceServiceTest {
 		erp.invoices.add(fraction);
 		service.run();
 
-		assertEquals(3L, service.list(null, null, null, null, null, null, null).get("totalElements"));
-		List<?> sent = (List<?>) service.list(b.getId(), "sent", "all", null, null, null, null).get("content");
+		assertEquals(3L, service.list(null, null, null, null, null, null, null, null, null).get("totalElements"));
+		List<?> sent = (List<?>) service.list(b.getId(), "sent", "all", null, null, null, null, null, null)
+				.get("content");
 		assertEquals(1, sent.size());
 		ErpInvoiceDTO row = (ErpInvoiceDTO) sent.get(0);
 		assertEquals("FVV26000000101", row.getNumber());
@@ -430,16 +431,20 @@ class HoErpInvoiceServiceTest {
 		assertNull(row.getLines(), "no lines in the list");
 		assertEquals(3, row.getLineCount());
 
-		ErpInvoiceDTO noStore = (ErpInvoiceDTO) ((List<?>) service.list(null, null, "NO_STORE", null, null, null, null)
-				.get("content")).get(0);
+		ErpInvoiceDTO noStore = (ErpInvoiceDTO) ((List<?>) service
+				.list(null, null, "NO_STORE", null, null, null, null, null, null).get("content")).get(0);
 		assertEquals("no store for customer C-0009", noStore.getMappingMessage());
-		assertEquals(1, ((List<?>) service.list(null, null, null, true, null, null, null).get("content")).size());
-		assertEquals(2, ((List<?>) service.list(null, null, null, false, null, null, null).get("content")).size());
-		assertEquals(1, ((List<?>) service.list(null, null, null, null, "name of c-0009", null, null).get("content"))
+		assertEquals(1, ((List<?>) service.list(null, null, null, true, null, null, null, null, null).get("content"))
 				.size());
-		assertThrows(IllegalArgumentException.class, () -> service.list(null, "LOST", null, null, null, null, null));
-		assertThrows(IllegalArgumentException.class, () -> service.list(null, null, "FOUND", null, null, null, null));
-		assertNotNull(service.list(null, null, null, null, null, null, null).get("lastRun"));
+		assertEquals(2, ((List<?>) service.list(null, null, null, false, null, null, null, null, null).get("content"))
+				.size());
+		assertEquals(1, ((List<?>) service.list(null, null, null, null, null, null, "name of c-0009", null, null)
+				.get("content")).size());
+		assertThrows(IllegalArgumentException.class,
+				() -> service.list(null, "LOST", null, null, null, null, null, null, null));
+		assertThrows(IllegalArgumentException.class,
+				() -> service.list(null, null, "FOUND", null, null, null, null, null, null));
+		assertNotNull(service.list(null, null, null, null, null, null, null, null, null).get("lastRun"));
 
 		ErpInvoiceDTO detail = service.get(saved("FVV26000000101").getId()).get();
 		assertEquals(3, detail.getLines().size());
@@ -447,6 +452,54 @@ class HoErpInvoiceServiceTest {
 		assertEquals(6.0, detail.getLines().get(0).getUnitCost());
 		assertEquals("OTHER", detail.getLines().get(2).getType());
 		assertFalse(service.get(999L).isPresent());
+	}
+
+	/** The numbers of a page answer, in its order. */
+	private static List<String> numbers(Map<String, Object> answer) {
+		return ((List<?>) answer.get("content")).stream().map(row -> ((ErpInvoiceDTO) row).getNumber())
+				.collect(Collectors.toList());
+	}
+
+	@Test
+	@DisplayName("The page: with warnings, with difference, alone, together and with status, store and search; false = no filter")
+	void pageWarningsAndDifference() {
+		twoInvoices(); // 101 for B, 102 without store: no warnings
+		erp.invoices.add(invoice("FVV26000000103", "C-0001", item(10000, "NEW-1", "1", "6"))); // B, warnings
+		erp.invoices.add(invoice("FVV26000000104", "C-0009", item(10000, "NEW-2", "1", "6"))); // no store, warnings
+		erp.invoices.add(invoice("FVV26000000105", "C-0001", item(10000, "6190000000017", "2", "12"))); // B
+		service.run();
+		service.receiveConfirmations(b, Arrays.asList(confirmation("FVV26000000101", 20000, 5, 30000, 1),
+				confirmation("FVV26000000103", 10000, 0), confirmation("FVV26000000105", 10000, 2)));
+		assertTrue(saved("FVV26000000101").getDifference());
+		assertTrue(saved("FVV26000000103").getDifference());
+		assertFalse(saved("FVV26000000105").getDifference());
+		assertNull(saved("FVV26000000104").getDifference(), "not received");
+
+		Map<String, Object> warnings = service.list(null, null, null, null, true, null, null, null, null);
+		assertEquals(Arrays.asList("FVV26000000104", "FVV26000000103"), numbers(warnings), "newest first");
+		assertEquals(2L, warnings.get("totalElements"));
+		Map<String, Object> difference = service.list(null, null, null, null, null, true, null, null, null);
+		assertEquals(Arrays.asList("FVV26000000103", "FVV26000000101"), numbers(difference));
+		assertEquals(2L, difference.get("totalElements"));
+		Map<String, Object> both = service.list(null, null, null, null, true, true, null, null, null);
+		assertEquals(Arrays.asList("FVV26000000103"), numbers(both));
+		assertEquals(1L, both.get("totalElements"));
+		assertEquals(5L, service.list(null, null, null, null, false, false, null, null, null).get("totalElements"),
+				"false: no filter");
+
+		assertEquals(1L, service.list(b.getId(), null, null, null, true, null, null, null, null).get("totalElements"));
+		assertEquals(0L, service.list(c.getId(), null, null, null, true, true, null, null, null).get("totalElements"));
+		Map<String, Object> toSend = service.list(null, "READ", null, null, true, null, null, null, null);
+		assertEquals(Arrays.asList("FVV26000000104"), numbers(toSend));
+		assertEquals(1L, toSend.get("totalElements"));
+		assertEquals(2L, service.list(null, "RECEIVED", null, null, null, true, null, null, null).get("totalElements"));
+		assertEquals(0L, service.list(null, "READ", null, null, null, true, null, null, null).get("totalElements"));
+		Map<String, Object> searched = service.list(null, null, null, null, true, null, "name of c-0009", null, null);
+		assertEquals(Arrays.asList("FVV26000000104"), numbers(searched));
+		assertEquals(1L, searched.get("totalElements"));
+		assertEquals(0L, service.list(null, null, null, null, null, true, "c-0009", null, null).get("totalElements"));
+		assertEquals(1L, service.list(b.getId(), "RECEIVED", null, null, true, true, "fvv26000000103", null, null)
+				.get("totalElements"));
 	}
 
 	// ─── Step (c): the copies down ───────────────────────────────
@@ -619,13 +672,17 @@ class HoErpInvoiceServiceTest {
 					boolean anyStatus = (Long) args[1] == 1L;
 					boolean anyMapping = (Long) args[3] == 1L;
 					long held = (Long) args[5];
-					String search = (String) args[6];
-					Pageable page = (Pageable) args[7];
+					boolean withWarnings = (Long) args[6] == 1L;
+					boolean withDifference = (Long) args[7] == 1L;
+					String search = (String) args[8];
+					Pageable page = (Pageable) args[9];
 					List<HoErpInvoice> content = rows.values().stream()
 							.filter(i -> storeId == 0L || Objects.equals(i.getStoreId(), storeId))
 							.filter(i -> anyStatus || i.getStatus() == args[2])
 							.filter(i -> anyMapping || i.getMappingStatus() == args[4])
 							.filter(i -> held == 0L || (held == 1L) == i.getHeld())
+							.filter(i -> !withWarnings || (i.getWarnings() != null && !i.getWarnings().isEmpty()))
+							.filter(i -> !withDifference || Boolean.TRUE.equals(i.getDifference()))
 							.filter(i -> search == null || like(i.getBcNumber(), search) || like(i.getCustomerNo(), search)
 									|| like(i.getCustomerName(), search))
 							.sorted(Comparator.comparing(HoErpInvoice::getBcNumber).reversed()).collect(Collectors.toList());
