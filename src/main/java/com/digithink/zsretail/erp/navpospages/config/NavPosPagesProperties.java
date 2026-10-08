@@ -47,11 +47,6 @@ public class NavPosPagesProperties {
 	private int readTimeoutSeconds = 60;
 	/** Step 6: rows handed to the import per fetch at most (the rest at the next runs). */
 	private int maxChangesPerRun = 1000;
-	/**
-	 * Step 6: an item run deactivates nothing when the items missing from the ERP read are more than this share (in %) of
-	 * the active items that came from the ERP.
-	 */
-	private int deactivateGuardPercent = 10;
 	/** Step 6: read, compare and log the summary only: nothing handed to the import, the state table not touched. */
 	private boolean dryRun = false;
 

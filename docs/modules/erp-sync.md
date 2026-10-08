@@ -175,3 +175,13 @@
 - New ERP implementations only need to implement `ErpConnector` interface
 - Business logic in `TicketExportService` remains ERP-agnostic
 - Partial synchronization and external reference handling logic preserved across all ERPs
+
+## Head office catalogue from the ERP pages (`erp.navpospages`)
+
+The head office reads its catalogue from the ERP pages of one location (details in `head-office.md`, "the connector
+navpospages"). Items of the ERP (`item.erp_external_id` set) no longer in the location are handed inactive, never
+deleted, **whatever their number** (since 2026-10-08; the old `deactivate-guard-percent` key is gone and ignored when
+left in a file). The only refusal: when the ERP answers 0 rows for the location, nothing is deactivated and the summary
+warns "the ERP answered no item for the location: N items not deactivated" (an empty answer is a broken connection or
+a wrong location code, never a cleanup). Hand-made items, packs made at the head office and `TAX_STAMP` have no ERP id
+and are never touched.

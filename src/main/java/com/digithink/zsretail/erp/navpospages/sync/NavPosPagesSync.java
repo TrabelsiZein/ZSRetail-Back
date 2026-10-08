@@ -42,9 +42,9 @@ import com.digithink.zsretail.erp.navpospages.mapper.NavPosResult;
  * <li><b>Items.</b> Compared on what the import applies: name, description, VAT, active, ERP id, family and sub-family
  * (only when the ERP's one exists at the head office), the price with VAT at 3 decimals, discount group and maximum
  * discount (the import clears them). A null or zero price makes the item inactive (the mapper). Items of the ERP
- * (erp_external_id set) no longer in the location are handed inactive, never deleted, unless the guard trips: an empty
- * ERP answer, or more missing items than deactivate-guard-percent of the active ERP items. Hand-made items, packs
- * made at the head office and TAX_STAMP have no ERP id and are never touched.</li>
+ * (erp_external_id set) no longer in the location are handed inactive, never deleted, whatever their number; only an
+ * empty ERP answer (a broken connection or a wrong location code, never a cleanup) deactivates nothing. Hand-made
+ * items, packs made at the head office and TAX_STAMP have no ERP id and are never touched.</li>
  * <li><b>Barcodes.</b> A cursor on Entry_No, in the state table. It only moves over rows that are at the head office
  * already (checked against its barcode table), left out (blank, item not at the head office) or replaced by a later row
  * of the same barcode: it never passes a row that was handed but not saved. New items arriving after the barcodes
@@ -204,15 +204,11 @@ public class NavPosPagesSync {
 			}
 		}
 
-		// Items of the ERP no longer in the location: inactive, never deleted; not when the guard trips
+		// Items of the ERP no longer in the location: inactive, never deleted, whatever their number; not on an empty
+		// answer (a broken connection or a wrong location code, never a cleanup)
 		List<ErpItemDTO> gone = new ArrayList<>();
-		int activeFromErp = 0;
 		for (NavPosPagesHeadOffice.Item here : local.values()) {
-			if (!here.fromErp() || !here.isActive() || here.code.equals(taxStamp)) {
-				continue;
-			}
-			activeFromErp++;
-			if (!inErp.contains(here.code)) {
+			if (here.fromErp() && here.isActive() && !here.code.equals(taxStamp) && !inErp.contains(here.code)) {
 				gone.add(inactiveCopy(here));
 			}
 		}
@@ -220,9 +216,6 @@ public class NavPosPagesSync {
 			if (rows.isEmpty()) {
 				summary.guard("the ERP answered no item for the location: " + gone.size()
 						+ " items not deactivated");
-			} else if (gone.size() * 100L > (long) properties.getDeactivateGuardPercent() * activeFromErp) {
-				summary.guard(gone.size() + " of " + activeFromErp + " active ERP items missing from the read, above "
-						+ properties.getDeactivateGuardPercent() + "%: none deactivated");
 			} else {
 				changes.addAll(gone);
 				summary.put("deactivated", gone.size());

@@ -241,21 +241,26 @@ class NavPosPagesSyncTest {
 	}
 
 	@Test
-	@DisplayName("Guard: more items missing than deactivate-guard-percent: none deactivated, a warning; price-0 items do not count")
-	void guardTripped() {
+	@DisplayName("96 % of the ERP items gone: all handed inactive, no guard; hand-made items, packs and the tax stamp untouched")
+	void mostItemsGone() {
 		loadCatalogue();
-		erp.items.subList(0, 6).clear(); // 6 of 50 = 12 % > 10 %
-		erp.items.get(0).setUnitPrice(BigDecimal.ZERO); // made inactive, not counted by the guard
+		headOffice.items.put("MAIN-1", item("MAIN-1", null, true)); // made at the head office (a pack or any item)
+		headOffice.items.put("TAX_STAMP", item("TAX_STAMP", null, true));
+		String taxStamp = erp.items.get(49).getItemNo();
+		headOffice.taxStamp = taxStamp; // the ERP item of TAX_STAMP_ERP_ITEM_CODE, at the head office with its ERP id
+		List<String> kept = Arrays.asList(erp.items.get(0).getItemNo(), erp.items.get(1).getItemNo());
+		erp.items.subList(2, 50).clear(); // 48 of 50 = 96 % missing
 		NavPosRun<ErpItemDTO> run = items();
-		assertEquals(1, run.getHanded().size(), "only the price-0 item");
-		assertEquals("6 of 50 active ERP items missing from the read, above 10%: none deactivated",
-				run.getSummary().get("guard"));
-		assertEquals(0, run.count("deactivated"));
-
-		properties.setDeactivateGuardPercent(15);
-		NavPosRun<ErpItemDTO> allowed = items();
-		assertEquals(6, allowed.count("deactivated"));
-		assertNull(allowed.getSummary().get("guard"));
+		assertEquals(47, run.count("deactivated"), "every missing ERP item but the tax stamp");
+		assertEquals(47, run.getHanded().size());
+		assertTrue(run.getHanded().stream().allMatch(dto -> Boolean.FALSE.equals(dto.getActive())));
+		assertNull(run.getSummary().get("guard"));
+		assertEquals(52, headOffice.items.size(), "never deleted");
+		for (NavPosPagesHeadOffice.Item here : headOffice.items.values()) {
+			boolean untouched = kept.contains(here.code) || here.code.equals(taxStamp) || !here.fromErp();
+			assertEquals(untouched, here.isActive(), here.code);
+		}
+		assertEquals(0, items().getHanded().size(), "already inactive: nothing more");
 	}
 
 	@Test

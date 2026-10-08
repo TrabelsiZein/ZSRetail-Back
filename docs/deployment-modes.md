@@ -162,7 +162,6 @@ writes to the ERP). The lines go in the head office's **outside file** (e.g. `co
 | `erp.navpospages.price-includes-vat` | `true` (Unit_Price includes the VAT) \| `false` | required |
 | `erp.navpospages.connect-timeout-seconds`, `.read-timeout-seconds` | At least 1 | `10`, `60` |
 | `erp.navpospages.max-changes-per-run` (step 6) | Rows handed to the import per fetch, at least 1 | `1000` |
-| `erp.navpospages.deactivate-guard-percent` (step 6) | 0 to 100: above this share of the active ERP items missing, nothing is deactivated | `10` |
 | `erp.navpospages.dry-run` (step 6) | `true` (read, compare, summary only) \| `false` | `false` |
 | `erp.navpospages.page.invoices` (invoices from the ERP) | Web service name of the posted franchise invoices; when set, `invoices.years` is required | `FactureFranchise` |
 | `erp.navpospages.invoices.lines-expand` | Navigation property of the lines (`$expand`) | `FactureFranchiseSalesInvLines` |
@@ -180,7 +179,9 @@ company, username, password or location; a wrong `default-vat`, `price-includes-
 number that is not of a configured year. One INFO line at startup: `ERP connector navpospages (read only, GET): <address>,
 company <company>, location <code>, pages <three>`, followed by `, invoices <page> (years <years>)` when years are set.
 Step 6: the four catalogue import jobs hand the changes only (`docs/modules/head-office.md`); they run when `erp.sync.enabled=true`
-and the jobs are enabled on the ERP jobs page (none is switched on by these files).
+and the jobs are enabled on the ERP jobs page (none is switched on by these files). Items of the ERP no longer in the location
+are made inactive at the head office whatever their number; only an empty answer for the location deactivates nothing (a
+warning in the summary). The key `erp.navpospages.deactivate-guard-percent` is gone (2026-10-08): a leftover line is ignored.
 
 **Step 9 questions** (tasks 9.1b to 9.1g): `isCatalogueFromErp()`, `isCustomersFromErp()`, `isSupplyFromErp()`, `hasErp()` (some
 owner is the ERP). With the ERP owning all or nothing they answer alike for every configuration that starts, except the

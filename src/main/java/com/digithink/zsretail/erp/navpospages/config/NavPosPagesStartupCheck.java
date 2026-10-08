@@ -68,7 +68,6 @@ public class NavPosPagesStartupCheck {
 		}
 		checkRange(env, "barcode-page-size", 1, 5000);
 		checkRange(env, "max-changes-per-run", 1, Integer.MAX_VALUE);
-		checkRange(env, "deactivate-guard-percent", 0, 100);
 		if (env.containsProperty(P + "dry-run")) {
 			String dryRun = trimmed(env.getProperty(P + "dry-run"));
 			if (!"true".equalsIgnoreCase(dryRun) && !"false".equalsIgnoreCase(dryRun)) {
