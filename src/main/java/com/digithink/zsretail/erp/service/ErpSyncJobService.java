@@ -31,9 +31,15 @@ public class ErpSyncJobService extends _BaseService<ErpSyncJob, Long> {
 		markExecution(job, status, LocalDateTime.now(), nextRun);
 	}
 
+	/** Length of erp_sync_job.last_status (ErpSyncJob.lastStatus). */
+	static final int LAST_STATUS_LENGTH = 100;
+
 	public void markExecution(ErpSyncJob job, String status, LocalDateTime executionTime, LocalDateTime nextRun) {
 		job.setLastRunAt(executionTime);
-		job.setLastStatus(status);
+		// Cut to the column: a longer status ("ERROR: " + a long message) failed the save (SQL Server 2628), so the
+		// status was lost and the other due jobs of that cycle were skipped
+		job.setLastStatus(status != null && status.length() > LAST_STATUS_LENGTH ? status.substring(0, LAST_STATUS_LENGTH)
+				: status);
 		job.setNextRunAt(nextRun);
 		job.setUpdatedAt(LocalDateTime.now());
 		job.setUpdatedBy("System");

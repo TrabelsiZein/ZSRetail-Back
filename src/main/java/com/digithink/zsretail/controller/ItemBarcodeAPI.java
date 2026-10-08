@@ -150,6 +150,60 @@ public class ItemBarcodeAPI extends _BaseController<ItemBarcode, Long, ItemBarco
 	}
 
 	/**
+	 * The barcodes page: one row per barcode (barcode, item code and name, family, sub-family, barcode and item active),
+	 * by barcode, paged on the server. search: the barcode equal to it or starting with it, or the item code or name
+	 * containing it. Read only. TAX_STAMP never listed.
+	 */
+	@GetMapping("/list")
+	public ResponseEntity<?> listBarcodes(
+			@org.springframework.web.bind.annotation.RequestParam(name = "page", defaultValue = "0") int page,
+			@org.springframework.web.bind.annotation.RequestParam(name = "size", defaultValue = "20") int size,
+			@org.springframework.web.bind.annotation.RequestParam(name = "search", required = false) String search,
+			@org.springframework.web.bind.annotation.RequestParam(name = "familyId", required = false) Long familyId,
+			@org.springframework.web.bind.annotation.RequestParam(name = "subFamilyId", required = false) Long subFamilyId) {
+		try {
+			return ResponseEntity.ok(pageAnswer(
+					itemBarcodeService.findBarcodeRows(search, familyId, subFamilyId, pageRequest(page, size))));
+		} catch (Exception e) {
+			log.error("ItemBarcodeAPI::listBarcodes:error: " + e.getMessage(), e);
+			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/** The items without any active barcode (code, name, family, sub-family), by item code, paged. Read only. */
+	@GetMapping("/items-without-barcode")
+	public ResponseEntity<?> listItemsWithoutBarcode(
+			@org.springframework.web.bind.annotation.RequestParam(name = "page", defaultValue = "0") int page,
+			@org.springframework.web.bind.annotation.RequestParam(name = "size", defaultValue = "20") int size,
+			@org.springframework.web.bind.annotation.RequestParam(name = "search", required = false) String search,
+			@org.springframework.web.bind.annotation.RequestParam(name = "familyId", required = false) Long familyId,
+			@org.springframework.web.bind.annotation.RequestParam(name = "subFamilyId", required = false) Long subFamilyId) {
+		try {
+			return ResponseEntity.ok(pageAnswer(
+					itemBarcodeService.findItemsWithoutBarcode(search, familyId, subFamilyId, pageRequest(page, size))));
+		} catch (Exception e) {
+			log.error("ItemBarcodeAPI::listItemsWithoutBarcode:error: " + e.getMessage(), e);
+			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/** Page from 0, size from 1 to 200 (the order is in the query). */
+	static org.springframework.data.domain.Pageable pageRequest(int page, int size) {
+		return org.springframework.data.domain.PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200));
+	}
+
+	/** {content, page, size, totalElements, totalPages}, like items-with-barcodes. */
+	static Map<String, Object> pageAnswer(org.springframework.data.domain.Page<?> rows) {
+		Map<String, Object> response = new HashMap<>();
+		response.put("content", rows.getContent());
+		response.put("page", rows.getNumber());
+		response.put("size", rows.getSize());
+		response.put("totalElements", rows.getTotalElements());
+		response.put("totalPages", rows.getTotalPages());
+		return response;
+	}
+
+	/**
 	 * Get all items with their barcodes (for admin/responsible view)
 	 */
 	@GetMapping("/items-with-barcodes")

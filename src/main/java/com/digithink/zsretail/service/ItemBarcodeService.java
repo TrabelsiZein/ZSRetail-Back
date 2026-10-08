@@ -1,13 +1,19 @@
 package com.digithink.zsretail.service;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.digithink.zsretail.dto.ItemBarcodeRowDTO;
+import com.digithink.zsretail.dto.ItemWithoutBarcodeRowDTO;
 import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.ItemBarcode;
 import com.digithink.zsretail.model.enumeration.CatalogueKind;
@@ -48,6 +54,44 @@ public class ItemBarcodeService extends _BaseService<ItemBarcode, Long> {
 			itemBarcodeRepository.findById(id).ifPresent(barcode -> hooks.beforeDelete(CatalogueKind.BARCODE, barcode));
 		}
 		super.deleteById(id);
+	}
+
+	/**
+	 * The barcodes page (GET item-barcode/list): one row per barcode, by barcode, one query with joins. search: the
+	 * barcode equal to it or starting with it, or the item code or name containing it (any case); blank = none.
+	 * TAX_STAMP and the items hidden from the till are never listed.
+	 */
+	public Page<ItemBarcodeRowDTO> findBarcodeRows(String search, Long familyId, Long subFamilyId, Pageable pageable) {
+		return itemBarcodeRepository.findBarcodeRows(familyId, subFamilyId, prefixPattern(search), containsPattern(search),
+				pageable);
+	}
+
+	/** The items without any active barcode, by item code; search on the item code or name (any case). */
+	public Page<ItemWithoutBarcodeRowDTO> findItemsWithoutBarcode(String search, Long familyId, Long subFamilyId,
+			Pageable pageable) {
+		return itemBarcodeRepository.findItemsWithoutBarcode(familyId, subFamilyId, containsPattern(search), pageable);
+	}
+
+	/** :prefix of the barcode queries: the trimmed search escaped + '%'; null when blank. */
+	public static String prefixPattern(String search) {
+		String term = term(search);
+		return term == null ? null : like(term) + "%";
+	}
+
+	/** :contains of the barcode queries: '%' + the trimmed search in lower case, escaped + '%'; null when blank. */
+	public static String containsPattern(String search) {
+		String term = term(search);
+		return term == null ? null : "%" + like(term.toLowerCase(Locale.ROOT)) + "%";
+	}
+
+	/** The trimmed search, null when blank. */
+	static String term(String search) {
+		return search == null || search.trim().isEmpty() ? null : search.trim();
+	}
+
+	/** A LIKE pattern part with its wildcards escaped (escape character '\'; SQL Server also reads [ ). */
+	static String like(String text) {
+		return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_").replace("[", "\\[");
 	}
 
 	/**

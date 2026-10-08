@@ -178,6 +178,13 @@
 			<scope>test</scope>
 		</dependency>
 
+		<!-- In-memory database for the tests that run a JPQL query (version from Spring Boot); never in the WAR -->
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<scope>test</scope>
+		</dependency>
+
 		<dependency>
 			<groupId>commons-io</groupId>
 			<artifactId>commons-io</artifactId>
