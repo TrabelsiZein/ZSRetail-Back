@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -34,10 +35,10 @@ import com.digithink.zsretail.erp.service.ErpSyncWarningException;
 /**
  * ERP catalogue, step 6: changes only. Each run reads a whole page of the ERP (GET only), compares it with the head
  * office tables and takes only the new and changed rows, in a stable order (by code; barcodes by Entry_No). The items
- * run applies them all itself, in packets of packet-size, each packet in its own transaction ({@link NavPosPagesImport}),
- * one items run at a time; families, sub-families and barcodes hand one packet to the import (ErpItemBootstrapService,
- * unchanged) per run. The head office tables are the memory of what was seen: a row the import did not save is still
- * different at the next run and is taken again.
+ * and barcode runs apply them all themselves, in packets of packet-size, each packet in its own transaction
+ * ({@link NavPosPagesImport}), one run of each at a time; families and sub-families hand one packet to the import
+ * (ErpItemBootstrapService, unchanged) per run. The head office tables are the memory of what was seen: a row the
+ * import did not save is still different at the next run and is taken again.
  * <ul>
  * <li><b>Order.</b> Sub-families wait for the families, items for both: the waiting run reads the categories page (small)
  * and waits while a family or sub-family of the ERP is not at the head office yet. Barcodes wait for the items: each item
@@ -52,14 +53,17 @@ import com.digithink.zsretail.erp.service.ErpSyncWarningException;
  * items, packs made at the head office and TAX_STAMP have no ERP id and are never touched. A blank Description (the
  * name and the description) never replaces those of an item already at the head office; a new item takes its code as
  * name.</li>
- * <li><b>Barcodes.</b> A cursor on Entry_No, in the state table. It only moves over rows that are at the head office
- * already (checked against its barcode table), left out (blank, item not at the head office) or replaced by a later row
- * of the same barcode: it never passes a row that was handed but not saved. New items arriving after the barcodes
- * started are kept in the state table ("needs its barcodes"); their barcodes are read by Item_No and handed before the
- * cursor goes on; an item leaves that list once all its barcodes are at the head office.</li>
+ * <li><b>Barcodes.</b> One run goes on until it has caught up. A cursor on Entry_No, in the state table, read page after
+ * page until the ERP answers no row. It only moves over rows that are at the head office (checked against its barcode
+ * table, again after each packet), left out (blank, item not at the head office) or replaced by a later row of the same
+ * barcode, and is saved after each packet: it never passes a row that was not saved (such a row stops the run, the next
+ * run hands it again). New items arriving after the barcodes started are kept in the state table ("needs its
+ * barcodes"); every one of them has its barcodes read by Item_No and applied first, in the same run; an item leaves
+ * that list once all its barcodes are at the head office.</li>
  * <li><b>Invoices</b> (invoices from the ERP, step a): read by number per configured year, see {@link #invoices}; no
  * state kept here.</li>
- * <li><b>Dry run.</b> Reads, compares and summarises; hands nothing; does not write the state table.</li>
+ * <li><b>Dry run.</b> Reads, compares and summarises (the barcode run to the last page); hands nothing; does not write
+ * the state table.</li>
  * </ul>
  */
 @Component
@@ -79,6 +83,7 @@ public class NavPosPagesSync {
 	public static final String REPLACED_BY_LATER_ROW = "same barcode, lower Entry_No";
 
 	static final String ITEMS_ALREADY_RUNNING = "an items run is already running: this one does not start";
+	static final String BARCODES_ALREADY_RUNNING = "a barcode run is already running: this one does not start";
 
 	private final NavPosPagesSource source;
 	private final NavPosPagesHeadOffice headOffice;
@@ -88,6 +93,8 @@ public class NavPosPagesSync {
 	private final NavPosPagesMapper mapper;
 	/** One items run at a time (the scheduler and "Run now" may meet). */
 	private final AtomicBoolean itemsRunning = new AtomicBoolean();
+	/** One barcode run at a time. */
+	private final AtomicBoolean barcodesRunning = new AtomicBoolean();
 
 	public NavPosPagesSync(NavPosPagesSource source, NavPosPagesHeadOffice headOffice, NavPosPagesState state,
 			NavPosPagesProperties properties, NavPosPagesImport importer) {
@@ -355,17 +362,41 @@ public class NavPosPagesSync {
 
 	// ─── Barcodes ───────────────────────────────────────────────
 
+	/**
+	 * One run goes on until it has caught up, applying its changes itself in packets of packet-size, each packet in its
+	 * own transaction ({@link NavPosPagesImport#barcodes}): first every item of the "needs its barcodes" list, then the
+	 * cursor page after page until the ERP answers no row. After each packet the head office barcode table is read again:
+	 * the cursor is saved only over rows that are there, and a row the import did not save stops the run (the next run
+	 * hands it again). A failed packet ends the run in error; the packets before it and the cursor saved after them stay.
+	 * The rows applied are in the run, for the tests; the connector hands nothing more to the job.
+	 */
 	public NavPosRun<ErpItemBarcodeDTO> barcodes() {
+		if (!barcodesRunning.compareAndSet(false, true)) {
+			throw new ErpSyncWarningException(BARCODES_ALREADY_RUNNING);
+		}
+		try {
+			return readAndApplyBarcodes();
+		} finally {
+			barcodesRunning.set(false);
+		}
+	}
+
+	private NavPosRun<ErpItemBarcodeDTO> readAndApplyBarcodes() {
 		String page = properties.getPage().getBarcodes();
 		Summary summary = new Summary("barcodes", page, properties.isDryRun());
 		String waiting = waitingFor(ITEMS_RUN, ITEMS_PENDING, "items");
 		if (waiting != null) {
-			return run(new ArrayList<>(), summary.waiting(waiting), page);
+			summary.waiting(waiting);
+			summary.values.remove("handed");
+			summary.put("applied", 0);
+			summary.put("packets", 0);
+			summary.put("caughtUp", false);
+			return run(new ArrayList<>(), summary, page);
 		}
 		Set<String> itemCodes = headOffice.items().keySet();
-		List<ErpItemBarcodeDTO> handed = new ArrayList<>();
+		BarcodePackets packets = new BarcodePackets();
 
-		// 1. The barcodes of the new items that arrived after the cursor started
+		// 1. The barcodes of the new items that arrived after the cursor started, every item of the list
 		List<String> needing = new ArrayList<>();
 		for (String key : state.keysStartingWith(NEEDS_BARCODES)) {
 			String code = key.substring(NEEDS_BARCODES.length());
@@ -374,37 +405,38 @@ public class NavPosPagesSync {
 			}
 		}
 		summary.put("itemsNeedingBarcodes", needing.size());
-		int fromList = 0;
+		int forNewItems = 0;
 		for (int from = 0; from < needing.size(); from += ITEMS_PER_BARCODE_CALL) {
 			List<String> batch = needing.subList(from, Math.min(from + ITEMS_PER_BARCODE_CALL, needing.size()));
-			List<NavPosBarcodeRow> rows = source.readBarcodesOfItems(batch);
-			Classified classified = classify(rows, itemCodes, summary);
-			Set<String> waitingItems = new HashSet<>();
-			for (NavPosBarcodeRow row : classified.toHand) {
-				waitingItems.add(row.getItemNo().trim());
+			Classified classified = classify(source.readBarcodesOfItems(batch), itemCodes, summary);
+			Set<String> notDone = new HashSet<>();
+			for (int at = 0; at < classified.toHand.size(); at += cap()) {
+				List<NavPosBarcodeRow> packet = classified.toHand.subList(at,
+						Math.min(at + cap(), classified.toHand.size()));
+				List<NavPosBarcodeRow> unsaved = packets.apply(packet);
+				forNewItems += packet.size() - unsaved.size();
+				unsaved.forEach(row -> notDone.add(row.getItemNo().trim()));
 			}
-			fromList += classified.toHand.size();
-			handed.addAll(mapper.barcodes(classified.toHand).getRows());
 			for (String code : batch) {
-				if (!waitingItems.contains(code) && !properties.isDryRun()) {
+				if (!notDone.contains(code) && !properties.isDryRun()) {
 					state.remove(NEEDS_BARCODES + code); // every barcode of the item is at the head office
 				}
 			}
 		}
-		if (fromList > 0) {
-			summary.put("handedForNewItems", fromList);
-			return run(summary.handOver(handed, 0, cap()), summary, page);
+		if (forNewItems > 0) {
+			summary.put("appliedForNewItems", forNewItems);
 		}
 
-		// 2. The cursor on Entry_No
+		// 2. The cursor on Entry_No, page after page until the ERP answers no row
 		long cursor = cursor();
 		summary.put("cursorFrom", cursor);
 		int pages = 0;
-		while (true) {
+		boolean caughtUp = false;
+		reading: while (true) {
 			List<NavPosBarcodeRow> rows = new ArrayList<>(source.readBarcodesAfter(cursor));
 			pages++;
 			if (rows.isEmpty()) {
-				summary.put("caughtUp", true);
+				caughtUp = true;
 				break;
 			}
 			rows.sort(Comparator.comparing(NavPosBarcodeRow::getEntryNo, Comparator.nullsFirst(Long::compare)));
@@ -413,26 +445,98 @@ public class NavPosPagesSync {
 				summary.guard("the ERP answered rows at or below the cursor " + cursor + ": cursor kept");
 				break;
 			}
-			Classified classified = classify(rows, itemCodes, summary);
-			if (classified.toHand.isEmpty()) {
-				cursor = highest; // every row of the page is at the head office or left out
-				continue;
-			}
-			long firstToHand = entryNo(classified.toHand.get(0));
-			for (NavPosBarcodeRow row : rows) {
-				if (entryNo(row) < firstToHand) {
-					cursor = Math.max(cursor, entryNo(row));
+			List<NavPosBarcodeRow> toHand = classify(rows, itemCodes, summary).toHand;
+			for (int at = 0; at < toHand.size(); at += cap()) {
+				List<NavPosBarcodeRow> unsaved = packets.apply(toHand.subList(at, Math.min(at + cap(), toHand.size())));
+				if (!unsaved.isEmpty()) {
+					// Never past a row the import did not save: the next run hands it again
+					cursor = passBefore(rows, cursor, entryNo(unsaved.get(0)));
+					saveCursor(cursor);
+					summary.guard(unsaved.size() + " barcodes handed but not at the head office after their packet: run"
+							+ " stopped, cursor kept before them");
+					break reading;
 				}
+				// Saved after each packet, only over the rows before the next row still to save
+				cursor = at + cap() < toHand.size() ? passBefore(rows, cursor, entryNo(toHand.get(at + cap()))) : highest;
+				saveCursor(cursor);
 			}
-			handed.addAll(mapper.barcodes(classified.toHand).getRows());
-			break;
+			cursor = highest; // every row of the page is at the head office or left out
+			saveCursor(cursor);
 		}
 		summary.put("pagesRead", pages);
 		summary.put("cursorTo", cursor);
+		summary.put("caughtUp", caughtUp);
+		summary.put("applied", packets.applied.size());
+		summary.put("packets", packets.count);
+		if (properties.isDryRun()) {
+			summary.put("toApply", packets.toApply);
+		}
+		return run(packets.applied, summary, page);
+	}
+
+	/** The highest Entry_No of the page below limit, or the cursor when higher. */
+	private static long passBefore(List<NavPosBarcodeRow> rows, long cursor, long limit) {
+		long passed = cursor;
+		for (NavPosBarcodeRow row : rows) {
+			if (entryNo(row) < limit) {
+				passed = Math.max(passed, entryNo(row));
+			}
+		}
+		return passed;
+	}
+
+	private void saveCursor(long cursor) {
 		if (!properties.isDryRun()) {
 			state.put(BARCODE_CURSOR, String.valueOf(cursor));
 		}
-		return run(summary.handOver(handed, 0, cap()), summary, page);
+	}
+
+	/** The packets of one barcode run: applied one by one, each checked against the head office barcode table. */
+	private final class BarcodePackets {
+		final List<ErpItemBarcodeDTO> applied = new ArrayList<>();
+		int count;
+		int toApply;
+
+		/**
+		 * Applies the rows (by Entry_No) as one packet; returns those not at the head office afterwards, by Entry_No
+		 * (none in a dry run, where nothing is applied).
+		 */
+		List<NavPosBarcodeRow> apply(List<NavPosBarcodeRow> rows) {
+			if (rows.isEmpty()) {
+				return new ArrayList<>();
+			}
+			if (properties.isDryRun()) {
+				toApply += rows.size();
+				return new ArrayList<>();
+			}
+			List<ErpItemBarcodeDTO> packet = mapper.barcodes(rows).getRows();
+			try {
+				importer.barcodes(packet);
+			} catch (RuntimeException e) {
+				throw new IllegalStateException("Barcodes: packet " + (count + 1) + " failed, " + applied.size()
+						+ " rows applied before it (the next run goes on): " + e.getMessage(), e);
+			}
+			count++;
+			Map<String, NavPosPagesHeadOffice.Barcode> here = headOffice.barcodes(
+					rows.stream().map(row -> text(row.getCrossReferenceNo(), null)).collect(Collectors.toList()));
+			List<NavPosBarcodeRow> unsaved = new ArrayList<>();
+			for (NavPosBarcodeRow row : rows) {
+				if (!isAtHeadOffice(row, here.get(text(row.getCrossReferenceNo(), null)))) {
+					unsaved.add(row);
+				}
+			}
+			for (ErpItemBarcodeDTO dto : packet) {
+				if (unsaved.stream().noneMatch(row -> text(row.getCrossReferenceNo(), null).equals(dto.getBarcode()))) {
+					applied.add(dto);
+				}
+			}
+			return unsaved;
+		}
+	}
+
+	/** The row's barcode is at the head office, on the row's item and active. */
+	private static boolean isAtHeadOffice(NavPosBarcodeRow row, NavPosPagesHeadOffice.Barcode saved) {
+		return saved != null && row.getItemNo().trim().equals(saved.itemCode) && !Boolean.FALSE.equals(saved.active);
 	}
 
 	/** The rows of a read: left out (counted), already at the head office, or to hand over (by Entry_No). */
@@ -462,9 +566,7 @@ public class NavPosPagesSync {
 				: headOffice.barcodes(latest.keySet());
 		Classified classified = new Classified();
 		for (Map.Entry<String, NavPosBarcodeRow> entry : latest.entrySet()) {
-			NavPosPagesHeadOffice.Barcode saved = here.get(entry.getKey());
-			if (saved != null && entry.getValue().getItemNo().trim().equals(saved.itemCode)
-					&& !Boolean.FALSE.equals(saved.active)) {
+			if (isAtHeadOffice(entry.getValue(), here.get(entry.getKey()))) {
 				summary.add("alreadyAtHeadOffice", 1);
 			} else {
 				classified.toHand.add(entry.getValue());
@@ -561,7 +663,7 @@ public class NavPosPagesSync {
 		}
 	}
 
-	/** Families, sub-families and barcodes: one packet per run, the rest at the next runs. */
+	/** Rows per packet. Families and sub-families: one packet per run, the rest at the next runs. */
 	private int cap() {
 		return properties.getPacketSize();
 	}

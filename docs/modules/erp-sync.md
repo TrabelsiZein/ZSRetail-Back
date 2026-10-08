@@ -191,3 +191,8 @@ One items run applies **all** its changes (new, changed, deactivated) in packets
 run in error and the next run goes on with what is left; one items run at a time. Its summary says what was applied (`new`,
 `changed`, `deactivated`, `applied`, `packets`). A blank `Description` never replaces the name of an item already at the head
 office.
+
+One barcode run goes on until it has caught up, the same way: every item waiting for its barcodes, then the cursor on
+`Entry_No` page after page until the ERP answers no row, packet after packet; the cursor is saved after each packet and never
+passes a row not saved. Summary: `read`, `leftOut`, `itemsNeedingBarcodes`, `cursorFrom`, `cursorTo`, `pagesRead`, `applied`,
+`packets`, `caughtUp`.

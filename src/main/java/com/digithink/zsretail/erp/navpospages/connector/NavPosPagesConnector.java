@@ -42,8 +42,8 @@ import com.digithink.zsretail.erp.spi.ErpConnector;
  * changing it.
  * <p>
  * Step 6: the four catalogue fetches (families, sub-families, items, barcodes) take only the changes against the head
- * office tables ({@link NavPosPagesSync}); families, sub-families and barcodes hand them to the import, the items run
- * applies them itself in packets and hands nothing to the job. The summary of each run is the response written to the
+ * office tables ({@link NavPosPagesSync}); families and sub-families hand them to the import, the items and barcode runs
+ * apply them themselves in packets and hand nothing to the job. The summary of each run is the response written to the
  * communications log ({@link #getLastPullOperationResult()}), never the list. Invoices from the ERP, step (a): the
  * franchise invoices read by number ({@link #fetchSupplyInvoices}), not run by any job yet. Every other fetch answers an
  * empty list, every push or update a failure.
@@ -81,9 +81,11 @@ public class NavPosPagesConnector implements ErpConnector {
 		return Collections.emptyList();
 	}
 
+	/** The barcode run applies its changes itself, until it has caught up ({@link NavPosPagesSync#barcodes}). */
 	@Override
 	public List<ErpItemBarcodeDTO> fetchItemBarcodes(ErpSyncFilter filter) {
-		return changes(sync::barcodes);
+		changes(sync::barcodes);
+		return Collections.emptyList();
 	}
 
 	/** Invoices from the ERP, step (a): the invoices after the highest number of each year ({@link NavPosPagesSync#invoices}). */

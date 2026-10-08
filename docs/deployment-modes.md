@@ -161,7 +161,7 @@ writes to the ERP). The lines go in the head office's **outside file** (e.g. `co
 | `erp.navpospages.default-vat` | The VAT of every item, whole number 0 to 100 | required |
 | `erp.navpospages.price-includes-vat` | `true` (Unit_Price includes the VAT) \| `false` | required |
 | `erp.navpospages.connect-timeout-seconds`, `.read-timeout-seconds` | At least 1 | `10`, `60` |
-| `erp.navpospages.packet-size` (step 6) | Rows applied per transaction, 1 to 5000: an items run applies all its changes packet after packet; families, sub-families and barcodes one packet per run. Renamed from `max-changes-per-run` (2026-10-08): the old key stops the startup | `500` |
+| `erp.navpospages.packet-size` (step 6) | Rows applied per transaction, 1 to 5000: an items run applies all its changes packet after packet, a barcode run too, page after page until it has caught up; families and sub-families one packet per run. Renamed from `max-changes-per-run` (2026-10-08): the old key stops the startup | `500` |
 | `erp.navpospages.dry-run` (step 6) | `true` (read, compare, summary only) \| `false` | `false` |
 | `erp.navpospages.page.invoices` (invoices from the ERP) | Web service name of the posted franchise invoices; when set, `invoices.years` is required | `FactureFranchise` |
 | `erp.navpospages.invoices.lines-expand` | Navigation property of the lines (`$expand`) | `FactureFranchiseSalesInvLines` |

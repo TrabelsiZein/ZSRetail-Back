@@ -12,9 +12,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
@@ -37,6 +39,7 @@ import com.digithink.zsretail.erp.navpospages.dto.NavPosCollection;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesHeadOffice;
+import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesImport;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesState;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesSync;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosRun;
@@ -63,6 +66,13 @@ class NavPosPagesSyncTest {
 	/** Runs inside each packet of items, before it is applied. */
 	private Runnable duringPacket = () -> {
 	};
+	/** The same three for the packets of barcodes. */
+	private final List<Integer> barcodePackets = new ArrayList<>();
+	private int failAtBarcodePacket;
+	private Runnable duringBarcodePacket = () -> {
+	};
+	/** Barcodes the import leaves out without failing (as the real one does with a warning). */
+	private final Set<String> notSaving = new HashSet<>();
 
 	@BeforeEach
 	void setUp() {
@@ -76,13 +86,27 @@ class NavPosPagesSyncTest {
 		headOffice = new FakeHeadOffice();
 		state = new FakeState();
 		properties = NavPosPagesTestSupport.properties();
-		sync = new NavPosPagesSync(erp, headOffice, state, properties, packet -> {
-			duringPacket.run();
-			if (failAtPacket > 0 && --failAtPacket == 0) {
-				throw new IllegalStateException("connection lost");
+		sync = new NavPosPagesSync(erp, headOffice, state, properties, new NavPosPagesImport() {
+			@Override
+			public void items(List<ErpItemDTO> packet) {
+				duringPacket.run();
+				if (failAtPacket > 0 && --failAtPacket == 0) {
+					throw new IllegalStateException("connection lost");
+				}
+				headOffice.importItems(packet);
+				packets.add(packet.size());
 			}
-			headOffice.importItems(packet);
-			packets.add(packet.size());
+
+			@Override
+			public void barcodes(List<ErpItemBarcodeDTO> packet) {
+				duringBarcodePacket.run();
+				if (failAtBarcodePacket > 0 && --failAtBarcodePacket == 0) {
+					throw new IllegalStateException("connection lost");
+				}
+				headOffice.importBarcodes(packet.stream().filter(dto -> !notSaving.contains(dto.getBarcode()))
+						.collect(Collectors.toList()));
+				barcodePackets.add(packet.size());
+			}
 		});
 	}
 
@@ -105,10 +129,13 @@ class NavPosPagesSyncTest {
 		return sync.items();
 	}
 
+	/** The barcode run applies its packets itself, until it has caught up. */
 	private NavPosRun<ErpItemBarcodeDTO> barcodes() {
-		NavPosRun<ErpItemBarcodeDTO> run = sync.barcodes();
-		headOffice.importBarcodes(run.getHanded());
-		return run;
+		return sync.barcodes();
+	}
+
+	private static List<String> barcodeValues(NavPosRun<ErpItemBarcodeDTO> run) {
+		return run.getHanded().stream().map(ErpItemBarcodeDTO::getBarcode).collect(Collectors.toList());
 	}
 
 	/** Families, sub-families and every item at the head office (no cap reached). */
@@ -122,9 +149,7 @@ class NavPosPagesSyncTest {
 	/** The whole catalogue and every barcode. */
 	private void loadAll() {
 		loadCatalogue();
-		for (int i = 0; i < 10 && !Boolean.TRUE.equals(barcodes().getSummary().get("caughtUp")); i++) {
-			// until the cursor reaches the end
-		}
+		assertEquals(Boolean.TRUE, barcodes().getSummary().get("caughtUp"));
 	}
 
 	private static List<String> codes(List<ErpItemDTO> items) {
@@ -174,10 +199,12 @@ class NavPosPagesSyncTest {
 		assertEquals("0", state.get("items.pending"), "counted again once applied: the barcodes need not wait");
 		assertEquals(0, items().getHanded().size());
 
-		// Barcodes: pages of 15, one packet of 20 per run, each page handed then confirmed
-		int runs = 0;
-		while (!Boolean.TRUE.equals(barcodes().getSummary().get("caughtUp")) && runs++ < 20) {
-		}
+		// Barcodes: pages of 15, all in one run, one packet per page (at most 15 rows to save, packets of 20)
+		NavPosRun<ErpItemBarcodeDTO> run = barcodes();
+		assertEquals(Boolean.TRUE, run.getSummary().get("caughtUp"));
+		assertEquals(49, run.count("applied"));
+		assertEquals(4, run.count("packets"));
+		assertEquals(5, run.count("pagesRead"), "4 pages and the empty answer");
 		assertEquals(49, headOffice.barcodes.size(), "the barcode of item 0000527, outside the location, left out");
 		assertFalse(headOffice.barcodes.values().stream().anyMatch(b -> b.itemCode.equals("0000527")));
 		assertEquals("48793", state.get("barcodes.cursor"));
@@ -194,8 +221,12 @@ class NavPosPagesSyncTest {
 		assertEquals(0, items.getHanded().size());
 		assertEquals(0, items.count("changed"));
 		assertEquals(0, items.count("new"));
-		assertEquals(0, barcodes().getHanded().size());
 		assertEquals(50, items.count("read"));
+		NavPosRun<ErpItemBarcodeDTO> barcodes = barcodes();
+		assertEquals(0, barcodes.getHanded().size());
+		assertEquals(0, barcodes.count("applied"));
+		assertEquals(0, barcodes.count("packets"));
+		assertEquals(Boolean.TRUE, barcodes.getSummary().get("caughtUp"));
 	}
 
 	// ─── Items ──────────────────────────────────────────────────
@@ -419,61 +450,125 @@ class NavPosPagesSyncTest {
 	}
 
 	@Test
-	@DisplayName("The cursor over pages with gaps in Entry_No; a barcode of an item outside the location is left out and passed")
-	void cursorOverGaps() {
+	@DisplayName("Empty barcode table, 3 pages, barcodes to save on pages 1 and 3: one run applies them all, caught up, cursor at the highest Entry_No")
+	void emptyHeadOfficeThreePages() {
 		loadCatalogue();
 		erp.barcodes = new ArrayList<>(Arrays.asList(new NavPosBarcodeRow("000001", "B1", 5L),
-				new NavPosBarcodeRow("OUTSIDE", "B2", 9L), new NavPosBarcodeRow("000002", "B3", 120L),
-				new NavPosBarcodeRow("0000016", "B4", 121L), new NavPosBarcodeRow("0000017", "B5", 5000L)));
+				new NavPosBarcodeRow("OUTSIDE", "X1", 9L), new NavPosBarcodeRow("OUTSIDE", "X2", 120L),
+				new NavPosBarcodeRow("OUTSIDE", "X3", 121L), new NavPosBarcodeRow("000002", "B2", 4999L),
+				new NavPosBarcodeRow("OUTSIDE", "X4", 5000L)));
 		properties.setBarcodePageSize(2);
 
-		NavPosRun<ErpItemBarcodeDTO> first = barcodes();
-		assertEquals(Arrays.asList("B1"), first.getHanded().stream().map(ErpItemBarcodeDTO::getBarcode)
-				.collect(Collectors.toList()));
-		assertEquals(Long.valueOf(0), first.getSummary().get("cursorTo"), "not past B1 before it is saved");
-		assertEquals(Integer.valueOf(1),
-				((Map<?, ?>) first.getSummary().get("leftOut")).get(NavPosPagesSync.ITEM_NOT_AT_HEAD_OFFICE));
-
-		NavPosRun<ErpItemBarcodeDTO> second = barcodes(); // page 1 confirmed (B1 saved, B2 left out), page 2 handed
-		assertEquals(Arrays.asList("B3", "B4"), second.getHanded().stream().map(ErpItemBarcodeDTO::getBarcode)
-				.collect(Collectors.toList()));
-		assertEquals(Long.valueOf(9), second.getSummary().get("cursorTo"));
-		NavPosRun<ErpItemBarcodeDTO> third = barcodes();
-		assertEquals(Arrays.asList("B5"), third.getHanded().stream().map(ErpItemBarcodeDTO::getBarcode)
-				.collect(Collectors.toList()));
-		assertEquals(Long.valueOf(121), third.getSummary().get("cursorTo"));
-		NavPosRun<ErpItemBarcodeDTO> last = barcodes();
-		assertTrue(last.getHanded().isEmpty());
-		assertEquals(Boolean.TRUE, last.getSummary().get("caughtUp"));
+		NavPosRun<ErpItemBarcodeDTO> run = barcodes();
+		assertEquals(Arrays.asList("B1", "B2"), barcodeValues(run));
+		assertEquals(Boolean.TRUE, run.getSummary().get("caughtUp"));
+		assertEquals(2, run.count("applied"));
+		assertEquals(2, run.count("packets"), "page 2 has nothing to save");
+		assertEquals(4, run.count("pagesRead"), "3 pages and the empty answer");
+		assertEquals(Long.valueOf(0), run.getSummary().get("cursorFrom"));
+		assertEquals(Long.valueOf(5000), run.getSummary().get("cursorTo"));
 		assertEquals("5000", state.get("barcodes.cursor"));
-		assertFalse(headOffice.barcodes.containsKey("B2"));
-		assertEquals("000002", headOffice.barcodes.get("B3").itemCode);
+		assertEquals(Integer.valueOf(4),
+				((Map<?, ?>) run.getSummary().get("leftOut")).get(NavPosPagesSync.ITEM_NOT_AT_HEAD_OFFICE));
+		assertEquals("000002", headOffice.barcodes.get("B2").itemCode);
+		for (String gone : new String[] { "handed", "toHand", "heldBackByCap" }) {
+			assertFalse(run.getSummary().containsKey(gone), gone + " in " + run.getSummary());
+		}
+
+		NavPosRun<ErpItemBarcodeDTO> again = barcodes();
+		assertEquals(0, again.count("applied"));
+		assertEquals(0, again.count("packets"));
+		assertEquals(Boolean.TRUE, again.getSummary().get("caughtUp"));
+		assertEquals(1, again.count("pagesRead"));
 	}
 
 	@Test
-	@DisplayName("The cursor does not move when the previous batch was not saved: the same rows are handed again")
-	void cursorNotMovedWhenNotSaved() {
+	@DisplayName("More rows to save on a page than one packet: packet after packet, the cursor saved after each one")
+	void pageBiggerThanAPacket() {
 		loadCatalogue();
-		NavPosRun<ErpItemBarcodeDTO> handedNotSaved = sync.barcodes(); // the import fails: nothing saved
-		assertEquals(49, handedNotSaved.getHanded().size());
-		assertEquals("0", state.get("barcodes.cursor"));
-		NavPosRun<ErpItemBarcodeDTO> again = sync.barcodes();
-		assertEquals(49, again.getHanded().size(), "handed again");
-		assertEquals("0", state.get("barcodes.cursor"));
-		headOffice.importBarcodes(again.getHanded().subList(0, 10)); // a part saved
-		NavPosRun<ErpItemBarcodeDTO> rest = barcodes();
-		assertEquals(39, rest.getHanded().size());
-		// The cursor stops just before the first row still to save (the 11th of the rows handed, by Entry_No)
-		long firstUnsaved = erp.barcodes.stream().filter(row -> headOffice.items.containsKey(row.getItemNo()))
-				.map(NavPosBarcodeRow::getEntryNo).sorted().skip(10).findFirst().get();
-		long expected = erp.barcodes.stream().map(NavPosBarcodeRow::getEntryNo).filter(entry -> entry < firstUnsaved)
-				.max(Long::compare).get();
-		assertEquals(Long.valueOf(expected), rest.getSummary().get("cursorTo"));
-		assertEquals(String.valueOf(expected), state.get("barcodes.cursor"));
+		properties.setPacketSize(20);
+		List<String> cursors = new ArrayList<>();
+		duringBarcodePacket = () -> cursors.add(state.get("barcodes.cursor"));
+		NavPosRun<ErpItemBarcodeDTO> run = barcodes();
+		assertEquals(Arrays.asList(20, 20, 9), barcodePackets);
+		assertEquals(49, run.count("applied"));
+		assertEquals(3, run.count("packets"));
+		assertEquals(Boolean.TRUE, run.getSummary().get("caughtUp"));
+		assertEquals("48793", state.get("barcodes.cursor"));
+		assertEquals(null, cursors.get(0), "nothing saved before the first packet");
+		assertEquals(String.valueOf(lastEntryBefore(savedEntry(20))), cursors.get(1), "after packet 1");
+		assertEquals(String.valueOf(lastEntryBefore(savedEntry(40))), cursors.get(2), "after packet 2");
+	}
+
+	/** The Entry_No of the n-th row (0-based, by Entry_No) whose item is at the head office. */
+	private long savedEntry(int n) {
+		return erp.barcodes.stream().filter(row -> headOffice.items.containsKey(row.getItemNo()))
+				.map(NavPosBarcodeRow::getEntryNo).sorted().skip(n).findFirst().get();
+	}
+
+	/** The highest Entry_No of the ERP below limit. */
+	private long lastEntryBefore(long limit) {
+		return erp.barcodes.stream().map(NavPosBarcodeRow::getEntryNo).filter(entry -> entry < limit).max(Long::compare)
+				.get();
 	}
 
 	@Test
-	@DisplayName("A new item after the first load gets its barcodes by item number, then the list is cleared")
+	@DisplayName("A failed packet ends the run in error; the packets before it stay, the cursor stops before the failed rows; the next run finishes")
+	void barcodePacketFails() {
+		loadCatalogue();
+		properties.setPacketSize(20);
+		failAtBarcodePacket = 2;
+		IllegalStateException failure = assertThrows(IllegalStateException.class, this::barcodes);
+		assertEquals("Barcodes: packet 2 failed, 20 rows applied before it (the next run goes on): connection lost",
+				failure.getMessage());
+		assertEquals(20, headOffice.barcodes.size(), "the first packet stays");
+		long firstFailed = savedEntry(20);
+		assertEquals(String.valueOf(lastEntryBefore(firstFailed)), state.get("barcodes.cursor"));
+		assertTrue(Long.parseLong(state.get("barcodes.cursor")) < firstFailed, "never past a row not saved");
+
+		NavPosRun<ErpItemBarcodeDTO> next = barcodes();
+		assertEquals(29, next.count("applied"));
+		assertEquals(Boolean.TRUE, next.getSummary().get("caughtUp"));
+		assertEquals(49, headOffice.barcodes.size());
+		assertEquals("48793", state.get("barcodes.cursor"));
+	}
+
+	@Test
+	@DisplayName("A row the import leaves out without failing stops the run: the cursor stays before it, the next run hands it again")
+	void rowNotSavedStopsTheRun() {
+		loadCatalogue();
+		properties.setPacketSize(20);
+		long entry = savedEntry(25);
+		String barcode = erp.barcodes.stream().filter(row -> row.getEntryNo() == entry).findFirst().get()
+				.getCrossReferenceNo().trim();
+		notSaving.add(barcode);
+		NavPosRun<ErpItemBarcodeDTO> stopped = barcodes();
+		assertEquals(Boolean.FALSE, stopped.getSummary().get("caughtUp"));
+		assertEquals(39, stopped.count("applied"), "the second packet without that row");
+		assertEquals("1 barcodes handed but not at the head office after their packet: run stopped, cursor kept before them",
+				stopped.getSummary().get("guard"));
+		assertEquals(String.valueOf(lastEntryBefore(entry)), state.get("barcodes.cursor"));
+
+		notSaving.clear();
+		NavPosRun<ErpItemBarcodeDTO> next = barcodes();
+		assertEquals(Boolean.TRUE, next.getSummary().get("caughtUp"));
+		assertEquals(49, headOffice.barcodes.size());
+		assertEquals("48793", state.get("barcodes.cursor"));
+	}
+
+	@Test
+	@DisplayName("A barcode run does not start while another one is running")
+	void barcodesNotTwiceAtOnce() {
+		loadCatalogue();
+		List<String> refused = new ArrayList<>();
+		duringBarcodePacket = () -> refused.add(assertThrows(ErpSyncWarningException.class, sync::barcodes).getMessage());
+		assertEquals(Boolean.TRUE, barcodes().getSummary().get("caughtUp"));
+		assertEquals(Arrays.asList("a barcode run is already running: this one does not start"), refused);
+		assertEquals(49, headOffice.barcodes.size());
+	}
+
+	@Test
+	@DisplayName("A new item after the first load gets its barcodes by item number in the next run, then the list is cleared in that run")
 	void newItemGetsItsBarcodes() {
 		erp.items.removeIf(row -> row.getItemNo().equals("000002"));
 		loadAll();
@@ -485,13 +580,44 @@ class NavPosPagesSyncTest {
 		assertEquals("1", state.get("needs-barcodes:000002"));
 		assertEquals("0", state.get("items.pending"), "the new item was saved in the run");
 		NavPosRun<ErpItemBarcodeDTO> run = barcodes();
-		assertEquals(Arrays.asList("000002"), run.getHanded().stream().map(ErpItemBarcodeDTO::getBarcode)
-				.collect(Collectors.toList()));
+		assertEquals(Arrays.asList("000002"), barcodeValues(run));
 		assertEquals(Arrays.asList("000002"), erp.askedItems);
-		assertEquals("1", state.get("needs-barcodes:000002"), "kept until its barcodes are seen at the head office");
-		barcodes();
-		assertNull(state.get("needs-barcodes:000002"));
+		assertEquals(1, run.count("appliedForNewItems"));
+		assertNull(state.get("needs-barcodes:000002"), "its barcodes are saved: off the list in the same run");
+		assertEquals(Boolean.TRUE, run.getSummary().get("caughtUp"), "then the cursor, in the same run");
 		assertEquals("000002", headOffice.barcodes.get("000002").itemCode);
+	}
+
+	@Test
+	@DisplayName("A \"needs its barcodes\" list with more rows than one packet: every item in one run, packet after packet; an item not saved stays listed")
+	void needsListBiggerThanAPacket() {
+		Set<String> withBarcode = erp.barcodes.stream().map(NavPosBarcodeRow::getItemNo).collect(Collectors.toSet());
+		List<NavPosStockRow> later = erp.items.stream().filter(row -> withBarcode.contains(row.getItemNo())).limit(12)
+				.collect(Collectors.toList());
+		erp.items.removeAll(later);
+		loadAll();
+		erp.items.addAll(later);
+		properties.setPacketSize(5);
+		items();
+		assertEquals(12, state.keysStartingWith("needs-barcodes:").size());
+		String kept = later.get(7).getItemNo();
+		String keptBarcode = erp.barcodes.stream().filter(row -> row.getItemNo().equals(kept)).findFirst().get()
+				.getCrossReferenceNo().trim();
+		notSaving.add(keptBarcode);
+		barcodePackets.clear();
+
+		NavPosRun<ErpItemBarcodeDTO> run = barcodes();
+		assertEquals(Arrays.asList(5, 5, 2), barcodePackets);
+		assertEquals(11, run.count("appliedForNewItems"));
+		assertEquals(12, run.count("itemsNeedingBarcodes"));
+		assertEquals(Arrays.asList("needs-barcodes:" + kept), state.keysStartingWith("needs-barcodes:"),
+				"only the item whose barcode is not saved");
+		assertEquals(Boolean.TRUE, run.getSummary().get("caughtUp"));
+
+		notSaving.clear();
+		NavPosRun<ErpItemBarcodeDTO> next = barcodes();
+		assertEquals(1, next.count("appliedForNewItems"));
+		assertTrue(state.keysStartingWith("needs-barcodes:").isEmpty());
 	}
 
 	@Test
@@ -522,9 +648,17 @@ class NavPosPagesSyncTest {
 		NavPosRun<ErpItemDTO> items = sync.items();
 		assertTrue(items.getHanded().isEmpty());
 		assertEquals(1, items.count("changed"));
+		properties.setBarcodePageSize(15);
+		properties.setPacketSize(20);
 		NavPosRun<ErpItemBarcodeDTO> barcodes = sync.barcodes();
 		assertTrue(barcodes.getHanded().isEmpty());
-		assertEquals(49, barcodes.count("toHand"));
+		assertEquals(49, barcodes.count("toApply"), "read to the last page");
+		assertEquals(0, barcodes.count("applied"));
+		assertEquals(0, barcodes.count("packets"));
+		assertEquals(5, barcodes.count("pagesRead"));
+		assertEquals(Boolean.TRUE, barcodes.getSummary().get("caughtUp"), "it ends although no cursor is saved");
+		assertTrue(barcodePackets.isEmpty(), "nothing imported");
+		assertTrue(headOffice.barcodes.isEmpty());
 		assertEquals(before, state.values);
 	}
 
@@ -559,6 +693,13 @@ class NavPosPagesSyncTest {
 		assertEquals(50, summary.get("applied"));
 		assertEquals(1, summary.get("packets"));
 		assertFalse(summary.values().stream().anyMatch(value -> value instanceof Collection), "never the list");
+
+		assertTrue(connector.fetchItemBarcodes(null).isEmpty(), "the barcode run too: applied until caught up");
+		assertEquals(49, headOffice.barcodes.size());
+		Map<?, ?> barcodes = (Map<?, ?>) connector.getLastPullOperationResult().getRawResponse();
+		assertEquals("barcodes", barcodes.get("run"));
+		assertEquals(49, barcodes.get("applied"));
+		assertEquals(Boolean.TRUE, barcodes.get("caughtUp"));
 	}
 
 	// ─── Invoices from the ERP, step (a) ────────────────────────

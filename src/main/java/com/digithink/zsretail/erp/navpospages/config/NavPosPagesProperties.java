@@ -46,8 +46,9 @@ public class NavPosPagesProperties {
 	private int connectTimeoutSeconds = 10;
 	private int readTimeoutSeconds = 60;
 	/**
-	 * Rows applied per transaction. An items run applies all its changes in packets of this size, one after the other;
-	 * families, sub-families and barcodes hand one packet per run (the rest at the next runs).
+	 * Rows applied per transaction. An items run and a barcode run apply all their changes in packets of this size, one
+	 * after the other (the barcode run page after page until it has caught up); families and sub-families hand one packet
+	 * per run (the rest at the next runs).
 	 */
 	private int packetSize = 500;
 	/** Step 6: read, compare and log the summary only: nothing handed to the import, the state table not touched. */
