@@ -33,10 +33,12 @@ import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesStartupCheck;
 import com.digithink.zsretail.erp.navpospages.connector.NavPosPagesConnector;
 import com.digithink.zsretail.erp.navpospages.reader.NavPosPagesReader;
+import com.digithink.zsretail.erp.navpospages.sync.BootstrapNavPosPagesImport;
 import com.digithink.zsretail.erp.navpospages.sync.JdbcNavPosPagesState;
 import com.digithink.zsretail.erp.navpospages.sync.JpaNavPosPagesHeadOffice;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesSync;
 import com.digithink.zsretail.erp.service.ErpCommunicationService;
+import com.digithink.zsretail.erp.service.ErpItemBootstrapService;
 import com.digithink.zsretail.erp.service.ErpSynchronizationManager;
 import com.digithink.zsretail.erp.spi.ErpConnector;
 import com.digithink.zsretail.erp.spi.NoOpErpConnector;
@@ -63,7 +65,7 @@ class NavPosPagesConnectorTest {
 						DynamicsNavConnector.class, NavPosPagesStartupCheck.class, NavPosPagesProperties.class,
 						NavPosPagesConfig.class, NavPosPagesRestClient.class, NavPosPagesReader.class,
 						NavPosPagesConnector.class, JdbcNavPosPagesState.class, JpaNavPosPagesHeadOffice.class,
-						NavPosPagesSync.class, ErpSynchronizationManager.class)
+						NavPosPagesSync.class, BootstrapNavPosPagesImport.class, ErpSynchronizationManager.class)
 				// Plain singletons: never called here, and not autowired
 				.withInitializer(ctx -> {
 					ctx.getBeanFactory().registerSingleton("generalSetupService", mock(GeneralSetupService.class));
@@ -71,6 +73,7 @@ class NavPosPagesConnectorTest {
 					ctx.getBeanFactory().registerSingleton("erpCommunicationService", mock(ErpCommunicationService.class));
 					ctx.getBeanFactory().registerSingleton("jdbcTemplate", mock(JdbcTemplate.class));
 					ctx.getBeanFactory().registerSingleton("entityManager", mock(EntityManager.class));
+					ctx.getBeanFactory().registerSingleton("erpItemBootstrapService", mock(ErpItemBootstrapService.class));
 				});
 	}
 
@@ -159,6 +162,8 @@ class NavPosPagesConnectorTest {
 			assertEquals(1000, properties.getBarcodePageSize());
 			assertEquals("PointStockPOS", properties.getPage().getItems());
 			assertNotNull(ctx.getBean(NavPosPagesReader.class));
+			assertNotNull(ctx.getBean(BootstrapNavPosPagesImport.class), "the items run applies its packets through it");
+			assertEquals(500, properties.getPacketSize());
 			// Invoices from the ERP, step (a): the defaults, no year
 			assertEquals("FactureFranchise", properties.getPage().getInvoices());
 			assertEquals("FactureFranchiseSalesInvLines", properties.getInvoices().getLinesExpand());

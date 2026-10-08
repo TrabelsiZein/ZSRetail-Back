@@ -1271,10 +1271,19 @@ sub-family without its family, a `Categorie` row, `price-includes-vat=false`), `
 navpospages), `NavPosPagesLiveReadTest` (skipped unless `-Dnavpospages.live=true`: a GET-only read of the ERP named in
 `configs/local/happyness_ho.properties`, counts, five rows and the time per page, two barcode pages).
 
-**Step 6: changes only** (`erp/navpospages/sync`). The four catalogue fetches of `NavPosPagesConnector` now hand to the import
-(`ErpSyncJobRunner` → `ErpItemBootstrapService`, both unchanged) only what differs between the ERP and the head office tables
-(`NavPosPagesSync`): the head office tables are the memory of what was seen, so a row the import did not save is handed again
-at the next run. At most `max-changes-per-run` rows per fetch, by code (barcodes by `Entry_No`); the rest at the next runs.
+**Step 6: changes only** (`erp/navpospages/sync`). The four catalogue fetches of `NavPosPagesConnector` take only what differs
+between the ERP and the head office tables (`NavPosPagesSync`): the head office tables are the memory of what was seen, so a
+row the import did not save is taken again at the next run.
+- **Items: every change in one run** (2026-10-08). The items run applies all its changes itself (new, changed, deactivated),
+  by code, in packets of `packet-size` (default 500), one after the other, each packet in its own transaction
+  (`NavPosPagesImport` → `BootstrapNavPosPagesImport` → `ErpItemBootstrapService.importItems`, so the recorder aspect commits
+  the items and their change rows for the stores together; no bulk update). The connector then hands nothing to the job
+  (`ErpSyncJobRunner` and `ErpItemBootstrapService` unchanged). A failed packet ends the run in error ("Items: packet 2 of 3
+  failed, 500 of 1200 rows applied before it (the next run goes on): ..."); the packets before it stay and the next run goes on
+  with what is left. One items run at a time: a run asked while one is running (the scheduler and "Run now") is refused with
+  a warning ("an items run is already running: this one does not start").
+- Families, sub-families and barcodes hand one packet of `packet-size` rows to the import per run (by code, barcodes by
+  `Entry_No`); the rest at the next runs.
 
 | Rule | Detail |
 |---|---|
@@ -1282,11 +1291,12 @@ at the next run. At most `max-changes-per-run` rows per fetch, by code (barcodes
 | Price null or 0 | The item is handed inactive; active again when the ERP gives it a price |
 | Item gone from the location | Handed inactive with the head office values, never deleted, **whatever their number** (2026-10-08: the percent guard and its key `deactivate-guard-percent` are gone; a leftover key is ignored). Only items of the ERP: `item.erp_external_id` is set only by the ERP import; hand-made items, packs made at the head office, the data import and `TAX_STAMP` have none and are never touched |
 | Empty answer | The ERP answers 0 rows for the location: nothing deactivated in that run, the warning "the ERP answered no item for the location: N items not deactivated" in the summary (a broken connection or a wrong location code, never a cleanup) |
+| Blank Description | The page's `Description` gives the name and the description. Blank for an item already at the head office: its name and description are kept and it is not a change for those fields (handed for another change, it carries the head office's). A new item with a blank name takes its code (the import). Seen 2026-10-08 on the 308 rows of `FRANCHISE` at Happyness (filled in the other locations): the run before this rule had replaced their names by the code; they get their names back when the ERP fills the field |
 | `TAX_STAMP_ERP_ITEM_CODE` | That ERP item is left out (the import never saves it) |
-| Order | Sub-families wait while a family of the ERP is not at the head office; items while a family or sub-family is not (checked on the categories page itself). Barcodes wait while the last item run counted new items not at the head office yet (counted **before** handing over: 0 proves the last batch was saved), or no item run happened |
+| Order | Sub-families wait while a family of the ERP is not at the head office; items while a family or sub-family is not (checked on the categories page itself). Barcodes wait while the last item run counted new items not at the head office yet, or no item run happened. The items run counts **before** applying (a run stopped by a failed packet keeps the barcodes waiting), then again once every packet is applied (0: the barcodes may run at once) |
 | Barcode cursor | On `Entry_No`, pages of `barcode-page-size`. It moves only over rows already at the head office (checked in its barcode table), left out (blank, item not at the head office) or replaced by a later row of the same barcode: it never passes a row handed but not saved. Gaps in `Entry_No` are no problem |
 | New item later | An item handed as new once the cursor has started is listed ("needs its barcodes"); the next barcode run reads its barcodes by `Item_No` (20 items per call), hands the missing ones, and the item leaves the list once all its barcodes are at the head office; the cursor goes on when the list has nothing to hand |
-| Summary | One entry per run in the communications log (the response of the pull, when `ERP_SYNC_TRACKING_LEVEL` is `ALL`, the default seeded): run, page, read, new, changed, deactivated, handed, held back by the cap, left out by reason, notes, waiting, guard, cursor from/to. Never the list |
+| Summary | One entry per run in the communications log (the response of the pull, when `ERP_SYNC_TRACKING_LEVEL` is `ALL`, the default seeded): run, page, read, left out by reason, notes, waiting, guard. Items: `new`, `changed`, `deactivated` and `applied` (what the run applied; 0 applied in a dry run), `packets`; nothing held back. Families, sub-families, barcodes: new, changed, handed, `toHand` and `heldBackByCap` (the rest for the next runs), cursor from/to. Never the list |
 | Dry run | `dry-run=true`: reads, compares and writes the summary; hands nothing; the state table is not written |
 
 **State table** `navpospages_state` (`state_key`, `state_value`, `updated_at`): the barcode cursor, the count of the last item
@@ -1294,10 +1304,11 @@ run, the items that need their barcodes. Not a JPA entity (Hibernate would creat
 SQL when missing, at the start, by `JdbcNavPosPagesState`, which exists only with `erp.navpospages.enabled=true`. A store or a
 head office without this connector never gets it.
 
-Tests: `NavPosPagesSyncTest` (15: first load with the cap over several runs, nothing changed, price change, price 0 then a price,
-item gone, guard, empty answer, tax stamp item, barcodes waiting for items, cursor over gaps with an item outside the location,
-cursor not moved when not saved, a new item's barcodes by item number, no list during the first load, dry run, the summary
-kept for the log).
+Tests: `NavPosPagesSyncTest` (24: first load with packets (all items in one run), nothing changed, price change, price 0 then a
+price, item gone, 96 % gone, empty answer, every change in one run in packets with the summary of what was applied, a failed
+packet then the next run, not twice at once, a blank Description, tax stamp item, barcodes waiting for items, cursor over gaps
+with an item outside the location, cursor not moved when not saved, a new item's barcodes by item number, no list during the
+first load, dry run, the summary kept for the log, the items fetch handing nothing to the job, invoices).
 
 **Step 7: the changes of an ERP import reach the stores** (`HeadOfficeErpCatalogueRecorder`, an aspect beside
 `HeadOfficeErpGuard`, `@ConditionalOnHeadOfficeErpCatalogue`; nothing in `erp/`, `holink/` or `service/` changes). The four
@@ -1314,8 +1325,9 @@ records its barcodes, `TAX_STAMP` is never recorded.
 - No hooks bean, or a null or empty list: nothing recorded, the sequence untouched.
 - Lock and pulls: the head office databases do not use read-committed snapshot, so a store's pull (`GET /ho/down`, read-only
   transaction of 15 s) waits on the sequence row while a batch records, and fails if the recording lasts longer; the store
-  pulls again at its next cycle. Keep `erp.navpospages.max-changes-per-run` such that a batch records in a few seconds
-  (to measure at L2).
+  pulls again at its next cycle. Keep `erp.navpospages.packet-size` such that a packet records in a few seconds (to measure
+  at L2): between two packets the sequence row is free and the pulls go through. Seen 2026-10-08 at Happyness: one
+  transaction of 1,000 items lasted about 84 s (the import's auto-flush; for the performance step, profiling first).
 - Tests: `HeadOfficeErpCatalogueRecorderTest` (one change per record, an item's barcodes again, rollback on a recording
   failure and on an import failure, null or empty list, `TAX_STAMP`, no hooks bean, flush every 200, where the bean exists).
 

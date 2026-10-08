@@ -3,6 +3,7 @@ package com.digithink.zsretail.erp.navpospages;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
@@ -39,6 +40,7 @@ import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesHeadOffice;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesState;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesSync;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosRun;
+import com.digithink.zsretail.erp.service.ErpSyncWarningException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.node.TextNode;
 
@@ -54,6 +56,13 @@ class NavPosPagesSyncTest {
 	private FakeState state;
 	private NavPosPagesProperties properties;
 	private NavPosPagesSync sync;
+	/** The size of each packet of items applied, in order. */
+	private final List<Integer> packets = new ArrayList<>();
+	/** The n-th packet of items from now fails, its transaction rolled back (0: none fails). */
+	private int failAtPacket;
+	/** Runs inside each packet of items, before it is applied. */
+	private Runnable duringPacket = () -> {
+	};
 
 	@BeforeEach
 	void setUp() {
@@ -67,7 +76,14 @@ class NavPosPagesSyncTest {
 		headOffice = new FakeHeadOffice();
 		state = new FakeState();
 		properties = NavPosPagesTestSupport.properties();
-		sync = new NavPosPagesSync(erp, headOffice, state, properties);
+		sync = new NavPosPagesSync(erp, headOffice, state, properties, packet -> {
+			duringPacket.run();
+			if (failAtPacket > 0 && --failAtPacket == 0) {
+				throw new IllegalStateException("connection lost");
+			}
+			headOffice.importItems(packet);
+			packets.add(packet.size());
+		});
 	}
 
 	// ─── Running the four jobs, the import applying what it is handed ────
@@ -84,10 +100,9 @@ class NavPosPagesSyncTest {
 		return run;
 	}
 
+	/** The items run applies its packets itself. */
 	private NavPosRun<ErpItemDTO> items() {
-		NavPosRun<ErpItemDTO> run = sync.items();
-		headOffice.importItems(run.getHanded());
-		return run;
+		return sync.items();
 	}
 
 	private NavPosRun<ErpItemBarcodeDTO> barcodes() {
@@ -123,9 +138,9 @@ class NavPosPagesSyncTest {
 	// ─── First load ─────────────────────────────────────────────
 
 	@Test
-	@DisplayName("First load with the cap over several runs: families, then sub-families, items, barcodes, each waiting for the one before")
-	void firstLoadWithCap() {
-		properties.setMaxChangesPerRun(20);
+	@DisplayName("First load with packets of 20: families, then sub-families (one packet per run), all items in one run, barcodes, each waiting for the one before")
+	void firstLoadWithPackets() {
+		properties.setPacketSize(20);
 		properties.setBarcodePageSize(15);
 
 		NavPosRun<ErpItemSubFamilyDTO> early = sync.subFamilies();
@@ -147,25 +162,19 @@ class NavPosPagesSyncTest {
 		assertEquals(14, subFamilies().getHanded().size());
 		assertEquals(0, subFamilies().getHanded().size());
 
-		List<String> handed = new ArrayList<>();
-		int[] sizes = new int[4];
-		for (int run = 0; run < 4; run++) {
-			NavPosRun<ErpItemDTO> items = items();
-			sizes[run] = items.getHanded().size();
-			handed.addAll(codes(items.getHanded()));
-			if (run < 3) {
-				NavPosRun<ErpItemBarcodeDTO> waiting = barcodes();
-				assertTrue(waiting.getHanded().isEmpty());
-				assertTrue(waiting.getSummary().get("waiting").toString().startsWith("waiting for items: "),
-						waiting.toString());
-			}
-		}
-		assertEquals("20,20,10,0", sizes[0] + "," + sizes[1] + "," + sizes[2] + "," + sizes[3]);
-		assertEquals(handed.stream().sorted().collect(Collectors.toList()), handed, "a stable order, by code");
+		NavPosRun<ErpItemDTO> items = items();
+		List<String> applied = codes(items.getHanded());
+		assertEquals(Arrays.asList(20, 20, 10), packets, "every item in one run, packet after packet");
+		assertEquals(applied.stream().sorted().collect(Collectors.toList()), applied, "a stable order, by code");
+		assertEquals(50, items.count("new"));
+		assertEquals(50, items.count("applied"));
+		assertEquals(3, items.count("packets"));
 		assertEquals(50, headOffice.items.size());
 		assertEquals("FLORELLE VAO LES PETALES N° 01", headOffice.items.get("000001").name);
+		assertEquals("0", state.get("items.pending"), "counted again once applied: the barcodes need not wait");
+		assertEquals(0, items().getHanded().size());
 
-		// Barcodes: pages of 15, cap 20, each page handed then confirmed
+		// Barcodes: pages of 15, one packet of 20 per run, each page handed then confirmed
 		int runs = 0;
 		while (!Boolean.TRUE.equals(barcodes().getSummary().get("caughtUp")) && runs++ < 20) {
 		}
@@ -272,6 +281,108 @@ class NavPosPagesSyncTest {
 		assertTrue(run.getHanded().isEmpty());
 		assertEquals("the ERP answered no item for the location: 50 items not deactivated", run.getSummary().get("guard"));
 		assertTrue(headOffice.items.values().stream().allMatch(NavPosPagesHeadOffice.Item::isActive));
+		assertEquals(0, run.count("deactivated"));
+		assertEquals(0, run.count("packets"));
+	}
+
+	// ─── Items: all the changes in one run, in packets ──────────
+
+	@Test
+	@DisplayName("One items run applies every change (changed and deactivated) in packets by code; the summary says what was applied, nothing held back")
+	void allChangesInOneRun() {
+		loadCatalogue();
+		packets.clear();
+		properties.setPacketSize(20);
+		erp.items.subList(5, 50).clear(); // 45 of 50 gone from the location
+		erp.items.get(0).setUnitPrice(new BigDecimal("9.99"));
+		NavPosRun<ErpItemDTO> run = items();
+		assertEquals(Arrays.asList(20, 20, 6), packets);
+		assertEquals(46, run.getHanded().size());
+		List<String> applied = codes(run.getHanded());
+		assertEquals(applied.stream().sorted().collect(Collectors.toList()), applied, "by code");
+		Map<String, Object> summary = run.getSummary();
+		assertEquals(0, run.count("new"));
+		assertEquals(1, run.count("changed"));
+		assertEquals(45, run.count("deactivated"));
+		assertEquals(46, run.count("applied"));
+		assertEquals(3, run.count("packets"));
+		for (String gone : new String[] { "handed", "toHand", "heldBackByCap" }) {
+			assertFalse(summary.containsKey(gone), gone + " in " + summary);
+		}
+		assertEquals(45, headOffice.items.values().stream().filter(here -> !here.isActive()).count());
+		assertEquals(50, headOffice.items.size(), "never deleted");
+
+		NavPosRun<ErpItemDTO> next = items();
+		assertEquals(0, next.count("applied"));
+		assertEquals(0, next.count("packets"));
+		assertEquals(Arrays.asList(20, 20, 6), packets, "nothing left");
+	}
+
+	@Test
+	@DisplayName("A failed packet ends the run in error; the packets before it stay and the next run goes on with what is left")
+	void packetFails() {
+		families();
+		subFamilies();
+		properties.setPacketSize(20);
+		failAtPacket = 2;
+		IllegalStateException failure = assertThrows(IllegalStateException.class, this::items);
+		assertEquals("Items: packet 2 of 3 failed, 20 of 50 rows applied before it (the next run goes on): connection lost",
+				failure.getMessage());
+		assertEquals(20, headOffice.items.size(), "the first packet stays");
+		assertEquals("50", state.get("items.pending"), "counted before applying: the barcodes wait");
+		assertTrue(sync.barcodes().getSummary().containsKey("waiting"));
+
+		NavPosRun<ErpItemDTO> next = items();
+		assertEquals(30, next.count("new"));
+		assertEquals(Arrays.asList(20, 20, 10), packets);
+		assertEquals(50, headOffice.items.size());
+		assertEquals("0", state.get("items.pending"));
+		assertFalse(sync.barcodes().getSummary().containsKey("waiting"));
+	}
+
+	@Test
+	@DisplayName("An items run does not start while another one is running; the next one starts once it has ended")
+	void notTwiceAtOnce() {
+		families();
+		subFamilies();
+		List<String> refused = new ArrayList<>();
+		duringPacket = () -> refused.add(assertThrows(ErpSyncWarningException.class, sync::items).getMessage());
+		items();
+		assertEquals(Arrays.asList("an items run is already running: this one does not start"), refused);
+		assertEquals(50, headOffice.items.size(), "the running one ends normally");
+		duringPacket = () -> {
+		};
+		erp.items.get(0).setUnitPrice(new BigDecimal("9.99"));
+		assertEquals(1, items().count("applied"));
+	}
+
+	// ─── Items: a blank Description ─────────────────────────────
+
+	@Test
+	@DisplayName("A blank Description never replaces the name of an item at the head office and is not a change; a new item takes its code")
+	void blankDescription() {
+		loadCatalogue();
+		String name = headOffice.items.get("000001").name;
+		String description = headOffice.items.get("000001").description;
+		erpItem("000001").setDescription("  ");
+		NavPosRun<ErpItemDTO> blank = items();
+		assertEquals(0, blank.count("changed"), "kept, not a change");
+		assertEquals(0, blank.count("applied"));
+
+		erpItem("000001").setUnitPrice(new BigDecimal("9.99")); // another change: handed with the head office name
+		NavPosRun<ErpItemDTO> price = items();
+		assertEquals(1, price.count("changed"));
+		assertEquals(name, price.getHanded().get(0).getName());
+		assertEquals(name, headOffice.items.get("000001").name);
+		assertEquals(description, headOffice.items.get("000001").description);
+
+		erp.items.add(new NavPosStockRow("NEW-1", "", "", new BigDecimal("2.45"), "FAM-ONG-MAQ", "SF-VEO-ONG-MAQ"));
+		assertEquals(1, items().count("new"));
+		assertEquals("NEW-1", headOffice.items.get("NEW-1").name, "a new item with a blank name takes its code");
+
+		erpItem("000001").setDescription("NEW NAME FROM THE ERP");
+		assertEquals(1, items().count("changed"));
+		assertEquals("NEW NAME FROM THE ERP", headOffice.items.get("000001").name, "a name given again is applied");
 	}
 
 	@Test
@@ -283,30 +394,27 @@ class NavPosPagesSyncTest {
 		NavPosRun<ErpItemDTO> run = items();
 		assertFalse(codes(run.getHanded()).contains("000001"));
 		assertEquals(Integer.valueOf(1), ((Map<?, ?>) run.getSummary().get("leftOut")).get(NavPosPagesSync.TAX_STAMP_ITEM));
-		assertEquals("49", state.get("items.pending"), "counted before handing over, without it");
-		items();
-		assertEquals("0", state.get("items.pending"));
+		assertEquals("0", state.get("items.pending"), "counted once applied, without it: the barcodes never wait for it");
 	}
 
 	// ─── Barcodes ───────────────────────────────────────────────
 
 	@Test
-	@DisplayName("Barcodes wait for the items: no item run yet, or new items not saved yet; the cursor does not move")
+	@DisplayName("Barcodes wait for the items: no item run yet, or new items not saved yet (a packet failed); the cursor does not move")
 	void barcodesWaitForItems() {
-		properties.setMaxChangesPerRun(30);
+		properties.setPacketSize(30);
 		families();
 		subFamilies(); // 30 of 34
 		subFamilies();
 		NavPosRun<ErpItemBarcodeDTO> noRun = sync.barcodes();
 		assertEquals("waiting for items: no items run yet", noRun.getSummary().get("waiting"));
-		items(); // 30 of 50
+		failAtPacket = 2;
+		assertThrows(IllegalStateException.class, this::items); // 30 of 50 saved
 		NavPosRun<ErpItemBarcodeDTO> pending = sync.barcodes();
 		assertEquals("waiting for items: 50 new items not at the head office yet", pending.getSummary().get("waiting"));
 		assertTrue(pending.getHanded().isEmpty());
 		assertNull(state.get("barcodes.cursor"));
-		items(); // the last 20; counted 20 before handing
-		assertTrue(sync.barcodes().getSummary().containsKey("waiting"));
-		items(); // counts 0: the last batch was saved
+		items(); // the last 20, then counted again: 0
 		assertFalse(barcodes().getHanded().isEmpty());
 	}
 
@@ -375,8 +483,7 @@ class NavPosPagesSyncTest {
 		erp.items.add(new NavPosStockRow("000002", "", "NEW ONE", new BigDecimal("2.45"), "FAM-ONG-MAQ", "SF-VEO-ONG-MAQ"));
 		items();
 		assertEquals("1", state.get("needs-barcodes:000002"));
-		assertEquals("waiting for items: 1 new items not at the head office yet", sync.barcodes().getSummary().get("waiting"));
-		items(); // counts 0: the new item was saved
+		assertEquals("0", state.get("items.pending"), "the new item was saved in the run");
 		NavPosRun<ErpItemBarcodeDTO> run = barcodes();
 		assertEquals(Arrays.asList("000002"), run.getHanded().stream().map(ErpItemBarcodeDTO::getBarcode)
 				.collect(Collectors.toList()));
@@ -436,6 +543,22 @@ class NavPosPagesSyncTest {
 		assertFalse(summary.values().stream().anyMatch(value -> value instanceof Collection), "never the list");
 		connector.clearLastPullOperationResult();
 		assertNull(connector.getLastPullOperationResult());
+	}
+
+	@Test
+	@DisplayName("The connector's items fetch applies the run and hands nothing more to the job; the summary says what was applied")
+	void connectorItemsApplied() {
+		families();
+		subFamilies();
+		NavPosPagesConnector connector = new NavPosPagesConnector(sync);
+		assertTrue(connector.fetchItems(null).isEmpty(), "already applied, packet after packet");
+		assertEquals(50, headOffice.items.size());
+		Map<?, ?> summary = (Map<?, ?>) connector.getLastPullOperationResult().getRawResponse();
+		assertEquals("items", summary.get("run"));
+		assertEquals(50, summary.get("new"));
+		assertEquals(50, summary.get("applied"));
+		assertEquals(1, summary.get("packets"));
+		assertFalse(summary.values().stream().anyMatch(value -> value instanceof Collection), "never the list");
 	}
 
 	// ─── Invoices from the ERP, step (a) ────────────────────────

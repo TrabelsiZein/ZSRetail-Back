@@ -107,10 +107,14 @@ class NavPosPagesStartupCheckTest {
 					+ " from 1 to 5000", refusal(with("erp.navpospages.barcode-page-size", size)), "size " + size);
 		}
 		// Step 6
-		for (String cap : new String[] { "0", "-1", "many" }) {
-			assertEquals("Invalid value '" + cap + "' for property erp.navpospages.max-changes-per-run: a whole number, at"
-					+ " least 1", refusal(with("erp.navpospages.max-changes-per-run", cap)), "cap " + cap);
+		for (String size : new String[] { "0", "-1", "5001", "many" }) {
+			assertEquals("Invalid value '" + size + "' for property erp.navpospages.packet-size: a whole number from 1 to"
+					+ " 5000", refusal(with("erp.navpospages.packet-size", size)), "packet " + size);
 		}
+		NavPosPagesStartupCheck.check(with("erp.navpospages.packet-size", "5000"));
+		assertEquals("Property erp.navpospages.max-changes-per-run was renamed erp.navpospages.packet-size (rows applied"
+				+ " per transaction, default 500): rename the line.",
+				refusal(with("erp.navpospages.max-changes-per-run", "1000")), "the old key");
 		assertEquals("Invalid value 'yes' for property erp.navpospages.dry-run: true (read and compare only) or false",
 				refusal(with("erp.navpospages.dry-run", "yes")));
 		NavPosPagesStartupCheck.check(with("erp.navpospages.dry-run", " TRUE "));

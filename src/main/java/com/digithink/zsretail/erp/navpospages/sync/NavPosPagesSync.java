@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -28,23 +29,29 @@ import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosPagesMapper;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosResult;
+import com.digithink.zsretail.erp.service.ErpSyncWarningException;
 
 /**
  * ERP catalogue, step 6: changes only. Each run reads a whole page of the ERP (GET only), compares it with the head
- * office tables and hands to the import (ErpItemBootstrapService, unchanged) only the new and changed rows, at most
- * max-changes-per-run, in a stable order (by code; barcodes by Entry_No). The head office tables are the memory of
- * what was seen: a row the import did not save is still different at the next run and is handed again.
+ * office tables and takes only the new and changed rows, in a stable order (by code; barcodes by Entry_No). The items
+ * run applies them all itself, in packets of packet-size, each packet in its own transaction ({@link NavPosPagesImport}),
+ * one items run at a time; families, sub-families and barcodes hand one packet to the import (ErpItemBootstrapService,
+ * unchanged) per run. The head office tables are the memory of what was seen: a row the import did not save is still
+ * different at the next run and is taken again.
  * <ul>
  * <li><b>Order.</b> Sub-families wait for the families, items for both: the waiting run reads the categories page (small)
  * and waits while a family or sub-family of the ERP is not at the head office yet. Barcodes wait for the items: each item
  * run writes, before handing over, how many items of the ERP are not at the head office yet; the barcode run waits while
- * that number is above 0 or no item run happened. Counting before handing over, 0 proves the last batch was saved.</li>
+ * that number is above 0 or no item run happened. The items run counts before applying, then again once every packet
+ * is applied: 0 proves the new items were saved.</li>
  * <li><b>Items.</b> Compared on what the import applies: name, description, VAT, active, ERP id, family and sub-family
  * (only when the ERP's one exists at the head office), the price with VAT at 3 decimals, discount group and maximum
  * discount (the import clears them). A null or zero price makes the item inactive (the mapper). Items of the ERP
  * (erp_external_id set) no longer in the location are handed inactive, never deleted, whatever their number; only an
  * empty ERP answer (a broken connection or a wrong location code, never a cleanup) deactivates nothing. Hand-made
- * items, packs made at the head office and TAX_STAMP have no ERP id and are never touched.</li>
+ * items, packs made at the head office and TAX_STAMP have no ERP id and are never touched. A blank Description (the
+ * name and the description) never replaces those of an item already at the head office; a new item takes its code as
+ * name.</li>
  * <li><b>Barcodes.</b> A cursor on Entry_No, in the state table. It only moves over rows that are at the head office
  * already (checked against its barcode table), left out (blank, item not at the head office) or replaced by a later row
  * of the same barcode: it never passes a row that was handed but not saved. New items arriving after the barcodes
@@ -71,18 +78,24 @@ public class NavPosPagesSync {
 	public static final String ITEM_NOT_AT_HEAD_OFFICE = "item not at the head office";
 	public static final String REPLACED_BY_LATER_ROW = "same barcode, lower Entry_No";
 
+	static final String ITEMS_ALREADY_RUNNING = "an items run is already running: this one does not start";
+
 	private final NavPosPagesSource source;
 	private final NavPosPagesHeadOffice headOffice;
 	private final NavPosPagesState state;
 	private final NavPosPagesProperties properties;
+	private final NavPosPagesImport importer;
 	private final NavPosPagesMapper mapper;
+	/** One items run at a time (the scheduler and "Run now" may meet). */
+	private final AtomicBoolean itemsRunning = new AtomicBoolean();
 
 	public NavPosPagesSync(NavPosPagesSource source, NavPosPagesHeadOffice headOffice, NavPosPagesState state,
-			NavPosPagesProperties properties) {
+			NavPosPagesProperties properties, NavPosPagesImport importer) {
 		this.source = source;
 		this.headOffice = headOffice;
 		this.state = state;
 		this.properties = properties;
+		this.importer = importer;
 		this.mapper = new NavPosPagesMapper(properties.getDefaultVat(), properties.getPriceIncludesVat());
 	}
 
@@ -169,7 +182,24 @@ public class NavPosPagesSync {
 
 	// ─── Items ──────────────────────────────────────────────────
 
+	/**
+	 * Reads, compares, then applies every change of the run (new, changed, deactivated) in packets of packet-size by
+	 * code, each packet in its own transaction. A failed packet ends the run in error; the packets before it stay and the
+	 * next run goes on with what is left (the head office tables are the memory). The rows applied are in the run, for
+	 * the tests; the connector hands nothing more to the job.
+	 */
 	public NavPosRun<ErpItemDTO> items() {
+		if (!itemsRunning.compareAndSet(false, true)) {
+			throw new ErpSyncWarningException(ITEMS_ALREADY_RUNNING);
+		}
+		try {
+			return readAndApplyItems();
+		} finally {
+			itemsRunning.set(false);
+		}
+	}
+
+	private NavPosRun<ErpItemDTO> readAndApplyItems() {
 		String page = properties.getPage().getItems();
 		Summary summary = new Summary("items", page, properties.isDryRun());
 		String waiting = missingFamilies(source.readCategories(), true);
@@ -196,9 +226,18 @@ public class NavPosPagesSync {
 			}
 			NavPosPagesHeadOffice.Item here = local.get(item.getCode());
 			if (here == null) {
-				freshCodes.add(item.getCode());
+				freshCodes.add(item.getCode()); // a blank name: the import gives it the code
 				changes.add(item);
-			} else if (differs(item, here, familyCodes, subFamilyCodes)) {
+				continue;
+			}
+			// A blank Description (name and description) never replaces the head office's: kept, not a change
+			if (text(item.getName(), null).isEmpty()) {
+				item.setName(here.name);
+			}
+			if (text(item.getDescription(), null).isEmpty()) {
+				item.setDescription(here.description);
+			}
+			if (differs(item, here, familyCodes, subFamilyCodes)) {
 				changed++;
 				changes.add(item);
 			}
@@ -212,29 +251,59 @@ public class NavPosPagesSync {
 				gone.add(inactiveCopy(here));
 			}
 		}
+		int deactivated = 0;
 		if (!gone.isEmpty()) {
 			if (rows.isEmpty()) {
 				summary.guard("the ERP answered no item for the location: " + gone.size()
 						+ " items not deactivated");
 			} else {
 				changes.addAll(gone);
-				summary.put("deactivated", gone.size());
+				deactivated = gone.size();
 			}
+		}
+		changes.sort(Comparator.comparing(ErpItemDTO::getCode));
+		summary.put("new", freshCodes.size());
+		summary.put("changed", changed);
+		summary.put("deactivated", deactivated);
+		if (properties.isDryRun()) {
+			summary.put("applied", 0);
+			summary.put("packets", 0);
+			return run(new ArrayList<>(), summary, page);
 		}
 
-		changes.sort(Comparator.comparing(ErpItemDTO::getCode));
-		summary.put("changed", changed);
-		List<ErpItemDTO> handed = summary.handOver(changes, freshCodes.size(), cap());
+		// Counted before applying: while a packet of new items is not saved, the barcodes wait
 		saveRun(ITEMS_RUN, ITEMS_PENDING, freshCodes.size());
-		// New items once the barcodes have started: their barcodes may be behind the cursor
-		if (!properties.isDryRun() && cursor() > 0) {
-			for (ErpItemDTO item : handed) {
-				if (freshCodes.contains(item.getCode())) {
-					state.put(NEEDS_BARCODES + item.getCode(), "1");
+		boolean barcodesStarted = cursor() > 0;
+		int size = properties.getPacketSize();
+		int packets = (changes.size() + size - 1) / size;
+		List<ErpItemDTO> applied = new ArrayList<>();
+		for (int from = 0; from < changes.size(); from += size) {
+			List<ErpItemDTO> packet = new ArrayList<>(changes.subList(from, Math.min(from + size, changes.size())));
+			// New items once the barcodes have started: their barcodes may be behind the cursor
+			if (barcodesStarted) {
+				for (ErpItemDTO item : packet) {
+					if (freshCodes.contains(item.getCode())) {
+						state.put(NEEDS_BARCODES + item.getCode(), "1");
+					}
 				}
 			}
+			try {
+				importer.items(packet);
+			} catch (RuntimeException e) {
+				throw new IllegalStateException("Items: packet " + (from / size + 1) + " of " + packets + " failed, "
+						+ applied.size() + " of " + changes.size() + " rows applied before it (the next run goes on): "
+						+ e.getMessage(), e);
+			}
+			applied.addAll(packet);
 		}
-		return run(handed, summary, page);
+		summary.put("applied", applied.size());
+		summary.put("packets", packets);
+		if (!freshCodes.isEmpty()) {
+			// Counted again once applied: the new items the import did not save (if any) keep the barcodes waiting
+			Set<String> saved = headOffice.items().keySet();
+			state.put(ITEMS_PENDING, String.valueOf(freshCodes.stream().filter(code -> !saved.contains(code)).count()));
+		}
+		return run(applied, summary, page);
 	}
 
 	/** The fields the import applies, the price with VAT at 3 decimals. */
@@ -492,8 +561,9 @@ public class NavPosPagesSync {
 		}
 	}
 
+	/** Families, sub-families and barcodes: one packet per run, the rest at the next runs. */
 	private int cap() {
-		return properties.getMaxChangesPerRun();
+		return properties.getPacketSize();
 	}
 
 	private <T> NavPosRun<T> run(List<T> handed, Summary summary, String page) {

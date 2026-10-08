@@ -41,8 +41,9 @@ import com.digithink.zsretail.erp.spi.ErpConnector;
  * {@code @Primary} so that it wins over NoOpErpConnector (also present, since erp.dynamicsnav.enabled is false) without
  * changing it.
  * <p>
- * Step 6: the four catalogue fetches (families, sub-families, items, barcodes) hand to the import only the changes
- * against the head office tables ({@link NavPosPagesSync}); the summary of each run is the response written to the
+ * Step 6: the four catalogue fetches (families, sub-families, items, barcodes) take only the changes against the head
+ * office tables ({@link NavPosPagesSync}); families, sub-families and barcodes hand them to the import, the items run
+ * applies them itself in packets and hands nothing to the job. The summary of each run is the response written to the
  * communications log ({@link #getLastPullOperationResult()}), never the list. Invoices from the ERP, step (a): the
  * franchise invoices read by number ({@link #fetchSupplyInvoices}), not run by any job yet. Every other fetch answers an
  * empty list, every push or update a failure.
@@ -73,9 +74,11 @@ public class NavPosPagesConnector implements ErpConnector {
 		return changes(sync::subFamilies);
 	}
 
+	/** The items run applies its changes itself, in packets ({@link NavPosPagesSync#items}): nothing left for the job. */
 	@Override
 	public List<ErpItemDTO> fetchItems(ErpSyncFilter filter) {
-		return changes(sync::items);
+		changes(sync::items);
+		return Collections.emptyList();
 	}
 
 	@Override

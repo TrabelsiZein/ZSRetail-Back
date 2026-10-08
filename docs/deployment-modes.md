@@ -161,7 +161,7 @@ writes to the ERP). The lines go in the head office's **outside file** (e.g. `co
 | `erp.navpospages.default-vat` | The VAT of every item, whole number 0 to 100 | required |
 | `erp.navpospages.price-includes-vat` | `true` (Unit_Price includes the VAT) \| `false` | required |
 | `erp.navpospages.connect-timeout-seconds`, `.read-timeout-seconds` | At least 1 | `10`, `60` |
-| `erp.navpospages.max-changes-per-run` (step 6) | Rows handed to the import per fetch, at least 1 | `1000` |
+| `erp.navpospages.packet-size` (step 6) | Rows applied per transaction, 1 to 5000: an items run applies all its changes packet after packet; families, sub-families and barcodes one packet per run. Renamed from `max-changes-per-run` (2026-10-08): the old key stops the startup | `500` |
 | `erp.navpospages.dry-run` (step 6) | `true` (read, compare, summary only) \| `false` | `false` |
 | `erp.navpospages.page.invoices` (invoices from the ERP) | Web service name of the posted franchise invoices; when set, `invoices.years` is required | `FactureFranchise` |
 | `erp.navpospages.invoices.lines-expand` | Navigation property of the lines (`$expand`) | `FactureFranchiseSalesInvLines` |
@@ -174,7 +174,7 @@ writes to the ERP). The lines go in the head office's **outside file** (e.g. `co
 
 Startup refusals with `enabled=true` (the message names the key, the application does not start): `erp.dynamicsnav.enabled=true`
 as well (one ERP connector per installation); not a head office whose catalogue only comes from the ERP; a blank address,
-company, username, password or location; a wrong `default-vat`, `price-includes-vat`, `barcode-page-size` or timeout; a blank
+company, username, password or location; a wrong `default-vat`, `price-includes-vat`, `barcode-page-size`, `packet-size` or timeout; the old `max-changes-per-run`; a blank
 `page.invoices`, `page.invoices` set without `invoices.years`, a wrong year list, prefix, field name, `max-per-run`, or a start
 number that is not of a configured year. One INFO line at startup: `ERP connector navpospages (read only, GET): <address>,
 company <company>, location <code>, pages <three>`, followed by `, invoices <page> (years <years>)` when years are set.

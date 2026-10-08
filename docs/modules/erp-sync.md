@@ -185,3 +185,9 @@ left in a file). The only refusal: when the ERP answers 0 rows for the location,
 warns "the ERP answered no item for the location: N items not deactivated" (an empty answer is a broken connection or
 a wrong location code, never a cleanup). Hand-made items, packs made at the head office and `TAX_STAMP` have no ERP id
 and are never touched.
+
+One items run applies **all** its changes (new, changed, deactivated) in packets of `erp.navpospages.packet-size` (default
+500, formerly `max-changes-per-run`), each packet in its own transaction with the store change rows; a failed packet ends the
+run in error and the next run goes on with what is left; one items run at a time. Its summary says what was applied (`new`,
+`changed`, `deactivated`, `applied`, `packets`). A blank `Description` never replaces the name of an item already at the head
+office.
