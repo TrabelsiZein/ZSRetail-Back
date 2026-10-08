@@ -161,11 +161,21 @@ public class ItemBarcodeAPI extends _BaseController<ItemBarcode, Long, ItemBarco
 			@org.springframework.web.bind.annotation.RequestParam(name = "subFamilyId", required = false) Long subFamilyId,
 			@org.springframework.web.bind.annotation.RequestParam(name = "priceMin", required = false) Double priceMin,
 			@org.springframework.web.bind.annotation.RequestParam(name = "priceMax", required = false) Double priceMax,
-			@org.springframework.web.bind.annotation.RequestParam(name = "withBarcodesOnly", required = false) Boolean withBarcodesOnly) {
+			@org.springframework.web.bind.annotation.RequestParam(name = "withBarcodesOnly", required = false) Boolean withBarcodesOnly,
+			@org.springframework.web.bind.annotation.RequestParam(name = "status", required = false) String status) {
+		// ACTIVE (absent: the till, the label and barcode pages, as before), INACTIVE or ALL (the Items page)
+		ItemService.ItemStatusFilter statusFilter;
+		try {
+			statusFilter = status == null || status.trim().isEmpty() ? ItemService.ItemStatusFilter.ACTIVE
+					: ItemService.ItemStatusFilter.valueOf(status.trim().toUpperCase(java.util.Locale.ROOT));
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.badRequest()
+					.body(createErrorResponse("Invalid status '" + status + "': ACTIVE, INACTIVE or ALL"));
+		}
 		try {
 			log.info(
-					"ItemBarcodeAPI::getAllItemsWithBarcodes page={}, size={}, search={}, familyId={}, subFamilyId={}, priceMin={}, priceMax={}, withBarcodesOnly={}",
-					page, size, search, familyId, subFamilyId, priceMin, priceMax, withBarcodesOnly);
+					"ItemBarcodeAPI::getAllItemsWithBarcodes page={}, size={}, search={}, familyId={}, subFamilyId={}, priceMin={}, priceMax={}, withBarcodesOnly={}, status={}",
+					page, size, search, familyId, subFamilyId, priceMin, priceMax, withBarcodesOnly, statusFilter);
 
 			int safePage = Math.max(page, 0);
 			int safeSize = Math.min(Math.max(size, 1), 200);
@@ -173,7 +183,7 @@ public class ItemBarcodeAPI extends _BaseController<ItemBarcode, Long, ItemBarco
 			org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(safePage,
 					safeSize, org.springframework.data.domain.Sort.by("itemCode").ascending());
 
-			org.springframework.data.domain.Page<Item> itemsPage = itemService.findActiveItems(search, familyId,
+			org.springframework.data.domain.Page<Item> itemsPage = itemService.findItems(statusFilter, search, familyId,
 					subFamilyId, priceMin, priceMax, withBarcodesOnly, pageable);
 
 			List<Long> itemIds = itemsPage.stream().map(Item::getId).collect(Collectors.toList());

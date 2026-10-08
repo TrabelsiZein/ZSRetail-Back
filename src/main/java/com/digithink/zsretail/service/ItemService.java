@@ -66,12 +66,39 @@ public class ItemService extends _BaseService<Item, Long> {
 		return itemRepository;
 	}
 
+	/** Which items a list returns by their active flag: ACTIVE (the default of every screen), INACTIVE or ALL. */
+	public enum ItemStatusFilter {
+		ACTIVE, INACTIVE, ALL
+	}
+
 	public Page<Item> findActiveItems(String search, Long familyId, Long subFamilyId, Double priceMin, Double priceMax,
 			Boolean withBarcodesOnly, Pageable pageable) {
-		Specification<Item> specification = (root, query, cb) -> {
+		return findItems(ItemStatusFilter.ACTIVE, search, familyId, subFamilyId, priceMin, priceMax, withBarcodesOnly,
+				pageable);
+	}
+
+	/**
+	 * The items of the lists with the same filters as {@link #findActiveItems}, by status: ACTIVE (active true, as
+	 * before), INACTIVE (active false or empty), ALL (both). Items hidden from the till (showInPos false, e.g. TAX_STAMP)
+	 * are never returned, whatever the status.
+	 */
+	public Page<Item> findItems(ItemStatusFilter status, String search, Long familyId, Long subFamilyId, Double priceMin,
+			Double priceMax, Boolean withBarcodesOnly, Pageable pageable) {
+		return itemRepository.findAll(itemsSpecification(status, search, familyId, subFamilyId, priceMin, priceMax,
+				withBarcodesOnly), pageable);
+	}
+
+	static Specification<Item> itemsSpecification(ItemStatusFilter status, String search, Long familyId,
+			Long subFamilyId, Double priceMin, Double priceMax, Boolean withBarcodesOnly) {
+		ItemStatusFilter wanted = status == null ? ItemStatusFilter.ACTIVE : status;
+		return (root, query, cb) -> {
 			query.distinct(true);
 			Predicate predicate = cb.conjunction();
-			predicate = cb.and(predicate, cb.isTrue(root.get("active")));
+			if (wanted == ItemStatusFilter.ACTIVE) {
+				predicate = cb.and(predicate, cb.isTrue(root.get("active")));
+			} else if (wanted == ItemStatusFilter.INACTIVE) {
+				predicate = cb.and(predicate, cb.or(cb.isFalse(root.get("active")), cb.isNull(root.get("active"))));
+			}
 
 			// Only show items visible in POS (hide system items e.g. Tax Stamp)
 			Predicate showInPos = cb.or(cb.isTrue(root.get("showInPos")), cb.isNull(root.get("showInPos")));
@@ -131,8 +158,6 @@ public class ItemService extends _BaseService<Item, Long> {
 
 			return predicate;
 		};
-
-		return itemRepository.findAll(specification, pageable);
 	}
 
 	@Override
