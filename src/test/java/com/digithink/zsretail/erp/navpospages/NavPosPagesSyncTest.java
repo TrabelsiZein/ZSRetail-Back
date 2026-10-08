@@ -25,6 +25,7 @@ import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
 import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
+import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.dto.PullOperationResult;
 import com.digithink.zsretail.erp.navpospages.client.NavPosPagesSource;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
@@ -32,12 +33,14 @@ import com.digithink.zsretail.erp.navpospages.connector.NavPosPagesConnector;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosBarcodeRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCollection;
+import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesHeadOffice;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesState;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesSync;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosRun;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.node.TextNode;
 
 /**
  * ERP catalogue, step 6: changes only, on the samples of src/test/resources/navpospages. The head office tables are a
@@ -430,6 +433,104 @@ class NavPosPagesSyncTest {
 		assertNull(connector.getLastPullOperationResult());
 	}
 
+	// ─── Invoices from the ERP, step (a) ────────────────────────
+
+	private static NavPosInvoiceRow invoice(String number) {
+		NavPosInvoiceRow row = new NavPosInvoiceRow();
+		row.set("No", TextNode.valueOf(number));
+		row.set("Sell_to_Customer_No", TextNode.valueOf("C-1"));
+		return row.resolveLines("FactureFranchiseSalesInvLines");
+	}
+
+	private static List<String> numbers(List<ErpSupplyInvoiceDTO> invoices) {
+		return invoices.stream().map(ErpSupplyInvoiceDTO::getNumber).collect(Collectors.toList());
+	}
+
+	private void invoicesOfTheErp() {
+		for (String number : new String[] { "FVV24000000009", "FVV25000000001", "FVV25000000002", "FVV25000000003",
+				"FVV26000000001", "FVV26000000002" }) {
+			erp.invoices.add(invoice(number));
+		}
+		properties.getInvoices().setYears(Arrays.asList(2026, 2025));
+	}
+
+	private static Map<String, String> highest(String... prefixAndNumber) {
+		Map<String, String> highest = new HashMap<>();
+		for (int i = 0; i < prefixAndNumber.length; i += 2) {
+			highest.put(prefixAndNumber[i], prefixAndNumber[i + 1]);
+		}
+		return highest;
+	}
+
+	@Test
+	@DisplayName("Invoices: without years nothing is read")
+	void invoicesNotConfigured() {
+		erp.invoices.add(invoice("FVV26000000001"));
+		NavPosRun<ErpSupplyInvoiceDTO> run = sync.invoices(new HashMap<>());
+		assertTrue(run.getHanded().isEmpty());
+		assertTrue(erp.invoiceReads.isEmpty());
+		assertEquals("erp.navpospages.invoices.years is not set", run.getSummary().get("notConfigured"));
+	}
+
+	@Test
+	@DisplayName("Invoices: each year after its highest number, merged by number; another year's number never read")
+	void invoicesByYear() {
+		invoicesOfTheErp();
+		NavPosRun<ErpSupplyInvoiceDTO> run = sync.invoices(highest("FVV25", "FVV25000000001", "FVV26", "FVV26000000001"));
+		assertEquals(Arrays.asList("FVV26 after FVV26000000001", "FVV25 after FVV25000000001"), erp.invoiceReads);
+		assertEquals(Arrays.asList("FVV25000000002", "FVV25000000003", "FVV26000000002"), numbers(run.getHanded()));
+		assertEquals("C-1", run.getHanded().get(0).getCustomerNo());
+		assertEquals(3, run.count("read"));
+		assertEquals(3, run.count("handed"));
+		Map<?, ?> years = (Map<?, ?>) run.getSummary().get("years");
+		assertEquals("{after=FVV26000000001, read=1}", String.valueOf(years.get("FVV26")));
+		assertEquals("{after=FVV25000000001, read=2}", String.valueOf(years.get("FVV25")));
+		assertEquals(NavPosPagesTestSupport.COMPANY_URL + "FactureFranchise", run.getUrl());
+
+		erp.invoiceReads.clear();
+		assertEquals(Arrays.asList("FVV25000000001", "FVV25000000002", "FVV25000000003", "FVV26000000001",
+				"FVV26000000002"), numbers(sync.invoices(null).getHanded()), "first run: every invoice of the two years");
+		assertEquals(Arrays.asList("FVV26 after null", "FVV25 after null"), erp.invoiceReads);
+	}
+
+	@Test
+	@DisplayName("Invoices: the start number only for its year and only without a number of that year; max-per-run per year")
+	void invoicesStartNumberAndMax() {
+		invoicesOfTheErp();
+		properties.getInvoices().setStartNumber("FVV26000000001");
+		assertEquals(Arrays.asList("FVV25000000001", "FVV25000000002", "FVV25000000003", "FVV26000000002"),
+				numbers(sync.invoices(new HashMap<>()).getHanded()));
+		assertEquals(Arrays.asList("FVV26 after FVV26000000001", "FVV25 after null"), erp.invoiceReads);
+
+		erp.invoiceReads.clear();
+		assertTrue(sync.invoices(highest("FVV26", "FVV26000000002", "FVV25", "FVV25000000003")).getHanded().isEmpty());
+		assertEquals(Arrays.asList("FVV26 after FVV26000000002", "FVV25 after FVV25000000003"), erp.invoiceReads,
+				"the head office's number wins over the start number");
+
+		properties.getInvoices().setStartNumber(null);
+		properties.getInvoices().setMaxPerRun(1);
+		assertEquals(Arrays.asList("FVV25000000001", "FVV26000000001"), numbers(sync.invoices(null).getHanded()));
+	}
+
+	@Test
+	@DisplayName("Invoices: dry run reads and summarises, hands nothing; the connector keeps the summary, never the list")
+	void invoicesDryRunAndConnector() {
+		invoicesOfTheErp();
+		properties.setDryRun(true);
+		NavPosRun<ErpSupplyInvoiceDTO> dry = sync.invoices(null);
+		assertTrue(dry.getHanded().isEmpty());
+		assertEquals(5, dry.count("read"));
+		assertEquals(0, dry.count("handed"));
+
+		properties.setDryRun(false);
+		NavPosPagesConnector connector = new NavPosPagesConnector(sync);
+		assertEquals(5, connector.fetchSupplyInvoices(null).size());
+		Map<?, ?> summary = (Map<?, ?>) connector.getLastPullOperationResult().getRawResponse();
+		assertEquals("invoices", summary.get("run"));
+		assertEquals(5, summary.get("handed"));
+		assertFalse(summary.values().stream().anyMatch(value -> value instanceof Collection), "never the list");
+	}
+
 	// ─── Fakes ──────────────────────────────────────────────────
 
 	private static NavPosPagesHeadOffice.Item item(String code, String erpId, boolean active) {
@@ -464,6 +565,19 @@ class NavPosPagesSyncTest {
 		public List<NavPosBarcodeRow> readBarcodesOfItems(List<String> itemNos) {
 			askedItems.addAll(itemNos);
 			return barcodes.stream().filter(row -> itemNos.contains(row.getItemNo())).collect(Collectors.toList());
+		}
+
+		/** Invoices from the ERP: the invoices page, by number; each read written "FVV26 after FVV26000000001". */
+		List<NavPosInvoiceRow> invoices = new ArrayList<>();
+		List<String> invoiceReads = new ArrayList<>();
+
+		@Override
+		public List<NavPosInvoiceRow> readInvoicesAfter(String yearPrefix, String afterNumber) {
+			invoiceReads.add(yearPrefix + " after " + afterNumber);
+			return invoices.stream().filter(row -> row.text("No").startsWith(yearPrefix))
+					.filter(row -> afterNumber == null || row.text("No").compareTo(afterNumber) > 0)
+					.sorted(Comparator.comparing(row -> row.text("No")))
+					.limit(properties.getInvoices().getMaxPerRun()).collect(Collectors.toList());
 		}
 
 		@Override

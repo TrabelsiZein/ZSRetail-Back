@@ -1,5 +1,8 @@
 package com.digithink.zsretail.erp.navpospages.config;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.DependsOn;
@@ -52,13 +55,44 @@ public class NavPosPagesProperties {
 	/** Step 6: read, compare and log the summary only: nothing handed to the import, the state table not touched. */
 	private boolean dryRun = false;
 
-	/** The three page names (web service names) of the ERP. */
+	/** Invoices from the ERP, step (a): the franchise invoices read by number. */
+	private Invoices invoices = new Invoices();
+
+	/** The page names (web service names) of the ERP. */
 	@Getter
 	@Setter
 	public static class Page {
 		private String categories = "ItemCategory";
 		private String items = "PointStockPOS";
 		private String barcodes = "ItemBarCodePOS";
+		/** Invoices from the ERP: the posted franchise invoices, their lines expanded. */
+		private String invoices = "FactureFranchise";
+	}
+
+	/**
+	 * Invoices from the ERP, step (a): how the invoices page is read. The numbers carry the year (FVV26...): one read per
+	 * configured year, after the highest number the head office has of that year. No year: the invoices are not read.
+	 */
+	@Getter
+	@Setter
+	public static class Invoices {
+		/** The navigation property of the lines on the invoices page ($expand). */
+		private String linesExpand = "FactureFranchiseSalesInvLines";
+		/** The header field naming the customer (its number; Sell_to_Customer_Name on test data without it). */
+		private String customerField = "Sell_to_Customer_No";
+		/** The start of every number; the year follows it in 2 digits (FVV + 26). */
+		private String numberPrefix = "FVV";
+		/** The years read at each run, e.g. 2025,2026 (the current one and the previous one). */
+		private List<Integer> years = new ArrayList<>();
+		/** The last invoice before the go-live; applies only to its year while the head office has none of that year. */
+		private String startNumber;
+		/** Invoices read per year and run at most. */
+		private int maxPerRun = 50;
+
+		/** numberPrefix + the 2 digits of the year: FVV26 for 2026. */
+		public String yearPrefix(int year) {
+			return numberPrefix.trim() + String.format("%02d", year % 100);
+		}
 	}
 
 	/** Company('...') path segment, empty when no company. */

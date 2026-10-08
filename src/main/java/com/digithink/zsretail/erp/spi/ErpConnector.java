@@ -1,6 +1,8 @@
 package com.digithink.zsretail.erp.spi;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import com.digithink.zsretail.erp.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.dto.ErpDeletionLogEntryDTO;
@@ -17,6 +19,7 @@ import com.digithink.zsretail.erp.dto.ErpReturnLineDTO;
 import com.digithink.zsretail.erp.dto.ErpSalesDiscountDTO;
 import com.digithink.zsretail.erp.dto.ErpSalesPriceDTO;
 import com.digithink.zsretail.erp.dto.ErpSessionDTO;
+import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.dto.ErpSyncFilter;
 import com.digithink.zsretail.erp.dto.ErpTicketDTO;
 import com.digithink.zsretail.erp.dto.ErpTicketLineDTO;
@@ -55,6 +58,15 @@ public interface ErpConnector {
 	 * thread. Returns null if no pull operation was performed or if metadata is not
 	 * available.
 	 */
+	/**
+	 * Invoices from the ERP: the posted invoices to franchise stores after the highest number the head office has of each
+	 * year, by year prefix (FVV26 -> FVV26000000123). Only the navpospages connector reads them; every other connector
+	 * answers none.
+	 */
+	default List<ErpSupplyInvoiceDTO> fetchSupplyInvoices(Map<String, String> highestByYear) {
+		return Collections.emptyList();
+	}
+
 	default PullOperationResult<?> getLastPullOperationResult() {
 		return null;
 	}

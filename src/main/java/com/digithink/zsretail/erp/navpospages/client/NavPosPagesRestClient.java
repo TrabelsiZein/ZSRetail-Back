@@ -2,7 +2,9 @@ package com.digithink.zsretail.erp.navpospages.client;
 
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -21,16 +23,22 @@ import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosBarcodeRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCollection;
+import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceLineRow;
+import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
+
+import lombok.extern.log4j.Log4j2;
 
 /**
  * ERP catalogue, step 5: the three reads of the "POS pages", GET only, only the fields used ($select). The categories
  * and the items of the configured location follow @odata.nextLink to the end; the barcodes are read one page per call,
  * after an entry number, the caller asking again from the highest Entry_No received. An HTTP error, a timeout or no
- * answer throws {@link NavPosPagesReadException} naming the page and the status. No retry.
+ * answer throws {@link NavPosPagesReadException} naming the page and the status. No retry. Invoices from the ERP, step
+ * (a): the invoices page read by number, see {@link #readInvoicesAfter}.
  */
 @Component
 @ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
+@Log4j2
 public class NavPosPagesRestClient implements NavPosPagesSource {
 
 	static final String CATEGORY_FIELDS = "Code,Description,Parent_Category,Type";
@@ -39,6 +47,9 @@ public class NavPosPagesRestClient implements NavPosPagesSource {
 
 	private final RestTemplate restTemplate;
 	private final NavPosPagesProperties properties;
+
+	/** False once the invoices page answered that it has no Prices_Including_VAT (until the next start). */
+	private volatile boolean pricesIncludingVatOnPage = true;
 
 	public NavPosPagesRestClient(@Qualifier(NavPosPagesConfig.REST_TEMPLATE) RestTemplate restTemplate,
 			NavPosPagesProperties properties) {
@@ -96,6 +107,83 @@ public class NavPosPagesRestClient implements NavPosPagesSource {
 				.encode().toUri();
 		return readAll(page, uri, new ParameterizedTypeReference<NavPosCollection<NavPosBarcodeRow>>() {
 		});
+	}
+
+	/**
+	 * Invoices from the ERP, step (a): $filter=startswith(No,'FVV26') [and No gt 'afterNumber'], $orderby=No, $top and at
+	 * most invoices.max-per-run invoices (next links followed until then), $select of the header fields used, the lines
+	 * expanded with their own $select. Prices_Including_VAT is asked for until the page answers 400 that it has no such
+	 * property: then the read is made again without it, and it is no longer asked for.
+	 */
+	@Override
+	public List<NavPosInvoiceRow> readInvoicesAfter(String yearPrefix, String afterNumber) {
+		if (pricesIncludingVatOnPage) {
+			try {
+				return readInvoices(yearPrefix, afterNumber, true);
+			} catch (NavPosPagesReadException e) {
+				if (!unknownProperty(e, NavPosInvoiceRow.PRICES_INCLUDING_VAT)) {
+					throw e;
+				}
+				pricesIncludingVatOnPage = false;
+				log.info("navpospages: the page {} has no {}: read without it", properties.getPage().getInvoices(),
+						NavPosInvoiceRow.PRICES_INCLUDING_VAT);
+			}
+		}
+		return readInvoices(yearPrefix, afterNumber, false);
+	}
+
+	private List<NavPosInvoiceRow> readInvoices(String yearPrefix, String afterNumber, boolean withPricesIncludingVat) {
+		NavPosPagesProperties.Invoices settings = properties.getInvoices();
+		String page = properties.getPage().getInvoices();
+		int max = settings.getMaxPerRun();
+		String filter = "startswith(No,'" + quoted(yearPrefix) + "')"
+				+ (afterNumber == null || afterNumber.trim().isEmpty() ? "" : " and No gt '" + quoted(afterNumber) + "'");
+		URI uri = page(page).queryParam("$filter", filter).queryParam("$orderby", "No").queryParam("$top", max)
+				.queryParam("$select", invoiceFields(withPricesIncludingVat))
+				.queryParam("$expand", settings.getLinesExpand().trim() + "($select=" + NavPosInvoiceLineRow.FIELDS + ")")
+				.build().encode().toUri();
+		List<NavPosInvoiceRow> rows = new ArrayList<>();
+		URI next = uri;
+		while (next != null && rows.size() < max) {
+			NavPosCollection<NavPosInvoiceRow> body = get(page, next,
+					new ParameterizedTypeReference<NavPosCollection<NavPosInvoiceRow>>() {
+					});
+			if (body == null || body.getValue() == null) {
+				break;
+			}
+			rows.addAll(body.getValue());
+			String link = body.getNextLink();
+			next = link == null || link.trim().isEmpty() ? null : URI.create(link.trim());
+		}
+		List<NavPosInvoiceRow> kept = rows.size() > max ? new ArrayList<>(rows.subList(0, max)) : rows;
+		for (NavPosInvoiceRow row : kept) {
+			row.resolveLines(settings.getLinesExpand().trim());
+		}
+		return kept;
+	}
+
+	/** No, the customer field, Sell_to_Customer_Name, the two dates, Client_Franchise[, Prices_Including_VAT]. */
+	private String invoiceFields(boolean withPricesIncludingVat) {
+		Set<String> fields = new LinkedHashSet<>();
+		fields.add(NavPosInvoiceRow.NO);
+		fields.add(properties.getInvoices().getCustomerField().trim());
+		fields.add(NavPosInvoiceRow.CUSTOMER_NAME);
+		fields.add(NavPosInvoiceRow.DOCUMENT_DATE);
+		fields.add(NavPosInvoiceRow.POSTING_DATE);
+		fields.add(NavPosInvoiceRow.CLIENT_FRANCHISE);
+		if (withPricesIncludingVat) {
+			fields.add(NavPosInvoiceRow.PRICES_INCLUDING_VAT);
+		}
+		return String.join(",", fields);
+	}
+
+	/** True when the read failed with 400 because the page has no property of that name. */
+	private static boolean unknownProperty(NavPosPagesReadException e, String property) {
+		if (!(e.getCause() instanceof HttpStatusCodeException)) {
+			return false;
+		}
+		HttpStatusCodeException http = (HttpStatusCodeException) e.getCause();
+		return http.getRawStatusCode() == 400 && http.getResponseBodyAsString().contains("'" + property + "'");
 	}
 
 	@Override

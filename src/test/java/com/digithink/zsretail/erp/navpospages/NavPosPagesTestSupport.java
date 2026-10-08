@@ -11,6 +11,7 @@ import org.springframework.util.StreamUtils;
 
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCollection;
+import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.support.Installations;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,6 +41,14 @@ final class NavPosPagesTestSupport {
 		} catch (IOException e) {
 			throw new UncheckedIOException(e);
 		}
+	}
+
+	/** Invoices from the ERP: the two invoices of FactureFranchise.json (invented), their lines resolved. */
+	static List<NavPosInvoiceRow> invoiceRows() {
+		List<NavPosInvoiceRow> rows = rows("FactureFranchise", new TypeReference<NavPosCollection<NavPosInvoiceRow>>() {
+		});
+		rows.forEach(row -> row.resolveLines("FactureFranchiseSalesInvLines"));
+		return rows;
 	}
 
 	/** Settings that pass every startup check (no ERP is called with them). */

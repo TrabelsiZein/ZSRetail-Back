@@ -1319,6 +1319,31 @@ records its barcodes, `TAX_STAMP` is never recorded.
 - Tests: `HeadOfficeErpCatalogueRecorderTest` (one change per record, an item's barcodes again, rollback on a recording
   failure and on an import failure, null or empty list, `TAX_STAMP`, no hooks bean, flush every 200, where the bean exists).
 
+**Invoices from the ERP, step (a): the connector reads the franchise invoices by number** (connector only: no job, no head
+office table, nothing in the application layer or in `DynamicsNavConnector` changes; the next steps store them and send them to
+the stores). The page `FactureFranchise` (posted sales invoices to franchise customers, lines `FactureFranchiseSalesInvLines`),
+GET only. Settings `erp.navpospages.invoices.*` and `page.invoices` (`docs/deployment-modes.md`); without `invoices.years`
+nothing is read.
+
+| Part | Detail |
+|---|---|
+| `ErpConnector.fetchSupplyInvoices(highestByYear)` | Default: an empty list (every other connector). `NavPosPagesConnector` answers `NavPosPagesSync.invoices`, its summary kept for the communications log like the catalogue fetches |
+| `NavPosPagesSync.invoices(highestByYear)` | For each configured year, prefix `number-prefix` + 2 digits (`FVV26`): read after the highest number the head office gives for that prefix; without one, after `start-number` when it is of that year, else from the first invoice of the year. Merged, each number once, by number. Nothing is kept by the connector: the head office's numbers are the memory. Dry run: read and summarised, nothing handed. Summary: run, page, per year `after` and `read`, read, left out, notes, handed |
+| `NavPosPagesRestClient.readInvoicesAfter(prefix, after)` | `$filter=startswith(No,'FVV26') and No gt '<after>'` (only `startswith` on a first read; quotes doubled; `No gt` alone would also return the later years: the numbers are compared as text), `$orderby=No`, `$top=max-per-run`, next links followed up to `max-per-run`; `$select=No,<customer-field>,Sell_to_Customer_Name,Document_Date,Posting_Date,Client_Franchise,Prices_Including_VAT`; `$expand=<lines>($select=Document_No,Line_No,Type,No,Description,Quantity,Unit_of_Measure_Code,Unit_Price,Line_Discount_Percent,Line_Amount,Total_Amount_Excl_VAT,Total_VAT_Amount,Total_Amount_Incl_VAT)`. `Unit_Cost_LCY`, `Invoice_Discount_Amount` and `Transferred` are never read. The Happyness page has no `Prices_Including_VAT`: BC answers 400 "Could not find a property named 'Prices_Including_VAT'", the read is made again without it and it is not asked again until the next start; any other 400 (a customer field the page does not have) fails naming the page |
+| `NavPosInvoiceRow` | A header field by field (the customer field and the lines property are settings), read with exact decimals (`41.000` stays `41.000`) |
+| `NavPosPagesMapper.invoices(rows, customerField)` → `ErpSupplyInvoiceDTO` | number, document and posting dates (`0001-01-01`: none), customer number (the configured field), customer name, the three totals **from the first line**, `pricesIncludingVat` (null when the page does not give it), lines (`lineNo`, `type`, `itemCode`, `description`, `quantity` as BigDecimal, `unitOfMeasure`, `unitPrice`, `lineDiscountPercent`, `lineAmount`). `Type` `Item` with an item number: `ITEM` (an item at price 0 is kept); another type with an amount (G/L account...): `OTHER`, no item code; a line without type (a comment, BC writes `" "`; `_x0020_` too) and another type at amount 0: left out (counted). A row without number: left out |
+| Warnings (`ErpSupplyInvoiceDTO.warnings`) | An item quantity not whole; prices including the VAT; the lines add up to more than 0.005 away from `Total_Amount_Excl_VAT` (an invoice discount does this too); `Client_Franchise` false; an `Item` line without item number (then `OTHER`, or left out at amount 0); no line (no totals) |
+
+Seen on the Happyness BC (2026-10-08, the 8 invoices of 2021): line types `Item` and `" "` only; whole quantities; units `UN`,
+`L` (76 lines) and `ML` (1 line, quantity 90): the stock unit question is open (`Quantity_Base` asked from the NAV team). The
+page has no `Sell_to_Customer_No` yet: the test data use `customer-field=Sell_to_Customer_Name`.
+
+Tests: `NavPosPagesRestClientTest` (URL, quotes, `startswith` bound, next links, `max-per-run`, the 400 fallback, another 400),
+`NavPosPagesMapperTest` (the invented sample `FactureFranchise.json`: Item lines, comments, `OTHER` lines, totals, warnings,
+the customer field), `NavPosPagesSyncTest` (per year, start number, max per run, dry run, the connector summary),
+`NavPosPagesStartupCheckTest`, `NavPosPagesConnectorTest` (the keys bound), `NavPosPagesLiveReadTest#liveReadInvoices`
+(skipped unless `-Dnavpospages.live=true`: years 2021, customer field `Sell_to_Customer_Name`, GET only).
+
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter
 `appConfig/erpOwnsOnlyCatalogue`): `nodeType` `HEAD_OFFICE`, `ownership.CATALOGUE` `ERP`, `CUSTOMERS` and `SUPPLY` not `ERP`,

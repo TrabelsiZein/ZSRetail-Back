@@ -2,6 +2,8 @@ package com.digithink.zsretail.erp.navpospages.mapper;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -14,8 +16,11 @@ import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
 import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
+import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosBarcodeRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
+import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceLineRow;
+import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
 
 /**
@@ -29,6 +34,7 @@ import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
  * the configured one; with price-includes-vat the price is brought back before VAT (10 decimals, HALF_UP). A null or
  * zero price is kept as 0, noted, and the item is inactive (step 6).</li>
  * <li>Barcodes: the same barcode twice keeps the highest Entry_No.</li>
+ * <li>Invoices (invoices from the ERP, step a): see {@link #invoices}.</li>
  * </ul>
  */
 public class NavPosPagesMapper {
@@ -40,6 +46,20 @@ public class NavPosPagesMapper {
 	public static final String ZERO_PRICE = "null or zero price";
 	public static final String BLANK_BARCODE = "blank Cross_Reference_No";
 	public static final String SAME_BARCODE = "same barcode, lower Entry_No";
+	public static final String BLANK_NUMBER = "blank No";
+	public static final String COMMENT_LINE = "line without type (comment)";
+	public static final String ZERO_OTHER_LINE = "line of another type with amount 0";
+	public static final String WITH_WARNINGS = "invoice with warnings";
+	public static final String NO_LINE = "no line: no totals";
+	public static final String PRICES_INCLUDE_VAT = "the prices include the VAT (Prices_Including_VAT): Line_Amount"
+			+ " includes it";
+	public static final String NOT_FRANCHISE = "Client_Franchise is false";
+
+	/** Lines and Total_Amount_Excl_VAT may differ by this much (rounding of the ERP). */
+	public static final BigDecimal TOTAL_TOLERANCE = new BigDecimal("0.005");
+	static final String ITEM_TYPE = "Item";
+	/** The blank option as some OData versions write it. */
+	static final String BLANK_TYPE = "_x0020_";
 
 	static final String FAMILY = "family";
 	static final String SUBFAMILY = "subfamily";
@@ -218,6 +238,113 @@ public class NavPosPagesMapper {
 
 	private static long entryNo(NavPosBarcodeRow row) {
 		return row.getEntryNo() == null ? Long.MIN_VALUE : row.getEntryNo();
+	}
+
+	// ─── Invoices (invoices from the ERP, step a) ───────────────
+
+	/**
+	 * The invoices page to {@link ErpSupplyInvoiceDTO}, in the order read. customerField: the header field of the
+	 * customer (a configuration line). A row without a number is left out. Lines: Type Item with an item number is ITEM;
+	 * another type with an amount is OTHER (no item code); a line without type (a comment, " ") and a line of another type
+	 * with amount 0 are left out. The three totals come from the first line. Warnings: an item quantity not whole, prices
+	 * including the VAT, lines that differ from Total_Amount_Excl_VAT by more than {@link #TOTAL_TOLERANCE},
+	 * Client_Franchise false, an Item line without item number, no line.
+	 */
+	public NavPosResult<ErpSupplyInvoiceDTO> invoices(List<NavPosInvoiceRow> rows, String customerField) {
+		Map<String, Integer> leftOut = new LinkedHashMap<>();
+		Map<String, Integer> notes = new LinkedHashMap<>();
+		List<ErpSupplyInvoiceDTO> invoices = new ArrayList<>();
+		for (NavPosInvoiceRow row : rows) {
+			String number = trimmed(row.text(NavPosInvoiceRow.NO));
+			if (number.isEmpty()) {
+				count(leftOut, BLANK_NUMBER);
+				continue;
+			}
+			ErpSupplyInvoiceDTO invoice = new ErpSupplyInvoiceDTO();
+			invoice.setNumber(number);
+			invoice.setCustomerNo(blankToNull(row.text(customerField)));
+			invoice.setCustomerName(blankToNull(row.text(NavPosInvoiceRow.CUSTOMER_NAME)));
+			invoice.setDocumentDate(date(row.text(NavPosInvoiceRow.DOCUMENT_DATE)));
+			invoice.setPostingDate(date(row.text(NavPosInvoiceRow.POSTING_DATE)));
+			if (row.has(NavPosInvoiceRow.PRICES_INCLUDING_VAT) && row.text(NavPosInvoiceRow.PRICES_INCLUDING_VAT) != null) {
+				invoice.setPricesIncludingVat(Boolean.valueOf(row.text(NavPosInvoiceRow.PRICES_INCLUDING_VAT)));
+			}
+			List<String> warnings = invoice.getWarnings();
+			if (row.getLines().isEmpty()) {
+				warnings.add(NO_LINE);
+			} else {
+				NavPosInvoiceLineRow first = row.getLines().get(0);
+				invoice.setTotalExclVat(first.getTotalAmountExclVat());
+				invoice.setTotalVat(first.getTotalVatAmount());
+				invoice.setTotalInclVat(first.getTotalAmountInclVat());
+			}
+			BigDecimal sum = BigDecimal.ZERO;
+			for (NavPosInvoiceLineRow source : row.getLines()) {
+				String type = trimmed(source.getType());
+				BigDecimal amount = source.getLineAmount() == null ? BigDecimal.ZERO : source.getLineAmount();
+				if (type.isEmpty() || BLANK_TYPE.equals(type)) {
+					count(leftOut, COMMENT_LINE);
+					continue;
+				}
+				boolean item = ITEM_TYPE.equalsIgnoreCase(type);
+				if (item && trimmed(source.getNo()).isEmpty()) {
+					warnings.add("line " + source.getLineNo() + ": an Item line without an item number");
+					item = false;
+				}
+				if (!item && amount.signum() == 0) {
+					count(leftOut, ZERO_OTHER_LINE);
+					continue;
+				}
+				ErpSupplyInvoiceDTO.Line line = new ErpSupplyInvoiceDTO.Line();
+				line.setLineNo(source.getLineNo());
+				line.setType(item ? ErpSupplyInvoiceDTO.LineType.ITEM : ErpSupplyInvoiceDTO.LineType.OTHER);
+				line.setItemCode(item ? trimmed(source.getNo()) : null);
+				line.setDescription(blankToNull(source.getDescription()));
+				line.setQuantity(source.getQuantity());
+				line.setUnitOfMeasure(blankToNull(source.getUnitOfMeasureCode()));
+				line.setUnitPrice(source.getUnitPrice());
+				line.setLineDiscountPercent(source.getLineDiscountPercent());
+				line.setLineAmount(source.getLineAmount());
+				if (item && source.getQuantity() != null && !isWhole(source.getQuantity())) {
+					warnings.add("line " + source.getLineNo() + ": quantity " + source.getQuantity().toPlainString()
+							+ " of item " + line.getItemCode() + " is not a whole number");
+				}
+				sum = sum.add(amount);
+				invoice.getLines().add(line);
+			}
+			if (Boolean.TRUE.equals(invoice.getPricesIncludingVat())) {
+				warnings.add(PRICES_INCLUDE_VAT);
+			}
+			if (invoice.getTotalExclVat() != null && sum.subtract(invoice.getTotalExclVat()).abs().compareTo(TOTAL_TOLERANCE) > 0) {
+				warnings.add("the lines add up to " + sum.toPlainString() + ", Total_Amount_Excl_VAT is "
+						+ invoice.getTotalExclVat().toPlainString());
+			}
+			if ("false".equalsIgnoreCase(trimmed(row.text(NavPosInvoiceRow.CLIENT_FRANCHISE)))) {
+				warnings.add(NOT_FRANCHISE);
+			}
+			if (!warnings.isEmpty()) {
+				count(notes, WITH_WARNINGS);
+			}
+			invoices.add(invoice);
+		}
+		return new NavPosResult<>(invoices, rows.size(), leftOut, notes, null);
+	}
+
+	private static boolean isWhole(BigDecimal value) {
+		return value.signum() == 0 || value.stripTrailingZeros().scale() <= 0;
+	}
+
+	/** yyyy-MM-dd; null when blank, not a date, or the ERP's empty date 0001-01-01. */
+	private static LocalDate date(String value) {
+		String text = trimmed(value);
+		if (text.isEmpty() || text.startsWith("0001-01-01")) {
+			return null;
+		}
+		try {
+			return LocalDate.parse(text.length() > 10 ? text.substring(0, 10) : text);
+		} catch (DateTimeParseException e) {
+			return null;
+		}
 	}
 
 	// ─── Helpers ────────────────────────────────────────────────

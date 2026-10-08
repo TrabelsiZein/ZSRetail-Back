@@ -2,6 +2,7 @@ package com.digithink.zsretail.erp.navpospages.connector;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -23,6 +24,7 @@ import com.digithink.zsretail.erp.dto.ErpReturnLineDTO;
 import com.digithink.zsretail.erp.dto.ErpSalesDiscountDTO;
 import com.digithink.zsretail.erp.dto.ErpSalesPriceDTO;
 import com.digithink.zsretail.erp.dto.ErpSessionDTO;
+import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.dto.ErpSyncFilter;
 import com.digithink.zsretail.erp.dto.ErpTicketDTO;
 import com.digithink.zsretail.erp.dto.ErpTicketLineDTO;
@@ -41,8 +43,9 @@ import com.digithink.zsretail.erp.spi.ErpConnector;
  * <p>
  * Step 6: the four catalogue fetches (families, sub-families, items, barcodes) hand to the import only the changes
  * against the head office tables ({@link NavPosPagesSync}); the summary of each run is the response written to the
- * communications log ({@link #getLastPullOperationResult()}), never the list. Every other fetch answers an empty list,
- * every push or update a failure.
+ * communications log ({@link #getLastPullOperationResult()}), never the list. Invoices from the ERP, step (a): the
+ * franchise invoices read by number ({@link #fetchSupplyInvoices}), not run by any job yet. Every other fetch answers an
+ * empty list, every push or update a failure.
  */
 @Component
 @Primary
@@ -78,6 +81,12 @@ public class NavPosPagesConnector implements ErpConnector {
 	@Override
 	public List<ErpItemBarcodeDTO> fetchItemBarcodes(ErpSyncFilter filter) {
 		return changes(sync::barcodes);
+	}
+
+	/** Invoices from the ERP, step (a): the invoices after the highest number of each year ({@link NavPosPagesSync#invoices}). */
+	@Override
+	public List<ErpSupplyInvoiceDTO> fetchSupplyInvoices(Map<String, String> highestByYear) {
+		return changes(() -> sync.invoices(highestByYear));
 	}
 
 	/** One run: the rows handed to the import; its summary kept for the communications log. */

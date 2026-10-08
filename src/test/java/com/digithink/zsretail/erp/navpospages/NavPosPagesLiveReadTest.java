@@ -1,5 +1,6 @@
 package com.digithink.zsretail.erp.navpospages;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -9,10 +10,12 @@ import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.mock.env.MockEnvironment;
 
+import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.navpospages.client.NavPosPagesRestClient;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesConfig;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesStartupCheck;
+import com.digithink.zsretail.erp.navpospages.mapper.NavPosPagesMapper;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosResult;
 import com.digithink.zsretail.erp.navpospages.reader.NavPosPagesReader;
 import com.digithink.zsretail.support.Installations;
@@ -55,6 +58,51 @@ class NavPosPagesLiveReadTest {
 				break;
 			}
 			after = barcodes.getHighestEntryNo();
+		}
+	}
+
+	/**
+	 * Invoices from the ERP, step (a): the invoices page of the same ERP, GET only, with the 2021 test data: years=2021,
+	 * the customer field Sell_to_Customer_Name (the page has no Sell_to_Customer_No yet). Prints each invoice (number,
+	 * customer, dates, lines, totals, warnings) and the totals of FVV21000000218 against the sum of its lines. Run alone:
+	 * -Dtest=NavPosPagesLiveReadTest#liveReadInvoices
+	 */
+	@Test
+	@DisplayName("Live read of the invoices page (GET only), years 2021: numbers, customers, lines and totals printed")
+	void liveReadInvoices() {
+		MockEnvironment env = Installations.config(FILE);
+		env.setProperty("erp.navpospages.invoices.years", "2021");
+		env.setProperty("erp.navpospages.invoices.customer-field", "Sell_to_Customer_Name");
+		NavPosPagesStartupCheck.check(env);
+		System.out.println(NavPosPagesStartupCheck.summary(env));
+		NavPosPagesProperties properties = Binder.get(env).bind(NavPosPagesProperties.PREFIX, NavPosPagesProperties.class)
+				.get();
+		NavPosPagesRestClient client = new NavPosPagesRestClient(NavPosPagesConfig.restTemplate(properties), properties);
+		NavPosPagesMapper mapper = new NavPosPagesMapper(properties.getDefaultVat(), properties.getPriceIncludesVat());
+		for (Integer year : properties.getInvoices().getYears()) {
+			String prefix = properties.getInvoices().yearPrefix(year);
+			long start = System.currentTimeMillis();
+			NavPosResult<ErpSupplyInvoiceDTO> result = mapper.invoices(client.readInvoicesAfter(prefix, null),
+					properties.getInvoices().getCustomerField());
+			System.out.println("\n== invoices (" + properties.getPage().getInvoices() + ", " + prefix + "): " + result
+					+ " in " + (System.currentTimeMillis() - start) + " ms");
+			for (ErpSupplyInvoiceDTO invoice : result.getRows()) {
+				long items = invoice.getLines().stream().filter(l -> l.getType() == ErpSupplyInvoiceDTO.LineType.ITEM)
+						.count();
+				System.out.println("   " + invoice.getNumber() + " | " + invoice.getCustomerNo() + " | document "
+						+ invoice.getDocumentDate() + ", posting " + invoice.getPostingDate() + " | lines " + items
+						+ " ITEM, " + (invoice.getLines().size() - items) + " OTHER | excl. VAT " + invoice.getTotalExclVat()
+						+ ", VAT " + invoice.getTotalVat() + ", incl. VAT " + invoice.getTotalInclVat()
+						+ (invoice.getWarnings().isEmpty() ? "" : " | warnings " + invoice.getWarnings()));
+				if ("FVV21000000218".equals(invoice.getNumber())) {
+					BigDecimal sum = invoice.getLines().stream().map(ErpSupplyInvoiceDTO.Line::getLineAmount)
+							.reduce(BigDecimal.ZERO, BigDecimal::add);
+					System.out.println("     FVV21000000218: Total_Amount_Excl_VAT " + invoice.getTotalExclVat()
+							+ ", Total_VAT_Amount " + invoice.getTotalVat() + ", Total_Amount_Incl_VAT "
+							+ invoice.getTotalInclVat() + "; sum of Line_Amount " + sum.toPlainString() + "; first line "
+							+ describe(invoice.getLines().get(0)));
+				}
+			}
 		}
 	}
 

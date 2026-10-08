@@ -159,7 +159,32 @@ class NavPosPagesConnectorTest {
 			assertEquals(1000, properties.getBarcodePageSize());
 			assertEquals("PointStockPOS", properties.getPage().getItems());
 			assertNotNull(ctx.getBean(NavPosPagesReader.class));
+			// Invoices from the ERP, step (a): the defaults, no year
+			assertEquals("FactureFranchise", properties.getPage().getInvoices());
+			assertEquals("FactureFranchiseSalesInvLines", properties.getInvoices().getLinesExpand());
+			assertEquals("Sell_to_Customer_No", properties.getInvoices().getCustomerField());
+			assertEquals("FVV", properties.getInvoices().getNumberPrefix());
+			assertTrue(properties.getInvoices().getYears().isEmpty());
+			assertEquals(50, properties.getInvoices().getMaxPerRun());
 		});
+	}
+
+	@Test
+	@DisplayName("Invoices from the ERP: the keys bound (years with spaces), the year prefix")
+	void invoiceKeysBound() {
+		context().withPropertyValues(navPosPagesKeys())
+				.withPropertyValues("erp.navpospages.invoices.years= 2025 , 2026", "erp.navpospages.invoices.number-prefix=FA",
+						"erp.navpospages.invoices.start-number=FA25000000999", "erp.navpospages.invoices.max-per-run=20",
+						"erp.navpospages.invoices.customer-field=Sell_to_Customer_Name")
+				.run(ctx -> {
+					assertTrue(ctx.getStartupFailure() == null, String.valueOf(ctx.getStartupFailure()));
+					NavPosPagesProperties.Invoices invoices = ctx.getBean(NavPosPagesProperties.class).getInvoices();
+					assertEquals(java.util.Arrays.asList(2025, 2026), invoices.getYears());
+					assertEquals("FA26", invoices.yearPrefix(2026));
+					assertEquals("FA25000000999", invoices.getStartNumber());
+					assertEquals(20, invoices.getMaxPerRun());
+					assertEquals("Sell_to_Customer_Name", invoices.getCustomerField());
+				});
 	}
 
 	@Test

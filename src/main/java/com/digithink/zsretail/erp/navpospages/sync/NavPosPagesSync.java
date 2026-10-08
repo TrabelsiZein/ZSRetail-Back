@@ -19,10 +19,12 @@ import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
 import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
+import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.navpospages.client.NavPosPagesSource;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosBarcodeRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
+import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosPagesMapper;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosResult;
@@ -48,6 +50,8 @@ import com.digithink.zsretail.erp.navpospages.mapper.NavPosResult;
  * of the same barcode: it never passes a row that was handed but not saved. New items arriving after the barcodes
  * started are kept in the state table ("needs its barcodes"); their barcodes are read by Item_No and handed before the
  * cursor goes on; an item leaves that list once all its barcodes are at the head office.</li>
+ * <li><b>Invoices</b> (invoices from the ERP, step a): read by number per configured year, see {@link #invoices}; no
+ * state kept here.</li>
  * <li><b>Dry run.</b> Reads, compares and summarises; hands nothing; does not write the state table.</li>
  * </ul>
  */
@@ -418,6 +422,58 @@ public class NavPosPagesSync {
 
 	private long cursor() {
 		return number(state.get(BARCODE_CURSOR));
+	}
+
+	// ─── Invoices (invoices from the ERP, step a) ───────────────
+
+	/**
+	 * For each year of invoices.years, the invoices whose number starts with that year's prefix (FVV26) after the highest
+	 * number the head office gives for it (highestByYear, by prefix); without one, after invoices.start-number when it is
+	 * of that year, else from the first invoice of the year. At most max-per-run per year. Merged, each number once, by
+	 * number. Nothing is kept here: the head office's numbers are the memory. Without years, nothing is read. Dry run:
+	 * read and summarised, nothing handed.
+	 */
+	public NavPosRun<ErpSupplyInvoiceDTO> invoices(Map<String, String> highestByYear) {
+		String page = properties.getPage().getInvoices();
+		Summary summary = new Summary("invoices", page, properties.isDryRun());
+		NavPosPagesProperties.Invoices settings = properties.getInvoices();
+		if (settings.getYears() == null || settings.getYears().isEmpty()) {
+			summary.put("notConfigured", NavPosPagesProperties.PREFIX + ".invoices.years is not set");
+			summary.put("handed", 0);
+			return run(new ArrayList<>(), summary, page);
+		}
+		Map<String, Object> years = new LinkedHashMap<>();
+		List<NavPosInvoiceRow> rows = new ArrayList<>();
+		for (Integer year : settings.getYears()) {
+			String prefix = settings.yearPrefix(year);
+			String after = readAfter(prefix, highestByYear);
+			List<NavPosInvoiceRow> read = source.readInvoicesAfter(prefix, after);
+			Map<String, Object> ofYear = new LinkedHashMap<>();
+			ofYear.put("after", after);
+			ofYear.put("read", read.size());
+			years.put(prefix, ofYear);
+			rows.addAll(read);
+		}
+		summary.put("years", years);
+		NavPosResult<ErpSupplyInvoiceDTO> mapped = mapper.invoices(rows, settings.getCustomerField().trim());
+		summary.read(mapped);
+		Map<String, ErpSupplyInvoiceDTO> byNumber = new TreeMap<>();
+		for (ErpSupplyInvoiceDTO invoice : mapped.getRows()) {
+			byNumber.putIfAbsent(invoice.getNumber(), invoice);
+		}
+		List<ErpSupplyInvoiceDTO> invoices = new ArrayList<>(byNumber.values());
+		summary.put("handed", properties.isDryRun() ? 0 : invoices.size());
+		return run(invoices, summary, page);
+	}
+
+	/** The highest number given for the prefix; else the start number when it is of that year; else null. */
+	private String readAfter(String prefix, Map<String, String> highestByYear) {
+		String highest = highestByYear == null ? null : highestByYear.get(prefix);
+		if (highest != null && !highest.trim().isEmpty()) {
+			return highest.trim();
+		}
+		String start = properties.getInvoices().getStartNumber();
+		return start != null && start.trim().startsWith(prefix) ? start.trim() : null;
 	}
 
 	// ─── State and summary ──────────────────────────────────────

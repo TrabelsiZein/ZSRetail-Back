@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -17,13 +18,16 @@ import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
 import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
+import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosBarcodeRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCollection;
+import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosPagesMapper;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosResult;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /** ERP catalogue, step 5: the rows of the pages to the Erp*DTO classes, on the samples and on chosen rows. */
 class NavPosPagesMapperTest {
@@ -206,5 +210,101 @@ class NavPosPagesMapperTest {
 		NavPosResult<ErpItemBarcodeDTO> empty = mapper.barcodes(Arrays.asList());
 		assertNull(empty.getHighestEntryNo());
 		assertEquals(0, empty.getRead());
+	}
+
+	// ─── Invoices from the ERP, step (a) ────────────────────────
+
+	@Test
+	@DisplayName("Invoices: header, totals from the first line, Item lines ITEM (price 0 kept), G/L with an amount OTHER;"
+			+ " comments and G/L at 0 left out")
+	void invoicesSample() {
+		NavPosResult<ErpSupplyInvoiceDTO> result = mapper.invoices(NavPosPagesTestSupport.invoiceRows(),
+				"Sell_to_Customer_No");
+		assertEquals(2, result.getRead());
+		assertEquals(2, result.getKept());
+		assertEquals(3, result.getLeftOut(NavPosPagesMapper.COMMENT_LINE), result.toString()); // " " twice, _x0020_
+		assertEquals(1, result.getLeftOut(NavPosPagesMapper.ZERO_OTHER_LINE), result.toString());
+
+		ErpSupplyInvoiceDTO first = result.getRows().get(0);
+		assertEquals("FVV26000000101", first.getNumber());
+		assertEquals("C-0001", first.getCustomerNo());
+		assertEquals("Store One SARL", first.getCustomerName());
+		assertEquals(LocalDate.of(2026, 3, 2), first.getDocumentDate());
+		assertEquals(LocalDate.of(2026, 3, 3), first.getPostingDate());
+		assertNull(first.getPricesIncludingVat(), "not on the page");
+		assertEquals(0, new BigDecimal("41").compareTo(first.getTotalExclVat()));
+		assertEquals(0, new BigDecimal("7.79").compareTo(first.getTotalVat()));
+		assertEquals(0, new BigDecimal("48.79").compareTo(first.getTotalInclVat()));
+		assertTrue(first.getWarnings().isEmpty(), first.getWarnings().toString());
+		assertEquals(Arrays.asList(20000, 30000, 40000),
+				first.getLines().stream().map(ErpSupplyInvoiceDTO.Line::getLineNo).collect(Collectors.toList()));
+
+		ErpSupplyInvoiceDTO.Line item = first.getLines().get(0);
+		assertEquals(ErpSupplyInvoiceDTO.LineType.ITEM, item.getType());
+		assertEquals("6190000000017", item.getItemCode());
+		assertEquals("Lipstick 01", item.getDescription());
+		assertEquals(0, new BigDecimal("6").compareTo(item.getQuantity()));
+		assertEquals("UN", item.getUnitOfMeasure());
+		assertEquals(0, new BigDecimal("10").compareTo(item.getUnitPrice()));
+		assertEquals(0, new BigDecimal("40").compareTo(item.getLineDiscountPercent()));
+		assertEquals(0, new BigDecimal("36").compareTo(item.getLineAmount()));
+		ErpSupplyInvoiceDTO.Line tester = first.getLines().get(1);
+		assertEquals(ErpSupplyInvoiceDTO.LineType.ITEM, tester.getType(), "an item at price 0 is kept");
+		assertEquals(0, BigDecimal.ZERO.compareTo(tester.getLineAmount()));
+		ErpSupplyInvoiceDTO.Line transport = first.getLines().get(2);
+		assertEquals(ErpSupplyInvoiceDTO.LineType.OTHER, transport.getType());
+		assertNull(transport.getItemCode());
+		assertEquals("Transport", transport.getDescription());
+		assertNull(transport.getUnitOfMeasure());
+		assertEquals(0, new BigDecimal("5").compareTo(transport.getLineAmount()));
+	}
+
+	@Test
+	@DisplayName("Invoices: warnings for a quantity not whole, prices including VAT, lines off the total, not a franchise")
+	void invoiceWarnings() {
+		NavPosResult<ErpSupplyInvoiceDTO> result = mapper.invoices(NavPosPagesTestSupport.invoiceRows(),
+				"Sell_to_Customer_No");
+		assertEquals(1, result.getNote(NavPosPagesMapper.WITH_WARNINGS));
+		ErpSupplyInvoiceDTO second = result.getRows().get(1);
+		assertEquals(Boolean.TRUE, second.getPricesIncludingVat());
+		assertNull(second.getPostingDate(), "0001-01-01 is no date");
+		assertEquals(Arrays.asList("line 20000: quantity 1.5 of item 6190000000031 is not a whole number",
+				NavPosPagesMapper.PRICES_INCLUDE_VAT, "the lines add up to 90.000, Total_Amount_Excl_VAT is 100.000",
+				NavPosPagesMapper.NOT_FRANCHISE), second.getWarnings());
+		assertEquals(0, new BigDecimal("1.5").compareTo(second.getLines().get(0).getQuantity()));
+		assertEquals("L", second.getLines().get(0).getUnitOfMeasure());
+	}
+
+	@Test
+	@DisplayName("Invoices: the customer field is a setting; Sell_to_Customer_Name for test data without a number")
+	void invoiceCustomerField() {
+		List<NavPosInvoiceRow> rows = NavPosPagesTestSupport.invoiceRows();
+		assertEquals("Store One SARL", mapper.invoices(rows, "Sell_to_Customer_Name").getRows().get(0).getCustomerNo());
+		assertNull(mapper.invoices(rows, "Customer_Field_Not_There").getRows().get(0).getCustomerNo());
+	}
+
+	@Test
+	@DisplayName("Invoices: no number left out; no line warned; an Item line without item number is OTHER (or left out at 0)")
+	void invoiceRules() throws Exception {
+		ObjectMapper json = new ObjectMapper();
+		NavPosInvoiceRow blank = json.readValue("{\"No\":\"  \"}", NavPosInvoiceRow.class).resolveLines("L");
+		NavPosInvoiceRow empty = json.readValue("{\"No\":\"FVV26000000200\"}", NavPosInvoiceRow.class).resolveLines("L");
+		NavPosInvoiceRow noItem = json.readValue("{\"No\":\"FVV26000000201\",\"L\":["
+				+ "{\"Line_No\":10000,\"Type\":\"Item\",\"No\":\"\",\"Quantity\":2,\"Line_Amount\":8,\"Total_Amount_Excl_VAT\":8},"
+				+ "{\"Line_No\":20000,\"Type\":\"Item\",\"No\":\" \",\"Quantity\":1,\"Line_Amount\":0},"
+				+ "{\"Line_No\":30000,\"Type\":\"Item\",\"No\":\"A1\",\"Quantity\":2.000,\"Line_Amount\":0}]}",
+				NavPosInvoiceRow.class).resolveLines("L");
+		NavPosResult<ErpSupplyInvoiceDTO> result = mapper.invoices(Arrays.asList(blank, empty, noItem), "Customer");
+		assertEquals(3, result.getRead());
+		assertEquals(1, result.getLeftOut(NavPosPagesMapper.BLANK_NUMBER));
+		assertEquals(1, result.getLeftOut(NavPosPagesMapper.ZERO_OTHER_LINE));
+		assertEquals(Arrays.asList(NavPosPagesMapper.NO_LINE), result.getRows().get(0).getWarnings());
+		assertNull(result.getRows().get(0).getTotalExclVat());
+		ErpSupplyInvoiceDTO third = result.getRows().get(1);
+		assertEquals(Arrays.asList("line 10000: an Item line without an item number",
+				"line 20000: an Item line without an item number"), third.getWarnings(), "2.000 is whole");
+		assertEquals(ErpSupplyInvoiceDTO.LineType.OTHER, third.getLines().get(0).getType());
+		assertNull(third.getLines().get(0).getItemCode());
+		assertEquals(ErpSupplyInvoiceDTO.LineType.ITEM, third.getLines().get(1).getType());
 	}
 }

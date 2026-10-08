@@ -1,0 +1,16 @@
+{"@odata.context":"http://bc.test:7048/BC140/ODataV4/$metadata#Company('HAPPYNESS')/FactureFranchise","value":[
+{"@odata.etag":"W/\"JzE7MDsn\"","No":"FVV26000000101","Sell_to_Customer_No":"C-0001","Sell_to_Customer_Name":"Store One SARL","Document_Date":"2026-03-02","Posting_Date":"2026-03-03","Client_Franchise":true,
+"FactureFranchiseSalesInvLines":[
+{"@odata.etag":"W/\"JzE7MTsn\"","Document_No":"FVV26000000101","Line_No":0,"Type":" ","No":"","Description":"","Quantity":0,"Unit_of_Measure_Code":"","Unit_Price":0,"Line_Discount_Percent":0,"Line_Amount":0,"Total_Amount_Excl_VAT":41.000,"Total_VAT_Amount":7.790,"Total_Amount_Incl_VAT":48.790},
+{"@odata.etag":"W/\"JzE7Mjsn\"","Document_No":"FVV26000000101","Line_No":10000,"Type":" ","No":"","Description":"N° expédition EXP26000000001 :","Quantity":0,"Unit_of_Measure_Code":"","Unit_Price":0,"Line_Discount_Percent":0,"Line_Amount":0,"Total_Amount_Excl_VAT":41.000,"Total_VAT_Amount":7.790,"Total_Amount_Incl_VAT":48.790},
+{"@odata.etag":"W/\"JzE7Mzsn\"","Document_No":"FVV26000000101","Line_No":20000,"Type":"Item","No":"6190000000017","Description":"Lipstick 01","Quantity":6,"Unit_of_Measure_Code":"UN","Unit_Price":10,"Line_Discount_Percent":40,"Line_Amount":36.000,"Unit_Cost_LCY":4.5,"Total_Amount_Excl_VAT":41.000,"Total_VAT_Amount":7.790,"Total_Amount_Incl_VAT":48.790},
+{"@odata.etag":"W/\"JzE7NDsn\"","Document_No":"FVV26000000101","Line_No":30000,"Type":"Item","No":"6190000000024","Description":"Tester lipstick","Quantity":1,"Unit_of_Measure_Code":"UN","Unit_Price":0,"Line_Discount_Percent":0,"Line_Amount":0,"Total_Amount_Excl_VAT":41.000,"Total_VAT_Amount":7.790,"Total_Amount_Incl_VAT":48.790},
+{"@odata.etag":"W/\"JzE7NTsn\"","Document_No":"FVV26000000101","Line_No":40000,"Type":"G/L Account","No":"7085","Description":"Transport","Quantity":1,"Unit_of_Measure_Code":"","Unit_Price":5,"Line_Discount_Percent":0,"Line_Amount":5.000,"Total_Amount_Excl_VAT":41.000,"Total_VAT_Amount":7.790,"Total_Amount_Incl_VAT":48.790},
+{"@odata.etag":"W/\"JzE7Njsn\"","Document_No":"FVV26000000101","Line_No":50000,"Type":"G/L Account","No":"7086","Description":"Free sample","Quantity":1,"Unit_of_Measure_Code":"","Unit_Price":0,"Line_Discount_Percent":0,"Line_Amount":0,"Total_Amount_Excl_VAT":41.000,"Total_VAT_Amount":7.790,"Total_Amount_Incl_VAT":48.790}
+]},
+{"@odata.etag":"W/\"JzI7MDsn\"","No":"FVV26000000102","Sell_to_Customer_No":"C-0002","Sell_to_Customer_Name":"Store Two","Document_Date":"2026-03-04","Posting_Date":"0001-01-01","Client_Franchise":false,"Prices_Including_VAT":true,
+"FactureFranchiseSalesInvLines":[
+{"@odata.etag":"W/\"JzI7MTsn\"","Document_No":"FVV26000000102","Line_No":10000,"Type":"_x0020_","No":"","Description":"Comment","Quantity":0,"Unit_of_Measure_Code":"","Unit_Price":0,"Line_Discount_Percent":0,"Line_Amount":0,"Total_Amount_Excl_VAT":100.000,"Total_VAT_Amount":19.000,"Total_Amount_Incl_VAT":119.000},
+{"@odata.etag":"W/\"JzI7Mjsn\"","Document_No":"FVV26000000102","Line_No":20000,"Type":"Item","No":"6190000000031","Description":"Perfume","Quantity":1.5,"Unit_of_Measure_Code":"L","Unit_Price":60,"Line_Discount_Percent":0,"Line_Amount":90.000,"Total_Amount_Excl_VAT":100.000,"Total_VAT_Amount":19.000,"Total_Amount_Incl_VAT":119.000}
+]}
+]}
