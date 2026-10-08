@@ -24,6 +24,8 @@ public class ErpSupplyInvoiceDTO {
 	}
 
 	private String number;
+	/** The start of the number that names its year (FVV26), as read; the head office keeps its highest number per prefix. */
+	private String yearPrefix;
 	private LocalDate documentDate;
 	private LocalDate postingDate;
 	private String customerNo;

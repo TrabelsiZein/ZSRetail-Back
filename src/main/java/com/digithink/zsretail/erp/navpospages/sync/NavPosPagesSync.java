@@ -459,6 +459,11 @@ public class NavPosPagesSync {
 		summary.read(mapped);
 		Map<String, ErpSupplyInvoiceDTO> byNumber = new TreeMap<>();
 		for (ErpSupplyInvoiceDTO invoice : mapped.getRows()) {
+			for (String prefix : years.keySet()) {
+				if (invoice.getNumber().startsWith(prefix)) {
+					invoice.setYearPrefix(prefix);
+				}
+			}
 			byNumber.putIfAbsent(invoice.getNumber(), invoice);
 		}
 		List<ErpSupplyInvoiceDTO> invoices = new ArrayList<>(byNumber.values());

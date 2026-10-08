@@ -15,6 +15,9 @@ public interface StoreRepository extends _BaseRepository<Store, Long> {
 
 	Optional<Store> findByCodeIgnoreCase(String code);
 
+	/** Invoices from the ERP: the store whose ERP customer number is this one (unique, any case). */
+	Optional<Store> findByErpCustomerNoIgnoreCase(String erpCustomerNo);
+
 	/** Step 6: the stores whose selling price list is this one. */
 	@Query("select s.id from Store s where s.sellingPriceListId = :listId")
 	List<Long> findIdsBySellingPriceListId(@Param("listId") Long listId);

@@ -81,7 +81,7 @@ public class StoreAPI extends _BaseController<Store, Long, StoreService> {
 		}
 	}
 
-	/** Name, kind and active only. 400 when the code differs. */
+	/** Name, kind and active only. 400 when the code differs; 409 when another store has the ERP customer number. */
 	@Override
 	@PutMapping("/{id}")
 	public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Store entity) {
@@ -91,6 +91,8 @@ public class StoreAPI extends _BaseController<Store, Long, StoreService> {
 			return updated.<ResponseEntity<?>>map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+		} catch (IllegalStateException e) {
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(e.getMessage()));
 		} catch (Exception e) {
 			log.error("StoreAPI::update:error: " + getDetailedMessage(e), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));

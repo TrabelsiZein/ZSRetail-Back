@@ -44,6 +44,10 @@ class StoreServiceTest {
 			switch (method) {
 				case "findByCodeIgnoreCase":
 					return table.values().stream().filter(s -> s.getCode().equalsIgnoreCase((String) args[0])).findFirst();
+				case "findByErpCustomerNoIgnoreCase":
+					return table.values().stream().filter(
+							s -> s.getErpCustomerNo() != null && s.getErpCustomerNo().equalsIgnoreCase((String) args[0]))
+							.findFirst();
 				case "findById":
 					return Optional.ofNullable(table.get(args[0]));
 				case "save":
@@ -371,6 +375,60 @@ class StoreServiceTest {
 	}
 
 	// --- Stubs ---
+
+	// --- ERP customer number (invoices from the ERP) ---
+
+	@Test
+	@DisplayName("ERP customer number: trimmed, blank is none; another store with it at any case: 409 naming that store")
+	void erpCustomerNoUnique() throws Exception {
+		Store first = input("s1", "Store 1");
+		first.setErpCustomerNo("  C-0001 ");
+		Store saved = service.create(first).getStore();
+		assertEquals("C-0001", saved.getErpCustomerNo());
+		Store blank = input("s2", "Store 2");
+		blank.setErpCustomerNo("   ");
+		assertNull(service.create(blank).getStore().getErpCustomerNo(), "blank: none");
+		Store none = input("s3", "Store 3");
+		assertNull(service.create(none).getStore().getErpCustomerNo(), "two stores without one");
+
+		Store twin = input("s4", "Store 4");
+		twin.setErpCustomerNo("c-0001");
+		IllegalStateException refused = assertThrows(IllegalStateException.class, () -> service.create(twin));
+		assertEquals("The ERP customer number c-0001 is already the one of the store S1.", refused.getMessage());
+		assertFalse(table.values().stream().anyMatch(s -> "S4".equals(s.getCode())), "not saved");
+
+		Store tooLong = input("s5", "Store 5");
+		tooLong.setErpCustomerNo(new String(new char[101]).replace('\0', 'x'));
+		assertThrows(IllegalArgumentException.class, () -> service.create(tooLong));
+	}
+
+	@Test
+	@DisplayName("ERP customer number on update: kept when not sent, its own number again accepted, another store's refused, blank clears")
+	void erpCustomerNoUpdate() throws Exception {
+		Store first = input("s1", "Store 1");
+		first.setErpCustomerNo("C-0001");
+		Long id1 = service.create(first).getStore().getId();
+		Long id2 = service.create(input("s2", "Store 2")).getStore().getId();
+
+		Store rename = new Store();
+		rename.setName("Store one");
+		assertEquals("C-0001", service.update(id1, rename).get().getErpCustomerNo(), "not sent: kept");
+		Store same = new Store();
+		same.setErpCustomerNo("c-0001 ");
+		assertEquals("c-0001", service.update(id1, same).get().getErpCustomerNo(), "its own number at another case");
+
+		Store taken = new Store();
+		taken.setErpCustomerNo("C-0001");
+		assertThrows(IllegalStateException.class, () -> service.update(id2, taken));
+		assertNull(table.get(id2).getErpCustomerNo());
+
+		Store clear = new Store();
+		clear.setErpCustomerNo(" ");
+		assertNull(service.update(id1, clear).get().getErpCustomerNo(), "blank clears");
+		Store reuse = new Store();
+		reuse.setErpCustomerNo("C-0001");
+		assertEquals("C-0001", service.update(id2, reuse).get().getErpCustomerNo(), "free again");
+	}
 
 	private interface Handler {
 		Object handle(String method, Object[] args);

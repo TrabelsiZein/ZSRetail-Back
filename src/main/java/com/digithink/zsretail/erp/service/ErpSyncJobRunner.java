@@ -4,6 +4,8 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.digithink.zsretail.erp.dto.ErpCustomerDTO;
@@ -18,6 +20,7 @@ import com.digithink.zsretail.erp.dto.ErpSalesPriceDTO;
 import com.digithink.zsretail.erp.dto.ErpSyncFilter;
 import com.digithink.zsretail.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.erp.model.ErpSyncJob;
+import com.digithink.zsretail.erp.spi.ErpSupplyInvoiceImport;
 
 import lombok.RequiredArgsConstructor;
 
@@ -34,6 +37,13 @@ public class ErpSyncJobRunner {
 	private final ReturnExportService returnExportService;
 	private final SessionExportService sessionExportService;
 	private final ErpDeletionSyncService erpDeletionSyncService;
+
+	/**
+	 * Invoices from the ERP: the head office import (HoErpInvoiceService), present only with headoffice.supply.source=ERP.
+	 * A field, so the constructor stays as it is.
+	 */
+	@Autowired(required = false)
+	private ObjectProvider<ErpSupplyInvoiceImport> supplyInvoiceImport;
 
 	public void run(ErpSyncJob job) {
 		ErpSyncJobType jobType = job.getJobType();
@@ -108,6 +118,16 @@ public class ErpSyncJobRunner {
 			case SYNC_ERP_DELETIONS:
 				List<ErpDeletionLogEntryDTO> deletionEntries = erpDeletionSyncService.applyDeletionsFromLog(filter);
 				checkpointService.updateLastSync(jobType, deletionEntries);
+				break;
+			case IMPORT_SUPPLY_INVOICES:
+				// Invoices from the ERP: no checkpoint (the head office's highest numbers are the memory)
+				ErpSupplyInvoiceImport invoices = supplyInvoiceImport == null ? null
+						: supplyInvoiceImport.getIfAvailable();
+				if (invoices == null) {
+					throw new ErpSyncWarningException("The supply invoices are read from the ERP only on a head office"
+							+ " with headoffice.supply.source=ERP");
+				}
+				invoices.importSupplyInvoices();
 				break;
 			default:
 				LOGGER.warn("Unhandled ERP sync job type {} for job {}", jobType, job.getJobType());

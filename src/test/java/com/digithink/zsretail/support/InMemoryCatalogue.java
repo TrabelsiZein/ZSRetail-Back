@@ -293,6 +293,10 @@ public final class InMemoryCatalogue {
 							.count();
 				case "findByCodeIgnoreCase":
 					return stores.values().stream().filter(s -> s.getCode().equalsIgnoreCase((String) args[0])).findFirst();
+				case "findByErpCustomerNoIgnoreCase": // invoices from the ERP
+					return stores.values().stream()
+							.filter(s -> s.getErpCustomerNo() != null && s.getErpCustomerNo().equalsIgnoreCase((String) args[0]))
+							.findFirst();
 				case "countBySupplyPriceListId":
 					return stores.values().stream().filter(s -> Objects.equals(s.getSupplyPriceListId(), args[0]))
 							.count();

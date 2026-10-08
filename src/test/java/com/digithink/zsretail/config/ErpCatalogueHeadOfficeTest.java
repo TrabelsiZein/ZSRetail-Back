@@ -149,7 +149,10 @@ class ErpCatalogueHeadOfficeTest {
 	void beans() {
 		MockEnvironment env = catalogueOnlyHeadOffice();
 		for (Class<?> bean : WITHOUT_ERP_BEANS) {
-			assertTrue(bean.isAnnotationPresent(ConditionalOnHeadOfficeWithoutErp.class), bean.getSimpleName());
+			// Invoices from the ERP, step (b): the BLs, supply prices and invoices moved to @ConditionalOnHeadOfficeOwnSupply,
+			// which keeps them here (headoffice.supply.source absent)
+			assertTrue(bean.isAnnotationPresent(ConditionalOnHeadOfficeWithoutErp.class)
+					|| bean.isAnnotationPresent(ConditionalOnHeadOfficeOwnSupply.class), bean.getSimpleName());
 			assertTrue(registered(env, bean), bean.getSimpleName());
 		}
 		for (Class<?> bean : REFERENCE_LOCATION_BEANS) {

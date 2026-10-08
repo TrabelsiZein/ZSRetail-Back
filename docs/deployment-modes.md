@@ -214,6 +214,13 @@ the "Connect a store" procedure: `docs/modules/head-office.md`, "Head office lin
 - **Head office stock**, head office only: `headoffice.stock.enabled`, `true` (default, stated in the head office type file)
   or `false` (no stock, no purchases, a BL moves no stock); any other value stops a head office at startup; a store never
   reads it. `GET /config` field `headOfficeStock`. See `docs/modules/head-office.md`, "Head office without stock".
+- **Supply source** (invoices from the ERP), head office only: `headoffice.supply.source`, `HEAD_OFFICE` (default: the head
+  office makes the BLs, supply prices and supply invoices of its stores) or `ERP` (the stores' invoices are read from the
+  ERP by the connector navpospages; the head office makes no BL, supply price or supply invoice). Read on a head office
+  only, like `headoffice.stock.enabled`; a store never reads it. Startup refusals: a value other than `HEAD_OFFICE` or
+  `ERP` (blank included); `ERP` on a head office whose catalogue does not come from the ERP alone (without an ERP, or
+  with the ERP owning all three); `ERP` without `erp.navpospages.enabled=true`. `GET /config` field `supplySource`
+  (`HEAD_OFFICE` or `ERP` on a head office, `null` on a store). See `docs/modules/head-office.md`, "Invoices from the ERP".
 - **Stores page threshold** (task 1.5), head office only: `headoffice.offline-after-seconds`, whole number, at least 1, default `180`. A store whose last heartbeat is older is shown OFFLINE (exactly at the threshold it is still ONLINE). A wrong value stops the head office at startup. See `docs/modules/head-office.md`, "Status".
 - **GET /config** (task 0.5) returns three more fields after the existing ones, enums as their names:
   - `nodeType`: `"STORE"` or `"HEAD_OFFICE"`.

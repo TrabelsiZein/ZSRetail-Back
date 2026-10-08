@@ -15,6 +15,8 @@ public enum ErpSyncJobType {
 	EXPORT_TICKETS,
 	EXPORT_RETURNS,
 	EXPORT_SESSIONS,
-	SYNC_ERP_DELETIONS
+	SYNC_ERP_DELETIONS,
+	/** Invoices from the ERP: the franchise invoices by number (a head office with headoffice.supply.source=ERP). */
+	IMPORT_SUPPLY_INVOICES
 }
 

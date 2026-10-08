@@ -49,7 +49,9 @@ function Invoke-DevSql([string]$Name, [string]$Query, [string]$Database) {
 	if (-not $Database) { $Database = $inst.Db }
 	$env:SQLCMDPASSWORD = Get-DevDbPassword $Name
 	try {
-		$out = & $DevSqlCmd -S localhost -U sa -d $Database -b -W -h -1 -s '|' -Q ("SET NOCOUNT ON; " + $Query) 2>&1
+		# -I (QUOTED_IDENTIFIER ON): a table with a filtered index (ho_store, ux_ho_store_erp_customer_no) refuses
+		# INSERT and UPDATE without it
+		$out = & $DevSqlCmd -S localhost -U sa -d $Database -b -I -W -h -1 -s '|' -Q ("SET NOCOUNT ON; " + $Query) 2>&1
 		if ($LASTEXITCODE -ne 0) { throw "sqlcmd failed on $Database : $out" }
 		return @($out | Where-Object { $_ -ne $null -and "$_".Trim() -ne '' } | ForEach-Object { "$_".Trim() })
 	} finally {

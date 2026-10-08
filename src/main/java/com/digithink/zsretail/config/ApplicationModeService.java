@@ -39,6 +39,9 @@ public class ApplicationModeService {
 	/** A head office with headoffice.stock.enabled=false (NodeOwnership.isHeadOfficeWithoutStockSet); false on a store. */
 	private boolean headOfficeWithoutStock;
 
+	/** A head office with headoffice.supply.source=ERP (NodeOwnership.isSupplyFromErpSourceSet); false on a store. */
+	private boolean supplyFromErpSource;
+
 	/** Fails the startup when node.type, ownership.* or sales.upstream holds an invalid value. */
 	@PostConstruct
 	void initOwnership() {
@@ -49,6 +52,17 @@ public class ApplicationModeService {
 				&& ownership.ownerOf(DataDomain.SUPPLY) == DataOwner.HEAD_OFFICE;
 		// Read on a head office only: a store never reads headoffice.stock.enabled
 		headOfficeWithoutStock = NodeOwnership.isHeadOfficeWithoutStockSet(environment);
+		// Invoices from the ERP: read on a head office only, like headoffice.stock.enabled
+		supplyFromErpSource = NodeOwnership.isSupplyFromErpSourceSet(environment);
+	}
+
+	/**
+	 * Invoices from the ERP: true on a head office with headoffice.supply.source=ERP (catalogue only from the ERP): the
+	 * stores' supply documents are the ERP's invoices; the head office makes no BL, supply price or supply invoice.
+	 * Always false on a store.
+	 */
+	public boolean isSupplyFromErpSource() {
+		return supplyFromErpSource;
 	}
 
 	/**

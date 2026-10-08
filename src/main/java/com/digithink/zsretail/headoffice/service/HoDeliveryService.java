@@ -26,7 +26,7 @@ import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.digithink.zsretail.config.ApplicationModeService;
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeWithoutErp;
+import com.digithink.zsretail.config.ConditionalOnHeadOfficeOwnSupply;
 import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryCopyDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryDTO;
@@ -65,9 +65,9 @@ import lombok.extern.log4j.Log4j2;
  * movement; a line gives no head office stock (null). Everything else is the same.
  */
 @Service
-@ConditionalOnHeadOfficeWithoutErp
+@ConditionalOnHeadOfficeOwnSupply
 @Log4j2
-public class HoDeliveryService implements DownDomainProvider {
+public class HoDeliveryService implements DownDomainProvider, SupplyConfirmationReceiver {
 
 	static final String SEQUENCE_CODE = "BL";
 	static final String NUMBER_FORMAT = "BL-%06d";
@@ -323,6 +323,7 @@ public class HoDeliveryService implements DownDomainProvider {
 	 * the same quantities is accepted again and nothing changes (a confirmation sent again after a lost answer); with
 	 * other quantities it is rejected. A BL of another store, unknown or still a draft is rejected as unknown.
 	 */
+	@Override
 	public List<SalesCopyResultDTO> receiveConfirmations(Store store, List<DeliveryConfirmationDTO> confirmations) {
 		List<SalesCopyResultDTO> results = new ArrayList<>();
 		if (confirmations == null) {

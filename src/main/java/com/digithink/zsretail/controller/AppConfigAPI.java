@@ -81,7 +81,9 @@ public class AppConfigAPI {
 				applicationModeService.isHeadOfficeLinked(),
 				applicationModeService.isCatalogueFromHeadOffice(),
 				applicationModeService.isSupplyFromHeadOffice(),
-				!applicationModeService.isHeadOfficeWithoutStock()
+				!applicationModeService.isHeadOfficeWithoutStock(),
+				!applicationModeService.isHeadOffice() ? null
+						: applicationModeService.isSupplyFromErpSource() ? "ERP" : "HEAD_OFFICE"
 		));
 	}
 

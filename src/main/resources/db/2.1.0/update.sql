@@ -17,7 +17,7 @@
 --   ho_store, ho_ticket, ho_ticket_line, ho_ticket_payment, ho_return, ho_return_line, ho_session, ho_session_count,
 --   ho_down_change, ho_down_sequence, ho_promotion_store, ho_loyalty_alias, ho_loyalty_movement, ho_price_list,
 --   ho_price_list_line, ho_delivery, ho_delivery_line, ho_number_sequence, ho_store_stock, ho_item_supply_price,
---   ho_supply_invoice, ho_supply_invoice_line,
+--   ho_supply_invoice, ho_supply_invoice_line, ho_erp_invoice, ho_erp_invoice_line,
 --   hol_sales_copy, hol_sales_cursor, hol_exchange_log, hol_job, hol_down_cursor, hol_down_record,
 --   hol_loyalty_member_copy, hol_loyalty_movement_copy, hol_link_right, hol_delivery, hol_delivery_line,
 --   hol_stock_copy.
@@ -68,7 +68,21 @@ BEGIN
 	IF COL_LENGTH('ho_store', 'supply_price_list_id') IS NULL ALTER TABLE ho_store ADD supply_price_list_id bigint NULL;
 	IF COL_LENGTH('ho_store', 'supply_discount_percent') IS NULL ALTER TABLE ho_store ADD supply_discount_percent float NULL;
 	IF COL_LENGTH('ho_store', 'invoice_rhythm') IS NULL ALTER TABLE ho_store ADD invoice_rhythm varchar(20) NULL;
+	IF COL_LENGTH('ho_store', 'erp_customer_no') IS NULL ALTER TABLE ho_store ADD erp_customer_no varchar(100) NULL;
 END
+GO
+
+-- Invoices from the ERP (headoffice.supply.source=ERP): one store per ERP customer number, any number of stores without
+-- one: a filtered unique index. Hibernate cannot create it, and on a new database ho_store does not exist yet here: a
+-- head office also creates it at its start when it is missing (StoreErpCustomerIndex). A filtered index needs
+-- QUOTED_IDENTIFIER and ANSI_NULLS ON, here and for every INSERT or UPDATE of ho_store (sqlcmd: option -I; JDBC and
+-- SSMS have them on).
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+GO
+IF COL_LENGTH('ho_store', 'erp_customer_no') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ux_ho_store_erp_customer_no' AND object_id = OBJECT_ID('ho_store'))
+	EXEC('CREATE UNIQUE INDEX ux_ho_store_erp_customer_no ON ho_store (erp_customer_no) WHERE erp_customer_no IS NOT NULL');
 GO
 IF OBJECT_ID('ho_price_list') IS NOT NULL AND COL_LENGTH('ho_price_list', 'kind') IS NULL
 	ALTER TABLE ho_price_list ADD kind varchar(10) NULL;
@@ -142,4 +156,5 @@ INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
 ('2.1.0', 'NEW', 'Facturation des livraisons aux magasins qui paient (franchise) : prix de cession par article ou en pourcentage, facture par BL ou groupée, reçue au magasin comme facture d''achat, payé ou non payé et ce que doit chaque magasin.'),
 ('2.1.0', 'IMPROVE', 'Installation : chaque installation a son fichier machine hors du WAR (base, port, journal, ERP, adresse et clé du siège) et un préréglage (magasin, magasin ERP, siège, siège ERP, magasin du réseau, magasin ERP du réseau). Les anciens profils franchise-admin et franchise-customer sont retirés ; un réseau de franchise s''installe avec les préréglages siège et magasin du réseau.'),
 ('2.1.0', 'IMPROVE', 'Le stock d''un ajustement manuel enregistre maintenant son mouvement, et la modification d''un article ne remplace plus le stock en cours.'),
-('2.1.0', 'NEW', 'Inventaire : import d''un comptage physique depuis un fichier Excel (code ou code-barres, quantité), écarts avec le stock avant validation, puis le stock prend la quantité comptée avec un mouvement d''inventaire par écart. Magasin qui gère son propre stock uniquement.');
+('2.1.0', 'NEW', 'Inventaire : import d''un comptage physique depuis un fichier Excel (code ou code-barres, quantité), écarts avec le stock avant validation, puis le stock prend la quantité comptée avec un mouvement d''inventaire par écart. Magasin qui gère son propre stock uniquement.'),
+('2.1.0', 'NEW', 'Siège avec le catalogue de l''ERP : les factures des magasins franchisés peuvent être lues dans l''ERP (Business Central) au lieu des BL et factures du siège ; chaque facture va au magasin dont le numéro client ERP est celui de la facture.');

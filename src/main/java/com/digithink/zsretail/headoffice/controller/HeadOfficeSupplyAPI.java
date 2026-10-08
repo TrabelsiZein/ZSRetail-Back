@@ -16,23 +16,25 @@ import com.digithink.zsretail.headoffice.dto.SalesCopyAnswerDTO;
 import com.digithink.zsretail.headoffice.dto.StockReportDTO;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.security.StoreApiKeyFilter;
-import com.digithink.zsretail.headoffice.service.HoDeliveryService;
 import com.digithink.zsretail.headoffice.service.HoNetworkStockService;
+import com.digithink.zsretail.headoffice.service.SupplyConfirmationReceiver;
 
 /**
  * Head office plan, step 7A: what a store sends up about its supply, under the /ho/** chain (store key, then license).
- * Head office without an ERP only. The store is the principal set by {@link StoreApiKeyFilter}: a store code in the
- * body is ignored. The answer has one result per document, in batch order.
+ * Head office without an ERP only. The confirmations go to whichever {@link SupplyConfirmationReceiver} exists (the BLs,
+ * or the ERP's invoices with headoffice.supply.source=ERP), the stock to {@link HoNetworkStockService}. The store is the
+ * principal set by {@link StoreApiKeyFilter}: a store code in the body is ignored. The answer has one result per
+ * document, in batch order.
  */
 @RestController
 @RequestMapping("ho/supply")
 @ConditionalOnHeadOfficeWithoutErp
 public class HeadOfficeSupplyAPI {
 
-	private final HoDeliveryService deliveries;
+	private final SupplyConfirmationReceiver deliveries;
 	private final HoNetworkStockService stock;
 
-	public HeadOfficeSupplyAPI(HoDeliveryService deliveries, HoNetworkStockService stock) {
+	public HeadOfficeSupplyAPI(SupplyConfirmationReceiver deliveries, HoNetworkStockService stock) {
 		this.deliveries = deliveries;
 		this.stock = stock;
 	}

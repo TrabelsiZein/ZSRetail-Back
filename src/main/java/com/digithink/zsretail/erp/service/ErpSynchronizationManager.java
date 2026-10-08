@@ -2,6 +2,7 @@ package com.digithink.zsretail.erp.service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +24,7 @@ import com.digithink.zsretail.erp.dto.ErpReturnLineDTO;
 import com.digithink.zsretail.erp.dto.ErpSalesDiscountDTO;
 import com.digithink.zsretail.erp.dto.ErpSalesPriceDTO;
 import com.digithink.zsretail.erp.dto.ErpSessionDTO;
+import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.dto.ErpSyncFilter;
 import com.digithink.zsretail.erp.dto.ErpTicketDTO;
 import com.digithink.zsretail.erp.dto.ErpTicketLineDTO;
@@ -79,6 +81,16 @@ public class ErpSynchronizationManager {
 	public List<ErpSalesDiscountDTO> pullSalesDiscounts(ErpSyncFilter filter) {
 		return executePullOperation(ErpSyncOperation.IMPORT_SALES_DISCOUNTS, filter,
 				() -> erpConnector.fetchSalesDiscounts(filter));
+	}
+
+	/**
+	 * Invoices from the ERP: the invoices after the highest number of each year prefix, logged in the communications log
+	 * like the other imports (the connector's summary as the response).
+	 */
+	public List<ErpSupplyInvoiceDTO> pullSupplyInvoices(Map<String, String> highestByYear) {
+		ErpSyncFilter filter = new ErpSyncFilter();
+		return executePullOperation(ErpSyncOperation.IMPORT_SUPPLY_INVOICES, filter,
+				() -> erpConnector.fetchSupplyInvoices(highestByYear));
 	}
 
 	public List<ErpDeletionLogEntryDTO> pullDeletionLog(ErpSyncFilter filter) {

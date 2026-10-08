@@ -480,6 +480,8 @@ class NavPosPagesSyncTest {
 		assertEquals(Arrays.asList("FVV26 after FVV26000000001", "FVV25 after FVV25000000001"), erp.invoiceReads);
 		assertEquals(Arrays.asList("FVV25000000002", "FVV25000000003", "FVV26000000002"), numbers(run.getHanded()));
 		assertEquals("C-1", run.getHanded().get(0).getCustomerNo());
+		assertEquals("FVV25", run.getHanded().get(0).getYearPrefix(), "the prefix of its read (step b)");
+		assertEquals("FVV26", run.getHanded().get(2).getYearPrefix());
 		assertEquals(3, run.count("read"));
 		assertEquals(3, run.count("handed"));
 		Map<?, ?> years = (Map<?, ?>) run.getSummary().get("years");

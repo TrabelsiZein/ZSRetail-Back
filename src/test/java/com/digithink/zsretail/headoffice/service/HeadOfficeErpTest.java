@@ -51,6 +51,11 @@ class HeadOfficeErpTest {
 			ErpSyncJobType.EXPORT_TICKETS, ErpSyncJobType.EXPORT_RETURNS, ErpSyncJobType.EXPORT_SESSIONS,
 			ErpSyncJobType.IMPORT_SALES_PRICES_AND_DISCOUNTS);
 
+	/** Invoices from the ERP: refused on a head office without headoffice.supply.source=ERP, besides {@link #REFUSED}. */
+	private static final Set<ErpSyncJobType> REFUSED_HERE = EnumSet.of(ErpSyncJobType.EXPORT_CUSTOMERS,
+			ErpSyncJobType.EXPORT_TICKETS, ErpSyncJobType.EXPORT_RETURNS, ErpSyncJobType.EXPORT_SESSIONS,
+			ErpSyncJobType.IMPORT_SALES_PRICES_AND_DISCOUNTS, ErpSyncJobType.IMPORT_SUPPLY_INVOICES);
+
 	private final Map<Long, ErpSyncJob> table = new LinkedHashMap<>();
 	private int saves;
 	private HeadOfficeErpJobs jobs;
@@ -117,14 +122,14 @@ class HeadOfficeErpTest {
 			}
 		};
 		ErpSyncJobRunner guarded = guarded(runner);
-		for (ErpSyncJobType type : REFUSED) {
+		for (ErpSyncJobType type : REFUSED_HERE) {
 			ErpSyncWarningException refused = assertThrows(ErpSyncWarningException.class, () -> guarded.run(job(type)));
 			assertEquals("This ERP job does not run on a head office: " + type, refused.getMessage());
 		}
-		for (ErpSyncJobType type : EnumSet.complementOf(EnumSet.copyOf(REFUSED))) {
+		for (ErpSyncJobType type : EnumSet.complementOf(EnumSet.copyOf(REFUSED_HERE))) {
 			guarded.run(job(type));
 		}
-		assertEquals(EnumSet.complementOf(EnumSet.copyOf(REFUSED)), EnumSet.copyOf(ran));
+		assertEquals(EnumSet.complementOf(EnumSet.copyOf(REFUSED_HERE)), EnumSet.copyOf(ran));
 	}
 
 	@Test
@@ -172,8 +177,8 @@ class HeadOfficeErpTest {
 
 		List<ErpSyncJobType> listed = guarded.getJobs().getBody().stream().map(ErpSyncJobViewDTO::getJobType)
 				.collect(Collectors.toList());
-		assertEquals(ErpSyncJobType.values().length - REFUSED.size(), listed.size());
-		assertTrue(Collections.disjoint(listed, REFUSED), listed.toString());
+		assertEquals(ErpSyncJobType.values().length - REFUSED_HERE.size(), listed.size());
+		assertTrue(Collections.disjoint(listed, REFUSED_HERE), listed.toString());
 
 		Long export = job(ErpSyncJobType.EXPORT_TICKETS).getId();
 		List<ResponseEntity<?>> refused = new ArrayList<>();
@@ -225,12 +230,13 @@ class HeadOfficeErpTest {
 				Installations.machine("dev/headoffice-erp.properties"), Installations.machine("dev/headoffice.properties") };
 		for (MockEnvironment other : others) {
 			HeadOfficeErpJobs kept = new HeadOfficeErpJobs(repository(), null, TestModes.of(other));
-			assertEquals(REFUSED, kept.refusedTypes());
+			assertEquals(REFUSED_HERE, kept.refusedTypes());
 			for (ErpSyncJobType type : ErpSyncJobType.values()) {
-				assertEquals(HeadOfficeErpJobs.isRefused(type), kept.refuses(type), type.name());
+				assertEquals(HeadOfficeErpJobs.isRefused(type) || HeadOfficeErpJobs.OFFERED_WITH_ERP_SUPPLY.contains(type),
+						kept.refuses(type), type.name());
 			}
 		}
-		assertEquals(REFUSED, jobs.refusedTypes(), "the test constructor keeps today's set");
+		assertEquals(REFUSED_HERE, jobs.refusedTypes(), "the test constructor keeps today's set");
 	}
 
 	@Test

@@ -32,7 +32,9 @@ import lombok.extern.log4j.Log4j2;
  * ERP catalogue, step 3: on a head office whose catalogue only comes from the ERP
  * ({@link ApplicationModeService#isErpCatalogueOnly()}) only the four catalogue imports are offered
  * ({@link #OFFERED_WHEN_CATALOGUE_ONLY}); every other job is treated like the exports ({@link #refusedTypes()}). Any
- * other head office keeps {@link #NOT_ON_HEAD_OFFICE}.
+ * other head office keeps {@link #NOT_ON_HEAD_OFFICE}. Invoices from the ERP: IMPORT_SUPPLY_INVOICES
+ * ({@link #OFFERED_WITH_ERP_SUPPLY}) is offered only on that head office with headoffice.supply.source=ERP, refused on
+ * every other one.
  */
 @Service
 @ConditionalOnHeadOffice
@@ -52,6 +54,13 @@ public class HeadOfficeErpJobs {
 			ErpSyncJobType.IMPORT_ITEM_FAMILIES, ErpSyncJobType.IMPORT_ITEM_SUBFAMILIES, ErpSyncJobType.IMPORT_ITEMS,
 			ErpSyncJobType.IMPORT_ITEM_BARCODES));
 
+	/**
+	 * Invoices from the ERP: offered only on a head office whose catalogue only comes from the ERP with
+	 * headoffice.supply.source=ERP; refused on every other head office (and never seeded on a store).
+	 */
+	public static final Set<ErpSyncJobType> OFFERED_WITH_ERP_SUPPLY = Collections
+			.unmodifiableSet(EnumSet.of(ErpSyncJobType.IMPORT_SUPPLY_INVOICES));
+
 	static final String REFUSED = "This ERP job does not run on a head office";
 
 	private final ErpSyncJobRepository jobs;
@@ -66,7 +75,7 @@ public class HeadOfficeErpJobs {
 	 */
 	@Autowired
 	public HeadOfficeErpJobs(ErpSyncJobRepository jobs, ZZDataInitializer seededFirst, ApplicationModeService mode) {
-		this(jobs, mode.isErpCatalogueOnly());
+		this(jobs, mode.isErpCatalogueOnly(), mode.isSupplyFromErpSource());
 	}
 
 	/** Without the mode: the refused jobs of a head office whose ERP owns all three, or without an ERP. */
@@ -81,10 +90,26 @@ public class HeadOfficeErpJobs {
 
 	/** catalogueOnly: a head office whose catalogue only comes from the ERP. Used by the tests too. */
 	public HeadOfficeErpJobs(ErpSyncJobRepository jobs, boolean catalogueOnly) {
+		this(jobs, catalogueOnly, false);
+	}
+
+	/**
+	 * catalogueOnly as above; supplyFromErp: headoffice.supply.source=ERP (accepted only with catalogueOnly), which adds
+	 * {@link #OFFERED_WITH_ERP_SUPPLY}. Used by the tests too.
+	 */
+	public HeadOfficeErpJobs(ErpSyncJobRepository jobs, boolean catalogueOnly, boolean supplyFromErp) {
 		this.jobs = jobs;
-		this.refused = catalogueOnly
-				? Collections.unmodifiableSet(EnumSet.complementOf(EnumSet.copyOf(OFFERED_WHEN_CATALOGUE_ONLY)))
-				: NOT_ON_HEAD_OFFICE;
+		if (catalogueOnly) {
+			Set<ErpSyncJobType> offered = EnumSet.copyOf(OFFERED_WHEN_CATALOGUE_ONLY);
+			if (supplyFromErp) {
+				offered.addAll(OFFERED_WITH_ERP_SUPPLY);
+			}
+			this.refused = Collections.unmodifiableSet(EnumSet.complementOf(EnumSet.copyOf(offered)));
+		} else {
+			Set<ErpSyncJobType> refusedHere = EnumSet.copyOf(NOT_ON_HEAD_OFFICE);
+			refusedHere.addAll(OFFERED_WITH_ERP_SUPPLY);
+			this.refused = Collections.unmodifiableSet(refusedHere);
+		}
 	}
 
 	/** The jobs refused on any head office whatever its mode ({@link #NOT_ON_HEAD_OFFICE}). See {@link #refuses}. */

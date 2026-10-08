@@ -42,6 +42,9 @@ public class Store extends _BaseEntity {
 	/** Length of the app_version column (the JPA default); a longer version sent by a store is cut. */
 	public static final int APP_VERSION_LENGTH = 255;
 
+	/** Length of erp_customer_no, as ho_erp_invoice.customer_no. */
+	public static final int ERP_CUSTOMER_NO_LENGTH = 100;
+
 	/** The store's DEFAULT_LOCATION value: trimmed, uppercase, unique. Cannot be changed after creation. */
 	@Column(nullable = false, unique = true, length = 50)
 	private String code;
@@ -185,6 +188,14 @@ public class Store extends _BaseEntity {
 	@JsonIgnore
 	@Column(name = "owner_supply", length = 20)
 	private String ownerSupply;
+
+	/**
+	 * Invoices from the ERP: the store's customer in the ERP (the invoices' customer field, e.g. Sell_to_Customer_No);
+	 * trimmed, unique at any case (filtered unique index ux_ho_store_erp_customer_no); null when none. The ERP's invoices
+	 * of that customer go to this store.
+	 */
+	@Column(name = "erp_customer_no", length = ERP_CUSTOMER_NO_LENGTH)
+	private String erpCustomerNo;
 
 	/** SalesUpstream names reported, comma-separated in enum order; "" = nowhere; null = unknown. */
 	@JsonIgnore

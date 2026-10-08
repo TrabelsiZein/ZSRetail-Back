@@ -145,6 +145,7 @@ public class StoreService extends _BaseService<Store, Long> {
 		store.setEnrolRequiresOnline(Boolean.TRUE.equals(input.getEnrolRequiresOnline()));
 		store.setMayChangePrices(Boolean.TRUE.equals(input.getMayChangePrices()));
 		store.setCanPurchase(Boolean.TRUE.equals(input.getCanPurchase()));
+		store.setErpCustomerNo(erpCustomerNo(input.getErpCustomerNo(), null)); // invoices from the ERP
 		if (input.getSellingPriceListId() != null) {
 			priceListService().checkAssignable(input.getSellingPriceListId());
 			store.setSellingPriceListId(input.getSellingPriceListId()); // a new store has nothing to send again
@@ -205,8 +206,33 @@ public class StoreService extends _BaseService<Store, Long> {
 		if (input.getCanPurchase() != null) {
 			store.setCanPurchase(input.getCanPurchase());
 		}
+		if (input.getErpCustomerNo() != null) { // invoices from the ERP; blank clears it
+			store.setErpCustomerNo(erpCustomerNo(input.getErpCustomerNo(), store.getId()));
+		}
 		applyInvoicing(store, input); // step 7B; the supply price list has its own endpoint
 		return Optional.of(save(store));
+	}
+
+	/**
+	 * Invoices from the ERP: the store's ERP customer number, trimmed; blank or null gives null. 400 (IllegalArgument)
+	 * when longer than {@value Store#ERP_CUSTOMER_NO_LENGTH} characters, 409 (IllegalState) when another store has it, at
+	 * any case (the invoices of one customer go to one store). storeId: the store being changed, null for a new one.
+	 */
+	String erpCustomerNo(String value, Long storeId) {
+		String trimmed = value == null ? "" : value.trim();
+		if (trimmed.isEmpty()) {
+			return null;
+		}
+		if (trimmed.length() > Store.ERP_CUSTOMER_NO_LENGTH) {
+			throw new IllegalArgumentException(
+					"The ERP customer number is longer than " + Store.ERP_CUSTOMER_NO_LENGTH + " characters.");
+		}
+		Optional<Store> other = storeRepository.findByErpCustomerNoIgnoreCase(trimmed);
+		if (other.isPresent() && !other.get().getId().equals(storeId)) {
+			throw new IllegalStateException("The ERP customer number " + trimmed + " is already the one of the store "
+					+ other.get().getCode() + ".");
+		}
+		return trimmed;
 	}
 
 	/**

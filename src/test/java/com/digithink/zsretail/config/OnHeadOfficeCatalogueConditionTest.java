@@ -131,7 +131,9 @@ class OnHeadOfficeCatalogueConditionTest {
 			assertTrue(registered(standaloneHeadOffice, bean), bean.getSimpleName());
 			assertFalse(registered(erpHeadOffice, bean), bean.getSimpleName());
 			assertFalse(registered(standalone(link()).withProperty("ownership.catalogue", "HEAD_OFFICE"), bean));
-			assertTrue(bean.isAnnotationPresent(ConditionalOnHeadOfficeWithoutErp.class), bean.getSimpleName());
+			// Invoices from the ERP, step (b): the BLs, supply prices and invoices carry @ConditionalOnHeadOfficeOwnSupply
+			assertTrue(bean.isAnnotationPresent(ConditionalOnHeadOfficeWithoutErp.class)
+					|| bean.isAnnotationPresent(ConditionalOnHeadOfficeOwnSupply.class), bean.getSimpleName());
 		}
 		assertEquals(OnHeadOfficeCatalogueCondition.class,
 				ConditionalOnHeadOfficeCatalogue.class.getAnnotation(Conditional.class).value()[0]);

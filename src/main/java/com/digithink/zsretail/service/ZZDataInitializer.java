@@ -110,6 +110,12 @@ public class ZZDataInitializer {
 			if (erpSyncJobRepository.count() == 0) {
 				initErpSyncJobs();
 			}
+			// Invoices from the ERP: only on a head office with headoffice.supply.source=ERP, also when the other jobs
+			// were seeded before (idempotent, disabled like the others)
+			if (applicationModeService.isSupplyFromErpSource()) {
+				createErpJob("0 */15 * * * *", ErpSyncJobType.IMPORT_SUPPLY_INVOICES,
+						"Every 15 minutes: import of the supply invoices of the stores from the ERP", false);
+			}
 		}
 
 		// Ensure tax stamp item exists (idempotent)
@@ -262,7 +268,8 @@ public class ZZDataInitializer {
 			"read:admin-headoffice-network-stock", // step 7A: stock of the stores
 			"read:admin-headoffice-supply-prices", // step 7B: base supply prices
 			"read:admin-headoffice-supply-invoices",
-			"read:admin-headoffice-store-balances"));
+			"read:admin-headoffice-store-balances",
+			"read:admin-headoffice-erp-invoices")); // invoices from the ERP (headoffice.supply.source=ERP)
 
 	/** Store with headoffice.url only: the "Head office link" page (task 1.5). */
 	static final Set<String> HEAD_OFFICE_LINK_ADMIN_PERMISSIONS = new HashSet<>(

@@ -47,6 +47,9 @@ public class InstallationSummary {
 		if (NodeOwnership.isHeadOfficeWithoutStockSet(env)) {
 			line.add("head office stock off");
 		}
+		if (NodeOwnership.isSupplyFromErpSourceSet(env)) {
+			line.add("supply invoices from the ERP");
+		}
 		if (Boolean.parseBoolean(env.getProperty("erp.dynamicsnav.enabled", "false").trim())) {
 			line.add("NAV " + env.getProperty("erp.dynamicsnav.base-url", "(no address)"));
 		}

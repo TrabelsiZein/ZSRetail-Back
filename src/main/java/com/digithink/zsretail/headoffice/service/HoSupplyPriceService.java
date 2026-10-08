@@ -17,7 +17,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeWithoutErp;
+import com.digithink.zsretail.config.ConditionalOnHeadOfficeOwnSupply;
 import com.digithink.zsretail.headoffice.dto.SupplyPriceDTO;
 import com.digithink.zsretail.headoffice.enumeration.SupplyPriceMode;
 import com.digithink.zsretail.headoffice.model.HoItemSupplyPrice;
@@ -42,7 +42,7 @@ import com.digithink.zsretail.repository.ItemRepository;
  * store. Head office without an ERP only. See docs/modules/head-office.md, "Supply prices".
  */
 @Service
-@ConditionalOnHeadOfficeWithoutErp
+@ConditionalOnHeadOfficeOwnSupply
 public class HoSupplyPriceService {
 
 	static final List<ItemType> PRICED_TYPES = Arrays.asList(ItemType.PRODUCT, ItemType.PACKAGE);

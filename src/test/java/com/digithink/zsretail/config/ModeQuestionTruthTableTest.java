@@ -134,7 +134,74 @@ class ModeQuestionTruthTableTest {
 			// checked against its answers; every other installation is checked against the old answers
 			assertEquals(installation.getKey().equals("config " + HAPPYNESS_HEAD_OFFICE), catalogueOnly(ownership),
 					installation.getKey());
+			// Invoices from the ERP: the Happyness head office is also the only one whose supply source is the ERP
+			assertEquals(installation.getKey().equals("config " + HAPPYNESS_HEAD_OFFICE),
+					NodeOwnership.isSupplyFromErpSourceSet(installation.getValue()), installation.getKey());
 			assertEquals(new ArrayList<>(), differences(installation.getValue(), ownership), installation.getKey());
+		}
+	}
+
+	private static String refusal(PropertyResolver env) {
+		try {
+			NodeOwnership.resolve(env);
+			return null;
+		} catch (IllegalStateException refused) {
+			return refused.getMessage();
+		}
+	}
+
+	@Test
+	@DisplayName("Supply source (invoices from the ERP): the five modes, ERP accepted on a catalogue-only head office with the connector only")
+	void supplySource() {
+		String key = "headoffice.supply.source";
+		MockEnvironment store = Installations.type("store");
+		MockEnvironment headOffice = Installations.type("headoffice");
+		MockEnvironment erpHeadOffice = Installations.machine("dev/headoffice-erp.properties");
+		MockEnvironment catalogueOnly = Installations.type("headoffice");
+		catalogueOnly.setProperty("ownership.catalogue", "ERP");
+		MockEnvironment erpSupply = Installations.type("headoffice");
+		erpSupply.setProperty("ownership.catalogue", "ERP");
+		erpSupply.setProperty("erp.navpospages.enabled", "true");
+		erpSupply.setProperty(key, " erp ");
+
+		// The key absent: HEAD_OFFICE everywhere
+		for (MockEnvironment env : new MockEnvironment[] { store, headOffice, erpHeadOffice, catalogueOnly }) {
+			assertEquals(null, refusal(env));
+			assertEquals(false, NodeOwnership.isSupplyFromErpSourceSet(env));
+		}
+		// ERP: accepted on the catalogue-only head office with the connector
+		assertEquals(null, refusal(erpSupply));
+		assertEquals(true, NodeOwnership.isSupplyFromErpSourceSet(erpSupply));
+		assertEquals(new ArrayList<>(), differences(erpSupply, NodeOwnership.resolve(erpSupply)), "the other answers unchanged");
+		MockEnvironment headOfficeSource = Installations.type("headoffice");
+		headOfficeSource.setProperty("ownership.catalogue", "ERP");
+		headOfficeSource.setProperty(key, "HEAD_OFFICE");
+		assertEquals(false, NodeOwnership.isSupplyFromErpSourceSet(headOfficeSource));
+
+		// A store never reads it, whatever its value
+		store.setProperty(key, "nonsense");
+		assertEquals(null, refusal(store));
+		assertEquals(false, NodeOwnership.isSupplyFromErpSourceSet(store));
+
+		// Refusals
+		String notCatalogueOnly = "Invalid combination: headoffice.supply.source=ERP on a head office whose catalogue does"
+				+ " not come from the ERP alone. The invoices are read from the ERP only on a head office with"
+				+ " ownership.catalogue=ERP and ownership.customers and ownership.supply not ERP; set"
+				+ " headoffice.supply.source to HEAD_OFFICE, or remove it.";
+		headOffice.setProperty(key, "ERP");
+		assertEquals(notCatalogueOnly, refusal(headOffice), "head office without an ERP");
+		erpHeadOffice.setProperty(key, "ERP");
+		assertEquals(notCatalogueOnly, refusal(erpHeadOffice), "head office whose ERP owns all three");
+		catalogueOnly.setProperty(key, "ERP");
+		assertEquals("Invalid combination: headoffice.supply.source=ERP without erp.navpospages.enabled=true. The invoices"
+				+ " are read by the connector navpospages; enable it, or set headoffice.supply.source to HEAD_OFFICE.",
+				refusal(catalogueOnly), "without the connector");
+		for (String value : new String[] { "", "yes", "BL" }) {
+			MockEnvironment wrong = Installations.type("headoffice");
+			wrong.setProperty(key, value);
+			assertEquals("Invalid value '" + value + "' for property headoffice.supply.source: HEAD_OFFICE (the head office"
+					+ " makes the BLs and invoices of its stores) or ERP (the stores' invoices are read from the ERP)",
+					refusal(wrong), value);
 		}
 	}
 

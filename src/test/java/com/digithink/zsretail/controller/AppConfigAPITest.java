@@ -2,6 +2,7 @@ package com.digithink.zsretail.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
@@ -44,9 +45,9 @@ class AppConfigAPITest {
 
 	/** Keys added by the head office plan: tasks 0.5 (first three) and 1.5 (headOfficeLinked),
 	 * step 6 (catalogueFromHeadOffice), step 7A (supplyFromHeadOffice), headoffice.stock.enabled (headOfficeStock),
-	 * always last. */
+	 * invoices from the ERP (supplySource), always last. */
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
-			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock");
+			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock", "supplySource");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";
@@ -230,7 +231,20 @@ class AppConfigAPITest {
 	}
 
 	@Test
-	@DisplayName("JSON: the 11 old keys keep their names and order (the three franchise keys are gone), the 6 new keys come last")
+	@DisplayName("Invoices from the ERP: supplySource HEAD_OFFICE or ERP on a head office, null on a store")
+	void supplySource() throws Exception {
+		assertEquals(HO, headOffice().getSupplySource());
+		MockEnvironment erpSupply = new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")
+				.withProperty("ownership.catalogue", "ERP").withProperty("erp.navpospages.enabled", "true")
+				.withProperty("headoffice.supply.source", "ERP");
+		assertEquals("ERP", config(erpSupply, true, true).getSupplySource());
+		for (AppConfigDTO c : Arrays.asList(standalone(), dynamics(), linkedStore())) {
+			assertNull(c.getSupplySource());
+		}
+	}
+
+	@Test
+	@DisplayName("JSON: the 11 old keys keep their names and order (the three franchise keys are gone), the 8 new keys come last")
 	void jsonKeys() throws Exception {
 		ObjectMapper mapper = new ObjectMapper();
 		List<String> expected = new ArrayList<>(OLD_KEYS);

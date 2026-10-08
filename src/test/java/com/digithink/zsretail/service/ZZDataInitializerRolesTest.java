@@ -36,7 +36,8 @@ class ZZDataInitializerRolesTest {
 
 	/**
 	 * The head office routes of ZSRetail-Front src/router/headoffice-routes.js, as read:<meta.resource>. Task 2.5 adds
-	 * tickets, sessions and returns before their frontend routes (next frontend session).
+	 * tickets, sessions and returns before their frontend routes (next frontend session). Invoices from the ERP, step (b),
+	 * adds read:admin-headoffice-erp-invoices before its frontend route (step d).
 	 */
 	private static final Set<String> HEAD_OFFICE_PERMISSIONS = new HashSet<>(java.util.Arrays.asList(
 			"read:admin-headoffice-home", "read:admin-headoffice-stores", "read:admin-headoffice-tickets",
@@ -54,7 +55,8 @@ class ZZDataInitializerRolesTest {
 			"read:admin-headoffice-purchase-invoices", "read:admin-headoffice-stock",
 			"read:admin-headoffice-stock-movements", "read:admin-headoffice-deliveries",
 			"read:admin-headoffice-network-stock", "read:admin-headoffice-supply-prices",
-			"read:admin-headoffice-supply-invoices", "read:admin-headoffice-store-balances"));
+			"read:admin-headoffice-supply-invoices", "read:admin-headoffice-store-balances",
+			"read:admin-headoffice-erp-invoices"));
 
 	// Mode of today's presets: without an ERP (store) or with one (store-erp); task 9.3
 	private static final boolean[][] STORE_PROFILES = {
