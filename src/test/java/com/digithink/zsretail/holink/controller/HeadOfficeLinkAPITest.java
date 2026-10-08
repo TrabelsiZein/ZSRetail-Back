@@ -45,6 +45,7 @@ import com.digithink.zsretail.holink.repository.DownRecordRepository;
 import com.digithink.zsretail.holink.service.CopiesDownPuller;
 import com.digithink.zsretail.holink.service.DownHandler;
 import com.digithink.zsretail.holink.service.DownRecordLog;
+import com.digithink.zsretail.holink.dto.DownRecordRowDTO;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
@@ -350,18 +351,34 @@ class HeadOfficeLinkAPITest {
 	}
 
 	@Test
-	@DisplayName("Task 3.5: received counts per domain pulled (last field), the list ERROR, WAITING then APPLIED, filters, 404 and 400")
+	@DisplayName("Task 3.5: received counts per domain pulled (last field); the list of the records to check, paged (ERROR, WAITING, never APPLIED), filters, 404 and 400")
 	void receivedRecords() {
 		List<DownRecord> rows = new ArrayList<>();
 		rows.add(row("P-B", DownRecordStatus.APPLIED, null, "group items not in this store: I9"));
 		rows.add(row("P-A", DownRecordStatus.APPLIED, null, null));
 		rows.add(row("P-W", DownRecordStatus.WAITING, "not in this store: item I9", null));
+		rows.add(row("P-E", DownRecordStatus.ERROR, "clash on code P-E", null));
 		DownRecordRepository repository = proxy(DownRecordRepository.class, (method, args) -> {
 			switch (method) {
 				case "findByDomainAndStatusIn":
 					java.util.Collection<?> statuses = (java.util.Collection<?>) args[1];
 					return rows.stream().filter(r -> r.getDomain() == args[0] && statuses.contains(r.getStatus()))
 							.collect(Collectors.toList());
+				case "findToCheck": {
+					// As the query: the asked statuses, by status name then code, one page, no payload
+					java.util.Collection<?> asked = (java.util.Collection<?>) args[1];
+					org.springframework.data.domain.Pageable page = (org.springframework.data.domain.Pageable) args[2];
+					List<DownRecordRowDTO> matching = rows.stream()
+							.filter(r -> r.getDomain() == args[0] && asked.contains(r.getStatus()))
+							.sorted(java.util.Comparator.comparing((DownRecord r) -> r.getStatus().name())
+									.thenComparing(DownRecord::getRecordCode))
+							.map(r -> new DownRecordRowDTO(r.getRecordCode(), r.getRecordName(), r.getStatus(), r.getReason(),
+									r.getInfo(), r.getReceivedAt(), r.getStatusSince()))
+							.collect(Collectors.toList());
+					int from = (int) Math.min(page.getOffset(), matching.size());
+					int to = Math.min(from + page.getPageSize(), matching.size());
+					return new org.springframework.data.domain.PageImpl<>(matching.subList(from, to), page, matching.size());
+				}
 				case "countByStatus":
 					Map<DownRecordStatus, Long> counts = rows.stream().filter(r -> r.getDomain() == args[0])
 							.collect(Collectors.groupingBy(DownRecord::getStatus, Collectors.counting()));
@@ -388,28 +405,40 @@ class HeadOfficeLinkAPITest {
 				Optional.empty(), Optional.of(puller), Optional.of(new DownRecordLog(repository)));
 
 		JsonNode json = json(withPull.status());
-		assertEquals("{\"PROMOTIONS\":{\"APPLIED\":2,\"WAITING\":1,\"ERROR\":0}}", json.get("received").toString());
+		assertEquals("{\"PROMOTIONS\":{\"APPLIED\":2,\"WAITING\":1,\"ERROR\":1}}", json.get("received").toString());
 
-		ResponseEntity<?> all = withPull.received("promotions", null);
+		ResponseEntity<?> all = withPull.received("promotions", null, null, null);
 		assertEquals(200, all.getStatusCodeValue());
 		JsonNode list = mapper.valueToTree(all.getBody());
 		assertEquals("PROMOTIONS", list.get("domain").asText());
 		assertEquals(2, list.get("counts").get("APPLIED").asLong());
 		List<String> codes = new ArrayList<>();
 		list.get("records").forEach(r -> codes.add(r.get("code").asText()));
-		assertEquals(Arrays.asList("P-W", "P-A", "P-B"), codes);
-		JsonNode waiting = list.get("records").get(0);
+		assertEquals(Arrays.asList("P-E", "P-W"), codes, "ERROR first, then WAITING; the applied P-A and P-B never listed");
+		assertEquals(2, list.get("totalElements").asLong());
+		assertEquals(0, list.get("page").asInt());
+		assertEquals(20, list.get("size").asInt());
+		List<String> answerFields = new ArrayList<>();
+		list.fieldNames().forEachRemaining(answerFields::add);
+		assertEquals(Arrays.asList("domain", "counts", "records", "totalElements", "page", "size"), answerFields);
+		JsonNode waiting = list.get("records").get(1);
 		assertEquals("WAITING", waiting.get("status").asText());
 		assertEquals("not in this store: item I9", waiting.get("reason").asText());
 		List<String> fields = new ArrayList<>();
 		waiting.fieldNames().forEachRemaining(fields::add);
 		assertEquals(Arrays.asList("code", "name", "status", "reason", "info", "receivedAt", "statusSince"), fields);
 
-		JsonNode onlyWaiting = mapper.valueToTree(withPull.received("PROMOTIONS", "waiting").getBody());
+		JsonNode onlyWaiting = mapper.valueToTree(withPull.received("PROMOTIONS", "waiting", null, null).getBody());
 		assertEquals(1, onlyWaiting.get("records").size());
-		assertEquals(400, withPull.received("PROMOTIONS", "LATE").getStatusCodeValue());
-		assertEquals(404, withPull.received("LOYALTY", null).getStatusCodeValue());
-		assertEquals(404, api.received("PROMOTIONS", null).getStatusCodeValue(), "no pull on this store");
+		JsonNode secondPage = mapper.valueToTree(withPull.received("PROMOTIONS", null, 1, 1).getBody());
+		assertEquals("P-W", secondPage.get("records").get(0).get("code").asText());
+		assertEquals(2, secondPage.get("totalElements").asLong());
+		assertEquals(1, secondPage.get("size").asInt());
+		assertEquals(400, withPull.received("PROMOTIONS", "LATE", null, null).getStatusCodeValue());
+		assertEquals(400, withPull.received("PROMOTIONS", "applied", null, null).getStatusCodeValue(),
+				"the applied records are not listed");
+		assertEquals(404, withPull.received("LOYALTY", null, null, null).getStatusCodeValue());
+		assertEquals(404, api.received("PROMOTIONS", null, null, null).getStatusCodeValue(), "no pull on this store");
 	}
 
 	private static DownRecord row(String code, DownRecordStatus status, String reason, String info) {

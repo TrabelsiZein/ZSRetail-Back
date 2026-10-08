@@ -187,12 +187,16 @@ public class HeadOfficeLinkAPI {
 	}
 
 	/**
-	 * Task 3.5: the records of a domain received from the head office, with their status and the counts:
-	 * {domain, counts: {APPLIED, WAITING, ERROR}, records: [{code, name, status, reason, info, receivedAt, statusSince}]}.
-	 * status: one status, blank or "all" = every status. 404 when this store does not pull the domain; 400 on a bad status.
+	 * Task 3.5: the records of a domain received from the head office that are to check, paged by the database, with the
+	 * counts: {domain, counts: {APPLIED, WAITING, ERROR}, records: [{code, name, status, reason, info, receivedAt,
+	 * statusSince}], totalElements, page, size}, as the loyalty list. Only WAITING and ERROR are listed (ERROR first, then
+	 * WAITING, each by code); APPLIED never (a first catalogue pull applies thousands). status: WAITING or ERROR, blank
+	 * or "all" = both. page from 0, size 1 to 200 (default 20). 404 when this store does not pull the domain; 400 on a
+	 * bad status (APPLIED included).
 	 */
 	@GetMapping("/received/{domain}")
-	public ResponseEntity<?> received(@PathVariable String domain, @RequestParam(required = false) String status) {
+	public ResponseEntity<?> received(@PathVariable String domain, @RequestParam(required = false) String status,
+			@RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
 		Optional<DataDomain> pulled = puller.flatMap(p -> p.getDomains().stream()
 				.filter(d -> d.name().equalsIgnoreCase(domain == null ? "" : domain.trim())).findFirst());
 		if (!pulled.isPresent() || !downRecords.isPresent()) {
@@ -200,7 +204,7 @@ public class HeadOfficeLinkAPI {
 					.body(Collections.singletonMap("error", "No copies down of '" + domain + "' on this store"));
 		}
 		try {
-			return ResponseEntity.ok(downRecords.get().list(pulled.get(), status));
+			return ResponseEntity.ok(downRecords.get().list(pulled.get(), status, page, size));
 		} catch (IllegalArgumentException e) {
 			return badRequest(e.getMessage());
 		}
