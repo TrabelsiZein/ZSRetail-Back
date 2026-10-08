@@ -287,8 +287,8 @@ public class DeliveryReceptionService {
 			line.setQuantityReceived(quantity == null ? line.getQuantitySent() : quantity);
 			line.setStockApplied(Boolean.FALSE);
 		}
+		delivery.setStatus(ReceivedDeliveryStatus.RECEIVED); // first: the costs of an ERP invoice go in with the stock
 		applyStock(delivery);
-		delivery.setStatus(ReceivedDeliveryStatus.RECEIVED);
 		delivery.setReceivedAt(clock.get());
 		delivery.setReceivedBy(cut(user, ReceivedDelivery.USER_LENGTH));
 		delivery.setStoreNote(note);
@@ -365,8 +365,8 @@ public class DeliveryReceptionService {
 				continue;
 			}
 			int quantity = line.getQuantityReceived() == null ? 0 : line.getQuantityReceived();
-			if (quantity > 0 && line.getItemId() == null) {
-				continue; // waits for its item
+			if ((quantity > 0 || costPending(delivery, line)) && line.getItemId() == null) {
+				continue; // waits for its item (an ERP invoice line received at 0 still waits for it: its costs go in then)
 			}
 			if (quantity > 0) {
 				stock.incrementForDelivery(line.getItemId(), quantity);
@@ -379,11 +379,13 @@ public class DeliveryReceptionService {
 	}
 
 	/**
-	 * Invoices from the ERP, step (c): the cost of each item of the invoice once its stock went in, written once. For an
-	 * item with a paid line (unit cost known, amount above 0) received above 0 and in the stock, not done yet: cost = sum of
-	 * its paid lines' amounts / sum of their quantities invoiced (the ERP's net price; one line: its unit cost), into the
-	 * cost price, last direct cost and last direct net cost of this store's head office item; every paid line of the item
-	 * is then marked done. A line at amount 0 (a tester) never changes the cost; a BL has no cost. True when one changed.
+	 * Invoices from the ERP (rule of the NAV team, 2026-10-09): the costs of each item of the received invoice, written once
+	 * per item, from its paid lines (amount above 0), whatever the quantity received (even 0: the prices are per unit):
+	 * last direct cost = the line's unit price (before the line discount and the VAT); last direct net cost = cost price =
+	 * its net unit cost (line amount / quantity invoiced = unit price x (1 - line discount), before the VAT). The same item
+	 * on several paid lines: the highest line number wins. A line at amount 0 (a tester, a gift) changes no cost; the
+	 * header discount is never read; the selling price (unit price of the item) is never touched. A line waits until its
+	 * item is here; a BL has no cost. True when one changed.
 	 */
 	private boolean applyCost(ReceivedDelivery delivery) {
 		if (!delivery.isErpInvoice()) {
@@ -391,31 +393,35 @@ public class DeliveryReceptionService {
 		}
 		Map<Long, List<ReceivedDeliveryLine>> paidByItem = new LinkedHashMap<>();
 		for (ReceivedDeliveryLine line : delivery.getLines()) {
-			if (line.isItemLine() && line.getItemId() != null && line.getUnitCost() != null && line.getLineAmount() != null
-					&& line.getLineAmount() != 0 && line.getQuantitySent() != null && line.getQuantitySent() > 0) {
+			if (costPending(delivery, line) && line.getItemId() != null) {
 				paidByItem.computeIfAbsent(line.getItemId(), id -> new ArrayList<>()).add(line);
 			}
 		}
 		boolean changed = false;
 		for (Map.Entry<Long, List<ReceivedDeliveryLine>> item : paidByItem.entrySet()) {
-			boolean due = item.getValue().stream().anyMatch(l -> !Boolean.TRUE.equals(l.getCostApplied())
-					&& Boolean.TRUE.equals(l.getStockApplied()) && l.getQuantityReceived() != null
-					&& l.getQuantityReceived() > 0);
-			if (!due) {
-				continue;
-			}
-			BigDecimal amount = BigDecimal.ZERO;
-			int quantity = 0;
-			for (ReceivedDeliveryLine line : item.getValue()) {
-				amount = amount.add(BigDecimal.valueOf(line.getLineAmount()));
-				quantity += line.getQuantitySent();
-			}
-			double cost = amount.divide(BigDecimal.valueOf(quantity), COST_SCALE, RoundingMode.HALF_UP).doubleValue();
-			items.updateCost(item.getKey(), cost, SupplyInvoiceWriter.WRITER);
+			ReceivedDeliveryLine last = item.getValue().stream()
+					.max(java.util.Comparator.comparing(ReceivedDeliveryLine::getLineNo)).get();
+			double net = round(last.getUnitCost());
+			double gross = last.getUnitPrice() == null ? net : round(last.getUnitPrice());
+			items.updateCost(item.getKey(), gross, net, SupplyInvoiceWriter.WRITER);
 			item.getValue().forEach(l -> l.setCostApplied(Boolean.TRUE));
 			changed = true;
 		}
 		return changed;
+	}
+
+	/**
+	 * An item line of an ERP invoice whose costs are still to write: a paid line (amount above 0, net unit cost known), not
+	 * done yet, once the invoice is received.
+	 */
+	private static boolean costPending(ReceivedDelivery delivery, ReceivedDeliveryLine line) {
+		return delivery.isErpInvoice() && delivery.getStatus() == ReceivedDeliveryStatus.RECEIVED && line.isItemLine()
+				&& line.getUnitCost() != null && line.getLineAmount() != null && line.getLineAmount() > 0
+				&& !Boolean.TRUE.equals(line.getCostApplied());
+	}
+
+	private static double round(double value) {
+		return BigDecimal.valueOf(value).setScale(COST_SCALE, RoundingMode.HALF_UP).doubleValue();
 	}
 
 	/** This store's item with that code, only when it is a head office item (origin HEAD_OFFICE). */

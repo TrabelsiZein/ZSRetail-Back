@@ -63,7 +63,7 @@ class NavPosPagesLiveReadTest {
 
 	/**
 	 * Invoices from the ERP, step (a): the invoices page of the same ERP, GET only, with the 2021 test data: years=2021,
-	 * the customer field Sell_to_Customer_Name (the page has no Sell_to_Customer_No yet). Prints each invoice (number,
+	 * the default customer field Sell_to_Customer_No (on the page since 2026-10-09). Prints each invoice (number,
 	 * customer, dates, lines, totals, warnings) and the totals of FVV21000000218 against the sum of its lines. Run alone:
 	 * -Dtest=NavPosPagesLiveReadTest#liveReadInvoices
 	 */
@@ -72,7 +72,6 @@ class NavPosPagesLiveReadTest {
 	void liveReadInvoices() {
 		MockEnvironment env = Installations.config(FILE);
 		env.setProperty("erp.navpospages.invoices.years", "2021");
-		env.setProperty("erp.navpospages.invoices.customer-field", "Sell_to_Customer_Name");
 		NavPosPagesStartupCheck.check(env);
 		System.out.println(NavPosPagesStartupCheck.summary(env));
 		NavPosPagesProperties properties = Binder.get(env).bind(NavPosPagesProperties.PREFIX, NavPosPagesProperties.class)

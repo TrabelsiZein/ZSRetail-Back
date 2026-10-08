@@ -48,14 +48,15 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 	void decrementStockQuantityUnconditional(@Param("itemId") Long itemId, @Param("quantity") int quantity);
 
 	/**
-	 * Invoices from the ERP, step (c): the cost of an item received on an ERP invoice (cost price, last direct cost, last
-	 * direct net cost), by id. A bulk update: it never writes the stock, which the same reception changes by native
-	 * updates (saving the item entity would put back the stock it was loaded with).
+	 * Invoices from the ERP: the costs of an item received on an ERP invoice, by id: last direct cost = the gross unit
+	 * price, last direct net cost and cost price = the net unit cost. Never the selling price (unit price) nor the stock:
+	 * a bulk update, because the same reception changes the stock by native updates (saving the item entity would put
+	 * back the stock it was loaded with).
 	 */
 	@Modifying(flushAutomatically = true)
-	@Query("update Item x set x.costPrice = :cost, x.lastDirectCost = :cost, x.lastDirectNetCost = :cost,"
+	@Query("update Item x set x.lastDirectCost = :gross, x.lastDirectNetCost = :net, x.costPrice = :net,"
 			+ " x.updatedBy = :by where x.id = :id")
-	int updateCost(@Param("id") Long id, @Param("cost") Double cost, @Param("by") String by);
+	int updateCost(@Param("id") Long id, @Param("gross") Double gross, @Param("net") Double net, @Param("by") String by);
 
 	Optional<Item> findByItemCode(String itemCode);
 

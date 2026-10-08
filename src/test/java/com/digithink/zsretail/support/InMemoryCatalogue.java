@@ -241,10 +241,10 @@ public final class InMemoryCatalogue {
 					if (item == null) {
 						return 0;
 					}
-					item.setCostPrice((Double) args[1]);
 					item.setLastDirectCost((Double) args[1]);
-					item.setLastDirectNetCost((Double) args[1]);
-					item.setUpdatedBy((String) args[2]);
+					item.setLastDirectNetCost((Double) args[2]);
+					item.setCostPrice((Double) args[2]);
+					item.setUpdatedBy((String) args[3]);
 					costUpdates++;
 					return 1;
 				}

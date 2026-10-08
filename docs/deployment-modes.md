@@ -166,7 +166,7 @@ writes to the ERP). The lines go in the head office's **outside file** (e.g. `co
 | `erp.navpospages.dry-run` (step 6) | `true` (read, compare, summary only) \| `false` | `false` |
 | `erp.navpospages.page.invoices` (invoices from the ERP) | Web service name of the posted franchise invoices; when set, `invoices.years` is required | `FactureFranchise` |
 | `erp.navpospages.invoices.lines-expand` | Navigation property of the lines (`$expand`) | `FactureFranchiseSalesInvLines` |
-| `erp.navpospages.invoices.customer-field` | Header field of the customer, letters, digits, `_` (`Sell_to_Customer_Name` on test data without the number) | `Sell_to_Customer_No` |
+| `erp.navpospages.invoices.customer-field` | Header field of the customer, letters, digits, `_`. The invoices are mapped by `Sell_to_Customer_No` (on the Happyness page since 2026-10-09): a store's "ERP customer number" is its BC customer number | `Sell_to_Customer_No` |
 | `erp.navpospages.invoices.number-prefix` | Start of every number, no spaces; the year follows in 2 digits (`FVV` + `26`) | `FVV` |
 | `erp.navpospages.invoices.years` | Years read at each run, 2000 to 2099, each once, e.g. `2025,2026`; absent: the invoices are not read | none |
 | `erp.navpospages.invoices.start-number` | The last invoice before the go-live, a number of one of those years; used only for its year while the head office has no invoice of it | none |

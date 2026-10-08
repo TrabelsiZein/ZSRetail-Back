@@ -179,7 +179,8 @@ class DeliveryReceptionServiceTest {
 		assertEquals(5, stock.stockOf("B001"));
 		Item b001 = item("B001");
 		assertEquals(6.0, b001.getCostPrice());
-		assertEquals(6.0, b001.getLastDirectCost());
+		assertEquals(10.0, b001.getLastDirectCost(), "the unit price before the 40 % discount");
+		assertEquals(10.0, b001.getUnitPrice(), "the selling price is never touched");
 		assertEquals(6.0, b001.getLastDirectNetCost());
 		assertEquals("HEAD_OFFICE", b001.getUpdatedBy());
 		assertTrue(invoice().getLines().get(0).getCostApplied());
@@ -216,22 +217,75 @@ class DeliveryReceptionServiceTest {
 		assertEquals(Integer.valueOf(-1), row.getDifference());
 	}
 
+	/** A paid line as BC gives it: unit price before discount, the line discount, amount = quantity x net. */
+	static ErpInvoiceCopyDTO.Line paidLine(int lineNo, String code, int quantity, double unitPrice, double discount,
+			double amount) {
+		ErpInvoiceCopyDTO.Line line = itemLine(lineNo, code, quantity, amount);
+		line.setUnitPrice(unitPrice);
+		line.setLineDiscountPercent(discount);
+		return line;
+	}
+
 	@Test
-	@DisplayName("Two paid lines of one item: weighted cost; a line at amount 0 puts its stock in and never changes the cost")
-	void weightedCostAndTester() {
-		reception.saveReceived(erpCopy(NUMBER, itemLine(10000, "B001", 6, 36), itemLine(20000, "B001", 4, 32),
+	@DisplayName("A 40 % line of BC (FVV21000000218): last direct cost = the unit price, net cost and cost price = the net unit cost")
+	void grossAndNetFromDiscount() {
+		reception.saveReceived(erpCopy(NUMBER, paidLine(20000, "B001", 1, 58.82353, 40, 35.294)));
+		reception.receive(invoice().getId(), null, "responsible");
+		Item b001 = item("B001");
+		assertEquals(58.82353, b001.getLastDirectCost(), "before the line discount, before VAT");
+		assertEquals(35.294, b001.getLastDirectNetCost(), "58.82353 x (1 - 40 %), as BC rounded the line amount");
+		assertEquals(35.294, b001.getCostPrice());
+		assertEquals(10.0, b001.getUnitPrice(), "the selling price is never touched");
+	}
+
+	@Test
+	@DisplayName("The same item on two paid lines: the highest line number wins; a line at amount 0 changes no cost")
+	void highestLineWinsAndTester() {
+		reception.saveReceived(erpCopy(NUMBER, paidLine(20000, "B001", 4, 12, 25, 36), paidLine(10000, "B001", 6, 10, 40, 36),
 				itemLine(30000, "B002", 1, 0)));
 		reception.receive(invoice().getId(), null, "responsible");
 
 		assertEquals(10, stock.stockOf("B001"));
-		assertEquals(6.8, item("B001").getCostPrice(), "(36 + 32) / (6 + 4)");
+		assertEquals(12.0, item("B001").getLastDirectCost(), "line 20000");
+		assertEquals(9.0, item("B001").getLastDirectNetCost(), "36 / 4");
+		assertEquals(9.0, item("B001").getCostPrice());
 		assertEquals(1, stock.stockOf("B002"));
 		assertEquals(9.0, item("B002").getCostPrice(), "a tester at 0 never changes the cost");
+		assertEquals(9.0, item("B002").getLastDirectCost());
 		assertNull(invoice().getLines().get(2).getCostApplied());
-		assertEquals(1, db.costUpdates, "one cost per item, written once");
+		assertEquals(1, db.costUpdates, "one write per item, once");
 
 		reception.applyWaitingStock(); // later cycles change nothing
 		assertEquals(1, db.costUpdates);
+	}
+
+	@Test
+	@DisplayName("Received 0: no stock, the costs are written all the same (the prices are per unit); the selling price untouched")
+	void receivedZeroStillCosts() {
+		reception.saveReceived(erpCopy(NUMBER, paidLine(10000, "B001", 6, 10, 40, 36)));
+		reception.receive(invoice().getId(), quantities(10000, 0), "responsible");
+		assertEquals(0, stock.stockOf("B001"));
+		assertEquals(10.0, item("B001").getLastDirectCost());
+		assertEquals(6.0, item("B001").getCostPrice());
+		assertEquals(10.0, item("B001").getUnitPrice(), "never the selling price");
+		assertTrue(invoice().getLines().get(0).getCostApplied());
+	}
+
+	@Test
+	@DisplayName("An item not here received at 0: it waits; when the catalogue brings it, its three costs go in, no stock")
+	void missingItemReceivedZero() {
+		reception.saveReceived(erpCopy(NUMBER, paidLine(10000, "B009", 3, 20, 10, 54)));
+		reception.receive(invoice().getId(), quantities(10000, 0), "responsible");
+		assertFalse(invoice().getLines().get(0).getStockApplied(), "waits for its item for its costs");
+
+		Item b009 = db.item("B009", 30.0, null);
+		b009.setOrigin(RecordOrigin.HEAD_OFFICE);
+		assertTrue(reception.applyWaitingStock().isEmpty());
+		assertEquals(0, stock.stockOf("B009"));
+		assertEquals(20.0, b009.getLastDirectCost());
+		assertEquals(18.0, b009.getLastDirectNetCost(), "54 / 3 = 20 x (1 - 10 %)");
+		assertEquals(18.0, b009.getCostPrice());
+		assertEquals(30.0, b009.getUnitPrice());
 	}
 
 	@Test
@@ -254,6 +308,7 @@ class DeliveryReceptionServiceTest {
 		assertTrue(still.isEmpty(), still.toString());
 		assertEquals(2, stock.stockOf("B009"));
 		assertEquals(4.0, b009.getCostPrice(), "8 / 2");
+		assertEquals(10.0, b009.getLastDirectCost(), "the unit price of the line");
 		assertTrue(invoice().getLines().get(1).getCostApplied());
 		assertEquals(b009.getId(), waiting.getItem().getId(), "the purchase line attached");
 	}

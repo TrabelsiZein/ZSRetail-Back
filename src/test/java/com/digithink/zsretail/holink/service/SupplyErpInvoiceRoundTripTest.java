@@ -167,6 +167,8 @@ class SupplyErpInvoiceRoundTripTest {
 		reception.receive(atB.getId(), input, "responsible");
 		assertEquals(5, stock.stockOf("B001"));
 		assertEquals(6.0, db.itemByCode("B001").get().getCostPrice());
+		assertEquals(10.0, db.itemByCode("B001").get().getLastDirectCost(), "the invoice's unit price");
+		assertEquals(12.0, db.itemByCode("B001").get().getUnitPrice(), "the selling price is never touched");
 		PurchaseInvoiceHeader purchase = purchases.byNumber(NUMBER);
 		assertEquals(52.36, purchase.getTotalAmount());
 		assertEquals(3, purchases.linesOf(purchase).size());
