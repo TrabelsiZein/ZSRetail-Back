@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,6 +28,17 @@ public interface HoErpInvoiceRepository extends _BaseRepository<HoErpInvoice, Lo
 	/** The invoices still without a store and not held, by number (the second step of a run). */
 	@Query("select i.id from HoErpInvoice i where i.storeId is null and i.held = false order by i.bcNumber")
 	List<Long> findIdsToAssign();
+
+	/** Step (c): the invoices of this store among these numbers in these statuses, never a held one (the copies down). */
+	@Query("select i from HoErpInvoice i where i.storeId = :storeId and i.bcNumber in :numbers and i.status in :statuses"
+			+ " and i.held = false")
+	List<HoErpInvoice> findForStore(@Param("storeId") Long storeId, @Param("numbers") Collection<String> numbers,
+			@Param("statuses") Collection<ErpInvoiceStatus> statuses);
+
+	/** Step (c): [bc_number, store_id] of every invoice given to a store and not held, by number (the backfill). */
+	@Query("select i.bcNumber, i.storeId from HoErpInvoice i where i.storeId is not null and i.held = false"
+			+ " order by i.bcNumber")
+	List<Object[]> findAssignedTargets();
 
 	/** The invoice, its row locked until the caller's transaction ends (an assignment, a confirmation). */
 	@Lock(LockModeType.PESSIMISTIC_WRITE)

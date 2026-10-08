@@ -54,6 +54,8 @@ public final class InMemoryCatalogue {
 
 	/** Saves per table, to prove that nothing was written. */
 	public int itemSaves;
+	/** Invoices from the ERP: ItemRepository.updateCost calls. */
+	public int costUpdates;
 	public int barcodeSaves;
 
 	public InMemoryCatalogue(long firstId) {
@@ -234,6 +236,18 @@ public final class InMemoryCatalogue {
 					return items.values().stream().filter(i -> Boolean.TRUE.equals(i.getOwnPrice())).collect(Collectors.toList());
 				case "countByOwnPriceTrue":
 					return items.values().stream().filter(i -> Boolean.TRUE.equals(i.getOwnPrice())).count();
+				case "updateCost": { // invoices from the ERP: the three costs only, never the stock
+					Item item = items.get(args[0]);
+					if (item == null) {
+						return 0;
+					}
+					item.setCostPrice((Double) args[1]);
+					item.setLastDirectCost((Double) args[1]);
+					item.setLastDirectNetCost((Double) args[1]);
+					item.setUpdatedBy((String) args[2]);
+					costUpdates++;
+					return 1;
+				}
 				case "save":
 					itemSaves++;
 					return common(items, method, args);

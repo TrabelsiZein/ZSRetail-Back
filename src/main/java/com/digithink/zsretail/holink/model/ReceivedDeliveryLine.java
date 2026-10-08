@@ -2,12 +2,15 @@ package com.digithink.zsretail.holink.model;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.EnumType;
+import javax.persistence.Enumerated;
 import javax.persistence.FetchType;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
 
+import com.digithink.zsretail.holink.enumeration.ReceivedLineType;
 import com.digithink.zsretail.model._BaseEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -39,6 +42,7 @@ public class ReceivedDeliveryLine extends _BaseEntity {
 	@Column(name = "line_no", nullable = false)
 	private Integer lineNo;
 
+	/** The head office item code; "" on an OTHER line of an ERP invoice (no item; the column stays NOT NULL). */
 	@Column(name = "item_code", nullable = false, length = 100)
 	private String itemCode;
 
@@ -59,4 +63,33 @@ public class ReceivedDeliveryLine extends _BaseEntity {
 	/** Null until confirmed; then true once the quantity is in the stock (or nothing to add), false while it waits. */
 	@Column(name = "stock_applied")
 	private Boolean stockApplied;
+
+	/** Invoices from the ERP, step (c): ITEM or OTHER; null reads as ITEM (every BL line). */
+	@Enumerated(EnumType.STRING)
+	@Column(name = "line_type", length = 10)
+	private ReceivedLineType lineType = ReceivedLineType.ITEM;
+
+	/** ERP invoice: the ERP's unit price before the line discount. */
+	@Column(name = "unit_price")
+	private Double unitPrice;
+
+	@Column(name = "line_discount_percent")
+	private Double lineDiscountPercent;
+
+	/** ERP invoice: after the line discount, before the VAT. */
+	@Column(name = "line_amount")
+	private Double lineAmount;
+
+	/** ERP invoice: line_amount / quantity invoiced; null at amount 0 and on an OTHER line (never a cost then). */
+	@Column(name = "unit_cost")
+	private Double unitCost;
+
+	/** ERP invoice: true once the cost went into the item; null while not (yet) or never. */
+	@Column(name = "cost_applied")
+	private Boolean costApplied;
+
+	/** True for an item line (a BL line, an ERP ITEM line). */
+	public boolean isItemLine() {
+		return lineType != ReceivedLineType.OTHER;
+	}
 }

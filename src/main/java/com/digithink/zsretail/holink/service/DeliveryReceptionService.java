@@ -1,5 +1,7 @@
 package com.digithink.zsretail.holink.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -24,9 +26,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeSupply;
 import com.digithink.zsretail.headoffice.dto.DeliveryCopyDTO;
+import com.digithink.zsretail.headoffice.dto.ErpInvoiceCopyDTO;
 import com.digithink.zsretail.holink.dto.ReceivedDeliveryDTO;
 import com.digithink.zsretail.holink.dto.ReceptionInputDTO;
 import com.digithink.zsretail.holink.enumeration.ReceivedDeliveryStatus;
+import com.digithink.zsretail.holink.enumeration.ReceivedDocumentKind;
+import com.digithink.zsretail.holink.enumeration.ReceivedLineType;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
 import com.digithink.zsretail.holink.model.ReceivedDelivery;
 import com.digithink.zsretail.holink.model.ReceivedDeliveryLine;
@@ -55,6 +60,7 @@ public class DeliveryReceptionService {
 	static final int DEFAULT_SIZE = 20;
 	static final int MAX_SIZE = 200;
 	static final int TIMEOUT_SECONDS = 15;
+	static final int COST_SCALE = 5;
 
 	private final ReceivedDeliveryRepository deliveries;
 	private final ItemRepository items;
@@ -63,21 +69,33 @@ public class DeliveryReceptionService {
 	private final TransactionOperations transactions;
 	private final Supplier<LocalDateTime> clock;
 
+	/** Invoices from the ERP, step (c): the purchase invoice of a received ERP invoice; null in the BL-only tests. */
+	private final SupplyInvoiceWriter invoiceWriter;
+
 	@Autowired
 	public DeliveryReceptionService(ReceivedDeliveryRepository deliveries, ItemRepository items, StockService stock,
-			StockMovementService movements, PlatformTransactionManager transactionManager) {
-		this(deliveries, items, stock, movements, timed(transactionManager), LocalDateTime::now);
+			StockMovementService movements, PlatformTransactionManager transactionManager,
+			SupplyInvoiceWriter invoiceWriter) {
+		this(deliveries, items, stock, movements, timed(transactionManager), LocalDateTime::now, invoiceWriter);
 	}
 
-	/** With given transactions and clock: used by the tests. */
+	/** With given transactions and clock, without the purchase invoices of ERP invoices: used by the tests. */
 	public DeliveryReceptionService(ReceivedDeliveryRepository deliveries, ItemRepository items, StockService stock,
 			StockMovementService movements, TransactionOperations transactions, Supplier<LocalDateTime> clock) {
+		this(deliveries, items, stock, movements, transactions, clock, null);
+	}
+
+	/** With given transactions, clock and purchase invoice writer: used by the tests. */
+	public DeliveryReceptionService(ReceivedDeliveryRepository deliveries, ItemRepository items, StockService stock,
+			StockMovementService movements, TransactionOperations transactions, Supplier<LocalDateTime> clock,
+			SupplyInvoiceWriter invoiceWriter) {
 		this.deliveries = deliveries;
 		this.items = items;
 		this.stock = stock;
 		this.movements = movements;
 		this.transactions = transactions;
 		this.clock = clock;
+		this.invoiceWriter = invoiceWriter;
 	}
 
 	private static TransactionTemplate timed(PlatformTransactionManager transactionManager) {
@@ -143,13 +161,70 @@ public class DeliveryReceptionService {
 	}
 
 	/**
-	 * Every cycle (also when the head office is unreachable): the lines of the BLs to receive whose item has arrived get
-	 * it; the confirmed lines that wait for their item get their stock once it is here, each BL in its own transaction.
-	 * Answers, per BL that still waits, the item codes still missing.
+	 * Invoices from the ERP, step (c): an invoice of the ERP received from the head office (record ERPINV:). A new number
+	 * is saved TO_RECEIVE, kind ERP_INVOICE, with the seller, the customer and the ERP's totals: each ITEM line resolved to
+	 * this store's head office item or waiting, exactly like a BL line (quantity sent = quantity invoiced); each OTHER line
+	 * kept with its amount, no item, no quantity. A number already here is left as it is. Called inside the handler's
+	 * transaction.
+	 */
+	@Transactional(rollbackFor = Exception.class)
+	public Outcome saveReceived(ErpInvoiceCopyDTO copy) {
+		Optional<ReceivedDelivery> existing = deliveries.findByNumber(copy.getInvoiceNumber());
+		if (existing.isPresent()) {
+			return new Outcome(false, missingCodes(existing.get()));
+		}
+		ReceivedDelivery delivery = new ReceivedDelivery();
+		delivery.setNumber(copy.getInvoiceNumber());
+		delivery.setDocumentKind(ReceivedDocumentKind.ERP_INVOICE);
+		delivery.setDocumentDate(copy.getDocumentDate() == null ? null : LocalDate.parse(copy.getDocumentDate()));
+		delivery.setSentAt(copy.getSentAt() == null ? null : LocalDateTime.parse(copy.getSentAt()));
+		delivery.setSellerName(cut(copy.getSellerName(), ReceivedDelivery.NAME_LENGTH));
+		delivery.setCustomerName(cut(copy.getCustomerName(), ReceivedDelivery.NAME_LENGTH));
+		delivery.setTotalExclVat(copy.getTotalExclVat());
+		delivery.setTotalVat(copy.getTotalVat());
+		delivery.setTotalInclVat(copy.getTotalInclVat());
+		delivery.setStatus(ReceivedDeliveryStatus.TO_RECEIVE);
+		for (ErpInvoiceCopyDTO.Line lineCopy : copy.getLines()) {
+			boolean other = ReceivedLineType.OTHER.name().equals(lineCopy.getLineType());
+			if (lineCopy.getLineNo() == null || (!other && (lineCopy.getItemCode() == null
+					|| lineCopy.getItemCode().trim().isEmpty() || lineCopy.getQuantity() == null))) {
+				throw new IllegalArgumentException("line without number, item code or quantity");
+			}
+			ReceivedDeliveryLine line = new ReceivedDeliveryLine();
+			line.setDelivery(delivery);
+			line.setLineNo(lineCopy.getLineNo());
+			line.setLineType(other ? ReceivedLineType.OTHER : ReceivedLineType.ITEM);
+			line.setItemCode(other ? "" : lineCopy.getItemCode().trim());
+			line.setItemName(lineCopy.getDescription());
+			line.setQuantitySent(other ? 0 : lineCopy.getQuantity());
+			line.setItemId(other ? null : headOfficeItem(line.getItemCode()).map(Item::getId).orElse(null));
+			line.setUnitPrice(lineCopy.getUnitPrice());
+			line.setLineDiscountPercent(lineCopy.getLineDiscountPercent());
+			line.setLineAmount(lineCopy.getLineAmount());
+			line.setUnitCost(other ? null : lineCopy.getUnitCost());
+			delivery.getLines().add(line);
+		}
+		ReceivedDelivery saved = deliveries.save(delivery);
+		log.info("Head office link: ERP invoice {} received, {} lines to receive", saved.getNumber(),
+				saved.getLines().size());
+		return new Outcome(true, missingCodes(saved));
+	}
+
+	/** The record code of a received document: BL:&lt;number&gt; or ERPINV:&lt;number&gt;. */
+	static String recordCode(ReceivedDelivery delivery) {
+		return delivery.isErpInvoice() ? ErpInvoiceCopyDTO.recordCode(delivery.getNumber())
+				: DeliveryCopyDTO.recordCode(delivery.getNumber());
+	}
+
+	/**
+	 * Every cycle (also when the head office is unreachable): the lines of the documents to receive whose item has arrived
+	 * get it; the confirmed lines that wait for their item get their stock once it is here (and, on an ERP invoice, their
+	 * cost, and their item on the purchase invoice), each document in its own transaction. Answers, per document that
+	 * still waits (by its record code, BL:&lt;number&gt; or ERPINV:&lt;number&gt;), the item codes still missing.
 	 */
 	public Map<String, List<String>> applyWaitingStock() {
-		List<Long> toResolve = transactions
-				.execute(status -> deliveries.findIdsWithMissingItem(ReceivedDeliveryStatus.TO_RECEIVE));
+		List<Long> toResolve = transactions.execute(
+				status -> deliveries.findIdsWithMissingItem(ReceivedDeliveryStatus.TO_RECEIVE, ReceivedLineType.OTHER));
 		for (Long id : toResolve == null ? new ArrayList<Long>() : toResolve) {
 			transactions.executeWithoutResult(status -> deliveries.findForUpdate(id).ifPresent(delivery -> {
 				if (delivery.getStatus() == ReceivedDeliveryStatus.TO_RECEIVE && resolveItems(delivery)) {
@@ -163,11 +238,14 @@ public class DeliveryReceptionService {
 			transactions.executeWithoutResult(status -> deliveries.findForUpdate(id).ifPresent(delivery -> {
 				if (applyStock(delivery)) {
 					deliveries.save(delivery);
+					if (delivery.isErpInvoice() && invoiceWriter != null) {
+						invoiceWriter.attachItems(delivery); // the purchase invoice lines get the items that arrived
+					}
 				}
 				List<String> still = delivery.getLines().stream().filter(l -> Boolean.FALSE.equals(l.getStockApplied()))
 						.map(ReceivedDeliveryLine::getItemCode).collect(Collectors.toList());
 				if (!still.isEmpty()) {
-					waiting.put(delivery.getNumber(), still);
+					waiting.put(recordCode(delivery), still);
 				}
 			}));
 		}
@@ -200,6 +278,11 @@ public class DeliveryReceptionService {
 		}
 		resolveItems(delivery);
 		for (ReceivedDeliveryLine line : delivery.getLines()) {
+			if (!line.isItemLine()) { // an OTHER line of an ERP invoice: no quantity, nothing to put in the stock
+				line.setQuantityReceived(null);
+				line.setStockApplied(Boolean.TRUE);
+				continue;
+			}
 			Integer quantity = quantities.get(line.getLineNo());
 			line.setQuantityReceived(quantity == null ? line.getQuantitySent() : quantity);
 			line.setStockApplied(Boolean.FALSE);
@@ -212,6 +295,12 @@ public class DeliveryReceptionService {
 		delivery.setPushStatus(SalesCopyStatus.PENDING);
 		delivery.setAttempts(0);
 		delivery.setLastError(null);
+		if (delivery.isErpInvoice() && invoiceWriter != null) {
+			// Invoices from the ERP: the purchase invoice in the same transaction, as the ERP invoiced it (never the
+			// quantities received)
+			invoiceWriter.saveFromErpInvoice(delivery);
+			delivery.setInvoiceNumber(delivery.getNumber());
+		}
 		ReceivedDelivery saved = deliveries.save(delivery);
 		log.info("Head office link: BL {} received by {}: {} of {} items", saved.getNumber(), user,
 				total(saved, true), total(saved, false));
@@ -225,10 +314,15 @@ public class DeliveryReceptionService {
 			return quantities;
 		}
 		List<Integer> given = new ArrayList<>();
+		List<Integer> others = delivery.getLines().stream().filter(l -> !l.isItemLine())
+				.map(ReceivedDeliveryLine::getLineNo).collect(Collectors.toList());
 		for (ReceptionInputDTO.Line line : input.getLines()) {
 			if (line == null || line.getLineNo() == null || !known.contains(line.getLineNo())) {
 				throw new IllegalArgumentException("Unknown line " + (line == null ? null : line.getLineNo()) + " on "
 						+ delivery.getNumber() + ".");
+			}
+			if (others.contains(line.getLineNo()) && line.getQuantityReceived() != null) {
+				throw new IllegalArgumentException("Line " + line.getLineNo() + " has no item: it takes no quantity.");
 			}
 			if (given.contains(line.getLineNo())) {
 				throw new IllegalArgumentException("Line " + line.getLineNo() + " is given twice.");
@@ -245,11 +339,11 @@ public class DeliveryReceptionService {
 		return quantities;
 	}
 
-	/** Lines without an item get it when it is here now. True when one changed. */
+	/** Item lines without an item get it when it is here now (an OTHER line never has one). True when one changed. */
 	private boolean resolveItems(ReceivedDelivery delivery) {
 		boolean changed = false;
 		for (ReceivedDeliveryLine line : delivery.getLines()) {
-			if (line.getItemId() == null) {
+			if (line.getItemId() == null && line.isItemLine()) {
 				Optional<Item> item = headOfficeItem(line.getItemCode());
 				if (item.isPresent()) {
 					line.setItemId(item.get().getId());
@@ -281,6 +375,46 @@ public class DeliveryReceptionService {
 			line.setStockApplied(Boolean.TRUE);
 			changed = true;
 		}
+		return applyCost(delivery) || changed;
+	}
+
+	/**
+	 * Invoices from the ERP, step (c): the cost of each item of the invoice once its stock went in, written once. For an
+	 * item with a paid line (unit cost known, amount above 0) received above 0 and in the stock, not done yet: cost = sum of
+	 * its paid lines' amounts / sum of their quantities invoiced (the ERP's net price; one line: its unit cost), into the
+	 * cost price, last direct cost and last direct net cost of this store's head office item; every paid line of the item
+	 * is then marked done. A line at amount 0 (a tester) never changes the cost; a BL has no cost. True when one changed.
+	 */
+	private boolean applyCost(ReceivedDelivery delivery) {
+		if (!delivery.isErpInvoice()) {
+			return false;
+		}
+		Map<Long, List<ReceivedDeliveryLine>> paidByItem = new LinkedHashMap<>();
+		for (ReceivedDeliveryLine line : delivery.getLines()) {
+			if (line.isItemLine() && line.getItemId() != null && line.getUnitCost() != null && line.getLineAmount() != null
+					&& line.getLineAmount() != 0 && line.getQuantitySent() != null && line.getQuantitySent() > 0) {
+				paidByItem.computeIfAbsent(line.getItemId(), id -> new ArrayList<>()).add(line);
+			}
+		}
+		boolean changed = false;
+		for (Map.Entry<Long, List<ReceivedDeliveryLine>> item : paidByItem.entrySet()) {
+			boolean due = item.getValue().stream().anyMatch(l -> !Boolean.TRUE.equals(l.getCostApplied())
+					&& Boolean.TRUE.equals(l.getStockApplied()) && l.getQuantityReceived() != null
+					&& l.getQuantityReceived() > 0);
+			if (!due) {
+				continue;
+			}
+			BigDecimal amount = BigDecimal.ZERO;
+			int quantity = 0;
+			for (ReceivedDeliveryLine line : item.getValue()) {
+				amount = amount.add(BigDecimal.valueOf(line.getLineAmount()));
+				quantity += line.getQuantitySent();
+			}
+			double cost = amount.divide(BigDecimal.valueOf(quantity), COST_SCALE, RoundingMode.HALF_UP).doubleValue();
+			items.updateCost(item.getKey(), cost, SupplyInvoiceWriter.WRITER);
+			item.getValue().forEach(l -> l.setCostApplied(Boolean.TRUE));
+			changed = true;
+		}
 		return changed;
 	}
 
@@ -290,8 +424,8 @@ public class DeliveryReceptionService {
 	}
 
 	private static List<String> missingCodes(ReceivedDelivery delivery) {
-		return delivery.getLines().stream().filter(l -> l.getItemId() == null).map(ReceivedDeliveryLine::getItemCode)
-				.collect(Collectors.toList());
+		return delivery.getLines().stream().filter(l -> l.getItemId() == null && l.isItemLine())
+				.map(ReceivedDeliveryLine::getItemCode).collect(Collectors.toList());
 	}
 
 	// ─── Reads ───────────────────────────────────────────────────
@@ -370,6 +504,12 @@ public class DeliveryReceptionService {
 		view.setInvoiceNumber(delivery.getInvoiceNumber());
 		view.setPushStatus(delivery.getPushStatus() == null ? null : delivery.getPushStatus().name());
 		view.setLastError(delivery.getLastError());
+		view.setDocumentKind(delivery.kindOrBl().name());
+		view.setSellerName(delivery.getSellerName());
+		view.setCustomerName(delivery.getCustomerName());
+		view.setTotalExclVat(delivery.getTotalExclVat());
+		view.setTotalVat(delivery.getTotalVat());
+		view.setTotalInclVat(delivery.getTotalInclVat());
 		Integer received = null;
 		boolean difference = false;
 		int missing = 0;
@@ -380,7 +520,7 @@ public class DeliveryReceptionService {
 				received = (received == null ? 0 : received) + line.getQuantityReceived();
 				difference |= !line.getQuantityReceived().equals(line.getQuantitySent());
 			}
-			missing += line.getItemId() == null ? 1 : 0;
+			missing += line.getItemId() == null && line.isItemLine() ? 1 : 0;
 			waiting += Boolean.FALSE.equals(line.getStockApplied()) ? 1 : 0;
 			if (withLines) {
 				ReceivedDeliveryDTO.Line row = new ReceivedDeliveryDTO.Line();
@@ -393,9 +533,22 @@ public class DeliveryReceptionService {
 				row.setDifference(line.getQuantityReceived() == null ? null
 						: line.getQuantityReceived() - line.getQuantitySent());
 				row.setStockApplied(line.getStockApplied());
-				row.setStoreStock(!withStock || line.getItemId() == null ? null
-						: items.findById(line.getItemId()).map(i -> i.getStockQuantity() == null ? 0 : i.getStockQuantity())
-								.orElse(null));
+				Optional<Item> item = !withStock || line.getItemId() == null ? Optional.empty()
+						: items.findById(line.getItemId());
+				row.setStoreStock(item.map(i -> i.getStockQuantity() == null ? 0 : i.getStockQuantity()).orElse(null));
+				row.setLineType((line.isItemLine() ? ReceivedLineType.ITEM : ReceivedLineType.OTHER).name());
+				row.setUnitPrice(line.getUnitPrice());
+				row.setLineDiscountPercent(line.getLineDiscountPercent());
+				row.setLineAmount(line.getLineAmount());
+				row.setUnitCost(line.getUnitCost());
+				row.setCostApplied(line.getCostApplied());
+				if (delivery.isErpInvoice()) {
+					row.setSellingPrice(item.map(DeliveryReceptionService::sellingPrice).orElse(null));
+					Integer counted = line.getQuantityReceived() != null ? line.getQuantityReceived() : line.getQuantitySent();
+					row.setLineTotal(line.getUnitCost() == null || counted == null ? null
+							: BigDecimal.valueOf(line.getUnitCost()).multiply(BigDecimal.valueOf(counted))
+									.setScale(3, RoundingMode.HALF_UP).doubleValue());
+				}
 				lines.add(row);
 			}
 		}
@@ -407,6 +560,16 @@ public class DeliveryReceptionService {
 		view.setStockWaiting(waiting);
 		view.setLines(withLines ? lines : null);
 		return view;
+	}
+
+	/** The store's own price of the item with its VAT (unit price x (1 + VAT / 100)), 3 decimals; null without a price. */
+	static Double sellingPrice(Item item) {
+		if (item.getUnitPrice() == null) {
+			return null;
+		}
+		BigDecimal rate = BigDecimal.ONE
+				.add(BigDecimal.valueOf(item.getDefaultVAT() == null ? 0 : item.getDefaultVAT()).movePointLeft(2));
+		return BigDecimal.valueOf(item.getUnitPrice()).multiply(rate).setScale(3, RoundingMode.HALF_UP).doubleValue();
 	}
 
 	private static int total(ReceivedDelivery delivery, boolean received) {

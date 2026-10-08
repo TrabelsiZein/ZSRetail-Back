@@ -88,6 +88,11 @@ public class NavPosPagesProperties {
 		private String startNumber;
 		/** Invoices read per year and run at most. */
 		private int maxPerRun = 50;
+		/**
+		 * Step (c): the seller named on the stores' purchase invoices (read by the head office, HoErpInvoiceService); the
+		 * vendor HEAD_OFFICE of a store is created with it.
+		 */
+		private String sellerName = "Head office";
 
 		/** numberPrefix + the 2 digits of the year: FVV26 for 2026. */
 		public String yearPrefix(int year) {

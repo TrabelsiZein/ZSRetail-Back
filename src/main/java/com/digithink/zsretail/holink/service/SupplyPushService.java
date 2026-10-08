@@ -317,6 +317,9 @@ public class SupplyPushService {
 		confirmation.setReceivedBy(delivery.getReceivedBy());
 		confirmation.setNote(delivery.getStoreNote());
 		for (ReceivedDeliveryLine line : delivery.getLines()) {
+			if (!line.isItemLine()) {
+				continue; // an OTHER line of an ERP invoice is never received: the head office expects the item lines only
+			}
 			confirmation.getLines()
 					.add(new DeliveryConfirmationDTO.Line(line.getLineNo(), line.getItemCode(), line.getQuantityReceived()));
 		}

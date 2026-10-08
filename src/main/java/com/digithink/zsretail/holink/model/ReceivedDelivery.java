@@ -17,6 +17,7 @@ import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
 
 import com.digithink.zsretail.holink.enumeration.ReceivedDeliveryStatus;
+import com.digithink.zsretail.holink.enumeration.ReceivedDocumentKind;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
 import com.digithink.zsretail.model._BaseEntity;
 
@@ -41,6 +42,7 @@ public class ReceivedDelivery extends _BaseEntity {
 	public static final int NOTE_LENGTH = 500;
 	public static final int USER_LENGTH = 100;
 	public static final int LAST_ERROR_LENGTH = 1000;
+	public static final int NAME_LENGTH = 200;
 
 	@Column(name = "delivery_number", nullable = false, length = 30)
 	private String number;
@@ -88,6 +90,39 @@ public class ReceivedDelivery extends _BaseEntity {
 	/** Step 7B: the head office invoice of this BL, once it arrived; null otherwise. */
 	@Column(name = "invoice_number", length = 30)
 	private String invoiceNumber;
+
+	/** Invoices from the ERP, step (c): a BL or an ERP invoice; null reads as BL (rows before step c). */
+	@Enumerated(EnumType.STRING)
+	@Column(name = "document_kind", length = 20)
+	private ReceivedDocumentKind documentKind = ReceivedDocumentKind.BL;
+
+	/** ERP invoice: the seller named on the purchase invoice. */
+	@Column(name = "seller_name", length = NAME_LENGTH)
+	private String sellerName;
+
+	/** ERP invoice: the customer of the invoice (this store, as the ERP names it). */
+	@Column(name = "customer_name", length = NAME_LENGTH)
+	private String customerName;
+
+	/** ERP invoice: the ERP's three totals, copied, never recomputed. */
+	@Column(name = "total_excl_vat")
+	private Double totalExclVat;
+
+	@Column(name = "total_vat")
+	private Double totalVat;
+
+	@Column(name = "total_incl_vat")
+	private Double totalInclVat;
+
+	/** BL or ERP_INVOICE; a row without a kind is a BL. */
+	public ReceivedDocumentKind kindOrBl() {
+		return documentKind == null ? ReceivedDocumentKind.BL : documentKind;
+	}
+
+	/** True for an invoice of the ERP. */
+	public boolean isErpInvoice() {
+		return kindOrBl() == ReceivedDocumentKind.ERP_INVOICE;
+	}
 
 	@OneToMany(mappedBy = "delivery", cascade = CascadeType.ALL, orphanRemoval = true)
 	@OrderBy("lineNo")

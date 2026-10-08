@@ -94,10 +94,10 @@ public final class InMemoryReceivedDeliveries {
 					return counts.entrySet().stream().map(e -> new Object[] { e.getKey(), e.getValue() })
 							.collect(Collectors.toList());
 				}
-				case "findIdsWithMissingItem":
-					return deliveries.values().stream().filter(d -> d.getStatus() == args[0]
-							&& d.getLines().stream().anyMatch(l -> l.getItemId() == null)).map(ReceivedDelivery::getId)
-							.collect(Collectors.toList());
+				case "findIdsWithMissingItem": // an OTHER line (args[1]) never waits for an item
+					return deliveries.values().stream().filter(d -> d.getStatus() == args[0] && d.getLines().stream()
+							.anyMatch(l -> l.getItemId() == null && l.getLineType() != args[1]))
+							.map(ReceivedDelivery::getId).collect(Collectors.toList());
 				case "findIdsWithStock":
 					return deliveries.values().stream()
 							.filter(d -> d.getLines().stream().anyMatch(l -> Objects.equals(l.getStockApplied(), args[0])))

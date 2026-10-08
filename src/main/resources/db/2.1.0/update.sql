@@ -94,6 +94,32 @@ IF OBJECT_ID('hol_delivery') IS NOT NULL AND COL_LENGTH('hol_delivery', 'invoice
 	ALTER TABLE hol_delivery ADD invoice_number varchar(30) NULL;
 GO
 
+-- Invoices from the ERP, step (c), at a store: a document received from the head office is a BL or an ERP invoice
+-- (the rows already there: BL), a line an item line or another line of an ERP invoice (the rows already there: ITEM).
+-- The application also reads a null kind as BL and a null line type as ITEM.
+IF OBJECT_ID('hol_delivery') IS NOT NULL
+BEGIN
+	IF COL_LENGTH('hol_delivery', 'document_kind') IS NULL
+		ALTER TABLE hol_delivery ADD document_kind varchar(20) NULL CONSTRAINT df_hol_delivery_document_kind DEFAULT 'BL' WITH VALUES;
+	IF COL_LENGTH('hol_delivery', 'seller_name') IS NULL ALTER TABLE hol_delivery ADD seller_name varchar(200) NULL;
+	IF COL_LENGTH('hol_delivery', 'customer_name') IS NULL ALTER TABLE hol_delivery ADD customer_name varchar(200) NULL;
+	IF COL_LENGTH('hol_delivery', 'total_excl_vat') IS NULL ALTER TABLE hol_delivery ADD total_excl_vat float NULL;
+	IF COL_LENGTH('hol_delivery', 'total_vat') IS NULL ALTER TABLE hol_delivery ADD total_vat float NULL;
+	IF COL_LENGTH('hol_delivery', 'total_incl_vat') IS NULL ALTER TABLE hol_delivery ADD total_incl_vat float NULL;
+END
+GO
+IF OBJECT_ID('hol_delivery_line') IS NOT NULL
+BEGIN
+	IF COL_LENGTH('hol_delivery_line', 'line_type') IS NULL
+		ALTER TABLE hol_delivery_line ADD line_type varchar(10) NULL CONSTRAINT df_hol_delivery_line_type DEFAULT 'ITEM' WITH VALUES;
+	IF COL_LENGTH('hol_delivery_line', 'unit_price') IS NULL ALTER TABLE hol_delivery_line ADD unit_price float NULL;
+	IF COL_LENGTH('hol_delivery_line', 'line_discount_percent') IS NULL ALTER TABLE hol_delivery_line ADD line_discount_percent float NULL;
+	IF COL_LENGTH('hol_delivery_line', 'line_amount') IS NULL ALTER TABLE hol_delivery_line ADD line_amount float NULL;
+	IF COL_LENGTH('hol_delivery_line', 'unit_cost') IS NULL ALTER TABLE hol_delivery_line ADD unit_cost float NULL;
+	IF COL_LENGTH('hol_delivery_line', 'cost_applied') IS NULL ALTER TABLE hol_delivery_line ADD cost_applied bit NULL;
+END
+GO
+
 -- Inventory count (docs/modules/inventory-count.md): two new tables, created here (re-runnable: only when missing) with
 -- the names Hibernate uses, so ddl-auto finds them complete. Used on a store that keeps its own stock; they exist,
 -- empty, everywhere. stock_movement.movement_type gets two new values (INVENTORY_IN, INVENTORY_OUT) within its varchar.
@@ -157,4 +183,4 @@ INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
 ('2.1.0', 'IMPROVE', 'Installation : chaque installation a son fichier machine hors du WAR (base, port, journal, ERP, adresse et clé du siège) et un préréglage (magasin, magasin ERP, siège, siège ERP, magasin du réseau, magasin ERP du réseau). Les anciens profils franchise-admin et franchise-customer sont retirés ; un réseau de franchise s''installe avec les préréglages siège et magasin du réseau.'),
 ('2.1.0', 'IMPROVE', 'Le stock d''un ajustement manuel enregistre maintenant son mouvement, et la modification d''un article ne remplace plus le stock en cours.'),
 ('2.1.0', 'NEW', 'Inventaire : import d''un comptage physique depuis un fichier Excel (code ou code-barres, quantité), écarts avec le stock avant validation, puis le stock prend la quantité comptée avec un mouvement d''inventaire par écart. Magasin qui gère son propre stock uniquement.'),
-('2.1.0', 'NEW', 'Siège avec le catalogue de l''ERP : les factures des magasins franchisés peuvent être lues dans l''ERP (Business Central) au lieu des BL et factures du siège ; chaque facture va au magasin dont le numéro client ERP est celui de la facture.');
+('2.1.0', 'NEW', 'Siège avec le catalogue de l''ERP : les factures des magasins franchisés peuvent être lues dans l''ERP (Business Central) au lieu des BL et factures du siège ; chaque facture va au magasin dont le numéro client ERP est celui de la facture. Le magasin la reçoit en une fois : stock, coût des articles et facture d''achat.');

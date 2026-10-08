@@ -17,7 +17,9 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -32,6 +34,7 @@ import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.service.ErpSynchronizationManager;
 import com.digithink.zsretail.erp.spi.ErpSupplyInvoiceImport;
 import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
+import com.digithink.zsretail.headoffice.dto.ErpInvoiceCopyDTO;
 import com.digithink.zsretail.headoffice.dto.ErpInvoiceDTO;
 import com.digithink.zsretail.headoffice.dto.SalesCopyResultDTO;
 import com.digithink.zsretail.headoffice.enumeration.ErpInvoiceLineType;
@@ -47,6 +50,7 @@ import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.DataOwner;
 import com.digithink.zsretail.repository.ItemRepository;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -63,21 +67,28 @@ import lombok.extern.log4j.Log4j2;
  * customer, active and receiving from the head office (ownership.supply null or HEAD_OFFICE); otherwise its
  * mapping_status says why, and the next run (or {@link #matchStoresNow}) tries again. Nothing is tied to saving a store.</li>
  * </ol>
- * Step (c) sends an assigned invoice to its store (copies down, domain SUPPLY): until then this provider of the domain
- * answers no record ({@link #load}, {@link #currentTargets}) and {@link #afterAssigned} records nothing. The store's
- * confirmations come back through {@link #receiveConfirmations}. See docs/modules/head-office.md, "Invoices from the
- * ERP".
+ * Step (c): an assigned invoice goes to its store only (copies down, domain SUPPLY, record ERPINV:&lt;number&gt;,
+ * {@link ErpInvoiceCopyDTO}): recorded when its store is found ({@link #afterAssigned}), answered by {@link #load}, and
+ * the invoices assigned before are recorded by the startup backfill ({@link #currentTargets}). The store's confirmations
+ * come back through {@link #receiveConfirmations}. See docs/modules/head-office.md, "Invoices from the ERP".
  */
 @Service
 @ConditionalOnHeadOfficeErpSupply
 @Log4j2
 public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmationReceiver, ErpSupplyInvoiceImport {
 
+	static final ObjectMapper COPY_MAPPER = new ObjectMapper();
+
 	static final int DEFAULT_SIZE = 20;
 	static final int MAX_SIZE = 200;
 	static final int COST_SCALE = 5;
 	static final int DESCRIPTION_LENGTH = 255;
 	static final String WARNING_SEPARATOR = "\n";
+	public static final String SELLER_NAME_KEY = "erp.navpospages.invoices.seller-name";
+	public static final String DEFAULT_SELLER_NAME = "Head office";
+	/** Step (c): an invoice goes down once its store is found, and stays readable after the confirmation. */
+	static final List<ErpInvoiceStatus> COPIED_STATUSES = java.util.Arrays.asList(ErpInvoiceStatus.SENT,
+			ErpInvoiceStatus.RECEIVED);
 
 	private final HoErpInvoiceRepository invoices;
 	private final StoreRepository stores;
@@ -87,26 +98,43 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 	private final TransactionOperations writeTransactions;
 	private final Supplier<LocalDateTime> clock;
 
+	/** Step (c): the copies down, where an assigned invoice is recorded for its store; null in the step (b) tests. */
+	private final Supplier<CopiesDownFeed> feed;
+
+	/** Step (c): the seller named on the stores' purchase invoices (erp.navpospages.invoices.seller-name). */
+	private final String sellerName;
+
 	/** The summary of the last run, for the page and run now; null before the first run since the start. */
 	private volatile Map<String, Object> lastRun;
 
 	@Autowired
 	public HoErpInvoiceService(HoErpInvoiceRepository invoices, StoreRepository stores, ItemRepository items,
-			ErpSynchronizationManager erp, PlatformTransactionManager transactionManager) {
+			ErpSynchronizationManager erp, PlatformTransactionManager transactionManager,
+			ObjectProvider<CopiesDownFeed> feed,
+			@Value("${" + SELLER_NAME_KEY + ":" + DEFAULT_SELLER_NAME + "}") String sellerName) {
 		this(invoices, stores, items, erp::pullSupplyInvoices, new TransactionTemplate(transactionManager),
-				LocalDateTime::now);
+				LocalDateTime::now, (Supplier<CopiesDownFeed>) feed::getObject, sellerName);
 	}
 
-	/** With a given ERP read, transactions and clock: used by the tests. */
+	/** With a given ERP read, transactions and clock, without the copies down (step b): used by the tests. */
 	public HoErpInvoiceService(HoErpInvoiceRepository invoices, StoreRepository stores, ItemRepository items,
 			Function<Map<String, String>, List<ErpSupplyInvoiceDTO>> reader, TransactionOperations writeTransactions,
 			Supplier<LocalDateTime> clock) {
+		this(invoices, stores, items, reader, writeTransactions, clock, null, DEFAULT_SELLER_NAME);
+	}
+
+	/** With a given ERP read, transactions, clock, copies down and seller name: used by the tests. */
+	public HoErpInvoiceService(HoErpInvoiceRepository invoices, StoreRepository stores, ItemRepository items,
+			Function<Map<String, String>, List<ErpSupplyInvoiceDTO>> reader, TransactionOperations writeTransactions,
+			Supplier<LocalDateTime> clock, Supplier<CopiesDownFeed> feed, String sellerName) {
 		this.invoices = invoices;
 		this.stores = stores;
 		this.items = items;
 		this.reader = reader;
 		this.writeTransactions = writeTransactions;
 		this.clock = clock;
+		this.feed = feed;
+		this.sellerName = sellerName == null || sellerName.trim().isEmpty() ? DEFAULT_SELLER_NAME : sellerName.trim();
 	}
 
 	// ─── One run (the ERP job) ───────────────────────────────────
@@ -376,12 +404,15 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 	}
 
 	/**
-	 * STEP (c) HOOK, inside the assignment's transaction: the invoice now has its store. Step (c) records it for that store
-	 * here (CopiesDownFeed.recordChange(DataDomain.SUPPLY, record code, StoreTargets.of(store))). Step (b) records
-	 * nothing: no store receives the ERP invoices yet.
+	 * Step (c), inside the assignment's transaction: the invoice is recorded for its store only (domain SUPPLY, record
+	 * ERPINV:&lt;number&gt;), so the store pulls it. Without the copies down (the step b tests) nothing is recorded.
 	 */
 	void afterAssigned(HoErpInvoice invoice, Store store) {
-		// step (c)
+		CopiesDownFeed copies = feed == null ? null : feed.get();
+		if (copies != null) {
+			copies.recordChange(DataDomain.SUPPLY, ErpInvoiceCopyDTO.recordCode(invoice.getBcNumber()),
+					StoreTargets.of(Collections.singletonList(store.getId())));
+		}
 	}
 
 	// ─── Confirmations up ────────────────────────────────────────
@@ -482,16 +513,37 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 		return DataDomain.SUPPLY;
 	}
 
-	/** Step (c) answers the invoices of this store; step (b) answers none (every code removed, nothing sent). */
+	/**
+	 * The invoices of this store among the codes ERPINV:&lt;number&gt;, SENT or RECEIVED, never a held one or one of another
+	 * store (answered as removed). Other codes (BL:, INV: left by a head office that made its own BLs before) are answered
+	 * as removed too: the store only drops its tracking row.
+	 */
 	@Override
 	public Map<String, JsonNode> load(Store store, List<String> codes) {
-		return Collections.emptyMap();
+		List<String> numbers = codes.stream().map(ErpInvoiceCopyDTO::numberOf).filter(n -> n != null)
+				.collect(Collectors.toList());
+		Map<String, JsonNode> copies = new HashMap<>();
+		if (!numbers.isEmpty()) {
+			for (HoErpInvoice invoice : invoices.findForStore(store.getId(), numbers, COPIED_STATUSES)) {
+				copies.put(ErpInvoiceCopyDTO.recordCode(invoice.getBcNumber()),
+						COPY_MAPPER.valueToTree(ErpInvoiceCopyDTO.of(invoice, sellerName)));
+			}
+		}
+		return copies;
 	}
 
-	/** Step (c) gives the assigned invoices; step (b) none, so the startup backfill sends nothing. */
+	/**
+	 * Every invoice given to a store and not held, to its store: the startup backfill records those without a change row
+	 * (the invoices assigned before step c reach their store at the first start of this build).
+	 */
 	@Override
 	public Map<String, StoreTargets> currentTargets() {
-		return Collections.emptyMap();
+		Map<String, StoreTargets> targets = new LinkedHashMap<>();
+		for (Object[] row : invoices.findAssignedTargets()) {
+			targets.put(ErpInvoiceCopyDTO.recordCode((String) row[0]),
+					StoreTargets.of(Collections.singletonList(((Number) row[1]).longValue())));
+		}
+		return targets;
 	}
 
 	// ─── Reads (the page of step d) ──────────────────────────────

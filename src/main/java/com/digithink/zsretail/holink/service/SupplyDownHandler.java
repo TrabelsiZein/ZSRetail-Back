@@ -12,6 +12,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeSupply;
 import com.digithink.zsretail.headoffice.dto.DeliveryCopyDTO;
+import com.digithink.zsretail.headoffice.dto.ErpInvoiceCopyDTO;
 import com.digithink.zsretail.headoffice.dto.SupplyInvoiceCopyDTO;
 import com.digithink.zsretail.holink.dto.DownApplyResult;
 import com.digithink.zsretail.holink.enumeration.DownRecordStatus;
@@ -89,6 +90,10 @@ public class SupplyDownHandler implements DownHandler {
 			JsonNode kind = record == null ? null : record.get("kind");
 			if (kind != null && SupplyInvoiceCopyDTO.KIND.equals(kind.asText())) {
 				applyInvoice(record, result); // step 7B
+				continue;
+			}
+			if (kind != null && ErpInvoiceCopyDTO.KIND.equals(kind.asText())) {
+				applyErpInvoice(record, result); // invoices from the ERP, step (c)
 				continue;
 			}
 			DeliveryCopyDTO copy;
@@ -189,6 +194,51 @@ public class SupplyDownHandler implements DownHandler {
 	}
 
 	/**
+	 * Invoices from the ERP, step (c): an ERP invoice (record ERPINV:&lt;number&gt;) saved once TO_RECEIVE by
+	 * {@link DeliveryReceptionService}, in its own transaction, tracked APPLIED (the information names the items not in
+	 * this store yet) or ERROR (retried). A number already here is never changed.
+	 */
+	private void applyErpInvoice(JsonNode record, DownApplyResult result) {
+		ErpInvoiceCopyDTO copy;
+		try {
+			copy = COPY_MAPPER.treeToValue(record, ErpInvoiceCopyDTO.class);
+		} catch (Exception e) {
+			result.addError(NO_CODE, "unreadable record (" + SalesCopyFinder.cause(e) + ")");
+			return;
+		}
+		if (copy.getInvoiceNumber() == null || copy.getInvoiceNumber().trim().isEmpty()) {
+			result.addError(NO_CODE, "record without an invoice number");
+			return;
+		}
+		String code = ErpInvoiceCopyDTO.recordCode(copy.getInvoiceNumber());
+		String payload = record.toString();
+		try {
+			DeliveryReceptionService.Outcome outcome = transactions.execute(status -> {
+				DeliveryReceptionService.Outcome saved = reception.saveReceived(copy);
+				String info = saved.getMissingItems().isEmpty() ? null
+						: "items not in this store yet: " + String.join(", ", saved.getMissingItems());
+				records.track(DataDomain.SUPPLY, code, copy.getInvoiceNumber(), DownRecordStatus.APPLIED, null, info,
+						payload);
+				return saved;
+			});
+			if (outcome.isWritten()) {
+				result.addApplied();
+			} else {
+				result.addUnchanged();
+			}
+		} catch (RuntimeException e) {
+			String reason = "not saved (" + SalesCopyFinder.cause(e) + ")";
+			result.addError(code, reason);
+			try {
+				transactions.executeWithoutResult(status -> records.track(DataDomain.SUPPLY, code,
+						copy.getInvoiceNumber(), DownRecordStatus.ERROR, reason, null, payload));
+			} catch (RuntimeException ignored) {
+				// counted; retried below at the next cycle
+			}
+		}
+	}
+
+	/**
 	 * Every cycle: BLs and invoices in ERROR are saved again from their copy; the lines waiting for their item are completed and their
 	 * stock applied once (see {@link DeliveryReceptionService#applyWaitingStock}). A BL whose stock still waits counts
 	 * as waiting (the job result is WARNING).
@@ -210,8 +260,8 @@ public class SupplyDownHandler implements DownHandler {
 				}
 			}
 			Map<String, List<String>> waiting = reception.applyWaitingStock();
-			for (Map.Entry<String, List<String>> entry : waiting.entrySet()) {
-				result.addWaiting(DeliveryCopyDTO.recordCode(entry.getKey()),
+			for (Map.Entry<String, List<String>> entry : waiting.entrySet()) { // by record code (BL: or ERPINV:)
+				result.addWaiting(entry.getKey(),
 						"stock in waits: not in this store: item " + String.join(", ", entry.getValue()));
 			}
 		} catch (RuntimeException e) {

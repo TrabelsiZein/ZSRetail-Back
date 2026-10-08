@@ -62,7 +62,7 @@ class QueryParameterBindingTest {
 			ItemSubFamilyRepository.class, ItemBarcodeRepository.class, SalesPriceRepository.class,
 			HoDeliveryRepository.class, HoNumberSequenceRepository.class, ReceivedDeliveryRepository.class,
 			StockCopyRepository.class, HoStoreStockRepository.class, HoItemSupplyPriceRepository.class,
-			HoSupplyInvoiceRepository.class };
+			HoSupplyInvoiceRepository.class, HoErpInvoiceRepository.class }; // invoices from the ERP, steps (b) and (c)
 
 	private static SessionFactory sessionFactory;
 
@@ -145,6 +145,9 @@ class QueryParameterBindingTest {
 		}
 		if (type == Boolean.class || type == boolean.class) {
 			return Boolean.FALSE;
+		}
+		if (type == Double.class || type == double.class) {
+			return 6.8; // invoices from the ERP: ItemRepository.updateCost
 		}
 		if (type.isEnum()) {
 			return type.getEnumConstants()[0];

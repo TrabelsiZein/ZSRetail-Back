@@ -47,6 +47,16 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 	@Query(value = "UPDATE item SET stock_quantity = COALESCE(stock_quantity, 0) - :quantity WHERE id = :itemId", nativeQuery = true)
 	void decrementStockQuantityUnconditional(@Param("itemId") Long itemId, @Param("quantity") int quantity);
 
+	/**
+	 * Invoices from the ERP, step (c): the cost of an item received on an ERP invoice (cost price, last direct cost, last
+	 * direct net cost), by id. A bulk update: it never writes the stock, which the same reception changes by native
+	 * updates (saving the item entity would put back the stock it was loaded with).
+	 */
+	@Modifying(flushAutomatically = true)
+	@Query("update Item x set x.costPrice = :cost, x.lastDirectCost = :cost, x.lastDirectNetCost = :cost,"
+			+ " x.updatedBy = :by where x.id = :id")
+	int updateCost(@Param("id") Long id, @Param("cost") Double cost, @Param("by") String by);
+
 	Optional<Item> findByItemCode(String itemCode);
 
 	Optional<Item> findByErpExternalId(String erpExternalId);

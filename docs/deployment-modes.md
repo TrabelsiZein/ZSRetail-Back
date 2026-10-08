@@ -171,6 +171,7 @@ writes to the ERP). The lines go in the head office's **outside file** (e.g. `co
 | `erp.navpospages.invoices.years` | Years read at each run, 2000 to 2099, each once, e.g. `2025,2026`; absent: the invoices are not read | none |
 | `erp.navpospages.invoices.start-number` | The last invoice before the go-live, a number of one of those years; used only for its year while the head office has no invoice of it | none |
 | `erp.navpospages.invoices.max-per-run` | Invoices read per year and run, 1 to 1000 | `50` |
+| `erp.navpospages.invoices.seller-name` (step c) | The seller named on the stores' purchase invoices; a store's vendor `HEAD_OFFICE` is created with it | `Head office` |
 
 Startup refusals with `enabled=true` (the message names the key, the application does not start): `erp.dynamicsnav.enabled=true`
 as well (one ERP connector per installation); not a head office whose catalogue only comes from the ERP; a blank address,

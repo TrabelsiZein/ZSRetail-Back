@@ -33,6 +33,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.support.TransactionOperations;
 
 import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
+import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
 import com.digithink.zsretail.headoffice.dto.ErpInvoiceDTO;
 import com.digithink.zsretail.headoffice.dto.SalesCopyResultDTO;
@@ -448,14 +449,94 @@ class HoErpInvoiceServiceTest {
 		assertFalse(service.get(999L).isPresent());
 	}
 
+	// ─── Step (c): the copies down ───────────────────────────────
+
+	/** The service with the copies down (step c) over the same tables, and its feed. */
+	private CopiesDownFeed withFeed(InMemoryDownTables down, HoErpInvoiceService[] serviceOut) {
+		CopiesDownFeed[] holder = new CopiesDownFeed[1];
+		HoErpInvoiceService copying = new HoErpInvoiceService(tables.repository(), ho.storeRepository(),
+				ho.itemRepository(), erp, TransactionOperations.withoutTransaction(), () -> NOW, () -> holder[0],
+				"Happyness");
+		holder[0] = down.feed(Collections.singletonList(copying));
+		holder[0].initialise();
+		serviceOut[0] = copying;
+		return holder[0];
+	}
+
+	private long supplyChanges(InMemoryDownTables down) {
+		return down.changes.stream().filter(ch -> ch.getDomain() == DataDomain.SUPPLY).count();
+	}
+
 	@Test
-	@DisplayName("Copies down: the SUPPLY provider of this head office answers nothing yet (step c sends the invoices)")
-	void noCopiesYet() {
+	@DisplayName("Copies down: an assigned invoice recorded for its store only (ERPINV:), answered by codes, never held nor another store's")
+	void copiesDown() {
+		InMemoryDownTables down = new InMemoryDownTables();
+		HoErpInvoiceService[] copying = new HoErpInvoiceService[1];
+		CopiesDownFeed feed = withFeed(down, copying);
+		twoInvoices();
+		erp.invoices.add(invoice("FVV26000000103", "C-0001", item(10000, "6190000000017", "0.5", "3"))); // held
+		copying[0].run();
+		assertEquals(1, supplyChanges(down), "only B's invoice: the other has no store, the held one is never sent");
+
+		CopiesDownAnswerDTO page = feed.pull(b, "SUPPLY", "", 100);
+		assertEquals(1, page.getRecords().size());
+		com.fasterxml.jackson.databind.JsonNode copy = page.getRecords().get(0);
+		assertEquals("ERP_INVOICE", copy.get("kind").asText());
+		assertEquals("FVV26000000101", copy.get("invoiceNumber").asText());
+		assertFalse(copy.has("number"), "never 'number': a store that does not know the kind refuses it");
+		assertEquals("Happyness", copy.get("sellerName").asText());
+		assertEquals("C-0001", copy.get("customerNo").asText());
+		assertEquals("2026-10-09T10:00:00", copy.get("sentAt").asText());
+		assertEquals(41.0, copy.get("totalExclVat").asDouble());
+		assertEquals(3, copy.get("lines").size());
+		assertEquals("ITEM", copy.get("lines").get(0).get("lineType").asText());
+		assertEquals(6, copy.get("lines").get(0).get("quantity").asInt());
+		assertEquals(6.0, copy.get("lines").get(0).get("unitCost").asDouble());
+		assertEquals("OTHER", copy.get("lines").get(2).get("lineType").asText());
+		assertTrue(copy.get("lines").get(2).get("itemCode").isNull());
+		assertTrue(feed.pull(c, "SUPPLY", "", 100).getRecords().isEmpty(), "another store sees nothing");
+
+		assertTrue(copying[0].load(c, Arrays.asList("ERPINV:FVV26000000101")).isEmpty(), "another store's invoice");
+		assertTrue(copying[0].load(b, Arrays.asList("ERPINV:FVV26000000103", "BL:BL-000001", "INV:X")).isEmpty(),
+				"a held invoice, the codes of the BLs and invoices of the head office");
+		assertEquals(Collections.singleton("ERPINV:FVV26000000101"), copying[0].currentTargets().keySet());
+		assertEquals(Collections.singleton(b.getId()),
+				copying[0].currentTargets().get("ERPINV:FVV26000000101").getStoreIds());
+
+		// Received: still answered (the store keeps its copy, a pull again changes nothing)
+		copying[0].receiveConfirmations(b, Arrays.asList(confirmation("FVV26000000101", 20000, 6, 30000, 1)));
+		assertEquals(1, copying[0].load(b, Arrays.asList("ERPINV:FVV26000000101")).size());
+	}
+
+	@Test
+	@DisplayName("Backfill: invoices assigned before step (c) get their change row at the next start, once")
+	void backfillAfterRestart() {
+		twoInvoices();
+		service.run(); // step (b): assigned, nothing recorded
+		assertEquals(b.getId(), saved("FVV26000000101").getStoreId());
+
+		InMemoryDownTables down = new InMemoryDownTables();
+		HoErpInvoiceService[] copying = new HoErpInvoiceService[1];
+		CopiesDownFeed feed = withFeed(down, copying); // the start of the step (c) build
+		assertEquals(1, supplyChanges(down));
+		assertEquals("FVV26000000101", feed.pull(b, "SUPPLY", "", 100).getRecords().get(0).get("invoiceNumber").asText());
+		feed.initialise(); // another start
+		assertEquals(1, supplyChanges(down), "never twice");
+	}
+
+	@Test
+	@DisplayName("Confirmations up: HeadOfficeSupplyAPI hands them to this head office's receiver (by the ERP number)")
+	void confirmationsRouted() {
 		twoInvoices();
 		service.run();
+		com.digithink.zsretail.headoffice.controller.HeadOfficeSupplyAPI api =
+				new com.digithink.zsretail.headoffice.controller.HeadOfficeSupplyAPI(service, null);
+		List<SalesCopyResultDTO> results = api
+				.confirmations(b, Arrays.asList(confirmation("FVV26000000101", 20000, 6, 30000, 1))).getResults();
+		assertTrue(results.get(0).isAccepted(), results.get(0).getMessage());
+		assertEquals(ErpInvoiceStatus.RECEIVED, saved("FVV26000000101").getStatus());
+		assertFalse(saved("FVV26000000101").getDifference());
 		assertEquals(DataDomain.SUPPLY, service.getDomain());
-		assertTrue(service.load(b, Arrays.asList("FVV26000000101")).isEmpty());
-		assertTrue(service.currentTargets().isEmpty());
 	}
 
 	// ─── In-memory ho_erp_invoice ────────────────────────────────
@@ -490,6 +571,17 @@ class HoErpInvoiceServiceTest {
 				case "findById":
 				case "findForUpdate":
 					return Optional.ofNullable(rows.get(args[0]));
+				case "findForStore": {
+					java.util.Collection<?> numbers = (java.util.Collection<?>) args[1];
+					java.util.Collection<?> statuses = (java.util.Collection<?>) args[2];
+					return rows.values().stream().filter(i -> Objects.equals(i.getStoreId(), args[0])
+							&& numbers.contains(i.getBcNumber()) && statuses.contains(i.getStatus()) && !i.getHeld())
+							.collect(Collectors.toList());
+				}
+				case "findAssignedTargets":
+					return rows.values().stream().filter(i -> i.getStoreId() != null && !i.getHeld())
+							.sorted(Comparator.comparing(HoErpInvoice::getBcNumber))
+							.map(i -> new Object[] { i.getBcNumber(), i.getStoreId() }).collect(Collectors.toList());
 				case "findForUpdateByStoreAndNumber":
 					return rows.values().stream()
 							.filter(i -> Objects.equals(i.getStoreId(), args[0]) && i.getBcNumber().equals(args[1]))

@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.digithink.zsretail.holink.enumeration.ReceivedDeliveryStatus;
+import com.digithink.zsretail.holink.enumeration.ReceivedLineType;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
 import com.digithink.zsretail.holink.model.ReceivedDelivery;
 import com.digithink.zsretail.repository._BaseRepository;
@@ -44,9 +45,14 @@ public interface ReceivedDeliveryRepository extends _BaseRepository<ReceivedDeli
 	@Query("select d.status, count(d) from ReceivedDelivery d group by d.status")
 	List<Object[]> countByStatus();
 
-	/** Ids of the BLs in this status with a line whose item is missing here. */
-	@Query("select distinct l.delivery.id from ReceivedDeliveryLine l where l.itemId is null and l.delivery.status = :status")
-	List<Long> findIdsWithMissingItem(@Param("status") ReceivedDeliveryStatus status);
+	/**
+	 * Ids of the documents in this status with an item line whose item is missing here (an OTHER line of an ERP invoice
+	 * has no item and never waits for one).
+	 */
+	@Query("select distinct l.delivery.id from ReceivedDeliveryLine l where l.itemId is null and l.delivery.status = :status"
+			+ " and (l.lineType is null or l.lineType <> :other)")
+	List<Long> findIdsWithMissingItem(@Param("status") ReceivedDeliveryStatus status,
+			@Param("other") ReceivedLineType other);
 
 	/** Ids of the confirmed BLs with a line whose stock in is in this state (false: still waiting). */
 	@Query("select distinct l.delivery.id from ReceivedDeliveryLine l where l.stockApplied = :applied")
