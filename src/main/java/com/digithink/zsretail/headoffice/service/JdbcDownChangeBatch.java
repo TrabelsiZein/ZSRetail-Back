@@ -26,8 +26,12 @@ public class JdbcDownChangeBatch {
 	/** Statements per JDBC batch. */
 	static final int BATCH = 1000;
 
+	/**
+	 * The driver sends text as nvarchar; domain and record_code are varchar: without the casts SQL Server converts the
+	 * column, cannot seek uk_ho_down_change and scans the table once per code (227 s for 16,038 codes on the rehearsal).
+	 */
 	static final String UPDATE = "UPDATE ho_down_change SET change_version = ?, updated_at = ?"
-			+ " WHERE domain = ? AND record_code = ? AND store_id = ?";
+			+ " WHERE domain = CAST(? AS varchar(20)) AND record_code = CAST(? AS varchar(100)) AND store_id = ?";
 	static final String INSERT = "INSERT INTO ho_down_change (active, created_at, created_by, updated_at, change_version,"
 			+ " domain, record_code, store_id) VALUES (1, ?, 'System', ?, ?, ?, ?, ?)";
 
