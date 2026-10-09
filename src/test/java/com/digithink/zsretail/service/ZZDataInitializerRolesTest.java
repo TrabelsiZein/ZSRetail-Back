@@ -144,7 +144,7 @@ class ZZDataInitializerRolesTest {
 	}
 
 	@Test
-	@DisplayName("Head office, new database: ADMIN gets today's permissions plus one per head office route, saved once; other roles none")
+	@DisplayName("Head office, new database: ADMIN only (release 2.2: no RESPONSIBLE, no POS_USER), with today's permissions plus one per head office route, saved once")
 	void headOfficeAdminGetsHeadOfficePages() throws Exception {
 		List<String> saves = new ArrayList<>();
 		Map<String, AppRole> roles = seedRoles(headOffice(), true, Collections.emptyMap(), saves);
@@ -156,10 +156,49 @@ class ZZDataInitializerRolesTest {
 		assertEquals(expected, roles.get("ADMIN").getPermissions());
 		assertFalse(roles.get("ADMIN").getPermissions().contains(CASHIER_INTERFACE), "a head office never opens the till");
 		assertTrue(java.util.Collections.disjoint(INVENTORY, roles.get("ADMIN").getPermissions()), "no inventory count");
-		assertEquals(java.util.Arrays.asList("ADMIN", "RESPONSIBLE", "POS_USER"), saves, "each role saved once");
-		assertFalse(hasHeadOfficePermission(roles.get("RESPONSIBLE")));
-		assertFalse(hasHeadOfficePermission(roles.get("POS_USER")));
+		assertEquals(java.util.Arrays.asList("ADMIN"), saves, "only ADMIN, saved once");
+		assertFalse(roles.containsKey("RESPONSIBLE"));
+		assertFalse(roles.containsKey("POS_USER"));
 		assertFalse(hasHeadOfficePermission(roleWith(staticSet("ADMIN_PERMISSIONS"))), "store set untouched");
+	}
+
+	/** The usernames initUsers() saves on a new database of this mode, the roles already seeded by ensureDefaultRoles(). */
+	private static List<String> seedUsers(MockEnvironment env, boolean standalone) throws Exception {
+		Map<String, AppRole> roles = seedRoles(env, standalone, Collections.emptyMap());
+		ApplicationModeService mode = new ApplicationModeService();
+		inject(mode, ApplicationModeService.class, "environment", env);
+		Method initOwnership = ApplicationModeService.class.getDeclaredMethod("initOwnership");
+		initOwnership.setAccessible(true);
+		initOwnership.invoke(mode);
+		List<String> usernames = new ArrayList<>();
+		AppRoleRepository roleRepository = stub(AppRoleRepository.class,
+				(method, args) -> "findByName".equals(method) ? Optional.ofNullable(roles.get(args[0])) : UNHANDLED);
+		UserAccountRepository users = stub(UserAccountRepository.class, (method, args) -> {
+			if ("save".equals(method)) {
+				usernames.add(((com.digithink.zsretail.model.UserAccount) args[0]).getUsername());
+				return args[0];
+			}
+			return UNHANDLED;
+		});
+		ZZDataInitializer initializer = new ZZDataInitializer();
+		inject(initializer, ZZDataInitializer.class, "appRoleRepository", roleRepository);
+		inject(initializer, ZZDataInitializer.class, "userRepository", users);
+		inject(initializer, ZZDataInitializer.class, "applicationModeService", mode);
+		inject(initializer, ZZDataInitializer.class, "passwordEncoder",
+				org.springframework.security.crypto.password.NoOpPasswordEncoder.getInstance());
+		Method initUsers = ZZDataInitializer.class.getDeclaredMethod("initUsers");
+		initUsers.setAccessible(true);
+		initUsers.invoke(initializer);
+		return usernames;
+	}
+
+	@Test
+	@DisplayName("Release 2.2, new database: a head office gets the admin user only; a store its three users, as before")
+	void defaultUsers() throws Exception {
+		assertEquals(Collections.singletonList("admin"), seedUsers(headOffice(), true));
+		for (boolean[] flags : STORE_PROFILES) {
+			assertEquals(java.util.Arrays.asList("admin", "responsible", "cashier"), seedUsers(new MockEnvironment(), flags[0]));
+		}
 	}
 
 	private static AppRole roleWith(Set<String> permissions) {

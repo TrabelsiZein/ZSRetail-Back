@@ -1554,6 +1554,13 @@ Fixes after the second test of 2.2 (head office whose catalogue comes from the E
   "No point de stock: this store receives no items." on that line. Moving a store to or from "None" still sends
   everything again. The ERP invoice warning follows the same rule (every ERP item line of a store with no point is
   named). Before deploying: give every store its point, or its items become inactive at its next pull.
+- **C. Roles on a head office.** A new head office database gets only the ADMIN role and the admin user (no
+  RESPONSIBLE, no POS_USER, none of their users; `ZZDataInitializer.ensureDefaultRoles` / `initUsers`). Nothing on a head
+  office needs those two roles: the user's legacy role is worked out from the role's name, a custom role gives
+  RESPONSIBLE or POS_USER without the rows, and a cashier role cannot sign in on a head office. An existing head office
+  database keeps them as they are (nothing deleted or changed). The Role form on a head office lists only the
+  permissions of the pages this head office shows (the menu's rule) and has no "POS role" switch; the admin can still
+  create roles. A store keeps its three roles, its default users and all its permissions.
 
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter

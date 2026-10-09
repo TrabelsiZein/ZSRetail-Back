@@ -135,8 +135,8 @@ public class ZZDataInitializer {
 	}
 
 	/**
-	 * Ensures the three built-in AppRoles exist and migrates existing users. Runs
-	 * on every startup — idempotent.
+	 * Ensures the three built-in AppRoles exist (a head office: ADMIN only, release 2.2) and migrates existing users.
+	 * Runs on every startup — idempotent.
 	 */
 	private void ensureDefaultRoles() {
 		AppRole adminRole = ensureRole("ADMIN", "Administrateur", false, adminPermissions());
@@ -154,8 +154,14 @@ public class ZZDataInitializer {
 				addMissingPermissions(adminRole, wanted);
 			}
 		}
-		AppRole responsibleRole = ensureRole("RESPONSIBLE", "Responsable", false, RESPONSIBLE_PERMISSIONS);
-		ensureRole("POS_USER", "Caissier", true, POS_PERMISSIONS);
+		// Release 2.2: a head office has no till and no store manager: only ADMIN is created there. A head office database
+		// that already has RESPONSIBLE and POS_USER keeps them as they are (nothing is deleted or changed).
+		AppRole responsibleRole = applicationModeService.isHeadOffice()
+				? appRoleRepository.findByName("RESPONSIBLE").orElse(null)
+				: ensureRole("RESPONSIBLE", "Responsable", false, RESPONSIBLE_PERMISSIONS);
+		if (!applicationModeService.isHeadOffice()) {
+			ensureRole("POS_USER", "Caissier", true, POS_PERMISSIONS);
+		}
 
 		// Migrate existing users that have no appRole yet
 		userRepository.findAll().forEach(user -> {
@@ -165,7 +171,9 @@ public class ZZDataInitializer {
 					user.setAppRole(adminRole);
 					break;
 				case RESPONSIBLE:
-					user.setAppRole(responsibleRole);
+					if (responsibleRole != null) {
+						user.setAppRole(responsibleRole);
+					}
 					break;
 				case POS_USER:
 					appRoleRepository.findByName("POS_USER").ifPresent(user::setAppRole);
