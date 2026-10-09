@@ -88,6 +88,14 @@ public class CopiesDownFeed {
 		this.writeTransactions = writeTransactions;
 	}
 
+	/** Stock points (speed): the JDBC batch of {@link #recordChangesForStore}; null in the tests (the JPA path). */
+	private JdbcDownChangeBatch batch;
+
+	@Autowired(required = false)
+	public void setBatch(JdbcDownChangeBatch batch) {
+		this.batch = batch;
+	}
+
 	private static TransactionTemplate readOnly(PlatformTransactionManager transactionManager) {
 		TransactionTemplate template = new TransactionTemplate(transactionManager);
 		template.setReadOnly(true);
@@ -140,6 +148,34 @@ public class CopiesDownFeed {
 		if (stores.getStoreIds().isEmpty()) {
 			return;
 		}
+		Map<String, Long> versions = reserveVersions(domain, list);
+		for (Long storeId : stores.getStoreIds()) {
+			writeRows(domain, list, versions, storeId);
+		}
+	}
+
+	/**
+	 * Stock points: the same rows and numbers as {@link #recordChanges} for one store, written with the JDBC batch when
+	 * there is one (a store whose stock point changed: thousands of codes), else as {@link #recordChanges}. Inside the
+	 * writer's transaction.
+	 */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void recordChangesForStore(DataDomain domain, Collection<String> codes, long storeId) {
+		List<String> list = codes.stream().filter(code -> code != null && !code.trim().isEmpty()).distinct()
+				.collect(Collectors.toList());
+		if (list.isEmpty()) {
+			return;
+		}
+		Map<String, Long> versions = reserveVersions(domain, list);
+		if (batch != null) {
+			batch.write(domain, storeId, versions);
+		} else {
+			writeRows(domain, list, versions, storeId);
+		}
+	}
+
+	/** One number per code, in the order given, reserved with one update of the sequence (locked until the commit). */
+	private Map<String, Long> reserveVersions(DataDomain domain, List<String> list) {
 		if (sequences.incrementBy(domain, list.size()) == 0) {
 			HoDownSequence sequence = new HoDownSequence();
 			sequence.setDomain(domain);
@@ -151,25 +187,28 @@ public class CopiesDownFeed {
 		for (String code : list) {
 			versions.put(code, ++version);
 		}
-		for (Long storeId : stores.getStoreIds()) {
-			for (int from = 0; from < list.size(); from += BACKFILL_CHUNK) {
-				List<String> chunk = list.subList(from, Math.min(from + BACKFILL_CHUNK, list.size()));
-				Map<String, HoDownChange> existing = new java.util.HashMap<>();
-				for (HoDownChange change : changes.findByDomainAndStoreIdAndRecordCodeIn(domain, storeId, chunk)) {
-					existing.put(change.getRecordCode(), change);
-				}
-				List<HoDownChange> rows = new ArrayList<>();
-				for (String code : chunk) {
-					HoDownChange change = existing.get(code);
-					if (change == null) {
-						rows.add(newChange(domain, code, storeId, versions.get(code)));
-					} else {
-						change.setChangeVersion(versions.get(code));
-						rows.add(change);
-					}
-				}
-				changes.saveAll(rows);
+		return versions;
+	}
+
+	/** The store's rows of these codes with JPA, per chunk: each existing row gets its new number, a missing one is created. */
+	private void writeRows(DataDomain domain, List<String> list, Map<String, Long> versions, Long storeId) {
+		for (int from = 0; from < list.size(); from += BACKFILL_CHUNK) {
+			List<String> chunk = list.subList(from, Math.min(from + BACKFILL_CHUNK, list.size()));
+			Map<String, HoDownChange> existing = new java.util.HashMap<>();
+			for (HoDownChange change : changes.findByDomainAndStoreIdAndRecordCodeIn(domain, storeId, chunk)) {
+				existing.put(change.getRecordCode(), change);
 			}
+			List<HoDownChange> rows = new ArrayList<>();
+			for (String code : chunk) {
+				HoDownChange change = existing.get(code);
+				if (change == null) {
+					rows.add(newChange(domain, code, storeId, versions.get(code)));
+				} else {
+					change.setChangeVersion(versions.get(code));
+					rows.add(change);
+				}
+			}
+			changes.saveAll(rows);
 		}
 	}
 

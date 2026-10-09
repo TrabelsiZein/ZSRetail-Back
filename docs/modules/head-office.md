@@ -1477,7 +1477,10 @@ Done (step 3a), the store's point and the filtered send:
   rows written by the items run (`HoStockPointRows.write`, same transaction) are recorded for the stores of that point
   only, with the barcodes of the items that entered the point or changed their active flag; a point without a store
   records nothing (the sequence does not move). A store whose point changes (given, changed, taken away) gets every
-  item and barcode again, for that store only, in the same transaction as the change.
+  item and barcode again, for that store only, in the same transaction as the change: same numbering
+  (`CopiesDownFeed.recordChangesForStore`), rows written with JDBC batches (`JdbcDownChangeBatch`: an UPDATE per code,
+  an INSERT for the codes without a row; a missing update count stops the transaction). A new store created with a
+  point records nothing: its first pull reads the every-store rows, filtered by its point.
 - Packs whose component is not in the store's point, promotions on such an item, and head office BLs keep the 2.1
   wait at the store (documented, no rule).
 - Tests: `HoStockPointCatalogueTest` (two points with different items and prices; no point = 2.1 answer; price list

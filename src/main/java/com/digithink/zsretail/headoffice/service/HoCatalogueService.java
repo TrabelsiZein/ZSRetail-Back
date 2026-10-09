@@ -319,8 +319,7 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 				recordCodes.add(CatalogueKind.BARCODE.recordCode(barcode));
 			}
 		}
-		feed.get().recordChanges(DataDomain.CATALOGUE, recordCodes,
-				StoreTargets.of(java.util.Collections.singleton(storeId)));
+		feed.get().recordChangesForStore(DataDomain.CATALOGUE, recordCodes, storeId); // JDBC batch
 		return recordCodes.size();
 	}
 
