@@ -174,14 +174,17 @@ class HoStockPointCatalogueTest {
 	}
 
 	@Test
-	@DisplayName("Price: the store's price list line first, then the row's price")
-	void priceListFirst() {
+	@DisplayName("Price: always the row's; an old selling price list on the store is ignored (and kept)")
+	void priceListIgnored() {
 		HoPriceList list = ho.priceList("TOURIST");
 		ho.priceLine(list, b001, 9.5);
+		ho.priceLine(list, main, 4.0);
 		a.setSellingPriceListId(list.getId());
 		Map<String, JsonNode> ofA = records(pull(a, ""));
-		assertEquals(9.5, ofA.get("ITEM:B001").get("unitPrice").asDouble());
-		assertEquals(20.0, ofA.get("ITEM:B002").get("unitPrice").asDouble(), "no line: the row's price");
+		assertEquals(12.0, ofA.get("ITEM:B001").get("unitPrice").asDouble(), "the row's price, not the list's");
+		assertEquals(20.0, ofA.get("ITEM:B002").get("unitPrice").asDouble());
+		assertEquals(5.0, ofA.get("ITEM:MAIN").get("unitPrice").asDouble(), "a hand-made item: its own price, not the list's");
+		assertEquals(list.getId(), a.getSellingPriceListId(), "the store's list is kept as it is");
 	}
 
 	@Test

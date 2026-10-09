@@ -65,6 +65,22 @@ public class HoPriceListService {
 	/** Step 7B: the base supply prices, shown as the base price of a supply list's lines; null in the step 6 tests. */
 	private final HoItemSupplyPriceRepository supplyPrices;
 
+	static final String SELLING_NOT_USED = "Selling price lists are not used on a head office whose catalogue comes from the"
+			+ " ERP: the prices come from the points de stock.";
+
+	/** Release 2.2: false on a head office whose catalogue comes from the ERP (only its supply lists are used). */
+	private boolean sellingListsUsed = true;
+
+	@Autowired(required = false)
+	public void setMode(com.digithink.zsretail.config.ApplicationModeService mode) {
+		this.sellingListsUsed = mode == null || !mode.isErpCatalogueOnly();
+	}
+
+	/** Release 2.2, for the tests: the head office's catalogue comes from the ERP. */
+	void setSellingListsUsed(boolean used) {
+		this.sellingListsUsed = used;
+	}
+
 	@Autowired
 	public HoPriceListService(HoPriceListRepository lists, HoPriceListLineRepository lines, StoreRepository stores,
 			ItemRepository items, ObjectProvider<HoCatalogueService> catalogue, HoItemSupplyPriceRepository supplyPrices) {
@@ -98,6 +114,7 @@ public class HoPriceListService {
 	public List<PriceListDTO> findAll(String kind) {
 		PriceListKind wanted = kind == null || kind.trim().isEmpty() ? null : parseKind(kind);
 		return lists.findAll().stream().filter(list -> wanted == null || list.kindOrSelling() == wanted)
+				.filter(list -> sellingListsUsed || list.kindOrSelling() == PriceListKind.SUPPLY) // release 2.2
 				.sorted((a, b) -> a.getCode().compareTo(b.getCode())).map(this::view).collect(Collectors.toList());
 	}
 
@@ -133,6 +150,9 @@ public class HoPriceListService {
 		}
 		PriceListKind kind = input.getKind() == null || input.getKind().trim().isEmpty() ? PriceListKind.SELLING
 				: parseKind(input.getKind());
+		if (kind == PriceListKind.SELLING && !sellingListsUsed) {
+			throw new IllegalArgumentException(SELLING_NOT_USED);
+		}
 		HoPriceList list = new HoPriceList();
 		list.setCode(code);
 		list.setName(name);
@@ -208,6 +228,9 @@ public class HoPriceListService {
 
 	/** Step 7B: 400 (IllegalArgument) unless the list exists, is active and of this kind. */
 	public void checkAssignable(Long id, PriceListKind kind) {
+		if (kind == PriceListKind.SELLING && !sellingListsUsed) {
+			throw new IllegalArgumentException(SELLING_NOT_USED);
+		}
 		HoPriceList list = lists.findById(id)
 				.orElseThrow(() -> new IllegalArgumentException("Unknown price list id " + id + "."));
 		if (Boolean.FALSE.equals(list.getActive())) {

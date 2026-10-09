@@ -81,6 +81,24 @@ class HeadOfficeErpCatalogueFilterTest {
 	}
 
 	@Test
+	@DisplayName("Release 2.2, the head office's own supply: the price lists pass (its supply lists), a store's selling list is refused")
+	void priceListsWithOwnSupply() throws Exception {
+		HeadOfficeErpCatalogueFilter ownSupply = new HeadOfficeErpCatalogueFilter(false);
+		for (String[] r : new String[][] { { "GET", "/admin/headoffice/price-lists" },
+				{ "POST", "/admin/headoffice/price-lists" }, { "PUT", "/admin/headoffice/price-lists/1/lines" } }) {
+			MockFilterChain chain = new MockFilterChain();
+			ownSupply.doFilter(request(r[0], r[1]), new MockHttpServletResponse(), chain);
+			assertNotNull(chain.getRequest(), r[0] + " " + r[1] + ": passed on");
+		}
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+		ownSupply.doFilter(request("PUT", "/admin/headoffice/stores/7/selling-price-list"), response, chain);
+		assertEquals(403, response.getStatus());
+		assertNull(chain.getRequest());
+		assertEquals(HeadOfficeErpCatalogueFilter.PRICE_LIST_REFUSAL_BODY, response.getContentAsString());
+	}
+
+	@Test
 	@DisplayName("Passed: every GET (but the price lists), the creations the controllers refuse themselves, packs, images, supply prices, the stores, the ERP pages")
 	void passedPaths() throws Exception {
 		String[][] passed = { { "GET", "/item-family" }, { "GET", "/item-family/3" }, { "GET", "/item-sub-family/by-family/3" },

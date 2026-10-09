@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeWithoutErp;
 import com.digithink.zsretail.headoffice.dto.CatalogueBarcodeCopyDTO;
 import com.digithink.zsretail.headoffice.dto.CatalogueFamilyCopyDTO;
@@ -83,8 +84,9 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 	private final TransactionOperations writeTransactions;
 
 	/**
-	 * Stock points (release 2.2, step 3a): the rows of the points and the stores of a point. Null in the tests of step 6
-	 * (no store has a point there).
+	 * Stock points (release 2.2): the rows of the points, given only on a head office whose catalogue comes from the ERP
+	 * (null on a head office with a manual catalogue and in the tests of step 6). Not null means that head office: every
+	 * copy comes from the points' rows and the selling price lists are not used.
 	 */
 	private final HoStockPointItemRepository stockPointItems;
 	private final StoreRepository stores;
@@ -93,9 +95,9 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 	public HoCatalogueService(ItemFamilyRepository families, ItemSubFamilyRepository subFamilies, ItemRepository items,
 			ItemBarcodeRepository barcodes, ItemCompositionRepository compositions, HoPriceListLineRepository priceLines,
 			ObjectProvider<CopiesDownFeed> feed, PlatformTransactionManager transactionManager,
-			HoStockPointItemRepository stockPointItems, StoreRepository stores) {
+			HoStockPointItemRepository stockPointItems, StoreRepository stores, ApplicationModeService mode) {
 		this(families, subFamilies, items, barcodes, compositions, priceLines, (Supplier<CopiesDownFeed>) feed::getObject,
-				new TransactionTemplate(transactionManager), stockPointItems, stores);
+				new TransactionTemplate(transactionManager), mode.isErpCatalogueOnly() ? stockPointItems : null, stores);
 	}
 
 	/** With given collaborators, without stock points: used by the tests. */
@@ -167,7 +169,7 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 			} else {
 				Map<Long, HoStockPointItem> rows = pointRows(store, ids);
 				for (Item item : found) {
-					CatalogueItemCopyDTO copy = pointCopy(item, rows, listPrices, packs.get(item.getId()));
+					CatalogueItemCopyDTO copy = pointCopy(item, rows, packs.get(item.getId()));
 					if (copy != null) {
 						copies.put(CatalogueKind.ITEM.recordCode(item.getItemCode()), COPY_MAPPER.valueToTree(copy));
 					}
@@ -224,20 +226,18 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 	/**
 	 * The copy of an item for a store with a stock point: null (answered as removed) when the item came from the ERP and
 	 * has no row in the point; otherwise built from the item, then the row's name, description, family, sub-family,
-	 * price and active flag (active only when the item is too). Price: the store's price list line first, then the
-	 * row's price. An item not from the ERP: the copy of a store without a point.
+	 * price and active flag (active only when the item is too). Price: always the row's (release 2.2: the selling price
+	 * lists are not used on this head office). An item not from the ERP: the item as it is, at its own price.
 	 */
-	static CatalogueItemCopyDTO pointCopy(Item item, Map<Long, HoStockPointItem> rows, Map<Long, Double> listPrices,
-			List<ItemComposition> packs) {
+	static CatalogueItemCopyDTO pointCopy(Item item, Map<Long, HoStockPointItem> rows, List<ItemComposition> packs) {
 		if (!fromErp(item)) {
-			return CatalogueItemCopyDTO.of(item, priceFor(item, listPrices), packs);
+			return CatalogueItemCopyDTO.of(item, item.getUnitPrice(), packs);
 		}
 		HoStockPointItem row = rows.get(item.getId());
 		if (row == null) {
 			return null;
 		}
-		Double listed = listPrices.get(item.getId());
-		CatalogueItemCopyDTO copy = CatalogueItemCopyDTO.of(item, listed != null ? listed : row.getUnitPrice(), packs);
+		CatalogueItemCopyDTO copy = CatalogueItemCopyDTO.of(item, row.getUnitPrice(), packs);
 		copy.setName(row.getName());
 		copy.setDescription(row.getDescription());
 		copy.setFamilyCode(row.getFamilyCode());
@@ -329,10 +329,14 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 		}
 	}
 
-	/** item.id to its price in the store's list; empty when the store has no list. */
+	/**
+	 * item.id to its price in the store's list; empty when the store has no list. Release 2.2: always empty on a head
+	 * office whose catalogue comes from the ERP (the price is the point row's; an old list on a store is ignored, not
+	 * deleted).
+	 */
 	private Map<Long, Double> listPrices(Store store, List<Long> itemIds) {
 		Map<Long, Double> prices = new HashMap<>();
-		if (store.getSellingPriceListId() == null || itemIds.isEmpty()) {
+		if (stockPointItems != null || store.getSellingPriceListId() == null || itemIds.isEmpty()) {
 			return prices;
 		}
 		for (HoPriceListLine line : priceLines.findByPriceListIdAndItemIdIn(store.getSellingPriceListId(), itemIds)) {

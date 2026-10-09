@@ -208,4 +208,25 @@ class HoPriceListServiceTest {
 		assertEquals(0.0, written.get(0).getPrice());
 		assertEquals(b002.getId(), written.get(0).getItemId());
 	}
+	@Test
+	@DisplayName("Release 2.2, catalogue from the ERP: no selling list listed, created or given to a store; supply lists as before")
+	void sellingListsNotUsedWithTheErpCatalogue() {
+		lists.setSellingListsUsed(false);
+		PriceListDTO supply = new PriceListDTO();
+		supply.setCode("SUP1");
+		supply.setName("Supply");
+		supply.setKind("SUPPLY");
+		lists.create(supply);
+		assertEquals(java.util.Arrays.asList("SUP1"), lists.findAll().stream().map(PriceListDTO::getCode)
+				.collect(java.util.stream.Collectors.toList()), "TOURIST (selling) not listed, still in the table");
+		assertTrue(ho.priceLists.values().stream().anyMatch(l -> "TOURIST".equals(l.getCode())), "existing data kept");
+		PriceListDTO selling = new PriceListDTO();
+		selling.setCode("SELL2");
+		selling.setName("Selling");
+		assertEquals(HoPriceListService.SELLING_NOT_USED,
+				assertThrows(IllegalArgumentException.class, () -> lists.create(selling)).getMessage());
+		assertEquals(HoPriceListService.SELLING_NOT_USED,
+				assertThrows(IllegalArgumentException.class, () -> lists.checkAssignable(tourist.getId())).getMessage());
+	}
+
 }

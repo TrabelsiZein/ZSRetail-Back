@@ -1483,6 +1483,8 @@ Done (step 3a), the store's point and the filtered send:
   point records nothing: its first pull reads the every-store rows, filtered by its point.
 - Packs whose component is not in the store's point, promotions on such an item, and head office BLs keep the 2.1
   wait at the store (documented, no rule).
+- Tests: `HoStockPointCatalogueTest` (two points with different items and prices; no point = 2.1 answer; price list
+  first; row changes for the point's stores only; no store, no recording; a store moved and back; assignable points).
 
 Done (step 3b), invoices from the ERP:
 - When an invoice gets its store (`HoErpInvoiceService.assignStores` / `matchStoresNow`) and that store has a point,
@@ -1537,8 +1539,15 @@ Fixes after the first test of 2.2 (head office whose catalogue comes from the ER
 - Items by point de stock: the details popup scrolls and has the item details' look (its own modal id, the same
   styles; the price block HT, VAT, TTC with the Items page colours); the Barcodes column counts the active barcodes, as
   the Item Barcodes page.
-- Tests: `HoStockPointCatalogueTest` (two points with different items and prices; no point = 2.1 answer; price list
-  first; row changes for the point's stores only; no store, no recording; a store moved and back; assignable points).
+
+Fixes after the second test of 2.2 (head office whose catalogue comes from the ERP only):
+- **A. Price lists.** Selling price lists are not used: the price sent to a store is always its point row's price (an
+  item made at the head office keeps its own price); an old list on a store is ignored, not deleted
+  (`HoCatalogueService.listPrices` is empty there; `HoPriceListService` lists, creates and gives no selling list,
+  `SELLING_NOT_USED`; the PUT of a store's selling list is refused by `HeadOfficeErpCatalogueFilter`). Supply price
+  lists stay reachable when this head office makes its own BLs and invoices (headoffice.supply.source=HEAD_OFFICE): the
+  Price lists page shows, supply lists only; it is hidden (menu, route, API 403) only when the supply comes from the
+  ERP. This replaces the price list point of the first fixes.
 
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter
