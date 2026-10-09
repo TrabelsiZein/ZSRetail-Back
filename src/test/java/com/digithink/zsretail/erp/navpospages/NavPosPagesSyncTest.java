@@ -41,6 +41,7 @@ import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesHeadOffice;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesImport;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesState;
+import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesStockPoints;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesSync;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosRun;
 import com.digithink.zsretail.erp.service.ErpSyncWarningException;
@@ -57,6 +58,7 @@ class NavPosPagesSyncTest {
 	private FakeSource erp;
 	private FakeHeadOffice headOffice;
 	private FakeState state;
+	private FakeStockPoints stockPoints;
 	private NavPosPagesProperties properties;
 	private NavPosPagesSync sync;
 	/** The size of each packet of items applied, in order. */
@@ -85,8 +87,10 @@ class NavPosPagesSyncTest {
 		});
 		headOffice = new FakeHeadOffice();
 		state = new FakeState();
+		stockPoints = new FakeStockPoints();
+		stockPoints.points.add(new NavPosPagesStockPoints.Point(1, "FRANCHISE", "Franchise")); // release 2.2: one point
 		properties = NavPosPagesTestSupport.properties();
-		sync = new NavPosPagesSync(erp, headOffice, state, properties, new NavPosPagesImport() {
+		sync = new NavPosPagesSync(erp, headOffice, stockPoints, state, properties, new NavPosPagesImport() {
 			@Override
 			public void items(List<ErpItemDTO> packet) {
 				duringPacket.run();
@@ -802,6 +806,228 @@ class NavPosPagesSyncTest {
 		assertFalse(summary.values().stream().anyMatch(value -> value instanceof Collection), "never the list");
 	}
 
+	// ─── Stock points (release 2.2, step 2) ─────────────────────
+
+	private static final long FRANCHISE = 1;
+	private static final long MAG01 = 2;
+
+	/** A copy of the ERP row for another point. */
+	private static NavPosStockRow copy(NavPosStockRow row, String price) {
+		NavPosStockRow copy = new NavPosStockRow();
+		copy.setItemNo(row.getItemNo());
+		copy.setVariantCode(row.getVariantCode());
+		copy.setDescription(row.getDescription());
+		copy.setUnitPrice(price == null ? row.getUnitPrice() : new BigDecimal(price));
+		copy.setFamily(row.getFamily());
+		copy.setSubfamily(row.getSubfamily());
+		return copy;
+	}
+
+	/** The stockPoints part of the summary for one point. */
+	@SuppressWarnings("unchecked")
+	private static Map<String, Object> point(NavPosRun<?> run, String code) {
+		return (Map<String, Object>) ((Map<String, Object>) run.getSummary().get("stockPoints")).get(code);
+	}
+
+	/**
+	 * MAG01, second in the list: items 0, 1 and 2 of FRANCHISE (item 0 at 11.90, item 1 at 5.95, item 2 as in
+	 * FRANCHISE) and ONLY-MAG01, an item of no other point.
+	 */
+	private void secondPoint() {
+		List<NavPosStockRow> mag01 = new ArrayList<>();
+		mag01.add(copy(erp.items.get(0), "11.90"));
+		mag01.add(copy(erp.items.get(1), "5.95"));
+		mag01.add(copy(erp.items.get(2), null));
+		NavPosStockRow only = copy(erp.items.get(0), "23.80");
+		only.setItemNo("ONLY-MAG01");
+		only.setDescription("Only in MAG01");
+		mag01.add(only);
+		erp.otherPoints.put("MAG01", mag01);
+		stockPoints.points.add(new NavPosPagesStockPoints.Point(MAG01, "MAG01", "Store 1"));
+	}
+
+	@Test
+	@DisplayName("One point: its rows hold exactly the item's values; a second run writes nothing; the summary has its stockPoints part")
+	void onePointRows() {
+		loadCatalogue();
+		assertEquals(Arrays.asList("FRANCHISE"), erp.pointReads.stream().distinct().collect(Collectors.toList()));
+		Map<String, NavPosPagesStockPoints.Row> rows = stockPoints.rows(FRANCHISE);
+		assertEquals(headOffice.items.size(), rows.size(), "one row per item");
+		for (NavPosPagesHeadOffice.Item item : headOffice.items.values()) {
+			NavPosPagesStockPoints.Row row = rows.get(item.code);
+			assertEquals(item.name, row.name, item.code);
+			assertEquals(item.unitPrice, row.unitPrice, item.code);
+			assertEquals(item.isActive(), row.active, item.code);
+			assertEquals(item.familyCode, row.familyCode, item.code);
+			assertEquals(item.subFamilyCode, row.subFamilyCode, item.code);
+		}
+		int writes = stockPoints.writes;
+		NavPosRun<ErpItemDTO> again = items();
+		assertEquals(0, again.getHanded().size());
+		assertEquals(writes, stockPoints.writes, "nothing written");
+		Map<String, Object> franchise = point(again, "FRANCHISE");
+		assertEquals(again.count("read"), franchise.get("read"));
+		assertEquals(0, franchise.get("new"));
+		assertEquals(0, franchise.get("changed"));
+		assertEquals(0, franchise.get("deactivated"));
+		assertEquals(0, franchise.get("written"));
+		assertTrue(franchise.containsKey("durationMs"));
+	}
+
+	@Test
+	@DisplayName("No active point: the items run reads nothing, writes nothing and says to create a point de stock")
+	void noPoint() {
+		families();
+		subFamilies();
+		stockPoints.points.clear();
+		NavPosRun<ErpItemDTO> run = items();
+		assertTrue(run.getHanded().isEmpty());
+		assertEquals(NavPosPagesSync.NO_STOCK_POINT, run.getSummary().get("waiting"));
+		assertTrue(erp.pointReads.isEmpty());
+		assertTrue(headOffice.items.isEmpty());
+		assertNull(state.get("items.run"));
+	}
+
+	@Test
+	@DisplayName("Two points: each point gets its own rows and prices; the item comes from the first point where it is active; an item of one point only is created")
+	void twoPoints() {
+		loadCatalogue();
+		String item0 = erp.items.get(0).getItemNo();
+		String item1 = erp.items.get(1).getItemNo();
+		Double franchisePrice0 = headOffice.items.get(item0).unitPrice;
+		erp.items.get(1).setUnitPrice(BigDecimal.ZERO); // inactive in FRANCHISE, active in MAG01
+		secondPoint();
+
+		NavPosRun<ErpItemDTO> run = items();
+		assertEquals(Arrays.asList("FRANCHISE", "MAG01"), erp.pointReads.subList(erp.pointReads.size() - 2,
+				erp.pointReads.size()));
+		assertEquals(franchisePrice0, headOffice.items.get(item0).unitPrice, "item 0: FRANCHISE is first and active");
+		assertEquals(10.0, stockPoints.row(MAG01, item0).unitPrice, 1e-9, "MAG01 keeps its own price");
+		assertEquals(franchisePrice0, stockPoints.row(FRANCHISE, item0).unitPrice);
+		assertTrue(headOffice.items.get(item1).isActive(), "item 1: active in MAG01");
+		assertEquals(5.0, headOffice.items.get(item1).unitPrice, 1e-9, "item 1: the price of MAG01, the first active");
+		assertFalse(stockPoints.row(FRANCHISE, item1).active);
+		assertEquals(0.0, stockPoints.row(FRANCHISE, item1).unitPrice, 0.0);
+		assertTrue(headOffice.items.containsKey("ONLY-MAG01"), "created through the import");
+		assertEquals(20.0, headOffice.items.get("ONLY-MAG01").unitPrice, 1e-9);
+		assertNull(stockPoints.row(FRANCHISE, "ONLY-MAG01"));
+		assertEquals("Only in MAG01", stockPoints.row(MAG01, "ONLY-MAG01").name);
+
+		assertEquals(1, point(run, "FRANCHISE").get("changed"));
+		assertEquals(0, point(run, "FRANCHISE").get("new"));
+		assertEquals(4, point(run, "MAG01").get("new"));
+		assertEquals(4, point(run, "MAG01").get("written"));
+		assertEquals(1, run.count("new"), "ONLY-MAG01");
+		assertEquals(0, items().getHanded().size(), "nothing more");
+	}
+
+	@Test
+	@DisplayName("Gone from one point: that row inactive (never deleted), the item still active through the other point")
+	void goneFromOnePoint() {
+		loadCatalogue();
+		secondPoint();
+		items();
+		String item2 = erp.items.get(2).getItemNo();
+		erp.otherPoints.get("MAG01").removeIf(row -> row.getItemNo().equals(item2));
+		NavPosRun<ErpItemDTO> run = items();
+		assertEquals(1, point(run, "MAG01").get("deactivated"));
+		assertFalse(stockPoints.row(MAG01, item2).active);
+		assertTrue(stockPoints.row(FRANCHISE, item2).active);
+		assertTrue(headOffice.items.get(item2).isActive());
+		assertEquals(0, run.count("deactivated"));
+
+		erp.items.removeIf(row -> row.getItemNo().equals(item2)); // now in no point
+		NavPosRun<ErpItemDTO> last = items();
+		assertEquals(1, last.count("deactivated"));
+		assertFalse(headOffice.items.get(item2).isActive());
+		assertFalse(stockPoints.row(FRANCHISE, item2).active);
+	}
+
+	@Test
+	@DisplayName("A point that answers no row keeps its rows and counts with them; nothing is deactivated, and the guard names it")
+	void silentPoint() {
+		loadCatalogue();
+		String item1 = erp.items.get(1).getItemNo();
+		erp.items.get(1).setUnitPrice(BigDecimal.ZERO);
+		secondPoint();
+		items();
+		erp.otherPoints.put("MAG01", new ArrayList<>()); // MAG01 answers no row
+		String gone = erp.items.get(5).getItemNo();
+		erp.items.removeIf(row -> row.getItemNo().equals(gone)); // gone from FRANCHISE, in no other point
+
+		NavPosRun<ErpItemDTO> run = items();
+		assertEquals(Boolean.TRUE, point(run, "MAG01").get("noAnswer"));
+		assertEquals(0, point(run, "MAG01").get("written"));
+		assertEquals(4, stockPoints.rows(MAG01).values().stream().filter(row -> row.active).count(), "kept");
+		assertTrue(headOffice.items.get(item1).isActive(), "item 1 still active through MAG01's last rows");
+		assertTrue(headOffice.items.get("ONLY-MAG01").isActive());
+		assertTrue(headOffice.items.get(gone).isActive(), "no item deactivated while a point is silent");
+		assertEquals("stock points that answered no item (MAG01): 1 items not deactivated", run.getSummary().get("guard"));
+		assertFalse(stockPoints.row(FRANCHISE, gone).active, "its FRANCHISE row is deactivated");
+	}
+
+	@Test
+	@DisplayName("A failed read of one point fails the run before anything is applied")
+	void failedRead() {
+		loadCatalogue();
+		secondPoint();
+		erp.failingPoints.add("MAG01");
+		erp.items.get(0).setUnitPrice(new BigDecimal("99.00"));
+		Double before = headOffice.items.get(erp.items.get(0).getItemNo()).unitPrice;
+		packets.clear();
+		int writes = stockPoints.writes;
+		assertThrows(IllegalStateException.class, this::items);
+		assertTrue(packets.isEmpty(), "no item packet");
+		assertEquals(writes, stockPoints.writes, "no row written");
+		assertEquals(before, headOffice.items.get(erp.items.get(0).getItemNo()).unitPrice);
+	}
+
+	@Test
+	@DisplayName("An inactive point is not read: its items in no active point are deactivated, its rows untouched")
+	void inactivePoint() {
+		loadCatalogue();
+		secondPoint();
+		items();
+		stockPoints.points.removeIf(point -> point.id == MAG01); // deactivated
+		erp.pointReads.clear();
+		NavPosRun<ErpItemDTO> run = items();
+		assertEquals(Arrays.asList("FRANCHISE"), erp.pointReads);
+		assertFalse(headOffice.items.get("ONLY-MAG01").isActive());
+		assertEquals(1, run.count("deactivated"));
+		assertTrue(stockPoints.row(MAG01, "ONLY-MAG01").active, "an inactive point's rows are not touched");
+	}
+
+	@Test
+	@DisplayName("List order decides the item's copy: MAG01 first gives item 0 the price of MAG01")
+	void listOrder() {
+		loadCatalogue();
+		secondPoint();
+		items();
+		java.util.Collections.reverse(stockPoints.points);
+		String item0 = erp.items.get(0).getItemNo();
+		NavPosRun<ErpItemDTO> run = items();
+		assertEquals(10.0, headOffice.items.get(item0).unitPrice, 1e-9);
+		assertTrue(run.count("changed") >= 1);
+		assertEquals(Arrays.asList("MAG01", "FRANCHISE"),
+				new ArrayList<>(((Map<?, ?>) run.getSummary().get("stockPoints")).keySet()));
+	}
+
+	@Test
+	@DisplayName("Dry run with two points: read and counted per point, nothing written")
+	void dryRunTwoPoints() {
+		loadCatalogue();
+		secondPoint();
+		properties.setDryRun(true);
+		int writes = stockPoints.writes;
+		NavPosRun<ErpItemDTO> run = items();
+		assertTrue(run.getHanded().isEmpty());
+		assertEquals(4, point(run, "MAG01").get("new"));
+		assertEquals(0, point(run, "MAG01").get("written"));
+		assertEquals(writes, stockPoints.writes);
+		assertNull(stockPoints.row(MAG01, "ONLY-MAG01"));
+		assertFalse(headOffice.items.containsKey("ONLY-MAG01"));
+	}
+
 	// ─── Fakes ──────────────────────────────────────────────────
 
 	private static NavPosPagesHeadOffice.Item item(String code, String erpId, boolean active) {
@@ -820,9 +1046,18 @@ class NavPosPagesSyncTest {
 			return new ArrayList<>(categories);
 		}
 
+		/** Stock points: the rows of the other points by code (any other code answers items), the codes read, those that fail. */
+		Map<String, List<NavPosStockRow>> otherPoints = new HashMap<>();
+		List<String> pointReads = new ArrayList<>();
+		Set<String> failingPoints = new HashSet<>();
+
 		@Override
-		public List<NavPosStockRow> readItems() {
-			return new ArrayList<>(items);
+		public List<NavPosStockRow> readItems(String locationCode) {
+			pointReads.add(locationCode);
+			if (failingPoints.contains(locationCode)) {
+				throw new IllegalStateException("reading the page PointStockPOS failed: timeout");
+			}
+			return new ArrayList<>(otherPoints.getOrDefault(locationCode, items));
 		}
 
 		@Override
@@ -941,6 +1176,42 @@ class NavPosPagesSyncTest {
 
 		private static String text(String value) {
 			return value == null ? "" : value;
+		}
+	}
+
+	/** Stock points: ho_stock_point (the active points, in list order) and ho_stock_point_item, by point id. */
+	final class FakeStockPoints implements NavPosPagesStockPoints {
+		final List<Point> points = new ArrayList<>();
+		final Map<Long, Map<String, Row>> rows = new HashMap<>();
+		int writes;
+
+		@Override
+		public List<Point> activePoints() {
+			return new ArrayList<>(points);
+		}
+
+		@Override
+		public Map<String, Row> rows(long pointId) {
+			return new LinkedHashMap<>(rows.getOrDefault(pointId, new TreeMap<>()));
+		}
+
+		/** As HoStockPointRows: a row whose item is not at the head office is left out. */
+		@Override
+		public int write(long pointId, List<Row> packet) {
+			writes++;
+			Map<String, Row> ofPoint = rows.computeIfAbsent(pointId, id -> new TreeMap<>());
+			int written = 0;
+			for (Row row : packet) {
+				if (headOffice.items.containsKey(row.itemCode)) {
+					ofPoint.put(row.itemCode, row);
+					written++;
+				}
+			}
+			return written;
+		}
+
+		Row row(long pointId, String itemCode) {
+			return rows.getOrDefault(pointId, new TreeMap<>()).get(itemCode);
 		}
 	}
 

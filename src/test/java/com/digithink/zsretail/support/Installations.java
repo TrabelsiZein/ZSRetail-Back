@@ -72,9 +72,37 @@ public final class Installations {
 		return outside(CONFIGS.resolve(relativePath));
 	}
 
-	/** Every installation file of configs/, as paths relative to configs/. */
+	/**
+	 * Every installation file of configs/ that git tracks, as paths relative to configs/: a local file not committed (a
+	 * rehearsal copy) does not change the tests. Every file when git cannot answer.
+	 */
 	public static List<String> configFiles() {
-		return propertiesFiles(CONFIGS);
+		List<String> files = propertiesFiles(CONFIGS);
+		List<String> tracked = trackedUnder(CONFIGS);
+		return tracked == null ? files : files.stream().filter(tracked::contains).collect(Collectors.toList());
+	}
+
+	/** The files git tracks under the folder, relative to it; null when git cannot answer. */
+	private static List<String> trackedUnder(Path folder) {
+		try {
+			Process git = new ProcessBuilder("git", "ls-files", "--", folder.toString()).redirectErrorStream(true).start();
+			List<String> lines;
+			try (java.io.BufferedReader out = new java.io.BufferedReader(
+					new java.io.InputStreamReader(git.getInputStream(), java.nio.charset.StandardCharsets.UTF_8))) {
+				lines = out.lines().collect(Collectors.toList());
+			}
+			if (git.waitFor() != 0) {
+				return null;
+			}
+			String prefix = folder.toString().replace('\\', '/') + "/";
+			return lines.stream().filter(line -> line.startsWith(prefix)).map(line -> line.substring(prefix.length()))
+					.collect(Collectors.toList());
+		} catch (IOException e) {
+			return null;
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			return null;
+		}
 	}
 
 	private static MockEnvironment outside(Path path) {

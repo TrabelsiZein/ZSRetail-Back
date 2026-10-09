@@ -31,7 +31,7 @@ import lombok.extern.log4j.Log4j2;
 
 /**
  * ERP catalogue, step 5: the three reads of the "POS pages", GET only, only the fields used ($select). The categories
- * and the items of the configured location follow @odata.nextLink to the end; the barcodes are read one page per call,
+ * and the items of one stock point (Location_Code) follow @odata.nextLink to the end; the barcodes are read one page per call,
  * after an entry number, the caller asking again from the highest Entry_No received. An HTTP error, a timeout or no
  * answer throws {@link NavPosPagesReadException} naming the page and the status. No retry. Invoices from the ERP, step
  * (a): the invoices page read by number, see {@link #readInvoicesAfter}.
@@ -66,11 +66,11 @@ public class NavPosPagesRestClient implements NavPosPagesSource {
 		});
 	}
 
-	/** Every row of the items page for the configured location (a quote in the code is doubled). */
+	/** Every row of the items page for one stock point, its Location_Code (a quote in the code is doubled). */
 	@Override
-	public List<NavPosStockRow> readItems() {
+	public List<NavPosStockRow> readItems(String locationCode) {
 		String page = properties.getPage().getItems();
-		URI uri = page(page).queryParam("$filter", "Location_Code eq '" + quoted(properties.getLocationCode()) + "'")
+		URI uri = page(page).queryParam("$filter", "Location_Code eq '" + quoted(locationCode) + "'")
 				.queryParam("$select", ITEM_FIELDS).build().encode().toUri();
 		return readAll(page, uri, new ParameterizedTypeReference<NavPosCollection<NavPosStockRow>>() {
 		});

@@ -60,7 +60,6 @@ final class NavPosPagesTestSupport {
 		properties.setDomain("DOMAIN");
 		properties.setUsername("user");
 		properties.setPassword("secret");
-		properties.setLocationCode("FRANCHISE");
 		properties.setDefaultVat(19);
 		properties.setPriceIncludesVat(true);
 		return properties;

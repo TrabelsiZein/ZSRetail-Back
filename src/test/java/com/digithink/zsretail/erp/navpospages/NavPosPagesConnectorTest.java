@@ -40,6 +40,9 @@ import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesSync;
 import com.digithink.zsretail.erp.service.ErpCommunicationService;
 import com.digithink.zsretail.erp.service.ErpItemBootstrapService;
 import com.digithink.zsretail.erp.service.ErpSynchronizationManager;
+import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
+import com.digithink.zsretail.headoffice.repository.HoStockPointRepository;
+import com.digithink.zsretail.headoffice.service.HoStockPointRows;
 import com.digithink.zsretail.erp.spi.ErpConnector;
 import com.digithink.zsretail.erp.spi.NoOpErpConnector;
 import com.digithink.zsretail.service.GeneralSetupService;
@@ -65,7 +68,8 @@ class NavPosPagesConnectorTest {
 						DynamicsNavConnector.class, NavPosPagesStartupCheck.class, NavPosPagesProperties.class,
 						NavPosPagesConfig.class, NavPosPagesRestClient.class, NavPosPagesReader.class,
 						NavPosPagesConnector.class, JdbcNavPosPagesState.class, JpaNavPosPagesHeadOffice.class,
-						NavPosPagesSync.class, BootstrapNavPosPagesImport.class, ErpSynchronizationManager.class)
+						NavPosPagesSync.class, HoStockPointRows.class, BootstrapNavPosPagesImport.class,
+						ErpSynchronizationManager.class)
 				// Plain singletons: never called here, and not autowired
 				.withInitializer(ctx -> {
 					ctx.getBeanFactory().registerSingleton("generalSetupService", mock(GeneralSetupService.class));
@@ -74,6 +78,9 @@ class NavPosPagesConnectorTest {
 					ctx.getBeanFactory().registerSingleton("jdbcTemplate", mock(JdbcTemplate.class));
 					ctx.getBeanFactory().registerSingleton("entityManager", mock(EntityManager.class));
 					ctx.getBeanFactory().registerSingleton("erpItemBootstrapService", mock(ErpItemBootstrapService.class));
+					ctx.getBeanFactory().registerSingleton("hoStockPointRepository", mock(HoStockPointRepository.class));
+					ctx.getBeanFactory().registerSingleton("hoStockPointItemRepository",
+							mock(HoStockPointItemRepository.class));
 				});
 	}
 
@@ -87,7 +94,7 @@ class NavPosPagesConnectorTest {
 		return new String[] { "node.type=HEAD_OFFICE", "ownership.catalogue=ERP", "erp.navpospages.enabled=true",
 				"erp.navpospages.base-url=" + NavPosPagesTestSupport.BASE_URL, "erp.navpospages.company=HAPPYNESS",
 				"erp.navpospages.username=user", "erp.navpospages.password=secret",
-				"erp.navpospages.location-code=FRANCHISE", "erp.navpospages.default-vat=19",
+				"erp.navpospages.location-code=FRANCHISE" /* release 2.2: a leftover line, ignored */, "erp.navpospages.default-vat=19",
 				"erp.navpospages.price-includes-vat=true" };
 	}
 
@@ -156,7 +163,6 @@ class NavPosPagesConnectorTest {
 			assertNotNull(ctx.getBean(NoOpErpConnector.class), "NoOp is still there, unchanged");
 			assertEquals(0, ctx.getBeanNamesForType(DynamicsNavConnector.class).length);
 			NavPosPagesProperties properties = ctx.getBean(NavPosPagesProperties.class);
-			assertEquals("FRANCHISE", properties.getLocationCode());
 			assertEquals(Integer.valueOf(19), properties.getDefaultVat());
 			assertEquals(Boolean.TRUE, properties.getPriceIncludesVat());
 			assertEquals(1000, properties.getBarcodePageSize());

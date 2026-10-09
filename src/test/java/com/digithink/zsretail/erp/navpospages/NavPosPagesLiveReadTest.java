@@ -27,7 +27,7 @@ import com.digithink.zsretail.support.Installations;
  * time; for the barcodes the first two pages only. Writes nothing anywhere.
  * <p>
  * Run from Apps/ZSRetail-Back (JDK 21 and the settings of CLAUDE.md): mvn ... -Dtest=NavPosPagesLiveReadTest
- * -Dnavpospages.live=true test
+ * -Dnavpospages.live=true [-Dnavpospages.point=FRANCHISE] test
  */
 @EnabledIfSystemProperty(named = "navpospages.live", matches = "true")
 class NavPosPagesLiveReadTest {
@@ -47,8 +47,8 @@ class NavPosPagesLiveReadTest {
 
 		print("families (" + properties.getPage().getCategories() + ")", reader::readFamilies);
 		print("sub-families (" + properties.getPage().getCategories() + ")", reader::readSubFamilies);
-		print("items (" + properties.getPage().getItems() + ", location " + properties.getLocationCode() + ")",
-				reader::readItems);
+		String point = System.getProperty("navpospages.point", "FRANCHISE"); // release 2.2: one stock point per read
+		print("items (" + properties.getPage().getItems() + ", stock point " + point + ")", () -> reader.readItems(point));
 		long after = 0;
 		for (int page = 1; page <= 2; page++) {
 			long from = after;

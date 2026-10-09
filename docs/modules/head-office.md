@@ -1436,6 +1436,32 @@ Done (step 1):
   exists at any case, deactivating or deleting a point used by a store, deleting a point that has items (deactivate it).
 - Tests: `HoStockPointServiceTest`, `NavPosPagesStartupCheckTest` (location-code absent or blank accepted).
 
+Done (step 2), the items run (`NavPosPagesSync.items`):
+- `erp.navpospages.location-code` is read nowhere any more (the property is gone; a leftover line is ignored). The
+  items page is read once per **active** point, in list order (`NavPosPagesSource.readItems(code)`, `$filter=Location_Code
+  eq '<code>'`). No active point: the run reads nothing, writes nothing, and its summary says
+  `waiting: no active point de stock: create one (Catalogue > Points de stock)`.
+- Every point is read before anything is applied: a failed read fails the run, nothing is written.
+- The item row is a default copy: the first point of the list where the item is active, else the first that has it.
+  That merged list goes through the compare and the import of 2.1, unchanged. With one point it is that point's read,
+  so the item table gets exactly the 2.1 values.
+- Each point's rows (`HoStockPointRows`, port `NavPosPagesStockPoints`): new, changed (name, description, family,
+  sub-family, active, the price with VAT at 3 decimals), gone from the point = inactive, never deleted. Written after
+  the items (a row needs its item), in packets of `packet-size`, each packet one transaction; a row whose item is not at
+  the head office is left out and handed again at the next run. Same rules as the item: a blank Description keeps the
+  row's name and description (a new row takes the code as name); a family or sub-family of the ERP that is not at the
+  head office keeps the row's one. The TAX_STAMP ERP item gets no row.
+- A point that answers no row: its rows are not touched and count, as they are, for the item's copy; no item is
+  deactivated in that run (guard `stock points that answered no item (X): N items not deactivated`; when every point is
+  silent, the 2.1 guard text). An inactive point is not read: its rows stay; an item found only there is deactivated.
+- Summary: the 2.1 keys (read = rows of every point, leftOut and notes added up), plus `stockPoints`
+  `{code: {name, read, noAnswer?, new, changed, deactivated, written, durationMs}}` in list order (durationMs: the read
+  and the writing of that point's rows). Dry run: read and counted per point, nothing written.
+- Nothing is recorded for the stores (step 3). Families, sub-families, barcodes and invoices unchanged.
+- Tests: `NavPosPagesSyncTest` (the 2.1 cases with one point FRANCHISE; one point's rows equal the items, a second run
+  writes nothing; no point; two points with prices, the first active point, an item of one point only; gone from one
+  point; a silent point; a failed read; an inactive point; list order; dry run).
+
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter
 `appConfig/erpOwnsOnlyCatalogue`): `nodeType` `HEAD_OFFICE`, `ownership.CATALOGUE` `ERP`, `CUSTOMERS` and `SUPPLY` not `ERP`,

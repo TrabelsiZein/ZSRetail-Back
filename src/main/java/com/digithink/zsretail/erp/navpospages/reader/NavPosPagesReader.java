@@ -43,8 +43,9 @@ public class NavPosPagesReader {
 		return mapper.subFamilies(client.readCategories());
 	}
 
-	public NavPosResult<ErpItemDTO> readItems() {
-		return mapper.items(client.readItems());
+	/** The items of one stock point (its Location_Code). */
+	public NavPosResult<ErpItemDTO> readItems(String locationCode) {
+		return mapper.items(client.readItems(locationCode));
 	}
 
 	/** One page of barcodes after entryNo; ask again from getHighestEntryNo() while it is not null. */

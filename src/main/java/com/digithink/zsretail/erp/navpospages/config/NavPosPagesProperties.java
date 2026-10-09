@@ -34,8 +34,6 @@ public class NavPosPagesProperties {
 	private String domain;
 	private String username;
 	private String password;
-	/** The one location whose rows of the items page are read. */
-	private String locationCode;
 	private Page page = new Page();
 	/** Barcodes read per call ($top). */
 	private int barcodePageSize = 1000;

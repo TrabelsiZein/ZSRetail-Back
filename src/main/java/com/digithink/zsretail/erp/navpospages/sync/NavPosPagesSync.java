@@ -47,9 +47,13 @@ import com.digithink.zsretail.erp.service.ErpSyncWarningException;
  * is applied: 0 proves the new items were saved.</li>
  * <li><b>Items.</b> Compared on what the import applies: name, description, VAT, active, ERP id, family and sub-family
  * (only when the ERP's one exists at the head office), the price with VAT at 3 decimals, discount group and maximum
- * discount (the import clears them). A null or zero price makes the item inactive (the mapper). Items of the ERP
- * (erp_external_id set) no longer in the location are handed inactive, never deleted, whatever their number; only an
- * empty ERP answer (a broken connection or a wrong location code, never a cleanup) deactivates nothing. Hand-made
+ * discount (the import clears them). A null or zero price makes the item inactive (the mapper). Release 2.2: the
+ * items page is read once per active stock point, in list order ({@link NavPosPagesStockPoints}; none: the run does
+ * nothing); every point's rows are written in full (new, changed, gone = inactive, never deleted), after the items; the
+ * item gets its default copy from the first point where it is active, else the first that has it. A point that
+ * answers no row keeps its rows and counts with them; a failed read fails the run before anything is applied. Items of
+ * the ERP (erp_external_id set) in no point any more are handed inactive, never deleted, whatever their number; when a
+ * point answered no row (a broken connection or a wrong code, never a cleanup) nothing is deactivated. Hand-made
  * items, packs made at the head office and TAX_STAMP have no ERP id and are never touched. A blank Description (the
  * name and the description) never replaces those of an item already at the head office; a new item takes its code as
  * name.</li>
@@ -62,8 +66,8 @@ import com.digithink.zsretail.erp.service.ErpSyncWarningException;
  * that list once all its barcodes are at the head office.</li>
  * <li><b>Invoices</b> (invoices from the ERP, step a): read by number per configured year, see {@link #invoices}; no
  * state kept here.</li>
- * <li><b>Dry run.</b> Reads, compares and summarises (the barcode run to the last page); hands nothing; does not write
- * the state table.</li>
+ * <li><b>Dry run.</b> Reads, compares and summarises (the barcode run to the last page; the items run per stock point);
+ * hands nothing; writes no row of a point; does not write the state table.</li>
  * </ul>
  */
 @Component
@@ -85,8 +89,12 @@ public class NavPosPagesSync {
 	static final String ITEMS_ALREADY_RUNNING = "an items run is already running: this one does not start";
 	static final String BARCODES_ALREADY_RUNNING = "a barcode run is already running: this one does not start";
 
+	/** Stock points, step 2: the items run reads the active points; without one it does nothing. */
+	public static final String NO_STOCK_POINT = "no active point de stock: create one (Catalogue > Points de stock)";
+
 	private final NavPosPagesSource source;
 	private final NavPosPagesHeadOffice headOffice;
+	private final NavPosPagesStockPoints stockPoints;
 	private final NavPosPagesState state;
 	private final NavPosPagesProperties properties;
 	private final NavPosPagesImport importer;
@@ -96,10 +104,11 @@ public class NavPosPagesSync {
 	/** One barcode run at a time. */
 	private final AtomicBoolean barcodesRunning = new AtomicBoolean();
 
-	public NavPosPagesSync(NavPosPagesSource source, NavPosPagesHeadOffice headOffice, NavPosPagesState state,
-			NavPosPagesProperties properties, NavPosPagesImport importer) {
+	public NavPosPagesSync(NavPosPagesSource source, NavPosPagesHeadOffice headOffice, NavPosPagesStockPoints stockPoints,
+			NavPosPagesState state, NavPosPagesProperties properties, NavPosPagesImport importer) {
 		this.source = source;
 		this.headOffice = headOffice;
+		this.stockPoints = stockPoints;
 		this.state = state;
 		this.properties = properties;
 		this.importer = importer;
@@ -209,23 +218,58 @@ public class NavPosPagesSync {
 	private NavPosRun<ErpItemDTO> readAndApplyItems() {
 		String page = properties.getPage().getItems();
 		Summary summary = new Summary("items", page, properties.isDryRun());
+		List<NavPosPagesStockPoints.Point> points = stockPoints.activePoints();
+		if (points.isEmpty()) {
+			return run(new ArrayList<>(), summary.waiting(NO_STOCK_POINT), page);
+		}
 		String waiting = missingFamilies(source.readCategories(), true);
 		if (waiting != null) {
 			return run(new ArrayList<>(), summary.waiting(waiting), page);
 		}
-		List<NavPosStockRow> rows = source.readItems();
-		NavPosResult<ErpItemDTO> read = mapper.items(rows);
-		summary.read(read);
+		// Every point read first, in list order: a failed read fails the run before anything is applied
+		List<PointRead> reads = new ArrayList<>();
+		for (NavPosPagesStockPoints.Point point : points) {
+			long start = System.nanoTime();
+			List<NavPosStockRow> rows = source.readItems(point.code);
+			PointRead read = new PointRead(point, rows.size(), mapper.items(rows), millisSince(start));
+			summary.addRead(read.result);
+			reads.add(read);
+		}
+		List<String> silent = reads.stream().filter(read -> read.read == 0).map(read -> read.point.code)
+				.collect(Collectors.toList());
+		boolean allSilent = silent.size() == reads.size();
 		Map<String, NavPosPagesHeadOffice.Item> local = headOffice.items();
 		Set<String> familyCodes = headOffice.families().keySet();
 		Set<String> subFamilyCodes = headOffice.subFamilies().keySet();
 		String taxStamp = headOffice.taxStampErpCode();
 
+		// The rows of each point that answered (compared before the items, whose blank names are filled below)
+		for (PointRead read : reads) {
+			read.stored = stockPoints.rows(read.point.id);
+			if (read.read > 0) {
+				read.compare(taxStamp, familyCodes, subFamilyCodes);
+			}
+		}
+
+		// The item's default copy: the first point of the list where it is active, else the first that has it. A point
+		// that answered no row counts with its last known rows (unless no point answered: nothing changes, as before).
+		Map<String, ErpItemDTO> merged = new LinkedHashMap<>();
+		for (PointRead read : reads) {
+			List<ErpItemDTO> ofPoint = read.read > 0 ? read.result.getRows()
+					: allSilent ? new ArrayList<>() : fromStored(read.stored);
+			for (ErpItemDTO item : ofPoint) {
+				ErpItemDTO first = merged.get(item.getCode());
+				if (first == null || (!Boolean.TRUE.equals(first.getActive()) && Boolean.TRUE.equals(item.getActive()))) {
+					merged.put(item.getCode(), item);
+				}
+			}
+		}
+
 		List<ErpItemDTO> changes = new ArrayList<>();
 		Set<String> freshCodes = new HashSet<>();
 		Set<String> inErp = new HashSet<>();
 		int changed = 0;
-		for (ErpItemDTO item : read.getRows()) {
+		for (ErpItemDTO item : merged.values()) {
 			inErp.add(item.getCode());
 			if (item.getCode().equals(taxStamp)) {
 				summary.leftOut(TAX_STAMP_ITEM); // the import never saves it: it would wait for ever
@@ -250,8 +294,8 @@ public class NavPosPagesSync {
 			}
 		}
 
-		// Items of the ERP no longer in the location: inactive, never deleted, whatever their number; not on an empty
-		// answer (a broken connection or a wrong location code, never a cleanup)
+		// Items of the ERP in no point any more: inactive, never deleted, whatever their number; not when a point answered
+		// no row (a broken connection or a wrong code, never a cleanup)
 		List<ErpItemDTO> gone = new ArrayList<>();
 		for (NavPosPagesHeadOffice.Item here : local.values()) {
 			if (here.fromErp() && here.isActive() && !here.code.equals(taxStamp) && !inErp.contains(here.code)) {
@@ -260,8 +304,11 @@ public class NavPosPagesSync {
 		}
 		int deactivated = 0;
 		if (!gone.isEmpty()) {
-			if (rows.isEmpty()) {
+			if (allSilent) {
 				summary.guard("the ERP answered no item for the location: " + gone.size()
+						+ " items not deactivated");
+			} else if (!silent.isEmpty()) {
+				summary.guard("stock points that answered no item (" + String.join(", ", silent) + "): " + gone.size()
 						+ " items not deactivated");
 			} else {
 				changes.addAll(gone);
@@ -275,6 +322,7 @@ public class NavPosPagesSync {
 		if (properties.isDryRun()) {
 			summary.put("applied", 0);
 			summary.put("packets", 0);
+			summary.put("stockPoints", pointSummaries(reads));
 			return run(new ArrayList<>(), summary, page);
 		}
 
@@ -310,7 +358,163 @@ public class NavPosPagesSync {
 			Set<String> saved = headOffice.items().keySet();
 			state.put(ITEMS_PENDING, String.valueOf(freshCodes.stream().filter(code -> !saved.contains(code)).count()));
 		}
+		// The rows of each point, after the items (a row needs its item), in packets by item code
+		for (PointRead read : reads) {
+			long start = System.nanoTime();
+			int count = (read.toWrite.size() + size - 1) / size;
+			for (int from = 0; from < read.toWrite.size(); from += size) {
+				List<NavPosPagesStockPoints.Row> packet = new ArrayList<>(
+						read.toWrite.subList(from, Math.min(from + size, read.toWrite.size())));
+				try {
+					read.written += stockPoints.write(read.point.id, packet);
+				} catch (RuntimeException e) {
+					throw new IllegalStateException("Stock point " + read.point.code + ": packet " + (from / size + 1)
+							+ " of " + count + " failed, " + read.written + " of " + read.toWrite.size()
+							+ " rows written before it (the next run goes on): " + e.getMessage(), e);
+				}
+			}
+			read.millis += millisSince(start);
+		}
+		summary.put("stockPoints", pointSummaries(reads));
 		return run(applied, summary, page);
+	}
+
+	/** One point's read, its rows as the head office has them, and the rows to write. */
+	private final class PointRead {
+		final NavPosPagesStockPoints.Point point;
+		/** Rows the ERP answered for the point (0: no answer, nothing changes in the point). */
+		final int read;
+		final NavPosResult<ErpItemDTO> result;
+		long millis;
+		Map<String, NavPosPagesStockPoints.Row> stored = new LinkedHashMap<>();
+		final List<NavPosPagesStockPoints.Row> toWrite = new ArrayList<>();
+		int fresh;
+		int changed;
+		int deactivated;
+		int written;
+
+		PointRead(NavPosPagesStockPoints.Point point, int read, NavPosResult<ErpItemDTO> result, long millis) {
+			this.point = point;
+			this.read = read;
+			this.result = result;
+			this.millis = millis;
+		}
+
+		/** New and changed rows; the active rows no longer answered, inactive (never deleted). By item code. */
+		void compare(String taxStamp, Set<String> familyCodes, Set<String> subFamilyCodes) {
+			Set<String> answered = new HashSet<>();
+			for (ErpItemDTO item : result.getRows()) {
+				answered.add(item.getCode());
+				if (item.getCode().equals(taxStamp)) {
+					continue; // the import never saves it
+				}
+				NavPosPagesStockPoints.Row here = stored.get(item.getCode());
+				NavPosPagesStockPoints.Row row = rowOf(item, here, familyCodes, subFamilyCodes);
+				if (here == null) {
+					fresh++;
+					toWrite.add(row);
+				} else if (differs(row, here)) {
+					changed++;
+					toWrite.add(row);
+				}
+			}
+			for (NavPosPagesStockPoints.Row here : stored.values()) {
+				if (here.active && !answered.contains(here.itemCode)) {
+					deactivated++;
+					toWrite.add(here.inactive());
+				}
+			}
+			toWrite.sort(Comparator.comparing(row -> row.itemCode));
+		}
+	}
+
+	/**
+	 * The point's row for an item of its read. A blank Description (name and description) keeps those of the row; a new
+	 * row with a blank name takes the item code, as the import does for a new item. A family or sub-family of the ERP
+	 * that is not at the head office keeps the row's one, as the import does for the item.
+	 */
+	private static NavPosPagesStockPoints.Row rowOf(ErpItemDTO item, NavPosPagesStockPoints.Row here, Set<String> familyCodes,
+			Set<String> subFamilyCodes) {
+		String name = text(item.getName(), null);
+		if (name.isEmpty()) {
+			name = here != null ? here.name : item.getCode();
+		}
+		String description = text(item.getDescription(), null);
+		if (description.isEmpty() && here != null) {
+			description = text(here.description, null);
+		}
+		return new NavPosPagesStockPoints.Row(item.getCode(), name, description.isEmpty() ? null : description,
+				known(item.getFamilyExternalId(), familyCodes, here == null ? null : here.familyCode),
+				known(item.getSubFamilyExternalId(), subFamilyCodes, here == null ? null : here.subFamilyCode),
+				item.getUnitPrice() == null ? 0.0 : item.getUnitPrice().doubleValue(), Boolean.TRUE.equals(item.getActive()));
+	}
+
+	/** The ERP's code when the head office has it, else the code kept. */
+	private static String known(String erpCode, Set<String> headOfficeCodes, String kept) {
+		String code = blankToNull(erpCode);
+		return code != null && headOfficeCodes.contains(code) ? code : blankToNull(kept);
+	}
+
+	/** Name, description, family, sub-family, active, the price with VAT at 3 decimals. */
+	private boolean differs(NavPosPagesStockPoints.Row row, NavPosPagesStockPoints.Row here) {
+		Integer vat = properties.getDefaultVat();
+		return !text(row.name, null).equals(text(here.name, null))
+				|| !text(row.description, null).equals(text(here.description, null))
+				|| !Objects.equals(blankToNull(row.familyCode), blankToNull(here.familyCode))
+				|| !Objects.equals(blankToNull(row.subFamilyCode), blankToNull(here.subFamilyCode))
+				|| row.active != here.active || withVat(price(row), vat).compareTo(withVat(price(here), vat)) != 0;
+	}
+
+	private static BigDecimal price(NavPosPagesStockPoints.Row row) {
+		return row.unitPrice == null ? BigDecimal.ZERO : BigDecimal.valueOf(row.unitPrice);
+	}
+
+	/** A point's last known rows as items of the ERP, for the merge when the point answered no row. */
+	private List<ErpItemDTO> fromStored(Map<String, NavPosPagesStockPoints.Row> stored) {
+		List<ErpItemDTO> items = new ArrayList<>();
+		for (NavPosPagesStockPoints.Row row : stored.values()) {
+			ErpItemDTO item = new ErpItemDTO();
+			item.setExternalId(row.itemCode);
+			item.setCode(row.itemCode);
+			item.setName(row.name);
+			item.setDescription(row.description);
+			item.setFamilyExternalId(row.familyCode);
+			item.setSubFamilyExternalId(row.subFamilyCode);
+			item.setDefaultVAT(properties.getDefaultVat());
+			item.setUnitPrice(price(row));
+			item.setActive(row.active);
+			items.add(item);
+		}
+		return items;
+	}
+
+	/** The stockPoints part of the summary: per point code, in list order. */
+	private static Map<String, Object> pointSummaries(List<PointRead> reads) {
+		Map<String, Object> points = new LinkedHashMap<>();
+		for (PointRead read : reads) {
+			Map<String, Object> values = new LinkedHashMap<>();
+			values.put("name", read.point.name);
+			values.put("read", read.read);
+			if (read.read == 0) {
+				values.put("noAnswer", true); // its rows kept as they are
+			}
+			values.put("new", read.fresh);
+			values.put("changed", read.changed);
+			values.put("deactivated", read.deactivated);
+			values.put("written", read.written);
+			values.put("durationMs", read.millis);
+			points.put(read.point.code, values);
+		}
+		return points;
+	}
+
+	private static long millisSince(long start) {
+		return (System.nanoTime() - start) / 1_000_000;
+	}
+
+	private static String blankToNull(String value) {
+		String trimmed = value == null ? "" : value.trim();
+		return trimmed.isEmpty() ? null : trimmed;
 	}
 
 	/** The fields the import applies, the price with VAT at 3 decimals. */
@@ -706,6 +910,17 @@ public class NavPosPagesSync {
 			result.getLeftOut().forEach((reason, count) -> leftOut.merge(reason, count, Integer::sum));
 			if (!result.getNotes().isEmpty()) {
 				values.put("notes", result.getNotes());
+			}
+		}
+
+		/** Stock points: one more point read, its counts added to those of the points before it. */
+		void addRead(NavPosResult<?> result) {
+			add("read", result.getRead());
+			result.getLeftOut().forEach((reason, count) -> leftOut.merge(reason, count, Integer::sum));
+			if (!result.getNotes().isEmpty()) {
+				@SuppressWarnings("unchecked")
+				Map<String, Integer> notes = (Map<String, Integer>) values.computeIfAbsent("notes", key -> new LinkedHashMap<String, Integer>());
+				result.getNotes().forEach((reason, count) -> notes.merge(reason, count, Integer::sum));
 			}
 		}
 

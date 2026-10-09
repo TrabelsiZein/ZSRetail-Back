@@ -63,9 +63,8 @@ class NavPosPagesRestClientTest {
 	}
 
 	@Test
-	@DisplayName("Items: $filter on the location (a quote doubled), $select of the six fields, the next link followed")
+	@DisplayName("Items: $filter on the stock point's Location_Code (a quote doubled), $select of the six fields, the next link followed")
 	void itemsAndNextLink() {
-		properties.setLocationCode(" O'NEIL ");
 		String first = NavPosPagesTestSupport.COMPANY_URL + "PointStockPOS?$filter=Location_Code%20eq%20'O''NEIL'"
 				+ "&$select=Item_No,Variant_Code,Description,Unit_Price,Family,Subfamily";
 		String next = NavPosPagesTestSupport.COMPANY_URL
@@ -76,7 +75,7 @@ class NavPosPagesRestClientTest {
 				MediaType.APPLICATION_JSON));
 		server.expect(requestTo(next)).andExpect(method(HttpMethod.GET)).andRespond(withSuccess(
 				"{\"value\":[{\"Item_No\":\"000002\",\"Unit_Price\":10}]}", MediaType.APPLICATION_JSON));
-		List<NavPosStockRow> rows = client.readItems();
+		List<NavPosStockRow> rows = client.readItems(" O'NEIL ");
 		server.verify();
 		assertEquals(2, rows.size());
 		assertEquals("A   ", rows.get(0).getDescription());
@@ -85,13 +84,12 @@ class NavPosPagesRestClientTest {
 	}
 
 	@Test
-	@DisplayName("Items of the sample (location DA-MG-GREM): 50 rows")
+	@DisplayName("Items of the sample (stock point DA-MG-GREM): 50 rows")
 	void itemsSample() {
-		properties.setLocationCode("DA-MG-GREM");
 		server.expect(requestTo(NavPosPagesTestSupport.COMPANY_URL + "PointStockPOS?$filter=Location_Code%20eq%20'DA-MG-GREM'"
 				+ "&$select=Item_No,Variant_Code,Description,Unit_Price,Family,Subfamily"))
 				.andRespond(withSuccess(NavPosPagesTestSupport.sample("PointStockPOS"), MediaType.APPLICATION_JSON));
-		assertEquals(50, client.readItems().size());
+		assertEquals(50, client.readItems("DA-MG-GREM").size());
 		server.verify();
 	}
 
@@ -246,7 +244,7 @@ class NavPosPagesRestClientTest {
 		server.expect(requestTo(NavPosPagesTestSupport.COMPANY_URL + "PointStockPOS?$filter=Location_Code%20eq%20'FRANCHISE'"
 				+ "&$select=Item_No,Variant_Code,Description,Unit_Price,Family,Subfamily"))
 				.andRespond(withStatus(HttpStatus.UNAUTHORIZED));
-		NavPosPagesReadException error = assertThrows(NavPosPagesReadException.class, () -> client.readItems());
+		NavPosPagesReadException error = assertThrows(NavPosPagesReadException.class, () -> client.readItems("FRANCHISE"));
 		assertEquals("PointStockPOS", error.getPage());
 		assertTrue(error.getMessage().contains("reading the page PointStockPOS failed: HTTP 401"), error.getMessage());
 

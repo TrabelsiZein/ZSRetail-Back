@@ -13,8 +13,8 @@ public interface NavPosPagesSource {
 	/** Every row of the categories page. */
 	List<NavPosCategoryRow> readCategories();
 
-	/** Every row of the items page for the configured location. */
-	List<NavPosStockRow> readItems();
+	/** Every row of the items page for one stock point (its Location_Code). */
+	List<NavPosStockRow> readItems(String locationCode);
 
 	/** One page of barcodes with an Entry_No above entryNo, by Entry_No. */
 	List<NavPosBarcodeRow> readBarcodesAfter(long entryNo);
