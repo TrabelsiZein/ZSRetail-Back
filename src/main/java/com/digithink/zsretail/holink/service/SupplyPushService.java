@@ -1,5 +1,6 @@
 package com.digithink.zsretail.holink.service;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -210,9 +211,9 @@ public class SupplyPushService {
 		return true;
 	}
 
-	private static int quantityOf(Object[] row) {
-		// 2.2.1: the stock copy stays whole for now; a decimal stock stops the push here, loudly
-		return row[3] == null ? 0 : Quantities.wholeIntOrFail(row[3], "Stock copy to the head office, item " + row[1]);
+	/** The stock of a row, null as 0; 2.2.1: with its decimals, without trailing zeros (9.800 is 9.8, 9.000 is 9). */
+	private static BigDecimal quantityOf(Object[] row) {
+		return row[3] == null ? BigDecimal.ZERO : Quantities.normalize((BigDecimal) row[3]);
 	}
 
 	/** For the link page: {"stockToSend": items, "stockSentAt": "yyyy-MM-ddTHH:mm:ss" or null}. */

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
 import java.lang.reflect.Proxy;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -157,7 +158,7 @@ class SalesCopyReceiverTest {
 			line.setLineNo(copy.getLines().size() + 1);
 			line.setItemCode(code);
 			line.setItemName("Item " + code);
-			line.setQuantity(1);
+			line.setQuantity(BigDecimal.ONE);
 			copy.getLines().add(line);
 		}
 		copy.getPayments().add(payment("ESP", total));
@@ -207,7 +208,7 @@ class SalesCopyReceiverTest {
 
 		TicketCopyDTO changed = ticket("T-1", 60.0, "C");
 		changed.setStatus("CANCELLED");
-		changed.getLines().get(0).setQuantity(3);
+		changed.getLines().get(0).setQuantity(BigDecimal.valueOf(3));
 		changed.getPayments().add(payment("CHQ", 10.0));
 		assertAllAccepted(receiver.receiveTickets(rs01, Arrays.asList(changed)), "T-1");
 
@@ -218,7 +219,7 @@ class SalesCopyReceiverTest {
 		assertEquals(60.0, row.getTotalAmount());
 		assertEquals(1, row.getLines().size(), "old lines removed");
 		assertEquals("C", row.getLines().get(0).getItemCode());
-		assertEquals(3, row.getLines().get(0).getQuantity());
+		assertEquals(BigDecimal.valueOf(3), row.getLines().get(0).getQuantity());
 		assertEquals(1, row.getLines().get(0).getLineNo());
 		assertSame(row, row.getLines().get(0).getTicket());
 		assertEquals(2, row.getPayments().size());
@@ -410,5 +411,67 @@ class SalesCopyReceiverTest {
 			}
 			return result;
 		});
+	}
+
+	// --- 2.2.1: decimal quantities ---
+
+	/** A store sales line as read from its DECIMAL(18,3) column, with the amounts the store computed. */
+	private static com.digithink.zsretail.model.SalesLine storeLine(long id, String code, String quantity, double ttc) {
+		com.digithink.zsretail.model.Item item = new com.digithink.zsretail.model.Item();
+		item.setId(id + 100);
+		item.setItemCode(code);
+		item.setName("Bulk " + code);
+		com.digithink.zsretail.model.SalesLine line = new com.digithink.zsretail.model.SalesLine();
+		line.setId(id);
+		line.setItem(item);
+		line.setQuantity(new BigDecimal(quantity));
+		line.setUnitPrice(50.0 / 1.19);
+		line.setUnitPriceIncludingVat(50.0);
+		line.setVatPercent(19);
+		line.setLineTotal(ttc / 1.19);
+		line.setVatAmount(ttc - ttc / 1.19);
+		line.setLineTotalIncludingVat(ttc);
+		return line;
+	}
+
+	@Test
+	@DisplayName("2.2.1: a ticket with 0.2 and 0.058 arrives at the head office with the same quantities and amounts")
+	void decimalTicketArrivesAsSent() throws Exception {
+		com.digithink.zsretail.model.SalesHeader header = new com.digithink.zsretail.model.SalesHeader();
+		header.setId(77L);
+		header.setSalesNumber("T-BULK-1");
+		header.setSalesDate(SOLD);
+		header.setStatus(com.digithink.zsretail.model.enumeration.TransactionStatus.COMPLETED);
+		header.setTotalAmount(12.9);
+		com.digithink.zsretail.model.SalesLine twoDecilitres = storeLine(1L, "VH52-1L", "0.200", 10.0);
+		com.digithink.zsretail.model.SalesLine fiftyEight = storeLine(2L, "VH52-1L", "0.058", 2.9);
+		TicketCopyDTO sentCopy = com.digithink.zsretail.holink.service.SalesCopyMapper.ticket(header,
+				Arrays.asList(twoDecilitres, fiftyEight), Collections.emptyList());
+
+		// Over the wire, read back as the head office's Spring mapper does
+		com.fasterxml.jackson.databind.ObjectMapper json = new com.fasterxml.jackson.databind.ObjectMapper()
+				.findAndRegisterModules()
+				.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+				.disable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+		String wire = json.writeValueAsString(sentCopy);
+		assertTrue(wire.contains("\"quantity\":0.2,"), wire);
+		assertTrue(wire.contains("\"quantity\":0.058,"), wire);
+		TicketCopyDTO received = json.readValue(wire, TicketCopyDTO.class);
+
+		assertAllAccepted(receiver.receiveTickets(rs01, Arrays.asList(received)), "T-BULK-1");
+		HoTicket row = ticketsOf(rs01).get(0);
+		assertEquals(2, row.getLines().size());
+		com.digithink.zsretail.model.SalesLine[] sent = { twoDecilitres, fiftyEight };
+		for (int i = 0; i < 2; i++) {
+			com.digithink.zsretail.headoffice.model.HoTicketLine line = row.getLines().get(i);
+			assertEquals(0, sent[i].getQuantity().compareTo(line.getQuantity()), "quantity " + i);
+			assertEquals(sent[i].getQuantity().toPlainString(), line.getQuantity().toPlainString());
+			assertEquals(sent[i].getLineTotal(), line.getLineTotal(), 0.0, "stored as sent, not recomputed");
+			assertEquals(sent[i].getLineTotalIncludingVat(), line.getLineTotalIncludingVat(), 0.0);
+			assertEquals(sent[i].getVatAmount(), line.getVatAmount(), 0.0);
+			assertEquals(sent[i].getUnitPrice(), line.getUnitPrice(), 0.0);
+		}
+		assertEquals("0.2", row.getLines().get(0).getQuantity().toPlainString());
+		assertEquals("0.058", row.getLines().get(1).getQuantity().toPlainString());
 	}
 }

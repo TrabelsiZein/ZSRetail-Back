@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.math.BigDecimal;
 import java.lang.reflect.Proxy;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -205,7 +206,7 @@ class SalesCopyRoundTripTest {
 				TicketLineCopyDTO line = new TicketLineCopyDTO();
 				line.setLineNo(1);
 				line.setItemCode("ITM-100");
-				line.setQuantity(1);
+				line.setQuantity(BigDecimal.ONE);
 				copy.getLines().add(line);
 				return copy;
 			}

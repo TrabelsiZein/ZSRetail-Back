@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.dto;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,8 +32,8 @@ public class StockReportDTO {
 	public static class Item {
 		private String itemCode;
 		private String itemName;
-		/** The store's stock now; a null stock is sent as 0. */
-		private Integer quantity;
+		/** The store's stock now; a null stock is sent as 0. 2.2.1: up to 3 decimals (9.8); 9 travels as 9. */
+		private BigDecimal quantity;
 		/** True for an item of the store's own (not from the head office). */
 		private boolean own;
 	}

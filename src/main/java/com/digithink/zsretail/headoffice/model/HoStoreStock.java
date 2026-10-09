@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.model;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import javax.persistence.Column;
@@ -9,6 +10,7 @@ import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
 
 import com.digithink.zsretail.model._BaseEntity;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -38,8 +40,9 @@ public class HoStoreStock extends _BaseEntity {
 	@Column(name = "item_name")
 	private String itemName;
 
-	@Column(nullable = false)
-	private int quantity;
+	/** 2.2.1: up to 3 decimals; read through {@link #getQuantity()} (5.000 is 5). */
+	@Column(nullable = false, precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal quantity = BigDecimal.ZERO;
 
 	/** True for an item of the store's own (not from the head office). */
 	@Column(name = "own_item")
@@ -52,4 +55,8 @@ public class HoStoreStock extends _BaseEntity {
 	/** Head office clock when it arrived. */
 	@Column(name = "received_at")
 	private LocalDateTime receivedAt;
+
+	public BigDecimal getQuantity() {
+		return Quantities.normalize(quantity);
+	}
 }

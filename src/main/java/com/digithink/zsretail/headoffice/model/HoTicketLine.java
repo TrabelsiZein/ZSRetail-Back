@@ -1,5 +1,7 @@
 package com.digithink.zsretail.headoffice.model;
 
+import java.math.BigDecimal;
+
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.FetchType;
@@ -8,6 +10,7 @@ import javax.persistence.ManyToOne;
 import javax.persistence.Table;
 
 import com.digithink.zsretail.model._BaseEntity;
+import com.digithink.zsretail.utils.Quantities;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.Data;
@@ -37,7 +40,9 @@ public class HoTicketLine extends _BaseEntity {
 
 	private String itemName;
 
-	private Integer quantity;
+	/** 2.2.1: as the store sent it, up to 3 decimals; read through {@link #getQuantity()} (2.000 is 2). */
+	@Column(precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal quantity;
 
 	private Double unitPrice;
 
@@ -59,4 +64,8 @@ public class HoTicketLine extends _BaseEntity {
 	private Double lineTotal;
 
 	private Double lineTotalIncludingVat;
+
+	public BigDecimal getQuantity() {
+		return Quantities.normalize(quantity);
+	}
 }

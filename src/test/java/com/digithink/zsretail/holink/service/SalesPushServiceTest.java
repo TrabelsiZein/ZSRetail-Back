@@ -10,6 +10,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.math.BigDecimal;
 import java.lang.reflect.Proxy;
 import java.net.ConnectException;
 import java.time.LocalDateTime;
@@ -220,7 +221,7 @@ class SalesPushServiceTest {
 		TicketLineCopyDTO line = new TicketLineCopyDTO();
 		line.setLineNo(1);
 		line.setItemCode("ITM-100");
-		line.setQuantity(1);
+		line.setQuantity(BigDecimal.ONE);
 		copy.getLines().add(line);
 		documents.put("TICKET:" + localId, copy);
 		return copy;
@@ -387,7 +388,7 @@ class SalesPushServiceTest {
 		stored("T-1").setAttempts(0);
 		TicketCopyDTO changed = ticket(2, "T-2", NOW.minusDays(1));
 		stored("T-2").setContentHash(SalesPushService.hash(changed));
-		changed.getLines().get(0).setQuantity(2); // changed after it was accepted
+		changed.getLines().get(0).setQuantity(BigDecimal.valueOf(2)); // changed after it was accepted
 		SalesPushService service = service();
 		server.expect(requestTo(SALES + "tickets")).andRespond(acceptingAll());
 
@@ -524,7 +525,7 @@ class SalesPushServiceTest {
 		TicketCopyDTO readBack = mapper.readValue(mapper.writeValueAsString(copy), TicketCopyDTO.class);
 		assertEquals(SalesPushService.hash(copy), SalesPushService.hash(readBack));
 		assertEquals(64, SalesPushService.hash(copy).length());
-		readBack.getLines().get(0).setQuantity(5);
+		readBack.getLines().get(0).setQuantity(BigDecimal.valueOf(5));
 		assertNotEquals(SalesPushService.hash(copy), SalesPushService.hash(readBack));
 	}
 

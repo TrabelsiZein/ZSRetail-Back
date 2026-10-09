@@ -247,7 +247,7 @@ class SalesCopyMapperTest {
 		assertEquals(1, line1.getLineNo());
 		assertEquals("ITM-100", line1.getItemCode(), "store order: lowest id first");
 		assertEquals("Soap", line1.getItemName());
-		assertEquals(2, line1.getQuantity());
+		assertEquals(BigDecimal.valueOf(2), line1.getQuantity());
 		assertEquals(16.81, line1.getUnitPrice());
 		assertEquals(20.0, line1.getUnitPriceIncludingVat());
 		assertEquals(19, line1.getVatPercent());
@@ -476,5 +476,38 @@ class SalesCopyMapperTest {
 		String withStore = json.replaceFirst("\\{", "{\"storeCode\":\"OTHER\",\"id\":5,");
 		assertEquals(copy, new ObjectMapper().findAndRegisterModules().readValue(withStore, TicketCopyDTO.class),
 				"ignored even by a strict mapper");
+	}
+
+	// --- 2.2.1: decimal quantities ---
+
+	/** The full ticket of {@link #ticket()} with whole quantities, read from DECIMAL(18,3) columns (2.000, 1.000). */
+	private TicketCopyDTO wholeTicketFromDecimalColumns() {
+		SalesLine second = line(IDS[7], item(IDS[8], "ITM-200", "Shampoo 250 ml"), 1, null, null);
+		SalesLine first = line(IDS[6], item(IDS[9], "ITM-100", "Soap"), 2, "PROMOTION",
+				promotion(IDS[10], "PROMO-SOAP", "Soap -10%"));
+		second.setQuantity(new BigDecimal("1.000"));
+		first.setQuantity(new BigDecimal("2.000"));
+		Payment cash = new Payment();
+		cash.setId(IDS[11]);
+		cash.setPaymentMethod(method(IDS[12], "ESP", "Espèces"));
+		cash.setTotalAmount(120.0);
+		cash.setPaymentDate(SOLD.plusMinutes(2));
+		return SalesCopyMapper.ticket(fullTicket(), Arrays.asList(second, first), Arrays.asList(cash));
+	}
+
+	/** JSON of the whole-quantity ticket as 2.2.0 sends it (sorted properties, as the copy hash reads it). */
+	private static final String WHOLE_TICKET_JSON_220 = "{\"cashierLogin\":\"cashier1\",\"cashierName\":\"Amira Cashier\",\"changeAmount\":20.0,\"completedDate\":\"2026-10-03T10:17:30\",\"customerCode\":\"C00042\",\"customerName\":\"Société Ben Ali\",\"discountAmount\":10.0,\"discountPercentage\":9.09,\"discountSource\":\"PROMOTION\",\"invoiceNumber\":\"FAC-0003\",\"invoiced\":true,\"lines\":[{\"discountAmount\":2.0,\"discountPercentage\":10.0,\"discountSource\":\"PROMOTION\",\"itemCode\":\"ITM-100\",\"itemName\":\"Soap\",\"lineNo\":1,\"lineTotal\":33.62,\"lineTotalIncludingVat\":40.0,\"promotionCode\":\"PROMO-SOAP\",\"quantity\":2,\"unitPrice\":16.81,\"unitPriceIncludingVat\":20.0,\"vatAmount\":6.38,\"vatPercent\":19},{\"discountAmount\":null,\"discountPercentage\":null,\"discountSource\":null,\"itemCode\":\"ITM-200\",\"itemName\":\"Shampoo 250 ml\",\"lineNo\":2,\"lineTotal\":16.81,\"lineTotalIncludingVat\":20.0,\"promotionCode\":null,\"quantity\":1,\"unitPrice\":16.81,\"unitPriceIncludingVat\":20.0,\"vatAmount\":3.19,\"vatPercent\":19}],\"loyaltyCardNumber\":\"LYL-000017\",\"loyaltyDeductionAmount\":5.0,\"loyaltyMemberName\":\"Sami Trabelsi\",\"loyaltyPointsEarned\":10,\"loyaltyPointsRedeemed\":50,\"notes\":\"Split from T-1\",\"paidAmount\":120.0,\"payments\":[{\"amount\":120.0,\"dueDate\":null,\"paymentDate\":\"2026-10-03T10:17:30\",\"paymentMethodCode\":\"ESP\",\"paymentMethodName\":\"Espèces\",\"titleNumber\":null}],\"promotionCode\":\"PROMO-CART-10\",\"promotionName\":\"Cart 10 TND off\",\"salesDate\":\"2026-10-03T10:15:30\",\"salesNumber\":\"SHOWROOM-S-20261003-0007\",\"sessionNumber\":\"SES-2026-0112\",\"status\":\"COMPLETED\",\"subtotal\":84.03,\"tableNumber\":4,\"taxAmount\":15.97,\"totalAmount\":100.0}";
+
+	/** The copy hash of that ticket in 2.2.0 (SalesPushService.hash). */
+	private static final String WHOLE_TICKET_HASH_220 = "de22aa270c20adfdb8ad74ffd992589da4f1ecd997a0dcee1452ffbc104aaa93";
+
+	@Test
+	@DisplayName("2.2.1: a ticket with whole quantities only gives the JSON and the copy hash of 2.2.0 (2, never 2.000)")
+	void wholeQuantitiesAsIn220() throws Exception {
+		TicketCopyDTO copy = wholeTicketFromDecimalColumns();
+		String sorted = mapper.copy().configure(com.fasterxml.jackson.databind.MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true)
+				.writeValueAsString(copy);
+		assertEquals(WHOLE_TICKET_JSON_220, sorted);
+		assertEquals(WHOLE_TICKET_HASH_220, SalesPushService.hash(copy));
 	}
 }

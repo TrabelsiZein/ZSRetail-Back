@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -115,7 +116,7 @@ public class HoNetworkStockService {
 					return created;
 				});
 				row.setItemName(item.getItemName());
-				row.setQuantity(item.getQuantity() == null ? 0 : item.getQuantity());
+				row.setQuantity(item.getQuantity() == null ? BigDecimal.ZERO : item.getQuantity()); // 2.2.1: as sent (9.8)
 				row.setOwnItem(item.isOwn());
 				row.setStoreTime(takenAt);
 				row.setReceivedAt(now);
@@ -154,7 +155,7 @@ public class HoNetworkStockService {
 				: stocks.findHeadOfficeItemsStoresOnly(STOCK_TYPES, CatalogueKind.TAX_STAMP_CODE, like(search), wanted,
 						belowZero, request);
 		List<String> codes = items.getContent().stream().map(row -> (String) row[0]).collect(Collectors.toList());
-		Map<String, Map<String, Integer>> byCode = new HashMap<>();
+		Map<String, Map<String, BigDecimal>> byCode = new HashMap<>();
 		if (!codes.isEmpty()) {
 			for (HoStoreStock row : stocks.findByCodes(codes, wanted)) {
 				byCode.computeIfAbsent(row.getItemCode(), c -> new LinkedHashMap<>())
@@ -166,8 +167,8 @@ public class HoNetworkStockService {
 			Map<String, Object> line = new LinkedHashMap<>();
 			line.put("itemCode", row[0]);
 			line.put("itemName", row[1]);
-			line.put("headOffice", !keepsStock ? null : row[2] == null ? 0
-					: Quantities.wholeIntOrFail(row[2], "Network stock, head office stock of " + row[0])); // 2.2.1: whole for now
+			// 2.2.1: the head office stock with its decimals, without trailing zeros
+			line.put("headOffice", !keepsStock ? null : row[2] == null ? BigDecimal.ZERO : Quantities.normalize((BigDecimal) row[2]));
 			line.put("byStore", byCode.getOrDefault((String) row[0], new LinkedHashMap<>()));
 			content.add(line);
 		}

@@ -1,5 +1,6 @@
 package com.digithink.zsretail.holink.model;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import javax.persistence.Column;
@@ -8,6 +9,7 @@ import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
 
 import com.digithink.zsretail.model._BaseEntity;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -33,11 +35,18 @@ public class StockCopy extends _BaseEntity {
 	@Column(name = "item_code", nullable = false, length = 100)
 	private String itemCode;
 
-	/** The quantity the head office accepted last (null stock is sent as 0). */
-	@Column(name = "quantity_sent", nullable = false)
-	private int quantitySent;
+	/**
+	 * The quantity the head office accepted last (null stock is sent as 0). 2.2.1: up to 3 decimals; read through
+	 * {@link #getQuantitySent()} (5.000 is 5).
+	 */
+	@Column(name = "quantity_sent", nullable = false, precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal quantitySent = BigDecimal.ZERO;
 
 	/** Store clock of that push. */
 	@Column(name = "sent_at")
 	private LocalDateTime sentAt;
+
+	public BigDecimal getQuantitySent() {
+		return Quantities.normalize(quantitySent);
+	}
 }

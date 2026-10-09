@@ -26,7 +26,6 @@ import com.digithink.zsretail.model.SalesLine;
 import com.digithink.zsretail.model.SessionCashCount;
 import com.digithink.zsretail.model.UserAccount;
 import com.digithink.zsretail.model._BaseEntity;
-import com.digithink.zsretail.utils.Quantities;
 
 /**
  * Builds the copies sent to the head office (task 2.2) from the store's entities. Pure mapping, no database access:
@@ -93,9 +92,7 @@ public final class SalesCopyMapper {
 				lineCopy.setItemCode(item.getItemCode());
 				lineCopy.setItemName(item.getName());
 			}
-			// 2.2.1: the ticket copy stays whole for now; a decimal quantity is refused here, loudly (copy not built)
-			lineCopy.setQuantity(Quantities.wholeOrFail(line.getQuantity(),
-					"Ticket " + header.getSalesNumber() + " line " + lineNo + ", copy to the head office"));
+			lineCopy.setQuantity(line.getQuantity()); // 2.2.1: normalized, 2 stays 2 (the copy hash of 2.2.0), 0.2 travels
 			lineCopy.setUnitPrice(line.getUnitPrice());
 			lineCopy.setUnitPriceIncludingVat(line.getUnitPriceIncludingVat());
 			lineCopy.setVatPercent(line.getVatPercent());

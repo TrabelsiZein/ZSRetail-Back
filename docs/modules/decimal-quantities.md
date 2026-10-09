@@ -1,7 +1,7 @@
 # Decimal quantities (2.2.1)
 
 Bulk items sold by the litre or the kilo (Happyness: perfume "V H 52 1L" sold 0.2 or 0.058 at the till). Built in
-steps on `release/2.2.1` (both repos); this page says what each step converted. Step 1 is done (2026-10-09).
+steps on `release/2.2.1` (both repos); this page says what each step converted. Steps 1 and 2 are done (2026-10-09).
 
 ## Rules
 
@@ -24,7 +24,11 @@ steps on `release/2.2.1` (both repos); this page says what each step converted. 
   10.000); minus the discount (percentage of that amount, else the fixed amount); then back to HT and VAT, the till's
   steps for every line (`discounts.md`). A parked ticket uses the same unit price and discount as a direct sale.
   Whole lines keep the till's amounts as in 2.2.0. The header totals (subtotal, VAT, total, payments) still come from
-  the till, which rounds a decimal line the same way (`src/libs/quantity.js`, `decimalLineTotalInclVat`).
+  the till, which rounds a decimal line the same way (`src/libs/quantity.js`, `decimalLineTotalInclVat`); no recompute,
+  no refusal (Zein, 2026-10-09). For a ticket with a decimal line, `warnIfDecimalLinesDifferFromTotals` only logs a
+  warning when subtotal + VAT differs from the sum of the lines (stamp line included) by more than 0.001.
+- **Fixed-amount discounts**: the 2.2.0 formula, no special case: a fixed promotion or a manual amount counts once per
+  line (2.000 off 0.2 as off 2); a cross-product amount counts per unit, min(entitled units, quantity) x amount.
 - **A place not converted yet never truncates silently**: it calls `Quantities.wholeOrFail` / `wholeIntOrFail` /
   `wholeLongOrFail`, which throw `IllegalStateException` naming the place ("Ticket ... line 1, copy to the head office:
   quantity 0.2 is not a whole number, and decimal quantities are not supported here yet").
@@ -51,33 +55,55 @@ sale, park, update parked, complete parked); `StockService`, `StockMovementServi
 `PromotionCalculationService` (thresholds compared as decimals; "buy X get Y" counts floor(quantity / minimum));
 `TicketPrintingService` (`%6s` with `Quantities.plain`); the reception page's `storeStock`.
 
+## Step 2: converted (copies of tickets and stock to the head office)
+
+Store: `TicketLineCopyDTO.quantity` (BigDecimal, set from the normalized `SalesLine` quantity), `StockReportDTO.Item.quantity`,
+`SupplyPushService.quantityOf`, `StockCopy.quantitySent` (`hol_stock_copy`). Head office: `HoTicketLine.quantity`
+(stored as sent, amounts never recomputed), `HoStoreStock.quantity`, `HoNetworkStockService` (store stock as sent, the head
+office stock with its decimals). The head office accepts a decimal from a store: `ALLOW_DECIMAL_QUANTITY` is checked at
+the sale, in the store. A ticket with whole quantities gives the JSON and the copy hash of 2.2.0 (pinned in
+`SalesCopyMapperTest.wholeQuantitiesAsIn220`), so 2.2.0 copies already sent are not sent again. Screens: head office
+tickets history (lines) and network stock (head office, stores, own items) show `formatQuantity`. No sum of quantities
+exists on those screens or their API.
+
 ## Not converted yet, and how each reacts to a decimal today
 
 | Place | Reaction |
 |---|---|
-| Ticket copy up (`SalesCopyMapper`, `TicketLineCopyDTO`, `HoTicketLine`) | the copy is not built, with the message; other copies go on |
-| Stock copy up (`SupplyPushService`, `StockCopy`, `HoStoreStock`) | a decimal stock stops the stock push (loud, logged) |
 | Returns (`ReturnHeaderService`, `ReturnHeaderAPI`, `ReturnLine`, `ProcessReturnRequestDTO`, `ReturnProducts.vue`) | returning a decimal sales line fails loudly; the return screen still rounds (front) |
 | Invoices from tickets (`InvoiceService`, `InvoiceLine`) | fails loudly on a decimal line |
 | Inventory count (reader, `InventoryCountLine`, `InventoryLineStore`, `InventoryCountService`) | the file still refuses "not a whole number"; a decimal stock makes import/validation/summary fail loudly |
 | Reports and dashboard (`ReportService.toLong`, `AnalyticsService.toLong`) | a decimal quantity sum fails loudly |
-| Head office: BLs (`HoDeliveryService`), network stock (`HoNetworkStockService`) | a decimal head office stock fails loudly |
+| Head office BLs (`HoDeliveryService`) | a decimal head office stock fails loudly |
+| Return copies (`ReturnLineCopyDTO`, `HoReturnLine`), session counts (whole for good) | returns of decimal lines already fail at the store |
 | ERP invoices (`NavPosPagesMapper`, `HoErpInvoiceService.whole`) | held, as in 2.2.0 |
 | Purchases, compositions, stock adjustment (`AdjustStockRequestDTO.delta` Integer), Excel import (`DataImportService.parseInteger` strips "." and ",": "0.250" gives 250, as in 2.2.0) | whole only, as in 2.2.0 |
 | EMTOP ticket export (`TicketExportService`) | passes the quantity through (`Double` to NAV): 2 stays 2.0, 0.2 is sent as 0.2 |
 
 Jackson 2.11 (`ACCEPT_FLOAT_AS_INT` on) still turns 0.2 into 0 for any `Integer` field of a request or a copy: the
-places above that read JSON (`ProcessReturnRequestDTO`, `AdjustStockRequestDTO`, the head office copy DTOs) truncate
+places above that read JSON (`ProcessReturnRequestDTO`, `AdjustStockRequestDTO`, the return, BL and invoice copy DTOs) truncate
 until converted. A store and its head office move to 2.2.1 together.
 
 ## Database
 
 `db/2.2.1/update.sql` converts each column with the temporary procedure `#zs_decimal_quantity` (same nullability; indexes
 and default constraints dropped and recreated; any other object on the column stops it with its name; already done or
-absent: skipped). Each later step adds its columns there. A new database gets `DECIMAL(18,3)` from Hibernate.
+absent: skipped). The columns are listed once in `#zs_221_columns`; each later step adds its own there. APP_VERSION and
+the release notes are written only when every listed column present is DECIMAL(18,3) (otherwise an error names the
+columns left and the application keeps refusing to start). The script sets its session options (`QUOTED_IDENTIFIER ON`:
+sqlcmd starts with it off, which breaks the reading of a filtered index). It may run again: done columns are skipped,
+the 2.2.1 notes rewritten. A new database gets `DECIMAL(18,3)` from Hibernate.
+
+Tried on throwaway copies on the local server only (`pos_store_b_221_test`, `pos_headoffice_221_test`, restored from
+COPY_ONLY backups of `pos_store_b` and `pos_headoffice`, after `db/2.2.0`): a filtered index with a descending key and an
+included column and a default constraint come back identical; a check constraint stops its column by name and
+APP_VERSION stays; a second run changes nothing; counts and sums of every converted column equal the originals.
 
 ## Tests
 
 `QuantitiesTest`, `SaleDecimalQuantityTest` (0.2 and 0.058 at 50.000 the litre, discounts, half a millime, parked
 ticket, insufficient stock, refusals with the setting off or absent or 4 decimals, whole quantities identical to 2.2.0,
-JSON `2` / `0.2`).
+JSON `2` / `0.2`); `SalesCopyMapperTest.wholeQuantitiesAsIn220` (JSON and hash of 2.2.0);
+`SalesCopyReceiverTest.decimalTicketArrivesAsSent` (0.2 and 0.058 over the wire, same quantities and amounts at the head
+office); `SupplyRoundTripTest.decimalStockCopiedUp` (9.8 arrives as 9.8, not sent again, 9.6 after a sale of 0.2, head
+office page).

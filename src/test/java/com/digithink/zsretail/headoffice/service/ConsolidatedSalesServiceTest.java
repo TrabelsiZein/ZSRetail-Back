@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
 import java.lang.reflect.Proxy;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -372,7 +373,7 @@ class ConsolidatedSalesServiceTest {
 			line.setLineNo(i);
 			line.setItemCode("ITM-" + i);
 			line.setItemName("Item " + i);
-			line.setQuantity(i);
+			line.setQuantity(BigDecimal.valueOf(i));
 			line.setPromotionCode(i == 1 ? "PROMO-SOAP" : null);
 			ticket.getLines().add(line);
 		}

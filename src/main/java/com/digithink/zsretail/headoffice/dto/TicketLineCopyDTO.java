@@ -1,5 +1,7 @@
 package com.digithink.zsretail.headoffice.dto;
 
+import java.math.BigDecimal;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import lombok.Data;
@@ -19,7 +21,8 @@ public class TicketLineCopyDTO {
 	/** Item name at the store when the copy is sent. */
 	private String itemName;
 
-	private Integer quantity;
+	/** 2.2.1: up to 3 decimals, written without trailing zeros (2, 0.2); a 2.2.0 head office reads 0.2 as 0. */
+	private BigDecimal quantity;
 
 	/** Excluding VAT. */
 	private Double unitPrice;

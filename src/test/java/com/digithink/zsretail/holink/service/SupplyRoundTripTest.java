@@ -521,8 +521,8 @@ class SupplyRoundTripTest {
 		SupplyPushService.Cycle first = push.runCycle();
 
 		assertEquals(4, first.getStockSent());
-		assertEquals(50, network.stockAt(b.getId(), "B001").getQuantity());
-		assertEquals(0, network.stockAt(b.getId(), "B002").getQuantity(), "a null stock is sent as 0");
+		assertEquals(BigDecimal.valueOf(50), network.stockAt(b.getId(), "B001").getQuantity());
+		assertEquals(BigDecimal.valueOf(0), network.stockAt(b.getId(), "B002").getQuantity(), "a null stock is sent as 0");
 		assertFalse(network.stockAt(b.getId(), "B001").getOwnItem());
 		assertTrue(network.stockAt(b.getId(), "OWN1").getOwnItem());
 		assertEquals(NOW, network.stockAt(b.getId(), "B001").getStoreTime());
@@ -533,7 +533,7 @@ class SupplyRoundTripTest {
 		stock.stockService().decrementForSale(db.itemByCode("B001").get().getId(), BigDecimal.valueOf(2));
 		SupplyPushService.Cycle second = push.runCycle();
 		assertEquals(1, second.getStockSent(), "only the item that changed");
-		assertEquals(48, network.stockAt(b.getId(), "B001").getQuantity());
+		assertEquals(BigDecimal.valueOf(48), network.stockAt(b.getId(), "B001").getQuantity());
 
 		db.items.remove(own.getId());
 		SupplyPushService.Cycle third = push.runCycle();
@@ -554,7 +554,31 @@ class SupplyRoundTripTest {
 
 		headOfficeDown = false;
 		assertEquals(3, push.runCycle().getStockSent());
-		assertEquals(7, network.stockAt(b.getId(), "B001").getQuantity());
+		assertEquals(BigDecimal.valueOf(7), network.stockAt(b.getId(), "B001").getQuantity());
+	}
+
+	@Test
+	@DisplayName("2.2.1: a store stock of 9.8 arrives as 9.8 and is not sent again; a sale of 0.2 sends 9.6; the head office page keeps the decimals")
+	void decimalStockCopiedUp() {
+		db.itemByCode("B001").get().setStockQuantity(new BigDecimal("9.800")); // as read from DECIMAL(18,3)
+		ho.itemByCode("B001").get().setStockQuantity(new BigDecimal("2.500"));
+		push.runCycle();
+
+		assertEquals("9.8", network.stockAt(b.getId(), "B001").getQuantity().toPlainString());
+		assertEquals("9.8", network.copies.values().stream().filter(c -> "B001".equals(c.getItemCode())).findFirst()
+				.get().getQuantitySent().toPlainString());
+		assertTrue(push.runCycle().isIdle(), "9.8 sent, 9.800 here: the same, nothing to send");
+
+		stock.stockService().decrementForSale(db.itemByCode("B001").get().getId(), new BigDecimal("0.2"));
+		assertEquals(1, push.runCycle().getStockSent());
+		assertEquals("9.6", network.stockAt(b.getId(), "B001").getQuantity().toPlainString());
+
+		@SuppressWarnings("unchecked")
+		List<Map<String, Object>> rows = (List<Map<String, Object>>) hoNetwork.page(null, null, 0, 20, false)
+				.get("content");
+		Map<String, Object> b001 = rows.stream().filter(r -> "B001".equals(r.get("itemCode"))).findFirst().get();
+		assertEquals("2.5", ((BigDecimal) b001.get("headOffice")).toPlainString());
+		assertEquals("{" + b.getId() + "=9.6}", b001.get("byStore").toString());
 	}
 
 	@Test
@@ -577,7 +601,7 @@ class SupplyRoundTripTest {
 		List<Map<String, Object>> rows = (List<Map<String, Object>>) page.get("content");
 		assertEquals(Arrays.asList("B001", "B002", "B009"),
 				rows.stream().map(r -> r.get("itemCode")).collect(Collectors.toList()), "head office items, no tax stamp");
-		assertEquals(50, rows.get(0).get("headOffice"));
+		assertEquals(BigDecimal.valueOf(50), rows.get(0).get("headOffice"));
 		assertEquals("{" + b.getId() + "=48}", rows.get(0).get("byStore").toString());
 		assertEquals(3L, page.get("totalElements"));
 
@@ -593,7 +617,7 @@ class SupplyRoundTripTest {
 		assertEquals(1, own.size());
 		assertEquals("OWN1", own.get(0).get("itemCode"));
 		assertEquals("B", own.get(0).get("storeCode"));
-		assertEquals(3, own.get(0).get("quantity"));
+		assertEquals(BigDecimal.valueOf(3), own.get(0).get("quantity"));
 	}
 
 	@SuppressWarnings("unchecked")

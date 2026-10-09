@@ -292,6 +292,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 		// Tax stamp (timbre fiscal) - add one line per receipt when enabled (e.g. Tunisia 100 millimes)
 		double taxStampAmount = addTaxStampLineIfEnabled(salesHeader, salesLines);
+		warnIfDecimalLinesDifferFromTotals(salesHeader, salesLines);
 
 		// Attach loyalty member if provided
 		LoyaltyMember loyaltyMember = attachLoyaltyMember(salesHeader, request);
@@ -583,6 +584,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 		// Tax stamp line, as for a direct sale (the ticket's previous lines were deleted above)
 		double taxStampAmount = addTaxStampLineIfEnabled(salesHeader, salesLines);
+		warnIfDecimalLinesDifferFromTotals(salesHeader, salesLines);
 
 		// Attach the loyalty card sent at payment, as for a direct sale
 		LoyaltyMember loyaltyMember = attachLoyaltyMember(salesHeader, request);
@@ -1555,6 +1557,24 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 						.orElse(String.valueOf(lineDTO.getItemId()));
 				quantityPolicy.check(lineDTO.getQuantity(), itemLabel);
 			}
+		}
+	}
+
+	/**
+	 * 2.2.1: the ticket's totals stay the till's (as in 2.2.0); for a ticket with a decimal line, only a warning in the
+	 * log when its subtotal plus VAT differs from the sum of its lines (tax stamp line included) by more than 0.001.
+	 */
+	private void warnIfDecimalLinesDifferFromTotals(SalesHeader salesHeader, List<SalesLine> salesLines) {
+		if (salesLines.stream().allMatch(line -> Quantities.isWhole(line.getQuantity()))) {
+			return;
+		}
+		double lines = salesLines.stream()
+				.mapToDouble(line -> line.getLineTotalIncludingVat() != null ? line.getLineTotalIncludingVat() : 0.0).sum();
+		double totals = (salesHeader.getSubtotal() != null ? salesHeader.getSubtotal() : 0.0)
+				+ (salesHeader.getTaxAmount() != null ? salesHeader.getTaxAmount() : 0.0);
+		if (Math.abs(totals - lines) > 0.001) {
+			log.warn("Ticket {} with a decimal quantity: subtotal + VAT {} differs from its lines {}",
+					salesHeader.getSalesNumber(), totals, lines);
 		}
 	}
 

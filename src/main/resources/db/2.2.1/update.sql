@@ -19,8 +19,36 @@
 -- so the script can run again. On a large table (sales_line, stock_movement) the change rewrites every row: run it in
 -- a quiet window.
 --
--- This version (step 1 of the decimal quantities): the stock of an item, the sales lines, the stock movements. The
--- columns of the next steps are added to this script by those steps.
+-- The columns are listed once, in #zs_221_columns below; each step of the decimal quantities adds its own there.
+-- APP_VERSION and the release notes are written only when every listed column of this database is DECIMAL(18,3):
+-- otherwise the script ends with an error naming the columns left, and the application keeps refusing to start.
+--
+-- The session options are set here (sqlcmd starts with QUOTED_IDENTIFIER OFF, which the reading of filtered indexes
+-- and the XML used to rebuild an index need ON); SSMS has them on already.
+
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET ARITHABORT ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET NUMERIC_ROUNDABORT OFF;
+GO
+
+IF OBJECT_ID('tempdb..#zs_221_columns') IS NOT NULL
+	DROP TABLE #zs_221_columns;
+CREATE TABLE #zs_221_columns (step int NOT NULL, table_name sysname NOT NULL, column_name sysname NOT NULL);
+INSERT INTO #zs_221_columns (step, table_name, column_name) VALUES
+-- Step 1: the stock of an item, the sales lines, the stock movements
+(1, 'item', 'stock_quantity'),
+(1, 'sales_line', 'quantity'),
+(1, 'stock_movement', 'quantity'),
+-- Step 2: the copies of the tickets and of the stock to the head office (ho_ tables exist on a head office, the hol_
+-- table on a store linked to one; elsewhere they are absent and skipped)
+(2, 'ho_ticket_line', 'quantity'),
+(2, 'ho_store_stock', 'quantity'),
+(2, 'hol_stock_copy', 'quantity_sent');
+GO
 
 IF OBJECT_ID('tempdb..#zs_decimal_quantity') IS NOT NULL
 	DROP PROCEDURE #zs_decimal_quantity;
@@ -126,18 +154,43 @@ BEGIN
 END
 GO
 
--- Step 1: the stock of an item, the sales lines, the stock movements
-EXEC #zs_decimal_quantity 'item', 'stock_quantity';
-EXEC #zs_decimal_quantity 'sales_line', 'quantity';
-EXEC #zs_decimal_quantity 'stock_movement', 'quantity';
+-- Every listed column, in order
+DECLARE @table sysname, @column sysname;
+DECLARE columns_221 CURSOR LOCAL FAST_FORWARD FOR
+	SELECT table_name, column_name FROM #zs_221_columns ORDER BY step, table_name, column_name;
+OPEN columns_221;
+FETCH NEXT FROM columns_221 INTO @table, @column;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+	EXEC #zs_decimal_quantity @table, @column;
+	FETCH NEXT FROM columns_221 INTO @table, @column;
+END
+CLOSE columns_221;
+DEALLOCATE columns_221;
 GO
 
 DROP PROCEDURE #zs_decimal_quantity;
 GO
 
+-- The version only when every listed column present here is DECIMAL(18,3)
+DECLARE @left nvarchar(1000) = N'';
+SELECT @left += N' ' + l.table_name + N'.' + l.column_name
+	FROM #zs_221_columns l
+	JOIN sys.columns c ON c.object_id = OBJECT_ID(l.table_name) AND c.name = l.column_name
+	JOIN sys.types t ON t.user_type_id = c.user_type_id
+	WHERE NOT (t.name IN ('decimal', 'numeric') AND c.precision = 18 AND c.scale = 3);
+IF @left <> N''
+BEGIN
+	RAISERROR(N'2.2.1: APP_VERSION not changed, these columns are not DECIMAL(18,3) yet:%s', 16, 1, @left);
+	RETURN;
+END
+
 UPDATE APP_VERSION SET version = '2.2.1';
 
+-- The notes of 2.2.1 are written again on each run (the script may run more than once)
+DELETE FROM APP_RELEASE_NOTES WHERE version = '2.2.1';
 INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
 ('2.2.1', 'NEW', 'Quantités décimales (jusqu''à 3 décimales) pour les articles vendus au litre ou au kilo : 0,2 ou 0,058 à la caisse. Le stock et les mouvements de stock gardent les décimales.'),
 ('2.2.1', 'NEW', 'Nouveau paramètre du magasin « Autoriser les quantités décimales » (Configuration générale), désactivé par défaut : désactivé, une quantité doit être un nombre entier, comme avant.'),
-('2.2.1', 'IMPROVE', 'Le montant d''une ligne avec une quantité décimale est calculé par le serveur : prix unitaire TTC × quantité, arrondi au millime.');
+('2.2.1', 'IMPROVE', 'Le montant d''une ligne avec une quantité décimale est calculé par le serveur : prix unitaire TTC × quantité, arrondi au millime.'),
+('2.2.1', 'NEW', 'Siège : les tickets et le stock des magasins arrivent avec leurs quantités décimales (0,2 ; 9,8), affichées sans zéros inutiles dans l''historique des tickets et le stock du réseau.');

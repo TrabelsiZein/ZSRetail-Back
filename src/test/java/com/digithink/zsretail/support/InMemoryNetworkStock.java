@@ -86,7 +86,7 @@ public final class InMemoryNetworkStock {
 				.filter(i -> i.getType() == null || types.contains(i.getType()))
 				.filter(i -> !excluded.equals(i.getItemCode()))
 				.filter(i -> copies.values().stream().noneMatch(c -> c.getItemId().equals(i.getId())
-						&& BigDecimal.valueOf(c.getQuantitySent()).compareTo(i.getStockQuantity() == null ? BigDecimal.ZERO : i.getStockQuantity()) == 0))
+						&& c.getQuantitySent().compareTo(i.getStockQuantity() == null ? BigDecimal.ZERO : i.getStockQuantity()) == 0))
 				.sorted(Comparator.comparing(Item::getId)).collect(Collectors.toList());
 	}
 
@@ -140,7 +140,7 @@ public final class InMemoryNetworkStock {
 							.filter(i -> !belowZero
 									|| (headOfficeColumn && i.getStockQuantity() != null && i.getStockQuantity().signum() < 0)
 									|| storeStock.values().stream().anyMatch(s -> s.getItemCode().equals(i.getItemCode())
-											&& s.getQuantity() < 0 && (storeId == 0 ? ho.stores.get(s.getStoreId()) != null && Boolean.TRUE.equals(ho.stores.get(s.getStoreId()).getActive())
+											&& s.getQuantity().signum() < 0 && (storeId == 0 ? ho.stores.get(s.getStoreId()) != null && Boolean.TRUE.equals(ho.stores.get(s.getStoreId()).getActive())
 													: s.getStoreId() == storeId)))
 							.sorted(Comparator.comparing(Item::getItemCode))
 							.map(i -> new Object[] { i.getItemCode(), i.getName(), i.getStockQuantity() })
@@ -154,7 +154,7 @@ public final class InMemoryNetworkStock {
 							.filter(s -> Objects.equals(s.getOwnItem(), args[0]))
 							.filter(s -> storeId == 0 || s.getStoreId() == storeId)
 							.filter(s -> search == null || like(s.getItemCode(), search) || like(s.getItemName(), search))
-							.filter(s -> !Boolean.TRUE.equals(args[3]) || s.getQuantity() < 0)
+							.filter(s -> !Boolean.TRUE.equals(args[3]) || s.getQuantity().signum() < 0)
 							.sorted(Comparator.comparing(HoStoreStock::getStoreId).thenComparing(HoStoreStock::getItemCode))
 							.collect(Collectors.toList());
 					return page(own, (Pageable) args[4]);
