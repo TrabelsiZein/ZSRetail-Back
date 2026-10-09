@@ -36,4 +36,18 @@ public class HoStockPoint extends _BaseEntity {
 	/** Place in the list, 1 first. */
 	@Column(name = "sort_order", nullable = false)
 	private Integer sortOrder;
+
+	public static final int LAST_READ_SUMMARY_LENGTH = 255;
+
+	/** Step 4: when the last items run read this point (not a dry run); null before the first one. */
+	@Column(name = "last_read_at")
+	private java.time.LocalDateTime lastReadAt;
+
+	/** Step 4: OK, NO_ANSWER (no row: the point's rows kept) or FAILED; null before the first run. */
+	@Column(name = "last_read_status", length = 20)
+	private String lastReadStatus;
+
+	/** Step 4: the counts of that read (read, new, changed, deactivated, written) or the error. */
+	@Column(name = "last_read_summary", length = LAST_READ_SUMMARY_LENGTH)
+	private String lastReadSummary;
 }

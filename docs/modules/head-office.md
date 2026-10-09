@@ -1491,6 +1491,30 @@ Done (step 3b), invoices from the ERP:
   A warning only: the invoice is sent as before and the store waits for the item as in 2.1. Not recalculated when the
   store's point changes later. A store without a point, and items made at the head office: no new warning.
 - Tests: `HoErpInvoiceServiceTest` (`itemsOutsideTheStockPoint`, `storeWithoutStockPoint`).
+
+Done (step 4), the screens (frontend routes with `meta.erpCatalogue`: menu, guard and Roles page only when
+`appConfig/erpOwnsOnlyCatalogue`; hidden on a store and on every other head office):
+- **Points de stock** (`/headoffice/stock-points`, `StockPoints.vue`, Catalogue menu, permission
+  `read:admin-headoffice-stock-points`): the list in reading order (up and down buttons send the whole order), code,
+  name, status, items (a link to the next page filtered on the point), stores, last read; create, rename, activate,
+  deactivate, delete with the API's messages.
+- **Items by point de stock** (`/headoffice/stock-point-items?stockPointId=`, `StockPointItems.vue`, permission
+  `read:admin-headoffice-stock-point-items`): every row, the columns of the Items page plus the point; search (code,
+  name, barcode), point, family, sub-family, price, status; paged by the server; read only; the details popup has the
+  item details' layout (row: name, description, family, sub-family, price, active; item: VAT, barcodes, the rest). The
+  Items page is not changed.
+- **Stores page**: a column "Point de stock" (a warning badge when the store has none), a select next to the ERP
+  customer number at creation and in edit (the active points with items, and "None"); changing the point of an existing
+  store asks a confirmation saying everything is sent to it again, then `PUT .../stock-point`.
+- Backend: the last read of each point (`ho_stock_point.last_read_at`, `last_read_status` OK / NO_ANSWER / FAILED,
+  `last_read_summary`), written by the items run (`NavPosPagesStockPoints.recordRead`, never in a dry run; a failed read,
+  a failed packet of items or of rows is FAILED with its message), in the list of points;
+  `GET admin/headoffice/stock-points/items` (filters stockPointId, search, familyCode, subFamilyCode, priceMin, priceMax,
+  status ALL | ACTIVE | INACTIVE, page, size up to 200; `HoStockPointItemsService`, query
+  `HoStockPointItemRepository.findRows`) and `GET admin/headoffice/stock-points/items/{rowId}`. The two permissions are
+  given to ADMIN at startup (`ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS`).
+- Tests: `HoStockPointItemsServiceTest`, `NavPosPagesSyncTest.lastReads`, `QueryParameterBindingTest` (the rows query),
+  `ZZDataInitializerRolesTest`.
 - Tests: `HoStockPointCatalogueTest` (two points with different items and prices; no point = 2.1 answer; price list
   first; row changes for the point's stores only; no store, no recording; a store moved and back; assignable points).
 

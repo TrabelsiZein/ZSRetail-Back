@@ -21,3 +21,13 @@
 IF OBJECT_ID('ho_store') IS NOT NULL AND COL_LENGTH('ho_store', 'stock_point_id') IS NULL
 	ALTER TABLE ho_store ADD stock_point_id bigint NULL;
 GO
+
+-- Stock points, step 4: the last read of a point (only for a database already started by an earlier 2.2 build;
+-- otherwise Hibernate creates ho_stock_point whole)
+IF OBJECT_ID('ho_stock_point') IS NOT NULL
+BEGIN
+	IF COL_LENGTH('ho_stock_point', 'last_read_at') IS NULL ALTER TABLE ho_stock_point ADD last_read_at datetime2 NULL;
+	IF COL_LENGTH('ho_stock_point', 'last_read_status') IS NULL ALTER TABLE ho_stock_point ADD last_read_status varchar(20) NULL;
+	IF COL_LENGTH('ho_stock_point', 'last_read_summary') IS NULL ALTER TABLE ho_stock_point ADD last_read_summary varchar(255) NULL;
+END
+GO

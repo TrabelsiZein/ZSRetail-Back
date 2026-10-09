@@ -269,7 +269,9 @@ public class ZZDataInitializer {
 			"read:admin-headoffice-supply-prices", // step 7B: base supply prices
 			"read:admin-headoffice-supply-invoices",
 			"read:admin-headoffice-store-balances",
-			"read:admin-headoffice-erp-invoices")); // invoices from the ERP (headoffice.supply.source=ERP)
+			"read:admin-headoffice-erp-invoices", // invoices from the ERP (headoffice.supply.source=ERP)
+			"read:admin-headoffice-stock-points", // release 2.2: points de stock (head office with the ERP catalogue)
+			"read:admin-headoffice-stock-point-items"));
 
 	/** Store with headoffice.url only: the "Head office link" page (task 1.5). */
 	static final Set<String> HEAD_OFFICE_LINK_ADMIN_PERMISSIONS = new HashSet<>(

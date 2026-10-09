@@ -230,7 +230,13 @@ public class NavPosPagesSync {
 		List<PointRead> reads = new ArrayList<>();
 		for (NavPosPagesStockPoints.Point point : points) {
 			long start = System.nanoTime();
-			List<NavPosStockRow> rows = source.readItems(point.code);
+			List<NavPosStockRow> rows;
+			try {
+				rows = source.readItems(point.code);
+			} catch (RuntimeException e) {
+				recordRead(point, NavPosPagesStockPoints.READ_FAILED, "read failed: " + e.getMessage());
+				throw e;
+			}
 			PointRead read = new PointRead(point, rows.size(), mapper.items(rows), millisSince(start));
 			summary.addRead(read.result);
 			reads.add(read);
@@ -345,9 +351,12 @@ public class NavPosPagesSync {
 			try {
 				importer.items(packet);
 			} catch (RuntimeException e) {
-				throw new IllegalStateException("Items: packet " + (from / size + 1) + " of " + packets + " failed, "
-						+ applied.size() + " of " + changes.size() + " rows applied before it (the next run goes on): "
-						+ e.getMessage(), e);
+				String message = "Items: packet " + (from / size + 1) + " of " + packets + " failed, " + applied.size()
+						+ " of " + changes.size() + " rows applied before it (the next run goes on): " + e.getMessage();
+				for (PointRead read : reads) {
+					recordRead(read.point, NavPosPagesStockPoints.READ_FAILED, "rows not written: " + message);
+				}
+				throw new IllegalStateException(message, e);
 			}
 			applied.addAll(packet);
 		}
@@ -368,15 +377,36 @@ public class NavPosPagesSync {
 				try {
 					read.written += stockPoints.write(read.point.id, packet);
 				} catch (RuntimeException e) {
-					throw new IllegalStateException("Stock point " + read.point.code + ": packet " + (from / size + 1)
-							+ " of " + count + " failed, " + read.written + " of " + read.toWrite.size()
-							+ " rows written before it (the next run goes on): " + e.getMessage(), e);
+					String message = "Stock point " + read.point.code + ": packet " + (from / size + 1) + " of " + count
+							+ " failed, " + read.written + " of " + read.toWrite.size()
+							+ " rows written before it (the next run goes on): " + e.getMessage();
+					recordRead(read.point, NavPosPagesStockPoints.READ_FAILED, message);
+					throw new IllegalStateException(message, e);
 				}
 			}
 			read.millis += millisSince(start);
 		}
 		summary.put("stockPoints", pointSummaries(reads));
+		for (PointRead read : reads) {
+			recordRead(read.point, read.read == 0 ? NavPosPagesStockPoints.READ_NO_ANSWER : NavPosPagesStockPoints.READ_OK,
+					(read.read == 0 ? "no row: its rows kept; " : "") + "read " + read.read + ", new " + read.fresh
+							+ ", changed " + read.changed + ", deactivated " + read.deactivated + ", written "
+							+ read.written + ", " + read.millis + " ms");
+		}
 		return run(applied, summary, page);
+	}
+
+	/** Step 4: the point's last read, for the points page; never in a dry run; a failure to record is only logged. */
+	private void recordRead(NavPosPagesStockPoints.Point point, String status, String summary) {
+		if (properties.isDryRun()) {
+			return;
+		}
+		try {
+			stockPoints.recordRead(point.id, status, summary);
+		} catch (RuntimeException e) {
+			org.apache.logging.log4j.LogManager.getLogger(NavPosPagesSync.class)
+					.warn("Stock point {}: last read not recorded ({})", point.code, e.getMessage());
+		}
 	}
 
 	/** One point's read, its rows as the head office has them, and the rows to write. */

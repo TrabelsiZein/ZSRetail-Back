@@ -215,7 +215,8 @@ public class HoStockPointService {
 
 	private StockPointDTO view(HoStockPoint point) {
 		return new StockPointDTO(point.getId(), point.getCode(), point.getName(), !Boolean.FALSE.equals(point.getActive()),
-				point.getSortOrder(), rows.countByStockPointId(point.getId()), stores.countByStockPointId(point.getId()));
+				point.getSortOrder(), rows.countByStockPointId(point.getId()), stores.countByStockPointId(point.getId()),
+				point.getLastReadAt(), point.getLastReadStatus(), point.getLastReadSummary());
 	}
 
 	static String normalizeCode(String code) {

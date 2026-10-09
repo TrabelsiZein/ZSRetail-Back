@@ -115,6 +115,18 @@ public class HoStockPointRows implements NavPosPagesStockPoints {
 		return toSave.size();
 	}
 
+	@Override
+	@Transactional
+	public void recordRead(long pointId, String status, String summary) {
+		points.findById(pointId).ifPresent(point -> {
+			point.setLastReadAt(java.time.LocalDateTime.now());
+			point.setLastReadStatus(status);
+			point.setLastReadSummary(summary == null || summary.length() <= HoStockPoint.LAST_READ_SUMMARY_LENGTH ? summary
+					: summary.substring(0, HoStockPoint.LAST_READ_SUMMARY_LENGTH));
+			points.save(point);
+		});
+	}
+
 	/** item code to item.id, for the codes the head office has. */
 	private Map<String, Long> itemIds(List<String> codes) {
 		Map<String, Long> ids = new HashMap<>();

@@ -62,7 +62,8 @@ class QueryParameterBindingTest {
 			ItemSubFamilyRepository.class, ItemBarcodeRepository.class, SalesPriceRepository.class,
 			HoDeliveryRepository.class, HoNumberSequenceRepository.class, ReceivedDeliveryRepository.class,
 			StockCopyRepository.class, HoStoreStockRepository.class, HoItemSupplyPriceRepository.class,
-			HoSupplyInvoiceRepository.class, HoErpInvoiceRepository.class }; // invoices from the ERP, steps (b) and (c)
+			HoSupplyInvoiceRepository.class, HoErpInvoiceRepository.class, // invoices from the ERP, steps (b) and (c)
+			HoStockPointItemRepository.class }; // stock points, step 4: the rows page
 
 	private static SessionFactory sessionFactory;
 

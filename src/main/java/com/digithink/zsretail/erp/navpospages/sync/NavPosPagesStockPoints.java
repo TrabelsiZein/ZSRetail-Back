@@ -22,6 +22,13 @@ public interface NavPosPagesStockPoints {
 	 */
 	int write(long pointId, List<Row> packet);
 
+	/** Step 4: the last read of the point, shown on the points page: OK, NO_ANSWER or FAILED, with its summary. */
+	void recordRead(long pointId, String status, String summary);
+
+	String READ_OK = "OK";
+	String READ_NO_ANSWER = "NO_ANSWER";
+	String READ_FAILED = "FAILED";
+
 	/** A point de stock: its id, its code (the ERP's Location_Code) and its name. */
 	class Point {
 		public final long id;

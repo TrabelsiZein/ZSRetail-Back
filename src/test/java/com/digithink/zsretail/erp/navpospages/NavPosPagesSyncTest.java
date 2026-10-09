@@ -1028,6 +1028,34 @@ class NavPosPagesSyncTest {
 		assertFalse(headOffice.items.containsKey("ONLY-MAG01"));
 	}
 
+	@Test
+	@DisplayName("Step 4: each point's last read is recorded (OK with its counts, NO_ANSWER, FAILED); never in a dry run")
+	void lastReads() {
+		loadCatalogue();
+		secondPoint();
+		items();
+		assertTrue(stockPoints.lastReads.get(FRANCHISE).startsWith("OK read 50, new 0, changed 0, deactivated 0,"),
+				stockPoints.lastReads.get(FRANCHISE));
+		assertTrue(stockPoints.lastReads.get(MAG01).startsWith("OK read 4, new 4, changed 0, deactivated 0, written 4"),
+				stockPoints.lastReads.get(MAG01));
+
+		erp.otherPoints.put("MAG01", new ArrayList<>());
+		items();
+		assertTrue(stockPoints.lastReads.get(MAG01).startsWith("NO_ANSWER no row: its rows kept; read 0"),
+				stockPoints.lastReads.get(MAG01));
+
+		erp.failingPoints.add("MAG01");
+		assertThrows(IllegalStateException.class, this::items);
+		assertEquals("FAILED read failed: reading the page PointStockPOS failed: timeout",
+				stockPoints.lastReads.get(MAG01));
+
+		erp.failingPoints.clear();
+		stockPoints.lastReads.clear();
+		properties.setDryRun(true);
+		items();
+		assertTrue(stockPoints.lastReads.isEmpty(), "a dry run records nothing");
+	}
+
 	// ─── Fakes ──────────────────────────────────────────────────
 
 	private static NavPosPagesHeadOffice.Item item(String code, String erpId, boolean active) {
@@ -1208,6 +1236,14 @@ class NavPosPagesSyncTest {
 				}
 			}
 			return written;
+		}
+
+		/** Step 4: the last read of each point, "STATUS summary". */
+		final Map<Long, String> lastReads = new HashMap<>();
+
+		@Override
+		public void recordRead(long pointId, String status, String summary) {
+			lastReads.put(pointId, status + " " + summary);
 		}
 
 		Row row(long pointId, String itemCode) {
