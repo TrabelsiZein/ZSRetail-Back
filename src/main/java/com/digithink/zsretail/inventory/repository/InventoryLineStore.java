@@ -1,5 +1,6 @@
 package com.digithink.zsretail.inventory.repository;
 
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.LocalDateTime;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import com.digithink.zsretail.inventory.enumeration.InventoryLineStatus;
 import com.digithink.zsretail.inventory.model.InventoryCountLine;
+import com.digithink.zsretail.utils.Quantities;
 
 /**
  * The bulk writes of inventory_count_line in JDBC batches (a file may hold 30,000 rows; the IDENTITY ids would make
@@ -24,12 +26,13 @@ public class InventoryLineStore {
 	public static final class OkLine {
 		public final long lineId;
 		public final long itemId;
-		public final int counted;
-		public Integer systemQuantity;
-		public Integer difference;
+		/** 2.2.1: quantities with up to 3 decimals. */
+		public final BigDecimal counted;
+		public BigDecimal systemQuantity;
+		public BigDecimal difference;
 		public String message;
 
-		public OkLine(long lineId, long itemId, int counted) {
+		public OkLine(long lineId, long itemId, BigDecimal counted) {
 			this.lineId = lineId;
 			this.itemId = itemId;
 			this.counted = counted;
@@ -51,9 +54,9 @@ public class InventoryLineStore {
 					ps.setLong(1, countId);
 					ps.setObject(2, line.getItemId(), Types.BIGINT);
 					ps.setString(3, line.getCode());
-					ps.setObject(4, line.getCountedQuantity(), Types.INTEGER);
+					ps.setObject(4, line.getCountedQuantity(), Types.DECIMAL);
 					ps.setObject(5, line.getMergedRows(), Types.INTEGER);
-					ps.setObject(6, line.getSystemQuantityAtImport(), Types.INTEGER);
+					ps.setObject(6, line.getSystemQuantityAtImport(), Types.DECIMAL);
 					ps.setString(7, line.getStatus().name());
 					ps.setString(8, line.getMessage());
 					ps.setTimestamp(9, now);
@@ -72,7 +75,7 @@ public class InventoryLineStore {
 	public List<OkLine> okLines(long countId) {
 		return jdbc.query("SELECT id, item_id, counted_quantity FROM inventory_count_line"
 				+ " WHERE count_id = ? AND status = ? ORDER BY id",
-				(rs, n) -> new OkLine(rs.getLong(1), rs.getLong(2), rs.getInt(3)), countId,
+				(rs, n) -> new OkLine(rs.getLong(1), rs.getLong(2), Quantities.normalize(rs.getBigDecimal(3))), countId,
 				InventoryLineStatus.OK.name());
 	}
 
@@ -81,8 +84,8 @@ public class InventoryLineStore {
 		Timestamp now = Timestamp.valueOf(LocalDateTime.now());
 		jdbc.batchUpdate("UPDATE inventory_count_line SET system_quantity_at_validation = ?, difference_applied = ?,"
 				+ " message = ?, updated_at = ?, updated_by = ? WHERE id = ?", lines, BATCH, (ps, line) -> {
-					ps.setObject(1, line.systemQuantity, Types.INTEGER);
-					ps.setObject(2, line.difference, Types.INTEGER);
+					ps.setObject(1, line.systemQuantity, Types.DECIMAL);
+					ps.setObject(2, line.difference, Types.DECIMAL);
 					ps.setString(3, line.message);
 					ps.setTimestamp(4, now);
 					ps.setString(5, user);

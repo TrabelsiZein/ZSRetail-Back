@@ -1,6 +1,5 @@
 package com.digithink.zsretail.inventory;
 
-import java.math.BigDecimal;
 import static com.digithink.zsretail.inventory.InventoryFiles.row;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -9,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
@@ -109,12 +109,12 @@ class InventoryCountServiceTest {
 		InventoryCountLine a = inventory.line(id, "6191234567890");
 		assertEquals(InventoryLineStatus.OK, a.getStatus());
 		assertEquals(catalogue("A001").getId(), a.getItemId(), "found by its barcode");
-		assertEquals(Integer.valueOf(6), a.getCountedQuantity());
-		assertEquals(Integer.valueOf(10), a.getSystemQuantityAtImport());
+		assertEquals(BigDecimal.valueOf(6), a.getCountedQuantity());
+		assertEquals(BigDecimal.valueOf(10), a.getSystemQuantityAtImport());
 
 		InventoryCountLine b = inventory.line(id, "B002");
 		assertEquals(InventoryLineStatus.OK, b.getStatus());
-		assertEquals(Integer.valueOf(7), b.getCountedQuantity(), "3 + 4");
+		assertEquals(BigDecimal.valueOf(7), b.getCountedQuantity(), "3 + 4");
 		assertEquals(Integer.valueOf(2), b.getMergedRows());
 
 		InventoryCountLine c = inventory.line(id, "C003");
@@ -126,7 +126,7 @@ class InventoryCountServiceTest {
 		InventoryCountLine unknown = inventory.line(id, "ZZZ");
 		assertEquals(InventoryLineStatus.NOT_FOUND, unknown.getStatus());
 		assertNull(unknown.getItemId());
-		assertEquals(Integer.valueOf(0), inventory.line(id, "F007").getSystemQuantityAtImport(), "no stock counts as 0");
+		assertEquals(BigDecimal.valueOf(0), inventory.line(id, "F007").getSystemQuantityAtImport(), "no stock counts as 0");
 
 		Map<String, Object> summary = (Map<String, Object>) created.get("summary");
 		assertEquals(9, summary.get("rowsRead"));
@@ -136,8 +136,8 @@ class InventoryCountServiceTest {
 		assertEquals(1L, summary.get("linesNotCounted"));
 		assertEquals(1L, summary.get("linesBadQuantity"));
 		assertEquals(3L, summary.get("linesWithDifference"), "A001, B002, F007");
-		assertEquals(8L, summary.get("quantityUp"), "+5 and +3");
-		assertEquals(4L, summary.get("quantityDown"));
+		assertEquals(BigDecimal.valueOf(8), summary.get("quantityUp"), "+5 and +3");
+		assertEquals(BigDecimal.valueOf(4), summary.get("quantityDown"));
 		assertEquals(1L, summary.get("openCashierSessions"));
 
 		assertEquals(10, stock("A001"), "nothing applied at the import");
@@ -180,9 +180,9 @@ class InventoryCountServiceTest {
 		}
 
 		InventoryCountLine a = inventory.line(id, "6191234567890");
-		assertEquals(Integer.valueOf(9), a.getSystemQuantityAtValidation());
-		assertEquals(Integer.valueOf(-3), a.getDifferenceApplied());
-		assertEquals(Integer.valueOf(0), inventory.line(id, "E006").getDifferenceApplied());
+		assertEquals(BigDecimal.valueOf(9), a.getSystemQuantityAtValidation());
+		assertEquals(BigDecimal.valueOf(-3), a.getDifferenceApplied());
+		assertEquals(BigDecimal.valueOf(0), inventory.line(id, "E006").getDifferenceApplied());
 		assertNull(inventory.line(id, "C003").getDifferenceApplied(), "never applied");
 	}
 
@@ -240,7 +240,7 @@ class InventoryCountServiceTest {
 		InventoryCountLine upc = inventory.line(id, "12345678905");
 		assertEquals(InventoryLineStatus.OK, upc.getStatus());
 		assertEquals(catalogue.itemByCode("U001").get().getId(), upc.getItemId());
-		assertEquals(Integer.valueOf(4), upc.getCountedQuantity());
+		assertEquals(BigDecimal.valueOf(4), upc.getCountedQuantity());
 		assertEquals("Found with leading zeros: 0012345678905", upc.getMessage());
 
 		assertEquals(InventoryLineStatus.NOT_FOUND, inventory.line(id, "555").getStatus(), "two matches");
@@ -306,5 +306,115 @@ class InventoryCountServiceTest {
 	private StockMovement movement(String itemCode) {
 		return inventory.stock.movements.stream().filter(m -> itemCode.equals(m.getItem().getItemCode())).findFirst()
 				.orElseThrow(() -> new IllegalArgumentException(itemCode));
+	}
+
+	// --- 2.2.1: decimal quantities ---
+
+	/**
+	 * The shapes of a real count file: A001 by its EAN as a number 1.34 (stock 10), B002 on two rows "0,25" + 0.5
+	 * (stock 2), C003 with a 4th decimal (stock 5), D005 whole and equal (8), a row without code, an unknown code 0.2.
+	 */
+	private static InputStream decimalFile() {
+		return InventoryFiles.xlsx(row("Code à barre", "Quantité"), row(6191234567890d, 1.34d), row("B002", "0,25"),
+				row("B002", 0.5d), row("C003", 1.3405d), row("D005", 8d), row(null, 2d), row("ZZZ", 0.2d));
+	}
+
+	private static String plain(BigDecimal quantity) {
+		return quantity == null ? null : quantity.toPlainString();
+	}
+
+	@Test
+	@DisplayName("2.2.1, decimals allowed: 1.34 imported and validated, the stock becomes 1.34 and the movement holds the difference; a 4th decimal refused by row and code")
+	@SuppressWarnings("unchecked")
+	void decimalCountImportedAndValidated() {
+		inventory.allowDecimal = true;
+		long id = (Long) service.create(LocalDate.of(2026, 10, 10), null, "decimal.xlsx", decimalFile(), "admin")
+				.get("id");
+
+		InventoryCountLine a = inventory.line(id, "6191234567890");
+		assertEquals(InventoryLineStatus.OK, a.getStatus());
+		assertEquals("1.34", plain(a.getCountedQuantity()));
+		assertEquals("10", plain(a.getSystemQuantityAtImport()));
+		InventoryCountLine b = inventory.line(id, "B002");
+		assertEquals("0.75", plain(b.getCountedQuantity()), "0,25 + 0.5");
+		assertEquals(Integer.valueOf(2), b.getMergedRows());
+		InventoryCountLine c = inventory.line(id, "C003");
+		assertEquals(InventoryLineStatus.BAD_QUANTITY, c.getStatus());
+		assertEquals("row 5: more than 3 decimals: 1.3405 (code C003)", c.getMessage());
+		assertEquals("0.2", plain(inventory.line(id, "ZZZ").getCountedQuantity()));
+		assertEquals("No code", inventory.line(id, "").getMessage());
+
+		Map<String, Object> summary = (Map<String, Object>) service.get(id).get().get("summary");
+		assertEquals(3L, summary.get("linesOk"));
+		assertEquals(1L, summary.get("linesBadQuantity"));
+		assertEquals(2L, summary.get("linesNotFound"));
+		assertEquals(2L, summary.get("linesWithDifference"));
+		assertEquals("0", plain((BigDecimal) summary.get("quantityUp")));
+		assertEquals("9.91", plain((BigDecimal) summary.get("quantityDown")), "(10 - 1.34) + (2 - 0.75)");
+
+		List<Map<String, Object>> rows = (List<Map<String, Object>>) service.lines(id, "all", "6191234567890", 0, 10)
+				.get().get("content");
+		assertEquals("1.34", plain((BigDecimal) rows.get(0).get("countedQuantity")));
+		assertEquals("10", plain((BigDecimal) rows.get(0).get("systemQuantity")), "10.000 sent as 10");
+		assertEquals("-8.66", plain((BigDecimal) rows.get(0).get("difference")));
+
+		service.validate(id, "admin");
+
+		assertEquals("1.34", plain(inventory.stock.quantityOf("A001")));
+		assertEquals("0.75", plain(inventory.stock.quantityOf("B002")));
+		assertEquals("5", plain(inventory.stock.quantityOf("C003")), "the bad line is not applied");
+		assertEquals("8", plain(inventory.stock.quantityOf("D005")));
+		StockMovement out = movement("A001");
+		assertEquals(StockMovementType.INVENTORY_OUT, out.getMovementType());
+		assertEquals("8.66", plain(out.getQuantity()));
+		assertEquals("1.25", plain(movement("B002").getQuantity()));
+		assertEquals(2, inventory.stock.movements.size(), "no movement for D005 (equal) nor C003");
+		InventoryCountLine applied = inventory.line(id, "6191234567890");
+		assertEquals("10", plain(applied.getSystemQuantityAtValidation()));
+		assertEquals("-8.66", plain(applied.getDifferenceApplied()));
+		summary = (Map<String, Object>) service.get(id).get().get("summary");
+		assertEquals("9.91", plain((BigDecimal) summary.get("quantityDown")), "validated: from what was applied");
+	}
+
+	@Test
+	@DisplayName("2.2.1, decimals not allowed (the default): every decimal row refused as in 2.2.0, row by row; nothing applied for them")
+	void decimalRefusedWhenSettingOff() {
+		long id = (Long) service.create(LocalDate.of(2026, 10, 10), null, "decimal.xlsx", decimalFile(), "admin")
+				.get("id");
+
+		assertEquals("row 2: not a whole number: 1.34", inventory.line(id, "6191234567890").getMessage());
+		assertEquals("row 3: not a whole number: 0.25; row 4: not a whole number: 0.5", inventory.line(id, "B002").getMessage(),
+				"every row of the item with its reason, as in 2.2.0");
+		assertEquals("row 5: not a whole number: 1.3405", inventory.line(id, "C003").getMessage());
+		assertEquals(InventoryLineStatus.OK, inventory.line(id, "D005").getStatus());
+
+		service.validate(id, "admin");
+		assertEquals(10, stock("A001"));
+		assertEquals(2, stock("B002"));
+		assertTrue(inventory.stock.movements.isEmpty(), "D005 equal, the others refused");
+	}
+
+	@Test
+	@DisplayName("2.2.1: a whole-number count gives the same lines and summary with decimals allowed or not (2.2.0)")
+	@SuppressWarnings("unchecked")
+	void wholeCountSameEitherWay() {
+		long off = create();
+		inventory.allowDecimal = true;
+		long on = create();
+
+		List<String> linesOff = inventory.linesOf(off).stream().map(InventoryCountServiceTest::describe)
+				.collect(Collectors.toList());
+		List<String> linesOn = inventory.linesOf(on).stream().map(InventoryCountServiceTest::describe)
+				.collect(Collectors.toList());
+		assertEquals(linesOff, linesOn);
+		Map<String, Object> summaryOff = (Map<String, Object>) service.get(off).get().get("summary");
+		Map<String, Object> summaryOn = (Map<String, Object>) service.get(on).get().get("summary");
+		assertEquals(summaryOff.toString(), summaryOn.toString());
+		assertEquals("8", plain((BigDecimal) summaryOn.get("quantityUp")), "written as 8, not 8.000");
+	}
+
+	private static String describe(InventoryCountLine line) {
+		return line.getCode() + " " + line.getStatus() + " " + plain(line.getCountedQuantity()) + " "
+				+ plain(line.getSystemQuantityAtImport()) + " " + line.getMergedRows() + " " + line.getMessage();
 	}
 }

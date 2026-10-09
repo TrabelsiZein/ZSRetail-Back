@@ -47,7 +47,12 @@ INSERT INTO #zs_221_columns (step, table_name, column_name) VALUES
 -- table on a store linked to one; elsewhere they are absent and skipped)
 (2, 'ho_ticket_line', 'quantity'),
 (2, 'ho_store_stock', 'quantity'),
-(2, 'hol_stock_copy', 'quantity_sent');
+(2, 'hol_stock_copy', 'quantity_sent'),
+-- Step 3: the inventory count lines
+(3, 'inventory_count_line', 'counted_quantity'),
+(3, 'inventory_count_line', 'system_quantity_at_import'),
+(3, 'inventory_count_line', 'system_quantity_at_validation'),
+(3, 'inventory_count_line', 'difference_applied');
 GO
 
 IF OBJECT_ID('tempdb..#zs_decimal_quantity') IS NOT NULL
@@ -193,4 +198,5 @@ INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
 ('2.2.1', 'NEW', 'Quantités décimales (jusqu''à 3 décimales) pour les articles vendus au litre ou au kilo : 0,2 ou 0,058 à la caisse. Le stock et les mouvements de stock gardent les décimales.'),
 ('2.2.1', 'NEW', 'Nouveau paramètre du magasin « Autoriser les quantités décimales » (Configuration générale), désactivé par défaut : désactivé, une quantité doit être un nombre entier, comme avant.'),
 ('2.2.1', 'IMPROVE', 'Le montant d''une ligne avec une quantité décimale est calculé par le serveur : prix unitaire TTC × quantité, arrondi au millime.'),
-('2.2.1', 'NEW', 'Siège : les tickets et le stock des magasins arrivent avec leurs quantités décimales (0,2 ; 9,8), affichées sans zéros inutiles dans l''historique des tickets et le stock du réseau.');
+('2.2.1', 'NEW', 'Siège : les tickets et le stock des magasins arrivent avec leurs quantités décimales (0,2 ; 9,8), affichées sans zéros inutiles dans l''historique des tickets et le stock du réseau.'),
+('2.2.1', 'NEW', 'Inventaire : le fichier peut porter des quantités décimales (1,34 ou 1.34, au plus 3 décimales) quand le magasin les autorise ; la validation met le stock à la quantité comptée, avec le mouvement de la différence. Sans le paramètre, une quantité décimale est refusée, comme avant.');

@@ -1,6 +1,7 @@
 package com.digithink.zsretail.inventory.service;
 
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -40,6 +41,7 @@ import com.digithink.zsretail.model.enumeration.SessionStatus;
 import com.digithink.zsretail.repository.CashierSessionRepository;
 import com.digithink.zsretail.repository.ItemBarcodeRepository;
 import com.digithink.zsretail.repository.ItemRepository;
+import com.digithink.zsretail.service.QuantityPolicy;
 import com.digithink.zsretail.service.StockMovementService;
 import com.digithink.zsretail.service.StockService;
 import com.digithink.zsretail.utils.Quantities;
@@ -77,6 +79,7 @@ public class InventoryCountService {
 	private final StockService stock;
 	private final StockMovementService movements;
 	private final ApplicationModeService mode;
+	private final QuantityPolicy quantityPolicy;
 	private final TransactionOperations transactions;
 	private final Supplier<LocalDateTime> clock;
 
@@ -84,16 +87,17 @@ public class InventoryCountService {
 	public InventoryCountService(InventoryCountRepository counts, InventoryCountLineRepository lineReads,
 			InventoryLineStore lineStore, ItemRepository items, ItemBarcodeRepository barcodes,
 			CashierSessionRepository sessions, StockService stock, StockMovementService movements,
-			ApplicationModeService mode, PlatformTransactionManager transactionManager) {
-		this(counts, lineReads, lineStore, items, barcodes, sessions, stock, movements, mode, timed(transactionManager),
-				LocalDateTime::now);
+			ApplicationModeService mode, QuantityPolicy quantityPolicy, PlatformTransactionManager transactionManager) {
+		this(counts, lineReads, lineStore, items, barcodes, sessions, stock, movements, mode, quantityPolicy,
+				timed(transactionManager), LocalDateTime::now);
 	}
 
 	/** With given transactions and clock: used by the tests. */
 	public InventoryCountService(InventoryCountRepository counts, InventoryCountLineRepository lineReads,
 			InventoryLineStore lineStore, ItemRepository items, ItemBarcodeRepository barcodes,
 			CashierSessionRepository sessions, StockService stock, StockMovementService movements,
-			ApplicationModeService mode, TransactionOperations transactions, Supplier<LocalDateTime> clock) {
+			ApplicationModeService mode, QuantityPolicy quantityPolicy, TransactionOperations transactions,
+			Supplier<LocalDateTime> clock) {
 		this.counts = counts;
 		this.lineReads = lineReads;
 		this.lineStore = lineStore;
@@ -103,6 +107,7 @@ public class InventoryCountService {
 		this.stock = stock;
 		this.movements = movements;
 		this.mode = mode;
+		this.quantityPolicy = quantityPolicy;
 		this.transactions = transactions;
 		this.clock = clock;
 	}
@@ -194,11 +199,12 @@ public class InventoryCountService {
 		return saved.map(this::withSummary);
 	}
 
-	private static List<FileRow> readRows(InputStream file) {
+	/** 2.2.1: decimals in the file only when the store allows them (ALLOW_DECIMAL_QUANTITY), else refused as in 2.2.0. */
+	private List<FileRow> readRows(InputStream file) {
 		if (file == null) {
 			throw new IllegalArgumentException("No file.");
 		}
-		List<FileRow> rows = InventoryFileReader.read(file);
+		List<FileRow> rows = InventoryFileReader.read(file, quantityPolicy.decimalAllowed());
 		if (rows.isEmpty()) {
 			throw new IllegalArgumentException("The file has no row to import.");
 		}
@@ -217,7 +223,7 @@ public class InventoryCountService {
 		Map<InventoryLineStatus, Integer> byStatus = new EnumMap<>(InventoryLineStatus.class);
 		lines.forEach(line -> byStatus.merge(line.getStatus(), 1, Integer::sum));
 		long differences = lines.stream().filter(line -> line.getStatus() == InventoryLineStatus.OK
-				&& !line.getCountedQuantity().equals(line.getSystemQuantityAtImport())).count();
+				&& line.getCountedQuantity().compareTo(line.getSystemQuantityAtImport()) != 0).count();
 		log.info("Inventory count {} imported by {}: {} rows, {} lines ({} OK, {} not found, {} not counted,"
 				+ " {} bad quantity), {} differences, {} ms", saved.getNumber(), user, rows.size(), lines.size(),
 				byStatus.getOrDefault(InventoryLineStatus.OK, 0), byStatus.getOrDefault(InventoryLineStatus.NOT_FOUND, 0),
@@ -231,7 +237,7 @@ public class InventoryCountService {
 		Catalogue catalogue = new Catalogue();
 		for (Object[] row : items.findInventorySnapshot()) {
 			ItemInfo item = new ItemInfo(((Number) row[0]).longValue(), (String) row[1], (ItemType) row[2],
-					row[3] == null ? 0 : Quantities.wholeIntOrFail(row[3], "Inventory count, stock of item " + row[1])); // 2.2.1: whole for now
+					row[3] == null ? BigDecimal.ZERO : Quantities.normalize((BigDecimal) row[3]));
 			catalogue.byId.put(item.id, item);
 			if (item.code != null) {
 				catalogue.byCode.put(key(item.code), item);
@@ -287,6 +293,9 @@ public class InventoryCountService {
 		}
 	}
 
+	/** The largest total of an item, as in 2.2.0 (the int range of the old columns). */
+	static final BigDecimal MAX_TOTAL = BigDecimal.valueOf(Integer.MAX_VALUE);
+
 	/** EAN-13, UPC-A (12) and GTIN-14: a number cell is padded with zeros up to this length at most. */
 	static final int MAX_PADDED_LENGTH = 14;
 
@@ -294,9 +303,10 @@ public class InventoryCountService {
 		final long id;
 		final String code;
 		final ItemType type;
-		final int stock;
+		/** 2.2.1: with its decimals; null read as 0. */
+		final BigDecimal stock;
 
-		ItemInfo(long id, String code, ItemType type, int stock) {
+		ItemInfo(long id, String code, ItemType type, BigDecimal stock) {
 			this.id = id;
 			this.code = code;
 			this.type = type;
@@ -320,7 +330,7 @@ public class InventoryCountService {
 			if (row.quantityError != null) {
 				draft.errors.add("row " + row.rowNumber + ": " + row.quantityError);
 			} else {
-				draft.sum += row.quantity;
+				draft.sum = draft.sum.add(row.quantity);
 			}
 		}
 		return drafts.values().stream().map(Draft::toLine).collect(Collectors.toList());
@@ -330,7 +340,8 @@ public class InventoryCountService {
 		final String code;
 		final ItemInfo item;
 		int rows;
-		long sum;
+		/** 2.2.1: with its decimals. */
+		BigDecimal sum = BigDecimal.ZERO;
 		final List<String> errors = new ArrayList<>();
 		/** The codes found with leading zeros added (a number cell). */
 		final Set<String> foundAs = new LinkedHashSet<>();
@@ -344,10 +355,10 @@ public class InventoryCountService {
 			InventoryCountLine line = new InventoryCountLine();
 			line.setCode(code.length() > 100 ? code.substring(0, 100) : code);
 			line.setMergedRows(rows);
-			boolean validSum = errors.isEmpty() && sum <= Integer.MAX_VALUE;
+			boolean validSum = errors.isEmpty() && sum.compareTo(MAX_TOTAL) <= 0;
 			if (item == null) {
 				line.setStatus(InventoryLineStatus.NOT_FOUND);
-				line.setCountedQuantity(validSum ? (int) sum : null);
+				line.setCountedQuantity(validSum ? Quantities.normalize(sum) : null);
 				line.setMessage(code.isEmpty() ? "No code" : "Unknown barcode or item code");
 				return line;
 			}
@@ -355,17 +366,17 @@ public class InventoryCountService {
 			line.setSystemQuantityAtImport(item.stock);
 			if (item.type == ItemType.SERVICE || item.type == ItemType.DISCOUNT) {
 				line.setStatus(InventoryLineStatus.NOT_COUNTED);
-				line.setCountedQuantity(validSum ? (int) sum : null);
+				line.setCountedQuantity(validSum ? Quantities.normalize(sum) : null);
 				line.setMessage("No stock for an item of type " + item.type);
 			} else if (!errors.isEmpty()) {
 				line.setStatus(InventoryLineStatus.BAD_QUANTITY);
 				line.setMessage(message(String.join("; ", errors)));
 			} else if (!validSum) {
 				line.setStatus(InventoryLineStatus.BAD_QUANTITY);
-				line.setMessage("Total quantity too large: " + sum);
+				line.setMessage("Total quantity too large: " + Quantities.plain(sum));
 			} else {
 				line.setStatus(InventoryLineStatus.OK);
-				line.setCountedQuantity((int) sum);
+				line.setCountedQuantity(Quantities.normalize(sum));
 				if (!foundAs.isEmpty()) {
 					line.setMessage(message("Found with leading zeros: " + String.join(", ", foundAs)));
 				}
@@ -412,40 +423,39 @@ public class InventoryCountService {
 			}
 
 			List<OkLine> lines = lineStore.okLines(id);
-			Map<Long, Integer> stockNow = stockOf(lines);
-			Map<Long, Integer> differences = new LinkedHashMap<>();
-			long up = 0;
-			long down = 0;
+			Map<Long, BigDecimal> stockNow = stockOf(lines);
+			Map<Long, BigDecimal> differences = new LinkedHashMap<>();
+			BigDecimal up = BigDecimal.ZERO;
+			BigDecimal down = BigDecimal.ZERO;
 			for (OkLine line : lines) {
 				if (!stockNow.containsKey(line.itemId)) {
 					line.message = "Item deleted since the import: not applied";
 					continue;
 				}
-				Integer current = stockNow.get(line.itemId);
-				line.systemQuantity = current == null ? 0 : current;
-				line.difference = line.counted - line.systemQuantity;
-				differences.merge(line.itemId, line.difference, Integer::sum);
-				up += Math.max(line.difference, 0);
-				down += Math.max(-line.difference, 0);
+				BigDecimal current = stockNow.get(line.itemId);
+				line.systemQuantity = current == null ? BigDecimal.ZERO : current;
+				line.difference = Quantities.normalize(line.counted.subtract(line.systemQuantity));
+				differences.merge(line.itemId, line.difference, BigDecimal::add);
+				up = up.add(line.difference.max(BigDecimal.ZERO));
+				down = down.add(line.difference.negate().max(BigDecimal.ZERO));
 			}
 			stock.applyInventoryDifferences(differences);
 			int written = movements.recordInventory(differences, id, number, user);
 			lineStore.saveValidation(lines, user);
 			log.info("Inventory count {} validated by {}: {} lines applied, {} differences (+{} / -{}), {} ms", number,
-					user, lines.size(), written, up, down, millisSince(start));
+					user, lines.size(), written, Quantities.plain(up), Quantities.plain(down), millisSince(start));
 			return counts.findById(id);
 		});
 		return validated.map(this::withSummary);
 	}
 
 	/** The stock now of the items of these lines (absent: the item was deleted), at most 2,000 ids per query. */
-	private Map<Long, Integer> stockOf(List<OkLine> lines) {
+	private Map<Long, BigDecimal> stockOf(List<OkLine> lines) {
 		List<Long> ids = lines.stream().map(line -> line.itemId).distinct().collect(Collectors.toList());
-		Map<Long, Integer> stockNow = new HashMap<>();
+		Map<Long, BigDecimal> stockNow = new HashMap<>();
 		for (int from = 0; from < ids.size(); from += IDS_PER_QUERY) {
 			for (Object[] row : items.findStockByIds(ids.subList(from, Math.min(from + IDS_PER_QUERY, ids.size())))) {
-				stockNow.put(((Number) row[0]).longValue(), row[1] == null ? null
-						: Quantities.wholeIntOrFail(row[1], "Inventory count, stock of item id " + row[0])); // 2.2.1: whole for now
+				stockNow.put(((Number) row[0]).longValue(), Quantities.normalize((BigDecimal) row[1]));
 			}
 		}
 		return stockNow;
@@ -488,15 +498,15 @@ public class InventoryCountService {
 				: lineReads.summaryOfDraft(count.getId());
 		Map<InventoryLineStatus, Long> lines = new EnumMap<>(InventoryLineStatus.class);
 		long withDifference = 0;
-		long up = 0;
-		long down = 0;
+		BigDecimal up = BigDecimal.ZERO;
+		BigDecimal down = BigDecimal.ZERO;
 		for (Object[] row : rows) {
 			InventoryLineStatus status = (InventoryLineStatus) row[0];
 			lines.put(status, number(row[1]));
 			if (status == InventoryLineStatus.OK) {
 				withDifference = number(row[3]);
-				up = validated ? number(row[4]) : number(row[4]) - number(row[5]);
-				down = validated ? -number(row[5]) : number(row[6]) - number(row[7]);
+				up = validated ? quantity(row[4]) : quantity(row[4]).subtract(quantity(row[5]));
+				down = validated ? quantity(row[5]).negate() : quantity(row[6]).subtract(quantity(row[7]));
 			}
 		}
 		Map<String, Object> summary = new LinkedHashMap<>();
@@ -507,8 +517,8 @@ public class InventoryCountService {
 		summary.put("linesNotCounted", lines.getOrDefault(InventoryLineStatus.NOT_COUNTED, 0L));
 		summary.put("linesBadQuantity", lines.getOrDefault(InventoryLineStatus.BAD_QUANTITY, 0L));
 		summary.put("linesWithDifference", withDifference);
-		summary.put("quantityUp", up);
-		summary.put("quantityDown", down);
+		summary.put("quantityUp", Quantities.normalize(up));
+		summary.put("quantityDown", Quantities.normalize(down));
 		summary.put("openCashierSessions", sessions.countByStatus(SessionStatus.OPENED));
 		return summary;
 	}
@@ -532,12 +542,13 @@ public class InventoryCountService {
 	/** One line: a draft against the stock now, a validated count with the stock read and the difference applied. */
 	private static Map<String, Object> lineView(Object[] row, boolean validated) {
 		InventoryLineStatus status = (InventoryLineStatus) row[5];
-		Integer counted = (Integer) row[6];
-		Integer stockNow = row[12] == null ? (row[2] == null ? null : 0)
-				: Quantities.wholeIntOrFail(row[12], "Inventory count, stock of item " + row[3]); // 2.2.1: whole for now
-		Integer systemQuantity = validated ? (Integer) row[9] : stockNow;
-		Integer difference = validated ? (Integer) row[10]
-				: status == InventoryLineStatus.OK && counted != null && stockNow != null ? counted - stockNow : null;
+		// 2.2.1: quantities with up to 3 decimals, sent without trailing zeros (5.000 is 5)
+		BigDecimal counted = quantityOrNull(row[6]);
+		BigDecimal stockNow = row[12] == null ? (row[2] == null ? null : BigDecimal.ZERO) : quantityOrNull(row[12]);
+		BigDecimal systemQuantity = validated ? quantityOrNull(row[9]) : stockNow;
+		BigDecimal difference = validated ? quantityOrNull(row[10])
+				: status == InventoryLineStatus.OK && counted != null && stockNow != null
+						? Quantities.normalize(counted.subtract(stockNow)) : null;
 		Map<String, Object> view = new LinkedHashMap<>();
 		view.put("id", row[0]);
 		view.put("code", row[1]);
@@ -547,7 +558,7 @@ public class InventoryCountService {
 		view.put("status", status);
 		view.put("countedQuantity", counted);
 		view.put("mergedRows", row[7]);
-		view.put("systemQuantityAtImport", row[8]);
+		view.put("systemQuantityAtImport", quantityOrNull(row[8]));
 		view.put("systemQuantity", systemQuantity);
 		view.put("difference", difference);
 		view.put("message", row[11]);
@@ -620,7 +631,22 @@ public class InventoryCountService {
 	}
 
 	private static long number(Object value) {
-		return value == null ? 0L : Quantities.wholeLongOrFail(value, "Inventory count summary"); // 2.2.1: loud on decimals
+		return value == null ? 0L : ((Number) value).longValue();
+	}
+
+	/** 2.2.1: a quantity sum of a row (a BigDecimal), null as 0. */
+	private static BigDecimal quantity(Object value) {
+		return value == null ? BigDecimal.ZERO : decimal(value);
+	}
+
+	/** 2.2.1: a quantity column of a row, without trailing zeros; null stays null. */
+	private static BigDecimal quantityOrNull(Object value) {
+		return value == null ? null : Quantities.normalize(decimal(value));
+	}
+
+	/** A number of a row as a BigDecimal (a sum may come back as another Number type). */
+	private static BigDecimal decimal(Object value) {
+		return value instanceof BigDecimal ? (BigDecimal) value : new BigDecimal(value.toString());
 	}
 
 	private static String text(LocalDateTime time) {

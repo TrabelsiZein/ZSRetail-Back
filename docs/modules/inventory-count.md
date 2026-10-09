@@ -46,7 +46,7 @@ plus the `_BaseEntity` columns.
 `inventory_count_line`: `count_id` (FK `fk_inventory_count_line_count`, index `ix_inventory_count_line_count`),
 `item_id` (no foreign key: a draft never blocks the deletion of an item), `code` varchar(100) as read in the file,
 `counted_quantity`, `merged_rows`, `system_quantity_at_import`, `system_quantity_at_validation`, `difference_applied`
-(all int), `status` varchar(20), `message` varchar(255).
+(int until 2.2.1, then DECIMAL(18,3) except `merged_rows`: `decimal-quantities.md`), `status` varchar(20), `message` varchar(255).
 
 Created by `db/2.1.0/update.sql` (guarded, re-runnable) with the names Hibernate uses; `ddl-auto` creates the same
 tables when the script was not run.
@@ -59,6 +59,12 @@ tables when the script was not run.
   never `6.19E+12` nor `6191234567890.0`. Text is trimmed (a non-breaking space counts as a space).
 - Quantity: a whole number ≥ 0, numeric cell or text (`12`, `12.0`, `4,0`). Otherwise the row keeps its reason: `no
   quantity`, `not a number: x`, `negative quantity: -2`, `not a whole number: 1.5`, `quantity too large`.
+- 2.2.1: with the store setting `ALLOW_DECIMAL_QUANTITY` on, a quantity may carry up to 3 decimals, as a number cell
+  or as text (`1,34` or `1.34`); a 4th decimal is refused on its row: `more than 3 decimals: 1.3405 (code
+  6192464102513)`. Setting off (the default): every decimal refused as before (`not a whole number: 1.34`). A number
+  cell is read to 15 significant digits first, as Excel shows it: its float noise (`1.3400000000000001`, `0.1 + 0.2`) is
+  not a decimal (it also means a whole cell with noise, `12.000000000000002`, reads as 12 where 2.2.0 refused it).
+  The total of an item stays limited to the int range, as before.
 - At most 100,000 rows (30,000 expected).
 
 ## Import
@@ -183,7 +189,8 @@ non-zero difference with the right type and quantity, the other items unchanged.
 
 ## Tests
 
-- `InventoryFileReaderTest`: number cell as code, header and empty rows, bad quantities, `.xls`, not Excel.
+- `InventoryFileReaderTest`: number cell as code, header and empty rows, bad quantities, `.xls`, not Excel; 2.2.1:
+  decimals allowed or not (number and text cells, noise, a 4th decimal).
 - `InventoryCountServiceTest` (real service over `InMemoryInventory`, the stock of `InMemoryStock`): lookup by barcode
   then code, a number cell found with leading zeros (barcode or item code, two matches not found, a text cell never
   padded), merged rows, the four statuses and the summary; validation (stock = counted, a sale after the import,

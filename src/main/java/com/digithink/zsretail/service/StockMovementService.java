@@ -18,7 +18,6 @@ import com.digithink.zsretail.model.enumeration.StockMovementType;
 import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.repository.StockBatchRepository;
 import com.digithink.zsretail.repository.StockMovementRepository;
-import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -161,15 +160,15 @@ public class StockMovementService {
      * count id as reference and its number as note. Written in JDBC batches. Returns the number of movements.
      */
     @Transactional
-    public int recordInventory(Map<Long, Integer> differences, Long countId, String countNumber, String user) {
+    public int recordInventory(Map<Long, BigDecimal> differences, Long countId, String countNumber, String user) {
         if (applicationModeService.isSupplyFromErp()) return 0;
         List<StockBatchRepository.MovementRow> rows = new ArrayList<>();
         differences.forEach((itemId, delta) -> {
-            if (delta == null || delta == 0) return;
+            if (delta == null || delta.signum() == 0) return;
             rows.add(new StockBatchRepository.MovementRow(itemId,
-                    delta > 0 ? StockMovementType.INVENTORY_IN : StockMovementType.INVENTORY_OUT,
-                    delta > 0 ? StockMovementDirection.IN : StockMovementDirection.OUT,
-                    Quantities.of(Math.abs(delta)), countId, "INVENTORY", countNumber));
+                    delta.signum() > 0 ? StockMovementType.INVENTORY_IN : StockMovementType.INVENTORY_OUT,
+                    delta.signum() > 0 ? StockMovementDirection.IN : StockMovementDirection.OUT,
+                    delta.abs(), countId, "INVENTORY", countNumber));
         });
         if (!rows.isEmpty()) {
             stockBatchRepository.insertMovements(rows, user == null ? "System" : user);

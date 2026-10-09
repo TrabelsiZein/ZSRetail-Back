@@ -11,7 +11,6 @@ import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.exception.InsufficientStockException;
 import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.repository.StockBatchRepository;
-import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -139,14 +138,14 @@ public class StockService {
 	 * counted: the movements always add up to the stock). Zero differences are skipped. No-op when the supply is the ERP's.
 	 */
 	@Transactional(rollbackFor = Exception.class)
-	public void applyInventoryDifferences(Map<Long, Integer> differences) {
+	public void applyInventoryDifferences(Map<Long, BigDecimal> differences) {
 		if (applicationModeService.isSupplyFromErp()) {
 			return;
 		}
 		Map<Long, BigDecimal> nonZero = new java.util.LinkedHashMap<>();
 		differences.forEach((itemId, delta) -> {
-			if (delta != null && delta != 0) {
-				nonZero.put(itemId, Quantities.of(delta));
+			if (delta != null && delta.signum() != 0) {
+				nonZero.put(itemId, delta);
 			}
 		});
 		if (!nonZero.isEmpty()) {

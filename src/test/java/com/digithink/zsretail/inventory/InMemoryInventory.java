@@ -34,6 +34,7 @@ import com.digithink.zsretail.repository.CashierSessionRepository;
 import com.digithink.zsretail.repository.ItemBarcodeRepository;
 import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.repository.StockBatchRepository;
+import com.digithink.zsretail.service.QuantityPolicy;
 import com.digithink.zsretail.service.StockMovementService;
 import com.digithink.zsretail.service.StockService;
 import com.digithink.zsretail.support.InMemoryCatalogue;
@@ -51,6 +52,8 @@ public final class InMemoryInventory {
 	public final Map<Long, InventoryCount> counts = new LinkedHashMap<>();
 	public final Map<Long, InventoryCountLine> lines = new LinkedHashMap<>();
 	public long openSessions;
+	/** 2.2.1: General Setup ALLOW_DECIMAL_QUANTITY of the store (off by default, as on a new database). */
+	public boolean allowDecimal;
 	public LocalDateTime now = LocalDateTime.of(2026, 10, 6, 10, 0);
 
 	public InMemoryInventory(InMemoryStock stock) {
@@ -89,8 +92,12 @@ public final class InMemoryInventory {
 		InMemoryStock.set(movementService, StockMovementService.class, "stockBatchRepository", batches);
 
 		return new InventoryCountService(countRepository(), lineRepository(), lineStore(), itemRepository(),
-				barcodeRepository(), sessionRepository(), stockService, movementService, mode,
-				TransactionOperations.withoutTransaction(), () -> now);
+				barcodeRepository(), sessionRepository(), stockService, movementService, mode, new QuantityPolicy() {
+					@Override
+					public boolean decimalAllowed() {
+						return allowDecimal;
+					}
+				}, TransactionOperations.withoutTransaction(), () -> now);
 	}
 
 	/** The lines of one count, by id. */
@@ -150,50 +157,86 @@ public final class InMemoryInventory {
 					return summary((Long) args[0], false);
 				case "summaryOfValidated":
 					return summary((Long) args[0], true);
+				case "findLines":
+					return findLines((Long) args[0], (String) args[3], (org.springframework.data.domain.Pageable) args[5]);
 				default:
 					return UNHANDLED;
 			}
 		});
 	}
 
-	/** The rows of the two summary queries (same columns), computed from the lines. */
+	/**
+	 * The rows of findLines (filter all only; search on the code as read), the quantity columns at scale 3 as the
+	 * DECIMAL(18,3) columns give them (2.2.1): [id, code, itemId, itemCode, itemName, status, countedQuantity,
+	 * mergedRows, systemQuantityAtImport, systemQuantityAtValidation, differenceApplied, message, stockNow].
+	 */
+	private org.springframework.data.domain.Page<Object[]> findLines(long countId, String search,
+			org.springframework.data.domain.Pageable page) {
+		List<Object[]> rows = linesOf(countId).stream()
+				.filter(l -> search == null || search.isEmpty()
+						|| l.getCode().toLowerCase(java.util.Locale.ROOT).contains(search.replace("%", "")))
+				.map(l -> {
+					Item item = l.getItemId() == null ? null : catalogue.items.get(l.getItemId());
+					return new Object[] { l.getId(), l.getCode(), l.getItemId(), item == null ? null : item.getItemCode(),
+							item == null ? null : item.getName(), l.getStatus(), scale3(l.getCountedQuantity()),
+							l.getMergedRows(), scale3(l.getSystemQuantityAtImport()),
+							scale3(l.getSystemQuantityAtValidation()), scale3(l.getDifferenceApplied()), l.getMessage(),
+							item == null ? null : scale3(item.getStockQuantity()) };
+				}).collect(Collectors.toList());
+		return new org.springframework.data.domain.PageImpl<>(rows, page, rows.size());
+	}
+
+	private static BigDecimal scale3(BigDecimal quantity) {
+		return quantity == null ? null : quantity.setScale(3);
+	}
+
+	/**
+	 * The rows of the two summary queries (same columns), computed from the lines: counts as Long, quantity sums as
+	 * BigDecimal (2.2.1: DECIMAL(18,3) columns, as the database gives them).
+	 */
 	private List<Object[]> summary(long countId, boolean validated) {
-		Map<InventoryLineStatus, long[]> byStatus = new EnumMap<>(InventoryLineStatus.class);
+		Map<InventoryLineStatus, long[]> counted = new EnumMap<>(InventoryLineStatus.class);
+		Map<InventoryLineStatus, BigDecimal[]> sums = new EnumMap<>(InventoryLineStatus.class);
 		for (InventoryCountLine line : linesOf(countId)) {
-			long[] sums = byStatus.computeIfAbsent(line.getStatus(), s -> new long[7]);
-			sums[0]++;
-			sums[1] += line.getMergedRows();
+			long[] c = counted.computeIfAbsent(line.getStatus(), s -> new long[3]);
+			BigDecimal[] q = sums.computeIfAbsent(line.getStatus(),
+					s -> new BigDecimal[] { BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO });
+			c[0]++;
+			c[1] += line.getMergedRows();
 			if (validated) {
-				Integer difference = line.getDifferenceApplied();
-				if (difference != null && difference != 0) {
-					sums[2]++;
-					sums[3] += Math.max(difference, 0);
-					sums[4] += Math.min(difference, 0);
+				BigDecimal difference = line.getDifferenceApplied();
+				if (difference != null && difference.signum() != 0) {
+					c[2]++;
+					q[0] = q[0].add(difference.max(BigDecimal.ZERO));
+					q[1] = q[1].add(difference.min(BigDecimal.ZERO));
 				}
 			} else if (line.getCountedQuantity() != null && line.getItemId() != null) {
-				int counted = line.getCountedQuantity();
-				int stock = stockOf(line.getItemId());
-				if (counted != stock) {
-					sums[2]++;
+				BigDecimal count = line.getCountedQuantity();
+				BigDecimal stock = stockOf(line.getItemId());
+				if (count.compareTo(stock) != 0) {
+					c[2]++;
 				}
-				if (counted > stock) {
-					sums[3] += counted;
-					sums[4] += stock;
-				} else if (counted < stock) {
-					sums[5] += stock;
-					sums[6] += counted;
+				if (count.compareTo(stock) > 0) {
+					q[0] = q[0].add(count);
+					q[1] = q[1].add(stock);
+				} else if (count.compareTo(stock) < 0) {
+					q[2] = q[2].add(stock);
+					q[3] = q[3].add(count);
 				}
 			}
 		}
 		List<Object[]> rows = new ArrayList<>();
-		byStatus.forEach((status, s) -> rows.add(validated ? new Object[] { status, s[0], s[1], s[2], s[3], s[4] }
-				: new Object[] { status, s[0], s[1], s[2], s[3], s[4], s[5], s[6] }));
+		counted.forEach((status, c) -> {
+			BigDecimal[] q = sums.get(status);
+			rows.add(validated ? new Object[] { status, c[0], c[1], c[2], q[0], q[1] }
+					: new Object[] { status, c[0], c[1], c[2], q[0], q[1], q[2], q[3] });
+		});
 		return rows;
 	}
 
-	private int stockOf(long itemId) {
+	private BigDecimal stockOf(long itemId) {
 		Item item = catalogue.items.get(itemId);
-		return item == null || item.getStockQuantity() == null ? 0 : item.getStockQuantity().intValueExact();
+		return item == null || item.getStockQuantity() == null ? BigDecimal.ZERO : item.getStockQuantity();
 	}
 
 	private InventoryLineStore lineStore() {

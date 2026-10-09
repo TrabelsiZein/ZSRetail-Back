@@ -1,5 +1,7 @@
 package com.digithink.zsretail.inventory.model;
 
+import java.math.BigDecimal;
+
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
@@ -13,6 +15,7 @@ import javax.persistence.Table;
 
 import com.digithink.zsretail.inventory.enumeration.InventoryLineStatus;
 import com.digithink.zsretail.model._BaseEntity;
+import com.digithink.zsretail.utils.Quantities;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.Data;
@@ -48,21 +51,21 @@ public class InventoryCountLine extends _BaseEntity {
 	private String code;
 
 	/** Sum of the quantities of the merged rows; null when BAD_QUANTITY or NOT_FOUND without a valid quantity. */
-	@Column(name = "counted_quantity")
-	private Integer countedQuantity;
+	@Column(name = "counted_quantity", precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal countedQuantity;
 
 	@Column(name = "merged_rows")
 	private Integer mergedRows;
 
-	@Column(name = "system_quantity_at_import")
-	private Integer systemQuantityAtImport;
+	@Column(name = "system_quantity_at_import", precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal systemQuantityAtImport;
 
-	@Column(name = "system_quantity_at_validation")
-	private Integer systemQuantityAtValidation;
+	@Column(name = "system_quantity_at_validation", precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal systemQuantityAtValidation;
 
 	/** Counted minus the stock at the validation; 0 when equal; null until validated or when not applied. */
-	@Column(name = "difference_applied")
-	private Integer differenceApplied;
+	@Column(name = "difference_applied", precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal differenceApplied;
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "status", nullable = false, length = 20)
@@ -70,4 +73,22 @@ public class InventoryCountLine extends _BaseEntity {
 
 	@Column(name = "message", length = 255)
 	private String message;
+
+	// 2.2.1: the quantities with up to 3 decimals, read without trailing zeros (5.000 is 5)
+
+	public BigDecimal getCountedQuantity() {
+		return Quantities.normalize(countedQuantity);
+	}
+
+	public BigDecimal getSystemQuantityAtImport() {
+		return Quantities.normalize(systemQuantityAtImport);
+	}
+
+	public BigDecimal getSystemQuantityAtValidation() {
+		return Quantities.normalize(systemQuantityAtValidation);
+	}
+
+	public BigDecimal getDifferenceApplied() {
+		return Quantities.normalize(differenceApplied);
+	}
 }
