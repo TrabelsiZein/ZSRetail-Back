@@ -62,7 +62,8 @@ class NavPosPagesLiveReadTest {
 	}
 
 	/**
-	 * Invoices from the ERP, step (a): the invoices page of the same ERP, GET only, with the 2021 test data: years=2021,
+	 * Invoices from the ERP, step (a): the invoices page of the same ERP, GET only, with the 2021 test data (release 2.2:
+	 * the year comes from -Dnavpospages.invoice-year, 2021 by default; the oldest number of the page is printed too),
 	 * the default customer field Sell_to_Customer_No (on the page since 2026-10-09). Prints each invoice (number,
 	 * customer, dates, lines, totals, warnings) and the totals of FVV21000000218 against the sum of its lines. Run alone:
 	 * -Dtest=NavPosPagesLiveReadTest#liveReadInvoices
@@ -71,14 +72,14 @@ class NavPosPagesLiveReadTest {
 	@DisplayName("Live read of the invoices page (GET only), years 2021: numbers, customers, lines and totals printed")
 	void liveReadInvoices() {
 		MockEnvironment env = Installations.config(FILE);
-		env.setProperty("erp.navpospages.invoices.years", "2021");
 		NavPosPagesStartupCheck.check(env);
 		System.out.println(NavPosPagesStartupCheck.summary(env));
 		NavPosPagesProperties properties = Binder.get(env).bind(NavPosPagesProperties.PREFIX, NavPosPagesProperties.class)
 				.get();
 		NavPosPagesRestClient client = new NavPosPagesRestClient(NavPosPagesConfig.restTemplate(properties), properties);
 		NavPosPagesMapper mapper = new NavPosPagesMapper(properties.getDefaultVat(), properties.getPriceIncludesVat());
-		for (Integer year : properties.getInvoices().getYears()) {
+		System.out.println("oldest invoice of the page: " + client.readFirstInvoiceNumber(properties.getInvoices().getNumberPrefix()));
+		for (Integer year : java.util.Collections.singletonList(Integer.getInteger("navpospages.invoice-year", 2021))) {
 			String prefix = properties.getInvoices().yearPrefix(year);
 			long start = System.currentTimeMillis();
 			NavPosResult<ErpSupplyInvoiceDTO> result = mapper.invoices(client.readInvoicesAfter(prefix, null),

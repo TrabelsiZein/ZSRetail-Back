@@ -94,6 +94,12 @@ public class JpaNavPosPagesHeadOffice implements NavPosPagesHeadOffice {
 		return code == null || code.trim().isEmpty() ? null : code.trim();
 	}
 
+	@Override
+	public String invoicesReadAfter() {
+		String value = generalSetupService.findValueByCode(INVOICES_READ_AFTER);
+		return value == null || value.trim().isEmpty() ? null : value.trim();
+	}
+
 	private List<Object[]> rows(String jpql) {
 		List<Object[]> rows = new ArrayList<>();
 		for (Object result : entityManager.createQuery(jpql).getResultList()) {

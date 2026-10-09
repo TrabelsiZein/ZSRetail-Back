@@ -1,7 +1,5 @@
 package com.digithink.zsretail.erp.navpospages.config;
 
-import java.util.ArrayList;
-import java.util.List;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -68,7 +66,9 @@ public class NavPosPagesProperties {
 
 	/**
 	 * Invoices from the ERP, step (a): how the invoices page is read. The numbers carry the year (FVV26...): one read per
-	 * configured year, after the highest number the head office has of that year. No year: the invoices are not read.
+	 * year, after the highest number the head office has of that year. Release 2.2: the years are worked out by the sync
+	 * (from the General Setup "Read ERP invoices after number", or the oldest invoice of the page, up to the current year);
+	 * the lines invoices.years and invoices.start-number are gone (ignored with a WARN line when a file still has them).
 	 */
 	@Getter
 	@Setter
@@ -79,10 +79,6 @@ public class NavPosPagesProperties {
 		private String customerField = "Sell_to_Customer_No";
 		/** The start of every number; the year follows it in 2 digits (FVV + 26). */
 		private String numberPrefix = "FVV";
-		/** The years read at each run, e.g. 2025,2026 (the current one and the previous one). */
-		private List<Integer> years = new ArrayList<>();
-		/** The last invoice before the go-live; applies only to its year while the head office has none of that year. */
-		private String startNumber;
 		/** Invoices read per year and run at most. */
 		private int maxPerRun = 50;
 		/**
@@ -94,6 +90,23 @@ public class NavPosPagesProperties {
 		/** numberPrefix + the 2 digits of the year: FVV26 for 2026. */
 		public String yearPrefix(int year) {
 			return numberPrefix.trim() + String.format("%02d", year % 100);
+		}
+
+		/** Release 2.2: the year of an invoice number (FVV26... gives 2026), or null when it does not start like one. */
+		public Integer yearOf(String number) {
+			String prefix = numberPrefix.trim();
+			String text = number == null ? "" : number.trim();
+			if (!text.startsWith(prefix) || text.length() < prefix.length() + 2) {
+				return null;
+			}
+			String yy = text.substring(prefix.length(), prefix.length() + 2);
+			return yy.chars().allMatch(Character::isDigit) ? 2000 + Integer.parseInt(yy) : null;
+		}
+
+		/** Release 2.2: an invoice number of the ERP: the prefix, the year in 2 digits, then digits (FVV26000000123). */
+		public boolean looksLikeNumber(String number) {
+			String text = number == null ? "" : number.trim();
+			return text.matches(java.util.regex.Pattern.quote(numberPrefix.trim()) + "[0-9]{2}[0-9]+");
 		}
 	}
 

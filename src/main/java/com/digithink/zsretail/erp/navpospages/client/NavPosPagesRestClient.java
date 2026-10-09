@@ -132,6 +132,27 @@ public class NavPosPagesRestClient implements NavPosPagesSource {
 		return readInvoices(yearPrefix, afterNumber, false);
 	}
 
+	/**
+	 * Release 2.2: the lowest invoice number of the page that starts with numberPrefix (one GET: $top=1, $orderby=No,
+	 * $select=No), or null when the page has none. The years to read start at its year when the General Setup "Read ERP
+	 * invoices after number" is empty and the head office has no invoice yet.
+	 */
+	@Override
+	public String readFirstInvoiceNumber(String numberPrefix) {
+		String page = properties.getPage().getInvoices();
+		URI uri = page(page).queryParam("$filter", "startswith(No,'" + quoted(numberPrefix) + "')")
+				.queryParam("$orderby", "No").queryParam("$top", 1).queryParam("$select", NavPosInvoiceRow.NO).build()
+				.encode().toUri();
+		NavPosCollection<NavPosInvoiceRow> body = get(page, uri,
+				new ParameterizedTypeReference<NavPosCollection<NavPosInvoiceRow>>() {
+				});
+		if (body == null || body.getValue() == null || body.getValue().isEmpty()) {
+			return null;
+		}
+		String number = body.getValue().get(0).text(NavPosInvoiceRow.NO);
+		return number == null || number.trim().isEmpty() ? null : number.trim();
+	}
+
 	private List<NavPosInvoiceRow> readInvoices(String yearPrefix, String afterNumber, boolean withPricesIncludingVat) {
 		NavPosPagesProperties.Invoices settings = properties.getInvoices();
 		String page = properties.getPage().getInvoices();

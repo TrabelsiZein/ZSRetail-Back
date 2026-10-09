@@ -212,6 +212,21 @@ class HoErpInvoiceServiceTest {
 	// ─── Step 1 and step 2 ───────────────────────────────────────
 
 	@Test
+	@DisplayName("Release 2.2: after each run the General Setup \"Last invoice read\" is the highest number saved; empty before any")
+	void lastInvoiceRead() {
+		Map<String, String> setup = new java.util.HashMap<>();
+		service.setSetupWriter(setup::put);
+		Map<String, Object> nothing = service.run();
+		assertEquals("", setup.get("ERP_INVOICES_LAST_READ"));
+		assertNull(nothing.get("lastInvoiceRead"));
+
+		twoInvoices();
+		Map<String, Object> summary = service.run();
+		assertEquals("FVV26000000102", setup.get("ERP_INVOICES_LAST_READ"));
+		assertEquals("FVV26000000102", summary.get("lastInvoiceRead"));
+	}
+
+	@Test
 	@DisplayName("A run: every new invoice saved without a store first, then B's given to B (SENT), the other left: no store")
 	void runSavesThenAssigns() {
 		twoInvoices();

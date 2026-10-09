@@ -2,7 +2,6 @@ package com.digithink.zsretail.erp.navpospages.config;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.env.Environment;
@@ -37,6 +36,10 @@ public class NavPosPagesStartupCheck {
 	public NavPosPagesStartupCheck(Environment environment) {
 		check(environment);
 		log.info(summary(environment));
+		for (String key : ignoredKeys(environment)) {
+			log.warn("Property {} is no longer used (release 2.2) and is ignored: the invoices are read after the General"
+					+ " Setup \"Read ERP invoices after number\" (empty: every invoice of the page). Remove the line.", key);
+		}
 	}
 
 	/** Throws {@link IllegalStateException} naming the key when the connector cannot start. */
@@ -86,9 +89,9 @@ public class NavPosPagesStartupCheck {
 	}
 
 	/**
-	 * Invoices from the ERP, step (a): page.invoices not blank when present; invoices.years required when page.invoices
-	 * is set, each a year from 2000 to 2099, once; the prefix without spaces; the customer field and the lines property
-	 * OData names; the start number one of a configured year; max-per-run from 1 to 1000.
+	 * Invoices from the ERP, step (a): page.invoices not blank when present; the prefix without spaces; the customer field
+	 * and the lines property OData names; max-per-run from 1 to 1000. Release 2.2: invoices.years and invoices.start-number
+	 * are gone (the years come from the General Setup "Read ERP invoices after number"): see {@link #ignoredKeys}.
 	 */
 	private static void checkInvoices(PropertyResolver env) {
 		String pageKey = P + "page.invoices";
@@ -109,56 +112,31 @@ public class NavPosPagesStartupCheck {
 						+ P + key + ": a field name of the ERP page, letters, digits and _ (e.g. Sell_to_Customer_No)");
 			}
 		}
-		List<Integer> years = years(env);
-		if (years.isEmpty() && env.containsProperty(pageKey)) {
-			throw new IllegalStateException("Missing value for property " + P + "invoices.years: required when " + pageKey
-					+ " is set (the years read, e.g. 2025,2026).");
-		}
-		String startKey = P + "invoices.start-number";
-		String start = trimmed(env.getProperty(startKey));
-		if (!start.isEmpty() && years.stream().noneMatch(year -> start.startsWith(prefix + yy(year)))) {
-			throw new IllegalStateException("Invalid value '" + start + "' for property " + startKey + ": the last invoice"
-					+ " before the go-live, a number of one of the years of " + P + "invoices.years ("
-					+ (years.isEmpty() ? "none set" : years.stream().map(year -> prefix + yy(year) + "...")
-							.collect(Collectors.joining(", ")))
-					+ ")");
-		}
 		checkRange(env, "invoices.max-per-run", 1, 1000);
 	}
 
-	/** invoices.years: a comma list of years from 2000 to 2099, each once; empty when absent or blank. */
-	static List<Integer> years(PropertyResolver env) {
-		String key = P + "invoices.years";
-		String raw = trimmed(env.getProperty(key));
-		List<Integer> years = new ArrayList<>();
-		if (raw.isEmpty()) {
-			return years;
-		}
-		for (String part : raw.split(",", -1)) {
-			long year = wholeNumber(part);
-			if (year < 2000 || year > 2099 || years.contains((int) year)) {
-				throw new IllegalStateException("Invalid value '" + raw + "' for property " + key + ": years from 2000 to"
-						+ " 2099, each once, separated by commas (e.g. 2025,2026)");
+	/** Release 2.2: the lines removed from the files; a file that still has them starts, with a WARN line each. */
+	static final String[] REMOVED_KEYS = { P + "invoices.years", P + "invoices.start-number" };
+
+	/** The removed lines this file still has (ignored). */
+	public static List<String> ignoredKeys(PropertyResolver env) {
+		List<String> present = new ArrayList<>();
+		for (String key : REMOVED_KEYS) {
+			if (env.containsProperty(key)) {
+				present.add(key);
 			}
-			years.add((int) year);
 		}
-		return years;
+		return present;
 	}
 
-	private static String yy(int year) {
-		return String.format("%02d", year % 100);
-	}
-
-	/** The startup line: address, company and pages (never a password); the invoices when years are set. */
+	/** The startup line: address, company and pages (never a password); the invoices page with the ERP supply. */
 	public static String summary(PropertyResolver env) {
-		List<Integer> years = years(env);
+		boolean invoices = "ERP".equalsIgnoreCase(trimmed(env.getProperty("headoffice.supply.source")));
 		return "ERP connector navpospages (read only, GET): " + trimmed(env.getProperty(P + "base-url")) + ", company "
 				+ trimmed(env.getProperty(P + "company")) + ", pages " + env.getProperty(P + "page.categories", "ItemCategory") + ", "
 				+ env.getProperty(P + "page.items", "PointStockPOS") + ", "
 				+ env.getProperty(P + "page.barcodes", "ItemBarCodePOS")
-				+ (years.isEmpty() ? ""
-						: ", invoices " + trimmed(env.getProperty(P + "page.invoices", "FactureFranchise")) + " (years "
-								+ years.stream().map(String::valueOf).collect(Collectors.joining(", ")) + ")");
+				+ (invoices ? ", invoices " + trimmed(env.getProperty(P + "page.invoices", "FactureFranchise")) : "");
 	}
 
 	/** When present, a whole number from min to max. */

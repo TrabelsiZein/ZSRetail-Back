@@ -115,6 +115,15 @@ public class ZZDataInitializer {
 			if (applicationModeService.isSupplyFromErpSource()) {
 				createErpJob("0 */15 * * * *", ErpSyncJobType.IMPORT_SUPPLY_INVOICES,
 						"Every 15 minutes: import of the supply invoices of the stores from the ERP", false);
+				// Release 2.2: where the reading of the invoices starts (no more file lines), and the last one read
+				ensureConfig("ERP_INVOICES_READ_AFTER", "",
+						"Read ERP invoices after number: the invoices of the ERP are read after this number (e.g."
+								+ " FVV26000000123). Empty: every invoice of the page. Only the starting point: once invoices"
+								+ " are saved, the reading goes on after the last one.",
+						false, ConfigType.STRING);
+				ensureConfig("ERP_INVOICES_LAST_READ", "",
+						"Last invoice read: the highest invoice number of the ERP saved at the head office (read only).",
+						true, ConfigType.STRING);
 			}
 			// Release 2.2: one catalogue job on a head office whose catalogue comes from the ERP (also when the other jobs
 			// were seeded before; idempotent, disabled like the others)

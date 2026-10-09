@@ -149,6 +149,27 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 		this.stockPointItems = stockPointItems;
 	}
 
+	/** Release 2.2: General Setup "Last invoice read" (ERP_INVOICES_LAST_READ), written after each read; null in tests. */
+	private java.util.function.BiConsumer<String, String> setupWriter;
+
+	static final String LAST_READ = "ERP_INVOICES_LAST_READ";
+
+	@Autowired(required = false)
+	public void setGeneralSetup(com.digithink.zsretail.service.GeneralSetupService generalSetup) {
+		this.setupWriter = generalSetup == null ? null : generalSetup::updateValue;
+	}
+
+	/** For the tests: where the "Last invoice read" goes. */
+	void setSetupWriter(java.util.function.BiConsumer<String, String> setupWriter) {
+		this.setupWriter = setupWriter;
+	}
+
+	/** The highest invoice number saved here (all years), or null when none. */
+	String lastInvoiceRead() {
+		return highestByYear().values().stream().filter(number -> number != null && !number.trim().isEmpty())
+				.max(String::compareTo).orElse(null);
+	}
+
 	// ─── One run (the ERP job) ───────────────────────────────────
 
 	@Override
@@ -174,6 +195,15 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 			summary.put("readFailed", causeOf(e));
 		}
 		summary.putAll(assignStores());
+		if (setupWriter != null) {
+			try {
+				String last = lastInvoiceRead();
+				setupWriter.accept(LAST_READ, last == null ? "" : last);
+				summary.put("lastInvoiceRead", last);
+			} catch (RuntimeException e) {
+				log.warn("Head office invoices from the ERP: last invoice read not written ({})", causeOf(e));
+			}
+		}
 		if (failure != null) {
 			summary.put("failed", failure);
 		}

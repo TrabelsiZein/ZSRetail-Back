@@ -27,6 +27,10 @@ public class GeneralSetupService extends _BaseService<GeneralSetup, Long> {
 	@Autowired
 	private GeneralSetupChangeLogRepository generalSetupChangeLogRepository;
 
+	/** Release 2.2: the checks of the settings a mode owns (none on most installations). */
+	@Autowired(required = false)
+	private java.util.List<GeneralSetupValueCheck> valueChecks;
+
 	@Override
 	protected _BaseRepository<GeneralSetup, Long> getRepository() {
 		return generalSetupRepository;
@@ -70,6 +74,11 @@ public class GeneralSetupService extends _BaseService<GeneralSetup, Long> {
 
 		String oldValue = existing.getValeur();
 		String newValue = updatedSetting.getValeur();
+		if (valueChecks != null) {
+			for (GeneralSetupValueCheck check : valueChecks) {
+				check.check(existing.getCode(), newValue); // IllegalStateException: refused, answered 400
+			}
+		}
 
 		existing.setValeur(newValue);
 		existing.setDescription(updatedSetting.getDescription());

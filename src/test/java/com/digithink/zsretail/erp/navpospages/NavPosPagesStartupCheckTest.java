@@ -134,7 +134,6 @@ class NavPosPagesStartupCheckTest {
 	/** The valid settings with the invoices keys of Happyness. */
 	private static MockEnvironment withInvoices(String key, String value) {
 		MockEnvironment env = with("erp.navpospages.page.invoices", "FactureFranchise");
-		env.setProperty("erp.navpospages.invoices.years", "2025,2026");
 		if (key != null) {
 			env.setProperty(key, value);
 		}
@@ -142,22 +141,31 @@ class NavPosPagesStartupCheckTest {
 	}
 
 	@Test
-	@DisplayName("Invoices: valid keys pass; without years the invoices are not read; the startup line names them")
+	@DisplayName("Invoices: valid keys pass; the startup line names the invoices page when the supply comes from the ERP")
 	void invoicesValid() {
 		NavPosPagesStartupCheck.check(withInvoices(null, null));
-		NavPosPagesStartupCheck.check(withInvoices("erp.navpospages.invoices.years", " 2026 , 2025 "));
-		NavPosPagesStartupCheck.check(withInvoices("erp.navpospages.invoices.start-number", " FVV25000000999 "));
 		NavPosPagesStartupCheck.check(withInvoices("erp.navpospages.invoices.customer-field", "Sell_to_Customer_Name"));
 		NavPosPagesStartupCheck.check(withInvoices("erp.navpospages.invoices.lines-expand", "Lines_2"));
 		NavPosPagesStartupCheck.check(withInvoices("erp.navpospages.invoices.number-prefix", "FA-"));
 		NavPosPagesStartupCheck.check(withInvoices("erp.navpospages.invoices.max-per-run", "1000"));
-		MockEnvironment withoutPage = with("erp.navpospages.invoices.years", "2026");
-		NavPosPagesStartupCheck.check(withoutPage); // the default page FactureFranchise
-		assertTrue(NavPosPagesStartupCheck.summary(withoutPage).endsWith(", invoices FactureFranchise (years 2026)"),
-				NavPosPagesStartupCheck.summary(withoutPage));
+		MockEnvironment erpSupply = withInvoices("headoffice.supply.source", "ERP");
+		assertTrue(NavPosPagesStartupCheck.summary(erpSupply).endsWith(", invoices FactureFranchise"),
+				NavPosPagesStartupCheck.summary(erpSupply));
 		MockEnvironment none = NavPosPagesTestSupport.validEnvironment();
-		NavPosPagesStartupCheck.check(none); // no years: the invoices are not read
+		NavPosPagesStartupCheck.check(none);
 		assertFalse(NavPosPagesStartupCheck.summary(none).contains("invoices"));
+	}
+
+	@Test
+	@DisplayName("Release 2.2: invoices.years and invoices.start-number are ignored (the application starts, a WARN line each)")
+	void removedInvoiceLinesIgnored() {
+		MockEnvironment old = withInvoices("erp.navpospages.invoices.years", "2025;2026,abc"); // even a value refused before
+		old.setProperty("erp.navpospages.invoices.start-number", "FVV24000000001");
+		NavPosPagesStartupCheck.check(old);
+		new NavPosPagesStartupCheck(old); // the bean checks and logs
+		assertEquals(java.util.Arrays.asList("erp.navpospages.invoices.years", "erp.navpospages.invoices.start-number"),
+				NavPosPagesStartupCheck.ignoredKeys(old));
+		assertTrue(NavPosPagesStartupCheck.ignoredKeys(withInvoices(null, null)).isEmpty());
 	}
 
 	@Test
@@ -165,14 +173,6 @@ class NavPosPagesStartupCheckTest {
 	void invoicesRefused() {
 		assertEquals("Missing value for property erp.navpospages.page.invoices: the web service name of the invoices page"
 				+ " (FactureFranchise when the key is absent).", refusal(withInvoices("erp.navpospages.page.invoices", " ")));
-		assertEquals("Missing value for property erp.navpospages.invoices.years: required when"
-				+ " erp.navpospages.page.invoices is set (the years read, e.g. 2025,2026).",
-				refusal(withInvoices("erp.navpospages.invoices.years", " ")));
-		for (String years : new String[] { "25", "2100", "1999", "2025,2025", "2025;2026", "2025,", "abc" }) {
-			assertEquals("Invalid value '" + years + "' for property erp.navpospages.invoices.years: years from 2000 to"
-					+ " 2099, each once, separated by commas (e.g. 2025,2026)",
-					refusal(withInvoices("erp.navpospages.invoices.years", years)), years);
-		}
 		for (String prefix : new String[] { " ", "F V" }) {
 			assertEquals("Invalid value '" + prefix.trim() + "' for property erp.navpospages.invoices.number-prefix: the"
 					+ " start of every invoice number, without spaces, e.g. FVV (the year follows in 2 digits)",
@@ -185,12 +185,6 @@ class NavPosPagesStartupCheckTest {
 						refusal(withInvoices("erp.navpospages.invoices." + key, name)), key + " " + name);
 			}
 		}
-		assertEquals("Invalid value 'FVV24000000001' for property erp.navpospages.invoices.start-number: the last invoice"
-				+ " before the go-live, a number of one of the years of erp.navpospages.invoices.years (FVV25..., FVV26...)",
-				refusal(withInvoices("erp.navpospages.invoices.start-number", "FVV24000000001")));
-		assertEquals("Invalid value 'FVV26000000001' for property erp.navpospages.invoices.start-number: the last invoice"
-				+ " before the go-live, a number of one of the years of erp.navpospages.invoices.years (none set)",
-				refusal(with("erp.navpospages.invoices.start-number", "FVV26000000001")));
 		for (String max : new String[] { "0", "1001", "x" }) {
 			assertEquals("Invalid value '" + max + "' for property erp.navpospages.invoices.max-per-run: a whole number"
 					+ " from 1 to 1000", refusal(withInvoices("erp.navpospages.invoices.max-per-run", max)), max);

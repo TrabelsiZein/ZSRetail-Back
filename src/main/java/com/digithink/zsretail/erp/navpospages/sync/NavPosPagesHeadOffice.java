@@ -22,6 +22,17 @@ public interface NavPosPagesHeadOffice {
 	/** General setup TAX_STAMP_ERP_ITEM_CODE: the ERP item the import never saves (the local TAX_STAMP is used); or null. */
 	String taxStampErpCode();
 
+	/** Release 2.2: the General Setup code of "Read ERP invoices after number" (empty: every invoice of the page). */
+	String INVOICES_READ_AFTER = "ERP_INVOICES_READ_AFTER";
+
+	/** Release 2.2: the General Setup code of "Last invoice read" (read only, written by the invoice import). */
+	String INVOICES_LAST_READ = "ERP_INVOICES_LAST_READ";
+
+	/** Release 2.2: General Setup ERP_INVOICES_READ_AFTER, trimmed; null when empty. */
+	default String invoicesReadAfter() {
+		return null;
+	}
+
 	/** A family or a sub-family as the head office has it. */
 	class Family {
 		public final String code;

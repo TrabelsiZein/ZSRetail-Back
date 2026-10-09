@@ -1,6 +1,7 @@
 package com.digithink.zsretail.erp.navpospages;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -256,6 +257,23 @@ class NavPosPagesRestClientTest {
 		NavPosPagesReadException timeout = assertThrows(NavPosPagesReadException.class, () -> client.readCategories());
 		assertTrue(timeout.getMessage().contains("reading the page ItemCategory failed: no answer or timeout"),
 				timeout.getMessage());
+	}
+
+	@Test
+	@DisplayName("First invoice of the page: one GET, startswith the prefix, $orderby No, $top 1, $select No; an empty page gives null")
+	void firstInvoiceNumber() {
+		server.expect(requestTo(NavPosPagesTestSupport.COMPANY_URL
+				+ "FactureFranchise?$filter=startswith(No,'FVV')&$orderby=No&$top=1&$select=No"))
+				.andExpect(method(HttpMethod.GET))
+				.andRespond(withSuccess("{\"value\":[{\"No\":\" FVV24000000009 \"}]}", MediaType.APPLICATION_JSON));
+		assertEquals("FVV24000000009", client.readFirstInvoiceNumber("FVV"));
+		server.verify();
+		server.reset();
+		server.expect(requestTo(NavPosPagesTestSupport.COMPANY_URL
+				+ "FactureFranchise?$filter=startswith(No,'FVV')&$orderby=No&$top=1&$select=No"))
+				.andRespond(withSuccess("{\"value\":[]}", MediaType.APPLICATION_JSON));
+		assertNull(client.readFirstInvoiceNumber("FVV"));
+		server.verify();
 	}
 
 	@Test

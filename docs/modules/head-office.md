@@ -1342,13 +1342,13 @@ records its barcodes, `TAX_STAMP` is never recorded.
 **Invoices from the ERP, step (a): the connector reads the franchise invoices by number** (connector only: no job, no head
 office table, nothing in the application layer or in `DynamicsNavConnector` changes; the next steps store them and send them to
 the stores). The page `FactureFranchise` (posted sales invoices to franchise customers, lines `FactureFranchiseSalesInvLines`),
-GET only. Settings `erp.navpospages.invoices.*` and `page.invoices` (`docs/deployment-modes.md`); without `invoices.years`
-nothing is read.
+GET only. Settings `erp.navpospages.invoices.*` and `page.invoices` (`docs/deployment-modes.md`); since release 2.2 the years
+and the starting point come from the General Setup (part D of the fixes after the second test of 2.2).
 
 | Part | Detail |
 |---|---|
 | `ErpConnector.fetchSupplyInvoices(highestByYear)` | Default: an empty list (every other connector). `NavPosPagesConnector` answers `NavPosPagesSync.invoices`, its summary kept for the communications log like the catalogue fetches |
-| `NavPosPagesSync.invoices(highestByYear)` | For each configured year, prefix `number-prefix` + 2 digits (`FVV26`): read after the highest number the head office gives for that prefix; without one, after `start-number` when it is of that year, else from the first invoice of the year. Merged, each number once, by number. Nothing is kept by the connector: the head office's numbers are the memory. Dry run: read and summarised, nothing handed. Summary: run, page, per year `after` and `read`, read, left out, notes, handed |
+| `NavPosPagesSync.invoices(highestByYear)` | For each year from the starting year to this year (release 2.2, part D below), prefix `number-prefix` + 2 digits (`FVV26`): read after the highest number the head office gives for that prefix; without one, after the General Setup number when it is of that year, else from the first invoice of the year. Merged, each number once, by number. Nothing is kept by the connector: the head office's numbers are the memory. Dry run: read and summarised, nothing handed. Summary: run, page, per year `after` and `read`, read, left out, notes, handed |
 | `NavPosPagesRestClient.readInvoicesAfter(prefix, after)` | `$filter=startswith(No,'FVV26') and No gt '<after>'` (only `startswith` on a first read; quotes doubled; `No gt` alone would also return the later years: the numbers are compared as text), `$orderby=No`, `$top=max-per-run`, next links followed up to `max-per-run`; `$select=No,<customer-field>,Sell_to_Customer_Name,Document_Date,Posting_Date,Client_Franchise,Prices_Including_VAT`; `$expand=<lines>($select=Document_No,Line_No,Type,No,Description,Quantity,Unit_of_Measure_Code,Unit_Price,Line_Discount_Percent,Line_Amount,Total_Amount_Excl_VAT,Total_VAT_Amount,Total_Amount_Incl_VAT)`. `Unit_Cost_LCY`, `Invoice_Discount_Amount` and `Transferred` are never read. The Happyness page has no `Prices_Including_VAT`: BC answers 400 "Could not find a property named 'Prices_Including_VAT'", the read is made again without it and it is not asked again until the next start; any other 400 (a customer field the page does not have) fails naming the page |
 | `NavPosInvoiceRow` | A header field by field (the customer field and the lines property are settings), read with exact decimals (`41.000` stays `41.000`) |
 | `NavPosPagesMapper.invoices(rows, customerField)` → `ErpSupplyInvoiceDTO` | number, document and posting dates (`0001-01-01`: none), customer number (the configured field), customer name, the three totals **from the first line**, `pricesIncludingVat` (null when the page does not give it), lines (`lineNo`, `type`, `itemCode`, `description`, `quantity` as BigDecimal, `unitOfMeasure`, `unitPrice`, `lineDiscountPercent`, `lineAmount`). `Type` `Item` with an item number: `ITEM` (an item at price 0 is kept); another type with an amount (G/L account...): `OTHER`, no item code; a line without type (a comment, BC writes `" "`; `_x0020_` too) and another type at amount 0: left out (counted). A row without number: left out |
@@ -1561,6 +1561,18 @@ Fixes after the second test of 2.2 (head office whose catalogue comes from the E
   database keeps them as they are (nothing deleted or changed). The Role form on a head office lists only the
   permissions of the pages this head office shows (the menu's rule) and has no "POS role" switch; the admin can still
   create roles. A store keeps its three roles, its default users and all its permissions.
+- **D. Where the invoices from the ERP start.** The file lines `erp.navpospages.invoices.years` and
+  `invoices.start-number` are gone: a line left in a file is ignored with a WARN, the application starts
+  (`NavPosPagesStartupCheck.REMOVED_KEYS`). One General Setup setting, seeded only on a head office with
+  `headoffice.supply.source=ERP`: "Read ERP invoices after number" (`ERP_INVOICES_READ_AFTER`, empty by default), with
+  "Last invoice read" (`ERP_INVOICES_LAST_READ`, read only, written after each run by `HoErpInvoiceService`: the highest
+  number saved). A value that is not an invoice number (prefix, 2-digit year, digits) is refused with a clear message
+  (`NavPosPagesInvoiceSettingCheck`, through `GeneralSetupValueCheck`; the API answers 400 and the screen shows it).
+  The years read (`NavPosPagesSync.invoices`): with no invoice saved, from the year of the setting's number (empty: the
+  year of the oldest invoice on the page, one GET `$top=1`; an empty page reads nothing) to this year, its year after
+  the number, the later years from their start; with invoices saved, from the oldest saved year to this year, each
+  after its highest saved number, the setting ignored, so changing it reads no old invoice. Summary `startingPoint`.
+  The rest of the invoice flow is unchanged.
 
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter

@@ -123,6 +123,13 @@ public class NavPosPagesSync {
 	private final AtomicBoolean itemsRunning = new AtomicBoolean();
 	/** One barcode run at a time. */
 	private final AtomicBoolean barcodesRunning = new AtomicBoolean();
+	/** Release 2.2: today, for the last year of the invoices to read. */
+	private java.util.function.Supplier<java.time.LocalDate> today = java.time.LocalDate::now;
+
+	/** For the tests: a fixed day. */
+	public void setToday(java.util.function.Supplier<java.time.LocalDate> today) {
+		this.today = today;
+	}
 
 	public NavPosPagesSync(NavPosPagesSource source, NavPosPagesHeadOffice headOffice, NavPosPagesStockPoints stockPoints,
 			NavPosPagesState state, NavPosPagesProperties properties, NavPosPagesImport importer) {
@@ -859,26 +866,48 @@ public class NavPosPagesSync {
 	// ─── Invoices (invoices from the ERP, step a) ───────────────
 
 	/**
-	 * For each year of invoices.years, the invoices whose number starts with that year's prefix (FVV26) after the highest
-	 * number the head office gives for it (highestByYear, by prefix); without one, after invoices.start-number when it is
-	 * of that year, else from the first invoice of the year. At most max-per-run per year. Merged, each number once, by
-	 * number. Nothing is kept here: the head office's numbers are the memory. Without years, nothing is read. Dry run:
-	 * read and summarised, nothing handed.
+	 * Release 2.2: the years are worked out here, from a starting year up to the current one, then for each year the
+	 * invoices whose number starts with that year's prefix (FVV26) after the highest number the head office gives for it
+	 * (highestByYear, by prefix), else from the first invoice of the year. The starting year:
+	 * <ul>
+	 * <li>the head office already has invoices: the year of the oldest of them (the General Setup "Read ERP invoices after
+	 * number" is then only the starting point it was: changing it reads no old invoice again);</li>
+	 * <li>else that setting: its year, read after it;</li>
+	 * <li>else (empty) the year of the oldest invoice on the page (one GET); none: nothing to read.</li>
+	 * </ul>
+	 * At most max-per-run per year. Merged, each number once, by number. Nothing is kept here: the head office's numbers are
+	 * the memory. Dry run: read and summarised, nothing handed.
 	 */
 	public NavPosRun<ErpSupplyInvoiceDTO> invoices(Map<String, String> highestByYear) {
 		String page = properties.getPage().getInvoices();
 		Summary summary = new Summary("invoices", page, properties.isDryRun());
 		NavPosPagesProperties.Invoices settings = properties.getInvoices();
-		if (settings.getYears() == null || settings.getYears().isEmpty()) {
-			summary.put("notConfigured", NavPosPagesProperties.PREFIX + ".invoices.years is not set");
-			summary.put("handed", 0);
-			return run(new ArrayList<>(), summary, page);
+		Map<String, String> highest = highestByYear == null ? new LinkedHashMap<>() : highestByYear;
+		String readAfter = headOffice.invoicesReadAfter();
+		Integer startYear = null;
+		for (String prefix : highest.keySet()) {
+			Integer year = settings.yearOf(prefix + "0");
+			if (year != null && (startYear == null || year < startYear)) {
+				startYear = year;
+			}
 		}
+		if (startYear != null) {
+			summary.put("startingPoint", "the invoices already at the head office (from " + startYear + ")");
+			readAfter = null; // only the starting point: never read again before what is saved
+		} else if (readAfter != null) {
+			startYear = settings.yearOf(readAfter);
+			summary.put("startingPoint", "after " + readAfter + " (General Setup)");
+		} else {
+			String first = source.readFirstInvoiceNumber(settings.getNumberPrefix().trim());
+			startYear = settings.yearOf(first);
+			summary.put("startingPoint", first == null ? "no invoice on the page" : "the oldest invoice on the page: " + first);
+		}
+		int currentYear = today.get().getYear();
 		Map<String, Object> years = new LinkedHashMap<>();
 		List<NavPosInvoiceRow> rows = new ArrayList<>();
-		for (Integer year : settings.getYears()) {
+		for (int year = startYear == null ? currentYear + 1 : Math.min(startYear, currentYear); year <= currentYear; year++) {
 			String prefix = settings.yearPrefix(year);
-			String after = readAfter(prefix, highestByYear);
+			String after = readAfter(prefix, highest, readAfter);
 			List<NavPosInvoiceRow> read = source.readInvoicesAfter(prefix, after);
 			Map<String, Object> ofYear = new LinkedHashMap<>();
 			ofYear.put("after", after);
@@ -903,14 +932,13 @@ public class NavPosPagesSync {
 		return run(invoices, summary, page);
 	}
 
-	/** The highest number given for the prefix; else the start number when it is of that year; else null. */
-	private String readAfter(String prefix, Map<String, String> highestByYear) {
-		String highest = highestByYear == null ? null : highestByYear.get(prefix);
+	/** The highest number given for the prefix; else the starting number when it is of that year; else null. */
+	private static String readAfter(String prefix, Map<String, String> highestByYear, String startNumber) {
+		String highest = highestByYear.get(prefix);
 		if (highest != null && !highest.trim().isEmpty()) {
 			return highest.trim();
 		}
-		String start = properties.getInvoices().getStartNumber();
-		return start != null && start.trim().startsWith(prefix) ? start.trim() : null;
+		return startNumber != null && startNumber.startsWith(prefix) ? startNumber : null;
 	}
 
 	// ─── State and summary ──────────────────────────────────────

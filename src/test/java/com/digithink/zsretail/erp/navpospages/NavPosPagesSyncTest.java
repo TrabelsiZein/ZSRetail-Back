@@ -720,12 +720,13 @@ class NavPosPagesSyncTest {
 		return invoices.stream().map(ErpSupplyInvoiceDTO::getNumber).collect(Collectors.toList());
 	}
 
+	/** The ERP's invoices of 2024, 2025 and 2026; today is 2026-10-09. */
 	private void invoicesOfTheErp() {
 		for (String number : new String[] { "FVV24000000009", "FVV25000000001", "FVV25000000002", "FVV25000000003",
 				"FVV26000000001", "FVV26000000002" }) {
 			erp.invoices.add(invoice(number));
 		}
-		properties.getInvoices().setYears(Arrays.asList(2026, 2025));
+		sync.setToday(() -> java.time.LocalDate.of(2026, 10, 9));
 	}
 
 	private static Map<String, String> highest(String... prefixAndNumber) {
@@ -737,24 +738,45 @@ class NavPosPagesSyncTest {
 	}
 
 	@Test
-	@DisplayName("Invoices: without years nothing is read")
-	void invoicesNotConfigured() {
-		erp.invoices.add(invoice("FVV26000000001"));
+	@DisplayName("Invoices, setting empty and nothing saved: from the year of the oldest invoice on the page up to this year; an empty page reads nothing")
+	void invoicesSettingEmpty() {
+		invoicesOfTheErp();
 		NavPosRun<ErpSupplyInvoiceDTO> run = sync.invoices(new HashMap<>());
-		assertTrue(run.getHanded().isEmpty());
-		assertTrue(erp.invoiceReads.isEmpty());
-		assertEquals("erp.navpospages.invoices.years is not set", run.getSummary().get("notConfigured"));
+		assertEquals(Arrays.asList("first FVV", "FVV24 after null", "FVV25 after null", "FVV26 after null"), erp.invoiceReads);
+		assertEquals(Arrays.asList("FVV24000000009", "FVV25000000001", "FVV25000000002", "FVV25000000003",
+				"FVV26000000001", "FVV26000000002"), numbers(run.getHanded()));
+		assertEquals("the oldest invoice on the page: FVV24000000009", run.getSummary().get("startingPoint"));
+
+		erp.invoices.clear();
+		erp.invoiceReads.clear();
+		NavPosRun<ErpSupplyInvoiceDTO> empty = sync.invoices(null);
+		assertTrue(empty.getHanded().isEmpty());
+		assertEquals(Arrays.asList("first FVV"), erp.invoiceReads, "one GET, no year read");
+		assertEquals("no invoice on the page", empty.getSummary().get("startingPoint"));
 	}
 
 	@Test
-	@DisplayName("Invoices: each year after its highest number, merged by number; another year's number never read")
-	void invoicesByYear() {
+	@DisplayName("Invoices, a starting number and nothing saved: its year after it, the next years from their start; an older year never")
+	void invoicesStartingNumber() {
 		invoicesOfTheErp();
+		headOffice.invoicesReadAfter = "FVV25000000001";
+		NavPosRun<ErpSupplyInvoiceDTO> run = sync.invoices(new HashMap<>());
+		assertEquals(Arrays.asList("FVV25 after FVV25000000001", "FVV26 after null"), erp.invoiceReads);
+		assertEquals(Arrays.asList("FVV25000000002", "FVV25000000003", "FVV26000000001", "FVV26000000002"),
+				numbers(run.getHanded()));
+		assertEquals("FVV25", run.getHanded().get(0).getYearPrefix(), "the prefix of its read (step b)");
+		assertEquals("after FVV25000000001 (General Setup)", run.getSummary().get("startingPoint"));
+	}
+
+	@Test
+	@DisplayName("Invoices, some saved: each year after its highest number from the oldest saved year; the setting, even changed, reads no old invoice")
+	void invoicesAfterSaved() {
+		invoicesOfTheErp();
+		headOffice.invoicesReadAfter = "FVV24000000001"; // changed to an older number after the go-live
 		NavPosRun<ErpSupplyInvoiceDTO> run = sync.invoices(highest("FVV25", "FVV25000000001", "FVV26", "FVV26000000001"));
-		assertEquals(Arrays.asList("FVV26 after FVV26000000001", "FVV25 after FVV25000000001"), erp.invoiceReads);
+		assertEquals(Arrays.asList("FVV25 after FVV25000000001", "FVV26 after FVV26000000001"), erp.invoiceReads);
 		assertEquals(Arrays.asList("FVV25000000002", "FVV25000000003", "FVV26000000002"), numbers(run.getHanded()));
 		assertEquals("C-1", run.getHanded().get(0).getCustomerNo());
-		assertEquals("FVV25", run.getHanded().get(0).getYearPrefix(), "the prefix of its read (step b)");
 		assertEquals("FVV26", run.getHanded().get(2).getYearPrefix());
 		assertEquals(3, run.count("read"));
 		assertEquals(3, run.count("handed"));
@@ -764,28 +786,30 @@ class NavPosPagesSyncTest {
 		assertEquals(NavPosPagesTestSupport.COMPANY_URL + "FactureFranchise", run.getUrl());
 
 		erp.invoiceReads.clear();
-		assertEquals(Arrays.asList("FVV25000000001", "FVV25000000002", "FVV25000000003", "FVV26000000001",
-				"FVV26000000002"), numbers(sync.invoices(null).getHanded()), "first run: every invoice of the two years");
-		assertEquals(Arrays.asList("FVV26 after null", "FVV25 after null"), erp.invoiceReads);
+		assertTrue(sync.invoices(highest("FVV25", "FVV25000000003")).getHanded().size() == 2, "2026 from its start");
+		assertEquals(Arrays.asList("FVV25 after FVV25000000003", "FVV26 after null"), erp.invoiceReads);
 	}
 
 	@Test
-	@DisplayName("Invoices: the start number only for its year and only without a number of that year; max-per-run per year")
-	void invoicesStartNumberAndMax() {
+	@DisplayName("Invoices: at most max-per-run per year")
+	void invoicesMaxPerRun() {
 		invoicesOfTheErp();
-		properties.getInvoices().setStartNumber("FVV26000000001");
-		assertEquals(Arrays.asList("FVV25000000001", "FVV25000000002", "FVV25000000003", "FVV26000000002"),
-				numbers(sync.invoices(new HashMap<>()).getHanded()));
-		assertEquals(Arrays.asList("FVV26 after FVV26000000001", "FVV25 after null"), erp.invoiceReads);
-
-		erp.invoiceReads.clear();
-		assertTrue(sync.invoices(highest("FVV26", "FVV26000000002", "FVV25", "FVV25000000003")).getHanded().isEmpty());
-		assertEquals(Arrays.asList("FVV26 after FVV26000000002", "FVV25 after FVV25000000003"), erp.invoiceReads,
-				"the head office's number wins over the start number");
-
-		properties.getInvoices().setStartNumber(null);
 		properties.getInvoices().setMaxPerRun(1);
-		assertEquals(Arrays.asList("FVV25000000001", "FVV26000000001"), numbers(sync.invoices(null).getHanded()));
+		assertEquals(Arrays.asList("FVV24000000009", "FVV25000000001", "FVV26000000001"),
+				numbers(sync.invoices(null).getHanded()));
+	}
+
+	@Test
+	@DisplayName("Invoices: a number's year (FVV26... is 2026) and what looks like an invoice number")
+	void invoiceNumbers() {
+		NavPosPagesProperties.Invoices settings = properties.getInvoices();
+		assertEquals(Integer.valueOf(2026), settings.yearOf("FVV26000000123"));
+		assertEquals(null, settings.yearOf("FA26000000123"));
+		assertEquals(null, settings.yearOf("FVVX6"));
+		assertTrue(settings.looksLikeNumber(" FVV26000000123 "));
+		for (String wrong : new String[] { "FVV26", "26000000123", "FVV2600A", "FA26000000123", "" }) {
+			assertFalse(settings.looksLikeNumber(wrong), wrong);
+		}
 	}
 
 	@Test
@@ -795,15 +819,15 @@ class NavPosPagesSyncTest {
 		properties.setDryRun(true);
 		NavPosRun<ErpSupplyInvoiceDTO> dry = sync.invoices(null);
 		assertTrue(dry.getHanded().isEmpty());
-		assertEquals(5, dry.count("read"));
+		assertEquals(6, dry.count("read"));
 		assertEquals(0, dry.count("handed"));
 
 		properties.setDryRun(false);
 		NavPosPagesConnector connector = new NavPosPagesConnector(sync);
-		assertEquals(5, connector.fetchSupplyInvoices(null).size());
+		assertEquals(6, connector.fetchSupplyInvoices(null).size());
 		Map<?, ?> summary = (Map<?, ?>) connector.getLastPullOperationResult().getRawResponse();
 		assertEquals("invoices", summary.get("run"));
-		assertEquals(5, summary.get("handed"));
+		assertEquals(6, summary.get("handed"));
 		assertFalse(summary.values().stream().anyMatch(value -> value instanceof Collection), "never the list");
 	}
 
@@ -1231,6 +1255,14 @@ class NavPosPagesSyncTest {
 		List<NavPosInvoiceRow> invoices = new ArrayList<>();
 		List<String> invoiceReads = new ArrayList<>();
 
+		/** Release 2.2: the lowest number of the page with this prefix; written "first FVV" in invoiceReads. */
+		@Override
+		public String readFirstInvoiceNumber(String numberPrefix) {
+			invoiceReads.add("first " + numberPrefix);
+			return invoices.stream().map(row -> row.text("No")).filter(no -> no.startsWith(numberPrefix)).sorted()
+					.findFirst().orElse(null);
+		}
+
 		@Override
 		public List<NavPosInvoiceRow> readInvoicesAfter(String yearPrefix, String afterNumber) {
 			invoiceReads.add(yearPrefix + " after " + afterNumber);
@@ -1253,6 +1285,13 @@ class NavPosPagesSyncTest {
 		final Map<String, Item> items = new TreeMap<>();
 		final Map<String, Barcode> barcodes = new TreeMap<>();
 		String taxStamp;
+		/** Release 2.2: General Setup "Read ERP invoices after number"; null when empty. */
+		String invoicesReadAfter;
+
+		@Override
+		public String invoicesReadAfter() {
+			return invoicesReadAfter;
+		}
 
 		@Override
 		public Map<String, Family> families() {

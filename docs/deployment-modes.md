@@ -163,21 +163,19 @@ writes to the ERP). The lines go in the head office's **outside file** (e.g. `co
 | `erp.navpospages.connect-timeout-seconds`, `.read-timeout-seconds` | At least 1 | `10`, `60` |
 | `erp.navpospages.packet-size` (step 6) | Rows applied per transaction, 1 to 5000: an items run applies all its changes packet after packet, a barcode run too, page after page until it has caught up; families and sub-families one packet per run. Renamed from `max-changes-per-run` (2026-10-08): the old key stops the startup | `500` |
 | `erp.navpospages.dry-run` (step 6) | `true` (read, compare, summary only) \| `false` | `false` |
-| `erp.navpospages.page.invoices` (invoices from the ERP) | Web service name of the posted franchise invoices; when set, `invoices.years` is required | `FactureFranchise` |
+| `erp.navpospages.page.invoices` (invoices from the ERP) | Web service name of the posted franchise invoices; read when `headoffice.supply.source=ERP`. Where the reading starts is the General Setup "Read ERP invoices after number" (release 2.2) | `FactureFranchise` |
 | `erp.navpospages.invoices.lines-expand` | Navigation property of the lines (`$expand`) | `FactureFranchiseSalesInvLines` |
 | `erp.navpospages.invoices.customer-field` | Header field of the customer, letters, digits, `_`. The invoices are mapped by `Sell_to_Customer_No` (on the Happyness page since 2026-10-09): a store's "ERP customer number" is its BC customer number | `Sell_to_Customer_No` |
 | `erp.navpospages.invoices.number-prefix` | Start of every number, no spaces; the year follows in 2 digits (`FVV` + `26`) | `FVV` |
-| `erp.navpospages.invoices.years` | Years read at each run, 2000 to 2099, each once, e.g. `2025,2026`; absent: the invoices are not read | none |
-| `erp.navpospages.invoices.start-number` | The last invoice before the go-live, a number of one of those years; used only for its year while the head office has no invoice of it | none |
+| `erp.navpospages.invoices.years`, `.start-number` | Removed in release 2.2: a line left in a file is ignored with a WARN at startup (the application starts). The years and the starting point come from the General Setup "Read ERP invoices after number" | — |
 | `erp.navpospages.invoices.max-per-run` | Invoices read per year and run, 1 to 1000 | `50` |
 | `erp.navpospages.invoices.seller-name` (step c) | The seller named on the stores' purchase invoices; a store's vendor `HEAD_OFFICE` is created with it | `Head office` |
 
 Startup refusals with `enabled=true` (the message names the key, the application does not start): `erp.dynamicsnav.enabled=true`
 as well (one ERP connector per installation); not a head office whose catalogue only comes from the ERP; a blank address,
 company, username, password or location; a wrong `default-vat`, `price-includes-vat`, `barcode-page-size`, `packet-size` or timeout; the old `max-changes-per-run`; a blank
-`page.invoices`, `page.invoices` set without `invoices.years`, a wrong year list, prefix, field name, `max-per-run`, or a start
-number that is not of a configured year. One INFO line at startup: `ERP connector navpospages (read only, GET): <address>,
-company <company>, location <code>, pages <three>`, followed by `, invoices <page> (years <years>)` when years are set.
+`page.invoices`, a wrong prefix, field name or `max-per-run`. One INFO line at startup: `ERP connector navpospages (read only, GET): <address>,
+company <company>, location <code>, pages <three>`, followed by `, invoices <page>` when `headoffice.supply.source=ERP`.
 Step 6: the four catalogue import jobs hand the changes only (`docs/modules/head-office.md`); they run when `erp.sync.enabled=true`
 and the jobs are enabled on the ERP jobs page (none is switched on by these files). Items of the ERP no longer in the location
 are made inactive at the head office whatever their number; only an empty answer for the location deactivates nothing (a
