@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.dto;
 
+import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -73,6 +74,6 @@ public class DeliveryCopyDTO {
 		private Integer lineNo;
 		private String itemCode;
 		private String itemName;
-		private Integer quantitySent;
+		private BigDecimal quantitySent; // 2.2.1: up to 3 decimals, 50 travels as 50
 	}
 }

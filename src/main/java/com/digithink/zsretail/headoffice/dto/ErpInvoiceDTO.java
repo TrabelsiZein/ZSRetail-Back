@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -62,14 +63,14 @@ public class ErpInvoiceDTO {
 		/** True when the item is in the head office catalogue (an ITEM line). */
 		private boolean itemHere;
 		private String description;
-		private Integer quantity;
+		private BigDecimal quantity; // 2.2.1: up to 3 decimals
 		private String unitOfMeasure;
 		private Double unitPrice;
 		private Double lineDiscountPercent;
 		private Double lineAmount;
 		private Double unitCost;
-		private Integer quantityReceived;
+		private BigDecimal quantityReceived;
 		/** quantityReceived - quantity; null before the confirmation. */
-		private Integer difference;
+		private BigDecimal difference;
 	}
 }

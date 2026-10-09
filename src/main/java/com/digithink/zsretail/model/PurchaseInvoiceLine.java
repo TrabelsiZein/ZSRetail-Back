@@ -1,5 +1,7 @@
 package com.digithink.zsretail.model;
 
+import java.math.BigDecimal;
+
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.JoinColumn;
@@ -8,6 +10,7 @@ import javax.persistence.ManyToOne;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import com.digithink.zsretail.utils.Quantities;
 
 /**
  * Purchase invoice line - can represent a single purchase line or an aggregated
@@ -37,8 +40,9 @@ public class PurchaseInvoiceLine extends _BaseEntity {
 
 	private String lineDescription;
 
-	@Column(nullable = false)
-	private Integer quantity;
+	/** 2.2.1: up to 3 decimals (an ERP invoice of a bulk item); read through {@link #getQuantity()} (2.000 is 2). */
+	@Column(nullable = false, precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal quantity;
 
 	private Double unitPrice;
 
@@ -55,4 +59,8 @@ public class PurchaseInvoiceLine extends _BaseEntity {
 	private Double lineTotalIncludingVat;
 
 	private Integer vatPercent;
+
+	public BigDecimal getQuantity() {
+		return Quantities.normalize(quantity);
+	}
 }

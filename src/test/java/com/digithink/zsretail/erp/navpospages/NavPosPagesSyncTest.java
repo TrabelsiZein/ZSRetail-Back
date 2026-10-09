@@ -738,6 +738,24 @@ class NavPosPagesSyncTest {
 	}
 
 	@Test
+	@DisplayName("2.2.1: invoices read again by number (held by 2.2.0 for a decimal): only those, with the year prefix of their number")
+	void invoicesByNumbers() {
+		invoicesOfTheErp();
+		NavPosRun<ErpSupplyInvoiceDTO> run = sync.invoicesByNumbers(Arrays.asList("FVV25000000002", "FVV26000000001",
+				"FVV26999999999"));
+		assertEquals(Arrays.asList("numbers [FVV25000000002, FVV26000000001, FVV26999999999]"), erp.invoiceReads);
+		assertEquals(Arrays.asList("FVV25000000002", "FVV26000000001"), numbers(run.getHanded()),
+				"a number the page no longer has is not in the answer");
+		assertEquals(Arrays.asList("FVV25", "FVV26"),
+				run.getHanded().stream().map(ErpSupplyInvoiceDTO::getYearPrefix).collect(Collectors.toList()));
+		assertEquals(3, run.getSummary().get("readAgain"));
+
+		erp.invoiceReads.clear();
+		assertTrue(sync.invoicesByNumbers(new ArrayList<>()).getHanded().isEmpty());
+		assertTrue(erp.invoiceReads.isEmpty(), "no number: no GET");
+	}
+
+	@Test
 	@DisplayName("Invoices, setting empty and nothing saved: from the year of the oldest invoice on the page up to this year; an empty page reads nothing")
 	void invoicesSettingEmpty() {
 		invoicesOfTheErp();
@@ -1270,6 +1288,13 @@ class NavPosPagesSyncTest {
 					.filter(row -> afterNumber == null || row.text("No").compareTo(afterNumber) > 0)
 					.sorted(Comparator.comparing(row -> row.text("No")))
 					.limit(properties.getInvoices().getMaxPerRun()).collect(Collectors.toList());
+		}
+
+		@Override
+		public List<NavPosInvoiceRow> readInvoicesByNumbers(List<String> numbers) {
+			invoiceReads.add("numbers " + numbers);
+			return invoices.stream().filter(row -> numbers.contains(row.text("No")))
+					.sorted(Comparator.comparing(row -> row.text("No"))).collect(Collectors.toList());
 		}
 
 		@Override

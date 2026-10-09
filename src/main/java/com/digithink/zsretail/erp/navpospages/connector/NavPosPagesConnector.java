@@ -94,6 +94,12 @@ public class NavPosPagesConnector implements ErpConnector {
 		return changes(() -> sync.invoices(highestByYear));
 	}
 
+	/** 2.2.1: given invoices again, by number ({@link NavPosPagesSync#invoicesByNumbers}). */
+	@Override
+	public List<ErpSupplyInvoiceDTO> fetchSupplyInvoicesByNumbers(List<String> numbers) {
+		return changes(() -> sync.invoicesByNumbers(numbers));
+	}
+
 	/** One run: the rows handed to the import; its summary kept for the communications log. */
 	private <T> List<T> changes(Supplier<NavPosRun<T>> run) {
 		LAST_PULL.remove();

@@ -37,6 +37,7 @@ import com.digithink.zsretail.repository.PurchaseLineRepository;
 import com.digithink.zsretail.repository.VendorRepository;
 import com.digithink.zsretail.repository._BaseRepository;
 import com.digithink.zsretail.service.InvoiceService.InvoiceSnapshotData;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -267,7 +268,7 @@ public class PurchaseInvoiceService extends _BaseService<PurchaseInvoiceHeader, 
 			il.setPurchaseInvoice(invoice);
 			il.setItem(entry.getKey());
 			PurchaseAggregatedAmounts agg = entry.getValue();
-			il.setQuantity(agg.quantity);
+			il.setQuantity(Quantities.of(agg.quantity));
 			il.setUnitPrice(agg.averageUnitPrice());
 			il.setUnitPriceIncludingVat(agg.averageUnitPriceIncludingVat());
 			il.setSubtotal(agg.subtotal);
@@ -297,7 +298,7 @@ public class PurchaseInvoiceService extends _BaseService<PurchaseInvoiceHeader, 
 			il.setItemFamily(entry.getKey());
 			il.setLineDescription(entry.getKey() != null ? entry.getKey().getName() : "Non classé");
 			PurchaseAggregatedAmounts agg = entry.getValue();
-			il.setQuantity(agg.quantity);
+			il.setQuantity(Quantities.of(agg.quantity));
 			il.setUnitPrice(agg.quantity > 0 ? agg.subtotal / agg.quantity : 0.0);
 			il.setUnitPriceIncludingVat(agg.quantity > 0 ? agg.totalAmount / agg.quantity : 0.0);
 			il.setSubtotal(agg.subtotal);
@@ -327,7 +328,7 @@ public class PurchaseInvoiceService extends _BaseService<PurchaseInvoiceHeader, 
 			il.setItemSubFamily(entry.getKey());
 			il.setLineDescription(entry.getKey() != null ? entry.getKey().getName() : "Non classé");
 			PurchaseAggregatedAmounts agg = entry.getValue();
-			il.setQuantity(agg.quantity);
+			il.setQuantity(Quantities.of(agg.quantity));
 			il.setUnitPrice(agg.quantity > 0 ? agg.subtotal / agg.quantity : 0.0);
 			il.setUnitPriceIncludingVat(agg.quantity > 0 ? agg.totalAmount / agg.quantity : 0.0);
 			il.setSubtotal(agg.subtotal);
@@ -347,7 +348,7 @@ public class PurchaseInvoiceService extends _BaseService<PurchaseInvoiceHeader, 
 			PurchaseInvoiceLine il = new PurchaseInvoiceLine();
 			il.setPurchaseInvoice(invoice);
 			il.setItem(pl.getItem());
-			il.setQuantity(pl.getQuantity());
+			il.setQuantity(Quantities.of(pl.getQuantity()));
 			il.setUnitPrice(pl.getUnitPrice());
 			double lineTotal = pl.getLineTotal() != null ? pl.getLineTotal() : 0.0;
 			double lineTotalInc = pl.getLineTotalIncludingVat() != null ? pl.getLineTotalIncludingVat() : lineTotal;

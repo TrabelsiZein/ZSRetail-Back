@@ -28,6 +28,9 @@ public interface NavPosPagesSource {
 	 */
 	List<NavPosInvoiceRow> readInvoicesAfter(String yearPrefix, String afterNumber);
 
+	/** 2.2.1: the invoices of these numbers, with their lines (GET only, a few numbers per call). */
+	List<NavPosInvoiceRow> readInvoicesByNumbers(List<String> numbers);
+
 	/** Release 2.2: the lowest invoice number of the page starting with numberPrefix, or null when it has none. */
 	String readFirstInvoiceNumber(String numberPrefix);
 

@@ -52,7 +52,15 @@ INSERT INTO #zs_221_columns (step, table_name, column_name) VALUES
 (3, 'inventory_count_line', 'counted_quantity'),
 (3, 'inventory_count_line', 'system_quantity_at_import'),
 (3, 'inventory_count_line', 'system_quantity_at_validation'),
-(3, 'inventory_count_line', 'difference_applied');
+(3, 'inventory_count_line', 'difference_applied'),
+-- Step 4: invoices of the ERP, BLs and their reception, the store's purchase invoice
+(4, 'ho_erp_invoice_line', 'quantity'),
+(4, 'ho_erp_invoice_line', 'quantity_received'),
+(4, 'ho_delivery_line', 'quantity_sent'),
+(4, 'ho_delivery_line', 'quantity_received'),
+(4, 'hol_delivery_line', 'quantity_sent'),
+(4, 'hol_delivery_line', 'quantity_received'),
+(4, 'purchase_invoice_line', 'quantity');
 GO
 
 IF OBJECT_ID('tempdb..#zs_decimal_quantity') IS NOT NULL
@@ -199,4 +207,6 @@ INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
 ('2.2.1', 'NEW', 'Nouveau paramètre du magasin « Autoriser les quantités décimales » (Configuration générale), désactivé par défaut : désactivé, une quantité doit être un nombre entier, comme avant.'),
 ('2.2.1', 'IMPROVE', 'Le montant d''une ligne avec une quantité décimale est calculé par le serveur : prix unitaire TTC × quantité, arrondi au millime.'),
 ('2.2.1', 'NEW', 'Siège : les tickets et le stock des magasins arrivent avec leurs quantités décimales (0,2 ; 9,8), affichées sans zéros inutiles dans l''historique des tickets et le stock du réseau.'),
-('2.2.1', 'NEW', 'Inventaire : le fichier peut porter des quantités décimales (1,34 ou 1.34, au plus 3 décimales) quand le magasin les autorise ; la validation met le stock à la quantité comptée, avec le mouvement de la différence. Sans le paramètre, une quantité décimale est refusée, comme avant.');
+('2.2.1', 'NEW', 'Inventaire : le fichier peut porter des quantités décimales (1,34 ou 1.34, au plus 3 décimales) quand le magasin les autorise ; la validation met le stock à la quantité comptée, avec le mouvement de la différence. Sans le paramètre, une quantité décimale est refusée, comme avant.'),
+('2.2.1', 'NEW', 'Factures de l''ERP : une quantité décimale (1,5 ; 0,25) n''est plus bloquée au siège, elle est lue telle que l''ERP l''envoie ; seule une quantité à plus de 3 décimales bloque la facture. Les factures bloquées par la 2.2.0 pour une quantité non entière sont relues à la tâche suivante.'),
+('2.2.1', 'NEW', 'Réception au magasin : la quantité reçue peut être décimale quand le magasin autorise les quantités décimales ; sinon un document avec une quantité décimale ne peut pas être reçu. Le stock monte de la quantité reçue, la facture d''achat garde la quantité facturée, le siège voit la différence.');

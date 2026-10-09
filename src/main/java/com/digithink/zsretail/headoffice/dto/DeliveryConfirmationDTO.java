@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.dto;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,9 +33,9 @@ public class DeliveryConfirmationDTO {
 	public static class Line {
 		private Integer lineNo;
 		private String itemCode;
-		private Integer quantityReceived;
+		private BigDecimal quantityReceived; // 2.2.1: up to 3 decimals, 4 travels as 4
 
-		public Line(Integer lineNo, String itemCode, Integer quantityReceived) {
+		public Line(Integer lineNo, String itemCode, BigDecimal quantityReceived) {
 			this.lineNo = lineNo;
 			this.itemCode = itemCode;
 			this.quantityReceived = quantityReceived;

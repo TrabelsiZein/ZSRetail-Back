@@ -1,5 +1,6 @@
 package com.digithink.zsretail.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -66,7 +67,7 @@ public class PurchaseInvoiceDetailsDTO {
 		private ItemFamilySummary itemFamily;
 		private ItemSubFamilySummary itemSubFamily;
 		private String lineDescription;
-		private Integer quantity;
+		private BigDecimal quantity; // 2.2.1: up to 3 decimals
 		private Double unitPrice;
 		private Double unitPriceIncludingVat;
 		private Double subtotal;

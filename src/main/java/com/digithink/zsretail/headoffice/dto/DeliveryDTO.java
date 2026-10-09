@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -40,9 +41,9 @@ public class DeliveryDTO {
 	private String invoiceNumber;
 	private String invoiceNote;
 	private int lineCount;
-	private int quantitySent;
+	private BigDecimal quantitySent; // 2.2.1: up to 3 decimals
 	/** Null until received. */
-	private Integer quantityReceived;
+	private BigDecimal quantityReceived;
 	/** True when a line was received in another quantity than sent. */
 	private boolean difference;
 	private List<Line> lines;
@@ -54,11 +55,11 @@ public class DeliveryDTO {
 		private Long itemId;
 		private String itemCode;
 		private String itemName;
-		private int quantitySent;
-		private Integer quantityReceived;
+		private BigDecimal quantitySent; // 2.2.1: up to 3 decimals
+		private BigDecimal quantityReceived;
 		/** Received minus sent; null until received. */
-		private Integer difference;
+		private BigDecimal difference;
 		/** The head office stock of the item now. */
-		private Integer headOfficeStock;
+		private BigDecimal headOfficeStock;
 	}
 }

@@ -1,7 +1,7 @@
 # Decimal quantities (2.2.1)
 
 Bulk items sold by the litre or the kilo (Happyness: perfume "V H 52 1L" sold 0.2 or 0.058 at the till). Built in
-steps on `release/2.2.1` (both repos); this page says what each step converted. Steps 1 to 3 are done (2026-10-09 and 10).
+steps on `release/2.2.1` (both repos); this page says what each step converted. Steps 1 to 4 are done (2026-10-09 and 10).
 
 ## Rules
 
@@ -88,6 +88,39 @@ codes `401`, `171`, `5`, `21`, one line "No code" merging 4 rows), 0 refused; 14
 the file. Validated: every OK item at its counted quantity (1.34, 1.82, 0.08...), 120 movements, +312.838 / -43.16 as
 the summary said.
 
+## Step 4: converted (invoices of the ERP to the store's reception)
+
+- Head office: `NavPosPagesMapper` (a warning only above 3 decimals), `HoErpInvoiceLine.quantity` / `quantityReceived`
+  (DECIMAL(18,3)), `HoErpInvoiceService` (a quantity kept as the ERP sends it, up to 3 decimals; an item line with more
+  holds the invoice, reason `invoice <number>, line <n>: quantity 1.2345 of item <code> has more than 3 decimals`; no
+  setting at the head office; unit cost = `Line_Amount / Quantity` invoiced, 5 decimals, as in 2.2.0: 30.000 for 1.5 is
+  20; the quantity received never enters the cost), the confirmations (decimals, more than 3 refused), the page
+  (`ErpInvoiceDTO`, difference with decimals), `ErpInvoiceCopyDTO`, `DeliveryConfirmationDTO`.
+- Invoices held by 2.2.0 for a quantity not whole (hold reason "is not a whole number", quantity not kept): read again
+  from the ERP **by number** at the start of each run (`rereadHeldForDecimals`; `findHeldNumbersWithReason`; the chain
+  `ErpSynchronizationManager.pullSupplyInvoicesByNumbers` -> `ErpConnector.fetchSupplyInvoicesByNumbers` (default: none)
+  -> `NavPosPagesSync.invoicesByNumbers` -> `NavPosPagesRestClient.readInvoicesByNumbers`, `$filter=No eq '..' or ...`,
+  20 numbers per GET, the same fields and lines). Each is replaced, in its own transaction, by the invoice as read now and
+  then assigned like any other. The new reasons never say "not a whole number": read again once. No such invoice: no
+  call. Needed because the read after the highest number never returns an invoice below it.
+- Store: `ReceivedDeliveryLine` (sent, received), `ReceptionInputDTO`, `ReceivedDeliveryDTO`, `DeliveryReceptionService`
+  (a copy with more than 3 decimals refused; Receive of a document with a decimal sent or typed while
+  `ALLOW_DECIMAL_QUANTITY` is off: 409 `<number> cannot be received: line 10000 was sent with the quantity 1.5, and decimal
+  quantities are not allowed in this store (General Setup, Allow decimal quantities).`; a whole document never reads the
+  setting; the stock goes up by what was received; the 2.2.0 rules unchanged: received less, the late item), the
+  purchase invoice (`PurchaseInvoiceLine.quantity` DECIMAL(18,3), as invoiced; `PurchaseInvoiceDetailsDTO`).
+- Head office BLs (`HoDeliveryLine`, `DeliveryDTO`, `DeliveryInputDTO`, `DeliveryCopyDTO`, `HoDeliveryService`): carry
+  decimals (a decimal received by a store, the head office stock); a BL made at the head office stays whole (1.5 refused
+  with the 2.2.0 message, no longer read as 1) because its supply invoice is not converted.
+- Whole quantities: the ERP invoice copy, the BL copy and the confirmation give the JSON of 2.2.0, pinned with their
+  SHA-256 in `SupplyCopyCompatibilityTest` (the copies down carry no content hash in the code).
+- Screens: `DeliveryReception.vue` (the received box: with the setting a text box read by the till's parser, 0 allowed;
+  without it the 2.2.0 number box; a document sent with decimals shows why Receive is off), `ErpInvoices.vue` and
+  `Deliveries.vue` (quantities, received, difference and stock with `formatQuantity`).
+- The real Happyness page FactureFranchise (BC, 2026-10-10, GET only, two reads): HTTP 200 with no invoice for this user,
+  so no decimal Quantity could be seen. The connector reads `Quantity` into a BigDecimal: a JSON number 1.5 (or a text
+  "1.5") keeps its exact value.
+
 ## Not converted yet, and how each reacts to a decimal today
 
 | Place | Reaction |
@@ -95,9 +128,8 @@ the summary said.
 | Returns (`ReturnHeaderService`, `ReturnHeaderAPI`, `ReturnLine`, `ProcessReturnRequestDTO`, `ReturnProducts.vue`) | returning a decimal sales line fails loudly; the return screen still rounds (front) |
 | Invoices from tickets (`InvoiceService`, `InvoiceLine`) | fails loudly on a decimal line |
 | Reports and dashboard (`ReportService.toLong`, `AnalyticsService.toLong`) | a decimal quantity sum fails loudly |
-| Head office BLs (`HoDeliveryService`) | a decimal head office stock fails loudly |
+| Supply invoices of a head office (HEAD_OFFICE source, step 7B: `HoSupplyInvoiceLine`, `SupplyInvoiceCopyDTO`) | a BL line received with a decimal fails loudly when invoiced; a BL made at the head office stays whole |
 | Return copies (`ReturnLineCopyDTO`, `HoReturnLine`), session counts (whole for good) | returns of decimal lines already fail at the store |
-| ERP invoices (`NavPosPagesMapper`, `HoErpInvoiceService.whole`) | held, as in 2.2.0 |
 | Purchases, compositions, stock adjustment (`AdjustStockRequestDTO.delta` Integer), Excel import (`DataImportService.parseInteger` strips "." and ",": "0.250" gives 250, as in 2.2.0) | whole only, as in 2.2.0 |
 | EMTOP ticket export (`TicketExportService`) | passes the quantity through (`Double` to NAV): 2 stays 2.0, 0.2 is sent as 0.2 |
 
@@ -119,7 +151,8 @@ sqlcmd starts with it off, which breaks the reading of a filtered index). It may
 the 2.2.1 notes rewritten. A new database gets `DECIMAL(18,3)` from Hibernate.
 
 Tried on throwaway copies on the local server only (`pos_store_b_221_test`, `pos_headoffice_221_test`,
-`happyness_store1_221_test`, restored from COPY_ONLY backups of `pos_store_b`, `pos_headoffice` and `happyness_store1`,
+`happyness_store1_221_test`, `happyness_ho_rehearsal_221_test`, restored from COPY_ONLY backups of `pos_store_b`,
+`pos_headoffice`, `happyness_store1` and `happyness_ho_rehearsal`,
 after `db/2.2.0`; recreated and run again at the end of each step): a filtered index with a descending key and an
 included column and a default constraint come back identical; a check constraint stops its column by name and
 APP_VERSION stays; a second run changes nothing; counts and sums of every converted column equal the originals.
@@ -133,4 +166,8 @@ JSON `2` / `0.2`); `SalesCopyMapperTest.wholeQuantitiesAsIn220` (JSON and hash o
 office); `SupplyRoundTripTest.decimalStockCopiedUp` (9.8 arrives as 9.8, not sent again, 9.6 after a sale of 0.2, head
 office page); `InventoryFileReaderTest.decimalsAllowed` / `decimalsNotAllowed`;
 `InventoryCountServiceTest.decimalCountImportedAndValidated` (1.34 imported and validated, stock 1.34, the movement holds
-the difference, a 4th decimal refused by row and code), `decimalRefusedWhenSettingOff`, `wholeCountSameEitherWay`.
+the difference, a 4th decimal refused by row and code), `decimalRefusedWhenSettingOff`, `wholeCountSameEitherWay`;
+`SupplyErpInvoiceRoundTripTest` (a NAV invoice with 1.5 and 0.25 to B: stock, movement, cost per unit, purchase invoice;
+1.2 received of 1.5 shows -0.3 at the head office; setting off refuses; an invoice held by 2.2.0 read again and released),
+`HoErpInvoiceServiceTest.held` (1.2345 held with its reason), `NavPosPagesSyncTest.invoicesByNumbers`,
+`SupplyCopyCompatibilityTest` (whole quantities: the JSON of 2.2.0).

@@ -43,6 +43,7 @@ import com.digithink.zsretail.repository.CompanyInformationRepository;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.support.InMemoryCatalogue;
 import com.digithink.zsretail.support.InMemoryStock;
+import com.digithink.zsretail.utils.Quantities;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -123,12 +124,12 @@ class HoSupplyInvoiceServiceTest {
 	private HoDelivery received(Store store, int b001Received, int b002Received) {
 		DeliveryInputDTO input = new DeliveryInputDTO();
 		input.setStoreId(store.getId());
-		input.setLines(Arrays.asList(new DeliveryInputDTO.Line("B001", 50), new DeliveryInputDTO.Line("B002", 10)));
+		input.setLines(Arrays.asList(new DeliveryInputDTO.Line("B001", Quantities.of(50)), new DeliveryInputDTO.Line("B002", Quantities.of(10))));
 		DeliveryDTO sent = deliveries.validate(deliveries.create(input).getId(), "admin").get();
 		DeliveryConfirmationDTO confirmation = new DeliveryConfirmationDTO();
 		confirmation.setNumber(sent.getNumber());
-		confirmation.setLines(Arrays.asList(new DeliveryConfirmationDTO.Line(1, "B001", b001Received),
-				new DeliveryConfirmationDTO.Line(2, "B002", b002Received)));
+		confirmation.setLines(Arrays.asList(new DeliveryConfirmationDTO.Line(1, "B001", Quantities.of(b001Received)),
+				new DeliveryConfirmationDTO.Line(2, "B002", Quantities.of(b002Received))));
 		assertTrue(deliveries.receiveConfirmations(store, Collections.singletonList(confirmation)).get(0).isAccepted());
 		return tables.deliveries.get(sent.getId());
 	}
@@ -198,7 +199,7 @@ class HoSupplyInvoiceServiceTest {
 		HoDelivery ok = received(b, 48, 10);
 		DeliveryInputDTO input = new DeliveryInputDTO();
 		input.setStoreId(b.getId());
-		input.setLines(Collections.singletonList(new DeliveryInputDTO.Line("B001", 5)));
+		input.setLines(Collections.singletonList(new DeliveryInputDTO.Line("B001", Quantities.of(5))));
 		HoDelivery sentOnly = tables.deliveries.get(deliveries.validate(deliveries.create(input).getId(), "a").get().getId());
 		HoDelivery atC = received(c, 1, 1);
 

@@ -30,6 +30,7 @@ import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.repository.PurchaseInvoiceHeaderRepository;
 import com.digithink.zsretail.repository.PurchaseInvoiceLineRepository;
 import com.digithink.zsretail.repository.VendorRepository;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -253,11 +254,11 @@ public class SupplyInvoiceWriter {
 		double amount = source.getLineAmount() == null ? 0 : source.getLineAmount();
 		if (source.isItemLine()) {
 			line.setLineDescription(source.getItemCode() + (source.getItemName() == null ? "" : " " + source.getItemName()));
-			line.setQuantity(source.getQuantitySent() == null ? 0 : source.getQuantitySent());
+			line.setQuantity(source.getQuantitySent() == null ? BigDecimal.ZERO : source.getQuantitySent()); // 2.2.1: as invoiced, 1.5 stays 1.5
 			line.setUnitPrice(source.getUnitCost() == null ? 0.0 : source.getUnitCost());
 		} else {
 			line.setLineDescription(source.getItemName());
-			line.setQuantity(1);
+			line.setQuantity(BigDecimal.ONE);
 			line.setUnitPrice(amount);
 		}
 		Integer vat = item == null ? null : item.getDefaultVAT();
@@ -300,7 +301,7 @@ public class SupplyInvoiceWriter {
 		String description = (copy.getDeliveryNumber() == null ? "" : copy.getDeliveryNumber() + " - ")
 				+ copy.getItemCode() + (copy.getItemName() == null ? "" : " " + copy.getItemName());
 		line.setLineDescription(description);
-		line.setQuantity(copy.getQuantity() == null ? 0 : copy.getQuantity());
+		line.setQuantity(copy.getQuantity() == null ? BigDecimal.ZERO : Quantities.of(copy.getQuantity()));
 		line.setUnitPrice(copy.getUnitPrice());
 		int quantity = copy.getQuantity() == null ? 0 : copy.getQuantity();
 		line.setUnitPriceIncludingVat(quantity > 0 && copy.getLineTotalIncludingVat() != null

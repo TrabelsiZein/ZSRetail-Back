@@ -93,6 +93,16 @@ public class ErpSynchronizationManager {
 				() -> erpConnector.fetchSupplyInvoices(highestByYear));
 	}
 
+	/**
+	 * 2.2.1: given invoices again, by number (those a 2.2.0 head office held for a decimal quantity), logged like the read
+	 * of the new ones.
+	 */
+	public List<ErpSupplyInvoiceDTO> pullSupplyInvoicesByNumbers(List<String> numbers) {
+		ErpSyncFilter filter = new ErpSyncFilter();
+		return executePullOperation(ErpSyncOperation.IMPORT_SUPPLY_INVOICES, filter,
+				() -> erpConnector.fetchSupplyInvoicesByNumbers(numbers));
+	}
+
 	public List<ErpDeletionLogEntryDTO> pullDeletionLog(ErpSyncFilter filter) {
 		return executePullOperation(ErpSyncOperation.SYNC_ERP_DELETIONS, filter,
 				() -> erpConnector.fetchDeletionLog(filter));

@@ -36,6 +36,7 @@ import com.digithink.zsretail.support.InMemoryCatalogue;
 import com.digithink.zsretail.support.InMemoryPurchaseInvoices;
 import com.digithink.zsretail.support.InMemoryReceivedDeliveries;
 import com.digithink.zsretail.support.InMemoryStock;
+import com.digithink.zsretail.utils.Quantities;
 
 /**
  * Invoices from the ERP, step (c), at the store: an ERP invoice saved once; its reception puts the quantities received in
@@ -99,7 +100,7 @@ class DeliveryReceptionServiceTest {
 		line.setLineType("ITEM");
 		line.setItemCode(code);
 		line.setDescription("Name of " + code);
-		line.setQuantity(quantity);
+		line.setQuantity(Quantities.of(quantity));
 		line.setUnitPrice(10.0);
 		line.setLineDiscountPercent(40.0);
 		line.setLineAmount(amount);
@@ -112,7 +113,7 @@ class DeliveryReceptionServiceTest {
 		line.setLineNo(lineNo);
 		line.setLineType("OTHER");
 		line.setDescription("Transport");
-		line.setQuantity(1);
+		line.setQuantity(Quantities.of(1));
 		line.setLineAmount(amount);
 		return line;
 	}
@@ -120,7 +121,7 @@ class DeliveryReceptionServiceTest {
 	private static ReceptionInputDTO quantities(int... lineAndQuantity) {
 		ReceptionInputDTO input = new ReceptionInputDTO();
 		for (int i = 0; i < lineAndQuantity.length; i += 2) {
-			input.getLines().add(new ReceptionInputDTO.Line(lineAndQuantity[i], lineAndQuantity[i + 1]));
+			input.getLines().add(new ReceptionInputDTO.Line(lineAndQuantity[i], Quantities.of(lineAndQuantity[i + 1])));
 		}
 		return input;
 	}
@@ -151,7 +152,7 @@ class DeliveryReceptionServiceTest {
 		assertEquals(48.79, saved.getTotalInclVat());
 		ReceivedDeliveryLine b001 = saved.getLines().get(0);
 		assertEquals(item("B001").getId(), b001.getItemId());
-		assertEquals(Integer.valueOf(6), b001.getQuantitySent());
+		assertEquals(BigDecimal.valueOf(6), b001.getQuantitySent());
 		assertEquals(6.0, b001.getUnitCost());
 		assertNull(saved.getLines().get(1).getItemId(), "waits for its item, like a BL line");
 		ReceivedDeliveryLine transport = saved.getLines().get(2);
@@ -159,13 +160,13 @@ class DeliveryReceptionServiceTest {
 		assertEquals("", transport.getItemCode());
 		assertEquals("Transport", transport.getItemName());
 		assertNull(transport.getItemId());
-		assertEquals(Integer.valueOf(0), transport.getQuantitySent());
+		assertEquals(BigDecimal.valueOf(0), transport.getQuantitySent());
 		assertEquals(5.0, transport.getLineAmount());
 		assertNull(transport.getUnitCost());
 
 		DeliveryReceptionService.Outcome again = reception.saveReceived(erpCopy(NUMBER, itemLine(20000, "B001", 99, 1)));
 		assertFalse(again.isWritten());
-		assertEquals(Integer.valueOf(6), invoice().getLines().get(0).getQuantitySent(), "never changed");
+		assertEquals(BigDecimal.valueOf(6), invoice().getLines().get(0).getQuantitySent(), "never changed");
 		assertEquals(1, received.deliveries.size());
 	}
 
@@ -197,7 +198,7 @@ class DeliveryReceptionServiceTest {
 		assertEquals("Happyness", header.getVendor().getName());
 		assertEquals("ERP invoice " + NUMBER + " - Happyness", header.getNotes());
 		PurchaseInvoiceLine line = purchases.linesOf(header).get(0);
-		assertEquals(Integer.valueOf(6), line.getQuantity(), "as invoiced, never the quantity received");
+		assertEquals(BigDecimal.valueOf(6), line.getQuantity(), "as invoiced, never the quantity received");
 		assertEquals(6.0, line.getUnitPrice());
 		assertEquals(36.0, line.getSubtotal());
 		assertEquals(Integer.valueOf(19), line.getVatPercent());
@@ -215,7 +216,7 @@ class DeliveryReceptionServiceTest {
 		assertEquals(11.9, row.getSellingPrice(), "the store's own price 10 with VAT 19 %");
 		assertEquals(30.0, row.getLineTotal(), "5 received x 6");
 		assertEquals(36.0, row.getLineAmount());
-		assertEquals(Integer.valueOf(-1), row.getDifference());
+		assertEquals(BigDecimal.valueOf(-1), row.getDifference());
 	}
 
 	/** A paid line as BC gives it: unit price before discount, the line discount, amount = quantity x net. */
@@ -329,7 +330,7 @@ class DeliveryReceptionServiceTest {
 		PurchaseInvoiceLine line = purchases.linesOf(purchases.byNumber(NUMBER)).get(1);
 		assertNull(line.getItem());
 		assertEquals("Transport", line.getLineDescription());
-		assertEquals(Integer.valueOf(1), line.getQuantity());
+		assertEquals(BigDecimal.valueOf(1), line.getQuantity());
 		assertEquals(5.0, line.getUnitPrice());
 		assertEquals(5.0, line.getSubtotal());
 		assertTrue(reception.applyWaitingStock().isEmpty(), "an OTHER line never waits");
@@ -352,7 +353,7 @@ class DeliveryReceptionServiceTest {
 		line.setLineNo(1);
 		line.setItemCode("B001");
 		line.setItemName("Item B001");
-		line.setQuantitySent(4);
+		line.setQuantitySent(Quantities.of(4));
 		bl.getLines().add(line);
 		reception.saveReceived(bl);
 		ReceivedDelivery saved = received.byNumber("BL-000001");

@@ -1,5 +1,6 @@
 package com.digithink.zsretail.holink.model;
 
+import java.math.BigDecimal;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
@@ -12,6 +13,7 @@ import javax.persistence.UniqueConstraint;
 
 import com.digithink.zsretail.holink.enumeration.ReceivedLineType;
 import com.digithink.zsretail.model._BaseEntity;
+import com.digithink.zsretail.utils.Quantities;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.Data;
@@ -53,12 +55,13 @@ public class ReceivedDeliveryLine extends _BaseEntity {
 	@Column(name = "item_id")
 	private Long itemId;
 
-	@Column(name = "quantity_sent", nullable = false)
-	private Integer quantitySent;
+	/** 2.2.1: up to 3 decimals; read through {@link #getQuantitySent()} (50.000 is 50). */
+	@Column(name = "quantity_sent", nullable = false, precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal quantitySent;
 
-	/** Null until confirmed. */
-	@Column(name = "quantity_received")
-	private Integer quantityReceived;
+	/** Null until confirmed. 2.2.1: up to 3 decimals. */
+	@Column(name = "quantity_received", precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal quantityReceived;
 
 	/** Null until confirmed; then true once the quantity is in the stock (or nothing to add), false while it waits. */
 	@Column(name = "stock_applied")
@@ -91,5 +94,13 @@ public class ReceivedDeliveryLine extends _BaseEntity {
 	/** True for an item line (a BL line, an ERP ITEM line). */
 	public boolean isItemLine() {
 		return lineType != ReceivedLineType.OTHER;
+	}
+
+	public BigDecimal getQuantitySent() {
+		return Quantities.normalize(quantitySent);
+	}
+
+	public BigDecimal getQuantityReceived() {
+		return Quantities.normalize(quantityReceived);
 	}
 }

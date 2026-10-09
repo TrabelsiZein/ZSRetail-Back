@@ -67,6 +67,11 @@ public interface ErpConnector {
 		return Collections.emptyList();
 	}
 
+	/** 2.2.1: the same invoices, given by number (read again). Only the navpospages connector reads them. */
+	default List<ErpSupplyInvoiceDTO> fetchSupplyInvoicesByNumbers(List<String> numbers) {
+		return Collections.emptyList();
+	}
+
 	default PullOperationResult<?> getLastPullOperationResult() {
 		return null;
 	}

@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.dto;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -10,7 +11,8 @@ import lombok.NoArgsConstructor;
 
 /**
  * Head office plan, step 7A: a draft BL as the head office page sends it (POST and PUT /admin/headoffice/deliveries).
- * A line names its item by id or by code; the quantity is a whole number above 0.
+ * A line names its item by id or by code; the quantity is a whole number above 0 (2.2.1: a BigDecimal, so 1.5 is refused,
+ * never read as 1).
  */
 @Data
 @NoArgsConstructor
@@ -29,9 +31,9 @@ public class DeliveryInputDTO {
 	public static class Line {
 		private Long itemId;
 		private String itemCode;
-		private Integer quantity;
+		private BigDecimal quantity;
 
-		public Line(String itemCode, Integer quantity) {
+		public Line(String itemCode, BigDecimal quantity) {
 			this.itemCode = itemCode;
 			this.quantity = quantity;
 		}

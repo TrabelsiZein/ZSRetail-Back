@@ -65,6 +65,7 @@ import com.digithink.zsretail.support.InMemoryReceivedDeliveries;
 import com.digithink.zsretail.support.InMemoryStock;
 import com.digithink.zsretail.support.InMemoryStoreLink;
 import com.digithink.zsretail.support.TestModes;
+import com.digithink.zsretail.utils.Quantities;
 
 /**
  * Head office plan, step 7B, part 3, end to end over the copies down: the real head office (HoDeliveryService,
@@ -166,7 +167,7 @@ class SupplyInvoiceRoundTripTest {
 	private ReceivedDelivery deliverAndConfirm(String... codes) {
 		DeliveryInputDTO input = new DeliveryInputDTO();
 		input.setStoreId(b.getId());
-		input.setLines(Arrays.stream(codes).map(code -> new DeliveryInputDTO.Line(code, 10)).collect(Collectors.toList()));
+		input.setLines(Arrays.stream(codes).map(code -> new DeliveryInputDTO.Line(code, Quantities.of(10))).collect(Collectors.toList()));
 		DeliveryDTO sent = hoDeliveries.validate(hoDeliveries.create(input).getId(), "admin").get();
 		pull();
 		ReceivedDelivery bl = received.byNumber(sent.getNumber());
@@ -199,7 +200,7 @@ class SupplyInvoiceRoundTripTest {
 		assertEquals(1, lines.size());
 		PurchaseInvoiceLine line = lines.get(0);
 		assertEquals("B001", line.getItem().getItemCode());
-		assertEquals(10, line.getQuantity());
+		assertEquals(BigDecimal.valueOf(10), line.getQuantity());
 		assertEquals(6.0, line.getUnitPrice());
 		assertEquals(71.4, line.getLineTotalIncludingVat());
 		assertEquals(7.14, line.getUnitPriceIncludingVat(), 0.0005);
@@ -248,7 +249,7 @@ class SupplyInvoiceRoundTripTest {
 
 		PurchaseInvoiceLine missing = lines.stream().filter(l -> l.getItem() == null).findFirst().get();
 		assertTrue(missing.getLineDescription().contains("B009"), missing.getLineDescription());
-		assertEquals(10, missing.getQuantity());
+		assertEquals(BigDecimal.valueOf(10), missing.getQuantity());
 		assertEquals(2.0, own.getCostPrice(), "the store's own item keeps its cost");
 		assertEquals("items not in this store: B009", link.downRecords.get("INV:FHO-2026-000001").getInfo());
 	}

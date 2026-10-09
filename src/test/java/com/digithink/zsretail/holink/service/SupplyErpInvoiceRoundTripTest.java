@@ -5,6 +5,7 @@ import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
@@ -49,6 +50,11 @@ import com.digithink.zsretail.support.InMemoryPurchaseInvoices;
 import com.digithink.zsretail.support.InMemoryReceivedDeliveries;
 import com.digithink.zsretail.support.InMemoryStock;
 import com.digithink.zsretail.support.InMemoryStoreLink;
+import com.digithink.zsretail.utils.Quantities;
+import com.digithink.zsretail.service.QuantityPolicy;
+import com.digithink.zsretail.model.enumeration.StockMovementType;
+import com.digithink.zsretail.headoffice.dto.ErpInvoiceDTO;
+import com.digithink.zsretail.headoffice.enumeration.ErpInvoiceLineType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -162,8 +168,8 @@ class SupplyErpInvoiceRoundTripTest {
 		assertTrue(feed.pull(c, "SUPPLY", "", 500).getRecords().isEmpty(), "C sees nothing");
 
 		ReceptionInputDTO input = new ReceptionInputDTO();
-		input.getLines().add(new ReceptionInputDTO.Line(10000, 5));
-		input.getLines().add(new ReceptionInputDTO.Line(20000, 2));
+		input.getLines().add(new ReceptionInputDTO.Line(10000, Quantities.of(5)));
+		input.getLines().add(new ReceptionInputDTO.Line(20000, Quantities.of(2)));
 		reception.receive(atB.getId(), input, "responsible");
 		assertEquals(5, stock.stockOf("B001"));
 		assertEquals(6.0, db.itemByCode("B001").get().getCostPrice());
@@ -178,7 +184,7 @@ class SupplyErpInvoiceRoundTripTest {
 		HoErpInvoice atHeadOffice = hoInvoices.values().iterator().next();
 		assertEquals(ErpInvoiceStatus.RECEIVED, atHeadOffice.getStatus());
 		assertTrue(atHeadOffice.getDifference());
-		assertEquals(Integer.valueOf(5), atHeadOffice.getLines().get(0).getQuantityReceived());
+		assertEquals(BigDecimal.valueOf(5), atHeadOffice.getLines().get(0).getQuantityReceived());
 
 		pull(); // nothing new: the store's copy never changes
 		assertEquals(1, received.deliveries.size());
@@ -216,6 +222,19 @@ class SupplyErpInvoiceRoundTripTest {
 					return hoInvoices.values().stream().anyMatch(i -> i.getBcNumber().equals(args[0]));
 				case "findHighestByYear":
 					return new ArrayList<>();
+				case "findHeldNumbersWithReason": { // 2.2.1
+					String part = ((String) args[0]).replace("%", "");
+					return hoInvoices.values().stream().filter(i -> Boolean.TRUE.equals(i.getHeld()) && i.getStoreId() == null
+							&& i.getHoldReason() != null && i.getHoldReason().contains(part)).map(HoErpInvoice::getBcNumber)
+							.sorted().collect(Collectors.toList());
+				}
+				case "findByBcNumber":
+					return hoInvoices.values().stream().filter(i -> i.getBcNumber().equals(args[0])).findFirst();
+				case "delete":
+					hoInvoices.remove(((HoErpInvoice) args[0]).getId());
+					return null;
+				case "flush":
+					return null;
 				case "findIdsToAssign":
 					return hoInvoices.values().stream().filter(i -> i.getStoreId() == null && !i.getHeld())
 							.map(HoErpInvoice::getId).collect(Collectors.toList());
@@ -257,5 +276,177 @@ class SupplyErpInvoiceRoundTripTest {
 					return UNHANDLED;
 			}
 		});
+	}
+
+	// ─── 2.2.1: decimal quantities ───────────────────────────────
+
+	private static final String BULK = "FVV26000000150";
+
+	/** Store B's ALLOW_DECIMAL_QUANTITY. */
+	private boolean decimalsAllowed;
+
+	/** A NAV invoice of bulk perfume: B001 1.5 L at 20.000 the litre (30.000), B002 0.25 L at 20.000 (5.000). */
+	private static ErpSupplyInvoiceDTO bulkInvoice(String number) {
+		ErpSupplyInvoiceDTO invoice = new ErpSupplyInvoiceDTO();
+		invoice.setNumber(number);
+		invoice.setYearPrefix("FVV26");
+		invoice.setCustomerNo("C-0001");
+		invoice.setCustomerName("Name of C-0001");
+		invoice.setDocumentDate(LocalDate.of(2026, 10, 10));
+		invoice.setTotalExclVat(new BigDecimal("35.000"));
+		invoice.setTotalVat(new BigDecimal("6.650"));
+		invoice.setTotalInclVat(new BigDecimal("41.650"));
+		invoice.getLines().add(bulkLine(10000, "B001", "1.5", "30.000"));
+		invoice.getLines().add(bulkLine(20000, "B002", "0.25", "5.000"));
+		return invoice;
+	}
+
+	private static ErpSupplyInvoiceDTO.Line bulkLine(int lineNo, String code, String quantity, String amount) {
+		ErpSupplyInvoiceDTO.Line line = new ErpSupplyInvoiceDTO.Line();
+		line.setLineNo(lineNo);
+		line.setType(ErpSupplyInvoiceDTO.LineType.ITEM);
+		line.setItemCode(code);
+		line.setDescription("Bulk " + code);
+		line.setQuantity(new BigDecimal(quantity));
+		line.setUnitPrice(new BigDecimal("20"));
+		line.setLineAmount(new BigDecimal(amount));
+		return line;
+	}
+
+	/** B002 at the head office and at B; the store's setting through a policy that answers decimalsAllowed. */
+	private void bulkItems() {
+		ho.item("B002", 10.0, null);
+		Item b002 = db.item("B002", 25.0, null);
+		b002.setOrigin(RecordOrigin.HEAD_OFFICE);
+		b002.setStockQuantity(BigDecimal.ZERO);
+		reception.setQuantityPolicy(new QuantityPolicy() {
+			@Override
+			public boolean decimalAllowed() {
+				return decimalsAllowed;
+			}
+		});
+	}
+
+	@Test
+	@DisplayName("2.2.1: a NAV invoice with 1.5 and 0.25 becomes head office lines, reaches B, received as sent: stock +1.5 and +0.25, cost per unit as invoiced")
+	void decimalInvoiceReceivedAsSent() {
+		bulkItems();
+		decimalsAllowed = true;
+		erp.add(bulkInvoice(BULK));
+		Map<String, Object> run = hoService.run();
+
+		assertEquals(0, run.get("held"), "1.5 is no longer held");
+		HoErpInvoice atHeadOffice = hoInvoices.values().iterator().next();
+		assertFalse(atHeadOffice.getHeld());
+		assertEquals("1.5", atHeadOffice.getLines().get(0).getQuantity().toPlainString());
+		assertEquals("0.25", atHeadOffice.getLines().get(1).getQuantity().toPlainString());
+		assertEquals(20.0, atHeadOffice.getLines().get(0).getUnitCost(), "30.000 / 1.5, the 2.2.0 rule");
+		assertEquals(30.0, atHeadOffice.getLines().get(0).getLineAmount(), "as NAV sent it");
+
+		pull();
+		ReceivedDelivery atB = received.byNumber(BULK);
+		assertEquals("1.5", atB.getLines().get(0).getQuantitySent().toPlainString());
+		reception.receive(atB.getId(), null, "responsible");
+
+		assertEquals("1.5", stock.quantityOf("B001").toPlainString());
+		assertEquals("0.25", stock.quantityOf("B002").toPlainString());
+		assertEquals("1.5", stock.movements(StockMovementType.DELIVERY_IN).get(0).getQuantity().toPlainString());
+		assertEquals(20.0, db.itemByCode("B001").get().getCostPrice(), "per unit, from the invoice line");
+		assertEquals(20.0, db.itemByCode("B001").get().getLastDirectCost());
+		assertEquals(20.0, db.itemByCode("B002").get().getCostPrice());
+		PurchaseInvoiceHeader purchase = purchases.byNumber(BULK);
+		assertEquals("1.5", purchases.linesOf(purchase).get(0).getQuantity().toPlainString(), "as invoiced");
+
+		assertTrue(hoService.receiveConfirmations(b, Collections.singletonList(SupplyPushService.confirmationOf(atB)))
+				.get(0).isAccepted());
+		assertEquals(ErpInvoiceStatus.RECEIVED, atHeadOffice.getStatus());
+		assertFalse(atHeadOffice.getDifference());
+	}
+
+	@Test
+	@DisplayName("2.2.1: 1.2 received of 1.5: stock +1.2, the head office shows 0.3 of difference on the line")
+	void decimalInvoicePartlyReceived() {
+		bulkItems();
+		decimalsAllowed = true;
+		erp.add(bulkInvoice(BULK));
+		hoService.run();
+		pull();
+		ReceivedDelivery atB = received.byNumber(BULK);
+		ReceptionInputDTO input = new ReceptionInputDTO();
+		input.getLines().add(new ReceptionInputDTO.Line(10000, new BigDecimal("1.2")));
+		reception.receive(atB.getId(), input, "responsible");
+
+		assertEquals("1.2", stock.quantityOf("B001").toPlainString());
+		assertEquals("0.25", stock.quantityOf("B002").toPlainString(), "a line absent from the body: as sent");
+		assertEquals(20.0, db.itemByCode("B001").get().getCostPrice(), "the quantity received never enters the cost");
+
+		hoService.receiveConfirmations(b, Collections.singletonList(SupplyPushService.confirmationOf(atB)));
+		HoErpInvoice atHeadOffice = hoInvoices.values().iterator().next();
+		assertTrue(atHeadOffice.getDifference());
+		assertEquals("1.2", atHeadOffice.getLines().get(0).getQuantityReceived().toPlainString());
+		ErpInvoiceDTO view = hoService.get(atHeadOffice.getId()).get();
+		assertEquals("-0.3", view.getLines().get(0).getDifference().toPlainString());
+		assertEquals("0", view.getLines().get(1).getDifference().toPlainString());
+	}
+
+	@Test
+	@DisplayName("2.2.1: setting off at the store, Receive of an invoice with 1.5 is refused naming the setting; nothing changes")
+	void decimalReceptionRefusedWhenSettingOff() {
+		bulkItems();
+		erp.add(bulkInvoice(BULK));
+		hoService.run();
+		pull();
+		ReceivedDelivery atB = received.byNumber(BULK);
+
+		IllegalStateException e = assertThrows(IllegalStateException.class,
+				() -> reception.receive(atB.getId(), null, "responsible"));
+		assertEquals(BULK + " cannot be received: line 10000 was sent with the quantity 1.5, and decimal quantities are"
+				+ " not allowed in this store (General Setup, Allow decimal quantities).", e.getMessage());
+		assertEquals(ReceivedDeliveryStatus.TO_RECEIVE, atB.getStatus());
+		assertEquals("0", stock.quantityOf("B001").toPlainString());
+		assertTrue(purchases.headers.isEmpty());
+	}
+
+	@Test
+	@DisplayName("2.2.1: an invoice a 2.2.0 head office held for 1.5 is read again by number at the next run, released, sent to B")
+	void heldIn220ReadAgain() {
+		bulkItems();
+		HoErpInvoice old = new HoErpInvoice(); // as 2.2.0 saved it: held, the quantity not kept
+		old.setBcNumber(BULK);
+		old.setYearPrefix("FVV26");
+		old.setCustomerNo("C-0001");
+		old.setStatus(ErpInvoiceStatus.READ);
+		old.setHeld(true);
+		old.setHoldReason("line 10000: quantity 1.5 of item B001 is not a whole number");
+		HoErpInvoiceLine oldLine = new HoErpInvoiceLine();
+		oldLine.setInvoice(old);
+		oldLine.setLineNo(10000);
+		oldLine.setLineType(ErpInvoiceLineType.ITEM);
+		oldLine.setItemCode("B001");
+		old.getLines().add(oldLine);
+		old.setId(69_999L);
+		hoInvoices.put(old.getId(), old);
+		erp.add(bulkInvoice(BULK)); // the ERP still has it; the read after the highest number never returns it again
+		List<List<String>> askedAgain = new ArrayList<>();
+		hoService.setRereader(numbers -> {
+			askedAgain.add(numbers);
+			return erp.stream().filter(i -> numbers.contains(i.getNumber())).collect(Collectors.toList());
+		});
+
+		Map<String, Object> run = hoService.run();
+
+		assertEquals(Collections.singletonList(Collections.singletonList(BULK)), askedAgain);
+		assertEquals(1, run.get("heldReleased"));
+		assertEquals(1, run.get("assigned"));
+		HoErpInvoice released = hoInvoices.values().iterator().next();
+		assertFalse(released.getHeld());
+		assertNull(released.getHoldReason());
+		assertEquals("1.5", released.getLines().get(0).getQuantity().toPlainString());
+		assertEquals(b.getId(), released.getStoreId());
+		pull();
+		assertEquals("1.5", received.byNumber(BULK).getLines().get(0).getQuantitySent().toPlainString());
+
+		hoService.run();
+		assertEquals(1, askedAgain.size(), "read again once: nothing held for a whole number any more");
 	}
 }

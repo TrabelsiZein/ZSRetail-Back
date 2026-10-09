@@ -47,6 +47,7 @@ import com.digithink.zsretail.headoffice.repository.HoErpInvoiceRepository;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.support.InMemoryCatalogue;
+import com.digithink.zsretail.utils.Quantities;
 
 /**
  * Invoices from the ERP, step (b): HoErpInvoiceService over an in-memory ho_erp_invoice (the rules of its queries and of
@@ -257,7 +258,7 @@ class HoErpInvoiceServiceTest {
 
 		HoErpInvoiceLine paid = forB.getLines().get(0);
 		assertEquals(ErpInvoiceLineType.ITEM, paid.getLineType());
-		assertEquals(Integer.valueOf(6), paid.getQuantity());
+		assertEquals(BigDecimal.valueOf(6), paid.getQuantity());
 		assertEquals(36.0, paid.getLineAmount());
 		assertEquals(6.0, paid.getUnitCost(), "Line_Amount / Quantity");
 		assertEquals(ho.itemByCode("6190000000017").get().getId(), paid.getItemId());
@@ -341,9 +342,9 @@ class HoErpInvoiceServiceTest {
 	}
 
 	@Test
-	@DisplayName("Held: a quantity not whole or prices including VAT; saved with the reason, never given to its store")
+	@DisplayName("Held: a quantity with more than 3 decimals (2.2.1) or prices including VAT; saved with the reason, never given to its store")
 	void held() {
-		ErpSupplyInvoiceDTO fraction = invoice("FVV26000000001", "C-0001", item(20000, "6190000000017", "1.5", "9"));
+		ErpSupplyInvoiceDTO fraction = invoice("FVV26000000001", "C-0001", item(20000, "6190000000017", "1.2345", "9"));
 		ErpSupplyInvoiceDTO withVat = invoice("FVV26000000002", "C-0001", item(10000, "6190000000017", "2.000", "12"));
 		withVat.setPricesIncludingVat(true);
 		erp.invoices.add(fraction);
@@ -354,14 +355,15 @@ class HoErpInvoiceServiceTest {
 		assertEquals(0, summary.get("assigned"));
 		HoErpInvoice first = saved("FVV26000000001");
 		assertTrue(first.getHeld());
-		assertEquals("line 20000: quantity 1.5 of item 6190000000017 is not a whole number", first.getHoldReason());
+		assertEquals("invoice FVV26000000001, line 20000: quantity 1.2345 of item 6190000000017 has more than 3 decimals",
+				first.getHoldReason(), "2.2.1: 1.5 is read as sent; only a 4th decimal holds");
 		assertNull(first.getLines().get(0).getQuantity());
 		assertNull(first.getLines().get(0).getUnitCost());
 		assertNull(first.getStoreId());
 		assertNull(first.getMappingStatus(), "never searched");
 		HoErpInvoice second = saved("FVV26000000002");
 		assertEquals("the prices include the VAT", second.getHoldReason());
-		assertEquals(Integer.valueOf(2), second.getLines().get(0).getQuantity(), "2.000 is whole");
+		assertEquals(BigDecimal.valueOf(2), second.getLines().get(0).getQuantity(), "2.000 is whole");
 		assertEquals(0, service.matchStoresNow().get("assigned"));
 	}
 
@@ -422,7 +424,7 @@ class HoErpInvoiceServiceTest {
 		confirmation.setReceivedBy("cashier");
 		confirmation.setNote("one missing");
 		for (int i = 0; i < lineAndQuantity.length; i += 2) {
-			confirmation.getLines().add(new DeliveryConfirmationDTO.Line(lineAndQuantity[i], null, lineAndQuantity[i + 1]));
+			confirmation.getLines().add(new DeliveryConfirmationDTO.Line(lineAndQuantity[i], null, Quantities.of(lineAndQuantity[i + 1])));
 		}
 		return confirmation;
 	}
@@ -437,7 +439,7 @@ class HoErpInvoiceServiceTest {
 		assertTrue(results.get(0).isAccepted(), results.get(0).getMessage());
 		HoErpInvoice received = saved("FVV26000000101");
 		assertEquals(ErpInvoiceStatus.RECEIVED, received.getStatus());
-		assertEquals(Integer.valueOf(5), received.getLines().get(0).getQuantityReceived());
+		assertEquals(BigDecimal.valueOf(5), received.getLines().get(0).getQuantityReceived());
 		assertNull(received.getLines().get(2).getQuantityReceived(), "the OTHER line is not received");
 		assertTrue(received.getDifference());
 		assertEquals(LocalDateTime.of(2026, 10, 9, 11, 0), received.getReceivedAt());
@@ -487,7 +489,7 @@ class HoErpInvoiceServiceTest {
 	@DisplayName("The page: filters by store, status, mapping, held and search; codes and the mapping in words; lines on GET only")
 	void page() {
 		twoInvoices();
-		ErpSupplyInvoiceDTO fraction = invoice("FVV26000000103", "C-0001", item(10000, "6190000000017", "0.5", "3"));
+		ErpSupplyInvoiceDTO fraction = invoice("FVV26000000103", "C-0001", item(10000, "6190000000017", "0.5005", "3"));
 		erp.invoices.add(fraction);
 		service.run();
 
@@ -600,7 +602,7 @@ class HoErpInvoiceServiceTest {
 		HoErpInvoiceService[] copying = new HoErpInvoiceService[1];
 		CopiesDownFeed feed = withFeed(down, copying);
 		twoInvoices();
-		erp.invoices.add(invoice("FVV26000000103", "C-0001", item(10000, "6190000000017", "0.5", "3"))); // held
+		erp.invoices.add(invoice("FVV26000000103", "C-0001", item(10000, "6190000000017", "0.5005", "3"))); // held (2.2.1: a 4th decimal)
 		copying[0].run();
 		assertEquals(1, supplyChanges(down), "only B's invoice: the other has no store, the held one is never sent");
 
@@ -690,6 +692,19 @@ class HoErpInvoiceServiceTest {
 					return highest.entrySet().stream().map(e -> new Object[] { e.getKey(), e.getValue() })
 							.collect(Collectors.toList());
 				}
+				case "findHeldNumbersWithReason": { // 2.2.1
+					String part = ((String) args[0]).replace("%", "");
+					return rows.values().stream().filter(i -> Boolean.TRUE.equals(i.getHeld()) && i.getStoreId() == null
+							&& i.getHoldReason() != null && i.getHoldReason().contains(part)).map(HoErpInvoice::getBcNumber)
+							.sorted().collect(Collectors.toList());
+				}
+				case "findByBcNumber":
+					return rows.values().stream().filter(i -> i.getBcNumber().equals(args[0])).findFirst();
+				case "delete":
+					rows.remove(((HoErpInvoice) args[0]).getId());
+					return null;
+				case "flush":
+					return null;
 				case "findIdsToAssign":
 					return rows.values().stream().filter(i -> i.getStoreId() == null && !i.getHeld())
 							.sorted(Comparator.comparing(HoErpInvoice::getBcNumber)).map(HoErpInvoice::getId)

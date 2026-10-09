@@ -4,6 +4,7 @@ import static com.digithink.zsretail.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,6 +29,7 @@ import com.digithink.zsretail.holink.model.ReceivedDeliveryLine;
 import com.digithink.zsretail.holink.repository.LinkExchangeRepository;
 import com.digithink.zsretail.holink.repository.ReceivedDeliveryRepository;
 import com.digithink.zsretail.holink.repository.StockCopyRepository;
+import com.digithink.zsretail.utils.Quantities;
 
 /**
  * L2 of step 7A: the lines of a received BL are a lazy collection. The confirmation copies must be built inside the read
@@ -77,8 +79,8 @@ class SupplyPushTransactionTest {
 		ReceivedDeliveryLine line = new ReceivedDeliveryLine();
 		line.setLineNo(1);
 		line.setItemCode("B001");
-		line.setQuantitySent(50);
-		line.setQuantityReceived(48);
+		line.setQuantitySent(Quantities.of(50));
+		line.setQuantityReceived(Quantities.of(48));
 		inTransaction = true;
 		delivery.getLines().add(line);
 		inTransaction = false;
@@ -121,7 +123,7 @@ class SupplyPushTransactionTest {
 		assertEquals(1, cycle.getConfirmationsSent());
 		assertEquals(1, sent.size());
 		assertEquals("BL-000001", sent.get(0).getNumber());
-		assertEquals(Integer.valueOf(48), sent.get(0).getLines().get(0).getQuantityReceived());
+		assertEquals(BigDecimal.valueOf(48), sent.get(0).getLines().get(0).getQuantityReceived());
 		assertEquals(SalesCopyStatus.SENT, delivery.getPushStatus());
 	}
 }

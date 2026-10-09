@@ -47,6 +47,7 @@ import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.repository.CompanyInformationRepository;
 import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.service.GeneralSetupService;
+import com.digithink.zsretail.utils.Quantities;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -134,8 +135,7 @@ public class HoSupplyInvoiceService {
 			row.put("number", delivery.getNumber());
 			row.put("documentDate", delivery.getDocumentDate() == null ? null : delivery.getDocumentDate().toString());
 			row.put("receivedAt", delivery.getReceivedAt() == null ? null : delivery.getReceivedAt().toString());
-			row.put("quantityReceived", delivery.getLines().stream()
-					.mapToInt(l -> l.getQuantityReceived() == null ? 0 : l.getQuantityReceived()).sum());
+			row.put("quantityReceived", delivery.getLines().stream().mapToInt(HoSupplyInvoiceService::quantity).sum());
 			row.put("invoiceNote", delivery.getInvoiceNote());
 			rows.add(row);
 		}
@@ -396,8 +396,13 @@ public class HoSupplyInvoiceService {
 		});
 	}
 
+	/**
+	 * The quantity received of a BL line as a whole number (null is 0). 2.2.1: the supply invoices of a head office stay
+	 * whole for now; a decimal received by a store stops here, loudly (never rounded).
+	 */
 	private static int quantity(HoDeliveryLine line) {
-		return line.getQuantityReceived() == null ? 0 : line.getQuantityReceived();
+		return line.getQuantityReceived() == null ? 0
+				: Quantities.wholeOrFail(line.getQuantityReceived(), "Supply invoice, BL line " + line.getLineNo());
 	}
 
 	private static String address(CompanyInformation seller) {

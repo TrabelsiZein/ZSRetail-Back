@@ -1,5 +1,6 @@
 package com.digithink.zsretail.holink.dto;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,9 +26,10 @@ public class ReceptionInputDTO {
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	public static class Line {
 		private Integer lineNo;
-		private Integer quantityReceived;
+		/** 2.2.1: up to 3 decimals when the store allows them (ALLOW_DECIMAL_QUANTITY). */
+		private BigDecimal quantityReceived;
 
-		public Line(Integer lineNo, Integer quantityReceived) {
+		public Line(Integer lineNo, BigDecimal quantityReceived) {
 			this.lineNo = lineNo;
 			this.quantityReceived = quantityReceived;
 		}

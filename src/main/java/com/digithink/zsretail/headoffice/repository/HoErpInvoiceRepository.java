@@ -21,6 +21,14 @@ public interface HoErpInvoiceRepository extends _BaseRepository<HoErpInvoice, Lo
 
 	boolean existsByBcNumber(String bcNumber);
 
+	/** 2.2.1: one invoice by its ERP number. */
+	Optional<HoErpInvoice> findByBcNumber(String bcNumber);
+
+	/** 2.2.1: the numbers of the held invoices without a store whose hold reason is like this pattern, by number. */
+	@Query("select i.bcNumber from HoErpInvoice i where i.held = true and i.storeId is null and i.holdReason like :pattern"
+			+ " order by i.bcNumber")
+	List<String> findHeldNumbersWithReason(@Param("pattern") String pattern);
+
 	/** [year_prefix, highest bc_number] per year prefix: where each year's read goes on. */
 	@Query("select i.yearPrefix, max(i.bcNumber) from HoErpInvoice i where i.yearPrefix is not null group by i.yearPrefix")
 	List<Object[]> findHighestByYear();

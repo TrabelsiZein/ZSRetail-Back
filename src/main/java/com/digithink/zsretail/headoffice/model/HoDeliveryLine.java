@@ -1,5 +1,7 @@
 package com.digithink.zsretail.headoffice.model;
 
+import java.math.BigDecimal;
+
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.FetchType;
@@ -9,6 +11,7 @@ import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
 
 import com.digithink.zsretail.model._BaseEntity;
+import com.digithink.zsretail.utils.Quantities;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.Data;
@@ -48,10 +51,19 @@ public class HoDeliveryLine extends _BaseEntity {
 	@Column(name = "item_name")
 	private String itemName;
 
-	@Column(name = "quantity_sent", nullable = false)
-	private Integer quantitySent;
+	/** 2.2.1: up to 3 decimals; read through {@link #getQuantitySent()} (50.000 is 50). */
+	@Column(name = "quantity_sent", nullable = false, precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal quantitySent;
 
-	/** Null until the store's confirmation arrives. */
-	@Column(name = "quantity_received")
-	private Integer quantityReceived;
+	/** Null until the store's confirmation arrives. 2.2.1: up to 3 decimals. */
+	@Column(name = "quantity_received", precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal quantityReceived;
+
+	public BigDecimal getQuantitySent() {
+		return Quantities.normalize(quantitySent);
+	}
+
+	public BigDecimal getQuantityReceived() {
+		return Quantities.normalize(quantityReceived);
+	}
 }

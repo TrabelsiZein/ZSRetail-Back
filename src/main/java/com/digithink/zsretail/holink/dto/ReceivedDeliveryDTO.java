@@ -36,8 +36,8 @@ public class ReceivedDeliveryDTO {
 	private String pushStatus;
 	private String lastError;
 	private int lineCount;
-	private int quantitySent;
-	private Integer quantityReceived;
+	private BigDecimal quantitySent; // 2.2.1: sums with their decimals
+	private BigDecimal quantityReceived;
 	private boolean difference;
 	/** Lines whose item is not in this store yet. */
 	private int missingItems;
@@ -61,10 +61,10 @@ public class ReceivedDeliveryDTO {
 		private String itemName;
 		/** False while the item is not in this store. */
 		private boolean itemHere;
-		private int quantitySent;
-		private Integer quantityReceived;
+		private BigDecimal quantitySent; // 2.2.1: up to 3 decimals
+		private BigDecimal quantityReceived;
 		/** Received minus sent; null until confirmed. */
-		private Integer difference;
+		private BigDecimal difference;
 		/** Null until confirmed. */
 		private Boolean stockApplied;
 		/** The store stock of the item now; null while the item is not here. */

@@ -260,7 +260,7 @@ class NavPosPagesMapperTest {
 	}
 
 	@Test
-	@DisplayName("Invoices: warnings for a quantity not whole, prices including VAT, lines off the total, not a franchise")
+	@DisplayName("Invoices: warnings for prices including VAT, lines off the total, not a franchise; 2.2.1: 1.5 is no warning")
 	void invoiceWarnings() {
 		NavPosResult<ErpSupplyInvoiceDTO> result = mapper.invoices(NavPosPagesTestSupport.invoiceRows(),
 				"Sell_to_Customer_No");
@@ -268,8 +268,7 @@ class NavPosPagesMapperTest {
 		ErpSupplyInvoiceDTO second = result.getRows().get(1);
 		assertEquals(Boolean.TRUE, second.getPricesIncludingVat());
 		assertNull(second.getPostingDate(), "0001-01-01 is no date");
-		assertEquals(Arrays.asList("line 20000: quantity 1.5 of item 6190000000031 is not a whole number",
-				NavPosPagesMapper.PRICES_INCLUDE_VAT, "the lines add up to 90.000, Total_Amount_Excl_VAT is 100.000",
+		assertEquals(Arrays.asList(NavPosPagesMapper.PRICES_INCLUDE_VAT, "the lines add up to 90.000, Total_Amount_Excl_VAT is 100.000",
 				NavPosPagesMapper.NOT_FRANCHISE), second.getWarnings());
 		assertEquals(0, new BigDecimal("1.5").compareTo(second.getLines().get(0).getQuantity()));
 		assertEquals("L", second.getLines().get(0).getUnitOfMeasure());

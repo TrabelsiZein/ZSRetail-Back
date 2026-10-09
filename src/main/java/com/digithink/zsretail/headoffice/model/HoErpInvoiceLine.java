@@ -1,5 +1,7 @@
 package com.digithink.zsretail.headoffice.model;
 
+import java.math.BigDecimal;
+
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
@@ -12,6 +14,7 @@ import javax.persistence.UniqueConstraint;
 
 import com.digithink.zsretail.headoffice.enumeration.ErpInvoiceLineType;
 import com.digithink.zsretail.model._BaseEntity;
+import com.digithink.zsretail.utils.Quantities;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.Data;
@@ -61,9 +64,12 @@ public class HoErpInvoiceLine extends _BaseEntity {
 	@Column(name = "description")
 	private String description;
 
-	/** Null when the ERP's quantity is not whole (the invoice is then held). */
-	@Column(name = "quantity")
-	private Integer quantity;
+	/**
+	 * As the ERP sends it, up to 3 decimals (2.2.1; read through {@link #getQuantity()}: 6.000 is 6). Null when it has
+	 * more (an item line: the invoice is then held) or when absent.
+	 */
+	@Column(name = "quantity", precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal quantity;
 
 	@Column(name = "unit_of_measure", length = UNIT_LENGTH)
 	private String unitOfMeasure;
@@ -80,7 +86,15 @@ public class HoErpInvoiceLine extends _BaseEntity {
 	@Column(name = "unit_cost")
 	private Double unitCost;
 
-	/** Null until the store's confirmation arrives; ITEM lines only. */
-	@Column(name = "quantity_received")
-	private Integer quantityReceived;
+	/** Null until the store's confirmation arrives; ITEM lines only. 2.2.1: up to 3 decimals. */
+	@Column(name = "quantity_received", precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal quantityReceived;
+
+	public BigDecimal getQuantity() {
+		return Quantities.normalize(quantity);
+	}
+
+	public BigDecimal getQuantityReceived() {
+		return Quantities.normalize(quantityReceived);
+	}
 }

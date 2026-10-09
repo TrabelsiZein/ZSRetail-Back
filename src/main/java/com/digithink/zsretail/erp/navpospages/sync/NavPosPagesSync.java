@@ -932,6 +932,29 @@ public class NavPosPagesSync {
 		return run(invoices, summary, page);
 	}
 
+	/**
+	 * 2.2.1: given invoices again, by number (those a 2.2.0 head office held for a decimal quantity), mapped as the new
+	 * ones; the year prefix of each from its number. A number the page no longer has is not in the answer.
+	 */
+	public NavPosRun<ErpSupplyInvoiceDTO> invoicesByNumbers(List<String> numbers) {
+		String page = properties.getPage().getInvoices();
+		Summary summary = new Summary("invoices", page, properties.isDryRun());
+		NavPosPagesProperties.Invoices settings = properties.getInvoices();
+		List<String> asked = numbers == null ? new ArrayList<>() : numbers;
+		summary.put("readAgain", asked.size());
+		List<NavPosInvoiceRow> rows = asked.isEmpty() ? new ArrayList<>() : source.readInvoicesByNumbers(asked);
+		NavPosResult<ErpSupplyInvoiceDTO> mapped = mapper.invoices(rows, settings.getCustomerField().trim());
+		summary.read(mapped);
+		List<ErpSupplyInvoiceDTO> invoices = new ArrayList<>();
+		for (ErpSupplyInvoiceDTO invoice : mapped.getRows()) {
+			Integer year = settings.yearOf(invoice.getNumber());
+			invoice.setYearPrefix(year == null ? null : settings.yearPrefix(year));
+			invoices.add(invoice);
+		}
+		summary.put("handed", properties.isDryRun() ? 0 : invoices.size());
+		return run(invoices, summary, page);
+	}
+
 	/** The highest number given for the prefix; else the starting number when it is of that year; else null. */
 	private static String readAfter(String prefix, Map<String, String> highestByYear, String startNumber) {
 		String highest = highestByYear.get(prefix);

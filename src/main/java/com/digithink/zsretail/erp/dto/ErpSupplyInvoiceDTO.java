@@ -11,8 +11,8 @@ import lombok.Setter;
 /**
  * Invoices from the ERP: a posted invoice of the ERP to a franchise store, read by its number (the head office supplies
  * the store with it). Amounts as the ERP gives them; the three totals are the ERP's, never recomputed. warnings: what the
- * head office must look at before the invoice is used (a quantity not whole, prices including VAT, lines that do not add
- * up to the total).
+ * head office must look at before the invoice is used (a quantity with more than 3 decimals, prices including VAT,
+ * lines that do not add up to the total).
  */
 @Getter
 @Setter

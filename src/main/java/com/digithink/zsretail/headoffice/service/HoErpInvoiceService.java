@@ -51,6 +51,7 @@ import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.DataOwner;
 import com.digithink.zsretail.repository.ItemRepository;
+import com.digithink.zsretail.utils.Quantities;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -63,8 +64,8 @@ import lombok.extern.log4j.Log4j2;
  * <li>{@link #readNew}: the invoices after the head office's highest number of each year prefix (the connector starts a
  * year without one at its start number), each saved in its own transaction without a store. A number already here is
  * skipped (a run now beside the scheduler). The item codes not in the head office catalogue are listed in the warnings;
- * an invoice with a quantity not whole or prices including the VAT is held. The first unexpected failure stops the saving:
- * the next run reads again after the highest number saved, so no invoice is passed over.</li>
+ * an invoice with a quantity of more than 3 decimals (2.2.1) or prices including the VAT is held. The first unexpected
+ * failure stops the saving: the next run reads again after the highest number saved, so no invoice is passed over.</li>
  * <li>{@link #assignStores}: each invoice without a store and not held gets the store whose ERP customer number is its
  * customer, active and receiving from the head office (ownership.supply null or HEAD_OFFICE); otherwise its
  * mapping_status says why, and the next run (or {@link #matchStoresNow}) tries again. Nothing is tied to saving a store.</li>
@@ -111,6 +112,14 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 	/** The summary of the last run, for the page and run now; null before the first run since the start. */
 	private volatile Map<String, Object> lastRun;
 
+	/** 2.2.1: the ERP read of given invoice numbers ({@link #rereadHeldForDecimals}); null in the tests that do not set it. */
+	private Function<List<String>, List<ErpSupplyInvoiceDTO>> rereader;
+
+	/** 2.2.1: the ERP read of given invoice numbers (the tests set a fake one). */
+	public void setRereader(Function<List<String>, List<ErpSupplyInvoiceDTO>> rereader) {
+		this.rereader = rereader;
+	}
+
 	@Autowired
 	public HoErpInvoiceService(HoErpInvoiceRepository invoices, StoreRepository stores, ItemRepository items,
 			ErpSynchronizationManager erp, PlatformTransactionManager transactionManager,
@@ -118,6 +127,7 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 			@Value("${" + SELLER_NAME_KEY + ":" + DEFAULT_SELLER_NAME + "}") String sellerName) {
 		this(invoices, stores, items, erp::pullSupplyInvoices, new TransactionTemplate(transactionManager),
 				LocalDateTime::now, (Supplier<CopiesDownFeed>) feed::getObject, sellerName);
+		this.rereader = erp::pullSupplyInvoicesByNumbers;
 	}
 
 	/** With a given ERP read, transactions and clock, without the copies down (step b): used by the tests. */
@@ -189,6 +199,7 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 		String failure = null;
 		RuntimeException readFailure = null;
 		try {
+			rereadHeldForDecimals(summary);
 			failure = readNew(summary);
 		} catch (RuntimeException e) {
 			readFailure = e;
@@ -221,6 +232,60 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 	/** The summary of the last run since the start; null before it. */
 	public Map<String, Object> getLastRun() {
 		return lastRun;
+	}
+
+	/**
+	 * 2.2.1: the invoices a 2.2.0 head office held because a quantity was not whole (their hold reason says "is not a
+	 * whole number"; the decimal value was not kept) are read again from the ERP, by number, at the start of each run:
+	 * each one is replaced by the invoice as read now (lines, hold, warnings), in its own transaction, and is then assigned
+	 * like any other. Its number is below the highest one, so the read after the highest number would never see it again.
+	 * The new hold reasons never say "not a whole number": an invoice is read again once. Nothing to do without such an
+	 * invoice (no call to the ERP). An invoice the ERP no longer has stays held.
+	 */
+	private void rereadHeldForDecimals(Map<String, Object> summary) {
+		List<String> numbers = invoices.findHeldNumbersWithReason("%" + OLD_DECIMAL_HOLD + "%");
+		if (numbers.isEmpty() || rereader == null) {
+			return;
+		}
+		List<ErpSupplyInvoiceDTO> read = rereader.apply(numbers);
+		int replaced = 0;
+		int released = 0;
+		for (ErpSupplyInvoiceDTO source : read == null ? Collections.<ErpSupplyInvoiceDTO>emptyList() : read) {
+			String number = source == null || source.getNumber() == null ? "" : source.getNumber().trim();
+			if (!numbers.contains(number)) {
+				continue;
+			}
+			Boolean held = writeTransactions.execute(status -> replaceHeld(source, number));
+			if (held != null) {
+				replaced++;
+				released += held ? 0 : 1;
+			}
+		}
+		summary.put("heldReadAgain", numbers.size());
+		summary.put("heldReplaced", replaced);
+		summary.put("heldReleased", released);
+		log.info("Head office invoices from the ERP: {} held for a decimal quantity read again, {} replaced, {} released",
+				numbers.size(), replaced, released);
+	}
+
+	/** The 2.2.0 hold reason of a quantity not whole. */
+	static final String OLD_DECIMAL_HOLD = "is not a whole number";
+
+	/** Null when the invoice is no longer held (another run did it); otherwise replaced, true when still held. */
+	private Boolean replaceHeld(ErpSupplyInvoiceDTO source, String number) {
+		Optional<HoErpInvoice> found = invoices.findByBcNumber(number);
+		if (!found.isPresent() || !Boolean.TRUE.equals(found.get().getHeld()) || found.get().getStoreId() != null) {
+			return null;
+		}
+		HoErpInvoice old = found.get();
+		if (source.getYearPrefix() == null) {
+			source.setYearPrefix(old.getYearPrefix());
+		}
+		invoices.delete(old);
+		invoices.flush(); // the number is unique: the old row goes before the new one is written
+		HoErpInvoice invoice = build(source, number);
+		invoices.saveAndFlush(invoice);
+		return invoice.getHeld();
 	}
 
 	/** [year prefix -> highest number here]: where each year's read goes on. */
@@ -327,10 +392,15 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 				notInCatalogue.add(code);
 			}
 			line.setDescription(cut(source1.getDescription(), DESCRIPTION_LENGTH));
-			Integer quantity = whole(source1.getQuantity());
-			if (item && source1.getQuantity() != null && quantity == null) {
-				holdReasons.add("line " + source1.getLineNo() + ": quantity " + source1.getQuantity().toPlainString()
-						+ " of item " + code + " is not a whole number");
+			// 2.2.1: the quantity as the ERP sends it, up to 3 decimals; more cannot be kept (never rounded): an item line
+			// holds the invoice, another line keeps no quantity
+			BigDecimal quantity = Quantities.normalize(source1.getQuantity());
+			if (quantity != null && Quantities.decimals(quantity) > Quantities.SCALE) {
+				if (item) {
+					holdReasons.add("invoice " + number + ", line " + source1.getLineNo() + ": quantity "
+							+ quantity.toPlainString() + " of item " + code + " has more than " + Quantities.SCALE + " decimals");
+				}
+				quantity = null;
 			}
 			line.setQuantity(quantity);
 			line.setUnitOfMeasure(cut(source1.getUnitOfMeasure(), HoErpInvoiceLine.UNIT_LENGTH));
@@ -354,24 +424,15 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 		return invoice;
 	}
 
-	/** Line_Amount / Quantity, 5 decimals; null at amount 0 or without a whole quantity above 0. */
-	static Double unitCost(BigDecimal lineAmount, Integer quantity) {
-		if (lineAmount == null || lineAmount.signum() == 0 || quantity == null || quantity == 0) {
+	/**
+	 * Line_Amount / Quantity invoiced, 5 decimals (as in 2.2.0; 2.2.1: the quantity may carry decimals, 30 for 1.5 is
+	 * 20); null at amount 0 or without a quantity above 0. The quantity received never enters the cost.
+	 */
+	static Double unitCost(BigDecimal lineAmount, BigDecimal quantity) {
+		if (lineAmount == null || lineAmount.signum() == 0 || quantity == null || quantity.signum() == 0) {
 			return null;
 		}
-		return lineAmount.divide(BigDecimal.valueOf(quantity), COST_SCALE, RoundingMode.HALF_UP).doubleValue();
-	}
-
-	/** The value when whole (1.000 is), null otherwise or when absent. */
-	static Integer whole(BigDecimal value) {
-		if (value == null) {
-			return null;
-		}
-		try {
-			return value.stripTrailingZeros().intValueExact();
-		} catch (ArithmeticException e) {
-			return null;
-		}
+		return lineAmount.divide(quantity, COST_SCALE, RoundingMode.HALF_UP).doubleValue();
 	}
 
 	private static Double amount(BigDecimal value) {
@@ -546,7 +607,7 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 		HoErpInvoice invoice = found.get();
 		List<HoErpInvoiceLine> itemLines = invoice.getLines().stream()
 				.filter(l -> l.getLineType() == ErpInvoiceLineType.ITEM).collect(Collectors.toList());
-		Map<Integer, Integer> received = new HashMap<>();
+		Map<Integer, BigDecimal> received = new HashMap<>();
 		for (DeliveryConfirmationDTO.Line line : confirmation.getLines() == null
 				? Collections.<DeliveryConfirmationDTO.Line>emptyList()
 				: confirmation.getLines()) {
@@ -556,11 +617,15 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 				return SalesCopyResultDTO.rejected(number,
 						"line " + (line == null ? null : line.getLineNo()) + " does not match an item line of the invoice");
 			}
-			if (line.getQuantityReceived() == null || line.getQuantityReceived() < 0) {
+			if (line.getQuantityReceived() == null || line.getQuantityReceived().signum() < 0) {
 				return SalesCopyResultDTO.rejected(number,
 						"line " + line.getLineNo() + ": quantityReceived must be 0 or more");
 			}
-			if (received.put(line.getLineNo(), line.getQuantityReceived()) != null) {
+			if (Quantities.decimals(line.getQuantityReceived()) > Quantities.SCALE) { // 2.2.1: never rounded
+				return SalesCopyResultDTO.rejected(number, "line " + line.getLineNo() + ": quantityReceived "
+						+ line.getQuantityReceived().toPlainString() + " has more than " + Quantities.SCALE + " decimals");
+			}
+			if (received.put(line.getLineNo(), Quantities.normalize(line.getQuantityReceived())) != null) {
 				return SalesCopyResultDTO.rejected(number, "line " + line.getLineNo() + " is given twice");
 			}
 		}
@@ -568,15 +633,16 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 			return SalesCopyResultDTO.rejected(number, "every item line of the invoice is required");
 		}
 		if (invoice.getStatus() == ErpInvoiceStatus.RECEIVED) {
-			boolean same = itemLines.stream().allMatch(l -> received.get(l.getLineNo()).equals(l.getQuantityReceived()));
+			boolean same = itemLines.stream().allMatch(l -> l.getQuantityReceived() != null
+					&& received.get(l.getLineNo()).compareTo(l.getQuantityReceived()) == 0);
 			return same ? SalesCopyResultDTO.accepted(number)
 					: SalesCopyResultDTO.rejected(number, "already received with other quantities");
 		}
 		boolean difference = false;
 		for (HoErpInvoiceLine line : itemLines) {
-			Integer quantity = received.get(line.getLineNo());
+			BigDecimal quantity = received.get(line.getLineNo());
 			line.setQuantityReceived(quantity);
-			difference |= !quantity.equals(line.getQuantity());
+			difference |= line.getQuantity() == null || quantity.compareTo(line.getQuantity()) != 0;
 		}
 		invoice.setStatus(ErpInvoiceStatus.RECEIVED);
 		invoice.setDifference(difference);
@@ -732,7 +798,7 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 				row.setUnitCost(line.getUnitCost());
 				row.setQuantityReceived(line.getQuantityReceived());
 				row.setDifference(line.getQuantityReceived() == null || line.getQuantity() == null ? null
-						: line.getQuantityReceived() - line.getQuantity());
+						: Quantities.normalize(line.getQuantityReceived().subtract(line.getQuantity())));
 				lines.add(row);
 			}
 		}

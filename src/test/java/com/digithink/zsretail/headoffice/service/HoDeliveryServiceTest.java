@@ -36,6 +36,7 @@ import com.digithink.zsretail.model.enumeration.StockMovementDirection;
 import com.digithink.zsretail.model.enumeration.StockMovementType;
 import com.digithink.zsretail.support.InMemoryCatalogue;
 import com.digithink.zsretail.support.InMemoryStock;
+import com.digithink.zsretail.utils.Quantities;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
@@ -92,7 +93,7 @@ class HoDeliveryServiceTest {
 	}
 
 	private static DeliveryInputDTO.Line line(String itemCode, Integer quantity) {
-		return new DeliveryInputDTO.Line(itemCode, quantity);
+		return new DeliveryInputDTO.Line(itemCode, Quantities.of(quantity));
 	}
 
 	private DeliveryDTO draftForB() {
@@ -117,11 +118,11 @@ class HoDeliveryServiceTest {
 		assertNull(draft.getNumber());
 		assertEquals(LocalDate.of(2026, 10, 5), draft.getDocumentDate(), "today by default");
 		assertEquals(2, draft.getLineCount());
-		assertEquals(55, draft.getQuantitySent());
+		assertEquals(BigDecimal.valueOf(55), draft.getQuantitySent());
 		assertEquals(1, draft.getLines().get(0).getLineNo());
 		assertEquals("B001", draft.getLines().get(0).getItemCode());
 		assertEquals("Item B001", draft.getLines().get(0).getItemName());
-		assertEquals(100, draft.getLines().get(0).getHeadOfficeStock());
+		assertEquals(BigDecimal.valueOf(100), draft.getLines().get(0).getHeadOfficeStock());
 		assertEquals(2, draft.getLines().get(1).getLineNo());
 		assertEquals("B", draft.getStoreCode());
 		assertEquals(100, stock.stockOf("B001"));
@@ -277,7 +278,7 @@ class HoDeliveryServiceTest {
 		assertTrue(stock.movements.isEmpty(), "no stock movement");
 		assertEquals(1, supplyChanges(), "recorded for store B");
 		noStock.get(draft.getId()).get().getLines().forEach(l -> assertNull(l.getHeadOfficeStock(), l.getItemCode()));
-		assertEquals(100, service.get(draft.getId()).get().getLines().get(0).getHeadOfficeStock(),
+		assertEquals(BigDecimal.valueOf(100), service.get(draft.getId()).get().getLines().get(0).getHeadOfficeStock(),
 				"the head office that keeps its stock still reads it");
 	}
 
@@ -359,8 +360,8 @@ class HoDeliveryServiceTest {
 		DeliveryDTO second = service.create(input(c.getId(), line("B002", 1)));
 		HoDelivery received = tables.deliveries.get(first.getId());
 		received.setStatus(DeliveryStatus.RECEIVED);
-		received.getLines().get(0).setQuantityReceived(48);
-		received.getLines().get(1).setQuantityReceived(5);
+		received.getLines().get(0).setQuantityReceived(Quantities.of(48));
+		received.getLines().get(1).setQuantityReceived(Quantities.of(5));
 
 		assertEquals(Arrays.asList(second.getId(), first.getId()), ids(service.list(null, null, null, null, null, null, null, null)));
 		assertEquals(Collections.singletonList(first.getId()), ids(service.list(b.getId(), "all", null, null, null, null, 0, 20)));
@@ -376,11 +377,11 @@ class HoDeliveryServiceTest {
 		@SuppressWarnings("unchecked")
 		DeliveryDTO row = ((List<DeliveryDTO>) service.list(b.getId(), null, null, null, null, null, 0, 20).get("content")).get(0);
 		assertEquals("B", row.getStoreCode());
-		assertEquals(55, row.getQuantitySent());
-		assertEquals(53, row.getQuantityReceived());
+		assertEquals(BigDecimal.valueOf(55), row.getQuantitySent());
+		assertEquals(BigDecimal.valueOf(53), row.getQuantityReceived());
 		assertTrue(row.isDifference());
 		assertNull(row.getLines());
-		assertEquals(-2, service.get(first.getId()).get().getLines().get(0).getDifference());
+		assertEquals(BigDecimal.valueOf(-2), service.get(first.getId()).get().getLines().get(0).getDifference());
 
 		assertThrows(IllegalArgumentException.class, () -> service.list(null, "LOST", null, null, null, null, 0, 20));
 		assertThrows(IllegalArgumentException.class, () -> service.list(null, null, null, "yesterday", null, null, 0, 20));

@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
@@ -257,8 +258,8 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 			Item item = items.findById(line.getItemId()).orElseThrow(() -> new IllegalArgumentException(
 					"Line " + line.getLineNo() + ": the item " + line.getItemCode() + " no longer exists."));
 			checkDeliverable(line.getLineNo(), item);
-			int inStock = wholeStock(item);
-			if (checkStock && inStock < line.getQuantitySent()) {
+			BigDecimal inStock = stockOf(item);
+			if (checkStock && inStock.compareTo(line.getQuantitySent()) < 0) {
 				shortages.add(shortage(item.getItemCode(), inStock, line.getQuantitySent()));
 			}
 		}
@@ -274,13 +275,13 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 		if (keepsStock) { // without stock: no decrease, no movement
 			for (HoDeliveryLine line : saved.getLines()) {
 				// Atomic: a stock taken meanwhile by another validation is caught here, and everything rolls back
-				if (!stock.decrementForDelivery(line.getItemId(), Quantities.of(line.getQuantitySent()))) {
-					int now = items.findById(line.getItemId())
-							.map(HoDeliveryService::wholeStock).orElse(0);
+				if (!stock.decrementForDelivery(line.getItemId(), line.getQuantitySent())) {
+					BigDecimal now = items.findById(line.getItemId())
+							.map(HoDeliveryService::stockOf).orElse(BigDecimal.ZERO);
 					throw new IllegalStateException(shortageMessage(
 							Collections.singletonList(shortage(line.getItemCode(), now, line.getQuantitySent()))));
 				}
-				movements.recordDeliveryOut(line.getItemId(), Quantities.of(line.getQuantitySent()), saved.getId(), number);
+				movements.recordDeliveryOut(line.getItemId(), line.getQuantitySent(), saved.getId(), number);
 			}
 		}
 		feed.get().recordChange(DataDomain.SUPPLY, DeliveryCopyDTO.recordCode(number),
@@ -289,14 +290,13 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 		return Optional.of(view(saved, store, true, false)); // the stock was changed by native updates: GET /{id} reads it
 	}
 
-	/** 2.2.1: BLs stay whole for now; the head office stock as a whole number (null is 0), loud when it has decimals. */
-	private static int wholeStock(Item item) {
-		return item.getStockQuantity() == null ? 0
-				: Quantities.wholeOrFail(item.getStockQuantity(), "Head office stock of " + item.getItemCode());
+	/** The head office stock of the item, null as 0 (2.2.1: with its decimals). */
+	private static BigDecimal stockOf(Item item) {
+		return item.getStockQuantity() == null ? BigDecimal.ZERO : item.getStockQuantity();
 	}
 
-	private static String shortage(String itemCode, int inStock, int onBl) {
-		return itemCode + ": " + inStock + " in stock, " + onBl + " on the BL";
+	private static String shortage(String itemCode, BigDecimal inStock, BigDecimal onBl) {
+		return itemCode + ": " + Quantities.plain(inStock) + " in stock, " + Quantities.plain(onBl) + " on the BL";
 	}
 
 	private static String shortageMessage(List<String> shortages) {
@@ -377,7 +377,7 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 			return SalesCopyResultDTO.rejected(number, "unknown BL " + number + " for this store");
 		}
 		HoDelivery delivery = found.get();
-		Map<Integer, Integer> received = new HashMap<>();
+		Map<Integer, BigDecimal> received = new HashMap<>();
 		for (DeliveryConfirmationDTO.Line line : confirmation.getLines() == null
 				? Collections.<DeliveryConfirmationDTO.Line>emptyList()
 				: confirmation.getLines()) {
@@ -388,11 +388,15 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 				return SalesCopyResultDTO.rejected(number,
 						"line " + (line == null ? null : line.getLineNo()) + " does not match the BL");
 			}
-			if (line.getQuantityReceived() == null || line.getQuantityReceived() < 0) {
+			if (line.getQuantityReceived() == null || line.getQuantityReceived().signum() < 0) {
 				return SalesCopyResultDTO.rejected(number,
 						"line " + line.getLineNo() + ": quantityReceived must be 0 or more");
 			}
-			if (received.put(line.getLineNo(), line.getQuantityReceived()) != null) {
+			if (Quantities.decimals(line.getQuantityReceived()) > Quantities.SCALE) { // 2.2.1: never rounded
+				return SalesCopyResultDTO.rejected(number, "line " + line.getLineNo() + ": quantityReceived "
+						+ line.getQuantityReceived().toPlainString() + " has more than " + Quantities.SCALE + " decimals");
+			}
+			if (received.put(line.getLineNo(), Quantities.normalize(line.getQuantityReceived())) != null) {
 				return SalesCopyResultDTO.rejected(number, "line " + line.getLineNo() + " is given twice");
 			}
 		}
@@ -401,7 +405,8 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 		}
 		if (delivery.getStatus() != DeliveryStatus.SENT) {
 			boolean same = delivery.getLines().stream()
-					.allMatch(l -> received.get(l.getLineNo()).equals(l.getQuantityReceived()));
+					.allMatch(l -> l.getQuantityReceived() != null
+							&& received.get(l.getLineNo()).compareTo(l.getQuantityReceived()) == 0);
 			return same ? SalesCopyResultDTO.accepted(number)
 					: SalesCopyResultDTO.rejected(number, "already received with other quantities");
 		}
@@ -509,7 +514,8 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 				throw new IllegalArgumentException("Line " + lineNo + ": the item " + item.getItemCode()
 						+ " is already on line " + earlier + ".");
 			}
-			if (input1.getQuantity() == null || input1.getQuantity() <= 0) {
+			// 2.2.1: a BL made here stays whole (its supply invoice is not converted yet); 1.5 is refused, never read as 1
+			if (input1.getQuantity() == null || input1.getQuantity().signum() <= 0 || !Quantities.isWhole(input1.getQuantity())) {
 				throw new IllegalArgumentException("Line " + lineNo + ": the quantity must be a whole number above 0.");
 			}
 			HoDeliveryLine line = new HoDeliveryLine();
@@ -518,7 +524,7 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 			line.setItemId(item.getId());
 			line.setItemCode(item.getItemCode());
 			line.setItemName(item.getName());
-			line.setQuantitySent(input1.getQuantity());
+			line.setQuantitySent(Quantities.normalize(input1.getQuantity()));
 			built.add(line);
 		}
 		delivery.getLines().clear();
@@ -634,15 +640,15 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 		if (delivery.getInvoiceId() != null && invoiceService != null) {
 			view.setInvoiceNumber(invoiceService.numberOf(delivery.getInvoiceId()));
 		}
-		int sent = 0;
-		Integer received = null;
+		BigDecimal sent = BigDecimal.ZERO;
+		BigDecimal received = null;
 		boolean difference = false;
 		List<DeliveryDTO.Line> lines = new ArrayList<>();
 		for (HoDeliveryLine line : delivery.getLines()) {
-			sent += line.getQuantitySent();
+			sent = sent.add(line.getQuantitySent());
 			if (line.getQuantityReceived() != null) {
-				received = (received == null ? 0 : received) + line.getQuantityReceived();
-				difference |= !line.getQuantityReceived().equals(line.getQuantitySent());
+				received = (received == null ? BigDecimal.ZERO : received).add(line.getQuantityReceived());
+				difference |= line.getQuantityReceived().compareTo(line.getQuantitySent()) != 0;
 			}
 			if (withLines) {
 				DeliveryDTO.Line row = new DeliveryDTO.Line();
@@ -653,15 +659,15 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 				row.setQuantitySent(line.getQuantitySent());
 				row.setQuantityReceived(line.getQuantityReceived());
 				row.setDifference(line.getQuantityReceived() == null ? null
-						: line.getQuantityReceived() - line.getQuantitySent());
+						: Quantities.normalize(line.getQuantityReceived().subtract(line.getQuantitySent())));
 				row.setHeadOfficeStock(!withStock || !keepsStock ? null : items.findById(line.getItemId())
-						.map(HoDeliveryService::wholeStock).orElse(null));
+						.map(HoDeliveryService::stockOf).orElse(null));
 				lines.add(row);
 			}
 		}
 		view.setLineCount(delivery.getLines().size());
-		view.setQuantitySent(sent);
-		view.setQuantityReceived(received);
+		view.setQuantitySent(Quantities.normalize(sent));
+		view.setQuantityReceived(Quantities.normalize(received));
 		view.setDifference(difference);
 		view.setLines(withLines ? lines : null);
 		return view;

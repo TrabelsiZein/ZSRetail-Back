@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Arrays;
 
@@ -24,6 +25,7 @@ import com.digithink.zsretail.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.support.InMemoryCatalogue;
 import com.digithink.zsretail.support.InMemoryPurchaseInvoices;
 import com.digithink.zsretail.support.InMemoryReceivedDeliveries;
+import com.digithink.zsretail.utils.Quantities;
 
 /**
  * Invoices from the ERP, step (c): SupplyInvoiceWriter.saveFromErpInvoice writes the purchase invoice of a received ERP
@@ -56,8 +58,8 @@ class SupplyInvoiceWriterTest {
 		line.setItemCode(code);
 		line.setItemName(type == ReceivedLineType.OTHER ? "Transport" : "Name of " + code);
 		line.setItemId(itemId);
-		line.setQuantitySent(quantity);
-		line.setQuantityReceived(quantity - 1);
+		line.setQuantitySent(Quantities.of(quantity));
+		line.setQuantityReceived(Quantities.of(quantity - 1));
 		line.setLineAmount(amount);
 		line.setUnitCost(unitCost);
 		return line;
@@ -98,7 +100,7 @@ class SupplyInvoiceWriterTest {
 		PurchaseInvoiceLine b009 = purchases.linesOf(header).get(1);
 		assertNull(b009.getItem());
 		assertEquals("B009 Name of B009", b009.getLineDescription());
-		assertEquals(Integer.valueOf(2), b009.getQuantity());
+		assertEquals(BigDecimal.valueOf(2), b009.getQuantity());
 		assertNull(b009.getVatPercent(), "the VAT of an item not here is not known");
 		assertEquals(8.0, b009.getTotalAmount());
 

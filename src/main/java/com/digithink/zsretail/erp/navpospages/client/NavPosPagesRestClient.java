@@ -117,9 +117,39 @@ public class NavPosPagesRestClient implements NavPosPagesSource {
 	 */
 	@Override
 	public List<NavPosInvoiceRow> readInvoicesAfter(String yearPrefix, String afterNumber) {
+		return readInvoices("startswith(No,'" + quoted(yearPrefix) + "')"
+				+ (afterNumber == null || afterNumber.trim().isEmpty() ? "" : " and No gt '" + quoted(afterNumber) + "'"));
+	}
+
+	/**
+	 * 2.2.1: the invoices of these numbers (those a 2.2.0 head office held for a decimal quantity), read again: $filter=No
+	 * eq '..' or No eq '..', {@link #NUMBERS_PER_READ} numbers per GET, the same fields and lines as
+	 * {@link #readInvoicesAfter}.
+	 */
+	@Override
+	public List<NavPosInvoiceRow> readInvoicesByNumbers(List<String> numbers) {
+		List<NavPosInvoiceRow> rows = new ArrayList<>();
+		if (numbers == null) {
+			return rows;
+		}
+		for (int from = 0; from < numbers.size(); from += NUMBERS_PER_READ) {
+			StringBuilder filter = new StringBuilder();
+			for (String number : numbers.subList(from, Math.min(from + NUMBERS_PER_READ, numbers.size()))) {
+				filter.append(filter.length() == 0 ? "" : " or ").append("No eq '").append(quoted(number)).append("'");
+			}
+			rows.addAll(readInvoices(filter.toString()));
+		}
+		return rows;
+	}
+
+	/** 2.2.1: invoice numbers per GET when they are read again by number (a short URL). */
+	static final int NUMBERS_PER_READ = 20;
+
+	/** The invoices of the filter; Prices_Including_VAT asked for until the page says it has none. */
+	private List<NavPosInvoiceRow> readInvoices(String filter) {
 		if (pricesIncludingVatOnPage) {
 			try {
-				return readInvoices(yearPrefix, afterNumber, true);
+				return readInvoices(filter, true);
 			} catch (NavPosPagesReadException e) {
 				if (!unknownProperty(e, NavPosInvoiceRow.PRICES_INCLUDING_VAT)) {
 					throw e;
@@ -129,7 +159,7 @@ public class NavPosPagesRestClient implements NavPosPagesSource {
 						NavPosInvoiceRow.PRICES_INCLUDING_VAT);
 			}
 		}
-		return readInvoices(yearPrefix, afterNumber, false);
+		return readInvoices(filter, false);
 	}
 
 	/**
@@ -153,12 +183,10 @@ public class NavPosPagesRestClient implements NavPosPagesSource {
 		return number == null || number.trim().isEmpty() ? null : number.trim();
 	}
 
-	private List<NavPosInvoiceRow> readInvoices(String yearPrefix, String afterNumber, boolean withPricesIncludingVat) {
+	private List<NavPosInvoiceRow> readInvoices(String filter, boolean withPricesIncludingVat) {
 		NavPosPagesProperties.Invoices settings = properties.getInvoices();
 		String page = properties.getPage().getInvoices();
 		int max = settings.getMaxPerRun();
-		String filter = "startswith(No,'" + quoted(yearPrefix) + "')"
-				+ (afterNumber == null || afterNumber.trim().isEmpty() ? "" : " and No gt '" + quoted(afterNumber) + "'");
 		URI uri = page(page).queryParam("$filter", filter).queryParam("$orderby", "No").queryParam("$top", max)
 				.queryParam("$select", invoiceFields(withPricesIncludingVat))
 				.queryParam("$expand", settings.getLinesExpand().trim() + "($select=" + NavPosInvoiceLineRow.FIELDS + ")")

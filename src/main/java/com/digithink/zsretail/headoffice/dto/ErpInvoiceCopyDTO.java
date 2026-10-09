@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.dto;
 
+import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -93,8 +94,8 @@ public class ErpInvoiceCopyDTO {
 		/** The ERP item number; null on an OTHER line. */
 		private String itemCode;
 		private String description;
-		/** The quantity invoiced (whole: a held invoice is never sent). */
-		private Integer quantity;
+		/** The quantity invoiced (2.2.1: up to 3 decimals, 6 travels as 6; a held invoice is never sent). */
+		private BigDecimal quantity;
 		private Double unitPrice;
 		private Double lineDiscountPercent;
 		/** After the line discount, before the VAT. */

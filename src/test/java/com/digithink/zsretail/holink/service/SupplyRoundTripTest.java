@@ -85,6 +85,7 @@ import com.digithink.zsretail.support.InMemoryNetworkStock;
 import com.digithink.zsretail.support.InMemoryReceivedDeliveries;
 import com.digithink.zsretail.support.InMemoryStock;
 import com.digithink.zsretail.support.InMemoryStoreLink;
+import com.digithink.zsretail.utils.Quantities;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -202,7 +203,7 @@ class SupplyRoundTripTest {
 	}
 
 	private static DeliveryInputDTO.Line line(String itemCode, int quantity) {
-		return new DeliveryInputDTO.Line(itemCode, quantity);
+		return new DeliveryInputDTO.Line(itemCode, Quantities.of(quantity));
 	}
 
 	private static ReceptionInputDTO counted(ReceptionInputDTO.Line... lines) {
@@ -213,7 +214,7 @@ class SupplyRoundTripTest {
 	}
 
 	private static ReceptionInputDTO.Line count(int lineNo, Integer quantity) {
-		return new ReceptionInputDTO.Line(lineNo, quantity);
+		return new ReceptionInputDTO.Line(lineNo, Quantities.of(quantity));
 	}
 
 	private List<StockMovement> deliveriesIn() {
@@ -239,7 +240,7 @@ class SupplyRoundTripTest {
 		assertEquals(2, bl.getLines().size());
 		ReceivedDeliveryLine first = bl.getLines().get(0);
 		assertEquals("B001", first.getItemCode());
-		assertEquals(50, first.getQuantitySent());
+		assertEquals(BigDecimal.valueOf(50), first.getQuantitySent());
 		assertEquals(db.itemByCode("B001").get().getId(), first.getItemId());
 		assertNull(first.getQuantityReceived());
 		DownRecord tracked = link.downRecords.get("BL:BL-000001");
@@ -262,7 +263,7 @@ class SupplyRoundTripTest {
 		ReceivedDeliveryDTO answer = reception.receive(id, counted(count(1, 48)), "responsible").get();
 
 		assertEquals("RECEIVED", answer.getStatus());
-		assertEquals(53, answer.getQuantityReceived());
+		assertEquals(BigDecimal.valueOf(53), answer.getQuantityReceived());
 		assertTrue(answer.isDifference());
 		assertEquals("PENDING", answer.getPushStatus());
 		assertEquals(48, stock.stockOf("B001"));
@@ -277,15 +278,15 @@ class SupplyRoundTripTest {
 		assertEquals(SalesCopyStatus.SENT, received.byNumber("BL-000001").getPushStatus());
 		HoDelivery atHeadOffice = hoTables.byNumber("BL-000001");
 		assertEquals(DeliveryStatus.RECEIVED, atHeadOffice.getStatus());
-		assertEquals(48, atHeadOffice.getLines().get(0).getQuantityReceived());
-		assertEquals(5, atHeadOffice.getLines().get(1).getQuantityReceived());
+		assertEquals(BigDecimal.valueOf(48), atHeadOffice.getLines().get(0).getQuantityReceived());
+		assertEquals(BigDecimal.valueOf(5), atHeadOffice.getLines().get(1).getQuantityReceived());
 		assertEquals(NOW, atHeadOffice.getReceivedAt());
 		assertEquals("responsible", atHeadOffice.getReceivedBy());
 		assertEquals("2 broken", atHeadOffice.getStoreNote());
 		assertEquals(NOW, atHeadOffice.getConfirmationReceivedAt());
 		DeliveryDTO view = hoDeliveries.get(atHeadOffice.getId()).get();
 		assertTrue(view.isDifference());
-		assertEquals(-2, view.getLines().get(0).getDifference());
+		assertEquals(BigDecimal.valueOf(-2), view.getLines().get(0).getDifference());
 		assertEquals(50, hoStock.stockOf("B001"), "the head office stock moved at the validation only");
 		assertEquals(LinkJobResult.SUCCESS, supplyRows().get(0).getResult());
 		assertTrue(push.runCycle().isIdle(), "sent once");
@@ -305,7 +306,7 @@ class SupplyRoundTripTest {
 		assertEquals("This BL has already been received: BL-000001.", again.getMessage());
 		assertEquals(50, stock.stockOf("B001"));
 		assertEquals(1, deliveriesIn().size());
-		assertEquals(50, received.byNumber("BL-000001").getLines().get(0).getQuantityReceived());
+		assertEquals(BigDecimal.valueOf(50), received.byNumber("BL-000001").getLines().get(0).getQuantityReceived());
 	}
 
 	@Test
@@ -347,7 +348,7 @@ class SupplyRoundTripTest {
 
 		assertEquals(1, push.runCycle().getConfirmationsSent());
 		assertEquals(SalesCopyStatus.SENT, received.byNumber("BL-000001").getPushStatus());
-		assertEquals(49, hoTables.byNumber("BL-000001").getLines().get(0).getQuantityReceived());
+		assertEquals(BigDecimal.valueOf(49), hoTables.byNumber("BL-000001").getLines().get(0).getQuantityReceived());
 	}
 
 	@Test
@@ -365,7 +366,7 @@ class SupplyRoundTripTest {
 		assertEquals(10, stock.stockOf("B001"));
 		assertEquals(1, deliveriesIn().size());
 		assertEquals(1, push.runCycle().getConfirmationsSent(), "the confirmation does not wait for the item");
-		assertEquals(4, hoTables.byNumber("BL-000001").getLines().get(1).getQuantityReceived());
+		assertEquals(BigDecimal.valueOf(4), hoTables.byNumber("BL-000001").getLines().get(1).getQuantityReceived());
 
 		DownApplyResult waiting = supplyHandler.retry();
 		assertEquals(1, waiting.getWaiting());
@@ -409,7 +410,7 @@ class SupplyRoundTripTest {
 		push.runCycle();
 
 		assertEquals(52, stock.stockOf("B001"));
-		assertEquals(2, hoDeliveries.get(hoTables.byNumber("BL-000001").getId()).get().getLines().get(0).getDifference());
+		assertEquals(BigDecimal.valueOf(2), hoDeliveries.get(hoTables.byNumber("BL-000001").getId()).get().getLines().get(0).getDifference());
 	}
 
 	@Test
@@ -434,7 +435,7 @@ class SupplyRoundTripTest {
 		assertEquals(0, stock.stockOf("B001"));
 		assertTrue(deliveriesIn().isEmpty());
 		ReceivedDeliveryDTO zero = reception.receive(id, counted(count(1, 0)), "r").get();
-		assertEquals(0, zero.getQuantityReceived());
+		assertEquals(BigDecimal.valueOf(0), zero.getQuantityReceived());
 		assertEquals(0, zero.getStockWaiting(), "nothing to add: applied");
 		assertTrue(deliveriesIn().isEmpty());
 	}
@@ -467,7 +468,7 @@ class SupplyRoundTripTest {
 				"the same again: accepted, nothing changes");
 		assertEquals("already received with other quantities",
 				result(b, confirmation("BL-000001", line(1, "B001", 50), line(2, "B002", 5))).getMessage());
-		assertEquals(48, hoTables.byNumber("BL-000001").getLines().get(0).getQuantityReceived());
+		assertEquals(BigDecimal.valueOf(48), hoTables.byNumber("BL-000001").getLines().get(0).getQuantityReceived());
 	}
 
 	private SalesCopyResultDTO result(Store store, DeliveryConfirmationDTO confirmation) {
@@ -483,7 +484,7 @@ class SupplyRoundTripTest {
 	}
 
 	private static DeliveryConfirmationDTO.Line line(int lineNo, String itemCode, Integer quantity) {
-		return new DeliveryConfirmationDTO.Line(lineNo, itemCode, quantity);
+		return new DeliveryConfirmationDTO.Line(lineNo, itemCode, Quantities.of(quantity));
 	}
 
 	@Test

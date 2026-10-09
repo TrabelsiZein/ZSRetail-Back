@@ -22,6 +22,7 @@ import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceLineRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
+import com.digithink.zsretail.utils.Quantities;
 
 /**
  * ERP catalogue, step 5: the rows of the "POS pages" to the existing Erp*DTO classes, with the counts of each read. No
@@ -246,9 +247,9 @@ public class NavPosPagesMapper {
 	 * The invoices page to {@link ErpSupplyInvoiceDTO}, in the order read. customerField: the header field of the
 	 * customer (a configuration line). A row without a number is left out. Lines: Type Item with an item number is ITEM;
 	 * another type with an amount is OTHER (no item code); a line without type (a comment, " ") and a line of another type
-	 * with amount 0 are left out. The three totals come from the first line. Warnings: an item quantity not whole, prices
-	 * including the VAT, lines that differ from Total_Amount_Excl_VAT by more than {@link #TOTAL_TOLERANCE},
-	 * Client_Franchise false, an Item line without item number, no line.
+	 * with amount 0 are left out. The three totals come from the first line. Warnings: an item quantity with more than 3
+	 * decimals (2.2.1: a decimal quantity is kept as the ERP sends it), prices including the VAT, lines that differ from
+	 * Total_Amount_Excl_VAT by more than {@link #TOTAL_TOLERANCE}, Client_Franchise false, an Item line without item number, no line.
 	 */
 	public NavPosResult<ErpSupplyInvoiceDTO> invoices(List<NavPosInvoiceRow> rows, String customerField) {
 		Map<String, Integer> leftOut = new LinkedHashMap<>();
@@ -305,9 +306,10 @@ public class NavPosPagesMapper {
 				line.setUnitPrice(source.getUnitPrice());
 				line.setLineDiscountPercent(source.getLineDiscountPercent());
 				line.setLineAmount(source.getLineAmount());
-				if (item && source.getQuantity() != null && !isWhole(source.getQuantity())) {
+				// 2.2.1: a decimal quantity is read as the ERP sends it; more than 3 decimals cannot be kept
+				if (item && source.getQuantity() != null && Quantities.decimals(source.getQuantity()) > Quantities.SCALE) {
 					warnings.add("line " + source.getLineNo() + ": quantity " + source.getQuantity().toPlainString()
-							+ " of item " + line.getItemCode() + " is not a whole number");
+							+ " of item " + line.getItemCode() + " has more than " + Quantities.SCALE + " decimals");
 				}
 				sum = sum.add(amount);
 				invoice.getLines().add(line);
@@ -328,10 +330,6 @@ public class NavPosPagesMapper {
 			invoices.add(invoice);
 		}
 		return new NavPosResult<>(invoices, rows.size(), leftOut, notes, null);
-	}
-
-	private static boolean isWhole(BigDecimal value) {
-		return value.signum() == 0 || value.stripTrailingZeros().scale() <= 0;
 	}
 
 	/** yyyy-MM-dd; null when blank, not a date, or the ERP's empty date 0001-01-01. */

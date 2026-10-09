@@ -42,6 +42,7 @@ import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.service.StockMovementService;
 import com.digithink.zsretail.service.StockService;
 import com.digithink.zsretail.utils.Quantities;
+import com.digithink.zsretail.service.QuantityPolicy;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -72,6 +73,14 @@ public class DeliveryReceptionService {
 
 	/** Invoices from the ERP, step (c): the purchase invoice of a received ERP invoice; null in the BL-only tests. */
 	private final SupplyInvoiceWriter invoiceWriter;
+
+	/** 2.2.1: ALLOW_DECIMAL_QUANTITY; null in the tests that do not set it (decimals then refused, as off). */
+	private QuantityPolicy quantityPolicy;
+
+	@Autowired
+	public void setQuantityPolicy(QuantityPolicy quantityPolicy) {
+		this.quantityPolicy = quantityPolicy;
+	}
 
 	@Autowired
 	public DeliveryReceptionService(ReceivedDeliveryRepository deliveries, ItemRepository items, StockService stock,
@@ -152,7 +161,7 @@ public class DeliveryReceptionService {
 			line.setLineNo(lineCopy.getLineNo());
 			line.setItemCode(lineCopy.getItemCode());
 			line.setItemName(lineCopy.getItemName());
-			line.setQuantitySent(lineCopy.getQuantitySent());
+			line.setQuantitySent(keptQuantity(lineCopy.getLineNo(), lineCopy.getQuantitySent()));
 			line.setItemId(headOfficeItem(lineCopy.getItemCode()).map(Item::getId).orElse(null));
 			delivery.getLines().add(line);
 		}
@@ -197,7 +206,7 @@ public class DeliveryReceptionService {
 			line.setLineType(other ? ReceivedLineType.OTHER : ReceivedLineType.ITEM);
 			line.setItemCode(other ? "" : lineCopy.getItemCode().trim());
 			line.setItemName(lineCopy.getDescription());
-			line.setQuantitySent(other ? 0 : lineCopy.getQuantity());
+			line.setQuantitySent(other ? BigDecimal.ZERO : keptQuantity(lineCopy.getLineNo(), lineCopy.getQuantity()));
 			line.setItemId(other ? null : headOfficeItem(line.getItemCode()).map(Item::getId).orElse(null));
 			line.setUnitPrice(lineCopy.getUnitPrice());
 			line.setLineDiscountPercent(lineCopy.getLineDiscountPercent());
@@ -209,6 +218,18 @@ public class DeliveryReceptionService {
 		log.info("Head office link: ERP invoice {} received, {} lines to receive", saved.getNumber(),
 				saved.getLines().size());
 		return new Outcome(true, missingCodes(saved));
+	}
+
+	/**
+	 * 2.2.1: a quantity sent by the head office as it came, up to 3 decimals; more is refused (the copy is then an error,
+	 * retried), never rounded by the column.
+	 */
+	private static BigDecimal keptQuantity(Integer lineNo, BigDecimal quantity) {
+		if (Quantities.decimals(quantity) > Quantities.SCALE) {
+			throw new IllegalArgumentException("line " + lineNo + ": quantity " + quantity.toPlainString() + " has more than "
+					+ Quantities.SCALE + " decimals");
+		}
+		return Quantities.normalize(quantity);
 	}
 
 	/** The record code of a received document: BL:&lt;number&gt; or ERPINV:&lt;number&gt;. */
@@ -271,7 +292,8 @@ public class DeliveryReceptionService {
 		if (delivery.getStatus() == ReceivedDeliveryStatus.RECEIVED) {
 			throw new IllegalStateException("This BL has already been received: " + delivery.getNumber() + ".");
 		}
-		Map<Integer, Integer> quantities = quantities(delivery, input);
+		Map<Integer, BigDecimal> quantities = quantities(delivery, input);
+		checkDecimalsAllowed(delivery, quantities);
 		String note = input == null || input.getNote() == null || input.getNote().trim().isEmpty() ? null
 				: input.getNote().trim();
 		if (note != null && note.length() > ReceivedDelivery.NOTE_LENGTH) {
@@ -284,7 +306,7 @@ public class DeliveryReceptionService {
 				line.setStockApplied(Boolean.TRUE);
 				continue;
 			}
-			Integer quantity = quantities.get(line.getLineNo());
+			BigDecimal quantity = quantities.get(line.getLineNo());
 			line.setQuantityReceived(quantity == null ? line.getQuantitySent() : quantity);
 			line.setStockApplied(Boolean.FALSE);
 		}
@@ -308,8 +330,32 @@ public class DeliveryReceptionService {
 		return Optional.of(view(saved, true, false)); // the stock was changed by native updates: GET /{id} reads it
 	}
 
-	private static Map<Integer, Integer> quantities(ReceivedDelivery delivery, ReceptionInputDTO input) {
-		Map<Integer, Integer> quantities = new HashMap<>();
+	/**
+	 * 2.2.1: a document with a decimal quantity (sent, or typed as received) is received only when the store allows
+	 * decimal quantities (General Setup, Allow decimal quantities); otherwise 409 with a message naming the setting, and
+	 * nothing changes. A whole document never reads the setting: as in 2.2.0.
+	 */
+	private void checkDecimalsAllowed(ReceivedDelivery delivery, Map<Integer, BigDecimal> typed) {
+		String first = null;
+		for (ReceivedDeliveryLine line : delivery.getLines()) {
+			BigDecimal typedQuantity = typed.get(line.getLineNo());
+			if (line.isItemLine() && !Quantities.isWhole(line.getQuantitySent())) {
+				first = "line " + line.getLineNo() + " was sent with the quantity " + Quantities.plain(line.getQuantitySent());
+			} else if (!Quantities.isWhole(typedQuantity)) {
+				first = "line " + line.getLineNo() + " was typed with the quantity " + Quantities.plain(typedQuantity);
+			}
+			if (first != null) {
+				break;
+			}
+		}
+		if (first != null && (quantityPolicy == null || !quantityPolicy.decimalAllowed())) {
+			throw new IllegalStateException(delivery.getNumber() + " cannot be received: " + first
+					+ ", and decimal quantities are not allowed in this store (General Setup, Allow decimal quantities).");
+		}
+	}
+
+	private static Map<Integer, BigDecimal> quantities(ReceivedDelivery delivery, ReceptionInputDTO input) {
+		Map<Integer, BigDecimal> quantities = new HashMap<>();
 		List<Integer> known = delivery.getLines().stream().map(ReceivedDeliveryLine::getLineNo).collect(Collectors.toList());
 		if (input == null || input.getLines() == null) {
 			return quantities;
@@ -330,11 +376,15 @@ public class DeliveryReceptionService {
 			}
 			given.add(line.getLineNo());
 			if (line.getQuantityReceived() != null) {
-				if (line.getQuantityReceived() < 0) {
+				if (line.getQuantityReceived().signum() < 0) {
 					throw new IllegalArgumentException(
 							"Line " + line.getLineNo() + ": the quantity received must be a whole number, 0 or more.");
 				}
-				quantities.put(line.getLineNo(), line.getQuantityReceived());
+				if (Quantities.decimals(line.getQuantityReceived()) > Quantities.SCALE) { // 2.2.1: never rounded
+					throw new IllegalArgumentException("Line " + line.getLineNo() + ": the quantity received "
+							+ line.getQuantityReceived().toPlainString() + " has more than " + Quantities.SCALE + " decimals.");
+				}
+				quantities.put(line.getLineNo(), Quantities.normalize(line.getQuantityReceived()));
 			}
 		}
 		return quantities;
@@ -365,13 +415,13 @@ public class DeliveryReceptionService {
 			if (!Boolean.FALSE.equals(line.getStockApplied())) {
 				continue;
 			}
-			int quantity = line.getQuantityReceived() == null ? 0 : line.getQuantityReceived();
-			if ((quantity > 0 || costPending(delivery, line)) && line.getItemId() == null) {
+			BigDecimal quantity = line.getQuantityReceived() == null ? BigDecimal.ZERO : line.getQuantityReceived();
+			if ((quantity.signum() > 0 || costPending(delivery, line)) && line.getItemId() == null) {
 				continue; // waits for its item (an ERP invoice line received at 0 still waits for it: its costs go in then)
 			}
-			if (quantity > 0) {
-				stock.incrementForDelivery(line.getItemId(), Quantities.of(quantity));
-				movements.recordDeliveryIn(line.getItemId(), Quantities.of(quantity), delivery.getId(), delivery.getNumber());
+			if (quantity.signum() > 0) {
+				stock.incrementForDelivery(line.getItemId(), quantity);
+				movements.recordDeliveryIn(line.getItemId(), quantity, delivery.getId(), delivery.getNumber());
 			}
 			line.setStockApplied(Boolean.TRUE);
 			changed = true;
@@ -517,15 +567,15 @@ public class DeliveryReceptionService {
 		view.setTotalExclVat(delivery.getTotalExclVat());
 		view.setTotalVat(delivery.getTotalVat());
 		view.setTotalInclVat(delivery.getTotalInclVat());
-		Integer received = null;
+		BigDecimal received = null;
 		boolean difference = false;
 		int missing = 0;
 		int waiting = 0;
 		List<ReceivedDeliveryDTO.Line> lines = new ArrayList<>();
 		for (ReceivedDeliveryLine line : delivery.getLines()) {
 			if (line.getQuantityReceived() != null) {
-				received = (received == null ? 0 : received) + line.getQuantityReceived();
-				difference |= !line.getQuantityReceived().equals(line.getQuantitySent());
+				received = (received == null ? BigDecimal.ZERO : received).add(line.getQuantityReceived());
+				difference |= line.getQuantityReceived().compareTo(line.getQuantitySent()) != 0;
 			}
 			missing += line.getItemId() == null && line.isItemLine() ? 1 : 0;
 			waiting += Boolean.FALSE.equals(line.getStockApplied()) ? 1 : 0;
@@ -538,7 +588,7 @@ public class DeliveryReceptionService {
 				row.setQuantitySent(line.getQuantitySent());
 				row.setQuantityReceived(line.getQuantityReceived());
 				row.setDifference(line.getQuantityReceived() == null ? null
-						: line.getQuantityReceived() - line.getQuantitySent());
+						: Quantities.normalize(line.getQuantityReceived().subtract(line.getQuantitySent())));
 				row.setStockApplied(line.getStockApplied());
 				Optional<Item> item = !withStock || line.getItemId() == null ? Optional.empty()
 						: items.findById(line.getItemId());
@@ -551,9 +601,9 @@ public class DeliveryReceptionService {
 				row.setCostApplied(line.getCostApplied());
 				if (delivery.isErpInvoice()) {
 					row.setSellingPrice(item.map(DeliveryReceptionService::sellingPrice).orElse(null));
-					Integer counted = line.getQuantityReceived() != null ? line.getQuantityReceived() : line.getQuantitySent();
+					BigDecimal counted = line.getQuantityReceived() != null ? line.getQuantityReceived() : line.getQuantitySent();
 					row.setLineTotal(line.getUnitCost() == null || counted == null ? null
-							: BigDecimal.valueOf(line.getUnitCost()).multiply(BigDecimal.valueOf(counted))
+							: BigDecimal.valueOf(line.getUnitCost()).multiply(counted)
 									.setScale(3, RoundingMode.HALF_UP).doubleValue());
 				}
 				lines.add(row);
@@ -561,7 +611,7 @@ public class DeliveryReceptionService {
 		}
 		view.setLineCount(delivery.getLines().size());
 		view.setQuantitySent(total(delivery, false));
-		view.setQuantityReceived(received);
+		view.setQuantityReceived(Quantities.normalize(received));
 		view.setDifference(difference);
 		view.setMissingItems(missing);
 		view.setStockWaiting(waiting);
@@ -579,13 +629,13 @@ public class DeliveryReceptionService {
 		return BigDecimal.valueOf(item.getUnitPrice()).multiply(rate).setScale(3, RoundingMode.HALF_UP).doubleValue();
 	}
 
-	private static int total(ReceivedDelivery delivery, boolean received) {
-		int total = 0;
+	private static BigDecimal total(ReceivedDelivery delivery, boolean received) {
+		BigDecimal total = BigDecimal.ZERO;
 		for (ReceivedDeliveryLine line : delivery.getLines()) {
-			Integer quantity = received ? line.getQuantityReceived() : line.getQuantitySent();
-			total += quantity == null ? 0 : quantity;
+			BigDecimal quantity = received ? line.getQuantityReceived() : line.getQuantitySent();
+			total = total.add(quantity == null ? BigDecimal.ZERO : quantity);
 		}
-		return total;
+		return Quantities.normalize(total);
 	}
 
 	static String cut(String text, int length) {
