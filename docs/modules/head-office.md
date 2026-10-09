@@ -1548,6 +1548,12 @@ Fixes after the second test of 2.2 (head office whose catalogue comes from the E
   lists stay reachable when this head office makes its own BLs and invoices (headoffice.supply.source=HEAD_OFFICE): the
   Price lists page shows, supply lists only; it is hidden (menu, route, API 403) only when the supply comes from the
   ERP. This replaces the price list point of the first fixes.
+- **B. A store with no point de stock** receives only point rows, never the item table: it is a point with no rows,
+  so every ERP item and ERP barcode is answered as removed (an item made at the head office still goes everywhere). The
+  2.1 path stays only on a head office with a manual catalogue. The point stays optional ("None"); the Stores page shows
+  "No point de stock: this store receives no items." on that line. Moving a store to or from "None" still sends
+  everything again. The ERP invoice warning follows the same rule (every ERP item line of a store with no point is
+  named). Before deploying: give every store its point, or its items become inactive at its next pull.
 
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter

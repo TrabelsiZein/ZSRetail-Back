@@ -131,17 +131,19 @@ class HoStockPointCatalogueTest {
 	}
 
 	@Test
-	@DisplayName("A store without a point receives exactly what a head office without stock points sends")
+	@DisplayName("A store with no point is a point with no rows: no ERP item, no ERP barcode; a hand-made item still goes")
 	void storeWithoutPoint() {
 		HoCatalogueService before = new HoCatalogueService(ho.familyRepository(), ho.subFamilyRepository(),
 				ho.itemRepository(), ho.barcodeRepository(), ho.compositionRepository(), ho.priceLineRepository(),
 				() -> feed, TransactionOperations.withoutTransaction());
 		List<String> codes = Arrays.asList("ITEM:B001", "ITEM:B002", "ITEM:B003", "ITEM:MAIN", "BARCODE:111",
 				"BARCODE:222", "BARCODE:333", "BARCODE:999");
-		assertEquals(before.load(c, codes), catalogue.load(c, codes));
+		assertEquals(before.load(c, Arrays.asList("ITEM:MAIN", "BARCODE:999")), catalogue.load(c, codes),
+				"only the hand-made item and its barcode, as a head office with a manual catalogue sends them");
 		CopiesDownAnswerDTO answer = pull(c, "");
-		assertTrue(answer.getRemoved().isEmpty());
-		assertEquals(10.0, records(answer).get("ITEM:B001").get("unitPrice").asDouble());
+		assertEquals(Arrays.asList("BARCODE:111", "BARCODE:222", "BARCODE:333", "ITEM:B001", "ITEM:B002", "ITEM:B003"),
+				sorted(answer.getRemoved()));
+		assertEquals(5.0, records(answer).get("ITEM:MAIN").get("unitPrice").asDouble());
 	}
 
 	@Test
@@ -226,11 +228,12 @@ class HoStockPointCatalogueTest {
 		String cursorB = pull(b, "").getCursor();
 
 		a.setStockPointId(null);
-		assertEquals(8, points.storeStockPointChanged(a.getId(), p1, null));
+		assertEquals(8, points.storeStockPointChanged(a.getId(), p1, null), "every item and barcode sent again");
 		CopiesDownAnswerDTO toA = pull(a, cursorA);
-		assertEquals(8, toA.getRecords().size(), "4 items and 4 barcodes, as a store without a point");
-		assertTrue(toA.getRemoved().isEmpty());
-		assertEquals(30.0, records(toA).get("ITEM:B003").get("unitPrice").asDouble());
+		assertEquals(Arrays.asList("BARCODE:999", "ITEM:MAIN"), new ArrayList<>(records(toA).keySet()),
+				"no point: only the hand-made item and its barcode");
+		assertEquals(Arrays.asList("BARCODE:111", "BARCODE:222", "BARCODE:333", "ITEM:B001", "ITEM:B002", "ITEM:B003"),
+				sorted(toA.getRemoved()), "every ERP item and barcode removed");
 		assertTrue(pull(b, cursorB).getRecords().isEmpty());
 
 		cursorA = toA.getCursor();

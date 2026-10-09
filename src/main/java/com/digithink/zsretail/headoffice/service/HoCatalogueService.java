@@ -57,8 +57,9 @@ import lombok.extern.log4j.Log4j2;
  * ({@link CatalogueKind}). The item copy carries the price worked out for the store that pulls (task 6.4): the line of
  * its selling price list for the item, otherwise the base price (item.unitPrice). Every save, delete, pack change and
  * data import of a catalogue record is one change for every store. The system item TAX_STAMP never travels. Release
- * 2.2 (stock points, head office whose catalogue comes from the ERP): a store with a stock point receives an ERP item
- * only when its point has a row for it, built from that row; a store without a point receives what it did before. See
+ * 2.2 (stock points, head office whose catalogue comes from the ERP): a store receives an ERP item only when its point
+ * has a row for it, built from that row; a store with no point receives no ERP item and no ERP barcode; the selling
+ * price lists are not used there. A head office with a manual catalogue keeps the rules above. See
  * docs/modules/head-office.md, "Catalogue owned by the head office" and "Stock points".
  */
 @Service
@@ -201,14 +202,21 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 
 	// ─── Stock points (release 2.2, step 3a) ─────────────────────
 
-	/** The store has a stock point (and this head office has stock points): the copies come from its rows. */
+	/**
+	 * This head office's catalogue comes from the ERP: every store's copies come from the rows of its point. Release 2.2,
+	 * after the second test: a store with no point is a point with no rows (it receives no ERP item and no ERP barcode);
+	 * the 2.1 path stays for a head office with a manual catalogue only.
+	 */
 	private boolean hasStockPoint(Store store) {
-		return store.getStockPointId() != null && stockPointItems != null;
+		return stockPointItems != null;
 	}
 
-	/** The rows of the store's point for these items, by item id. */
+	/** The rows of the store's point for these items, by item id; none for a store with no point. */
 	private Map<Long, HoStockPointItem> pointRows(Store store, List<Long> itemIds) {
 		Map<Long, HoStockPointItem> rows = new HashMap<>();
+		if (store.getStockPointId() == null) {
+			return rows;
+		}
 		for (int from = 0; from < itemIds.size(); from += IMPORT_CHUNK) {
 			for (HoStockPointItem row : stockPointItems.findByStockPointIdAndItemIdIn(store.getStockPointId(),
 					itemIds.subList(from, Math.min(from + IMPORT_CHUNK, itemIds.size())))) {

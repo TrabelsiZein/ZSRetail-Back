@@ -420,10 +420,11 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 	 * Stock points (release 2.2, step 3b), when the store is assigned: a store with a point receives only the ERP items
 	 * of its point, so each item line whose item (from the ERP) has no row in that point is named in a warning. A warning
 	 * only: the invoice is sent as before and the store waits for the item as before. Saved with the other warnings (the
-	 * "with warnings" filter); not recalculated when the store's point changes later. A store without a point: nothing.
+	 * "with warnings" filter); not recalculated when the store's point changes later. After the second test of 2.2: a
+	 * store with no point is a point with no rows (it receives no ERP item), so every ERP item line is named.
 	 */
 	void warnItemsOutsideStockPoint(HoErpInvoice invoice, Store store) {
-		if (store.getStockPointId() == null || stockPointItems == null) {
+		if (stockPointItems == null) {
 			return;
 		}
 		List<Long> itemIds = invoice.getLines().stream()
@@ -432,8 +433,9 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 		if (itemIds.isEmpty()) {
 			return;
 		}
-		Set<Long> inPoint = stockPointItems.findByStockPointIdAndItemIdIn(store.getStockPointId(), itemIds).stream()
-				.map(HoStockPointItem::getItemId).collect(Collectors.toSet());
+		Set<Long> inPoint = store.getStockPointId() == null ? new java.util.HashSet<>()
+				: stockPointItems.findByStockPointIdAndItemIdIn(store.getStockPointId(), itemIds).stream()
+						.map(HoStockPointItem::getItemId).collect(Collectors.toSet());
 		Set<Long> fromErp = items.findAllById(itemIds).stream()
 				.filter(item -> item.getErpExternalId() != null && !item.getErpExternalId().trim().isEmpty())
 				.map(Item::getId).collect(Collectors.toSet());

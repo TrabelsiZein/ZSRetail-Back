@@ -117,9 +117,20 @@ class HoErpInvoiceServiceTest {
 	}
 
 	@Test
-	@DisplayName("Store without a point: no new warning")
+	@DisplayName("Store without a point (a point with no rows): every ERP item line named; an item made at the head office never")
 	void storeWithoutStockPoint() {
 		service.setStockPointItems(ho.stockPointItemRepository());
+		ho.itemByCode("6190000000024").get().setErpExternalId("6190000000024"); // 017 stays hand-made
+		twoInvoices();
+		service.run();
+		HoErpInvoice forB = saved("FVV26000000101");
+		assertEquals(ErpInvoiceStatus.SENT, forB.getStatus(), "a warning only: sent as before");
+		assertEquals(HoErpInvoiceService.NOT_IN_STOCK_POINT + "6190000000024", forB.getWarnings());
+	}
+
+	@Test
+	@DisplayName("Without the stock point rows (no ERP catalogue on this head office): no new warning, as before")
+	void noStockPointsOnThisHeadOffice() {
 		ho.itemByCode("6190000000024").get().setErpExternalId("6190000000024");
 		twoInvoices();
 		service.run();
