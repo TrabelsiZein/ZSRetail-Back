@@ -45,6 +45,7 @@ import com.digithink.zsretail.headoffice.model.HoErpInvoiceLine;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.HoErpInvoiceRepository;
 import com.digithink.zsretail.model.enumeration.DataDomain;
+import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.support.InMemoryCatalogue;
 
 /**
@@ -77,6 +78,52 @@ class HoErpInvoiceServiceTest {
 		b.setErpCustomerNo("C-0001");
 		b.setOwnerSupply("HEAD_OFFICE");
 		c = ho.store("C");
+	}
+
+	// ─── Stock points (release 2.2, step 3b) ─────────────────────
+
+	@Test
+	@DisplayName("Store with a point: each ERP item without a row in its point is named in a warning; the invoice is sent as before")
+	void itemsOutsideTheStockPoint() {
+		service.setStockPointItems(ho.stockPointItemRepository());
+		Item inPoint = ho.itemByCode("6190000000017").get();
+		Item outside = ho.itemByCode("6190000000024").get();
+		inPoint.setErpExternalId(inPoint.getItemCode());
+		outside.setErpExternalId(outside.getItemCode());
+		ho.item("HAND-1", 3.0, null); // made at the head office: every store gets it, never named
+		com.digithink.zsretail.headoffice.model.HoStockPoint point = new com.digithink.zsretail.headoffice.model.HoStockPoint();
+		point.setCode("FRANCHISE");
+		point.setName("Franchise");
+		point.setSortOrder(1);
+		point.setId(ho.nextId());
+		ho.stockPoints.put(point.getId(), point);
+		ho.stockPointItem(point, inPoint, 10.0);
+		b.setStockPointId(point.getId());
+		erp.invoices.add(invoice("FVV26000000101", "C-0001", item(20000, "6190000000017", "6", "36.000"),
+				item(30000, "6190000000024", "1", "0"), item(35000, "HAND-1", "1", "0"), item(36000, "NEW-1", "1", "0"),
+				other(40000, "5.000")));
+		service.run();
+
+		HoErpInvoice forB = saved("FVV26000000101");
+		assertEquals(ErpInvoiceStatus.SENT, forB.getStatus(), "a warning only: sent as before");
+		assertEquals(b.getId(), forB.getStoreId());
+		assertEquals("items not in the catalogue: NEW-1" + HoErpInvoiceService.WARNING_SEPARATOR
+				+ HoErpInvoiceService.NOT_IN_STOCK_POINT + "6190000000024", forB.getWarnings());
+
+		b.setStockPointId(null); // the store's point changed later: the warning is not recalculated
+		service.matchStoresNow();
+		assertEquals(HoErpInvoiceService.NOT_IN_STOCK_POINT + "6190000000024",
+				forB.getWarnings().split(HoErpInvoiceService.WARNING_SEPARATOR)[1]);
+	}
+
+	@Test
+	@DisplayName("Store without a point: no new warning")
+	void storeWithoutStockPoint() {
+		service.setStockPointItems(ho.stockPointItemRepository());
+		ho.itemByCode("6190000000024").get().setErpExternalId("6190000000024");
+		twoInvoices();
+		service.run();
+		assertNull(saved("FVV26000000101").getWarnings());
 	}
 
 	// ─── The ERP and the invoices it gives ───────────────────────

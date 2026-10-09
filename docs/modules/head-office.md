@@ -1483,6 +1483,14 @@ Done (step 3a), the store's point and the filtered send:
   point records nothing: its first pull reads the every-store rows, filtered by its point.
 - Packs whose component is not in the store's point, promotions on such an item, and head office BLs keep the 2.1
   wait at the store (documented, no rule).
+
+Done (step 3b), invoices from the ERP:
+- When an invoice gets its store (`HoErpInvoiceService.assignStores` / `matchStoresNow`) and that store has a point,
+  the item lines whose item came from the ERP and has no row in that point are named in a warning
+  `items not in the point de stock of this store: A, B`, added to `warnings` (the "with warnings" filter finds it).
+  A warning only: the invoice is sent as before and the store waits for the item as in 2.1. Not recalculated when the
+  store's point changes later. A store without a point, and items made at the head office: no new warning.
+- Tests: `HoErpInvoiceServiceTest` (`itemsOutsideTheStockPoint`, `storeWithoutStockPoint`).
 - Tests: `HoStockPointCatalogueTest` (two points with different items and prices; no point = 2.1 answer; price list
   first; row changes for the point's stores only; no store, no recording; a store moved and back; assignable points).
 
