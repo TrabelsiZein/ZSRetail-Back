@@ -48,11 +48,12 @@ public class HeadOfficeErpJobs {
 
 	/**
 	 * ERP catalogue, step 3: the only jobs offered on a head office whose catalogue only comes from the ERP; every other
-	 * job type is refused there.
+	 * job type is refused there. Release 2.2: one job, SYNC_CATALOGUE ("Sync catalogue": families, sub-families, the items
+	 * of every point de stock, barcodes, in one run); the four separate catalogue jobs are refused there (switched off at
+	 * each start, hidden, not run).
 	 */
-	public static final Set<ErpSyncJobType> OFFERED_WHEN_CATALOGUE_ONLY = Collections.unmodifiableSet(EnumSet.of(
-			ErpSyncJobType.IMPORT_ITEM_FAMILIES, ErpSyncJobType.IMPORT_ITEM_SUBFAMILIES, ErpSyncJobType.IMPORT_ITEMS,
-			ErpSyncJobType.IMPORT_ITEM_BARCODES));
+	public static final Set<ErpSyncJobType> OFFERED_WHEN_CATALOGUE_ONLY = Collections
+			.unmodifiableSet(EnumSet.of(ErpSyncJobType.SYNC_CATALOGUE));
 
 	/**
 	 * Invoices from the ERP: offered only on a head office whose catalogue only comes from the ERP with
@@ -108,6 +109,7 @@ public class HeadOfficeErpJobs {
 		} else {
 			Set<ErpSyncJobType> refusedHere = EnumSet.copyOf(NOT_ON_HEAD_OFFICE);
 			refusedHere.addAll(OFFERED_WITH_ERP_SUPPLY);
+			refusedHere.add(ErpSyncJobType.SYNC_CATALOGUE); // release 2.2: only with the catalogue from the ERP
 			this.refused = Collections.unmodifiableSet(refusedHere);
 		}
 	}

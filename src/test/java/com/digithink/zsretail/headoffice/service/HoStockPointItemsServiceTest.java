@@ -61,6 +61,7 @@ class HoStockPointItemsServiceTest {
 		item.setErpExternalId("B001");
 		ho.barcode("222", item);
 		ho.barcode("111", item).setIsPrimary(true);
+		ho.barcode("999", item).setActive(false); // not counted, as on the Item Barcodes page
 		franchise = new HoStockPoint();
 		franchise.setId(ho.nextId());
 		franchise.setCode("FRANCHISE");

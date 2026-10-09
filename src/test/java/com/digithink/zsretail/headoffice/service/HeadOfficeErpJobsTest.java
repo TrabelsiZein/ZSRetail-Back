@@ -41,8 +41,8 @@ import com.digithink.zsretail.support.TestModes;
  */
 class HeadOfficeErpJobsTest {
 
-	private static final Set<ErpSyncJobType> CATALOGUE_IMPORTS = EnumSet.of(ErpSyncJobType.IMPORT_ITEM_FAMILIES,
-			ErpSyncJobType.IMPORT_ITEM_SUBFAMILIES, ErpSyncJobType.IMPORT_ITEMS, ErpSyncJobType.IMPORT_ITEM_BARCODES);
+	/** Release 2.2: one catalogue job (Sync catalogue) instead of the four imports. */
+	private static final Set<ErpSyncJobType> CATALOGUE_IMPORTS = EnumSet.of(ErpSyncJobType.SYNC_CATALOGUE);
 
 	private final Map<Long, ErpSyncJob> table = new LinkedHashMap<>();
 
@@ -93,7 +93,7 @@ class HeadOfficeErpJobsTest {
 			assertTrue(jobsOf(other).refuses(ErpSyncJobType.IMPORT_SUPPLY_INVOICES));
 		}
 		assertTrue(jobsOf(catalogueOnly()).refusedTypes().containsAll(EnumSet.complementOf(EnumSet.copyOf(CATALOGUE_IMPORTS))),
-				"catalogue only without the source: the four imports only, as before");
+				"catalogue only without the source: Sync catalogue only");
 		assertTrue(new HeadOfficeErpJobs(repository(), true, true).refusedTypes().equals(withErpSupply.refusedTypes()));
 		assertTrue(new HeadOfficeErpJobs(repository()).refuses(ErpSyncJobType.IMPORT_SUPPLY_INVOICES));
 	}

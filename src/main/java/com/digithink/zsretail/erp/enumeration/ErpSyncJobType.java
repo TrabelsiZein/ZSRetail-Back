@@ -17,6 +17,11 @@ public enum ErpSyncJobType {
 	EXPORT_SESSIONS,
 	SYNC_ERP_DELETIONS,
 	/** Invoices from the ERP: the franchise invoices by number (a head office with headoffice.supply.source=ERP). */
-	IMPORT_SUPPLY_INVOICES
+	IMPORT_SUPPLY_INVOICES,
+	/**
+	 * Release 2.2: the whole catalogue in one run (families, sub-families, the items of every point de stock, barcodes), on a
+	 * head office whose catalogue comes from the ERP through the navpospages connector only (ErpCatalogueSync).
+	 */
+	SYNC_CATALOGUE
 }
 

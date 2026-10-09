@@ -283,6 +283,9 @@ public final class InMemoryCatalogue {
 				case "findByItemIdIn": // stock points
 					return barcodes.values().stream().filter(b -> ((Collection<?>) args[0]).contains(b.getItem().getId()))
 							.collect(Collectors.toList());
+				case "findByItemIdInAndActiveTrue": // stock points, step 4: the rows page counts the active ones
+					return barcodes.values().stream().filter(b -> ((Collection<?>) args[0]).contains(b.getItem().getId())
+							&& !Boolean.FALSE.equals(b.getActive())).collect(Collectors.toList());
 				case "save":
 					barcodeSaves++;
 					return common(barcodes, method, args);

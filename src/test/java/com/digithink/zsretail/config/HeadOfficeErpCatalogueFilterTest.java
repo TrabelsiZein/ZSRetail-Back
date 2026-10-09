@@ -65,7 +65,23 @@ class HeadOfficeErpCatalogueFilterTest {
 	}
 
 	@Test
-	@DisplayName("Passed: every GET, the creations the controllers refuse themselves, packs, images, price lists, supply prices, the ERP pages")
+	@DisplayName("Release 2.2: the price lists (every method) and a store's selling price list refused with their own message")
+	void priceListsRefused() throws Exception {
+		String[][] refused = { { "GET", "/admin/headoffice/price-lists" }, { "GET", "/admin/headoffice/price-lists/1" },
+				{ "POST", "/admin/headoffice/price-lists" }, { "PUT", "/admin/headoffice/price-lists/1/lines" },
+				{ "DELETE", "/admin/headoffice/price-lists/1" }, { "PUT", "/admin/headoffice/stores/7/selling-price-list" } };
+		for (String[] r : refused) {
+			MockHttpServletResponse response = new MockHttpServletResponse();
+			MockFilterChain chain = new MockFilterChain();
+			new HeadOfficeErpCatalogueFilter().doFilter(request(r[0], r[1]), response, chain);
+			assertEquals(403, response.getStatus(), r[0] + " " + r[1]);
+			assertNull(chain.getRequest(), r[0] + " " + r[1] + ": not passed on");
+			assertEquals(HeadOfficeErpCatalogueFilter.PRICE_LIST_REFUSAL_BODY, response.getContentAsString(), r[0] + " " + r[1]);
+		}
+	}
+
+	@Test
+	@DisplayName("Passed: every GET (but the price lists), the creations the controllers refuse themselves, packs, images, supply prices, the stores, the ERP pages")
 	void passedPaths() throws Exception {
 		String[][] passed = { { "GET", "/item-family" }, { "GET", "/item-family/3" }, { "GET", "/item-sub-family/by-family/3" },
 				{ "GET", "/item-barcode/item/12" }, { "GET", "/item-barcode/barcode/619" },
@@ -77,8 +93,9 @@ class HeadOfficeErpCatalogueFilterTest {
 				// Open on purpose
 				{ "PUT", "/item/12/package-flag" }, { "POST", "/item-composition" }, { "PUT", "/item-composition/7" },
 				{ "DELETE", "/item-composition/7" }, { "POST", "/item-image/item/12" }, { "DELETE", "/item-image/item/12" },
-				{ "POST", "/admin/headoffice/price-lists" }, { "PUT", "/admin/headoffice/price-lists/1/lines" },
 				{ "PUT", "/admin/headoffice/supply-prices" }, { "POST", "/admin/erp/jobs/1/run" },
+				{ "PUT", "/admin/headoffice/stores/1" }, { "PUT", "/admin/headoffice/stores/1/stock-point" },
+				{ "GET", "/admin/headoffice/stores" },
 				// Look-alike paths
 				{ "POST", "/item-families" }, { "PUT", "/item-barcodes/5" }, { "OPTIONS", "/item-barcode/5" },
 				{ "HEAD", "/item-family/3" } };

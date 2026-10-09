@@ -90,7 +90,27 @@ public class NavPosPagesSync {
 	static final String BARCODES_ALREADY_RUNNING = "a barcode run is already running: this one does not start";
 
 	/** Stock points, step 2: the items run reads the active points; without one it does nothing. */
-	public static final String NO_STOCK_POINT = "no active point de stock: create one (Catalogue > Points de stock)";
+	public static final String NO_STOCK_POINT = "No point de stock: create one in Catalogue > Points de stock, then run the"
+			+ " job again.";
+
+	/** The items whose family or sub-family is not among the ERP's categories named in the summary, at most. */
+	static final int NOT_IN_CATEGORIES_SHOWN = 10;
+
+	/**
+	 * "family X" or "sub-family Y" when the item names one that is not among the categories the head office has from the
+	 * ERP (the import then keeps the item without it, as before); null otherwise.
+	 */
+	static String missingCategory(ErpItemDTO item, Set<String> familyCodes, Set<String> subFamilyCodes) {
+		String family = item.getFamilyExternalId();
+		if (family != null && !family.trim().isEmpty() && !familyCodes.contains(family.trim())) {
+			return "family " + family.trim();
+		}
+		String subFamily = item.getSubFamilyExternalId();
+		if (subFamily != null && !subFamily.trim().isEmpty() && !subFamilyCodes.contains(subFamily.trim())) {
+			return "sub-family " + subFamily.trim();
+		}
+		return null;
+	}
 
 	private final NavPosPagesSource source;
 	private final NavPosPagesHeadOffice headOffice;
@@ -275,11 +295,21 @@ public class NavPosPagesSync {
 		Set<String> freshCodes = new HashSet<>();
 		Set<String> inErp = new HashSet<>();
 		int changed = 0;
+		// An item whose family or sub-family is not among the ERP's categories is imported without it (as before): counted
+		int notInCategories = 0;
+		List<String> notInCategoriesFirst = new ArrayList<>();
 		for (ErpItemDTO item : merged.values()) {
 			inErp.add(item.getCode());
 			if (item.getCode().equals(taxStamp)) {
 				summary.leftOut(TAX_STAMP_ITEM); // the import never saves it: it would wait for ever
 				continue;
+			}
+			String missing = missingCategory(item, familyCodes, subFamilyCodes);
+			if (missing != null) {
+				notInCategories++;
+				if (notInCategoriesFirst.size() < NOT_IN_CATEGORIES_SHOWN) {
+					notInCategoriesFirst.add(item.getCode() + " (" + missing + ")");
+				}
 			}
 			NavPosPagesHeadOffice.Item here = local.get(item.getCode());
 			if (here == null) {
@@ -325,6 +355,10 @@ public class NavPosPagesSync {
 		summary.put("new", freshCodes.size());
 		summary.put("changed", changed);
 		summary.put("deactivated", deactivated);
+		if (notInCategories > 0) {
+			summary.put("notInCategories", notInCategories);
+			summary.put("notInCategoriesFirst", String.join(", ", notInCategoriesFirst)); // text: never a list in the log
+		}
 		if (properties.isDryRun()) {
 			summary.put("applied", 0);
 			summary.put("packets", 0);

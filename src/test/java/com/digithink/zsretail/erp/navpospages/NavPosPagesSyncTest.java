@@ -38,6 +38,7 @@ import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCollection;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
+import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesCatalogueJob;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesHeadOffice;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesImport;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesState;
@@ -1054,6 +1055,131 @@ class NavPosPagesSyncTest {
 		properties.setDryRun(true);
 		items();
 		assertTrue(stockPoints.lastReads.isEmpty(), "a dry run records nothing");
+	}
+
+	// ─── The job SYNC_CATALOGUE (release 2.2) ────────────────────
+
+	/** The rows the job writes to the communications log: status, message, summary. */
+	private final List<Object[]> logged = new ArrayList<>();
+
+	/** The job on this sync; families and sub-families applied by the fake import. */
+	private NavPosPagesCatalogueJob job() {
+		NavPosPagesImport categories = new NavPosPagesImport() {
+			@Override
+			public void items(List<ErpItemDTO> packet) {
+				throw new UnsupportedOperationException();
+			}
+
+			@Override
+			public void barcodes(List<ErpItemBarcodeDTO> packet) {
+				throw new UnsupportedOperationException();
+			}
+
+			@Override
+			public void families(List<ErpItemFamilyDTO> packet) {
+				headOffice.importFamilies(packet);
+			}
+
+			@Override
+			public void subFamilies(List<ErpItemSubFamilyDTO> packet) {
+				headOffice.importSubFamilies(packet);
+			}
+		};
+		return new NavPosPagesCatalogueJob(sync, categories, stockPoints, properties,
+				(status, summary, message, start, end) -> logged.add(new Object[] { status, message, summary }));
+	}
+
+	@SuppressWarnings("unchecked")
+	private Map<String, Object> part(String name) {
+		Map<String, Object> summary = (Map<String, Object>) logged.get(logged.size() - 1)[2];
+		return (Map<String, Object>) ((Map<String, Object>) summary.get("parts")).get(name);
+	}
+
+	@Test
+	@DisplayName("Sync catalogue: families (in rounds), sub-families, items and rows, barcodes in one run; each part with its counts and duration")
+	void catalogueJobOneRun() {
+		properties.setPacketSize(20);
+		job().syncCatalogue();
+		assertEquals(1, logged.size());
+		assertEquals(com.digithink.zsretail.erp.enumeration.ErpCommunicationStatus.SUCCESS, logged.get(0)[0]);
+		assertEquals(13, headOffice.families.size());
+		assertEquals(34, headOffice.subFamilies.size(), "two rounds: 20, then 14");
+		assertEquals(2, part("subFamilies").get("rounds"));
+		assertEquals(34, part("subFamilies").get("handed"));
+		assertEquals(50, headOffice.items.size());
+		assertEquals(50, stockPoints.rows(FRANCHISE).size());
+		assertTrue(headOffice.barcodes.size() > 0);
+		assertEquals(Boolean.TRUE, part("barcodes").get("caughtUp"));
+		for (String name : new String[] { "families", "subFamilies", "items", "barcodes" }) {
+			assertTrue(part(name).containsKey("durationMs"), name);
+		}
+
+		job().syncCatalogue(); // nothing changed: a success, every part checked
+		assertEquals(com.digithink.zsretail.erp.enumeration.ErpCommunicationStatus.SUCCESS, logged.get(1)[0]);
+		assertEquals(0, part("items").get("applied"));
+	}
+
+	@Test
+	@DisplayName("Sync catalogue without an active point de stock: nothing read, a warning with the message")
+	void catalogueJobNoPoint() {
+		stockPoints.points.clear();
+		ErpSyncWarningException warning = assertThrows(ErpSyncWarningException.class, () -> job().syncCatalogue());
+		assertEquals(NavPosPagesSync.NO_STOCK_POINT, warning.getMessage());
+		assertEquals("No point de stock: create one in Catalogue > Points de stock, then run the job again.",
+				warning.getMessage());
+		assertEquals(com.digithink.zsretail.erp.enumeration.ErpCommunicationStatus.WARNING, logged.get(0)[0]);
+		assertTrue(headOffice.families.isEmpty());
+		assertTrue(erp.pointReads.isEmpty());
+	}
+
+	@Test
+	@DisplayName("Sync catalogue: a part that fails stops the run; the parts before it stay saved and the log says which part failed")
+	void catalogueJobFailedPart() {
+		erp.failingPoints.add("FRANCHISE");
+		assertThrows(IllegalStateException.class, () -> job().syncCatalogue());
+		assertEquals(13, headOffice.families.size(), "saved before the failure");
+		assertEquals(34, headOffice.subFamilies.size());
+		assertTrue(headOffice.items.isEmpty());
+		assertEquals(com.digithink.zsretail.erp.enumeration.ErpCommunicationStatus.ERROR, logged.get(0)[0]);
+		assertTrue(((String) logged.get(0)[1]).startsWith("Items failed (the parts before it are saved"),
+				(String) logged.get(0)[1]);
+		assertTrue(part("items").containsKey("error"));
+		assertEquals(null, part("barcodes"));
+
+		erp.failingPoints.clear();
+		job().syncCatalogue(); // the next run goes on
+		assertEquals(50, headOffice.items.size());
+	}
+
+	@Test
+	@DisplayName("Sync catalogue: an item whose family is not among the ERP's categories is imported without it, counted and named")
+	void catalogueJobItemsWithoutCategory() {
+		erp.items.get(0).setFamily("NOT-A-FAMILY");
+		String code = erp.items.get(0).getItemNo();
+		job().syncCatalogue();
+		assertTrue(headOffice.items.containsKey(code), "imported");
+		assertEquals(null, headOffice.items.get(code).familyCode, "without the family");
+		// In the sample every item names a family that the sample of the categories does not have
+		assertEquals(50, part("items").get("notInCategories"));
+		String first = (String) part("items").get("notInCategoriesFirst");
+		assertTrue(first.startsWith(code + " (family NOT-A-FAMILY), "), first);
+		assertEquals(10, first.split(", ").length, "the first ten named");
+	}
+
+	@Test
+	@DisplayName("Sync catalogue: a part that waits or a dry run is a warning with its reason, never a success")
+	void catalogueJobWarnings() {
+		properties.setDryRun(true);
+		ErpSyncWarningException dry = assertThrows(ErpSyncWarningException.class, () -> job().syncCatalogue());
+		assertTrue(dry.getMessage().contains(NavPosPagesCatalogueJob.DRY_RUN), dry.getMessage());
+
+		properties.setDryRun(false);
+		job().syncCatalogue();
+		erp.items.clear(); // FRANCHISE answers nothing: the items run keeps its rows (a guard)
+		ErpSyncWarningException warning = assertThrows(ErpSyncWarningException.class, () -> job().syncCatalogue());
+		assertTrue(warning.getMessage().startsWith("Items: the ERP answered no item"), warning.getMessage());
+		assertEquals(com.digithink.zsretail.erp.enumeration.ErpCommunicationStatus.WARNING,
+				logged.get(logged.size() - 1)[0]);
 	}
 
 	// ─── Fakes ──────────────────────────────────────────────────

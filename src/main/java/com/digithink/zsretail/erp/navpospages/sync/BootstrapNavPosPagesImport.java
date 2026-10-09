@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.dto.ErpItemDTO;
+import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
+import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.service.ErpItemBootstrapService;
 
@@ -33,5 +35,15 @@ public class BootstrapNavPosPagesImport implements NavPosPagesImport {
 	@Override
 	public void barcodes(List<ErpItemBarcodeDTO> packet) {
 		bootstrap.importItemBarcodes(packet);
+	}
+
+	@Override
+	public void families(List<ErpItemFamilyDTO> packet) {
+		bootstrap.importItemFamilies(packet);
+	}
+
+	@Override
+	public void subFamilies(List<ErpItemSubFamilyDTO> packet) {
+		bootstrap.importItemSubFamilies(packet);
 	}
 }

@@ -1515,6 +1515,28 @@ Done (step 4), the screens (frontend routes with `meta.erpCatalogue`: menu, guar
   given to ADMIN at startup (`ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS`).
 - Tests: `HoStockPointItemsServiceTest`, `NavPosPagesSyncTest.lastReads`, `QueryParameterBindingTest` (the rows query),
   `ZZDataInitializerRolesTest`.
+
+Fixes after the first test of 2.2 (head office whose catalogue comes from the ERP only):
+- **One job, "Sync catalogue"** (`ErpSyncJobType.SYNC_CATALOGUE`, `NavPosPagesCatalogueJob` through the runner's hook
+  `ErpCatalogueSync`): in one run, every family (in packets, again while some are held back), every sub-family, the items
+  and the rows of every point de stock, then the barcodes (the barcode run until it has caught up, the barcodes of the
+  new items included). Seeded disabled ("0 0 * * * *") only on this head office; the four separate catalogue jobs are
+  refused there (switched off at each start, hidden, not run); every other installation refuses SYNC_CATALOGUE.
+- A part that fails stops the run there (the parts before it stay saved; the next run goes on). Nothing shows as a
+  success when it did nothing: no active point de stock ("No point de stock: create one in Catalogue > Points de stock,
+  then run the job again."), a part that waited, was refused (a run already running) or kept something back (a guard),
+  a barcode run not caught up, and a dry run make the run a warning with the reasons (`ErpSyncWarningException`: "Run
+  now" shows them, the job's status is WARNING). One row of the communications log per run (operation
+  SYNC_CATALOGUE): `parts` with each part's counts and `durationMs`, `result`, `message`.
+- The items run counts the items whose family or sub-family is not among the ERP's categories (imported without it, as
+  before): `notInCategories` and `notInCategoriesFirst` (the first ten, "code (family X)").
+- **Price lists** are not used on this head office: no menu entry or route (`meta.notWithErpCatalogue`), every request
+  on `/admin/headoffice/price-lists` and the PUT of a store's selling price list answer 403 (`HeadOfficeErpCatalogueFilter`),
+  no selling price list on the Stores page. Existing lists and store settings are kept as they are (a list a store
+  already had still gives its price in the copies; nobody can change it here).
+- Items by point de stock: the details popup scrolls and has the item details' look (its own modal id, the same
+  styles; the price block HT, VAT, TTC with the Items page colours); the Barcodes column counts the active barcodes, as
+  the Item Barcodes page.
 - Tests: `HoStockPointCatalogueTest` (two points with different items and prices; no point = 2.1 answer; price list
   first; row changes for the point's stores only; no store, no recording; a store moved and back; assignable points).
 

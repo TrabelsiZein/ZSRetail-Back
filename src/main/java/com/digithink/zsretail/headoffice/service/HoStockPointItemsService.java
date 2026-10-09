@@ -144,7 +144,8 @@ public class HoStockPointItemsService {
 			}
 			List<Long> itemIds = pageItems.stream().map(Item::getId).distinct().collect(Collectors.toList());
 			barcodesByItem = itemIds.isEmpty() ? new HashMap<>()
-					: barcodes.findByItemIdIn(itemIds).stream().collect(Collectors.groupingBy(b -> b.getItem().getId()));
+					: barcodes.findByItemIdInAndActiveTrue(itemIds).stream() // active only, as the Item Barcodes page
+							.collect(Collectors.groupingBy(b -> b.getItem().getId()));
 		}
 
 		StockPointItemDTO view(HoStockPointItem row, Item item, HoStockPoint point) {

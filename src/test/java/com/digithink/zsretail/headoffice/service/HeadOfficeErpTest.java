@@ -54,7 +54,8 @@ class HeadOfficeErpTest {
 	/** Invoices from the ERP: refused on a head office without headoffice.supply.source=ERP, besides {@link #REFUSED}. */
 	private static final Set<ErpSyncJobType> REFUSED_HERE = EnumSet.of(ErpSyncJobType.EXPORT_CUSTOMERS,
 			ErpSyncJobType.EXPORT_TICKETS, ErpSyncJobType.EXPORT_RETURNS, ErpSyncJobType.EXPORT_SESSIONS,
-			ErpSyncJobType.IMPORT_SALES_PRICES_AND_DISCOUNTS, ErpSyncJobType.IMPORT_SUPPLY_INVOICES);
+			ErpSyncJobType.IMPORT_SALES_PRICES_AND_DISCOUNTS, ErpSyncJobType.IMPORT_SUPPLY_INVOICES,
+			ErpSyncJobType.SYNC_CATALOGUE); // release 2.2: only with the catalogue from the ERP
 
 	private final Map<Long, ErpSyncJob> table = new LinkedHashMap<>();
 	private int saves;
@@ -203,8 +204,8 @@ class HeadOfficeErpTest {
 
 	// ─── ERP catalogue, step 3: a head office whose catalogue only comes from the ERP ───
 
-	private static final Set<ErpSyncJobType> OFFERED = EnumSet.of(ErpSyncJobType.IMPORT_ITEM_FAMILIES,
-			ErpSyncJobType.IMPORT_ITEM_SUBFAMILIES, ErpSyncJobType.IMPORT_ITEMS, ErpSyncJobType.IMPORT_ITEM_BARCODES);
+	/** Release 2.2: one job, Sync catalogue, instead of the four catalogue imports. */
+	private static final Set<ErpSyncJobType> OFFERED = EnumSet.of(ErpSyncJobType.SYNC_CATALOGUE);
 
 	private static final Set<ErpSyncJobType> REFUSED_WHEN_CATALOGUE_ONLY = EnumSet.complementOf(EnumSet.copyOf(OFFERED));
 
@@ -223,7 +224,8 @@ class HeadOfficeErpTest {
 		assertEquals(REFUSED_WHEN_CATALOGUE_ONLY, catalogueOnly.refusedTypes());
 		assertTrue(REFUSED_WHEN_CATALOGUE_ONLY.containsAll(HeadOfficeErpJobs.NOT_ON_HEAD_OFFICE));
 		assertTrue(catalogueOnly.refuses(ErpSyncJobType.IMPORT_LOCATIONS));
-		assertFalse(catalogueOnly.refuses(ErpSyncJobType.IMPORT_ITEMS));
+		assertTrue(catalogueOnly.refuses(ErpSyncJobType.IMPORT_ITEMS), "release 2.2: the four imports are replaced");
+		assertFalse(catalogueOnly.refuses(ErpSyncJobType.SYNC_CATALOGUE));
 		assertFalse(catalogueOnly.refuses(null));
 
 		MockEnvironment[] others = { Installations.type("headoffice"), Installations.preset("headoffice-erp"),
@@ -232,7 +234,8 @@ class HeadOfficeErpTest {
 			HeadOfficeErpJobs kept = new HeadOfficeErpJobs(repository(), null, TestModes.of(other));
 			assertEquals(REFUSED_HERE, kept.refusedTypes());
 			for (ErpSyncJobType type : ErpSyncJobType.values()) {
-				assertEquals(HeadOfficeErpJobs.isRefused(type) || HeadOfficeErpJobs.OFFERED_WITH_ERP_SUPPLY.contains(type),
+				assertEquals(HeadOfficeErpJobs.isRefused(type) || HeadOfficeErpJobs.OFFERED_WITH_ERP_SUPPLY.contains(type)
+						|| type == ErpSyncJobType.SYNC_CATALOGUE,
 						kept.refuses(type), type.name());
 			}
 		}
@@ -240,25 +243,23 @@ class HeadOfficeErpTest {
 	}
 
 	@Test
-	@DisplayName("Catalogue only from the ERP, at each start: every job but the four imports disabled, no next run; the four untouched")
+	@DisplayName("Catalogue only from the ERP, at each start: every job but Sync catalogue disabled (the four imports too), no next run; Sync catalogue untouched")
 	void catalogueOnlySwitchedOffAtStart() {
 		job(ErpSyncJobType.IMPORT_LOCATIONS).setEnabled(true);
 		job(ErpSyncJobType.IMPORT_LOCATIONS).setNextRunAt(LocalDateTime.of(2026, 10, 3, 13, 0));
 		job(ErpSyncJobType.IMPORT_ITEM_BARCODES).setEnabled(true);
 		job(ErpSyncJobType.IMPORT_ITEM_BARCODES).setNextRunAt(LocalDateTime.of(2026, 10, 3, 13, 10));
+		job(ErpSyncJobType.SYNC_CATALOGUE).setEnabled(true);
+		job(ErpSyncJobType.SYNC_CATALOGUE).setNextRunAt(LocalDateTime.of(2026, 10, 3, 14, 0));
 		jobs = new HeadOfficeErpJobs(repository(), true);
 
-		assertEquals(3, jobs.switchOff(), "the two exports seeded enabled and the locations enabled by hand");
+		assertEquals(5, jobs.switchOff(), "the two exports seeded enabled, the locations, items and barcodes enabled before");
 		for (ErpSyncJobType type : REFUSED_WHEN_CATALOGUE_ONLY) {
 			assertFalse(job(type).getEnabled(), type.name());
 			assertNull(job(type).getNextRunAt(), type.name());
 		}
-		for (ErpSyncJobType type : new ErpSyncJobType[] { ErpSyncJobType.IMPORT_ITEMS,
-				ErpSyncJobType.IMPORT_ITEM_BARCODES }) {
-			assertTrue(job(type).getEnabled(), type.name());
-			assertNotNull(job(type).getNextRunAt(), type.name());
-		}
-		assertFalse(job(ErpSyncJobType.IMPORT_ITEM_FAMILIES).getEnabled(), "left as seeded (disabled)");
+		assertTrue(job(ErpSyncJobType.SYNC_CATALOGUE).getEnabled());
+		assertNotNull(job(ErpSyncJobType.SYNC_CATALOGUE).getNextRunAt());
 		assertEquals(0, jobs.switchOff(), "the next start writes nothing");
 	}
 

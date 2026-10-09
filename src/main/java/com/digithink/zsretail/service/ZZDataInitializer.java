@@ -116,6 +116,12 @@ public class ZZDataInitializer {
 				createErpJob("0 */15 * * * *", ErpSyncJobType.IMPORT_SUPPLY_INVOICES,
 						"Every 15 minutes: import of the supply invoices of the stores from the ERP", false);
 			}
+			// Release 2.2: one catalogue job on a head office whose catalogue comes from the ERP (also when the other jobs
+			// were seeded before; idempotent, disabled like the others)
+			if (applicationModeService.isHeadOffice() && applicationModeService.isErpCatalogueOnly()) {
+				createErpJob("0 0 * * * *", ErpSyncJobType.SYNC_CATALOGUE, "Sync catalogue: reads everything from the ERP:"
+						+ " families, sub-families, the items of every point de stock, barcodes", false);
+			}
 		}
 
 		// Ensure tax stamp item exists (idempotent)

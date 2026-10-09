@@ -20,6 +20,7 @@ import com.digithink.zsretail.erp.dto.ErpSalesPriceDTO;
 import com.digithink.zsretail.erp.dto.ErpSyncFilter;
 import com.digithink.zsretail.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.erp.model.ErpSyncJob;
+import com.digithink.zsretail.erp.spi.ErpCatalogueSync;
 import com.digithink.zsretail.erp.spi.ErpSupplyInvoiceImport;
 
 import lombok.RequiredArgsConstructor;
@@ -44,6 +45,10 @@ public class ErpSyncJobRunner {
 	 */
 	@Autowired(required = false)
 	private ObjectProvider<ErpSupplyInvoiceImport> supplyInvoiceImport;
+
+	/** Release 2.2: the job SYNC_CATALOGUE (navpospages connector only). A field, so the constructor stays as it is. */
+	@Autowired(required = false)
+	private ObjectProvider<ErpCatalogueSync> catalogueSync;
 
 	public void run(ErpSyncJob job) {
 		ErpSyncJobType jobType = job.getJobType();
@@ -128,6 +133,15 @@ public class ErpSyncJobRunner {
 							+ " with headoffice.supply.source=ERP");
 				}
 				invoices.importSupplyInvoices();
+				break;
+			case SYNC_CATALOGUE:
+				// Release 2.2: no checkpoint (the head office tables and the barcode cursor are the memory)
+				ErpCatalogueSync catalogue = catalogueSync == null ? null : catalogueSync.getIfAvailable();
+				if (catalogue == null) {
+					throw new ErpSyncWarningException("The catalogue is synchronised in one job only on a head office whose"
+							+ " catalogue comes from the ERP (navpospages connector)");
+				}
+				catalogue.syncCatalogue();
 				break;
 			default:
 				LOGGER.warn("Unhandled ERP sync job type {} for job {}", jobType, job.getJobType());
