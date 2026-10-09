@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
 import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.time.LocalDateTime;
@@ -178,19 +179,19 @@ class ReturnRefundLoyaltyTest {
 		}));
 		inject(returns, ReturnHeaderService.class, "stockService", new StockService() {
 			@Override
-			public void incrementForReturn(Long itemId, int quantity) {
+			public void incrementForReturn(Long itemId, BigDecimal quantity) {
 				// stock is not under test
 			}
 		});
 		inject(returns, ReturnHeaderService.class, "stockMovementService", new StockMovementService() {
 			@Override
-			public void recordSimpleReturn(Long itemId, int quantity, Double unitPriceHt, Integer vatPercent,
+			public void recordSimpleReturn(Long itemId, BigDecimal quantity, Double unitPriceHt, Integer vatPercent,
 					Double unitPriceTtc, Long returnHeaderId, CashierSession s) {
 				// stock is not under test
 			}
 
 			@Override
-			public void recordVoucherReturn(Long itemId, int quantity, Double unitPriceHt, Integer vatPercent,
+			public void recordVoucherReturn(Long itemId, BigDecimal quantity, Double unitPriceHt, Integer vatPercent,
 					Double unitPriceTtc, Long returnHeaderId, CashierSession s) {
 				// stock is not under test
 			}
@@ -355,7 +356,7 @@ class ReturnRefundLoyaltyTest {
 		l.setId(nextId++);
 		l.setSalesHeader(s);
 		l.setItem(item);
-		l.setQuantity(1);
+		l.setQuantity(BigDecimal.ONE);
 		l.setUnitPrice(ttc);
 		l.setLineTotal(ttc);
 		l.setVatPercent(0);

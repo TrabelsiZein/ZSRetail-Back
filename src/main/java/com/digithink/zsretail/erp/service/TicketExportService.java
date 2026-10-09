@@ -281,7 +281,7 @@ public class TicketExportService {
 			}
 		}
 
-		dto.setQuantity(BigDecimal.valueOf(line.getQuantity()));
+		dto.setQuantity(line.getQuantity()); // 2.2.1: normalized, 2 stays 2 (scale 0) as with BigDecimal.valueOf(int)
 		dto.setUnitPrice(BigDecimal.valueOf(line.getUnitPrice()));
 
 		// Use stored discount % when available; otherwise derive it from lineTotal vs
@@ -289,9 +289,9 @@ public class TicketExportService {
 		if (line.getDiscountPercentage() != null) {
 			dto.setDiscountPercentage(BigDecimal.valueOf(line.getDiscountPercentage()));
 		} else if (line.getDiscountAmount() != null && line.getDiscountAmount() > 0 && line.getUnitPrice() != null
-				&& line.getUnitPrice() > 0 && line.getQuantity() != null && line.getQuantity() > 0
+				&& line.getUnitPrice() > 0 && line.getQuantity() != null && line.getQuantity().signum() > 0
 				&& line.getLineTotal() != null) {
-			double grossHT = line.getUnitPrice() * line.getQuantity();
+			double grossHT = line.getUnitPrice() * line.getQuantity().doubleValue();
 			double pct = (1.0 - line.getLineTotal() / grossHT) * 100.0;
 			if (pct > 0 && pct <= 100) {
 				dto.setDiscountPercentage(BigDecimal.valueOf(pct));

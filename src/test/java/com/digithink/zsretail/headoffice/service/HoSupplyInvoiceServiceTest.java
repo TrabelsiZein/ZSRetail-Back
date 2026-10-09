@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.service;
 
+import java.math.BigDecimal;
 import static com.digithink.zsretail.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -102,9 +103,9 @@ class HoSupplyInvoiceServiceTest {
 		feed = new InMemoryDownTables().feed(Collections.singletonList(deliveries));
 		feedRef[0] = feed;
 		b001 = ho.item("B001", 10.0, null);
-		b001.setStockQuantity(500);
+		b001.setStockQuantity(BigDecimal.valueOf(500));
 		b002 = ho.item("B002", 4.0, null);
-		b002.setStockQuantity(500);
+		b002.setStockQuantity(BigDecimal.valueOf(500));
 		b002.setDefaultVAT(7);
 		ho.supplyPrice(b001, 6.0);
 		ho.supplyPrice(b002, 2.5);

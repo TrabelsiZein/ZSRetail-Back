@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -135,7 +136,7 @@ class HeadOfficeWarehouseTest {
 
 		assertEquals(100, stock.stockOf("B001"));
 		assertEquals(1, stock.movements(StockMovementType.PURCHASE_RECEPTION).size());
-		assertEquals(100, stock.movements.get(0).getQuantity());
+		assertEquals(BigDecimal.valueOf(100), stock.movements.get(0).getQuantity());
 		assertEquals(6.0, b001.getLastDirectCost());
 		assertEquals(1, purchases.size());
 		assertEquals(1, purchaseLines.size());

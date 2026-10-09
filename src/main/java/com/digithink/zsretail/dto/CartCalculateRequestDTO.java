@@ -1,5 +1,6 @@
 package com.digithink.zsretail.dto;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,7 +34,8 @@ public class CartCalculateRequestDTO {
 	@AllArgsConstructor
 	public static class CartItemDTO {
 		private Long itemId;
-		private Integer quantity;
+		/** 2.2.1: up to 3 decimals when the store allows them (QuantityPolicy). */
+		private BigDecimal quantity;
 		private Double unitPrice;
 	}
 }

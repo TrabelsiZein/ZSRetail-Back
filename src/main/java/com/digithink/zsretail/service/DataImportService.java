@@ -46,6 +46,7 @@ import com.digithink.zsretail.repository.LocationRepository;
 import com.digithink.zsretail.repository.SalesDiscountRepository;
 import com.digithink.zsretail.repository.SalesPriceRepository;
 import com.digithink.zsretail.repository.VendorRepository;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -282,7 +283,7 @@ public class DataImportService {
                     }
                     String stockStr = getOptionalValue(row, formatter, colIndex, fieldMap, "stockQuantity");
                     if (stockStr != null && !stockStr.isEmpty()) {
-                        item.setStockQuantity(parseInteger(stockStr));
+                        item.setStockQuantity(Quantities.of(parseInteger(stockStr))); // 2.2.1: still whole here (step to come)
                     }
                     String minStockStr = getOptionalValue(row, formatter, colIndex, fieldMap, "minStockLevel");
                     if (minStockStr != null && !minStockStr.isEmpty()) {

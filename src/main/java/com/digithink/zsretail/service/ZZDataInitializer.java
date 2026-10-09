@@ -1069,6 +1069,11 @@ public class ZZDataInitializer {
 		ensureConfig("ALLOW_NEGATIVE_STOCK", "true",
 				"Allow stock to go negative during sales. Applies only without an ERP. When false, sale is blocked if stock is insufficient.",
 				false, ConfigType.BOOLEAN);
+		if (!applicationModeService.isHeadOffice()) { // 2.2.1: a store setting, a head office never sells
+			ensureConfig(QuantityPolicy.SETTING, "false",
+					"Allow decimal quantities (up to 3 decimals, e.g. 0.2 of an item sold by the litre) at the till. When false, a quantity must be a whole number.",
+					false, ConfigType.BOOLEAN);
+		}
 
 		// ── ERP-only configs ──────────────────────────────────────────────────
 		if (applicationModeService.hasErp()) {

@@ -1,5 +1,6 @@
 package com.digithink.zsretail.service;
 
+import java.math.BigDecimal;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -61,26 +62,26 @@ class StockModeTest {
 	private static String run(ApplicationModeService mode, boolean[] deliveryAnswer) {
 		InMemoryCatalogue catalogue = new InMemoryCatalogue(1);
 		Item item = catalogue.item("B001", 10.0, null);
-		item.setStockQuantity(100);
+		item.setStockQuantity(BigDecimal.valueOf(100));
 		InMemoryStock memory = new InMemoryStock(catalogue);
 		memory.mode = mode;
 		StockService stock = memory.stockService();
 		StockMovementService movements = memory.stockMovementService();
 		Long id = item.getId();
 
-		stock.decrementForSale(id, 2);
-		movements.recordSale(id, 2, 10.0, 19, 11.9, 1L, null);
-		stock.incrementForReturn(id, 1);
-		movements.recordSimpleReturn(id, 1, 10.0, 19, 11.9, 2L, null);
-		movements.recordVoucherReturn(id, 1, 10.0, 19, 11.9, 3L, null);
-		stock.incrementForPurchase(id, 5);
-		movements.recordPurchase(id, 5, 6.0, 19, 7.14, 4L);
-		stock.adjustStock(id, -3, "COUNT");
-		movements.recordAdjustment(id, -3, "count");
-		deliveryAnswer[0] = stock.decrementForDelivery(id, 4);
-		movements.recordDeliveryOut(id, 4, 5L, "BL-000001");
-		stock.incrementForDelivery(id, 6);
-		movements.recordDeliveryIn(id, 6, 6L, "BL-000002");
+		stock.decrementForSale(id, BigDecimal.valueOf(2));
+		movements.recordSale(id, BigDecimal.valueOf(2), 10.0, 19, 11.9, 1L, null);
+		stock.incrementForReturn(id, BigDecimal.valueOf(1));
+		movements.recordSimpleReturn(id, BigDecimal.valueOf(1), 10.0, 19, 11.9, 2L, null);
+		movements.recordVoucherReturn(id, BigDecimal.valueOf(1), 10.0, 19, 11.9, 3L, null);
+		stock.incrementForPurchase(id, BigDecimal.valueOf(5));
+		movements.recordPurchase(id, BigDecimal.valueOf(5), 6.0, 19, 7.14, 4L);
+		stock.adjustStock(id, BigDecimal.valueOf(-3), "COUNT");
+		movements.recordAdjustment(id, BigDecimal.valueOf(-3), "count");
+		deliveryAnswer[0] = stock.decrementForDelivery(id, BigDecimal.valueOf(4));
+		movements.recordDeliveryOut(id, BigDecimal.valueOf(4), 5L, "BL-000001");
+		stock.incrementForDelivery(id, BigDecimal.valueOf(6));
+		movements.recordDeliveryIn(id, BigDecimal.valueOf(6), 6L, "BL-000002");
 
 		return memory.stockOf("B001") + " "
 				+ memory.movements.stream().map(StockMovement::getMovementType).collect(Collectors.toList());

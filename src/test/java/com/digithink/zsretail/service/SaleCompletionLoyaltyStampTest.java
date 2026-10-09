@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
 import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -194,20 +195,20 @@ class SaleCompletionLoyaltyStampTest {
 		});
 		inject(sales, SalesHeaderService.class, "stockService", new StockService() {
 			@Override
-			public void decrementForSale(Long itemId, int quantity) {
+			public void decrementForSale(Long itemId, BigDecimal quantity) {
 				stockDecrementedItemIds.add(itemId);
 			}
 		});
 		inject(sales, SalesHeaderService.class, "stockMovementService", new StockMovementService() {
 			@Override
-			public void recordSale(Long itemId, int quantity, Double unitPriceHt, Integer vatPercent, Double unitPriceTtc,
+			public void recordSale(Long itemId, BigDecimal quantity, Double unitPriceHt, Integer vatPercent, Double unitPriceTtc,
 					Long salesHeaderId, CashierSession cashierSession) {
 				// recorded through decrementForSale
 			}
 		});
 		inject(sales, SalesHeaderService.class, "pricingService", new PricingService() {
 			@Override
-			public PricingResult calculateItemPrice(Item i, Customer c, Integer quantity, String responsibilityCenter) {
+			public PricingResult calculateItemPrice(Item i, Customer c, BigDecimal quantity, String responsibilityCenter) {
 				PricingResult r = new PricingResult();
 				r.setUnitPrice(i.getUnitPrice());
 				r.setPriceIncludesVat(true);
@@ -423,7 +424,7 @@ class SaleCompletionLoyaltyStampTest {
 
 		ProcessSaleRequestDTO.SaleLineDTO line = new ProcessSaleRequestDTO.SaleLineDTO();
 		line.setItemId(ITEM_ID);
-		line.setQuantity(1);
+		line.setQuantity(BigDecimal.ONE);
 		line.setUnitPrice(goods);
 		line.setLineTotal(goods);
 		line.setVatPercent(0);

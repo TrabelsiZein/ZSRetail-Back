@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.service;
 
+import java.math.BigDecimal;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -73,9 +74,9 @@ class HoDeliveryServiceTest {
 		feed = down.feed(Arrays.asList(catalogue, service));
 		feedRef[0] = feed;
 		b001 = ho.item("B001", 10.0, null);
-		b001.setStockQuantity(100);
+		b001.setStockQuantity(BigDecimal.valueOf(100));
 		b002 = ho.item("B002", 4.0, null);
-		b002.setStockQuantity(10);
+		b002.setStockQuantity(BigDecimal.valueOf(10));
 		b = ho.store("B");
 		c = ho.store("C");
 		service.initialise();
@@ -220,7 +221,7 @@ class HoDeliveryServiceTest {
 		List<StockMovement> out = stock.movements(StockMovementType.DELIVERY_OUT);
 		assertEquals(2, out.size());
 		assertEquals(StockMovementDirection.OUT, out.get(0).getDirection());
-		assertEquals(50, out.get(0).getQuantity());
+		assertEquals(BigDecimal.valueOf(50), out.get(0).getQuantity());
 		assertEquals(draft.getId(), out.get(0).getReferenceId());
 		assertEquals("BL", out.get(0).getReferenceType());
 		assertEquals("BL-000001", out.get(0).getNotes());

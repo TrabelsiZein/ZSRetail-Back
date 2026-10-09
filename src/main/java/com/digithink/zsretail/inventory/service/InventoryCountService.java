@@ -42,6 +42,7 @@ import com.digithink.zsretail.repository.ItemBarcodeRepository;
 import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.service.StockMovementService;
 import com.digithink.zsretail.service.StockService;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -230,7 +231,7 @@ public class InventoryCountService {
 		Catalogue catalogue = new Catalogue();
 		for (Object[] row : items.findInventorySnapshot()) {
 			ItemInfo item = new ItemInfo(((Number) row[0]).longValue(), (String) row[1], (ItemType) row[2],
-					row[3] == null ? 0 : ((Number) row[3]).intValue());
+					row[3] == null ? 0 : Quantities.wholeIntOrFail(row[3], "Inventory count, stock of item " + row[1])); // 2.2.1: whole for now
 			catalogue.byId.put(item.id, item);
 			if (item.code != null) {
 				catalogue.byCode.put(key(item.code), item);
@@ -443,7 +444,8 @@ public class InventoryCountService {
 		Map<Long, Integer> stockNow = new HashMap<>();
 		for (int from = 0; from < ids.size(); from += IDS_PER_QUERY) {
 			for (Object[] row : items.findStockByIds(ids.subList(from, Math.min(from + IDS_PER_QUERY, ids.size())))) {
-				stockNow.put(((Number) row[0]).longValue(), row[1] == null ? null : ((Number) row[1]).intValue());
+				stockNow.put(((Number) row[0]).longValue(), row[1] == null ? null
+						: Quantities.wholeIntOrFail(row[1], "Inventory count, stock of item id " + row[0])); // 2.2.1: whole for now
 			}
 		}
 		return stockNow;
@@ -531,7 +533,8 @@ public class InventoryCountService {
 	private static Map<String, Object> lineView(Object[] row, boolean validated) {
 		InventoryLineStatus status = (InventoryLineStatus) row[5];
 		Integer counted = (Integer) row[6];
-		Integer stockNow = row[12] == null ? (row[2] == null ? null : 0) : (Integer) row[12];
+		Integer stockNow = row[12] == null ? (row[2] == null ? null : 0)
+				: Quantities.wholeIntOrFail(row[12], "Inventory count, stock of item " + row[3]); // 2.2.1: whole for now
 		Integer systemQuantity = validated ? (Integer) row[9] : stockNow;
 		Integer difference = validated ? (Integer) row[10]
 				: status == InventoryLineStatus.OK && counted != null && stockNow != null ? counted - stockNow : null;
@@ -617,7 +620,7 @@ public class InventoryCountService {
 	}
 
 	private static long number(Object value) {
-		return value == null ? 0L : ((Number) value).longValue();
+		return value == null ? 0L : Quantities.wholeLongOrFail(value, "Inventory count summary"); // 2.2.1: loud on decimals
 	}
 
 	private static String text(LocalDateTime time) {

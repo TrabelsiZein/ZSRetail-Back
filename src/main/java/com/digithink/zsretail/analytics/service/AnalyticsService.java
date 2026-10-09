@@ -18,6 +18,7 @@ import com.digithink.zsretail.analytics.dto.PaymentBreakdownDTO;
 import com.digithink.zsretail.analytics.dto.SalesTrendPointDTO;
 import com.digithink.zsretail.analytics.dto.TopProductDTO;
 import com.digithink.zsretail.analytics.repository.AnalyticsRepository;
+import com.digithink.zsretail.utils.Quantities;
 
 @Service
 public class AnalyticsService {
@@ -234,10 +235,8 @@ public class AnalyticsService {
 			return 0L;
 		}
 		if (value instanceof Number) {
-			return ((Number) value).longValue();
-		}
-		if (value instanceof BigDecimal) {
-			return ((BigDecimal) value).longValue();
+			// 2.2.1: a decimal quantity sum (sales lines) is loud, never truncated
+			return Quantities.wholeLongOrFail(value, "Dashboard");
 		}
 		throw new IllegalArgumentException("Unexpected count type: " + value.getClass());
 	}

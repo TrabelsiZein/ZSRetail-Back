@@ -1,11 +1,14 @@
 package com.digithink.zsretail.model;
 
+import java.math.BigDecimal;
+
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.digithink.zsretail.utils.Quantities;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import lombok.Data;
@@ -30,8 +33,9 @@ public class SalesLine extends _BaseEntity {
 	@JoinColumn(name = "item_id", nullable = false)
 	private Item item;
 
-	@Column(nullable = false)
-	private Integer quantity;
+	/** 2.2.1: up to 3 decimals; read through {@link #getQuantity()}, so 2.000 travels as 2. */
+	@Column(nullable = false, precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal quantity;
 
 	@Column(nullable = false)
 	private Double unitPrice;
@@ -78,4 +82,9 @@ public class SalesLine extends _BaseEntity {
 	@JoinColumn(name = "promotion_id")
 	@JsonIgnoreProperties({"groupItems", "getItem"})
 	private Promotion promotion;
+
+	/** The quantity without trailing zeros (the column has 3 decimals): 2.000 is 2, 0.200 is 0.2. */
+	public BigDecimal getQuantity() {
+		return Quantities.normalize(quantity);
+	}
 }

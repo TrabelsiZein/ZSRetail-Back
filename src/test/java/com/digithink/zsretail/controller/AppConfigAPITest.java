@@ -45,9 +45,10 @@ class AppConfigAPITest {
 
 	/** Keys added by the head office plan: tasks 0.5 (first three) and 1.5 (headOfficeLinked),
 	 * step 6 (catalogueFromHeadOffice), step 7A (supplyFromHeadOffice), headoffice.stock.enabled (headOfficeStock),
-	 * invoices from the ERP (supplySource), always last. */
+	 * invoices from the ERP (supplySource), always last; then 2.2.1 decimal quantities (allowDecimalQuantity). */
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
-			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock", "supplySource");
+			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock", "supplySource",
+			"allowDecimalQuantity");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";

@@ -3,6 +3,7 @@ package com.digithink.zsretail.support;
 import static com.digithink.zsretail.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -85,7 +86,7 @@ public final class InMemoryNetworkStock {
 				.filter(i -> i.getType() == null || types.contains(i.getType()))
 				.filter(i -> !excluded.equals(i.getItemCode()))
 				.filter(i -> copies.values().stream().noneMatch(c -> c.getItemId().equals(i.getId())
-						&& c.getQuantitySent() == (i.getStockQuantity() == null ? 0 : i.getStockQuantity())))
+						&& BigDecimal.valueOf(c.getQuantitySent()).compareTo(i.getStockQuantity() == null ? BigDecimal.ZERO : i.getStockQuantity()) == 0))
 				.sorted(Comparator.comparing(Item::getId)).collect(Collectors.toList());
 	}
 
@@ -137,7 +138,7 @@ public final class InMemoryNetworkStock {
 							.filter(i -> !args[1].equals(i.getItemCode()))
 							.filter(i -> search == null || like(i.getItemCode(), search) || like(i.getName(), search))
 							.filter(i -> !belowZero
-									|| (headOfficeColumn && i.getStockQuantity() != null && i.getStockQuantity() < 0)
+									|| (headOfficeColumn && i.getStockQuantity() != null && i.getStockQuantity().signum() < 0)
 									|| storeStock.values().stream().anyMatch(s -> s.getItemCode().equals(i.getItemCode())
 											&& s.getQuantity() < 0 && (storeId == 0 ? ho.stores.get(s.getStoreId()) != null && Boolean.TRUE.equals(ho.stores.get(s.getStoreId()).getActive())
 													: s.getStoreId() == storeId)))

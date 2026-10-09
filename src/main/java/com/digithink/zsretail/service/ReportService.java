@@ -20,6 +20,7 @@ import com.digithink.zsretail.dto.report.SalesReportRowDTO;
 import com.digithink.zsretail.dto.report.SessionReportRowDTO;
 import com.digithink.zsretail.dto.report.StockMovementReportRowDTO;
 import com.digithink.zsretail.dto.report.StockReportRowDTO;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -567,7 +568,7 @@ public class ReportService {
         if (o == null) return 0L;
         if (o instanceof Long)    return (Long) o;
         if (o instanceof Integer) return ((Integer) o).longValue();
-        if (o instanceof Number)  return ((Number) o).longValue();
+        if (o instanceof Number)  return Quantities.wholeLongOrFail(o, "Report"); // 2.2.1: a decimal quantity sum is loud, never truncated
         return 0L;
     }
 

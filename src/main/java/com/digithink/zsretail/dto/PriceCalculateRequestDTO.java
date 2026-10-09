@@ -1,5 +1,6 @@
 package com.digithink.zsretail.dto;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,7 +17,8 @@ import lombok.NoArgsConstructor;
 public class PriceCalculateRequestDTO {
 
 	private Long itemId;
-	private Integer quantity;
+	/** 2.2.1: up to 3 decimals (a bulk item). */
+	private BigDecimal quantity;
 	private Long customerId;
 
 	/**

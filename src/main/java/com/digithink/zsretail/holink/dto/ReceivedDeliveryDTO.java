@@ -1,5 +1,6 @@
 package com.digithink.zsretail.holink.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -67,7 +68,7 @@ public class ReceivedDeliveryDTO {
 		/** Null until confirmed. */
 		private Boolean stockApplied;
 		/** The store stock of the item now; null while the item is not here. */
-		private Integer storeStock;
+		private BigDecimal storeStock; // 2.2.1: up to 3 decimals (a store may sell 0.2)
 		/** Invoices from the ERP, step (c): ITEM or OTHER (an amount without item: no quantity). */
 		private String lineType;
 		/** ERP invoice: the ERP's unit price, line discount, line amount (before VAT) and unit cost; null on a BL. */

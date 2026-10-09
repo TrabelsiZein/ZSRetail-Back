@@ -1,5 +1,6 @@
 package com.digithink.zsretail.holink.service;
 
+import java.math.BigDecimal;
 import static com.digithink.zsretail.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -171,7 +172,7 @@ class CatalogueRoundTripTest {
 		Item local = store.item("B001", 9.0, null);
 		local.setItemFamily(localFamily);
 		local.setName("Old name");
-		local.setStockQuantity(40);
+		local.setStockQuantity(BigDecimal.valueOf(40));
 		local.setCostPrice(6.0);
 		local.setLastDirectCost(6.2);
 		local.setImageUrl("7.jpg");
@@ -182,7 +183,7 @@ class CatalogueRoundTripTest {
 		assertEquals(RecordOrigin.HEAD_OFFICE, item.getOrigin());
 		assertEquals("Item B001", item.getName());
 		assertEquals(10.0, item.getUnitPrice());
-		assertEquals(40, item.getStockQuantity());
+		assertEquals(BigDecimal.valueOf(40), item.getStockQuantity());
 		assertEquals(6.0, item.getCostPrice());
 		assertEquals(6.2, item.getLastDirectCost());
 		assertEquals("7.jpg", item.getImageUrl());

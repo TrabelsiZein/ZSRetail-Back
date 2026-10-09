@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -175,7 +176,7 @@ class SalesCopyMapperTest {
 		SalesLine line = new SalesLine();
 		line.setId(id);
 		line.setItem(item);
-		line.setQuantity(quantity);
+		line.setQuantity(BigDecimal.valueOf(quantity));
 		line.setUnitPrice(16.81);
 		line.setUnitPriceIncludingVat(20.0);
 		line.setVatPercent(19);

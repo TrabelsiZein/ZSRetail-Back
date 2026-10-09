@@ -36,6 +36,7 @@ import com.digithink.zsretail.repository.InvoiceLineRepository;
 import com.digithink.zsretail.repository.SalesHeaderRepository;
 import com.digithink.zsretail.repository.SalesLineRepository;
 import com.digithink.zsretail.repository._BaseRepository;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.Data;
 import lombok.extern.log4j.Log4j2;
@@ -371,7 +372,8 @@ public class InvoiceService extends _BaseService<InvoiceHeader, Long> {
 			InvoiceLine il = new InvoiceLine();
 			il.setInvoice(invoice);
 			il.setItem(sl.getItem());
-			il.setQuantity(sl.getQuantity());
+			// 2.2.1: invoices stay whole for now; a decimal quantity stops here, loudly
+			il.setQuantity(Quantities.wholeOrFail(sl.getQuantity(), "Invoice of sales line " + sl.getId()));
 			il.setUnitPrice(sl.getUnitPrice());
 			il.setUnitPriceIncludingVat(sl.getUnitPriceIncludingVat());
 			il.setSubtotal(sl.getLineTotal());
@@ -399,7 +401,7 @@ public class InvoiceService extends _BaseService<InvoiceHeader, Long> {
 
 		void add(SalesLine line) {
 			if (line.getQuantity() != null) {
-				quantity += line.getQuantity();
+				quantity += Quantities.wholeOrFail(line.getQuantity(), "Invoice of sales line " + line.getId()); // 2.2.1: whole for now
 			}
 			if (line.getLineTotal() != null) {
 				subtotal += line.getLineTotal();

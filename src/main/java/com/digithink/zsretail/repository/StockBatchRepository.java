@@ -1,5 +1,6 @@
 package com.digithink.zsretail.repository;
 
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -28,12 +29,13 @@ public class StockBatchRepository {
 		public final long itemId;
 		public final StockMovementType type;
 		public final StockMovementDirection direction;
-		public final int quantity;
+		/** Positive; 2.2.1: up to 3 decimals. */
+		public final BigDecimal quantity;
 		public final Long referenceId;
 		public final String referenceType;
 		public final String notes;
 
-		public MovementRow(long itemId, StockMovementType type, StockMovementDirection direction, int quantity,
+		public MovementRow(long itemId, StockMovementType type, StockMovementDirection direction, BigDecimal quantity,
 				Long referenceId, String referenceType, String notes) {
 			this.itemId = itemId;
 			this.type = type;
@@ -52,11 +54,11 @@ public class StockBatchRepository {
 	}
 
 	/** Adds each delta (item id to delta) to the item's stock, null counting as 0. */
-	public void addToStockQuantities(Map<Long, Integer> deltas) {
-		List<Map.Entry<Long, Integer>> entries = new ArrayList<>(deltas.entrySet());
+	public void addToStockQuantities(Map<Long, BigDecimal> deltas) {
+		List<Map.Entry<Long, BigDecimal>> entries = new ArrayList<>(deltas.entrySet());
 		jdbc.batchUpdate("UPDATE item SET stock_quantity = COALESCE(stock_quantity, 0) + ? WHERE id = ?", entries,
 				BATCH, (ps, entry) -> {
-					ps.setInt(1, entry.getValue());
+					ps.setBigDecimal(1, entry.getValue());
 					ps.setLong(2, entry.getKey());
 				});
 	}
@@ -70,7 +72,7 @@ public class StockBatchRepository {
 					ps.setString(1, row.type.name());
 					ps.setString(2, row.direction.name());
 					ps.setLong(3, row.itemId);
-					ps.setInt(4, row.quantity);
+					ps.setBigDecimal(4, row.quantity);
 					ps.setObject(5, row.referenceId, java.sql.Types.BIGINT);
 					ps.setString(6, row.referenceType);
 					ps.setString(7, row.notes);

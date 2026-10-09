@@ -1,5 +1,6 @@
 package com.digithink.zsretail.holink.service;
 
+import java.math.BigDecimal;
 import static com.digithink.zsretail.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -129,7 +130,7 @@ class SupplyInvoiceRoundTripTest {
 		holder[0] = feed;
 		for (String code : new String[] { "B001", "B002", "B009", "TAX_STAMP" }) {
 			Item item = ho.item(code, 10.0, null);
-			item.setStockQuantity(500);
+			item.setStockQuantity(BigDecimal.valueOf(500));
 		}
 		ho.supplyPrice(ho.itemByCode("B001").get(), 6.0);
 		ho.supplyPrice(ho.itemByCode("B002").get(), 2.5);

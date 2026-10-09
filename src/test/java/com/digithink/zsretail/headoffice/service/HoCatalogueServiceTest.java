@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.service;
 
+import java.math.BigDecimal;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -65,7 +66,7 @@ class HoCatalogueServiceTest {
 		f1 = ho.family("F1");
 		sf1 = ho.subFamily("SF1", f1);
 		b001 = ho.item("B001", 10.0, sf1);
-		b001.setStockQuantity(40);
+		b001.setStockQuantity(BigDecimal.valueOf(40));
 		b001.setMinStockLevel(5);
 		b001.setCostPrice(6.0);
 		b001.setLastDirectCost(6.1);

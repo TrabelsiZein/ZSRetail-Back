@@ -44,6 +44,7 @@ import com.digithink.zsretail.service.ItemBarcodeService;
 import com.digithink.zsretail.service.ItemCompositionService;
 import com.digithink.zsretail.service.ItemService;
 import com.digithink.zsretail.service.PricingService;
+import com.digithink.zsretail.utils.Quantities;
 
 import java.util.Optional;
 
@@ -409,7 +410,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 				customer = customerService.getDefaultCustomer();
 			}
 
-			PricingResult pricingResult = pricingService.calculateItemPrice(item, customer, quantity, null);
+			PricingResult pricingResult = pricingService.calculateItemPrice(item, customer, Quantities.of(quantity), null);
 
 			Map<String, Object> response = new HashMap<>();
 			response.put("itemId", itemId);

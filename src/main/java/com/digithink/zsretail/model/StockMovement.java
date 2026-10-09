@@ -1,5 +1,7 @@
 package com.digithink.zsretail.model;
 
+import java.math.BigDecimal;
+
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
@@ -10,6 +12,7 @@ import javax.persistence.Table;
 
 import com.digithink.zsretail.model.enumeration.StockMovementDirection;
 import com.digithink.zsretail.model.enumeration.StockMovementType;
+import com.digithink.zsretail.utils.Quantities;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.Data;
@@ -40,9 +43,12 @@ public class StockMovement extends _BaseEntity {
     @JoinColumn(name = "item_id", nullable = false)
     private Item item;
 
-    /** Always a positive number; direction (IN/OUT) determines the sign */
-    @Column(nullable = false)
-    private Integer quantity;
+    /**
+     * Always a positive number; direction (IN/OUT) determines the sign. 2.2.1: up to 3 decimals; read through
+     * {@link #getQuantity()}, so 2.000 travels as 2.
+     */
+    @Column(nullable = false, precision = Quantities.PRECISION, scale = Quantities.SCALE)
+    private BigDecimal quantity;
 
     /** Unit price excluding VAT at the time of the movement */
     @Column(name = "unit_price_ht")
@@ -73,4 +79,9 @@ public class StockMovement extends _BaseEntity {
     /** Free-text note — mandatory for adjustments, optional otherwise */
     @Column(length = 500)
     private String notes;
+
+    /** The quantity without trailing zeros (the column has 3 decimals): 2.000 is 2, 0.200 is 0.2. */
+    public BigDecimal getQuantity() {
+        return Quantities.normalize(quantity);
+    }
 }

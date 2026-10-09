@@ -1,5 +1,7 @@
 package com.digithink.zsretail.model;
 
+import java.math.BigDecimal;
+
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
@@ -9,6 +11,7 @@ import javax.persistence.ManyToOne;
 
 import com.digithink.zsretail.model.enumeration.ItemType;
 import com.digithink.zsretail.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.utils.Quantities;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -59,7 +62,9 @@ public class Item extends _BaseEntity {
 	@Column(name = "last_direct_net_cost")
 	private Double lastDirectNetCost;
 
-	private Integer stockQuantity;
+	/** 2.2.1: up to 3 decimals (bulk items); read through {@link #getStockQuantity()}, so 5.000 travels as 5. */
+	@Column(precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal stockQuantity;
 
 	private Integer minStockLevel;
 
@@ -117,4 +122,9 @@ public class Item extends _BaseEntity {
 	@Column(name = "head_office_price")
 	@JsonProperty(access = JsonProperty.Access.READ_ONLY)
 	private Double headOfficePrice;
+
+	/** The stock without trailing zeros (the column has 3 decimals): 5.000 is 5, 0.800 is 0.8. */
+	public BigDecimal getStockQuantity() {
+		return Quantities.normalize(stockQuantity);
+	}
 }

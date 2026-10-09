@@ -1,5 +1,6 @@
 package com.digithink.zsretail.inventory;
 
+import java.math.BigDecimal;
 import static com.digithink.zsretail.inventory.InventoryFiles.row;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -66,7 +67,7 @@ class InventoryCountServiceTest {
 
 	private static Item item(InMemoryCatalogue catalogue, String code, Integer stock, ItemType type) {
 		Item item = catalogue.item(code, 10, null);
-		item.setStockQuantity(stock);
+		item.setStockQuantity(stock == null ? null : BigDecimal.valueOf(stock));
 		item.setType(type);
 		return item;
 	}
@@ -147,7 +148,7 @@ class InventoryCountServiceTest {
 	@DisplayName("Validation: each OK item's stock becomes the counted quantity, one INVENTORY_IN/OUT movement per difference; other items untouched")
 	void validationApplies() {
 		long id = create();
-		catalogue("A001").setStockQuantity(9); // a sale after the import: the stock read at the validation counts
+		catalogue("A001").setStockQuantity(BigDecimal.valueOf(9)); // a sale after the import: the stock read at the validation counts
 
 		Map<String, Object> validated = service.validate(id, "admin").get();
 
@@ -166,11 +167,11 @@ class InventoryCountServiceTest {
 		StockMovement out = movement("A001");
 		assertEquals(StockMovementType.INVENTORY_OUT, out.getMovementType());
 		assertEquals(StockMovementDirection.OUT, out.getDirection());
-		assertEquals(Integer.valueOf(3), out.getQuantity(), "9 - 6");
+		assertEquals(BigDecimal.valueOf(3), out.getQuantity(), "9 - 6");
 		StockMovement in = movement("B002");
 		assertEquals(StockMovementType.INVENTORY_IN, in.getMovementType());
 		assertEquals(StockMovementDirection.IN, in.getDirection());
-		assertEquals(Integer.valueOf(5), in.getQuantity());
+		assertEquals(BigDecimal.valueOf(5), in.getQuantity());
 		for (StockMovement movement : movements) {
 			assertEquals("INVENTORY", movement.getReferenceType());
 			assertEquals(Long.valueOf(id), movement.getReferenceId());
@@ -191,7 +192,7 @@ class InventoryCountServiceTest {
 		long id = create();
 		service.validate(id, "admin");
 		int movements = inventory.stock.movements.size();
-		catalogue("A001").setStockQuantity(1);
+		catalogue("A001").setStockQuantity(BigDecimal.valueOf(1));
 
 		IllegalStateException again = assertThrows(IllegalStateException.class, () -> service.validate(id, "admin"));
 		assertEquals("This count is already validated: INV-202610-000001.", again.getMessage());

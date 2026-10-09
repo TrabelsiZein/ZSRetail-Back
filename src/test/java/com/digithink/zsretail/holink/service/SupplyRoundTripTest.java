@@ -1,5 +1,6 @@
 package com.digithink.zsretail.holink.service;
 
+import java.math.BigDecimal;
 import static com.digithink.zsretail.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
 import static org.hamcrest.Matchers.startsWith;
@@ -143,9 +144,9 @@ class SupplyRoundTripTest {
 		holder[0] = feed;
 		ItemFamily f1 = ho.family("F1");
 		ItemSubFamily sf1 = ho.subFamily("SF1", f1);
-		ho.item("B001", 10.0, sf1).setStockQuantity(100);
-		ho.item("B002", 4.0, sf1).setStockQuantity(10);
-		ho.item("B009", 7.0, sf1).setStockQuantity(10);
+		ho.item("B001", 10.0, sf1).setStockQuantity(BigDecimal.valueOf(100));
+		ho.item("B002", 4.0, sf1).setStockQuantity(BigDecimal.valueOf(10));
+		ho.item("B009", 7.0, sf1).setStockQuantity(BigDecimal.valueOf(10));
 		b = ho.store("B");
 		c = ho.store("C");
 		stores.put("B", b);
@@ -267,7 +268,7 @@ class SupplyRoundTripTest {
 		assertEquals(48, stock.stockOf("B001"));
 		assertEquals(5, stock.stockOf("B002"));
 		assertEquals(2, deliveriesIn().size());
-		assertEquals(48, deliveriesIn().get(0).getQuantity());
+		assertEquals(BigDecimal.valueOf(48), deliveriesIn().get(0).getQuantity());
 		assertEquals("BL", deliveriesIn().get(0).getReferenceType());
 		assertEquals("BL-000001", deliveriesIn().get(0).getNotes());
 
@@ -514,7 +515,7 @@ class SupplyRoundTripTest {
 		puller.runCycle();
 		reception.receive(received.byNumber("BL-000001").getId(), null, "responsible");
 		Item own = db.item("OWN1", 3.0, null);
-		own.setStockQuantity(3);
+		own.setStockQuantity(BigDecimal.valueOf(3));
 		assertEquals(4L, push.stockCounts().get("stockToSend"), "B001, B002, B009 and OWN1");
 
 		SupplyPushService.Cycle first = push.runCycle();
@@ -529,7 +530,7 @@ class SupplyRoundTripTest {
 		assertEquals("2026-10-05T10:00:00", push.stockCounts().get("stockSentAt"));
 		assertTrue(push.runCycle().isIdle(), "nothing changed: nothing sent");
 
-		stock.stockService().decrementForSale(db.itemByCode("B001").get().getId(), 2);
+		stock.stockService().decrementForSale(db.itemByCode("B001").get().getId(), BigDecimal.valueOf(2));
 		SupplyPushService.Cycle second = push.runCycle();
 		assertEquals(1, second.getStockSent(), "only the item that changed");
 		assertEquals(48, network.stockAt(b.getId(), "B001").getQuantity());
@@ -545,7 +546,7 @@ class SupplyRoundTripTest {
 	@Test
 	@DisplayName("Stock up with the head office stopped: nothing is marked sent; back: sent once")
 	void stockOffline() {
-		db.itemByCode("B001").get().setStockQuantity(7);
+		db.itemByCode("B001").get().setStockQuantity(BigDecimal.valueOf(7));
 		headOfficeDown = true;
 		assertFalse(push.runCycle().isDelivered());
 		assertTrue(network.copies.isEmpty());
@@ -562,7 +563,7 @@ class SupplyRoundTripTest {
 		sendBl(b, line("B001", 50));
 		puller.runCycle();
 		reception.receive(received.byNumber("BL-000001").getId(), counted(count(1, 48)), "responsible");
-		db.item("OWN1", 3.0, null).setStockQuantity(3);
+		db.item("OWN1", 3.0, null).setStockQuantity(BigDecimal.valueOf(3));
 		ho.item("TAX_STAMP", 1.0, null);
 		push.runCycle();
 
@@ -608,8 +609,8 @@ class SupplyRoundTripTest {
 		sendBl(b, line("B001", 50));
 		puller.runCycle();
 		reception.receive(received.byNumber("BL-000001").getId(), counted(count(1, 48)), "responsible");
-		db.itemByCode("B001").get().setStockQuantity(-2); // B below zero
-		ho.itemByCode("B002").get().setStockQuantity(-5); // a head office value left from before: ignored
+		db.itemByCode("B001").get().setStockQuantity(BigDecimal.valueOf(-2)); // B below zero
+		ho.itemByCode("B002").get().setStockQuantity(BigDecimal.valueOf(-5)); // a head office value left from before: ignored
 		push.runCycle();
 		HoNetworkStockService noStock = new HoNetworkStockService(network.storeStockRepository(ho), ho.storeRepository(),
 				TransactionOperations.withoutTransaction(), () -> NOW, false);
@@ -638,10 +639,10 @@ class SupplyRoundTripTest {
 		sendBl(b, line("B001", 50));
 		puller.runCycle();
 		reception.receive(received.byNumber("BL-000001").getId(), counted(count(1, 48)), "responsible");
-		db.itemByCode("B001").get().setStockQuantity(-2); // B sold more than it had
-		db.item("OWN1", 3.0, null).setStockQuantity(-1);
-		db.item("OWN2", 3.0, null).setStockQuantity(4);
-		ho.itemByCode("B002").get().setStockQuantity(-5); // the head office below zero
+		db.itemByCode("B001").get().setStockQuantity(BigDecimal.valueOf(-2)); // B sold more than it had
+		db.item("OWN1", 3.0, null).setStockQuantity(BigDecimal.valueOf(-1));
+		db.item("OWN2", 3.0, null).setStockQuantity(BigDecimal.valueOf(4));
+		ho.itemByCode("B002").get().setStockQuantity(BigDecimal.valueOf(-5)); // the head office below zero
 		push.runCycle();
 
 		assertEquals(Arrays.asList("B001", "B002", "B009"), codes(hoNetwork.page(null, null, 0, 20, false)));

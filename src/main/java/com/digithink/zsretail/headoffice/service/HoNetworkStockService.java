@@ -31,6 +31,7 @@ import com.digithink.zsretail.headoffice.repository.HoStoreStockRepository;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
 import com.digithink.zsretail.model.enumeration.CatalogueKind;
 import com.digithink.zsretail.model.enumeration.ItemType;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -165,7 +166,8 @@ public class HoNetworkStockService {
 			Map<String, Object> line = new LinkedHashMap<>();
 			line.put("itemCode", row[0]);
 			line.put("itemName", row[1]);
-			line.put("headOffice", !keepsStock ? null : row[2] == null ? 0 : ((Number) row[2]).intValue());
+			line.put("headOffice", !keepsStock ? null : row[2] == null ? 0
+					: Quantities.wholeIntOrFail(row[2], "Network stock, head office stock of " + row[0])); // 2.2.1: whole for now
 			line.put("byStore", byCode.getOrDefault((String) row[0], new LinkedHashMap<>()));
 			content.add(line);
 		}

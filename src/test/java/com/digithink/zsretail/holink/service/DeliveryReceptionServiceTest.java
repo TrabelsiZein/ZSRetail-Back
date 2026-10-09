@@ -1,5 +1,6 @@
 package com.digithink.zsretail.holink.service;
 
+import java.math.BigDecimal;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -66,7 +67,7 @@ class DeliveryReceptionServiceTest {
 			item.setCostPrice(9.0);
 			item.setLastDirectCost(9.0);
 			item.setLastDirectNetCost(9.0);
-			item.setStockQuantity(0);
+			item.setStockQuantity(BigDecimal.valueOf(0));
 		}
 		SupplyInvoiceWriter writer = new SupplyInvoiceWriter(purchases.headerRepository(), purchases.lineRepository(),
 				purchases.vendorRepository(), stock.itemRepository(), received.repository());

@@ -103,7 +103,7 @@ class SupplyErpInvoiceRoundTripTest {
 		Item b001 = db.item("B001", 12.0, null);
 		b001.setOrigin(RecordOrigin.HEAD_OFFICE);
 		b001.setCostPrice(9.0);
-		b001.setStockQuantity(0);
+		b001.setStockQuantity(BigDecimal.valueOf(0));
 		SupplyInvoiceWriter writer = new SupplyInvoiceWriter(purchases.headerRepository(), purchases.lineRepository(),
 				purchases.vendorRepository(), stock.itemRepository(), received.repository());
 		reception = new DeliveryReceptionService(received.repository(), stock.itemRepository(), stock.stockService(),

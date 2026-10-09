@@ -19,6 +19,7 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.LicenseService;
 import com.digithink.zsretail.service.LoyaltyService;
+import com.digithink.zsretail.service.QuantityPolicy;
 
 import lombok.RequiredArgsConstructor;
 
@@ -83,7 +84,8 @@ public class AppConfigAPI {
 				applicationModeService.isSupplyFromHeadOffice(),
 				!applicationModeService.isHeadOfficeWithoutStock(),
 				!applicationModeService.isHeadOffice() ? null
-						: applicationModeService.isSupplyFromErpSource() ? "ERP" : "HEAD_OFFICE"
+						: applicationModeService.isSupplyFromErpSource() ? "ERP" : "HEAD_OFFICE",
+				"true".equalsIgnoreCase(generalSetupService.findValueByCode(QuantityPolicy.SETTING))
 		));
 	}
 

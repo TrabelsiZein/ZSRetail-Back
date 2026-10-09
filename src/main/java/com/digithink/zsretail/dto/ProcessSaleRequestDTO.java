@@ -1,5 +1,6 @@
 package com.digithink.zsretail.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -44,7 +45,8 @@ public class ProcessSaleRequestDTO {
 	@Data
 	public static class SaleLineDTO {
 		private Long itemId;
-		private Integer quantity;
+		/** 2.2.1: up to 3 decimals when the store allows them (QuantityPolicy). */
+		private BigDecimal quantity;
 		private Double unitPrice;
 		private Double lineTotal;
 		private Double discountPercentage;

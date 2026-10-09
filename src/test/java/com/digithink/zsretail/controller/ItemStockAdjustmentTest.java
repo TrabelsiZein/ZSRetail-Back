@@ -1,5 +1,6 @@
 package com.digithink.zsretail.controller;
 
+import java.math.BigDecimal;
 import static com.digithink.zsretail.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -48,7 +49,7 @@ class ItemStockAdjustmentTest {
 		item = new Item();
 		item.setId(7L);
 		item.setItemCode("B001");
-		item.setStockQuantity(10);
+		item.setStockQuantity(BigDecimal.valueOf(10));
 		items.put(7L, item);
 	}
 
@@ -65,9 +66,9 @@ class ItemStockAdjustmentTest {
 				}
 				case "addToStockQuantity": {
 					Item row = items.get(args[0]);
-					int delta = (Integer) args[1];
-					row.setStockQuantity((row.getStockQuantity() == null ? 0 : row.getStockQuantity()) + delta);
-					stockUpdates.add(row.getItemCode() + " " + delta);
+					BigDecimal delta = (BigDecimal) args[1];
+					row.setStockQuantity((row.getStockQuantity() == null ? BigDecimal.ZERO : row.getStockQuantity()).add(delta));
+					stockUpdates.add(row.getItemCode() + " " + delta.toPlainString());
 					return 1;
 				}
 				default:
@@ -124,13 +125,13 @@ class ItemStockAdjustmentTest {
 		body.setItemCode("B001");
 		body.setName("Renamed");
 		body.setUnitPrice(12.0);
-		body.setStockQuantity(3); // loaded before a sale took the stock from 13 to 10
+		body.setStockQuantity(BigDecimal.valueOf(3)); // loaded before a sale took the stock from 13 to 10
 
 		assertEquals(200, api(true).update(7L, body).getStatusCodeValue());
 
 		Item stored = items.get(7L);
 		assertEquals("Renamed", stored.getName());
-		assertEquals(10, stored.getStockQuantity());
+		assertEquals(BigDecimal.valueOf(10), stored.getStockQuantity());
 		assertTrue(stockUpdates.isEmpty());
 		assertTrue(movements.isEmpty());
 	}
@@ -140,13 +141,13 @@ class ItemStockAdjustmentTest {
 	void positiveDelta() throws Exception {
 		assertEquals(200, api(true).adjustStock(7L, request(5, "count")).getStatusCodeValue());
 
-		assertEquals(15, item.getStockQuantity());
+		assertEquals(BigDecimal.valueOf(15), item.getStockQuantity());
 		assertEquals(1, stockUpdates.size(), "one update, as before");
 		assertEquals(1, movements.size());
 		StockMovement movement = movements.get(0);
 		assertEquals(StockMovementType.ADJUSTMENT_IN, movement.getMovementType());
 		assertEquals(StockMovementDirection.IN, movement.getDirection());
-		assertEquals(5, movement.getQuantity());
+		assertEquals(BigDecimal.valueOf(5), movement.getQuantity());
 		assertEquals("ADJUSTMENT", movement.getReferenceType());
 		assertEquals("COUNT", movement.getNotes());
 		assertEquals(item, movement.getItem());
@@ -157,11 +158,11 @@ class ItemStockAdjustmentTest {
 	void negativeDelta() throws Exception {
 		assertEquals(200, api(true).adjustStock(7L, request(-3, "whatever")).getStatusCodeValue());
 
-		assertEquals(7, item.getStockQuantity());
+		assertEquals(BigDecimal.valueOf(7), item.getStockQuantity());
 		assertEquals(1, movements.size());
 		assertEquals(StockMovementType.ADJUSTMENT_OUT, movements.get(0).getMovementType());
 		assertEquals(StockMovementDirection.OUT, movements.get(0).getDirection());
-		assertEquals(3, movements.get(0).getQuantity());
+		assertEquals(BigDecimal.valueOf(3), movements.get(0).getQuantity());
 		assertEquals("CORRECTION", movements.get(0).getNotes());
 	}
 
@@ -173,7 +174,7 @@ class ItemStockAdjustmentTest {
 		assertEquals(400, api(true).adjustStock(99L, request(2, "COUNT")).getStatusCodeValue());
 		assertEquals(403, api(false).adjustStock(7L, request(2, "COUNT")).getStatusCodeValue());
 
-		assertEquals(10, item.getStockQuantity());
+		assertEquals(BigDecimal.valueOf(10), item.getStockQuantity());
 		assertTrue(stockUpdates.isEmpty());
 		assertTrue(movements.isEmpty());
 	}

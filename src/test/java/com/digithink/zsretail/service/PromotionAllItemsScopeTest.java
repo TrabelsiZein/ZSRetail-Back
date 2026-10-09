@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
 import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.time.LocalDate;
@@ -74,7 +75,7 @@ class PromotionAllItemsScopeTest {
 		});
 		inject(engine, PromotionCalculationService.class, "pricingService", new PricingService() {
 			@Override
-			public PricingResult calculateItemPrice(Item item, Customer customer, Integer quantity, String responsibilityCenter) {
+			public PricingResult calculateItemPrice(Item item, Customer customer, BigDecimal quantity, String responsibilityCenter) {
 				return erpPricing;
 			}
 		});
@@ -323,12 +324,12 @@ class PromotionAllItemsScopeTest {
 	private static CartCalculateRequestDTO.CartItemDTO line(long itemId, int quantity) {
 		CartCalculateRequestDTO.CartItemDTO l = new CartCalculateRequestDTO.CartItemDTO();
 		l.setItemId(itemId);
-		l.setQuantity(quantity);
+		l.setQuantity(BigDecimal.valueOf(quantity));
 		return l;
 	}
 
 	private PriceCalculateResponseDTO price(long itemId, int quantity, String... codes) {
-		return engine.calculateItemPrice(itemId, quantity, null, Arrays.asList(codes));
+		return engine.calculateItemPrice(itemId, BigDecimal.valueOf(quantity), null, Arrays.asList(codes));
 	}
 
 	private static void assertPromotion(Promotion expected, PriceCalculateResponseDTO r) {

@@ -12,6 +12,7 @@ import com.digithink.zsretail.model.Warranty;
 import com.digithink.zsretail.repository.SalesHeaderRepository;
 import com.digithink.zsretail.repository.SalesLineRepository;
 import com.digithink.zsretail.repository.WarrantyRepository;
+import com.digithink.zsretail.utils.Quantities;
 
 @Service
 public class WarrantyService extends _BaseService<Warranty, Long> {
@@ -74,7 +75,12 @@ public class WarrantyService extends _BaseService<Warranty, Long> {
 			throw new IllegalArgumentException("End date must be on or after start date");
 		}
 		int qty = quantityCovered != null && quantityCovered > 0 ? quantityCovered : 1;
-		int lineQty = line.getQuantity() != null ? line.getQuantity() : 0;
+		// 2.2.1: a warranty covers whole units; a line sold with decimals (0.2 of a bulk item) has none
+		if (!Quantities.isWhole(line.getQuantity())) {
+			throw new IllegalArgumentException("A warranty covers whole units: the sales line quantity "
+					+ Quantities.plain(line.getQuantity()) + " is not a whole number");
+		}
+		int lineQty = line.getQuantity() != null ? line.getQuantity().intValueExact() : 0;
 		if (qty > lineQty) {
 			throw new IllegalArgumentException("Quantity covered (" + qty + ") cannot exceed sales line quantity (" + lineQty + ")");
 		}

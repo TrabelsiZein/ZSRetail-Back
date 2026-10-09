@@ -41,6 +41,7 @@ import com.digithink.zsretail.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.service.StockMovementService;
 import com.digithink.zsretail.service.StockService;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -369,8 +370,8 @@ public class DeliveryReceptionService {
 				continue; // waits for its item (an ERP invoice line received at 0 still waits for it: its costs go in then)
 			}
 			if (quantity > 0) {
-				stock.incrementForDelivery(line.getItemId(), quantity);
-				movements.recordDeliveryIn(line.getItemId(), quantity, delivery.getId(), delivery.getNumber());
+				stock.incrementForDelivery(line.getItemId(), Quantities.of(quantity));
+				movements.recordDeliveryIn(line.getItemId(), Quantities.of(quantity), delivery.getId(), delivery.getNumber());
 			}
 			line.setStockApplied(Boolean.TRUE);
 			changed = true;
@@ -541,7 +542,7 @@ public class DeliveryReceptionService {
 				row.setStockApplied(line.getStockApplied());
 				Optional<Item> item = !withStock || line.getItemId() == null ? Optional.empty()
 						: items.findById(line.getItemId());
-				row.setStoreStock(item.map(i -> i.getStockQuantity() == null ? 0 : i.getStockQuantity()).orElse(null));
+				row.setStoreStock(item.map(i -> i.getStockQuantity() == null ? BigDecimal.ZERO : i.getStockQuantity()).orElse(null));
 				row.setLineType((line.isItemLine() ? ReceivedLineType.ITEM : ReceivedLineType.OTHER).name());
 				row.setUnitPrice(line.getUnitPrice());
 				row.setLineDiscountPercent(line.getLineDiscountPercent());

@@ -33,6 +33,7 @@ import com.digithink.zsretail.repository.ReturnVoucherRepository;
 import com.digithink.zsretail.repository.SalesHeaderRepository;
 import com.digithink.zsretail.repository.SalesLineRepository;
 import com.digithink.zsretail.repository._BaseRepository;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -297,7 +298,10 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 
 			// Calculate remaining returnable quantity
 			int alreadyReturned = returnedQuantities.getOrDefault(originalSalesLine.getId(), 0);
-			int remainingReturnable = originalSalesLine.getQuantity() - alreadyReturned;
+			// 2.2.1: returns stay whole for now; a decimal sold quantity stops here, loudly
+			int soldQuantity = Quantities.wholeOrFail(originalSalesLine.getQuantity(),
+					"Return of sales line " + originalSalesLine.getId());
+			int remainingReturnable = soldQuantity - alreadyReturned;
 
 			if (returnLineDTO.getQuantity() > remainingReturnable) {
 				throw new IllegalArgumentException("Return quantity (" + returnLineDTO.getQuantity()
@@ -308,9 +312,9 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 			// Calculate proportional amounts based on return quantity
 			double unitPriceHT = originalSalesLine.getUnitPrice();
 			double unitPriceTTC = originalSalesLine.getUnitPriceIncludingVat();
-			double lineTotalHT = (originalSalesLine.getLineTotal() / originalSalesLine.getQuantity())
+			double lineTotalHT = (originalSalesLine.getLineTotal() / soldQuantity)
 					* returnLineDTO.getQuantity();
-			double lineTotalTTC = (originalSalesLine.getLineTotalIncludingVat() / originalSalesLine.getQuantity())
+			double lineTotalTTC = (originalSalesLine.getLineTotalIncludingVat() / soldQuantity)
 					* returnLineDTO.getQuantity();
 
 			// Create return line
@@ -398,15 +402,15 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 		// Update stock for all return types — goods always come back to stock regardless of refund method.
 		for (ReturnLine returnLine : returnLines) {
 			if (returnLine.getItem() != null && returnLine.getQuantity() != null && returnLine.getQuantity() > 0) {
-				stockService.incrementForReturn(returnLine.getItem().getId(), returnLine.getQuantity());
+				stockService.incrementForReturn(returnLine.getItem().getId(), Quantities.of(returnLine.getQuantity()));
 				if (request.getReturnType() == ReturnType.SIMPLE_RETURN) {
 					stockMovementService.recordSimpleReturn(
-							returnLine.getItem().getId(), returnLine.getQuantity(),
+							returnLine.getItem().getId(), Quantities.of(returnLine.getQuantity()),
 							returnLine.getUnitPrice(), null, returnLine.getUnitPriceIncludingVat(),
 							returnHeader.getId(), returnHeader.getCashierSession());
 				} else {
 					stockMovementService.recordVoucherReturn(
-							returnLine.getItem().getId(), returnLine.getQuantity(),
+							returnLine.getItem().getId(), Quantities.of(returnLine.getQuantity()),
 							returnLine.getUnitPrice(), null, returnLine.getUnitPriceIncludingVat(),
 							returnHeader.getId(), returnHeader.getCashierSession());
 				}

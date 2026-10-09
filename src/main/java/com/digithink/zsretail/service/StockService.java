@@ -1,5 +1,6 @@
 package com.digithink.zsretail.service;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,6 +11,7 @@ import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.exception.InsufficientStockException;
 import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.repository.StockBatchRepository;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -51,11 +53,11 @@ public class StockService {
 	 * @throws InsufficientStockException if stock is insufficient and negative stock is not allowed
 	 */
 	@Transactional(rollbackFor = Exception.class)
-	public void decrementForSale(Long itemId, int quantity) {
+	public void decrementForSale(Long itemId, BigDecimal quantity) {
 		if (applicationModeService.isSupplyFromErp()) {
 			return;
 		}
-		if (quantity <= 0) {
+		if (quantity == null || quantity.signum() <= 0) {
 			return;
 		}
 		boolean allowNegative = "true".equalsIgnoreCase(
@@ -67,7 +69,7 @@ public class StockService {
 			int updated = itemRepository.decrementStockQuantityIfSufficient(itemId, quantity);
 			if (updated == 0) {
 				log.warn("Insufficient stock for sale: itemId={}, quantity={}", itemId, quantity);
-				throw new InsufficientStockException(itemId, quantity, -1);
+				throw new InsufficientStockException(itemId, quantity, null);
 			}
 			log.debug("Stock decremented for sale: itemId={}, quantity={}", itemId, quantity);
 		}
@@ -81,11 +83,11 @@ public class StockService {
 	 * @param quantity quantity returned (positive)
 	 */
 	@Transactional(rollbackFor = Exception.class)
-	public void incrementForReturn(Long itemId, int quantity) {
+	public void incrementForReturn(Long itemId, BigDecimal quantity) {
 		if (applicationModeService.isSupplyFromErp()) {
 			return;
 		}
-		if (quantity <= 0) {
+		if (quantity == null || quantity.signum() <= 0) {
 			return;
 		}
 		itemRepository.addToStockQuantity(itemId, quantity);
@@ -100,11 +102,11 @@ public class StockService {
 	 * @param quantity quantity purchased (positive)
 	 */
 	@Transactional(rollbackFor = Exception.class)
-	public void incrementForPurchase(Long itemId, int quantity) {
+	public void incrementForPurchase(Long itemId, BigDecimal quantity) {
 		if (applicationModeService.isSupplyFromErp()) {
 			return;
 		}
-		if (quantity <= 0) {
+		if (quantity == null || quantity.signum() <= 0) {
 			return;
 		}
 		itemRepository.addToStockQuantity(itemId, quantity);
@@ -120,11 +122,11 @@ public class StockService {
 	 * @param reason reason code: COUNT, CORRECTION, DAMAGE (for audit/logging)
 	 */
 	@Transactional(rollbackFor = Exception.class)
-	public void adjustStock(Long itemId, int delta, String reason) {
+	public void adjustStock(Long itemId, BigDecimal delta, String reason) {
 		if (applicationModeService.isSupplyFromErp()) {
 			return;
 		}
-		if (delta == 0) {
+		if (delta == null || delta.signum() == 0) {
 			return;
 		}
 		itemRepository.addToStockQuantity(itemId, delta);
@@ -141,10 +143,10 @@ public class StockService {
 		if (applicationModeService.isSupplyFromErp()) {
 			return;
 		}
-		Map<Long, Integer> nonZero = new java.util.LinkedHashMap<>();
+		Map<Long, BigDecimal> nonZero = new java.util.LinkedHashMap<>();
 		differences.forEach((itemId, delta) -> {
 			if (delta != null && delta != 0) {
-				nonZero.put(itemId, delta);
+				nonZero.put(itemId, Quantities.of(delta));
 			}
 		});
 		if (!nonZero.isEmpty()) {
@@ -165,8 +167,8 @@ public class StockService {
 	 * when the supply is the ERP's.
 	 */
 	@Transactional(rollbackFor = Exception.class)
-	public boolean decrementForDelivery(Long itemId, int quantity) {
-		if (applicationModeService.isSupplyFromErp() || quantity <= 0) {
+	public boolean decrementForDelivery(Long itemId, BigDecimal quantity) {
+		if (applicationModeService.isSupplyFromErp() || quantity == null || quantity.signum() <= 0) {
 			return true;
 		}
 		if (isNegativeStockAllowed()) {
@@ -183,8 +185,8 @@ public class StockService {
 	 * ERP's.
 	 */
 	@Transactional(rollbackFor = Exception.class)
-	public void incrementForDelivery(Long itemId, int quantity) {
-		if (applicationModeService.isSupplyFromErp() || quantity <= 0) {
+	public void incrementForDelivery(Long itemId, BigDecimal quantity) {
+		if (applicationModeService.isSupplyFromErp() || quantity == null || quantity.signum() <= 0) {
 			return;
 		}
 		itemRepository.addToStockQuantity(itemId, quantity);

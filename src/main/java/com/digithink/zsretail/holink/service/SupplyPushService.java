@@ -40,6 +40,7 @@ import com.digithink.zsretail.holink.repository.StockCopyRepository;
 import com.digithink.zsretail.model.enumeration.CatalogueKind;
 import com.digithink.zsretail.model.enumeration.ItemType;
 import com.digithink.zsretail.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.Getter;
 import lombok.ToString;
@@ -210,7 +211,8 @@ public class SupplyPushService {
 	}
 
 	private static int quantityOf(Object[] row) {
-		return row[3] == null ? 0 : ((Number) row[3]).intValue();
+		// 2.2.1: the stock copy stays whole for now; a decimal stock stops the push here, loudly
+		return row[3] == null ? 0 : Quantities.wholeIntOrFail(row[3], "Stock copy to the head office, item " + row[1]);
 	}
 
 	/** For the link page: {"stockToSend": items, "stockSentAt": "yyyy-MM-ddTHH:mm:ss" or null}. */

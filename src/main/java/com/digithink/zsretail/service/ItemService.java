@@ -26,6 +26,7 @@ import com.digithink.zsretail.repository.ItemFamilyRepository;
 import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.repository.ItemSubFamilyRepository;
 import com.digithink.zsretail.repository._BaseRepository;
+import com.digithink.zsretail.utils.Quantities;
 
 @Service
 public class ItemService extends _BaseService<Item, Long> {
@@ -57,8 +58,8 @@ public class ItemService extends _BaseService<Item, Long> {
 	 */
 	@Transactional(rollbackFor = Exception.class)
 	public void adjustStock(Long itemId, int delta, String reason) {
-		stockService.adjustStock(itemId, delta, reason);
-		stockMovementService.recordAdjustment(itemId, delta, reason);
+		stockService.adjustStock(itemId, Quantities.of(delta), reason);
+		stockMovementService.recordAdjustment(itemId, Quantities.of(delta), reason);
 	}
 
 	@Override

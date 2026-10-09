@@ -1,5 +1,6 @@
 package com.digithink.zsretail.service;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,7 @@ import com.digithink.zsretail.model.enumeration.StockMovementType;
 import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.repository.StockBatchRepository;
 import com.digithink.zsretail.repository.StockMovementRepository;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -46,7 +48,7 @@ public class StockMovementService {
      * Record a stock movement for a completed sale line (OUT).
      */
     @Transactional
-    public void recordSale(Long itemId, int quantity,
+    public void recordSale(Long itemId, BigDecimal quantity,
                            Double unitPriceHt, Integer vatPercent, Double unitPriceTtc,
                            Long salesHeaderId, CashierSession session) {
         if (applicationModeService.isSupplyFromErp()) return;
@@ -62,7 +64,7 @@ public class StockMovementService {
      * Record a stock movement for a simple return line (IN — cash refund).
      */
     @Transactional
-    public void recordSimpleReturn(Long itemId, int quantity,
+    public void recordSimpleReturn(Long itemId, BigDecimal quantity,
                                    Double unitPriceHt, Integer vatPercent, Double unitPriceTtc,
                                    Long returnHeaderId, CashierSession session) {
         if (applicationModeService.isSupplyFromErp()) return;
@@ -78,7 +80,7 @@ public class StockMovementService {
      * Record a stock movement for a voucher return line (IN — customer gets voucher).
      */
     @Transactional
-    public void recordVoucherReturn(Long itemId, int quantity,
+    public void recordVoucherReturn(Long itemId, BigDecimal quantity,
                                     Double unitPriceHt, Integer vatPercent, Double unitPriceTtc,
                                     Long returnHeaderId, CashierSession session) {
         if (applicationModeService.isSupplyFromErp()) return;
@@ -94,7 +96,7 @@ public class StockMovementService {
      * Record a stock movement for a purchase reception line (IN).
      */
     @Transactional
-    public void recordPurchase(Long itemId, int quantity,
+    public void recordPurchase(Long itemId, BigDecimal quantity,
                                Double unitPriceHt, Integer vatPercent, Double unitPriceTtc,
                                Long purchaseHeaderId) {
         if (applicationModeService.isSupplyFromErp()) return;
@@ -110,14 +112,14 @@ public class StockMovementService {
      * Record a manual adjustment (positive delta = IN, negative delta = OUT).
      */
     @Transactional
-    public void recordAdjustment(Long itemId, int delta, String notes) {
+    public void recordAdjustment(Long itemId, BigDecimal delta, String notes) {
         if (applicationModeService.isSupplyFromErp()) return;
-        if (delta == 0) return;
-        StockMovementType type = delta > 0 ? StockMovementType.ADJUSTMENT_IN : StockMovementType.ADJUSTMENT_OUT;
-        StockMovementDirection direction = delta > 0 ? StockMovementDirection.IN : StockMovementDirection.OUT;
+        if (delta == null || delta.signum() == 0) return;
+        StockMovementType type = delta.signum() > 0 ? StockMovementType.ADJUSTMENT_IN : StockMovementType.ADJUSTMENT_OUT;
+        StockMovementDirection direction = delta.signum() > 0 ? StockMovementDirection.IN : StockMovementDirection.OUT;
         StockMovement movement = build(
                 itemId, type, direction,
-                Math.abs(delta), null, null, null,
+                delta.abs(), null, null, null,
                 null, "ADJUSTMENT", null, notes);
         stockMovementRepository.save(movement);
         log.debug("Stock movement recorded: {} itemId={} delta={}", type, itemId, delta);
@@ -128,9 +130,9 @@ public class StockMovementService {
      * reference type BL, its number as note. No price on a BL.
      */
     @Transactional
-    public void recordDeliveryOut(Long itemId, int quantity, Long deliveryId, String deliveryNumber) {
+    public void recordDeliveryOut(Long itemId, BigDecimal quantity, Long deliveryId, String deliveryNumber) {
         if (applicationModeService.isSupplyFromErp()) return;
-        if (quantity <= 0) return;
+        if (quantity == null || quantity.signum() <= 0) return;
         stockMovementRepository.save(build(
                 itemId, StockMovementType.DELIVERY_OUT, StockMovementDirection.OUT,
                 quantity, null, null, null,
@@ -143,9 +145,9 @@ public class StockMovementService {
      * (hol_delivery.id), reference type BL, its number as note.
      */
     @Transactional
-    public void recordDeliveryIn(Long itemId, int quantity, Long receivedDeliveryId, String deliveryNumber) {
+    public void recordDeliveryIn(Long itemId, BigDecimal quantity, Long receivedDeliveryId, String deliveryNumber) {
         if (applicationModeService.isSupplyFromErp()) return;
-        if (quantity <= 0) return;
+        if (quantity == null || quantity.signum() <= 0) return;
         stockMovementRepository.save(build(
                 itemId, StockMovementType.DELIVERY_IN, StockMovementDirection.IN,
                 quantity, null, null, null,
@@ -167,7 +169,7 @@ public class StockMovementService {
             rows.add(new StockBatchRepository.MovementRow(itemId,
                     delta > 0 ? StockMovementType.INVENTORY_IN : StockMovementType.INVENTORY_OUT,
                     delta > 0 ? StockMovementDirection.IN : StockMovementDirection.OUT,
-                    Math.abs(delta), countId, "INVENTORY", countNumber));
+                    Quantities.of(Math.abs(delta)), countId, "INVENTORY", countNumber));
         });
         if (!rows.isEmpty()) {
             stockBatchRepository.insertMovements(rows, user == null ? "System" : user);
@@ -179,7 +181,7 @@ public class StockMovementService {
     // -------------------------------------------------------------------------
 
     private StockMovement build(Long itemId, StockMovementType type, StockMovementDirection direction,
-                                int quantity, Double unitPriceHt, Integer vatPercent, Double unitPriceTtc,
+                                BigDecimal quantity, Double unitPriceHt, Integer vatPercent, Double unitPriceTtc,
                                 Long referenceId, String referenceType,
                                 CashierSession session, String notes) {
         Item item = itemRepository.findById(itemId)

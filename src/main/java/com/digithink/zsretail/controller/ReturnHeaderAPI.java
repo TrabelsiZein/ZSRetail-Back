@@ -27,6 +27,7 @@ import com.digithink.zsretail.repository.SalesHeaderRepository;
 import com.digithink.zsretail.repository.SalesLineRepository;
 import com.digithink.zsretail.security.CurrentUserProvider;
 import com.digithink.zsretail.service.ReturnHeaderService;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -254,7 +255,9 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 			java.util.List<Map<String, Object>> salesLinesWithRemaining = new java.util.ArrayList<>();
 
 			for (com.digithink.zsretail.model.SalesLine salesLine : salesLines) {
-				int originalQuantity = salesLine.getQuantity();
+				// 2.2.1: returns stay whole for now; a decimal sold quantity stops here, loudly
+				int originalQuantity = Quantities.wholeOrFail(salesLine.getQuantity(),
+						"Return of sales line " + salesLine.getId());
 				int returnedQuantity = returnedQuantities.getOrDefault(salesLine.getId(), 0);
 				int remainingQuantity = originalQuantity - returnedQuantity;
 

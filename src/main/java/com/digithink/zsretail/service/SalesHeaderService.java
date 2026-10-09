@@ -1,5 +1,6 @@
 package com.digithink.zsretail.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +42,7 @@ import com.digithink.zsretail.repository.PromotionRepository;
 import com.digithink.zsretail.repository.SalesHeaderRepository;
 import com.digithink.zsretail.repository.SalesLineRepository;
 import com.digithink.zsretail.repository._BaseRepository;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -108,6 +110,9 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	@Autowired
 	private PaymentChangeLogRepository paymentChangeLogRepository;
 
+	@Autowired
+	private QuantityPolicy quantityPolicy;
+
 	@Override
 	protected _BaseRepository<SalesHeader, Long> getRepository() {
 		return salesHeaderRepository;
@@ -126,6 +131,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	@Transactional(rollbackFor = Exception.class)
 	public SalesHeader processCompleteSale(ProcessSaleRequestDTO request, UserAccount currentUser) throws Exception {
 		log.info("Processing complete sale for user: " + currentUser.getUsername());
+		checkQuantities(request);
 
 		// Get current cashier session
 		CashierSession currentSession = cashierSessionRepository
@@ -249,6 +255,12 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 						lineDTO.getLineTotal() + (salesLine.getVatAmount() != null ? salesLine.getVatAmount() : 0.0));
 			}
 
+			// 2.2.1: a decimal quantity's amounts are computed here, never taken from the till
+			if (!Quantities.isWhole(salesLine.getQuantity())) {
+				applyDecimalLineAmounts(salesLine, lineDTO.getUnitPrice(), vatPercent, lineDTO.getDiscountPercentage(),
+						lineDTO.getDiscountAmount());
+			}
+
 			salesLine = salesLineService.save(salesLine);
 			salesLines.add(salesLine);
 			log.info("Sales line created: " + salesLine.getId());
@@ -258,7 +270,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 				SalesLine freeLine = new SalesLine();
 				freeLine.setSalesHeader(salesHeader);
 				freeLine.setItem(item);
-				freeLine.setQuantity(lineDTO.getFreeQuantity());
+				freeLine.setQuantity(Quantities.of(lineDTO.getFreeQuantity()));
 				freeLine.setUnitPrice(lineDTO.getUnitPrice());
 				freeLine.setLineTotal(0.0);
 				freeLine.setDiscountPercentage(100.0);
@@ -309,6 +321,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	@Transactional(rollbackFor = Exception.class)
 	public SalesHeader savePendingSale(ProcessSaleRequestDTO request, UserAccount currentUser) throws Exception {
 		log.info("Saving pending sale for user: " + currentUser.getUsername());
+		checkQuantities(request);
 
 		// Get current cashier session
 		CashierSession currentSession = cashierSessionRepository
@@ -406,6 +419,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	public SalesHeader updatePendingSale(Long salesHeaderId, ProcessSaleRequestDTO request, UserAccount currentUser)
 			throws Exception {
 		log.info("Updating pending sale: " + salesHeaderId + " for user: " + currentUser.getUsername());
+		checkQuantities(request);
 
 		SalesHeader salesHeader = findById(salesHeaderId)
 				.orElseThrow(() -> new IllegalArgumentException("Pending sale not found: " + salesHeaderId));
@@ -458,6 +472,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	public SalesHeader completePendingSale(Long salesHeaderId, ProcessSaleRequestDTO request, UserAccount currentUser)
 			throws Exception {
 		log.info("Completing pending sale: " + salesHeaderId + " for user: " + currentUser.getUsername());
+		checkQuantities(request);
 
 		// Get the pending sale
 		SalesHeader salesHeader = findById(salesHeaderId)
@@ -518,11 +533,14 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			// Apply pricing from PricingService (SalesPrice/SalesDiscount)
 			applyPricingToSalesLine(salesLine, item, customer, lineDTO);
 
-			if (lineDTO.getLineTotalIncludingVat() != null) {
-				salesLine.setLineTotalIncludingVat(lineDTO.getLineTotalIncludingVat());
-			} else {
-				salesLine.setLineTotalIncludingVat(
-						lineDTO.getLineTotal() + (salesLine.getVatAmount() != null ? salesLine.getVatAmount() : 0.0));
+			// 2.2.1: a decimal quantity's amounts were computed by applyPricingToSalesLine, never taken from the till
+			if (Quantities.isWhole(salesLine.getQuantity())) {
+				if (lineDTO.getLineTotalIncludingVat() != null) {
+					salesLine.setLineTotalIncludingVat(lineDTO.getLineTotalIncludingVat());
+				} else {
+					salesLine.setLineTotalIncludingVat(
+							lineDTO.getLineTotal() + (salesLine.getVatAmount() != null ? salesLine.getVatAmount() : 0.0));
+				}
 			}
 
 			// Discount source tracking (line level)
@@ -543,7 +561,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 				SalesLine freeLine = new SalesLine();
 				freeLine.setSalesHeader(salesHeader);
 				freeLine.setItem(item);
-				freeLine.setQuantity(lineDTO.getFreeQuantity());
+				freeLine.setQuantity(Quantities.of(lineDTO.getFreeQuantity()));
 				freeLine.setUnitPrice(lineDTO.getUnitPrice());
 				freeLine.setLineTotal(0.0);
 				freeLine.setDiscountPercentage(100.0);
@@ -787,7 +805,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		SalesLine taxStampLine = new SalesLine();
 		taxStampLine.setSalesHeader(salesHeader);
 		taxStampLine.setItem(taxStampItemOpt.get());
-		taxStampLine.setQuantity(1);
+		taxStampLine.setQuantity(BigDecimal.ONE);
 		taxStampLine.setUnitPrice(stampAmount);
 		taxStampLine.setLineTotal(stampAmount);
 		taxStampLine.setVatPercent(0);
@@ -1092,7 +1110,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	 */
 	private void decrementStockForSalesLines(List<SalesLine> salesLines, SalesHeader salesHeader) {
 		for (SalesLine line : salesLines) {
-			if (line.getItem() != null && line.getQuantity() != null && line.getQuantity() > 0) {
+			if (line.getItem() != null && line.getQuantity() != null && line.getQuantity().signum() > 0) {
 				if ("TAX_STAMP".equals(line.getItem().getItemCode())) continue;
 				stockService.decrementForSale(line.getItem().getId(), line.getQuantity());
 				stockMovementService.recordSale(
@@ -1523,6 +1541,54 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	}
 
 	/**
+	 * 2.2.1: a line's quantity may carry decimals only when the store allows them (General Setup, Allow decimal
+	 * quantities), and never more than 3; otherwise the sale is refused, before anything is written, with a message
+	 * naming the item. Whole quantities are not looked at further.
+	 */
+	private void checkQuantities(ProcessSaleRequestDTO request) {
+		if (request.getLines() == null) {
+			return;
+		}
+		for (ProcessSaleRequestDTO.SaleLineDTO lineDTO : request.getLines()) {
+			if (!Quantities.isWhole(lineDTO.getQuantity())) {
+				String itemLabel = itemRepository.findById(lineDTO.getItemId()).map(Item::getItemCode)
+						.orElse(String.valueOf(lineDTO.getItemId()));
+				quantityPolicy.check(lineDTO.getQuantity(), itemLabel);
+			}
+		}
+	}
+
+	/**
+	 * 2.2.1: the amounts of a line whose quantity has decimals, computed here and never taken from the till. Same steps
+	 * as the till for every line (VAT included first, then reduced backwards): the unit price including VAT times the
+	 * quantity, rounded to 3 decimals ({@link Quantities#lineAmount}, the one place); minus the discount (a percentage of
+	 * that amount, else the fixed amount); then the amount excluding VAT and the VAT.
+	 */
+	private void applyDecimalLineAmounts(SalesLine line, Double unitPriceHT, Integer vatPercent,
+			Double discountPercentage, Double discountAmount) {
+		double unitHt = unitPriceHT != null ? unitPriceHT : 0.0;
+		int vat = vatPercent != null ? vatPercent : 0;
+		double unitTtc = unitHt * (1 + (vat / 100.0));
+		double grossTtc = Quantities.lineAmount(unitTtc, line.getQuantity());
+		double discount = 0.0;
+		if (discountPercentage != null && discountPercentage > 0) {
+			discount = grossTtc * (discountPercentage / 100);
+		} else if (discountAmount != null && discountAmount > 0) {
+			discount = discountAmount;
+		}
+		double netTtc = Math.max(0, grossTtc - discount);
+		double netHt = netTtc / (1 + (vat / 100.0));
+		line.setUnitPrice(unitHt);
+		line.setVatPercent(vatPercent);
+		line.setDiscountPercentage(discountPercentage != null && discountPercentage > 0 ? discountPercentage : null);
+		line.setDiscountAmount(discount > 0 ? discount : null);
+		line.setUnitPriceIncludingVat(unitTtc);
+		line.setLineTotal(netHt);
+		line.setVatAmount(netTtc - netHt);
+		line.setLineTotalIncludingVat(netTtc);
+	}
+
+	/**
 	 * Apply pricing from PricingService to a sales line
 	 * Calculates price and discount based on SalesPrice and SalesDiscount tables
 	 */
@@ -1541,8 +1607,19 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			unitPriceHT = calculatedUnitPrice / (1.0 + (item.getDefaultVAT() / 100.0));
 		}
 
+		// 2.2.1: a decimal quantity's amounts are computed in one place, from the same price and discount as a direct
+		// sale (the till's, else the ones found here), so a parked ticket ends with the same total
+		if (!Quantities.isWhole(lineDTO.getQuantity())) {
+			Double percentage = lineDTO.getDiscountPercentage() != null ? lineDTO.getDiscountPercentage()
+					: discountPercentage;
+			applyDecimalLineAmounts(salesLine, lineDTO.getUnitPrice() != null ? lineDTO.getUnitPrice() : unitPriceHT,
+					lineDTO.getVatPercent() != null ? lineDTO.getVatPercent() : item.getDefaultVAT(), percentage,
+					percentage != null ? null : lineDTO.getDiscountAmount());
+			return;
+		}
+
 		// Calculate line total from calculated price
-		Double lineTotalHT = unitPriceHT * lineDTO.getQuantity();
+		Double lineTotalHT = Quantities.lineAmount(unitPriceHT, lineDTO.getQuantity());
 
 		// Set price and line total
 		salesLine.setUnitPrice(unitPriceHT);

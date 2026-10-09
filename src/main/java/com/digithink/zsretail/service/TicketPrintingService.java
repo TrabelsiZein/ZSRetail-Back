@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import com.digithink.zsretail.model.Payment;
 import com.digithink.zsretail.model.SalesHeader;
 import com.digithink.zsretail.model.SalesLine;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -107,9 +108,10 @@ public class TicketPrintingService {
 			if (itemName.length() > 25) {
 				itemName = itemName.substring(0, 22) + "...";
 			}
-			ticket.append(String.format("%-25s %6d %10.2f", 
-				itemName, 
-				line.getQuantity() != null ? line.getQuantity() : 0, 
+			// 2.2.1: the quantity as written, without trailing zeros (2, 0.2, 0.058)
+			ticket.append(String.format("%-25s %6s %10.2f",
+				itemName,
+				line.getQuantity() != null ? Quantities.plain(line.getQuantity()) : "0",
 				line.getLineTotal() != null ? line.getLineTotal() : 0.0)).append("\n");
 			
 			if (line.getItem().getItemCode() != null) {

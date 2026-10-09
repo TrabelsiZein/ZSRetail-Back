@@ -1,5 +1,6 @@
 package com.digithink.zsretail.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
@@ -49,7 +50,7 @@ public class PricingService {
 	 * @param responsibilityCenter The responsibility center (currently ignored)
 	 * @return PricingResult with final price, discount, and source
 	 */
-	public PricingResult calculateItemPrice(Item item, Customer customer, Integer quantity,
+	public PricingResult calculateItemPrice(Item item, Customer customer, BigDecimal quantity,
 			String responsibilityCenter) {
 		if (item == null) {
 			log.warn("calculateItemPrice called with null item");

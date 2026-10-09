@@ -134,4 +134,10 @@ public class AppConfigDTO {
 	 * ApplicationModeService.isSupplyFromErpSource().
 	 */
 	private String supplySource;
+
+	/**
+	 * 2.2.1: true on a store whose GeneralSetup ALLOW_DECIMAL_QUANTITY is "true": the till accepts a quantity with up to
+	 * 3 decimals. From QuantityPolicy.decimalAllowed().
+	 */
+	private boolean allowDecimalQuantity;
 }

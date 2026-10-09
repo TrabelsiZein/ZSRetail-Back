@@ -30,6 +30,7 @@ import com.digithink.zsretail.repository.PurchaseHeaderRepository;
 import com.digithink.zsretail.repository.PurchaseLineRepository;
 import com.digithink.zsretail.repository.VendorRepository;
 import com.digithink.zsretail.repository._BaseRepository;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -148,9 +149,9 @@ public class PurchaseHeaderService extends _BaseService<PurchaseHeader, Long> {
 			itemRepository.save(item);
 
 			// Update stock (without an ERP only; single service, atomic updates, concurrency-safe)
-			stockService.incrementForPurchase(item.getId(), lineDto.getQuantity());
+			stockService.incrementForPurchase(item.getId(), Quantities.of(lineDto.getQuantity()));
 			stockMovementService.recordPurchase(
-					item.getId(), lineDto.getQuantity(),
+					item.getId(), Quantities.of(lineDto.getQuantity()),
 					lineDto.getUnitPrice(), vatPct, lineTotalTtc / lineDto.getQuantity(),
 					header.getId());
 		}

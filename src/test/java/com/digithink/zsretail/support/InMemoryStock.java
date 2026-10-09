@@ -4,6 +4,7 @@ import static com.digithink.zsretail.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
 
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -48,16 +49,16 @@ public final class InMemoryStock {
 		this.items = proxy(ItemRepository.class, (method, args) -> {
 			switch (method) {
 				case "addToStockQuantity":
-					return add((Long) args[0], (Integer) args[1]);
+					return add((Long) args[0], (BigDecimal) args[1]);
 				case "decrementStockQuantityIfSufficient": {
 					Item item = catalogue.items.get(args[0]);
-					if (item == null || stock(item) < (Integer) args[1]) {
+					if (item == null || stock(item).compareTo((BigDecimal) args[1]) < 0) {
 						return 0;
 					}
-					return add((Long) args[0], -(Integer) args[1]);
+					return add((Long) args[0], ((BigDecimal) args[1]).negate());
 				}
 				case "decrementStockQuantityUnconditional":
-					add((Long) args[0], -(Integer) args[1]);
+					add((Long) args[0], ((BigDecimal) args[1]).negate());
 					return null;
 				default:
 					return call(delegate, method, args);
@@ -109,23 +110,29 @@ public final class InMemoryStock {
 		return movements.stream().filter(m -> m.getMovementType() == type).collect(Collectors.toList());
 	}
 
+	/** The stock as a whole number (2.2.1: fails on a stock with decimals; use {@link #quantityOf}). */
 	public int stockOf(String itemCode) {
+		return quantityOf(itemCode).intValueExact();
+	}
+
+	/** 2.2.1: the stock with its decimals, without trailing zeros. */
+	public BigDecimal quantityOf(String itemCode) {
 		Optional<Item> item = catalogue.itemByCode(itemCode);
 		return item.map(InMemoryStock::stock).orElseThrow(() -> new IllegalArgumentException(itemCode));
 	}
 
-	private int add(Long itemId, int delta) {
+	private int add(Long itemId, BigDecimal delta) {
 		Item item = catalogue.items.get(itemId);
 		if (item == null) {
 			return 0;
 		}
-		item.setStockQuantity(stock(item) + delta);
-		stockUpdates.add(item.getItemCode() + " " + delta);
+		item.setStockQuantity(stock(item).add(delta));
+		stockUpdates.add(item.getItemCode() + " " + delta.toPlainString());
 		return 1;
 	}
 
-	private static int stock(Item item) {
-		return item.getStockQuantity() == null ? 0 : item.getStockQuantity();
+	private static BigDecimal stock(Item item) {
+		return item.getStockQuantity() == null ? BigDecimal.ZERO : item.getStockQuantity();
 	}
 
 	private static Object call(Object target, String name, Object[] args) {

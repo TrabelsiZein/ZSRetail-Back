@@ -3,6 +3,7 @@ package com.digithink.zsretail.inventory;
 import static com.digithink.zsretail.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
 
+import java.math.BigDecimal;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
@@ -61,7 +62,7 @@ public final class InMemoryInventory {
 		stock.mode = mode;
 		StockBatchRepository batches = new StockBatchRepository(null) {
 			@Override
-			public void addToStockQuantities(Map<Long, Integer> deltas) {
+			public void addToStockQuantities(Map<Long, BigDecimal> deltas) {
 				deltas.forEach((id, delta) -> stock.itemRepository().addToStockQuantity(id, delta));
 			}
 
@@ -192,7 +193,7 @@ public final class InMemoryInventory {
 
 	private int stockOf(long itemId) {
 		Item item = catalogue.items.get(itemId);
-		return item == null || item.getStockQuantity() == null ? 0 : item.getStockQuantity();
+		return item == null || item.getStockQuantity() == null ? 0 : item.getStockQuantity().intValueExact();
 	}
 
 	private InventoryLineStore lineStore() {

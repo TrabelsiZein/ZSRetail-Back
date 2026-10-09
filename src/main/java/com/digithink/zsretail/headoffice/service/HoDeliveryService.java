@@ -48,6 +48,7 @@ import com.digithink.zsretail.model.enumeration.ItemType;
 import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.service.StockMovementService;
 import com.digithink.zsretail.service.StockService;
+import com.digithink.zsretail.utils.Quantities;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -256,7 +257,7 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 			Item item = items.findById(line.getItemId()).orElseThrow(() -> new IllegalArgumentException(
 					"Line " + line.getLineNo() + ": the item " + line.getItemCode() + " no longer exists."));
 			checkDeliverable(line.getLineNo(), item);
-			int inStock = item.getStockQuantity() == null ? 0 : item.getStockQuantity();
+			int inStock = wholeStock(item);
 			if (checkStock && inStock < line.getQuantitySent()) {
 				shortages.add(shortage(item.getItemCode(), inStock, line.getQuantitySent()));
 			}
@@ -273,19 +274,25 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 		if (keepsStock) { // without stock: no decrease, no movement
 			for (HoDeliveryLine line : saved.getLines()) {
 				// Atomic: a stock taken meanwhile by another validation is caught here, and everything rolls back
-				if (!stock.decrementForDelivery(line.getItemId(), line.getQuantitySent())) {
+				if (!stock.decrementForDelivery(line.getItemId(), Quantities.of(line.getQuantitySent()))) {
 					int now = items.findById(line.getItemId())
-							.map(i -> i.getStockQuantity() == null ? 0 : i.getStockQuantity()).orElse(0);
+							.map(HoDeliveryService::wholeStock).orElse(0);
 					throw new IllegalStateException(shortageMessage(
 							Collections.singletonList(shortage(line.getItemCode(), now, line.getQuantitySent()))));
 				}
-				movements.recordDeliveryOut(line.getItemId(), line.getQuantitySent(), saved.getId(), number);
+				movements.recordDeliveryOut(line.getItemId(), Quantities.of(line.getQuantitySent()), saved.getId(), number);
 			}
 		}
 		feed.get().recordChange(DataDomain.SUPPLY, DeliveryCopyDTO.recordCode(number),
 				StoreTargets.of(Collections.singletonList(saved.getStoreId())));
 		log.info("Head office BL {} sent to store {}: {} lines", number, store.getCode(), saved.getLines().size());
 		return Optional.of(view(saved, store, true, false)); // the stock was changed by native updates: GET /{id} reads it
+	}
+
+	/** 2.2.1: BLs stay whole for now; the head office stock as a whole number (null is 0), loud when it has decimals. */
+	private static int wholeStock(Item item) {
+		return item.getStockQuantity() == null ? 0
+				: Quantities.wholeOrFail(item.getStockQuantity(), "Head office stock of " + item.getItemCode());
 	}
 
 	private static String shortage(String itemCode, int inStock, int onBl) {
@@ -648,7 +655,7 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 				row.setDifference(line.getQuantityReceived() == null ? null
 						: line.getQuantityReceived() - line.getQuantitySent());
 				row.setHeadOfficeStock(!withStock || !keepsStock ? null : items.findById(line.getItemId())
-						.map(i -> i.getStockQuantity() == null ? 0 : i.getStockQuantity()).orElse(null));
+						.map(HoDeliveryService::wholeStock).orElse(null));
 				lines.add(row);
 			}
 		}

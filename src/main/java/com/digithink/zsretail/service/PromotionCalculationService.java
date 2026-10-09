@@ -1,5 +1,7 @@
 package com.digithink.zsretail.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -80,7 +82,7 @@ public class PromotionCalculationService {
 	 * @param appliedCodes List of promo codes entered by the cashier
 	 * @return Full pricing breakdown
 	 */
-	public PriceCalculateResponseDTO calculateItemPrice(Long itemId, Integer quantity,
+	public PriceCalculateResponseDTO calculateItemPrice(Long itemId, BigDecimal quantity,
 			Long customerId, List<String> appliedCodes) {
 
 		// Load item
@@ -90,7 +92,7 @@ public class PromotionCalculationService {
 		// Load customer
 		Customer customer = resolveCustomer(customerId);
 
-		int qty = (quantity != null && quantity > 0) ? quantity : 1;
+		BigDecimal qty = (quantity != null && quantity.signum() > 0) ? quantity : BigDecimal.ONE;
 		List<String> codes = (appliedCodes != null) ? appliedCodes : new ArrayList<>();
 
 		// Delegate SalesPrice / SalesDiscount to existing PricingService
@@ -367,13 +369,15 @@ public class PromotionCalculationService {
 
 			int entitled = 0;
 			for (CartCalculateRequestDTO.CartItemDTO line : cartItems) {
-				if (line.getItemId() == null || line.getQuantity() == null || line.getQuantity() <= 0) continue;
+				if (line.getItemId() == null || line.getQuantity() == null || line.getQuantity().signum() <= 0) continue;
 				// The benefit item itself never counts as buy quantity — otherwise a
 				// family/group buy-side containing the get-item would self-trigger
 				if (line.getItemId().equals(getItemId)) continue;
 				Item cartItem = itemsById.get(line.getItemId());
 				if (cartItem != null && matchesBuyTarget(p, cartItem)) {
-					entitled += line.getQuantity() / p.getMinimumQuantity();
+					// 2.2.1: floor, as documented above, also for a decimal quantity (2.5 with a minimum of 2 earns 1)
+					entitled += line.getQuantity().divide(BigDecimal.valueOf(p.getMinimumQuantity()), 0, RoundingMode.FLOOR)
+							.intValueExact();
 				}
 			}
 			if (entitled <= 0) continue;
@@ -443,7 +447,7 @@ public class PromotionCalculationService {
 	 * Filters are applied per scope: a scope with no eligible candidate falls through to the next one.
 	 * Within scope: highest priority wins (ABSOLUTE).
 	 */
-	private Promotion findBestItemPromotion(Item item, int quantity, List<String> codes) {
+	private Promotion findBestItemPromotion(Item item, BigDecimal quantity, List<String> codes) {
 		LocalDate today = LocalDate.now();
 		LocalTime now = LocalTime.now();
 		DayOfWeek todayDay = today.getDayOfWeek();
@@ -491,7 +495,7 @@ public class PromotionCalculationService {
 	 * apply remaining filters and return the highest-priority match.
 	 * Tiebreaker when priorities are equal: highest discount value wins (percentage → amount → freeQuantity).
 	 */
-	private Promotion selectBestFromList(List<Promotion> candidates, int quantity,
+	private Promotion selectBestFromList(List<Promotion> candidates, BigDecimal quantity,
 			List<String> codes, LocalTime now, DayOfWeek todayDay) {
 		return candidates.stream()
 				// Cross-product promotions (getItem set) never discount the buy line
@@ -517,8 +521,8 @@ public class PromotionCalculationService {
 	}
 
 	/** If minimumQuantity is set, the cart quantity must meet or exceed it. */
-	private boolean passesQuantityFilter(Promotion p, int quantity) {
-		return p.getMinimumQuantity() == null || quantity >= p.getMinimumQuantity();
+	private boolean passesQuantityFilter(Promotion p, BigDecimal quantity) {
+		return p.getMinimumQuantity() == null || quantity.compareTo(BigDecimal.valueOf(p.getMinimumQuantity())) >= 0;
 	}
 
 	/** If minimumAmount is set, the cart total must meet or exceed it. */

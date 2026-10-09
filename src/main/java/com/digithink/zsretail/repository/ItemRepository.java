@@ -1,5 +1,6 @@
 package com.digithink.zsretail.repository;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -25,7 +26,7 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 	 */
 	@Modifying
 	@Query(value = "UPDATE item SET stock_quantity = COALESCE(stock_quantity, 0) + :delta WHERE id = :itemId", nativeQuery = true)
-	int addToStockQuantity(@Param("itemId") Long itemId, @Param("delta") int delta);
+	int addToStockQuantity(@Param("itemId") Long itemId, @Param("delta") BigDecimal delta);
 
 	/**
 	 * Atomic decrement only if current stock (or 0 if null) is >= quantity. Prevents negative stock.
@@ -35,7 +36,7 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 	 */
 	@Modifying
 	@Query(value = "UPDATE item SET stock_quantity = COALESCE(stock_quantity, 0) - :quantity WHERE id = :itemId AND COALESCE(stock_quantity, 0) >= :quantity", nativeQuery = true)
-	int decrementStockQuantityIfSufficient(@Param("itemId") Long itemId, @Param("quantity") int quantity);
+	int decrementStockQuantityIfSufficient(@Param("itemId") Long itemId, @Param("quantity") BigDecimal quantity);
 
 	/**
 	 * Unconditional decrement — allows stock to go negative.
@@ -45,7 +46,7 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 	 */
 	@Modifying
 	@Query(value = "UPDATE item SET stock_quantity = COALESCE(stock_quantity, 0) - :quantity WHERE id = :itemId", nativeQuery = true)
-	void decrementStockQuantityUnconditional(@Param("itemId") Long itemId, @Param("quantity") int quantity);
+	void decrementStockQuantityUnconditional(@Param("itemId") Long itemId, @Param("quantity") BigDecimal quantity);
 
 	/**
 	 * Invoices from the ERP: the costs of an item received on an ERP invoice, by id: last direct cost = the gross unit
@@ -64,7 +65,7 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 
 	List<Item> findByType(ItemType type);
 
-	List<Item> findByStockQuantityLessThan(Integer quantity);
+	List<Item> findByStockQuantityLessThan(BigDecimal quantity);
 
 	Optional<Item> findByBarcode(String barcode);
 
