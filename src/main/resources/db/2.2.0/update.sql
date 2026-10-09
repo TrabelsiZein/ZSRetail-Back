@@ -38,4 +38,4 @@ INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
 ('2.2.0', 'NEW', 'Siège : pages Points de stock et Articles par point de stock (menu Catalogue), et choix du point de stock de chaque magasin sur la page des magasins. Un magasin sans point de stock ne reçoit aucun article de l''ERP : donner un point de stock à chaque magasin avant le déploiement.'),
 ('2.2.0', 'IMPROVE', 'Factures de l''ERP : un avertissement nomme les articles qui ne sont pas dans le point de stock du magasin.'),
 ('2.2.0', 'IMPROVE', 'La ligne erp.navpospages.location-code n''est plus lue : les points de stock se créent au siège avant la tâche des articles.'),
-('2.2.0', 'IMPROVE', 'Factures de l''ERP : les lignes erp.navpospages.invoices.years et invoices.start-number ne sont plus lues ; le numéro de départ se règle au siège sur la page Factures de l''ERP.');
+('2.2.0', 'IMPROVE', 'Factures de l''ERP : les lignes erp.navpospages.invoices.years et invoices.start-number ne sont plus lues ; le numéro de départ se règle au siège dans la configuration générale (carte Factures de l''ERP).');

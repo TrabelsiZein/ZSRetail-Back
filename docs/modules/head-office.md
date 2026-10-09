@@ -1569,8 +1569,8 @@ Fixes after the second test of 2.2 (head office whose catalogue comes from the E
   "Last invoice read" (`ERP_INVOICES_LAST_READ`, read only, written after each run by `HoErpInvoiceService`: the highest
   number saved). A value that is not an invoice number (prefix, 2-digit year, digits) is refused with a clear message
   (`NavPosPagesInvoiceSettingCheck`, through `GeneralSetupValueCheck`; the API answers 400 and the screen shows it).
-  The two settings are shown on the head office page "Invoices from the ERP", not on the General Setup page (since
-  the last step of 2.2).
+  The two settings are shown on the head office General Setup page (card "Invoices from the ERP"), not on the store
+  General Setup page.
   The years read (`NavPosPagesSync.invoices`): with no invoice saved, from the year of the setting's number (empty: the
   year of the oldest invoice on the page, one GET `$top=1`; an empty page reads nothing) to this year, its year after
   the number, the later years from their start; with invoices saved, from the oldest saved year to this year, each
@@ -1586,7 +1586,7 @@ specific to a head office is in a head office page (`src/views/admin/headoffice/
 | `HeadOfficeUsers.vue` (Settings > Users) | `UserManagement.vue` | No badge (badge code, expiration, badge permissions, revoke, reactivate); the role list offers the roles that exist (`GET /app-roles`, the first one by default); the badge fields are never sent, so a user's badge is kept as it is |
 | `HeadOfficeRoles.vue` (Settings > Roles) | `RoleManagement.vue` | Only the permissions of the pages this head office shows, named by their menu entry; no "POS role" switch (an existing role keeps its flag); select all / none change only the listed permissions |
 | `HeadOfficeErpCommunications.vue` (ERP > communications) | `ErpCommunications.vue` | `extends` the store page; only the operation filter adds `SYNC_CATALOGUE` |
-| `ErpInvoices.vue` (Invoices from the ERP) | the General Setup page | "Read ERP invoices after number" (saved through `PUT /general-setup/{id}`; a refused value shows its reason under the field) and "Last invoice read" (read only), read with `GET /general-setup/findByCode`; hidden when the settings are not there |
+| `HeadOfficeGeneralSetup.vue` (Settings > General Setup) | `GeneralSetupManagement.vue` | Only the settings a head office reads, by its mode (below); same look and same save (the changed values, `PUT /general-setup/{id}` each); a refused value shows its reason under its field and in the error toast |
 
 The guard of the points de stock and of the price lists (`meta.erpCatalogue`, `meta.notWithErpCatalogue`) is the
 route guard `byCatalogueSource` of those head office routes (it was in `src/router/index.js`, now as in 2.1.0).
@@ -1598,6 +1598,30 @@ head office route goes to the store home as before); backend: `ZZDataInitializer
 only a head office creates), `ErpCatalogueSync` and `GeneralSetupValueCheck` (interfaces with no store bean), the
 entities `HoStockPoint`, `HoStockPointItem`, `Store.stockPointId` (Hibernate creates their empty tables and column in
 every database), `db/2.2.0/update.sql` and the version.
+
+**Head office General Setup.** The general settings a head office reads (backend readers, checked 2026-10-09), and the
+card of `HeadOfficeGeneralSetup.vue` that shows them. "Own supply" is a head office without an ERP or with the ERP
+catalogue only, and `headoffice.supply.source=HEAD_OFFICE`.
+
+| Setting | Read on a head office | Card (when) |
+|---|---|---|
+| `ERP_INVOICES_READ_AFTER` | Yes: where the reading of the ERP invoices starts (`JpaNavPosPagesHeadOffice`), checked on save | Invoices from the ERP (supply from the ERP) |
+| `ERP_INVOICES_LAST_READ` | Yes: written after each run (`HoErpInvoiceService`), read only | Invoices from the ERP (supply from the ERP) |
+| `SUPPLY_INVOICE_TAX_STAMP`, `SUPPLY_INVOICE_TAX_STAMP_MILLIMES` | Yes: the stamp line of a supply invoice (`HoSupplyInvoiceService`) | Supply invoices to the stores (own supply) |
+| `ALLOW_NEGATIVE_STOCK` | Yes: a BL below the stock (`HoDeliveryService`, only when the head office keeps stock) | Stock (own supply and stock kept) |
+| `ERP_SYNC_TRACKING_LEVEL` | Yes: what the ERP communications log keeps (`ErpCommunicationService`) | ERP (with an ERP) |
+| `TAX_STAMP_ERP_ITEM_CODE` | Yes: the ERP item the item import never saves (`JpaNavPosPagesHeadOffice`, `ErpItemBootstrapService`) | ERP (with an ERP) |
+| `ERP_SYNC_LAST_ITEM_FAMILY`, `_ITEM_SUBFAMILY`, `_ITEM`, `_ITEM_BARCODE`, `_LOCATION`, `_CUSTOMER`, `_DELETION_LOG` | Yes, with an ERP that owns everything: the checkpoints of the imports a head office runs; never written with the ERP catalogue only (one job, no checkpoint) | ERP, read only (with an ERP, not the ERP catalogue only) |
+| `ERP_SYNC_LAST_SALES_PRICE`, `_SALES_DISCOUNT` | No: the price import is refused on a head office | — |
+| `DEFAULT_LOCATION` | Yes, with an ERP that owns everything: the ERP reference location (`ErpReferenceLocationService`) | — (set on its own page, ERP > Reference location, which also marks the location) |
+| `POS_SHOW_IMAGES` | Only as a side effect: the family and sub-family lists drop their images when false (default true) | — (a till display setting) |
+| `LOYALTY_ENABLED` | Only in `GET /config`, which no head office page reads; points adjusted at the head office do not ask it | — |
+| `PASSENGER_CUSTOMER` | Written at the first start, never read (no sale, Customers page hidden) | — |
+| `ERP_SKIP_CHEQUE_PAYMENTS` | No: the export of a store's sessions | — |
+| `ALWAYS_SHOW_BADGE_SCAN_POPUP`, `POS_SHOW_STOCK`, `TABLE_MANAGEMENT_*`, `MAX_DAYS_FOR_RETURN`, `ENABLE_SIMPLE_RETURN`, `RETURN_VOUCHER_VALIDITY_DAYS`, `BLOCK_RETURN_FOR_PROMOTION`, `AUTO_ADD_CASH_PAYMENT_ON_PAYMENT_PAGE`, `ENABLE_CASH_DISCREPANCY_CHECK`, `ENABLE_PAYMENT_METHOD_CHANGE`, `PLAFOND_ESPECE`, `PAYMENT_METHOD_*_TITLE_NUMBER_LENGTH`, `ENABLE_TAX_STAMP`, `TAX_STAMP_VALUE_MILLIMES`, `TICKET_SHOW_LOYALTY_*`, `TOMBOLA_ENABLED` | No: the till, its tickets, returns, payments and sessions | — |
+
+A head office whose catalogue and supply come from the ERP shows two cards: Invoices from the ERP (the two invoice
+settings) and ERP (tracking level, tax stamp ERP item code).
 
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter
