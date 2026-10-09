@@ -103,7 +103,7 @@ The three Sales pages are described under "Consolidated sales API", "Head office
 | `HorizontalNavMenu.vue` (top bar): a top-level group carries its title in `header`. The template's stub `src/navigation/horizontal/index.js` is gone | `headOfficeHorizontalMenu()` |
 | `SearchBar.vue`: the menu links filtered with `$can`, instead of the store list and its legacy roles | `headOfficeSearchData()` |
 | `Home.vue`: Stores, Items, Promotions, Customers, Loyalty members, Users, filtered with `$can` | `headOfficeQuickLinks()` |
-| `RoleManagement.vue` | `headOfficePermissionGroups()`, `headOfficePermissionTitle()` |
+| `headoffice/HeadOfficeRoles.vue` (release 2.2; the store page `RoleManagement.vue` still reads them as in 2.1.0) | `headOfficePermissionGroups()`, `headOfficePermissionTitle()` |
 
 - Data import is left out with an ERP, the same rule as on a store.
 - The store menu is still `src/navigation/vertical/index.js`; only the Network group moved out (it was hidden on a store).
@@ -1558,9 +1558,10 @@ Fixes after the second test of 2.2 (head office whose catalogue comes from the E
   RESPONSIBLE, no POS_USER, none of their users; `ZZDataInitializer.ensureDefaultRoles` / `initUsers`). Nothing on a head
   office needs those two roles: the user's legacy role is worked out from the role's name, a custom role gives
   RESPONSIBLE or POS_USER without the rows, and a cashier role cannot sign in on a head office. An existing head office
-  database keeps them as they are (nothing deleted or changed). The Role form on a head office lists only the
-  permissions of the pages this head office shows (the menu's rule) and has no "POS role" switch; the admin can still
-  create roles. A store keeps its three roles, its default users and all its permissions.
+  database keeps them as they are (nothing deleted or changed). The head office Roles page lists only the permissions
+  of the pages this head office shows (the menu's rule) and has no "POS role" switch; the admin can still create roles
+  (since the last step of 2.2, a head office page: see "Store pages as in 2.1.0" below). A store keeps its three
+  roles, its default users and all its permissions.
 - **D. Where the invoices from the ERP start.** The file lines `erp.navpospages.invoices.years` and
   `invoices.start-number` are gone: a line left in a file is ignored with a WARN, the application starts
   (`NavPosPagesStartupCheck.REMOVED_KEYS`). One General Setup setting, seeded only on a head office with
@@ -1568,11 +1569,35 @@ Fixes after the second test of 2.2 (head office whose catalogue comes from the E
   "Last invoice read" (`ERP_INVOICES_LAST_READ`, read only, written after each run by `HoErpInvoiceService`: the highest
   number saved). A value that is not an invoice number (prefix, 2-digit year, digits) is refused with a clear message
   (`NavPosPagesInvoiceSettingCheck`, through `GeneralSetupValueCheck`; the API answers 400 and the screen shows it).
+  The two settings are shown on the head office page "Invoices from the ERP", not on the General Setup page (since
+  the last step of 2.2).
   The years read (`NavPosPagesSync.invoices`): with no invoice saved, from the year of the setting's number (empty: the
   year of the oldest invoice on the page, one GET `$top=1`; an empty page reads nothing) to this year, its year after
   the number, the later years from their start; with invoices saved, from the oldest saved year to this year, each
   after its highest saved number, the setting ignored, so changing it reads no old invoice. Summary `startingPoint`.
   The rest of the invoice flow is unchanged.
+
+**Store pages as in 2.1.0 (last step of 2.2).** A page a store uses stays exactly as in release/2.1.0; what is
+specific to a head office is in a head office page (`src/views/admin/headoffice/`, routes in
+`src/router/headoffice-routes.js`, the head office menu points to them; same route names and permissions as before):
+
+| Head office page | Instead of | What differs |
+|---|---|---|
+| `HeadOfficeUsers.vue` (Settings > Users) | `UserManagement.vue` | No badge (badge code, expiration, badge permissions, revoke, reactivate); the role list offers the roles that exist (`GET /app-roles`, the first one by default); the badge fields are never sent, so a user's badge is kept as it is |
+| `HeadOfficeRoles.vue` (Settings > Roles) | `RoleManagement.vue` | Only the permissions of the pages this head office shows, named by their menu entry; no "POS role" switch (an existing role keeps its flag); select all / none change only the listed permissions |
+| `HeadOfficeErpCommunications.vue` (ERP > communications) | `ErpCommunications.vue` | `extends` the store page; only the operation filter adds `SYNC_CATALOGUE` |
+| `ErpInvoices.vue` (Invoices from the ERP) | the General Setup page | "Read ERP invoices after number" (saved through `PUT /general-setup/{id}`; a refused value shows its reason under the field) and "Last invoice read" (read only), read with `GET /general-setup/findByCode`; hidden when the settings are not there |
+
+The guard of the points de stock and of the price lists (`meta.erpCatalogue`, `meta.notWithErpCatalogue`) is the
+route guard `byCatalogueSource` of those head office routes (it was in `src/router/index.js`, now as in 2.1.0).
+`RoleManagement.vue`, `GeneralSetupManagement.vue`, `ErpCommunications.vue` and `src/router/index.js` have no diff
+against release/2.1.0. Files a store loads that still differ from 2.1.0: the i18n files (keys added only),
+`src/navigation/headoffice/index.js` and `src/router/headoffice-routes.js` (head office menu and routes; on a store a
+head office route goes to the store home as before); backend: `ZZDataInitializer` (head office branches only),
+`GeneralSetupService` (a value check hook, no check bean on a store), `ErpSyncJobRunner` and the job enums (a job type
+only a head office creates), `ErpCatalogueSync` and `GeneralSetupValueCheck` (interfaces with no store bean), the
+entities `HoStockPoint`, `HoStockPointItem`, `Store.stockPointId` (Hibernate creates their empty tables and column in
+every database), `db/2.2.0/update.sql` and the version.
 
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter

@@ -12,8 +12,9 @@
 --
 -- Schema: the new tables ho_stock_point and ho_stock_point_item (both exist, empty, in every database) are created by
 -- Hibernate ddl-auto=update at the first start. The statement below adds the new nullable column of an existing table
--- (null = no point de stock: the store receives the catalogue as in 2.1). It does nothing when the column is already
--- there or when ho_store does not exist yet (Hibernate then creates it whole). No data is changed.
+-- (null = no point de stock: the store receives no item of the ERP, part B of the fixes after the second test of 2.2).
+-- It does nothing when the column is already there or when ho_store does not exist yet (Hibernate then creates it
+-- whole). No data is changed.
 
 -- Stock points, step 1: the store's point de stock
 IF OBJECT_ID('ho_store') IS NOT NULL AND COL_LENGTH('ho_store', 'stock_point_id') IS NULL
@@ -34,6 +35,7 @@ UPDATE APP_VERSION SET version = '2.2.0';
 
 INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
 ('2.2.0', 'NEW', 'Siège avec le catalogue de l''ERP : plusieurs points de stock. Chaque point de stock est un emplacement de l''ERP, lu par la tâche des articles ; chaque magasin reçoit seulement les articles de son point de stock, avec leur nom, leur famille et leur prix dans ce point.'),
-('2.2.0', 'NEW', 'Siège : pages Points de stock et Articles par point de stock (menu Catalogue), et choix du point de stock de chaque magasin sur la page des magasins. Un magasin sans point de stock reçoit tous les articles comme avant.'),
+('2.2.0', 'NEW', 'Siège : pages Points de stock et Articles par point de stock (menu Catalogue), et choix du point de stock de chaque magasin sur la page des magasins. Un magasin sans point de stock ne reçoit aucun article de l''ERP : donner un point de stock à chaque magasin avant le déploiement.'),
 ('2.2.0', 'IMPROVE', 'Factures de l''ERP : un avertissement nomme les articles qui ne sont pas dans le point de stock du magasin.'),
-('2.2.0', 'IMPROVE', 'La ligne erp.navpospages.location-code n''est plus lue : les points de stock se créent au siège avant la tâche des articles.');
+('2.2.0', 'IMPROVE', 'La ligne erp.navpospages.location-code n''est plus lue : les points de stock se créent au siège avant la tâche des articles.'),
+('2.2.0', 'IMPROVE', 'Factures de l''ERP : les lignes erp.navpospages.invoices.years et invoices.start-number ne sont plus lues ; le numéro de départ se règle au siège sur la page Factures de l''ERP.');

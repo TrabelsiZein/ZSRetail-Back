@@ -20,6 +20,7 @@ import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.model.GeneralSetup;
 import com.digithink.zsretail.repository.GeneralSetupChangeLogRepository;
 import com.digithink.zsretail.repository.GeneralSetupRepository;
+import com.digithink.zsretail.security.CurrentUserProvider;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.GeneralSetupValueCheck;
 
@@ -69,5 +70,26 @@ class NavPosPagesInvoiceSettingCheckTest {
 		assertThrows(IllegalStateException.class, () -> service.updateFromAdmin(7L, wrong, null));
 		assertEquals("", setting.getValeur());
 		verify(repository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("A store (no check bean: the connector exists only on its head office): General Setup saves as in 2.1")
+	void storeSavesAsBefore() throws Exception {
+		GeneralSetupRepository repository = mock(GeneralSetupRepository.class);
+		GeneralSetup setting = new GeneralSetup();
+		setting.setCode("DEFAULT_LOCATION");
+		setting.setValeur("MAG1");
+		when(repository.findById(7L)).thenReturn(Optional.of(setting));
+		when(repository.save(any())).thenAnswer(call -> call.getArgument(0));
+		GeneralSetupService service = new GeneralSetupService();
+		ReflectionTestUtils.setField(service, "generalSetupRepository", repository);
+		ReflectionTestUtils.setField(service, "generalSetupChangeLogRepository", mock(GeneralSetupChangeLogRepository.class));
+		ReflectionTestUtils.setField(service, "currentUserProvider", mock(CurrentUserProvider.class));
+		// valueChecks stays null, as Spring leaves it when no GeneralSetupValueCheck bean exists
+
+		GeneralSetup changed = new GeneralSetup();
+		changed.setValeur("FVV26");
+		assertEquals("FVV26", service.updateFromAdmin(7L, changed, null).getValeur());
+		verify(repository).save(setting);
 	}
 }

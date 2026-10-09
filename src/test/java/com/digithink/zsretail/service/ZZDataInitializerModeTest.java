@@ -24,6 +24,7 @@ import com.digithink.zsretail.repository.AppReleaseNoteRepository;
 import com.digithink.zsretail.repository.AppRoleRepository;
 import com.digithink.zsretail.repository.AppVersionRepository;
 import com.digithink.zsretail.repository.CustomerRepository;
+import com.digithink.zsretail.erp.model.ErpSyncJob;
 import com.digithink.zsretail.erp.repository.ErpSyncJobRepository;
 import com.digithink.zsretail.erp.service.ErpSyncCheckpointService;
 import com.digithink.zsretail.repository.GeneralSetupRepository;
@@ -47,6 +48,8 @@ class ZZDataInitializerModeTest {
 	/** What one init() wrote. */
 	private static final class Writes {
 		final List<String> settings = new ArrayList<>();
+		/** The types of the ERP jobs created. */
+		final List<String> jobs = new ArrayList<>();
 		int customers;
 		int erpJobs;
 	}
@@ -66,6 +69,9 @@ class ZZDataInitializerModeTest {
 				}
 				if (settings != null && args[0] instanceof GeneralSetup) {
 					settings.add(((GeneralSetup) args[0]).getCode());
+				}
+				if (settings != null && args[0] instanceof ErpSyncJob) {
+					settings.add(((ErpSyncJob) args[0]).getJobType().name());
 				}
 				if (args[0] instanceof Collection && settings != null) {
 					for (Object row : (Collection<?>) args[0]) {
@@ -132,7 +138,7 @@ class ZZDataInitializerModeTest {
 		set(initializer, "itemBarcodeRepository", repository(ItemBarcodeRepository.class, 1, null, null));
 		set(initializer, "locationRepository", repository(LocationRepository.class, 1, null, null));
 		set(initializer, "generalSetupRepository", repository(GeneralSetupRepository.class, 1, null, writes.settings));
-		set(initializer, "erpSyncJobRepository", repository(ErpSyncJobRepository.class, 0, () -> writes.erpJobs++, null));
+		set(initializer, "erpSyncJobRepository", repository(ErpSyncJobRepository.class, 0, () -> writes.erpJobs++, writes.jobs));
 		set(initializer, "companyInformationService", new CompanyInformationService(null) {
 			@Override
 			public void ensureExists() {
@@ -180,5 +186,32 @@ class ZZDataInitializerModeTest {
 			assertTrue(writes.settings.containsAll(ErpSyncCheckpointService.getCheckpointDescriptions().keySet()),
 					"the ERP checkpoints: " + writes.settings);
 		}
+	}
+
+	@Test
+	@DisplayName("Release 2.2: a store (its own ERP, linked to a head office) seeds no 2.2 setting or job; only the head office with the ERP catalogue and ERP supply does")
+	void release22OnlyOnTheHeadOffice() throws Exception {
+		ApplicationModeService linked = TestModes.of(new MockEnvironment()
+				.withProperty("headoffice.url", "http://localhost:888/zsretail/api").withProperty("headoffice.api-key", "k")
+				.withProperty("ownership.catalogue", "HEAD_OFFICE").withProperty("ownership.loyalty", "HEAD_OFFICE")
+				.withProperty("headoffice.supply.source", "ERP")); // never read on a store
+		ApplicationModeService linkedWithErp = TestModes.of(TestModes.erpOwners(new MockEnvironment()
+				.withProperty("headoffice.url", "http://localhost:888/zsretail/api").withProperty("headoffice.api-key", "k")));
+		for (ApplicationModeService store : new ApplicationModeService[] { TestModes.erp(), linked, linkedWithErp }) {
+			Writes writes = init(store);
+			assertFalse(writes.settings.contains("ERP_INVOICES_READ_AFTER"), "no invoice setting: " + writes.settings);
+			assertFalse(writes.settings.contains("ERP_INVOICES_LAST_READ"), "no invoice setting: " + writes.settings);
+			assertFalse(writes.jobs.contains("SYNC_CATALOGUE"), "no catalogue job: " + writes.jobs);
+			assertFalse(writes.jobs.contains("IMPORT_SUPPLY_INVOICES"), "no invoice job: " + writes.jobs);
+		}
+
+		ApplicationModeService headOffice = TestModes.of(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")
+				.withProperty("ownership.catalogue", "ERP").withProperty("erp.navpospages.enabled", "true")
+				.withProperty("headoffice.supply.source", "ERP"));
+		Writes writes = init(headOffice);
+		assertTrue(writes.settings.containsAll(java.util.Arrays.asList("ERP_INVOICES_READ_AFTER", "ERP_INVOICES_LAST_READ")),
+				"the invoice settings: " + writes.settings);
+		assertTrue(writes.jobs.containsAll(java.util.Arrays.asList("SYNC_CATALOGUE", "IMPORT_SUPPLY_INVOICES")),
+				"the head office jobs: " + writes.jobs);
 	}
 }
