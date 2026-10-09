@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 
 import javax.persistence.EntityManager;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,7 +24,8 @@ import com.digithink.zsretail.headoffice.repository.HoStockPointRepository;
 
 /**
  * Stock points, step 2: ho_stock_point and ho_stock_point_item for the items run of the ERP catalogue (NavPosPagesSync).
- * Reads with JPQL projections; each {@link #write} is one transaction. Nothing is recorded for the stores here (step 3).
+ * Reads with JPQL projections; each {@link #write} is one transaction, with the change rows of the stores of that point
+ * (step 3a, HoCatalogueService.stockPointRowsChanged; nothing when no store has the point).
  */
 @Component
 @ConditionalOnHeadOfficeErpCatalogue
@@ -37,11 +39,15 @@ public class HoStockPointRows implements NavPosPagesStockPoints {
 	private final HoStockPointRepository points;
 	private final HoStockPointItemRepository rows;
 	private final EntityManager entityManager;
+	/** Step 3a: records the rows written for the stores of the point (in the same transaction). */
+	private final ObjectProvider<HoCatalogueService> catalogue;
 
-	public HoStockPointRows(HoStockPointRepository points, HoStockPointItemRepository rows, EntityManager entityManager) {
+	public HoStockPointRows(HoStockPointRepository points, HoStockPointItemRepository rows, EntityManager entityManager,
+			ObjectProvider<HoCatalogueService> catalogue) {
 		this.points = points;
 		this.rows = rows;
 		this.entityManager = entityManager;
+		this.catalogue = catalogue;
 	}
 
 	@Override
@@ -76,12 +82,18 @@ public class HoStockPointRows implements NavPosPagesStockPoints {
 		Map<String, Long> itemIds = itemIds(packet.stream().map(row -> row.itemCode).collect(Collectors.toList()));
 		Map<Long, HoStockPointItem> existing = existing(pointId, new ArrayList<>(itemIds.values()));
 		List<HoStockPointItem> toSave = new ArrayList<>();
+		List<Long> changedItems = new ArrayList<>();
+		List<Long> barcodeItems = new ArrayList<>();
 		for (Row row : packet) {
 			Long itemId = itemIds.get(row.itemCode);
 			if (itemId == null) {
 				continue; // the item is not at the head office: the next run hands the row again
 			}
 			HoStockPointItem saved = existing.get(itemId);
+			changedItems.add(itemId);
+			if (saved == null || Boolean.FALSE.equals(saved.getActive()) == row.active) {
+				barcodeItems.add(itemId); // entered the point, or its active flag changed: its barcodes again
+			}
 			if (saved == null) {
 				saved = new HoStockPointItem();
 				saved.setStockPointId(pointId);
@@ -96,6 +108,10 @@ public class HoStockPointRows implements NavPosPagesStockPoints {
 			toSave.add(saved);
 		}
 		rows.saveAll(toSave);
+		HoCatalogueService recorder = catalogue == null ? null : catalogue.getIfAvailable();
+		if (recorder != null) {
+			recorder.stockPointRowsChanged(pointId, changedItems, barcodeItems); // step 3a: the stores of this point
+		}
 		return toSave.size();
 	}
 

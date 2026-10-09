@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -16,6 +17,10 @@ public interface HoDownChangeRepository extends _BaseRepository<HoDownChange, Lo
 	Optional<HoDownChange> findByDomainAndRecordCodeAndStoreId(DataDomain domain, String recordCode, Long storeId);
 
 	Optional<HoDownChange> findByDomainAndRecordCodeAndStoreIdIsNull(DataDomain domain, String recordCode);
+
+	/** Stock points, step 3a: the rows of one store for these codes (a bulk recording). */
+	List<HoDownChange> findByDomainAndStoreIdAndRecordCodeIn(DataDomain domain, Long storeId,
+			java.util.Collection<String> recordCodes);
 
 	/**
 	 * [code, last change number] of the records of a domain changed for this store (its own rows and the every-store

@@ -24,8 +24,11 @@ import com.digithink.zsretail.headoffice.dto.CatalogueFamilyCopyDTO;
 import com.digithink.zsretail.headoffice.dto.CatalogueItemCopyDTO;
 import com.digithink.zsretail.headoffice.dto.CatalogueSubFamilyCopyDTO;
 import com.digithink.zsretail.headoffice.model.HoPriceListLine;
+import com.digithink.zsretail.headoffice.model.HoStockPointItem;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.HoPriceListLineRepository;
+import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
+import com.digithink.zsretail.headoffice.repository.StoreRepository;
 import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.ItemBarcode;
 import com.digithink.zsretail.model.ItemComposition;
@@ -52,8 +55,10 @@ import lombok.extern.log4j.Log4j2;
  * CATALOGUE). Families, sub-families, items and barcodes, every record for every store, record codes with a prefix
  * ({@link CatalogueKind}). The item copy carries the price worked out for the store that pulls (task 6.4): the line of
  * its selling price list for the item, otherwise the base price (item.unitPrice). Every save, delete, pack change and
- * data import of a catalogue record is one change for every store. The system item TAX_STAMP never travels. See
- * docs/modules/head-office.md, "Catalogue owned by the head office".
+ * data import of a catalogue record is one change for every store. The system item TAX_STAMP never travels. Release
+ * 2.2 (stock points, head office whose catalogue comes from the ERP): a store with a stock point receives an ERP item
+ * only when its point has a row for it, built from that row; a store without a point receives what it did before. See
+ * docs/modules/head-office.md, "Catalogue owned by the head office" and "Stock points".
  */
 @Service
 @ConditionalOnHeadOfficeWithoutErp
@@ -77,18 +82,36 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 	private final Supplier<CopiesDownFeed> feed;
 	private final TransactionOperations writeTransactions;
 
+	/**
+	 * Stock points (release 2.2, step 3a): the rows of the points and the stores of a point. Null in the tests of step 6
+	 * (no store has a point there).
+	 */
+	private final HoStockPointItemRepository stockPointItems;
+	private final StoreRepository stores;
+
 	@Autowired
 	public HoCatalogueService(ItemFamilyRepository families, ItemSubFamilyRepository subFamilies, ItemRepository items,
 			ItemBarcodeRepository barcodes, ItemCompositionRepository compositions, HoPriceListLineRepository priceLines,
-			ObjectProvider<CopiesDownFeed> feed, PlatformTransactionManager transactionManager) {
+			ObjectProvider<CopiesDownFeed> feed, PlatformTransactionManager transactionManager,
+			HoStockPointItemRepository stockPointItems, StoreRepository stores) {
 		this(families, subFamilies, items, barcodes, compositions, priceLines, (Supplier<CopiesDownFeed>) feed::getObject,
-				new TransactionTemplate(transactionManager));
+				new TransactionTemplate(transactionManager), stockPointItems, stores);
 	}
 
-	/** With given collaborators: used by the tests. */
+	/** With given collaborators, without stock points: used by the tests. */
 	public HoCatalogueService(ItemFamilyRepository families, ItemSubFamilyRepository subFamilies, ItemRepository items,
 			ItemBarcodeRepository barcodes, ItemCompositionRepository compositions, HoPriceListLineRepository priceLines,
 			Supplier<CopiesDownFeed> feed, TransactionOperations writeTransactions) {
+		this(families, subFamilies, items, barcodes, compositions, priceLines, feed, writeTransactions, null, null);
+	}
+
+	/** With given collaborators and stock points: used by the tests. */
+	public HoCatalogueService(ItemFamilyRepository families, ItemSubFamilyRepository subFamilies, ItemRepository items,
+			ItemBarcodeRepository barcodes, ItemCompositionRepository compositions, HoPriceListLineRepository priceLines,
+			Supplier<CopiesDownFeed> feed, TransactionOperations writeTransactions,
+			HoStockPointItemRepository stockPointItems, StoreRepository stores) {
+		this.stockPointItems = stockPointItems;
+		this.stores = stores;
 		this.families = families;
 		this.subFamilies = subFamilies;
 		this.items = items;
@@ -136,20 +159,175 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 					: compositions.findByParentItemIdIn(ids).stream()
 							.collect(Collectors.groupingBy(c -> c.getParentItem().getId()));
 			Map<Long, Double> listPrices = listPrices(store, ids);
-			for (Item item : found) {
-				copies.put(CatalogueKind.ITEM.recordCode(item.getItemCode()), COPY_MAPPER.valueToTree(
-						CatalogueItemCopyDTO.of(item, priceFor(item, listPrices), packs.get(item.getId()))));
+			if (!hasStockPoint(store)) {
+				for (Item item : found) {
+					copies.put(CatalogueKind.ITEM.recordCode(item.getItemCode()), COPY_MAPPER.valueToTree(
+							CatalogueItemCopyDTO.of(item, priceFor(item, listPrices), packs.get(item.getId()))));
+				}
+			} else {
+				Map<Long, HoStockPointItem> rows = pointRows(store, ids);
+				for (Item item : found) {
+					CatalogueItemCopyDTO copy = pointCopy(item, rows, listPrices, packs.get(item.getId()));
+					if (copy != null) {
+						copies.put(CatalogueKind.ITEM.recordCode(item.getItemCode()), COPY_MAPPER.valueToTree(copy));
+					}
+				}
 			}
 		}
 		if (byKind.containsKey(CatalogueKind.BARCODE)) {
-			for (ItemBarcode barcode : barcodes.findByBarcodeIn(byKind.get(CatalogueKind.BARCODE))) {
-				if (!isTaxStamp(barcode.getItem())) {
-					copies.put(CatalogueKind.BARCODE.recordCode(barcode.getBarcode()),
-							COPY_MAPPER.valueToTree(CatalogueBarcodeCopyDTO.of(barcode)));
+			List<ItemBarcode> found = barcodes.findByBarcodeIn(byKind.get(CatalogueKind.BARCODE));
+			if (!hasStockPoint(store)) {
+				for (ItemBarcode barcode : found) {
+					if (!isTaxStamp(barcode.getItem())) {
+						copies.put(CatalogueKind.BARCODE.recordCode(barcode.getBarcode()),
+								COPY_MAPPER.valueToTree(CatalogueBarcodeCopyDTO.of(barcode)));
+					}
+				}
+			} else {
+				Map<Long, HoStockPointItem> rows = pointRows(store, found.stream().filter(b -> b.getItem() != null)
+						.map(b -> b.getItem().getId()).distinct().collect(Collectors.toList()));
+				for (ItemBarcode barcode : found) {
+					CatalogueBarcodeCopyDTO copy = pointCopy(barcode, rows);
+					if (copy != null) {
+						copies.put(CatalogueKind.BARCODE.recordCode(barcode.getBarcode()), COPY_MAPPER.valueToTree(copy));
+					}
 				}
 			}
 		}
 		return copies;
+	}
+
+	// ─── Stock points (release 2.2, step 3a) ─────────────────────
+
+	/** The store has a stock point (and this head office has stock points): the copies come from its rows. */
+	private boolean hasStockPoint(Store store) {
+		return store.getStockPointId() != null && stockPointItems != null;
+	}
+
+	/** The rows of the store's point for these items, by item id. */
+	private Map<Long, HoStockPointItem> pointRows(Store store, List<Long> itemIds) {
+		Map<Long, HoStockPointItem> rows = new HashMap<>();
+		for (int from = 0; from < itemIds.size(); from += IMPORT_CHUNK) {
+			for (HoStockPointItem row : stockPointItems.findByStockPointIdAndItemIdIn(store.getStockPointId(),
+					itemIds.subList(from, Math.min(from + IMPORT_CHUNK, itemIds.size())))) {
+				rows.put(row.getItemId(), row);
+			}
+		}
+		return rows;
+	}
+
+	/** Came from the ERP: only those items are filtered by the stock point (a hand-made item goes to every store). */
+	static boolean fromErp(Item item) {
+		return item != null && item.getErpExternalId() != null && !item.getErpExternalId().trim().isEmpty();
+	}
+
+	/**
+	 * The copy of an item for a store with a stock point: null (answered as removed) when the item came from the ERP and
+	 * has no row in the point; otherwise built from the item, then the row's name, description, family, sub-family,
+	 * price and active flag (active only when the item is too). Price: the store's price list line first, then the
+	 * row's price. An item not from the ERP: the copy of a store without a point.
+	 */
+	static CatalogueItemCopyDTO pointCopy(Item item, Map<Long, HoStockPointItem> rows, Map<Long, Double> listPrices,
+			List<ItemComposition> packs) {
+		if (!fromErp(item)) {
+			return CatalogueItemCopyDTO.of(item, priceFor(item, listPrices), packs);
+		}
+		HoStockPointItem row = rows.get(item.getId());
+		if (row == null) {
+			return null;
+		}
+		Double listed = listPrices.get(item.getId());
+		CatalogueItemCopyDTO copy = CatalogueItemCopyDTO.of(item, listed != null ? listed : row.getUnitPrice(), packs);
+		copy.setName(row.getName());
+		copy.setDescription(row.getDescription());
+		copy.setFamilyCode(row.getFamilyCode());
+		copy.setSubFamilyCode(row.getSubFamilyCode());
+		copy.setActive(!Boolean.FALSE.equals(row.getActive()) && !Boolean.FALSE.equals(item.getActive()));
+		return copy;
+	}
+
+	/**
+	 * The copy of a barcode for a store with a stock point: null for TAX_STAMP, and for a barcode whose item came from
+	 * the ERP and has no row in the point (it would wait at the store for ever); active only when the barcode, the item
+	 * and the row are active.
+	 */
+	static CatalogueBarcodeCopyDTO pointCopy(ItemBarcode barcode, Map<Long, HoStockPointItem> rows) {
+		Item item = barcode.getItem();
+		if (isTaxStamp(item)) {
+			return null;
+		}
+		CatalogueBarcodeCopyDTO copy = CatalogueBarcodeCopyDTO.of(barcode);
+		if (!fromErp(item)) {
+			return copy;
+		}
+		HoStockPointItem row = rows.get(item.getId());
+		if (row == null) {
+			return null;
+		}
+		copy.setActive(Boolean.TRUE.equals(copy.getActive()) && !Boolean.FALSE.equals(row.getActive()));
+		return copy;
+	}
+
+	/**
+	 * Rows of a point written by the items run (HoStockPointRows, same transaction): each item sent again to the stores of
+	 * that point only, and the barcodes of the items that entered the point or changed their active flag. Nothing when
+	 * no store has the point. Recorded in bulk.
+	 */
+	@Transactional
+	public void stockPointRowsChanged(long pointId, Collection<Long> itemIds, Collection<Long> barcodeItemIds) {
+		if (stores == null || itemIds.isEmpty()) {
+			return;
+		}
+		List<Long> storeIds = stores.findIdsByStockPointId(pointId);
+		if (storeIds.isEmpty()) {
+			return;
+		}
+		List<String> recordCodes = new ArrayList<>();
+		List<Long> ids = new ArrayList<>(itemIds);
+		for (int from = 0; from < ids.size(); from += IMPORT_CHUNK) {
+			for (Item item : items.findAllById(ids.subList(from, Math.min(from + IMPORT_CHUNK, ids.size())))) {
+				addRecordCode(recordCodes, CatalogueKind.ITEM, item);
+			}
+		}
+		List<Long> barcodeItems = new ArrayList<>(barcodeItemIds);
+		for (int from = 0; from < barcodeItems.size(); from += IMPORT_CHUNK) {
+			for (ItemBarcode barcode : barcodes
+					.findByItemIdIn(barcodeItems.subList(from, Math.min(from + IMPORT_CHUNK, barcodeItems.size())))) {
+				if (!isTaxStamp(barcode.getItem()) && fits(CatalogueKind.BARCODE, barcode.getBarcode())) {
+					recordCodes.add(CatalogueKind.BARCODE.recordCode(barcode.getBarcode()));
+				}
+			}
+		}
+		feed.get().recordChanges(DataDomain.CATALOGUE, recordCodes, StoreTargets.of(storeIds));
+	}
+
+	/**
+	 * A store's stock point changed (given, changed or taken away; StoreService, same transaction): every item and every
+	 * barcode is sent again to that store only, recorded in bulk. Returns how many codes were recorded.
+	 */
+	@Transactional
+	public int storeStockPointChanged(long storeId) {
+		List<String> recordCodes = new ArrayList<>();
+		for (String code : items.findAllCodes()) {
+			if (code != null && !code.trim().isEmpty() && !CatalogueKind.TAX_STAMP_CODE.equals(code)
+					&& fits(CatalogueKind.ITEM, code)) {
+				recordCodes.add(CatalogueKind.ITEM.recordCode(code));
+			}
+		}
+		for (String barcode : barcodes.findAllBarcodesExceptItem(CatalogueKind.TAX_STAMP_CODE)) {
+			if (barcode != null && !barcode.trim().isEmpty() && fits(CatalogueKind.BARCODE, barcode)) {
+				recordCodes.add(CatalogueKind.BARCODE.recordCode(barcode));
+			}
+		}
+		feed.get().recordChanges(DataDomain.CATALOGUE, recordCodes,
+				StoreTargets.of(java.util.Collections.singleton(storeId)));
+		return recordCodes.size();
+	}
+
+	private static void addRecordCode(List<String> recordCodes, CatalogueKind kind, Item item) {
+		if (item != null && !isTaxStamp(item) && item.getItemCode() != null && fits(kind, item.getItemCode())) {
+			recordCodes.add(kind.recordCode(item.getItemCode()));
+		}
 	}
 
 	/** item.id to its price in the store's list; empty when the store has no list. */

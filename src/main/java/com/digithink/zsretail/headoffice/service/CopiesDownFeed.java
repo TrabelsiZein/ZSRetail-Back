@@ -120,6 +120,59 @@ public class CopiesDownFeed {
 		}
 	}
 
+	/**
+	 * Stock points, step 3a: the changes of many records for a list of stores, inside the writer's transaction, in bulk:
+	 * one update of the sequence for all of them, each code still its own number (in the order given), the rows of
+	 * each store read and written per chunk of {@value #BACKFILL_CHUNK} codes. Same rows as one {@link #recordChange} per
+	 * code. Every-store targets fall back to {@link #recordChange}; no store: nothing recorded, the sequence untouched.
+	 */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void recordChanges(DataDomain domain, Collection<String> codes, StoreTargets stores) {
+		List<String> list = codes.stream().filter(code -> code != null && !code.trim().isEmpty()).distinct()
+				.collect(Collectors.toList());
+		if (list.isEmpty()) {
+			return;
+		}
+		if (stores.isAllStores()) {
+			list.forEach(code -> recordChange(domain, code, stores));
+			return;
+		}
+		if (stores.getStoreIds().isEmpty()) {
+			return;
+		}
+		if (sequences.incrementBy(domain, list.size()) == 0) {
+			HoDownSequence sequence = new HoDownSequence();
+			sequence.setDomain(domain);
+			sequence.setLastVersion(list.size());
+			sequences.save(sequence);
+		}
+		long version = sequences.lastVersion(domain).get(0) - list.size();
+		Map<String, Long> versions = new java.util.LinkedHashMap<>();
+		for (String code : list) {
+			versions.put(code, ++version);
+		}
+		for (Long storeId : stores.getStoreIds()) {
+			for (int from = 0; from < list.size(); from += BACKFILL_CHUNK) {
+				List<String> chunk = list.subList(from, Math.min(from + BACKFILL_CHUNK, list.size()));
+				Map<String, HoDownChange> existing = new java.util.HashMap<>();
+				for (HoDownChange change : changes.findByDomainAndStoreIdAndRecordCodeIn(domain, storeId, chunk)) {
+					existing.put(change.getRecordCode(), change);
+				}
+				List<HoDownChange> rows = new ArrayList<>();
+				for (String code : chunk) {
+					HoDownChange change = existing.get(code);
+					if (change == null) {
+						rows.add(newChange(domain, code, storeId, versions.get(code)));
+					} else {
+						change.setChangeVersion(versions.get(code));
+						rows.add(change);
+					}
+				}
+				changes.saveAll(rows);
+			}
+		}
+	}
+
 	private long nextVersion(DataDomain domain) {
 		if (sequences.increment(domain) == 0) {
 			HoDownSequence sequence = new HoDownSequence();

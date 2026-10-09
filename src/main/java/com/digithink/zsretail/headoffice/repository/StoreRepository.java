@@ -30,6 +30,10 @@ public interface StoreRepository extends _BaseRepository<Store, Long> {
 	/** Stock points, step 1: how many stores have this stock point. */
 	long countByStockPointId(Long stockPointId);
 
+	/** Stock points, step 3a: the stores whose stock point is this one. */
+	@Query("select s.id from Store s where s.stockPointId = :pointId")
+	List<Long> findIdsByStockPointId(@Param("pointId") Long pointId);
+
 	/**
 	 * Heartbeat (task 1.4): writes lastContact and appVersion only, by id. A bulk update skips {@code @PreUpdate},
 	 * so updatedAt is unchanged. Returns the number of rows updated. Task 3.6: in the same update, what the store owns

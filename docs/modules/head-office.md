@@ -1462,6 +1462,27 @@ Done (step 2), the items run (`NavPosPagesSync.items`):
   writes nothing; no point; two points with prices, the first active point, an item of one point only; gone from one
   point; a silent point; a failed read; an inactive point; list order; dry run).
 
+Done (step 3a), the store's point and the filtered send:
+- `ho_store.stock_point_id` is set at creation (`stockPointId` in the body) or with
+  `PUT admin/headoffice/stores/{id}/stock-point {"stockPointId": 2 | null}`; the generic PUT ignores it. Optional. 400:
+  unknown or inactive point, a point without rows ("run the items job first"), a head office without stock points.
+- A store **without** a point: `HoCatalogueService.load` runs the 2.1 code, untouched.
+- A store **with** a point (`load`): an ERP item (erp_external_id set) is answered only when the point has a row for
+  it, built from the item, then the row's name, description, family code, sub-family code, price and active flag
+  (active only when the item is too); price: the store's selling price list line first, then the row's price. A barcode
+  is answered only when its item has a row in the point, active only when the barcode, the item and the row are
+  active. Anything else is answered as removed (inactive at the store). Items without an ERP id (hand-made, TAX_STAMP
+  excluded as always) go to every store as before. Families and sub-families are not filtered.
+- Recording (`CopiesDownFeed.recordChanges`, in bulk: one sequence update per batch, each code its own number):
+  rows written by the items run (`HoStockPointRows.write`, same transaction) are recorded for the stores of that point
+  only, with the barcodes of the items that entered the point or changed their active flag; a point without a store
+  records nothing (the sequence does not move). A store whose point changes (given, changed, taken away) gets every
+  item and barcode again, for that store only, in the same transaction as the change.
+- Packs whose component is not in the store's point, promotions on such an item, and head office BLs keep the 2.1
+  wait at the store (documented, no rule).
+- Tests: `HoStockPointCatalogueTest` (two points with different items and prices; no point = 2.1 answer; price list
+  first; row changes for the point's stores only; no store, no recording; a store moved and back; assignable points).
+
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter
 `appConfig/erpOwnsOnlyCatalogue`): `nodeType` `HEAD_OFFICE`, `ownership.CATALOGUE` `ERP`, `CUSTOMERS` and `SUPPLY` not `ERP`,

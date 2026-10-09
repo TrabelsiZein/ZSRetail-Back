@@ -76,6 +76,10 @@ public class StoreService extends _BaseService<Store, Long> {
 	@Autowired(required = false)
 	private ObjectProvider<HoPriceListService> priceLists;
 
+	/** Stock points (release 2.2): on a head office whose catalogue comes from the ERP only. */
+	@Autowired(required = false)
+	private ObjectProvider<HoStockPointService> stockPoints;
+
 	/** A store whose last contact is older than this is OFFLINE (task 1.5). */
 	@Value("${headoffice.offline-after-seconds:" + DEFAULT_OFFLINE_AFTER_SECONDS + "}")
 	private long offlineAfterSeconds = DEFAULT_OFFLINE_AFTER_SECONDS;
@@ -149,6 +153,10 @@ public class StoreService extends _BaseService<Store, Long> {
 		if (input.getSellingPriceListId() != null) {
 			priceListService().checkAssignable(input.getSellingPriceListId());
 			store.setSellingPriceListId(input.getSellingPriceListId()); // a new store has nothing to send again
+		}
+		if (input.getStockPointId() != null) { // stock points: optional; a new store has nothing to send again
+			stockPointService().checkAssignable(input.getStockPointId());
+			store.setStockPointId(input.getStockPointId());
 		}
 		applyInvoicing(store, input); // step 7B
 		if (input.getSupplyPriceListId() != null) {
@@ -320,6 +328,44 @@ public class StoreService extends _BaseService<Store, Long> {
 		lists.storeListChanged(saved.getId(), previous, priceListId);
 		log.info("Head office: store {} selling price list {} -> {}", saved.getCode(), previous, priceListId);
 		return Optional.of(saved);
+	}
+
+	/**
+	 * Stock points (release 2.2, step 3a): the store's point de stock (null: none, the catalogue as before). Every item
+	 * and barcode is sent again to this store only, in the same transaction. 400 (IllegalArgument) for an unknown or
+	 * inactive point, a point without rows, or on a head office without stock points. Empty when the store does not
+	 * exist.
+	 */
+	@Transactional
+	public Optional<Store> setStockPoint(Long id, Long stockPointId) throws Exception {
+		Optional<Store> found = storeRepository.findById(id);
+		if (!found.isPresent()) {
+			return Optional.empty();
+		}
+		Store store = found.get();
+		HoStockPointService points = stockPointService();
+		if (stockPointId != null) {
+			points.checkAssignable(stockPointId);
+		}
+		Long previous = store.getStockPointId();
+		if (java.util.Objects.equals(previous, stockPointId)) {
+			return Optional.of(store);
+		}
+		store.setStockPointId(stockPointId);
+		Store saved = save(store);
+		int sent = points.storeStockPointChanged(saved.getId(), previous, stockPointId);
+		log.info("Head office: store {} stock point {} -> {}, {} catalogue records sent again", saved.getCode(), previous,
+				stockPointId, sent);
+		return Optional.of(saved);
+	}
+
+	private HoStockPointService stockPointService() {
+		HoStockPointService points = stockPoints == null ? null : stockPoints.getIfAvailable();
+		if (points == null) {
+			throw new IllegalArgumentException("Points de stock exist only on a head office whose catalogue comes from"
+					+ " the ERP: this head office has none.");
+		}
+		return points;
 	}
 
 	private HoPriceListService priceListService() {

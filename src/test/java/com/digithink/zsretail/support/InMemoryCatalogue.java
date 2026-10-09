@@ -234,6 +234,9 @@ public final class InMemoryCatalogue {
 							.collect(Collectors.toList());
 				case "findAllCodes":
 					return items.values().stream().map(Item::getItemCode).collect(Collectors.toList());
+				case "findAllById": // stock points
+					return items.values().stream().filter(i -> ((Collection<?>) args[0]).contains(i.getId()))
+							.collect(Collectors.toList());
 				case "findByBarcode":
 					return items.values().stream().filter(i -> Objects.equals(i.getBarcode(), args[0])).findFirst();
 				case "findAllByBarcode":
@@ -276,6 +279,9 @@ public final class InMemoryCatalogue {
 							.map(ItemBarcode::getBarcode).collect(Collectors.toList());
 				case "findByItemId":
 					return barcodes.values().stream().filter(b -> b.getItem().getId().equals(args[0]))
+							.collect(Collectors.toList());
+				case "findByItemIdIn": // stock points
+					return barcodes.values().stream().filter(b -> ((Collection<?>) args[0]).contains(b.getItem().getId()))
 							.collect(Collectors.toList());
 				case "save":
 					barcodeSaves++;
@@ -322,6 +328,9 @@ public final class InMemoryCatalogue {
 							.count();
 				case "countByStockPointId": // stock points
 					return stores.values().stream().filter(s -> Objects.equals(s.getStockPointId(), args[0])).count();
+				case "findIdsByStockPointId":
+					return stores.values().stream().filter(s -> Objects.equals(s.getStockPointId(), args[0]))
+							.map(Store::getId).collect(Collectors.toList());
 				default:
 					return common(stores, method, args);
 			}
@@ -357,6 +366,10 @@ public final class InMemoryCatalogue {
 		return proxy(HoStockPointItemRepository.class, (method, args) -> {
 			if ("countByStockPointId".equals(method)) {
 				return stockPointItems.values().stream().filter(r -> Objects.equals(r.getStockPointId(), args[0])).count();
+			}
+			if ("findByStockPointIdAndItemIdIn".equals(method)) {
+				return stockPointItems.values().stream().filter(r -> Objects.equals(r.getStockPointId(), args[0])
+						&& ((Collection<?>) args[1]).contains(r.getItemId())).collect(Collectors.toList());
 			}
 			return common(stockPointItems, method, args);
 		});

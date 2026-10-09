@@ -146,6 +146,29 @@ public class StoreAPI extends _BaseController<Store, Long, StoreService> {
 	}
 
 	/**
+	 * Stock points (release 2.2): the store's point de stock. Body {"stockPointId": 2}, or {"stockPointId": null} for
+	 * none. Every item and barcode is sent again to this store. 200 the store; 400 for an unknown or inactive point, a
+	 * point without items, or a head office without stock points; 404 for an unknown store.
+	 */
+	@PutMapping("/{id}/stock-point")
+	public ResponseEntity<?> setStockPoint(@PathVariable Long id, @RequestBody(required = false) Map<String, Object> body) {
+		try {
+			log.info("StoreAPI::setStockPoint::" + id);
+			Object raw = body == null ? null : body.get("stockPointId");
+			if (raw != null && !(raw instanceof Number)) {
+				return ResponseEntity.badRequest().body(createErrorResponse("stockPointId must be a number or null."));
+			}
+			Optional<Store> updated = service.setStockPoint(id, raw == null ? null : ((Number) raw).longValue());
+			return updated.<ResponseEntity<?>>map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+		} catch (Exception e) {
+			log.error("StoreAPI::setStockPoint:error: " + getDetailedMessage(e), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/**
 	 * Step 7B: the store's supply price list. Body {"priceListId": 4}, or {"priceListId": null} for none (the base
 	 * supply price). 200 the store; 400 for an unknown, inactive or selling list; 404 for an unknown store.
 	 */

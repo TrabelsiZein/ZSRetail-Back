@@ -5,8 +5,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,14 +44,33 @@ public class HoStockPointService {
 			+ " it instead.";
 	static final String ORDER_ALL = "Send the ids of every stock point, each once, in the new order.";
 
+	static final String NO_ROWS = "The stock point %s has no item yet: run the items job first (ERP jobs), then give it"
+			+ " to the store.";
+
 	private final HoStockPointRepository points;
 	private final HoStockPointItemRepository rows;
 	private final StoreRepository stores;
+	/** Step 3a: sends everything again to a store whose point changed; null in the tests of step 1. */
+	private final Supplier<HoCatalogueService> catalogue;
 
+	@Autowired
+	public HoStockPointService(HoStockPointRepository points, HoStockPointItemRepository rows, StoreRepository stores,
+			ObjectProvider<HoCatalogueService> catalogue) {
+		this(points, rows, stores, (Supplier<HoCatalogueService>) catalogue::getIfAvailable);
+	}
+
+	/** Without the catalogue: used by the tests of step 1. */
 	public HoStockPointService(HoStockPointRepository points, HoStockPointItemRepository rows, StoreRepository stores) {
+		this(points, rows, stores, (Supplier<HoCatalogueService>) null);
+	}
+
+	/** With given collaborators: used by the tests. */
+	public HoStockPointService(HoStockPointRepository points, HoStockPointItemRepository rows, StoreRepository stores,
+			Supplier<HoCatalogueService> catalogue) {
 		this.points = points;
 		this.rows = rows;
 		this.stores = stores;
+		this.catalogue = catalogue;
 	}
 
 	/** Every point in list order. */
@@ -146,6 +168,34 @@ public class HoStockPointService {
 		}
 		points.saveAll(all);
 		return findAll();
+	}
+
+	/**
+	 * Step 3a, for the stores: 400 (IllegalArgument) unless the point exists, is active and has rows (the items job has
+	 * read it); a store given a point without rows would receive no item.
+	 */
+	@Transactional(readOnly = true)
+	public void checkAssignable(Long id) {
+		HoStockPoint point = points.findById(id)
+				.orElseThrow(() -> new IllegalArgumentException("Unknown stock point id " + id + "."));
+		if (Boolean.FALSE.equals(point.getActive())) {
+			throw new IllegalArgumentException("The stock point " + point.getCode() + " is inactive.");
+		}
+		if (rows.countByStockPointId(id) == 0) {
+			throw new IllegalArgumentException(String.format(NO_ROWS, point.getCode()));
+		}
+	}
+
+	/**
+	 * Step 3a: a store's point changed (StoreService, same transaction): every item and barcode is sent again to that
+	 * store only. Returns how many codes were recorded (0 when nothing changed).
+	 */
+	@Transactional
+	public int storeStockPointChanged(Long storeId, Long previousId, Long newId) {
+		if (java.util.Objects.equals(previousId, newId) || catalogue == null || catalogue.get() == null) {
+			return 0;
+		}
+		return catalogue.get().storeStockPointChanged(storeId);
 	}
 
 	private void refuseWhenUsed(Long id) {

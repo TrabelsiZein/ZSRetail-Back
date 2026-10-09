@@ -51,9 +51,14 @@ public final class InMemoryDownTables {
 					return change;
 				case "saveAll":
 					for (Object o : (Iterable<?>) args[0]) {
-						changes.add((HoDownChange) o);
+						if (changes.stream().noneMatch(c -> c == o)) { // a row already there is updated in place
+							changes.add((HoDownChange) o);
+						}
 					}
 					return args[0];
+				case "findByDomainAndStoreIdAndRecordCodeIn": // stock points: the bulk recording
+					return changes.stream().filter(c -> c.getDomain() == args[0] && Objects.equals(c.getStoreId(), args[1])
+							&& ((java.util.Collection<?>) args[2]).contains(c.getRecordCode())).collect(Collectors.toList());
 				case "findChanged": {
 					long storeId = (Long) args[1];
 					Map<String, Long> max = new LinkedHashMap<>();
