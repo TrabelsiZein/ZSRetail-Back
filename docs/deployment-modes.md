@@ -155,7 +155,7 @@ writes to the ERP). The lines go in the head office's **outside file** (e.g. `co
 | `erp.navpospages.base-url` | OData V4 address, e.g. `http://host:7048/BC140/ODataV4` | required |
 | `erp.navpospages.company` | Company name | required |
 | `erp.navpospages.domain`, `.username`, `.password` | NTLM account (domain may be blank) | username and password required |
-| `erp.navpospages.location-code` | The one location whose items are read | required |
+| `erp.navpospages.location-code` | Release 2.2: no longer required (the head office creates its points de stock, `docs/modules/head-office.md`, "Stock points"). Until step 2 of 2.2 the items run still reads it | not required |
 | `erp.navpospages.page.categories`, `.page.items`, `.page.barcodes` | Web service names | `ItemCategory`, `PointStockPOS`, `ItemBarCodePOS` |
 | `erp.navpospages.barcode-page-size` | Barcodes per call, 1 to 5000 | `1000` |
 | `erp.navpospages.default-vat` | The VAT of every item, whole number 0 to 100 | required |

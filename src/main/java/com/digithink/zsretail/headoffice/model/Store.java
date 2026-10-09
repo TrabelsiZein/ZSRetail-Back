@@ -109,6 +109,14 @@ public class Store extends _BaseEntity {
 	private Long sellingPriceListId;
 
 	/**
+	 * Stock points, step 1: ho_stock_point.id of the store's point de stock (head office whose catalogue comes from the
+	 * ERP); null = none, the store receives the catalogue as before. Not set by any endpoint yet (the generic PUT ignores
+	 * it). Never sent to the store.
+	 */
+	@Column(name = "stock_point_id")
+	private Long stockPointId;
+
+	/**
 	 * Task 6.5: the store may put its own selling price on a head office item and keeps it across the pulls. Sent with
 	 * each heartbeat answer.
 	 */

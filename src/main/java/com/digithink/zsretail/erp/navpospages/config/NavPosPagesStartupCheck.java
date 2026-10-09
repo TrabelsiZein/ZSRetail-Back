@@ -18,7 +18,8 @@ import lombok.extern.log4j.Log4j2;
  * {@link IllegalStateException} naming the key, so the application does not start. Read from the environment before the
  * settings are bound ({@link NavPosPagesProperties} depends on this bean), so a value such as default-vat=abc gets this
  * message rather than a binding error. Exists only with erp.navpospages.enabled=true. One INFO line when the settings
- * are accepted: the address, the company, the location and the three pages (never a password).
+ * are accepted: the address, the company and the three pages (never a password). Release 2.2: location-code is no
+ * longer required; the head office reads its stock points (ho_stock_point).
  */
 @Component(NavPosPagesStartupCheck.BEAN_NAME)
 @ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
@@ -49,7 +50,7 @@ public class NavPosPagesStartupCheck {
 					+ " a catalogue, on a head office whose catalogue only comes from the ERP (node.type=HEAD_OFFICE,"
 					+ " ownership.catalogue=ERP, ownership.customers and ownership.supply not ERP).");
 		}
-		for (String key : new String[] { "base-url", "company", "username", "password", "location-code" }) {
+		for (String key : new String[] { "base-url", "company", "username", "password" }) {
 			if (trimmed(env.getProperty(P + key)).isEmpty()) {
 				throw new IllegalStateException("Missing value for property " + P + key
 						+ ": required when " + P + "enabled=true.");
@@ -148,12 +149,11 @@ public class NavPosPagesStartupCheck {
 		return String.format("%02d", year % 100);
 	}
 
-	/** The startup line: address, company, location and pages (never a password); the invoices when years are set. */
+	/** The startup line: address, company and pages (never a password); the invoices when years are set. */
 	public static String summary(PropertyResolver env) {
 		List<Integer> years = years(env);
 		return "ERP connector navpospages (read only, GET): " + trimmed(env.getProperty(P + "base-url")) + ", company "
-				+ trimmed(env.getProperty(P + "company")) + ", location " + trimmed(env.getProperty(P + "location-code"))
-				+ ", pages " + env.getProperty(P + "page.categories", "ItemCategory") + ", "
+				+ trimmed(env.getProperty(P + "company")) + ", pages " + env.getProperty(P + "page.categories", "ItemCategory") + ", "
 				+ env.getProperty(P + "page.items", "PointStockPOS") + ", "
 				+ env.getProperty(P + "page.barcodes", "ItemBarCodePOS")
 				+ (years.isEmpty() ? ""

@@ -35,9 +35,12 @@ class NavPosPagesStartupCheckTest {
 	}
 
 	@Test
-	@DisplayName("Valid settings pass; the startup line names the address, company, location and pages, never the password")
+	@DisplayName("Valid settings pass; the startup line names the address, company and pages, never the password")
 	void valid() {
 		NavPosPagesStartupCheck.check(NavPosPagesTestSupport.validEnvironment());
+		// Release 2.2: location-code is no longer required (the head office has its stock points)
+		NavPosPagesStartupCheck.check(with("erp.navpospages.location-code", null));
+		NavPosPagesStartupCheck.check(with("erp.navpospages.location-code", "  "));
 		NavPosPagesStartupCheck.check(with("erp.navpospages.default-vat", " 0 "));
 		NavPosPagesStartupCheck.check(with("erp.navpospages.price-includes-vat", "FALSE"));
 		NavPosPagesStartupCheck.check(with("erp.navpospages.barcode-page-size", "5000"));
@@ -46,7 +49,7 @@ class NavPosPagesStartupCheckTest {
 		new NavPosPagesStartupCheck(env); // the bean checks and logs
 		String line = NavPosPagesStartupCheck.summary(env);
 		assertEquals("ERP connector navpospages (read only, GET): " + NavPosPagesTestSupport.BASE_URL
-				+ ", company HAPPYNESS, location FRANCHISE, pages ItemCategory, OtherStock, ItemBarCodePOS", line);
+				+ ", company HAPPYNESS, pages ItemCategory, OtherStock, ItemBarCodePOS", line);
 		assertFalse(line.contains("secret"));
 	}
 
@@ -79,9 +82,9 @@ class NavPosPagesStartupCheckTest {
 	}
 
 	@Test
-	@DisplayName("Blank or absent address, company, user, password or location: refused naming the key")
+	@DisplayName("Blank or absent address, company, user or password: refused naming the key")
 	void requiredKeys() {
-		for (String key : new String[] { "base-url", "company", "username", "password", "location-code" }) {
+		for (String key : new String[] { "base-url", "company", "username", "password" }) {
 			String expected = "Missing value for property erp.navpospages." + key
 					+ ": required when erp.navpospages.enabled=true.";
 			assertEquals(expected, refusal(with("erp.navpospages." + key, "  ")), key + " blank");

@@ -15,6 +15,10 @@ import java.util.stream.Collectors;
 import com.digithink.zsretail.headoffice.model.HoPriceList;
 import com.digithink.zsretail.headoffice.model.HoItemSupplyPrice;
 import com.digithink.zsretail.headoffice.model.HoPriceListLine;
+import com.digithink.zsretail.headoffice.model.HoStockPoint;
+import com.digithink.zsretail.headoffice.model.HoStockPointItem;
+import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
+import com.digithink.zsretail.headoffice.repository.HoStockPointRepository;
 import com.digithink.zsretail.headoffice.repository.HoItemSupplyPriceRepository;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.HoPriceListLineRepository;
@@ -49,6 +53,8 @@ public final class InMemoryCatalogue {
 	public final Map<Long, HoPriceList> priceLists = new LinkedHashMap<>();
 	public final Map<Long, HoPriceListLine> priceLines = new LinkedHashMap<>();
 	public final Map<Long, HoItemSupplyPrice> supplyPrices = new LinkedHashMap<>();
+	public final Map<Long, HoStockPoint> stockPoints = new LinkedHashMap<>();
+	public final Map<Long, HoStockPointItem> stockPointItems = new LinkedHashMap<>();
 
 	private long nextId;
 
@@ -314,10 +320,56 @@ public final class InMemoryCatalogue {
 				case "countBySupplyPriceListId":
 					return stores.values().stream().filter(s -> Objects.equals(s.getSupplyPriceListId(), args[0]))
 							.count();
+				case "countByStockPointId": // stock points
+					return stores.values().stream().filter(s -> Objects.equals(s.getStockPointId(), args[0])).count();
 				default:
 					return common(stores, method, args);
 			}
 		});
+	}
+
+	/** Stock points: ho_stock_point, with the rules of its queries. */
+	public HoStockPointRepository stockPointRepository() {
+		return proxy(HoStockPointRepository.class, (method, args) -> {
+			switch (method) {
+				case "findByCodeIgnoreCase":
+					return stockPoints.values().stream().filter(p -> p.getCode().equalsIgnoreCase((String) args[0]))
+							.findFirst();
+				case "findAllByOrderBySortOrderAscCodeAsc":
+					return stockPoints.values().stream()
+							.sorted(java.util.Comparator.comparing(HoStockPoint::getSortOrder)
+									.thenComparing(HoStockPoint::getCode))
+							.collect(Collectors.toList());
+				case "saveAll":
+					List<HoStockPoint> saved = new ArrayList<>();
+					for (Object o : (Iterable<?>) args[0]) {
+						saved.add(put(stockPoints, (HoStockPoint) o));
+					}
+					return saved;
+				default:
+					return common(stockPoints, method, args);
+			}
+		});
+	}
+
+	/** Stock points: ho_stock_point_item. */
+	public HoStockPointItemRepository stockPointItemRepository() {
+		return proxy(HoStockPointItemRepository.class, (method, args) -> {
+			if ("countByStockPointId".equals(method)) {
+				return stockPointItems.values().stream().filter(r -> Objects.equals(r.getStockPointId(), args[0])).count();
+			}
+			return common(stockPointItems, method, args);
+		});
+	}
+
+	/** Stock points: a row of the point for the item. */
+	public HoStockPointItem stockPointItem(HoStockPoint point, Item item, double unitPrice) {
+		HoStockPointItem row = new HoStockPointItem();
+		row.setStockPointId(point.getId());
+		row.setItemId(item.getId());
+		row.setName(item.getName());
+		row.setUnitPrice(unitPrice);
+		return put(stockPointItems, row);
 	}
 
 	public HoPriceListRepository priceListRepository() {

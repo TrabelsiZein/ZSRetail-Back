@@ -1410,6 +1410,32 @@ line, a plain BL), `SupplyInvoiceWriterTest` (no cost, vendor kept, attach), `Ho
 backfill after a restart, confirmations through `HeadOfficeSupplyAPI`), `SupplyErpInvoiceRoundTripTest` (end to end, the
 old reading refuses the copy), `QueryParameterBindingTest` (now with `HoErpInvoiceRepository` and `updateCost`).
 
+### Stock points (release 2.2, in progress)
+A head office whose catalogue comes from the ERP (`erp.navpospages.enabled=true`) has several points de stock: each one
+is a `Location_Code` of the items page (FRANCHISE, a store's own location). Each store gets one point or none; a store
+with a point will receive only the items of its point, with that point's fields. The word "location" is not used at
+the head office. Plan: (1) tables and list API, (2) the items run writes the rows per point, (3) the store's point and
+the filtered send, (4) screens, (5) rehearsal against 2.1, (6) docs and version.
+
+Done (step 1):
+- `ho_stock_point` (`HoStockPoint`): `code` (the ERP's Location_Code, trimmed, uppercase, unique, 20 characters,
+  final), `name`, `active`, `sort_order` (1 first: the first point where an item is active will give the item's default
+  copy).
+- `ho_stock_point_item` (`HoStockPointItem`): `stock_point_id`, `item_id` (plain ids, unique together), `name`,
+  `description`, `family_code`, `sub_family_code` (codes, as the ERP import receives them), `unit_price` (meaning of
+  `item.unitPrice`, before VAT), `active`. Written by the items run from step 2, never deleted.
+- `ho_store.stock_point_id`, nullable (null = no point, the catalogue as in 2.1). Set by no endpoint yet.
+- `erp.navpospages.location-code` is no longer required at startup and leaves the startup line. No point is created
+  from it: the head office creates its points itself before any items run. Until step 2 the items run still reads the
+  line.
+- API `admin/headoffice/stock-points` (JWT; `HoStockPointAPI`, `HoStockPointService`; only on a head office whose
+  catalogue comes from the ERP with `erp.navpospages.enabled=true`, 404 elsewhere):
+  `GET` (list order), `GET /{id}`, `POST {code, name, active}` (201, placed last), `PUT /{id} {name, active}`,
+  `DELETE /{id}` (204), `PUT /order [id, ...]` (every id once; numbered 1, 2, 3...). Each point carries `itemCount`
+  and `storeCount`. 400: code or name missing, code too long, code changed, order not every id once. 409: code that
+  exists at any case, deactivating or deleting a point used by a store, deleting a point that has items (deactivate it).
+- Tests: `HoStockPointServiceTest`, `NavPosPagesStartupCheckTest` (location-code absent or blank accepted).
+
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter
 `appConfig/erpOwnsOnlyCatalogue`): `nodeType` `HEAD_OFFICE`, `ownership.CATALOGUE` `ERP`, `CUSTOMERS` and `SUPPLY` not `ERP`,
