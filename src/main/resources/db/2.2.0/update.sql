@@ -1,13 +1,11 @@
 -- ============================================================
 -- Version 2.2.0 — Points de stock au siège (head office whose catalogue comes from the ERP)
 -- ============================================================
--- In progress on release/2.2.0: steps 2 to 6 add to this script; the APP_VERSION update and the release notes come
--- at step 6.
---
 -- Deployment order:
 --   1) Run db/2.1.0 first if the database is older than 2.1.0.
 --   2) Run this script against the database.
 --   3) Deploy the 2.2.0 binaries (backend WAR and frontend).
+-- The application refuses to start while APP_VERSION differs from its own version, so step 2 must be done before 3.
 --   4) On a head office that reads its catalogue from the ERP (erp.navpospages.enabled=true): create its points de
 --      stock (Catalogue > Points de stock) before the next items run. erp.navpospages.location-code is no longer
 --      required.
@@ -31,3 +29,11 @@ BEGIN
 	IF COL_LENGTH('ho_stock_point', 'last_read_summary') IS NULL ALTER TABLE ho_stock_point ADD last_read_summary varchar(255) NULL;
 END
 GO
+
+UPDATE APP_VERSION SET version = '2.2.0';
+
+INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
+('2.2.0', 'NEW', 'Siège avec le catalogue de l''ERP : plusieurs points de stock. Chaque point de stock est un emplacement de l''ERP, lu par la tâche des articles ; chaque magasin reçoit seulement les articles de son point de stock, avec leur nom, leur famille et leur prix dans ce point.'),
+('2.2.0', 'NEW', 'Siège : pages Points de stock et Articles par point de stock (menu Catalogue), et choix du point de stock de chaque magasin sur la page des magasins. Un magasin sans point de stock reçoit tous les articles comme avant.'),
+('2.2.0', 'IMPROVE', 'Factures de l''ERP : un avertissement nomme les articles qui ne sont pas dans le point de stock du magasin.'),
+('2.2.0', 'IMPROVE', 'La ligne erp.navpospages.location-code n''est plus lue : les points de stock se créent au siège avant la tâche des articles.');
