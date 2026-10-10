@@ -255,11 +255,21 @@ logic is written once, in `erp/engine`, and exists with a connector that has the
    fetches and pushes it supports.
 3. Add the name to `erp.connector` (`ErpConnectorEnvironmentPostProcessor`) and its abilities to `ErpAbilities`
    (`HEAD_OFFICE_STOCK_POINTS` for the engine and the points de stock).
-4. Its classes import only `erp/spi`, their own package, the JDK and libraries; the application never names it
-   (`ConnectorNamesGuardTest`).
+4. Its classes use only `erp/spi`, their own package, the JDK and libraries (guard test
+   `ConnectorDependenciesGuardTest`); the application never names it (`ConnectorNamesGuardTest`, which also scans
+   `erp/engine`).
 
 Tests: `erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows of navpospages through its adapter,
 `NavPosPagesFixture`), `NavPosPagesInvoicesTest`, `NavPosPagesCatalogueSourceTest`.
+
+**Guard of the connector packages** (`erp/ConnectorDependenciesGuardTest`): a class of `erp/navpospages` or
+`erp/dynamicsnav` may use `erp/spi`, its own package, the JDK and libraries. What still breaks the rule is an allow-list
+inside the test, each line with its reason (an entry nothing uses any more fails too): `erp/dto` (both; the neutral
+objects join `erp/spi` when it becomes its own project), `config.ConditionalOnErpConnector` and
+`ErpConnectorEnvironmentPostProcessor` (both; the bean conditions), for navpospages `erp/engine` (the base connector,
+the settings, the invoices' run and summary, `HeadOfficeCatalogue` for the General Setup), `NodeOwnership` (startup
+check), `GeneralSetupValueCheck`, `Quantities`; for dynamicsnav `Location`, `GeneralSetupService`, `LocationService`
+(`DynamicsNavRestClient`).
 
 ## Head office catalogue from the ERP pages (`erp.navpospages`)
 
