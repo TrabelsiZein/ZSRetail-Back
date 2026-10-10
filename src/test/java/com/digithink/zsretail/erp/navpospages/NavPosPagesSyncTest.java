@@ -505,6 +505,61 @@ class NavPosPagesSyncTest {
 		assertEquals(String.valueOf(lastEntryBefore(savedEntry(40))), cursors.get(2), "after packet 2");
 	}
 
+	// ─── Code cleanup step 3, proof: the cursor by position over left-out rows, as by Entry_No before ────
+
+	/** What a barcode run leaves: the cursor saved, the guard and the counts of its summary. */
+	private String proof(CatalogueRun<ErpItemBarcodeDTO> run) {
+		Map<String, Object> summary = run.getSummary();
+		StringBuilder text = new StringBuilder("cursor=" + state.get("barcodes.cursor"));
+		for (String key : new String[] { "guard", "read", "leftOut", "alreadyAtHeadOffice", "applied", "packets",
+				"pagesRead", "cursorFrom", "cursorTo", "caughtUp" }) {
+			text.append(", ").append(key).append('=').append(summary.get(key));
+		}
+		return text.append(", handed=").append(barcodeValues(run)).toString();
+	}
+
+	@Test
+	@DisplayName("Proof: a blank row below a barcode the import did not save: the cursor passes the blank row, never the barcode")
+	void proofBlankRowBelowUnsaved() {
+		loadCatalogue();
+		erp.barcodes = new ArrayList<>(Arrays.asList(new NavPosBarcodeRow("000001", "PA", 1L),
+				new NavPosBarcodeRow("000001", " ", 2L), new NavPosBarcodeRow("000001", "PB", 3L)));
+		notSaving.add("PB");
+		assertEquals("cursor=2, guard=1 barcodes handed but not at the head office after their packet: run stopped,"
+				+ " cursor kept before them, read=3, leftOut={blank Cross_Reference_No=1}, alreadyAtHeadOffice=null,"
+				+ " applied=1, packets=1, pagesRead=1, cursorFrom=0, cursorTo=2, caughtUp=false, handed=[PA]",
+				proof(barcodes()));
+	}
+
+	@Test
+	@DisplayName("Proof: a page of only blank rows: every row left out, the cursor moves over the page, caught up")
+	void proofPageOfBlankRows() {
+		loadCatalogue();
+		erp.barcodes = new ArrayList<>(Arrays.asList(new NavPosBarcodeRow("000001", "", 7L),
+				new NavPosBarcodeRow(" ", "PX", 8L), new NavPosBarcodeRow(null, null, 9L)));
+		assertEquals("cursor=9, guard=null, read=3, leftOut={blank Cross_Reference_No=2, blank Item_No=1},"
+				+ " alreadyAtHeadOffice=null, applied=0, packets=0, pagesRead=2, cursorFrom=0, cursorTo=9, caughtUp=true,"
+				+ " handed=[]", proof(barcodes()));
+	}
+
+	@Test
+	@DisplayName("Proof: a row with a null Entry_No: first by position, counted as 0; saved, or not saved and the cursor at 0")
+	void proofNullEntryNo() {
+		loadCatalogue();
+		erp.barcodePages = after -> after == 0 ? Arrays.asList(new NavPosBarcodeRow("000001", "PC", 4L),
+				new NavPosBarcodeRow("000001", "PN", null)) : new ArrayList<>();
+		assertEquals("cursor=4, guard=null, read=2, leftOut={}, alreadyAtHeadOffice=null, applied=2, packets=1,"
+				+ " pagesRead=2, cursorFrom=0, cursorTo=4, caughtUp=true, handed=[PN, PC]", proof(barcodes()));
+
+		// The same page on an empty barcode table, the row without Entry_No not saved: the cursor stays at 0
+		headOffice.barcodes.clear();
+		state.remove("barcodes.cursor");
+		notSaving.add("PN");
+		assertEquals("cursor=0, guard=1 barcodes handed but not at the head office after their packet: run stopped,"
+				+ " cursor kept before them, read=2, leftOut={}, alreadyAtHeadOffice=null, applied=1, packets=1,"
+				+ " pagesRead=1, cursorFrom=0, cursorTo=0, caughtUp=false, handed=[PC]", proof(barcodes()));
+	}
+
 	/** The Entry_No of the n-th row (0-based, by Entry_No) whose item is at the head office. */
 	private long savedEntry(int n) {
 		return erp.barcodes.stream().filter(row -> headOffice.items.containsKey(row.getItemNo()))
@@ -1256,8 +1311,14 @@ class NavPosPagesSyncTest {
 			return new ArrayList<>(otherPoints.getOrDefault(locationCode, items));
 		}
 
+		/** Code cleanup step 3 proof: when set, the barcode pages by Entry_No (a null Entry_No allowed); else the list. */
+		java.util.function.Function<Long, List<NavPosBarcodeRow>> barcodePages;
+
 		@Override
 		public List<NavPosBarcodeRow> readBarcodesAfter(long entryNo) {
+			if (barcodePages != null) {
+				return new ArrayList<>(barcodePages.apply(entryNo));
+			}
 			return barcodes.stream().filter(row -> row.getEntryNo() > entryNo)
 					.sorted(Comparator.comparing(NavPosBarcodeRow::getEntryNo)).limit(properties.getBarcodePageSize())
 					.collect(Collectors.toList());
