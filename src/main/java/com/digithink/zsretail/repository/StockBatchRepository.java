@@ -56,7 +56,7 @@ public class StockBatchRepository {
 	/** Adds each delta (item id to delta) to the item's stock, null counting as 0. */
 	public void addToStockQuantities(Map<Long, BigDecimal> deltas) {
 		List<Map.Entry<Long, BigDecimal>> entries = new ArrayList<>(deltas.entrySet());
-		jdbc.batchUpdate("UPDATE item SET stock_quantity = COALESCE(stock_quantity, 0) + ? WHERE id = ?", entries,
+		jdbc.batchUpdate("UPDATE item SET stock_quantity = COALESCE(stock_quantity, 0) + CAST(? AS DECIMAL(18,3)) WHERE id = ?", entries,
 				BATCH, (ps, entry) -> {
 					ps.setBigDecimal(1, entry.getValue());
 					ps.setLong(2, entry.getKey());

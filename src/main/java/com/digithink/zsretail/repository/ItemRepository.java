@@ -25,7 +25,7 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 	 * @return number of rows updated (1 or 0)
 	 */
 	@Modifying
-	@Query(value = "UPDATE item SET stock_quantity = COALESCE(stock_quantity, 0) + :delta WHERE id = :itemId", nativeQuery = true)
+	@Query(value = "UPDATE item SET stock_quantity = COALESCE(stock_quantity, 0) + CAST(:delta AS DECIMAL(18,3)) WHERE id = :itemId", nativeQuery = true)
 	int addToStockQuantity(@Param("itemId") Long itemId, @Param("delta") BigDecimal delta);
 
 	/**
@@ -35,7 +35,7 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 	 * @return number of rows updated (1 if sufficient stock, 0 otherwise)
 	 */
 	@Modifying
-	@Query(value = "UPDATE item SET stock_quantity = COALESCE(stock_quantity, 0) - :quantity WHERE id = :itemId AND COALESCE(stock_quantity, 0) >= :quantity", nativeQuery = true)
+	@Query(value = "UPDATE item SET stock_quantity = COALESCE(stock_quantity, 0) - CAST(:quantity AS DECIMAL(18,3)) WHERE id = :itemId AND COALESCE(stock_quantity, 0) >= CAST(:quantity AS DECIMAL(18,3))", nativeQuery = true)
 	int decrementStockQuantityIfSufficient(@Param("itemId") Long itemId, @Param("quantity") BigDecimal quantity);
 
 	/**
@@ -45,7 +45,7 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 	 * @param quantity positive quantity to subtract
 	 */
 	@Modifying
-	@Query(value = "UPDATE item SET stock_quantity = COALESCE(stock_quantity, 0) - :quantity WHERE id = :itemId", nativeQuery = true)
+	@Query(value = "UPDATE item SET stock_quantity = COALESCE(stock_quantity, 0) - CAST(:quantity AS DECIMAL(18,3)) WHERE id = :itemId", nativeQuery = true)
 	void decrementStockQuantityUnconditional(@Param("itemId") Long itemId, @Param("quantity") BigDecimal quantity);
 
 	/**

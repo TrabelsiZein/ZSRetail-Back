@@ -33,6 +33,12 @@ steps on `release/2.2.1` (both repos); this page says what each step converted. 
   or no `TAX_STAMP` item; one rule since step 5: `TaxStampRule`). A ticket discount, a cart promotion or the loyalty deduction never change subtotal or VAT.
 - **Fixed-amount discounts**: the 2.2.0 formula, no special case: a fixed promotion or a manual amount counts once per
   line (2.000 off 0.2 as off 2); a cross-product amount counts per unit, min(entitled units, quantity) x amount.
+- **SQL arithmetic casts the quantity parameter** (step 6): SQL Server types a BigDecimal parameter as
+  DECIMAL(38, scale of the value), and DECIMAL(18,3) - DECIMAL(38,1) needs more than 38 digits, so the result is cut to
+  the parameter's scale without an error (1.742 - 0.2 gave 1.500, 1.442 - 1 gave 0.000 with mssql-jdbc 7.4.1). The stock
+  updates (`ItemRepository.addToStockQuantity`, `decrementStockQuantityIfSufficient`, `decrementStockQuantityUnconditional`,
+  `StockBatchRepository.addToStockQuantities`) write `CAST(:quantity AS DECIMAL(18,3))`; any new SQL doing arithmetic
+  with a quantity parameter must do the same (`StockArithmeticSqlTest`). Plain assignments are not affected.
 - **A place not converted yet never truncates silently**: it calls `Quantities.wholeOrFail` / `wholeIntOrFail` /
   `wholeLongOrFail`, which throw `IllegalStateException` naming the place ("Ticket ... line 1, copy to the head office:
   quantity 0.2 is not a whole number, and decimal quantities are not supported here yet"). Since step 5 the writers not
@@ -239,4 +245,4 @@ return screen line, invoice and composition refusals, the Excel import by row, i
 and its 400, the global setting unchanged), `TaxStampRuleTest` (true, TRUE, 1; no item), `AppConfigAPITest`
 (`taxStampActive`), `SaleCompletionLoyaltyStampTest.stampSettingReadings`, `ReturnRefundLoyaltyTest.decimalSoldLineRefused`
 / `decimalAskedRefused`, `ItemStockAdjustmentTest.decimalDeltaRefused`, `HeadOfficeWarehouseTest.decimalPurchaseRefused`,
-`HoDeliveryServiceTest` (1.5 named), `HoSupplyInvoiceServiceTest.decimalReceivedNotInvoiced`, `CashCountQuantityTest`. Step 6: `DecimalColumnsCheckTest`.
+`HoDeliveryServiceTest` (1.5 named), `HoSupplyInvoiceServiceTest.decimalReceivedNotInvoiced`, `CashCountQuantityTest`. Step 6: `DecimalColumnsCheckTest`, `StockArithmeticSqlTest`.
