@@ -62,7 +62,7 @@ public class HoErpInvoice extends _BaseEntity {
 	@Column(name = "posting_date")
 	private LocalDate postingDate;
 
-	/** The invoice's customer, as the configured customer field gives it (erp.navpospages.invoices.customer-field). */
+	/** The invoice's customer, as the configured customer field gives it (the connector's setting invoices.customer-field). */
 	@Column(name = "customer_no", length = CUSTOMER_NO_LENGTH)
 	private String customerNo;
 

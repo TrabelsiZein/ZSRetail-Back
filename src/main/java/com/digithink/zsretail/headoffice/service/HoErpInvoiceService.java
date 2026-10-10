@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -89,7 +88,6 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 	static final String WARNING_SEPARATOR = "\n";
 	/** Stock points, step 3b: the start of the warning naming the items outside the store's point. */
 	public static final String NOT_IN_STOCK_POINT = "items not in the point de stock of this store: ";
-	public static final String SELLER_NAME_KEY = "erp.navpospages.invoices.seller-name";
 	public static final String DEFAULT_SELLER_NAME = "Head office";
 	/** Step (c): an invoice goes down once its store is found, and stays readable after the confirmation. */
 	static final List<ErpInvoiceStatus> COPIED_STATUSES = java.util.Arrays.asList(ErpInvoiceStatus.SENT,
@@ -106,7 +104,7 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 	/** Step (c): the copies down, where an assigned invoice is recorded for its store; null in the step (b) tests. */
 	private final Supplier<CopiesDownFeed> feed;
 
-	/** Step (c): the seller named on the stores' purchase invoices (erp.navpospages.invoices.seller-name). */
+	/** Step (c): the seller named on the stores' purchase invoices (the connector's, ErpConnector.supplyInvoiceSellerName). */
 	private final String sellerName;
 
 	/** The summary of the last run, for the page and run now; null before the first run since the start. */
@@ -123,10 +121,9 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 	@Autowired
 	public HoErpInvoiceService(HoErpInvoiceRepository invoices, StoreRepository stores, ItemRepository items,
 			ErpSynchronizationManager erp, PlatformTransactionManager transactionManager,
-			ObjectProvider<CopiesDownFeed> feed,
-			@Value("${" + SELLER_NAME_KEY + ":" + DEFAULT_SELLER_NAME + "}") String sellerName) {
+			ObjectProvider<CopiesDownFeed> feed) {
 		this(invoices, stores, items, erp::pullSupplyInvoices, new TransactionTemplate(transactionManager),
-				LocalDateTime::now, (Supplier<CopiesDownFeed>) feed::getObject, sellerName);
+				LocalDateTime::now, (Supplier<CopiesDownFeed>) feed::getObject, erp.supplyInvoiceSellerName());
 		this.rereader = erp::pullSupplyInvoicesByNumbers;
 	}
 

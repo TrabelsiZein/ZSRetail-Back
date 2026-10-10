@@ -197,6 +197,19 @@ class NavPosPagesConnectorTest {
 	}
 
 	@Test
+	@DisplayName("Code cleanup step 2: the seller name of the stores' invoices comes through the connector, as the key gives it")
+	void sellerName() {
+		context().withPropertyValues(navPosPagesKeys()).run(ctx -> assertEquals("Head office",
+				ctx.getBean(ErpSynchronizationManager.class).supplyInvoiceSellerName(), "the default"));
+		context().withPropertyValues(navPosPagesKeys())
+				.withPropertyValues("erp.navpospages.invoices.seller-name=Happyness Siège")
+				.run(ctx -> assertEquals("Happyness Siège",
+						ctx.getBean(ErpSynchronizationManager.class).supplyInvoiceSellerName(), "as written"));
+		context().run(ctx -> assertEquals(null,
+				ctx.getBean(ErpSynchronizationManager.class).supplyInvoiceSellerName(), "NoOp: no invoices"));
+	}
+
+	@Test
 	@DisplayName("A refusal stops the context with its message, before the settings are bound (default-vat=abc)")
 	void refusalStopsTheStartup() {
 		context().withPropertyValues(navPosPagesKeys()).withPropertyValues("erp.navpospages.default-vat=abc").run(ctx -> {

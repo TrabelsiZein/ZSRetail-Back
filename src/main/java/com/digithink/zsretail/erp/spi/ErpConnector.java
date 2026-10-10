@@ -83,6 +83,15 @@ public interface ErpConnector {
 		return Collections.emptyList();
 	}
 
+	/**
+	 * Code cleanup, step 2: the seller the head office names on the stores' purchase invoices copied from the ERP's
+	 * invoices, as this connector's settings give it; null when the connector reads no invoices (the head office then
+	 * uses its default).
+	 */
+	default String supplyInvoiceSellerName() {
+		return null;
+	}
+
 	/** 2.2.1: the same invoices, given by number (read again). Only the navpospages connector reads them. */
 	default List<ErpSupplyInvoiceDTO> fetchSupplyInvoicesByNumbers(List<String> numbers) {
 		return Collections.emptyList();

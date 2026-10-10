@@ -103,6 +103,11 @@ public class ErpSynchronizationManager {
 				() -> erpConnector.fetchSupplyInvoicesByNumbers(numbers));
 	}
 
+	/** Code cleanup, step 2: the seller named on the stores' purchase invoices, from the connector; null without one. */
+	public String supplyInvoiceSellerName() {
+		return erpConnector.supplyInvoiceSellerName();
+	}
+
 	public List<ErpDeletionLogEntryDTO> pullDeletionLog(ErpSyncFilter filter) {
 		return executePullOperation(ErpSyncOperation.SYNC_ERP_DELETIONS, filter,
 				() -> erpConnector.fetchDeletionLog(filter));

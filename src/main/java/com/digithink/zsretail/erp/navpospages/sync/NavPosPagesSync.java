@@ -143,6 +143,11 @@ public class NavPosPagesSync {
 		this.mapper = new NavPosPagesMapper(properties.getDefaultVat(), properties.getPriceIncludesVat());
 	}
 
+	/** Invoices from the ERP, step (c): the seller named on the stores' purchase invoices (invoices.seller-name). */
+	public String sellerName() {
+		return properties.getInvoices().getSellerName();
+	}
+
 	// ─── Families ───────────────────────────────────────────────
 
 	public NavPosRun<ErpItemFamilyDTO> families() {

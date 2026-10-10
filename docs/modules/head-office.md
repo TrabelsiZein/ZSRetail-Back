@@ -1239,7 +1239,7 @@ A second ERP connector, package `erp/navpospages`, for a Dynamics NAV / Business
 (`ItemCategory`, `PointStockPOS`, `ItemBarCodePOS`): same ERP as `erp/dynamicsnav`, other pages. **Read only**: its RestTemplate
 refuses any method other than GET before it leaves (`NavPosPagesConfig.GetOnly`). In step 5 it reads and translates; it hands
 nothing to the import (every fetch of `NavPosPagesConnector` answers an empty list, every push a failure "read only"); step 6
-makes the four catalogue fetches return the changes (below). No existing class changed: `@Primary` wins over `NoOpErpConnector`.
+makes the four catalogue fetches return the changes (below). No existing class changed: `@Primary` won over `NoOpErpConnector` (code cleanup step 2: the connectors are mutually exclusive by the connector in effect, no `@Primary`).
 
 | Class | Role |
 |---|---|
@@ -1249,7 +1249,7 @@ makes the four catalogue fetches return the changes (below). No existing class c
 | `NavPosPagesRestClient` | `readCategories()` (`$select=Code,Description,Parent_Category,Type`, next links followed), `readItems()` (`$filter=Location_Code eq '<location-code>'`, a quote doubled, `$select=Item_No,Variant_Code,Description,Unit_Price,Family,Subfamily`, next links), `readBarcodesAfter(n)` (`$filter=Entry_No gt n&$orderby=Entry_No&$top=<barcode-page-size>&$select=Item_No,Cross_Reference_No,Entry_No`, one page per call). An HTTP error or a timeout: `NavPosPagesReadException` naming the page and the status, no retry |
 | `NavPosPagesMapper` (no Spring) | To `ErpItemFamilyDTO`, `ErpItemSubFamilyDTO`, `ErpItemDTO`, `ErpItemBarcodeDTO`; each `NavPosResult` gives the rows, read, kept, left out by reason, notes, and for barcodes the highest `Entry_No` read |
 | `NavPosPagesReader` | Client + mapper: `readFamilies()`, `readSubFamilies()`, `readItems()`, `readBarcodesAfter(n)` |
-| `NavPosPagesConnector` | The `ErpConnector` (`@Primary`), read only |
+| `NavPosPagesConnector` | The `ErpConnector` (the only one with `erp.connector=navpospages`), read only |
 
 Translation rules:
 - **Categories**: `Type` trimmed, any case. `Family` rows: families (`externalId` = `code` = `Code`, `name` = `description` =

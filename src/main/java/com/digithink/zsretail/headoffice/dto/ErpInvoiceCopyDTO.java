@@ -32,7 +32,7 @@ public class ErpInvoiceCopyDTO {
 	private String documentDate;
 	/** yyyy-MM-dd. */
 	private String postingDate;
-	/** The seller named on the store's purchase invoice (erp.navpospages.invoices.seller-name). */
+	/** The seller named on the store's purchase invoice (the connector's setting invoices.seller-name). */
 	private String sellerName;
 	private String customerNo;
 	private String customerName;

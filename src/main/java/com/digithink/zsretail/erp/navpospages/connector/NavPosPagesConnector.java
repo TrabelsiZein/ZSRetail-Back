@@ -62,6 +62,12 @@ public class NavPosPagesConnector implements ErpConnector {
 		this.sync = sync;
 	}
 
+	/** Code cleanup, step 2: erp.navpospages.invoices.seller-name, read by the head office through the connector. */
+	@Override
+	public String supplyInvoiceSellerName() {
+		return sync.sellerName();
+	}
+
 	@Override
 	public List<ErpItemFamilyDTO> fetchItemFamilies(ErpSyncFilter filter) {
 		return changes(sync::families);
