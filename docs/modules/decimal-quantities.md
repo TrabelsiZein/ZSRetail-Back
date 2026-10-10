@@ -216,7 +216,8 @@ A 2.2.1 application on a 2.2.0 database does not start: `AppVersionGuard` finds 
 writes 2.2.1 only when every column is converted). For what that guard lets through (APP_VERSION set by hand, an
 existing database with an empty APP_VERSION), `DecimalColumnsCheck` (step 6) reads `INFORMATION_SCHEMA.COLUMNS` once at
 start-up for the 17 columns of the script (`COLUMNS`, keep both lists the same; an absent table is skipped): a column
-not DECIMAL(18,3) is named in an error of the log, `QuantityPolicy` and `/config.allowDecimalQuantity` treat the
+not DECIMAL(18,3) (NUMERIC(18,3), which Hibernate gives a table it creates, is the same type and accepted, as by the
+script) is named in an error of the log, `QuantityPolicy` and `/config.allowDecimalQuantity` treat the
 setting as off, and a decimal is refused with "decimal quantities need the 2.2.1 database script (db/2.2.1/update.sql),
 not run on this database"; whole quantities work as in 2.2.0. Hibernate (`ddl-auto=update`) never changes a column type.
 

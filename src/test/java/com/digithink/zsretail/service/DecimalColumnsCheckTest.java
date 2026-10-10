@@ -72,6 +72,16 @@ class DecimalColumnsCheckTest {
 	}
 
 	@Test
+	@DisplayName("A table created by Hibernate after the script (Bardo's inventory tables): NUMERIC(18,3) is DECIMAL(18,3), accepted as by the script")
+	@SuppressWarnings("unchecked")
+	void numericAccepted() {
+		assertTrue(DecimalColumnsCheck.notConverted(converted(column("inventory_count_line", "counted_quantity", "numeric", 18, 3),
+				column("inventory_count_line", "difference_applied", "numeric", 18, 3))).isEmpty());
+		assertEquals(Arrays.asList("inventory_count_line.counted_quantity (numeric)"), DecimalColumnsCheck.notConverted(
+				converted(column("inventory_count_line", "counted_quantity", "numeric", 19, 2))));
+	}
+
+	@Test
 	@DisplayName("A 2.2.0 database: the int columns named in list order, a wrong scale too")
 	@SuppressWarnings("unchecked")
 	void intColumnsNamed() {

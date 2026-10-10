@@ -104,8 +104,11 @@ public class DecimalColumnsCheck {
 		return left;
 	}
 
+	/** DECIMAL(18,3) or NUMERIC(18,3), the same type in SQL Server (Hibernate creates a new table's column as numeric), as the
+	 * script tests it. */
 	private static boolean decimal183(Map<String, Object> row) {
-		return "decimal".equalsIgnoreCase(String.valueOf(row.get("DATA_TYPE")))
+		String type = String.valueOf(row.get("DATA_TYPE"));
+		return ("decimal".equalsIgnoreCase(type) || "numeric".equalsIgnoreCase(type))
 				&& row.get("NUMERIC_PRECISION") instanceof Number
 				&& ((Number) row.get("NUMERIC_PRECISION")).intValue() == Quantities.PRECISION
 				&& row.get("NUMERIC_SCALE") instanceof Number
