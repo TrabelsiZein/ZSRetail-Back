@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.digithink.zsretail.model.BadgeScanLog;
 import com.digithink.zsretail.model.UserAccount;
 import com.digithink.zsretail.model.enumeration.BadgePermission;
-import com.digithink.zsretail.model.enumeration.Role;
 import com.digithink.zsretail.security.CurrentUserProvider;
 import com.digithink.zsretail.service.BadgeScanLogService;
 import com.digithink.zsretail.service.BadgeService;
@@ -45,15 +44,10 @@ public class BadgeAPI {
 	private CurrentUserProvider currentUserProvider;
 
 	/**
-	 * Check if current user is admin
+	 * Check if current user is admin (the one definition: {@link CurrentUserProvider#currentUserIsAdmin()})
 	 */
 	private boolean isAdmin() {
-		try {
-			UserAccount currentUser = currentUserProvider.getCurrentUser();
-			return currentUser != null && currentUser.getRole() == Role.ADMIN;
-		} catch (Exception e) {
-			return false;
-		}
+		return currentUserProvider.currentUserIsAdmin();
 	}
 
 	/**

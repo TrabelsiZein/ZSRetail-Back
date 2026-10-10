@@ -1,5 +1,32 @@
 # Badge-Based Permission System - Implementation Summary
 
+## Current rules (2.2.2)
+
+- **Five actions** need a badge permission (`BadgePermission`): `CONSULT_CUSTOMER_LIST` (customer list: till, payment,
+  the list itself), `MAKE_RETURN` (the Returns button of the till and the return screen), `APPLY_LINE_DISCOUNT` (till),
+  `APPLY_TOTAL_DISCOUNT` (payment), `CLOSE_SESSION_WITH_DISCREPANCY` (closing a session with a cash difference).
+- **The till's rule, one place**: `src/services/badgeService.js` `isBadgeScanRequired(permission, http)`, called by every
+  screen (`ItemSelection.vue`, `Payment.vue`, `CustomerList.vue`, `ReturnProducts.vue`): an admin never gets the popup;
+  otherwise always when `ALWAYS_SHOW_BADGE_SCAN_POPUP` is on, else when the user's own badge (present, not revoked, not
+  expired) does not hold the permission; any error asks for the badge.
+- **Closing with a difference is decided by the server**: `CashierSessionService.checkCashDiscrepancy` (with
+  `ENABLE_CASH_DISCREPANCY_CHECK` on, absent = on, a difference above 0.01) answers 400 `CASH_DISCREPANCY` unless a
+  badge holding `CLOSE_SESSION_WITH_DISCREPANCY` comes with the request; the till then shows the difference popup, then
+  the badge popup, and sends the close again with the badge code. It does not read `ALWAYS_SHOW_BADGE_SCAN_POPUP`.
+- **Admin, never asked for a badge (2.2.2, every installation)**: on the five actions the till checks nothing and shows no
+  popup, even with `ALWAYS_SHOW_BADGE_SCAN_POPUP` on; an admin's close with a difference goes through without a badge
+  (no difference popup, no badge popup), with the log line "Session closure with discrepancy authorized by the admin
+  role: session ..., user ..., expected ..., counted ..., no badge". No badge scan is logged for an admin (none happens).
+  Cashiers, responsibles and custom roles: unchanged (same checks, same popups, same scan history).
+- **Who is an admin** (one definition per side): the logged user's role `UserAccount.role` is `ADMIN`. Server:
+  `CurrentUserProvider.currentUserIsAdmin()` (also used by `BadgeAPI`); till: `badgeService.isAdminUser(user)` on
+  `GET /user-account/current` (`role`). The role is kept in step with the built-in role ADMIN by
+  `UserAccountService.applyAppRole`; a custom role maps to POS_USER or RESPONSIBLE, never ADMIN.
+- Tests: `CashierSessionAdminBadgeTest` (admin without a badge passes; cashier, responsible, custom role refused as in
+  2.2.1; a valid badge passes, an unknown or insufficient one refused as in 2.2.1).
+
+The sections below are the original implementation summary.
+
 ## Overview
 
 A comprehensive badge-based permission system has been implemented to control access to sensitive POS features. Users (cashiers and responsibles) can be assigned badges with specific permissions. When attempting restricted actions, users must scan a badge (their own or a responsible's) to gain access. All badge scans are logged for audit purposes.
@@ -12,12 +39,12 @@ A comprehensive badge-based permission system has been implemented to control ac
 
 #### 1.1 BadgePermission Enum
 **File**: `src/main/java/com/digithink/zsretail/model/enumeration/BadgePermission.java`
-- Created enum with 5 permission types:
+- Enum with 5 permission types (as of 2.2.2):
   - `CONSULT_CUSTOMER_LIST` - Access customer list
-  - `OPEN_TICKET_HISTORY` - Access ticket history
   - `MAKE_RETURN` - Process product returns
-  - `CLOSE_SESSION` - Close cashier session
-  - `VERIFY_SESSION` - Verify cashier session
+  - `APPLY_LINE_DISCOUNT` - Discount on a cart line
+  - `APPLY_TOTAL_DISCOUNT` - Discount on the ticket total
+  - `CLOSE_SESSION_WITH_DISCREPANCY` - Close a cashier session with a cash difference
 
 #### 1.2 UserAccount Entity Updates
 **File**: `src/main/java/com/digithink/zsretail/model/UserAccount.java`
@@ -203,6 +230,7 @@ The migration script adds:
 ### Permission Check Flow
 
 1. User attempts to access a restricted feature (e.g., customer list)
+   - 2.2.2: the user's role is ADMIN → allow access directly, nothing else is checked
 2. System checks `ALWAYS_SHOW_BADGE_SCAN_POPUP` configuration
 3. If `false`:
    - Check if current user has the required badge permission
@@ -224,7 +252,7 @@ The migration script adds:
 
 - **RESPONSIBLE role**: Automatically gets all badge permissions when created
 - **POS_USER role**: No badge by default (must be assigned by admin)
-- **ADMIN role**: Can manage all badges
+- **ADMIN role**: Can manage all badges; never asked for a badge at the till (2.2.2)
 
 ### Rate Limiting
 

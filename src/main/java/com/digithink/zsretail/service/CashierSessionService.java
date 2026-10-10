@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.dto.CloseSessionRequestDTO;
+import com.digithink.zsretail.security.CurrentUserProvider;
 import com.digithink.zsretail.dto.SessionCloseTicketDTO;
 import com.digithink.zsretail.dto.SessionDashboardDTO;
 import com.digithink.zsretail.erp.repository.PaymentHeaderRepository;
@@ -293,47 +294,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		// Use provided actualCash or calculated from lines for POS user closure cash
 		Double posUserClosureCash = request.getActualCash() != null ? request.getActualCash() : calculatedPosUserCash;
 
-		// Check if cash discrepancy check is enabled
-		Optional<GeneralSetup> discrepancyCheckSetup = generalSetupRepository
-				.findByCode("ENABLE_CASH_DISCREPANCY_CHECK");
-		boolean discrepancyCheckEnabled = true; // Default to enabled
-		if (discrepancyCheckSetup.isPresent()) {
-			String valeur = discrepancyCheckSetup.get().getValeur();
-			discrepancyCheckEnabled = valeur != null && valeur.equalsIgnoreCase("true");
-		}
-
-		// If discrepancy check is enabled, validate amounts
-		if (discrepancyCheckEnabled && posUserClosureCash != null && realCash != null) {
-			// Compare amounts with tolerance of 0.01 TND for floating point precision
-			double difference = Math.abs(realCash - posUserClosureCash);
-			if (difference > 0.01) {
-				// Discrepancy exists - check if badge was provided
-				if (request.getBadgeCode() != null && !request.getBadgeCode().trim().isEmpty()
-						&& request.getBadgePermission() != null
-						&& request.getBadgePermission().equals("CLOSE_SESSION_WITH_DISCREPANCY")) {
-					// Badge provided - validate it without logging (already logged by frontend
-					// scan)
-					// Use findUserByBadgeCode which checks revoked/expired, then check permission
-					java.util.Optional<UserAccount> badgeUserOpt = badgeService
-							.findUserByBadgeCode(request.getBadgeCode().trim());
-					if (!badgeUserOpt.isPresent()) {
-						throw new IllegalStateException("Badge validation failed: BADGE_NOT_EXISTS");
-					}
-
-					UserAccount badgeUser = badgeUserOpt.get();
-					boolean hasPermission = badgeService.hasPermission(badgeUser,
-							BadgePermission.CLOSE_SESSION_WITH_DISCREPANCY);
-					if (!hasPermission) {
-						throw new IllegalStateException("Badge validation failed: BADGE_NO_ACCESS");
-					}
-					// Badge validated successfully - proceed with closure
-					log.info("Session closure with discrepancy authorized by badge: " + request.getBadgeCode());
-				} else {
-					// Badge NOT provided - throw structured exception for frontend
-					throw new CashDiscrepancyException(realCash, posUserClosureCash, difference);
-				}
-			}
-		}
+		checkCashDiscrepancy(session, realCash, posUserClosureCash, request);
 
 		session.setPosUserClosureCash(posUserClosureCash);
 
@@ -381,6 +342,62 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		}
 
 		return session;
+	}
+
+	/**
+	 * The cash counted against the cash expected when the session is closed (ENABLE_CASH_DISCREPANCY_CHECK, on when the
+	 * setting is absent). A difference above 0.01 needs a badge holding CLOSE_SESSION_WITH_DISCREPANCY, else
+	 * {@link CashDiscrepancyException} (the till then asks for the badge). 2.2.2: when the logged user is an admin
+	 * ({@link CurrentUserProvider#currentUserIsAdmin()}) no badge is checked: the closing goes through, logged as
+	 * authorised by the admin role.
+	 */
+	void checkCashDiscrepancy(CashierSession session, Double realCash, Double posUserClosureCash,
+			CloseSessionRequestDTO request) {
+		// Check if cash discrepancy check is enabled
+		Optional<GeneralSetup> discrepancyCheckSetup = generalSetupRepository
+				.findByCode("ENABLE_CASH_DISCREPANCY_CHECK");
+		boolean discrepancyCheckEnabled = true; // Default to enabled
+		if (discrepancyCheckSetup.isPresent()) {
+			String valeur = discrepancyCheckSetup.get().getValeur();
+			discrepancyCheckEnabled = valeur != null && valeur.equalsIgnoreCase("true");
+		}
+
+		// If discrepancy check is enabled, validate amounts
+		if (discrepancyCheckEnabled && posUserClosureCash != null && realCash != null) {
+			// Compare amounts with tolerance of 0.01 TND for floating point precision
+			double difference = Math.abs(realCash - posUserClosureCash);
+			if (difference > 0.01) {
+				if (currentUserProvider.currentUserIsAdmin()) {
+					// 2.2.2: an admin is never asked for a badge
+					log.info("Session closure with discrepancy authorized by the admin role: session "
+							+ session.getSessionNumber() + ", user " + currentUserProvider.getCurrentUserName()
+							+ ", expected " + realCash + ", counted " + posUserClosureCash + ", no badge");
+				} else if (request.getBadgeCode() != null && !request.getBadgeCode().trim().isEmpty()
+						&& request.getBadgePermission() != null
+						&& request.getBadgePermission().equals("CLOSE_SESSION_WITH_DISCREPANCY")) {
+					// Badge provided - validate it without logging (already logged by frontend
+					// scan)
+					// Use findUserByBadgeCode which checks revoked/expired, then check permission
+					java.util.Optional<UserAccount> badgeUserOpt = badgeService
+							.findUserByBadgeCode(request.getBadgeCode().trim());
+					if (!badgeUserOpt.isPresent()) {
+						throw new IllegalStateException("Badge validation failed: BADGE_NOT_EXISTS");
+					}
+
+					UserAccount badgeUser = badgeUserOpt.get();
+					boolean hasPermission = badgeService.hasPermission(badgeUser,
+							BadgePermission.CLOSE_SESSION_WITH_DISCREPANCY);
+					if (!hasPermission) {
+						throw new IllegalStateException("Badge validation failed: BADGE_NO_ACCESS");
+					}
+					// Badge validated successfully - proceed with closure
+					log.info("Session closure with discrepancy authorized by badge: " + request.getBadgeCode());
+				} else {
+					// Badge NOT provided - throw structured exception for frontend
+					throw new CashDiscrepancyException(realCash, posUserClosureCash, difference);
+				}
+			}
+		}
 	}
 
 	/**
