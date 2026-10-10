@@ -26,14 +26,15 @@ import com.digithink.zsretail.erp.engine.CatalogueImport;
 import com.digithink.zsretail.erp.engine.CatalogueRun;
 import com.digithink.zsretail.erp.engine.CatalogueState;
 import com.digithink.zsretail.erp.engine.HeadOfficeCatalogue;
+import com.digithink.zsretail.erp.navpospages.client.NavPosPagesCatalogueSource;
 import com.digithink.zsretail.erp.navpospages.client.NavPosPagesSource;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
-import com.digithink.zsretail.erp.navpospages.dto.NavPosBarcodeRow;
-import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
-import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
-import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosPagesMapper;
 import com.digithink.zsretail.erp.service.ErpSyncWarningException;
+import com.digithink.zsretail.erp.spi.ErpBarcodeRow;
+import com.digithink.zsretail.erp.spi.ErpCatalogueSource;
+import com.digithink.zsretail.erp.spi.ErpCatalogueSource.Part;
+import com.digithink.zsretail.erp.spi.ErpCategories;
 import com.digithink.zsretail.erp.spi.ErpRead;
 import com.digithink.zsretail.erp.spi.StockPoints;
 
@@ -117,34 +118,38 @@ public class NavPosPagesSync {
 		return null;
 	}
 
-	private final NavPosPagesSource source;
+	private final ErpCatalogueSource source;
 	private final HeadOfficeCatalogue headOffice;
 	private final StockPoints stockPoints;
 	private final CatalogueState state;
 	private final NavPosPagesProperties properties;
 	private final CatalogueImport importer;
-	private final NavPosPagesMapper mapper;
+	/** Invoices from the ERP: the thin part of the connector (its pages and numbers), not the catalogue engine. */
+	private final NavPosPagesInvoices invoiceReads;
 	/** One items run at a time (the scheduler and "Run now" may meet). */
 	private final AtomicBoolean itemsRunning = new AtomicBoolean();
 	/** One barcode run at a time. */
 	private final AtomicBoolean barcodesRunning = new AtomicBoolean();
-	/** Release 2.2: today, for the last year of the invoices to read. */
-	private java.util.function.Supplier<java.time.LocalDate> today = java.time.LocalDate::now;
 
-	/** For the tests: a fixed day. */
+	/** For the tests: a fixed day (the last year of the invoices to read). */
 	public void setToday(java.util.function.Supplier<java.time.LocalDate> today) {
-		this.today = today;
+		invoiceReads.setToday(today);
 	}
 
-	public NavPosPagesSync(NavPosPagesSource source, HeadOfficeCatalogue headOffice, StockPoints stockPoints,
+	/**
+	 * The pages of the connector (the REST client, or a fake in the tests): the catalogue is read only through the
+	 * neutral source ({@link NavPosPagesCatalogueSource}), the invoices through {@link NavPosPagesInvoices}.
+	 */
+	public NavPosPagesSync(NavPosPagesSource pages, HeadOfficeCatalogue headOffice, StockPoints stockPoints,
 			CatalogueState state, NavPosPagesProperties properties, CatalogueImport importer) {
-		this.source = source;
+		NavPosPagesMapper mapper = new NavPosPagesMapper(properties.getDefaultVat(), properties.getPriceIncludesVat());
+		this.source = new NavPosPagesCatalogueSource(pages, mapper, properties);
 		this.headOffice = headOffice;
 		this.stockPoints = stockPoints;
 		this.state = state;
 		this.properties = properties;
 		this.importer = importer;
-		this.mapper = new NavPosPagesMapper(properties.getDefaultVat(), properties.getPriceIncludesVat());
+		this.invoiceReads = new NavPosPagesInvoices(pages, headOffice, properties, mapper);
 	}
 
 	/** Invoices from the ERP, step (c): the seller named on the stores' purchase invoices (invoices.seller-name). */
@@ -155,9 +160,9 @@ public class NavPosPagesSync {
 	// ─── Families ───────────────────────────────────────────────
 
 	public CatalogueRun<ErpItemFamilyDTO> families() {
-		String page = properties.getPage().getCategories();
-		Summary summary = new Summary("families", page, properties.isDryRun());
-		ErpRead<ErpItemFamilyDTO> read = mapper.families(source.readCategories());
+		Part part = Part.CATEGORIES;
+		Summary summary = new Summary("families", source.pageLabel(part), properties.isDryRun());
+		ErpRead<ErpItemFamilyDTO> read = source.categories().getFamilies();
 		summary.read(read);
 		Map<String, HeadOfficeCatalogue.Family> local = headOffice.families();
 		List<ErpItemFamilyDTO> changes = new ArrayList<>();
@@ -173,20 +178,20 @@ public class NavPosPagesSync {
 		}
 		changes.sort(Comparator.comparing(ErpItemFamilyDTO::getCode));
 		List<ErpItemFamilyDTO> handed = summary.handOver(changes, fresh, cap());
-		return run(handed, summary, page);
+		return run(handed, summary, part);
 	}
 
 	// ─── Sub-families ───────────────────────────────────────────
 
 	public CatalogueRun<ErpItemSubFamilyDTO> subFamilies() {
-		String page = properties.getPage().getCategories();
-		Summary summary = new Summary("sub-families", page, properties.isDryRun());
-		List<NavPosCategoryRow> categories = source.readCategories();
+		Part part = Part.CATEGORIES;
+		Summary summary = new Summary("sub-families", source.pageLabel(part), properties.isDryRun());
+		ErpCategories categories = source.categories();
 		String waiting = missingFamilies(categories, false);
 		if (waiting != null) {
-			return run(new ArrayList<>(), summary.waiting(waiting), page);
+			return run(new ArrayList<>(), summary.waiting(waiting), part);
 		}
-		ErpRead<ErpItemSubFamilyDTO> read = mapper.subFamilies(categories);
+		ErpRead<ErpItemSubFamilyDTO> read = categories.getSubFamilies();
 		summary.read(read);
 		Map<String, HeadOfficeCatalogue.SubFamily> local = headOffice.subFamilies();
 		List<ErpItemSubFamilyDTO> changes = new ArrayList<>();
@@ -203,22 +208,22 @@ public class NavPosPagesSync {
 		}
 		changes.sort(Comparator.comparing(ErpItemSubFamilyDTO::getCode));
 		List<ErpItemSubFamilyDTO> handed = summary.handOver(changes, fresh, cap());
-		return run(handed, summary, page);
+		return run(handed, summary, part);
 	}
 
 	/**
 	 * Null when every family (and, with subFamiliesToo, every sub-family) of this read of the categories is at the head
 	 * office; otherwise the reason to wait. Read from the ERP page itself: no run of the families job has to be counted.
 	 */
-	private String missingFamilies(List<NavPosCategoryRow> categories, boolean subFamiliesToo) {
+	private String missingFamilies(ErpCategories categories, boolean subFamiliesToo) {
 		Set<String> families = headOffice.families().keySet();
-		long missing = mapper.families(categories).getRows().stream().filter(f -> !families.contains(f.getCode())).count();
+		long missing = categories.getFamilies().getRows().stream().filter(f -> !families.contains(f.getCode())).count();
 		if (missing > 0) {
 			return "waiting for families: " + missing + " families of the ERP not at the head office yet";
 		}
 		if (subFamiliesToo) {
 			Set<String> subFamilies = headOffice.subFamilies().keySet();
-			missing = mapper.subFamilies(categories).getRows().stream().filter(f -> !subFamilies.contains(f.getCode()))
+			missing = categories.getSubFamilies().getRows().stream().filter(f -> !subFamilies.contains(f.getCode()))
 					.count();
 			if (missing > 0) {
 				return "waiting for sub-families: " + missing + " sub-families of the ERP not at the head office yet";
@@ -253,28 +258,28 @@ public class NavPosPagesSync {
 	}
 
 	private CatalogueRun<ErpItemDTO> readAndApplyItems() {
-		String page = properties.getPage().getItems();
-		Summary summary = new Summary("items", page, properties.isDryRun());
+		Part part = Part.ITEMS;
+		Summary summary = new Summary("items", source.pageLabel(part), properties.isDryRun());
 		List<StockPoints.Point> points = stockPoints.activePoints();
 		if (points.isEmpty()) {
-			return run(new ArrayList<>(), summary.waiting(NO_STOCK_POINT), page);
+			return run(new ArrayList<>(), summary.waiting(NO_STOCK_POINT), part);
 		}
-		String waiting = missingFamilies(source.readCategories(), true);
+		String waiting = missingFamilies(source.categories(), true);
 		if (waiting != null) {
-			return run(new ArrayList<>(), summary.waiting(waiting), page);
+			return run(new ArrayList<>(), summary.waiting(waiting), part);
 		}
 		// Every point read first, in list order: a failed read fails the run before anything is applied
 		List<PointRead> reads = new ArrayList<>();
 		for (StockPoints.Point point : points) {
 			long start = System.nanoTime();
-			List<NavPosStockRow> rows;
+			ErpRead<ErpItemDTO> rows;
 			try {
-				rows = source.readItems(point.code);
+				rows = source.items(point.code);
 			} catch (RuntimeException e) {
 				recordRead(point, StockPoints.READ_FAILED, "read failed: " + e.getMessage());
 				throw e;
 			}
-			PointRead read = new PointRead(point, rows.size(), mapper.items(rows), millisSince(start));
+			PointRead read = new PointRead(point, rows.getRead(), rows, millisSince(start));
 			summary.addRead(read.result);
 			reads.add(read);
 		}
@@ -380,7 +385,7 @@ public class NavPosPagesSync {
 			summary.put("applied", 0);
 			summary.put("packets", 0);
 			summary.put("stockPoints", pointSummaries(reads));
-			return run(new ArrayList<>(), summary, page);
+			return run(new ArrayList<>(), summary, part);
 		}
 
 		// Counted before applying: while a packet of new items is not saved, the barcodes wait
@@ -444,7 +449,7 @@ public class NavPosPagesSync {
 							+ ", changed " + read.changed + ", deactivated " + read.deactivated + ", written "
 							+ read.written + ", " + read.millis + " ms");
 		}
-		return run(applied, summary, page);
+		return run(applied, summary, part);
 	}
 
 	/** Step 4: the point's last read, for the points page; never in a dry run; a failure to record is only logged. */
@@ -667,8 +672,8 @@ public class NavPosPagesSync {
 	}
 
 	private CatalogueRun<ErpItemBarcodeDTO> readAndApplyBarcodes() {
-		String page = properties.getPage().getBarcodes();
-		Summary summary = new Summary("barcodes", page, properties.isDryRun());
+		Part part = Part.BARCODES;
+		Summary summary = new Summary("barcodes", source.pageLabel(part), properties.isDryRun());
 		String waiting = waitingFor(ITEMS_RUN, ITEMS_PENDING, "items");
 		if (waiting != null) {
 			summary.waiting(waiting);
@@ -676,7 +681,7 @@ public class NavPosPagesSync {
 			summary.put("applied", 0);
 			summary.put("packets", 0);
 			summary.put("caughtUp", false);
-			return run(new ArrayList<>(), summary, page);
+			return run(new ArrayList<>(), summary, part);
 		}
 		Set<String> itemCodes = headOffice.items().keySet();
 		BarcodePackets packets = new BarcodePackets();
@@ -693,14 +698,15 @@ public class NavPosPagesSync {
 		int forNewItems = 0;
 		for (int from = 0; from < needing.size(); from += ITEMS_PER_BARCODE_CALL) {
 			List<String> batch = needing.subList(from, Math.min(from + ITEMS_PER_BARCODE_CALL, needing.size()));
-			Classified classified = classify(source.readBarcodesOfItems(batch), itemCodes, summary);
+			ErpRead<ErpBarcodeRow> read = source.barcodesOfItems(batch);
+			Classified classified = classify(read, read.getRows(), itemCodes, summary);
 			Set<String> notDone = new HashSet<>();
 			for (int at = 0; at < classified.toHand.size(); at += cap()) {
-				List<NavPosBarcodeRow> packet = classified.toHand.subList(at,
+				List<ErpBarcodeRow> packet = classified.toHand.subList(at,
 						Math.min(at + cap(), classified.toHand.size()));
-				List<NavPosBarcodeRow> unsaved = packets.apply(packet);
+				List<ErpBarcodeRow> unsaved = packets.apply(packet);
 				forNewItems += packet.size() - unsaved.size();
-				unsaved.forEach(row -> notDone.add(row.getItemNo().trim()));
+				unsaved.forEach(row -> notDone.add(row.getBarcode().getItemExternalId()));
 			}
 			for (String code : batch) {
 				if (!notDone.contains(code) && !properties.isDryRun()) {
@@ -712,37 +718,41 @@ public class NavPosPagesSync {
 			summary.put("appliedForNewItems", forNewItems);
 		}
 
-		// 2. The cursor on Entry_No, page after page until the ERP answers no row
+		// 2. The cursor on the position (Entry_No), page after page until the ERP answers no row
 		long cursor = cursor();
 		summary.put("cursorFrom", cursor);
 		int pages = 0;
 		boolean caughtUp = false;
 		reading: while (true) {
-			List<NavPosBarcodeRow> rows = new ArrayList<>(source.readBarcodesAfter(cursor));
+			ErpRead<ErpBarcodeRow> read = source.barcodesAfter(cursor);
 			pages++;
-			if (rows.isEmpty()) {
+			if (read.getRead() == 0) {
 				caughtUp = true;
 				break;
 			}
-			rows.sort(Comparator.comparing(NavPosBarcodeRow::getEntryNo, Comparator.nullsFirst(Long::compare)));
-			long highest = entryNo(rows.get(rows.size() - 1));
+			// Every row read counts for the cursor, left out ones included
+			List<Long> positions = read.getPositions();
+			long highest = positions.stream().mapToLong(NavPosPagesSync::position).max().orElse(0);
 			if (highest <= cursor) {
 				summary.guard("the ERP answered rows at or below the cursor " + cursor + ": cursor kept");
 				break;
 			}
-			List<NavPosBarcodeRow> toHand = classify(rows, itemCodes, summary).toHand;
+			List<ErpBarcodeRow> rows = new ArrayList<>(read.getRows());
+			rows.sort(BY_POSITION);
+			List<ErpBarcodeRow> toHand = classify(read, rows, itemCodes, summary).toHand;
 			for (int at = 0; at < toHand.size(); at += cap()) {
-				List<NavPosBarcodeRow> unsaved = packets.apply(toHand.subList(at, Math.min(at + cap(), toHand.size())));
+				List<ErpBarcodeRow> unsaved = packets.apply(toHand.subList(at, Math.min(at + cap(), toHand.size())));
 				if (!unsaved.isEmpty()) {
 					// Never past a row the import did not save: the next run hands it again
-					cursor = passBefore(rows, cursor, entryNo(unsaved.get(0)));
+					cursor = passBefore(positions, cursor, position(unsaved.get(0)));
 					saveCursor(cursor);
 					summary.guard(unsaved.size() + " barcodes handed but not at the head office after their packet: run"
 							+ " stopped, cursor kept before them");
 					break reading;
 				}
 				// Saved after each packet, only over the rows before the next row still to save
-				cursor = at + cap() < toHand.size() ? passBefore(rows, cursor, entryNo(toHand.get(at + cap()))) : highest;
+				cursor = at + cap() < toHand.size() ? passBefore(positions, cursor, position(toHand.get(at + cap())))
+						: highest;
 				saveCursor(cursor);
 			}
 			cursor = highest; // every row of the page is at the head office or left out
@@ -756,15 +766,16 @@ public class NavPosPagesSync {
 		if (properties.isDryRun()) {
 			summary.put("toApply", packets.toApply);
 		}
-		return run(packets.applied, summary, page);
+		return run(packets.applied, summary, part);
 	}
 
-	/** The highest Entry_No of the page below limit, or the cursor when higher. */
-	private static long passBefore(List<NavPosBarcodeRow> rows, long cursor, long limit) {
+	/** The highest position of the page below limit (every row read, left out ones included), or the cursor if higher. */
+	private static long passBefore(List<Long> positions, long cursor, long limit) {
 		long passed = cursor;
-		for (NavPosBarcodeRow row : rows) {
-			if (entryNo(row) < limit) {
-				passed = Math.max(passed, entryNo(row));
+		for (Long value : positions) {
+			long position = position(value);
+			if (position < limit) {
+				passed = Math.max(passed, position);
 			}
 		}
 		return passed;
@@ -783,10 +794,10 @@ public class NavPosPagesSync {
 		int toApply;
 
 		/**
-		 * Applies the rows (by Entry_No) as one packet; returns those not at the head office afterwards, by Entry_No
+		 * Applies the rows (by position) as one packet; returns those not at the head office afterwards, by position
 		 * (none in a dry run, where nothing is applied).
 		 */
-		List<NavPosBarcodeRow> apply(List<NavPosBarcodeRow> rows) {
+		List<ErpBarcodeRow> apply(List<ErpBarcodeRow> rows) {
 			if (rows.isEmpty()) {
 				return new ArrayList<>();
 			}
@@ -794,7 +805,8 @@ public class NavPosPagesSync {
 				toApply += rows.size();
 				return new ArrayList<>();
 			}
-			List<ErpItemBarcodeDTO> packet = mapper.barcodes(rows).getRows();
+			// New objects for the import, as the mapper built them before: the rows read stay as read
+			List<ErpItemBarcodeDTO> packet = rows.stream().map(row -> copy(row.getBarcode())).collect(Collectors.toList());
 			try {
 				importer.barcodes(packet);
 			} catch (RuntimeException e) {
@@ -803,15 +815,15 @@ public class NavPosPagesSync {
 			}
 			count++;
 			Map<String, HeadOfficeCatalogue.Barcode> here = headOffice.barcodes(
-					rows.stream().map(row -> text(row.getCrossReferenceNo(), null)).collect(Collectors.toList()));
-			List<NavPosBarcodeRow> unsaved = new ArrayList<>();
-			for (NavPosBarcodeRow row : rows) {
-				if (!isAtHeadOffice(row, here.get(text(row.getCrossReferenceNo(), null)))) {
+					rows.stream().map(row -> row.getBarcode().getBarcode()).collect(Collectors.toList()));
+			List<ErpBarcodeRow> unsaved = new ArrayList<>();
+			for (ErpBarcodeRow row : rows) {
+				if (!isAtHeadOffice(row, here.get(row.getBarcode().getBarcode()))) {
 					unsaved.add(row);
 				}
 			}
 			for (ErpItemBarcodeDTO dto : packet) {
-				if (unsaved.stream().noneMatch(row -> text(row.getCrossReferenceNo(), null).equals(dto.getBarcode()))) {
+				if (unsaved.stream().noneMatch(row -> row.getBarcode().getBarcode().equals(dto.getBarcode()))) {
 					applied.add(dto);
 				}
 			}
@@ -819,30 +831,40 @@ public class NavPosPagesSync {
 		}
 	}
 
-	/** The row's barcode is at the head office, on the row's item and active. */
-	private static boolean isAtHeadOffice(NavPosBarcodeRow row, HeadOfficeCatalogue.Barcode saved) {
-		return saved != null && row.getItemNo().trim().equals(saved.itemCode) && !Boolean.FALSE.equals(saved.active);
+	private static ErpItemBarcodeDTO copy(ErpItemBarcodeDTO read) {
+		ErpItemBarcodeDTO barcode = new ErpItemBarcodeDTO();
+		barcode.setExternalId(read.getExternalId());
+		barcode.setBarcode(read.getBarcode());
+		barcode.setItemExternalId(read.getItemExternalId());
+		return barcode;
 	}
 
-	/** The rows of a read: left out (counted), already at the head office, or to hand over (by Entry_No). */
-	private Classified classify(List<NavPosBarcodeRow> rows, Set<String> itemCodes, Summary summary) {
-		summary.add("read", rows.size());
-		// The same barcode twice: the highest Entry_No is the one that counts
-		Map<String, NavPosBarcodeRow> latest = new LinkedHashMap<>();
-		for (NavPosBarcodeRow row : rows) {
-			String barcode = text(row.getCrossReferenceNo(), null);
-			if (barcode.isEmpty()) {
-				summary.leftOut(NavPosPagesMapper.BLANK_BARCODE);
-			} else if (text(row.getItemNo(), null).isEmpty()) {
-				summary.leftOut(NavPosPagesMapper.BLANK_ITEM_NO);
-			} else if (!itemCodes.contains(row.getItemNo().trim())) {
+	/** The row's barcode is at the head office, on the row's item and active. */
+	private static boolean isAtHeadOffice(ErpBarcodeRow row, HeadOfficeCatalogue.Barcode saved) {
+		return saved != null && row.getBarcode().getItemExternalId().equals(saved.itemCode)
+				&& !Boolean.FALSE.equals(saved.active);
+	}
+
+	/**
+	 * The rows of a read: left out (counted: the connector's reasons, then the item not at the head office and the same
+	 * barcode at a lower position), already at the head office, or to hand over (by position).
+	 */
+	private Classified classify(ErpRead<ErpBarcodeRow> read, List<ErpBarcodeRow> rows, Set<String> itemCodes,
+			Summary summary) {
+		summary.add("read", read.getRead());
+		read.getLeftOut().forEach((reason, count) -> summary.leftOut.merge(reason, count, Integer::sum));
+		// The same barcode twice: the highest position is the one that counts
+		Map<String, ErpBarcodeRow> latest = new LinkedHashMap<>();
+		for (ErpBarcodeRow row : rows) {
+			String barcode = row.getBarcode().getBarcode();
+			if (!itemCodes.contains(row.getBarcode().getItemExternalId())) {
 				summary.leftOut(ITEM_NOT_AT_HEAD_OFFICE);
 			} else {
-				NavPosBarcodeRow other = latest.get(barcode);
+				ErpBarcodeRow other = latest.get(barcode);
 				if (other != null) {
 					summary.leftOut(REPLACED_BY_LATER_ROW);
 				}
-				if (other == null || entryNo(row) > entryNo(other)) {
+				if (other == null || position(row) > position(other)) {
 					latest.put(barcode, row);
 				}
 			}
@@ -850,23 +872,32 @@ public class NavPosPagesSync {
 		Map<String, HeadOfficeCatalogue.Barcode> here = latest.isEmpty() ? new LinkedHashMap<>()
 				: headOffice.barcodes(latest.keySet());
 		Classified classified = new Classified();
-		for (Map.Entry<String, NavPosBarcodeRow> entry : latest.entrySet()) {
+		for (Map.Entry<String, ErpBarcodeRow> entry : latest.entrySet()) {
 			if (isAtHeadOffice(entry.getValue(), here.get(entry.getKey()))) {
 				summary.add("alreadyAtHeadOffice", 1);
 			} else {
 				classified.toHand.add(entry.getValue());
 			}
 		}
-		classified.toHand.sort(Comparator.comparing(NavPosBarcodeRow::getEntryNo, Comparator.nullsFirst(Long::compare)));
+		classified.toHand.sort(BY_POSITION);
 		return classified;
 	}
 
 	private static final class Classified {
-		final List<NavPosBarcodeRow> toHand = new ArrayList<>();
+		final List<ErpBarcodeRow> toHand = new ArrayList<>();
 	}
 
-	private static long entryNo(NavPosBarcodeRow row) {
-		return row.getEntryNo() == null ? 0 : row.getEntryNo();
+	/** By position, a row without one first (as by Entry_No before). */
+	private static final Comparator<ErpBarcodeRow> BY_POSITION = Comparator.comparing(ErpBarcodeRow::getPosition,
+			Comparator.nullsFirst(Long::compare));
+
+	private static long position(ErpBarcodeRow row) {
+		return position(row.getPosition());
+	}
+
+	/** A row without a position counts as 0 (as a row without Entry_No before). */
+	private static long position(Long value) {
+		return value == null ? 0 : value;
 	}
 
 	private long cursor() {
@@ -875,103 +906,14 @@ public class NavPosPagesSync {
 
 	// ─── Invoices (invoices from the ERP, step a) ───────────────
 
-	/**
-	 * Release 2.2: the years are worked out here, from a starting year up to the current one, then for each year the
-	 * invoices whose number starts with that year's prefix (FVV26) after the highest number the head office gives for it
-	 * (highestByYear, by prefix), else from the first invoice of the year. The starting year:
-	 * <ul>
-	 * <li>the head office already has invoices: the year of the oldest of them (the General Setup "Read ERP invoices after
-	 * number" is then only the starting point it was: changing it reads no old invoice again);</li>
-	 * <li>else that setting: its year, read after it;</li>
-	 * <li>else (empty) the year of the oldest invoice on the page (one GET); none: nothing to read.</li>
-	 * </ul>
-	 * At most max-per-run per year. Merged, each number once, by number. Nothing is kept here: the head office's numbers are
-	 * the memory. Dry run: read and summarised, nothing handed.
-	 */
+	/** Invoices from the ERP: read by number per year, see {@link NavPosPagesInvoices#invoices} (the connector's part). */
 	public CatalogueRun<ErpSupplyInvoiceDTO> invoices(Map<String, String> highestByYear) {
-		String page = properties.getPage().getInvoices();
-		Summary summary = new Summary("invoices", page, properties.isDryRun());
-		NavPosPagesProperties.Invoices settings = properties.getInvoices();
-		Map<String, String> highest = highestByYear == null ? new LinkedHashMap<>() : highestByYear;
-		String readAfter = headOffice.invoicesReadAfter();
-		Integer startYear = null;
-		for (String prefix : highest.keySet()) {
-			Integer year = settings.yearOf(prefix + "0");
-			if (year != null && (startYear == null || year < startYear)) {
-				startYear = year;
-			}
-		}
-		if (startYear != null) {
-			summary.put("startingPoint", "the invoices already at the head office (from " + startYear + ")");
-			readAfter = null; // only the starting point: never read again before what is saved
-		} else if (readAfter != null) {
-			startYear = settings.yearOf(readAfter);
-			summary.put("startingPoint", "after " + readAfter + " (General Setup)");
-		} else {
-			String first = source.readFirstInvoiceNumber(settings.getNumberPrefix().trim());
-			startYear = settings.yearOf(first);
-			summary.put("startingPoint", first == null ? "no invoice on the page" : "the oldest invoice on the page: " + first);
-		}
-		int currentYear = today.get().getYear();
-		Map<String, Object> years = new LinkedHashMap<>();
-		List<NavPosInvoiceRow> rows = new ArrayList<>();
-		for (int year = startYear == null ? currentYear + 1 : Math.min(startYear, currentYear); year <= currentYear; year++) {
-			String prefix = settings.yearPrefix(year);
-			String after = readAfter(prefix, highest, readAfter);
-			List<NavPosInvoiceRow> read = source.readInvoicesAfter(prefix, after);
-			Map<String, Object> ofYear = new LinkedHashMap<>();
-			ofYear.put("after", after);
-			ofYear.put("read", read.size());
-			years.put(prefix, ofYear);
-			rows.addAll(read);
-		}
-		summary.put("years", years);
-		ErpRead<ErpSupplyInvoiceDTO> mapped = mapper.invoices(rows, settings.getCustomerField().trim());
-		summary.read(mapped);
-		Map<String, ErpSupplyInvoiceDTO> byNumber = new TreeMap<>();
-		for (ErpSupplyInvoiceDTO invoice : mapped.getRows()) {
-			for (String prefix : years.keySet()) {
-				if (invoice.getNumber().startsWith(prefix)) {
-					invoice.setYearPrefix(prefix);
-				}
-			}
-			byNumber.putIfAbsent(invoice.getNumber(), invoice);
-		}
-		List<ErpSupplyInvoiceDTO> invoices = new ArrayList<>(byNumber.values());
-		summary.put("handed", properties.isDryRun() ? 0 : invoices.size());
-		return run(invoices, summary, page);
+		return invoiceReads.invoices(highestByYear);
 	}
 
-	/**
-	 * 2.2.1: given invoices again, by number (those a 2.2.0 head office held for a decimal quantity), mapped as the new
-	 * ones; the year prefix of each from its number. A number the page no longer has is not in the answer.
-	 */
+	/** 2.2.1: given invoices again, by number, see {@link NavPosPagesInvoices#invoicesByNumbers}. */
 	public CatalogueRun<ErpSupplyInvoiceDTO> invoicesByNumbers(List<String> numbers) {
-		String page = properties.getPage().getInvoices();
-		Summary summary = new Summary("invoices", page, properties.isDryRun());
-		NavPosPagesProperties.Invoices settings = properties.getInvoices();
-		List<String> asked = numbers == null ? new ArrayList<>() : numbers;
-		summary.put("readAgain", asked.size());
-		List<NavPosInvoiceRow> rows = asked.isEmpty() ? new ArrayList<>() : source.readInvoicesByNumbers(asked);
-		ErpRead<ErpSupplyInvoiceDTO> mapped = mapper.invoices(rows, settings.getCustomerField().trim());
-		summary.read(mapped);
-		List<ErpSupplyInvoiceDTO> invoices = new ArrayList<>();
-		for (ErpSupplyInvoiceDTO invoice : mapped.getRows()) {
-			Integer year = settings.yearOf(invoice.getNumber());
-			invoice.setYearPrefix(year == null ? null : settings.yearPrefix(year));
-			invoices.add(invoice);
-		}
-		summary.put("handed", properties.isDryRun() ? 0 : invoices.size());
-		return run(invoices, summary, page);
-	}
-
-	/** The highest number given for the prefix; else the starting number when it is of that year; else null. */
-	private static String readAfter(String prefix, Map<String, String> highestByYear, String startNumber) {
-		String highest = highestByYear.get(prefix);
-		if (highest != null && !highest.trim().isEmpty()) {
-			return highest.trim();
-		}
-		return startNumber != null && startNumber.startsWith(prefix) ? startNumber : null;
+		return invoiceReads.invoicesByNumbers(numbers);
 	}
 
 	// ─── State and summary ──────────────────────────────────────
@@ -997,8 +939,8 @@ public class NavPosPagesSync {
 		return properties.getPacketSize();
 	}
 
-	private <T> CatalogueRun<T> run(List<T> handed, Summary summary, String page) {
-		return new CatalogueRun<>(properties.isDryRun() ? new ArrayList<>() : handed, summary.values, source.pageUrl(page));
+	private <T> CatalogueRun<T> run(List<T> handed, Summary summary, Part part) {
+		return new CatalogueRun<>(properties.isDryRun() ? new ArrayList<>() : handed, summary.values, source.pageUrl(part));
 	}
 
 	private static long number(String value) {
@@ -1018,8 +960,8 @@ public class NavPosPagesSync {
 		return trimmed;
 	}
 
-	/** The summary of a run, in the order it is written to the communications log. */
-	private static final class Summary {
+	/** The summary of a run, in the order it is written to the communications log (also used by NavPosPagesInvoices). */
+	static final class Summary {
 		final Map<String, Object> values = new LinkedHashMap<>();
 		final Map<String, Integer> leftOut = new TreeMap<>();
 

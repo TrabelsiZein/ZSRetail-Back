@@ -22,6 +22,7 @@ import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceLineRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
+import com.digithink.zsretail.erp.spi.ErpBarcodeRow;
 import com.digithink.zsretail.erp.spi.ErpRead;
 import com.digithink.zsretail.utils.Quantities;
 
@@ -240,6 +241,34 @@ public class NavPosPagesMapper {
 
 	private static long entryNo(NavPosBarcodeRow row) {
 		return row.getEntryNo() == null ? Long.MIN_VALUE : row.getEntryNo();
+	}
+
+	/**
+	 * Code cleanup step 3: the rows of a barcode read, one by one, for the catalogue engine (which keeps the cursor, the
+	 * highest Entry_No of the same barcode and the rows already at the head office): a blank Cross_Reference_No or a
+	 * blank Item_No is left out, every other row kept with its Entry_No as its position. The positions of every row read
+	 * are kept, left out ones included.
+	 */
+	public ErpRead<ErpBarcodeRow> barcodeRows(List<NavPosBarcodeRow> rows) {
+		Map<String, Integer> leftOut = new LinkedHashMap<>();
+		List<ErpBarcodeRow> kept = new ArrayList<>();
+		List<Long> positions = new ArrayList<>();
+		for (NavPosBarcodeRow row : rows) {
+			positions.add(row.getEntryNo());
+			String barcode = trimmed(row.getCrossReferenceNo());
+			if (barcode.isEmpty()) {
+				count(leftOut, BLANK_BARCODE);
+			} else if (trimmed(row.getItemNo()).isEmpty()) {
+				count(leftOut, BLANK_ITEM_NO);
+			} else {
+				ErpItemBarcodeDTO dto = new ErpItemBarcodeDTO();
+				dto.setExternalId(barcode);
+				dto.setBarcode(barcode);
+				dto.setItemExternalId(trimmed(row.getItemNo()));
+				kept.add(new ErpBarcodeRow(dto, row.getEntryNo()));
+			}
+		}
+		return new ErpRead<>(kept, rows.size(), leftOut, positions);
 	}
 
 	// ─── Invoices (invoices from the ERP, step a) ───────────────

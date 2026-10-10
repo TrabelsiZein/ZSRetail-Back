@@ -214,6 +214,28 @@ is built by the connector in effect (`ErpConnector.deletedSalesPriceExternalId` 
 way it built it at the import: `DynamicsNavConnector` through `DynamicsNavMapper`, the other connectors answer null (they
 have no deletion log). The ids are pinned character for character by `ErpDeletionSyncServiceTest`.
 
+### Catalogue engine (code cleanup step 3, first half)
+
+Target: a connector is a thin part (which pages, the field names, the rows to `Erp*DTO`, its settings); the catalogue
+logic (compare with the head office, wait for families, packets, the barcode cursor, the summary) is written once.
+Done so far, no behaviour change:
+- `erp/spi`: `ErpRead<T>` (was `NavPosResult`: rows, read, left out and notes by reason, the highest position and the
+  position of every row read), `ErpCatalogueSource` (the reads the engine uses: `categories()` → `ErpCategories`
+  (families and sub-families from one read), `items(locationCode)`, `barcodesAfter(position)`, `barcodesOfItems(codes)`,
+  `pageLabel(part)` / `pageUrl(part)`), `ErpBarcodeRow` (an `ErpItemBarcodeDTO` with its position; the DTO itself is not
+  changed).
+- `erp/engine`: `CatalogueRun` (was `NavPosRun`), the ports `CatalogueState`, `HeadOfficeCatalogue`, `CatalogueImport`
+  and their implementations `JdbcCatalogueState` (the table stays `navpospages_state`, the keys `items.run`,
+  `items.pending`, `barcodes.cursor`, `needs-barcodes:` unchanged), `JpaHeadOfficeCatalogue`, `BootstrapCatalogueImport`,
+  all by the ability `HEAD_OFFICE_STOCK_POINTS`.
+- `NavPosPagesSync` reads the catalogue only through `NavPosPagesCatalogueSource` (navpospages: the pages through the
+  mapper). Barcodes: the mapper gives each usable row with its `Entry_No` as position and counts a blank
+  `Cross_Reference_No` or `Item_No` with its own reasons; the engine keeps the highest position of the same barcode, the
+  rows already at the head office and the cursor, which passes over every row read (left out ones too, from
+  `ErpRead.getPositions`). The invoices (FVV + year) are a thin part, `NavPosPagesInvoices`; `NavPosPagesSync` delegates
+  to it.
+- Next (second half): the rest of `NavPosPagesSync` and `NavPosPagesCatalogueJob` move to `erp/engine`.
+
 ## Head office catalogue from the ERP pages (`erp.navpospages`)
 
 The head office reads its catalogue from the ERP pages of one location (details in `head-office.md`, "the connector

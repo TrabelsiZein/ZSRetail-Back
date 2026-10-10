@@ -1,15 +1,18 @@
 package com.digithink.zsretail.erp.spi;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * One read of the ERP translated to the Erp*DTO classes, with what happened to the rows read: kept, left out by reason,
  * and kept but noted (e.g. a zero price). For the barcodes, the highest position read (the number the ERP gives each
- * barcode row and that only grows; null when the read was empty). Code cleanup step 3: was NavPosResult of the
- * navpospages connector.
+ * barcode row and that only grows; null when the read was empty) and the position of every row read, kept or left out
+ * (the barcode cursor passes over left-out rows too). Code cleanup step 3: was NavPosResult of the navpospages
+ * connector.
  */
 public class ErpRead<T> {
 
@@ -18,6 +21,7 @@ public class ErpRead<T> {
 	private final Map<String, Integer> leftOut;
 	private final Map<String, Integer> notes;
 	private final Long highestPosition;
+	private final List<Long> positions;
 
 	public ErpRead(List<T> rows, int read, Map<String, Integer> leftOut, Map<String, Integer> notes,
 			Long highestPosition) {
@@ -26,6 +30,17 @@ public class ErpRead<T> {
 		this.leftOut = Collections.unmodifiableMap(new LinkedHashMap<>(leftOut));
 		this.notes = Collections.unmodifiableMap(new LinkedHashMap<>(notes));
 		this.highestPosition = highestPosition;
+		this.positions = Collections.emptyList();
+	}
+
+	/** A read with positions (the barcodes): the highest is worked out from them, null when none is set. */
+	public ErpRead(List<T> rows, int read, Map<String, Integer> leftOut, List<Long> positions) {
+		this.rows = Collections.unmodifiableList(rows);
+		this.read = read;
+		this.leftOut = Collections.unmodifiableMap(new LinkedHashMap<>(leftOut));
+		this.notes = Collections.emptyMap();
+		this.positions = Collections.unmodifiableList(new ArrayList<>(positions));
+		this.highestPosition = positions.stream().filter(Objects::nonNull).max(Long::compare).orElse(null);
 	}
 
 	public List<T> getRows() {
@@ -62,6 +77,14 @@ public class ErpRead<T> {
 
 	public Long getHighestPosition() {
 		return highestPosition;
+	}
+
+	/**
+	 * The position of every row read (kept or left out), in the order read; null for a row without one; empty when the
+	 * read has no positions.
+	 */
+	public List<Long> getPositions() {
+		return positions;
 	}
 
 	/** read N, kept N, left out {...}, notes {...}[, highest position N] */
