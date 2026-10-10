@@ -86,6 +86,7 @@
 - **Money refund** (`ReturnHeaderService`): for a ticket with `loyaltyDeductionAmount > 0`, refund = returned goods TTC × (total − stamp) / goods TTC, i.e. only the money actually paid. The return's `discountPercentage` stores the combined rate (header discount + points share, 5 decimals) so NAV reconciles lines × (1 − pct) = refund, as the sales export already does. Tickets without points keep the previous pct / ratio rules unchanged.
 - Before 2026-09: any return removed all of the ticket's earned points (again on each later return), converted points were never given back, and with a percentage header discount the refund paid the points share back in money.
 - Tests: `src/test/java/com/digithink/zsretail/service/ReturnRefundLoyaltyTest.java` (also pins the unchanged refunds of tickets without points).
+- 2.2.2: a return may carry decimals (0.2 of a line sold 0.5); its goods amounts follow `decimal-quantities.md` ("2.2.2, step 1") and `applyReturn` is unchanged: several returns of one ticket add up as before.
 
 ### Redemption limit
 

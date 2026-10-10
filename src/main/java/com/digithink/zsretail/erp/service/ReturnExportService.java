@@ -253,7 +253,7 @@ public class ReturnExportService {
 			dto.setItemExternalId(line.getItem().getItemCode());
 		}
 
-		dto.setQuantity(BigDecimal.valueOf(line.getQuantity()));
+		dto.setQuantity(line.getQuantity()); // 2.2.2: normalized, 1 stays 1 (NAV gets 1.0 as in 2.2.1), 0.2 travels
 		dto.setUnitPrice(BigDecimal.valueOf(line.getUnitPrice()));
 		dto.setUnitPriceIncludingVat(BigDecimal.valueOf(line.getUnitPriceIncludingVat()));
 		dto.setLineTotal(BigDecimal.valueOf(line.getLineTotal()));

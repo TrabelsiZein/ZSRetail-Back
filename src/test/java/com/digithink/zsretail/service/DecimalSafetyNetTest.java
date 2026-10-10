@@ -145,7 +145,7 @@ class DecimalSafetyNetTest {
 	}
 
 	@Test
-	@DisplayName("Return screen: a line sold with decimals is listed with its quantity, not returnable, the reason naming the item")
+	@DisplayName("2.2.2: return screen, setting off: a line sold with decimals is listed with its quantity, not returnable, the reason naming the item and the setting")
 	@SuppressWarnings("unchecked")
 	void returnScreenLine() throws Exception {
 		Item item = new Item();
@@ -156,14 +156,14 @@ class DecimalSafetyNetTest {
 		line.setId(9L);
 		line.setItem(item);
 		line.setQuantity(new BigDecimal("0.2"));
-		Method notReturnable = ReturnHeaderAPI.class.getDeclaredMethod("notReturnable", SalesLine.class);
+		Method notReturnable = ReturnHeaderAPI.class.getDeclaredMethod("notReturnable", SalesLine.class, BigDecimal.class);
 		notReturnable.setAccessible(true);
-		Map<String, Object> listed = (Map<String, Object>) notReturnable.invoke(null, line);
+		Map<String, Object> listed = (Map<String, Object>) notReturnable.invoke(null, line, BigDecimal.ZERO);
 		assertEquals(new BigDecimal("0.2"), listed.get("quantity"));
 		assertEquals(Boolean.FALSE, listed.get("returnable"));
 		assertEquals(0, listed.get("remainingQuantity"));
-		assertEquals("Item VH52-1L (V H 52 1L): the quantity 0.2 has decimals, and decimal quantities are not supported in"
-				+ " returns yet.", listed.get("notReturnableReason"));
+		assertEquals("Item VH52-1L (V H 52 1L): the quantity 0.2 has decimals, and decimal quantities are not allowed in"
+				+ " this store (General Setup, Allow decimal quantities).", listed.get("notReturnableReason"));
 	}
 
 	// ─── 2. Writers not converted ────────────────────────────────────
@@ -392,8 +392,9 @@ class DecimalSafetyNetTest {
 				() -> MAPPER.readValue("{\"minimumQuantity\":2.5}", Promotion.class)).getField());
 		assertEquals("freeQuantity", assertThrows(NotWholeQuantity.class,
 				() -> MAPPER.readValue("{\"freeQuantity\":0.5}", PromotionCopyDTO.class)).getField());
-		assertEquals("quantity", assertThrows(NotWholeQuantity.class,
-				() -> MAPPER.readValue("{\"quantity\":1.25}", ReturnLineCopyDTO.class)).getField());
+		// 2.2.2: the quantity of a return copy carries decimals (no longer guarded); 2 still reads 2
+		assertEquals(new BigDecimal("1.25"), MAPPER.readValue("{\"quantity\":1.25}", ReturnLineCopyDTO.class).getQuantity());
+		assertEquals("2", MAPPER.readValue("{\"quantity\":2}", ReturnLineCopyDTO.class).getQuantity().toPlainString());
 		assertEquals("cashCountLines[0].quantity", assertThrows(NotWholeQuantity.class,
 				() -> MAPPER.readValue("{\"cashCountLines\":[{\"quantity\":3.5}]}", CloseSessionRequestDTO.class)).getField());
 		assertEquals(Integer.valueOf(3), MAPPER.readValue("{\"minimumQuantity\":3.0}", Promotion.class).getMinimumQuantity());

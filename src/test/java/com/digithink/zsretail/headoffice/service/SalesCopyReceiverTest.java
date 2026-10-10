@@ -324,7 +324,7 @@ class SalesCopyReceiverTest {
 		for (String code : itemCodes) {
 			ReturnLineCopyDTO line = new ReturnLineCopyDTO();
 			line.setItemCode(code);
-			line.setQuantity(1);
+			line.setQuantity(java.math.BigDecimal.ONE);
 			copy.getLines().add(line);
 		}
 		return copy;
@@ -473,5 +473,54 @@ class SalesCopyReceiverTest {
 		}
 		assertEquals("0.2", row.getLines().get(0).getQuantity().toPlainString());
 		assertEquals("0.058", row.getLines().get(1).getQuantity().toPlainString());
+	}
+
+	@Test
+	@DisplayName("2.2.2: a return of 0.2 and 1.5 arrives at the head office with the same quantities and amounts; 1 stays 1")
+	void decimalReturnArrivesAsSent() throws Exception {
+		com.digithink.zsretail.model.SalesHeader original = new com.digithink.zsretail.model.SalesHeader();
+		original.setSalesNumber("T-BULK-1");
+		com.digithink.zsretail.model.ReturnHeader header = new com.digithink.zsretail.model.ReturnHeader();
+		header.setId(78L);
+		header.setReturnNumber("RET-BULK-1");
+		header.setReturnDate(SOLD);
+		header.setStatus(com.digithink.zsretail.model.enumeration.TransactionStatus.COMPLETED);
+		header.setReturnType(com.digithink.zsretail.model.enumeration.ReturnType.RETURN_VOUCHER);
+		header.setOriginalSalesHeader(original);
+		header.setTotalReturnAmount(43.192);
+		String[][] lines = { { "VH52-1L", "0.200", "3.192" }, { "ITM-2", "1.500", "30.0" }, { "ITM-3", "1.000", "10.0" } };
+		List<com.digithink.zsretail.model.ReturnLine> storeLines = new java.util.ArrayList<>();
+		for (int i = 0; i < lines.length; i++) {
+			com.digithink.zsretail.model.ReturnLine line = new com.digithink.zsretail.model.ReturnLine();
+			line.setId(100L + i);
+			line.setItem(storeLine(100L + i, lines[i][0], "1", 1.0).getItem());
+			line.setQuantity(new java.math.BigDecimal(lines[i][1])); // read from the DECIMAL(18,3) column
+			line.setLineTotalIncludingVat(Double.valueOf(lines[i][2]));
+			line.setLineTotal(Double.valueOf(lines[i][2]) / 1.19);
+			storeLines.add(line);
+		}
+		ReturnCopyDTO sentCopy = com.digithink.zsretail.holink.service.SalesCopyMapper.returnCopy(header, storeLines);
+
+		com.fasterxml.jackson.databind.ObjectMapper json = new com.fasterxml.jackson.databind.ObjectMapper()
+				.findAndRegisterModules()
+				.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+				.disable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+		String wire = json.writeValueAsString(sentCopy);
+		assertTrue(wire.contains("\"quantity\":0.2,"), wire);
+		assertTrue(wire.contains("\"quantity\":1.5,"), wire);
+		assertTrue(wire.contains("\"quantity\":1,"), wire); // never 1.000
+		ReturnCopyDTO received = json.readValue(wire, ReturnCopyDTO.class);
+
+		assertAllAccepted(receiver.receiveReturns(rs01, Arrays.asList(received)), "RET-BULK-1");
+		HoReturn row = returnTable.values().iterator().next();
+		assertEquals(3, row.getLines().size());
+		for (int i = 0; i < lines.length; i++) {
+			com.digithink.zsretail.headoffice.model.HoReturnLine line = row.getLines().get(i);
+			assertEquals(storeLines.get(i).getQuantity().toPlainString(), line.getQuantity().toPlainString(), "quantity " + i);
+			assertEquals(storeLines.get(i).getLineTotalIncludingVat(), line.getLineTotalIncludingVat(), 0.0);
+			assertEquals(storeLines.get(i).getLineTotal(), line.getLineTotal(), 0.0);
+		}
+		assertEquals("0.2", row.getLines().get(0).getQuantity().toPlainString());
+		assertEquals("1", row.getLines().get(2).getQuantity().toPlainString());
 	}
 }

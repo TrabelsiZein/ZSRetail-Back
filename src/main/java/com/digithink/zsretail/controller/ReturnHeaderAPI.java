@@ -1,5 +1,6 @@
 package com.digithink.zsretail.controller;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -26,6 +27,7 @@ import com.digithink.zsretail.repository.ReturnLineRepository;
 import com.digithink.zsretail.repository.SalesHeaderRepository;
 import com.digithink.zsretail.repository.SalesLineRepository;
 import com.digithink.zsretail.security.CurrentUserProvider;
+import com.digithink.zsretail.service.QuantityPolicy;
 import com.digithink.zsretail.service.ReturnHeaderService;
 import com.digithink.zsretail.utils.Quantities;
 
@@ -51,6 +53,9 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 	@Autowired
 	private ReturnHeaderRepository returnHeaderRepository;
 
+	@Autowired
+	private QuantityPolicy quantityPolicy;
+
 	/**
 	 * List all return headers as summary maps to avoid Jackson circular reference
 	 * when serializing entity graph (ReturnHeader -> SalesHeader -> ...).
@@ -74,10 +79,12 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 	}
 
 	/**
-	 * 2.2.1: a line sold with decimals (0.2 L of a bulk item) in the ticket details of a return: listed with its quantity,
-	 * returnable false and the reason (the refusal of the return service), nothing remaining to return. The whole lines keep the 2.2.0 map.
+	 * 2.2.2: a line sold with decimals (0.2 L of a bulk item) while the store no longer allows decimal quantities, in the
+	 * ticket details of a return: listed with its quantity, returnable false and the reason (the refusal of the return
+	 * service), nothing remaining to return.
 	 */
-	private static Map<String, Object> notReturnable(com.digithink.zsretail.model.SalesLine salesLine) {
+	private static Map<String, Object> notReturnable(com.digithink.zsretail.model.SalesLine salesLine,
+			BigDecimal returnedQuantity) {
 		Map<String, Object> lineData = new HashMap<>();
 		lineData.put("id", salesLine.getId());
 		if (salesLine.getItem() != null) {
@@ -95,12 +102,12 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 		lineData.put("vatPercent", salesLine.getVatPercent());
 		lineData.put("unitPriceIncludingVat", salesLine.getUnitPriceIncludingVat());
 		lineData.put("lineTotalIncludingVat", salesLine.getLineTotalIncludingVat());
-		lineData.put("returnedQuantity", 0);
+		lineData.put("returnedQuantity", returnedQuantity);
 		lineData.put("remainingQuantity", 0);
 		lineData.put("returnable", false);
-		lineData.put("notReturnableReason", Quantities.notSupportedYet(
+		lineData.put("notReturnableReason", Quantities.notAllowedInStore(
 				salesLine.getItem() == null ? null : salesLine.getItem().getItemCode(),
-				salesLine.getItem() == null ? null : salesLine.getItem().getName(), salesLine.getQuantity(), "returns"));
+				salesLine.getItem() == null ? null : salesLine.getItem().getName(), salesLine.getQuantity()));
 		return lineData;
 	}
 
@@ -266,38 +273,26 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 			java.util.List<com.digithink.zsretail.model.ReturnHeader> returnHeaders = returnHeaderRepository
 					.findAllByOriginalSalesHeader(salesHeader);
 
-			// Calculate returned quantities for each sales line
-			// Map: salesLineId -> total returned quantity
-			Map<Long, Integer> returnedQuantities = new HashMap<>();
-
-			for (com.digithink.zsretail.model.ReturnHeader returnHeader : returnHeaders) {
-				java.util.List<com.digithink.zsretail.model.ReturnLine> returnLines = returnLineRepository
-						.findByReturnHeader(returnHeader);
-				for (com.digithink.zsretail.model.ReturnLine returnLine : returnLines) {
-					Long originalSalesLineId = returnLine.getOriginalSalesLine().getId();
-					int returnedQty = returnLine.getQuantity();
-					returnedQuantities.put(originalSalesLineId,
-							returnedQuantities.getOrDefault(originalSalesLineId, 0) + returnedQty);
-				}
-			}
+			// Calculate returned quantities (and amounts) for each sales line
+			ReturnHeaderService.Returned returned = ReturnHeaderService.Returned.of(returnHeaders, returnLineRepository);
+			boolean decimalAllowed = quantityPolicy.decimalAllowed();
 
 			// Build sales lines with remaining quantities (only include lines with
 			// remaining > 0)
 			java.util.List<Map<String, Object>> salesLinesWithRemaining = new java.util.ArrayList<>();
 
 			for (com.digithink.zsretail.model.SalesLine salesLine : salesLines) {
-				// 2.2.1: returns stay whole for now; a line sold with decimals is listed as not returnable (the whole
-				// lines of the ticket as in 2.2.0)
-				if (!Quantities.isWhole(salesLine.getQuantity())) {
-					salesLinesWithRemaining.add(notReturnable(salesLine));
-					continue;
-				}
-				int originalQuantity = salesLine.getQuantity() == null ? 0 : salesLine.getQuantity().intValueExact();
-				int returnedQuantity = returnedQuantities.getOrDefault(salesLine.getId(), 0);
-				int remainingQuantity = originalQuantity - returnedQuantity;
+				BigDecimal originalQuantity = salesLine.getQuantity() == null ? BigDecimal.ZERO : salesLine.getQuantity();
+				BigDecimal returnedQuantity = returned.quantity(salesLine.getId());
+				BigDecimal remainingQuantity = Quantities.normalize(originalQuantity.subtract(returnedQuantity));
 
 				// Only include lines that still have remaining quantity to return
-				if (remainingQuantity > 0) {
+				if (remainingQuantity.signum() > 0) {
+					// 2.2.2: a line sold with decimals while the store no longer allows them: listed, not returnable
+					if (!Quantities.isWhole(originalQuantity) && !decimalAllowed) {
+						salesLinesWithRemaining.add(notReturnable(salesLine, returnedQuantity));
+						continue;
+					}
 					Map<String, Object> lineData = new HashMap<>();
 					lineData.put("id", salesLine.getId());
 					if (salesLine.getItem() != null) {
@@ -320,6 +315,13 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 					lineData.put("lineTotalIncludingVat", salesLine.getLineTotalIncludingVat());
 					lineData.put("returnedQuantity", returnedQuantity); // Already returned
 					lineData.put("remainingQuantity", remainingQuantity); // Can still be returned
+					// 2.2.2: what is left of the line's amount including VAT, and whether an earlier return had decimals:
+					// the return screen computes the amounts of a decimal return as processReturn does
+					if (salesLine.getLineTotalIncludingVat() != null) {
+						lineData.put("remainingLineTotalIncludingVat",
+								salesLine.getLineTotalIncludingVat() - returned.lineTotalIncludingVat(salesLine.getId()));
+					}
+					lineData.put("decimalReturned", returned.withDecimals(salesLine.getId()));
 					lineData.put("discountSource", salesLine.getDiscountSource());
 					if (salesLine.getPromotion() != null) {
 						Map<String, Object> promoData = new HashMap<>();

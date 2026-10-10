@@ -61,10 +61,10 @@ class DecimalColumnsCheckTest {
 	}
 
 	@Test
-	@DisplayName("The 17 columns of the script; all DECIMAL(18,3): nothing left; absent tables skipped as by the script")
+	@DisplayName("The 17 columns of 2.2.1 and the 2 of 2.2.2; all DECIMAL(18,3): nothing left; absent tables skipped as by the script")
 	@SuppressWarnings("unchecked")
 	void allConverted() {
-		assertEquals(17, DecimalColumnsCheck.COLUMNS.size());
+		assertEquals(19, DecimalColumnsCheck.COLUMNS.size());
 		assertTrue(DecimalColumnsCheck.notConverted(converted()).isEmpty());
 		List<Map<String, Object>> storeOnly = new ArrayList<>(converted());
 		storeOnly.removeIf(row -> String.valueOf(row.get("TABLE_NAME")).startsWith("ho_"));
@@ -106,8 +106,8 @@ class DecimalColumnsCheckTest {
 		assertFalse(policy.decimalAllowed());
 		IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
 				() -> policy.check(new BigDecimal("0.2"), "VH52-1L"));
-		assertEquals("Quantity 0.2 of item VH52-1L: decimal quantities need the 2.2.1 database script"
-				+ " (db/2.2.1/update.sql), not run on this database", refused.getMessage());
+		assertEquals("Quantity 0.2 of item VH52-1L: decimal quantities need the database scripts of 2.2.1 and 2.2.2"
+				+ " (db/2.2.1/update.sql, db/2.2.2/update.sql), not run on this database", refused.getMessage());
 		assertDoesNotThrow(() -> policy.check(new BigDecimal("2"), "B001"));
 		assertDoesNotThrow(() -> policy.check(new BigDecimal("2.000"), "B001"));
 

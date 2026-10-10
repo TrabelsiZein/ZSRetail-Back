@@ -63,6 +63,8 @@ class ReturnRefundLoyaltyTest {
 	private static final double EPS = 1e-9;
 
 	private ReturnHeaderService returns;
+	private QuantityPolicy quantityPolicy;
+	private final List<BigDecimal> stockBack = new ArrayList<>();
 	private final UserAccount cashier = new UserAccount();
 	private final CashierSession session = new CashierSession();
 	private final Item stampItem = new Item();
@@ -132,6 +134,9 @@ class ReturnRefundLoyaltyTest {
 		});
 		inject(returns, ReturnHeaderService.class, "loyaltyService", loyalty);
 		inject(returns, ReturnHeaderService.class, "generalSetupRepository", setupRepository);
+		quantityPolicy = new QuantityPolicy(); // the real policy, ALLOW_DECIMAL_QUANTITY read from the settings map
+		inject(quantityPolicy, QuantityPolicy.class, "generalSetupRepository", setupRepository);
+		inject(returns, ReturnHeaderService.class, "quantityPolicy", quantityPolicy);
 		inject(returns, ReturnHeaderService.class, "cashierSessionRepository", stub(CashierSessionRepository.class, (m, a) ->
 				"findByCashierAndStatus".equals(m) ? Optional.of(session) : UNHANDLED));
 		inject(returns, ReturnHeaderService.class, "salesHeaderRepository", stub(SalesHeaderRepository.class, (m, a) ->
@@ -180,7 +185,7 @@ class ReturnRefundLoyaltyTest {
 		inject(returns, ReturnHeaderService.class, "stockService", new StockService() {
 			@Override
 			public void incrementForReturn(Long itemId, BigDecimal quantity) {
-				// stock is not under test
+				stockBack.add(quantity); // what goes back to stock, as asked
 			}
 		});
 		inject(returns, ReturnHeaderService.class, "stockMovementService", new StockMovementService() {
@@ -315,51 +320,290 @@ class ReturnRefundLoyaltyTest {
 		assertEquals(0, m.getLoyaltyPoints().intValue());
 	}
 
-	// ─── 2.2.1: decimal quantities are not returned yet ──────────────
+	// ─── 2.2.2: returns with decimal quantities ──────────────────────
+
+	/** A line of the ticket sold with a decimal quantity, amounts as the server stores them (TTC rounded, HT from it). */
+	private SalesLine decimalLine(SalesHeader sale, int index, String quantity, double unitHt, double lineTtc) {
+		SalesLine line = linesBySale.get(sale).get(index);
+		line.setQuantity(new BigDecimal(quantity));
+		line.setUnitPrice(unitHt);
+		line.setUnitPriceIncludingVat(unitHt * 1.19);
+		line.setLineTotal(lineTtc / 1.19);
+		line.setLineTotalIncludingVat(lineTtc);
+		line.setVatPercent(19);
+		return line;
+	}
+
+	private ReturnLine storedLine(ReturnHeader header) {
+		return savedReturnLines.stream().filter(l -> l.getReturnHeader() == header).findFirst().get();
+	}
 
 	@Test
-	@DisplayName("2.2.1: a line sold with decimals is refused naming the item, nothing written; the whole line of the same ticket returns as in 2.2.0")
-	void decimalSoldLineRefused() throws Exception {
+	@DisplayName("2.2.2: sold 0.5, returned 0.2 then 0.3 (amounts to 3 decimals, the last takes what is left), a third 0.1 refused; stock, vouchers and points")
+	void decimalSoldLineReturnedInParts() throws Exception {
+		settings.put(QuantityPolicy.SETTING, "true");
+		LoyaltyMember m = member(7);
+		SalesHeader sale = sale(null, 0.0, 0, 0.0, 7.979);
+		SalesLine bulk = decimalLine(sale, 0, "0.5", 13.41, 7.979); // 0.5 x 15.9579 TTC = 7.97895, rounded 7.979
+		earned(sale, m, flatProgram(), 7);
+
+		ReturnHeader first = returnQuantity(sale, 0, "0.2", ReturnType.RETURN_VOUCHER);
+		ReturnLine firstLine = storedLine(first);
+		assertEquals(new BigDecimal("0.2"), firstLine.getQuantity());
+		assertEquals(3.192, firstLine.getLineTotalIncludingVat(), 0.0); // 7.979 / 0.5 x 0.2 = 3.1916
+		assertEquals(2.682, firstLine.getLineTotal(), 0.0); // 6.70504... / 0.5 x 0.2 = 2.68201...
+		assertEquals(3.192, savedVouchers.get(0).getVoucherAmount(), 0.0);
+		assertEquals(3, sumOf(sale, m, LoyaltyTransactionType.REVERSED)); // keeps floor(4.787) = 4 of 7
+
+		ReturnHeader second = returnQuantity(sale, 0, "0.3", ReturnType.RETURN_VOUCHER);
+		ReturnLine secondLine = storedLine(second);
+		assertEquals(new BigDecimal("0.3"), secondLine.getQuantity());
+		assertEquals(4.787, secondLine.getLineTotalIncludingVat(), 0.0); // 7.979 - 3.192
+		assertEquals(4.023, secondLine.getLineTotal(), 0.0); // 6.70504... - 2.682, rounded
+		assertEquals(4.787, savedVouchers.get(1).getVoucherAmount(), 0.0);
+		assertEquals(bulk.getLineTotalIncludingVat(), savedVouchers.get(0).getVoucherAmount()
+				+ savedVouchers.get(1).getVoucherAmount(), 1e-12, "the vouchers add up to the line paid");
+		assertEquals(7, sumOf(sale, m, LoyaltyTransactionType.REVERSED));
+		assertEquals(0, m.getLoyaltyPoints().intValue());
+
+		IllegalArgumentException third = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+				() -> returnQuantity(sale, 0, "0.1", ReturnType.RETURN_VOUCHER));
+		assertEquals("Return quantity (0.1) cannot exceed remaining returnable quantity (0)", third.getMessage());
+		assertEquals(2, savedReturns.size(), "nothing written");
+		assertEquals(Arrays.asList(new BigDecimal("0.2"), new BigDecimal("0.3")), stockBack);
+		assertEquals(0, new BigDecimal("0.5").compareTo(stockBack.get(0).add(stockBack.get(1))), "the 0.5 sold is back");
+	}
+
+	@Test
+	@DisplayName("2.2.2: sold 2, return 1.5: refused with the setting off (nothing written, never rounded to 2), accepted with it on; the 0.5 left closes the line")
+	void wholeLineReturnedWithDecimals() throws Exception {
+		SalesHeader sale = sale(null, 0.0, 0, 0.0, 40.0);
+		SalesLine line = linesBySale.get(sale).get(0);
+		line.setQuantity(new BigDecimal("2.000"));
+		line.setUnitPrice(16.807);
+		line.setUnitPriceIncludingVat(20.0);
+		line.setLineTotal(33.61);
+
+		IllegalArgumentException off = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+				() -> returnQuantity(sale, 0, "1.5"));
+		assertEquals("Quantity 1.5 of item " + line.getItem().getItemCode() + " (" + line.getItem().getName()
+				+ "): decimal quantities are not allowed in this store (General Setup, Allow decimal quantities)",
+				off.getMessage());
+		assertTrue(savedReturns.isEmpty() && savedReturnLines.isEmpty() && stockBack.isEmpty(), "nothing written");
+
+		settings.put(QuantityPolicy.SETTING, "true");
+		ReturnHeader part = returnQuantity(sale, 0, "1.5");
+		assertEquals(new BigDecimal("1.5"), storedLine(part).getQuantity());
+		assertEquals(30.0, storedLine(part).getLineTotalIncludingVat(), 0.0);
+		assertEquals(25.208, storedLine(part).getLineTotal(), 0.0); // 33.61 / 2 x 1.5 = 25.2075, half up
+		assertEquals(30.0, part.getTotalReturnAmount(), 0.0);
+
+		ReturnHeader rest = returnQuantity(sale, 0, "0.5");
+		assertEquals(10.0, storedLine(rest).getLineTotalIncludingVat(), 0.0);
+		assertEquals(8.402, storedLine(rest).getLineTotal(), 0.0); // 33.61 - 25.208
+		assertEquals(Arrays.asList(new BigDecimal("1.5"), new BigDecimal("0.5")), stockBack);
+	}
+
+	@Test
+	@DisplayName("2.2.2: sold 1.5, return 1 (a whole quantity of a decimal line): rounded to 3 decimals; the 0.5 left takes what is left")
+	void decimalLineReturnedWhole() throws Exception {
+		settings.put(QuantityPolicy.SETTING, "true");
+		SalesHeader sale = sale(null, 0.0, 0, 0.0, 23.869);
+		decimalLine(sale, 0, "1.5", 13.372, 23.869);
+		ReturnHeader one = returnQuantity(sale, 0, "1");
+		assertEquals(15.913, storedLine(one).getLineTotalIncludingVat(), 0.0); // 23.869 / 1.5 = 15.91266...
+		ReturnHeader rest = returnQuantity(sale, 0, "0.5");
+		assertEquals(7.956, storedLine(rest).getLineTotalIncludingVat(), 0.0); // 23.869 - 15.913
+	}
+
+	@Test
+	@DisplayName("2.2.2: setting off, a line sold with decimals is not returnable (named, nothing written); the whole line of the same ticket returns as in 2.2.1")
+	void decimalSoldLineSettingOff() throws Exception {
 		SalesHeader sale = sale(null, 0.0, 0, 0.0, 10.0, 50.0);
-		SalesLine bulk = linesBySale.get(sale).get(0);
-		bulk.setQuantity(new BigDecimal("0.2"));
+		SalesLine bulk = decimalLine(sale, 0, "0.2", 42.017, 10.0);
 		bulk.getItem().setItemCode("VH52-1L");
 		bulk.getItem().setName("V H 52 1L");
 
 		IllegalArgumentException refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
-				() -> returnLines(sale, ReturnType.SIMPLE_RETURN, 0, 1));
-		assertEquals("Item VH52-1L (V H 52 1L): the quantity 0.2 has decimals, and decimal quantities are not supported"
-				+ " in returns yet.", refused.getMessage());
-		assertTrue(savedReturns.isEmpty(), "nothing written");
-		assertTrue(savedReturnLines.isEmpty(), "nothing written");
+				() -> returnQuantity(sale, 0, "0.2"));
+		assertEquals("Item VH52-1L (V H 52 1L): the quantity 0.2 has decimals, and decimal quantities are not allowed in"
+				+ " this store (General Setup, Allow decimal quantities).", refused.getMessage());
+		assertTrue(savedReturns.isEmpty() && savedReturnLines.isEmpty(), "nothing written");
 
 		ReturnHeader r = returnLines(sale, ReturnType.SIMPLE_RETURN, 1);
 		assertEquals(50.0, r.getTotalReturnAmount().doubleValue(), 1e-6);
-		assertEquals(1, savedReturnLines.size());
-		assertEquals(Integer.valueOf(1), savedReturnLines.get(0).getQuantity());
+		assertEquals(BigDecimal.ONE, savedReturnLines.get(0).getQuantity());
 	}
 
 	@Test
-	@DisplayName("2.2.1: a decimal quantity asked on a whole line is refused naming the item (0.5 was read as 0 until 2.2.0); 1.0 is 1")
-	void decimalAskedRefused() throws Exception {
+	@DisplayName("2.2.2: more than 3 decimals refused even with the setting on; 1.0 asked is 1, stored and read as 1")
+	void decimalsBeyondThreeRefused() throws Exception {
+		settings.put(QuantityPolicy.SETTING, "true");
 		SalesHeader sale = sale(null, 0.0, 0, 0.0, 50.0);
-		SalesLine line = linesBySale.get(sale).get(0);
-		ProcessReturnRequestDTO.ReturnLineDTO dto = new ProcessReturnRequestDTO.ReturnLineDTO();
-		dto.setSalesLineId(line.getId());
-		dto.setQuantity(new BigDecimal("0.5"));
-		ProcessReturnRequestDTO request = new ProcessReturnRequestDTO();
-		request.setTicketNumber(sale.getSalesNumber());
-		request.setReturnType(ReturnType.SIMPLE_RETURN);
-		request.setReturnLines(new ArrayList<>(Arrays.asList(dto)));
 		IllegalArgumentException refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
-				() -> returns.processReturn(request, cashier));
-		assertTrue(refused.getMessage().startsWith("Item " + line.getItem().getItemCode() + " ("), refused.getMessage());
-		assertTrue(refused.getMessage().contains("the quantity 0.5 has decimals"), refused.getMessage());
+				() -> returnQuantity(sale, 0, "0.1234"));
+		assertTrue(refused.getMessage().endsWith(": at most 3 decimals"), refused.getMessage());
 		assertTrue(savedReturns.isEmpty());
 
-		dto.setQuantity(new BigDecimal("1.0"));
-		ReturnHeader r = returns.processReturn(request, cashier);
-		assertEquals(50.0, r.getTotalReturnAmount().doubleValue(), 1e-6);
+		ReturnHeader r = returnQuantity(sale, 0, "1.0");
+		assertEquals(50.0, r.getTotalReturnAmount(), 0.0);
+		assertEquals("1", storedLine(r).getQuantity().toPlainString());
+	}
+
+	@Test
+	@DisplayName("2.2.2: ticket details: a decimal line after a return of 0.2 (remaining 0.3, amount left); a whole line keeps its 2.2.1 values")
+	@SuppressWarnings("unchecked")
+	void ticketDetails() throws Exception {
+		settings.put(QuantityPolicy.SETTING, "true");
+		SalesHeader sale = sale(null, 0.0, 0, 0.0, 7.979, 60.0);
+		decimalLine(sale, 0, "0.5", 13.41, 7.979);
+		SalesLine whole = linesBySale.get(sale).get(1);
+		whole.setQuantity(new BigDecimal("3.000"));
+		returnQuantity(sale, 0, "0.2");
+		returnQuantity(sale, 1, "1");
+
+		com.digithink.zsretail.controller.ReturnHeaderAPI api = new com.digithink.zsretail.controller.ReturnHeaderAPI();
+		for (String name : new String[] { "salesHeaderRepository", "salesLineRepository", "returnLineRepository",
+				"returnHeaderRepository", "quantityPolicy" }) {
+			Field from = ReturnHeaderService.class.getDeclaredField(name);
+			from.setAccessible(true);
+			inject(api, com.digithink.zsretail.controller.ReturnHeaderAPI.class, name, from.get(returns));
+		}
+		inject(api, com.digithink.zsretail.controller._BaseController.class, "service", returns);
+		com.fasterxml.jackson.databind.ObjectMapper json = new com.fasterxml.jackson.databind.ObjectMapper()
+				.findAndRegisterModules();
+
+		Map<String, Object> body = (Map<String, Object>) api.getTicketDetails(sale.getSalesNumber()).getBody();
+		List<Map<String, Object>> lines = (List<Map<String, Object>>) body.get("salesLines");
+		com.fasterxml.jackson.databind.JsonNode bulk = json.valueToTree(lines.get(0));
+		assertEquals("0.5", bulk.get("quantity").asText());
+		assertEquals("0.2", bulk.get("returnedQuantity").asText());
+		assertEquals("0.3", bulk.get("remainingQuantity").asText());
+		assertEquals(4.787, bulk.get("remainingLineTotalIncludingVat").asDouble(), 1e-12);
+		assertTrue(bulk.get("decimalReturned").asBoolean());
+		assertNull(bulk.get("returnable"), "returnable: no flag, as every returnable line");
+
+		com.fasterxml.jackson.databind.JsonNode wholeLine = json.valueToTree(lines.get(1));
+		assertEquals("3", wholeLine.get("quantity").toString(), "JSON 3, never 3.000");
+		assertEquals("1", wholeLine.get("returnedQuantity").toString());
+		assertEquals("2", wholeLine.get("remainingQuantity").toString());
+		assertEquals(40.0, wholeLine.get("remainingLineTotalIncludingVat").asDouble(), 1e-12);
+		assertTrue(!wholeLine.get("decimalReturned").asBoolean());
+
+		// setting off: the decimal line is listed, not returnable, with the reason; the whole line unchanged
+		settings.put(QuantityPolicy.SETTING, "false");
+		body = (Map<String, Object>) api.getTicketDetails(sale.getSalesNumber()).getBody();
+		lines = (List<Map<String, Object>>) body.get("salesLines");
+		assertEquals(Boolean.FALSE, lines.get(0).get("returnable"));
+		assertEquals("0.2", json.valueToTree(lines.get(0)).get("returnedQuantity").asText());
+		assertTrue(String.valueOf(lines.get(0).get("notReturnableReason")).contains("not allowed in this store"));
+		assertEquals("2", json.valueToTree(lines.get(1)).get("remainingQuantity").toString());
+	}
+
+	// ─── 2.2.2: a whole return gives the values of 2.2.1 ─────────────
+
+	/** Sold 3 at 20.000 TTC (16.807 HT, 19%), returned 1 then 2: stored line, copy JSON and hash, NAV payload of 2.2.1. */
+	@Test
+	@DisplayName("2.2.2: a whole return (sold 3, return 1 then 2) stores, copies and exports to NAV exactly as 2.2.1")
+	void wholeReturnAsIn221() throws Exception {
+		SalesHeader sale = sale(null, 0.0, 0, 0.0, 60.0);
+		SalesLine line = linesBySale.get(sale).get(0);
+		line.setQuantity(new BigDecimal("3.000"));
+		line.setUnitPrice(16.807);
+		line.setUnitPriceIncludingVat(20.0);
+		line.setLineTotal(50.42);
+		line.setLineTotalIncludingVat(60.0);
+		line.setVatPercent(19);
+		line.setVatAmount(9.58);
+		line.setDiscountPercentage(5.0);
+		line.getItem().setItemCode("ITM-100");
+		line.getItem().setName("Soap");
+
+		ReturnHeader first = returnQuantity(sale, 0, "1");
+		ReturnHeader second = returnQuantity(sale, 0, "2");
+		assertEquals(WHOLE_RETURN_221[0] + "\n----\n" + WHOLE_RETURN_221[1], pinned(first) + "\n----\n" + pinned(second));
+	}
+
+	/** The values of {@link #wholeReturnAsIn221} produced by the 2.2.1 code (captured on 2026-10-10), one per return. */
+	private static final String[] WHOLE_RETURN_221 = {
+			"stored 1 16.807 20.0 16.80666666666667 20.0 total 20.0 pct null\n"
+					+ "copy {\"cashierLogin\":\"cashier\",\"cashierName\":null,\"discountPercentage\":null,\"lines\":[{\"itemCode\":\"ITM-100\",\"itemName\":\"Soap\",\"lineNo\":1,\"lineTotal\":16.80666666666667,\"lineTotalIncludingVat\":20.0,\"notes\":\"\",\"quantity\":1,\"unitPrice\":16.807,\"unitPriceIncludingVat\":20.0}],\"notes\":null,\"originalSalesNumber\":\"T-1000\",\"returnDate\":\"2026-10-10T09:30:00\",\"returnNumber\":\"RET-202610-000001\",\"returnType\":\"SIMPLE_RETURN\",\"sessionNumber\":null,\"status\":\"COMPLETED\",\"totalReturnAmount\":20.0,\"voucherAmount\":null,\"voucherExpiryDate\":null,\"voucherNumber\":null}\n"
+					+ "hash 1a3393ab288903c9080544517e5f452e8c3fbfd57bd1145bef80e887ddc4f31c\n"
+					+ "nav header {\"Document_Type\":\"Return Order\",\"Location_Code\":\"MAG01\",\"Posting_Date\":\"2026-10-10\",\"POS_Document_No\":\"RET-202610-000001\",\"Ticket_Amount\":20.0}\n"
+					+ "nav line {\"Document_Type\":\"Return Order\",\"Document_No\":\"RO-0001\",\"Type\":\"Item\",\"No\":\"ITM-100\",\"Quantity\":1.0,\"Return_Qty_to_Receive\":1.0,\"Unit_Price\":16.807,\"Line_Discount_Percent\":5.0,\"Location_Code\":\"MAG01\"}",
+			"stored 2 16.807 20.0 33.61333333333334 40.0 total 40.0 pct null\n"
+					+ "copy {\"cashierLogin\":\"cashier\",\"cashierName\":null,\"discountPercentage\":null,\"lines\":[{\"itemCode\":\"ITM-100\",\"itemName\":\"Soap\",\"lineNo\":1,\"lineTotal\":33.61333333333334,\"lineTotalIncludingVat\":40.0,\"notes\":\"\",\"quantity\":2,\"unitPrice\":16.807,\"unitPriceIncludingVat\":20.0}],\"notes\":null,\"originalSalesNumber\":\"T-1000\",\"returnDate\":\"2026-10-10T09:30:00\",\"returnNumber\":\"RET-202610-000001\",\"returnType\":\"SIMPLE_RETURN\",\"sessionNumber\":null,\"status\":\"COMPLETED\",\"totalReturnAmount\":40.0,\"voucherAmount\":null,\"voucherExpiryDate\":null,\"voucherNumber\":null}\n"
+					+ "hash d14a983855324d1f9f5b33906d6b4bd519d6353615f16006f5f8d16cd7213e31\n"
+					+ "nav header {\"Document_Type\":\"Return Order\",\"Location_Code\":\"MAG01\",\"Posting_Date\":\"2026-10-10\",\"POS_Document_No\":\"RET-202610-000001\",\"Ticket_Amount\":40.0}\n"
+					+ "nav line {\"Document_Type\":\"Return Order\",\"Document_No\":\"RO-0001\",\"Type\":\"Item\",\"No\":\"ITM-100\",\"Quantity\":2.0,\"Return_Qty_to_Receive\":2.0,\"Unit_Price\":16.807,\"Line_Discount_Percent\":5.0,\"Location_Code\":\"MAG01\"}" };
+
+	/** Stored line, copy JSON and hash, NAV header and line JSON of one return, dates and numbers fixed. */
+	private String pinned(ReturnHeader header) throws Exception {
+		header.setReturnNumber("RET-202610-000001");
+		header.setReturnDate(LocalDateTime.of(2026, 10, 10, 9, 30));
+		List<ReturnLine> lines = savedReturnLines.stream().filter(l -> l.getReturnHeader() == header)
+				.collect(Collectors.toList());
+		ReturnLine stored = lines.get(0);
+		StringBuilder pin = new StringBuilder();
+		pin.append("stored ").append(stored.getQuantity()).append(' ').append(stored.getUnitPrice()).append(' ')
+				.append(stored.getUnitPriceIncludingVat()).append(' ').append(stored.getLineTotal()).append(' ')
+				.append(stored.getLineTotalIncludingVat()).append(" total ").append(header.getTotalReturnAmount())
+				.append(" pct ").append(header.getDiscountPercentage()).append('\n');
+
+		com.digithink.zsretail.headoffice.dto.ReturnCopyDTO copy =
+				com.digithink.zsretail.holink.service.SalesCopyMapper.returnCopy(header, lines);
+		com.fasterxml.jackson.databind.ObjectMapper sorted = new com.fasterxml.jackson.databind.ObjectMapper()
+				.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
+				.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+				.configure(com.fasterxml.jackson.databind.MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true);
+		java.lang.reflect.Method hash = com.digithink.zsretail.holink.service.SalesPushService.class
+				.getDeclaredMethod("hash", Object.class);
+		hash.setAccessible(true);
+		pin.append("copy ").append(sorted.writeValueAsString(copy)).append('\n');
+		pin.append("hash ").append(hash.invoke(null, copy)).append('\n');
+
+		// EMTOP: ReturnExportService's own conversion, then the NAV mapper and the NAV client's JSON settings
+		GeneralSetupService setup = new GeneralSetupService() {
+			@Override
+			public String findValueByCode(String code) {
+				return "DEFAULT_LOCATION".equals(code) ? "MAG01" : "RESPONSIBILITY_CENTER".equals(code) ? "RC01" : null;
+			}
+		};
+		ReturnLineRepository lineRepository = stub(ReturnLineRepository.class, (m, a) ->
+				"findByReturnHeader".equals(m) ? lines : UNHANDLED);
+		com.digithink.zsretail.erp.service.ReturnExportService export =
+				new com.digithink.zsretail.erp.service.ReturnExportService(null, null, lineRepository, setup);
+		java.lang.reflect.Method toHeader = export.getClass().getDeclaredMethod("toErpReturnDTO", ReturnHeader.class);
+		toHeader.setAccessible(true);
+		java.lang.reflect.Method toLine = export.getClass().getDeclaredMethod("toErpReturnLineDTO", ReturnLine.class);
+		toLine.setAccessible(true);
+		com.digithink.zsretail.erp.dynamicsnav.mapper.DynamicsNavMapper nav =
+				new com.digithink.zsretail.erp.dynamicsnav.mapper.DynamicsNavMapper();
+		com.fasterxml.jackson.databind.ObjectMapper navJson = new com.fasterxml.jackson.databind.ObjectMapper()
+				.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
+				.setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+				.configure(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+		pin.append("nav header ").append(navJson.writeValueAsString(nav.toReturnHeaderDTO(
+				(com.digithink.zsretail.erp.dto.ErpReturnDTO) toHeader.invoke(export, header)))).append('\n');
+		pin.append("nav line ").append(navJson.writeValueAsString(nav.toReturnLineDTO(
+				(com.digithink.zsretail.erp.dto.ErpReturnLineDTO) toLine.invoke(export, stored), "RO-0001")));
+		return pin.toString();
+	}
+
+	/** One return of the given quantities ("1", "0.2"), one per article line index starting at {@code index}. */
+	private ReturnHeader returnQuantity(SalesHeader sale, int index, String quantity) throws Exception {
+		return returnQuantity(sale, index, quantity, ReturnType.SIMPLE_RETURN);
+	}
+
+	private ReturnHeader returnQuantity(SalesHeader sale, int index, String quantity, ReturnType type) throws Exception {
+		ProcessReturnRequestDTO.ReturnLineDTO dto = new ProcessReturnRequestDTO.ReturnLineDTO();
+		dto.setSalesLineId(linesBySale.get(sale).get(index).getId());
+		dto.setQuantity(new BigDecimal(quantity));
+		ProcessReturnRequestDTO request = new ProcessReturnRequestDTO();
+		request.setTicketNumber(sale.getSalesNumber());
+		request.setReturnType(type);
+		request.setReturnLines(new ArrayList<>(Arrays.asList(dto)));
+		return returns.processReturn(request, cashier);
 	}
 
 	// ─── Fixtures ────────────────────────────────────────────────────

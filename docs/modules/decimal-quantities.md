@@ -1,7 +1,8 @@
-# Decimal quantities (2.2.1)
+# Decimal quantities (2.2.1, returns 2.2.2)
 
 Bulk items sold by the litre or the kilo (Happyness: perfume "V H 52 1L" sold 0.2 or 0.058 at the till). Built in
-steps on `release/2.2.1` (both repos); this page says what each step converted. Steps 1 to 5 are done (2026-10-09 and 10).
+steps on `release/2.2.1` (both repos); this page says what each step converted. Steps 1 to 6 are done (2026-10-09 and 10).
+2.2.2 (`release/2.2.2`), step 1: returns with decimal quantities (2026-10-10), see "2.2.2, step 1" below.
 
 ## Rules
 
@@ -171,7 +172,7 @@ the summary said.
 - **Guard, scoped** (Jackson's global setting unchanged): `WholeQuantityDeserializer` on each remaining whole-number
   quantity field of a request or a copy: `ProcessSaleRequestDTO.SaleLineDTO.freeQuantity`, `CloseSessionRequestDTO`
   cash count quantity, `Promotion.minimumQuantity` / `freeQuantity`, `PromotionCopyDTO` (same two),
-  `CatalogueItemCopyDTO.Component.quantity`, `ReturnLineCopyDTO.quantity`, `SessionCountCopyDTO.quantity`,
+  `CatalogueItemCopyDTO.Component.quantity`, `ReturnLineCopyDTO.quantity` (until 2.2.2, now `BigDecimal`), `SessionCountCopyDTO.quantity`,
   `SupplyInvoiceCopyDTO.Line.quantity`. 2 and 2.0 (and "2", null) read as in 2.2.0; 1.5 throws `NotWholeQuantity`, and
   `WholeQuantityExceptionResolver` (first resolver, only for that exception) answers 400 with "lines[1].freeQuantity: 1.5
   is not a whole number, and decimal quantities are not supported here yet." The session closing reads its cash counts
@@ -183,11 +184,56 @@ the summary said.
   2.2.0. The till's subtotal and VAT of a fixed promotion larger than its line: unchanged (decision (b), after the
   go-live).
 
+## 2.2.2, step 1: returns
+
+- **Columns**: `ReturnLine.quantity` (`return_line`, NOT NULL) and `HoReturnLine.quantity` (`ho_return_line`) are
+  `BigDecimal` DECIMAL(18,3), read normalized (1.000 is 1). `ReturnLineCopyDTO.quantity` is `BigDecimal` (the whole-only
+  guard is gone); `SalesCopyMapper`, `HoSalesCopyMapper`, `ConsolidatedSalesService.returnDetail` pass it as it is.
+  `ReturnExportService` gives the normalized quantity to the ERP DTO: a whole return reaches NAV as `1.0` as in 2.2.1,
+  0.2 as `0.2` (EMTOP keeps the setting off).
+- **Who may return decimals**: a quantity asked goes through `QuantityPolicy.check` (setting off: "Quantity 1.5 of item
+  CODE (Name): decimal quantities are not allowed in this store (General Setup, Allow decimal quantities)", 400, nothing
+  written; more than 3 decimals refused even when on); a whole quantity never reads the setting. A line sold with
+  decimals while the setting is off is not returnable at all, neither all of it nor a whole part
+  (`Quantities.notAllowedInStore`: "Item CODE (Name): the quantity 0.5 has decimals, and decimal quantities are not
+  allowed in this store (General Setup, Allow decimal quantities)."; Zein, 2026-10-10: no rest that could never be
+  returned). The quantity asked can be anything up to what remains on the line (sold minus every earlier return);
+  above it: "Return quantity (0.1) cannot exceed remaining returnable quantity (0)" (2.2.1 text, quantities written by
+  `Quantities.plain`).
+- **Amounts** (`ReturnHeaderService.processReturn`, the earlier returns read once by `ReturnHeaderService.Returned`):
+  - a whole quantity of a whole line, no earlier return of the line with decimals: the 2.2.1 formula, unchanged
+    (`lineTotal / sold x returned`, not rounded);
+  - otherwise (line sold with decimals, quantity with decimals, or an earlier decimal return of the line):
+    `Quantities.shareOf` = line amount / sold x returned, rounded once to 3 decimals (`roundAmount`), for the amounts
+    excluding and including VAT; the return that takes the last remaining quantity gets what is left instead (line
+    amount minus what the earlier returns refunded, rounded to 3 decimals), so the refunds add up to the line paid
+    (Zein, 2026-10-10). A decimal sold line has a TTC in millimes, so its TTC parts add up exactly; its HT has 15
+    digits (TTC / 1.19), so the HT parts are within half a millime of it.
+  - The header discount, the ratio fallback and the loyalty refund factor apply to the sum as in 2.2.1 (the voucher is
+    not rounded further); `LoyaltyService.applyReturn` works on the goods amounts, so several returns of one ticket add
+    up as before. The stock goes back by the quantity returned (`incrementForReturn`, the movements with it).
+- **Ticket details** (`/return-header/ticket-details`): `quantity`, `returnedQuantity`, `remainingQuantity` as
+  decimals (whole: `3`, never `3.000`), plus `remainingLineTotalIncludingVat` (what is left of the line TTC) and
+  `decimalReturned` (an earlier return of the line had decimals) so the screen computes the amounts as the server. A
+  line sold with decimals while the setting is off: listed with `returnable: false` and the reason above.
+- **Head office**: the copy of a return arrives with its decimals (a 2.2.1 head office refuses a 0.2 with a 400, the
+  store sends it again once the head office is 2.2.2); the network stock follows the store's stock copy (step 2).
+- **Front** (`ReturnProducts.vue`): setting on, the quantity box is a text box (`inputmode=decimal`) read by
+  `parseQuantity` ("0,2" or "0.2", 0 or empty = nothing); off, the 2.2.1 number box. No `Math.round` any more: a value
+  refused (decimals while off, more than 3 decimals, above what remains, not a number) is said under its box and
+  blocks "Process return". Amounts with the same rules (`returnShareOf` in `src/libs/quantity.js`, the remaining TTC for
+  the return that closes a line). `ReturnsManagement.vue` and `HeadOfficeReturns.vue` show `formatQuantity`; the
+  voucher print uses the receipt template (step 1).
+- **Reports and dashboards**: nothing to convert: they add up return amounts (`total_return_amount`), never returned
+  quantities; the movement report reads `stock_movement` (step 1).
+- **Whole returns are as in 2.2.1** (pinned in `ReturnRefundLoyaltyTest.wholeReturnAsIn221` with the values the 2.2.1
+  code produced: stored line, copy JSON and hash, NAV return header and line JSON, for sold 3, return 1 then 2).
+
 ## Still whole, and how each reacts to a decimal (after step 5)
 
 | Place | Reaction |
 |---|---|
-| Returns (`ReturnHeaderService`, `ReturnLine`, `ReturnProducts.vue`) | a line sold with decimals is listed as not returnable; returning it, or asking 0.5 of a whole line: 400 naming the item, nothing written |
+| Returns (`ReturnHeaderService`, `ReturnLine`, `ReturnProducts.vue`) | 2.2.2: converted (above). Until 2.2.1: a line sold with decimals was listed as not returnable; returning it, or asking 0.5 of a whole line: 400 naming the item, nothing written |
 | Invoices from tickets (`InvoiceService`, `InvoiceLine`) | 400 naming the ticket and the item, before the invoice number is taken |
 | Purchases (`PurchaseHeaderService`, `PurchaseLine`) | 400 naming the item (screen and server) |
 | Compositions of a pack (`ItemComposition`) | 400 naming the component (screen and server) |
@@ -196,7 +242,7 @@ the summary said.
 | Head office supply invoice (HEAD_OFFICE source, `HoSupplyInvoiceLine`) | a BL received with a decimal: 409 naming the BL, the line and the item; PER_BL: the text in the BL's invoice note |
 | Excel item import, stock column | the row refused with its number |
 | Promotions with a minimum or a free quantity, buy X get Y | a decimal line is not eligible (never refused, never a free item on a fraction) |
-| Cash counts, promotion settings, warranties, free quantity of a sale line, return / session count / supply invoice / catalogue component copies | whole for good: 1.5 refused with a 400 naming the field; a warranty on a decimal line refused |
+| Cash counts, promotion settings, warranties, free quantity of a sale line, session count / supply invoice / catalogue component copies (the return copy until 2.2.1) | whole for good: 1.5 refused with a 400 naming the field; a warranty on a decimal line refused |
 | EMTOP ticket export (`TicketExportService`) | passes the quantity through (`Double` to NAV): 2 stays 2.0, 0.2 is sent as 0.2 |
 
 Left, decided apart: (b) the till's subtotal and VAT stopped at 0 per line for a fixed promotion larger than its line
@@ -211,6 +257,11 @@ the release notes are written only when every listed column present is DECIMAL(1
 columns left and the application keeps refusing to start). The script sets its session options (`QUOTED_IDENTIFIER ON`:
 sqlcmd starts with it off, which breaks the reading of a filtered index). It may run again: done columns are skipped,
 the 2.2.1 notes rewritten. A new database gets `DECIMAL(18,3)` from Hibernate.
+
+2.2.2: `db/2.2.2/update.sql` converts `return_line.quantity` and `ho_return_line.quantity` the same way (its own copy of
+the procedure, the columns in `#zs_222_columns`). It runs only on APP_VERSION 2.2.1 or 2.2.2 (otherwise an error and
+`SET NOEXEC ON`: nothing changed), then writes APP_VERSION 2.2.2 and its notes when both columns present are
+DECIMAL(18,3). `DecimalColumnsCheck.COLUMNS` has the 19 columns of both scripts; its message names both.
 
 A 2.2.1 application on a 2.2.0 database does not start: `AppVersionGuard` finds APP_VERSION 2.2.0 (the script
 writes 2.2.1 only when every column is converted). For what that guard lets through (APP_VERSION set by hand, an
@@ -247,3 +298,8 @@ and its 400, the global setting unchanged), `TaxStampRuleTest` (true, TRUE, 1; n
 (`taxStampActive`), `SaleCompletionLoyaltyStampTest.stampSettingReadings`, `ReturnRefundLoyaltyTest.decimalSoldLineRefused`
 / `decimalAskedRefused`, `ItemStockAdjustmentTest.decimalDeltaRefused`, `HeadOfficeWarehouseTest.decimalPurchaseRefused`,
 `HoDeliveryServiceTest` (1.5 named), `HoSupplyInvoiceServiceTest.decimalReceivedNotInvoiced`, `CashCountQuantityTest`. Step 6: `DecimalColumnsCheckTest`, `StockArithmeticSqlTest`.
+2.2.2: `ReturnRefundLoyaltyTest` (`decimalSoldLineReturnedInParts`: 0.5 returned 0.2 then 0.3, 0.1 refused, stock,
+vouchers, points; `wholeLineReturnedWithDecimals`: 1.5 of 2 refused off, accepted on; `decimalLineReturnedWhole`;
+`decimalSoldLineSettingOff`; `decimalsBeyondThreeRefused`; `ticketDetails`; `wholeReturnAsIn221`),
+`SalesCopyReceiverTest.decimalReturnArrivesAsSent`, `DecimalSafetyNetTest` (the return screen line with the setting off,
+the return copy no longer guarded).

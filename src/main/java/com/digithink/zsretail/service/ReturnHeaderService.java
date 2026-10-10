@@ -1,12 +1,15 @@
 package com.digithink.zsretail.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -73,6 +76,9 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 
 	@Autowired
 	private LoyaltyService loyaltyService;
+
+	@Autowired
+	private QuantityPolicy quantityPolicy;
 
 	@Override
 	protected _BaseRepository<ReturnHeader, Long> getRepository() {
@@ -210,6 +216,78 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 	}
 
 	/**
+	 * 2.2.2: what the earlier returns of a ticket took from each of its sales lines (quantity, amounts excluding and
+	 * including VAT, whether one had decimals) and the goods amount they refunded (fiscal stamp excluded, for the
+	 * loyalty points). Read by {@link #processReturn} and by the ticket details of the return screen.
+	 */
+	public static final class Returned {
+
+		private final Map<Long, BigDecimal> quantities = new HashMap<>();
+		private final Map<Long, Double> lineTotals = new HashMap<>();
+		private final Map<Long, Double> lineTotalsIncludingVat = new HashMap<>();
+		private final Set<Long> withDecimals = new HashSet<>();
+		private double goods;
+
+		public static Returned of(List<ReturnHeader> returns, ReturnLineRepository returnLines) {
+			Returned returned = new Returned();
+			for (ReturnHeader header : returns) {
+				for (ReturnLine line : returnLines.findByReturnHeader(header)) {
+					Long salesLineId = line.getOriginalSalesLine().getId();
+					BigDecimal quantity = line.getQuantity() == null ? BigDecimal.ZERO : line.getQuantity();
+					returned.quantities.merge(salesLineId, quantity, BigDecimal::add);
+					returned.lineTotals.merge(salesLineId, orZero(line.getLineTotal()), Double::sum);
+					returned.lineTotalsIncludingVat.merge(salesLineId, orZero(line.getLineTotalIncludingVat()), Double::sum);
+					if (!Quantities.isWhole(quantity)) {
+						returned.withDecimals.add(salesLineId);
+					}
+					if (!isTaxStamp(line.getItem()) && line.getLineTotalIncludingVat() != null) {
+						returned.goods += line.getLineTotalIncludingVat();
+					}
+				}
+			}
+			return returned;
+		}
+
+		private static double orZero(Double amount) {
+			return amount == null ? 0.0 : amount;
+		}
+
+		/** The quantity already returned of the sales line, normalized (0 when none). */
+		public BigDecimal quantity(Long salesLineId) {
+			return Quantities.normalize(quantities.getOrDefault(salesLineId, BigDecimal.ZERO));
+		}
+
+		/** Excluding VAT already refunded for the sales line. */
+		public double lineTotal(Long salesLineId) {
+			return lineTotals.getOrDefault(salesLineId, 0.0);
+		}
+
+		/** Including VAT already refunded for the sales line. */
+		public double lineTotalIncludingVat(Long salesLineId) {
+			return lineTotalsIncludingVat.getOrDefault(salesLineId, 0.0);
+		}
+
+		/** True when an earlier return of the sales line had decimals. */
+		public boolean withDecimals(Long salesLineId) {
+			return withDecimals.contains(salesLineId);
+		}
+
+		/**
+		 * True when a return of {@code quantity} on the line follows the decimal rules (amounts rounded to 3 decimals, the
+		 * last return takes what is left): the line was sold with decimals, the quantity has some, or an earlier return
+		 * of the line had some. False for a whole return of a whole line: the 2.2.1 formula.
+		 */
+		public boolean decimalInvolved(SalesLine line, BigDecimal quantity) {
+			return !Quantities.isWhole(line.getQuantity()) || !Quantities.isWhole(quantity) || withDecimals(line.getId());
+		}
+
+		/** Goods TTC already refunded on the ticket, fiscal stamp excluded. */
+		public double goods() {
+			return goods;
+		}
+	}
+
+	/**
 	 * Process return transactionally
 	 */
 	@Transactional(rollbackFor = Exception.class)
@@ -260,19 +338,8 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 
 		// Calculate already returned quantities for each sales line, and the goods amount already
 		// returned (fiscal stamp excluded) for the cumulative loyalty points adjustment
-		Map<Long, Integer> returnedQuantities = new HashMap<>();
-		double previouslyReturnedGoods = 0.0;
-		for (ReturnHeader prevReturn : previousReturns) {
-			List<ReturnLine> prevReturnLines = returnLineRepository.findByReturnHeader(prevReturn);
-			for (ReturnLine prevReturnLine : prevReturnLines) {
-				Long salesLineId = prevReturnLine.getOriginalSalesLine().getId();
-				int returnedQty = prevReturnLine.getQuantity();
-				returnedQuantities.put(salesLineId, returnedQuantities.getOrDefault(salesLineId, 0) + returnedQty);
-				if (!isTaxStamp(prevReturnLine.getItem()) && prevReturnLine.getLineTotalIncludingVat() != null) {
-					previouslyReturnedGoods += prevReturnLine.getLineTotalIncludingVat();
-				}
-			}
-		}
+		Returned returned = Returned.of(previousReturns, returnLineRepository);
+		double previouslyReturnedGoods = returned.goods();
 
 		// Validate return quantities
 		double totalReturnAmount = 0.0;
@@ -296,38 +363,49 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 				throw new IllegalArgumentException("Return quantity must be greater than 0");
 			}
 
-			// Calculate remaining returnable quantity
-			int alreadyReturned = returnedQuantities.getOrDefault(originalSalesLine.getId(), 0);
-			// 2.2.1: returns stay whole for now; a line sold with decimals, or a decimal quantity asked, is refused by name
-			// before anything is written (never rounded)
+			// 2.2.2: decimal quantities. A line sold with decimals while the store no longer allows them is not returnable;
+			// a quantity asked with decimals needs the setting, and never more than 3 decimals (refused by name before
+			// anything is written, never rounded)
 			com.digithink.zsretail.model.Item soldItem = originalSalesLine.getItem();
 			String soldCode = soldItem == null ? null : soldItem.getItemCode();
 			String soldName = soldItem == null ? null : soldItem.getName();
-			if (!Quantities.isWhole(originalSalesLine.getQuantity())) {
-				throw new IllegalArgumentException(
-						Quantities.notSupportedYet(soldCode, soldName, originalSalesLine.getQuantity(), "returns"));
+			BigDecimal soldQuantity = originalSalesLine.getQuantity();
+			BigDecimal quantity = Quantities.normalize(returnLineDTO.getQuantity());
+			if (!Quantities.isWhole(soldQuantity) && !quantityPolicy.decimalAllowed()) {
+				throw new IllegalArgumentException(Quantities.notAllowedInStore(soldCode, soldName, soldQuantity));
 			}
-			if (!Quantities.isWhole(returnLineDTO.getQuantity())) {
-				throw new IllegalArgumentException(
-						Quantities.notSupportedYet(soldCode, soldName, returnLineDTO.getQuantity(), "returns"));
-			}
-			int quantity = returnLineDTO.getQuantity().intValueExact();
-			int soldQuantity = originalSalesLine.getQuantity().intValueExact();
-			int remainingReturnable = soldQuantity - alreadyReturned;
+			quantityPolicy.check(quantity, Quantities.itemLabel(soldCode, soldName));
 
-			if (quantity > remainingReturnable) {
-				throw new IllegalArgumentException("Return quantity (" + quantity
-						+ ") cannot exceed remaining returnable quantity (" + remainingReturnable + ")");
+			// Calculate remaining returnable quantity
+			BigDecimal alreadyReturned = returned.quantity(originalSalesLine.getId());
+			BigDecimal remainingReturnable = Quantities.normalize(soldQuantity.subtract(alreadyReturned));
+			if (quantity.compareTo(remainingReturnable) > 0) {
+				throw new IllegalArgumentException("Return quantity (" + Quantities.plain(quantity)
+						+ ") cannot exceed remaining returnable quantity (" + Quantities.plain(remainingReturnable) + ")");
 			}
 
 			// Calculate line totals (both HT and TTC)
 			// Calculate proportional amounts based on return quantity
 			double unitPriceHT = originalSalesLine.getUnitPrice();
 			double unitPriceTTC = originalSalesLine.getUnitPriceIncludingVat();
-			double lineTotalHT = (originalSalesLine.getLineTotal() / soldQuantity)
-					* quantity;
-			double lineTotalTTC = (originalSalesLine.getLineTotalIncludingVat() / soldQuantity)
-					* quantity;
+			double lineTotalHT;
+			double lineTotalTTC;
+			if (!returned.decimalInvolved(originalSalesLine, quantity)) {
+				// whole return of a whole line: the 2.2.1 formula, unchanged
+				int wholeSold = soldQuantity.intValueExact();
+				int wholeQuantity = quantity.intValueExact();
+				lineTotalHT = (originalSalesLine.getLineTotal() / wholeSold) * wholeQuantity;
+				lineTotalTTC = (originalSalesLine.getLineTotalIncludingVat() / wholeSold) * wholeQuantity;
+			} else if (quantity.compareTo(remainingReturnable) == 0) {
+				// the return that closes the line: what is left of it, so the refunds add up to the line paid
+				lineTotalHT = Quantities.roundAmount(
+						originalSalesLine.getLineTotal() - returned.lineTotal(originalSalesLine.getId()));
+				lineTotalTTC = Quantities.roundAmount(originalSalesLine.getLineTotalIncludingVat()
+						- returned.lineTotalIncludingVat(originalSalesLine.getId()));
+			} else {
+				lineTotalHT = Quantities.shareOf(originalSalesLine.getLineTotal(), soldQuantity, quantity);
+				lineTotalTTC = Quantities.shareOf(originalSalesLine.getLineTotalIncludingVat(), soldQuantity, quantity);
+			}
 
 			// Create return line
 			ReturnLine returnLine = new ReturnLine();
@@ -413,16 +491,16 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 
 		// Update stock for all return types — goods always come back to stock regardless of refund method.
 		for (ReturnLine returnLine : returnLines) {
-			if (returnLine.getItem() != null && returnLine.getQuantity() != null && returnLine.getQuantity() > 0) {
-				stockService.incrementForReturn(returnLine.getItem().getId(), Quantities.of(returnLine.getQuantity()));
+			if (returnLine.getItem() != null && returnLine.getQuantity() != null && returnLine.getQuantity().signum() > 0) {
+				stockService.incrementForReturn(returnLine.getItem().getId(), returnLine.getQuantity());
 				if (request.getReturnType() == ReturnType.SIMPLE_RETURN) {
 					stockMovementService.recordSimpleReturn(
-							returnLine.getItem().getId(), Quantities.of(returnLine.getQuantity()),
+							returnLine.getItem().getId(), returnLine.getQuantity(),
 							returnLine.getUnitPrice(), null, returnLine.getUnitPriceIncludingVat(),
 							returnHeader.getId(), returnHeader.getCashierSession());
 				} else {
 					stockMovementService.recordVoucherReturn(
-							returnLine.getItem().getId(), Quantities.of(returnLine.getQuantity()),
+							returnLine.getItem().getId(), returnLine.getQuantity(),
 							returnLine.getUnitPrice(), null, returnLine.getUnitPriceIncludingVat(),
 							returnHeader.getId(), returnHeader.getCashierSession());
 				}

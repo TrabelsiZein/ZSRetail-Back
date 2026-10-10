@@ -1,9 +1,8 @@
 package com.digithink.zsretail.headoffice.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import java.math.BigDecimal;
 
-import com.digithink.zsretail.utils.WholeQuantityDeserializer;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -21,8 +20,8 @@ public class ReturnLineCopyDTO {
 
 	private String itemName;
 
-	@JsonDeserialize(using = WholeQuantityDeserializer.class) // 2.2.1: whole only, 1.5 refused (400)
-	private Integer quantity;
+	/** 2.2.2: up to 3 decimals, written without trailing zeros (2, 0.2), so a whole return keeps the copy hash of 2.2.1. */
+	private BigDecimal quantity;
 
 	/** Excluding VAT. */
 	private Double unitPrice;

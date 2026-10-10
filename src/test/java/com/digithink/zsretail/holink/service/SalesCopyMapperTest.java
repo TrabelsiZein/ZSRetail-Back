@@ -338,7 +338,7 @@ class SalesCopyMapperTest {
 		ReturnLine late = new ReturnLine();
 		late.setId(IDS[6]);
 		late.setItem(item(IDS[7], "ITM-200", "Shampoo 250 ml"));
-		late.setQuantity(1);
+		late.setQuantity(BigDecimal.ONE);
 		late.setUnitPrice(16.81);
 		late.setUnitPriceIncludingVat(20.0);
 		late.setLineTotal(16.81);
@@ -346,7 +346,7 @@ class SalesCopyMapperTest {
 		ReturnLine early = new ReturnLine();
 		early.setId(IDS[5]);
 		early.setItem(item(IDS[8], "ITM-100", "Soap"));
-		early.setQuantity(2);
+		early.setQuantity(new BigDecimal("2.000")); // read from the DECIMAL(18,3) column
 		early.setUnitPrice(8.40);
 		early.setUnitPriceIncludingVat(10.0);
 		early.setLineTotal(16.80);
@@ -373,7 +373,7 @@ class SalesCopyMapperTest {
 		assertEquals(1, copy.getLines().get(0).getLineNo());
 		assertEquals("ITM-100", copy.getLines().get(0).getItemCode());
 		assertEquals("Soap", copy.getLines().get(0).getItemName());
-		assertEquals(2, copy.getLines().get(0).getQuantity());
+		assertEquals(new BigDecimal("2"), copy.getLines().get(0).getQuantity()); // 2.2.2: 2.000 travels as 2
 		assertEquals(8.40, copy.getLines().get(0).getUnitPrice());
 		assertEquals(10.0, copy.getLines().get(0).getUnitPriceIncludingVat());
 		assertEquals(16.80, copy.getLines().get(0).getLineTotal());

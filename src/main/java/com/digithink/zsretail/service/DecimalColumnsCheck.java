@@ -19,8 +19,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 
 /**
- * 2.2.1: the quantity columns converted by db/2.2.1/update.sql must be DECIMAL(18,3), or SQL Server would cut 0.2 to 0
- * in an int column without an error. The version guard (AppVersionGuard) already stops a 2.2.1 application on a 2.2.0
+ * 2.2.1: the quantity columns converted by db/2.2.1/update.sql (and, 2.2.2, the return lines by db/2.2.2/update.sql)
+ * must be DECIMAL(18,3), or SQL Server would cut 0.2 to 0 in an int column without an error. The version guard (AppVersionGuard) already stops a 2.2.1 application on a 2.2.0
  * database; this check covers what it lets through (APP_VERSION set by hand, an existing database with an empty
  * APP_VERSION). Checked once at start-up: a column still int is named in an error of the log, and decimal quantities are
  * refused (QuantityPolicy, /config) with a message asking for the script; whole quantities work as in 2.2.0. A table
@@ -31,7 +31,10 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class DecimalColumnsCheck {
 
-	/** The columns of db/2.2.1/update.sql (#zs_221_columns), as "table.column". Keep both lists the same. */
+	/**
+	 * The columns of db/2.2.1/update.sql (#zs_221_columns) then of db/2.2.2/update.sql (#zs_222_columns), as
+	 * "table.column". Keep the lists the same.
+	 */
 	public static final List<String> COLUMNS = Collections.unmodifiableList(Arrays.asList(
 			"item.stock_quantity", "sales_line.quantity", "stock_movement.quantity",
 			"ho_ticket_line.quantity", "ho_store_stock.quantity", "hol_stock_copy.quantity_sent",
@@ -40,10 +43,12 @@ public class DecimalColumnsCheck {
 			"ho_erp_invoice_line.quantity", "ho_erp_invoice_line.quantity_received",
 			"ho_delivery_line.quantity_sent", "ho_delivery_line.quantity_received",
 			"hol_delivery_line.quantity_sent", "hol_delivery_line.quantity_received",
-			"purchase_invoice_line.quantity"));
+			"purchase_invoice_line.quantity",
+			// 2.2.2: the return lines, of a store and of their copies at the head office
+			"return_line.quantity", "ho_return_line.quantity"));
 
-	public static final String SCRIPT_MESSAGE = "decimal quantities need the 2.2.1 database script (db/2.2.1/update.sql),"
-			+ " not run on this database";
+	public static final String SCRIPT_MESSAGE = "decimal quantities need the database scripts of 2.2.1 and 2.2.2"
+			+ " (db/2.2.1/update.sql, db/2.2.2/update.sql), not run on this database";
 
 	private final JdbcTemplate jdbc;
 
@@ -81,7 +86,7 @@ public class DecimalColumnsCheck {
 		} else {
 			log.error("═══════════════════════════════════════════════════════");
 			log.error("  2.2.1: these quantity columns are not DECIMAL(18,3): {}", String.join(", ", left));
-			log.error("  → Run db/2.2.1/update.sql. Until then decimal quantities are refused (Allow decimal quantities");
+			log.error("  → Run db/2.2.1/update.sql, then db/2.2.2/update.sql. Until then decimal quantities are refused (Allow decimal quantities");
 			log.error("    is treated as off); whole quantities work as in 2.2.0.");
 			log.error("═══════════════════════════════════════════════════════");
 		}

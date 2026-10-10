@@ -604,7 +604,7 @@ class ConsolidatedSalesServiceTest {
 		line.setLineNo(1);
 		line.setItemCode("ITM-1");
 		line.setItemName("Soap");
-		line.setQuantity(1);
+		line.setQuantity(java.math.BigDecimal.ONE);
 		header.getLines().add(line);
 		returnCopy(rs01, "R-2", LocalDateTime.of(2026, 10, 1, 11, 0), "SIMPLE_RETURN", 5, "S2", "T-404");
 

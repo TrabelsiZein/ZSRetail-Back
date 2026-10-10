@@ -120,11 +120,34 @@ public final class Quantities {
 	 * item and the place, and nothing is written (never a rounded value).
 	 */
 	public static String notSupportedYet(String itemCode, String itemName, BigDecimal quantity, String where) {
+		return "Item " + itemLabel(itemCode, itemName) + ": the quantity " + plain(quantity) + " has decimals, and decimal"
+				+ " quantities are not supported in " + where + " yet.";
+	}
+
+	/** An item as the messages name it: "CODE (Name)", "CODE" without a name, "?" without a code. */
+	public static String itemLabel(String itemCode, String itemName) {
 		String item = itemCode == null ? "?" : itemCode;
 		if (itemName != null && !itemName.trim().isEmpty()) {
 			item += " (" + itemName.trim() + ")";
 		}
-		return "Item " + item + ": the quantity " + plain(quantity) + " has decimals, and decimal quantities are not"
-				+ " supported in " + where + " yet.";
+		return item;
+	}
+
+	/**
+	 * 2.2.2: a line sold with decimals while the store no longer allows them (General Setup): it cannot be returned, the
+	 * whole of it or a part (no rest left that could never be returned).
+	 */
+	public static String notAllowedInStore(String itemCode, String itemName, BigDecimal quantity) {
+		return "Item " + itemLabel(itemCode, itemName) + ": the quantity " + plain(quantity) + " has decimals, and"
+				+ " decimal quantities are not allowed in this store (General Setup, Allow decimal quantities).";
+	}
+
+	/**
+	 * 2.2.2: the part of a sold line's amount for a quantity returned when a decimal is involved: the line amount over
+	 * the quantity sold, times the quantity returned, rounded once to 3 decimals ({@link #roundAmount}). The till
+	 * computes the same steps (src/libs/quantity.js, returnShareOf).
+	 */
+	public static double shareOf(double lineAmount, BigDecimal sold, BigDecimal part) {
+		return roundAmount(lineAmount / sold.doubleValue() * part.doubleValue());
 	}
 }
