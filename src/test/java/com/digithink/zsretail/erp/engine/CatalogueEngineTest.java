@@ -43,7 +43,7 @@ import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCollection;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
-import com.digithink.zsretail.erp.service.ErpSyncWarningException;
+import com.digithink.zsretail.erp.spi.ErpSyncWarningException;
 import com.digithink.zsretail.erp.spi.StockPoints;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.node.TextNode;

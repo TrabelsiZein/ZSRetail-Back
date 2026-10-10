@@ -29,8 +29,8 @@ import com.digithink.zsretail.erp.model.ErpSyncJob;
 import com.digithink.zsretail.erp.repository.ErpSyncJobRepository;
 import com.digithink.zsretail.erp.service.ErpSyncCheckpointService;
 import com.digithink.zsretail.erp.service.ErpSyncJobRunner;
-import com.digithink.zsretail.erp.service.ErpSyncWarningException;
 import com.digithink.zsretail.erp.spi.ErpSupplyInvoiceImport;
+import com.digithink.zsretail.erp.spi.ErpSyncWarningException;
 import com.digithink.zsretail.support.Installations;
 import com.digithink.zsretail.support.TestModes;
 

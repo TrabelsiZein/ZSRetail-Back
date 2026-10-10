@@ -34,7 +34,7 @@ import com.digithink.zsretail.erp.model.ErpSyncJob;
 import com.digithink.zsretail.erp.service.ErpSyncCheckpointService;
 import com.digithink.zsretail.erp.service.ErpSyncJobRunner;
 import com.digithink.zsretail.erp.service.ErpSyncJobService;
-import com.digithink.zsretail.erp.service.ErpSyncWarningException;
+import com.digithink.zsretail.erp.spi.ErpSyncWarningException;
 import com.digithink.zsretail.erp.util.CronExpressionParser;
 import com.digithink.zsretail.model.UserAccount;
 import com.digithink.zsretail.model.enumeration.Role;

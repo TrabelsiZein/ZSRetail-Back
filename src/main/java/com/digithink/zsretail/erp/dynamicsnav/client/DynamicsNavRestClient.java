@@ -44,7 +44,7 @@ import com.digithink.zsretail.erp.dynamicsnav.dto.DynamicsNavSalesPriceDTO;
 import com.digithink.zsretail.erp.dynamicsnav.dto.DynamicsNavSessionDTO;
 import com.digithink.zsretail.erp.dynamicsnav.dto.DynamicsNavStockKeepingUnitDTO;
 import com.digithink.zsretail.erp.dynamicsnav.dto.DynamicsNavSubFamilyDTO;
-import com.digithink.zsretail.erp.service.ErpSyncWarningException;
+import com.digithink.zsretail.erp.spi.ErpSyncWarningException;
 import com.digithink.zsretail.model.Location;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.LocationService;

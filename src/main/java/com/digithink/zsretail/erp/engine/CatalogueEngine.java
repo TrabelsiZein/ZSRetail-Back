@@ -20,13 +20,13 @@ import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
 import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
-import com.digithink.zsretail.erp.service.ErpSyncWarningException;
 import com.digithink.zsretail.erp.spi.ErpAbility;
 import com.digithink.zsretail.erp.spi.ErpBarcodeRow;
 import com.digithink.zsretail.erp.spi.ErpCatalogueSource;
 import com.digithink.zsretail.erp.spi.ErpCatalogueSource.Part;
 import com.digithink.zsretail.erp.spi.ErpCategories;
 import com.digithink.zsretail.erp.spi.ErpRead;
+import com.digithink.zsretail.erp.spi.ErpSyncWarningException;
 import com.digithink.zsretail.erp.spi.StockPoints;
 
 /**

@@ -22,6 +22,7 @@ import com.digithink.zsretail.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.erp.model.ErpSyncJob;
 import com.digithink.zsretail.erp.spi.ErpCatalogueSync;
 import com.digithink.zsretail.erp.spi.ErpSupplyInvoiceImport;
+import com.digithink.zsretail.erp.spi.ErpSyncWarningException;
 
 import lombok.RequiredArgsConstructor;
 
