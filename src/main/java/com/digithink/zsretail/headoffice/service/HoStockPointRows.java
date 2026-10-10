@@ -23,7 +23,7 @@ import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
 import com.digithink.zsretail.headoffice.repository.HoStockPointRepository;
 
 /**
- * Stock points, step 2: ho_stock_point and ho_stock_point_item for the items run of the ERP catalogue (NavPosPagesSync).
+ * Stock points, step 2: ho_stock_point and ho_stock_point_item for the items run of the ERP catalogue (CatalogueEngine).
  * Reads with JPQL projections; each {@link #write} is one transaction, with the change rows of the stores of that point
  * (step 3a, HoCatalogueService.stockPointRowsChanged; nothing when no store has the point).
  */

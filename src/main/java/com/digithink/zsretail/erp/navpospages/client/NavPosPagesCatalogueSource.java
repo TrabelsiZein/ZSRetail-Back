@@ -2,6 +2,10 @@ package com.digithink.zsretail.erp.navpospages.client;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+
 import com.digithink.zsretail.erp.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
@@ -15,13 +19,22 @@ import com.digithink.zsretail.erp.spi.ErpRead;
  * Code cleanup step 3: the thin part of the navpospages connector as the catalogue engine reads it: the "POS pages"
  * (the REST client, or a fake in the tests) through the mapper. The categories page gives the families and the
  * sub-families; the items page is read per point de stock (its Location_Code); the barcode position is the Entry_No.
+ * The source the catalogue engine reads on this connector.
  */
+@Component
+@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
 public class NavPosPagesCatalogueSource implements ErpCatalogueSource {
 
 	private final NavPosPagesSource pages;
 	private final NavPosPagesMapper mapper;
 	private final NavPosPagesProperties properties;
 
+	@Autowired
+	public NavPosPagesCatalogueSource(NavPosPagesSource pages, NavPosPagesProperties properties) {
+		this(pages, new NavPosPagesMapper(properties.getDefaultVat(), properties.getPriceIncludesVat()), properties);
+	}
+
+	/** With a given mapper: used by the tests. */
 	public NavPosPagesCatalogueSource(NavPosPagesSource pages, NavPosPagesMapper mapper,
 			NavPosPagesProperties properties) {
 		this.pages = pages;

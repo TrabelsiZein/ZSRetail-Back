@@ -28,15 +28,18 @@ import com.digithink.zsretail.erp.dynamicsnav.config.DynamicsNavProperties;
 import com.digithink.zsretail.erp.dynamicsnav.connector.DynamicsNavConnector;
 import com.digithink.zsretail.erp.dynamicsnav.mapper.DynamicsNavMapper;
 import com.digithink.zsretail.erp.engine.BootstrapCatalogueImport;
+import com.digithink.zsretail.erp.engine.CatalogueEngine;
 import com.digithink.zsretail.erp.engine.JdbcCatalogueState;
 import com.digithink.zsretail.erp.engine.JpaHeadOfficeCatalogue;
+import com.digithink.zsretail.erp.navpospages.client.NavPosPagesCatalogueSource;
 import com.digithink.zsretail.erp.navpospages.client.NavPosPagesRestClient;
+import com.digithink.zsretail.erp.navpospages.config.NavPosPagesCatalogueSettings;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesConfig;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesStartupCheck;
 import com.digithink.zsretail.erp.navpospages.connector.NavPosPagesConnector;
 import com.digithink.zsretail.erp.navpospages.reader.NavPosPagesReader;
-import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesSync;
+import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesInvoices;
 import com.digithink.zsretail.erp.service.ErpCommunicationService;
 import com.digithink.zsretail.erp.service.ErpItemBootstrapService;
 import com.digithink.zsretail.erp.service.ErpSynchronizationManager;
@@ -68,7 +71,8 @@ class NavPosPagesConnectorTest {
 						DynamicsNavConnector.class, NavPosPagesStartupCheck.class, NavPosPagesProperties.class,
 						NavPosPagesConfig.class, NavPosPagesRestClient.class, NavPosPagesReader.class,
 						NavPosPagesConnector.class, JdbcCatalogueState.class, JpaHeadOfficeCatalogue.class,
-						NavPosPagesSync.class, HoStockPointRows.class, BootstrapCatalogueImport.class,
+						CatalogueEngine.class, NavPosPagesCatalogueSource.class, NavPosPagesCatalogueSettings.class,
+						NavPosPagesInvoices.class, HoStockPointRows.class, BootstrapCatalogueImport.class,
 						ErpSynchronizationManager.class)
 				// Plain singletons: never called here, and not autowired
 				.withInitializer(ctx -> {
@@ -102,7 +106,7 @@ class NavPosPagesConnectorTest {
 	@DisplayName("Every fetch but the catalogue answers an empty list, every push or update a read-only failure")
 	void readOnly() {
 		// Step 6: the four catalogue fetches hand the changes (NavPosPagesSyncTest); every other fetch is empty
-		NavPosPagesConnector connector = new NavPosPagesConnector(null);
+		NavPosPagesConnector connector = new NavPosPagesConnector(null, null);
 		assertTrue(connector.fetchLocations(null).isEmpty());
 		assertTrue(connector.fetchCustomers(null).isEmpty());
 		assertTrue(connector.fetchSalesPrices(null).isEmpty());

@@ -3,7 +3,6 @@ package com.digithink.zsretail.erp.navpospages.connector;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import org.springframework.stereotype.Component;
 
@@ -11,10 +10,6 @@ import com.digithink.zsretail.config.ConditionalOnErpConnector;
 import com.digithink.zsretail.config.ErpConnectorEnvironmentPostProcessor;
 import com.digithink.zsretail.erp.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.dto.ErpDeletionLogEntryDTO;
-import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
-import com.digithink.zsretail.erp.dto.ErpItemDTO;
-import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
-import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
 import com.digithink.zsretail.erp.dto.ErpLocationDTO;
 import com.digithink.zsretail.erp.dto.ErpOperationResult;
 import com.digithink.zsretail.erp.dto.ErpPaymentHeaderDTO;
@@ -28,10 +23,9 @@ import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.dto.ErpSyncFilter;
 import com.digithink.zsretail.erp.dto.ErpTicketDTO;
 import com.digithink.zsretail.erp.dto.ErpTicketLineDTO;
-import com.digithink.zsretail.erp.dto.PullOperationResult;
-import com.digithink.zsretail.erp.engine.CatalogueRun;
-import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesSync;
-import com.digithink.zsretail.erp.spi.ErpConnector;
+import com.digithink.zsretail.erp.engine.CatalogueEngine;
+import com.digithink.zsretail.erp.engine.CatalogueEngineConnector;
+import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesInvoices;
 
 /**
  * ERP catalogue, step 5: the ERP connector of a Dynamics NAV / Business Central whose web services are the "POS pages"
@@ -41,85 +35,41 @@ import com.digithink.zsretail.erp.spi.ErpConnector;
  * the connector in effect; no more {@code @Primary} over NoOpErpConnector).
  * <p>
  * Step 6: the four catalogue fetches (families, sub-families, items, barcodes) take only the changes against the head
- * office tables ({@link NavPosPagesSync}); families and sub-families hand them to the import, the items and barcode runs
- * apply them themselves in packets and hand nothing to the job. The summary of each run is the response written to the
- * communications log ({@link #getLastPullOperationResult()}), never the list. Invoices from the ERP, step (a): the
+ * office tables; code cleanup step 3: they run the shared catalogue engine ({@link CatalogueEngineConnector}), this
+ * connector giving it its pages ({@code NavPosPagesCatalogueSource}) and settings. Invoices from the ERP, step (a): the
  * franchise invoices read by number ({@link #fetchSupplyInvoices}), not run by any job yet. Every other fetch answers an
  * empty list, every push or update a failure.
  */
 @Component
 @ConditionalOnErpConnector(ErpConnectorEnvironmentPostProcessor.NAVPOSPAGES)
-public class NavPosPagesConnector implements ErpConnector {
+public class NavPosPagesConnector extends CatalogueEngineConnector {
 
 	static final String READ_ONLY = "The navpospages ERP connector is read only: it sends nothing to the ERP.";
 
-	/** The summary of the last fetch of this thread, for the communications log (like the Dynamics NAV connector). */
-	private static final ThreadLocal<PullOperationResult<?>> LAST_PULL = new ThreadLocal<>();
+	/** Invoices from the ERP: the thin part of this connector (its invoices page and numbers). */
+	private final NavPosPagesInvoices invoices;
 
-	private final NavPosPagesSync sync;
-
-	public NavPosPagesConnector(NavPosPagesSync sync) {
-		this.sync = sync;
+	public NavPosPagesConnector(CatalogueEngine engine, NavPosPagesInvoices invoices) {
+		super(engine);
+		this.invoices = invoices;
 	}
 
 	/** Code cleanup, step 2: erp.navpospages.invoices.seller-name, read by the head office through the connector. */
 	@Override
 	public String supplyInvoiceSellerName() {
-		return sync.sellerName();
+		return invoices.sellerName();
 	}
 
-	@Override
-	public List<ErpItemFamilyDTO> fetchItemFamilies(ErpSyncFilter filter) {
-		return changes(sync::families);
-	}
-
-	@Override
-	public List<ErpItemSubFamilyDTO> fetchItemSubFamilies(ErpSyncFilter filter) {
-		return changes(sync::subFamilies);
-	}
-
-	/** The items run applies its changes itself, in packets ({@link NavPosPagesSync#items}): nothing left for the job. */
-	@Override
-	public List<ErpItemDTO> fetchItems(ErpSyncFilter filter) {
-		changes(sync::items);
-		return Collections.emptyList();
-	}
-
-	/** The barcode run applies its changes itself, until it has caught up ({@link NavPosPagesSync#barcodes}). */
-	@Override
-	public List<ErpItemBarcodeDTO> fetchItemBarcodes(ErpSyncFilter filter) {
-		changes(sync::barcodes);
-		return Collections.emptyList();
-	}
-
-	/** Invoices from the ERP, step (a): the invoices after the highest number of each year ({@link NavPosPagesSync#invoices}). */
+	/** Invoices from the ERP, step (a): the invoices after the highest number of each year ({@link NavPosPagesInvoices#invoices}). */
 	@Override
 	public List<ErpSupplyInvoiceDTO> fetchSupplyInvoices(Map<String, String> highestByYear) {
-		return changes(() -> sync.invoices(highestByYear));
+		return changes(() -> invoices.invoices(highestByYear));
 	}
 
-	/** 2.2.1: given invoices again, by number ({@link NavPosPagesSync#invoicesByNumbers}). */
+	/** 2.2.1: given invoices again, by number ({@link NavPosPagesInvoices#invoicesByNumbers}). */
 	@Override
 	public List<ErpSupplyInvoiceDTO> fetchSupplyInvoicesByNumbers(List<String> numbers) {
-		return changes(() -> sync.invoicesByNumbers(numbers));
-	}
-
-	/** One run: the rows handed to the import; its summary kept for the communications log. */
-	private <T> List<T> changes(Supplier<CatalogueRun<T>> run) {
-		LAST_PULL.remove();
-		CatalogueRun<T> result = run.get();
-		LAST_PULL.set(new PullOperationResult<>(result.getHanded(), result.getUrl(), result.getSummary()));
-		return result.getHanded();
-	}
-
-	@Override
-	public PullOperationResult<?> getLastPullOperationResult() {
-		return LAST_PULL.get();
-	}
-
-	@Override
-	public void clearLastPullOperationResult() {
-		LAST_PULL.remove();
+		return changes(() -> invoices.invoicesByNumbers(numbers));
 	}
 
 	@Override

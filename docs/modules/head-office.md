@@ -1274,7 +1274,7 @@ navpospages), `NavPosPagesLiveReadTest` (skipped unless `-Dnavpospages.live=true
 `configs/local/happyness_ho.properties`, counts, five rows and the time per page, two barcode pages).
 
 **Step 6: changes only** (`erp/navpospages/sync`). The four catalogue fetches of `NavPosPagesConnector` take only what differs
-between the ERP and the head office tables (`NavPosPagesSync`): the head office tables are the memory of what was seen, so a
+between the ERP and the head office tables (`erp/engine/CatalogueEngine`, was `NavPosPagesSync`): the head office tables are the memory of what was seen, so a
 row the import did not save is taken again at the next run.
 - **Items: every change in one run** (2026-10-08). The items run applies all its changes itself (new, changed, deactivated),
   by code, in packets of `packet-size` (default 500), one after the other, each packet in its own transaction
@@ -1312,7 +1312,7 @@ run, the items that need their barcodes. Not a JPA entity (Hibernate would creat
 SQL when missing, at the start, by `erp/engine/JdbcCatalogueState` (was `JdbcNavPosPagesState`), which exists only with a connector that has the ability `HEAD_OFFICE_STOCK_POINTS` (today `erp.navpospages.enabled=true`). A store or a
 head office without this connector never gets it.
 
-Tests: `NavPosPagesSyncTest` (28: first load with packets (all items in one run, all barcodes in one run), nothing changed,
+Tests: `CatalogueEngineTest` (was `NavPosPagesSyncTest`; 28: first load with packets (all items in one run, all barcodes in one run), nothing changed,
 price change, price 0 then a price, item gone, 96 % gone, empty answer, every change in one run in packets with the summary of
 what was applied, a failed packet then the next run, not twice at once, a blank Description, tax stamp item, barcodes waiting
 for items, an empty barcode table with 3 pages in one run, a page bigger than a packet, a failed barcode packet, a row not
@@ -1349,8 +1349,8 @@ and the starting point come from the General Setup (part D of the fixes after th
 
 | Part | Detail |
 |---|---|
-| `ErpConnector.fetchSupplyInvoices(highestByYear)` | Default: an empty list (every other connector). `NavPosPagesConnector` answers `NavPosPagesSync.invoices`, its summary kept for the communications log like the catalogue fetches |
-| `NavPosPagesSync.invoices(highestByYear)` | For each year from the starting year to this year (release 2.2, part D below), prefix `number-prefix` + 2 digits (`FVV26`): read after the highest number the head office gives for that prefix; without one, after the General Setup number when it is of that year, else from the first invoice of the year. Merged, each number once, by number. Nothing is kept by the connector: the head office's numbers are the memory. Dry run: read and summarised, nothing handed. Summary: run, page, per year `after` and `read`, read, left out, notes, handed |
+| `ErpConnector.fetchSupplyInvoices(highestByYear)` | Default: an empty list (every other connector). `NavPosPagesConnector` answers `NavPosPagesInvoices.invoices`, its summary kept for the communications log like the catalogue fetches |
+| `NavPosPagesInvoices.invoices(highestByYear)` | For each year from the starting year to this year (release 2.2, part D below), prefix `number-prefix` + 2 digits (`FVV26`): read after the highest number the head office gives for that prefix; without one, after the General Setup number when it is of that year, else from the first invoice of the year. Merged, each number once, by number. Nothing is kept by the connector: the head office's numbers are the memory. Dry run: read and summarised, nothing handed. Summary: run, page, per year `after` and `read`, read, left out, notes, handed |
 | `NavPosPagesRestClient.readInvoicesAfter(prefix, after)` | `$filter=startswith(No,'FVV26') and No gt '<after>'` (only `startswith` on a first read; quotes doubled; `No gt` alone would also return the later years: the numbers are compared as text), `$orderby=No`, `$top=max-per-run`, next links followed up to `max-per-run`; `$select=No,<customer-field>,Sell_to_Customer_Name,Document_Date,Posting_Date,Client_Franchise,Prices_Including_VAT`; `$expand=<lines>($select=Document_No,Line_No,Type,No,Description,Quantity,Unit_of_Measure_Code,Unit_Price,Line_Discount_Percent,Line_Amount,Total_Amount_Excl_VAT,Total_VAT_Amount,Total_Amount_Incl_VAT)`. `Unit_Cost_LCY`, `Invoice_Discount_Amount` and `Transferred` are never read. The Happyness page has no `Prices_Including_VAT`: BC answers 400 "Could not find a property named 'Prices_Including_VAT'", the read is made again without it and it is not asked again until the next start; any other 400 (a customer field the page does not have) fails naming the page |
 | `NavPosInvoiceRow` | A header field by field (the customer field and the lines property are settings), read with exact decimals (`41.000` stays `41.000`) |
 | `NavPosPagesMapper.invoices(rows, customerField)` → `ErpSupplyInvoiceDTO` | number, document and posting dates (`0001-01-01`: none), customer number (the configured field), customer name, the three totals **from the first line**, `pricesIncludingVat` (null when the page does not give it), lines (`lineNo`, `type`, `itemCode`, `description`, `quantity` as BigDecimal, `unitOfMeasure`, `unitPrice`, `lineDiscountPercent`, `lineAmount`). `Type` `Item` with an item number: `ITEM` (an item at price 0 is kept); another type with an amount (G/L account...): `OTHER`, no item code; a line without type (a comment, BC writes `" "`; `_x0020_` too) and another type at amount 0: left out (counted). A row without number: left out |
@@ -1362,7 +1362,7 @@ page has `Sell_to_Customer_No` since 2026-10-09 (the NAV team): the invoices are
 
 Tests: `NavPosPagesRestClientTest` (URL, quotes, `startswith` bound, next links, `max-per-run`, the 400 fallback, another 400),
 `NavPosPagesMapperTest` (the invented sample `FactureFranchise.json`: Item lines, comments, `OTHER` lines, totals, warnings,
-the customer field), `NavPosPagesSyncTest` (per year, start number, max per run, dry run, the connector summary),
+the customer field), `NavPosPagesInvoicesTest` (per year, start number, max per run, dry run, the connector summary),
 `NavPosPagesStartupCheckTest`, `NavPosPagesConnectorTest` (the keys bound), `NavPosPagesLiveReadTest#liveReadInvoices`
 (skipped unless `-Dnavpospages.live=true`: years 2021, the default customer field `Sell_to_Customer_No`, GET only).
 
@@ -1438,7 +1438,7 @@ Done (step 1):
   exists at any case, deactivating or deleting a point used by a store, deleting a point that has items (deactivate it).
 - Tests: `HoStockPointServiceTest`, `NavPosPagesStartupCheckTest` (location-code absent or blank accepted).
 
-Done (step 2), the items run (`NavPosPagesSync.items`):
+Done (step 2), the items run (`CatalogueEngine.items`):
 - `erp.navpospages.location-code` is read nowhere any more (the property is gone; a leftover line is ignored). The
   items page is read once per **active** point, in list order (`NavPosPagesSource.readItems(code)`, `$filter=Location_Code
   eq '<code>'`). No active point: the run reads nothing, writes nothing, and its summary says
@@ -1460,7 +1460,7 @@ Done (step 2), the items run (`NavPosPagesSync.items`):
   `{code: {name, read, noAnswer?, new, changed, deactivated, written, durationMs}}` in list order (durationMs: the read
   and the writing of that point's rows). Dry run: read and counted per point, nothing written.
 - Nothing is recorded for the stores (step 3). Families, sub-families, barcodes and invoices unchanged.
-- Tests: `NavPosPagesSyncTest` (the 2.1 cases with one point FRANCHISE; one point's rows equal the items, a second run
+- Tests: `CatalogueEngineTest` (the 2.1 cases with one point FRANCHISE; one point's rows equal the items, a second run
   writes nothing; no point; two points with prices, the first active point, an item of one point only; gone from one
   point; a silent point; a failed read; an inactive point; list order; dry run).
 
@@ -1517,11 +1517,11 @@ Done (step 4), the screens (frontend routes with `meta.erpCatalogue`: menu, guar
   status ALL | ACTIVE | INACTIVE, page, size up to 200; `HoStockPointItemsService`, query
   `HoStockPointItemRepository.findRows`) and `GET admin/headoffice/stock-points/items/{rowId}`. The two permissions are
   given to ADMIN at startup (`ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS`).
-- Tests: `HoStockPointItemsServiceTest`, `NavPosPagesSyncTest.lastReads`, `QueryParameterBindingTest` (the rows query),
+- Tests: `HoStockPointItemsServiceTest`, `CatalogueEngineTest.lastReads`, `QueryParameterBindingTest` (the rows query),
   `ZZDataInitializerRolesTest`.
 
 Fixes after the first test of 2.2 (head office whose catalogue comes from the ERP only):
-- **One job, "Sync catalogue"** (`ErpSyncJobType.SYNC_CATALOGUE`, `NavPosPagesCatalogueJob` through the runner's hook
+- **One job, "Sync catalogue"** (`ErpSyncJobType.SYNC_CATALOGUE`, `erp/engine/CatalogueJob` (was `NavPosPagesCatalogueJob`) through the runner's hook
   `ErpCatalogueSync`): in one run, every family (in packets, again while some are held back), every sub-family, the items
   and the rows of every point de stock, then the barcodes (the barcode run until it has caught up, the barcodes of the
   new items included). Seeded disabled ("0 0 * * * *") only on this head office; the four separate catalogue jobs are
@@ -1573,7 +1573,7 @@ Fixes after the second test of 2.2 (head office whose catalogue comes from the E
   (`NavPosPagesInvoiceSettingCheck`, through `GeneralSetupValueCheck`; the API answers 400 and the screen shows it).
   The two settings are shown on the head office General Setup page (card "Invoices from the ERP"), not on the store
   General Setup page.
-  The years read (`NavPosPagesSync.invoices`): with no invoice saved, from the year of the setting's number (empty: the
+  The years read (`NavPosPagesInvoices.invoices`): with no invoice saved, from the year of the setting's number (empty: the
   year of the oldest invoice on the page, one GET `$top=1`; an empty page reads nothing) to this year, its year after
   the number, the later years from their start; with invoices saved, from the oldest saved year to this year, each
   after its highest saved number, the setting ignored, so changing it reads no old invoice. Summary `startingPoint`.

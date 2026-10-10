@@ -108,7 +108,7 @@ the summary said.
 - Invoices held by 2.2.0 for a quantity not whole (hold reason "is not a whole number", quantity not kept): read again
   from the ERP **by number** at the start of each run (`rereadHeldForDecimals`; `findHeldNumbersWithReason`; the chain
   `ErpSynchronizationManager.pullSupplyInvoicesByNumbers` -> `ErpConnector.fetchSupplyInvoicesByNumbers` (default: none)
-  -> `NavPosPagesSync.invoicesByNumbers` -> `NavPosPagesRestClient.readInvoicesByNumbers`, `$filter=No eq '..' or ...`,
+  -> `NavPosPagesInvoices.invoicesByNumbers` -> `NavPosPagesRestClient.readInvoicesByNumbers`, `$filter=No eq '..' or ...`,
   20 numbers per GET, the same fields and lines). Each is replaced, in its own transaction, by the invoice as read now and
   then assigned like any other. The new reasons never say "not a whole number": read again once. No such invoice: no
   call. Needed because the read after the highest number never returns an invoice below it.
@@ -296,7 +296,7 @@ office page); `InventoryFileReaderTest.decimalsAllowed` / `decimalsNotAllowed`;
 the difference, a 4th decimal refused by row and code), `decimalRefusedWhenSettingOff`, `wholeCountSameEitherWay`;
 `SupplyErpInvoiceRoundTripTest` (a NAV invoice with 1.5 and 0.25 to B: stock, movement, cost per unit, purchase invoice;
 1.2 received of 1.5 shows -0.3 at the head office; setting off refuses; an invoice held by 2.2.0 read again and released),
-`HoErpInvoiceServiceTest.held` (1.2345 held with its reason), `NavPosPagesSyncTest.invoicesByNumbers`,
+`HoErpInvoiceServiceTest.held` (1.2345 held with its reason), `NavPosPagesInvoicesTest.invoicesByNumbers`,
 `SupplyCopyCompatibilityTest` (whole quantities: the JSON of 2.2.0). Step 5: `DecimalSafetyNetTest` (reports, dashboard,
 return screen line, invoice and composition refusals, the Excel import by row, item and buy X get Y promotions, the guard
 and its 400, the global setting unchanged), `TaxStampRuleTest` (true, TRUE, 1; no item), `AppConfigAPITest`

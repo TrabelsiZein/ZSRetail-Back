@@ -1,4 +1,4 @@
-package com.digithink.zsretail.erp.navpospages;
+package com.digithink.zsretail.erp.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -34,6 +34,7 @@ import com.digithink.zsretail.erp.engine.CatalogueImport;
 import com.digithink.zsretail.erp.engine.CatalogueRun;
 import com.digithink.zsretail.erp.engine.CatalogueState;
 import com.digithink.zsretail.erp.engine.HeadOfficeCatalogue;
+import com.digithink.zsretail.erp.navpospages.NavPosPagesFixture;
 import com.digithink.zsretail.erp.navpospages.client.NavPosPagesSource;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.connector.NavPosPagesConnector;
@@ -42,128 +43,19 @@ import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCollection;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
-import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesCatalogueJob;
-import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesSync;
 import com.digithink.zsretail.erp.service.ErpSyncWarningException;
 import com.digithink.zsretail.erp.spi.StockPoints;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.node.TextNode;
 
+
 /**
- * ERP catalogue, step 6: changes only, on the samples of src/test/resources/navpospages. The head office tables are a
- * fake that applies what the import (ErpItemBootstrapService) applies; the ERP a fake source; the state table a map.
- * No live call.
+ * ERP catalogue, step 6: changes only, on the samples of src/test/resources/navpospages: the catalogue engine, its
+ * stock points and its single job, fed the page rows of the navpospages connector through its adapter
+ * ({@link NavPosPagesFixture}). Code cleanup step 3: the catalogue tests of NavPosPagesSyncTest, moved with the engine,
+ * same expectations.
  */
-class NavPosPagesSyncTest {
-
-	private FakeSource erp;
-	private FakeHeadOffice headOffice;
-	private FakeState state;
-	private FakeStockPoints stockPoints;
-	private NavPosPagesProperties properties;
-	private NavPosPagesSync sync;
-	/** The size of each packet of items applied, in order. */
-	private final List<Integer> packets = new ArrayList<>();
-	/** The n-th packet of items from now fails, its transaction rolled back (0: none fails). */
-	private int failAtPacket;
-	/** Runs inside each packet of items, before it is applied. */
-	private Runnable duringPacket = () -> {
-	};
-	/** The same three for the packets of barcodes. */
-	private final List<Integer> barcodePackets = new ArrayList<>();
-	private int failAtBarcodePacket;
-	private Runnable duringBarcodePacket = () -> {
-	};
-	/** Barcodes the import leaves out without failing (as the real one does with a warning). */
-	private final Set<String> notSaving = new HashSet<>();
-
-	@BeforeEach
-	void setUp() {
-		erp = new FakeSource();
-		erp.categories = NavPosPagesTestSupport.rows("ItemCategory", new TypeReference<NavPosCollection<NavPosCategoryRow>>() {
-		});
-		erp.items = NavPosPagesTestSupport.rows("PointStockPOS", new TypeReference<NavPosCollection<NavPosStockRow>>() {
-		});
-		erp.barcodes = NavPosPagesTestSupport.rows("ItemBarCodePOS", new TypeReference<NavPosCollection<NavPosBarcodeRow>>() {
-		});
-		headOffice = new FakeHeadOffice();
-		state = new FakeState();
-		stockPoints = new FakeStockPoints();
-		stockPoints.points.add(new StockPoints.Point(1, "FRANCHISE", "Franchise")); // release 2.2: one point
-		properties = NavPosPagesTestSupport.properties();
-		sync = new NavPosPagesSync(erp, headOffice, stockPoints, state, properties, new CatalogueImport() {
-			@Override
-			public void items(List<ErpItemDTO> packet) {
-				duringPacket.run();
-				if (failAtPacket > 0 && --failAtPacket == 0) {
-					throw new IllegalStateException("connection lost");
-				}
-				headOffice.importItems(packet);
-				packets.add(packet.size());
-			}
-
-			@Override
-			public void barcodes(List<ErpItemBarcodeDTO> packet) {
-				duringBarcodePacket.run();
-				if (failAtBarcodePacket > 0 && --failAtBarcodePacket == 0) {
-					throw new IllegalStateException("connection lost");
-				}
-				headOffice.importBarcodes(packet.stream().filter(dto -> !notSaving.contains(dto.getBarcode()))
-						.collect(Collectors.toList()));
-				barcodePackets.add(packet.size());
-			}
-		});
-	}
-
-	// ─── Running the four jobs, the import applying what it is handed ────
-
-	private CatalogueRun<ErpItemFamilyDTO> families() {
-		CatalogueRun<ErpItemFamilyDTO> run = sync.families();
-		headOffice.importFamilies(run.getHanded());
-		return run;
-	}
-
-	private CatalogueRun<ErpItemSubFamilyDTO> subFamilies() {
-		CatalogueRun<ErpItemSubFamilyDTO> run = sync.subFamilies();
-		headOffice.importSubFamilies(run.getHanded());
-		return run;
-	}
-
-	/** The items run applies its packets itself. */
-	private CatalogueRun<ErpItemDTO> items() {
-		return sync.items();
-	}
-
-	/** The barcode run applies its packets itself, until it has caught up. */
-	private CatalogueRun<ErpItemBarcodeDTO> barcodes() {
-		return sync.barcodes();
-	}
-
-	private static List<String> barcodeValues(CatalogueRun<ErpItemBarcodeDTO> run) {
-		return run.getHanded().stream().map(ErpItemBarcodeDTO::getBarcode).collect(Collectors.toList());
-	}
-
-	/** Families, sub-families and every item at the head office (no cap reached). */
-	private void loadCatalogue() {
-		families();
-		subFamilies();
-		items();
-		assertEquals(0, items().getHanded().size());
-	}
-
-	/** The whole catalogue and every barcode. */
-	private void loadAll() {
-		loadCatalogue();
-		assertEquals(Boolean.TRUE, barcodes().getSummary().get("caughtUp"));
-	}
-
-	private static List<String> codes(List<ErpItemDTO> items) {
-		return items.stream().map(ErpItemDTO::getCode).collect(Collectors.toList());
-	}
-
-	private NavPosStockRow erpItem(String code) {
-		return erp.items.stream().filter(row -> row.getItemNo().equals(code)).findFirst().get();
-	}
+class CatalogueEngineTest extends NavPosPagesFixture {
 
 	// ─── First load ─────────────────────────────────────────────
 
@@ -173,11 +65,11 @@ class NavPosPagesSyncTest {
 		properties.setPacketSize(20);
 		properties.setBarcodePageSize(15);
 
-		CatalogueRun<ErpItemSubFamilyDTO> early = sync.subFamilies();
+		CatalogueRun<ErpItemSubFamilyDTO> early = engine.subFamilies();
 		assertEquals("waiting for families: 13 families of the ERP not at the head office yet",
 				early.getSummary().get("waiting"));
-		assertTrue(sync.items().getHanded().isEmpty());
-		assertEquals("waiting for items: no items run yet", sync.barcodes().getSummary().get("waiting"));
+		assertTrue(engine.items().getHanded().isEmpty());
+		assertEquals("waiting for items: no items run yet", engine.barcodes().getSummary().get("waiting"));
 
 		CatalogueRun<ErpItemFamilyDTO> f = families();
 		assertEquals(13, f.getHanded().size());
@@ -188,7 +80,7 @@ class NavPosPagesSyncTest {
 		assertEquals(20, s1.getHanded().size());
 		assertEquals(14, s1.count("heldBackByCap"));
 		assertEquals("waiting for sub-families: 14 sub-families of the ERP not at the head office yet",
-				sync.items().getSummary().get("waiting"), "items wait while sub-families are not all saved");
+				engine.items().getSummary().get("waiting"), "items wait while sub-families are not all saved");
 		assertEquals(14, subFamilies().getHanded().size());
 		assertEquals(0, subFamilies().getHanded().size());
 
@@ -366,14 +258,14 @@ class NavPosPagesSyncTest {
 				failure.getMessage());
 		assertEquals(20, headOffice.items.size(), "the first packet stays");
 		assertEquals("50", state.get("items.pending"), "counted before applying: the barcodes wait");
-		assertTrue(sync.barcodes().getSummary().containsKey("waiting"));
+		assertTrue(engine.barcodes().getSummary().containsKey("waiting"));
 
 		CatalogueRun<ErpItemDTO> next = items();
 		assertEquals(30, next.count("new"));
 		assertEquals(Arrays.asList(20, 20, 10), packets);
 		assertEquals(50, headOffice.items.size());
 		assertEquals("0", state.get("items.pending"));
-		assertFalse(sync.barcodes().getSummary().containsKey("waiting"));
+		assertFalse(engine.barcodes().getSummary().containsKey("waiting"));
 	}
 
 	@Test
@@ -382,7 +274,7 @@ class NavPosPagesSyncTest {
 		families();
 		subFamilies();
 		List<String> refused = new ArrayList<>();
-		duringPacket = () -> refused.add(assertThrows(ErpSyncWarningException.class, sync::items).getMessage());
+		duringPacket = () -> refused.add(assertThrows(ErpSyncWarningException.class, engine::items).getMessage());
 		items();
 		assertEquals(Arrays.asList("an items run is already running: this one does not start"), refused);
 		assertEquals(50, headOffice.items.size(), "the running one ends normally");
@@ -429,7 +321,7 @@ class NavPosPagesSyncTest {
 		subFamilies();
 		CatalogueRun<ErpItemDTO> run = items();
 		assertFalse(codes(run.getHanded()).contains("000001"));
-		assertEquals(Integer.valueOf(1), ((Map<?, ?>) run.getSummary().get("leftOut")).get(NavPosPagesSync.TAX_STAMP_ITEM));
+		assertEquals(Integer.valueOf(1), ((Map<?, ?>) run.getSummary().get("leftOut")).get(CatalogueEngine.TAX_STAMP_ITEM));
 		assertEquals("0", state.get("items.pending"), "counted once applied, without it: the barcodes never wait for it");
 	}
 
@@ -442,11 +334,11 @@ class NavPosPagesSyncTest {
 		families();
 		subFamilies(); // 30 of 34
 		subFamilies();
-		CatalogueRun<ErpItemBarcodeDTO> noRun = sync.barcodes();
+		CatalogueRun<ErpItemBarcodeDTO> noRun = engine.barcodes();
 		assertEquals("waiting for items: no items run yet", noRun.getSummary().get("waiting"));
 		failAtPacket = 2;
 		assertThrows(IllegalStateException.class, this::items); // 30 of 50 saved
-		CatalogueRun<ErpItemBarcodeDTO> pending = sync.barcodes();
+		CatalogueRun<ErpItemBarcodeDTO> pending = engine.barcodes();
 		assertEquals("waiting for items: 50 new items not at the head office yet", pending.getSummary().get("waiting"));
 		assertTrue(pending.getHanded().isEmpty());
 		assertNull(state.get("barcodes.cursor"));
@@ -474,7 +366,7 @@ class NavPosPagesSyncTest {
 		assertEquals(Long.valueOf(5000), run.getSummary().get("cursorTo"));
 		assertEquals("5000", state.get("barcodes.cursor"));
 		assertEquals(Integer.valueOf(4),
-				((Map<?, ?>) run.getSummary().get("leftOut")).get(NavPosPagesSync.ITEM_NOT_AT_HEAD_OFFICE));
+				((Map<?, ?>) run.getSummary().get("leftOut")).get(CatalogueEngine.ITEM_NOT_AT_HEAD_OFFICE));
 		assertEquals("000002", headOffice.barcodes.get("B2").itemCode);
 		for (String gone : new String[] { "handed", "toHand", "heldBackByCap" }) {
 			assertFalse(run.getSummary().containsKey(gone), gone + " in " + run.getSummary());
@@ -621,7 +513,7 @@ class NavPosPagesSyncTest {
 	void barcodesNotTwiceAtOnce() {
 		loadCatalogue();
 		List<String> refused = new ArrayList<>();
-		duringBarcodePacket = () -> refused.add(assertThrows(ErpSyncWarningException.class, sync::barcodes).getMessage());
+		duringBarcodePacket = () -> refused.add(assertThrows(ErpSyncWarningException.class, engine::barcodes).getMessage());
 		assertEquals(Boolean.TRUE, barcodes().getSummary().get("caughtUp"));
 		assertEquals(Arrays.asList("a barcode run is already running: this one does not start"), refused);
 		assertEquals(49, headOffice.barcodes.size());
@@ -693,7 +585,7 @@ class NavPosPagesSyncTest {
 	@DisplayName("Dry run: reads, compares and summarises; hands nothing; the state table is not touched")
 	void dryRun() {
 		properties.setDryRun(true);
-		CatalogueRun<ErpItemFamilyDTO> f = sync.families();
+		CatalogueRun<ErpItemFamilyDTO> f = engine.families();
 		assertTrue(f.getHanded().isEmpty());
 		assertEquals(13, f.count("new"));
 		assertEquals(0, f.count("handed"));
@@ -705,12 +597,12 @@ class NavPosPagesSyncTest {
 		erpItem("000001").setUnitPrice(new BigDecimal("9"));
 		Map<String, String> before = new HashMap<>(state.values);
 		properties.setDryRun(true);
-		CatalogueRun<ErpItemDTO> items = sync.items();
+		CatalogueRun<ErpItemDTO> items = engine.items();
 		assertTrue(items.getHanded().isEmpty());
 		assertEquals(1, items.count("changed"));
 		properties.setBarcodePageSize(15);
 		properties.setPacketSize(20);
-		CatalogueRun<ErpItemBarcodeDTO> barcodes = sync.barcodes();
+		CatalogueRun<ErpItemBarcodeDTO> barcodes = engine.barcodes();
 		assertTrue(barcodes.getHanded().isEmpty());
 		assertEquals(49, barcodes.count("toApply"), "read to the last page");
 		assertEquals(0, barcodes.count("applied"));
@@ -720,188 +612,6 @@ class NavPosPagesSyncTest {
 		assertTrue(barcodePackets.isEmpty(), "nothing imported");
 		assertTrue(headOffice.barcodes.isEmpty());
 		assertEquals(before, state.values);
-	}
-
-	@Test
-	@DisplayName("The connector hands the run and keeps only its summary for the communications log")
-	void connectorSummary() {
-		NavPosPagesConnector connector = new NavPosPagesConnector(sync);
-		List<ErpItemFamilyDTO> handed = connector.fetchItemFamilies(null);
-		assertEquals(13, handed.size());
-		PullOperationResult<?> log = connector.getLastPullOperationResult();
-		assertEquals(NavPosPagesTestSupport.COMPANY_URL + "ItemCategory", log.getUrl());
-		Map<?, ?> summary = (Map<?, ?>) log.getRawResponse();
-		assertEquals("families", summary.get("run"));
-		assertEquals(50, summary.get("read"));
-		assertEquals(13, summary.get("handed"));
-		assertFalse(summary.values().stream().anyMatch(value -> value instanceof Collection), "never the list");
-		connector.clearLastPullOperationResult();
-		assertNull(connector.getLastPullOperationResult());
-	}
-
-	@Test
-	@DisplayName("The connector's items fetch applies the run and hands nothing more to the job; the summary says what was applied")
-	void connectorItemsApplied() {
-		families();
-		subFamilies();
-		NavPosPagesConnector connector = new NavPosPagesConnector(sync);
-		assertTrue(connector.fetchItems(null).isEmpty(), "already applied, packet after packet");
-		assertEquals(50, headOffice.items.size());
-		Map<?, ?> summary = (Map<?, ?>) connector.getLastPullOperationResult().getRawResponse();
-		assertEquals("items", summary.get("run"));
-		assertEquals(50, summary.get("new"));
-		assertEquals(50, summary.get("applied"));
-		assertEquals(1, summary.get("packets"));
-		assertFalse(summary.values().stream().anyMatch(value -> value instanceof Collection), "never the list");
-
-		assertTrue(connector.fetchItemBarcodes(null).isEmpty(), "the barcode run too: applied until caught up");
-		assertEquals(49, headOffice.barcodes.size());
-		Map<?, ?> barcodes = (Map<?, ?>) connector.getLastPullOperationResult().getRawResponse();
-		assertEquals("barcodes", barcodes.get("run"));
-		assertEquals(49, barcodes.get("applied"));
-		assertEquals(Boolean.TRUE, barcodes.get("caughtUp"));
-	}
-
-	// ─── Invoices from the ERP, step (a) ────────────────────────
-
-	private static NavPosInvoiceRow invoice(String number) {
-		NavPosInvoiceRow row = new NavPosInvoiceRow();
-		row.set("No", TextNode.valueOf(number));
-		row.set("Sell_to_Customer_No", TextNode.valueOf("C-1"));
-		return row.resolveLines("FactureFranchiseSalesInvLines");
-	}
-
-	private static List<String> numbers(List<ErpSupplyInvoiceDTO> invoices) {
-		return invoices.stream().map(ErpSupplyInvoiceDTO::getNumber).collect(Collectors.toList());
-	}
-
-	/** The ERP's invoices of 2024, 2025 and 2026; today is 2026-10-09. */
-	private void invoicesOfTheErp() {
-		for (String number : new String[] { "FVV24000000009", "FVV25000000001", "FVV25000000002", "FVV25000000003",
-				"FVV26000000001", "FVV26000000002" }) {
-			erp.invoices.add(invoice(number));
-		}
-		sync.setToday(() -> java.time.LocalDate.of(2026, 10, 9));
-	}
-
-	private static Map<String, String> highest(String... prefixAndNumber) {
-		Map<String, String> highest = new HashMap<>();
-		for (int i = 0; i < prefixAndNumber.length; i += 2) {
-			highest.put(prefixAndNumber[i], prefixAndNumber[i + 1]);
-		}
-		return highest;
-	}
-
-	@Test
-	@DisplayName("2.2.1: invoices read again by number (held by 2.2.0 for a decimal): only those, with the year prefix of their number")
-	void invoicesByNumbers() {
-		invoicesOfTheErp();
-		CatalogueRun<ErpSupplyInvoiceDTO> run = sync.invoicesByNumbers(Arrays.asList("FVV25000000002", "FVV26000000001",
-				"FVV26999999999"));
-		assertEquals(Arrays.asList("numbers [FVV25000000002, FVV26000000001, FVV26999999999]"), erp.invoiceReads);
-		assertEquals(Arrays.asList("FVV25000000002", "FVV26000000001"), numbers(run.getHanded()),
-				"a number the page no longer has is not in the answer");
-		assertEquals(Arrays.asList("FVV25", "FVV26"),
-				run.getHanded().stream().map(ErpSupplyInvoiceDTO::getYearPrefix).collect(Collectors.toList()));
-		assertEquals(3, run.getSummary().get("readAgain"));
-
-		erp.invoiceReads.clear();
-		assertTrue(sync.invoicesByNumbers(new ArrayList<>()).getHanded().isEmpty());
-		assertTrue(erp.invoiceReads.isEmpty(), "no number: no GET");
-	}
-
-	@Test
-	@DisplayName("Invoices, setting empty and nothing saved: from the year of the oldest invoice on the page up to this year; an empty page reads nothing")
-	void invoicesSettingEmpty() {
-		invoicesOfTheErp();
-		CatalogueRun<ErpSupplyInvoiceDTO> run = sync.invoices(new HashMap<>());
-		assertEquals(Arrays.asList("first FVV", "FVV24 after null", "FVV25 after null", "FVV26 after null"), erp.invoiceReads);
-		assertEquals(Arrays.asList("FVV24000000009", "FVV25000000001", "FVV25000000002", "FVV25000000003",
-				"FVV26000000001", "FVV26000000002"), numbers(run.getHanded()));
-		assertEquals("the oldest invoice on the page: FVV24000000009", run.getSummary().get("startingPoint"));
-
-		erp.invoices.clear();
-		erp.invoiceReads.clear();
-		CatalogueRun<ErpSupplyInvoiceDTO> empty = sync.invoices(null);
-		assertTrue(empty.getHanded().isEmpty());
-		assertEquals(Arrays.asList("first FVV"), erp.invoiceReads, "one GET, no year read");
-		assertEquals("no invoice on the page", empty.getSummary().get("startingPoint"));
-	}
-
-	@Test
-	@DisplayName("Invoices, a starting number and nothing saved: its year after it, the next years from their start; an older year never")
-	void invoicesStartingNumber() {
-		invoicesOfTheErp();
-		headOffice.invoicesReadAfter = "FVV25000000001";
-		CatalogueRun<ErpSupplyInvoiceDTO> run = sync.invoices(new HashMap<>());
-		assertEquals(Arrays.asList("FVV25 after FVV25000000001", "FVV26 after null"), erp.invoiceReads);
-		assertEquals(Arrays.asList("FVV25000000002", "FVV25000000003", "FVV26000000001", "FVV26000000002"),
-				numbers(run.getHanded()));
-		assertEquals("FVV25", run.getHanded().get(0).getYearPrefix(), "the prefix of its read (step b)");
-		assertEquals("after FVV25000000001 (General Setup)", run.getSummary().get("startingPoint"));
-	}
-
-	@Test
-	@DisplayName("Invoices, some saved: each year after its highest number from the oldest saved year; the setting, even changed, reads no old invoice")
-	void invoicesAfterSaved() {
-		invoicesOfTheErp();
-		headOffice.invoicesReadAfter = "FVV24000000001"; // changed to an older number after the go-live
-		CatalogueRun<ErpSupplyInvoiceDTO> run = sync.invoices(highest("FVV25", "FVV25000000001", "FVV26", "FVV26000000001"));
-		assertEquals(Arrays.asList("FVV25 after FVV25000000001", "FVV26 after FVV26000000001"), erp.invoiceReads);
-		assertEquals(Arrays.asList("FVV25000000002", "FVV25000000003", "FVV26000000002"), numbers(run.getHanded()));
-		assertEquals("C-1", run.getHanded().get(0).getCustomerNo());
-		assertEquals("FVV26", run.getHanded().get(2).getYearPrefix());
-		assertEquals(3, run.count("read"));
-		assertEquals(3, run.count("handed"));
-		Map<?, ?> years = (Map<?, ?>) run.getSummary().get("years");
-		assertEquals("{after=FVV26000000001, read=1}", String.valueOf(years.get("FVV26")));
-		assertEquals("{after=FVV25000000001, read=2}", String.valueOf(years.get("FVV25")));
-		assertEquals(NavPosPagesTestSupport.COMPANY_URL + "FactureFranchise", run.getUrl());
-
-		erp.invoiceReads.clear();
-		assertTrue(sync.invoices(highest("FVV25", "FVV25000000003")).getHanded().size() == 2, "2026 from its start");
-		assertEquals(Arrays.asList("FVV25 after FVV25000000003", "FVV26 after null"), erp.invoiceReads);
-	}
-
-	@Test
-	@DisplayName("Invoices: at most max-per-run per year")
-	void invoicesMaxPerRun() {
-		invoicesOfTheErp();
-		properties.getInvoices().setMaxPerRun(1);
-		assertEquals(Arrays.asList("FVV24000000009", "FVV25000000001", "FVV26000000001"),
-				numbers(sync.invoices(null).getHanded()));
-	}
-
-	@Test
-	@DisplayName("Invoices: a number's year (FVV26... is 2026) and what looks like an invoice number")
-	void invoiceNumbers() {
-		NavPosPagesProperties.Invoices settings = properties.getInvoices();
-		assertEquals(Integer.valueOf(2026), settings.yearOf("FVV26000000123"));
-		assertEquals(null, settings.yearOf("FA26000000123"));
-		assertEquals(null, settings.yearOf("FVVX6"));
-		assertTrue(settings.looksLikeNumber(" FVV26000000123 "));
-		for (String wrong : new String[] { "FVV26", "26000000123", "FVV2600A", "FA26000000123", "" }) {
-			assertFalse(settings.looksLikeNumber(wrong), wrong);
-		}
-	}
-
-	@Test
-	@DisplayName("Invoices: dry run reads and summarises, hands nothing; the connector keeps the summary, never the list")
-	void invoicesDryRunAndConnector() {
-		invoicesOfTheErp();
-		properties.setDryRun(true);
-		CatalogueRun<ErpSupplyInvoiceDTO> dry = sync.invoices(null);
-		assertTrue(dry.getHanded().isEmpty());
-		assertEquals(6, dry.count("read"));
-		assertEquals(0, dry.count("handed"));
-
-		properties.setDryRun(false);
-		NavPosPagesConnector connector = new NavPosPagesConnector(sync);
-		assertEquals(6, connector.fetchSupplyInvoices(null).size());
-		Map<?, ?> summary = (Map<?, ?>) connector.getLastPullOperationResult().getRawResponse();
-		assertEquals("invoices", summary.get("run"));
-		assertEquals(6, summary.get("handed"));
-		assertFalse(summary.values().stream().anyMatch(value -> value instanceof Collection), "never the list");
 	}
 
 	// ─── Stock points (release 2.2, step 2) ─────────────────────
@@ -980,7 +690,7 @@ class NavPosPagesSyncTest {
 		stockPoints.points.clear();
 		CatalogueRun<ErpItemDTO> run = items();
 		assertTrue(run.getHanded().isEmpty());
-		assertEquals(NavPosPagesSync.NO_STOCK_POINT, run.getSummary().get("waiting"));
+		assertEquals(CatalogueEngine.NO_STOCK_POINT, run.getSummary().get("waiting"));
 		assertTrue(erp.pointReads.isEmpty());
 		assertTrue(headOffice.items.isEmpty());
 		assertNull(state.get("items.run"));
@@ -1159,8 +869,8 @@ class NavPosPagesSyncTest {
 	/** The rows the job writes to the communications log: status, message, summary. */
 	private final List<Object[]> logged = new ArrayList<>();
 
-	/** The job on this sync; families and sub-families applied by the fake import. */
-	private NavPosPagesCatalogueJob job() {
+	/** The job on this engine; families and sub-families applied by the fake import. */
+	private CatalogueJob job() {
 		CatalogueImport categories = new CatalogueImport() {
 			@Override
 			public void items(List<ErpItemDTO> packet) {
@@ -1182,7 +892,7 @@ class NavPosPagesSyncTest {
 				headOffice.importSubFamilies(packet);
 			}
 		};
-		return new NavPosPagesCatalogueJob(sync, categories, stockPoints, properties,
+		return new CatalogueJob(engine, categories, stockPoints,
 				(status, summary, message, start, end) -> logged.add(new Object[] { status, message, summary }));
 	}
 
@@ -1221,7 +931,7 @@ class NavPosPagesSyncTest {
 	void catalogueJobNoPoint() {
 		stockPoints.points.clear();
 		ErpSyncWarningException warning = assertThrows(ErpSyncWarningException.class, () -> job().syncCatalogue());
-		assertEquals(NavPosPagesSync.NO_STOCK_POINT, warning.getMessage());
+		assertEquals(CatalogueEngine.NO_STOCK_POINT, warning.getMessage());
 		assertEquals("No point de stock: create one in Catalogue > Points de stock, then run the job again.",
 				warning.getMessage());
 		assertEquals(com.digithink.zsretail.erp.enumeration.ErpCommunicationStatus.WARNING, logged.get(0)[0]);
@@ -1268,7 +978,7 @@ class NavPosPagesSyncTest {
 	void catalogueJobWarnings() {
 		properties.setDryRun(true);
 		ErpSyncWarningException dry = assertThrows(ErpSyncWarningException.class, () -> job().syncCatalogue());
-		assertTrue(dry.getMessage().contains(NavPosPagesCatalogueJob.DRY_RUN), dry.getMessage());
+		assertTrue(dry.getMessage().contains(CatalogueJob.DRY_RUN), dry.getMessage());
 
 		properties.setDryRun(false);
 		job().syncCatalogue();
@@ -1279,251 +989,4 @@ class NavPosPagesSyncTest {
 				logged.get(logged.size() - 1)[0]);
 	}
 
-	// ─── Fakes ──────────────────────────────────────────────────
-
-	private static HeadOfficeCatalogue.Item item(String code, String erpId, boolean active) {
-		return new HeadOfficeCatalogue.Item(code, code, "", 1.0, 19, active, erpId, null, null, null, null);
-	}
-
-	/** The ERP: the three pages in memory; barcodes by Entry_No in pages of barcode-page-size. */
-	final class FakeSource implements NavPosPagesSource {
-		List<NavPosCategoryRow> categories = new ArrayList<>();
-		List<NavPosStockRow> items = new ArrayList<>();
-		List<NavPosBarcodeRow> barcodes = new ArrayList<>();
-		List<String> askedItems = new ArrayList<>();
-
-		@Override
-		public List<NavPosCategoryRow> readCategories() {
-			return new ArrayList<>(categories);
-		}
-
-		/** Stock points: the rows of the other points by code (any other code answers items), the codes read, those that fail. */
-		Map<String, List<NavPosStockRow>> otherPoints = new HashMap<>();
-		List<String> pointReads = new ArrayList<>();
-		Set<String> failingPoints = new HashSet<>();
-
-		@Override
-		public List<NavPosStockRow> readItems(String locationCode) {
-			pointReads.add(locationCode);
-			if (failingPoints.contains(locationCode)) {
-				throw new IllegalStateException("reading the page PointStockPOS failed: timeout");
-			}
-			return new ArrayList<>(otherPoints.getOrDefault(locationCode, items));
-		}
-
-		/** Code cleanup step 3 proof: when set, the barcode pages by Entry_No (a null Entry_No allowed); else the list. */
-		java.util.function.Function<Long, List<NavPosBarcodeRow>> barcodePages;
-
-		@Override
-		public List<NavPosBarcodeRow> readBarcodesAfter(long entryNo) {
-			if (barcodePages != null) {
-				return new ArrayList<>(barcodePages.apply(entryNo));
-			}
-			return barcodes.stream().filter(row -> row.getEntryNo() > entryNo)
-					.sorted(Comparator.comparing(NavPosBarcodeRow::getEntryNo)).limit(properties.getBarcodePageSize())
-					.collect(Collectors.toList());
-		}
-
-		@Override
-		public List<NavPosBarcodeRow> readBarcodesOfItems(List<String> itemNos) {
-			askedItems.addAll(itemNos);
-			return barcodes.stream().filter(row -> itemNos.contains(row.getItemNo())).collect(Collectors.toList());
-		}
-
-		/** Invoices from the ERP: the invoices page, by number; each read written "FVV26 after FVV26000000001". */
-		List<NavPosInvoiceRow> invoices = new ArrayList<>();
-		List<String> invoiceReads = new ArrayList<>();
-
-		/** Release 2.2: the lowest number of the page with this prefix; written "first FVV" in invoiceReads. */
-		@Override
-		public String readFirstInvoiceNumber(String numberPrefix) {
-			invoiceReads.add("first " + numberPrefix);
-			return invoices.stream().map(row -> row.text("No")).filter(no -> no.startsWith(numberPrefix)).sorted()
-					.findFirst().orElse(null);
-		}
-
-		@Override
-		public List<NavPosInvoiceRow> readInvoicesAfter(String yearPrefix, String afterNumber) {
-			invoiceReads.add(yearPrefix + " after " + afterNumber);
-			return invoices.stream().filter(row -> row.text("No").startsWith(yearPrefix))
-					.filter(row -> afterNumber == null || row.text("No").compareTo(afterNumber) > 0)
-					.sorted(Comparator.comparing(row -> row.text("No")))
-					.limit(properties.getInvoices().getMaxPerRun()).collect(Collectors.toList());
-		}
-
-		@Override
-		public List<NavPosInvoiceRow> readInvoicesByNumbers(List<String> numbers) {
-			invoiceReads.add("numbers " + numbers);
-			return invoices.stream().filter(row -> numbers.contains(row.text("No")))
-					.sorted(Comparator.comparing(row -> row.text("No"))).collect(Collectors.toList());
-		}
-
-		@Override
-		public String pageUrl(String page) {
-			return NavPosPagesTestSupport.COMPANY_URL + page;
-		}
-	}
-
-	/** The head office tables, and the import as ErpItemBootstrapService applies it. */
-	static final class FakeHeadOffice implements HeadOfficeCatalogue {
-		final Map<String, Family> families = new TreeMap<>();
-		final Map<String, SubFamily> subFamilies = new TreeMap<>();
-		final Map<String, Item> items = new TreeMap<>();
-		final Map<String, Barcode> barcodes = new TreeMap<>();
-		String taxStamp;
-		/** Release 2.2: General Setup "Read ERP invoices after number"; null when empty. */
-		String invoicesReadAfter;
-
-		@Override
-		public String invoicesReadAfter() {
-			return invoicesReadAfter;
-		}
-
-		@Override
-		public Map<String, Family> families() {
-			return new LinkedHashMap<>(families);
-		}
-
-		@Override
-		public Map<String, SubFamily> subFamilies() {
-			return new LinkedHashMap<>(subFamilies);
-		}
-
-		@Override
-		public Map<String, Item> items() {
-			return new LinkedHashMap<>(items);
-		}
-
-		@Override
-		public Map<String, Barcode> barcodes(Collection<String> values) {
-			Map<String, Barcode> found = new LinkedHashMap<>();
-			values.stream().filter(barcodes::containsKey).forEach(value -> found.put(value, barcodes.get(value)));
-			return found;
-		}
-
-		@Override
-		public String taxStampErpCode() {
-			return taxStamp;
-		}
-
-		void importFamilies(List<ErpItemFamilyDTO> handed) {
-			for (ErpItemFamilyDTO dto : handed) {
-				families.put(dto.getCode(), new Family(dto.getCode(), name(dto.getName(), dto.getCode()),
-						text(dto.getDescription()), dto.getActive(), dto.getExternalId()));
-			}
-		}
-
-		void importSubFamilies(List<ErpItemSubFamilyDTO> handed) {
-			for (ErpItemSubFamilyDTO dto : handed) {
-				if (dto.getFamilyExternalId() != null && families.containsKey(dto.getFamilyExternalId())) { // otherwise skipped
-					subFamilies.put(dto.getCode(), new SubFamily(dto.getCode(), name(dto.getName(), dto.getCode()),
-							text(dto.getDescription()), dto.getActive(), dto.getExternalId(), dto.getFamilyExternalId()));
-				}
-			}
-		}
-
-		void importItems(List<ErpItemDTO> handed) {
-			for (ErpItemDTO dto : handed) {
-				if (taxStamp != null && dto.getCode().equals(taxStamp)) {
-					continue;
-				}
-				Item before = items.get(dto.getCode());
-				String family = dto.getFamilyExternalId() != null && families.containsKey(dto.getFamilyExternalId())
-						? dto.getFamilyExternalId()
-						: before == null ? null : before.familyCode;
-				String subFamily = dto.getSubFamilyExternalId() != null && subFamilies.containsKey(dto.getSubFamilyExternalId())
-						? dto.getSubFamilyExternalId()
-						: before == null ? null : before.subFamilyCode;
-				items.put(dto.getCode(), new Item(dto.getCode(), name(dto.getName(), dto.getCode()),
-						text(dto.getDescription()), dto.getUnitPrice() == null ? null : dto.getUnitPrice().doubleValue(),
-						dto.getDefaultVAT(), dto.getActive(), dto.getExternalId(), text(dto.getItemDiscGroup()),
-						dto.getMaximumAuthorizedDiscount(), family, subFamily));
-			}
-		}
-
-		void importBarcodes(List<ErpItemBarcodeDTO> handed) {
-			for (ErpItemBarcodeDTO dto : handed) {
-				if (items.containsKey(dto.getItemExternalId())) {
-					barcodes.put(dto.getBarcode(), new Barcode(dto.getBarcode(), dto.getItemExternalId(), true));
-				}
-			}
-		}
-
-		private static String name(String name, String code) {
-			return name == null || name.trim().isEmpty() ? code : name;
-		}
-
-		private static String text(String value) {
-			return value == null ? "" : value;
-		}
-	}
-
-	/** Stock points: ho_stock_point (the active points, in list order) and ho_stock_point_item, by point id. */
-	final class FakeStockPoints implements StockPoints {
-		final List<Point> points = new ArrayList<>();
-		final Map<Long, Map<String, Row>> rows = new HashMap<>();
-		int writes;
-
-		@Override
-		public List<Point> activePoints() {
-			return new ArrayList<>(points);
-		}
-
-		@Override
-		public Map<String, Row> rows(long pointId) {
-			return new LinkedHashMap<>(rows.getOrDefault(pointId, new TreeMap<>()));
-		}
-
-		/** As HoStockPointRows: a row whose item is not at the head office is left out. */
-		@Override
-		public int write(long pointId, List<Row> packet) {
-			writes++;
-			Map<String, Row> ofPoint = rows.computeIfAbsent(pointId, id -> new TreeMap<>());
-			int written = 0;
-			for (Row row : packet) {
-				if (headOffice.items.containsKey(row.itemCode)) {
-					ofPoint.put(row.itemCode, row);
-					written++;
-				}
-			}
-			return written;
-		}
-
-		/** Step 4: the last read of each point, "STATUS summary". */
-		final Map<Long, String> lastReads = new HashMap<>();
-
-		@Override
-		public void recordRead(long pointId, String status, String summary) {
-			lastReads.put(pointId, status + " " + summary);
-		}
-
-		Row row(long pointId, String itemCode) {
-			return rows.getOrDefault(pointId, new TreeMap<>()).get(itemCode);
-		}
-	}
-
-	/** The state table. */
-	static final class FakeState implements CatalogueState {
-		final Map<String, String> values = new TreeMap<>();
-
-		@Override
-		public String get(String key) {
-			return values.get(key);
-		}
-
-		@Override
-		public void put(String key, String value) {
-			values.put(key, value);
-		}
-
-		@Override
-		public void remove(String key) {
-			values.remove(key);
-		}
-
-		@Override
-		public List<String> keysStartingWith(String prefix) {
-			return values.keySet().stream().filter(key -> key.startsWith(prefix)).collect(Collectors.toList());
-		}
-	}
 }

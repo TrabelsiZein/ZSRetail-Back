@@ -8,23 +8,29 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Supplier;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+
 import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.engine.CatalogueRun;
 import com.digithink.zsretail.erp.engine.HeadOfficeCatalogue;
+import com.digithink.zsretail.erp.engine.RunSummary;
 import com.digithink.zsretail.erp.navpospages.client.NavPosPagesSource;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosPagesMapper;
-import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesSync.Summary;
 import com.digithink.zsretail.erp.spi.ErpRead;
 
 /**
  * Code cleanup step 3: invoices from the ERP, a thin part of the navpospages connector (the invoices page and its
- * numbers by year prefix, FVV26...), out of NavPosPagesSync unchanged so the catalogue engine reads only through
- * ErpCatalogueSource. NavPosPagesSync still answers invoices() and invoicesByNumbers() by delegating here. Nothing is
- * kept between runs: the head office's numbers are the memory.
+ * numbers by year prefix, FVV26...), out of the catalogue engine (which reads only through ErpCatalogueSource);
+ * NavPosPagesConnector answers fetchSupplyInvoices and the seller name from here. Nothing is kept between runs: the head
+ * office's numbers are the memory. Its runs write the engine's {@link RunSummary} format.
  */
-final class NavPosPagesInvoices {
+@Component
+@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
+public class NavPosPagesInvoices {
 
 	private final NavPosPagesSource source;
 	private final HeadOfficeCatalogue headOffice;
@@ -33,7 +39,14 @@ final class NavPosPagesInvoices {
 	/** Release 2.2: today, for the last year of the invoices to read. */
 	private Supplier<LocalDate> today = LocalDate::now;
 
-	NavPosPagesInvoices(NavPosPagesSource source, HeadOfficeCatalogue headOffice, NavPosPagesProperties properties,
+	@Autowired
+	public NavPosPagesInvoices(NavPosPagesSource source, HeadOfficeCatalogue headOffice,
+			NavPosPagesProperties properties) {
+		this(source, headOffice, properties, new NavPosPagesMapper(properties.getDefaultVat(), properties.getPriceIncludesVat()));
+	}
+
+	/** With a given mapper: used by the tests. */
+	public NavPosPagesInvoices(NavPosPagesSource source, HeadOfficeCatalogue headOffice, NavPosPagesProperties properties,
 			NavPosPagesMapper mapper) {
 		this.source = source;
 		this.headOffice = headOffice;
@@ -42,8 +55,13 @@ final class NavPosPagesInvoices {
 	}
 
 	/** For the tests: a fixed day. */
-	void setToday(Supplier<LocalDate> today) {
+	public void setToday(Supplier<LocalDate> today) {
 		this.today = today;
+	}
+
+	/** Invoices from the ERP, step (c): the seller named on the stores' purchase invoices (invoices.seller-name). */
+	public String sellerName() {
+		return properties.getInvoices().getSellerName();
 	}
 
 	/**
@@ -61,7 +79,7 @@ final class NavPosPagesInvoices {
 	 */
 	public CatalogueRun<ErpSupplyInvoiceDTO> invoices(Map<String, String> highestByYear) {
 		String page = properties.getPage().getInvoices();
-		Summary summary = new Summary("invoices", page, properties.isDryRun());
+		RunSummary summary = new RunSummary("invoices", page, properties.isDryRun());
 		NavPosPagesProperties.Invoices settings = properties.getInvoices();
 		Map<String, String> highest = highestByYear == null ? new LinkedHashMap<>() : highestByYear;
 		String readAfter = headOffice.invoicesReadAfter();
@@ -119,7 +137,7 @@ final class NavPosPagesInvoices {
 	 */
 	public CatalogueRun<ErpSupplyInvoiceDTO> invoicesByNumbers(List<String> numbers) {
 		String page = properties.getPage().getInvoices();
-		Summary summary = new Summary("invoices", page, properties.isDryRun());
+		RunSummary summary = new RunSummary("invoices", page, properties.isDryRun());
 		NavPosPagesProperties.Invoices settings = properties.getInvoices();
 		List<String> asked = numbers == null ? new ArrayList<>() : numbers;
 		summary.put("readAgain", asked.size());
@@ -145,7 +163,8 @@ final class NavPosPagesInvoices {
 		return startNumber != null && startNumber.startsWith(prefix) ? startNumber : null;
 	}
 
-	private <T> CatalogueRun<T> run(List<T> handed, Summary summary, String page) {
-		return new CatalogueRun<>(properties.isDryRun() ? new ArrayList<>() : handed, summary.values, source.pageUrl(page));
+	private <T> CatalogueRun<T> run(List<T> handed, RunSummary summary, String page) {
+		return new CatalogueRun<>(properties.isDryRun() ? new ArrayList<>() : handed, summary.values(),
+				source.pageUrl(page));
 	}
 }

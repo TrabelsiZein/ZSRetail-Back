@@ -1,4 +1,4 @@
-package com.digithink.zsretail.erp.navpospages.sync;
+package com.digithink.zsretail.erp.engine;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -9,16 +9,14 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.erp.engine.CatalogueImport;
-import com.digithink.zsretail.erp.engine.CatalogueRun;
+import com.digithink.zsretail.config.ConditionalOnErpAbility;
 import com.digithink.zsretail.erp.enumeration.ErpCommunicationStatus;
 import com.digithink.zsretail.erp.enumeration.ErpSyncOperation;
-import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.service.ErpCommunicationService;
 import com.digithink.zsretail.erp.service.ErpSyncWarningException;
+import com.digithink.zsretail.erp.spi.ErpAbility;
 import com.digithink.zsretail.erp.spi.ErpCatalogueSync;
 import com.digithink.zsretail.erp.spi.StockPoints;
 
@@ -28,17 +26,18 @@ import com.digithink.zsretail.erp.spi.StockPoints;
  * until it has caught up, the barcodes of the new items included). Replaces the four catalogue jobs on a head office
  * whose catalogue comes from the ERP (HeadOfficeErpJobs).
  * <ul>
- * <li>No active point de stock: nothing is read, a warning ({@link NavPosPagesSync#NO_STOCK_POINT}).</li>
+ * <li>No active point de stock: nothing is read, a warning ({@link CatalogueEngine#NO_STOCK_POINT}).</li>
  * <li>A part that fails stops the run there: the parts before it stay saved, the next run goes on.</li>
  * <li>Nothing shows as a success when it did nothing: a part that waited, was refused (a run already running) or kept
  * something back (a guard), and a dry run, make the run a warning with the reasons ({@link ErpSyncWarningException}:
  * "Run now" shows the reason, the job's status is WARNING).</li>
  * <li>One row of the communications log per run (operation SYNC_CATALOGUE): each part with its counts and duration.</li>
  * </ul>
+ * Code cleanup step 3: was NavPosPagesCatalogueJob of the navpospages connector; exists with the catalogue engine.
  */
 @Component
-@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
-public class NavPosPagesCatalogueJob implements ErpCatalogueSync {
+@ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
+public class CatalogueJob implements ErpCatalogueSync {
 
 	static final String FAMILIES = "families";
 	static final String SUB_FAMILIES = "subFamilies";
@@ -53,26 +52,27 @@ public class NavPosPagesCatalogueJob implements ErpCatalogueSync {
 				LocalDateTime end);
 	}
 
-	private final NavPosPagesSync sync;
+	private final CatalogueEngine engine;
+	/** The engine's settings (the connector's keys): the dry run. */
+	private final CatalogueSettings settings;
 	private final CatalogueImport importer;
 	private final StockPoints stockPoints;
-	private final NavPosPagesProperties properties;
 	private final CommunicationLog log;
 
 	@Autowired
-	public NavPosPagesCatalogueJob(NavPosPagesSync sync, CatalogueImport importer, StockPoints stockPoints,
-			NavPosPagesProperties properties, ErpCommunicationService communications) {
-		this(sync, importer, stockPoints, properties, (status, summary, message, start, end) -> communications
+	public CatalogueJob(CatalogueEngine engine, CatalogueImport importer, StockPoints stockPoints,
+			ErpCommunicationService communications) {
+		this(engine, importer, stockPoints, (status, summary, message, start, end) -> communications
 				.logOperation(ErpSyncOperation.SYNC_CATALOGUE, null, summary, status, null, message, start, end));
 	}
 
 	/** With a given log: used by the tests. */
-	public NavPosPagesCatalogueJob(NavPosPagesSync sync, CatalogueImport importer, StockPoints stockPoints,
-			NavPosPagesProperties properties, CommunicationLog log) {
-		this.sync = sync;
+	public CatalogueJob(CatalogueEngine engine, CatalogueImport importer, StockPoints stockPoints,
+			CommunicationLog log) {
+		this.engine = engine;
 		this.importer = importer;
 		this.stockPoints = stockPoints;
-		this.properties = properties;
+		this.settings = engine.getSettings();
 		this.log = log;
 	}
 
@@ -81,33 +81,33 @@ public class NavPosPagesCatalogueJob implements ErpCatalogueSync {
 		LocalDateTime start = LocalDateTime.now();
 		Map<String, Object> summary = new LinkedHashMap<>();
 		summary.put("run", "catalogue");
-		summary.put("dryRun", properties.isDryRun());
+		summary.put("dryRun", settings.dryRun());
 		Map<String, Object> parts = new LinkedHashMap<>();
 		summary.put("parts", parts);
 		List<String> warnings = new ArrayList<>();
 		String current = null;
 		try {
 			if (stockPoints.activePoints().isEmpty()) {
-				warnings.add(NavPosPagesSync.NO_STOCK_POINT);
+				warnings.add(CatalogueEngine.NO_STOCK_POINT);
 			} else {
 				current = FAMILIES;
-				boolean go = inRounds(parts, FAMILIES, "Families", sync::families,
+				boolean go = inRounds(parts, FAMILIES, "Families", engine::families,
 						run -> importer.families(run.getHanded()), warnings);
 				if (go) {
 					current = SUB_FAMILIES;
-					go = inRounds(parts, SUB_FAMILIES, "Sub-families", sync::subFamilies,
+					go = inRounds(parts, SUB_FAMILIES, "Sub-families", engine::subFamilies,
 							run -> importer.subFamilies(run.getHanded()), warnings);
 				}
 				if (go) {
 					current = ITEMS;
-					go = once(parts, ITEMS, "Items", sync::items, warnings);
+					go = once(parts, ITEMS, "Items", engine::items, warnings);
 				}
 				if (go) {
 					current = BARCODES;
-					once(parts, BARCODES, "Barcodes", sync::barcodes, warnings);
+					once(parts, BARCODES, "Barcodes", engine::barcodes, warnings);
 				}
 				current = null;
-				if (properties.isDryRun()) {
+				if (settings.dryRun()) {
 					warnings.add(DRY_RUN);
 				}
 			}
@@ -137,7 +137,7 @@ public class NavPosPagesCatalogueJob implements ErpCatalogueSync {
 	}
 
 	/**
-	 * Families or sub-families: one packet per run of the sync, handed to the import, again while some are held back and
+	 * Families or sub-families: one packet per run of the engine, handed to the import, again while some are held back and
 	 * the number still to hand goes down. The part's summary: the first round's counts (what was to do), the total handed,
 	 * the rounds, the duration. Returns false (with a warning) when the part waited: the next parts would wait too.
 	 */
@@ -160,7 +160,7 @@ public class NavPosPagesCatalogueJob implements ErpCatalogueSync {
 				handed += last.getHanded().size();
 			}
 			int toHand = last.count("toHand");
-			if (last.getSummary().containsKey("waiting") || properties.isDryRun() || last.getHanded().isEmpty()
+			if (last.getSummary().containsKey("waiting") || settings.dryRun() || last.getHanded().isEmpty()
 					|| last.count("heldBackByCap") == 0 || toHand >= previousToHand) {
 				break;
 			}
@@ -172,13 +172,13 @@ public class NavPosPagesCatalogueJob implements ErpCatalogueSync {
 		part.put("heldBackByCap", last.count("heldBackByCap"));
 		part.put("durationMs", millisSince(started));
 		parts.put(key, part);
-		if (last.count("heldBackByCap") > 0 && !properties.isDryRun()) {
+		if (last.count("heldBackByCap") > 0 && !settings.dryRun()) {
 			warnings.add(label + ": " + last.count("heldBackByCap") + " not saved, handed again at the next run");
 		}
 		return noWait(last.getSummary(), label, warnings);
 	}
 
-	/** Items or barcodes: one run of the sync (it applies everything itself). False (with a warning) when it waited. */
+	/** Items or barcodes: one run of the engine (it applies everything itself). False (with a warning) when it waited. */
 	private boolean once(Map<String, Object> parts, String key, String label, Supplier<CatalogueRun<?>> read,
 			List<String> warnings) {
 		long started = System.nanoTime();

@@ -19,19 +19,20 @@ import org.junit.jupiter.api.Test;
 
 import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.dto.ErpItemDTO;
+import com.digithink.zsretail.erp.engine.CatalogueEngine;
 import com.digithink.zsretail.erp.engine.CatalogueImport;
 import com.digithink.zsretail.erp.engine.CatalogueRun;
 import com.digithink.zsretail.erp.engine.CatalogueState;
 import com.digithink.zsretail.erp.engine.HeadOfficeCatalogue;
 import com.digithink.zsretail.erp.navpospages.client.NavPosPagesCatalogueSource;
 import com.digithink.zsretail.erp.navpospages.client.NavPosPagesSource;
+import com.digithink.zsretail.erp.navpospages.config.NavPosPagesCatalogueSettings;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosBarcodeRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosPagesMapper;
-import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesSync;
 import com.digithink.zsretail.erp.spi.ErpBarcodeRow;
 import com.digithink.zsretail.erp.spi.ErpCatalogueSource.Part;
 import com.digithink.zsretail.erp.spi.ErpCategories;
@@ -116,8 +117,8 @@ class NavPosPagesCatalogueSourceTest {
 		Map<String, String> state = new HashMap<>();
 		state.put("items.run", "true");
 		state.put("items.pending", "0");
-		NavPosPagesSync sync = new NavPosPagesSync(pages, headOffice, new NoStockPoints(), new MapState(state),
-				properties, new CatalogueImport() {
+		CatalogueEngine sync = new CatalogueEngine(new NavPosPagesCatalogueSource(pages, mapper, properties), headOffice,
+				new NoStockPoints(), new MapState(state), new NavPosPagesCatalogueSettings(properties), new CatalogueImport() {
 					@Override
 					public void items(List<ErpItemDTO> packet) {
 					}

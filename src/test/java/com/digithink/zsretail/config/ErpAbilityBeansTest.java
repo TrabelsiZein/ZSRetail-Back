@@ -133,11 +133,12 @@ class ErpAbilityBeansTest {
 	}
 
 	@Test
-	@DisplayName("Step 3: the engine's state, head office reads and import exist where erp.navpospages.enabled=true put them")
+	@DisplayName("Step 3: the engine, its job, state, head office reads and import exist where erp.navpospages.enabled=true put them")
 	void engineBeans() {
 		List<Class<?>> engine = Arrays.asList(com.digithink.zsretail.erp.engine.JdbcCatalogueState.class,
 				com.digithink.zsretail.erp.engine.JpaHeadOfficeCatalogue.class,
-				com.digithink.zsretail.erp.engine.BootstrapCatalogueImport.class);
+				com.digithink.zsretail.erp.engine.BootstrapCatalogueImport.class,
+				com.digithink.zsretail.erp.engine.CatalogueEngine.class, com.digithink.zsretail.erp.engine.CatalogueJob.class);
 		List<String> withBeans = new ArrayList<>();
 		for (Map.Entry<String, MockEnvironment> entry : configurations().entrySet()) {
 			boolean expected = "true".equalsIgnoreCase(entry.getValue().getProperty("erp.navpospages.enabled"));
