@@ -28,14 +28,14 @@ import lombok.extern.log4j.Log4j2;
 
 /**
  * Stock points, step 1: the points de stock (JWT, like the other admin APIs). Head office whose catalogue comes from
- * the ERP, through a connector that reads it by points de stock (ErpAbility.CATALOGUE_BY_STOCK_POINTS), only:
+ * the ERP, with a connector whose head office keeps points de stock (ErpAbility.HEAD_OFFICE_STOCK_POINTS), only:
  * elsewhere these URLs answer 404. Errors: 400 {"error"} for invalid data, 404 {"error":"Not found"}, 409 {"error"} for
  * a code that exists, a point used by a store, or a point with items deleted. See docs/modules/head-office.md, "Stock points".
  */
 @RestController
 @RequestMapping("admin/headoffice/stock-points")
 @ConditionalOnHeadOfficeErpCatalogue
-@ConditionalOnErpAbility(ErpAbility.CATALOGUE_BY_STOCK_POINTS)
+@ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
 @Log4j2
 public class HoStockPointAPI {
 

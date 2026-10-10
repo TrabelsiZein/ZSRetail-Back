@@ -39,7 +39,7 @@ import com.digithink.zsretail.repository.ItemSubFamilyRepository;
  */
 @Service
 @ConditionalOnHeadOfficeErpCatalogue
-@ConditionalOnErpAbility(ErpAbility.CATALOGUE_BY_STOCK_POINTS)
+@ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
 @Transactional(readOnly = true)
 public class HoStockPointItemsService {
 

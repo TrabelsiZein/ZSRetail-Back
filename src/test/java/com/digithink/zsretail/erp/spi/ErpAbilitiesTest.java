@@ -43,12 +43,12 @@ class ErpAbilitiesTest {
 	void byName() {
 		assertEquals(EnumSet.noneOf(ErpAbility.class), ErpAbilities.of("none"));
 		assertEquals(EnumSet.noneOf(ErpAbility.class), ErpAbilities.of("dynamicsnav"));
-		assertEquals(EnumSet.of(ErpAbility.CATALOGUE_BY_STOCK_POINTS, ErpAbility.SUPPLY_INVOICES),
+		assertEquals(EnumSet.of(ErpAbility.HEAD_OFFICE_STOCK_POINTS, ErpAbility.SUPPLY_INVOICES),
 				ErpAbilities.of("navpospages"));
 		assertThrows(IllegalArgumentException.class, () -> ErpAbilities.of("sap"));
 		assertEquals(Collections.singletonList("navpospages"), ErpAbilities.connectorsWith(ErpAbility.SUPPLY_INVOICES));
 		assertEquals(Collections.singletonList("navpospages"),
-				ErpAbilities.connectorsWith(ErpAbility.CATALOGUE_BY_STOCK_POINTS));
+				ErpAbilities.connectorsWith(ErpAbility.HEAD_OFFICE_STOCK_POINTS));
 	}
 
 	/** A start the way Spring Boot runs it, the outside file holding these lines. */
@@ -74,7 +74,7 @@ class ErpAbilitiesTest {
 			StandardEnvironment env = start(lines);
 			assertEquals("navpospages", ErpAbilities.connectorInEffect(env), lines[0]);
 			assertTrue(ErpAbilities.hasConnector(env), lines[0]);
-			assertTrue(ErpAbilities.has(env, ErpAbility.CATALOGUE_BY_STOCK_POINTS), lines[0]);
+			assertTrue(ErpAbilities.has(env, ErpAbility.HEAD_OFFICE_STOCK_POINTS), lines[0]);
 			assertTrue(ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES), lines[0]);
 		}
 		for (String[] lines : Arrays.asList(new String[] { "erp.connector=DynamicsNav" },
@@ -82,7 +82,7 @@ class ErpAbilitiesTest {
 			StandardEnvironment env = start(lines);
 			assertEquals("dynamicsnav", ErpAbilities.connectorInEffect(env), lines[0]);
 			assertTrue(ErpAbilities.hasConnector(env), lines[0]);
-			assertFalse(ErpAbilities.has(env, ErpAbility.CATALOGUE_BY_STOCK_POINTS), lines[0]);
+			assertFalse(ErpAbilities.has(env, ErpAbility.HEAD_OFFICE_STOCK_POINTS), lines[0]);
 			assertFalse(ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES), lines[0]);
 		}
 		for (String[] lines : Arrays.asList(new String[] { "erp.connector=none" }, new String[] { "server.port=1" })) {
@@ -111,7 +111,7 @@ class ErpAbilitiesTest {
 			MockEnvironment env = i < machines.size() ? Installations.machine(name) : Installations.config(name);
 			boolean pages = oldLineTrue(env, "erp.navpospages.enabled");
 			boolean nav = oldLineTrue(env, "erp.dynamicsnav.enabled");
-			assertEquals(pages, ErpAbilities.has(env, ErpAbility.CATALOGUE_BY_STOCK_POINTS), name);
+			assertEquals(pages, ErpAbilities.has(env, ErpAbility.HEAD_OFFICE_STOCK_POINTS), name);
 			assertEquals(pages, ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES), name);
 			assertEquals(nav || pages, ErpAbilities.hasConnector(env), name);
 		}

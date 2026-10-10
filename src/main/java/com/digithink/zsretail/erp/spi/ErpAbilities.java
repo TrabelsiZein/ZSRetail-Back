@@ -28,7 +28,7 @@ public final class ErpAbilities {
 		map.put(ErpConnectorEnvironmentPostProcessor.DYNAMICS_NAV,
 				Collections.unmodifiableSet(EnumSet.noneOf(ErpAbility.class)));
 		map.put(ErpConnectorEnvironmentPostProcessor.NAVPOSPAGES, Collections.unmodifiableSet(
-				EnumSet.of(ErpAbility.CATALOGUE_BY_STOCK_POINTS, ErpAbility.SUPPLY_INVOICES)));
+				EnumSet.of(ErpAbility.HEAD_OFFICE_STOCK_POINTS, ErpAbility.SUPPLY_INVOICES)));
 		BY_CONNECTOR = Collections.unmodifiableMap(map);
 	}
 

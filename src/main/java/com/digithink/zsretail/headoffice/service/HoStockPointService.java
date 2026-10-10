@@ -31,7 +31,7 @@ import com.digithink.zsretail.headoffice.repository.StoreRepository;
  */
 @Service
 @ConditionalOnHeadOfficeErpCatalogue
-@ConditionalOnErpAbility(ErpAbility.CATALOGUE_BY_STOCK_POINTS)
+@ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
 public class HoStockPointService {
 
 	static final String CODE_REQUIRED = "The stock point code is required.";

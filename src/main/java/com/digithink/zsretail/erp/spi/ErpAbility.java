@@ -7,10 +7,12 @@ package com.digithink.zsretail.erp.spi;
 public enum ErpAbility {
 
 	/**
-	 * The catalogue read by points de stock, with its single job SYNC_CATALOGUE (ErpCatalogueSync): the head office keeps
-	 * the points and their rows (ho_stock_point, ho_stock_point_item) and shows them on the points page.
+	 * The head office keeps several points de stock in its own tables (ho_stock_point, ho_stock_point_item, the points
+	 * page), filled by the single catalogue job SYNC_CATALOGUE (ErpCatalogueSync). Not "reads items by location": every
+	 * connector may do that; this ability is about the head office tables and the single job. Was
+	 * CATALOGUE_BY_STOCK_POINTS (code cleanup step 3).
 	 */
-	CATALOGUE_BY_STOCK_POINTS,
+	HEAD_OFFICE_STOCK_POINTS,
 
 	/** Reading the ERP's supply invoices (ErpSupplyInvoiceImport), so a head office may set headoffice.supply.source=ERP. */
 	SUPPLY_INVOICES

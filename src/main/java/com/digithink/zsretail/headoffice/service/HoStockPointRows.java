@@ -29,7 +29,7 @@ import com.digithink.zsretail.headoffice.repository.HoStockPointRepository;
  */
 @Component
 @ConditionalOnHeadOfficeErpCatalogue
-@ConditionalOnErpAbility(ErpAbility.CATALOGUE_BY_STOCK_POINTS)
+@ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
 @Transactional(readOnly = true)
 public class HoStockPointRows implements StockPoints {
 

@@ -73,7 +73,7 @@ Two rules, decided at code cleanup step 1:
 - **An empty `erp.connector=` is refused as an unknown value**, not read as absent: to keep the old lines, leave the key out.
 
 **Abilities and the rule "the application never names a connector"** (code cleanup step 2, `docs/modules/erp-sync.md`,
-"Abilities"): the application asks `erp/spi/ErpAbilities` what the connector in effect can do (`CATALOGUE_BY_STOCK_POINTS`,
+"Abilities"): the application asks `erp/spi/ErpAbilities` what the connector in effect can do (`HEAD_OFFICE_STOCK_POINTS`,
 `SUPPLY_INVOICES`: `navpospages` only), whichever way the connector was chosen. Exactly one `ErpConnector` bean exists, the
 one of the connector in effect. Outside the connector packages and the class above, no code names `erp.dynamicsnav` or
 `erp.navpospages`; the guard test `erp/ConnectorNamesGuardTest` checks it. The property keys of each connector

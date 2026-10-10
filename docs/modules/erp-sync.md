@@ -185,14 +185,15 @@ The connector is chosen by `erp.connector` (or the old enabled lines, `deploymen
 the connector in effect can do, never which one it is: `erp/spi/ErpAbilities` gives, for each connector name, its
 abilities (`erp/spi/ErpAbility`), read from the environment, so a condition uses it before the beans exist.
 
-| Connector | `CATALOGUE_BY_STOCK_POINTS` | `SUPPLY_INVOICES` |
+| Connector | `HEAD_OFFICE_STOCK_POINTS` | `SUPPLY_INVOICES` |
 |---|---|---|
 | `none` | — | — |
 | `dynamicsnav` | — | — |
 | `navpospages` | yes | yes |
 
-- `CATALOGUE_BY_STOCK_POINTS`: the catalogue read by points de stock with its single job `SYNC_CATALOGUE`; the head office
-  keeps the points (`ho_stock_point`, `ho_stock_point_item`) and their page.
+- `HEAD_OFFICE_STOCK_POINTS` (was `CATALOGUE_BY_STOCK_POINTS`): the head office keeps several points de stock in its own
+  tables (`ho_stock_point`, `ho_stock_point_item`, the points page), filled by the single catalogue job `SYNC_CATALOGUE`. Not
+  "reads items by location": every connector may do that.
 - `SUPPLY_INVOICES`: the ERP's supply invoices are read, so a head office may set `headoffice.supply.source=ERP`.
 
 `ErpAbilities.connectorInEffect(env)` (none, dynamicsnav, navpospages) is worked out from the values in effect;
