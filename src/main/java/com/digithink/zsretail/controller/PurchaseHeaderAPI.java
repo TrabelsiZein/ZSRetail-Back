@@ -31,12 +31,12 @@ import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.dto.ProcessPurchaseRequestDTO;
 import com.digithink.zsretail.dto.SetPurchasePaidRequestDTO;
 import com.digithink.zsretail.dto.VendorBalanceSummaryDTO;
-import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
-import com.digithink.zsretail.holink.service.SupplyVendorGuard;
 import com.digithink.zsretail.model.PurchaseHeader;
 import com.digithink.zsretail.model.UserAccount;
 import com.digithink.zsretail.security.CurrentUserProvider;
+import com.digithink.zsretail.service.CatalogueEditGuard;
 import com.digithink.zsretail.service.PurchaseHeaderService;
+import com.digithink.zsretail.service.VendorEditGuard;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -53,22 +53,22 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 
 	/** Step 6: the rules of a store whose catalogue is the head office's; no bean on every other installation. */
 	@Autowired(required = false)
-	private ObjectProvider<StoreCatalogueGuard> catalogueGuard;
+	private ObjectProvider<CatalogueEditGuard> catalogueGuard;
 
 	/** Step 6: 409 with the guard's text; null when the request goes on (always without the guard). */
-	private ResponseEntity<?> refused(Function<StoreCatalogueGuard, String> rule) {
-		StoreCatalogueGuard guard = catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
+	private ResponseEntity<?> refused(Function<CatalogueEditGuard, String> rule) {
+		CatalogueEditGuard guard = catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
 		String refusal = guard == null ? null : rule.apply(guard);
 		return refusal == null ? null : ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
 	}
 
 	/** Step 7B: the head office vendor of a store whose goods come from the head office; no bean elsewhere. */
 	@Autowired(required = false)
-	private ObjectProvider<SupplyVendorGuard> supplyVendorGuard;
+	private ObjectProvider<VendorEditGuard> supplyVendorGuard;
 
 	/** Step 7B: 409 for a purchase by hand on the head office vendor; null otherwise and without the guard. */
 	private ResponseEntity<?> headOfficeVendorRefused(Long vendorId) {
-		SupplyVendorGuard guard = supplyVendorGuard == null ? null : supplyVendorGuard.getIfAvailable();
+		VendorEditGuard guard = supplyVendorGuard == null ? null : supplyVendorGuard.getIfAvailable();
 		String refusal = guard == null ? null : guard.purchase(vendorId);
 		return refusal == null ? null : ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
 	}
@@ -84,7 +84,7 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 	@Override
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody PurchaseHeader entity) {
-		ResponseEntity<?> refusal = refused(StoreCatalogueGuard::purchase);
+		ResponseEntity<?> refusal = refused(CatalogueEditGuard::purchase);
 		if (refusal == null) {
 			refusal = headOfficeVendorRefused(vendorId(entity));
 		}
@@ -95,7 +95,7 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 	@Override
 	@PutMapping("/{id}")
 	public ResponseEntity<?> update(@PathVariable Long id, @RequestBody PurchaseHeader entity) {
-		ResponseEntity<?> refusal = refused(StoreCatalogueGuard::purchase);
+		ResponseEntity<?> refusal = refused(CatalogueEditGuard::purchase);
 		if (refusal == null) {
 			refusal = headOfficeVendorRefused(vendorId(entity));
 		}
@@ -106,7 +106,7 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 	@Override
 	@DeleteMapping("/{id}")
 	public ResponseEntity<?> deleteById(@PathVariable Long id) {
-		ResponseEntity<?> refusal = refused(StoreCatalogueGuard::purchase);
+		ResponseEntity<?> refusal = refused(CatalogueEditGuard::purchase);
 		return refusal != null ? refusal : super.deleteById(id);
 	}
 
@@ -231,7 +231,7 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Purchase paid status is not available with an ERP."));
 		}
-		ResponseEntity<?> refusal = refused(StoreCatalogueGuard::purchase); // step 6
+		ResponseEntity<?> refusal = refused(CatalogueEditGuard::purchase); // step 6
 		if (refusal != null) {
 			return refusal;
 		}

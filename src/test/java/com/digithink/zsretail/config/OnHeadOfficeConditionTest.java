@@ -33,6 +33,7 @@ import com.digithink.zsretail.headoffice.service.HoLoyaltyService;
 import com.digithink.zsretail.headoffice.service.HoPromotionService;
 import com.digithink.zsretail.headoffice.service.SalesCopyReceiver;
 import com.digithink.zsretail.headoffice.service.StoreService;
+import com.digithink.zsretail.security.StoreKeyFilter;
 import com.digithink.zsretail.support.Questions;
 
 /**
@@ -108,7 +109,7 @@ class OnHeadOfficeConditionTest {
 		assertFalse(HeadOfficeApiSecurityConfig.class.getDeclaredField("storeApiKeyFilter").getAnnotation(Autowired.class)
 				.required(), "the filter must be optional");
 		assertTrue(Questions.asks(HeadOfficeApiSecurityConfig.class
-				.getDeclaredMethod("storeApiKeyFilterRegistration", StoreApiKeyFilter.class), Installation.HEAD_OFFICE));
+				.getDeclaredMethod("storeApiKeyFilterRegistration", StoreKeyFilter.class), Installation.HEAD_OFFICE));
 		assertEquals(0, HeadOfficeApiSecurityConfig.class.getAnnotation(Order.class).value(),
 				"the /ho/** chain must come before the main chain (order 1)");
 	}

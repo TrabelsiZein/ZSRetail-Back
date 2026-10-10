@@ -29,7 +29,6 @@ import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.dto.AdjustStockRequestDTO;
 import com.digithink.zsretail.dto.PricingResult;
 import com.digithink.zsretail.dto.QuickProductRequestDTO;
-import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.Customer;
 import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.ItemBarcode;
@@ -38,6 +37,7 @@ import com.digithink.zsretail.model.enumeration.ItemType;
 import com.digithink.zsretail.repository.CustomerRepository;
 import com.digithink.zsretail.service.CatalogueCodeChangeException;
 import com.digithink.zsretail.service.CatalogueCodeTooLongException;
+import com.digithink.zsretail.service.CatalogueEditGuard;
 import com.digithink.zsretail.service.CustomerService;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.ItemBarcodeService;
@@ -81,10 +81,10 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 
 	/** Step 6: the rules of a store whose catalogue is the head office's; no bean on every other installation. */
 	@Autowired(required = false)
-	private ObjectProvider<StoreCatalogueGuard> catalogueGuard;
+	private ObjectProvider<CatalogueEditGuard> catalogueGuard;
 
 	/** The step 6 guard, or null: then every request runs exactly as before. */
-	private StoreCatalogueGuard catalogueGuard() {
+	private CatalogueEditGuard catalogueGuard() {
 		return catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
 	}
 
@@ -107,7 +107,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Product creation is not available with an ERP: products are synchronized from the ERP."));
 		}
-		StoreCatalogueGuard guard = catalogueGuard();
+		CatalogueEditGuard guard = catalogueGuard();
 		if (guard != null) { // step 6: an own item, only with the purchase right, never a head office code
 			ItemBarcode wanted = new ItemBarcode();
 			wanted.setBarcode(request.getBarcode());
@@ -159,7 +159,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Item creation is not available with an ERP: items are synchronized from the ERP."));
 		}
-		StoreCatalogueGuard guard = catalogueGuard();
+		CatalogueEditGuard guard = catalogueGuard();
 		if (guard != null) { // step 6: an own item, only with the purchase right, never a head office code
 			ResponseEntity<?> refusal = refused(guard.create(), guard.itemCodeTaken(entity.getItemCode()));
 			if (refusal != null) {
@@ -195,7 +195,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 				return ResponseEntity.notFound().build();
 			}
 			Item existingItem = existing.get();
-			StoreCatalogueGuard guard = catalogueGuard();
+			CatalogueEditGuard guard = catalogueGuard();
 			if (guard != null && guard.itemWrite(id) != null) { // step 6: the price has its own endpoint
 				return refused(guard.itemWrite(id));
 			}
@@ -239,7 +239,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			if (!existing.isPresent()) {
 				return ResponseEntity.notFound().build();
 			}
-			StoreCatalogueGuard guard = catalogueGuard();
+			CatalogueEditGuard guard = catalogueGuard();
 			if (guard != null && guard.itemWrite(id) != null) { // step 6
 				return refused(guard.itemWrite(id));
 			}
@@ -274,7 +274,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			if (!existing.isPresent()) {
 				return ResponseEntity.notFound().build();
 			}
-			StoreCatalogueGuard guard = catalogueGuard();
+			CatalogueEditGuard guard = catalogueGuard();
 			if (guard != null && guard.itemWrite(id) != null) { // step 6: the head office decides the pack
 				return refused(guard.itemWrite(id));
 			}
@@ -493,7 +493,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	 */
 	@PutMapping("/{id}/own-price")
 	public ResponseEntity<?> setOwnPrice(@PathVariable Long id, @RequestBody(required = false) Map<String, Object> body) {
-		StoreCatalogueGuard guard = catalogueGuard();
+		CatalogueEditGuard guard = catalogueGuard();
 		if (guard == null) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(createErrorResponse(NOT_FROM_HEAD_OFFICE));
 		}
@@ -510,7 +510,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	 */
 	@DeleteMapping("/{id}/own-price")
 	public ResponseEntity<?> giveBackPrice(@PathVariable Long id) {
-		StoreCatalogueGuard guard = catalogueGuard();
+		CatalogueEditGuard guard = catalogueGuard();
 		if (guard == null) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(createErrorResponse(NOT_FROM_HEAD_OFFICE));
 		}

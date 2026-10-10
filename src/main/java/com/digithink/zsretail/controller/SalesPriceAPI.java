@@ -15,8 +15,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.SalesPrice;
+import com.digithink.zsretail.service.CatalogueEditGuard;
 import com.digithink.zsretail.service.SalesPriceService;
 
 import lombok.extern.log4j.Log4j2;
@@ -31,11 +31,11 @@ public class SalesPriceAPI extends _BaseController<SalesPrice, Long, SalesPriceS
 
 	/** Step 6: the rules of a store whose catalogue is the head office's; no bean on every other installation. */
 	@Autowired(required = false)
-	private ObjectProvider<StoreCatalogueGuard> catalogueGuard;
+	private ObjectProvider<CatalogueEditGuard> catalogueGuard;
 
 	/** Step 6: 409 on a store whose selling prices come from the head office; null otherwise. */
 	private ResponseEntity<?> refused() {
-		StoreCatalogueGuard guard = catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
+		CatalogueEditGuard guard = catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
 		return guard == null ? null
 				: ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(guard.salesPriceWrite()));
 	}

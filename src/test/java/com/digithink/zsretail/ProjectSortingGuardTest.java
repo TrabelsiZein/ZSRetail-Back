@@ -131,20 +131,6 @@ class ProjectSortingGuardTest {
 	static final Map<String, String> ALLOWED = new LinkedHashMap<>();
 
 	static {
-		allow("knot (b), 5.5: the common catalogue, purchase and vendor screens ask the linked store's guards",
-				"controller.DataImportAPI -> holink.service.StoreCatalogueGuard",
-				"controller.ItemAPI -> holink.service.StoreCatalogueGuard",
-				"controller.ItemBarcodeAPI -> holink.service.StoreCatalogueGuard",
-				"controller.ItemCompositionAPI -> holink.service.StoreCatalogueGuard",
-				"controller.ItemFamilyAPI -> holink.service.StoreCatalogueGuard",
-				"controller.ItemSubFamilyAPI -> holink.service.StoreCatalogueGuard",
-				"controller.LoyaltyAPI -> holink.service.StoreLoyaltyNetwork",
-				"controller.PurchaseHeaderAPI -> holink.service.StoreCatalogueGuard",
-				"controller.PurchaseHeaderAPI -> holink.service.SupplyVendorGuard",
-				"controller.PurchaseInvoiceAPI -> holink.service.StoreCatalogueGuard",
-				"controller.PurchaseInvoiceAPI -> holink.service.SupplyVendorGuard",
-				"controller.VendorAPI -> holink.service.StoreCatalogueGuard",
-				"controller.VendorAPI -> holink.service.SupplyVendorGuard");
 		allow("5.7: the purchase invoices use the invoice snapshot type of the customer invoices",
 				"controller.PurchaseInvoiceAPI -> service.InvoiceService",
 				"service.PurchaseInvoiceService -> service.InvoiceService");
@@ -152,8 +138,6 @@ class ProjectSortingGuardTest {
 				"erp.service.ErpSyncJobRunner -> erp.service.ReturnExportService",
 				"erp.service.ErpSyncJobRunner -> erp.service.SessionExportService",
 				"erp.service.ErpSyncJobRunner -> erp.service.TicketExportService");
-		allow("5.5: the /ho/** chain (core) adds the head office's store key filter",
-				"headoffice.security.HeadOfficeApiSecurityConfig -> headoffice.security.StoreApiKeyFilter");
 		allow("knot (e), 5.8: erp/spi names the connectors through config",
 				"erp.spi.ErpAbilities -> config.ErpConnectorEnvironmentPostProcessor",
 				"erp.spi.NoOpErpConnector -> config.ConditionalOnErpConnector",

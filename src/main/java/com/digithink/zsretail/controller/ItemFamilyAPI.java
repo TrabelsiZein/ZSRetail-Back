@@ -17,10 +17,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.config.ApplicationModeService;
-import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.ItemFamily;
 import com.digithink.zsretail.service.CatalogueCodeChangeException;
 import com.digithink.zsretail.service.CatalogueCodeTooLongException;
+import com.digithink.zsretail.service.CatalogueEditGuard;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.ItemFamilyService;
 import com.digithink.zsretail.service.PosCatalogueService;
@@ -33,7 +33,7 @@ import lombok.extern.log4j.Log4j2;
 public class ItemFamilyAPI extends _BaseController<ItemFamily, Long, ItemFamilyService> {
 
 	@Autowired(required = false)
-	private ObjectProvider<StoreCatalogueGuard> catalogueGuard;
+	private ObjectProvider<CatalogueEditGuard> catalogueGuard;
 
 	@Autowired
 	private PosCatalogueService posCatalogue;
@@ -94,7 +94,7 @@ public class ItemFamilyAPI extends _BaseController<ItemFamily, Long, ItemFamilyS
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(createErrorResponse("Item family creation is not available with an ERP: families are synchronized from the ERP."));
 		}
-		StoreCatalogueGuard guard = catalogueGuard();
+		CatalogueEditGuard guard = catalogueGuard();
 		if (guard != null) { // step 6: an own record, only with the purchase right, never a head office code
 			String refusal = guard.create() != null ? guard.create() : guard.familyCodeTaken(entity.getCode());
 			if (refusal != null) {
@@ -126,7 +126,7 @@ public class ItemFamilyAPI extends _BaseController<ItemFamily, Long, ItemFamilyS
 			if (!existing.isPresent()) {
 				return ResponseEntity.notFound().build();
 			}
-			StoreCatalogueGuard guard = catalogueGuard();
+			CatalogueEditGuard guard = catalogueGuard();
 			if (guard != null && guard.familyWrite(id) != null) { // step 6: a head office record is consult-only
 				return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(guard.familyWrite(id)));
 			}
@@ -146,7 +146,7 @@ public class ItemFamilyAPI extends _BaseController<ItemFamily, Long, ItemFamilyS
 	@Override
 	@DeleteMapping("/{id}")
 	public ResponseEntity<?> deleteById(@PathVariable Long id) {
-		StoreCatalogueGuard guard = catalogueGuard();
+		CatalogueEditGuard guard = catalogueGuard();
 		if (guard != null && guard.familyWrite(id) != null) {
 			return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(guard.familyWrite(id)));
 		}
@@ -154,7 +154,7 @@ public class ItemFamilyAPI extends _BaseController<ItemFamily, Long, ItemFamilyS
 	}
 
 	/** Step 6: the rules of a store whose catalogue is the head office's; null on every other installation. */
-	private StoreCatalogueGuard catalogueGuard() {
+	private CatalogueEditGuard catalogueGuard() {
 		return catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
 	}
 }

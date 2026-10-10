@@ -17,7 +17,7 @@ import com.digithink.zsretail.config.ApplicationModeService;
 import com.digithink.zsretail.dto.ImportFieldMappingDTO;
 import com.digithink.zsretail.dto.ImportPreviewDTO;
 import com.digithink.zsretail.dto.ImportResultDTO;
-import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
+import com.digithink.zsretail.service.CatalogueEditGuard;
 import com.digithink.zsretail.service.DataImportService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,7 +36,7 @@ public class DataImportAPI {
     private final ObjectMapper objectMapper;
 
     /** Step 6: the rules of a store whose catalogue is the head office's; no bean on every other installation. */
-    private final ObjectProvider<StoreCatalogueGuard> catalogueGuard;
+    private final ObjectProvider<CatalogueEditGuard> catalogueGuard;
 
     /**
      * Upload an Excel file and return the detected column names plus a few preview rows.
@@ -75,7 +75,7 @@ public class DataImportAPI {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body("Data import is not available with an ERP.");
         }
-        StoreCatalogueGuard guard = catalogueGuard.getIfAvailable();
+        CatalogueEditGuard guard = catalogueGuard.getIfAvailable();
         String refusal = guard == null ? null : guard.dataImport(entityType); // step 6
         if (refusal != null) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(refusal);

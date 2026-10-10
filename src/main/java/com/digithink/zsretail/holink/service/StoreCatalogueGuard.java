@@ -24,6 +24,7 @@ import com.digithink.zsretail.repository.ItemFamilyRepository;
 import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.repository.ItemSubFamilyRepository;
 import com.digithink.zsretail.repository.SalesPriceRepository;
+import com.digithink.zsretail.service.CatalogueEditGuard;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -44,7 +45,7 @@ import lombok.extern.log4j.Log4j2;
 @Service
 @ConditionalOnInstallation(Installation.CATALOGUE_FROM_HEAD_OFFICE)
 @Log4j2
-public class StoreCatalogueGuard {
+public class StoreCatalogueGuard implements CatalogueEditGuard {
 
 	public static final String ITEM_MANAGED = "This item is managed by the head office: it is consult-only on this store.";
 	public static final String FAMILY_MANAGED = "This family is managed by the head office: it is consult-only on this store.";

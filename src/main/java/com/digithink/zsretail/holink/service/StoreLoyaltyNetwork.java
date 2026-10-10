@@ -29,6 +29,7 @@ import com.digithink.zsretail.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.repository.CustomerRepository;
 import com.digithink.zsretail.repository.LoyaltyMemberRepository;
 import com.digithink.zsretail.repository.MemberFunctionRepository;
+import com.digithink.zsretail.service.LoyaltyMemberNetwork;
 import com.digithink.zsretail.service.LoyaltyService;
 
 import lombok.extern.log4j.Log4j2;
@@ -53,9 +54,8 @@ import lombok.extern.log4j.Log4j2;
 @Service
 @ConditionalOnInstallation(Installation.LOYALTY_FROM_HEAD_OFFICE)
 @Log4j2
-public class StoreLoyaltyNetwork {
+public class StoreLoyaltyNetwork implements LoyaltyMemberNetwork {
 
-	public static final String PROGRAM_AT_HEAD_OFFICE = "The loyalty program is managed by the head office.";
 	static final String UNREACHABLE = "The head office cannot be reached: changing a loyalty member needs it."
 			+ " Try again later.";
 	static final String NOT_IN_REGISTER = "This card is not in the network register (a local card switched off when"
@@ -152,33 +152,6 @@ public class StoreLoyaltyNetwork {
 					});
 		}
 		return loyaltyService.createMember(request);
-	}
-
-	/**
-	 * Enrol refused: the phone already has a card in the network (head office answer, or a member of the register held
-	 * here). Today's 409 message, plus the card for the caller: LoyaltyAPI adds existingCardNumber and
-	 * existingCardActive to the body. Thrown only when loyalty is owned by the head office.
-	 */
-	public static class PhoneTakenException extends IllegalStateException {
-
-		private static final long serialVersionUID = 1L;
-
-		private final String cardNumber;
-		private final boolean cardActive;
-
-		public PhoneTakenException(String cardNumber, String firstName, String lastName, Boolean active) {
-			super(LoyaltyService.phoneTakenMessage(cardNumber, firstName, lastName, active));
-			this.cardNumber = cardNumber;
-			this.cardActive = Boolean.TRUE.equals(active);
-		}
-
-		public String getCardNumber() {
-			return cardNumber;
-		}
-
-		public boolean isCardActive() {
-			return cardActive;
-		}
 	}
 
 	// ─── Changes through the head office ─────────────────────────
@@ -372,23 +345,6 @@ public class StoreLoyaltyNetwork {
 			return LocalDate.parse(raw.trim());
 		} catch (DateTimeParseException e) {
 			return null; // as LoyaltyService: an unreadable birth date is dropped
-		}
-	}
-
-	/** A refusal of a member change, with the HTTP status LoyaltyAPI answers. */
-	public static class NetworkException extends RuntimeException {
-
-		private static final long serialVersionUID = 1L;
-
-		private final int status;
-
-		public NetworkException(int status, String message) {
-			super(message);
-			this.status = status;
-		}
-
-		public int getStatus() {
-			return status;
 		}
 	}
 }

@@ -6,6 +6,7 @@ import com.digithink.zsretail.config.ConditionalOnInstallation;
 import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.model.Vendor;
 import com.digithink.zsretail.repository.VendorRepository;
+import com.digithink.zsretail.service.VendorEditGuard;
 
 /**
  * Head office plan, step 7B: on a store whose goods come from the head office, the vendor HEAD_OFFICE (created by
@@ -16,7 +17,7 @@ import com.digithink.zsretail.repository.VendorRepository;
  */
 @Component
 @ConditionalOnInstallation(Installation.SUPPLY_FROM_HEAD_OFFICE)
-public class SupplyVendorGuard {
+public class SupplyVendorGuard implements VendorEditGuard {
 
 	static final String CODE_KEPT = "The vendor code " + SupplyInvoiceWriter.VENDOR_CODE
 			+ " is kept for the head office's invoices.";

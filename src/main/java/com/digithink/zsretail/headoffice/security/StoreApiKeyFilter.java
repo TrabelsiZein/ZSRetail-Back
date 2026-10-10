@@ -19,6 +19,8 @@ import com.digithink.zsretail.config.ConditionalOnInstallation;
 import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.service.StoreService;
 import com.digithink.zsretail.headoffice.service.StoreService.KeyCheck;
+import com.digithink.zsretail.security.StoreApiAccess;
+import com.digithink.zsretail.security.StoreKeyFilter;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -34,14 +36,14 @@ import lombok.extern.log4j.Log4j2;
 @Component
 @ConditionalOnInstallation(Installation.HEAD_OFFICE)
 @Log4j2
-public class StoreApiKeyFilter extends OncePerRequestFilter {
+public class StoreApiKeyFilter extends OncePerRequestFilter implements StoreKeyFilter {
 
 	public static final String CODE_HEADER = "X-Store-Code";
 	public static final String KEY_HEADER = "X-Store-Key";
-	public static final String STORE_AUTHORITY = "HO_STORE";
+	public static final String STORE_AUTHORITY = StoreApiAccess.STORE_AUTHORITY;
 
 	static final String PATH_PREFIX = "/ho/";
-	static final String REFUSAL_BODY = "{\"code\":401,\"msg\":\"Invalid store credentials.\"}";
+	static final String REFUSAL_BODY = StoreApiAccess.REFUSAL_BODY;
 	static final String MISSING_HEADER = "missing header";
 
 	/** Header and path values come from the caller: logged without control characters and cut to this length. */
@@ -85,9 +87,7 @@ public class StoreApiKeyFilter extends OncePerRequestFilter {
 
 	/** The single 401 of /ho/**. Also written by the chain's entry point (on a store, where this filter is absent). */
 	static void writeRefusal(HttpServletResponse response) throws IOException {
-		response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-		response.setContentType("application/json;charset=UTF-8");
-		response.getWriter().write(REFUSAL_BODY);
+		StoreApiAccess.writeRefusal(response);
 	}
 
 	private static void refuse(HttpServletRequest request, HttpServletResponse response, String code, String reason)

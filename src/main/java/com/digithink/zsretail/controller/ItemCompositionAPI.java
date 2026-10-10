@@ -15,8 +15,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.ItemComposition;
+import com.digithink.zsretail.service.CatalogueEditGuard;
 import com.digithink.zsretail.service.ItemCompositionService;
 
 import lombok.extern.log4j.Log4j2;
@@ -31,11 +31,11 @@ public class ItemCompositionAPI extends _BaseController<ItemComposition, Long, I
 
 	/** Step 6: the rules of a store whose catalogue is the head office's; no bean on every other installation. */
 	@Autowired(required = false)
-	private ObjectProvider<StoreCatalogueGuard> catalogueGuard;
+	private ObjectProvider<CatalogueEditGuard> catalogueGuard;
 
 	/** Step 6: 409 when the pack (old or new parent) is a head office item; null otherwise or without the guard. */
 	private ResponseEntity<?> refusedForPack(Long compositionId, ItemComposition body) {
-		StoreCatalogueGuard guard = catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
+		CatalogueEditGuard guard = catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
 		if (guard == null) {
 			return null;
 		}

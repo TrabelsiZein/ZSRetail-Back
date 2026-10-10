@@ -20,9 +20,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.config.ApplicationModeService;
-import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
-import com.digithink.zsretail.holink.service.SupplyVendorGuard;
 import com.digithink.zsretail.model.Vendor;
+import com.digithink.zsretail.service.CatalogueEditGuard;
+import com.digithink.zsretail.service.VendorEditGuard;
 import com.digithink.zsretail.service.VendorService;
 
 import lombok.extern.log4j.Log4j2;
@@ -40,22 +40,22 @@ public class VendorAPI extends _BaseController<Vendor, Long, VendorService> {
 
 	/** Step 6: the rules of a store whose catalogue is the head office's; no bean on every other installation. */
 	@Autowired(required = false)
-	private ObjectProvider<StoreCatalogueGuard> catalogueGuard;
+	private ObjectProvider<CatalogueEditGuard> catalogueGuard;
 
 	/** Step 6: 409 without the purchase right on a store whose items come from the head office; null otherwise. */
 	private ResponseEntity<?> purchaseRefused() {
-		StoreCatalogueGuard guard = catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
+		CatalogueEditGuard guard = catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
 		String refusal = guard == null ? null : guard.purchase();
 		return refusal == null ? null : ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
 	}
 
 	/** Step 7B: the head office vendor of a store whose goods come from the head office; no bean elsewhere. */
 	@Autowired(required = false)
-	private ObjectProvider<SupplyVendorGuard> supplyVendorGuard;
+	private ObjectProvider<VendorEditGuard> supplyVendorGuard;
 
 	/** Step 7B: 409 for the head office vendor (consult-only, code kept); null otherwise and without the guard. */
-	private ResponseEntity<?> headOfficeVendorRefused(Function<SupplyVendorGuard, String> rule) {
-		SupplyVendorGuard guard = supplyVendorGuard == null ? null : supplyVendorGuard.getIfAvailable();
+	private ResponseEntity<?> headOfficeVendorRefused(Function<VendorEditGuard, String> rule) {
+		VendorEditGuard guard = supplyVendorGuard == null ? null : supplyVendorGuard.getIfAvailable();
 		String refusal = guard == null ? null : rule.apply(guard);
 		return refusal == null ? null : ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
 	}

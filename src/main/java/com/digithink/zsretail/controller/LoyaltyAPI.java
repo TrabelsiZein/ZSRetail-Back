@@ -27,9 +27,9 @@ import com.digithink.zsretail.dto.LoyaltyConfigDTO;
 import com.digithink.zsretail.dto.LoyaltyMemberDTO;
 import com.digithink.zsretail.dto.LoyaltyProgramDTO;
 import com.digithink.zsretail.dto.LoyaltyTransactionDTO;
-import com.digithink.zsretail.holink.service.StoreLoyaltyNetwork;
 import com.digithink.zsretail.model.LoyaltyProgram;
 import com.digithink.zsretail.security.CurrentUserProvider;
+import com.digithink.zsretail.service.LoyaltyMemberNetwork;
 import com.digithink.zsretail.service.LoyaltyService;
 
 import lombok.extern.log4j.Log4j2;
@@ -51,7 +51,7 @@ public class LoyaltyAPI {
 	 * office, and the program is refused here (409). Null otherwise: every endpoint works as before.
 	 */
 	@Autowired(required = false)
-	private StoreLoyaltyNetwork network;
+	private LoyaltyMemberNetwork network;
 
 	// ───────────────────────────────────────────────────────────────
 	// Config
@@ -99,11 +99,11 @@ public class LoyaltyAPI {
 			}
 			LoyaltyMemberDTO created = network != null ? network.enrol(request) : loyaltyService.createMember(request);
 			return ResponseEntity.ok(created);
-		} catch (StoreLoyaltyNetwork.PhoneTakenException e) {
+		} catch (LoyaltyMemberNetwork.PhoneTakenException e) {
 			// Loyalty owned by the head office only: the card in fields beside today's message
 			return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage(),
 					"existingCardNumber", e.getCardNumber(), "existingCardActive", e.isCardActive()));
-		} catch (StoreLoyaltyNetwork.NetworkException e) {
+		} catch (LoyaltyMemberNetwork.NetworkException e) {
 			return networkRefusal(e); // enrol switch: 503 when the head office did not answer the phone check
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -158,7 +158,7 @@ public class LoyaltyAPI {
 			LoyaltyMemberDTO updated = network != null ? network.edit(id, request)
 					: loyaltyService.updateMember(id, request);
 			return ResponseEntity.ok(updated);
-		} catch (StoreLoyaltyNetwork.NetworkException e) {
+		} catch (LoyaltyMemberNetwork.NetworkException e) {
 			return networkRefusal(e);
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -176,7 +176,7 @@ public class LoyaltyAPI {
 		try {
 			LoyaltyMemberDTO updated = network != null ? network.toggleActive(id) : loyaltyService.toggleMemberActive(id);
 			return ResponseEntity.ok(updated);
-		} catch (StoreLoyaltyNetwork.NetworkException e) {
+		} catch (LoyaltyMemberNetwork.NetworkException e) {
 			return networkRefusal(e);
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -195,7 +195,7 @@ public class LoyaltyAPI {
 			LoyaltyMemberDTO updated = network != null ? network.linkCustomer(id, customerId)
 					: loyaltyService.linkCustomer(id, customerId);
 			return ResponseEntity.ok(updated);
-		} catch (StoreLoyaltyNetwork.NetworkException e) {
+		} catch (LoyaltyMemberNetwork.NetworkException e) {
 			return networkRefusal(e);
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -248,7 +248,7 @@ public class LoyaltyAPI {
 					? network.adjust(id, request.getDelta(), request.getReason(), adjustedBy)
 					: loyaltyService.adjustPoints(id, request.getDelta(), request.getReason(), adjustedBy);
 			return ResponseEntity.ok(updated);
-		} catch (StoreLoyaltyNetwork.NetworkException e) {
+		} catch (LoyaltyMemberNetwork.NetworkException e) {
 			return networkRefusal(e);
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -308,7 +308,7 @@ public class LoyaltyAPI {
 	@PostMapping("/programs")
 	public ResponseEntity<?> createProgram(@RequestBody LoyaltyProgram newProgram) {
 		if (network != null) {
-			return headOfficeOnly(StoreLoyaltyNetwork.PROGRAM_AT_HEAD_OFFICE);
+			return headOfficeOnly(LoyaltyMemberNetwork.PROGRAM_AT_HEAD_OFFICE);
 		}
 		try {
 			if (newProgram.getName() == null || newProgram.getName().isBlank()) {
@@ -332,7 +332,7 @@ public class LoyaltyAPI {
 	@PutMapping("/programs/{id}")
 	public ResponseEntity<?> updateProgram(@PathVariable Long id, @RequestBody LoyaltyProgram patch) {
 		if (network != null) {
-			return headOfficeOnly(StoreLoyaltyNetwork.PROGRAM_AT_HEAD_OFFICE);
+			return headOfficeOnly(LoyaltyMemberNetwork.PROGRAM_AT_HEAD_OFFICE);
 		}
 		try {
 			LoyaltyProgramDTO updated = loyaltyService.updateProgram(id, patch);
@@ -351,7 +351,7 @@ public class LoyaltyAPI {
 	@DeleteMapping("/programs/{id}")
 	public ResponseEntity<?> deleteProgram(@PathVariable Long id) {
 		if (network != null) {
-			return headOfficeOnly(StoreLoyaltyNetwork.PROGRAM_AT_HEAD_OFFICE);
+			return headOfficeOnly(LoyaltyMemberNetwork.PROGRAM_AT_HEAD_OFFICE);
 		}
 		try {
 			loyaltyService.deleteProgram(id);
@@ -368,7 +368,7 @@ public class LoyaltyAPI {
 	}
 
 	/** Step 4: a member change refused by (or without) the head office, with its status. */
-	private static ResponseEntity<?> networkRefusal(StoreLoyaltyNetwork.NetworkException e) {
+	private static ResponseEntity<?> networkRefusal(LoyaltyMemberNetwork.NetworkException e) {
 		return ResponseEntity.status(e.getStatus()).body(Map.of("error", e.getMessage()));
 	}
 
@@ -380,7 +380,7 @@ public class LoyaltyAPI {
 	@PostMapping("/programs/{id}/deactivate")
 	public ResponseEntity<?> deactivateProgram(@PathVariable Long id) {
 		if (network != null) {
-			return headOfficeOnly(StoreLoyaltyNetwork.PROGRAM_AT_HEAD_OFFICE);
+			return headOfficeOnly(LoyaltyMemberNetwork.PROGRAM_AT_HEAD_OFFICE);
 		}
 		try {
 			LoyaltyProgramDTO updated = loyaltyService.deactivateProgram(id);

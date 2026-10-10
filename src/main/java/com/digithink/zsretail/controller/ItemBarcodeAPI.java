@@ -19,10 +19,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.ItemBarcode;
 import com.digithink.zsretail.service.CatalogueCodeTooLongException;
+import com.digithink.zsretail.service.CatalogueEditGuard;
 import com.digithink.zsretail.service.ItemBarcodeService;
 import com.digithink.zsretail.service.ItemService;
 
@@ -41,9 +41,9 @@ public class ItemBarcodeAPI extends _BaseController<ItemBarcode, Long, ItemBarco
 
 	/** Step 6: the rules of a store whose catalogue is the head office's; no bean on every other installation. */
 	@Autowired(required = false)
-	private ObjectProvider<StoreCatalogueGuard> catalogueGuard;
+	private ObjectProvider<CatalogueEditGuard> catalogueGuard;
 
-	private StoreCatalogueGuard catalogueGuard() {
+	private CatalogueEditGuard catalogueGuard() {
 		return catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
 	}
 
@@ -54,7 +54,7 @@ public class ItemBarcodeAPI extends _BaseController<ItemBarcode, Long, ItemBarco
 	@Override
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody ItemBarcode entity) {
-		StoreCatalogueGuard guard = catalogueGuard();
+		CatalogueEditGuard guard = catalogueGuard();
 		String refusal = guard == null ? null : guard.barcodeCreate(entity);
 		if (refusal != null) {
 			return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
@@ -74,7 +74,7 @@ public class ItemBarcodeAPI extends _BaseController<ItemBarcode, Long, ItemBarco
 	@Override
 	@PutMapping("/{id}")
 	public ResponseEntity<?> update(@PathVariable Long id, @RequestBody ItemBarcode entity) {
-		StoreCatalogueGuard guard = catalogueGuard();
+		CatalogueEditGuard guard = catalogueGuard();
 		if (guard != null) {
 			String refusal = guard.barcodeWrite(id);
 			if (refusal == null && entity != null && entity.getItem() != null) {
@@ -104,7 +104,7 @@ public class ItemBarcodeAPI extends _BaseController<ItemBarcode, Long, ItemBarco
 	@Override
 	@DeleteMapping("/{id}")
 	public ResponseEntity<?> deleteById(@PathVariable Long id) {
-		StoreCatalogueGuard guard = catalogueGuard();
+		CatalogueEditGuard guard = catalogueGuard();
 		String refusal = guard == null ? null : guard.barcodeWrite(id);
 		if (refusal != null) {
 			return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
