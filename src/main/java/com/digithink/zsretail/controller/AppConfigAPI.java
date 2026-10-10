@@ -34,6 +34,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AppConfigAPI {
 
+	/** 2.2.2: a store setting, display only: amounts with 3 decimals on the POS, payment and return screens. */
+	public static final String POS_AMOUNTS_THREE_DECIMALS = "POS_AMOUNTS_3_DECIMALS";
+
 	private final ApplicationModeService applicationModeService;
 	private final LicenseService licenseService;
 	private final GeneralSetupService generalSetupService;
@@ -95,7 +98,8 @@ public class AppConfigAPI {
 						: applicationModeService.isSupplyFromErpSource() ? "ERP" : "HEAD_OFFICE",
 				"true".equalsIgnoreCase(generalSetupService.findValueByCode(QuantityPolicy.SETTING))
 						&& (decimalColumns == null || decimalColumns.ready()), // 2.2.1: off while a column is still int
-				taxStampRule.active()
+				taxStampRule.active(),
+				"true".equalsIgnoreCase(generalSetupService.findValueByCode(POS_AMOUNTS_THREE_DECIMALS))
 		));
 	}
 

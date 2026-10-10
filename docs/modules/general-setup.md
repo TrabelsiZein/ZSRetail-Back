@@ -14,7 +14,7 @@ Added two columns to `general_setup`:
 
 | Type | Codes |
 |---|---|
-| BOOLEAN | `ENABLE_SIMPLE_RETURN`, `ALWAYS_SHOW_BADGE_SCAN_POPUP`, `AUTO_ADD_CASH_PAYMENT_ON_PAYMENT_PAGE`, `ENABLE_CASH_DISCREPANCY_CHECK`, `ENABLE_TAX_STAMP`, `LOYALTY_ENABLED`, `ALLOW_NEGATIVE_STOCK`, `POS_SHOW_IMAGES`, `TABLE_MANAGEMENT_ENABLED`, `ALLOW_DECIMAL_QUANTITY` (2.2.1, stores only, see `decimal-quantities.md`), `POS_HIDE_EMPTY_FAMILIES`, `POS_HIDE_EMPTY_SUB_FAMILIES` (2.2.2, stores only, see below) |
+| BOOLEAN | `ENABLE_SIMPLE_RETURN`, `ALWAYS_SHOW_BADGE_SCAN_POPUP`, `AUTO_ADD_CASH_PAYMENT_ON_PAYMENT_PAGE`, `ENABLE_CASH_DISCREPANCY_CHECK`, `ENABLE_TAX_STAMP`, `LOYALTY_ENABLED`, `ALLOW_NEGATIVE_STOCK`, `POS_SHOW_IMAGES`, `TABLE_MANAGEMENT_ENABLED`, `ALLOW_DECIMAL_QUANTITY` (2.2.1, stores only, see `decimal-quantities.md`), `POS_HIDE_EMPTY_FAMILIES`, `POS_HIDE_EMPTY_SUB_FAMILIES`, `POS_AMOUNTS_3_DECIMALS` (2.2.2, stores only, see below) |
 | NUMBER | `MAX_DAYS_FOR_RETURN`, `RETURN_VOUCHER_VALIDITY_DAYS`, `PAYMENT_METHOD_*_TITLE_NUMBER_LENGTH` (×4), `TAX_STAMP_VALUE_MILLIMES`, `TABLE_MANAGEMENT_TABLE_COUNT` |
 | DATETIME | All `ERP_SYNC_LAST_*` checkpoints (×9) (the two `FRANCHISE_LAST_*` rows of an older install stay, unused since step 9) |
 | SELECT | `ERP_SYNC_TRACKING_LEVEL` (options: `ERRORS_ONLY,ERRORS_AND_WARNINGS,ALL`) |
@@ -47,3 +47,21 @@ empty sub-families in the POS screen".
   and the family chip work in both cases). One more call per family opened (cached like the others).
 - Tests: `PosCatalogueServiceTest` (the four combinations, both off returns the same lists without counting, items
   without sub-family), `PosGridCountQueryTest`.
+## POS screens: amounts with 3 decimals (2.2.2)
+
+A store setting (General Setup, POS section, BOOLEAN, `false`, created at start-up on a store only):
+`POS_AMOUNTS_3_DECIMALS` "Show amounts with 3 decimals on the POS screens". Sent by `GET /config` as
+`posAmountsThreeDecimals`, read in the front through the getter `appConfig/posAmountDecimals` (2 or 3); saving the setting
+refreshes `/config`.
+
+- **Display only**: no stored value, calculation or rounding rule changes.
+- **Where the 2 decimals are decided**: `formatCurrencyAmount(value, decimals = 2)` / `formatCurrency` in
+  `src/@core/utils/filter.js`, shared by about 30 pages (admin, reports, head office, the receipt template asks for 3).
+  The default is untouched; the POS screens pass the decimals through their own wrappers:
+  `ItemSelection.vue` (`formatPrice`, `formatShortTun`, `formatTunCurrency`: item tiles, cart, lines, totals, the
+  dialogs of the screen), `Payment.vue` (`formatTunCurrency`, `formatTunCurrencyWithoutSuffix`: totals, paid, remaining,
+  the voucher amount, the cash-limit message; typed amounts are shown as typed), `SplitBillModal.vue` (opened from the
+  payment page), `ReturnProducts.vue` (`formatPrice`: unit price, return amount, VAT, totals, the "voucher created"
+  message; discount percentages stay at 2 decimals through `formatPercent`).
+- **Unchanged either way**: admin pages, reports, printed documents (the ticket and the voucher already print 3; the
+  session closing ticket keeps 2), the navbar cart and the table grid.

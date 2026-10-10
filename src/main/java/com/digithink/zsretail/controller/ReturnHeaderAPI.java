@@ -431,26 +431,7 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 			// Convert return lines to maps with item details (avoiding circular references)
 			java.util.List<Map<String, Object>> returnLinesData = new java.util.ArrayList<>();
 			for (ReturnLine line : returnLines) {
-				Map<String, Object> lineData = new HashMap<>();
-				lineData.put("id", line.getId());
-				lineData.put("quantity", line.getQuantity());
-				lineData.put("unitPrice", line.getUnitPrice());
-				lineData.put("unitPriceIncludingVat", line.getUnitPriceIncludingVat());
-				lineData.put("lineTotal", line.getLineTotal());
-				lineData.put("lineTotalIncludingVat", line.getLineTotalIncludingVat());
-				lineData.put("notes", line.getNotes());
-				lineData.put("synched", line.getSynched());
-
-				// Add item details
-				if (line.getItem() != null) {
-					Map<String, Object> itemData = new HashMap<>();
-					itemData.put("id", line.getItem().getId());
-					itemData.put("name", line.getItem().getName());
-					itemData.put("itemCode", line.getItem().getItemCode());
-					lineData.put("item", itemData);
-				}
-
-				returnLinesData.add(lineData);
+				returnLinesData.add(returnLineData(line));
 			}
 			returnResponse.put("returnLines", returnLinesData);
 
@@ -540,26 +521,7 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 			// Convert return lines to maps with item details (avoiding circular references)
 			java.util.List<Map<String, Object>> returnLinesData = new java.util.ArrayList<>();
 			for (ReturnLine line : returnLines) {
-				Map<String, Object> lineData = new HashMap<>();
-				lineData.put("id", line.getId());
-				lineData.put("quantity", line.getQuantity());
-				lineData.put("unitPrice", line.getUnitPrice());
-				lineData.put("unitPriceIncludingVat", line.getUnitPriceIncludingVat());
-				lineData.put("lineTotal", line.getLineTotal());
-				lineData.put("lineTotalIncludingVat", line.getLineTotalIncludingVat());
-				lineData.put("notes", line.getNotes());
-				lineData.put("synched", line.getSynched());
-
-				// Add item details
-				if (line.getItem() != null) {
-					Map<String, Object> itemData = new HashMap<>();
-					itemData.put("id", line.getItem().getId());
-					itemData.put("name", line.getItem().getName());
-					itemData.put("itemCode", line.getItem().getItemCode());
-					lineData.put("item", itemData);
-				}
-
-				returnLinesData.add(lineData);
+				returnLinesData.add(returnLineData(line));
 			}
 
 			response.put("returnHeader", returnHeaderInfo);
@@ -575,5 +537,37 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 			log.error("ReturnHeaderAPI::getReturnDetails:error: " + detailedMessage, e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(detailedMessage));
 		}
+	}
+
+	/**
+	 * A return line as the return and its reprint send it (avoiding circular references). 2.2.2: with vatPercent, the rate
+	 * of the sold line (the item's default rate when the sold line has none), so the voucher prints 19%, never a rate
+	 * worked back from rounded amounts (0.2 of an item: 19.02%).
+	 */
+	static Map<String, Object> returnLineData(ReturnLine line) {
+		Map<String, Object> lineData = new HashMap<>();
+		lineData.put("id", line.getId());
+		lineData.put("quantity", line.getQuantity());
+		lineData.put("unitPrice", line.getUnitPrice());
+		lineData.put("unitPriceIncludingVat", line.getUnitPriceIncludingVat());
+		lineData.put("lineTotal", line.getLineTotal());
+		lineData.put("lineTotalIncludingVat", line.getLineTotalIncludingVat());
+		lineData.put("notes", line.getNotes());
+		lineData.put("synched", line.getSynched());
+		Integer vatPercent = line.getOriginalSalesLine() != null ? line.getOriginalSalesLine().getVatPercent() : null;
+		if (vatPercent == null && line.getItem() != null) {
+			vatPercent = line.getItem().getDefaultVAT();
+		}
+		lineData.put("vatPercent", vatPercent);
+
+		// Add item details
+		if (line.getItem() != null) {
+			Map<String, Object> itemData = new HashMap<>();
+			itemData.put("id", line.getItem().getId());
+			itemData.put("name", line.getItem().getName());
+			itemData.put("itemCode", line.getItem().getItemCode());
+			lineData.put("item", itemData);
+		}
+		return lineData;
 	}
 }

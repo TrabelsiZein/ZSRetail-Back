@@ -146,4 +146,10 @@ public class AppConfigDTO {
 	 * TAX_STAMP item exists). The till adds the stamp amount only on this boolean, the rule the sale uses.
 	 */
 	private boolean taxStampActive;
+
+	/**
+	 * 2.2.2: true on a store whose GeneralSetup POS_AMOUNTS_3_DECIMALS is "true": the POS, payment and return screens show
+	 * amounts with 3 decimals instead of 2. Display only; false on a head office (the row is never created there).
+	 */
+	private boolean posAmountsThreeDecimals;
 }

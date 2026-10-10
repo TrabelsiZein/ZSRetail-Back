@@ -996,6 +996,9 @@ public class ZZDataInitializer {
 			ensureConfig(PosCatalogueService.HIDE_EMPTY_SUB_FAMILIES, "false",
 					"Hide the sub-families without an item to sell in the POS screen (same rule as the families). Other pages keep every sub-family.",
 					false, ConfigType.BOOLEAN);
+			ensureConfig("POS_AMOUNTS_3_DECIMALS", "false",
+					"Show amounts with 3 decimals on the POS screens (POS, payment and return screens) instead of 2. Display only: admin pages, reports and printed documents do not change.",
+					false, ConfigType.BOOLEAN);
 		}
 
 		// ── Table management ──────────────────────────────────────────────────

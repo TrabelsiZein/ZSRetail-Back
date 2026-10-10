@@ -48,10 +48,10 @@ class AppConfigAPITest {
 	/** Keys added by the head office plan: tasks 0.5 (first three) and 1.5 (headOfficeLinked),
 	 * step 6 (catalogueFromHeadOffice), step 7A (supplyFromHeadOffice), headoffice.stock.enabled (headOfficeStock),
 	 * invoices from the ERP (supplySource), always last; then 2.2.1 decimal quantities (allowDecimalQuantity) and the tax
-	 * stamp rule (taxStampActive). */
+	 * stamp rule (taxStampActive); then 2.2.2 amounts with 3 decimals on the POS screens (posAmountsThreeDecimals). */
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
 			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock", "supplySource",
-			"allowDecimalQuantity", "taxStampActive");
+			"allowDecimalQuantity", "taxStampActive", "posAmountsThreeDecimals");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";
@@ -69,6 +69,7 @@ class AppConfigAPITest {
 		values.put("TABLE_MANAGEMENT_TABLE_COUNT", "7");
 		values.put("TOMBOLA_ENABLED", "true");
 		values.put(TaxStampRule.SETTING, "true");
+		values.put(AppConfigAPI.POS_AMOUNTS_THREE_DECIMALS, "TRUE");
 		return values;
 	}
 
@@ -271,6 +272,8 @@ class AppConfigAPITest {
 		assertEquals("false", erp.get("headOfficeLinked").toString());
 		assertEquals("true", mapper.valueToTree(linkedStore()).get("headOfficeLinked").toString());
 		assertEquals("true", erp.get("taxStampActive").toString()); // 2.2.1: ENABLE_TAX_STAMP true and the item
+		assertEquals("true", erp.get("posAmountsThreeDecimals").toString()); // 2.2.2: POS_AMOUNTS_3_DECIMALS, any case
+		assertFalse(new AppConfigDTO().isPosAmountsThreeDecimals()); // the row absent (a head office): off
 	}
 
 	private static void inject(Object target, Class<?> declaringClass, String fieldName, Object value) throws Exception {

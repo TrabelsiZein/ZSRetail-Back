@@ -223,7 +223,12 @@ the summary said.
   refused (decimals while off, more than 3 decimals, above what remains, not a number) is said under its box and
   blocks "Process return". Amounts with the same rules (`returnShareOf` in `src/libs/quantity.js`, the remaining TTC for
   the return that closes a line). `ReturnsManagement.vue` and `HeadOfficeReturns.vue` show `formatQuantity`; the
-  voucher print uses the receipt template (step 1).
+  voucher print uses the receipt template (step 1). Screen check follow-up: the return lines of `POST /return-header/process-return`
+  and `GET /return-header/{id}/details` carry `vatPercent`, the rate of the line sold (else the item's default rate;
+  `ReturnHeaderAPI.returnLineData`, `ReturnLineDataTest`), and both voucher prints (after the return, and again from the
+  Returns page) use it: 0.2 of an item at 19% prints "TVA : 19%", no longer 19.02% worked back from the rounded amounts.
+  A ticket with nothing left to return says so ("Nothing left to return on this ticket", en/fr/ar) instead of an empty
+  table.
 - **Reports and dashboards**: nothing to convert: they add up return amounts (`total_return_amount`), never returned
   quantities; the movement report reads `stock_movement` (step 1).
 - **Whole returns are as in 2.2.1** (pinned in `ReturnRefundLoyaltyTest.wholeReturnAsIn221` with the values the 2.2.1
@@ -245,7 +250,7 @@ the summary said.
 | Cash counts, promotion settings, warranties, free quantity of a sale line, session count / supply invoice / catalogue component copies (the return copy until 2.2.1) | whole for good: 1.5 refused with a 400 naming the field; a warranty on a decimal line refused |
 | EMTOP ticket export (`TicketExportService`) | passes the quantity through (`Double` to NAV): 2 stays 2.0, 0.2 is sent as 0.2 |
 
-2.2.2, step 4: (b) done: a fixed discount larger than its line is capped at the line, whole or decimal (the till's subtotal and VAT per line, the line's stored `discountAmount` in `ItemSelection.vue` and `Payment.vue`, and `SalesHeaderService.applyDecimalLineAmounts`), so nothing stored is below 0; a discount within the line is unchanged. Was: (b) the till's subtotal and VAT stopped at 0 per line for a fixed promotion larger than its line
+2.2.2, step 4: (b) done: a fixed discount larger than its line is capped at the line, whole or decimal (the till's subtotal and VAT per line, the line's stored `discountAmount` in `ItemSelection.vue` and `Payment.vue`, and `SalesHeaderService.applyDecimalLineAmounts`), so nothing stored is below 0; a discount within the line is unchanged. The cart line and its discount badge show the amount really applied (15.000 on a 10.71 line shows 10.71, `ItemSelection.appliedLineDiscount`); the cart summary's units are the sum of the quantities (0.5 and 1: "2 (1.5 units)"; whole quantities as before). Was: (b) the till's subtotal and VAT stopped at 0 per line for a fixed promotion larger than its line
 (after the Happyness go-live). A store and its head office move to 2.2.1 together.
 
 ## Database
