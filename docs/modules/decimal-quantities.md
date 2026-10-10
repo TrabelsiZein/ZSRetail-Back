@@ -206,6 +206,14 @@ columns left and the application keeps refusing to start). The script sets its s
 sqlcmd starts with it off, which breaks the reading of a filtered index). It may run again: done columns are skipped,
 the 2.2.1 notes rewritten. A new database gets `DECIMAL(18,3)` from Hibernate.
 
+A 2.2.1 application on a 2.2.0 database does not start: `AppVersionGuard` finds APP_VERSION 2.2.0 (the script
+writes 2.2.1 only when every column is converted). For what that guard lets through (APP_VERSION set by hand, an
+existing database with an empty APP_VERSION), `DecimalColumnsCheck` (step 6) reads `INFORMATION_SCHEMA.COLUMNS` once at
+start-up for the 17 columns of the script (`COLUMNS`, keep both lists the same; an absent table is skipped): a column
+not DECIMAL(18,3) is named in an error of the log, `QuantityPolicy` and `/config.allowDecimalQuantity` treat the
+setting as off, and a decimal is refused with "decimal quantities need the 2.2.1 database script (db/2.2.1/update.sql),
+not run on this database"; whole quantities work as in 2.2.0. Hibernate (`ddl-auto=update`) never changes a column type.
+
 Tried on throwaway copies on the local server only (`pos_store_b_221_test`, `pos_headoffice_221_test`,
 `happyness_store1_221_test`, `happyness_ho_rehearsal_221_test`, restored from COPY_ONLY backups of `pos_store_b`,
 `pos_headoffice`, `happyness_store1` and `happyness_ho_rehearsal`,
@@ -231,4 +239,4 @@ return screen line, invoice and composition refusals, the Excel import by row, i
 and its 400, the global setting unchanged), `TaxStampRuleTest` (true, TRUE, 1; no item), `AppConfigAPITest`
 (`taxStampActive`), `SaleCompletionLoyaltyStampTest.stampSettingReadings`, `ReturnRefundLoyaltyTest.decimalSoldLineRefused`
 / `decimalAskedRefused`, `ItemStockAdjustmentTest.decimalDeltaRefused`, `HeadOfficeWarehouseTest.decimalPurchaseRefused`,
-`HoDeliveryServiceTest` (1.5 named), `HoSupplyInvoiceServiceTest.decimalReceivedNotInvoiced`, `CashCountQuantityTest`.
+`HoDeliveryServiceTest` (1.5 named), `HoSupplyInvoiceServiceTest.decimalReceivedNotInvoiced`, `CashCountQuantityTest`. Step 6: `DecimalColumnsCheckTest`.

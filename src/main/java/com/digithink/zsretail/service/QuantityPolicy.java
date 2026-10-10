@@ -22,10 +22,25 @@ public class QuantityPolicy {
 	@Autowired
 	private GeneralSetupRepository generalSetupRepository;
 
-	/** True when the general setting ALLOW_DECIMAL_QUANTITY is "true". */
+	/** The quantity columns of the database (DECIMAL(18,3) after db/2.2.1/update.sql); absent in some unit tests. */
+	@Autowired(required = false)
+	private DecimalColumnsCheck decimalColumns;
+
+	/**
+	 * True when the general setting ALLOW_DECIMAL_QUANTITY is "true" and the quantity columns are DECIMAL(18,3) (with a
+	 * column still int the setting is treated as off: DecimalColumnsCheck).
+	 */
 	public boolean decimalAllowed() {
+		return settingOn() && columnsReady();
+	}
+
+	private boolean settingOn() {
 		return generalSetupRepository.findByCode(SETTING).map(GeneralSetup::getValeur)
 				.map(value -> "true".equalsIgnoreCase(value.trim())).orElse(false);
+	}
+
+	private boolean columnsReady() {
+		return decimalColumns == null || decimalColumns.ready();
 	}
 
 	/**
@@ -42,6 +57,10 @@ public class QuantityPolicy {
 		if (Quantities.decimals(quantity) > Quantities.SCALE) {
 			throw new IllegalArgumentException("Quantity " + Quantities.plain(quantity) + " of item " + itemLabel
 					+ ": at most " + Quantities.SCALE + " decimals");
+		}
+		if (settingOn() && !columnsReady()) {
+			throw new IllegalArgumentException("Quantity " + Quantities.plain(quantity) + " of item " + itemLabel + ": "
+					+ DecimalColumnsCheck.SCRIPT_MESSAGE);
 		}
 		if (!decimalAllowed()) {
 			throw new IllegalArgumentException("Quantity " + Quantities.plain(quantity) + " of item " + itemLabel

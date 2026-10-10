@@ -19,6 +19,7 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.LicenseService;
 import com.digithink.zsretail.service.LoyaltyService;
+import com.digithink.zsretail.service.DecimalColumnsCheck;
 import com.digithink.zsretail.service.QuantityPolicy;
 import com.digithink.zsretail.service.TaxStampRule;
 
@@ -48,6 +49,9 @@ public class AppConfigAPI {
 
 	@Autowired
 	private TaxStampRule taxStampRule;
+
+	@Autowired(required = false)
+	private DecimalColumnsCheck decimalColumns;
 
 	/**
 	 * GET /config - returns public app config (standalone, enableSalesPriceGroup, loyaltyEnabled, etc.).
@@ -89,7 +93,8 @@ public class AppConfigAPI {
 				!applicationModeService.isHeadOfficeWithoutStock(),
 				!applicationModeService.isHeadOffice() ? null
 						: applicationModeService.isSupplyFromErpSource() ? "ERP" : "HEAD_OFFICE",
-				"true".equalsIgnoreCase(generalSetupService.findValueByCode(QuantityPolicy.SETTING)),
+				"true".equalsIgnoreCase(generalSetupService.findValueByCode(QuantityPolicy.SETTING))
+						&& (decimalColumns == null || decimalColumns.ready()), // 2.2.1: off while a column is still int
 				taxStampRule.active()
 		));
 	}
