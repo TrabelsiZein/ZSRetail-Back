@@ -315,6 +315,53 @@ class ReturnRefundLoyaltyTest {
 		assertEquals(0, m.getLoyaltyPoints().intValue());
 	}
 
+	// ─── 2.2.1: decimal quantities are not returned yet ──────────────
+
+	@Test
+	@DisplayName("2.2.1: a line sold with decimals is refused naming the item, nothing written; the whole line of the same ticket returns as in 2.2.0")
+	void decimalSoldLineRefused() throws Exception {
+		SalesHeader sale = sale(null, 0.0, 0, 0.0, 10.0, 50.0);
+		SalesLine bulk = linesBySale.get(sale).get(0);
+		bulk.setQuantity(new BigDecimal("0.2"));
+		bulk.getItem().setItemCode("VH52-1L");
+		bulk.getItem().setName("V H 52 1L");
+
+		IllegalArgumentException refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+				() -> returnLines(sale, ReturnType.SIMPLE_RETURN, 0, 1));
+		assertEquals("Item VH52-1L (V H 52 1L): the quantity 0.2 has decimals, and decimal quantities are not supported"
+				+ " in returns yet.", refused.getMessage());
+		assertTrue(savedReturns.isEmpty(), "nothing written");
+		assertTrue(savedReturnLines.isEmpty(), "nothing written");
+
+		ReturnHeader r = returnLines(sale, ReturnType.SIMPLE_RETURN, 1);
+		assertEquals(50.0, r.getTotalReturnAmount().doubleValue(), 1e-6);
+		assertEquals(1, savedReturnLines.size());
+		assertEquals(Integer.valueOf(1), savedReturnLines.get(0).getQuantity());
+	}
+
+	@Test
+	@DisplayName("2.2.1: a decimal quantity asked on a whole line is refused naming the item (0.5 was read as 0 until 2.2.0); 1.0 is 1")
+	void decimalAskedRefused() throws Exception {
+		SalesHeader sale = sale(null, 0.0, 0, 0.0, 50.0);
+		SalesLine line = linesBySale.get(sale).get(0);
+		ProcessReturnRequestDTO.ReturnLineDTO dto = new ProcessReturnRequestDTO.ReturnLineDTO();
+		dto.setSalesLineId(line.getId());
+		dto.setQuantity(new BigDecimal("0.5"));
+		ProcessReturnRequestDTO request = new ProcessReturnRequestDTO();
+		request.setTicketNumber(sale.getSalesNumber());
+		request.setReturnType(ReturnType.SIMPLE_RETURN);
+		request.setReturnLines(new ArrayList<>(Arrays.asList(dto)));
+		IllegalArgumentException refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+				() -> returns.processReturn(request, cashier));
+		assertTrue(refused.getMessage().startsWith("Item " + line.getItem().getItemCode() + " ("), refused.getMessage());
+		assertTrue(refused.getMessage().contains("the quantity 0.5 has decimals"), refused.getMessage());
+		assertTrue(savedReturns.isEmpty());
+
+		dto.setQuantity(new BigDecimal("1.0"));
+		ReturnHeader r = returns.processReturn(request, cashier);
+		assertEquals(50.0, r.getTotalReturnAmount().doubleValue(), 1e-6);
+	}
+
 	// ─── Fixtures ────────────────────────────────────────────────────
 
 	/**
@@ -373,7 +420,7 @@ class ReturnRefundLoyaltyTest {
 		for (int i : indexes) {
 			ProcessReturnRequestDTO.ReturnLineDTO dto = new ProcessReturnRequestDTO.ReturnLineDTO();
 			dto.setSalesLineId(lines.get(i).getId());
-			dto.setQuantity(1);
+			dto.setQuantity(java.math.BigDecimal.ONE);
 			dtos.add(dto);
 		}
 		ProcessReturnRequestDTO request = new ProcessReturnRequestDTO();

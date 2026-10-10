@@ -8,6 +8,9 @@ import com.digithink.zsretail.headoffice.model.HoSupplyInvoiceLine;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import com.digithink.zsretail.utils.WholeQuantityDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -88,6 +91,7 @@ public class SupplyInvoiceCopyDTO {
 		private String deliveryNumber;
 		private String itemCode;
 		private String itemName;
+		@JsonDeserialize(using = WholeQuantityDeserializer.class) // 2.2.1: whole only, 1.5 refused (400)
 		private Integer quantity;
 		private Double unitPrice;
 		private Integer vatPercent;

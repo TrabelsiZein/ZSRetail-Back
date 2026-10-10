@@ -2,6 +2,9 @@ package com.digithink.zsretail.headoffice.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import com.digithink.zsretail.utils.WholeQuantityDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -24,6 +27,7 @@ public class SessionCountCopyDTO {
 
 	private Double denominationValue;
 
+	@JsonDeserialize(using = WholeQuantityDeserializer.class) // 2.2.1: whole only, 1.5 refused (400)
 	private Integer quantity;
 
 	private Double lineTotal;

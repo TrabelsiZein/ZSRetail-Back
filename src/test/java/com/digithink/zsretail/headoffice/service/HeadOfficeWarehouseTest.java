@@ -113,7 +113,7 @@ class HeadOfficeWarehouseTest {
 	private static ProcessPurchaseRequestDTO purchase(Long itemId, int quantity, double unitPrice) {
 		ProcessPurchaseRequestDTO.PurchaseLineDTO line = new ProcessPurchaseRequestDTO.PurchaseLineDTO();
 		line.setItemId(itemId);
-		line.setQuantity(quantity);
+		line.setQuantity(java.math.BigDecimal.valueOf(quantity));
 		line.setUnitPrice(unitPrice);
 		line.setVatPercent(19);
 		ProcessPurchaseRequestDTO request = new ProcessPurchaseRequestDTO();
@@ -125,6 +125,27 @@ class HeadOfficeWarehouseTest {
 	private int catalogueChanges() {
 		return (int) down.changes.stream().filter(c -> c.getDomain() == com.digithink.zsretail.model.enumeration.DataDomain.CATALOGUE)
 				.mapToLong(c -> c.getChangeVersion()).max().orElse(0);
+	}
+
+	@Test
+	@DisplayName("2.2.1: a purchase with a decimal quantity is refused naming the item, nothing written (1.5 was read as 1 until 2.2.0); 100.0 is 100")
+	void decimalPurchaseRefused() {
+		int before = stock.stockOf("B001");
+		ProcessPurchaseRequestDTO decimal = purchase(b001.getId(), 1, 6.0);
+		decimal.getLines().get(0).setQuantity(new BigDecimal("1.5"));
+		IllegalArgumentException refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+				() -> purchaseService().processPurchase(decimal, null));
+		assertEquals("Item B001 (" + b001.getName() + "): the quantity 1.5 has decimals, and decimal quantities are not"
+				+ " supported in purchases yet.", refused.getMessage());
+		assertEquals(0, purchases.size());
+		assertEquals(0, purchaseLines.size());
+		assertEquals(before, stock.stockOf("B001"));
+
+		ProcessPurchaseRequestDTO whole = purchase(b001.getId(), 1, 6.0);
+		whole.getLines().get(0).setQuantity(new BigDecimal("100.0"));
+		purchaseService().processPurchase(whole, null);
+		assertEquals(before + 100, stock.stockOf("B001"));
+		assertEquals(Integer.valueOf(100), purchaseLines.get(0).getQuantity());
 	}
 
 	@Test

@@ -27,6 +27,7 @@ import com.digithink.zsretail.model.enumeration.LicenseStatus;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.LicenseService;
 import com.digithink.zsretail.service.LoyaltyService;
+import com.digithink.zsretail.service.TaxStampRuleTest;
 import com.digithink.zsretail.support.Installations;
 import com.digithink.zsretail.support.TestModes;
 
@@ -231,6 +232,7 @@ class HeadOfficeStockKeyTest {
 		AppConfigAPI api = new AppConfigAPI(TestModes.of(env), license, setup);
 		inject(api, "appVersion", "test");
 		inject(api, "loyaltyService", loyalty);
+		inject(api, "taxStampRule", TaxStampRuleTest.rule(null, true)); // 2.2.1: no ENABLE_TAX_STAMP row
 		return api.getConfig().getBody();
 	}
 

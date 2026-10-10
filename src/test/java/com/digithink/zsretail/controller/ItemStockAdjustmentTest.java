@@ -107,7 +107,7 @@ class ItemStockAdjustmentTest {
 
 	private static AdjustStockRequestDTO request(Integer delta, String reason) {
 		AdjustStockRequestDTO request = new AdjustStockRequestDTO();
-		request.setDelta(delta);
+		request.setDelta(delta == null ? null : java.math.BigDecimal.valueOf(delta));
 		request.setReason(reason);
 		return request;
 	}
@@ -177,5 +177,29 @@ class ItemStockAdjustmentTest {
 		assertEquals(BigDecimal.valueOf(10), item.getStockQuantity());
 		assertTrue(stockUpdates.isEmpty());
 		assertTrue(movements.isEmpty());
+	}
+
+	@Test
+	@DisplayName("2.2.1: a decimal delta is refused naming the item, nothing written (0.5 was read as 0 until 2.2.0); 2.0 is 2")
+	void decimalDeltaRefused() throws Exception {
+		item.setName("Vanille 1L");
+		AdjustStockRequestDTO decimal = new AdjustStockRequestDTO();
+		decimal.setDelta(new BigDecimal("1.5"));
+		decimal.setReason("COUNT");
+		org.springframework.http.ResponseEntity<?> refused = api(true).adjustStock(7L, decimal);
+		assertEquals(400, refused.getStatusCodeValue());
+		assertEquals("Item B001 (Vanille 1L): the quantity 1.5 has decimals, and decimal quantities are not supported in"
+				+ " stock adjustments yet.", refused.getBody());
+		decimal.setDelta(new BigDecimal("0.5"));
+		assertEquals(400, api(true).adjustStock(7L, decimal).getStatusCodeValue());
+		assertEquals(BigDecimal.valueOf(10), item.getStockQuantity());
+		assertTrue(stockUpdates.isEmpty());
+		assertTrue(movements.isEmpty());
+
+		AdjustStockRequestDTO whole = new AdjustStockRequestDTO();
+		whole.setDelta(new BigDecimal("2.0"));
+		assertEquals(200, api(true).adjustStock(7L, whole).getStatusCodeValue());
+		assertEquals(BigDecimal.valueOf(12), item.getStockQuantity());
+		assertEquals(BigDecimal.valueOf(2), movements.get(0).getQuantity());
 	}
 }

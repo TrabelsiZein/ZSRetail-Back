@@ -1,5 +1,6 @@
 package com.digithink.zsretail.dto;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import lombok.Data;
@@ -19,7 +20,7 @@ public class ProcessPurchaseRequestDTO {
 	@Data
 	public static class PurchaseLineDTO {
 		private Long itemId;
-		private Integer quantity;
+		private BigDecimal quantity; // 2.2.1: read as sent, a decimal is refused by the service naming the item
 		private Double unitPrice;
 		/** Discount percentage (e.g. 10.0 = 10%). Null or 0 means no discount. */
 		private Double discountPercent;

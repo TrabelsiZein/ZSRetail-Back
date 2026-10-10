@@ -1,5 +1,6 @@
 package com.digithink.zsretail.dto;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import com.digithink.zsretail.model.enumeration.ReturnType;
@@ -20,7 +21,7 @@ public class ProcessReturnRequestDTO {
 	@Data
 	public static class ReturnLineDTO {
 		private Long salesLineId; // ID of original sales line
-		private Integer quantity; // Quantity to return (must be <= original quantity)
+		private BigDecimal quantity; // Quantity to return (must be <= original quantity); 2.2.1: read as sent, whole only
 	}
 }
 

@@ -10,6 +10,9 @@ import com.digithink.zsretail.model.enumeration.CatalogueKind;
 import com.digithink.zsretail.model.enumeration.ItemType;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import com.digithink.zsretail.utils.WholeQuantityDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -56,6 +59,7 @@ public class CatalogueItemCopyDTO {
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	public static class Component {
 		private String itemCode;
+		@JsonDeserialize(using = WholeQuantityDeserializer.class) // 2.2.1: whole only, 1.5 refused (400)
 		private Integer quantity;
 	}
 

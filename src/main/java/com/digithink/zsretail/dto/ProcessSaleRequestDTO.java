@@ -6,6 +6,9 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 
+import com.digithink.zsretail.utils.WholeQuantityDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
 import lombok.Data;
 
 /**
@@ -63,6 +66,7 @@ public class ProcessSaleRequestDTO {
 		private Long promotionId;
 
 		/** Number of free units granted by a FREE_QUANTITY promotion. When > 0, backend creates a second line. */
+		@JsonDeserialize(using = WholeQuantityDeserializer.class) // 2.2.1: whole only, 1.5 refused (400)
 		private Integer freeQuantity;
 	}
 	

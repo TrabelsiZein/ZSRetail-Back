@@ -31,6 +31,7 @@ import com.digithink.zsretail.model.enumeration.PromotionScope;
 import com.digithink.zsretail.repository.CustomerRepository;
 import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.repository.PromotionRepository;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -329,7 +330,8 @@ public class PromotionCalculationService {
 	 * Evaluate active cross-product quantity promotions against the cart lines.
 	 * Entitlement per promotion = sum over matching buy lines of
 	 * floor(lineQuantity / minimumQuantity). One adjustment per get-item:
-	 * the highest-priority matching promotion wins.
+	 * the highest-priority matching promotion wins. 2.2.1: a buy line with a
+	 * quantity not whole (0.2 L) never counts.
 	 */
 	private List<CrossProductAdjustmentDTO> evaluateCrossProductPromotions(
 			List<CartCalculateRequestDTO.CartItemDTO> cartItems, List<String> codes,
@@ -375,7 +377,8 @@ public class PromotionCalculationService {
 				if (line.getItemId().equals(getItemId)) continue;
 				Item cartItem = itemsById.get(line.getItemId());
 				if (cartItem != null && matchesBuyTarget(p, cartItem)) {
-					// 2.2.1: floor, as documented above, also for a decimal quantity (2.5 with a minimum of 2 earns 1)
+					// 2.2.1: a decimal line is not eligible for a quantity-based promotion (never a free item on a fraction)
+					if (!Quantities.isWhole(line.getQuantity())) continue;
 					entitled += line.getQuantity().divide(BigDecimal.valueOf(p.getMinimumQuantity()), 0, RoundingMode.FLOOR)
 							.intValueExact();
 				}
@@ -520,8 +523,16 @@ public class PromotionCalculationService {
 		return codes != null && codes.stream().anyMatch(c -> c.equalsIgnoreCase(p.getCode()));
 	}
 
-	/** If minimumQuantity is set, the cart quantity must meet or exceed it. */
-	private boolean passesQuantityFilter(Promotion p, BigDecimal quantity) {
+	/**
+	 * If minimumQuantity is set, the cart quantity must meet or exceed it. 2.2.1: a quantity not whole (0.2 L) is not
+	 * eligible for a quantity-based promotion: one with a minimum quantity, or a free quantity. A percentage or a fixed
+	 * amount without a minimum applies as in 2.2.0.
+	 */
+	static boolean passesQuantityFilter(Promotion p, BigDecimal quantity) {
+		if (!Quantities.isWhole(quantity)) {
+			return (p.getMinimumQuantity() == null || p.getMinimumQuantity() <= 0)
+					&& p.getBenefitType() != PromotionBenefitType.FREE_QUANTITY;
+		}
 		return p.getMinimumQuantity() == null || quantity.compareTo(BigDecimal.valueOf(p.getMinimumQuantity())) >= 0;
 	}
 

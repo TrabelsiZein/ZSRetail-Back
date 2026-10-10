@@ -113,4 +113,18 @@ public final class Quantities {
 		double product = unitAmount * quantity.doubleValue();
 		return isWhole(quantity) ? product : roundAmount(product);
 	}
+
+	/**
+	 * 2.2.1, step 5: the refusal of a writer not converted yet (returns, invoices, purchases, compositions, stock
+	 * adjustments, the head office's own BLs and supply invoices) when it meets a quantity with decimals: it names the
+	 * item and the place, and nothing is written (never a rounded value).
+	 */
+	public static String notSupportedYet(String itemCode, String itemName, BigDecimal quantity, String where) {
+		String item = itemCode == null ? "?" : itemCode;
+		if (itemName != null && !itemName.trim().isEmpty()) {
+			item += " (" + itemName.trim() + ")";
+		}
+		return "Item " + item + ": the quantity " + plain(quantity) + " has decimals, and decimal quantities are not"
+				+ " supported in " + where + " yet.";
+	}
 }

@@ -108,7 +108,8 @@ public class AnalyticsService {
 			String itemCode = (String) row[0];
 			String itemName = (String) row[1];
 			String familyName = (String) row[2];
-			long quantitySold = toLong(row[3]);
+			BigDecimal quantitySold = row[3] == null ? BigDecimal.ZERO
+					: Quantities.normalize(toBigDecimal(row[3])); // 2.2.1: 0.2 L sold, never truncated
 			BigDecimal revenue = normalizeMoney(toBigDecimal(row[4]));
 
 			result.add(TopProductDTO.builder()

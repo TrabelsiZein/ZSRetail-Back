@@ -2,6 +2,9 @@ package com.digithink.zsretail.dto;
 
 import java.util.List;
 
+import com.digithink.zsretail.utils.WholeQuantityDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
 import lombok.Data;
 
 /**
@@ -19,6 +22,7 @@ public class CloseSessionRequestDTO {
 	@Data
 	public static class CashCountLineDTO {
 		private Double denominationValue;
+		@JsonDeserialize(using = WholeQuantityDeserializer.class) // 2.2.1: whole only, 1.5 refused (400)
 		private Integer quantity;
 		private Long paymentMethodId; // null for cash
 		private String referenceNumber; // e.g., check number, card last 4

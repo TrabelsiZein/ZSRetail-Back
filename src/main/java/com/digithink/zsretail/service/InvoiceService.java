@@ -134,6 +134,14 @@ public class InvoiceService extends _BaseService<InvoiceHeader, Long> {
 			}
 		}
 
+		// Lines of the selected tickets, read before anything is written
+		List<SalesLine> allLines = new ArrayList<>();
+		for (SalesHeader ticket : tickets) {
+			List<SalesLine> ticketLines = salesLineRepository.findBySalesHeader(ticket);
+			allLines.addAll(ticketLines);
+		}
+		refuseDecimalLines(allLines);
+
 		InvoiceLineGroupingMode effectiveMode = lineGroupingMode != null ? lineGroupingMode
 				: InvoiceLineGroupingMode.BY_ITEM;
 
@@ -163,12 +171,6 @@ public class InvoiceService extends _BaseService<InvoiceHeader, Long> {
 		invoice = save(invoice);
 
 		// Build invoice lines based on selected tickets and grouping mode
-		List<SalesLine> allLines = new ArrayList<>();
-		for (SalesHeader ticket : tickets) {
-			List<SalesLine> ticketLines = salesLineRepository.findBySalesHeader(ticket);
-			allLines.addAll(ticketLines);
-		}
-
 		List<InvoiceLine> invoiceLines = buildInvoiceLines(invoice, allLines, effectiveMode);
 
 		// Compute totals
@@ -198,6 +200,21 @@ public class InvoiceService extends _BaseService<InvoiceHeader, Long> {
 		}
 
 		return invoice;
+	}
+
+	/**
+	 * 2.2.1: an invoice is built from whole quantities only, for now. A ticket line sold with decimals refuses the
+	 * invoice before anything is written, naming the ticket and the item.
+	 */
+	static void refuseDecimalLines(List<SalesLine> lines) {
+		for (SalesLine line : lines) {
+			if (line.getQuantity() != null && !Quantities.isWhole(line.getQuantity())) {
+				String ticket = line.getSalesHeader() != null ? line.getSalesHeader().getSalesNumber() : "?";
+				throw new IllegalArgumentException("Ticket " + ticket + ": " + Quantities.notSupportedYet(
+						line.getItem() == null ? null : line.getItem().getItemCode(),
+						line.getItem() == null ? null : line.getItem().getName(), line.getQuantity(), "invoices"));
+			}
+		}
 	}
 
 	/** Backward-compatible overload without snapshot data. */

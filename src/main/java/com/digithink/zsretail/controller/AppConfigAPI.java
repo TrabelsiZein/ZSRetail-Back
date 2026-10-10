@@ -20,6 +20,7 @@ import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.LicenseService;
 import com.digithink.zsretail.service.LoyaltyService;
 import com.digithink.zsretail.service.QuantityPolicy;
+import com.digithink.zsretail.service.TaxStampRule;
 
 import lombok.RequiredArgsConstructor;
 
@@ -44,6 +45,9 @@ public class AppConfigAPI {
 
 	@Autowired
 	private LoyaltyService loyaltyService;
+
+	@Autowired
+	private TaxStampRule taxStampRule;
 
 	/**
 	 * GET /config - returns public app config (standalone, enableSalesPriceGroup, loyaltyEnabled, etc.).
@@ -85,7 +89,8 @@ public class AppConfigAPI {
 				!applicationModeService.isHeadOfficeWithoutStock(),
 				!applicationModeService.isHeadOffice() ? null
 						: applicationModeService.isSupplyFromErpSource() ? "ERP" : "HEAD_OFFICE",
-				"true".equalsIgnoreCase(generalSetupService.findValueByCode(QuantityPolicy.SETTING))
+				"true".equalsIgnoreCase(generalSetupService.findValueByCode(QuantityPolicy.SETTING)),
+				taxStampRule.active()
 		));
 	}
 

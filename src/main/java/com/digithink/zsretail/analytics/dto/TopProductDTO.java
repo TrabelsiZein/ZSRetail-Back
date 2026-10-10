@@ -16,7 +16,7 @@ public class TopProductDTO {
 	private String itemCode;
 	private String itemName;
 	private String familyName;
-	private Long quantitySold;
+	private BigDecimal quantitySold; // 2.2.1: with its decimals, written without trailing zeros
 	private BigDecimal revenue;
 }
 

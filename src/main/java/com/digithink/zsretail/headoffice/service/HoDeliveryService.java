@@ -515,8 +515,12 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 						+ " is already on line " + earlier + ".");
 			}
 			// 2.2.1: a BL made here stays whole (its supply invoice is not converted yet); 1.5 is refused, never read as 1
-			if (input1.getQuantity() == null || input1.getQuantity().signum() <= 0 || !Quantities.isWhole(input1.getQuantity())) {
+			if (input1.getQuantity() == null || input1.getQuantity().signum() <= 0) {
 				throw new IllegalArgumentException("Line " + lineNo + ": the quantity must be a whole number above 0.");
+			}
+			if (!Quantities.isWhole(input1.getQuantity())) {
+				throw new IllegalArgumentException("Line " + lineNo + ": " + Quantities.notSupportedYet(item.getItemCode(),
+						item.getName(), input1.getQuantity(), "head office BLs"));
 			}
 			HoDeliveryLine line = new HoDeliveryLine();
 			line.setDelivery(delivery);

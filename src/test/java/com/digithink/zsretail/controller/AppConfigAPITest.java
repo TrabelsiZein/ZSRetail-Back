@@ -24,6 +24,8 @@ import com.digithink.zsretail.model.enumeration.LicenseStatus;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.LicenseService;
 import com.digithink.zsretail.service.LoyaltyService;
+import com.digithink.zsretail.service.TaxStampRule;
+import com.digithink.zsretail.service.TaxStampRuleTest;
 import com.digithink.zsretail.support.TestModes;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,10 +47,11 @@ class AppConfigAPITest {
 
 	/** Keys added by the head office plan: tasks 0.5 (first three) and 1.5 (headOfficeLinked),
 	 * step 6 (catalogueFromHeadOffice), step 7A (supplyFromHeadOffice), headoffice.stock.enabled (headOfficeStock),
-	 * invoices from the ERP (supplySource), always last; then 2.2.1 decimal quantities (allowDecimalQuantity). */
+	 * invoices from the ERP (supplySource), always last; then 2.2.1 decimal quantities (allowDecimalQuantity) and the tax
+	 * stamp rule (taxStampActive). */
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
 			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock", "supplySource",
-			"allowDecimalQuantity");
+			"allowDecimalQuantity", "taxStampActive");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";
@@ -65,6 +68,7 @@ class AppConfigAPITest {
 		values.put("TABLE_MANAGEMENT_ENABLED", "true");
 		values.put("TABLE_MANAGEMENT_TABLE_COUNT", "7");
 		values.put("TOMBOLA_ENABLED", "true");
+		values.put(TaxStampRule.SETTING, "true");
 		return values;
 	}
 
@@ -133,6 +137,7 @@ class AppConfigAPITest {
 		inject(api, AppConfigAPI.class, "enableSalesPriceGroup", enableSalesPriceGroup);
 		inject(api, AppConfigAPI.class, "appVersion", APP_VERSION);
 		inject(api, AppConfigAPI.class, "loyaltyService", loyalty);
+		inject(api, AppConfigAPI.class, "taxStampRule", TaxStampRuleTest.rule(setup.get(TaxStampRule.SETTING), true));
 		return api.getConfig().getBody();
 	}
 
@@ -245,7 +250,7 @@ class AppConfigAPITest {
 	}
 
 	@Test
-	@DisplayName("JSON: the 11 old keys keep their names and order (the three franchise keys are gone), the 8 new keys come last")
+	@DisplayName("JSON: the 11 old keys keep their names and order (the three franchise keys are gone), the new keys come last")
 	void jsonKeys() throws Exception {
 		ObjectMapper mapper = new ObjectMapper();
 		List<String> expected = new ArrayList<>(OLD_KEYS);
@@ -265,6 +270,7 @@ class AppConfigAPITest {
 		assertEquals("[]", mapper.valueToTree(standalone()).get("salesUpstreams").toString());
 		assertEquals("false", erp.get("headOfficeLinked").toString());
 		assertEquals("true", mapper.valueToTree(linkedStore()).get("headOfficeLinked").toString());
+		assertEquals("true", erp.get("taxStampActive").toString()); // 2.2.1: ENABLE_TAX_STAMP true and the item
 	}
 
 	private static void inject(Object target, Class<?> declaringClass, String fieldName, Object value) throws Exception {

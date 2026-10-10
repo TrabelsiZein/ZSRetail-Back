@@ -1,5 +1,7 @@
 package com.digithink.zsretail.dto;
 
+import java.math.BigDecimal;
+
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -12,6 +14,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class AdjustStockRequestDTO {
 
-	private Integer delta;
+	private BigDecimal delta; // 2.2.1: read as sent; a decimal is refused naming the item
 	private String reason;
 }

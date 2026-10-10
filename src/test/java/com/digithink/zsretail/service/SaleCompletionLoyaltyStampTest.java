@@ -283,6 +283,17 @@ class SaleCompletionLoyaltyStampTest {
 		assertEquals(525, sale.getLoyaltyPointsEarned().intValue());
 	}
 
+	@Test
+	@DisplayName("2.2.1, one tax stamp rule: TRUE and 1 add the stamp line as true does (the till's reading); 0 adds none")
+	void stampSettingReadings() throws Exception {
+		for (String on : new String[] { "TRUE", "1" }) {
+			settings.put("ENABLE_TAX_STAMP", on);
+			assertStampLineOnce(sales.processCompleteSale(request(150, null, 0), cashier));
+		}
+		settings.put("ENABLE_TAX_STAMP", "0");
+		assertEquals(0, stampLines(sales.processCompleteSale(request(150, null, 0), cashier)).size());
+	}
+
 	// ─── Parked ticket completed later ───────────────────────────────
 
 	@Test

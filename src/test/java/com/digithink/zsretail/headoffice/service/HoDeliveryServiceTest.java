@@ -151,6 +151,9 @@ class HoDeliveryServiceTest {
 		assertBadRequest("Line 1: the tax stamp cannot be delivered.", input(b.getId(), line("TAX_STAMP", 1)));
 		assertBadRequest("Line 1: the quantity must be a whole number above 0.", input(b.getId(), line("B001", 0)));
 		assertBadRequest("Line 1: the quantity must be a whole number above 0.", input(b.getId(), line("B001", null)));
+		// 2.2.1: a BL made here stays whole; a decimal is refused naming the item, never read as 1
+		assertBadRequest("Line 1: Item B001 (Item B001): the quantity 1.5 has decimals, and decimal quantities are not"
+				+ " supported in head office BLs yet.", input(b.getId(), new DeliveryInputDTO.Line("B001", new java.math.BigDecimal("1.5"))));
 		assertBadRequest("Line 3: the item B001 is already on line 1.",
 				input(b.getId(), line("B001", 1), line("B002", 1), line("B001", 2)));
 		DeliveryInputDTO badDate = input(b.getId(), line("B001", 1));

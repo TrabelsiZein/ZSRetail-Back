@@ -18,6 +18,7 @@ import com.digithink.zsretail.model.CashierSession;
 import com.digithink.zsretail.model.UserAccount;
 import com.digithink.zsretail.security.CurrentUserProvider;
 import com.digithink.zsretail.service.CashierSessionService;
+import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -141,7 +142,7 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 						
 						// Quantity
 						if (lineData.get("quantity") instanceof Number) {
-							lineDTO.setQuantity(((Number) lineData.get("quantity")).intValue());
+							lineDTO.setQuantity(cashCountQuantity((Number) lineData.get("quantity")));
 						} else if (lineData.get("quantity") instanceof String) {
 							lineDTO.setQuantity(Integer.parseInt((String) lineData.get("quantity")));
 						}
@@ -256,7 +257,7 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 					// Quantity
 					if (lineData.get("quantity") != null) {
 						if (lineData.get("quantity") instanceof Number) {
-							lineDTO.setQuantity(((Number) lineData.get("quantity")).intValue());
+							lineDTO.setQuantity(cashCountQuantity((Number) lineData.get("quantity")));
 						} else if (lineData.get("quantity") instanceof String) {
 							lineDTO.setQuantity(Integer.parseInt((String) lineData.get("quantity")));
 						}
@@ -402,5 +403,17 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
 		}
 	}
-}
 
+	/**
+	 * 2.2.1: a cash count stays a whole number; a quantity sent with decimals (1.5) is refused naming the field (400 on
+	 * close), never read as 1 as until 2.2.0.
+	 */
+	static Integer cashCountQuantity(Number value) {
+		java.math.BigDecimal quantity = new java.math.BigDecimal(value.toString());
+		if (!Quantities.isWhole(quantity)) {
+			throw new IllegalStateException("cashCountLines.quantity: " + Quantities.plain(quantity)
+					+ " is not a whole number, and decimal quantities are not supported here yet.");
+		}
+		return quantity.stripTrailingZeros().intValueExact();
+	}
+}

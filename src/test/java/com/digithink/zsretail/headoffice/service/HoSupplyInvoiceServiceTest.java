@@ -134,6 +134,38 @@ class HoSupplyInvoiceServiceTest {
 		return tables.deliveries.get(sent.getId());
 	}
 
+	/** 2.2.1: a BL validated for the store, B001 received with decimals (a store with decimal quantities). */
+	private HoDelivery receivedWithDecimals(Store store, String b001Received) {
+		DeliveryInputDTO input = new DeliveryInputDTO();
+		input.setStoreId(store.getId());
+		input.setLines(Arrays.asList(new DeliveryInputDTO.Line("B001", Quantities.of(50)), new DeliveryInputDTO.Line("B002", Quantities.of(10))));
+		DeliveryDTO sent = deliveries.validate(deliveries.create(input).getId(), "admin").get();
+		DeliveryConfirmationDTO confirmation = new DeliveryConfirmationDTO();
+		confirmation.setNumber(sent.getNumber());
+		confirmation.setLines(Arrays.asList(new DeliveryConfirmationDTO.Line(1, "B001", new java.math.BigDecimal(b001Received)),
+				new DeliveryConfirmationDTO.Line(2, "B002", Quantities.of(10))));
+		assertTrue(deliveries.receiveConfirmations(store, Collections.singletonList(confirmation)).get(0).isAccepted());
+		return tables.deliveries.get(sent.getId());
+	}
+
+	@Test
+	@DisplayName("2.2.1: a BL received with decimals is not invoiced: 409 naming the BL and the item, nothing written; PER_BL keeps the reason on the BL")
+	void decimalReceivedNotInvoiced() {
+		HoDelivery bl = receivedWithDecimals(b, "48.5");
+		String reason = bl.getNumber() + ", line 1: Item B001 (Item B001): the quantity 48.5 has decimals, and decimal"
+				+ " quantities are not supported in supply invoices yet.";
+		assertConflict(reason, request(b, bl));
+		assertEquals(reason, assertThrows(IllegalStateException.class, () -> invoices.preview(request(b, bl))).getMessage());
+		assertTrue(invoiceTables.invoices.isEmpty());
+		assertEquals(DeliveryStatus.RECEIVED, bl.getStatus());
+
+		b.setInvoiceRhythm(InvoiceRhythm.PER_BL);
+		HoDelivery perBl = receivedWithDecimals(b, "0.25");
+		assertEquals(DeliveryStatus.RECEIVED, perBl.getStatus(), "the confirmation accepted, the BL not invoiced");
+		assertTrue(perBl.getInvoiceNote().contains("the quantity 0.25 has decimals"), perBl.getInvoiceNote());
+		assertTrue(invoiceTables.invoices.isEmpty());
+	}
+
 	private static SupplyInvoiceDTO request(Store store, HoDelivery... bls) {
 		SupplyInvoiceDTO request = new SupplyInvoiceDTO();
 		request.setStoreId(store.getId());

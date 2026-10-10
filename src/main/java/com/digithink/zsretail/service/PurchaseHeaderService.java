@@ -76,6 +76,16 @@ public class PurchaseHeaderService extends _BaseService<PurchaseHeader, Long> {
 			throw new IllegalArgumentException("At least one line is required.");
 		}
 
+		// 2.2.1: purchases stay whole for now; a decimal line refuses the purchase before anything is written
+		for (ProcessPurchaseRequestDTO.PurchaseLineDTO lineDto : request.getLines()) {
+			if (lineDto.getItemId() != null && !Quantities.isWhole(lineDto.getQuantity())) {
+				Item item = itemRepository.findById(lineDto.getItemId())
+						.orElseThrow(() -> new IllegalArgumentException("Item not found: " + lineDto.getItemId()));
+				throw new IllegalArgumentException(Quantities.notSupportedYet(item.getItemCode(), item.getName(),
+						lineDto.getQuantity(), "purchases"));
+			}
+		}
+
 		String purchaseNumber = generatePurchaseNumber();
 
 		PurchaseHeader header = new PurchaseHeader();
@@ -90,7 +100,7 @@ public class PurchaseHeaderService extends _BaseService<PurchaseHeader, Long> {
 		double subtotal = 0;
 		double totalVat = 0;
 		for (ProcessPurchaseRequestDTO.PurchaseLineDTO lineDto : request.getLines()) {
-			if (lineDto.getItemId() == null || lineDto.getQuantity() == null || lineDto.getQuantity() <= 0
+			if (lineDto.getItemId() == null || lineDto.getQuantity() == null || lineDto.getQuantity().signum() <= 0
 					|| lineDto.getUnitPrice() == null || lineDto.getUnitPrice() < 0) {
 				continue;
 			}
@@ -99,7 +109,7 @@ public class PurchaseHeaderService extends _BaseService<PurchaseHeader, Long> {
 			double discPct = lineDto.getDiscountPercent() != null && lineDto.getDiscountPercent() > 0
 					? lineDto.getDiscountPercent() : 0.0;
 			double netUnitPrice = lineDto.getUnitPrice() * (1.0 - discPct / 100.0);
-			double lineNetTotal = lineDto.getQuantity() * netUnitPrice;
+			double lineNetTotal = lineDto.getQuantity().intValueExact() * netUnitPrice;
 			int vatPct = lineDto.getVatPercent() != null ? lineDto.getVatPercent()
 					: (itemCheck.getDefaultVAT() != null ? itemCheck.getDefaultVAT() : 0);
 			double vatAmount = lineNetTotal * vatPct / 100.0;
@@ -115,7 +125,7 @@ public class PurchaseHeaderService extends _BaseService<PurchaseHeader, Long> {
 		header = purchaseHeaderRepository.save(header);
 
 		for (ProcessPurchaseRequestDTO.PurchaseLineDTO lineDto : request.getLines()) {
-			if (lineDto.getItemId() == null || lineDto.getQuantity() == null || lineDto.getQuantity() <= 0
+			if (lineDto.getItemId() == null || lineDto.getQuantity() == null || lineDto.getQuantity().signum() <= 0
 					|| lineDto.getUnitPrice() == null || lineDto.getUnitPrice() < 0) {
 				continue;
 			}
@@ -125,7 +135,7 @@ public class PurchaseHeaderService extends _BaseService<PurchaseHeader, Long> {
 			double discPct = lineDto.getDiscountPercent() != null && lineDto.getDiscountPercent() > 0
 					? lineDto.getDiscountPercent() : 0.0;
 			double netUnitPrice = lineDto.getUnitPrice() * (1.0 - discPct / 100.0);
-			double lineNetTotal = lineDto.getQuantity() * netUnitPrice;
+			double lineNetTotal = lineDto.getQuantity().intValueExact() * netUnitPrice;
 			int vatPct = lineDto.getVatPercent() != null ? lineDto.getVatPercent()
 					: (item.getDefaultVAT() != null ? item.getDefaultVAT() : 0);
 			double vatAmount = lineNetTotal * vatPct / 100.0;
@@ -134,7 +144,7 @@ public class PurchaseHeaderService extends _BaseService<PurchaseHeader, Long> {
 			PurchaseLine line = new PurchaseLine();
 			line.setPurchaseHeader(header);
 			line.setItem(item);
-			line.setQuantity(lineDto.getQuantity());
+			line.setQuantity(lineDto.getQuantity().intValueExact());
 			line.setUnitPrice(lineDto.getUnitPrice());
 			line.setDiscountPercent(discPct > 0 ? discPct : null);
 			line.setVatPercent(vatPct);
@@ -149,10 +159,10 @@ public class PurchaseHeaderService extends _BaseService<PurchaseHeader, Long> {
 			itemRepository.save(item);
 
 			// Update stock (without an ERP only; single service, atomic updates, concurrency-safe)
-			stockService.incrementForPurchase(item.getId(), Quantities.of(lineDto.getQuantity()));
+			stockService.incrementForPurchase(item.getId(), Quantities.normalize(lineDto.getQuantity()));
 			stockMovementService.recordPurchase(
-					item.getId(), Quantities.of(lineDto.getQuantity()),
-					lineDto.getUnitPrice(), vatPct, lineTotalTtc / lineDto.getQuantity(),
+					item.getId(), Quantities.normalize(lineDto.getQuantity()),
+					lineDto.getUnitPrice(), vatPct, lineTotalTtc / lineDto.getQuantity().intValueExact(),
 					header.getId());
 		}
 

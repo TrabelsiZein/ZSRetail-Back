@@ -140,4 +140,10 @@ public class AppConfigDTO {
 	 * 3 decimals. From QuantityPolicy.decimalAllowed().
 	 */
 	private boolean allowDecimalQuantity;
+
+	/**
+	 * 2.2.1, step 5: the tax stamp is active (TaxStampRule: ENABLE_TAX_STAMP reads true in any case or 1, and the
+	 * TAX_STAMP item exists). The till adds the stamp amount only on this boolean, the rule the sale uses.
+	 */
+	private boolean taxStampActive;
 }

@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
@@ -398,11 +399,20 @@ public class HoSupplyInvoiceService {
 
 	/**
 	 * The quantity received of a BL line as a whole number (null is 0). 2.2.1: the supply invoices of a head office stay
-	 * whole for now; a decimal received by a store stops here, loudly (never rounded).
+	 * whole for now; a decimal received by a store stops here (409, or the BL's invoice note in the PER_BL rhythm), naming
+	 * the BL and the item, never rounded.
 	 */
 	private static int quantity(HoDeliveryLine line) {
-		return line.getQuantityReceived() == null ? 0
-				: Quantities.wholeOrFail(line.getQuantityReceived(), "Supply invoice, BL line " + line.getLineNo());
+		BigDecimal received = line.getQuantityReceived();
+		if (received == null) {
+			return 0;
+		}
+		if (!Quantities.isWhole(received)) {
+			String number = line.getDelivery() == null ? null : line.getDelivery().getNumber();
+			throw new IllegalStateException((number == null ? "BL" : number) + ", line " + line.getLineNo() + ": "
+					+ Quantities.notSupportedYet(line.getItemCode(), line.getItemName(), received, "supply invoices"));
+		}
+		return received.stripTrailingZeros().intValueExact();
 	}
 
 	private static String address(CompanyInformation seller) {

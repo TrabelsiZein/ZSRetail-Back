@@ -784,11 +784,12 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	 * @return the stamp amount in TND, or 0 when no stamp line was added
 	 */
 	private double addTaxStampLineIfEnabled(SalesHeader salesHeader, List<SalesLine> salesLines) throws Exception {
-		Optional<GeneralSetup> enableTaxStampOpt = generalSetupRepository.findByCode("ENABLE_TAX_STAMP");
-		if (!enableTaxStampOpt.isPresent() || !"true".equalsIgnoreCase(enableTaxStampOpt.get().getValeur())) {
+		// 2.2.1: the rule of TaxStampRule (true in any case or 1, and the item), the one GET /config sends to the till
+		Optional<GeneralSetup> enableTaxStampOpt = generalSetupRepository.findByCode(TaxStampRule.SETTING);
+		if (!enableTaxStampOpt.isPresent() || !TaxStampRule.settingOn(enableTaxStampOpt.get().getValeur())) {
 			return 0.0;
 		}
-		Optional<Item> taxStampItemOpt = itemRepository.findByItemCode("TAX_STAMP");
+		Optional<Item> taxStampItemOpt = itemRepository.findByItemCode(TaxStampRule.ITEM_CODE);
 		if (!taxStampItemOpt.isPresent()) {
 			log.warn("Tax stamp enabled but TAX_STAMP item not found");
 			return 0.0;
@@ -1556,6 +1557,12 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 				String itemLabel = itemRepository.findById(lineDTO.getItemId()).map(Item::getItemCode)
 						.orElse(String.valueOf(lineDTO.getItemId()));
 				quantityPolicy.check(lineDTO.getQuantity(), itemLabel);
+				// never a free item on a fraction: quantity-based promotions do not apply to a decimal line
+				if (lineDTO.getFreeQuantity() != null && lineDTO.getFreeQuantity() > 0) {
+					throw new IllegalArgumentException("Item " + itemLabel + ": no free quantity on the decimal quantity "
+							+ Quantities.plain(lineDTO.getQuantity())
+							+ " (quantity-based promotions do not apply to decimal quantities).");
+				}
 			}
 		}
 	}

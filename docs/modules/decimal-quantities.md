@@ -1,7 +1,7 @@
 # Decimal quantities (2.2.1)
 
 Bulk items sold by the litre or the kilo (Happyness: perfume "V H 52 1L" sold 0.2 or 0.058 at the till). Built in
-steps on `release/2.2.1` (both repos); this page says what each step converted. Steps 1 to 4 are done (2026-10-09 and 10).
+steps on `release/2.2.1` (both repos); this page says what each step converted. Steps 1 to 5 are done (2026-10-09 and 10).
 
 ## Rules
 
@@ -29,19 +29,21 @@ steps on `release/2.2.1` (both repos); this page says what each step converted. 
   warning when subtotal + VAT differs from the sum of the lines (stamp line included) by more than 0.001. The real till
   can differ in two cases, both 2.2.0 behaviour (Zein, 2026-10-10: keep the till, fix after the Happyness go-live, see
   "Left" below): a fixed-amount promotion larger than its line (the till's subtotal and VAT are not stopped at 0, the
-  line and the total paid are), and a tax stamp setting read differently (`ENABLE_TAX_STAMP` `1` or `TRUE`, or no
-  `TAX_STAMP` item). A ticket discount, a cart promotion or the loyalty deduction never change subtotal or VAT.
+  line and the total paid are), and, until step 5, a tax stamp setting read differently (`ENABLE_TAX_STAMP` `1` or `TRUE`,
+  or no `TAX_STAMP` item; one rule since step 5: `TaxStampRule`). A ticket discount, a cart promotion or the loyalty deduction never change subtotal or VAT.
 - **Fixed-amount discounts**: the 2.2.0 formula, no special case: a fixed promotion or a manual amount counts once per
   line (2.000 off 0.2 as off 2); a cross-product amount counts per unit, min(entitled units, quantity) x amount.
 - **A place not converted yet never truncates silently**: it calls `Quantities.wholeOrFail` / `wholeIntOrFail` /
   `wholeLongOrFail`, which throw `IllegalStateException` naming the place ("Ticket ... line 1, copy to the head office:
-  quantity 0.2 is not a whole number, and decimal quantities are not supported here yet").
+  quantity 0.2 is not a whole number, and decimal quantities are not supported here yet"). Since step 5 the writers not
+  converted refuse first, naming the item (`Quantities.notSupportedYet`), and the remaining whole-number fields of the
+  requests and copies refuse 1.5 with a 400 (`WholeQuantityDeserializer`); see step 5.
 
 ## Front (`ZSRetail-Front`)
 
 - `src/libs/quantity.js`: `isWholeQuantity`, `roundQuantity` (after + / -), `parseQuantity` ("0,2" or "0.2", above 0,
   at most 3 decimals), `formatQuantity` (2, 0.2, 0.058), `countUnits` (a decimal line counts as 1 article),
-  `decimalLineTotalInclVat` (same rounding as the back end).
+  `decimalLineTotalInclVat` (same rounding as the back end), `itemLabel` ("CODE (Name)", as the refusals of the back end).
 - Till (`ItemSelection.vue`): with the setting on, the quantity box is a text box (`inputmode=decimal`, 60 px) read by
   `parseQuantity`; a refused value shows a toast and the box shows the line again. Off: the number box and `parseInt` of
   2.2.0. + and - move by 1 (1.5 to 0.5; at 1 or below the line goes, as 1 did); a second scan adds 1 (0.2 to 1.2).
@@ -121,24 +123,78 @@ the summary said.
   so no decimal Quantity could be seen. The connector reads `Quantity` into a BigDecimal: a JSON number 1.5 (or a text
   "1.5") keeps its exact value.
 
-## Not converted yet, and how each reacts to a decimal today
+## Step 5: the safety net (readers, writers not converted, guard, tax stamp)
+
+- **Readers** (with decimal sales in the database no screen fails, nothing truncates): `ReportService` (sales report
+  `totalQuantity`, stock report `currentQty` and its OUT / LOW status compared as decimals, movement report `qtyIn`,
+  `qtyOut`, `netQty`: `BigDecimal`, normalized; `toLong` stays loud for counts), `AnalyticsService.getTopProducts`
+  (`quantitySold`), the four report DTOs. Front: `SalesReport.vue`, `StockReport.vue`, `StockMovementsReport.vue`
+  (cells and totals with `formatQuantity`, sums with `roundQuantity`), `TicketsHistory.vue` (line quantity),
+  `ItemManagement.vue` (stock column), the till's item card (stock), `SplitBillModal.vue` and `TableSelection.vue` (article
+  counts with `countUnits`: 0.2 L is 1 article). Checked, nothing to change: the session closing and its report (cash
+  counts only), the ticket reprint (`ReceiptTemplate`, step 1), the low-stock signs (from the stock report and the item
+  list), the Excel exports of the reports (numbers as received), the head office screens (steps 2 and 4), invoices,
+  purchase invoices and warranties (values shown as the server writes them). There is no low-stock job on the server.
+- **Writers not converted** refuse a decimal before writing anything, naming the item, with one text
+  (`Quantities.notSupportedYet`): "Item VH52-1L (V H 52 1L): the quantity 0.2 has decimals, and decimal quantities are
+  not supported in returns yet." Returns (a line sold with decimals, or a decimal quantity asked; `ProcessReturnRequestDTO`
+  reads the quantity as `BigDecimal`), invoices from tickets ("Ticket T-...: Item ..."), purchases
+  (`ProcessPurchaseRequestDTO` `BigDecimal`), compositions (`ItemComposition` keeps an `Integer` column; a JSON 1.5 is
+  kept apart in the transient `decimalQuantity` and refused by `ItemCompositionService.save`), stock adjustments
+  (`AdjustStockRequestDTO.delta` `BigDecimal`, 400), the head office's own BL ("Line 1: Item ..."), its supply invoice
+  ("<BL number>, line 1: Item ...", 409; with the PER_BL rhythm the text goes to the BL's invoice note). Until 2.2.0 a
+  JSON 0.5 in these requests was read as 0 and 1.5 as 1. Front: the same text from `common.decimalQuantity.notSupported`
+  (en, fr, ar) on `PurchaseNew.vue`, `KitComponentsManager.vue`, `ItemManagement.vue` (adjust stock), `Deliveries.vue`
+  (under the quantity box). The return screen (`ReturnProducts.vue`) lists a decimal line with its quantity, a "Not
+  returnable" badge and "0.2 sold with decimals: this line cannot be returned yet. The other lines of the ticket can be
+  returned." (no box, no rounding; the server sends it with `returnable: false` and `remainingQuantity: 0`); the whole
+  lines work as in 2.2.0 (including its rounding of a typed 1.5 to 2 on a whole line).
+- **Excel item import** (`DataImportService`): "0.250 becomes 250" was the `stockQuantity` column: `parseInteger` removes
+  every "." and "," (meant for thousands separators, "1,000") before reading, so a text cell 0.250 gave 250 and a number
+  cell 0.25 (written "0.25" by `getCellValue`) gave 25, 1.5 gave 15. Now `refuseDecimalStock`: a number cell with
+  decimals, or a text cell with a separator that is not a whole number with thousands separators (1.000, 12,500 still
+  read 1000 and 12500), refuses the row with its number ("Stock quantity '0.25' is not a whole number: decimal stock
+  quantities are not supported in the item import yet, the row is not imported."). Whole numbers are read as before.
+  Left as in 2.2.0: a text cell "1.250" is read 1250 (a thousands separator); `minStockLevel`, `defaultVAT` and
+  `displayOrder` keep the same reading.
+- **Promotions** (`PromotionCalculationService`): a line with a quantity not whole is not eligible for a promotion with a
+  minimum quantity or a free quantity (`passesQuantityFilter`), and never counts as a buy line of buy X get Y; the till
+  never puts a cross-product discount on a decimal get line (`reconcileCrossAdjustments`, `computeCrossDiscountAmount`).
+  Percentage and fixed amount without a minimum: as in 2.2.0. A sale with a free quantity on a decimal line is refused
+  by name (`SalesHeaderService.checkQuantities`).
+- **Guard, scoped** (Jackson's global setting unchanged): `WholeQuantityDeserializer` on each remaining whole-number
+  quantity field of a request or a copy: `ProcessSaleRequestDTO.SaleLineDTO.freeQuantity`, `CloseSessionRequestDTO`
+  cash count quantity, `Promotion.minimumQuantity` / `freeQuantity`, `PromotionCopyDTO` (same two),
+  `CatalogueItemCopyDTO.Component.quantity`, `ReturnLineCopyDTO.quantity`, `SessionCountCopyDTO.quantity`,
+  `SupplyInvoiceCopyDTO.Line.quantity`. 2 and 2.0 (and "2", null) read as in 2.2.0; 1.5 throws `NotWholeQuantity`, and
+  `WholeQuantityExceptionResolver` (first resolver, only for that exception) answers 400 with "lines[1].freeQuantity: 1.5
+  is not a whole number, and decimal quantities are not supported here yet." The session closing reads its cash counts
+  from a map: `CashierSessionAPI.cashCountQuantity` refuses 1.5 the same way. Loyalty points (`delta`) are not
+  quantities: unchanged.
+- **Tax stamp, one rule** (`TaxStampRule`): active when `ENABLE_TAX_STAMP` reads true (any case) or 1 AND the `TAX_STAMP`
+  item exists. The sale adds its line by it; `/config.taxStampActive` sends it; the till (`loadTaxStampConfig`) adds the
+  amount only on that boolean (the amount still from `TAX_STAMP_VALUE_MILLIMES`). A store with `true` and the item: as in
+  2.2.0. The till's subtotal and VAT of a fixed promotion larger than its line: unchanged (decision (b), after the
+  go-live).
+
+## Still whole, and how each reacts to a decimal (after step 5)
 
 | Place | Reaction |
 |---|---|
-| Returns (`ReturnHeaderService`, `ReturnHeaderAPI`, `ReturnLine`, `ProcessReturnRequestDTO`, `ReturnProducts.vue`) | returning a decimal sales line fails loudly; the return screen still rounds (front) |
-| Invoices from tickets (`InvoiceService`, `InvoiceLine`) | fails loudly on a decimal line |
-| Reports and dashboard (`ReportService.toLong`, `AnalyticsService.toLong`) | a decimal quantity sum fails loudly |
-| Supply invoices of a head office (HEAD_OFFICE source, step 7B: `HoSupplyInvoiceLine`, `SupplyInvoiceCopyDTO`) | a BL line received with a decimal fails loudly when invoiced; a BL made at the head office stays whole |
-| Return copies (`ReturnLineCopyDTO`, `HoReturnLine`), session counts (whole for good) | returns of decimal lines already fail at the store |
-| Purchases, compositions, stock adjustment (`AdjustStockRequestDTO.delta` Integer), Excel import (`DataImportService.parseInteger` strips "." and ",": "0.250" gives 250, as in 2.2.0) | whole only, as in 2.2.0 |
+| Returns (`ReturnHeaderService`, `ReturnLine`, `ReturnProducts.vue`) | a line sold with decimals is listed as not returnable; returning it, or asking 0.5 of a whole line: 400 naming the item, nothing written |
+| Invoices from tickets (`InvoiceService`, `InvoiceLine`) | 400 naming the ticket and the item, before the invoice number is taken |
+| Purchases (`PurchaseHeaderService`, `PurchaseLine`) | 400 naming the item (screen and server) |
+| Compositions of a pack (`ItemComposition`) | 400 naming the component (screen and server) |
+| Stock adjustment (`ItemAPI.adjustStock`) | 400 naming the item (screen and server) |
+| Head office BL made at the head office (`HoDeliveryService`) | 400 "Line n: Item ..." (text under the box on the page) |
+| Head office supply invoice (HEAD_OFFICE source, `HoSupplyInvoiceLine`) | a BL received with a decimal: 409 naming the BL, the line and the item; PER_BL: the text in the BL's invoice note |
+| Excel item import, stock column | the row refused with its number |
+| Promotions with a minimum or a free quantity, buy X get Y | a decimal line is not eligible (never refused, never a free item on a fraction) |
+| Cash counts, promotion settings, warranties, free quantity of a sale line, return / session count / supply invoice / catalogue component copies | whole for good: 1.5 refused with a 400 naming the field; a warranty on a decimal line refused |
 | EMTOP ticket export (`TicketExportService`) | passes the quantity through (`Double` to NAV): 2 stays 2.0, 0.2 is sent as 0.2 |
 
-Left, decided apart: (b) the till's subtotal and VAT stopped at 0 per line and the tax stamp setting read as the server
-reads it (after the Happyness go-live); the global Jackson guard (step 5).
-
-Jackson 2.11 (`ACCEPT_FLOAT_AS_INT` on) still turns 0.2 into 0 for any `Integer` field of a request or a copy: the
-places above that read JSON (`ProcessReturnRequestDTO`, `AdjustStockRequestDTO`, the return, BL and invoice copy DTOs) truncate
-until converted. A store and its head office move to 2.2.1 together.
+Left, decided apart: (b) the till's subtotal and VAT stopped at 0 per line for a fixed promotion larger than its line
+(after the Happyness go-live). A store and its head office move to 2.2.1 together.
 
 ## Database
 
@@ -170,4 +226,9 @@ the difference, a 4th decimal refused by row and code), `decimalRefusedWhenSetti
 `SupplyErpInvoiceRoundTripTest` (a NAV invoice with 1.5 and 0.25 to B: stock, movement, cost per unit, purchase invoice;
 1.2 received of 1.5 shows -0.3 at the head office; setting off refuses; an invoice held by 2.2.0 read again and released),
 `HoErpInvoiceServiceTest.held` (1.2345 held with its reason), `NavPosPagesSyncTest.invoicesByNumbers`,
-`SupplyCopyCompatibilityTest` (whole quantities: the JSON of 2.2.0).
+`SupplyCopyCompatibilityTest` (whole quantities: the JSON of 2.2.0). Step 5: `DecimalSafetyNetTest` (reports, dashboard,
+return screen line, invoice and composition refusals, the Excel import by row, item and buy X get Y promotions, the guard
+and its 400, the global setting unchanged), `TaxStampRuleTest` (true, TRUE, 1; no item), `AppConfigAPITest`
+(`taxStampActive`), `SaleCompletionLoyaltyStampTest.stampSettingReadings`, `ReturnRefundLoyaltyTest.decimalSoldLineRefused`
+/ `decimalAskedRefused`, `ItemStockAdjustmentTest.decimalDeltaRefused`, `HeadOfficeWarehouseTest.decimalPurchaseRefused`,
+`HoDeliveryServiceTest` (1.5 named), `HoSupplyInvoiceServiceTest.decimalReceivedNotInvoiced`, `CashCountQuantityTest`.

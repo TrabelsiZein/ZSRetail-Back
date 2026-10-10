@@ -13,6 +13,9 @@ import com.digithink.zsretail.model.enumeration.PromotionScope;
 import com.digithink.zsretail.model.enumeration.PromotionType;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import com.digithink.zsretail.utils.WholeQuantityDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -48,11 +51,13 @@ public class PromotionCopyDTO {
 	/** Item code of the cross-product benefit (getItem); null when none. */
 	private String getItemCode;
 
+	@JsonDeserialize(using = WholeQuantityDeserializer.class) // 2.2.1: whole only, 1.5 refused (400)
 	private Integer minimumQuantity;
 	private Double minimumAmount;
 	private PromotionBenefitType benefitType;
 	private Double discountPercentage;
 	private Double discountAmount;
+	@JsonDeserialize(using = WholeQuantityDeserializer.class) // 2.2.1: whole only, 1.5 refused (400)
 	private Integer freeQuantity;
 	private LocalDate startDate;
 	private LocalDate endDate;

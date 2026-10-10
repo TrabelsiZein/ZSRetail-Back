@@ -22,6 +22,9 @@ import com.digithink.zsretail.model.enumeration.PromotionScope;
 import com.digithink.zsretail.model.enumeration.PromotionType;
 import com.digithink.zsretail.model.enumeration.RecordOrigin;
 
+import com.digithink.zsretail.utils.WholeQuantityDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -137,6 +140,7 @@ public class Promotion extends _BaseEntity {
 
 	/** Minimum quantity of matching items required to trigger the promotion (Types C & D). Null = no threshold. */
 	@Column(name = "minimum_quantity")
+	@JsonDeserialize(using = WholeQuantityDeserializer.class) // 2.2.1: whole only, 1.5 refused (400)
 	private Integer minimumQuantity;
 
 	/** Minimum cart total (TTC) to trigger the promotion (Type E / CART scope). Null = no threshold. */
@@ -162,6 +166,7 @@ public class Promotion extends _BaseEntity {
 	 * Used when benefitType = FREE_QUANTITY (Buy minimumQuantity Get freeQuantity free).
 	 */
 	@Column(name = "free_quantity")
+	@JsonDeserialize(using = WholeQuantityDeserializer.class) // 2.2.1: whole only, 1.5 refused (400)
 	private Integer freeQuantity;
 
 	// ─── Validity ────────────────────────────────────────────────────────────

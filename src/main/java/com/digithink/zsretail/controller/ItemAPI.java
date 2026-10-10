@@ -440,8 +440,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			if (request.getDelta() == null) {
 				return ResponseEntity.badRequest().body(createErrorResponse("delta is required"));
 			}
-			int delta = request.getDelta().intValue();
-			if (delta == 0) {
+			if (request.getDelta().signum() == 0) {
 				return ResponseEntity.badRequest().body(createErrorResponse("delta must not be zero"));
 			}
 			String reason = request.getReason() != null ? request.getReason().trim().toUpperCase() : "CORRECTION";
@@ -453,6 +452,12 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			}
 			Item item = service.findById(id)
 					.orElseThrow(() -> new IllegalArgumentException("Item not found: " + id));
+			// 2.2.1: stock adjustments stay whole for now (0.5 was read as 0 until 2.2.0); refused by name, nothing written
+			if (!Quantities.isWhole(request.getDelta())) {
+				return ResponseEntity.badRequest().body(createErrorResponse(Quantities.notSupportedYet(item.getItemCode(),
+						item.getName(), request.getDelta(), "stock adjustments")));
+			}
+			int delta = request.getDelta().intValueExact();
 			service.adjustStock(id, delta, reason); // step 7A: with its stock movement
 			Item updated = service.findById(id).orElse(item);
 			return ResponseEntity.ok(updated);

@@ -13,6 +13,7 @@ import com.digithink.zsretail.model.enumeration.ItemType;
 import com.digithink.zsretail.repository.ItemCompositionRepository;
 import com.digithink.zsretail.repository.ItemRepository;
 import com.digithink.zsretail.repository._BaseRepository;
+import com.digithink.zsretail.utils.Quantities;
 
 @Service
 public class ItemCompositionService extends _BaseService<ItemComposition, Long> {
@@ -47,6 +48,20 @@ public class ItemCompositionService extends _BaseService<ItemComposition, Long> 
 		return itemCompositionRepository.findByParentItemId(parentItemId);
 	}
 
+	/**
+	 * 2.2.1: a pack's components stay whole for now. The refusal of a quantity sent with decimals, naming the component;
+	 * null for a whole quantity.
+	 */
+	public String decimalRefusal(ItemComposition entity) {
+		if (entity == null || entity.getDecimalQuantity() == null) {
+			return null;
+		}
+		Item component = entity.getComponentItem() == null || entity.getComponentItem().getId() == null ? null
+				: itemRepository.findById(entity.getComponentItem().getId()).orElse(null);
+		return Quantities.notSupportedYet(component == null ? null : component.getItemCode(),
+				component == null ? null : component.getName(), entity.getDecimalQuantity(), "compositions");
+	}
+
 	@Override
 	@Transactional
 	public ItemComposition save(ItemComposition entity) throws Exception {
@@ -55,6 +70,10 @@ public class ItemCompositionService extends _BaseService<ItemComposition, Long> 
 		}
 		if (entity.getComponentItem() == null || entity.getComponentItem().getId() == null) {
 			throw new IllegalArgumentException("L'article composant est obligatoire");
+		}
+		String decimal = decimalRefusal(entity);
+		if (decimal != null) {
+			throw new IllegalArgumentException(decimal);
 		}
 		if (entity.getQuantity() == null || entity.getQuantity() < 1) {
 			throw new IllegalArgumentException("La quantité doit être supérieure ou égale à 1");

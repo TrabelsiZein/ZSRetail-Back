@@ -292,19 +292,31 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 			}
 
 			// Validate quantity
-			if (returnLineDTO.getQuantity() == null || returnLineDTO.getQuantity() <= 0) {
+			if (returnLineDTO.getQuantity() == null || returnLineDTO.getQuantity().signum() <= 0) {
 				throw new IllegalArgumentException("Return quantity must be greater than 0");
 			}
 
 			// Calculate remaining returnable quantity
 			int alreadyReturned = returnedQuantities.getOrDefault(originalSalesLine.getId(), 0);
-			// 2.2.1: returns stay whole for now; a decimal sold quantity stops here, loudly
-			int soldQuantity = Quantities.wholeOrFail(originalSalesLine.getQuantity(),
-					"Return of sales line " + originalSalesLine.getId());
+			// 2.2.1: returns stay whole for now; a line sold with decimals, or a decimal quantity asked, is refused by name
+			// before anything is written (never rounded)
+			com.digithink.zsretail.model.Item soldItem = originalSalesLine.getItem();
+			String soldCode = soldItem == null ? null : soldItem.getItemCode();
+			String soldName = soldItem == null ? null : soldItem.getName();
+			if (!Quantities.isWhole(originalSalesLine.getQuantity())) {
+				throw new IllegalArgumentException(
+						Quantities.notSupportedYet(soldCode, soldName, originalSalesLine.getQuantity(), "returns"));
+			}
+			if (!Quantities.isWhole(returnLineDTO.getQuantity())) {
+				throw new IllegalArgumentException(
+						Quantities.notSupportedYet(soldCode, soldName, returnLineDTO.getQuantity(), "returns"));
+			}
+			int quantity = returnLineDTO.getQuantity().intValueExact();
+			int soldQuantity = originalSalesLine.getQuantity().intValueExact();
 			int remainingReturnable = soldQuantity - alreadyReturned;
 
-			if (returnLineDTO.getQuantity() > remainingReturnable) {
-				throw new IllegalArgumentException("Return quantity (" + returnLineDTO.getQuantity()
+			if (quantity > remainingReturnable) {
+				throw new IllegalArgumentException("Return quantity (" + quantity
 						+ ") cannot exceed remaining returnable quantity (" + remainingReturnable + ")");
 			}
 
@@ -313,16 +325,16 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 			double unitPriceHT = originalSalesLine.getUnitPrice();
 			double unitPriceTTC = originalSalesLine.getUnitPriceIncludingVat();
 			double lineTotalHT = (originalSalesLine.getLineTotal() / soldQuantity)
-					* returnLineDTO.getQuantity();
+					* quantity;
 			double lineTotalTTC = (originalSalesLine.getLineTotalIncludingVat() / soldQuantity)
-					* returnLineDTO.getQuantity();
+					* quantity;
 
 			// Create return line
 			ReturnLine returnLine = new ReturnLine();
 			returnLine.setReturnHeader(null); // Will be set after header is created
 			returnLine.setOriginalSalesLine(originalSalesLine);
 			returnLine.setItem(originalSalesLine.getItem());
-			returnLine.setQuantity(returnLineDTO.getQuantity());
+			returnLine.setQuantity(quantity);
 			returnLine.setUnitPrice(unitPriceHT); // Store HT unit price
 			returnLine.setUnitPriceIncludingVat(unitPriceTTC); // Store TTC unit price
 			returnLine.setLineTotal(lineTotalHT); // Store HT line total

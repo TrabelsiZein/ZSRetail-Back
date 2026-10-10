@@ -53,6 +53,10 @@ public class ItemCompositionAPI extends _BaseController<ItemComposition, Long, I
 	@Override
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody ItemComposition entity) {
+		String decimal = itemCompositionService.decimalRefusal(entity); // 2.2.1: 400 naming the component
+		if (decimal != null) {
+			return ResponseEntity.badRequest().body(createErrorResponse(decimal));
+		}
 		ResponseEntity<?> refusal = refusedForPack(null, entity);
 		return refusal != null ? refusal : super.create(entity);
 	}
@@ -61,6 +65,10 @@ public class ItemCompositionAPI extends _BaseController<ItemComposition, Long, I
 	@Override
 	@PutMapping("/{id}")
 	public ResponseEntity<?> update(@PathVariable Long id, @RequestBody ItemComposition entity) {
+		String decimal = itemCompositionService.decimalRefusal(entity); // 2.2.1: 400 naming the component
+		if (decimal != null) {
+			return ResponseEntity.badRequest().body(createErrorResponse(decimal));
+		}
 		ResponseEntity<?> refusal = refusedForPack(id, entity);
 		return refusal != null ? refusal : super.update(id, entity);
 	}

@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
@@ -283,7 +284,8 @@ public class DataImportService {
                     }
                     String stockStr = getOptionalValue(row, formatter, colIndex, fieldMap, "stockQuantity");
                     if (stockStr != null && !stockStr.isEmpty()) {
-                        item.setStockQuantity(Quantities.of(parseInteger(stockStr))); // 2.2.1: still whole here (step to come)
+                        refuseDecimalStock(getCell(row, colIndex, fieldMap, "stockQuantity"), stockStr);
+                        item.setStockQuantity(Quantities.of(parseInteger(stockStr))); // whole, read as in 2.2.0
                     }
                     String minStockStr = getOptionalValue(row, formatter, colIndex, fieldMap, "minStockLevel");
                     if (minStockStr != null && !minStockStr.isEmpty()) {
@@ -744,13 +746,42 @@ public class DataImportService {
         return map;
     }
 
-    private String getCellValue(Row row, DataFormatter formatter, Map<String, Integer> colIndex,
-                                 Map<String, String> fieldMap, String dbField) {
+    private Cell getCell(Row row, Map<String, Integer> colIndex, Map<String, String> fieldMap, String dbField) {
         String excelCol = fieldMap.get(dbField);
         if (excelCol == null) return null;
         Integer idx = colIndex.get(excelCol);
         if (idx == null) return null;
-        Cell cell = row.getCell(idx, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+        return row.getCell(idx, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+    }
+
+    /** A text read as a whole number with thousands separators, as {@link #parseInteger} reads it: 1.000, 12,500. */
+    private static final Pattern THOUSANDS = Pattern.compile("-?[1-9]\\d{0,2}([.,])\\d{3}(\\1\\d{3})*");
+
+    /**
+     * 2.2.1, step 5: the stock of the item import stays whole, and a cell that is not whole is refused (the row is not
+     * imported, its number is in the errors) instead of being read without its separator (a number cell 0.25 was read
+     * as 25, 1.5 as 15; a text cell 0.250 as 250). A number cell is refused when its value has decimals; a text cell
+     * when it has a separator and is not a whole number written with thousands separators (1.000 and 12,500 are still
+     * read as 1000 and 12500, as in 2.2.0). Whole numbers are read as before.
+     */
+    static void refuseDecimalStock(Cell cell, String text) {
+        boolean decimal;
+        if (cell != null && cell.getCellType() == CellType.NUMERIC) {
+            double value = cell.getNumericCellValue();
+            decimal = value != Math.floor(value) || Double.isInfinite(value);
+        } else {
+            String trimmed = text.trim();
+            decimal = (trimmed.contains(".") || trimmed.contains(",")) && !THOUSANDS.matcher(trimmed).matches();
+        }
+        if (decimal) {
+            throw new RuntimeException("Stock quantity '" + text.trim() + "' is not a whole number: decimal stock"
+                    + " quantities are not supported in the item import yet, the row is not imported.");
+        }
+    }
+
+    private String getCellValue(Row row, DataFormatter formatter, Map<String, Integer> colIndex,
+                                 Map<String, String> fieldMap, String dbField) {
+        Cell cell = getCell(row, colIndex, fieldMap, dbField);
         if (cell == null) return null;
         if (cell.getCellType() == CellType.NUMERIC) {
             double val = cell.getNumericCellValue();

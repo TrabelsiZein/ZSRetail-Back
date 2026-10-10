@@ -1,5 +1,6 @@
 package com.digithink.zsretail.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -114,7 +115,7 @@ public class ReportService {
         List<SalesReportRowDTO> result = new ArrayList<>();
         for (Object[] r : rows) {
             result.add(new SalesReportRowDTO(
-                    str(r[0]), toLong(r[1]), toLong(r[2]),
+                    str(r[0]), toLong(r[1]), toQuantity(r[2]),
                     toDouble(r[3]), toDouble(r[4]), toDouble(r[5]), toDouble(r[6])));
         }
         return result;
@@ -207,8 +208,9 @@ public class ReportService {
                         "WHERE i.active = true " +
                         "GROUP BY f.name ORDER BY f.name ASC";
                 for (Object[] r : (List<Object[]>) em.createQuery(jpql).getResultList()) {
-                    long qty = toLong(r[1]), min = toLong(r[2]);
-                    if (Boolean.TRUE.equals(belowMinStock) && qty >= min) continue;
+                    BigDecimal qty = toQuantity(r[1]);
+                    long min = toLong(r[2]);
+                    if (Boolean.TRUE.equals(belowMinStock) && qty.compareTo(BigDecimal.valueOf(min)) >= 0) continue;
                     result.add(new StockReportRowDTO(str(r[0]), null, qty, min, toDouble(r[3]), stockStatus(qty, min)));
                 }
                 break;
@@ -223,8 +225,9 @@ public class ReportService {
                         "WHERE i.active = true " +
                         "GROUP BY sf.name ORDER BY sf.name ASC";
                 for (Object[] r : (List<Object[]>) em.createQuery(jpql).getResultList()) {
-                    long qty = toLong(r[1]), min = toLong(r[2]);
-                    if (Boolean.TRUE.equals(belowMinStock) && qty >= min) continue;
+                    BigDecimal qty = toQuantity(r[1]);
+                    long min = toLong(r[2]);
+                    if (Boolean.TRUE.equals(belowMinStock) && qty.compareTo(BigDecimal.valueOf(min)) >= 0) continue;
                     result.add(new StockReportRowDTO(str(r[0]), null, qty, min, toDouble(r[3]), stockStatus(qty, min)));
                 }
                 break;
@@ -237,8 +240,9 @@ public class ReportService {
                         "COALESCE(i.stockQuantity, 0) * COALESCE(i.costPrice, 0) " +
                         "FROM Item i WHERE i.active = true ORDER BY i.name ASC";
                 for (Object[] r : (List<Object[]>) em.createQuery(jpql).getResultList()) {
-                    long qty = toLong(r[2]), min = toLong(r[3]);
-                    if (Boolean.TRUE.equals(belowMinStock) && qty >= min) continue;
+                    BigDecimal qty = toQuantity(r[2]);
+                    long min = toLong(r[3]);
+                    if (Boolean.TRUE.equals(belowMinStock) && qty.compareTo(BigDecimal.valueOf(min)) >= 0) continue;
                     result.add(new StockReportRowDTO(str(r[0]), str(r[1]), qty, min, toDouble(r[4]), stockStatus(qty, min)));
                 }
                 break;
@@ -309,8 +313,9 @@ public class ReportService {
 
         List<StockMovementReportRowDTO> result = new ArrayList<>();
         for (Object[] r : (List<Object[]>) query.getResultList()) {
-            long qtyIn = toLong(r[1]), qtyOut = toLong(r[2]);
-            result.add(new StockMovementReportRowDTO(str(r[0]), qtyIn, qtyOut, qtyIn - qtyOut, toLong(r[3])));
+            BigDecimal qtyIn = toQuantity(r[1]), qtyOut = toQuantity(r[2]);
+            result.add(new StockMovementReportRowDTO(str(r[0]), qtyIn, qtyOut, Quantities.normalize(qtyIn.subtract(qtyOut)),
+                    toLong(r[3])));
         }
         return result;
     }
@@ -572,6 +577,13 @@ public class ReportService {
         return 0L;
     }
 
+    /** 2.2.1: a quantity (or a sum of quantities) with its decimals, without trailing zeros; null as 0. */
+    private BigDecimal toQuantity(Object o) {
+        if (o == null) return BigDecimal.ZERO;
+        BigDecimal value = o instanceof BigDecimal ? (BigDecimal) o : new BigDecimal(o.toString());
+        return Quantities.normalize(value);
+    }
+
     private Double toDouble(Object o) {
         if (o == null) return 0.0;
         if (o instanceof Double) return (Double) o;
@@ -579,9 +591,9 @@ public class ReportService {
         return 0.0;
     }
 
-    private String stockStatus(long qty, long min) {
-        if (qty <= 0)  return "OUT";
-        if (qty < min) return "LOW";
+    private String stockStatus(BigDecimal qty, long min) {
+        if (qty.signum() <= 0)  return "OUT"; // 2.2.1: 0.2 is in stock
+        if (qty.compareTo(BigDecimal.valueOf(min)) < 0) return "LOW";
         return "OK";
     }
 }
