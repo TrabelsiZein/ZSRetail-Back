@@ -176,6 +176,26 @@
 - Business logic in `TicketExportService` remains ERP-agnostic
 - Partial synchronization and external reference handling logic preserved across all ERPs
 
+### Abilities (code cleanup step 2)
+
+The connector is chosen by `erp.connector` (or the old enabled lines, `deployment-modes.md`). The application asks what
+the connector in effect can do, never which one it is: `erp/spi/ErpAbilities` gives, for each connector name, its
+abilities (`erp/spi/ErpAbility`), read from the environment, so a condition uses it before the beans exist.
+
+| Connector | `CATALOGUE_BY_STOCK_POINTS` | `SUPPLY_INVOICES` |
+|---|---|---|
+| `none` | — | — |
+| `dynamicsnav` | — | — |
+| `navpospages` | yes | yes |
+
+- `CATALOGUE_BY_STOCK_POINTS`: the catalogue read by points de stock with its single job `SYNC_CATALOGUE`; the head office
+  keeps the points (`ho_stock_point`, `ho_stock_point_item`) and their page.
+- `SUPPLY_INVOICES`: the ERP's supply invoices are read, so a head office may set `headoffice.supply.source=ERP`.
+
+`ErpAbilities.connectorInEffect(env)` (none, dynamicsnav, navpospages) is worked out from the values in effect;
+`hasConnector(env)` is true for any connector but none. A new ability is added there when the code needs it, never a test on
+a connector name.
+
 ## Head office catalogue from the ERP pages (`erp.navpospages`)
 
 The head office reads its catalogue from the ERP pages of one location (details in `head-office.md`, "the connector

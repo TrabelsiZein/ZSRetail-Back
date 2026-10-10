@@ -29,9 +29,9 @@ public class ErpConnectorEnvironmentPostProcessor implements EnvironmentPostProc
 	public static final String CONNECTOR_KEY = "erp.connector";
 	static final String DYNAMICS_NAV_ENABLED_KEY = "erp.dynamicsnav.enabled";
 	static final String NAVPOSPAGES_ENABLED_KEY = NodeOwnership.NAVPOSPAGES_ENABLED_KEY;
-	static final String NONE = "none";
-	static final String DYNAMICS_NAV = "dynamicsnav";
-	static final String NAVPOSPAGES = "navpospages";
+	public static final String NONE = "none";
+	public static final String DYNAMICS_NAV = "dynamicsnav";
+	public static final String NAVPOSPAGES = "navpospages";
 	static final String PROPERTY_SOURCE_NAME = "erpConnector";
 	/** Spring Boot's view of all the sources, attached first: never the source of a key. */
 	private static final String ATTACHED_SOURCE_NAME = "configurationProperties";
