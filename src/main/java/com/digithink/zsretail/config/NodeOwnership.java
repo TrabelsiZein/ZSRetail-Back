@@ -11,6 +11,8 @@ import java.util.Set;
 
 import org.springframework.core.env.PropertyResolver;
 
+import com.digithink.zsretail.erp.spi.ErpAbilities;
+import com.digithink.zsretail.erp.spi.ErpAbility;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.DataOwner;
 import com.digithink.zsretail.model.enumeration.NodeType;
@@ -58,7 +60,8 @@ import com.digithink.zsretail.model.enumeration.SalesUpstream;
  * <p>
  * Invoices from the ERP: on such a head office, {@code headoffice.supply.source=ERP} replaces its BLs and invoices by the
  * ERP's invoices ({@link #isSupplyFromErpSourceSet}); the startup fails with another value than HEAD_OFFICE or ERP, with
- * ERP on any other head office, or with ERP without {@code erp.navpospages.enabled=true}. A store never reads the key.
+ * ERP on any other head office, or with ERP without a connector that reads the ERP's invoices
+ * ({@code ErpAbility.SUPPLY_INVOICES}). A store never reads the key.
  */
 public final class NodeOwnership {
 
@@ -79,10 +82,9 @@ public final class NodeOwnership {
 	static final String HEADOFFICE_STOCK_KEY = "headoffice.stock.enabled";
 	/**
 	 * Head office only, invoices from the ERP: where the supply documents of the stores come from, HEAD_OFFICE (its own
-	 * BLs and invoices, the default) or ERP (the ERP's invoices, read by the connector navpospages).
+	 * BLs and invoices, the default) or ERP (the ERP's invoices, read by a connector with ErpAbility.SUPPLY_INVOICES).
 	 */
 	static final String SUPPLY_SOURCE_KEY = "headoffice.supply.source";
-	static final String NAVPOSPAGES_ENABLED_KEY = "erp.navpospages.enabled";
 
 	/**
 	 * Domains a store receives as copies down from its head office today (step 3: promotions; step 4: loyalty; step 6:
@@ -238,8 +240,8 @@ public final class NodeOwnership {
 
 	/**
 	 * Invoices from the ERP: true on a head office with headoffice.supply.source=ERP (accepted only on a head office whose
-	 * catalogue only comes from the ERP, with erp.navpospages.enabled=true). The key is read on a head office only: a
-	 * store never reads it. Also used by {@link OnHeadOfficeOwnSupplyCondition} and {@link OnHeadOfficeErpSupplyCondition}.
+	 * catalogue only comes from the ERP, with a connector that reads the ERP's invoices). The key is read on a head office
+	 * only: a store never reads it. Also used by {@link OnHeadOfficeOwnSupplyCondition} and {@link OnHeadOfficeErpSupplyCondition}.
 	 * Throws like the startup on an invalid configuration.
 	 */
 	public static boolean isSupplyFromErpSourceSet(PropertyResolver env) {
@@ -269,7 +271,7 @@ public final class NodeOwnership {
 
 	/**
 	 * Invoices from the ERP: headoffice.supply.source=ERP needs a head office whose catalogue only comes from the ERP and
-	 * the connector that reads the invoices (erp.navpospages.enabled=true).
+	 * a connector that reads the invoices (ErpAbility.SUPPLY_INVOICES).
 	 */
 	private static void checkSupplySource(PropertyResolver env, Map<DataDomain, DataOwner> owners) {
 		if (!supplyFromErp(env)) {
@@ -281,10 +283,11 @@ public final class NodeOwnership {
 					+ " with ownership.catalogue=ERP and ownership.customers and ownership.supply not ERP; set "
 					+ SUPPLY_SOURCE_KEY + " to HEAD_OFFICE, or remove it.");
 		}
-		if (!"true".equalsIgnoreCase(String.valueOf(env.getProperty(NAVPOSPAGES_ENABLED_KEY)).trim())) {
-			throw new IllegalStateException("Invalid combination: " + SUPPLY_SOURCE_KEY + "=ERP without "
-					+ NAVPOSPAGES_ENABLED_KEY + "=true. The invoices are read by the connector navpospages; enable it, or set "
-					+ SUPPLY_SOURCE_KEY + " to HEAD_OFFICE.");
+		if (!ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES)) {
+			throw new IllegalStateException("Invalid combination: " + SUPPLY_SOURCE_KEY + "=ERP without a connector that"
+					+ " reads the ERP's invoices: "
+					+ ErpConnectorEnvironmentPostProcessor.howToChoose(ErpAbilities.connectorsWith(ErpAbility.SUPPLY_INVOICES))
+					+ ". Choose it, or set " + SUPPLY_SOURCE_KEY + " to HEAD_OFFICE.");
 		}
 	}
 

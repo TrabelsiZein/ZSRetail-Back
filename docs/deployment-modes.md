@@ -246,7 +246,8 @@ the "Connect a store" procedure: `docs/modules/head-office.md`, "Head office lin
   ERP by the connector navpospages; the head office makes no BL, supply price or supply invoice). Read on a head office
   only, like `headoffice.stock.enabled`; a store never reads it. Startup refusals: a value other than `HEAD_OFFICE` or
   `ERP` (blank included); `ERP` on a head office whose catalogue does not come from the ERP alone (without an ERP, or
-  with the ERP owning all three); `ERP` without `erp.navpospages.enabled=true`. `GET /config` field `supplySource`
+  with the ERP owning all three); `ERP` without a connector that has the ability `SUPPLY_INVOICES` (the message names
+  `erp.connector=navpospages` and the old line `erp.navpospages.enabled=true`, still accepted). `GET /config` field `supplySource`
   (`HEAD_OFFICE` or `ERP` on a head office, `null` on a store). See `docs/modules/head-office.md`, "Invoices from the ERP".
 - **Stores page threshold** (task 1.5), head office only: `headoffice.offline-after-seconds`, whole number, at least 1, default `180`. A store whose last heartbeat is older is shown OFFLINE (exactly at the threshold it is still ONLINE). A wrong value stops the head office at startup. See `docs/modules/head-office.md`, "Status".
 - **GET /config** (task 0.5) returns three more fields after the existing ones, enums as their names:

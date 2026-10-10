@@ -12,6 +12,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
+import com.digithink.zsretail.erp.spi.ErpAbilities;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 
 /**
@@ -50,10 +51,10 @@ public class InstallationSummary {
 		if (NodeOwnership.isSupplyFromErpSourceSet(env)) {
 			line.add("supply invoices from the ERP");
 		}
-		String connector = ErpConnectorEnvironmentPostProcessor.inEffect(env);
-		line.add("ERP connector " + connector);
-		if (ErpConnectorEnvironmentPostProcessor.DYNAMICS_NAV.equals(connector)) {
-			line.add("NAV " + env.getProperty("erp.dynamicsnav.base-url", "(no address)"));
+		line.add("ERP connector " + ErpAbilities.connectorInEffect(env));
+		String address = ErpConnectorEnvironmentPostProcessor.summaryAddress(env);
+		if (address != null) {
+			line.add(address);
 		}
 		String outsideFile = env.getProperty(MachineFileEnvironmentPostProcessor.LOADED_KEY);
 		line.add(outsideFile == null ? "no outside file" : "outside file " + outsideFile);

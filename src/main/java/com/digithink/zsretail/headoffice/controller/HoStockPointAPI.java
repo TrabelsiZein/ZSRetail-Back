@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -18,8 +17,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.digithink.zsretail.config.ConditionalOnErpAbility;
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeErpCatalogue;
-import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
+import com.digithink.zsretail.erp.spi.ErpAbility;
 import com.digithink.zsretail.headoffice.dto.StockPointDTO;
 import com.digithink.zsretail.headoffice.service.HoStockPointItemsService;
 import com.digithink.zsretail.headoffice.service.HoStockPointService;
@@ -28,14 +28,14 @@ import lombok.extern.log4j.Log4j2;
 
 /**
  * Stock points, step 1: the points de stock (JWT, like the other admin APIs). Head office whose catalogue comes from
- * the ERP with erp.navpospages.enabled=true only: elsewhere these URLs answer 404. Errors: 400 {"error"} for invalid
- * data, 404 {"error":"Not found"}, 409 {"error"} for a code that exists, a point used by a store, or a point with items
- * deleted. See docs/modules/head-office.md, "Stock points".
+ * the ERP, through a connector that reads it by points de stock (ErpAbility.CATALOGUE_BY_STOCK_POINTS), only:
+ * elsewhere these URLs answer 404. Errors: 400 {"error"} for invalid data, 404 {"error":"Not found"}, 409 {"error"} for
+ * a code that exists, a point used by a store, or a point with items deleted. See docs/modules/head-office.md, "Stock points".
  */
 @RestController
 @RequestMapping("admin/headoffice/stock-points")
 @ConditionalOnHeadOfficeErpCatalogue
-@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
+@ConditionalOnErpAbility(ErpAbility.CATALOGUE_BY_STOCK_POINTS)
 @Log4j2
 public class HoStockPointAPI {
 

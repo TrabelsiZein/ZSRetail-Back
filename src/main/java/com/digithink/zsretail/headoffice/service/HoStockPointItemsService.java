@@ -10,14 +10,14 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.digithink.zsretail.config.ConditionalOnErpAbility;
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeErpCatalogue;
-import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
+import com.digithink.zsretail.erp.spi.ErpAbility;
 import com.digithink.zsretail.headoffice.dto.StockPointItemDTO;
 import com.digithink.zsretail.headoffice.model.HoStockPoint;
 import com.digithink.zsretail.headoffice.model.HoStockPointItem;
@@ -39,7 +39,7 @@ import com.digithink.zsretail.repository.ItemSubFamilyRepository;
  */
 @Service
 @ConditionalOnHeadOfficeErpCatalogue
-@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
+@ConditionalOnErpAbility(ErpAbility.CATALOGUE_BY_STOCK_POINTS)
 @Transactional(readOnly = true)
 public class HoStockPointItemsService {
 

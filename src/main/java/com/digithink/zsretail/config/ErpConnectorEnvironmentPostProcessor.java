@@ -2,8 +2,10 @@ package com.digithink.zsretail.config;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.StringJoiner;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
@@ -23,12 +25,17 @@ import org.springframework.core.env.PropertySource;
  * source that gives erp.connector, so they win over an old line of a lower source (the type files say
  * erp.dynamicsnav.enabled=false) and an old line of the same or a higher source that says the opposite stops the
  * startup. An unknown value stops it too. See docs/deployment-modes.md.
+ * <p>
+ * Code cleanup, step 2: with the connector packages, the only class that names a connector key; the application asks
+ * {@link com.digithink.zsretail.erp.spi.ErpAbilities} what the connector in effect can do.
  */
 public class ErpConnectorEnvironmentPostProcessor implements EnvironmentPostProcessor, Ordered {
 
 	public static final String CONNECTOR_KEY = "erp.connector";
 	static final String DYNAMICS_NAV_ENABLED_KEY = "erp.dynamicsnav.enabled";
-	static final String NAVPOSPAGES_ENABLED_KEY = NodeOwnership.NAVPOSPAGES_ENABLED_KEY;
+	static final String NAVPOSPAGES_ENABLED_KEY = "erp.navpospages.enabled";
+	/** The NAV address shown by the startup summary when the connector is dynamicsnav. */
+	static final String DYNAMICS_NAV_BASE_URL_KEY = "erp.dynamicsnav.base-url";
 	public static final String NONE = "none";
 	public static final String DYNAMICS_NAV = "dynamicsnav";
 	public static final String NAVPOSPAGES = "navpospages";
@@ -87,6 +94,31 @@ public class ErpConnectorEnvironmentPostProcessor implements EnvironmentPostProc
 			return DYNAMICS_NAV;
 		}
 		return isTrue(env.getProperty(NAVPOSPAGES_ENABLED_KEY)) ? NAVPOSPAGES : NONE;
+	}
+
+	/**
+	 * Code cleanup, step 2: how to choose one of these connectors, for a refusal message (the application never names a
+	 * connector key itself): {@code erp.connector=navpospages (or the old line erp.navpospages.enabled=true, still
+	 * accepted)}, several joined with "or".
+	 */
+	public static String howToChoose(List<String> connectors) {
+		StringJoiner choices = new StringJoiner(" or ");
+		for (String connector : connectors) {
+			Map.Entry<String, Object> oldLine = translate(connector).entrySet().stream()
+					.filter(line -> "true".equals(line.getValue())).findFirst().orElse(null);
+			choices.add(CONNECTOR_KEY + "=" + connector + (oldLine == null ? ""
+					: " (or the old line " + oldLine.getKey() + "=true, still accepted)"));
+		}
+		return choices.toString();
+	}
+
+	/**
+	 * Code cleanup, step 2: what the startup summary adds after the connector in effect, null when nothing: the NAV
+	 * address with dynamicsnav ({@code NAV <base-url>}).
+	 */
+	public static String summaryAddress(PropertyResolver env) {
+		return DYNAMICS_NAV.equals(inEffect(env)) ? "NAV " + env.getProperty(DYNAMICS_NAV_BASE_URL_KEY, "(no address)")
+				: null;
 	}
 
 	private static String normalized(String connector) {

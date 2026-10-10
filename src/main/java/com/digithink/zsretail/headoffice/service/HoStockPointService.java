@@ -10,12 +10,12 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.digithink.zsretail.config.ConditionalOnErpAbility;
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeErpCatalogue;
-import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
+import com.digithink.zsretail.erp.spi.ErpAbility;
 import com.digithink.zsretail.headoffice.dto.StockPointDTO;
 import com.digithink.zsretail.headoffice.model.HoStockPoint;
 import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
@@ -31,7 +31,7 @@ import com.digithink.zsretail.headoffice.repository.StoreRepository;
  */
 @Service
 @ConditionalOnHeadOfficeErpCatalogue
-@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
+@ConditionalOnErpAbility(ErpAbility.CATALOGUE_BY_STOCK_POINTS)
 public class HoStockPointService {
 
 	static final String CODE_REQUIRED = "The stock point code is required.";

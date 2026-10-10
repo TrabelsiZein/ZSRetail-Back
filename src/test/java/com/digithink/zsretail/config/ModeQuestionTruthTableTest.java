@@ -193,8 +193,9 @@ class ModeQuestionTruthTableTest {
 		erpHeadOffice.setProperty(key, "ERP");
 		assertEquals(notCatalogueOnly, refusal(erpHeadOffice), "head office whose ERP owns all three");
 		catalogueOnly.setProperty(key, "ERP");
-		assertEquals("Invalid combination: headoffice.supply.source=ERP without erp.navpospages.enabled=true. The invoices"
-				+ " are read by the connector navpospages; enable it, or set headoffice.supply.source to HEAD_OFFICE.",
+		assertEquals("Invalid combination: headoffice.supply.source=ERP without a connector that reads the ERP's invoices:"
+				+ " erp.connector=navpospages (or the old line erp.navpospages.enabled=true, still accepted). Choose it, or"
+				+ " set headoffice.supply.source to HEAD_OFFICE.",
 				refusal(catalogueOnly), "without the connector");
 		for (String value : new String[] { "", "yes", "BL" }) {
 			MockEnvironment wrong = Installations.type("headoffice");
