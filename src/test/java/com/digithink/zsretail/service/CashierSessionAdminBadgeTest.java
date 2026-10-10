@@ -108,14 +108,33 @@ class CashierSessionAdminBadgeTest {
 		assertEquals(5.0, (Double) refused.getErrorData().get("discrepancyAmount"), 1e-9);
 	}
 
+	private void closeConfirmed(String badgeCode) {
+		CloseSessionRequestDTO request = request(badgeCode);
+		request.setDiscrepancyConfirmed(true);
+		service.checkCashDiscrepancy(session, EXPECTED, COUNTED, request);
+	}
+
 	@Test
-	@DisplayName("Admin: a difference closes without a badge, with the setting on (and absent: on by default)")
-	void adminClosesWithoutBadge() {
+	@DisplayName("Admin: the difference is shown first (CASH_DISCREPANCY), the confirmed close goes through without a badge (setting on, or absent: on)")
+	void adminConfirmsWithoutBadge() {
 		loggedUser = user("admin", Role.ADMIN, "ADMIN");
-		assertDoesNotThrow(() -> close(null));
+		assertRefusedAsToday(); // the warning: a typing mistake never closes silently
+		assertDoesNotThrow(() -> closeConfirmed(null));
 		settings.put("ENABLE_CASH_DISCREPANCY_CHECK", "true");
-		assertDoesNotThrow(() -> close(null));
-		assertDoesNotThrow(() -> close("NO-SUCH-BADGE"), "no badge is checked for an admin");
+		assertRefusedAsToday();
+		assertDoesNotThrow(() -> closeConfirmed(null));
+		assertDoesNotThrow(() -> closeConfirmed("NO-SUCH-BADGE"), "no badge is checked for an admin who confirmed");
+	}
+
+	@Test
+	@DisplayName("The confirmation means nothing for a cashier, a responsible or a custom role: refused without a badge as in 2.2.1")
+	void confirmationOnlyForAdmin() {
+		settings.put("ENABLE_CASH_DISCREPANCY_CHECK", "true");
+		for (UserAccount other : new UserAccount[] { user("cashier", Role.POS_USER, "POS_USER"),
+				user("responsible", Role.RESPONSIBLE, "RESPONSIBLE"), user("chef", Role.RESPONSIBLE, "CHEF_CAISSE") }) {
+			loggedUser = other;
+			assertThrows(CashDiscrepancyException.class, () -> closeConfirmed(null), other.getUsername());
+		}
 	}
 
 	@Test

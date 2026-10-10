@@ -18,6 +18,8 @@ public class CloseSessionRequestDTO {
 	private List<CashCountLineDTO> cashCountLines;
 	private String badgeCode; // Badge code scanned for discrepancy validation
 	private String badgePermission; // Permission being validated (should be "CLOSE_SESSION_WITH_DISCREPANCY")
+	/** 2.2.2: an admin saw the cash difference warning and confirmed it; no badge is asked of an admin. */
+	private boolean discrepancyConfirmed;
 
 	@Data
 	public static class CashCountLineDTO {

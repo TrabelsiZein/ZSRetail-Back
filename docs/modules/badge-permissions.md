@@ -14,9 +14,12 @@
   badge holding `CLOSE_SESSION_WITH_DISCREPANCY` comes with the request; the till then shows the difference popup, then
   the badge popup, and sends the close again with the badge code. It does not read `ALWAYS_SHOW_BADGE_SCAN_POPUP`.
 - **Admin, never asked for a badge (2.2.2, every installation)**: on the five actions the till checks nothing and shows no
-  popup, even with `ALWAYS_SHOW_BADGE_SCAN_POPUP` on; an admin's close with a difference goes through without a badge
-  (no difference popup, no badge popup), with the log line "Session closure with discrepancy authorized by the admin
-  role: session ..., user ..., expected ..., counted ..., no badge". No badge scan is logged for an admin (none happens).
+  popup, even with `ALWAYS_SHOW_BADGE_SCAN_POPUP` on. Closing with a difference: an admin still gets the difference
+  popup (a typing mistake in the counted cash never closes silently), with "Check the counted amounts..." and the button
+  "Confirm and close" instead of the badge; the till sends the close again with `discrepancyConfirmed: true`, which the
+  server accepts from an admin only (from anyone else it means nothing), with the log line "Session closure with
+  discrepancy authorized by the admin role: session ..., user ..., expected ..., counted ..., no badge". No badge scan
+  is logged for an admin (none happens).
   Cashiers, responsibles and custom roles: unchanged (same checks, same popups, same scan history).
 - **Who is an admin** (one definition per side): the logged user's role `UserAccount.role` is `ADMIN`. Server:
   `CurrentUserProvider.currentUserIsAdmin()` (also used by `BadgeAPI`); till: `badgeService.isAdminUser(user)` on

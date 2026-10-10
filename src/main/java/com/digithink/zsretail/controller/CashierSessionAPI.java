@@ -119,6 +119,8 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 				if (request.get("badgePermission") != null) {
 					closeRequest.setBadgePermission((String) request.get("badgePermission"));
 				}
+				// 2.2.2: the admin saw the difference warning and confirmed it (no badge for an admin)
+				closeRequest.setDiscrepancyConfirmed(Boolean.TRUE.equals(request.get("discrepancyConfirmed")));
 				
 				// Parse cash count lines
 				@SuppressWarnings("unchecked")

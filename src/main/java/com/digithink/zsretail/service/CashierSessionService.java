@@ -347,9 +347,10 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	/**
 	 * The cash counted against the cash expected when the session is closed (ENABLE_CASH_DISCREPANCY_CHECK, on when the
 	 * setting is absent). A difference above 0.01 needs a badge holding CLOSE_SESSION_WITH_DISCREPANCY, else
-	 * {@link CashDiscrepancyException} (the till then asks for the badge). 2.2.2: when the logged user is an admin
-	 * ({@link CurrentUserProvider#currentUserIsAdmin()}) no badge is checked: the closing goes through, logged as
-	 * authorised by the admin role.
+	 * {@link CashDiscrepancyException} (the till then shows the difference and asks for the badge). 2.2.2: when the logged
+	 * user is an admin ({@link CurrentUserProvider#currentUserIsAdmin()}) no badge is checked: the first request still
+	 * gets the difference (the warning); the request confirming it ({@code discrepancyConfirmed}) goes through, logged
+	 * as authorised by the admin role. The confirmation means nothing for any other user.
 	 */
 	void checkCashDiscrepancy(CashierSession session, Double realCash, Double posUserClosureCash,
 			CloseSessionRequestDTO request) {
@@ -367,8 +368,9 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			// Compare amounts with tolerance of 0.01 TND for floating point precision
 			double difference = Math.abs(realCash - posUserClosureCash);
 			if (difference > 0.01) {
-				if (currentUserProvider.currentUserIsAdmin()) {
-					// 2.2.2: an admin is never asked for a badge
+				if (request.isDiscrepancyConfirmed() && currentUserProvider.currentUserIsAdmin()) {
+					// 2.2.2: an admin is never asked for a badge, but sees the difference warning first (the till
+					// shows it on the CashDiscrepancyException below) and confirms it
 					log.info("Session closure with discrepancy authorized by the admin role: session "
 							+ session.getSessionNumber() + ", user " + currentUserProvider.getCurrentUserName()
 							+ ", expected " + realCash + ", counted " + posUserClosureCash + ", no badge");
