@@ -2,12 +2,13 @@ package com.digithink.zsretail.erp.dynamicsnav.connector;
 
 import java.util.List;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.HttpStatusCodeException;
 
+import com.digithink.zsretail.config.ConditionalOnErpConnector;
+import com.digithink.zsretail.config.ErpConnectorEnvironmentPostProcessor;
 import com.digithink.zsretail.erp.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.dto.ErpDeletionLogEntryDTO;
 import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
@@ -46,7 +47,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 
 @Component
-@ConditionalOnProperty(prefix = "erp.dynamicsnav", name = "enabled", havingValue = "true")
+@ConditionalOnErpConnector(ErpConnectorEnvironmentPostProcessor.DYNAMICS_NAV)
 @RequiredArgsConstructor
 public class DynamicsNavConnector implements ErpConnector {
 

@@ -126,7 +126,7 @@ class NavPosPagesConnectorTest {
 			assertFalse(result.isSuccess());
 			assertEquals("The navpospages ERP connector is read only: it sends nothing to the ERP.", result.getMessage());
 		}
-		assertTrue(NavPosPagesConnector.class.isAnnotationPresent(Primary.class));
+		assertFalse(NavPosPagesConnector.class.isAnnotationPresent(Primary.class), "code cleanup step 2: no @Primary");
 	}
 
 	@Test
@@ -154,13 +154,13 @@ class NavPosPagesConnectorTest {
 	}
 
 	@Test
-	@DisplayName("navpospages enabled: NavPosPagesConnector injected in ErpSynchronizationManager (it wins over NoOp)")
+	@DisplayName("navpospages enabled: NavPosPagesConnector injected in ErpSynchronizationManager (the only connector, no NoOp)")
 	void navPosPages() {
 		context().withPropertyValues(navPosPagesKeys()).run(ctx -> {
 			assertTrue(ctx.getStartupFailure() == null, String.valueOf(ctx.getStartupFailure()));
 			ErpConnector injected = connectorOf(ctx.getBean(ErpSynchronizationManager.class));
 			assertSame(ctx.getBean(NavPosPagesConnector.class), injected);
-			assertNotNull(ctx.getBean(NoOpErpConnector.class), "NoOp is still there, unchanged");
+			assertEquals(0, ctx.getBeanNamesForType(NoOpErpConnector.class).length, "code cleanup step 2: no NoOp beside it");
 			assertEquals(0, ctx.getBeanNamesForType(DynamicsNavConnector.class).length);
 			NavPosPagesProperties properties = ctx.getBean(NavPosPagesProperties.class);
 			assertEquals(Integer.valueOf(19), properties.getDefaultVat());

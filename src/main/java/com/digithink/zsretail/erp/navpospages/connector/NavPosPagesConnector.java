@@ -5,10 +5,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
+import com.digithink.zsretail.config.ConditionalOnErpConnector;
+import com.digithink.zsretail.config.ErpConnectorEnvironmentPostProcessor;
 import com.digithink.zsretail.erp.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.dto.ErpDeletionLogEntryDTO;
 import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
@@ -29,7 +29,6 @@ import com.digithink.zsretail.erp.dto.ErpSyncFilter;
 import com.digithink.zsretail.erp.dto.ErpTicketDTO;
 import com.digithink.zsretail.erp.dto.ErpTicketLineDTO;
 import com.digithink.zsretail.erp.dto.PullOperationResult;
-import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesSync;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosRun;
 import com.digithink.zsretail.erp.spi.ErpConnector;
@@ -37,9 +36,9 @@ import com.digithink.zsretail.erp.spi.ErpConnector;
 /**
  * ERP catalogue, step 5: the ERP connector of a Dynamics NAV / Business Central whose web services are the "POS pages"
  * (ItemCategory, PointStockPOS, ItemBarCodePOS). Read only: it never writes to the ERP. Exists only with
- * erp.navpospages.enabled=true, on a head office whose catalogue only comes from the ERP (NavPosPagesStartupCheck);
- * {@code @Primary} so that it wins over NoOpErpConnector (also present, since erp.dynamicsnav.enabled is false) without
- * changing it.
+ * erp.navpospages.enabled=true (or erp.connector=navpospages), on a head office whose catalogue only comes from the ERP
+ * (NavPosPagesStartupCheck). Code cleanup, step 2: the only ErpConnector bean then (the three are mutually exclusive by
+ * the connector in effect; no more {@code @Primary} over NoOpErpConnector).
  * <p>
  * Step 6: the four catalogue fetches (families, sub-families, items, barcodes) take only the changes against the head
  * office tables ({@link NavPosPagesSync}); families and sub-families hand them to the import, the items and barcode runs
@@ -49,8 +48,7 @@ import com.digithink.zsretail.erp.spi.ErpConnector;
  * empty list, every push or update a failure.
  */
 @Component
-@Primary
-@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
+@ConditionalOnErpConnector(ErpConnectorEnvironmentPostProcessor.NAVPOSPAGES)
 public class NavPosPagesConnector implements ErpConnector {
 
 	static final String READ_ONLY = "The navpospages ERP connector is read only: it sends nothing to the ERP.";

@@ -3,9 +3,10 @@ package com.digithink.zsretail.erp.spi;
 import java.util.Collections;
 import java.util.List;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import com.digithink.zsretail.config.ConditionalOnErpConnector;
+import com.digithink.zsretail.config.ErpConnectorEnvironmentPostProcessor;
 import com.digithink.zsretail.erp.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.dto.ErpDeletionLogEntryDTO;
 import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
@@ -25,12 +26,11 @@ import com.digithink.zsretail.erp.dto.ErpTicketDTO;
 import com.digithink.zsretail.erp.dto.ErpTicketLineDTO;
 
 /**
- * Connector used when Dynamics NAV is disabled (erp.dynamicsnav.enabled=false or
- * standalone profile). When enabled=true, only DynamicsNavConnector is created.
- * Relies solely on property so one of the two connectors is always present.
+ * Connector used when there is no ERP connector (erp.connector=none, or neither old enabled line true). Code cleanup,
+ * step 2: the three ErpConnector beans are mutually exclusive by the connector in effect, so exactly one exists.
  */
 @Component
-@ConditionalOnProperty(prefix = "erp.dynamicsnav", name = "enabled", havingValue = "false", matchIfMissing = true)
+@ConditionalOnErpConnector(ErpConnectorEnvironmentPostProcessor.NONE)
 public class NoOpErpConnector implements ErpConnector {
 
 	@Override

@@ -93,6 +93,45 @@ class ErpAbilityBeansTest {
 		assertTrue(withBeans.size() >= 4, "the real Happyness head office among them: " + withBeans);
 	}
 
+	/** Every configuration of the repository and the six shapes, plus the connector chosen each way. */
+	private static Map<String, MockEnvironment> configurations() {
+		Map<String, MockEnvironment> environments = new LinkedHashMap<>();
+		Installations.machineFiles().forEach(file -> environments.put(file, Installations.machine(file)));
+		Installations.configFiles().forEach(file -> environments.put(file, Installations.config(file)));
+		Installations.variants().forEach(variant -> environments.put(variant, Installations.preset(variant)));
+		for (String connector : new String[] { "none", "dynamicsnav", "navpospages" }) {
+			environments.put("store, erp.connector=" + connector, translated(Installations.type("store"), connector));
+			environments.put("catalogue only, erp.connector=" + connector,
+					translated(catalogueOnlyHeadOffice(), connector));
+		}
+		environments.put("catalogue only, old line", catalogueOnlyHeadOffice("erp.navpospages.enabled=true"));
+		return environments;
+	}
+
+	@Test
+	@DisplayName("Part 5: exactly one ErpConnector bean, the one the old conditions gave (NoOp no longer beside navpospages)")
+	void oneConnector() {
+		List<Class<?>> connectors = Arrays.asList(com.digithink.zsretail.erp.spi.NoOpErpConnector.class,
+				com.digithink.zsretail.erp.dynamicsnav.connector.DynamicsNavConnector.class,
+				com.digithink.zsretail.erp.navpospages.connector.NavPosPagesConnector.class);
+		for (Map.Entry<String, MockEnvironment> entry : configurations().entrySet()) {
+			MockEnvironment env = entry.getValue();
+			String nav = env.getProperty("erp.dynamicsnav.enabled");
+			// The old conditions: DynamicsNavConnector on true, NavPosPagesConnector (@Primary) on true, NoOp on false
+			// or absent; NoOp beside NavPosPagesConnector lost to @Primary
+			Class<?> expected = "true".equalsIgnoreCase(nav) ? connectors.get(1)
+					: "true".equalsIgnoreCase(env.getProperty("erp.navpospages.enabled")) ? connectors.get(2)
+							: nav == null || "false".equalsIgnoreCase(nav) ? connectors.get(0) : null;
+			List<Class<?>> present = new ArrayList<>();
+			for (Class<?> connector : connectors) {
+				if (registered(env, connector)) {
+					present.add(connector);
+				}
+			}
+			assertEquals(Arrays.asList(expected), present, entry.getKey());
+		}
+	}
+
 	@Test
 	@DisplayName("headoffice.supply.source=ERP: accepted with the ability SUPPLY_INVOICES, by the old line or erp.connector")
 	void supplySource() {

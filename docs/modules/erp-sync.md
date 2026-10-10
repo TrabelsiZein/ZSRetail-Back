@@ -159,6 +159,9 @@
 - Abstract `ErpConnector` interface (`com.digithink.zsretail.erp.spi.ErpConnector`) defines ERP-agnostic methods
 - Specific ERP implementations (e.g., `DynamicsNavConnector`) implement the interface
 - `NoOpErpConnector` provides stub implementation when ERP is disabled
+- **One connector** (code cleanup step 2): `NoOpErpConnector`, `DynamicsNavConnector` and `NavPosPagesConnector` are mutually
+  exclusive by the connector in effect (`@ConditionalOnErpConnector`, used by these three classes only), so exactly one
+  `ErpConnector` bean exists; no `@Primary`. Nothing injects a list of connectors or one by its class.
 
 **Abstract DTOs:**
 - `ErpTicketDTO` - Generic ticket DTO for ERP export
