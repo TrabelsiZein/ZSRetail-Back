@@ -1,12 +1,9 @@
 package com.digithink.zsretail.headoffice.dto;
 
 import java.math.BigDecimal;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.digithink.zsretail.headoffice.model.HoDelivery;
-import com.digithink.zsretail.headoffice.model.HoDeliveryLine;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import lombok.Data;
@@ -44,26 +41,6 @@ public class DeliveryCopyDTO {
 		return recordCode != null && recordCode.startsWith(RECORD_PREFIX) && recordCode.length() > RECORD_PREFIX.length()
 				? recordCode.substring(RECORD_PREFIX.length())
 				: null;
-	}
-
-	public static DeliveryCopyDTO of(HoDelivery delivery) {
-		DeliveryCopyDTO copy = new DeliveryCopyDTO();
-		copy.number = delivery.getNumber();
-		copy.documentDate = delivery.getDocumentDate() == null ? null : delivery.getDocumentDate().toString();
-		copy.sentAt = delivery.getSentAt() == null ? null
-				: delivery.getSentAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-		copy.status = delivery.getStatus() == null ? null : delivery.getStatus().name();
-		copy.note = delivery.getNote();
-		for (HoDeliveryLine line : delivery.getLines()) {
-			DeliveryLineCopyDTO lineCopy = new DeliveryLineCopyDTO();
-			lineCopy.setLineNo(line.getLineNo());
-			lineCopy.setItemCode(line.getItemCode());
-			lineCopy.setItemName(line.getItemName());
-			lineCopy.setQuantitySent(line.getQuantitySent());
-			copy.lines.add(lineCopy);
-		}
-		copy.lines.sort((a, b) -> Integer.compare(a.getLineNo(), b.getLineNo()));
-		return copy;
 	}
 
 	/** One line of a BL as it travels down. */

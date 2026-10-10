@@ -1,12 +1,9 @@
 package com.digithink.zsretail.headoffice.dto;
 
 import java.math.BigDecimal;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.digithink.zsretail.headoffice.model.HoErpInvoice;
-import com.digithink.zsretail.headoffice.model.HoErpInvoiceLine;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import lombok.Data;
@@ -52,35 +49,6 @@ public class ErpInvoiceCopyDTO {
 		return recordCode != null && recordCode.startsWith(RECORD_PREFIX) && recordCode.length() > RECORD_PREFIX.length()
 				? recordCode.substring(RECORD_PREFIX.length())
 				: null;
-	}
-
-	public static ErpInvoiceCopyDTO of(HoErpInvoice invoice, String sellerName) {
-		ErpInvoiceCopyDTO copy = new ErpInvoiceCopyDTO();
-		copy.invoiceNumber = invoice.getBcNumber();
-		copy.documentDate = invoice.getDocumentDate() == null ? null : invoice.getDocumentDate().toString();
-		copy.postingDate = invoice.getPostingDate() == null ? null : invoice.getPostingDate().toString();
-		copy.sellerName = sellerName;
-		copy.customerNo = invoice.getCustomerNo();
-		copy.customerName = invoice.getCustomerName();
-		copy.sentAt = invoice.getSentAt() == null ? null : invoice.getSentAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-		copy.totalExclVat = invoice.getTotalExclVat();
-		copy.totalVat = invoice.getTotalVat();
-		copy.totalInclVat = invoice.getTotalInclVat();
-		for (HoErpInvoiceLine line : invoice.getLines()) {
-			Line row = new Line();
-			row.setLineNo(line.getLineNo());
-			row.setLineType(line.getLineType() == null ? null : line.getLineType().name());
-			row.setItemCode(line.getItemCode());
-			row.setDescription(line.getDescription());
-			row.setQuantity(line.getQuantity());
-			row.setUnitPrice(line.getUnitPrice());
-			row.setLineDiscountPercent(line.getLineDiscountPercent());
-			row.setLineAmount(line.getLineAmount());
-			row.setUnitCost(line.getUnitCost());
-			copy.lines.add(row);
-		}
-		copy.lines.sort((a, b) -> Integer.compare(a.getLineNo(), b.getLineNo()));
-		return copy;
 	}
 
 	/** One line: ITEM (an item: stock and cost at the store) or OTHER (an amount without item: no stock, no cost). */

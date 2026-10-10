@@ -672,7 +672,7 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 		if (!numbers.isEmpty()) {
 			for (HoErpInvoice invoice : invoices.findForStore(store.getId(), numbers, COPIED_STATUSES)) {
 				copies.put(ErpInvoiceCopyDTO.recordCode(invoice.getBcNumber()),
-						COPY_MAPPER.valueToTree(ErpInvoiceCopyDTO.of(invoice, sellerName)));
+						COPY_MAPPER.valueToTree(SupplyCopies.erpInvoice(invoice, sellerName)));
 			}
 		}
 		return copies;

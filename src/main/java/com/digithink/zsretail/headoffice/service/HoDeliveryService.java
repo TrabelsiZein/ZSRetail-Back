@@ -461,7 +461,7 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 		if (!numbers.isEmpty()) {
 			for (HoDelivery delivery : deliveries.findSent(store.getId(), numbers, DeliveryStatus.DRAFT)) {
 				copies.put(DeliveryCopyDTO.recordCode(delivery.getNumber()),
-						COPY_MAPPER.valueToTree(DeliveryCopyDTO.of(delivery)));
+						COPY_MAPPER.valueToTree(SupplyCopies.delivery(delivery)));
 			}
 		}
 		HoSupplyInvoiceService invoiceService = invoices.get();

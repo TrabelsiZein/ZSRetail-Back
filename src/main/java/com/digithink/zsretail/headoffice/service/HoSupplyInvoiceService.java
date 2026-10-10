@@ -307,7 +307,7 @@ public class HoSupplyInvoiceService {
 				int vat = item.getDefaultVAT() == null ? 0 : item.getDefaultVAT();
 				HoSupplyInvoiceLine priced = line(invoice, ++lineNo, delivery.getNumber(), item, quantity, price, vat);
 				invoice.getLines().add(priced);
-				previewLines.add(SupplyInvoiceCopyDTO.Line.of(priced));
+				previewLines.add(SupplyCopies.supplyInvoiceLine(priced));
 			}
 		}
 		if (Boolean.parseBoolean(String.valueOf(setup.findValueByCode(TAX_STAMP_SETTING)).trim())) {
@@ -318,7 +318,7 @@ public class HoSupplyInvoiceService {
 				line.setItemName("Tax stamp");
 			}
 			invoice.getLines().add(line);
-			previewLines.add(SupplyInvoiceCopyDTO.Line.of(line));
+			previewLines.add(SupplyCopies.supplyInvoiceLine(line));
 		}
 		double subtotal = 0;
 		double tax = 0;
@@ -562,7 +562,7 @@ public class HoSupplyInvoiceService {
 		if (!numbers.isEmpty()) {
 			for (HoSupplyInvoice invoice : invoices.findOfStore(store.getId(), numbers)) {
 				copies.put(SupplyInvoiceCopyDTO.recordCode(invoice.getInvoiceNumber()),
-						COPY_MAPPER.valueToTree(SupplyInvoiceCopyDTO.of(invoice)));
+						COPY_MAPPER.valueToTree(SupplyCopies.supplyInvoice(invoice)));
 			}
 		}
 		return copies;
@@ -604,7 +604,7 @@ public class HoSupplyInvoiceService {
 
 	private SupplyInvoiceDTO view(HoSupplyInvoice invoice, Store store, boolean withLines) {
 		SupplyInvoiceDTO view = new SupplyInvoiceDTO();
-		SupplyInvoiceCopyDTO copy = SupplyInvoiceCopyDTO.of(invoice);
+		SupplyInvoiceCopyDTO copy = SupplyCopies.supplyInvoice(invoice);
 		view.setId(invoice.getId());
 		view.setInvoiceNumber(invoice.getInvoiceNumber());
 		view.setStoreId(invoice.getStoreId());

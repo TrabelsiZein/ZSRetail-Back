@@ -112,8 +112,8 @@ class SupplyCopyCompatibilityTest {
 	@Test
 	@DisplayName("2.2.1: with whole quantities, the ERP invoice copy, the BL copy and the confirmation are the JSON of 2.2.0")
 	void wholeQuantitiesAsIn220() throws Exception {
-		String invoice = SORTED.writeValueAsString(ErpInvoiceCopyDTO.of(wholeInvoice(), "Head office"));
-		String delivery = SORTED.writeValueAsString(DeliveryCopyDTO.of(wholeDelivery()));
+		String invoice = SORTED.writeValueAsString(SupplyCopies.erpInvoice(wholeInvoice(), "Head office"));
+		String delivery = SORTED.writeValueAsString(SupplyCopies.delivery(wholeDelivery()));
 		String confirmation = SORTED.writeValueAsString(wholeConfirmation());
 		assertEquals(ERP_INVOICE_JSON_220, invoice);
 		assertEquals(DELIVERY_JSON_220, delivery);

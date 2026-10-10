@@ -152,13 +152,6 @@ class ProjectSortingGuardTest {
 				"erp.service.ErpSyncJobRunner -> erp.service.ReturnExportService",
 				"erp.service.ErpSyncJobRunner -> erp.service.SessionExportService",
 				"erp.service.ErpSyncJobRunner -> erp.service.TicketExportService");
-		allow("knot (a), 5.4: three link messages build themselves from head office entities",
-				"headoffice.dto.DeliveryCopyDTO -> headoffice.model.HoDelivery",
-				"headoffice.dto.DeliveryCopyDTO -> headoffice.model.HoDeliveryLine",
-				"headoffice.dto.ErpInvoiceCopyDTO -> headoffice.model.HoErpInvoice",
-				"headoffice.dto.ErpInvoiceCopyDTO -> headoffice.model.HoErpInvoiceLine",
-				"headoffice.dto.SupplyInvoiceCopyDTO -> headoffice.model.HoSupplyInvoice",
-				"headoffice.dto.SupplyInvoiceCopyDTO -> headoffice.model.HoSupplyInvoiceLine");
 		allow("5.5: the /ho/** chain (core) adds the head office's store key filter",
 				"headoffice.security.HeadOfficeApiSecurityConfig -> headoffice.security.StoreApiKeyFilter");
 		allow("knot (e), 5.8: erp/spi names the connectors through config",
