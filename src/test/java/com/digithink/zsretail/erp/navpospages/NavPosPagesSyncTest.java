@@ -42,10 +42,10 @@ import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesCatalogueJob;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesHeadOffice;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesImport;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesState;
-import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesStockPoints;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesSync;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosRun;
 import com.digithink.zsretail.erp.service.ErpSyncWarningException;
+import com.digithink.zsretail.erp.spi.StockPoints;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.node.TextNode;
 
@@ -89,7 +89,7 @@ class NavPosPagesSyncTest {
 		headOffice = new FakeHeadOffice();
 		state = new FakeState();
 		stockPoints = new FakeStockPoints();
-		stockPoints.points.add(new NavPosPagesStockPoints.Point(1, "FRANCHISE", "Franchise")); // release 2.2: one point
+		stockPoints.points.add(new StockPoints.Point(1, "FRANCHISE", "Franchise")); // release 2.2: one point
 		properties = NavPosPagesTestSupport.properties();
 		sync = new NavPosPagesSync(erp, headOffice, stockPoints, state, properties, new NavPosPagesImport() {
 			@Override
@@ -886,7 +886,7 @@ class NavPosPagesSyncTest {
 		only.setDescription("Only in MAG01");
 		mag01.add(only);
 		erp.otherPoints.put("MAG01", mag01);
-		stockPoints.points.add(new NavPosPagesStockPoints.Point(MAG01, "MAG01", "Store 1"));
+		stockPoints.points.add(new StockPoints.Point(MAG01, "MAG01", "Store 1"));
 	}
 
 	@Test
@@ -894,10 +894,10 @@ class NavPosPagesSyncTest {
 	void onePointRows() {
 		loadCatalogue();
 		assertEquals(Arrays.asList("FRANCHISE"), erp.pointReads.stream().distinct().collect(Collectors.toList()));
-		Map<String, NavPosPagesStockPoints.Row> rows = stockPoints.rows(FRANCHISE);
+		Map<String, StockPoints.Row> rows = stockPoints.rows(FRANCHISE);
 		assertEquals(headOffice.items.size(), rows.size(), "one row per item");
 		for (NavPosPagesHeadOffice.Item item : headOffice.items.values()) {
-			NavPosPagesStockPoints.Row row = rows.get(item.code);
+			StockPoints.Row row = rows.get(item.code);
 			assertEquals(item.name, row.name, item.code);
 			assertEquals(item.unitPrice, row.unitPrice, item.code);
 			assertEquals(item.isActive(), row.active, item.code);
@@ -1398,7 +1398,7 @@ class NavPosPagesSyncTest {
 	}
 
 	/** Stock points: ho_stock_point (the active points, in list order) and ho_stock_point_item, by point id. */
-	final class FakeStockPoints implements NavPosPagesStockPoints {
+	final class FakeStockPoints implements StockPoints {
 		final List<Point> points = new ArrayList<>();
 		final Map<Long, Map<String, Row>> rows = new HashMap<>();
 		int writes;

@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.digithink.zsretail.config.ConditionalOnErpAbility;
 import com.digithink.zsretail.config.ConditionalOnHeadOfficeErpCatalogue;
 import com.digithink.zsretail.erp.spi.ErpAbility;
-import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesStockPoints;
+import com.digithink.zsretail.erp.spi.StockPoints;
 import com.digithink.zsretail.headoffice.model.HoStockPoint;
 import com.digithink.zsretail.headoffice.model.HoStockPointItem;
 import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
@@ -31,7 +31,7 @@ import com.digithink.zsretail.headoffice.repository.HoStockPointRepository;
 @ConditionalOnHeadOfficeErpCatalogue
 @ConditionalOnErpAbility(ErpAbility.CATALOGUE_BY_STOCK_POINTS)
 @Transactional(readOnly = true)
-public class HoStockPointRows implements NavPosPagesStockPoints {
+public class HoStockPointRows implements StockPoints {
 
 	/** Values per IN (...) query (SQL Server takes at most 2100 parameters). */
 	static final int IN_CHUNK = 1000;

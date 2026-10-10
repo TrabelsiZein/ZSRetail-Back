@@ -31,6 +31,7 @@ import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosPagesMapper;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosResult;
 import com.digithink.zsretail.erp.service.ErpSyncWarningException;
+import com.digithink.zsretail.erp.spi.StockPoints;
 
 /**
  * ERP catalogue, step 6: changes only. Each run reads a whole page of the ERP (GET only), compares it with the head
@@ -48,7 +49,7 @@ import com.digithink.zsretail.erp.service.ErpSyncWarningException;
  * <li><b>Items.</b> Compared on what the import applies: name, description, VAT, active, ERP id, family and sub-family
  * (only when the ERP's one exists at the head office), the price with VAT at 3 decimals, discount group and maximum
  * discount (the import clears them). A null or zero price makes the item inactive (the mapper). Release 2.2: the
- * items page is read once per active stock point, in list order ({@link NavPosPagesStockPoints}; none: the run does
+ * items page is read once per active stock point, in list order ({@link StockPoints}; none: the run does
  * nothing); every point's rows are written in full (new, changed, gone = inactive, never deleted), after the items; the
  * item gets its default copy from the first point where it is active, else the first that has it. A point that
  * answers no row keeps its rows and counts with them; a failed read fails the run before anything is applied. Items of
@@ -114,7 +115,7 @@ public class NavPosPagesSync {
 
 	private final NavPosPagesSource source;
 	private final NavPosPagesHeadOffice headOffice;
-	private final NavPosPagesStockPoints stockPoints;
+	private final StockPoints stockPoints;
 	private final NavPosPagesState state;
 	private final NavPosPagesProperties properties;
 	private final NavPosPagesImport importer;
@@ -131,7 +132,7 @@ public class NavPosPagesSync {
 		this.today = today;
 	}
 
-	public NavPosPagesSync(NavPosPagesSource source, NavPosPagesHeadOffice headOffice, NavPosPagesStockPoints stockPoints,
+	public NavPosPagesSync(NavPosPagesSource source, NavPosPagesHeadOffice headOffice, StockPoints stockPoints,
 			NavPosPagesState state, NavPosPagesProperties properties, NavPosPagesImport importer) {
 		this.source = source;
 		this.headOffice = headOffice;
@@ -245,7 +246,7 @@ public class NavPosPagesSync {
 	private NavPosRun<ErpItemDTO> readAndApplyItems() {
 		String page = properties.getPage().getItems();
 		Summary summary = new Summary("items", page, properties.isDryRun());
-		List<NavPosPagesStockPoints.Point> points = stockPoints.activePoints();
+		List<StockPoints.Point> points = stockPoints.activePoints();
 		if (points.isEmpty()) {
 			return run(new ArrayList<>(), summary.waiting(NO_STOCK_POINT), page);
 		}
@@ -255,13 +256,13 @@ public class NavPosPagesSync {
 		}
 		// Every point read first, in list order: a failed read fails the run before anything is applied
 		List<PointRead> reads = new ArrayList<>();
-		for (NavPosPagesStockPoints.Point point : points) {
+		for (StockPoints.Point point : points) {
 			long start = System.nanoTime();
 			List<NavPosStockRow> rows;
 			try {
 				rows = source.readItems(point.code);
 			} catch (RuntimeException e) {
-				recordRead(point, NavPosPagesStockPoints.READ_FAILED, "read failed: " + e.getMessage());
+				recordRead(point, StockPoints.READ_FAILED, "read failed: " + e.getMessage());
 				throw e;
 			}
 			PointRead read = new PointRead(point, rows.size(), mapper.items(rows), millisSince(start));
@@ -395,7 +396,7 @@ public class NavPosPagesSync {
 				String message = "Items: packet " + (from / size + 1) + " of " + packets + " failed, " + applied.size()
 						+ " of " + changes.size() + " rows applied before it (the next run goes on): " + e.getMessage();
 				for (PointRead read : reads) {
-					recordRead(read.point, NavPosPagesStockPoints.READ_FAILED, "rows not written: " + message);
+					recordRead(read.point, StockPoints.READ_FAILED, "rows not written: " + message);
 				}
 				throw new IllegalStateException(message, e);
 			}
@@ -413,7 +414,7 @@ public class NavPosPagesSync {
 			long start = System.nanoTime();
 			int count = (read.toWrite.size() + size - 1) / size;
 			for (int from = 0; from < read.toWrite.size(); from += size) {
-				List<NavPosPagesStockPoints.Row> packet = new ArrayList<>(
+				List<StockPoints.Row> packet = new ArrayList<>(
 						read.toWrite.subList(from, Math.min(from + size, read.toWrite.size())));
 				try {
 					read.written += stockPoints.write(read.point.id, packet);
@@ -421,7 +422,7 @@ public class NavPosPagesSync {
 					String message = "Stock point " + read.point.code + ": packet " + (from / size + 1) + " of " + count
 							+ " failed, " + read.written + " of " + read.toWrite.size()
 							+ " rows written before it (the next run goes on): " + e.getMessage();
-					recordRead(read.point, NavPosPagesStockPoints.READ_FAILED, message);
+					recordRead(read.point, StockPoints.READ_FAILED, message);
 					throw new IllegalStateException(message, e);
 				}
 			}
@@ -429,7 +430,7 @@ public class NavPosPagesSync {
 		}
 		summary.put("stockPoints", pointSummaries(reads));
 		for (PointRead read : reads) {
-			recordRead(read.point, read.read == 0 ? NavPosPagesStockPoints.READ_NO_ANSWER : NavPosPagesStockPoints.READ_OK,
+			recordRead(read.point, read.read == 0 ? StockPoints.READ_NO_ANSWER : StockPoints.READ_OK,
 					(read.read == 0 ? "no row: its rows kept; " : "") + "read " + read.read + ", new " + read.fresh
 							+ ", changed " + read.changed + ", deactivated " + read.deactivated + ", written "
 							+ read.written + ", " + read.millis + " ms");
@@ -438,7 +439,7 @@ public class NavPosPagesSync {
 	}
 
 	/** Step 4: the point's last read, for the points page; never in a dry run; a failure to record is only logged. */
-	private void recordRead(NavPosPagesStockPoints.Point point, String status, String summary) {
+	private void recordRead(StockPoints.Point point, String status, String summary) {
 		if (properties.isDryRun()) {
 			return;
 		}
@@ -452,19 +453,19 @@ public class NavPosPagesSync {
 
 	/** One point's read, its rows as the head office has them, and the rows to write. */
 	private final class PointRead {
-		final NavPosPagesStockPoints.Point point;
+		final StockPoints.Point point;
 		/** Rows the ERP answered for the point (0: no answer, nothing changes in the point). */
 		final int read;
 		final NavPosResult<ErpItemDTO> result;
 		long millis;
-		Map<String, NavPosPagesStockPoints.Row> stored = new LinkedHashMap<>();
-		final List<NavPosPagesStockPoints.Row> toWrite = new ArrayList<>();
+		Map<String, StockPoints.Row> stored = new LinkedHashMap<>();
+		final List<StockPoints.Row> toWrite = new ArrayList<>();
 		int fresh;
 		int changed;
 		int deactivated;
 		int written;
 
-		PointRead(NavPosPagesStockPoints.Point point, int read, NavPosResult<ErpItemDTO> result, long millis) {
+		PointRead(StockPoints.Point point, int read, NavPosResult<ErpItemDTO> result, long millis) {
 			this.point = point;
 			this.read = read;
 			this.result = result;
@@ -479,8 +480,8 @@ public class NavPosPagesSync {
 				if (item.getCode().equals(taxStamp)) {
 					continue; // the import never saves it
 				}
-				NavPosPagesStockPoints.Row here = stored.get(item.getCode());
-				NavPosPagesStockPoints.Row row = rowOf(item, here, familyCodes, subFamilyCodes);
+				StockPoints.Row here = stored.get(item.getCode());
+				StockPoints.Row row = rowOf(item, here, familyCodes, subFamilyCodes);
 				if (here == null) {
 					fresh++;
 					toWrite.add(row);
@@ -489,7 +490,7 @@ public class NavPosPagesSync {
 					toWrite.add(row);
 				}
 			}
-			for (NavPosPagesStockPoints.Row here : stored.values()) {
+			for (StockPoints.Row here : stored.values()) {
 				if (here.active && !answered.contains(here.itemCode)) {
 					deactivated++;
 					toWrite.add(here.inactive());
@@ -504,7 +505,7 @@ public class NavPosPagesSync {
 	 * row with a blank name takes the item code, as the import does for a new item. A family or sub-family of the ERP
 	 * that is not at the head office keeps the row's one, as the import does for the item.
 	 */
-	private static NavPosPagesStockPoints.Row rowOf(ErpItemDTO item, NavPosPagesStockPoints.Row here, Set<String> familyCodes,
+	private static StockPoints.Row rowOf(ErpItemDTO item, StockPoints.Row here, Set<String> familyCodes,
 			Set<String> subFamilyCodes) {
 		String name = text(item.getName(), null);
 		if (name.isEmpty()) {
@@ -514,7 +515,7 @@ public class NavPosPagesSync {
 		if (description.isEmpty() && here != null) {
 			description = text(here.description, null);
 		}
-		return new NavPosPagesStockPoints.Row(item.getCode(), name, description.isEmpty() ? null : description,
+		return new StockPoints.Row(item.getCode(), name, description.isEmpty() ? null : description,
 				known(item.getFamilyExternalId(), familyCodes, here == null ? null : here.familyCode),
 				known(item.getSubFamilyExternalId(), subFamilyCodes, here == null ? null : here.subFamilyCode),
 				item.getUnitPrice() == null ? 0.0 : item.getUnitPrice().doubleValue(), Boolean.TRUE.equals(item.getActive()));
@@ -527,7 +528,7 @@ public class NavPosPagesSync {
 	}
 
 	/** Name, description, family, sub-family, active, the price with VAT at 3 decimals. */
-	private boolean differs(NavPosPagesStockPoints.Row row, NavPosPagesStockPoints.Row here) {
+	private boolean differs(StockPoints.Row row, StockPoints.Row here) {
 		Integer vat = properties.getDefaultVat();
 		return !text(row.name, null).equals(text(here.name, null))
 				|| !text(row.description, null).equals(text(here.description, null))
@@ -536,14 +537,14 @@ public class NavPosPagesSync {
 				|| row.active != here.active || withVat(price(row), vat).compareTo(withVat(price(here), vat)) != 0;
 	}
 
-	private static BigDecimal price(NavPosPagesStockPoints.Row row) {
+	private static BigDecimal price(StockPoints.Row row) {
 		return row.unitPrice == null ? BigDecimal.ZERO : BigDecimal.valueOf(row.unitPrice);
 	}
 
 	/** A point's last known rows as items of the ERP, for the merge when the point answered no row. */
-	private List<ErpItemDTO> fromStored(Map<String, NavPosPagesStockPoints.Row> stored) {
+	private List<ErpItemDTO> fromStored(Map<String, StockPoints.Row> stored) {
 		List<ErpItemDTO> items = new ArrayList<>();
-		for (NavPosPagesStockPoints.Row row : stored.values()) {
+		for (StockPoints.Row row : stored.values()) {
 			ErpItemDTO item = new ErpItemDTO();
 			item.setExternalId(row.itemCode);
 			item.setCode(row.itemCode);

@@ -18,6 +18,7 @@ import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.service.ErpCommunicationService;
 import com.digithink.zsretail.erp.service.ErpSyncWarningException;
 import com.digithink.zsretail.erp.spi.ErpCatalogueSync;
+import com.digithink.zsretail.erp.spi.StockPoints;
 
 /**
  * Release 2.2: the job SYNC_CATALOGUE ("Sync catalogue"), the whole catalogue from the ERP in one run, in this order:
@@ -52,19 +53,19 @@ public class NavPosPagesCatalogueJob implements ErpCatalogueSync {
 
 	private final NavPosPagesSync sync;
 	private final NavPosPagesImport importer;
-	private final NavPosPagesStockPoints stockPoints;
+	private final StockPoints stockPoints;
 	private final NavPosPagesProperties properties;
 	private final CommunicationLog log;
 
 	@Autowired
-	public NavPosPagesCatalogueJob(NavPosPagesSync sync, NavPosPagesImport importer, NavPosPagesStockPoints stockPoints,
+	public NavPosPagesCatalogueJob(NavPosPagesSync sync, NavPosPagesImport importer, StockPoints stockPoints,
 			NavPosPagesProperties properties, ErpCommunicationService communications) {
 		this(sync, importer, stockPoints, properties, (status, summary, message, start, end) -> communications
 				.logOperation(ErpSyncOperation.SYNC_CATALOGUE, null, summary, status, null, message, start, end));
 	}
 
 	/** With a given log: used by the tests. */
-	public NavPosPagesCatalogueJob(NavPosPagesSync sync, NavPosPagesImport importer, NavPosPagesStockPoints stockPoints,
+	public NavPosPagesCatalogueJob(NavPosPagesSync sync, NavPosPagesImport importer, StockPoints stockPoints,
 			NavPosPagesProperties properties, CommunicationLog log) {
 		this.sync = sync;
 		this.importer = importer;

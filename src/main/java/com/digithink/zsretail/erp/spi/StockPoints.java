@@ -1,14 +1,16 @@
-package com.digithink.zsretail.erp.navpospages.sync;
+package com.digithink.zsretail.erp.spi;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * Stock points, step 2: the points de stock of the head office and their rows, as the items run reads and writes them.
+ * Stock points, step 2: the points de stock of the head office and their rows, as the items run reads and writes them
+ * (the connector with the ability CATALOGUE_BY_STOCK_POINTS). Code cleanup step 2: was NavPosPagesStockPoints of the
+ * connector package, the head office implements it without importing a connector.
  * The head office tables ho_stock_point and ho_stock_point_item (headoffice.service.HoStockPointRows), or maps in the
  * tests. Keys are item codes.
  */
-public interface NavPosPagesStockPoints {
+public interface StockPoints {
 
 	/** The active points, in list order. */
 	List<Point> activePoints();

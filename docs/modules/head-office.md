@@ -1447,7 +1447,7 @@ Done (step 2), the items run (`NavPosPagesSync.items`):
 - The item row is a default copy: the first point of the list where the item is active, else the first that has it.
   That merged list goes through the compare and the import of 2.1, unchanged. With one point it is that point's read,
   so the item table gets exactly the 2.1 values.
-- Each point's rows (`HoStockPointRows`, port `NavPosPagesStockPoints`): new, changed (name, description, family,
+- Each point's rows (`HoStockPointRows`, port `erp/spi/StockPoints`, was `NavPosPagesStockPoints`): new, changed (name, description, family,
   sub-family, active, the price with VAT at 3 decimals), gone from the point = inactive, never deleted. Written after
   the items (a row needs its item), in packets of `packet-size`, each packet one transaction; a row whose item is not at
   the head office is left out and handed again at the next run. Same rules as the item: a blank Description keeps the
@@ -1511,7 +1511,7 @@ Done (step 4), the screens (frontend routes with `meta.erpCatalogue`: menu, guar
   customer number at creation and in edit (the active points with items, and "None"); changing the point of an existing
   store asks a confirmation saying everything is sent to it again, then `PUT .../stock-point`.
 - Backend: the last read of each point (`ho_stock_point.last_read_at`, `last_read_status` OK / NO_ANSWER / FAILED,
-  `last_read_summary`), written by the items run (`NavPosPagesStockPoints.recordRead`, never in a dry run; a failed read,
+  `last_read_summary`), written by the items run (`StockPoints.recordRead`, never in a dry run; a failed read,
   a failed packet of items or of rows is FAILED with its message), in the list of points;
   `GET admin/headoffice/stock-points/items` (filters stockPointId, search, familyCode, subFamilyCode, priceMin, priceMax,
   status ALL | ACTIVE | INACTIVE, page, size up to 200; `HoStockPointItemsService`, query
