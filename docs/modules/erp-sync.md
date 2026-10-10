@@ -216,27 +216,50 @@ have no deletion log). The ids are pinned character for character by `ErpDeletio
 
 ### Catalogue engine (code cleanup step 3)
 
-Target: a connector is a thin part (which pages, the field names, the rows to `Erp*DTO`, its settings); the catalogue
-logic (compare with the head office, wait for families, packets, the barcode cursor, the summary) is written once.
-Done so far, no behaviour change:
-- `erp/spi`: `ErpRead<T>` (was `NavPosResult`: rows, read, left out and notes by reason, the highest position and the
-  position of every row read), `ErpCatalogueSource` (the reads the engine uses: `categories()` → `ErpCategories`
-  (families and sub-families from one read), `items(locationCode)`, `barcodesAfter(position)`, `barcodesOfItems(codes)`,
-  `pageLabel(part)` / `pageUrl(part)`), `ErpBarcodeRow` (an `ErpItemBarcodeDTO` with its position; the DTO itself is not
-  changed).
-- `erp/engine`: `CatalogueRun` (was `NavPosRun`), the ports `CatalogueState`, `HeadOfficeCatalogue`, `CatalogueImport`
-  and their implementations `JdbcCatalogueState` (the table stays `navpospages_state`, the keys `items.run`,
-  `items.pending`, `barcodes.cursor`, `needs-barcodes:` unchanged), `JpaHeadOfficeCatalogue`, `BootstrapCatalogueImport`,
-  all by the ability `HEAD_OFFICE_STOCK_POINTS`.
-- `erp/engine/CatalogueEngine` (was `NavPosPagesSync`) reads the catalogue only through the connector's
-  `ErpCatalogueSource` (navpospages: `NavPosPagesCatalogueSource`, the pages through the mapper) with its
-  `CatalogueSettings` (navpospages: `NavPosPagesCatalogueSettings`, packet-size, dry-run, default-vat from the same keys).
-  `erp/engine/CatalogueJob` (was `NavPosPagesCatalogueJob`) runs it as the single job; `CatalogueEngineConnector` holds
-  the four catalogue fetches a connector extends; `RunSummary` is the summary format of every run. Barcodes: the mapper gives each usable row with its `Entry_No` as position and counts a blank
-  `Cross_Reference_No` or `Item_No` with its own reasons; the engine keeps the highest position of the same barcode, the
-  rows already at the head office and the cursor, which passes over every row read (left out ones too, from
-  `ErpRead.getPositions`). The invoices (FVV + year) and the seller name are a thin part, `NavPosPagesInvoices`, answered by
-  `NavPosPagesConnector`.
+A connector is a thin part: which pages to call, the field names, the rows to `Erp*DTO`, its settings. The catalogue
+logic is written once, in `erp/engine`, and exists with a connector that has the ability `HEAD_OFFICE_STOCK_POINTS`.
+
+**The engine** (`erp/engine`):
+- `CatalogueEngine` (was `NavPosPagesSync`): families, sub-families, items per point de stock, barcodes. It compares
+  with the head office tables, waits for the families, applies in packets (each its own transaction, through
+  `CatalogueImport`), keeps the barcode cursor by position and writes the summary of each run (`RunSummary`, the format
+  of the communications log). One items run and one barcode run at a time.
+- `CatalogueJob` (was `NavPosPagesCatalogueJob`): the single job `SYNC_CATALOGUE` (`ErpCatalogueSync`).
+- `CatalogueEngineConnector`: the four catalogue fetches of an `ErpConnector` that only run the engine, and the summary
+  kept for the communications log. A connector extends it.
+- What the engine reads and writes at the head office: `HeadOfficeCatalogue` (`JpaHeadOfficeCatalogue`), `CatalogueState`
+  (`JdbcCatalogueState`: the table stays `navpospages_state`, the keys `items.run`, `items.pending`, `barcodes.cursor`,
+  `needs-barcodes:` unchanged), `CatalogueImport` (`BootstrapCatalogueImport`, through `ErpItemBootstrapService`),
+  `StockPoints` (`headoffice.service.HoStockPointRows`). `CatalogueRun` is the result of one run.
+- `CatalogueSettings`: packet size, dry run, default VAT, given by the connector from its own keys.
+
+**What a connector gives** (`erp/spi`):
+- `ErpCatalogueSource`: `categories()` → `ErpCategories` (families and sub-families from one read),
+  `items(locationCode)`, `barcodesAfter(position)`, `barcodesOfItems(itemCodes)`, `pageLabel(part)`, `pageUrl(part)`.
+  Each read is an `ErpRead<T>`: the rows kept, how many were read, the rows left out by reason (the connector's own
+  reasons, shown in the summary), and for barcodes the position of every row read.
+- `ErpBarcodeRow`: an `ErpItemBarcodeDTO` (unchanged) with its position, a number the ERP gives each barcode row and
+  that only grows (navpospages: `Entry_No`). The engine keeps the highest position of the same barcode and moves its
+  cursor over every row read, left-out ones included.
+- `ErpSyncWarningException` (`erp/spi`): a run that waited or was refused.
+
+**navpospages today**: `NavPosPagesCatalogueSource` (the pages through `NavPosPagesMapper`),
+`NavPosPagesCatalogueSettings` (`erp.navpospages.packet-size`, `dry-run`, `default-vat`, unchanged),
+`NavPosPagesConnector` (extends `CatalogueEngineConnector`; read-only answers), and its own thin parts:
+`NavPosPagesInvoices` (the invoices page, FVV numbers by year, the seller name).
+
+**How to add a connector** (e.g. ZEN, ParaFendri), in its own package `erp/<name>`:
+1. Implement `ErpCatalogueSource` (its client and its mapper to `Erp*DTO`) and `CatalogueSettings` (from its keys),
+   as beans conditional on its own enabled key.
+2. Extend `CatalogueEngineConnector` for its `ErpConnector` (`@ConditionalOnErpConnector("<name>")`); answer the other
+   fetches and pushes it supports.
+3. Add the name to `erp.connector` (`ErpConnectorEnvironmentPostProcessor`) and its abilities to `ErpAbilities`
+   (`HEAD_OFFICE_STOCK_POINTS` for the engine and the points de stock).
+4. Its classes import only `erp/spi`, their own package, the JDK and libraries; the application never names it
+   (`ConnectorNamesGuardTest`).
+
+Tests: `erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows of navpospages through its adapter,
+`NavPosPagesFixture`), `NavPosPagesInvoicesTest`, `NavPosPagesCatalogueSourceTest`.
 
 ## Head office catalogue from the ERP pages (`erp.navpospages`)
 

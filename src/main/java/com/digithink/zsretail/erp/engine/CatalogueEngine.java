@@ -27,7 +27,6 @@ import com.digithink.zsretail.erp.spi.ErpCatalogueSource.Part;
 import com.digithink.zsretail.erp.spi.ErpCategories;
 import com.digithink.zsretail.erp.spi.ErpRead;
 import com.digithink.zsretail.erp.spi.ErpSyncWarningException;
-import com.digithink.zsretail.erp.spi.StockPoints;
 
 /**
  * ERP catalogue, step 6: changes only. Each run reads a whole page of the ERP (GET only, through the connector's

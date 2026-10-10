@@ -18,7 +18,6 @@ import com.digithink.zsretail.erp.service.ErpCommunicationService;
 import com.digithink.zsretail.erp.spi.ErpAbility;
 import com.digithink.zsretail.erp.spi.ErpCatalogueSync;
 import com.digithink.zsretail.erp.spi.ErpSyncWarningException;
-import com.digithink.zsretail.erp.spi.StockPoints;
 
 /**
  * Release 2.2: the job SYNC_CATALOGUE ("Sync catalogue"), the whole catalogue from the ERP in one run, in this order:

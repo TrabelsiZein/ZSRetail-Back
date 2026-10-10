@@ -24,6 +24,7 @@ import com.digithink.zsretail.erp.engine.CatalogueImport;
 import com.digithink.zsretail.erp.engine.CatalogueRun;
 import com.digithink.zsretail.erp.engine.CatalogueState;
 import com.digithink.zsretail.erp.engine.HeadOfficeCatalogue;
+import com.digithink.zsretail.erp.engine.StockPoints;
 import com.digithink.zsretail.erp.navpospages.client.NavPosPagesCatalogueSource;
 import com.digithink.zsretail.erp.navpospages.client.NavPosPagesSource;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesCatalogueSettings;
@@ -37,7 +38,6 @@ import com.digithink.zsretail.erp.spi.ErpBarcodeRow;
 import com.digithink.zsretail.erp.spi.ErpCatalogueSource.Part;
 import com.digithink.zsretail.erp.spi.ErpCategories;
 import com.digithink.zsretail.erp.spi.ErpRead;
-import com.digithink.zsretail.erp.spi.StockPoints;
 import com.fasterxml.jackson.core.type.TypeReference;
 
 /**

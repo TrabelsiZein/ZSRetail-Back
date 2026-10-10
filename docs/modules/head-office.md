@@ -1273,9 +1273,12 @@ sub-family without its family, a `Categorie` row, `price-includes-vat=false`), `
 navpospages), `NavPosPagesLiveReadTest` (skipped unless `-Dnavpospages.live=true`: a GET-only read of the ERP named in
 `configs/local/happyness_ho.properties`, counts, five rows and the time per page, two barcode pages).
 
-**Step 6: changes only** (`erp/navpospages/sync`). The four catalogue fetches of `NavPosPagesConnector` take only what differs
-between the ERP and the head office tables (`erp/engine/CatalogueEngine`, was `NavPosPagesSync`): the head office tables are the memory of what was seen, so a
-row the import did not save is taken again at the next run.
+**Step 6: changes only** (since code cleanup step 3 the shared catalogue engine, `erp/engine`, see `erp-sync.md`,
+"Catalogue engine": the engine reads the ERP through the connector's `ErpCatalogueSource`; navpospages gives
+`NavPosPagesCatalogueSource` and its settings, and keeps the invoices in `NavPosPagesInvoices`). The four catalogue fetches
+of `NavPosPagesConnector` take only what differs between the ERP and the head office tables (`CatalogueEngine`, was
+`NavPosPagesSync`): the head office tables are the memory of what was seen, so a row the import did not save is taken
+again at the next run.
 - **Items: every change in one run** (2026-10-08). The items run applies all its changes itself (new, changed, deactivated),
   by code, in packets of `packet-size` (default 500), one after the other, each packet in its own transaction
   (`erp/engine/CatalogueImport` → `BootstrapCatalogueImport` → `ErpItemBootstrapService.importItems`, so the recorder aspect commits
@@ -1447,7 +1450,7 @@ Done (step 2), the items run (`CatalogueEngine.items`):
 - The item row is a default copy: the first point of the list where the item is active, else the first that has it.
   That merged list goes through the compare and the import of 2.1, unchanged. With one point it is that point's read,
   so the item table gets exactly the 2.1 values.
-- Each point's rows (`HoStockPointRows`, port `erp/spi/StockPoints`, was `NavPosPagesStockPoints`): new, changed (name, description, family,
+- Each point's rows (`HoStockPointRows`, port `erp/engine/StockPoints`, was `NavPosPagesStockPoints`): new, changed (name, description, family,
   sub-family, active, the price with VAT at 3 decimals), gone from the point = inactive, never deleted. Written after
   the items (a row needs its item), in packets of `packet-size`, each packet one transaction; a row whose item is not at
   the head office is left out and handed again at the next run. Same rules as the item: a blank Description keeps the
