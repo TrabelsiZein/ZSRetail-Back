@@ -175,6 +175,24 @@ GO
 DROP PROCEDURE #zs_decimal_quantity;
 GO
 
+-- Step 5: the sale ticket's identity on Company Information, five nullable columns (null = the ticket of 2.2.1). Hibernate
+-- (ddl-auto=update) would add them at the first start too; written here as for the columns of 2.2.0. Nothing when a column
+-- is already there or when the table does not exist yet (Hibernate then creates it whole). No data is changed.
+IF OBJECT_ID('company_information') IS NOT NULL
+BEGIN
+	IF COL_LENGTH('company_information', 'receipt_print_address') IS NULL
+		ALTER TABLE company_information ADD receipt_print_address bit NULL;
+	IF COL_LENGTH('company_information', 'receipt_footer_text') IS NULL
+		ALTER TABLE company_information ADD receipt_footer_text varchar(1000) NULL;
+	IF COL_LENGTH('company_information', 'receipt_thank_you_text') IS NULL
+		ALTER TABLE company_information ADD receipt_thank_you_text varchar(200) NULL;
+	IF COL_LENGTH('company_information', 'receipt_show_thank_you') IS NULL
+		ALTER TABLE company_information ADD receipt_show_thank_you bit NULL;
+	IF COL_LENGTH('company_information', 'receipt_show_software_label') IS NULL
+		ALTER TABLE company_information ADD receipt_show_software_label bit NULL;
+END
+GO
+
 -- The version only when every listed column present here is DECIMAL(18,3)
 DECLARE @left nvarchar(1000) = N'';
 SELECT @left += N' ' + l.table_name + N'.' + l.column_name

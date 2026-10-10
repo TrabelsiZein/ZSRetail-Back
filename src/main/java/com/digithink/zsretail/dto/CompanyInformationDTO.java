@@ -28,4 +28,10 @@ public class CompanyInformationDTO {
     private String bankAccount;
     private String rib;
     private String invoiceFooterNote;
+    // 2.2.2: the sale ticket (null = as 2.2.1)
+    private Boolean receiptPrintAddress;
+    private String receiptFooterText;
+    private String receiptThankYouText;
+    private Boolean receiptShowThankYou;
+    private Boolean receiptShowSoftwareLabel;
 }

@@ -46,3 +46,23 @@
 - **Logo as base64**: Stored as a `TEXT`/`@Lob` column; no filesystem or separate image endpoint needed; works directly as `<img :src="...">` in Vue
 - **Public GET**: Loaded without auth at startup so company info is available even before login
 - **Immediate store refresh after save**: After a successful PUT, `fetchCompanyInfo` is dispatched so all open print templates see updated data without page reload
+
+## Sale ticket (2.2.2)
+
+Block "Sale ticket" of the Company Information page, five nullable columns of `company_information` (null = the ticket of
+2.2.1; added by `db/2.2.2/update.sql`, as Hibernate would at the first start; `varchar` like the other text columns, so
+Arabic text is not kept, as for the invoice footer note). Each store has its own; nothing travels to or from the head office.
+
+| Field (column) | Default (null) | Sale ticket / duplicate | Return voucher | Warranty |
+|---|---|---|---|---|
+| Print the address (`receipt_print_address`) | off | address, postal code and city, country under the company name | same | same |
+| Ticket footer text (`receipt_footer_text`) | the invoice footer note | printed instead of the invoice footer note, centred, line breaks kept | same | same |
+| Thank-you line (`receipt_thank_you_text`) | "Merci pour votre achat !" | printed | (has its own text) | (has its own text) |
+| Show the thank-you line (`receipt_show_thank_you`) | on | shown / hidden | — | — |
+| Show the "ZS Retail" label (`receipt_show_software_label`) | on | shown / hidden | same | same |
+
+Invoices keep the invoice footer note. In `ReceiptTemplate.vue` the address, the label and the thank-you line are lists
+of 0 or 1 line rendered with `v-for`, so a field left empty renders nothing at all (no `v-if` comment): with the five
+fields empty the HTML of a sale ticket, a duplicate, a return voucher and a warranty is the one of 2.2.1 (compared in the
+browser, 2026-10-10: identical apart from the barcode's random element id, which differs between any two renders). The
+page writes a switch only when it is moved, so opening and saving the page keeps null.
