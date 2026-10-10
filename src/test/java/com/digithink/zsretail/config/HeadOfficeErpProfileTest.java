@@ -23,6 +23,7 @@ import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.support.Installations;
 import com.digithink.zsretail.model.enumeration.DataOwner;
 import com.digithink.zsretail.model.enumeration.NodeType;
+import com.digithink.zsretail.support.Questions;
 import com.digithink.zsretail.support.TestModes;
 
 /**
@@ -108,7 +109,7 @@ class HeadOfficeErpProfileTest {
 			for (MockEnvironment store : stores) {
 				assertFalse(registered(store, bean), bean.getSimpleName());
 			}
-			assertTrue(bean.isAnnotationPresent(ConditionalOnHeadOfficeErp.class));
+			assertTrue(Questions.asks(bean, Installation.HEAD_OFFICE_WITH_ERP));
 		}
 		for (Class<?> bean : new Class<?>[] { HeadOfficeErpJobs.class, HeadOfficeErpGuard.class }) {
 			assertTrue(registered(erpHeadOffice, bean), bean.getSimpleName());
@@ -119,8 +120,8 @@ class HeadOfficeErpProfileTest {
 		}
 		assertFalse(NodeOwnership.isHeadOfficeErpSet(headOffice));
 		assertFalse(NodeOwnership.isHeadOfficeErpSet(stores[0]), "an ERP store is not a head office");
-		assertEquals(OnHeadOfficeErpCondition.class,
-				ConditionalOnHeadOfficeErp.class.getAnnotation(Conditional.class).value()[0]);
+		assertEquals(OnInstallationCondition.class,
+				ConditionalOnInstallation.class.getAnnotation(Conditional.class).value()[0]);
 		// Task 9.3: no owner key is a head office without an ERP; the ERP owners make it one with an ERP
 		assertFalse(NodeOwnership.isHeadOfficeErpSet(new MockEnvironment().withProperty("node.type", "head_office")),
 				"no owner key: without an ERP");

@@ -10,7 +10,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeErp;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.service.ErpReferenceLocationService;
 
 /**
@@ -20,7 +21,7 @@ import com.digithink.zsretail.headoffice.service.ErpReferenceLocationService;
  */
 @RestController
 @RequestMapping("admin/headoffice/erp/reference-location")
-@ConditionalOnHeadOfficeErp
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_WITH_ERP)
 public class ErpReferenceLocationAPI {
 
 	private final ErpReferenceLocationService service;

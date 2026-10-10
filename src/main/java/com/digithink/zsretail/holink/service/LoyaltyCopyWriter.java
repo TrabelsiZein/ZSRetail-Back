@@ -9,7 +9,8 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeOwned;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberCopyDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberResultDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyProgramCopyDTO;
@@ -20,7 +21,6 @@ import com.digithink.zsretail.holink.repository.LoyaltyMovementCopyRepository;
 import com.digithink.zsretail.model.LoyaltyEarningTier;
 import com.digithink.zsretail.model.LoyaltyMember;
 import com.digithink.zsretail.model.LoyaltyProgram;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.LoyaltyTransactionType;
 import com.digithink.zsretail.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.repository.CustomerRepository;
@@ -43,7 +43,7 @@ import com.digithink.zsretail.service.MemberFunctionCodes;
  * Between two pulls the balance is the one the sale wrote (the push does not touch it).
  */
 @Component
-@ConditionalOnHeadOfficeOwned(DataDomain.LOYALTY)
+@ConditionalOnInstallation(Installation.LOYALTY_FROM_HEAD_OFFICE)
 public class LoyaltyCopyWriter {
 
 	static final String HEAD_OFFICE_USER = "HEAD_OFFICE";

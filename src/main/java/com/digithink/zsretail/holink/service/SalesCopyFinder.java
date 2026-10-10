@@ -14,7 +14,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeSalesPush;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.holink.dto.SalesDocumentRef;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
 import com.digithink.zsretail.holink.enumeration.SalesCopyType;
@@ -38,7 +39,7 @@ import lombok.ToString;
  * query starts after the cursor and returns nothing: the history is not re-read.
  */
 @Component
-@ConditionalOnHeadOfficeSalesPush
+@ConditionalOnInstallation(Installation.SALES_TO_HEAD_OFFICE)
 public class SalesCopyFinder {
 
 	/** Documents read per type and per search: a long history is read over several cycles. */

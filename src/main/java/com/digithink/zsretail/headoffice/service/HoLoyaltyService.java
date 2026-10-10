@@ -10,7 +10,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberCopyDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyProgramCopyDTO;
 import com.digithink.zsretail.headoffice.model.Store;
@@ -35,7 +36,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
  * office only. See docs/modules/head-office.md, "Shared loyalty".
  */
 @Service
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 public class HoLoyaltyService implements DownDomainProvider, LoyaltyNetworkHooks {
 
 	/** The copies: dates as ISO strings (2026-10-03, 2026-10-03T10:15:30). */

@@ -10,7 +10,8 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeErp;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.model.Location;
 import com.digithink.zsretail.repository.LocationRepository;
 import com.digithink.zsretail.service.GeneralSetupService;
@@ -24,7 +25,7 @@ import com.digithink.zsretail.service.LocationService;
  * the default flag, nothing else. In the head office the word "store" is kept for the stores list.
  */
 @Service
-@ConditionalOnHeadOfficeErp
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_WITH_ERP)
 public class ErpReferenceLocationService {
 
 	static final String SETTING = "DEFAULT_LOCATION";

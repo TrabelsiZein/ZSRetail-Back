@@ -25,7 +25,8 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.digithink.zsretail.config.ApplicationModeService;
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeLink;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
 import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatDTO;
@@ -64,7 +65,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
  * See docs/modules/head-office.md, "Head office link".
  */
 @Component
-@ConditionalOnHeadOfficeLink
+@ConditionalOnInstallation(Installation.LINKED_TO_HEAD_OFFICE)
 public class HeadOfficeClient {
 
 	static final String STORE_CODE_HEADER = "X-Store-Code";

@@ -17,7 +17,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.PromotionCopyDTO;
 import com.digithink.zsretail.headoffice.dto.PromotionTargetsDTO;
 import com.digithink.zsretail.headoffice.dto.PromotionWithTargetsDTO;
@@ -43,7 +44,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
  * stores). Head office only. See docs/modules/head-office.md, "Promotions owned by the head office".
  */
 @Service
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 public class HoPromotionService implements DownDomainProvider, PromotionHeadOfficeHooks {
 
 	/** The copies: dates as ISO strings (2026-10-03, 10:00:00). */

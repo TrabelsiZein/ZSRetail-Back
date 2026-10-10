@@ -14,7 +14,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeCatalogue;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.model.Item;
 import com.digithink.zsretail.model.ItemBarcode;
 import com.digithink.zsretail.model.enumeration.RecordOrigin;
@@ -41,7 +42,7 @@ import lombok.extern.log4j.Log4j2;
  * See docs/modules/head-office.md, "Catalogue owned by the head office".
  */
 @Service
-@ConditionalOnHeadOfficeCatalogue
+@ConditionalOnInstallation(Installation.CATALOGUE_FROM_HEAD_OFFICE)
 @Log4j2
 public class StoreCatalogueGuard {
 

@@ -8,7 +8,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.service.HoLoyaltyReportService;
 
 /**
@@ -17,7 +18,7 @@ import com.digithink.zsretail.headoffice.service.HoLoyaltyReportService;
  */
 @RestController
 @RequestMapping("admin/headoffice/loyalty")
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 public class HoLoyaltyReportAPI {
 
 	private final HoLoyaltyReportService service;

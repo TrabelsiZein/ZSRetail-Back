@@ -18,7 +18,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.config.ConditionalOnErpAbility;
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeErpCatalogue;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.erp.spi.ErpAbility;
 import com.digithink.zsretail.headoffice.dto.StockPointDTO;
 import com.digithink.zsretail.headoffice.service.HoStockPointItemsService;
@@ -34,7 +35,7 @@ import lombok.extern.log4j.Log4j2;
  */
 @RestController
 @RequestMapping("admin/headoffice/stock-points")
-@ConditionalOnHeadOfficeErpCatalogue
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_ERP_CATALOGUE_ONLY)
 @ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
 @Log4j2
 public class HoStockPointAPI {

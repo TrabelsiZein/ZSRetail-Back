@@ -16,7 +16,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficePull;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.holink.dto.DownApplyResult;
@@ -48,7 +49,7 @@ import lombok.ToString;
  * Run by {@link CopiesDownJob} on the ho-link thread. See docs/modules/head-office.md, "Copies down".
  */
 @Component
-@ConditionalOnHeadOfficePull
+@ConditionalOnInstallation(Installation.COPIES_FROM_HEAD_OFFICE)
 public class CopiesDownPuller {
 
 	/** Codes per page asked from the head office. */

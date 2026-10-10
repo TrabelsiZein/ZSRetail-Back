@@ -13,7 +13,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeCatalogue;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.CatalogueBarcodeCopyDTO;
 import com.digithink.zsretail.headoffice.dto.CatalogueFamilyCopyDTO;
 import com.digithink.zsretail.headoffice.dto.CatalogueItemCopyDTO;
@@ -41,7 +42,7 @@ import lombok.extern.log4j.Log4j2;
  * its selling prices" is off, the own prices give way to the head office price.
  */
 @Component
-@ConditionalOnHeadOfficeCatalogue
+@ConditionalOnInstallation(Installation.CATALOGUE_FROM_HEAD_OFFICE)
 @Log4j2
 public class CatalogueDownHandler implements DownHandler {
 

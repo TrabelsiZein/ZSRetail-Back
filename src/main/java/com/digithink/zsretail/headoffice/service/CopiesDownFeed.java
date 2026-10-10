@@ -24,7 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
 import com.digithink.zsretail.headoffice.model.HoDownChange;
 import com.digithink.zsretail.headoffice.model.HoDownSequence;
@@ -50,7 +51,7 @@ import lombok.extern.log4j.Log4j2;
  * See docs/modules/head-office.md, "Copies down".
  */
 @Service
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 @Log4j2
 public class CopiesDownFeed {
 

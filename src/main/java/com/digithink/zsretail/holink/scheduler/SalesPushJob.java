@@ -6,7 +6,8 @@ import java.util.Map;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeSalesPush;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.holink.dto.LinkJobRun;
 import com.digithink.zsretail.holink.enumeration.ExchangeDirection;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
@@ -27,7 +28,7 @@ import lombok.extern.log4j.Log4j2;
  * (and for a failed search), written after the tracking rows are saved: a log failure cannot undo or stop the push.
  */
 @Component
-@ConditionalOnHeadOfficeSalesPush
+@ConditionalOnInstallation(Installation.SALES_TO_HEAD_OFFICE)
 @Order(2)
 @Log4j2
 public class SalesPushJob implements LinkJob {

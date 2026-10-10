@@ -2,13 +2,13 @@ package com.digithink.zsretail.holink.service;
 
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeOwned;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.holink.model.LoyaltyMemberCopy;
 import com.digithink.zsretail.holink.repository.LoyaltyMemberCopyRepository;
 import com.digithink.zsretail.model.LoyaltyMember;
 import com.digithink.zsretail.model.LoyaltyProgram;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.repository.LoyaltyMemberRepository;
 import com.digithink.zsretail.service.LoyaltyCardNumbers;
@@ -23,7 +23,7 @@ import com.digithink.zsretail.service.LoyaltyNetworkHooks;
  * never reach LoyaltyService here (LoyaltyAPI refuses them).
  */
 @Component
-@ConditionalOnHeadOfficeOwned(DataDomain.LOYALTY)
+@ConditionalOnInstallation(Installation.LOYALTY_FROM_HEAD_OFFICE)
 public class StoreLoyaltyHooks implements LoyaltyNetworkHooks {
 
 	static final String NO_STORE_CODE = "DEFAULT_LOCATION is empty in the general setup: the card number of a network"

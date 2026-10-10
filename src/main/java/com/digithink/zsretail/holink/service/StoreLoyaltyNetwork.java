@@ -12,7 +12,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeOwned;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.dto.CreateLoyaltyMemberRequestDTO;
 import com.digithink.zsretail.dto.LoyaltyMemberDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberCopyDTO;
@@ -24,7 +25,6 @@ import com.digithink.zsretail.holink.dto.LiveAnswer;
 import com.digithink.zsretail.model.Customer;
 import com.digithink.zsretail.model.LoyaltyMember;
 import com.digithink.zsretail.model.MemberFunction;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.repository.CustomerRepository;
 import com.digithink.zsretail.repository.LoyaltyMemberRepository;
@@ -51,7 +51,7 @@ import lombok.extern.log4j.Log4j2;
  * manual point adjustments ({@link #adjust}), through the head office.
  */
 @Service
-@ConditionalOnHeadOfficeOwned(DataDomain.LOYALTY)
+@ConditionalOnInstallation(Installation.LOYALTY_FROM_HEAD_OFFICE)
 @Log4j2
 public class StoreLoyaltyNetwork {
 

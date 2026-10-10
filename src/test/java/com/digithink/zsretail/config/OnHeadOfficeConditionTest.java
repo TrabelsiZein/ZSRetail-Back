@@ -33,6 +33,7 @@ import com.digithink.zsretail.headoffice.service.HoLoyaltyService;
 import com.digithink.zsretail.headoffice.service.HoPromotionService;
 import com.digithink.zsretail.headoffice.service.SalesCopyReceiver;
 import com.digithink.zsretail.headoffice.service.StoreService;
+import com.digithink.zsretail.support.Questions;
 
 /**
  * Head office plan, tasks 1.2 to 1.4: the stores beans, the /ho/** store key filter, GET /ho/ping and
@@ -90,10 +91,10 @@ class OnHeadOfficeConditionTest {
 	@Test
 	@DisplayName("The annotation carries the condition; every head office bean carries the annotation")
 	void annotations() {
-		assertEquals(OnHeadOfficeCondition.class,
-				ConditionalOnHeadOffice.class.getAnnotation(Conditional.class).value()[0]);
+		assertEquals(OnInstallationCondition.class,
+				ConditionalOnInstallation.class.getAnnotation(Conditional.class).value()[0]);
 		for (Class<?> bean : STORE_BEANS) {
-			assertTrue(bean.isAnnotationPresent(ConditionalOnHeadOffice.class), bean.getSimpleName());
+			assertTrue(Questions.asks(bean, Installation.HEAD_OFFICE), bean.getSimpleName());
 		}
 	}
 
@@ -106,9 +107,8 @@ class OnHeadOfficeConditionTest {
 		}
 		assertFalse(HeadOfficeApiSecurityConfig.class.getDeclaredField("storeApiKeyFilter").getAnnotation(Autowired.class)
 				.required(), "the filter must be optional");
-		assertTrue(HeadOfficeApiSecurityConfig.class
-				.getDeclaredMethod("storeApiKeyFilterRegistration", StoreApiKeyFilter.class)
-				.isAnnotationPresent(ConditionalOnHeadOffice.class));
+		assertTrue(Questions.asks(HeadOfficeApiSecurityConfig.class
+				.getDeclaredMethod("storeApiKeyFilterRegistration", StoreApiKeyFilter.class), Installation.HEAD_OFFICE));
 		assertEquals(0, HeadOfficeApiSecurityConfig.class.getAnnotation(Order.class).value(),
 				"the /ho/** chain must come before the main chain (order 1)");
 	}

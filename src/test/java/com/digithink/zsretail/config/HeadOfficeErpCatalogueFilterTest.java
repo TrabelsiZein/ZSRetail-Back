@@ -16,6 +16,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import com.digithink.zsretail.headoffice.security.HeadOfficeErpCatalogueFilter;
 import com.digithink.zsretail.headoffice.security.HeadOfficeWithoutStockFilter;
 import com.digithink.zsretail.support.Installations;
+import com.digithink.zsretail.support.Questions;
 import com.digithink.zsretail.support.TestModes;
 
 /**
@@ -129,9 +130,9 @@ class HeadOfficeErpCatalogueFilterTest {
 	@Test
 	@DisplayName("The bean exists only on a head office with the catalogue only from the ERP")
 	void whereTheBeanExists() {
-		assertTrue(HeadOfficeErpCatalogueFilter.class.isAnnotationPresent(ConditionalOnHeadOfficeErpCatalogue.class));
-		assertEquals(OnHeadOfficeErpCatalogueCondition.class,
-				ConditionalOnHeadOfficeErpCatalogue.class.getAnnotation(org.springframework.context.annotation.Conditional.class)
+		assertTrue(Questions.asks(HeadOfficeErpCatalogueFilter.class, Installation.HEAD_OFFICE_ERP_CATALOGUE_ONLY));
+		assertEquals(OnInstallationCondition.class,
+				ConditionalOnInstallation.class.getAnnotation(org.springframework.context.annotation.Conditional.class)
 						.value()[0]);
 
 		assertTrue(registered(catalogueOnlyHeadOffice()));

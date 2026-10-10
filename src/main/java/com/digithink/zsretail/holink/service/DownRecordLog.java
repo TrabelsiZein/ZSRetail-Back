@@ -18,7 +18,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficePull;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.holink.dto.DownRecordRowDTO;
 import com.digithink.zsretail.holink.enumeration.DownRecordStatus;
 import com.digithink.zsretail.holink.model.DownRecord;
@@ -32,7 +33,7 @@ import com.digithink.zsretail.model.enumeration.DataDomain;
  * handler of each domain.
  */
 @Component
-@ConditionalOnHeadOfficePull
+@ConditionalOnInstallation(Installation.COPIES_FROM_HEAD_OFFICE)
 public class DownRecordLog {
 
 	static final List<DownRecordStatus> TO_RETRY = Arrays.asList(DownRecordStatus.WAITING, DownRecordStatus.ERROR);

@@ -20,7 +20,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeSalesPush;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.SalesCopyResultDTO;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.holink.dto.SalesPushAnswer;
@@ -55,7 +56,7 @@ import lombok.extern.log4j.Log4j2;
  * Runs only on the ho-link thread; nothing in the selling path calls it, and it never writes a selling table.
  */
 @Component
-@ConditionalOnHeadOfficeSalesPush
+@ConditionalOnInstallation(Installation.SALES_TO_HEAD_OFFICE)
 @Log4j2
 public class SalesPushService {
 

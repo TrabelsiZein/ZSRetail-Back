@@ -10,7 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.erp.dto.ErpSyncJobViewDTO;
 import com.digithink.zsretail.erp.model.ErpSyncJob;
 import com.digithink.zsretail.erp.spi.ErpSyncWarningException;
@@ -32,7 +33,7 @@ import com.digithink.zsretail.erp.spi.ErpSyncWarningException;
  */
 @Aspect
 @Component
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 public class HeadOfficeErpGuard {
 
 	private final HeadOfficeErpJobs jobs;

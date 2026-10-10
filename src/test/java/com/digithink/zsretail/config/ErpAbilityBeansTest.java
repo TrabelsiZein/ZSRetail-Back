@@ -39,7 +39,7 @@ class ErpAbilityBeansTest {
 		return registry.getBeanNamesForType(beanClass, true, false).length == 1;
 	}
 
-	/** The old conditions: @ConditionalOnHeadOfficeErpCatalogue and @ConditionalOnProperty(erp.navpospages.enabled=true). */
+	/** The old conditions: @ConditionalOnInstallation(HEAD_OFFICE_ERP_CATALOGUE_ONLY) and @ConditionalOnProperty(erp.navpospages.enabled=true). */
 	private static boolean before(PropertyResolver env) {
 		return NodeOwnership.isErpCatalogueOnlySet(env)
 				&& "true".equalsIgnoreCase(env.getProperty("erp.navpospages.enabled"));

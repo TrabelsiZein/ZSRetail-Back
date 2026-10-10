@@ -2,7 +2,8 @@ package com.digithink.zsretail.holink.service;
 
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeSupply;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.model.Vendor;
 import com.digithink.zsretail.repository.VendorRepository;
 
@@ -14,7 +15,7 @@ import com.digithink.zsretail.repository.VendorRepository;
  * SupplyInvoiceWriter keeps saving the head office's invoices on that vendor.
  */
 @Component
-@ConditionalOnHeadOfficeSupply
+@ConditionalOnInstallation(Installation.SUPPLY_FROM_HEAD_OFFICE)
 public class SupplyVendorGuard {
 
 	static final String CODE_KEPT = "The vendor code " + SupplyInvoiceWriter.VENDOR_CODE

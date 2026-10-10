@@ -5,9 +5,11 @@ import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
 
 import lombok.extern.log4j.Log4j2;
+
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 
 /**
  * Invoices from the ERP: the filtered unique index of ho_store.erp_customer_no (one store per ERP customer, any number
@@ -16,7 +18,7 @@ import lombok.extern.log4j.Log4j2;
  * script). A failure (two stores with the same number already) is logged; StoreService refuses a second store anyway.
  */
 @Component
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 @Log4j2
 public class StoreErpCustomerIndex {
 

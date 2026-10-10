@@ -13,7 +13,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeOwned;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.PromotionCopyDTO;
 import com.digithink.zsretail.holink.dto.DownApplyResult;
 import com.digithink.zsretail.holink.enumeration.DownRecordStatus;
@@ -45,7 +46,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
  * See docs/modules/head-office.md, "Promotions owned by the head office".
  */
 @Component
-@ConditionalOnHeadOfficeOwned(DataDomain.PROMOTIONS)
+@ConditionalOnInstallation(Installation.PROMOTIONS_FROM_HEAD_OFFICE)
 public class PromotionDownHandler implements DownHandler {
 
 	static final String CODE_CLASH = "code already used by a local promotion of this store";

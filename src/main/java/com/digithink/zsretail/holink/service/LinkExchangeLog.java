@@ -24,7 +24,8 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeLink;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.holink.enumeration.ExchangeDirection;
 import com.digithink.zsretail.holink.enumeration.LinkJobResult;
 import com.digithink.zsretail.holink.model.LinkExchange;
@@ -38,7 +39,7 @@ import lombok.extern.log4j.Log4j2;
  * failure is logged and swallowed. Rows older than headoffice.log-retention-days are purged at most once a day.
  */
 @Component
-@ConditionalOnHeadOfficeLink
+@ConditionalOnInstallation(Installation.LINKED_TO_HEAD_OFFICE)
 @Log4j2
 public class LinkExchangeLog {
 

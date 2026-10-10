@@ -21,6 +21,7 @@ import com.digithink.zsretail.holink.service.SupplyPushService;
 import com.digithink.zsretail.holink.service.SupplyVendorGuard;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.DataOwner;
+import com.digithink.zsretail.support.Questions;
 import com.digithink.zsretail.support.TestModes;
 
 /**
@@ -67,12 +68,12 @@ class OnHeadOfficeSupplyConditionTest {
 		assertTrue(NodeOwnership.isHeadOfficePullSet(on));
 		for (Class<?> bean : STORE_BEANS) {
 			assertTrue(registered(on, bean), bean.getSimpleName());
-			assertTrue(bean.isAnnotationPresent(ConditionalOnHeadOfficeSupply.class), bean.getSimpleName());
+			assertTrue(Questions.asks(bean, Installation.SUPPLY_FROM_HEAD_OFFICE), bean.getSimpleName());
 		}
 		assertTrue(registered(on, CopiesDownJob.class));
 		assertFalse(registered(on, HeadOfficeSupplyAPI.class));
-		assertEquals(OnHeadOfficeSupplyCondition.class,
-				ConditionalOnHeadOfficeSupply.class.getAnnotation(Conditional.class).value()[0]);
+		assertEquals(OnInstallationCondition.class,
+				ConditionalOnInstallation.class.getAnnotation(Conditional.class).value()[0]);
 	}
 
 	@Test
@@ -136,6 +137,6 @@ class OnHeadOfficeSupplyConditionTest {
 		assertFalse(registered(TestModes.erpOwners(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")),
 				HeadOfficeSupplyAPI.class));
 		assertFalse(registered(supplied(), HeadOfficeSupplyAPI.class));
-		assertTrue(HeadOfficeSupplyAPI.class.isAnnotationPresent(ConditionalOnHeadOfficeWithoutErp.class));
+		assertTrue(Questions.asks(HeadOfficeSupplyAPI.class, Installation.HEAD_OFFICE_WITHOUT_ERP));
 	}
 }

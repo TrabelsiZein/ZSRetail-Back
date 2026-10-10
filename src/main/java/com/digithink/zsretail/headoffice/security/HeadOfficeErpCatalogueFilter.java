@@ -14,14 +14,15 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.digithink.zsretail.config.ApplicationModeService;
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeErpCatalogue;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 
 import lombok.extern.log4j.Log4j2;
 
 /**
  * ERP catalogue, step 2: a head office whose catalogue only comes from the ERP refuses with 403 {"error"} the writes
  * (POST, PUT, PATCH, DELETE) on the family, sub-family and barcode endpoints that isCatalogueFromErp() leaves open. The
- * bean exists only there ({@link ConditionalOnHeadOfficeErpCatalogue}): on a store and on every other head office the
+ * bean exists only there ({@link ConditionalOnInstallation}(HEAD_OFFICE_ERP_CATALOGUE_ONLY)): on a store and on every other head office the
  * shared controllers answer exactly as before. Nothing in those controllers changes.
  * <p>
  * Left to the controllers' own refusal (isCatalogueFromErp, their own message): POST /item, PUT and DELETE /item/{id},
@@ -36,7 +37,7 @@ import lombok.extern.log4j.Log4j2;
  * A servlet filter at the lowest precedence, after the security chain, like HeadOfficeWithoutStockFilter.
  */
 @Component
-@ConditionalOnHeadOfficeErpCatalogue
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_ERP_CATALOGUE_ONLY)
 @Log4j2
 public class HeadOfficeErpCatalogueFilter extends OncePerRequestFilter {
 

@@ -8,7 +8,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.HeadOfficePingDTO;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.security.StoreApiKeyFilter;
@@ -19,7 +20,7 @@ import com.digithink.zsretail.headoffice.security.StoreApiKeyFilter;
  */
 @RestController
 @RequestMapping("ho")
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 public class HeadOfficePingAPI {
 
 	static final DateTimeFormatter SERVER_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");

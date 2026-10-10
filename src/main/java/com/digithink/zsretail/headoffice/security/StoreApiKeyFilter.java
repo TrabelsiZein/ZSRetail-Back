@@ -15,7 +15,8 @@ import org.springframework.security.web.authentication.preauth.PreAuthenticatedA
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.service.StoreService;
 import com.digithink.zsretail.headoffice.service.StoreService.KeyCheck;
 
@@ -31,7 +32,7 @@ import lombok.extern.log4j.Log4j2;
  * Controllers answer DTOs only, never the principal (it carries the key hash).
  */
 @Component
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 @Log4j2
 public class StoreApiKeyFilter extends OncePerRequestFilter {
 

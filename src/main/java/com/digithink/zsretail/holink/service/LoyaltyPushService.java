@@ -25,7 +25,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeOwned;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberCopyDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberResultDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMovementCopyDTO;
@@ -42,7 +43,6 @@ import com.digithink.zsretail.holink.model.LoyaltyMovementCopy;
 import com.digithink.zsretail.holink.repository.LoyaltyMemberCopyRepository;
 import com.digithink.zsretail.holink.repository.LoyaltyMovementCopyRepository;
 import com.digithink.zsretail.model.LoyaltyMember;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.LoyaltyTransactionType;
 import com.digithink.zsretail.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.repository.LoyaltyMemberRepository;
@@ -67,7 +67,7 @@ import lombok.ToString;
  * search.
  */
 @Service
-@ConditionalOnHeadOfficeOwned(DataDomain.LOYALTY)
+@ConditionalOnInstallation(Installation.LOYALTY_FROM_HEAD_OFFICE)
 public class LoyaltyPushService {
 
 	/** 2.2.2: the default frequency (loyalty to the head office every 10 min) when none is saved from the Jobs page; a property overrides it. */

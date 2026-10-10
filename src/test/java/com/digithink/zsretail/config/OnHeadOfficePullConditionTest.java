@@ -24,6 +24,7 @@ import com.digithink.zsretail.holink.service.PromotionDownHandler;
 import com.digithink.zsretail.holink.service.StoreLoyaltyHooks;
 import com.digithink.zsretail.holink.service.StoreLoyaltyNetwork;
 import com.digithink.zsretail.model.enumeration.DataDomain;
+import com.digithink.zsretail.support.Questions;
 import com.digithink.zsretail.support.TestModes;
 
 /**
@@ -100,8 +101,8 @@ class OnHeadOfficePullConditionTest {
 				PromotionDownHandler.class),
 				"another domain owned: the job exists, not the promotions handler");
 		assertTrue(registered(standalone(link()).withProperty("ownership.catalogue", "HEAD_OFFICE"), CopiesDownJob.class));
-		assertEquals(DataDomain.PROMOTIONS,
-				PromotionDownHandler.class.getAnnotation(ConditionalOnHeadOfficeOwned.class).value());
+		assertEquals(Installation.PROMOTIONS_FROM_HEAD_OFFICE,
+				PromotionDownHandler.class.getAnnotation(ConditionalOnInstallation.class).value());
 	}
 
 	/** Step 4: the store's shared loyalty beans. */
@@ -116,7 +117,7 @@ class OnHeadOfficePullConditionTest {
 		assertTrue(NodeOwnership.isHeadOfficePullSet(on));
 		for (Class<?> bean : LOYALTY_BEANS) {
 			assertTrue(registered(on, bean), bean.getSimpleName());
-			assertEquals(DataDomain.LOYALTY, bean.getAnnotation(ConditionalOnHeadOfficeOwned.class).value(),
+			assertEquals(Installation.LOYALTY_FROM_HEAD_OFFICE, bean.getAnnotation(ConditionalOnInstallation.class).value(),
 					bean.getSimpleName());
 		}
 		for (Class<?> bean : PULL_BEANS) {
@@ -137,12 +138,10 @@ class OnHeadOfficePullConditionTest {
 	@Test
 	@DisplayName("Each pull bean carries the annotation, which uses the pull condition")
 	void annotations() {
-		assertEquals(OnHeadOfficePullCondition.class,
-				ConditionalOnHeadOfficePull.class.getAnnotation(Conditional.class).value()[0]);
-		assertEquals(OnHeadOfficeOwnedCondition.class,
-				ConditionalOnHeadOfficeOwned.class.getAnnotation(Conditional.class).value()[0]);
+		assertEquals(OnInstallationCondition.class,
+				ConditionalOnInstallation.class.getAnnotation(Conditional.class).value()[0]);
 		for (Class<?> bean : PULL_BEANS) {
-			assertTrue(bean.isAnnotationPresent(ConditionalOnHeadOfficePull.class), bean.getSimpleName());
+			assertTrue(Questions.asks(bean, Installation.COPIES_FROM_HEAD_OFFICE), bean.getSimpleName());
 		}
 	}
 }

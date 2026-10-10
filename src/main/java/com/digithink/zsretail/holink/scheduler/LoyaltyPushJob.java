@@ -5,13 +5,13 @@ import java.time.Duration;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeOwned;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.holink.dto.LinkJobRun;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
 import com.digithink.zsretail.holink.enumeration.LinkJobResult;
 import com.digithink.zsretail.holink.service.LoyaltyPushService;
 import com.digithink.zsretail.holink.service.SalesCopyFinder;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -22,7 +22,7 @@ import lombok.extern.log4j.Log4j2;
  * one exchange log row per batch.
  */
 @Component
-@ConditionalOnHeadOfficeOwned(DataDomain.LOYALTY)
+@ConditionalOnInstallation(Installation.LOYALTY_FROM_HEAD_OFFICE)
 @Order(4)
 @Log4j2
 public class LoyaltyPushJob implements LinkJob {

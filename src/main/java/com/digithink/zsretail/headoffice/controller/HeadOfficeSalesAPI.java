@@ -8,7 +8,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.ReturnCopyDTO;
 import com.digithink.zsretail.headoffice.dto.SalesCopyAnswerDTO;
 import com.digithink.zsretail.headoffice.dto.SessionCopyDTO;
@@ -24,7 +25,7 @@ import com.digithink.zsretail.headoffice.service.SalesCopyReceiver;
  */
 @RestController
 @RequestMapping("ho/sales")
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 public class HeadOfficeSalesAPI {
 
 	private final SalesCopyReceiver receiver;

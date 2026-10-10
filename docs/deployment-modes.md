@@ -274,3 +274,33 @@ the "Connect a store" procedure: `docs/modules/head-office.md`, "Head office lin
   sub-family actions, purchases and vendors. `enableSalesPriceGroup` (`pos.pricing.enable-sales-price-group` of the type or outside
   file) shows the Sales Prices and Sales Discounts pages.
 - The quick product endpoint is `POST /item/quick-product` since task 9.1g (it was `/item/standalone-quick-product`).
+
+## 7. Which part exists where (installation questions)
+
+Code cleanup step 4: every yes/no question about the installation that decides whether a part of the application exists
+is one value of `config/Installation`, used as `@ConditionalOnInstallation(Installation.X)` (condition
+`OnInstallationCondition`). Each answer comes from `NodeOwnership`, as the startup resolves the configuration. The ERP's
+own questions stay `@ConditionalOnErpAbility` and `@ConditionalOnErpConnector` (section 2). The thirteen
+`@ConditionalOnHeadOffice...` annotations are gone; `InstallationBeansProofTest` shows the same beans in every file of
+`deploy/` and `configs/` and the old shapes as before.
+
+| Question | True when | Classes |
+|---|---|---|
+| `HEAD_OFFICE` | This installation is a head office. | 23 (one a `@Bean` method) |
+| `HEAD_OFFICE_WITH_ERP` | A head office whose ERP owns the catalogue, the customers and the supply. | 2 |
+| `HEAD_OFFICE_WITHOUT_ERP` | A head office without an ERP, or whose catalogue only comes from the ERP. | 6 |
+| `HEAD_OFFICE_ERP_CATALOGUE_ONLY` | A head office whose catalogue only comes from the ERP; it keeps its customers and its supply. | 6 |
+| `HEAD_OFFICE_OWN_SUPPLY` | A head office without an ERP, or with the catalogue only from the ERP, that makes the BLs and supply invoices of its stores itself. | 6 |
+| `HEAD_OFFICE_ERP_SUPPLY` | A head office with the catalogue only from the ERP whose stores' supply documents are the ERP's invoices. | 2 |
+| `HEAD_OFFICE_WITHOUT_STOCK` | A head office that keeps no stock and makes no purchases. | 1 |
+| `LINKED_TO_HEAD_OFFICE` | A store that calls a head office: `headoffice.url` is set. | 7 |
+| `SALES_TO_HEAD_OFFICE` | A linked store that copies its sales to the head office. | 5 |
+| `COPIES_FROM_HEAD_OFFICE` | A linked store with at least one domain owned by the head office: it pulls the copies down. | 3 |
+| `CATALOGUE_FROM_HEAD_OFFICE` | A linked store whose catalogue and selling prices are the head office's. | 5 |
+| `PROMOTIONS_FROM_HEAD_OFFICE` | A linked store whose promotions are the head office's. | 1 |
+| `LOYALTY_FROM_HEAD_OFFICE` | A linked store whose loyalty program and members are the head office's. | 8 |
+| `SUPPLY_FROM_HEAD_OFFICE` | A linked store whose goods come from the head office by BL (`ownership.supply=HEAD_OFFICE` written in its file). | 7 |
+
+Three answers combine `NodeOwnership` methods as the old conditions did: `HEAD_OFFICE` (`nodeTypeOf == HEAD_OFFICE`),
+`HEAD_OFFICE_OWN_SUPPLY` (without ERP and not supply from the ERP), `HEAD_OFFICE_ERP_SUPPLY` (catalogue only from the ERP
+and supply from the ERP). A new question is a new value with its sentence; never a new annotation.

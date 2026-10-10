@@ -15,7 +15,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.dto.DashboardTodayDTO;
 import com.digithink.zsretail.headoffice.service.ConsolidatedSalesService;
 import com.digithink.zsretail.headoffice.service.ConsolidatedSalesService.HistoryQuery;
@@ -28,7 +29,7 @@ import com.digithink.zsretail.headoffice.service.ConsolidatedSalesService.Histor
  */
 @RestController
 @RequestMapping("admin/headoffice")
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 public class ConsolidatedSalesAPI {
 
 	private final ConsolidatedSalesService service;

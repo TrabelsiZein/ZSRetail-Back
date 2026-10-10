@@ -6,7 +6,8 @@ import java.time.LocalDateTime;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeSalesPush;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.config.NodeOwnership;
 
 /**
@@ -15,7 +16,7 @@ import com.digithink.zsretail.config.NodeOwnership;
  * docs/modules/head-office.md, "Sales copies".
  */
 @Component
-@ConditionalOnHeadOfficeSalesPush
+@ConditionalOnInstallation(Installation.SALES_TO_HEAD_OFFICE)
 public class SalesPushSettings {
 
 	/** 2.2.2: the default frequency (sales push every 30 min) when none is saved from the Jobs page; a property overrides it. */

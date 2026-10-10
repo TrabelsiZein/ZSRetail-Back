@@ -18,6 +18,7 @@ import com.digithink.zsretail.holink.scheduler.LinkJobScheduler;
 import com.digithink.zsretail.holink.service.LinkExchangeLog;
 import com.digithink.zsretail.holink.service.LinkJobService;
 import com.digithink.zsretail.holink.service.HeadOfficeLinkStatus;
+import com.digithink.zsretail.support.Questions;
 
 /**
  * Head office plan, tasks 1.4 and 1.5: the store-side beans of the head office link (client, status, heartbeat, the
@@ -71,10 +72,10 @@ class OnHeadOfficeLinkConditionTest {
 	@Test
 	@DisplayName("The annotation carries the condition; every link bean carries the annotation")
 	void annotations() {
-		assertEquals(OnHeadOfficeLinkCondition.class,
-				ConditionalOnHeadOfficeLink.class.getAnnotation(Conditional.class).value()[0]);
+		assertEquals(OnInstallationCondition.class,
+				ConditionalOnInstallation.class.getAnnotation(Conditional.class).value()[0]);
 		for (Class<?> bean : LINK_BEANS) {
-			assertTrue(bean.isAnnotationPresent(ConditionalOnHeadOfficeLink.class), bean.getSimpleName());
+			assertTrue(Questions.asks(bean, Installation.LINKED_TO_HEAD_OFFICE), bean.getSimpleName());
 		}
 	}
 }

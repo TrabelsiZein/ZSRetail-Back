@@ -9,9 +9,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeOwned;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.holink.service.StoreLoyaltyNetwork;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 
 /**
  * Head office plan, step 4: GET /loyalty/network, what the loyalty pages of a store need when its loyalty is owned by
@@ -21,7 +21,7 @@ import com.digithink.zsretail.model.enumeration.DataDomain;
  */
 @RestController
 @RequestMapping("loyalty")
-@ConditionalOnHeadOfficeOwned(DataDomain.LOYALTY)
+@ConditionalOnInstallation(Installation.LOYALTY_FROM_HEAD_OFFICE)
 public class LoyaltyNetworkAPI {
 
 	private final StoreLoyaltyNetwork network;

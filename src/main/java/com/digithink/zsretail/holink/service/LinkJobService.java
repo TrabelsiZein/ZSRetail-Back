@@ -12,7 +12,8 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeLink;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.holink.dto.LinkJobRun;
 import com.digithink.zsretail.holink.enumeration.LinkJobResult;
 import com.digithink.zsretail.holink.model.LinkJobState;
@@ -30,7 +31,7 @@ import lombok.extern.log4j.Log4j2;
  * memory copy keeps the value.
  */
 @Component
-@ConditionalOnHeadOfficeLink
+@ConditionalOnInstallation(Installation.LINKED_TO_HEAD_OFFICE)
 @Log4j2
 public class LinkJobService {
 

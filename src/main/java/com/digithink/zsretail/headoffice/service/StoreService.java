@@ -20,7 +20,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatDTO;
 import com.digithink.zsretail.headoffice.dto.StoreListItemDTO;
 import com.digithink.zsretail.headoffice.dto.StoreWithKeyDTO;
@@ -47,7 +48,7 @@ import lombok.extern.log4j.Log4j2;
  * See docs/modules/head-office.md.
  */
 @Service
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 @Log4j2
 public class StoreService extends _BaseService<Store, Long> {
 

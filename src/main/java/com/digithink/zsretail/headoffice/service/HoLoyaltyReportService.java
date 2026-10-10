@@ -13,7 +13,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.model.HoLoyaltyMovement;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.HoLoyaltyMovementRepository;
@@ -28,7 +29,7 @@ import com.digithink.zsretail.model.LoyaltyMember;
  * .overspend_points). This lists them, and counts them for the home page. Head office only.
  */
 @Service
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 public class HoLoyaltyReportService {
 
 	private final HoLoyaltyMovementRepository movements;

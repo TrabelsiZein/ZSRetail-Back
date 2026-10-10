@@ -4,7 +4,8 @@ import java.time.LocalDateTime;
 
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeLink;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.holink.dto.HeadOfficeCallResult;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
 
@@ -18,7 +19,7 @@ import lombok.ToString;
  * the heartbeat thread, read through {@link #get()} (task 1.5 exposes it).
  */
 @Component
-@ConditionalOnHeadOfficeLink
+@ConditionalOnInstallation(Installation.LINKED_TO_HEAD_OFFICE)
 public class HeadOfficeLinkStatus {
 
 	static final String NO_HEARTBEAT_YET = "no heartbeat yet";

@@ -16,7 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.digithink.zsretail.config.ConditionalOnErpAbility;
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeErpCatalogue;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.erp.spi.ErpAbility;
 import com.digithink.zsretail.headoffice.dto.StockPointItemDTO;
 import com.digithink.zsretail.headoffice.model.HoStockPoint;
@@ -38,7 +39,7 @@ import com.digithink.zsretail.repository.ItemSubFamilyRepository;
  * docs/modules/head-office.md, "Stock points".
  */
 @Service
-@ConditionalOnHeadOfficeErpCatalogue
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_ERP_CATALOGUE_ONLY)
 @ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
 @Transactional(readOnly = true)
 public class HoStockPointItemsService {

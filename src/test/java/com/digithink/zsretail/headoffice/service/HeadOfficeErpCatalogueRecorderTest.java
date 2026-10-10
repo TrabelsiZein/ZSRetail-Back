@@ -28,7 +28,7 @@ import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeErpCatalogue;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
@@ -45,6 +45,7 @@ import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.service.CatalogueHeadOfficeHooks;
 import com.digithink.zsretail.support.InMemoryCatalogue;
 import com.digithink.zsretail.support.Installations;
+import com.digithink.zsretail.support.Questions;
 
 /**
  * ERP catalogue, step 7: the changes of an ERP import reach the stores. The real HoCatalogueService and CopiesDownFeed
@@ -263,7 +264,7 @@ class HeadOfficeErpCatalogueRecorderTest {
 	@Test
 	@DisplayName("The bean exists only on a head office whose catalogue only comes from the ERP")
 	void whereTheBeanExists() {
-		assertTrue(HeadOfficeErpCatalogueRecorder.class.isAnnotationPresent(ConditionalOnHeadOfficeErpCatalogue.class));
+		assertTrue(Questions.asks(HeadOfficeErpCatalogueRecorder.class, Installation.HEAD_OFFICE_ERP_CATALOGUE_ONLY));
 		MockEnvironment catalogueOnly = Installations.type("headoffice");
 		catalogueOnly.setProperty("ownership.catalogue", "ERP");
 		assertTrue(registered(catalogueOnly));

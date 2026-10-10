@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 /**
  * The store side of one domain on the copies down mechanism (step 3): one bean per domain owned by the head office
  * (promotions in step 3; loyalty, catalogue and shipments later), carrying
- * {@code @ConditionalOnHeadOfficeOwned(<domain>)}. {@link CopiesDownPuller} gives it each page pulled. A later domain
+ * {@code @ConditionalOnInstallation(<DOMAIN>_FROM_HEAD_OFFICE)}. {@link CopiesDownPuller} gives it each page pulled. A later domain
  * adds one class.
  */
 public interface DownHandler {

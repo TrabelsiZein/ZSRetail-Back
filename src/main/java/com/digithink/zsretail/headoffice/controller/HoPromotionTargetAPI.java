@@ -14,7 +14,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.PromotionTargetsDTO;
 import com.digithink.zsretail.headoffice.dto.PromotionWithTargetsDTO;
 import com.digithink.zsretail.headoffice.service.HoPromotionService;
@@ -29,7 +30,7 @@ import lombok.extern.log4j.Log4j2;
  */
 @RestController
 @RequestMapping("admin/headoffice/promotions")
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 @Log4j2
 public class HoPromotionTargetAPI {
 

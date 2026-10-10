@@ -121,7 +121,7 @@ public final class NodeOwnership {
 
 	/**
 	 * node.type, trimmed and case-insensitive; STORE when absent. Throws on an unknown value. Also used by
-	 * {@link OnHeadOfficeCondition}, so the head office beans and the startup read the key the same way.
+	 * {@link Installation#HEAD_OFFICE}, so the head office beans and the startup read the key the same way.
 	 */
 	public static NodeType nodeTypeOf(PropertyResolver env) {
 		return env.containsProperty(NODE_TYPE_KEY)
@@ -131,7 +131,7 @@ public final class NodeOwnership {
 
 	/**
 	 * True when headoffice.url is present and not blank: this store calls a head office (task 1.4). Also used by
-	 * {@link OnHeadOfficeLinkCondition}, so the head office link beans and the startup read the key the same way.
+	 * {@link Installation#LINKED_TO_HEAD_OFFICE}, so the head office link beans and the startup read the key the same way.
 	 */
 	public static boolean isHeadOfficeLinkSet(PropertyResolver env) {
 		String url = env.getProperty(HEADOFFICE_URL_KEY);
@@ -142,7 +142,7 @@ public final class NodeOwnership {
 	 * True when this store pushes copies of its tickets, returns and session closings to the head office (task 2.1,
 	 * decision 4): headoffice.url is set and the sales upstreams (sales.upstream, or derived from the mode flags) include
 	 * HEAD_OFFICE. The mode flags are read from the environment like {@link ApplicationModeService}. Also used by
-	 * {@link OnHeadOfficeSalesPushCondition}. Throws like the startup on an invalid configuration.
+	 * {@link Installation#SALES_TO_HEAD_OFFICE}. Throws like the startup on an invalid configuration.
 	 */
 	public static boolean isHeadOfficeSalesPushSet(PropertyResolver env) {
 		if (!isHeadOfficeLinkSet(env)) {
@@ -153,7 +153,7 @@ public final class NodeOwnership {
 
 	/**
 	 * True when this store pulls copies down from its head office (step 3): headoffice.url is set and at least one domain
-	 * is owned by the head office. Also used by {@link OnHeadOfficePullCondition}. Throws like the startup on an invalid
+	 * is owned by the head office. Also used by {@link Installation#COPIES_FROM_HEAD_OFFICE}. Throws like the startup on an invalid
 	 * configuration.
 	 */
 	public static boolean isHeadOfficePullSet(PropertyResolver env) {
@@ -171,7 +171,7 @@ public final class NodeOwnership {
 
 	/**
 	 * True when headoffice.url is set and the domain is owned by the head office (step 3): the domain's copies down
-	 * handler exists. Also used by {@link OnHeadOfficeOwnedCondition}.
+	 * handler exists. Also used by {@link Installation} (the domains from the head office).
 	 */
 	public static boolean isOwnedByHeadOffice(PropertyResolver env, DataDomain domain) {
 		return isHeadOfficeLinkSet(env) && resolve(env).ownerOf(domain) == DataOwner.HEAD_OFFICE;
@@ -179,7 +179,8 @@ public final class NodeOwnership {
 
 	/**
 	 * True on a store whose catalogue is the head office's (step 6): headoffice.url set, ownership.catalogue=HEAD_OFFICE
-	 * (only accepted without an ERP: with one the startup stops). Also used by {@link OnHeadOfficeCatalogueCondition}.
+	 * (only accepted without an ERP: with one the startup stops). Also used by
+	 * {@link Installation#CATALOGUE_FROM_HEAD_OFFICE}.
 	 */
 	public static boolean isCatalogueFromHeadOffice(PropertyResolver env) {
 		return isOwnedByHeadOffice(env, DataDomain.CATALOGUE);
@@ -188,7 +189,7 @@ public final class NodeOwnership {
 	/**
 	 * True on a store whose goods come from the head office by BL (step 7A): headoffice.url set, an explicit
 	 * ownership.supply=HEAD_OFFICE (only accepted without an ERP and with ownership.catalogue=HEAD_OFFICE: otherwise the
-	 * startup stops). Also used by {@link OnHeadOfficeSupplyCondition}.
+	 * startup stops). Also used by {@link Installation#SUPPLY_FROM_HEAD_OFFICE}.
 	 */
 	public static boolean isSupplyFromHeadOffice(PropertyResolver env) {
 		return env.containsProperty(DataDomain.SUPPLY.getPropertyKey()) && isOwnedByHeadOffice(env, DataDomain.SUPPLY);
@@ -197,7 +198,7 @@ public final class NodeOwnership {
 	/**
 	 * True on a head office with an ERP (task 3.4): node.type=HEAD_OFFICE and an owner ERP (type headoffice with the ERP
 	 * owners), except a head office whose catalogue only is the ERP's ({@link #isErpCatalogueOnly()}): that one has no ERP
-	 * reference location. Also used by {@link OnHeadOfficeErpCondition}.
+	 * reference location. Also used by {@link Installation#HEAD_OFFICE_WITH_ERP}.
 	 */
 	public static boolean isHeadOfficeErpSet(PropertyResolver env) {
 		if (nodeTypeOf(env) != NodeType.HEAD_OFFICE) {
@@ -211,7 +212,7 @@ public final class NodeOwnership {
 	 * True on a head office that sends its catalogue to its stores and supplies them (step 6): node.type=HEAD_OFFICE and
 	 * no owner ERP, or the catalogue only from the ERP ({@link #isErpCatalogueOnly()}). It keeps the catalogue feed, the
 	 * price lists, the BLs, the supply prices and invoices and the network stock. The name is kept from step 6. Also used
-	 * by {@link OnHeadOfficeWithoutErpCondition}.
+	 * by {@link Installation#HEAD_OFFICE_WITHOUT_ERP}.
 	 */
 	public static boolean isHeadOfficeWithoutErpSet(PropertyResolver env) {
 		if (nodeTypeOf(env) != NodeType.HEAD_OFFICE) {
@@ -232,7 +233,7 @@ public final class NodeOwnership {
 	/**
 	 * True on a head office with headoffice.stock.enabled=false: it keeps no stock and makes no purchases (its BLs move no
 	 * stock). The key is read on a head office only: a store never reads it, whatever its value. Also used by
-	 * {@link OnHeadOfficeWithoutStockCondition}. Throws like the startup on a value other than true or false.
+	 * {@link Installation#HEAD_OFFICE_WITHOUT_STOCK}. Throws like the startup on a value other than true or false.
 	 */
 	public static boolean isHeadOfficeWithoutStockSet(PropertyResolver env) {
 		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && !headOfficeStockEnabled(env);
@@ -241,7 +242,8 @@ public final class NodeOwnership {
 	/**
 	 * Invoices from the ERP: true on a head office with headoffice.supply.source=ERP (accepted only on a head office whose
 	 * catalogue only comes from the ERP, with a connector that reads the ERP's invoices). The key is read on a head office
-	 * only: a store never reads it. Also used by {@link OnHeadOfficeOwnSupplyCondition} and {@link OnHeadOfficeErpSupplyCondition}.
+	 * only: a store never reads it. Also used by {@link Installation#HEAD_OFFICE_OWN_SUPPLY} and
+	 * {@link Installation#HEAD_OFFICE_ERP_SUPPLY}.
 	 * Throws like the startup on an invalid configuration.
 	 */
 	public static boolean isSupplyFromErpSourceSet(PropertyResolver env) {

@@ -14,7 +14,8 @@ import java.util.Set;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeSupply;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.SupplyInvoiceCopyDTO;
 import com.digithink.zsretail.holink.model.ReceivedDelivery;
 import com.digithink.zsretail.holink.model.ReceivedDeliveryLine;
@@ -47,7 +48,7 @@ import lombok.extern.log4j.Log4j2;
  * no cost (the reception writes it, with the stock); {@link #attachItems} gives its lines the items that arrive later.
  */
 @Component
-@ConditionalOnHeadOfficeSupply
+@ConditionalOnInstallation(Installation.SUPPLY_FROM_HEAD_OFFICE)
 @Log4j2
 public class SupplyInvoiceWriter {
 

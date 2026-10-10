@@ -9,7 +9,8 @@ import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 
 /**
@@ -20,7 +21,7 @@ import com.digithink.zsretail.model.enumeration.DataDomain;
  * stock point changes (thousands of codes for one store).
  */
 @Component
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 public class JdbcDownChangeBatch {
 
 	/** Statements per JDBC batch. */

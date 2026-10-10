@@ -25,7 +25,8 @@ import org.springframework.scheduling.TriggerContext;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeLink;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.holink.dto.LinkJobDTO;
 import com.digithink.zsretail.holink.dto.LinkJobRun;
 import com.digithink.zsretail.holink.service.LinkExchangeLog;
@@ -45,7 +46,7 @@ import lombok.extern.log4j.Log4j2;
  * existing {@code @Scheduled} jobs (ERP) would move onto it.
  */
 @Component
-@ConditionalOnHeadOfficeLink
+@ConditionalOnInstallation(Installation.LINKED_TO_HEAD_OFFICE)
 @Log4j2
 public class LinkJobScheduler {
 

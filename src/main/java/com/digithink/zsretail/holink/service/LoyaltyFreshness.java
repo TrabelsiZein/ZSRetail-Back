@@ -9,8 +9,8 @@ import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeOwned;
-import com.digithink.zsretail.model.enumeration.DataDomain;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 
 /**
  * Head office plan, step 5: when each member's balance was last refreshed from the head office (a fresh balance asked
@@ -18,7 +18,7 @@ import com.digithink.zsretail.model.enumeration.DataDomain;
  * the till asks again. A store whose head office requires it spends points only within {@link #WINDOW} of it.
  */
 @Component
-@ConditionalOnHeadOfficeOwned(DataDomain.LOYALTY)
+@ConditionalOnInstallation(Installation.LOYALTY_FROM_HEAD_OFFICE)
 public class LoyaltyFreshness {
 
 	public static final Duration WINDOW = Duration.ofMinutes(2);

@@ -5,7 +5,8 @@ import java.time.Duration;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeSupply;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.holink.dto.LinkJobRun;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
 import com.digithink.zsretail.holink.enumeration.LinkJobResult;
@@ -21,7 +22,7 @@ import lombok.extern.log4j.Log4j2;
  * service writes one exchange log row per batch.
  */
 @Component
-@ConditionalOnHeadOfficeSupply
+@ConditionalOnInstallation(Installation.SUPPLY_FROM_HEAD_OFFICE)
 @Order(5)
 @Log4j2
 public class SupplyPushJob implements LinkJob {

@@ -13,14 +13,16 @@ import javax.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeWithoutStock;
 
 import lombok.extern.log4j.Log4j2;
+
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 
 /**
  * A head office that keeps no stock and makes no purchases (headoffice.stock.enabled=false) refuses the purchase,
  * vendor, purchase invoice, stock report and stock adjustment endpoints with 403 {"error"}, whatever the method. The
- * bean exists only there ({@link ConditionalOnHeadOfficeWithoutStock}): on a store, and on a head office that keeps its
+ * bean exists only there ({@link ConditionalOnInstallation}(HEAD_OFFICE_WITHOUT_STOCK)): on a store, and on a head office that keeps its
  * stock, the shared controllers answer exactly as before. Nothing in those controllers changes; their own gates
  * (isSupplyFromErp...) still apply on a head office that keeps its stock.
  * <p>
@@ -28,7 +30,7 @@ import lombok.extern.log4j.Log4j2;
  * as before, a preflight (OPTIONS) is answered there, and the CORS headers are already on the response.
  */
 @Component
-@ConditionalOnHeadOfficeWithoutStock
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_WITHOUT_STOCK)
 @Log4j2
 public class HeadOfficeWithoutStockFilter extends OncePerRequestFilter {
 

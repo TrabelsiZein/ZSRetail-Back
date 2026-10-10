@@ -23,7 +23,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeSupply;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
 import com.digithink.zsretail.headoffice.dto.SalesCopyResultDTO;
 import com.digithink.zsretail.headoffice.dto.StockReportDTO;
@@ -59,7 +60,7 @@ import lombok.ToString;
  * (hol_stock_copy) and the items gone since, in batches of {@value #STOCK_BATCH_SIZE} (POST /ho/supply/stock).
  */
 @Service
-@ConditionalOnHeadOfficeSupply
+@ConditionalOnInstallation(Installation.SUPPLY_FROM_HEAD_OFFICE)
 public class SupplyPushService {
 
 	/** 2.2.2: the default frequency (delivery confirmations every 5 min) when none is saved from the Jobs page; a property overrides it. */

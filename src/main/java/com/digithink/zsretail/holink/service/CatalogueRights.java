@@ -7,7 +7,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeCatalogue;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.holink.model.LinkRight;
 import com.digithink.zsretail.holink.repository.LinkRightRepository;
 
@@ -19,7 +20,7 @@ import lombok.extern.log4j.Log4j2;
  * while the head office is unreachable; a right never received is off. Store whose catalogue is the head office's only.
  */
 @Component
-@ConditionalOnHeadOfficeCatalogue
+@ConditionalOnInstallation(Installation.CATALOGUE_FROM_HEAD_OFFICE)
 @Log4j2
 public class CatalogueRights {
 

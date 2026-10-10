@@ -28,7 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeErpSupply;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.service.ErpSynchronizationManager;
 import com.digithink.zsretail.erp.spi.ErpSupplyInvoiceImport;
@@ -75,7 +76,7 @@ import lombok.extern.log4j.Log4j2;
  * come back through {@link #receiveConfirmations}. See docs/modules/head-office.md, "Invoices from the ERP".
  */
 @Service
-@ConditionalOnHeadOfficeErpSupply
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_ERP_SUPPLY)
 @Log4j2
 public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmationReceiver, ErpSupplyInvoiceImport {
 

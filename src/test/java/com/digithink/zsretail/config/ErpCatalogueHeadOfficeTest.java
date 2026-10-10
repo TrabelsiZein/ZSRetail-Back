@@ -34,6 +34,7 @@ import com.digithink.zsretail.headoffice.service.HoSupplyPriceService;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.DataOwner;
 import com.digithink.zsretail.support.Installations;
+import com.digithink.zsretail.support.Questions;
 import com.digithink.zsretail.support.TestModes;
 
 /**
@@ -44,7 +45,7 @@ import com.digithink.zsretail.support.TestModes;
  */
 class ErpCatalogueHeadOfficeTest {
 
-	/** The beans of a head office without an ERP (@ConditionalOnHeadOfficeWithoutErp): catalogue feed, price lists, BLs, supply. */
+	/** The beans of a head office without an ERP (@ConditionalOnInstallation(HEAD_OFFICE_WITHOUT_ERP)): catalogue feed, price lists, BLs, supply. */
 	static final List<Class<?>> WITHOUT_ERP_BEANS = Arrays.asList(HoCatalogueService.class, HoPriceListService.class,
 			HoPriceListAPI.class, HoDeliveryService.class, HoDeliveryAPI.class, HeadOfficeSupplyAPI.class,
 			HoSupplyPriceService.class, HoSupplyPriceAPI.class, HoSupplyInvoiceService.class, HoSupplyInvoiceAPI.class,
@@ -149,10 +150,10 @@ class ErpCatalogueHeadOfficeTest {
 	void beans() {
 		MockEnvironment env = catalogueOnlyHeadOffice();
 		for (Class<?> bean : WITHOUT_ERP_BEANS) {
-			// Invoices from the ERP, step (b): the BLs, supply prices and invoices moved to @ConditionalOnHeadOfficeOwnSupply,
+			// Invoices from the ERP, step (b): the BLs, supply prices and invoices moved to @ConditionalOnInstallation(HEAD_OFFICE_OWN_SUPPLY),
 			// which keeps them here (headoffice.supply.source absent)
-			assertTrue(bean.isAnnotationPresent(ConditionalOnHeadOfficeWithoutErp.class)
-					|| bean.isAnnotationPresent(ConditionalOnHeadOfficeOwnSupply.class), bean.getSimpleName());
+			assertTrue(Questions.asks(bean, Installation.HEAD_OFFICE_WITHOUT_ERP)
+					|| Questions.asks(bean, Installation.HEAD_OFFICE_OWN_SUPPLY), bean.getSimpleName());
 			assertTrue(registered(env, bean), bean.getSimpleName());
 		}
 		for (Class<?> bean : REFERENCE_LOCATION_BEANS) {

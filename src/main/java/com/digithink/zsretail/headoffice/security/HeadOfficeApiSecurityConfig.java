@@ -10,7 +10,8 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.security.LicenseFilter;
 import com.digithink.zsretail.security.SecurityConfig;
 
@@ -49,7 +50,7 @@ public class HeadOfficeApiSecurityConfig extends WebSecurityConfigurerAdapter {
 
 	/** The filter runs in this chain only, never as a servlet filter on every URL. */
 	@Bean
-	@ConditionalOnHeadOffice
+	@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 	public FilterRegistrationBean<StoreApiKeyFilter> storeApiKeyFilterRegistration(StoreApiKeyFilter filter) {
 		FilterRegistrationBean<StoreApiKeyFilter> registration = new FilterRegistrationBean<>(filter);
 		registration.setEnabled(false);

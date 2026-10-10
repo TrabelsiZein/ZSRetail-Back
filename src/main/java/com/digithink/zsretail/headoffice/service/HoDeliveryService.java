@@ -27,7 +27,8 @@ import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.digithink.zsretail.config.ApplicationModeService;
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeOwnSupply;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryCopyDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryDTO;
@@ -67,7 +68,7 @@ import lombok.extern.log4j.Log4j2;
  * movement; a line gives no head office stock (null). Everything else is the same.
  */
 @Service
-@ConditionalOnHeadOfficeOwnSupply
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_OWN_SUPPLY)
 @Log4j2
 public class HoDeliveryService implements DownDomainProvider, SupplyConfirmationReceiver {
 

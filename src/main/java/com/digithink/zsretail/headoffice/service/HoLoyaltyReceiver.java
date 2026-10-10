@@ -14,7 +14,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberCopyDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberEditDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberResultDTO;
@@ -58,7 +59,7 @@ import lombok.extern.log4j.Log4j2;
  * (copies down). Head office only. See docs/modules/head-office.md, "Shared loyalty".
  */
 @Service
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 @Log4j2
 public class HoLoyaltyReceiver {
 

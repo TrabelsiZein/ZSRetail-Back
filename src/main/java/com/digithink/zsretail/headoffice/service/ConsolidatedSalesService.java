@@ -23,7 +23,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.dto.DashboardTodayDTO;
 import com.digithink.zsretail.headoffice.model.HoReturn;
 import com.digithink.zsretail.headoffice.model.HoReturnLine;
@@ -55,7 +56,7 @@ import lombok.Getter;
  * docs/modules/head-office.md, "Consolidated sales API".
  */
 @Service
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 public class ConsolidatedSalesService {
 
 	/** Tickets that count as sales: the finished statuses of the store side (step 2). */

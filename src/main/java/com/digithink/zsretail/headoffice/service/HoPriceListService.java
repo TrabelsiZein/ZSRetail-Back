@@ -20,7 +20,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeWithoutErp;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.PriceListDTO;
 import com.digithink.zsretail.headoffice.dto.PriceListLineDTO;
 import com.digithink.zsretail.headoffice.enumeration.PriceListKind;
@@ -44,7 +45,7 @@ import lombok.extern.log4j.Log4j2;
  * docs/modules/head-office.md, "Price lists".
  */
 @Service
-@ConditionalOnHeadOfficeWithoutErp
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_WITHOUT_ERP)
 @Log4j2
 public class HoPriceListService {
 

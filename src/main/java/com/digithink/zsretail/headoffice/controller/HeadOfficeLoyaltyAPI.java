@@ -16,7 +16,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberAnswerDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberCopyDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberEditDTO;
@@ -41,7 +42,7 @@ import com.digithink.zsretail.headoffice.service.HoLoyaltyReceiver;
  */
 @RestController
 @RequestMapping("ho/loyalty")
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 public class HeadOfficeLoyaltyAPI {
 
 	private final HoLoyaltyReceiver receiver;

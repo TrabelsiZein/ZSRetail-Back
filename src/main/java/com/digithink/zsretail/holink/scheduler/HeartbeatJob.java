@@ -10,7 +10,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeLink;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.holink.dto.HeadOfficeCallResult;
 import com.digithink.zsretail.holink.dto.LinkJobRun;
@@ -30,7 +31,7 @@ import lombok.extern.log4j.Log4j2;
  * state changes, DEBUG and no row otherwise.
  */
 @Component
-@ConditionalOnHeadOfficeLink
+@ConditionalOnInstallation(Installation.LINKED_TO_HEAD_OFFICE)
 @Order(1)
 @Log4j2
 public class HeartbeatJob implements LinkJob {

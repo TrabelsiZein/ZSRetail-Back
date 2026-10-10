@@ -11,7 +11,8 @@ import javax.persistence.PersistenceContext;
 
 import org.springframework.stereotype.Repository;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeSalesPush;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.holink.dto.SalesDocumentRef;
 import com.digithink.zsretail.holink.enumeration.SalesCopyType;
 import com.digithink.zsretail.holink.service.SalesCopyMapper;
@@ -32,7 +33,7 @@ import com.digithink.zsretail.repository.SessionCashCountRepository;
  * thread.
  */
 @Repository
-@ConditionalOnHeadOfficeSalesPush
+@ConditionalOnInstallation(Installation.SALES_TO_HEAD_OFFICE)
 public class JpaSalesDocumentSource implements SalesDocumentSource {
 
 	private static final Map<SalesCopyType, String> CHANGED = new EnumMap<>(SalesCopyType.class);

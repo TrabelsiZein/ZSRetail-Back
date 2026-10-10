@@ -14,7 +14,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeErpCatalogue;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.model._BaseEntity;
 import com.digithink.zsretail.model.enumeration.CatalogueKind;
 import com.digithink.zsretail.service.CatalogueHeadOfficeHooks;
@@ -38,7 +39,7 @@ import com.digithink.zsretail.service.CatalogueHeadOfficeHooks;
  */
 @Aspect
 @Component
-@ConditionalOnHeadOfficeErpCatalogue
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_ERP_CATALOGUE_ONLY)
 public class HeadOfficeErpCatalogueRecorder {
 
 	/** Records between two flush-and-clear of the persistence context. */

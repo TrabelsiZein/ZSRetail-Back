@@ -6,7 +6,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeCatalogue;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 
 /**
@@ -18,7 +19,7 @@ import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
  */
 @RestController
 @RequestMapping("catalogue")
-@ConditionalOnHeadOfficeCatalogue
+@ConditionalOnInstallation(Installation.CATALOGUE_FROM_HEAD_OFFICE)
 public class CatalogueNetworkAPI {
 
 	private final StoreCatalogueGuard guard;

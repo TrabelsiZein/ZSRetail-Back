@@ -17,6 +17,7 @@ import com.digithink.zsretail.holink.scheduler.SalesPushJob;
 import com.digithink.zsretail.holink.service.SalesCopyFinder;
 import com.digithink.zsretail.holink.service.SalesPushService;
 import com.digithink.zsretail.holink.service.SalesPushSettings;
+import com.digithink.zsretail.support.Questions;
 import com.digithink.zsretail.support.TestModes;
 
 /**
@@ -84,10 +85,10 @@ class OnHeadOfficeSalesPushConditionTest {
 	@Test
 	@DisplayName("The annotation carries the condition; every sales copy bean carries the annotation")
 	void annotations() {
-		assertEquals(OnHeadOfficeSalesPushCondition.class,
-				ConditionalOnHeadOfficeSalesPush.class.getAnnotation(Conditional.class).value()[0]);
+		assertEquals(OnInstallationCondition.class,
+				ConditionalOnInstallation.class.getAnnotation(Conditional.class).value()[0]);
 		for (Class<?> bean : PUSH_BEANS) {
-			assertTrue(bean.isAnnotationPresent(ConditionalOnHeadOfficeSalesPush.class), bean.getSimpleName());
+			assertTrue(Questions.asks(bean, Installation.SALES_TO_HEAD_OFFICE), bean.getSimpleName());
 		}
 	}
 }

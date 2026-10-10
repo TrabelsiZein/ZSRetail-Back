@@ -14,7 +14,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.PaymentCopyDTO;
 import com.digithink.zsretail.headoffice.dto.ReturnCopyDTO;
 import com.digithink.zsretail.headoffice.dto.ReturnLineCopyDTO;
@@ -41,7 +42,7 @@ import lombok.extern.log4j.Log4j2;
  * replaces its row's content, lines included: a repeated push leaves one row, a changed document is not duplicated.
  */
 @Service
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 @Log4j2
 public class SalesCopyReceiver {
 

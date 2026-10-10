@@ -10,7 +10,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficePull;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.holink.dto.DownApplyResult;
 import com.digithink.zsretail.holink.dto.LinkJobRun;
 import com.digithink.zsretail.holink.enumeration.LinkJobResult;
@@ -27,7 +28,7 @@ import lombok.extern.log4j.Log4j2;
  * saved from the page; while a domain has more pages waiting, the next run comes after the catch-up delay.
  */
 @Component
-@ConditionalOnHeadOfficePull
+@ConditionalOnInstallation(Installation.COPIES_FROM_HEAD_OFFICE)
 @Order(3)
 @Log4j2
 public class CopiesDownJob implements LinkJob {

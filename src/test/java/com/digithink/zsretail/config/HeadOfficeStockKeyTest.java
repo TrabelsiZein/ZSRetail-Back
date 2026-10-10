@@ -29,6 +29,7 @@ import com.digithink.zsretail.service.LicenseService;
 import com.digithink.zsretail.service.LoyaltyService;
 import com.digithink.zsretail.service.TaxStampRuleTest;
 import com.digithink.zsretail.support.Installations;
+import com.digithink.zsretail.support.Questions;
 import com.digithink.zsretail.support.TestModes;
 
 /**
@@ -98,9 +99,9 @@ class HeadOfficeStockKeyTest {
 		MockEnvironment env = headOffice().withProperty(KEY, "false");
 		assertTrue(InstallationSummary.summary(env, NodeOwnership.resolve(env))
 				.contains("sales to nowhere, head office stock off, "));
-		assertTrue(HeadOfficeWithoutStockFilter.class.isAnnotationPresent(ConditionalOnHeadOfficeWithoutStock.class));
-		assertEquals(OnHeadOfficeWithoutStockCondition.class,
-				ConditionalOnHeadOfficeWithoutStock.class.getAnnotation(Conditional.class).value()[0]);
+		assertTrue(Questions.asks(HeadOfficeWithoutStockFilter.class, Installation.HEAD_OFFICE_WITHOUT_STOCK));
+		assertEquals(OnInstallationCondition.class,
+				ConditionalOnInstallation.class.getAnnotation(Conditional.class).value()[0]);
 	}
 
 	@Test

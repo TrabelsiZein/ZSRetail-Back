@@ -13,7 +13,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.digithink.zsretail.config.ApplicationModeService;
-import com.digithink.zsretail.config.ConditionalOnHeadOffice;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.erp.model.ErpSyncJob;
 import com.digithink.zsretail.erp.repository.ErpSyncJobRepository;
@@ -37,7 +38,7 @@ import lombok.extern.log4j.Log4j2;
  * every other one.
  */
 @Service
-@ConditionalOnHeadOffice
+@ConditionalOnInstallation(Installation.HEAD_OFFICE)
 @Log4j2
 public class HeadOfficeErpJobs {
 

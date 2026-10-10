@@ -10,7 +10,8 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeCatalogue;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.CatalogueBarcodeCopyDTO;
 import com.digithink.zsretail.headoffice.dto.CatalogueFamilyCopyDTO;
 import com.digithink.zsretail.headoffice.dto.CatalogueItemCopyDTO;
@@ -48,7 +49,7 @@ import lombok.Getter;
  * office".
  */
 @Component
-@ConditionalOnHeadOfficeCatalogue
+@ConditionalOnInstallation(Installation.CATALOGUE_FROM_HEAD_OFFICE)
 public class CatalogueCopyWriter {
 
 	private final ItemFamilyRepository families;

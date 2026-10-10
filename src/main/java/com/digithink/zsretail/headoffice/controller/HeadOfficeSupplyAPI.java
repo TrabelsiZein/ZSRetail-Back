@@ -10,7 +10,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeWithoutErp;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
 import com.digithink.zsretail.headoffice.dto.SalesCopyAnswerDTO;
 import com.digithink.zsretail.headoffice.dto.StockReportDTO;
@@ -28,7 +29,7 @@ import com.digithink.zsretail.headoffice.service.SupplyConfirmationReceiver;
  */
 @RestController
 @RequestMapping("ho/supply")
-@ConditionalOnHeadOfficeWithoutErp
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_WITHOUT_ERP)
 public class HeadOfficeSupplyAPI {
 
 	private final SupplyConfirmationReceiver deliveries;

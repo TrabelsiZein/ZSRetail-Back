@@ -42,13 +42,14 @@ import com.digithink.zsretail.headoffice.service.HoSupplyPriceService;
 import com.digithink.zsretail.headoffice.service.SupplyConfirmationReceiver;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.support.Installations;
+import com.digithink.zsretail.support.Questions;
 
 /**
- * Invoices from the ERP, step (b): the two conditions on the real files (no context). @ConditionalOnHeadOfficeOwnSupply
+ * Invoices from the ERP, step (b): the two conditions on the real files (no context). @ConditionalOnInstallation(HEAD_OFFICE_OWN_SUPPLY)
  * keeps the BLs, supply prices and supply invoices on a head office without an ERP and on a catalogue-only head office;
- * @ConditionalOnHeadOfficeErpSupply puts the ERP invoices on a catalogue-only head office with
+ * @ConditionalOnInstallation(HEAD_OFFICE_ERP_SUPPLY) puts the ERP invoices on a catalogue-only head office with
  * headoffice.supply.source=ERP. The catalogue feed, the selling price lists, the network stock and HeadOfficeSupplyAPI
- * keep @ConditionalOnHeadOfficeWithoutErp. Every DownDomainProvider of the code base is scanned: in every mode there is
+ * keep @ConditionalOnInstallation(HEAD_OFFICE_WITHOUT_ERP). Every DownDomainProvider of the code base is scanned: in every mode there is
  * exactly one of the domain SUPPLY where a head office supplies its stores, none on a store or on a head office whose ERP
  * owns all three (as before), and exactly one confirmation receiver beside HeadOfficeSupplyAPI.
  */
@@ -145,13 +146,13 @@ class SupplySourceBeansTest {
 	@DisplayName("Each bean where its condition says; one confirmation receiver wherever HeadOfficeSupplyAPI exists")
 	void beansPerMode() {
 		for (Class<?> bean : OWN_SUPPLY_BEANS) {
-			assertTrue(bean.isAnnotationPresent(ConditionalOnHeadOfficeOwnSupply.class), bean.getSimpleName());
+			assertTrue(Questions.asks(bean, Installation.HEAD_OFFICE_OWN_SUPPLY), bean.getSimpleName());
 		}
 		for (Class<?> bean : ERP_SUPPLY_BEANS) {
-			assertTrue(bean.isAnnotationPresent(ConditionalOnHeadOfficeErpSupply.class), bean.getSimpleName());
+			assertTrue(Questions.asks(bean, Installation.HEAD_OFFICE_ERP_SUPPLY), bean.getSimpleName());
 		}
 		for (Class<?> bean : KEPT_WITHOUT_ERP_BEANS) {
-			assertTrue(bean.isAnnotationPresent(ConditionalOnHeadOfficeWithoutErp.class), bean.getSimpleName());
+			assertTrue(Questions.asks(bean, Installation.HEAD_OFFICE_WITHOUT_ERP), bean.getSimpleName());
 		}
 		for (Map.Entry<String, MockEnvironment> mode : modes().entrySet()) {
 			MockEnvironment env = mode.getValue();
@@ -172,11 +173,8 @@ class SupplySourceBeansTest {
 		}
 		assertTrue(SupplyConfirmationReceiver.class.isAssignableFrom(HoDeliveryService.class));
 		assertTrue(SupplyConfirmationReceiver.class.isAssignableFrom(HoErpInvoiceService.class));
-		assertEquals(OnHeadOfficeOwnSupplyCondition.class,
-				ConditionalOnHeadOfficeOwnSupply.class.getAnnotation(org.springframework.context.annotation.Conditional.class)
-						.value()[0]);
-		assertEquals(OnHeadOfficeErpSupplyCondition.class,
-				ConditionalOnHeadOfficeErpSupply.class.getAnnotation(org.springframework.context.annotation.Conditional.class)
+		assertEquals(OnInstallationCondition.class,
+				ConditionalOnInstallation.class.getAnnotation(org.springframework.context.annotation.Conditional.class)
 						.value()[0]);
 		assertFalse(registered(erpSupply(), HoDeliveryService.class));
 	}

@@ -18,7 +18,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeLink;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.holink.dto.HeadOfficeLinkStatusDTO;
 import com.digithink.zsretail.holink.dto.LinkJobDTO;
@@ -48,7 +49,7 @@ import com.digithink.zsretail.model.enumeration.DataDomain;
  */
 @RestController
 @RequestMapping("admin/holink")
-@ConditionalOnHeadOfficeLink
+@ConditionalOnInstallation(Installation.LINKED_TO_HEAD_OFFICE)
 public class HeadOfficeLinkAPI {
 
 	private final HeadOfficeLinkStatus status;

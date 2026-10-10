@@ -11,7 +11,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeWithoutErp;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.service.HoNetworkStockService;
 
 import lombok.extern.log4j.Log4j2;
@@ -23,7 +24,7 @@ import lombok.extern.log4j.Log4j2;
  */
 @RestController
 @RequestMapping("admin/headoffice/stock")
-@ConditionalOnHeadOfficeWithoutErp
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_WITHOUT_ERP)
 @Log4j2
 public class HoNetworkStockAPI {
 

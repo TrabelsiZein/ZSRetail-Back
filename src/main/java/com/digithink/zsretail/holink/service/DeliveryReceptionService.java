@@ -24,7 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeSupply;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.DeliveryCopyDTO;
 import com.digithink.zsretail.headoffice.dto.ErpInvoiceCopyDTO;
 import com.digithink.zsretail.holink.dto.ReceivedDeliveryDTO;
@@ -55,7 +56,7 @@ import lombok.extern.log4j.Log4j2;
  * catalogue brings the item ({@link #applyWaitingStock}). The confirmation is then sent up by SupplyPushService.
  */
 @Service
-@ConditionalOnHeadOfficeSupply
+@ConditionalOnInstallation(Installation.SUPPLY_FROM_HEAD_OFFICE)
 @Log4j2
 public class DeliveryReceptionService {
 

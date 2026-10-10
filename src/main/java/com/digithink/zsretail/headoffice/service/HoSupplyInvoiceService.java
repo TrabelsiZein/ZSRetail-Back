@@ -26,7 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeOwnSupply;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.SupplyInvoiceCopyDTO;
 import com.digithink.zsretail.headoffice.dto.SupplyInvoiceDTO;
 import com.digithink.zsretail.headoffice.enumeration.DeliveryStatus;
@@ -65,7 +66,7 @@ import lombok.extern.log4j.Log4j2;
  * INV:&lt;number&gt;). Paid or unpaid; never cancelled. See docs/modules/head-office.md, "Supply invoices".
  */
 @Service
-@ConditionalOnHeadOfficeOwnSupply
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_OWN_SUPPLY)
 @Log4j2
 public class HoSupplyInvoiceService {
 

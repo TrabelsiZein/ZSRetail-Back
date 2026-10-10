@@ -11,7 +11,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeOwned;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.LoyaltyMemberCopyDTO;
 import com.digithink.zsretail.headoffice.dto.LoyaltyProgramCopyDTO;
 import com.digithink.zsretail.holink.dto.DownApplyResult;
@@ -32,7 +33,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
  * changed: it reads and writes these tables as before.
  */
 @Component
-@ConditionalOnHeadOfficeOwned(DataDomain.LOYALTY)
+@ConditionalOnInstallation(Installation.LOYALTY_FROM_HEAD_OFFICE)
 public class LoyaltyDownHandler implements DownHandler {
 
 	static final int TIMEOUT_SECONDS = 15;

@@ -9,7 +9,7 @@
 
 ### Installation type
 - Backend: `ApplicationModeService.getNodeType()` and `isHeadOffice()`, resolved at startup by `config/NodeOwnership.java` (see `docs/deployment-modes.md`, "Ownership model").
-- Head office only beans: `@ConditionalOnHeadOffice` (`config/OnHeadOfficeCondition.java`) reads `node.type` with the same parsing as the startup (`NodeOwnership.nodeTypeOf`: trimmed, case-insensitive, `STORE` when absent). On a store such a bean is not created, so its endpoints answer 404 (except under `/ho/**`, which answers 401 on a store: see "Store API").
+- Head office only beans: `@ConditionalOnInstallation(HEAD_OFFICE)` (`config/Installation.java`, `HEAD_OFFICE`) reads `node.type` with the same parsing as the startup (`NodeOwnership.nodeTypeOf`: trimmed, case-insensitive, `STORE` when absent). On a store such a bean is not created, so its endpoints answer 404 (except under `/ho/**`, which answers 401 on a store: see "Store API").
 - `GET /config` returns `nodeType`; the frontend store exposes the getter `appConfig/nodeType`.
 - On a head office, sales go nowhere when `sales.upstream` is absent, whatever the mode flags.
 
@@ -465,7 +465,7 @@ The head office keeps one record per store; a store's API key (task 1.3) identif
 | `lastContact`, `appVersion` | Null until the first heartbeat. Written only by `POST /ho/heartbeat` (task 1.4): head office clock; version trimmed, blank gives null, cut to 255 characters (`Store.APP_VERSION_LENGTH`). `/ho/ping` does not write them. Read-only in JSON, never taken from the admin API |
 | `apiKeyHash` | SHA-256 (hex) of the API key. Never serialized (`@JsonIgnore`), never in `toString`, never logged |
 
-**API**: `StoreAPI`, `/admin/headoffice/stores` (JWT, like the other admin APIs; outside `/ho/**`). The service and the API carry `@ConditionalOnHeadOffice`: on a store these URLs answer 404.
+**API**: `StoreAPI`, `/admin/headoffice/stores` (JWT, like the other admin APIs; outside `/ho/**`). The service and the API carry `@ConditionalOnInstallation(HEAD_OFFICE)`: on a store these URLs answer 404.
 
 | Request | Answer |
 |---|---|
@@ -514,7 +514,7 @@ Store-to-head-office calls, server to server: no user, no JWT, no CORS. The stor
 - Every request needs the authority `HO_STORE`, which only the filter gives: `/ho/**` fails closed.
 - The chain exists on both installation types (no condition). On a store the filter does not exist, so `/ho/**` answers 401 to everyone.
 
-**Filter**: `headoffice/security/StoreApiKeyFilter`, head office only (`@ConditionalOnHeadOffice`). It runs in that chain only: its servlet registration is disabled (`FilterRegistrationBean`, head office only), and it skips any path not starting with `/ho/`. It calls `StoreService.check`.
+**Filter**: `headoffice/security/StoreApiKeyFilter`, head office only (`@ConditionalOnInstallation(HEAD_OFFICE)`). It runs in that chain only: its servlet registration is disabled (`FilterRegistrationBean`, head office only), and it skips any path not starting with `/ho/`. It calls `StoreService.check`.
 - Accepted: a fresh security context with the `Store` as principal (`PreAuthenticatedAuthenticationToken`, authority `HO_STORE`). A user token sent on the same request is dropped. Controllers read the store with `@AuthenticationPrincipal Store store`.
 - **Controllers answer DTOs only, never the `Store` principal** (it carries the key hash). The principal is detached: changes go through the repository by id, never by saving the principal.
 - After the key check comes the license filter (402 below), then the endpoint.
@@ -554,7 +554,7 @@ A store with `headoffice.url` set sends a heartbeat to its head office. Store-si
 
 | Key | Rule |
 |---|---|
-| `headoffice.url` | Head office base URL including the context path, e.g. `http://localhost:888/zsretail/api`; trailing slashes are tolerated. Absent or blank: no link. None of the link beans exists (`@ConditionalOnHeadOfficeLink`, `config/OnHeadOfficeLinkCondition`, which reads the key like the startup: `NodeOwnership.isHeadOfficeLinkSet`) and the store behaves as before |
+| `headoffice.url` | Head office base URL including the context path, e.g. `http://localhost:888/zsretail/api`; trailing slashes are tolerated. Absent or blank: no link. None of the link beans exists (`@ConditionalOnInstallation(LINKED_TO_HEAD_OFFICE)`, `config/Installation.LINKED_TO_HEAD_OFFICE`, which reads the key like the startup: `NodeOwnership.isHeadOfficeLinkSet`) and the store behaves as before |
 | `headoffice.api-key` | The key shown once on the head office Stores page; trimmed; sent in `X-Store-Key`; never written in a log line |
 | `headoffice.heartbeat-interval-seconds` | Default `60` |
 
@@ -598,7 +598,7 @@ Without the URL these keys are not checked. The URL scheme is not checked: HTTP 
 **Log** (store): one INFO line at start for all the jobs (`Head office link: jobs on ho-link-1: HEARTBEAT every 60 s, SALES_PUSH every 60 s`), one INFO line per state change (e.g. `Head office link: ONLINE -> OFFLINE (head office unreachable (ConnectException: Connection refused))`), DEBUG while the state stays the same. The key is never written in a log line.
 
 ### Head office link page: the store side (task 1.5)
-**API**: `HeadOfficeLinkAPI`, `/admin/holink` (JWT, like the other admin APIs), `@ConditionalOnHeadOfficeLink`: without `headoffice.url` (and on a head office) these URLs answer 404. Nothing in the selling path calls them.
+**API**: `HeadOfficeLinkAPI`, `/admin/holink` (JWT, like the other admin APIs), `@ConditionalOnInstallation(LINKED_TO_HEAD_OFFICE)`: without `headoffice.url` (and on a head office) these URLs answer 404. Nothing in the selling path calls them.
 
 | Request | Answer (`HeadOfficeLinkStatusDTO`) |
 |---|---|
@@ -648,7 +648,7 @@ The store's menu group **Head office** has four entries, in this order (`src/nav
 ### Sales copies: the store side (step 2)
 Every finished ticket, return and session closing of a store reaches the head office as a copy (design 2.3 and 4.1, "documents up"). Nothing changes in how the store sells: the documents are found by a query, not by a hook in the selling services, and no column of theirs is added or written. A store that also exports to NAV keeps its ERP export as it is: the two upstreams are independent, each with its own tracking. `SalesHeader.synchronizationStatus` belongs to the ERP export and is neither read nor written here.
 
-**When it runs** (decision 4): only on a store with `headoffice.url` set whose sales upstreams include the head office (`ApplicationModeService.salesUpstreams()`, key `sales.upstream`). Its beans carry `@ConditionalOnHeadOfficeSalesPush` (`config/OnHeadOfficeSalesPushCondition`, which calls `NodeOwnership.isHeadOfficeSalesPushSet`: the same reading as the startup, mode flags read from the environment). A linked store without that upstream keeps the heartbeat only.
+**When it runs** (decision 4): only on a store with `headoffice.url` set whose sales upstreams include the head office (`ApplicationModeService.salesUpstreams()`, key `sales.upstream`). Its beans carry `@ConditionalOnInstallation(SALES_TO_HEAD_OFFICE)` (`config/Installation.SALES_TO_HEAD_OFFICE`, which calls `NodeOwnership.isHeadOfficeSalesPushSet`: the same reading as the startup, mode flags read from the environment). A linked store without that upstream keeps the heartbeat only.
 
 **Finished documents.** Only a finished document is sent the first time; a document that was never finished is never sent. **Once a document has a tracking row, any later change is sent whatever its new status, and the head office copy takes the new status** (a ticket cancelled after it was sent is sent again as `CANCELLED`, and the head office row becomes `CANCELLED`: still one row, not counted as a sale).
 
@@ -753,7 +753,7 @@ A header owns its lines (`cascade = ALL`, `orphanRemoval`, ordered by `line_no`)
 | `headoffice.sales-push.interval-seconds` | Seconds between two push cycles, default `60`, at least 1 (task 2.4). Since task 2.6 this is the default of the `SALES_PUSH` job: a frequency saved from the Head office link page wins (`SalesPushSettings.getDefaultIntervalSeconds()`, `LinkJobService`) |
 
 ### Sales copies: the push (task 2.4)
-`holink/service/SalesPushService`, run as the job `SALES_PUSH` (`holink/scheduler/SalesPushJob`, task 2.6) by `LinkJobScheduler`; all `@ConditionalOnHeadOfficeSalesPush`.
+`holink/service/SalesPushService`, run as the job `SALES_PUSH` (`holink/scheduler/SalesPushJob`, task 2.6) by `LinkJobScheduler`; all `@ConditionalOnInstallation(SALES_TO_HEAD_OFFICE)`.
 
 **When**: on the `ho-link-1` thread, after the heartbeat. First cycle 20 s after the start (the first heartbeat is at 15 s), then the job's frequency (saved from the page, or `headoffice.sales-push.interval-seconds`) after the end of the previous cycle. While a long history is caught up (a search page full, a full batch with documents never tried, or the cycle time bound reached) the next cycle comes 5 s later; the heartbeat, due in between, runs first. A cycle never throws: a failure is logged and the next cycle comes at the usual interval. Nothing in the selling path or the ERP export calls it, and it writes no selling table (copies are built in read-only transactions).
 
@@ -779,7 +779,7 @@ One rejected document never stops the others: each follows its own result.
 **Counts**: `GET admin/holink/status` gives `pendingCount`, `sentCount`, `errorCount` (see "Head office link page").
 
 ### Head office link: jobs and exchange log (task 2.6, store side)
-Backend of the jobs and exchange log of the store's Head office link page (model: the ERP jobs page and the ERP communications log; nothing in `erp/` is used or changed). Package `holink`, beans `@ConditionalOnHeadOfficeLink`. The page stays under the permission `read:admin-holink-status`.
+Backend of the jobs and exchange log of the store's Head office link page (model: the ERP jobs page and the ERP communications log; nothing in `erp/` is used or changed). Package `holink`, beans `@ConditionalOnInstallation(LINKED_TO_HEAD_OFFICE)`. The page stays under the permission `read:admin-holink-status`.
 
 **Jobs.** A job is a bean implementing `holink/scheduler/LinkJob`: a code, a default frequency (its properties value), a first delay and `run()`. `LinkJobScheduler` runs every job bean on `ho-link-1`: first run after the job's first delay, then the frequency in force after the end of the previous run, or 5 s later while the job has more to do. Which jobs exist is decided by the settings (the bean conditions), never by the user.
 
@@ -835,9 +835,9 @@ The page had no automatic refresh before task 2.6; the three parts now refresh s
 ### Copies down (step 3)
 Data the head office owns reaches its stores as copies down (design 2.3): the store pulls what changed since its cursor and saves it by business code. Generic: one class per domain on each side, so a later step (loyalty, catalogue, shipments) adds two classes and its domain in `NodeOwnership.COPIES_DOWN_DOMAINS`. Step 3 serves `PROMOTIONS`.
 
-**When it runs** (store): only with `headoffice.url` set and the domain owned by the head office (`ownership.<domain>=HEAD_OFFICE`). The job and the puller carry `@ConditionalOnHeadOfficePull` (URL set and at least one domain owned by the head office, `NodeOwnership.isHeadOfficePullSet`); a domain's handler carries `@ConditionalOnHeadOfficeOwned(<domain>)` (`NodeOwnership.isOwnedByHeadOffice`). A store without `headoffice.url`, or with every domain local, has none of these beans. An explicit `ownership.promotions=HEAD_OFFICE` without `headoffice.url` stops the startup: `Missing value for property headoffice.url: required when ownership.promotions is HEAD_OFFICE ('<value>')`. Step 4: the same for `ownership.loyalty=HEAD_OFFICE`; step 6 for `ownership.catalogue=HEAD_OFFICE`; step 7A for `ownership.supply=HEAD_OFFICE` (`NodeOwnership.COPIES_DOWN_DOMAINS` is `CATALOGUE`, `PROMOTIONS`, `LOYALTY`, `SUPPLY`). A head office keeps its own message for an owner `HEAD_OFFICE`. Known case: a franchise customer (catalogue and supply derived `HEAD_OFFICE`) that also sets `headoffice.url` gets the job without a handler: the catalogue handler needs `NodeOwnership.isCatalogueFromHeadOffice` (an explicit value, no ERP), so it never pulls the catalogue (step 6, "Catalogue owned by the head office").
+**When it runs** (store): only with `headoffice.url` set and the domain owned by the head office (`ownership.<domain>=HEAD_OFFICE`). The job and the puller carry `@ConditionalOnInstallation(COPIES_FROM_HEAD_OFFICE)` (URL set and at least one domain owned by the head office, `NodeOwnership.isHeadOfficePullSet`); a domain's handler carries `@ConditionalOnInstallation(<DOMAIN>_FROM_HEAD_OFFICE)` (`NodeOwnership.isOwnedByHeadOffice`). A store without `headoffice.url`, or with every domain local, has none of these beans. An explicit `ownership.promotions=HEAD_OFFICE` without `headoffice.url` stops the startup: `Missing value for property headoffice.url: required when ownership.promotions is HEAD_OFFICE ('<value>')`. Step 4: the same for `ownership.loyalty=HEAD_OFFICE`; step 6 for `ownership.catalogue=HEAD_OFFICE`; step 7A for `ownership.supply=HEAD_OFFICE` (`NodeOwnership.COPIES_DOWN_DOMAINS` is `CATALOGUE`, `PROMOTIONS`, `LOYALTY`, `SUPPLY`). A head office keeps its own message for an owner `HEAD_OFFICE`. Known case: a franchise customer (catalogue and supply derived `HEAD_OFFICE`) that also sets `headoffice.url` gets the job without a handler: the catalogue handler needs `NodeOwnership.isCatalogueFromHeadOffice` (an explicit value, no ERP), so it never pulls the catalogue (step 6, "Catalogue owned by the head office").
 
-**Head office side** (package `headoffice`, `@ConditionalOnHeadOffice`):
+**Head office side** (package `headoffice`, `@ConditionalOnInstallation(HEAD_OFFICE)`):
 
 | Table (entity) | Content |
 |---|---|
@@ -886,7 +886,7 @@ A promotion created at the head office reaches the chosen stores and applies at 
 
 **Head office: target stores** (task 3.3, head office only data, no column on `promotion`):
 - Table `ho_promotion_store` (`HoPromotionStore`): `promotion_id`, `store_id` (plain ids), unique `uk_ho_promotion_store`. No row: every store (the default, including stores created later). Rows: only those stores. An empty list is refused. A change of list keeps the rows of the stores that stay and only deletes or inserts the others (L2 fix: Hibernate flushes inserts before deletes, so deleting and inserting the same key in one transaction broke the unique key).
-- `HoPromotionService` (`@ConditionalOnHeadOffice`) is the `PROMOTIONS` provider of the feed and implements `PromotionHeadOfficeHooks`, which `PromotionService` calls on a head office only (`ObjectProvider`, no bean on a store):
+- `HoPromotionService` (`@ConditionalOnInstallation(HEAD_OFFICE)`) is the `PROMOTIONS` provider of the feed and implements `PromotionHeadOfficeHooks`, which `PromotionService` calls on a head office only (`ObjectProvider`, no bean on a store):
   - `PromotionService.save` (create, edit, activate, deactivate through `POST`/`PUT /promotion`): a change for the promotion's stores; a code changed (unused promotion) also records the old code, so its stores remove it.
   - `PromotionService.deleteById`: a change for its stores (they get a removal), its target rows deleted.
   - Target change: a change for the old and the new stores together.
@@ -907,7 +907,7 @@ The head office page creates a promotion for a list with `POST /admin/headoffice
 
 Known limit: the copy names its item, family, sub-family and benefit item by code at the moment of the pull. A code renamed at the head office (an item or family code changed after the promotion was sent) does not send the promotion again: it travels with the promotion's next change (edit, target change). A store whose item kept the old code keeps applying the promotion as received; one whose item has the new code only gets it at that next change.
 
-**Store: received promotions** (`PromotionDownHandler`, `@ConditionalOnHeadOfficeOwned(PROMOTIONS)`), each record in its own transaction:
+**Store: received promotions** (`PromotionDownHandler`, `@ConditionalOnInstallation(PROMOTIONS_FROM_HEAD_OFFICE)`), each record in its own transaction:
 
 | Case | Store |
 |---|---|
@@ -942,7 +942,7 @@ One member register for the network (design 2.3, 4.3; decisions of the step 4 pr
 - `MemberFunctionCodes`: the member function travels by code; the receiving side uses its own function of that code and creates it (code and name as received) when missing.
 - `origin` (`RecordOrigin`, `VARCHAR(20)`, null = `LOCAL`) on `loyalty_member` and `loyalty_program` (`ddl-auto`; never read from JSON on the program): `HEAD_OFFICE` marks the network register at a store (part 2).
 
-**Head office side** (package `headoffice`, `@ConditionalOnHeadOffice`):
+**Head office side** (package `headoffice`, `@ConditionalOnInstallation(HEAD_OFFICE)`):
 - The program, the members and the ledger are the existing loyalty tables and pages (loyalty is owned there). `HoLoyaltyService` is the `LOYALTY` provider of the copies down feed and the hooks of `LoyaltyService`: every change made through the pages (member created, edited, toggled, linked, points adjusted; program created, edited, closed, deactivated, deleted) is recorded for every store. Cards created there are `LYL-HO-000001`; every member counts for the phone uniqueness (the register is the network's).
 - **Copies down**, domain `LOYALTY`, every store (`StoreTargets.all()`): record code `PROGRAM:<program code>` for the program (`LoyaltyProgramCopyDTO`: `kind` `PROGRAM`, the fields of the program, `earningTiers` sorted, `active`; only an active program is answered, a closed or deleted one is answered as removed) and `MEMBER:<card>` for each member (`LoyaltyMemberCopyDTO`: `kind` `MEMBER`, `cardNumber`, names, `phone`, `email`, `birthDate`, `memberFunctionCode` and name, `customerCode`, `loyaltyPoints`, `totalPointsEarned`, `totalPointsRedeemed` as the head office holds them, `active`, `enrolledAt`). By codes only, never an id. Startup backfill: the active programs and every member existing before step 4 reach every store.
 - Tables (head office only data, prefix `ho_`, `ddl-auto`):
@@ -996,7 +996,7 @@ Page permission `read:admin-headoffice-loyalty-overspends` (seeded on a head off
 
 Member edit from a store: a blank `memberFunctionCode` keeps the member's own function (a deactivation or a customer link sends the member as it is); a member with no function at all needs one (400).
 
-**Store side** (package `holink`, all `@ConditionalOnHeadOfficeOwned(LOYALTY)`: the URL set and `ownership.loyalty=HEAD_OFFICE`; none of these beans exists otherwise):
+**Store side** (package `holink`, all `@ConditionalOnInstallation(LOYALTY_FROM_HEAD_OFFICE)`: the URL set and `ownership.loyalty=HEAD_OFFICE`; none of these beans exists otherwise):
 
 | Class | Role |
 |---|---|
@@ -1094,8 +1094,8 @@ Tables (store, prefix `hol_`, `ddl-auto`):
 Items, families, sub-families and barcodes decided by the head office reach every store whose catalogue is the head office's; each item carries the one selling price worked out for that store (design 3.3, 3.4). `PricingService` and the selling services are not changed: the till reads `item.unitPrice` as before.
 
 **When it is active**
-- Head office side: only on a head office **without an ERP** (`node.type=HEAD_OFFICE` and `application.standalone=true`, `@ConditionalOnHeadOfficeWithoutErp`, `NodeOwnership.isHeadOfficeWithoutErpSet`). A head office with an ERP (ParaFendri) serves no `CATALOGUE` domain and has no price lists: its items come from `erp/`, which has no hooks, and its stores keep `CATALOGUE=ERP`.
-- Store side: `@ConditionalOnHeadOfficeCatalogue` (`NodeOwnership.isCatalogueFromHeadOffice`): `headoffice.url` set, `ownership.catalogue=HEAD_OFFICE`, `application.standalone=true`. Startup refusals: an explicit `ownership.catalogue=HEAD_OFFICE` without the URL or with `application.standalone=false` (see `docs/deployment-modes.md`).
+- Head office side: only on a head office **without an ERP** (`node.type=HEAD_OFFICE` and `application.standalone=true`, `@ConditionalOnInstallation(HEAD_OFFICE_WITHOUT_ERP)`, `NodeOwnership.isHeadOfficeWithoutErpSet`). A head office with an ERP (ParaFendri) serves no `CATALOGUE` domain and has no price lists: its items come from `erp/`, which has no hooks, and its stores keep `CATALOGUE=ERP`.
+- Store side: `@ConditionalOnInstallation(CATALOGUE_FROM_HEAD_OFFICE)` (`NodeOwnership.isCatalogueFromHeadOffice`): `headoffice.url` set, `ownership.catalogue=HEAD_OFFICE`, `application.standalone=true`. Startup refusals: an explicit `ownership.catalogue=HEAD_OFFICE` without the URL or with `application.standalone=false` (see `docs/deployment-modes.md`).
 - Until step 9 a franchise customer derived `CATALOGUE=HEAD_OFFICE` for its legacy item sync and never got these beans; the franchise profiles were removed at task 9.4a (`docs/modules/franchise.md`).
 - Every other store (no setting, ERP): no catalogue bean, every API answers as before (the guards below are looked up with `ObjectProvider` and absent).
 
@@ -1173,7 +1173,7 @@ New columns (`ddl-auto`): `origin` `VARCHAR(20)` (`RecordOrigin`, null = local, 
 **Images** (task 6.8, removed from version 2.1: plan, section 5, "Later, not scheduled"): files `uploads/pos-images/{family|subfamily|item}/{database id}.jpg` (JPEG, at most 400×400), the entity holding only `"<id>.jpg"`. Sending them would need an `imageVersion` in the copy, a `GET /ho/catalogue/images/{type}/{code}` and a store step that saves the file under its own id; to decide after L2.
 
 ### Price lists (task 6.4)
-Head office without an ERP only (`HoPriceListService`, `HoPriceListAPI`, `@ConditionalOnHeadOfficeWithoutErp`).
+Head office without an ERP only (`HoPriceListService`, `HoPriceListAPI`, `@ConditionalOnInstallation(HEAD_OFFICE_WITHOUT_ERP)`).
 
 | Table (entity) | Content | Key |
 |---|---|---|
@@ -1214,7 +1214,7 @@ A head office that is only a consolidation layer (Happyness: catalogue, BLs, sup
 - **Read on a head office only** (`NodeOwnership.isHeadOfficeWithoutStockSet`: `node.type=HEAD_OFFICE` and the key `false`). A store never reads it, whatever its value. On a head office, trimmed and case-insensitive; any other value (blank included) stops the startup: `Invalid value 'flase' for property headoffice.stock.enabled: true (...) or false (...)`. `ApplicationModeService.isHeadOfficeWithoutStock()`; startup summary `..., sales to nowhere, head office stock off, ...`.
 - **An added gate**: it never replaces or changes `isSupplyFromErp`, the ownership, the store rights or the permissions. With an ERP it changes nothing visible (no BL, no stock there already).
 - `GET /config` field `headOfficeStock` (last): `false` only on such a head office, `true` on every store.
-- **Refusal filter** `HeadOfficeWithoutStockFilter` (`@ConditionalOnHeadOfficeWithoutStock`: the bean exists only there; the shared purchase, vendor, stock and report classes are unchanged). A servlet filter after the security chain: 403 `{"error":"This head office keeps no stock and makes no purchases (headoffice.stock.enabled=false)."}`, any method, on `/purchase-header` and below (generic CRUD included), `/vendor` and below, `/admin/purchase-invoices` and below, `/report/stock`, `/report/stock-movements`, `/report/purchases`, `/item/{id}/adjust-stock`. Everything else passes (`/item/search`, BLs, network stock, supply prices and invoices). Inventory counts were already refused on any head office.
+- **Refusal filter** `HeadOfficeWithoutStockFilter` (`@ConditionalOnInstallation(HEAD_OFFICE_WITHOUT_STOCK)`: the bean exists only there; the shared purchase, vendor, stock and report classes are unchanged). A servlet filter after the security chain: 403 `{"error":"This head office keeps no stock and makes no purchases (headoffice.stock.enabled=false)."}`, any method, on `/purchase-header` and below (generic CRUD included), `/vendor` and below, `/admin/purchase-invoices` and below, `/report/stock`, `/report/stock-movements`, `/report/purchases`, `/item/{id}/adjust-stock`. Everything else passes (`/item/search`, BLs, network stock, supply prices and invoices). Inventory counts were already refused on any head office.
 - **BLs** (`HoDeliveryService`): validation checks no stock (`ALLOW_NEGATIVE_STOCK` is not read), decrements nothing and writes no `DELIVERY_OUT`; number, `SENT`, the copy for its store, confirmations and invoices as before. `headOfficeStock` of a line is null.
 - **Network stock** (`HoNetworkStockService`): `headOffice` is null on every row, and `belowZero=true` looks at the stores' columns only (`HoStoreStockRepository.findHeadOfficeItemsStoresOnly`).
 - Item answers unchanged (`costPrice` stays). The data import is not changed.
@@ -1324,7 +1324,7 @@ bigger than a packet, no list during the first load, dry run, the summary kept f
 handing nothing to the job, invoices).
 
 **Step 7: the changes of an ERP import reach the stores** (`HeadOfficeErpCatalogueRecorder`, an aspect beside
-`HeadOfficeErpGuard`, `@ConditionalOnHeadOfficeErpCatalogue`; nothing in `erp/`, `holink/` or `service/` changes). The four
+`HeadOfficeErpGuard`, `@ConditionalOnInstallation(HEAD_OFFICE_ERP_CATALOGUE_ONLY)`; nothing in `erp/`, `holink/` or `service/` changes). The four
 imports of `ErpItemBootstrapService` save with the repositories and never call the catalogue hooks. Around each of them the
 aspect lets the import run, then calls `CatalogueHeadOfficeHooks.afterSave(kind, null, saved)` for each record of the returned
 list (`FAMILY`, `SUBFAMILY`, `ITEM`, `BARCODE`), as a save on the item pages does: one change row per record, an item also
@@ -1375,7 +1375,7 @@ supply source switch; no store code, nothing sent to the stores yet, no page). `
 
 | Part | Detail |
 |---|---|
-| Switch | `NodeOwnership.isSupplyFromErpSourceSet`, `ApplicationModeService.isSupplyFromErpSource()`, `GET /config` `supplySource`, the startup line says "supply invoices from the ERP". `@ConditionalOnHeadOfficeOwnSupply` (= `isHeadOfficeWithoutErpSet` and the source not ERP) replaces `@ConditionalOnHeadOfficeWithoutErp` on `HoDeliveryService`, `HoSupplyInvoiceService`, `HoSupplyPriceService` and their three APIs; `@ConditionalOnHeadOfficeErpSupply` (= `isErpCatalogueOnlySet` and the source ERP) on `HoErpInvoiceService` and `HoErpInvoiceAPI`. The catalogue feed, the selling price lists, the network stock and `HeadOfficeSupplyAPI` keep `@ConditionalOnHeadOfficeWithoutErp` |
+| Switch | `NodeOwnership.isSupplyFromErpSourceSet`, `ApplicationModeService.isSupplyFromErpSource()`, `GET /config` `supplySource`, the startup line says "supply invoices from the ERP". `@ConditionalOnInstallation(HEAD_OFFICE_OWN_SUPPLY)` (= `isHeadOfficeWithoutErpSet` and the source not ERP) replaces `@ConditionalOnInstallation(HEAD_OFFICE_WITHOUT_ERP)` on `HoDeliveryService`, `HoSupplyInvoiceService`, `HoSupplyPriceService` and their three APIs; `@ConditionalOnInstallation(HEAD_OFFICE_ERP_SUPPLY)` (= `isErpCatalogueOnlySet` and the source ERP) on `HoErpInvoiceService` and `HoErpInvoiceAPI`. The catalogue feed, the selling price lists, the network stock and `HeadOfficeSupplyAPI` keep `@ConditionalOnInstallation(HEAD_OFFICE_WITHOUT_ERP)` |
 | One SUPPLY provider | Head office without an ERP and catalogue-only head office: `HoDeliveryService`; catalogue-only with the source ERP: `HoErpInvoiceService`; a store and a head office whose ERP owns all three: none, as before (`SupplySourceBeansTest` scans every `DownDomainProvider`). Until step (c) `HoErpInvoiceService` answers no record (`load`, `currentTargets` empty): nothing reaches a store, the startup backfill records nothing |
 | Confirmations | `HeadOfficeSupplyAPI` (`POST /ho/supply/confirmations`, `/stock`) injects `SupplyConfirmationReceiver`, implemented by `HoDeliveryService` and `HoErpInvoiceService` (exactly one where the API exists) |
 | `ho_erp_invoice` | `bc_number` (unique `uk_ho_erp_invoice_number`), `year_prefix`, `document_date`, `posting_date`, `customer_no`, `customer_name`, `store_id` (null until found; plain id like `ho_delivery.store_id`, no foreign key), the three totals, `status` `READ` (no store yet) / `SENT` (store found) / `RECEIVED`, `mapping_status` (`ASSIGNED`, `NO_CUSTOMER`, `NO_STORE`, `STORE_INACTIVE`, `STORE_NOT_SUPPLIED`; null while held), `held` + `hold_reason`, `warnings` (one per line), `read_at`, `sent_at`, `received_at`, `received_by`, `store_note`, `confirmation_received_at`, `difference`, audit columns. Created by Hibernate like the other `ho_*` tables |
@@ -1393,10 +1393,10 @@ mode, one SUPPLY provider, one confirmation receiver), `HoErpInvoiceServiceTest`
 the stores, held, warnings, a number saved meanwhile, a failure, confirmations, the page), `HeadOfficeErpJobsTest`,
 `HeadOfficeErpTest` (the refused set with the new job), `StoreServiceTest` (the ERP customer number unique),
 `ZZDataInitializerRolesTest` (the new permission), `AppConfigAPITest` (`supplySource`), `ErpCatalogueHeadOfficeTest` and
-`OnHeadOfficeCatalogueConditionTest` (the supply beans now carry `@ConditionalOnHeadOfficeOwnSupply`).
+`OnHeadOfficeCatalogueConditionTest` (the supply beans now carry `@ConditionalOnInstallation(HEAD_OFFICE_OWN_SUPPLY)`).
 
 **Invoices from the ERP, step (c): the ERP invoice reaches the store** (reception with stock, cost and purchase invoice in
-one action; the store side stays under `@ConditionalOnHeadOfficeSupply`, so an ERP store and a plain BL are unchanged).
+one action; the store side stays under `@ConditionalOnInstallation(SUPPLY_FROM_HEAD_OFFICE)`, so an ERP store and a plain BL are unchanged).
 
 | Part | Detail |
 |---|---|
@@ -1651,7 +1651,7 @@ changed files in production mode, a build without the eslint cache and the truth
 ### Head office with the catalogue only from the ERP: the refusals (ERP catalogue, step 2)
 A head office with `ownership.catalogue=ERP` and its customers and supply not the ERP's (`isErpCatalogueOnly`, see
 `docs/deployment-modes.md`) reads its catalogue from the ERP: families, sub-families, items and barcodes are read-only there.
-- **Refusal filter** `HeadOfficeErpCatalogueFilter` (`@ConditionalOnHeadOfficeErpCatalogue`: the bean exists only there, never
+- **Refusal filter** `HeadOfficeErpCatalogueFilter` (`@ConditionalOnInstallation(HEAD_OFFICE_ERP_CATALOGUE_ONLY)`: the bean exists only there, never
   on a store, a head office without an ERP or one whose ERP owns all three; in no file of `deploy/` or `configs/`). A servlet
   filter after the security chain, like `HeadOfficeWithoutStockFilter`: 403 `{"error":"The catalogue of this head office comes
   from the ERP: families, sub-families, items and barcodes are read-only here."}` on `PUT`, `PATCH`, `DELETE` under
@@ -1666,7 +1666,7 @@ A head office with `ownership.catalogue=ERP` and its customers and supply not th
 - Tests: `HeadOfficeErpCatalogueFilterTest` (refused and passed paths, the message, where the bean exists).
 
 ### BLs (task 7A.2, head office)
-A BL (delivery note) sends goods from the head office stock to one store (design 3.5, decision D12). Head office without an ERP only (`HoDeliveryService`, `HoDeliveryAPI`, `@ConditionalOnHeadOfficeWithoutErp`); elsewhere the API answers 404 and the domain `SUPPLY` is not served. No price on a BL: step 7B invoices the received BLs.
+A BL (delivery note) sends goods from the head office stock to one store (design 3.5, decision D12). Head office without an ERP only (`HoDeliveryService`, `HoDeliveryAPI`, `@ConditionalOnInstallation(HEAD_OFFICE_WITHOUT_ERP)`); elsewhere the API answers 404 and the domain `SUPPLY` is not served. No price on a BL: step 7B invoices the received BLs.
 
 | Table (entity) | Content |
 |---|---|
@@ -1707,7 +1707,7 @@ Page permission `read:admin-headoffice-deliveries` (33 head office permissions).
 ### BLs at the store (tasks 7A.3, 7A.4)
 A store whose goods come from the head office receives its BLs by the copies down, confirms what it counted, and its stock goes up at once; the confirmation travels up as a document (design 2.4, 3.5).
 
-**When it is active**: `@ConditionalOnHeadOfficeSupply` (`NodeOwnership.isSupplyFromHeadOffice`): `headoffice.url` set, an **explicit** `ownership.supply=HEAD_OFFICE`, `application.standalone=true`. Startup refusals of an explicit `ownership.supply=HEAD_OFFICE`: without the URL (`SUPPLY` is now in `COPIES_DOWN_DOMAINS`), with `application.standalone=false`, and without `ownership.catalogue=HEAD_OFFICE` (`Invalid combination: ownership.supply=HEAD_OFFICE without ownership.catalogue=HEAD_OFFICE. A BL names head office items by their code ...`). Beans: `DeliveryReceptionService`, `SupplyDownHandler`, `SupplyPushService`, `SupplyPushJob`, `DeliveryReceptionAPI`.
+**When it is active**: `@ConditionalOnInstallation(SUPPLY_FROM_HEAD_OFFICE)` (`NodeOwnership.isSupplyFromHeadOffice`): `headoffice.url` set, an **explicit** `ownership.supply=HEAD_OFFICE`, `application.standalone=true`. Startup refusals of an explicit `ownership.supply=HEAD_OFFICE`: without the URL (`SUPPLY` is now in `COPIES_DOWN_DOMAINS`), with `application.standalone=false`, and without `ownership.catalogue=HEAD_OFFICE` (`Invalid combination: ownership.supply=HEAD_OFFICE without ownership.catalogue=HEAD_OFFICE. A BL names head office items by their code ...`). Beans: `DeliveryReceptionService`, `SupplyDownHandler`, `SupplyPushService`, `SupplyPushJob`, `DeliveryReceptionAPI`.
 - Until step 9 a franchise customer derived `SUPPLY=HEAD_OFFICE` for its legacy reception and never got these beans; the franchise profiles were removed at task 9.4a.
 - Every other store (no setting, ERP, `ownership.supply=LOCAL`): none of the beans; `/admin/deliveries` answers 404; `/config` `supplyFromHeadOffice` false; no `SUPPLY_PUSH` job.
 
@@ -1847,7 +1847,7 @@ On a store whose goods come from the head office (the 7A supply beans), an invoi
 What the head office pages Tickets history, Sessions history and Returns, and the home cards, read (pages: task 2.5 frontend, "Head office pages" below).
 
 **Common rules**
-- `ConsolidatedSalesAPI` (`headoffice/controller`) and `ConsolidatedSalesService` (`headoffice/service`), both `@ConditionalOnHeadOffice`: on a store these URLs answer 404. JWT like the other admin APIs; the license filter applies (402). As everywhere in the application, the API checks no permission: the pages are protected by their route permission in the frontend.
+- `ConsolidatedSalesAPI` (`headoffice/controller`) and `ConsolidatedSalesService` (`headoffice/service`), both `@ConditionalOnInstallation(HEAD_OFFICE)`: on a store these URLs answer 404. JWT like the other admin APIs; the license filter applies (402). As everywhere in the application, the API checks no permission: the pages are protected by their route permission in the frontend.
 - They read the consolidation tables only (`ho_ticket`, `ho_return`, `ho_session` and their lines), never the store tables.
 - Field names follow the store's own pages (`GET /sales-header/history`, `/cashier-session/history`, `/return-header/history` and their details) where the data is the same, so the new pages can follow the store pages. References are small objects with the store's property names (`customer.name`, `createdByUser.fullName`, `cashierSession.sessionNumber`, `item.itemCode`, `paymentMethod.name`). Every row adds `storeId`, `storeCode`, `storeName`, `receivedAt` (first reception) and `lastReceivedAt` (last reception), head office clock.
 - Not there, compared with the store pages: ERP fields (`synchronizationStatus`, `erpNo`, `synched`, `fiscalRegistration`), the store's database ids (`cashierId`, user and item ids), voucher use (`usedAmount`, voucher status), the session `paymentSummary` (the count lines are given instead).
@@ -1951,7 +1951,7 @@ The three permissions are in `ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS` (
   - backend: feature package `com.digithink.zsretail.headoffice`, with the same sub-packages as `erp/` (`controller`, `service`, `model`, `repository`, `dto`, `scheduler`);
   - frontend: `src/views/admin/headoffice/` (admin pages of a feature live under `views/admin/<feature>`, like `views/admin/franchise`), routes `admin-headoffice-*` under `/headoffice/...` in `src/router/headoffice-routes.js` (task 1.6, "Add a page to the head office").
 - Existing store pages are not modified to serve the head office: a shared page gets a head office route with `meta.twinOf`. First content: the stores list (task 1.2).
-- **Store side of the link.** Code that runs on a store and calls the head office lives in `com.digithink.zsretail.holink`, never in `headoffice`; its beans carry `@ConditionalOnHeadOfficeLink` (task 1.4), or `@ConditionalOnHeadOfficeSalesPush` for the sales copies (task 2.1). Its tables are prefixed `hol_` (task 2.1). Its pages live in `src/views/admin/holink/`, routes `admin-holink-*` (task 1.5).
+- **Store side of the link.** Code that runs on a store and calls the head office lives in `com.digithink.zsretail.holink`, never in `headoffice`; its beans carry `@ConditionalOnInstallation(LINKED_TO_HEAD_OFFICE)` (task 1.4), or `@ConditionalOnInstallation(SALES_TO_HEAD_OFFICE)` for the sales copies (task 2.1). Its tables are prefixed `hol_` (task 2.1). Its pages live in `src/views/admin/holink/`, routes `admin-holink-*` (task 1.5).
 
 ### Dev head office: `deploy/dev/headoffice.properties` (was the profile `headoffice-dev`)
 Type `headoffice` (configuration step C1): `node.type=HEAD_OFFICE`, no ERP. Outside file: `server.port=888`, database `pos_headoffice` (same SQL
@@ -1998,7 +1998,7 @@ read by `HeadOfficeErpGuard`); a head office whose ERP owns all three, or withou
 static `NOT_ON_HEAD_OFFICE` and `isRefused` are unchanged. Tests: `HeadOfficeErpTest` (`refusedSetByMode`,
 `catalogueOnlySwitchedOffAtStart`, `catalogueOnlyRunnerRefuses`, `catalogueOnlyApi`).
 
-**ERP reference location** (`ErpReferenceLocationService`, `ErpReferenceLocationAPI`, `@ConditionalOnHeadOfficeErp`: head office with `application.standalone=false`; 404 elsewhere). The import needs `DEFAULT_LOCATION` and, for the price filter, the location marked default; choosing the reference location is the store's "set as default" (`LocationService.setAsDefault`), without the store's Locations page. `RESPONSIBILITY_CENTER` (general setup) is read only by the exports, which never run here: not written.
+**ERP reference location** (`ErpReferenceLocationService`, `ErpReferenceLocationAPI`, `@ConditionalOnInstallation(HEAD_OFFICE_WITH_ERP)`: head office with `application.standalone=false`; 404 elsewhere). The import needs `DEFAULT_LOCATION` and, for the price filter, the location marked default; choosing the reference location is the store's "set as default" (`LocationService.setAsDefault`), without the store's Locations page. `RESPONSIBILITY_CENTER` (general setup) is read only by the exports, which never run here: not written.
 
 | Request | Answer |
 |---|---|

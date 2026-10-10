@@ -31,6 +31,7 @@ import com.digithink.zsretail.holink.service.CatalogueRights;
 import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.DataOwner;
+import com.digithink.zsretail.support.Questions;
 import com.digithink.zsretail.support.TestModes;
 
 /**
@@ -75,7 +76,7 @@ class OnHeadOfficeCatalogueConditionTest {
 		assertEquals(DataOwner.HEAD_OFFICE, resolve(on).ownerOf(DataDomain.CATALOGUE));
 		for (Class<?> bean : STORE_BEANS) {
 			assertTrue(registered(on, bean), bean.getSimpleName());
-			assertTrue(bean.isAnnotationPresent(ConditionalOnHeadOfficeCatalogue.class), bean.getSimpleName());
+			assertTrue(Questions.asks(bean, Installation.CATALOGUE_FROM_HEAD_OFFICE), bean.getSimpleName());
 		}
 		assertTrue(registered(on, CopiesDownJob.class));
 		for (Class<?> bean : HEAD_OFFICE_BEANS) {
@@ -131,13 +132,11 @@ class OnHeadOfficeCatalogueConditionTest {
 			assertTrue(registered(standaloneHeadOffice, bean), bean.getSimpleName());
 			assertFalse(registered(erpHeadOffice, bean), bean.getSimpleName());
 			assertFalse(registered(standalone(link()).withProperty("ownership.catalogue", "HEAD_OFFICE"), bean));
-			// Invoices from the ERP, step (b): the BLs, supply prices and invoices carry @ConditionalOnHeadOfficeOwnSupply
-			assertTrue(bean.isAnnotationPresent(ConditionalOnHeadOfficeWithoutErp.class)
-					|| bean.isAnnotationPresent(ConditionalOnHeadOfficeOwnSupply.class), bean.getSimpleName());
+			// Invoices from the ERP, step (b): the BLs, supply prices and invoices carry @ConditionalOnInstallation(HEAD_OFFICE_OWN_SUPPLY)
+			assertTrue(Questions.asks(bean, Installation.HEAD_OFFICE_WITHOUT_ERP)
+					|| Questions.asks(bean, Installation.HEAD_OFFICE_OWN_SUPPLY), bean.getSimpleName());
 		}
-		assertEquals(OnHeadOfficeCatalogueCondition.class,
-				ConditionalOnHeadOfficeCatalogue.class.getAnnotation(Conditional.class).value()[0]);
-		assertEquals(OnHeadOfficeWithoutErpCondition.class,
-				ConditionalOnHeadOfficeWithoutErp.class.getAnnotation(Conditional.class).value()[0]);
+		assertEquals(OnInstallationCondition.class,
+				ConditionalOnInstallation.class.getAnnotation(Conditional.class).value()[0]);
 	}
 }

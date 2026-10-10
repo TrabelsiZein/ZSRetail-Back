@@ -10,7 +10,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnHeadOfficeSupply;
+import com.digithink.zsretail.config.ConditionalOnInstallation;
+import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.DeliveryCopyDTO;
 import com.digithink.zsretail.headoffice.dto.ErpInvoiceCopyDTO;
 import com.digithink.zsretail.headoffice.dto.SupplyInvoiceCopyDTO;
@@ -34,7 +35,7 @@ import lombok.extern.log4j.Log4j2;
  * item get their stock once.
  */
 @Component
-@ConditionalOnHeadOfficeSupply
+@ConditionalOnInstallation(Installation.SUPPLY_FROM_HEAD_OFFICE)
 @Log4j2
 public class SupplyDownHandler implements DownHandler {
 
