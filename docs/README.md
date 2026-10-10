@@ -31,6 +31,7 @@ Split out of the former single `AI_CONTEXT_POS.md` so each topic can be read on 
 
 - `specs/` — client-facing specifications (`DOC_FIDELITE_POS`, `DOC_PROMOTION_POS`, `.md` + `.docx`)
 - `roadmap/standalone-tasks.md` — standalone backlog
+- `roadmap/project-sorting.md` — the target projects (erp-api, core, store, headoffice, connectors) and the sorting rule
 
 ## Rule
 
