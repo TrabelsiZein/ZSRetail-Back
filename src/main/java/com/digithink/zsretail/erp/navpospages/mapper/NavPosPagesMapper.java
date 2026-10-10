@@ -22,6 +22,7 @@ import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceLineRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
+import com.digithink.zsretail.erp.spi.ErpRead;
 import com.digithink.zsretail.utils.Quantities;
 
 /**
@@ -76,7 +77,7 @@ public class NavPosPagesMapper {
 
 	// ─── Categories ─────────────────────────────────────────────
 
-	public NavPosResult<ErpItemFamilyDTO> families(List<NavPosCategoryRow> rows) {
+	public ErpRead<ErpItemFamilyDTO> families(List<NavPosCategoryRow> rows) {
 		List<ErpItemFamilyDTO> families = new ArrayList<>();
 		Map<String, Integer> leftOut = new LinkedHashMap<>();
 		for (NavPosCategoryRow row : rows) {
@@ -95,10 +96,10 @@ public class NavPosPagesMapper {
 				families.add(family);
 			}
 		}
-		return new NavPosResult<>(families, rows.size(), leftOut, new LinkedHashMap<>(), null);
+		return new ErpRead<>(families, rows.size(), leftOut, new LinkedHashMap<>(), null);
 	}
 
-	public NavPosResult<ErpItemSubFamilyDTO> subFamilies(List<NavPosCategoryRow> rows) {
+	public ErpRead<ErpItemSubFamilyDTO> subFamilies(List<NavPosCategoryRow> rows) {
 		Set<String> familyCodes = new HashSet<>();
 		for (NavPosCategoryRow row : rows) {
 			if (FAMILY.equals(type(row)) && !trimmed(row.getCode()).isEmpty()) {
@@ -126,12 +127,12 @@ public class NavPosPagesMapper {
 				subFamilies.add(subFamily);
 			}
 		}
-		return new NavPosResult<>(subFamilies, rows.size(), leftOut, new LinkedHashMap<>(), null);
+		return new ErpRead<>(subFamilies, rows.size(), leftOut, new LinkedHashMap<>(), null);
 	}
 
 	// ─── Items ──────────────────────────────────────────────────
 
-	public NavPosResult<ErpItemDTO> items(List<NavPosStockRow> rows) {
+	public ErpRead<ErpItemDTO> items(List<NavPosStockRow> rows) {
 		Map<String, Integer> leftOut = new LinkedHashMap<>();
 		Map<String, Integer> notes = new LinkedHashMap<>();
 		// One row per Item_No, in the order of the first row read
@@ -175,7 +176,7 @@ public class NavPosPagesMapper {
 			}
 			items.add(item);
 		}
-		return new NavPosResult<>(items, rows.size(), leftOut, notes, null);
+		return new ErpRead<>(items, rows.size(), leftOut, notes, null);
 	}
 
 	/** The price of the page before VAT: divided by (1 + VAT/100), 10 decimals, HALF_UP, when it includes the VAT. */
@@ -199,7 +200,7 @@ public class NavPosPagesMapper {
 
 	// ─── Barcodes ───────────────────────────────────────────────
 
-	public NavPosResult<ErpItemBarcodeDTO> barcodes(List<NavPosBarcodeRow> rows) {
+	public ErpRead<ErpItemBarcodeDTO> barcodes(List<NavPosBarcodeRow> rows) {
 		Map<String, Integer> leftOut = new LinkedHashMap<>();
 		Map<String, NavPosBarcodeRow> chosen = new LinkedHashMap<>();
 		Long highest = null;
@@ -234,7 +235,7 @@ public class NavPosPagesMapper {
 			barcode.setItemExternalId(trimmed(entry.getValue().getItemNo()));
 			barcodes.add(barcode);
 		}
-		return new NavPosResult<>(barcodes, rows.size(), leftOut, new LinkedHashMap<>(), highest);
+		return new ErpRead<>(barcodes, rows.size(), leftOut, new LinkedHashMap<>(), highest);
 	}
 
 	private static long entryNo(NavPosBarcodeRow row) {
@@ -251,7 +252,7 @@ public class NavPosPagesMapper {
 	 * decimals (2.2.1: a decimal quantity is kept as the ERP sends it), prices including the VAT, lines that differ from
 	 * Total_Amount_Excl_VAT by more than {@link #TOTAL_TOLERANCE}, Client_Franchise false, an Item line without item number, no line.
 	 */
-	public NavPosResult<ErpSupplyInvoiceDTO> invoices(List<NavPosInvoiceRow> rows, String customerField) {
+	public ErpRead<ErpSupplyInvoiceDTO> invoices(List<NavPosInvoiceRow> rows, String customerField) {
 		Map<String, Integer> leftOut = new LinkedHashMap<>();
 		Map<String, Integer> notes = new LinkedHashMap<>();
 		List<ErpSupplyInvoiceDTO> invoices = new ArrayList<>();
@@ -329,7 +330,7 @@ public class NavPosPagesMapper {
 			}
 			invoices.add(invoice);
 		}
-		return new NavPosResult<>(invoices, rows.size(), leftOut, notes, null);
+		return new ErpRead<>(invoices, rows.size(), leftOut, notes, null);
 	}
 
 	/** yyyy-MM-dd; null when blank, not a date, or the ERP's empty date 0001-01-01. */

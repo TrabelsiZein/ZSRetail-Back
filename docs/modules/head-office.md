@@ -1247,7 +1247,7 @@ makes the four catalogue fetches return the changes (below). No existing class c
 | `NavPosPagesStartupCheck` | Startup refusals (the settings bean depends on it, so its message comes before a binding error) and one INFO line: address, company, location, pages |
 | `NavPosPagesConfig` | Bean `navPosPagesRestTemplate`: NTLM, connect and read timeouts, GET only |
 | `NavPosPagesRestClient` | `readCategories()` (`$select=Code,Description,Parent_Category,Type`, next links followed), `readItems()` (`$filter=Location_Code eq '<location-code>'`, a quote doubled, `$select=Item_No,Variant_Code,Description,Unit_Price,Family,Subfamily`, next links), `readBarcodesAfter(n)` (`$filter=Entry_No gt n&$orderby=Entry_No&$top=<barcode-page-size>&$select=Item_No,Cross_Reference_No,Entry_No`, one page per call). An HTTP error or a timeout: `NavPosPagesReadException` naming the page and the status, no retry |
-| `NavPosPagesMapper` (no Spring) | To `ErpItemFamilyDTO`, `ErpItemSubFamilyDTO`, `ErpItemDTO`, `ErpItemBarcodeDTO`; each `NavPosResult` gives the rows, read, kept, left out by reason, notes, and for barcodes the highest `Entry_No` read |
+| `NavPosPagesMapper` (no Spring) | To `ErpItemFamilyDTO`, `ErpItemSubFamilyDTO`, `ErpItemDTO`, `ErpItemBarcodeDTO`; each `erp/spi/ErpRead` (was `NavPosResult`) gives the rows, read, kept, left out by reason, notes, and for barcodes the highest position read (here `Entry_No`) |
 | `NavPosPagesReader` | Client + mapper: `readFamilies()`, `readSubFamilies()`, `readItems()`, `readBarcodesAfter(n)` |
 | `NavPosPagesConnector` | The `ErpConnector` (the only one with `erp.connector=navpospages`), read only |
 

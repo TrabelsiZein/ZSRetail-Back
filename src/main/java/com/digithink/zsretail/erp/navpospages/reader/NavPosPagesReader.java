@@ -11,7 +11,7 @@ import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
 import com.digithink.zsretail.erp.navpospages.client.NavPosPagesRestClient;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosPagesMapper;
-import com.digithink.zsretail.erp.navpospages.mapper.NavPosResult;
+import com.digithink.zsretail.erp.spi.ErpRead;
 
 /**
  * ERP catalogue, step 5: reads a page and translates it (client + mapper). Used by the live read test now and by the
@@ -35,21 +35,21 @@ public class NavPosPagesReader {
 		this.mapper = mapper;
 	}
 
-	public NavPosResult<ErpItemFamilyDTO> readFamilies() {
+	public ErpRead<ErpItemFamilyDTO> readFamilies() {
 		return mapper.families(client.readCategories());
 	}
 
-	public NavPosResult<ErpItemSubFamilyDTO> readSubFamilies() {
+	public ErpRead<ErpItemSubFamilyDTO> readSubFamilies() {
 		return mapper.subFamilies(client.readCategories());
 	}
 
 	/** The items of one stock point (its Location_Code). */
-	public NavPosResult<ErpItemDTO> readItems(String locationCode) {
+	public ErpRead<ErpItemDTO> readItems(String locationCode) {
 		return mapper.items(client.readItems(locationCode));
 	}
 
-	/** One page of barcodes after entryNo; ask again from getHighestEntryNo() while it is not null. */
-	public NavPosResult<ErpItemBarcodeDTO> readBarcodesAfter(long entryNo) {
+	/** One page of barcodes after entryNo; ask again from getHighestPosition() while it is not null. */
+	public ErpRead<ErpItemBarcodeDTO> readBarcodesAfter(long entryNo) {
 		return mapper.barcodes(client.readBarcodesAfter(entryNo));
 	}
 }

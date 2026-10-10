@@ -29,8 +29,8 @@ import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosPagesMapper;
-import com.digithink.zsretail.erp.navpospages.mapper.NavPosResult;
 import com.digithink.zsretail.erp.service.ErpSyncWarningException;
+import com.digithink.zsretail.erp.spi.ErpRead;
 import com.digithink.zsretail.erp.spi.StockPoints;
 
 /**
@@ -153,7 +153,7 @@ public class NavPosPagesSync {
 	public NavPosRun<ErpItemFamilyDTO> families() {
 		String page = properties.getPage().getCategories();
 		Summary summary = new Summary("families", page, properties.isDryRun());
-		NavPosResult<ErpItemFamilyDTO> read = mapper.families(source.readCategories());
+		ErpRead<ErpItemFamilyDTO> read = mapper.families(source.readCategories());
 		summary.read(read);
 		Map<String, NavPosPagesHeadOffice.Family> local = headOffice.families();
 		List<ErpItemFamilyDTO> changes = new ArrayList<>();
@@ -182,7 +182,7 @@ public class NavPosPagesSync {
 		if (waiting != null) {
 			return run(new ArrayList<>(), summary.waiting(waiting), page);
 		}
-		NavPosResult<ErpItemSubFamilyDTO> read = mapper.subFamilies(categories);
+		ErpRead<ErpItemSubFamilyDTO> read = mapper.subFamilies(categories);
 		summary.read(read);
 		Map<String, NavPosPagesHeadOffice.SubFamily> local = headOffice.subFamilies();
 		List<ErpItemSubFamilyDTO> changes = new ArrayList<>();
@@ -461,7 +461,7 @@ public class NavPosPagesSync {
 		final StockPoints.Point point;
 		/** Rows the ERP answered for the point (0: no answer, nothing changes in the point). */
 		final int read;
-		final NavPosResult<ErpItemDTO> result;
+		final ErpRead<ErpItemDTO> result;
 		long millis;
 		Map<String, StockPoints.Row> stored = new LinkedHashMap<>();
 		final List<StockPoints.Row> toWrite = new ArrayList<>();
@@ -470,7 +470,7 @@ public class NavPosPagesSync {
 		int deactivated;
 		int written;
 
-		PointRead(StockPoints.Point point, int read, NavPosResult<ErpItemDTO> result, long millis) {
+		PointRead(StockPoints.Point point, int read, ErpRead<ErpItemDTO> result, long millis) {
 			this.point = point;
 			this.read = read;
 			this.result = result;
@@ -922,7 +922,7 @@ public class NavPosPagesSync {
 			rows.addAll(read);
 		}
 		summary.put("years", years);
-		NavPosResult<ErpSupplyInvoiceDTO> mapped = mapper.invoices(rows, settings.getCustomerField().trim());
+		ErpRead<ErpSupplyInvoiceDTO> mapped = mapper.invoices(rows, settings.getCustomerField().trim());
 		summary.read(mapped);
 		Map<String, ErpSupplyInvoiceDTO> byNumber = new TreeMap<>();
 		for (ErpSupplyInvoiceDTO invoice : mapped.getRows()) {
@@ -949,7 +949,7 @@ public class NavPosPagesSync {
 		List<String> asked = numbers == null ? new ArrayList<>() : numbers;
 		summary.put("readAgain", asked.size());
 		List<NavPosInvoiceRow> rows = asked.isEmpty() ? new ArrayList<>() : source.readInvoicesByNumbers(asked);
-		NavPosResult<ErpSupplyInvoiceDTO> mapped = mapper.invoices(rows, settings.getCustomerField().trim());
+		ErpRead<ErpSupplyInvoiceDTO> mapped = mapper.invoices(rows, settings.getCustomerField().trim());
 		summary.read(mapped);
 		List<ErpSupplyInvoiceDTO> invoices = new ArrayList<>();
 		for (ErpSupplyInvoiceDTO invoice : mapped.getRows()) {
@@ -1026,7 +1026,7 @@ public class NavPosPagesSync {
 			values.put("leftOut", leftOut);
 		}
 
-		void read(NavPosResult<?> result) {
+		void read(ErpRead<?> result) {
 			values.put("read", result.getRead());
 			result.getLeftOut().forEach((reason, count) -> leftOut.merge(reason, count, Integer::sum));
 			if (!result.getNotes().isEmpty()) {
@@ -1035,7 +1035,7 @@ public class NavPosPagesSync {
 		}
 
 		/** Stock points: one more point read, its counts added to those of the points before it. */
-		void addRead(NavPosResult<?> result) {
+		void addRead(ErpRead<?> result) {
 			add("read", result.getRead());
 			result.getLeftOut().forEach((reason, count) -> leftOut.merge(reason, count, Integer::sum));
 			if (!result.getNotes().isEmpty()) {

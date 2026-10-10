@@ -25,7 +25,7 @@ import com.digithink.zsretail.erp.navpospages.dto.NavPosCollection;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosPagesMapper;
-import com.digithink.zsretail.erp.navpospages.mapper.NavPosResult;
+import com.digithink.zsretail.erp.spi.ErpRead;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -45,7 +45,7 @@ class NavPosPagesMapperTest {
 		List<NavPosStockRow> rows = NavPosPagesTestSupport.rows("PointStockPOS",
 				new TypeReference<NavPosCollection<NavPosStockRow>>() {
 				});
-		NavPosResult<ErpItemDTO> result = mapper.items(rows);
+		ErpRead<ErpItemDTO> result = mapper.items(rows);
 		assertEquals(50, result.getRead());
 		assertEquals(50, result.getKept());
 		assertTrue(result.getLeftOut().isEmpty(), result.toString());
@@ -88,7 +88,7 @@ class NavPosPagesMapperTest {
 	@Test
 	@DisplayName("Categories of the sample: 13 families, 34 sub-families, the 3 Categorie rows ignored")
 	void categoriesSample() {
-		NavPosResult<ErpItemFamilyDTO> families = mapper.families(categorySample());
+		ErpRead<ErpItemFamilyDTO> families = mapper.families(categorySample());
 		assertEquals(50, families.getRead());
 		assertEquals(13, families.getKept());
 		assertEquals(34, families.getLeftOut("type Subfamily"));
@@ -99,7 +99,7 @@ class NavPosPagesMapperTest {
 		assertEquals("Accessoires Bébé", first.getName());
 		assertEquals(Boolean.TRUE, first.getActive());
 
-		NavPosResult<ErpItemSubFamilyDTO> subFamilies = mapper.subFamilies(categorySample());
+		ErpRead<ErpItemSubFamilyDTO> subFamilies = mapper.subFamilies(categorySample());
 		assertEquals(34, subFamilies.getKept());
 		assertEquals(13, subFamilies.getLeftOut("type Family"));
 		assertEquals(3, subFamilies.getLeftOut("type Categorie"));
@@ -117,14 +117,14 @@ class NavPosPagesMapperTest {
 				new NavPosCategoryRow("S2", "Orphan", "F9", "Subfamily"),
 				new NavPosCategoryRow("S3", "Under a category", "C1", "Subfamily"),
 				new NavPosCategoryRow("  ", "Blank", "", "Family"));
-		NavPosResult<ErpItemFamilyDTO> families = mapper.families(rows);
+		ErpRead<ErpItemFamilyDTO> families = mapper.families(rows);
 		assertEquals(Arrays.asList("F1"), families.getRows().stream().map(ErpItemFamilyDTO::getCode)
 				.collect(Collectors.toList()));
 		assertEquals("Family one", families.getRows().get(0).getName());
 		assertEquals(1, families.getLeftOut(NavPosPagesMapper.BLANK_CODE));
 		assertEquals(1, families.getLeftOut("type Categorie"));
 
-		NavPosResult<ErpItemSubFamilyDTO> subFamilies = mapper.subFamilies(rows);
+		ErpRead<ErpItemSubFamilyDTO> subFamilies = mapper.subFamilies(rows);
 		assertEquals(Arrays.asList("S1"), subFamilies.getRows().stream().map(ErpItemSubFamilyDTO::getCode)
 				.collect(Collectors.toList()));
 		assertEquals("F1", subFamilies.getRows().get(0).getFamilyExternalId());
@@ -143,7 +143,7 @@ class NavPosPagesMapperTest {
 				new NavPosStockRow(" ", "", "no code", new BigDecimal("1"), "F", "S"),
 				new NavPosStockRow("C", null, "free", null, "", "S"),
 				new NavPosStockRow("D", "", "zero", BigDecimal.ZERO, "F", "S"));
-		NavPosResult<ErpItemDTO> result = mapper.items(rows);
+		ErpRead<ErpItemDTO> result = mapper.items(rows);
 		assertEquals(Arrays.asList("A", "B", "C", "D"),
 				result.getRows().stream().map(ErpItemDTO::getCode).collect(Collectors.toList()));
 		assertEquals("A plain", result.getRows().get(0).getName());
@@ -178,11 +178,11 @@ class NavPosPagesMapperTest {
 	@Test
 	@DisplayName("Barcodes of the sample: 50 kept, the highest Entry_No read")
 	void barcodesSample() {
-		NavPosResult<ErpItemBarcodeDTO> result = mapper.barcodes(NavPosPagesTestSupport.rows("ItemBarCodePOS",
+		ErpRead<ErpItemBarcodeDTO> result = mapper.barcodes(NavPosPagesTestSupport.rows("ItemBarCodePOS",
 				new TypeReference<NavPosCollection<NavPosBarcodeRow>>() {
 				}));
 		assertEquals(50, result.getKept());
-		assertEquals(Long.valueOf(48793), result.getHighestEntryNo());
+		assertEquals(Long.valueOf(48793), result.getHighestPosition());
 		ErpItemBarcodeDTO first = result.getRows().get(0);
 		assertEquals("0000016", first.getBarcode());
 		assertEquals("0000016", first.getExternalId());
@@ -197,7 +197,7 @@ class NavPosPagesMapperTest {
 				new NavPosBarcodeRow("I2", "619", 9L), new NavPosBarcodeRow("I3", "619", 7L),
 				new NavPosBarcodeRow("I4", " ", 12L), new NavPosBarcodeRow(" ", "700", 3L),
 				new NavPosBarcodeRow(" I5 ", "701", 4L));
-		NavPosResult<ErpItemBarcodeDTO> result = mapper.barcodes(rows);
+		ErpRead<ErpItemBarcodeDTO> result = mapper.barcodes(rows);
 		assertEquals(Arrays.asList("619", "701"),
 				result.getRows().stream().map(ErpItemBarcodeDTO::getBarcode).collect(Collectors.toList()));
 		assertEquals("I2", result.getRows().get(0).getItemExternalId());
@@ -205,10 +205,10 @@ class NavPosPagesMapperTest {
 		assertEquals(2, result.getLeftOut(NavPosPagesMapper.SAME_BARCODE));
 		assertEquals(1, result.getLeftOut(NavPosPagesMapper.BLANK_BARCODE));
 		assertEquals(1, result.getLeftOut(NavPosPagesMapper.BLANK_ITEM_NO));
-		assertEquals(Long.valueOf(12), result.getHighestEntryNo(), "the highest read, left out rows included");
+		assertEquals(Long.valueOf(12), result.getHighestPosition(), "the highest read, left out rows included");
 
-		NavPosResult<ErpItemBarcodeDTO> empty = mapper.barcodes(Arrays.asList());
-		assertNull(empty.getHighestEntryNo());
+		ErpRead<ErpItemBarcodeDTO> empty = mapper.barcodes(Arrays.asList());
+		assertNull(empty.getHighestPosition());
 		assertEquals(0, empty.getRead());
 	}
 
@@ -218,7 +218,7 @@ class NavPosPagesMapperTest {
 	@DisplayName("Invoices: header, totals from the first line, Item lines ITEM (price 0 kept), G/L with an amount OTHER;"
 			+ " comments and G/L at 0 left out")
 	void invoicesSample() {
-		NavPosResult<ErpSupplyInvoiceDTO> result = mapper.invoices(NavPosPagesTestSupport.invoiceRows(),
+		ErpRead<ErpSupplyInvoiceDTO> result = mapper.invoices(NavPosPagesTestSupport.invoiceRows(),
 				"Sell_to_Customer_No");
 		assertEquals(2, result.getRead());
 		assertEquals(2, result.getKept());
@@ -262,7 +262,7 @@ class NavPosPagesMapperTest {
 	@Test
 	@DisplayName("Invoices: warnings for prices including VAT, lines off the total, not a franchise; 2.2.1: 1.5 is no warning")
 	void invoiceWarnings() {
-		NavPosResult<ErpSupplyInvoiceDTO> result = mapper.invoices(NavPosPagesTestSupport.invoiceRows(),
+		ErpRead<ErpSupplyInvoiceDTO> result = mapper.invoices(NavPosPagesTestSupport.invoiceRows(),
 				"Sell_to_Customer_No");
 		assertEquals(1, result.getNote(NavPosPagesMapper.WITH_WARNINGS));
 		ErpSupplyInvoiceDTO second = result.getRows().get(1);
@@ -293,7 +293,7 @@ class NavPosPagesMapperTest {
 				+ "{\"Line_No\":20000,\"Type\":\"Item\",\"No\":\" \",\"Quantity\":1,\"Line_Amount\":0},"
 				+ "{\"Line_No\":30000,\"Type\":\"Item\",\"No\":\"A1\",\"Quantity\":2.000,\"Line_Amount\":0}]}",
 				NavPosInvoiceRow.class).resolveLines("L");
-		NavPosResult<ErpSupplyInvoiceDTO> result = mapper.invoices(Arrays.asList(blank, empty, noItem), "Customer");
+		ErpRead<ErpSupplyInvoiceDTO> result = mapper.invoices(Arrays.asList(blank, empty, noItem), "Customer");
 		assertEquals(3, result.getRead());
 		assertEquals(1, result.getLeftOut(NavPosPagesMapper.BLANK_NUMBER));
 		assertEquals(1, result.getLeftOut(NavPosPagesMapper.ZERO_OTHER_LINE));

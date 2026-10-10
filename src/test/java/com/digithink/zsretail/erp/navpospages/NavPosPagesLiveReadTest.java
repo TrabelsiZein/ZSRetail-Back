@@ -16,8 +16,8 @@ import com.digithink.zsretail.erp.navpospages.config.NavPosPagesConfig;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesStartupCheck;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosPagesMapper;
-import com.digithink.zsretail.erp.navpospages.mapper.NavPosResult;
 import com.digithink.zsretail.erp.navpospages.reader.NavPosPagesReader;
+import com.digithink.zsretail.erp.spi.ErpRead;
 import com.digithink.zsretail.support.Installations;
 
 /**
@@ -52,12 +52,12 @@ class NavPosPagesLiveReadTest {
 		long after = 0;
 		for (int page = 1; page <= 2; page++) {
 			long from = after;
-			NavPosResult<?> barcodes = print("barcodes (" + properties.getPage().getBarcodes() + ") page " + page
+			ErpRead<?> barcodes = print("barcodes (" + properties.getPage().getBarcodes() + ") page " + page
 					+ " after Entry_No " + from, () -> reader.readBarcodesAfter(from));
-			if (barcodes.getHighestEntryNo() == null) {
+			if (barcodes.getHighestPosition() == null) {
 				break;
 			}
-			after = barcodes.getHighestEntryNo();
+			after = barcodes.getHighestPosition();
 		}
 	}
 
@@ -82,7 +82,7 @@ class NavPosPagesLiveReadTest {
 		for (Integer year : java.util.Collections.singletonList(Integer.getInteger("navpospages.invoice-year", 2021))) {
 			String prefix = properties.getInvoices().yearPrefix(year);
 			long start = System.currentTimeMillis();
-			NavPosResult<ErpSupplyInvoiceDTO> result = mapper.invoices(client.readInvoicesAfter(prefix, null),
+			ErpRead<ErpSupplyInvoiceDTO> result = mapper.invoices(client.readInvoicesAfter(prefix, null),
 					properties.getInvoices().getCustomerField());
 			System.out.println("\n== invoices (" + properties.getPage().getInvoices() + ", " + prefix + "): " + result
 					+ " in " + (System.currentTimeMillis() - start) + " ms");
@@ -106,9 +106,9 @@ class NavPosPagesLiveReadTest {
 		}
 	}
 
-	private static <T> NavPosResult<T> print(String title, Supplier<NavPosResult<T>> read) {
+	private static <T> ErpRead<T> print(String title, Supplier<ErpRead<T>> read) {
 		long start = System.currentTimeMillis();
-		NavPosResult<T> result = read.get();
+		ErpRead<T> result = read.get();
 		long millis = System.currentTimeMillis() - start;
 		System.out.println("\n== " + title + ": " + result + " in " + millis + " ms");
 		List<T> rows = result.getRows();

@@ -1,4 +1,4 @@
-package com.digithink.zsretail.erp.navpospages.mapper;
+package com.digithink.zsretail.erp.spi;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -6,24 +6,26 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The rows of one page translated to the Erp*DTO classes, with what happened to the rows read: kept, left out by reason,
- * and kept but noted (e.g. a zero price). For the barcodes, the highest Entry_No read (null when the page was empty).
+ * One read of the ERP translated to the Erp*DTO classes, with what happened to the rows read: kept, left out by reason,
+ * and kept but noted (e.g. a zero price). For the barcodes, the highest position read (the number the ERP gives each
+ * barcode row and that only grows; null when the read was empty). Code cleanup step 3: was NavPosResult of the
+ * navpospages connector.
  */
-public class NavPosResult<T> {
+public class ErpRead<T> {
 
 	private final List<T> rows;
 	private final int read;
 	private final Map<String, Integer> leftOut;
 	private final Map<String, Integer> notes;
-	private final Long highestEntryNo;
+	private final Long highestPosition;
 
-	public NavPosResult(List<T> rows, int read, Map<String, Integer> leftOut, Map<String, Integer> notes,
-			Long highestEntryNo) {
+	public ErpRead(List<T> rows, int read, Map<String, Integer> leftOut, Map<String, Integer> notes,
+			Long highestPosition) {
 		this.rows = Collections.unmodifiableList(rows);
 		this.read = read;
 		this.leftOut = Collections.unmodifiableMap(new LinkedHashMap<>(leftOut));
 		this.notes = Collections.unmodifiableMap(new LinkedHashMap<>(notes));
-		this.highestEntryNo = highestEntryNo;
+		this.highestPosition = highestPosition;
 	}
 
 	public List<T> getRows() {
@@ -58,14 +60,14 @@ public class NavPosResult<T> {
 		return notes.getOrDefault(reason, 0);
 	}
 
-	public Long getHighestEntryNo() {
-		return highestEntryNo;
+	public Long getHighestPosition() {
+		return highestPosition;
 	}
 
-	/** read N, kept N, left out {...}, notes {...}[, highest Entry_No N] */
+	/** read N, kept N, left out {...}, notes {...}[, highest position N] */
 	@Override
 	public String toString() {
 		return "read " + read + ", kept " + getKept() + ", left out " + leftOut + (notes.isEmpty() ? "" : ", notes " + notes)
-				+ (highestEntryNo == null ? "" : ", highest Entry_No " + highestEntryNo);
+				+ (highestPosition == null ? "" : ", highest position " + highestPosition);
 	}
 }
