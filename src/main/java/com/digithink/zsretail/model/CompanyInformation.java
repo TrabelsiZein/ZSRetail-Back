@@ -78,10 +78,12 @@ public class CompanyInformation extends _BaseEntity {
     private Boolean receiptPrintAddress;
 
     /** Footer of the ticket, several lines; null or blank = the invoice footer note is printed (as 2.2.1). */
+    @org.hibernate.annotations.Nationalized // nvarchar: any language, Arabic included
     @Column(name = "receipt_footer_text", length = 1000)
     private String receiptFooterText;
 
     /** The thank-you line of a sale ticket; null or blank = "Merci pour votre achat !". */
+    @org.hibernate.annotations.Nationalized // nvarchar: any language, Arabic included
     @Column(name = "receipt_thank_you_text", length = 200)
     private String receiptThankYouText;
 

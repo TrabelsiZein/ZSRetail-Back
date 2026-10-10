@@ -5,6 +5,8 @@
 --   1) Run db/2.2.1 first if the database is older than 2.2.1 (this script stops, without changing anything, while
 --      APP_VERSION is not 2.2.1 or 2.2.2).
 --   2) Run this script against the database (the same script on a store and on a head office).
+--      The file is UTF-8 (accents of the release notes): with sqlcmd add -f 65001 (sqlcmd ... -f 65001 -i update.sql);
+--      in SSMS open it as UTF-8. Read as ANSI, the notes are stored with garbled accents (é becomes Ã©).
 --   3) Deploy the 2.2.2 binaries (backend WAR and frontend).
 -- The application refuses to start while APP_VERSION differs from its own version, so step 2 must be done before 3.
 -- A head office and its stores move to 2.2.2 together: a 2.2.1 head office refuses the copy of a return of 0.2 (it
@@ -182,10 +184,17 @@ IF OBJECT_ID('company_information') IS NOT NULL
 BEGIN
 	IF COL_LENGTH('company_information', 'receipt_print_address') IS NULL
 		ALTER TABLE company_information ADD receipt_print_address bit NULL;
+	-- the two texts in nvarchar: any language, Arabic included (a varchar one, made by an earlier 2.2.2 build, is converted)
 	IF COL_LENGTH('company_information', 'receipt_footer_text') IS NULL
-		ALTER TABLE company_information ADD receipt_footer_text varchar(1000) NULL;
+		ALTER TABLE company_information ADD receipt_footer_text nvarchar(1000) NULL;
+	ELSE IF EXISTS (SELECT 1 FROM sys.columns c JOIN sys.types t ON t.user_type_id = c.user_type_id
+			WHERE c.object_id = OBJECT_ID('company_information') AND c.name = 'receipt_footer_text' AND t.name = 'varchar')
+		ALTER TABLE company_information ALTER COLUMN receipt_footer_text nvarchar(1000) NULL;
 	IF COL_LENGTH('company_information', 'receipt_thank_you_text') IS NULL
-		ALTER TABLE company_information ADD receipt_thank_you_text varchar(200) NULL;
+		ALTER TABLE company_information ADD receipt_thank_you_text nvarchar(200) NULL;
+	ELSE IF EXISTS (SELECT 1 FROM sys.columns c JOIN sys.types t ON t.user_type_id = c.user_type_id
+			WHERE c.object_id = OBJECT_ID('company_information') AND c.name = 'receipt_thank_you_text' AND t.name = 'varchar')
+		ALTER TABLE company_information ALTER COLUMN receipt_thank_you_text nvarchar(200) NULL;
 	IF COL_LENGTH('company_information', 'receipt_show_thank_you') IS NULL
 		ALTER TABLE company_information ADD receipt_show_thank_you bit NULL;
 	IF COL_LENGTH('company_information', 'receipt_show_software_label') IS NULL
@@ -214,7 +223,11 @@ INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
 ('2.2.2', 'NEW', 'Retours avec quantités décimales quand le magasin les autorise (Configuration générale, Autoriser les quantités décimales) : une ligne vendue 0,5 L se retourne en 0,2 puis 0,3 ; une ligne vendue 2 peut se retourner en 1,5. Au plus 3 décimales, saisies avec une virgule ou un point, jamais plus que ce qui reste à retourner.'),
 ('2.2.2', 'IMPROVE', 'Montant d''une ligne retournée avec des décimales : la part de la ligne vendue (total de la ligne / quantité vendue × quantité retournée), arrondie au millime ; le retour qui termine la ligne rembourse ce qui en reste, si bien que les retours additionnés font exactement la ligne payée. Les retours en nombres entiers sont calculés comme avant.'),
 ('2.2.2', 'IMPROVE', 'Sans le paramètre, une quantité décimale saisie au retour est refusée avec un message (elle était arrondie sans le dire : 1,5 devenait 2), et une ligne vendue avec des décimales n''est pas retournable, avec la raison.'),
-('2.2.2', 'NEW', 'Siège : les retours arrivent avec leurs quantités décimales, affichées sans zéros inutiles ; le stock du réseau suit le stock du magasin.');
+('2.2.2', 'NEW', 'Siège : les retours arrivent avec leurs quantités décimales, affichées sans zéros inutiles ; le stock du réseau suit le stock du magasin.'),
+('2.2.2', 'IMPROVE', 'Un administrateur n''a jamais à scanner de badge à la caisse (liste des clients, retour, remises, fermeture de session) ; à la fermeture avec un écart, il voit l''écart et le confirme.'),
+('2.2.2', 'NEW', 'Caisse : deux paramètres masquent les familles et les sous-familles sans article à vendre ; les articles d''une famille sans sous-famille apparaissent sous une tuile « Sans sous-famille », ou directement à l''ouverture de la famille.'),
+('2.2.2', 'FIX', 'Une promotion à montant fixe plus grande que la ligne n''enregistre plus de montants négatifs ; une quantité décimale tapée alors que les décimales ne sont pas autorisées est refusée avec un message ; la fonction du membre fidélité n''est demandée que s''il en existe une active ; fréquences par défaut des échanges avec le siège allongées ; « Code du magasin » dans la configuration générale d''un magasin relié au siège ; le navigateur ne propose plus de traduire la page.'),
+('2.2.2', 'NEW', 'Informations de la société, bloc « Ticket de vente » : adresse sur le ticket, texte de bas de ticket, ligne de remerciement et mention « ZS Retail » au choix ; laissés vides, le ticket reste comme avant.');
 
 GO
 
