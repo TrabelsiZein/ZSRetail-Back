@@ -53,6 +53,22 @@ public interface ErpConnector {
 	List<ErpDeletionLogEntryDTO> fetchDeletionLog(ErpSyncFilter filter);
 
 	/**
+	 * Code cleanup, step 2: the erp_external_id of the sales price a deletion log entry removes, as this connector built
+	 * it at the import; null when the entry is not a sales price (or the connector has no deletion log).
+	 */
+	default String deletedSalesPriceExternalId(ErpDeletionLogEntryDTO entry) {
+		return null;
+	}
+
+	/**
+	 * Code cleanup, step 2: the erp_external_id of the sales discount a deletion log entry removes, as this connector
+	 * built it at the import; null when the entry is not a sales discount (or the connector has no deletion log).
+	 */
+	default String deletedSalesDiscountExternalId(ErpDeletionLogEntryDTO entry) {
+		return null;
+	}
+
+	/**
 	 * Get the result metadata from the last pull operation (for logging purposes).
 	 * This should be called immediately after a fetch operation within the same
 	 * thread. Returns null if no pull operation was performed or if metadata is not

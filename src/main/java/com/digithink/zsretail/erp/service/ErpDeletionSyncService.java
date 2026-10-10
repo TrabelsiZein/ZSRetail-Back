@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.digithink.zsretail.erp.dto.ErpDeletionLogEntryDTO;
 import com.digithink.zsretail.erp.dto.ErpSyncFilter;
-import com.digithink.zsretail.erp.dynamicsnav.mapper.DynamicsNavMapper;
+import com.digithink.zsretail.erp.spi.ErpConnector;
 import com.digithink.zsretail.repository.SalesDiscountRepository;
 import com.digithink.zsretail.repository.SalesPriceRepository;
 
@@ -27,7 +27,8 @@ public class ErpDeletionSyncService {
 	private static final Logger LOGGER = LoggerFactory.getLogger(ErpDeletionSyncService.class);
 
 	private final ErpSynchronizationManager synchronizationManager;
-	private final DynamicsNavMapper dynamicsNavMapper;
+	/** Code cleanup, step 2: the connector in effect builds the ids, as it built them at the import. */
+	private final ErpConnector erpConnector;
 	private final SalesPriceRepository salesPriceRepository;
 	private final SalesDiscountRepository salesDiscountRepository;
 
@@ -46,7 +47,7 @@ public class ErpDeletionSyncService {
 		int[] deletedPrices = { 0 };
 		int[] deletedDiscounts = { 0 };
 		for (ErpDeletionLogEntryDTO entry : entries) {
-			String priceExternalId = dynamicsNavMapper.buildSalesPriceExternalIdFromLogEntry(entry);
+			String priceExternalId = erpConnector.deletedSalesPriceExternalId(entry);
 			if (priceExternalId != null) {
 				salesPriceRepository.findByErpExternalId(priceExternalId).ifPresent(entity -> {
 					salesPriceRepository.delete(entity);
@@ -56,7 +57,7 @@ public class ErpDeletionSyncService {
 				continue;
 			}
 
-			String discountExternalId = dynamicsNavMapper.buildSalesDiscountExternalIdFromLogEntry(entry);
+			String discountExternalId = erpConnector.deletedSalesDiscountExternalId(entry);
 			if (discountExternalId != null) {
 				salesDiscountRepository.findByErpExternalId(discountExternalId).ifPresent(entity -> {
 					salesDiscountRepository.delete(entity);

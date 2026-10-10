@@ -196,6 +196,11 @@ abilities (`erp/spi/ErpAbility`), read from the environment, so a condition uses
 `hasConnector(env)` is true for any connector but none. A new ability is added there when the code needs it, never a test on
 a connector name.
 
+**Deletion sync** (`ErpDeletionSyncService`, job of the ERP Log): the `erp_external_id` of a deleted sales price or discount
+is built by the connector in effect (`ErpConnector.deletedSalesPriceExternalId` / `deletedSalesDiscountExternalId`), the
+way it built it at the import: `DynamicsNavConnector` through `DynamicsNavMapper`, the other connectors answer null (they
+have no deletion log). The ids are pinned character for character by `ErpDeletionSyncServiceTest`.
+
 ## Head office catalogue from the ERP pages (`erp.navpospages`)
 
 The head office reads its catalogue from the ERP pages of one location (details in `head-office.md`, "the connector

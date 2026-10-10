@@ -177,6 +177,16 @@ public class DynamicsNavConnector implements ErpConnector {
 		}
 	}
 
+	@Override
+	public String deletedSalesPriceExternalId(ErpDeletionLogEntryDTO entry) {
+		return mapper.buildSalesPriceExternalIdFromLogEntry(entry);
+	}
+
+	@Override
+	public String deletedSalesDiscountExternalId(ErpDeletionLogEntryDTO entry) {
+		return mapper.buildSalesDiscountExternalIdFromLogEntry(entry);
+	}
+
 	/**
 	 * Store pull operation metadata (URL and raw response) for logging purposes.
 	 * This is called after each fetch operation, similar to how push operations
