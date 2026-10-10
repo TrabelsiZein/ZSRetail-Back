@@ -16,8 +16,8 @@ import com.digithink.zsretail.model.enumeration.DataDomain;
 
 /**
  * Configuration step C1: one INFO line once the application is up, saying what this installation is and where it runs
- * (type, database, each owner, where the sales go, the NAV address when the connector is on, the outside file when one
- * was loaded). Never a password or a key.
+ * (type, database, each owner, where the sales go, the ERP connector in effect, the NAV address when that connector
+ * is on, the outside file when one was loaded). Never a password or a key.
  */
 @Component
 public class InstallationSummary {
@@ -50,7 +50,9 @@ public class InstallationSummary {
 		if (NodeOwnership.isSupplyFromErpSourceSet(env)) {
 			line.add("supply invoices from the ERP");
 		}
-		if (Boolean.parseBoolean(env.getProperty("erp.dynamicsnav.enabled", "false").trim())) {
+		String connector = ErpConnectorEnvironmentPostProcessor.inEffect(env);
+		line.add("ERP connector " + connector);
+		if (ErpConnectorEnvironmentPostProcessor.DYNAMICS_NAV.equals(connector)) {
 			line.add("NAV " + env.getProperty("erp.dynamicsnav.base-url", "(no address)"));
 		}
 		String outsideFile = env.getProperty(MachineFileEnvironmentPostProcessor.LOADED_KEY);

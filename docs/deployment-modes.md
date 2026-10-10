@@ -14,8 +14,8 @@ head office since ERP catalogue step 1: the catalogue alone from the ERP (sectio
 | `application-headoffice.properties` | the type headoffice |
 
 Each type file has two titled blocks:
-- **What this installation is**: `node.type`, the five `ownership.*`, `sales.upstream`, `erp.dynamicsnav.enabled`, each with a
-  comment giving its allowed values. Both types ship with every owner `LOCAL`, sales nowhere, no NAV connector. The store
+- **What this installation is**: `node.type`, the five `ownership.*`, `sales.upstream`, `erp.dynamicsnav.enabled` (its comment names
+  `erp.connector`, section 2), each with a comment giving its allowed values. Both types ship with every owner `LOCAL`, sales nowhere, no NAV connector. The store
   file shows the two usual variants as comments: a store on NAV (catalogue, customers, supply `ERP`, sales to `ERP`, connector
   on) and a store of a network (catalogue and supply `HEAD_OFFICE`, sales to `HEAD_OFFICE`, plus the head office link).
 - **Where it runs**: database, `server.port`, log file, upload folder, `pos.pricing.enable-sales-price-group`, the NAV connection
@@ -47,10 +47,36 @@ in effect is exactly `store` or `headoffice`; anything else (none, two, an old p
 such as `dynamics-prod` left in the server's options) stops the startup: `The active profile is [<names>]: it must be one
 installation type, spring.profiles.active=store | headoffice ...`. `application.standalone` stays refused.
 
+**ERP connector** (code cleanup step 1): one line chooses it, `erp.connector=none | dynamicsnav | navpospages` (trimmed, any
+case), the way for a new installation (in its outside file). It is only a translation into the two old lines, done by
+`config/ErpConnectorEnvironmentPostProcessor` after the configuration files are read and before Spring reads its conditions:
+
+| `erp.connector` | `erp.dynamicsnav.enabled` | `erp.navpospages.enabled` |
+|---|---|---|
+| `none` | `false` | `false` |
+| `dynamicsnav` | `true` | `false` |
+| `navpospages` | `false` | `true` |
+| absent | as written (nothing translated) | as written |
+
+So every `@ConditionalOnProperty`, `NodeOwnership`, the startup checks and the summary read the old lines unchanged. The
+**old lines are still accepted**: without `erp.connector` they act exactly as before, and every file of `deploy/` and `configs/`
+resolves as before (checked key by key, `ErpConnectorTest`). The translated values sit just above the property source that gives
+`erp.connector`, so they win over an old line of a lower source (the type files' `erp.dynamicsnav.enabled=false`). Refused at
+startup: an unknown value (empty included), `Invalid value '<v>' for property erp.connector: none | dynamicsnav | navpospages
+...`; an old line of the same or a higher source (the same outside file, a `-D`) that says the opposite, `Invalid combination:
+erp.connector=<v> with <old key>=<value> (<source>) ...`. An old line that agrees is accepted.
+
+Two rules, decided at code cleanup step 1:
+- **A contradiction counts only in the same or a higher-priority source** than the one giving `erp.connector`. An opposite old
+  line in a lower source is not refused, `erp.connector` wins over it: both type files say `erp.dynamicsnav.enabled=false`, and
+  refusing that line would refuse every `erp.connector=dynamicsnav`.
+- **An empty `erp.connector=` is refused as an unknown value**, not read as absent: to keep the old lines, leave the key out.
+
 **Startup summary**: one INFO line once the application is up (`config/InstallationSummary`), e.g.
 `Installation: type STORE, database pos_store_b, catalogue HEAD_OFFICE, customers LOCAL, promotions LOCAL, loyalty HEAD_OFFICE,
-supply HEAD_OFFICE, sales to [HEAD_OFFICE], outside file D:\...\deploy\dev\store-b.properties`. With the NAV connector on it
-adds `NAV <base-url>`; never a password or a key.
+supply HEAD_OFFICE, sales to [HEAD_OFFICE], ERP connector none, outside file D:\...\deploy\dev\store-b.properties`. The connector
+(`none`, `dynamicsnav`, `navpospages`) is worked out from the old lines in effect, whichever way they were set. With
+`dynamicsnav` it adds `NAV <base-url>`; never a password or a key.
 
 **The `deploy/` folder** (versioned): every file names its type and, when the old preset differed from the type file, states
 the mode lines that preset gave, so every key of every file resolves exactly as before step C1 (checked key by key).
@@ -91,6 +117,7 @@ outside file of `deploy/` like the application; it keeps the six shapes of task 
 2. Copy `deploy/machine-model.properties`: database, log file and image folder (their own per installation), the type
    (`headoffice` for a head office), and the mode lines when the installation is not a plain store or head office (a store on
    NAV, a store of a network: the variants in `application-store.properties`), with the NAV connection or the head office link.
+   The ERP connector with `erp.connector` (section 2) rather than the old enabled lines.
 3. Put it at `${catalina.base}/conf/zsretail/<context name>.properties` (or point `-Dzsretail.machine-file` to it), deploy the
    WAR, start Tomcat. Hibernate creates the tables; the logins of a new database are created at the first start.
 4. A store of a network: create its row on the head office Stores page (code = the store's `DEFAULT_LOCATION`), put the key
