@@ -217,6 +217,28 @@ END
 
 UPDATE APP_VERSION SET version = '2.2.2';
 
+-- The notes of 2.2.1 repaired: a database where db/2.2.1/update.sql ran without UTF-8 (sqlcmd without -f 65001) has them
+-- with garbled accents (é stored as Ã©, « as Â«). When one of them holds such a sequence (compared byte by byte, so a
+-- plain A never matches), the 12 notes are written again with the text of db/2.2.1/update.sql; otherwise nothing changes.
+IF EXISTS (SELECT 1 FROM APP_RELEASE_NOTES WHERE version = '2.2.1'
+		AND (description COLLATE Latin1_General_BIN2 LIKE N'%Ã%' OR description COLLATE Latin1_General_BIN2 LIKE N'%Â%'))
+BEGIN
+DELETE FROM APP_RELEASE_NOTES WHERE version = '2.2.1';
+INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
+('2.2.1', 'NEW', 'Quantités décimales (jusqu''à 3 décimales) pour les articles vendus au litre ou au kilo : 0,2 ou 0,058 à la caisse. Le stock et les mouvements de stock gardent les décimales.'),
+('2.2.1', 'NEW', 'Nouveau paramètre du magasin « Autoriser les quantités décimales » (Configuration générale), désactivé par défaut : désactivé, une quantité doit être un nombre entier, comme avant.'),
+('2.2.1', 'IMPROVE', 'Le montant d''une ligne avec une quantité décimale est calculé par le serveur : prix unitaire TTC × quantité, arrondi au millime.'),
+('2.2.1', 'NEW', 'Siège : les tickets et le stock des magasins arrivent avec leurs quantités décimales (0,2 ; 9,8), affichées sans zéros inutiles dans l''historique des tickets et le stock du réseau.'),
+('2.2.1', 'NEW', 'Inventaire : le fichier peut porter des quantités décimales (1,34 ou 1.34, au plus 3 décimales) quand le magasin les autorise ; la validation met le stock à la quantité comptée, avec le mouvement de la différence. Sans le paramètre, une quantité décimale est refusée, comme avant.'),
+('2.2.1', 'NEW', 'Factures de l''ERP : une quantité décimale (1,5 ; 0,25) n''est plus bloquée au siège, elle est lue telle que l''ERP l''envoie ; seule une quantité à plus de 3 décimales bloque la facture. Les factures bloquées par la 2.2.0 pour une quantité non entière sont relues à la tâche suivante.'),
+('2.2.1', 'NEW', 'Réception au magasin : la quantité reçue peut être décimale quand le magasin autorise les quantités décimales ; sinon un document avec une quantité décimale ne peut pas être reçu. Le stock monte de la quantité reçue, la facture d''achat garde la quantité facturée, le siège voit la différence.'),
+('2.2.1', 'IMPROVE', 'Rapports, tableau de bord, historique des tickets, liste des articles et carte article à la caisse : les quantités décimales sont affichées avec leurs décimales, jamais tronquées.'),
+('2.2.1', 'IMPROVE', 'Retours, factures depuis les tickets, achats, compositions de packs, ajustements de stock, BL du siège et leurs factures : une quantité décimale n''y est pas encore possible ; elle est refusée avec un message qui nomme l''article, jamais arrondie. À l''écran des retours, la ligne décimale est indiquée comme non retournable et les autres lignes du ticket se retournent comme avant.'),
+('2.2.1', 'IMPROVE', 'Import Excel des articles : une quantité en stock non entière est refusée avec son numéro de ligne (0,25 était lu 25, le texte 0.250 était lu 250). Les nombres entiers sont lus comme avant.'),
+('2.2.1', 'IMPROVE', 'Promotions : une ligne avec une quantité décimale n''ouvre pas droit aux promotions sur quantité (quantité minimum, quantité offerte, achetez X obtenez Y) ; pourcentage et montant fixe comme avant.'),
+('2.2.1', 'FIX', 'Timbre fiscal : une seule règle pour la caisse et le serveur, le paramètre à true, TRUE ou 1 et l''article TAX_STAMP présent ; la caisse ne l''ajoute plus quand le serveur ne l''enregistre pas.');
+END
+
 -- The notes of 2.2.2 are written again on each run (the script may run more than once)
 DELETE FROM APP_RELEASE_NOTES WHERE version = '2.2.2';
 INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
@@ -227,7 +249,8 @@ INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
 ('2.2.2', 'IMPROVE', 'Un administrateur n''a jamais à scanner de badge à la caisse (liste des clients, retour, remises, fermeture de session) ; à la fermeture avec un écart, il voit l''écart et le confirme.'),
 ('2.2.2', 'NEW', 'Caisse : deux paramètres masquent les familles et les sous-familles sans article à vendre ; les articles d''une famille sans sous-famille apparaissent sous une tuile « Sans sous-famille », ou directement à l''ouverture de la famille.'),
 ('2.2.2', 'FIX', 'Une promotion à montant fixe plus grande que la ligne n''enregistre plus de montants négatifs ; une quantité décimale tapée alors que les décimales ne sont pas autorisées est refusée avec un message ; la fonction du membre fidélité n''est demandée que s''il en existe une active ; fréquences par défaut des échanges avec le siège allongées ; « Code du magasin » dans la configuration générale d''un magasin relié au siège ; le navigateur ne propose plus de traduire la page.'),
-('2.2.2', 'NEW', 'Informations de la société, bloc « Ticket de vente » : adresse sur le ticket, texte de bas de ticket, ligne de remerciement et mention « ZS Retail » au choix ; laissés vides, le ticket reste comme avant.');
+('2.2.2', 'NEW', 'Informations de la société, bloc « Ticket de vente » : adresse sur le ticket, texte de bas de ticket, ligne de remerciement et mention « ZS Retail » au choix ; laissés vides, le ticket reste comme avant.'),
+('2.2.2', 'NEW', 'Nouveau paramètre du magasin « Afficher les montants avec 3 décimales sur les écrans de caisse » (Configuration générale, section caisse), désactivé par défaut : activé, l''écran de caisse, le paiement et les retours affichent les montants au millime (2,975 au lieu de 2,98), comme le ticket imprimé. Affichage seulement : aucun montant enregistré ni calcul ne change.');
 
 GO
 
