@@ -27,15 +27,15 @@ import com.digithink.zsretail.erp.dynamicsnav.config.DynamicsNavConfig;
 import com.digithink.zsretail.erp.dynamicsnav.config.DynamicsNavProperties;
 import com.digithink.zsretail.erp.dynamicsnav.connector.DynamicsNavConnector;
 import com.digithink.zsretail.erp.dynamicsnav.mapper.DynamicsNavMapper;
+import com.digithink.zsretail.erp.engine.BootstrapCatalogueImport;
+import com.digithink.zsretail.erp.engine.JdbcCatalogueState;
+import com.digithink.zsretail.erp.engine.JpaHeadOfficeCatalogue;
 import com.digithink.zsretail.erp.navpospages.client.NavPosPagesRestClient;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesConfig;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesStartupCheck;
 import com.digithink.zsretail.erp.navpospages.connector.NavPosPagesConnector;
 import com.digithink.zsretail.erp.navpospages.reader.NavPosPagesReader;
-import com.digithink.zsretail.erp.navpospages.sync.BootstrapNavPosPagesImport;
-import com.digithink.zsretail.erp.navpospages.sync.JdbcNavPosPagesState;
-import com.digithink.zsretail.erp.navpospages.sync.JpaNavPosPagesHeadOffice;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesSync;
 import com.digithink.zsretail.erp.service.ErpCommunicationService;
 import com.digithink.zsretail.erp.service.ErpItemBootstrapService;
@@ -67,8 +67,8 @@ class NavPosPagesConnectorTest {
 						DynamicsNavConfig.class, DynamicsNavMapper.class, DynamicsNavRestClient.class,
 						DynamicsNavConnector.class, NavPosPagesStartupCheck.class, NavPosPagesProperties.class,
 						NavPosPagesConfig.class, NavPosPagesRestClient.class, NavPosPagesReader.class,
-						NavPosPagesConnector.class, JdbcNavPosPagesState.class, JpaNavPosPagesHeadOffice.class,
-						NavPosPagesSync.class, HoStockPointRows.class, BootstrapNavPosPagesImport.class,
+						NavPosPagesConnector.class, JdbcCatalogueState.class, JpaHeadOfficeCatalogue.class,
+						NavPosPagesSync.class, HoStockPointRows.class, BootstrapCatalogueImport.class,
 						ErpSynchronizationManager.class)
 				// Plain singletons: never called here, and not autowired
 				.withInitializer(ctx -> {
@@ -168,7 +168,7 @@ class NavPosPagesConnectorTest {
 			assertEquals(1000, properties.getBarcodePageSize());
 			assertEquals("PointStockPOS", properties.getPage().getItems());
 			assertNotNull(ctx.getBean(NavPosPagesReader.class));
-			assertNotNull(ctx.getBean(BootstrapNavPosPagesImport.class), "the items run applies its packets through it");
+			assertNotNull(ctx.getBean(BootstrapCatalogueImport.class), "the items run applies its packets through it");
 			assertEquals(500, properties.getPacketSize());
 			// Invoices from the ERP, step (a): the defaults, no year
 			assertEquals("FactureFranchise", properties.getPage().getInvoices());

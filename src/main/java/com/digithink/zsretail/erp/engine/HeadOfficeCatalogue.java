@@ -1,4 +1,4 @@
-package com.digithink.zsretail.erp.navpospages.sync;
+package com.digithink.zsretail.erp.engine;
 
 import java.util.Collection;
 import java.util.Map;
@@ -6,9 +6,10 @@ import java.util.Map;
 /**
  * ERP catalogue, step 6: what the head office tables hold, read only, for the comparison with the ERP. Only the fields
  * the import (ErpItemBootstrapService) applies. Keys are the codes (item code, family code, barcode value). The JPA
- * queries ({@link JpaNavPosPagesHeadOffice}), or maps in the tests.
+ * queries ({@link JpaHeadOfficeCatalogue}), or maps in the tests.
+ * Code cleanup step 3: was NavPosPagesHeadOffice of the navpospages connector, now shared by the catalogue engine.
  */
-public interface NavPosPagesHeadOffice {
+public interface HeadOfficeCatalogue {
 
 	Map<String, Family> families();
 

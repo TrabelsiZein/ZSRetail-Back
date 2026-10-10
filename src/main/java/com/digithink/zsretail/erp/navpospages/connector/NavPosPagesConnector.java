@@ -29,8 +29,8 @@ import com.digithink.zsretail.erp.dto.ErpSyncFilter;
 import com.digithink.zsretail.erp.dto.ErpTicketDTO;
 import com.digithink.zsretail.erp.dto.ErpTicketLineDTO;
 import com.digithink.zsretail.erp.dto.PullOperationResult;
+import com.digithink.zsretail.erp.engine.CatalogueRun;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesSync;
-import com.digithink.zsretail.erp.navpospages.sync.NavPosRun;
 import com.digithink.zsretail.erp.spi.ErpConnector;
 
 /**
@@ -105,9 +105,9 @@ public class NavPosPagesConnector implements ErpConnector {
 	}
 
 	/** One run: the rows handed to the import; its summary kept for the communications log. */
-	private <T> List<T> changes(Supplier<NavPosRun<T>> run) {
+	private <T> List<T> changes(Supplier<CatalogueRun<T>> run) {
 		LAST_PULL.remove();
-		NavPosRun<T> result = run.get();
+		CatalogueRun<T> result = run.get();
 		LAST_PULL.set(new PullOperationResult<>(result.getHanded(), result.getUrl(), result.getSummary()));
 		return result.getHanded();
 	}

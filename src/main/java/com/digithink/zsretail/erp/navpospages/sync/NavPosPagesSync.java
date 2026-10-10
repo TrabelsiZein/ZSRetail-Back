@@ -22,6 +22,10 @@ import com.digithink.zsretail.erp.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
 import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
 import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
+import com.digithink.zsretail.erp.engine.CatalogueImport;
+import com.digithink.zsretail.erp.engine.CatalogueRun;
+import com.digithink.zsretail.erp.engine.CatalogueState;
+import com.digithink.zsretail.erp.engine.HeadOfficeCatalogue;
 import com.digithink.zsretail.erp.navpospages.client.NavPosPagesSource;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosBarcodeRow;
@@ -37,7 +41,7 @@ import com.digithink.zsretail.erp.spi.StockPoints;
  * ERP catalogue, step 6: changes only. Each run reads a whole page of the ERP (GET only), compares it with the head
  * office tables and takes only the new and changed rows, in a stable order (by code; barcodes by Entry_No). The items
  * and barcode runs apply them all themselves, in packets of packet-size, each packet in its own transaction
- * ({@link NavPosPagesImport}), one run of each at a time; families and sub-families hand one packet to the import
+ * ({@link CatalogueImport}), one run of each at a time; families and sub-families hand one packet to the import
  * (ErpItemBootstrapService, unchanged) per run. The head office tables are the memory of what was seen: a row the
  * import did not save is still different at the next run and is taken again.
  * <ul>
@@ -114,11 +118,11 @@ public class NavPosPagesSync {
 	}
 
 	private final NavPosPagesSource source;
-	private final NavPosPagesHeadOffice headOffice;
+	private final HeadOfficeCatalogue headOffice;
 	private final StockPoints stockPoints;
-	private final NavPosPagesState state;
+	private final CatalogueState state;
 	private final NavPosPagesProperties properties;
-	private final NavPosPagesImport importer;
+	private final CatalogueImport importer;
 	private final NavPosPagesMapper mapper;
 	/** One items run at a time (the scheduler and "Run now" may meet). */
 	private final AtomicBoolean itemsRunning = new AtomicBoolean();
@@ -132,8 +136,8 @@ public class NavPosPagesSync {
 		this.today = today;
 	}
 
-	public NavPosPagesSync(NavPosPagesSource source, NavPosPagesHeadOffice headOffice, StockPoints stockPoints,
-			NavPosPagesState state, NavPosPagesProperties properties, NavPosPagesImport importer) {
+	public NavPosPagesSync(NavPosPagesSource source, HeadOfficeCatalogue headOffice, StockPoints stockPoints,
+			CatalogueState state, NavPosPagesProperties properties, CatalogueImport importer) {
 		this.source = source;
 		this.headOffice = headOffice;
 		this.stockPoints = stockPoints;
@@ -150,16 +154,16 @@ public class NavPosPagesSync {
 
 	// ─── Families ───────────────────────────────────────────────
 
-	public NavPosRun<ErpItemFamilyDTO> families() {
+	public CatalogueRun<ErpItemFamilyDTO> families() {
 		String page = properties.getPage().getCategories();
 		Summary summary = new Summary("families", page, properties.isDryRun());
 		ErpRead<ErpItemFamilyDTO> read = mapper.families(source.readCategories());
 		summary.read(read);
-		Map<String, NavPosPagesHeadOffice.Family> local = headOffice.families();
+		Map<String, HeadOfficeCatalogue.Family> local = headOffice.families();
 		List<ErpItemFamilyDTO> changes = new ArrayList<>();
 		int fresh = 0;
 		for (ErpItemFamilyDTO family : read.getRows()) {
-			NavPosPagesHeadOffice.Family here = local.get(family.getCode());
+			HeadOfficeCatalogue.Family here = local.get(family.getCode());
 			if (here == null) {
 				fresh++;
 				changes.add(family);
@@ -174,7 +178,7 @@ public class NavPosPagesSync {
 
 	// ─── Sub-families ───────────────────────────────────────────
 
-	public NavPosRun<ErpItemSubFamilyDTO> subFamilies() {
+	public CatalogueRun<ErpItemSubFamilyDTO> subFamilies() {
 		String page = properties.getPage().getCategories();
 		Summary summary = new Summary("sub-families", page, properties.isDryRun());
 		List<NavPosCategoryRow> categories = source.readCategories();
@@ -184,11 +188,11 @@ public class NavPosPagesSync {
 		}
 		ErpRead<ErpItemSubFamilyDTO> read = mapper.subFamilies(categories);
 		summary.read(read);
-		Map<String, NavPosPagesHeadOffice.SubFamily> local = headOffice.subFamilies();
+		Map<String, HeadOfficeCatalogue.SubFamily> local = headOffice.subFamilies();
 		List<ErpItemSubFamilyDTO> changes = new ArrayList<>();
 		int fresh = 0;
 		for (ErpItemSubFamilyDTO subFamily : read.getRows()) {
-			NavPosPagesHeadOffice.SubFamily here = local.get(subFamily.getCode());
+			HeadOfficeCatalogue.SubFamily here = local.get(subFamily.getCode());
 			if (here == null) {
 				fresh++;
 				changes.add(subFamily);
@@ -224,7 +228,7 @@ public class NavPosPagesSync {
 	}
 
 	/** Name (the import falls back to the code), description (null = blank), active, ERP id. */
-	private static boolean differs(String code, String name, String description, NavPosPagesHeadOffice.Family here) {
+	private static boolean differs(String code, String name, String description, HeadOfficeCatalogue.Family here) {
 		return !text(name, code).equals(text(here.name, null)) || !text(description, null).equals(text(here.description, null))
 				|| Boolean.FALSE.equals(here.active) || !code.equals(here.erpExternalId);
 	}
@@ -237,7 +241,7 @@ public class NavPosPagesSync {
 	 * next run goes on with what is left (the head office tables are the memory). The rows applied are in the run, for
 	 * the tests; the connector hands nothing more to the job.
 	 */
-	public NavPosRun<ErpItemDTO> items() {
+	public CatalogueRun<ErpItemDTO> items() {
 		if (!itemsRunning.compareAndSet(false, true)) {
 			throw new ErpSyncWarningException(ITEMS_ALREADY_RUNNING);
 		}
@@ -248,7 +252,7 @@ public class NavPosPagesSync {
 		}
 	}
 
-	private NavPosRun<ErpItemDTO> readAndApplyItems() {
+	private CatalogueRun<ErpItemDTO> readAndApplyItems() {
 		String page = properties.getPage().getItems();
 		Summary summary = new Summary("items", page, properties.isDryRun());
 		List<StockPoints.Point> points = stockPoints.activePoints();
@@ -277,7 +281,7 @@ public class NavPosPagesSync {
 		List<String> silent = reads.stream().filter(read -> read.read == 0).map(read -> read.point.code)
 				.collect(Collectors.toList());
 		boolean allSilent = silent.size() == reads.size();
-		Map<String, NavPosPagesHeadOffice.Item> local = headOffice.items();
+		Map<String, HeadOfficeCatalogue.Item> local = headOffice.items();
 		Set<String> familyCodes = headOffice.families().keySet();
 		Set<String> subFamilyCodes = headOffice.subFamilies().keySet();
 		String taxStamp = headOffice.taxStampErpCode();
@@ -324,7 +328,7 @@ public class NavPosPagesSync {
 					notInCategoriesFirst.add(item.getCode() + " (" + missing + ")");
 				}
 			}
-			NavPosPagesHeadOffice.Item here = local.get(item.getCode());
+			HeadOfficeCatalogue.Item here = local.get(item.getCode());
 			if (here == null) {
 				freshCodes.add(item.getCode()); // a blank name: the import gives it the code
 				changes.add(item);
@@ -346,7 +350,7 @@ public class NavPosPagesSync {
 		// Items of the ERP in no point any more: inactive, never deleted, whatever their number; not when a point answered
 		// no row (a broken connection or a wrong code, never a cleanup)
 		List<ErpItemDTO> gone = new ArrayList<>();
-		for (NavPosPagesHeadOffice.Item here : local.values()) {
+		for (HeadOfficeCatalogue.Item here : local.values()) {
 			if (here.fromErp() && here.isActive() && !here.code.equals(taxStamp) && !inErp.contains(here.code)) {
 				gone.add(inactiveCopy(here));
 			}
@@ -595,7 +599,7 @@ public class NavPosPagesSync {
 	}
 
 	/** The fields the import applies, the price with VAT at 3 decimals. */
-	private static boolean differs(ErpItemDTO item, NavPosPagesHeadOffice.Item here, Set<String> familyCodes,
+	private static boolean differs(ErpItemDTO item, HeadOfficeCatalogue.Item here, Set<String> familyCodes,
 			Set<String> subFamilyCodes) {
 		if (!text(item.getName(), item.getCode()).equals(text(here.name, null))
 				|| !text(item.getDescription(), null).equals(text(here.description, null))
@@ -625,7 +629,7 @@ public class NavPosPagesSync {
 	}
 
 	/** The head office item as it is, inactive. */
-	private static ErpItemDTO inactiveCopy(NavPosPagesHeadOffice.Item here) {
+	private static ErpItemDTO inactiveCopy(HeadOfficeCatalogue.Item here) {
 		ErpItemDTO item = new ErpItemDTO();
 		item.setExternalId(here.erpExternalId.trim());
 		item.setCode(here.code);
@@ -645,13 +649,13 @@ public class NavPosPagesSync {
 
 	/**
 	 * One run goes on until it has caught up, applying its changes itself in packets of packet-size, each packet in its
-	 * own transaction ({@link NavPosPagesImport#barcodes}): first every item of the "needs its barcodes" list, then the
+	 * own transaction ({@link CatalogueImport#barcodes}): first every item of the "needs its barcodes" list, then the
 	 * cursor page after page until the ERP answers no row. After each packet the head office barcode table is read again:
 	 * the cursor is saved only over rows that are there, and a row the import did not save stops the run (the next run
 	 * hands it again). A failed packet ends the run in error; the packets before it and the cursor saved after them stay.
 	 * The rows applied are in the run, for the tests; the connector hands nothing more to the job.
 	 */
-	public NavPosRun<ErpItemBarcodeDTO> barcodes() {
+	public CatalogueRun<ErpItemBarcodeDTO> barcodes() {
 		if (!barcodesRunning.compareAndSet(false, true)) {
 			throw new ErpSyncWarningException(BARCODES_ALREADY_RUNNING);
 		}
@@ -662,7 +666,7 @@ public class NavPosPagesSync {
 		}
 	}
 
-	private NavPosRun<ErpItemBarcodeDTO> readAndApplyBarcodes() {
+	private CatalogueRun<ErpItemBarcodeDTO> readAndApplyBarcodes() {
 		String page = properties.getPage().getBarcodes();
 		Summary summary = new Summary("barcodes", page, properties.isDryRun());
 		String waiting = waitingFor(ITEMS_RUN, ITEMS_PENDING, "items");
@@ -798,7 +802,7 @@ public class NavPosPagesSync {
 						+ " rows applied before it (the next run goes on): " + e.getMessage(), e);
 			}
 			count++;
-			Map<String, NavPosPagesHeadOffice.Barcode> here = headOffice.barcodes(
+			Map<String, HeadOfficeCatalogue.Barcode> here = headOffice.barcodes(
 					rows.stream().map(row -> text(row.getCrossReferenceNo(), null)).collect(Collectors.toList()));
 			List<NavPosBarcodeRow> unsaved = new ArrayList<>();
 			for (NavPosBarcodeRow row : rows) {
@@ -816,7 +820,7 @@ public class NavPosPagesSync {
 	}
 
 	/** The row's barcode is at the head office, on the row's item and active. */
-	private static boolean isAtHeadOffice(NavPosBarcodeRow row, NavPosPagesHeadOffice.Barcode saved) {
+	private static boolean isAtHeadOffice(NavPosBarcodeRow row, HeadOfficeCatalogue.Barcode saved) {
 		return saved != null && row.getItemNo().trim().equals(saved.itemCode) && !Boolean.FALSE.equals(saved.active);
 	}
 
@@ -843,7 +847,7 @@ public class NavPosPagesSync {
 				}
 			}
 		}
-		Map<String, NavPosPagesHeadOffice.Barcode> here = latest.isEmpty() ? new LinkedHashMap<>()
+		Map<String, HeadOfficeCatalogue.Barcode> here = latest.isEmpty() ? new LinkedHashMap<>()
 				: headOffice.barcodes(latest.keySet());
 		Classified classified = new Classified();
 		for (Map.Entry<String, NavPosBarcodeRow> entry : latest.entrySet()) {
@@ -884,7 +888,7 @@ public class NavPosPagesSync {
 	 * At most max-per-run per year. Merged, each number once, by number. Nothing is kept here: the head office's numbers are
 	 * the memory. Dry run: read and summarised, nothing handed.
 	 */
-	public NavPosRun<ErpSupplyInvoiceDTO> invoices(Map<String, String> highestByYear) {
+	public CatalogueRun<ErpSupplyInvoiceDTO> invoices(Map<String, String> highestByYear) {
 		String page = properties.getPage().getInvoices();
 		Summary summary = new Summary("invoices", page, properties.isDryRun());
 		NavPosPagesProperties.Invoices settings = properties.getInvoices();
@@ -942,7 +946,7 @@ public class NavPosPagesSync {
 	 * 2.2.1: given invoices again, by number (those a 2.2.0 head office held for a decimal quantity), mapped as the new
 	 * ones; the year prefix of each from its number. A number the page no longer has is not in the answer.
 	 */
-	public NavPosRun<ErpSupplyInvoiceDTO> invoicesByNumbers(List<String> numbers) {
+	public CatalogueRun<ErpSupplyInvoiceDTO> invoicesByNumbers(List<String> numbers) {
 		String page = properties.getPage().getInvoices();
 		Summary summary = new Summary("invoices", page, properties.isDryRun());
 		NavPosPagesProperties.Invoices settings = properties.getInvoices();
@@ -993,8 +997,8 @@ public class NavPosPagesSync {
 		return properties.getPacketSize();
 	}
 
-	private <T> NavPosRun<T> run(List<T> handed, Summary summary, String page) {
-		return new NavPosRun<>(properties.isDryRun() ? new ArrayList<>() : handed, summary.values, source.pageUrl(page));
+	private <T> CatalogueRun<T> run(List<T> handed, Summary summary, String page) {
+		return new CatalogueRun<>(properties.isDryRun() ? new ArrayList<>() : handed, summary.values, source.pageUrl(page));
 	}
 
 	private static long number(String value) {

@@ -1278,7 +1278,7 @@ between the ERP and the head office tables (`NavPosPagesSync`): the head office 
 row the import did not save is taken again at the next run.
 - **Items: every change in one run** (2026-10-08). The items run applies all its changes itself (new, changed, deactivated),
   by code, in packets of `packet-size` (default 500), one after the other, each packet in its own transaction
-  (`NavPosPagesImport` → `BootstrapNavPosPagesImport` → `ErpItemBootstrapService.importItems`, so the recorder aspect commits
+  (`erp/engine/CatalogueImport` → `BootstrapCatalogueImport` → `ErpItemBootstrapService.importItems`, so the recorder aspect commits
   the items and their change rows for the stores together; no bulk update). The connector then hands nothing to the job
   (`ErpSyncJobRunner` and `ErpItemBootstrapService` unchanged). A failed packet ends the run in error ("Items: packet 2 of 3
   failed, 500 of 1200 rows applied before it (the next run goes on): ..."); the packets before it stay and the next run goes on
@@ -1309,7 +1309,7 @@ row the import did not save is taken again at the next run.
 
 **State table** `navpospages_state` (`state_key`, `state_value`, `updated_at`): the barcode cursor, the count of the last item
 run, the items that need their barcodes. Not a JPA entity (Hibernate would create it on every installation): created with plain
-SQL when missing, at the start, by `JdbcNavPosPagesState`, which exists only with `erp.navpospages.enabled=true`. A store or a
+SQL when missing, at the start, by `erp/engine/JdbcCatalogueState` (was `JdbcNavPosPagesState`), which exists only with a connector that has the ability `HEAD_OFFICE_STOCK_POINTS` (today `erp.navpospages.enabled=true`). A store or a
 head office without this connector never gets it.
 
 Tests: `NavPosPagesSyncTest` (28: first load with packets (all items in one run, all barcodes in one run), nothing changed,
@@ -1607,12 +1607,12 @@ catalogue only, and `headoffice.supply.source=HEAD_OFFICE`.
 
 | Setting | Read on a head office | Card (when) |
 |---|---|---|
-| `ERP_INVOICES_READ_AFTER` | Yes: where the reading of the ERP invoices starts (`JpaNavPosPagesHeadOffice`), checked on save | Invoices from the ERP (supply from the ERP) |
+| `ERP_INVOICES_READ_AFTER` | Yes: where the reading of the ERP invoices starts (`JpaHeadOfficeCatalogue`), checked on save | Invoices from the ERP (supply from the ERP) |
 | `ERP_INVOICES_LAST_READ` | Yes: written after each run (`HoErpInvoiceService`), read only | Invoices from the ERP (supply from the ERP) |
 | `SUPPLY_INVOICE_TAX_STAMP`, `SUPPLY_INVOICE_TAX_STAMP_MILLIMES` | Yes: the stamp line of a supply invoice (`HoSupplyInvoiceService`) | Supply invoices to the stores (own supply) |
 | `ALLOW_NEGATIVE_STOCK` | Yes: a BL below the stock (`HoDeliveryService`, only when the head office keeps stock) | Stock (own supply and stock kept) |
 | `ERP_SYNC_TRACKING_LEVEL` | Yes: what the ERP communications log keeps (`ErpCommunicationService`) | ERP (with an ERP) |
-| `TAX_STAMP_ERP_ITEM_CODE` | Yes: the ERP item the item import never saves (`JpaNavPosPagesHeadOffice`, `ErpItemBootstrapService`); empty: none left out | — (not on the page since 2026-10-09; the setting stays, empty) |
+| `TAX_STAMP_ERP_ITEM_CODE` | Yes: the ERP item the item import never saves (`JpaHeadOfficeCatalogue`, `ErpItemBootstrapService`); empty: none left out | — (not on the page since 2026-10-09; the setting stays, empty) |
 | `ERP_SYNC_LAST_ITEM_FAMILY`, `_ITEM_SUBFAMILY`, `_ITEM`, `_ITEM_BARCODE`, `_LOCATION`, `_CUSTOMER`, `_DELETION_LOG` | Yes, with an ERP that owns everything: the checkpoints of the imports a head office runs; never written with the ERP catalogue only (one job, no checkpoint) | ERP, read only (with an ERP, not the ERP catalogue only) |
 | `ERP_SYNC_LAST_SALES_PRICE`, `_SALES_DISCOUNT` | No: the price import is refused on a head office | — |
 | `DEFAULT_LOCATION` | Yes, with an ERP that owns everything: the ERP reference location (`ErpReferenceLocationService`) | — (set on its own page, ERP > Reference location, which also marks the location) |

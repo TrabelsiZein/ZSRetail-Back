@@ -133,6 +133,26 @@ class ErpAbilityBeansTest {
 	}
 
 	@Test
+	@DisplayName("Step 3: the engine's state, head office reads and import exist where erp.navpospages.enabled=true put them")
+	void engineBeans() {
+		List<Class<?>> engine = Arrays.asList(com.digithink.zsretail.erp.engine.JdbcCatalogueState.class,
+				com.digithink.zsretail.erp.engine.JpaHeadOfficeCatalogue.class,
+				com.digithink.zsretail.erp.engine.BootstrapCatalogueImport.class);
+		List<String> withBeans = new ArrayList<>();
+		for (Map.Entry<String, MockEnvironment> entry : configurations().entrySet()) {
+			boolean expected = "true".equalsIgnoreCase(entry.getValue().getProperty("erp.navpospages.enabled"));
+			if (expected) {
+				withBeans.add(entry.getKey());
+			}
+			for (Class<?> bean : engine) {
+				assertEquals(expected, registered(entry.getValue(), bean), entry.getKey() + " " + bean.getSimpleName());
+			}
+		}
+		assertTrue(withBeans.contains("store, erp.connector=navpospages"), withBeans.toString());
+		assertTrue(withBeans.size() >= 4, withBeans.toString());
+	}
+
+	@Test
 	@DisplayName("headoffice.supply.source=ERP: accepted with the ability SUPPLY_INVOICES, by the old line or erp.connector")
 	void supplySource() {
 		for (MockEnvironment env : Arrays.asList(catalogueOnlyHeadOffice("erp.navpospages.enabled= true "),

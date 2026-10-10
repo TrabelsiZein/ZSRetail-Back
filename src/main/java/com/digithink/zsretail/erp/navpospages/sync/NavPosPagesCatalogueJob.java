@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import com.digithink.zsretail.erp.engine.CatalogueImport;
+import com.digithink.zsretail.erp.engine.CatalogueRun;
 import com.digithink.zsretail.erp.enumeration.ErpCommunicationStatus;
 import com.digithink.zsretail.erp.enumeration.ErpSyncOperation;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
@@ -52,20 +54,20 @@ public class NavPosPagesCatalogueJob implements ErpCatalogueSync {
 	}
 
 	private final NavPosPagesSync sync;
-	private final NavPosPagesImport importer;
+	private final CatalogueImport importer;
 	private final StockPoints stockPoints;
 	private final NavPosPagesProperties properties;
 	private final CommunicationLog log;
 
 	@Autowired
-	public NavPosPagesCatalogueJob(NavPosPagesSync sync, NavPosPagesImport importer, StockPoints stockPoints,
+	public NavPosPagesCatalogueJob(NavPosPagesSync sync, CatalogueImport importer, StockPoints stockPoints,
 			NavPosPagesProperties properties, ErpCommunicationService communications) {
 		this(sync, importer, stockPoints, properties, (status, summary, message, start, end) -> communications
 				.logOperation(ErpSyncOperation.SYNC_CATALOGUE, null, summary, status, null, message, start, end));
 	}
 
 	/** With a given log: used by the tests. */
-	public NavPosPagesCatalogueJob(NavPosPagesSync sync, NavPosPagesImport importer, StockPoints stockPoints,
+	public NavPosPagesCatalogueJob(NavPosPagesSync sync, CatalogueImport importer, StockPoints stockPoints,
 			NavPosPagesProperties properties, CommunicationLog log) {
 		this.sync = sync;
 		this.importer = importer;
@@ -139,14 +141,14 @@ public class NavPosPagesCatalogueJob implements ErpCatalogueSync {
 	 * the number still to hand goes down. The part's summary: the first round's counts (what was to do), the total handed,
 	 * the rounds, the duration. Returns false (with a warning) when the part waited: the next parts would wait too.
 	 */
-	private <T> boolean inRounds(Map<String, Object> parts, String key, String label, Supplier<NavPosRun<T>> read,
-			java.util.function.Consumer<NavPosRun<T>> apply, List<String> warnings) {
+	private <T> boolean inRounds(Map<String, Object> parts, String key, String label, Supplier<CatalogueRun<T>> read,
+			java.util.function.Consumer<CatalogueRun<T>> apply, List<String> warnings) {
 		long started = System.nanoTime();
 		Map<String, Object> first = null;
 		int handed = 0;
 		int rounds = 0;
 		int previousToHand = Integer.MAX_VALUE;
-		NavPosRun<T> last;
+		CatalogueRun<T> last;
 		while (true) {
 			last = read.get();
 			rounds++;
@@ -177,10 +179,10 @@ public class NavPosPagesCatalogueJob implements ErpCatalogueSync {
 	}
 
 	/** Items or barcodes: one run of the sync (it applies everything itself). False (with a warning) when it waited. */
-	private boolean once(Map<String, Object> parts, String key, String label, Supplier<NavPosRun<?>> read,
+	private boolean once(Map<String, Object> parts, String key, String label, Supplier<CatalogueRun<?>> read,
 			List<String> warnings) {
 		long started = System.nanoTime();
-		NavPosRun<?> run;
+		CatalogueRun<?> run;
 		try {
 			run = read.get();
 		} catch (ErpSyncWarningException refused) {

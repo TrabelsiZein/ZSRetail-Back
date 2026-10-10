@@ -1,4 +1,4 @@
-package com.digithink.zsretail.erp.navpospages.sync;
+package com.digithink.zsretail.erp.engine;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -8,14 +8,15 @@ import java.util.Map;
 /**
  * ERP catalogue, step 6: one run of the changes engine: the rows handed to the import, the summary written to the
  * communications log (counts only, never the list) and the address of the page read.
+ * Code cleanup step 3: was NavPosRun of the navpospages connector, now shared by the catalogue engine.
  */
-public class NavPosRun<T> {
+public class CatalogueRun<T> {
 
 	private final List<T> handed;
 	private final Map<String, Object> summary;
 	private final String url;
 
-	public NavPosRun(List<T> handed, Map<String, Object> summary, String url) {
+	public CatalogueRun(List<T> handed, Map<String, Object> summary, String url) {
 		this.handed = Collections.unmodifiableList(handed);
 		this.summary = Collections.unmodifiableMap(new LinkedHashMap<>(summary));
 		this.url = url;

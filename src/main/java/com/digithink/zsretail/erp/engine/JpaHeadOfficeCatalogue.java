@@ -1,4 +1,4 @@
-package com.digithink.zsretail.erp.navpospages.sync;
+package com.digithink.zsretail.erp.engine;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -8,20 +8,21 @@ import java.util.Map;
 
 import javax.persistence.EntityManager;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
+import com.digithink.zsretail.config.ConditionalOnErpAbility;
+import com.digithink.zsretail.erp.spi.ErpAbility;
 import com.digithink.zsretail.service.GeneralSetupService;
 
 /**
  * ERP catalogue, step 6: the head office tables read with a few JPQL projections (no entity loaded, nothing written).
+ * Code cleanup step 3: was JpaNavPosPagesHeadOffice of the navpospages connector, now shared by the catalogue engine.
  */
 @Component
-@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
+@ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
 @Transactional(readOnly = true)
-public class JpaNavPosPagesHeadOffice implements NavPosPagesHeadOffice {
+public class JpaHeadOfficeCatalogue implements HeadOfficeCatalogue {
 
 	/** Values per IN (...) query (SQL Server takes at most 2100 parameters). */
 	static final int IN_CHUNK = 1000;
@@ -31,7 +32,7 @@ public class JpaNavPosPagesHeadOffice implements NavPosPagesHeadOffice {
 	private final EntityManager entityManager;
 	private final GeneralSetupService generalSetupService;
 
-	public JpaNavPosPagesHeadOffice(EntityManager entityManager, GeneralSetupService generalSetupService) {
+	public JpaHeadOfficeCatalogue(EntityManager entityManager, GeneralSetupService generalSetupService) {
 		this.entityManager = entityManager;
 		this.generalSetupService = generalSetupService;
 	}

@@ -1,28 +1,30 @@
-package com.digithink.zsretail.erp.navpospages.sync;
+package com.digithink.zsretail.erp.engine;
 
 import java.util.List;
 
 import javax.annotation.PostConstruct;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
+import com.digithink.zsretail.config.ConditionalOnErpAbility;
+import com.digithink.zsretail.erp.spi.ErpAbility;
+
 
 import lombok.extern.log4j.Log4j2;
 
 /**
- * ERP catalogue, step 6: the state of the connector in its own small table, navpospages_state (state_key, state_value,
- * updated_at). Not a JPA entity on purpose: Hibernate (ddl-auto=update) creates the table of every entity on every
- * installation, while this table exists only where the connector is on. It is created here, at the start, when it is
- * missing (SQL Server), by this bean, which exists only with erp.navpospages.enabled=true: a store or a head office
- * without this connector never gets it.
+ * ERP catalogue, step 6: the state of the catalogue engine in its own small table, navpospages_state (state_key,
+ * state_value, updated_at). Not a JPA entity on purpose: Hibernate (ddl-auto=update) creates the table of every entity
+ * on every installation, while this table exists only where the engine runs. It is created here, at the start, when it
+ * is missing (SQL Server), by this bean, which exists only with a connector that has the ability
+ * HEAD_OFFICE_STOCK_POINTS: a store or a head office without one never gets it. Code cleanup step 3: was
+ * JdbcNavPosPagesState; the table keeps its name (and the engine its keys), the live head office keeps its state.
  */
 @Component
-@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
+@ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
 @Log4j2
-public class JdbcNavPosPagesState implements NavPosPagesState {
+public class JdbcCatalogueState implements CatalogueState {
 
 	static final String TABLE = "navpospages_state";
 
@@ -32,14 +34,14 @@ public class JdbcNavPosPagesState implements NavPosPagesState {
 
 	private final JdbcTemplate jdbc;
 
-	public JdbcNavPosPagesState(JdbcTemplate jdbc) {
+	public JdbcCatalogueState(JdbcTemplate jdbc) {
 		this.jdbc = jdbc;
 	}
 
 	@PostConstruct
 	void createTable() {
 		jdbc.execute(CREATE);
-		log.info("ERP connector navpospages: state table {} ready", TABLE);
+		log.info("ERP catalogue engine: state table {} ready", TABLE);
 	}
 
 	@Override

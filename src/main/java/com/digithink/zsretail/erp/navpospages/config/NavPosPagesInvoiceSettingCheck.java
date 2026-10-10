@@ -3,7 +3,7 @@ package com.digithink.zsretail.erp.navpospages.config;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesHeadOffice;
+import com.digithink.zsretail.erp.engine.HeadOfficeCatalogue;
 import com.digithink.zsretail.service.GeneralSetupValueCheck;
 
 /**
@@ -23,7 +23,7 @@ public class NavPosPagesInvoiceSettingCheck implements GeneralSetupValueCheck {
 
 	@Override
 	public void check(String code, String value) {
-		if (!NavPosPagesHeadOffice.INVOICES_READ_AFTER.equals(code) || value == null || value.trim().isEmpty()) {
+		if (!HeadOfficeCatalogue.INVOICES_READ_AFTER.equals(code) || value == null || value.trim().isEmpty()) {
 			return;
 		}
 		if (!properties.getInvoices().looksLikeNumber(value)) {

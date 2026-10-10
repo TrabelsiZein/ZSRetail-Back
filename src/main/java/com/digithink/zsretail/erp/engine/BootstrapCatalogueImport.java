@@ -1,29 +1,30 @@
-package com.digithink.zsretail.erp.navpospages.sync;
+package com.digithink.zsretail.erp.engine;
 
 import java.util.List;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import com.digithink.zsretail.config.ConditionalOnErpAbility;
 import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
 import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
-import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.service.ErpItemBootstrapService;
+import com.digithink.zsretail.erp.spi.ErpAbility;
 
 /**
- * {@link NavPosPagesImport} through the Spring proxy of ErpItemBootstrapService: each call is one transaction (the
+ * {@link CatalogueImport} through the Spring proxy of ErpItemBootstrapService: each call is one transaction (the
  * import's @Transactional, and around it the recorder aspect of a head office whose catalogue comes from the ERP).
  * Called outside any transaction (the job runner opens none), so each packet commits on its own.
+ * Code cleanup step 3: was BootstrapNavPosPagesImport of the navpospages connector, now shared by the catalogue engine.
  */
 @Component
-@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
-public class BootstrapNavPosPagesImport implements NavPosPagesImport {
+@ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
+public class BootstrapCatalogueImport implements CatalogueImport {
 
 	private final ErpItemBootstrapService bootstrap;
 
-	public BootstrapNavPosPagesImport(ErpItemBootstrapService bootstrap) {
+	public BootstrapCatalogueImport(ErpItemBootstrapService bootstrap) {
 		this.bootstrap = bootstrap;
 	}
 
