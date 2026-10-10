@@ -136,13 +136,25 @@ public class LoyaltyService {
 		return new PageImpl<>(dtos, pageable, page.getTotalElements());
 	}
 
+	/**
+	 * 2.2.2: the member's function asked: required only when at least one active function exists (active not false, as
+	 * the screens list them), refused when unknown; null when none is asked and no active function exists (the member
+	 * is then saved without one). A database with functions behaves as before.
+	 */
+	public MemberFunction memberFunctionFor(Long memberFunctionId) {
+		if (memberFunctionId == null) {
+			if (memberFunctionRepository.countActive() > 0) {
+				throw new IllegalArgumentException("La fonction du membre est obligatoire");
+			}
+			return null;
+		}
+		return memberFunctionRepository.findById(memberFunctionId)
+				.orElseThrow(() -> new IllegalArgumentException("Fonction du membre introuvable: " + memberFunctionId));
+	}
+
 	@Transactional
 	public LoyaltyMemberDTO createMember(CreateLoyaltyMemberRequestDTO request) {
-		if (request.getMemberFunctionId() == null) {
-			throw new IllegalArgumentException("La fonction du membre est obligatoire");
-		}
-		MemberFunction memberFunction = memberFunctionRepository.findById(request.getMemberFunctionId())
-				.orElseThrow(() -> new IllegalArgumentException("Fonction du membre introuvable: " + request.getMemberFunctionId()));
+		MemberFunction memberFunction = memberFunctionFor(request.getMemberFunctionId());
 
 		String phone = validatePhone(request.getPhone(), null);
 
@@ -186,11 +198,7 @@ public class LoyaltyService {
 		LoyaltyMember member = loyaltyMemberRepository.findById(id)
 				.orElseThrow(() -> new IllegalArgumentException("Loyalty member not found: " + id));
 
-		if (request.getMemberFunctionId() == null) {
-			throw new IllegalArgumentException("La fonction du membre est obligatoire");
-		}
-		MemberFunction memberFunction = memberFunctionRepository.findById(request.getMemberFunctionId())
-				.orElseThrow(() -> new IllegalArgumentException("Fonction du membre introuvable: " + request.getMemberFunctionId()));
+		MemberFunction memberFunction = memberFunctionFor(request.getMemberFunctionId());
 
 		// The phone rules run only when the number changes, so a member saved before them
 		// (shared or 7-digit number) can still be edited without retyping it.
@@ -203,7 +211,9 @@ public class LoyaltyService {
 		member.setLastName(request.getLastName());
 		member.setPhone(phone);
 		member.setEmail(request.getEmail());
-		member.setMemberFunction(memberFunction);
+		if (memberFunction != null) { // 2.2.2: none asked and none active: the member keeps the one it has (if any)
+			member.setMemberFunction(memberFunction);
+		}
 		member.setUpdatedBy("System");
 
 		if (request.getBirthDate() != null && !request.getBirthDate().isBlank()) {

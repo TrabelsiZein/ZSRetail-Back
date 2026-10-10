@@ -439,6 +439,28 @@ class SharedLoyaltyRoundTripTest {
 		assertEquals(80, earn(card, 40.0, "S2").getPoints());
 	}
 
+	@Test
+	@DisplayName("2.2.2: a store with no active function edits a member without one through the head office; with one, refused as before")
+	void editWithoutFunction() {
+		hoLoyalty.createMember(hoRequest("SAMI", "29954290"));
+		pull();
+		stores.get("RS01").setCanEditMembers(true);
+		Long id = db.card("LYL-HO-000001").get().getId();
+		CreateLoyaltyMemberRequestDTO change = request("SAMI", "29954290");
+		change.setLastName("BEN SALAH");
+		change.setMemberFunctionId(null);
+
+		StoreLoyaltyNetwork.NetworkException refused = assertThrows(StoreLoyaltyNetwork.NetworkException.class,
+				() -> network.edit(id, change));
+		assertEquals("La fonction du membre est obligatoire", refused.getMessage(), "the store has an active function");
+
+		db.functions.values().forEach(f -> f.setActive(false));
+		assertEquals("BEN SALAH", network.edit(id, change).getLastName());
+		assertEquals("BEN SALAH", ho.card("LYL-HO-000001").get().getLastName());
+		assertEquals(ho.functions.values().iterator().next(), ho.card("LYL-HO-000001").get().getMemberFunction(),
+				"the head office keeps the member's own function");
+	}
+
 	// ─── Rights ──────────────────────────────────────────────────
 
 	@Test

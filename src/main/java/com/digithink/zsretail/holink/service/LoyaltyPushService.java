@@ -70,6 +70,9 @@ import lombok.ToString;
 @ConditionalOnHeadOfficeOwned(DataDomain.LOYALTY)
 public class LoyaltyPushService {
 
+	/** 2.2.2: the default frequency (loyalty to the head office every 10 min) when none is saved from the Jobs page; a property overrides it. */
+	public static final long DEFAULT_INTERVAL_SECONDS = 600;
+
 	public static final String JOB_CODE = "LOYALTY_PUSH";
 
 	static final int BATCH_SIZE = 50;
@@ -96,7 +99,7 @@ public class LoyaltyPushService {
 	public LoyaltyPushService(HeadOfficeClient client, LoyaltyMemberCopyRepository memberCopies,
 			LoyaltyMovementCopyRepository movementCopies, LoyaltyMemberRepository members, LoyaltyCopyWriter writer,
 			LinkExchangeLog exchangeLog, PlatformTransactionManager transactionManager,
-			@Value("${headoffice.loyalty-push.interval-seconds:60}") long intervalSeconds) {
+			@Value("${headoffice.loyalty-push.interval-seconds:" + LoyaltyPushService.DEFAULT_INTERVAL_SECONDS + "}") long intervalSeconds) {
 		this(client, memberCopies, movementCopies, members, writer, exchangeLog, timed(transactionManager),
 				LocalDateTime::now, intervalSeconds);
 	}

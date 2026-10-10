@@ -18,13 +18,16 @@ import com.digithink.zsretail.config.NodeOwnership;
 @ConditionalOnHeadOfficeSalesPush
 public class SalesPushSettings {
 
+	/** 2.2.2: the default frequency (sales push every 30 min) when none is saved from the Jobs page; a property overrides it. */
+	public static final long DEFAULT_INTERVAL_SECONDS = 1800;
+
 	private final LocalDateTime fromDate;
 	private final int batchSize;
 	private final long intervalSeconds;
 
 	public SalesPushSettings(@Value("${headoffice.sales-push.from-date:}") String fromDate,
 			@Value("${headoffice.sales-push.batch-size:50}") int batchSize,
-			@Value("${headoffice.sales-push.interval-seconds:60}") long intervalSeconds) {
+			@Value("${headoffice.sales-push.interval-seconds:" + SalesPushSettings.DEFAULT_INTERVAL_SECONDS + "}") long intervalSeconds) {
 		LocalDate date = NodeOwnership.parseSalesPushFromDate(fromDate);
 		this.fromDate = date == null ? null : date.atStartOfDay();
 		this.batchSize = batchSize;

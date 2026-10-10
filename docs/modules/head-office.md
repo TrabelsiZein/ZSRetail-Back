@@ -493,7 +493,7 @@ The head office keeps one record per store; a store's API key (task 1.3) identif
 | `ONLINE` | active, `lastContact` no older than `headoffice.offline-after-seconds` (exactly at the threshold is still ONLINE) |
 | `OFFLINE` | active, `lastContact` older than the threshold |
 
-- `headoffice.offline-after-seconds`: head office setting, default `180` (three missed heartbeats at the default 60 s interval). Below 1 or not a whole number: the head office does not start.
+- `headoffice.offline-after-seconds`: head office setting, default `540` since 2.2.2 (three missed heartbeats at the store's default 3 min; `180` before, with 60 s). Below 1 or not a whole number: the head office does not start.
 - `secondsSinceContact`: whole seconds since `lastContact`, same clock, never negative; null before the first contact. The page shows "x min ago" from it, so a browser with a wrong clock does not contradict the badge.
 - The list item is `StoreListItemDTO`: the `Store` with `@JsonUnwrapped` (same fields as before, the hash still out), then the two values. `StoreAPI` overrides `getAll` and `getById`; create, update, regenerate-key and `findByField` answer as before.
 
@@ -785,11 +785,13 @@ Backend of the jobs and exchange log of the store's Head office link page (model
 
 | Code | Class | Exists when | Order | First run | Default frequency |
 |---|---|---|---|---|---|
-| `HEARTBEAT` | `HeartbeatJob` | `headoffice.url` set | 1 | 15 s after the start | `headoffice.heartbeat-interval-seconds` (60) |
-| `SALES_PUSH` | `SalesPushJob` | and the sales upstreams include the head office (decision 4) | 2 | 20 s | `headoffice.sales-push.interval-seconds` (60) |
-| `COPIES_DOWN` | `CopiesDownJob` (task 3.1) | and at least one domain is owned by the head office | 3 | 25 s | `headoffice.pull.interval-seconds` (60) |
-| `LOYALTY_PUSH` | `LoyaltyPushJob` (step 4) | and loyalty is owned by the head office | 4 | 30 s | `headoffice.loyalty-push.interval-seconds` (60) |
-| `SUPPLY_PUSH` | `SupplyPushJob` (step 7A) | and the goods come from the head office (`NodeOwnership.isSupplyFromHeadOffice`) | 5 | 35 s | `headoffice.supply-push.interval-seconds` (60) |
+| `HEARTBEAT` | `HeartbeatJob` | `headoffice.url` set | 1 | 15 s after the start | `headoffice.heartbeat-interval-seconds` (180 since 2.2.2, 60 before) |
+| `SALES_PUSH` | `SalesPushJob` | and the sales upstreams include the head office (decision 4) | 2 | 20 s | `headoffice.sales-push.interval-seconds` (1800 since 2.2.2, 60 before) |
+| `COPIES_DOWN` | `CopiesDownJob` (task 3.1) | and at least one domain is owned by the head office | 3 | 25 s | `headoffice.pull.interval-seconds` (1800 since 2.2.2, 60 before) |
+| `LOYALTY_PUSH` | `LoyaltyPushJob` (step 4) | and loyalty is owned by the head office | 4 | 30 s | `headoffice.loyalty-push.interval-seconds` (600 since 2.2.2, 60 before) |
+| `SUPPLY_PUSH` | `SupplyPushJob` (step 7A) | and the goods come from the head office (`NodeOwnership.isSupplyFromHeadOffice`) | 5 | 35 s | `headoffice.supply-push.interval-seconds` (300 since 2.2.2, 60 before) |
+
+2.2.2 default frequencies (when none is saved from the Jobs page; a saved frequency always wins, `LinkJobService.intervalSeconds`): heartbeat 3 min, sales push 30 min, copies from the head office 30 min, loyalty to the head office 10 min, delivery confirmations 5 min (constants `DEFAULT_INTERVAL_SECONDS` of each job, `LinkJobDefaultsTest`). The first-run delays (15 to 35 s) and the 5 s catch-up while pages wait are unchanged. A store that never saved a frequency takes the new defaults at its next start (its `hol_job` rows hold no interval); one that saved some keeps them. The head office's OFFLINE threshold moves from 180 s to 540 s with it (a 3 min heartbeat against 180 s would show every store OFFLINE once per cycle).
 
 **Add a job** (later steps): one bean implementing `LinkJob` with the condition that decides whether it exists, an `@Order` for its place in the list and a new code; it writes its own exchange log rows through `LinkExchangeLog`. Nothing else changes: the scheduler, the jobs list, the frequency, run now and the log pick it up.
 

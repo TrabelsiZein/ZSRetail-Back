@@ -62,6 +62,9 @@ import lombok.ToString;
 @ConditionalOnHeadOfficeSupply
 public class SupplyPushService {
 
+	/** 2.2.2: the default frequency (delivery confirmations every 5 min) when none is saved from the Jobs page; a property overrides it. */
+	public static final long DEFAULT_INTERVAL_SECONDS = 300;
+
 	public static final String JOB_CODE = "SUPPLY_PUSH";
 
 	static final int BATCH_SIZE = 20;
@@ -86,7 +89,7 @@ public class SupplyPushService {
 	@Autowired
 	public SupplyPushService(HeadOfficeClient client, ReceivedDeliveryRepository deliveries,
 			StockCopyRepository stockCopies, LinkExchangeLog exchangeLog, PlatformTransactionManager transactionManager,
-			@Value("${headoffice.supply-push.interval-seconds:60}") long intervalSeconds) {
+			@Value("${headoffice.supply-push.interval-seconds:" + SupplyPushService.DEFAULT_INTERVAL_SECONDS + "}") long intervalSeconds) {
 		this(client, deliveries, stockCopies, exchangeLog, timed(transactionManager), LocalDateTime::now, intervalSeconds);
 	}
 

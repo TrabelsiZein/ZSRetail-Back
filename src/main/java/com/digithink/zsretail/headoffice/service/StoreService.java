@@ -67,7 +67,8 @@ public class StoreService extends _BaseService<Store, Long> {
 	private static final String UNKNOWN_STORE_HASH = sha256Hex("unknown-store");
 
 	/** Default of headoffice.offline-after-seconds: three missed heartbeats at the default 60 s interval. */
-	static final long DEFAULT_OFFLINE_AFTER_SECONDS = 180;
+	/** Three missed heartbeats: 2.2.2, 3 x 180 s (the store's default heartbeat is 3 min since 2.2.2, 60 s before). */
+	static final long DEFAULT_OFFLINE_AFTER_SECONDS = 540;
 
 	@Autowired
 	private StoreRepository storeRepository;

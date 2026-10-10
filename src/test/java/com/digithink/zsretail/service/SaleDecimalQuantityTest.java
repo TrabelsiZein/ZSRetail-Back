@@ -260,6 +260,19 @@ class SaleDecimalQuantityTest {
 	}
 
 	@Test
+	@DisplayName("2.2.2: a fixed discount of 15.000 on 0.2 L (10.000): capped at the line, nothing stored below 0")
+	void fixedDiscountLargerThanTheLine() throws Exception {
+		ProcessSaleRequestDTO.SaleLineDTO line = line("0.2", 10.0);
+		line.setDiscountAmount(15.0);
+		SalesLine stored = only(sales.processCompleteSale(request(line), cashier));
+
+		assertEquals(10.0, stored.getDiscountAmount(), 1e-9, "the discount stored is the line, not 15.000");
+		assertEquals(0.0, stored.getLineTotalIncludingVat(), 0.0);
+		assertEquals(0.0, stored.getLineTotal(), 0.0);
+		assertEquals(0.0, stored.getVatAmount(), 0.0);
+	}
+
+	@Test
 	@DisplayName("Half a millime rounds up: 0.5 L at 12.345 the litre is 6.173, not 6.172")
 	void halfMillimeRoundsUp() throws Exception {
 		ProcessSaleRequestDTO.SaleLineDTO line = line("0.5", 6.0);

@@ -393,6 +393,24 @@ class HoLoyaltyRegisterTest {
 				receiver.editMember(rs01, "LYL-RS01-000003", edit("SAMI", "B.", "29954290")).getCardNumber());
 	}
 
+	@Test
+	@DisplayName("2.2.2: an edit without function from a store (which has no active function) is accepted; a member's own function is kept")
+	void editWithoutFunction() {
+		rs01.setCanEditMembers(true);
+		LoyaltyMember none = db.member("LYL-HO-000001", "SAMI", "BEN", "29954290", true, null);
+		LoyaltyMemberEditDTO edit = edit("SAMI", "BEN SALAH", "29954290");
+		edit.setMemberFunctionCode(null);
+		assertEquals("BEN SALAH", receiver.editMember(rs01, "LYL-HO-000001", edit).getLastName());
+		assertEquals(null, none.getMemberFunction());
+
+		LoyaltyMember withOne = db.member("LYL-RS02-000001", "ALI", "KHARAT", "22984935", true, null);
+		withOne.setMemberFunction(client);
+		LoyaltyMemberEditDTO keep = edit("ALI", "K.", "22984935");
+		keep.setMemberFunctionCode(null);
+		receiver.editMember(rs01, "LYL-RS02-000001", keep);
+		assertEquals(client, withOne.getMemberFunction(), "a blank function keeps the member's own, as before");
+	}
+
 	// ─── Step 5 ──────────────────────────────────────────────────
 
 	@Test

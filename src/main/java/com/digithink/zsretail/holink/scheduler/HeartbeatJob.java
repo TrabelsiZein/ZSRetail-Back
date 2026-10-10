@@ -35,6 +35,9 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class HeartbeatJob implements LinkJob {
 
+	/** 2.2.2: the default frequency (heartbeat every 3 min) when none is saved from the Jobs page; a property overrides it. */
+	public static final long DEFAULT_INTERVAL_SECONDS = 180;
+
 	public static final String CODE = "HEARTBEAT";
 
 	static final Duration FIRST_DELAY = Duration.ofSeconds(15);
@@ -49,7 +52,7 @@ public class HeartbeatJob implements LinkJob {
 	private ObjectProvider<CatalogueRights> catalogueRights;
 
 	public HeartbeatJob(HeadOfficeClient client, HeadOfficeLinkStatus status, LinkExchangeLog exchangeLog,
-			@Value("${headoffice.heartbeat-interval-seconds:60}") long intervalSeconds) {
+			@Value("${headoffice.heartbeat-interval-seconds:" + HeartbeatJob.DEFAULT_INTERVAL_SECONDS + "}") long intervalSeconds) {
 		this.client = client;
 		this.status = status;
 		this.exchangeLog = exchangeLog;

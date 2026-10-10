@@ -32,6 +32,9 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class CopiesDownJob implements LinkJob {
 
+	/** 2.2.2: the default frequency (copies from the head office every 30 min) when none is saved from the Jobs page; a property overrides it. */
+	public static final long DEFAULT_INTERVAL_SECONDS = 1800;
+
 	public static final String CODE = "COPIES_DOWN";
 
 	static final Duration FIRST_DELAY = Duration.ofSeconds(25);
@@ -42,7 +45,7 @@ public class CopiesDownJob implements LinkJob {
 	/** Failure of the last run per domain, null when it was delivered; read and written by the ho-link thread only. */
 	private final Map<DataDomain, String> lastFailure = new EnumMap<>(DataDomain.class);
 
-	public CopiesDownJob(CopiesDownPuller puller, @Value("${headoffice.pull.interval-seconds:60}") long intervalSeconds) {
+	public CopiesDownJob(CopiesDownPuller puller, @Value("${headoffice.pull.interval-seconds:" + CopiesDownJob.DEFAULT_INTERVAL_SECONDS + "}") long intervalSeconds) {
 		this.puller = puller;
 		this.defaultIntervalSeconds = intervalSeconds;
 	}

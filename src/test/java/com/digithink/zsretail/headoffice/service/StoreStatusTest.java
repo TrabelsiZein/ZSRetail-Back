@@ -121,7 +121,7 @@ class StoreStatusTest {
 		assertEquals(StoreStatus.ONLINE, items.get(0).getStatus());
 		assertTrue(items.get(0).getSecondsSinceContact() >= 42 && items.get(0).getSecondsSinceContact() < 47,
 				String.valueOf(items.get(0).getSecondsSinceContact()));
-		assertEquals(StoreStatus.OFFLINE, items.get(1).getStatus(), "default threshold 180 s");
+		assertEquals(StoreStatus.OFFLINE, items.get(1).getStatus(), "default threshold 540 s (2.2.2)");
 		assertEquals(StoreStatus.NEVER, items.get(2).getStatus());
 		assertNull(items.get(2).getSecondsSinceContact());
 		assertEquals(StoreStatus.INACTIVE, items.get(3).getStatus());

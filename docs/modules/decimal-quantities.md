@@ -245,7 +245,7 @@ the summary said.
 | Cash counts, promotion settings, warranties, free quantity of a sale line, session count / supply invoice / catalogue component copies (the return copy until 2.2.1) | whole for good: 1.5 refused with a 400 naming the field; a warranty on a decimal line refused |
 | EMTOP ticket export (`TicketExportService`) | passes the quantity through (`Double` to NAV): 2 stays 2.0, 0.2 is sent as 0.2 |
 
-Left, decided apart: (b) the till's subtotal and VAT stopped at 0 per line for a fixed promotion larger than its line
+2.2.2, step 4: (b) done: a fixed discount larger than its line is capped at the line, whole or decimal (the till's subtotal and VAT per line, the line's stored `discountAmount` in `ItemSelection.vue` and `Payment.vue`, and `SalesHeaderService.applyDecimalLineAmounts`), so nothing stored is below 0; a discount within the line is unchanged. Was: (b) the till's subtotal and VAT stopped at 0 per line for a fixed promotion larger than its line
 (after the Happyness go-live). A store and its head office move to 2.2.1 together.
 
 ## Database

@@ -394,10 +394,9 @@ public class HoLoyaltyReceiver {
 		if (trim(edit.getFirstName()) == null || trim(edit.getLastName()) == null) {
 			throw new IllegalArgumentException("First name and last name are required");
 		}
-		// A blank function keeps the member's own (a deactivation sends the member as it is); none at all is refused
-		if (trim(edit.getMemberFunctionCode()) == null && member.getMemberFunction() == null) {
-			throw new IllegalArgumentException("La fonction du membre est obligatoire");
-		}
+		// A blank function keeps the member's own (a deactivation sends the member as it is). 2.2.2: a member without
+		// function is accepted: the store sends none only when it has no active function (its own rule,
+		// LoyaltyService.memberFunctionFor); the head office's list mixes the functions of every store.
 		String phone = LoyaltyService.normalizePhone(edit.getPhone());
 		if (!phone.equals(member.getPhone())) {
 			if (phone.isEmpty()) {

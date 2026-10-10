@@ -1601,7 +1601,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		if (discountPercentage != null && discountPercentage > 0) {
 			discount = grossTtc * (discountPercentage / 100);
 		} else if (discountAmount != null && discountAmount > 0) {
-			discount = discountAmount;
+			discount = Math.min(discountAmount, grossTtc); // 2.2.2: never more than the line (nothing stored below 0)
 		}
 		double netTtc = Math.max(0, grossTtc - discount);
 		double netHt = netTtc / (1 + (vat / 100.0));

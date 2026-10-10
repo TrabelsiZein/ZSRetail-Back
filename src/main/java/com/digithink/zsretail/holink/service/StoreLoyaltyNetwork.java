@@ -186,19 +186,25 @@ public class StoreLoyaltyNetwork {
 	/** PUT /loyalty/member/{id}: the edit form, through the head office. */
 	public LoyaltyMemberDTO edit(Long id, CreateLoyaltyMemberRequestDTO request) {
 		LoyaltyMember member = networkMember(id);
+		// 2.2.2: the store's own rule (LoyaltyService.memberFunctionFor): required only when an active function exists
+		MemberFunction function;
 		if (request.getMemberFunctionId() == null) {
-			throw new NetworkException(400, "La fonction du membre est obligatoire");
+			if (functions.countActive() > 0) {
+				throw new NetworkException(400, "La fonction du membre est obligatoire");
+			}
+			function = null; // none here: the head office keeps the member's own (if any)
+		} else {
+			function = functions.findById(request.getMemberFunctionId()).orElseThrow(
+					() -> new NetworkException(400, "Fonction du membre introuvable: " + request.getMemberFunctionId()));
 		}
-		MemberFunction function = functions.findById(request.getMemberFunctionId()).orElseThrow(
-				() -> new NetworkException(400, "Fonction du membre introuvable: " + request.getMemberFunctionId()));
 		LoyaltyMemberEditDTO edit = new LoyaltyMemberEditDTO();
 		edit.setFirstName(request.getFirstName());
 		edit.setLastName(request.getLastName());
 		edit.setPhone(request.getPhone());
 		edit.setEmail(request.getEmail());
 		edit.setBirthDate(parseDate(request.getBirthDate()));
-		edit.setMemberFunctionCode(function.getCode());
-		edit.setMemberFunctionName(function.getName());
+		edit.setMemberFunctionCode(function == null ? null : function.getCode());
+		edit.setMemberFunctionName(function == null ? null : function.getName());
 		edit.setCustomerCode(request.getCustomerId() == null ? null
 				: customers.findById(request.getCustomerId()).map(Customer::getCustomerCode).orElse(null));
 		return send(member, edit);

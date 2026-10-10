@@ -236,6 +236,8 @@ public final class InMemoryLoyalty {
 					return Optional.ofNullable(functions.get(a[0]));
 				case "findByCode":
 					return functions.values().stream().filter(f -> a[0].equals(f.getCode())).findFirst();
+				case "countActive": // 2.2.2: active is null or true
+					return functions.values().stream().filter(f -> f.getActive() == null || f.getActive()).count();
 				case "save": {
 					MemberFunction function = (MemberFunction) a[0];
 					assign(function);
