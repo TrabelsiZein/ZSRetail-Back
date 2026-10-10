@@ -121,8 +121,7 @@ class HeadOfficeErpJobsTest {
 	void runner() {
 		ErpSyncJob job = new ErpSyncJob();
 		job.setJobType(ErpSyncJobType.IMPORT_SUPPLY_INVOICES);
-		ErpSyncJobRunner runner = new ErpSyncJobRunner(null, new ErpSyncCheckpointService(null), null, null, null, null,
-				null);
+		ErpSyncJobRunner runner = new ErpSyncJobRunner(null, new ErpSyncCheckpointService(null), null, null);
 		ErpSyncWarningException none = assertThrows(ErpSyncWarningException.class, () -> runner.run(job));
 		assertEquals("The supply invoices are read from the ERP only on a head office with headoffice.supply.source=ERP",
 				none.getMessage());

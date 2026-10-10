@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.digithink.zsretail.erp.dto.ErpOperationResult;
 import com.digithink.zsretail.erp.dto.ErpTicketDTO;
 import com.digithink.zsretail.erp.dto.ErpTicketLineDTO;
+import com.digithink.zsretail.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.model.SalesHeader;
 import com.digithink.zsretail.model.SalesLine;
 import com.digithink.zsretail.model.enumeration.SynchronizationStatus;
@@ -23,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class TicketExportService {
+public class TicketExportService implements ErpExportJob {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(TicketExportService.class);
 
@@ -31,6 +32,18 @@ public class TicketExportService {
 	private final SalesHeaderRepository salesHeaderRepository;
 	private final SalesLineRepository salesLineRepository;
 	private final GeneralSetupService generalSetupService;
+
+	@Override
+	public ErpSyncJobType jobType() {
+		return ErpSyncJobType.EXPORT_TICKETS;
+	}
+
+	/** Through the proxy, in the same transaction the export method had when the runner called it. */
+	@Override
+	@Transactional
+	public void export() {
+		exportTickets();
+	}
 
 	/**
 	 * Export tickets to Dynamics NAV

@@ -134,10 +134,6 @@ class ProjectSortingGuardTest {
 		allow("5.7: the purchase invoices use the invoice snapshot type of the customer invoices",
 				"controller.PurchaseInvoiceAPI -> service.InvoiceService",
 				"service.PurchaseInvoiceService -> service.InvoiceService");
-		allow("knot (d), 5.6: the ERP job runner calls the store's sales exports",
-				"erp.service.ErpSyncJobRunner -> erp.service.ReturnExportService",
-				"erp.service.ErpSyncJobRunner -> erp.service.SessionExportService",
-				"erp.service.ErpSyncJobRunner -> erp.service.TicketExportService");
 		allow("knot (e), 5.8: erp/spi names the connectors through config",
 				"erp.spi.ErpAbilities -> config.ErpConnectorEnvironmentPostProcessor",
 				"erp.spi.NoOpErpConnector -> config.ConditionalOnErpConnector",

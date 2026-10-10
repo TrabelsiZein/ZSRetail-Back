@@ -35,9 +35,6 @@ public class ErpSyncJobRunner {
 	private final ErpSynchronizationManager synchronizationManager;
 	private final ErpSyncCheckpointService checkpointService;
 	private final ErpItemBootstrapService erpItemBootstrapService;
-	private final TicketExportService ticketExportService;
-	private final ReturnExportService returnExportService;
-	private final SessionExportService sessionExportService;
 	private final ErpDeletionSyncService erpDeletionSyncService;
 
 	/**
@@ -50,6 +47,13 @@ public class ErpSyncJobRunner {
 	/** Release 2.2: the job SYNC_CATALOGUE (navpospages connector only). A field, so the constructor stays as it is. */
 	@Autowired(required = false)
 	private ObjectProvider<ErpCatalogueSync> catalogueSync;
+
+	/**
+	 * Code cleanup step 5 (knot d): the exports of the store's documents (tickets, returns, sessions), by job type. A field,
+	 * like the two above; an application without them (the head office after step 6) exports nothing.
+	 */
+	@Autowired(required = false)
+	private List<ErpExportJob> exportJobs;
 
 	public void run(ErpSyncJob job) {
 		ErpSyncJobType jobType = job.getJobType();
@@ -113,13 +117,9 @@ public class ErpSyncJobRunner {
 						+ "Data extraction from POS is not yet implemented.", job.getJobType());
 				break;
 			case EXPORT_TICKETS:
-				ticketExportService.exportTickets();
-				break;
 			case EXPORT_RETURNS:
-				returnExportService.exportReturns();
-				break;
 			case EXPORT_SESSIONS:
-				sessionExportService.exportSessions();
+				export(jobType);
 				break;
 			case SYNC_ERP_DELETIONS:
 				List<ErpDeletionLogEntryDTO> deletionEntries = erpDeletionSyncService.applyDeletionsFromLog(filter);
@@ -151,5 +151,18 @@ public class ErpSyncJobRunner {
 			LOGGER.warn("ERP sync job {} skipped: {}", jobType, warning.getMessage());
 			throw warning;
 		}
+	}
+
+	/** The export of this job type; none in this application: nothing to export. */
+	private void export(ErpSyncJobType jobType) {
+		if (exportJobs != null) {
+			for (ErpExportJob export : exportJobs) {
+				if (export.jobType() == jobType) {
+					export.export();
+					return;
+				}
+			}
+		}
+		LOGGER.info("ERP sync job {}: no export of this type in this application, nothing sent", jobType);
 	}
 }

@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.digithink.zsretail.erp.dto.ErpOperationResult;
 import com.digithink.zsretail.erp.dto.ErpReturnDTO;
 import com.digithink.zsretail.erp.dto.ErpReturnLineDTO;
+import com.digithink.zsretail.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.model.ReturnHeader;
 import com.digithink.zsretail.model.ReturnLine;
 import com.digithink.zsretail.model.enumeration.SynchronizationStatus;
@@ -23,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class ReturnExportService {
+public class ReturnExportService implements ErpExportJob {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(ReturnExportService.class);
 
@@ -31,6 +32,18 @@ public class ReturnExportService {
 	private final ReturnHeaderRepository returnHeaderRepository;
 	private final ReturnLineRepository returnLineRepository;
 	private final GeneralSetupService generalSetupService;
+
+	@Override
+	public ErpSyncJobType jobType() {
+		return ErpSyncJobType.EXPORT_RETURNS;
+	}
+
+	/** Through the proxy, in the same transaction the export method had when the runner called it. */
+	@Override
+	@Transactional
+	public void export() {
+		exportReturns();
+	}
 
 	/**
 	 * Export returns to Dynamics NAV

@@ -131,6 +131,10 @@
 
 ## ERP Synchronization Operations
 
+**Export jobs** (code cleanup step 5): `EXPORT_TICKETS`, `EXPORT_RETURNS`, `EXPORT_SESSIONS` run through `erp/service/ErpExportJob`
+(`TicketExportService`, `ReturnExportService`, `SessionExportService`, the store's): `ErpSyncJobRunner` calls the export of the
+job's type, in the same transaction as before (`ErpExportJobsTest`); an application without one sends nothing.
+
 **ErpSyncOperation Enum:**
 - `IMPORT_ITEM_FAMILIES`, `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS`, `IMPORT_ITEM_BARCODES`, `IMPORT_LOCATIONS`, `IMPORT_CUSTOMERS` - Import operations
 - `EXPORT_CUSTOMER` - Export customer to ERP

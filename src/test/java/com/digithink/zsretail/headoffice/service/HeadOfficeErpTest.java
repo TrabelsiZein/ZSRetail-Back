@@ -116,7 +116,7 @@ class HeadOfficeErpTest {
 	@DisplayName("The runner (scheduler and run now) refuses them with a warning; the imports run")
 	void runnerRefuses() {
 		List<ErpSyncJobType> ran = new ArrayList<>();
-		ErpSyncJobRunner runner = new ErpSyncJobRunner(null, null, null, null, null, null, null) {
+		ErpSyncJobRunner runner = new ErpSyncJobRunner(null, null, null, null) {
 			@Override
 			public void run(ErpSyncJob job) {
 				ran.add(job.getJobType());
@@ -268,7 +268,7 @@ class HeadOfficeErpTest {
 	void catalogueOnlyRunnerRefuses() {
 		jobs = new HeadOfficeErpJobs(repository(), true);
 		List<ErpSyncJobType> ran = new ArrayList<>();
-		ErpSyncJobRunner runner = new ErpSyncJobRunner(null, null, null, null, null, null, null) {
+		ErpSyncJobRunner runner = new ErpSyncJobRunner(null, null, null, null) {
 			@Override
 			public void run(ErpSyncJob job) {
 				ran.add(job.getJobType());

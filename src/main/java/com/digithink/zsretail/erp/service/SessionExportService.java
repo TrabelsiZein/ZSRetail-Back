@@ -20,6 +20,7 @@ import com.digithink.zsretail.erp.dto.ErpOperationResult;
 import com.digithink.zsretail.erp.dto.ErpPaymentHeaderDTO;
 import com.digithink.zsretail.erp.dto.ErpPaymentLineDTO;
 import com.digithink.zsretail.erp.dto.ErpSessionDTO;
+import com.digithink.zsretail.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.erp.model.PaymentHeader;
 import com.digithink.zsretail.erp.model.PaymentLine;
 import com.digithink.zsretail.erp.repository.PaymentHeaderRepository;
@@ -42,7 +43,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class SessionExportService {
+public class SessionExportService implements ErpExportJob {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(SessionExportService.class);
 
@@ -54,6 +55,18 @@ public class SessionExportService {
 	private final PaymentRepository paymentRepository;
 private final PaymentHeaderRepository paymentHeaderRepository;
 	private final PaymentLineRepository paymentLineRepository;
+
+	@Override
+	public ErpSyncJobType jobType() {
+		return ErpSyncJobType.EXPORT_SESSIONS;
+	}
+
+	/** Through the proxy, in the same transaction the export method had when the runner called it. */
+	@Override
+	@Transactional
+	public void export() {
+		exportSessions();
+	}
 
 	/**
 	 * Export sessions to Dynamics NAV
