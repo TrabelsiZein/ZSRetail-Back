@@ -19,7 +19,7 @@ import com.digithink.zsretail.config.Installation;
 import com.digithink.zsretail.headoffice.dto.PromotionTargetsDTO;
 import com.digithink.zsretail.headoffice.dto.PromotionWithTargetsDTO;
 import com.digithink.zsretail.headoffice.service.HoPromotionService;
-import com.digithink.zsretail.holink.service.SalesCopyFinder;
+import com.digithink.zsretail.utils.ErrorTexts;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -75,8 +75,8 @@ public class HoPromotionTargetAPI {
 		} catch (IllegalArgumentException e) {
 			return error(HttpStatus.BAD_REQUEST, e.getMessage());
 		} catch (Exception e) {
-			log.error("HoPromotionTargetAPI::create:error: {}", SalesCopyFinder.cause(e), e);
-			return error(HttpStatus.INTERNAL_SERVER_ERROR, SalesCopyFinder.cause(e));
+			log.error("HoPromotionTargetAPI::create:error: {}", ErrorTexts.cause(e), e);
+			return error(HttpStatus.INTERNAL_SERVER_ERROR, ErrorTexts.cause(e));
 		}
 	}
 

@@ -32,8 +32,8 @@ import com.digithink.zsretail.headoffice.model.HoDownSequence;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.HoDownChangeRepository;
 import com.digithink.zsretail.headoffice.repository.HoDownSequenceRepository;
-import com.digithink.zsretail.holink.service.SalesCopyFinder;
 import com.digithink.zsretail.model.enumeration.DataDomain;
+import com.digithink.zsretail.utils.ErrorTexts;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import lombok.extern.log4j.Log4j2;
@@ -316,7 +316,7 @@ public class CopiesDownFeed {
 				}
 			} catch (RuntimeException e) {
 				log.warn("Head office copies down: backfill of {} failed ({})", provider.getDomain(),
-						SalesCopyFinder.cause(e));
+						ErrorTexts.cause(e));
 			}
 		}
 	}

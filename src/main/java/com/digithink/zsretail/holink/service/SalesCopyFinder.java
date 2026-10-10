@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.NestedExceptionUtils;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionOperations;
@@ -23,6 +22,7 @@ import com.digithink.zsretail.holink.model.SalesCopy;
 import com.digithink.zsretail.holink.model.SalesCopyCursor;
 import com.digithink.zsretail.holink.repository.SalesCopyCursorRepository;
 import com.digithink.zsretail.holink.repository.SalesCopyRepository;
+import com.digithink.zsretail.utils.ErrorTexts;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -167,10 +167,9 @@ public class SalesCopyFinder {
 		return copy;
 	}
 
-	/** The most specific cause, e.g. "SQLServerException: The query has timed out." */
+	/** The most specific cause, e.g. "SQLServerException: The query has timed out." ({@link ErrorTexts#cause}). */
 	public static String cause(Exception e) {
-		Throwable cause = NestedExceptionUtils.getMostSpecificCause(e);
-		return cause.getClass().getSimpleName() + (cause.getMessage() == null ? "" : ": " + cause.getMessage());
+		return ErrorTexts.cause(e);
 	}
 
 	/** Outcome of one search over the three types. */

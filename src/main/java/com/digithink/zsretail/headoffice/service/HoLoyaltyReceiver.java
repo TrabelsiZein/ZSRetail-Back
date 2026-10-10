@@ -28,7 +28,6 @@ import com.digithink.zsretail.headoffice.model.HoLoyaltyMovement;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.HoLoyaltyAliasRepository;
 import com.digithink.zsretail.headoffice.repository.HoLoyaltyMovementRepository;
-import com.digithink.zsretail.holink.service.SalesCopyFinder;
 import com.digithink.zsretail.model.LoyaltyMember;
 import com.digithink.zsretail.model.LoyaltyTransaction;
 import com.digithink.zsretail.model.enumeration.LoyaltyTransactionType;
@@ -40,6 +39,7 @@ import com.digithink.zsretail.repository.MemberFunctionRepository;
 import com.digithink.zsretail.service.LoyaltyLedger;
 import com.digithink.zsretail.service.LoyaltyService;
 import com.digithink.zsretail.service.MemberFunctionCodes;
+import com.digithink.zsretail.utils.ErrorTexts;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -140,7 +140,7 @@ public class HoLoyaltyReceiver {
 					result = writes.execute(status -> receiveMember(store, copy));
 				}
 			} catch (RuntimeException e) {
-				result = LoyaltyMemberResultDTO.rejected(card, cut(SalesCopyFinder.cause(e)));
+				result = LoyaltyMemberResultDTO.rejected(card, cut(ErrorTexts.cause(e)));
 			}
 			if (!result.isAccepted()) {
 				log.warn("Head office: loyalty member {} from store '{}' rejected: {}", card, store.getCode(),
@@ -235,7 +235,7 @@ public class HoLoyaltyReceiver {
 					result = writes.execute(status -> receiveMovement(store, copy));
 				}
 			} catch (RuntimeException e) {
-				result = new SalesCopyResultDTO(key, false, cut(SalesCopyFinder.cause(e)));
+				result = new SalesCopyResultDTO(key, false, cut(ErrorTexts.cause(e)));
 			}
 			if (!result.isAccepted()) {
 				log.warn("Head office: loyalty movement {} from store '{}' rejected: {}", key, store.getCode(),

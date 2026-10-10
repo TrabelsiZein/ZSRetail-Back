@@ -152,10 +152,6 @@ class ProjectSortingGuardTest {
 				"erp.service.ErpSyncJobRunner -> erp.service.ReturnExportService",
 				"erp.service.ErpSyncJobRunner -> erp.service.SessionExportService",
 				"erp.service.ErpSyncJobRunner -> erp.service.TicketExportService");
-		allow("knot (c), 5.3: the head office uses the error text helper of the store's sales copies",
-				"headoffice.controller.HoPromotionTargetAPI -> holink.service.SalesCopyFinder",
-				"headoffice.service.CopiesDownFeed -> holink.service.SalesCopyFinder",
-				"headoffice.service.HoLoyaltyReceiver -> holink.service.SalesCopyFinder");
 		allow("knot (a), 5.4: three link messages build themselves from head office entities",
 				"headoffice.dto.DeliveryCopyDTO -> headoffice.model.HoDelivery",
 				"headoffice.dto.DeliveryCopyDTO -> headoffice.model.HoDeliveryLine",
