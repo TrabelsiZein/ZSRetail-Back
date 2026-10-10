@@ -25,6 +25,7 @@ import com.digithink.zsretail.service.CatalogueCodeTooLongException;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.ItemFamilyService;
 import com.digithink.zsretail.service.ItemSubFamilyService;
+import com.digithink.zsretail.service.PosCatalogueService;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -38,6 +39,9 @@ public class ItemSubFamilyAPI extends _BaseController<ItemSubFamily, Long, ItemS
 
 	@Autowired
 	private ItemFamilyService itemFamilyService;
+
+	@Autowired
+	private PosCatalogueService posCatalogue;
 
 	@Autowired
 	private ApplicationModeService applicationModeService;
@@ -120,10 +124,26 @@ public class ItemSubFamilyAPI extends _BaseController<ItemSubFamily, Long, ItemS
 
 	@GetMapping("/by-family/{familyId}")
 	public ResponseEntity<?> getByFamily(@PathVariable Long familyId) {
+		return byFamily(familyId, false);
+	}
+
+	/**
+	 * 2.2.2: the sub-families of a family on the POS screen (ItemSelection.vue only): the same answer as
+	 * {@link #getByFamily}, without the empty sub-families when POS_HIDE_EMPTY_SUB_FAMILIES is on (PosCatalogueService).
+	 */
+	@GetMapping("/pos/by-family/{familyId}")
+	public ResponseEntity<?> getByFamilyForPos(@PathVariable Long familyId) {
+		return byFamily(familyId, true);
+	}
+
+	private ResponseEntity<?> byFamily(Long familyId, boolean pos) {
 		try {
 			ItemFamily family = itemFamilyService.findById(familyId)
 					.orElseThrow(() -> new IllegalArgumentException("Item family not found: " + familyId));
 			List<ItemSubFamily> subFamilies = service.findByFamily(family);
+			if (pos) {
+				subFamilies = posCatalogue.subFamilies(subFamilies);
+			}
 			if (!isPosShowImages()) {
 				subFamilies.forEach(sf -> sf.setImageFilename(null));
 			}

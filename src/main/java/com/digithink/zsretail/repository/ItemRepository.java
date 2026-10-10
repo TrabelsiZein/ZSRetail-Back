@@ -73,6 +73,24 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 
 	List<Item> findByItemSubFamily(ItemSubFamily itemSubFamily);
 
+	/** 2.2.2: the items of a family without a sub-family (the till's extra tile). */
+	List<Item> findByItemFamilyAndItemSubFamilyIsNull(ItemFamily itemFamily);
+
+	/**
+	 * 2.2.2, the one grouped query of the POS grid's counts: the items the grid lists ({@code ItemService.listedInPos},
+	 * the same conditions), in an active sub-family (or none), counted by the sub-family's family, the item's own
+	 * family and the sub-family: rows {sub-family's family id, item's family id, sub-family id, count}. An item with a
+	 * sub-family belongs to the sub-family's family (where the grid shows it); one without, to its own family.
+	 */
+	String POS_GRID_COUNTS = "select sff.id, f.id, sf.id, count(i) from Item i left join i.itemSubFamily sf"
+			+ " left join sf.itemFamily sff left join i.itemFamily f"
+			+ " where (i.active is null or i.active = true) and (i.showInPos is null or i.showInPos = true)"
+			+ " and i.unitPrice > 0 and (sf.id is null or sf.active is null or sf.active = true)"
+			+ " group by sff.id, f.id, sf.id";
+
+	@Query(POS_GRID_COUNTS)
+	List<Object[]> countPosGridItems();
+
 	/** Head office plan, step 6: the items of these codes. */
 	List<Item> findByItemCodeIn(Collection<String> itemCodes);
 

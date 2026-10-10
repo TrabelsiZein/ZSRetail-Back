@@ -235,20 +235,38 @@ public class ItemService extends _BaseService<Item, Long> {
 		ItemFamily family = itemFamilyRepository.findById(familyId)
 				.orElseThrow(() -> new IllegalArgumentException("Item family not found: " + familyId));
 
-		return itemRepository.findByItemFamily(family).stream()
-				.filter(item -> item.getActive() == null || Boolean.TRUE.equals(item.getActive()))
-				.filter(item -> item.getShowInPos() == null || Boolean.TRUE.equals(item.getShowInPos()))
-				.filter(item -> item.getUnitPrice() != null && item.getUnitPrice() > 0).collect(Collectors.toList());
+		return itemRepository.findByItemFamily(family).stream().filter(ItemService::listedInPos)
+				.collect(Collectors.toList());
+	}
+
+	/**
+	 * The POS grid's rule, the one place (2.2.2): an item the grid lists is active (or not set), shown in the POS (or not
+	 * set) and has a unit price above 0. {@code ItemRepository.countPosGridItems} counts with the same conditions in
+	 * JPQL (PosGridCountQueryTest keeps both the same).
+	 */
+	public static boolean listedInPos(Item item) {
+		return (item.getActive() == null || Boolean.TRUE.equals(item.getActive()))
+				&& (item.getShowInPos() == null || Boolean.TRUE.equals(item.getShowInPos()))
+				&& item.getUnitPrice() != null && item.getUnitPrice() > 0;
 	}
 
 	public List<Item> findActiveBySubFamilyId(Long subFamilyId) {
 		ItemSubFamily subFamily = itemSubFamilyRepository.findById(subFamilyId)
 				.orElseThrow(() -> new IllegalArgumentException("Item sub-family not found: " + subFamilyId));
 
-		return itemRepository.findByItemSubFamily(subFamily).stream()
-				.filter(item -> item.getActive() == null || Boolean.TRUE.equals(item.getActive()))
-				.filter(item -> item.getShowInPos() == null || Boolean.TRUE.equals(item.getShowInPos()))
-				.filter(item -> item.getUnitPrice() != null && item.getUnitPrice() > 0).collect(Collectors.toList());
+		return itemRepository.findByItemSubFamily(subFamily).stream().filter(ItemService::listedInPos)
+				.collect(Collectors.toList());
+	}
+
+	/**
+	 * 2.2.2: the items of a family that have no sub-family, as the grid lists them (the till shows them under one extra
+	 * tile, or directly when the family has no sub-family tile). Until 2.2.1 they could not be reached from the grid.
+	 */
+	public List<Item> findPosItemsWithoutSubFamily(Long familyId) {
+		ItemFamily family = itemFamilyRepository.findById(familyId)
+				.orElseThrow(() -> new IllegalArgumentException("Item family not found: " + familyId));
+		return itemRepository.findByItemFamilyAndItemSubFamilyIsNull(family).stream().filter(ItemService::listedInPos)
+				.collect(Collectors.toList());
 	}
 
 	/**

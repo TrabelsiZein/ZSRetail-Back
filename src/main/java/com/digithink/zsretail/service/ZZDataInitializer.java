@@ -989,6 +989,14 @@ public class ZZDataInitializer {
 		ensureConfig("POS_SHOW_STOCK", "false",
 				"Show stock quantity on item cards in the POS cashier screen. Only relevant without an ERP.",
 				false, ConfigType.BOOLEAN);
+		if (!applicationModeService.isHeadOffice()) { // 2.2.2: the POS screen of a store (a head office never sells)
+			ensureConfig(PosCatalogueService.HIDE_EMPTY_FAMILIES, "false",
+					"Hide the families without an item to sell in the POS screen (an item counts when it is active, shown in the POS and has a price). Other pages keep every family.",
+					false, ConfigType.BOOLEAN);
+			ensureConfig(PosCatalogueService.HIDE_EMPTY_SUB_FAMILIES, "false",
+					"Hide the sub-families without an item to sell in the POS screen (same rule as the families). Other pages keep every sub-family.",
+					false, ConfigType.BOOLEAN);
+		}
 
 		// ── Table management ──────────────────────────────────────────────────
 		ensureConfig("TABLE_MANAGEMENT_ENABLED", "false", "Enable table management mode in POS", false,

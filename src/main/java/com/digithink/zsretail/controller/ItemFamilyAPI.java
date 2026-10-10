@@ -23,6 +23,7 @@ import com.digithink.zsretail.service.CatalogueCodeChangeException;
 import com.digithink.zsretail.service.CatalogueCodeTooLongException;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.ItemFamilyService;
+import com.digithink.zsretail.service.PosCatalogueService;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -33,6 +34,9 @@ public class ItemFamilyAPI extends _BaseController<ItemFamily, Long, ItemFamilyS
 
 	@Autowired(required = false)
 	private ObjectProvider<StoreCatalogueGuard> catalogueGuard;
+
+	@Autowired
+	private PosCatalogueService posCatalogue;
 
 	private final ApplicationModeService applicationModeService;
 	private final GeneralSetupService generalSetupService;
@@ -47,9 +51,25 @@ public class ItemFamilyAPI extends _BaseController<ItemFamily, Long, ItemFamilyS
 	@Override
 	@GetMapping
 	public ResponseEntity<?> getAll() {
+		return families(false);
+	}
+
+	/**
+	 * 2.2.2: the families of the POS screen (ItemSelection.vue only): the same answer as {@link #getAll()}, without the
+	 * empty families when the store setting POS_HIDE_EMPTY_FAMILIES is on (PosCatalogueService).
+	 */
+	@GetMapping("/pos")
+	public ResponseEntity<?> getAllForPos() {
+		return families(true);
+	}
+
+	private ResponseEntity<?> families(boolean pos) {
 		try {
-			log.info("ItemFamilyAPI::getAll");
+			log.info("ItemFamilyAPI::getAll" + (pos ? " (POS)" : ""));
 			List<ItemFamily> families = service.findAll();
+			if (pos) {
+				families = posCatalogue.families(families);
+			}
 			if (!isPosShowImages()) {
 				families.forEach(f -> f.setImageFilename(null));
 			}

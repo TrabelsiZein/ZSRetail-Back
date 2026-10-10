@@ -357,6 +357,23 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 		}
 	}
 
+	/**
+	 * 2.2.2: the items of a family without a sub-family, as the POS grid lists them (ItemSelection.vue: one extra tile
+	 * after the sub-families, or the family opens directly on them when it has no sub-family tile).
+	 */
+	@GetMapping("/pos/without-sub-family/{familyId}")
+	public ResponseEntity<?> getWithoutSubFamilyForPos(@PathVariable Long familyId) {
+		try {
+			List<Item> items = service.findPosItemsWithoutSubFamily(familyId);
+			if (!isPosShowImages()) {
+				items.forEach(i -> i.setImageUrl(null));
+			}
+			return ResponseEntity.ok(items);
+		} catch (Exception e) {
+			return ResponseEntity.badRequest().body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
 	private boolean isPosShowImages() {
 		String val = generalSetupService.findValueByCode("POS_SHOW_IMAGES");
 		return val == null || !"false".equalsIgnoreCase(val);
