@@ -240,6 +240,13 @@ router guard (home) and the search bar hide them, like the other store-mode page
   PC** from `GET /rfid/my-machine`: the address the back end sees, its POS machine and reader and "Ready to read", or
   why it cannot read; **Add this machine** (when no machine has that address) opens the add form with the address
   filled in. From the dev server the address is `127.0.0.1` (the browser calls the back end on the same PC).
+- **Field checks in the two popups** (front d8947ec, vee-validate as the Roles page, `@validations`): each field while
+  typing and on leaving it, the message under it in red, Save off while a field is wrong or a required one is empty; the
+  back end's own refusal still shown above the fields. IP address: `components/inputs/Ipv4Input.vue` (reusable: digits
+  and dots only, typed or pasted, four parts of at most 3 digits, the dot added after 3 digits, no fifth part) and the
+  rule `ipv4` (four parts 0 to 255, no leading zeros); a POS machine is entered in IPv4 only. Port, power, reading time:
+  digits only, rule `int-between` (1-65535, 0-30, 100-10000, "ms" at the right). Name: required, at most 100
+  characters, trimmed. Messages `common.validation.*` in the five languages.
 - Every request passes `skipErrorPopup` (`components/admin/rfid/rfid-api.js`, timeout 30 s): the page shows the back
   end's `{"error"}` itself, once.
 - Labels: `admin.rfid.*` in en, fr, ar, de, pt (Reader / Lecteur / قارئ / Lesegerät / Leitor; POS machine / Poste de
