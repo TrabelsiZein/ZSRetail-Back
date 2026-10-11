@@ -10,7 +10,8 @@ store's database.
 |---|---|
 | Back end: the switch, the readers and POS machines, the Hopeland reader, the reads, the endpoints | done (RFID steps 1 to 9) |
 | Front: the RFID menu, the Readers page, the POS machines page with "Add this machine" | done (below, "The front pages") |
-| Later: the tags table (one tag = one piece, in stock / sold, linked to an item), the tag assignment screen and its button on the reception lines (`hol_delivery_line`), the RFID button of the POS (`ItemSelection.vue`), the sale and the return updating the tag status | not started |
+| Tags: the table (one tag = one piece, in stock / sold, linked to an item), the Tags page, the Tag assignment page and its button on the reception lines | done ("Tags", "Tag assignment") |
+| Later: the RFID button of the POS (`ItemSelection.vue`), the sale and the return updating the tag status (`sold_at`, `ticket_number`) | not started |
 
 **Package map** (store project, `com.digithink.zsretail.store.rfid`): `model` (`RfidReader`, `PosMachine`), `repository`,
 `service` (`RfidReaderService`, `PosMachineService`, `RfidReadService`, `RfidAddresses`), `reader` (`RfidReaderDevice`,
@@ -292,6 +293,8 @@ router guard (home) and the search bar hide them, like the other store-mode page
 |---|---|---|---|
 | `admin-rfid-readers` | `/admin/rfid/readers` | `views/admin/rfid/RfidReaders.vue` | `read:admin-rfid-readers` |
 | `admin-rfid-pos-machines` | `/admin/rfid/pos-machines` | `views/admin/rfid/RfidPosMachines.vue` | `read:admin-rfid-pos-machines` |
+| `admin-rfid-tags` | `/admin/rfid/tags` | `views/admin/rfid/RfidTags.vue` | `read:admin-rfid-tags` |
+| `admin-rfid-assignment` | `/admin/rfid/assignment` | `views/admin/rfid/RfidTagAssignment.vue` | `read:admin-rfid-assignment` |
 
 - **Readers**: the list (name, IP address, port, power, reading time, active), add / edit (a modal; the back end's
   message shown in it as it comes) / delete (a refusal in a toast, e.g. a reader still used by POS machines). Per
@@ -317,6 +320,23 @@ router guard (home) and the search bar hide them, like the other store-mode page
   caisse / جهاز نقطة البيع / Kassenplatz / Posto de caixa; Tag / Étiquette / وسم / Tag / Etiqueta). The Roles page
   (fixed French labels, like its other groups): group RFID, "Lecteurs RFID", "Postes de caisse RFID", only when
   `rfidEnabled`.
+- **Tags**: a page of tags (newest first) with the filters item (`components/inputs/ItemPicker.vue`), status, a part of
+  the EPC; Move to another item (a popup with the item picker) and Delete, both off for a sold tag (tooltip: kept as the
+  record of the piece sold).
+- **Tag assignment** (`components/admin/rfid/RfidAssignmentPanel.vue`, the page and the reception popup
+  `RfidAssignmentModal.vue`): the reader among the active ones; by default the one marked **Use as default on this PC**
+  (`localStorage` key `zsretail.rfid.defaultReaderId`, read and written in try/catch), else the reader of this POS
+  machine (`/rfid/my-machine`, matched by name), else none. The item by scanning a barcode or by search (`ItemPicker`:
+  `/item/search` while typing; on Enter the exact barcode `/item-barcode/barcode/{code}` first, then the only result or
+  the exact code). The expected quantity (optional). **Read**: the counts, NEW ticked except the weak ones (marked
+  "weak", tooltip with the margin), OTHER_ITEM in red with their item, SAME_ITEM and SOLD shown; a warning when the
+  ticked count differs from the expected quantity. **Save** ("Link N tags"): the ticked NEW tags, then what was linked,
+  already on the item, and each refusal with the back end's message.
+- **Delivery reception** (`views/admin/holink/DeliveryReception.vue`): on each item line of the four tables (to receive
+  and received, BL and ERP invoice) a tag button that opens the assignment as a popup over the reception (the quantities
+  being typed are kept): the item fixed, the expected quantity of the line (received, else typed, else sent; a whole
+  number only), the source `RECEPTION` with the delivery number and the line. Off (tooltip) while the item is not in this
+  store (`itemId` null); hidden without `rfidEnabled` or the Tag assignment permission. It never blocks or changes Receive.
 - The POS screens (`src/views/pos`) do not read RFID yet.
 
 ## Permissions (the front pages)
