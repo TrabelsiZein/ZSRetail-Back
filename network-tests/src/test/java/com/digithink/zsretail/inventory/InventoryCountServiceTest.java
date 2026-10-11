@@ -1,6 +1,6 @@
 package com.digithink.zsretail.inventory;
 
-import static com.digithink.zsretail.inventory.InventoryFiles.row;
+import static com.digithink.zsretail.store.inventory.InventoryFiles.row;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -29,14 +29,15 @@ import com.digithink.zsretail.core.model.StockMovement;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.model.enumeration.StockMovementDirection;
 import com.digithink.zsretail.core.model.enumeration.StockMovementType;
+import com.digithink.zsretail.core.support.TestModes;
+import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
+import com.digithink.zsretail.headoffice.support.InMemoryStock;
+import com.digithink.zsretail.store.inventory.InventoryFiles;
 import com.digithink.zsretail.store.inventory.controller.InventoryCountAPI;
 import com.digithink.zsretail.store.inventory.enumeration.InventoryCountStatus;
 import com.digithink.zsretail.store.inventory.enumeration.InventoryLineStatus;
 import com.digithink.zsretail.store.inventory.model.InventoryCountLine;
 import com.digithink.zsretail.store.inventory.service.InventoryCountService;
-import com.digithink.zsretail.support.InMemoryCatalogue;
-import com.digithink.zsretail.support.InMemoryStock;
-import com.digithink.zsretail.support.TestModes;
 
 /**
  * Inventory count: the import (lookup by barcode then item code, rows merged, statuses), the validation (the stock

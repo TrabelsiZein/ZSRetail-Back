@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.digithink.zsretail.support.Repo;
+import com.digithink.zsretail.core.support.Repo;
 
 /**
  * Code cleanup step 5: the target project of every class of the projects' src/main/java and the rules between the

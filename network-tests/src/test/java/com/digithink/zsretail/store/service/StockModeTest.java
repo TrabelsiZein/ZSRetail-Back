@@ -23,10 +23,10 @@ import com.digithink.zsretail.core.model.enumeration.DataOwner;
 import com.digithink.zsretail.core.model.enumeration.StockMovementType;
 import com.digithink.zsretail.core.service.StockMovementService;
 import com.digithink.zsretail.core.service.StockService;
-import com.digithink.zsretail.support.InMemoryCatalogue;
-import com.digithink.zsretail.support.InMemoryStock;
+import com.digithink.zsretail.core.support.TestModes;
+import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
+import com.digithink.zsretail.headoffice.support.InMemoryStock;
 import com.digithink.zsretail.support.Installations;
-import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, task 9.1f: StockService and StockMovementService ask isSupplyFromErp instead of isStandalone (the

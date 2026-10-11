@@ -25,6 +25,7 @@ import org.springframework.mock.env.MockEnvironment;
 import org.springframework.stereotype.Service;
 
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
+import com.digithink.zsretail.core.support.Questions;
 import com.digithink.zsretail.headoffice.controller.HeadOfficeSupplyAPI;
 import com.digithink.zsretail.headoffice.controller.HoDeliveryAPI;
 import com.digithink.zsretail.headoffice.controller.HoErpInvoiceAPI;
@@ -42,7 +43,6 @@ import com.digithink.zsretail.headoffice.service.HoSupplyInvoiceService;
 import com.digithink.zsretail.headoffice.service.HoSupplyPriceService;
 import com.digithink.zsretail.headoffice.service.SupplyConfirmationReceiver;
 import com.digithink.zsretail.support.Installations;
-import com.digithink.zsretail.support.Questions;
 
 /**
  * Invoices from the ERP, step (b): the two conditions on the real files (no context). @ConditionalOnInstallation(HEAD_OFFICE_OWN_SUPPLY)

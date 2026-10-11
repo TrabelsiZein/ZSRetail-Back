@@ -16,6 +16,7 @@ import java.util.stream.Stream;
 import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.core.config.ZsRetailApplication;
+import com.digithink.zsretail.core.support.Repo;
 
 /**
  * Test support (task 9.3, configuration step C1): an installation's configuration merged the way the application does,

@@ -45,6 +45,28 @@
 			<artifactId>spring-boot-starter-tomcat</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!-- The test helpers of core, the store and the head office -->
+		<dependency>
+			<groupId>com.digithink</groupId>
+			<artifactId>zsretail-core</artifactId>
+			<version>${project.version}</version>
+			<type>test-jar</type>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.digithink</groupId>
+			<artifactId>zsretail-store</artifactId>
+			<version>${project.version}</version>
+			<type>test-jar</type>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.digithink</groupId>
+			<artifactId>zsretail-headoffice</artifactId>
+			<version>${project.version}</version>
+			<type>test-jar</type>
+			<scope>test</scope>
+		</dependency>
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>

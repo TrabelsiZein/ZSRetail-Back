@@ -1,7 +1,7 @@
 package com.digithink.zsretail.store.holink.service;
 
-import static com.digithink.zsretail.support.InMemoryLoyalty.UNHANDLED;
-import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
+import static com.digithink.zsretail.core.support.InMemoryLoyalty.UNHANDLED;
+import static com.digithink.zsretail.core.support.InMemoryLoyalty.proxy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -26,9 +26,9 @@ import com.digithink.zsretail.core.model.ItemFamily;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.core.repository.SalesPriceRepository;
+import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
 import com.digithink.zsretail.store.holink.model.LinkRight;
 import com.digithink.zsretail.store.holink.repository.LinkRightRepository;
-import com.digithink.zsretail.support.InMemoryCatalogue;
 
 /**
  * Head office plan, tasks 6.3, 6.5, 6.6: the rules of a store whose catalogue is the head office's. A head office record

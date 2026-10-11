@@ -1,8 +1,8 @@
 package com.digithink.zsretail.store.holink.service;
 
 import java.math.BigDecimal;
-import static com.digithink.zsretail.support.InMemoryLoyalty.UNHANDLED;
-import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
+import static com.digithink.zsretail.core.support.InMemoryLoyalty.UNHANDLED;
+import static com.digithink.zsretail.core.support.InMemoryLoyalty.proxy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -45,6 +45,8 @@ import com.digithink.zsretail.core.repository.PurchaseInvoiceHeaderRepository;
 import com.digithink.zsretail.core.repository.PurchaseInvoiceLineRepository;
 import com.digithink.zsretail.core.repository.VendorRepository;
 import com.digithink.zsretail.core.service.GeneralSetupService;
+import com.digithink.zsretail.core.support.InMemoryLoyalty;
+import com.digithink.zsretail.core.support.TestModes;
 import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.headoffice.dto.DeliveryDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryInputDTO;
@@ -57,15 +59,13 @@ import com.digithink.zsretail.headoffice.service.HoSupplyPriceService;
 import com.digithink.zsretail.headoffice.service.InMemoryDeliveries;
 import com.digithink.zsretail.headoffice.service.InMemoryDownTables;
 import com.digithink.zsretail.headoffice.service.InMemoryInvoices;
+import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
+import com.digithink.zsretail.headoffice.support.InMemoryStock;
 import com.digithink.zsretail.store.holink.enumeration.DownRecordStatus;
 import com.digithink.zsretail.store.holink.model.DownRecord;
 import com.digithink.zsretail.store.holink.model.ReceivedDelivery;
-import com.digithink.zsretail.support.InMemoryCatalogue;
-import com.digithink.zsretail.support.InMemoryLoyalty;
-import com.digithink.zsretail.support.InMemoryReceivedDeliveries;
-import com.digithink.zsretail.support.InMemoryStock;
-import com.digithink.zsretail.support.InMemoryStoreLink;
-import com.digithink.zsretail.support.TestModes;
+import com.digithink.zsretail.store.support.InMemoryReceivedDeliveries;
+import com.digithink.zsretail.store.support.InMemoryStoreLink;
 
 /**
  * Head office plan, step 7B, part 3, end to end over the copies down: the real head office (HoDeliveryService,

@@ -1,7 +1,7 @@
 package com.digithink.zsretail.store.controller;
 
-import static com.digithink.zsretail.support.InMemoryLoyalty.UNHANDLED;
-import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
+import static com.digithink.zsretail.core.support.InMemoryLoyalty.UNHANDLED;
+import static com.digithink.zsretail.core.support.InMemoryLoyalty.proxy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -33,14 +33,14 @@ import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.ItemCompositionService;
 import com.digithink.zsretail.core.service.ItemService;
 import com.digithink.zsretail.core.service._BaseService;
+import com.digithink.zsretail.core.support.TestModes;
+import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
 import com.digithink.zsretail.store.holink.model.LinkRight;
 import com.digithink.zsretail.store.holink.repository.LinkRightRepository;
 import com.digithink.zsretail.store.holink.service.CatalogueCopyWriter;
 import com.digithink.zsretail.store.holink.service.CatalogueRights;
 import com.digithink.zsretail.store.holink.service.HeadOfficeLinkStatus;
 import com.digithink.zsretail.store.holink.service.StoreCatalogueGuard;
-import com.digithink.zsretail.support.InMemoryCatalogue;
-import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, task 6.3 and 6.5: the real ItemAPI with and without the step 6 guard. With it (a store whose

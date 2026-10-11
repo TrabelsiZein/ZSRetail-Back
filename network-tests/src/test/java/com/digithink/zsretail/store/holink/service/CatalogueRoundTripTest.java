@@ -1,8 +1,8 @@
 package com.digithink.zsretail.store.holink.service;
 
 import java.math.BigDecimal;
-import static com.digithink.zsretail.support.InMemoryLoyalty.UNHANDLED;
-import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
+import static com.digithink.zsretail.core.support.InMemoryLoyalty.UNHANDLED;
+import static com.digithink.zsretail.core.support.InMemoryLoyalty.proxy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -34,6 +34,7 @@ import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.core.repository.SalesPriceRepository;
+import com.digithink.zsretail.core.support.InMemoryLoyalty;
 import com.digithink.zsretail.headoffice.dto.PriceListLineDTO;
 import com.digithink.zsretail.headoffice.model.HoPriceList;
 import com.digithink.zsretail.headoffice.model.Store;
@@ -41,14 +42,13 @@ import com.digithink.zsretail.headoffice.service.CopiesDownFeed;
 import com.digithink.zsretail.headoffice.service.HoCatalogueService;
 import com.digithink.zsretail.headoffice.service.HoPriceListService;
 import com.digithink.zsretail.headoffice.service.InMemoryDownTables;
+import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
 import com.digithink.zsretail.store.holink.enumeration.DownRecordStatus;
 import com.digithink.zsretail.store.holink.enumeration.LinkJobResult;
 import com.digithink.zsretail.store.holink.model.LinkExchange;
 import com.digithink.zsretail.store.holink.model.LinkRight;
 import com.digithink.zsretail.store.holink.repository.LinkRightRepository;
-import com.digithink.zsretail.support.InMemoryCatalogue;
-import com.digithink.zsretail.support.InMemoryLoyalty;
-import com.digithink.zsretail.support.InMemoryStoreLink;
+import com.digithink.zsretail.store.support.InMemoryStoreLink;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

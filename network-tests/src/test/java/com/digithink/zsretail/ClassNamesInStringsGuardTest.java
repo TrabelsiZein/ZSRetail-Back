@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.digithink.zsretail.support.Repo;
+import com.digithink.zsretail.core.support.Repo;
 
 /**
  * Code cleanup step 6: a full class name written in a string of the main code (a JPQL "select new", an enum constant in
@@ -69,8 +69,8 @@ class ClassNamesInStringsGuardTest {
 	@Test
 	@DisplayName("The guard itself: a class, a nested name or constant pass; a name that is no class fails")
 	void guardCatches() {
-		assertTrue(exists("com.digithink.zsretail.support.Repo"));
-		assertTrue(exists("com.digithink.zsretail.support.Repo.ROOT"));
+		assertTrue(exists("com.digithink.zsretail.core.support.Repo"));
+		assertTrue(exists("com.digithink.zsretail.core.support.Repo.ROOT"));
 		assertTrue(!exists("com.digithink.zsretail.model.NoSuchClass"));
 	}
 }

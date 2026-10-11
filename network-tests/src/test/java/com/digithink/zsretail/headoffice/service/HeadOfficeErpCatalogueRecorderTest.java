@@ -38,14 +38,14 @@ import com.digithink.zsretail.core.model._BaseEntity;
 import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.service.CatalogueHeadOfficeHooks;
+import com.digithink.zsretail.core.support.Questions;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
 import com.digithink.zsretail.headoffice.model.HoDownChange;
-import com.digithink.zsretail.support.InMemoryCatalogue;
+import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
 import com.digithink.zsretail.support.Installations;
-import com.digithink.zsretail.support.Questions;
 
 /**
  * ERP catalogue, step 7: the changes of an ERP import reach the stores. The real HoCatalogueService and CopiesDownFeed

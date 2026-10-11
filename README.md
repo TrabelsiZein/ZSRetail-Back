@@ -29,6 +29,13 @@ Complete Point of Sale (POS) backend application with role-based access control 
 - SQL Server
 - Maven
 
+## Projects and applications
+Several Maven projects under the parent `pom.xml` of this folder (code cleanup step 6): `erp-api`, `core`,
+`connector-emtop`, `connector-happyness`, and two applications, each its WAR: `store` (`StoreApplication`) and
+`headoffice` (`HeadOfficeApplication`); `network-tests` holds the tests that need both. `mvn -DskipTests clean package`
+builds `store/target/zsretail-store-<version>.war` and `headoffice/target/zsretail-headoffice-<version>.war`; each is
+deployed alone in its Tomcat as `zsretailws.war` (`docs/deploy-note.md`). The map of the projects: `CLAUDE.md`.
+
 ## Quick Start
 
 ### Prerequisites

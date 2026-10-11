@@ -14,6 +14,8 @@ import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.model.enumeration.DataOwner;
+import com.digithink.zsretail.core.support.Questions;
+import com.digithink.zsretail.core.support.TestModes;
 import com.digithink.zsretail.headoffice.controller.HoDeliveryAPI;
 import com.digithink.zsretail.headoffice.controller.HoNetworkStockAPI;
 import com.digithink.zsretail.headoffice.controller.HoPriceListAPI;
@@ -31,8 +33,6 @@ import com.digithink.zsretail.store.holink.service.CatalogueCopyWriter;
 import com.digithink.zsretail.store.holink.service.CatalogueDownHandler;
 import com.digithink.zsretail.store.holink.service.CatalogueRights;
 import com.digithink.zsretail.store.holink.service.StoreCatalogueGuard;
-import com.digithink.zsretail.support.Questions;
-import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, step 6: the catalogue beans of a store exist only on a standalone store with headoffice.url and an

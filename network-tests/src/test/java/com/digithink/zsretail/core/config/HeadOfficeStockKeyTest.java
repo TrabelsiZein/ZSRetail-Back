@@ -27,10 +27,10 @@ import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.core.service.LicenseService;
 import com.digithink.zsretail.core.service.LoyaltyService;
 import com.digithink.zsretail.core.service.TaxStampRuleTest;
+import com.digithink.zsretail.core.support.Questions;
+import com.digithink.zsretail.core.support.TestModes;
 import com.digithink.zsretail.headoffice.security.HeadOfficeWithoutStockFilter;
 import com.digithink.zsretail.support.Installations;
-import com.digithink.zsretail.support.Questions;
-import com.digithink.zsretail.support.TestModes;
 
 /**
  * headoffice.stock.enabled (default true in the head office type file): read on a head office only, strictly true or

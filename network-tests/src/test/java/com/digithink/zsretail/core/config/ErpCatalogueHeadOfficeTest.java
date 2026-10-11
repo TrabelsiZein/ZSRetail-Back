@@ -16,6 +16,8 @@ import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.model.enumeration.DataOwner;
+import com.digithink.zsretail.core.support.Questions;
+import com.digithink.zsretail.core.support.TestModes;
 import com.digithink.zsretail.headoffice.controller.ErpReferenceLocationAPI;
 import com.digithink.zsretail.headoffice.controller.HeadOfficeSupplyAPI;
 import com.digithink.zsretail.headoffice.controller.HoDeliveryAPI;
@@ -34,8 +36,6 @@ import com.digithink.zsretail.headoffice.service.HoPriceListService;
 import com.digithink.zsretail.headoffice.service.HoSupplyInvoiceService;
 import com.digithink.zsretail.headoffice.service.HoSupplyPriceService;
 import com.digithink.zsretail.support.Installations;
-import com.digithink.zsretail.support.Questions;
-import com.digithink.zsretail.support.TestModes;
 
 /**
  * ERP catalogue, step 1 (ownership only): a head office whose catalogue comes from the ERP while its customers and its

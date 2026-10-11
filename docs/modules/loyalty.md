@@ -76,7 +76,7 @@
 - Validation (`LoyaltyService.normalizeTiers`): amount > 0 (rounded to the millime), rate > 0, no two tiers on the same amount; stored sorted. Invalid tiers return HTTP 400 before the current program is closed.
 - Locking follows the rate fields: editable while the program has no transactions, then any change returns HTTP 409 (resending the same tiers is accepted). In `PUT /loyalty/programs/{id}`, `earningTiers` absent or null = unchanged, `[]` = remove all tiers.
 - Mapping: `@ElementCollection(fetch = EAGER)` + `@Fetch(FetchMode.SELECT)`, so tiers are never join-fetched with another collection (no `MultipleBagFetchException` at startup).
-- Tests: `network-tests/src/test/java/com/digithink/zsretail/service/LoyaltyEarningTiersTest.java` (plain JUnit 5 with in-memory stubs, no Spring context).
+- Tests: `core/src/test/java/com/digithink/zsretail/core/service/LoyaltyEarningTiersTest.java` (plain JUnit 5 with in-memory stubs, no Spring context).
 
 ### Returns
 
@@ -105,7 +105,7 @@ Requested by Groupe Hammami (2026-09): the phone is required when a member is cr
 - HTTP: missing or badly formatted number → 400, duplicate → 409 (`IllegalStateException`). `POST /loyalty/member` used to answer 500 for every validation error.
 - Frontend: phone marked `*`, `required` and `type="tel"` in the POS modal (`ItemSelection.vue`) and in the admin create and edit forms (`LoyaltyMembersManagement.vue`). The admin create button is disabled while the request runs.
 - No database constraint: members that already share a number would block a unique index. In Hammami production (2026-09-25, 250 members) 9 pairs share a number, almost all the same person entered twice. Merge them by hand: **Adjust points** to move the balance to the card being kept, then deactivate the other card. With loyalty `LOCAL` uniqueness holds per database only; members are not synced between installations. With loyalty owned by the head office (step 4) it holds across the network: see "Shared loyalty".
-- Tests: `network-tests/src/test/java/com/digithink/zsretail/store/service/LoyaltyMemberPhoneTest.java`.
+- Tests: `core/src/test/java/com/digithink/zsretail/core/service/LoyaltyMemberPhoneTest.java`.
 
 ### Shared loyalty (head office plan, step 4)
 

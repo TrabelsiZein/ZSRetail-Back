@@ -79,14 +79,27 @@ without one the type file applies. An old outside file naming the other type is 
   the excluding-VAT amounts. See `docs/modules/discounts.md`.
 - New public endpoints must be added to `SecurityConfig` `permitAll()` explicitly.
 
+## Tests (code cleanup step 6.7)
+
+Each project tests its own classes in its `src/test/java`, with what it sees: core's tests need only core, a store test
+only core and the store, a head office test only core and the head office. `network-tests` holds what needs both
+applications or a connector with core: the store / head office round trips, the configuration and installation proofs
+(`ConfigurationKeysProofTest`, `InstallationBeansProofTest`, their records in `network-tests/src/test/resources/config/`),
+the guards over every project (`ProjectSortingGuardTest`, `ConnectorNamesGuardTest`, `ConnectorDependenciesGuardTest`,
+`AspectPointcutsGuardTest`, `ClassNamesInStringsGuardTest`), the connector tests (they read the deploy files through
+`Installations`, which needs both type files). Test helpers: `core.support` (`Repo`, `InMemoryLoyalty`, `TestModes`...),
+`store.support`, `headoffice.support` (each project publishes its helpers as a test-jar), `support` in network-tests
+(`Installations`, `Starts`, `ClassRenames`).
+
 ## Commands
 
 Always from this folder (the parent): Maven builds the projects in dependency order.
 
 ```bash
 mvn -q -DskipTests compile        # fast syntax/compile check
-mvn -q -DskipTests package        # build the two WARs (docs/deploy-note.md)
-mvn test                          # reports in <project>/target/surefire-reports
+mvn -q -DskipTests package        # build the two WARs: store/target/zsretail-store-<v>.war, headoffice/target/zsretail-headoffice-<v>.war
+mvn test                          # every project; reports in <project>/target/surefire-reports
+mvn test -pl store -am            # one project (here store) with what it depends on (core's tests run too)
 mvn test -Dtest=SomeTest -Dsurefire.failIfNoSpecifiedTests=false   # one test class (the other projects have none)
 ```
 

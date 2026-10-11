@@ -74,4 +74,11 @@ Step by step, each commit with the full suite green:
   `classes` jar). `app` is gone: its tests are in network-tests (both applications' classes) until 6.7 sorts them. The
   sorting guard needs no list any more: a class's project is its package root. A stray `Payment.vue` committed at
   `src/views/pos/` in 7401b17 (moved to `app/src/views` at 6.1) is back at its old place, outside every project.
-- 6.7: the network tests, the dev scripts.
+- 6.7: the tests of each project in its project (core 28 classes, store 33, headoffice 30, network-tests 61): a test goes to
+  the smallest project that sees every class it uses, with the helpers it uses; a test moved into core takes core's root,
+  a test of core's classes that needs an application keeps its package there. The helpers: `core.support`, `store.support`,
+  `headoffice.support` (each project a test-jar), `support` in network-tests. `InMemoryLoyalty` lost the head office's
+  alias and movement tables to `headoffice.support.InMemoryHoLoyalty`, so core's and the store's tests need no head office
+  class; `InMemoryCatalogue` and `InMemoryStock` still mix core and head office fakes (in headoffice.support), so the store
+  tests that use them run in network-tests. The shared Eclipse launch files `eclipse/dev-*.launch` and
+  `eclipse/rehearsal-*.launch` start the application of each instance. CLAUDE.md, README, the docs.

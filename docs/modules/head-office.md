@@ -2024,7 +2024,12 @@ Order at a new head office with an ERP: enable and run `IMPORT_LOCATIONS`, choos
 | Store | any store machine file (e.g. `deploy/dev/store-a.properties`), port 444 | `npm run serve` (`.env.development.local` → 444) |
 | Head office | machine file `deploy/dev/headoffice.properties`, port 888 (set in the machine file) | `npm run serve:headoffice` → http://localhost:8081 (`.env.headoffice` → 888) |
 
-- In STS, duplicate the backend run configuration and set its VM argument to `-Dzsretail.machine-file="D:ZS RetailAppsZSRetail-Backdeploydevheadoffice.properties"` (without an outside file `POSMainApp` starts as a store, the default type; `-Dspring.profiles.active=headoffice` alone gives the head office type file, configuration step C1). The devenv scripts start the L2 instances themselves (CLAUDE.md, "Dev environment for L2").
+- In Eclipse / STS (code cleanup step 6.7): the shared launch configurations `eclipse/dev-headoffice.launch`,
+  `dev-store-b.launch`, `dev-store-c.launch` start `HeadOfficeApplication` (project `zsretail-headoffice`) or
+  `StoreApplication` (project `zsretail-store`) with the instance's machine file
+  (`-Dzsretail.machine-file="${project_loc:zsretail-parent}/deploy/dev/<name>.properties"`). Without an outside file
+  each application starts as its own type. The devenv scripts start the L2 instances themselves (CLAUDE.md, "Dev
+  environment for L2"), each with the WAR of its application.
 - 888 and 8081 were also the ports of the franchise customer profile (removed at step 9).
 
 ### Rehearsal environment (step 9)
@@ -2045,12 +2050,13 @@ status | set-key | reset`.
   restart it there.
 - `reset` stops, drops the three `pos_rehearsal_*` databases (refused for any other name), puts the keys back to none and
   sets up again. Refused while an instance started from Eclipse is up.
-- **From Eclipse**: three shared launch configurations in the project, `eclipse/rehearsal-1-headoffice.launch`,
-  `rehearsal-2-store-1.launch`, `rehearsal-3-store-2.launch` (Run menu, favourites). Java Application `POSMainApp` on the
-  JRE `jdk-21.0.10`, project `zsretail` (the workspace name of this folder), with
-  `-Dzsretail.machine-file="${project_loc:zsretail}/deploy/rehearsal/<name>.properties"`: same machine files, ports, databases
-  and logs as the script, from the project's classes instead of the artifact. Head office first, then the stores. An instance
-  is up when its console shows `Tomcat started on port(s): 889` (557, 558) and `Started POSMainApp`, or when
+- **From Eclipse**: three shared launch configurations in the backend repository, `eclipse/rehearsal-1-headoffice.launch`,
+  `rehearsal-2-store-1.launch`, `rehearsal-3-store-2.launch` (Run menu, favourites). Since code cleanup step 6.7: Java
+  Application `HeadOfficeApplication` (project `zsretail-headoffice`) or `StoreApplication` (project `zsretail-store`) on
+  the JRE `jdk-21.0.10`, with `-Dzsretail.machine-file="${project_loc:zsretail-parent}/deploy/rehearsal/<name>.properties"`
+  (`zsretail-parent`: the workspace name of the backend folder): same machine files, ports, databases and logs as the
+  script, from the projects' classes instead of the artifact. Head office first, then the stores. An instance is up when
+  its console shows `Tomcat started on port(s): 889` (557, 558) and `Started HeadOfficeApplication` (`StoreApplication`), or when
   `http://localhost:889/zsretail/api/config` answers. The scripts see such an instance (it answers without a devenv pid):
   `start` skips it, `stop` names it, `status` shows it. The databases must exist (`-Action setup` once, or kept from an
   earlier setup).

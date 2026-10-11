@@ -26,17 +26,17 @@ import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.PurchaseInvoiceHeader;
 import com.digithink.zsretail.core.model.PurchaseInvoiceLine;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.core.support.InMemoryPurchaseInvoices;
 import com.digithink.zsretail.core.utils.Quantities;
+import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
+import com.digithink.zsretail.headoffice.support.InMemoryStock;
 import com.digithink.zsretail.store.holink.dto.ReceivedDeliveryDTO;
 import com.digithink.zsretail.store.holink.dto.ReceptionInputDTO;
 import com.digithink.zsretail.store.holink.enumeration.ReceivedDocumentKind;
 import com.digithink.zsretail.store.holink.enumeration.ReceivedLineType;
 import com.digithink.zsretail.store.holink.model.ReceivedDelivery;
 import com.digithink.zsretail.store.holink.model.ReceivedDeliveryLine;
-import com.digithink.zsretail.support.InMemoryCatalogue;
-import com.digithink.zsretail.support.InMemoryPurchaseInvoices;
-import com.digithink.zsretail.support.InMemoryReceivedDeliveries;
-import com.digithink.zsretail.support.InMemoryStock;
+import com.digithink.zsretail.store.support.InMemoryReceivedDeliveries;
 
 /**
  * Invoices from the ERP, step (c), at the store: an ERP invoice saved once; its reception puts the quantities received in

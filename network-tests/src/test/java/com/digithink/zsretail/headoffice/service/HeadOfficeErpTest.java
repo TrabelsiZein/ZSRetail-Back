@@ -31,12 +31,12 @@ import com.digithink.zsretail.core.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.core.erp.model.ErpSyncJob;
 import com.digithink.zsretail.core.erp.repository.ErpSyncJobRepository;
 import com.digithink.zsretail.core.erp.service.ErpSyncJobRunner;
+import com.digithink.zsretail.core.support.TestModes;
 import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 import com.digithink.zsretail.erp.api.dto.ErpJobStatisticsDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSyncJobEnabledDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSyncJobUpdateDTO;
 import com.digithink.zsretail.support.Installations;
-import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, task 3.4: on a head office the ERP export jobs (and the price import) never run. They are switched

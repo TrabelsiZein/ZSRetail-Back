@@ -15,7 +15,7 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.digithink.zsretail.support.Repo;
+import com.digithink.zsretail.core.support.Repo;
 
 /**
  * Code cleanup, step 2: the application never names a connector. Outside the connector packages (connector/emtop and

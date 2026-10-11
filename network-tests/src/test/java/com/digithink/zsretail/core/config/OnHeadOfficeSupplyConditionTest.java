@@ -12,6 +12,8 @@ import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.model.enumeration.DataOwner;
+import com.digithink.zsretail.core.support.Questions;
+import com.digithink.zsretail.core.support.TestModes;
 import com.digithink.zsretail.headoffice.controller.HeadOfficeSupplyAPI;
 import com.digithink.zsretail.store.holink.controller.DeliveryReceptionAPI;
 import com.digithink.zsretail.store.holink.scheduler.CopiesDownJob;
@@ -21,8 +23,6 @@ import com.digithink.zsretail.store.holink.service.SupplyDownHandler;
 import com.digithink.zsretail.store.holink.service.SupplyInvoiceWriter;
 import com.digithink.zsretail.store.holink.service.SupplyPushService;
 import com.digithink.zsretail.store.holink.service.SupplyVendorGuard;
-import com.digithink.zsretail.support.Questions;
-import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, step 7A: the supply beans of a store (BL reception, the SUPPLY handler, the SUPPLY_PUSH job) exist

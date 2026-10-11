@@ -60,12 +60,14 @@ import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.core.service.LoyaltyService;
+import com.digithink.zsretail.core.support.InMemoryLoyalty;
 import com.digithink.zsretail.headoffice.model.HoLoyaltyMovement;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.service.CopiesDownFeed;
 import com.digithink.zsretail.headoffice.service.HoLoyaltyReceiver;
 import com.digithink.zsretail.headoffice.service.HoLoyaltyService;
 import com.digithink.zsretail.headoffice.service.InMemoryDownTables;
+import com.digithink.zsretail.headoffice.support.InMemoryHoLoyalty;
 import com.digithink.zsretail.store.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.store.holink.dto.HeadOfficeCallResult;
 import com.digithink.zsretail.store.holink.dto.LinkJobRun;
@@ -76,8 +78,7 @@ import com.digithink.zsretail.store.holink.model.LinkExchange;
 import com.digithink.zsretail.store.holink.model.LoyaltyMemberCopy;
 import com.digithink.zsretail.store.holink.model.LoyaltyMovementCopy;
 import com.digithink.zsretail.store.holink.scheduler.LoyaltyPushJob;
-import com.digithink.zsretail.support.InMemoryLoyalty;
-import com.digithink.zsretail.support.InMemoryStoreLink;
+import com.digithink.zsretail.store.support.InMemoryStoreLink;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -98,6 +99,7 @@ class SharedLoyaltyRoundTripTest {
 
 	// Head office
 	private final InMemoryLoyalty ho = new InMemoryLoyalty(1);
+	private final InMemoryHoLoyalty hoTables = new InMemoryHoLoyalty(ho);
 	private CopiesDownFeed feed;
 	private HoLoyaltyReceiver receiver;
 	private LoyaltyService hoLoyalty;
@@ -129,7 +131,7 @@ class SharedLoyaltyRoundTripTest {
 		feed = new InMemoryDownTables().feed(Collections.singletonList(register));
 		holder[0] = feed;
 		receiver = new HoLoyaltyReceiver(ho.memberRepository(), ho.programRepository(), ho.transactionRepository(),
-				ho.functionRepository(), ho.customerRepository(), ho.aliasRepository(), ho.movementRepository(),
+				ho.functionRepository(), ho.customerRepository(), hoTables.aliasRepository(), hoTables.movementRepository(),
 				register, () -> hoLoyalty, TransactionOperations.withoutTransaction());
 		hoLoyalty = ho.loyaltyService(register);
 		ho.function("CLIENT", "Client");
@@ -304,8 +306,8 @@ class SharedLoyaltyRoundTripTest {
 		push.runCycle();
 		assertEquals(SalesCopyStatus.SENT, link.movementOf(earned).getStatus());
 		assertEquals(50, ho.card(card).get().getLoyaltyPoints());
-		assertEquals(1, ho.movements.size());
-		assertEquals(String.valueOf(earned.getId()), ho.movements.get(0).getStoreKey());
+		assertEquals(1, hoTables.movements.size());
+		assertEquals(String.valueOf(earned.getId()), hoTables.movements.get(0).getStoreKey());
 		assertEquals(1, ho.transactions.stream().filter(t -> t.getLoyaltyMember().getCardNumber().equals(card)).count());
 		pull();
 		assertEquals(50, db.card(card).get().getLoyaltyPoints());
@@ -377,7 +379,7 @@ class SharedLoyaltyRoundTripTest {
 
 		push.runCycle();
 		assertEquals(0, atHo.getLoyaltyPoints());
-		HoLoyaltyMovement ours = ho.movements.get(ho.movements.size() - 1);
+		HoLoyaltyMovement ours = hoTables.movements.get(hoTables.movements.size() - 1);
 		assertEquals(80, ours.getOverspendPoints());
 		pull();
 		assertEquals(0, db.card("LYL-HO-000009").get().getLoyaltyPoints());
@@ -776,9 +778,9 @@ class SharedLoyaltyRoundTripTest {
 		assertEquals(local.getTotalPointsRedeemed(), atHo.getTotalPointsRedeemed());
 		pull();
 		assertEquals(300, db.card("LYL-HO-000009").get().getLoyaltyPoints());
-		assertTrue(ho.movements.stream().allMatch(m -> m.getOverspendPoints() == 0));
+		assertTrue(hoTables.movements.stream().allMatch(m -> m.getOverspendPoints() == 0));
 		assertEquals(Arrays.asList("REDEEMED", "EARNED", "ADJUSTED", "REVERSED", "ADJUSTED", "REVERSED"),
-				ho.movements.stream().map(m -> m.getType().name()).collect(Collectors.toList()));
+				hoTables.movements.stream().map(m -> m.getType().name()).collect(Collectors.toList()));
 	}
 
 	@Test

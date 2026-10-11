@@ -33,8 +33,8 @@ import org.springframework.core.env.SystemEnvironmentPropertySource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
+import com.digithink.zsretail.core.support.Repo;
 import com.digithink.zsretail.support.Installations;
-import com.digithink.zsretail.support.Repo;
 
 /**
  * Code cleanup step 6, proof: every key of every configuration resolves as it did before the store and the head office

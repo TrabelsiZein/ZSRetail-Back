@@ -22,7 +22,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.digithink.zsretail.ProjectSortingGuardTest;
-import com.digithink.zsretail.support.Repo;
+import com.digithink.zsretail.core.support.Repo;
 
 /**
  * Code cleanup step 3: the classes of a connector package (connector/happyness, connector/emtop) use only erp-api, their

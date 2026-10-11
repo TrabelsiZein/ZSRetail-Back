@@ -1,7 +1,7 @@
 package com.digithink.zsretail.support;
 
-import static com.digithink.zsretail.support.InMemoryLoyalty.UNHANDLED;
-import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
+import static com.digithink.zsretail.core.support.InMemoryLoyalty.UNHANDLED;
+import static com.digithink.zsretail.core.support.InMemoryLoyalty.proxy;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -21,6 +21,7 @@ import org.springframework.data.domain.Pageable;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.headoffice.model.HoStoreStock;
 import com.digithink.zsretail.headoffice.repository.HoStoreStockRepository;
+import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
 import com.digithink.zsretail.store.holink.model.StockCopy;
 import com.digithink.zsretail.store.holink.repository.StockCopyRepository;
 

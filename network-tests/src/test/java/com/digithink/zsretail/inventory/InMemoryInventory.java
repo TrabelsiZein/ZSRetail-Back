@@ -1,7 +1,7 @@
 package com.digithink.zsretail.inventory;
 
-import static com.digithink.zsretail.support.InMemoryLoyalty.UNHANDLED;
-import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
+import static com.digithink.zsretail.core.support.InMemoryLoyalty.UNHANDLED;
+import static com.digithink.zsretail.core.support.InMemoryLoyalty.proxy;
 
 import java.math.BigDecimal;
 import java.lang.reflect.InvocationTargetException;
@@ -29,6 +29,8 @@ import com.digithink.zsretail.core.repository.StockBatchRepository;
 import com.digithink.zsretail.core.service.QuantityPolicy;
 import com.digithink.zsretail.core.service.StockMovementService;
 import com.digithink.zsretail.core.service.StockService;
+import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
+import com.digithink.zsretail.headoffice.support.InMemoryStock;
 import com.digithink.zsretail.store.inventory.enumeration.InventoryCountStatus;
 import com.digithink.zsretail.store.inventory.enumeration.InventoryLineStatus;
 import com.digithink.zsretail.store.inventory.model.InventoryCount;
@@ -37,8 +39,6 @@ import com.digithink.zsretail.store.inventory.repository.InventoryCountLineRepos
 import com.digithink.zsretail.store.inventory.repository.InventoryCountRepository;
 import com.digithink.zsretail.store.inventory.repository.InventoryLineStore;
 import com.digithink.zsretail.store.inventory.service.InventoryCountService;
-import com.digithink.zsretail.support.InMemoryCatalogue;
-import com.digithink.zsretail.support.InMemoryStock;
 
 /**
  * Test support: the inventory count of one store in memory, over an {@link InMemoryStock}: the count and line tables,

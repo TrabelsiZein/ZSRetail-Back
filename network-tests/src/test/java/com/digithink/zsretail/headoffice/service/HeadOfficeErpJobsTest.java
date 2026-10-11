@@ -1,7 +1,7 @@
 package com.digithink.zsretail.headoffice.service;
 
-import static com.digithink.zsretail.support.InMemoryLoyalty.UNHANDLED;
-import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
+import static com.digithink.zsretail.core.support.InMemoryLoyalty.UNHANDLED;
+import static com.digithink.zsretail.core.support.InMemoryLoyalty.proxy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -29,10 +29,10 @@ import com.digithink.zsretail.core.erp.model.ErpSyncJob;
 import com.digithink.zsretail.core.erp.repository.ErpSyncJobRepository;
 import com.digithink.zsretail.core.erp.service.ErpSyncCheckpointService;
 import com.digithink.zsretail.core.erp.service.ErpSyncJobRunner;
+import com.digithink.zsretail.core.support.TestModes;
 import com.digithink.zsretail.erp.api.ErpSupplyInvoiceImport;
 import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 import com.digithink.zsretail.support.Installations;
-import com.digithink.zsretail.support.TestModes;
 
 /**
  * Invoices from the ERP, step (b): the job IMPORT_SUPPLY_INVOICES is offered only on a head office whose catalogue only

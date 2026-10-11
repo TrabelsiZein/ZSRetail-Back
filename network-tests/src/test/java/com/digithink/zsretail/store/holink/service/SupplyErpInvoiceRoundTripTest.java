@@ -1,7 +1,7 @@
 package com.digithink.zsretail.store.holink.service;
 
-import static com.digithink.zsretail.support.InMemoryLoyalty.UNHANDLED;
-import static com.digithink.zsretail.support.InMemoryLoyalty.proxy;
+import static com.digithink.zsretail.core.support.InMemoryLoyalty.UNHANDLED;
+import static com.digithink.zsretail.core.support.InMemoryLoyalty.proxy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -34,6 +34,8 @@ import com.digithink.zsretail.core.model.PurchaseInvoiceHeader;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.core.model.enumeration.StockMovementType;
 import com.digithink.zsretail.core.service.QuantityPolicy;
+import com.digithink.zsretail.core.support.InMemoryLoyalty;
+import com.digithink.zsretail.core.support.InMemoryPurchaseInvoices;
 import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.erp.api.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.headoffice.dto.ErpInvoiceDTO;
@@ -46,15 +48,13 @@ import com.digithink.zsretail.headoffice.repository.HoErpInvoiceRepository;
 import com.digithink.zsretail.headoffice.service.CopiesDownFeed;
 import com.digithink.zsretail.headoffice.service.HoErpInvoiceService;
 import com.digithink.zsretail.headoffice.service.InMemoryDownTables;
+import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
+import com.digithink.zsretail.headoffice.support.InMemoryStock;
 import com.digithink.zsretail.store.holink.dto.ReceptionInputDTO;
 import com.digithink.zsretail.store.holink.enumeration.ReceivedDeliveryStatus;
 import com.digithink.zsretail.store.holink.model.ReceivedDelivery;
-import com.digithink.zsretail.support.InMemoryCatalogue;
-import com.digithink.zsretail.support.InMemoryLoyalty;
-import com.digithink.zsretail.support.InMemoryPurchaseInvoices;
-import com.digithink.zsretail.support.InMemoryReceivedDeliveries;
-import com.digithink.zsretail.support.InMemoryStock;
-import com.digithink.zsretail.support.InMemoryStoreLink;
+import com.digithink.zsretail.store.support.InMemoryReceivedDeliveries;
+import com.digithink.zsretail.store.support.InMemoryStoreLink;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

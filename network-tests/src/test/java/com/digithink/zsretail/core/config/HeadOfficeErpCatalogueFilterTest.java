@@ -13,11 +13,11 @@ import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+import com.digithink.zsretail.core.support.Questions;
+import com.digithink.zsretail.core.support.TestModes;
 import com.digithink.zsretail.headoffice.security.HeadOfficeErpCatalogueFilter;
 import com.digithink.zsretail.headoffice.security.HeadOfficeWithoutStockFilter;
 import com.digithink.zsretail.support.Installations;
-import com.digithink.zsretail.support.Questions;
-import com.digithink.zsretail.support.TestModes;
 
 /**
  * ERP catalogue, step 2: on a head office whose catalogue only comes from the ERP, the writes on the families,

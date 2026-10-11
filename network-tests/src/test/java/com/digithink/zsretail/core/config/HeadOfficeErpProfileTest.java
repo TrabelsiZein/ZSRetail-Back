@@ -18,13 +18,13 @@ import org.springframework.mock.env.MockEnvironment;
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.model.enumeration.DataOwner;
 import com.digithink.zsretail.core.model.enumeration.NodeType;
+import com.digithink.zsretail.core.support.Questions;
+import com.digithink.zsretail.core.support.TestModes;
 import com.digithink.zsretail.headoffice.controller.ErpReferenceLocationAPI;
 import com.digithink.zsretail.headoffice.service.ErpReferenceLocationService;
 import com.digithink.zsretail.headoffice.service.HeadOfficeErpGuard;
 import com.digithink.zsretail.headoffice.service.HeadOfficeErpJobs;
 import com.digithink.zsretail.support.Installations;
-import com.digithink.zsretail.support.Questions;
-import com.digithink.zsretail.support.TestModes;
 
 /**
  * Head office plan, task 3.4: a head office with an ERP starts. The real profile files are read
