@@ -3,8 +3,8 @@ package com.digithink.zsretail.erp.navpospages.config;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.erp.engine.HeadOfficeCatalogue;
-import com.digithink.zsretail.service.GeneralSetupValueCheck;
+import com.digithink.zsretail.erp.spi.ErpInvoiceStart;
+import com.digithink.zsretail.erp.spi.GeneralSetupValueCheck;
 
 /**
  * Release 2.2: the General Setup "Read ERP invoices after number" (ERP_INVOICES_READ_AFTER) is empty (every invoice of
@@ -23,7 +23,7 @@ public class NavPosPagesInvoiceSettingCheck implements GeneralSetupValueCheck {
 
 	@Override
 	public void check(String code, String value) {
-		if (!HeadOfficeCatalogue.INVOICES_READ_AFTER.equals(code) || value == null || value.trim().isEmpty()) {
+		if (!ErpInvoiceStart.INVOICES_READ_AFTER.equals(code) || value == null || value.trim().isEmpty()) {
 			return;
 		}
 		if (!properties.getInvoices().looksLikeNumber(value)) {

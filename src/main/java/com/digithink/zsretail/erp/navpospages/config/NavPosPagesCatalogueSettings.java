@@ -3,7 +3,7 @@ package com.digithink.zsretail.erp.navpospages.config;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.erp.engine.CatalogueSettings;
+import com.digithink.zsretail.erp.spi.CatalogueSettings;
 
 /**
  * Code cleanup step 3: the settings of the catalogue engine from this connector's own keys, unchanged:

@@ -20,6 +20,8 @@ import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
 import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
+import com.digithink.zsretail.erp.spi.CatalogueRun;
+import com.digithink.zsretail.erp.spi.CatalogueSettings;
 import com.digithink.zsretail.erp.spi.ErpAbility;
 import com.digithink.zsretail.erp.spi.ErpBarcodeRow;
 import com.digithink.zsretail.erp.spi.ErpCatalogueSource;
@@ -27,6 +29,7 @@ import com.digithink.zsretail.erp.spi.ErpCatalogueSource.Part;
 import com.digithink.zsretail.erp.spi.ErpCategories;
 import com.digithink.zsretail.erp.spi.ErpRead;
 import com.digithink.zsretail.erp.spi.ErpSyncWarningException;
+import com.digithink.zsretail.erp.spi.RunSummary;
 
 /**
  * ERP catalogue, step 6: changes only. Each run reads a whole page of the ERP (GET only, through the connector's

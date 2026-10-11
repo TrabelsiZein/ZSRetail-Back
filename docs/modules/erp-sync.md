@@ -226,14 +226,13 @@ logic is written once, in `erp/engine`, and exists with a connector that has the
 **The engine** (`erp/engine`):
 - `CatalogueEngine` (was `NavPosPagesSync`): families, sub-families, items per point de stock, barcodes. It compares
   with the head office tables, waits for the families, applies in packets (each its own transaction, through
-  `CatalogueImport`), keeps the barcode cursor by position and writes the summary of each run (`RunSummary`, the format
-  of the communications log). One items run and one barcode run at a time.
+  `CatalogueImport`), keeps the barcode cursor by position and writes the summary of each run (`RunSummary` of
+  `erp/spi`, the format of the communications log). One items run and one barcode run at a time.
 - `CatalogueJob` (was `NavPosPagesCatalogueJob`): the single job `SYNC_CATALOGUE` (`ErpCatalogueSync`).
 - What the engine reads and writes at the head office: `HeadOfficeCatalogue` (`JpaHeadOfficeCatalogue`), `CatalogueState`
   (`JdbcCatalogueState`: the table stays `navpospages_state`, the keys `items.run`, `items.pending`, `barcodes.cursor`,
   `needs-barcodes:` unchanged), `CatalogueImport` (`BootstrapCatalogueImport`, through `ErpItemBootstrapService`),
-  `StockPoints` (`headoffice.service.HoStockPointRows`). `CatalogueRun` is the result of one run.
-- `CatalogueSettings`: packet size, dry run, default VAT, given by the connector from its own keys.
+  `StockPoints` (`headoffice.service.HoStockPointRows`).
 
 **What a connector gives** (`erp/spi`):
 - `ErpCatalogueSource`: `categories()` → `ErpCategories` (families and sub-families from one read),
@@ -244,6 +243,13 @@ logic is written once, in `erp/engine`, and exists with a connector that has the
   that only grows (navpospages: `Entry_No`). The engine keeps the highest position of the same barcode and moves its
   cursor over every row read, left-out ones included.
 - `ErpSyncWarningException` (`erp/spi`): a run that waited or was refused.
+- Since code cleanup step 5 also in `erp/spi`: `CatalogueSettings` (packet size, dry run, default VAT, given by the
+  connector from its own keys), `CatalogueRun` (the result of one run) and `RunSummary` (the summary format, used by the
+  engine and by a connector's own runs); `ErpInvoiceStart` (the General Setup `ERP_INVOICES_READ_AFTER`, answered by
+  the engine's `HeadOfficeCatalogue`), `GeneralSetupValueCheck` (a check of a General Setup value on save),
+  `ErpQuantities` (the decimals allowed in a quantity, the same as `utils.Quantities`), and `ErpConnectors`, which also
+  answers whether the installation is a head office whose catalogue only comes from the ERP (asked of the application
+  through `ErpConnectorResolver`, as the startup resolves the owners).
 
 **navpospages today**: `NavPosPagesCatalogueSource` (the pages through `NavPosPagesMapper`),
 `NavPosPagesCatalogueSettings` (`erp.navpospages.packet-size`, `dry-run`, `default-vat`, unchanged),
@@ -268,11 +274,9 @@ Tests: `erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows o
 **Guard of the connector packages** (`erp/ConnectorDependenciesGuardTest`): a class of `erp/navpospages` or
 `erp/dynamicsnav` may use `erp/spi`, its own package, the JDK and libraries. What still breaks the rule is an allow-list
 inside the test, each line with its reason (an entry nothing uses any more fails too): `erp/dto` (both; the neutral
-objects join `erp/spi` when it becomes its own project), `config.ConditionalOnErpConnector` and
-`ErpConnectorEnvironmentPostProcessor` (both; the bean conditions), for navpospages `erp/engine` (the base connector,
-the settings, the invoices' run and summary, `HeadOfficeCatalogue` for the General Setup), `NodeOwnership` (startup
-check), `GeneralSetupValueCheck`, `Quantities`; for dynamicsnav `Location`, `GeneralSetupService`, `LocationService`
-(`DynamicsNavRestClient`).
+objects join `erp/spi` when it becomes its own project) and, for dynamicsnav, `Location`, `GeneralSetupService`,
+`LocationService` (`DynamicsNavRestClient`). navpospages uses nothing else of the application since code cleanup
+step 5.8c.
 
 ## Head office catalogue from the ERP pages (`erp.navpospages`)
 

@@ -1,4 +1,4 @@
-package com.digithink.zsretail.erp.engine;
+package com.digithink.zsretail.erp.spi;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -6,16 +6,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import com.digithink.zsretail.erp.spi.ErpRead;
-
 /**
  * The summary of a run, in the order it is written to the communications log: the kind of run, the page read, dry run,
  * the rows left out by reason, then the counts. Used by the catalogue engine and by a connector's own runs (the
  * invoices of navpospages), so every run writes the same format. Code cleanup step 3: was NavPosPagesSync.Summary.
  */
 public final class RunSummary {
-	final Map<String, Object> values = new LinkedHashMap<>();
-	final Map<String, Integer> leftOut = new TreeMap<>();
+	public final Map<String, Object> values = new LinkedHashMap<>();
+	public final Map<String, Integer> leftOut = new TreeMap<>();
 
 	public RunSummary(String kind, String page, boolean dryRun) {
 		values.put("run", kind);
@@ -38,7 +36,7 @@ public final class RunSummary {
 	}
 
 	/** Stock points: one more point read, its counts added to those of the points before it. */
-	void addRead(ErpRead<?> result) {
+	public void addRead(ErpRead<?> result) {
 		add("read", result.getRead());
 		result.getLeftOut().forEach((reason, count) -> leftOut.merge(reason, count, Integer::sum));
 		if (!result.getNotes().isEmpty()) {
@@ -48,11 +46,11 @@ public final class RunSummary {
 		}
 	}
 
-	void leftOut(String reason) {
+	public void leftOut(String reason) {
 		leftOut.merge(reason, 1, Integer::sum);
 	}
 
-	void add(String key, int count) {
+	public void add(String key, int count) {
 		Object current = values.get(key);
 		values.put(key, (current instanceof Number ? ((Number) current).intValue() : 0) + count);
 	}
@@ -61,18 +59,18 @@ public final class RunSummary {
 		values.put(key, value);
 	}
 
-	RunSummary waiting(String reason) {
+	public RunSummary waiting(String reason) {
 		values.put("waiting", reason);
 		values.put("handed", 0);
 		return this;
 	}
 
-	void guard(String warning) {
+	public void guard(String warning) {
 		values.put("guard", warning);
 	}
 
 	/** The first cap changes; counts of new, handed and held back. */
-	<T> List<T> handOver(List<T> changes, int fresh, int cap) {
+	public <T> List<T> handOver(List<T> changes, int fresh, int cap) {
 		values.put("new", fresh);
 		if (!values.containsKey("changed")) {
 			values.put("changed", changes.size() - fresh);

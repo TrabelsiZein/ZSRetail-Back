@@ -10,6 +10,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.digithink.zsretail.erp.spi.GeneralSetupValueCheck;
 import com.digithink.zsretail.model.GeneralSetup;
 import com.digithink.zsretail.model.GeneralSetupChangeLog;
 import com.digithink.zsretail.model.enumeration.GeneralSetupChangeSource;

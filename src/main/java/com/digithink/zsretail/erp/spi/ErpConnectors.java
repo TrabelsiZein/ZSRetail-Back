@@ -28,14 +28,33 @@ public final class ErpConnectors {
 		return resolver().inEffect(env);
 	}
 
+	/** A head office whose catalogue only comes from the ERP ({@link ErpConnectorResolver#isErpCatalogueOnlyHeadOffice}). */
+	public static boolean isErpCatalogueOnlyHeadOffice(PropertyResolver env) {
+		return resolver().isErpCatalogueOnlyHeadOffice(env);
+	}
+
 	private static ErpConnectorResolver resolver() {
 		ErpConnectorResolver found = resolver;
 		if (found == null) {
 			List<ErpConnectorResolver> resolvers = SpringFactoriesLoader.loadFactories(ErpConnectorResolver.class,
 					ErpConnectors.class.getClassLoader());
-			found = resolvers.isEmpty() ? env -> NONE : resolvers.get(0);
+			found = resolvers.isEmpty() ? new Nothing() : resolvers.get(0);
 			resolver = found;
 		}
 		return found;
+	}
+
+	/** Without the application: no connector, not a head office. */
+	private static final class Nothing implements ErpConnectorResolver {
+
+		@Override
+		public String inEffect(PropertyResolver env) {
+			return NONE;
+		}
+
+		@Override
+		public boolean isErpCatalogueOnlyHeadOffice(PropertyResolver env) {
+			return false;
+		}
 	}
 }

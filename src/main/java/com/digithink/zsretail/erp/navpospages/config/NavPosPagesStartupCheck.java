@@ -8,7 +8,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.env.PropertyResolver;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.NodeOwnership;
+import com.digithink.zsretail.erp.spi.ErpConnectors;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -48,7 +48,7 @@ public class NavPosPagesStartupCheck {
 			throw new IllegalStateException("Invalid combination: " + P + "enabled=true with " + DYNAMICS_NAV_ENABLED_KEY
 					+ "=true. One ERP connector per installation: set one of them to false.");
 		}
-		if (!NodeOwnership.isErpCatalogueOnlySet(env)) {
+		if (!ErpConnectors.isErpCatalogueOnlyHeadOffice(env)) {
 			throw new IllegalStateException("Invalid value 'true' for property " + P + "enabled: this connector only reads"
 					+ " a catalogue, on a head office whose catalogue only comes from the ERP (node.type=HEAD_OFFICE,"
 					+ " ownership.catalogue=ERP, ownership.customers and ownership.supply not ERP).");

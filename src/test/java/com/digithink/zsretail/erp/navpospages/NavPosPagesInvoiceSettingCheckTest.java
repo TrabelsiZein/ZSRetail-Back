@@ -17,12 +17,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesInvoiceSettingCheck;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
+import com.digithink.zsretail.erp.spi.GeneralSetupValueCheck;
 import com.digithink.zsretail.model.GeneralSetup;
 import com.digithink.zsretail.repository.GeneralSetupChangeLogRepository;
 import com.digithink.zsretail.repository.GeneralSetupRepository;
 import com.digithink.zsretail.security.CurrentUserProvider;
 import com.digithink.zsretail.service.GeneralSetupService;
-import com.digithink.zsretail.service.GeneralSetupValueCheck;
 
 /** Release 2.2: the General Setup "Read ERP invoices after number": empty or an invoice number, anything else refused. */
 class NavPosPagesInvoiceSettingCheckTest {

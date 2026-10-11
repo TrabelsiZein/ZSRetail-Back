@@ -23,8 +23,8 @@ import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceLineRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
 import com.digithink.zsretail.erp.spi.ErpBarcodeRow;
+import com.digithink.zsretail.erp.spi.ErpQuantities;
 import com.digithink.zsretail.erp.spi.ErpRead;
-import com.digithink.zsretail.utils.Quantities;
 
 /**
  * ERP catalogue, step 5: the rows of the "POS pages" to the existing Erp*DTO classes, with the counts of each read. No
@@ -337,9 +337,10 @@ public class NavPosPagesMapper {
 				line.setLineDiscountPercent(source.getLineDiscountPercent());
 				line.setLineAmount(source.getLineAmount());
 				// 2.2.1: a decimal quantity is read as the ERP sends it; more than 3 decimals cannot be kept
-				if (item && source.getQuantity() != null && Quantities.decimals(source.getQuantity()) > Quantities.SCALE) {
+				if (item && source.getQuantity() != null
+						&& ErpQuantities.decimals(source.getQuantity()) > ErpQuantities.SCALE) {
 					warnings.add("line " + source.getLineNo() + ": quantity " + source.getQuantity().toPlainString()
-							+ " of item " + line.getItemCode() + " has more than " + Quantities.SCALE + " decimals");
+							+ " of item " + line.getItemCode() + " has more than " + ErpQuantities.SCALE + " decimals");
 				}
 				sum = sum.add(amount);
 				invoice.getLines().add(line);

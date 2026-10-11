@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
 
+import com.digithink.zsretail.erp.spi.ErpQuantities;
+
 /**
  * Quantities with up to 3 decimals (2.2.1: bulk items sold by the litre or the kilo, 0.2 or 0.058 at the till). The
  * columns are DECIMAL(18,3) ({@link #PRECISION}, {@link #SCALE}); a whole quantity keeps travelling and printing as
@@ -14,8 +16,11 @@ public final class Quantities {
 	/** Digits of a quantity column. */
 	public static final int PRECISION = 18;
 
-	/** Decimals of a quantity column, and the most a quantity may carry. */
-	public static final int SCALE = 3;
+	/**
+	 * Decimals of a quantity column, and the most a quantity may carry. Code cleanup step 5: from ErpQuantities
+	 * (erp-api).
+	 */
+	public static final int SCALE = ErpQuantities.SCALE;
 
 	private static final MathContext FIFTEEN_DIGITS = new MathContext(15, RoundingMode.HALF_UP);
 
@@ -44,9 +49,9 @@ public final class Quantities {
 		return quantity == null || quantity.signum() == 0 || quantity.stripTrailingZeros().scale() <= 0;
 	}
 
-	/** Decimals the quantity really carries (0.050 carries 2). */
+	/** Decimals the quantity really carries (0.050 carries 2). Code cleanup step 5: ErpQuantities (erp-api). */
 	public static int decimals(BigDecimal quantity) {
-		return quantity == null ? 0 : Math.max(0, quantity.stripTrailingZeros().scale());
+		return ErpQuantities.decimals(quantity);
 	}
 
 	/** The plain writing, without trailing zeros: "2", "0.2", "0.058"; empty for null. */

@@ -15,6 +15,8 @@ import com.digithink.zsretail.config.ConditionalOnErpAbility;
 import com.digithink.zsretail.erp.enumeration.ErpCommunicationStatus;
 import com.digithink.zsretail.erp.enumeration.ErpSyncOperation;
 import com.digithink.zsretail.erp.service.ErpCommunicationService;
+import com.digithink.zsretail.erp.spi.CatalogueRun;
+import com.digithink.zsretail.erp.spi.CatalogueSettings;
 import com.digithink.zsretail.erp.spi.ErpAbility;
 import com.digithink.zsretail.erp.spi.ErpCatalogueSync;
 import com.digithink.zsretail.erp.spi.ErpSyncWarningException;

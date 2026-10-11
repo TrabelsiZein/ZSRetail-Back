@@ -13,14 +13,14 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
-import com.digithink.zsretail.erp.engine.CatalogueRun;
-import com.digithink.zsretail.erp.engine.HeadOfficeCatalogue;
-import com.digithink.zsretail.erp.engine.RunSummary;
 import com.digithink.zsretail.erp.navpospages.client.NavPosPagesSource;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosPagesMapper;
+import com.digithink.zsretail.erp.spi.CatalogueRun;
+import com.digithink.zsretail.erp.spi.ErpInvoiceStart;
 import com.digithink.zsretail.erp.spi.ErpRead;
+import com.digithink.zsretail.erp.spi.RunSummary;
 
 /**
  * Code cleanup step 3: invoices from the ERP, a thin part of the navpospages connector (the invoices page and its
@@ -33,20 +33,20 @@ import com.digithink.zsretail.erp.spi.ErpRead;
 public class NavPosPagesInvoices {
 
 	private final NavPosPagesSource source;
-	private final HeadOfficeCatalogue headOffice;
+	private final ErpInvoiceStart headOffice;
 	private final NavPosPagesProperties properties;
 	private final NavPosPagesMapper mapper;
 	/** Release 2.2: today, for the last year of the invoices to read. */
 	private Supplier<LocalDate> today = LocalDate::now;
 
 	@Autowired
-	public NavPosPagesInvoices(NavPosPagesSource source, HeadOfficeCatalogue headOffice,
+	public NavPosPagesInvoices(NavPosPagesSource source, ErpInvoiceStart headOffice,
 			NavPosPagesProperties properties) {
 		this(source, headOffice, properties, new NavPosPagesMapper(properties.getDefaultVat(), properties.getPriceIncludesVat()));
 	}
 
 	/** With a given mapper: used by the tests. */
-	public NavPosPagesInvoices(NavPosPagesSource source, HeadOfficeCatalogue headOffice, NavPosPagesProperties properties,
+	public NavPosPagesInvoices(NavPosPagesSource source, ErpInvoiceStart headOffice, NavPosPagesProperties properties,
 			NavPosPagesMapper mapper) {
 		this.source = source;
 		this.headOffice = headOffice;

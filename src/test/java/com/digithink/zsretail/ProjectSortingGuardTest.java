@@ -135,17 +135,6 @@ class ProjectSortingGuardTest {
 				"erp.dynamicsnav.client.DynamicsNavRestClient -> model.Location",
 				"erp.dynamicsnav.client.DynamicsNavRestClient -> service.GeneralSetupService",
 				"erp.dynamicsnav.client.DynamicsNavRestClient -> service.LocationService");
-		allow("5.8: the navpospages connector uses the engine's classes (base connector, settings, run, summary, General"
-				+ " Setup port)", "erp.navpospages.config.NavPosPagesCatalogueSettings -> erp.engine.CatalogueSettings",
-				"erp.navpospages.connector.NavPosPagesConnector -> erp.engine.CatalogueRun",
-				"erp.navpospages.sync.NavPosPagesInvoices -> erp.engine.CatalogueRun",
-				"erp.navpospages.sync.NavPosPagesInvoices -> erp.engine.RunSummary",
-				"erp.navpospages.sync.NavPosPagesInvoices -> erp.engine.HeadOfficeCatalogue",
-				"erp.navpospages.config.NavPosPagesInvoiceSettingCheck -> erp.engine.HeadOfficeCatalogue");
-		allow("5.8: the navpospages checks use the application's ownership, General Setup check and quantities",
-				"erp.navpospages.config.NavPosPagesStartupCheck -> config.NodeOwnership",
-				"erp.navpospages.config.NavPosPagesInvoiceSettingCheck -> service.GeneralSetupValueCheck",
-				"erp.navpospages.mapper.NavPosPagesMapper -> utils.Quantities");
 	}
 
 	private static void allow(String reason, String... references) {

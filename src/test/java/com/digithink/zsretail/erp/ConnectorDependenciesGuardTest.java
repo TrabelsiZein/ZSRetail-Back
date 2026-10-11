@@ -43,17 +43,6 @@ class ConnectorDependenciesGuardTest {
 	static {
 		allow("*", "erp.dto.", "the neutral objects (Erp*DTO, ErpSyncFilter, PullOperationResult): they join erp/spi when it"
 				+ " becomes its own project");
-		allow("navpospages", "erp.engine.CatalogueSettings", "NavPosPagesCatalogueSettings gives the engine its settings");
-		allow("navpospages", "erp.engine.CatalogueRun", "NavPosPagesInvoices returns a run like the engine's (summary for"
-				+ " the communications log)");
-		allow("navpospages", "erp.engine.RunSummary", "NavPosPagesInvoices writes the engine's summary format");
-		allow("navpospages", "erp.engine.HeadOfficeCatalogue", "the invoices read the General Setup ERP_INVOICES_READ_AFTER"
-				+ " (NavPosPagesInvoices, NavPosPagesInvoiceSettingCheck)");
-		allow("navpospages", "config.NodeOwnership", "NavPosPagesStartupCheck: a head office whose catalogue only comes"
-				+ " from the ERP");
-		allow("navpospages", "service.GeneralSetupValueCheck", "NavPosPagesInvoiceSettingCheck checks the General Setup"
-				+ " value on save");
-		allow("navpospages", "utils.Quantities", "NavPosPagesMapper: the decimal quantities of the invoice lines");
 		allow("dynamicsnav", "model.Location", "DynamicsNavRestClient: the DEFAULT_LOCATION of the store");
 		allow("dynamicsnav", "service.GeneralSetupService", "DynamicsNavRestClient: the General Setup values it sends");
 		allow("dynamicsnav", "service.LocationService", "DynamicsNavRestClient: the DEFAULT_LOCATION of the store");
@@ -143,7 +132,7 @@ class ConnectorDependenciesGuardTest {
 				scanned++;
 			}
 		}
-		assertTrue(scanned >= 10, "scanned " + scanned + " engine files");
+		assertTrue(scanned >= 9, "scanned " + scanned + " engine files");
 	}
 
 	@Test
@@ -156,7 +145,8 @@ class ConnectorDependenciesGuardTest {
 		assertEquals(null, entryFor("dynamicsnav", "com.digithink.zsretail.erp.navpospages.sync.NavPosPagesInvoices"));
 		assertEquals(null, entryFor("navpospages", "com.digithink.zsretail.erp.engine.JdbcCatalogueState"));
 		assertEquals(null, entryFor("navpospages", "com.digithink.zsretail.repository.ItemRepository"));
-		assertEquals(null, entryFor("dynamicsnav", "com.digithink.zsretail.utils.Quantities"), "navpospages only");
+		assertEquals(null, entryFor("navpospages", "com.digithink.zsretail.utils.Quantities"),
+				"it reads erp.spi.ErpQuantities");
 		assertEquals("navpospages", connectorOf(ConnectorNamesGuardTest.BASE + "erp/navpospages/mapper/X.java"));
 		assertEquals(null, connectorOf(ConnectorNamesGuardTest.BASE + "erp/engine/CatalogueEngine.java"));
 	}

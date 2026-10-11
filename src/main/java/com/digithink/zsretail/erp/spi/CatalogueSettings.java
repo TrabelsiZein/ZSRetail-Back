@@ -1,4 +1,4 @@
-package com.digithink.zsretail.erp.engine;
+package com.digithink.zsretail.erp.spi;
 
 /**
  * Code cleanup step 3: the settings of the catalogue engine, given by the connector from its own keys (navpospages:
