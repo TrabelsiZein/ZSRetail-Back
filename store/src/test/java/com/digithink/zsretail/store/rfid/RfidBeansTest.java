@@ -25,17 +25,19 @@ import com.digithink.zsretail.core.support.Questions;
 import com.digithink.zsretail.store.rfid.repository.PosMachineRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidReaderRepository;
 import com.digithink.zsretail.store.rfid.service.PosMachineService;
+import com.digithink.zsretail.store.rfid.service.RfidReadService;
 import com.digithink.zsretail.store.rfid.service.RfidReaderService;
 
 /**
- * RFID step 3: with rfid.enabled false (or absent) no RFID bean exists, the repositories included: Spring Data's
+ * RFID steps 3 and 4: with rfid.enabled false (or absent) no RFID bean exists, the repositories included: Spring Data's
  * repository scanner (the one the application runs) evaluates their condition like the component scan does. With
  * rfid.enabled=true they all exist. Plain bean registry and Spring Data's configuration source, no Spring context.
  */
 class RfidBeansTest {
 
 	/** The RFID services (InstallationBeansProofTest records them in every configuration). */
-	static final List<Class<?>> SERVICES = Arrays.asList(RfidReaderService.class, PosMachineService.class);
+	static final List<Class<?>> SERVICES = Arrays.asList(RfidReaderService.class, PosMachineService.class,
+			RfidReadService.class);
 
 	private static MockEnvironment store(String rfid) {
 		MockEnvironment env = new MockEnvironment();
@@ -95,7 +97,8 @@ class RfidBeansTest {
 	@Test
 	@DisplayName("Each service and repository asks Installation.RFID")
 	void question() {
-		for (Class<?> type : Arrays.asList(RfidReaderService.class, PosMachineService.class, RfidReaderRepository.class,
+		for (Class<?> type : Arrays.asList(RfidReaderService.class, PosMachineService.class, RfidReadService.class,
+				RfidReaderRepository.class,
 				PosMachineRepository.class)) {
 			assertTrue(Questions.asks(type, Installation.RFID), type.getSimpleName());
 		}

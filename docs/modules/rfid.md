@@ -79,6 +79,43 @@ Tests: `RfidAddressesTest`, `RfidReaderServiceTest`, `PosMachineServiceTest` (ov
 `RfidBeansTest` (no service and no repository without `rfid.enabled=true`: Spring Data's repository scan evaluates the
 condition too).
 
+## Reading (RFID step 4)
+
+`store.rfid.reader.RfidReaderDevice`, what the back end asks of a reader, antenna 1 always:
+- `testConnection(reader)`: connect, ask the reader's information, disconnect;
+- `read(reader, millis)`: connect, set the power when it differs, read for the time, stop, disconnect: every tag once
+  (`RfidTag`: EPC, best signal in dB, times seen; `RfidTagCollector` merges the many reports of a tag, from any thread).
+
+Failures are `RfidException` `UNREACHABLE` or `READER_ERROR`. Two implementations: the Hopeland one (step 5, the only
+class that uses the SDK) and `store.support.FakeRfidReader` in the store's test sources (tag reports per address, an
+unreachable or failing address, a read held open). No key chooses between them: production has only the Hopeland one.
+
+`RfidReadService` (conditional, like every RFID bean):
+
+| Call | What | Refusals |
+|---|---|---|
+| `testConnection(readerId)` | the reader answers: `RfidConnectionResult` (reader, ip:port, its information, duration); allowed on an inactive reader | `NOT_FOUND` |
+| `testRead(readerId)` | a read for the reader's reading time: `RfidReadResult` without a POS machine | `NOT_FOUND`; `NOT_READY` inactive reader |
+| `readForRequest(remoteAddress)` | a read with the reader of the POS machine whose address the request comes from | below |
+
+`RfidReadResult`: `posMachineName` (null for a test read), `readerName`, `readTimeMs`, `durationMs`, `tags`. Every read
+names the reader, and the POS machine when there is one.
+
+Refusals of `readForRequest`, the reader never called:
+- `NOT_FOUND`: `No POS machine has the address 192.168.1.99: add this machine on the RFID POS machines page (it needs a
+  fixed address).` (the address as normalised: `127.0.0.1` for the PC of the back end);
+- `NOT_READY`: `The POS machine 'X' is inactive.`, `The POS machine 'X' has no RFID reader.`, `The RFID reader 'R' of the
+  POS machine 'X' is inactive.`
+
+**One request at a time per reader**: a lock per reader id, taken without waiting; a second request for a busy reader
+answers at once `BUSY` (`The RFID reader 'R' is busy with another read: try again in a moment.`), never queues. Two
+readers read at the same time. The lock is freed whatever happens (a failure included).
+
+Tests: `RfidTagCollectorTest`, `RfidReadServiceTest` (with `FakeRfidReader`), `RfidBeansTest`.
+
+Until step 5 there is no `RfidReaderDevice` in the WAR: a start with `rfid.enabled=true` stops (no bean for
+`RfidReadService`). With `false` nothing changes.
+
 ## The SDK
 
 `com.hopeland:rfid-reader-api:2.11-zs1`, a cleaned copy of the vendor's jar in the file repository `libs/maven`, taken by

@@ -375,7 +375,7 @@ own questions stay `@ConditionalOnErpAbility` and `@ConditionalOnErpConnector` (
 | `PROMOTIONS_FROM_HEAD_OFFICE` | A linked store whose promotions are the head office's. | 1 |
 | `LOYALTY_FROM_HEAD_OFFICE` | A linked store whose loyalty program and members are the head office's. | 8 |
 | `SUPPLY_FROM_HEAD_OFFICE` | A linked store whose goods come from the head office by BL (`ownership.supply=HEAD_OFFICE` written in its file). | 7 |
-| `RFID` | A store that reads RFID tags: `rfid.enabled=true` (`docs/modules/rfid.md`). | 2 (and its 2 repositories) |
+| `RFID` | A store that reads RFID tags: `rfid.enabled=true` (`docs/modules/rfid.md`). | 3 (and its 2 repositories) |
 
 Three answers combine `NodeOwnership` methods as the old conditions did: `HEAD_OFFICE` (`nodeTypeOf == HEAD_OFFICE`),
 `HEAD_OFFICE_OWN_SUPPLY` (without ERP and not supply from the ERP), `HEAD_OFFICE_ERP_SUPPLY` (catalogue only from the ERP
