@@ -849,7 +849,7 @@ Data the head office owns reaches its stores as copies down (design 2.3): the st
 - `CopiesDownFeed.recordChange(domain, code, stores)`, called inside the writer's transaction (`Propagation.MANDATORY`): increments the domain's number (`update ... set last_version = last_version + 1`, the row stays locked until the commit, so one domain's numbers are given in commit order), then moves the rows of the stores concerned to it. A change of targets passes the old and the new stores together (`StoreTargets.union`): a store taken off gets the code as removed.
 - "Changed" covers created, edited, activated or deactivated, deleted, and targets changed: each is one `recordChange`.
 - **Cursor**: the change number, made from the head office data only; never a clock. A pull reads the domain's committed number first (the horizon), then the codes changed for the store (its rows and the every-store rows) after the cursor and up to the horizon, oldest first. A change committed during the pull has a higher number and comes with the next pull. A cursor above the horizon (head office database restored) starts again from 0.
-- Startup (`ApplicationReadyEvent`): each served domain gets its sequence row, and each existing record without a change row gets one with its targets (backfill: promotions created before step 3 reach every store). Step 6 (a catalogue holds thousands of records): the records without a row are written in chunks of 500 (`CopiesDownFeed.BACKFILL_CHUNK`), each chunk in its own transaction with one update of the sequence (`HoDownSequenceRepository.incrementBy`); each record still gets its own number in the order of `currentTargets`, so the rows are exactly those of one `recordChange` per record (`CopiesDownFeedTest.backfillGivesTheSameRowsAsBefore`, promotions and loyalty). A start stopped in the middle goes on at the next start. On a head office whose catalogue comes from the ERP, the catalogue's targets of an ERP item and its barcodes are the stores of its points (none: no row; "Stock points", stock point copies step 4).
+- Startup (`ApplicationReadyEvent`): each served domain gets its sequence row, and each existing record without a change row gets one with its targets (backfill: promotions created before step 3 reach every store). Step 6 (a catalogue holds thousands of records): the records without a row are written in chunks of 500 (`CopiesDownFeed.BACKFILL_CHUNK`), each chunk in its own transaction with one update of the sequence (`HoDownSequenceRepository.incrementBy`); each record still gets its own number in the order of `currentTargets`, so the rows are exactly those of one `recordChange` per record (`CopiesDownFeedTest.backfillGivesTheSameRowsAsBefore`, promotions and loyalty). A start stopped in the middle goes on at the next start. On a head office whose catalogue comes from the ERP, the catalogue's targets of an ERP item and its barcodes are the stores of its points (none: no row; "Stock points", stock point copies step 4). Before the backfill, the upgrades of the rows run (`CopiesDownUpgrade`, stock point copies step 5).
 - One `DownDomainProvider` per domain: `load(store, codes)` answers the copy of each code that exists and is addressed to the store; any other code is answered as removed.
 
 **`GET /ho/down/{domain}?cursor=&limit=`** (`HeadOfficeDownAPI`, `/ho/**` chain: store key, then license). `domain` any case (`promotions`). `cursor` blank for the first pull. `limit` codes per page, default 100, at most 500 (0 or less: 100).
@@ -1544,6 +1544,27 @@ Done (stock point copies, step 4), a store is told only about the items of its p
   barcode run, a barcode moved between points, from a hand-made item, a value changed under the same ERP id; a pack
   change; a new item then its rows; a delete; the startup backfill and a second start), `StockPointCopiesQueryTest` (the
   backfill and before-import queries), `HoStockPointCatalogueTest` (a store is no longer told the other point's items).
+
+Done (stock point copies, step 5), the upgrade of an existing database:
+- At each start, before the backfill (`CopiesDownFeed.initialise` runs every `CopiesDownUpgrade` first; a failed one is
+  logged as a WARN and the start goes on), on a head office whose catalogue comes from the ERP
+  (`ErpCatalogueRowsUpgrade`): each every-store row of an ERP item or of a barcode of an ERP item, written before step 4,
+  is split into one row per store whose point has a row for the item (active or not), with the same `change_version`,
+  then deleted. A store that already has its own row for the code keeps the higher number. One transaction, set-based
+  SQL (an UPDATE, an INSERT ... SELECT, a DELETE), no timeout; the sequence is not touched.
+- Effect for each store: every code of its point's items keeps the number it would read, so a store that has pulled
+  past it reads nothing again, and a store behind it (created with a point before step 3, not pulled since) still reads
+  it from its own row. A store with no point, or whose point does not have the item, is no longer told about it.
+  Families, sub-families, hand-made items, TAX_STAMP and codes of deleted records are not touched.
+- It runs only while such every-store rows exist: a second start counts none and changes nothing. Log line
+  `Head office copies down, upgrade: every-store rows of ERP items and barcodes: N deleted; store rows: N written with
+  their number, N raised to it`.
+- Its SELECT parts were run on the 2.2 test database `pos_headoffice_222_test` (SQL Server): 3,317 every-store ERP rows,
+  no store with a point there, so that database would lose those rows and get none per store.
+- Tests: `ErpCatalogueRowsUpgradeTest` (H2, tables named as on SQL Server: three stores, one created with a point and never
+  pulled, one with its own rows older and newer, one without a point; what each store reads before and after; a second
+  run; nothing to do), `HoStockPointSyncTest.upgradesBeforeBackfill`; `InstallationBeansProofTest` (the record gains
+  `ErpCatalogueRowsUpgrade` on the head offices whose catalogue comes from the ERP only).
 
 Done (step 3b), invoices from the ERP:
 - When an invoice gets its store (`HoErpInvoiceService.assignStores` / `matchStoresNow`) and that store has a point,

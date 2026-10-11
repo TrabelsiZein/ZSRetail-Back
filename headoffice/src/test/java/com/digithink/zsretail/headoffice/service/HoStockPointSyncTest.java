@@ -353,6 +353,23 @@ class HoStockPointSyncTest {
 	}
 
 	@Test
+	@DisplayName("Step 5: at the start, the upgrades run before the backfill; a failed one is logged and the backfill still runs")
+	void upgradesBeforeBackfill() {
+		InMemoryDownTables fresh = new InMemoryDownTables();
+		CopiesDownFeed freshFeed = fresh.feed(Collections.singletonList(catalogue));
+		List<Integer> rowsSeen = new ArrayList<>();
+		freshFeed.setUpgrades(Arrays.asList(() -> {
+			rowsSeen.add(fresh.changes.size());
+			return "done";
+		}, () -> {
+			throw new IllegalStateException("upgrade failed");
+		}));
+		freshFeed.initialise();
+		assertEquals(Collections.singletonList(0), rowsSeen, "ran first, before any row of the backfill");
+		assertTrue(fresh.changes.stream().anyMatch(ch -> ch.getRecordCode().equals("ITEM:B001")), "the backfill ran");
+	}
+
+	@Test
 	@DisplayName("A deleted ERP item: recorded for the stores of its points, with its barcodes")
 	void deleted() {
 		catalogue.beforeDelete(com.digithink.zsretail.core.model.enumeration.CatalogueKind.ITEM, b003);

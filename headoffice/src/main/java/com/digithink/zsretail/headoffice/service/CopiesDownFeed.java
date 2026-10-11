@@ -97,6 +97,14 @@ public class CopiesDownFeed {
 		this.batch = batch;
 	}
 
+	/** Stock point copies, step 5: run at the start before the backfill; none on most installations. */
+	private List<CopiesDownUpgrade> upgrades = new ArrayList<>();
+
+	@Autowired(required = false)
+	public void setUpgrades(List<CopiesDownUpgrade> upgrades) {
+		this.upgrades = upgrades == null ? new ArrayList<>() : upgrades;
+	}
+
 	private static TransactionTemplate readOnly(PlatformTransactionManager transactionManager) {
 		TransactionTemplate template = new TransactionTemplate(transactionManager);
 		template.setReadOnly(true);
@@ -320,9 +328,23 @@ public class CopiesDownFeed {
 		throw new IllegalArgumentException("Invalid cursor '" + cursor + "': send back the cursor of the last answer");
 	}
 
-	/** At the start: each domain gets its sequence row, and every record without a change row gets one (backfill). */
+	/**
+	 * At the start: the upgrades of the rows first (stock point copies, step 5; a failed one is logged and the start goes
+	 * on), then each domain gets its sequence row, and every record without a change row gets one (backfill).
+	 */
 	@EventListener(ApplicationReadyEvent.class)
 	public void initialise() {
+		for (CopiesDownUpgrade upgrade : upgrades) {
+			try {
+				String done = upgrade.run();
+				if (done != null) {
+					log.info("Head office copies down, upgrade: {}", done);
+				}
+			} catch (RuntimeException e) {
+				log.warn("Head office copies down: upgrade {} failed ({})", upgrade.getClass().getSimpleName(),
+						ErrorTexts.cause(e));
+			}
+		}
 		for (DownDomainProvider provider : providers.values()) {
 			try {
 				int added = backfill(provider);
