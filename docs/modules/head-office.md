@@ -1587,7 +1587,8 @@ Done (step 4), the screens (frontend routes with `meta.erpCatalogue`: menu, guar
   Items page is not changed.
 - **Stores page**: a column "Point de stock" (a warning badge when the store has none), a select next to the ERP
   customer number at creation and in edit (the active points with items, and "None"); changing the point of an existing
-  store asks a confirmation saying everything is sent to it again, then `PUT .../stock-point`.
+  store asks a confirmation saying the items of the previous and the new point, with their barcodes, are sent to it again
+  (ZSRetail-Front release/2.3.0, stock point copies), then `PUT .../stock-point`.
 - Backend: the last read of each point (`ho_stock_point.last_read_at`, `last_read_status` OK / NO_ANSWER / FAILED,
   `last_read_summary`), written by the items run (`StockPoints.recordRead`, never in a dry run; a failed read,
   a failed packet of items or of rows is FAILED with its message), in the list of points;
