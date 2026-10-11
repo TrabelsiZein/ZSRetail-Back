@@ -14,17 +14,17 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.ItemBarcode;
-import com.digithink.zsretail.model.enumeration.RecordOrigin;
-import com.digithink.zsretail.repository.ItemBarcodeRepository;
-import com.digithink.zsretail.repository.ItemFamilyRepository;
-import com.digithink.zsretail.repository.ItemRepository;
-import com.digithink.zsretail.repository.ItemSubFamilyRepository;
-import com.digithink.zsretail.repository.SalesPriceRepository;
-import com.digithink.zsretail.service.CatalogueEditGuard;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemBarcode;
+import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
+import com.digithink.zsretail.core.repository.ItemFamilyRepository;
+import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
+import com.digithink.zsretail.core.repository.SalesPriceRepository;
+import com.digithink.zsretail.core.service.CatalogueEditGuard;
 
 import lombok.extern.log4j.Log4j2;
 

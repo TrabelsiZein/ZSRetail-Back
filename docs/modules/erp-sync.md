@@ -121,15 +121,15 @@
   - Both success and error responses are logged in `ErpCommunication` table
 
 **Key Files:**
-- `app/src/main/java/com/digithink/zsretail/model/SalesHeader.java` - Entity with sync fields
-- `app/src/main/java/com/digithink/zsretail/model/SalesLine.java` - Entity with synched field
-- `app/src/main/java/com/digithink/zsretail/model/enumeration/SynchronizationStatus.java` - Sync status enum
+- `core/src/main/java/com/digithink/zsretail/core/model/SalesHeader.java` - Entity with sync fields
+- `core/src/main/java/com/digithink/zsretail/core/model/SalesLine.java` - Entity with synched field
+- `core/src/main/java/com/digithink/zsretail/core/model/enumeration/SynchronizationStatus.java` - Sync status enum
 - `connector-emtop/src/main/java/com/digithink/zsretail/connector/emtop/dto/DynamicsNavSalesOrderHeaderDTO.java` - Header DTO
 - `connector-emtop/src/main/java/com/digithink/zsretail/connector/emtop/dto/DynamicsNavSalesOrderLineDTO.java` - Line DTO
 - `app/src/main/java/com/digithink/zsretail/erp/service/TicketExportService.java` - Export service
 - `connector-emtop/src/main/java/com/digithink/zsretail/connector/emtop/client/DynamicsNavRestClient.java` - NAV client
 - `connector-emtop/src/main/java/com/digithink/zsretail/connector/emtop/config/DynamicsNavConfig.java` - RestTemplate config
-- `app/src/main/java/com/digithink/zsretail/erp/service/ErpSyncJobRunner.java` - Job runner integration
+- `core/src/main/java/com/digithink/zsretail/core/erp/service/ErpSyncJobRunner.java` - Job runner integration
 
 
 ## ERP Synchronization Operations
@@ -208,7 +208,7 @@ abilities (`erp/api/ErpAbility`), read from the environment, so a condition uses
 a connector name.
 
 **Rule: the application never names a connector.** Outside the connector packages (`connector/emtop`, `connector/happyness`)
-and the translation class of step 1 (`config/ErpConnectorEnvironmentPostProcessor`, the only one that knows the old keys
+and the translation class of step 1 (`core/config/ErpConnectorEnvironmentPostProcessor`, the only one that knows the old keys
 and the NAV address of the startup summary), no class imports a connector package or contains the text `erp.dynamicsnav` or
 `erp.navpospages`, not even in a comment. Since code cleanup step 6.3 Maven makes it true as well: the application takes
 the connector projects at `runtime` scope, so a main class that names one does not compile, and a connector depends on
@@ -226,9 +226,9 @@ have no deletion log). The ids are pinned character for character by `ErpDeletio
 ### Catalogue engine (code cleanup step 3)
 
 A connector is a thin part: which pages to call, the field names, the rows to `Erp*DTO`, its settings. The catalogue
-logic is written once, in `erp/engine`, and exists with a connector that has the ability `HEAD_OFFICE_STOCK_POINTS`.
+logic is written once, in `core/erp/engine`, and exists with a connector that has the ability `HEAD_OFFICE_STOCK_POINTS`.
 
-**The engine** (`erp/engine`):
+**The engine** (`core/erp/engine`):
 - `CatalogueEngine` (was `NavPosPagesSync`): families, sub-families, items per point de stock, barcodes. It compares
   with the head office tables, waits for the families, applies in packets (each its own transaction, through
   `CatalogueImport`), keeps the barcode cursor by position and writes the summary of each run (`RunSummary` of
@@ -272,14 +272,14 @@ read by the single job, the four import jobs are refused on its head office), an
    (`HEAD_OFFICE_STOCK_POINTS` for the engine and the points de stock).
 4. Its classes use only `erp/api`, their own package, the JDK and libraries (guard test
    `ConnectorDependenciesGuardTest`); the application never names it (`ConnectorNamesGuardTest`, which also scans
-   `erp/engine`).
+   `core/erp/engine`).
 
-Tests: `erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows of navpospages through its adapter,
+Tests: `core/erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows of navpospages through its adapter,
 `NavPosPagesFixture`), `NavPosPagesInvoicesTest`, `NavPosPagesCatalogueSourceTest`.
 
 **Guard of the connector packages** (`erp/ConnectorDependenciesGuardTest`): a class of `connector/happyness` or
 `connector/emtop` may use erp-api (as `ProjectSortingGuardTest` sorts it: `erp/api` with `erp/api/dto`, the project
-erp-api since code cleanup step 6.2; not the two admin views of `erp/dto`, going to core), its own package, the JDK and
+erp-api since code cleanup step 6.2; not the two admin views of `erp/dto`, in core since step 6.4 as `core/erp/dto`), its own package, the JDK and
 libraries. What would break the rule goes on an allow-list
 inside the test, each line with its reason (an entry nothing uses any more fails too); empty since code cleanup step
 5.8e (navpospages untied at 5.8c, dynamicsnav at 5.8d).

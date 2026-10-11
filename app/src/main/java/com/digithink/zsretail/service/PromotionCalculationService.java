@@ -18,20 +18,22 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import com.digithink.zsretail.core.dto.PricingResult;
+import com.digithink.zsretail.core.model.Customer;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.Promotion;
+import com.digithink.zsretail.core.model.enumeration.PromotionBenefitType;
+import com.digithink.zsretail.core.model.enumeration.PromotionScope;
+import com.digithink.zsretail.core.repository.CustomerRepository;
+import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.PromotionRepository;
+import com.digithink.zsretail.core.service.CustomerService;
+import com.digithink.zsretail.core.service.PricingService;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.dto.CartCalculateRequestDTO;
 import com.digithink.zsretail.dto.CartCalculateResponseDTO;
 import com.digithink.zsretail.dto.CrossProductAdjustmentDTO;
 import com.digithink.zsretail.dto.PriceCalculateResponseDTO;
-import com.digithink.zsretail.dto.PricingResult;
-import com.digithink.zsretail.model.Customer;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.Promotion;
-import com.digithink.zsretail.model.enumeration.PromotionBenefitType;
-import com.digithink.zsretail.model.enumeration.PromotionScope;
-import com.digithink.zsretail.repository.CustomerRepository;
-import com.digithink.zsretail.repository.ItemRepository;
-import com.digithink.zsretail.repository.PromotionRepository;
-import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -359,7 +361,7 @@ public class PromotionCalculationService {
 		java.util.Set<Long> targetedGetItems = new java.util.HashSet<>();
 
 		for (Promotion p : crossPromos) { // already ordered by priority DESC
-			if (p.getPromotionType() != com.digithink.zsretail.model.enumeration.PromotionType.QUANTITY_PROMOTION) continue;
+			if (p.getPromotionType() != com.digithink.zsretail.core.model.enumeration.PromotionType.QUANTITY_PROMOTION) continue;
 			if (p.getMinimumQuantity() == null || p.getMinimumQuantity() <= 0) continue;
 			if (p.getGetItem() == null || p.getGetItem().getId() == null) continue;
 			if (!passesCodeFilter(p, codes)) continue;

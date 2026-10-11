@@ -8,6 +8,11 @@ import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.SalesHeader;
+import com.digithink.zsretail.core.model.SalesLine;
+import com.digithink.zsretail.core.model._BaseEntity;
+
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;

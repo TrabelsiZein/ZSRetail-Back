@@ -72,39 +72,44 @@ public class ProjectSortingGuardTest {
 			"service.SalesHeaderService", "service.SalesLineService", "service.SalesPriceService", "service.SalesReportService",
 			"service.SessionCashCountService", "service.WarrantyService"));
 
-	/** The classes of headoffice that go to core: the link messages, and the /ho/** chain (it exists on a store too). */
-	static final Set<String> HEADOFFICE_TO_CORE = new HashSet<>(Arrays.asList("CatalogueBarcodeCopyDTO",
-			"CatalogueFamilyCopyDTO", "CatalogueItemCopyDTO", "CatalogueSubFamilyCopyDTO", "CopiesDownAnswerDTO",
-			"DeliveryConfirmationDTO", "DeliveryCopyDTO", "ErpInvoiceCopyDTO", "HeadOfficeHeartbeatAnswerDTO",
-			"HeadOfficeHeartbeatDTO", "HeadOfficePingDTO", "LoyaltyMemberAnswerDTO", "LoyaltyMemberCopyDTO",
-			"LoyaltyMemberEditDTO", "LoyaltyMemberResultDTO", "LoyaltyMovementCopyDTO", "LoyaltyPhoneCheckDTO",
-			"LoyaltyPointsAdjustDTO", "LoyaltyProgramCopyDTO", "PaymentCopyDTO", "PromotionCopyDTO", "ReturnCopyDTO",
-			"ReturnLineCopyDTO", "SalesCopyAnswerDTO", "SalesCopyResultDTO", "SessionCopyDTO", "SessionCountCopyDTO",
-			"StockReportDTO", "SupplyInvoiceCopyDTO", "TicketCopyDTO", "TicketLineCopyDTO",
-			"HeadOfficeApiSecurityConfig"));
+	/**
+	 * Code cleanup step 6: the package root of each project; a class takes it when it moves into its project. Until then
+	 * (in app) a class is sorted by the rules of step 5 below.
+	 */
+	static final Map<String, String> ROOTS = new LinkedHashMap<>();
 
-	/** The admin views of the ERP jobs and communications: core screens, not connector objects. */
-	static final Set<String> ERP_DTO_TO_CORE = new HashSet<>(
-			Arrays.asList("ErpCommunicationViewDTO", "ErpSyncJobViewDTO"));
+	static {
+		ROOTS.put("erp.api.", ERP_API);
+		ROOTS.put("connector.emtop.", EMTOP);
+		ROOTS.put("connector.happyness.", HAPPYNESS);
+		ROOTS.put("core.", CORE);
+		ROOTS.put("store.", STORE);
+		ROOTS.put("headoffice.", HEADOFFICE);
+	}
+
+	/** The projects whose classes are still in app, under their final package root (until step 6.5). */
+	static final Set<String> STILL_IN_APP = set(HEADOFFICE);
+
+	/** The Maven project (folder) of each project. */
+	static final Map<String, String> FOLDERS = new HashMap<>();
+
+	static {
+		FOLDERS.put(ERP_API, "erp-api");
+		FOLDERS.put(EMTOP, "connector-emtop");
+		FOLDERS.put(HAPPYNESS, "connector-happyness");
+		FOLDERS.put(CORE, "core");
+		FOLDERS.put(STORE, "store");
+		FOLDERS.put(HEADOFFICE, "headoffice");
+	}
 
 	/** The project of a class (its name after com.digithink.zsretail.). */
 	public static String projectOf(String name) {
-		String simple = name.substring(name.lastIndexOf('.') + 1);
-		if (name.startsWith("connector.emtop.")) {
-			return EMTOP;
+		for (Map.Entry<String, String> root : ROOTS.entrySet()) {
+			if (name.startsWith(root.getKey())) {
+				return root.getValue();
+			}
 		}
-		if (name.startsWith("connector.happyness.")) {
-			return HAPPYNESS;
-		}
-		if (name.startsWith("erp.dto.")) {
-			return ERP_DTO_TO_CORE.contains(simple) ? CORE : ERP_API;
-		}
-		if (name.startsWith("erp.api.")) {
-			return ERP_API;
-		}
-		if (name.startsWith("headoffice.")) {
-			return HEADOFFICE_TO_CORE.contains(simple) ? CORE : HEADOFFICE;
-		}
+		// Not moved yet (still in app)
 		if (name.startsWith("holink.") || name.startsWith("analytics.") || name.startsWith("inventory.")) {
 			return STORE;
 		}
@@ -274,14 +279,29 @@ public class ProjectSortingGuardTest {
 	}
 
 	@Test
+	@DisplayName("Every class lives in the project of its package root; a class without one is still in app")
+	void packageRootIsProject() {
+		List<String> wrong = new ArrayList<>();
+		for (Map.Entry<String, Path> file : Repo.mainJavaFiles().entrySet()) {
+			String name = file.getKey().replaceAll("\\.java$", "").replace('/', '.').substring(APP.length());
+			String folder = Repo.ROOT.relativize(file.getValue()).getName(0).toString();
+			String expected = ROOTS.keySet().stream().anyMatch(name::startsWith) ? FOLDERS.get(projectOf(name)) : "app";
+			if (folder.equals("app") && STILL_IN_APP.contains(projectOf(name))) {
+				continue;
+			}
+			if (!folder.equals(expected)) {
+				wrong.add(name + " in " + folder + ", expected " + expected);
+			}
+		}
+		assertEquals(new ArrayList<String>(), wrong);
+	}
+
+	@Test
 	@DisplayName("Every class named in the sorting exists")
 	void sortingNamesExist() throws IOException {
 		Set<String> classes = references().keySet();
 		List<String> missing = new ArrayList<>();
 		STORE_CLASSES.stream().filter(name -> !classes.contains(name)).forEach(missing::add);
-		HEADOFFICE_TO_CORE.stream().filter(simple -> classes.stream().noneMatch(c -> c.startsWith("headoffice.")
-				&& c.endsWith("." + simple))).forEach(missing::add);
-		ERP_DTO_TO_CORE.stream().filter(simple -> !classes.contains("erp.dto." + simple)).forEach(missing::add);
 		assertEquals(new ArrayList<String>(), missing);
 	}
 
@@ -291,13 +311,13 @@ public class ProjectSortingGuardTest {
 		String code = code("package a;\nimport b.C;\n/** D */ class E { // F\n String s = \"G // H\"; char c = '\"'; I i; }");
 		assertTrue(code.contains("I i"), code);
 		assertTrue(!code.contains("D") && !code.contains("F") && !code.contains("G") && !code.contains("import"), code);
-		assertEquals(CORE, projectOf("service.ItemService"));
+		assertEquals(CORE, projectOf("core.service.ItemService"));
 		assertEquals(STORE, projectOf("service.SalesHeaderService"));
 		assertEquals(STORE, projectOf("holink.service.SalesPushService"));
-		assertEquals(CORE, projectOf("headoffice.dto.TicketCopyDTO"));
+		assertEquals(CORE, projectOf("core.link.dto.TicketCopyDTO"));
 		assertEquals(HEADOFFICE, projectOf("headoffice.dto.StoreDTO"));
 		assertEquals(ERP_API, projectOf("erp.api.dto.ErpItemDTO"));
-		assertEquals(CORE, projectOf("erp.dto.ErpSyncJobViewDTO"));
+		assertEquals(CORE, projectOf("core.erp.dto.ErpSyncJobViewDTO"));
 		assertEquals(EMTOP, projectOf("connector.emtop.connector.DynamicsNavConnector"));
 		assertEquals(HAPPYNESS, projectOf("connector.happyness.mapper.NavPosPagesMapper"));
 		assertEquals(CORE, projectOf("POSMainApp"));

@@ -12,15 +12,15 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import com.digithink.zsretail.config.ApplicationModeService;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.StockMovement;
-import com.digithink.zsretail.model.enumeration.StockMovementType;
-import com.digithink.zsretail.repository.ItemRepository;
-import com.digithink.zsretail.repository.StockMovementRepository;
-import com.digithink.zsretail.service.GeneralSetupService;
-import com.digithink.zsretail.service.StockMovementService;
-import com.digithink.zsretail.service.StockService;
+import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.StockMovement;
+import com.digithink.zsretail.core.model.enumeration.StockMovementType;
+import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.StockMovementRepository;
+import com.digithink.zsretail.core.service.GeneralSetupService;
+import com.digithink.zsretail.core.service.StockMovementService;
+import com.digithink.zsretail.core.service.StockService;
 
 /**
  * Test support (step 7A): the stock of one installation in memory, over its {@link InMemoryCatalogue}: the item

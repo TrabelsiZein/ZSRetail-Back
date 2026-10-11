@@ -23,17 +23,17 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ApplicationModeService;
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.headoffice.dto.StockReportDTO;
+import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.link.dto.StockReportDTO;
+import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
+import com.digithink.zsretail.core.model.enumeration.ItemType;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.headoffice.model.HoStoreStock;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.HoStoreStockRepository;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
-import com.digithink.zsretail.model.enumeration.CatalogueKind;
-import com.digithink.zsretail.model.enumeration.ItemType;
-import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 

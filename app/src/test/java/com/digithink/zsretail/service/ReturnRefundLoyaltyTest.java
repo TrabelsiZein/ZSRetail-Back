@@ -22,34 +22,40 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.digithink.zsretail.core.model.CashierSession;
+import com.digithink.zsretail.core.model.GeneralSetup;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.LoyaltyEarningTier;
+import com.digithink.zsretail.core.model.LoyaltyMember;
+import com.digithink.zsretail.core.model.LoyaltyProgram;
+import com.digithink.zsretail.core.model.LoyaltyTransaction;
+import com.digithink.zsretail.core.model.ReturnHeader;
+import com.digithink.zsretail.core.model.ReturnLine;
+import com.digithink.zsretail.core.model.ReturnVoucher;
+import com.digithink.zsretail.core.model.SalesHeader;
+import com.digithink.zsretail.core.model.SalesLine;
+import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.model.enumeration.LoyaltyTransactionType;
+import com.digithink.zsretail.core.model.enumeration.ReturnType;
+import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
+import com.digithink.zsretail.core.repository.CashierSessionRepository;
+import com.digithink.zsretail.core.repository.GeneralSetupRepository;
+import com.digithink.zsretail.core.repository.LoyaltyMemberRepository;
+import com.digithink.zsretail.core.repository.LoyaltyProgramRepository;
+import com.digithink.zsretail.core.repository.LoyaltyTransactionRepository;
+import com.digithink.zsretail.core.repository.ReturnHeaderRepository;
+import com.digithink.zsretail.core.repository.ReturnLineRepository;
+import com.digithink.zsretail.core.repository.SalesHeaderRepository;
+import com.digithink.zsretail.core.repository.SalesLineRepository;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.service.GeneralSetupService;
+import com.digithink.zsretail.core.service.LoyaltyService;
+import com.digithink.zsretail.core.service.QuantityPolicy;
+import com.digithink.zsretail.core.service.StockMovementService;
+import com.digithink.zsretail.core.service.StockService;
+import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.dto.ProcessReturnRequestDTO;
-import com.digithink.zsretail.model.CashierSession;
-import com.digithink.zsretail.model.GeneralSetup;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.LoyaltyEarningTier;
-import com.digithink.zsretail.model.LoyaltyMember;
-import com.digithink.zsretail.model.LoyaltyProgram;
-import com.digithink.zsretail.model.LoyaltyTransaction;
-import com.digithink.zsretail.model.ReturnHeader;
-import com.digithink.zsretail.model.ReturnLine;
-import com.digithink.zsretail.model.ReturnVoucher;
-import com.digithink.zsretail.model.SalesHeader;
-import com.digithink.zsretail.model.SalesLine;
-import com.digithink.zsretail.model.UserAccount;
-import com.digithink.zsretail.model.enumeration.LoyaltyTransactionType;
-import com.digithink.zsretail.model.enumeration.ReturnType;
-import com.digithink.zsretail.model.enumeration.TransactionStatus;
-import com.digithink.zsretail.repository.CashierSessionRepository;
-import com.digithink.zsretail.repository.GeneralSetupRepository;
-import com.digithink.zsretail.repository.LoyaltyMemberRepository;
-import com.digithink.zsretail.repository.LoyaltyProgramRepository;
-import com.digithink.zsretail.repository.LoyaltyTransactionRepository;
-import com.digithink.zsretail.repository.ReturnHeaderRepository;
-import com.digithink.zsretail.repository.ReturnLineRepository;
 import com.digithink.zsretail.repository.ReturnVoucherRepository;
-import com.digithink.zsretail.repository.SalesHeaderRepository;
-import com.digithink.zsretail.repository.SalesLineRepository;
-import com.digithink.zsretail.security.CurrentUserProvider;
 
 /**
  * Returns: money refunded and member points. Tickets without loyalty points keep their
@@ -469,7 +475,7 @@ class ReturnRefundLoyaltyTest {
 			from.setAccessible(true);
 			inject(api, com.digithink.zsretail.controller.ReturnHeaderAPI.class, name, from.get(returns));
 		}
-		inject(api, com.digithink.zsretail.controller._BaseController.class, "service", returns);
+		inject(api, com.digithink.zsretail.core.controller._BaseController.class, "service", returns);
 		com.fasterxml.jackson.databind.ObjectMapper json = new com.fasterxml.jackson.databind.ObjectMapper()
 				.findAndRegisterModules();
 
@@ -550,7 +556,7 @@ class ReturnRefundLoyaltyTest {
 				.append(stored.getLineTotalIncludingVat()).append(" total ").append(header.getTotalReturnAmount())
 				.append(" pct ").append(header.getDiscountPercentage()).append('\n');
 
-		com.digithink.zsretail.headoffice.dto.ReturnCopyDTO copy =
+		com.digithink.zsretail.core.link.dto.ReturnCopyDTO copy =
 				com.digithink.zsretail.holink.service.SalesCopyMapper.returnCopy(header, lines);
 		com.fasterxml.jackson.databind.ObjectMapper sorted = new com.fasterxml.jackson.databind.ObjectMapper()
 				.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())

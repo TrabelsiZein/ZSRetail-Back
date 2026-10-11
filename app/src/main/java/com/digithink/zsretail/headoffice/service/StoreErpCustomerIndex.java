@@ -8,8 +8,8 @@ import org.springframework.stereotype.Component;
 
 import lombok.extern.log4j.Log4j2;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
 
 /**
  * Invoices from the ERP: the filtered unique index of ho_store.erp_customer_no (one store per ERP customer, any number

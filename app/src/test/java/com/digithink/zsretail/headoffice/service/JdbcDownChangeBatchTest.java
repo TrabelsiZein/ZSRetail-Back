@@ -21,8 +21,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.headoffice.model.HoDownChange;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 
 /**
  * Stock points (speed): the JDBC batch of a store whose point changed. An UPDATE per code, an INSERT for the codes

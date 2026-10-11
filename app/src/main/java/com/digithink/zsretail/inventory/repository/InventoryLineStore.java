@@ -9,9 +9,9 @@ import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.inventory.enumeration.InventoryLineStatus;
 import com.digithink.zsretail.inventory.model.InventoryCountLine;
-import com.digithink.zsretail.utils.Quantities;
 
 /**
  * The bulk writes of inventory_count_line in JDBC batches (a file may hold 30,000 rows; the IDENTITY ids would make

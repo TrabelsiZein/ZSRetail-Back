@@ -7,7 +7,10 @@ import javax.persistence.EnumType;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 
-import com.digithink.zsretail.model.enumeration.CounterType;
+import com.digithink.zsretail.core.model.CashierSession;
+import com.digithink.zsretail.core.model.PaymentMethod;
+import com.digithink.zsretail.core.model._BaseEntity;
+import com.digithink.zsretail.core.model.enumeration.CounterType;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;

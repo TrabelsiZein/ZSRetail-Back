@@ -2,8 +2,8 @@ package com.digithink.zsretail.headoffice.service;
 
 import java.util.List;
 
-import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
-import com.digithink.zsretail.headoffice.dto.SalesCopyResultDTO;
+import com.digithink.zsretail.core.link.dto.DeliveryConfirmationDTO;
+import com.digithink.zsretail.core.link.dto.SalesCopyResultDTO;
 import com.digithink.zsretail.headoffice.model.Store;
 
 /**

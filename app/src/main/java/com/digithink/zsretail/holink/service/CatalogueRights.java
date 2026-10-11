@@ -7,8 +7,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.holink.model.LinkRight;
 import com.digithink.zsretail.holink.repository.LinkRightRepository;
 

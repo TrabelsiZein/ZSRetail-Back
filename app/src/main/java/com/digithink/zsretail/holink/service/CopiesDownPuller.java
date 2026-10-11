@@ -16,9 +16,10 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.link.dto.CopiesDownAnswerDTO;
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.holink.dto.DownApplyResult;
 import com.digithink.zsretail.holink.dto.PullAnswer;
@@ -28,7 +29,6 @@ import com.digithink.zsretail.holink.enumeration.LinkJobResult;
 import com.digithink.zsretail.holink.model.DownCursor;
 import com.digithink.zsretail.holink.repository.DownCursorRepository;
 import com.digithink.zsretail.holink.scheduler.CopiesDownJob;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 
 import lombok.AccessLevel;
 import lombok.Getter;

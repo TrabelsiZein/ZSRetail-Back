@@ -2,11 +2,11 @@ package com.digithink.zsretail.holink.service;
 
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.model.Vendor;
-import com.digithink.zsretail.repository.VendorRepository;
-import com.digithink.zsretail.service.VendorEditGuard;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.model.Vendor;
+import com.digithink.zsretail.core.repository.VendorRepository;
+import com.digithink.zsretail.core.service.VendorEditGuard;
 
 /**
  * Head office plan, step 7B: on a store whose goods come from the head office, the vendor HEAD_OFFICE (created by

@@ -17,11 +17,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionOperations;
 
-import com.digithink.zsretail.headoffice.dto.LoyaltyMovementCopyDTO;
+import com.digithink.zsretail.core.link.dto.LoyaltyMovementCopyDTO;
+import com.digithink.zsretail.core.model.LoyaltyMember;
 import com.digithink.zsretail.headoffice.model.HoLoyaltyMovement;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
-import com.digithink.zsretail.model.LoyaltyMember;
 import com.digithink.zsretail.support.InMemoryLoyalty;
 
 /**

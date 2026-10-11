@@ -2,8 +2,9 @@ package com.digithink.zsretail.repository;
 
 import java.util.List;
 
+import com.digithink.zsretail.core.model.SalesHeader;
+import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.model.PaymentChangeLog;
-import com.digithink.zsretail.model.SalesHeader;
 
 public interface PaymentChangeLogRepository extends _BaseRepository<PaymentChangeLog, Long> {
 

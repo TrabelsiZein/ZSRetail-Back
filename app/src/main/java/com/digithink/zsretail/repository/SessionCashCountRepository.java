@@ -2,9 +2,10 @@ package com.digithink.zsretail.repository;
 
 import java.util.List;
 
-import com.digithink.zsretail.model.CashierSession;
+import com.digithink.zsretail.core.model.CashierSession;
+import com.digithink.zsretail.core.model.enumeration.CounterType;
+import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.model.SessionCashCount;
-import com.digithink.zsretail.model.enumeration.CounterType;
 
 public interface SessionCashCountRepository extends _BaseRepository<SessionCashCount, Long> {
 

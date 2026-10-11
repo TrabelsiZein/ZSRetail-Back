@@ -13,18 +13,19 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.digithink.zsretail.core.controller._BaseController;
+import com.digithink.zsretail.core.model.Payment;
+import com.digithink.zsretail.core.model.SalesHeader;
+import com.digithink.zsretail.core.model.SalesLine;
+import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.repository.GeneralSetupRepository;
+import com.digithink.zsretail.core.repository.PaymentRepository;
+import com.digithink.zsretail.core.repository.SalesLineRepository;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.dto.ChangePaymentMethodRequestDTO;
 import com.digithink.zsretail.dto.PrepareInvoiceRequestDTO;
 import com.digithink.zsretail.dto.ProcessSaleRequestDTO;
 import com.digithink.zsretail.dto.SplitBillRequestDTO;
-import com.digithink.zsretail.model.Payment;
-import com.digithink.zsretail.model.SalesHeader;
-import com.digithink.zsretail.model.SalesLine;
-import com.digithink.zsretail.model.UserAccount;
-import com.digithink.zsretail.repository.GeneralSetupRepository;
-import com.digithink.zsretail.repository.PaymentRepository;
-import com.digithink.zsretail.repository.SalesLineRepository;
-import com.digithink.zsretail.security.CurrentUserProvider;
 import com.digithink.zsretail.service.SalesHeaderService;
 
 import lombok.extern.log4j.Log4j2;
@@ -152,7 +153,7 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 		} catch (IllegalArgumentException e) {
 			log.error("SalesHeaderAPI::processSale:validation error: " + e.getMessage(), e);
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
-		} catch (com.digithink.zsretail.exception.InsufficientStockException e) {
+		} catch (com.digithink.zsretail.core.exception.InsufficientStockException e) {
 			log.warn("SalesHeaderAPI::processSale:insufficient stock: itemId={}", e.getItemId());
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
 		} catch (IllegalStateException e) {
@@ -227,7 +228,7 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 
 			// Get current session - if no session, return empty list (session might be
 			// closed)
-			java.util.Optional<com.digithink.zsretail.model.CashierSession> currentSessionOpt = service
+			java.util.Optional<com.digithink.zsretail.core.model.CashierSession> currentSessionOpt = service
 					.getCurrentCashierSession(currentUser);
 
 			if (!currentSessionOpt.isPresent()) {
@@ -236,7 +237,7 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 				return ResponseEntity.ok(new java.util.ArrayList<>());
 			}
 
-			com.digithink.zsretail.model.CashierSession currentSession = currentSessionOpt.get();
+			com.digithink.zsretail.core.model.CashierSession currentSession = currentSessionOpt.get();
 
 			// Get pending sales
 			java.util.List<SalesHeader> pendingSales = service.getPendingSalesForSession(currentSession);
@@ -294,7 +295,7 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			log.info("SalesHeaderAPI::getTableTickets");
 			UserAccount currentUser = currentUserProvider.getCurrentUser();
 
-			java.util.Optional<com.digithink.zsretail.model.CashierSession> currentSessionOpt = service
+			java.util.Optional<com.digithink.zsretail.core.model.CashierSession> currentSessionOpt = service
 					.getCurrentCashierSession(currentUser);
 			if (!currentSessionOpt.isPresent()) {
 				return ResponseEntity.ok(new java.util.ArrayList<>());
@@ -339,7 +340,7 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			log.info("SalesHeaderAPI::getTableStatus");
 			UserAccount currentUser = currentUserProvider.getCurrentUser();
 
-			java.util.Optional<com.digithink.zsretail.model.CashierSession> currentSessionOpt = service
+			java.util.Optional<com.digithink.zsretail.core.model.CashierSession> currentSessionOpt = service
 					.getCurrentCashierSession(currentUser);
 			if (!currentSessionOpt.isPresent()) {
 				return ResponseEntity.ok(new HashMap<>());
@@ -448,7 +449,7 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 		} catch (IllegalArgumentException e) {
 			log.error("SalesHeaderAPI::completePendingSale:validation error: " + e.getMessage(), e);
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
-		} catch (com.digithink.zsretail.exception.InsufficientStockException e) {
+		} catch (com.digithink.zsretail.core.exception.InsufficientStockException e) {
 			log.warn("SalesHeaderAPI::completePendingSale:insufficient stock: itemId={}", e.getItemId());
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
 		} catch (IllegalStateException e) {

@@ -22,11 +22,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.holink.dto.DownRecordRowDTO;
 import com.digithink.zsretail.holink.enumeration.DownRecordStatus;
 import com.digithink.zsretail.holink.model.DownRecord;
 import com.digithink.zsretail.holink.repository.DownRecordRepository;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 
 /**
  * Head office plan, task 3.5: the tracking rows of the records received from the head office. A row is written only

@@ -41,7 +41,7 @@ A comprehensive badge-based permission system has been implemented to control ac
 ### 1. Backend Implementation
 
 #### 1.1 BadgePermission Enum
-**File**: `app/src/main/java/com/digithink/zsretail/model/enumeration/BadgePermission.java`
+**File**: `core/src/main/java/com/digithink/zsretail/core/model/enumeration/BadgePermission.java`
 - Enum with 5 permission types (as of 2.2.2):
   - `CONSULT_CUSTOMER_LIST` - Access customer list
   - `MAKE_RETURN` - Process product returns
@@ -50,7 +50,7 @@ A comprehensive badge-based permission system has been implemented to control ac
   - `CLOSE_SESSION_WITH_DISCREPANCY` - Close a cashier session with a cash difference
 
 #### 1.2 UserAccount Entity Updates
-**File**: `app/src/main/java/com/digithink/zsretail/model/UserAccount.java`
+**File**: `core/src/main/java/com/digithink/zsretail/core/model/UserAccount.java`
 - Added badge-related fields:
   - `badgeCode` (String, unique, nullable) - Unique identifier for the badge
   - `badgePermissions` (String, nullable) - Comma-separated list of permissions
@@ -61,7 +61,7 @@ A comprehensive badge-based permission system has been implemented to control ac
   - `badgeRevokeReason` (String, nullable) - Reason for revocation
 
 #### 1.3 BadgeScanLog Entity
-**File**: `app/src/main/java/com/digithink/zsretail/model/BadgeScanLog.java`
+**File**: `core/src/main/java/com/digithink/zsretail/core/model/BadgeScanLog.java`
 - New entity to track all badge scan attempts:
   - `scannedBy` - User who performed the scan
   - `scannedBadgeCode` - Badge code that was scanned
@@ -83,7 +83,7 @@ A comprehensive badge-based permission system has been implemented to control ac
   - `windowDurationMinutes` - Window duration
 
 #### 1.5 BadgeService
-**File**: `app/src/main/java/com/digithink/zsretail/service/BadgeService.java`
+**File**: `core/src/main/java/com/digithink/zsretail/core/service/BadgeService.java`
 - Core business logic for badge operations:
   - `findUserByBadgeCode()` - Find user by badge code
   - `hasPermission()` - Check if user has specific permission
@@ -104,13 +104,13 @@ A comprehensive badge-based permission system has been implemented to control ac
   - `GET /badge/scan-statistics` - Get scan statistics (admin only)
 
 #### 1.7 UserAccountAPI Updates
-**File**: `app/src/main/java/com/digithink/zsretail/controller/UserAccountAPI.java`
+**File**: `core/src/main/java/com/digithink/zsretail/core/controller/UserAccountAPI.java`
 - Added endpoints:
   - `GET /user-account/current` - Get current authenticated user
   - Badge management integrated into user update/create endpoints
 
 #### 1.8 GeneralSetup Configuration
-**File**: `app/src/main/java/com/digithink/zsretail/service/ZZDataInitializer.java`
+**File**: `core/src/main/java/com/digithink/zsretail/core/service/ZZDataInitializer.java`
 - Added configuration entries:
   - `BADGE_RATE_LIMIT_ATTEMPTS` - Max failed attempts (default: 5)
   - `BADGE_RATE_LIMIT_WINDOW_HOURS` - Rate limit window (default: 1 hour)
@@ -200,7 +200,7 @@ A comprehensive badge-based permission system has been implemented to control ac
 
 ### 4. Database Migration
 
-**File**: `app/src/main/resources/db/migration/001_add_badge_system.sql`
+**File**: `core/src/main/resources/db/migration/001_add_badge_system.sql`
 
 The migration script adds:
 
@@ -328,7 +328,7 @@ Before deploying, test:
 ## Next Steps
 
 1. **Run Database Migration**
-   - Execute `app/src/main/resources/db/migration/001_add_badge_system.sql`
+   - Execute `core/src/main/resources/db/migration/001_add_badge_system.sql`
    - Update database name in script if needed
 
 2. **Build and Test**

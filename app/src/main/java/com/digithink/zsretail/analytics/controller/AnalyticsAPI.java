@@ -16,7 +16,7 @@ import com.digithink.zsretail.analytics.dto.PaymentBreakdownDTO;
 import com.digithink.zsretail.analytics.dto.SalesTrendPointDTO;
 import com.digithink.zsretail.analytics.dto.TopProductDTO;
 import com.digithink.zsretail.analytics.service.AnalyticsService;
-import com.digithink.zsretail.security.CurrentUserProvider;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
 
 @RestController
 @RequestMapping("admin/analytics")

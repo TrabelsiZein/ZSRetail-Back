@@ -8,9 +8,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
+import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.headoffice.model.HoDownChange;
-import com.digithink.zsretail.model.enumeration.DataDomain;
-import com.digithink.zsretail.repository._BaseRepository;
 
 public interface HoDownChangeRepository extends _BaseRepository<HoDownChange, Long> {
 

@@ -16,7 +16,10 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 
-import com.digithink.zsretail.model.enumeration.PromotionScope;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.Promotion;
+import com.digithink.zsretail.core.model.enumeration.PromotionScope;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

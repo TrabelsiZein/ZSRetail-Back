@@ -3,8 +3,8 @@ package com.digithink.zsretail.headoffice.service;
 import java.util.List;
 import java.util.Map;
 
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.headoffice.model.Store;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**

@@ -37,7 +37,7 @@
 - `loyalty_points_earned`, `loyalty_points_redeemed`, `loyalty_deduction_amount`
 
 ### Backend — New Files
-- **Entities**: `model/LoyaltyMember.java`, `model/LoyaltyProgram.java`, `model/LoyaltyTransaction.java`, `model/enumeration/LoyaltyTransactionType.java`
+- **Entities**: `model/LoyaltyMember.java`, `model/LoyaltyProgram.java`, `model/LoyaltyTransaction.java`, `core/model/enumeration/LoyaltyTransactionType.java`
 - **Repositories**: `LoyaltyMemberRepository` (with `findMaxCardSequence` native SQL Server query using `SUBSTRING(col, 5, LEN(col)-4)`), `LoyaltyProgramRepository`, `LoyaltyTransactionRepository` (with `findAllFiltered` JPQL cross-member query)
 - **DTOs**: `LoyaltyConfigDTO`, `LoyaltyMemberDTO` (includes `pointsValueDinars`), `CreateLoyaltyMemberRequestDTO`, `LoyaltyTransactionDTO` (includes `memberCardNumber`, `memberFullName` for cross-member queries), `LoyaltyAdjustmentRequestDTO`
 - **Service**: `LoyaltyService` — methods: `getLoyaltyConfig`, `searchMembers`, `createMember`, `updateMember`, `toggleActive`, `earnPoints`, `redeemPoints`, `applyReturn`, `adjustPoints`, `activateNewProgram`, `getAllPrograms`, `getTransactionHistory`, `getAllTransactionsFiltered`, `getPointsValueInDinars`

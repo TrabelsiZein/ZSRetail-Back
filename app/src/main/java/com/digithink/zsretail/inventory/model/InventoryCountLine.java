@@ -13,9 +13,9 @@ import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
 
+import com.digithink.zsretail.core.model._BaseEntity;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.inventory.enumeration.InventoryLineStatus;
-import com.digithink.zsretail.model._BaseEntity;
-import com.digithink.zsretail.utils.Quantities;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.Data;

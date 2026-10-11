@@ -16,16 +16,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.digithink.zsretail.core.model.AppRole;
+import com.digithink.zsretail.core.model.CashierSession;
+import com.digithink.zsretail.core.model.GeneralSetup;
+import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.model.enumeration.Role;
+import com.digithink.zsretail.core.repository.GeneralSetupRepository;
+import com.digithink.zsretail.core.repository.UserAccountRepository;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.service.BadgeService;
+import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.dto.CloseSessionRequestDTO;
 import com.digithink.zsretail.exception.CashDiscrepancyException;
-import com.digithink.zsretail.model.AppRole;
-import com.digithink.zsretail.model.CashierSession;
-import com.digithink.zsretail.model.GeneralSetup;
-import com.digithink.zsretail.model.UserAccount;
-import com.digithink.zsretail.model.enumeration.Role;
-import com.digithink.zsretail.repository.GeneralSetupRepository;
-import com.digithink.zsretail.repository.UserAccountRepository;
-import com.digithink.zsretail.security.CurrentUserProvider;
 
 /**
  * 2.2.2, step 2: closing a session with a cash difference. An admin (the logged user's role is ADMIN) closes without a

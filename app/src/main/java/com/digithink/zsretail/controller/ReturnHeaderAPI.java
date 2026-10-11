@@ -17,19 +17,20 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.digithink.zsretail.core.controller._BaseController;
+import com.digithink.zsretail.core.model.ReturnHeader;
+import com.digithink.zsretail.core.model.ReturnLine;
+import com.digithink.zsretail.core.model.SalesHeader;
+import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.repository.ReturnHeaderRepository;
+import com.digithink.zsretail.core.repository.ReturnLineRepository;
+import com.digithink.zsretail.core.repository.SalesHeaderRepository;
+import com.digithink.zsretail.core.repository.SalesLineRepository;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.service.QuantityPolicy;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.dto.ProcessReturnRequestDTO;
-import com.digithink.zsretail.model.ReturnHeader;
-import com.digithink.zsretail.model.ReturnLine;
-import com.digithink.zsretail.model.SalesHeader;
-import com.digithink.zsretail.model.UserAccount;
-import com.digithink.zsretail.repository.ReturnHeaderRepository;
-import com.digithink.zsretail.repository.ReturnLineRepository;
-import com.digithink.zsretail.repository.SalesHeaderRepository;
-import com.digithink.zsretail.repository.SalesLineRepository;
-import com.digithink.zsretail.security.CurrentUserProvider;
-import com.digithink.zsretail.service.QuantityPolicy;
 import com.digithink.zsretail.service.ReturnHeaderService;
-import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -83,7 +84,7 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 	 * ticket details of a return: listed with its quantity, returnable false and the reason (the refusal of the return
 	 * service), nothing remaining to return.
 	 */
-	private static Map<String, Object> notReturnable(com.digithink.zsretail.model.SalesLine salesLine,
+	private static Map<String, Object> notReturnable(com.digithink.zsretail.core.model.SalesLine salesLine,
 			BigDecimal returnedQuantity) {
 		Map<String, Object> lineData = new HashMap<>();
 		lineData.put("id", salesLine.getId());
@@ -202,7 +203,7 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 				if (finalSyncStatus != null && !finalSyncStatus.equalsIgnoreCase("all") && !finalSyncStatus.trim().isEmpty()) {
 					try {
 						predicates.add(cb.equal(root.get("synchronizationStatus"),
-								com.digithink.zsretail.model.enumeration.SynchronizationStatus.valueOf(finalSyncStatus.toUpperCase())));
+								com.digithink.zsretail.core.model.enumeration.SynchronizationStatus.valueOf(finalSyncStatus.toUpperCase())));
 					} catch (Exception ignored) {}
 				}
 
@@ -265,12 +266,12 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 			}
 
 			// Get sales lines
-			java.util.List<com.digithink.zsretail.model.SalesLine> salesLines = salesLineRepository
+			java.util.List<com.digithink.zsretail.core.model.SalesLine> salesLines = salesLineRepository
 					.findBySalesHeader(salesHeader);
 
 			// Get all return headers for this sales header (there can be multiple returns
 			// for the same ticket)
-			java.util.List<com.digithink.zsretail.model.ReturnHeader> returnHeaders = returnHeaderRepository
+			java.util.List<com.digithink.zsretail.core.model.ReturnHeader> returnHeaders = returnHeaderRepository
 					.findAllByOriginalSalesHeader(salesHeader);
 
 			// Calculate returned quantities (and amounts) for each sales line
@@ -281,7 +282,7 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 			// remaining > 0)
 			java.util.List<Map<String, Object>> salesLinesWithRemaining = new java.util.ArrayList<>();
 
-			for (com.digithink.zsretail.model.SalesLine salesLine : salesLines) {
+			for (com.digithink.zsretail.core.model.SalesLine salesLine : salesLines) {
 				BigDecimal originalQuantity = salesLine.getQuantity() == null ? BigDecimal.ZERO : salesLine.getQuantity();
 				BigDecimal returnedQuantity = returned.quantity(salesLine.getId());
 				BigDecimal remainingQuantity = Quantities.normalize(originalQuantity.subtract(returnedQuantity));
@@ -397,7 +398,7 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 			}
 
 			// Validate return type
-			if (request.getReturnType() == com.digithink.zsretail.model.enumeration.ReturnType.SIMPLE_RETURN
+			if (request.getReturnType() == com.digithink.zsretail.core.model.enumeration.ReturnType.SIMPLE_RETURN
 					&& !service.isSimpleReturnEnabled()) {
 				return ResponseEntity.badRequest().body(createErrorResponse("Simple return is not enabled"));
 			}

@@ -12,7 +12,7 @@ import org.springframework.boot.web.servlet.support.SpringBootServletInitializer
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-import com.digithink.zsretail.config.MachineFileEnvironmentPostProcessor;
+import com.digithink.zsretail.core.config.MachineFileEnvironmentPostProcessor;
 
 @EnableAsync
 @SpringBootApplication

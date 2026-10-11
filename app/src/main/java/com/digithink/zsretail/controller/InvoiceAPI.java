@@ -18,16 +18,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ApplicationModeService;
+import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.model.Customer;
+import com.digithink.zsretail.core.model.InvoiceHeader;
+import com.digithink.zsretail.core.model.SalesHeader;
+import com.digithink.zsretail.core.model.enumeration.InvoiceLineGroupingMode;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.service.InvoiceSnapshotData;
 import com.digithink.zsretail.dto.EligibleTicketDTO;
 import com.digithink.zsretail.dto.InvoiceListDTO;
-import com.digithink.zsretail.model.Customer;
-import com.digithink.zsretail.model.InvoiceHeader;
-import com.digithink.zsretail.model.SalesHeader;
-import com.digithink.zsretail.model.enumeration.InvoiceLineGroupingMode;
-import com.digithink.zsretail.security.CurrentUserProvider;
 import com.digithink.zsretail.service.InvoiceService;
-import com.digithink.zsretail.service.InvoiceSnapshotData;
 
 import lombok.Data;
 import lombok.extern.log4j.Log4j2;

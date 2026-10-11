@@ -10,11 +10,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
-import com.digithink.zsretail.headoffice.dto.SalesCopyAnswerDTO;
-import com.digithink.zsretail.headoffice.dto.StockReportDTO;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.link.dto.DeliveryConfirmationDTO;
+import com.digithink.zsretail.core.link.dto.SalesCopyAnswerDTO;
+import com.digithink.zsretail.core.link.dto.StockReportDTO;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.security.StoreApiKeyFilter;
 import com.digithink.zsretail.headoffice.service.HoNetworkStockService;

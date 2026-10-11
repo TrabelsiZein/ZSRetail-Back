@@ -1,11 +1,11 @@
 package com.digithink.zsretail.service;
 
-import static com.digithink.zsretail.service.ReportValues.str;
-import static com.digithink.zsretail.service.ReportValues.toDouble;
-import static com.digithink.zsretail.service.ReportValues.toFrom;
-import static com.digithink.zsretail.service.ReportValues.toLong;
-import static com.digithink.zsretail.service.ReportValues.toQuantity;
-import static com.digithink.zsretail.service.ReportValues.toTo;
+import static com.digithink.zsretail.core.service.ReportValues.str;
+import static com.digithink.zsretail.core.service.ReportValues.toDouble;
+import static com.digithink.zsretail.core.service.ReportValues.toFrom;
+import static com.digithink.zsretail.core.service.ReportValues.toLong;
+import static com.digithink.zsretail.core.service.ReportValues.toQuantity;
+import static com.digithink.zsretail.core.service.ReportValues.toTo;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -19,11 +19,11 @@ import javax.persistence.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.dto.report.LoyaltyReportRowDTO;
-import com.digithink.zsretail.dto.report.PromotionReportRowDTO;
-import com.digithink.zsretail.dto.report.PurchaseReportRowDTO;
-import com.digithink.zsretail.dto.report.SalesReportRowDTO;
-import com.digithink.zsretail.dto.report.SessionReportRowDTO;
+import com.digithink.zsretail.core.dto.report.LoyaltyReportRowDTO;
+import com.digithink.zsretail.core.dto.report.PromotionReportRowDTO;
+import com.digithink.zsretail.core.dto.report.PurchaseReportRowDTO;
+import com.digithink.zsretail.core.dto.report.SalesReportRowDTO;
+import com.digithink.zsretail.core.dto.report.SessionReportRowDTO;
 
 import lombok.extern.log4j.Log4j2;
 

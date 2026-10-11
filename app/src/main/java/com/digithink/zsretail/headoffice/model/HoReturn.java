@@ -16,7 +16,7 @@ import javax.persistence.OrderBy;
 import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
 
-import com.digithink.zsretail.model._BaseEntity;
+import com.digithink.zsretail.core.model._BaseEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.Data;

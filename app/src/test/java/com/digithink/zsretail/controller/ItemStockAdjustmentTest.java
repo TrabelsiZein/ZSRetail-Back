@@ -17,19 +17,21 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.digithink.zsretail.config.ApplicationModeService;
-import com.digithink.zsretail.dto.AdjustStockRequestDTO;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.StockMovement;
-import com.digithink.zsretail.model.enumeration.StockMovementDirection;
-import com.digithink.zsretail.model.enumeration.StockMovementType;
-import com.digithink.zsretail.repository.ItemRepository;
-import com.digithink.zsretail.repository.StockMovementRepository;
-import com.digithink.zsretail.security.CurrentUserProvider;
-import com.digithink.zsretail.service.ItemService;
-import com.digithink.zsretail.service.StockMovementService;
-import com.digithink.zsretail.service.StockService;
-import com.digithink.zsretail.service._BaseService;
+import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.controller.ItemAPI;
+import com.digithink.zsretail.core.controller._BaseController;
+import com.digithink.zsretail.core.dto.AdjustStockRequestDTO;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.StockMovement;
+import com.digithink.zsretail.core.model.enumeration.StockMovementDirection;
+import com.digithink.zsretail.core.model.enumeration.StockMovementType;
+import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.StockMovementRepository;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.service.ItemService;
+import com.digithink.zsretail.core.service.StockMovementService;
+import com.digithink.zsretail.core.service.StockService;
+import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.support.TestModes;
 
 /**

@@ -10,14 +10,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.holink.dto.DownApplyResult;
 import com.digithink.zsretail.holink.dto.LinkJobRun;
 import com.digithink.zsretail.holink.enumeration.LinkJobResult;
 import com.digithink.zsretail.holink.service.CopiesDownPuller;
 import com.digithink.zsretail.holink.service.SalesCopyFinder;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 
 import lombok.extern.log4j.Log4j2;
 

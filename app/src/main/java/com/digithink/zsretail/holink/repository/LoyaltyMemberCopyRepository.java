@@ -9,9 +9,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
 import com.digithink.zsretail.holink.model.LoyaltyMemberCopy;
-import com.digithink.zsretail.repository._BaseRepository;
 
 public interface LoyaltyMemberCopyRepository extends _BaseRepository<LoyaltyMemberCopy, Long> {
 

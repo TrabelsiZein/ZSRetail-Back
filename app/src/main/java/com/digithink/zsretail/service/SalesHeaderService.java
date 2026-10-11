@@ -10,39 +10,46 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.digithink.zsretail.core.dto.PricingResult;
+import com.digithink.zsretail.core.model.CashierSession;
+import com.digithink.zsretail.core.model.Customer;
+import com.digithink.zsretail.core.model.GeneralSetup;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.LoyaltyMember;
+import com.digithink.zsretail.core.model.Payment;
+import com.digithink.zsretail.core.model.PaymentMethod;
+import com.digithink.zsretail.core.model.ReturnVoucher;
+import com.digithink.zsretail.core.model.SalesHeader;
+import com.digithink.zsretail.core.model.SalesLine;
+import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
+import com.digithink.zsretail.core.model.enumeration.SessionStatus;
+import com.digithink.zsretail.core.model.enumeration.SynchronizationStatus;
+import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
+import com.digithink.zsretail.core.repository.CashierSessionRepository;
+import com.digithink.zsretail.core.repository.CustomerRepository;
+import com.digithink.zsretail.core.repository.GeneralSetupRepository;
+import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.LoyaltyMemberRepository;
+import com.digithink.zsretail.core.repository.PaymentMethodRepository;
+import com.digithink.zsretail.core.repository.PaymentRepository;
+import com.digithink.zsretail.core.repository.PromotionRepository;
+import com.digithink.zsretail.core.repository.SalesHeaderRepository;
+import com.digithink.zsretail.core.repository.SalesLineRepository;
+import com.digithink.zsretail.core.repository._BaseRepository;
+import com.digithink.zsretail.core.service.LoyaltyService;
+import com.digithink.zsretail.core.service.PricingService;
+import com.digithink.zsretail.core.service.QuantityPolicy;
+import com.digithink.zsretail.core.service.StockMovementService;
+import com.digithink.zsretail.core.service.StockService;
+import com.digithink.zsretail.core.service.TaxStampRule;
+import com.digithink.zsretail.core.service._BaseService;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.dto.ChangePaymentMethodRequestDTO;
-import com.digithink.zsretail.dto.PricingResult;
 import com.digithink.zsretail.dto.ProcessSaleRequestDTO;
 import com.digithink.zsretail.dto.SplitBillRequestDTO;
-import com.digithink.zsretail.model.CashierSession;
-import com.digithink.zsretail.model.Customer;
-import com.digithink.zsretail.model.GeneralSetup;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.LoyaltyMember;
-import com.digithink.zsretail.model.Payment;
 import com.digithink.zsretail.model.PaymentChangeLog;
-import com.digithink.zsretail.model.PaymentMethod;
-import com.digithink.zsretail.model.ReturnVoucher;
-import com.digithink.zsretail.model.SalesHeader;
-import com.digithink.zsretail.model.SalesLine;
-import com.digithink.zsretail.model.UserAccount;
-import com.digithink.zsretail.model.enumeration.PaymentMethodType;
-import com.digithink.zsretail.model.enumeration.SessionStatus;
-import com.digithink.zsretail.model.enumeration.SynchronizationStatus;
-import com.digithink.zsretail.model.enumeration.TransactionStatus;
-import com.digithink.zsretail.repository.CashierSessionRepository;
-import com.digithink.zsretail.repository.CustomerRepository;
-import com.digithink.zsretail.repository.GeneralSetupRepository;
-import com.digithink.zsretail.repository.ItemRepository;
-import com.digithink.zsretail.repository.LoyaltyMemberRepository;
 import com.digithink.zsretail.repository.PaymentChangeLogRepository;
-import com.digithink.zsretail.repository.PaymentMethodRepository;
-import com.digithink.zsretail.repository.PaymentRepository;
-import com.digithink.zsretail.repository.PromotionRepository;
-import com.digithink.zsretail.repository.SalesHeaderRepository;
-import com.digithink.zsretail.repository.SalesLineRepository;
-import com.digithink.zsretail.repository._BaseRepository;
-import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -135,7 +142,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 		// Get current cashier session
 		CashierSession currentSession = cashierSessionRepository
-				.findByCashierAndStatus(currentUser, com.digithink.zsretail.model.enumeration.SessionStatus.OPENED)
+				.findByCashierAndStatus(currentUser, com.digithink.zsretail.core.model.enumeration.SessionStatus.OPENED)
 				.orElseThrow(() -> new IllegalStateException("No open cashier session found"));
 
 		// Generate sales number
@@ -326,7 +333,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 		// Get current cashier session
 		CashierSession currentSession = cashierSessionRepository
-				.findByCashierAndStatus(currentUser, com.digithink.zsretail.model.enumeration.SessionStatus.OPENED)
+				.findByCashierAndStatus(currentUser, com.digithink.zsretail.core.model.enumeration.SessionStatus.OPENED)
 				.orElseThrow(() -> new IllegalStateException("No open cashier session found"));
 
 		// Generate sales number
@@ -487,7 +494,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 		// Verify session is still open
 		CashierSession currentSession = cashierSessionRepository
-				.findByCashierAndStatus(currentUser, com.digithink.zsretail.model.enumeration.SessionStatus.OPENED)
+				.findByCashierAndStatus(currentUser, com.digithink.zsretail.core.model.enumeration.SessionStatus.OPENED)
 				.orElseThrow(() -> new IllegalStateException("No open cashier session found"));
 
 		if (!salesHeader.getCashierSession().getId().equals(currentSession.getId())) {
@@ -1278,7 +1285,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 		// Verify session is still open and belongs to current user
 		CashierSession currentSession = cashierSessionRepository
-				.findByCashierAndStatus(currentUser, com.digithink.zsretail.model.enumeration.SessionStatus.OPENED)
+				.findByCashierAndStatus(currentUser, com.digithink.zsretail.core.model.enumeration.SessionStatus.OPENED)
 				.orElseThrow(() -> new IllegalStateException("No open cashier session found"));
 
 		if (!salesHeader.getCashierSession().getId().equals(currentSession.getId())) {
@@ -1358,10 +1365,10 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		}
 
 		// Parse sync status
-		com.digithink.zsretail.model.enumeration.SynchronizationStatus syncStatus = null;
+		com.digithink.zsretail.core.model.enumeration.SynchronizationStatus syncStatus = null;
 		if (syncStatusStr != null && !syncStatusStr.trim().isEmpty() && !syncStatusStr.equalsIgnoreCase("all")) {
 			try {
-				syncStatus = com.digithink.zsretail.model.enumeration.SynchronizationStatus
+				syncStatus = com.digithink.zsretail.core.model.enumeration.SynchronizationStatus
 						.valueOf(syncStatusStr.toUpperCase());
 			} catch (Exception e) {
 				log.warn("Invalid syncStatus: " + syncStatusStr);
@@ -1403,7 +1410,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		final java.time.LocalDateTime finalDateFrom = dateFrom;
 		final java.time.LocalDateTime finalDateTo = dateTo;
 		final TransactionStatus finalStatus = status;
-		final com.digithink.zsretail.model.enumeration.SynchronizationStatus finalSyncStatus = syncStatus;
+		final com.digithink.zsretail.core.model.enumeration.SynchronizationStatus finalSyncStatus = syncStatus;
 		final Long finalPaymentMethodId = paymentMethodId;
 		final String finalSearchStr = searchStr;
 		final Double finalMinPrice = minPrice;
@@ -1446,8 +1453,8 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			if (finalPaymentMethodId != null) {
 				// Use subquery to find tickets with payments matching the payment method
 				javax.persistence.criteria.Subquery<Long> paymentSubquery = query.subquery(Long.class);
-				javax.persistence.criteria.Root<com.digithink.zsretail.model.Payment> paymentRoot = paymentSubquery
-						.from(com.digithink.zsretail.model.Payment.class);
+				javax.persistence.criteria.Root<com.digithink.zsretail.core.model.Payment> paymentRoot = paymentSubquery
+						.from(com.digithink.zsretail.core.model.Payment.class);
 				paymentSubquery.select(paymentRoot.get("salesHeader").get("id"));
 				paymentSubquery.where(criteriaBuilder.and(
 						criteriaBuilder.equal(paymentRoot.get("paymentMethod").get("id"), finalPaymentMethodId),
@@ -1490,7 +1497,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			// Family filter — ticket must have at least one line with item in this family
 			if (finalFamilyId != null) {
 				javax.persistence.criteria.Subquery<Long> familySubquery = query.subquery(Long.class);
-				javax.persistence.criteria.Root<com.digithink.zsretail.model.SalesLine> lineRoot = familySubquery.from(com.digithink.zsretail.model.SalesLine.class);
+				javax.persistence.criteria.Root<com.digithink.zsretail.core.model.SalesLine> lineRoot = familySubquery.from(com.digithink.zsretail.core.model.SalesLine.class);
 				familySubquery.select(lineRoot.get("salesHeader").get("id"));
 				familySubquery.where(criteriaBuilder.and(
 						criteriaBuilder.equal(lineRoot.get("salesHeader").get("id"), root.get("id")),
@@ -1501,7 +1508,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			// Subfamily filter
 			if (finalSubFamilyId != null) {
 				javax.persistence.criteria.Subquery<Long> subFamilySubquery = query.subquery(Long.class);
-				javax.persistence.criteria.Root<com.digithink.zsretail.model.SalesLine> lineRoot2 = subFamilySubquery.from(com.digithink.zsretail.model.SalesLine.class);
+				javax.persistence.criteria.Root<com.digithink.zsretail.core.model.SalesLine> lineRoot2 = subFamilySubquery.from(com.digithink.zsretail.core.model.SalesLine.class);
 				subFamilySubquery.select(lineRoot2.get("salesHeader").get("id"));
 				subFamilySubquery.where(criteriaBuilder.and(
 						criteriaBuilder.equal(lineRoot2.get("salesHeader").get("id"), root.get("id")),

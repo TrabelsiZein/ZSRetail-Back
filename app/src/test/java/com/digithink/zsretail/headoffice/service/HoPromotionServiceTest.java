@@ -25,7 +25,18 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 
-import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
+import com.digithink.zsretail.core.link.dto.CopiesDownAnswerDTO;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.Promotion;
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
+import com.digithink.zsretail.core.model.enumeration.PromotionBenefitType;
+import com.digithink.zsretail.core.model.enumeration.PromotionScope;
+import com.digithink.zsretail.core.model.enumeration.PromotionType;
+import com.digithink.zsretail.core.repository.PromotionRepository;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.service.PromotionHeadOfficeHooks;
+import com.digithink.zsretail.core.service.PromotionService;
+import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.headoffice.dto.PromotionTargetsDTO;
 import com.digithink.zsretail.headoffice.dto.PromotionWithTargetsDTO;
 import com.digithink.zsretail.headoffice.model.HoPromotionStore;
@@ -33,17 +44,6 @@ import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.HoPromotionStoreRepository;
 import com.digithink.zsretail.headoffice.repository.HoTicketRepository;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.Promotion;
-import com.digithink.zsretail.model.enumeration.DataDomain;
-import com.digithink.zsretail.model.enumeration.PromotionBenefitType;
-import com.digithink.zsretail.model.enumeration.PromotionScope;
-import com.digithink.zsretail.model.enumeration.PromotionType;
-import com.digithink.zsretail.repository.PromotionRepository;
-import com.digithink.zsretail.security.CurrentUserProvider;
-import com.digithink.zsretail.service.PromotionHeadOfficeHooks;
-import com.digithink.zsretail.service.PromotionService;
-import com.digithink.zsretail.service._BaseService;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**

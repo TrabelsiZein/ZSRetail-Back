@@ -15,28 +15,33 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.digithink.zsretail.core.model.CashierSession;
+import com.digithink.zsretail.core.model.Customer;
+import com.digithink.zsretail.core.model.GeneralSetup;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ReturnHeader;
+import com.digithink.zsretail.core.model.ReturnLine;
+import com.digithink.zsretail.core.model.ReturnVoucher;
+import com.digithink.zsretail.core.model.SalesHeader;
+import com.digithink.zsretail.core.model.SalesLine;
+import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.model.enumeration.ReturnType;
+import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
+import com.digithink.zsretail.core.repository.CashierSessionRepository;
+import com.digithink.zsretail.core.repository.GeneralSetupRepository;
+import com.digithink.zsretail.core.repository.ReturnHeaderRepository;
+import com.digithink.zsretail.core.repository.ReturnLineRepository;
+import com.digithink.zsretail.core.repository.SalesHeaderRepository;
+import com.digithink.zsretail.core.repository.SalesLineRepository;
+import com.digithink.zsretail.core.repository._BaseRepository;
+import com.digithink.zsretail.core.service.LoyaltyService;
+import com.digithink.zsretail.core.service.QuantityPolicy;
+import com.digithink.zsretail.core.service.StockMovementService;
+import com.digithink.zsretail.core.service.StockService;
+import com.digithink.zsretail.core.service._BaseService;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.dto.ProcessReturnRequestDTO;
-import com.digithink.zsretail.model.CashierSession;
-import com.digithink.zsretail.model.Customer;
-import com.digithink.zsretail.model.GeneralSetup;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.ReturnHeader;
-import com.digithink.zsretail.model.ReturnLine;
-import com.digithink.zsretail.model.ReturnVoucher;
-import com.digithink.zsretail.model.SalesHeader;
-import com.digithink.zsretail.model.SalesLine;
-import com.digithink.zsretail.model.UserAccount;
-import com.digithink.zsretail.model.enumeration.ReturnType;
-import com.digithink.zsretail.model.enumeration.TransactionStatus;
-import com.digithink.zsretail.repository.CashierSessionRepository;
-import com.digithink.zsretail.repository.GeneralSetupRepository;
-import com.digithink.zsretail.repository.ReturnHeaderRepository;
-import com.digithink.zsretail.repository.ReturnLineRepository;
 import com.digithink.zsretail.repository.ReturnVoucherRepository;
-import com.digithink.zsretail.repository.SalesHeaderRepository;
-import com.digithink.zsretail.repository.SalesLineRepository;
-import com.digithink.zsretail.repository._BaseRepository;
-import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -297,7 +302,7 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 
 		// Get current cashier session
 		CashierSession currentSession = cashierSessionRepository
-				.findByCashierAndStatus(currentUser, com.digithink.zsretail.model.enumeration.SessionStatus.OPENED)
+				.findByCashierAndStatus(currentUser, com.digithink.zsretail.core.model.enumeration.SessionStatus.OPENED)
 				.orElseThrow(() -> new IllegalStateException("No open cashier session found"));
 
 		// Find original sales header
@@ -366,7 +371,7 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 			// 2.2.2: decimal quantities. A line sold with decimals while the store no longer allows them is not returnable;
 			// a quantity asked with decimals needs the setting, and never more than 3 decimals (refused by name before
 			// anything is written, never rounded)
-			com.digithink.zsretail.model.Item soldItem = originalSalesLine.getItem();
+			com.digithink.zsretail.core.model.Item soldItem = originalSalesLine.getItem();
 			String soldCode = soldItem == null ? null : soldItem.getItemCode();
 			String soldName = soldItem == null ? null : soldItem.getName();
 			BigDecimal soldQuantity = originalSalesLine.getQuantity();

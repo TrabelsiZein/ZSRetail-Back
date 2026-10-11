@@ -132,7 +132,7 @@ class AspectPointcutsGuardTest {
 	@Test
 	@DisplayName("The guard itself: a clause on a missing method or class matches nothing")
 	void guardCatches() throws Exception {
-		assertTrue(matchesSomething("* com.digithink.zsretail.erp.service.ErpSyncJobRunner.run(..)"));
-		assertTrue(!matchesSomething("* com.digithink.zsretail.erp.service.ErpSyncJobRunner.noSuchMethod(..)"));
+		assertTrue(matchesSomething("* com.digithink.zsretail.core.erp.service.ErpSyncJobRunner.run(..)"));
+		assertTrue(!matchesSomething("* com.digithink.zsretail.core.erp.service.ErpSyncJobRunner.noSuchMethod(..)"));
 	}
 }

@@ -2,17 +2,17 @@ package com.digithink.zsretail.holink.service;
 
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.model.LoyaltyMember;
+import com.digithink.zsretail.core.model.LoyaltyProgram;
+import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.core.repository.LoyaltyMemberRepository;
+import com.digithink.zsretail.core.service.LoyaltyCardNumbers;
+import com.digithink.zsretail.core.service.LoyaltyNetworkHooks;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.holink.model.LoyaltyMemberCopy;
 import com.digithink.zsretail.holink.repository.LoyaltyMemberCopyRepository;
-import com.digithink.zsretail.model.LoyaltyMember;
-import com.digithink.zsretail.model.LoyaltyProgram;
-import com.digithink.zsretail.model.enumeration.RecordOrigin;
-import com.digithink.zsretail.repository.LoyaltyMemberRepository;
-import com.digithink.zsretail.service.LoyaltyCardNumbers;
-import com.digithink.zsretail.service.LoyaltyNetworkHooks;
 
 /**
  * Head office plan, step 4: what LoyaltyService does differently on a store whose loyalty is owned by its head office.

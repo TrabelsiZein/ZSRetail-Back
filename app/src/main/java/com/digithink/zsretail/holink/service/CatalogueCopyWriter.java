@@ -10,24 +10,24 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.headoffice.dto.CatalogueBarcodeCopyDTO;
-import com.digithink.zsretail.headoffice.dto.CatalogueFamilyCopyDTO;
-import com.digithink.zsretail.headoffice.dto.CatalogueItemCopyDTO;
-import com.digithink.zsretail.headoffice.dto.CatalogueSubFamilyCopyDTO;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.ItemBarcode;
-import com.digithink.zsretail.model.ItemComposition;
-import com.digithink.zsretail.model.ItemFamily;
-import com.digithink.zsretail.model.ItemSubFamily;
-import com.digithink.zsretail.model.enumeration.CatalogueKind;
-import com.digithink.zsretail.model.enumeration.RecordOrigin;
-import com.digithink.zsretail.repository.ItemBarcodeRepository;
-import com.digithink.zsretail.repository.ItemCompositionRepository;
-import com.digithink.zsretail.repository.ItemFamilyRepository;
-import com.digithink.zsretail.repository.ItemRepository;
-import com.digithink.zsretail.repository.ItemSubFamilyRepository;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.link.dto.CatalogueBarcodeCopyDTO;
+import com.digithink.zsretail.core.link.dto.CatalogueFamilyCopyDTO;
+import com.digithink.zsretail.core.link.dto.CatalogueItemCopyDTO;
+import com.digithink.zsretail.core.link.dto.CatalogueSubFamilyCopyDTO;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemBarcode;
+import com.digithink.zsretail.core.model.ItemComposition;
+import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemSubFamily;
+import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
+import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
+import com.digithink.zsretail.core.repository.ItemCompositionRepository;
+import com.digithink.zsretail.core.repository.ItemFamilyRepository;
+import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
 
 import lombok.Getter;
 

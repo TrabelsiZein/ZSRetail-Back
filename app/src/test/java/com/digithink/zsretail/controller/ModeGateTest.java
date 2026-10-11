@@ -16,17 +16,26 @@ import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.digithink.zsretail.config.ApplicationModeService;
-import com.digithink.zsretail.dto.AdjustStockRequestDTO;
-import com.digithink.zsretail.dto.ProcessPurchaseRequestDTO;
-import com.digithink.zsretail.dto.SetPurchasePaidRequestDTO;
-import com.digithink.zsretail.dto.QuickProductRequestDTO;
-import com.digithink.zsretail.model.Customer;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.ItemFamily;
-import com.digithink.zsretail.model.ItemSubFamily;
-import com.digithink.zsretail.model.Location;
-import com.digithink.zsretail.model.Vendor;
+import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.controller.CustomerAPI;
+import com.digithink.zsretail.core.controller.DataImportAPI;
+import com.digithink.zsretail.core.controller.ItemAPI;
+import com.digithink.zsretail.core.controller.ItemFamilyAPI;
+import com.digithink.zsretail.core.controller.ItemSubFamilyAPI;
+import com.digithink.zsretail.core.controller.LocationAPI;
+import com.digithink.zsretail.core.controller.PurchaseHeaderAPI;
+import com.digithink.zsretail.core.controller.PurchaseInvoiceAPI;
+import com.digithink.zsretail.core.controller.VendorAPI;
+import com.digithink.zsretail.core.dto.AdjustStockRequestDTO;
+import com.digithink.zsretail.core.dto.ProcessPurchaseRequestDTO;
+import com.digithink.zsretail.core.dto.QuickProductRequestDTO;
+import com.digithink.zsretail.core.dto.SetPurchasePaidRequestDTO;
+import com.digithink.zsretail.core.model.Customer;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemSubFamily;
+import com.digithink.zsretail.core.model.Location;
+import com.digithink.zsretail.core.model.Vendor;
 import com.digithink.zsretail.support.TestModes;
 
 /**

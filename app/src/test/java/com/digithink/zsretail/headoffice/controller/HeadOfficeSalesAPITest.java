@@ -9,10 +9,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionOperations;
 
-import com.digithink.zsretail.headoffice.dto.ReturnCopyDTO;
-import com.digithink.zsretail.headoffice.dto.SalesCopyAnswerDTO;
-import com.digithink.zsretail.headoffice.dto.SessionCopyDTO;
-import com.digithink.zsretail.headoffice.dto.TicketCopyDTO;
+import com.digithink.zsretail.core.link.dto.ReturnCopyDTO;
+import com.digithink.zsretail.core.link.dto.SalesCopyAnswerDTO;
+import com.digithink.zsretail.core.link.dto.SessionCopyDTO;
+import com.digithink.zsretail.core.link.dto.TicketCopyDTO;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.service.SalesCopyReceiver;
 import com.fasterxml.jackson.databind.ObjectMapper;

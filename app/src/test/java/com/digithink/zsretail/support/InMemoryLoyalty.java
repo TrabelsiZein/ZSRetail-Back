@@ -19,26 +19,26 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
+import com.digithink.zsretail.core.model.Customer;
+import com.digithink.zsretail.core.model.GeneralSetup;
+import com.digithink.zsretail.core.model.LoyaltyMember;
+import com.digithink.zsretail.core.model.LoyaltyProgram;
+import com.digithink.zsretail.core.model.LoyaltyTransaction;
+import com.digithink.zsretail.core.model.MemberFunction;
+import com.digithink.zsretail.core.model._BaseEntity;
+import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.core.repository.CustomerRepository;
+import com.digithink.zsretail.core.repository.GeneralSetupRepository;
+import com.digithink.zsretail.core.repository.LoyaltyMemberRepository;
+import com.digithink.zsretail.core.repository.LoyaltyProgramRepository;
+import com.digithink.zsretail.core.repository.LoyaltyTransactionRepository;
+import com.digithink.zsretail.core.repository.MemberFunctionRepository;
+import com.digithink.zsretail.core.service.LoyaltyNetworkHooks;
+import com.digithink.zsretail.core.service.LoyaltyService;
 import com.digithink.zsretail.headoffice.model.HoLoyaltyAlias;
 import com.digithink.zsretail.headoffice.model.HoLoyaltyMovement;
 import com.digithink.zsretail.headoffice.repository.HoLoyaltyAliasRepository;
 import com.digithink.zsretail.headoffice.repository.HoLoyaltyMovementRepository;
-import com.digithink.zsretail.model.Customer;
-import com.digithink.zsretail.model.GeneralSetup;
-import com.digithink.zsretail.model.LoyaltyMember;
-import com.digithink.zsretail.model.LoyaltyProgram;
-import com.digithink.zsretail.model.LoyaltyTransaction;
-import com.digithink.zsretail.model.MemberFunction;
-import com.digithink.zsretail.model._BaseEntity;
-import com.digithink.zsretail.model.enumeration.RecordOrigin;
-import com.digithink.zsretail.repository.CustomerRepository;
-import com.digithink.zsretail.repository.GeneralSetupRepository;
-import com.digithink.zsretail.repository.LoyaltyMemberRepository;
-import com.digithink.zsretail.repository.LoyaltyProgramRepository;
-import com.digithink.zsretail.repository.LoyaltyTransactionRepository;
-import com.digithink.zsretail.repository.MemberFunctionRepository;
-import com.digithink.zsretail.service.LoyaltyNetworkHooks;
-import com.digithink.zsretail.service.LoyaltyService;
 
 /**
  * Test support (step 4): the loyalty tables of one installation in memory (members, programs, transactions, member

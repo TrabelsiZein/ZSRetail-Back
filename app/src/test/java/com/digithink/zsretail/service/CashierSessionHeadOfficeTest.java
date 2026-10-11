@@ -16,12 +16,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
-import com.digithink.zsretail.config.ApplicationModeService;
-import com.digithink.zsretail.model.CashierSession;
-import com.digithink.zsretail.model.UserAccount;
-import com.digithink.zsretail.model.enumeration.SessionStatus;
-import com.digithink.zsretail.repository.CashierSessionRepository;
-import com.digithink.zsretail.security.CurrentUserProvider;
+import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.model.CashierSession;
+import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.model.enumeration.SessionStatus;
+import com.digithink.zsretail.core.repository.CashierSessionRepository;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.support.TestModes;
 
 /**

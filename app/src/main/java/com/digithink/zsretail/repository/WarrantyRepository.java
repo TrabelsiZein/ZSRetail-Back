@@ -4,8 +4,9 @@ import java.util.List;
 
 import org.springframework.stereotype.Repository;
 
-import com.digithink.zsretail.model.SalesHeader;
-import com.digithink.zsretail.model.SalesLine;
+import com.digithink.zsretail.core.model.SalesHeader;
+import com.digithink.zsretail.core.model.SalesLine;
+import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.model.Warranty;
 
 @Repository

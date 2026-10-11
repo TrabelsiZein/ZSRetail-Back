@@ -8,9 +8,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.digithink.zsretail.core.model.enumeration.ItemType;
+import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.headoffice.model.HoStoreStock;
-import com.digithink.zsretail.model.enumeration.ItemType;
-import com.digithink.zsretail.repository._BaseRepository;
 
 public interface HoStoreStockRepository extends _BaseRepository<HoStoreStock, Long> {
 

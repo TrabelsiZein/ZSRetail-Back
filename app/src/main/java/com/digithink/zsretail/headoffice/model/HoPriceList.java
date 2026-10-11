@@ -6,8 +6,8 @@ import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
 import javax.persistence.Table;
 
+import com.digithink.zsretail.core.model._BaseEntity;
 import com.digithink.zsretail.headoffice.enumeration.PriceListKind;
-import com.digithink.zsretail.model._BaseEntity;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;

@@ -24,22 +24,26 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.digithink.zsretail.core.dto.PricingResult;
+import com.digithink.zsretail.core.model.Customer;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemSubFamily;
+import com.digithink.zsretail.core.model.Promotion;
+import com.digithink.zsretail.core.model._BaseEntity;
+import com.digithink.zsretail.core.model.enumeration.PromotionBenefitType;
+import com.digithink.zsretail.core.model.enumeration.PromotionScope;
+import com.digithink.zsretail.core.model.enumeration.PromotionType;
+import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.PromotionRepository;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.service.CustomerService;
+import com.digithink.zsretail.core.service.PricingService;
+import com.digithink.zsretail.core.service.PromotionService;
+import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.dto.CartCalculateRequestDTO;
 import com.digithink.zsretail.dto.CrossProductAdjustmentDTO;
 import com.digithink.zsretail.dto.PriceCalculateResponseDTO;
-import com.digithink.zsretail.dto.PricingResult;
-import com.digithink.zsretail.model.Customer;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.ItemFamily;
-import com.digithink.zsretail.model.ItemSubFamily;
-import com.digithink.zsretail.model.Promotion;
-import com.digithink.zsretail.model._BaseEntity;
-import com.digithink.zsretail.model.enumeration.PromotionBenefitType;
-import com.digithink.zsretail.model.enumeration.PromotionScope;
-import com.digithink.zsretail.model.enumeration.PromotionType;
-import com.digithink.zsretail.repository.ItemRepository;
-import com.digithink.zsretail.repository.PromotionRepository;
-import com.digithink.zsretail.security.CurrentUserProvider;
 
 /**
  * ALL_ITEMS promotion scope: least specific scope, used only when no item, group,

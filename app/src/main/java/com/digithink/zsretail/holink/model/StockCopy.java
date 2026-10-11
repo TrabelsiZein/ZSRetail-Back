@@ -8,8 +8,8 @@ import javax.persistence.Entity;
 import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
 
-import com.digithink.zsretail.model._BaseEntity;
-import com.digithink.zsretail.utils.Quantities;
+import com.digithink.zsretail.core.model._BaseEntity;
+import com.digithink.zsretail.core.utils.Quantities;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;

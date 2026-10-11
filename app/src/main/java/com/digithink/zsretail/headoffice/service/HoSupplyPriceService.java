@@ -17,8 +17,12 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
+import com.digithink.zsretail.core.model.enumeration.ItemType;
+import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.headoffice.dto.SupplyPriceDTO;
 import com.digithink.zsretail.headoffice.enumeration.SupplyPriceMode;
 import com.digithink.zsretail.headoffice.model.HoItemSupplyPrice;
@@ -26,10 +30,6 @@ import com.digithink.zsretail.headoffice.model.HoPriceListLine;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.HoItemSupplyPriceRepository;
 import com.digithink.zsretail.headoffice.repository.HoPriceListLineRepository;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.enumeration.CatalogueKind;
-import com.digithink.zsretail.model.enumeration.ItemType;
-import com.digithink.zsretail.repository.ItemRepository;
 
 /**
  * Head office plan, step 7B: the supply price, what a store whose deliveries are invoiced pays for a head office item.

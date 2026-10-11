@@ -9,36 +9,38 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.config.ApplicationModeService;
+import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.model.CashierSession;
+import com.digithink.zsretail.core.model.GeneralSetup;
+import com.digithink.zsretail.core.model.Payment;
+import com.digithink.zsretail.core.model.PaymentMethod;
+import com.digithink.zsretail.core.model.ReturnHeader;
+import com.digithink.zsretail.core.model.SalesHeader;
+import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.model.enumeration.BadgePermission;
+import com.digithink.zsretail.core.model.enumeration.CounterType;
+import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
+import com.digithink.zsretail.core.model.enumeration.ReturnType;
+import com.digithink.zsretail.core.model.enumeration.SessionStatus;
+import com.digithink.zsretail.core.model.enumeration.SynchronizationStatus;
+import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
+import com.digithink.zsretail.core.repository.CashierSessionRepository;
+import com.digithink.zsretail.core.repository.GeneralSetupRepository;
+import com.digithink.zsretail.core.repository.PaymentMethodRepository;
+import com.digithink.zsretail.core.repository.PaymentRepository;
+import com.digithink.zsretail.core.repository.ReturnHeaderRepository;
+import com.digithink.zsretail.core.repository.SalesHeaderRepository;
+import com.digithink.zsretail.core.repository._BaseRepository;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.service.BadgeService;
+import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.dto.CloseSessionRequestDTO;
-import com.digithink.zsretail.security.CurrentUserProvider;
 import com.digithink.zsretail.dto.SessionCloseTicketDTO;
 import com.digithink.zsretail.dto.SessionDashboardDTO;
 import com.digithink.zsretail.erp.repository.PaymentHeaderRepository;
 import com.digithink.zsretail.exception.CashDiscrepancyException;
-import com.digithink.zsretail.model.CashierSession;
-import com.digithink.zsretail.model.GeneralSetup;
-import com.digithink.zsretail.model.Payment;
-import com.digithink.zsretail.model.PaymentMethod;
-import com.digithink.zsretail.model.ReturnHeader;
-import com.digithink.zsretail.model.SalesHeader;
 import com.digithink.zsretail.model.SessionCashCount;
-import com.digithink.zsretail.model.UserAccount;
-import com.digithink.zsretail.model.enumeration.BadgePermission;
-import com.digithink.zsretail.model.enumeration.CounterType;
-import com.digithink.zsretail.model.enumeration.PaymentMethodType;
-import com.digithink.zsretail.model.enumeration.ReturnType;
-import com.digithink.zsretail.model.enumeration.SessionStatus;
-import com.digithink.zsretail.model.enumeration.SynchronizationStatus;
-import com.digithink.zsretail.model.enumeration.TransactionStatus;
-import com.digithink.zsretail.repository.CashierSessionRepository;
-import com.digithink.zsretail.repository.GeneralSetupRepository;
-import com.digithink.zsretail.repository.PaymentMethodRepository;
-import com.digithink.zsretail.repository.PaymentRepository;
-import com.digithink.zsretail.repository.ReturnHeaderRepository;
-import com.digithink.zsretail.repository.SalesHeaderRepository;
 import com.digithink.zsretail.repository.SessionCashCountRepository;
-import com.digithink.zsretail.repository._BaseRepository;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -269,7 +271,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		// Check for pending tickets - session cannot be closed if there are pending
 		// tickets
 		long pendingCount = salesHeaderRepository
-				.findByCashierSessionAndStatus(session, com.digithink.zsretail.model.enumeration.TransactionStatus.PENDING)
+				.findByCashierSessionAndStatus(session, com.digithink.zsretail.core.model.enumeration.TransactionStatus.PENDING)
 				.size();
 
 		if (pendingCount > 0) {
@@ -792,7 +794,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		List<TransactionStatus> excluded = Arrays.asList(TransactionStatus.PENDING, TransactionStatus.CANCELLED);
 		List<Payment> allPayments = paymentRepository.findByCashierSession(session, excluded);
 
-		com.digithink.zsretail.model.PaymentMethod especeMethod = paymentMethodRepository
+		com.digithink.zsretail.core.model.PaymentMethod especeMethod = paymentMethodRepository
 				.findByType(PaymentMethodType.CLIENT_ESPECES).orElse(null);
 		String especeCode = especeMethod != null ? especeMethod.getCode() : null;
 

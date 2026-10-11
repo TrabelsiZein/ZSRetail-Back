@@ -32,9 +32,12 @@ import org.springframework.mock.env.MockEnvironment;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.digithink.zsretail.core.erp.enumeration.ErpSyncJobType;
+import com.digithink.zsretail.core.erp.model.ErpSyncJob;
+import com.digithink.zsretail.core.erp.service.ErpExportJob;
+import com.digithink.zsretail.core.erp.service.ErpSyncCheckpointService;
+import com.digithink.zsretail.core.erp.service.ErpSyncJobRunner;
 import com.digithink.zsretail.erp.api.dto.ErpSyncFilter;
-import com.digithink.zsretail.erp.enumeration.ErpSyncJobType;
-import com.digithink.zsretail.erp.model.ErpSyncJob;
 import com.digithink.zsretail.support.Installations;
 
 /**

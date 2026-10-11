@@ -10,11 +10,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.erp.dto.ErpSyncJobViewDTO;
+import com.digithink.zsretail.core.erp.model.ErpSyncJob;
 import com.digithink.zsretail.erp.api.ErpSyncWarningException;
-import com.digithink.zsretail.erp.dto.ErpSyncJobViewDTO;
-import com.digithink.zsretail.erp.model.ErpSyncJob;
 
 /**
  * Head office plan, task 3.4: keeps the ERP jobs of {@link HeadOfficeErpJobs#refusedTypes()} (the exports and the price
@@ -42,7 +42,7 @@ public class HeadOfficeErpGuard {
 		this.jobs = jobs;
 	}
 
-	@Around("execution(* com.digithink.zsretail.erp.service.ErpSyncJobRunner.run(..)) && args(job)")
+	@Around("execution(* com.digithink.zsretail.core.erp.service.ErpSyncJobRunner.run(..)) && args(job)")
 	public Object refuseRun(ProceedingJoinPoint call, ErpSyncJob job) throws Throwable {
 		if (job != null && jobs.refuses(job.getJobType())) {
 			throw new ErpSyncWarningException(HeadOfficeErpJobs.REFUSED + ": " + job.getJobType());
@@ -51,7 +51,7 @@ public class HeadOfficeErpGuard {
 	}
 
 	@SuppressWarnings("unchecked")
-	@Around("execution(* com.digithink.zsretail.erp.controller.ErpSyncJobAdminController.getJobs())")
+	@Around("execution(* com.digithink.zsretail.core.erp.controller.ErpSyncJobAdminController.getJobs())")
 	public Object hideInList(ProceedingJoinPoint call) throws Throwable {
 		Object answer = call.proceed();
 		if (answer instanceof ResponseEntity && ((ResponseEntity<?>) answer).getBody() instanceof List) {
@@ -63,10 +63,10 @@ public class HeadOfficeErpGuard {
 		return answer;
 	}
 
-	@Around("(execution(* com.digithink.zsretail.erp.controller.ErpSyncJobAdminController.runJobNow(..))"
-			+ " || execution(* com.digithink.zsretail.erp.controller.ErpSyncJobAdminController.updateEnabled(..))"
-			+ " || execution(* com.digithink.zsretail.erp.controller.ErpSyncJobAdminController.updateJob(..))"
-			+ " || execution(* com.digithink.zsretail.erp.controller.ErpSyncJobAdminController.getStatistics(..)))"
+	@Around("(execution(* com.digithink.zsretail.core.erp.controller.ErpSyncJobAdminController.runJobNow(..))"
+			+ " || execution(* com.digithink.zsretail.core.erp.controller.ErpSyncJobAdminController.updateEnabled(..))"
+			+ " || execution(* com.digithink.zsretail.core.erp.controller.ErpSyncJobAdminController.updateJob(..))"
+			+ " || execution(* com.digithink.zsretail.core.erp.controller.ErpSyncJobAdminController.getStatistics(..)))"
 			+ " && args(id, ..)")
 	public Object refuseById(ProceedingJoinPoint call, Long id) throws Throwable {
 		if (jobs.isRefusedJob(id)) {

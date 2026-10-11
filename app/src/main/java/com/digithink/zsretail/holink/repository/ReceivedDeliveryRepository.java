@@ -12,11 +12,11 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.holink.enumeration.ReceivedDeliveryStatus;
 import com.digithink.zsretail.holink.enumeration.ReceivedLineType;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
 import com.digithink.zsretail.holink.model.ReceivedDelivery;
-import com.digithink.zsretail.repository._BaseRepository;
 
 public interface ReceivedDeliveryRepository extends _BaseRepository<ReceivedDelivery, Long> {
 

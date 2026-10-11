@@ -10,12 +10,12 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.model.Location;
-import com.digithink.zsretail.repository.LocationRepository;
-import com.digithink.zsretail.service.GeneralSetupService;
-import com.digithink.zsretail.service.LocationService;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.model.Location;
+import com.digithink.zsretail.core.repository.LocationRepository;
+import com.digithink.zsretail.core.service.GeneralSetupService;
+import com.digithink.zsretail.core.service.LocationService;
 
 /**
  * Head office plan, task 3.4: the ERP reference location of a head office with an ERP. The ERP item import filters on

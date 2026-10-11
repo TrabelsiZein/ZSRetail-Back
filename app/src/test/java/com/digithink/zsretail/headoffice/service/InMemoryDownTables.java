@@ -14,11 +14,11 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.support.TransactionOperations;
 
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.headoffice.model.HoDownChange;
 import com.digithink.zsretail.headoffice.model.HoDownSequence;
 import com.digithink.zsretail.headoffice.repository.HoDownChangeRepository;
 import com.digithink.zsretail.headoffice.repository.HoDownSequenceRepository;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 
 /**
  * Test support (task 3.3): ho_down_change and ho_down_sequence in memory, applying the rules of the JPQL queries, and a

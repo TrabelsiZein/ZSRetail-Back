@@ -9,9 +9,9 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.ReturnLine;
-import com.digithink.zsretail.model.SalesLine;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ReturnLine;
+import com.digithink.zsretail.core.model.SalesLine;
 
 /**
  * 2.2.2: a return line carries the VAT rate of the line sold, so the voucher prints 19% for 0.2 of an item at 19%, never

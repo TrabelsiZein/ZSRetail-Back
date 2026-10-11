@@ -3,7 +3,7 @@ package com.digithink.zsretail.holink.dto;
 import java.util.Collections;
 import java.util.List;
 
-import com.digithink.zsretail.headoffice.dto.LoyaltyMemberResultDTO;
+import com.digithink.zsretail.core.link.dto.LoyaltyMemberResultDTO;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
 
 import lombok.AccessLevel;

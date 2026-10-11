@@ -6,6 +6,12 @@ import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
 
+import com.digithink.zsretail.core.model.Payment;
+import com.digithink.zsretail.core.model.PaymentMethod;
+import com.digithink.zsretail.core.model.SalesHeader;
+import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.model._BaseEntity;
+
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;

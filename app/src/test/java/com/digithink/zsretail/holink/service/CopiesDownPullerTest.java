@@ -36,6 +36,8 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
+import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.holink.dto.DownApplyResult;
 import com.digithink.zsretail.holink.dto.LinkJobRun;
@@ -46,8 +48,6 @@ import com.digithink.zsretail.holink.model.LinkExchange;
 import com.digithink.zsretail.holink.repository.DownCursorRepository;
 import com.digithink.zsretail.holink.repository.LinkExchangeRepository;
 import com.digithink.zsretail.holink.scheduler.CopiesDownJob;
-import com.digithink.zsretail.model.enumeration.DataDomain;
-import com.digithink.zsretail.service.GeneralSetupService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;

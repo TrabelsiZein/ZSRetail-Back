@@ -9,9 +9,9 @@ import javax.persistence.Enumerated;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 
-import com.digithink.zsretail.model.CashierSession;
-import com.digithink.zsretail.model._BaseEntity;
-import com.digithink.zsretail.model.enumeration.SynchronizationStatus;
+import com.digithink.zsretail.core.model.CashierSession;
+import com.digithink.zsretail.core.model._BaseEntity;
+import com.digithink.zsretail.core.model.enumeration.SynchronizationStatus;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;

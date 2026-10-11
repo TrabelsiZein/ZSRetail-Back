@@ -8,8 +8,8 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.headoffice.model.Store;
-import com.digithink.zsretail.repository._BaseRepository;
 
 public interface StoreRepository extends _BaseRepository<Store, Long> {
 

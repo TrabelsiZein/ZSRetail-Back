@@ -12,11 +12,11 @@ import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
 import javax.persistence.Table;
 
+import com.digithink.zsretail.core.model._BaseEntity;
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.headoffice.enumeration.InvoiceRhythm;
 import com.digithink.zsretail.headoffice.enumeration.StoreKind;
 import com.digithink.zsretail.headoffice.enumeration.SupplyPriceMode;
-import com.digithink.zsretail.model._BaseEntity;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;

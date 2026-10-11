@@ -36,13 +36,13 @@ import org.springframework.web.client.RestTemplate;
 import com.digithink.zsretail.connector.emtop.client.DynamicsNavRestClient;
 import com.digithink.zsretail.connector.emtop.config.DynamicsNavProperties;
 import com.digithink.zsretail.connector.emtop.dto.DynamicsNavCollectionResponse;
+import com.digithink.zsretail.core.model.Location;
+import com.digithink.zsretail.core.service.ErpStoreLocationService;
+import com.digithink.zsretail.core.service.GeneralSetupService;
+import com.digithink.zsretail.core.service.LocationService;
 import com.digithink.zsretail.erp.api.ErpStoreLocation;
 import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 import com.digithink.zsretail.erp.api.dto.ErpSyncFilter;
-import com.digithink.zsretail.model.Location;
-import com.digithink.zsretail.service.ErpStoreLocationService;
-import com.digithink.zsretail.service.GeneralSetupService;
-import com.digithink.zsretail.service.LocationService;
 import com.digithink.zsretail.support.Installations;
 
 /**

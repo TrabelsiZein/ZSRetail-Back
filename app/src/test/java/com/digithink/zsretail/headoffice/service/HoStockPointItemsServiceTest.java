@@ -25,13 +25,13 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.headoffice.dto.StockPointItemDTO;
 import com.digithink.zsretail.headoffice.model.HoStockPoint;
 import com.digithink.zsretail.headoffice.model.HoStockPointItem;
 import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.ItemFamily;
-import com.digithink.zsretail.model.ItemSubFamily;
 import com.digithink.zsretail.support.InMemoryCatalogue;
 
 /**

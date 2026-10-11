@@ -12,11 +12,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.dto.report.LoyaltyReportRowDTO;
-import com.digithink.zsretail.dto.report.PromotionReportRowDTO;
-import com.digithink.zsretail.dto.report.PurchaseReportRowDTO;
-import com.digithink.zsretail.dto.report.SalesReportRowDTO;
-import com.digithink.zsretail.dto.report.SessionReportRowDTO;
+import com.digithink.zsretail.core.dto.report.LoyaltyReportRowDTO;
+import com.digithink.zsretail.core.dto.report.PromotionReportRowDTO;
+import com.digithink.zsretail.core.dto.report.PurchaseReportRowDTO;
+import com.digithink.zsretail.core.dto.report.SalesReportRowDTO;
+import com.digithink.zsretail.core.dto.report.SessionReportRowDTO;
 import com.digithink.zsretail.service.SalesReportService;
 
 import lombok.RequiredArgsConstructor;

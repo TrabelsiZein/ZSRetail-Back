@@ -2,10 +2,10 @@ package com.digithink.zsretail.headoffice.service;
 
 import java.time.format.DateTimeFormatter;
 
-import com.digithink.zsretail.headoffice.dto.DeliveryCopyDTO;
-import com.digithink.zsretail.headoffice.dto.DeliveryCopyDTO.DeliveryLineCopyDTO;
-import com.digithink.zsretail.headoffice.dto.ErpInvoiceCopyDTO;
-import com.digithink.zsretail.headoffice.dto.SupplyInvoiceCopyDTO;
+import com.digithink.zsretail.core.link.dto.DeliveryCopyDTO;
+import com.digithink.zsretail.core.link.dto.DeliveryCopyDTO.DeliveryLineCopyDTO;
+import com.digithink.zsretail.core.link.dto.ErpInvoiceCopyDTO;
+import com.digithink.zsretail.core.link.dto.SupplyInvoiceCopyDTO;
 import com.digithink.zsretail.headoffice.model.HoDelivery;
 import com.digithink.zsretail.headoffice.model.HoDeliveryLine;
 import com.digithink.zsretail.headoffice.model.HoErpInvoice;

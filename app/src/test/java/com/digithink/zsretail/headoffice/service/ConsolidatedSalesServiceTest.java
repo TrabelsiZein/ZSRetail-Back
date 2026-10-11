@@ -29,7 +29,10 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
-import com.digithink.zsretail.dto.DashboardTodayDTO;
+import com.digithink.zsretail.core.dto.DashboardTodayDTO;
+import com.digithink.zsretail.core.model.PaymentMethod;
+import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
+import com.digithink.zsretail.core.repository.PaymentMethodRepository;
 import com.digithink.zsretail.headoffice.model.HoReturn;
 import com.digithink.zsretail.headoffice.model.HoReturnLine;
 import com.digithink.zsretail.headoffice.model.HoSession;
@@ -43,9 +46,6 @@ import com.digithink.zsretail.headoffice.repository.HoSessionRepository;
 import com.digithink.zsretail.headoffice.repository.HoTicketRepository;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
 import com.digithink.zsretail.headoffice.service.ConsolidatedSalesService.HistoryQuery;
-import com.digithink.zsretail.model.PaymentMethod;
-import com.digithink.zsretail.model.enumeration.PaymentMethodType;
-import com.digithink.zsretail.repository.PaymentMethodRepository;
 
 /**
  * Head office plan, task 2.5: what the head office pages read. Filters (store, dates, number, status, session),

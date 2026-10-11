@@ -25,16 +25,16 @@ import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.env.MockEnvironment;
 
+import com.digithink.zsretail.core.erp.controller.ErpSyncJobAdminController;
+import com.digithink.zsretail.core.erp.dto.ErpSyncJobViewDTO;
+import com.digithink.zsretail.core.erp.enumeration.ErpSyncJobType;
+import com.digithink.zsretail.core.erp.model.ErpSyncJob;
+import com.digithink.zsretail.core.erp.repository.ErpSyncJobRepository;
+import com.digithink.zsretail.core.erp.service.ErpSyncJobRunner;
 import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 import com.digithink.zsretail.erp.api.dto.ErpJobStatisticsDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSyncJobEnabledDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSyncJobUpdateDTO;
-import com.digithink.zsretail.erp.controller.ErpSyncJobAdminController;
-import com.digithink.zsretail.erp.dto.ErpSyncJobViewDTO;
-import com.digithink.zsretail.erp.enumeration.ErpSyncJobType;
-import com.digithink.zsretail.erp.model.ErpSyncJob;
-import com.digithink.zsretail.erp.repository.ErpSyncJobRepository;
-import com.digithink.zsretail.erp.service.ErpSyncJobRunner;
 import com.digithink.zsretail.support.Installations;
 import com.digithink.zsretail.support.TestModes;
 

@@ -28,15 +28,20 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.erp.service.ErpSynchronizationManager;
+import com.digithink.zsretail.core.link.dto.DeliveryConfirmationDTO;
+import com.digithink.zsretail.core.link.dto.ErpInvoiceCopyDTO;
+import com.digithink.zsretail.core.link.dto.SalesCopyResultDTO;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
+import com.digithink.zsretail.core.model.enumeration.DataOwner;
+import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.erp.api.ErpSupplyInvoiceImport;
 import com.digithink.zsretail.erp.api.dto.ErpSupplyInvoiceDTO;
-import com.digithink.zsretail.erp.service.ErpSynchronizationManager;
-import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
-import com.digithink.zsretail.headoffice.dto.ErpInvoiceCopyDTO;
 import com.digithink.zsretail.headoffice.dto.ErpInvoiceDTO;
-import com.digithink.zsretail.headoffice.dto.SalesCopyResultDTO;
 import com.digithink.zsretail.headoffice.enumeration.ErpInvoiceLineType;
 import com.digithink.zsretail.headoffice.enumeration.ErpInvoiceMapping;
 import com.digithink.zsretail.headoffice.enumeration.ErpInvoiceStatus;
@@ -47,11 +52,6 @@ import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.HoErpInvoiceRepository;
 import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.enumeration.DataDomain;
-import com.digithink.zsretail.model.enumeration.DataOwner;
-import com.digithink.zsretail.repository.ItemRepository;
-import com.digithink.zsretail.utils.Quantities;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -163,7 +163,7 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 	static final String LAST_READ = "ERP_INVOICES_LAST_READ";
 
 	@Autowired(required = false)
-	public void setGeneralSetup(com.digithink.zsretail.service.GeneralSetupService generalSetup) {
+	public void setGeneralSetup(com.digithink.zsretail.core.service.GeneralSetupService generalSetup) {
 		this.setupWriter = generalSetup == null ? null : generalSetup::updateValue;
 	}
 

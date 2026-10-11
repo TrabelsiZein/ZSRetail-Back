@@ -15,11 +15,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import com.digithink.zsretail.config.ApplicationModeService;
-import com.digithink.zsretail.model.AppRole;
-import com.digithink.zsretail.model.UserAccount;
-import com.digithink.zsretail.repository.AppRoleRepository;
-import com.digithink.zsretail.repository.UserAccountRepository;
+import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.model.AppRole;
+import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.repository.AppRoleRepository;
+import com.digithink.zsretail.core.repository.UserAccountRepository;
+import com.digithink.zsretail.core.service.ZZDataInitializer;
 import com.digithink.zsretail.support.TestModes;
 
 /**

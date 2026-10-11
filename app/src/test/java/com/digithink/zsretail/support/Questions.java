@@ -2,8 +2,8 @@ package com.digithink.zsretail.support;
 
 import java.lang.reflect.AnnotatedElement;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
 
 /** Code cleanup step 4: the installation question a class or a @Bean method carries, for the tests. */
 public final class Questions {

@@ -9,10 +9,11 @@ private_key.pem
 /uploads/
 
 # Local npm deps for one-off menu image import script
-/app/src/main/resources/db/import/node_modules/
+/core/src/main/resources/db/import/node_modules/
 
 # Claude Code machine-local settings
 .claude/settings.local.json
 
 # Cursor (no longer used)
 .cursor/
+/bin/

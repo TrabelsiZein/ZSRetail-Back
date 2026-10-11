@@ -30,7 +30,7 @@ So `POSMainApp` starts from the IDE with no argument as a store (or `-Dspring.pr
 ## 2. The outside file (optional)
 
 Usually only the "where it runs" block of a real installation; it may also name the type and change any mode line. Model:
-`deploy/machine-model.properties`. Loaded by `config/MachineFileEnvironmentPostProcessor`, before Spring reads its
+`deploy/machine-model.properties`. Loaded by `core/config/MachineFileEnvironmentPostProcessor`, before Spring reads its
 configuration files (so its `spring.profiles.active` picks the type), when:
 1. `-Dzsretail.machine-file=<path>` names it (dev scripts, IDE, or to override the Tomcat convention); a path that does not
    exist stops the startup (`Outside file not found: <path> ...`);
@@ -42,14 +42,14 @@ Neither: no outside file, the type file applies as it is.
 **Precedence**: command-line arguments and system properties, then the outside file, then the type file, then
 `application.properties`.
 
-**Type check** (`config/InstallationTypeEnvironmentPostProcessor`, after the configuration files are read): the active profile
+**Type check** (`core/config/InstallationTypeEnvironmentPostProcessor`, after the configuration files are read): the active profile
 in effect is exactly `store` or `headoffice`; anything else (none, two, an old preset name such as `store-erp`, an old profile
 such as `dynamics-prod` left in the server's options) stops the startup: `The active profile is [<names>]: it must be one
 installation type, spring.profiles.active=store | headoffice ...`. `application.standalone` stays refused.
 
 **ERP connector** (code cleanup step 1): one line chooses it, `erp.connector=none | emtop | happyness` (trimmed, any
 case), the way for a new installation (in its outside file). It is only a translation into the two old lines, done by
-`config/ErpConnectorEnvironmentPostProcessor` after the configuration files are read and before Spring reads its conditions:
+`core/config/ErpConnectorEnvironmentPostProcessor` after the configuration files are read and before Spring reads its conditions:
 
 | `erp.connector` | `erp.dynamicsnav.enabled` | `erp.navpospages.enabled` |
 |---|---|---|
@@ -62,7 +62,7 @@ Code cleanup step 5: the values are the customers' names, one connector per cust
 `emtop` (EMTOP's Dynamics NAV, keys `erp.dynamicsnav.*`) and `happyness` (Happyness's POS pages, keys `erp.navpospages.*`);
 they were `dynamicsnav` and `navpospages`, which no installed file used. The names and `@ConditionalOnErpConnector` are in
 `erp/api` (`ErpConnectors`); erp-api asks the application which connector is in effect through `ErpConnectorResolver`
-(`config/ErpConnectorInEffect`, registered in `META-INF/spring.factories`), so it names no key of the application.
+(`core/config/ErpConnectorInEffect`, registered in `META-INF/spring.factories`), so it names no key of the application.
 
 So every `@ConditionalOnProperty`, `NodeOwnership`, the startup checks and the summary read the old lines unchanged. The
 **old lines are still accepted**: without `erp.connector` they act exactly as before, and every file of `deploy/` and `configs/`
@@ -85,7 +85,7 @@ one of the connector in effect. Outside the connector packages and the class abo
 `erp.navpospages`; the guard test `erp/ConnectorNamesGuardTest` checks it. The property keys of each connector
 (`erp.dynamicsnav.*`, `erp.navpospages.*`) are unchanged.
 
-**Startup summary**: one INFO line once the application is up (`config/InstallationSummary`), e.g.
+**Startup summary**: one INFO line once the application is up (`core/config/InstallationSummary`), e.g.
 `Installation: type STORE, database pos_store_b, catalogue HEAD_OFFICE, customers LOCAL, promotions LOCAL, loyalty HEAD_OFFICE,
 supply HEAD_OFFICE, sales to [HEAD_OFFICE], ERP connector none, outside file D:\...\deploy\dev\store-b.properties`. The connector
 (`none`, `emtop`, `happyness`) is worked out from the old lines in effect, whichever way they were set. With
@@ -147,7 +147,7 @@ options. Then the release's `update.sql`, the WAR, a start, and the checks above
 
 ## 4. Ownership model (resolved at startup)
 
-`config/NodeOwnership.java`, exposed by `ApplicationModeService` (`getNodeType()`, `ownerOf(DataDomain)`, `salesUpstreams()`,
+`core/config/NodeOwnership.java`, exposed by `ApplicationModeService` (`getNodeType()`, `ownerOf(DataDomain)`, `salesUpstreams()`,
 `isHeadOffice()`, `isHeadOfficeLinked()`, `isCatalogueFromHeadOffice()`, `isSupplyFromHeadOffice()`, and the step 9
 questions). Values are trimmed and case-insensitive.
 
@@ -284,7 +284,7 @@ the "Connect a store" procedure: `docs/modules/head-office.md`, "Head office lin
 ## 7. Which part exists where (installation questions)
 
 Code cleanup step 4: every yes/no question about the installation that decides whether a part of the application exists
-is one value of `config/Installation`, used as `@ConditionalOnInstallation(Installation.X)` (condition
+is one value of `core/config/Installation`, used as `@ConditionalOnInstallation(Installation.X)` (condition
 `OnInstallationCondition`). Each answer comes from `NodeOwnership`, as the startup resolves the configuration. The ERP's
 own questions stay `@ConditionalOnErpAbility` and `@ConditionalOnErpConnector` (section 2). The thirteen
 `@ConditionalOnHeadOffice...` annotations are gone; `InstallationBeansProofTest` shows the same beans in every file of

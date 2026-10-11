@@ -8,8 +8,8 @@
 - A head office runs as its own instance with its own database, possibly on the same machine as a store.
 
 ### Installation type
-- Backend: `ApplicationModeService.getNodeType()` and `isHeadOffice()`, resolved at startup by `config/NodeOwnership.java` (see `docs/deployment-modes.md`, "Ownership model").
-- Head office only beans: `@ConditionalOnInstallation(HEAD_OFFICE)` (`config/Installation.java`, `HEAD_OFFICE`) reads `node.type` with the same parsing as the startup (`NodeOwnership.nodeTypeOf`: trimmed, case-insensitive, `STORE` when absent). On a store such a bean is not created, so its endpoints answer 404 (except under `/ho/**`, which answers 401 on a store: see "Store API").
+- Backend: `ApplicationModeService.getNodeType()` and `isHeadOffice()`, resolved at startup by `core/config/NodeOwnership.java` (see `docs/deployment-modes.md`, "Ownership model").
+- Head office only beans: `@ConditionalOnInstallation(HEAD_OFFICE)` (`core/config/Installation.java`, `HEAD_OFFICE`) reads `node.type` with the same parsing as the startup (`NodeOwnership.nodeTypeOf`: trimmed, case-insensitive, `STORE` when absent). On a store such a bean is not created, so its endpoints answer 404 (except under `/ho/**`, which answers 401 on a store: see "Store API").
 - `GET /config` returns `nodeType`; the frontend store exposes the getter `appConfig/nodeType`.
 - On a head office, sales go nowhere when `sales.upstream` is absent, whatever the mode flags.
 
@@ -554,7 +554,7 @@ A store with `headoffice.url` set sends a heartbeat to its head office. Store-si
 
 | Key | Rule |
 |---|---|
-| `headoffice.url` | Head office base URL including the context path, e.g. `http://localhost:888/zsretail/api`; trailing slashes are tolerated. Absent or blank: no link. None of the link beans exists (`@ConditionalOnInstallation(LINKED_TO_HEAD_OFFICE)`, `config/Installation.LINKED_TO_HEAD_OFFICE`, which reads the key like the startup: `NodeOwnership.isHeadOfficeLinkSet`) and the store behaves as before |
+| `headoffice.url` | Head office base URL including the context path, e.g. `http://localhost:888/zsretail/api`; trailing slashes are tolerated. Absent or blank: no link. None of the link beans exists (`@ConditionalOnInstallation(LINKED_TO_HEAD_OFFICE)`, `core/config/Installation.LINKED_TO_HEAD_OFFICE`, which reads the key like the startup: `NodeOwnership.isHeadOfficeLinkSet`) and the store behaves as before |
 | `headoffice.api-key` | The key shown once on the head office Stores page; trimmed; sent in `X-Store-Key`; never written in a log line |
 | `headoffice.heartbeat-interval-seconds` | Default `60` |
 
@@ -648,7 +648,7 @@ The store's menu group **Head office** has four entries, in this order (`src/nav
 ### Sales copies: the store side (step 2)
 Every finished ticket, return and session closing of a store reaches the head office as a copy (design 2.3 and 4.1, "documents up"). Nothing changes in how the store sells: the documents are found by a query, not by a hook in the selling services, and no column of theirs is added or written. A store that also exports to NAV keeps its ERP export as it is: the two upstreams are independent, each with its own tracking. `SalesHeader.synchronizationStatus` belongs to the ERP export and is neither read nor written here.
 
-**When it runs** (decision 4): only on a store with `headoffice.url` set whose sales upstreams include the head office (`ApplicationModeService.salesUpstreams()`, key `sales.upstream`). Its beans carry `@ConditionalOnInstallation(SALES_TO_HEAD_OFFICE)` (`config/Installation.SALES_TO_HEAD_OFFICE`, which calls `NodeOwnership.isHeadOfficeSalesPushSet`: the same reading as the startup, mode flags read from the environment). A linked store without that upstream keeps the heartbeat only.
+**When it runs** (decision 4): only on a store with `headoffice.url` set whose sales upstreams include the head office (`ApplicationModeService.salesUpstreams()`, key `sales.upstream`). Its beans carry `@ConditionalOnInstallation(SALES_TO_HEAD_OFFICE)` (`core/config/Installation.SALES_TO_HEAD_OFFICE`, which calls `NodeOwnership.isHeadOfficeSalesPushSet`: the same reading as the startup, mode flags read from the environment). A linked store without that upstream keeps the heartbeat only.
 
 **Finished documents.** Only a finished document is sent the first time; a document that was never finished is never sent. **Once a document has a tracking row, any later change is sent whatever its new status, and the head office copy takes the new status** (a ticket cancelled after it was sent is sent again as `CANCELLED`, and the head office row becomes `CANCELLED`: still one row, not counted as a sale).
 
@@ -1273,7 +1273,7 @@ sub-family without its family, a `Categorie` row, `price-includes-vat=false`), `
 navpospages), `NavPosPagesLiveReadTest` (skipped unless `-Dnavpospages.live=true`: a GET-only read of the ERP named in
 `configs/local/happyness_ho.properties`, counts, five rows and the time per page, two barcode pages).
 
-**Step 6: changes only** (since code cleanup step 3 the shared catalogue engine, `erp/engine`, see `erp-sync.md`,
+**Step 6: changes only** (since code cleanup step 3 the shared catalogue engine, `core/erp/engine`, see `erp-sync.md`,
 "Catalogue engine": the engine reads the ERP through the connector's `ErpCatalogueSource`; navpospages gives
 `NavPosPagesCatalogueSource` and its settings, and keeps the invoices in `NavPosPagesInvoices`). The four catalogue fetches
 of `NavPosPagesConnector` take only what differs between the ERP and the head office tables (`CatalogueEngine`, was
@@ -1281,7 +1281,7 @@ of `NavPosPagesConnector` take only what differs between the ERP and the head of
 again at the next run.
 - **Items: every change in one run** (2026-10-08). The items run applies all its changes itself (new, changed, deactivated),
   by code, in packets of `packet-size` (default 500), one after the other, each packet in its own transaction
-  (`erp/engine/CatalogueImport` → `BootstrapCatalogueImport` → `ErpItemBootstrapService.importItems`, so the recorder aspect commits
+  (`core/erp/engine/CatalogueImport` → `BootstrapCatalogueImport` → `ErpItemBootstrapService.importItems`, so the recorder aspect commits
   the items and their change rows for the stores together; no bulk update). The connector then hands nothing to the job
   (`ErpSyncJobRunner` and `ErpItemBootstrapService` unchanged). A failed packet ends the run in error ("Items: packet 2 of 3
   failed, 500 of 1200 rows applied before it (the next run goes on): ..."); the packets before it stay and the next run goes on
@@ -1312,7 +1312,7 @@ again at the next run.
 
 **State table** `navpospages_state` (`state_key`, `state_value`, `updated_at`): the barcode cursor, the count of the last item
 run, the items that need their barcodes. Not a JPA entity (Hibernate would create it on every installation): created with plain
-SQL when missing, at the start, by `erp/engine/JdbcCatalogueState` (was `JdbcNavPosPagesState`), which exists only with a connector that has the ability `HEAD_OFFICE_STOCK_POINTS` (today `erp.navpospages.enabled=true`). A store or a
+SQL when missing, at the start, by `core/erp/engine/JdbcCatalogueState` (was `JdbcNavPosPagesState`), which exists only with a connector that has the ability `HEAD_OFFICE_STOCK_POINTS` (today `erp.navpospages.enabled=true`). A store or a
 head office without this connector never gets it.
 
 Tests: `CatalogueEngineTest` (was `NavPosPagesSyncTest`; 28: first load with packets (all items in one run, all barcodes in one run), nothing changed,
@@ -1450,7 +1450,7 @@ Done (step 2), the items run (`CatalogueEngine.items`):
 - The item row is a default copy: the first point of the list where the item is active, else the first that has it.
   That merged list goes through the compare and the import of 2.1, unchanged. With one point it is that point's read,
   so the item table gets exactly the 2.1 values.
-- Each point's rows (`HoStockPointRows`, port `erp/engine/StockPoints`, was `NavPosPagesStockPoints`): new, changed (name, description, family,
+- Each point's rows (`HoStockPointRows`, port `core/erp/engine/StockPoints`, was `NavPosPagesStockPoints`): new, changed (name, description, family,
   sub-family, active, the price with VAT at 3 decimals), gone from the point = inactive, never deleted. Written after
   the items (a row needs its item), in packets of `packet-size`, each packet one transaction; a row whose item is not at
   the head office is left out and handed again at the next run. Same rules as the item: a blank Description keeps the
@@ -1524,7 +1524,7 @@ Done (step 4), the screens (frontend routes with `meta.erpCatalogue`: menu, guar
   `ZZDataInitializerRolesTest`.
 
 Fixes after the first test of 2.2 (head office whose catalogue comes from the ERP only):
-- **One job, "Sync catalogue"** (`ErpSyncJobType.SYNC_CATALOGUE`, `erp/engine/CatalogueJob` (was `NavPosPagesCatalogueJob`) through the runner's hook
+- **One job, "Sync catalogue"** (`ErpSyncJobType.SYNC_CATALOGUE`, `core/erp/engine/CatalogueJob` (was `NavPosPagesCatalogueJob`) through the runner's hook
   `ErpCatalogueSync`): in one run, every family (in packets, again while some are held back), every sub-family, the items
   and the rows of every point de stock, then the barcodes (the barcode run until it has caught up, the barcodes of the
   new items included). Seeded disabled ("0 0 * * * *") only on this head office; the four separate catalogue jobs are

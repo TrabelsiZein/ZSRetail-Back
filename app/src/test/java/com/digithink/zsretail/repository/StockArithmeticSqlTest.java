@@ -20,6 +20,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ParameterizedPreparedStatementSetter;
 
+import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.StockBatchRepository;
+
 /**
  * 2.2.1, step 6: SQL Server types a BigDecimal parameter as DECIMAL(38, scale of the value); DECIMAL(18,3) - DECIMAL(38,1)
  * needs more than 38 digits and the result is cut to the parameter's scale (1.742 - 0.2 gave 1.500, 1.442 - 1 gave

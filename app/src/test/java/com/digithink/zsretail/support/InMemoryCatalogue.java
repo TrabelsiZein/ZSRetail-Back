@@ -12,30 +12,30 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import com.digithink.zsretail.headoffice.model.HoPriceList;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemBarcode;
+import com.digithink.zsretail.core.model.ItemComposition;
+import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemSubFamily;
+import com.digithink.zsretail.core.model._BaseEntity;
+import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
+import com.digithink.zsretail.core.repository.ItemCompositionRepository;
+import com.digithink.zsretail.core.repository.ItemFamilyRepository;
+import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
 import com.digithink.zsretail.headoffice.model.HoItemSupplyPrice;
+import com.digithink.zsretail.headoffice.model.HoPriceList;
 import com.digithink.zsretail.headoffice.model.HoPriceListLine;
 import com.digithink.zsretail.headoffice.model.HoStockPoint;
 import com.digithink.zsretail.headoffice.model.HoStockPointItem;
-import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
-import com.digithink.zsretail.headoffice.repository.HoStockPointRepository;
-import com.digithink.zsretail.headoffice.repository.HoItemSupplyPriceRepository;
 import com.digithink.zsretail.headoffice.model.Store;
+import com.digithink.zsretail.headoffice.repository.HoItemSupplyPriceRepository;
 import com.digithink.zsretail.headoffice.repository.HoPriceListLineRepository;
 import com.digithink.zsretail.headoffice.repository.HoPriceListRepository;
+import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
+import com.digithink.zsretail.headoffice.repository.HoStockPointRepository;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.ItemBarcode;
-import com.digithink.zsretail.model.ItemComposition;
-import com.digithink.zsretail.model.ItemFamily;
-import com.digithink.zsretail.model.ItemSubFamily;
-import com.digithink.zsretail.model._BaseEntity;
-import com.digithink.zsretail.model.enumeration.RecordOrigin;
-import com.digithink.zsretail.repository.ItemBarcodeRepository;
-import com.digithink.zsretail.repository.ItemCompositionRepository;
-import com.digithink.zsretail.repository.ItemFamilyRepository;
-import com.digithink.zsretail.repository.ItemRepository;
-import com.digithink.zsretail.repository.ItemSubFamilyRepository;
 
 /**
  * Test support (step 6): the catalogue tables of one installation in memory (families, sub-families, items, barcodes,

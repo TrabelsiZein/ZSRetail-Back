@@ -18,7 +18,7 @@ import com.digithink.zsretail.analytics.dto.PaymentBreakdownDTO;
 import com.digithink.zsretail.analytics.dto.SalesTrendPointDTO;
 import com.digithink.zsretail.analytics.dto.TopProductDTO;
 import com.digithink.zsretail.analytics.repository.AnalyticsRepository;
-import com.digithink.zsretail.utils.Quantities;
+import com.digithink.zsretail.core.utils.Quantities;
 
 @Service
 public class AnalyticsService {

@@ -12,13 +12,13 @@ import javax.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.digithink.zsretail.config.ApplicationModeService;
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.erp.enumeration.ErpSyncJobType;
-import com.digithink.zsretail.erp.model.ErpSyncJob;
-import com.digithink.zsretail.erp.repository.ErpSyncJobRepository;
-import com.digithink.zsretail.service.ZZDataInitializer;
+import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.erp.enumeration.ErpSyncJobType;
+import com.digithink.zsretail.core.erp.model.ErpSyncJob;
+import com.digithink.zsretail.core.erp.repository.ErpSyncJobRepository;
+import com.digithink.zsretail.core.service.ZZDataInitializer;
 
 import lombok.extern.log4j.Log4j2;
 

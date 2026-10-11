@@ -10,12 +10,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import com.digithink.zsretail.model.PurchaseInvoiceHeader;
-import com.digithink.zsretail.model.PurchaseInvoiceLine;
-import com.digithink.zsretail.model.Vendor;
-import com.digithink.zsretail.repository.PurchaseInvoiceHeaderRepository;
-import com.digithink.zsretail.repository.PurchaseInvoiceLineRepository;
-import com.digithink.zsretail.repository.VendorRepository;
+import com.digithink.zsretail.core.model.PurchaseInvoiceHeader;
+import com.digithink.zsretail.core.model.PurchaseInvoiceLine;
+import com.digithink.zsretail.core.model.Vendor;
+import com.digithink.zsretail.core.repository.PurchaseInvoiceHeaderRepository;
+import com.digithink.zsretail.core.repository.PurchaseInvoiceLineRepository;
+import com.digithink.zsretail.core.repository.VendorRepository;
 
 /**
  * Test support (invoices from the ERP, step c): a store's purchase_invoice_header, purchase_invoice_line and vendor in

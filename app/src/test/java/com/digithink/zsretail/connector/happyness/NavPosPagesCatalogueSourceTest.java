@@ -26,6 +26,11 @@ import com.digithink.zsretail.connector.happyness.dto.NavPosCategoryRow;
 import com.digithink.zsretail.connector.happyness.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.connector.happyness.dto.NavPosStockRow;
 import com.digithink.zsretail.connector.happyness.mapper.NavPosPagesMapper;
+import com.digithink.zsretail.core.erp.engine.CatalogueEngine;
+import com.digithink.zsretail.core.erp.engine.CatalogueImport;
+import com.digithink.zsretail.core.erp.engine.CatalogueState;
+import com.digithink.zsretail.core.erp.engine.HeadOfficeCatalogue;
+import com.digithink.zsretail.core.erp.engine.StockPoints;
 import com.digithink.zsretail.erp.api.CatalogueRun;
 import com.digithink.zsretail.erp.api.ErpBarcodeRow;
 import com.digithink.zsretail.erp.api.ErpCatalogueSource.Part;
@@ -33,11 +38,6 @@ import com.digithink.zsretail.erp.api.ErpCategories;
 import com.digithink.zsretail.erp.api.ErpRead;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
-import com.digithink.zsretail.erp.engine.CatalogueEngine;
-import com.digithink.zsretail.erp.engine.CatalogueImport;
-import com.digithink.zsretail.erp.engine.CatalogueState;
-import com.digithink.zsretail.erp.engine.HeadOfficeCatalogue;
-import com.digithink.zsretail.erp.engine.StockPoints;
 import com.fasterxml.jackson.core.type.TypeReference;
 
 /**

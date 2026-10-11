@@ -13,19 +13,19 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.PurchaseInvoiceHeader;
+import com.digithink.zsretail.core.model.PurchaseInvoiceLine;
+import com.digithink.zsretail.core.model.Vendor;
+import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.holink.enumeration.ReceivedDocumentKind;
 import com.digithink.zsretail.holink.enumeration.ReceivedLineType;
 import com.digithink.zsretail.holink.model.ReceivedDelivery;
 import com.digithink.zsretail.holink.model.ReceivedDeliveryLine;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.PurchaseInvoiceHeader;
-import com.digithink.zsretail.model.PurchaseInvoiceLine;
-import com.digithink.zsretail.model.Vendor;
-import com.digithink.zsretail.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.support.InMemoryCatalogue;
 import com.digithink.zsretail.support.InMemoryPurchaseInvoices;
 import com.digithink.zsretail.support.InMemoryReceivedDeliveries;
-import com.digithink.zsretail.utils.Quantities;
 
 /**
  * Invoices from the ERP, step (c): SupplyInvoiceWriter.saveFromErpInvoice writes the purchase invoice of a received ERP

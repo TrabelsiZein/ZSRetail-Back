@@ -3,7 +3,7 @@ package com.digithink.zsretail.dto;
 import java.math.BigDecimal;
 import java.util.List;
 
-import com.digithink.zsretail.model.enumeration.ReturnType;
+import com.digithink.zsretail.core.model.enumeration.ReturnType;
 
 import lombok.Data;
 

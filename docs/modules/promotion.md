@@ -35,9 +35,9 @@
 ### Backend — New Files
 
 - **`model/Promotion.java`** — Entity with all fields above
-- **`model/enumeration/PromotionType.java`** — SIMPLE_DISCOUNT, QUANTITY_PROMOTION, CART_DISCOUNT
-- **`model/enumeration/PromotionScope.java`** — ITEM, ITEM_GROUP, ITEM_FAMILY, ITEM_SUBFAMILY, ALL_ITEMS, CART
-- **`model/enumeration/PromotionBenefitType.java`** — PERCENTAGE_DISCOUNT, FIXED_DISCOUNT, FREE_QUANTITY
+- **`core/model/enumeration/PromotionType.java`** — SIMPLE_DISCOUNT, QUANTITY_PROMOTION, CART_DISCOUNT
+- **`core/model/enumeration/PromotionScope.java`** — ITEM, ITEM_GROUP, ITEM_FAMILY, ITEM_SUBFAMILY, ALL_ITEMS, CART
+- **`core/model/enumeration/PromotionBenefitType.java`** — PERCENTAGE_DISCOUNT, FIXED_DISCOUNT, FREE_QUANTITY
 - **`repository/PromotionRepository.java`** — standard JpaRepository + `GET /promotion/{id}/usage-count` support
 - **`service/PromotionService.java`** — CRUD + `getUsageCount(id)` (counts distinct sales headers linked to promotion)
 - **`controller/PromotionAPI.java`** — full CRUD + `GET /promotion/{id}/usage-count`
@@ -49,7 +49,7 @@
   - `POST /price-calculate` — per item (called on scan, qty change, customer change, item-scope code applied)
   - `POST /price-calculate/cart` — cart-level (called on proceed to payment, CART-scope code applied)
   - `GET /price-calculate/promo-code/{code}` — validates a promo code before adding it
-- **`dto/report/PromotionReportRowDTO.java`** — `{ promotionCode, promotionName, promotionType, nbTickets, totalDiscount, revenueInfluenced }`
+- **`core/dto/report/PromotionReportRowDTO.java`** — `{ promotionCode, promotionName, promotionType, nbTickets, totalDiscount, revenueInfluenced }`
 
 ### Backend — Modified Files
 

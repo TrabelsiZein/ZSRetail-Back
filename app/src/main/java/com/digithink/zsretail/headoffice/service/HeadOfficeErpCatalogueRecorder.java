@@ -14,11 +14,11 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.model._BaseEntity;
-import com.digithink.zsretail.model.enumeration.CatalogueKind;
-import com.digithink.zsretail.service.CatalogueHeadOfficeHooks;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.model._BaseEntity;
+import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
+import com.digithink.zsretail.core.service.CatalogueHeadOfficeHooks;
 
 /**
  * ERP catalogue, step 7: the changes of an ERP import reach the stores. On a head office whose catalogue only comes from
@@ -66,22 +66,22 @@ public class HeadOfficeErpCatalogueRecorder {
 		this.flushAndClear = flushAndClear;
 	}
 
-	@Around("execution(* com.digithink.zsretail.erp.service.ErpItemBootstrapService.importItemFamilies(..))")
+	@Around("execution(* com.digithink.zsretail.core.erp.service.ErpItemBootstrapService.importItemFamilies(..))")
 	public Object families(ProceedingJoinPoint call) throws Throwable {
 		return importAndRecord(call, CatalogueKind.FAMILY);
 	}
 
-	@Around("execution(* com.digithink.zsretail.erp.service.ErpItemBootstrapService.importItemSubFamilies(..))")
+	@Around("execution(* com.digithink.zsretail.core.erp.service.ErpItemBootstrapService.importItemSubFamilies(..))")
 	public Object subFamilies(ProceedingJoinPoint call) throws Throwable {
 		return importAndRecord(call, CatalogueKind.SUBFAMILY);
 	}
 
-	@Around("execution(* com.digithink.zsretail.erp.service.ErpItemBootstrapService.importItems(..))")
+	@Around("execution(* com.digithink.zsretail.core.erp.service.ErpItemBootstrapService.importItems(..))")
 	public Object items(ProceedingJoinPoint call) throws Throwable {
 		return importAndRecord(call, CatalogueKind.ITEM);
 	}
 
-	@Around("execution(* com.digithink.zsretail.erp.service.ErpItemBootstrapService.importItemBarcodes(..))")
+	@Around("execution(* com.digithink.zsretail.core.erp.service.ErpItemBootstrapService.importItemBarcodes(..))")
 	public Object barcodes(ProceedingJoinPoint call) throws Throwable {
 		return importAndRecord(call, CatalogueKind.BARCODE);
 	}

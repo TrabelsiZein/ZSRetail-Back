@@ -2,8 +2,8 @@ package com.digithink.zsretail.holink.service;
 
 import java.util.List;
 
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.holink.dto.DownApplyResult;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**

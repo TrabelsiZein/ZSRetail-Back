@@ -5,7 +5,7 @@ import java.lang.reflect.Method;
 
 import org.springframework.mock.env.MockEnvironment;
 
-import com.digithink.zsretail.config.ApplicationModeService;
+import com.digithink.zsretail.core.config.ApplicationModeService;
 
 /**
  * Step 9: an ApplicationModeService built like Spring builds it (the @Value flags read from the properties, then the

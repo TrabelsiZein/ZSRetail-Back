@@ -13,12 +13,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.digithink.zsretail.core.controller._BaseController;
+import com.digithink.zsretail.core.model.CashierSession;
+import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.exception.CashDiscrepancyException;
-import com.digithink.zsretail.model.CashierSession;
-import com.digithink.zsretail.model.UserAccount;
-import com.digithink.zsretail.security.CurrentUserProvider;
 import com.digithink.zsretail.service.CashierSessionService;
-import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -224,7 +225,7 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			CashierSession session = sessionOpt.get();
 			
 			// Check if session is already closed
-			if (session.getStatus() != com.digithink.zsretail.model.enumeration.SessionStatus.OPENED) {
+			if (session.getStatus() != com.digithink.zsretail.core.model.enumeration.SessionStatus.OPENED) {
 				return ResponseEntity.badRequest().body(createErrorResponse("Session is not open"));
 			}
 			

@@ -25,6 +25,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionOperations;
 
+import com.digithink.zsretail.core.model.enumeration.SessionStatus;
+import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
 import com.digithink.zsretail.holink.dto.SalesDocumentRef;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
 import com.digithink.zsretail.holink.enumeration.SalesCopyType;
@@ -33,8 +35,6 @@ import com.digithink.zsretail.holink.model.SalesCopyCursor;
 import com.digithink.zsretail.holink.repository.SalesCopyCursorRepository;
 import com.digithink.zsretail.holink.repository.SalesCopyRepository;
 import com.digithink.zsretail.holink.service.SalesCopyFinder.Discovery;
-import com.digithink.zsretail.model.enumeration.SessionStatus;
-import com.digithink.zsretail.model.enumeration.TransactionStatus;
 
 /**
  * Head office plan, task 2.1: the query that finds the documents to copy to the head office. A new finished document

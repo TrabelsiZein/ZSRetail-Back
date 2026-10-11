@@ -33,15 +33,15 @@ import org.springframework.test.web.client.ResponseActions;
 import org.springframework.test.web.client.ResponseCreator;
 import org.springframework.web.client.RestTemplate;
 
-import com.digithink.zsretail.headoffice.dto.ReturnCopyDTO;
-import com.digithink.zsretail.headoffice.dto.SalesCopyResultDTO;
-import com.digithink.zsretail.headoffice.dto.SessionCopyDTO;
-import com.digithink.zsretail.headoffice.dto.TicketCopyDTO;
+import com.digithink.zsretail.core.link.dto.ReturnCopyDTO;
+import com.digithink.zsretail.core.link.dto.SalesCopyResultDTO;
+import com.digithink.zsretail.core.link.dto.SessionCopyDTO;
+import com.digithink.zsretail.core.link.dto.TicketCopyDTO;
+import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.holink.dto.HeadOfficeCallResult;
 import com.digithink.zsretail.holink.dto.SalesPushAnswer;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
 import com.digithink.zsretail.holink.enumeration.SalesCopyType;
-import com.digithink.zsretail.service.GeneralSetupService;
 
 /**
  * Head office plan, task 1.4: the store's HeadOfficeClient. Every line of the result mapping, both headers on every

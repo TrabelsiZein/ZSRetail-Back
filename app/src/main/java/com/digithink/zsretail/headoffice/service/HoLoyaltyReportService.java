@@ -13,14 +13,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.model.LoyaltyMember;
 import com.digithink.zsretail.headoffice.model.HoLoyaltyMovement;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.HoLoyaltyMovementRepository;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
 import com.digithink.zsretail.headoffice.service.ConsolidatedSalesService.HistoryQuery;
-import com.digithink.zsretail.model.LoyaltyMember;
 
 /**
  * Head office plan, step 5: the overspend report. A store spends against its own balance, never blocked by default;

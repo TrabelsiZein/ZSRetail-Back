@@ -18,13 +18,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.holink.dto.DownRecordRowDTO;
 import com.digithink.zsretail.holink.enumeration.DownRecordStatus;
 import com.digithink.zsretail.holink.model.DownRecord;
 import com.digithink.zsretail.holink.repository.DownRecordRepository;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 
 /**
  * Head office plan, task 3.5: the store's tracking of the records received from the head office (hol_down_record), one

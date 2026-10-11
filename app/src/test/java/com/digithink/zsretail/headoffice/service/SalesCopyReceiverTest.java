@@ -30,14 +30,15 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionOperations;
 
-import com.digithink.zsretail.headoffice.dto.PaymentCopyDTO;
-import com.digithink.zsretail.headoffice.dto.ReturnCopyDTO;
-import com.digithink.zsretail.headoffice.dto.ReturnLineCopyDTO;
-import com.digithink.zsretail.headoffice.dto.SalesCopyResultDTO;
-import com.digithink.zsretail.headoffice.dto.SessionCopyDTO;
-import com.digithink.zsretail.headoffice.dto.SessionCountCopyDTO;
-import com.digithink.zsretail.headoffice.dto.TicketCopyDTO;
-import com.digithink.zsretail.headoffice.dto.TicketLineCopyDTO;
+import com.digithink.zsretail.core.link.dto.PaymentCopyDTO;
+import com.digithink.zsretail.core.link.dto.ReturnCopyDTO;
+import com.digithink.zsretail.core.link.dto.ReturnLineCopyDTO;
+import com.digithink.zsretail.core.link.dto.SalesCopyResultDTO;
+import com.digithink.zsretail.core.link.dto.SessionCopyDTO;
+import com.digithink.zsretail.core.link.dto.SessionCountCopyDTO;
+import com.digithink.zsretail.core.link.dto.TicketCopyDTO;
+import com.digithink.zsretail.core.link.dto.TicketLineCopyDTO;
+import com.digithink.zsretail.core.model._BaseEntity;
 import com.digithink.zsretail.headoffice.model.HoReturn;
 import com.digithink.zsretail.headoffice.model.HoSession;
 import com.digithink.zsretail.headoffice.model.HoTicket;
@@ -46,7 +47,6 @@ import com.digithink.zsretail.headoffice.repository.HoReturnRepository;
 import com.digithink.zsretail.headoffice.repository.HoSessionRepository;
 import com.digithink.zsretail.headoffice.repository.HoTicketRepository;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
-import com.digithink.zsretail.model._BaseEntity;
 
 /**
  * Head office plan, task 2.3: the copies are saved by store + document number. A repeated push creates one row; a
@@ -416,12 +416,12 @@ class SalesCopyReceiverTest {
 	// --- 2.2.1: decimal quantities ---
 
 	/** A store sales line as read from its DECIMAL(18,3) column, with the amounts the store computed. */
-	private static com.digithink.zsretail.model.SalesLine storeLine(long id, String code, String quantity, double ttc) {
-		com.digithink.zsretail.model.Item item = new com.digithink.zsretail.model.Item();
+	private static com.digithink.zsretail.core.model.SalesLine storeLine(long id, String code, String quantity, double ttc) {
+		com.digithink.zsretail.core.model.Item item = new com.digithink.zsretail.core.model.Item();
 		item.setId(id + 100);
 		item.setItemCode(code);
 		item.setName("Bulk " + code);
-		com.digithink.zsretail.model.SalesLine line = new com.digithink.zsretail.model.SalesLine();
+		com.digithink.zsretail.core.model.SalesLine line = new com.digithink.zsretail.core.model.SalesLine();
 		line.setId(id);
 		line.setItem(item);
 		line.setQuantity(new BigDecimal(quantity));
@@ -437,14 +437,14 @@ class SalesCopyReceiverTest {
 	@Test
 	@DisplayName("2.2.1: a ticket with 0.2 and 0.058 arrives at the head office with the same quantities and amounts")
 	void decimalTicketArrivesAsSent() throws Exception {
-		com.digithink.zsretail.model.SalesHeader header = new com.digithink.zsretail.model.SalesHeader();
+		com.digithink.zsretail.core.model.SalesHeader header = new com.digithink.zsretail.core.model.SalesHeader();
 		header.setId(77L);
 		header.setSalesNumber("T-BULK-1");
 		header.setSalesDate(SOLD);
-		header.setStatus(com.digithink.zsretail.model.enumeration.TransactionStatus.COMPLETED);
+		header.setStatus(com.digithink.zsretail.core.model.enumeration.TransactionStatus.COMPLETED);
 		header.setTotalAmount(12.9);
-		com.digithink.zsretail.model.SalesLine twoDecilitres = storeLine(1L, "VH52-1L", "0.200", 10.0);
-		com.digithink.zsretail.model.SalesLine fiftyEight = storeLine(2L, "VH52-1L", "0.058", 2.9);
+		com.digithink.zsretail.core.model.SalesLine twoDecilitres = storeLine(1L, "VH52-1L", "0.200", 10.0);
+		com.digithink.zsretail.core.model.SalesLine fiftyEight = storeLine(2L, "VH52-1L", "0.058", 2.9);
 		TicketCopyDTO sentCopy = com.digithink.zsretail.holink.service.SalesCopyMapper.ticket(header,
 				Arrays.asList(twoDecilitres, fiftyEight), Collections.emptyList());
 
@@ -461,7 +461,7 @@ class SalesCopyReceiverTest {
 		assertAllAccepted(receiver.receiveTickets(rs01, Arrays.asList(received)), "T-BULK-1");
 		HoTicket row = ticketsOf(rs01).get(0);
 		assertEquals(2, row.getLines().size());
-		com.digithink.zsretail.model.SalesLine[] sent = { twoDecilitres, fiftyEight };
+		com.digithink.zsretail.core.model.SalesLine[] sent = { twoDecilitres, fiftyEight };
 		for (int i = 0; i < 2; i++) {
 			com.digithink.zsretail.headoffice.model.HoTicketLine line = row.getLines().get(i);
 			assertEquals(0, sent[i].getQuantity().compareTo(line.getQuantity()), "quantity " + i);
@@ -478,20 +478,20 @@ class SalesCopyReceiverTest {
 	@Test
 	@DisplayName("2.2.2: a return of 0.2 and 1.5 arrives at the head office with the same quantities and amounts; 1 stays 1")
 	void decimalReturnArrivesAsSent() throws Exception {
-		com.digithink.zsretail.model.SalesHeader original = new com.digithink.zsretail.model.SalesHeader();
+		com.digithink.zsretail.core.model.SalesHeader original = new com.digithink.zsretail.core.model.SalesHeader();
 		original.setSalesNumber("T-BULK-1");
-		com.digithink.zsretail.model.ReturnHeader header = new com.digithink.zsretail.model.ReturnHeader();
+		com.digithink.zsretail.core.model.ReturnHeader header = new com.digithink.zsretail.core.model.ReturnHeader();
 		header.setId(78L);
 		header.setReturnNumber("RET-BULK-1");
 		header.setReturnDate(SOLD);
-		header.setStatus(com.digithink.zsretail.model.enumeration.TransactionStatus.COMPLETED);
-		header.setReturnType(com.digithink.zsretail.model.enumeration.ReturnType.RETURN_VOUCHER);
+		header.setStatus(com.digithink.zsretail.core.model.enumeration.TransactionStatus.COMPLETED);
+		header.setReturnType(com.digithink.zsretail.core.model.enumeration.ReturnType.RETURN_VOUCHER);
 		header.setOriginalSalesHeader(original);
 		header.setTotalReturnAmount(43.192);
 		String[][] lines = { { "VH52-1L", "0.200", "3.192" }, { "ITM-2", "1.500", "30.0" }, { "ITM-3", "1.000", "10.0" } };
-		List<com.digithink.zsretail.model.ReturnLine> storeLines = new java.util.ArrayList<>();
+		List<com.digithink.zsretail.core.model.ReturnLine> storeLines = new java.util.ArrayList<>();
 		for (int i = 0; i < lines.length; i++) {
-			com.digithink.zsretail.model.ReturnLine line = new com.digithink.zsretail.model.ReturnLine();
+			com.digithink.zsretail.core.model.ReturnLine line = new com.digithink.zsretail.core.model.ReturnLine();
 			line.setId(100L + i);
 			line.setItem(storeLine(100L + i, lines[i][0], "1", 1.0).getItem());
 			line.setQuantity(new java.math.BigDecimal(lines[i][1])); // read from the DECIMAL(18,3) column

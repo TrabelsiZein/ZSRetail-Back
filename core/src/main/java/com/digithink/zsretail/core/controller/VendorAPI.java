@@ -1,0 +1,162 @@
+package com.digithink.zsretail.core.controller;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
+
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.model.Vendor;
+import com.digithink.zsretail.core.service.CatalogueEditGuard;
+import com.digithink.zsretail.core.service.VendorEditGuard;
+import com.digithink.zsretail.core.service.VendorService;
+
+import lombok.extern.log4j.Log4j2;
+
+@RestController
+@RequestMapping("vendor")
+@Log4j2
+public class VendorAPI extends _BaseController<Vendor, Long, VendorService> {
+
+	@Autowired
+	private VendorService vendorService;
+
+	@Autowired
+	private ApplicationModeService applicationModeService;
+
+	/** Step 6: the rules of a store whose catalogue is the head office's; no bean on every other installation. */
+	@Autowired(required = false)
+	private ObjectProvider<CatalogueEditGuard> catalogueGuard;
+
+	/** Step 6: 409 without the purchase right on a store whose items come from the head office; null otherwise. */
+	private ResponseEntity<?> purchaseRefused() {
+		CatalogueEditGuard guard = catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
+		String refusal = guard == null ? null : guard.purchase();
+		return refusal == null ? null : ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
+	}
+
+	/** Step 7B: the head office vendor of a store whose goods come from the head office; no bean elsewhere. */
+	@Autowired(required = false)
+	private ObjectProvider<VendorEditGuard> supplyVendorGuard;
+
+	/** Step 7B: 409 for the head office vendor (consult-only, code kept); null otherwise and without the guard. */
+	private ResponseEntity<?> headOfficeVendorRefused(Function<VendorEditGuard, String> rule) {
+		VendorEditGuard guard = supplyVendorGuard == null ? null : supplyVendorGuard.getIfAvailable();
+		String refusal = guard == null ? null : rule.apply(guard);
+		return refusal == null ? null : ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
+	}
+
+	@PostMapping
+	public ResponseEntity<?> create(@RequestBody Vendor entity) {
+		if (applicationModeService.isSupplyFromErp()) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN)
+					.body(createErrorResponse("Vendor creation is not available with an ERP: vendors are managed by the ERP."));
+		}
+		ResponseEntity<?> refusal = purchaseRefused(); // step 6
+		if (refusal == null) {
+			refusal = headOfficeVendorRefused(guard -> guard.create(entity)); // step 7B
+		}
+		if (refusal != null) {
+			return refusal;
+		}
+		try {
+			log.info("VendorAPI::create");
+			Vendor created = vendorService.save(entity);
+			return ResponseEntity.status(HttpStatus.CREATED).body(created);
+		} catch (Exception e) {
+			String detailedMessage = getDetailedMessage(e);
+			log.error("VendorAPI::create:error: " + detailedMessage, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(detailedMessage));
+		}
+	}
+
+	@PutMapping("/{id}")
+	public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Vendor entity) {
+		if (applicationModeService.isSupplyFromErp()) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN)
+					.body(createErrorResponse("Vendor update is not available with an ERP."));
+		}
+		ResponseEntity<?> refusal = purchaseRefused(); // step 6
+		if (refusal == null) {
+			refusal = headOfficeVendorRefused(guard -> guard.update(id, entity)); // step 7B
+		}
+		if (refusal != null) {
+			return refusal;
+		}
+		try {
+			log.info("VendorAPI::update::" + id);
+			return super.update(id, entity);
+		} catch (Exception e) {
+			String detailedMessage = getDetailedMessage(e);
+			log.error("VendorAPI::update:error: " + detailedMessage, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(detailedMessage));
+		}
+	}
+
+	@DeleteMapping("/{id}")
+	public ResponseEntity<?> deleteById(@PathVariable Long id) {
+		if (applicationModeService.isSupplyFromErp()) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN)
+					.body(createErrorResponse("Vendor deletion is not available with an ERP."));
+		}
+		ResponseEntity<?> refusal = purchaseRefused(); // step 6
+		if (refusal == null) {
+			refusal = headOfficeVendorRefused(guard -> guard.delete(id)); // step 7B
+		}
+		if (refusal != null) {
+			return refusal;
+		}
+		try {
+			log.info("VendorAPI::deleteById::" + id);
+			vendorService.deleteById(id);
+			return ResponseEntity.noContent().build();
+		} catch (Exception e) {
+			String detailedMessage = getDetailedMessage(e);
+			log.error("VendorAPI::deleteById:error: " + detailedMessage, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(detailedMessage));
+		}
+	}
+
+	@GetMapping("/admin/paginated")
+	public ResponseEntity<?> getVendorsPaginatedForAdmin(
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "20") int size,
+			@RequestParam(required = false) String searchTerm,
+			@RequestParam(required = false, defaultValue = "all") String statusFilter) {
+		try {
+			log.info("VendorAPI::getVendorsPaginatedForAdmin: page={}, size={}, searchTerm={}, statusFilter={}",
+					page, size, searchTerm, statusFilter);
+
+			Page<Vendor> vendorPage = vendorService.findVendorsPaginated(page, size, searchTerm, statusFilter);
+
+			Map<String, Object> response = new HashMap<>();
+			response.put("content", vendorPage.getContent());
+			response.put("totalElements", vendorPage.getTotalElements());
+			response.put("totalPages", vendorPage.getTotalPages());
+			response.put("number", vendorPage.getNumber());
+			response.put("size", vendorPage.getSize());
+			response.put("numberOfElements", vendorPage.getNumberOfElements());
+			response.put("first", vendorPage.isFirst());
+			response.put("last", vendorPage.isLast());
+
+			return ResponseEntity.ok(response);
+		} catch (Exception e) {
+			log.error("VendorAPI::getVendorsPaginatedForAdmin:error: " + e.getMessage(), e);
+			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+}

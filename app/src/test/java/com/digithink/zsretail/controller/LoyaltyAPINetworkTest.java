@@ -11,16 +11,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
-import com.digithink.zsretail.dto.CreateLoyaltyMemberRequestDTO;
-import com.digithink.zsretail.dto.LoyaltyAdjustmentRequestDTO;
-import com.digithink.zsretail.dto.LoyaltyMemberDTO;
-import com.digithink.zsretail.dto.LoyaltyProgramDTO;
+import com.digithink.zsretail.core.controller.LoyaltyAPI;
+import com.digithink.zsretail.core.dto.CreateLoyaltyMemberRequestDTO;
+import com.digithink.zsretail.core.dto.LoyaltyAdjustmentRequestDTO;
+import com.digithink.zsretail.core.dto.LoyaltyMemberDTO;
+import com.digithink.zsretail.core.dto.LoyaltyProgramDTO;
+import com.digithink.zsretail.core.model.LoyaltyMember;
+import com.digithink.zsretail.core.model.LoyaltyProgram;
+import com.digithink.zsretail.core.model.MemberFunction;
+import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.holink.service.StoreLoyaltyNetwork;
-import com.digithink.zsretail.model.LoyaltyMember;
-import com.digithink.zsretail.model.LoyaltyProgram;
-import com.digithink.zsretail.model.MemberFunction;
-import com.digithink.zsretail.model.UserAccount;
-import com.digithink.zsretail.security.CurrentUserProvider;
 import com.digithink.zsretail.support.InMemoryLoyalty;
 
 /**

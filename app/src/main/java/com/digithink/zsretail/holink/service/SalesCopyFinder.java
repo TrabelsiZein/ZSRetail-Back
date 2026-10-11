@@ -13,8 +13,9 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.utils.ErrorTexts;
 import com.digithink.zsretail.holink.dto.SalesDocumentRef;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
 import com.digithink.zsretail.holink.enumeration.SalesCopyType;
@@ -22,7 +23,6 @@ import com.digithink.zsretail.holink.model.SalesCopy;
 import com.digithink.zsretail.holink.model.SalesCopyCursor;
 import com.digithink.zsretail.holink.repository.SalesCopyCursorRepository;
 import com.digithink.zsretail.holink.repository.SalesCopyRepository;
-import com.digithink.zsretail.utils.ErrorTexts;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;

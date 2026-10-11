@@ -18,8 +18,9 @@ import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.web.client.RestTemplate;
 
-import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
-import com.digithink.zsretail.headoffice.dto.SalesCopyResultDTO;
+import com.digithink.zsretail.core.link.dto.DeliveryConfirmationDTO;
+import com.digithink.zsretail.core.link.dto.SalesCopyResultDTO;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.holink.dto.SalesPushAnswer;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
@@ -29,7 +30,6 @@ import com.digithink.zsretail.holink.model.ReceivedDeliveryLine;
 import com.digithink.zsretail.holink.repository.LinkExchangeRepository;
 import com.digithink.zsretail.holink.repository.ReceivedDeliveryRepository;
 import com.digithink.zsretail.holink.repository.StockCopyRepository;
-import com.digithink.zsretail.utils.Quantities;
 
 /**
  * L2 of step 7A: the lines of a received BL are a lazy collection. The confirmation copies must be built inside the read

@@ -9,9 +9,10 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.digithink.zsretail.dto.CompanyInformationDTO;
-import com.digithink.zsretail.model.CompanyInformation;
-import com.digithink.zsretail.repository.CompanyInformationRepository;
+import com.digithink.zsretail.core.dto.CompanyInformationDTO;
+import com.digithink.zsretail.core.model.CompanyInformation;
+import com.digithink.zsretail.core.repository.CompanyInformationRepository;
+import com.digithink.zsretail.core.service.CompanyInformationService;
 
 /**
  * 2.2.2, step 5: the five sale-ticket fields of Company Information are stored and read back as sent; left null they stay

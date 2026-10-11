@@ -35,22 +35,22 @@ import com.digithink.zsretail.connector.happyness.config.NavPosPagesStartupCheck
 import com.digithink.zsretail.connector.happyness.connector.NavPosPagesConnector;
 import com.digithink.zsretail.connector.happyness.reader.NavPosPagesReader;
 import com.digithink.zsretail.connector.happyness.sync.NavPosPagesInvoices;
+import com.digithink.zsretail.core.erp.engine.BootstrapCatalogueImport;
+import com.digithink.zsretail.core.erp.engine.CatalogueEngine;
+import com.digithink.zsretail.core.erp.engine.JdbcCatalogueState;
+import com.digithink.zsretail.core.erp.engine.JpaHeadOfficeCatalogue;
+import com.digithink.zsretail.core.erp.service.ErpCommunicationService;
+import com.digithink.zsretail.core.erp.service.ErpItemBootstrapService;
+import com.digithink.zsretail.core.erp.service.ErpSynchronizationManager;
+import com.digithink.zsretail.core.service.GeneralSetupService;
+import com.digithink.zsretail.core.service.LocationService;
 import com.digithink.zsretail.erp.api.ErpConnector;
 import com.digithink.zsretail.erp.api.ErpStoreLocation;
 import com.digithink.zsretail.erp.api.NoOpErpConnector;
 import com.digithink.zsretail.erp.api.dto.ErpOperationResult;
-import com.digithink.zsretail.erp.engine.BootstrapCatalogueImport;
-import com.digithink.zsretail.erp.engine.CatalogueEngine;
-import com.digithink.zsretail.erp.engine.JdbcCatalogueState;
-import com.digithink.zsretail.erp.engine.JpaHeadOfficeCatalogue;
-import com.digithink.zsretail.erp.service.ErpCommunicationService;
-import com.digithink.zsretail.erp.service.ErpItemBootstrapService;
-import com.digithink.zsretail.erp.service.ErpSynchronizationManager;
 import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
 import com.digithink.zsretail.headoffice.repository.HoStockPointRepository;
 import com.digithink.zsretail.headoffice.service.HoStockPointRows;
-import com.digithink.zsretail.service.GeneralSetupService;
-import com.digithink.zsretail.service.LocationService;
 
 /**
  * ERP catalogue, step 5: the connector answers empty lists and read-only failures; which ErpConnector the

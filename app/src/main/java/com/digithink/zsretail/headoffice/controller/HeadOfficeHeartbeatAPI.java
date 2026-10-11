@@ -8,10 +8,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatDTO;
-import com.digithink.zsretail.headoffice.dto.HeadOfficeHeartbeatAnswerDTO;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.link.dto.HeadOfficeHeartbeatAnswerDTO;
+import com.digithink.zsretail.core.link.dto.HeadOfficeHeartbeatDTO;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.security.StoreApiKeyFilter;
 import com.digithink.zsretail.headoffice.service.StoreService;

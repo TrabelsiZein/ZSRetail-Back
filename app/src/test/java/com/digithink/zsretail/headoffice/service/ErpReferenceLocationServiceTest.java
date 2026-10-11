@@ -14,10 +14,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.digithink.zsretail.model.Location;
-import com.digithink.zsretail.repository.LocationRepository;
-import com.digithink.zsretail.service.GeneralSetupService;
-import com.digithink.zsretail.service.LocationService;
+import com.digithink.zsretail.core.model.Location;
+import com.digithink.zsretail.core.repository.LocationRepository;
+import com.digithink.zsretail.core.service.GeneralSetupService;
+import com.digithink.zsretail.core.service.LocationService;
 
 /**
  * Head office plan, task 3.4: the ERP reference location of a head office with an ERP. Chosen among the locations

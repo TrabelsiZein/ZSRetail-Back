@@ -11,15 +11,15 @@ import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
-import com.digithink.zsretail.headoffice.dto.DeliveryCopyDTO;
-import com.digithink.zsretail.headoffice.dto.ErpInvoiceCopyDTO;
+import com.digithink.zsretail.core.link.dto.DeliveryConfirmationDTO;
+import com.digithink.zsretail.core.link.dto.DeliveryCopyDTO;
+import com.digithink.zsretail.core.link.dto.ErpInvoiceCopyDTO;
+import com.digithink.zsretail.headoffice.enumeration.DeliveryStatus;
+import com.digithink.zsretail.headoffice.enumeration.ErpInvoiceLineType;
 import com.digithink.zsretail.headoffice.model.HoDelivery;
 import com.digithink.zsretail.headoffice.model.HoDeliveryLine;
 import com.digithink.zsretail.headoffice.model.HoErpInvoice;
 import com.digithink.zsretail.headoffice.model.HoErpInvoiceLine;
-import com.digithink.zsretail.headoffice.enumeration.DeliveryStatus;
-import com.digithink.zsretail.headoffice.enumeration.ErpInvoiceLineType;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

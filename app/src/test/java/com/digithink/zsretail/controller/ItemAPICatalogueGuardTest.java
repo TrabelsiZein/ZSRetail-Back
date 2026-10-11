@@ -23,20 +23,22 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 
-import com.digithink.zsretail.config.ApplicationModeService;
+import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.controller.ItemAPI;
+import com.digithink.zsretail.core.controller._BaseController;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.core.repository.SalesPriceRepository;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.service.ItemCompositionService;
+import com.digithink.zsretail.core.service.ItemService;
+import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.holink.model.LinkRight;
 import com.digithink.zsretail.holink.repository.LinkRightRepository;
 import com.digithink.zsretail.holink.service.CatalogueCopyWriter;
 import com.digithink.zsretail.holink.service.CatalogueRights;
 import com.digithink.zsretail.holink.service.HeadOfficeLinkStatus;
 import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.enumeration.RecordOrigin;
-import com.digithink.zsretail.repository.SalesPriceRepository;
-import com.digithink.zsretail.security.CurrentUserProvider;
-import com.digithink.zsretail.service.ItemCompositionService;
-import com.digithink.zsretail.service.ItemService;
-import com.digithink.zsretail.service._BaseService;
 import com.digithink.zsretail.support.InMemoryCatalogue;
 import com.digithink.zsretail.support.TestModes;
 
@@ -86,12 +88,12 @@ class ItemAPICatalogueGuardTest {
 		});
 		ItemCompositionService compositions = new ItemCompositionService() {
 			@Override
-			public java.util.List<com.digithink.zsretail.model.ItemComposition> getCompositionsByComponentItemId(Long id) {
+			public java.util.List<com.digithink.zsretail.core.model.ItemComposition> getCompositionsByComponentItemId(Long id) {
 				return Collections.emptyList();
 			}
 
 			@Override
-			public java.util.List<com.digithink.zsretail.model.ItemComposition> getCompositionsByParentItemId(Long id) {
+			public java.util.List<com.digithink.zsretail.core.model.ItemComposition> getCompositionsByParentItemId(Long id) {
 				return Collections.emptyList();
 			}
 		};

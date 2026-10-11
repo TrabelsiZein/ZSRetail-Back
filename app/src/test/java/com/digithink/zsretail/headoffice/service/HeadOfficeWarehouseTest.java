@@ -20,22 +20,22 @@ import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.digithink.zsretail.config.ApplicationModeService;
-import com.digithink.zsretail.controller.PurchaseHeaderAPI;
-import com.digithink.zsretail.controller.PurchaseInvoiceAPI;
-import com.digithink.zsretail.controller.VendorAPI;
-import com.digithink.zsretail.dto.ProcessPurchaseRequestDTO;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.PurchaseHeader;
-import com.digithink.zsretail.model.PurchaseLine;
-import com.digithink.zsretail.model.Vendor;
-import com.digithink.zsretail.model.enumeration.StockMovementType;
-import com.digithink.zsretail.repository.PurchaseHeaderRepository;
-import com.digithink.zsretail.repository.PurchaseLineRepository;
-import com.digithink.zsretail.repository.VendorRepository;
-import com.digithink.zsretail.service.CatalogueHeadOfficeHooks;
-import com.digithink.zsretail.service.ItemService;
-import com.digithink.zsretail.service.PurchaseHeaderService;
+import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.controller.PurchaseHeaderAPI;
+import com.digithink.zsretail.core.controller.PurchaseInvoiceAPI;
+import com.digithink.zsretail.core.controller.VendorAPI;
+import com.digithink.zsretail.core.dto.ProcessPurchaseRequestDTO;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.PurchaseHeader;
+import com.digithink.zsretail.core.model.PurchaseLine;
+import com.digithink.zsretail.core.model.Vendor;
+import com.digithink.zsretail.core.model.enumeration.StockMovementType;
+import com.digithink.zsretail.core.repository.PurchaseHeaderRepository;
+import com.digithink.zsretail.core.repository.PurchaseLineRepository;
+import com.digithink.zsretail.core.repository.VendorRepository;
+import com.digithink.zsretail.core.service.CatalogueHeadOfficeHooks;
+import com.digithink.zsretail.core.service.ItemService;
+import com.digithink.zsretail.core.service.PurchaseHeaderService;
 import com.digithink.zsretail.support.InMemoryCatalogue;
 import com.digithink.zsretail.support.InMemoryStock;
 import com.digithink.zsretail.support.TestModes;
@@ -123,7 +123,7 @@ class HeadOfficeWarehouseTest {
 	}
 
 	private int catalogueChanges() {
-		return (int) down.changes.stream().filter(c -> c.getDomain() == com.digithink.zsretail.model.enumeration.DataDomain.CATALOGUE)
+		return (int) down.changes.stream().filter(c -> c.getDomain() == com.digithink.zsretail.core.model.enumeration.DataDomain.CATALOGUE)
 				.mapToLong(c -> c.getChangeVersion()).max().orElse(0);
 	}
 

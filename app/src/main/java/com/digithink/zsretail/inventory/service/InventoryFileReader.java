@@ -16,7 +16,7 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 
-import com.digithink.zsretail.utils.Quantities;
+import com.digithink.zsretail.core.utils.Quantities;
 
 /**
  * Reads the first sheet of an inventory count file (.xlsx or .xls): column A the barcode or item code, column B the

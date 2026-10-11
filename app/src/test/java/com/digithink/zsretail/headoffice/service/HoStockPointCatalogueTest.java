@@ -17,15 +17,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionOperations;
 
-import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
+import com.digithink.zsretail.core.link.dto.CopiesDownAnswerDTO;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemSubFamily;
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.headoffice.dto.StockPointDTO;
 import com.digithink.zsretail.headoffice.model.HoPriceList;
 import com.digithink.zsretail.headoffice.model.HoStockPointItem;
 import com.digithink.zsretail.headoffice.model.Store;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.ItemFamily;
-import com.digithink.zsretail.model.ItemSubFamily;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.support.InMemoryCatalogue;
 import com.fasterxml.jackson.databind.JsonNode;
 

@@ -6,7 +6,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 
-import com.digithink.zsretail.utils.WholeQuantityDeserializer;
+import com.digithink.zsretail.core.utils.WholeQuantityDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 import lombok.Data;

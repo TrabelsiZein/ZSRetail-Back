@@ -12,11 +12,12 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import com.digithink.zsretail.model.BadgeScanLog;
-import com.digithink.zsretail.model.UserAccount;
-import com.digithink.zsretail.model.enumeration.BadgePermission;
-import com.digithink.zsretail.repository.BadgeScanLogRepository;
-import com.digithink.zsretail.repository._BaseRepository;
+import com.digithink.zsretail.core.model.BadgeScanLog;
+import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.model.enumeration.BadgePermission;
+import com.digithink.zsretail.core.repository.BadgeScanLogRepository;
+import com.digithink.zsretail.core.repository._BaseRepository;
+import com.digithink.zsretail.core.service._BaseService;
 
 import lombok.extern.log4j.Log4j2;
 

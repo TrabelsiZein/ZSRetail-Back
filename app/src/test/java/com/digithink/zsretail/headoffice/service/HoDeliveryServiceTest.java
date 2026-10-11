@@ -20,23 +20,23 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionOperations;
 
-import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
-import com.digithink.zsretail.headoffice.dto.DeliveryCopyDTO;
+import com.digithink.zsretail.core.link.dto.CopiesDownAnswerDTO;
+import com.digithink.zsretail.core.link.dto.DeliveryCopyDTO;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.StockMovement;
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
+import com.digithink.zsretail.core.model.enumeration.ItemType;
+import com.digithink.zsretail.core.model.enumeration.StockMovementDirection;
+import com.digithink.zsretail.core.model.enumeration.StockMovementType;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.headoffice.dto.DeliveryDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryInputDTO;
 import com.digithink.zsretail.headoffice.enumeration.DeliveryStatus;
 import com.digithink.zsretail.headoffice.model.HoDelivery;
 import com.digithink.zsretail.headoffice.model.HoDownChange;
 import com.digithink.zsretail.headoffice.model.Store;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.StockMovement;
-import com.digithink.zsretail.model.enumeration.DataDomain;
-import com.digithink.zsretail.model.enumeration.ItemType;
-import com.digithink.zsretail.model.enumeration.StockMovementDirection;
-import com.digithink.zsretail.model.enumeration.StockMovementType;
 import com.digithink.zsretail.support.InMemoryCatalogue;
 import com.digithink.zsretail.support.InMemoryStock;
-import com.digithink.zsretail.utils.Quantities;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**

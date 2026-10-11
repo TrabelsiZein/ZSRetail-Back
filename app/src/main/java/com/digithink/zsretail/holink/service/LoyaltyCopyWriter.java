@@ -9,26 +9,26 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.headoffice.dto.LoyaltyMemberCopyDTO;
-import com.digithink.zsretail.headoffice.dto.LoyaltyMemberResultDTO;
-import com.digithink.zsretail.headoffice.dto.LoyaltyProgramCopyDTO;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.link.dto.LoyaltyMemberCopyDTO;
+import com.digithink.zsretail.core.link.dto.LoyaltyMemberResultDTO;
+import com.digithink.zsretail.core.link.dto.LoyaltyProgramCopyDTO;
+import com.digithink.zsretail.core.model.LoyaltyEarningTier;
+import com.digithink.zsretail.core.model.LoyaltyMember;
+import com.digithink.zsretail.core.model.LoyaltyProgram;
+import com.digithink.zsretail.core.model.enumeration.LoyaltyTransactionType;
+import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.core.repository.CustomerRepository;
+import com.digithink.zsretail.core.repository.LoyaltyMemberRepository;
+import com.digithink.zsretail.core.repository.LoyaltyProgramRepository;
+import com.digithink.zsretail.core.repository.MemberFunctionRepository;
+import com.digithink.zsretail.core.service.LoyaltyLedger;
+import com.digithink.zsretail.core.service.MemberFunctionCodes;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
 import com.digithink.zsretail.holink.model.LoyaltyMemberCopy;
 import com.digithink.zsretail.holink.repository.LoyaltyMemberCopyRepository;
 import com.digithink.zsretail.holink.repository.LoyaltyMovementCopyRepository;
-import com.digithink.zsretail.model.LoyaltyEarningTier;
-import com.digithink.zsretail.model.LoyaltyMember;
-import com.digithink.zsretail.model.LoyaltyProgram;
-import com.digithink.zsretail.model.enumeration.LoyaltyTransactionType;
-import com.digithink.zsretail.model.enumeration.RecordOrigin;
-import com.digithink.zsretail.repository.CustomerRepository;
-import com.digithink.zsretail.repository.LoyaltyMemberRepository;
-import com.digithink.zsretail.repository.LoyaltyProgramRepository;
-import com.digithink.zsretail.repository.MemberFunctionRepository;
-import com.digithink.zsretail.service.LoyaltyLedger;
-import com.digithink.zsretail.service.MemberFunctionCodes;
 
 /**
  * Head office plan, step 4: writes into this store's loyalty tables what the head office sends (copies down, answers of

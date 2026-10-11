@@ -10,10 +10,11 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import com.digithink.zsretail.model.SalesPrice;
-import com.digithink.zsretail.model.enumeration.SalesPriceType;
-import com.digithink.zsretail.repository.SalesPriceRepository;
-import com.digithink.zsretail.repository._BaseRepository;
+import com.digithink.zsretail.core.model.SalesPrice;
+import com.digithink.zsretail.core.model.enumeration.SalesPriceType;
+import com.digithink.zsretail.core.repository.SalesPriceRepository;
+import com.digithink.zsretail.core.repository._BaseRepository;
+import com.digithink.zsretail.core.service._BaseService;
 
 import lombok.extern.log4j.Log4j2;
 

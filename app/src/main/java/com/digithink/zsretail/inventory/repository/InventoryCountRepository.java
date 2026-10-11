@@ -12,9 +12,9 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.inventory.enumeration.InventoryCountStatus;
 import com.digithink.zsretail.inventory.model.InventoryCount;
-import com.digithink.zsretail.repository._BaseRepository;
 
 public interface InventoryCountRepository extends _BaseRepository<InventoryCount, Long> {
 

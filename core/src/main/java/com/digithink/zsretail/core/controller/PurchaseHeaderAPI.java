@@ -1,0 +1,262 @@
+package com.digithink.zsretail.core.controller;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.dto.ProcessPurchaseRequestDTO;
+import com.digithink.zsretail.core.dto.SetPurchasePaidRequestDTO;
+import com.digithink.zsretail.core.dto.VendorBalanceSummaryDTO;
+import com.digithink.zsretail.core.model.PurchaseHeader;
+import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.service.CatalogueEditGuard;
+import com.digithink.zsretail.core.service.PurchaseHeaderService;
+import com.digithink.zsretail.core.service.VendorEditGuard;
+
+import lombok.extern.log4j.Log4j2;
+
+@RestController
+@RequestMapping("purchase-header")
+@Log4j2
+public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, PurchaseHeaderService> {
+
+	@Autowired
+	private CurrentUserProvider currentUserProvider;
+
+	@Autowired
+	private ApplicationModeService applicationModeService;
+
+	/** Step 6: the rules of a store whose catalogue is the head office's; no bean on every other installation. */
+	@Autowired(required = false)
+	private ObjectProvider<CatalogueEditGuard> catalogueGuard;
+
+	/** Step 6: 409 with the guard's text; null when the request goes on (always without the guard). */
+	private ResponseEntity<?> refused(Function<CatalogueEditGuard, String> rule) {
+		CatalogueEditGuard guard = catalogueGuard == null ? null : catalogueGuard.getIfAvailable();
+		String refusal = guard == null ? null : rule.apply(guard);
+		return refusal == null ? null : ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
+	}
+
+	/** Step 7B: the head office vendor of a store whose goods come from the head office; no bean elsewhere. */
+	@Autowired(required = false)
+	private ObjectProvider<VendorEditGuard> supplyVendorGuard;
+
+	/** Step 7B: 409 for a purchase by hand on the head office vendor; null otherwise and without the guard. */
+	private ResponseEntity<?> headOfficeVendorRefused(Long vendorId) {
+		VendorEditGuard guard = supplyVendorGuard == null ? null : supplyVendorGuard.getIfAvailable();
+		String refusal = guard == null ? null : guard.purchase(vendorId);
+		return refusal == null ? null : ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(refusal));
+	}
+
+	private static Long vendorId(PurchaseHeader entity) {
+		return entity == null || entity.getVendor() == null ? null : entity.getVendor().getId();
+	}
+
+	/**
+	 * The generic create; step 6: 409 without the purchase right on a store whose items come from the head office;
+	 * step 7B: 409 on the head office vendor.
+	 */
+	@Override
+	@PostMapping
+	public ResponseEntity<?> create(@RequestBody PurchaseHeader entity) {
+		ResponseEntity<?> refusal = refused(CatalogueEditGuard::purchase);
+		if (refusal == null) {
+			refusal = headOfficeVendorRefused(vendorId(entity));
+		}
+		return refusal != null ? refusal : super.create(entity);
+	}
+
+	/** The generic update (the body may change the vendor); steps 6 and 7B: as create. */
+	@Override
+	@PutMapping("/{id}")
+	public ResponseEntity<?> update(@PathVariable Long id, @RequestBody PurchaseHeader entity) {
+		ResponseEntity<?> refusal = refused(CatalogueEditGuard::purchase);
+		if (refusal == null) {
+			refusal = headOfficeVendorRefused(vendorId(entity));
+		}
+		return refusal != null ? refusal : super.update(id, entity);
+	}
+
+	/** The generic delete; step 6: as create. */
+	@Override
+	@DeleteMapping("/{id}")
+	public ResponseEntity<?> deleteById(@PathVariable Long id) {
+		ResponseEntity<?> refusal = refused(CatalogueEditGuard::purchase);
+		return refusal != null ? refusal : super.deleteById(id);
+	}
+
+	/**
+	 * Vendor balance / AP summary: per vendor total purchased, total paid, unpaid. Optional date range. Not available with an ERP.
+	 */
+	@GetMapping("/vendor-balance")
+	public ResponseEntity<?> getVendorBalance(
+			@RequestParam(required = false) String dateFrom,
+			@RequestParam(required = false) String dateTo) {
+		if (applicationModeService.isSupplyFromErp()) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN)
+					.body(createErrorResponse("Vendor balance report is not available with an ERP."));
+		}
+		try {
+			java.util.List<VendorBalanceSummaryDTO> list = service.getVendorBalanceSummary(dateFrom, dateTo);
+			return ResponseEntity.ok(list);
+		} catch (Exception e) {
+			log.error("PurchaseHeaderAPI::getVendorBalance:error: " + e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/**
+	 * Paginated purchase history with optional filters. Not available with an ERP.
+	 */
+	@GetMapping("/history")
+	public ResponseEntity<?> getHistory(
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "10") int size,
+			@RequestParam(required = false) String search,
+			@RequestParam(required = false) String dateFrom,
+			@RequestParam(required = false) String dateTo,
+			@RequestParam(required = false) String status,
+			@RequestParam(required = false) Long vendorId) {
+		if (applicationModeService.isSupplyFromErp()) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN)
+					.body(createErrorResponse("Purchase history is not available with an ERP."));
+		}
+		try {
+			log.info("PurchaseHeaderAPI::getHistory: page={}, size={}", page, size);
+			Page<PurchaseHeader> pageResult = service.getHistory(page, size, search, dateFrom, dateTo, status, vendorId);
+
+			Map<String, Object> response = new HashMap<>();
+			response.put("content", pageResult.getContent());
+			response.put("totalElements", pageResult.getTotalElements());
+			response.put("totalPages", pageResult.getTotalPages());
+			response.put("number", pageResult.getNumber());
+			response.put("size", pageResult.getSize());
+			response.put("numberOfElements", pageResult.getNumberOfElements());
+			response.put("first", pageResult.isFirst());
+			response.put("last", pageResult.isLast());
+
+			return ResponseEntity.ok(response);
+		} catch (Exception e) {
+			log.error("PurchaseHeaderAPI::getHistory:error: " + e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/**
+	 * Get purchase details with lines. Not available with an ERP.
+	 */
+	@GetMapping("/{id}/details")
+	public ResponseEntity<?> getDetails(@PathVariable Long id) {
+		if (applicationModeService.isSupplyFromErp()) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN)
+					.body(createErrorResponse("Purchase details are not available with an ERP."));
+		}
+		try {
+			log.info("PurchaseHeaderAPI::getDetails: id=" + id);
+			PurchaseHeader header = service.getDetails(id);
+			return ResponseEntity.ok(header);
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.notFound().build();
+		} catch (Exception e) {
+			log.error("PurchaseHeaderAPI::getDetails:error: " + e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/**
+	 * Create a purchase (process-purchase). Not available with an ERP.
+	 */
+	@PostMapping("/process-purchase")
+	public ResponseEntity<?> processPurchase(@RequestBody ProcessPurchaseRequestDTO request) {
+		if (applicationModeService.isSupplyFromErp()) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN)
+					.body(createErrorResponse("Purchases are not available with an ERP: use the ERP for purchasing."));
+		}
+		ResponseEntity<?> refusal = refused(guard -> guard.purchaseLines(request.getLines() == null ? new ArrayList<Long>()
+				: request.getLines().stream().map(ProcessPurchaseRequestDTO.PurchaseLineDTO::getItemId)
+						.collect(Collectors.toList()))); // step 6
+		if (refusal == null) {
+			refusal = headOfficeVendorRefused(request.getVendorId()); // step 7B
+		}
+		if (refusal != null) {
+			return refusal;
+		}
+		try {
+			UserAccount currentUser = currentUserProvider.getCurrentUser();
+			log.info("PurchaseHeaderAPI::processPurchase: vendorId=" + request.getVendorId());
+
+			PurchaseHeader created = service.processPurchase(request, currentUser);
+			return ResponseEntity.status(HttpStatus.CREATED).body(created);
+		} catch (IllegalArgumentException e) {
+			log.warn("PurchaseHeaderAPI::processPurchase:validation: " + e.getMessage());
+			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+		} catch (Exception e) {
+			log.error("PurchaseHeaderAPI::processPurchase:error: " + e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/**
+	 * Set paid amount and/or date on a purchase. Not available with an ERP.
+	 * Body: { "paidAmount": number or null, "paidDate": "yyyy-MM-ddTHH:mm:ss" or null }. Use null paidAmount to clear.
+	 */
+	@PatchMapping("/{id}/set-paid")
+	public ResponseEntity<?> setPaid(@PathVariable Long id, @RequestBody SetPurchasePaidRequestDTO request) {
+		if (applicationModeService.isSupplyFromErp()) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN)
+					.body(createErrorResponse("Purchase paid status is not available with an ERP."));
+		}
+		ResponseEntity<?> refusal = refused(CatalogueEditGuard::purchase); // step 6
+		if (refusal != null) {
+			return refusal;
+		}
+		try {
+			Double paidAmount = request.getPaidAmount();
+			LocalDateTime paidDate = null;
+			if (request.getPaidDate() != null && !request.getPaidDate().trim().isEmpty()) {
+				try {
+					paidDate = LocalDateTime.parse(request.getPaidDate().trim(),
+							DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+				} catch (DateTimeParseException e) {
+					paidDate = LocalDate.parse(request.getPaidDate().trim(),
+							DateTimeFormatter.ISO_LOCAL_DATE).atStartOfDay();
+				}
+			}
+			if (paidAmount != null && paidDate == null) {
+				paidDate = LocalDateTime.now();
+			}
+			PurchaseHeader updated = service.setPaidStatus(id, paidAmount, paidDate);
+			return ResponseEntity.ok(updated);
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.notFound().build();
+		} catch (Exception e) {
+			log.error("PurchaseHeaderAPI::setPaid:error: " + e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+}

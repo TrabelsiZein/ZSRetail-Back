@@ -23,9 +23,9 @@ import org.springframework.core.env.PropertyResolver;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.mock.env.MockEnvironment;
 
-import com.digithink.zsretail.config.ErpConnectorEnvironmentPostProcessor;
-import com.digithink.zsretail.config.InstallationTypeEnvironmentPostProcessor;
-import com.digithink.zsretail.config.MachineFileEnvironmentPostProcessor;
+import com.digithink.zsretail.core.config.ErpConnectorEnvironmentPostProcessor;
+import com.digithink.zsretail.core.config.InstallationTypeEnvironmentPostProcessor;
+import com.digithink.zsretail.core.config.MachineFileEnvironmentPostProcessor;
 import com.digithink.zsretail.support.Installations;
 
 /**

@@ -1,6 +1,6 @@
 package com.digithink.zsretail.holink.dto;
 
-import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
+import com.digithink.zsretail.core.link.dto.CopiesDownAnswerDTO;
 import com.digithink.zsretail.holink.enumeration.HeadOfficeLinkState;
 
 import lombok.AccessLevel;

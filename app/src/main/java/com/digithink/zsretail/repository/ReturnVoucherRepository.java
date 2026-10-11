@@ -6,9 +6,10 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
 
-import com.digithink.zsretail.model.Customer;
-import com.digithink.zsretail.model.ReturnVoucher;
-import com.digithink.zsretail.model.enumeration.TransactionStatus;
+import com.digithink.zsretail.core.model.Customer;
+import com.digithink.zsretail.core.model.ReturnVoucher;
+import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
+import com.digithink.zsretail.core.repository._BaseRepository;
 
 @Repository
 public interface ReturnVoucherRepository extends _BaseRepository<ReturnVoucher, Long> {

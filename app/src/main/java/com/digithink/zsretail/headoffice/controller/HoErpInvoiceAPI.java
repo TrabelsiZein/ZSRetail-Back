@@ -16,12 +16,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.erp.controller.ErpSyncJobAdminController;
-import com.digithink.zsretail.erp.enumeration.ErpSyncJobType;
-import com.digithink.zsretail.erp.model.ErpSyncJob;
-import com.digithink.zsretail.erp.repository.ErpSyncJobRepository;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.erp.controller.ErpSyncJobAdminController;
+import com.digithink.zsretail.core.erp.enumeration.ErpSyncJobType;
+import com.digithink.zsretail.core.erp.model.ErpSyncJob;
+import com.digithink.zsretail.core.erp.repository.ErpSyncJobRepository;
 import com.digithink.zsretail.headoffice.service.HoErpInvoiceService;
 
 import lombok.extern.log4j.Log4j2;

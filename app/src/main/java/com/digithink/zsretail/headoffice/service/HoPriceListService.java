@@ -20,8 +20,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.headoffice.dto.PriceListDTO;
 import com.digithink.zsretail.headoffice.dto.PriceListLineDTO;
 import com.digithink.zsretail.headoffice.enumeration.PriceListKind;
@@ -32,8 +34,6 @@ import com.digithink.zsretail.headoffice.repository.HoItemSupplyPriceRepository;
 import com.digithink.zsretail.headoffice.repository.HoPriceListLineRepository;
 import com.digithink.zsretail.headoffice.repository.HoPriceListRepository;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.repository.ItemRepository;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -73,7 +73,7 @@ public class HoPriceListService {
 	private boolean sellingListsUsed = true;
 
 	@Autowired(required = false)
-	public void setMode(com.digithink.zsretail.config.ApplicationModeService mode) {
+	public void setMode(com.digithink.zsretail.core.config.ApplicationModeService mode) {
 		this.sellingListsUsed = mode == null || !mode.isErpCatalogueOnly();
 	}
 

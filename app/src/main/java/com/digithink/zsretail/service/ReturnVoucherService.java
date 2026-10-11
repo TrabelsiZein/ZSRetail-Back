@@ -8,10 +8,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.model.ReturnVoucher;
-import com.digithink.zsretail.model.enumeration.TransactionStatus;
+import com.digithink.zsretail.core.model.ReturnVoucher;
+import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
+import com.digithink.zsretail.core.repository._BaseRepository;
+import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.repository.ReturnVoucherRepository;
-import com.digithink.zsretail.repository._BaseRepository;
 
 import lombok.extern.log4j.Log4j2;
 

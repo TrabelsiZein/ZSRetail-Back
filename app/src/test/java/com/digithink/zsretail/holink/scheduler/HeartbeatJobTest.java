@@ -33,6 +33,7 @@ import org.springframework.test.web.client.ResponseCreator;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.web.client.RestTemplate;
 
+import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.holink.dto.LinkJobRun;
 import com.digithink.zsretail.holink.enumeration.ExchangeDirection;
@@ -45,7 +46,6 @@ import com.digithink.zsretail.holink.repository.LinkRightRepository;
 import com.digithink.zsretail.holink.service.CatalogueRights;
 import com.digithink.zsretail.holink.service.HeadOfficeLinkStatus;
 import com.digithink.zsretail.holink.service.LinkExchangeLog;
-import com.digithink.zsretail.service.GeneralSetupService;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;

@@ -2,7 +2,7 @@ package com.digithink.zsretail.dto;
 
 import java.time.LocalDate;
 
-import com.digithink.zsretail.model.enumeration.InvoiceLineGroupingMode;
+import com.digithink.zsretail.core.model.enumeration.InvoiceLineGroupingMode;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

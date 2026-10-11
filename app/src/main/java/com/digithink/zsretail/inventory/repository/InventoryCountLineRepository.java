@@ -7,9 +7,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.inventory.enumeration.InventoryLineStatus;
 import com.digithink.zsretail.inventory.model.InventoryCountLine;
-import com.digithink.zsretail.repository._BaseRepository;
 
 /**
  * Reads of the lines for the screen (the writes are JDBC batches, {@link InventoryLineStore}). The item is joined by

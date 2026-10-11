@@ -17,13 +17,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.digithink.zsretail.dto.CreateLoyaltyMemberRequestDTO;
-import com.digithink.zsretail.dto.LoyaltyMemberDTO;
-import com.digithink.zsretail.model.LoyaltyMember;
-import com.digithink.zsretail.model.MemberFunction;
-import com.digithink.zsretail.repository.LoyaltyMemberRepository;
-import com.digithink.zsretail.repository.LoyaltyProgramRepository;
-import com.digithink.zsretail.repository.MemberFunctionRepository;
+import com.digithink.zsretail.core.dto.CreateLoyaltyMemberRequestDTO;
+import com.digithink.zsretail.core.dto.LoyaltyMemberDTO;
+import com.digithink.zsretail.core.model.LoyaltyMember;
+import com.digithink.zsretail.core.model.MemberFunction;
+import com.digithink.zsretail.core.repository.LoyaltyMemberRepository;
+import com.digithink.zsretail.core.repository.LoyaltyProgramRepository;
+import com.digithink.zsretail.core.repository.MemberFunctionRepository;
+import com.digithink.zsretail.core.service.LoyaltyService;
 
 /**
  * 2.2.2, step 4, point 3: the member's function is required only when at least one active function exists; with none

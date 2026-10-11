@@ -18,10 +18,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.holink.dto.DownRecordRowDTO;
 import com.digithink.zsretail.holink.enumeration.DownRecordStatus;
 import com.digithink.zsretail.holink.model.DownRecord;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 
 /**
  * The store's list of the records received from the head office (DownRecordRepository.TO_CHECK and its count), run as

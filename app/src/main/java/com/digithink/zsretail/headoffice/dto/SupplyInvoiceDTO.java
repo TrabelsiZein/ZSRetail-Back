@@ -6,6 +6,8 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import com.digithink.zsretail.core.link.dto.SupplyInvoiceCopyDTO;
+
 import lombok.Data;
 import lombok.NoArgsConstructor;
 

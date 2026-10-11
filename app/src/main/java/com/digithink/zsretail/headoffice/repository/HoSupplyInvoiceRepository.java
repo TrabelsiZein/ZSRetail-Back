@@ -13,8 +13,8 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.headoffice.model.HoSupplyInvoice;
-import com.digithink.zsretail.repository._BaseRepository;
 
 public interface HoSupplyInvoiceRepository extends _BaseRepository<HoSupplyInvoice, Long> {
 

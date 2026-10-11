@@ -4,8 +4,8 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import com.digithink.zsretail.model.enumeration.SessionStatus;
-import com.digithink.zsretail.model.enumeration.TransactionStatus;
+import com.digithink.zsretail.core.model.enumeration.SessionStatus;
+import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
 
 /**
  * A kind of document copied to the head office (task 2.1), with the statuses that mean "finished". Only a finished

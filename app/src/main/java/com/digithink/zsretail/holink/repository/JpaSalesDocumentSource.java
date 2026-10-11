@@ -11,18 +11,18 @@ import javax.persistence.PersistenceContext;
 
 import org.springframework.stereotype.Repository;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.repository.CashierSessionRepository;
+import com.digithink.zsretail.core.repository.PaymentRepository;
+import com.digithink.zsretail.core.repository.ReturnHeaderRepository;
+import com.digithink.zsretail.core.repository.ReturnLineRepository;
+import com.digithink.zsretail.core.repository.SalesHeaderRepository;
+import com.digithink.zsretail.core.repository.SalesLineRepository;
 import com.digithink.zsretail.holink.dto.SalesDocumentRef;
 import com.digithink.zsretail.holink.enumeration.SalesCopyType;
 import com.digithink.zsretail.holink.service.SalesCopyMapper;
 import com.digithink.zsretail.holink.service.SalesDocumentSource;
-import com.digithink.zsretail.repository.CashierSessionRepository;
-import com.digithink.zsretail.repository.PaymentRepository;
-import com.digithink.zsretail.repository.ReturnHeaderRepository;
-import com.digithink.zsretail.repository.ReturnLineRepository;
-import com.digithink.zsretail.repository.SalesHeaderRepository;
-import com.digithink.zsretail.repository.SalesLineRepository;
 import com.digithink.zsretail.repository.SessionCashCountRepository;
 
 /**

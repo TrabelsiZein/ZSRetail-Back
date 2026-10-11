@@ -12,8 +12,8 @@ import javax.persistence.JoinTable;
 import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
 
-import com.digithink.zsretail.model.Payment;
-import com.digithink.zsretail.model._BaseEntity;
+import com.digithink.zsretail.core.model.Payment;
+import com.digithink.zsretail.core.model._BaseEntity;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;

@@ -13,9 +13,9 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.headoffice.enumeration.DeliveryStatus;
 import com.digithink.zsretail.headoffice.model.HoDelivery;
-import com.digithink.zsretail.repository._BaseRepository;
 
 public interface HoDeliveryRepository extends _BaseRepository<HoDelivery, Long> {
 

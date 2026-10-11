@@ -24,13 +24,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.support.TransactionOperations;
 
-import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
+import com.digithink.zsretail.core.link.dto.CopiesDownAnswerDTO;
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.headoffice.model.HoDownChange;
 import com.digithink.zsretail.headoffice.model.HoDownSequence;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.HoDownChangeRepository;
 import com.digithink.zsretail.headoffice.repository.HoDownSequenceRepository;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

@@ -3,14 +3,14 @@ package com.digithink.zsretail.service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.digithink.zsretail.dto.DashboardTodayDTO;
-import com.digithink.zsretail.model.ReturnHeader;
-import com.digithink.zsretail.model.SalesHeader;
-import com.digithink.zsretail.model.enumeration.SessionStatus;
-import com.digithink.zsretail.model.enumeration.TransactionStatus;
-import com.digithink.zsretail.repository.CashierSessionRepository;
-import com.digithink.zsretail.repository.ReturnHeaderRepository;
-import com.digithink.zsretail.repository.SalesHeaderRepository;
+import com.digithink.zsretail.core.dto.DashboardTodayDTO;
+import com.digithink.zsretail.core.model.ReturnHeader;
+import com.digithink.zsretail.core.model.SalesHeader;
+import com.digithink.zsretail.core.model.enumeration.SessionStatus;
+import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
+import com.digithink.zsretail.core.repository.CashierSessionRepository;
+import com.digithink.zsretail.core.repository.ReturnHeaderRepository;
+import com.digithink.zsretail.core.repository.SalesHeaderRepository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;

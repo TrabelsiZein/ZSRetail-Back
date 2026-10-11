@@ -16,7 +16,7 @@
 - `signature` contains `SHA256withRSA` signature over compact `data` JSON.
 
 ### Security Design
-- Backend uses embedded **public key** (`app/src/main/resources/license/public_key.pem`) for verification.
+- Backend uses embedded **public key** (`core/src/main/resources/license/public_key.pem`) for verification.
 - Private key is kept outside app deployment and used only in generator tool.
 - Validation is backend-side only (never trusted on frontend).
 - `appId` was removed from active logic/config/generator/frontend; machine binding now relies on `installationId`.
@@ -49,7 +49,7 @@
   - `service/LicenseService.java` (machine-bound verification + status checks)
   - `controller/LicenseAPI.java` (`/license/status` returns both machine and licensed IDs)
   - `model/LicenseRecord.java` (stores `installationId`; legacy `appId` removed from active use)
-  - `security/LicenseFilter.java` bypass list includes `/admin/license` so upload works when license is missing.
+  - `core/security/LicenseFilter.java` bypass list includes `/admin/license` so upload works when license is missing.
 
 ### Frontend UX
 - Company Information page includes License card:

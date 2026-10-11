@@ -28,21 +28,21 @@ import org.springframework.context.annotation.ClassPathScanningCandidateComponen
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.data.repository.query.Param;
 
+import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
+import com.digithink.zsretail.core.repository.ItemFamilyRepository;
+import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
+import com.digithink.zsretail.core.repository.LoyaltyMemberRepository;
+import com.digithink.zsretail.core.repository.LoyaltyProgramRepository;
+import com.digithink.zsretail.core.repository.PromotionRepository;
+import com.digithink.zsretail.core.repository.SalesPriceRepository;
 import com.digithink.zsretail.holink.repository.DownRecordRepository;
+import com.digithink.zsretail.holink.repository.LinkExchangeRepository;
 import com.digithink.zsretail.holink.repository.LoyaltyMemberCopyRepository;
 import com.digithink.zsretail.holink.repository.LoyaltyMovementCopyRepository;
-import com.digithink.zsretail.holink.repository.LinkExchangeRepository;
 import com.digithink.zsretail.holink.repository.ReceivedDeliveryRepository;
-import com.digithink.zsretail.holink.repository.StockCopyRepository;
 import com.digithink.zsretail.holink.repository.SalesCopyRepository;
-import com.digithink.zsretail.repository.ItemBarcodeRepository;
-import com.digithink.zsretail.repository.ItemFamilyRepository;
-import com.digithink.zsretail.repository.ItemRepository;
-import com.digithink.zsretail.repository.ItemSubFamilyRepository;
-import com.digithink.zsretail.repository.LoyaltyMemberRepository;
-import com.digithink.zsretail.repository.LoyaltyProgramRepository;
-import com.digithink.zsretail.repository.PromotionRepository;
-import com.digithink.zsretail.repository.SalesPriceRepository;
+import com.digithink.zsretail.holink.repository.StockCopyRepository;
 
 /**
  * Head office plan, step 2: every JPQL {@code @Query} of the step 2 repositories is parsed by Hibernate and a value of

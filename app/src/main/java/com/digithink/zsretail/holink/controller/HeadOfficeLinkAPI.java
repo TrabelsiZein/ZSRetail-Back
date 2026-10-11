@@ -18,8 +18,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.holink.dto.HeadOfficeLinkStatusDTO;
 import com.digithink.zsretail.holink.dto.LinkJobDTO;
@@ -34,11 +35,10 @@ import com.digithink.zsretail.holink.service.HeadOfficeLinkStatus;
 import com.digithink.zsretail.holink.service.LinkExchangeLog;
 import com.digithink.zsretail.holink.service.LinkJobService;
 import com.digithink.zsretail.holink.service.LoyaltyPushService;
-import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
-import com.digithink.zsretail.holink.service.SupplyPushService;
 import com.digithink.zsretail.holink.service.SalesCopyFinder;
 import com.digithink.zsretail.holink.service.SalesPushService;
-import com.digithink.zsretail.model.enumeration.DataDomain;
+import com.digithink.zsretail.holink.service.StoreCatalogueGuard;
+import com.digithink.zsretail.holink.service.SupplyPushService;
 
 /**
  * Head office plan, task 1.5: the store's "Head office link" page. Exists only when headoffice.url is set (otherwise

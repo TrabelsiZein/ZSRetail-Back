@@ -6,9 +6,9 @@ import java.time.LocalDateTime;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.config.NodeOwnership;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.config.NodeOwnership;
 
 /**
  * Settings of the sales copies (tasks 2.1, 2.4), checked at startup by {@link NodeOwnership}. Since task 2.6 the

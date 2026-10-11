@@ -17,12 +17,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.model.BadgeScanLog;
-import com.digithink.zsretail.model.UserAccount;
-import com.digithink.zsretail.model.enumeration.BadgePermission;
-import com.digithink.zsretail.security.CurrentUserProvider;
+import com.digithink.zsretail.core.model.BadgeScanLog;
+import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.model.enumeration.BadgePermission;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.service.BadgeService;
 import com.digithink.zsretail.service.BadgeScanLogService;
-import com.digithink.zsretail.service.BadgeService;
 
 import lombok.extern.log4j.Log4j2;
 

@@ -2,9 +2,9 @@ package com.digithink.zsretail.dto;
 
 import java.time.LocalDateTime;
 
-import com.digithink.zsretail.model.CashierSession;
-import com.digithink.zsretail.model.enumeration.SessionStatus;
-import com.digithink.zsretail.model.enumeration.SynchronizationStatus;
+import com.digithink.zsretail.core.model.CashierSession;
+import com.digithink.zsretail.core.model.enumeration.SessionStatus;
+import com.digithink.zsretail.core.model.enumeration.SynchronizationStatus;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;

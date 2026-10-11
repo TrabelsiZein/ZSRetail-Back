@@ -24,16 +24,16 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.link.dto.CopiesDownAnswerDTO;
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
+import com.digithink.zsretail.core.utils.ErrorTexts;
 import com.digithink.zsretail.headoffice.model.HoDownChange;
 import com.digithink.zsretail.headoffice.model.HoDownSequence;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.HoDownChangeRepository;
 import com.digithink.zsretail.headoffice.repository.HoDownSequenceRepository;
-import com.digithink.zsretail.model.enumeration.DataDomain;
-import com.digithink.zsretail.utils.ErrorTexts;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import lombok.extern.log4j.Log4j2;

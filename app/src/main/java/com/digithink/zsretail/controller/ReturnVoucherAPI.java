@@ -7,7 +7,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.model.ReturnVoucher;
+import com.digithink.zsretail.core.controller._BaseController;
+import com.digithink.zsretail.core.model.ReturnVoucher;
 import com.digithink.zsretail.service.ReturnVoucherService;
 
 import lombok.extern.log4j.Log4j2;

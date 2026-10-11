@@ -18,11 +18,11 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
+import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.headoffice.model.HoStoreStock;
 import com.digithink.zsretail.headoffice.repository.HoStoreStockRepository;
 import com.digithink.zsretail.holink.model.StockCopy;
 import com.digithink.zsretail.holink.repository.StockCopyRepository;
-import com.digithink.zsretail.model.Item;
 
 /**
  * Test support (task 7A.5): hol_stock_copy of a store over its {@link InMemoryCatalogue}, and ho_store_stock of a head

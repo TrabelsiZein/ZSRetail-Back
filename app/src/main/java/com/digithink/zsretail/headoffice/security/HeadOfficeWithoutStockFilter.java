@@ -16,8 +16,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import lombok.extern.log4j.Log4j2;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
 
 /**
  * A head office that keeps no stock and makes no purchases (headoffice.stock.enabled=false) refuses the purchase,

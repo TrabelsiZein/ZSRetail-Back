@@ -14,7 +14,7 @@ import org.json.JSONObject;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.digithink.zsretail.headoffice.dto.HeadOfficePingDTO;
+import com.digithink.zsretail.core.link.dto.HeadOfficePingDTO;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

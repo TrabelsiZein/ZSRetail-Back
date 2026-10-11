@@ -2,7 +2,7 @@ package com.digithink.zsretail.headoffice.dto;
 
 import java.util.List;
 
-import com.digithink.zsretail.model.Promotion;
+import com.digithink.zsretail.core.model.Promotion;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import lombok.Data;

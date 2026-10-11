@@ -18,6 +18,9 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.support.TransactionOperations;
 
+import com.digithink.zsretail.core.model.LoyaltyTransaction;
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
+import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.holink.enumeration.SalesCopyStatus;
 import com.digithink.zsretail.holink.model.DownCursor;
 import com.digithink.zsretail.holink.model.DownRecord;
@@ -31,9 +34,6 @@ import com.digithink.zsretail.holink.repository.LoyaltyMemberCopyRepository;
 import com.digithink.zsretail.holink.repository.LoyaltyMovementCopyRepository;
 import com.digithink.zsretail.holink.service.DownRecordLog;
 import com.digithink.zsretail.holink.service.LinkExchangeLog;
-import com.digithink.zsretail.model.LoyaltyTransaction;
-import com.digithink.zsretail.model.enumeration.DataDomain;
-import com.digithink.zsretail.model.enumeration.RecordOrigin;
 
 /**
  * Test support (step 4): the head office link tables of one store in memory (hol_loyalty_member_copy,

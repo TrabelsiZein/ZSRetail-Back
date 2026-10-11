@@ -19,24 +19,24 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionOperations;
 
-import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
-import com.digithink.zsretail.headoffice.dto.DeliveryCopyDTO;
-import com.digithink.zsretail.headoffice.dto.ErpInvoiceCopyDTO;
+import com.digithink.zsretail.core.link.dto.DeliveryConfirmationDTO;
+import com.digithink.zsretail.core.link.dto.DeliveryCopyDTO;
+import com.digithink.zsretail.core.link.dto.ErpInvoiceCopyDTO;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.PurchaseInvoiceHeader;
+import com.digithink.zsretail.core.model.PurchaseInvoiceLine;
+import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.holink.dto.ReceivedDeliveryDTO;
 import com.digithink.zsretail.holink.dto.ReceptionInputDTO;
 import com.digithink.zsretail.holink.enumeration.ReceivedDocumentKind;
 import com.digithink.zsretail.holink.enumeration.ReceivedLineType;
 import com.digithink.zsretail.holink.model.ReceivedDelivery;
 import com.digithink.zsretail.holink.model.ReceivedDeliveryLine;
-import com.digithink.zsretail.model.Item;
-import com.digithink.zsretail.model.PurchaseInvoiceHeader;
-import com.digithink.zsretail.model.PurchaseInvoiceLine;
-import com.digithink.zsretail.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.support.InMemoryCatalogue;
 import com.digithink.zsretail.support.InMemoryPurchaseInvoices;
 import com.digithink.zsretail.support.InMemoryReceivedDeliveries;
 import com.digithink.zsretail.support.InMemoryStock;
-import com.digithink.zsretail.utils.Quantities;
 
 /**
  * Invoices from the ERP, step (c), at the store: an ERP invoice saved once; its reception puts the quantities received in

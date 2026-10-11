@@ -16,14 +16,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 
-import com.digithink.zsretail.model.Customer;
-import com.digithink.zsretail.model.Vendor;
-import com.digithink.zsretail.repository.CustomerRepository;
-import com.digithink.zsretail.repository.InvoiceHeaderRepository;
-import com.digithink.zsretail.repository.PurchaseHeaderRepository;
-import com.digithink.zsretail.repository.PurchaseInvoiceHeaderRepository;
-import com.digithink.zsretail.repository.SalesHeaderRepository;
-import com.digithink.zsretail.repository.VendorRepository;
+import com.digithink.zsretail.core.model.Customer;
+import com.digithink.zsretail.core.model.Vendor;
+import com.digithink.zsretail.core.repository.CustomerRepository;
+import com.digithink.zsretail.core.repository.InvoiceHeaderRepository;
+import com.digithink.zsretail.core.repository.PurchaseHeaderRepository;
+import com.digithink.zsretail.core.repository.PurchaseInvoiceHeaderRepository;
+import com.digithink.zsretail.core.repository.SalesHeaderRepository;
+import com.digithink.zsretail.core.repository.VendorRepository;
+import com.digithink.zsretail.core.service.PurchaseInvoiceService;
 
 /**
  * L2 of step 6: without a date filter, the invoice and purchase invoice lists and the eligible tickets and purchases

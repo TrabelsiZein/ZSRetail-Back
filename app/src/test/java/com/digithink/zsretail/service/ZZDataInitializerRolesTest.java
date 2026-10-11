@@ -20,10 +20,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
-import com.digithink.zsretail.config.ApplicationModeService;
-import com.digithink.zsretail.model.AppRole;
-import com.digithink.zsretail.repository.AppRoleRepository;
-import com.digithink.zsretail.repository.UserAccountRepository;
+import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.model.AppRole;
+import com.digithink.zsretail.core.repository.AppRoleRepository;
+import com.digithink.zsretail.core.repository.UserAccountRepository;
+import com.digithink.zsretail.core.service.ZZDataInitializer;
 import com.digithink.zsretail.support.TestModes;
 
 /**
@@ -175,7 +176,7 @@ class ZZDataInitializerRolesTest {
 				(method, args) -> "findByName".equals(method) ? Optional.ofNullable(roles.get(args[0])) : UNHANDLED);
 		UserAccountRepository users = stub(UserAccountRepository.class, (method, args) -> {
 			if ("save".equals(method)) {
-				usernames.add(((com.digithink.zsretail.model.UserAccount) args[0]).getUsername());
+				usernames.add(((com.digithink.zsretail.core.model.UserAccount) args[0]).getUsername());
 				return args[0];
 			}
 			return UNHANDLED;

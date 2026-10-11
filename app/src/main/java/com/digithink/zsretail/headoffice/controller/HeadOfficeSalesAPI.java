@@ -8,12 +8,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.digithink.zsretail.config.ConditionalOnInstallation;
-import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.headoffice.dto.ReturnCopyDTO;
-import com.digithink.zsretail.headoffice.dto.SalesCopyAnswerDTO;
-import com.digithink.zsretail.headoffice.dto.SessionCopyDTO;
-import com.digithink.zsretail.headoffice.dto.TicketCopyDTO;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.link.dto.ReturnCopyDTO;
+import com.digithink.zsretail.core.link.dto.SalesCopyAnswerDTO;
+import com.digithink.zsretail.core.link.dto.SessionCopyDTO;
+import com.digithink.zsretail.core.link.dto.TicketCopyDTO;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.security.StoreApiKeyFilter;
 import com.digithink.zsretail.headoffice.service.SalesCopyReceiver;

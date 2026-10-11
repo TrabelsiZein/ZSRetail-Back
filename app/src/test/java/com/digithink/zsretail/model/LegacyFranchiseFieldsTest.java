@@ -10,6 +10,9 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.digithink.zsretail.core.model.Customer;
+import com.digithink.zsretail.core.model.Item;
+
 /**
  * Head office plan, task 9.4a: the franchise fields left the entities (their columns stay), but older screens still send
  * them in the item and customer payloads. They are ignored, never refused: even a mapper that fails on unknown

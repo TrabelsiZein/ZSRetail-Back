@@ -6,13 +6,14 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.digithink.zsretail.model.SalesHeader;
-import com.digithink.zsretail.model.SalesLine;
+import com.digithink.zsretail.core.model.SalesHeader;
+import com.digithink.zsretail.core.model.SalesLine;
+import com.digithink.zsretail.core.repository.SalesHeaderRepository;
+import com.digithink.zsretail.core.repository.SalesLineRepository;
+import com.digithink.zsretail.core.service._BaseService;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.model.Warranty;
-import com.digithink.zsretail.repository.SalesHeaderRepository;
-import com.digithink.zsretail.repository.SalesLineRepository;
 import com.digithink.zsretail.repository.WarrantyRepository;
-import com.digithink.zsretail.utils.Quantities;
 
 @Service
 public class WarrantyService extends _BaseService<Warranty, Long> {
@@ -27,7 +28,7 @@ public class WarrantyService extends _BaseService<Warranty, Long> {
 	private SalesLineRepository salesLineRepository;
 
 	@Override
-	protected com.digithink.zsretail.repository._BaseRepository<Warranty, Long> getRepository() {
+	protected com.digithink.zsretail.core.repository._BaseRepository<Warranty, Long> getRepository() {
 		return warrantyRepository;
 	}
 

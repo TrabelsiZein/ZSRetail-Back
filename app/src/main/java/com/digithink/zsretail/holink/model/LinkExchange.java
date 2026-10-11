@@ -9,9 +9,9 @@ import javax.persistence.Enumerated;
 import javax.persistence.Index;
 import javax.persistence.Table;
 
+import com.digithink.zsretail.core.model._BaseEntity;
 import com.digithink.zsretail.holink.enumeration.ExchangeDirection;
 import com.digithink.zsretail.holink.enumeration.LinkJobResult;
-import com.digithink.zsretail.model._BaseEntity;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;

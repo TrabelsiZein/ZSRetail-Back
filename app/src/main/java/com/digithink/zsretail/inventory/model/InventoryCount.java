@@ -10,8 +10,8 @@ import javax.persistence.Enumerated;
 import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
 
+import com.digithink.zsretail.core.model._BaseEntity;
 import com.digithink.zsretail.inventory.enumeration.InventoryCountStatus;
-import com.digithink.zsretail.model._BaseEntity;
 import com.fasterxml.jackson.annotation.JsonFormat;
 
 import lombok.Data;

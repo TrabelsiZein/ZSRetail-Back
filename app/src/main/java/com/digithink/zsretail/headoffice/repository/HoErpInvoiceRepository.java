@@ -12,10 +12,10 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.headoffice.enumeration.ErpInvoiceMapping;
 import com.digithink.zsretail.headoffice.enumeration.ErpInvoiceStatus;
 import com.digithink.zsretail.headoffice.model.HoErpInvoice;
-import com.digithink.zsretail.repository._BaseRepository;
 
 public interface HoErpInvoiceRepository extends _BaseRepository<HoErpInvoice, Long> {
 
