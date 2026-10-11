@@ -30,6 +30,55 @@ store's database.
 
 Tests: `RfidKeyTest` (network-tests), `AppConfigAPITest` (the field), the two proofs.
 
+## Readers and POS machines (RFID step 3)
+
+Package `com.digithink.zsretail.store.rfid` (store project): `model`, `repository`, `service`. Both entities extend
+`_BaseEntity` (`id`, `active`, `created_*`, `updated_*`). Created by `db/3.1.0/update.sql` on a store database only (a
+database with `ho_store` is a head office), and by `ddl-auto` with the same names and types.
+
+`rfid_reader` (`RfidReader`):
+
+| Column | Type | Rule (`RfidReaderService`) |
+|---|---|---|
+| `name` | varchar(100) NOT NULL | required, trimmed, at most 100 characters, unique in any case (`uk_rfid_reader_name`) |
+| `ip_address` | varchar(45) NOT NULL | an IPv4 address, four numbers 0 to 255 without leading zeros; never a name |
+| `port` | int NOT NULL | 1 to 65535; the address and port pair unique (`uk_rfid_reader_address`) |
+| `power` | int NOT NULL | 0 to 30 (the vendor's limit for the HZ100 is not known yet), default 30 |
+| `read_time_ms` | int NOT NULL | 100 to 10000, default 1500 |
+| `active` | bit | an inactive reader is never read; default true |
+
+A reader still linked to a POS machine is not deleted: `This reader is used by the POS machines A, B: give them another
+reader, or none, first.` Antenna 1 is a constant of the reading, not a column.
+
+`pos_machine` (`PosMachine`):
+
+| Column | Type | Rule (`PosMachineService`) |
+|---|---|---|
+| `name` | varchar(100) NOT NULL | required, trimmed, at most 100 characters, unique in any case (`uk_pos_machine_name`) |
+| `ip_address` | varchar(45) NOT NULL | the address of the machine's requests, normalised; unique (`uk_pos_machine_ip`) |
+| `reader_id` | bigint NULL, `fk_pos_machine_reader` | its reader, which must exist; none: the machine cannot read yet |
+| `active` | bit | an inactive machine cannot read; default true |
+
+**The address of a POS machine** (`RfidAddresses.normalise`): the back end recognises a POS machine by the address of
+its request (`request.getRemoteAddr()`: the frontend calls `/zsretailws/` on the same Tomcat, nothing in between), kept
+in one form so that a machine always gives the same text: every loopback (`127.x.x.x`, `::1`, Tomcat's
+`0:0:0:0:0:0:0:1`) is `127.0.0.1` (the browser on the PC of the back end); `::ffff:192.168.1.5` is `192.168.1.5`; an
+IPv6 address loses its zone (`fe80::1%12`) and is written in Java's full form (`fe80:0:0:0:0:0:0:1`). A name is refused,
+never looked up.
+
+**Fixed addresses (installation rule)**: every POS machine that reads RFID needs a fixed address, a DHCP reservation on
+the store's router or a static address. If two machines swap addresses, each one reads the other's reader without any
+error. Open the POS by the server's IPv4 address (`http://192.168.x.y:...`), not by its name: by name, Windows may use
+an IPv6 address that changes. Every read result names the POS machine and the reader, so a cashier sees a wrong link.
+A reverse proxy in front of Tomcat would give every machine the proxy's address: not supported.
+
+Every refusal is a `RfidException` with a reason (`INVALID`, `NOT_FOUND`, `NOT_READY`, `BUSY`, `UNREACHABLE`,
+`READER_ERROR`) and its message; the endpoints (step 7) turn the reason into the HTTP status.
+
+Tests: `RfidAddressesTest`, `RfidReaderServiceTest`, `PosMachineServiceTest` (over `store.support.InMemoryRfid`),
+`RfidBeansTest` (no service and no repository without `rfid.enabled=true`: Spring Data's repository scan evaluates the
+condition too).
+
 ## The SDK
 
 `com.hopeland:rfid-reader-api:2.11-zs1`, a cleaned copy of the vendor's jar in the file repository `libs/maven`, taken by
