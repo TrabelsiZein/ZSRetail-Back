@@ -16,7 +16,7 @@
 	</parent>
 	<groupId>com.digithink</groupId>
 	<artifactId>zsretail-parent</artifactId>
-	<version>2.3.0</version>
+	<version>3.1.0</version>
 	<packaging>pom</packaging>
 	<name>ZS Retail</name>
 
