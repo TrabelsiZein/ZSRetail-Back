@@ -142,8 +142,36 @@ public final class InMemoryCatalogue extends InMemoryItems {
 				return stockPointItems.values().stream().filter(r -> Objects.equals(r.getStockPointId(), args[0])
 						&& ((Collection<?>) args[1]).contains(r.getItemId())).collect(Collectors.toList());
 			}
+			if ("findStoreAndItemIds".equals(method)) {
+				List<Object[]> pairs = new ArrayList<>();
+				for (HoStockPointItem row : stockPointItems.values()) {
+					if (((Collection<?>) args[0]).contains(row.getItemId())) {
+						stores.values().stream().filter(s -> Objects.equals(s.getStockPointId(), row.getStockPointId()))
+								.forEach(s -> pairs.add(new Object[] { s.getId(), row.getItemId() }));
+					}
+				}
+				return pairs;
+			}
+			if ("findItemCodesOfPoints".equals(method)) {
+				return itemsOfPoints((Collection<?>) args[0], (String) args[1]).stream().map(Item::getItemCode)
+						.distinct().sorted().collect(Collectors.toList());
+			}
+			if ("findBarcodesOfPoints".equals(method)) {
+				List<Long> ofPoints = itemsOfPoints((Collection<?>) args[0], (String) args[1]).stream().map(Item::getId)
+						.collect(Collectors.toList());
+				return barcodes.values().stream().filter(b -> b.getItem() != null && ofPoints.contains(b.getItem().getId()))
+						.map(ItemBarcode::getBarcode).distinct().sorted().collect(Collectors.toList());
+			}
 			return common(stockPointItems, method, args);
 		});
+	}
+
+
+	/** The items with a row in these points, except the one of this code (the rules of the two queries). */
+	private List<Item> itemsOfPoints(Collection<?> pointIds, String excludedItemCode) {
+		return stockPointItems.values().stream().filter(r -> pointIds.contains(r.getStockPointId()))
+				.map(r -> items.get(r.getItemId())).filter(i -> i != null && !excludedItemCode.equals(i.getItemCode()))
+				.distinct().collect(Collectors.toList());
 	}
 
 
