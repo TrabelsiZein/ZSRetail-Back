@@ -1,4 +1,4 @@
-package com.digithink.zsretail.headoffice.support;
+package com.digithink.zsretail.core.support;
 
 import static com.digithink.zsretail.core.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.core.support.InMemoryLoyalty.proxy;
@@ -21,10 +21,9 @@ import com.digithink.zsretail.core.repository.StockMovementRepository;
 import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.core.service.StockMovementService;
 import com.digithink.zsretail.core.service.StockService;
-import com.digithink.zsretail.core.support.TestModes;
 
 /**
- * Test support (step 7A): the stock of one installation in memory, over its {@link InMemoryCatalogue}: the item
+ * Test support (step 7A): the stock of one installation in memory, over its {@link InMemoryItems}: the item
  * repository with the three stock updates of ItemRepository (native queries, applied with their rules: null counts as
  * 0, the conditional decrement only when enough), the stock_movement rows, and a real {@link StockService} and
  * {@link StockMovementService} of the installation in {@link #mode} (without an ERP by default). Every other item
@@ -32,7 +31,7 @@ import com.digithink.zsretail.core.support.TestModes;
  */
 public final class InMemoryStock {
 
-	public final InMemoryCatalogue catalogue;
+	public final InMemoryItems catalogue;
 	public final List<StockMovement> movements = new ArrayList<>();
 	public final List<String> stockUpdates = new ArrayList<>();
 
@@ -44,7 +43,7 @@ public final class InMemoryStock {
 
 	private final ItemRepository items;
 
-	public InMemoryStock(InMemoryCatalogue catalogue) {
+	public InMemoryStock(InMemoryItems catalogue) {
 		this.catalogue = catalogue;
 		ItemRepository delegate = catalogue.itemRepository();
 		this.items = proxy(ItemRepository.class, (method, args) -> {

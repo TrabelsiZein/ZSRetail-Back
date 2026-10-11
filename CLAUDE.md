@@ -88,7 +88,7 @@ applications or a connector with core: the store / head office round trips, the 
 (`ConfigurationKeysProofTest`, `InstallationBeansProofTest`, their records in `network-tests/src/test/resources/config/`),
 the guards over every project (`ProjectSortingGuardTest`, `ConnectorNamesGuardTest`, `ConnectorDependenciesGuardTest`,
 `AspectPointcutsGuardTest`, `ClassNamesInStringsGuardTest`), the connector tests (they read the deploy files through
-`Installations`, which needs both type files). Test helpers: `core.support` (`Repo`, `InMemoryLoyalty`, `TestModes`...),
+`Installations`, which needs both type files). Test helpers: `core.support` (`Repo`, `InMemoryLoyalty`, `InMemoryItems`, `InMemoryStock`, `TestModes`...),
 `store.support`, `headoffice.support` (each project publishes its helpers as a test-jar), `support` in network-tests
 (`Installations`, `Starts`, `ClassRenames`).
 

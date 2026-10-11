@@ -1,4 +1,4 @@
-package com.digithink.zsretail.inventory;
+package com.digithink.zsretail.store.inventory;
 
 import static com.digithink.zsretail.core.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.core.support.InMemoryLoyalty.proxy;
@@ -29,8 +29,8 @@ import com.digithink.zsretail.core.repository.StockBatchRepository;
 import com.digithink.zsretail.core.service.QuantityPolicy;
 import com.digithink.zsretail.core.service.StockMovementService;
 import com.digithink.zsretail.core.service.StockService;
-import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
-import com.digithink.zsretail.headoffice.support.InMemoryStock;
+import com.digithink.zsretail.core.support.InMemoryItems;
+import com.digithink.zsretail.core.support.InMemoryStock;
 import com.digithink.zsretail.store.inventory.enumeration.InventoryCountStatus;
 import com.digithink.zsretail.store.inventory.enumeration.InventoryLineStatus;
 import com.digithink.zsretail.store.inventory.model.InventoryCount;
@@ -48,7 +48,7 @@ import com.digithink.zsretail.store.inventory.service.InventoryCountService;
 public final class InMemoryInventory {
 
 	public final InMemoryStock stock;
-	public final InMemoryCatalogue catalogue;
+	public final InMemoryItems catalogue;
 	public final Map<Long, InventoryCount> counts = new LinkedHashMap<>();
 	public final Map<Long, InventoryCountLine> lines = new LinkedHashMap<>();
 	public long openSessions;

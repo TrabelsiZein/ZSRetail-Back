@@ -1,4 +1,4 @@
-package com.digithink.zsretail.inventory;
+package com.digithink.zsretail.store.inventory;
 
 import static com.digithink.zsretail.store.inventory.InventoryFiles.row;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,10 +29,9 @@ import com.digithink.zsretail.core.model.StockMovement;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.model.enumeration.StockMovementDirection;
 import com.digithink.zsretail.core.model.enumeration.StockMovementType;
+import com.digithink.zsretail.core.support.InMemoryItems;
+import com.digithink.zsretail.core.support.InMemoryStock;
 import com.digithink.zsretail.core.support.TestModes;
-import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
-import com.digithink.zsretail.headoffice.support.InMemoryStock;
-import com.digithink.zsretail.store.inventory.InventoryFiles;
 import com.digithink.zsretail.store.inventory.controller.InventoryCountAPI;
 import com.digithink.zsretail.store.inventory.enumeration.InventoryCountStatus;
 import com.digithink.zsretail.store.inventory.enumeration.InventoryLineStatus;
@@ -52,7 +51,7 @@ class InventoryCountServiceTest {
 
 	@BeforeEach
 	void store() {
-		InMemoryCatalogue catalogue = new InMemoryCatalogue(1000);
+		InMemoryItems catalogue = new InMemoryItems(1000);
 		item(catalogue, "A001", 10, null);
 		catalogue.barcode("6191234567890", catalogue.itemByCode("A001").get());
 		item(catalogue, "B002", 2, null);
@@ -66,7 +65,7 @@ class InventoryCountServiceTest {
 		service = inventory.service(TestModes.standalone());
 	}
 
-	private static Item item(InMemoryCatalogue catalogue, String code, Integer stock, ItemType type) {
+	private static Item item(InMemoryItems catalogue, String code, Integer stock, ItemType type) {
 		Item item = catalogue.item(code, 10, null);
 		item.setStockQuantity(stock == null ? null : BigDecimal.valueOf(stock));
 		item.setType(type);
@@ -229,7 +228,7 @@ class InventoryCountServiceTest {
 	@DisplayName("A number cell not found: tried with leading zeros up to 14 digits, as a barcode and as an item code,"
 			+ " taken only when exactly one item matches")
 	void leadingZerosOfANumberCell() {
-		InMemoryCatalogue catalogue = inventory.catalogue;
+		InMemoryItems catalogue = inventory.catalogue;
 		catalogue.barcode("0012345678905", item(catalogue, "U001", 1, null)); // a UPC stored as an EAN-13
 		catalogue.barcode("0555", item(catalogue, "X001", 1, null));
 		item(catalogue, "00555", 1, null); // 555 matches two items: never a guess

@@ -24,6 +24,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.support.TransactionOperations;
 
+import com.digithink.zsretail.core.support.InMemoryStock;
 import com.digithink.zsretail.headoffice.enumeration.DeliveryStatus;
 import com.digithink.zsretail.headoffice.model.HoDelivery;
 import com.digithink.zsretail.headoffice.model.HoDeliveryLine;
@@ -31,7 +32,6 @@ import com.digithink.zsretail.headoffice.model.HoNumberSequence;
 import com.digithink.zsretail.headoffice.repository.HoDeliveryRepository;
 import com.digithink.zsretail.headoffice.repository.HoNumberSequenceRepository;
 import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
-import com.digithink.zsretail.headoffice.support.InMemoryStock;
 
 /**
  * Test support (step 7A): ho_delivery (with its lines, saved with the header as the cascade does) and

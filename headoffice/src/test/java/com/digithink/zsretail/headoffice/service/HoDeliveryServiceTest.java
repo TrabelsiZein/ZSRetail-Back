@@ -28,6 +28,7 @@ import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.model.enumeration.StockMovementDirection;
 import com.digithink.zsretail.core.model.enumeration.StockMovementType;
+import com.digithink.zsretail.core.support.InMemoryStock;
 import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.headoffice.dto.DeliveryDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryInputDTO;
@@ -36,7 +37,6 @@ import com.digithink.zsretail.headoffice.model.HoDelivery;
 import com.digithink.zsretail.headoffice.model.HoDownChange;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
-import com.digithink.zsretail.headoffice.support.InMemoryStock;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**

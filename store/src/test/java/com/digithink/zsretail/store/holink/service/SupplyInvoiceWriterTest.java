@@ -18,9 +18,9 @@ import com.digithink.zsretail.core.model.PurchaseInvoiceHeader;
 import com.digithink.zsretail.core.model.PurchaseInvoiceLine;
 import com.digithink.zsretail.core.model.Vendor;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.core.support.InMemoryItems;
 import com.digithink.zsretail.core.support.InMemoryPurchaseInvoices;
 import com.digithink.zsretail.core.utils.Quantities;
-import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
 import com.digithink.zsretail.store.holink.enumeration.ReceivedDocumentKind;
 import com.digithink.zsretail.store.holink.enumeration.ReceivedLineType;
 import com.digithink.zsretail.store.holink.model.ReceivedDelivery;
@@ -34,14 +34,14 @@ import com.digithink.zsretail.store.support.InMemoryReceivedDeliveries;
  */
 class SupplyInvoiceWriterTest {
 
-	private InMemoryCatalogue db;
+	private InMemoryItems db;
 	private InMemoryPurchaseInvoices purchases;
 	private SupplyInvoiceWriter writer;
 	private Item b001;
 
 	@BeforeEach
 	void setUp() {
-		db = new InMemoryCatalogue(100_000);
+		db = new InMemoryItems(100_000);
 		purchases = new InMemoryPurchaseInvoices(950_000);
 		writer = new SupplyInvoiceWriter(purchases.headerRepository(), purchases.lineRepository(),
 				purchases.vendorRepository(), db.itemRepository(), new InMemoryReceivedDeliveries(900_000).repository());

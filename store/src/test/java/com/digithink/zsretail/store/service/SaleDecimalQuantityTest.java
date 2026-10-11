@@ -2,7 +2,7 @@ package com.digithink.zsretail.store.service;
 
 import static com.digithink.zsretail.core.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.core.support.InMemoryLoyalty.proxy;
-import static com.digithink.zsretail.headoffice.support.InMemoryStock.set;
+import static com.digithink.zsretail.core.support.InMemoryStock.set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -49,9 +49,9 @@ import com.digithink.zsretail.core.service.PricingService;
 import com.digithink.zsretail.core.service.QuantityPolicy;
 import com.digithink.zsretail.core.service.StockService;
 import com.digithink.zsretail.core.service._BaseService;
+import com.digithink.zsretail.core.support.InMemoryItems;
+import com.digithink.zsretail.core.support.InMemoryStock;
 import com.digithink.zsretail.core.utils.Quantities;
-import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
-import com.digithink.zsretail.headoffice.support.InMemoryStock;
 import com.digithink.zsretail.store.dto.ProcessSaleRequestDTO;
 import com.digithink.zsretail.store.erp.service.SessionExportService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -97,7 +97,7 @@ class SaleDecimalQuantityTest {
 		cash.setName("Cash");
 		cash.setType(PaymentMethodType.CLIENT_ESPECES);
 
-		InMemoryCatalogue catalogue = new InMemoryCatalogue(1);
+		InMemoryItems catalogue = new InMemoryItems(1);
 		bulk = catalogue.item("VH52-1L", LITRE_TTC, null);
 		bulk.setDefaultVAT(VAT);
 		bulk.setStockQuantity(BigDecimal.valueOf(5));

@@ -33,8 +33,8 @@ import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.ItemCompositionService;
 import com.digithink.zsretail.core.service.ItemService;
 import com.digithink.zsretail.core.service._BaseService;
+import com.digithink.zsretail.core.support.InMemoryItems;
 import com.digithink.zsretail.core.support.TestModes;
-import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
 import com.digithink.zsretail.store.holink.model.LinkRight;
 import com.digithink.zsretail.store.holink.repository.LinkRightRepository;
 import com.digithink.zsretail.store.holink.service.CatalogueCopyWriter;
@@ -50,7 +50,7 @@ import com.digithink.zsretail.store.holink.service.StoreCatalogueGuard;
  */
 class ItemAPICatalogueGuardTest {
 
-	private InMemoryCatalogue store;
+	private InMemoryItems store;
 	private final Map<String, LinkRight> saved = new HashMap<>();
 	private CatalogueRights rights;
 	private Item hoItem;
@@ -58,7 +58,7 @@ class ItemAPICatalogueGuardTest {
 
 	@BeforeEach
 	void setUp() {
-		store = new InMemoryCatalogue(1);
+		store = new InMemoryItems(1);
 		rights = new CatalogueRights(proxy(LinkRightRepository.class, (method, args) -> {
 			switch (method) {
 				case "findByCode":

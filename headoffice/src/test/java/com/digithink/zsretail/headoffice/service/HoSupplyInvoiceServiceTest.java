@@ -31,6 +31,7 @@ import com.digithink.zsretail.core.model.CompanyInformation;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.repository.CompanyInformationRepository;
 import com.digithink.zsretail.core.service.GeneralSetupService;
+import com.digithink.zsretail.core.support.InMemoryStock;
 import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.headoffice.dto.DeliveryDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryInputDTO;
@@ -43,7 +44,6 @@ import com.digithink.zsretail.headoffice.model.HoSupplyInvoice;
 import com.digithink.zsretail.headoffice.model.HoSupplyInvoiceLine;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
-import com.digithink.zsretail.headoffice.support.InMemoryStock;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

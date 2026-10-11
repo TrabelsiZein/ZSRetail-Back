@@ -26,7 +26,7 @@ import com.digithink.zsretail.core.model.ItemFamily;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.core.repository.SalesPriceRepository;
-import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
+import com.digithink.zsretail.core.support.InMemoryItems;
 import com.digithink.zsretail.store.holink.model.LinkRight;
 import com.digithink.zsretail.store.holink.repository.LinkRightRepository;
 
@@ -38,7 +38,7 @@ import com.digithink.zsretail.store.holink.repository.LinkRightRepository;
  */
 class StoreCatalogueGuardTest {
 
-	private InMemoryCatalogue store;
+	private InMemoryItems store;
 	private final Map<String, LinkRight> saved = new HashMap<>();
 	private CatalogueRights rights;
 	private StoreCatalogueGuard guard;
@@ -52,7 +52,7 @@ class StoreCatalogueGuardTest {
 
 	@BeforeEach
 	void setUp() {
-		store = new InMemoryCatalogue(1);
+		store = new InMemoryItems(1);
 		rights = new CatalogueRights(rightRepository());
 		guard = newGuard(rights);
 		hoFamily = store.family("F1");

@@ -2,7 +2,7 @@ package com.digithink.zsretail.headoffice.service;
 
 import static com.digithink.zsretail.core.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.core.support.InMemoryLoyalty.proxy;
-import static com.digithink.zsretail.headoffice.support.InMemoryStock.set;
+import static com.digithink.zsretail.core.support.InMemoryStock.set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -36,9 +36,9 @@ import com.digithink.zsretail.core.repository.VendorRepository;
 import com.digithink.zsretail.core.service.CatalogueHeadOfficeHooks;
 import com.digithink.zsretail.core.service.ItemService;
 import com.digithink.zsretail.core.service.PurchaseHeaderService;
+import com.digithink.zsretail.core.support.InMemoryStock;
 import com.digithink.zsretail.core.support.TestModes;
 import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
-import com.digithink.zsretail.headoffice.support.InMemoryStock;
 
 /**
  * Head office plan, task 7A.1: the head office as a warehouse. On a head office without an ERP (standalone) a purchase

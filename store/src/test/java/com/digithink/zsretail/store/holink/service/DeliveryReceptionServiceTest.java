@@ -26,10 +26,10 @@ import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.PurchaseInvoiceHeader;
 import com.digithink.zsretail.core.model.PurchaseInvoiceLine;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.core.support.InMemoryItems;
 import com.digithink.zsretail.core.support.InMemoryPurchaseInvoices;
+import com.digithink.zsretail.core.support.InMemoryStock;
 import com.digithink.zsretail.core.utils.Quantities;
-import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
-import com.digithink.zsretail.headoffice.support.InMemoryStock;
 import com.digithink.zsretail.store.holink.dto.ReceivedDeliveryDTO;
 import com.digithink.zsretail.store.holink.dto.ReceptionInputDTO;
 import com.digithink.zsretail.store.holink.enumeration.ReceivedDocumentKind;
@@ -50,7 +50,7 @@ class DeliveryReceptionServiceTest {
 	private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 9, 14, 0);
 	private static final String NUMBER = "FVV26000000101";
 
-	private InMemoryCatalogue db;
+	private InMemoryItems db;
 	private InMemoryStock stock;
 	private InMemoryReceivedDeliveries received;
 	private InMemoryPurchaseInvoices purchases;
@@ -58,7 +58,7 @@ class DeliveryReceptionServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		db = new InMemoryCatalogue(100_000);
+		db = new InMemoryItems(100_000);
 		stock = new InMemoryStock(db);
 		received = new InMemoryReceivedDeliveries(900_000);
 		purchases = new InMemoryPurchaseInvoices(950_000);

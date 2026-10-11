@@ -23,9 +23,9 @@ import com.digithink.zsretail.core.model.enumeration.DataOwner;
 import com.digithink.zsretail.core.model.enumeration.StockMovementType;
 import com.digithink.zsretail.core.service.StockMovementService;
 import com.digithink.zsretail.core.service.StockService;
+import com.digithink.zsretail.core.support.InMemoryItems;
+import com.digithink.zsretail.core.support.InMemoryStock;
 import com.digithink.zsretail.core.support.TestModes;
-import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
-import com.digithink.zsretail.headoffice.support.InMemoryStock;
 import com.digithink.zsretail.support.Installations;
 
 /**
@@ -62,7 +62,7 @@ class StockModeTest {
 
 	/** Runs every stock change once on item B001 (stock 100) and gives the stock and the movement types written. */
 	private static String run(ApplicationModeService mode, boolean[] deliveryAnswer) {
-		InMemoryCatalogue catalogue = new InMemoryCatalogue(1);
+		InMemoryItems catalogue = new InMemoryItems(1);
 		Item item = catalogue.item("B001", 10.0, null);
 		item.setStockQuantity(BigDecimal.valueOf(100));
 		InMemoryStock memory = new InMemoryStock(catalogue);

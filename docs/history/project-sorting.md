@@ -95,3 +95,9 @@ when it has one, what the startup summary shows. erp-api and core name no custom
 `ErpAbilities` and the translation of `erp.connector` read the descriptors found. The guards find the connectors by
 their folders and descriptors. A new connector: its folder and two lines in `connectors/pom.xml` (erp-sync.md, "How to
 add a connector").
+
+Test helpers (step 7, part B.5): `InMemoryCatalogue` is split like `InMemoryLoyalty` at 6.7. Its item tables are
+`core.support.InMemoryItems`; `headoffice.support.InMemoryCatalogue` extends it with the head office's tables (stores,
+price lists, supply prices, points de stock), its API unchanged for its callers. `InMemoryStock` moved to core.support
+over `InMemoryItems`. Seven store tests and the helper `InMemoryInventory` now run in store (store 258 tests,
+network-tests 296).
