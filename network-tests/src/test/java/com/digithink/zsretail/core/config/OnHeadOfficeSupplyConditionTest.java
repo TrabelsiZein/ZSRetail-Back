@@ -27,8 +27,8 @@ import com.digithink.zsretail.store.holink.service.SupplyVendorGuard;
 /**
  * Head office plan, step 7A: the supply beans of a store (BL reception, the SUPPLY handler, the SUPPLY_PUSH job) exist
  * only on a standalone store with headoffice.url and an explicit ownership.supply=HEAD_OFFICE (with
- * ownership.catalogue=HEAD_OFFICE, required at startup). The startup refusals (since task 9.4a a franchise flag stops
- * the startup before anything else). The head office receiver exists only on a head office without an ERP. Bare bean registry.
+ * ownership.catalogue=HEAD_OFFICE, required at startup). The startup refusals (a franchise key is refused before,
+ * by OldLines, since code cleanup step 8). The head office receiver exists only on a head office without an ERP. Bare bean registry.
  */
 class OnHeadOfficeSupplyConditionTest {
 
@@ -93,15 +93,6 @@ class OnHeadOfficeSupplyConditionTest {
 				assertFalse(registered(env, bean), bean.getSimpleName());
 			}
 		}
-	}
-
-	@Test
-	@DisplayName("9.4a: a leftover franchise flag stops the startup, even with the supply from the head office")
-	void franchiseFlagRefused() {
-		assertStartsWith("Invalid value 'true' for property franchise.customer: the franchise profiles were removed",
-				supplied().withProperty("franchise.customer", "true"));
-		assertStartsWith("Invalid value 'true' for property franchise.admin: the franchise profiles were removed",
-				standalone(link()).withProperty("franchise.admin", "true"));
 	}
 
 	@Test

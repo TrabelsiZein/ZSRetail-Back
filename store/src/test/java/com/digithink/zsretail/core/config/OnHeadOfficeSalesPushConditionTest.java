@@ -2,7 +2,6 @@ package com.digithink.zsretail.core.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.DisplayName;
@@ -58,12 +57,10 @@ class OnHeadOfficeSalesPushConditionTest {
 	}
 
 	@Test
-	@DisplayName("Head office upstream with the URL: true (explicit on standalone or ERP flags, any case); a franchise flag is refused (task 9.4a)")
+	@DisplayName("Head office upstream with the URL: true (explicit on standalone or ERP flags, any case)")
 	void withHeadOfficeUpstream() {
 		assertTrue(NodeOwnership.isHeadOfficeSalesPushSet(standalone(link()).withProperty("sales.upstream", "HEAD_OFFICE")));
 		assertTrue(NodeOwnership.isHeadOfficeSalesPushSet(link().withProperty("sales.upstream", " erp , head_office ")));
-		assertThrows(IllegalStateException.class, () -> NodeOwnership.isHeadOfficeSalesPushSet(
-				standalone(link()).withProperty("franchise.customer", " true ")), "the franchise profiles were removed");
 	}
 
 	@Test

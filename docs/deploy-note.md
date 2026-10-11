@@ -45,6 +45,8 @@ names each old line, where it is and what to write instead. Nothing else behaves
 | `erp.dynamicsnav.enabled=false`, `erp.navpospages.enabled=false` | removed (no `erp.connector` line, or `erp.connector=none`: no connector) |
 | `erp.dynamicsnav.<key>` | `erp.emtop.<key>`, same value |
 | `erp.navpospages.<key>` | `erp.happyness.<key>`, same value |
+| `erp.navpospages.location-code`, `.invoices.years`, `.invoices.start-number`, `.deactivate-guard-percent` (or under `erp.happyness.`) | removed: nothing reads them |
+| `franchise.admin`, `franchise.customer`, `franchise.customer.allow-local-items`, `franchise.api-key`, `franchise.remote.url`, `franchise.sync.sales.cron` (any value) | removed: the franchise profiles are gone |
 
 `erp.sync.enabled` and `erp.sync.scheduler.delay` are not old lines: they stay as they are. The values do not change;
 below, `...` stands for the line's value as it is.
@@ -99,9 +101,9 @@ erp.happyness.invoices.seller-name=...
 ```
 
 `location-code` and `invoices.years` have not been read since 2.2 (the head office's points de stock and the General
-Setup "Read ERP invoices after number" replaced them): drop them rather than rename them. Renamed they would still be
-ignored (`erp.happyness.invoices.years` with a WARN line, `erp.happyness.location-code` silently). Any other
-`erp.navpospages.*` line of the file (pages, packet size, timeouts, invoices) is renamed the same way.
+Setup "Read ERP invoices after number" replaced them): they are under "remove" only, never renamed. They are dead
+keys: under either name, `invoices.start-number` and `deactivate-guard-percent` too, they stop the start ("remove the
+line"). Any other `erp.navpospages.*` line of the file (pages, packet size, timeouts, invoices) is renamed the same way.
 
 **A Happyness store** (a store of the network, no ERP, e.g. `configs/local/happyness_store1.properties`):
 

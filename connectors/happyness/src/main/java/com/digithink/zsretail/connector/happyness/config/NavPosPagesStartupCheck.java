@@ -1,8 +1,5 @@
 package com.digithink.zsretail.connector.happyness.config;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.PropertyResolver;
 import org.springframework.stereotype.Component;
@@ -36,10 +33,6 @@ public class NavPosPagesStartupCheck {
 	public NavPosPagesStartupCheck(Environment environment) {
 		check(environment);
 		log.info(summary(environment));
-		for (String key : ignoredKeys(environment)) {
-			log.warn("Property {} is no longer used (release 2.2) and is ignored: the invoices are read after the General"
-					+ " Setup \"Read ERP invoices after number\" (empty: every invoice of the page). Remove the line.", key);
-		}
 	}
 
 	/** Throws {@link IllegalStateException} naming the key when the connector cannot start. */
@@ -88,7 +81,8 @@ public class NavPosPagesStartupCheck {
 	/**
 	 * Invoices from the ERP, step (a): page.invoices not blank when present; the prefix without spaces; the customer field
 	 * and the lines property OData names; max-per-run from 1 to 1000. Release 2.2: invoices.years and invoices.start-number
-	 * are gone (the years come from the General Setup "Read ERP invoices after number"): see {@link #ignoredKeys}.
+	 * are gone (the years come from the General Setup "Read ERP invoices after number"); since code cleanup step 8 a line
+	 * that still has them stops the startup (the descriptor's dead keys).
 	 */
 	private static void checkInvoices(PropertyResolver env) {
 		String pageKey = P + "page.invoices";
@@ -110,20 +104,6 @@ public class NavPosPagesStartupCheck {
 			}
 		}
 		checkRange(env, "invoices.max-per-run", 1, 1000);
-	}
-
-	/** Release 2.2: the lines removed from the files; a file that still has them starts, with a WARN line each. */
-	static final String[] REMOVED_KEYS = { P + "invoices.years", P + "invoices.start-number" };
-
-	/** The removed lines this file still has (ignored). */
-	public static List<String> ignoredKeys(PropertyResolver env) {
-		List<String> present = new ArrayList<>();
-		for (String key : REMOVED_KEYS) {
-			if (env.containsProperty(key)) {
-				present.add(key);
-			}
-		}
-		return present;
 	}
 
 	/** The startup line: address, company and pages (never a password); the invoices page with the ERP supply. */

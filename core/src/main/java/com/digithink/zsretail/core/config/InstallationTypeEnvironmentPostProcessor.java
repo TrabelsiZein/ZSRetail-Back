@@ -19,9 +19,9 @@ import org.springframework.util.StringUtils;
  * 2026-10-11): an installation no longer names it. spring.profiles.active or node.type from any source but the
  * application's own default properties (the outside file, a configuration file, a -D, an environment variable such as
  * SPRING_PROFILES_ACTIVE), whatever its value, stops the startup naming each line and where it is, and saying to remove
- * it; a line that names the other type also says which application that installation needs. The old lines of the
- * connectors found at the same start are added to the message
- * ({@link ErpConnectorEnvironmentPostProcessor#oldLinesMessage}), so one message names every old line. Anything else
+ * it; a line that names the other type also says which application that installation needs. The other old lines of
+ * the same start (the connectors', the dead keys) follow in the same message ({@link OldLines}), so one message names
+ * every old line. Anything else
  * that changes the profiles (spring.profiles.include) stops the startup too.
  */
 public class InstallationTypeEnvironmentPostProcessor implements EnvironmentPostProcessor, Ordered {
@@ -45,8 +45,7 @@ public class InstallationTypeEnvironmentPostProcessor implements EnvironmentPost
 		}
 		String refusal = typeLinesMessage(environment, type, applicationName(application));
 		if (refusal != null) {
-			String connectors = ErpConnectorEnvironmentPostProcessor.oldLinesMessage(environment);
-			throw new IllegalStateException(connectors == null ? refusal : refusal + " " + connectors);
+			throw new IllegalStateException(OldLines.message(environment, refusal));
 		}
 		String[] active = environment.getActiveProfiles();
 		if (!(active.length == 1 && active[0].equals(type))) {

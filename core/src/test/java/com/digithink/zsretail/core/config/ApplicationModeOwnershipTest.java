@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -86,28 +87,18 @@ class ApplicationModeOwnershipTest {
 	}
 
 	@Test
-	@DisplayName("9.4a: franchise.admin or franchise.customer set to true stops the startup, on a store (with or without an ERP), linked or not, and on a head office; false or absent is accepted")
-	void franchiseFlagsRefused() {
-		for (String key : new String[] { "franchise.admin", "franchise.customer" }) {
-			for (MockEnvironment env : new MockEnvironment[] { new MockEnvironment(), linkEnv(), headOfficeEnv() }) {
-				for (boolean standalone : new boolean[] { true, false }) {
-					IllegalStateException e = assertThrows(IllegalStateException.class,
-							() -> {
-								if (standalone) {
-									standalone(env.withProperty(key, " TRUE "));
-								} else {
-									erp(env.withProperty(key, " TRUE "));
-								}
-							});
-					assertTrue(e.getMessage().startsWith("Invalid value ' TRUE ' for property " + key
-							+ ": the franchise profiles were removed (head office plan, step 9)"), e.getMessage());
-					assertTrue(e.getMessage().contains("of the types headoffice and store"), e.getMessage());
-				}
+	@DisplayName("9.4a, code cleanup step 8: a franchise key, whatever its value, is refused at startup (OldLines); the ownership does not read it")
+	void franchiseKeysRefused() {
+		for (String key : OldLines.APPLICATION_DEAD_KEYS) {
+			for (String value : new String[] { " TRUE ", "false", "" }) {
+				assertEquals("Line no longer read: in the property source mockProperties, " + key + ". Remove the line:"
+						+ " nothing reads it any more.", OldLines.message(new MockEnvironment().withProperty(key, value), null));
 			}
 		}
-		assertRow(standalone(new MockEnvironment().withProperty("franchise.admin", "false").withProperty(
-				"franchise.customer", "false").withProperty("franchise.customer.allow-local-items", "true")),
-				NodeType.STORE, L, L, L, L, L, none());
+		assertEquals(Arrays.asList("franchise.admin", "franchise.customer", "franchise.customer.allow-local-items",
+				"franchise.api-key", "franchise.remote.url", "franchise.sync.sales.cron"), OldLines.APPLICATION_DEAD_KEYS);
+		assertRow(standalone(new MockEnvironment().withProperty("franchise.admin", "true").withProperty(
+				"franchise.customer", "true")), NodeType.STORE, L, L, L, L, L, none());
 	}
 
 	// --- Explicit keys ---

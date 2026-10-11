@@ -51,7 +51,9 @@ import com.digithink.zsretail.support.Installations;
  * configuration the connector its old line chose (true: the name; false or absent: none), nothing else changed. Topic
  * B: erp.dynamicsnav.* and erp.navpospages.* renamed erp.emtop.* and erp.happyness.*, every value unchanged. Topic C
  * changed nothing: no file names the type any more, spring.profiles.active and node.type are recorded explicitly and
- * resolve as before, from the application. The files of configs/local are read upgraded (Installations.upgraded).
+ * resolve as before, from the application. The files of configs/local are read upgraded (Installations.upgraded). Then the
+ * dead keys refused: the record lost erp.happyness.location-code and erp.happyness.invoices.years (the Happyness head
+ * office of configs/local, upgraded, no longer has them), nothing else.
  */
 class ConfigurationKeysProofTest {
 

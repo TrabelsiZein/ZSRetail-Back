@@ -19,7 +19,7 @@ import com.digithink.zsretail.core.model.enumeration.SalesUpstream;
  * file may override ({@link NodeOwnership#resolve(org.springframework.core.env.PropertyResolver)}; task 9.3: the removed
  * application.standalone stops the startup).
  * All mode-dependent behaviour should use this service. Step 9: every check asks one of its questions; the franchise
- * profiles were removed (task 9.4a) and a leftover franchise.admin or franchise.customer=true stops the startup.
+ * profiles were removed (task 9.4a) and their keys stop the startup (OldLines).
  */
 @Service
 public class ApplicationModeService {

@@ -1,5 +1,6 @@
 package com.digithink.zsretail.erp.api;
 
+import java.util.Collections;
 import java.util.Set;
 
 /**
@@ -29,6 +30,14 @@ public interface ErpConnectorDescriptor {
 	 */
 	default String oldKeyPrefix() {
 		return null;
+	}
+
+	/**
+	 * Code cleanup step 8: the keys of its block that nothing reads any more, without the prefix (e.g. location-code).
+	 * Under its prefix or its old one, any of them refuses the startup with "remove the line", never a new name.
+	 */
+	default Set<String> deadKeys() {
+		return Collections.emptySet();
 	}
 
 	/**

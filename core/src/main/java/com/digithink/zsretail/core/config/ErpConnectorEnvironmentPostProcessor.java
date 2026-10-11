@@ -49,9 +49,9 @@ public class ErpConnectorEnvironmentPostProcessor implements EnvironmentPostProc
 		inEffect(environment);
 	}
 
-	/** Every old line of the connectors found, in every source, refused together ({@link #oldLinesMessage}). */
+	/** Every old line of a start, refused together ({@link OldLines#message}). */
 	static void refuseOldLines(ConfigurableEnvironment environment) {
-		String message = oldLinesMessage(environment);
+		String message = OldLines.message(environment, null);
 		if (message != null) {
 			throw new IllegalStateException(message);
 		}
@@ -60,10 +60,9 @@ public class ErpConnectorEnvironmentPostProcessor implements EnvironmentPostProc
 	/**
 	 * The refusal of the old lines of the connectors found, in every source, null when there is none: the enabled lines,
 	 * each with what to write instead, then the other keys of the old blocks, each with its new name, source by source.
-	 * Also added to the refusal of the type lines (InstallationTypeEnvironmentPostProcessor), so one message names every
-	 * old line of a start.
+	 * A dead key of a connector is not here but with the other dead keys ({@link OldLines}): it is never renamed.
 	 */
-	public static String oldLinesMessage(ConfigurableEnvironment environment) {
+	static String connectorLinesMessage(ConfigurableEnvironment environment) {
 		List<String> lines = new ArrayList<>();
 		Map<PropertySource<?>, List<String>> renamed = new LinkedHashMap<>();
 		for (ErpConnectorDescriptor descriptor : ErpConnectors.descriptors()) {
@@ -118,7 +117,7 @@ public class ErpConnectorEnvironmentPostProcessor implements EnvironmentPostProc
 		List<String> found = new ArrayList<>();
 		for (String name : ((EnumerablePropertySource<?>) source).getPropertyNames()) {
 			String key = variables ? name.toUpperCase(Locale.ROOT) : name;
-			if (key.startsWith(old) && !key.equals(enabled)) {
+			if (key.startsWith(old) && !key.equals(enabled) && !dead(key.substring(old.length()), descriptor, variables)) {
 				found.add(name + " is now " + now + name.substring(old.length()));
 			}
 		}
@@ -126,8 +125,14 @@ public class ErpConnectorEnvironmentPostProcessor implements EnvironmentPostProc
 		return found;
 	}
 
+	/** True for a dead key of the connector (its part after the prefix, as a key or a variable writes it). */
+	private static boolean dead(String suffix, ErpConnectorDescriptor descriptor, boolean variables) {
+		return descriptor.deadKeys().stream()
+				.anyMatch(key -> variables ? variable(key).equals(suffix) : key.equals(suffix));
+	}
+
 	/** A key prefix as an environment variable names it: erp.x-y becomes ERP_XY. */
-	private static String variable(String prefix) {
+	static String variable(String prefix) {
 		return prefix.replace("-", "").replace('.', '_').toUpperCase(Locale.ROOT);
 	}
 

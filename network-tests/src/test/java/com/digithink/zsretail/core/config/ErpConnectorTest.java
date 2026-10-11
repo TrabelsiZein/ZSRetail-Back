@@ -176,13 +176,13 @@ class ErpConnectorTest {
 				+ " connector are erp.<its name>.*.",
 				refusal(() -> startWith("erp.connector=emtop", "erp.dynamicsnav.company=X",
 						"erp.dynamicsnav.base-url=http://nav")));
-		// An enabled line and keys in two sources: the enabled line first, then each source
+		// An enabled line and keys in two sources: the enabled line first, then each source; a dead key last, never renamed
 		assertEquals("Old line no longer read: erp.navpospages.enabled=true in the outside file " + headOffice
 				+ ": write erp.connector=happyness instead." + CHOSEN_BY + " Old keys no longer read, in the property"
 				+ " source test-system-properties: erp.navpospages.password is now erp.happyness.password. Old keys no"
-				+ " longer read, in the outside file " + headOffice + ": erp.navpospages.base-url is now erp.happyness.base-url,"
-				+ " erp.navpospages.invoices.years is now erp.happyness.invoices.years. Rename them: the keys of a"
-				+ " connector are erp.<its name>.*.",
+				+ " longer read, in the outside file " + headOffice + ": erp.navpospages.base-url is now erp.happyness.base-url."
+				+ " Rename them: the keys of a connector are erp.<its name>.*. Line no longer read: in the outside file "
+				+ headOffice + ", erp.navpospages.invoices.years. Remove the line: nothing reads it any more.",
 				refusal(() -> headOfficeWith(Collections.singletonMap("erp.navpospages.password", "p"),
 						"erp.navpospages.enabled=true",
 						"erp.navpospages.base-url=http://bc", "erp.navpospages.invoices.years=2021")));
@@ -194,6 +194,29 @@ class ErpConnectorTest {
 		assertEquals("Old keys no longer read, in an environment variable: ERP_DYNAMICSNAV_BASEURL is now"
 				+ " ERP_EMTOP_BASEURL. Rename them: the keys of a connector are erp.<its name>.*.",
 				refusal(() -> start(env)));
+	}
+
+	@Test
+	@DisplayName("A dead key, under either prefix, and a franchise key, whatever the value, refuse the startup: remove the line")
+	void deadKeysRefused() {
+		Path file = outsideFile();
+		assertEquals("Line no longer read: in the outside file " + file + ", erp.happyness.location-code. Remove the line:"
+				+ " nothing reads it any more.", refusal(() -> startWith("erp.happyness.location-code=FRANCHISE")));
+		assertEquals("Line no longer read: in the outside file " + file + ", franchise.admin. Remove the line: nothing"
+				+ " reads it any more.", refusal(() -> startWith("franchise.admin=false")));
+		assertEquals("Lines no longer read: in the property source test-system-properties, franchise.customer; in the"
+				+ " outside file " + file + ", erp.happyness.invoices.start-number, erp.navpospages.deactivate-guard-percent,"
+				+ " franchise.api-key. Remove the lines: nothing reads them any more.",
+				refusal(() -> startWith(Collections.singletonMap("franchise.customer", "true"),
+						"erp.navpospages.deactivate-guard-percent=10", "erp.happyness.invoices.start-number=FVV1",
+						"franchise.api-key=secret")));
+		StandardEnvironment env = Starts.environment("store", new HashMap<>());
+		env.getPropertySources().replace(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+				new SystemEnvironmentPropertySource(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+						Collections.singletonMap("ERP_HAPPYNESS_INVOICES_YEARS", "2021")));
+		assertEquals("Line no longer read: in an environment variable, ERP_HAPPYNESS_INVOICES_YEARS. Remove the line:"
+				+ " nothing reads it any more.", refusal(() -> start(env)));
+		assertTrue(!refusal(() -> startWith("franchise.api-key=secret")).contains("secret"), "a value is never shown");
 	}
 
 	@Test

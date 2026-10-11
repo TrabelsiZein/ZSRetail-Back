@@ -1,6 +1,8 @@
 package com.digithink.zsretail.connector.happyness;
 
+import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 import com.digithink.zsretail.erp.api.ErpAbility;
@@ -31,5 +33,16 @@ public class HappynessConnectorDescriptor implements ErpConnectorDescriptor {
 	@Override
 	public String oldKeyPrefix() {
 		return "erp.navpospages";
+	}
+
+	/**
+	 * Read by nothing any more: location-code (release 2.2, the head office's points de stock), invoices.years and
+	 * invoices.start-number (release 2.2, the General Setup "Read ERP invoices after number"), deactivate-guard-percent
+	 * (2026-10-08). Refused, under either prefix, since code cleanup step 8.
+	 */
+	@Override
+	public Set<String> deadKeys() {
+		return new LinkedHashSet<>(Arrays.asList("location-code", "invoices.years", "invoices.start-number",
+				"deactivate-guard-percent"));
 	}
 }

@@ -68,7 +68,7 @@ public class NavPosPagesProperties {
 	 * Invoices from the ERP, step (a): how the invoices page is read. The numbers carry the year (FVV26...): one read per
 	 * year, after the highest number the head office has of that year. Release 2.2: the years are worked out by the sync
 	 * (from the General Setup "Read ERP invoices after number", or the oldest invoice of the page, up to the current year);
-	 * the lines invoices.years and invoices.start-number are gone (ignored with a WARN line when a file still has them).
+	 * the lines invoices.years and invoices.start-number are gone (refused at startup since code cleanup step 8).
 	 */
 	@Getter
 	@Setter

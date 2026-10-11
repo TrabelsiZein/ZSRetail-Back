@@ -102,19 +102,12 @@ class OnHeadOfficeCatalogueConditionTest {
 	}
 
 	@Test
-	@DisplayName("The startup stops on an explicit ownership.catalogue=HEAD_OFFICE without the URL or with an ERP, and on any"
-			+ " franchise flag (task 9.4a)")
+	@DisplayName("The startup stops on an explicit ownership.catalogue=HEAD_OFFICE without the URL or with an ERP")
 	void startupRefusals() {
 		IllegalStateException noUrl = assertThrows(IllegalStateException.class,
 				() -> resolve(standalone(new MockEnvironment()).withProperty("ownership.catalogue", "HEAD_OFFICE")));
 		assertTrue(noUrl.getMessage().startsWith("Missing value for property headoffice.url: required when"
 				+ " ownership.catalogue is HEAD_OFFICE"), noUrl.getMessage());
-		IllegalStateException franchise = assertThrows(IllegalStateException.class,
-				() -> resolve(standalone(link()).withProperty("franchise.customer", "true")
-						.withProperty("ownership.catalogue", "HEAD_OFFICE")));
-		assertTrue(franchise.getMessage().startsWith(
-				"Invalid value 'true' for property franchise.customer: the franchise profiles were removed"),
-				franchise.getMessage());
 		IllegalStateException erp = assertThrows(IllegalStateException.class,
 				() -> resolve(TestModes.erpOwners(link()).withProperty("ownership.catalogue", "HEAD_OFFICE")));
 		assertTrue(erp.getMessage().startsWith(

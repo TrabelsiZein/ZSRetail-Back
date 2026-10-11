@@ -38,9 +38,6 @@ class NavPosPagesStartupCheckTest {
 	@DisplayName("Valid settings pass; the startup line names the address, company and pages, never the password")
 	void valid() {
 		NavPosPagesStartupCheck.check(NavPosPagesTestSupport.validEnvironment());
-		// Release 2.2: location-code is no longer required (the head office has its stock points)
-		NavPosPagesStartupCheck.check(with("erp.happyness.location-code", null));
-		NavPosPagesStartupCheck.check(with("erp.happyness.location-code", "  "));
 		NavPosPagesStartupCheck.check(with("erp.happyness.default-vat", " 0 "));
 		NavPosPagesStartupCheck.check(with("erp.happyness.price-includes-vat", "FALSE"));
 		NavPosPagesStartupCheck.check(with("erp.happyness.barcode-page-size", "5000"));
@@ -145,18 +142,6 @@ class NavPosPagesStartupCheckTest {
 		MockEnvironment none = NavPosPagesTestSupport.validEnvironment();
 		NavPosPagesStartupCheck.check(none);
 		assertFalse(NavPosPagesStartupCheck.summary(none).contains("invoices"));
-	}
-
-	@Test
-	@DisplayName("Release 2.2: invoices.years and invoices.start-number are ignored (the application starts, a WARN line each)")
-	void removedInvoiceLinesIgnored() {
-		MockEnvironment old = withInvoices("erp.happyness.invoices.years", "2025;2026,abc"); // even a value refused before
-		old.setProperty("erp.happyness.invoices.start-number", "FVV24000000001");
-		NavPosPagesStartupCheck.check(old);
-		new NavPosPagesStartupCheck(old); // the bean checks and logs
-		assertEquals(java.util.Arrays.asList("erp.happyness.invoices.years", "erp.happyness.invoices.start-number"),
-				NavPosPagesStartupCheck.ignoredKeys(old));
-		assertTrue(NavPosPagesStartupCheck.ignoredKeys(withInvoices(null, null)).isEmpty());
 	}
 
 	@Test

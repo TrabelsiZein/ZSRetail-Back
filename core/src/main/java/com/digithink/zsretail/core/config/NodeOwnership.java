@@ -28,7 +28,7 @@ import com.digithink.zsretail.erp.api.ErpAbility;
  *
  * An explicit value that is unknown, or an owner the domain does not allow, throws {@link IllegalStateException}
  * naming the key, so the application does not start. The franchise profiles were removed (step 9, task 9.4a):
- * franchise.admin or franchise.customer set to true stops the startup, on a store and on a head office.
+ * since code cleanup step 8 their keys are refused at startup, whatever their value ({@link OldLines}).
  *
  * Head office ({@code node.type=HEAD_OFFICE}, docs/modules/head-office.md): it never sells, so sales go nowhere
  * when {@code sales.upstream} is absent. The startup also fails on a head office with an explicit owner HEAD_OFFICE,
@@ -106,8 +106,6 @@ public final class NodeOwnership {
 	 */
 	public static final java.util.List<String> TYPES = java.util.Collections
 			.unmodifiableList(java.util.Arrays.asList("store", "headoffice"));
-	static final String FRANCHISE_ADMIN_KEY = "franchise.admin";
-	static final String FRANCHISE_CUSTOMER_KEY = "franchise.customer";
 
 	private final NodeType nodeType;
 	private final Map<DataDomain, DataOwner> owners;
@@ -329,10 +327,6 @@ public final class NodeOwnership {
 		}
 	}
 
-	private static boolean flag(PropertyResolver env, String key) {
-		return Boolean.TRUE.equals(env.getProperty(key, Boolean.class, Boolean.FALSE));
-	}
-
 	/**
 	 * The installation of this environment, as ApplicationModeService resolves it at startup (and every head office
 	 * condition). Throws {@link IllegalStateException} naming the key when the configuration cannot start (see the class
@@ -340,7 +334,6 @@ public final class NodeOwnership {
 	 */
 	public static NodeOwnership resolve(PropertyResolver env) {
 		checkNoStandaloneProperty(env);
-		checkNoFranchiseFlag(env);
 		NodeType nodeType = nodeTypeOf(env);
 		boolean headOffice = nodeType == NodeType.HEAD_OFFICE;
 		checkHeadOfficeLink(env, headOffice);
@@ -466,21 +459,6 @@ public final class NodeOwnership {
 	private static boolean isCatalogueOnly(Map<DataDomain, DataOwner> owners) {
 		return owners.get(DataDomain.CATALOGUE) == DataOwner.ERP && owners.get(DataDomain.CUSTOMERS) != DataOwner.ERP
 				&& owners.get(DataDomain.SUPPLY) != DataOwner.ERP;
-	}
-
-	/**
-	 * Step 9, task 9.4a: the franchise profiles were removed. A leftover franchise.admin or franchise.customer set to true
-	 * (an old profile file) stops the startup instead of silently running as a plain store.
-	 */
-	private static void checkNoFranchiseFlag(PropertyResolver env) {
-		for (String key : new String[] { FRANCHISE_ADMIN_KEY, FRANCHISE_CUSTOMER_KEY }) {
-			if (flag(env, key)) {
-				throw new IllegalStateException("Invalid value '" + env.getProperty(key) + "' for property " + key
-						+ ": the franchise profiles were removed (head office plan, step 9). A franchise network runs as"
-						+ " a head office and stores, of the types headoffice and store"
-						+ " (docs/modules/franchise.md); remove " + key + ".");
-			}
-		}
 	}
 
 	/**

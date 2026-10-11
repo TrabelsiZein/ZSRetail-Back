@@ -29,8 +29,8 @@ import com.digithink.zsretail.support.Starts;
  * and a Happyness store (their lines as configs/customers/erp-prod.properties and configs/local had them before step 8,
  * the values made up), is refused with one message naming every old line, where it is and what to write; the file
  * upgraded as docs/deploy-note.md says ("Upgrade from 2.2.2: the outside file", Installations.upgraded) starts, with the
- * same values under the new keys. Starts run the way Spring Boot runs them (the post-processors around
- * ConfigFileApplicationListener, on the real application.properties and type files).
+ * same values under the new keys (a dead key dropped: OldLines). Starts run the way Spring Boot runs them (the
+ * post-processors around ConfigFileApplicationListener, on the real application.properties and type files).
  */
 class OutsideFileUpgradeTest {
 
@@ -97,7 +97,8 @@ class OutsideFileUpgradeTest {
 		for (String line : oldLines) {
 			String key = line.substring(0, line.indexOf('='));
 			if (key.equals("spring.profiles.active") || key.equals("node.type") || key.endsWith(".enabled")
-					&& key.startsWith("erp.") && !key.startsWith("erp.sync.")) {
+					&& key.startsWith("erp.") && !key.startsWith("erp.sync.")
+					|| OldLines.deadKeys().contains(key)) {
 				continue;
 			}
 			String now = key.replace("erp.dynamicsnav.", "erp.emtop.").replace("erp.navpospages.", "erp.happyness.");
@@ -130,7 +131,7 @@ class OutsideFileUpgradeTest {
 	}
 
 	@Test
-	@DisplayName("A Happyness head office: refused naming its type line, its enabled line and its ten keys; upgraded, it starts")
+	@DisplayName("A Happyness head office: refused naming its type line, its enabled line, its eight keys and its two dead keys; upgraded, it starts")
 	void happynessHeadOffice() throws IOException {
 		Path file = file("happyness_ho.properties", HAPPYNESS_HEAD_OFFICE);
 		assertEquals("Old line no longer read: spring.profiles.active=headoffice in the outside file " + file + ". An"
@@ -140,16 +141,17 @@ class OutsideFileUpgradeTest {
 				+ " file " + file + ": erp.navpospages.base-url is now erp.happyness.base-url, erp.navpospages.company is"
 				+ " now erp.happyness.company, erp.navpospages.default-vat is now erp.happyness.default-vat,"
 				+ " erp.navpospages.domain is now erp.happyness.domain, erp.navpospages.invoices.seller-name is now"
-				+ " erp.happyness.invoices.seller-name, erp.navpospages.invoices.years is now erp.happyness.invoices.years,"
-				+ " erp.navpospages.location-code is now erp.happyness.location-code, erp.navpospages.password is now"
+				+ " erp.happyness.invoices.seller-name, erp.navpospages.password is now"
 				+ " erp.happyness.password, erp.navpospages.price-includes-vat is now erp.happyness.price-includes-vat,"
-				+ " erp.navpospages.username is now erp.happyness.username." + RENAME, refusal(file));
+				+ " erp.navpospages.username is now erp.happyness.username." + RENAME + " Lines no longer read: in the"
+				+ " outside file " + file + ", erp.navpospages.invoices.years, erp.navpospages.location-code. Remove the"
+				+ " lines: nothing reads them any more.", refusal(file));
 		StandardEnvironment env = start(upgraded(file));
 		assertEquals("happyness", ErpConnectorEnvironmentPostProcessor.inEffect(env));
 		assertEquals("HEAD_OFFICE", env.getProperty("node.type"));
 		NavPosPagesStartupCheck.check(env); // the connector's own checks pass on the new keys
-		assertEquals(Collections.singletonList("erp.happyness.invoices.years"), NavPosPagesStartupCheck.ignoredKeys(env),
-				"no longer read since 2.2: a WARN line, as before");
+		assertEquals(null, env.getProperty("erp.happyness.location-code"), "a dead key: dropped, not renamed");
+		assertEquals(null, env.getProperty("erp.happyness.invoices.years"));
 		sameValues(HAPPYNESS_HEAD_OFFICE, env);
 	}
 

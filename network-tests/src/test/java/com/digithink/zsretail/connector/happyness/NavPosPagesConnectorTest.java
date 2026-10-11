@@ -100,7 +100,7 @@ class NavPosPagesConnectorTest {
 		return new String[] { "node.type=HEAD_OFFICE", "ownership.catalogue=ERP", "erp.connector=happyness",
 				"erp.happyness.base-url=" + NavPosPagesTestSupport.BASE_URL, "erp.happyness.company=HAPPYNESS",
 				"erp.happyness.username=user", "erp.happyness.password=secret",
-				"erp.happyness.location-code=FRANCHISE" /* release 2.2: a leftover line, ignored */, "erp.happyness.default-vat=19",
+				"erp.happyness.default-vat=19",
 				"erp.happyness.price-includes-vat=true" };
 	}
 
@@ -186,11 +186,10 @@ class NavPosPagesConnectorTest {
 	}
 
 	@Test
-	@DisplayName("Invoices from the ERP: the keys bound, the year prefix; release 2.2: years and start-number ignored, the start still works")
+	@DisplayName("Invoices from the ERP: the keys bound, the year prefix")
 	void invoiceKeysBound() {
 		context().withPropertyValues(navPosPagesKeys())
-				.withPropertyValues("erp.happyness.invoices.years= 2025 , 2026", "erp.happyness.invoices.number-prefix=FA",
-						"erp.happyness.invoices.start-number=FA25000000999", "erp.happyness.invoices.max-per-run=20",
+				.withPropertyValues("erp.happyness.invoices.number-prefix=FA", "erp.happyness.invoices.max-per-run=20",
 						"erp.happyness.invoices.customer-field=Sell_to_Customer_Name")
 				.run(ctx -> {
 					assertTrue(ctx.getStartupFailure() == null, String.valueOf(ctx.getStartupFailure()));

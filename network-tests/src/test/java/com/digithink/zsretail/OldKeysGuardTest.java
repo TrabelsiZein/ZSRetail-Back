@@ -20,6 +20,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.digithink.zsretail.core.config.OldLines;
 import com.digithink.zsretail.core.support.Repo;
 import com.digithink.zsretail.erp.api.ErpConnectorDescriptor;
 import com.digithink.zsretail.erp.api.ErpConnectors;
@@ -30,7 +31,8 @@ import com.digithink.zsretail.erp.api.ErpConnectors;
  * connector's old key prefix (erp.dynamicsnav, erp.navpospages), declared by its descriptor only, where the refusals read
  * them: the descriptors are the only files allowed to name them. Not scanned: the released SQL scripts
  * (src/main/resources/db/, never edited) and configs/local (Zein's own files, upgraded by hand as docs/deploy-note.md
- * says). The type lines (spring.profiles.active, node.type) are refused in the files of an installation, its launches
+ * says). The dead keys (a connector's, declared by its descriptor; the application's, by core's OldLines) are named only
+ * there too. The type lines (spring.profiles.active, node.type) are refused in the files of an installation, its launches
  * and its scripts (configs/, eclipse/, devenv/).
  */
 class OldKeysGuardTest {
@@ -89,6 +91,18 @@ class OldKeysGuardTest {
 				.collect(Collectors.toList());
 	}
 
+	/**
+	 * Code cleanup step 8: the dead keys, the application's and the connectors' under their new prefix (under the old one
+	 * they are covered by the old prefix).
+	 */
+	static List<String> deadNames() {
+		return OldLines.deadKeys().stream().filter(key -> oldNames().stream().noneMatch(key::startsWith))
+				.collect(Collectors.toList());
+	}
+
+	/** Where the application declares its dead keys, the only file of core allowed to name them. */
+	static final String CORE_DECLARATION = "core/src/main/java/com/digithink/zsretail/core/config/OldLines.java";
+
 	/** The source files of the descriptors that declare an old prefix, relative to the repository. */
 	static List<String> declaring() {
 		Map<String, Path> sources = Repo.mainJavaFiles();
@@ -114,10 +128,12 @@ class OldKeysGuardTest {
 	@Test
 	@DisplayName("No old key name in main code, resources, configs/, eclipse/ or devenv/ (except in the descriptors); no type line in configs/, eclipse/ or devenv/")
 	void noOldKeys() throws IOException {
-		List<String> names = oldNames();
+		List<String> names = new ArrayList<>(oldNames());
+		names.addAll(deadNames());
 		List<String> withTypeLines = new ArrayList<>(names);
 		withTypeLines.addAll(TYPE_LINES);
-		List<String> allowed = declaring();
+		List<String> allowed = new ArrayList<>(declaring());
+		allowed.add(CORE_DECLARATION);
 		List<String> offences = new ArrayList<>();
 		List<String> files = files();
 		for (String file : files) {
@@ -136,6 +152,11 @@ class OldKeysGuardTest {
 	@DisplayName("The guard itself: the old names from the descriptors, only they may name them, what is not scanned")
 	void guardItself() {
 		assertEquals(Arrays.asList("erp.dynamicsnav", "erp.navpospages"), oldNames());
+		assertEquals(Arrays.asList("franchise.admin", "franchise.customer", "franchise.customer.allow-local-items",
+				"franchise.api-key", "franchise.remote.url", "franchise.sync.sales.cron", "erp.happyness.location-code",
+				"erp.happyness.invoices.years", "erp.happyness.invoices.start-number",
+				"erp.happyness.deactivate-guard-percent"), deadNames());
+		assertTrue(files().contains(CORE_DECLARATION));
 		assertEquals(Arrays.asList(
 				"connectors/emtop/src/main/java/com/digithink/zsretail/connector/emtop/EmtopConnectorDescriptor.java",
 				"connectors/happyness/src/main/java/com/digithink/zsretail/connector/happyness/HappynessConnectorDescriptor.java"),

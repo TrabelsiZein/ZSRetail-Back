@@ -73,7 +73,6 @@ final class NavPosPagesTestSupport {
 		env.setProperty("erp.happyness.company", "HAPPYNESS");
 		env.setProperty("erp.happyness.username", "user");
 		env.setProperty("erp.happyness.password", "secret");
-		env.setProperty("erp.happyness.location-code", "FRANCHISE");
 		env.setProperty("erp.happyness.default-vat", "19");
 		env.setProperty("erp.happyness.price-includes-vat", "true");
 		return env;

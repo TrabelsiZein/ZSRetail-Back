@@ -270,7 +270,7 @@ read by the single job, the four import jobs are refused on its head office), an
    it depends on erp-api only. Its classes under `com.digithink.zsretail.connector.<name>`: its settings
    (`erp.<name>.*`), its `ErpConnector` (`@ConditionalOnErpConnector("<name>")`) and, for a head office's catalogue,
    an `ErpCatalogueSource` and a `CatalogueSettings`.
-2. Its descriptor, a class implementing `ErpConnectorDescriptor` (its name, its abilities; no old keys for a
+2. Its descriptor, a class implementing `ErpConnectorDescriptor` (its name, its abilities; no old or dead keys for a
    new connector), named in its `src/main/resources/META-INF/spring.factories`:
    `com.digithink.zsretail.erp.api.ErpConnectorDescriptor=com.digithink.zsretail.connector.<name>.<Name>ConnectorDescriptor`.
 3. Two lines in `connectors/pom.xml`: `<module><name></module>` and its `<dependency>` (one line).
@@ -296,8 +296,8 @@ inside the test, each line with its reason (an entry nothing uses any more fails
 
 The head office reads its catalogue from the ERP pages of one location (details in `head-office.md`, "the connector
 navpospages"). Items of the ERP (`item.erp_external_id` set) no longer in the location are handed inactive, never
-deleted, **whatever their number** (since 2026-10-08; the old `deactivate-guard-percent` key is gone and ignored when
-left in a file). The only refusal: when the ERP answers 0 rows for the location, nothing is deactivated and the summary
+deleted, **whatever their number** (since 2026-10-08; the old `deactivate-guard-percent` key is gone; since code cleanup
+step 8 a line left in a file stops the startup). The only refusal: when the ERP answers 0 rows for the location, nothing is deactivated and the summary
 warns "the ERP answered no item for the location: N items not deactivated" (an empty answer is a broken connection or
 a wrong location code, never a cleanup). Hand-made items, packs made at the head office and `TAX_STAMP` have no ERP id
 and are never touched.

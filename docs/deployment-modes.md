@@ -129,6 +129,20 @@ With an old enabled line as well, its refusal comes first, in the same message. 
 connector's descriptor only (`oldKeyPrefix()`); the guard test `OldKeysGuardTest` checks that no main code, resource
 (the released SQL scripts apart), file of `configs/` (`configs/local` apart), `eclipse/` or `devenv/` names them.
 
+**Dead keys are refused too** (code cleanup step 8, Zein's rule: no old line is accepted or ignored silently): a key
+that nothing reads any more, whatever its value, stops the startup with "remove the line", never a new name. A
+connector declares its own (`ErpConnectorDescriptor.deadKeys()`, refused under its prefix and its old one): Happyness's
+`location-code`, `invoices.years`, `invoices.start-number`, `deactivate-guard-percent`. The application's are declared
+in core (`core/config/OldLines`): the keys of the removed franchise profiles, `franchise.admin`, `franchise.customer`,
+`franchise.customer.allow-local-items`, `franchise.api-key`, `franchise.remote.url`, `franchise.sync.sales.cron`. A dead
+key is named, never its value (`franchise.api-key` is a secret). They come last in the one message of the start, after
+the type lines and the connectors' lines (`OldLines`):
+
+```
+Lines no longer read: in the outside file C:\...\zsretailws.properties, erp.navpospages.invoices.years,
+erp.navpospages.location-code. Remove the lines: nothing reads them any more.
+```
+
 **Startup summary**: one INFO line once the application is up (`core/config/InstallationSummary`), e.g.
 `Installation: type STORE, database pos_store_b, catalogue HEAD_OFFICE, customers LOCAL, promotions LOCAL, loyalty HEAD_OFFICE,
 supply HEAD_OFFICE, sales to [HEAD_OFFICE], ERP connector none, outside file D:\...\configs\dev\store-b.properties`. The connector
@@ -218,8 +232,8 @@ loyalty; the ERP owning only part of the catalogue, the customers and the supply
 with ownership.customers=LOCAL. The ERP owns the catalogue, the customers and the supply together ...`), except the one
 combination below on a head office (on a store the catalogue alone from the ERP stays refused); an owner
 `HEAD_OFFICE` on a store without `headoffice.url`; `ownership.supply=HEAD_OFFICE` without `ownership.catalogue=HEAD_OFFICE`;
-on a head office, an owner `HEAD_OFFICE`, a non-empty `sales.upstream` or `headoffice.url`; `franchise.admin` or
-`franchise.customer` set to `true` (the franchise profiles were removed, task 9.4a); `application.standalone` (removed,
+on a head office, an owner `HEAD_OFFICE`, a non-empty `sales.upstream` or `headoffice.url`; a key of the franchise profiles,
+whatever its value (removed at task 9.4a; since code cleanup step 8 refused with the other dead keys, section 2); `application.standalone` (removed,
 task 9.3). Head office details: `docs/modules/head-office.md`.
 
 **Catalogue only from the ERP, head office only** (ERP catalogue, step 1: ownership only, no connector yet):
@@ -250,7 +264,7 @@ the WARs' resources. Every bean of the package exists only with `erp.connector=h
 | `erp.happyness.base-url` | OData V4 address, e.g. `http://host:7048/BC140/ODataV4` | required |
 | `erp.happyness.company` | Company name | required |
 | `erp.happyness.domain`, `.username`, `.password` | NTLM account (domain may be blank) | username and password required |
-| `erp.happyness.location-code` | Removed in 2.2: read nowhere, a leftover line is ignored. The head office creates its points de stock before any items run (`docs/modules/head-office.md`, "Stock points") | — |
+| `erp.happyness.location-code` | Removed in 2.2, read nowhere; since code cleanup step 8 a leftover line stops the startup (remove it). The head office creates its points de stock before any items run (`docs/modules/head-office.md`, "Stock points") | — |
 | `erp.happyness.page.categories`, `.page.items`, `.page.barcodes` | Web service names | `ItemCategory`, `PointStockPOS`, `ItemBarCodePOS` |
 | `erp.happyness.barcode-page-size` | Barcodes per call, 1 to 5000 | `1000` |
 | `erp.happyness.default-vat` | The VAT of every item, whole number 0 to 100 | required |
@@ -262,7 +276,7 @@ the WARs' resources. Every bean of the package exists only with `erp.connector=h
 | `erp.happyness.invoices.lines-expand` | Navigation property of the lines (`$expand`) | `FactureFranchiseSalesInvLines` |
 | `erp.happyness.invoices.customer-field` | Header field of the customer, letters, digits, `_`. The invoices are mapped by `Sell_to_Customer_No` (on the Happyness page since 2026-10-09): a store's "ERP customer number" is its BC customer number | `Sell_to_Customer_No` |
 | `erp.happyness.invoices.number-prefix` | Start of every number, no spaces; the year follows in 2 digits (`FVV` + `26`) | `FVV` |
-| `erp.happyness.invoices.years`, `.start-number` | Removed in release 2.2: a line left in a file is ignored with a WARN at startup (the application starts). The years and the starting point come from the General Setup "Read ERP invoices after number" | — |
+| `erp.happyness.invoices.years`, `.start-number` | Removed in release 2.2; since code cleanup step 8 a line left in a file stops the startup (remove it). The years and the starting point come from the General Setup "Read ERP invoices after number" | — |
 | `erp.happyness.invoices.max-per-run` | Invoices read per year and run, 1 to 1000 | `50` |
 | `erp.happyness.invoices.seller-name` (step c) | The seller named on the stores' purchase invoices; a store's vendor `HEAD_OFFICE` is created with it | `Head office` |
 
@@ -273,7 +287,7 @@ company <company>, pages <three>`, followed by `, invoices <page>` when `headoff
 Step 6: the four catalogue import jobs hand the changes only (`docs/modules/head-office.md`); they run when `erp.sync.enabled=true`
 and the jobs are enabled on the ERP jobs page (none is switched on by these files). Items of the ERP no longer in the location
 are made inactive at the head office whatever their number; only an empty answer for the location deactivates nothing (a
-warning in the summary). The key `erp.happyness.deactivate-guard-percent` is gone (2026-10-08): a leftover line is ignored.
+warning in the summary). The key `erp.happyness.deactivate-guard-percent` is gone (2026-10-08): since code cleanup step 8 a leftover line stops the startup.
 
 **Step 9 questions** (tasks 9.1b to 9.1g): `isCatalogueFromErp()`, `isCustomersFromErp()`, `isSupplyFromErp()`, `hasErp()` (some
 owner is the ERP). With the ERP owning all or nothing they answer alike for every configuration that starts, except the

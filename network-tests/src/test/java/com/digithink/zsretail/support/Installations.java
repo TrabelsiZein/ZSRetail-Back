@@ -15,6 +15,7 @@ import java.util.stream.Stream;
 
 import org.springframework.mock.env.MockEnvironment;
 
+import com.digithink.zsretail.core.config.OldLines;
 import com.digithink.zsretail.core.config.ZsRetailApplication;
 import com.digithink.zsretail.core.support.Repo;
 import com.digithink.zsretail.erp.api.ErpConnectorDescriptor;
@@ -89,9 +90,9 @@ public final class Installations {
 	 * Code cleanup step 8: an outside file of 2.2.2 upgraded as docs/deploy-note.md says ("Upgrade from 2.2.2: the outside
 	 * file"): a connector's old enabled line becomes erp.connector=&lt;its name&gt; when true and goes when false; the
 	 * other keys of its old block take its prefix erp.&lt;name&gt;; spring.profiles.active and node.type go (the application
-	 * is the type). configs/local is Zein's (this repository does not edit it): the tests read its files as they will be
-	 * once upgraded, and a start of a 2.2.2 file refuses (OutsideFileUpgradeTest). A file without old lines comes back
-	 * as it is.
+	 * is the type), and every dead key goes (OldLines.deadKeys: nothing reads it). configs/local is Zein's (this
+	 * repository does not edit it): the tests read its files as they will be once upgraded, and a start of a 2.2.2 file
+	 * refuses (OutsideFileUpgradeTest). A file without old lines comes back as it is.
 	 */
 	public static Properties upgraded(Properties file) {
 		Properties upgraded = new Properties();
@@ -114,6 +115,7 @@ public final class Installations {
 				}
 			}
 		}
+		OldLines.deadKeys().forEach(upgraded::remove);
 		return upgraded;
 	}
 

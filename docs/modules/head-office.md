@@ -19,7 +19,7 @@ Since code cleanup step 6.5 the head office is its own application (`HeadOfficeA
 
 | Head office with | Message starts with |
 |---|---|
-| `franchise.admin=true` or `franchise.customer=true` | Since step 9 (task 9.4a) refused on every installation: `Invalid value 'true' for property franchise.customer: the franchise profiles were removed ...` |
+| a `franchise.*` key, any value | Since step 9 (task 9.4a) `true` was refused; since code cleanup step 8 any value, on every installation: `Line no longer read: in the outside file <path>, franchise.customer. Remove the line: nothing reads it any more.` |
 | an explicit owner `HEAD_OFFICE` (`ownership.<domain>`) | `Invalid value 'HEAD_OFFICE' for property ownership.<domain>: on a head office ... the owner cannot be HEAD_OFFICE` |
 | a non-empty `sales.upstream` | `Invalid value '<value>' for property sales.upstream: a head office ... never sells` |
 | `headoffice.offline-after-seconds` below 1 or not a whole number (task 1.5) | `Invalid value '<value>' for property headoffice.offline-after-seconds: a whole number of seconds, at least 1` |
@@ -1302,7 +1302,7 @@ again at the next run.
 |---|---|
 | Compared | Families, sub-families: name (the import falls back to the code), description, active, ERP id, the family of a sub-family. Items: what the import applies: name, description, VAT, active, ERP id, the price **with VAT at 3 decimals** (a stored price before VAT is never seen as changed), family and sub-family (only when the ERP's one is at the head office: the import keeps the current one otherwise), discount group and maximum discount (the import clears them) |
 | Price null or 0 | The item is handed inactive; active again when the ERP gives it a price |
-| Item gone from the location | Handed inactive with the head office values, never deleted, **whatever their number** (2026-10-08: the percent guard and its key `deactivate-guard-percent` are gone; a leftover key is ignored). Only items of the ERP: `item.erp_external_id` is set only by the ERP import; hand-made items, packs made at the head office, the data import and `TAX_STAMP` have none and are never touched |
+| Item gone from the location | Handed inactive with the head office values, never deleted, **whatever their number** (2026-10-08: the percent guard and its key `deactivate-guard-percent` are gone; since code cleanup step 8 a leftover key stops the startup). Only items of the ERP: `item.erp_external_id` is set only by the ERP import; hand-made items, packs made at the head office, the data import and `TAX_STAMP` have none and are never touched |
 | Empty answer | The ERP answers 0 rows for the location: nothing deactivated in that run, the warning "the ERP answered no item for the location: N items not deactivated" in the summary (a broken connection or a wrong location code, never a cleanup) |
 | Blank Description | The page's `Description` gives the name and the description. Blank for an item already at the head office: its name and description are kept and it is not a change for those fields (handed for another change, it carries the head office's). A new item with a blank name takes its code (the import). Seen 2026-10-08 on the 308 rows of `FRANCHISE` at Happyness (filled in the other locations): the run before this rule had replaced their names by the code; they get their names back when the ERP fills the field |
 | `TAX_STAMP_ERP_ITEM_CODE` | That ERP item is left out (the import never saves it) |
@@ -1441,10 +1441,10 @@ Done (step 1):
   `DELETE /{id}` (204), `PUT /order [id, ...]` (every id once; numbered 1, 2, 3...). Each point carries `itemCount`
   and `storeCount`. 400: code or name missing, code too long, code changed, order not every id once. 409: code that
   exists at any case, deactivating or deleting a point used by a store, deleting a point that has items (deactivate it).
-- Tests: `HoStockPointServiceTest`, `NavPosPagesStartupCheckTest` (location-code absent or blank accepted).
+- Tests: `HoStockPointServiceTest`, `NavPosPagesStartupCheckTest` (no location-code needed).
 
 Done (step 2), the items run (`CatalogueEngine.items`):
-- `erp.happyness.location-code` is read nowhere any more (the property is gone; a leftover line is ignored). The
+- `erp.happyness.location-code` is read nowhere any more (the property is gone; since code cleanup step 8 a leftover line stops the startup). The
   items page is read once per **active** point, in list order (`NavPosPagesSource.readItems(code)`, `$filter=Location_Code
   eq '<code>'`). No active point: the run reads nothing, writes nothing, and its summary says
   `waiting: no active point de stock: create one (Catalogue > Points de stock)`.
@@ -1570,8 +1570,8 @@ Fixes after the second test of 2.2 (head office whose catalogue comes from the E
   (since the last step of 2.2, a head office page: see "Store pages as in 2.1.0" below). A store keeps its three
   roles, its default users and all its permissions.
 - **D. Where the invoices from the ERP start.** The file lines `erp.happyness.invoices.years` and
-  `invoices.start-number` are gone: a line left in a file is ignored with a WARN, the application starts
-  (`NavPosPagesStartupCheck.REMOVED_KEYS`). One General Setup setting, seeded only on a head office with
+  `invoices.start-number` are gone: until code cleanup step 8 a line left in a file was ignored with a WARN; since
+  then it stops the startup (a dead key of the connector, `HappynessConnectorDescriptor.deadKeys`). One General Setup setting, seeded only on a head office with
   `headoffice.supply.source=ERP`: "Read ERP invoices after number" (`ERP_INVOICES_READ_AFTER`, empty by default), with
   "Last invoice read" (`ERP_INVOICES_LAST_READ`, read only, written after each run by `HoErpInvoiceService`: the highest
   number saved). A value that is not an invoice number (prefix, 2-digit year, digits) is refused with a clear message
