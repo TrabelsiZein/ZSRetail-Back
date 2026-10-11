@@ -7,8 +7,6 @@ import java.util.function.Supplier;
 
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnErpConnector;
-import com.digithink.zsretail.config.ErpConnectorEnvironmentPostProcessor;
 import com.digithink.zsretail.erp.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.dto.ErpDeletionLogEntryDTO;
 import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
@@ -31,7 +29,9 @@ import com.digithink.zsretail.erp.dto.ErpTicketLineDTO;
 import com.digithink.zsretail.erp.dto.PullOperationResult;
 import com.digithink.zsretail.erp.engine.CatalogueRun;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesInvoices;
+import com.digithink.zsretail.erp.spi.ConditionalOnErpConnector;
 import com.digithink.zsretail.erp.spi.ErpConnector;
+import com.digithink.zsretail.erp.spi.ErpConnectors;
 
 /**
  * ERP catalogue, step 5: the ERP connector of a Dynamics NAV / Business Central whose web services are the "POS pages"
@@ -50,7 +50,7 @@ import com.digithink.zsretail.erp.spi.ErpConnector;
  * empty list, every push or update a failure.
  */
 @Component
-@ConditionalOnErpConnector(ErpConnectorEnvironmentPostProcessor.NAVPOSPAGES)
+@ConditionalOnErpConnector(ErpConnectors.HAPPYNESS)
 public class NavPosPagesConnector implements ErpConnector {
 
 	static final String READ_ONLY = "The navpospages ERP connector is read only: it sends nothing to the ERP.";

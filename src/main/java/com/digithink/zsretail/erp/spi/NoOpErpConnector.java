@@ -5,8 +5,6 @@ import java.util.List;
 
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.config.ConditionalOnErpConnector;
-import com.digithink.zsretail.config.ErpConnectorEnvironmentPostProcessor;
 import com.digithink.zsretail.erp.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.dto.ErpDeletionLogEntryDTO;
 import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
@@ -30,7 +28,7 @@ import com.digithink.zsretail.erp.dto.ErpTicketLineDTO;
  * step 2: the three ErpConnector beans are mutually exclusive by the connector in effect, so exactly one exists.
  */
 @Component
-@ConditionalOnErpConnector(ErpConnectorEnvironmentPostProcessor.NONE)
+@ConditionalOnErpConnector(ErpConnectors.NONE)
 public class NoOpErpConnector implements ErpConnector {
 
 	@Override

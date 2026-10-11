@@ -47,34 +47,40 @@ in effect is exactly `store` or `headoffice`; anything else (none, two, an old p
 such as `dynamics-prod` left in the server's options) stops the startup: `The active profile is [<names>]: it must be one
 installation type, spring.profiles.active=store | headoffice ...`. `application.standalone` stays refused.
 
-**ERP connector** (code cleanup step 1): one line chooses it, `erp.connector=none | dynamicsnav | navpospages` (trimmed, any
+**ERP connector** (code cleanup step 1): one line chooses it, `erp.connector=none | emtop | happyness` (trimmed, any
 case), the way for a new installation (in its outside file). It is only a translation into the two old lines, done by
 `config/ErpConnectorEnvironmentPostProcessor` after the configuration files are read and before Spring reads its conditions:
 
 | `erp.connector` | `erp.dynamicsnav.enabled` | `erp.navpospages.enabled` |
 |---|---|---|
 | `none` | `false` | `false` |
-| `dynamicsnav` | `true` | `false` |
-| `navpospages` | `false` | `true` |
+| `emtop` (was `dynamicsnav`) | `true` | `false` |
+| `happyness` (was `navpospages`) | `false` | `true` |
 | absent | as written (nothing translated) | as written |
+
+Code cleanup step 5: the values are the customers' names, one connector per customer even when two ERPs look alike:
+`emtop` (EMTOP's Dynamics NAV, keys `erp.dynamicsnav.*`) and `happyness` (Happyness's POS pages, keys `erp.navpospages.*`);
+they were `dynamicsnav` and `navpospages`, which no installed file used. The names and `@ConditionalOnErpConnector` are in
+`erp/spi` (`ErpConnectors`); erp-api asks the application which connector is in effect through `ErpConnectorResolver`
+(`config/ErpConnectorInEffect`, registered in `META-INF/spring.factories`), so it names no key of the application.
 
 So every `@ConditionalOnProperty`, `NodeOwnership`, the startup checks and the summary read the old lines unchanged. The
 **old lines are still accepted**: without `erp.connector` they act exactly as before, and every file of `deploy/` and `configs/`
 resolves as before (checked key by key, `ErpConnectorTest`). The translated values sit just above the property source that gives
 `erp.connector`, so they win over an old line of a lower source (the type files' `erp.dynamicsnav.enabled=false`). Refused at
-startup: an unknown value (empty included), `Invalid value '<v>' for property erp.connector: none | dynamicsnav | navpospages
+startup: an unknown value (empty included), `Invalid value '<v>' for property erp.connector: none | emtop | happyness
 ...`; an old line of the same or a higher source (the same outside file, a `-D`) that says the opposite, `Invalid combination:
 erp.connector=<v> with <old key>=<value> (<source>) ...`. An old line that agrees is accepted.
 
 Two rules, decided at code cleanup step 1:
 - **A contradiction counts only in the same or a higher-priority source** than the one giving `erp.connector`. An opposite old
   line in a lower source is not refused, `erp.connector` wins over it: both type files say `erp.dynamicsnav.enabled=false`, and
-  refusing that line would refuse every `erp.connector=dynamicsnav`.
+  refusing that line would refuse every `erp.connector=emtop`.
 - **An empty `erp.connector=` is refused as an unknown value**, not read as absent: to keep the old lines, leave the key out.
 
 **Abilities and the rule "the application never names a connector"** (code cleanup step 2, `docs/modules/erp-sync.md`,
 "Abilities"): the application asks `erp/spi/ErpAbilities` what the connector in effect can do (`HEAD_OFFICE_STOCK_POINTS`,
-`SUPPLY_INVOICES`: `navpospages` only), whichever way the connector was chosen. Exactly one `ErpConnector` bean exists, the
+`SUPPLY_INVOICES`: `happyness` only), whichever way the connector was chosen. Exactly one `ErpConnector` bean exists, the
 one of the connector in effect. Outside the connector packages and the class above, no code names `erp.dynamicsnav` or
 `erp.navpospages`; the guard test `erp/ConnectorNamesGuardTest` checks it. The property keys of each connector
 (`erp.dynamicsnav.*`, `erp.navpospages.*`) are unchanged.
@@ -82,8 +88,8 @@ one of the connector in effect. Outside the connector packages and the class abo
 **Startup summary**: one INFO line once the application is up (`config/InstallationSummary`), e.g.
 `Installation: type STORE, database pos_store_b, catalogue HEAD_OFFICE, customers LOCAL, promotions LOCAL, loyalty HEAD_OFFICE,
 supply HEAD_OFFICE, sales to [HEAD_OFFICE], ERP connector none, outside file D:\...\deploy\dev\store-b.properties`. The connector
-(`none`, `dynamicsnav`, `navpospages`) is worked out from the old lines in effect, whichever way they were set. With
-`dynamicsnav` it adds `NAV <base-url>`; never a password or a key.
+(`none`, `emtop`, `happyness`) is worked out from the old lines in effect, whichever way they were set. With
+`emtop` it adds `NAV <base-url>`; never a password or a key.
 
 **The `deploy/` folder** (versioned): every file names its type and, when the old preset differed from the type file, states
 the mode lines that preset gave, so every key of every file resolves exactly as before step C1 (checked key by key).
@@ -254,7 +260,7 @@ the "Connect a store" procedure: `docs/modules/head-office.md`, "Head office lin
   only, like `headoffice.stock.enabled`; a store never reads it. Startup refusals: a value other than `HEAD_OFFICE` or
   `ERP` (blank included); `ERP` on a head office whose catalogue does not come from the ERP alone (without an ERP, or
   with the ERP owning all three); `ERP` without a connector that has the ability `SUPPLY_INVOICES` (the message names
-  `erp.connector=navpospages` and the old line `erp.navpospages.enabled=true`, still accepted). `GET /config` field `supplySource`
+  `erp.connector=happyness` and the old line `erp.navpospages.enabled=true`, still accepted). `GET /config` field `supplySource`
   (`HEAD_OFFICE` or `ERP` on a head office, `null` on a store). See `docs/modules/head-office.md`, "Invoices from the ERP".
 - **Stores page threshold** (task 1.5), head office only: `headoffice.offline-after-seconds`, whole number, at least 1, default `180`. A store whose last heartbeat is older is shown OFFLINE (exactly at the threshold it is still ONLINE). A wrong value stops the head office at startup. See `docs/modules/head-office.md`, "Status".
 - **GET /config** (task 0.5) returns three more fields after the existing ones, enums as their names:

@@ -7,8 +7,6 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.HttpStatusCodeException;
 
-import com.digithink.zsretail.config.ConditionalOnErpConnector;
-import com.digithink.zsretail.config.ErpConnectorEnvironmentPostProcessor;
 import com.digithink.zsretail.erp.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.dto.ErpDeletionLogEntryDTO;
 import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
@@ -39,7 +37,9 @@ import com.digithink.zsretail.erp.dynamicsnav.dto.DynamicsNavSalesOrderHeaderDTO
 import com.digithink.zsretail.erp.dynamicsnav.dto.DynamicsNavSalesOrderLineDTO;
 import com.digithink.zsretail.erp.dynamicsnav.dto.DynamicsNavSessionDTO;
 import com.digithink.zsretail.erp.dynamicsnav.mapper.DynamicsNavMapper;
+import com.digithink.zsretail.erp.spi.ConditionalOnErpConnector;
 import com.digithink.zsretail.erp.spi.ErpConnector;
+import com.digithink.zsretail.erp.spi.ErpConnectors;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -47,7 +47,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 
 @Component
-@ConditionalOnErpConnector(ErpConnectorEnvironmentPostProcessor.DYNAMICS_NAV)
+@ConditionalOnErpConnector(ErpConnectors.EMTOP)
 @RequiredArgsConstructor
 public class DynamicsNavConnector implements ErpConnector {
 

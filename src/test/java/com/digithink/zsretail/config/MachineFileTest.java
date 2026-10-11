@@ -222,7 +222,7 @@ class MachineFileTest {
 		env.setProperty(MachineFileEnvironmentPostProcessor.LOADED_KEY, "D:/deploy/dev/store-test-nav.properties");
 		String line = InstallationSummary.summary(env, NodeOwnership.resolve(env));
 		assertEquals("Installation: type STORE, database pos_db_test, catalogue ERP, customers ERP, promotions LOCAL,"
-				+ " loyalty LOCAL, supply ERP, sales to [ERP], ERP connector dynamicsnav, NAV http://192.168.10.166:24/test4/ODataV4,"
+				+ " loyalty LOCAL, supply ERP, sales to [ERP], ERP connector emtop, NAV http://192.168.10.166:24/test4/ODataV4,"
 				+ " outside file D:/deploy/dev/store-test-nav.properties", line);
 		org.springframework.mock.env.MockEnvironment plain = Installations.type("store");
 		assertTrue(InstallationSummary.summary(plain, NodeOwnership.resolve(plain))

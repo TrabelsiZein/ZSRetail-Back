@@ -192,8 +192,8 @@ abilities (`erp/spi/ErpAbility`), read from the environment, so a condition uses
 | Connector | `HEAD_OFFICE_STOCK_POINTS` | `SUPPLY_INVOICES` |
 |---|---|---|
 | `none` | — | — |
-| `dynamicsnav` | — | — |
-| `navpospages` | yes | yes |
+| `emtop` | — | — |
+| `happyness` | yes | yes |
 
 - `HEAD_OFFICE_STOCK_POINTS` (was `CATALOGUE_BY_STOCK_POINTS`): the head office keeps several points de stock in its own
   tables (`ho_stock_point`, `ho_stock_point_item`, the points page), filled by the single catalogue job `SYNC_CATALOGUE`. Not

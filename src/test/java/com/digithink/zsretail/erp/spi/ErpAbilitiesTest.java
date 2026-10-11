@@ -42,12 +42,12 @@ class ErpAbilitiesTest {
 	@DisplayName("Each connector name: its abilities; an unknown name is refused")
 	void byName() {
 		assertEquals(EnumSet.noneOf(ErpAbility.class), ErpAbilities.of("none"));
-		assertEquals(EnumSet.noneOf(ErpAbility.class), ErpAbilities.of("dynamicsnav"));
+		assertEquals(EnumSet.noneOf(ErpAbility.class), ErpAbilities.of("emtop"));
 		assertEquals(EnumSet.of(ErpAbility.HEAD_OFFICE_STOCK_POINTS, ErpAbility.SUPPLY_INVOICES),
-				ErpAbilities.of("navpospages"));
+				ErpAbilities.of("happyness"));
 		assertThrows(IllegalArgumentException.class, () -> ErpAbilities.of("sap"));
-		assertEquals(Collections.singletonList("navpospages"), ErpAbilities.connectorsWith(ErpAbility.SUPPLY_INVOICES));
-		assertEquals(Collections.singletonList("navpospages"),
+		assertEquals(Collections.singletonList("happyness"), ErpAbilities.connectorsWith(ErpAbility.SUPPLY_INVOICES));
+		assertEquals(Collections.singletonList("happyness"),
 				ErpAbilities.connectorsWith(ErpAbility.HEAD_OFFICE_STOCK_POINTS));
 	}
 
@@ -69,18 +69,18 @@ class ErpAbilitiesTest {
 	@Test
 	@DisplayName("From the environment: erp.connector or the old lines give the same abilities")
 	void fromEnvironment() throws IOException {
-		for (String[] lines : Arrays.asList(new String[] { "erp.connector=navpospages" },
+		for (String[] lines : Arrays.asList(new String[] { "erp.connector=happyness" },
 				new String[] { "erp.navpospages.enabled=true" })) {
 			StandardEnvironment env = start(lines);
-			assertEquals("navpospages", ErpAbilities.connectorInEffect(env), lines[0]);
+			assertEquals("happyness", ErpAbilities.connectorInEffect(env), lines[0]);
 			assertTrue(ErpAbilities.hasConnector(env), lines[0]);
 			assertTrue(ErpAbilities.has(env, ErpAbility.HEAD_OFFICE_STOCK_POINTS), lines[0]);
 			assertTrue(ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES), lines[0]);
 		}
-		for (String[] lines : Arrays.asList(new String[] { "erp.connector=DynamicsNav" },
+		for (String[] lines : Arrays.asList(new String[] { "erp.connector=Emtop" },
 				new String[] { "erp.dynamicsnav.enabled=true" })) {
 			StandardEnvironment env = start(lines);
-			assertEquals("dynamicsnav", ErpAbilities.connectorInEffect(env), lines[0]);
+			assertEquals("emtop", ErpAbilities.connectorInEffect(env), lines[0]);
 			assertTrue(ErpAbilities.hasConnector(env), lines[0]);
 			assertFalse(ErpAbilities.has(env, ErpAbility.HEAD_OFFICE_STOCK_POINTS), lines[0]);
 			assertFalse(ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES), lines[0]);

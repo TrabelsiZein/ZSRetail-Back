@@ -43,9 +43,6 @@ class ConnectorDependenciesGuardTest {
 	static {
 		allow("*", "erp.dto.", "the neutral objects (Erp*DTO, ErpSyncFilter, PullOperationResult): they join erp/spi when it"
 				+ " becomes its own project");
-		allow("*", "config.ConditionalOnErpConnector", "each connector's bean exists by the connector in effect (step 2)");
-		allow("*", "config.ErpConnectorEnvironmentPostProcessor", "the connector names (NONE, DYNAMICS_NAV, NAVPOSPAGES)"
-				+ " for @ConditionalOnErpConnector");
 		allow("navpospages", "erp.engine.CatalogueSettings", "NavPosPagesCatalogueSettings gives the engine its settings");
 		allow("navpospages", "erp.engine.CatalogueRun", "NavPosPagesInvoices returns a run like the engine's (summary for"
 				+ " the communications log)");

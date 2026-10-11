@@ -10,7 +10,6 @@ import java.util.stream.Collectors;
 
 import org.springframework.core.env.PropertyResolver;
 
-import com.digithink.zsretail.config.ErpConnectorEnvironmentPostProcessor;
 
 /**
  * Code cleanup, step 2: for each connector name of erp.connector, what it can do. The application never names a
@@ -24,10 +23,10 @@ public final class ErpAbilities {
 
 	static {
 		Map<String, Set<ErpAbility>> map = new LinkedHashMap<>();
-		map.put(ErpConnectorEnvironmentPostProcessor.NONE, Collections.unmodifiableSet(EnumSet.noneOf(ErpAbility.class)));
-		map.put(ErpConnectorEnvironmentPostProcessor.DYNAMICS_NAV,
+		map.put(ErpConnectors.NONE, Collections.unmodifiableSet(EnumSet.noneOf(ErpAbility.class)));
+		map.put(ErpConnectors.EMTOP,
 				Collections.unmodifiableSet(EnumSet.noneOf(ErpAbility.class)));
-		map.put(ErpConnectorEnvironmentPostProcessor.NAVPOSPAGES, Collections.unmodifiableSet(
+		map.put(ErpConnectors.HAPPYNESS, Collections.unmodifiableSet(
 				EnumSet.of(ErpAbility.HEAD_OFFICE_STOCK_POINTS, ErpAbility.SUPPLY_INVOICES)));
 		BY_CONNECTOR = Collections.unmodifiableMap(map);
 	}
@@ -35,14 +34,14 @@ public final class ErpAbilities {
 	private ErpAbilities() {
 	}
 
-	/** The connector in effect: none, dynamicsnav or navpospages. */
+	/** The connector in effect: none, emtop or happyness ({@link ErpConnectors}). */
 	public static String connectorInEffect(PropertyResolver env) {
-		return ErpConnectorEnvironmentPostProcessor.inEffect(env);
+		return ErpConnectors.inEffect(env);
 	}
 
 	/** True when there is a connector in effect (not none). */
 	public static boolean hasConnector(PropertyResolver env) {
-		return !ErpConnectorEnvironmentPostProcessor.NONE.equals(connectorInEffect(env));
+		return !ErpConnectors.NONE.equals(connectorInEffect(env));
 	}
 
 	/** What the connector of that name can do; an unknown name throws. */
@@ -59,7 +58,7 @@ public final class ErpAbilities {
 		return of(connectorInEffect(env)).contains(ability);
 	}
 
-	/** The connector names that have the ability, in the order none, dynamicsnav, navpospages (refusal messages). */
+	/** The connector names that have the ability, in the order none, emtop, happyness (refusal messages). */
 	public static List<String> connectorsWith(ErpAbility ability) {
 		return BY_CONNECTOR.entrySet().stream().filter(entry -> entry.getValue().contains(ability))
 				.map(Map.Entry::getKey).collect(Collectors.toList());

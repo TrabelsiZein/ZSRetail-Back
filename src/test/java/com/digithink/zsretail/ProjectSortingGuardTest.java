@@ -131,15 +131,6 @@ class ProjectSortingGuardTest {
 	static final Map<String, String> ALLOWED = new LinkedHashMap<>();
 
 	static {
-		allow("knot (e), 5.8: erp/spi names the connectors through config",
-				"erp.spi.ErpAbilities -> config.ErpConnectorEnvironmentPostProcessor",
-				"erp.spi.NoOpErpConnector -> config.ConditionalOnErpConnector",
-				"erp.spi.NoOpErpConnector -> config.ErpConnectorEnvironmentPostProcessor");
-		allow("5.8: the connectors' bean conditions and connector names are in config",
-				"erp.dynamicsnav.connector.DynamicsNavConnector -> config.ConditionalOnErpConnector",
-				"erp.dynamicsnav.connector.DynamicsNavConnector -> config.ErpConnectorEnvironmentPostProcessor",
-				"erp.navpospages.connector.NavPosPagesConnector -> config.ConditionalOnErpConnector",
-				"erp.navpospages.connector.NavPosPagesConnector -> config.ErpConnectorEnvironmentPostProcessor");
 		allow("5.8: DynamicsNavRestClient reads the default location and General Setup values of the application",
 				"erp.dynamicsnav.client.DynamicsNavRestClient -> model.Location",
 				"erp.dynamicsnav.client.DynamicsNavRestClient -> service.GeneralSetupService",

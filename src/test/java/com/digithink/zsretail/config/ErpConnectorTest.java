@@ -84,9 +84,9 @@ class ErpConnectorTest {
 	@DisplayName("Each value (trimmed, any case) gives the two old lines")
 	void translate() {
 		assertEquals("{erp.dynamicsnav.enabled=true, erp.navpospages.enabled=false}",
-				ErpConnectorEnvironmentPostProcessor.translate(" DynamicsNav ").toString());
+				ErpConnectorEnvironmentPostProcessor.translate(" Emtop ").toString());
 		assertEquals("{erp.dynamicsnav.enabled=false, erp.navpospages.enabled=true}",
-				ErpConnectorEnvironmentPostProcessor.translate("NAVPOSPAGES").toString());
+				ErpConnectorEnvironmentPostProcessor.translate("HAPPYNESS").toString());
 		assertEquals("{erp.dynamicsnav.enabled=false, erp.navpospages.enabled=false}",
 				ErpConnectorEnvironmentPostProcessor.translate("none\t").toString());
 	}
@@ -94,15 +94,15 @@ class ErpConnectorTest {
 	@Test
 	@DisplayName("In a start: the outside file's erp.connector wins over the type file's old line")
 	void eachValueInAStart() {
-		StandardEnvironment nav = startWith("erp.connector= dynamicsnav ");
+		StandardEnvironment nav = startWith("erp.connector= emtop ");
 		assertEquals("true", nav.getProperty(DYNAMICS_NAV), "over erp.dynamicsnav.enabled=false of the type file");
 		assertEquals("false", nav.getProperty(NAVPOSPAGES));
-		assertEquals("dynamicsnav", ErpConnectorEnvironmentPostProcessor.inEffect(nav));
+		assertEquals("emtop", ErpConnectorEnvironmentPostProcessor.inEffect(nav));
 
-		StandardEnvironment pages = startWith("spring.profiles.active=headoffice", "erp.connector=NavPosPages");
+		StandardEnvironment pages = startWith("spring.profiles.active=headoffice", "erp.connector=Happyness");
 		assertEquals("false", pages.getProperty(DYNAMICS_NAV));
 		assertEquals("true", pages.getProperty(NAVPOSPAGES));
-		assertEquals("navpospages", ErpConnectorEnvironmentPostProcessor.inEffect(pages));
+		assertEquals("happyness", ErpConnectorEnvironmentPostProcessor.inEffect(pages));
 
 		StandardEnvironment none = startWith("erp.connector=none");
 		assertEquals("false", none.getProperty(DYNAMICS_NAV));
@@ -119,9 +119,9 @@ class ErpConnectorTest {
 	@Test
 	@DisplayName("An old line that agrees is accepted, in the same source or above")
 	void agreeingOldLine() {
-		StandardEnvironment env = startWith(Collections.singletonMap(NAVPOSPAGES, "false"), "erp.connector=dynamicsnav",
+		StandardEnvironment env = startWith(Collections.singletonMap(NAVPOSPAGES, "false"), "erp.connector=emtop",
 				"erp.dynamicsnav.enabled= TRUE ");
-		assertEquals("dynamicsnav", ErpConnectorEnvironmentPostProcessor.inEffect(env));
+		assertEquals("emtop", ErpConnectorEnvironmentPostProcessor.inEffect(env));
 	}
 
 	@Test
@@ -131,14 +131,14 @@ class ErpConnectorTest {
 		assertNull(env.getPropertySources().get(ErpConnectorEnvironmentPostProcessor.PROPERTY_SOURCE_NAME));
 		assertEquals("true", env.getProperty(DYNAMICS_NAV));
 		assertNull(env.getProperty(NAVPOSPAGES));
-		assertEquals("dynamicsnav", ErpConnectorEnvironmentPostProcessor.inEffect(env));
+		assertEquals("emtop", ErpConnectorEnvironmentPostProcessor.inEffect(env));
 		assertEquals("none", ErpConnectorEnvironmentPostProcessor.inEffect(startWith("server.port=1")));
 	}
 
 	@Test
 	@DisplayName("Unknown value: refused naming the key and the values")
 	void unknown() {
-		assertEquals("Invalid value ' nav ' for property erp.connector: none | dynamicsnav | navpospages (or leave it"
+		assertEquals("Invalid value ' nav ' for property erp.connector: none | emtop | happyness (or leave it"
 				+ " out and use the old lines erp.dynamicsnav.enabled and erp.navpospages.enabled).",
 				refusal(() -> ErpConnectorEnvironmentPostProcessor.translate(" nav ")));
 		assertTrue(refusal(() -> startWith("erp.connector=")).startsWith("Invalid value '' for property erp.connector"));
@@ -147,9 +147,9 @@ class ErpConnectorTest {
 	@Test
 	@DisplayName("Contradiction with an old line of the same or a higher source: refused naming both keys")
 	void contradiction() {
-		assertEquals("Invalid combination: erp.connector=dynamicsnav with erp.dynamicsnav.enabled=false (machineFile)."
-				+ " erp.connector=dynamicsnav means erp.dynamicsnav.enabled=true: remove the old line, or make it agree.",
-				refusal(() -> startWith("erp.connector=dynamicsnav", "erp.dynamicsnav.enabled=false")));
+		assertEquals("Invalid combination: erp.connector=emtop with erp.dynamicsnav.enabled=false (machineFile)."
+				+ " erp.connector=emtop means erp.dynamicsnav.enabled=true: remove the old line, or make it agree.",
+				refusal(() -> startWith("erp.connector=emtop", "erp.dynamicsnav.enabled=false")));
 		assertEquals("Invalid combination: erp.connector=none with erp.navpospages.enabled=true"
 				+ " (test-system-properties). erp.connector=none means erp.navpospages.enabled=false: remove the old"
 				+ " line, or make it agree.",
@@ -203,15 +203,15 @@ class ErpConnectorTest {
 	void summary() {
 		MockEnvironment old = Installations.machine("dev/store-a-erp.properties");
 		String line = InstallationSummary.summary(old, NodeOwnership.resolve(old));
-		assertTrue(line.contains("ERP connector dynamicsnav, NAV "), line);
+		assertTrue(line.contains("ERP connector emtop, NAV "), line);
 
 		MockEnvironment plain = Installations.machine("dev/store-b.properties");
 		assertTrue(InstallationSummary.summary(plain, NodeOwnership.resolve(plain)).contains("ERP connector none, "));
 
-		StandardEnvironment pages = startWith("spring.profiles.active=headoffice", "erp.connector=navpospages",
+		StandardEnvironment pages = startWith("spring.profiles.active=headoffice", "erp.connector=happyness",
 				"ownership.catalogue=ERP");
 		line = InstallationSummary.summary(pages, NodeOwnership.resolve(pages));
-		assertTrue(line.contains("ERP connector navpospages, "), line);
+		assertTrue(line.contains("ERP connector happyness, "), line);
 		assertFalse(line.contains("NAV "), line);
 	}
 }

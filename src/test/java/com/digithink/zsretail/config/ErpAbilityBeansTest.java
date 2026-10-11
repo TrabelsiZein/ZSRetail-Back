@@ -72,12 +72,12 @@ class ErpAbilityBeansTest {
 		environments.put("catalogue only, old line", catalogueOnlyHeadOffice("erp.navpospages.enabled=true"));
 		environments.put("catalogue only, old line TRUE", catalogueOnlyHeadOffice("erp.navpospages.enabled=TRUE"));
 		environments.put("catalogue only, old line false", catalogueOnlyHeadOffice("erp.navpospages.enabled=false"));
-		environments.put("catalogue only, erp.connector=navpospages",
-				translated(catalogueOnlyHeadOffice(), "navpospages"));
+		environments.put("catalogue only, erp.connector=happyness",
+				translated(catalogueOnlyHeadOffice(), "happyness"));
 		environments.put("catalogue only, erp.connector=none", translated(catalogueOnlyHeadOffice(), "none"));
-		environments.put("store, old line", translated(Installations.type("store"), "navpospages"));
+		environments.put("store, old line", translated(Installations.type("store"), "happyness"));
 		environments.put("head office without an ERP, old line",
-				translated(Installations.type("headoffice"), "navpospages"));
+				translated(Installations.type("headoffice"), "happyness"));
 		List<String> withBeans = new ArrayList<>();
 		for (Map.Entry<String, MockEnvironment> entry : environments.entrySet()) {
 			boolean expected = before(entry.getValue());
@@ -88,7 +88,7 @@ class ErpAbilityBeansTest {
 				assertEquals(expected, registered(entry.getValue(), bean), entry.getKey() + " " + bean.getSimpleName());
 			}
 		}
-		assertTrue(withBeans.contains("catalogue only, erp.connector=navpospages"), withBeans.toString());
+		assertTrue(withBeans.contains("catalogue only, erp.connector=happyness"), withBeans.toString());
 		assertTrue(withBeans.contains("catalogue only, old line TRUE"), withBeans.toString());
 		assertTrue(withBeans.size() >= 4, "the real Happyness head office among them: " + withBeans);
 	}
@@ -99,7 +99,7 @@ class ErpAbilityBeansTest {
 		Installations.machineFiles().forEach(file -> environments.put(file, Installations.machine(file)));
 		Installations.configFiles().forEach(file -> environments.put(file, Installations.config(file)));
 		Installations.variants().forEach(variant -> environments.put(variant, Installations.preset(variant)));
-		for (String connector : new String[] { "none", "dynamicsnav", "navpospages" }) {
+		for (String connector : new String[] { "none", "emtop", "happyness" }) {
 			environments.put("store, erp.connector=" + connector, translated(Installations.type("store"), connector));
 			environments.put("catalogue only, erp.connector=" + connector,
 					translated(catalogueOnlyHeadOffice(), connector));
@@ -149,7 +149,7 @@ class ErpAbilityBeansTest {
 				assertEquals(expected, registered(entry.getValue(), bean), entry.getKey() + " " + bean.getSimpleName());
 			}
 		}
-		assertTrue(withBeans.contains("store, erp.connector=navpospages"), withBeans.toString());
+		assertTrue(withBeans.contains("store, erp.connector=happyness"), withBeans.toString());
 		assertTrue(withBeans.size() >= 4, withBeans.toString());
 	}
 
@@ -157,17 +157,17 @@ class ErpAbilityBeansTest {
 	@DisplayName("headoffice.supply.source=ERP: accepted with the ability SUPPLY_INVOICES, by the old line or erp.connector")
 	void supplySource() {
 		for (MockEnvironment env : Arrays.asList(catalogueOnlyHeadOffice("erp.navpospages.enabled= true "),
-				translated(catalogueOnlyHeadOffice(), "navpospages"))) {
+				translated(catalogueOnlyHeadOffice(), "happyness"))) {
 			env.setProperty("headoffice.supply.source", "ERP");
 			assertTrue(NodeOwnership.resolve(env).isErpCatalogueOnly());
 			assertTrue(NodeOwnership.isSupplyFromErpSourceSet(env));
 		}
 		for (MockEnvironment env : Arrays.asList(catalogueOnlyHeadOffice(),
-				translated(catalogueOnlyHeadOffice(), "none"), translated(catalogueOnlyHeadOffice(), "dynamicsnav"))) {
+				translated(catalogueOnlyHeadOffice(), "none"), translated(catalogueOnlyHeadOffice(), "emtop"))) {
 			env.setProperty("headoffice.supply.source", "ERP");
 			String message = org.junit.jupiter.api.Assertions
 					.assertThrows(IllegalStateException.class, () -> NodeOwnership.resolve(env)).getMessage();
-			assertTrue(message.contains("erp.connector=navpospages (or the old line erp.navpospages.enabled=true, still"
+			assertTrue(message.contains("erp.connector=happyness (or the old line erp.navpospages.enabled=true, still"
 					+ " accepted)"), message);
 		}
 	}
