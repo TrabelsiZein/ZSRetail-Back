@@ -3,7 +3,10 @@
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-	<!-- Happyness's ERP pages connector (package com.digithink.zsretail.connector.happyness). Uses erp-api only. Filled at code cleanup step 6.3. -->
+	<!--
+		Happyness's ERP pages connector (package com.digithink.zsretail.connector.happyness, its keys erp.navpospages.*),
+		since code cleanup step 6.3. Of ours it depends on erp-api only: a class of the application does not compile here.
+	-->
 	<parent>
 		<groupId>com.digithink</groupId>
 		<artifactId>zsretail-parent</artifactId>
@@ -16,6 +19,34 @@
 		<dependency>
 			<groupId>com.digithink</groupId>
 			<artifactId>zsretail-erp-api</artifactId>
+		</dependency>
+
+		<!-- Libraries only; versions from Spring Boot -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework</groupId>
+			<artifactId>spring-web</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.httpcomponents</groupId>
+			<artifactId>httpclient</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-configuration-processor</artifactId>
+			<optional>true</optional>
 		</dependency>
 	</dependencies>
 </project>

@@ -207,10 +207,12 @@ abilities (`erp/api/ErpAbility`), read from the environment, so a condition uses
 `hasConnector(env)` is true for any connector but none. A new ability is added there when the code needs it, never a test on
 a connector name.
 
-**Rule: the application never names a connector.** Outside the connector packages (`erp/dynamicsnav`, `erp/navpospages`)
+**Rule: the application never names a connector.** Outside the connector packages (`erp/dynamicsnav`, `connector/happyness`)
 and the translation class of step 1 (`config/ErpConnectorEnvironmentPostProcessor`, the only one that knows the old keys
 and the NAV address of the startup summary), no class imports a connector package or contains the text `erp.dynamicsnav` or
-`erp.navpospages`, not even in a comment. It uses `@ConditionalOnErpAbility(...)` or `ErpAbilities.has(env, ...)`; what a
+`erp.navpospages`, not even in a comment. Since code cleanup step 6.3 Maven makes it true as well: the application takes
+the connector projects at `runtime` scope, so a main class that names one does not compile, and a connector depends on
+erp-api only. It uses `@ConditionalOnErpAbility(...)` or `ErpAbilities.has(env, ...)`; what a
 connector's settings give the application goes through `ErpConnector` (the ids of deleted prices, the seller named on the
 stores' invoices: `supplyInvoiceSellerName`, the connector's `invoices.seller-name`) or a port in `erp/api` that the
 application implements (`StockPoints`, the head office's points de stock). **Guard test**: `erp/ConnectorNamesGuardTest`
@@ -275,7 +277,7 @@ read by the single job, the four import jobs are refused on its head office), an
 Tests: `erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows of navpospages through its adapter,
 `NavPosPagesFixture`), `NavPosPagesInvoicesTest`, `NavPosPagesCatalogueSourceTest`.
 
-**Guard of the connector packages** (`erp/ConnectorDependenciesGuardTest`): a class of `erp/navpospages` or
+**Guard of the connector packages** (`erp/ConnectorDependenciesGuardTest`): a class of `connector/happyness` or
 `erp/dynamicsnav` may use erp-api (as `ProjectSortingGuardTest` sorts it: `erp/api` with `erp/api/dto`, the project
 erp-api since code cleanup step 6.2; not the two admin views of `erp/dto`, going to core), its own package, the JDK and
 libraries. What would break the rule goes on an allow-list

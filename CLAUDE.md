@@ -20,12 +20,12 @@ between them: `docs/roadmap/project-sorting.md`.
 | Folder | Artifact | Uses | State |
 |---|---|---|---|
 | `erp-api` | `zsretail-erp-api` | nothing of ours | since step 6.2: `com.digithink.zsretail.erp.api` (and `.dto`), 47 classes |
-| `connector-happyness` | `zsretail-connector-happyness` | erp-api | empty until step 6.3 |
+| `connector-happyness` | `zsretail-connector-happyness` | erp-api | since step 6.3: `com.digithink.zsretail.connector.happyness`, 19 classes |
 | `connector-emtop` | `zsretail-connector-emtop` | erp-api | empty until step 6.3 |
 | `core` | `zsretail-core` | erp-api | empty until step 6.4 |
 | `headoffice` | `zsretail-headoffice` | core | empty until step 6.5 (then the head office WAR) |
 | `store` | `zsretail-store` | core | empty until step 6.6 (then the store WAR) |
-| `app` | `zsretail-app` | erp-api; everything else, today | the application before the projects: `app/target/zsretailws.war`, gone at step 6.6 |
+| `app` | `zsretail-app` | erp-api; the connectors at runtime scope (in the WAR, never named by a main class); everything else, today | the application before the projects: `app/target/zsretailws.war`, gone at step 6.6 |
 | `network-tests` | `zsretail-network-tests` | store, headoffice | tests only, empty until step 6.7 |
 
 ## Layout — `app/src/main/java/com/digithink/zsretail/`

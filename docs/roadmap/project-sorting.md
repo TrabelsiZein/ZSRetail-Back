@@ -9,7 +9,7 @@ Target: Maven projects, one version, two applications.
 | store | `com.digithink.zsretail.store` | POS, sessions, tickets, payments, returns, customer invoices, inventory counts, analytics, the sales exports to the ERP, the link to the head office (`holink`) | core, erp-api |
 | headoffice | `com.digithink.zsretail.headoffice` | stores, points de stock, tickets received, BLs, supply invoices, the `/ho/**` API | core, erp-api |
 | emtop | `com.digithink.zsretail.connector.emtop` | today `erp/dynamicsnav` | erp-api |
-| happyness | `com.digithink.zsretail.connector.happyness` | today `erp/navpospages` | erp-api |
+| happyness | `com.digithink.zsretail.connector.happyness` | `erp/navpospages` until step 6.3 | erp-api |
 
 Rule to sort a class: used by both applications, core; only by a store, store; only by a head office, headoffice.
 The sorting of every class and the rules are in `ProjectSortingGuardTest` (`projectOf`): by package, with the store
@@ -47,5 +47,11 @@ Step by step, each commit with the full suite green:
   (`app/target/zsretailws.war`, the same classes, resources and libraries as before). The guards and `Installations`
   find the repository from any project folder (`support/Repo`) and scan every project's `src/main/java`.
 - 6.2: erp-api, 47 classes (`erp/spi` grew to 22 at step 5.8; `erp/dto` gives 25, its two admin views stay for core),
-  package `com.digithink.zsretail.erp.api` (and `.dto`); app depends on it. 6.3: the two connectors. 6.4: core. 6.5: headoffice and its WAR. 6.6: store and its WAR; `app` is
-  gone. 6.7: the network tests, the dev scripts.
+  package `com.digithink.zsretail.erp.api` (and `.dto`); app depends on it.
+- 6.3: the connectors, each in its project with its final package (`connector.happyness`, `connector.emtop`; their
+  sub-packages unchanged), depending on erp-api and libraries only: a connector class that names a class of the
+  application does not compile. app takes them at `runtime` scope: they are in the WAR and on the tests' classpath,
+  but a main class of app that names a connector does not compile either. Their tests stay in app for now (they use
+  its fixtures), in the connector's package.
+- 6.4: core. 6.5: headoffice and its WAR. 6.6: store and its WAR; `app` is gone. 6.7: the network tests, the dev
+  scripts.

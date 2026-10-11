@@ -19,17 +19,17 @@ import com.digithink.zsretail.support.Repo;
 
 /**
  * Code cleanup, step 2: the application never names a connector. Outside the connector packages (erp/dynamicsnav,
- * erp/navpospages) and the translation class of step 1 (config/ErpConnectorEnvironmentPostProcessor), no file of
- * any project's src/main/java imports a connector package or contains the text erp.dynamicsnav or erp.navpospages (a
- * property key, a package, a comment). The application asks ErpAbilities what the connector in effect can do. See
- * docs/modules/erp-sync.md, "Abilities".
+ * connector/happyness since step 6.3) and the translation class of step 1 (config/ErpConnectorEnvironmentPostProcessor),
+ * no file of any project's src/main/java imports a connector package or contains the text erp.dynamicsnav,
+ * erp.navpospages (a property key, a package, a comment) or zsretail.connector. (a connector package). The application
+ * asks ErpAbilities what the connector in effect can do. See docs/modules/erp-sync.md, "Abilities".
  */
 class ConnectorNamesGuardTest {
 
 	static final String BASE = "com/digithink/zsretail/";
-	static final List<String> ALLOWED = Arrays.asList(BASE + "erp/dynamicsnav/", BASE + "erp/navpospages/",
+	static final List<String> ALLOWED = Arrays.asList(BASE + "erp/dynamicsnav/", BASE + "connector/happyness/",
 			BASE + "config/ErpConnectorEnvironmentPostProcessor.java");
-	static final List<String> TEXTS = Arrays.asList("erp.dynamicsnav", "erp.navpospages");
+	static final List<String> TEXTS = Arrays.asList("erp.dynamicsnav", "erp.navpospages", "zsretail.connector.");
 
 	/** The offending lines of one file, as "path:line: text". */
 	static List<String> offences(String relativePath, List<String> lines) {
@@ -71,10 +71,11 @@ class ConnectorNamesGuardTest {
 	@Test
 	@DisplayName("The guard itself: an import, a key, a comment are caught; the allowed places are not scanned")
 	void guardCatches() {
-		assertEquals(3, offences("x/A.java", Arrays.asList("import com.digithink.zsretail.erp.navpospages.config.X;",
+		assertEquals(4, offences("x/A.java", Arrays.asList("import com.digithink.zsretail.erp.navpospages.config.X;",
 				"@Value(\"${erp.dynamicsnav.base-url}\")", "/** read erp.navpospages.invoices.seller-name */",
-				"ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES)", "the connector navpospages")).size());
-		assertTrue(allowed(BASE + "erp/navpospages/sync/NavPosPagesSync.java"));
+				"ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES)", "the connector navpospages",
+				"import com.digithink.zsretail.connector.happyness.sync.NavPosPagesInvoices;")).size());
+		assertTrue(allowed(BASE + "connector/happyness/sync/NavPosPagesInvoices.java"));
 		assertTrue(allowed(BASE + "erp/dynamicsnav/mapper/DynamicsNavMapper.java"));
 		assertTrue(allowed(BASE + "config/ErpConnectorEnvironmentPostProcessor.java"));
 		assertTrue(!allowed(BASE + "config/NodeOwnership.java"));

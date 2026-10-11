@@ -22,6 +22,15 @@
 			<groupId>com.digithink</groupId>
 			<artifactId>zsretail-erp-api</artifactId>
 		</dependency>
+		<!--
+			Code cleanup step 6.3: the connectors, at runtime only: in the WAR and for the tests, but a main class of the
+			application that names one does not compile (the application asks ErpAbilities, never a connector)
+		-->
+		<dependency>
+			<groupId>com.digithink</groupId>
+			<artifactId>zsretail-connector-happyness</artifactId>
+			<scope>runtime</scope>
+		</dependency>
 
 
 		<dependency>

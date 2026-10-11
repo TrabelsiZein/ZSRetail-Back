@@ -25,7 +25,7 @@ import com.digithink.zsretail.ProjectSortingGuardTest;
 import com.digithink.zsretail.support.Repo;
 
 /**
- * Code cleanup step 3: the classes of a connector package (erp/navpospages, erp/dynamicsnav) use only erp-api, their own
+ * Code cleanup step 3: the classes of a connector package (connector/happyness, erp/dynamicsnav) use only erp-api, their own
  * package, the JDK and libraries. Since code cleanup step 5.8e erp-api is what ProjectSortingGuardTest sorts there:
  * the package erp/api (with erp/api/dto), the project erp-api since step 6.2. Every other reference to a class of the
  * application (an import or a fully qualified name) must be on the allow-list below, with its reason. An entry nothing
@@ -35,7 +35,13 @@ import com.digithink.zsretail.support.Repo;
 class ConnectorDependenciesGuardTest {
 
 	static final String APP = "com.digithink.zsretail.";
-	static final List<String> CONNECTORS = java.util.Arrays.asList("navpospages", "dynamicsnav");
+	/** Each connector and its package (after com.digithink.zsretail.). */
+	static final Map<String, String> CONNECTORS = new LinkedHashMap<>();
+
+	static {
+		CONNECTORS.put("happyness", "connector.happyness");
+		CONNECTORS.put("emtop", "erp.dynamicsnav");
+	}
 	static final Pattern REFERENCE = Pattern.compile("com\\.digithink\\.zsretail\\.[A-Za-z0-9_.]*[A-Z][A-Za-z0-9_]*");
 
 	/**
@@ -53,9 +59,9 @@ class ConnectorDependenciesGuardTest {
 
 	/** The connector of a path relative to a project's src/main/java, or null for any other file. */
 	static String connectorOf(String relativePath) {
-		for (String connector : CONNECTORS) {
-			if (relativePath.startsWith(ConnectorNamesGuardTest.BASE + "erp/" + connector + "/")) {
-				return connector;
+		for (Map.Entry<String, String> connector : CONNECTORS.entrySet()) {
+			if (relativePath.startsWith(ConnectorNamesGuardTest.BASE + connector.getValue().replace('.', '/') + "/")) {
+				return connector.getKey();
 			}
 		}
 		return null;
@@ -67,7 +73,7 @@ class ConnectorDependenciesGuardTest {
 			return "";
 		}
 		String inApp = reference.substring(APP.length());
-		if (inApp.startsWith("erp." + connector + ".")
+		if (inApp.startsWith(CONNECTORS.get(connector) + ".")
 				|| ProjectSortingGuardTest.ERP_API.equals(ProjectSortingGuardTest.projectOf(inApp))) {
 			return "";
 		}
@@ -137,17 +143,17 @@ class ConnectorDependenciesGuardTest {
 	@Test
 	@DisplayName("The guard itself: spi, own package, JDK and libraries pass; another class of the application is a breach")
 	void guardCatches() {
-		assertEquals("", entryFor("navpospages", "com.digithink.zsretail.erp.api.ErpRead"));
-		assertEquals("", entryFor("navpospages", "com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow"));
-		assertEquals("", entryFor("dynamicsnav", "org.springframework.stereotype.Component"));
-		assertEquals("", entryFor("dynamicsnav", "com.digithink.zsretail.erp.api.dto.ErpItemDTO"), "erp-api, as sorted");
-		assertEquals(null, entryFor("navpospages", "com.digithink.zsretail.erp.dto.ErpSyncJobViewDTO"), "core, as sorted");
-		assertEquals(null, entryFor("dynamicsnav", "com.digithink.zsretail.erp.navpospages.sync.NavPosPagesInvoices"));
-		assertEquals(null, entryFor("navpospages", "com.digithink.zsretail.erp.engine.JdbcCatalogueState"));
-		assertEquals(null, entryFor("navpospages", "com.digithink.zsretail.repository.ItemRepository"));
-		assertEquals(null, entryFor("navpospages", "com.digithink.zsretail.utils.Quantities"),
+		assertEquals("", entryFor("happyness", "com.digithink.zsretail.erp.api.ErpRead"));
+		assertEquals("", entryFor("happyness", "com.digithink.zsretail.connector.happyness.dto.NavPosStockRow"));
+		assertEquals("", entryFor("emtop", "org.springframework.stereotype.Component"));
+		assertEquals("", entryFor("emtop", "com.digithink.zsretail.erp.api.dto.ErpItemDTO"), "erp-api, as sorted");
+		assertEquals(null, entryFor("happyness", "com.digithink.zsretail.erp.dto.ErpSyncJobViewDTO"), "core, as sorted");
+		assertEquals(null, entryFor("emtop", "com.digithink.zsretail.connector.happyness.sync.NavPosPagesInvoices"));
+		assertEquals(null, entryFor("happyness", "com.digithink.zsretail.erp.engine.JdbcCatalogueState"));
+		assertEquals(null, entryFor("happyness", "com.digithink.zsretail.repository.ItemRepository"));
+		assertEquals(null, entryFor("happyness", "com.digithink.zsretail.utils.Quantities"),
 				"it reads erp.api.ErpQuantities");
-		assertEquals("navpospages", connectorOf(ConnectorNamesGuardTest.BASE + "erp/navpospages/mapper/X.java"));
+		assertEquals("happyness", connectorOf(ConnectorNamesGuardTest.BASE + "connector/happyness/mapper/X.java"));
 		assertEquals(null, connectorOf(ConnectorNamesGuardTest.BASE + "erp/engine/CatalogueEngine.java"));
 	}
 }

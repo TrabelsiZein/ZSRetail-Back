@@ -93,7 +93,7 @@ public class ProjectSortingGuardTest {
 		if (name.startsWith("erp.dynamicsnav.")) {
 			return EMTOP;
 		}
-		if (name.startsWith("erp.navpospages.")) {
+		if (name.startsWith("connector.happyness.")) {
 			return HAPPYNESS;
 		}
 		if (name.startsWith("erp.dto.")) {
@@ -299,7 +299,7 @@ public class ProjectSortingGuardTest {
 		assertEquals(ERP_API, projectOf("erp.api.dto.ErpItemDTO"));
 		assertEquals(CORE, projectOf("erp.dto.ErpSyncJobViewDTO"));
 		assertEquals(EMTOP, projectOf("erp.dynamicsnav.connector.DynamicsNavConnector"));
-		assertEquals(HAPPYNESS, projectOf("erp.navpospages.mapper.NavPosPagesMapper"));
+		assertEquals(HAPPYNESS, projectOf("connector.happyness.mapper.NavPosPagesMapper"));
 		assertEquals(CORE, projectOf("POSMainApp"));
 	}
 }
