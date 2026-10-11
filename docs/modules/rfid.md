@@ -234,10 +234,10 @@ database only, like the other two tables:
 |---|---|---|
 | `epc` | varchar(128) NOT NULL, `uk_rfid_tag_epc` | unique; kept trimmed, upper case, hexadecimal digits only, at most 128 (`RfidTagService.normaliseEpc`) |
 | `item_id` | bigint NOT NULL, `fk_rfid_tag_item` → `item`, `ix_rfid_tag_item` | the item of the piece |
-| `status` | varchar(10) NOT NULL, `ix_rfid_tag_status` | `IN_STOCK` (at its assignment) or `SOLD` (set by the sale, a later step) |
+| `status` | varchar(10) NOT NULL, `ix_rfid_tag_status` | `IN_STOCK` (at its assignment, and back by a return) or `SOLD` (set when its ticket is paid, "At the POS") |
 | `source_type` | varchar(10) NOT NULL | `MANUAL` (the Tag assignment page) or `RECEPTION` (a delivery reception line) |
 | `source_document`, `source_line` | varchar(30), int NULL | the delivery number and line of a reception |
-| `sold_at`, `ticket_number` | datetime2, varchar(100) NULL | filled by the sale (a later step): when, and `sales_header.sales_number` |
+| `sold_at`, `ticket_number` | datetime2, varchar(100) NULL | filled when its ticket is paid: when, and `sales_header.sales_number`; cleared by a return |
 
 Plus the `_BaseEntity` columns (`created_by` is who assigned the tag).
 
@@ -305,6 +305,46 @@ them with its paid line.
 | `epc` | varchar(128) NOT NULL, `ix_rfid_sale_tag_epc` | as `rfid_tag` keeps it |
 | `sales_line_id` | bigint NULL, `fk_rfid_sale_tag_line` → `sales_line` | the paid line, set when the ticket is completed |
 | `return_line_id` | bigint NULL, `fk_rfid_sale_tag_return_line` → `return_line` | the return line that put the tag back in stock |
+
+**The hook** (decision of 2026-10-11: the sale code does not depend on RFID). `store.service.SaleTagHooks`, no RFID
+import, called by `SalesHeaderService` and `ReturnHeaderService` inside the ticket's transaction when a bean exists
+(none with RFID off: nothing is read or written). The POS sends the tags with a line (`SaleLineDTO.epcs`, the paid
+pieces; a free line of a promotion holds no tag) and with a return (`ProcessReturnRequestDTO.returnedEpcs`).
+
+| Sale code | Hook | `RfidSaleTags` |
+|---|---|---|
+| `savePendingSale`, `updatePendingSale` | `ticketHeld` | the ticket's rows replaced by the tags of its lines now; `rfid_tag` unchanged |
+| `processCompleteSale`, `completePendingSale` | `ticketCompleted` | the held rows deleted; each tag still `IN_STOCK` becomes `SOLD` (`sold_at`, `ticket_number` = `sales_number`), its row kept with the paid line |
+| `cancelPendingSale` | `ticketCancelled` | the ticket's rows deleted |
+| `processReturn` | `returned` | see the return below |
+
+A tag is kept for a line only when it is known, `IN_STOCK`, of the line's item, once per ticket and at most the
+line's whole pieces (4 pieces with 3 tags: the fourth scanned by its barcode, sold as today). Any other tag (unknown,
+sold meanwhile by another ticket, of another item, not an EPC) is **skipped with a warning in the log, never a
+refusal**: the ticket goes through.
+
+**Return** (decision of 2026-10-11): only the lines the cashier gave a quantity. A line returned **whole** (its quantity
+is all that was left of it) puts back `IN_STOCK` every tag of its paid line not yet returned. A line returned **in
+part** puts back only the tags read (`returnedEpcs`) among its own, in the order read, at most the quantity returned.
+A tag not read stays `SOLD`: fewer tags than the quantity, a failed or skipped read never blocks the return. A tag
+back in stock loses `sold_at` and `ticket_number`; its row keeps the return line.
+
+**The endpoints** (`RfidPosAPI`, `RfidPosService`, both write nothing):
+
+- `POST /rfid/pos-read {pendingTicketId, cartEpcs}` (the body optional): a read with the reader of my POS machine
+  (`RfidReadService.readForRequest`), each tag in one group in this order: `notReadClearly` (weak), `unknown`,
+  `alreadySold`, `inCart` (in `cartEpcs`), `onPendingTicket` (held by a pending ticket other than
+  `pendingTicketId`), else added: `items` [{`itemId`, `itemCode`, `itemName`, `epcs`}], one piece per tag. Plus
+  `added`, `posMachineName`, `readerName`, `durationMs`. No machine at my address, or a machine with no reader:
+  409 NOT_READY `This POS machine (<ip>) has no reader.` (the reader is not called); the other refusals as
+  `POST /rfid/read`.
+- `GET /rfid/ticket-tags?salesHeaderId=` or `?ticketNumber=`: the ticket's tags [{`epc`, `itemId`, `salesLineId`
+  (null on a pending ticket), `returned`}]; 404 no such ticket, 400 neither given.
+
+Out of 3.1.0: RFID on table tickets (no button on a table ticket; `splitAndPay`, `transferTable` unchanged).
+
+Tests: `RfidSaleTagsTest`, `RfidPosAPITest`; the hook calls in `SaleCompletionLoyaltyStampTest` and
+`ReturnRefundLoyaltyTest` (`RecordingSaleTagHooks`).
 
 ## The front pages (ZSRetail-Front)
 
@@ -387,7 +427,8 @@ address with no reader fails after 5 s (the SDK's own timeout, with a stack trac
 
 - `ConfigurationKeysProofTest`: the record gained the key `rfid.enabled` (`keys 52`; `false` in the 14 store
   configurations, `(none)` in the 6 head office ones); no other line changed.
-- `InstallationBeansProofTest`: the 7 RFID beans are decided by `Installation.RFID` (`decided 90`), present only in the
+- `InstallationBeansProofTest`: the 7 RFID beans are decided by `Installation.RFID` (`decided 90`; 14 and `decided 97`
+  since the tags and POS steps), present only in the
   shape `store, RFID on`; every file of `configs/` and every other shape has none of them (each row unchanged).
 - `RfidSdkConfinementGuardTest`, and the existing guards (`ProjectSortingGuardTest`: every RFID class under the store's
   package root).
