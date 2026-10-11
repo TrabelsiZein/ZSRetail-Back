@@ -112,7 +112,7 @@ class ErpAbilityBeansTest {
 	@DisplayName("Part 5: exactly one ErpConnector bean, the one the old conditions gave (NoOp no longer beside navpospages)")
 	void oneConnector() {
 		List<Class<?>> connectors = Arrays.asList(com.digithink.zsretail.erp.api.NoOpErpConnector.class,
-				com.digithink.zsretail.erp.dynamicsnav.connector.DynamicsNavConnector.class,
+				com.digithink.zsretail.connector.emtop.connector.DynamicsNavConnector.class,
 				com.digithink.zsretail.connector.happyness.connector.NavPosPagesConnector.class);
 		for (Map.Entry<String, MockEnvironment> entry : configurations().entrySet()) {
 			MockEnvironment env = entry.getValue();

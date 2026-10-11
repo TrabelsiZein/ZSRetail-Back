@@ -8,7 +8,7 @@ Target: Maven projects, one version, two applications.
 | core | `com.digithink.zsretail.core` | what both applications use: catalogue, promotions and loyalty definitions, customers, users, roles, settings, stock, purchases, vendors, login, licence, the ERP import and jobs, `erp/engine`, the link messages, and the selling entities (loyalty transactions and stock movements point at them) | erp-api |
 | store | `com.digithink.zsretail.store` | POS, sessions, tickets, payments, returns, customer invoices, inventory counts, analytics, the sales exports to the ERP, the link to the head office (`holink`) | core, erp-api |
 | headoffice | `com.digithink.zsretail.headoffice` | stores, points de stock, tickets received, BLs, supply invoices, the `/ho/**` API | core, erp-api |
-| emtop | `com.digithink.zsretail.connector.emtop` | today `erp/dynamicsnav` | erp-api |
+| emtop | `com.digithink.zsretail.connector.emtop` | `erp/dynamicsnav` until step 6.3 | erp-api |
 | happyness | `com.digithink.zsretail.connector.happyness` | `erp/navpospages` until step 6.3 | erp-api |
 
 Rule to sort a class: used by both applications, core; only by a store, store; only by a head office, headoffice.

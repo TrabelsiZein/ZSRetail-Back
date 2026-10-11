@@ -10,7 +10,7 @@ steps on `release/2.2.1` (both repos); this page says what each step converted. 
   Money stays `Double`.
 - **Whole stays whole**: entity getters return `Quantities.normalize(...)` (2.000 is 2, 0.200 is 0.2, never `1E+2`), so
   JSON carries `2`, never `2.000` (ticket copy hashes, EMTOP's NAV export, tickets). The NAV payloads of
-  `erp/dynamicsnav` stay `Double`: a whole quantity reaches NAV as before (`2.0`).
+  `erp/dynamicsnav` (`connector/emtop` since code cleanup step 6.3) stay `Double`: a whole quantity reaches NAV as before (`2.0`).
 - **Who may use decimals**: the store setting `ALLOW_DECIMAL_QUANTITY` (General Setup, "Allow decimal quantities",
   BOOLEAN, `false`, created at startup on a store only; read by `QuantityPolicy`, sent to the front as
   `/config.allowDecimalQuantity`). Off: front and back behave as 2.2.0 and the back refuses a non-whole quantity with a

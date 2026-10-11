@@ -124,11 +124,11 @@
 - `app/src/main/java/com/digithink/zsretail/model/SalesHeader.java` - Entity with sync fields
 - `app/src/main/java/com/digithink/zsretail/model/SalesLine.java` - Entity with synched field
 - `app/src/main/java/com/digithink/zsretail/model/enumeration/SynchronizationStatus.java` - Sync status enum
-- `app/src/main/java/com/digithink/zsretail/erp/dynamicsnav/dto/DynamicsNavSalesOrderHeaderDTO.java` - Header DTO
-- `app/src/main/java/com/digithink/zsretail/erp/dynamicsnav/dto/DynamicsNavSalesOrderLineDTO.java` - Line DTO
+- `connector-emtop/src/main/java/com/digithink/zsretail/connector/emtop/dto/DynamicsNavSalesOrderHeaderDTO.java` - Header DTO
+- `connector-emtop/src/main/java/com/digithink/zsretail/connector/emtop/dto/DynamicsNavSalesOrderLineDTO.java` - Line DTO
 - `app/src/main/java/com/digithink/zsretail/erp/service/TicketExportService.java` - Export service
-- `app/src/main/java/com/digithink/zsretail/erp/dynamicsnav/client/DynamicsNavRestClient.java` - NAV client
-- `app/src/main/java/com/digithink/zsretail/erp/dynamicsnav/config/DynamicsNavConfig.java` - RestTemplate config
+- `connector-emtop/src/main/java/com/digithink/zsretail/connector/emtop/client/DynamicsNavRestClient.java` - NAV client
+- `connector-emtop/src/main/java/com/digithink/zsretail/connector/emtop/config/DynamicsNavConfig.java` - RestTemplate config
 - `app/src/main/java/com/digithink/zsretail/erp/service/ErpSyncJobRunner.java` - Job runner integration
 
 
@@ -207,7 +207,7 @@ abilities (`erp/api/ErpAbility`), read from the environment, so a condition uses
 `hasConnector(env)` is true for any connector but none. A new ability is added there when the code needs it, never a test on
 a connector name.
 
-**Rule: the application never names a connector.** Outside the connector packages (`erp/dynamicsnav`, `connector/happyness`)
+**Rule: the application never names a connector.** Outside the connector packages (`connector/emtop`, `connector/happyness`)
 and the translation class of step 1 (`config/ErpConnectorEnvironmentPostProcessor`, the only one that knows the old keys
 and the NAV address of the startup summary), no class imports a connector package or contains the text `erp.dynamicsnav` or
 `erp.navpospages`, not even in a comment. Since code cleanup step 6.3 Maven makes it true as well: the application takes
@@ -278,7 +278,7 @@ Tests: `erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows o
 `NavPosPagesFixture`), `NavPosPagesInvoicesTest`, `NavPosPagesCatalogueSourceTest`.
 
 **Guard of the connector packages** (`erp/ConnectorDependenciesGuardTest`): a class of `connector/happyness` or
-`erp/dynamicsnav` may use erp-api (as `ProjectSortingGuardTest` sorts it: `erp/api` with `erp/api/dto`, the project
+`connector/emtop` may use erp-api (as `ProjectSortingGuardTest` sorts it: `erp/api` with `erp/api/dto`, the project
 erp-api since code cleanup step 6.2; not the two admin views of `erp/dto`, going to core), its own package, the JDK and
 libraries. What would break the rule goes on an allow-list
 inside the test, each line with its reason (an entry nothing uses any more fails too); empty since code cleanup step

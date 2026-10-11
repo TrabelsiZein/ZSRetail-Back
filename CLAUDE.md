@@ -21,7 +21,7 @@ between them: `docs/roadmap/project-sorting.md`.
 |---|---|---|---|
 | `erp-api` | `zsretail-erp-api` | nothing of ours | since step 6.2: `com.digithink.zsretail.erp.api` (and `.dto`), 47 classes |
 | `connector-happyness` | `zsretail-connector-happyness` | erp-api | since step 6.3: `com.digithink.zsretail.connector.happyness`, 19 classes |
-| `connector-emtop` | `zsretail-connector-emtop` | erp-api | empty until step 6.3 |
+| `connector-emtop` | `zsretail-connector-emtop` | erp-api | since step 6.3: `com.digithink.zsretail.connector.emtop`, 22 classes |
 | `core` | `zsretail-core` | erp-api | empty until step 6.4 |
 | `headoffice` | `zsretail-headoffice` | core | empty until step 6.5 (then the head office WAR) |
 | `store` | `zsretail-store` | core | empty until step 6.6 (then the store WAR) |

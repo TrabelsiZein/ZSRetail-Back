@@ -16,11 +16,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import com.digithink.zsretail.connector.emtop.connector.DynamicsNavConnector;
+import com.digithink.zsretail.connector.emtop.mapper.DynamicsNavMapper;
 import com.digithink.zsretail.erp.api.NoOpErpConnector;
 import com.digithink.zsretail.erp.api.dto.ErpDeletionLogEntryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSyncFilter;
-import com.digithink.zsretail.erp.dynamicsnav.connector.DynamicsNavConnector;
-import com.digithink.zsretail.erp.dynamicsnav.mapper.DynamicsNavMapper;
 import com.digithink.zsretail.model.SalesDiscount;
 import com.digithink.zsretail.model.SalesPrice;
 import com.digithink.zsretail.repository.SalesDiscountRepository;

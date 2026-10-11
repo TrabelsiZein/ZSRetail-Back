@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 import com.digithink.zsretail.support.Repo;
 
 /**
- * Code cleanup, step 2: the application never names a connector. Outside the connector packages (erp/dynamicsnav,
+ * Code cleanup, step 2: the application never names a connector. Outside the connector packages (connector/emtop and
  * connector/happyness since step 6.3) and the translation class of step 1 (config/ErpConnectorEnvironmentPostProcessor),
  * no file of any project's src/main/java imports a connector package or contains the text erp.dynamicsnav,
  * erp.navpospages (a property key, a package, a comment) or zsretail.connector. (a connector package). The application
@@ -27,7 +27,7 @@ import com.digithink.zsretail.support.Repo;
 class ConnectorNamesGuardTest {
 
 	static final String BASE = "com/digithink/zsretail/";
-	static final List<String> ALLOWED = Arrays.asList(BASE + "erp/dynamicsnav/", BASE + "connector/happyness/",
+	static final List<String> ALLOWED = Arrays.asList(BASE + "connector/emtop/", BASE + "connector/happyness/",
 			BASE + "config/ErpConnectorEnvironmentPostProcessor.java");
 	static final List<String> TEXTS = Arrays.asList("erp.dynamicsnav", "erp.navpospages", "zsretail.connector.");
 
@@ -76,7 +76,7 @@ class ConnectorNamesGuardTest {
 				"ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES)", "the connector navpospages",
 				"import com.digithink.zsretail.connector.happyness.sync.NavPosPagesInvoices;")).size());
 		assertTrue(allowed(BASE + "connector/happyness/sync/NavPosPagesInvoices.java"));
-		assertTrue(allowed(BASE + "erp/dynamicsnav/mapper/DynamicsNavMapper.java"));
+		assertTrue(allowed(BASE + "connector/emtop/mapper/DynamicsNavMapper.java"));
 		assertTrue(allowed(BASE + "config/ErpConnectorEnvironmentPostProcessor.java"));
 		assertTrue(!allowed(BASE + "config/NodeOwnership.java"));
 		assertTrue(!allowed(BASE + "erp/api/ErpAbilities.java"));

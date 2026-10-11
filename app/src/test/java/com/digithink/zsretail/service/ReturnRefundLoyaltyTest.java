@@ -577,8 +577,8 @@ class ReturnRefundLoyaltyTest {
 		toHeader.setAccessible(true);
 		java.lang.reflect.Method toLine = export.getClass().getDeclaredMethod("toErpReturnLineDTO", ReturnLine.class);
 		toLine.setAccessible(true);
-		com.digithink.zsretail.erp.dynamicsnav.mapper.DynamicsNavMapper nav =
-				new com.digithink.zsretail.erp.dynamicsnav.mapper.DynamicsNavMapper();
+		com.digithink.zsretail.connector.emtop.mapper.DynamicsNavMapper nav =
+				new com.digithink.zsretail.connector.emtop.mapper.DynamicsNavMapper();
 		com.fasterxml.jackson.databind.ObjectMapper navJson = new com.fasterxml.jackson.databind.ObjectMapper()
 				.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
 				.setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)

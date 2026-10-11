@@ -25,8 +25,8 @@ import com.digithink.zsretail.ProjectSortingGuardTest;
 import com.digithink.zsretail.support.Repo;
 
 /**
- * Code cleanup step 3: the classes of a connector package (connector/happyness, erp/dynamicsnav) use only erp-api, their own
- * package, the JDK and libraries. Since code cleanup step 5.8e erp-api is what ProjectSortingGuardTest sorts there:
+ * Code cleanup step 3: the classes of a connector package (connector/happyness, connector/emtop) use only erp-api, their
+ * own package, the JDK and libraries (since step 6.3 their Maven projects make it true as well). Since code cleanup step 5.8e erp-api is what ProjectSortingGuardTest sorts there:
  * the package erp/api (with erp/api/dto), the project erp-api since step 6.2. Every other reference to a class of the
  * application (an import or a fully qualified name) must be on the allow-list below, with its reason. An entry nothing
  * uses any more fails too, so the list stays exact. erp/engine never names a connector: ConnectorNamesGuardTest scans it
@@ -40,7 +40,7 @@ class ConnectorDependenciesGuardTest {
 
 	static {
 		CONNECTORS.put("happyness", "connector.happyness");
-		CONNECTORS.put("emtop", "erp.dynamicsnav");
+		CONNECTORS.put("emtop", "connector.emtop");
 	}
 	static final Pattern REFERENCE = Pattern.compile("com\\.digithink\\.zsretail\\.[A-Za-z0-9_.]*[A-Z][A-Za-z0-9_]*");
 

@@ -90,7 +90,7 @@ public class ProjectSortingGuardTest {
 	/** The project of a class (its name after com.digithink.zsretail.). */
 	public static String projectOf(String name) {
 		String simple = name.substring(name.lastIndexOf('.') + 1);
-		if (name.startsWith("erp.dynamicsnav.")) {
+		if (name.startsWith("connector.emtop.")) {
 			return EMTOP;
 		}
 		if (name.startsWith("connector.happyness.")) {
@@ -298,7 +298,7 @@ public class ProjectSortingGuardTest {
 		assertEquals(HEADOFFICE, projectOf("headoffice.dto.StoreDTO"));
 		assertEquals(ERP_API, projectOf("erp.api.dto.ErpItemDTO"));
 		assertEquals(CORE, projectOf("erp.dto.ErpSyncJobViewDTO"));
-		assertEquals(EMTOP, projectOf("erp.dynamicsnav.connector.DynamicsNavConnector"));
+		assertEquals(EMTOP, projectOf("connector.emtop.connector.DynamicsNavConnector"));
 		assertEquals(HAPPYNESS, projectOf("connector.happyness.mapper.NavPosPagesMapper"));
 		assertEquals(CORE, projectOf("POSMainApp"));
 	}

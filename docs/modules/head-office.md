@@ -1236,7 +1236,7 @@ The home quick links hold no supply card, so nothing changes there. Labels in `e
 
 ### Head office with the catalogue only from the ERP: the connector "navpospages" (ERP catalogue, step 5)
 A second ERP connector, package `erp/navpospages` (since code cleanup step 6.3 `connector/happyness`, project connector-happyness), for a Dynamics NAV / Business Central whose web services are the "POS pages"
-(`ItemCategory`, `PointStockPOS`, `ItemBarCodePOS`): same ERP as `erp/dynamicsnav`, other pages. **Read only**: its RestTemplate
+(`ItemCategory`, `PointStockPOS`, `ItemBarCodePOS`): same ERP as `erp/dynamicsnav` (`connector/emtop` since code cleanup step 6.3), other pages. **Read only**: its RestTemplate
 refuses any method other than GET before it leaves (`NavPosPagesConfig.GetOnly`). In step 5 it reads and translates; it hands
 nothing to the import (every fetch of `NavPosPagesConnector` answers an empty list, every push a failure "read only"); step 6
 makes the four catalogue fetches return the changes (below). No existing class changed: `@Primary` won over `NoOpErpConnector` (code cleanup step 2: the connectors are mutually exclusive by the connector in effect, no `@Primary`).
