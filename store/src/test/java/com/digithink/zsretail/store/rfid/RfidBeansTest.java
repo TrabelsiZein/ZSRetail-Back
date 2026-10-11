@@ -32,6 +32,7 @@ import com.digithink.zsretail.store.rfid.repository.RfidReaderRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidTagRepository;
 import com.digithink.zsretail.store.rfid.service.PosMachineService;
 import com.digithink.zsretail.store.rfid.service.RfidReadService;
+import com.digithink.zsretail.store.rfid.service.RfidAssignmentService;
 import com.digithink.zsretail.store.rfid.service.RfidItemDeletionCheck;
 import com.digithink.zsretail.store.rfid.service.RfidReaderService;
 import com.digithink.zsretail.store.rfid.service.RfidTagService;
@@ -46,7 +47,7 @@ class RfidBeansTest {
 	/** The RFID beans (InstallationBeansProofTest records them in every configuration). */
 	static final List<Class<?>> SERVICES = Arrays.asList(RfidReaderService.class, PosMachineService.class,
 			RfidReadService.class, HopelandRfidReader.class, RfidAPI.class, RfidReaderAPI.class, PosMachineAPI.class,
-			RfidTagService.class, RfidItemDeletionCheck.class, RfidTagAPI.class);
+			RfidTagService.class, RfidItemDeletionCheck.class, RfidTagAPI.class, RfidAssignmentService.class);
 
 	private static MockEnvironment store(String rfid) {
 		MockEnvironment env = new MockEnvironment();
@@ -109,7 +110,8 @@ class RfidBeansTest {
 	void question() {
 		for (Class<?> type : Arrays.asList(RfidReaderService.class, PosMachineService.class, RfidReadService.class,
 				HopelandRfidReader.class, RfidAPI.class, RfidReaderAPI.class, PosMachineAPI.class, RfidReaderRepository.class,
-				RfidTagService.class, RfidItemDeletionCheck.class, RfidTagAPI.class, RfidTagRepository.class,
+				RfidTagService.class, RfidItemDeletionCheck.class, RfidTagAPI.class, RfidAssignmentService.class,
+				RfidTagRepository.class,
 				PosMachineRepository.class)) {
 			assertTrue(Questions.asks(type, Installation.RFID), type.getSimpleName());
 		}

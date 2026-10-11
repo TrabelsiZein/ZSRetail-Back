@@ -6,8 +6,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.transaction.support.TransactionOperations;
 
 import com.digithink.zsretail.core.controller._BaseController;
+import com.digithink.zsretail.store.rfid.service.RfidAssignmentService;
 import com.digithink.zsretail.store.rfid.service.RfidReadService;
 import com.digithink.zsretail.store.support.FakeRfidReader;
 import com.digithink.zsretail.store.support.InMemoryRfid;
@@ -21,6 +23,8 @@ final class RfidMvc {
 	final InMemoryRfid rfid = new InMemoryRfid();
 	final FakeRfidReader device = new FakeRfidReader();
 	final RfidReadService reads = new RfidReadService(rfid.readerService, rfid.machineService, device);
+	final RfidAssignmentService assignments = new RfidAssignmentService(reads, rfid.tagService, rfid.tagRepository,
+			TransactionOperations.withoutTransaction(), () -> "tester", () -> rfid.now);
 	final MockMvc mvc;
 
 	RfidMvc() {
@@ -28,7 +32,7 @@ final class RfidMvc {
 		PosMachineAPI machines = new PosMachineAPI();
 		service(readers, rfid.readerService);
 		service(machines, rfid.machineService);
-		mvc = MockMvcBuilders.standaloneSetup(new RfidAPI(reads), readers, machines, new RfidTagAPI(rfid.tagService)).build();
+		mvc = MockMvcBuilders.standaloneSetup(new RfidAPI(reads), readers, machines, new RfidTagAPI(rfid.tagService, assignments)).build();
 	}
 
 	/** A request from this address, as Tomcat gives it, asking JSON like the frontend (axios). */

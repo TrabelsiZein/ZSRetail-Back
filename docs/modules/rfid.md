@@ -248,6 +248,35 @@ item used in sales).
 
 Tests: `RfidTagServiceTest`, `RfidItemDeletionTest` (the real `ItemAPI`), `RfidTagAPITest`.
 
+### Tag assignment (`RfidAssignmentService`)
+
+**Read** (`POST /rfid-tag/assignment/read {readerId, itemId, expectedQuantity}`): the item exists and is active; the
+expected quantity none or 0 to 100000. The reader is read like a Test read (`RfidReadService.testRead`: the same
+refusals, inactive 409, busy 409, unreachable 503, error 502). The tags seen, each with its best signal, times seen and
+**weak** (a signal more than `WEAK_MARGIN_DB` = 10 dB below the best of this read: likely a piece further away), in four
+groups for the item:
+
+| Group | The tag | On save |
+|---|---|---|
+| `newTags` (NEW) | unknown | linked to the item |
+| `sameItem` (SAME_ITEM) | already on this item | left as it is |
+| `otherItem` (OTHER_ITEM) | on another item (`otherItemId`, `otherItemCode`, `otherItemName`) | refused, never changed (the Tags page moves a tag) |
+| `sold` (SOLD) | sold (with its item) | refused, never changed |
+
+Plus `newCount`, `sameItemCount`, `otherItemCount`, `soldCount`, `expectedQuantity`, `bestRssi`, `weakMarginDb`,
+`readerName`, `readTimeMs`, `durationMs`. A read writes nothing.
+
+**Save** (`POST /rfid-tag/assignment/save {itemId, epcs, sourceType, sourceDocument, sourceLine}`): checked again on the
+server, whatever the read said: each EPC normalised and taken once; an unknown tag is created `IN_STOCK` on the item
+(with the source, the user, the time); a tag already on the item is left as it is (`alreadyOnItem`: saving twice changes
+nothing); a tag now on another item or sold, and a value that is not an EPC, are reported in `refused` (`reason`
+`OTHER_ITEM`, `SOLD`, `INVALID`, with the item and a message), never changed. `sourceType` `MANUAL` (default: no
+document) or `RECEPTION` (the delivery number, at most 30, and the line, both required, else 400). At most 5000 EPCs a
+save. One save at a time in the store (a lock around one transaction), the unique EPC as the last guard.
+
+Tests: `RfidAssignmentServiceTest` (the groups, weak, the refusals, the save rules, saving twice, a tag linked elsewhere
+between the read and the save, the reception source), `RfidTagAPITest`.
+
 ## The front pages (ZSRetail-Front)
 
 A store menu **RFID** (after Inventory, icon Radio) with two pages, only when `GET /config` `rfidEnabled` is true

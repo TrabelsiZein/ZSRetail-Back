@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,16 +18,20 @@ import org.springframework.web.bind.annotation.RestController;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.store.rfid.RfidException;
+import com.digithink.zsretail.store.rfid.dto.RfidAssignmentRead;
+import com.digithink.zsretail.store.rfid.dto.RfidAssignmentRequest;
+import com.digithink.zsretail.store.rfid.dto.RfidAssignmentResult;
 import com.digithink.zsretail.store.rfid.dto.RfidTagDTO;
 import com.digithink.zsretail.store.rfid.model.RfidTagStatus;
+import com.digithink.zsretail.store.rfid.service.RfidAssignmentService;
 import com.digithink.zsretail.store.rfid.service.RfidTagService;
 
 import lombok.Data;
 
 /**
- * RFID tags step: the Tags page (/rfid-tag). Not the generic CRUD: a tag is created only by an assignment, moved only
- * by the explicit action, deleted only in stock. Exists only with rfid.enabled=true. Refusals: {@link RfidErrors}.
- * docs/modules/rfid.md.
+ * RFID tags step: the Tags page and the Tag assignment (/rfid-tag). Not the generic CRUD: a tag is created only by an
+ * assignment (read, then save), moved only by the explicit action, deleted only in stock. Exists only with
+ * rfid.enabled=true. Refusals: {@link RfidErrors}. docs/modules/rfid.md.
  */
 @RestController
 @RequestMapping("rfid-tag")
@@ -34,9 +39,11 @@ import lombok.Data;
 public class RfidTagAPI {
 
 	private final RfidTagService tags;
+	private final RfidAssignmentService assignments;
 
-	public RfidTagAPI(RfidTagService tags) {
+	public RfidTagAPI(RfidTagService tags, RfidAssignmentService assignments) {
 		this.tags = tags;
+		this.assignments = assignments;
 	}
 
 	/** GET /rfid-tag?itemId=&status=&epc=&page=&size=: a page of tags, newest first, with each tag's item. */
@@ -58,6 +65,24 @@ public class RfidTagAPI {
 	public ResponseEntity<Void> delete(@PathVariable Long id) {
 		tags.delete(id);
 		return ResponseEntity.noContent().build();
+	}
+
+	/**
+	 * POST /rfid-tag/assignment/read {readerId, itemId, expectedQuantity}: reads the reader, the tags in four groups for
+	 * the item (NEW, SAME_ITEM, OTHER_ITEM, SOLD), each with its signal, times seen and "weak". Writes nothing.
+	 */
+	@PostMapping("/assignment/read")
+	public RfidAssignmentRead read(@RequestBody RfidAssignmentRequest.Read request) {
+		return assignments.read(request);
+	}
+
+	/**
+	 * POST /rfid-tag/assignment/save {itemId, epcs, sourceType, sourceDocument, sourceLine}: links the unknown tags among
+	 * the EPCs to the item; the others are reported (already on the item, or refused), never changed.
+	 */
+	@PostMapping("/assignment/save")
+	public RfidAssignmentResult save(@RequestBody RfidAssignmentRequest.Save request) {
+		return assignments.save(request);
 	}
 
 	@ExceptionHandler(RfidException.class)
