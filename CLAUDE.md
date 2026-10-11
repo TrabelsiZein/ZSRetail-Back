@@ -101,12 +101,15 @@ Always from this folder (the parent): Maven builds the projects in dependency or
 ```bash
 mvn -q -DskipTests compile        # fast syntax/compile check
 mvn -q -DskipTests package        # build the two WARs: store/target/zsretail-store-<v>.war, headoffice/target/zsretail-headoffice-<v>.war
-mvn test                          # every project; reports in <project>/target/surefire-reports
+mvn clean test --fail-at-end     # every project in one go; reports in <project>/target/surefire-reports
 mvn test -pl store -am            # one project (here store) with what it depends on (core's tests run too)
 mvn test -Dtest=SomeTest -Dsurefire.failIfNoSpecifiedTests=false   # one test class (the other projects have none)
 ```
 
-Offline build (no network): add `-o`. The full command of this machine is in `../../CLAUDE.md`.
+A failed test fails the build (code cleanup step 8: no `testFailureIgnore` any more). `--fail-at-end` lets every project
+run its tests before the build fails, except a project that depends on one whose tests failed: Maven skips it
+(`SKIPPED` in the summary), so after a failure in core the applications' tests run only once core is fixed. Offline build
+(no network): add `-o`. The full command of this machine is in `../../CLAUDE.md`.
 
 ## Never commit
 
