@@ -188,15 +188,15 @@ public class HoStockPointService {
 	}
 
 	/**
-	 * Step 3a: a store's point changed (StoreService, same transaction): every item and barcode is sent again to that
-	 * store only. Returns how many codes were recorded (0 when nothing changed).
+	 * Step 3a: a store's point changed (StoreService, same transaction): the items of the previous and the new point, with
+	 * their barcodes, are sent again to that store only. Returns how many codes were recorded (0 when nothing changed).
 	 */
 	@Transactional
 	public int storeStockPointChanged(Long storeId, Long previousId, Long newId) {
 		if (java.util.Objects.equals(previousId, newId) || catalogue == null || catalogue.get() == null) {
 			return 0;
 		}
-		return catalogue.get().storeStockPointChanged(storeId);
+		return catalogue.get().storeStockPointChanged(storeId, previousId, newId);
 	}
 
 	private void refuseWhenUsed(Long id) {

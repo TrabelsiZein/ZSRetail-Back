@@ -311,19 +311,29 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 	}
 
 	/**
-	 * A store's stock point changed (given, changed or taken away; StoreService, same transaction): every item and every
-	 * barcode is sent again to that store only, recorded in bulk. Returns how many codes were recorded.
+	 * A store's stock point changed (given, changed or taken away; StoreService, same transaction), or a store was
+	 * created with one: the items with a row in the previous or the new point, active or not, and their barcodes, are
+	 * sent again to that store only, recorded in bulk (the copy of any other item does not depend on the point). Returns
+	 * how many codes were recorded.
 	 */
 	@Transactional
-	public int storeStockPointChanged(long storeId) {
+	public int storeStockPointChanged(long storeId, Long previousId, Long newId) {
+		List<Long> pointIds = new ArrayList<>();
+		for (Long pointId : new Long[] { previousId, newId }) {
+			if (pointId != null && !pointIds.contains(pointId)) {
+				pointIds.add(pointId);
+			}
+		}
+		if (stockPointItems == null || pointIds.isEmpty()) {
+			return 0;
+		}
 		List<String> recordCodes = new ArrayList<>();
-		for (String code : items.findAllCodes()) {
-			if (code != null && !code.trim().isEmpty() && !CatalogueKind.TAX_STAMP_CODE.equals(code)
-					&& fits(CatalogueKind.ITEM, code)) {
+		for (String code : stockPointItems.findItemCodesOfPoints(pointIds, CatalogueKind.TAX_STAMP_CODE)) {
+			if (code != null && !code.trim().isEmpty() && fits(CatalogueKind.ITEM, code)) {
 				recordCodes.add(CatalogueKind.ITEM.recordCode(code));
 			}
 		}
-		for (String barcode : barcodes.findAllBarcodesExceptItem(CatalogueKind.TAX_STAMP_CODE)) {
+		for (String barcode : stockPointItems.findBarcodesOfPoints(pointIds, CatalogueKind.TAX_STAMP_CODE)) {
 			if (barcode != null && !barcode.trim().isEmpty() && fits(CatalogueKind.BARCODE, barcode)) {
 				recordCodes.add(CatalogueKind.BARCODE.recordCode(barcode));
 			}

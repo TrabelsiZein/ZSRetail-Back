@@ -1498,15 +1498,20 @@ Done (step 3a), the store's point and the filtered send:
 - Recording (`CopiesDownFeed.recordChanges`, in bulk: one sequence update per batch, each code its own number):
   rows written by the items run (`HoStockPointRows.write`, same transaction) are recorded for the stores of that point
   only, with the barcodes of the items that entered the point or changed their active flag; a point without a store
-  records nothing (the sequence does not move). A store whose point changes (given, changed, taken away) gets every
-  item and barcode again, for that store only, in the same transaction as the change: same numbering
+  records nothing (the sequence does not move). A store whose point changes (given, changed, taken away) gets the
+  items with a row in its previous or its new point (active or not, TAX_STAMP never) and their barcodes again, for
+  that store only, in the same transaction as the change (stock point copies, step 2: before, every item and barcode of
+  the head office; the copy of any other item does not depend on the point; queries
+  `HoStockPointItemRepository.findItemCodesOfPoints` / `findBarcodesOfPoints`): same numbering
   (`CopiesDownFeed.recordChangesForStore`), rows written with JDBC batches (`JdbcDownChangeBatch`: an UPDATE per code,
   an INSERT for the codes without a row; a missing update count stops the transaction). A new store created with a
   point records nothing: its first pull reads the every-store rows, filtered by its point.
 - Packs whose component is not in the store's point, promotions on such an item, and head office BLs keep the 2.1
   wait at the store (documented, no rule).
 - Tests: `HoStockPointCatalogueTest` (two points with different items and prices; no point = 2.1 answer; price list
-  first; row changes for the point's stores only; no store, no recording; a store moved and back; assignable points).
+  first; row changes for the point's stores only; no store, no recording; a store moved and back, moved from P1 to P2;
+  assignable points); `StockPointCopiesQueryTest` (the queries of the stores of an item and of the codes of a point,
+  with Hibernate over H2).
 
 Done (step 3b), invoices from the ERP:
 - When an invoice gets its store (`HoErpInvoiceService.assignStores` / `matchStoresNow`) and that store has a point,
@@ -1573,8 +1578,8 @@ Fixes after the second test of 2.2 (head office whose catalogue comes from the E
 - **B. A store with no point de stock** receives only point rows, never the item table: it is a point with no rows,
   so every ERP item and ERP barcode is answered as removed (an item made at the head office still goes everywhere). The
   2.1 path stays only on a head office with a manual catalogue. The point stays optional ("None"); the Stores page shows
-  "No point de stock: this store receives no items." on that line. Moving a store to or from "None" still sends
-  everything again. The ERP invoice warning follows the same rule (every ERP item line of a store with no point is
+  "No point de stock: this store receives no items." on that line. Moving a store to or from "None" sends the items
+  of the point it leaves or gets again (stock point copies, step 2). The ERP invoice warning follows the same rule (every ERP item line of a store with no point is
   named). Before deploying: give every store its point, or its items become inactive at its next pull.
 - **C. Roles on a head office.** A new head office database gets only the ADMIN role and the admin user (no
   RESPONSIBLE, no POS_USER, none of their users; `ZZDataInitializer.ensureDefaultRoles` / `initUsers`). Nothing on a head

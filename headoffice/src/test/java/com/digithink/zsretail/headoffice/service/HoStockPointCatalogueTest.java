@@ -34,7 +34,8 @@ import com.fasterxml.jackson.databind.JsonNode;
  * data): a store receives an ERP item only when its point has a row, built from the row; its barcodes only then, active
  * only with the row; a hand-made item goes everywhere; the price list line wins over the row price; a store without a
  * point receives exactly what it did before. Recording: a row change reaches the stores of its point only; a store whose
- * point changes gets everything again; a point without store records nothing. In-memory tables, no Spring context.
+ * point changes gets the items of its previous and its new point again, with their barcodes; a point without store
+ * records nothing. In-memory tables, no Spring context.
  */
 class HoStockPointCatalogueTest {
 
@@ -222,29 +223,54 @@ class HoStockPointCatalogueTest {
 	}
 
 	@Test
-	@DisplayName("A store moved to no point, then back: everything is sent again to that store only, each time")
+	@DisplayName("A store moved to no point, then back: the items of P1 and their barcodes are sent again to that store only, each time")
 	void storeMoved() {
 		String cursorA = pull(a, "").getCursor();
 		String cursorB = pull(b, "").getCursor();
+		String cursorC = pull(c, "").getCursor();
 
 		a.setStockPointId(null);
-		assertEquals(8, points.storeStockPointChanged(a.getId(), p1, null), "every item and barcode sent again");
+		assertEquals(4, points.storeStockPointChanged(a.getId(), p1, null), "the items of P1 (an inactive row too) and their barcodes");
 		CopiesDownAnswerDTO toA = pull(a, cursorA);
-		assertEquals(Arrays.asList("BARCODE:999", "ITEM:MAIN"), new ArrayList<>(records(toA).keySet()),
-				"no point: only the hand-made item and its barcode");
-		assertEquals(Arrays.asList("BARCODE:111", "BARCODE:222", "BARCODE:333", "ITEM:B001", "ITEM:B002", "ITEM:B003"),
-				sorted(toA.getRemoved()), "every ERP item and barcode removed");
+		assertTrue(toA.getRecords().isEmpty(), "no point: nothing to send; the hand-made item is not sent again");
+		assertEquals(Arrays.asList("BARCODE:111", "BARCODE:222", "ITEM:B001", "ITEM:B002"), sorted(toA.getRemoved()),
+				"the items of P1 and their barcodes removed; B003 (P2 only) not named");
 		assertTrue(pull(b, cursorB).getRecords().isEmpty());
+		assertTrue(pull(b, cursorB).getRemoved().isEmpty());
+		assertTrue(pull(c, cursorC).getRemoved().isEmpty());
 
 		cursorA = toA.getCursor();
 		a.setStockPointId(p1);
-		assertEquals(8, points.storeStockPointChanged(a.getId(), null, p1));
+		assertEquals(4, points.storeStockPointChanged(a.getId(), null, p1));
 		CopiesDownAnswerDTO back = pull(a, cursorA);
 		Map<String, JsonNode> first = records(pull(a, ""));
-		first.keySet().removeIf(code -> code.startsWith("FAMILY:") || code.startsWith("SUBFAMILY:")); // not sent again
-		assertEquals(first, records(back), "the items and barcodes of a first pull with P1");
-		assertEquals(Arrays.asList("BARCODE:333", "ITEM:B003"), sorted(back.getRemoved()));
+		first.keySet().removeIf(code -> code.startsWith("FAMILY:") || code.startsWith("SUBFAMILY:")
+				|| code.equals("ITEM:MAIN") || code.equals("BARCODE:999")); // not sent again
+		assertEquals(first, records(back), "the items and barcodes of P1 as a first pull with P1 has them");
+		assertTrue(back.getRemoved().isEmpty(), "nothing of P2 named");
 		assertEquals(0, points.storeStockPointChanged(a.getId(), p1, p1), "same point: nothing");
+		assertEquals(0, points.storeStockPointChanged(a.getId(), null, null), "no point before or after: nothing");
+	}
+
+	@Test
+	@DisplayName("A store moved from P1 to P2: the items of both points and their barcodes, an item of both once, for that store only")
+	void storeMovedToAnotherPoint() {
+		String cursorA = pull(a, "").getCursor();
+		String cursorB = pull(b, "").getCursor();
+		String cursorC = pull(c, "").getCursor();
+
+		a.setStockPointId(p2);
+		assertEquals(6, points.storeStockPointChanged(a.getId(), p1, p2), "B001, B002 (both points, once), B003 and their barcodes");
+		CopiesDownAnswerDTO toA = pull(a, cursorA);
+		Map<String, JsonNode> ofA = records(toA);
+		assertEquals(Arrays.asList("BARCODE:222", "BARCODE:333", "ITEM:B002", "ITEM:B003"), new ArrayList<>(ofA.keySet()));
+		assertEquals(25.0, ofA.get("ITEM:B002").get("unitPrice").asDouble(), "P2's row now");
+		assertTrue(ofA.get("ITEM:B002").get("active").asBoolean(), "active in P2 (inactive in P1)");
+		assertTrue(ofA.get("BARCODE:222").get("active").asBoolean());
+		assertEquals(33.0, ofA.get("ITEM:B003").get("unitPrice").asDouble());
+		assertEquals(Arrays.asList("BARCODE:111", "ITEM:B001"), sorted(toA.getRemoved()), "P1 only: removed");
+		assertTrue(pull(b, cursorB).getRecords().isEmpty());
+		assertTrue(pull(c, cursorC).getRecords().isEmpty());
 	}
 
 	@Test
