@@ -34,7 +34,7 @@ import com.digithink.zsretail.support.Starts;
 /**
  * Code cleanup, step 1: erp.connector, one line that chooses the ERP connector, translated into the two old enabled
  * lines (ErpConnectorEnvironmentPostProcessor). Each value, absent, unknown, a contradicting old line, every outside
- * file of deploy/ and configs/ resolving as before, and the startup summary. Starts run the way Spring Boot runs them
+ * file of configs/ resolving as before, and the startup summary. Starts run the way Spring Boot runs them
  * (the post-processors around ConfigFileApplicationListener, on the real application.properties and type files).
  */
 class ErpConnectorTest {
@@ -176,11 +176,11 @@ class ErpConnectorTest {
 	}
 
 	@Test
-	@DisplayName("Every outside file of deploy/ and configs/ resolves as before, key by key")
+	@DisplayName("Every outside file of configs/ resolves as before, key by key")
 	void existingFilesUnchanged() {
 		List<Path> files = new ArrayList<>();
-		Installations.machineFiles().forEach(file -> files.add(Installations.DEPLOY.resolve(file)));
-		files.add(Installations.DEPLOY.resolve("machine-model.properties"));
+		Installations.machineFiles().forEach(file -> files.add(Installations.MACHINES.resolve(file)));
+		files.add(Installations.MACHINES.resolve("machine-model.properties"));
 		Installations.configFiles().forEach(file -> files.add(Installations.CONFIGS.resolve(file)));
 		assertTrue(files.size() > 10, files.toString());
 		for (Path file : files) {

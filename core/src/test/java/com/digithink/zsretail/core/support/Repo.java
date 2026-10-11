@@ -13,12 +13,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Code cleanup step 6: the folder of the repository (the parent POM, deploy/, configs/) and the sources of every Maven
+ * Code cleanup step 6: the folder of the repository (the parent POM, configs/) and the sources of every Maven
  * project in it, whichever project folder a test runs from (Maven runs each project's tests in its own folder).
  */
 public final class Repo {
 
-	/** The folder holding the parent POM and deploy/. */
+	/** The folder holding the parent POM and configs/. */
 	public static final Path ROOT = root();
 
 	private Repo() {
@@ -27,11 +27,11 @@ public final class Repo {
 	private static Path root() {
 		Path start = Paths.get("").toAbsolutePath();
 		for (Path dir = start; dir != null; dir = dir.getParent()) {
-			if (Files.isDirectory(dir.resolve("deploy")) && Files.isRegularFile(dir.resolve("pom.xml"))) {
+			if (Files.isDirectory(dir.resolve("configs")) && Files.isRegularFile(dir.resolve("pom.xml"))) {
 				return dir;
 			}
 		}
-		throw new IllegalStateException("No repository folder (deploy/ and pom.xml) at or above " + start);
+		throw new IllegalStateException("No repository folder (configs/ and pom.xml) at or above " + start);
 	}
 
 	/** The src/main/java folder of every project, by project folder name. */

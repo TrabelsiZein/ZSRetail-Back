@@ -29,7 +29,7 @@ import com.digithink.zsretail.support.Installations;
  * property is gone (a configuration that sets it is refused), and the answers of each old profile are frozen in
  * PresetTruthTableTest. Here:
  * <ul>
- * <li>every preset (with a head office address for the network presets), every machine file of deploy/ and every
+ * <li>every preset (with a head office address for the network presets), every machine file of configs/ and every
  * installation file of configs/ starts, none is the new head office combination, and each answers the old way;</li>
  * <li>a grid of configurations of the owners, node.type, headoffice.url, sales.upstream and application.standalone:
  * any one with application.standalone is refused; in every accepted one the catalogue, the customers and the supply are
@@ -106,7 +106,7 @@ class ModeQuestionTruthTableTest {
 	}
 
 	@Test
-	@DisplayName("Every preset and every machine file of deploy/ starts, and the four questions agree")
+	@DisplayName("Every preset and every machine file of configs/ starts, and the four questions agree")
 	void presetsAndMachineFiles() {
 		Map<String, MockEnvironment> installations = new LinkedHashMap<>();
 		for (String preset : Installations.variants()) {

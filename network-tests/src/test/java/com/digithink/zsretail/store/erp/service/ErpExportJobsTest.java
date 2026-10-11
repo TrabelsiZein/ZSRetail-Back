@@ -44,7 +44,7 @@ import com.digithink.zsretail.support.Installations;
  * Code cleanup step 5.6: the ERP job runner calls the store's exports through ErpExportJob. For each export job type the
  * same method runs as before (exportTickets, exportReturns, exportSessions), in its transaction, and no other; each
  * type has exactly one export in the application; the runner and the three exports exist in every configuration of the
- * installation beans record (deploy/, configs/, the six shapes), as before (they carry no condition).
+ * installation beans record (configs/, the six shapes), as before (they carry no condition).
  */
 class ErpExportJobsTest {
 

@@ -21,19 +21,25 @@ import com.digithink.zsretail.core.support.Repo;
 /**
  * Test support (task 9.3, configuration step C1): an installation's configuration merged the way the application does,
  * without Spring: application.properties, under the type file (src/main/resources/application-&lt;type&gt;.properties,
- * the type named by spring.profiles.active, store by default), under the outside file (deploy/... of this repository)
+ * the type named by spring.profiles.active, store by default), under the outside file (configs/... of this repository)
  * when there is one.
  * <p>
  * The six presets of task 9.3 are gone (step C1); each one is kept here as a variant, its type file with the mode lines
- * it gave (the lines its machine files of deploy/ now state), so the frozen rows of the truth tables load as before.
+ * it gave (the lines its machine files now state), so the frozen rows of the truth tables load as before.
  */
 public final class Installations {
 
-	/** The repository's deploy folder (code cleanup step 6: found from any project folder, {@link Repo#ROOT}). */
-	public static final Path DEPLOY = Repo.ROOT.resolve("deploy");
-
-	/** The repository's configs folder: one file per installation (ERP catalogue, step 1: checked like deploy/). */
+	/**
+	 * The repository's configs folder, every outside file of the repository (code cleanup step 7: deploy/ joined it; found
+	 * from any project folder, {@link Repo#ROOT}): the machine files (dev/, rehearsal/, customers/, ...) and configs/local.
+	 */
 	public static final Path CONFIGS = Repo.ROOT.resolve("configs");
+
+	/** The machine files: configs/ apart from configs/local (paths relative to configs/, as when they were in deploy/). */
+	public static final Path MACHINES = CONFIGS;
+
+	/** configs/local: the files of this PC's installations, checked as committed (ERP catalogue, step 1). */
+	static final String LOCAL = "local/";
 
 	/** Old preset name to its type and the mode lines it gave (task 9.3 files, removed at step C1). */
 	private static final Map<String, String[]> VARIANTS = new LinkedHashMap<>();
@@ -64,9 +70,9 @@ public final class Installations {
 		return new ArrayList<>(VARIANTS.keySet());
 	}
 
-	/** An outside file of deploy/ (e.g. "dev/store-b.properties") over its type file and application.properties. */
+	/** A machine file of configs/ (e.g. "dev/store-b.properties") over its type file and application.properties. */
 	public static MockEnvironment machine(String relativePath) {
-		return outside(DEPLOY.resolve(relativePath));
+		return outside(MACHINES.resolve(relativePath));
 	}
 
 	/** An installation file of configs/ (e.g. "local/happyness_ho.properties") over its type file and application.properties. */
@@ -75,11 +81,11 @@ public final class Installations {
 	}
 
 	/**
-	 * Every installation file of configs/ that git tracks, as paths relative to configs/: a local file not committed (a
+	 * Every installation file of configs/local that git tracks, as paths relative to configs/: a local file not committed (a
 	 * rehearsal copy) does not change the tests. Every file when git cannot answer.
 	 */
 	public static List<String> configFiles() {
-		List<String> files = propertiesFiles(CONFIGS);
+		List<String> files = propertiesFiles(CONFIGS).stream().filter(file -> file.startsWith(LOCAL)).collect(Collectors.toList());
 		List<String> tracked = trackedUnder(CONFIGS);
 		return tracked == null ? files : files.stream().filter(tracked::contains).collect(Collectors.toList());
 	}
@@ -118,7 +124,7 @@ public final class Installations {
 	}
 
 	/**
-	 * The type of a file that names none: every file of deploy/ and configs/ that is a head office names headoffice (they
+	 * The type of a file that names none: every file of configs/ that is a head office names headoffice (they
 	 * were written for the single application, whose default was store).
 	 */
 	public static final String DEFAULT_TYPE = "store";
@@ -153,9 +159,9 @@ public final class Installations {
 		return env;
 	}
 
-	/** Every outside file of deploy/ (the model excluded), as paths relative to deploy/. */
+	/** Every machine file (the model and configs/local excluded), as paths relative to configs/. */
 	public static List<String> machineFiles() {
-		return propertiesFiles(DEPLOY);
+		return propertiesFiles(MACHINES).stream().filter(file -> !file.startsWith(LOCAL)).collect(Collectors.toList());
 	}
 
 	private static List<String> propertiesFiles(Path folder) {

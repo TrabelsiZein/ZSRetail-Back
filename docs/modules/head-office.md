@@ -1652,7 +1652,7 @@ changed files in production mode, a build without the eslint cache and the truth
 A head office with `ownership.catalogue=ERP` and its customers and supply not the ERP's (`isErpCatalogueOnly`, see
 `docs/deployment-modes.md`) reads its catalogue from the ERP: families, sub-families, items and barcodes are read-only there.
 - **Refusal filter** `HeadOfficeErpCatalogueFilter` (`@ConditionalOnInstallation(HEAD_OFFICE_ERP_CATALOGUE_ONLY)`: the bean exists only there, never
-  on a store, a head office without an ERP or one whose ERP owns all three; in no file of `deploy/` or `configs/`). A servlet
+  on a store, a head office without an ERP or one whose ERP owns all three; in no file of `configs/` or `configs/`). A servlet
   filter after the security chain, like `HeadOfficeWithoutStockFilter`: 403 `{"error":"The catalogue of this head office comes
   from the ERP: families, sub-families, items and barcodes are read-only here."}` on `PUT`, `PATCH`, `DELETE` under
   `/item-family/` and `/item-sub-family/` (and any write but `POST` on the two paths themselves), and every `POST`, `PUT`,
@@ -1953,14 +1953,14 @@ The three permissions are in `ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS` (
 - Existing store pages are not modified to serve the head office: a shared page gets a head office route with `meta.twinOf`. First content: the stores list (task 1.2).
 - **Store side of the link.** Code that runs on a store and calls the head office lives in `com.digithink.zsretail.holink`, never in `headoffice`; its beans carry `@ConditionalOnInstallation(LINKED_TO_HEAD_OFFICE)` (task 1.4), or `@ConditionalOnInstallation(SALES_TO_HEAD_OFFICE)` for the sales copies (task 2.1). Its tables are prefixed `hol_` (task 2.1). Its pages live in `src/views/admin/holink/`, routes `admin-holink-*` (task 1.5).
 
-### Dev head office: `deploy/dev/headoffice.properties` (was the profile `headoffice-dev`)
+### Dev head office: `configs/dev/headoffice.properties` (was the profile `headoffice-dev`)
 Type `headoffice` (configuration step C1): `node.type=HEAD_OFFICE`, no ERP. Outside file: `server.port=888`, database `pos_headoffice` (same SQL
 Server and login as the dev stores), ERP sync off.
 - Own log file `C:/zsretail-headoffice/backend.log` and image folder `uploads/headoffice/pos-images`, so it does not share them with the store instance.
 
-### Dev head office with an ERP: `deploy/dev/headoffice-erp.properties` (task 3.4, was the profile `headoffice-dynamics-dev`)
+### Dev head office with an ERP: `configs/dev/headoffice-erp.properties` (task 3.4, was the profile `headoffice-dynamics-dev`)
 Type `headoffice` with catalogue, customers and supply `ERP` and the NAV connector on (the preset `headoffice-erp` until configuration step C1). Same database `pos_headoffice`, port 888, log file and image folder as `dev/headoffice.properties`, which stays the head office without ERP.
-- `erp.dynamicsnav.*`: the settings of `deploy/dev/store-test-nav.properties`, the **NAV test instance** (`192.168.10.166:24/test4`). Never the NAV of `deploy/dev/store-a-erp.properties` or `deploy/customers/erp-prod.properties`: that is the customer's production NAV (correction from Zein, 2026-10-03). A comment in the file says so, and `HeadOfficeErpProfileTest` fails if the URL or host of those files appears in it.
+- `erp.dynamicsnav.*`: the settings of `configs/dev/store-test-nav.properties`, the **NAV test instance** (`192.168.10.166:24/test4`). Never the NAV of `configs/dev/store-a-erp.properties` or `configs/customers/erp-prod.properties`: that is the customer's production NAV (correction from Zein, 2026-10-03). A comment in the file says so, and `HeadOfficeErpProfileTest` fails if the URL or host of those files appears in it.
 - `erp.sync.enabled=true`, `erp.sync.scheduler.delay=60000`: the import jobs enabled from the ERP jobs page run; all are seeded disabled.
 - Switching one `pos_headoffice` database between the two outside files: the ERP jobs are seeded at the first start in ERP mode; started again with `headoffice-dev` (no ERP) nothing runs them (no scheduler) and the item pages allow creating by hand again.
 
@@ -2015,19 +2015,19 @@ Order at a new head office with an ERP: enable and run `IMPORT_LOCATIONS`, choos
 | ERP communications log (store page as a twin) | `read:admin-headoffice-erp-communications` | `admin/erp/communications` |
 | ERP reference location (new page) | `read:admin-headoffice-erp-reference-location` | `admin/headoffice/erp/reference-location` |
 
-**NAV**: only the test instance of `deploy/dev/store-test-nav.properties` may be called from this PC, and only with GET; never the production NAV of `deploy/dev/store-a-erp.properties` and `deploy/customers/erp-prod.properties`. Reaching the test instance needs the VPN (closing prompt of step 3).
+**NAV**: only the test instance of `configs/dev/store-test-nav.properties` may be called from this PC, and only with GET; never the production NAV of `configs/dev/store-a-erp.properties` and `configs/customers/erp-prod.properties`. Reaching the test instance needs the VPN (closing prompt of step 3).
 
 ### Start the pair on this PC (test level L2)
 
 | Instance | Backend | Frontend |
 |---|---|---|
-| Store | any store machine file (e.g. `deploy/dev/store-a.properties`), port 444 | `npm run serve` (`.env.development.local` → 444) |
-| Head office | machine file `deploy/dev/headoffice.properties`, port 888 (set in the machine file) | `npm run serve:headoffice` → http://localhost:8081 (`.env.headoffice` → 888) |
+| Store | any store machine file (e.g. `configs/dev/store-a.properties`), port 444 | `npm run serve` (`.env.development.local` → 444) |
+| Head office | machine file `configs/dev/headoffice.properties`, port 888 (set in the machine file) | `npm run serve:headoffice` → http://localhost:8081 (`.env.headoffice` → 888) |
 
 - In Eclipse / STS (code cleanup step 6.7): the shared launch configurations `eclipse/dev-headoffice.launch`,
   `dev-store-b.launch`, `dev-store-c.launch` start `HeadOfficeApplication` (project `zsretail-headoffice`) or
   `StoreApplication` (project `zsretail-store`) with the instance's machine file
-  (`-Dzsretail.machine-file="${project_loc:zsretail-parent}/deploy/dev/<name>.properties"`). Without an outside file
+  (`-Dzsretail.machine-file="${project_loc:zsretail-parent}/configs/dev/<name>.properties"`). Without an outside file
   each application starts as its own type. The devenv scripts start the L2 instances themselves (CLAUDE.md, "Dev
   environment for L2"), each with the WAR of its application.
 - 888 and 8081 were also the ports of the franchise customer profile (removed at step 9).
@@ -2043,7 +2043,7 @@ status | set-key | reset`.
 | `reh-store-1` | 557 | `pos_rehearsal_s1` | `store` + network lines | `STORE-1` |
 | `reh-store-2` | 558 | `pos_rehearsal_s2` | `store` + network lines | `STORE-2` |
 
-- Machine files `deploy/rehearsal/`, logs `C:\zsretail-rehearsal\<name>\backend.log`. Logins as on a new database.
+- Machine files `configs/rehearsal/`, logs `C:\zsretail-rehearsal\<name>\backend.log`. Logins as on a new database.
 - The stores are not registered at the head office: create them on its Stores page with their codes, then
   `-Action set-key -Store store-1 -Key <key>` writes the key into the store's machine file and restarts it (until then the
   head office refuses the store, 401). A store started from Eclipse is not restarted: the script writes the key and says to
@@ -2053,7 +2053,7 @@ status | set-key | reset`.
 - **From Eclipse**: three shared launch configurations in the backend repository, `eclipse/rehearsal-1-headoffice.launch`,
   `rehearsal-2-store-1.launch`, `rehearsal-3-store-2.launch` (Run menu, favourites). Since code cleanup step 6.7: Java
   Application `HeadOfficeApplication` (project `zsretail-headoffice`) or `StoreApplication` (project `zsretail-store`) on
-  the JRE `jdk-21.0.10`, with `-Dzsretail.machine-file="${project_loc:zsretail-parent}/deploy/rehearsal/<name>.properties"`
+  the JRE `jdk-21.0.10`, with `-Dzsretail.machine-file="${project_loc:zsretail-parent}/configs/rehearsal/<name>.properties"`
   (`zsretail-parent`: the workspace name of the backend folder): same machine files, ports, databases and logs as the
   script, from the projects' classes instead of the artifact. Head office first, then the stores. An instance is up when
   its console shows `Tomcat started on port(s): 889` (557, 558) and `Started HeadOfficeApplication` (`StoreApplication`), or when

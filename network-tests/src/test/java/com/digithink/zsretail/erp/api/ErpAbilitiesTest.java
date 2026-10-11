@@ -31,7 +31,7 @@ import com.digithink.zsretail.support.Starts;
 
 /**
  * Code cleanup, step 2, part 1: what each connector can do (ErpAbilities), read from the environment whichever way the
- * connector was chosen (erp.connector or the old enabled lines), and every file of deploy/ and configs/ giving the
+ * connector was chosen (erp.connector or the old enabled lines), and every file of configs/ giving the
  * abilities its old lines gave.
  */
 class ErpAbilitiesTest {
@@ -102,7 +102,7 @@ class ErpAbilitiesTest {
 	}
 
 	@Test
-	@DisplayName("Every file of deploy/ and configs/: the abilities its old lines give")
+	@DisplayName("Every file of configs/: the abilities its old lines give")
 	void existingFiles() {
 		List<String> machines = Installations.machineFiles();
 		List<String> configs = Installations.configFiles();

@@ -16,7 +16,7 @@
 # only writes the key (restart the store from Eclipse), reset refuses while one is up.
 #
 # Instances (devenv\common.ps1): reh-headoffice 889 pos_rehearsal_ho, reh-store-1 557 pos_rehearsal_s1 (STORE-1),
-# reh-store-2 558 pos_rehearsal_s2 (STORE-2). Machine files: deploy\rehearsal\. Logs: C:\zsretail-rehearsal\<name>\backend.log.
+# reh-store-2 558 pos_rehearsal_s2 (STORE-2). Machine files: configs\rehearsal\. Logs: C:\zsretail-rehearsal\<name>\backend.log.
 # Logins (a new database): head office admin / P@ssw0rd; stores admin / P@ssw0rd, responsible / 123.0, cashier / cashier.
 param(
 	[Parameter(Mandatory = $true)][ValidateSet('setup', 'start', 'stop', 'status', 'set-key', 'reset')][string]$Action,

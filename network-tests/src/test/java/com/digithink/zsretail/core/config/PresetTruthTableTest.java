@@ -16,13 +16,13 @@ import com.digithink.zsretail.support.Installations;
 /**
  * Head office plan, task 9.3: the answers of every installation shape, frozen. Each row is what the old profile file
  * gave (task 9.3a, commit 596f1bb, checked them against the old files while they were still in the WAR); since task 9.3b
- * each preset gives the same row with its machine file (deploy/), the old files being gone. A row: node type, the five owners, where the sales go, the head office switches (link, sales
+ * each preset gives the same row with its machine file (configs/), the old files being gone. A row: node type, the five owners, where the sales go, the head office switches (link, sales
  * push, pull, catalogue and supply from the head office, head office with / without an ERP), an ERP owner, and
  * erp.dynamicsnav.enabled.
  */
 class PresetTruthTableTest {
 
-	/** Installation (machine:<file of deploy/> or preset:<name>) [+ keys of the machine] to its frozen row. */
+	/** Installation (machine:<file of configs/> or preset:<name>) [+ keys of the machine] to its frozen row. */
 	private static final Map<String, String> ROWS = new LinkedHashMap<>();
 	private static final Map<String, String[]> SOURCES = new LinkedHashMap<>();
 

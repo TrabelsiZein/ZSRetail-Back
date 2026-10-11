@@ -34,7 +34,7 @@ import com.digithink.zsretail.support.Installations;
  */
 class HeadOfficeErpProfileTest {
 
-	/** Task 9.3: the old profile names, now presets with their machine files of deploy/. */
+	/** Task 9.3: the old profile names, now presets with their machine files of configs/. */
 	private static MockEnvironment profile(String name) {
 		switch (name) {
 			case "headoffice-dynamics-dev":

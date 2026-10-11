@@ -9,7 +9,7 @@ head office since ERP catalogue step 1: the catalogue alone from the ERP (sectio
 (`docs/deploy-note.md`). The application is the type: it activates its type file and gives its type as default
 properties (`core/config/ZsRetailApplication`), so a new installation names no type. An outside file that still names it
 (`spring.profiles.active`, `node.type`) keeps working when it names the application's type, and stops the start when it
-names the other one (below, **Type check**). Every key of every file of `deploy/` and `configs/` resolves as before
+names the other one (below, **Type check**). Every key of every file of `configs/` resolves as before
 (`ConfigurationKeysProofTest`).
 
 ## 1. The three files (inside the WARs)
@@ -39,7 +39,7 @@ store, and `HeadOfficeApplication` as a head office.
 
 Usually only the "where it runs" block of a real installation; it may also change any mode line, and name the type (an
 old file; the application's type only). Model:
-`deploy/machine-model.properties`. Loaded by `core/config/MachineFileEnvironmentPostProcessor`, before Spring reads its
+`configs/machine-model.properties`. Loaded by `core/config/MachineFileEnvironmentPostProcessor`, before Spring reads its
 configuration files, when:
 1. `-Dzsretail.machine-file=<path>` names it (dev scripts, IDE, or to override the Tomcat convention); a path that does not
    exist stops the startup (`Outside file not found: <path> ...`);
@@ -80,7 +80,7 @@ they were `dynamicsnav` and `navpospages`, which no installed file used. The nam
 (`core/config/ErpConnectorInEffect`, registered in `META-INF/spring.factories`), so it names no key of the application.
 
 So every `@ConditionalOnProperty`, `NodeOwnership`, the startup checks and the summary read the old lines unchanged. The
-**old lines are still accepted**: without `erp.connector` they act exactly as before, and every file of `deploy/` and `configs/`
+**old lines are still accepted**: without `erp.connector` they act exactly as before, and every file of `configs/`
 resolves as before (checked key by key, `ErpConnectorTest`). The translated values sit just above the property source that gives
 `erp.connector`, so they win over an old line of a lower source (the type files' `erp.dynamicsnav.enabled=false`). Refused at
 startup: an unknown value (empty included), `Invalid value '<v>' for property erp.connector: none | emtop | happyness
@@ -102,11 +102,11 @@ one of the connector in effect. Outside the connector packages and the class abo
 
 **Startup summary**: one INFO line once the application is up (`core/config/InstallationSummary`), e.g.
 `Installation: type STORE, database pos_store_b, catalogue HEAD_OFFICE, customers LOCAL, promotions LOCAL, loyalty HEAD_OFFICE,
-supply HEAD_OFFICE, sales to [HEAD_OFFICE], ERP connector none, outside file D:\...\deploy\dev\store-b.properties`. The connector
+supply HEAD_OFFICE, sales to [HEAD_OFFICE], ERP connector none, outside file D:\...\configs\dev\store-b.properties`. The connector
 (`none`, `emtop`, `happyness`) is worked out from the old lines in effect, whichever way they were set. With
 `emtop` it adds `NAV <base-url>`; never a password or a key.
 
-**The `deploy/` folder** (versioned): every file names its type and, when the old preset differed from the type file, states
+**The `configs/` folder** (versioned): every file names its type and, when the old preset differed from the type file, states
 the mode lines that preset gave, so every key of every file resolves exactly as before step C1 (checked key by key).
 
 | File | Type + mode lines | Was |
@@ -128,13 +128,13 @@ the mode lines that preset gave, so every key of every file resolves exactly as 
 `HEAD_OFFICE`, sales to `HEAD_OFFICE`.
 
 **IDE (Eclipse / STS)**: `StoreApplication` as it is is a store on the type file (`HeadOfficeApplication` a head office on its own) (set `ZSRETAIL_DB_PASSWORD` in the launch's
-Environment tab). For a dev machine, VM arguments `-Dzsretail.machine-file="D:\ZS Retail\Apps\ZSRetail-Back\deploy\dev\store-b.properties"`
+Environment tab). For a dev machine, VM arguments `-Dzsretail.machine-file="D:\ZS Retail\Apps\ZSRetail-Back\configs\dev\store-b.properties"`
 (the shared `eclipse/*.launch` do this). A launch with `-Dspring.profiles.active=<old profile>` is refused.
 
 **Dev scripts** (`devenv/`): unchanged, each instance starts with `-Dzsretail.machine-file` (`common.ps1`).
 
 **Tests**: no test starts a Spring context. `support/Installations` merges `application.properties`, the type file and an
-outside file of `deploy/` like the application; it keeps the six shapes of task 9.3 as variants (type file + mode lines), so
+outside file of `configs/` like the application; it keeps the six shapes of task 9.3 as variants (type file + mode lines), so
 `PresetTruthTableTest`, `NetworkPresetTruthTableTest` and `ModeQuestionTruthTableTest` check their frozen rows unchanged.
 `MachineFileTest` runs real starts (the two post-processors around Spring Boot's `ConfigFileApplicationListener`).
 
@@ -142,7 +142,7 @@ outside file of `deploy/` like the application; it keeps the six shapes of task 
 
 **New installation**
 1. Create the empty SQL Server database.
-2. Copy `deploy/machine-model.properties`: database, log file and image folder (their own per installation), the type
+2. Copy `configs/machine-model.properties`: database, log file and image folder (their own per installation), the type
    (`headoffice` for a head office), and the mode lines when the installation is not a plain store or head office (a store on
    NAV, a store of a network: the variants in `application-store.properties`), with the NAV connection or the head office link.
    The ERP connector with `erp.connector` (section 2) rather than the old enabled lines.
@@ -155,7 +155,7 @@ outside file of `deploy/` like the application; it keeps the six shapes of task 
 **Upgrade of a 2.1 installation built on the presets**: in its outside file, replace `spring.profiles.active=<preset>` with the
 type and the mode lines of that preset (table above, or `support/Installations`); `store` and `headoffice` need nothing.
 
-**Upgrade from before 2.1** (an old profile): its outside file is the matching file of `deploy/customers/` when there is one;
+**Upgrade from before 2.1** (an old profile): its outside file is the matching file of `configs/customers/` when there is one;
 otherwise copy the old profile file, add the type and mode lines (standalone-* is `store`; dynamics-* is `store` + the NAV
 lines; headoffice-dev is `headoffice`), remove `application.standalone`, and remove any `spring.profiles.active` from the Tomcat
 options. Then the release's `update.sql`, the WAR, a start, and the checks above.
@@ -238,7 +238,7 @@ warning in the summary). The key `erp.navpospages.deactivate-guard-percent` is g
 
 **Step 9 questions** (tasks 9.1b to 9.1g): `isCatalogueFromErp()`, `isCustomersFromErp()`, `isSupplyFromErp()`, `hasErp()` (some
 owner is the ERP). With the ERP owning all or nothing they answer alike for every configuration that starts, except the
-head office above (`ModeQuestionTruthTableTest`: every variant, every outside file of `deploy/` and `configs/`, and a grid
+head office above (`ModeQuestionTruthTableTest`: every variant, every outside file of `configs/`, and a grid
 of 15,360 configurations whose counts before ERP catalogue step 1 are frozen, 497 accepted of which 25 with an ERP; the
 only rows added are the 8 head offices of that combination; `ErpCatalogueHeadOfficeTest`). They replaced the old
 standalone checks:
@@ -253,7 +253,7 @@ standalone checks:
 | `GET /config` field `standalone` (9.1e): kept, with its name and value, for the frontend | `!hasErp()` | `false` |
 | Stock (9.1f): `StockService` (sale, return, purchase, adjustment, the two BL movements) and `StockMovementService` (their seven movements), called by the till at every sale and return | `isSupplyFromErp()` | no-op (no stock change, no movement), as before |
 
-Tests: `ModeGateTest` (each gate on an ERP store and on a head office with an ERP: 403 with its message), the existing guard and stock adjustment tests on a mode service built from properties (`support/TestModes`), `StockModeTest` (every stock change and movement on every variant and outside file of `deploy/`: no-op when the supply is the ERP's, applied when local or fed by the head office), `ZZDataInitializerModeTest` (the real `init()` on a first start: passenger customer without an ERP, ERP checkpoints, ERP-only settings and ERP jobs with one).
+Tests: `ModeGateTest` (each gate on an ERP store and on a head office with an ERP: 403 with its message), the existing guard and stock adjustment tests on a mode service built from properties (`support/TestModes`), `StockModeTest` (every stock change and movement on every variant and outside file of `configs/`: no-op when the supply is the ERP's, applied when local or fed by the head office), `ZZDataInitializerModeTest` (the real `init()` on a first start: passenger customer without an ERP, ERP checkpoints, ERP-only settings and ERP jobs with one).
 
 ## 5. Head office link (store side)
 
@@ -303,7 +303,7 @@ is one value of `core/config/Installation`, used as `@ConditionalOnInstallation(
 `OnInstallationCondition`). Each answer comes from `NodeOwnership`, as the startup resolves the configuration. The ERP's
 own questions stay `@ConditionalOnErpAbility` and `@ConditionalOnErpConnector` (section 2). The thirteen
 `@ConditionalOnHeadOffice...` annotations are gone; `InstallationBeansProofTest` shows the same beans in every file of
-`deploy/` and `configs/` and the old shapes as before.
+`configs/` and the old shapes as before.
 
 | Question | True when | Classes |
 |---|---|---|

@@ -38,7 +38,7 @@ import com.digithink.zsretail.support.Installations;
 
 /**
  * Code cleanup step 6, proof: every key of every configuration resolves as it did before the store and the head office
- * became two applications. Each file of deploy/ and configs/ (as committed), and a start without an outside file of
+ * became two applications. Each file of configs/ (as committed), and a start without an outside file of
  * each type, is started the way Spring Boot starts (every EnvironmentPostProcessor of spring.factories, in order, with
  * the configuration files of the classpath); the value of every key that a configuration file names is compared with
  * the record made on the code before the change (src/test/resources/config/configuration-keys.txt). A password or a
@@ -72,8 +72,8 @@ class ConfigurationKeysProofTest {
 	Map<String, Configuration> configurations() throws IOException {
 		Map<String, Configuration> configurations = new LinkedHashMap<>();
 		for (String file : Installations.machineFiles()) {
-			Path path = Installations.DEPLOY.resolve(file);
-			configurations.put("deploy/" + file, new Configuration(path, typeOf(Installations.file(path))));
+			Path path = Installations.MACHINES.resolve(file);
+			configurations.put("configs/" + file, new Configuration(path, typeOf(Installations.file(path))));
 		}
 		for (String file : Installations.configFiles()) {
 			Path path = committed(file);

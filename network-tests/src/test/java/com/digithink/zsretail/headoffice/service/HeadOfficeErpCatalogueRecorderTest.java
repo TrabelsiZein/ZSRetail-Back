@@ -273,7 +273,7 @@ class HeadOfficeErpCatalogueRecorderTest {
 		assertFalse(registered(Installations.type("store")), "store");
 		assertFalse(registered(Installations.preset("store-erp")), "ERP store");
 		for (String machine : Installations.machineFiles()) {
-			assertFalse(registered(Installations.machine(machine)), "deploy/" + machine);
+			assertFalse(registered(Installations.machine(machine)), "configs/" + machine);
 		}
 		for (String config : Installations.configFiles()) {
 			assertEquals(config.equals("local/happyness_ho.properties"), registered(Installations.config(config)),

@@ -46,7 +46,7 @@ import com.digithink.zsretail.support.Installations;
 
 /**
  * Code cleanup step 4, proof: the beans the installation questions decide (the classes and @Bean methods that carry an
- * annotation whose condition is a class of config, apart from the two ERP ones), in every file of deploy/ and configs/,
+ * annotation whose condition is a class of config, apart from the two ERP ones), in every file of configs/,
  * the six shapes of task 9.3 and a few head office shapes, compared with the record made on the code before the change
  * (src/test/resources/config/installation-beans.txt). Written so that it runs unchanged before and after: it names no
  * annotation. -Dinstallation.proof.write=true writes the record again (only on the code before the change). Code cleanup
@@ -192,7 +192,7 @@ class InstallationBeansProofTest {
 	/** Every configuration of the repository, the six shapes, and head office shapes no file has. */
 	static Map<String, MockEnvironment> configurations() {
 		Map<String, MockEnvironment> environments = new LinkedHashMap<>();
-		Installations.machineFiles().forEach(file -> environments.put("deploy/" + file, Installations.machine(file)));
+		Installations.machineFiles().forEach(file -> environments.put("configs/" + file, Installations.machine(file)));
 		Installations.configFiles().forEach(file -> environments.put("configs/" + file, committedConfig(file)));
 		Installations.variants().forEach(variant -> environments.put("shape " + variant, Installations.preset(variant)));
 		environments.put("head office, stock off", headOffice("headoffice.stock.enabled=false"));

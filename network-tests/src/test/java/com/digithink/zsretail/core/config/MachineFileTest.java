@@ -237,19 +237,19 @@ class MachineFileTest {
 	}
 
 	@Test
-	@DisplayName("Every outside file of deploy/ names store or headoffice (or none) and never application.standalone; the model names none")
+	@DisplayName("Every outside file of configs/ names store or headoffice (or none) and never application.standalone; the model names none")
 	void deployFolder() {
 		List<String> files = Installations.machineFiles();
 		assertTrue(files.size() >= 9, files.toString());
 		for (String file : files) {
-			java.util.Properties properties = Installations.file(Installations.DEPLOY.resolve(file));
+			java.util.Properties properties = Installations.file(Installations.MACHINES.resolve(file));
 			String type = properties.getProperty("spring.profiles.active");
 			if (type != null) {
 				InstallationTypeEnvironmentPostProcessor.check(new String[] { type.trim() }, file);
 			}
 			assertNull(properties.getProperty("application.standalone"), file);
 		}
-		assertNull(Installations.file(Installations.DEPLOY.resolve("machine-model.properties"))
+		assertNull(Installations.file(Installations.MACHINES.resolve("machine-model.properties"))
 				.getProperty("spring.profiles.active"));
 	}
 
@@ -257,11 +257,11 @@ class MachineFileTest {
 	@DisplayName("C1: the startup summary names the type, the database, the owners, the sales, the NAV address and the outside file, never a password")
 	void startupSummary() {
 		org.springframework.mock.env.MockEnvironment env = Installations.machine("dev/store-test-nav.properties");
-		env.setProperty(MachineFileEnvironmentPostProcessor.LOADED_KEY, "D:/deploy/dev/store-test-nav.properties");
+		env.setProperty(MachineFileEnvironmentPostProcessor.LOADED_KEY, "D:/configs/dev/store-test-nav.properties");
 		String line = InstallationSummary.summary(env, NodeOwnership.resolve(env));
 		assertEquals("Installation: type STORE, database pos_db_test, catalogue ERP, customers ERP, promotions LOCAL,"
 				+ " loyalty LOCAL, supply ERP, sales to [ERP], ERP connector emtop, NAV http://192.168.10.166:24/test4/ODataV4,"
-				+ " outside file D:/deploy/dev/store-test-nav.properties", line);
+				+ " outside file D:/configs/dev/store-test-nav.properties", line);
 		org.springframework.mock.env.MockEnvironment plain = Installations.type("store");
 		assertTrue(InstallationSummary.summary(plain, NodeOwnership.resolve(plain))
 				.endsWith("sales to nowhere, ERP connector none, no outside file"));

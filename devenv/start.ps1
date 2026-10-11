@@ -2,7 +2,7 @@
 # head office runs the head office WAR, a store the store WAR), on JDK 21, in the background.
 #   powershell -File devenv\start.ps1                         # head office, store B, store C
 #   powershell -File devenv\start.ps1 -Instance store-c -Set 'ownership.loyalty=LOCAL'
-# Each instance runs from its machine file in deploy\ (task 9.3), given with -Dzsretail.machine-file; the machine file
+# Each instance runs from its machine file in configs\ (task 9.3), given with -Dzsretail.machine-file; the machine file
 # names the preset. -Set: properties given on the command line for this start only (they win over the machine file).
 # Log: the machine file's logging.file.name (one per instance); console output in C:\zsretail-dev\logs\<instance>.console.log.
 param(

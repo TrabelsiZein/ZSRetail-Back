@@ -44,7 +44,7 @@ deployed alone in its Tomcat as `zsretailws.war` (`docs/deploy-note.md`). The ma
 - SQL Server Database
 
 ### Configuration
-Update database configuration in the installation's outside file (`deploy/machine-model.properties`, `docs/deployment-modes.md`):
+Update database configuration in the installation's outside file (`configs/machine-model.properties`, `docs/deployment-modes.md`):
 ```properties
 spring.datasource.url=jdbc:sqlserver://localhost;databaseName=pos_db
 spring.datasource.username=your_username

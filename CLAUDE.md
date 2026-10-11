@@ -60,7 +60,7 @@ The two type files (configuration step C1, "what this installation is"; the data
 installation names no type. An optional outside file per installation (usually where it runs; it may change owners),
 named by `-Dzsretail.machine-file=<path>` or found as `${catalina.base}/conf/zsretail/<context name>.properties`;
 without one the type file applies. An old outside file naming the other type is refused. Outside files of this repo:
-`deploy/` (model, dev machines, customer values). See `docs/deployment-modes.md`.
+`configs/` (model, dev machines, customer values). See `docs/deployment-modes.md`.
 
 ## Conventions
 

@@ -43,7 +43,7 @@ class HeadOfficeStockKeyTest {
 
 	private static final String KEY = "headoffice.stock.enabled";
 
-	/** Every store kind: the old preset shapes and the store files of deploy/ (with an ERP, without, linked). */
+	/** Every store kind: the old preset shapes and the store files of configs/ (with an ERP, without, linked). */
 	private static List<MockEnvironment> stores() {
 		List<MockEnvironment> stores = new ArrayList<>();
 		for (String preset : Arrays.asList("store", "store-erp", "network-store", "network-store-erp")) {

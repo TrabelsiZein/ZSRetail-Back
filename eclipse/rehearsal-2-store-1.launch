@@ -20,5 +20,5 @@
     <stringAttribute key="org.eclipse.jdt.launching.MAIN_TYPE" value="com.digithink.zsretail.store.StoreApplication"/>
     <stringAttribute key="org.eclipse.jdt.launching.PROJECT_ATTR" value="zsretail-store"/>
     <stringAttribute key="org.eclipse.jdt.launching.SOURCE_PATH_PROVIDER" value="org.eclipse.m2e.launchconfig.sourcepathProvider"/>
-    <stringAttribute key="org.eclipse.jdt.launching.VM_ARGUMENTS" value="-Dzsretail.machine-file=&quot;${project_loc:zsretail-parent}/deploy/rehearsal/store-1.properties&quot;"/>
+    <stringAttribute key="org.eclipse.jdt.launching.VM_ARGUMENTS" value="-Dzsretail.machine-file=&quot;${project_loc:zsretail-parent}/configs/rehearsal/store-1.properties&quot;"/>
 </launchConfiguration>

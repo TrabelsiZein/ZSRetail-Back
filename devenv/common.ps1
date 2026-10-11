@@ -1,6 +1,6 @@
 # Dev environment of the head office pair on this PC (head office plan, L2 from step 4).
-# Dot-sourced by the other scripts. Store A (deploy/dev/store-a.properties, pos_db_prod) is deliberately not listed:
-# never started here. Each instance runs from its machine file in deploy/ (task 9.3), given with -Dzsretail.machine-file.
+# Dot-sourced by the other scripts. Store A (configs/dev/store-a.properties, pos_db_prod) is deliberately not listed:
+# never started here. Each instance runs from its machine file in configs/ (task 9.3), given with -Dzsretail.machine-file.
 
 $ErrorActionPreference = 'Stop'
 
@@ -9,7 +9,7 @@ $DevRoot   = 'C:\zsretail-dev'                                      # artifacts,
 $DevJdk    = 'C:\Program Files\Java\jdk-21.0.10'
 $DevMvnSettings = Join-Path $env:USERPROFILE '.m2\zsretail-settings.xml'
 $DevSqlCmd = 'C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\sqlcmd.exe'
-$DevDeploy = Join-Path $DevRepo 'deploy'                            # machine files (task 9.3)
+$DevDeploy = Join-Path $DevRepo 'configs'                           # machine files (task 9.3; deploy until code cleanup step 7)
 
 $DevInstances = [ordered]@{
 	'headoffice' = @{ Type = 'headoffice'; Machine = 'dev\headoffice.properties'; Port = 888; Db = 'pos_headoffice'; Code = $null;     Log = 'C:\zsretail-headoffice\backend.log' }
@@ -47,7 +47,7 @@ function Get-DevBaseUrl([string]$Name) {
 	return "http://localhost:$((Get-DevInstance $Name).Port)/zsretail/api"
 }
 
-# The machine file of an instance (under deploy): its preset, database, port, log, head office address and key.
+# The machine file of an instance (under configs): its preset, database, port, log, head office address and key.
 function Get-DevMachineFile([string]$Name) {
 	return Join-Path $DevDeploy (Get-DevInstance $Name).Machine
 }

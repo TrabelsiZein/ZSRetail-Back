@@ -1,5 +1,5 @@
 keys 54
-== deploy/customers/erp-prod.properties
+== configs/customers/erp-prod.properties
 profiles=store
 app.upload.dir=C:/uploads/pos-images
 app.version=2.2.2
@@ -54,8 +54,8 @@ spring.jpa.properties.hibernate.format_sql=true
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
-zsretail.machine-file.loaded=<repo>/deploy/customers/erp-prod.properties
-== deploy/customers/store-prod.properties
+zsretail.machine-file.loaded=<repo>/configs/customers/erp-prod.properties
+== configs/customers/store-prod.properties
 profiles=store
 app.upload.dir=C://zsretail/uploads/pos-images
 app.version=2.2.2
@@ -110,8 +110,8 @@ spring.jpa.properties.hibernate.format_sql=true
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
-zsretail.machine-file.loaded=<repo>/deploy/customers/store-prod.properties
-== deploy/dev/headoffice-erp.properties
+zsretail.machine-file.loaded=<repo>/configs/customers/store-prod.properties
+== configs/dev/headoffice-erp.properties
 profiles=headoffice
 app.upload.dir=uploads/headoffice/pos-images
 app.version=2.2.2
@@ -166,8 +166,8 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=headoffice
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
-zsretail.machine-file.loaded=<repo>/deploy/dev/headoffice-erp.properties
-== deploy/dev/headoffice.properties
+zsretail.machine-file.loaded=<repo>/configs/dev/headoffice-erp.properties
+== configs/dev/headoffice.properties
 profiles=headoffice
 app.upload.dir=uploads/headoffice/pos-images
 app.version=2.2.2
@@ -222,8 +222,8 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=headoffice
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
-zsretail.machine-file.loaded=<repo>/deploy/dev/headoffice.properties
-== deploy/dev/store-a-erp.properties
+zsretail.machine-file.loaded=<repo>/configs/dev/headoffice.properties
+== configs/dev/store-a-erp.properties
 profiles=store
 app.upload.dir=(none)
 app.version=2.2.2
@@ -278,8 +278,8 @@ spring.jpa.properties.hibernate.format_sql=true
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
-zsretail.machine-file.loaded=<repo>/deploy/dev/store-a-erp.properties
-== deploy/dev/store-a.properties
+zsretail.machine-file.loaded=<repo>/configs/dev/store-a-erp.properties
+== configs/dev/store-a.properties
 profiles=store
 app.upload.dir=(none)
 app.version=2.2.2
@@ -334,8 +334,8 @@ spring.jpa.properties.hibernate.format_sql=true
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
-zsretail.machine-file.loaded=<repo>/deploy/dev/store-a.properties
-== deploy/dev/store-b.properties
+zsretail.machine-file.loaded=<repo>/configs/dev/store-a.properties
+== configs/dev/store-b.properties
 profiles=store
 app.upload.dir=uploads/store-b/pos-images
 app.version=2.2.2
@@ -390,8 +390,8 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
-zsretail.machine-file.loaded=<repo>/deploy/dev/store-b.properties
-== deploy/dev/store-c.properties
+zsretail.machine-file.loaded=<repo>/configs/dev/store-b.properties
+== configs/dev/store-c.properties
 profiles=store
 app.upload.dir=uploads/store-c/pos-images
 app.version=2.2.2
@@ -446,8 +446,8 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
-zsretail.machine-file.loaded=<repo>/deploy/dev/store-c.properties
-== deploy/dev/store-test-nav.properties
+zsretail.machine-file.loaded=<repo>/configs/dev/store-c.properties
+== configs/dev/store-test-nav.properties
 profiles=store
 app.upload.dir=C:/uploads/pos-images
 app.version=2.2.2
@@ -502,8 +502,8 @@ spring.jpa.properties.hibernate.format_sql=true
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
-zsretail.machine-file.loaded=<repo>/deploy/dev/store-test-nav.properties
-== deploy/happyness/headoffice.properties
+zsretail.machine-file.loaded=<repo>/configs/dev/store-test-nav.properties
+== configs/happyness-from-scratch/headoffice.properties
 profiles=headoffice
 app.upload.dir=C:/zsretail-happyness/uploads/pos-images
 app.version=2.2.2
@@ -558,8 +558,8 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=headoffice
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
-zsretail.machine-file.loaded=<repo>/deploy/happyness/headoffice.properties
-== deploy/happyness/store-1.properties
+zsretail.machine-file.loaded=<repo>/configs/happyness-from-scratch/headoffice.properties
+== configs/happyness-from-scratch/store-1.properties
 profiles=store
 app.upload.dir=C:/zsretail-happyness/store-1/uploads/pos-images
 app.version=2.2.2
@@ -614,8 +614,8 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
-zsretail.machine-file.loaded=<repo>/deploy/happyness/store-1.properties
-== deploy/happyness/store-2.properties
+zsretail.machine-file.loaded=<repo>/configs/happyness-from-scratch/store-1.properties
+== configs/happyness-from-scratch/store-2.properties
 profiles=store
 app.upload.dir=C:/zsretail-happyness/store-2/uploads/pos-images
 app.version=2.2.2
@@ -670,8 +670,8 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
-zsretail.machine-file.loaded=<repo>/deploy/happyness/store-2.properties
-== deploy/rehearsal/headoffice.properties
+zsretail.machine-file.loaded=<repo>/configs/happyness-from-scratch/store-2.properties
+== configs/rehearsal/headoffice.properties
 profiles=headoffice
 app.upload.dir=C:/zsretail-rehearsal/headoffice/uploads/pos-images
 app.version=2.2.2
@@ -726,8 +726,8 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=headoffice
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
-zsretail.machine-file.loaded=<repo>/deploy/rehearsal/headoffice.properties
-== deploy/rehearsal/store-1.properties
+zsretail.machine-file.loaded=<repo>/configs/rehearsal/headoffice.properties
+== configs/rehearsal/store-1.properties
 profiles=store
 app.upload.dir=C:/zsretail-rehearsal/store-1/uploads/pos-images
 app.version=2.2.2
@@ -782,8 +782,8 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
-zsretail.machine-file.loaded=<repo>/deploy/rehearsal/store-1.properties
-== deploy/rehearsal/store-2.properties
+zsretail.machine-file.loaded=<repo>/configs/rehearsal/store-1.properties
+== configs/rehearsal/store-2.properties
 profiles=store
 app.upload.dir=C:/zsretail-rehearsal/store-2/uploads/pos-images
 app.version=2.2.2
@@ -838,7 +838,7 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
-zsretail.machine-file.loaded=<repo>/deploy/rehearsal/store-2.properties
+zsretail.machine-file.loaded=<repo>/configs/rehearsal/store-2.properties
 == configs/local/happyness_ho.properties
 profiles=headoffice
 app.upload.dir=uploads/headoffice/pos-images

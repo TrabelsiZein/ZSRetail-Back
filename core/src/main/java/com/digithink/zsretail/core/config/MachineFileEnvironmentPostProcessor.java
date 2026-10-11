@@ -84,7 +84,7 @@ public class MachineFileEnvironmentPostProcessor implements EnvironmentPostProce
 	static Properties load(Path file) {
 		if (!Files.isRegularFile(file)) {
 			throw new IllegalStateException("Outside file not found: " + file + " (named by -D" + MACHINE_FILE_KEY
-					+ "). Create it from deploy/machine-model.properties, or correct the path (docs/deployment-modes.md).");
+					+ "). Create it from configs/machine-model.properties, or correct the path (docs/deployment-modes.md).");
 		}
 		Properties properties = new Properties();
 		try (InputStream in = Files.newInputStream(file)) {

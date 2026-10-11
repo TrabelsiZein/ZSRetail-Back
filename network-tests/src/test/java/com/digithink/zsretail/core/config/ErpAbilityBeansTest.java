@@ -24,7 +24,7 @@ import com.digithink.zsretail.support.Installations;
 
 /**
  * Code cleanup, step 2, part 2: the stock point beans exist by the ability HEAD_OFFICE_STOCK_POINTS (on a head office
- * whose catalogue only comes from the ERP) where they existed by erp.navpospages.enabled=true: every file of deploy/ and
+ * whose catalogue only comes from the ERP) where they existed by erp.navpospages.enabled=true: every file of configs/ and
  * configs/, the six shapes of task 9.3, and the head office with the catalogue only from the ERP with and without the
  * connector, chosen by the old line or by erp.connector (its translation).
  */

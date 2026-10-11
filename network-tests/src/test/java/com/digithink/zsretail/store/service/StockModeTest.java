@@ -31,7 +31,7 @@ import com.digithink.zsretail.support.Installations;
 /**
  * Head office plan, task 9.1f: StockService and StockMovementService ask isSupplyFromErp instead of isStandalone (the
  * till calls them at every sale and return). For every installation (task 9.3: every machine file of
- * deploy/ over its preset, and every preset), the real services over an in-memory item and stock_movement table: a
+ * configs/ over its preset, and every preset), the real services over an in-memory item and stock_movement table: a
  * sale, two returns, a purchase, an adjustment and the two BL movements are no-ops when the supply is the ERP's, and
  * are applied (stock and one movement each) when the stock is kept here: a store or a head office without an ERP, a
  * store fed by its head office.
@@ -43,7 +43,7 @@ class StockModeTest {
 			StockMovementType.PURCHASE_RECEPTION, StockMovementType.ADJUSTMENT_OUT, StockMovementType.DELIVERY_OUT,
 			StockMovementType.DELIVERY_IN);
 
-	/** Task 9.3: every machine file of deploy/ over its preset, and every preset (network ones with a head office link). */
+	/** Task 9.3: every machine file of configs/ over its preset, and every preset (network ones with a head office link). */
 	private static Map<String, MockEnvironment> profiles() {
 		Map<String, MockEnvironment> profiles = new TreeMap<>();
 		for (String machine : Installations.machineFiles()) {
