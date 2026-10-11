@@ -263,16 +263,22 @@ logic is written once, in `core/erp/engine`, and exists with a connector that ha
 read by the single job, the four import jobs are refused on its head office), and its own thin parts:
 `NavPosPagesInvoices` (the invoices page, FVV numbers by year, the seller name).
 
-**How to add a connector** (e.g. ZEN, ParaFendri), in its own package `erp/<name>`:
-1. Implement `ErpCatalogueSource` (its client and its mapper to `Erp*DTO`) and `CatalogueSettings` (from its keys),
-   as beans conditional on its own enabled key.
-2. Its `ErpConnector` (`@ConditionalOnErpConnector("<name>")`) answers the fetches and pushes it supports; the catalogue
-   by points de stock goes through the engine's job `SYNC_CATALOGUE`, not through the four catalogue fetches.
-3. Add the name to `erp.connector` (`ErpConnectorEnvironmentPostProcessor`) and its abilities to `ErpAbilities`
-   (`HEAD_OFFICE_STOCK_POINTS` for the engine and the points de stock).
-4. Its classes use only `erp/api`, their own package, the JDK and libraries (guard test
-   `ConnectorDependenciesGuardTest`); the application never names it (`ConnectorNamesGuardTest`, which also scans
-   `core/erp/engine`).
+**How to add a connector** (e.g. ZEN, ParaFendri; since code cleanup step 6 a Maven project of its own):
+1. Create `connector-<name>/pom.xml`, a copy of `connector-happyness/pom.xml` with the artifact
+   `zsretail-connector-<name>`: of ours it depends on `zsretail-erp-api` only (with Spring and the libraries it needs),
+   so a class of the application does not compile there.
+2. Its classes under `com.digithink.zsretail.connector.<name>` (`connector-<name>/src/main/java/...`): its settings
+   (`@ConfigurationProperties(prefix = "erp.<name>")`), its `ErpConnector` (`@ConditionalOnErpConnector("<name>")`, the
+   fetches and pushes it supports) and, when it gives a head office its catalogue by points de stock, an
+   `ErpCatalogueSource` (its client and its mapper to `Erp*DTO`) and a `CatalogueSettings`, read by the engine's job
+   `SYNC_CATALOGUE` (not the four catalogue fetches).
+3. Elsewhere: the parent `pom.xml` (its `<module>` and its line of `dependencyManagement`); `store/pom.xml` and/or
+   `headoffice/pom.xml` (the dependency, `<scope>runtime</scope>`: in the WAR, never named by the application);
+   erp-api `ErpConnectors` (its name) and `ErpAbilities` (its abilities, `HEAD_OFFICE_STOCK_POINTS` for the engine);
+   core `ErpConnectorEnvironmentPostProcessor` (`translate` and `inEffect` accept today exactly none, emtop and
+   happyness, through the two old enabled lines: a third name needs its line there).
+4. The guards name the connectors: one line each in `ConnectorDependenciesGuardTest.CONNECTORS`,
+   `ConnectorNamesGuardTest` (`ALLOWED`, `TEXTS`) and `ProjectSortingGuardTest` (`ROOTS`, `FOLDERS`).
 
 Tests: `core/erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows of navpospages through its adapter,
 `NavPosPagesFixture`), `NavPosPagesInvoicesTest`, `NavPosPagesCatalogueSourceTest`.
