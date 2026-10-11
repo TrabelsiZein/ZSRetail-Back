@@ -102,10 +102,11 @@ public class RfidReaderService extends _BaseService<RfidReader, Long> {
 		}
 	}
 
-	/** Refused while a POS machine reads with this reader: the message names the machines. */
+	/** NOT_FOUND when there is none; refused while a POS machine reads with this reader: the message names the machines. */
 	@Override
 	@Transactional
 	public void deleteById(Long id) {
+		get(id);
 		List<PosMachine> linked = machines.findByReader_Id(id);
 		if (!linked.isEmpty()) {
 			throw new RfidException(Reason.INVALID, "This reader is used by the POS machine"

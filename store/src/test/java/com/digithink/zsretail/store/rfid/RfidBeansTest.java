@@ -22,7 +22,9 @@ import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.support.Questions;
+import com.digithink.zsretail.store.rfid.controller.PosMachineAPI;
 import com.digithink.zsretail.store.rfid.controller.RfidAPI;
+import com.digithink.zsretail.store.rfid.controller.RfidReaderAPI;
 import com.digithink.zsretail.store.rfid.reader.HopelandRfidReader;
 import com.digithink.zsretail.store.rfid.repository.PosMachineRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidReaderRepository;
@@ -39,7 +41,7 @@ class RfidBeansTest {
 
 	/** The RFID beans (InstallationBeansProofTest records them in every configuration). */
 	static final List<Class<?>> SERVICES = Arrays.asList(RfidReaderService.class, PosMachineService.class,
-			RfidReadService.class, HopelandRfidReader.class, RfidAPI.class);
+			RfidReadService.class, HopelandRfidReader.class, RfidAPI.class, RfidReaderAPI.class, PosMachineAPI.class);
 
 	private static MockEnvironment store(String rfid) {
 		MockEnvironment env = new MockEnvironment();
@@ -100,7 +102,7 @@ class RfidBeansTest {
 	@DisplayName("Each service and repository asks Installation.RFID")
 	void question() {
 		for (Class<?> type : Arrays.asList(RfidReaderService.class, PosMachineService.class, RfidReadService.class,
-				HopelandRfidReader.class, RfidAPI.class, RfidReaderRepository.class,
+				HopelandRfidReader.class, RfidAPI.class, RfidReaderAPI.class, PosMachineAPI.class, RfidReaderRepository.class,
 				PosMachineRepository.class)) {
 			assertTrue(Questions.asks(type, Installation.RFID), type.getSimpleName());
 		}

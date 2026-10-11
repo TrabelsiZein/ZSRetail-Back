@@ -36,6 +36,7 @@ public final class InMemoryRfid {
 		case "findById":
 			return Optional.ofNullable(readers.get(args[0]));
 		case "findAll":
+		case "findAllByOrderByUpdatedAtDesc":
 			return new ArrayList<>(readers.values());
 		case "deleteById":
 			readers.remove(args[0]);
@@ -57,6 +58,7 @@ public final class InMemoryRfid {
 		case "findById":
 			return Optional.ofNullable(machines.get(args[0]));
 		case "findAll":
+		case "findAllByOrderByUpdatedAtDesc":
 			return new ArrayList<>(machines.values());
 		case "deleteById":
 			machines.remove(args[0]);

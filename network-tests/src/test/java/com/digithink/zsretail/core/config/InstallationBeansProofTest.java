@@ -58,7 +58,7 @@ class InstallationBeansProofTest {
 	static final List<String> ERP_CONDITIONS = Arrays.asList("OnErpAbilityCondition", "OnErpConnectorCondition");
 
 	/** Every class and @Bean method these questions decide, by name: a lost or new annotation shows here. */
-	static final int EXPECTED_DECIDED = 88; // RFID steps 3 to 6: the three services, HopelandRfidReader, RfidAPI
+	static final int EXPECTED_DECIDED = 90; // RFID: 3 services, HopelandRfidReader, RfidAPI, RfidReaderAPI, PosMachineAPI
 
 	/** True for an annotation whose condition is an installation question (a class of config, not an ERP one). */
 	static boolean isQuestion(Annotation annotation) {

@@ -1,6 +1,6 @@
 # RFID
 
-**Status**: release 3.1.0, being built (back end steps 1 to 6 done). A store reads the RFID tags of its pieces with
+**Status**: release 3.1.0, being built (back end steps 1 to 7 done). A store reads the RFID tags of its pieces with
 Hopeland readers (HZ100, TCP/IP) on its network, through the vendor's Java SDK. First customer: ZEN (franchise stores,
 clothes).
 
@@ -161,6 +161,38 @@ The endpoints answer JSON to a request that asks for it (`Accept: application/js
 is in the WAR, so a request with no `Accept` header may get XML, as for the other endpoints.
 
 Tests: `RfidAPITest` (Spring MVC over the controller, standalone `MockMvc`, the remote address set as Tomcat gives it).
+
+## The endpoints (RFID step 7)
+
+All exist only with `rfid.enabled=true` (otherwise 404), for logged users (none is in `SecurityConfig`'s `permitAll`).
+Under the context path: `/zsretailws/...` in Tomcat, `/zsretail/api/...` from the IDE. Refusals: `{"error", "reason"}`
+(above).
+
+| Method and path | Answer |
+|---|---|
+| `GET /rfid-reader` | every reader (`id`, `name`, `ipAddress`, `port`, `power`, `readTimeMs`, `active`, `created*`, `updated*`), last changed first |
+| `GET /rfid-reader/{id}` | one reader; 404 when none |
+| `POST /rfid-reader` | 201 and the reader saved, defaults filled in; 400 a broken rule |
+| `PUT /rfid-reader/{id}` | 200 and the reader saved; 400 a broken rule; 404 when none |
+| `DELETE /rfid-reader/{id}` | 204; 400 while POS machines read with it (named); 404 when none |
+| `POST /rfid-reader/{id}/test-connection` | `RfidConnectionResult`: `readerName`, `address` (ip:port), `information`, `durationMs`; 404, 409 busy, 503, 502 |
+| `POST /rfid-reader/{id}/test-read` | `RfidReadResult` with `posMachineName` null; 404, 409 inactive or busy, 503, 502 |
+| `GET /pos-machine` | every POS machine (`id`, `name`, `ipAddress`, `reader` (the whole reader or null), `active`, ...) |
+| `GET /pos-machine/{id}` | one machine; 404 when none |
+| `POST /pos-machine` | 201 and the machine saved (address normalised; the reader sent as `{"reader": {"id": n}}` or null); 400 |
+| `PUT /pos-machine/{id}` | 200 and the machine saved; 400; 404 |
+| `DELETE /pos-machine/{id}` | 204; 404 when none |
+| `GET /rfid/my-machine` | `RfidMachineStatus` (step 6): the address seen, the machine there, its reader, `canRead`, `message` |
+| `POST /rfid/read` | `RfidReadResult` with the reader of my machine: `posMachineName`, `readerName`, `readTimeMs`, `durationMs`, `tags` [`epc`, `bestRssi`, `seen`]; 404 no machine at my address (named), 409 not ready or busy, 503, 502 |
+
+The generic reads of `_BaseController` also exist on both CRUD paths (`/findByField`, `/{id}/exists`, `/count`).
+Create, update and delete are the controllers' own (a broken rule answers 400 or 404 with its message, not the generic
+500).
+
+**Guard**: `RfidSdkConfinementGuardTest` (network-tests): `com.rfidread` is named by `HopelandRfidReader` only, in the
+main code of every project, and only the store's pom takes `rfid-reader-api`.
+
+Tests: `RfidReaderAPITest`, `PosMachineAPITest`, `RfidAPITest` (standalone `MockMvc`, `RfidMvc`).
 
 ## The SDK
 

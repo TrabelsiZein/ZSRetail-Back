@@ -37,6 +37,20 @@ public class PosMachineService extends _BaseService<PosMachine, Long> {
 		return machines;
 	}
 
+	/** The machine of this id; NOT_FOUND when there is none. */
+	public PosMachine get(Long id) {
+		return machines.findById(id)
+				.orElseThrow(() -> new RfidException(Reason.NOT_FOUND, "No POS machine number " + id + "."));
+	}
+
+	/** NOT_FOUND when there is none. */
+	@Override
+	@Transactional
+	public void deleteById(Long id) {
+		get(id);
+		super.deleteById(id);
+	}
+
 	/** The machine whose requests come from this address (as Tomcat gives it); empty when none is recorded. */
 	public Optional<PosMachine> findByRequestAddress(String remoteAddress) {
 		return machines.findFirstByIpAddress(RfidAddresses.normalise(remoteAddress));
