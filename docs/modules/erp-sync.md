@@ -276,10 +276,10 @@ Tests: `erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows o
 `NavPosPagesFixture`), `NavPosPagesInvoicesTest`, `NavPosPagesCatalogueSourceTest`.
 
 **Guard of the connector packages** (`erp/ConnectorDependenciesGuardTest`): a class of `erp/navpospages` or
-`erp/dynamicsnav` may use `erp/spi`, its own package, the JDK and libraries. What still breaks the rule is an allow-list
-inside the test, each line with its reason (an entry nothing uses any more fails too): `erp/dto` (both; the neutral
-objects join `erp/spi` when it becomes its own project). Nothing else since code cleanup step 5.8d: navpospages since
-5.8c, dynamicsnav (`DynamicsNavRestClient`, through `ErpStoreLocation`) since 5.8d.
+`erp/dynamicsnav` may use erp-api (as `ProjectSortingGuardTest` sorts it: `erp/spi`, and `erp/dto` apart from the two
+admin views going to core), its own package, the JDK and libraries. What would break the rule goes on an allow-list
+inside the test, each line with its reason (an entry nothing uses any more fails too); empty since code cleanup step
+5.8e (navpospages untied at 5.8c, dynamicsnav at 5.8d).
 
 ## Head office catalogue from the ERP pages (`erp.navpospages`)
 

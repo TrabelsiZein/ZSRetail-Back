@@ -39,12 +39,12 @@ import org.junit.jupiter.api.Test;
  * (comments and strings left out). What still breaks a rule today is the allow-list below, each line with its reason;
  * a line nothing needs any more fails too, so the list stays exact. The sorting: docs/roadmap/project-sorting.md.
  */
-class ProjectSortingGuardTest {
+public class ProjectSortingGuardTest {
 
 	static final Path MAIN = Paths.get("src", "main", "java");
 	static final String APP = "com.digithink.zsretail.";
 
-	static final String ERP_API = "erp-api";
+	public static final String ERP_API = "erp-api";
 	static final String CORE = "core";
 	static final String STORE = "store";
 	static final String HEADOFFICE = "headoffice";
@@ -89,7 +89,7 @@ class ProjectSortingGuardTest {
 			Arrays.asList("ErpCommunicationViewDTO", "ErpSyncJobViewDTO"));
 
 	/** The project of a class (its name after com.digithink.zsretail.). */
-	static String projectOf(String name) {
+	public static String projectOf(String name) {
 		String simple = name.substring(name.lastIndexOf('.') + 1);
 		if (name.startsWith("erp.dynamicsnav.")) {
 			return EMTOP;

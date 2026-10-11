@@ -22,12 +22,15 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.digithink.zsretail.ProjectSortingGuardTest;
+
 /**
- * Code cleanup step 3: the classes of a connector package (erp/navpospages, erp/dynamicsnav) use only erp/spi, their own
- * package, the JDK and libraries. Every other reference to a class of the application (an import or a fully qualified
- * name) must be on the allow-list below, with its reason: what is left for the packages step, when erp/spi becomes its
- * own project. An entry nothing uses any more fails too, so the list stays exact. erp/engine never names a connector:
- * ConnectorNamesGuardTest scans it (checked here).
+ * Code cleanup step 3: the classes of a connector package (erp/navpospages, erp/dynamicsnav) use only erp-api, their own
+ * package, the JDK and libraries. Since code cleanup step 5.8e erp-api is what ProjectSortingGuardTest sorts there:
+ * erp/spi, and erp/dto apart from the two admin views going to core. Every other reference to a class of the
+ * application (an import or a fully qualified name) must be on the allow-list below, with its reason. An entry nothing
+ * uses any more fails too, so the list stays exact. erp/engine never names a connector: ConnectorNamesGuardTest scans it
+ * (checked here).
  */
 class ConnectorDependenciesGuardTest {
 
@@ -41,8 +44,7 @@ class ConnectorDependenciesGuardTest {
 	static final Map<String, String> ALLOWED = new LinkedHashMap<>();
 
 	static {
-		allow("*", "erp.dto.", "the neutral objects (Erp*DTO, ErpSyncFilter, PullOperationResult): they join erp/spi when it"
-				+ " becomes its own project");
+		// Empty since code cleanup step 5.8e: a new breach is untied, or added here with allow(connector, reference, reason).
 	}
 
 	private static void allow(String connector, String reference, String reason) {
@@ -65,7 +67,8 @@ class ConnectorDependenciesGuardTest {
 			return "";
 		}
 		String inApp = reference.substring(APP.length());
-		if (inApp.startsWith("erp.spi.") || inApp.startsWith("erp." + connector + ".")) {
+		if (inApp.startsWith("erp." + connector + ".")
+				|| ProjectSortingGuardTest.ERP_API.equals(ProjectSortingGuardTest.projectOf(inApp))) {
 			return "";
 		}
 		for (String key : ALLOWED.keySet()) {
@@ -138,7 +141,8 @@ class ConnectorDependenciesGuardTest {
 		assertEquals("", entryFor("navpospages", "com.digithink.zsretail.erp.spi.ErpRead"));
 		assertEquals("", entryFor("navpospages", "com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow"));
 		assertEquals("", entryFor("dynamicsnav", "org.springframework.stereotype.Component"));
-		assertEquals("* erp.dto.", entryFor("dynamicsnav", "com.digithink.zsretail.erp.dto.ErpItemDTO"));
+		assertEquals("", entryFor("dynamicsnav", "com.digithink.zsretail.erp.dto.ErpItemDTO"), "erp-api, as sorted");
+		assertEquals(null, entryFor("navpospages", "com.digithink.zsretail.erp.dto.ErpSyncJobViewDTO"), "core, as sorted");
 		assertEquals(null, entryFor("dynamicsnav", "com.digithink.zsretail.erp.navpospages.sync.NavPosPagesInvoices"));
 		assertEquals(null, entryFor("navpospages", "com.digithink.zsretail.erp.engine.JdbcCatalogueState"));
 		assertEquals(null, entryFor("navpospages", "com.digithink.zsretail.repository.ItemRepository"));
