@@ -87,7 +87,7 @@ public final class Installations {
 	}
 
 	/**
-	 * Code cleanup step 8: an outside file of 2.2.2 upgraded as docs/deploy-note.md says ("Upgrade from 2.2.2: the outside
+	 * Code cleanup step 8: an outside file of 2.2.2 upgraded as docs/deploy-note.md says ("Upgrade from 2.2.2 to 2.3.0: the outside
 	 * file"): a connector's old enabled line becomes erp.connector=&lt;its name&gt; when true and goes when false; the
 	 * other keys of its old block take its prefix erp.&lt;name&gt;; spring.profiles.active and node.type go (the application
 	 * is the type), and every dead key goes (OldLines.deadKeys: nothing reads it). configs/local is Zein's (this

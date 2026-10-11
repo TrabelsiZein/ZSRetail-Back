@@ -11,7 +11,7 @@ properties (`core/config/ZsRetailApplication`: `spring.profiles.active`, `node.t
 an installation names no type. Since code cleanup step 8 (decision of 2026-10-11) a `spring.profiles.active` or
 `node.type` line from any other source stops the start (below, **Type check**). Every key of every file of `configs/`
 resolves as before (`ConfigurationKeysProofTest`); the old lines of 2.2.2 and their upgrade: `docs/deploy-note.md`,
-"Upgrade from 2.2.2: the outside file".
+"Upgrade from 2.2.2 to 2.3.0: the outside file".
 
 ## 1. The three files (inside the WARs)
 
@@ -96,7 +96,7 @@ erp.connector=happyness instead. The ERP connector is chosen by erp.connector on
 | either, `false` | nothing: remove the line |
 
 Each connector declares its old prefix (`ErpConnectorDescriptor.oldKeyPrefix()`), so the refusal names no connector in
-core. The upgrade of an outside file: `docs/deploy-note.md`, "Upgrade from 2.2.2: the outside file".
+core. The upgrade of an outside file: `docs/deploy-note.md`, "Upgrade from 2.2.2 to 2.3.0: the outside file".
 
 Code cleanup step 5: the values are the customers' names, one connector per customer even when two ERPs look alike:
 `emtop` (EMTOP's Dynamics NAV, keys `erp.emtop.*`) and `happyness` (Happyness's POS pages, keys `erp.happyness.*`);
@@ -209,8 +209,8 @@ otherwise copy the old profile file, add the mode lines (standalone-* is a store
 lines; headoffice-dev is a head office), remove `application.standalone`, and remove any `spring.profiles.active` from the Tomcat
 options. Then as 2.2.2 below. Then the release's `update.sql`, the WAR of its type, a start, and the checks above.
 
-**Upgrade from 2.2.2** (code cleanup step 8): in the outside file, remove the type lines, write `erp.connector` instead
-of the old enabled line and rename the connector's keys, as `docs/deploy-note.md` lists them ("Upgrade from 2.2.2: the
+**Upgrade from 2.2.2 to 2.3.0** (code cleanup step 8): in the outside file, remove the type lines, write `erp.connector` instead
+of the old enabled line and rename the connector's keys, as `docs/deploy-note.md` lists them ("Upgrade from 2.2.2 to 2.3.0: the
 outside file") for an EMTOP store, a Happyness head office and a Happyness store. A line left over stops the start and
 the message names it.
 

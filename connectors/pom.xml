@@ -13,7 +13,7 @@
 	<parent>
 		<groupId>com.digithink</groupId>
 		<artifactId>zsretail-parent</artifactId>
-		<version>2.2.2</version>
+		<version>2.3.0</version>
 	</parent>
 	<artifactId>zsretail-connectors</artifactId>
 	<name>ZS Retail connectors</name>

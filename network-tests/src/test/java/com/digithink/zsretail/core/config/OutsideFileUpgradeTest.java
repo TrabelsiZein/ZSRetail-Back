@@ -28,7 +28,7 @@ import com.digithink.zsretail.support.Starts;
  * Code cleanup step 8: the outside file of each kind of installation in 2.2.2, an EMTOP store, a Happyness head office
  * and a Happyness store (their lines as configs/customers/erp-prod.properties and configs/local had them before step 8,
  * the values made up), is refused with one message naming every old line, where it is and what to write; the file
- * upgraded as docs/deploy-note.md says ("Upgrade from 2.2.2: the outside file", Installations.upgraded) starts, with the
+ * upgraded as docs/deploy-note.md says ("Upgrade from 2.2.2 to 2.3.0: the outside file", Installations.upgraded) starts, with the
  * same values under the new keys (a dead key dropped: OldLines). Starts run the way Spring Boot runs them (the
  * post-processors around ConfigFileApplicationListener, on the real application.properties and type files).
  */

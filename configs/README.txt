@@ -11,7 +11,7 @@ files, and they hold NO database, port or folder:
 Every installation has its own file. It says where it runs: database, port, log file, upload folder, NAV connection,
 head office address and key; it may change an owner. It names no type: the application is the type, and a line that
 names it stops the startup, as does any line of 2.2.2 that is no longer read (code cleanup step 8; what to change:
-docs/deploy-note.md, "Upgrade from 2.2.2: the outside file"). Its keys win over the three files above.
+docs/deploy-note.md, "Upgrade from 2.2.2 to 2.3.0: the outside file"). Its keys win over the three files above.
 
 This folder holds every such file of the repository (code cleanup step 7: deploy/ joined it):
   machine-model.properties   the model: copy it for a new installation

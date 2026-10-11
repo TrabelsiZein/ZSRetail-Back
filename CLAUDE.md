@@ -8,7 +8,7 @@ the development contract; this file covers backend specifics only.
 - Java 11 · Spring Boot 2.3.9 · two applications, each packaged as a **WAR** (deployed to Tomcat 9)
 - Spring Security + JWT · JPA/Hibernate · SQL Server
 - Maven, several projects under one parent `com.digithink:zsretail-parent` (the `pom.xml` of this folder), one
-  version for all of them: the product version, currently 2.2.2
+  version for all of them: the product version, currently 2.3.0 (release/2.2.2 keeps 2.2.x for hotfixes)
 - springdoc-openapi UI for API docs
 - Context path `/zsretail/api`, port `444`
 
@@ -61,7 +61,7 @@ installation names no type. An optional outside file per installation (usually w
 named by `-Dzsretail.machine-file=<path>` or found as `${catalina.base}/conf/zsretail/<context name>.properties`;
 without one the type file applies. Step 8: a `spring.profiles.active` or `node.type` line, an old connector line
 (`erp.<name>.enabled`) or a key of an old connector block, from any source, stops the startup naming it
-(`docs/deploy-note.md`, "Upgrade from 2.2.2"). Outside files of this repo:
+(`docs/deploy-note.md`, "Upgrade from 2.2.2 to 2.3.0"). Outside files of this repo:
 `configs/` (model, dev machines, customer values). See `docs/deployment-modes.md`.
 
 ## Conventions

@@ -4,6 +4,10 @@
 its WAR. The application is the installation type: a store runs the store WAR, a head office the head office WAR. Each WAR is deployed **alone in its
 Tomcat, under the context name `zsretailws`**, as the single WAR was.
 
+**Version 2.3.0** (Zein, 2026-10-11) is the first release of the two applications: `zsretail-store-2.3.0.war` and
+`zsretail-headoffice-2.3.0.war`, database script `db/2.3.0/update.sql`. `release/2.2.2` keeps the numbers 2.2.x for the
+hotfixes of the single WAR.
+
 | Application | Main class | Built as | Delivered as |
 |---|---|---|---|
 | store | `StoreApplication` (was `POSMainApp`) | `store/target/zsretail-store-<version>.war` (since step 6.6; `app/target/zsretailws.war` in step 6.5) | `store/zsretailws.war` |
@@ -24,12 +28,12 @@ On this PC `devenv\build.ps1` does the same for the dev instances (`C:\zsretail-
 - **A head office**: `headoffice/zsretailws.war` into its own Tomcat's `webapps\`; the same outside file convention.
 - A store and a head office cannot share a Tomcat (both are `zsretailws`); each has its own, as on every site today.
 - **The outside file names no type** (code cleanup step 8): the application is the type, and a `spring.profiles.active`
-  or `node.type` line stops the start (below, "Upgrade from 2.2.2"). With the old lines changed, every key resolves as
+  or `node.type` line stops the start (below, "Upgrade from 2.2.2 to 2.3.0"). With the old lines changed, every key resolves as
   before (`ConfigurationKeysProofTest`).
 - **Upgrade of an existing installation**: change its outside file (below), then deploy the WAR of its type (a store:
   the store WAR; a head office: the head office WAR), after the database scripts of the version as before.
 
-## Upgrade from 2.2.2: the outside file
+## Upgrade from 2.2.2 to 2.3.0: the outside file
 
 Since code cleanup step 8 (decision of 2026-10-11) the old configuration lines are no longer read: a start that finds
 one, in the outside file or anywhere else (a `-D`, an environment variable, the Tomcat options), stops, and its message
@@ -120,41 +124,17 @@ options, and a `SPRING_PROFILES_ACTIVE` environment variable, if the server has 
 the start, and the message names every old line of that start at once (`OutsideFileUpgradeTest` holds the message of
 each of the three files above).
 
-## Upgrade from 2.2.2: the catalogue state table
+## Upgrade from 2.2.2 to 2.3.0: the catalogue state table
 
 On a head office whose catalogue comes from the ERP (Happyness), the state table of the catalogue engine is renamed
 `navpospages_state` to `erp_catalogue_state`, its primary key `pk_navpospages_state` to `pk_erp_catalogue_state`, every
 row kept (the barcode cursor, the last item run, the items waiting for their barcodes). The application does it at its
 first start (`JdbcCatalogueState`, one INFO line `... state table navpospages_state renamed erp_catalogue_state with its
-primary key, <n> rows kept`); the release's update script does the same first, guarded so that it runs once. When both
-tables exist the start is refused, naming both: keep the one with the head office's `barcodes.cursor` row, drop the
-other. A store, and a head office without that connector, have no such table: nothing happens there.
+primary key, <n> rows kept`); `core/src/main/resources/db/2.3.0/update.sql` does the same first, guarded so that it
+runs once. When both tables exist the start is refused, naming both, and the script ends with an error without writing
+APP_VERSION: keep the one with the head office's `barcodes.cursor` row, drop the other. A store, and a head office without that connector, have no such table: nothing happens there.
 
-The block for the update script of the version in progress (`core/src/main/resources/db/<next version>/update.sql`; the
-version number is not chosen yet, and `db/2.2.2` is the released script, never edited):
-
-```sql
--- Code cleanup step 8: the catalogue engine's state table gets a neutral name (head office with the ERP catalogue only)
-IF OBJECT_ID(N'navpospages_state', N'U') IS NOT NULL AND OBJECT_ID(N'erp_catalogue_state', N'U') IS NULL
-BEGIN
-    BEGIN TRY
-        BEGIN TRANSACTION;
-        EXEC sp_rename N'navpospages_state', N'erp_catalogue_state';
-        IF OBJECT_ID(N'pk_navpospages_state', N'PK') IS NOT NULL
-            EXEC sp_rename N'pk_navpospages_state', N'pk_erp_catalogue_state', N'OBJECT';
-        COMMIT TRANSACTION;
-        PRINT 'navpospages_state renamed erp_catalogue_state';
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH
-END
-ELSE IF OBJECT_ID(N'navpospages_state', N'U') IS NOT NULL
-    RAISERROR('Both navpospages_state and erp_catalogue_state exist: keep the one with the barcodes.cursor row of this head office, drop the other, run again.', 16, 1);
-```
-
-## Rollback to 2.2.2
+## Rollback from 2.3.0 to 2.2.2
 
 2.2.2 is the single WAR (`zsretailws.war`) and reads the outside file of 2.2.2. Stop Tomcat, then:
 1. **Put back the copy of the 2.2.2 outside file** kept before the upgrade. The new file cannot serve: 2.2.2 does not
@@ -172,8 +152,8 @@ ELSE IF OBJECT_ID(N'navpospages_state', N'U') IS NOT NULL
        COMMIT TRANSACTION;
    END
    ```
-3. Undo what the version's update script changed besides (at least `APP_VERSION`, as that script will say), deploy the
-   2.2.2 WAR as `zsretailws`, start.
+3. Set the version back: `UPDATE APP_VERSION SET version = '2.2.2'` (`db/2.3.0/update.sql` changed nothing else
+   but its own notes and the table above). Deploy the 2.2.2 WAR as `zsretailws`, start.
 
 ## Database
 
