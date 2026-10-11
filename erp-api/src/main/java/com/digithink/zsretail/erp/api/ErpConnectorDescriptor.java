@@ -17,15 +17,15 @@ public interface ErpConnectorDescriptor {
 	/** What it can do. */
 	Set<ErpAbility> abilities();
 
-	/** The prefix of its keys in the configuration: erp.&lt;name&gt; unless it says otherwise (an older connector's keys). */
+	/** The prefix of its keys in the configuration: erp.&lt;name&gt; for every connector (code cleanup step 8). */
 	default String keyPrefix() {
 		return "erp." + name();
 	}
 
 	/**
-	 * Code cleanup step 8: the prefix of its keys up to 2.2.2, null when it had none. Its old enabled line
-	 * ({@code <old prefix>.enabled}) refuses the startup, whatever its value: the connector is chosen by erp.connector
-	 * only.
+	 * Code cleanup step 8: the prefix of its keys up to 2.2.2, null when it had none. A key under it refuses the startup,
+	 * whatever its value: its old enabled line ({@code <old prefix>.enabled}, the connector is chosen by erp.connector only)
+	 * and every other key, named with its new name (the same key under {@link #keyPrefix()}).
 	 */
 	default String oldKeyPrefix() {
 		return null;

@@ -39,13 +39,13 @@ class NavPosPagesStartupCheckTest {
 	void valid() {
 		NavPosPagesStartupCheck.check(NavPosPagesTestSupport.validEnvironment());
 		// Release 2.2: location-code is no longer required (the head office has its stock points)
-		NavPosPagesStartupCheck.check(with("erp.navpospages.location-code", null));
-		NavPosPagesStartupCheck.check(with("erp.navpospages.location-code", "  "));
-		NavPosPagesStartupCheck.check(with("erp.navpospages.default-vat", " 0 "));
-		NavPosPagesStartupCheck.check(with("erp.navpospages.price-includes-vat", "FALSE"));
-		NavPosPagesStartupCheck.check(with("erp.navpospages.barcode-page-size", "5000"));
-		NavPosPagesStartupCheck.check(with("erp.navpospages.domain", null));
-		MockEnvironment env = with("erp.navpospages.page.items", "OtherStock");
+		NavPosPagesStartupCheck.check(with("erp.happyness.location-code", null));
+		NavPosPagesStartupCheck.check(with("erp.happyness.location-code", "  "));
+		NavPosPagesStartupCheck.check(with("erp.happyness.default-vat", " 0 "));
+		NavPosPagesStartupCheck.check(with("erp.happyness.price-includes-vat", "FALSE"));
+		NavPosPagesStartupCheck.check(with("erp.happyness.barcode-page-size", "5000"));
+		NavPosPagesStartupCheck.check(with("erp.happyness.domain", null));
+		MockEnvironment env = with("erp.happyness.page.items", "OtherStock");
 		new NavPosPagesStartupCheck(env); // the bean checks and logs
 		String line = NavPosPagesStartupCheck.summary(env);
 		assertEquals("ERP connector navpospages (read only, GET): " + NavPosPagesTestSupport.BASE_URL
@@ -76,10 +76,10 @@ class NavPosPagesStartupCheckTest {
 	@DisplayName("Blank or absent address, company, user or password: refused naming the key")
 	void requiredKeys() {
 		for (String key : new String[] { "base-url", "company", "username", "password" }) {
-			String expected = "Missing value for property erp.navpospages." + key
+			String expected = "Missing value for property erp.happyness." + key
 					+ ": required with erp.connector=happyness.";
-			assertEquals(expected, refusal(with("erp.navpospages." + key, "  ")), key + " blank");
-			assertEquals(expected, refusal(with("erp.navpospages." + key, null)), key + " absent");
+			assertEquals(expected, refusal(with("erp.happyness." + key, "  ")), key + " blank");
+			assertEquals(expected, refusal(with("erp.happyness." + key, null)), key + " absent");
 		}
 	}
 
@@ -87,35 +87,35 @@ class NavPosPagesStartupCheckTest {
 	@DisplayName("default-vat, price-includes-vat, barcode-page-size and the timeouts: wrong values refused naming the key")
 	void values() {
 		for (String vat : new String[] { null, "", "abc", "19.5", "-1", "101" }) {
-			assertEquals("Invalid value '" + (vat == null ? "" : vat) + "' for property erp.navpospages.default-vat: a whole"
+			assertEquals("Invalid value '" + (vat == null ? "" : vat) + "' for property erp.happyness.default-vat: a whole"
 					+ " number from 0 to 100 (the VAT given to every item, e.g. 19)",
-					refusal(with("erp.navpospages.default-vat", vat)), "default-vat " + vat);
+					refusal(with("erp.happyness.default-vat", vat)), "default-vat " + vat);
 		}
 		for (String includes : new String[] { null, "", "yes", "1" }) {
 			assertEquals("Invalid value '" + (includes == null ? "" : includes) + "' for property"
-					+ " erp.navpospages.price-includes-vat: true (Unit_Price includes the VAT) or false (Unit_Price is"
-					+ " before VAT)", refusal(with("erp.navpospages.price-includes-vat", includes)), "includes " + includes);
+					+ " erp.happyness.price-includes-vat: true (Unit_Price includes the VAT) or false (Unit_Price is"
+					+ " before VAT)", refusal(with("erp.happyness.price-includes-vat", includes)), "includes " + includes);
 		}
 		for (String size : new String[] { "0", "5001", "x", "" }) {
-			assertEquals("Invalid value '" + size + "' for property erp.navpospages.barcode-page-size: a whole number"
-					+ " from 1 to 5000", refusal(with("erp.navpospages.barcode-page-size", size)), "size " + size);
+			assertEquals("Invalid value '" + size + "' for property erp.happyness.barcode-page-size: a whole number"
+					+ " from 1 to 5000", refusal(with("erp.happyness.barcode-page-size", size)), "size " + size);
 		}
 		// Step 6
 		for (String size : new String[] { "0", "-1", "5001", "many" }) {
-			assertEquals("Invalid value '" + size + "' for property erp.navpospages.packet-size: a whole number from 1 to"
-					+ " 5000", refusal(with("erp.navpospages.packet-size", size)), "packet " + size);
+			assertEquals("Invalid value '" + size + "' for property erp.happyness.packet-size: a whole number from 1 to"
+					+ " 5000", refusal(with("erp.happyness.packet-size", size)), "packet " + size);
 		}
-		NavPosPagesStartupCheck.check(with("erp.navpospages.packet-size", "5000"));
-		assertEquals("Property erp.navpospages.max-changes-per-run was renamed erp.navpospages.packet-size (rows applied"
+		NavPosPagesStartupCheck.check(with("erp.happyness.packet-size", "5000"));
+		assertEquals("Property erp.happyness.max-changes-per-run was renamed erp.happyness.packet-size (rows applied"
 				+ " per transaction, default 500): rename the line.",
-				refusal(with("erp.navpospages.max-changes-per-run", "1000")), "the old key");
-		assertEquals("Invalid value 'yes' for property erp.navpospages.dry-run: true (read and compare only) or false",
-				refusal(with("erp.navpospages.dry-run", "yes")));
-		NavPosPagesStartupCheck.check(with("erp.navpospages.dry-run", " TRUE "));
+				refusal(with("erp.happyness.max-changes-per-run", "1000")), "the old key");
+		assertEquals("Invalid value 'yes' for property erp.happyness.dry-run: true (read and compare only) or false",
+				refusal(with("erp.happyness.dry-run", "yes")));
+		NavPosPagesStartupCheck.check(with("erp.happyness.dry-run", " TRUE "));
 		for (String key : new String[] { "connect-timeout-seconds", "read-timeout-seconds" }) {
 			for (String timeout : new String[] { "0", "-5", "ten" }) {
-				assertEquals("Invalid value '" + timeout + "' for property erp.navpospages." + key + ": a whole number,"
-						+ " at least 1", refusal(with("erp.navpospages." + key, timeout)), key + " " + timeout);
+				assertEquals("Invalid value '" + timeout + "' for property erp.happyness." + key + ": a whole number,"
+						+ " at least 1", refusal(with("erp.happyness." + key, timeout)), key + " " + timeout);
 			}
 		}
 	}
@@ -124,7 +124,7 @@ class NavPosPagesStartupCheckTest {
 
 	/** The valid settings with the invoices keys of Happyness. */
 	private static MockEnvironment withInvoices(String key, String value) {
-		MockEnvironment env = with("erp.navpospages.page.invoices", "FactureFranchise");
+		MockEnvironment env = with("erp.happyness.page.invoices", "FactureFranchise");
 		if (key != null) {
 			env.setProperty(key, value);
 		}
@@ -135,10 +135,10 @@ class NavPosPagesStartupCheckTest {
 	@DisplayName("Invoices: valid keys pass; the startup line names the invoices page when the supply comes from the ERP")
 	void invoicesValid() {
 		NavPosPagesStartupCheck.check(withInvoices(null, null));
-		NavPosPagesStartupCheck.check(withInvoices("erp.navpospages.invoices.customer-field", "Sell_to_Customer_Name"));
-		NavPosPagesStartupCheck.check(withInvoices("erp.navpospages.invoices.lines-expand", "Lines_2"));
-		NavPosPagesStartupCheck.check(withInvoices("erp.navpospages.invoices.number-prefix", "FA-"));
-		NavPosPagesStartupCheck.check(withInvoices("erp.navpospages.invoices.max-per-run", "1000"));
+		NavPosPagesStartupCheck.check(withInvoices("erp.happyness.invoices.customer-field", "Sell_to_Customer_Name"));
+		NavPosPagesStartupCheck.check(withInvoices("erp.happyness.invoices.lines-expand", "Lines_2"));
+		NavPosPagesStartupCheck.check(withInvoices("erp.happyness.invoices.number-prefix", "FA-"));
+		NavPosPagesStartupCheck.check(withInvoices("erp.happyness.invoices.max-per-run", "1000"));
 		MockEnvironment erpSupply = withInvoices("headoffice.supply.source", "ERP");
 		assertTrue(NavPosPagesStartupCheck.summary(erpSupply).endsWith(", invoices FactureFranchise"),
 				NavPosPagesStartupCheck.summary(erpSupply));
@@ -150,11 +150,11 @@ class NavPosPagesStartupCheckTest {
 	@Test
 	@DisplayName("Release 2.2: invoices.years and invoices.start-number are ignored (the application starts, a WARN line each)")
 	void removedInvoiceLinesIgnored() {
-		MockEnvironment old = withInvoices("erp.navpospages.invoices.years", "2025;2026,abc"); // even a value refused before
-		old.setProperty("erp.navpospages.invoices.start-number", "FVV24000000001");
+		MockEnvironment old = withInvoices("erp.happyness.invoices.years", "2025;2026,abc"); // even a value refused before
+		old.setProperty("erp.happyness.invoices.start-number", "FVV24000000001");
 		NavPosPagesStartupCheck.check(old);
 		new NavPosPagesStartupCheck(old); // the bean checks and logs
-		assertEquals(java.util.Arrays.asList("erp.navpospages.invoices.years", "erp.navpospages.invoices.start-number"),
+		assertEquals(java.util.Arrays.asList("erp.happyness.invoices.years", "erp.happyness.invoices.start-number"),
 				NavPosPagesStartupCheck.ignoredKeys(old));
 		assertTrue(NavPosPagesStartupCheck.ignoredKeys(withInvoices(null, null)).isEmpty());
 	}
@@ -162,23 +162,23 @@ class NavPosPagesStartupCheckTest {
 	@Test
 	@DisplayName("Invoices: wrong values refused naming the key")
 	void invoicesRefused() {
-		assertEquals("Missing value for property erp.navpospages.page.invoices: the web service name of the invoices page"
-				+ " (FactureFranchise when the key is absent).", refusal(withInvoices("erp.navpospages.page.invoices", " ")));
+		assertEquals("Missing value for property erp.happyness.page.invoices: the web service name of the invoices page"
+				+ " (FactureFranchise when the key is absent).", refusal(withInvoices("erp.happyness.page.invoices", " ")));
 		for (String prefix : new String[] { " ", "F V" }) {
-			assertEquals("Invalid value '" + prefix.trim() + "' for property erp.navpospages.invoices.number-prefix: the"
+			assertEquals("Invalid value '" + prefix.trim() + "' for property erp.happyness.invoices.number-prefix: the"
 					+ " start of every invoice number, without spaces, e.g. FVV (the year follows in 2 digits)",
-					refusal(withInvoices("erp.navpospages.invoices.number-prefix", prefix)), prefix);
+					refusal(withInvoices("erp.happyness.invoices.number-prefix", prefix)), prefix);
 		}
 		for (String key : new String[] { "customer-field", "lines-expand" }) {
 			for (String name : new String[] { "", "Sell to", "x'y", "1st" }) {
-				assertEquals("Invalid value '" + name + "' for property erp.navpospages.invoices." + key + ": a field name"
+				assertEquals("Invalid value '" + name + "' for property erp.happyness.invoices." + key + ": a field name"
 						+ " of the ERP page, letters, digits and _ (e.g. Sell_to_Customer_No)",
-						refusal(withInvoices("erp.navpospages.invoices." + key, name)), key + " " + name);
+						refusal(withInvoices("erp.happyness.invoices." + key, name)), key + " " + name);
 			}
 		}
 		for (String max : new String[] { "0", "1001", "x" }) {
-			assertEquals("Invalid value '" + max + "' for property erp.navpospages.invoices.max-per-run: a whole number"
-					+ " from 1 to 1000", refusal(withInvoices("erp.navpospages.invoices.max-per-run", max)), max);
+			assertEquals("Invalid value '" + max + "' for property erp.happyness.invoices.max-per-run: a whole number"
+					+ " from 1 to 1000", refusal(withInvoices("erp.happyness.invoices.max-per-run", max)), max);
 		}
 	}
 }

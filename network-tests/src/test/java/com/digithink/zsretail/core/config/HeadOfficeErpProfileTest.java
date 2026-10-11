@@ -84,15 +84,15 @@ class HeadOfficeErpProfileTest {
 		assertEquals(plain.getProperty("server.port"), env.getProperty("server.port"));
 		// The TEST NAV instance only: the dev and prod profiles point to the customer's production NAV
 		MockEnvironment test = profile("dynamics-test");
-		for (String key : new String[] { "erp.dynamicsnav.base-url", "erp.dynamicsnav.company", "erp.dynamicsnav.domain",
-				"erp.dynamicsnav.username", "erp.dynamicsnav.password" }) {
+		for (String key : new String[] { "erp.emtop.base-url", "erp.emtop.company", "erp.emtop.domain",
+				"erp.emtop.username", "erp.emtop.password" }) {
 			assertEquals(test.getProperty(key), env.getProperty(key), key);
 		}
 		for (String production : new String[] { "dynamics-dev", "dynamics-prod" }) {
-			String url = profile(production).getProperty("erp.dynamicsnav.base-url");
-			assertFalse(env.getProperty("erp.dynamicsnav.base-url").equalsIgnoreCase(url),
+			String url = profile(production).getProperty("erp.emtop.base-url");
+			assertFalse(env.getProperty("erp.emtop.base-url").equalsIgnoreCase(url),
 					"never the NAV of " + production);
-			assertFalse(env.getProperty("erp.dynamicsnav.base-url").contains(java.net.URI.create(url).getHost()),
+			assertFalse(env.getProperty("erp.emtop.base-url").contains(java.net.URI.create(url).getHost()),
 					"never the host of " + production);
 		}
 	}

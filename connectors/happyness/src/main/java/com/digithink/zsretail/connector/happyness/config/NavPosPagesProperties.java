@@ -11,7 +11,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * ERP catalogue, step 5: the settings of the "POS pages" connector (prefix erp.navpospages), a Dynamics NAV / Business
+ * ERP catalogue, step 5: the settings of the "POS pages" connector (prefix erp.happyness), a Dynamics NAV / Business
  * Central whose web services are the pages ItemCategory, PointStockPOS and ItemBarCodePOS. Read only: the connector
  * sends GET requests only. The values are checked before they are bound ({@link NavPosPagesStartupCheck}): a wrong value
  * stops the startup with a message naming the key. Exists only with erp.connector=happyness.
@@ -24,7 +24,7 @@ import lombok.Setter;
 @Setter
 public class NavPosPagesProperties {
 
-	public static final String PREFIX = "erp.navpospages";
+	public static final String PREFIX = "erp.happyness";
 
 	/** OData V4 address, e.g. http://host:7048/BC140/ODataV4 */
 	private String baseUrl;

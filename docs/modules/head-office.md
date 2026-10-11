@@ -1245,7 +1245,7 @@ makes the four catalogue fetches return the changes (below). No existing class c
 
 | Class | Role |
 |---|---|
-| `NavPosPagesProperties` | Settings `erp.navpospages.*` (see `docs/deployment-modes.md`) |
+| `NavPosPagesProperties` | Settings `erp.happyness.*` (see `docs/deployment-modes.md`) |
 | `NavPosPagesStartupCheck` | Startup refusals (the settings bean depends on it, so its message comes before a binding error) and one INFO line: address, company, location, pages |
 | `NavPosPagesConfig` | Bean `navPosPagesRestTemplate`: NTLM, connect and read timeouts, GET only |
 | `NavPosPagesRestClient` | `readCategories()` (`$select=Code,Description,Parent_Category,Type`, next links followed), `readItems()` (`$filter=Location_Code eq '<location-code>'`, a quote doubled, `$select=Item_No,Variant_Code,Description,Unit_Price,Family,Subfamily`, next links), `readBarcodesAfter(n)` (`$filter=Entry_No gt n&$orderby=Entry_No&$top=<barcode-page-size>&$select=Item_No,Cross_Reference_No,Entry_No`, one page per call). An HTTP error or a timeout: `NavPosPagesReadException` naming the page and the status, no retry |
@@ -1340,7 +1340,7 @@ records its barcodes, `TAX_STAMP` is never recorded.
 - No hooks bean, or a null or empty list: nothing recorded, the sequence untouched.
 - Lock and pulls: the head office databases do not use read-committed snapshot, so a store's pull (`GET /ho/down`, read-only
   transaction of 15 s) waits on the sequence row while a batch records, and fails if the recording lasts longer; the store
-  pulls again at its next cycle. Keep `erp.navpospages.packet-size` such that a packet records in a few seconds (to measure
+  pulls again at its next cycle. Keep `erp.happyness.packet-size` such that a packet records in a few seconds (to measure
   at L2): between two packets the sequence row is free and the pulls go through. Seen 2026-10-08 at Happyness: one
   transaction of 1,000 items lasted about 84 s (the import's auto-flush; for the performance step, profiling first).
 - Tests: `HeadOfficeErpCatalogueRecorderTest` (one change per record, an item's barcodes again, rollback on a recording
@@ -1349,7 +1349,7 @@ records its barcodes, `TAX_STAMP` is never recorded.
 **Invoices from the ERP, step (a): the connector reads the franchise invoices by number** (connector only: no job, no head
 office table, nothing in the application layer or in `DynamicsNavConnector` changes; the next steps store them and send them to
 the stores). The page `FactureFranchise` (posted sales invoices to franchise customers, lines `FactureFranchiseSalesInvLines`),
-GET only. Settings `erp.navpospages.invoices.*` and `page.invoices` (`docs/deployment-modes.md`); since release 2.2 the years
+GET only. Settings `erp.happyness.invoices.*` and `page.invoices` (`docs/deployment-modes.md`); since release 2.2 the years
 and the starting point come from the General Setup (part D of the fixes after the second test of 2.2).
 
 | Part | Detail |
@@ -1402,7 +1402,7 @@ one action; the store side stays under `@ConditionalOnInstallation(SUPPLY_FROM_H
 
 | Part | Detail |
 |---|---|
-| Copy down | `ErpInvoiceCopyDTO`, kind `ERP_INVOICE`, record `ERPINV:<bc_number>`, to its store only: `invoiceNumber` (never `number`), `documentDate`, `postingDate`, `sellerName` (`erp.navpospages.invoices.seller-name`, default `Head office`), `customerNo`, `customerName`, `sentAt`, the three totals, lines (`lineNo`, `lineType`, `itemCode`, `description`, `quantity`, `unitPrice`, `lineDiscountPercent`, `lineAmount`, `unitCost`). `HoErpInvoiceService.afterAssigned` records it (`recordChange`) in the assignment's transaction; `load` answers the store's `SENT` or `RECEIVED` invoices, never a held one or another store's; `currentTargets` gives every assigned invoice, so the invoices assigned in step (b) reach their store through the backfill at the first start of this build |
+| Copy down | `ErpInvoiceCopyDTO`, kind `ERP_INVOICE`, record `ERPINV:<bc_number>`, to its store only: `invoiceNumber` (never `number`), `documentDate`, `postingDate`, `sellerName` (`erp.happyness.invoices.seller-name`, default `Head office`), `customerNo`, `customerName`, `sentAt`, the three totals, lines (`lineNo`, `lineType`, `itemCode`, `description`, `quantity`, `unitPrice`, `lineDiscountPercent`, `lineAmount`, `unitCost`). `HoErpInvoiceService.afterAssigned` records it (`recordChange`) in the assignment's transaction; `load` answers the store's `SENT` or `RECEIVED` invoices, never a held one or another store's; `currentTargets` gives every assigned invoice, so the invoices assigned in step (b) reach their store through the backfill at the first start of this build |
 | A store not upgraded | Its handler reads the record as a BL, finds no number and counts an error without a retry row, and the puller saves the page's cursor: that store skips the invoice. After its upgrade, delete its `hol_down_cursor` row of `SUPPLY` (the next pull starts again from the start; documents already here are never changed) |
 | Store tables | `hol_delivery`: `document_kind` (`BL` default / `ERP_INVOICE`), `seller_name`, `customer_name`, `total_excl_vat`, `total_vat`, `total_incl_vat`. `hol_delivery_line`: `line_type` (`ITEM` default / `OTHER`), `unit_price`, `line_discount_percent`, `line_amount`, `unit_cost`, `cost_applied`. `db/2.1.0/update.sql` adds them with the defaults (existing rows: `BL`, `ITEM`); the application also reads null as `BL` / `ITEM`. An `OTHER` line keeps `item_code` = `""` (the column stays NOT NULL) |
 | Saved | `SupplyDownHandler`: kind `ERP_INVOICE` → `DeliveryReceptionService.saveReceived(ErpInvoiceCopyDTO)`: number = `invoiceNumber`, `TO_RECEIVE`; `ITEM` lines resolved to the store's head office item or waiting, like a BL line (quantity sent = quantity invoiced); `OTHER` lines with their amount, no item, quantity 0. Tracked `APPLIED` ("items not in this store yet: ..."), `ERROR` retried. A number already here is never changed |
@@ -1432,7 +1432,7 @@ Done (step 1):
   `description`, `family_code`, `sub_family_code` (codes, as the ERP import receives them), `unit_price` (meaning of
   `item.unitPrice`, before VAT), `active`. Written by the items run from step 2, never deleted.
 - `ho_store.stock_point_id`, nullable (null = no point, the catalogue as in 2.1). Set by no endpoint yet.
-- `erp.navpospages.location-code` is no longer required at startup and leaves the startup line. No point is created
+- `erp.happyness.location-code` is no longer required at startup and leaves the startup line. No point is created
   from it: the head office creates its points itself before any items run. Until step 2 the items run still reads the
   line.
 - API `admin/headoffice/stock-points` (JWT; `HoStockPointAPI`, `HoStockPointService`; only on a head office whose
@@ -1444,7 +1444,7 @@ Done (step 1):
 - Tests: `HoStockPointServiceTest`, `NavPosPagesStartupCheckTest` (location-code absent or blank accepted).
 
 Done (step 2), the items run (`CatalogueEngine.items`):
-- `erp.navpospages.location-code` is read nowhere any more (the property is gone; a leftover line is ignored). The
+- `erp.happyness.location-code` is read nowhere any more (the property is gone; a leftover line is ignored). The
   items page is read once per **active** point, in list order (`NavPosPagesSource.readItems(code)`, `$filter=Location_Code
   eq '<code>'`). No active point: the run reads nothing, writes nothing, and its summary says
   `waiting: no active point de stock: create one (Catalogue > Points de stock)`.
@@ -1569,7 +1569,7 @@ Fixes after the second test of 2.2 (head office whose catalogue comes from the E
   of the pages this head office shows (the menu's rule) and has no "POS role" switch; the admin can still create roles
   (since the last step of 2.2, a head office page: see "Store pages as in 2.1.0" below). A store keeps its three
   roles, its default users and all its permissions.
-- **D. Where the invoices from the ERP start.** The file lines `erp.navpospages.invoices.years` and
+- **D. Where the invoices from the ERP start.** The file lines `erp.happyness.invoices.years` and
   `invoices.start-number` are gone: a line left in a file is ignored with a WARN, the application starts
   (`NavPosPagesStartupCheck.REMOVED_KEYS`). One General Setup setting, seeded only on a head office with
   `headoffice.supply.source=ERP`: "Read ERP invoices after number" (`ERP_INVOICES_READ_AFTER`, empty by default), with
@@ -1962,7 +1962,7 @@ Server and login as the dev stores), ERP sync off.
 
 ### Dev head office with an ERP: `configs/dev/headoffice-erp.properties` (task 3.4, was the profile `headoffice-dynamics-dev`)
 Type `headoffice` with catalogue, customers and supply `ERP` and `erp.connector=emtop` (the preset `headoffice-erp` until configuration step C1). Same database `pos_headoffice`, port 888, log file and image folder as `dev/headoffice.properties`, which stays the head office without ERP.
-- `erp.dynamicsnav.*`: the settings of `configs/dev/store-test-nav.properties`, the **NAV test instance** (`192.168.10.166:24/test4`). Never the NAV of `configs/dev/store-a-erp.properties` or `configs/customers/erp-prod.properties`: that is the customer's production NAV (correction from Zein, 2026-10-03). A comment in the file says so, and `HeadOfficeErpProfileTest` fails if the URL or host of those files appears in it.
+- `erp.emtop.*`: the settings of `configs/dev/store-test-nav.properties`, the **NAV test instance** (`192.168.10.166:24/test4`). Never the NAV of `configs/dev/store-a-erp.properties` or `configs/customers/erp-prod.properties`: that is the customer's production NAV (correction from Zein, 2026-10-03). A comment in the file says so, and `HeadOfficeErpProfileTest` fails if the URL or host of those files appears in it.
 - `erp.sync.enabled=true`, `erp.sync.scheduler.delay=60000`: the import jobs enabled from the ERP jobs page run; all are seeded disabled.
 - Switching one `pos_headoffice` database between the two outside files: the ERP jobs are seeded at the first start in ERP mode; started again with `headoffice-dev` (no ERP) nothing runs them (no scheduler) and the item pages allow creating by hand again.
 

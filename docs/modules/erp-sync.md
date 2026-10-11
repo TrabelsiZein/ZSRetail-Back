@@ -210,8 +210,8 @@ they declare today.
 a connector name.
 
 **Rule: the application never names a connector.** Outside the connector packages (`connector/<name>`, every project of
-`connectors/`), no class imports a connector package or contains a connector's key prefix (`erp.dynamicsnav`,
-`erp.navpospages`: what the descriptors declare), not even in a comment; since code cleanup step 7 not even the
+`connectors/`), no class imports a connector package or contains a connector's key prefix (`erp.emtop`,
+`erp.happyness` and the old `erp.dynamicsnav`, `erp.navpospages`: what the descriptors declare), not even in a comment; since code cleanup step 7 not even the
 check of `erp.connector` and (step 8) the refusal of the old lines, which read the descriptors. Since code cleanup step 6.3 Maven makes it true as well: the application takes
 the connector projects at `runtime` scope, so a main class that names one does not compile, and a connector depends on
 erp-api only. It uses `@ConditionalOnErpAbility(...)` or `ErpAbilities.has(env, ...)`; what a
@@ -260,7 +260,7 @@ logic is written once, in `core/erp/engine`, and exists with a connector that ha
   and its responsibility centre, answered by `ErpStoreLocationService`).
 
 **navpospages today**: `NavPosPagesCatalogueSource` (the pages through `NavPosPagesMapper`),
-`NavPosPagesCatalogueSettings` (`erp.navpospages.packet-size`, `dry-run`, `default-vat`, unchanged),
+`NavPosPagesCatalogueSettings` (`erp.happyness.packet-size`, `dry-run`, `default-vat`, unchanged),
 `NavPosPagesConnector` (read-only answers; its four catalogue fetches answer none since step 5: the catalogue is
 read by the single job, the four import jobs are refused on its head office), and its own thin parts:
 `NavPosPagesInvoices` (the invoices page, FVV numbers by year, the seller name).
@@ -278,8 +278,9 @@ read by the single job, the four import jobs are refused on its head office), an
 Nothing else changes: `erp.connector=<name>` is accepted, its abilities answer `ErpAbilities`, its beans are
 chosen, the WARs carry it (they depend on `zsretail-connectors`), and the guards find it by its folder and its
 descriptor (`ThirdConnectorTest` proves it with a connector that exists only in the tests). The two connectors of
-before keep their old keys: their descriptors give `erp.dynamicsnav` / `erp.navpospages` as key prefix and as old
-prefix (code cleanup step 8: its `.enabled` line is refused), and EMTOP's the NAV address of the startup summary.
+before had other keys until code cleanup step 8: their descriptors give the old prefix (`erp.dynamicsnav`,
+`erp.navpospages`), every key under it is refused naming its new name, and EMTOP's gives the NAV address of the startup
+summary. A new connector has no old prefix.
 
 Tests: `core/erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows of navpospages through its adapter,
 `NavPosPagesFixture`), `NavPosPagesInvoicesTest`, `NavPosPagesCatalogueSourceTest`.
@@ -291,7 +292,7 @@ libraries. What would break the rule goes on an allow-list
 inside the test, each line with its reason (an entry nothing uses any more fails too); empty since code cleanup step
 5.8e (navpospages untied at 5.8c, dynamicsnav at 5.8d).
 
-## Head office catalogue from the ERP pages (`erp.navpospages`)
+## Head office catalogue from the ERP pages (`erp.happyness`)
 
 The head office reads its catalogue from the ERP pages of one location (details in `head-office.md`, "the connector
 navpospages"). Items of the ERP (`item.erp_external_id` set) no longer in the location are handed inactive, never
@@ -301,7 +302,7 @@ warns "the ERP answered no item for the location: N items not deactivated" (an e
 a wrong location code, never a cleanup). Hand-made items, packs made at the head office and `TAX_STAMP` have no ERP id
 and are never touched.
 
-One items run applies **all** its changes (new, changed, deactivated) in packets of `erp.navpospages.packet-size` (default
+One items run applies **all** its changes (new, changed, deactivated) in packets of `erp.happyness.packet-size` (default
 500, formerly `max-changes-per-run`), each packet in its own transaction with the store change rows; a failed packet ends the
 run in error and the next run goes on with what is left; one items run at a time. Its summary says what was applied (`new`,
 `changed`, `deactivated`, `applied`, `packets`). A blank `Description` never replaces the name of an item already at the head

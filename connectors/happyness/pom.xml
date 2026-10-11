@@ -4,7 +4,7 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<!--
-		Happyness's ERP pages connector (package com.digithink.zsretail.connector.happyness, its keys erp.navpospages.*),
+		Happyness's ERP pages connector (package com.digithink.zsretail.connector.happyness, its keys erp.happyness.*),
 		since code cleanup step 6.3. Of ours it depends on erp-api only: a class of the application does not compile here.
 	-->
 	<parent>

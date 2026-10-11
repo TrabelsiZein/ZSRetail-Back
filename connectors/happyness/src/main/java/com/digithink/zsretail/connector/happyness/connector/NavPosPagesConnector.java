@@ -65,7 +65,7 @@ public class NavPosPagesConnector implements ErpConnector {
 		this.invoices = invoices;
 	}
 
-	/** Code cleanup, step 2: erp.navpospages.invoices.seller-name, read by the head office through the connector. */
+	/** Code cleanup, step 2: erp.happyness.invoices.seller-name, read by the head office through the connector. */
 	@Override
 	public String supplyInvoiceSellerName() {
 		return invoices.sellerName();

@@ -96,7 +96,8 @@ class ConnectorNamesGuardTest {
 		assertTrue(allowed(BASE + "connector/happyness/sync/NavPosPagesInvoices.java"));
 		assertTrue(allowed(BASE + "connector/emtop/mapper/DynamicsNavMapper.java"));
 		assertTrue(!allowed(BASE + "core/config/ErpConnectorEnvironmentPostProcessor.java"), "since step 7: no exception");
-		assertTrue(TEXTS.containsAll(Arrays.asList("erp.dynamicsnav", "erp.navpospages")), "from the descriptors: " + TEXTS);
+		assertTrue(TEXTS.containsAll(Arrays.asList("erp.emtop", "erp.happyness", "erp.dynamicsnav", "erp.navpospages")),
+				"from the descriptors, new and old: " + TEXTS);
 		assertTrue(!allowed(BASE + "core/config/NodeOwnership.java"));
 		assertTrue(!allowed(BASE + "erp/api/ErpAbilities.java"));
 	}

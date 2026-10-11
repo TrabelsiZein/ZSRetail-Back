@@ -149,6 +149,42 @@ class ErpConnectorTest {
 	}
 
 	@Test
+	@DisplayName("Any key of an old block refuses the startup, each with its new name, source by source")
+	void oldKeysRefused() {
+		Path file = outsideFile();
+		assertEquals("Old keys no longer read, in the outside file " + file + ": erp.dynamicsnav.base-url is now"
+				+ " erp.emtop.base-url, erp.dynamicsnav.company is now erp.emtop.company. Rename them: the keys of a"
+				+ " connector are erp.<its name>.*.",
+				refusal(() -> startWith("erp.connector=emtop", "erp.dynamicsnav.company=X",
+						"erp.dynamicsnav.base-url=http://nav")));
+		// An enabled line and keys in two sources: the enabled line first, then each source
+		assertEquals("Old line no longer read: erp.navpospages.enabled=true in the outside file " + file
+				+ ": write erp.connector=happyness instead." + CHOSEN_BY + " Old keys no longer read, in the property"
+				+ " source test-system-properties: erp.navpospages.password is now erp.happyness.password. Old keys no"
+				+ " longer read, in the outside file " + file + ": erp.navpospages.base-url is now erp.happyness.base-url,"
+				+ " erp.navpospages.invoices.years is now erp.happyness.invoices.years. Rename them: the keys of a"
+				+ " connector are erp.<its name>.*.",
+				refusal(() -> startWith(Collections.singletonMap("erp.navpospages.password", "p"),
+						"spring.profiles.active=headoffice", "erp.navpospages.enabled=true",
+						"erp.navpospages.base-url=http://bc", "erp.navpospages.invoices.years=2021")));
+		// An environment variable, named as written
+		StandardEnvironment env = Starts.environment("store", new HashMap<>());
+		env.getPropertySources().replace(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+				new SystemEnvironmentPropertySource(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+						Collections.singletonMap("ERP_DYNAMICSNAV_BASEURL", "http://nav")));
+		assertEquals("Old keys no longer read, in an environment variable: ERP_DYNAMICSNAV_BASEURL is now"
+				+ " ERP_EMTOP_BASEURL. Rename them: the keys of a connector are erp.<its name>.*.",
+				refusal(() -> start(env)));
+	}
+
+	@Test
+	@DisplayName("The new keys are read: erp.emtop.* gives the summary address")
+	void newKeys() {
+		StandardEnvironment env = startWith("erp.connector=emtop", "erp.emtop.base-url=http://nav.test:7048/NAV/ODataV4");
+		assertEquals("NAV http://nav.test:7048/NAV/ODataV4", ErpConnectorEnvironmentPostProcessor.summaryAddress(env));
+	}
+
+	@Test
 	@DisplayName("Every outside file of configs/ starts; each of configs/local, upgraded as docs/deploy-note.md says")
 	void existingFilesStart() throws IOException {
 		List<Path> files = new ArrayList<>();

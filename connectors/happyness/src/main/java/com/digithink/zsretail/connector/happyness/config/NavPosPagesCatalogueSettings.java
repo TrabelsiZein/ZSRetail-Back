@@ -8,7 +8,7 @@ import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 
 /**
  * Code cleanup step 3: the settings of the catalogue engine from this connector's own keys, unchanged:
- * erp.navpospages.packet-size, dry-run and default-vat (read at each call, so a change of the settings object is seen).
+ * erp.happyness.packet-size, dry-run and default-vat (read at each call, so a change of the settings object is seen).
  */
 @Component
 @ConditionalOnErpConnector(HappynessConnectorDescriptor.NAME)

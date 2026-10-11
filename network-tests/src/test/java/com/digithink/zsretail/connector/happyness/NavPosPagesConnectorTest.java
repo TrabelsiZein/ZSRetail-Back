@@ -91,17 +91,17 @@ class NavPosPagesConnectorTest {
 	}
 
 	private static String[] dynamicsNavKeys() {
-		return new String[] { "erp.connector=emtop", "erp.dynamicsnav.base-url=http://nav.test:7048/NAV/ODataV4",
-				"erp.dynamicsnav.company=TEST", "erp.dynamicsnav.domain=D", "erp.dynamicsnav.username=u",
-				"erp.dynamicsnav.password=p" };
+		return new String[] { "erp.connector=emtop", "erp.emtop.base-url=http://nav.test:7048/NAV/ODataV4",
+				"erp.emtop.company=TEST", "erp.emtop.domain=D", "erp.emtop.username=u",
+				"erp.emtop.password=p" };
 	}
 
 	private static String[] navPosPagesKeys() {
 		return new String[] { "node.type=HEAD_OFFICE", "ownership.catalogue=ERP", "erp.connector=happyness",
-				"erp.navpospages.base-url=" + NavPosPagesTestSupport.BASE_URL, "erp.navpospages.company=HAPPYNESS",
-				"erp.navpospages.username=user", "erp.navpospages.password=secret",
-				"erp.navpospages.location-code=FRANCHISE" /* release 2.2: a leftover line, ignored */, "erp.navpospages.default-vat=19",
-				"erp.navpospages.price-includes-vat=true" };
+				"erp.happyness.base-url=" + NavPosPagesTestSupport.BASE_URL, "erp.happyness.company=HAPPYNESS",
+				"erp.happyness.username=user", "erp.happyness.password=secret",
+				"erp.happyness.location-code=FRANCHISE" /* release 2.2: a leftover line, ignored */, "erp.happyness.default-vat=19",
+				"erp.happyness.price-includes-vat=true" };
 	}
 
 	@Test
@@ -189,9 +189,9 @@ class NavPosPagesConnectorTest {
 	@DisplayName("Invoices from the ERP: the keys bound, the year prefix; release 2.2: years and start-number ignored, the start still works")
 	void invoiceKeysBound() {
 		context().withPropertyValues(navPosPagesKeys())
-				.withPropertyValues("erp.navpospages.invoices.years= 2025 , 2026", "erp.navpospages.invoices.number-prefix=FA",
-						"erp.navpospages.invoices.start-number=FA25000000999", "erp.navpospages.invoices.max-per-run=20",
-						"erp.navpospages.invoices.customer-field=Sell_to_Customer_Name")
+				.withPropertyValues("erp.happyness.invoices.years= 2025 , 2026", "erp.happyness.invoices.number-prefix=FA",
+						"erp.happyness.invoices.start-number=FA25000000999", "erp.happyness.invoices.max-per-run=20",
+						"erp.happyness.invoices.customer-field=Sell_to_Customer_Name")
 				.run(ctx -> {
 					assertTrue(ctx.getStartupFailure() == null, String.valueOf(ctx.getStartupFailure()));
 					NavPosPagesProperties.Invoices invoices = ctx.getBean(NavPosPagesProperties.class).getInvoices();
@@ -208,7 +208,7 @@ class NavPosPagesConnectorTest {
 		context().withPropertyValues(navPosPagesKeys()).run(ctx -> assertEquals("Head office",
 				ctx.getBean(ErpSynchronizationManager.class).supplyInvoiceSellerName(), "the default"));
 		context().withPropertyValues(navPosPagesKeys())
-				.withPropertyValues("erp.navpospages.invoices.seller-name=Happyness Siège")
+				.withPropertyValues("erp.happyness.invoices.seller-name=Happyness Siège")
 				.run(ctx -> assertEquals("Happyness Siège",
 						ctx.getBean(ErpSynchronizationManager.class).supplyInvoiceSellerName(), "as written"));
 		context().run(ctx -> assertEquals(null,
@@ -218,10 +218,10 @@ class NavPosPagesConnectorTest {
 	@Test
 	@DisplayName("A refusal stops the context with its message, before the settings are bound (default-vat=abc)")
 	void refusalStopsTheStartup() {
-		context().withPropertyValues(navPosPagesKeys()).withPropertyValues("erp.navpospages.default-vat=abc").run(ctx -> {
+		context().withPropertyValues(navPosPagesKeys()).withPropertyValues("erp.happyness.default-vat=abc").run(ctx -> {
 			Throwable failure = ctx.getStartupFailure();
 			assertNotNull(failure);
-			assertTrue(rootMessage(failure).startsWith("Invalid value 'abc' for property erp.navpospages.default-vat"),
+			assertTrue(rootMessage(failure).startsWith("Invalid value 'abc' for property erp.happyness.default-vat"),
 					rootMessage(failure));
 		});
 	}

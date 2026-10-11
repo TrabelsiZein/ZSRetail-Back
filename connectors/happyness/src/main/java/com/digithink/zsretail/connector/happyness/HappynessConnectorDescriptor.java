@@ -8,9 +8,9 @@ import com.digithink.zsretail.erp.api.ErpConnectorDescriptor;
 
 /**
  * Code cleanup step 7: this connector as it declares itself to erp-api and the application
- * (META-INF/spring.factories of this project): Happyness's "POS pages", keys erp.navpospages.*: a head office's
+ * (META-INF/spring.factories of this project): Happyness's "POS pages", keys erp.happyness.*: a head office's
  * catalogue by points de stock and its supply invoices. Code cleanup step 8: chosen by erp.connector=happyness only;
- * its old enabled line is refused.
+ * its keys were renamed from its old prefix, and every old key is refused.
  */
 public class HappynessConnectorDescriptor implements ErpConnectorDescriptor {
 
@@ -27,12 +27,7 @@ public class HappynessConnectorDescriptor implements ErpConnectorDescriptor {
 		return EnumSet.of(ErpAbility.HEAD_OFFICE_STOCK_POINTS, ErpAbility.SUPPLY_INVOICES);
 	}
 
-	@Override
-	public String keyPrefix() {
-		return "erp.navpospages";
-	}
-
-	/** Its keys up to 2.2.2. */
+	/** Its keys up to 2.2.2 (since code cleanup step 8 erp.<name>.*): an old key refuses the startup, naming its new name. */
 	@Override
 	public String oldKeyPrefix() {
 		return "erp.navpospages";

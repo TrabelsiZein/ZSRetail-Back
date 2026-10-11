@@ -89,7 +89,7 @@ Each connector declares its old prefix (`ErpConnectorDescriptor.oldKeyPrefix()`)
 core. The upgrade of an outside file: `docs/deploy-note.md`, "Upgrade from 2.2.2: the outside file".
 
 Code cleanup step 5: the values are the customers' names, one connector per customer even when two ERPs look alike:
-`emtop` (EMTOP's Dynamics NAV, keys `erp.dynamicsnav.*`) and `happyness` (Happyness's POS pages, keys `erp.navpospages.*`);
+`emtop` (EMTOP's Dynamics NAV, keys `erp.emtop.*`) and `happyness` (Happyness's POS pages, keys `erp.happyness.*`);
 they were `dynamicsnav` and `navpospages`, which no installed file used. The names and `@ConditionalOnErpConnector` are in
 `erp/api` (`ErpConnectors`); erp-api asks the application which connector is in effect through `ErpConnectorResolver`
 (`core/config/ErpConnectorInEffect`, registered in `META-INF/spring.factories`), so it names no key of the application.
@@ -100,9 +100,24 @@ type files said `erp.dynamicsnav.enabled=false` (gone). Every bean of a connecto
 **Abilities and the rule "the application never names a connector"** (code cleanup step 2, `docs/modules/erp-sync.md`,
 "Abilities"): the application asks `erp/api/ErpAbilities` what the connector in effect can do (`HEAD_OFFICE_STOCK_POINTS`,
 `SUPPLY_INVOICES`: `happyness` only), whichever way the connector was chosen. Exactly one `ErpConnector` bean exists, the
-one of the connector in effect. Outside the connector packages and the class above, no code names `erp.dynamicsnav` or
-`erp.navpospages`; the guard test `erp/ConnectorNamesGuardTest` checks it. The property keys of each connector
-(`erp.dynamicsnav.*`, `erp.navpospages.*`) are unchanged.
+one of the connector in effect. Outside the connector packages, no code names `erp.emtop` or `erp.happyness`, nor their
+old prefixes; the guard test `erp/ConnectorNamesGuardTest` checks it.
+
+**The keys of each connector are `erp.<its name>.*`** (code cleanup step 8): `erp.emtop.*` (was `erp.dynamicsnav.*`) and
+`erp.happyness.*` (was `erp.navpospages.*`), the rest of each key unchanged (`erp.dynamicsnav.base-url` is now
+`erp.emtop.base-url`). Any key of an old block, found in any property source, stops the startup; the message lists the
+old keys of each source with their new names (an environment variable as written: `ERP_DYNAMICSNAV_BASEURL is now
+ERP_EMTOP_BASEURL`):
+
+```
+Old keys no longer read, in the outside file C:\...\zsretailws.properties: erp.dynamicsnav.base-url is now
+erp.emtop.base-url, erp.dynamicsnav.company is now erp.emtop.company. Rename them: the keys of a connector are
+erp.<its name>.*.
+```
+
+With an old enabled line as well, its refusal comes first, in the same message. The old names are declared by each
+connector's descriptor only (`oldKeyPrefix()`); the guard test `OldKeysGuardTest` checks that no main code, resource
+(the released SQL scripts apart), file of `configs/` (`configs/local` apart), `eclipse/` or `devenv/` names them.
 
 **Startup summary**: one INFO line once the application is up (`core/config/InstallationSummary`), e.g.
 `Installation: type STORE, database pos_store_b, catalogue HEAD_OFFICE, customers LOCAL, promotions LOCAL, loyalty HEAD_OFFICE,
@@ -209,31 +224,31 @@ purchases, vendors, locations and stock are not refused by the ERP gates (purcha
 `headoffice.stock.enabled=false`). Steps 2 to 4 added the refusal of the other catalogue writes, the ERP jobs offered and the
 frontend (`docs/modules/head-office.md`).
 
-**The connector of this head office: `erp.navpospages.*`** (ERP catalogue, step 5; package `erp/navpospages`, since code cleanup step 6.3 `connector/happyness` in the project connectors/happyness; GET only, it never
+**The connector of this head office: `erp.happyness.*`** (ERP catalogue, step 5; package `erp/navpospages`, since code cleanup step 6.3 `connector/happyness` in the project connectors/happyness; GET only, it never
 writes to the ERP). The lines go in the head office's **outside file** (e.g. `configs/local/happyness_ho.properties`), never in
 the WARs' resources. Every bean of the package exists only with `erp.connector=happyness`.
 
 | Key | Value | Default |
 |---|---|---|
 | `erp.connector` | `happyness` (section 2; the old `erp.navpospages.enabled` is refused) | `none` |
-| `erp.navpospages.base-url` | OData V4 address, e.g. `http://host:7048/BC140/ODataV4` | required |
-| `erp.navpospages.company` | Company name | required |
-| `erp.navpospages.domain`, `.username`, `.password` | NTLM account (domain may be blank) | username and password required |
-| `erp.navpospages.location-code` | Removed in 2.2: read nowhere, a leftover line is ignored. The head office creates its points de stock before any items run (`docs/modules/head-office.md`, "Stock points") | — |
-| `erp.navpospages.page.categories`, `.page.items`, `.page.barcodes` | Web service names | `ItemCategory`, `PointStockPOS`, `ItemBarCodePOS` |
-| `erp.navpospages.barcode-page-size` | Barcodes per call, 1 to 5000 | `1000` |
-| `erp.navpospages.default-vat` | The VAT of every item, whole number 0 to 100 | required |
-| `erp.navpospages.price-includes-vat` | `true` (Unit_Price includes the VAT) \| `false` | required |
-| `erp.navpospages.connect-timeout-seconds`, `.read-timeout-seconds` | At least 1 | `10`, `60` |
-| `erp.navpospages.packet-size` (step 6) | Rows applied per transaction, 1 to 5000: an items run applies all its changes packet after packet, a barcode run too, page after page until it has caught up; families and sub-families one packet per run. Renamed from `max-changes-per-run` (2026-10-08): the old key stops the startup | `500` |
-| `erp.navpospages.dry-run` (step 6) | `true` (read, compare, summary only) \| `false` | `false` |
-| `erp.navpospages.page.invoices` (invoices from the ERP) | Web service name of the posted franchise invoices; read when `headoffice.supply.source=ERP`. Where the reading starts is the General Setup "Read ERP invoices after number" (release 2.2) | `FactureFranchise` |
-| `erp.navpospages.invoices.lines-expand` | Navigation property of the lines (`$expand`) | `FactureFranchiseSalesInvLines` |
-| `erp.navpospages.invoices.customer-field` | Header field of the customer, letters, digits, `_`. The invoices are mapped by `Sell_to_Customer_No` (on the Happyness page since 2026-10-09): a store's "ERP customer number" is its BC customer number | `Sell_to_Customer_No` |
-| `erp.navpospages.invoices.number-prefix` | Start of every number, no spaces; the year follows in 2 digits (`FVV` + `26`) | `FVV` |
-| `erp.navpospages.invoices.years`, `.start-number` | Removed in release 2.2: a line left in a file is ignored with a WARN at startup (the application starts). The years and the starting point come from the General Setup "Read ERP invoices after number" | — |
-| `erp.navpospages.invoices.max-per-run` | Invoices read per year and run, 1 to 1000 | `50` |
-| `erp.navpospages.invoices.seller-name` (step c) | The seller named on the stores' purchase invoices; a store's vendor `HEAD_OFFICE` is created with it | `Head office` |
+| `erp.happyness.base-url` | OData V4 address, e.g. `http://host:7048/BC140/ODataV4` | required |
+| `erp.happyness.company` | Company name | required |
+| `erp.happyness.domain`, `.username`, `.password` | NTLM account (domain may be blank) | username and password required |
+| `erp.happyness.location-code` | Removed in 2.2: read nowhere, a leftover line is ignored. The head office creates its points de stock before any items run (`docs/modules/head-office.md`, "Stock points") | — |
+| `erp.happyness.page.categories`, `.page.items`, `.page.barcodes` | Web service names | `ItemCategory`, `PointStockPOS`, `ItemBarCodePOS` |
+| `erp.happyness.barcode-page-size` | Barcodes per call, 1 to 5000 | `1000` |
+| `erp.happyness.default-vat` | The VAT of every item, whole number 0 to 100 | required |
+| `erp.happyness.price-includes-vat` | `true` (Unit_Price includes the VAT) \| `false` | required |
+| `erp.happyness.connect-timeout-seconds`, `.read-timeout-seconds` | At least 1 | `10`, `60` |
+| `erp.happyness.packet-size` (step 6) | Rows applied per transaction, 1 to 5000: an items run applies all its changes packet after packet, a barcode run too, page after page until it has caught up; families and sub-families one packet per run. Renamed from `max-changes-per-run` (2026-10-08): the old key stops the startup | `500` |
+| `erp.happyness.dry-run` (step 6) | `true` (read, compare, summary only) \| `false` | `false` |
+| `erp.happyness.page.invoices` (invoices from the ERP) | Web service name of the posted franchise invoices; read when `headoffice.supply.source=ERP`. Where the reading starts is the General Setup "Read ERP invoices after number" (release 2.2) | `FactureFranchise` |
+| `erp.happyness.invoices.lines-expand` | Navigation property of the lines (`$expand`) | `FactureFranchiseSalesInvLines` |
+| `erp.happyness.invoices.customer-field` | Header field of the customer, letters, digits, `_`. The invoices are mapped by `Sell_to_Customer_No` (on the Happyness page since 2026-10-09): a store's "ERP customer number" is its BC customer number | `Sell_to_Customer_No` |
+| `erp.happyness.invoices.number-prefix` | Start of every number, no spaces; the year follows in 2 digits (`FVV` + `26`) | `FVV` |
+| `erp.happyness.invoices.years`, `.start-number` | Removed in release 2.2: a line left in a file is ignored with a WARN at startup (the application starts). The years and the starting point come from the General Setup "Read ERP invoices after number" | — |
+| `erp.happyness.invoices.max-per-run` | Invoices read per year and run, 1 to 1000 | `50` |
+| `erp.happyness.invoices.seller-name` (step c) | The seller named on the stores' purchase invoices; a store's vendor `HEAD_OFFICE` is created with it | `Head office` |
 
 Startup refusals with `erp.connector=happyness` (the message names the key, the application does not start): not a head
 office whose catalogue only comes from the ERP; a blank address, company, username or password; a wrong `default-vat`, `price-includes-vat`, `barcode-page-size`, `packet-size` or timeout; the old `max-changes-per-run`; a blank
@@ -242,7 +257,7 @@ company <company>, pages <three>`, followed by `, invoices <page>` when `headoff
 Step 6: the four catalogue import jobs hand the changes only (`docs/modules/head-office.md`); they run when `erp.sync.enabled=true`
 and the jobs are enabled on the ERP jobs page (none is switched on by these files). Items of the ERP no longer in the location
 are made inactive at the head office whatever their number; only an empty answer for the location deactivates nothing (a
-warning in the summary). The key `erp.navpospages.deactivate-guard-percent` is gone (2026-10-08): a leftover line is ignored.
+warning in the summary). The key `erp.happyness.deactivate-guard-percent` is gone (2026-10-08): a leftover line is ignored.
 
 **Step 9 questions** (tasks 9.1b to 9.1g): `isCatalogueFromErp()`, `isCustomersFromErp()`, `isSupplyFromErp()`, `hasErp()` (some
 owner is the ERP). With the ERP owning all or nothing they answer alike for every configuration that starts, except the

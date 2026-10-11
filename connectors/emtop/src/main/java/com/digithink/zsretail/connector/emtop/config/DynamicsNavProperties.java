@@ -7,7 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Component
-@ConfigurationProperties(prefix = "erp.dynamicsnav")
+@ConfigurationProperties(prefix = "erp.emtop")
 @Getter
 @Setter
 public class DynamicsNavProperties {

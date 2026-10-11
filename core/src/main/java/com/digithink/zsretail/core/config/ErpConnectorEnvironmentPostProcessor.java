@@ -1,16 +1,20 @@
 package com.digithink.zsretail.core.config;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.StringJoiner;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.Ordered;
 import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.core.env.EnumerablePropertySource;
 import org.springframework.core.env.PropertyResolver;
 import org.springframework.core.env.PropertySource;
+import org.springframework.core.env.SystemEnvironmentPropertySource;
 
 import com.digithink.zsretail.erp.api.ErpConnectorDescriptor;
 import com.digithink.zsretail.erp.api.ErpConnectors;
@@ -20,9 +24,10 @@ import com.digithink.zsretail.erp.api.ErpConnectors;
  * (trimmed, any case; the customers' names since step 5). Code cleanup step 8: it is the only way. Absent or none: no
  * connector. The conditions and the connectors read it ({@link #inEffect}); an unknown value stops the startup.
  * <p>
- * The old enabled lines of the connectors (their {@code <old prefix>.enabled}, {@link ErpConnectorDescriptor#oldKeyPrefix})
- * are no longer read: one found in any property source, whatever its value, stops the startup naming the line, where it
- * is and what to write instead. See docs/deployment-modes.md.
+ * The old lines of the connectors are no longer read ({@link ErpConnectorDescriptor#oldKeyPrefix}): an old enabled line
+ * ({@code <old prefix>.enabled}) or any other key of an old block, found in any property source, whatever its value,
+ * stops the startup naming each line, where it is and what to write instead (erp.connector=&lt;name&gt;, the line removed,
+ * or the key's new name under erp.&lt;name&gt;). See docs/deployment-modes.md.
  * <p>
  * Code cleanup, step 2: the application asks {@link com.digithink.zsretail.erp.api.ErpAbilities} what the connector in
  * effect can do. Code cleanup step 7: this class names no connector either: the accepted values, the old lines and the
@@ -44,9 +49,13 @@ public class ErpConnectorEnvironmentPostProcessor implements EnvironmentPostProc
 		inEffect(environment);
 	}
 
-	/** Every old line of the connectors found, in every source: refused together, each with what to write instead. */
+	/**
+	 * Every old line of the connectors found, in every source, refused together: the enabled lines, each with what to
+	 * write instead, then the other keys of the old blocks, each with its new name, source by source.
+	 */
 	static void refuseOldLines(ConfigurableEnvironment environment) {
 		List<String> lines = new ArrayList<>();
+		Map<PropertySource<?>, List<String>> renamed = new LinkedHashMap<>();
 		for (ErpConnectorDescriptor descriptor : ErpConnectors.descriptors()) {
 			if (descriptor.oldKeyPrefix() == null) {
 				continue;
@@ -58,12 +67,60 @@ public class ErpConnectorEnvironmentPostProcessor implements EnvironmentPostProc
 						+ ConfigurationSources.describe(environment, source) + ": "
 						+ (isTrue(value) ? "write " + CONNECTOR_KEY + "=" + descriptor.name() + " instead" : "remove the line"));
 			}
+			for (PropertySource<?> source : environment.getPropertySources()) {
+				if (ConfigurationSources.isInstallation(source)) {
+					List<String> found = renamedKeys(source, descriptor);
+					if (!found.isEmpty()) {
+						renamed.computeIfAbsent(source, s -> new ArrayList<>()).addAll(found);
+					}
+				}
+			}
 		}
+		List<String> message = new ArrayList<>();
 		if (!lines.isEmpty()) {
-			throw new IllegalStateException((lines.size() == 1 ? "Old line" : "Old lines") + " no longer read: "
-					+ String.join("; ", lines) + ". The ERP connector is chosen by " + CONNECTOR_KEY + " only ("
+			message.add((lines.size() == 1 ? "Old line" : "Old lines") + " no longer read: " + String.join("; ", lines)
+					+ ". The ERP connector is chosen by " + CONNECTOR_KEY + " only ("
 					+ String.join(" | ", ErpConnectors.names()) + "; no line: none).");
 		}
+		for (Map.Entry<PropertySource<?>, List<String>> source : renamed.entrySet()) {
+			message.add("Old keys no longer read, in " + ConfigurationSources.describe(environment, source.getKey()) + ": "
+					+ String.join(", ", source.getValue()) + ".");
+		}
+		if (!renamed.isEmpty()) {
+			message.add("Rename them: the keys of a connector are erp.<its name>.*.");
+		}
+		if (!message.isEmpty()) {
+			throw new IllegalStateException(String.join(" ", message));
+		}
+	}
+
+	/**
+	 * The keys of a source under the connector's old prefix, its enabled line apart, each as "old is now new", sorted. An
+	 * environment variable is named as written (ERP_&lt;OLD&gt;_X is now ERP_&lt;NEW&gt;_X). A source that cannot list its keys
+	 * gives none (only its enabled line is found).
+	 */
+	static List<String> renamedKeys(PropertySource<?> source, ErpConnectorDescriptor descriptor) {
+		if (!(source instanceof EnumerablePropertySource)) {
+			return new ArrayList<>();
+		}
+		boolean variables = source instanceof SystemEnvironmentPropertySource;
+		String old = variables ? variable(descriptor.oldKeyPrefix()) + "_" : descriptor.oldKeyPrefix() + ".";
+		String now = variables ? variable(descriptor.keyPrefix()) + "_" : descriptor.keyPrefix() + ".";
+		String enabled = old + (variables ? "ENABLED" : "enabled");
+		List<String> found = new ArrayList<>();
+		for (String name : ((EnumerablePropertySource<?>) source).getPropertyNames()) {
+			String key = variables ? name.toUpperCase(Locale.ROOT) : name;
+			if (key.startsWith(old) && !key.equals(enabled)) {
+				found.add(name + " is now " + now + name.substring(old.length()));
+			}
+		}
+		found.sort(null);
+		return found;
+	}
+
+	/** A key prefix as an environment variable names it: erp.x-y becomes ERP_XY. */
+	private static String variable(String prefix) {
+		return prefix.replace("-", "").replace('.', '_').toUpperCase(Locale.ROOT);
 	}
 
 	/**

@@ -69,13 +69,13 @@ final class NavPosPagesTestSupport {
 		MockEnvironment env = Installations.type("headoffice");
 		env.setProperty("ownership.catalogue", "ERP");
 		env.setProperty("erp.connector", "happyness");
-		env.setProperty("erp.navpospages.base-url", BASE_URL);
-		env.setProperty("erp.navpospages.company", "HAPPYNESS");
-		env.setProperty("erp.navpospages.username", "user");
-		env.setProperty("erp.navpospages.password", "secret");
-		env.setProperty("erp.navpospages.location-code", "FRANCHISE");
-		env.setProperty("erp.navpospages.default-vat", "19");
-		env.setProperty("erp.navpospages.price-includes-vat", "true");
+		env.setProperty("erp.happyness.base-url", BASE_URL);
+		env.setProperty("erp.happyness.company", "HAPPYNESS");
+		env.setProperty("erp.happyness.username", "user");
+		env.setProperty("erp.happyness.password", "secret");
+		env.setProperty("erp.happyness.location-code", "FRANCHISE");
+		env.setProperty("erp.happyness.default-vat", "19");
+		env.setProperty("erp.happyness.price-includes-vat", "true");
 		return env;
 	}
 }
