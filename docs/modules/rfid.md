@@ -1,11 +1,33 @@
 # RFID
 
-**Status**: release 3.1.0, being built (back end steps 1 to 7 done). A store reads the RFID tags of its pieces with
-Hopeland readers (HZ100, TCP/IP) on its network, through the vendor's Java SDK. First customer: ZEN (franchise stores,
-clothes).
+**Status**: release 3.1.0. A store reads the RFID tags of its pieces with Hopeland readers (HZ100, TCP/IP) on its
+network, through the vendor's Java SDK. First customer: ZEN (franchise stores, clothes).
 
 **Store application only**: the head office never has RFID. No tag information goes to an ERP: everything is in the
 store's database.
+
+| Part | State |
+|---|---|
+| Back end: the switch, the readers and POS machines, the Hopeland reader, the reads, the endpoints | done (RFID steps 1 to 9) |
+| Front: the RFID readers page, the POS machines page with "Add this machine" | next |
+| Later: the tags table (one tag = one piece, in stock / sold, linked to an item), the tag assignment screen and its button on the reception lines (`hol_delivery_line`), the RFID button of the POS (`ItemSelection.vue`), the sale and the return updating the tag status | not started |
+
+**Package map** (store project, `com.digithink.zsretail.store.rfid`): `model` (`RfidReader`, `PosMachine`), `repository`,
+`service` (`RfidReaderService`, `PosMachineService`, `RfidReadService`, `RfidAddresses`), `reader` (`RfidReaderDevice`,
+`HopelandRfidReader`, `RfidTag`, `RfidTagCollector`), `controller` (`RfidReaderAPI`, `PosMachineAPI`, `RfidAPI`,
+`RfidErrors`), `dto`, `RfidException`. In core: the key and the question (`NodeOwnership`, `Installation.RFID`),
+`GET /config` `rfidEnabled`, the summary word.
+
+## Turning RFID on in a store
+
+1. The store runs 3.1.0 (`db/3.1.0/update.sql` run: the two tables).
+2. Give every POS machine that will read a **fixed address** (a DHCP reservation on the store's router, or a static
+   address), and the reader too. The back end (its Tomcat) must reach the reader's ip:port on the store's network.
+3. In the store's outside file: `rfid.enabled=true`; restart. The startup summary says `RFID on`.
+4. On the RFID readers page: add the reader (name, address, port 9090 on the HZ100, power, reading time), Test
+   connection, Test read with tags in front of it. Close the vendor's tool first: the reader takes one connection.
+5. On each POS machine, open the POS by the server's IPv4 address, then the POS machines page: "Add this machine"
+   (`GET /rfid/my-machine` gives the address the back end sees), choose its reader.
 
 ## The switch: `rfid.enabled`
 
@@ -19,8 +41,9 @@ store's database.
   reads RFID tags) or false (no RFID)`. `true` on a head office stops it too: `... a head office reads no RFID tags (the
   readers belong to a store). Remove the line.` `false` on a head office is accepted.
 - Read by `NodeOwnership.isRfidSet` (core), checked in `NodeOwnership.resolve` like the other keys.
-- `true` gives the installation question `Installation.RFID`. Every RFID bean (services, the Hopeland reader, later the
-  endpoints) carries `@ConditionalOnInstallation(Installation.RFID)`: with `false`, none of them exists, and
+- `true` gives the installation question `Installation.RFID`. Every RFID bean (the services, the Hopeland reader, the
+  three controllers, the two repositories) carries `@ConditionalOnInstallation(Installation.RFID)`: with `false`, none
+  of them exists (the endpoints answer 404), and
   `InstallationBeansProofTest` shows it in every file of `configs/` (its shape `store, RFID on` lists them).
 - `GET /config` field `rfidEnabled` (last); the frontend shows the RFID pages and buttons only when it is `true`.
 - Startup summary: `RFID on` (after the supply words, before the ERP connector) only when on; nothing when off, so an
@@ -202,3 +225,19 @@ the store pom only. Why cleaned, the hashes and how to make it again: `libs/hope
 Measured on the dev desk reader (RFID step 0, 2026-10-11): connect 10 to 16 ms; a read of 1500 ms takes about 1850 ms
 in all (connect, stop, start, 1500 ms, stop, 300 ms for the last tags, close); 15 tags every time; a connect to an
 address with no reader fails after 5 s (the SDK's own timeout, with a stack trace on the standard error).
+
+## Proofs and tests (RFID step 8)
+
+- `ConfigurationKeysProofTest`: the record gained the key `rfid.enabled` (`keys 52`; `false` in the 14 store
+  configurations, `(none)` in the 6 head office ones); no other line changed.
+- `InstallationBeansProofTest`: the 7 RFID beans are decided by `Installation.RFID` (`decided 90`), present only in the
+  shape `store, RFID on`; every file of `configs/` and every other shape has none of them (each row unchanged).
+- `RfidSdkConfinementGuardTest`, and the existing guards (`ProjectSortingGuardTest`: every RFID class under the store's
+  package root).
+- Store tests: `HopelandSdkJarTest`, `RfidBeansTest`, `RfidAddressesTest`, `RfidReaderServiceTest`,
+  `PosMachineServiceTest`, `RfidTagCollectorTest`, `RfidReadServiceTest`, `HopelandRfidReaderTest`, `RfidAPITest`,
+  `RfidReaderAPITest`, `PosMachineAPITest`; network-tests: `RfidKeyTest`; core: `AppConfigAPITest` (`rfidEnabled`).
+  Test helpers in `store.support`: `InMemoryRfid` (the two tables), `FakeRfidReader`.
+- `HopelandRfidReaderManualTest`: the real reader, only with `-Drfid.reader=ip:port` (step 5 above); skipped otherwise.
+
+Full suite on 2026-10-11 after step 7: 974 tests, 0 failures, 2 skipped (the two live tests that need hardware).
