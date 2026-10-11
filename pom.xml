@@ -27,7 +27,6 @@
 		<module>core</module>
 		<module>headoffice</module>
 		<module>store</module>
-		<module>app</module>
 		<module>network-tests</module>
 	</modules>
 

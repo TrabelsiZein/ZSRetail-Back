@@ -12,7 +12,7 @@ Only on a **store whose supply is not the ERP's** (`ApplicationModeService`: not
 property, no setting. Elsewhere every endpoint answers **403** `{"error": "Inventory counts exist only on a store that
 keeps its own stock."}`; the tables exist, empty.
 
-Nothing in the sale, return, purchase or BL paths changed, nor in `holink`: on a store linked to a head office, the
+Nothing in the sale, return, purchase or BL paths changed, nor in `store/holink`: on a store linked to a head office, the
 stock job sends the changed quantities as for any other stock change (`StockCopyRepository.findToSend`).
 
 ## Package

@@ -593,7 +593,7 @@ Without the URL these keys are not checked. The URL scheme is not checked: HTTP 
 
 **Status**: `HeadOfficeLinkStatus`, in memory only (no table; `PENDING` again after a restart): state, last attempt and last success (store clock), last message, head office `serverTime` of the last success. A failure keeps the last success. Shown on the store's "Head office link" page (task 1.5, below).
 
-**Thread**: since task 2.6 the heartbeat is the job `HEARTBEAT` (`holink/scheduler/HeartbeatJob`), run by `LinkJobScheduler` (see "Head office link: jobs and exchange log"): first heartbeat 15 s after the start, then every frequency (saved from the page, or `headoffice.heartbeat-interval-seconds`), counted from the end of the previous call. It runs on its own thread `ho-link-1`, not with `@Scheduled`: Spring Boot's default scheduler has one thread (`scheduling-1`) shared by `ErpSyncScheduler` and `FranchiseSalesPushScheduler`, so a call blocked up to 15 s would delay them, and a long ERP job would hold the heartbeat back. The thread pool is deliberately not a bean: a `TaskScheduler` bean would replace Spring Boot's default one and move the existing jobs onto it. Only this thread calls the head office; no request, sale or session waits for it. Exception since step 4, with loyalty owned by the head office: the live questions of enrolling (phone check) and of a member change are made from the user's request thread, on their own `RestTemplate` with short timeouts (connect 2 s, read 3 s); a sale never waits for the head office. Every job of the link (the sales push since task 2.4) runs on the same thread, so they never run at the same time.
+**Thread**: since task 2.6 the heartbeat is the job `HEARTBEAT` (`store/holink/scheduler/HeartbeatJob`), run by `LinkJobScheduler` (see "Head office link: jobs and exchange log"): first heartbeat 15 s after the start, then every frequency (saved from the page, or `headoffice.heartbeat-interval-seconds`), counted from the end of the previous call. It runs on its own thread `ho-link-1`, not with `@Scheduled`: Spring Boot's default scheduler has one thread (`scheduling-1`) shared by `ErpSyncScheduler` and `FranchiseSalesPushScheduler`, so a call blocked up to 15 s would delay them, and a long ERP job would hold the heartbeat back. The thread pool is deliberately not a bean: a `TaskScheduler` bean would replace Spring Boot's default one and move the existing jobs onto it. Only this thread calls the head office; no request, sale or session waits for it. Exception since step 4, with loyalty owned by the head office: the live questions of enrolling (phone check) and of a member change are made from the user's request thread, on their own `RestTemplate` with short timeouts (connect 2 s, read 3 s); a sale never waits for the head office. Every job of the link (the sales push since task 2.4) runs on the same thread, so they never run at the same time.
 
 **Log** (store): one INFO line at start for all the jobs (`Head office link: jobs on ho-link-1: HEARTBEAT every 60 s, SALES_PUSH every 60 s`), one INFO line per state change (e.g. `Head office link: ONLINE -> OFFLINE (head office unreachable (ConnectException: Connection refused))`), DEBUG while the state stays the same. The key is never written in a log line.
 
@@ -668,7 +668,7 @@ The ERP export takes `COMPLETED` tickets and returns and `TERMINATED` sessions. 
 
 **Change detection relies on `updated_at`.** Every change to a document once it is finished goes through a save of its header, which moves `updated_at` (`_BaseService.save`, `@PreUpdate`): payment method changed (the ticket is saved), invoice prepared, session closed then verified (the cash count lines are saved in the same transaction as the session), real cash recomputed. Lines and payments of a completed ticket are not edited in any other way; return lines and the voucher amount are written once. What changes without its header (a voucher's status and used amount, an item or customer renamed) is not in the copy, or travels with the next copy.
 
-**Tracking table** `hol_sales_copy` (entity `holink/model/SalesCopy`), one row per document. Prefix `hol_`: store tables of the head office link (`ho_` is kept for head office tables). Like `ho_store`, the `hol_` tables exist in every database through `ddl-auto` and stay empty where nothing writes to them. No `update.sql` (decided for the plan: one `db/2.1.0/update.sql` at the end).
+**Tracking table** `hol_sales_copy` (entity `store/holink/model/SalesCopy`), one row per document. Prefix `hol_`: store tables of the head office link (`ho_` is kept for head office tables). Like `ho_store`, the `hol_` tables exist in every database through `ddl-auto` and stay empty where nothing writes to them. No `update.sql` (decided for the plan: one `db/2.1.0/update.sql` at the end).
 
 | Column | Meaning |
 |---|---|
@@ -686,7 +686,7 @@ Index `ix_hol_sales_copy_queue` (`document_type`, `status`, `attempts`, `documen
 
 **Cursor table** `hol_sales_cursor` (`SalesCopyCursor`), one row per type: change time and id of the last document read.
 
-**The search** (task 2.1): `SalesCopyFinder.discover`, over `SalesDocumentSource` (JPQL in `holink/repository/JpaSalesDocumentSource`, read only, through the shared entity manager; no existing repository is changed). Per type, in its own transaction:
+**The search** (task 2.1): `SalesCopyFinder.discover`, over `SalesDocumentSource` (JPQL in `store/holink/repository/JpaSalesDocumentSource`, read only, through the shared entity manager; no existing repository is changed). Per type, in its own transaction:
 1. Read the documents of any status whose change time (`updated_at`, or the document date when it is empty) comes after the cursor, in (change time, id) order, dated from `headoffice.sales-push.from-date` (sales date, return date, session opening date; never empty, so a tracked document is always read again after a change).
 2. A finished document without a row gets a `PENDING` row. A tracked document that is `SENT` or `ERROR` becomes `PENDING` again, attempts back to 0 and error cleared; the accepted hash is kept. A tracked `PENDING` document is left as it is. An unfinished document without a row is skipped: when it is finished later, its `updated_at` moves and it is read again.
 3. The cursor moves to the last document read.
@@ -701,7 +701,7 @@ A cycle with nothing new runs three queries that start after the cursor and retu
 
 Known limit: the cursor follows the store clock. If the clock goes back, a document changed while it is behind the cursor is missed until its next change. Tunisia has no daylight saving time.
 
-**The copies** (task 2.2): DTOs in `headoffice/dto` (the contract the head office owns, like the heartbeat DTO), built by `holink/service/SalesCopyMapper` (pure mapping; the caller loads the header and its lines). References travel as business codes plus a readable name, never a database id: the head office does not have the store's items, customers, users or sessions. No store code in the body: the head office takes the authenticated store. Every DTO ignores unknown fields (`@JsonIgnoreProperties(ignoreUnknown = true)`). Dates are ISO strings (`2026-10-03T10:15:30`). Lines, payments and count lines keep the store's order (by id) and are numbered from 1 (`lineNo`). ERP fields (`synchronizationStatus`, `erpNo`, `synched`) are not copied.
+**The copies** (task 2.2): DTOs in `headoffice/dto` (the contract the head office owns, like the heartbeat DTO), built by `store/holink/service/SalesCopyMapper` (pure mapping; the caller loads the header and its lines). References travel as business codes plus a readable name, never a database id: the head office does not have the store's items, customers, users or sessions. No store code in the body: the head office takes the authenticated store. Every DTO ignores unknown fields (`@JsonIgnoreProperties(ignoreUnknown = true)`). Dates are ISO strings (`2026-10-03T10:15:30`). Lines, payments and count lines keep the store's order (by id) and are numbered from 1 (`lineNo`). ERP fields (`synchronizationStatus`, `erpNo`, `synched`) are not copied.
 
 | Copy | Fields |
 |---|---|
@@ -753,7 +753,7 @@ A header owns its lines (`cascade = ALL`, `orphanRemoval`, ordered by `line_no`)
 | `headoffice.sales-push.interval-seconds` | Seconds between two push cycles, default `60`, at least 1 (task 2.4). Since task 2.6 this is the default of the `SALES_PUSH` job: a frequency saved from the Head office link page wins (`SalesPushSettings.getDefaultIntervalSeconds()`, `LinkJobService`) |
 
 ### Sales copies: the push (task 2.4)
-`holink/service/SalesPushService`, run as the job `SALES_PUSH` (`holink/scheduler/SalesPushJob`, task 2.6) by `LinkJobScheduler`; all `@ConditionalOnInstallation(SALES_TO_HEAD_OFFICE)`.
+`store/holink/service/SalesPushService`, run as the job `SALES_PUSH` (`store/holink/scheduler/SalesPushJob`, task 2.6) by `LinkJobScheduler`; all `@ConditionalOnInstallation(SALES_TO_HEAD_OFFICE)`.
 
 **When**: on the `ho-link-1` thread, after the heartbeat. First cycle 20 s after the start (the first heartbeat is at 15 s), then the job's frequency (saved from the page, or `headoffice.sales-push.interval-seconds`) after the end of the previous cycle. While a long history is caught up (a search page full, a full batch with documents never tried, or the cycle time bound reached) the next cycle comes 5 s later; the heartbeat, due in between, runs first. A cycle never throws: a failure is logged and the next cycle comes at the usual interval. Nothing in the selling path or the ERP export calls it, and it writes no selling table (copies are built in read-only transactions).
 
@@ -779,9 +779,9 @@ One rejected document never stops the others: each follows its own result.
 **Counts**: `GET admin/holink/status` gives `pendingCount`, `sentCount`, `errorCount` (see "Head office link page").
 
 ### Head office link: jobs and exchange log (task 2.6, store side)
-Backend of the jobs and exchange log of the store's Head office link page (model: the ERP jobs page and the ERP communications log; nothing in `erp/` is used or changed). Package `holink`, beans `@ConditionalOnInstallation(LINKED_TO_HEAD_OFFICE)`. The page stays under the permission `read:admin-holink-status`.
+Backend of the jobs and exchange log of the store's Head office link page (model: the ERP jobs page and the ERP communications log; nothing in `erp/` is used or changed). Package `store/holink`, beans `@ConditionalOnInstallation(LINKED_TO_HEAD_OFFICE)`. The page stays under the permission `read:admin-holink-status`.
 
-**Jobs.** A job is a bean implementing `holink/scheduler/LinkJob`: a code, a default frequency (its properties value), a first delay and `run()`. `LinkJobScheduler` runs every job bean on `ho-link-1`: first run after the job's first delay, then the frequency in force after the end of the previous run, or 5 s later while the job has more to do. Which jobs exist is decided by the settings (the bean conditions), never by the user.
+**Jobs.** A job is a bean implementing `store/holink/scheduler/LinkJob`: a code, a default frequency (its properties value), a first delay and `run()`. `LinkJobScheduler` runs every job bean on `ho-link-1`: first run after the job's first delay, then the frequency in force after the end of the previous run, or 5 s later while the job has more to do. Which jobs exist is decided by the settings (the bean conditions), never by the user.
 
 | Code | Class | Exists when | Order | First run | Default frequency |
 |---|---|---|---|---|---|
@@ -806,9 +806,9 @@ Backend of the jobs and exchange log of the store's Head office link page (model
 
 **Run now**: on `ho-link-1` like the scheduled runs, queued behind a run in progress, waited for up to 30 s; never from the request thread.
 
-**Table** `hol_job` (`holink/model/LinkJobState`): `code` (unique), `interval_seconds` (null = default), `last_run_at`, `last_result`, `last_message` (1000), `last_duration_ms`, plus `_BaseEntity` columns. A row is created at the job's first run or first change; a row whose job no longer exists is not listed.
+**Table** `hol_job` (`store/holink/model/LinkJobState`): `code` (unique), `interval_seconds` (null = default), `last_run_at`, `last_result`, `last_message` (1000), `last_duration_ms`, plus `_BaseEntity` columns. A row is created at the job's first run or first change; a row whose job no longer exists is not listed.
 
-**Exchange log** `hol_exchange_log` (`holink/model/LinkExchange`, `LinkExchangeLog`): `exchange_date` (start, store clock; index `ix_hol_exchange_log_date`), `job`, `direction` (`UP`, `DOWN`), `record_count`, `result` (`SUCCESS`, `WARNING`, `ERROR`), `error` (first problem, 1000 characters), `duration_ms`, plus `_BaseEntity` columns.
+**Exchange log** `hol_exchange_log` (`store/holink/model/LinkExchange`, `LinkExchangeLog`): `exchange_date` (start, store clock; index `ix_hol_exchange_log_date`), `job`, `direction` (`UP`, `DOWN`), `record_count`, `result` (`SUCCESS`, `WARNING`, `ERROR`), `error` (first problem, 1000 characters), `duration_ms`, plus `_BaseEntity` columns.
 - One row per exchange that sent something or failed. `SALES_PUSH`: one row per batch request (records = documents sent plus those the store could not build; `SUCCESS` all accepted, `WARNING` some rejected or not built, `ERROR` not delivered or nothing accepted; error = `<number>: <reason>` of the first problem, or `<state>: <message>` when not delivered), plus one `ERROR` row with 0 records for a failed search. A cycle with nothing to send, and copies marked unchanged, write no row. `HEARTBEAT`: a row only when its state changes (0 records; `SUCCESS` when it becomes `ONLINE`, otherwise `ERROR` with `<state>: <message>`).
 - **A failure that repeats is written once** (step 5, every link job): `SALES_PUSH` not delivered or search failed, `COPIES_DOWN` not delivered, page not applied, cursor not saved or local records not set inactive, `LOYALTY_PUSH` not delivered or search failed go through `LinkExchangeLog.recordFailure`. While the job keeps failing, a failure already written in this episode (same text) writes nothing more (DEBUG line); a different reason writes its row. The episode ends at the job's next exchange that goes through (its batch or page row shows it), or at its next run that is not an `ERROR` (`LinkJobScheduler` calls `afterRun`), which then writes one `SUCCESS` row with 0 records. A failure after that starts a new episode and is written again. Episodes are in memory: a restart writes the first failure again. The Jobs table keeps the current state of every run (last result and message) as before; batch rows are unchanged; the heartbeat already wrote only its state changes.
 - Writing never makes an exchange fail: each row is saved in its own transaction (`REQUIRES_NEW`), after the push saved its tracking rows; a failure is logged at WARN and swallowed.
@@ -859,7 +859,7 @@ Data the head office owns reaches its stores as copies down (design 2.3): the st
 | Cursor not a whole number ≥ 0 | 400 `{"error":"Invalid cursor '<value>': send back the cursor of the last answer"}` |
 | Domain unknown or without copies down | 404 `{"error":"No copies down for domain '<value>'"}` |
 
-**Store side** (package `holink`):
+**Store side** (package `store/holink`):
 - `HeadOfficeClient.pull(domain, cursor, limit)`: `GET` with the two store headers, the cursor encoded strictly. Same failure states as the heartbeat; a page without a cursor, with a cursor over 200 characters or of another domain is `ERROR` "unreadable answer".
 - `hol_down_cursor` (`DownCursor`): one row per `domain`, `cursor_value` (200) saved exactly as received and sent back unchanged.
 - `CopiesDownPuller`, run by the job `COPIES_DOWN` (`CopiesDownJob`, order 3, after the sales push, first run 25 s after the start, default frequency `headoffice.pull.interval-seconds`, 60; editable on the page like the other jobs). Per domain, in `DataDomain` order:
@@ -996,7 +996,7 @@ Page permission `read:admin-headoffice-loyalty-overspends` (seeded on a head off
 
 Member edit from a store: a blank `memberFunctionCode` keeps the member's own function (a deactivation or a customer link sends the member as it is); a member with no function at all needs one (400).
 
-**Store side** (package `holink`, all `@ConditionalOnInstallation(LOYALTY_FROM_HEAD_OFFICE)`: the URL set and `ownership.loyalty=HEAD_OFFICE`; none of these beans exists otherwise):
+**Store side** (package `store/holink`, all `@ConditionalOnInstallation(LOYALTY_FROM_HEAD_OFFICE)`: the URL set and `ownership.loyalty=HEAD_OFFICE`; none of these beans exists otherwise):
 
 | Class | Role |
 |---|---|
@@ -1118,7 +1118,7 @@ Items, families, sub-families and barcodes decided by the head office reach ever
 | Inactive at the head office | sent with `active=false` |
 | Deleted at the head office | answered as removed |
 
-**Store side** (package `holink`):
+**Store side** (package `store/holink`):
 
 | Class | Role |
 |---|---|
@@ -1267,7 +1267,7 @@ backend stores those values unrounded. For every price from 0.001 to 500.000 at 
 back to the ERP price at 3 decimals (1 unit and more; at most 6e-11 above it).
 
 Tests: `NavPosPagesRestClientTest` (the URLs, GET, next link, HTTP error, timeout, non-GET refused before it leaves),
-`NavPosPagesMapperTest` (the samples of `app/src/test/resources/navpospages/`, location `DA-MG-GREM`; variants, a barcode twice, a
+`NavPosPagesMapperTest` (the samples of `network-tests/src/test/resources/navpospages/`, location `DA-MG-GREM`; variants, a barcode twice, a
 sub-family without its family, a `Categorie` row, `price-includes-vat=false`), `NavPosPagesStartupCheckTest`,
 `NavPosPagesConnectorTest` (empty lists and failures; the connector injected in `ErpSynchronizationManager`: NoOp, Dynamics NAV,
 navpospages), `NavPosPagesLiveReadTest` (skipped unless `-Dnavpospages.live=true`: a GET-only read of the ERP named in
@@ -1324,7 +1324,7 @@ bigger than a packet, no list during the first load, dry run, the summary kept f
 handing nothing to the job, invoices).
 
 **Step 7: the changes of an ERP import reach the stores** (`HeadOfficeErpCatalogueRecorder`, an aspect beside
-`HeadOfficeErpGuard`, `@ConditionalOnInstallation(HEAD_OFFICE_ERP_CATALOGUE_ONLY)`; nothing in `erp/`, `holink/` or `service/` changes). The four
+`HeadOfficeErpGuard`, `@ConditionalOnInstallation(HEAD_OFFICE_ERP_CATALOGUE_ONLY)`; nothing in `erp/`, `store/holink/` or `service/` changes). The four
 imports of `ErpItemBootstrapService` save with the repositories and never call the catalogue hooks. Around each of them the
 aspect lets the import run, then calls `CatalogueHeadOfficeHooks.afterSave(kind, null, saved)` for each record of the returned
 list (`FAMILY`, `SUBFAMILY`, `ITEM`, `BARCODE`), as a save on the item pages does: one change row per record, an item also

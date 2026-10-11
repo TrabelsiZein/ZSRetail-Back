@@ -1,12 +1,12 @@
 # Deploy note: two applications, two WARs
 
-**Since code cleanup step 6.5** the store and the head office are two applications, each its WAR. The application is the
-installation type: a store runs the store WAR, a head office the head office WAR. Each WAR is deployed **alone in its
+**Since code cleanup steps 6.5 (head office) and 6.6 (store)** the store and the head office are two applications, each
+its WAR. The application is the installation type: a store runs the store WAR, a head office the head office WAR. Each WAR is deployed **alone in its
 Tomcat, under the context name `zsretailws`**, as the single WAR was.
 
 | Application | Main class | Built as | Delivered as |
 |---|---|---|---|
-| store | `POSMainApp` until step 6.6, then `StoreApplication` | `app/target/zsretailws.war` until step 6.6, then `store/target/zsretail-store-<version>.war` | `store/zsretailws.war` |
+| store | `StoreApplication` (was `POSMainApp`) | `store/target/zsretail-store-<version>.war` (since step 6.6; `app/target/zsretailws.war` in step 6.5) | `store/zsretailws.war` |
 | head office | `HeadOfficeApplication` | `headoffice/target/zsretail-headoffice-<version>.war` | `headoffice/zsretailws.war` |
 
 ## Release

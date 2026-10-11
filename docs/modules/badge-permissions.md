@@ -74,7 +74,7 @@ A comprehensive badge-based permission system has been implemented to control ac
   - `scanType` - BARCODE or QR_CODE
 
 #### 1.4 BadgeScanRateLimit Entity
-**File**: `app/src/main/java/com/digithink/zsretail/model/BadgeScanRateLimit.java`
+**File**: not in the code (no such class has ever been committed; planned as `core/model/BadgeScanRateLimit.java`)
 - New entity for rate limiting:
   - `badgeCode` - Badge being rate limited
   - `windowStart` - Start of rate limit window
@@ -94,7 +94,7 @@ A comprehensive badge-based permission system has been implemented to control ac
   - Rate limiting logic to prevent abuse
 
 #### 1.6 BadgeAPI Controller
-**File**: `app/src/main/java/com/digithink/zsretail/controller/BadgeAPI.java`
+**File**: `store/src/main/java/com/digithink/zsretail/store/controller/BadgeAPI.java`
 - REST endpoints:
   - `GET /badge/by-badge/{badgeCode}` - Find user by badge code
   - `POST /badge/check-permission` - Check badge permission (no logging)

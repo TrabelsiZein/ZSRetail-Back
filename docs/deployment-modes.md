@@ -29,10 +29,10 @@ Each type file has two titled blocks:
   (commented) and, in the store file, `headoffice.url` / `headoffice.api-key` (commented). The values are the dev ones: store A
   (`pos_db_prod`, 444) and the dev head office (`pos_headoffice`, 888). The database password is not in the WAR:
   `spring.datasource.password=${ZSRETAIL_DB_PASSWORD:}`, an environment variable for an IDE start without an outside file,
-  or the key in the outside file. On a developer PC the variable is set once as a Windows user variable, so `POSMainApp`
+  or the key in the outside file. On a developer PC the variable is set once as a Windows user variable, so `StoreApplication`
   starts directly from the IDE with nothing else to set.
 
-So the store application (`POSMainApp` until step 6.6, then `StoreApplication`) starts from the IDE with no argument as a
+So the store application (`StoreApplication`, was `POSMainApp`) starts from the IDE with no argument as a
 store, and `HeadOfficeApplication` as a head office.
 
 ## 2. The outside file (optional)
@@ -127,7 +127,7 @@ the mode lines that preset gave, so every key of every file resolves exactly as 
 "The NAV lines": catalogue, customers, supply `ERP`, sales to `ERP`, connector on. "The network lines": catalogue and supply
 `HEAD_OFFICE`, sales to `HEAD_OFFICE`.
 
-**IDE (Eclipse / STS)**: `POSMainApp` as it is is a store on the type file (set `ZSRETAIL_DB_PASSWORD` in the launch's
+**IDE (Eclipse / STS)**: `StoreApplication` as it is is a store on the type file (`HeadOfficeApplication` a head office on its own) (set `ZSRETAIL_DB_PASSWORD` in the launch's
 Environment tab). For a dev machine, VM arguments `-Dzsretail.machine-file="D:\ZS Retail\Apps\ZSRetail-Back\deploy\dev\store-b.properties"`
 (the shared `eclipse/*.launch` do this). A launch with `-Dspring.profiles.active=<old profile>` is refused.
 
@@ -202,7 +202,7 @@ frontend (`docs/modules/head-office.md`).
 
 **The connector of this head office: `erp.navpospages.*`** (ERP catalogue, step 5; package `erp/navpospages`, since code cleanup step 6.3 `connector/happyness` in the project connector-happyness; GET only, it never
 writes to the ERP). The lines go in the head office's **outside file** (e.g. `configs/local/happyness_ho.properties`), never in
-`app/src/main/resources`. Every bean of the package exists only with `erp.navpospages.enabled=true`.
+the WARs' resources. Every bean of the package exists only with `erp.navpospages.enabled=true`.
 
 | Key | Value | Default |
 |---|---|---|

@@ -76,7 +76,7 @@
 - Validation (`LoyaltyService.normalizeTiers`): amount > 0 (rounded to the millime), rate > 0, no two tiers on the same amount; stored sorted. Invalid tiers return HTTP 400 before the current program is closed.
 - Locking follows the rate fields: editable while the program has no transactions, then any change returns HTTP 409 (resending the same tiers is accepted). In `PUT /loyalty/programs/{id}`, `earningTiers` absent or null = unchanged, `[]` = remove all tiers.
 - Mapping: `@ElementCollection(fetch = EAGER)` + `@Fetch(FetchMode.SELECT)`, so tiers are never join-fetched with another collection (no `MultipleBagFetchException` at startup).
-- Tests: `app/src/test/java/com/digithink/zsretail/service/LoyaltyEarningTiersTest.java` (plain JUnit 5 with in-memory stubs, no Spring context).
+- Tests: `network-tests/src/test/java/com/digithink/zsretail/service/LoyaltyEarningTiersTest.java` (plain JUnit 5 with in-memory stubs, no Spring context).
 
 ### Returns
 
@@ -85,7 +85,7 @@
 - **Earned points are recalculated** with the sale's program on the money kept for the goods not returned (flat programs on that amount plus the stamp, tiered programs without it); only the difference is removed (`REVERSED`). Example: 650 TND ticket, 1300 pts; returning 200 TND keeps 450 TND = 675 pts at 1.5, so 625 are removed. The balance never goes below 0 (unchanged).
 - **Money refund** (`ReturnHeaderService`): for a ticket with `loyaltyDeductionAmount > 0`, refund = returned goods TTC × (total − stamp) / goods TTC, i.e. only the money actually paid. The return's `discountPercentage` stores the combined rate (header discount + points share, 5 decimals) so NAV reconciles lines × (1 − pct) = refund, as the sales export already does. Tickets without points keep the previous pct / ratio rules unchanged.
 - Before 2026-09: any return removed all of the ticket's earned points (again on each later return), converted points were never given back, and with a percentage header discount the refund paid the points share back in money.
-- Tests: `app/src/test/java/com/digithink/zsretail/service/ReturnRefundLoyaltyTest.java` (also pins the unchanged refunds of tickets without points).
+- Tests: `network-tests/src/test/java/com/digithink/zsretail/store/service/ReturnRefundLoyaltyTest.java` (also pins the unchanged refunds of tickets without points).
 - 2.2.2: a return may carry decimals (0.2 of a line sold 0.5); its goods amounts follow `decimal-quantities.md` ("2.2.2, step 1") and `applyReturn` is unchanged: several returns of one ticket add up as before.
 
 ### Redemption limit
@@ -105,7 +105,7 @@ Requested by Groupe Hammami (2026-09): the phone is required when a member is cr
 - HTTP: missing or badly formatted number → 400, duplicate → 409 (`IllegalStateException`). `POST /loyalty/member` used to answer 500 for every validation error.
 - Frontend: phone marked `*`, `required` and `type="tel"` in the POS modal (`ItemSelection.vue`) and in the admin create and edit forms (`LoyaltyMembersManagement.vue`). The admin create button is disabled while the request runs.
 - No database constraint: members that already share a number would block a unique index. In Hammami production (2026-09-25, 250 members) 9 pairs share a number, almost all the same person entered twice. Merge them by hand: **Adjust points** to move the balance to the card being kept, then deactivate the other card. With loyalty `LOCAL` uniqueness holds per database only; members are not synced between installations. With loyalty owned by the head office (step 4) it holds across the network: see "Shared loyalty".
-- Tests: `app/src/test/java/com/digithink/zsretail/service/LoyaltyMemberPhoneTest.java`.
+- Tests: `network-tests/src/test/java/com/digithink/zsretail/store/service/LoyaltyMemberPhoneTest.java`.
 
 ### Shared loyalty (head office plan, step 4)
 

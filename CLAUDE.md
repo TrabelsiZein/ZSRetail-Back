@@ -5,7 +5,7 @@ the development contract; this file covers backend specifics only.
 
 ## Stack
 
-- Java 11 · Spring Boot 2.3.9 · packaged as **WAR** (deployed to Tomcat 9)
+- Java 11 · Spring Boot 2.3.9 · two applications, each packaged as a **WAR** (deployed to Tomcat 9)
 - Spring Security + JWT · JPA/Hibernate · SQL Server
 - Maven, several projects under one parent `com.digithink:zsretail-parent` (the `pom.xml` of this folder), one
   version for all of them: the product version, currently 2.2.2
@@ -14,46 +14,52 @@ the development contract; this file covers backend specifics only.
 
 ## Maven projects (code cleanup step 6)
 
-Each folder below is a project with its `pom.xml`; the parent lists them. The projects, what goes where and the rules
-between them: `docs/roadmap/project-sorting.md`.
+Each folder below is a project with its `pom.xml`; the parent lists them. What goes where and the rules between them:
+`docs/roadmap/project-sorting.md`; the two WARs: `docs/deploy-note.md`.
 
-| Folder | Artifact | Uses | State |
+| Folder | Artifact | Package root | Uses (of ours) |
 |---|---|---|---|
-| `erp-api` | `zsretail-erp-api` | nothing of ours | since step 6.2: `com.digithink.zsretail.erp.api` (and `.dto`), 47 classes |
-| `connector-happyness` | `zsretail-connector-happyness` | erp-api | since step 6.3: `com.digithink.zsretail.connector.happyness`, 19 classes |
-| `connector-emtop` | `zsretail-connector-emtop` | erp-api | since step 6.3: `com.digithink.zsretail.connector.emtop`, 22 classes |
-| `core` | `zsretail-core` | erp-api | since step 6.4: `com.digithink.zsretail.core` (link messages and `/ho/**` chain in `core.link`), 311 classes, `application.properties`, `db/`, `license/`, `spring.factories` |
-| `headoffice` | `zsretail-headoffice` (WAR) | core; the connectors at runtime | since step 6.5: `com.digithink.zsretail.headoffice`, 119 classes, main class `HeadOfficeApplication`, `application-headoffice.properties`; `target/zsretail-headoffice-<version>.war` |
-| `store` | `zsretail-store` | core | empty until step 6.6 (then the store WAR) |
-| `app` | `zsretail-app` (WAR) | core; the connectors at runtime scope (in the WAR, never named by a main class); the head office's classes for its tests only | the application before the projects: `app/target/zsretailws.war`, gone at step 6.6 |
-| `network-tests` | `zsretail-network-tests` | store, headoffice | tests only, empty until step 6.7 |
+| `erp-api` | `zsretail-erp-api` | `com.digithink.zsretail.erp.api` | nothing |
+| `connector-happyness` | `zsretail-connector-happyness` | `com.digithink.zsretail.connector.happyness` | erp-api |
+| `connector-emtop` | `zsretail-connector-emtop` | `com.digithink.zsretail.connector.emtop` | erp-api |
+| `core` | `zsretail-core` | `com.digithink.zsretail.core` | erp-api |
+| `store` | `zsretail-store` (WAR, main class `StoreApplication`) | `com.digithink.zsretail.store` | core; the connectors at runtime |
+| `headoffice` | `zsretail-headoffice` (WAR, main class `HeadOfficeApplication`) | `com.digithink.zsretail.headoffice` | core; the connectors at runtime |
+| `network-tests` | `zsretail-network-tests` (tests only) | tests | store, headoffice (their `classes` jars), the connectors |
+
+A connector is taken at `runtime` scope: it is in the WAR, but a class of an application that names one does not compile.
+A class of a project lives under the project's package root (`ProjectSortingGuardTest`).
 
 ## Layout
 
-A project's classes are under its package root, with the sub-packages of before (`core.model`, `core.service`,
-`core.controller`, ...). Until step 6.6 the store's classes and the head office's (until 6.5) are still in `app`,
-under their old packages, with `POSMainApp`.
+The sub-packages of before stay under each root: `core.model`, `core.service`, `core.controller`, `store.service`,
+`store.holink` (the store's link to its head office), `headoffice.service`, ...
 
 ```
 core/src/main/java/com/digithink/zsretail/core/
   config/  security/  model/ (+ enumeration/)  repository/  service/ (incl. ZZDataInitializer)  controller/
   dto/ (+ report/)  erp/ (jobs, engine, admin)  link/ (the store / head office messages, the /ho/** chain)
   exception/  utils/
+store/src/main/java/com/digithink/zsretail/store/
+  StoreApplication  controller/ service/ model/ repository/ dto/ (sales, sessions, payments, returns, invoices)
+  holink/  analytics/  inventory/  erp/ (the sales exports to the ERP)
+headoffice/src/main/java/com/digithink/zsretail/headoffice/
+  HeadOfficeApplication  controller/ service/ model/ repository/ dto/ security/ enumeration/
 ```
 
-`core/src/main/resources/`
-- `application.properties`: the common keys of both applications (default `spring.profiles.active=store`)
+`core/src/main/resources/` (in both WARs, inside the core jar)
+- `application.properties`: the common keys of both applications
 - `db/<product-version>/` — SQL migration scripts grouped by release (e.g. `db/1.11.0/`)
 - `license/` — public key material for offline licensing (`public_key.pem`, gitignored, kept on the machine)
 - `META-INF/spring.factories`: the configuration's post-processors
 
 The two type files (configuration step C1, "what this installation is"; the database password from
-`ZSRETAIL_DB_PASSWORD`): `app/src/main/resources/application-store.properties` and, since step 6.5,
-`headoffice/src/main/resources/application-headoffice.properties`. The application is the type (step 6.5). An optional outside file per installation (usually where it runs; it may name the type and
-change owners), named by `-Dzsretail.machine-file=<path>` or found as
-`${catalina.base}/conf/zsretail/<context name>.properties`; without one the type file applies. Any active profile
-other than exactly `store` or `headoffice` is refused. Outside files of this repo: `deploy/` (model, dev machines,
-customer values). See `docs/deployment-modes.md`.
+`ZSRETAIL_DB_PASSWORD`): `store/src/main/resources/application-store.properties` and
+`headoffice/src/main/resources/application-headoffice.properties`. The application is the type (step 6.5): an
+installation names no type. An optional outside file per installation (usually where it runs; it may change owners),
+named by `-Dzsretail.machine-file=<path>` or found as `${catalina.base}/conf/zsretail/<context name>.properties`;
+without one the type file applies. An old outside file naming the other type is refused. Outside files of this repo:
+`deploy/` (model, dev machines, customer values). See `docs/deployment-modes.md`.
 
 ## Conventions
 
@@ -61,8 +67,11 @@ customer values). See `docs/deployment-modes.md`.
   `_BaseRepository` / `_BaseService` / `_BaseController`. Read `docs/generics.md` before
   hand-writing a controller.
 - **Controllers are named `<Entity>API.java`**, not `*Controller`.
+- **A new class goes to its project**: used by both applications, core; only by a store, store; only by a head office,
+  headoffice; under that project's package root.
 - **DB changes ship as a numbered SQL script** under `core/src/main/resources/db/<next version>/`
-  and are reflected in the matching module doc. Never edit a released script.
+  and are reflected in the matching module doc. Never edit a released script. A statement on a table of one
+  application only is guarded (`IF OBJECT_ID(...)`): a store database has no head office table, and the reverse.
 - **Role enforcement** is in the frontend only: the menu shows entries by CASL permission, and
   the route guard checks only routes with `meta.resource` (today `/admin/roles`). The API does
   not check roles: there is no `@PreAuthorize`, and the JWT carries no authorities.

@@ -1,0 +1,29 @@
+package com.digithink.zsretail.store.dto;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+/**
+ * Request body for POST /price-calculate
+ */
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class PriceCalculateRequestDTO {
+
+	private Long itemId;
+	/** 2.2.1: up to 3 decimals (a bulk item). */
+	private BigDecimal quantity;
+	private Long customerId;
+
+	/**
+	 * Promo codes currently entered by the cashier.
+	 * Only code-required promotions whose code is in this list will be considered.
+	 */
+	private List<String> appliedCodes = new ArrayList<>();
+}

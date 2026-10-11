@@ -163,7 +163,7 @@ price and never goes through promotion pricing.
 - **ERP pricing vs promotion**: SalesPrice sets the base price the promotion applies to; a percentage/fixed promotion applies only if it beats the customer's SalesDiscount; FREE_QUANTITY always applies
 - **Free lines are real DB rows**: `lineTotalIncludingVat=0` ensures return flow gives 0 TND refund without special-casing
 - **discountSource tracks origin**: MANUAL (cashier entered), PROMOTION (promo engine), SALES_PRICE, SALES_DISCOUNT — stored on both header and each line for audit and reporting
-- **`getItem` is LAZY, so an Item can reach JSON as a Hibernate proxy**: when a page of promotions holds a cross-product promotion whose benefit item is also the `item` (or a group item) of a later promotion, both fields share one proxy. `Item` ignores `hibernateLazyInitializer` / `handler` at class level, so the proxy serializes like a loaded Item. Before 1.12.0 the promotion list returned HTTP 500 in that case ("No serializer found for class ByteBuddyInterceptor"). Test: `app/src/test/java/com/digithink/zsretail/model/ItemJsonProxyTest.java`
+- **`getItem` is LAZY, so an Item can reach JSON as a Hibernate proxy**: when a page of promotions holds a cross-product promotion whose benefit item is also the `item` (or a group item) of a later promotion, both fields share one proxy. `Item` ignores `hibernateLazyInitializer` / `handler` at class level, so the proxy serializes like a loaded Item. Before 1.12.0 the promotion list returned HTTP 500 in that case ("No serializer found for class ByteBuddyInterceptor"). Test: `network-tests/src/test/java/com/digithink/zsretail/store/model/ItemJsonProxyTest.java`
 
 ### Promotions owned by the head office (step 3)
 

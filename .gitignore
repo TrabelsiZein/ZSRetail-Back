@@ -17,3 +17,9 @@ private_key.pem
 # Cursor (no longer used)
 .cursor/
 /bin/
+
+# IDE metadata of each project (code cleanup step 6.6: Eclipse and VS Code generate it on import; nothing is shared)
+.project
+.classpath
+.factorypath
+.settings/

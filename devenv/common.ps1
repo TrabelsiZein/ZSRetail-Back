@@ -24,7 +24,7 @@ $DevInstances = [ordered]@{
 # Code cleanup step 6.5: two applications, each its WAR (devenv\build.ps1 copies each to artifacts\<type>\ under the
 # deploy name zsretailws and writes artifacts\latest-<type>.txt); an instance runs the application of its Type.
 $DevApplications = [ordered]@{
-	'store'      = @{ War = 'app\target\zsretailws.war' }
+	'store'      = @{ War = 'store\target\zsretail-store-*.war' }
 	'headoffice' = @{ War = 'headoffice\target\zsretail-headoffice-*.war' }
 }
 

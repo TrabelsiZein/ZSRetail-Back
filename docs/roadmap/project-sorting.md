@@ -6,7 +6,7 @@ Target: Maven projects, one version, two applications.
 |---|---|---|---|
 | erp-api | `com.digithink.zsretail.erp.api` | the ERP plug: `erp/api`, `erp/api/dto` (since step 6.2; were `erp/spi`, `erp/dto`) | nothing of ours |
 | core | `com.digithink.zsretail.core` | what both applications use: catalogue, promotions and loyalty definitions, customers, users, roles, settings, stock, purchases, vendors, login, licence, the ERP import and jobs, `core/erp/engine`, the link messages, and the selling entities (loyalty transactions and stock movements point at them) | erp-api |
-| store | `com.digithink.zsretail.store` | POS, sessions, tickets, payments, returns, customer invoices, inventory counts, analytics, the sales exports to the ERP, the link to the head office (`holink`) | core, erp-api |
+| store | `com.digithink.zsretail.store` | POS, sessions, tickets, payments, returns, customer invoices, inventory counts, analytics, the sales exports to the ERP, the link to the head office (`store/holink`) | core, erp-api |
 | headoffice | `com.digithink.zsretail.headoffice` | stores, points de stock, tickets received, BLs, supply invoices, the `/ho/**` API | core, erp-api |
 | emtop | `com.digithink.zsretail.connector.emtop` | `erp/dynamicsnav` until step 6.3 | erp-api |
 | happyness | `com.digithink.zsretail.connector.happyness` | `erp/navpospages` until step 6.3 | erp-api |
@@ -69,5 +69,9 @@ Step by step, each commit with the full suite green:
   configuration in the application of its type, every key as recorded) and `InstallationBeansProofTest` (the beans of each
   configuration among its application's), records unchanged. `devenv` builds both WARs and starts each instance with the
   application of its type.
-- 6.6: store and its WAR; `app` is gone. 6.7: the network tests, the dev
-  scripts.
+- 6.6: store, 164 classes under `com.digithink.zsretail.store` (`holink` to `store.holink`), with
+  `application-store.properties`; `POSMainApp` becomes `StoreApplication`; a WAR, `zsretail-store-<version>.war` (and its
+  `classes` jar). `app` is gone: its tests are in network-tests (both applications' classes) until 6.7 sorts them. The
+  sorting guard needs no list any more: a class's project is its package root. A stray `Payment.vue` committed at
+  `src/views/pos/` in 7401b17 (moved to `app/src/views` at 6.1) is back at its old place, outside every project.
+- 6.7: the network tests, the dev scripts.

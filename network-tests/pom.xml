@@ -3,7 +3,10 @@
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-	<!-- Tests only, never deployed: the round trips between a store and a head office, the installation proof and the guards over every project. Filled at code cleanup step 6.7. -->
+	<!--
+		Tests only, never deployed: the round trips between a store and a head office, the installation proofs and the
+		guards over every project. It sees both applications (their attached classes jars), as no deployed WAR does.
+	-->
 	<parent>
 		<groupId>com.digithink</groupId>
 		<artifactId>zsretail-parent</artifactId>
@@ -16,12 +19,36 @@
 		<dependency>
 			<groupId>com.digithink</groupId>
 			<artifactId>zsretail-store</artifactId>
+			<version>${project.version}</version>
+			<classifier>classes</classifier>
+			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>com.digithink</groupId>
 			<artifactId>zsretail-headoffice</artifactId>
 			<version>${project.version}</version>
 			<classifier>classes</classifier>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.digithink</groupId>
+			<artifactId>zsretail-connector-happyness</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.digithink</groupId>
+			<artifactId>zsretail-connector-emtop</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-tomcat</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<scope>provided</scope>
 		</dependency>
 	</dependencies>
 </project>
