@@ -1,4 +1,7 @@
-# ZS Retail — Head office plan (steps, tasks, tests)
+# ZS Retail — Head office plan (steps, tasks, tests; history)
+
+> History: the steps 0 to 9 of the head office, all done. The model they built: `docs/roadmap/head-office-design.md`; the
+> projects of today: `docs/projects.md`.
 
 Companion of `docs/roadmap/head-office-design.md`. One step = one session. Status is updated at the end of each session.
 

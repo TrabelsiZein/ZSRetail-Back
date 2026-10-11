@@ -1,10 +1,14 @@
 # ZS Retail — Regression checklist
 
-Companion of `docs/roadmap/head-office-plan.md` (test level L3). The scenarios replayed by hand on the existing profiles to prove that nothing changed. About 45 minutes per profile.
+Companion of `docs/history/head-office-plan.md` (test level L3). The scenarios replayed by hand on the existing profiles to prove that nothing changed. About 45 minutes per profile.
 
 ## 1. How to use
 
 **When:** before every merge of a `feature/ho-step-N` branch, on each profile: ERP dev, standalone, franchise pair (the franchise pair on 1.12.x only: its profiles are removed from 2.1, head office plan step 9, task 9.4a). The first run on release 1.12.0 is the baseline (section 7).
+
+Since code cleanup step 6.5 (`docs/deploy-note.md`): the store scenarios run on the store WAR (`StoreApplication`), the head
+office ones on the head office WAR (`HeadOfficeApplication`); "profile" here means the installation (its outside file of
+`configs/`).
 
 **Prepare once per database:**
 

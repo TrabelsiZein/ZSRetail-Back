@@ -1,4 +1,6 @@
-# Project sorting (code cleanup steps 5 and 6)
+# Project sorting (code cleanup steps 5 to 7, history)
+
+> History of the code cleanup that made the projects. What they are now: `docs/projects.md`.
 
 Target: Maven projects, one version, two applications.
 

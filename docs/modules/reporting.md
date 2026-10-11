@@ -77,8 +77,10 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
 - `src/views/admin/reports/LoyaltyReport.vue`
 - `src/views/admin/reports/SessionReport.vue`
 - `src/views/admin/reports/PromotionReport.vue`
-- `core/src/main/java/com/digithink/zsretail/core/service/ReportService.java`, `SalesReportService.java`, `ReportValues.java`
-- `core/src/main/java/com/digithink/zsretail/core/controller/ReportAPI.java`, `SalesReportAPI.java`
+- `core/src/main/java/com/digithink/zsretail/core/service/ReportService.java`, `ReportValues.java` (both applications);
+  `store/src/main/java/com/digithink/zsretail/store/service/SalesReportService.java` (the store)
+- `core/src/main/java/com/digithink/zsretail/core/controller/ReportAPI.java`;
+  `store/src/main/java/com/digithink/zsretail/store/controller/SalesReportAPI.java`
 
 ### Navigation & Router
 - Reports menu group in `navigation/vertical/index.js` with 7 entries (Sales, Purchases, Stock, StockMovements, Loyalty, Sessions, Promotions).

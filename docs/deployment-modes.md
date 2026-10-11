@@ -1,4 +1,4 @@
-# Deployment modes: two types, three files
+# Deployment modes: two applications (two types), three files
 
 **Status**: configuration step C1 (decision of 2026-10-04 evening), replacing the six presets and the mandatory machine
 file of task 9.3. An installation is a **type**, `store` or `headoffice`, plus an optional **outside file**. The rule "the ERP
@@ -103,11 +103,14 @@ one of the connector in effect. Outside the connector packages and the class abo
 **Startup summary**: one INFO line once the application is up (`core/config/InstallationSummary`), e.g.
 `Installation: type STORE, database pos_store_b, catalogue HEAD_OFFICE, customers LOCAL, promotions LOCAL, loyalty HEAD_OFFICE,
 supply HEAD_OFFICE, sales to [HEAD_OFFICE], ERP connector none, outside file D:\...\configs\dev\store-b.properties`. The connector
-(`none`, `emtop`, `happyness`) is worked out from the old lines in effect, whichever way they were set. With
-`emtop` it adds `NAV <base-url>`; never a password or a key.
+(`none` or a connector found: `emtop`, `happyness`) is worked out from the connectors' old lines in effect, whichever
+way they were set, or from `erp.connector` for a connector with no old line. With `emtop` it adds `NAV <base-url>` (what
+its descriptor declares); never a password or a key.
 
-**The `configs/` folder** (versioned): every file names its type and, when the old preset differed from the type file, states
-the mode lines that preset gave, so every key of every file resolves exactly as before step C1 (checked key by key).
+**The `configs/` folder** (versioned; `deploy/` joined it at code cleanup step 7): every file of the table names its type (as
+the files did for the single application; still accepted when it is the application's) and, when the old preset differed
+from the type file, states the mode lines that preset gave, so every key of every file resolves exactly as before step C1
+(checked key by key, `ConfigurationKeysProofTest`).
 
 | File | Type + mode lines | Was |
 |---|---|---|
@@ -123,6 +126,8 @@ the mode lines that preset gave, so every key of every file resolves exactly as 
 | `rehearsal/store-1.properties`, `store-2.properties` | `store` + the network lines | rehearsal (557, 558) |
 | `customers/erp-prod.properties` | `store` + the NAV lines | the customer on Dynamics NAV |
 | `customers/store-prod.properties` | `store` | the customer without an ERP |
+| `happyness-from-scratch/headoffice.properties`, `store-1.properties`, `store-2.properties` | `headoffice`, `store` + the network lines | the Happyness franchise first set up on this PC (889, 557, 558), without the ERP catalogue |
+| `local/happyness_ho.properties`, `happyness_store1.properties`, `happyness_store2.properties` | `headoffice` + the ERP catalogue, `store` + the network lines | this PC's Happyness test with its ERP catalogue (888, 991, 992); committed with `CHANGE_ME` |
 
 "The NAV lines": catalogue, customers, supply `ERP`, sales to `ERP`, connector on. "The network lines": catalogue and supply
 `HEAD_OFFICE`, sales to `HEAD_OFFICE`.
@@ -142,23 +147,24 @@ outside file of `configs/` like the application; it keeps the six shapes of task
 
 **New installation**
 1. Create the empty SQL Server database.
-2. Copy `configs/machine-model.properties`: database, log file and image folder (their own per installation), the type
-   (`headoffice` for a head office), and the mode lines when the installation is not a plain store or head office (a store on
+2. Copy `configs/machine-model.properties`: database, log file and image folder (their own per installation), no type
+   (the application is the type), and the mode lines when the installation is not a plain store or head office (a store on
    NAV, a store of a network: the variants in `application-store.properties`), with the NAV connection or the head office link.
    The ERP connector with `erp.connector` (section 2) rather than the old enabled lines.
 3. Put it at `${catalina.base}/conf/zsretail/<context name>.properties` (or point `-Dzsretail.machine-file` to it), deploy the
-   WAR, start Tomcat. Hibernate creates the tables; the logins of a new database are created at the first start.
+   WAR of its application as `zsretailws` (`docs/deploy-note.md`), start Tomcat. Hibernate creates the tables; the logins of a new database are created at the first start.
 4. A store of a network: create its row on the head office Stores page (code = the store's `DEFAULT_LOCATION`), put the key
    shown once into `headoffice.api-key` with `headoffice.url`, restart the store. Franchise network: `docs/modules/franchise.md`.
 5. Check the startup summary line in the log, and `GET /config` (`nodeType`, `ownership`, `salesUpstreams`).
 
 **Upgrade of a 2.1 installation built on the presets**: in its outside file, replace `spring.profiles.active=<preset>` with the
 type and the mode lines of that preset (table above, or `support/Installations`); `store` and `headoffice` need nothing.
+Since code cleanup step 6.5 the installation runs the WAR of its type.
 
 **Upgrade from before 2.1** (an old profile): its outside file is the matching file of `configs/customers/` when there is one;
 otherwise copy the old profile file, add the type and mode lines (standalone-* is `store`; dynamics-* is `store` + the NAV
 lines; headoffice-dev is `headoffice`), remove `application.standalone`, and remove any `spring.profiles.active` from the Tomcat
-options. Then the release's `update.sql`, the WAR, a start, and the checks above.
+options. Then the release's `update.sql`, the WAR of its type, a start, and the checks above.
 
 ## 4. Ownership model (resolved at startup)
 

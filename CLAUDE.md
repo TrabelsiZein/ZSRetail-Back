@@ -15,7 +15,7 @@ the development contract; this file covers backend specifics only.
 ## Maven projects (code cleanup step 6)
 
 Each folder below is a project with its `pom.xml`; the parent lists them. What goes where and the rules between them:
-`docs/roadmap/project-sorting.md`; the two WARs: `docs/deploy-note.md`.
+`docs/projects.md`; the two WARs: `docs/deploy-note.md`.
 
 | Folder | Artifact | Package root | Uses (of ours) |
 |---|---|---|---|
@@ -114,5 +114,6 @@ touching it.
 
 ## Documentation
 
-All ZS Retail documentation lives in `docs/` in this repo — index in `../../CLAUDE.md`.
+All ZS Retail documentation lives in `docs/` in this repo — index in `docs/README.md` (and `../../CLAUDE.md`); what past
+steps did is in `docs/history/`.
 Keep the relevant `docs/modules/*.md` updated in the same commit as the code change.

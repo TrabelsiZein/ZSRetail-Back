@@ -40,7 +40,7 @@ import com.digithink.zsretail.erp.api.ErpConnectors;
  * </ul>
  * A reference is an import, a class of the same package named in the code, or a fully qualified name in the code
  * (comments and strings left out). What still breaks a rule today is the allow-list below, each line with its reason;
- * a line nothing needs any more fails too, so the list stays exact. The sorting: docs/roadmap/project-sorting.md.
+ * a line nothing needs any more fails too, so the list stays exact. The sorting: docs/projects.md.
  */
 public class ProjectSortingGuardTest {
 

@@ -6,7 +6,7 @@
 	<!--
 		Code cleanup step 6: the parent of every ZS Retail project, one version for all of them (the product version).
 		Build and test from this folder (the reactor builds the projects in dependency order). The projects and the
-		rules between them: docs/roadmap/project-sorting.md.
+		rules between them: docs/projects.md.
 	-->
 	<parent>
 		<groupId>org.springframework.boot</groupId>
