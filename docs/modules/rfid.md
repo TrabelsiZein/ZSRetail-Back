@@ -1,6 +1,6 @@
 # RFID
 
-**Status**: release 3.1.0, being built (back end steps 1 to 4 done). A store reads the RFID tags of its pieces with
+**Status**: release 3.1.0, being built (back end steps 1 to 5 done). A store reads the RFID tags of its pieces with
 Hopeland readers (HZ100, TCP/IP) on its network, through the vendor's Java SDK. First customer: ZEN (franchise stores,
 clothes).
 
@@ -113,8 +113,34 @@ readers read at the same time. The lock is freed whatever happens (a failure inc
 
 Tests: `RfidTagCollectorTest`, `RfidReadServiceTest` (with `FakeRfidReader`), `RfidBeansTest`.
 
-Until step 5 there is no `RfidReaderDevice` in the WAR: a start with `rfid.enabled=true` stops (no bean for
-`RfidReadService`). With `false` nothing changes.
+## The Hopeland reader (RFID step 5)
+
+`store.rfid.reader.HopelandRfidReader`, the `RfidReaderDevice` of the WAR (conditional), the only class that uses the
+SDK (`com.rfidread`):
+- **TCP check first**: a plain TCP connection to ip:port, 2000 ms at most, closed at once. No answer: `UNREACHABLE`
+  (`The RFID reader 'R' does not answer at ip:port (no connection within 2 s): is it on, and on this network?`) without
+  calling the SDK, so no 5 s wait and no SDK stack trace in the log. The reader accepts the SDK's connection right after.
+- **A connection for each request**, closed in a `finally`. The SDK keeps its connections in one static map that is not
+  thread-safe: every connect and close holds one lock for the whole SDK; the reads themselves run in parallel, one per
+  reader (`RfidReadService`). The SDK refusing the connection (another program connected to the reader, such as the
+  vendor's tool): `UNREACHABLE` `... answers at ip:port but refuses the connection ...`.
+- **A read**: stop, set the power of antenna 1 only when it differs from the reader's (`GetANTPowerParam`, then
+  `SetANTPowerParam`: a change may be written to the reader's memory), `GetEPC` on antenna 1 (`Inventory`), wait the
+  reading time, stop, wait 300 ms for the last reports, close. One INFO line per read (reader, tags, time).
+- **Shutdown**: every connection still open is closed (`@PreDestroy`).
+
+Tests: `HopelandRfidReaderTest` (no reader: a closed port is `UNREACHABLE` at once and the SDK is never called; an
+address that never answers is `UNREACHABLE` within the TCP check). **Manual test, out of the normal suite**,
+`HopelandRfidReaderManualTest`, runs only with the reader's address:
+
+```
+mvn test -pl store -am -Dtest=HopelandRfidReaderManualTest -Dsurefire.failIfNoSpecifiedTests=false \
+    -Drfid.reader=192.168.100.200:9090 [-Drfid.reader.power=30] [-Drfid.reader.absent=192.168.100.201:9090]
+```
+
+(with the JDK and settings of the root `CLAUDE.md`). Result on the dev desk reader, 2026-10-11, 15 tags in front of
+it: test connection 83 ms (`V5.4.0.1|Ex10APN32G4FR build: 23110711`); two reads of 1500 ms, 15 tags each, 1853 ms
+each; the absent address `UNREACHABLE` after 2016 ms.
 
 ## The SDK
 
