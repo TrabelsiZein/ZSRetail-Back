@@ -32,6 +32,7 @@ class RfidReaderAPITest {
 				.andExpect(jsonPath("$.name").value("Caisse 1"))
 				.andExpect(jsonPath("$.power").value(30))
 				.andExpect(jsonPath("$.readTimeMs").value(1500))
+				.andExpect(jsonPath("$.minSignal").value(-50))
 				.andExpect(jsonPath("$.active").value(true));
 		mvc.perform(from("192.168.1.50", get("/rfid-reader"))).andExpect(status().isOk())
 				.andExpect(jsonPath("$[0].name").value("Caisse 1"));
@@ -112,7 +113,11 @@ class RfidReaderAPITest {
 				.andExpect(jsonPath("$.readTimeMs").value(1500))
 				.andExpect(jsonPath("$.tags[0].epc").value("E2001"))
 				.andExpect(jsonPath("$.tags[0].bestRssi").value(-44.0))
-				.andExpect(jsonPath("$.tags[0].seen").value(2));
+				.andExpect(jsonPath("$.tags[0].seen").value(2))
+				.andExpect(jsonPath("$.tags[0].weak").value(false))
+				.andExpect(jsonPath("$.minSignal").value(-50))
+				.andExpect(jsonPath("$.lowestRssi").value(-44.0))
+				.andExpect(jsonPath("$.highestRssi").value(-44.0));
 		reader.setActive(false);
 		mvc.perform(from("192.168.1.50", post("/rfid-reader/" + reader.getId() + "/test-read")))
 				.andExpect(status().isConflict())

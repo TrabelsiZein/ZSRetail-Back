@@ -79,7 +79,7 @@ class RfidTagAPITest {
 				.andExpect(jsonPath("$.newTags[0].weak").value(false))
 				.andExpect(jsonPath("$.otherItem[0].otherItemName").value("Item JEANS"))
 				.andExpect(jsonPath("$.otherItem[0].weak").value(true))
-				.andExpect(jsonPath("$.weakMarginDb").value(10));
+				.andExpect(jsonPath("$.minSignal").value(-50));
 		mvc.perform(json(post("/rfid-tag/assignment/read"), "{\"itemId\":" + shirt.getId() + "}"))
 				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").value("Choose a reader."));
 		fixture.device.unreachable("192.168.100.200:9090");

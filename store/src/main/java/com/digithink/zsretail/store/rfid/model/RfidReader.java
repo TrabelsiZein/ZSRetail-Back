@@ -32,6 +32,9 @@ public class RfidReader extends _BaseEntity {
 	public static final int MIN_READ_TIME_MS = 100;
 	public static final int MAX_READ_TIME_MS = 10000;
 	public static final int DEFAULT_READ_TIME_MS = 1500;
+	public static final int MIN_MIN_SIGNAL = -90;
+	public static final int MAX_MIN_SIGNAL = 0;
+	public static final int DEFAULT_MIN_SIGNAL = -50;
 
 	/** Unique, any case (e.g. "Caisse 1"). */
 	@Column(name = "name", nullable = false, length = 100)
@@ -52,4 +55,11 @@ public class RfidReader extends _BaseEntity {
 	/** How long a read lasts, in milliseconds, MIN_READ_TIME_MS to MAX_READ_TIME_MS. */
 	@Column(name = "read_time_ms", nullable = false)
 	private Integer readTimeMs = DEFAULT_READ_TIME_MS;
+
+	/**
+	 * RFID weak tags: a tag whose best signal (dB) is below this is marked weak (likely a piece further away, not on the
+	 * reader), MIN_MIN_SIGNAL to MAX_MIN_SIGNAL; tuned with the lowest and highest signal of a Test read.
+	 */
+	@Column(name = "min_signal", nullable = false)
+	private Integer minSignal = DEFAULT_MIN_SIGNAL;
 }

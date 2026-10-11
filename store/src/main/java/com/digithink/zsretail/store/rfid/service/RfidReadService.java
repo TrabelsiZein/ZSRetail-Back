@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -120,9 +121,27 @@ public class RfidReadService {
 	private RfidReadResult read(RfidReader reader, PosMachine machine) {
 		long start = System.nanoTime();
 		int millis = reader.getReadTimeMs();
-		List<RfidTag> tags = alone(reader, () -> device.read(reader, millis));
-		return new RfidReadResult(machine == null ? null : machine.getName(), reader.getName(), millis,
-				millisSince(start), tags);
+		List<RfidTag> seen = alone(reader, () -> device.read(reader, millis));
+		int minSignal = reader.getMinSignal() == null ? RfidReader.DEFAULT_MIN_SIGNAL : reader.getMinSignal();
+		RfidReadResult result = new RfidReadResult();
+		result.setPosMachineName(machine == null ? null : machine.getName());
+		result.setReaderName(reader.getName());
+		result.setReadTimeMs(millis);
+		result.setDurationMs(millisSince(start));
+		result.setTags(seen.stream().map(tag -> tag.withWeak(isWeak(tag.getBestRssi(), minSignal)))
+				.collect(Collectors.toList()));
+		result.setMinSignal(minSignal);
+		seen.stream().mapToDouble(RfidTag::getBestRssi).min().ifPresent(result::setLowestRssi);
+		seen.stream().mapToDouble(RfidTag::getBestRssi).max().ifPresent(result::setHighestRssi);
+		return result;
+	}
+
+	/**
+	 * RFID weak tags, the one rule (the Test read and the assignment): a tag is weak when its best signal is below the
+	 * reader's minimum signal.
+	 */
+	public static boolean isWeak(double bestRssi, int minSignal) {
+		return bestRssi < minSignal;
 	}
 
 	/** The work, holding the reader's lock; BUSY at once when another request holds it. */

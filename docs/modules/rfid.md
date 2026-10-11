@@ -69,6 +69,7 @@ database with `ho_store` is a head office), and by `ddl-auto` with the same name
 | `port` | int NOT NULL | 1 to 65535; the address and port pair unique (`uk_rfid_reader_address`) |
 | `power` | int NOT NULL | 0 to 30 (the vendor's limit for the HZ100 is not known yet), default 30 |
 | `read_time_ms` | int NOT NULL | 100 to 10000, default 1500 |
+| `min_signal` | int NOT NULL, default -50 (`df_rfid_reader_min_signal`) | -90 to 0 dB: a tag whose best signal is below it is **weak** ("A tag below this signal is marked weak") |
 | `active` | bit | an inactive reader is never read; default true |
 
 A reader still linked to a POS machine is not deleted: `This reader is used by the POS machines A, B: give them another
@@ -122,8 +123,14 @@ unreachable or failing address, a read held open). No key chooses between them: 
 | `testRead(readerId)` | a read for the reader's reading time: `RfidReadResult` without a POS machine | `NOT_FOUND`; `NOT_READY` inactive reader |
 | `readForRequest(remoteAddress)` | a read with the reader of the POS machine whose address the request comes from | below |
 
-`RfidReadResult`: `posMachineName` (null for a test read), `readerName`, `readTimeMs`, `durationMs`, `tags`. Every read
-names the reader, and the POS machine when there is one.
+`RfidReadResult`: `posMachineName` (null for a test read), `readerName`, `readTimeMs`, `durationMs`, `tags` (each with
+`weak`), `minSignal`, `lowestRssi`, `highestRssi` (the lowest and highest best signal of the read, null without a tag:
+to tune the reader's minimum signal). Every read names the reader, and the POS machine when there is one.
+
+**Weak tags** (decision of 2026-10-11, replacing "10 dB below the best tag of the read", which marked 2 of 5 tags lying
+on the reader, -23 -25 -25 -37 -44, as weak): a tag is weak when its best signal is below the reader's `min_signal`
+(default -50; equal is not weak). One rule, `RfidReadService.isWeak`, applied to every read: the Test read shows it, the
+assignment takes it. The 3.1.0 script adds the column to a `rfid_reader` made before it, -50 for the readers there.
 
 Refusals of `readForRequest`, the reader never called:
 - `NOT_FOUND`: `No POS machine has the address 192.168.1.99: add this machine on the RFID POS machines page (it needs a
@@ -254,8 +261,7 @@ Tests: `RfidTagServiceTest`, `RfidItemDeletionTest` (the real `ItemAPI`), `RfidT
 **Read** (`POST /rfid-tag/assignment/read {readerId, itemId, expectedQuantity}`): the item exists and is active; the
 expected quantity none or 0 to 100000. The reader is read like a Test read (`RfidReadService.testRead`: the same
 refusals, inactive 409, busy 409, unreachable 503, error 502). The tags seen, each with its best signal, times seen and
-**weak** (a signal more than `WEAK_MARGIN_DB` = 10 dB below the best of this read: likely a piece further away), in four
-groups for the item:
+**weak** (its best signal below the reader's minimum signal: likely a piece further away), in four groups for the item:
 
 | Group | The tag | On save |
 |---|---|---|
@@ -264,7 +270,7 @@ groups for the item:
 | `otherItem` (OTHER_ITEM) | on another item (`otherItemId`, `otherItemCode`, `otherItemName`) | refused, never changed (the Tags page moves a tag) |
 | `sold` (SOLD) | sold (with its item) | refused, never changed |
 
-Plus `newCount`, `sameItemCount`, `otherItemCount`, `soldCount`, `expectedQuantity`, `bestRssi`, `weakMarginDb`,
+Plus `newCount`, `sameItemCount`, `otherItemCount`, `soldCount`, `expectedQuantity`, `bestRssi`, `minSignal`,
 `readerName`, `readTimeMs`, `durationMs`. A read writes nothing.
 
 **Save** (`POST /rfid-tag/assignment/save {itemId, epcs, sourceType, sourceDocument, sourceLine}`): checked again on the
@@ -329,7 +335,7 @@ router guard (home) and the search bar hide them, like the other store-mode page
   machine (`/rfid/my-machine`, matched by name), else none. The item by scanning a barcode or by search (`ItemPicker`:
   `/item/search` while typing; on Enter the exact barcode `/item-barcode/barcode/{code}` first, then the only result or
   the exact code). The expected quantity (optional). **Read**: the counts, NEW ticked except the weak ones (marked
-  "weak", tooltip with the margin), OTHER_ITEM in red with their item, SAME_ITEM and SOLD shown; a warning when the
+  "weak", tooltip with the reader's minimum signal), OTHER_ITEM in red with their item, SAME_ITEM and SOLD shown; a warning when the
   ticked count differs from the expected quantity. **Save** ("Link N tags"): the ticked NEW tags, then what was linked,
   already on the item, and each refusal with the back end's message.
 - **Delivery reception** (`views/admin/holink/DeliveryReception.vue`): on each item line of the four tables (to receive

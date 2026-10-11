@@ -1,6 +1,7 @@
 package com.digithink.zsretail.store.rfid.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -65,6 +66,31 @@ class RfidReadServiceTest {
 		assertEquals(-45, result.getTags().get(0).getBestRssi());
 		assertEquals(2, result.getTags().get(0).getSeen());
 		assertEquals(Arrays.asList("read 192.168.100.200:9090 power 25 for 800 ms"), device.calls);
+	}
+
+	@Test
+	@DisplayName("RFID weak tags, Test read: each tag weak below the reader's minimum signal; the minimum, the lowest and"
+			+ " the highest signal of the read, to tune it; none without a tag")
+	void testReadWeak() {
+		device.report("192.168.100.200:9090", "E2001", -23).report("192.168.100.200:9090", "E2002", -44)
+				.report("192.168.100.200:9090", "E2003", -61).report("192.168.100.200:9090", "E2003", -58);
+		RfidReadResult result = service.testRead(desk.getId());
+		assertEquals(-50, result.getMinSignal());
+		assertEquals(-58.0, result.getLowestRssi(), "the best signal of each tag, the lowest of them");
+		assertEquals(-23.0, result.getHighestRssi());
+		assertEquals(Arrays.asList(false, false, true),
+				result.getTags().stream().map(RfidTag::isWeak).collect(Collectors.toList()));
+
+		desk.setMinSignal(-30);
+		assertEquals(Arrays.asList(false, true, true),
+				service.testRead(desk.getId()).getTags().stream().map(RfidTag::isWeak).collect(Collectors.toList()));
+
+		RfidReadResult none = service.testRead(door.getId());
+		assertNull(none.getLowestRssi());
+		assertNull(none.getHighestRssi());
+		assertEquals(-50, none.getMinSignal());
+		assertTrue(RfidReadService.isWeak(-50.5, -50));
+		assertFalse(RfidReadService.isWeak(-50, -50));
 	}
 
 	@Test

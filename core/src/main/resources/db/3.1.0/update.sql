@@ -49,10 +49,18 @@ BEGIN
 		port int NOT NULL,
 		power int NOT NULL,
 		read_time_ms int NOT NULL,
+		min_signal int NOT NULL CONSTRAINT df_rfid_reader_min_signal DEFAULT -50,
 		CONSTRAINT PK_rfid_reader PRIMARY KEY (id),
 		CONSTRAINT uk_rfid_reader_name UNIQUE (name),
 		CONSTRAINT uk_rfid_reader_address UNIQUE (ip_address, port)
 	);
+END
+GO
+-- RFID weak tags: the reader's minimum signal (dB), -50 for the readers already there (a table made before this column,
+-- by this script or by ddl-auto)
+IF OBJECT_ID(N'rfid_reader', N'U') IS NOT NULL AND COL_LENGTH('rfid_reader', 'min_signal') IS NULL
+BEGIN
+	ALTER TABLE rfid_reader ADD min_signal int NOT NULL CONSTRAINT df_rfid_reader_min_signal DEFAULT -50 WITH VALUES;
 END
 GO
 IF OBJECT_ID(N'ho_store', N'U') IS NULL AND OBJECT_ID(N'pos_machine', N'U') IS NULL

@@ -36,8 +36,8 @@ import com.digithink.zsretail.store.rfid.repository.RfidTagRepository;
  * RFID tags step: linking tags to an item (docs/modules/rfid.md, "Tag assignment").
  * <ul>
  * <li>{@link #read}: reads a reader (RfidReadService.testRead: the same refusals, inactive, busy, unreachable) and
- * sorts the tags seen into NEW, SAME_ITEM, OTHER_ITEM, SOLD for the item, each "weak" when its signal is more than
- * {@value #WEAK_MARGIN_DB} dB below the best of the read. Writes nothing.</li>
+ * sorts the tags seen into NEW, SAME_ITEM, OTHER_ITEM, SOLD for the item, each "weak" when its best signal is below the
+ * reader's minimum signal (RfidReadService.isWeak, the rule of the Test read too). Writes nothing.</li>
  * <li>{@link #save}: links the EPCs kept by the user, checked again on the server: only an unknown tag is linked; a tag
  * on this item is left as it is (saving twice changes nothing); a tag on another item or sold is refused and reported,
  * never changed. One save at a time in this store (a lock, then one transaction), so two users never link one tag
@@ -49,8 +49,6 @@ import com.digithink.zsretail.store.rfid.repository.RfidTagRepository;
 @ConditionalOnInstallation(Installation.RFID)
 public class RfidAssignmentService {
 
-	/** A tag whose signal is more than this below the best of the read is "weak" (a constant for now). */
-	public static final int WEAK_MARGIN_DB = 10;
 	static final int MAX_EXPECTED = 100000;
 	/** The most EPCs one save takes. */
 	static final int MAX_EPCS = 5000;
@@ -115,7 +113,7 @@ public class RfidAssignmentService {
 		answer.setExpectedQuantity(expected);
 		answer.setReadTimeMs(result.getReadTimeMs());
 		answer.setDurationMs(result.getDurationMs());
-		answer.setWeakMarginDb(WEAK_MARGIN_DB);
+		answer.setMinSignal(result.getMinSignal());
 
 		// The tags seen (the reader's RfidTag, not the table's)
 		List<com.digithink.zsretail.store.rfid.reader.RfidTag> seen = result.getTags().stream()
@@ -134,7 +132,7 @@ public class RfidAssignmentService {
 			row.setEpc(epc);
 			row.setBestRssi(tag.getBestRssi());
 			row.setSeen(tag.getSeen());
-			row.setWeak(tag.getBestRssi() < best - WEAK_MARGIN_DB);
+			row.setWeak(tag.isWeak());
 			RfidTag stored = known.get(epc);
 			if (stored == null) {
 				row.setGroup(Group.NEW);

@@ -9,8 +9,8 @@ import lombok.NoArgsConstructor;
 /**
  * RFID tags step: the answer of an assignment read. The tags the reader saw now, in four groups for this item: NEW
  * (unknown, would be linked), SAME_ITEM (already on this item, ignored), OTHER_ITEM (on another item, with it; never
- * changed here), SOLD (never changed here). Each tag with its signal, times seen and "weak": a signal more than
- * {@link #weakMarginDb} dB below the best of this read (likely a piece further away, not on the table).
+ * changed here), SOLD (never changed here). Each tag with its signal, times seen and "weak": its best signal is below
+ * the reader's {@link #minSignal} (likely a piece further away, not on the reader).
  */
 @Data
 @NoArgsConstructor
@@ -46,7 +46,8 @@ public class RfidAssignmentRead {
 	private long durationMs;
 	/** The best signal of this read (dB), null without any tag. */
 	private Double bestRssi;
-	private int weakMarginDb;
+	/** The reader's minimum signal (dB): a tag below it is weak. */
+	private Integer minSignal;
 
 	private List<Tag> newTags = new ArrayList<>();
 	private List<Tag> sameItem = new ArrayList<>();

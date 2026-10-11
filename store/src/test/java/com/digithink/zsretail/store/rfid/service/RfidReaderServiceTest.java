@@ -39,18 +39,21 @@ class RfidReaderServiceTest {
 		RfidReader in = reader("  Caisse 1 ", " 192.168.100.200 ", 9090);
 		in.setPower(null);
 		in.setReadTimeMs(null);
+		in.setMinSignal(null);
 		in.setActive(null);
 		RfidReader saved = rfid.readerService.save(in);
 		assertEquals("Caisse 1", saved.getName());
 		assertEquals("192.168.100.200", saved.getIpAddress());
 		assertEquals(30, saved.getPower());
 		assertEquals(1500, saved.getReadTimeMs());
+		assertEquals(-50, saved.getMinSignal());
 		assertTrue(saved.getActive());
 		assertEquals("tester", saved.getCreatedBy());
 		assertEquals(1, rfid.readers.size());
 		// A new reader object already has the defaults
 		assertEquals(30, new RfidReader().getPower());
 		assertEquals(1500, new RfidReader().getReadTimeMs());
+		assertEquals(-50, new RfidReader().getMinSignal());
 	}
 
 	@Test
@@ -114,6 +117,22 @@ class RfidReaderServiceTest {
 			r.setReadTimeMs(time);
 			assertRefused("The reading time must be from 100 to 10000 ms, not " + time + ".",
 					() -> rfid.readerService.save(r));
+		}
+	}
+
+	@Test
+	@DisplayName("RFID weak tags: the minimum signal -90 to 0 dB, the limits included")
+	void minSignal() {
+		RfidReader low = reader("Low", "10.0.0.1", 9090);
+		low.setMinSignal(-90);
+		assertDoesNotThrow(() -> rfid.readerService.save(low));
+		RfidReader high = reader("High", "10.0.0.2", 9090);
+		high.setMinSignal(0);
+		assertDoesNotThrow(() -> rfid.readerService.save(high));
+		for (int value : new int[] { -91, 1 }) {
+			RfidReader r = reader("R", "10.0.0.3", 9090);
+			r.setMinSignal(value);
+			assertRefused("The minimum signal must be from -90 to 0 dB, not " + value + ".", () -> rfid.readerService.save(r));
 		}
 	}
 

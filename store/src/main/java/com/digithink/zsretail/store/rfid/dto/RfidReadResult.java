@@ -4,7 +4,6 @@ import java.util.List;
 
 import com.digithink.zsretail.store.rfid.reader.RfidTag;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -14,7 +13,6 @@ import lombok.NoArgsConstructor;
  */
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
 public class RfidReadResult {
 
 	/** The POS machine the read was made for; null for a test read. */
@@ -28,6 +26,11 @@ public class RfidReadResult {
 	/** How long the whole request took, in ms (connect, read, stop, disconnect). */
 	private long durationMs;
 
-	/** Every tag seen, once, by EPC. */
+	/** Every tag seen, once, by EPC; weak when its best signal is below minSignal. */
 	private List<RfidTag> tags;
+
+	/** RFID weak tags: the reader's minimum signal (dB), the lowest and highest best signal of the read (null: no tag). */
+	private Integer minSignal;
+	private Double lowestRssi;
+	private Double highestRssi;
 }

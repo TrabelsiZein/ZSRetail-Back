@@ -92,7 +92,7 @@ class RfidAssignmentServiceTest {
 		assertEquals("Item SHIRT", answer.getItemName());
 		assertEquals(3, answer.getExpectedQuantity());
 		assertEquals(1500, answer.getReadTimeMs());
-		assertEquals(10, answer.getWeakMarginDb());
+		assertEquals(-50, answer.getMinSignal());
 		assertEquals(-45.0, answer.getBestRssi());
 
 		assertEquals(Arrays.asList("E200DDDD", "E200EEEE"), epcs(answer.getNewTags()));
@@ -118,14 +118,29 @@ class RfidAssignmentServiceTest {
 	}
 
 	@Test
-	@DisplayName("Weak: a signal more than 10 below the best of the read; exactly 10 below is not weak")
+	@DisplayName("Weak: a best signal below the reader's minimum signal (default -50; equal is not weak); the 5 tags on the"
+			+ " reader of the real test (-23 to -44) are all strong; a minimum of -40 marks -44 only")
 	void weak() {
-		device.report(DESK, "E2000001", -40).report(DESK, "E2000002", -50).report(DESK, "E2000003", -50.5)
-				.report(DESK, "E2000004", -70);
-		RfidAssignmentRead answer = service.read(read(desk.getId(), shirt.getId(), null));
-		List<Boolean> weak = answer.getNewTags().stream().map(RfidAssignmentRead.Tag::isWeak).collect(Collectors.toList());
-		assertEquals(Arrays.asList(false, false, true, true), weak);
-		assertNull(answer.getExpectedQuantity());
+		device.report(DESK, "E2000001", -23).report(DESK, "E2000002", -25).report(DESK, "E2000003", -25)
+				.report(DESK, "E2000004", -37).report(DESK, "E2000005", -44);
+		RfidAssignmentRead onReader = service.read(read(desk.getId(), shirt.getId(), null));
+		assertEquals(Arrays.asList(false, false, false, false, false), weakOf(onReader), "the real test: none weak");
+		assertEquals(-50, onReader.getMinSignal());
+
+		desk.setMinSignal(-40);
+		RfidAssignmentRead stricter = service.read(read(desk.getId(), shirt.getId(), null));
+		assertEquals(Arrays.asList(false, false, false, false, true), weakOf(stricter));
+		assertEquals(-40, stricter.getMinSignal());
+
+		desk.setMinSignal(-50);
+		device.report(DESK, "E2000006", -50).report(DESK, "E2000007", -50.5).report(DESK, "E2000008", -70);
+		RfidAssignmentRead edges = service.read(read(desk.getId(), shirt.getId(), null));
+		assertEquals(Arrays.asList(false, false, false, false, false, false, true, true), weakOf(edges));
+		assertNull(edges.getExpectedQuantity());
+	}
+
+	private static List<Boolean> weakOf(RfidAssignmentRead answer) {
+		return answer.getNewTags().stream().map(RfidAssignmentRead.Tag::isWeak).collect(Collectors.toList());
 	}
 
 	@Test

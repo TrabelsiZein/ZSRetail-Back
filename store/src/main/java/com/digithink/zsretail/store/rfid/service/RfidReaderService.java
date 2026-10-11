@@ -22,7 +22,8 @@ import com.digithink.zsretail.store.rfid.repository.RfidReaderRepository;
  * most 100 characters, unique in any case), an IPv4 address and a port 1 to 65535 (the pair unique), a power
  * {@value RfidReader#MIN_POWER} to {@value RfidReader#MAX_POWER} (default {@value RfidReader#DEFAULT_POWER}) and a
  * reading time {@value RfidReader#MIN_READ_TIME_MS} to {@value RfidReader#MAX_READ_TIME_MS} ms (default
- * {@value RfidReader#DEFAULT_READ_TIME_MS}); a reader still linked to a POS machine is not deleted. Every refusal is an
+ * {@value RfidReader#DEFAULT_READ_TIME_MS}), a minimum signal {@value RfidReader#MIN_MIN_SIGNAL} to
+ * {@value RfidReader#MAX_MIN_SIGNAL} dB (default {@value RfidReader#DEFAULT_MIN_SIGNAL}); a reader still linked to a POS machine is not deleted. Every refusal is an
  * {@link RfidException} INVALID with its message.
  */
 @Service
@@ -96,6 +97,13 @@ public class RfidReaderService extends _BaseService<RfidReader, Long> {
 		if (reader.getReadTimeMs() < RfidReader.MIN_READ_TIME_MS || reader.getReadTimeMs() > RfidReader.MAX_READ_TIME_MS) {
 			throw new RfidException(Reason.INVALID, "The reading time must be from " + RfidReader.MIN_READ_TIME_MS
 					+ " to " + RfidReader.MAX_READ_TIME_MS + " ms, not " + reader.getReadTimeMs() + ".");
+		}
+		if (reader.getMinSignal() == null) {
+			reader.setMinSignal(RfidReader.DEFAULT_MIN_SIGNAL);
+		}
+		if (reader.getMinSignal() < RfidReader.MIN_MIN_SIGNAL || reader.getMinSignal() > RfidReader.MAX_MIN_SIGNAL) {
+			throw new RfidException(Reason.INVALID, "The minimum signal must be from " + RfidReader.MIN_MIN_SIGNAL + " to "
+					+ RfidReader.MAX_MIN_SIGNAL + " dB, not " + reader.getMinSignal() + ".");
 		}
 		if (reader.getActive() == null) {
 			reader.setActive(true);
