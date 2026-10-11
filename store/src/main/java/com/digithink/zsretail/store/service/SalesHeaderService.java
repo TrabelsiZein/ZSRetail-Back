@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -120,6 +121,10 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	@Autowired
 	private QuantityPolicy quantityPolicy;
 
+	/** What follows the tagged pieces of the tickets (RFID); none by default. */
+	@Autowired(required = false)
+	private ObjectProvider<SaleTagHooks> saleTagHooks;
+
 	@Override
 	protected _BaseRepository<SalesHeader, Long> getRepository() {
 		return salesHeaderRepository;
@@ -211,6 +216,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 		// Create sales lines
 		List<SalesLine> salesLines = new ArrayList<>();
+		List<SaleTagHooks.LineTags> lineTags = new ArrayList<>();
 		for (ProcessSaleRequestDTO.SaleLineDTO lineDTO : request.getLines()) {
 			Item item = itemRepository.findById(lineDTO.getItemId())
 					.orElseThrow(() -> new IllegalArgumentException("Item not found: " + lineDTO.getItemId()));
@@ -270,6 +276,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 			salesLine = salesLineService.save(salesLine);
 			salesLines.add(salesLine);
+			addLineTags(lineTags, salesLine, lineDTO);
 			log.info("Sales line created: " + salesLine.getId());
 
 			// FREE_QUANTITY promotion: create a second line for the free items (qty=freeQuantity, total=0)
@@ -313,6 +320,11 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 		// Update stock (standalone only; shared helper)
 		decrementStockForSalesLines(salesLines, salesHeader);
+
+		SaleTagHooks tagHook = saleTagHook();
+		if (tagHook != null) {
+			tagHook.ticketCompleted(salesHeader, lineTags);
+		}
 
 		triggerSessionExportForPayments(payments, salesHeader);
 
@@ -395,6 +407,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 		// Create sales lines
 		List<SalesLine> salesLines = new ArrayList<>();
+		List<SaleTagHooks.LineTags> lineTags = new ArrayList<>();
 		for (ProcessSaleRequestDTO.SaleLineDTO lineDTO : request.getLines()) {
 			Item item = itemRepository.findById(lineDTO.getItemId())
 					.orElseThrow(() -> new IllegalArgumentException("Item not found: " + lineDTO.getItemId()));
@@ -409,7 +422,13 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 			salesLine = salesLineService.save(salesLine);
 			salesLines.add(salesLine);
+			addLineTags(lineTags, salesLine, lineDTO);
 			log.info("Pending sales line created: " + salesLine.getId());
+		}
+
+		SaleTagHooks tagHook = saleTagHook();
+		if (tagHook != null) {
+			tagHook.ticketHeld(salesHeader, lineTags);
 		}
 
 		// Note: No payments are created for pending sales
@@ -457,6 +476,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		salesLineRepository.deleteBySalesHeader(salesHeader);
 
 		Customer customer = salesHeader.getCustomer();
+		List<SaleTagHooks.LineTags> lineTags = new ArrayList<>();
 		for (ProcessSaleRequestDTO.SaleLineDTO lineDTO : request.getLines()) {
 			Item item = itemRepository.findById(lineDTO.getItemId())
 					.orElseThrow(() -> new IllegalArgumentException("Item not found: " + lineDTO.getItemId()));
@@ -467,6 +487,12 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			salesLine.setQuantity(lineDTO.getQuantity());
 			applyPricingToSalesLine(salesLine, item, customer, lineDTO);
 			salesLineService.save(salesLine);
+			addLineTags(lineTags, salesLine, lineDTO);
+		}
+
+		SaleTagHooks tagHook = saleTagHook();
+		if (tagHook != null) {
+			tagHook.ticketHeld(salesHeader, lineTags);
 		}
 
 		log.info("Pending sale updated successfully: " + salesHeader.getSalesNumber());
@@ -529,6 +555,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 		// Create new sales lines based on current cart (may have changed)
 		List<SalesLine> salesLines = new ArrayList<>();
+		List<SaleTagHooks.LineTags> lineTags = new ArrayList<>();
 		for (ProcessSaleRequestDTO.SaleLineDTO lineDTO : request.getLines()) {
 			Item item = itemRepository.findById(lineDTO.getItemId())
 					.orElseThrow(() -> new IllegalArgumentException("Item not found: " + lineDTO.getItemId()));
@@ -562,6 +589,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 			salesLine = salesLineService.save(salesLine);
 			salesLines.add(salesLine);
+			addLineTags(lineTags, salesLine, lineDTO);
 			log.info("Created new sales line: " + salesLine.getId() + " for pending sale completion");
 
 			// Create free line for FREE_QUANTITY promotions
@@ -609,6 +637,11 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 		// Loyalty points, as for a direct sale; before the export so the deduction is included
 		salesHeader = processLoyaltyPoints(salesHeader, loyaltyMember, request, currentSession, taxStampAmount);
+
+		SaleTagHooks tagHook = saleTagHook();
+		if (tagHook != null) {
+			tagHook.ticketCompleted(salesHeader, lineTags);
+		}
 
 		log.info("Pending sale completed successfully: " + salesHeader.getSalesNumber());
 
@@ -1296,7 +1329,25 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		salesHeader.setStatus(TransactionStatus.CANCELLED);
 		save(salesHeader);
 
+		SaleTagHooks tagHook = saleTagHook();
+		if (tagHook != null) {
+			tagHook.ticketCancelled(salesHeader);
+		}
+
 		log.info("Pending sale cancelled successfully: " + salesHeader.getSalesNumber());
+	}
+
+	/** The hook that follows the tagged pieces (RFID); null when there is none. */
+	private SaleTagHooks saleTagHook() {
+		return saleTagHooks == null ? null : saleTagHooks.getIfAvailable();
+	}
+
+	/** The tags sent with a line, kept with its paid line for the hook; nothing when the line has none. */
+	private static void addLineTags(List<SaleTagHooks.LineTags> lineTags, SalesLine salesLine,
+			ProcessSaleRequestDTO.SaleLineDTO lineDTO) {
+		if (lineDTO.getEpcs() != null && !lineDTO.getEpcs().isEmpty()) {
+			lineTags.add(new SaleTagHooks.LineTags(salesLine, lineDTO.getEpcs()));
+		}
 	}
 
 	/**

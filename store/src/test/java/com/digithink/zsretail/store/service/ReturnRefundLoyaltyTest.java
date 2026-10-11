@@ -596,6 +596,34 @@ class ReturnRefundLoyaltyTest {
 		return pin.toString();
 	}
 
+	@Test
+	@DisplayName("RFID hook: sold 3, 1 returned before the hook, then 1 (part, with the tags read), then the last 1 (the whole remaining)")
+	void hookOnReturn() throws Exception {
+		SalesHeader sale = sale(null, 0.0, 0, 0.0, 60.0);
+		SalesLine line = linesBySale.get(sale).get(0);
+		line.setQuantity(new BigDecimal("3"));
+		returnQuantity(sale, 0, "1");
+
+		RecordingSaleTagHooks hook = new RecordingSaleTagHooks();
+		inject(returns, ReturnHeaderService.class, "saleTagHooks", hook.provider());
+		ProcessReturnRequestDTO.ReturnLineDTO dto = new ProcessReturnRequestDTO.ReturnLineDTO();
+		dto.setSalesLineId(line.getId());
+		dto.setQuantity(BigDecimal.ONE);
+		ProcessReturnRequestDTO request = new ProcessReturnRequestDTO();
+		request.setTicketNumber(sale.getSalesNumber());
+		request.setReturnType(ReturnType.SIMPLE_RETURN);
+		request.setReturnLines(new ArrayList<>(Arrays.asList(dto)));
+		request.setReturnedEpcs(Arrays.asList("E1"));
+		ReturnHeader part = returns.processReturn(request, cashier);
+		assertEquals("returned " + part.getReturnNumber() + " [1 part] [E1]", hook.calls.get(0));
+		assertTrue(hook.lastReturned.get(0).getLine().getReturnHeader() == part, "the saved return line");
+
+		ReturnHeader rest = returnQuantity(sale, 0, "1");
+		assertEquals("returned " + rest.getReturnNumber() + " [1 whole] []", hook.calls.get(1),
+				"the last piece left: the whole remaining, no tag read");
+		assertEquals(2, hook.calls.size());
+	}
+
 	/** One return of the given quantities ("1", "0.2"), one per article line index starting at {@code index}. */
 	private ReturnHeader returnQuantity(SalesHeader sale, int index, String quantity) throws Exception {
 		return returnQuantity(sale, index, quantity, ReturnType.SIMPLE_RETURN);

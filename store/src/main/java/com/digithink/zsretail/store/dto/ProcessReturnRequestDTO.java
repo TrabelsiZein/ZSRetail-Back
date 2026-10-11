@@ -17,6 +17,9 @@ public class ProcessReturnRequestDTO {
 	private List<ReturnLineDTO> returnLines;
 	
 	private String notes;
+
+	/** RFID: the tags read at the POS for the lines returned in part (none: empty or null). */
+	private List<String> returnedEpcs;
 	
 	@Data
 	public static class ReturnLineDTO {

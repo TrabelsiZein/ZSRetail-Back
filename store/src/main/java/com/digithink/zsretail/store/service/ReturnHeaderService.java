@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -84,6 +85,10 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 
 	@Autowired
 	private QuantityPolicy quantityPolicy;
+
+	/** What follows the tagged pieces of the tickets (RFID); none by default. */
+	@Autowired(required = false)
+	private ObjectProvider<SaleTagHooks> saleTagHooks;
 
 	@Override
 	protected _BaseRepository<ReturnHeader, Long> getRepository() {
@@ -349,6 +354,7 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 		// Validate return quantities
 		double totalReturnAmount = 0.0;
 		List<ReturnLine> returnLines = new ArrayList<>();
+		List<Boolean> wholeRemaining = new ArrayList<>();
 
 		for (ProcessReturnRequestDTO.ReturnLineDTO returnLineDTO : request.getReturnLines()) {
 			// Find original sales line
@@ -425,6 +431,7 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 			returnLine.setNotes("");
 
 			returnLines.add(returnLine);
+			wholeRemaining.add(quantity.compareTo(remainingReturnable) == 0);
 			totalReturnAmount += lineTotalTTC;
 		}
 
@@ -510,6 +517,17 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 							returnHeader.getId(), returnHeader.getCashierSession());
 				}
 			}
+		}
+
+		// The tagged pieces back in stock (RFID), none without the hook
+		SaleTagHooks tagHook = saleTagHooks == null ? null : saleTagHooks.getIfAvailable();
+		if (tagHook != null) {
+			List<SaleTagHooks.ReturnedLine> taggedLines = new ArrayList<>();
+			for (int i = 0; i < returnLines.size(); i++) {
+				taggedLines.add(new SaleTagHooks.ReturnedLine(returnLines.get(i), wholeRemaining.get(i)));
+			}
+			tagHook.returned(returnHeader, taggedLines,
+					request.getReturnedEpcs() == null ? new ArrayList<>() : request.getReturnedEpcs());
 		}
 
 		// If return type is RETURN_VOUCHER, create voucher

@@ -68,6 +68,9 @@ public class ProcessSaleRequestDTO {
 		/** Number of free units granted by a FREE_QUANTITY promotion. When > 0, backend creates a second line. */
 		@JsonDeserialize(using = WholeQuantityDeserializer.class) // 2.2.1: whole only, 1.5 refused (400)
 		private Integer freeQuantity;
+
+		/** RFID: the tags of the pieces of this line read at the POS (none: empty or null); the paid pieces only. */
+		private List<String> epcs;
 	}
 	
 	@Data

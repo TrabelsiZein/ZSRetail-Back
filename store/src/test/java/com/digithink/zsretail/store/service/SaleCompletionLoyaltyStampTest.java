@@ -427,6 +427,61 @@ class SaleCompletionLoyaltyStampTest {
 		assertEquals(20, m.getLoyaltyPoints().intValue());
 	}
 
+	// ─── RFID POS step: the tag hook (SaleTagHooks) ──────────────────
+
+	@Test
+	@DisplayName("RFID hook: a sale gives the hook its paid line with the tags sent, never the free line; the ticket is completed")
+	void hookOnSale() throws Exception {
+		RecordingSaleTagHooks hook = withHook();
+		ProcessSaleRequestDTO r = request(150, null, 0);
+		r.getLines().get(0).setQuantity(new BigDecimal("2"));
+		r.getLines().get(0).setFreeQuantity(1);
+		r.getLines().get(0).setEpcs(Arrays.asList("E1", "E2"));
+		SalesHeader sale = sales.processCompleteSale(r, cashier);
+		assertEquals(Collections.singletonList("completed " + sale.getSalesNumber() + " COMPLETED [ART-10[E1, E2]]"),
+				hook.calls);
+		SalesLine paid = hook.lastLines.get(0).getLine();
+		assertEquals(150.0, paid.getLineTotal(), 0.0, "the paid line, not the free one (total 0)");
+		assertTrue(savedLines.stream().anyMatch(l -> l.getItem() == item && l.getLineTotal() == 0.0), "the free line exists");
+	}
+
+	@Test
+	@DisplayName("RFID hook: a line without tags is not given; the hook is still told the ticket is completed")
+	void hookOnSaleWithoutTags() throws Exception {
+		RecordingSaleTagHooks hook = withHook();
+		SalesHeader sale = sales.processCompleteSale(request(150, null, 0), cashier);
+		assertEquals(Collections.singletonList("completed " + sale.getSalesNumber() + " COMPLETED []"), hook.calls);
+	}
+
+	@Test
+	@DisplayName("RFID hook: put on hold, saved again (even with no tag left), completed, cancelled")
+	void hookOnPendingTicket() throws Exception {
+		RecordingSaleTagHooks hook = withHook();
+		ProcessSaleRequestDTO held = request(150, null, 0);
+		held.getLines().get(0).setEpcs(Arrays.asList("E1"));
+		SalesHeader pending = sales.savePendingSale(held, cashier);
+		assertEquals("held " + pending.getSalesNumber() + " [ART-10[E1]]", hook.calls.get(0));
+
+		sales.updatePendingSale(pending.getId(), request(150, null, 0), cashier);
+		assertEquals("held " + pending.getSalesNumber() + " []", hook.calls.get(1), "saved again without a tag: none held");
+
+		ProcessSaleRequestDTO paid = request(150, null, 0);
+		paid.getLines().get(0).setEpcs(Arrays.asList("E1", "E3"));
+		sales.completePendingSale(pending.getId(), paid, cashier);
+		assertEquals("completed " + pending.getSalesNumber() + " COMPLETED [ART-10[E1, E3]]", hook.calls.get(2));
+
+		SalesHeader other = parkedTicket();
+		sales.cancelPendingSale(other.getId(), cashier);
+		assertEquals("cancelled LOC001-PARKED CANCELLED", hook.calls.get(3));
+		assertEquals(4, hook.calls.size());
+	}
+
+	private RecordingSaleTagHooks withHook() throws Exception {
+		RecordingSaleTagHooks hook = new RecordingSaleTagHooks();
+		inject(sales, SalesHeaderService.class, "saleTagHooks", hook.provider());
+		return hook;
+	}
+
 	// ─── Fixtures ────────────────────────────────────────────────────
 
 	/**
