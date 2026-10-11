@@ -44,10 +44,8 @@ import com.digithink.zsretail.erp.dynamicsnav.dto.DynamicsNavSalesPriceDTO;
 import com.digithink.zsretail.erp.dynamicsnav.dto.DynamicsNavSessionDTO;
 import com.digithink.zsretail.erp.dynamicsnav.dto.DynamicsNavStockKeepingUnitDTO;
 import com.digithink.zsretail.erp.dynamicsnav.dto.DynamicsNavSubFamilyDTO;
+import com.digithink.zsretail.erp.spi.ErpStoreLocation;
 import com.digithink.zsretail.erp.spi.ErpSyncWarningException;
-import com.digithink.zsretail.model.Location;
-import com.digithink.zsretail.service.GeneralSetupService;
-import com.digithink.zsretail.service.LocationService;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -74,17 +72,14 @@ public class DynamicsNavRestClient {
 
 	private final RestTemplate dynamicsNavRestTemplate;
 	private final DynamicsNavProperties properties;
-	private final GeneralSetupService generalSetupService;
-	private final LocationService locationService;
+	private final ErpStoreLocation storeLocation;
 	private final ObjectMapper objectMapper;
 
 	public DynamicsNavRestClient(@Qualifier("dynamicsNavRestTemplate") RestTemplate dynamicsNavRestTemplate,
-			DynamicsNavProperties properties, GeneralSetupService generalSetupService,
-			LocationService locationService) {
+			DynamicsNavProperties properties, ErpStoreLocation storeLocation) {
 		this.dynamicsNavRestTemplate = dynamicsNavRestTemplate;
 		this.properties = properties;
-		this.generalSetupService = generalSetupService;
-		this.locationService = locationService;
+		this.storeLocation = storeLocation;
 		// Configure ObjectMapper to exclude null fields (like Postman does)
 		// and serialize LocalDate as ISO date string (YYYY-MM-DD)
 		this.objectMapper = new ObjectMapper();
@@ -272,8 +267,8 @@ public class DynamicsNavRestClient {
 
 	public List<DynamicsNavSalesPriceDTO> fetchSalesPrices(ErpSyncFilter filter) {
 		try {
-			List<Location> defLocations = locationService.findByField("isDefault", "=", true);
-			if (defLocations.size() == 0)
+			List<String> defaultCenters = storeLocation.defaultResponsibilityCenters();
+			if (defaultCenters.size() == 0)
 				throw new ErpSyncWarningException("DEFAULT_LOCATION is not configured");
 
 			UriComponentsBuilder builder = buildCompanyEndpointUriBuilder("SalesPrice");
@@ -282,10 +277,10 @@ public class DynamicsNavRestClient {
 
 			if (dateFilter.isPresent()) {
 				builder.queryParam("$filter", dateFilter.get() + " and (Responsibility_Center eq '"
-						+ defLocations.get(0).getResponsibilityCenter() + "' or Responsibility_Center eq '')");
+						+ defaultCenters.get(0) + "' or Responsibility_Center eq '')");
 			} else {
 				builder.queryParam("$filter", "Responsibility_Center eq '"
-						+ defLocations.get(0).getResponsibilityCenter() + "' or Responsibility_Center eq ''");
+						+ defaultCenters.get(0) + "' or Responsibility_Center eq ''");
 			}
 
 			String url = builder.build(false).toUriString();
@@ -300,8 +295,8 @@ public class DynamicsNavRestClient {
 
 	public List<DynamicsNavSalesDiscountDTO> fetchSalesDiscounts(ErpSyncFilter filter) {
 		try {
-			List<Location> defLocations = locationService.findByField("isDefault", "=", true);
-			if (defLocations.size() == 0)
+			List<String> defaultCenters = storeLocation.defaultResponsibilityCenters();
+			if (defaultCenters.size() == 0)
 				throw new ErpSyncWarningException("DEFAULT_LOCATION is not configured");
 
 			UriComponentsBuilder builder = buildCompanyEndpointUriBuilder("SalesDiscount");
@@ -310,10 +305,10 @@ public class DynamicsNavRestClient {
 
 			if (dateFilter.isPresent()) {
 				builder.queryParam("$filter", dateFilter.get() + " and (Responsibility_Center eq '"
-						+ defLocations.get(0).getResponsibilityCenter() + "' or Responsibility_Center eq '')");
+						+ defaultCenters.get(0) + "' or Responsibility_Center eq '')");
 			} else {
 				builder.queryParam("$filter", "Responsibility_Center eq '"
-						+ defLocations.get(0).getResponsibilityCenter() + "' or Responsibility_Center eq ''");
+						+ defaultCenters.get(0) + "' or Responsibility_Center eq ''");
 			}
 
 			String url = builder.build(false).toUriString();
@@ -396,7 +391,7 @@ public class DynamicsNavRestClient {
 	}
 
 	private String resolveDefaultLocation() {
-		return generalSetupService.findValueByCode("DEFAULT_LOCATION");
+		return storeLocation.defaultLocationCode();
 	}
 
 	/**

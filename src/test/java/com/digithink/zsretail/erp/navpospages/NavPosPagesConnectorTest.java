@@ -43,6 +43,7 @@ import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesInvoices;
 import com.digithink.zsretail.erp.service.ErpCommunicationService;
 import com.digithink.zsretail.erp.service.ErpItemBootstrapService;
 import com.digithink.zsretail.erp.service.ErpSynchronizationManager;
+import com.digithink.zsretail.erp.spi.ErpStoreLocation;
 import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
 import com.digithink.zsretail.headoffice.repository.HoStockPointRepository;
 import com.digithink.zsretail.headoffice.service.HoStockPointRows;
@@ -78,6 +79,7 @@ class NavPosPagesConnectorTest {
 				.withInitializer(ctx -> {
 					ctx.getBeanFactory().registerSingleton("generalSetupService", mock(GeneralSetupService.class));
 					ctx.getBeanFactory().registerSingleton("locationService", mock(LocationService.class));
+					ctx.getBeanFactory().registerSingleton("erpStoreLocationService", mock(ErpStoreLocation.class));
 					ctx.getBeanFactory().registerSingleton("erpCommunicationService", mock(ErpCommunicationService.class));
 					ctx.getBeanFactory().registerSingleton("jdbcTemplate", mock(JdbcTemplate.class));
 					ctx.getBeanFactory().registerSingleton("entityManager", mock(EntityManager.class));

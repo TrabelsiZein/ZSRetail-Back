@@ -15,7 +15,7 @@ Rule to sort a class: used by both applications, core; only by a store, store; o
 The sorting of every class and the rules are in `ProjectSortingGuardTest` (`projectOf`): by package, with the store
 classes of the common packages listed, the link messages of `headoffice/dto` and the `/ho/**` chain going to core, and
 the two ERP admin views of `erp/dto` going to core. What still breaks a rule is its allow-list, each line with its reason
-and the step 5 commit that removes it.
+and the step 5 commit that removes it; empty since step 5.8d.
 
 Step 5 unties the knots without moving classes; step 6 moves each class once, straight into its project. The connector
 names become the customers' (`erp.connector=emtop | happyness | none`); the keys `erp.dynamicsnav.*`,

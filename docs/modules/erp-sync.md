@@ -64,6 +64,9 @@
   - `updateSalesOrderHeaderPosOrder()` - Updates POS_Order flag via PATCH
   - `extractErrorMessage()` - Extracts detailed error messages from NAV JSON responses
   - Re-throws original HTTP exceptions (not wrapped) to preserve error response bodies
+  - Reads the store's General Setup `DEFAULT_LOCATION` (items) and the responsibility centre of the default location
+    (prices, discounts) through `erp/spi/ErpStoreLocation`, answered in core by `ErpStoreLocationService` (code cleanup
+    step 5.8d; the same values, `DynamicsNavRestClientValuesTest`)
 
 **Configuration:**
 - `DynamicsNavConfig` - Configured RestTemplate with:
@@ -249,7 +252,8 @@ logic is written once, in `erp/engine`, and exists with a connector that has the
   the engine's `HeadOfficeCatalogue`), `GeneralSetupValueCheck` (a check of a General Setup value on save),
   `ErpQuantities` (the decimals allowed in a quantity, the same as `utils.Quantities`), and `ErpConnectors`, which also
   answers whether the installation is a head office whose catalogue only comes from the ERP (asked of the application
-  through `ErpConnectorResolver`, as the startup resolves the owners).
+  through `ErpConnectorResolver`, as the startup resolves the owners); `ErpStoreLocation` (the store's default location
+  and its responsibility centre, answered by `ErpStoreLocationService`).
 
 **navpospages today**: `NavPosPagesCatalogueSource` (the pages through `NavPosPagesMapper`),
 `NavPosPagesCatalogueSettings` (`erp.navpospages.packet-size`, `dry-run`, `default-vat`, unchanged),
@@ -274,9 +278,8 @@ Tests: `erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows o
 **Guard of the connector packages** (`erp/ConnectorDependenciesGuardTest`): a class of `erp/navpospages` or
 `erp/dynamicsnav` may use `erp/spi`, its own package, the JDK and libraries. What still breaks the rule is an allow-list
 inside the test, each line with its reason (an entry nothing uses any more fails too): `erp/dto` (both; the neutral
-objects join `erp/spi` when it becomes its own project) and, for dynamicsnav, `Location`, `GeneralSetupService`,
-`LocationService` (`DynamicsNavRestClient`). navpospages uses nothing else of the application since code cleanup
-step 5.8c.
+objects join `erp/spi` when it becomes its own project). Nothing else since code cleanup step 5.8d: navpospages since
+5.8c, dynamicsnav (`DynamicsNavRestClient`, through `ErpStoreLocation`) since 5.8d.
 
 ## Head office catalogue from the ERP pages (`erp.navpospages`)
 

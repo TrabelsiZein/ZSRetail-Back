@@ -43,9 +43,6 @@ class ConnectorDependenciesGuardTest {
 	static {
 		allow("*", "erp.dto.", "the neutral objects (Erp*DTO, ErpSyncFilter, PullOperationResult): they join erp/spi when it"
 				+ " becomes its own project");
-		allow("dynamicsnav", "model.Location", "DynamicsNavRestClient: the DEFAULT_LOCATION of the store");
-		allow("dynamicsnav", "service.GeneralSetupService", "DynamicsNavRestClient: the General Setup values it sends");
-		allow("dynamicsnav", "service.LocationService", "DynamicsNavRestClient: the DEFAULT_LOCATION of the store");
 	}
 
 	private static void allow(String connector, String reference, String reason) {

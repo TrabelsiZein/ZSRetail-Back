@@ -131,10 +131,7 @@ class ProjectSortingGuardTest {
 	static final Map<String, String> ALLOWED = new LinkedHashMap<>();
 
 	static {
-		allow("5.8: DynamicsNavRestClient reads the default location and General Setup values of the application",
-				"erp.dynamicsnav.client.DynamicsNavRestClient -> model.Location",
-				"erp.dynamicsnav.client.DynamicsNavRestClient -> service.GeneralSetupService",
-				"erp.dynamicsnav.client.DynamicsNavRestClient -> service.LocationService");
+		// Empty since code cleanup step 5.8d: a new breach is untied, or added here with allow(reason, references...).
 	}
 
 	private static void allow(String reason, String... references) {
