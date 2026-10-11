@@ -20,7 +20,7 @@ import com.digithink.zsretail.connector.emtop.dto.DynamicsNavSessionDTO;
 import com.digithink.zsretail.connector.emtop.mapper.DynamicsNavMapper;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 import com.digithink.zsretail.erp.api.ErpConnector;
-import com.digithink.zsretail.erp.api.ErpConnectors;
+import com.digithink.zsretail.connector.emtop.EmtopConnectorDescriptor;
 import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.api.dto.ErpDeletionLogEntryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
@@ -47,7 +47,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 
 @Component
-@ConditionalOnErpConnector(ErpConnectors.EMTOP)
+@ConditionalOnErpConnector(EmtopConnectorDescriptor.NAME)
 @RequiredArgsConstructor
 public class DynamicsNavConnector implements ErpConnector {
 

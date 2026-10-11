@@ -11,7 +11,7 @@ import com.digithink.zsretail.connector.happyness.sync.NavPosPagesInvoices;
 import com.digithink.zsretail.erp.api.CatalogueRun;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 import com.digithink.zsretail.erp.api.ErpConnector;
-import com.digithink.zsretail.erp.api.ErpConnectors;
+import com.digithink.zsretail.connector.happyness.HappynessConnectorDescriptor;
 import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.api.dto.ErpDeletionLogEntryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
@@ -50,7 +50,7 @@ import com.digithink.zsretail.erp.api.dto.PullOperationResult;
  * empty list, every push or update a failure.
  */
 @Component
-@ConditionalOnErpConnector(ErpConnectors.HAPPYNESS)
+@ConditionalOnErpConnector(HappynessConnectorDescriptor.NAME)
 public class NavPosPagesConnector implements ErpConnector {
 
 	static final String READ_ONLY = "The navpospages ERP connector is read only: it sends nothing to the ERP.";
