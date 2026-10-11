@@ -187,7 +187,7 @@ class InstallationBeansProofTest {
 		return Installations.over(Installations.typeOf(file), Installations.upgraded(committed));
 	}
 
-	/** Every configuration of the repository, the six shapes, and head office shapes no file has. */
+	/** Every configuration of the repository, the six shapes, head office shapes no file has, and a store with RFID. */
 	static Map<String, MockEnvironment> configurations() {
 		Map<String, MockEnvironment> environments = new LinkedHashMap<>();
 		Installations.machineFiles().forEach(file -> environments.put("configs/" + file, Installations.machine(file)));
@@ -199,6 +199,10 @@ class InstallationBeansProofTest {
 				"erp.connector=happyness", "headoffice.supply.source=ERP"));
 		environments.put("head office, catalogue only from the ERP, stock off", headOffice("ownership.catalogue=ERP",
 				"headoffice.stock.enabled=false"));
+		// RFID step 2: the one shape with the RFID beans, last so that every row before it stays as recorded
+		MockEnvironment rfidStore = Installations.type("store");
+		rfidStore.setProperty("rfid.enabled", "true");
+		environments.put("store, RFID on", rfidStore);
 		return environments;
 	}
 

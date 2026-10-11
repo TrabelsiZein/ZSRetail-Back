@@ -42,6 +42,9 @@ public class ApplicationModeService {
 	/** A head office with headoffice.supply.source=ERP (NodeOwnership.isSupplyFromErpSourceSet); false on a store. */
 	private boolean supplyFromErpSource;
 
+	/** RFID step 2: a store with rfid.enabled=true (NodeOwnership.isRfidSet); false on a head office. */
+	private boolean rfidEnabled;
+
 	/** Fails the startup when node.type, ownership.* or sales.upstream holds an invalid value. */
 	@PostConstruct
 	void initOwnership() {
@@ -54,6 +57,12 @@ public class ApplicationModeService {
 		headOfficeWithoutStock = NodeOwnership.isHeadOfficeWithoutStockSet(environment);
 		// Invoices from the ERP: read on a head office only, like headoffice.stock.enabled
 		supplyFromErpSource = NodeOwnership.isSupplyFromErpSourceSet(environment);
+		rfidEnabled = NodeOwnership.isRfidSet(environment);
+	}
+
+	/** RFID step 2: true on a store with rfid.enabled=true, the RFID beans exist (Installation.RFID). */
+	public boolean isRfidEnabled() {
+		return rfidEnabled;
 	}
 
 	/**

@@ -204,9 +204,9 @@ class HeadOfficeStockKeyTest {
 		return request;
 	}
 
-	// GET /config, built like AppConfigAPITest
+	// GET /config, built like AppConfigAPITest (also used by RfidKeyTest)
 
-	private static AppConfigDTO config(MockEnvironment env) throws Exception {
+	static AppConfigDTO config(MockEnvironment env) throws Exception {
 		LicenseService license = new LicenseService(null, null, null) {
 			@Override
 			public LicenseStatus getStatus() {

@@ -75,7 +75,12 @@ public enum Installation {
 
 	/** A linked store whose goods come from the head office by BL (ownership.supply=HEAD_OFFICE written in its file). */
 	SUPPLY_FROM_HEAD_OFFICE("A linked store whose goods come from the head office by BL (ownership.supply=HEAD_OFFICE"
-			+ " written in its file).", NodeOwnership::isSupplyFromHeadOffice);
+			+ " written in its file).", NodeOwnership::isSupplyFromHeadOffice),
+
+	// ─── Store ──────────────────────────────────────────────────
+
+	/** A store that reads RFID tags (rfid.enabled=true): its readers, its POS machines, the reads (RFID step 2). */
+	RFID("A store that reads RFID tags: rfid.enabled=true.", NodeOwnership::isRfidSet);
 
 	private final String meaning;
 	private final Predicate<PropertyResolver> answer;

@@ -54,6 +54,9 @@ import com.digithink.zsretail.support.Installations;
  * resolve as before, from the application. The files of configs/local are read upgraded (Installations.upgraded). Then the
  * dead keys refused: the record lost erp.happyness.location-code and erp.happyness.invoices.years (the Happyness head
  * office of configs/local, upgraded, no longer has them), nothing else.
+ * <p>
+ * RFID step 2: the record gained the key rfid.enabled (the store type file says false): "keys 52" and one line per
+ * configuration, false on a store, (none) on a head office; every other line unchanged.
  */
 class ConfigurationKeysProofTest {
 

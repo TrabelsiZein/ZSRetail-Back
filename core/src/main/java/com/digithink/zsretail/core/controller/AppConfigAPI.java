@@ -99,7 +99,8 @@ public class AppConfigAPI {
 				"true".equalsIgnoreCase(generalSetupService.findValueByCode(QuantityPolicy.SETTING))
 						&& (decimalColumns == null || decimalColumns.ready()), // 2.2.1: off while a column is still int
 				taxStampRule.active(),
-				"true".equalsIgnoreCase(generalSetupService.findValueByCode(POS_AMOUNTS_THREE_DECIMALS))
+				"true".equalsIgnoreCase(generalSetupService.findValueByCode(POS_AMOUNTS_THREE_DECIMALS)),
+				applicationModeService.isRfidEnabled()
 		));
 	}
 

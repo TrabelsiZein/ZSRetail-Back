@@ -62,6 +62,9 @@ import com.digithink.zsretail.erp.api.ErpAbility;
  * ERP's invoices ({@link #isSupplyFromErpSourceSet}); the startup fails with another value than HEAD_OFFICE or ERP, with
  * ERP on any other head office, or with ERP without a connector that reads the ERP's invoices
  * ({@code ErpAbility.SUPPLY_INVOICES}). A store never reads the key.
+ * <p>
+ * RFID (RFID step 2): {@code rfid.enabled}, true or false (false when absent); any other value stops the startup, and
+ * true on a head office too ({@link #isRfidSet}).
  */
 public final class NodeOwnership {
 
@@ -85,6 +88,11 @@ public final class NodeOwnership {
 	 * BLs and invoices, the default) or ERP (the ERP's invoices, read by a connector with ErpAbility.SUPPLY_INVOICES).
 	 */
 	static final String SUPPLY_SOURCE_KEY = "headoffice.supply.source";
+	/**
+	 * RFID step 2: a store that reads RFID tags (true) or not (false, the default, stated in the store type file). Never
+	 * true on a head office.
+	 */
+	static final String RFID_KEY = "rfid.enabled";
 
 	/**
 	 * Domains a store receives as copies down from its head office today (step 3: promotions; step 4: loyalty; step 6:
@@ -238,6 +246,41 @@ public final class NodeOwnership {
 	}
 
 	/**
+	 * RFID step 2: true on a store with rfid.enabled=true, it reads RFID tags (its readers, its POS machines). Also used by
+	 * {@link Installation#RFID}. Throws like the startup on a value other than true or false, and on true on a head office.
+	 */
+	public static boolean isRfidSet(PropertyResolver env) {
+		if (!rfidEnabled(env)) {
+			return false;
+		}
+		if (nodeTypeOf(env) == NodeType.HEAD_OFFICE) {
+			throw new IllegalStateException("Invalid value '" + env.getProperty(RFID_KEY) + "' for property " + RFID_KEY
+					+ ": a head office reads no RFID tags (the readers belong to a store). Remove the line.");
+		}
+		return true;
+	}
+
+	/**
+	 * rfid.enabled, trimmed and case-insensitive: false when absent. Any value other than true or false (blank included)
+	 * throws {@link IllegalStateException} naming the key.
+	 */
+	private static boolean rfidEnabled(PropertyResolver env) {
+		if (!env.containsProperty(RFID_KEY)) {
+			return false;
+		}
+		String raw = env.getProperty(RFID_KEY);
+		String value = raw == null ? "" : raw.trim();
+		if ("true".equalsIgnoreCase(value)) {
+			return true;
+		}
+		if ("false".equalsIgnoreCase(value)) {
+			return false;
+		}
+		throw new IllegalStateException("Invalid value '" + raw + "' for property " + RFID_KEY
+				+ ": true (this store reads RFID tags) or false (no RFID)");
+	}
+
+	/**
 	 * Invoices from the ERP: true on a head office with headoffice.supply.source=ERP (accepted only on a head office whose
 	 * catalogue only comes from the ERP, with a connector that reads the ERP's invoices). The key is read on a head office
 	 * only: a store never reads it. Also used by {@link Installation#HEAD_OFFICE_OWN_SUPPLY} and
@@ -337,6 +380,7 @@ public final class NodeOwnership {
 		NodeType nodeType = nodeTypeOf(env);
 		boolean headOffice = nodeType == NodeType.HEAD_OFFICE;
 		checkHeadOfficeLink(env, headOffice);
+		isRfidSet(env);
 		if (headOffice) {
 			checkWholeSeconds(env, OFFLINE_AFTER_KEY);
 			headOfficeStockEnabled(env);

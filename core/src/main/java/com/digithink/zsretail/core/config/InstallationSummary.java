@@ -51,6 +51,9 @@ public class InstallationSummary {
 		if (NodeOwnership.isSupplyFromErpSourceSet(env)) {
 			line.add("supply invoices from the ERP");
 		}
+		if (NodeOwnership.isRfidSet(env)) {
+			line.add("RFID on");
+		}
 		line.add("ERP connector " + ErpAbilities.connectorInEffect(env));
 		String address = ErpConnectorEnvironmentPostProcessor.summaryAddress(env);
 		if (address != null) {

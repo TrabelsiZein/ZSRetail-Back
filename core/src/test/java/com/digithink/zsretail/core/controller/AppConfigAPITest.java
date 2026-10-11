@@ -48,10 +48,11 @@ class AppConfigAPITest {
 	/** Keys added by the head office plan: tasks 0.5 (first three) and 1.5 (headOfficeLinked),
 	 * step 6 (catalogueFromHeadOffice), step 7A (supplyFromHeadOffice), headoffice.stock.enabled (headOfficeStock),
 	 * invoices from the ERP (supplySource), always last; then 2.2.1 decimal quantities (allowDecimalQuantity) and the tax
-	 * stamp rule (taxStampActive); then 2.2.2 amounts with 3 decimals on the POS screens (posAmountsThreeDecimals). */
+	 * stamp rule (taxStampActive); then 2.2.2 amounts with 3 decimals on the POS screens (posAmountsThreeDecimals); then
+	 * RFID step 2 (rfidEnabled). */
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
 			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock", "supplySource",
-			"allowDecimalQuantity", "taxStampActive", "posAmountsThreeDecimals");
+			"allowDecimalQuantity", "taxStampActive", "posAmountsThreeDecimals", "rfidEnabled");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";
@@ -274,6 +275,7 @@ class AppConfigAPITest {
 		assertEquals("true", erp.get("taxStampActive").toString()); // 2.2.1: ENABLE_TAX_STAMP true and the item
 		assertEquals("true", erp.get("posAmountsThreeDecimals").toString()); // 2.2.2: POS_AMOUNTS_3_DECIMALS, any case
 		assertFalse(new AppConfigDTO().isPosAmountsThreeDecimals()); // the row absent (a head office): off
+		assertEquals("false", erp.get("rfidEnabled").toString()); // RFID step 2: no rfid.enabled line
 	}
 
 	private static void inject(Object target, Class<?> declaringClass, String fieldName, Object value) throws Exception {

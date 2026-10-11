@@ -152,4 +152,10 @@ public class AppConfigDTO {
 	 * amounts with 3 decimals instead of 2. Display only; false on a head office (the row is never created there).
 	 */
 	private boolean posAmountsThreeDecimals;
+
+	/**
+	 * RFID step 2: true on a store with rfid.enabled=true (the RFID pages and buttons exist); false everywhere else, and
+	 * read as false by the frontend when missing.
+	 */
+	private boolean rfidEnabled;
 }
