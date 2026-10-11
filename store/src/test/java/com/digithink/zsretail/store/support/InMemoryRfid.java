@@ -22,10 +22,12 @@ import com.digithink.zsretail.core.support.InMemoryItems;
 import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.store.rfid.model.PosMachine;
 import com.digithink.zsretail.store.rfid.model.RfidReader;
+import com.digithink.zsretail.store.rfid.model.RfidSaleTag;
 import com.digithink.zsretail.store.rfid.model.RfidTag;
 import com.digithink.zsretail.store.rfid.model.RfidTagStatus;
 import com.digithink.zsretail.store.rfid.repository.PosMachineRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidReaderRepository;
+import com.digithink.zsretail.store.rfid.repository.RfidSaleTagRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidTagRepository;
 import com.digithink.zsretail.store.rfid.service.PosMachineService;
 import com.digithink.zsretail.store.rfid.service.RfidReaderService;
@@ -41,6 +43,8 @@ public final class InMemoryRfid {
 	public final Map<Long, RfidReader> readers = new LinkedHashMap<>();
 	public final Map<Long, PosMachine> machines = new LinkedHashMap<>();
 	public final Map<Long, RfidTag> tags = new LinkedHashMap<>();
+	/** RFID POS step: the tags of the tickets' lines. */
+	public final Map<Long, RfidSaleTag> saleTags = new LinkedHashMap<>();
 	public final InMemoryItems items = new InMemoryItems(1000);
 	public LocalDateTime now = LocalDateTime.of(2026, 10, 12, 10, 0);
 	private long nextId = 1;
@@ -125,6 +129,35 @@ public final class InMemoryRfid {
 			int to = Math.min(from + page.getPageSize(), found.size());
 			return new PageImpl<>(found.subList(from, to), page, found.size());
 		}
+		default:
+			throw new UnsupportedOperationException(method);
+		}
+	});
+
+	public final RfidSaleTagRepository saleTagRepository = proxy(RfidSaleTagRepository.class, (method, args) -> {
+		switch (method) {
+		case "save":
+			return save(saleTags, (RfidSaleTag) args[0]);
+		case "delete":
+			saleTags.remove(((RfidSaleTag) args[0]).getId());
+			return null;
+		case "deleteAll":
+			for (Object row : (Iterable<?>) args[0]) {
+				saleTags.remove(((RfidSaleTag) row).getId());
+			}
+			return null;
+		case "findBySalesHeader_Id":
+			return saleTags.values().stream().filter(r -> r.getSalesHeader().getId().equals(args[0]))
+					.collect(Collectors.toList());
+		case "findBySalesLine_IdAndReturnLineIsNull":
+			return saleTags.values().stream()
+					.filter(r -> r.getSalesLine() != null && r.getSalesLine().getId().equals(args[0]) && r.getReturnLine() == null)
+					.collect(Collectors.toList());
+		case "heldBy":
+			return saleTags.values().stream()
+					.filter(r -> ((Collection<?>) args[0]).contains(r.getEpc()) && r.getSalesHeader().getStatus() == args[1]
+							&& (args[2] == null || !r.getSalesHeader().getId().equals(args[2])))
+					.map(RfidSaleTag::getEpc).collect(Collectors.toList());
 		default:
 			throw new UnsupportedOperationException(method);
 		}

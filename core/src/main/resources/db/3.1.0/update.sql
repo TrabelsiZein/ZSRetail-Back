@@ -9,7 +9,7 @@
 --   3) Deploy the WAR of the installation's type as zsretailws.war (docs/deploy-note.md).
 -- The application refuses to start while APP_VERSION differs from its own version, so step 2 must be done before 3.
 --
--- Schema, RFID (docs/modules/rfid.md): three new tables on a store (rfid_reader, pos_machine, rfid_tag), created here
+-- Schema, RFID (docs/modules/rfid.md): four new tables on a store (rfid_reader, pos_machine, rfid_tag, rfid_sale_tag), created here
 -- (re-runnable: only when missing) with
 -- the names and types Hibernate uses, so ddl-auto finds them complete. They exist, empty, on every store, whatever
 -- rfid.enabled; a head office database (it has ho_store) never gets them.
@@ -109,6 +109,33 @@ BEGIN
 	);
 	CREATE INDEX ix_rfid_tag_item ON rfid_tag (item_id);
 	CREATE INDEX ix_rfid_tag_status ON rfid_tag (status);
+END
+GO
+
+-- RFID POS step: the tags of the tickets' lines (a store only). A pending ticket holds its tags here, a completed ticket
+-- keeps them with its paid line, a return marks the ones it put back in stock
+IF OBJECT_ID(N'ho_store', N'U') IS NULL AND OBJECT_ID(N'rfid_sale_tag', N'U') IS NULL
+BEGIN
+	CREATE TABLE rfid_sale_tag (
+		id bigint IDENTITY(1,1) NOT NULL,
+		active bit NULL,
+		created_at datetime2 NULL,
+		created_by varchar(255) NULL,
+		updated_at datetime2 NULL,
+		updated_by varchar(255) NULL,
+		sales_header_id bigint NOT NULL,
+		item_id bigint NOT NULL,
+		epc varchar(128) NOT NULL,
+		sales_line_id bigint NULL,
+		return_line_id bigint NULL,
+		CONSTRAINT PK_rfid_sale_tag PRIMARY KEY (id),
+		CONSTRAINT uk_rfid_sale_tag_header_epc UNIQUE (sales_header_id, epc),
+		CONSTRAINT fk_rfid_sale_tag_header FOREIGN KEY (sales_header_id) REFERENCES sales_header (id),
+		CONSTRAINT fk_rfid_sale_tag_item FOREIGN KEY (item_id) REFERENCES item (id),
+		CONSTRAINT fk_rfid_sale_tag_line FOREIGN KEY (sales_line_id) REFERENCES sales_line (id),
+		CONSTRAINT fk_rfid_sale_tag_return_line FOREIGN KEY (return_line_id) REFERENCES return_line (id)
+	);
+	CREATE INDEX ix_rfid_sale_tag_epc ON rfid_sale_tag (epc);
 END
 GO
 

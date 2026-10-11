@@ -292,6 +292,20 @@ the delivery number and the line number (`DeliveryReceptionServiceTest`).
 Tests: `RfidAssignmentServiceTest` (the groups, weak, the refusals, the save rules, saving twice, a tag linked elsewhere
 between the read and the save, the reception source), `RfidTagAPITest`.
 
+## At the POS (RFID POS step)
+
+`rfid_sale_tag` (`RfidSaleTag`), the tags of the tickets' lines; created by `db/3.1.0/update.sql` on a store database
+only. `rfid_tag` does not change while a ticket is open: a pending ticket holds its tags here, a completed ticket keeps
+them with its paid line.
+
+| Column | Type | Rule |
+|---|---|---|
+| `sales_header_id` | bigint NOT NULL, `fk_rfid_sale_tag_header` → `sales_header` | the ticket; `uk_rfid_sale_tag_header_epc` (a tag once per ticket) |
+| `item_id` | bigint NOT NULL, `fk_rfid_sale_tag_item` → `item` | the item of the piece (the lines of a pending ticket are made again at each save: the row is keyed on the ticket and the item, not the line) |
+| `epc` | varchar(128) NOT NULL, `ix_rfid_sale_tag_epc` | as `rfid_tag` keeps it |
+| `sales_line_id` | bigint NULL, `fk_rfid_sale_tag_line` → `sales_line` | the paid line, set when the ticket is completed |
+| `return_line_id` | bigint NULL, `fk_rfid_sale_tag_return_line` → `return_line` | the return line that put the tag back in stock |
+
 ## The front pages (ZSRetail-Front)
 
 A store menu **RFID** (after Inventory, icon Radio) with two pages, only when `GET /config` `rfidEnabled` is true

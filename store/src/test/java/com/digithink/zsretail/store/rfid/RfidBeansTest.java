@@ -29,6 +29,7 @@ import com.digithink.zsretail.store.rfid.controller.RfidTagAPI;
 import com.digithink.zsretail.store.rfid.reader.HopelandRfidReader;
 import com.digithink.zsretail.store.rfid.repository.PosMachineRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidReaderRepository;
+import com.digithink.zsretail.store.rfid.repository.RfidSaleTagRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidTagRepository;
 import com.digithink.zsretail.store.rfid.service.PosMachineService;
 import com.digithink.zsretail.store.rfid.service.RfidReadService;
@@ -94,14 +95,14 @@ class RfidBeansTest {
 	}
 
 	@Test
-	@DisplayName("On: the services and the three repositories exist")
+	@DisplayName("On: the services and the four repositories exist")
 	void on() {
 		MockEnvironment env = store("true");
 		for (Class<?> service : SERVICES) {
 			assertTrue(registered(env, service), service.getSimpleName());
 		}
 		assertEquals(new TreeSet<>(Arrays.asList(PosMachineRepository.class.getName(), RfidReaderRepository.class.getName(),
-				RfidTagRepository.class.getName())),
+				RfidTagRepository.class.getName(), RfidSaleTagRepository.class.getName())),
 				repositories(env));
 	}
 
@@ -111,7 +112,7 @@ class RfidBeansTest {
 		for (Class<?> type : Arrays.asList(RfidReaderService.class, PosMachineService.class, RfidReadService.class,
 				HopelandRfidReader.class, RfidAPI.class, RfidReaderAPI.class, PosMachineAPI.class, RfidReaderRepository.class,
 				RfidTagService.class, RfidItemDeletionCheck.class, RfidTagAPI.class, RfidAssignmentService.class,
-				RfidTagRepository.class,
+				RfidTagRepository.class, RfidSaleTagRepository.class,
 				PosMachineRepository.class)) {
 			assertTrue(Questions.asks(type, Installation.RFID), type.getSimpleName());
 		}
