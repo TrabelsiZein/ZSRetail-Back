@@ -12,7 +12,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.erp.spi.ErpAbilities;
+import com.digithink.zsretail.erp.api.ErpAbilities;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 
 /**

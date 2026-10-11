@@ -8,7 +8,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.config.ConditionalOnErpAbility;
-import com.digithink.zsretail.erp.spi.ErpAbility;
+import com.digithink.zsretail.erp.api.ErpAbility;
 
 
 import lombok.extern.log4j.Log4j2;

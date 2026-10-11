@@ -3,7 +3,7 @@ package com.digithink.zsretail.erp.engine;
 import java.util.Collection;
 import java.util.Map;
 
-import com.digithink.zsretail.erp.spi.ErpInvoiceStart;
+import com.digithink.zsretail.erp.api.ErpInvoiceStart;
 
 /**
  * ERP catalogue, step 6: what the head office tables hold, read only, for the comparison with the ERP. Only the fields

@@ -65,7 +65,7 @@ class ConnectorNamesGuardTest {
 		}
 		assertTrue(scanned > 300, "scanned " + scanned + " files");
 		assertEquals("", String.join("\n", found),
-				"Name no connector here: ask ErpAbilities (erp/spi) for an ability, see docs/modules/erp-sync.md");
+				"Name no connector here: ask ErpAbilities (erp-api) for an ability, see docs/modules/erp-sync.md");
 	}
 
 	@Test
@@ -78,6 +78,6 @@ class ConnectorNamesGuardTest {
 		assertTrue(allowed(BASE + "erp/dynamicsnav/mapper/DynamicsNavMapper.java"));
 		assertTrue(allowed(BASE + "config/ErpConnectorEnvironmentPostProcessor.java"));
 		assertTrue(!allowed(BASE + "config/NodeOwnership.java"));
-		assertTrue(!allowed(BASE + "erp/spi/ErpAbilities.java"));
+		assertTrue(!allowed(BASE + "erp/api/ErpAbilities.java"));
 	}
 }

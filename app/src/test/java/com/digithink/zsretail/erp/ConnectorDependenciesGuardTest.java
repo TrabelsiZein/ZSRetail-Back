@@ -27,7 +27,7 @@ import com.digithink.zsretail.support.Repo;
 /**
  * Code cleanup step 3: the classes of a connector package (erp/navpospages, erp/dynamicsnav) use only erp-api, their own
  * package, the JDK and libraries. Since code cleanup step 5.8e erp-api is what ProjectSortingGuardTest sorts there:
- * erp/spi, and erp/dto apart from the two admin views going to core. Every other reference to a class of the
+ * the package erp/api (with erp/api/dto), the project erp-api since step 6.2. Every other reference to a class of the
  * application (an import or a fully qualified name) must be on the allow-list below, with its reason. An entry nothing
  * uses any more fails too, so the list stays exact. erp/engine never names a connector: ConnectorNamesGuardTest scans it
  * (checked here).
@@ -84,7 +84,7 @@ class ConnectorDependenciesGuardTest {
 	}
 
 	@Test
-	@DisplayName("A connector package uses only erp/spi, its own package, the JDK and libraries, apart from the allow-list")
+	@DisplayName("A connector package uses only erp-api, its own package, the JDK and libraries, apart from the allow-list")
 	void connectorDependencies() throws IOException {
 		List<String> breaches = new ArrayList<>();
 		Set<String> used = new LinkedHashSet<>();
@@ -110,7 +110,7 @@ class ConnectorDependenciesGuardTest {
 			}
 		}
 		assertTrue(scanned > 30, "scanned " + scanned + " files");
-		assertEquals("", String.join("\n", breaches), "A connector uses erp/spi only: move what it needs there, or add"
+		assertEquals("", String.join("\n", breaches), "A connector uses erp-api only: move what it needs there, or add"
 				+ " the line to the allow-list with its reason");
 		List<String> stale = ALLOWED.keySet().stream().filter(key -> !used.contains(key)).collect(Collectors.toList());
 		assertEquals(new ArrayList<String>(), stale, "Allow-list entries no connector needs any more: remove them");
@@ -137,16 +137,16 @@ class ConnectorDependenciesGuardTest {
 	@Test
 	@DisplayName("The guard itself: spi, own package, JDK and libraries pass; another class of the application is a breach")
 	void guardCatches() {
-		assertEquals("", entryFor("navpospages", "com.digithink.zsretail.erp.spi.ErpRead"));
+		assertEquals("", entryFor("navpospages", "com.digithink.zsretail.erp.api.ErpRead"));
 		assertEquals("", entryFor("navpospages", "com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow"));
 		assertEquals("", entryFor("dynamicsnav", "org.springframework.stereotype.Component"));
-		assertEquals("", entryFor("dynamicsnav", "com.digithink.zsretail.erp.dto.ErpItemDTO"), "erp-api, as sorted");
+		assertEquals("", entryFor("dynamicsnav", "com.digithink.zsretail.erp.api.dto.ErpItemDTO"), "erp-api, as sorted");
 		assertEquals(null, entryFor("navpospages", "com.digithink.zsretail.erp.dto.ErpSyncJobViewDTO"), "core, as sorted");
 		assertEquals(null, entryFor("dynamicsnav", "com.digithink.zsretail.erp.navpospages.sync.NavPosPagesInvoices"));
 		assertEquals(null, entryFor("navpospages", "com.digithink.zsretail.erp.engine.JdbcCatalogueState"));
 		assertEquals(null, entryFor("navpospages", "com.digithink.zsretail.repository.ItemRepository"));
 		assertEquals(null, entryFor("navpospages", "com.digithink.zsretail.utils.Quantities"),
-				"it reads erp.spi.ErpQuantities");
+				"it reads erp.api.ErpQuantities");
 		assertEquals("navpospages", connectorOf(ConnectorNamesGuardTest.BASE + "erp/navpospages/mapper/X.java"));
 		assertEquals(null, connectorOf(ConnectorNamesGuardTest.BASE + "erp/engine/CatalogueEngine.java"));
 	}

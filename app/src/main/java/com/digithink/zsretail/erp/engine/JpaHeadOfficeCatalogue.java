@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.digithink.zsretail.config.ConditionalOnErpAbility;
-import com.digithink.zsretail.erp.spi.ErpAbility;
+import com.digithink.zsretail.erp.api.ErpAbility;
 import com.digithink.zsretail.service.GeneralSetupService;
 
 /**

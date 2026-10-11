@@ -99,7 +99,7 @@ public class ProjectSortingGuardTest {
 		if (name.startsWith("erp.dto.")) {
 			return ERP_DTO_TO_CORE.contains(simple) ? CORE : ERP_API;
 		}
-		if (name.startsWith("erp.spi.")) {
+		if (name.startsWith("erp.api.")) {
 			return ERP_API;
 		}
 		if (name.startsWith("headoffice.")) {
@@ -296,7 +296,7 @@ public class ProjectSortingGuardTest {
 		assertEquals(STORE, projectOf("holink.service.SalesPushService"));
 		assertEquals(CORE, projectOf("headoffice.dto.TicketCopyDTO"));
 		assertEquals(HEADOFFICE, projectOf("headoffice.dto.StoreDTO"));
-		assertEquals(ERP_API, projectOf("erp.dto.ErpItemDTO"));
+		assertEquals(ERP_API, projectOf("erp.api.dto.ErpItemDTO"));
 		assertEquals(CORE, projectOf("erp.dto.ErpSyncJobViewDTO"));
 		assertEquals(EMTOP, projectOf("erp.dynamicsnav.connector.DynamicsNavConnector"));
 		assertEquals(HAPPYNESS, projectOf("erp.navpospages.mapper.NavPosPagesMapper"));

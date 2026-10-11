@@ -8,9 +8,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.erp.dto.ErpOperationResult;
-import com.digithink.zsretail.erp.dto.ErpTicketDTO;
-import com.digithink.zsretail.erp.dto.ErpTicketLineDTO;
+import com.digithink.zsretail.erp.api.dto.ErpOperationResult;
+import com.digithink.zsretail.erp.api.dto.ErpTicketDTO;
+import com.digithink.zsretail.erp.api.dto.ErpTicketLineDTO;
 import com.digithink.zsretail.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.model.SalesHeader;
 import com.digithink.zsretail.model.SalesLine;

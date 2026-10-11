@@ -10,14 +10,14 @@ import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.mock.env.MockEnvironment;
 
-import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
+import com.digithink.zsretail.erp.api.ErpRead;
+import com.digithink.zsretail.erp.api.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.navpospages.client.NavPosPagesRestClient;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesConfig;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesStartupCheck;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosPagesMapper;
 import com.digithink.zsretail.erp.navpospages.reader.NavPosPagesReader;
-import com.digithink.zsretail.erp.spi.ErpRead;
 import com.digithink.zsretail.support.Installations;
 
 /**

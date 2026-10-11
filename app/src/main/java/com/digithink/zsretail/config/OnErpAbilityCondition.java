@@ -6,8 +6,8 @@ import org.springframework.context.annotation.Condition;
 import org.springframework.context.annotation.ConditionContext;
 import org.springframework.core.type.AnnotatedTypeMetadata;
 
-import com.digithink.zsretail.erp.spi.ErpAbilities;
-import com.digithink.zsretail.erp.spi.ErpAbility;
+import com.digithink.zsretail.erp.api.ErpAbilities;
+import com.digithink.zsretail.erp.api.ErpAbility;
 
 /**
  * Matches when the ERP connector in effect has the ability named by {@link ConditionalOnErpAbility}

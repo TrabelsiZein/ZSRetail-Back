@@ -584,9 +584,9 @@ class ReturnRefundLoyaltyTest {
 				.setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
 				.configure(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
 		pin.append("nav header ").append(navJson.writeValueAsString(nav.toReturnHeaderDTO(
-				(com.digithink.zsretail.erp.dto.ErpReturnDTO) toHeader.invoke(export, header)))).append('\n');
+				(com.digithink.zsretail.erp.api.dto.ErpReturnDTO) toHeader.invoke(export, header)))).append('\n');
 		pin.append("nav line ").append(navJson.writeValueAsString(nav.toReturnLineDTO(
-				(com.digithink.zsretail.erp.dto.ErpReturnLineDTO) toLine.invoke(export, stored), "RO-0001")));
+				(com.digithink.zsretail.erp.api.dto.ErpReturnLineDTO) toLine.invoke(export, stored), "RO-0001")));
 		return pin.toString();
 	}
 

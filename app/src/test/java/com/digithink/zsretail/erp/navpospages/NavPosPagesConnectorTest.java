@@ -21,7 +21,10 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.digithink.zsretail.erp.dto.ErpOperationResult;
+import com.digithink.zsretail.erp.api.ErpConnector;
+import com.digithink.zsretail.erp.api.ErpStoreLocation;
+import com.digithink.zsretail.erp.api.NoOpErpConnector;
+import com.digithink.zsretail.erp.api.dto.ErpOperationResult;
 import com.digithink.zsretail.erp.dynamicsnav.client.DynamicsNavRestClient;
 import com.digithink.zsretail.erp.dynamicsnav.config.DynamicsNavConfig;
 import com.digithink.zsretail.erp.dynamicsnav.config.DynamicsNavProperties;
@@ -43,12 +46,9 @@ import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesInvoices;
 import com.digithink.zsretail.erp.service.ErpCommunicationService;
 import com.digithink.zsretail.erp.service.ErpItemBootstrapService;
 import com.digithink.zsretail.erp.service.ErpSynchronizationManager;
-import com.digithink.zsretail.erp.spi.ErpStoreLocation;
 import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
 import com.digithink.zsretail.headoffice.repository.HoStockPointRepository;
 import com.digithink.zsretail.headoffice.service.HoStockPointRows;
-import com.digithink.zsretail.erp.spi.ErpConnector;
-import com.digithink.zsretail.erp.spi.NoOpErpConnector;
 import com.digithink.zsretail.service.GeneralSetupService;
 import com.digithink.zsretail.service.LocationService;
 

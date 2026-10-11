@@ -14,18 +14,18 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
-import com.digithink.zsretail.erp.dto.ErpItemDTO;
-import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
-import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
-import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
+import com.digithink.zsretail.erp.api.ErpRead;
+import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosBarcodeRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCollection;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosPagesMapper;
-import com.digithink.zsretail.erp.spi.ErpRead;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

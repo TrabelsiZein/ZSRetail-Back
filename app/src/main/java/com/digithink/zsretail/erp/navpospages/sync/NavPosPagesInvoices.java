@@ -12,15 +12,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
+import com.digithink.zsretail.erp.api.CatalogueRun;
+import com.digithink.zsretail.erp.api.ErpInvoiceStart;
+import com.digithink.zsretail.erp.api.ErpRead;
+import com.digithink.zsretail.erp.api.RunSummary;
+import com.digithink.zsretail.erp.api.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.navpospages.client.NavPosPagesSource;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosPagesMapper;
-import com.digithink.zsretail.erp.spi.CatalogueRun;
-import com.digithink.zsretail.erp.spi.ErpInvoiceStart;
-import com.digithink.zsretail.erp.spi.ErpRead;
-import com.digithink.zsretail.erp.spi.RunSummary;
 
 /**
  * Code cleanup step 3: invoices from the ERP, a thin part of the navpospages connector (the invoices page and its

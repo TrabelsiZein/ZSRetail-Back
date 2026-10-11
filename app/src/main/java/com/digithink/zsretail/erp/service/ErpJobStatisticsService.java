@@ -8,7 +8,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
-import com.digithink.zsretail.erp.dto.ErpJobStatisticsDTO;
+import com.digithink.zsretail.erp.api.dto.ErpJobStatisticsDTO;
 import com.digithink.zsretail.erp.enumeration.ErpCommunicationStatus;
 import com.digithink.zsretail.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.erp.enumeration.ErpSyncOperation;

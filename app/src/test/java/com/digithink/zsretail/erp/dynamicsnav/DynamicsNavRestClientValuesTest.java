@@ -33,12 +33,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.web.client.RestTemplate;
 
-import com.digithink.zsretail.erp.dto.ErpSyncFilter;
+import com.digithink.zsretail.erp.api.ErpStoreLocation;
+import com.digithink.zsretail.erp.api.ErpSyncWarningException;
+import com.digithink.zsretail.erp.api.dto.ErpSyncFilter;
 import com.digithink.zsretail.erp.dynamicsnav.client.DynamicsNavRestClient;
 import com.digithink.zsretail.erp.dynamicsnav.config.DynamicsNavProperties;
 import com.digithink.zsretail.erp.dynamicsnav.dto.DynamicsNavCollectionResponse;
-import com.digithink.zsretail.erp.spi.ErpStoreLocation;
-import com.digithink.zsretail.erp.spi.ErpSyncWarningException;
 import com.digithink.zsretail.model.Location;
 import com.digithink.zsretail.service.ErpStoreLocationService;
 import com.digithink.zsretail.service.GeneralSetupService;

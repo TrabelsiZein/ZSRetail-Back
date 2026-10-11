@@ -15,7 +15,7 @@ import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.PropertyResolver;
 import org.springframework.core.env.PropertySource;
 
-import com.digithink.zsretail.erp.spi.ErpConnectors;
+import com.digithink.zsretail.erp.api.ErpConnectors;
 
 /**
  * Code cleanup, step 1: one line that chooses the ERP connector, {@code erp.connector=none | emtop | happyness}
@@ -29,7 +29,7 @@ import com.digithink.zsretail.erp.spi.ErpConnectors;
  * startup. An unknown value stops it too. See docs/deployment-modes.md.
  * <p>
  * Code cleanup, step 2: with the connector packages, the only class that names a connector key; the application asks
- * {@link com.digithink.zsretail.erp.spi.ErpAbilities} what the connector in effect can do.
+ * {@link com.digithink.zsretail.erp.api.ErpAbilities} what the connector in effect can do.
  */
 public class ErpConnectorEnvironmentPostProcessor implements EnvironmentPostProcessor, Ordered {
 

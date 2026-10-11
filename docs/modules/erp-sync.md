@@ -65,7 +65,7 @@
   - `extractErrorMessage()` - Extracts detailed error messages from NAV JSON responses
   - Re-throws original HTTP exceptions (not wrapped) to preserve error response bodies
   - Reads the store's General Setup `DEFAULT_LOCATION` (items) and the responsibility centre of the default location
-    (prices, discounts) through `erp/spi/ErpStoreLocation`, answered in core by `ErpStoreLocationService` (code cleanup
+    (prices, discounts) through `erp/api/ErpStoreLocation`, answered in core by `ErpStoreLocationService` (code cleanup
     step 5.8d; the same values, `DynamicsNavRestClientValuesTest`)
 
 **Configuration:**
@@ -163,7 +163,7 @@ job's type, in the same transaction as before (`ErpExportJobsTest`); an applicat
 
 **Design Philosophy:**
 - POS system is decoupled from specific ERP implementations (e.g., Dynamics NAV)
-- Abstract `ErpConnector` interface (`com.digithink.zsretail.erp.spi.ErpConnector`) defines ERP-agnostic methods
+- Abstract `ErpConnector` interface (`com.digithink.zsretail.erp.api.ErpConnector`) defines ERP-agnostic methods
 - Specific ERP implementations (e.g., `DynamicsNavConnector`) implement the interface
 - `NoOpErpConnector` provides stub implementation when ERP is disabled
 - **One connector** (code cleanup step 2): `NoOpErpConnector`, `DynamicsNavConnector` and `NavPosPagesConnector` are mutually
@@ -189,8 +189,8 @@ job's type, in the same transaction as before (`ErpExportJobsTest`); an applicat
 ### Abilities (code cleanup step 2)
 
 The connector is chosen by `erp.connector` (or the old enabled lines, `deployment-modes.md`). The application asks what
-the connector in effect can do, never which one it is: `erp/spi/ErpAbilities` gives, for each connector name, its
-abilities (`erp/spi/ErpAbility`), read from the environment, so a condition uses it before the beans exist.
+the connector in effect can do, never which one it is: `erp/api/ErpAbilities` gives, for each connector name, its
+abilities (`erp/api/ErpAbility`), read from the environment, so a condition uses it before the beans exist.
 
 | Connector | `HEAD_OFFICE_STOCK_POINTS` | `SUPPLY_INVOICES` |
 |---|---|---|
@@ -212,7 +212,7 @@ and the translation class of step 1 (`config/ErpConnectorEnvironmentPostProcesso
 and the NAV address of the startup summary), no class imports a connector package or contains the text `erp.dynamicsnav` or
 `erp.navpospages`, not even in a comment. It uses `@ConditionalOnErpAbility(...)` or `ErpAbilities.has(env, ...)`; what a
 connector's settings give the application goes through `ErpConnector` (the ids of deleted prices, the seller named on the
-stores' invoices: `supplyInvoiceSellerName`, the connector's `invoices.seller-name`) or a port in `erp/spi` that the
+stores' invoices: `supplyInvoiceSellerName`, the connector's `invoices.seller-name`) or a port in `erp/api` that the
 application implements (`StockPoints`, the head office's points de stock). **Guard test**: `erp/ConnectorNamesGuardTest`
 scans every project's `src/main/java` and fails naming each offending line.
 
@@ -230,14 +230,14 @@ logic is written once, in `erp/engine`, and exists with a connector that has the
 - `CatalogueEngine` (was `NavPosPagesSync`): families, sub-families, items per point de stock, barcodes. It compares
   with the head office tables, waits for the families, applies in packets (each its own transaction, through
   `CatalogueImport`), keeps the barcode cursor by position and writes the summary of each run (`RunSummary` of
-  `erp/spi`, the format of the communications log). One items run and one barcode run at a time.
+  `erp/api`, the format of the communications log). One items run and one barcode run at a time.
 - `CatalogueJob` (was `NavPosPagesCatalogueJob`): the single job `SYNC_CATALOGUE` (`ErpCatalogueSync`).
 - What the engine reads and writes at the head office: `HeadOfficeCatalogue` (`JpaHeadOfficeCatalogue`), `CatalogueState`
   (`JdbcCatalogueState`: the table stays `navpospages_state`, the keys `items.run`, `items.pending`, `barcodes.cursor`,
   `needs-barcodes:` unchanged), `CatalogueImport` (`BootstrapCatalogueImport`, through `ErpItemBootstrapService`),
   `StockPoints` (`headoffice.service.HoStockPointRows`).
 
-**What a connector gives** (`erp/spi`):
+**What a connector gives** (`erp/api`):
 - `ErpCatalogueSource`: `categories()` → `ErpCategories` (families and sub-families from one read),
   `items(locationCode)`, `barcodesAfter(position)`, `barcodesOfItems(itemCodes)`, `pageLabel(part)`, `pageUrl(part)`.
   Each read is an `ErpRead<T>`: the rows kept, how many were read, the rows left out by reason (the connector's own
@@ -245,8 +245,8 @@ logic is written once, in `erp/engine`, and exists with a connector that has the
 - `ErpBarcodeRow`: an `ErpItemBarcodeDTO` (unchanged) with its position, a number the ERP gives each barcode row and
   that only grows (navpospages: `Entry_No`). The engine keeps the highest position of the same barcode and moves its
   cursor over every row read, left-out ones included.
-- `ErpSyncWarningException` (`erp/spi`): a run that waited or was refused.
-- Since code cleanup step 5 also in `erp/spi`: `CatalogueSettings` (packet size, dry run, default VAT, given by the
+- `ErpSyncWarningException` (`erp/api`): a run that waited or was refused.
+- Since code cleanup step 5 also in `erp/api`: `CatalogueSettings` (packet size, dry run, default VAT, given by the
   connector from its own keys), `CatalogueRun` (the result of one run) and `RunSummary` (the summary format, used by the
   engine and by a connector's own runs); `ErpInvoiceStart` (the General Setup `ERP_INVOICES_READ_AFTER`, answered by
   the engine's `HeadOfficeCatalogue`), `GeneralSetupValueCheck` (a check of a General Setup value on save),
@@ -268,7 +268,7 @@ read by the single job, the four import jobs are refused on its head office), an
    by points de stock goes through the engine's job `SYNC_CATALOGUE`, not through the four catalogue fetches.
 3. Add the name to `erp.connector` (`ErpConnectorEnvironmentPostProcessor`) and its abilities to `ErpAbilities`
    (`HEAD_OFFICE_STOCK_POINTS` for the engine and the points de stock).
-4. Its classes use only `erp/spi`, their own package, the JDK and libraries (guard test
+4. Its classes use only `erp/api`, their own package, the JDK and libraries (guard test
    `ConnectorDependenciesGuardTest`); the application never names it (`ConnectorNamesGuardTest`, which also scans
    `erp/engine`).
 
@@ -276,8 +276,9 @@ Tests: `erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows o
 `NavPosPagesFixture`), `NavPosPagesInvoicesTest`, `NavPosPagesCatalogueSourceTest`.
 
 **Guard of the connector packages** (`erp/ConnectorDependenciesGuardTest`): a class of `erp/navpospages` or
-`erp/dynamicsnav` may use erp-api (as `ProjectSortingGuardTest` sorts it: `erp/spi`, and `erp/dto` apart from the two
-admin views going to core), its own package, the JDK and libraries. What would break the rule goes on an allow-list
+`erp/dynamicsnav` may use erp-api (as `ProjectSortingGuardTest` sorts it: `erp/api` with `erp/api/dto`, the project
+erp-api since code cleanup step 6.2; not the two admin views of `erp/dto`, going to core), its own package, the JDK and
+libraries. What would break the rule goes on an allow-list
 inside the test, each line with its reason (an entry nothing uses any more fails too); empty since code cleanup step
 5.8e (navpospages untied at 5.8c, dynamicsnav at 5.8d).
 

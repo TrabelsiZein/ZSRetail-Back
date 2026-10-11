@@ -29,10 +29,10 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
-import com.digithink.zsretail.erp.dto.ErpItemDTO;
-import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
-import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
 import com.digithink.zsretail.erp.service.ErpItemBootstrapService;
 import com.digithink.zsretail.headoffice.model.HoDownChange;
 import com.digithink.zsretail.model.Item;

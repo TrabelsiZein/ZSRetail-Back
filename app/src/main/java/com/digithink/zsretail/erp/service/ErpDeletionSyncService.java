@@ -7,9 +7,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.erp.dto.ErpDeletionLogEntryDTO;
-import com.digithink.zsretail.erp.dto.ErpSyncFilter;
-import com.digithink.zsretail.erp.spi.ErpConnector;
+import com.digithink.zsretail.erp.api.ErpConnector;
+import com.digithink.zsretail.erp.api.dto.ErpDeletionLogEntryDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSyncFilter;
 import com.digithink.zsretail.repository.SalesDiscountRepository;
 import com.digithink.zsretail.repository.SalesPriceRepository;
 

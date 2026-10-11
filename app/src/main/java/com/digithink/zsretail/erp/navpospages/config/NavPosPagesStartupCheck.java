@@ -8,7 +8,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.env.PropertyResolver;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.erp.spi.ErpConnectors;
+import com.digithink.zsretail.erp.api.ErpConnectors;
 
 import lombok.extern.log4j.Log4j2;
 

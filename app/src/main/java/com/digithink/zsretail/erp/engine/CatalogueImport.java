@@ -2,10 +2,10 @@ package com.digithink.zsretail.erp.engine;
 
 import java.util.List;
 
-import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
-import com.digithink.zsretail.erp.dto.ErpItemDTO;
-import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
-import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
 
 /**
  * The import of one packet, in its own transaction: the rows and their change rows for the stores commit together

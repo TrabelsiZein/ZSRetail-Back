@@ -16,10 +16,10 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.erp.dto.ErpOperationResult;
-import com.digithink.zsretail.erp.dto.ErpPaymentHeaderDTO;
-import com.digithink.zsretail.erp.dto.ErpPaymentLineDTO;
-import com.digithink.zsretail.erp.dto.ErpSessionDTO;
+import com.digithink.zsretail.erp.api.dto.ErpOperationResult;
+import com.digithink.zsretail.erp.api.dto.ErpPaymentHeaderDTO;
+import com.digithink.zsretail.erp.api.dto.ErpPaymentLineDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSessionDTO;
 import com.digithink.zsretail.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.erp.model.PaymentHeader;
 import com.digithink.zsretail.erp.model.PaymentLine;

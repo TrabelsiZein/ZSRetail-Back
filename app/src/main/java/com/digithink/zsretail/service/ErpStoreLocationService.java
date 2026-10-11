@@ -5,7 +5,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
-import com.digithink.zsretail.erp.spi.ErpStoreLocation;
+import com.digithink.zsretail.erp.api.ErpStoreLocation;
 import com.digithink.zsretail.model.Location;
 
 /**

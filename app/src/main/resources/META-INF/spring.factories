@@ -4,4 +4,4 @@ org.springframework.boot.env.EnvironmentPostProcessor=com.digithink.zsretail.con
 com.digithink.zsretail.config.InstallationTypeEnvironmentPostProcessor,\
 com.digithink.zsretail.config.ErpConnectorEnvironmentPostProcessor
 # Code cleanup step 5: erp-api asks the application which ERP connector is in effect
-com.digithink.zsretail.erp.spi.ErpConnectorResolver=com.digithink.zsretail.config.ErpConnectorInEffect
+com.digithink.zsretail.erp.api.ErpConnectorResolver=com.digithink.zsretail.config.ErpConnectorInEffect

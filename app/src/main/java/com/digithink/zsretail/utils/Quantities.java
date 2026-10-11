@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
 
-import com.digithink.zsretail.erp.spi.ErpQuantities;
+import com.digithink.zsretail.erp.api.ErpQuantities;
 
 /**
  * Quantities with up to 3 decimals (2.2.1: bulk items sold by the litre or the kilo, 0.2 or 0.058 at the till). The

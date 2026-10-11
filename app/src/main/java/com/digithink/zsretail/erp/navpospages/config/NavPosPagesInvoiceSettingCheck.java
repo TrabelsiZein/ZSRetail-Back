@@ -3,8 +3,8 @@ package com.digithink.zsretail.erp.navpospages.config;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.erp.spi.ErpInvoiceStart;
-import com.digithink.zsretail.erp.spi.GeneralSetupValueCheck;
+import com.digithink.zsretail.erp.api.ErpInvoiceStart;
+import com.digithink.zsretail.erp.api.GeneralSetupValueCheck;
 
 /**
  * Release 2.2: the General Setup "Read ERP invoices after number" (ERP_INVOICES_READ_AFTER) is empty (every invoice of

@@ -12,14 +12,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.config.ConditionalOnErpAbility;
+import com.digithink.zsretail.erp.api.CatalogueRun;
+import com.digithink.zsretail.erp.api.CatalogueSettings;
+import com.digithink.zsretail.erp.api.ErpAbility;
+import com.digithink.zsretail.erp.api.ErpCatalogueSync;
+import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 import com.digithink.zsretail.erp.enumeration.ErpCommunicationStatus;
 import com.digithink.zsretail.erp.enumeration.ErpSyncOperation;
 import com.digithink.zsretail.erp.service.ErpCommunicationService;
-import com.digithink.zsretail.erp.spi.CatalogueRun;
-import com.digithink.zsretail.erp.spi.CatalogueSettings;
-import com.digithink.zsretail.erp.spi.ErpAbility;
-import com.digithink.zsretail.erp.spi.ErpCatalogueSync;
-import com.digithink.zsretail.erp.spi.ErpSyncWarningException;
 
 /**
  * Release 2.2: the job SYNC_CATALOGUE ("Sync catalogue"), the whole catalogue from the ERP in one run, in this order:

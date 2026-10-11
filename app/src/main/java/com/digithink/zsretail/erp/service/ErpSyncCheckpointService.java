@@ -16,8 +16,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import com.digithink.zsretail.erp.dto.ErpSyncFilter;
-import com.digithink.zsretail.erp.dto.ErpTimestamped;
+import com.digithink.zsretail.erp.api.dto.ErpSyncFilter;
+import com.digithink.zsretail.erp.api.dto.ErpTimestamped;
 import com.digithink.zsretail.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.model.GeneralSetup;
 import com.digithink.zsretail.service.GeneralSetupService;

@@ -12,19 +12,19 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
-import com.digithink.zsretail.erp.dto.ErpItemDTO;
-import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
-import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
-import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
+import com.digithink.zsretail.erp.api.ErpBarcodeRow;
+import com.digithink.zsretail.erp.api.ErpQuantities;
+import com.digithink.zsretail.erp.api.ErpRead;
+import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosBarcodeRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceLineRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosStockRow;
-import com.digithink.zsretail.erp.spi.ErpBarcodeRow;
-import com.digithink.zsretail.erp.spi.ErpQuantities;
-import com.digithink.zsretail.erp.spi.ErpRead;
 
 /**
  * ERP catalogue, step 5: the rows of the "POS pages" to the existing Erp*DTO classes, with the counts of each read. No

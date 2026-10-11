@@ -8,11 +8,11 @@ import java.lang.annotation.Target;
 
 import org.springframework.context.annotation.Conditional;
 
-import com.digithink.zsretail.erp.spi.ErpAbility;
+import com.digithink.zsretail.erp.api.ErpAbility;
 
 /**
  * Code cleanup, step 2: the bean exists only when the ERP connector in effect has this ability
- * ({@link com.digithink.zsretail.erp.spi.ErpAbilities}), whichever way the connector was chosen. See
+ * ({@link com.digithink.zsretail.erp.api.ErpAbilities}), whichever way the connector was chosen. See
  * docs/modules/erp-sync.md, "Abilities".
  */
 @Target({ ElementType.TYPE, ElementType.METHOD })

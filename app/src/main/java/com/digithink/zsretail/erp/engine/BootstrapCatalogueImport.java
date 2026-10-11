@@ -5,12 +5,12 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.config.ConditionalOnErpAbility;
-import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
-import com.digithink.zsretail.erp.dto.ErpItemDTO;
-import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
-import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
+import com.digithink.zsretail.erp.api.ErpAbility;
+import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
 import com.digithink.zsretail.erp.service.ErpItemBootstrapService;
-import com.digithink.zsretail.erp.spi.ErpAbility;
 
 /**
  * {@link CatalogueImport} through the Spring proxy of ErpItemBootstrapService: each call is one transaction (the

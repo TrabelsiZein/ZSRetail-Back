@@ -6,14 +6,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.erp.dto.ErpItemDTO;
+import com.digithink.zsretail.erp.api.ErpBarcodeRow;
+import com.digithink.zsretail.erp.api.ErpCatalogueSource;
+import com.digithink.zsretail.erp.api.ErpCategories;
+import com.digithink.zsretail.erp.api.ErpRead;
+import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
 import com.digithink.zsretail.erp.navpospages.dto.NavPosCategoryRow;
 import com.digithink.zsretail.erp.navpospages.mapper.NavPosPagesMapper;
-import com.digithink.zsretail.erp.spi.ErpBarcodeRow;
-import com.digithink.zsretail.erp.spi.ErpCatalogueSource;
-import com.digithink.zsretail.erp.spi.ErpCategories;
-import com.digithink.zsretail.erp.spi.ErpRead;
 
 /**
  * Code cleanup step 3: the thin part of the navpospages connector as the catalogue engine reads it: the "POS pages"

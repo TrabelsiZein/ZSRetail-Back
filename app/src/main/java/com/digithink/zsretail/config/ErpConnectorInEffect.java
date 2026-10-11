@@ -2,7 +2,7 @@ package com.digithink.zsretail.config;
 
 import org.springframework.core.env.PropertyResolver;
 
-import com.digithink.zsretail.erp.spi.ErpConnectorResolver;
+import com.digithink.zsretail.erp.api.ErpConnectorResolver;
 
 /**
  * Code cleanup step 5: the application's answers to erp-api's questions: which connector is in effect

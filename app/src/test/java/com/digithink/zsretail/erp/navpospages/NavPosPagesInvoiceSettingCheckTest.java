@@ -15,9 +15,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.digithink.zsretail.erp.api.GeneralSetupValueCheck;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesInvoiceSettingCheck;
 import com.digithink.zsretail.erp.navpospages.config.NavPosPagesProperties;
-import com.digithink.zsretail.erp.spi.GeneralSetupValueCheck;
 import com.digithink.zsretail.model.GeneralSetup;
 import com.digithink.zsretail.repository.GeneralSetupChangeLogRepository;
 import com.digithink.zsretail.repository.GeneralSetupRepository;

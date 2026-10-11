@@ -8,21 +8,21 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.digithink.zsretail.erp.dto.ErpCustomerDTO;
-import com.digithink.zsretail.erp.dto.ErpDeletionLogEntryDTO;
-import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
-import com.digithink.zsretail.erp.dto.ErpItemDTO;
-import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
-import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
-import com.digithink.zsretail.erp.dto.ErpLocationDTO;
-import com.digithink.zsretail.erp.dto.ErpSalesDiscountDTO;
-import com.digithink.zsretail.erp.dto.ErpSalesPriceDTO;
-import com.digithink.zsretail.erp.dto.ErpSyncFilter;
+import com.digithink.zsretail.erp.api.ErpCatalogueSync;
+import com.digithink.zsretail.erp.api.ErpSupplyInvoiceImport;
+import com.digithink.zsretail.erp.api.ErpSyncWarningException;
+import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
+import com.digithink.zsretail.erp.api.dto.ErpDeletionLogEntryDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpLocationDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSalesDiscountDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSalesPriceDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSyncFilter;
 import com.digithink.zsretail.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.erp.model.ErpSyncJob;
-import com.digithink.zsretail.erp.spi.ErpCatalogueSync;
-import com.digithink.zsretail.erp.spi.ErpSupplyInvoiceImport;
-import com.digithink.zsretail.erp.spi.ErpSyncWarningException;
 
 import lombok.RequiredArgsConstructor;
 

@@ -11,8 +11,8 @@ import java.util.Set;
 
 import org.springframework.core.env.PropertyResolver;
 
-import com.digithink.zsretail.erp.spi.ErpAbilities;
-import com.digithink.zsretail.erp.spi.ErpAbility;
+import com.digithink.zsretail.erp.api.ErpAbilities;
+import com.digithink.zsretail.erp.api.ErpAbility;
 import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.enumeration.DataOwner;
 import com.digithink.zsretail.model.enumeration.NodeType;

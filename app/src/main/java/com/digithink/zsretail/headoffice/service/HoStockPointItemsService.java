@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.digithink.zsretail.config.ConditionalOnErpAbility;
 import com.digithink.zsretail.config.ConditionalOnInstallation;
 import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.erp.spi.ErpAbility;
+import com.digithink.zsretail.erp.api.ErpAbility;
 import com.digithink.zsretail.headoffice.dto.StockPointItemDTO;
 import com.digithink.zsretail.headoffice.model.HoStockPoint;
 import com.digithink.zsretail.headoffice.model.HoStockPointItem;

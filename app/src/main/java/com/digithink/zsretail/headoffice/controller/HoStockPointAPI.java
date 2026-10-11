@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.digithink.zsretail.config.ConditionalOnErpAbility;
 import com.digithink.zsretail.config.ConditionalOnInstallation;
 import com.digithink.zsretail.config.Installation;
-import com.digithink.zsretail.erp.spi.ErpAbility;
+import com.digithink.zsretail.erp.api.ErpAbility;
 import com.digithink.zsretail.headoffice.dto.StockPointDTO;
 import com.digithink.zsretail.headoffice.service.HoStockPointItemsService;
 import com.digithink.zsretail.headoffice.service.HoStockPointService;

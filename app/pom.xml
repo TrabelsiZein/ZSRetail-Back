@@ -17,6 +17,11 @@
 	<packaging>war</packaging>
 
 	<dependencies>
+		<!-- Code cleanup step 6.2: the ERP plug -->
+		<dependency>
+			<groupId>com.digithink</groupId>
+			<artifactId>zsretail-erp-api</artifactId>
+		</dependency>
 
 
 		<dependency>

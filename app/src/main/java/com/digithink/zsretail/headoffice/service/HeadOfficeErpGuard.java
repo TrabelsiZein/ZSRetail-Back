@@ -12,9 +12,9 @@ import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.config.ConditionalOnInstallation;
 import com.digithink.zsretail.config.Installation;
+import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 import com.digithink.zsretail.erp.dto.ErpSyncJobViewDTO;
 import com.digithink.zsretail.erp.model.ErpSyncJob;
-import com.digithink.zsretail.erp.spi.ErpSyncWarningException;
 
 /**
  * Head office plan, task 3.4: keeps the ERP jobs of {@link HeadOfficeErpJobs#refusedTypes()} (the exports and the price

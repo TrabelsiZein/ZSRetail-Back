@@ -12,10 +12,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.support.CronSequenceGenerator;
 import org.springframework.stereotype.Component;
 
+import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 import com.digithink.zsretail.erp.model.ErpSyncJob;
 import com.digithink.zsretail.erp.service.ErpSyncJobRunner;
 import com.digithink.zsretail.erp.service.ErpSyncJobService;
-import com.digithink.zsretail.erp.spi.ErpSyncWarningException;
 
 import lombok.RequiredArgsConstructor;
 

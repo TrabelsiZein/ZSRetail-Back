@@ -32,7 +32,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.support.TransactionOperations;
 
-import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.headoffice.dto.CopiesDownAnswerDTO;
 import com.digithink.zsretail.headoffice.dto.DeliveryConfirmationDTO;
 import com.digithink.zsretail.headoffice.dto.ErpInvoiceDTO;
@@ -44,8 +44,8 @@ import com.digithink.zsretail.headoffice.model.HoErpInvoice;
 import com.digithink.zsretail.headoffice.model.HoErpInvoiceLine;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.HoErpInvoiceRepository;
-import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.model.Item;
+import com.digithink.zsretail.model.enumeration.DataDomain;
 import com.digithink.zsretail.support.InMemoryCatalogue;
 import com.digithink.zsretail.utils.Quantities;
 

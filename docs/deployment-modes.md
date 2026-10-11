@@ -61,7 +61,7 @@ case), the way for a new installation (in its outside file). It is only a transl
 Code cleanup step 5: the values are the customers' names, one connector per customer even when two ERPs look alike:
 `emtop` (EMTOP's Dynamics NAV, keys `erp.dynamicsnav.*`) and `happyness` (Happyness's POS pages, keys `erp.navpospages.*`);
 they were `dynamicsnav` and `navpospages`, which no installed file used. The names and `@ConditionalOnErpConnector` are in
-`erp/spi` (`ErpConnectors`); erp-api asks the application which connector is in effect through `ErpConnectorResolver`
+`erp/api` (`ErpConnectors`); erp-api asks the application which connector is in effect through `ErpConnectorResolver`
 (`config/ErpConnectorInEffect`, registered in `META-INF/spring.factories`), so it names no key of the application.
 
 So every `@ConditionalOnProperty`, `NodeOwnership`, the startup checks and the summary read the old lines unchanged. The
@@ -79,7 +79,7 @@ Two rules, decided at code cleanup step 1:
 - **An empty `erp.connector=` is refused as an unknown value**, not read as absent: to keep the old lines, leave the key out.
 
 **Abilities and the rule "the application never names a connector"** (code cleanup step 2, `docs/modules/erp-sync.md`,
-"Abilities"): the application asks `erp/spi/ErpAbilities` what the connector in effect can do (`HEAD_OFFICE_STOCK_POINTS`,
+"Abilities"): the application asks `erp/api/ErpAbilities` what the connector in effect can do (`HEAD_OFFICE_STOCK_POINTS`,
 `SUPPLY_INVOICES`: `happyness` only), whichever way the connector was chosen. Exactly one `ErpConnector` bean exists, the
 one of the connector in effect. Outside the connector packages and the class above, no code names `erp.dynamicsnav` or
 `erp.navpospages`; the guard test `erp/ConnectorNamesGuardTest` checks it. The property keys of each connector

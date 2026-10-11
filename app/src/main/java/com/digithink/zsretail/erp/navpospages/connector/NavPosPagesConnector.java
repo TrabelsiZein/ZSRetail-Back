@@ -7,31 +7,31 @@ import java.util.function.Supplier;
 
 import org.springframework.stereotype.Component;
 
-import com.digithink.zsretail.erp.dto.ErpCustomerDTO;
-import com.digithink.zsretail.erp.dto.ErpDeletionLogEntryDTO;
-import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
-import com.digithink.zsretail.erp.dto.ErpItemDTO;
-import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
-import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
-import com.digithink.zsretail.erp.dto.ErpLocationDTO;
-import com.digithink.zsretail.erp.dto.ErpOperationResult;
-import com.digithink.zsretail.erp.dto.ErpPaymentHeaderDTO;
-import com.digithink.zsretail.erp.dto.ErpPaymentLineDTO;
-import com.digithink.zsretail.erp.dto.ErpReturnDTO;
-import com.digithink.zsretail.erp.dto.ErpReturnLineDTO;
-import com.digithink.zsretail.erp.dto.ErpSalesDiscountDTO;
-import com.digithink.zsretail.erp.dto.ErpSalesPriceDTO;
-import com.digithink.zsretail.erp.dto.ErpSessionDTO;
-import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
-import com.digithink.zsretail.erp.dto.ErpSyncFilter;
-import com.digithink.zsretail.erp.dto.ErpTicketDTO;
-import com.digithink.zsretail.erp.dto.ErpTicketLineDTO;
-import com.digithink.zsretail.erp.dto.PullOperationResult;
+import com.digithink.zsretail.erp.api.CatalogueRun;
+import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
+import com.digithink.zsretail.erp.api.ErpConnector;
+import com.digithink.zsretail.erp.api.ErpConnectors;
+import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
+import com.digithink.zsretail.erp.api.dto.ErpDeletionLogEntryDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpLocationDTO;
+import com.digithink.zsretail.erp.api.dto.ErpOperationResult;
+import com.digithink.zsretail.erp.api.dto.ErpPaymentHeaderDTO;
+import com.digithink.zsretail.erp.api.dto.ErpPaymentLineDTO;
+import com.digithink.zsretail.erp.api.dto.ErpReturnDTO;
+import com.digithink.zsretail.erp.api.dto.ErpReturnLineDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSalesDiscountDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSalesPriceDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSessionDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSupplyInvoiceDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSyncFilter;
+import com.digithink.zsretail.erp.api.dto.ErpTicketDTO;
+import com.digithink.zsretail.erp.api.dto.ErpTicketLineDTO;
+import com.digithink.zsretail.erp.api.dto.PullOperationResult;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesInvoices;
-import com.digithink.zsretail.erp.spi.CatalogueRun;
-import com.digithink.zsretail.erp.spi.ConditionalOnErpConnector;
-import com.digithink.zsretail.erp.spi.ErpConnector;
-import com.digithink.zsretail.erp.spi.ErpConnectors;
 
 /**
  * ERP catalogue, step 5: the ERP connector of a Dynamics NAV / Business Central whose web services are the "POS pages"
