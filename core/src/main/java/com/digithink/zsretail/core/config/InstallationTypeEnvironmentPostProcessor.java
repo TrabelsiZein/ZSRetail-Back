@@ -2,7 +2,6 @@ package com.digithink.zsretail.core.config;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashSet;
 import java.util.List;
 
 import org.springframework.boot.SpringApplication;
@@ -12,20 +11,24 @@ import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.PropertySource;
 import org.springframework.util.StringUtils;
 
-import com.digithink.zsretail.core.model.enumeration.NodeType;
-
 /**
  * Configuration step C1: the active profile in effect, once the configuration files are read, is exactly one
- * installation type, store or headoffice. Anything else (none, two, or an old profile name such as store-erp or
- * dynamics-prod left in the server's options) stops the startup naming the two types.
+ * installation type, store or headoffice.
  * <p>
- * Code cleanup step 6.5: the application is the type ({@link ZsRetailApplication}). An outside file (or a server
- * option) may still name it with spring.profiles.active, and node.type: when it names the other type, the startup stops
- * naming the application and the file.
+ * Code cleanup step 6.5: the application is the type ({@link ZsRetailApplication}). Code cleanup step 8 (decision of
+ * 2026-10-11): an installation no longer names it. spring.profiles.active or node.type from any source but the
+ * application's own default properties (the outside file, a configuration file, a -D, an environment variable such as
+ * SPRING_PROFILES_ACTIVE), whatever its value, stops the startup naming each line and where it is, and saying to remove
+ * it; a line that names the other type also says which application that installation needs. The old lines of the
+ * connectors found at the same start are added to the message
+ * ({@link ErpConnectorEnvironmentPostProcessor#oldLinesMessage}), so one message names every old line. Anything else
+ * that changes the profiles (spring.profiles.include) stops the startup too.
  */
 public class InstallationTypeEnvironmentPostProcessor implements EnvironmentPostProcessor, Ordered {
 
 	static final String ACTIVE_KEY = "spring.profiles.active";
+	/** The lines that named the type before the application was the type. */
+	static final List<String> TYPE_KEYS = Arrays.asList(ACTIVE_KEY, NodeOwnership.NODE_TYPE_KEY);
 
 	/** After ConfigFileApplicationListener (HIGHEST_PRECEDENCE + 10), which sets the active profiles. */
 	@Override
@@ -35,34 +38,61 @@ public class InstallationTypeEnvironmentPostProcessor implements EnvironmentPost
 
 	@Override
 	public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
-		String outsideFile = environment.getProperty(MachineFileEnvironmentPostProcessor.LOADED_KEY);
 		String type = applicationType(environment);
 		if (type == null) {
-			check(environment.getActiveProfiles(), outsideFile);
+			check(environment.getActiveProfiles(), environment.getProperty(MachineFileEnvironmentPostProcessor.LOADED_KEY));
 			return;
 		}
-		List<String> named = new ArrayList<>(new LinkedHashSet<>(
-				Arrays.asList(StringUtils.commaDelimitedListToStringArray(environment.getProperty(ACTIVE_KEY, "")))));
-		named.replaceAll(String::trim);
+		String refusal = typeLinesMessage(environment, type, applicationName(application));
+		if (refusal != null) {
+			String connectors = ErpConnectorEnvironmentPostProcessor.oldLinesMessage(environment);
+			throw new IllegalStateException(connectors == null ? refusal : refusal + " " + connectors);
+		}
 		String[] active = environment.getActiveProfiles();
-		if (named.size() == 1 && NodeOwnership.TYPES.contains(named.get(0)) && !named.get(0).equals(type)) {
-			throw new IllegalStateException(wrongType(type, applicationName(application), ACTIVE_KEY + "=" + named.get(0),
-					named.get(0), source(environment, ACTIVE_KEY, outsideFile)));
-		}
 		if (!(active.length == 1 && active[0].equals(type))) {
-			// What was named is refused as before (none, two, an old profile name); else the profiles in effect are
-			check(named.isEmpty() ? active : named.toArray(new String[0]), outsideFile);
-			check(active, outsideFile);
-		}
-		NodeType expected = "headoffice".equals(type) ? NodeType.HEAD_OFFICE : NodeType.STORE;
-		NodeType nodeType = NodeOwnership.nodeTypeOf(environment);
-		if (nodeType != expected) {
-			throw new IllegalStateException(wrongType(type, applicationName(application),
-					NodeOwnership.NODE_TYPE_KEY + "=" + nodeType, nodeType == NodeType.HEAD_OFFICE ? "headoffice" : "store",
-					source(environment, NodeOwnership.NODE_TYPE_KEY, outsideFile)));
+			throw new IllegalStateException("The active profiles are " + Arrays.toString(active) + ": the " + label(type)
+					+ " application runs with its profile " + type + " only. Remove what adds a profile"
+					+ " (spring.profiles.include in the outside file, the IDE or the server's options).");
 		}
 	}
 
+	/**
+	 * The refusal of the lines that name the type (spring.profiles.active, node.type), every source but the application's
+	 * defaults, null when there is none.
+	 */
+	static String typeLinesMessage(ConfigurableEnvironment environment, String type, String application) {
+		List<String> lines = new ArrayList<>();
+		boolean otherType = false;
+		for (String key : TYPE_KEYS) {
+			for (PropertySource<?> source : ConfigurationSources.holding(environment, key)) {
+				String value = String.valueOf(source.getProperty(key)).trim();
+				lines.add(key + "=" + value + " in " + ConfigurationSources.describe(environment, source));
+				otherType |= namesOtherType(key, value, type);
+			}
+		}
+		if (lines.isEmpty()) {
+			return null;
+		}
+		String other = "headoffice".equals(type) ? "store" : "headoffice";
+		return (lines.size() == 1 ? "Old line" : "Old lines") + " no longer read: " + String.join("; ", lines)
+				+ ". An installation no longer names its type: the application is its type (this is the " + label(type)
+				+ " application" + (application == null ? "" : ", " + application) + "). Remove "
+				+ (lines.size() == 1 ? "the line" : "the lines") + "."
+				+ (otherType ? " It names a " + label(other) + ": a " + label(other) + " runs the " + label(other)
+						+ " application, deploy its WAR in this Tomcat (under zsretailws)." : "");
+	}
+
+	/** True when a type line names the other type than the application's. */
+	static boolean namesOtherType(String key, String value, String type) {
+		String other = "headoffice".equals(type) ? "store" : "headoffice";
+		if (ACTIVE_KEY.equals(key)) {
+			return Arrays.stream(StringUtils.commaDelimitedListToStringArray(value)).map(String::trim)
+					.anyMatch(other::equals);
+		}
+		return value.replace("_", "").equalsIgnoreCase(other);
+	}
+
+	/** Without the application (no type of its own): the active profile must be exactly one installation type. */
 	static void check(String[] activeProfiles, String outsideFile) {
 		if (activeProfiles.length == 1 && NodeOwnership.TYPES.contains(activeProfiles[0])) {
 			return;
@@ -76,12 +106,11 @@ public class InstallationTypeEnvironmentPostProcessor implements EnvironmentPost
 
 	/** The type the application gave as a default property ({@link ZsRetailApplication#TYPE_KEY}); null for none. */
 	static String applicationType(ConfigurableEnvironment environment) {
-		PropertySource<?> defaults = environment.getPropertySources().get("defaultProperties");
+		PropertySource<?> defaults = environment.getPropertySources().get(ConfigurationSources.DEFAULTS);
 		Object type = defaults == null ? null : defaults.getProperty(ZsRetailApplication.TYPE_KEY);
 		return type == null ? null : type.toString();
 	}
 
-	/** The main class of the application (the WAR's, the IDE's), null when there is none. */
 	/** The main class of the application (the WAR's, the IDE's), null when there is none. */
 	static String applicationName(SpringApplication application) {
 		if (application != null) {
@@ -94,33 +123,7 @@ public class InstallationTypeEnvironmentPostProcessor implements EnvironmentPost
 		return null;
 	}
 
-	/** Where a key comes from: the outside file when it has it, else the IDE or the server's options. */
-	static String source(ConfigurableEnvironment environment, String key, String outsideFile) {
-		PropertySource<?> machine = environment.getPropertySources()
-				.get(MachineFileEnvironmentPostProcessor.PROPERTY_SOURCE_NAME);
-		if (machine != null && machine.containsProperty(key)) {
-			return "the outside file " + outsideFile;
-		}
-		for (PropertySource<?> source : environment.getPropertySources()) {
-			if (source.containsProperty(key) && !"defaultProperties".equals(source.getName())
-					&& !source.getName().startsWith("applicationConfig")) {
-				return "the IDE or the server's options (" + source.getName() + ")";
-			}
-		}
-		return "the configuration";
-	}
-
-	/** The refusal of a start whose file (or option) names the other type: the application, the file, the line. */
-	static String wrongType(String type, String application, String line, String otherType, String source) {
-		return "This is the " + label(type) + " application" + (application == null ? "" : " (" + application + ")")
-				+ ": it runs an installation of type " + type + ", but " + source + " names the type " + otherType + " ("
-				+ line + "). The " + label(otherType) + " runs the " + label(otherType) + " application: deploy its WAR in"
-				+ " this Tomcat (under zsretailws), or correct the file; an installation needs no " + ACTIVE_KEY
-				+ " and no node.type line, the application is its type (docs/deployment-modes.md).";
-	}
-
 	static String label(String type) {
 		return "headoffice".equals(type) ? "head office" : "store";
 	}
-
 }

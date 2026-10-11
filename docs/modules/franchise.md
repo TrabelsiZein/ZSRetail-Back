@@ -24,7 +24,7 @@
 ### Installing a franchise network on the model
 Head office plan, step 8 (2026-10-04). A new franchise network runs as a head office and stores, of the types `headoffice` and `store`, each installation with its outside file (configuration step C1; `docs/deployment-modes.md`). It never used the franchise profiles. The store-row invoicing settings, the supply prices and their pages come with step 7B (merged into release/2.1.0).
 
-1. **Head office.** Create an empty database. Make its outside file from `configs/machine-model.properties`: `spring.profiles.active=headoffice`, the database, its own log file and image folder (so a store can run on the same server). Log in as `admin`. Fill **Company information**: it is the seller on the supply invoices. Tax stamp on supply invoices: head office setting `SUPPLY_INVOICE_TAX_STAMP` (off by default).
+1. **Head office.** Create an empty database. Make its outside file from `configs/machine-model.properties` (no type line: it runs the head office WAR): the database, its own log file and image folder (so a store can run on the same server). Log in as `admin`. Fill **Company information**: it is the seller on the supply invoices. Tax stamp on supply invoices: head office setting `SUPPLY_INVOICE_TAX_STAMP` (off by default).
 2. **Items at the head office.** Create families, sub-families and items with their barcodes. The item's price is the **base selling price**, imposed on every store. Enter the **base supply price** of each item on the Supply prices page: it is what a store pays. Buy the goods from vendors at the head office (purchases, stock).
 3. **One store row per store** on **Network → Stores**:
    - code = the store's future `DEFAULT_LOCATION`;

@@ -184,7 +184,7 @@ class InstallationBeansProofTest {
 			Thread.currentThread().interrupt();
 			return Installations.config(file);
 		}
-		return Installations.over(Installations.upgraded(committed));
+		return Installations.over(Installations.typeOf(file), Installations.upgraded(committed));
 	}
 
 	/** Every configuration of the repository, the six shapes, and head office shapes no file has. */

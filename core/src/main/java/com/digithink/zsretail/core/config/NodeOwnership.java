@@ -490,7 +490,7 @@ public final class NodeOwnership {
 	private static void checkNoStandaloneProperty(PropertyResolver env) {
 		if (env.containsProperty(STANDALONE_KEY)) {
 			throw new IllegalStateException("The property " + STANDALONE_KEY + " was removed (head office plan, step 9, task"
-					+ " 9.3): the installation type (spring.profiles.active=" + String.join(" | ", TYPES) + ") and the"
+					+ " 9.3): the installation type (the application, " + String.join(" or ", TYPES) + ") and the"
 					+ " ownership.* keys say who owns what (docs/deployment-modes.md); remove " + STANDALONE_KEY + ".");
 		}
 	}

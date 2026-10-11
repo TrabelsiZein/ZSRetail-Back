@@ -7,10 +7,11 @@ head office since ERP catalogue step 1: the catalogue alone from the ERP (sectio
 
 **Two applications** (code cleanup step 6.5): the store and the head office are two applications, each its WAR
 (`docs/deploy-note.md`). The application is the type: it activates its type file and gives its type as default
-properties (`core/config/ZsRetailApplication`), so a new installation names no type. An outside file that still names it
-(`spring.profiles.active`, `node.type`) keeps working when it names the application's type, and stops the start when it
-names the other one (below, **Type check**). Every key of every file of `configs/` resolves as before
-(`ConfigurationKeysProofTest`).
+properties (`core/config/ZsRetailApplication`: `spring.profiles.active`, `node.type`, `zsretail.application.type`), so
+an installation names no type. Since code cleanup step 8 (decision of 2026-10-11) a `spring.profiles.active` or
+`node.type` line from any other source stops the start (below, **Type check**). Every key of every file of `configs/`
+resolves as before (`ConfigurationKeysProofTest`); the old lines of 2.2.2 and their upgrade: `docs/deploy-note.md`,
+"Upgrade from 2.2.2: the outside file".
 
 ## 1. The three files (inside the WARs)
 
@@ -21,7 +22,7 @@ names the other one (below, **Type check**). Every key of every file of `configs
 | `application-headoffice.properties` (the head office WAR) | the type headoffice |
 
 Each type file has two titled blocks:
-- **What this installation is**: `node.type`, the five `ownership.*`, `sales.upstream`, a comment naming `erp.connector`
+- **What this installation is**: the five `ownership.*`, `sales.upstream`, a comment naming `erp.connector`
   (section 2), each with a comment giving its allowed values. Both types ship with every owner `LOCAL`, sales nowhere, no ERP connector. The store
   file shows the two usual variants as comments: a store on NAV (catalogue, customers, supply `ERP`, sales to `ERP`, connector
   on) and a store of a network (catalogue and supply `HEAD_OFFICE`, sales to `HEAD_OFFICE`, plus the head office link).
@@ -37,8 +38,8 @@ store, and `HeadOfficeApplication` as a head office.
 
 ## 2. The outside file (optional)
 
-Usually only the "where it runs" block of a real installation; it may also change any mode line, and name the type (an
-old file; the application's type only). Model:
+Usually only the "where it runs" block of a real installation; it may also change any mode line, never the type.
+Model:
 `configs/machine-model.properties`. Loaded by `core/config/MachineFileEnvironmentPostProcessor`, before Spring reads its
 configuration files, when:
 1. `-Dzsretail.machine-file=<path>` names it (dev scripts, IDE, or to override the Tomcat convention); a path that does not
@@ -52,15 +53,24 @@ Neither: no outside file, the type file applies as it is.
 **Precedence**: command-line arguments and system properties, then the outside file, then the type file, then
 `application.properties`.
 
-**Type check** (`core/config/InstallationTypeEnvironmentPostProcessor`, after the configuration files are read): the active profile
-in effect is exactly `store` or `headoffice`; anything else (none, two, an old preset name such as `store-erp`, an old profile
-such as `dynamics-prod` left in the server's options) stops the startup: `The active profile is [<names>]: it must be one
-installation type, spring.profiles.active=store | headoffice ...`. `application.standalone` stays refused. Since code
-cleanup step 6.5 the type in effect is also the application's: a `spring.profiles.active` or a `node.type` of the other
-type (outside file, IDE or server option) stops the start naming the application, the source and the line: `This is the
-head office application (HeadOfficeApplication): it runs an installation of type headoffice, but the outside file <path>
-names the type store (spring.profiles.active=store). The store runs the store application: deploy its WAR in this
-Tomcat (under zsretailws), or correct the file; ...`
+**Type check** (`core/config/InstallationTypeEnvironmentPostProcessor`, after the configuration files are read; code
+cleanup step 8): a `spring.profiles.active` or `node.type` line from any source but the application's own defaults (the
+outside file, a configuration file, a `-D`, an environment variable such as `SPRING_PROFILES_ACTIVE`, Tomcat's
+options), whatever its value (the application's type, the other type, an old profile such as `dynamics-prod`), stops
+the startup. The message names each line and where it is, says to remove it, and, when a line names the other type,
+which application that installation needs; the old lines of the connectors found at the same start follow in the same
+message, so one start names every old line:
+
+```
+Old lines no longer read: spring.profiles.active=store in the outside file C:\...\zsretailws.properties; node.type=STORE
+in the outside file C:\...\zsretailws.properties. An installation no longer names its type: the application is its type
+(this is the head office application, HeadOfficeApplication). Remove the lines. It names a store: a store runs the
+store application, deploy its WAR in this Tomcat (under zsretailws).
+```
+
+A profile added another way (`spring.profiles.include`) is refused too: `The active profiles are [store, x]: the store
+application runs with its profile store only. ...`. `application.standalone` stays refused. Until code cleanup step 8
+an old file that named the application's own type kept working; only the other type was refused.
 
 **ERP connector** (code cleanup step 1; since code cleanup step 8 the only way): one line chooses it,
 `erp.connector=none | emtop | happyness` (trimmed, any case), in the installation's outside file. Absent or `none`: no
@@ -125,9 +135,9 @@ supply HEAD_OFFICE, sales to [HEAD_OFFICE], ERP connector none, outside file D:\
 (`none` or a connector found: `emtop`, `happyness`) is the value of `erp.connector`. With `emtop` it adds `NAV <base-url>` (what
 its descriptor declares); never a password or a key.
 
-**The `configs/` folder** (versioned; `deploy/` joined it at code cleanup step 7): every file of the table names its type (as
-the files did for the single application; still accepted when it is the application's) and, when the old preset differed
-from the type file, states the mode lines that preset gave, so every key of every file resolves exactly as before step C1
+**The `configs/` folder** (versioned; `deploy/` joined it at code cleanup step 7): no file names its type (code cleanup
+step 8; each file is a store's or a head office's, as its name says, and runs with that WAR) and, when the old preset differed
+from the type file, a file states the mode lines that preset gave, so every key of every file resolves exactly as before step C1
 (checked key by key, `ConfigurationKeysProofTest`).
 
 | File | Type + mode lines | Was |
@@ -152,7 +162,7 @@ from the type file, states the mode lines that preset gave, so every key of ever
 
 **IDE (Eclipse / STS)**: `StoreApplication` as it is is a store on the type file (`HeadOfficeApplication` a head office on its own) (set `ZSRETAIL_DB_PASSWORD` in the launch's
 Environment tab). For a dev machine, VM arguments `-Dzsretail.machine-file="D:\ZS Retail\Apps\ZSRetail-Back\configs\dev\store-b.properties"`
-(the shared `eclipse/*.launch` do this). A launch with `-Dspring.profiles.active=<old profile>` is refused.
+(the shared `eclipse/*.launch` do this). A launch with `-Dspring.profiles.active` (any value) is refused.
 
 **Dev scripts** (`devenv/`): unchanged, each instance starts with `-Dzsretail.machine-file` (`common.ps1`).
 
@@ -176,13 +186,19 @@ outside file of `configs/` like the application; it keeps the six shapes of task
 5. Check the startup summary line in the log, and `GET /config` (`nodeType`, `ownership`, `salesUpstreams`).
 
 **Upgrade of a 2.1 installation built on the presets**: in its outside file, replace `spring.profiles.active=<preset>` with the
-type and the mode lines of that preset (table above, or `support/Installations`); `store` and `headoffice` need nothing.
+mode lines of that preset (table above, or `support/Installations`), and no type line (code cleanup step 8);
+`store` and `headoffice` only lose the line.
 Since code cleanup step 6.5 the installation runs the WAR of its type.
 
 **Upgrade from before 2.1** (an old profile): its outside file is the matching file of `configs/customers/` when there is one;
-otherwise copy the old profile file, add the type and mode lines (standalone-* is `store`; dynamics-* is `store` + the NAV
-lines; headoffice-dev is `headoffice`), remove `application.standalone`, and remove any `spring.profiles.active` from the Tomcat
-options. Then the release's `update.sql`, the WAR of its type, a start, and the checks above.
+otherwise copy the old profile file, add the mode lines (standalone-* is a store; dynamics-* is a store + the NAV
+lines; headoffice-dev is a head office), remove `application.standalone`, and remove any `spring.profiles.active` from the Tomcat
+options. Then as 2.2.2 below. Then the release's `update.sql`, the WAR of its type, a start, and the checks above.
+
+**Upgrade from 2.2.2** (code cleanup step 8): in the outside file, remove the type lines, write `erp.connector` instead
+of the old enabled line and rename the connector's keys, as `docs/deploy-note.md` lists them ("Upgrade from 2.2.2: the
+outside file") for an EMTOP store, a Happyness head office and a Happyness store. A line left over stops the start and
+the message names it.
 
 ## 4. Ownership model (resolved at startup)
 
@@ -192,7 +208,7 @@ questions). Values are trimmed and case-insensitive.
 
 | Key | Values | When absent |
 |---|---|---|
-| `node.type` | `STORE`, `HEAD_OFFICE` | `STORE` |
+| `node.type` | `STORE`, `HEAD_OFFICE`: given by the application (its default properties); a line in any file is refused (code cleanup step 8) | `STORE` |
 | `ownership.catalogue`, `ownership.customers`, `ownership.supply` | `LOCAL`, `HEAD_OFFICE`, `ERP` | `LOCAL` |
 | `ownership.promotions`, `ownership.loyalty` | `LOCAL`, `HEAD_OFFICE` | `LOCAL` |
 | `sales.upstream` | comma list of `ERP`, `HEAD_OFFICE`; empty = none | none |
@@ -207,7 +223,7 @@ on a head office, an owner `HEAD_OFFICE`, a non-empty `sales.upstream` or `heado
 task 9.3). Head office details: `docs/modules/head-office.md`.
 
 **Catalogue only from the ERP, head office only** (ERP catalogue, step 1: ownership only, no connector yet):
-`node.type=HEAD_OFFICE`, `ownership.catalogue=ERP`, `ownership.customers` and `ownership.supply` not `ERP` (absent or
+a head office (the head office application), `ownership.catalogue=ERP`, `ownership.customers` and `ownership.supply` not `ERP` (absent or
 `LOCAL`). Every other partial combination is refused with the message above, on a head office and on a store.
 
 | Question | This head office | Every other configuration |

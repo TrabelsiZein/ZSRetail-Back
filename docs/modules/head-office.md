@@ -6,7 +6,7 @@ Since code cleanup step 6.5 the head office is its own application (`HeadOfficeA
 
 ### Overview
 - Two installation types, each its application and WAR since code cleanup step 6.5: a **store** sells; a **head office** manages several stores and never sells (no cashier session, no ticket).
-- `node.type=STORE` or `node.type=HEAD_OFFICE`, given by the type file of the application. Not a user role: `ADMIN`, `RESPONSIBLE`, `POS_USER` and the role tables are unchanged.
+- `node.type=STORE` or `node.type=HEAD_OFFICE`, given by the application itself (its default properties; code cleanup step 8: a file that states it is refused). Not a user role: `ADMIN`, `RESPONSIBLE`, `POS_USER` and the role tables are unchanged.
 - A head office runs as its own instance with its own database, possibly on the same machine as a store.
 
 ### Installation type
@@ -1956,7 +1956,7 @@ The three permissions are in `ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS` (
 - **Store side of the link.** Code that runs on a store and calls the head office lives in `com.digithink.zsretail.holink`, never in `headoffice`; its beans carry `@ConditionalOnInstallation(LINKED_TO_HEAD_OFFICE)` (task 1.4), or `@ConditionalOnInstallation(SALES_TO_HEAD_OFFICE)` for the sales copies (task 2.1). Its tables are prefixed `hol_` (task 2.1). Its pages live in `src/views/admin/holink/`, routes `admin-holink-*` (task 1.5).
 
 ### Dev head office: `configs/dev/headoffice.properties` (was the profile `headoffice-dev`)
-Type `headoffice` (configuration step C1): `node.type=HEAD_OFFICE`, no ERP. Outside file: `server.port=888`, database `pos_headoffice` (same SQL
+The head office application (configuration step C1), no ERP. Outside file: `server.port=888`, database `pos_headoffice` (same SQL
 Server and login as the dev stores), ERP sync off.
 - Own log file `C:/zsretail-headoffice/backend.log` and image folder `uploads/headoffice/pos-images`, so it does not share them with the store instance.
 

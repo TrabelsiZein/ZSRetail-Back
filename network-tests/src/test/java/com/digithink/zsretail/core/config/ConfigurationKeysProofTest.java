@@ -45,6 +45,13 @@ import com.digithink.zsretail.support.Installations;
  * the record made on the code before the change (src/test/resources/config/configuration-keys.txt). A password or a
  * key is recorded as "(set)", never its value. -Dconfiguration.proof.write=true writes the record again (only on the
  * code before the change).
+ * <p>
+ * Code cleanup step 8 (the old lines removed): the record was written again twice, each time checked against the one
+ * before. Topic A: erp.dynamicsnav.enabled and erp.navpospages.enabled out, erp.connector in, its value in every
+ * configuration the connector its old line chose (true: the name; false or absent: none), nothing else changed. Topic
+ * B: erp.dynamicsnav.* and erp.navpospages.* renamed erp.emtop.* and erp.happyness.*, every value unchanged. Topic C
+ * changed nothing: no file names the type any more, spring.profiles.active and node.type are recorded explicitly and
+ * resolve as before, from the application. The files of configs/local are read upgraded (Installations.upgraded).
  */
 class ConfigurationKeysProofTest {
 
@@ -64,21 +71,15 @@ class ConfigurationKeysProofTest {
 		}
 	}
 
-	/** The type a file names: its spring.profiles.active, else store (the default of the single application). */
-	static String typeOf(Properties file) {
-		String type = file.getProperty("spring.profiles.active");
-		return type == null ? "store" : type.trim();
-	}
-
 	Map<String, Configuration> configurations() throws IOException {
 		Map<String, Configuration> configurations = new LinkedHashMap<>();
 		for (String file : Installations.machineFiles()) {
 			Path path = Installations.MACHINES.resolve(file);
-			configurations.put("configs/" + file, new Configuration(path, typeOf(Installations.file(path))));
+			configurations.put("configs/" + file, new Configuration(path, Installations.typeOf(file)));
 		}
 		for (String file : Installations.configFiles()) {
 			Path path = committed(file);
-			configurations.put("configs/" + file, new Configuration(path, typeOf(Installations.file(path))));
+			configurations.put("configs/" + file, new Configuration(path, Installations.typeOf(file)));
 		}
 		configurations.put("no outside file, store", new Configuration(null, "store"));
 		configurations.put("no outside file, headoffice", new Configuration(null, "headoffice"));
@@ -162,6 +163,9 @@ class ConfigurationKeysProofTest {
 			}
 		}
 		keys.add(MachineFileEnvironmentPostProcessor.LOADED_KEY);
+		// Code cleanup step 8: no file names the type any more; the application does (its default properties)
+		keys.add("spring.profiles.active");
+		keys.add("node.type");
 		return keys;
 	}
 

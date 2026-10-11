@@ -23,7 +23,7 @@ import com.digithink.zsretail.erp.api.ErpConnectors;
 /**
  * Test support (task 9.3, configuration step C1): an installation's configuration merged the way the application does,
  * without Spring: application.properties, under the type file (src/main/resources/application-&lt;type&gt;.properties,
- * the type named by spring.profiles.active, store by default), under the outside file (configs/... of this repository)
+ * the type of the file's application, {@link #typeOf}), under the outside file (configs/... of this repository)
  * when there is one.
  * <p>
  * The six presets of task 9.3 are gone (step C1); each one is kept here as a variant, its type file with the mode lines
@@ -74,7 +74,7 @@ public final class Installations {
 
 	/** A machine file of configs/ (e.g. "dev/store-b.properties") over its type file and application.properties. */
 	public static MockEnvironment machine(String relativePath) {
-		return outside(MACHINES.resolve(relativePath));
+		return over(typeOf(relativePath), file(MACHINES.resolve(relativePath)));
 	}
 
 	/**
@@ -82,19 +82,22 @@ public final class Installations {
 	 * application.properties.
 	 */
 	public static MockEnvironment config(String relativePath) {
-		return over(upgraded(file(CONFIGS.resolve(relativePath))));
+		return over(typeOf(relativePath), upgraded(file(CONFIGS.resolve(relativePath))));
 	}
 
 	/**
 	 * Code cleanup step 8: an outside file of 2.2.2 upgraded as docs/deploy-note.md says ("Upgrade from 2.2.2: the outside
 	 * file"): a connector's old enabled line becomes erp.connector=&lt;its name&gt; when true and goes when false; the
-	 * other keys of its old block take its prefix erp.&lt;name&gt;. configs/local is Zein's (this repository does not edit
-	 * it): the tests read its files as they will be once upgraded, and a start of the file as it is refuses
-	 * (ErpConnectorTest). A file without old lines comes back as it is.
+	 * other keys of its old block take its prefix erp.&lt;name&gt;; spring.profiles.active and node.type go (the application
+	 * is the type). configs/local is Zein's (this repository does not edit it): the tests read its files as they will be
+	 * once upgraded, and a start of a 2.2.2 file refuses (OutsideFileUpgradeTest). A file without old lines comes back
+	 * as it is.
 	 */
 	public static Properties upgraded(Properties file) {
 		Properties upgraded = new Properties();
 		upgraded.putAll(file);
+		upgraded.remove("spring.profiles.active");
+		upgraded.remove("node.type");
 		for (ErpConnectorDescriptor descriptor : ErpConnectors.descriptors()) {
 			if (descriptor.oldKeyPrefix() == null) {
 				continue;
@@ -149,23 +152,22 @@ public final class Installations {
 		}
 	}
 
-	private static MockEnvironment outside(Path path) {
-		return over(file(path));
-	}
-
-	/** An outside file's lines over its type file and application.properties. */
-	public static MockEnvironment over(Properties machine) {
-		String type = machine.getProperty("spring.profiles.active", DEFAULT_TYPE);
-		MockEnvironment env = type(type.trim());
+	/** An outside file's lines over the type file of its application and application.properties. */
+	public static MockEnvironment over(String type, Properties machine) {
+		MockEnvironment env = type(type);
 		machine.stringPropertyNames().forEach(key -> env.setProperty(key, machine.getProperty(key)));
 		return env;
 	}
 
 	/**
-	 * The type of a file that names none: every file of configs/ that is a head office names headoffice (they
-	 * were written for the single application, whose default was store).
+	 * Code cleanup step 8: the application a file of configs/ is for, by its name (a file names no type any more):
+	 * headoffice when the name has "headoffice" or "_ho" (happyness_ho.properties), else store. It gives the type each
+	 * file named before step 8 (checked when the type lines were removed; MachineFileTest keeps it so).
 	 */
-	public static final String DEFAULT_TYPE = "store";
+	public static String typeOf(String path) {
+		String name = java.nio.file.Paths.get(path).getFileName().toString();
+		return name.contains("headoffice") || name.matches(".*_ho([_.].*)?") ? "headoffice" : "store";
+	}
 
 	/**
 	 * A type (store, headoffice) over application.properties, without an outside file: the application of the type's

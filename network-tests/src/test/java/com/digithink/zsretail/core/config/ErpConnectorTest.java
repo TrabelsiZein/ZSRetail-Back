@@ -63,7 +63,12 @@ class ErpConnectorTest {
 	}
 
 	private Path outsideFile(String... lines) {
-		Path file = folder.resolve("machine.properties");
+		return namedFile("machine.properties", lines);
+	}
+
+	/** An outside file of that name: a name with "headoffice" is a head office's (Starts.applicationOf). */
+	private Path namedFile(String name, String... lines) {
+		Path file = folder.resolve(name);
 		try {
 			Files.write(file, Arrays.asList(lines));
 		} catch (IOException e) {
@@ -82,13 +87,25 @@ class ErpConnectorTest {
 		return startWith(Collections.emptyMap(), outsideLines);
 	}
 
+	/** A start of the head office application, its outside file (headoffice.properties) holding these lines. */
+	private StandardEnvironment headOfficeWith(Map<String, Object> systemProperties, String... outsideLines) {
+		Map<String, Object> properties = new HashMap<>(systemProperties);
+		properties.put(MachineFileEnvironmentPostProcessor.MACHINE_FILE_KEY,
+				namedFile("headoffice.properties", outsideLines).toString());
+		return start(properties);
+	}
+
+	private StandardEnvironment headOfficeWith(String... outsideLines) {
+		return headOfficeWith(Collections.emptyMap(), outsideLines);
+	}
+
 	@Test
 	@DisplayName("Each value (trimmed, any case) is the connector in effect; absent is none; nothing else is added")
 	void eachValue() {
 		StandardEnvironment nav = startWith("erp.connector= emtop ");
 		assertEquals("emtop", ErpConnectorEnvironmentPostProcessor.inEffect(nav));
 		assertEquals("happyness",
-				ErpConnectorEnvironmentPostProcessor.inEffect(startWith("spring.profiles.active=headoffice", "erp.connector=Happyness")));
+				ErpConnectorEnvironmentPostProcessor.inEffect(headOfficeWith("erp.connector=Happyness")));
 		assertEquals("none", ErpConnectorEnvironmentPostProcessor.inEffect(startWith("erp.connector=NONE")));
 		assertEquals("none", ErpConnectorEnvironmentPostProcessor.inEffect(startWith("server.port=1")));
 		List<String> names = new ArrayList<>();
@@ -110,9 +127,10 @@ class ErpConnectorTest {
 	@DisplayName("An old enabled line, whatever its value, refuses the startup: the line, where it is, what to write")
 	void oldLinesRefused() {
 		Path file = outsideFile();
-		assertEquals("Old line no longer read: erp.navpospages.enabled=true in the outside file " + file
+		Path headOffice = namedFile("headoffice.properties");
+		assertEquals("Old line no longer read: erp.navpospages.enabled=true in the outside file " + headOffice
 				+ ": write erp.connector=happyness instead." + CHOSEN_BY,
-				refusal(() -> startWith("spring.profiles.active=headoffice", "erp.navpospages.enabled=true")));
+				refusal(() -> headOfficeWith("erp.navpospages.enabled=true")));
 		assertEquals("Old line no longer read: erp.dynamicsnav.enabled=false in the outside file " + file
 				+ ": remove the line." + CHOSEN_BY, refusal(() -> startWith("erp.dynamicsnav.enabled=false")));
 		// Never ignored, even beside erp.connector and agreeing with it
@@ -152,20 +170,21 @@ class ErpConnectorTest {
 	@DisplayName("Any key of an old block refuses the startup, each with its new name, source by source")
 	void oldKeysRefused() {
 		Path file = outsideFile();
+		Path headOffice = namedFile("headoffice.properties");
 		assertEquals("Old keys no longer read, in the outside file " + file + ": erp.dynamicsnav.base-url is now"
 				+ " erp.emtop.base-url, erp.dynamicsnav.company is now erp.emtop.company. Rename them: the keys of a"
 				+ " connector are erp.<its name>.*.",
 				refusal(() -> startWith("erp.connector=emtop", "erp.dynamicsnav.company=X",
 						"erp.dynamicsnav.base-url=http://nav")));
 		// An enabled line and keys in two sources: the enabled line first, then each source
-		assertEquals("Old line no longer read: erp.navpospages.enabled=true in the outside file " + file
+		assertEquals("Old line no longer read: erp.navpospages.enabled=true in the outside file " + headOffice
 				+ ": write erp.connector=happyness instead." + CHOSEN_BY + " Old keys no longer read, in the property"
 				+ " source test-system-properties: erp.navpospages.password is now erp.happyness.password. Old keys no"
-				+ " longer read, in the outside file " + file + ": erp.navpospages.base-url is now erp.happyness.base-url,"
+				+ " longer read, in the outside file " + headOffice + ": erp.navpospages.base-url is now erp.happyness.base-url,"
 				+ " erp.navpospages.invoices.years is now erp.happyness.invoices.years. Rename them: the keys of a"
 				+ " connector are erp.<its name>.*.",
-				refusal(() -> startWith(Collections.singletonMap("erp.navpospages.password", "p"),
-						"spring.profiles.active=headoffice", "erp.navpospages.enabled=true",
+				refusal(() -> headOfficeWith(Collections.singletonMap("erp.navpospages.password", "p"),
+						"erp.navpospages.enabled=true",
 						"erp.navpospages.base-url=http://bc", "erp.navpospages.invoices.years=2021")));
 		// An environment variable, named as written
 		StandardEnvironment env = Starts.environment("store", new HashMap<>());
@@ -217,7 +236,7 @@ class ErpConnectorTest {
 		MockEnvironment plain = Installations.machine("dev/store-b.properties");
 		assertTrue(InstallationSummary.summary(plain, NodeOwnership.resolve(plain)).contains("ERP connector none, "));
 
-		StandardEnvironment pages = startWith("spring.profiles.active=headoffice", "erp.connector=happyness",
+		StandardEnvironment pages = headOfficeWith("erp.connector=happyness",
 				"ownership.catalogue=ERP");
 		line = InstallationSummary.summary(pages, NodeOwnership.resolve(pages));
 		assertTrue(line.contains("ERP connector happyness, "), line);

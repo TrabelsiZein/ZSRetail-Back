@@ -180,7 +180,7 @@ class ApplicationModeOwnershipTest {
 			for (MockEnvironment env : new MockEnvironment[] { new MockEnvironment(), headOfficeEnv() }) {
 				assertRefused(env.withProperty("application.standalone", value),
 						"The property application.standalone was removed (head office plan, step 9, task 9.3)",
-						"spring.profiles.active=store | headoffice) and the ownership.* keys");
+						"the application, store or headoffice) and the ownership.* keys");
 			}
 		}
 	}

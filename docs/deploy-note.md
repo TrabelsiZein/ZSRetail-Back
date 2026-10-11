@@ -23,14 +23,11 @@ On this PC `devenv\build.ps1` does the same for the dev instances (`C:\zsretail-
   `<Tomcat>\conf\zsretail\zsretailws.properties`.
 - **A head office**: `headoffice/zsretailws.war` into its own Tomcat's `webapps\`; the same outside file convention.
 - A store and a head office cannot share a Tomcat (both are `zsretailws`); each has its own, as on every site today.
-- **The outside file is unchanged**: every key resolves as before (`ConfigurationKeysProofTest`). A new installation needs
-  no `spring.profiles.active` and no `node.type` line. An old file that has them keeps working when they name the
-  application's type; when they name the other type the start stops with a message naming the application, the file and
-  the line, e.g. `This is the head office application (HeadOfficeApplication): it runs an installation of type
-  headoffice, but the outside file ...\zsretailws.properties names the type store (spring.profiles.active=store). The
-  store runs the store application: deploy its WAR in this Tomcat (under zsretailws), or correct the file ...`.
-- **Upgrade of an existing installation**: deploy the WAR of its type (a store: the store WAR; a head office: the head
-  office WAR), after the database scripts of the version as before.
+- **The outside file names no type** (code cleanup step 8): the application is the type, and a `spring.profiles.active`
+  or `node.type` line stops the start (below, "Upgrade from 2.2.2"). With the old lines changed, every key resolves as
+  before (`ConfigurationKeysProofTest`).
+- **Upgrade of an existing installation**: change its outside file (below), then deploy the WAR of its type (a store:
+  the store WAR; a head office: the head office WAR), after the database scripts of the version as before.
 
 ## Upgrade from 2.2.2: the outside file
 
@@ -41,6 +38,8 @@ names each old line, where it is and what to write instead. Nothing else behaves
 
 | 2.2.2 line | Now |
 |---|---|
+| `spring.profiles.active=store` or `=headoffice` (or any value) | removed: the application is the type |
+| `node.type=STORE` or `=HEAD_OFFICE` | removed |
 | `erp.dynamicsnav.enabled=true` | `erp.connector=emtop` |
 | `erp.navpospages.enabled=true` | `erp.connector=happyness` |
 | `erp.dynamicsnav.enabled=false`, `erp.navpospages.enabled=false` | removed (no `erp.connector` line, or `erp.connector=none`: no connector) |
@@ -54,6 +53,8 @@ below, `...` stands for the line's value as it is.
 
 ```properties
 # remove
+spring.profiles.active=store
+node.type=STORE
 erp.dynamicsnav.enabled=true
 erp.dynamicsnav.base-url=...
 erp.dynamicsnav.company=...
@@ -73,6 +74,7 @@ erp.emtop.password=...
 
 ```properties
 # remove
+spring.profiles.active=headoffice
 erp.navpospages.enabled=true
 erp.navpospages.base-url=...
 erp.navpospages.company=...
@@ -105,8 +107,15 @@ ignored (`erp.happyness.invoices.years` with a WARN line, `erp.happyness.locatio
 
 ```properties
 # remove
+spring.profiles.active=store
+node.type=STORE
 erp.dynamicsnav.enabled=false
 ```
+
+Outside the file: remove a `-Dspring.profiles.active` (or any old line) from `CATALINA_OPTS` or the Tomcat service's Java
+options, and a `SPRING_PROFILES_ACTIVE` environment variable, if the server has one. Then start: a line left over stops
+the start, and the message names every old line of that start at once (`OutsideFileUpgradeTest` holds the message of
+each of the three files above).
 
 ## Database
 

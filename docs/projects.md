@@ -33,6 +33,10 @@ connector in effect can do (`modules/erp-sync.md`, "How to add a connector").
   - `ConnectorDependenciesGuardTest`: a connector uses erp-api only;
   - `AspectPointcutsGuardTest`: every pointcut matches a method;
   - `ClassNamesInStringsGuardTest`: every full class name in a string (JPQL, pointcuts) names a class that exists.
+  - `OldKeysGuardTest` (code cleanup step 8): no old configuration key (`erp.dynamicsnav`, `erp.navpospages`, declared by
+    the connectors' descriptors only) in main code, resources, `configs/`, `eclipse/` or `devenv/`, and no type line
+    (`spring.profiles.active`, `node.type`) in `configs/`, `eclipse/` or `devenv/` (`configs/local` and the released SQL
+    scripts apart).
 - **The proofs**: `ConfigurationKeysProofTest` (every key of every file of `configs/` resolves as recorded) and
   `InstallationBeansProofTest` (the beans each installation question decides, in every configuration, as recorded).
 

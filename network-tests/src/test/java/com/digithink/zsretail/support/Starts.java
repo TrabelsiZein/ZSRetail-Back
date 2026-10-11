@@ -1,6 +1,5 @@
 package com.digithink.zsretail.support;
 
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -37,15 +36,11 @@ public final class Starts {
 	}
 
 	/**
-	 * The application a start runs: the type named by -Dspring.profiles.active, else by the outside file named by
-	 * -Dzsretail.machine-file, when it is one of the two types; store otherwise.
+	 * The application a start runs: code cleanup step 8, nothing names the type any more; the application of the outside
+	 * file named by -Dzsretail.machine-file, by its name ({@link Installations#typeOf}); store without one.
 	 */
 	public static String applicationOf(Map<String, Object> systemProperties) {
-		Object named = systemProperties.get("spring.profiles.active");
 		Object file = systemProperties.get(MachineFileEnvironmentPostProcessor.MACHINE_FILE_KEY);
-		if (named == null && file != null && Paths.get(file.toString()).toFile().isFile()) {
-			named = Installations.file(Paths.get(file.toString())).getProperty("spring.profiles.active");
-		}
-		return named != null && "headoffice".equals(named.toString().trim()) ? "headoffice" : "store";
+		return file == null ? "store" : Installations.typeOf(file.toString());
 	}
 }

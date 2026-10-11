@@ -9,9 +9,9 @@ files, and they hold NO database, port or folder:
   application-headoffice.properties  what a head office is (the head office WAR)
 
 Every installation has its own file. It says where it runs: database, port, log file, upload folder, NAV connection,
-head office address and key; it may change an owner. It names no type (the application is the type); an old file
-that names it (spring.profiles.active, node.type) keeps working when it names the application's type. Its keys win
-over the three files above.
+head office address and key; it may change an owner. It names no type: the application is the type, and a line that
+names it stops the startup, as does any line of 2.2.2 that is no longer read (code cleanup step 8; what to change:
+docs/deploy-note.md, "Upgrade from 2.2.2: the outside file"). Its keys win over the three files above.
 
 This folder holds every such file of the repository (code cleanup step 7: deploy/ joined it):
   machine-model.properties   the model: copy it for a new installation
@@ -21,7 +21,9 @@ This folder holds every such file of the repository (code cleanup step 7: deploy
   happyness-from-scratch\    the Happyness franchise as first set up on this PC on 2026-10-04: a head office and two
                              stores without the ERP catalogue (ports 889, 557, 558)
   local\                     this PC, the Happyness test with its ERP catalogue: happyness_ho, happyness_store1,
-                             happyness_store2 (committed with CHANGE_ME; filled on the PC only)
+                             happyness_store2 (committed with CHANGE_ME; filled on the PC only). Zein's own files:
+                             still in the 2.2.2 form, upgraded by hand (docs/deploy-note.md); the tests read them
+                             upgraded
 
 Given to the IDE by the VM argument of a launch (eclipse\*.launch), e.g.
   -Dzsretail.machine-file="${project_loc:zsretail-parent}/configs/dev/store-b.properties"

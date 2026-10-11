@@ -56,10 +56,12 @@ headoffice/src/main/java/com/digithink/zsretail/headoffice/
 
 The two type files (configuration step C1, "what this installation is"; the database password from
 `ZSRETAIL_DB_PASSWORD`): `store/src/main/resources/application-store.properties` and
-`headoffice/src/main/resources/application-headoffice.properties`. The application is the type (step 6.5): an
+`headoffice/src/main/resources/application-headoffice.properties`. The application is the type (step 6.5; it states `node.type` itself, step 8): an
 installation names no type. An optional outside file per installation (usually where it runs; it may change owners),
 named by `-Dzsretail.machine-file=<path>` or found as `${catalina.base}/conf/zsretail/<context name>.properties`;
-without one the type file applies. An old outside file naming the other type is refused. Outside files of this repo:
+without one the type file applies. Step 8: a `spring.profiles.active` or `node.type` line, an old connector line
+(`erp.<name>.enabled`) or a key of an old connector block, from any source, stops the startup naming it
+(`docs/deploy-note.md`, "Upgrade from 2.2.2"). Outside files of this repo:
 `configs/` (model, dev machines, customer values). See `docs/deployment-modes.md`.
 
 ## Conventions
@@ -87,7 +89,7 @@ only core and the store, a head office test only core and the head office. `netw
 applications or a connector with core: the store / head office round trips, the configuration and installation proofs
 (`ConfigurationKeysProofTest`, `InstallationBeansProofTest`, their records in `network-tests/src/test/resources/config/`),
 the guards over every project (`ProjectSortingGuardTest`, `ConnectorNamesGuardTest`, `ConnectorDependenciesGuardTest`,
-`AspectPointcutsGuardTest`, `ClassNamesInStringsGuardTest`), the connector tests (they read the deploy files through
+`AspectPointcutsGuardTest`, `ClassNamesInStringsGuardTest`, `OldKeysGuardTest`), the connector tests (they read the deploy files through
 `Installations`, which needs both type files). Test helpers: `core.support` (`Repo`, `InMemoryLoyalty`, `InMemoryItems`, `InMemoryStock`, `TestModes`...),
 `store.support`, `headoffice.support` (each project publishes its helpers as a test-jar), `support` in network-tests
 (`Installations`, `Starts`, `ClassRenames`).

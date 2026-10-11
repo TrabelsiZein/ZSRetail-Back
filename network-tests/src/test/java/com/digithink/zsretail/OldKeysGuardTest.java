@@ -30,7 +30,8 @@ import com.digithink.zsretail.erp.api.ErpConnectors;
  * connector's old key prefix (erp.dynamicsnav, erp.navpospages), declared by its descriptor only, where the refusals read
  * them: the descriptors are the only files allowed to name them. Not scanned: the released SQL scripts
  * (src/main/resources/db/, never edited) and configs/local (Zein's own files, upgraded by hand as docs/deploy-note.md
- * says).
+ * says). The type lines (spring.profiles.active, node.type) are refused in the files of an installation, its launches
+ * and its scripts (configs/, eclipse/, devenv/).
  */
 class OldKeysGuardTest {
 
@@ -69,6 +70,19 @@ class OldKeysGuardTest {
 		return new ArrayList<>(files);
 	}
 
+	/**
+	 * The type lines, refused since code cleanup step 8 (the application is the type): never in the files of an
+	 * installation, its launches or its scripts. The application's own code still names them, to state its type and to
+	 * refuse them (ZsRetailApplication, InstallationTypeEnvironmentPostProcessor; node.type is read inside).
+	 */
+	static final List<String> TYPE_LINES = Arrays.asList("spring.profiles.active", "node.type", "SPRING_PROFILES_ACTIVE");
+
+	/** A file of an installation (configs/), a launch (eclipse/) or a dev script (devenv/). */
+	static boolean installationFile(String relativePath) {
+		return relativePath.startsWith("configs/") || relativePath.startsWith("eclipse/")
+				|| relativePath.startsWith("devenv/");
+	}
+
 	/** The old key prefixes, as the connectors declare them. */
 	static List<String> oldNames() {
 		return ErpConnectors.descriptors().stream().map(ErpConnectorDescriptor::oldKeyPrefix).filter(name -> name != null)
@@ -98,9 +112,11 @@ class OldKeysGuardTest {
 	}
 
 	@Test
-	@DisplayName("No old key name in main code, resources, configs/, eclipse/ or devenv/, except in the descriptors")
+	@DisplayName("No old key name in main code, resources, configs/, eclipse/ or devenv/ (except in the descriptors); no type line in configs/, eclipse/ or devenv/")
 	void noOldKeys() throws IOException {
 		List<String> names = oldNames();
+		List<String> withTypeLines = new ArrayList<>(names);
+		withTypeLines.addAll(TYPE_LINES);
 		List<String> allowed = declaring();
 		List<String> offences = new ArrayList<>();
 		List<String> files = files();
@@ -109,7 +125,7 @@ class OldKeysGuardTest {
 				offences.addAll(offences(file,
 						Arrays.asList(new String(Files.readAllBytes(Repo.ROOT.resolve(file)), StandardCharsets.ISO_8859_1)
 								.split("\r?\n")),
-						names));
+						installationFile(file) ? withTypeLines : names));
 			}
 		}
 		assertTrue(files.size() > 500, "files scanned: " + files.size());
@@ -132,5 +148,9 @@ class OldKeysGuardTest {
 		assertTrue(files().contains("configs/machine-model.properties"));
 		assertTrue(files().contains("eclipse/dev-store-b.launch"));
 		assertTrue(files().contains("devenv/common.ps1"));
+		assertEquals(2, offences("x.launch", Arrays.asList("-Dspring.profiles.active=store", "node.type=STORE", "-Dx=y"),
+				TYPE_LINES).size());
+		assertTrue(installationFile("configs/dev/store-b.properties") && installationFile("eclipse/dev-store-b.launch")
+				&& !installationFile("core/src/main/java/X.java"), "the type lines: in installation files only");
 	}
 }

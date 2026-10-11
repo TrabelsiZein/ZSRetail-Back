@@ -20,8 +20,8 @@ Design principle (Zein, 2026-10-03): "No specific cases, everything configurable
 | Store | Sells: sessions, tickets, payments, returns, printing. Always works from its own database | Manage other stores |
 | Head office | Manages stores: decides shared data, sends goods, receives copies of what the stores do | Sell. It has no cashier session and no ticket |
 
-- Two applications since code cleanup step 6.5, each its WAR: the store and the head office; the application is the type (its
-  type file sets `node.type=STORE` or `HEAD_OFFICE`). Until then one application and one WAR, the type chosen by a setting.
+- Two applications since code cleanup step 6.5, each its WAR: the store and the head office; the application is the type (it
+  sets `node.type=STORE` or `HEAD_OFFICE` itself; since code cleanup step 8 no file names the type). Until then one application and one WAR, the type chosen by a setting.
 - A head office is optional. One shop alone has none.
 - A store is linked to one head office only. A customer may install several head offices; each one is then a separate network (its own items, prices, stock, loyalty register and reports). One head office is enough for a network that mixes own stores and franchise stores.
 

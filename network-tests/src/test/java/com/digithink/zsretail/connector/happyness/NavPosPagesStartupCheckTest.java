@@ -57,7 +57,7 @@ class NavPosPagesStartupCheckTest {
 	@DisplayName("Only on a head office whose catalogue only comes from the ERP")
 	void onlyThatHeadOffice() {
 		String message = "Invalid value 'happyness' for property erp.connector: this connector only reads a catalogue,"
-				+ " on a head office whose catalogue only comes from the ERP (node.type=HEAD_OFFICE,"
+				+ " on a head office whose catalogue only comes from the ERP (the head office application,"
 				+ " ownership.catalogue=ERP, ownership.customers and ownership.supply not ERP).";
 		assertEquals(message, refusal(with("ownership.catalogue", "LOCAL")), "head office without an ERP");
 		MockEnvironment allErp = NavPosPagesTestSupport.validEnvironment();

@@ -24,13 +24,16 @@ import org.springframework.boot.context.config.ConfigFileApplicationListener;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.PropertySource;
 import org.springframework.core.env.StandardEnvironment;
+import org.springframework.core.env.SystemEnvironmentPropertySource;
 
+import com.digithink.zsretail.headoffice.HeadOfficeApplication;
 import com.digithink.zsretail.support.Installations;
 import com.digithink.zsretail.support.Starts;
 
 /**
  * Configuration step C1 (was task 9.3): the optional outside file of an installation
- * (MachineFileEnvironmentPostProcessor) and the installation type in effect (InstallationTypeEnvironmentPostProcessor).
+ * (MachineFileEnvironmentPostProcessor) and the installation type in effect (InstallationTypeEnvironmentPostProcessor;
+ * code cleanup step 8: the application's, a type line refused).
  * Where the file is found, the refusals, where it sits among the property sources, and starts run the way Spring Boot
  * runs them (the two post-processors around ConfigFileApplicationListener, on the real application.properties and type
  * files).
@@ -124,16 +127,16 @@ class MachineFileTest {
 	}
 
 	@Test
-	@DisplayName("C1: the head office application with -Dspring.profiles.active=headoffice alone (no outside file); no port without the outside file")
-	void typeWithoutOutsideFile() {
-		StandardEnvironment env = start(Map.of("spring.profiles.active", "headoffice"));
+	@DisplayName("C1: the head office application with no outside file runs the type headoffice; no port without the outside file")
+	void headOfficeWithoutOutsideFile() {
+		StandardEnvironment env = startAs("headoffice", new HashMap<>());
 		assertArrayEquals(new String[] { "headoffice" }, env.getActiveProfiles());
 		assertEquals("HEAD_OFFICE", env.getProperty("node.type"));
 		assertNull(env.getProperty("server.port"));
 	}
 
 	@Test
-	@DisplayName("6.5: the application is the type: no file needs to name it; an old file that names it keeps working")
+	@DisplayName("6.5: the application is the type: no file names it; step 8: the application alone states node.type")
 	void applicationIsTheType() throws Exception {
 		StandardEnvironment headOffice = startAs("headoffice", new HashMap<>());
 		assertArrayEquals(new String[] { "headoffice" }, headOffice.getActiveProfiles());
@@ -143,48 +146,76 @@ class MachineFileTest {
 		StandardEnvironment fromNewFile = startAs("headoffice", Map.of("zsretail.machine-file", newFile.toString()));
 		assertArrayEquals(new String[] { "headoffice" }, fromNewFile.getActiveProfiles());
 		assertEquals("889", fromNewFile.getProperty("server.port"));
-		Path oldFile = outsideFile("old-ho.properties", "spring.profiles.active=headoffice", "node.type=HEAD_OFFICE");
-		assertArrayEquals(new String[] { "headoffice" },
-				startAs("headoffice", Map.of("zsretail.machine-file", oldFile.toString())).getActiveProfiles());
-		Path oldStore = outsideFile("old-store.properties", "spring.profiles.active=store", "node.type=STORE");
-		assertArrayEquals(new String[] { "store" },
-				startAs("store", Map.of("zsretail.machine-file", oldStore.toString())).getActiveProfiles());
+		for (String type : NodeOwnership.TYPES) {
+			assertEquals(1, startAs(type, new HashMap<>()).getPropertySources().stream()
+					.filter(source -> source.containsProperty("node.type") && !"configurationProperties".equals(source.getName()))
+					.count(), type + ": node.type from the application's defaults only, no type file states it");
+		}
 	}
 
 	@Test
-	@DisplayName("6.5: a file (or a server option) that names the other type stops the start, naming the application and the file")
-	void otherTypeRefused() throws Exception {
+	@DisplayName("Step 8: a type line from any source, whatever its type, is refused: the line, where it is, remove it")
+	void typeLinesRefused() throws Exception {
 		Path store = outsideFile("store-1.properties", "spring.profiles.active=store");
-		String message = refusal(() -> startAs("headoffice", Map.of("zsretail.machine-file", store.toString())));
-		assertTrue(message.startsWith("This is the head office application: it runs an installation of type"
-				+ " headoffice, but the outside file " + store + " names the type store (spring.profiles.active=store)."), message);
-		assertTrue(message.contains("The store runs the store application: deploy its WAR in this Tomcat (under zsretailws)"), message);
-		Path ho = outsideFile("ho.properties", "spring.profiles.active=headoffice");
-		message = refusal(() -> startAs("store", Map.of("zsretail.machine-file", ho.toString())));
-		assertTrue(message.contains("the store application") && message.contains("the outside file " + ho)
-				&& message.contains("(spring.profiles.active=headoffice)"), message);
-		Path nodeType = outsideFile("node.properties", "node.type=STORE");
-		message = refusal(() -> startAs("headoffice", Map.of("zsretail.machine-file", nodeType.toString())));
-		assertTrue(message.contains("the outside file " + nodeType + " names the type store (node.type=STORE)"), message);
-		message = refusal(() -> startAs("store", Map.of("spring.profiles.active", "headoffice")));
-		assertTrue(message.contains("the IDE or the server's options (test-system-properties) names the type headoffice"),
+		assertEquals("Old line no longer read: spring.profiles.active=store in the outside file " + store + ". An"
+				+ " installation no longer names its type: the application is its type (this is the store application)."
+				+ " Remove the line.", refusal(() -> startAs("store", Map.of("zsretail.machine-file", store.toString()))));
+		Path old = outsideFile("old-store.properties", "spring.profiles.active=store", "node.type=STORE");
+		assertEquals("Old lines no longer read: spring.profiles.active=store in the outside file " + old + "; node.type=STORE"
+				+ " in the outside file " + old + ". An installation no longer names its type: the application is its type"
+				+ " (this is the head office application). Remove the lines. It names a store: a store runs the store"
+				+ " application, deploy its WAR in this Tomcat (under zsretailws).",
+				refusal(() -> startAs("headoffice", Map.of("zsretail.machine-file", old.toString()))));
+		Path nodeType = outsideFile("node.properties", "node.type= head_office ");
+		assertEquals("Old line no longer read: node.type=head_office in the outside file " + nodeType + ". An installation"
+				+ " no longer names its type: the application is its type (this is the store application). Remove the"
+				+ " line. It names a head office: a head office runs the head office application, deploy its WAR in this"
+				+ " Tomcat (under zsretailws).",
+				refusal(() -> startAs("store", Map.of("zsretail.machine-file", nodeType.toString()))));
+		assertEquals("Old line no longer read: spring.profiles.active=headoffice in the property source"
+				+ " test-system-properties. An installation no longer names its type: the application is its type (this is"
+				+ " the head office application). Remove the line.",
+				refusal(() -> startAs("headoffice", Map.of("spring.profiles.active", "headoffice"))));
+		// An old profile name, an environment variable: the same
+		assertTrue(refusal(() -> startAs("store", Map.of("spring.profiles.active", "dynamics-prod")))
+				.startsWith("Old line no longer read: spring.profiles.active=dynamics-prod in the property source"));
+		StandardEnvironment variable = Starts.environment("store", new HashMap<>());
+		variable.getPropertySources().replace(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+				new SystemEnvironmentPropertySource(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+						Collections.singletonMap("SPRING_PROFILES_ACTIVE", "store")));
+		String message = refusal(() -> {
+			SpringApplication application = new SpringApplication();
+			new ConfigFileApplicationListener().postProcessEnvironment(variable, application);
+			new InstallationTypeEnvironmentPostProcessor().postProcessEnvironment(variable, application);
+		});
+		assertTrue(message.startsWith("Old line no longer read: spring.profiles.active=store in an environment variable."),
 				message);
 	}
 
 	@Test
-	@DisplayName("C1: an unknown profile, two profiles or an old preset name are refused, naming the two types")
-	void unknownProfileRefused() throws Exception {
-		for (String active : new String[] { "dynamics-prod", "store,headoffice", "store-erp", "network-store" }) {
-			String message = refusal(() -> start(Map.of("spring.profiles.active", active)));
-			assertTrue(message.contains("it must be one installation type, spring.profiles.active=store | headoffice"),
-					message);
-		}
-		Path file = outsideFile("old.properties", "spring.profiles.active=network-store-erp");
-		String message = refusal(() -> start(Map.of("zsretail.machine-file", file.toString())));
-		assertTrue(message.startsWith("The active profile is [network-store-erp]"), message);
-		assertTrue(message.contains("(" + file + ")"), message);
+	@DisplayName("Step 8: the application's main class in the message when there is one")
+	void applicationNamed() throws Exception {
+		Path file = outsideFile("ho.properties", "spring.profiles.active=headoffice");
+		StandardEnvironment env = Starts.environment("headoffice", Map.of("zsretail.machine-file", file.toString()));
+		SpringApplication application = new SpringApplication(HeadOfficeApplication.class);
+		new MachineFileEnvironmentPostProcessor().postProcessEnvironment(env, application);
+		new ConfigFileApplicationListener().postProcessEnvironment(env, application);
+		String message = refusal(
+				() -> new InstallationTypeEnvironmentPostProcessor().postProcessEnvironment(env, application));
+		assertTrue(message.contains("(this is the head office application, HeadOfficeApplication)"), message);
+	}
+
+	@Test
+	@DisplayName("A profile added another way (spring.profiles.include) is refused; without an application, one type")
+	void otherProfilesRefused() {
+		String message = refusal(() -> startAs("store", Map.of("spring.profiles.include", "dynamics-prod")));
+		assertTrue(message.startsWith("The active profiles are [") && message.contains("dynamics-prod")
+				&& message.contains("the store application runs with its profile store only. Remove what adds a profile"),
+				message);
 		assertTrue(refusal(() -> InstallationTypeEnvironmentPostProcessor.check(new String[0], null))
 				.startsWith("The active profile is []"));
+		assertTrue(refusal(() -> InstallationTypeEnvironmentPostProcessor.check(new String[] { "store-erp" }, null))
+				.contains("it must be one installation type"));
 		for (String type : NodeOwnership.TYPES) {
 			InstallationTypeEnvironmentPostProcessor.check(new String[] { type }, null);
 		}
@@ -193,15 +224,15 @@ class MachineFileTest {
 	@Test
 	@DisplayName("C1: a key of the outside file wins over the type file and application.properties; a key it leaves out comes from the type file")
 	void outsideKeyWins() throws Exception {
-		Path file = outsideFile("ho.properties", "spring.profiles.active=headoffice", "server.port=999",
+		Path file = outsideFile("ho.properties", "server.port=999",
 				"spring.datasource.url=jdbc:sqlserver://localhost;databaseName=pos_ho_x", "ownership.catalogue=ERP",
 				"ownership.customers=ERP", "ownership.supply=ERP");
-		StandardEnvironment env = start(Map.of("zsretail.machine-file", file.toString()));
+		StandardEnvironment env = startAs("headoffice", Map.of("zsretail.machine-file", file.toString()));
 		assertArrayEquals(new String[] { "headoffice" }, env.getActiveProfiles());
 		assertEquals("999", env.getProperty("server.port"));
 		assertEquals("jdbc:sqlserver://localhost;databaseName=pos_ho_x", env.getProperty("spring.datasource.url"));
 		assertEquals("ERP", env.getProperty("ownership.catalogue"));
-		assertEquals("HEAD_OFFICE", env.getProperty("node.type"), "left out: from the type file");
+		assertEquals("HEAD_OFFICE", env.getProperty("node.type"), "from the application");
 		assertEquals("LOCAL", env.getProperty("ownership.promotions"), "left out: from the type file");
 		assertEquals("com.microsoft.sqlserver.jdbc.SQLServerDriver", env.getProperty("spring.datasource.driverClassName"),
 				"left out: from application.properties");
@@ -210,14 +241,14 @@ class MachineFileTest {
 
 		Path noType = outsideFile("store.properties", "server.port=557");
 		StandardEnvironment store = start(Map.of("zsretail.machine-file", noType.toString()));
-		assertArrayEquals(new String[] { "store" }, store.getActiveProfiles(), "an outside file without a type: store");
+		assertArrayEquals(new String[] { "store" }, store.getActiveProfiles(), "the store application");
 		assertEquals("557", store.getProperty("server.port"));
 	}
 
 	@Test
 	@DisplayName("Loaded above the configuration files and below the system properties; the path read is kept")
 	void propertySource() throws Exception {
-		Path file = outsideFile("store-x.properties", "spring.profiles.active=store", "server.port=557");
+		Path file = outsideFile("store-x.properties", "ownership.loyalty=HEAD_OFFICE", "server.port=557");
 		StandardEnvironment env = new StandardEnvironment();
 		env.getPropertySources().addFirst(new MapPropertySource("commandLineArgs",
 				Collections.singletonMap("zsretail.machine-file", file.toString())));
@@ -232,25 +263,32 @@ class MachineFileTest {
 				order.indexOf("machineFile"), order.toString());
 		assertTrue(order.indexOf("machineFile") < order.indexOf("applicationConfig: [classpath:/application.properties]"));
 		assertEquals("557", env.getProperty("server.port"));
-		assertEquals("store", env.getProperty("spring.profiles.active"));
+		assertEquals("HEAD_OFFICE", env.getProperty("ownership.loyalty"));
 		assertEquals(file.toString(), env.getProperty("zsretail.machine-file.loaded"));
 	}
 
 	@Test
-	@DisplayName("Every outside file of configs/ names store or headoffice (or none) and never application.standalone; the model names none")
+	@DisplayName("Every outside file of configs/ and the model name no type and never application.standalone; the name gives the application")
 	void deployFolder() {
 		List<String> files = Installations.machineFiles();
 		assertTrue(files.size() >= 9, files.toString());
+		List<String> headOffices = new ArrayList<>();
 		for (String file : files) {
 			java.util.Properties properties = Installations.file(Installations.MACHINES.resolve(file));
-			String type = properties.getProperty("spring.profiles.active");
-			if (type != null) {
-				InstallationTypeEnvironmentPostProcessor.check(new String[] { type.trim() }, file);
-			}
+			assertNull(properties.getProperty("spring.profiles.active"), file);
+			assertNull(properties.getProperty("node.type"), file);
 			assertNull(properties.getProperty("application.standalone"), file);
+			if ("headoffice".equals(Installations.typeOf(file))) {
+				headOffices.add(file);
+			}
 		}
-		assertNull(Installations.file(Installations.MACHINES.resolve("machine-model.properties"))
-				.getProperty("spring.profiles.active"));
+		assertEquals(Arrays.asList("dev/headoffice-erp.properties", "dev/headoffice.properties",
+				"happyness-from-scratch/headoffice.properties", "rehearsal/headoffice.properties"), headOffices);
+		assertEquals("headoffice", Installations.typeOf("local/happyness_ho.properties"));
+		assertEquals("store", Installations.typeOf("local/happyness_store1.properties"));
+		java.util.Properties model = Installations.file(Installations.MACHINES.resolve("machine-model.properties"));
+		assertNull(model.getProperty("spring.profiles.active"));
+		assertNull(model.getProperty("node.type"));
 	}
 
 	@Test

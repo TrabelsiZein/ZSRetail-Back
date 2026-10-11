@@ -47,8 +47,8 @@ public class NavPosPagesStartupCheck {
 		if (!ErpConnectors.isErpCatalogueOnlyHeadOffice(env)) {
 			throw new IllegalStateException("Invalid value '" + HappynessConnectorDescriptor.NAME
 					+ "' for property erp.connector: this connector only reads a catalogue, on a head office whose catalogue"
-					+ " only comes from the ERP (node.type=HEAD_OFFICE, ownership.catalogue=ERP, ownership.customers and"
-					+ " ownership.supply not ERP).");
+					+ " only comes from the ERP (the head office application, ownership.catalogue=ERP, ownership.customers"
+					+ " and ownership.supply not ERP).");
 		}
 		for (String key : new String[] { "base-url", "company", "username", "password" }) {
 			if (trimmed(env.getProperty(P + key)).isEmpty()) {

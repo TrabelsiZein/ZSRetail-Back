@@ -17,10 +17,10 @@ import org.springframework.core.env.StandardEnvironment;
 
 /**
  * Configuration step C1: the optional file outside the WAR of an installation (usually where it runs: database, port,
- * log, uploads, NAV connection, head office address and key; it may also name the type and change an owner). Loaded
- * before Spring reads its configuration files, so a {@code spring.profiles.active} it gives picks the type, and placed
- * above them: a key of the outside file wins over the type file and over application.properties (command-line
- * arguments and system properties still win over it).
+ * log, uploads, ERP connection, head office address and key; it may also change an owner, never the type: code cleanup
+ * step 8, the application is the type and a type line is refused). Loaded before Spring reads its configuration files,
+ * and placed above them: a key of the outside file wins over the type file and over application.properties
+ * (command-line arguments and system properties still win over it).
  * <p>
  * Where it is found:
  * <ol>
@@ -31,8 +31,8 @@ import org.springframework.core.env.StandardEnvironment;
  * context name of the WAR (given by {@code POSMainApp}: {@code zsretailws.war} gives {@code zsretailws}), so a head
  * office and a store can run on one Tomcat.</li>
  * </ol>
- * Neither: no outside file, the type files apply as they are (store by default). The type in effect is checked once
- * the configuration files are read ({@link InstallationTypeEnvironmentPostProcessor}). See docs/deployment-modes.md.
+ * Neither: no outside file, the type file of the application applies as it is. The type lines are refused once the
+ * configuration files are read ({@link InstallationTypeEnvironmentPostProcessor}). See docs/deployment-modes.md.
  */
 public class MachineFileEnvironmentPostProcessor implements EnvironmentPostProcessor, Ordered {
 

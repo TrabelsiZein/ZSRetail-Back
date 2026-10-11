@@ -49,11 +49,21 @@ public class ErpConnectorEnvironmentPostProcessor implements EnvironmentPostProc
 		inEffect(environment);
 	}
 
-	/**
-	 * Every old line of the connectors found, in every source, refused together: the enabled lines, each with what to
-	 * write instead, then the other keys of the old blocks, each with its new name, source by source.
-	 */
+	/** Every old line of the connectors found, in every source, refused together ({@link #oldLinesMessage}). */
 	static void refuseOldLines(ConfigurableEnvironment environment) {
+		String message = oldLinesMessage(environment);
+		if (message != null) {
+			throw new IllegalStateException(message);
+		}
+	}
+
+	/**
+	 * The refusal of the old lines of the connectors found, in every source, null when there is none: the enabled lines,
+	 * each with what to write instead, then the other keys of the old blocks, each with its new name, source by source.
+	 * Also added to the refusal of the type lines (InstallationTypeEnvironmentPostProcessor), so one message names every
+	 * old line of a start.
+	 */
+	public static String oldLinesMessage(ConfigurableEnvironment environment) {
 		List<String> lines = new ArrayList<>();
 		Map<PropertySource<?>, List<String>> renamed = new LinkedHashMap<>();
 		for (ErpConnectorDescriptor descriptor : ErpConnectors.descriptors()) {
@@ -89,9 +99,7 @@ public class ErpConnectorEnvironmentPostProcessor implements EnvironmentPostProc
 		if (!renamed.isEmpty()) {
 			message.add("Rename them: the keys of a connector are erp.<its name>.*.");
 		}
-		if (!message.isEmpty()) {
-			throw new IllegalStateException(String.join(" ", message));
-		}
+		return message.isEmpty() ? null : String.join(" ", message);
 	}
 
 	/**

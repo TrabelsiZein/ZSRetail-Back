@@ -15,9 +15,11 @@ import org.springframework.boot.web.servlet.support.SpringBootServletInitializer
  * Code cleanup step 6.5: what the two applications (StoreApplication, HeadOfficeApplication) share. The application is
  * the installation type: it activates the profile of its type (its type file, application-&lt;type&gt;.properties) and
  * gives its type as default properties, below every configuration file: spring.profiles.active (the key reads as it
- * did when application.properties gave store) and zsretail.application.type, by which
- * {@link InstallationTypeEnvironmentPostProcessor} refuses an outside file that names the other type. In Tomcat it also
- * gives the context name, by which {@link MachineFileEnvironmentPostProcessor} finds the outside file (task 9.3).
+ * did when application.properties gave store), node.type (STORE or HEAD_OFFICE, code cleanup step 8: no longer in the
+ * type files) and zsretail.application.type. Code cleanup step 8: these are the only places that name the type;
+ * {@link InstallationTypeEnvironmentPostProcessor} refuses spring.profiles.active or node.type from any other source.
+ * In Tomcat it also gives the context name, by which {@link MachineFileEnvironmentPostProcessor} finds the outside file
+ * (task 9.3).
  */
 public abstract class ZsRetailApplication extends SpringBootServletInitializer {
 
@@ -34,6 +36,7 @@ public abstract class ZsRetailApplication extends SpringBootServletInitializer {
 	public static Map<String, Object> defaults(String type) {
 		Map<String, Object> defaults = new LinkedHashMap<>();
 		defaults.put("spring.profiles.active", type);
+		defaults.put(NodeOwnership.NODE_TYPE_KEY, "headoffice".equals(type) ? "HEAD_OFFICE" : "STORE");
 		defaults.put(TYPE_KEY, type);
 		return Collections.unmodifiableMap(defaults);
 	}
