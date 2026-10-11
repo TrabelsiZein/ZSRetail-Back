@@ -79,13 +79,18 @@ public class RfidTagService {
 
 	/**
 	 * The Tags page: newest first, a page of at most {@value #MAX_PAGE_SIZE}; itemId and status when given, epc a part of
-	 * the EPC (any case, blank: none).
+	 * the EPC (any case; only its hexadecimal digits are kept, so no LIKE wildcard passes; blank: none).
 	 */
 	@Transactional(readOnly = true)
 	public Page<RfidTagDTO> list(Long itemId, RfidTagStatus status, String epcContains, int page, int size) {
-		String epc = epcContains == null || epcContains.trim().isEmpty() ? null : epcContains.trim().toUpperCase();
 		PageRequest request = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_PAGE_SIZE));
-		return tags.search(itemId, status, epc, request).map(RfidTagDTO::of);
+		return tags.search(itemId, status, epcPattern(epcContains), request).map(RfidTagDTO::of);
+	}
+
+	/** The LIKE pattern of a part of an EPC: its hexadecimal digits, upper case, between two %; null for none. */
+	static String epcPattern(String epcContains) {
+		String hex = epcContains == null ? "" : epcContains.toUpperCase().replaceAll("[^0-9A-F]", "");
+		return hex.isEmpty() ? null : "%" + hex + "%";
 	}
 
 	/** The tag of this id; NOT_FOUND when there is none. */

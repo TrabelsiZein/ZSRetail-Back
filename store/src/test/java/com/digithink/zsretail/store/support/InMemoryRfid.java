@@ -109,11 +109,17 @@ public final class InMemoryRfid {
 		case "countByItem_Id":
 			return tags.values().stream().filter(t -> t.getItem().getId().equals(args[0])).count();
 		case "search": {
+			// (itemId, status, epcPattern, page); the pattern ready-made ('%E200%'), as the query takes it (no concat)
+			String pattern = (String) args[2];
+			if (pattern != null && (pattern.length() < 3 || !pattern.startsWith("%") || !pattern.endsWith("%"))) {
+				throw new IllegalArgumentException("not a contains pattern: " + pattern);
+			}
+			String part = pattern == null ? "" : pattern.substring(1, pattern.length() - 1);
 			Pageable page = (Pageable) args[3];
 			List<RfidTag> found = tags.values().stream()
 					.filter(t -> args[0] == null || t.getItem().getId().equals(args[0]))
 					.filter(t -> args[1] == null || t.getStatus() == (RfidTagStatus) args[1])
-					.filter(t -> args[2] == null || t.getEpc().contains((String) args[2]))
+					.filter(t -> t.getEpc().contains(part))
 					.sorted(Comparator.comparing(RfidTag::getId).reversed()).collect(Collectors.toList());
 			int from = (int) Math.min(page.getOffset(), found.size());
 			int to = Math.min(from + page.getPageSize(), found.size());

@@ -29,11 +29,13 @@ public interface RfidTagRepository extends _BaseRepository<RfidTag, Long> {
 	long countByItem_Id(Long itemId);
 
 	/**
-	 * The Tags page: newest first, each filter applied when given (null: every value). epc: a part of the EPC, upper case.
+	 * The Tags page: newest first, each filter applied when given (null: every value), as ItemBarcodeRepository does.
+	 * epcPattern: a ready LIKE pattern ('%E200%'), built in Java: no concat of a parameter in the query (SQL Server binds
+	 * a null String as varbinary, and '%' + varbinary fails: Msg 402, found on the Tags page, 2026-10-11).
 	 */
 	@Query("select t from RfidTag t where (:itemId is null or t.item.id = :itemId)"
 			+ " and (:status is null or t.status = :status)"
-			+ " and (:epc is null or t.epc like concat('%', :epc, '%')) order by t.id desc")
-	Page<RfidTag> search(@Param("itemId") Long itemId, @Param("status") RfidTagStatus status, @Param("epc") String epc,
-			Pageable page);
+			+ " and (:epcPattern is null or t.epc like :epcPattern) order by t.id desc")
+	Page<RfidTag> search(@Param("itemId") Long itemId, @Param("status") RfidTagStatus status,
+			@Param("epcPattern") String epcPattern, Pageable page);
 }

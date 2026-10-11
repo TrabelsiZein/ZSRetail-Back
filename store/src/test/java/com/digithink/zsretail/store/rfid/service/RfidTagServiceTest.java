@@ -81,6 +81,16 @@ class RfidTagServiceTest {
 	}
 
 	@Test
+	@DisplayName("EPC filter: a ready LIKE pattern of its hexadecimal digits (no concat in the query, no wildcard passes); none: null")
+	void epcPattern() {
+		assertEquals("%E2004707%", RfidTagService.epcPattern(" e200-4707 "));
+		assertEquals("%E200%", RfidTagService.epcPattern("%E200_%"));
+		assertEquals(null, RfidTagService.epcPattern(null));
+		assertEquals(null, RfidTagService.epcPattern("  "));
+		assertEquals(null, RfidTagService.epcPattern("%_xyz"));
+	}
+
+	@Test
 	@DisplayName("Move: an IN_STOCK tag to another item; the same item changes nothing; SOLD refused; tag or item missing")
 	void move() {
 		RfidTag tag = rfid.tag("E2001111", shirt, RfidTagStatus.IN_STOCK);
