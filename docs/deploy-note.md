@@ -33,7 +33,8 @@ On this PC `devenv\build.ps1` does the same for the dev instances (`C:\zsretail-
 
 Since code cleanup step 8 (decision of 2026-10-11) the old configuration lines are no longer read: a start that finds
 one, in the outside file or anywhere else (a `-D`, an environment variable, the Tomcat options), stops, and its message
-names each old line, where it is and what to write instead. Nothing else behaves differently. Change the outside file
+names each old line, where it is and what to write instead. Nothing else behaves differently. **Keep a copy of the 2.2.2
+outside file** (a rollback needs it, below), then change the outside file
 (`<Tomcat>\conf\zsretail\zsretailws.properties`) **before** deploying the new WAR:
 
 | 2.2.2 line | Now |
@@ -118,6 +119,61 @@ Outside the file: remove a `-Dspring.profiles.active` (or any old line) from `CA
 options, and a `SPRING_PROFILES_ACTIVE` environment variable, if the server has one. Then start: a line left over stops
 the start, and the message names every old line of that start at once (`OutsideFileUpgradeTest` holds the message of
 each of the three files above).
+
+## Upgrade from 2.2.2: the catalogue state table
+
+On a head office whose catalogue comes from the ERP (Happyness), the state table of the catalogue engine is renamed
+`navpospages_state` to `erp_catalogue_state`, its primary key `pk_navpospages_state` to `pk_erp_catalogue_state`, every
+row kept (the barcode cursor, the last item run, the items waiting for their barcodes). The application does it at its
+first start (`JdbcCatalogueState`, one INFO line `... state table navpospages_state renamed erp_catalogue_state with its
+primary key, <n> rows kept`); the release's update script does the same first, guarded so that it runs once. When both
+tables exist the start is refused, naming both: keep the one with the head office's `barcodes.cursor` row, drop the
+other. A store, and a head office without that connector, have no such table: nothing happens there.
+
+The block for the update script of the version in progress (`core/src/main/resources/db/<next version>/update.sql`; the
+version number is not chosen yet, and `db/2.2.2` is the released script, never edited):
+
+```sql
+-- Code cleanup step 8: the catalogue engine's state table gets a neutral name (head office with the ERP catalogue only)
+IF OBJECT_ID(N'navpospages_state', N'U') IS NOT NULL AND OBJECT_ID(N'erp_catalogue_state', N'U') IS NULL
+BEGIN
+    BEGIN TRY
+        BEGIN TRANSACTION;
+        EXEC sp_rename N'navpospages_state', N'erp_catalogue_state';
+        IF OBJECT_ID(N'pk_navpospages_state', N'PK') IS NOT NULL
+            EXEC sp_rename N'pk_navpospages_state', N'pk_erp_catalogue_state', N'OBJECT';
+        COMMIT TRANSACTION;
+        PRINT 'navpospages_state renamed erp_catalogue_state';
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END
+ELSE IF OBJECT_ID(N'navpospages_state', N'U') IS NOT NULL
+    RAISERROR('Both navpospages_state and erp_catalogue_state exist: keep the one with the barcodes.cursor row of this head office, drop the other, run again.', 16, 1);
+```
+
+## Rollback to 2.2.2
+
+2.2.2 is the single WAR (`zsretailws.war`) and reads the outside file of 2.2.2. Stop Tomcat, then:
+1. **Put back the copy of the 2.2.2 outside file** kept before the upgrade. The new file cannot serve: 2.2.2 does not
+   read `erp.connector` nor `erp.emtop.*` / `erp.happyness.*`, and without `spring.profiles.active` it runs as a store.
+2. On the head office with the ERP catalogue, **rename the table back before starting 2.2.2** (otherwise 2.2.2 creates an
+   empty `navpospages_state`: its barcode run waits for an items run, then reads every barcode page of the ERP again):
+
+   ```sql
+   IF OBJECT_ID(N'erp_catalogue_state', N'U') IS NOT NULL AND OBJECT_ID(N'navpospages_state', N'U') IS NULL
+   BEGIN
+       BEGIN TRANSACTION;
+       EXEC sp_rename N'erp_catalogue_state', N'navpospages_state';
+       IF OBJECT_ID(N'pk_erp_catalogue_state', N'PK') IS NOT NULL
+           EXEC sp_rename N'pk_erp_catalogue_state', N'pk_navpospages_state', N'OBJECT';
+       COMMIT TRANSACTION;
+   END
+   ```
+3. Undo what the version's update script changed besides (at least `APP_VERSION`, as that script will say), deploy the
+   2.2.2 WAR as `zsretailws`, start.
 
 ## Database
 

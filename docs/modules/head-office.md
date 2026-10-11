@@ -1312,10 +1312,25 @@ again at the next run.
 | Summary | One entry per run in the communications log (the response of the pull, when `ERP_SYNC_TRACKING_LEVEL` is `ALL`, the default seeded): run, page, read, left out by reason, notes, waiting, guard. Items: `new`, `changed`, `deactivated` and `applied` (what the run applied; 0 applied in a dry run), `packets`; nothing held back. Barcodes: `itemsNeedingBarcodes`, `appliedForNewItems`, `alreadyAtHeadOffice`, `cursorFrom`, `cursorTo`, `pagesRead`, `applied`, `packets`, `caughtUp` (`toApply` in a dry run); nothing held back. Families, sub-families: new, changed, handed, `toHand` and `heldBackByCap` (the rest for the next runs). Never the list |
 | Dry run | `dry-run=true`: reads, compares and writes the summary (the barcode run reads to the last page and ends); hands nothing; the state table is not written |
 
-**State table** `navpospages_state` (`state_key`, `state_value`, `updated_at`): the barcode cursor, the count of the last item
-run, the items that need their barcodes. Not a JPA entity (Hibernate would create it on every installation): created with plain
-SQL when missing, at the start, by `core/erp/engine/JdbcCatalogueState` (was `JdbcNavPosPagesState`), which exists only with a connector that has the ability `HEAD_OFFICE_STOCK_POINTS` (today `erp.connector=happyness`). A store or a
-head office without this connector never gets it.
+**State table** `erp_catalogue_state` (`state_key`, `state_value`, `updated_at`; primary key `pk_erp_catalogue_state`):
+the barcode cursor, the count of the last item run, the items that need their barcodes. Not a JPA entity (Hibernate would
+create it on every installation): made ready with plain SQL at the start by `core/erp/engine/JdbcCatalogueState` (was
+`JdbcNavPosPagesState`), which exists only with a connector that has the ability `HEAD_OFFICE_STOCK_POINTS` (today
+`erp.connector=happyness`). A store or a head office without this connector never gets it.
+
+Its name was `navpospages_state` from 2.2.0 to 2.2.2 (code cleanup step 8, Zein 2026-10-11: renamed to a neutral name;
+the old name is declared by the connector, `ErpConnectorDescriptor.oldCatalogueStateTable()`). At each start the bean
+looks for both names (`INFORMATION_SCHEMA.TABLES`) and:
+- new one missing, old one present: renames the table and its primary key in one transaction (`sp_rename`, every row
+  kept), and logs `ERP catalogue engine: state table navpospages_state renamed erp_catalogue_state with its primary key,
+  <n> rows kept`;
+- both present: refuses the start, naming both tables, changing nothing (keep the one with the head office's
+  `barcodes.cursor` row, drop the other);
+- neither: creates `erp_catalogue_state` (`IF OBJECT_ID(...) IS NULL CREATE TABLE ...`);
+- the new one alone: nothing.
+
+Tests: `JdbcCatalogueStateTest` (H2: the detection, the case chosen, the refusal, the rows under the new name; the T-SQL
+itself, `sp_rename` and the transaction, is proved only on SQL Server). The SQL and the upgrade: `docs/deploy-note.md`.
 
 Tests: `CatalogueEngineTest` (was `NavPosPagesSyncTest`; 28: first load with packets (all items in one run, all barcodes in one run), nothing changed,
 price change, price 0 then a price, item gone, 96 % gone, empty answer, every change in one run in packets with the summary of

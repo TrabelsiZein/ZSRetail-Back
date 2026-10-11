@@ -45,4 +45,10 @@ public class HappynessConnectorDescriptor implements ErpConnectorDescriptor {
 		return new LinkedHashSet<>(Arrays.asList("location-code", "invoices.years", "invoices.start-number",
 				"deactivate-guard-percent"));
 	}
+
+	/** The catalogue engine's state table, named after this connector from 2.2.0 to 2.2.2. */
+	@Override
+	public String oldCatalogueStateTable() {
+		return "navpospages_state";
+	}
 }

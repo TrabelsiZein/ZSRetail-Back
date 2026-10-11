@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * ERP catalogue, step 6: the few values the changes engine keeps between runs (the barcode cursor, the runs done and the
  * new rows still to save, the items that need their barcodes). Keys and values are short texts. The table
- * navpospages_state ({@link JdbcCatalogueState}), or a map in the tests.
+ * erp_catalogue_state ({@link JdbcCatalogueState}; navpospages_state up to 2.2.2), or a map in the tests.
  * Code cleanup step 3: was NavPosPagesState of the navpospages connector, now shared by the catalogue engine.
  */
 public interface CatalogueState {

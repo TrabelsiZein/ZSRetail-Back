@@ -91,11 +91,9 @@ class ConnectorNamesGuardTest {
 	/**
 	 * Code cleanup step 8, follow-up 2: what a user can read (a string literal: a message, a setting's description) never
 	 * names a connector: its name, its old name (the last part of its old prefix), nor NAV. Comments may tell the history.
+	 * No exception (the old name of the catalogue state table is declared by its connector, code cleanup step 8).
 	 */
 	static final Pattern NAMED = Pattern.compile("(?i)" + String.join("|", connectorWords()) + "|(?-i)\\bNAV\\b");
-
-	/** The one string allowed: the table of the catalogue state, named by its history (docs/modules/erp-sync.md). */
-	static final List<String> ALLOWED_STRINGS = Arrays.asList("\"navpospages_state\"");
 
 	private static List<String> connectorWords() {
 		List<String> words = new ArrayList<>();
@@ -119,7 +117,7 @@ class ConnectorNamesGuardTest {
 			}
 			Matcher strings = literal.matcher(line);
 			while (strings.find()) {
-				if (!ALLOWED_STRINGS.contains(strings.group()) && NAMED.matcher(strings.group()).find()) {
+				if (NAMED.matcher(strings.group()).find()) {
 					found.add(relativePath + ":" + (i + 1) + ": " + strings.group());
 				}
 			}
@@ -137,7 +135,7 @@ class ConnectorNamesGuardTest {
 			}
 		}
 		assertEquals("", String.join("\n", found), "Word it by the ability or as \"the ERP\"");
-		assertEquals(3, namedInStrings("x/A.java", Arrays.asList("throw new X(\"the navpospages connector\");",
+		assertEquals(4, namedInStrings("x/A.java", Arrays.asList("throw new X(\"the navpospages connector\");",
 				"log.info(\"sent to NAV\");", "msg(\"Happyness head office\");", "// the NAV of EMTOP",
 				"String table = \"navpospages_state\";", "\"the ERP\", \"navigation\"")).size());
 	}

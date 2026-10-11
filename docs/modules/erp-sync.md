@@ -220,8 +220,8 @@ stores' invoices: `supplyInvoiceSellerName`, the connector's `invoices.seller-na
 application implements (`StockPoints`, the head office's points de stock). **Guard test**: `erp/ConnectorNamesGuardTest`
 scans every project's `src/main/java` and fails naming each offending line. Since code cleanup step 8 it also checks what a user can
 read: no string literal outside the connectors (a message, a setting's description) names a connector, its old name or
-NAV; it says "the ERP", or words it by the ability ("a connector that keeps points de stock"). The one string allowed is
-the table name `navpospages_state`.
+NAV; it says "the ERP", or words it by the ability ("a connector that keeps points de stock"). No exception: the old name of the
+catalogue state table is declared by its connector (`ErpConnectorDescriptor.oldCatalogueStateTable()`).
 
 **Deletion sync** (`ErpDeletionSyncService`, job of the ERP Log): the `erp_external_id` of a deleted sales price or discount
 is built by the connector in effect (`ErpConnector.deletedSalesPriceExternalId` / `deletedSalesDiscountExternalId`), the
@@ -240,8 +240,9 @@ logic is written once, in `core/erp/engine`, and exists with a connector that ha
   `erp/api`, the format of the communications log). One items run and one barcode run at a time.
 - `CatalogueJob` (was `NavPosPagesCatalogueJob`): the single job `SYNC_CATALOGUE` (`ErpCatalogueSync`).
 - What the engine reads and writes at the head office: `HeadOfficeCatalogue` (`JpaHeadOfficeCatalogue`), `CatalogueState`
-  (`JdbcCatalogueState`: the table stays `navpospages_state`, the keys `items.run`, `items.pending`, `barcodes.cursor`,
-  `needs-barcodes:` unchanged), `CatalogueImport` (`BootstrapCatalogueImport`, through `ErpItemBootstrapService`),
+  (`JdbcCatalogueState`: the table `erp_catalogue_state`, `navpospages_state` up to 2.2.2 and renamed at the first
+  start, see `head-office.md`, "State table"; the keys `items.run`, `items.pending`, `barcodes.cursor`, `needs-barcodes:`
+  unchanged), `CatalogueImport` (`BootstrapCatalogueImport`, through `ErpItemBootstrapService`),
   `StockPoints` (`headoffice.service.HoStockPointRows`).
 
 **What a connector gives** (`erp/api`):

@@ -41,6 +41,14 @@ public interface ErpConnectorDescriptor {
 	}
 
 	/**
+	 * Code cleanup step 8: the name the table of the catalogue engine's state had with this connector up to 2.2.2, null
+	 * when none. At the first start the application renames it erp_catalogue_state, every row kept.
+	 */
+	default String oldCatalogueStateTable() {
+		return null;
+	}
+
+	/**
 	 * What the startup summary shows after its name, as "label value": the label (e.g. NAV) and the key of the value (e.g.
 	 * its address); null label for nothing.
 	 */
