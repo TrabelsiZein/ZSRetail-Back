@@ -77,7 +77,7 @@ erp.emtop.username=...
 erp.emtop.password=...
 ```
 
-**A Happyness head office** (its catalogue from the ERP's POS pages, e.g. `configs/local/happyness_ho.properties`):
+**A Happyness head office** (its catalogue from the ERP's POS pages; its 2.3 form: `configs/customers/happyness-headoffice.properties`):
 
 ```properties
 # remove
@@ -110,7 +110,7 @@ Setup "Read ERP invoices after number" replaced them): they are under "remove" o
 keys: under either name, `invoices.start-number` and `deactivate-guard-percent` too, they stop the start ("remove the
 line"). Any other `erp.navpospages.*` line of the file (pages, packet size, timeouts, invoices) is renamed the same way.
 
-**A Happyness store** (a store of the network, no ERP, e.g. `configs/local/happyness_store1.properties`):
+**A Happyness store** (a store of the network, no ERP; its 2.3 form: `configs/happyness-from-scratch/store-1.properties`):
 
 ```properties
 # remove

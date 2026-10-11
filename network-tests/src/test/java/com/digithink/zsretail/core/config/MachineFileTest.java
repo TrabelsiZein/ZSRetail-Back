@@ -282,10 +282,11 @@ class MachineFileTest {
 				headOffices.add(file);
 			}
 		}
-		assertEquals(Arrays.asList("dev/headoffice-erp.properties", "dev/headoffice.properties",
+		assertEquals(Arrays.asList("customers/happyness-headoffice.properties", "dev/headoffice-erp.properties",
+				"dev/headoffice.properties",
 				"happyness-from-scratch/headoffice.properties", "rehearsal/headoffice.properties"), headOffices);
-		assertEquals("headoffice", Installations.typeOf("local/happyness_ho.properties"));
-		assertEquals("store", Installations.typeOf("local/happyness_store1.properties"));
+		assertEquals("headoffice", Installations.typeOf("local/test_happyness_ho.properties"));
+		assertEquals("store", Installations.typeOf("local/test_happyness_store.properties"));
 		java.util.Properties model = Installations.file(Installations.MACHINES.resolve("machine-model.properties"));
 		assertNull(model.getProperty("spring.profiles.active"));
 		assertNull(model.getProperty("node.type"));

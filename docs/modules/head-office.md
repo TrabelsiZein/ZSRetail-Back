@@ -1273,8 +1273,9 @@ Tests: `NavPosPagesRestClientTest` (the URLs, GET, next link, HTTP error, timeou
 `NavPosPagesMapperTest` (the samples of `network-tests/src/test/resources/navpospages/`, location `DA-MG-GREM`; variants, a barcode twice, a
 sub-family without its family, a `Categorie` row, `price-includes-vat=false`), `NavPosPagesStartupCheckTest`,
 `NavPosPagesConnectorTest` (empty lists and failures; the connector injected in `ErpSynchronizationManager`: NoOp, Dynamics NAV,
-navpospages), `NavPosPagesLiveReadTest` (skipped unless `-Dnavpospages.live=true`: a GET-only read of the ERP named in
-`configs/local/happyness_ho.properties`, counts, five rows and the time per page, two barcode pages).
+navpospages), `NavPosPagesLiveReadTest` (skipped unless `-Dnavpospages.live=true`: a GET-only read of the ERP named in the
+outside file `-Dnavpospages.file`, by default this PC's `configs/local/test_happyness_ho.properties` (never committed),
+counts, five rows and the time per page, two barcode pages).
 
 **Step 6: changes only** (since code cleanup step 3 the shared catalogue engine, `core/erp/engine`, see `erp-sync.md`,
 "Catalogue engine": the engine reads the ERP through the connector's `ErpCatalogueSource`; navpospages gives
@@ -2101,9 +2102,9 @@ Order at a new head office with an ERP: enable and run `IMPORT_LOCATIONS`, choos
 | Store | any store machine file (e.g. `configs/dev/store-a.properties`), port 444 | `npm run serve` (`.env.development.local` → 444) |
 | Head office | machine file `configs/dev/headoffice.properties`, port 888 (set in the machine file) | `npm run serve:headoffice` → http://localhost:8081 (`.env.headoffice` → 888) |
 
-- In Eclipse / STS (code cleanup step 6.7): the shared launch configurations `eclipse/dev-headoffice.launch`,
-  `dev-store-b.launch`, `dev-store-c.launch` start `HeadOfficeApplication` (project `zsretail-headoffice`) or
-  `StoreApplication` (project `zsretail-store`) with the instance's machine file
+- In Eclipse / STS: a launch configuration of your own per instance (the shared `eclipse/dev-*.launch` left the
+  repository on 2026-10-11) starts `HeadOfficeApplication` (project `zsretail-headoffice`) or `StoreApplication`
+  (project `zsretail-store`) with the instance's machine file
   (`-Dzsretail.machine-file="${project_loc:zsretail-parent}/configs/dev/<name>.properties"`). Without an outside file
   each application starts as its own type. The devenv scripts start the L2 instances themselves (CLAUDE.md, "Dev
   environment for L2"), each with the WAR of its application.
@@ -2127,8 +2128,8 @@ status | set-key | reset`.
   restart it there.
 - `reset` stops, drops the three `pos_rehearsal_*` databases (refused for any other name), puts the keys back to none and
   sets up again. Refused while an instance started from Eclipse is up.
-- **From Eclipse**: three shared launch configurations in the backend repository, `eclipse/rehearsal-1-headoffice.launch`,
-  `rehearsal-2-store-1.launch`, `rehearsal-3-store-2.launch` (Run menu, favourites). Since code cleanup step 6.7: Java
+- **From Eclipse**: a launch configuration of your own per instance (the shared `eclipse/rehearsal-*.launch` left the
+  repository on 2026-10-11). Java
   Application `HeadOfficeApplication` (project `zsretail-headoffice`) or `StoreApplication` (project `zsretail-store`) on
   the JRE `jdk-21.0.10`, with `-Dzsretail.machine-file="${project_loc:zsretail-parent}/configs/rehearsal/<name>.properties"`
   (`zsretail-parent`: the workspace name of the backend folder): same machine files, ports, databases and logs as the

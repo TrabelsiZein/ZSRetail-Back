@@ -21,9 +21,9 @@ import com.digithink.zsretail.erp.api.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.support.Installations;
 
 /**
- * ERP catalogue, step 5: a live read of the ERP named in configs/local/happyness_ho.properties, GET only. Skipped unless
- * -Dnavpospages.live=true (never in the normal suite). Fill domain, username and password in that file first (local,
- * never committed with real values). Prints per page: rows read, kept, left out by reason, five translated rows and the
+ * ERP catalogue, step 5: a live read of the ERP named in an outside file of configs/ (-Dnavpospages.file, by default this
+ * PC's local/test_happyness_ho.properties, never committed; the committed customers/happyness-headoffice.properties has
+ * CHANGE_ME), GET only. Skipped unless -Dnavpospages.live=true (never in the normal suite). Prints per page: rows read, kept, left out by reason, five translated rows and the
  * time; for the barcodes the first two pages only. Writes nothing anywhere.
  * <p>
  * Run from Apps/ZSRetail-Back (JDK 21 and the settings of CLAUDE.md): mvn ... -Dtest=NavPosPagesLiveReadTest
@@ -32,7 +32,7 @@ import com.digithink.zsretail.support.Installations;
 @EnabledIfSystemProperty(named = "navpospages.live", matches = "true")
 class NavPosPagesLiveReadTest {
 
-	static final String FILE = "local/happyness_ho.properties";
+	static final String FILE = System.getProperty("navpospages.file", "local/test_happyness_ho.properties");
 
 	@Test
 	@DisplayName("Live read of the three pages (GET only), counts and samples printed")

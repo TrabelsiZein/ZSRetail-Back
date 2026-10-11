@@ -41,6 +41,12 @@ public final class Installations {
 	/** The machine files: configs/ apart from configs/local (paths relative to configs/, as when they were in deploy/). */
 	public static final Path MACHINES = CONFIGS;
 
+	/**
+	 * The Happyness head office, the real example of a head office whose catalogue only comes from the ERP, its stores'
+	 * invoices from the ERP and no stock (a machine file since 2026-10-11, was configs/local/happyness_ho.properties).
+	 */
+	public static final String HAPPYNESS_HEAD_OFFICE = "customers/happyness-headoffice.properties";
+
 	/** configs/local: the files of this PC's installations, checked as committed (ERP catalogue, step 1). */
 	static final String LOCAL = "local/";
 
@@ -79,7 +85,7 @@ public final class Installations {
 	}
 
 	/**
-	 * An installation file of configs/local (e.g. "local/happyness_ho.properties"), {@link #upgraded}, over its type file and
+	 * An installation file of configs/local (e.g. "local/test_happyness_ho.properties"), {@link #upgraded}, over its type file and
 	 * application.properties.
 	 */
 	public static MockEnvironment config(String relativePath) {
@@ -163,7 +169,7 @@ public final class Installations {
 
 	/**
 	 * Code cleanup step 8: the application a file of configs/ is for, by its name (a file names no type any more):
-	 * headoffice when the name has "headoffice" or "_ho" (happyness_ho.properties), else store. It gives the type each
+	 * headoffice when the name has "headoffice" or "_ho" (test_happyness_ho.properties), else store. It gives the type each
 	 * file named before step 8 (checked when the type lines were removed; MachineFileTest keeps it so).
 	 */
 	public static String typeOf(String path) {

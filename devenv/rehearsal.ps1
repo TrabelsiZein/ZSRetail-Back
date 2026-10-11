@@ -10,8 +10,9 @@
 #   powershell -File devenv\rehearsal.ps1 -Action set-key -Store store-1 -Key <key shown once on the Stores page>
 #   powershell -File devenv\rehearsal.ps1 -Action reset      # stop, drop the 3 rehearsal databases, keys back to none, setup
 #
-# From Eclipse: the launch configurations eclipse\rehearsal-1-headoffice, rehearsal-2-store-1 and rehearsal-3-store-2 run the
-# same three instances (same machine files, ports and databases) from the project's classes. The script sees an instance
+# From Eclipse: a launch configuration of your own per instance (Java Application HeadOfficeApplication or
+# StoreApplication, -Dzsretail.machine-file= configs\rehearsal\<name>.properties; the shared ones left the repository on
+# 2026-10-11) runs the same three instances (same machine files, ports and databases) from the project's classes. The script sees an instance
 # started there (it answers on its port, without a devenv pid) and leaves it alone: start skips it, stop names it, set-key
 # only writes the key (restart the store from Eclipse), reset refuses while one is up.
 #

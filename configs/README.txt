@@ -17,15 +17,15 @@ This folder holds every such file of the repository (code cleanup step 7: deploy
   machine-model.properties   the model: copy it for a new installation
   dev\                       this PC's dev instances (store A, store B, store C, the dev head office, with NAV)
   rehearsal\                 the rehearsal pair (devenv\rehearsal.ps1)
-  customers\                 customers' values without their passwords
+  customers\                 customers' values without their passwords; happyness-headoffice: the Happyness head
+                             office (catalogue only from the ERP, its stores' invoices from the ERP, no stock)
   happyness-from-scratch\    the Happyness franchise as first set up on this PC on 2026-10-04: a head office and two
                              stores without the ERP catalogue (ports 889, 557, 558)
-  local\                     this PC, the Happyness test with its ERP catalogue: happyness_ho, happyness_store1,
-                             happyness_store2 (committed with CHANGE_ME; filled on the PC only). Zein's own files:
-                             still in the 2.2.2 form, upgraded by hand (docs/deploy-note.md); the tests read them
-                             upgraded
+  local\                     this PC's own files (e.g. test_happyness_ho.properties), never committed since
+                             2026-10-11 (the Happyness head office moved to customers\happyness-headoffice); a file
+                             committed here would be read by the tests, upgraded
 
-Given to the IDE by the VM argument of a launch (eclipse\*.launch), e.g.
+Given to the IDE by the VM argument of a launch (each developer's own, not in the repository since 2026-10-11), e.g.
   -Dzsretail.machine-file="${project_loc:zsretail-parent}/configs/dev/store-b.properties"
 
 On a server: copy one of these files into the Tomcat as conf\zsretail\zsretailws.properties (the WAR is deployed as
@@ -36,7 +36,7 @@ How to check: the log line "Installation: type ..., database ..., outside file .
 
 ERP connector "POS pages" (erp.happyness.*, ERP catalogue step 5): a head office whose catalogue only comes from a NAV /
 Business Central with the pages ItemCategory, PointStockPOS and ItemBarCodePOS. Its lines go in that head office's own
-file here (local\happyness_ho.properties has them), never in the WAR: erp.connector=happyness (the only line that
+file here (customers\happyness-headoffice.properties has them), never in the WAR: erp.connector=happyness (the only line that
 chooses a connector; erp.connector=emtop for EMTOP's NAV), then base-url, company, domain, username, password
 (CHANGE_ME in the repository, filled on the PC only), default-vat, price-includes-vat.
 GET only: it never writes to the ERP. List of keys and startup refusals: docs/deployment-modes.md.

@@ -88,7 +88,7 @@ class ErpAbilityBeansTest {
 		}
 		assertTrue(withBeans.contains("catalogue only, erp.connector=happyness"), withBeans.toString());
 		assertTrue(withBeans.contains("catalogue only, erp.connector= Happyness "), withBeans.toString());
-		assertTrue(withBeans.contains("local/happyness_ho.properties"), "the real Happyness head office: " + withBeans);
+		assertTrue(withBeans.contains(Installations.HAPPYNESS_HEAD_OFFICE), "the real Happyness head office: " + withBeans);
 		assertEquals(3, withBeans.size(), withBeans.toString());
 	}
 
@@ -146,7 +146,7 @@ class ErpAbilityBeansTest {
 			}
 		}
 		assertTrue(withBeans.contains("store, erp.connector=happyness"), withBeans.toString());
-		assertTrue(withBeans.contains("local/happyness_ho.properties"), withBeans.toString());
+		assertTrue(withBeans.contains(Installations.HAPPYNESS_HEAD_OFFICE), withBeans.toString());
 		assertEquals(3, withBeans.size(), withBeans.toString());
 	}
 

@@ -137,7 +137,7 @@ class HeadOfficeErpCatalogueFilterTest {
 
 		assertTrue(registered(catalogueOnlyHeadOffice()));
 		// The Happyness head office without stock, with the catalogue from the ERP: both filters
-		MockEnvironment happyness = Installations.config("local/happyness_ho.properties");
+		MockEnvironment happyness = Installations.machine(ModeQuestionTruthTableTest.HAPPYNESS_HEAD_OFFICE);
 		happyness.setProperty("ownership.catalogue", "ERP");
 		assertTrue(registered(happyness));
 		assertTrue(OnHeadOfficePullConditionTest.registered(happyness, HeadOfficeWithoutStockFilter.class));
@@ -156,8 +156,10 @@ class HeadOfficeErpCatalogueFilterTest {
 			}
 			assertFalse(registered(env), "variant " + variant);
 		}
+		// configs/: only the Happyness head office (configs/customers since 2026-10-11) has the filter
 		for (String machine : Installations.machineFiles()) {
-			assertFalse(registered(Installations.machine(machine)), "configs/" + machine);
+			assertEquals(machine.equals(ModeQuestionTruthTableTest.HAPPYNESS_HEAD_OFFICE),
+					registered(Installations.machine(machine)), "configs/" + machine);
 		}
 		// configs/: only the Happyness head office, the real example of this mode, has the filter
 		for (String config : Installations.configFiles()) {

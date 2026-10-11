@@ -231,7 +231,8 @@ class ConfigurationKeysProofTest {
 			Files.write(RECORD, now, StandardCharsets.UTF_8);
 		}
 		List<String> recorded = Files.readAllLines(RECORD, StandardCharsets.UTF_8);
-		assertTrue(recorded.size() > 1000, "lines recorded: " + recorded.size());
+		// A floor against an empty record: 973 lines since configs/local left the repository (2026-10-11)
+		assertTrue(recorded.size() > 900, "lines recorded: " + recorded.size());
 		for (int i = 0; i < Math.max(now.size(), recorded.size()); i++) {
 			assertEquals(i < recorded.size() ? recorded.get(i) : "(none)", i < now.size() ? now.get(i) : "(none)",
 					"line " + (i + 1));

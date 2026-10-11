@@ -104,7 +104,7 @@ class ErpCatalogueHeadOfficeTest {
 				.withProperty("ownership.catalogue", " erp ");
 		assertTrue(NodeOwnership.resolve(absent).isErpCatalogueOnly());
 
-		MockEnvironment happyness = Installations.config("local/happyness_ho.properties");
+		MockEnvironment happyness = Installations.machine(ModeQuestionTruthTableTest.HAPPYNESS_HEAD_OFFICE);
 		happyness.setProperty("ownership.catalogue", "ERP");
 		NodeOwnership ownership = NodeOwnership.resolve(happyness);
 		assertTrue(ownership.isErpCatalogueOnly());
@@ -180,9 +180,11 @@ class ErpCatalogueHeadOfficeTest {
 		String line = InstallationSummary.summary(env, NodeOwnership.resolve(env));
 		assertTrue(line.contains("catalogue ERP, customers LOCAL"), line);
 		assertTrue(line.contains(phrase), line);
+		// configs/: only the Happyness head office (configs/customers since 2026-10-11), the real example, says it
 		for (String machine : Installations.machineFiles()) {
 			MockEnvironment other = Installations.machine(machine);
-			assertFalse(InstallationSummary.summary(other, NodeOwnership.resolve(other)).contains(phrase), machine);
+			assertEquals(machine.equals(ModeQuestionTruthTableTest.HAPPYNESS_HEAD_OFFICE),
+					InstallationSummary.summary(other, NodeOwnership.resolve(other)).contains(phrase), machine);
 		}
 		// configs/: only the Happyness head office, the real example of this mode, says it
 		for (String config : Installations.configFiles()) {

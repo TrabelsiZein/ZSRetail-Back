@@ -85,7 +85,7 @@ variable such as `ERP_DYNAMICSNAV_ENABLED`), whatever their value, even beside a
 startup. One message names every old line, where it is and what to write instead:
 
 ```
-Old line no longer read: erp.navpospages.enabled=true in the outside file C:\...\happyness_ho.properties: write
+Old line no longer read: erp.navpospages.enabled=true in the outside file C:\...\zsretailws.properties: write
 erp.connector=happyness instead. The ERP connector is chosen by erp.connector only (none | emtop | happyness; no line: none).
 ```
 
@@ -169,7 +169,7 @@ from the type file, a file states the mode lines that preset gave, so every key 
 | `customers/erp-prod.properties` | `store` + the NAV lines | the customer on Dynamics NAV |
 | `customers/store-prod.properties` | `store` | the customer without an ERP |
 | `happyness-from-scratch/headoffice.properties`, `store-1.properties`, `store-2.properties` | `headoffice`, `store` + the network lines | the Happyness franchise first set up on this PC (889, 557, 558), without the ERP catalogue |
-| `local/happyness_ho.properties`, `happyness_store1.properties`, `happyness_store2.properties` | `headoffice` + the ERP catalogue, `store` + the network lines | this PC's Happyness test with its ERP catalogue (888, 991, 992); committed with `CHANGE_ME` |
+| `customers/happyness-headoffice.properties` | `headoffice` + the catalogue only from the ERP, `erp.connector=happyness`, invoices from the ERP, no stock | the Happyness head office (was `local/happyness_ho.properties`, its own PC file, until 2026-10-11; `configs/local` is no longer in the repository) |
 
 "The NAV lines": catalogue, customers, supply `ERP`, sales to `ERP`, `erp.connector=emtop`. "The network lines": catalogue and supply
 `HEAD_OFFICE`, sales to `HEAD_OFFICE`.
@@ -255,7 +255,7 @@ purchases, vendors, locations and stock are not refused by the ERP gates (purcha
 frontend (`docs/modules/head-office.md`).
 
 **The connector of this head office: `erp.happyness.*`** (ERP catalogue, step 5; package `erp/navpospages`, since code cleanup step 6.3 `connector/happyness` in the project connectors/happyness; GET only, it never
-writes to the ERP). The lines go in the head office's **outside file** (e.g. `configs/local/happyness_ho.properties`), never in
+writes to the ERP). The lines go in the head office's **outside file** (e.g. `configs/customers/happyness-headoffice.properties`), never in
 the WARs' resources. Every bean of the package exists only with `erp.connector=happyness`.
 
 | Key | Value | Default |

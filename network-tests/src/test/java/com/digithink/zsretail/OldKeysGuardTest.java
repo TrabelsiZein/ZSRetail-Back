@@ -164,14 +164,15 @@ class OldKeysGuardTest {
 		assertEquals(2, offences("x.properties", Arrays.asList("erp.dynamicsnav.base-url=x", "# the erp.navpospages.* keys",
 				"erp.emtop.base-url=x", "erp.connector=happyness"), oldNames()).size());
 		assertFalse(scanned("core/src/main/resources/db/2.2.0/update.sql"), "a released script is never edited");
-		assertFalse(scanned("configs/local/happyness_ho.properties"), "Zein's own files");
+		assertFalse(scanned("configs/local/test_happyness_ho.properties"), "Zein's own files");
 		assertTrue(scanned("configs/dev/store-b.properties"));
 		assertTrue(files().contains("configs/machine-model.properties"));
-		assertTrue(files().contains("eclipse/dev-store-b.launch"));
+		// The shared Eclipse launches left the repository (2026-10-11): each developer's own, still scanned when there
+		assertTrue(folders().contains("eclipse"));
 		assertTrue(files().contains("devenv/common.ps1"));
 		assertEquals(2, offences("x.launch", Arrays.asList("-Dspring.profiles.active=store", "node.type=STORE", "-Dx=y"),
 				TYPE_LINES).size());
-		assertTrue(installationFile("configs/dev/store-b.properties") && installationFile("eclipse/dev-store-b.launch")
+		assertTrue(installationFile("configs/dev/store-b.properties") && installationFile("eclipse/Happyness-store.launch")
 				&& !installationFile("core/src/main/java/X.java"), "the type lines: in installation files only");
 	}
 }

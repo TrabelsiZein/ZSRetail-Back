@@ -85,7 +85,8 @@ class SupplySourceBeansTest {
 		modes.put("head office whose ERP owns all three", Installations.machine("dev/headoffice-erp.properties"));
 		modes.put("head office, catalogue only from the ERP", catalogueOnly());
 		modes.put("head office, catalogue only from the ERP, supply source ERP", erpSupply());
-		modes.put("Happyness head office (configs/local)", Installations.config(ModeQuestionTruthTableTest.HAPPYNESS_HEAD_OFFICE));
+		modes.put("Happyness head office (configs/customers)",
+				Installations.machine(ModeQuestionTruthTableTest.HAPPYNESS_HEAD_OFFICE));
 		return modes;
 	}
 
@@ -134,7 +135,7 @@ class SupplySourceBeansTest {
 		expected.put("head office whose ERP owns all three", "[]");
 		expected.put("head office, catalogue only from the ERP", "[HoDeliveryService]");
 		expected.put("head office, catalogue only from the ERP, supply source ERP", "[HoErpInvoiceService]");
-		expected.put("Happyness head office (configs/local)", "[HoErpInvoiceService]");
+		expected.put("Happyness head office (configs/customers)", "[HoErpInvoiceService]");
 		for (Map.Entry<String, MockEnvironment> mode : modes().entrySet()) {
 			List<String> present = supplyProviders.stream().filter(p -> registered(mode.getValue(), p))
 					.map(Class::getSimpleName).collect(Collectors.toList());

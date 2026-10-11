@@ -53,8 +53,11 @@ class ModeQuestionTruthTableTest {
 	 */
 	static final int NEW_HEAD_OFFICE_ROWS = 8;
 
-	/** The installation file of configs/ whose catalogue only comes from the ERP (Zein, ERP catalogue step 5). */
-	static final String HAPPYNESS_HEAD_OFFICE = "local/happyness_ho.properties";
+	/**
+	 * The installation file of configs/ whose catalogue only comes from the ERP (Zein, ERP catalogue step 5): the Happyness
+	 * head office, a machine file of configs/customers since 2026-10-11 (was configs/local/happyness_ho.properties).
+	 */
+	static final String HAPPYNESS_HEAD_OFFICE = Installations.HAPPYNESS_HEAD_OFFICE;
 
 	/** ERP catalogue, step 1: the head office combination, read from the owners (not from the class under test). */
 	private static boolean catalogueOnly(NodeOwnership ownership) {
@@ -132,10 +135,10 @@ class ModeQuestionTruthTableTest {
 			}
 			// The Happyness head office is the real example of the new head office combination (ERP catalogue, step 5),
 			// checked against its answers; every other installation is checked against the old answers
-			assertEquals(installation.getKey().equals("config " + HAPPYNESS_HEAD_OFFICE), catalogueOnly(ownership),
+			assertEquals(installation.getKey().equals("machine " + HAPPYNESS_HEAD_OFFICE), catalogueOnly(ownership),
 					installation.getKey());
 			// Invoices from the ERP: the Happyness head office is also the only one whose supply source is the ERP
-			assertEquals(installation.getKey().equals("config " + HAPPYNESS_HEAD_OFFICE),
+			assertEquals(installation.getKey().equals("machine " + HAPPYNESS_HEAD_OFFICE),
 					NodeOwnership.isSupplyFromErpSourceSet(installation.getValue()), installation.getKey());
 			assertEquals(new ArrayList<>(), differences(installation.getValue(), ownership), installation.getKey());
 		}

@@ -121,7 +121,7 @@ class ErpAbilitiesTest {
 			assertEquals(pages, ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES), name);
 			assertEquals(nav || pages, ErpAbilities.hasConnector(env), name);
 		}
-		assertEquals(1, withPages, "the Happyness head office of configs/local");
+		assertEquals(1, withPages, "the Happyness head office of configs/customers");
 		assertEquals(4, withNav, "the NAV files of configs/dev and configs/customers");
 	}
 }
