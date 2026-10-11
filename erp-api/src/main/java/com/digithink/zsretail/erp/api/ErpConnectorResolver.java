@@ -10,13 +10,13 @@ import org.springframework.core.env.PropertyResolver;
  */
 public interface ErpConnectorResolver {
 
-	/** The connector in effect: {@link ErpConnectors#NONE}, {@link ErpConnectors#EMTOP} or {@link ErpConnectors#HAPPYNESS}. */
+	/** The connector in effect: {@link ErpConnectors#NONE} or the name of a connector found ({@link ErpConnectorDescriptor}). */
 	String inEffect(PropertyResolver env);
 
 	/**
 	 * True on a head office whose catalogue only comes from the ERP (its customers and supply not the ERP's), as the
-	 * startup resolves it: the only installation the happyness connector serves. Throws like the startup on an invalid
-	 * configuration.
+	 * startup resolves it: the only installation a connector with the ability HEAD_OFFICE_STOCK_POINTS serves. Throws like
+	 * the startup on an invalid configuration.
 	 */
 	boolean isErpCatalogueOnlyHeadOffice(PropertyResolver env);
 }

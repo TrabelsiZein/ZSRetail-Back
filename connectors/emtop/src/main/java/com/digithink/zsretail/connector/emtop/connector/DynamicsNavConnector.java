@@ -7,6 +7,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.HttpStatusCodeException;
 
+import com.digithink.zsretail.connector.emtop.EmtopConnectorDescriptor;
 import com.digithink.zsretail.connector.emtop.client.DynamicsNavRestClient;
 import com.digithink.zsretail.connector.emtop.config.DynamicsNavProperties;
 import com.digithink.zsretail.connector.emtop.dto.DynamicsNavLogEntryDTO;
@@ -20,7 +21,6 @@ import com.digithink.zsretail.connector.emtop.dto.DynamicsNavSessionDTO;
 import com.digithink.zsretail.connector.emtop.mapper.DynamicsNavMapper;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 import com.digithink.zsretail.erp.api.ErpConnector;
-import com.digithink.zsretail.connector.emtop.EmtopConnectorDescriptor;
 import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.api.dto.ErpDeletionLogEntryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;

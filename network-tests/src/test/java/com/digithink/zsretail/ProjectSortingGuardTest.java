@@ -25,6 +25,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.digithink.zsretail.core.support.Repo;
+import com.digithink.zsretail.erp.api.ErpConnectorDescriptor;
+import com.digithink.zsretail.erp.api.ErpConnectors;
 
 /**
  * Code cleanup step 5: the target project of every class of the projects' src/main/java and the rules between the
@@ -44,60 +46,57 @@ public class ProjectSortingGuardTest {
 
 	static final String APP = "com.digithink.zsretail.";
 
+	/** The projects of the architecture, by folder; a connector is connectors/<name> (code cleanup step 7). */
 	public static final String ERP_API = "erp-api";
 	static final String CORE = "core";
 	static final String STORE = "store";
 	static final String HEADOFFICE = "headoffice";
-	static final String EMTOP = "emtop";
-	static final String HAPPYNESS = "happyness";
+	static final String CONNECTORS = "connectors/";
 
 	/**
-	 * Code cleanup step 6: the package root of each project; a class takes it when it moves into its project. Until then
-	 * (in app) a class is sorted by the rules of step 5 below.
+	 * The package root of each project with classes, from the projects found (Repo.projects): erp-api is erp.api,
+	 * connectors/<name> is connector.<name>, any other its folder name. No project is written here but the four of the
+	 * architecture: a new connector is found by its folder.
 	 */
-	static final Map<String, String> ROOTS = new LinkedHashMap<>();
+	static final Map<String, String> ROOTS = roots();
 
-	static {
-		ROOTS.put("erp.api.", ERP_API);
-		ROOTS.put("connector.emtop.", EMTOP);
-		ROOTS.put("connector.happyness.", HAPPYNESS);
-		ROOTS.put("core.", CORE);
-		ROOTS.put("store.", STORE);
-		ROOTS.put("headoffice.", HEADOFFICE);
+	private static Map<String, String> roots() {
+		Map<String, String> roots = new LinkedHashMap<>();
+		for (String project : Repo.projects()) {
+			if (!Files.isDirectory(Repo.ROOT.resolve(project).resolve("src").resolve("main").resolve("java"))) {
+				continue;
+			}
+			String root = project.equals(ERP_API) ? "erp.api."
+					: project.startsWith(CONNECTORS) ? "connector." + project.substring(CONNECTORS.length()) + "." : project + ".";
+			roots.put(root, project);
+		}
+		return roots;
 	}
 
-	/** The Maven project (folder) of each project. */
-	static final Map<String, String> FOLDERS = new HashMap<>();
-
-	static {
-		FOLDERS.put(ERP_API, "erp-api");
-		FOLDERS.put(EMTOP, "connector-emtop");
-		FOLDERS.put(HAPPYNESS, "connector-happyness");
-		FOLDERS.put(CORE, "core");
-		FOLDERS.put(STORE, "store");
-		FOLDERS.put(HEADOFFICE, "headoffice");
-	}
-
-	/** The project of a class (its name after com.digithink.zsretail.). */
+	/** The project (its folder) of a class (its name after com.digithink.zsretail.), null for none. */
 	public static String projectOf(String name) {
 		for (Map.Entry<String, String> root : ROOTS.entrySet()) {
 			if (name.startsWith(root.getKey())) {
 				return root.getValue();
 			}
 		}
-		// Since step 6.6 every class has its project's package root: none is a class of no project
 		return null;
 	}
 
+	/** What a project may use besides itself: by kind (every connector the same). */
 	static final Map<String, Set<String>> MAY_USE = new HashMap<>();
 
 	static {
-		MAY_USE.put(ERP_API, set(ERP_API));
-		MAY_USE.put(CORE, set(CORE, ERP_API));
-		MAY_USE.put(STORE, set(STORE, CORE, ERP_API));
-		MAY_USE.put(HEADOFFICE, set(HEADOFFICE, CORE, ERP_API));
-		MAY_USE.put(EMTOP, set(EMTOP, ERP_API));
-		MAY_USE.put(HAPPYNESS, set(HAPPYNESS, ERP_API));
+		MAY_USE.put(ERP_API, set());
+		MAY_USE.put(CORE, set(ERP_API));
+		MAY_USE.put(STORE, set(CORE, ERP_API));
+		MAY_USE.put(HEADOFFICE, set(CORE, ERP_API));
+		MAY_USE.put(CONNECTORS, set(ERP_API));
+	}
+
+	static boolean mayUse(String from, String to) {
+		return from != null && to != null && (from.equals(to)
+				|| MAY_USE.getOrDefault(from.startsWith(CONNECTORS) ? CONNECTORS : from, set()).contains(to));
 	}
 
 	private static Set<String> set(String... values) {
@@ -233,7 +232,7 @@ public class ProjectSortingGuardTest {
 			String from = projectOf(entry.getKey());
 			for (String target : entry.getValue()) {
 				String to = projectOf(target);
-				if (from != null && to != null && MAY_USE.get(from).contains(to)) {
+				if (mayUse(from, to)) {
 					continue;
 				}
 				String reference = entry.getKey() + " -> " + target;
@@ -257,8 +256,8 @@ public class ProjectSortingGuardTest {
 		List<String> wrong = new ArrayList<>();
 		for (Map.Entry<String, Path> file : Repo.mainJavaFiles().entrySet()) {
 			String name = file.getKey().replaceAll("\\.java$", "").replace('/', '.').substring(APP.length());
-			String folder = Repo.ROOT.relativize(file.getValue()).getName(0).toString();
-			String expected = projectOf(name) == null ? "(no project: no package root)" : FOLDERS.get(projectOf(name));
+			String folder = Repo.ROOT.relativize(file.getValue()).toString().replace('\\', '/').replaceAll("/src/main/java/.*$", "");
+			String expected = projectOf(name) == null ? "(no project: no package root)" : projectOf(name);
 			if (!folder.equals(expected)) {
 				wrong.add(name + " in " + folder + ", expected " + expected);
 			}
@@ -267,12 +266,16 @@ public class ProjectSortingGuardTest {
 	}
 
 	@Test
-	@DisplayName("Every project of the sorting is a Maven project of the parent")
-	void projectsExist() {
-		List<String> missing = new ArrayList<>();
-		FOLDERS.values().stream().filter(folder -> !Files.isRegularFile(Repo.ROOT.resolve(folder).resolve("pom.xml")))
-				.forEach(missing::add);
-		assertEquals(new ArrayList<String>(), missing);
+	@DisplayName("Each connector project declares one connector, named as its folder, in its own package; nothing else does")
+	void connectorsDeclareThemselves() {
+		List<String> folders = Repo.connectorNames();
+		List<String> declared = ErpConnectors.descriptors().stream().map(ErpConnectorDescriptor::name).collect(Collectors.toList());
+		assertTrue(!folders.isEmpty(), "no connector project found");
+		assertEquals(folders, declared, "one descriptor per connectors/<name>, named <name>");
+		for (ErpConnectorDescriptor descriptor : ErpConnectors.descriptors()) {
+			assertEquals(CONNECTORS + descriptor.name(), projectOf(descriptor.getClass().getName().substring(APP.length())),
+					descriptor.getClass().getName());
+		}
 	}
 
 	@Test
@@ -288,8 +291,10 @@ public class ProjectSortingGuardTest {
 		assertEquals(HEADOFFICE, projectOf("headoffice.dto.StoreDTO"));
 		assertEquals(ERP_API, projectOf("erp.api.dto.ErpItemDTO"));
 		assertEquals(CORE, projectOf("core.erp.dto.ErpSyncJobViewDTO"));
-		assertEquals(EMTOP, projectOf("connector.emtop.connector.DynamicsNavConnector"));
-		assertEquals(HAPPYNESS, projectOf("connector.happyness.mapper.NavPosPagesMapper"));
+		for (String connector : Repo.connectorNames()) {
+			assertEquals(CONNECTORS + connector, projectOf("connector." + connector + ".X"));
+			assertTrue(mayUse(CONNECTORS + connector, ERP_API) && !mayUse(CONNECTORS + connector, CORE));
+		}
 		assertEquals(STORE, projectOf("store.StoreApplication"));
 		assertEquals(null, projectOf("service.SalesHeaderService"), "an old name: no project");
 	}

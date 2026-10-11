@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<!--
+		Code cleanup step 7: the ERP connectors, one project per customer in this folder. This pom is both their list
+		(modules) and the one dependency the applications take (zsretail-connectors, type pom, runtime scope): a new
+		connector is its folder plus its two lines here, a module and a dependency. Each connector declares itself to
+		erp-api (META-INF/spring.factories: its ErpConnectorDescriptor), so neither erp-api nor the applications name it.
+		See docs/modules/erp-sync.md, "How to add a connector".
+	-->
+	<parent>
+		<groupId>com.digithink</groupId>
+		<artifactId>zsretail-parent</artifactId>
+		<version>2.2.2</version>
+	</parent>
+	<artifactId>zsretail-connectors</artifactId>
+	<name>ZS Retail connectors</name>
+	<packaging>pom</packaging>
+
+	<modules>
+		<module>emtop</module>
+		<module>happyness</module>
+	</modules>
+
+	<dependencies>
+		<dependency><groupId>com.digithink</groupId><artifactId>zsretail-connector-emtop</artifactId><version>${project.version}</version></dependency>
+		<dependency><groupId>com.digithink</groupId><artifactId>zsretail-connector-happyness</artifactId><version>${project.version}</version></dependency>
+	</dependencies>
+</project>

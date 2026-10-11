@@ -36,12 +36,36 @@ public final class Repo {
 
 	/** The src/main/java folder of every project, by project folder name. */
 	public static List<Path> mainSources() {
-		try (Stream<Path> projects = Files.list(ROOT)) {
-			return projects.map(project -> project.resolve("src").resolve("main").resolve("java"))
-					.filter(Files::isDirectory).sorted().collect(Collectors.toList());
+		return projects().stream().map(project -> ROOT.resolve(project).resolve("src").resolve("main").resolve("java"))
+				.filter(Files::isDirectory).collect(Collectors.toList());
+	}
+
+	/**
+	 * Every Maven project of the repository, as its folder relative to the root ("core", "connectors/emtop"): a folder
+	 * with a pom.xml, at the root or one level below (code cleanup step 7: the connectors are in connectors/), sorted.
+	 */
+	public static List<String> projects() {
+		List<String> found = new ArrayList<>();
+		try (Stream<Path> children = Files.list(ROOT)) {
+			for (Path child : children.filter(Files::isDirectory).sorted().collect(Collectors.toList())) {
+				if (Files.isRegularFile(child.resolve("pom.xml"))) {
+					found.add(child.getFileName().toString());
+				}
+				try (Stream<Path> grandChildren = Files.list(child)) {
+					grandChildren.filter(dir -> Files.isRegularFile(dir.resolve("pom.xml"))).sorted()
+							.forEach(dir -> found.add(child.getFileName() + "/" + dir.getFileName()));
+				}
+			}
 		} catch (IOException e) {
 			throw new UncheckedIOException(e);
 		}
+		return found;
+	}
+
+	/** The connector projects (connectors/&lt;name&gt;), by name: their package root is com.digithink.zsretail.connector.&lt;name&gt;. */
+	public static List<String> connectorNames() {
+		return projects().stream().filter(project -> project.startsWith("connectors/"))
+				.map(project -> project.substring("connectors/".length())).collect(Collectors.toList());
 	}
 
 	/**

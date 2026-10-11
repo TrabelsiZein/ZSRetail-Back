@@ -22,8 +22,7 @@
 
 	<modules>
 		<module>erp-api</module>
-		<module>connector-happyness</module>
-		<module>connector-emtop</module>
+		<module>connectors</module>
 		<module>core</module>
 		<module>headoffice</module>
 		<module>store</module>
@@ -42,15 +41,12 @@
 				<artifactId>zsretail-erp-api</artifactId>
 				<version>${project.version}</version>
 			</dependency>
+			<!-- The ERP connectors, all of them (connectors/pom.xml) -->
 			<dependency>
 				<groupId>com.digithink</groupId>
-				<artifactId>zsretail-connector-happyness</artifactId>
+				<artifactId>zsretail-connectors</artifactId>
 				<version>${project.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>com.digithink</groupId>
-				<artifactId>zsretail-connector-emtop</artifactId>
-				<version>${project.version}</version>
+				<type>pom</type>
 			</dependency>
 			<dependency>
 				<groupId>com.digithink</groupId>

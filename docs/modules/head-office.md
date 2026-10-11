@@ -1235,7 +1235,7 @@ Frontend commit d5cb48e. Getter `appConfig/headOfficeKeepsStock`: `false` only o
 The home quick links hold no supply card, so nothing changes there. Labels in `en`, `fr`, `ar`. Checks: lint of the changed files in production mode and `npm run build`, both clean. Not seen in the browser (L2).
 
 ### Head office with the catalogue only from the ERP: the connector "navpospages" (ERP catalogue, step 5)
-A second ERP connector, package `erp/navpospages` (since code cleanup step 6.3 `connector/happyness`, project connector-happyness), for a Dynamics NAV / Business Central whose web services are the "POS pages"
+A second ERP connector, package `erp/navpospages` (since code cleanup step 6.3 `connector/happyness`, project connectors/happyness), for a Dynamics NAV / Business Central whose web services are the "POS pages"
 (`ItemCategory`, `PointStockPOS`, `ItemBarCodePOS`): same ERP as `erp/dynamicsnav` (`connector/emtop` since code cleanup step 6.3), other pages. **Read only**: its RestTemplate
 refuses any method other than GET before it leaves (`NavPosPagesConfig.GetOnly`). In step 5 it reads and translates; it hands
 nothing to the import (every fetch of `NavPosPagesConnector` answers an empty list, every push a failure "read only"); step 6

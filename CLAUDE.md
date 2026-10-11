@@ -20,8 +20,9 @@ Each folder below is a project with its `pom.xml`; the parent lists them. What g
 | Folder | Artifact | Package root | Uses (of ours) |
 |---|---|---|---|
 | `erp-api` | `zsretail-erp-api` | `com.digithink.zsretail.erp.api` | nothing |
-| `connector-happyness` | `zsretail-connector-happyness` | `com.digithink.zsretail.connector.happyness` | erp-api |
-| `connector-emtop` | `zsretail-connector-emtop` | `com.digithink.zsretail.connector.emtop` | erp-api |
+| `connectors` | `zsretail-connectors` (pom) | the list of the connector projects, the one dependency of the WARs | |
+| `connectors/happyness` | `zsretail-connector-happyness` | `com.digithink.zsretail.connector.happyness` | erp-api |
+| `connectors/emtop` | `zsretail-connector-emtop` | `com.digithink.zsretail.connector.emtop` | erp-api |
 | `core` | `zsretail-core` | `com.digithink.zsretail.core` | erp-api |
 | `store` | `zsretail-store` (WAR, main class `StoreApplication`) | `com.digithink.zsretail.store` | core; the connectors at runtime |
 | `headoffice` | `zsretail-headoffice` (WAR, main class `HeadOfficeApplication`) | `com.digithink.zsretail.headoffice` | core; the connectors at runtime |

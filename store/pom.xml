@@ -23,15 +23,14 @@
 			<groupId>com.digithink</groupId>
 			<artifactId>zsretail-core</artifactId>
 		</dependency>
-		<!-- The connectors, at runtime only: in the WAR, but a class of the store that names one does not compile -->
+		<!--
+			The ERP connectors, all of them (connectors/pom.xml), at runtime only: in the WAR, but a class of the
+			application that names one does not compile; a new connector does not change this pom
+		-->
 		<dependency>
 			<groupId>com.digithink</groupId>
-			<artifactId>zsretail-connector-happyness</artifactId>
-			<scope>runtime</scope>
-		</dependency>
-		<dependency>
-			<groupId>com.digithink</groupId>
-			<artifactId>zsretail-connector-emtop</artifactId>
+			<artifactId>zsretail-connectors</artifactId>
+			<type>pom</type>
 			<scope>runtime</scope>
 		</dependency>
 

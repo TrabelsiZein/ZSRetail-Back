@@ -11,25 +11,38 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.digithink.zsretail.core.support.Repo;
+import com.digithink.zsretail.erp.api.ErpConnectorDescriptor;
+import com.digithink.zsretail.erp.api.ErpConnectors;
 
 /**
- * Code cleanup, step 2: the application never names a connector. Outside the connector packages (connector/emtop and
- * connector/happyness since step 6.3) and the translation class of step 1 (core/config/ErpConnectorEnvironmentPostProcessor),
- * no file of any project's src/main/java imports a connector package or contains the text erp.dynamicsnav,
- * erp.navpospages (a property key, a package, a comment) or zsretail.connector. (a connector package). The application
- * asks ErpAbilities what the connector in effect can do. See docs/modules/erp-sync.md, "Abilities".
+ * Code cleanup, step 2: the application never names a connector. Outside the connector packages (connector/&lt;name&gt;
+ * of every project of connectors/), no file of any project's src/main/java imports a connector package or contains a
+ * connector's key prefix (as its descriptor declares it: erp.dynamicsnav, erp.navpospages; a property key, a package, a
+ * comment) or zsretail.connector. (a connector package). Since code cleanup step 7 no class of core is an exception: the
+ * translation of erp.connector reads the descriptors. The application asks ErpAbilities what the connector in effect
+ * can do. See docs/modules/erp-sync.md, "Abilities".
  */
 class ConnectorNamesGuardTest {
 
 	static final String BASE = "com/digithink/zsretail/";
-	static final List<String> ALLOWED = Arrays.asList(BASE + "connector/emtop/", BASE + "connector/happyness/",
-			BASE + "core/config/ErpConnectorEnvironmentPostProcessor.java");
-	static final List<String> TEXTS = Arrays.asList("erp.dynamicsnav", "erp.navpospages", "zsretail.connector.");
+	/** Code cleanup step 7: the connectors' own packages only (every connector project found); no class of core. */
+	static final List<String> ALLOWED = Repo.connectorNames().stream().map(name -> BASE + "connector/" + name + "/")
+			.collect(Collectors.toList());
+	/** The connectors' key prefixes, as each declares them (its descriptor), and their packages. */
+	static final List<String> TEXTS = texts();
+
+	private static List<String> texts() {
+		List<String> texts = ErpConnectors.descriptors().stream().map(ErpConnectorDescriptor::keyPrefix)
+				.collect(Collectors.toList());
+		texts.add("zsretail.connector.");
+		return texts;
+	}
 
 	/** The offending lines of one file, as "path:line: text". */
 	static List<String> offences(String relativePath, List<String> lines) {
@@ -77,7 +90,8 @@ class ConnectorNamesGuardTest {
 				"import com.digithink.zsretail.connector.happyness.sync.NavPosPagesInvoices;")).size());
 		assertTrue(allowed(BASE + "connector/happyness/sync/NavPosPagesInvoices.java"));
 		assertTrue(allowed(BASE + "connector/emtop/mapper/DynamicsNavMapper.java"));
-		assertTrue(allowed(BASE + "core/config/ErpConnectorEnvironmentPostProcessor.java"));
+		assertTrue(!allowed(BASE + "core/config/ErpConnectorEnvironmentPostProcessor.java"), "since step 7: no exception");
+		assertTrue(TEXTS.containsAll(Arrays.asList("erp.dynamicsnav", "erp.navpospages")), "from the descriptors: " + TEXTS);
 		assertTrue(!allowed(BASE + "core/config/NodeOwnership.java"));
 		assertTrue(!allowed(BASE + "erp/api/ErpAbilities.java"));
 	}

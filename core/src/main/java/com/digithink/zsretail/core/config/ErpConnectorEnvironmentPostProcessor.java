@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.stream.Collectors;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
@@ -15,29 +16,26 @@ import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.PropertyResolver;
 import org.springframework.core.env.PropertySource;
 
+import com.digithink.zsretail.erp.api.ErpConnectorDescriptor;
 import com.digithink.zsretail.erp.api.ErpConnectors;
 
 /**
- * Code cleanup, step 1: one line that chooses the ERP connector, {@code erp.connector=none | emtop | happyness}
- * (trimmed, any case; the customers' names since step 5, were dynamicsnav and navpospages). It is only a translation
- * into the two old lines, done before Spring reads its conditions: emtop gives erp.dynamicsnav.enabled=true and
- * erp.navpospages.enabled=false, happyness the inverse, none both false. Every class that reads the old lines works unchanged.
+ * Code cleanup, step 1: one line that chooses the ERP connector, {@code erp.connector=none | <a connector found>}
+ * (trimmed, any case; the customers' names since step 5). It is only a translation into the old enabled lines of the
+ * connectors that have one, done before Spring reads its conditions: the chosen connector's line true, the others
+ * false, none all false. Every class that reads the old lines works unchanged.
  * <p>
- * Absent: nothing is translated, the two old lines act as before. The translated values sit just above the property
- * source that gives erp.connector, so they win over an old line of a lower source (the type files say
- * erp.dynamicsnav.enabled=false) and an old line of the same or a higher source that says the opposite stops the
+ * Absent: nothing is translated, the old lines act as before. The translated values sit just above the property
+ * source that gives erp.connector, so they win over an old line of a lower source (the type files say it false) and an old line of the same or a higher source that says the opposite stops the
  * startup. An unknown value stops it too. See docs/deployment-modes.md.
  * <p>
- * Code cleanup, step 2: with the connector packages, the only class that names a connector key; the application asks
- * {@link com.digithink.zsretail.erp.api.ErpAbilities} what the connector in effect can do.
+ * Code cleanup, step 2: the application asks {@link com.digithink.zsretail.erp.api.ErpAbilities} what the connector in
+ * effect can do. Code cleanup step 7: this class names no connector either: the accepted values, the old lines and
+ * the summary come from the connectors found ({@link ErpConnectorDescriptor}); a connector with no old line is chosen by erp.connector only.
  */
 public class ErpConnectorEnvironmentPostProcessor implements EnvironmentPostProcessor, Ordered {
 
 	public static final String CONNECTOR_KEY = "erp.connector";
-	static final String DYNAMICS_NAV_ENABLED_KEY = "erp.dynamicsnav.enabled";
-	static final String NAVPOSPAGES_ENABLED_KEY = "erp.navpospages.enabled";
-	/** The NAV address shown by the startup summary when the connector is emtop. */
-	static final String DYNAMICS_NAV_BASE_URL_KEY = "erp.dynamicsnav.base-url";
 	static final String PROPERTY_SOURCE_NAME = "erpConnector";
 	/** Spring Boot's view of all the sources, attached first: never the source of a key. */
 	private static final String ATTACHED_SOURCE_NAME = "configurationProperties";
@@ -70,57 +68,72 @@ public class ErpConnectorEnvironmentPostProcessor implements EnvironmentPostProc
 				new MapPropertySource(PROPERTY_SOURCE_NAME, translated));
 	}
 
-	/** The two old lines a value of erp.connector stands for; an unknown value stops the startup naming the key. */
+	/** The old lines a value of erp.connector stands for; an unknown value stops the startup naming the key. */
 	static Map<String, Object> translate(String connector) {
 		String value = normalized(connector);
-		if (!ErpConnectors.NONE.equals(value) && !ErpConnectors.EMTOP.equals(value)
-				&& !ErpConnectors.HAPPYNESS.equals(value)) {
+		List<String> names = ErpConnectors.names();
+		List<ErpConnectorDescriptor> withOldLine = ErpConnectors.descriptors().stream()
+				.filter(descriptor -> descriptor.enabledKey() != null).collect(Collectors.toList());
+		if (!names.contains(value)) {
 			throw new IllegalStateException("Invalid value '" + connector + "' for property " + CONNECTOR_KEY + ": "
-					+ ErpConnectors.NONE + " | " + ErpConnectors.EMTOP + " | " + ErpConnectors.HAPPYNESS
-					+ " (or leave it out and use the old lines "
-					+ DYNAMICS_NAV_ENABLED_KEY + " and " + NAVPOSPAGES_ENABLED_KEY + ").");
+					+ String.join(" | ", names) + (withOldLine.isEmpty() ? "" : " (or leave it out and use the old lines "
+							+ withOldLine.stream().map(ErpConnectorDescriptor::enabledKey).collect(Collectors.joining(" and ")) + ")")
+					+ ".");
 		}
 		Map<String, Object> lines = new LinkedHashMap<>();
-		lines.put(DYNAMICS_NAV_ENABLED_KEY, String.valueOf(ErpConnectors.EMTOP.equals(value)));
-		lines.put(NAVPOSPAGES_ENABLED_KEY, String.valueOf(ErpConnectors.HAPPYNESS.equals(value)));
+		for (ErpConnectorDescriptor descriptor : withOldLine) {
+			lines.put(descriptor.enabledKey(), String.valueOf(descriptor.name().equals(value)));
+		}
 		return Collections.unmodifiableMap(lines);
 	}
 
 	/**
-	 * The connector in effect, from the two old lines whichever way they were set (startup summary). Both true is refused
-	 * by NavPosPagesStartupCheck.
+	 * The connector in effect, whichever way it was chosen (startup summary, the resolver): the first connector, by name,
+	 * whose old line is true; else a connector with no old line named by erp.connector; else none. Two old lines true
+	 * are refused by the connector itself (its startup check).
 	 */
 	public static String inEffect(PropertyResolver env) {
-		if (isTrue(env.getProperty(DYNAMICS_NAV_ENABLED_KEY))) {
-			return ErpConnectors.EMTOP;
+		List<ErpConnectorDescriptor> descriptors = ErpConnectors.descriptors();
+		for (ErpConnectorDescriptor descriptor : descriptors) {
+			if (descriptor.enabledKey() != null && isTrue(env.getProperty(descriptor.enabledKey()))) {
+				return descriptor.name();
+			}
 		}
-		return isTrue(env.getProperty(NAVPOSPAGES_ENABLED_KEY)) ? ErpConnectors.HAPPYNESS : ErpConnectors.NONE;
+		String named = normalized(env.getProperty(CONNECTOR_KEY));
+		for (ErpConnectorDescriptor descriptor : descriptors) {
+			if (descriptor.enabledKey() == null && descriptor.name().equals(named)) {
+				return descriptor.name();
+			}
+		}
+		return ErpConnectors.NONE;
 	}
 
 	/**
 	 * Code cleanup, step 2: how to choose one of these connectors, for a refusal message (the application never names a
-	 * connector key itself): {@code erp.connector=happyness (or the old line erp.navpospages.enabled=true, still
-	 * accepted)}, several joined with "or".
+	 * connector key itself): {@code erp.connector=<name> (or the old line <its enabled key>=true, still accepted)},
+	 * several joined with "or".
 	 */
 	public static String howToChoose(List<String> connectors) {
 		StringJoiner choices = new StringJoiner(" or ");
 		for (String connector : connectors) {
-			Map.Entry<String, Object> oldLine = translate(connector).entrySet().stream()
-					.filter(line -> "true".equals(line.getValue())).findFirst().orElse(null);
+			ErpConnectorDescriptor descriptor = ErpConnectors.descriptor(connector);
+			String oldLine = descriptor == null ? null : descriptor.enabledKey();
 			choices.add(CONNECTOR_KEY + "=" + connector + (oldLine == null ? ""
-					: " (or the old line " + oldLine.getKey() + "=true, still accepted)"));
+					: " (or the old line " + oldLine + "=true, still accepted)"));
 		}
 		return choices.toString();
 	}
 
 	/**
-	 * Code cleanup, step 2: what the startup summary adds after the connector in effect, null when nothing: the NAV
-	 * address with emtop ({@code NAV <base-url>}).
+	 * Code cleanup, step 2: what the startup summary adds after the connector in effect, null when nothing: what its
+	 * descriptor gives ({@code <label> <value of its key>}, e.g. a NAV address).
 	 */
 	public static String summaryAddress(PropertyResolver env) {
-		return ErpConnectors.EMTOP.equals(inEffect(env))
-				? "NAV " + env.getProperty(DYNAMICS_NAV_BASE_URL_KEY, "(no address)")
-				: null;
+		ErpConnectorDescriptor descriptor = ErpConnectors.descriptor(inEffect(env));
+		if (descriptor == null || descriptor.summaryLabel() == null) {
+			return null;
+		}
+		return descriptor.summaryLabel() + " " + env.getProperty(descriptor.summaryKey(), "(no address)");
 	}
 
 	private static String normalized(String connector) {

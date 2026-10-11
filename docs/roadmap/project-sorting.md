@@ -31,8 +31,8 @@ names its dependencies without versions.
 | Folder | Artifact | Depends on | Package root |
 |---|---|---|---|
 | `erp-api` | `zsretail-erp-api` | nothing of ours | `com.digithink.zsretail.erp.api` |
-| `connector-happyness` | `zsretail-connector-happyness` | erp-api | `com.digithink.zsretail.connector.happyness` |
-| `connector-emtop` | `zsretail-connector-emtop` | erp-api | `com.digithink.zsretail.connector.emtop` |
+| `connectors/happyness` | `zsretail-connector-happyness` | erp-api | `com.digithink.zsretail.connector.happyness` |
+| `connectors/emtop` | `zsretail-connector-emtop` | erp-api | `com.digithink.zsretail.connector.emtop` |
 | `core` | `zsretail-core` | erp-api | `com.digithink.zsretail.core` |
 | `headoffice` | `zsretail-headoffice` (the head office WAR) | core | `com.digithink.zsretail.headoffice` |
 | `store` | `zsretail-store` (the store WAR) | core | `com.digithink.zsretail.store` |
@@ -82,3 +82,14 @@ Step by step, each commit with the full suite green:
   class; `InMemoryCatalogue` and `InMemoryStock` still mix core and head office fakes (in headoffice.support), so the store
   tests that use them run in network-tests. The shared Eclipse launch files `eclipse/dev-*.launch` and
   `eclipse/rehearsal-*.launch` start the application of each instance. CLAUDE.md, README, the docs.
+
+## Step 7: a connector declares itself
+
+The connector projects are in `connectors/` (`connectors/emtop`, `connectors/happyness`); `connectors/pom.xml`
+(`zsretail-connectors`, packaging pom) lists them as modules and as dependencies, and each WAR depends on it alone
+(runtime scope). Each connector declares itself to erp-api with an `ErpConnectorDescriptor` in its
+`META-INF/spring.factories`: its name (a value of `erp.connector`), its abilities, its key prefix, its old enabled line
+when it has one, what the startup summary shows. erp-api and core name no customer: `ErpConnectors.names()`,
+`ErpAbilities` and the translation of `erp.connector` read the descriptors found. The guards find the connectors by
+their folders and descriptors. A new connector: its folder and two lines in `connectors/pom.xml` (erp-sync.md, "How to
+add a connector").

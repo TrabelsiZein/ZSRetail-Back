@@ -160,6 +160,16 @@
 			<artifactId>spring-security-core</artifactId>
 
 		</dependency>
+		<!--
+			Code cleanup step 7: the connectors for core's tests only (what they can do, as in both WARs); a class of core
+			that names one does not compile
+		-->
+		<dependency>
+			<groupId>com.digithink</groupId>
+			<artifactId>zsretail-connectors</artifactId>
+			<type>pom</type>
+			<scope>test</scope>
+		</dependency>
 		<!-- The servlet API to compile against; the server gives it (as in the WAR projects) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

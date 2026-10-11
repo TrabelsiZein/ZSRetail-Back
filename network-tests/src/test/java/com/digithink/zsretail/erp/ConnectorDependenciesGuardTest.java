@@ -39,8 +39,8 @@ class ConnectorDependenciesGuardTest {
 	static final Map<String, String> CONNECTORS = new LinkedHashMap<>();
 
 	static {
-		CONNECTORS.put("happyness", "connector.happyness");
-		CONNECTORS.put("emtop", "connector.emtop");
+		// Code cleanup step 7: the connector projects found (connectors/<name>), none written here
+		Repo.connectorNames().forEach(name -> CONNECTORS.put(name, "connector." + name));
 	}
 	static final Pattern REFERENCE = Pattern.compile("com\\.digithink\\.zsretail\\.[A-Za-z0-9_.]*[A-Z][A-Za-z0-9_]*");
 

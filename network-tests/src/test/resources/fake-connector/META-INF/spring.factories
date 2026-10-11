@@ -1,0 +1,2 @@
+# Code cleanup step 7, test only (ThirdConnectorTest adds this folder to a class loader): a connector that declares itself
+com.digithink.zsretail.erp.api.ErpConnectorDescriptor=com.digithink.zsretail.erp.ThirdConnectorTest$Descriptor

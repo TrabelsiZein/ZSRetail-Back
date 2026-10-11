@@ -124,11 +124,11 @@
 - `core/src/main/java/com/digithink/zsretail/core/model/SalesHeader.java` - Entity with sync fields
 - `core/src/main/java/com/digithink/zsretail/core/model/SalesLine.java` - Entity with synched field
 - `core/src/main/java/com/digithink/zsretail/core/model/enumeration/SynchronizationStatus.java` - Sync status enum
-- `connector-emtop/src/main/java/com/digithink/zsretail/connector/emtop/dto/DynamicsNavSalesOrderHeaderDTO.java` - Header DTO
-- `connector-emtop/src/main/java/com/digithink/zsretail/connector/emtop/dto/DynamicsNavSalesOrderLineDTO.java` - Line DTO
+- `connectors/emtop/src/main/java/com/digithink/zsretail/connector/emtop/dto/DynamicsNavSalesOrderHeaderDTO.java` - Header DTO
+- `connectors/emtop/src/main/java/com/digithink/zsretail/connector/emtop/dto/DynamicsNavSalesOrderLineDTO.java` - Line DTO
 - `store/src/main/java/com/digithink/zsretail/store/erp/service/TicketExportService.java` - Export service
-- `connector-emtop/src/main/java/com/digithink/zsretail/connector/emtop/client/DynamicsNavRestClient.java` - NAV client
-- `connector-emtop/src/main/java/com/digithink/zsretail/connector/emtop/config/DynamicsNavConfig.java` - RestTemplate config
+- `connectors/emtop/src/main/java/com/digithink/zsretail/connector/emtop/client/DynamicsNavRestClient.java` - NAV client
+- `connectors/emtop/src/main/java/com/digithink/zsretail/connector/emtop/config/DynamicsNavConfig.java` - RestTemplate config
 - `core/src/main/java/com/digithink/zsretail/core/erp/service/ErpSyncJobRunner.java` - Job runner integration
 
 
@@ -190,7 +190,9 @@ job's type, in the same transaction as before (`ErpExportJobsTest`); an applicat
 
 The connector is chosen by `erp.connector` (or the old enabled lines, `deployment-modes.md`). The application asks what
 the connector in effect can do, never which one it is: `erp/api/ErpAbilities` gives, for each connector name, its
-abilities (`erp/api/ErpAbility`), read from the environment, so a condition uses it before the beans exist.
+abilities (`erp/api/ErpAbility`), read from the environment, so a condition uses it before the beans exist. Since code
+cleanup step 7 each connector declares its abilities in its descriptor (`ErpConnectorDescriptor`); the table is what
+they declare today.
 
 | Connector | `HEAD_OFFICE_STOCK_POINTS` | `SUPPLY_INVOICES` |
 |---|---|---|
@@ -207,10 +209,10 @@ abilities (`erp/api/ErpAbility`), read from the environment, so a condition uses
 `hasConnector(env)` is true for any connector but none. A new ability is added there when the code needs it, never a test on
 a connector name.
 
-**Rule: the application never names a connector.** Outside the connector packages (`connector/emtop`, `connector/happyness`)
-and the translation class of step 1 (`core/config/ErpConnectorEnvironmentPostProcessor`, the only one that knows the old keys
-and the NAV address of the startup summary), no class imports a connector package or contains the text `erp.dynamicsnav` or
-`erp.navpospages`, not even in a comment. Since code cleanup step 6.3 Maven makes it true as well: the application takes
+**Rule: the application never names a connector.** Outside the connector packages (`connector/<name>`, every project of
+`connectors/`), no class imports a connector package or contains a connector's key prefix (`erp.dynamicsnav`,
+`erp.navpospages`: what the descriptors declare), not even in a comment; since code cleanup step 7 not even the
+translation of `erp.connector`, which reads the descriptors. Since code cleanup step 6.3 Maven makes it true as well: the application takes
 the connector projects at `runtime` scope, so a main class that names one does not compile, and a connector depends on
 erp-api only. It uses `@ConditionalOnErpAbility(...)` or `ErpAbilities.has(env, ...)`; what a
 connector's settings give the application goes through `ErpConnector` (the ids of deleted prices, the seller named on the
@@ -263,22 +265,21 @@ logic is written once, in `core/erp/engine`, and exists with a connector that ha
 read by the single job, the four import jobs are refused on its head office), and its own thin parts:
 `NavPosPagesInvoices` (the invoices page, FVV numbers by year, the seller name).
 
-**How to add a connector** (e.g. ZEN, ParaFendri; since code cleanup step 6 a Maven project of its own):
-1. Create `connector-<name>/pom.xml`, a copy of `connector-happyness/pom.xml` with the artifact
-   `zsretail-connector-<name>`: of ours it depends on `zsretail-erp-api` only (with Spring and the libraries it needs),
-   so a class of the application does not compile there.
-2. Its classes under `com.digithink.zsretail.connector.<name>` (`connector-<name>/src/main/java/...`): its settings
-   (`@ConfigurationProperties(prefix = "erp.<name>")`), its `ErpConnector` (`@ConditionalOnErpConnector("<name>")`, the
-   fetches and pushes it supports) and, when it gives a head office its catalogue by points de stock, an
-   `ErpCatalogueSource` (its client and its mapper to `Erp*DTO`) and a `CatalogueSettings`, read by the engine's job
-   `SYNC_CATALOGUE` (not the four catalogue fetches).
-3. Elsewhere: the parent `pom.xml` (its `<module>` and its line of `dependencyManagement`); `store/pom.xml` and/or
-   `headoffice/pom.xml` (the dependency, `<scope>runtime</scope>`: in the WAR, never named by the application);
-   erp-api `ErpConnectors` (its name) and `ErpAbilities` (its abilities, `HEAD_OFFICE_STOCK_POINTS` for the engine);
-   core `ErpConnectorEnvironmentPostProcessor` (`translate` and `inEffect` accept today exactly none, emtop and
-   happyness, through the two old enabled lines: a third name needs its line there).
-4. The guards name the connectors: one line each in `ConnectorDependenciesGuardTest.CONNECTORS`,
-   `ConnectorNamesGuardTest` (`ALLOWED`, `TEXTS`) and `ProjectSortingGuardTest` (`ROOTS`, `FOLDERS`).
+**How to add a connector** (code cleanup step 7: a connector declares itself):
+1. A project `connectors/<name>/` (copy `connectors/happyness/pom.xml`, artifact `zsretail-connector-<name>`): of ours
+   it depends on erp-api only. Its classes under `com.digithink.zsretail.connector.<name>`: its settings
+   (`erp.<name>.*`), its `ErpConnector` (`@ConditionalOnErpConnector("<name>")`) and, for a head office's catalogue,
+   an `ErpCatalogueSource` and a `CatalogueSettings`.
+2. Its descriptor, a class implementing `ErpConnectorDescriptor` (its name, its abilities; no old enabled line for a
+   new connector), named in its `src/main/resources/META-INF/spring.factories`:
+   `com.digithink.zsretail.erp.api.ErpConnectorDescriptor=com.digithink.zsretail.connector.<name>.<Name>ConnectorDescriptor`.
+3. Two lines in `connectors/pom.xml`: `<module><name></module>` and its `<dependency>` (one line).
+
+Nothing else changes: `erp.connector=<name>` is accepted, its abilities answer `ErpAbilities`, its beans are
+chosen, the WARs carry it (they depend on `zsretail-connectors`), and the guards find it by its folder and its
+descriptor (`ThirdConnectorTest` proves it with a connector that exists only in the tests). The two connectors of
+before keep their old keys: their descriptors give `erp.dynamicsnav` / `erp.navpospages` as key prefix and the old
+enabled line, and EMTOP's the NAV address of the startup summary.
 
 Tests: `core/erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows of navpospages through its adapter,
 `NavPosPagesFixture`), `NavPosPagesInvoicesTest`, `NavPosPagesCatalogueSourceTest`.
