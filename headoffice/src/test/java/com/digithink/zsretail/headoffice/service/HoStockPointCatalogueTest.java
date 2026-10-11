@@ -2,19 +2,24 @@ package com.digithink.zsretail.headoffice.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.transaction.support.TransactionOperations;
 
 import com.digithink.zsretail.core.link.dto.CopiesDownAnswerDTO;
@@ -22,7 +27,10 @@ import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ItemFamily;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.headoffice.dto.StockPointDTO;
+import com.digithink.zsretail.headoffice.model.HoDownChange;
 import com.digithink.zsretail.headoffice.model.HoPriceList;
 import com.digithink.zsretail.headoffice.model.HoStockPointItem;
 import com.digithink.zsretail.headoffice.model.Store;
@@ -34,8 +42,8 @@ import com.fasterxml.jackson.databind.JsonNode;
  * data): a store receives an ERP item only when its point has a row, built from the row; its barcodes only then, active
  * only with the row; a hand-made item goes everywhere; the price list line wins over the row price; a store without a
  * point receives exactly what it did before. Recording: a row change reaches the stores of its point only; a store whose
- * point changes gets the items of its previous and its new point again, with their barcodes; a point without store
- * records nothing. In-memory tables, no Spring context.
+ * point changes gets the items of its previous and its new point again, with their barcodes, and a store created with a
+ * point gets those of its point; a point without store records nothing. In-memory tables, no Spring context.
  */
 class HoStockPointCatalogueTest {
 
@@ -271,6 +279,76 @@ class HoStockPointCatalogueTest {
 		assertEquals(Arrays.asList("BARCODE:111", "ITEM:B001"), sorted(toA.getRemoved()), "P1 only: removed");
 		assertTrue(pull(b, cursorB).getRecords().isEmpty());
 		assertTrue(pull(c, cursorC).getRecords().isEmpty());
+	}
+
+	/** The real StoreService over the in-memory stores, with this test's stock points. */
+	private StoreService storeService() throws Exception {
+		StoreService service = new StoreService();
+		set(service, StoreService.class, "storeRepository", ho.storeRepository());
+		set(service, StoreService.class, "stockPoints", new StaticListableBeanFactory(
+				Collections.singletonMap("points", points)).getBeanProvider(HoStockPointService.class));
+		set(service, _BaseService.class, "currentUserProvider", new CurrentUserProvider() {
+			@Override
+			public String getCurrentUserName() {
+				return "admin";
+			}
+		});
+		return service;
+	}
+
+	private static void set(Object target, Class<?> declaring, String name, Object value) throws Exception {
+		Field field = declaring.getDeclaredField(name);
+		field.setAccessible(true);
+		field.set(target, value);
+	}
+
+	/** The codes recorded for this store only (its own rows), sorted. */
+	private List<String> ownRows(long storeId) {
+		return sorted(down.changes.stream().filter(change -> Objects.equals(change.getStoreId(), storeId))
+				.map(HoDownChange::getRecordCode).collect(Collectors.toList()));
+	}
+
+	@Test
+	@DisplayName("A store created with a point: the items of its point and their barcodes are recorded for it, as for an assignment")
+	void storeCreatedWithPoint() throws Exception {
+		String cursorA = pull(a, "").getCursor();
+		Store input = new Store();
+		input.setCode("D");
+		input.setName("Store D");
+		input.setStockPointId(p1);
+		Store d = storeService().create(input).getStore();
+
+		assertEquals(p1, d.getStockPointId());
+		assertEquals(Arrays.asList("BARCODE:111", "BARCODE:222", "ITEM:B001", "ITEM:B002"), ownRows(d.getId()),
+				"the items of P1 (an inactive row too) and their barcodes; no hand-made item, nothing of P2");
+		Map<String, JsonNode> ofD = records(pull(d, ""));
+		assertEquals(12.0, ofD.get("ITEM:B001").get("unitPrice").asDouble(), "P1's row");
+		assertFalse(ofD.get("ITEM:B002").get("active").asBoolean(), "inactive in P1");
+		assertTrue(pull(a, cursorA).getRecords().isEmpty(), "another store of the point gets nothing");
+	}
+
+	@Test
+	@DisplayName("A store created with no point records nothing; with a point that cannot be given, nothing is created")
+	void storeCreatedWithoutPoint() throws Exception {
+		int rows = down.changes.size();
+		Long version = down.sequences.get(DataDomain.CATALOGUE);
+		Store input = new Store();
+		input.setCode("E");
+		input.setName("Store E");
+		Store e = storeService().create(input).getStore();
+		assertNull(e.getStockPointId());
+		assertEquals(rows, down.changes.size());
+		assertEquals(version, down.sequences.get(DataDomain.CATALOGUE), "the sequence does not move");
+
+		long empty = point("EMPTY");
+		Store refused = new Store();
+		refused.setCode("F");
+		refused.setName("Store F");
+		refused.setStockPointId(empty);
+		StoreService service = storeService();
+		assertThrows(IllegalArgumentException.class, () -> service.create(refused));
+		assertFalse(ho.stores.values().stream().anyMatch(s -> "F".equals(s.getCode())));
+		assertEquals(rows, down.changes.size());
 	}
 
 	@Test

@@ -123,7 +123,11 @@ public class StoreService extends _BaseService<Store, Long> {
 		return age.compareTo(Duration.ofSeconds(offlineAfterSeconds)) <= 0 ? StoreStatus.ONLINE : StoreStatus.OFFLINE;
 	}
 
-	/** New store with a server-generated key. Ignores lastContact, appVersion and any hash sent by the client. */
+	/**
+	 * New store with a server-generated key. Ignores lastContact, appVersion and any hash sent by the client. A store
+	 * created with a stock point gets the items of its point recorded as an assignment does, in the same transaction.
+	 */
+	@Transactional
 	public StoreWithKeyDTO create(Store input) throws Exception {
 		String code = normalizeCode(input.getCode());
 		if (code.isEmpty()) {
@@ -156,8 +160,10 @@ public class StoreService extends _BaseService<Store, Long> {
 			priceListService().checkAssignable(input.getSellingPriceListId());
 			store.setSellingPriceListId(input.getSellingPriceListId()); // a new store has nothing to send again
 		}
-		if (input.getStockPointId() != null) { // stock points: optional; a new store has nothing to send again
-			stockPointService().checkAssignable(input.getStockPointId());
+		HoStockPointService points = null;
+		if (input.getStockPointId() != null) { // stock points: optional
+			points = stockPointService();
+			points.checkAssignable(input.getStockPointId());
 			store.setStockPointId(input.getStockPointId());
 		}
 		applyInvoicing(store, input); // step 7B
@@ -168,7 +174,13 @@ public class StoreService extends _BaseService<Store, Long> {
 		String key = newKey();
 		store.setApiKeyHash(sha256Hex(key));
 		Store saved = save(store);
-		log.info("Head office: store {} created", saved.getCode());
+		if (points != null) { // its items recorded for it, as for an assignment
+			int sent = points.storeStockPointChanged(saved.getId(), null, saved.getStockPointId());
+			log.info("Head office: store {} created with stock point {}, {} catalogue records sent", saved.getCode(),
+					saved.getStockPointId(), sent);
+		} else {
+			log.info("Head office: store {} created", saved.getCode());
+		}
 		return new StoreWithKeyDTO(saved, key);
 	}
 

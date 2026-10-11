@@ -1505,12 +1505,13 @@ Done (step 3a), the store's point and the filtered send:
   `HoStockPointItemRepository.findItemCodesOfPoints` / `findBarcodesOfPoints`): same numbering
   (`CopiesDownFeed.recordChangesForStore`), rows written with JDBC batches (`JdbcDownChangeBatch`: an UPDATE per code,
   an INSERT for the codes without a row; a missing update count stops the transaction). A new store created with a
-  point records nothing: its first pull reads the every-store rows, filtered by its point.
+  point gets the items of its point and their barcodes recorded for it, as for an assignment, in the same transaction
+  as the creation (`StoreService.create`, transactional; stock point copies, step 3); created with no point, nothing.
 - Packs whose component is not in the store's point, promotions on such an item, and head office BLs keep the 2.1
   wait at the store (documented, no rule).
 - Tests: `HoStockPointCatalogueTest` (two points with different items and prices; no point = 2.1 answer; price list
   first; row changes for the point's stores only; no store, no recording; a store moved and back, moved from P1 to P2;
-  assignable points); `StockPointCopiesQueryTest` (the queries of the stores of an item and of the codes of a point,
+  a store created with a point, with none, with a point that cannot be given; assignable points); `StockPointCopiesQueryTest` (the queries of the stores of an item and of the codes of a point,
   with Hibernate over H2).
 
 Done (step 3b), invoices from the ERP:
