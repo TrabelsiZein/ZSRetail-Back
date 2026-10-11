@@ -34,6 +34,16 @@
 			<scope>runtime</scope>
 		</dependency>
 
+		<!--
+			RFID step 1: the Hopeland reader SDK, the cleaned copy (without its own Commons Lang, junit and Swing code)
+			from the file repository libs/maven; how it is made: libs/hopeland/README.md
+		-->
+		<dependency>
+			<groupId>com.hopeland</groupId>
+			<artifactId>rfid-reader-api</artifactId>
+			<version>2.11-zs1</version>
+		</dependency>
+
 		<!-- The WAR's own: Tomcat is the server's, devtools for a run from the IDE -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -66,6 +76,14 @@
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
+
+	<!-- RFID step 1: the libraries of no public repository, kept in this repo (libs/hopeland/README.md) -->
+	<repositories>
+		<repository>
+			<id>zsretail-libs</id>
+			<url>file:${project.basedir}/../libs/maven</url>
+		</repository>
+	</repositories>
 
 	<build>
 		<plugins>
