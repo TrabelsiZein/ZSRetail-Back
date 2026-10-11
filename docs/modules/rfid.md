@@ -1,6 +1,6 @@
 # RFID
 
-**Status**: release 3.1.0, being built (back end steps 1 to 5 done). A store reads the RFID tags of its pieces with
+**Status**: release 3.1.0, being built (back end steps 1 to 6 done). A store reads the RFID tags of its pieces with
 Hopeland readers (HZ100, TCP/IP) on its network, through the vendor's Java SDK. First customer: ZEN (franchise stores,
 clothes).
 
@@ -141,6 +141,26 @@ mvn test -pl store -am -Dtest=HopelandRfidReaderManualTest -Dsurefire.failIfNoSp
 (with the JDK and settings of the root `CLAUDE.md`). Result on the dev desk reader, 2026-10-11, 15 tags in front of
 it: test connection 83 ms (`V5.4.0.1|Ex10APN32G4FR build: 23110711`); two reads of 1500 ms, 15 tags each, 1853 ms
 each; the absent address `UNREACHABLE` after 2016 ms.
+
+## The address I see for you (RFID step 6)
+
+`GET /rfid/my-machine` (`RfidAPI`, logged users): `RfidMachineStatus` = `address` (the request's address, normalised:
+`127.0.0.1` for the browser on the PC of the back end), `posMachineId` and `posMachineName` (the machine recorded at that
+address, null when none), `readerName` (its reader, null when none), `canRead`, and `message` (why it cannot read: the
+refusal a read would give, null when it can). The reader is never called. Used by the "Add this machine" button (the
+address to record) and the POS (show the RFID button only when `canRead`).
+
+`RfidReadService.machineStatus` and `readForRequest` share one check (`readyMachine`): the same address, the same
+messages.
+
+**Refusals of every RFID endpoint** (`RfidErrors`): `{"error": "<message>", "reason": "<reason>"}`, status by reason:
+`INVALID` 400, `NOT_FOUND` 404, `NOT_READY` 409, `BUSY` 409, `READER_ERROR` 502, `UNREACHABLE` 503. The project's other
+endpoints answer `{"error"}` too; `reason` is added so the frontend can tell a busy reader from a wrong link.
+
+The endpoints answer JSON to a request that asks for it (`Accept: application/json`, as axios sends); `jackson-dataformat-xml`
+is in the WAR, so a request with no `Accept` header may get XML, as for the other endpoints.
+
+Tests: `RfidAPITest` (Spring MVC over the controller, standalone `MockMvc`, the remote address set as Tomcat gives it).
 
 ## The SDK
 

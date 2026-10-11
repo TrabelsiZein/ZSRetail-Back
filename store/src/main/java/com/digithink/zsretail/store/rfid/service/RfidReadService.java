@@ -13,6 +13,7 @@ import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.store.rfid.RfidException;
 import com.digithink.zsretail.store.rfid.RfidException.Reason;
 import com.digithink.zsretail.store.rfid.dto.RfidConnectionResult;
+import com.digithink.zsretail.store.rfid.dto.RfidMachineStatus;
 import com.digithink.zsretail.store.rfid.dto.RfidReadResult;
 import com.digithink.zsretail.store.rfid.model.PosMachine;
 import com.digithink.zsretail.store.rfid.model.RfidReader;
@@ -27,6 +28,7 @@ import com.digithink.zsretail.store.rfid.reader.RfidTag;
  * <li>{@link #testRead}: a read of an active reader, for its reading time (the RFID readers page).</li>
  * <li>{@link #readForRequest}: a read with the reader of the POS machine the request comes from, found by the request's
  * address; refused with the address seen when no machine has it, and when the machine or its reader cannot read.</li>
+ * <li>{@link #machineStatus}: what the back end sees of the request's machine, without reading (RFID step 6).</li>
  * </ul>
  */
 @Service
@@ -64,7 +66,35 @@ public class RfidReadService {
 
 	/** A read for the POS machine whose request comes from this address (request.getRemoteAddr()). */
 	public RfidReadResult readForRequest(String remoteAddress) {
+		PosMachine machine = readyMachine(RfidAddresses.normalise(remoteAddress));
+		return read(machine.getReader(), machine);
+	}
+
+	/**
+	 * RFID step 6: the machine a request comes from, as the back end sees it (the address I see for you): its address,
+	 * the POS machine recorded there and its reader, and whether it can read now (else the refusal a read would give).
+	 * Never calls the reader.
+	 */
+	public RfidMachineStatus machineStatus(String remoteAddress) {
 		String address = RfidAddresses.normalise(remoteAddress);
+		PosMachine machine = machines.findByRequestAddress(address).orElse(null);
+		String refusal = null;
+		try {
+			readyMachine(address);
+		} catch (RfidException e) {
+			refusal = e.getMessage();
+		}
+		return new RfidMachineStatus(address, machine == null ? null : machine.getId(),
+				machine == null ? null : machine.getName(),
+				machine == null || machine.getReader() == null ? null : machine.getReader().getName(), refusal == null,
+				refusal);
+	}
+
+	/**
+	 * The POS machine at this address (normalised), active, with an active reader. NOT_FOUND naming the address when no
+	 * machine has it, NOT_READY when the machine or its reader cannot read.
+	 */
+	private PosMachine readyMachine(String address) {
 		PosMachine machine = machines.findByRequestAddress(address).orElseThrow(() -> new RfidException(Reason.NOT_FOUND,
 				"No POS machine has the address " + address + ": add this machine on the RFID POS machines page"
 						+ " (it needs a fixed address)."));
@@ -76,7 +106,7 @@ public class RfidReadService {
 			throw new RfidException(Reason.NOT_READY, "The POS machine '" + machine.getName() + "' has no RFID reader.");
 		}
 		ready(reader, machine);
-		return read(reader, machine);
+		return machine;
 	}
 
 	/** An inactive reader is never read. */
