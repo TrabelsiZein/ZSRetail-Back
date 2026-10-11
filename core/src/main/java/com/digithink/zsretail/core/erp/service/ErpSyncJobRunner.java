@@ -140,7 +140,7 @@ public class ErpSyncJobRunner {
 				ErpCatalogueSync catalogue = catalogueSync == null ? null : catalogueSync.getIfAvailable();
 				if (catalogue == null) {
 					throw new ErpSyncWarningException("The catalogue is synchronised in one job only on a head office whose"
-							+ " catalogue comes from the ERP (navpospages connector)");
+							+ " catalogue comes from the ERP, through a connector that keeps points de stock");
 				}
 				catalogue.syncCatalogue();
 				break;

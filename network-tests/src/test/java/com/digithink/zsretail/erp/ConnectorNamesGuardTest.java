@@ -11,6 +11,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.DisplayName;
@@ -84,6 +86,60 @@ class ConnectorNamesGuardTest {
 		assertTrue(scanned > 300, "scanned " + scanned + " files");
 		assertEquals("", String.join("\n", found),
 				"Name no connector here: ask ErpAbilities (erp-api) for an ability, see docs/modules/erp-sync.md");
+	}
+
+	/**
+	 * Code cleanup step 8, follow-up 2: what a user can read (a string literal: a message, a setting's description) never
+	 * names a connector: its name, its old name (the last part of its old prefix), nor NAV. Comments may tell the history.
+	 */
+	static final Pattern NAMED = Pattern.compile("(?i)" + String.join("|", connectorWords()) + "|(?-i)\\bNAV\\b");
+
+	/** The one string allowed: the table of the catalogue state, named by its history (docs/modules/erp-sync.md). */
+	static final List<String> ALLOWED_STRINGS = Arrays.asList("\"navpospages_state\"");
+
+	private static List<String> connectorWords() {
+		List<String> words = new ArrayList<>();
+		for (ErpConnectorDescriptor descriptor : ErpConnectors.descriptors()) {
+			words.add(Pattern.quote(descriptor.name()));
+			if (descriptor.oldKeyPrefix() != null) {
+				words.add(Pattern.quote(descriptor.oldKeyPrefix().substring(descriptor.oldKeyPrefix().lastIndexOf('.') + 1)));
+			}
+		}
+		return words;
+	}
+
+	/** The string literals of the lines that name a connector, as "path:line: literal". */
+	static List<String> namedInStrings(String relativePath, List<String> lines) {
+		List<String> found = new ArrayList<>();
+		Pattern literal = Pattern.compile("\"(?:\\\\.|[^\"\\\\])*\"");
+		for (int i = 0; i < lines.size(); i++) {
+			String line = lines.get(i).trim();
+			if (line.startsWith("//") || line.startsWith("*") || line.startsWith("/*")) {
+				continue;
+			}
+			Matcher strings = literal.matcher(line);
+			while (strings.find()) {
+				if (!ALLOWED_STRINGS.contains(strings.group()) && NAMED.matcher(strings.group()).find()) {
+					found.add(relativePath + ":" + (i + 1) + ": " + strings.group());
+				}
+			}
+		}
+		return found;
+	}
+
+	@Test
+	@DisplayName("No message or text of the application (outside the connectors) names a connector, an old name or NAV")
+	void noConnectorInTexts() throws IOException {
+		List<String> found = new ArrayList<>();
+		for (Map.Entry<String, Path> file : Repo.mainJavaFiles().entrySet()) {
+			if (!allowed(file.getKey())) {
+				found.addAll(namedInStrings(file.getKey(), Files.readAllLines(file.getValue(), StandardCharsets.UTF_8)));
+			}
+		}
+		assertEquals("", String.join("\n", found), "Word it by the ability or as \"the ERP\"");
+		assertEquals(3, namedInStrings("x/A.java", Arrays.asList("throw new X(\"the navpospages connector\");",
+				"log.info(\"sent to NAV\");", "msg(\"Happyness head office\");", "// the NAV of EMTOP",
+				"String table = \"navpospages_state\";", "\"the ERP\", \"navigation\"")).size());
 	}
 
 	@Test

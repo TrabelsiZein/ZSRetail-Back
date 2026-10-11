@@ -990,7 +990,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		// So a ticket whose sales lines are already in NAV can still have its payment method
 		// corrected, as long as the session's payments have not been exported yet.
 		if (session.getSynchronizationStatus() != SynchronizationStatus.NOT_SYNCHED) {
-			throw new IllegalStateException("Session already synchronized with NAV; payment method cannot be changed");
+			throw new IllegalStateException("Session already synchronized with the ERP; payment method cannot be changed");
 		}
 		if (Boolean.TRUE.equals(ticket.getInvoiced())) {
 			throw new IllegalStateException("Ticket is invoiced; payment method cannot be changed");
@@ -1002,7 +1002,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			throw new IllegalArgumentException("Payment does not belong to this ticket");
 		}
 		if (Boolean.TRUE.equals(payment.getSynched())) {
-			throw new IllegalStateException("Payment already synchronized with NAV");
+			throw new IllegalStateException("Payment already synchronized with the ERP");
 		}
 
 		PaymentMethod oldMethod = payment.getPaymentMethod();

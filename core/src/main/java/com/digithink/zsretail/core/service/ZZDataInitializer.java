@@ -1026,7 +1026,7 @@ public class ZZDataInitializer {
 				"Enable cash discrepancy check when closing session. If true, system validates closing amount matches expected real cash.",
 				false, ConfigType.BOOLEAN);
 		ensureConfig("ENABLE_PAYMENT_METHOD_CHANGE", "false",
-				"Allow an admin to change a ticket's payment method (without changing amounts) from Ticket History, while the ticket's session is not yet synchronized with NAV. Disabled by default.",
+				"Allow an admin to change a ticket's payment method (without changing amounts) from Ticket History, while the ticket's session is not yet synchronized with the ERP. Disabled by default.",
 				false, ConfigType.BOOLEAN);
 		ensureConfig("PLAFOND_ESPECE", "",
 				"Plafond espèce (TND). Empty = no limit. When set (e.g. 1000), maximum cash amount allowed per sale in TND.",
@@ -1092,7 +1092,7 @@ public class ZZDataInitializer {
 					"ERP communication tracking level (ERRORS_ONLY | ERRORS_AND_WARNINGS | ALL)", false,
 					ConfigType.SELECT, "ERRORS_ONLY,ERRORS_AND_WARNINGS,ALL");
 			ensureConfig("ERP_SKIP_CHEQUE_PAYMENTS", "false",
-					"When enabled, cheque payments (CLIENT_CHEQUE) are excluded from ERP session synchronization. Payment headers and lines for cheques will not be sent to NAV.",
+					"When enabled, cheque payments (CLIENT_CHEQUE) are excluded from ERP session synchronization. Payment headers and lines for cheques will not be sent to the ERP.",
 					false, ConfigType.BOOLEAN);
 		}
 	}

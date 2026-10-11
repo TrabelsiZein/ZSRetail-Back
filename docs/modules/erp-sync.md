@@ -218,7 +218,10 @@ erp-api only. It uses `@ConditionalOnErpAbility(...)` or `ErpAbilities.has(env, 
 connector's settings give the application goes through `ErpConnector` (the ids of deleted prices, the seller named on the
 stores' invoices: `supplyInvoiceSellerName`, the connector's `invoices.seller-name`) or a port in `erp/api` that the
 application implements (`StockPoints`, the head office's points de stock). **Guard test**: `erp/ConnectorNamesGuardTest`
-scans every project's `src/main/java` and fails naming each offending line.
+scans every project's `src/main/java` and fails naming each offending line. Since code cleanup step 8 it also checks what a user can
+read: no string literal outside the connectors (a message, a setting's description) names a connector, its old name or
+NAV; it says "the ERP", or words it by the ability ("a connector that keeps points de stock"). The one string allowed is
+the table name `navpospages_state`.
 
 **Deletion sync** (`ErpDeletionSyncService`, job of the ERP Log): the `erp_external_id` of a deleted sales price or discount
 is built by the connector in effect (`ErpConnector.deletedSalesPriceExternalId` / `deletedSalesDiscountExternalId`), the

@@ -533,7 +533,7 @@ private final PaymentHeaderRepository paymentHeaderRepository;
 				.anyMatch(h -> h.getSynchronizationStatus() != SynchronizationStatus.NOT_SYNCHED);
 		if (anySynced) {
 			throw new IllegalStateException("Cannot rebuild payment rows: session " + session.getSessionNumber()
-					+ " already has payment headers synchronized with NAV");
+					+ " already has payment headers synchronized with the ERP");
 		}
 
 		// Capture which sales currently HAVE export rows, BEFORE deleting. The rebuild must
