@@ -217,6 +217,16 @@ main code of every project, and only the store's pom takes `rfid-reader-api`.
 
 Tests: `RfidReaderAPITest`, `PosMachineAPITest`, `RfidAPITest` (standalone `MockMvc`, `RfidMvc`).
 
+## Permissions (the front pages)
+
+Two role permissions, one per page: `read:admin-rfid-readers` (RFID readers) and `read:admin-rfid-pos-machines` (POS
+machines). Like the Licence page, ADMIN gets them without anyone ticking them (`ZZDataInitializer`,
+`RFID_ADMIN_PERMISSIONS`), but only on a store with `rfid.enabled=true`: in ADMIN's set of a new database, and given to
+ADMIN at the first start with RFID on for a database of before (once; nothing else added or removed). With RFID off
+nothing is added, so an EMTOP or Happyness role table does not change. The Roles page lists them (group RFID) only when
+`rfidEnabled`; `AppRoleAPI` lists them. As everywhere, the API does not check roles: the permissions drive the menu and
+the route guard. Test: `ZZDataInitializerRolesTest.rfidPagesGivenToAdmin`.
+
 ## The SDK
 
 `com.hopeland:rfid-reader-api:2.11-zs1`, a cleaned copy of the vendor's jar in the file repository `libs/maven`, taken by

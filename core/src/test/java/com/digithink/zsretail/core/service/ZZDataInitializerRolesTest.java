@@ -305,6 +305,52 @@ class ZZDataInitializerRolesTest {
 		assertTrue(headOffice.get("ADMIN").getPermissions().contains("read:admin-headoffice-license"));
 	}
 
+	/** The RFID pages: ADMIN of a store with rfid.enabled=true only. */
+	private static final Set<String> RFID = new HashSet<>(
+			java.util.Arrays.asList("read:admin-rfid-readers", "read:admin-rfid-pos-machines"));
+
+	@Test
+	@DisplayName("RFID pages: ADMIN of a new store with rfid.enabled=true has them; a store of before gets them at its first start"
+			+ " with RFID on, once; with RFID off nothing is added; never in the fixed sets of a role")
+	void rfidPagesGivenToAdmin() throws Exception {
+		MockEnvironment rfidOn = new MockEnvironment().withProperty("rfid.enabled", "true");
+		for (boolean[] flags : STORE_PROFILES) {
+			Map<String, AppRole> roles = seedRoles(rfidOn, flags[0], Collections.emptyMap());
+			Set<String> expected = storeAdminPermissions(flags[0]);
+			expected.addAll(RFID);
+			assertEquals(expected, roles.get("ADMIN").getPermissions(), "new database, RFID on");
+			assertEquals(staticSet("RESPONSIBLE_PERMISSIONS"), roles.get("RESPONSIBLE").getPermissions());
+			assertEquals(staticSet("POS_PERMISSIONS"), roles.get("POS_USER").getPermissions());
+
+			Map<String, AppRole> off = seedRoles(new MockEnvironment().withProperty("rfid.enabled", "false"), flags[0],
+					Collections.emptyMap());
+			assertEquals(storeAdminPermissions(flags[0]), off.get("ADMIN").getPermissions(), "new database, RFID off");
+		}
+
+		// A store of before (as EMTOP: the ERP profile), RFID turned on: ADMIN gets the two pages at its first start
+		Map<String, AppRole> existing = existingRoles("read:home", LICENSE);
+		List<String> saves = new ArrayList<>();
+		seedRoles(new MockEnvironment().withProperty("rfid.enabled", "true"), false, existing, saves);
+		assertEquals(Collections.singletonList("ADMIN"), saves);
+		Set<String> expected = new HashSet<>(java.util.Arrays.asList("read:home", LICENSE));
+		expected.addAll(RFID);
+		assertEquals(expected, existing.get("ADMIN").getPermissions());
+		List<String> nextStart = new ArrayList<>();
+		seedRoles(new MockEnvironment().withProperty("rfid.enabled", "true"), false, existing, nextStart);
+		assertTrue(nextStart.isEmpty(), "next start, saved: " + nextStart);
+
+		// The same store with RFID off: nothing saved
+		Map<String, AppRole> offStore = existingRoles("read:home", LICENSE);
+		List<String> offSaves = new ArrayList<>();
+		seedRoles(new MockEnvironment(), false, offStore, offSaves);
+		assertTrue(offSaves.isEmpty(), "RFID off, saved: " + offSaves);
+
+		for (String set : new String[] { "ADMIN_PERMISSIONS", "RESPONSIBLE_PERMISSIONS", "POS_PERMISSIONS",
+				"HEAD_OFFICE_ADMIN_PERMISSIONS" }) {
+			assertTrue(java.util.Collections.disjoint(staticSet(set), RFID), set);
+		}
+	}
+
 	@Test
 	@DisplayName("Stores (standalone and ERP profiles, with and without headoffice.url) with existing roles: ADMIN receives the"
 			+ " Licence page and, without an ERP, the inventory count pages, once; nothing else; other roles untouched")
