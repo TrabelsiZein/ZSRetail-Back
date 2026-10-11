@@ -14,6 +14,7 @@ Split out of the former single `AI_CONTEXT_POS.md` so each topic can be read on 
 | `backend.md` | Backend behaviour notes and recent changes |
 | `frontend.md` | Frontend behaviour notes and recent changes |
 | `deployment-modes.md` | With or without an ERP (Dynamics NAV), ownership settings, the two types (store, headoffice) and the outside file |
+| `deploy-note.md` | Two applications, two WARs (code cleanup step 6.5): what is built, how each is delivered and deployed under `zsretailws` |
 | `generics.md` | `_BaseEntity` / `_BaseService` / `_BaseController` CRUD scaffolding |
 | `ui-design-system.md` | Touch-screen POS layout rules (Payment, ItemSelection) |
 | `admin-pages.md` | Inventory of admin screens |

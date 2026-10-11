@@ -5,13 +5,20 @@ file of task 9.3. An installation is a **type**, `store` or `headoffice`, plus a
 owns the catalogue, the customers and the supply together" is unchanged (step C2 will revisit it), with one exception on a
 head office since ERP catalogue step 1: the catalogue alone from the ERP (section 4).
 
-## 1. The three files (inside the WAR)
+**Two applications** (code cleanup step 6.5): the store and the head office are two applications, each its WAR
+(`docs/deploy-note.md`). The application is the type: it activates its type file and gives its type as default
+properties (`core/config/ZsRetailApplication`), so a new installation names no type. An outside file that still names it
+(`spring.profiles.active`, `node.type`) keeps working when it names the application's type, and stops the start when it
+names the other one (below, **Type check**). Every key of every file of `deploy/` and `configs/` resolves as before
+(`ConfigurationKeysProofTest`).
+
+## 1. The three files (inside the WARs)
 
 | File | Holds |
 |---|---|
-| `application.properties` | common lines: context path, upload limits, SQL Server driver, Hibernate dialect, `ddl-auto=update`, log rotation, and the default type `spring.profiles.active=store` |
-| `application-store.properties` | the type store |
-| `application-headoffice.properties` | the type headoffice |
+| `application.properties` (core, in both WARs) | common lines: context path, upload limits, SQL Server driver, Hibernate dialect, `ddl-auto=update`, log rotation (until step 6.5 also the default type `spring.profiles.active=store`) |
+| `application-store.properties` (the store WAR) | the type store |
+| `application-headoffice.properties` (the head office WAR) | the type headoffice |
 
 Each type file has two titled blocks:
 - **What this installation is**: `node.type`, the five `ownership.*`, `sales.upstream`, `erp.dynamicsnav.enabled` (its comment names
@@ -25,17 +32,20 @@ Each type file has two titled blocks:
   or the key in the outside file. On a developer PC the variable is set once as a Windows user variable, so `POSMainApp`
   starts directly from the IDE with nothing else to set.
 
-So `POSMainApp` starts from the IDE with no argument as a store (or `-Dspring.profiles.active=headoffice`).
+So the store application (`POSMainApp` until step 6.6, then `StoreApplication`) starts from the IDE with no argument as a
+store, and `HeadOfficeApplication` as a head office.
 
 ## 2. The outside file (optional)
 
-Usually only the "where it runs" block of a real installation; it may also name the type and change any mode line. Model:
+Usually only the "where it runs" block of a real installation; it may also change any mode line, and name the type (an
+old file; the application's type only). Model:
 `deploy/machine-model.properties`. Loaded by `core/config/MachineFileEnvironmentPostProcessor`, before Spring reads its
-configuration files (so its `spring.profiles.active` picks the type), when:
+configuration files, when:
 1. `-Dzsretail.machine-file=<path>` names it (dev scripts, IDE, or to override the Tomcat convention); a path that does not
    exist stops the startup (`Outside file not found: <path> ...`);
 2. otherwise, in Tomcat, `${catalina.base}/conf/zsretail/<context name>.properties` exists (`zsretailws.war` deploys as
-   `zsretailws`: `conf/zsretail/zsretailws.properties`; a head office and a store on one Tomcat are two WARs, two files).
+   `zsretailws`: `conf/zsretail/zsretailws.properties`; since step 6.5 each application is deployed alone in its Tomcat as
+`zsretailws`).
 
 Neither: no outside file, the type file applies as it is.
 
@@ -45,7 +55,12 @@ Neither: no outside file, the type file applies as it is.
 **Type check** (`core/config/InstallationTypeEnvironmentPostProcessor`, after the configuration files are read): the active profile
 in effect is exactly `store` or `headoffice`; anything else (none, two, an old preset name such as `store-erp`, an old profile
 such as `dynamics-prod` left in the server's options) stops the startup: `The active profile is [<names>]: it must be one
-installation type, spring.profiles.active=store | headoffice ...`. `application.standalone` stays refused.
+installation type, spring.profiles.active=store | headoffice ...`. `application.standalone` stays refused. Since code
+cleanup step 6.5 the type in effect is also the application's: a `spring.profiles.active` or a `node.type` of the other
+type (outside file, IDE or server option) stops the start naming the application, the source and the line: `This is the
+head office application (HeadOfficeApplication): it runs an installation of type headoffice, but the outside file <path>
+names the type store (spring.profiles.active=store). The store runs the store application: deploy its WAR in this
+Tomcat (under zsretailws), or correct the file; ...`
 
 **ERP connector** (code cleanup step 1): one line chooses it, `erp.connector=none | emtop | happyness` (trimmed, any
 case), the way for a new installation (in its outside file). It is only a translation into the two old lines, done by

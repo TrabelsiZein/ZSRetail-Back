@@ -60,5 +60,14 @@ Step by step, each commit with the full suite green:
   in step 6 is listed, old name then new, in `class-renames.txt` (tests); the proof of step 4 reads it, so its record
   is unchanged. New guards: a class lives in the project of its package root (`ProjectSortingGuardTest`), and every
   full class name in a string (JPQL, pointcuts) names a class that exists (`ClassNamesInStringsGuardTest`).
-- 6.5: headoffice and its WAR. 6.6: store and its WAR; `app` is gone. 6.7: the network tests, the dev
+- 6.5: headoffice, 117 classes (names unchanged) and two new ones: `HeadOfficeApplication` and `HeadOfficeQuantityColumns`;
+  `application-headoffice.properties`; a WAR, `zsretail-headoffice-<version>.war` (its classes also as a `classes` jar, for the
+  tests that need both applications). The application is the type (`core/config/ZsRetailApplication`: its profile, and
+  `spring.profiles.active` and `zsretail.application.type` as default properties); `application.properties` no longer names
+  `store`; a file or an option naming the other type stops the start (`InstallationTypeEnvironmentPostProcessor`). Each
+  application checks its own quantity columns (`QuantityColumns`). The proofs: `ConfigurationKeysProofTest` (each
+  configuration in the application of its type, every key as recorded) and `InstallationBeansProofTest` (the beans of each
+  configuration among its application's), records unchanged. `devenv` builds both WARs and starts each instance with the
+  application of its type.
+- 6.6: store and its WAR; `app` is gone. 6.7: the network tests, the dev
   scripts.

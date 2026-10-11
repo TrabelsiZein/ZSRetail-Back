@@ -10,11 +10,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.TreeSet;
 
 import org.junit.jupiter.api.DisplayName;
@@ -102,15 +106,15 @@ class ConfigurationKeysProofTest {
 
 	/**
 	 * A start of this configuration, as Spring Boot starts: the outside file named as by -Dzsretail.machine-file, then
-	 * every EnvironmentPostProcessor (ConfigFileApplicationListener among them). Before the change: the single
-	 * application, its type named by the file (or, without a file, by -Dspring.profiles.active=headoffice).
+	 * every EnvironmentPostProcessor (ConfigFileApplicationListener among them). Before the change (the record): the
+	 * single application, its type named by the file (or, without a file, by -Dspring.profiles.active=headoffice).
+	 * Since code cleanup step 6.5: the application of the configuration's type, as it prepares a start (its default
+	 * properties and its profile, see support/Starts).
 	 */
 	static StandardEnvironment start(Configuration configuration) {
 		Map<String, Object> systemProperties = new HashMap<>();
 		if (configuration.file != null) {
 			systemProperties.put(MachineFileEnvironmentPostProcessor.MACHINE_FILE_KEY, configuration.file.toString());
-		} else if (!"store".equals(configuration.type)) {
-			systemProperties.put("spring.profiles.active", configuration.type);
 		}
 		StandardEnvironment env = new StandardEnvironment();
 		// Only what the test gives: the machine's own variables and properties must not change the record
@@ -119,6 +123,11 @@ class ConfigurationKeysProofTest {
 		env.getPropertySources().replace(StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME,
 				new MapPropertySource(StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME, new HashMap<>()));
 		env.getPropertySources().addFirst(new MapPropertySource("test-system-properties", systemProperties));
+		env.getPropertySources().addLast(
+				new MapPropertySource("defaultProperties", new HashMap<>(ZsRetailApplication.defaults(configuration.type))));
+		Set<String> profiles = new LinkedHashSet<>(Collections.singleton(configuration.type));
+		profiles.addAll(Arrays.asList(env.getActiveProfiles()));
+		env.setActiveProfiles(profiles.toArray(new String[0]));
 		SpringApplication application = new SpringApplication();
 		new ConfigFileApplicationListener()
 				.onApplicationEvent(new ApplicationEnvironmentPreparedEvent(application, new String[0], env));

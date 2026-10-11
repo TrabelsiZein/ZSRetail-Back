@@ -8,6 +8,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -15,7 +17,6 @@ import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.core.utils.Quantities;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 
 /**
@@ -25,32 +26,55 @@ import lombok.extern.log4j.Log4j2;
  * APP_VERSION). Checked once at start-up: a column still int is named in an error of the log, and decimal quantities are
  * refused (QuantityPolicy, /config) with a message asking for the script; whole quantities work as in 2.2.0. A table
  * absent from this database (a store without a head office link, ho_ tables on a store) is skipped, as by the script.
+ * Code cleanup step 6.5: each application looks at its own tables only: the columns of core's tables below, then
+ * those its application gives ({@link QuantityColumns}: the store's hol_ and inventory tables, the head office's ho_
+ * tables). Together they are the columns of the scripts.
  */
 @Component
-@RequiredArgsConstructor
 @Log4j2
 public class DecimalColumnsCheck {
 
 	/**
-	 * The columns of db/2.2.1/update.sql (#zs_221_columns) then of db/2.2.2/update.sql (#zs_222_columns), as
-	 * "table.column". Keep the lists the same.
+	 * The columns of core's tables in db/2.2.1/update.sql (#zs_221_columns) then in db/2.2.2/update.sql
+	 * (#zs_222_columns), as "table.column"; the applications give theirs ({@link QuantityColumns}). With them, keep the
+	 * lists the same as the scripts'.
 	 */
 	public static final List<String> COLUMNS = Collections.unmodifiableList(Arrays.asList(
 			"item.stock_quantity", "sales_line.quantity", "stock_movement.quantity",
-			"ho_ticket_line.quantity", "ho_store_stock.quantity", "hol_stock_copy.quantity_sent",
-			"inventory_count_line.counted_quantity", "inventory_count_line.system_quantity_at_import",
-			"inventory_count_line.system_quantity_at_validation", "inventory_count_line.difference_applied",
-			"ho_erp_invoice_line.quantity", "ho_erp_invoice_line.quantity_received",
-			"ho_delivery_line.quantity_sent", "ho_delivery_line.quantity_received",
-			"hol_delivery_line.quantity_sent", "hol_delivery_line.quantity_received",
 			"purchase_invoice_line.quantity",
-			// 2.2.2: the return lines, of a store and of their copies at the head office
-			"return_line.quantity", "ho_return_line.quantity"));
+			// 2.2.2: the return lines of a store
+			"return_line.quantity"));
 
 	public static final String SCRIPT_MESSAGE = "decimal quantities need the database scripts of 2.2.1 and 2.2.2"
 			+ " (db/2.2.1/update.sql, db/2.2.2/update.sql), not run on this database";
 
 	private final JdbcTemplate jdbc;
+
+	/** Core's columns, then those of the application. */
+	private final List<String> columns;
+
+	@Autowired
+	public DecimalColumnsCheck(JdbcTemplate jdbc, ObjectProvider<QuantityColumns> application) {
+		this(jdbc, application.orderedStream().flatMap(given -> given.columns().stream()).collect(Collectors.toList()));
+	}
+
+	/** Core's columns and the application's given. */
+	public DecimalColumnsCheck(JdbcTemplate jdbc, List<String> applicationColumns) {
+		this.jdbc = jdbc;
+		List<String> all = new ArrayList<>(COLUMNS);
+		all.addAll(applicationColumns);
+		this.columns = Collections.unmodifiableList(all);
+	}
+
+	/** Core's columns only. */
+	public DecimalColumnsCheck(JdbcTemplate jdbc) {
+		this(jdbc, Collections.emptyList());
+	}
+
+	/** The columns this application checks: core's, then its own. */
+	public List<String> columns() {
+		return columns;
+	}
 
 	/** The columns still not DECIMAL(18,3); null until checked. */
 	private volatile List<String> notConverted;
@@ -75,7 +99,7 @@ public class DecimalColumnsCheck {
 		}
 		List<String> left;
 		try {
-			left = notConverted(jdbc.queryForList("SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, NUMERIC_PRECISION,"
+			left = notConverted(columns, jdbc.queryForList("SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, NUMERIC_PRECISION,"
 					+ " NUMERIC_SCALE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = SCHEMA_NAME()"));
 		} catch (RuntimeException e) {
 			log.error("2.2.1: the quantity columns could not be checked ({}); decimal quantities are refused", e.getMessage());
@@ -95,12 +119,12 @@ public class DecimalColumnsCheck {
 	}
 
 	/** The listed columns present in these INFORMATION_SCHEMA.COLUMNS rows and not DECIMAL(18,3), in list order. */
-	static List<String> notConverted(List<Map<String, Object>> rows) {
+	static List<String> notConverted(List<String> columns, List<Map<String, Object>> rows) {
 		Map<String, Map<String, Object>> byName = rows.stream().collect(Collectors.toMap(
 				row -> (row.get("TABLE_NAME") + "." + row.get("COLUMN_NAME")).toLowerCase(Locale.ROOT), row -> row,
 				(first, second) -> first));
 		List<String> left = new ArrayList<>();
-		for (String column : COLUMNS) {
+		for (String column : columns) {
 			Map<String, Object> row = byName.get(column);
 			if (row != null && !decimal183(row)) {
 				left.add(column + " (" + row.get("DATA_TYPE") + ")");

@@ -26,6 +26,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.digithink.zsretail.core.model.GeneralSetup;
 import com.digithink.zsretail.core.repository.GeneralSetupRepository;
+import com.digithink.zsretail.headoffice.service.HeadOfficeQuantityColumns;
+import com.digithink.zsretail.service.StoreQuantityColumns;
 
 /**
  * 2.2.1, step 6: a 2.2.1 application on a database whose quantity columns are still int (script not run, APP_VERSION
@@ -33,6 +35,27 @@ import com.digithink.zsretail.core.repository.GeneralSetupRepository;
  * in 2.2.0.
  */
 class DecimalColumnsCheckTest {
+
+	/** The columns of the scripts (db/2.2.1, db/2.2.2), as checked by the single application before step 6.5. */
+	static final List<String> SCRIPTS = Arrays.asList("item.stock_quantity", "sales_line.quantity",
+			"stock_movement.quantity", "ho_ticket_line.quantity", "ho_store_stock.quantity",
+			"hol_stock_copy.quantity_sent", "inventory_count_line.counted_quantity",
+			"inventory_count_line.system_quantity_at_import", "inventory_count_line.system_quantity_at_validation",
+			"inventory_count_line.difference_applied", "ho_erp_invoice_line.quantity",
+			"ho_erp_invoice_line.quantity_received", "ho_delivery_line.quantity_sent",
+			"ho_delivery_line.quantity_received", "hol_delivery_line.quantity_sent",
+			"hol_delivery_line.quantity_received", "purchase_invoice_line.quantity", "return_line.quantity",
+			"ho_return_line.quantity");
+
+	/** Core's columns and both applications' (the rows of a database that has every table). */
+	static final List<String> ALL = all();
+
+	private static List<String> all() {
+		List<String> all = new ArrayList<>(DecimalColumnsCheck.COLUMNS);
+		all.addAll(new StoreQuantityColumns().columns());
+		all.addAll(new HeadOfficeQuantityColumns().columns());
+		return all;
+	}
 
 	private static Map<String, Object> column(String table, String column, String type, Integer precision, Integer scale) {
 		Map<String, Object> row = new HashMap<>();
@@ -47,7 +70,7 @@ class DecimalColumnsCheckTest {
 	/** Every listed column as DECIMAL(18,3), then the given ones replaced. */
 	private static List<Map<String, Object>> converted(Map<String, Object>... replaced) {
 		List<Map<String, Object>> rows = new ArrayList<>();
-		for (String name : DecimalColumnsCheck.COLUMNS) {
+		for (String name : ALL) {
 			String[] parts = name.split("\\.");
 			boolean other = Arrays.stream(replaced).anyMatch(r -> r.get("TABLE_NAME").equals(parts[0])
 					&& r.get("COLUMN_NAME").equals(parts[1]));
@@ -64,20 +87,21 @@ class DecimalColumnsCheckTest {
 	@DisplayName("The 17 columns of 2.2.1 and the 2 of 2.2.2; all DECIMAL(18,3): nothing left; absent tables skipped as by the script")
 	@SuppressWarnings("unchecked")
 	void allConverted() {
-		assertEquals(19, DecimalColumnsCheck.COLUMNS.size());
-		assertTrue(DecimalColumnsCheck.notConverted(converted()).isEmpty());
+		assertEquals(19, ALL.size());
+		assertEquals(new java.util.TreeSet<>(SCRIPTS), new java.util.TreeSet<>(ALL), "core's and the applications' together: the scripts'");
+		assertTrue(DecimalColumnsCheck.notConverted(ALL, converted()).isEmpty());
 		List<Map<String, Object>> storeOnly = new ArrayList<>(converted());
 		storeOnly.removeIf(row -> String.valueOf(row.get("TABLE_NAME")).startsWith("ho_"));
-		assertTrue(DecimalColumnsCheck.notConverted(storeOnly).isEmpty());
+		assertTrue(DecimalColumnsCheck.notConverted(ALL, storeOnly).isEmpty());
 	}
 
 	@Test
 	@DisplayName("A table created by Hibernate after the script (Bardo's inventory tables): NUMERIC(18,3) is DECIMAL(18,3), accepted as by the script")
 	@SuppressWarnings("unchecked")
 	void numericAccepted() {
-		assertTrue(DecimalColumnsCheck.notConverted(converted(column("inventory_count_line", "counted_quantity", "numeric", 18, 3),
+		assertTrue(DecimalColumnsCheck.notConverted(ALL, converted(column("inventory_count_line", "counted_quantity", "numeric", 18, 3),
 				column("inventory_count_line", "difference_applied", "numeric", 18, 3))).isEmpty());
-		assertEquals(Arrays.asList("inventory_count_line.counted_quantity (numeric)"), DecimalColumnsCheck.notConverted(
+		assertEquals(Arrays.asList("inventory_count_line.counted_quantity (numeric)"), DecimalColumnsCheck.notConverted(ALL,
 				converted(column("inventory_count_line", "counted_quantity", "numeric", 19, 2))));
 	}
 
@@ -86,7 +110,7 @@ class DecimalColumnsCheckTest {
 	@SuppressWarnings("unchecked")
 	void intColumnsNamed() {
 		assertEquals(Arrays.asList("item.stock_quantity (int)", "sales_line.quantity (int)", "purchase_invoice_line.quantity (decimal)"),
-				DecimalColumnsCheck.notConverted(converted(column("sales_line", "quantity", "int", 10, 0),
+				DecimalColumnsCheck.notConverted(ALL, converted(column("sales_line", "quantity", "int", 10, 0),
 						column("item", "stock_quantity", "int", 10, 0),
 						column("purchase_invoice_line", "quantity", "decimal", 18, 2))));
 	}
@@ -128,6 +152,19 @@ class DecimalColumnsCheckTest {
 		assertTrue(policy(check, "true").decimalAllowed());
 		assertDoesNotThrow(() -> policy(check, "true").check(new BigDecimal("0.2"), "VH52-1L"));
 		assertFalse(policy(check, "false").decimalAllowed());
+	}
+
+	@Test
+	@DisplayName("Code cleanup step 6.5: each application checks core's columns and its own; a column of the other's tables is not looked at")
+	@SuppressWarnings("unchecked")
+	void ownTablesOnly() {
+		JdbcTemplate jdbc = mock(JdbcTemplate.class);
+		when(jdbc.queryForList(anyString())).thenReturn(converted(column("ho_ticket_line", "quantity", "int", 10, 0)));
+		assertTrue(new DecimalColumnsCheck(jdbc, new StoreQuantityColumns().columns()).ready(), "a store");
+		assertFalse(new DecimalColumnsCheck(jdbc, new HeadOfficeQuantityColumns().columns()).ready(), "a head office");
+		when(jdbc.queryForList(anyString())).thenReturn(converted(column("inventory_count_line", "counted_quantity", "int", 10, 0)));
+		assertFalse(new DecimalColumnsCheck(jdbc, new StoreQuantityColumns().columns()).ready(), "a store");
+		assertTrue(new DecimalColumnsCheck(jdbc, new HeadOfficeQuantityColumns().columns()).ready(), "a head office");
 	}
 
 	@Test

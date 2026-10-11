@@ -20,6 +20,8 @@
 		<dependency>
 			<groupId>com.digithink</groupId>
 			<artifactId>zsretail-headoffice</artifactId>
+			<version>${project.version}</version>
+			<classifier>classes</classifier>
 		</dependency>
 	</dependencies>
 </project>

@@ -15,6 +15,8 @@ import java.util.stream.Stream;
 
 import org.springframework.mock.env.MockEnvironment;
 
+import com.digithink.zsretail.core.config.ZsRetailApplication;
+
 /**
  * Test support (task 9.3, configuration step C1): an installation's configuration merged the way the application does,
  * without Spring: application.properties, under the type file (src/main/resources/application-&lt;type&gt;.properties,
@@ -108,16 +110,25 @@ public final class Installations {
 
 	private static MockEnvironment outside(Path path) {
 		Properties machine = file(path);
-		String type = machine.getProperty("spring.profiles.active", resource("/application.properties")
-				.getProperty("spring.profiles.active"));
+		String type = machine.getProperty("spring.profiles.active", DEFAULT_TYPE);
 		MockEnvironment env = type(type.trim());
 		machine.stringPropertyNames().forEach(key -> env.setProperty(key, machine.getProperty(key)));
 		return env;
 	}
 
-	/** A type (store, headoffice) over application.properties, without an outside file. */
+	/**
+	 * The type of a file that names none: every file of deploy/ and configs/ that is a head office names headoffice (they
+	 * were written for the single application, whose default was store).
+	 */
+	public static final String DEFAULT_TYPE = "store";
+
+	/**
+	 * A type (store, headoffice) over application.properties, without an outside file: the application of the type's
+	 * default properties (code cleanup step 6.5), application.properties, the type file.
+	 */
 	public static MockEnvironment type(String type) {
 		MockEnvironment env = new MockEnvironment();
+		ZsRetailApplication.defaults(type).forEach((key, value) -> env.setProperty(key, value.toString()));
 		Properties base = resource("/application.properties");
 		base.stringPropertyNames().forEach(key -> env.setProperty(key, base.getProperty(key)));
 		Properties keys = resource("/application-" + type + ".properties");

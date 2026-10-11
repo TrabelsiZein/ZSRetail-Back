@@ -40,6 +40,7 @@ import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.stereotype.Component;
 
+import com.digithink.zsretail.ProjectSortingGuardTest;
 import com.digithink.zsretail.support.ClassRenames;
 import com.digithink.zsretail.support.Installations;
 
@@ -182,8 +183,7 @@ class InstallationBeansProofTest {
 			Thread.currentThread().interrupt();
 			return Installations.config(file);
 		}
-		String type = committed.getProperty("spring.profiles.active",
-				Installations.resource("/application.properties").getProperty("spring.profiles.active"));
+		String type = committed.getProperty("spring.profiles.active", Installations.DEFAULT_TYPE);
 		MockEnvironment env = Installations.type(type.trim());
 		committed.stringPropertyNames().forEach(key -> env.setProperty(key, committed.getProperty(key)));
 		return env;
@@ -204,14 +204,36 @@ class InstallationBeansProofTest {
 		return environments;
 	}
 
-	/** One line per configuration: its name, then the beans that exist, sorted by name. */
+	/**
+	 * Code cleanup step 6.5: whether a bean is in the application of a type (each configuration is checked in its own):
+	 * core, erp-api and the connectors are in both, store's classes in the store application, the head office's in the
+	 * head office application.
+	 */
+	static boolean inApplication(Object bean, String type) {
+		Class<?> declaring = bean instanceof Method ? ((Method) bean).getDeclaringClass() : (Class<?>) bean;
+		String project = ProjectSortingGuardTest.projectOf(declaring.getName().substring("com.digithink.zsretail.".length()));
+		switch (project) {
+		case "store":
+			return "store".equals(type);
+		case "headoffice":
+			return "headoffice".equals(type);
+		default:
+			return true;
+		}
+	}
+
+	/** One line per configuration: its name, then the beans that exist in its application, sorted by name. */
 	static List<String> record() throws ClassNotFoundException {
 		Map<String, Object> beans = decidedBeans();
 		List<String> lines = new ArrayList<>();
 		lines.add("decided " + beans.size() + ": " + String.join(" ", beans.keySet()));
 		for (Map.Entry<String, MockEnvironment> configuration : configurations().entrySet()) {
 			TreeSet<String> present = new TreeSet<>();
+			String type = configuration.getValue().getProperty("spring.profiles.active");
 			for (Map.Entry<String, Object> bean : beans.entrySet()) {
+				if (!inApplication(bean.getValue(), type)) {
+					continue;
+				}
 				boolean exists = bean.getValue() instanceof Class ? registered(configuration.getValue(), (Class<?>) bean.getValue())
 						: registered(configuration.getValue(), (Method) bean.getValue());
 				if (exists) {

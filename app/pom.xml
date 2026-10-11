@@ -37,6 +37,18 @@
 			<scope>runtime</scope>
 		</dependency>
 
+		<!--
+			Code cleanup step 6.5: the head office's classes for app's tests only (the round trips, the proofs), until they
+			move at step 6.6; a main class of app that names one does not compile
+		-->
+		<dependency>
+			<groupId>com.digithink</groupId>
+			<artifactId>zsretail-headoffice</artifactId>
+			<version>${project.version}</version>
+			<classifier>classes</classifier>
+			<scope>test</scope>
+		</dependency>
+
 		<!-- The WAR's own: Tomcat is the server's, devtools for a run from the IDE -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

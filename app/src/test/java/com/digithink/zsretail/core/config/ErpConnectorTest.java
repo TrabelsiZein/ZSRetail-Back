@@ -24,12 +24,12 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.config.ConfigFileApplicationListener;
 import org.springframework.core.env.EnumerablePropertySource;
-import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.PropertySource;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.support.Installations;
+import com.digithink.zsretail.support.Starts;
 
 /**
  * Code cleanup, step 1: erp.connector, one line that chooses the ERP connector, translated into the two old enabled
@@ -51,8 +51,7 @@ class ErpConnectorTest {
 
 	/** A start: the system properties given (above everything, like -D), the outside file, the configuration files. */
 	private static StandardEnvironment start(Map<String, Object> systemProperties, boolean translate) {
-		StandardEnvironment env = new StandardEnvironment();
-		env.getPropertySources().addFirst(new MapPropertySource("test-system-properties", systemProperties));
+		StandardEnvironment env = Starts.environment(Starts.applicationOf(systemProperties), systemProperties);
 		SpringApplication application = new SpringApplication();
 		new MachineFileEnvironmentPostProcessor().postProcessEnvironment(env, application);
 		new ConfigFileApplicationListener().postProcessEnvironment(env, application);

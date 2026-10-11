@@ -26,6 +26,7 @@ import org.springframework.core.env.PropertySource;
 import org.springframework.core.env.StandardEnvironment;
 
 import com.digithink.zsretail.support.Installations;
+import com.digithink.zsretail.support.Starts;
 
 /**
  * Configuration step C1 (was task 9.3): the optional outside file of an installation
@@ -45,11 +46,16 @@ class MachineFileTest {
 
 	/**
 	 * The environment of a start: the system properties given (above everything, like -D), the outside file, the
-	 * configuration files of the classpath, then the type check.
+	 * configuration files of the classpath, then the type check. Code cleanup step 6.5: as the application of the type
+	 * the start names (support/Starts), store when it names none.
 	 */
 	private static StandardEnvironment start(Map<String, Object> systemProperties) {
-		StandardEnvironment env = new StandardEnvironment();
-		env.getPropertySources().addFirst(new MapPropertySource("test-system-properties", systemProperties));
+		return startAs(Starts.applicationOf(systemProperties), systemProperties);
+	}
+
+	/** A start as the application of this type, whatever the start names. */
+	private static StandardEnvironment startAs(String type, Map<String, Object> systemProperties) {
+		StandardEnvironment env = Starts.environment(type, systemProperties);
 		SpringApplication application = new SpringApplication();
 		new MachineFileEnvironmentPostProcessor().postProcessEnvironment(env, application);
 		new ConfigFileApplicationListener().postProcessEnvironment(env, application);
@@ -89,14 +95,7 @@ class MachineFileTest {
 	}
 
 	private static String invokeContextName(String path) {
-		try {
-			java.lang.reflect.Method method = com.digithink.zsretail.POSMainApp.class.getDeclaredMethod("contextName",
-					String.class);
-			method.setAccessible(true);
-			return (String) method.invoke(null, path);
-		} catch (ReflectiveOperationException e) {
-			throw new IllegalStateException(e);
-		}
+		return ZsRetailApplication.contextName(path);
 	}
 
 	@Test
@@ -110,8 +109,8 @@ class MachineFileTest {
 	}
 
 	@Test
-	@DisplayName("C1: a start with no outside file runs the default type, store, from its type file; where it runs (port,"
-			+ " database) is not in the WAR (since aa6fa48)")
+	@DisplayName("C1: a start of the store application with no outside file runs the type store, from its type file;"
+			+ " where it runs (port, database) is not in the WAR (since aa6fa48)")
 	void noOutsideFileDefaultType() {
 		StandardEnvironment env = start(new HashMap<>());
 		assertArrayEquals(new String[] { "store" }, env.getActiveProfiles());
@@ -125,12 +124,51 @@ class MachineFileTest {
 	}
 
 	@Test
-	@DisplayName("C1: the type named by -Dspring.profiles.active alone (no outside file) is used; no port without the outside file")
+	@DisplayName("C1: the head office application with -Dspring.profiles.active=headoffice alone (no outside file); no port without the outside file")
 	void typeWithoutOutsideFile() {
 		StandardEnvironment env = start(Map.of("spring.profiles.active", "headoffice"));
 		assertArrayEquals(new String[] { "headoffice" }, env.getActiveProfiles());
 		assertEquals("HEAD_OFFICE", env.getProperty("node.type"));
 		assertNull(env.getProperty("server.port"));
+	}
+
+	@Test
+	@DisplayName("6.5: the application is the type: no file needs to name it; an old file that names it keeps working")
+	void applicationIsTheType() throws Exception {
+		StandardEnvironment headOffice = startAs("headoffice", new HashMap<>());
+		assertArrayEquals(new String[] { "headoffice" }, headOffice.getActiveProfiles());
+		assertEquals("HEAD_OFFICE", headOffice.getProperty("node.type"));
+		assertEquals("headoffice", headOffice.getProperty("spring.profiles.active"), "the key reads as before");
+		Path newFile = outsideFile("new-ho.properties", "server.port=889");
+		StandardEnvironment fromNewFile = startAs("headoffice", Map.of("zsretail.machine-file", newFile.toString()));
+		assertArrayEquals(new String[] { "headoffice" }, fromNewFile.getActiveProfiles());
+		assertEquals("889", fromNewFile.getProperty("server.port"));
+		Path oldFile = outsideFile("old-ho.properties", "spring.profiles.active=headoffice", "node.type=HEAD_OFFICE");
+		assertArrayEquals(new String[] { "headoffice" },
+				startAs("headoffice", Map.of("zsretail.machine-file", oldFile.toString())).getActiveProfiles());
+		Path oldStore = outsideFile("old-store.properties", "spring.profiles.active=store", "node.type=STORE");
+		assertArrayEquals(new String[] { "store" },
+				startAs("store", Map.of("zsretail.machine-file", oldStore.toString())).getActiveProfiles());
+	}
+
+	@Test
+	@DisplayName("6.5: a file (or a server option) that names the other type stops the start, naming the application and the file")
+	void otherTypeRefused() throws Exception {
+		Path store = outsideFile("store-1.properties", "spring.profiles.active=store");
+		String message = refusal(() -> startAs("headoffice", Map.of("zsretail.machine-file", store.toString())));
+		assertTrue(message.startsWith("This is the head office application: it runs an installation of type"
+				+ " headoffice, but the outside file " + store + " names the type store (spring.profiles.active=store)."), message);
+		assertTrue(message.contains("The store runs the store application: deploy its WAR in this Tomcat (under zsretailws)"), message);
+		Path ho = outsideFile("ho.properties", "spring.profiles.active=headoffice");
+		message = refusal(() -> startAs("store", Map.of("zsretail.machine-file", ho.toString())));
+		assertTrue(message.contains("the store application") && message.contains("the outside file " + ho)
+				&& message.contains("(spring.profiles.active=headoffice)"), message);
+		Path nodeType = outsideFile("node.properties", "node.type=STORE");
+		message = refusal(() -> startAs("headoffice", Map.of("zsretail.machine-file", nodeType.toString())));
+		assertTrue(message.contains("the outside file " + nodeType + " names the type store (node.type=STORE)"), message);
+		message = refusal(() -> startAs("store", Map.of("spring.profiles.active", "headoffice")));
+		assertTrue(message.contains("the IDE or the server's options (test-system-properties) names the type headoffice"),
+				message);
 	}
 
 	@Test

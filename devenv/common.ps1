@@ -12,13 +12,30 @@ $DevSqlCmd = 'C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Bi
 $DevDeploy = Join-Path $DevRepo 'deploy'                            # machine files (task 9.3)
 
 $DevInstances = [ordered]@{
-	'headoffice' = @{ Machine = 'dev\headoffice.properties'; Port = 888; Db = 'pos_headoffice'; Code = $null;     Log = 'C:\zsretail-headoffice\backend.log' }
-	'store-b'    = @{ Machine = 'dev\store-b.properties';    Port = 555; Db = 'pos_store_b';    Code = 'STORE-B'; Log = 'C:\zsretail-store-b\backend.log' }
-	'store-c'    = @{ Machine = 'dev\store-c.properties';    Port = 556; Db = 'pos_store_c';    Code = 'STORE-C'; Log = 'C:\zsretail-store-c\backend.log' }
+	'headoffice' = @{ Type = 'headoffice'; Machine = 'dev\headoffice.properties'; Port = 888; Db = 'pos_headoffice'; Code = $null;     Log = 'C:\zsretail-headoffice\backend.log' }
+	'store-b'    = @{ Type = 'store';      Machine = 'dev\store-b.properties';    Port = 555; Db = 'pos_store_b';    Code = 'STORE-B'; Log = 'C:\zsretail-store-b\backend.log' }
+	'store-c'    = @{ Type = 'store';      Machine = 'dev\store-c.properties';    Port = 556; Db = 'pos_store_c';    Code = 'STORE-C'; Log = 'C:\zsretail-store-c\backend.log' }
 	# Rehearsal environment (devenv\rehearsal.ps1): beside the L2 instances, never started by start.ps1 without -Instance
-	'reh-headoffice' = @{ Machine = 'rehearsal\headoffice.properties'; Port = 889; Db = 'pos_rehearsal_ho'; Code = $null;     Log = 'C:\zsretail-rehearsal\headoffice\backend.log' }
-	'reh-store-1'    = @{ Machine = 'rehearsal\store-1.properties';    Port = 557; Db = 'pos_rehearsal_s1'; Code = 'STORE-1'; Log = 'C:\zsretail-rehearsal\store-1\backend.log' }
-	'reh-store-2'    = @{ Machine = 'rehearsal\store-2.properties';    Port = 558; Db = 'pos_rehearsal_s2'; Code = 'STORE-2'; Log = 'C:\zsretail-rehearsal\store-2\backend.log' }
+	'reh-headoffice' = @{ Type = 'headoffice'; Machine = 'rehearsal\headoffice.properties'; Port = 889; Db = 'pos_rehearsal_ho'; Code = $null;     Log = 'C:\zsretail-rehearsal\headoffice\backend.log' }
+	'reh-store-1'    = @{ Type = 'store';      Machine = 'rehearsal\store-1.properties';    Port = 557; Db = 'pos_rehearsal_s1'; Code = 'STORE-1'; Log = 'C:\zsretail-rehearsal\store-1\backend.log' }
+	'reh-store-2'    = @{ Type = 'store';      Machine = 'rehearsal\store-2.properties';    Port = 558; Db = 'pos_rehearsal_s2'; Code = 'STORE-2'; Log = 'C:\zsretail-rehearsal\store-2\backend.log' }
+}
+
+# Code cleanup step 6.5: two applications, each its WAR (devenv\build.ps1 copies each to artifacts\<type>\ under the
+# deploy name zsretailws and writes artifacts\latest-<type>.txt); an instance runs the application of its Type.
+$DevApplications = [ordered]@{
+	'store'      = @{ War = 'app\target\zsretailws.war' }
+	'headoffice' = @{ War = 'headoffice\target\zsretail-headoffice-*.war' }
+}
+
+# The exploded WAR an instance runs: the latest build of the application of its type.
+function Get-DevArtifact([string]$Name) {
+	$type = (Get-DevInstance $Name).Type
+	$latest = Join-Path $DevRoot "artifacts\latest-$type.txt"
+	if (-not (Test-Path $latest)) { throw "No $type artifact: run devenv\build.ps1 first" }
+	$artifact = (Get-Content $latest -Raw).Trim()
+	if (-not (Test-Path (Join-Path $artifact 'WEB-INF'))) { throw "$artifact is not an exploded WAR: run devenv\build.ps1" }
+	return $artifact
 }
 
 function Get-DevInstance([string]$Name) {

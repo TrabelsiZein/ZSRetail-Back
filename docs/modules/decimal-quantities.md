@@ -267,7 +267,9 @@ the 2.2.1 notes rewritten. A new database gets `DECIMAL(18,3)` from Hibernate.
 2.2.2: `db/2.2.2/update.sql` converts `return_line.quantity` and `ho_return_line.quantity` the same way (its own copy of
 the procedure, the columns in `#zs_222_columns`). It runs only on APP_VERSION 2.2.1 or 2.2.2 (otherwise an error and
 `SET NOEXEC ON`: nothing changed), then writes APP_VERSION 2.2.2 and its notes when both columns present are
-DECIMAL(18,3). `DecimalColumnsCheck.COLUMNS` has the 19 columns of both scripts; its message names both.
+DECIMAL(18,3). `DecimalColumnsCheck` checks the 19 columns of both scripts; its message names both. Since code cleanup step
+6.5 each application checks core's 5 (`DecimalColumnsCheck.COLUMNS`) and its own (`QuantityColumns`: the store 7, `hol_` and
+inventory counts; the head office 7, `ho_`), 19 together (`DecimalColumnsCheckTest.allConverted`).
 
 A 2.2.1 application on a 2.2.0 database does not start: `AppVersionGuard` finds APP_VERSION 2.2.0 (the script
 writes 2.2.1 only when every column is converted). For what that guard lets through (APP_VERSION set by hand, an

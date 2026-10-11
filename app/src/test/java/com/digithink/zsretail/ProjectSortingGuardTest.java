@@ -70,7 +70,7 @@ public class ProjectSortingGuardTest {
 			"service.PaymentMethodService", "service.PaymentService", "service.PromotionCalculationService",
 			"service.ReturnHeaderService", "service.ReturnVoucherService", "service.SalesDiscountService",
 			"service.SalesHeaderService", "service.SalesLineService", "service.SalesPriceService", "service.SalesReportService",
-			"service.SessionCashCountService", "service.WarrantyService"));
+			"service.SessionCashCountService", "service.StoreQuantityColumns", "service.WarrantyService"));
 
 	/**
 	 * Code cleanup step 6: the package root of each project; a class takes it when it moves into its project. Until then
@@ -86,9 +86,6 @@ public class ProjectSortingGuardTest {
 		ROOTS.put("store.", STORE);
 		ROOTS.put("headoffice.", HEADOFFICE);
 	}
-
-	/** The projects whose classes are still in app, under their final package root (until step 6.5). */
-	static final Set<String> STILL_IN_APP = set(HEADOFFICE);
 
 	/** The Maven project (folder) of each project. */
 	static final Map<String, String> FOLDERS = new HashMap<>();
@@ -286,9 +283,6 @@ public class ProjectSortingGuardTest {
 			String name = file.getKey().replaceAll("\\.java$", "").replace('/', '.').substring(APP.length());
 			String folder = Repo.ROOT.relativize(file.getValue()).getName(0).toString();
 			String expected = ROOTS.keySet().stream().anyMatch(name::startsWith) ? FOLDERS.get(projectOf(name)) : "app";
-			if (folder.equals("app") && STILL_IN_APP.contains(projectOf(name))) {
-				continue;
-			}
 			if (!folder.equals(expected)) {
 				wrong.add(name + " in " + folder + ", expected " + expected);
 			}

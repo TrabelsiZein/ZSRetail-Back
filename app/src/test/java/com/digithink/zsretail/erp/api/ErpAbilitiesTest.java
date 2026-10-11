@@ -12,13 +12,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.config.ConfigFileApplicationListener;
-import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.PropertyResolver;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.mock.env.MockEnvironment;
@@ -27,6 +27,7 @@ import com.digithink.zsretail.core.config.ErpConnectorEnvironmentPostProcessor;
 import com.digithink.zsretail.core.config.InstallationTypeEnvironmentPostProcessor;
 import com.digithink.zsretail.core.config.MachineFileEnvironmentPostProcessor;
 import com.digithink.zsretail.support.Installations;
+import com.digithink.zsretail.support.Starts;
 
 /**
  * Code cleanup, step 2, part 1: what each connector can do (ErpAbilities), read from the environment whichever way the
@@ -55,9 +56,9 @@ class ErpAbilitiesTest {
 	private StandardEnvironment start(String... outsideLines) throws IOException {
 		Path file = folder.resolve("machine.properties");
 		Files.write(file, Arrays.asList(outsideLines));
-		StandardEnvironment env = new StandardEnvironment();
-		env.getPropertySources().addFirst(new MapPropertySource("test-system-properties",
-				Collections.singletonMap(MachineFileEnvironmentPostProcessor.MACHINE_FILE_KEY, file.toString())));
+		Map<String, Object> systemProperties = Collections.singletonMap(MachineFileEnvironmentPostProcessor.MACHINE_FILE_KEY,
+				file.toString());
+		StandardEnvironment env = Starts.environment(Starts.applicationOf(systemProperties), systemProperties);
 		SpringApplication application = new SpringApplication();
 		new MachineFileEnvironmentPostProcessor().postProcessEnvironment(env, application);
 		new ConfigFileApplicationListener().postProcessEnvironment(env, application);

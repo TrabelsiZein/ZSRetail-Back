@@ -1,7 +1,9 @@
 # Shows each dev instance: pid, whether /config answers, port, database, log file, artifact.
 . "$PSScriptRoot\common.ps1"
-$latest = Join-Path $DevRoot 'artifacts\latest.txt'
-if (Test-Path $latest) { Write-Output "Latest artifact: $((Get-Content $latest -Raw).Trim())" }
+foreach ($type in $DevApplications.Keys) {
+	$latest = Join-Path $DevRoot "artifacts\latest-$type.txt"
+	if (Test-Path $latest) { Write-Output "Latest $type artifact: $((Get-Content $latest -Raw).Trim())" }
+}
 foreach ($name in $DevInstances.Keys) {
 	$inst = $DevInstances[$name]
 	$id = Get-DevPid $name

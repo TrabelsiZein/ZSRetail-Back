@@ -3,7 +3,12 @@
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-	<!-- The head office application (package com.digithink.zsretail.headoffice). Uses core and erp-api. Filled, and made a WAR, at code cleanup step 6.5. -->
+	<!--
+		The head office application (package com.digithink.zsretail.headoffice, main class HeadOfficeApplication), since
+		code cleanup step 6.5: its WAR target/zsretail-headoffice-<version>.war is deployed alone in its Tomcat under the
+		context name zsretailws (docs/deploy-note.md). Its type file: application-headoffice.properties. Its classes are
+		also attached as zsretail-headoffice-<version>-classes.jar, for the tests that need both applications.
+	-->
 	<parent>
 		<groupId>com.digithink</groupId>
 		<artifactId>zsretail-parent</artifactId>
@@ -11,11 +16,71 @@
 	</parent>
 	<artifactId>zsretail-headoffice</artifactId>
 	<name>ZS Retail head office</name>
+	<packaging>war</packaging>
 
 	<dependencies>
 		<dependency>
 			<groupId>com.digithink</groupId>
 			<artifactId>zsretail-core</artifactId>
 		</dependency>
+		<!-- The connectors, at runtime only: in the WAR, but a class of the head office that names one does not compile -->
+		<dependency>
+			<groupId>com.digithink</groupId>
+			<artifactId>zsretail-connector-happyness</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.digithink</groupId>
+			<artifactId>zsretail-connector-emtop</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
+		<!-- The WAR's own: Tomcat is the server's, devtools for a run from the IDE -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-tomcat</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-configuration-processor</artifactId>
+			<optional>true</optional>
+		</dependency>
 	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<mainClass>com.digithink.zsretail.headoffice.HeadOfficeApplication</mainClass>
+					<excludes>
+						<exclude>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-war-plugin</artifactId>
+				<configuration>
+					<attachClasses>true</attachClasses>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
 </project>

@@ -23,9 +23,9 @@ between them: `docs/roadmap/project-sorting.md`.
 | `connector-happyness` | `zsretail-connector-happyness` | erp-api | since step 6.3: `com.digithink.zsretail.connector.happyness`, 19 classes |
 | `connector-emtop` | `zsretail-connector-emtop` | erp-api | since step 6.3: `com.digithink.zsretail.connector.emtop`, 22 classes |
 | `core` | `zsretail-core` | erp-api | since step 6.4: `com.digithink.zsretail.core` (link messages and `/ho/**` chain in `core.link`), 311 classes, `application.properties`, `db/`, `license/`, `spring.factories` |
-| `headoffice` | `zsretail-headoffice` | core | empty until step 6.5 (then the head office WAR) |
+| `headoffice` | `zsretail-headoffice` (WAR) | core; the connectors at runtime | since step 6.5: `com.digithink.zsretail.headoffice`, 119 classes, main class `HeadOfficeApplication`, `application-headoffice.properties`; `target/zsretail-headoffice-<version>.war` |
 | `store` | `zsretail-store` | core | empty until step 6.6 (then the store WAR) |
-| `app` | `zsretail-app` | core; the connectors at runtime scope (in the WAR, never named by a main class) | the application before the projects: `app/target/zsretailws.war`, gone at step 6.6 |
+| `app` | `zsretail-app` (WAR) | core; the connectors at runtime scope (in the WAR, never named by a main class); the head office's classes for its tests only | the application before the projects: `app/target/zsretailws.war`, gone at step 6.6 |
 | `network-tests` | `zsretail-network-tests` | store, headoffice | tests only, empty until step 6.7 |
 
 ## Layout
@@ -47,9 +47,9 @@ core/src/main/java/com/digithink/zsretail/core/
 - `license/` — public key material for offline licensing (`public_key.pem`, gitignored, kept on the machine)
 - `META-INF/spring.factories`: the configuration's post-processors
 
-`app/src/main/resources/`: the two type files (configuration step C1), `application-store.properties` and
-`application-headoffice.properties` ("what this installation is"; the database password from
-`ZSRETAIL_DB_PASSWORD`). An optional outside file per installation (usually where it runs; it may name the type and
+The two type files (configuration step C1, "what this installation is"; the database password from
+`ZSRETAIL_DB_PASSWORD`): `app/src/main/resources/application-store.properties` and, since step 6.5,
+`headoffice/src/main/resources/application-headoffice.properties`. The application is the type (step 6.5). An optional outside file per installation (usually where it runs; it may name the type and
 change owners), named by `-Dzsretail.machine-file=<path>` or found as
 `${catalina.base}/conf/zsretail/<context name>.properties`; without one the type file applies. Any active profile
 other than exactly `store` or `headoffice` is refused. Outside files of this repo: `deploy/` (model, dev machines,
@@ -76,7 +76,7 @@ Always from this folder (the parent): Maven builds the projects in dependency or
 
 ```bash
 mvn -q -DskipTests compile        # fast syntax/compile check
-mvn -q -DskipTests package        # build the WAR (app/target/zsretailws.war)
+mvn -q -DskipTests package        # build the two WARs (docs/deploy-note.md)
 mvn test                          # reports in <project>/target/surefire-reports
 mvn test -Dtest=SomeTest -Dsurefire.failIfNoSpecifiedTests=false   # one test class (the other projects have none)
 ```
