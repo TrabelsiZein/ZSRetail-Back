@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.store.rfid.RfidException;
@@ -68,6 +69,17 @@ public class RfidTagService {
 		return epc;
 	}
 
+	/**
+	 * RFID POS step: a pack (ItemType.PACKAGE) holds no tag: the POS sells a pack as its pieces (addKitToCart), so a tag
+	 * goes on each piece's own item. INVALID with the message for a pack.
+	 */
+	static void notAPack(Item item) {
+		if (item.getType() == ItemType.PACKAGE) {
+			throw new RfidException(Reason.INVALID, "The item " + item.getItemCode() + " is a pack: a pack holds no RFID tag."
+					+ " Link the tags to the items of its pieces.");
+		}
+	}
+
 	/** The item of this id; NOT_FOUND when there is none. */
 	Item item(Long itemId) {
 		if (itemId == null) {
@@ -107,6 +119,7 @@ public class RfidTagService {
 	public RfidTagDTO move(Long tagId, Long itemId) {
 		RfidTag tag = get(tagId);
 		Item item = item(itemId);
+		notAPack(item);
 		if (tag.getStatus() != RfidTagStatus.IN_STOCK) {
 			throw new RfidException(Reason.NOT_READY, "The tag " + tag.getEpc() + " is sold: it is not moved.");
 		}

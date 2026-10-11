@@ -258,6 +258,10 @@ Tests: `RfidTagServiceTest`, `RfidItemDeletionTest` (the real `ItemAPI`), `RfidT
 
 ### Tag assignment (`RfidAssignmentService`)
 
+**A pack holds no tag** (decision of 2026-10-11, RFID POS step): the POS sells a pack (`ItemType.PACKAGE`) as its pieces,
+so the read, the save and a move to a pack are refused, INVALID `The item <code> is a pack: a pack holds no RFID tag. Link
+the tags to the items of its pieces.` (`RfidTagService.notAPack`).
+
 **Read** (`POST /rfid-tag/assignment/read {readerId, itemId, expectedQuantity}`): the item exists and is active; the
 expected quantity none or 0 to 100000. The reader is read like a Test read (`RfidReadService.testRead`: the same
 refusals, inactive 409, busy 409, unreachable 503, error 502). The tags seen, each with its best signal, times seen and

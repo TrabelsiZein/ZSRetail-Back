@@ -111,6 +111,11 @@ class RfidTagServiceTest {
 		assertRefused(Reason.NOT_FOUND, "No RFID tag number 99.", () -> rfid.tagService.move(99L, jeans.getId()));
 		assertRefused(Reason.NOT_FOUND, "No item number 5.", () -> rfid.tagService.move(tag.getId(), 5L));
 		assertRefused(Reason.INVALID, "Choose an item.", () -> rfid.tagService.move(tag.getId(), null));
+		Item pack = rfid.items.item("PACK-1", 60.0, null);
+		pack.setType(com.digithink.zsretail.core.model.enumeration.ItemType.PACKAGE);
+		assertRefused(Reason.INVALID, "The item PACK-1 is a pack: a pack holds no RFID tag. Link the tags to the items of its"
+				+ " pieces.", () -> rfid.tagService.move(tag.getId(), pack.getId()));
+		assertEquals(jeans, tag.getItem(), "not moved to the pack");
 	}
 
 	@Test

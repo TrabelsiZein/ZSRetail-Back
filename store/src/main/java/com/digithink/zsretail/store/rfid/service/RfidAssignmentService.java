@@ -82,13 +82,14 @@ public class RfidAssignmentService {
 		this.clock = clock;
 	}
 
-	/** The item of an assignment: it exists and is active. */
+	/** The item of an assignment: it exists, is active and is not a pack. */
 	private Item activeItem(Long itemId) {
 		Item item = tagService.item(itemId);
 		if (!Boolean.TRUE.equals(item.getActive())) {
 			throw new RfidException(Reason.INVALID, "The item " + item.getItemCode() + " is inactive: tags are linked to"
 					+ " an active item.");
 		}
+		RfidTagService.notAPack(item);
 		return item;
 	}
 

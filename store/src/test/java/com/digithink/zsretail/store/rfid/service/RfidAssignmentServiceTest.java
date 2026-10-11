@@ -279,6 +279,18 @@ class RfidAssignmentServiceTest {
 	}
 
 	@Test
+	@DisplayName("A pack holds no tag: read and save refused with the message, nothing written, the reader not called")
+	void packRefused() {
+		Item pack = rfid.items.item("PACK-1", 60.0, null);
+		pack.setType(com.digithink.zsretail.core.model.enumeration.ItemType.PACKAGE);
+		String message = "The item PACK-1 is a pack: a pack holds no RFID tag. Link the tags to the items of its pieces.";
+		assertRefused(Reason.INVALID, message, () -> service.read(read(desk.getId(), pack.getId(), null)));
+		assertRefused(Reason.INVALID, message, () -> service.save(save(pack.getId(), "E200DDDD")));
+		assertTrue(device.calls.isEmpty());
+		assertTrue(rfid.tags.isEmpty());
+	}
+
+	@Test
 	@DisplayName("Save refused: no item, an inactive item, more than 5000 EPCs; an empty list links nothing")
 	void saveRefused() {
 		assertRefused(Reason.INVALID, "Choose an item.", () -> service.save(save(null, "E200DDDD")));
