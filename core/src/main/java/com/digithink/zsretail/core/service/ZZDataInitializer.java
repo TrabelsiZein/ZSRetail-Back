@@ -322,12 +322,13 @@ public class ZZDataInitializer {
 	static final Set<String> LICENSE_ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:admin-license"));
 
 	/**
-	 * RFID (3.1.0): the RFID readers and POS machines pages, on a store with rfid.enabled=true only: in ADMIN's set of a
+	 * RFID (3.1.0): the RFID pages (readers, POS machines, tags, tag assignment), on a store with rfid.enabled=true only: in ADMIN's set of a
 	 * new database, given to ADMIN at the first start with RFID on for a database of before. With RFID off nothing is
 	 * added (an EMTOP or Happyness role table does not change).
 	 */
 	static final Set<String> RFID_ADMIN_PERMISSIONS = new HashSet<>(
-			Arrays.asList("read:admin-rfid-readers", "read:admin-rfid-pos-machines"));
+			Arrays.asList("read:admin-rfid-readers", "read:admin-rfid-pos-machines", "read:admin-rfid-tags",
+					"read:admin-rfid-assignment"));
 
 	/** Store whose goods come from the head office (step 7A): the BL reception page; given to ADMIN at every start. */
 	static final Set<String> SUPPLY_ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:admin-holink-deliveries"));

@@ -586,6 +586,7 @@ public class DeliveryReceptionService {
 				row.setItemCode(line.getItemCode());
 				row.setItemName(line.getItemName());
 				row.setItemHere(line.getItemId() != null);
+				row.setItemId(line.getItemId());
 				row.setQuantitySent(line.getQuantitySent());
 				row.setQuantityReceived(line.getQuantityReceived());
 				row.setDifference(line.getQuantityReceived() == null ? null

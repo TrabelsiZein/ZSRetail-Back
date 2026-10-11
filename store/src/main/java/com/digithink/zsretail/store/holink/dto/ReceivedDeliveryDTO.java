@@ -61,6 +61,8 @@ public class ReceivedDeliveryDTO {
 		private String itemName;
 		/** False while the item is not in this store. */
 		private boolean itemHere;
+		/** RFID tags step: this store's item.id (the tag assignment of the line); null while the item is not here. */
+		private Long itemId;
 		private BigDecimal quantitySent; // 2.2.1: up to 3 decimals
 		private BigDecimal quantityReceived;
 		/** Received minus sent; null until confirmed. */

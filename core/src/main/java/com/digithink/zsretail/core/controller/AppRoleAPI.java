@@ -81,7 +81,7 @@ public class AppRoleAPI {
         "read:admin-company-information", "write:admin-company-information",
         "read:admin-license",
         // RFID (a store with rfid.enabled=true)
-        "read:admin-rfid-readers", "read:admin-rfid-pos-machines",
+        "read:admin-rfid-readers", "read:admin-rfid-pos-machines", "read:admin-rfid-tags", "read:admin-rfid-assignment",
         // Role management
         "read:admin-roles", "write:admin-roles", "delete:admin-roles",
         // Feature-level actions

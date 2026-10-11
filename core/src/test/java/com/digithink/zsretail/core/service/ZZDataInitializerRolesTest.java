@@ -305,9 +305,10 @@ class ZZDataInitializerRolesTest {
 		assertTrue(headOffice.get("ADMIN").getPermissions().contains("read:admin-headoffice-license"));
 	}
 
-	/** The RFID pages: ADMIN of a store with rfid.enabled=true only. */
+	/** The RFID pages (readers, POS machines, tags, tag assignment): ADMIN of a store with rfid.enabled=true only. */
 	private static final Set<String> RFID = new HashSet<>(
-			java.util.Arrays.asList("read:admin-rfid-readers", "read:admin-rfid-pos-machines"));
+			java.util.Arrays.asList("read:admin-rfid-readers", "read:admin-rfid-pos-machines", "read:admin-rfid-tags",
+					"read:admin-rfid-assignment"));
 
 	@Test
 	@DisplayName("RFID pages: ADMIN of a new store with rfid.enabled=true has them; a store of before gets them at its first start"

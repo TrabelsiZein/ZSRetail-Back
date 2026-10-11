@@ -274,6 +274,10 @@ nothing); a tag now on another item or sold, and a value that is not an EPC, are
 document) or `RECEPTION` (the delivery number, at most 30, and the line, both required, else 400). At most 5000 EPCs a
 save. One save at a time in the store (a lock around one transaction), the unique EPC as the last guard.
 
+**Reception**: each line of `GET /admin/deliveries/{id}` gives `itemId`, this store's item (null while the item is not
+here, with `itemHere` false): the tag button of the line opens the assignment on that item, the source `RECEPTION` with
+the delivery number and the line number (`DeliveryReceptionServiceTest`).
+
 Tests: `RfidAssignmentServiceTest` (the groups, weak, the refusals, the save rules, saving twice, a tag linked elsewhere
 between the read and the save, the reception source), `RfidTagAPITest`.
 
@@ -317,8 +321,9 @@ router guard (home) and the search bar hide them, like the other store-mode page
 
 ## Permissions (the front pages)
 
-Two role permissions, one per page: `read:admin-rfid-readers` (RFID readers) and `read:admin-rfid-pos-machines` (POS
-machines). Like the Licence page, ADMIN gets them without anyone ticking them (`ZZDataInitializer`,
+Four role permissions, one per page: `read:admin-rfid-readers` (RFID readers), `read:admin-rfid-pos-machines` (POS
+machines), `read:admin-rfid-tags` (Tags) and `read:admin-rfid-assignment` (Tag assignment, also the tag button of a
+delivery reception line). Like the Licence page, ADMIN gets them without anyone ticking them (`ZZDataInitializer`,
 `RFID_ADMIN_PERMISSIONS`), but only on a store with `rfid.enabled=true`: in ADMIN's set of a new database, and given to
 ADMIN at the first start with RFID on for a database of before (once; nothing else added or removed). With RFID off
 nothing is added, so an EMTOP or Happyness role table does not change. The Roles page lists them (group RFID) only when

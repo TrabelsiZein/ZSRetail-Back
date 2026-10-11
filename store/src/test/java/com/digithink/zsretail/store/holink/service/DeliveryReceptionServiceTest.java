@@ -155,6 +155,11 @@ class DeliveryReceptionServiceTest {
 		assertEquals(BigDecimal.valueOf(6), b001.getQuantitySent());
 		assertEquals(6.0, b001.getUnitCost());
 		assertNull(saved.getLines().get(1).getItemId(), "waits for its item, like a BL line");
+		// RFID tags step: the view of that line gives no item id (no tag assignment until the item is here)
+		ReceivedDeliveryDTO.Line waiting = reception.get(saved.getId()).get().getLines().get(1);
+		assertNull(waiting.getItemId());
+		assertFalse(waiting.isItemHere());
+		assertEquals(b001.getItemId(), reception.get(saved.getId()).get().getLines().get(0).getItemId());
 		ReceivedDeliveryLine transport = saved.getLines().get(2);
 		assertEquals(ReceivedLineType.OTHER, transport.getLineType());
 		assertEquals("", transport.getItemCode());
@@ -217,6 +222,9 @@ class DeliveryReceptionServiceTest {
 		assertEquals(30.0, row.getLineTotal(), "5 received x 6");
 		assertEquals(36.0, row.getLineAmount());
 		assertEquals(BigDecimal.valueOf(-1), row.getDifference());
+		// RFID tags step: the line gives this store's item id (the tag assignment of the line); null while not here
+		assertTrue(row.isItemHere());
+		assertEquals(b001.getId(), row.getItemId());
 	}
 
 	/** A paid line as BC gives it: unit price before discount, the line discount, amount = quantity x net. */
