@@ -46,7 +46,7 @@ class ZZDataInitializerRolesTest {
 			"read:admin-headoffice-item-barcodes", "read:admin-headoffice-promotions", "read:admin-headoffice-customers",
 			"read:admin-headoffice-loyalty-programs", "read:admin-headoffice-loyalty-members",
 			"read:admin-headoffice-loyalty-member-functions", "read:admin-headoffice-loyalty-transactions",
-			"read:admin-headoffice-company-information", "read:admin-headoffice-general-setup",
+			"read:admin-headoffice-company-information", "read:admin-headoffice-license", "read:admin-headoffice-general-setup",
 			"read:admin-headoffice-users", "read:admin-headoffice-roles", "read:admin-headoffice-data-import",
 			"read:admin-headoffice-erp-jobs", "read:admin-headoffice-erp-communications",
 			"read:admin-headoffice-erp-reference-location", "read:admin-headoffice-loyalty-overspends",
@@ -280,9 +280,34 @@ class ZZDataInitializerRolesTest {
 		assertEquals(expected, existing.get("ADMIN").getPermissions());
 	}
 
+	/** The Licence page of a store (the licence upload, also while the licence is blocked). */
+	private static final String LICENSE = "read:admin-license";
+
 	@Test
-	@DisplayName("Stores (standalone and ERP profiles, with and without headoffice.url) with existing roles: with an ERP nothing"
-			+ " is saved or changed; without, ADMIN receives only the inventory count pages, once; other roles untouched")
+	@DisplayName("Licence page: ADMIN of a new store has it, and of a new head office the head office one; a store and a head office"
+			+ " of before (EMTOP, Happyness) get it at their first start, without anything else changed")
+	void licensePageGivenToAdmin() throws Exception {
+		assertTrue(staticSet("ADMIN_PERMISSIONS").contains(LICENSE), "new store database");
+		assertTrue(staticSet("HEAD_OFFICE_ADMIN_PERMISSIONS").contains("read:admin-headoffice-license"), "new head office database");
+		assertFalse(staticSet("RESPONSIBLE_PERMISSIONS").contains(LICENSE), "an admin page");
+
+		// A store of before (ERP profile, as EMTOP): its ADMIN role has company information but no Licence page
+		Map<String, AppRole> store = existingRoles("read:home", "read:admin-company-information");
+		List<String> saves = new ArrayList<>();
+		seedRoles(new MockEnvironment(), false, store, saves);
+		assertEquals(Collections.singletonList("ADMIN"), saves);
+		assertEquals(new HashSet<>(java.util.Arrays.asList("read:home", "read:admin-company-information", LICENSE)),
+				store.get("ADMIN").getPermissions());
+
+		// A head office of before (as Happyness): read:admin-headoffice-license with the other missing head office pages
+		Map<String, AppRole> headOffice = existingRoles("read:home", "read:admin-headoffice-company-information");
+		seedRoles(headOffice(), false, headOffice, new ArrayList<>());
+		assertTrue(headOffice.get("ADMIN").getPermissions().contains("read:admin-headoffice-license"));
+	}
+
+	@Test
+	@DisplayName("Stores (standalone and ERP profiles, with and without headoffice.url) with existing roles: ADMIN receives the"
+			+ " Licence page and, without an ERP, the inventory count pages, once; nothing else; other roles untouched")
 	void storeExistingRolesUntouched() throws Exception {
 		MockEnvironment linked = new MockEnvironment()
 				.withProperty("headoffice.url", "http://localhost:888/zsretail/api")
@@ -295,13 +320,11 @@ class ZZDataInitializerRolesTest {
 				List<String> saves = new ArrayList<>();
 				seedRoles(env, flags[0], existing, saves);
 
-				Set<String> expected = new HashSet<>(Collections.singleton("read:home"));
+				Set<String> expected = new HashSet<>(java.util.Arrays.asList("read:home", LICENSE));
 				if (flags[0]) {
 					expected.addAll(INVENTORY);
-					assertEquals(Collections.singletonList("ADMIN"), saves);
-				} else {
-					assertTrue(saves.isEmpty(), "saved: " + saves);
 				}
+				assertEquals(Collections.singletonList("ADMIN"), saves);
 				assertEquals(expected, existing.get("ADMIN").getPermissions(), "nothing else added or removed");
 				assertEquals(Collections.singleton("read:home"), existing.get("RESPONSIBLE").getPermissions());
 				assertEquals(Collections.singleton("read:home"), existing.get("POS_USER").getPermissions());
@@ -337,7 +360,7 @@ class ZZDataInitializerRolesTest {
 		seedRoles(suppliedStore(), true, existing, topUp);
 		assertEquals(Collections.singletonList("ADMIN"), topUp);
 		Set<String> toppedUp = new HashSet<>(java.util.Arrays.asList("read:home", "read:admin-holink-status",
-				"read:admin-holink-deliveries"));
+				"read:admin-holink-deliveries", LICENSE));
 		toppedUp.addAll(INVENTORY);
 		assertEquals(toppedUp, existing.get("ADMIN").getPermissions(), "nothing else added or removed");
 		assertEquals(Collections.singleton("read:home"), existing.get("RESPONSIBLE").getPermissions());

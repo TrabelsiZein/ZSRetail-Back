@@ -30,7 +30,7 @@
 - **`ZZDataInitializer.java`** — Injects `CompanyInformationService`, calls `companyInformationService.ensureExists()` on startup
 
 ### Frontend — New Files
-- **`src/views/admin/CompanyInformation.vue`** — Admin page with 6 sections (Identity, Logo, Address, Contact, Banking, Documents). Logo upload: drag & drop or click, 2 MB limit, stores as base64. Save button calls `PUT /company-info` and refreshes the Vuex store. Reset button reverts to last loaded state.
+- **`src/views/admin/CompanyInformation.vue`** — Admin page with 6 sections (Identity, Logo, Address, Contact, Banking, Documents). Logo upload: drag & drop or click, 2 MB limit, stores as base64. Save button calls `PUT /company-info` and refreshes the Vuex store. Reset button reverts to last loaded state. The licence card it held moved to its own page in 2.3.0 (`licensing.md`). On a head office whose stores' invoices come from the ERP (`headoffice.supply.source=ERP`) the page is hidden (menu, guard, Roles page: `meta.ownSupply`); a head office that makes its own invoices keeps it (`HoSupplyInvoiceService` reads the seller from it); a store always has it.
 
 ### Frontend — Modified Files
 - **`src/store/app-config/index.js`** — Added `companyInfo` state object, `UPDATE_COMPANY_INFO` mutation, `companyInfo` getter, `fetchCompanyInfo` action (`GET /company-info`)

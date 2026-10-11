@@ -79,6 +79,7 @@ public class AppRoleAPI {
         "read:admin-report-sessions",
         "read:admin-report-promotions",
         "read:admin-company-information", "write:admin-company-information",
+        "read:admin-license",
         // Role management
         "read:admin-roles", "write:admin-roles", "delete:admin-roles",
         // Feature-level actions

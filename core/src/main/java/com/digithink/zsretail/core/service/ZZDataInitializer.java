@@ -152,16 +152,15 @@ public class ZZDataInitializer {
 		if (applicationModeService.isHeadOffice()) {
 			addMissingPermissions(adminRole, HEAD_OFFICE_ADMIN_PERMISSIONS);
 		} else {
-			Set<String> wanted = new HashSet<>();
+			// The Licence page: a database of before it gets it at its first start, so an admin keeps the licence upload
+			Set<String> wanted = new HashSet<>(LICENSE_ADMIN_PERMISSIONS);
 			if (applicationModeService.isSupplyFromHeadOffice()) {
 				wanted.addAll(SUPPLY_ADMIN_PERMISSIONS); // step 7A: the BL reception page
 			}
 			if (!applicationModeService.isSupplyFromErp()) {
 				wanted.addAll(INVENTORY_ADMIN_PERMISSIONS); // inventory count: a store that keeps its own stock
 			}
-			if (!wanted.isEmpty()) {
-				addMissingPermissions(adminRole, wanted);
-			}
+			addMissingPermissions(adminRole, wanted);
 		}
 		// Release 2.2: a head office has no till and no store manager: only ADMIN is created there. A head office database
 		// that already has RESPONSIBLE and POS_USER keeps them as they are (nothing is deleted or changed).
@@ -207,7 +206,8 @@ public class ZZDataInitializer {
 	/**
 	 * Head office: gives the ADMIN role every head office permission it lacks (a page added by a later step, or a
 	 * database created before), so they are never ticked by hand. Step 7A: the same on a store whose goods come from the
-	 * head office, for its BL reception page only. Removes nothing, saves only when one is missing.
+	 * head office, for its BL reception page only; on every store, the Licence page. Removes nothing, saves only when one
+	 * is missing.
 	 */
 	private void addMissingPermissions(AppRole adminRole, Set<String> wanted) {
 		if (adminRole.getPermissions().containsAll(wanted)) {
@@ -225,8 +225,8 @@ public class ZZDataInitializer {
 	 * link" page (docs/modules/head-office.md) and, when its goods come from the head office, the BL reception page.
 	 * A store's ADMIN may also open the till (read:cashier-interface, the frontend's "POS" button); a head office never.
 	 * A store that keeps its own stock (the supply is not the ERP's) adds the inventory count pages.
-	 * Used when the role is created; afterwards a head office tops up its ADMIN role, and a store its BL reception page
-	 * (goods from the head office) and its inventory count pages (stock kept here) only (addMissingPermissions); other
+	 * Used when the role is created; afterwards a head office tops up its ADMIN role, and a store its Licence page, its BL
+	 * reception page (goods from the head office) and its inventory count pages (stock kept here) only (addMissingPermissions); other
 	 * roles and permissions are never changed.
 	 */
 	private Set<String> adminPermissions() {
@@ -270,7 +270,8 @@ public class ZZDataInitializer {
 			"read:admin-headoffice-loyalty-members",
 			"read:admin-headoffice-loyalty-member-functions",
 			"read:admin-headoffice-loyalty-transactions",
-			"read:admin-headoffice-company-information",
+			"read:admin-headoffice-company-information", // hidden when the stores' invoices come from the ERP
+			"read:admin-headoffice-license", // the Licence page (the licence left Company information)
 			"read:admin-headoffice-general-setup",
 			"read:admin-headoffice-users",
 			"read:admin-headoffice-roles",
@@ -307,6 +308,13 @@ public class ZZDataInitializer {
 	static final Set<String> INVENTORY_ADMIN_PERMISSIONS = new HashSet<>(
 			Arrays.asList("read:admin-inventory-counts", "write:admin-inventory-counts"));
 
+	/**
+	 * Every store: the Licence page (the licence upload, also reached while the licence is blocked); in ADMIN_PERMISSIONS
+	 * for a new database, given to ADMIN at every start for a database of before. A head office has its own,
+	 * read:admin-headoffice-license.
+	 */
+	static final Set<String> LICENSE_ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:admin-license"));
+
 	/** Store whose goods come from the head office (step 7A): the BL reception page; given to ADMIN at every start. */
 	static final Set<String> SUPPLY_ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:admin-holink-deliveries"));
 
@@ -327,7 +335,7 @@ public class ZZDataInitializer {
 			"write:admin-data-import", "read:admin-report-sales", "read:admin-report-purchases",
 			"read:admin-report-stock", "read:admin-report-stock-movements", "read:admin-report-loyalty",
 			"read:admin-report-sessions", "read:admin-report-promotions",
-			"read:admin-company-information", "write:admin-company-information", "read:admin-roles",
+			"read:admin-company-information", "write:admin-company-information", "read:admin-license", "read:admin-roles",
 			"write:admin-roles", "delete:admin-roles", "read:change-payment-method", "read:view-session-amounts",
 			"read:verify-session", "read:prepare-invoice"));
 

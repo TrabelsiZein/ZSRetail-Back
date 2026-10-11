@@ -54,7 +54,7 @@ Frontend: since task 1.6 a head office has only its own routes (see "Head office
 | Store | head office route | `home` |
 | Store | Head office link page without `headoffice.url` | `home` (task 1.5, unchanged) |
 
-- The later guard steps read `to.meta.twinOf || to.name`, so a twin follows the rules of its store route. The license exception covers the company information twin, which holds the license upload. "Standalone only" sends data import home on a head office without `application.standalone=true`.
+- The later guard steps read `to.meta.twinOf || to.name`, so a twin follows the rules of its store route. The license exception covers the Licence twin, which holds the license upload. "Standalone only" sends data import home on a head office without `application.standalone=true`.
 - Store routes and the store menu entries are unchanged. The Stores route moved from `/admin/headoffice/stores` to `/headoffice/stores`; the old address shows the 404 page. The backend API keeps `/admin/headoffice/stores`.
 - `HEAD_OFFICE_HIDDEN_ROUTES` and `HEAD_OFFICE_ONLY_ROUTES` (tasks 1.1, 1.2) are gone.
 
@@ -78,7 +78,8 @@ Frontend: since task 1.6 a head office has only its own routes (see "Head office
 | Customers & loyalty | Member functions (required to enrol a member) | `admin-headoffice-loyalty-member-functions` | `/headoffice/loyalty/member-functions` | `admin-loyalty-member-functions` |
 | Customers & loyalty | Loyalty transactions (empty until step 4) | `admin-headoffice-loyalty-transactions` | `/headoffice/loyalty/transactions` | `admin-loyalty-transactions` |
 | Customers & loyalty | Loyalty overspends (step 5) | `admin-headoffice-loyalty-overspends` | `/headoffice/loyalty/overspends` | none (head office only) |
-| Settings | Company information and license | `admin-headoffice-company-information` | `/headoffice/settings/company-information` | `admin-company-information` |
+| Settings | Company information (hidden when the stores' invoices come from the ERP, `meta.ownSupply`: only a head office that makes its own supply invoices reads its seller there) | `admin-headoffice-company-information` | `/headoffice/settings/company-information` | `admin-company-information` |
+| Settings | Licence (status, upload, history; reached while the licence is blocked) | `admin-headoffice-license` | `/headoffice/settings/license` | `admin-license` |
 | Settings | General setup | `admin-headoffice-general-setup` | `/headoffice/settings/general-setup` | `admin-general-setup` |
 | Settings | Users | `admin-headoffice-users` | `/headoffice/settings/users` | `admin-users` |
 | Settings | Roles | `admin-headoffice-roles` | `/headoffice/settings/roles` | `admin-roles` |
@@ -2255,7 +2256,7 @@ status | set-key | reset`.
 - Frontend: no test runner; the guard, the home helper, the menu filter, the Network group and the Roles page filter are checked with a Node script during the task, and by L2.
 - Frontend (task 1.6): eslint on the changed files and `npm run build` (the eslint plugin on), both clean. A Node script (not committed, 274 checks) loads the real router, with `.vue` files and the JWT module stubbed:
   - **Store:** the new router against the router of the previous commit. For 4 users × 16 configurations (standalone, pricing group, head office link, license) × 70 targets (4,480 navigations), the outcome is the same everywhere except the head office paths. `/headoffice/...` now goes home (a cashier then goes on to the POS) instead of the 404 page, and `/admin/headoffice/stores` is now the 404 page. Store route definitions and store menu entries are unchanged.
-  - **Head office:** each store route goes to its twin or home, with params, query and hash kept. Common pages stay. Each head office route opens. Without the permission the user gets not-authorized. License blocked: the license screen, with the company information twin still allowed. Not standalone: data import goes home. No cashier session check.
+  - **Head office:** each store route goes to its twin or home, with params, query and hash kept. Common pages stay. Each head office route opens. Without the permission the user gets not-authorized. License blocked: the license screen, with the Licence twin still allowed. Not standalone: data import goes home. No cashier session check.
   - **Menu:** every route has one link, with the route's permission, in both menu shapes. The search entries, quick links and Roles groups are checked, and the frontend permission list equals the backend one.
   - **Also:** the i18n keys in en, fr and ar; the layout from `nodeType`, including a `/config` failure; the popup mixin (messages, skipped cases, listener removed); the wiring, with `LayoutVertical.vue` unchanged.
 
