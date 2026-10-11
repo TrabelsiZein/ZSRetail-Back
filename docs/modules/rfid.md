@@ -9,7 +9,7 @@ store's database.
 | Part | State |
 |---|---|
 | Back end: the switch, the readers and POS machines, the Hopeland reader, the reads, the endpoints | done (RFID steps 1 to 9) |
-| Front: the RFID readers page, the POS machines page with "Add this machine" | next |
+| Front: the RFID menu, the Readers page, the POS machines page with "Add this machine" | done (below, "The front pages") |
 | Later: the tags table (one tag = one piece, in stock / sold, linked to an item), the tag assignment screen and its button on the reception lines (`hol_delivery_line`), the RFID button of the POS (`ItemSelection.vue`), the sale and the return updating the tag status | not started |
 
 **Package map** (store project, `com.digithink.zsretail.store.rfid`): `model` (`RfidReader`, `PosMachine`), `repository`,
@@ -216,6 +216,37 @@ Create, update and delete are the controllers' own (a broken rule answers 400 or
 main code of every project, and only the store's pom takes `rfid-reader-api`.
 
 Tests: `RfidReaderAPITest`, `PosMachineAPITest`, `RfidAPITest` (standalone `MockMvc`, `RfidMvc`).
+
+## The front pages (ZSRetail-Front)
+
+A store menu **RFID** (after Inventory, icon Radio) with two pages, only when `GET /config` `rfidEnabled` is true
+(never on a head office: its menu is its own, and the getter `appConfig/rfidEnabled` is false there).
+`RFID_ROUTES` (`navigation/store-mode-routes.js`): the menu (`VerticalNavMenu`, the group removed when empty), the
+router guard (home) and the search bar hide them, like the other store-mode pages.
+
+| Route | Path | Page | Permission |
+|---|---|---|---|
+| `admin-rfid-readers` | `/admin/rfid/readers` | `views/admin/rfid/RfidReaders.vue` | `read:admin-rfid-readers` |
+| `admin-rfid-pos-machines` | `/admin/rfid/pos-machines` | `views/admin/rfid/RfidPosMachines.vue` | `read:admin-rfid-pos-machines` |
+
+- **Readers**: the list (name, IP address, port, power, reading time, active), add / edit (a modal; the back end's
+  message shown in it as it comes) / delete (a refusal in a toast, e.g. a reader still used by POS machines). Per
+  reader: **Test connection** (a spinner, then under the buttons "Connected in N ms: <information>" in green, or the
+  error in red) and **Test read** (`components/admin/rfid/RfidReadModal.vue`: reads at once, a spinner, then the tags,
+  EPC, best signal, times seen, how many different tags and the duration, or the error; **Read again**). Test read is
+  off for an inactive reader.
+- **POS machines**: the list (name, IP address, its reader with its address), add / edit / delete, the reader chosen in
+  a dropdown of the active readers (the machine's own reader stays in it when it became inactive). At the top, **This
+  PC** from `GET /rfid/my-machine`: the address the back end sees, its POS machine and reader and "Ready to read", or
+  why it cannot read; **Add this machine** (when no machine has that address) opens the add form with the address
+  filled in. From the dev server the address is `127.0.0.1` (the browser calls the back end on the same PC).
+- Every request passes `skipErrorPopup` (`components/admin/rfid/rfid-api.js`, timeout 30 s): the page shows the back
+  end's `{"error"}` itself, once.
+- Labels: `admin.rfid.*` in en, fr, ar, de, pt (Reader / Lecteur / قارئ / Lesegerät / Leitor; POS machine / Poste de
+  caisse / جهاز نقطة البيع / Kassenplatz / Posto de caixa; Tag / Étiquette / وسم / Tag / Etiqueta). The Roles page
+  (fixed French labels, like its other groups): group RFID, "Lecteurs RFID", "Postes de caisse RFID", only when
+  `rfidEnabled`.
+- The POS screens (`src/views/pos`) do not read RFID yet.
 
 ## Permissions (the front pages)
 
