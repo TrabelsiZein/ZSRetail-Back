@@ -1,6 +1,10 @@
 package com.digithink.zsretail.store.support;
 
 import java.lang.reflect.Field;
+import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -10,23 +14,35 @@ import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+
 import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.support.InMemoryItems;
 import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.store.rfid.model.PosMachine;
 import com.digithink.zsretail.store.rfid.model.RfidReader;
+import com.digithink.zsretail.store.rfid.model.RfidTag;
+import com.digithink.zsretail.store.rfid.model.RfidTagStatus;
 import com.digithink.zsretail.store.rfid.repository.PosMachineRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidReaderRepository;
+import com.digithink.zsretail.store.rfid.repository.RfidTagRepository;
 import com.digithink.zsretail.store.rfid.service.PosMachineService;
 import com.digithink.zsretail.store.rfid.service.RfidReaderService;
+import com.digithink.zsretail.store.rfid.service.RfidTagService;
 
 /**
- * Test support, RFID step 3: the two RFID tables of one store in memory (the repositories the services call) and the
- * real services over them, the logged user "tester". No Spring context, no transaction.
+ * Test support, RFID step 3: the RFID tables of one store in memory (the repositories the services call) and the
+ * real services over them, the logged user "tester". No Spring context, no transaction. RFID tags step: the tags table
+ * and the store's items (InMemoryItems, ids from 1000).
  */
 public final class InMemoryRfid {
 
 	public final Map<Long, RfidReader> readers = new LinkedHashMap<>();
 	public final Map<Long, PosMachine> machines = new LinkedHashMap<>();
+	public final Map<Long, RfidTag> tags = new LinkedHashMap<>();
+	public final InMemoryItems items = new InMemoryItems(1000);
+	public LocalDateTime now = LocalDateTime.of(2026, 10, 12, 10, 0);
 	private long nextId = 1;
 
 	public final RfidReaderRepository readerRepository = proxy(RfidReaderRepository.class, (method, args) -> {
@@ -76,6 +92,41 @@ public final class InMemoryRfid {
 		}
 	});
 
+	public final RfidTagRepository tagRepository = proxy(RfidTagRepository.class, (method, args) -> {
+		switch (method) {
+		case "save":
+			return save(tags, (RfidTag) args[0]);
+		case "findById":
+			return Optional.ofNullable(tags.get(args[0]));
+		case "deleteById":
+			tags.remove(args[0]);
+			return null;
+		case "findByEpc":
+			return tags.values().stream().filter(t -> t.getEpc().equals(args[0])).findFirst();
+		case "findByEpcIn":
+			return tags.values().stream().filter(t -> ((Collection<?>) args[0]).contains(t.getEpc()))
+					.collect(Collectors.toList());
+		case "countByItem_Id":
+			return tags.values().stream().filter(t -> t.getItem().getId().equals(args[0])).count();
+		case "search": {
+			Pageable page = (Pageable) args[3];
+			List<RfidTag> found = tags.values().stream()
+					.filter(t -> args[0] == null || t.getItem().getId().equals(args[0]))
+					.filter(t -> args[1] == null || t.getStatus() == (RfidTagStatus) args[1])
+					.filter(t -> args[2] == null || t.getEpc().contains((String) args[2]))
+					.sorted(Comparator.comparing(RfidTag::getId).reversed()).collect(Collectors.toList());
+			int from = (int) Math.min(page.getOffset(), found.size());
+			int to = Math.min(from + page.getPageSize(), found.size());
+			return new PageImpl<>(found.subList(from, to), page, found.size());
+		}
+		default:
+			throw new UnsupportedOperationException(method);
+		}
+	});
+
+	public final RfidTagService tagService = new RfidTagService(tagRepository, items.itemRepository(), () -> "tester",
+			() -> now);
+
 	public final RfidReaderService readerService = user(new RfidReaderService(readerRepository, machineRepository));
 	public final PosMachineService machineService = user(new PosMachineService(machineRepository, readerRepository));
 
@@ -90,6 +141,15 @@ public final class InMemoryRfid {
 		} catch (Exception e) {
 			throw new IllegalStateException(e);
 		}
+	}
+
+	/** A tag in the table: this EPC (as kept) on this item, with this status. */
+	public RfidTag tag(String epc, com.digithink.zsretail.core.model.Item item, RfidTagStatus status) {
+		RfidTag tag = new RfidTag();
+		tag.setEpc(epc);
+		tag.setItem(item);
+		tag.setStatus(status);
+		return save(tags, tag);
 	}
 
 	/** A machine saved through the service, with this reader (null: none). */

@@ -28,7 +28,7 @@ final class RfidMvc {
 		PosMachineAPI machines = new PosMachineAPI();
 		service(readers, rfid.readerService);
 		service(machines, rfid.machineService);
-		mvc = MockMvcBuilders.standaloneSetup(new RfidAPI(reads), readers, machines).build();
+		mvc = MockMvcBuilders.standaloneSetup(new RfidAPI(reads), readers, machines, new RfidTagAPI(rfid.tagService)).build();
 	}
 
 	/** A request from this address, as Tomcat gives it, asking JSON like the frontend (axios). */

@@ -217,6 +217,37 @@ main code of every project, and only the store's pom takes `rfid-reader-api`.
 
 Tests: `RfidReaderAPITest`, `PosMachineAPITest`, `RfidAPITest` (standalone `MockMvc`, `RfidMvc`).
 
+## Tags (RFID tags step)
+
+`rfid_tag` (`RfidTag`), one row per tag, one piece of an item of the store; created by `db/3.1.0/update.sql` on a store
+database only, like the other two tables:
+
+| Column | Type | Rule |
+|---|---|---|
+| `epc` | varchar(128) NOT NULL, `uk_rfid_tag_epc` | unique; kept trimmed, upper case, hexadecimal digits only, at most 128 (`RfidTagService.normaliseEpc`) |
+| `item_id` | bigint NOT NULL, `fk_rfid_tag_item` → `item`, `ix_rfid_tag_item` | the item of the piece |
+| `status` | varchar(10) NOT NULL, `ix_rfid_tag_status` | `IN_STOCK` (at its assignment) or `SOLD` (set by the sale, a later step) |
+| `source_type` | varchar(10) NOT NULL | `MANUAL` (the Tag assignment page) or `RECEPTION` (a delivery reception line) |
+| `source_document`, `source_line` | varchar(30), int NULL | the delivery number and line of a reception |
+| `sold_at`, `ticket_number` | datetime2, varchar(100) NULL | filled by the sale (a later step): when, and `sales_header.sales_number` |
+
+Plus the `_BaseEntity` columns (`created_by` is who assigned the tag).
+
+**The Tags page** (`RfidTagService`, `RfidTagAPI`, `/rfid-tag`): a page of tags newest first with each tag's item, the
+filters item, status, a part of the EPC (any case). **Move** a tag to another item: an explicit action, `IN_STOCK` tags
+only (`SOLD`: 409 `The tag <epc> is sold: it is not moved.`). **Delete**: `IN_STOCK` tags only (decision of 2026-10-11:
+a `SOLD` tag is the record of the piece sold: 409 `... it is kept as the record of the piece sold.`). A tag is never
+created by these endpoints: only an assignment creates one.
+
+**An item with tags is not deleted**: `DELETE /item/{id}` asks the core hook `ItemDeletionCheck` (any bean; none by
+default); RFID's `RfidItemDeletionCheck` answers 409 `This item has N RFID tags: move them to another item or delete
+them first (RFID, Tags page).`, instead of the foreign key error (decision of 2026-10-11). Only a local item can be
+deleted on a store: a head office or ERP item is made inactive, never deleted. With RFID turned off after tags were
+assigned, the check does not exist and the database's foreign key refuses the deletion (500 with its message, as for an
+item used in sales).
+
+Tests: `RfidTagServiceTest`, `RfidItemDeletionTest` (the real `ItemAPI`), `RfidTagAPITest`.
+
 ## The front pages (ZSRetail-Front)
 
 A store menu **RFID** (after Inventory, icon Radio) with two pages, only when `GET /config` `rfidEnabled` is true

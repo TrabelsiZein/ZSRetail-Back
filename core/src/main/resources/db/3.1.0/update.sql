@@ -9,7 +9,8 @@
 --   3) Deploy the WAR of the installation's type as zsretailws.war (docs/deploy-note.md).
 -- The application refuses to start while APP_VERSION differs from its own version, so step 2 must be done before 3.
 --
--- Schema, RFID (docs/modules/rfid.md): two new tables on a store, created here (re-runnable: only when missing) with
+-- Schema, RFID (docs/modules/rfid.md): three new tables on a store (rfid_reader, pos_machine, rfid_tag), created here
+-- (re-runnable: only when missing) with
 -- the names and types Hibernate uses, so ddl-auto finds them complete. They exist, empty, on every store, whatever
 -- rfid.enabled; a head office database (it has ho_store) never gets them.
 --
@@ -72,6 +73,34 @@ BEGIN
 		CONSTRAINT fk_pos_machine_reader FOREIGN KEY (reader_id) REFERENCES rfid_reader (id)
 	);
 	CREATE INDEX ix_pos_machine_reader ON pos_machine (reader_id);
+END
+GO
+
+-- RFID tags step: one row per tag, one piece of an item of the store (a store only; the item a foreign key: an item
+-- with tags is not deleted, the application says so before the database does)
+IF OBJECT_ID(N'ho_store', N'U') IS NULL AND OBJECT_ID(N'rfid_tag', N'U') IS NULL
+BEGIN
+	CREATE TABLE rfid_tag (
+		id bigint IDENTITY(1,1) NOT NULL,
+		active bit NULL,
+		created_at datetime2 NULL,
+		created_by varchar(255) NULL,
+		updated_at datetime2 NULL,
+		updated_by varchar(255) NULL,
+		epc varchar(128) NOT NULL,
+		item_id bigint NOT NULL,
+		status varchar(10) NOT NULL,
+		source_type varchar(10) NOT NULL,
+		source_document varchar(30) NULL,
+		source_line int NULL,
+		sold_at datetime2 NULL,
+		ticket_number varchar(100) NULL,
+		CONSTRAINT PK_rfid_tag PRIMARY KEY (id),
+		CONSTRAINT uk_rfid_tag_epc UNIQUE (epc),
+		CONSTRAINT fk_rfid_tag_item FOREIGN KEY (item_id) REFERENCES item (id)
+	);
+	CREATE INDEX ix_rfid_tag_item ON rfid_tag (item_id);
+	CREATE INDEX ix_rfid_tag_status ON rfid_tag (status);
 END
 GO
 

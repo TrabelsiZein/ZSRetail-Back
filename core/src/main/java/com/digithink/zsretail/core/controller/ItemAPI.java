@@ -42,6 +42,7 @@ import com.digithink.zsretail.core.service.CustomerService;
 import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.core.service.ItemBarcodeService;
 import com.digithink.zsretail.core.service.ItemCompositionService;
+import com.digithink.zsretail.core.service.ItemDeletionCheck;
 import com.digithink.zsretail.core.service.ItemService;
 import com.digithink.zsretail.core.service.PricingService;
 import com.digithink.zsretail.core.utils.Quantities;
@@ -82,6 +83,19 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	/** Step 6: the rules of a store whose catalogue is the head office's; no bean on every other installation. */
 	@Autowired(required = false)
 	private ObjectProvider<CatalogueEditGuard> catalogueGuard;
+
+	/** What else holds an item and refuses its deletion (RFID: its tags); none by default. */
+	@Autowired(required = false)
+	private ObjectProvider<ItemDeletionCheck> deletionChecks;
+
+	/** The first refusal of the deletion checks (ItemDeletionCheck); null when none holds the item. */
+	private String deletionRefusal(Long id) {
+		if (deletionChecks == null) {
+			return null;
+		}
+		return deletionChecks.orderedStream().map(check -> check.refusal(id)).filter(java.util.Objects::nonNull).findFirst()
+				.orElse(null);
+	}
 
 	/** The step 6 guard, or null: then every request runs exactly as before. */
 	private CatalogueEditGuard catalogueGuard() {
@@ -224,7 +238,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	}
 
 	/**
-	 * Delete item. Refused when the catalogue comes from an ERP.
+	 * Delete item. Refused when the catalogue comes from an ERP; 409 when something holds it (ItemDeletionCheck: RFID tags).
 	 */
 	@Override
 	@DeleteMapping("/{id}")
@@ -242,6 +256,10 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			CatalogueEditGuard guard = catalogueGuard();
 			if (guard != null && guard.itemWrite(id) != null) { // step 6
 				return refused(guard.itemWrite(id));
+			}
+			String held = deletionRefusal(id); // RFID: an item with tags
+			if (held != null) {
+				return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(held));
 			}
 			// Kit components block deletion (FK); a kit's own recipe is deleted with it
 			if (!itemCompositionService.getCompositionsByComponentItemId(id).isEmpty()) {
