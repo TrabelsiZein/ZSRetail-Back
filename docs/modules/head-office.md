@@ -849,7 +849,7 @@ Data the head office owns reaches its stores as copies down (design 2.3): the st
 - `CopiesDownFeed.recordChange(domain, code, stores)`, called inside the writer's transaction (`Propagation.MANDATORY`): increments the domain's number (`update ... set last_version = last_version + 1`, the row stays locked until the commit, so one domain's numbers are given in commit order), then moves the rows of the stores concerned to it. A change of targets passes the old and the new stores together (`StoreTargets.union`): a store taken off gets the code as removed.
 - "Changed" covers created, edited, activated or deactivated, deleted, and targets changed: each is one `recordChange`.
 - **Cursor**: the change number, made from the head office data only; never a clock. A pull reads the domain's committed number first (the horizon), then the codes changed for the store (its rows and the every-store rows) after the cursor and up to the horizon, oldest first. A change committed during the pull has a higher number and comes with the next pull. A cursor above the horizon (head office database restored) starts again from 0.
-- Startup (`ApplicationReadyEvent`): each served domain gets its sequence row, and each existing record without a change row gets one with its targets (backfill: promotions created before step 3 reach every store). Step 6 (a catalogue holds thousands of records): the records without a row are written in chunks of 500 (`CopiesDownFeed.BACKFILL_CHUNK`), each chunk in its own transaction with one update of the sequence (`HoDownSequenceRepository.incrementBy`); each record still gets its own number in the order of `currentTargets`, so the rows are exactly those of one `recordChange` per record (`CopiesDownFeedTest.backfillGivesTheSameRowsAsBefore`, promotions and loyalty). A start stopped in the middle goes on at the next start.
+- Startup (`ApplicationReadyEvent`): each served domain gets its sequence row, and each existing record without a change row gets one with its targets (backfill: promotions created before step 3 reach every store). Step 6 (a catalogue holds thousands of records): the records without a row are written in chunks of 500 (`CopiesDownFeed.BACKFILL_CHUNK`), each chunk in its own transaction with one update of the sequence (`HoDownSequenceRepository.incrementBy`); each record still gets its own number in the order of `currentTargets`, so the rows are exactly those of one `recordChange` per record (`CopiesDownFeedTest.backfillGivesTheSameRowsAsBefore`, promotions and loyalty). A start stopped in the middle goes on at the next start. On a head office whose catalogue comes from the ERP, the catalogue's targets of an ERP item and its barcodes are the stores of its points (none: no row; "Stock points", stock point copies step 4).
 - One `DownDomainProvider` per domain: `load(store, codes)` answers the copy of each code that exists and is addressed to the store; any other code is answered as removed.
 
 **`GET /ho/down/{domain}?cursor=&limit=`** (`HeadOfficeDownAPI`, `/ho/**` chain: store key, then license). `domain` any case (`promotions`). `cursor` blank for the first pull. `limit` codes per page, default 100, at most 500 (0 or less: 100).
@@ -1353,6 +1353,8 @@ records its barcodes, `TAX_STAMP` is never recorded.
   records the persistence context is flushed and cleared, so each query of the recording does not re-check the rows the
   import loaded.
 - No hooks bean, or a null or empty list: nothing recorded, the sequence untouched.
+- Since stock point copies step 4, the items and barcodes go in one bulk recording per list, for the stores of their
+  points ("Stock points"); the families and sub-families keep one `afterSave` per record.
 - Lock and pulls: the head office databases do not use read-committed snapshot, so a store's pull (`GET /ho/down`, read-only
   transaction of 15 s) waits on the sequence row while a batch records, and fails if the recording lasts longer; the store
   pulls again at its next cycle. Keep `erp.happyness.packet-size` such that a packet records in a few seconds (to measure
@@ -1511,8 +1513,37 @@ Done (step 3a), the store's point and the filtered send:
   wait at the store (documented, no rule).
 - Tests: `HoStockPointCatalogueTest` (two points with different items and prices; no point = 2.1 answer; price list
   first; row changes for the point's stores only; no store, no recording; a store moved and back, moved from P1 to P2;
-  a store created with a point, with none, with a point that cannot be given; assignable points); `StockPointCopiesQueryTest` (the queries of the stores of an item and of the codes of a point,
-  with Hibernate over H2).
+  a store created with a point, with none, with a point that cannot be given; assignable points);
+  `StockPointCopiesQueryTest` (the queries of the stores of an item and of the codes of a point, with Hibernate over H2).
+
+Done (stock point copies, step 4), a store is told only about the items of its point:
+- On a head office whose catalogue comes from the ERP (`HoCatalogueService.recordsByStockPoint`), an item that came from
+  the ERP and its barcodes are recorded for the stores whose point has a row for the item, active or not
+  (`HoStockPointItemRepository.findStoreAndItemIds`), never for every store; an item in no point records nothing. This
+  holds for every recording: the ERP imports, a save, a delete, a pack change (`afterSave`, `beforeDelete`,
+  `afterPackChanged`), the startup backfill (`currentTargets`). A hand-made item and its barcodes still go to every store;
+  TAX_STAMP never; families and sub-families still to every store. `load` is unchanged: it still answers each store from
+  its point's rows. So a store with no point, or with another point, is no longer told the codes of the other points'
+  items (they came back as removed and changed nothing at the store).
+- The ERP imports (`HeadOfficeErpCatalogueRecorder`): one bulk recording per imported list
+  (`HoCatalogueService.erpItemsSaved` / `erpBarcodesSaved`), the codes grouped by stores, one `recordChanges` (one
+  sequence update) per group, instead of one `afterSave` per record. Before an import of barcodes, the value and the item
+  of the barcodes it may change are read as the import finds them (by ERP id, then by value; `barcodesBefore`): a
+  barcode moved to another item also goes to the stores of its old item (every store when that item was hand-made), so a
+  store that had it gets it as removed; a value changed under the same ERP id records the old value too, to the same
+  stores.
+- An item saved by an import before its point's rows exist (a new item) records nothing; the rows written next record it
+  for the stores of the point (`stockPointRowsChanged`). An item change that moves no row (VAT, active flag, type, unit,
+  packs) or a barcode run reaches the stores of the item's points through the recording above.
+- Lock: `stockPointRowsChanged` reads the stores of the point, and `storeStockPointChanged` the rows of the points, after
+  taking the lock of the sequence row (`CopiesDownFeed.lockSequence`, no number taken). An items run and a store given the
+  same point at the same time: the second to take the lock sees what the first committed. The databases seen do not use
+  read-committed snapshot: there the two transactions can also end in a deadlock, one of them fails and is done again (the
+  next items run, or the user's save); nothing is missed silently.
+- Tests: `HoStockPointSyncTest` (through the real aspect: an item change that moves no row, an item in no point, a
+  barcode run, a barcode moved between points, from a hand-made item, a value changed under the same ERP id; a pack
+  change; a new item then its rows; a delete; the startup backfill and a second start), `StockPointCopiesQueryTest` (the
+  backfill and before-import queries), `HoStockPointCatalogueTest` (a store is no longer told the other point's items).
 
 Done (step 3b), invoices from the ERP:
 - When an invoice gets its store (`HoErpInvoiceService.assignStores` / `matchStoresNow`) and that store has a point,

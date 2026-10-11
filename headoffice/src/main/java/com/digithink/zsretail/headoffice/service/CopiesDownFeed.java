@@ -175,6 +175,22 @@ public class CopiesDownFeed {
 		}
 	}
 
+	/**
+	 * Stock point copies, step 4: takes the lock of the domain's sequence row without taking a number, held until the
+	 * writer's transaction ends. What the writer reads after it includes every change of another writer of the domain
+	 * that took the lock first (committed by then): a store given a point while the point's rows are written is seen by
+	 * one of the two.
+	 */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void lockSequence(DataDomain domain) {
+		if (sequences.incrementBy(domain, 0) == 0) {
+			HoDownSequence sequence = new HoDownSequence();
+			sequence.setDomain(domain);
+			sequence.setLastVersion(0);
+			sequences.save(sequence);
+		}
+	}
+
 	/** One number per code, in the order given, reserved with one update of the sequence (locked until the commit). */
 	private Map<String, Long> reserveVersions(DataDomain domain, List<String> list) {
 		if (sequences.incrementBy(domain, list.size()) == 0) {

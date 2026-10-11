@@ -31,9 +31,50 @@ public interface HoStockPointItemRepository extends _BaseRepository<HoStockPoint
 			+ " where i.id = r.itemId and r.stockPointId in :pointIds and i.itemCode <> :excludedItemCode"
 			+ " order by b.barcode";
 
+	/** [store id, item id] of every store and every row of its point, active or not (the startup backfill). */
+	String ALL_STORE_AND_ITEM_IDS = "select s.id, r.itemId from Store s, HoStockPointItem r"
+			+ " where s.stockPointId = r.stockPointId";
+
+	/** [id, code, ERP id] of every item (the startup backfill: an ERP item goes to the stores of its points). */
+	String ITEM_KEYS = "select i.id, i.itemCode, i.erpExternalId from Item i";
+
+	/** [barcode, item id] of every barcode with an item (the startup backfill). */
+	String BARCODE_ITEM_IDS = "select b.barcode, i.id from ItemBarcode b join b.item i";
+
+	/** [id, barcode, item id] of the barcodes of these ERP ids (before an ERP import of barcodes). */
+	String BARCODES_BY_ERP_ID = "select b.id, b.barcode, i.id from ItemBarcode b left join b.item i"
+			+ " where b.erpExternalId in :externalIds";
+
+	/** [id, barcode, item id] of the barcodes of these values (before an ERP import of barcodes). */
+	String BARCODES_BY_VALUE = "select b.id, b.barcode, i.id from ItemBarcode b left join b.item i"
+			+ " where b.barcode in :values";
+
 	/** Copies down: the stores a change of these items is recorded for. At most 1000 ids per call. */
 	@Query(STORE_AND_ITEM_IDS)
 	List<Object[]> findStoreAndItemIds(@Param("itemIds") Collection<Long> itemIds);
+
+	/** Copies down, the startup backfill: every store with the items of its point. */
+	@Query(ALL_STORE_AND_ITEM_IDS)
+	List<Object[]> findAllStoreAndItemIds();
+
+	/** Copies down, the startup backfill: every item, with its ERP id. */
+	@Query(ITEM_KEYS)
+	List<Object[]> findItemKeys();
+
+	/** Copies down, the startup backfill: every barcode with its item. */
+	@Query(BARCODE_ITEM_IDS)
+	List<Object[]> findBarcodeItemIds();
+
+	/**
+	 * Copies down, before an ERP import of barcodes: the value and the item of the barcodes it may change (the import
+	 * finds a barcode by its ERP id, then by its value). At most 1000 values per call.
+	 */
+	@Query(BARCODES_BY_ERP_ID)
+	List<Object[]> findBarcodesByErpIdIn(@Param("externalIds") Collection<String> externalIds);
+
+	/** Copies down, before an ERP import of barcodes: see {@link #findBarcodesByErpIdIn}. */
+	@Query(BARCODES_BY_VALUE)
+	List<Object[]> findBarcodesByValueIn(@Param("values") Collection<String> values);
 
 	/** Copies down: the items sent again to a store whose point changed (the previous and the new point). */
 	@Query(ITEM_CODES_OF_POINTS)

@@ -150,13 +150,12 @@ class HoStockPointCatalogueTest {
 		assertEquals(before.load(c, Arrays.asList("ITEM:MAIN", "BARCODE:999")), catalogue.load(c, codes),
 				"only the hand-made item and its barcode, as a head office with a manual catalogue sends them");
 		CopiesDownAnswerDTO answer = pull(c, "");
-		assertEquals(Arrays.asList("BARCODE:111", "BARCODE:222", "BARCODE:333", "ITEM:B001", "ITEM:B002", "ITEM:B003"),
-				sorted(answer.getRemoved()));
+		assertTrue(answer.getRemoved().isEmpty(), "step 4: a store with no point is not told about the ERP items");
 		assertEquals(5.0, records(answer).get("ITEM:MAIN").get("unitPrice").asDouble());
 	}
 
 	@Test
-	@DisplayName("Two points: each store receives the items of its point with the row's values; the others are removed; a hand-made item goes everywhere")
+	@DisplayName("Two points: each store receives the items of its point with the row's values, nothing of the other point; a hand-made item goes everywhere")
 	void twoPoints() {
 		CopiesDownAnswerDTO toA = pull(a, "");
 		Map<String, JsonNode> ofA = records(toA);
@@ -172,7 +171,7 @@ class HoStockPointCatalogueTest {
 		assertTrue(ofA.get("BARCODE:111").get("active").asBoolean());
 		assertFalse(ofA.get("BARCODE:222").get("active").asBoolean(), "the row is inactive");
 		assertTrue(ofA.containsKey("BARCODE:999"));
-		assertEquals(Arrays.asList("BARCODE:333", "ITEM:B003"), sorted(toA.getRemoved()));
+		assertTrue(toA.getRemoved().isEmpty(), "step 4: A is not told about B003 (P2 only)");
 
 		CopiesDownAnswerDTO toB = pull(b, "");
 		Map<String, JsonNode> ofB = records(toB);
@@ -181,7 +180,7 @@ class HoStockPointCatalogueTest {
 		assertEquals(33.0, ofB.get("ITEM:B003").get("unitPrice").asDouble());
 		assertEquals("Item B003", ofB.get("ITEM:B003").get("name").asText(), "the row's name");
 		assertTrue(ofB.get("BARCODE:222").get("active").asBoolean());
-		assertEquals(Arrays.asList("BARCODE:111", "ITEM:B001"), sorted(toB.getRemoved()));
+		assertTrue(toB.getRemoved().isEmpty(), "step 4: B is not told about B001 (P1 only)");
 	}
 
 	@Test

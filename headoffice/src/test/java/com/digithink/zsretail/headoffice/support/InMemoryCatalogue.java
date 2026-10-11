@@ -152,6 +152,29 @@ public final class InMemoryCatalogue extends InMemoryItems {
 				}
 				return pairs;
 			}
+			if ("findAllStoreAndItemIds".equals(method)) {
+				List<Object[]> pairs = new ArrayList<>();
+				for (HoStockPointItem row : stockPointItems.values()) {
+					stores.values().stream().filter(s -> Objects.equals(s.getStockPointId(), row.getStockPointId()))
+							.forEach(s -> pairs.add(new Object[] { s.getId(), row.getItemId() }));
+				}
+				return pairs;
+			}
+			if ("findItemKeys".equals(method)) {
+				return items.values().stream().map(i -> new Object[] { i.getId(), i.getItemCode(), i.getErpExternalId() })
+						.collect(Collectors.toList());
+			}
+			if ("findBarcodeItemIds".equals(method)) {
+				return barcodes.values().stream().filter(b -> b.getItem() != null)
+						.map(b -> new Object[] { b.getBarcode(), b.getItem().getId() }).collect(Collectors.toList());
+			}
+			if ("findBarcodesByErpIdIn".equals(method) || "findBarcodesByValueIn".equals(method)) {
+				boolean byErpId = "findBarcodesByErpIdIn".equals(method);
+				return barcodes.values().stream()
+						.filter(b -> ((Collection<?>) args[0]).contains(byErpId ? b.getErpExternalId() : b.getBarcode()))
+						.map(b -> new Object[] { b.getId(), b.getBarcode(), b.getItem() == null ? null : b.getItem().getId() })
+						.collect(Collectors.toList());
+			}
 			if ("findItemCodesOfPoints".equals(method)) {
 				return itemsOfPoints((Collection<?>) args[0], (String) args[1]).stream().map(Item::getItemCode)
 						.distinct().sorted().collect(Collectors.toList());

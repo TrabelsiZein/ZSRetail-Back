@@ -104,6 +104,7 @@ class StockPointCopiesQueryTest {
 	private static void barcode(Session session, String value, Item item) {
 		ItemBarcode barcode = new ItemBarcode();
 		barcode.setBarcode(value);
+		barcode.setErpExternalId("E" + value);
 		barcode.setItem(item);
 		barcode.setActive(true);
 		session.persist(barcode);
@@ -163,6 +164,51 @@ class StockPointCopiesQueryTest {
 				"S2:AB")), storesOf("A1", "A2", "B1", "AB", "NONE"));
 		assertEquals(new TreeSet<>(Arrays.asList("S1:A2", "S1B:A2")), storesOf("A2"), "an inactive row counts");
 		assertTrue(storesOf("NONE").isEmpty(), "no point has it: no store, not the store without a point");
+	}
+
+	/** The rows of a query without parameter, or with one collection parameter, each row's values joined by ":". */
+	private static Set<String> rows(String jpql, String parameter, Collection<String> values) {
+		try (Session session = sessions.openSession()) {
+			org.hibernate.query.Query<Object[]> query = session.createQuery(jpql, Object[].class);
+			if (parameter != null) {
+				query.setParameter(parameter, values);
+			}
+			Set<String> found = new TreeSet<>();
+			for (Object[] row : query.getResultList()) {
+				found.add(Arrays.stream(row).map(String::valueOf).collect(java.util.stream.Collectors.joining(":")));
+			}
+			return found;
+		}
+	}
+
+	@Test
+	@DisplayName("Step 4, the backfill: every store with the items of its point, every item with its ERP id, every barcode with its item")
+	void backfillQueries() {
+		Set<String> pairs = new TreeSet<>();
+		for (String row : rows(HoStockPointItemRepository.ALL_STORE_AND_ITEM_IDS, null, null)) {
+			String[] ids = row.split(":");
+			pairs.add(storeCodes.get(Long.valueOf(ids[0])) + ":" + itemCodes.get(Long.valueOf(ids[1])));
+		}
+		assertEquals(new TreeSet<>(Arrays.asList("S1:A1", "S1B:A1", "S1:A2", "S1B:A2", "S1:AB", "S1B:AB", "S1:TAX_STAMP",
+				"S1B:TAX_STAMP", "S2:B1", "S2:AB")), pairs);
+		assertTrue(rows(HoStockPointItemRepository.ITEM_KEYS, null, null).contains(idOf("NONE") + ":NONE:NONE"));
+		assertEquals(itemCodes.size(), rows(HoStockPointItemRepository.ITEM_KEYS, null, null).size());
+		Set<String> barcodes = rows(HoStockPointItemRepository.BARCODE_ITEM_IDS, null, null);
+		assertEquals(7, barcodes.size());
+		assertTrue(barcodes.contains("401:" + idOf("AB")));
+	}
+
+	@Test
+	@DisplayName("Step 4, before an import of barcodes: id, value and item of the barcodes of these ERP ids, of these values")
+	void barcodesBefore() {
+		Set<String> byErpId = rows(HoStockPointItemRepository.BARCODES_BY_ERP_ID, "externalIds",
+				Arrays.asList("E101", "E301", "E999"));
+		assertEquals(2, byErpId.size());
+		assertTrue(byErpId.stream().anyMatch(row -> row.endsWith(":101:" + idOf("A1"))));
+		assertTrue(byErpId.stream().anyMatch(row -> row.endsWith(":301:" + idOf("B1"))));
+		Set<String> byValue = rows(HoStockPointItemRepository.BARCODES_BY_VALUE, "values", Arrays.asList("201", "999"));
+		assertEquals(1, byValue.size());
+		assertTrue(byValue.iterator().next().endsWith(":201:" + idOf("A2")));
 	}
 
 	@Test
