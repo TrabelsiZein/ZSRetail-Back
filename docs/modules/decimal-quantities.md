@@ -66,7 +66,8 @@ steps on `release/2.2.1` (both repos); this page says what each step converted. 
 sale, park, update parked, complete parked); `StockService`, `StockMovementService`, `ItemRepository` stock updates,
 `StockBatchRepository`; `InsufficientStockException` (BigDecimal, null available = unknown); `PricingService` and
 `PromotionCalculationService` (thresholds compared as decimals; "buy X get Y" counts floor(quantity / minimum));
-`TicketPrintingService` (`%6s` with `Quantities.plain`); the reception page's `storeStock`.
+`TicketPrintingService` (`%6s` with `Quantities.plain`; never called, deleted at code cleanup step 5.9); the reception
+page's `storeStock`.
 
 ## Step 2: converted (copies of tickets and stock to the head office)
 

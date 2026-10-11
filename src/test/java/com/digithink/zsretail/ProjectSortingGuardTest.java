@@ -71,7 +71,7 @@ public class ProjectSortingGuardTest {
 			"service.PaymentMethodService", "service.PaymentService", "service.PromotionCalculationService",
 			"service.ReturnHeaderService", "service.ReturnVoucherService", "service.SalesDiscountService",
 			"service.SalesHeaderService", "service.SalesLineService", "service.SalesPriceService", "service.SalesReportService",
-			"service.SessionCashCountService", "service.TicketPrintingService", "service.WarrantyService"));
+			"service.SessionCashCountService", "service.WarrantyService"));
 
 	/** The classes of headoffice that go to core: the link messages, and the /ho/** chain (it exists on a store too). */
 	static final Set<String> HEADOFFICE_TO_CORE = new HashSet<>(Arrays.asList("CatalogueBarcodeCopyDTO",
