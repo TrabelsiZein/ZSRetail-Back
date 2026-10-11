@@ -1267,7 +1267,7 @@ backend stores those values unrounded. For every price from 0.001 to 500.000 at 
 back to the ERP price at 3 decimals (1 unit and more; at most 6e-11 above it).
 
 Tests: `NavPosPagesRestClientTest` (the URLs, GET, next link, HTTP error, timeout, non-GET refused before it leaves),
-`NavPosPagesMapperTest` (the samples of `src/test/resources/navpospages/`, location `DA-MG-GREM`; variants, a barcode twice, a
+`NavPosPagesMapperTest` (the samples of `app/src/test/resources/navpospages/`, location `DA-MG-GREM`; variants, a barcode twice, a
 sub-family without its family, a `Categorie` row, `price-includes-vat=false`), `NavPosPagesStartupCheckTest`,
 `NavPosPagesConnectorTest` (empty lists and failures; the connector injected in `ErpSynchronizationManager`: NoOp, Dynamics NAV,
 navpospages), `NavPosPagesLiveReadTest` (skipped unless `-Dnavpospages.live=true`: a GET-only read of the ERP named in

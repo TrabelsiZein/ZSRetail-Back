@@ -5,7 +5,6 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,11 +26,11 @@ import org.springframework.mock.env.MockEnvironment;
  */
 public final class Installations {
 
-	/** The repository's deploy folder (the tests run from the project directory). */
-	public static final Path DEPLOY = Paths.get("deploy");
+	/** The repository's deploy folder (code cleanup step 6: found from any project folder, {@link Repo#ROOT}). */
+	public static final Path DEPLOY = Repo.ROOT.resolve("deploy");
 
 	/** The repository's configs folder: one file per installation (ERP catalogue, step 1: checked like deploy/). */
-	public static final Path CONFIGS = Paths.get("configs");
+	public static final Path CONFIGS = Repo.ROOT.resolve("configs");
 
 	/** Old preset name to its type and the mode lines it gave (task 9.3 files, removed at step C1). */
 	private static final Map<String, String[]> VARIANTS = new LinkedHashMap<>();
@@ -85,7 +84,9 @@ public final class Installations {
 	/** The files git tracks under the folder, relative to it; null when git cannot answer. */
 	private static List<String> trackedUnder(Path folder) {
 		try {
-			Process git = new ProcessBuilder("git", "ls-files", "--", folder.toString()).redirectErrorStream(true).start();
+			String relative = Repo.ROOT.relativize(folder).toString().replace('\\', '/');
+			Process git = new ProcessBuilder("git", "ls-files", "--", relative).directory(Repo.ROOT.toFile())
+					.redirectErrorStream(true).start();
 			List<String> lines;
 			try (java.io.BufferedReader out = new java.io.BufferedReader(
 					new java.io.InputStreamReader(git.getInputStream(), java.nio.charset.StandardCharsets.UTF_8))) {
@@ -94,7 +95,7 @@ public final class Installations {
 			if (git.waitFor() != 0) {
 				return null;
 			}
-			String prefix = folder.toString().replace('\\', '/') + "/";
+			String prefix = relative + "/";
 			return lines.stream().filter(line -> line.startsWith(prefix)).map(line -> line.substring(prefix.length()))
 					.collect(Collectors.toList());
 		} catch (IOException e) {

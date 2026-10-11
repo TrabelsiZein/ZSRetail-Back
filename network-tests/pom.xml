@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<!-- Tests only, never deployed: the round trips between a store and a head office, the installation proof and the guards over every project. Filled at code cleanup step 6.7. -->
+	<parent>
+		<groupId>com.digithink</groupId>
+		<artifactId>zsretail-parent</artifactId>
+		<version>2.2.2</version>
+	</parent>
+	<artifactId>zsretail-network-tests</artifactId>
+	<name>ZS Retail network tests</name>
+
+	<dependencies>
+		<dependency>
+			<groupId>com.digithink</groupId>
+			<artifactId>zsretail-store</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.digithink</groupId>
+			<artifactId>zsretail-headoffice</artifactId>
+		</dependency>
+	</dependencies>
+</project>

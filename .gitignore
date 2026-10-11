@@ -1,4 +1,5 @@
-/target/
+# Every project's build output (code cleanup step 6: one folder per Maven project)
+target/
 
 # License private key - NEVER commit this
 private_key.pem
@@ -8,7 +9,7 @@ private_key.pem
 /uploads/
 
 # Local npm deps for one-off menu image import script
-/src/main/resources/db/import/node_modules/
+/app/src/main/resources/db/import/node_modules/
 
 # Claude Code machine-local settings
 .claude/settings.local.json

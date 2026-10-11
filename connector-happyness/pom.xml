@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<!-- Happyness's ERP pages connector (package com.digithink.zsretail.connector.happyness). Uses erp-api only. Filled at code cleanup step 6.3. -->
+	<parent>
+		<groupId>com.digithink</groupId>
+		<artifactId>zsretail-parent</artifactId>
+		<version>2.2.2</version>
+	</parent>
+	<artifactId>zsretail-connector-happyness</artifactId>
+	<name>ZS Retail connector Happyness</name>
+
+	<dependencies>
+		<dependency>
+			<groupId>com.digithink</groupId>
+			<artifactId>zsretail-erp-api</artifactId>
+		</dependency>
+	</dependencies>
+</project>

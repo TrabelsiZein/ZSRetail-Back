@@ -37,7 +37,7 @@ Complete Point of Sale (POS) backend application with role-based access control 
 - SQL Server Database
 
 ### Configuration
-Update database configuration in `src/main/resources/application-dev.properties`:
+Update database configuration in `app/src/main/resources/application-dev.properties`:
 ```properties
 spring.datasource.url=jdbc:sqlserver://localhost;databaseName=pos_db
 spring.datasource.username=your_username

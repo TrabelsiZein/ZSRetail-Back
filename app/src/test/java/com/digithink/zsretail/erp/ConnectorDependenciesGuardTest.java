@@ -17,12 +17,12 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.digithink.zsretail.ProjectSortingGuardTest;
+import com.digithink.zsretail.support.Repo;
 
 /**
  * Code cleanup step 3: the classes of a connector package (erp/navpospages, erp/dynamicsnav) use only erp-api, their own
@@ -51,7 +51,7 @@ class ConnectorDependenciesGuardTest {
 		ALLOWED.put(connector + " " + reference, reason);
 	}
 
-	/** The connector of a path relative to src/main/java, or null for any other file. */
+	/** The connector of a path relative to a project's src/main/java, or null for any other file. */
 	static String connectorOf(String relativePath) {
 		for (String connector : CONNECTORS) {
 			if (relativePath.startsWith(ConnectorNamesGuardTest.BASE + "erp/" + connector + "/")) {
@@ -89,24 +89,22 @@ class ConnectorDependenciesGuardTest {
 		List<String> breaches = new ArrayList<>();
 		Set<String> used = new LinkedHashSet<>();
 		int scanned = 0;
-		try (Stream<Path> files = Files.walk(ConnectorNamesGuardTest.MAIN)) {
-			for (Path file : files.filter(p -> p.toString().endsWith(".java")).collect(Collectors.toList())) {
-				String relativePath = ConnectorNamesGuardTest.MAIN.relativize(file).toString().replace('\\', '/');
-				String connector = connectorOf(relativePath);
-				if (connector == null) {
-					continue;
-				}
-				scanned++;
-				List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
-				for (int i = 0; i < lines.size(); i++) {
-					Matcher matcher = REFERENCE.matcher(lines.get(i));
-					while (matcher.find()) {
-						String entry = entryFor(connector, matcher.group());
-						if (entry == null) {
-							breaches.add(relativePath + ":" + (i + 1) + ": " + matcher.group());
-						} else if (!entry.isEmpty()) {
-							used.add(entry);
-						}
+		for (Map.Entry<String, Path> file : Repo.mainJavaFiles().entrySet()) {
+			String relativePath = file.getKey();
+			String connector = connectorOf(relativePath);
+			if (connector == null) {
+				continue;
+			}
+			scanned++;
+			List<String> lines = Files.readAllLines(file.getValue(), StandardCharsets.UTF_8);
+			for (int i = 0; i < lines.size(); i++) {
+				Matcher matcher = REFERENCE.matcher(lines.get(i));
+				while (matcher.find()) {
+					String entry = entryFor(connector, matcher.group());
+					if (entry == null) {
+						breaches.add(relativePath + ":" + (i + 1) + ": " + matcher.group());
+					} else if (!entry.isEmpty()) {
+						used.add(entry);
 					}
 				}
 			}
@@ -121,16 +119,17 @@ class ConnectorDependenciesGuardTest {
 	@Test
 	@DisplayName("erp/engine is scanned by ConnectorNamesGuardTest and names no connector")
 	void engineNamesNoConnector() throws IOException {
-		Path engine = ConnectorNamesGuardTest.MAIN.resolve(ConnectorNamesGuardTest.BASE + "erp/engine");
+		String engine = ConnectorNamesGuardTest.BASE + "erp/engine/";
 		int scanned = 0;
-		try (Stream<Path> files = Files.list(engine)) {
-			for (Path file : files.filter(p -> p.toString().endsWith(".java")).collect(Collectors.toList())) {
-				String relativePath = ConnectorNamesGuardTest.MAIN.relativize(file).toString().replace('\\', '/');
-				assertFalse(ConnectorNamesGuardTest.allowed(relativePath), relativePath);
-				assertEquals(new ArrayList<String>(),
-						ConnectorNamesGuardTest.offences(relativePath, Files.readAllLines(file, StandardCharsets.UTF_8)));
-				scanned++;
+		for (Map.Entry<String, Path> file : Repo.mainJavaFiles().entrySet()) {
+			String relativePath = file.getKey();
+			if (!relativePath.startsWith(engine) || relativePath.indexOf('/', engine.length()) >= 0) {
+				continue;
 			}
+			assertFalse(ConnectorNamesGuardTest.allowed(relativePath), relativePath);
+			assertEquals(new ArrayList<String>(),
+					ConnectorNamesGuardTest.offences(relativePath, Files.readAllLines(file.getValue(), StandardCharsets.UTF_8)));
+			scanned++;
 		}
 		assertTrue(scanned >= 9, "scanned " + scanned + " engine files");
 	}

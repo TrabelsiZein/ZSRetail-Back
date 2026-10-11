@@ -4,30 +4,28 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.digithink.zsretail.support.Repo;
+
 /**
  * Code cleanup, step 2: the application never names a connector. Outside the connector packages (erp/dynamicsnav,
  * erp/navpospages) and the translation class of step 1 (config/ErpConnectorEnvironmentPostProcessor), no file of
- * src/main/java imports a connector package or contains the text erp.dynamicsnav or erp.navpospages (a property key, a
- * package, a comment). The application asks ErpAbilities what the connector in effect can do. See
+ * any project's src/main/java imports a connector package or contains the text erp.dynamicsnav or erp.navpospages (a
+ * property key, a package, a comment). The application asks ErpAbilities what the connector in effect can do. See
  * docs/modules/erp-sync.md, "Abilities".
  */
 class ConnectorNamesGuardTest {
 
-	static final Path MAIN = Paths.get("src", "main", "java");
 	static final String BASE = "com/digithink/zsretail/";
 	static final List<String> ALLOWED = Arrays.asList(BASE + "erp/dynamicsnav/", BASE + "erp/navpospages/",
 			BASE + "config/ErpConnectorEnvironmentPostProcessor.java");
@@ -57,17 +55,13 @@ class ConnectorNamesGuardTest {
 	void noConnectorNames() throws IOException {
 		List<String> found = new ArrayList<>();
 		int scanned = 0;
-		try (Stream<Path> files = Files.walk(MAIN)) {
-			for (Path file : files.filter(p -> p.toString().endsWith(".java")).collect(Collectors.toList())) {
-				String relativePath = MAIN.relativize(file).toString().replace('\\', '/');
-				if (allowed(relativePath)) {
-					continue;
-				}
-				scanned++;
-				found.addAll(offences(relativePath, Files.readAllLines(file, StandardCharsets.UTF_8)));
+		for (Map.Entry<String, Path> file : Repo.mainJavaFiles().entrySet()) {
+			String relativePath = file.getKey();
+			if (allowed(relativePath)) {
+				continue;
 			}
-		} catch (UncheckedIOException e) {
-			throw e.getCause();
+			scanned++;
+			found.addAll(offences(relativePath, Files.readAllLines(file.getValue(), StandardCharsets.UTF_8)));
 		}
 		assertTrue(scanned > 300, "scanned " + scanned + " files");
 		assertEquals("", String.join("\n", found),

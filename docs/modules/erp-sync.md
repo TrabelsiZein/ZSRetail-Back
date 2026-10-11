@@ -121,15 +121,15 @@
   - Both success and error responses are logged in `ErpCommunication` table
 
 **Key Files:**
-- `src/main/java/com/digithink/zsretail/model/SalesHeader.java` - Entity with sync fields
-- `src/main/java/com/digithink/zsretail/model/SalesLine.java` - Entity with synched field
-- `src/main/java/com/digithink/zsretail/model/enumeration/SynchronizationStatus.java` - Sync status enum
-- `src/main/java/com/digithink/zsretail/erp/dynamicsnav/dto/DynamicsNavSalesOrderHeaderDTO.java` - Header DTO
-- `src/main/java/com/digithink/zsretail/erp/dynamicsnav/dto/DynamicsNavSalesOrderLineDTO.java` - Line DTO
-- `src/main/java/com/digithink/zsretail/erp/service/TicketExportService.java` - Export service
-- `src/main/java/com/digithink/zsretail/erp/dynamicsnav/client/DynamicsNavRestClient.java` - NAV client
-- `src/main/java/com/digithink/zsretail/erp/dynamicsnav/config/DynamicsNavConfig.java` - RestTemplate config
-- `src/main/java/com/digithink/zsretail/erp/service/ErpSyncJobRunner.java` - Job runner integration
+- `app/src/main/java/com/digithink/zsretail/model/SalesHeader.java` - Entity with sync fields
+- `app/src/main/java/com/digithink/zsretail/model/SalesLine.java` - Entity with synched field
+- `app/src/main/java/com/digithink/zsretail/model/enumeration/SynchronizationStatus.java` - Sync status enum
+- `app/src/main/java/com/digithink/zsretail/erp/dynamicsnav/dto/DynamicsNavSalesOrderHeaderDTO.java` - Header DTO
+- `app/src/main/java/com/digithink/zsretail/erp/dynamicsnav/dto/DynamicsNavSalesOrderLineDTO.java` - Line DTO
+- `app/src/main/java/com/digithink/zsretail/erp/service/TicketExportService.java` - Export service
+- `app/src/main/java/com/digithink/zsretail/erp/dynamicsnav/client/DynamicsNavRestClient.java` - NAV client
+- `app/src/main/java/com/digithink/zsretail/erp/dynamicsnav/config/DynamicsNavConfig.java` - RestTemplate config
+- `app/src/main/java/com/digithink/zsretail/erp/service/ErpSyncJobRunner.java` - Job runner integration
 
 
 ## ERP Synchronization Operations
@@ -214,7 +214,7 @@ and the NAV address of the startup summary), no class imports a connector packag
 connector's settings give the application goes through `ErpConnector` (the ids of deleted prices, the seller named on the
 stores' invoices: `supplyInvoiceSellerName`, the connector's `invoices.seller-name`) or a port in `erp/spi` that the
 application implements (`StockPoints`, the head office's points de stock). **Guard test**: `erp/ConnectorNamesGuardTest`
-scans `src/main/java` and fails naming each offending line.
+scans every project's `src/main/java` and fails naming each offending line.
 
 **Deletion sync** (`ErpDeletionSyncService`, job of the ERP Log): the `erp_external_id` of a deleted sales price or discount
 is built by the connector in effect (`ErpConnector.deletedSalesPriceExternalId` / `deletedSalesDiscountExternalId`), the

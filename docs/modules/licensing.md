@@ -16,7 +16,7 @@
 - `signature` contains `SHA256withRSA` signature over compact `data` JSON.
 
 ### Security Design
-- Backend uses embedded **public key** (`src/main/resources/license/public_key.pem`) for verification.
+- Backend uses embedded **public key** (`app/src/main/resources/license/public_key.pem`) for verification.
 - Private key is kept outside app deployment and used only in generator tool.
 - Validation is backend-side only (never trusted on frontend).
 - `appId` was removed from active logic/config/generator/frontend; machine binding now relies on `installationId`.

@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -21,14 +20,15 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.digithink.zsretail.support.Repo;
+
 /**
- * Code cleanup step 5: the target project of every class of src/main/java (step 6 moves each class once, straight into
- * it) and the rules between the projects:
+ * Code cleanup step 5: the target project of every class of the projects' src/main/java (step 6 moves each class once,
+ * straight into it) and the rules between the projects:
  * <ul>
  * <li>erp-api uses nothing of ours;</li>
  * <li>core uses core and erp-api;</li>
@@ -41,7 +41,6 @@ import org.junit.jupiter.api.Test;
  */
 public class ProjectSortingGuardTest {
 
-	static final Path MAIN = Paths.get("src", "main", "java");
 	static final String APP = "com.digithink.zsretail.";
 
 	public static final String ERP_API = "erp-api";
@@ -175,15 +174,15 @@ public class ProjectSortingGuardTest {
 		return out.toString().replaceAll("(?m)^\\s*(package|import)\\s[^;]*;", "");
 	}
 
-	/** Every class of src/main/java (names after com.digithink.zsretail.) and the classes each one refers to. */
+	/**
+	 * Every class of every project's src/main/java (names after com.digithink.zsretail.) and the classes each one refers
+	 * to.
+	 */
 	static Map<String, Set<String>> references() throws IOException {
 		Map<String, Path> files = new TreeMap<>();
-		try (Stream<Path> walk = Files.walk(MAIN)) {
-			for (Path file : walk.filter(p -> p.toString().endsWith(".java")).collect(Collectors.toList())) {
-				String name = MAIN.relativize(file).toString().replace('\\', '/').replaceAll("\\.java$", "")
-						.replace('/', '.');
-				files.put(name.substring(APP.length()), file);
-			}
+		for (Map.Entry<String, Path> file : Repo.mainJavaFiles().entrySet()) {
+			String name = file.getKey().replaceAll("\\.java$", "").replace('/', '.');
+			files.put(name.substring(APP.length()), file.getValue());
 		}
 		Map<String, List<String>> byPackage = new HashMap<>();
 		files.keySet().forEach(name -> byPackage

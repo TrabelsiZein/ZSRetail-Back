@@ -79,11 +79,11 @@
 **Head office prices (step 6):** on a store whose catalogue is the head office's, the selling price is `item.unitPrice` as the head office sends it (its base price, or the line of the store's selling price list; see `docs/modules/head-office.md`, "Catalogue owned by the head office" and "Price lists"). `PricingService` is not changed: with `pos.pricing.enable-sales-price-group=true`, a `sales_price` row of the store for a head office item would still win when it is lower. So on such a store `POST`/`PUT`/`DELETE /sales-price` and the `SALES_PRICES` import answer 409, and the rows already there are counted in `salesPriceRowsOnHeadOfficeItems` (`GET /catalogue/network` and the `catalogue` block of `GET /admin/holink/status`). `sales_discount` is unchanged.
 
 **Key Files:**
-- `src/main/java/com/digithink/zsretail/service/PricingService.java` - Core pricing logic
-- `src/main/java/com/digithink/zsretail/model/SalesPrice.java` - Entity with enums and indexes
-- `src/main/java/com/digithink/zsretail/model/SalesDiscount.java` - Entity with enums and indexes
-- `src/main/java/com/digithink/zsretail/repository/SalesPriceRepository.java` - Best-value query
-- `src/main/java/com/digithink/zsretail/repository/SalesDiscountRepository.java` - Best-value query
-- `src/main/java/com/digithink/zsretail/controller/ItemAPI.java` - Price calculation endpoint
+- `app/src/main/java/com/digithink/zsretail/service/PricingService.java` - Core pricing logic
+- `app/src/main/java/com/digithink/zsretail/model/SalesPrice.java` - Entity with enums and indexes
+- `app/src/main/java/com/digithink/zsretail/model/SalesDiscount.java` - Entity with enums and indexes
+- `app/src/main/java/com/digithink/zsretail/repository/SalesPriceRepository.java` - Best-value query
+- `app/src/main/java/com/digithink/zsretail/repository/SalesDiscountRepository.java` - Best-value query
+- `app/src/main/java/com/digithink/zsretail/controller/ItemAPI.java` - Price calculation endpoint
 - `src/views/pos/ItemSelection.vue` - Frontend integration
 - `src/views/pos/CustomerList.vue` - Customer selection with pagination

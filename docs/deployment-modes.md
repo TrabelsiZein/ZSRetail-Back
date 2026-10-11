@@ -187,7 +187,7 @@ frontend (`docs/modules/head-office.md`).
 
 **The connector of this head office: `erp.navpospages.*`** (ERP catalogue, step 5; package `erp/navpospages`, GET only, it never
 writes to the ERP). The lines go in the head office's **outside file** (e.g. `configs/local/happyness_ho.properties`), never in
-`src/main/resources`. Every bean of the package exists only with `erp.navpospages.enabled=true`.
+`app/src/main/resources`. Every bean of the package exists only with `erp.navpospages.enabled=true`.
 
 | Key | Value | Default |
 |---|---|---|
