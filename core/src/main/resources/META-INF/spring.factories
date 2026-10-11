@@ -1,5 +1,5 @@
 # Configuration step C1: the optional outside file of the installation, read before the configuration files; the
-# installation type checked after them. Code cleanup step 1: erp.connector translated into the two old enabled lines
+# installation type checked after them. Code cleanup step 8: erp.connector checked, the old ERP lines refused
 org.springframework.boot.env.EnvironmentPostProcessor=com.digithink.zsretail.core.config.MachineFileEnvironmentPostProcessor,\
 com.digithink.zsretail.core.config.InstallationTypeEnvironmentPostProcessor,\
 com.digithink.zsretail.core.config.ErpConnectorEnvironmentPostProcessor

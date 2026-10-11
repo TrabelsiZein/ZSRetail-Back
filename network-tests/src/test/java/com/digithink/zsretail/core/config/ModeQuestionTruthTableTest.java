@@ -161,7 +161,7 @@ class ModeQuestionTruthTableTest {
 		catalogueOnly.setProperty("ownership.catalogue", "ERP");
 		MockEnvironment erpSupply = Installations.type("headoffice");
 		erpSupply.setProperty("ownership.catalogue", "ERP");
-		erpSupply.setProperty("erp.navpospages.enabled", "true");
+		erpSupply.setProperty("erp.connector", "happyness");
 		erpSupply.setProperty(key, " erp ");
 
 		// The key absent: HEAD_OFFICE everywhere
@@ -194,8 +194,8 @@ class ModeQuestionTruthTableTest {
 		assertEquals(notCatalogueOnly, refusal(erpHeadOffice), "head office whose ERP owns all three");
 		catalogueOnly.setProperty(key, "ERP");
 		assertEquals("Invalid combination: headoffice.supply.source=ERP without a connector that reads the ERP's invoices:"
-				+ " erp.connector=happyness (or the old line erp.navpospages.enabled=true, still accepted). Choose it, or"
-				+ " set headoffice.supply.source to HEAD_OFFICE.",
+				+ " erp.connector=happyness. Choose it, or set"
+				+ " headoffice.supply.source to HEAD_OFFICE.",
 				refusal(catalogueOnly), "without the connector");
 		for (String value : new String[] { "", "yes", "BL" }) {
 			MockEnvironment wrong = Installations.type("headoffice");

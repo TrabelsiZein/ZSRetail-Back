@@ -165,7 +165,8 @@ class InstallationBeansProofTest {
 	/**
 	 * A file of configs/ as committed (git show HEAD:configs/...), over its type file and application.properties like
 	 * Installations.config: a local change of the file (configs/local is edited on this machine) does not change the
-	 * record. The file as it is on disk when git cannot answer.
+	 * record. The file as it is on disk when git cannot answer. Code cleanup step 8: upgraded (Installations.upgraded), as
+	 * Zein will upgrade it.
 	 */
 	static MockEnvironment committedConfig(String file) {
 		java.util.Properties committed = new java.util.Properties();
@@ -183,10 +184,7 @@ class InstallationBeansProofTest {
 			Thread.currentThread().interrupt();
 			return Installations.config(file);
 		}
-		String type = committed.getProperty("spring.profiles.active", Installations.DEFAULT_TYPE);
-		MockEnvironment env = Installations.type(type.trim());
-		committed.stringPropertyNames().forEach(key -> env.setProperty(key, committed.getProperty(key)));
-		return env;
+		return Installations.over(Installations.upgraded(committed));
 	}
 
 	/** Every configuration of the repository, the six shapes, and head office shapes no file has. */
@@ -198,7 +196,7 @@ class InstallationBeansProofTest {
 		environments.put("head office, stock off", headOffice("headoffice.stock.enabled=false"));
 		environments.put("head office, catalogue only from the ERP", headOffice("ownership.catalogue=ERP"));
 		environments.put("head office, catalogue only from the ERP, its invoices", headOffice("ownership.catalogue=ERP",
-				"erp.navpospages.enabled=true", "headoffice.supply.source=ERP"));
+				"erp.connector=happyness", "headoffice.supply.source=ERP"));
 		environments.put("head office, catalogue only from the ERP, stock off", headOffice("ownership.catalogue=ERP",
 				"headoffice.stock.enabled=false"));
 		return environments;

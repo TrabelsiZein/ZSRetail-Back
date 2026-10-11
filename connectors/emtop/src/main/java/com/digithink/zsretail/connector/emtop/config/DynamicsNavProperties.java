@@ -17,7 +17,6 @@ public class DynamicsNavProperties {
 	private String domain;
 	private String username;
 	private String password;
-	private boolean enabled = false;
 
 	public String getCompanyUrlSegment() {
 		if (company == null || company.trim().isEmpty()) {

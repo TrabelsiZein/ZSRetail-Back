@@ -17,6 +17,8 @@ import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.core.config.ZsRetailApplication;
 import com.digithink.zsretail.core.support.Repo;
+import com.digithink.zsretail.erp.api.ErpConnectorDescriptor;
+import com.digithink.zsretail.erp.api.ErpConnectors;
 
 /**
  * Test support (task 9.3, configuration step C1): an installation's configuration merged the way the application does,
@@ -47,15 +49,15 @@ public final class Installations {
 	static {
 		variant("store", "store", "");
 		variant("store-erp", "store", "ownership.catalogue=ERP|ownership.customers=ERP|ownership.supply=ERP"
-				+ "|sales.upstream=ERP|erp.dynamicsnav.enabled=true");
+				+ "|sales.upstream=ERP|erp.connector=emtop");
 		variant("headoffice", "headoffice", "");
 		variant("headoffice-erp", "headoffice", "ownership.catalogue=ERP|ownership.customers=ERP|ownership.supply=ERP"
-				+ "|erp.dynamicsnav.enabled=true");
+				+ "|erp.connector=emtop");
 		variant("network-store", "store", "ownership.catalogue=HEAD_OFFICE|ownership.supply=HEAD_OFFICE"
 				+ "|sales.upstream=HEAD_OFFICE");
 		variant("network-store-erp", "store", "ownership.catalogue=ERP|ownership.customers=ERP"
 				+ "|ownership.promotions=HEAD_OFFICE|ownership.loyalty=HEAD_OFFICE|ownership.supply=ERP"
-				+ "|sales.upstream=ERP,HEAD_OFFICE|erp.dynamicsnav.enabled=true");
+				+ "|sales.upstream=ERP,HEAD_OFFICE|erp.connector=emtop");
 	}
 
 	private Installations() {
@@ -75,9 +77,33 @@ public final class Installations {
 		return outside(MACHINES.resolve(relativePath));
 	}
 
-	/** An installation file of configs/ (e.g. "local/happyness_ho.properties") over its type file and application.properties. */
+	/**
+	 * An installation file of configs/local (e.g. "local/happyness_ho.properties"), {@link #upgraded}, over its type file and
+	 * application.properties.
+	 */
 	public static MockEnvironment config(String relativePath) {
-		return outside(CONFIGS.resolve(relativePath));
+		return over(upgraded(file(CONFIGS.resolve(relativePath))));
+	}
+
+	/**
+	 * Code cleanup step 8: an outside file of 2.2.2 upgraded as docs/deploy-note.md says ("Upgrade from 2.2.2: the outside
+	 * file"): a connector's old enabled line becomes erp.connector=&lt;its name&gt; when true and goes when false. configs/local
+	 * is Zein's (this repository does not edit it): the tests read its files as they will be once upgraded, and a start of
+	 * the file as it is refuses (ErpConnectorTest). A file without old lines comes back as it is.
+	 */
+	public static Properties upgraded(Properties file) {
+		Properties upgraded = new Properties();
+		upgraded.putAll(file);
+		for (ErpConnectorDescriptor descriptor : ErpConnectors.descriptors()) {
+			if (descriptor.oldKeyPrefix() == null) {
+				continue;
+			}
+			Object enabled = upgraded.remove(descriptor.oldKeyPrefix() + ".enabled");
+			if (enabled != null && "true".equalsIgnoreCase(enabled.toString().trim())) {
+				upgraded.setProperty("erp.connector", descriptor.name());
+			}
+		}
+		return upgraded;
 	}
 
 	/**
@@ -116,7 +142,11 @@ public final class Installations {
 	}
 
 	private static MockEnvironment outside(Path path) {
-		Properties machine = file(path);
+		return over(file(path));
+	}
+
+	/** An outside file's lines over its type file and application.properties. */
+	public static MockEnvironment over(Properties machine) {
 		String type = machine.getProperty("spring.profiles.active", DEFAULT_TYPE);
 		MockEnvironment env = type(type.trim());
 		machine.stringPropertyNames().forEach(key -> env.setProperty(key, machine.getProperty(key)));

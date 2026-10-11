@@ -206,7 +206,7 @@ class ZZDataInitializerModeTest {
 		}
 
 		ApplicationModeService headOffice = TestModes.of(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")
-				.withProperty("ownership.catalogue", "ERP").withProperty("erp.navpospages.enabled", "true")
+				.withProperty("ownership.catalogue", "ERP").withProperty("erp.connector", "happyness")
 				.withProperty("headoffice.supply.source", "ERP"));
 		Writes writes = init(headOffice);
 		assertTrue(writes.settings.containsAll(java.util.Arrays.asList("ERP_INVOICES_READ_AFTER", "ERP_INVOICES_LAST_READ")),

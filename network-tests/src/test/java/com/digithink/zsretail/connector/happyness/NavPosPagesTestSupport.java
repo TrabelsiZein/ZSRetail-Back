@@ -54,7 +54,6 @@ final class NavPosPagesTestSupport {
 	/** Settings that pass every startup check (no ERP is called with them). */
 	static NavPosPagesProperties properties() {
 		NavPosPagesProperties properties = new NavPosPagesProperties();
-		properties.setEnabled(true);
 		properties.setBaseUrl(BASE_URL);
 		properties.setCompany("HAPPYNESS");
 		properties.setDomain("DOMAIN");
@@ -69,7 +68,7 @@ final class NavPosPagesTestSupport {
 	static MockEnvironment validEnvironment() {
 		MockEnvironment env = Installations.type("headoffice");
 		env.setProperty("ownership.catalogue", "ERP");
-		env.setProperty("erp.navpospages.enabled", "true");
+		env.setProperty("erp.connector", "happyness");
 		env.setProperty("erp.navpospages.base-url", BASE_URL);
 		env.setProperty("erp.navpospages.company", "HAPPYNESS");
 		env.setProperty("erp.navpospages.username", "user");

@@ -18,7 +18,7 @@ import com.digithink.zsretail.support.Installations;
  * gave (task 9.3a, commit 596f1bb, checked them against the old files while they were still in the WAR); since task 9.3b
  * each preset gives the same row with its machine file (configs/), the old files being gone. A row: node type, the five owners, where the sales go, the head office switches (link, sales
  * push, pull, catalogue and supply from the head office, head office with / without an ERP), an ERP owner, and
- * erp.dynamicsnav.enabled.
+ * the connector emtop in effect (the row's "nav", erp.dynamicsnav.enabled before code cleanup step 8).
  */
 class PresetTruthTableTest {
 
@@ -86,7 +86,7 @@ class PresetTruthTableTest {
 		row.add("hoErp=" + NodeOwnership.isHeadOfficeErpSet(env));
 		row.add("hoNoErp=" + NodeOwnership.isHeadOfficeWithoutErpSet(env));
 		row.add("erp=" + o.hasErp());
-		row.add("nav=" + Boolean.parseBoolean(env.getProperty("erp.dynamicsnav.enabled", "false")));
+		row.add("nav=" + "emtop".equals(ErpConnectorEnvironmentPostProcessor.inEffect(env)));
 		return row.toString();
 	}
 

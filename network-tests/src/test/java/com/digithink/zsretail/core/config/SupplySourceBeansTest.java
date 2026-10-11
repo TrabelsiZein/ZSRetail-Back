@@ -72,7 +72,7 @@ class SupplySourceBeansTest {
 	private static MockEnvironment erpSupply() {
 		MockEnvironment env = catalogueOnly();
 		env.setProperty("headoffice.supply.source", "ERP");
-		env.setProperty("erp.navpospages.enabled", "true");
+		env.setProperty("erp.connector", "happyness");
 		return env;
 	}
 

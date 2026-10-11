@@ -1,2 +1,2 @@
-# Code cleanup step 7: this connector declares itself (its name, abilities and old line) to erp-api
+# Code cleanup step 7: this connector declares itself (its name, abilities and old keys) to erp-api
 com.digithink.zsretail.erp.api.ErpConnectorDescriptor=com.digithink.zsretail.connector.happyness.HappynessConnectorDescriptor

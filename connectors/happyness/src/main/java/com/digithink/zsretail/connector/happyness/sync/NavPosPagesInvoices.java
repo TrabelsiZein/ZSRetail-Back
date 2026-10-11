@@ -9,14 +9,15 @@ import java.util.TreeMap;
 import java.util.function.Supplier;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import com.digithink.zsretail.connector.happyness.HappynessConnectorDescriptor;
 import com.digithink.zsretail.connector.happyness.client.NavPosPagesSource;
 import com.digithink.zsretail.connector.happyness.config.NavPosPagesProperties;
 import com.digithink.zsretail.connector.happyness.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.connector.happyness.mapper.NavPosPagesMapper;
 import com.digithink.zsretail.erp.api.CatalogueRun;
+import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 import com.digithink.zsretail.erp.api.ErpInvoiceStart;
 import com.digithink.zsretail.erp.api.ErpRead;
 import com.digithink.zsretail.erp.api.RunSummary;
@@ -29,7 +30,7 @@ import com.digithink.zsretail.erp.api.dto.ErpSupplyInvoiceDTO;
  * office's numbers are the memory. Its runs write the engine's {@link RunSummary} format.
  */
 @Component
-@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
+@ConditionalOnErpConnector(HappynessConnectorDescriptor.NAME)
 public class NavPosPagesInvoices {
 
 	private final NavPosPagesSource source;

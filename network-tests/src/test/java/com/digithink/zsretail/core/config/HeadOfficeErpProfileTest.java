@@ -77,7 +77,7 @@ class HeadOfficeErpProfileTest {
 		assertEquals(DataOwner.ERP, ownership.ownerOf(DataDomain.SUPPLY));
 		assertEquals(Collections.emptySet(), ownership.getSalesUpstreams());
 		assertTrue(NodeOwnership.isHeadOfficeErpSet(env));
-		assertEquals("true", env.getProperty("erp.dynamicsnav.enabled"));
+		assertEquals("emtop", env.getProperty("erp.connector"));
 		assertEquals("true", env.getProperty("erp.sync.enabled"));
 		MockEnvironment plain = profile("headoffice-dev");
 		assertEquals(plain.getProperty("spring.datasource.url"), env.getProperty("spring.datasource.url"));

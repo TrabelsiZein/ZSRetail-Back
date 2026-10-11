@@ -1,16 +1,17 @@
 package com.digithink.zsretail.connector.happyness.config;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import com.digithink.zsretail.connector.happyness.HappynessConnectorDescriptor;
 import com.digithink.zsretail.erp.api.CatalogueSettings;
+import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 
 /**
  * Code cleanup step 3: the settings of the catalogue engine from this connector's own keys, unchanged:
  * erp.navpospages.packet-size, dry-run and default-vat (read at each call, so a change of the settings object is seen).
  */
 @Component
-@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
+@ConditionalOnErpConnector(HappynessConnectorDescriptor.NAME)
 public class NavPosPagesCatalogueSettings implements CatalogueSettings {
 
 	private final NavPosPagesProperties properties;

@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +17,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import com.digithink.zsretail.connector.happyness.HappynessConnectorDescriptor;
 import com.digithink.zsretail.connector.happyness.config.NavPosPagesConfig;
 import com.digithink.zsretail.connector.happyness.config.NavPosPagesProperties;
 import com.digithink.zsretail.connector.happyness.dto.NavPosBarcodeRow;
@@ -26,6 +26,7 @@ import com.digithink.zsretail.connector.happyness.dto.NavPosCollection;
 import com.digithink.zsretail.connector.happyness.dto.NavPosInvoiceLineRow;
 import com.digithink.zsretail.connector.happyness.dto.NavPosInvoiceRow;
 import com.digithink.zsretail.connector.happyness.dto.NavPosStockRow;
+import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -37,7 +38,7 @@ import lombok.extern.log4j.Log4j2;
  * (a): the invoices page read by number, see {@link #readInvoicesAfter}.
  */
 @Component
-@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
+@ConditionalOnErpConnector(HappynessConnectorDescriptor.NAME)
 @Log4j2
 public class NavPosPagesRestClient implements NavPosPagesSource {
 

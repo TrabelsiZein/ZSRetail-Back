@@ -54,18 +54,9 @@ class NavPosPagesStartupCheckTest {
 	}
 
 	@Test
-	@DisplayName("One ERP connector per installation: erp.dynamicsnav.enabled=true as well is refused")
-	void twoConnectors() {
-		assertEquals("Invalid combination: erp.navpospages.enabled=true with erp.dynamicsnav.enabled=true. One ERP"
-				+ " connector per installation: set one of them to false.",
-				refusal(with("erp.dynamicsnav.enabled", " TRUE ")));
-		NavPosPagesStartupCheck.check(with("erp.dynamicsnav.enabled", "false"));
-	}
-
-	@Test
 	@DisplayName("Only on a head office whose catalogue only comes from the ERP")
 	void onlyThatHeadOffice() {
-		String message = "Invalid value 'true' for property erp.navpospages.enabled: this connector only reads a catalogue,"
+		String message = "Invalid value 'happyness' for property erp.connector: this connector only reads a catalogue,"
 				+ " on a head office whose catalogue only comes from the ERP (node.type=HEAD_OFFICE,"
 				+ " ownership.catalogue=ERP, ownership.customers and ownership.supply not ERP).";
 		assertEquals(message, refusal(with("ownership.catalogue", "LOCAL")), "head office without an ERP");
@@ -74,10 +65,10 @@ class NavPosPagesStartupCheckTest {
 		allErp.setProperty("ownership.supply", "ERP");
 		assertEquals(message, refusal(allErp), "head office whose ERP owns all three");
 		MockEnvironment store = Installations.type("store");
-		store.setProperty("erp.navpospages.enabled", "true");
+		store.setProperty("erp.connector", "happyness");
 		assertEquals(message, refusal(store), "store");
 		MockEnvironment erpStore = Installations.preset("store-erp");
-		erpStore.setProperty("erp.dynamicsnav.enabled", "false");
+		erpStore.setProperty("erp.connector", "happyness");
 		assertEquals(message, refusal(erpStore), "store whose ERP owns all three");
 	}
 
@@ -86,7 +77,7 @@ class NavPosPagesStartupCheckTest {
 	void requiredKeys() {
 		for (String key : new String[] { "base-url", "company", "username", "password" }) {
 			String expected = "Missing value for property erp.navpospages." + key
-					+ ": required when erp.navpospages.enabled=true.";
+					+ ": required with erp.connector=happyness.";
 			assertEquals(expected, refusal(with("erp.navpospages." + key, "  ")), key + " blank");
 			assertEquals(expected, refusal(with("erp.navpospages." + key, null)), key + " absent");
 		}

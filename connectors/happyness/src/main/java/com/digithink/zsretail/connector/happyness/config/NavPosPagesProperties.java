@@ -1,10 +1,11 @@
 package com.digithink.zsretail.connector.happyness.config;
 
-
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
+
+import com.digithink.zsretail.connector.happyness.HappynessConnectorDescriptor;
+import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -13,10 +14,10 @@ import lombok.Setter;
  * ERP catalogue, step 5: the settings of the "POS pages" connector (prefix erp.navpospages), a Dynamics NAV / Business
  * Central whose web services are the pages ItemCategory, PointStockPOS and ItemBarCodePOS. Read only: the connector
  * sends GET requests only. The values are checked before they are bound ({@link NavPosPagesStartupCheck}): a wrong value
- * stops the startup with a message naming the key. Exists only with erp.navpospages.enabled=true.
+ * stops the startup with a message naming the key. Exists only with erp.connector=happyness.
  */
 @Component
-@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
+@ConditionalOnErpConnector(HappynessConnectorDescriptor.NAME)
 @ConfigurationProperties(prefix = NavPosPagesProperties.PREFIX)
 @DependsOn(NavPosPagesStartupCheck.BEAN_NAME)
 @Getter
@@ -25,7 +26,6 @@ public class NavPosPagesProperties {
 
 	public static final String PREFIX = "erp.navpospages";
 
-	private boolean enabled = false;
 	/** OData V4 address, e.g. http://host:7048/BC140/ODataV4 */
 	private String baseUrl;
 	private String company;

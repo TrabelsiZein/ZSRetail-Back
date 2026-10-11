@@ -1314,7 +1314,7 @@ again at the next run.
 
 **State table** `navpospages_state` (`state_key`, `state_value`, `updated_at`): the barcode cursor, the count of the last item
 run, the items that need their barcodes. Not a JPA entity (Hibernate would create it on every installation): created with plain
-SQL when missing, at the start, by `core/erp/engine/JdbcCatalogueState` (was `JdbcNavPosPagesState`), which exists only with a connector that has the ability `HEAD_OFFICE_STOCK_POINTS` (today `erp.navpospages.enabled=true`). A store or a
+SQL when missing, at the start, by `core/erp/engine/JdbcCatalogueState` (was `JdbcNavPosPagesState`), which exists only with a connector that has the ability `HEAD_OFFICE_STOCK_POINTS` (today `erp.connector=happyness`). A store or a
 head office without this connector never gets it.
 
 Tests: `CatalogueEngineTest` (was `NavPosPagesSyncTest`; 28: first load with packets (all items in one run, all barcodes in one run), nothing changed,
@@ -1418,7 +1418,7 @@ backfill after a restart, confirmations through `HeadOfficeSupplyAPI`), `SupplyE
 old reading refuses the copy), `QueryParameterBindingTest` (now with `HoErpInvoiceRepository` and `updateCost`).
 
 ### Stock points (release 2.2, in progress)
-A head office whose catalogue comes from the ERP (`erp.navpospages.enabled=true`) has several points de stock: each one
+A head office whose catalogue comes from the ERP (`erp.connector=happyness`) has several points de stock: each one
 is a `Location_Code` of the items page (FRANCHISE, a store's own location). Each store gets one point or none; a store
 with a point will receive only the items of its point, with that point's fields. The word "location" is not used at
 the head office. Plan: (1) tables and list API, (2) the items run writes the rows per point, (3) the store's point and
@@ -1436,7 +1436,7 @@ Done (step 1):
   from it: the head office creates its points itself before any items run. Until step 2 the items run still reads the
   line.
 - API `admin/headoffice/stock-points` (JWT; `HoStockPointAPI`, `HoStockPointService`; only on a head office whose
-  catalogue comes from the ERP with `erp.navpospages.enabled=true`, 404 elsewhere):
+  catalogue comes from the ERP with `erp.connector=happyness`, 404 elsewhere):
   `GET` (list order), `GET /{id}`, `POST {code, name, active}` (201, placed last), `PUT /{id} {name, active}`,
   `DELETE /{id}` (204), `PUT /order [id, ...]` (every id once; numbered 1, 2, 3...). Each point carries `itemCount`
   and `storeCount`. 400: code or name missing, code too long, code changed, order not every id once. 409: code that
@@ -1961,7 +1961,7 @@ Server and login as the dev stores), ERP sync off.
 - Own log file `C:/zsretail-headoffice/backend.log` and image folder `uploads/headoffice/pos-images`, so it does not share them with the store instance.
 
 ### Dev head office with an ERP: `configs/dev/headoffice-erp.properties` (task 3.4, was the profile `headoffice-dynamics-dev`)
-Type `headoffice` with catalogue, customers and supply `ERP` and the NAV connector on (the preset `headoffice-erp` until configuration step C1). Same database `pos_headoffice`, port 888, log file and image folder as `dev/headoffice.properties`, which stays the head office without ERP.
+Type `headoffice` with catalogue, customers and supply `ERP` and `erp.connector=emtop` (the preset `headoffice-erp` until configuration step C1). Same database `pos_headoffice`, port 888, log file and image folder as `dev/headoffice.properties`, which stays the head office without ERP.
 - `erp.dynamicsnav.*`: the settings of `configs/dev/store-test-nav.properties`, the **NAV test instance** (`192.168.10.166:24/test4`). Never the NAV of `configs/dev/store-a-erp.properties` or `configs/customers/erp-prod.properties`: that is the customer's production NAV (correction from Zein, 2026-10-03). A comment in the file says so, and `HeadOfficeErpProfileTest` fails if the URL or host of those files appears in it.
 - `erp.sync.enabled=true`, `erp.sync.scheduler.delay=60000`: the import jobs enabled from the ERP jobs page run; all are seeded disabled.
 - Switching one `pos_headoffice` database between the two outside files: the ERP jobs are seeded at the first start in ERP mode; started again with `headoffice-dev` (no ERP) nothing runs them (no scheduler) and the item pages allow creating by hand again.
@@ -1969,7 +1969,7 @@ Type `headoffice` with catalogue, customers and supply `ERP` and the NAV connect
 ### Head office with an ERP (task 3.4, decision D2)
 The head office of an ERP customer (ParaFendri) gets its items, families, sub-families and barcodes from Business Central with the existing import jobs, filtered on one **ERP reference location** chosen at the head office. It exports nothing. A head office without ERP keeps creating items by hand or by data import. Nothing in `erp/` is changed: what is specific lives in `headoffice` and only exists on a head office.
 
-**What happens with `node.type=HEAD_OFFICE`, `application.standalone=false`, `erp.dynamicsnav.enabled=true`, `erp.sync.enabled=true`** (read in the code, every place where ERP mode changes behaviour):
+**What happens with `node.type=HEAD_OFFICE`, `application.standalone=false`, `erp.connector=emtop` (was `erp.dynamicsnav.enabled=true`), `erp.sync.enabled=true`** (read in the code, every place where ERP mode changes behaviour):
 
 | Place | ERP mode does | On a head office |
 |---|---|---|
@@ -1985,7 +1985,7 @@ The head office of an ERP customer (ParaFendri) gets its items, families, sub-fa
 | `PurchaseHeaderAPI`, `PurchaseInvoiceAPI`, `VendorAPI` | Refused | Fine: a head office does not buy (shipments come at step 7) |
 | `StockService`, `StockMovementService` | No local stock | Fine: no stock at the head office before step 7 |
 | `InvoiceAPI` (from POS tickets) | Refused | Fine: no ticket at the head office |
-| `DynamicsNavRestClient`, `DynamicsNavConnector`, `DynamicsNavConfig` (`erp.dynamicsnav.enabled`) | The NAV connector instead of the no-op one | Needed for the imports |
+| `DynamicsNavRestClient`, `DynamicsNavConnector`, `DynamicsNavConfig` (`erp.connector=emtop`) | The NAV connector instead of the no-op one | Needed for the imports |
 | Selling services | Not reached: no cashier session or cashier login on a head office (task 1.1); franchise flags refused everywhere since task 9.4a | Unchanged |
 
 **Jobs on a head office** (`HeadOfficeErpJobs.NOT_ON_HEAD_OFFICE`, never run, never offered): `EXPORT_CUSTOMERS`, `EXPORT_TICKETS`, `EXPORT_RETURNS`, `EXPORT_SESSIONS` (a head office has no ticket, return or session, and a customer created there must not reach the ERP) and `IMPORT_SALES_PRICES_AND_DISCOUNTS` (filtered on the responsibility center of one location, it would give one store's prices as if they were the network's; a head office does not sell, and each ERP store imports its own prices). Offered: `IMPORT_ITEM_FAMILIES`, `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS`, `IMPORT_ITEM_BARCODES`, `IMPORT_LOCATIONS` (needed to choose the reference location), `SYNC_ERP_DELETIONS`, and `IMPORT_CUSTOMERS` (import only, disabled as seeded: the head office Customers page can show the ERP customers; nothing goes back to the ERP).

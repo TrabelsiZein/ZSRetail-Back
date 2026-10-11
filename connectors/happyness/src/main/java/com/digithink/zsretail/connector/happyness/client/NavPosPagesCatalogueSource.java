@@ -3,12 +3,13 @@ package com.digithink.zsretail.connector.happyness.client;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import com.digithink.zsretail.connector.happyness.HappynessConnectorDescriptor;
 import com.digithink.zsretail.connector.happyness.config.NavPosPagesProperties;
 import com.digithink.zsretail.connector.happyness.dto.NavPosCategoryRow;
 import com.digithink.zsretail.connector.happyness.mapper.NavPosPagesMapper;
+import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 import com.digithink.zsretail.erp.api.ErpBarcodeRow;
 import com.digithink.zsretail.erp.api.ErpCatalogueSource;
 import com.digithink.zsretail.erp.api.ErpCategories;
@@ -22,7 +23,7 @@ import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
  * The source the catalogue engine reads on this connector.
  */
 @Component
-@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
+@ConditionalOnErpConnector(HappynessConnectorDescriptor.NAME)
 public class NavPosPagesCatalogueSource implements ErpCatalogueSource {
 
 	private final NavPosPagesSource pages;

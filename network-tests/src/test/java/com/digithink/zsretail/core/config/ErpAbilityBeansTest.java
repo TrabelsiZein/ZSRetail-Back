@@ -24,9 +24,10 @@ import com.digithink.zsretail.support.Installations;
 
 /**
  * Code cleanup, step 2, part 2: the stock point beans exist by the ability HEAD_OFFICE_STOCK_POINTS (on a head office
- * whose catalogue only comes from the ERP) where they existed by erp.navpospages.enabled=true: every file of configs/ and
- * configs/, the six shapes of task 9.3, and the head office with the catalogue only from the ERP with and without the
- * connector, chosen by the old line or by erp.connector (its translation).
+ * whose catalogue only comes from the ERP) where they existed by erp.navpospages.enabled=true: every file of configs/,
+ * the six shapes of task 9.3, and the head office with the catalogue only from the ERP with and without the connector.
+ * Code cleanup step 8: the connector is chosen by erp.connector only (the old line is refused at startup), so the old
+ * conditions read as the connector in effect.
  */
 class ErpAbilityBeansTest {
 
@@ -39,10 +40,10 @@ class ErpAbilityBeansTest {
 		return registry.getBeanNamesForType(beanClass, true, false).length == 1;
 	}
 
-	/** The old conditions: @ConditionalOnInstallation(HEAD_OFFICE_ERP_CATALOGUE_ONLY) and @ConditionalOnProperty(erp.navpospages.enabled=true). */
+	/** The old conditions: @ConditionalOnInstallation(HEAD_OFFICE_ERP_CATALOGUE_ONLY) and the connector happyness in effect. */
 	private static boolean before(PropertyResolver env) {
 		return NodeOwnership.isErpCatalogueOnlySet(env)
-				&& "true".equalsIgnoreCase(env.getProperty("erp.navpospages.enabled"));
+				&& "happyness".equals(ErpConnectorEnvironmentPostProcessor.inEffect(env));
 	}
 
 	private static MockEnvironment catalogueOnlyHeadOffice(String... lines) {
@@ -55,9 +56,8 @@ class ErpAbilityBeansTest {
 		return env;
 	}
 
-	private static MockEnvironment translated(MockEnvironment env, String connector) {
-		ErpConnectorEnvironmentPostProcessor.translate(connector).forEach((key, value) -> env.setProperty(key,
-				String.valueOf(value)));
+	private static MockEnvironment chosen(MockEnvironment env, String connector) {
+		env.setProperty(ErpConnectorEnvironmentPostProcessor.CONNECTOR_KEY, connector);
 		return env;
 	}
 
@@ -69,15 +69,13 @@ class ErpAbilityBeansTest {
 		Installations.configFiles().forEach(file -> environments.put(file, Installations.config(file)));
 		Installations.variants().forEach(variant -> environments.put(variant, Installations.preset(variant)));
 		environments.put("catalogue only, no connector", catalogueOnlyHeadOffice());
-		environments.put("catalogue only, old line", catalogueOnlyHeadOffice("erp.navpospages.enabled=true"));
-		environments.put("catalogue only, old line TRUE", catalogueOnlyHeadOffice("erp.navpospages.enabled=TRUE"));
-		environments.put("catalogue only, old line false", catalogueOnlyHeadOffice("erp.navpospages.enabled=false"));
+		environments.put("catalogue only, erp.connector= Happyness ", catalogueOnlyHeadOffice("erp.connector= Happyness "));
 		environments.put("catalogue only, erp.connector=happyness",
-				translated(catalogueOnlyHeadOffice(), "happyness"));
-		environments.put("catalogue only, erp.connector=none", translated(catalogueOnlyHeadOffice(), "none"));
-		environments.put("store, old line", translated(Installations.type("store"), "happyness"));
-		environments.put("head office without an ERP, old line",
-				translated(Installations.type("headoffice"), "happyness"));
+				chosen(catalogueOnlyHeadOffice(), "happyness"));
+		environments.put("catalogue only, erp.connector=none", chosen(catalogueOnlyHeadOffice(), "none"));
+		environments.put("store, erp.connector=happyness", chosen(Installations.type("store"), "happyness"));
+		environments.put("head office without an ERP, erp.connector=happyness",
+				chosen(Installations.type("headoffice"), "happyness"));
 		List<String> withBeans = new ArrayList<>();
 		for (Map.Entry<String, MockEnvironment> entry : environments.entrySet()) {
 			boolean expected = before(entry.getValue());
@@ -89,8 +87,9 @@ class ErpAbilityBeansTest {
 			}
 		}
 		assertTrue(withBeans.contains("catalogue only, erp.connector=happyness"), withBeans.toString());
-		assertTrue(withBeans.contains("catalogue only, old line TRUE"), withBeans.toString());
-		assertTrue(withBeans.size() >= 4, "the real Happyness head office among them: " + withBeans);
+		assertTrue(withBeans.contains("catalogue only, erp.connector= Happyness "), withBeans.toString());
+		assertTrue(withBeans.contains("local/happyness_ho.properties"), "the real Happyness head office: " + withBeans);
+		assertEquals(3, withBeans.size(), withBeans.toString());
 	}
 
 	/** Every configuration of the repository and the six shapes, plus the connector chosen each way. */
@@ -100,11 +99,10 @@ class ErpAbilityBeansTest {
 		Installations.configFiles().forEach(file -> environments.put(file, Installations.config(file)));
 		Installations.variants().forEach(variant -> environments.put(variant, Installations.preset(variant)));
 		for (String connector : new String[] { "none", "emtop", "happyness" }) {
-			environments.put("store, erp.connector=" + connector, translated(Installations.type("store"), connector));
+			environments.put("store, erp.connector=" + connector, chosen(Installations.type("store"), connector));
 			environments.put("catalogue only, erp.connector=" + connector,
-					translated(catalogueOnlyHeadOffice(), connector));
+					chosen(catalogueOnlyHeadOffice(), connector));
 		}
-		environments.put("catalogue only, old line", catalogueOnlyHeadOffice("erp.navpospages.enabled=true"));
 		return environments;
 	}
 
@@ -116,12 +114,10 @@ class ErpAbilityBeansTest {
 				com.digithink.zsretail.connector.happyness.connector.NavPosPagesConnector.class);
 		for (Map.Entry<String, MockEnvironment> entry : configurations().entrySet()) {
 			MockEnvironment env = entry.getValue();
-			String nav = env.getProperty("erp.dynamicsnav.enabled");
-			// The old conditions: DynamicsNavConnector on true, NavPosPagesConnector (@Primary) on true, NoOp on false
-			// or absent; NoOp beside NavPosPagesConnector lost to @Primary
-			Class<?> expected = "true".equalsIgnoreCase(nav) ? connectors.get(1)
-					: "true".equalsIgnoreCase(env.getProperty("erp.navpospages.enabled")) ? connectors.get(2)
-							: nav == null || "false".equalsIgnoreCase(nav) ? connectors.get(0) : null;
+			String inEffect = ErpConnectorEnvironmentPostProcessor.inEffect(env);
+			// The old conditions, by the connector in effect: DynamicsNavConnector for emtop, NavPosPagesConnector for
+			// happyness, NoOp for none
+			Class<?> expected = connectors.get(Arrays.asList("none", "emtop", "happyness").indexOf(inEffect));
 			List<Class<?>> present = new ArrayList<>();
 			for (Class<?> connector : connectors) {
 				if (registered(env, connector)) {
@@ -133,7 +129,7 @@ class ErpAbilityBeansTest {
 	}
 
 	@Test
-	@DisplayName("Step 3: the engine, its job, state, head office reads and import exist where erp.navpospages.enabled=true put them")
+	@DisplayName("Step 3: the engine, its job, state, head office reads and import exist where the connector happyness puts them")
 	void engineBeans() {
 		List<Class<?>> engine = Arrays.asList(com.digithink.zsretail.core.erp.engine.JdbcCatalogueState.class,
 				com.digithink.zsretail.core.erp.engine.JpaHeadOfficeCatalogue.class,
@@ -141,7 +137,7 @@ class ErpAbilityBeansTest {
 				com.digithink.zsretail.core.erp.engine.CatalogueEngine.class, com.digithink.zsretail.core.erp.engine.CatalogueJob.class);
 		List<String> withBeans = new ArrayList<>();
 		for (Map.Entry<String, MockEnvironment> entry : configurations().entrySet()) {
-			boolean expected = "true".equalsIgnoreCase(entry.getValue().getProperty("erp.navpospages.enabled"));
+			boolean expected = "happyness".equals(ErpConnectorEnvironmentPostProcessor.inEffect(entry.getValue()));
 			if (expected) {
 				withBeans.add(entry.getKey());
 			}
@@ -150,25 +146,25 @@ class ErpAbilityBeansTest {
 			}
 		}
 		assertTrue(withBeans.contains("store, erp.connector=happyness"), withBeans.toString());
-		assertTrue(withBeans.size() >= 4, withBeans.toString());
+		assertTrue(withBeans.contains("local/happyness_ho.properties"), withBeans.toString());
+		assertEquals(3, withBeans.size(), withBeans.toString());
 	}
 
 	@Test
-	@DisplayName("headoffice.supply.source=ERP: accepted with the ability SUPPLY_INVOICES, by the old line or erp.connector")
+	@DisplayName("headoffice.supply.source=ERP: accepted with the ability SUPPLY_INVOICES, by erp.connector")
 	void supplySource() {
-		for (MockEnvironment env : Arrays.asList(catalogueOnlyHeadOffice("erp.navpospages.enabled= true "),
-				translated(catalogueOnlyHeadOffice(), "happyness"))) {
+		for (MockEnvironment env : Arrays.asList(catalogueOnlyHeadOffice("erp.connector= HAPPYNESS "),
+				chosen(catalogueOnlyHeadOffice(), "happyness"))) {
 			env.setProperty("headoffice.supply.source", "ERP");
 			assertTrue(NodeOwnership.resolve(env).isErpCatalogueOnly());
 			assertTrue(NodeOwnership.isSupplyFromErpSourceSet(env));
 		}
 		for (MockEnvironment env : Arrays.asList(catalogueOnlyHeadOffice(),
-				translated(catalogueOnlyHeadOffice(), "none"), translated(catalogueOnlyHeadOffice(), "emtop"))) {
+				chosen(catalogueOnlyHeadOffice(), "none"), chosen(catalogueOnlyHeadOffice(), "emtop"))) {
 			env.setProperty("headoffice.supply.source", "ERP");
 			String message = org.junit.jupiter.api.Assertions
 					.assertThrows(IllegalStateException.class, () -> NodeOwnership.resolve(env)).getMessage();
-			assertTrue(message.contains("erp.connector=happyness (or the old line erp.navpospages.enabled=true, still"
-					+ " accepted)"), message);
+			assertTrue(message.contains("erp.connector=happyness. Choose it"), message);
 		}
 	}
 }

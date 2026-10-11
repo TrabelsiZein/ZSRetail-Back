@@ -91,13 +91,13 @@ class NavPosPagesConnectorTest {
 	}
 
 	private static String[] dynamicsNavKeys() {
-		return new String[] { "erp.dynamicsnav.enabled=true", "erp.dynamicsnav.base-url=http://nav.test:7048/NAV/ODataV4",
+		return new String[] { "erp.connector=emtop", "erp.dynamicsnav.base-url=http://nav.test:7048/NAV/ODataV4",
 				"erp.dynamicsnav.company=TEST", "erp.dynamicsnav.domain=D", "erp.dynamicsnav.username=u",
 				"erp.dynamicsnav.password=p" };
 	}
 
 	private static String[] navPosPagesKeys() {
-		return new String[] { "node.type=HEAD_OFFICE", "ownership.catalogue=ERP", "erp.navpospages.enabled=true",
+		return new String[] { "node.type=HEAD_OFFICE", "ownership.catalogue=ERP", "erp.connector=happyness",
 				"erp.navpospages.base-url=" + NavPosPagesTestSupport.BASE_URL, "erp.navpospages.company=HAPPYNESS",
 				"erp.navpospages.username=user", "erp.navpospages.password=secret",
 				"erp.navpospages.location-code=FRANCHISE" /* release 2.2: a leftover line, ignored */, "erp.navpospages.default-vat=19",
@@ -160,7 +160,7 @@ class NavPosPagesConnectorTest {
 	}
 
 	@Test
-	@DisplayName("navpospages enabled: NavPosPagesConnector injected in ErpSynchronizationManager (the only connector, no NoOp)")
+	@DisplayName("erp.connector=happyness: NavPosPagesConnector injected in ErpSynchronizationManager (the only connector, no NoOp)")
 	void navPosPages() {
 		context().withPropertyValues(navPosPagesKeys()).run(ctx -> {
 			assertTrue(ctx.getStartupFailure() == null, String.valueOf(ctx.getStartupFailure()));
@@ -223,10 +223,6 @@ class NavPosPagesConnectorTest {
 			assertNotNull(failure);
 			assertTrue(rootMessage(failure).startsWith("Invalid value 'abc' for property erp.navpospages.default-vat"),
 					rootMessage(failure));
-		});
-		context().withPropertyValues(navPosPagesKeys()).withPropertyValues(dynamicsNavKeys()).run(ctx -> {
-			assertTrue(rootMessage(ctx.getStartupFailure()).startsWith("Invalid combination: erp.navpospages.enabled=true"),
-					rootMessage(ctx.getStartupFailure()));
 		});
 	}
 

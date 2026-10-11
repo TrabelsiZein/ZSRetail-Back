@@ -36,7 +36,7 @@ import com.digithink.zsretail.erp.api.dto.PullOperationResult;
 /**
  * ERP catalogue, step 5: the ERP connector of a Dynamics NAV / Business Central whose web services are the "POS pages"
  * (ItemCategory, PointStockPOS, ItemBarCodePOS). Read only: it never writes to the ERP. Exists only with
- * erp.navpospages.enabled=true (or erp.connector=navpospages), on a head office whose catalogue only comes from the ERP
+ * erp.connector=happyness, on a head office whose catalogue only comes from the ERP
  * (NavPosPagesStartupCheck). Code cleanup, step 2: the only ErpConnector bean then (the three are mutually exclusive by
  * the connector in effect; no more {@code @Primary} over NoOpErpConnector).
  * <p>

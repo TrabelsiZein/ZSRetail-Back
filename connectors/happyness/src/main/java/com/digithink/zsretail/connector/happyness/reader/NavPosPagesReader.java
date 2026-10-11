@@ -1,12 +1,13 @@
 package com.digithink.zsretail.connector.happyness.reader;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import com.digithink.zsretail.connector.happyness.HappynessConnectorDescriptor;
 import com.digithink.zsretail.connector.happyness.client.NavPosPagesRestClient;
 import com.digithink.zsretail.connector.happyness.config.NavPosPagesProperties;
 import com.digithink.zsretail.connector.happyness.mapper.NavPosPagesMapper;
+import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 import com.digithink.zsretail.erp.api.ErpRead;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
@@ -18,7 +19,7 @@ import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
  * connector at step 6. Each call reads the ERP again; nothing is kept between calls.
  */
 @Component
-@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
+@ConditionalOnErpConnector(HappynessConnectorDescriptor.NAME)
 public class NavPosPagesReader {
 
 	private final NavPosPagesRestClient client;

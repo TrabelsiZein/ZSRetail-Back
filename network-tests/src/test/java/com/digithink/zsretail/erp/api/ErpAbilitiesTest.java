@@ -31,8 +31,8 @@ import com.digithink.zsretail.support.Starts;
 
 /**
  * Code cleanup, step 2, part 1: what each connector can do (ErpAbilities), read from the environment whichever way the
- * connector was chosen (erp.connector or the old enabled lines), and every file of configs/ giving the
- * abilities its old lines gave.
+ * connector was chosen, and every file of configs/ giving the abilities its old lines gave. Code cleanup step 8:
+ * erp.connector is the only line (the old ones are refused, ErpConnectorTest); each file says it.
  */
 class ErpAbilitiesTest {
 
@@ -68,10 +68,10 @@ class ErpAbilitiesTest {
 	}
 
 	@Test
-	@DisplayName("From the environment: erp.connector or the old lines give the same abilities")
+	@DisplayName("From the environment: erp.connector, trimmed and any case, gives the connector's abilities")
 	void fromEnvironment() throws IOException {
 		for (String[] lines : Arrays.asList(new String[] { "erp.connector=happyness" },
-				new String[] { "erp.navpospages.enabled=true" })) {
+				new String[] { "erp.connector= HAPPYNESS " })) {
 			StandardEnvironment env = start(lines);
 			assertEquals("happyness", ErpAbilities.connectorInEffect(env), lines[0]);
 			assertTrue(ErpAbilities.hasConnector(env), lines[0]);
@@ -79,7 +79,7 @@ class ErpAbilitiesTest {
 			assertTrue(ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES), lines[0]);
 		}
 		for (String[] lines : Arrays.asList(new String[] { "erp.connector=Emtop" },
-				new String[] { "erp.dynamicsnav.enabled=true" })) {
+				new String[] { "erp.connector=emtop" })) {
 			StandardEnvironment env = start(lines);
 			assertEquals("emtop", ErpAbilities.connectorInEffect(env), lines[0]);
 			assertTrue(ErpAbilities.hasConnector(env), lines[0]);
@@ -96,25 +96,32 @@ class ErpAbilitiesTest {
 		}
 	}
 
-	private static boolean oldLineTrue(PropertyResolver env, String key) {
-		String value = env.getProperty(key);
-		return value != null && "true".equalsIgnoreCase(value.trim());
+	/** The connector a file's erp.connector line names, none without one. */
+	private static String lineOf(PropertyResolver env) {
+		String value = env.getProperty("erp.connector");
+		return value == null ? "none" : value.trim().toLowerCase();
 	}
 
 	@Test
-	@DisplayName("Every file of configs/: the abilities its old lines give")
+	@DisplayName("Every file of configs/: the abilities its erp.connector line gives")
 	void existingFiles() {
 		List<String> machines = Installations.machineFiles();
 		List<String> configs = Installations.configFiles();
 		assertTrue(machines.size() + configs.size() > 10);
+		int withPages = 0;
+		int withNav = 0;
 		for (int i = 0; i < machines.size() + configs.size(); i++) {
 			String name = i < machines.size() ? machines.get(i) : configs.get(i - machines.size());
 			MockEnvironment env = i < machines.size() ? Installations.machine(name) : Installations.config(name);
-			boolean pages = oldLineTrue(env, "erp.navpospages.enabled");
-			boolean nav = oldLineTrue(env, "erp.dynamicsnav.enabled");
+			boolean pages = "happyness".equals(lineOf(env));
+			boolean nav = "emtop".equals(lineOf(env));
+			withPages += pages ? 1 : 0;
+			withNav += nav ? 1 : 0;
 			assertEquals(pages, ErpAbilities.has(env, ErpAbility.HEAD_OFFICE_STOCK_POINTS), name);
 			assertEquals(pages, ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES), name);
 			assertEquals(nav || pages, ErpAbilities.hasConnector(env), name);
 		}
+		assertEquals(1, withPages, "the Happyness head office of configs/local");
+		assertEquals(4, withNav, "the NAV files of configs/dev and configs/customers");
 	}
 }

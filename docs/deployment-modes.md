@@ -21,8 +21,8 @@ names the other one (below, **Type check**). Every key of every file of `configs
 | `application-headoffice.properties` (the head office WAR) | the type headoffice |
 
 Each type file has two titled blocks:
-- **What this installation is**: `node.type`, the five `ownership.*`, `sales.upstream`, `erp.dynamicsnav.enabled` (its comment names
-  `erp.connector`, section 2), each with a comment giving its allowed values. Both types ship with every owner `LOCAL`, sales nowhere, no NAV connector. The store
+- **What this installation is**: `node.type`, the five `ownership.*`, `sales.upstream`, a comment naming `erp.connector`
+  (section 2), each with a comment giving its allowed values. Both types ship with every owner `LOCAL`, sales nowhere, no ERP connector. The store
   file shows the two usual variants as comments: a store on NAV (catalogue, customers, supply `ERP`, sales to `ERP`, connector
   on) and a store of a network (catalogue and supply `HEAD_OFFICE`, sales to `HEAD_OFFICE`, plus the head office link).
 - **Where it runs**: database, `server.port`, log file, upload folder, `pos.pricing.enable-sales-price-group`, the NAV connection
@@ -62,16 +62,31 @@ head office application (HeadOfficeApplication): it runs an installation of type
 names the type store (spring.profiles.active=store). The store runs the store application: deploy its WAR in this
 Tomcat (under zsretailws), or correct the file; ...`
 
-**ERP connector** (code cleanup step 1): one line chooses it, `erp.connector=none | emtop | happyness` (trimmed, any
-case), the way for a new installation (in its outside file). It is only a translation into the two old lines, done by
-`core/config/ErpConnectorEnvironmentPostProcessor` after the configuration files are read and before Spring reads its conditions:
+**ERP connector** (code cleanup step 1; since code cleanup step 8 the only way): one line chooses it,
+`erp.connector=none | emtop | happyness` (trimmed, any case), in the installation's outside file. Absent or `none`: no
+connector. The conditions, the connectors and the startup summary read it (`ErpConnectorEnvironmentPostProcessor.inEffect`).
+`core/config/ErpConnectorEnvironmentPostProcessor` checks it once the configuration files are read: an unknown value
+(an empty `erp.connector=` included) stops the startup, `Invalid value '<v>' for property erp.connector: none | emtop |
+happyness.`
 
-| `erp.connector` | `erp.dynamicsnav.enabled` | `erp.navpospages.enabled` |
-|---|---|---|
-| `none` | `false` | `false` |
-| `emtop` (was `dynamicsnav`) | `true` | `false` |
-| `happyness` (was `navpospages`) | `false` | `true` |
-| absent | as written (nothing translated) | as written |
+**The old enabled lines are refused** (code cleanup step 8, decision of 2026-10-11): `erp.dynamicsnav.enabled` and
+`erp.navpospages.enabled`, found in any property source (the outside file, a configuration file, a `-D`, an environment
+variable such as `ERP_DYNAMICSNAV_ENABLED`), whatever their value, even beside an `erp.connector` that agrees, stop the
+startup. One message names every old line, where it is and what to write instead:
+
+```
+Old line no longer read: erp.navpospages.enabled=true in the outside file C:\...\happyness_ho.properties: write
+erp.connector=happyness instead. The ERP connector is chosen by erp.connector only (none | emtop | happyness; no line: none).
+```
+
+| Old line | Write instead |
+|---|---|
+| `erp.dynamicsnav.enabled=true` | `erp.connector=emtop` |
+| `erp.navpospages.enabled=true` | `erp.connector=happyness` |
+| either, `false` | nothing: remove the line |
+
+Each connector declares its old prefix (`ErpConnectorDescriptor.oldKeyPrefix()`), so the refusal names no connector in
+core. The upgrade of an outside file: `docs/deploy-note.md`, "Upgrade from 2.2.2: the outside file".
 
 Code cleanup step 5: the values are the customers' names, one connector per customer even when two ERPs look alike:
 `emtop` (EMTOP's Dynamics NAV, keys `erp.dynamicsnav.*`) and `happyness` (Happyness's POS pages, keys `erp.navpospages.*`);
@@ -79,19 +94,8 @@ they were `dynamicsnav` and `navpospages`, which no installed file used. The nam
 `erp/api` (`ErpConnectors`); erp-api asks the application which connector is in effect through `ErpConnectorResolver`
 (`core/config/ErpConnectorInEffect`, registered in `META-INF/spring.factories`), so it names no key of the application.
 
-So every `@ConditionalOnProperty`, `NodeOwnership`, the startup checks and the summary read the old lines unchanged. The
-**old lines are still accepted**: without `erp.connector` they act exactly as before, and every file of `configs/`
-resolves as before (checked key by key, `ErpConnectorTest`). The translated values sit just above the property source that gives
-`erp.connector`, so they win over an old line of a lower source (the type files' `erp.dynamicsnav.enabled=false`). Refused at
-startup: an unknown value (empty included), `Invalid value '<v>' for property erp.connector: none | emtop | happyness
-...`; an old line of the same or a higher source (the same outside file, a `-D`) that says the opposite, `Invalid combination:
-erp.connector=<v> with <old key>=<value> (<source>) ...`. An old line that agrees is accepted.
-
-Two rules, decided at code cleanup step 1:
-- **A contradiction counts only in the same or a higher-priority source** than the one giving `erp.connector`. An opposite old
-  line in a lower source is not refused, `erp.connector` wins over it: both type files say `erp.dynamicsnav.enabled=false`, and
-  refusing that line would refuse every `erp.connector=emtop`.
-- **An empty `erp.connector=` is refused as an unknown value**, not read as absent: to keep the old lines, leave the key out.
+Until code cleanup step 8, `erp.connector` was translated into the old lines, which were still accepted alone; the
+type files said `erp.dynamicsnav.enabled=false` (gone). Every bean of a connector exists by `@ConditionalOnErpConnector`.
 
 **Abilities and the rule "the application never names a connector"** (code cleanup step 2, `docs/modules/erp-sync.md`,
 "Abilities"): the application asks `erp/api/ErpAbilities` what the connector in effect can do (`HEAD_OFFICE_STOCK_POINTS`,
@@ -103,8 +107,7 @@ one of the connector in effect. Outside the connector packages and the class abo
 **Startup summary**: one INFO line once the application is up (`core/config/InstallationSummary`), e.g.
 `Installation: type STORE, database pos_store_b, catalogue HEAD_OFFICE, customers LOCAL, promotions LOCAL, loyalty HEAD_OFFICE,
 supply HEAD_OFFICE, sales to [HEAD_OFFICE], ERP connector none, outside file D:\...\configs\dev\store-b.properties`. The connector
-(`none` or a connector found: `emtop`, `happyness`) is worked out from the connectors' old lines in effect, whichever
-way they were set, or from `erp.connector` for a connector with no old line. With `emtop` it adds `NAV <base-url>` (what
+(`none` or a connector found: `emtop`, `happyness`) is the value of `erp.connector`. With `emtop` it adds `NAV <base-url>` (what
 its descriptor declares); never a password or a key.
 
 **The `configs/` folder** (versioned; `deploy/` joined it at code cleanup step 7): every file of the table names its type (as
@@ -116,7 +119,7 @@ from the type file, states the mode lines that preset gave, so every key of ever
 |---|---|---|
 | `machine-model.properties` | — | the model |
 | `dev/headoffice.properties` | `headoffice` | devenv instance headoffice (888) |
-| `dev/headoffice-erp.properties` | `headoffice` + catalogue, customers, supply `ERP`, connector on | TEST NAV head office |
+| `dev/headoffice-erp.properties` | `headoffice` + catalogue, customers, supply `ERP`, `erp.connector=emtop` | TEST NAV head office |
 | `dev/store-a.properties` | `store` + sales to `HEAD_OFFICE` | store A (`pos_db_prod`) |
 | `dev/store-a-erp.properties` | `store` + the NAV lines | **its NAV is the customer's production NAV, never start it against that NAV** |
 | `dev/store-test-nav.properties` | `store` + the NAV lines | TEST NAV 192.168.10.166 |
@@ -129,7 +132,7 @@ from the type file, states the mode lines that preset gave, so every key of ever
 | `happyness-from-scratch/headoffice.properties`, `store-1.properties`, `store-2.properties` | `headoffice`, `store` + the network lines | the Happyness franchise first set up on this PC (889, 557, 558), without the ERP catalogue |
 | `local/happyness_ho.properties`, `happyness_store1.properties`, `happyness_store2.properties` | `headoffice` + the ERP catalogue, `store` + the network lines | this PC's Happyness test with its ERP catalogue (888, 991, 992); committed with `CHANGE_ME` |
 
-"The NAV lines": catalogue, customers, supply `ERP`, sales to `ERP`, connector on. "The network lines": catalogue and supply
+"The NAV lines": catalogue, customers, supply `ERP`, sales to `ERP`, `erp.connector=emtop`. "The network lines": catalogue and supply
 `HEAD_OFFICE`, sales to `HEAD_OFFICE`.
 
 **IDE (Eclipse / STS)**: `StoreApplication` as it is is a store on the type file (`HeadOfficeApplication` a head office on its own) (set `ZSRETAIL_DB_PASSWORD` in the launch's
@@ -150,7 +153,7 @@ outside file of `configs/` like the application; it keeps the six shapes of task
 2. Copy `configs/machine-model.properties`: database, log file and image folder (their own per installation), no type
    (the application is the type), and the mode lines when the installation is not a plain store or head office (a store on
    NAV, a store of a network: the variants in `application-store.properties`), with the NAV connection or the head office link.
-   The ERP connector with `erp.connector` (section 2) rather than the old enabled lines.
+   The ERP connector with `erp.connector` (section 2), the only line that chooses it.
 3. Put it at `${catalina.base}/conf/zsretail/<context name>.properties` (or point `-Dzsretail.machine-file` to it), deploy the
    WAR of its application as `zsretailws` (`docs/deploy-note.md`), start Tomcat. Hibernate creates the tables; the logins of a new database are created at the first start.
 4. A store of a network: create its row on the head office Stores page (code = the store's `DEFAULT_LOCATION`), put the key
@@ -208,11 +211,11 @@ frontend (`docs/modules/head-office.md`).
 
 **The connector of this head office: `erp.navpospages.*`** (ERP catalogue, step 5; package `erp/navpospages`, since code cleanup step 6.3 `connector/happyness` in the project connectors/happyness; GET only, it never
 writes to the ERP). The lines go in the head office's **outside file** (e.g. `configs/local/happyness_ho.properties`), never in
-the WARs' resources. Every bean of the package exists only with `erp.navpospages.enabled=true`.
+the WARs' resources. Every bean of the package exists only with `erp.connector=happyness`.
 
 | Key | Value | Default |
 |---|---|---|
-| `erp.navpospages.enabled` | `true` \| `false` | `false` |
+| `erp.connector` | `happyness` (section 2; the old `erp.navpospages.enabled` is refused) | `none` |
 | `erp.navpospages.base-url` | OData V4 address, e.g. `http://host:7048/BC140/ODataV4` | required |
 | `erp.navpospages.company` | Company name | required |
 | `erp.navpospages.domain`, `.username`, `.password` | NTLM account (domain may be blank) | username and password required |
@@ -232,11 +235,10 @@ the WARs' resources. Every bean of the package exists only with `erp.navpospages
 | `erp.navpospages.invoices.max-per-run` | Invoices read per year and run, 1 to 1000 | `50` |
 | `erp.navpospages.invoices.seller-name` (step c) | The seller named on the stores' purchase invoices; a store's vendor `HEAD_OFFICE` is created with it | `Head office` |
 
-Startup refusals with `enabled=true` (the message names the key, the application does not start): `erp.dynamicsnav.enabled=true`
-as well (one ERP connector per installation); not a head office whose catalogue only comes from the ERP; a blank address,
-company, username, password or location; a wrong `default-vat`, `price-includes-vat`, `barcode-page-size`, `packet-size` or timeout; the old `max-changes-per-run`; a blank
+Startup refusals with `erp.connector=happyness` (the message names the key, the application does not start): not a head
+office whose catalogue only comes from the ERP; a blank address, company, username or password; a wrong `default-vat`, `price-includes-vat`, `barcode-page-size`, `packet-size` or timeout; the old `max-changes-per-run`; a blank
 `page.invoices`, a wrong prefix, field name or `max-per-run`. One INFO line at startup: `ERP connector navpospages (read only, GET): <address>,
-company <company>, location <code>, pages <three>`, followed by `, invoices <page>` when `headoffice.supply.source=ERP`.
+company <company>, pages <three>`, followed by `, invoices <page>` when `headoffice.supply.source=ERP`.
 Step 6: the four catalogue import jobs hand the changes only (`docs/modules/head-office.md`); they run when `erp.sync.enabled=true`
 and the jobs are enabled on the ERP jobs page (none is switched on by these files). Items of the ERP no longer in the location
 are made inactive at the head office whatever their number; only an empty answer for the location deactivates nothing (a
@@ -281,7 +283,7 @@ the "Connect a store" procedure: `docs/modules/head-office.md`, "Head office lin
   only, like `headoffice.stock.enabled`; a store never reads it. Startup refusals: a value other than `HEAD_OFFICE` or
   `ERP` (blank included); `ERP` on a head office whose catalogue does not come from the ERP alone (without an ERP, or
   with the ERP owning all three); `ERP` without a connector that has the ability `SUPPLY_INVOICES` (the message names
-  `erp.connector=happyness` and the old line `erp.navpospages.enabled=true`, still accepted). `GET /config` field `supplySource`
+  `erp.connector=happyness`). `GET /config` field `supplySource`
   (`HEAD_OFFICE` or `ERP` on a head office, `null` on a store). See `docs/modules/head-office.md`, "Invoices from the ERP".
 - **Stores page threshold** (task 1.5), head office only: `headoffice.offline-after-seconds`, whole number, at least 1, default `180`. A store whose last heartbeat is older is shown OFFLINE (exactly at the threshold it is still ONLINE). A wrong value stops the head office at startup. See `docs/modules/head-office.md`, "Status".
 - **GET /config** (task 0.5) returns three more fields after the existing ones, enums as their names:

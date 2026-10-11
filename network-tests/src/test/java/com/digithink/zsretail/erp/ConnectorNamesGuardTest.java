@@ -23,9 +23,9 @@ import com.digithink.zsretail.erp.api.ErpConnectors;
 /**
  * Code cleanup, step 2: the application never names a connector. Outside the connector packages (connector/&lt;name&gt;
  * of every project of connectors/), no file of any project's src/main/java imports a connector package or contains a
- * connector's key prefix (as its descriptor declares it: erp.dynamicsnav, erp.navpospages; a property key, a package, a
- * comment) or zsretail.connector. (a connector package). Since code cleanup step 7 no class of core is an exception: the
- * translation of erp.connector reads the descriptors. The application asks ErpAbilities what the connector in effect
+ * connector's key prefix, old or new (as its descriptor declares them; a property key, a package, a comment) or
+ * zsretail.connector. (a connector package). Since code cleanup step 7 no class of core is an exception: the refusals of
+ * the old lines read the descriptors. The application asks ErpAbilities what the connector in effect
  * can do. See docs/modules/erp-sync.md, "Abilities".
  */
 class ConnectorNamesGuardTest {
@@ -34,12 +34,17 @@ class ConnectorNamesGuardTest {
 	/** Code cleanup step 7: the connectors' own packages only (every connector project found); no class of core. */
 	static final List<String> ALLOWED = Repo.connectorNames().stream().map(name -> BASE + "connector/" + name + "/")
 			.collect(Collectors.toList());
-	/** The connectors' key prefixes, as each declares them (its descriptor), and their packages. */
+	/** The connectors' key prefixes, old and new, as each declares them (its descriptor), and their packages. */
 	static final List<String> TEXTS = texts();
 
 	private static List<String> texts() {
-		List<String> texts = ErpConnectors.descriptors().stream().map(ErpConnectorDescriptor::keyPrefix)
-				.collect(Collectors.toList());
+		List<String> texts = new ArrayList<>();
+		for (ErpConnectorDescriptor descriptor : ErpConnectors.descriptors()) {
+			texts.add(descriptor.keyPrefix());
+			if (descriptor.oldKeyPrefix() != null && !texts.contains(descriptor.oldKeyPrefix())) {
+				texts.add(descriptor.oldKeyPrefix());
+			}
+		}
 		texts.add("zsretail.connector.");
 		return texts;
 	}

@@ -6,7 +6,7 @@ import com.digithink.zsretail.erp.api.ErpConnectorResolver;
 
 /**
  * Code cleanup step 5: the application's answers to erp-api's questions: which connector is in effect
- * ({@link ErpConnectorEnvironmentPostProcessor#inEffect}: erp.connector, or the old enabled lines) and whether this is a
+ * ({@link ErpConnectorEnvironmentPostProcessor#inEffect}: erp.connector) and whether this is a
  * head office whose catalogue only comes from the ERP ({@link NodeOwnership#isErpCatalogueOnlySet}). Registered in
  * META-INF/spring.factories.
  */

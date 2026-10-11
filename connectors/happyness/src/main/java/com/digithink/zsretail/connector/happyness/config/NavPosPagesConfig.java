@@ -7,7 +7,6 @@ import org.apache.http.auth.NTCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.HttpClientBuilder;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -18,14 +17,17 @@ import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
+import com.digithink.zsretail.connector.happyness.HappynessConnectorDescriptor;
+import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
+
 /**
  * ERP catalogue, step 5: the HTTP client of the "POS pages" connector. NTLM like the Dynamics NAV connector, with the two
  * timeouts of the settings, and an interceptor that refuses any method other than GET before it leaves: this connector
- * never writes to the ERP. Exists only with erp.navpospages.enabled=true; its own bean name, so no other RestTemplate is
+ * never writes to the ERP. Exists only with erp.connector=happyness; its own bean name, so no other RestTemplate is
  * affected.
  */
 @Configuration
-@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
+@ConditionalOnErpConnector(HappynessConnectorDescriptor.NAME)
 public class NavPosPagesConfig {
 
 	public static final String REST_TEMPLATE = "navPosPagesRestTemplate";

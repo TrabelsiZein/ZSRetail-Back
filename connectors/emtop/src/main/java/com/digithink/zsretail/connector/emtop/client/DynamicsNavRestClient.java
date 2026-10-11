@@ -10,7 +10,6 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -25,6 +24,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import com.digithink.zsretail.connector.emtop.EmtopConnectorDescriptor;
 import com.digithink.zsretail.connector.emtop.config.DynamicsNavProperties;
 import com.digithink.zsretail.connector.emtop.dto.DynamicsNavBarcodeDTO;
 import com.digithink.zsretail.connector.emtop.dto.DynamicsNavCollectionResponse;
@@ -43,6 +43,7 @@ import com.digithink.zsretail.connector.emtop.dto.DynamicsNavSalesPriceDTO;
 import com.digithink.zsretail.connector.emtop.dto.DynamicsNavSessionDTO;
 import com.digithink.zsretail.connector.emtop.dto.DynamicsNavStockKeepingUnitDTO;
 import com.digithink.zsretail.connector.emtop.dto.DynamicsNavSubFamilyDTO;
+import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 import com.digithink.zsretail.erp.api.ErpStoreLocation;
 import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 import com.digithink.zsretail.erp.api.dto.ErpSyncFilter;
@@ -53,7 +54,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 @Component
-@ConditionalOnProperty(prefix = "erp.dynamicsnav", name = "enabled", havingValue = "true")
+@ConditionalOnErpConnector(EmtopConnectorDescriptor.NAME)
 public class DynamicsNavRestClient {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(DynamicsNavRestClient.class);

@@ -32,6 +32,46 @@ On this PC `devenv\build.ps1` does the same for the dev instances (`C:\zsretail-
 - **Upgrade of an existing installation**: deploy the WAR of its type (a store: the store WAR; a head office: the head
   office WAR), after the database scripts of the version as before.
 
+## Upgrade from 2.2.2: the outside file
+
+Since code cleanup step 8 (decision of 2026-10-11) the old configuration lines are no longer read: a start that finds
+one, in the outside file or anywhere else (a `-D`, an environment variable, the Tomcat options), stops, and its message
+names each old line, where it is and what to write instead. Nothing else behaves differently. Change the outside file
+(`<Tomcat>\conf\zsretail\zsretailws.properties`) **before** deploying the new WAR:
+
+| 2.2.2 line | Now |
+|---|---|
+| `erp.dynamicsnav.enabled=true` | `erp.connector=emtop` |
+| `erp.navpospages.enabled=true` | `erp.connector=happyness` |
+| `erp.dynamicsnav.enabled=false`, `erp.navpospages.enabled=false` | removed (no `erp.connector` line, or `erp.connector=none`: no connector) |
+
+`erp.sync.enabled` is not an old line: it stays as it is.
+
+**An EMTOP store** (Dynamics NAV):
+
+```properties
+# remove
+erp.dynamicsnav.enabled=true
+# write
+erp.connector=emtop
+```
+
+**A Happyness head office** (its catalogue from the ERP's POS pages):
+
+```properties
+# remove
+erp.navpospages.enabled=true
+# write
+erp.connector=happyness
+```
+
+**A Happyness store** (a store of the network, no ERP):
+
+```properties
+# remove
+erp.dynamicsnav.enabled=false
+```
+
 ## Database
 
 Each application creates and checks only its own tables: a new store database has no head office table (`ho_*`), a new

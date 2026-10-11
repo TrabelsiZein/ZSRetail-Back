@@ -24,7 +24,7 @@ import com.digithink.zsretail.erp.api.dto.ErpTicketDTO;
 import com.digithink.zsretail.erp.api.dto.ErpTicketLineDTO;
 
 /**
- * Connector used when there is no ERP connector (erp.connector=none, or neither old enabled line true). Code cleanup,
+ * Connector used when there is no ERP connector (erp.connector=none, or no erp.connector line). Code cleanup,
  * step 2: the three ErpConnector beans are mutually exclusive by the connector in effect, so exactly one exists.
  */
 @Component

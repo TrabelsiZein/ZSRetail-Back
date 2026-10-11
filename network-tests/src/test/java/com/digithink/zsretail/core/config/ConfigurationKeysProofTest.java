@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -84,24 +85,34 @@ class ConfigurationKeysProofTest {
 		return configurations;
 	}
 
-	/** A file of configs/ as committed (configs/local is edited on this machine), copied to a temporary folder. */
+	/**
+	 * A file of configs/ as committed (configs/local is edited on this machine), copied to a temporary folder (the file on
+	 * disk when git cannot answer). Code cleanup step 8: upgraded (Installations.upgraded), as Zein will upgrade it.
+	 */
 	Path committed(String file) throws IOException {
 		Path copy = folder.resolve("configs").resolve(file);
 		Files.createDirectories(copy.getParent());
+		byte[] content = null;
 		try {
 			Process git = new ProcessBuilder("git", "show", "HEAD:configs/" + file).directory(Repo.ROOT.toFile()).start();
-			byte[] content;
 			try (InputStream in = git.getInputStream()) {
 				content = in.readAllBytes();
 			}
-			if (git.waitFor() == 0 && content.length > 0) {
-				Files.write(copy, content);
-				return copy;
+			if (git.waitFor() != 0 || content.length == 0) {
+				content = null;
 			}
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 		}
-		return Installations.CONFIGS.resolve(file);
+		Files.write(copy, content != null ? content : Files.readAllBytes(Installations.CONFIGS.resolve(file)));
+		Properties lines = Installations.file(copy);
+		Properties upgraded = Installations.upgraded(lines);
+		if (!upgraded.equals(lines)) {
+			try (OutputStream out = Files.newOutputStream(copy)) {
+				upgraded.store(out, null);
+			}
+		}
+		return copy;
 	}
 
 	/**

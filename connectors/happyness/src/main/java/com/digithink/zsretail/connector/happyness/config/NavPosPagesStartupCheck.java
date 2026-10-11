@@ -3,11 +3,12 @@ package com.digithink.zsretail.connector.happyness.config;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.PropertyResolver;
 import org.springframework.stereotype.Component;
 
+import com.digithink.zsretail.connector.happyness.HappynessConnectorDescriptor;
+import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 import com.digithink.zsretail.erp.api.ErpConnectors;
 
 import lombok.extern.log4j.Log4j2;
@@ -16,19 +17,18 @@ import lombok.extern.log4j.Log4j2;
  * ERP catalogue, step 5: the startup refusals of the "POS pages" connector, in the style of NodeOwnership: an
  * {@link IllegalStateException} naming the key, so the application does not start. Read from the environment before the
  * settings are bound ({@link NavPosPagesProperties} depends on this bean), so a value such as default-vat=abc gets this
- * message rather than a binding error. Exists only with erp.navpospages.enabled=true. One INFO line when the settings
+ * message rather than a binding error. Exists only with erp.connector=happyness. One INFO line when the settings
  * are accepted: the address, the company and the three pages (never a password). Release 2.2: location-code is no
  * longer required; the head office reads its stock points (ho_stock_point).
  */
 @Component(NavPosPagesStartupCheck.BEAN_NAME)
-@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
+@ConditionalOnErpConnector(HappynessConnectorDescriptor.NAME)
 @Log4j2
 public class NavPosPagesStartupCheck {
 
 	public static final String BEAN_NAME = "navPosPagesStartupCheck";
 
 	static final String P = NavPosPagesProperties.PREFIX + ".";
-	static final String DYNAMICS_NAV_ENABLED_KEY = "erp.dynamicsnav.enabled";
 
 	/** A field or navigation property of an OData page: it goes into the URL as it is. */
 	static final String ODATA_NAME = "[A-Za-z_][A-Za-z0-9_]*";
@@ -44,19 +44,16 @@ public class NavPosPagesStartupCheck {
 
 	/** Throws {@link IllegalStateException} naming the key when the connector cannot start. */
 	public static void check(PropertyResolver env) {
-		if ("true".equalsIgnoreCase(trimmed(env.getProperty(DYNAMICS_NAV_ENABLED_KEY)))) {
-			throw new IllegalStateException("Invalid combination: " + P + "enabled=true with " + DYNAMICS_NAV_ENABLED_KEY
-					+ "=true. One ERP connector per installation: set one of them to false.");
-		}
 		if (!ErpConnectors.isErpCatalogueOnlyHeadOffice(env)) {
-			throw new IllegalStateException("Invalid value 'true' for property " + P + "enabled: this connector only reads"
-					+ " a catalogue, on a head office whose catalogue only comes from the ERP (node.type=HEAD_OFFICE,"
-					+ " ownership.catalogue=ERP, ownership.customers and ownership.supply not ERP).");
+			throw new IllegalStateException("Invalid value '" + HappynessConnectorDescriptor.NAME
+					+ "' for property erp.connector: this connector only reads a catalogue, on a head office whose catalogue"
+					+ " only comes from the ERP (node.type=HEAD_OFFICE, ownership.catalogue=ERP, ownership.customers and"
+					+ " ownership.supply not ERP).");
 		}
 		for (String key : new String[] { "base-url", "company", "username", "password" }) {
 			if (trimmed(env.getProperty(P + key)).isEmpty()) {
 				throw new IllegalStateException("Missing value for property " + P + key
-						+ ": required when " + P + "enabled=true.");
+						+ ": required with erp.connector=" + HappynessConnectorDescriptor.NAME + ".");
 			}
 		}
 		String vat = env.getProperty(P + "default-vat");

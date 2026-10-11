@@ -188,7 +188,7 @@ job's type, in the same transaction as before (`ErpExportJobsTest`); an applicat
 
 ### Abilities (code cleanup step 2)
 
-The connector is chosen by `erp.connector` (or the old enabled lines, `deployment-modes.md`). The application asks what
+The connector is chosen by `erp.connector`, the only line since code cleanup step 8 (`deployment-modes.md`). The application asks what
 the connector in effect can do, never which one it is: `erp/api/ErpAbilities` gives, for each connector name, its
 abilities (`erp/api/ErpAbility`), read from the environment, so a condition uses it before the beans exist. Since code
 cleanup step 7 each connector declares its abilities in its descriptor (`ErpConnectorDescriptor`); the table is what
@@ -205,14 +205,14 @@ they declare today.
   "reads items by location": every connector may do that.
 - `SUPPLY_INVOICES`: the ERP's supply invoices are read, so a head office may set `headoffice.supply.source=ERP`.
 
-`ErpAbilities.connectorInEffect(env)` (none, dynamicsnav, navpospages) is worked out from the values in effect;
+`ErpAbilities.connectorInEffect(env)` (none, emtop, happyness) is the value of `erp.connector`;
 `hasConnector(env)` is true for any connector but none. A new ability is added there when the code needs it, never a test on
 a connector name.
 
 **Rule: the application never names a connector.** Outside the connector packages (`connector/<name>`, every project of
 `connectors/`), no class imports a connector package or contains a connector's key prefix (`erp.dynamicsnav`,
 `erp.navpospages`: what the descriptors declare), not even in a comment; since code cleanup step 7 not even the
-translation of `erp.connector`, which reads the descriptors. Since code cleanup step 6.3 Maven makes it true as well: the application takes
+check of `erp.connector` and (step 8) the refusal of the old lines, which read the descriptors. Since code cleanup step 6.3 Maven makes it true as well: the application takes
 the connector projects at `runtime` scope, so a main class that names one does not compile, and a connector depends on
 erp-api only. It uses `@ConditionalOnErpAbility(...)` or `ErpAbilities.has(env, ...)`; what a
 connector's settings give the application goes through `ErpConnector` (the ids of deleted prices, the seller named on the
@@ -270,7 +270,7 @@ read by the single job, the four import jobs are refused on its head office), an
    it depends on erp-api only. Its classes under `com.digithink.zsretail.connector.<name>`: its settings
    (`erp.<name>.*`), its `ErpConnector` (`@ConditionalOnErpConnector("<name>")`) and, for a head office's catalogue,
    an `ErpCatalogueSource` and a `CatalogueSettings`.
-2. Its descriptor, a class implementing `ErpConnectorDescriptor` (its name, its abilities; no old enabled line for a
+2. Its descriptor, a class implementing `ErpConnectorDescriptor` (its name, its abilities; no old keys for a
    new connector), named in its `src/main/resources/META-INF/spring.factories`:
    `com.digithink.zsretail.erp.api.ErpConnectorDescriptor=com.digithink.zsretail.connector.<name>.<Name>ConnectorDescriptor`.
 3. Two lines in `connectors/pom.xml`: `<module><name></module>` and its `<dependency>` (one line).
@@ -278,8 +278,8 @@ read by the single job, the four import jobs are refused on its head office), an
 Nothing else changes: `erp.connector=<name>` is accepted, its abilities answer `ErpAbilities`, its beans are
 chosen, the WARs carry it (they depend on `zsretail-connectors`), and the guards find it by its folder and its
 descriptor (`ThirdConnectorTest` proves it with a connector that exists only in the tests). The two connectors of
-before keep their old keys: their descriptors give `erp.dynamicsnav` / `erp.navpospages` as key prefix and the old
-enabled line, and EMTOP's the NAV address of the startup summary.
+before keep their old keys: their descriptors give `erp.dynamicsnav` / `erp.navpospages` as key prefix and as old
+prefix (code cleanup step 8: its `.enabled` line is refused), and EMTOP's the NAV address of the startup summary.
 
 Tests: `core/erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows of navpospages through its adapter,
 `NavPosPagesFixture`), `NavPosPagesInvoicesTest`, `NavPosPagesCatalogueSourceTest`.

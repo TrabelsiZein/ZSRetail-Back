@@ -242,7 +242,7 @@ class AppConfigAPITest {
 	void supplySource() throws Exception {
 		assertEquals(HO, headOffice().getSupplySource());
 		MockEnvironment erpSupply = new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")
-				.withProperty("ownership.catalogue", "ERP").withProperty("erp.navpospages.enabled", "true")
+				.withProperty("ownership.catalogue", "ERP").withProperty("erp.connector", "happyness")
 				.withProperty("headoffice.supply.source", "ERP");
 		assertEquals("ERP", config(erpSupply, true, true).getSupplySource());
 		for (AppConfigDTO c : Arrays.asList(standalone(), dynamics(), linkedStore())) {

@@ -5,7 +5,6 @@ import org.apache.http.auth.NTCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.HttpClientBuilder;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import java.util.List;
@@ -15,13 +14,15 @@ import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
 
+import com.digithink.zsretail.connector.emtop.EmtopConnectorDescriptor;
+import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 @Configuration
-@ConditionalOnProperty(prefix = "erp.dynamicsnav", name = "enabled", havingValue = "true")
+@ConditionalOnErpConnector(EmtopConnectorDescriptor.NAME)
 public class DynamicsNavConfig {
 
 	@Bean("dynamicsNavRestTemplate")

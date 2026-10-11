@@ -50,7 +50,7 @@ class ThirdConnectorTest {
 
 	static final String NAME = "thirdco";
 
-	/** The third connector as it declares itself: no old line, one ability, a summary address. */
+	/** The third connector as it declares itself: no old keys, one ability, a summary address. */
 	public static class Descriptor implements ErpConnectorDescriptor {
 
 		@Override
@@ -123,7 +123,7 @@ class ThirdConnectorTest {
 		assertFalse(ErpConnectors.names().contains(NAME));
 		IllegalStateException refused = assertThrows(IllegalStateException.class, () -> start("erp.connector=thirdco"));
 		assertTrue(refused.getMessage().startsWith("Invalid value 'thirdco' for property erp.connector: none | emtop |"
-				+ " happyness (or leave it out and use the old lines erp.dynamicsnav.enabled and erp.navpospages.enabled)."),
+				+ " happyness."),
 				refused.getMessage());
 	}
 
@@ -138,15 +138,13 @@ class ThirdConnectorTest {
 			assertTrue(ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES));
 			assertFalse(ErpAbilities.has(env, ErpAbility.HEAD_OFFICE_STOCK_POINTS));
 			assertEquals(Arrays.asList("happyness", NAME), ErpAbilities.connectorsWith(ErpAbility.SUPPLY_INVOICES));
-			assertEquals("false", env.getProperty("erp.dynamicsnav.enabled"), "the old lines: none of theirs");
-			assertEquals("false", env.getProperty("erp.navpospages.enabled"));
 			assertEquals("ERP http://erp.test", ErpConnectorEnvironmentPostProcessor.summaryAddress(env));
 			assertTrue(registered(env, ThirdConnector.class));
 			assertFalse(registered(env, NoOpErpConnector.class));
 			assertFalse(registered(env, DynamicsNavConnector.class));
 			assertFalse(registered(env, NavPosPagesConnector.class));
 			// The two others are chosen as before, beside it
-			StandardEnvironment emtop = start("erp.dynamicsnav.enabled=true");
+			StandardEnvironment emtop = start("erp.connector=emtop");
 			assertEquals("emtop", ErpConnectors.inEffect(emtop));
 			assertFalse(registered(emtop, ThirdConnector.class));
 			assertTrue(registered(emtop, DynamicsNavConnector.class));

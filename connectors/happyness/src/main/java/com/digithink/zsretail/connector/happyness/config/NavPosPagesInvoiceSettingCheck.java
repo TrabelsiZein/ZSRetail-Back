@@ -1,18 +1,19 @@
 package com.digithink.zsretail.connector.happyness.config;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import com.digithink.zsretail.connector.happyness.HappynessConnectorDescriptor;
+import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 import com.digithink.zsretail.erp.api.ErpInvoiceStart;
 import com.digithink.zsretail.erp.api.GeneralSetupValueCheck;
 
 /**
  * Release 2.2: the General Setup "Read ERP invoices after number" (ERP_INVOICES_READ_AFTER) is empty (every invoice of
  * the page) or an invoice number of the ERP: the prefix of the invoices (invoices.number-prefix, FVV), the year in 2
- * digits, then digits. Anything else is refused with a clear message. Exists only with erp.navpospages.enabled=true.
+ * digits, then digits. Anything else is refused with a clear message. Exists only with erp.connector=happyness.
  */
 @Component
-@ConditionalOnProperty(prefix = NavPosPagesProperties.PREFIX, name = "enabled", havingValue = "true")
+@ConditionalOnErpConnector(HappynessConnectorDescriptor.NAME)
 public class NavPosPagesInvoiceSettingCheck implements GeneralSetupValueCheck {
 
 	private final NavPosPagesProperties properties;

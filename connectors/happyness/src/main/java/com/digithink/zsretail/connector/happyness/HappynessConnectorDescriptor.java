@@ -8,7 +8,9 @@ import com.digithink.zsretail.erp.api.ErpConnectorDescriptor;
 
 /**
  * Code cleanup step 7: this connector as it declares itself to erp-api and the application
- * (META-INF/spring.factories of this project): Happyness's "POS pages", keys erp.navpospages.*: a head office's catalogue by points de stock and its supply invoices.
+ * (META-INF/spring.factories of this project): Happyness's "POS pages", keys erp.navpospages.*: a head office's
+ * catalogue by points de stock and its supply invoices. Code cleanup step 8: chosen by erp.connector=happyness only;
+ * its old enabled line is refused.
  */
 public class HappynessConnectorDescriptor implements ErpConnectorDescriptor {
 
@@ -30,9 +32,9 @@ public class HappynessConnectorDescriptor implements ErpConnectorDescriptor {
 		return "erp.navpospages";
 	}
 
-	/** The old line that still selects it when erp.connector is absent. */
+	/** Its keys up to 2.2.2. */
 	@Override
-	public String enabledKey() {
-		return "erp.navpospages.enabled";
+	public String oldKeyPrefix() {
+		return "erp.navpospages";
 	}
 }
