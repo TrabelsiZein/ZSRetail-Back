@@ -3,6 +3,7 @@ package com.digithink.zsretail.erp.navpospages.connector;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import org.springframework.stereotype.Component;
 
@@ -10,6 +11,10 @@ import com.digithink.zsretail.config.ConditionalOnErpConnector;
 import com.digithink.zsretail.config.ErpConnectorEnvironmentPostProcessor;
 import com.digithink.zsretail.erp.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.dto.ErpDeletionLogEntryDTO;
+import com.digithink.zsretail.erp.dto.ErpItemBarcodeDTO;
+import com.digithink.zsretail.erp.dto.ErpItemDTO;
+import com.digithink.zsretail.erp.dto.ErpItemFamilyDTO;
+import com.digithink.zsretail.erp.dto.ErpItemSubFamilyDTO;
 import com.digithink.zsretail.erp.dto.ErpLocationDTO;
 import com.digithink.zsretail.erp.dto.ErpOperationResult;
 import com.digithink.zsretail.erp.dto.ErpPaymentHeaderDTO;
@@ -23,9 +28,10 @@ import com.digithink.zsretail.erp.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.dto.ErpSyncFilter;
 import com.digithink.zsretail.erp.dto.ErpTicketDTO;
 import com.digithink.zsretail.erp.dto.ErpTicketLineDTO;
-import com.digithink.zsretail.erp.engine.CatalogueEngine;
-import com.digithink.zsretail.erp.engine.CatalogueEngineConnector;
+import com.digithink.zsretail.erp.dto.PullOperationResult;
+import com.digithink.zsretail.erp.engine.CatalogueRun;
 import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesInvoices;
+import com.digithink.zsretail.erp.spi.ErpConnector;
 
 /**
  * ERP catalogue, step 5: the ERP connector of a Dynamics NAV / Business Central whose web services are the "POS pages"
@@ -35,22 +41,27 @@ import com.digithink.zsretail.erp.navpospages.sync.NavPosPagesInvoices;
  * the connector in effect; no more {@code @Primary} over NoOpErpConnector).
  * <p>
  * Step 6: the four catalogue fetches (families, sub-families, items, barcodes) take only the changes against the head
- * office tables; code cleanup step 3: they run the shared catalogue engine ({@link CatalogueEngineConnector}), this
- * connector giving it its pages ({@code NavPosPagesCatalogueSource}) and settings. Invoices from the ERP, step (a): the
+ * office tables; since code cleanup step 3 the shared catalogue engine runs them through its single job SYNC_CATALOGUE
+ * (erp/engine/CatalogueJob), this connector giving it its pages ({@code NavPosPagesCatalogueSource}) and settings. Code
+ * cleanup step 5: the four catalogue fetches of the ErpConnector answer none, like the other fetches (their four jobs
+ * are refused on the only installation this connector exists on, a head office whose catalogue only comes from the
+ * ERP: HeadOfficeErpJobs offers SYNC_CATALOGUE only). Invoices from the ERP, step (a): the
  * franchise invoices read by number ({@link #fetchSupplyInvoices}), not run by any job yet. Every other fetch answers an
  * empty list, every push or update a failure.
  */
 @Component
 @ConditionalOnErpConnector(ErpConnectorEnvironmentPostProcessor.NAVPOSPAGES)
-public class NavPosPagesConnector extends CatalogueEngineConnector {
+public class NavPosPagesConnector implements ErpConnector {
 
 	static final String READ_ONLY = "The navpospages ERP connector is read only: it sends nothing to the ERP.";
 
 	/** Invoices from the ERP: the thin part of this connector (its invoices page and numbers). */
 	private final NavPosPagesInvoices invoices;
 
-	public NavPosPagesConnector(CatalogueEngine engine, NavPosPagesInvoices invoices) {
-		super(engine);
+	/** The summary of the last fetch of this thread, for the communications log (like the Dynamics NAV connector). */
+	private static final ThreadLocal<PullOperationResult<?>> LAST_PULL = new ThreadLocal<>();
+
+	public NavPosPagesConnector(NavPosPagesInvoices invoices) {
 		this.invoices = invoices;
 	}
 
@@ -70,6 +81,49 @@ public class NavPosPagesConnector extends CatalogueEngineConnector {
 	@Override
 	public List<ErpSupplyInvoiceDTO> fetchSupplyInvoicesByNumbers(List<String> numbers) {
 		return changes(() -> invoices.invoicesByNumbers(numbers));
+	}
+
+	/** One run: the rows handed to the import; its summary kept for the communications log. */
+	private <T> List<T> changes(Supplier<CatalogueRun<T>> run) {
+		LAST_PULL.remove();
+		CatalogueRun<T> result = run.get();
+		LAST_PULL.set(new PullOperationResult<>(result.getHanded(), result.getUrl(), result.getSummary()));
+		return result.getHanded();
+	}
+
+	@Override
+	public PullOperationResult<?> getLastPullOperationResult() {
+		return LAST_PULL.get();
+	}
+
+	@Override
+	public void clearLastPullOperationResult() {
+		LAST_PULL.remove();
+	}
+
+	/** The catalogue is read by the engine's single job, not through these fetches: none, no summary. */
+	@Override
+	public List<ErpItemFamilyDTO> fetchItemFamilies(ErpSyncFilter filter) {
+		LAST_PULL.remove(); // no run: nothing for the communications log
+		return Collections.emptyList();
+	}
+
+	@Override
+	public List<ErpItemSubFamilyDTO> fetchItemSubFamilies(ErpSyncFilter filter) {
+		LAST_PULL.remove(); // no run: nothing for the communications log
+		return Collections.emptyList();
+	}
+
+	@Override
+	public List<ErpItemDTO> fetchItems(ErpSyncFilter filter) {
+		LAST_PULL.remove(); // no run: nothing for the communications log
+		return Collections.emptyList();
+	}
+
+	@Override
+	public List<ErpItemBarcodeDTO> fetchItemBarcodes(ErpSyncFilter filter) {
+		LAST_PULL.remove(); // no run: nothing for the communications log
+		return Collections.emptyList();
 	}
 
 	@Override

@@ -146,8 +146,7 @@ class ProjectSortingGuardTest {
 				"erp.dynamicsnav.client.DynamicsNavRestClient -> service.LocationService");
 		allow("5.8: the navpospages connector uses the engine's classes (base connector, settings, run, summary, General"
 				+ " Setup port)", "erp.navpospages.config.NavPosPagesCatalogueSettings -> erp.engine.CatalogueSettings",
-				"erp.navpospages.connector.NavPosPagesConnector -> erp.engine.CatalogueEngine",
-				"erp.navpospages.connector.NavPosPagesConnector -> erp.engine.CatalogueEngineConnector",
+				"erp.navpospages.connector.NavPosPagesConnector -> erp.engine.CatalogueRun",
 				"erp.navpospages.sync.NavPosPagesInvoices -> erp.engine.CatalogueRun",
 				"erp.navpospages.sync.NavPosPagesInvoices -> erp.engine.RunSummary",
 				"erp.navpospages.sync.NavPosPagesInvoices -> erp.engine.HeadOfficeCatalogue",

@@ -229,8 +229,6 @@ logic is written once, in `erp/engine`, and exists with a connector that has the
   `CatalogueImport`), keeps the barcode cursor by position and writes the summary of each run (`RunSummary`, the format
   of the communications log). One items run and one barcode run at a time.
 - `CatalogueJob` (was `NavPosPagesCatalogueJob`): the single job `SYNC_CATALOGUE` (`ErpCatalogueSync`).
-- `CatalogueEngineConnector`: the four catalogue fetches of an `ErpConnector` that only run the engine, and the summary
-  kept for the communications log. A connector extends it.
 - What the engine reads and writes at the head office: `HeadOfficeCatalogue` (`JpaHeadOfficeCatalogue`), `CatalogueState`
   (`JdbcCatalogueState`: the table stays `navpospages_state`, the keys `items.run`, `items.pending`, `barcodes.cursor`,
   `needs-barcodes:` unchanged), `CatalogueImport` (`BootstrapCatalogueImport`, through `ErpItemBootstrapService`),
@@ -249,14 +247,15 @@ logic is written once, in `erp/engine`, and exists with a connector that has the
 
 **navpospages today**: `NavPosPagesCatalogueSource` (the pages through `NavPosPagesMapper`),
 `NavPosPagesCatalogueSettings` (`erp.navpospages.packet-size`, `dry-run`, `default-vat`, unchanged),
-`NavPosPagesConnector` (extends `CatalogueEngineConnector`; read-only answers), and its own thin parts:
+`NavPosPagesConnector` (read-only answers; its four catalogue fetches answer none since step 5: the catalogue is
+read by the single job, the four import jobs are refused on its head office), and its own thin parts:
 `NavPosPagesInvoices` (the invoices page, FVV numbers by year, the seller name).
 
 **How to add a connector** (e.g. ZEN, ParaFendri), in its own package `erp/<name>`:
 1. Implement `ErpCatalogueSource` (its client and its mapper to `Erp*DTO`) and `CatalogueSettings` (from its keys),
    as beans conditional on its own enabled key.
-2. Extend `CatalogueEngineConnector` for its `ErpConnector` (`@ConditionalOnErpConnector("<name>")`); answer the other
-   fetches and pushes it supports.
+2. Its `ErpConnector` (`@ConditionalOnErpConnector("<name>")`) answers the fetches and pushes it supports; the catalogue
+   by points de stock goes through the engine's job `SYNC_CATALOGUE`, not through the four catalogue fetches.
 3. Add the name to `erp.connector` (`ErpConnectorEnvironmentPostProcessor`) and its abilities to `ErpAbilities`
    (`HEAD_OFFICE_STOCK_POINTS` for the engine and the points de stock).
 4. Its classes use only `erp/spi`, their own package, the JDK and libraries (guard test

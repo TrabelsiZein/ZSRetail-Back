@@ -57,43 +57,16 @@ import com.fasterxml.jackson.databind.node.TextNode;
 class NavPosPagesInvoicesTest extends NavPosPagesFixture {
 
 	@Test
-	@DisplayName("The connector hands the run and keeps only its summary for the communications log")
-	void connectorSummary() {
-		NavPosPagesConnector connector = new NavPosPagesConnector(engine, invoiceReads);
-		List<ErpItemFamilyDTO> handed = connector.fetchItemFamilies(null);
-		assertEquals(13, handed.size());
-		PullOperationResult<?> log = connector.getLastPullOperationResult();
-		assertEquals(NavPosPagesTestSupport.COMPANY_URL + "ItemCategory", log.getUrl());
-		Map<?, ?> summary = (Map<?, ?>) log.getRawResponse();
-		assertEquals("families", summary.get("run"));
-		assertEquals(50, summary.get("read"));
-		assertEquals(13, summary.get("handed"));
-		assertFalse(summary.values().stream().anyMatch(value -> value instanceof Collection), "never the list");
-		connector.clearLastPullOperationResult();
-		assertNull(connector.getLastPullOperationResult());
-	}
-
-	@Test
-	@DisplayName("The connector's items fetch applies the run and hands nothing more to the job; the summary says what was applied")
-	void connectorItemsApplied() {
-		families();
-		subFamilies();
-		NavPosPagesConnector connector = new NavPosPagesConnector(engine, invoiceReads);
-		assertTrue(connector.fetchItems(null).isEmpty(), "already applied, packet after packet");
-		assertEquals(50, headOffice.items.size());
-		Map<?, ?> summary = (Map<?, ?>) connector.getLastPullOperationResult().getRawResponse();
-		assertEquals("items", summary.get("run"));
-		assertEquals(50, summary.get("new"));
-		assertEquals(50, summary.get("applied"));
-		assertEquals(1, summary.get("packets"));
-		assertFalse(summary.values().stream().anyMatch(value -> value instanceof Collection), "never the list");
-
-		assertTrue(connector.fetchItemBarcodes(null).isEmpty(), "the barcode run too: applied until caught up");
-		assertEquals(49, headOffice.barcodes.size());
-		Map<?, ?> barcodes = (Map<?, ?>) connector.getLastPullOperationResult().getRawResponse();
-		assertEquals("barcodes", barcodes.get("run"));
-		assertEquals(49, barcodes.get("applied"));
-		assertEquals(Boolean.TRUE, barcodes.get("caughtUp"));
+	@DisplayName("Code cleanup step 5: the four catalogue fetches answer none (the engine's single job reads the catalogue)")
+	void catalogueFetchesAnswerNone() {
+		NavPosPagesConnector connector = new NavPosPagesConnector(invoiceReads);
+		assertTrue(connector.fetchItemFamilies(null).isEmpty());
+		assertTrue(connector.fetchItemSubFamilies(null).isEmpty());
+		assertTrue(connector.fetchItems(null).isEmpty());
+		assertTrue(connector.fetchItemBarcodes(null).isEmpty());
+		assertNull(connector.getLastPullOperationResult(), "no run: nothing for the communications log");
+		assertTrue(headOffice.families.isEmpty() && headOffice.items.isEmpty() && headOffice.barcodes.isEmpty(),
+				"the engine did not run");
 	}
 
 	// ─── Invoices from the ERP, step (a) ────────────────────────
@@ -230,7 +203,7 @@ class NavPosPagesInvoicesTest extends NavPosPagesFixture {
 		assertEquals(0, dry.count("handed"));
 
 		properties.setDryRun(false);
-		NavPosPagesConnector connector = new NavPosPagesConnector(engine, invoiceReads);
+		NavPosPagesConnector connector = new NavPosPagesConnector(invoiceReads);
 		assertEquals(6, connector.fetchSupplyInvoices(null).size());
 		Map<?, ?> summary = (Map<?, ?>) connector.getLastPullOperationResult().getRawResponse();
 		assertEquals("invoices", summary.get("run"));

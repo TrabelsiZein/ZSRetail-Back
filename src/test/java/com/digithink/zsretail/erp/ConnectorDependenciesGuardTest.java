@@ -46,9 +46,6 @@ class ConnectorDependenciesGuardTest {
 		allow("*", "config.ConditionalOnErpConnector", "each connector's bean exists by the connector in effect (step 2)");
 		allow("*", "config.ErpConnectorEnvironmentPostProcessor", "the connector names (NONE, DYNAMICS_NAV, NAVPOSPAGES)"
 				+ " for @ConditionalOnErpConnector");
-		allow("navpospages", "erp.engine.CatalogueEngine", "NavPosPagesConnector hands the engine to its base class");
-		allow("navpospages", "erp.engine.CatalogueEngineConnector", "NavPosPagesConnector extends the shared catalogue"
-				+ " fetches");
 		allow("navpospages", "erp.engine.CatalogueSettings", "NavPosPagesCatalogueSettings gives the engine its settings");
 		allow("navpospages", "erp.engine.CatalogueRun", "NavPosPagesInvoices returns a run like the engine's (summary for"
 				+ " the communications log)");

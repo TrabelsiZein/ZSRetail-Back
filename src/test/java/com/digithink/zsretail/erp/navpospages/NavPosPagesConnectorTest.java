@@ -106,7 +106,7 @@ class NavPosPagesConnectorTest {
 	@DisplayName("Every fetch but the catalogue answers an empty list, every push or update a read-only failure")
 	void readOnly() {
 		// Step 6: the four catalogue fetches hand the changes (NavPosPagesSyncTest); every other fetch is empty
-		NavPosPagesConnector connector = new NavPosPagesConnector(null, null);
+		NavPosPagesConnector connector = new NavPosPagesConnector(null);
 		assertTrue(connector.fetchLocations(null).isEmpty());
 		assertTrue(connector.fetchCustomers(null).isEmpty());
 		assertTrue(connector.fetchSalesPrices(null).isEmpty());
