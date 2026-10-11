@@ -56,7 +56,7 @@ class ProjectSortingGuardTest {
 			"controller.BadgeAPI", "controller.CashierSessionAPI", "controller.DashboardAPI", "controller.InvoiceAPI",
 			"controller.PaymentAPI", "controller.PaymentMethodAPI", "controller.PriceCalculateController",
 			"controller.ReturnHeaderAPI", "controller.ReturnVoucherAPI", "controller.SalesDiscountAPI",
-			"controller.SalesHeaderAPI", "controller.SalesLineAPI", "controller.SalesPriceAPI", "controller.WarrantyAPI",
+			"controller.SalesHeaderAPI", "controller.SalesLineAPI", "controller.SalesPriceAPI", "controller.SalesReportAPI", "controller.WarrantyAPI",
 			"dto.CartCalculateRequestDTO", "dto.CartCalculateResponseDTO", "dto.ChangePaymentMethodRequestDTO",
 			"dto.CloseSessionRequestDTO", "dto.CrossProductAdjustmentDTO", "dto.EligibleTicketDTO", "dto.InvoiceListDTO",
 			"dto.PrepareInvoiceRequestDTO", "dto.PriceCalculateRequestDTO", "dto.PriceCalculateResponseDTO",
@@ -70,7 +70,7 @@ class ProjectSortingGuardTest {
 			"service.CashierSessionService", "service.DashboardService", "service.InvoiceService",
 			"service.PaymentMethodService", "service.PaymentService", "service.PromotionCalculationService",
 			"service.ReturnHeaderService", "service.ReturnVoucherService", "service.SalesDiscountService",
-			"service.SalesHeaderService", "service.SalesLineService", "service.SalesPriceService",
+			"service.SalesHeaderService", "service.SalesLineService", "service.SalesPriceService", "service.SalesReportService",
 			"service.SessionCashCountService", "service.TicketPrintingService", "service.WarrantyService"));
 
 	/** The classes of headoffice that go to core: the link messages, and the /ho/** chain (it exists on a store too). */
@@ -131,9 +131,6 @@ class ProjectSortingGuardTest {
 	static final Map<String, String> ALLOWED = new LinkedHashMap<>();
 
 	static {
-		allow("5.7: the purchase invoices use the invoice snapshot type of the customer invoices",
-				"controller.PurchaseInvoiceAPI -> service.InvoiceService",
-				"service.PurchaseInvoiceService -> service.InvoiceService");
 		allow("knot (e), 5.8: erp/spi names the connectors through config",
 				"erp.spi.ErpAbilities -> config.ErpConnectorEnvironmentPostProcessor",
 				"erp.spi.NoOpErpConnector -> config.ConditionalOnErpConnector",

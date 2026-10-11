@@ -7,7 +7,9 @@
 - Each report page fetches aggregated data from backend, displays summary cards + chart + paginated table.
 - Configurable chart type (bar/line/area), sort order (value ↓ ↑, label A→Z Z→A), and pagination (per-page: 10/25/50/100).
 
-### Backend — `ReportService.java`
+### Backend — `ReportService.java` (stock reports) and `SalesReportService.java` (the store's reports)
+
+Code cleanup step 5: the stock and stock-movement reports (a head office shows them too) stay in `ReportService` / `ReportAPI`; the sales, purchase, loyalty, promotion and session reports are the store's, `SalesReportService` / `SalesReportAPI`, under the same path `report/`. The value helpers are `ReportValues`.
 
 **Methods:**
 - `getSalesReport(dateFrom, dateTo, groupBy)` — aggregates sales headers by DAY/MONTH/YEAR; returns `SalesReportRowDTO { label, totalHt, totalTtc, nbTickets }`
@@ -25,7 +27,7 @@
 - Fix applied to all 5 time-based methods: `CONCAT(CAST(YEAR(date) AS string), '-', CAST(MONTH(date) AS string))` (and same for DAY).
 - Without this cast every MONTH label shows the wrong year and every DAY label shows the item code sum.
 
-**`ReportAPI.java`** endpoints:
+**`ReportAPI.java` and `SalesReportAPI.java`** endpoints (all under `report/`):
 - `GET /report/sales?dateFrom=&dateTo=&groupBy=`
 - `GET /report/purchases?dateFrom=&dateTo=&groupBy=`
 - `GET /report/stock?dateFrom=&dateTo=&familyId=`
@@ -75,8 +77,8 @@
 - `src/views/admin/reports/LoyaltyReport.vue`
 - `src/views/admin/reports/SessionReport.vue`
 - `src/views/admin/reports/PromotionReport.vue`
-- `src/main/java/com/digithink/zsretail/service/ReportService.java`
-- `src/main/java/com/digithink/zsretail/controller/ReportAPI.java`
+- `src/main/java/com/digithink/zsretail/service/ReportService.java`, `SalesReportService.java`, `ReportValues.java`
+- `src/main/java/com/digithink/zsretail/controller/ReportAPI.java`, `SalesReportAPI.java`
 
 ### Navigation & Router
 - Reports menu group in `navigation/vertical/index.js` with 7 entries (Sales, Purchases, Stock, StockMovements, Loyalty, Sessions, Promotions).

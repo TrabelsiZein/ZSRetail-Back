@@ -36,7 +36,6 @@ import com.digithink.zsretail.repository.PurchaseInvoiceLineRepository;
 import com.digithink.zsretail.repository.PurchaseLineRepository;
 import com.digithink.zsretail.repository.VendorRepository;
 import com.digithink.zsretail.repository._BaseRepository;
-import com.digithink.zsretail.service.InvoiceService.InvoiceSnapshotData;
 import com.digithink.zsretail.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;

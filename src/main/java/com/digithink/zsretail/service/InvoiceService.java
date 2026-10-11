@@ -38,7 +38,6 @@ import com.digithink.zsretail.repository.SalesLineRepository;
 import com.digithink.zsretail.repository._BaseRepository;
 import com.digithink.zsretail.utils.Quantities;
 
-import lombok.Data;
 import lombok.extern.log4j.Log4j2;
 
 @Service
@@ -67,15 +66,6 @@ public class InvoiceService extends _BaseService<InvoiceHeader, Long> {
 	@Autowired
 	private CustomerRepository customerRepository;
 
-
-	/** Snapshot data passed by caller before invoice creation (editable customer info). */
-	@Data
-	public static class InvoiceSnapshotData {
-		private String name;
-		private String address;
-		private String phone;
-		private String taxRegNo;
-	}
 
 	@Override
 	protected _BaseRepository<InvoiceHeader, Long> getRepository() {

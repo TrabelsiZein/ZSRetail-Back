@@ -103,12 +103,24 @@ class DecimalSafetyNetTest {
 		return service;
 	}
 
+	/** Code cleanup step 5: the sales report is the store's (SalesReportService), the same queries. */
+	private static SalesReportService salesReports(List<Object[]> rows) throws Exception {
+		Query query = mock(Query.class);
+		when(query.setParameter(anyString(), any())).thenReturn(query);
+		when(query.getResultList()).thenReturn(rows);
+		EntityManager em = mock(EntityManager.class);
+		when(em.createQuery(anyString())).thenReturn(query);
+		SalesReportService service = new SalesReportService();
+		set(service, SalesReportService.class, "em", em);
+		return service;
+	}
+
 	@Test
 	@DisplayName("Reports: the sold quantity, the stock and the movements keep their decimals (0.2, 4.8), never truncated; whole sums stay 12")
 	void reportsKeepDecimals() throws Exception {
 		List<Object[]> sales = Arrays.asList(new Object[] { "V H 52 1L", 3L, new BigDecimal("0.258"), 10.0, 1.9, 11.9, 0.0 },
 				new Object[] { "Whole", 2L, new BigDecimal("12.000"), 10.0, 1.9, 11.9, 0.0 });
-		List<SalesReportRowDTO> salesRows = reports(sales).getSalesReport(LocalDate.now(), LocalDate.now(), "ITEM");
+		List<SalesReportRowDTO> salesRows = salesReports(sales).getSalesReport(LocalDate.now(), LocalDate.now(), "ITEM");
 		assertEquals("0.258", salesRows.get(0).getTotalQuantity().toPlainString());
 		assertEquals("12", salesRows.get(1).getTotalQuantity().toPlainString(), "JSON 12, as in 2.2.0");
 		assertEquals("12", MAPPER.valueToTree(salesRows.get(1)).get("totalQuantity").toString());

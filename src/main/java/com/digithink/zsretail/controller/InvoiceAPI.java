@@ -27,7 +27,7 @@ import com.digithink.zsretail.model.SalesHeader;
 import com.digithink.zsretail.model.enumeration.InvoiceLineGroupingMode;
 import com.digithink.zsretail.security.CurrentUserProvider;
 import com.digithink.zsretail.service.InvoiceService;
-import com.digithink.zsretail.service.InvoiceService.InvoiceSnapshotData;
+import com.digithink.zsretail.service.InvoiceSnapshotData;
 
 import lombok.Data;
 import lombok.extern.log4j.Log4j2;

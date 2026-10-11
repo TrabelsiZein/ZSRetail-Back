@@ -28,8 +28,8 @@ import com.digithink.zsretail.model.Vendor;
 import com.digithink.zsretail.model.enumeration.InvoiceLineGroupingMode;
 import com.digithink.zsretail.security.CurrentUserProvider;
 import com.digithink.zsretail.service.CatalogueEditGuard;
+import com.digithink.zsretail.service.InvoiceSnapshotData;
 import com.digithink.zsretail.service.PurchaseInvoiceService;
-import com.digithink.zsretail.service.InvoiceService.InvoiceSnapshotData;
 import com.digithink.zsretail.service.VendorEditGuard;
 
 import lombok.Data;
