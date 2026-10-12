@@ -149,6 +149,8 @@ public final class InMemoryRfid {
 				saleTags.remove(((RfidSaleTag) row).getId());
 			}
 			return null;
+		case "flush": // in memory, a delete is done at once
+			return null;
 		case "findBySalesHeader_Id":
 			return saleTags.values().stream().filter(r -> r.getSalesHeader().getId().equals(args[0]))
 					.collect(Collectors.toList());

@@ -67,7 +67,7 @@ public class RfidSaleTags implements SaleTagHooks {
 	@Override
 	@Transactional
 	public void ticketHeld(SalesHeader ticket, List<LineTags> lines) {
-		saleTags.deleteAll(saleTags.findBySalesHeader_Id(ticket.getId()));
+		releaseRows(ticket);
 		for (Kept kept : inStock(ticket, lines)) {
 			saleTags.save(row(ticket, kept, false));
 		}
@@ -80,7 +80,7 @@ public class RfidSaleTags implements SaleTagHooks {
 	@Override
 	@Transactional
 	public void ticketCompleted(SalesHeader ticket, List<LineTags> lines) {
-		saleTags.deleteAll(saleTags.findBySalesHeader_Id(ticket.getId()));
+		releaseRows(ticket);
 		LocalDateTime now = clock.get();
 		for (Kept kept : inStock(ticket, lines)) {
 			kept.tag.setStatus(RfidTagStatus.SOLD);
@@ -94,7 +94,20 @@ public class RfidSaleTags implements SaleTagHooks {
 	@Override
 	@Transactional
 	public void ticketCancelled(SalesHeader ticket) {
-		saleTags.deleteAll(saleTags.findBySalesHeader_Id(ticket.getId()));
+		releaseRows(ticket);
+	}
+
+	/**
+	 * The ticket's rows deleted in the database now. Hibernate keeps a delete until the flush but inserts a new row
+	 * (identity id) at once: without the flush, a pending ticket paid or saved again with its own tags inserted them
+	 * while its old rows were still there (uk_rfid_sale_tag_header_epc, 2026-10-12).
+	 */
+	private void releaseRows(SalesHeader ticket) {
+		List<RfidSaleTag> rows = saleTags.findBySalesHeader_Id(ticket.getId());
+		if (!rows.isEmpty()) {
+			saleTags.deleteAll(rows);
+			saleTags.flush();
+		}
 	}
 
 	/**
