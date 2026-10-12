@@ -11,7 +11,8 @@ store's database.
 | Back end: the switch, the readers and POS machines, the Hopeland reader, the reads, the endpoints | done (RFID steps 1 to 9) |
 | Front: the RFID menu, the Readers page, the POS machines page with "Add this machine" | done (below, "The front pages") |
 | Tags: the table (one tag = one piece, in stock / sold, linked to an item), the Tags page, the Tag assignment page and its button on the reception lines | done ("Tags", "Tag assignment") |
-| Later: the RFID button of the POS (`ItemSelection.vue`), the sale and the return updating the tag status (`sold_at`, `ticket_number`) | not started |
+| The RFID button of the POS and its cart lines (`ItemSelection.vue`, front 10d3961 and c9488f1) | done ("The front pages", "POS: the RFID button") |
+| Later: the cart's tags sent with the payment and the pending ticket, a recalled pending ticket's tags, the Read button of the return screen | not started |
 
 **Package map** (store project, `com.digithink.zsretail.store.rfid`): `model` (`RfidReader`, `PosMachine`), `repository`,
 `service` (`RfidReaderService`, `PosMachineService`, `RfidReadService`, `RfidAddresses`), `reader` (`RfidReaderDevice`,
@@ -407,7 +408,18 @@ router guard (home) and the search bar hide them, like the other store-mode page
   being typed are kept): the item fixed, the expected quantity of the line (received, else typed, else sent; a whole
   number only), the source `RECEPTION` with the delivery number and the line. Off (tooltip) while the item is not in this
   store (`itemId` null); hidden without `rfidEnabled` or the Tag assignment permission. It never blocks or changes Receive.
-- The POS screens (`src/views/pos`) do not read RFID yet.
+- **POS: the RFID button** (`views/pos/ItemSelection.vue`, beside Pendings): only with `rfidEnabled` and never in table
+  mode (no RFID on table tickets in 3.1.0). A click calls `POST /rfid/pos-read` with the cart's tags and the pending
+  ticket open (a spinner meanwhile). Each tag added is one piece of its item, one line per item (on the item's line when
+  it is in the cart), its EPC kept on the line (`epcs`, Vuex only, not yet sent to the back end); the line is priced
+  again like any quantity change, so the free pieces rule counts every tag (3 tags of "buy 2, get 1 free": 2 paid + 1
+  free). A line with tags shows their count and has no -, + or typed quantity (the bin still removes it); a scan of its
+  item goes on it (4 pieces, 3 tags) and it stays locked. A result line above the cart: "POS 1 · Reader 1: 4 added,
+  1 already in the cart, 1 already sold, 2 unknown, 3 on a pending ticket, 1 piece(s) not read clearly, check the
+  pieces on the reader" (weak is never shown), plus "<item>: N piece(s) scanned before the read, check the quantity"
+  for a line that had pieces without a tag (a scanned piece's tag does not work: the read does not count it again;
+  nothing is blocked); a refusal (409 no reader here) in red, the back end's message as it comes. Texts
+  `pos.itemSelection.rfid.*` in the five languages.
 
 ## Permissions (the front pages)
 
