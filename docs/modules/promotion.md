@@ -106,12 +106,36 @@ line, `decrementStockForSalesLines` takes both (stock taken = paid + free = piec
 against this back end keeps the old behaviour and the stock stays right. Pending and table tickets save the cart line
 (all Q pieces); the recall re-prices, so the free pieces come back.
 
-Front (3.1.0, to build): the cart line's quantity is all the pieces, `paidQuantity(line) = quantity - freeQuantity` in
-the line totals and the payment payload; "1 free" on the line; the cross-product free line of Y is no longer added
-(`autoFreePromotionId`, `reconcileCrossAdjustments`): `freeQuantity` on Y's own line, a hint when Y is not in the
-cart; the recall of a pending or table ticket re-prices each line; **the split bill** (`SplitBillModal`) re-prices the
-selected lines and refuses a line with free pieces: "This line has free pieces: pay the table normally" (`splitAndPay`
-copies the saved lines, whose amount excluding VAT counts all Q pieces, and the completed ticket goes to NAV).
+**Front (3.1.0, ZSRetail-Front)**:
+- **The cart line** (`ItemSelection.vue`): its quantity is all its pieces; `freeQuantity` comes from the back end and
+  is never computed in the front. `paidQuantity(line)` (`libs/quantity.js`) = quantity - freeQuantity counts the
+  line's amounts and the cart totals (`getLineTotalWithVat`, `lineTotalExclVat`), and the payment's line quantity
+  (`Payment.vue`: `quantity` = paid pieces, `freeQuantity` = free ones). A pending or table ticket saves the cart line
+  (all the pieces) with the paid amounts. The line shows "N free" (also collapsed), the full price struck through then
+  the total, "N free (included)" with the free promotion in the breakdown, and "<promotion>: N more piece(s) free" while
+  `freeQuantityAvailable` > 0 (no toast). `addToCart` counts a free quantity as a discount, as `applyPriceResult` does.
+- **Cross-product**: no free line of Y is added any more (`autoFreePromotionId`, `dismissedFreePromos` and the "added
+  for free" toast are gone). `reconcileCrossAdjustments` puts the adjustment's `freeQuantity` on Y's own line
+  (`crossFreePromotionId` / `crossFreePromotionName`), whatever Y's price; Y with its own same-item free promotion: the
+  larger of the two (`itemFreeQuantity` keeps the line's own), never the sum. The pieces of Y still to scan are a hint at
+  the top of the cart ("<promotion>: 2 × <Y> free, scan them"). The cart pass sends every line with all its pieces. At
+  payment the free line carries the cross-product's promotion when Y's line has no discount of its own, else the line's
+  own promotion (one promotion per payload line). A cross-product discount counts the paid pieces of Y.
+- **Recall** (`libs/free-pieces.js`, `retrievePendingTicket`, `TableSelection.loadOccupiedTable`): each whole line asks
+  its price again and takes back its free pieces, the ones still to scan and the free promotion; the saved price and
+  discount are kept (a manual discount on a parked ticket survives, as before); the cart pass gives a cross-product's
+  free pieces back.
+- **Split bill** (`SplitBillModal`): selecting a line asks its free pieces (the cart's, else its price asked again); a
+  line with free pieces is not selected: "This line has free pieces: pay the table normally" (`splitAndPay` copies the
+  saved line, whose amount excluding VAT counts all Q pieces, and the completed ticket goes to NAV).
+- **Pending tickets list**: each line shows its amount excluding VAT from the till's amounts (including VAT minus its
+  VAT), the paid pieces, as the ticket's subtotal; the saved `lineTotal` counts every piece.
+
+**For the cashiers** (3.1.0): a free piece is never added by the till any more. Scan or read **every** piece the customer
+takes, the free ones too: the till makes the free ones free ("1 free" on the line) and the receipt shows them on their
+own line at 0. When the line says "1 more piece free", the customer may take one more piece of it for free: scan it. A
+"buy X, get Y free" asks to scan Y as well (a hint at the top of the cart names it). On a table, a line with free pieces
+is paid with the whole table, not by a split bill. Before the upgrade, pay or cancel every parked and table ticket.
 
 Open points (decisions of 2026-10-12, nothing changed for them): a return refunds each paid piece at its price and a
 free line is returned on its own for 0, so a customer can return the paid pieces at full price and keep the free one;

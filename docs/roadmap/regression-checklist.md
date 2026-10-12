@@ -52,7 +52,19 @@ Run them on the selling instance: the ERP dev instance, the standalone instance,
 
 - [ ] Add the promoted item, then reach the cart promotion or enter the promo code; pay.
 - [ ] Expected: the discount shows in the cart, in Payment and on the receipt.
-- [ ] Where: `sales_header` → `status=COMPLETED`, `discount_source=PROMOTION`, `promotion_id`; `sales_line.discount_source`. A free-quantity promotion adds a line at 100% discount.
+- [ ] Where: `sales_header` → `status=COMPLETED`, `discount_source=PROMOTION`, `promotion_id`; `sales_line.discount_source`. A free-quantity promotion saves a second line of the item at 100% discount (3.1.0: its free pieces are among the pieces scanned, C2b).
+
+**C2b — Free pieces only when scanned** (3.1.0; L1: `PromotionAllItemsScopeTest`, `SaleDecimalQuantityTest`)
+
+Prepare: "buy 2, get 1 free" on item A; an ERP or manual 10% on A is a plus; a cross-product "buy 2 of X, get 1 of Y free".
+
+- [ ] Scan A once, then twice: no free piece, no badge; at 2 the line says "<promotion>: 1 more piece(s) free" and keeps its 10% (if any).
+- [ ] Scan A a third time: "1 free" badge, the full price of 3 struck through, the total of 2 pieces; no 10% on the line.
+- [ ] Scan A up to 6: still 1 free (once per line).
+- [ ] Pay: `sales_line` → the paid line quantity 5 and a free line quantity 1 at 100%; the item's stock down by 6; the receipt shows both lines.
+- [ ] Scan 2 X without Y: a hint at the top of the cart names Y; no line added. Scan Y: its line says "1 free", Y costs 0; scan a second Y: 1 free, 1 paid.
+- [ ] Park a ticket with 3 A, recall it: the line holds 3 pieces and "1 free" again.
+- [ ] Table mode: a table with 3 A, split bill, select the A line: refused ("This line has free pieces: pay the table normally"); pay the table normally.
 
 **C3 — Sale with loyalty, earning points** (L1: `LoyaltyEarningTiersTest`, `SaleCompletionLoyaltyStampTest`)
 
