@@ -45,6 +45,9 @@ public final class InMemoryRfid {
 	public final Map<Long, RfidTag> tags = new LinkedHashMap<>();
 	/** RFID POS step: the tags of the tickets' lines. */
 	public final Map<Long, RfidSaleTag> saleTags = new LinkedHashMap<>();
+	/** The sales lines and return lines the sale tags read (linesOf, returnedQuantity): added by the test. */
+	public final List<com.digithink.zsretail.core.model.SalesLine> salesLines = new ArrayList<>();
+	public final List<com.digithink.zsretail.core.model.ReturnLine> returnLines = new ArrayList<>();
 	public final InMemoryItems items = new InMemoryItems(1000);
 	public LocalDateTime now = LocalDateTime.of(2026, 10, 12, 10, 0);
 	private long nextId = 1;
@@ -153,6 +156,12 @@ public final class InMemoryRfid {
 			return saleTags.values().stream()
 					.filter(r -> r.getSalesLine() != null && r.getSalesLine().getId().equals(args[0]) && r.getReturnLine() == null)
 					.collect(Collectors.toList());
+		case "linesOf":
+			return salesLines.stream().filter(l -> l.getSalesHeader().getId().equals(args[0]) && l.getItem().getId().equals(args[1]))
+					.collect(Collectors.toList());
+		case "returnedQuantity":
+			return returnLines.stream().filter(r -> r.getOriginalSalesLine().getId().equals(args[0]))
+					.map(com.digithink.zsretail.core.model.ReturnLine::getQuantity).reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
 		case "heldBy":
 			return saleTags.values().stream()
 					.filter(r -> ((Collection<?>) args[0]).contains(r.getEpc()) && r.getSalesHeader().getStatus() == args[1]

@@ -64,6 +64,7 @@ class RfidSaleTagsTest {
 		rfid.tag("A2", shirt, RfidTagStatus.IN_STOCK);
 		SalesHeader ticket = ticket(TransactionStatus.PENDING);
 		hooks.ticketHeld(ticket, Arrays.asList(new LineTags(line(ticket, shirt, "2"), Arrays.asList("A1", "A2"))));
+		linesMadeAgain(ticket);
 		hooks.ticketHeld(ticket, Arrays.asList(new LineTags(line(ticket, shirt, "1"), Arrays.asList("A2"))));
 		assertEquals(Arrays.asList("A2"), epcsOf(ticket));
 		hooks.ticketHeld(ticket, Collections.emptyList());
@@ -87,6 +88,7 @@ class RfidSaleTagsTest {
 		sold("A2", shirt, "OTHER-2"); // sold by another ticket while this one was pending
 
 		ticket.setStatus(TransactionStatus.COMPLETED);
+		linesMadeAgain(ticket);
 		SalesLine shirts = line(ticket, shirt, "3"); // 2 tags, the third piece scanned by its barcode
 		SalesLine trousers = line(ticket, jeans, "1");
 		hooks.ticketCompleted(ticket, Arrays.asList(new LineTags(shirts, Arrays.asList("A1", "A2")),
@@ -139,12 +141,57 @@ class RfidSaleTagsTest {
 		assertEquals(RfidTagStatus.SOLD, tag("A2").getStatus(), "at most the 1 piece returned");
 		assertEquals("OTHER-3", tag("B1").getTicketNumber());
 
-		ReturnLine rest = returnLine(line, "2");
+		ReturnLine rest = returnLine(line, "1"); // 1 + 1 + 1: the whole of the 3 pieces
 		hooks.returned(returnHeader(), Arrays.asList(new ReturnedLine(rest, true)), new ArrayList<>());
 		assertSame(rest, row("A1").getReturnLine());
 		assertSame(rest, row("A2").getReturnLine());
 		assertSame(back, row("A3").getReturnLine(), "returned once");
 		assertTrue(Arrays.asList("A1", "A2", "A3").stream().allMatch(e -> tag(e).getStatus() == RfidTagStatus.IN_STOCK));
+	}
+
+	// ─── Free pieces (decision of 2026-10-12: a free piece is scanned or read like the others) ──────
+
+	@Test
+	@DisplayName("Tags sold = paid + free: paid 2 and free 1 of the item, 3 tags read: 3 SOLD on the paid line; a 4th is skipped")
+	void tagsSoldPaidPlusFree() {
+		for (String epc : Arrays.asList("A1", "A2", "A3", "A4")) {
+			rfid.tag(epc, shirt, RfidTagStatus.IN_STOCK);
+		}
+		SalesHeader ticket = ticket(TransactionStatus.COMPLETED);
+		SalesLine paidLine = line(ticket, shirt, "2");
+		line(ticket, shirt, "1"); // the free line, saved by the sale before the hook
+		hooks.ticketCompleted(ticket, Arrays.asList(new LineTags(paidLine, Arrays.asList("A1", "A2", "A3", "A4"))));
+
+		assertEquals(Arrays.asList("A1", "A2", "A3"), epcsOf(ticket));
+		assertTrue(Arrays.asList("A1", "A2", "A3").stream().allMatch(e -> tag(e).getStatus() == RfidTagStatus.SOLD));
+		assertTrue(rfid.saleTags.values().stream().allMatch(r -> r.getSalesLine() == paidLine), "the rows stay on the paid line");
+		assertEquals(RfidTagStatus.IN_STOCK, tag("A4").getStatus(), "3 pieces of the item on the ticket: a 4th tag is skipped");
+	}
+
+	@Test
+	@DisplayName("The paid line returned whole while the free piece is kept: only the tags read go back; the free line returned later: the rest")
+	void paidLineReturnedFreeKept() {
+		for (String epc : Arrays.asList("A1", "A2", "A3")) {
+			rfid.tag(epc, shirt, RfidTagStatus.IN_STOCK);
+		}
+		SalesHeader ticket = ticket(TransactionStatus.COMPLETED);
+		SalesLine paidLine = line(ticket, shirt, "2");
+		SalesLine freeLine = line(ticket, shirt, "1");
+		hooks.ticketCompleted(ticket, Arrays.asList(new LineTags(paidLine, Arrays.asList("A1", "A2", "A3"))));
+
+		ReturnLine paidBack = returnLine(paidLine, "2"); // all that was left of the paid line
+		hooks.returned(returnHeader(), Arrays.asList(new ReturnedLine(paidBack, true)), Arrays.asList("A1"));
+		assertEquals(RfidTagStatus.IN_STOCK, tag("A1").getStatus());
+		assertSame(paidBack, row("A1").getReturnLine());
+		assertEquals(RfidTagStatus.SOLD, tag("A2").getStatus(), "the free piece is kept: not the whole item, only what was read");
+		assertEquals(RfidTagStatus.SOLD, tag("A3").getStatus());
+
+		ReturnLine freeBack = returnLine(freeLine, "1");
+		hooks.returned(returnHeader(), Arrays.asList(new ReturnedLine(freeBack, true)), new ArrayList<>());
+		assertTrue(Arrays.asList("A2", "A3").stream().allMatch(e -> tag(e).getStatus() == RfidTagStatus.IN_STOCK),
+				"every line of the item now returned: the whole item, nothing to read");
+		assertSame(freeBack, row("A2").getReturnLine());
+		assertSame(paidBack, row("A1").getReturnLine(), "returned once");
 	}
 
 	// ─── Fixtures ────────────────────────────────────────────────────
@@ -174,15 +221,23 @@ class RfidSaleTagsTest {
 		line.setSalesHeader(ticket);
 		line.setItem(item);
 		line.setQuantity(new BigDecimal(quantity));
+		rfid.salesLines.add(line);
 		return line;
 	}
 
+	/** A pending ticket saved again or completed: its lines are made again (SalesHeaderService). */
+	private void linesMadeAgain(SalesHeader ticket) {
+		rfid.salesLines.removeIf(line -> line.getSalesHeader() == ticket);
+	}
+
+	/** A return line saved (it counts in what its sales line got back). */
 	private ReturnLine returnLine(SalesLine sold, String quantity) {
 		ReturnLine line = new ReturnLine();
 		line.setId(nextId++);
 		line.setOriginalSalesLine(sold);
 		line.setItem(sold.getItem());
 		line.setQuantity(new BigDecimal(quantity));
+		rfid.returnLines.add(line);
 		return line;
 	}
 

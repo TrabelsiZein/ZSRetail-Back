@@ -319,13 +319,19 @@ pieces; a free line of a promotion holds no tag) and with a return (`ProcessRetu
 | `processReturn` | `returned` | see the return below |
 
 A tag is kept for a line only when it is known, `IN_STOCK`, of the line's item, once per ticket and at most the
-line's whole pieces (4 pieces with 3 tags: the fourth scanned by its barcode, sold as today). Any other tag (unknown,
+item's whole pieces on the ticket (4 pieces with 3 tags: the fourth scanned by its barcode, sold as today). A free
+piece of a "buy N get M" promotion is scanned or read like the others (decision of 2026-10-12, `promotion.md`): the
+pieces of the item are its paid line and its free line (`quantity` + `freeQuantity` of the line the POS sent; paid 2
+and free 1 with 3 tags: 3 `SOLD`), counted from the ticket's saved lines (`RfidSaleTagRepository.linesOf`); the rows
+stay on the paid line. Any other tag (unknown,
 sold meanwhile by another ticket, of another item, not an EPC) is **skipped with a warning in the log, never a
 refusal**: the ticket goes through.
 
-**Return** (decision of 2026-10-11): only the lines the cashier gave a quantity. A line returned **whole** (its quantity
-is all that was left of it) puts back `IN_STOCK` every tag of its paid line not yet returned. A line returned **in
-part** puts back only the tags read (`returnedEpcs`) among its own, in the order read, at most the quantity returned.
+**Return** (decisions of 2026-10-11 and 2026-10-12): only the lines the cashier gave a quantity, per item of the
+ticket. When **every line of the item** on the ticket, paid and free, is fully returned after this return
+(`returnedQuantity` of each), every tag of the item not yet returned goes back `IN_STOCK`. Otherwise (a line returned
+in part, or the paid line returned whole while the free piece is kept) only the tags read (`returnedEpcs`) among the
+item's own go back, in the order read, at most the pieces of the item this return takes back.
 A tag not read stays `SOLD`: fewer tags than the quantity, a failed or skipped read never blocks the return. A tag
 back in stock loses `sold_at` and `ticket_number`; its row keeps the return line.
 
@@ -343,7 +349,7 @@ back in stock loses `sold_at` and `ticket_number`; its row keeps the return line
 
 Out of 3.1.0: RFID on table tickets (no button on a table ticket; `splitAndPay`, `transferTable` unchanged).
 
-Tests: `RfidSaleTagsTest`, `RfidPosAPITest`; the hook calls in `SaleCompletionLoyaltyStampTest` and
+Tests: `RfidSaleTagsTest` (`tagsSoldPaidPlusFree`, `paidLineReturnedFreeKept`), `RfidPosAPITest`; the hook calls in `SaleCompletionLoyaltyStampTest` and
 `ReturnRefundLoyaltyTest` (`RecordingSaleTagHooks`).
 
 ## The front pages (ZSRetail-Front)
