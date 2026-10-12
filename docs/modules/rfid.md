@@ -11,8 +11,9 @@ store's database.
 | Back end: the switch, the readers and POS machines, the Hopeland reader, the reads, the endpoints | done (RFID steps 1 to 9) |
 | Front: the RFID menu, the Readers page, the POS machines page with "Add this machine" | done (below, "The front pages") |
 | Tags: the table (one tag = one piece, in stock / sold, linked to an item), the Tags page, the Tag assignment page and its button on the reception lines | done ("Tags", "Tag assignment") |
-| The RFID button of the POS and its cart lines (`ItemSelection.vue`, front 10d3961 and c9488f1) | done ("The front pages", "POS: the RFID button") |
-| Later: the cart's tags sent with the payment and the pending ticket, a recalled pending ticket's tags, the Read button of the return screen | not started |
+| The RFID button of the POS and its cart lines (`ItemSelection.vue`, front 10d3961, c9488f1, aa8b512, 2bfbe49) | done ("The front pages", "POS: the RFID button") |
+| Payment and pending tickets: the cart's tags sent with the ticket, a recalled pending ticket's tags (front 9656b58); a pending ticket paid with its tags (back 59aff36) | done ("POS: payment and pending tickets", "At the POS") |
+| Later: the Read button of the return screen | not started |
 
 **Package map** (store project, `com.digithink.zsretail.store.rfid`): `model` (`RfidReader`, `PosMachine`), `repository`,
 `service` (`RfidReaderService`, `PosMachineService`, `RfidReadService`, `RfidAddresses`), `reader` (`RfidReaderDevice`,
@@ -350,7 +351,14 @@ back in stock loses `sold_at` and `ticket_number`; its row keeps the return line
 
 Out of 3.1.0: RFID on table tickets (no button on a table ticket; `splitAndPay`, `transferTable` unchanged).
 
-Tests: `RfidSaleTagsTest` (`tagsSoldPaidPlusFree`, `paidLineReturnedFreeKept`), `RfidPosAPITest`; the hook calls in `SaleCompletionLoyaltyStampTest` and
+**The rows of a ticket written again** (fix of 2026-10-12, ticket 6): held, completed and cancelled first delete the
+ticket's rows and flush (`RfidSaleTags.releaseRows`). Hibernate keeps a delete until the flush but inserts a new row
+(identity id) at once: without the flush, a pending ticket paid with its own tags inserted them while its old rows were
+still there (`uk_rfid_sale_tag_header_epc`).
+
+Tests: `RfidSaleTagsTest` (`tagsSoldPaidPlusFree`, `paidLineReturnedFreeKept`), `RfidSaleTagsJpaTest` (the hooks on the
+real repositories over H2: a pending ticket paid with the same tags, one more, one less, saved again, a direct payment, a
+pending ticket deleted), `RfidPosAPITest`; the hook calls in `SaleCompletionLoyaltyStampTest` and
 `ReturnRefundLoyaltyTest` (`RecordingSaleTagHooks`).
 
 ## The front pages (ZSRetail-Front)
@@ -408,10 +416,14 @@ router guard (home) and the search bar hide them, like the other store-mode page
   being typed are kept): the item fixed, the expected quantity of the line (received, else typed, else sent; a whole
   number only), the source `RECEPTION` with the delivery number and the line. Off (tooltip) while the item is not in this
   store (`itemId` null); hidden without `rfidEnabled` or the Tag assignment permission. It never blocks or changes Receive.
-- **POS: the RFID button** (`views/pos/ItemSelection.vue`, beside Pendings): only with `rfidEnabled` and never in table
-  mode (no RFID on table tickets in 3.1.0). A click calls `POST /rfid/pos-read` with the cart's tags and the pending
-  ticket open (a spinner meanwhile). Each tag added is one piece of its item, one line per item (on the item's line when
-  it is in the cart), its EPC kept on the line (`epcs`, Vuex only, not yet sent to the back end); the line is priced
+- **POS: the RFID button** (`views/pos/ItemSelection.vue`, in the top row between the barcode field and the families
+  search, as high as the fields; the search a little shorter): only with `rfidEnabled` and never in table mode (no RFID
+  on table tickets in 3.1.0). Filled with the primary colour and a soft glow, the waves of its radio icon pulsing slowly;
+  while reading they pulse fast with a stronger glow (disabled); after a read a flash under a second, green (pieces
+  added, no warning) or amber (a warning or an error); with `prefers-reduced-motion` no pulse, the flash colour only.
+  A click calls `POST /rfid/pos-read` with the cart's tags and the pending ticket open. Each tag added is one piece of
+  its item, one line per item (on the item's line when it is in the cart), its EPC kept on the line (`epcs`, Vuex; sent
+  with the payment and the pending ticket, below); the line is priced
   again like any quantity change, so the free pieces rule counts every tag (3 tags of "buy 2, get 1 free": 2 paid + 1
   free). A line with tags shows their count and has no -, + or typed quantity (the bin still removes it); a scan of its
   item goes on it (4 pieces, 3 tags) and it stays locked. A result line above the cart: "POS 1 · Reader 1: 4 added,
@@ -420,6 +432,21 @@ router guard (home) and the search bar hide them, like the other store-mode page
   for a line that had pieces without a tag (a scanned piece's tag does not work: the read does not count it again;
   nothing is blocked); a refusal (409 no reader here) in red, the back end's message as it comes. Texts
   `pos.itemSelection.rfid.*` in the five languages.
+- **POS: payment and pending tickets** (`Payment.vue`, `ItemSelection.vue`; front 9656b58): a line that holds tags sends
+  them all with the ticket (`SaleLineDTO.epcs`, the free pieces included: the payment sends quantity = paid and
+  `freeQuantity` = free, the back end keeps at most the item's paid + free pieces; Save as pending sends quantity = all
+  the pieces), so the payment marks them sold and the pending ticket holds them. A line without tags, and every line
+  with RFID off, is sent with no `epcs` field, as before. A pending ticket recalled from the list gets its tags back
+  (`GET /rfid/ticket-tags?salesHeaderId=`), each on the line of its item, counted and locked as after a read; a read
+  then counts them as already in the cart (the cart's tags are sent). Not loaded: the result line says so in red (do not
+  read its pieces again). The result line is cleared when a line is deleted, the cart is cleared, a ticket is recalled,
+  and when the screen is left for a payment or a save. After a payment or a save the cart is empty and holds no tags.
+- **Save as pending on a recalled ticket** (front 3f5fb37, every store, RFID or not): outside table mode a recalled
+  pending ticket is saved again as itself (`update-pending/{id}`: same ticket, number, date and session), never as a
+  second one, and the till then works on no pending ticket (before, it kept the old id and the next new sale was paid as
+  that old ticket's completion); the customer goes back to the passenger customer, as after a payment. A new cart still
+  posts `save-pending`. Table mode is unchanged: there Save as pending on an occupied table still posts `save-pending`
+  and leaves a second pending ticket on the table (known, not changed in 3.1.0).
 
 ## Permissions (the front pages)
 
@@ -456,4 +483,5 @@ address with no reader fails after 5 s (the SDK's own timeout, with a stack trac
   Test helpers in `store.support`: `InMemoryRfid` (the two tables), `FakeRfidReader`.
 - `HopelandRfidReaderManualTest`: the real reader, only with `-Drfid.reader=ip:port` (step 5 above); skipped otherwise.
 
-Full suite on 2026-10-11 after step 7: 974 tests, 0 failures, 2 skipped (the two live tests that need hardware).
+Full suite on 2026-10-11 after step 7: 974 tests, 0 failures, 2 skipped (the two live tests that need hardware). On
+2026-10-12 after the pending ticket payment fix (59aff36): 1031 tests, 0 failures, 2 skipped.
