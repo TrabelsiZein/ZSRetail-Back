@@ -36,6 +36,14 @@ public class PriceCalculateResponseDTO {
 	/** FREE_QUANTITY promotion: the free pieces still to scan (M - freeQuantity), for a hint "1 more piece is free". */
 	private Integer freeQuantityAvailable;
 
+	/**
+	 * The FREE_QUANTITY promotion of freeQuantity / freeQuantityAvailable: the one applied, or (0 free piece yet, Q = N)
+	 * the one that applies from one more piece, while the line is priced without it (promotionId is then another
+	 * promotion or none).
+	 */
+	private Long freePromotionId;
+	private String freePromotionName;
+
 	/** ID of the applied promotion — use this to persist promotion_id on the sales line. */
 	private Long promotionId;
 

@@ -78,10 +78,19 @@ store and every cart line, with or without RFID tags.
 **Same item, "buy N, get M free"** (once per line, not per group): Q = all the pieces of the line (scanned, typed or
 read), free = min(M, max(0, Q - N)), paid = Q - free. N = 2, M = 1: Q = 2 → 2 paid; 3 → 2 + 1 free; 4 → 3 + 1 free;
 6 → 5 + 1 free. `PromotionCalculationService.freePieces`; `POST /price-calculate` answers `freeQuantity` (the free
-pieces among the quantity asked) and `freeQuantityAvailable` (M - freeQuantity: "1 more piece is free"). Below N the
-promotion is not selected, as before; at Q = N it is selected with 0 free (the line keeps no SalesDiscount: a
-FREE_QUANTITY promotion never compares with it, as before). A FREE_QUANTITY promotion without N (or N = 0) gives no
-free piece and is never selected (the line keeps its other promotion or ERP price). A quantity not whole never has a
+pieces among the quantity asked), `freeQuantityAvailable` (M - freeQuantity: "1 more piece is free") and
+`freePromotionId` / `freePromotionName` (the free promotion they speak of).
+
+**A free promotion takes the line only when it gives at least 1 free piece** (Q >= N + 1, correction of 2026-10-12):
+with 0 free piece the line is priced exactly as if that promotion did not exist (the cascade picks another promotion if
+one applies, else the ERP SalesPrice / SalesDiscount applies), and the answer still carries the hint: `freeQuantity` 0,
+`freeQuantityAvailable` M and `freePromotionName`, while `promotionId` is the other promotion or none. Example: NAV
+discount 10 %, "2 → 1 free": 1 piece → 10 %, no hint; 2 pieces → 10 %, 0 free, hint 1; 3 pieces → 1 free, no 10 % (a
+FREE_QUANTITY promotion that takes the line never compares with the SalesDiscount, as before). The same cascade finds
+both (`findBestItemPromotion`, each scope read once): the promotion applied, and the winner had a free promotion with 0
+free piece been allowed; when that winner is such a free promotion, it is the hint. Below N: nothing from the free
+promotion, no hint. A FREE_QUANTITY promotion without N (or N = 0) gives no free piece, is never selected and gives no
+hint (the line keeps its other promotion or ERP price). A quantity not whole never has a
 free piece (`passesQuantityFilter`, and `checkQuantities` refuses a free quantity on a decimal line).
 
 **Cross-product, "buy N of X, get M of Y free"** (per group, as before): `POST /price-calculate/cart` adjustments carry
@@ -111,6 +120,8 @@ until the ticket is paid; "Gratuit" on the free row of the printed ticket (logge
 "1 free per group" not in 3.1.0. Deploy: close the pending and table tickets before upgrading (`docs/deploy-note.md`).
 
 Tests: `PromotionAllItemsScopeTest` (`freeTable`, `quantityPromotionPerLine`, `freeWithoutMinimum`,
+`freeAtThresholdKeepsSalesDiscount`, `freeAtThresholdLetsAnotherPromotionApply`,
+`freeAboveThresholdReplacesSalesDiscount`, `freeBelowThresholdNoHint`,
 `crossProductFreeOnlyWhenScanned`), `DecimalSafetyNetTest.crossProductIgnoresDecimalLines`; `SaleDecimalQuantityTest`
 (`stockTakenPaidPlusFree`, `stockTakenPaidPlusFreeParked`: today's payload paid 3 + free 1 takes 4 from the stock;
 `freeQuantityRefusedOnDecimalLine`).

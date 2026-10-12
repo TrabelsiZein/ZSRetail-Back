@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,8 +44,10 @@ import lombok.extern.log4j.Log4j2;
  * Precedence per item:
  *   1. Effective unit price = SalesPrice if found, else item base price.
  *   2. FREE_QUANTITY promotion: always applied on the effective price. Free pieces only when scanned (decision of
- *      2026-10-12): the line's quantity Q is all its pieces, free = min(M, max(0, Q - N)) (freePieces); no N: never
- *      selected, no free piece.
+ *      2026-10-12): the line's quantity Q is all its pieces, free = min(M, max(0, Q - N)) (freePieces). It takes the
+ *      line only when it gives at least 1 free piece (Q >= N + 1); with 0 the line is priced as if it did not exist
+ *      (another promotion, else ERP pricing) and the answer carries it as a hint (freeQuantityAvailable,
+ *      freePromotionName). No N: never selected, no free piece.
  *   3. PERCENTAGE/FIXED promotion vs SalesDiscount: best discount wins (higher % applied).
  *   4. No promotion: ERP pricing (SalesPrice / SalesDiscount) applied as-is.
  *
@@ -114,7 +117,16 @@ public class PromotionCalculationService {
 		Double effectiveUnitPrice = pricingResult.getUnitPrice();
 
 		// Always look for the best promotion
-		Promotion bestPromotion = findBestItemPromotion(item, qty, codes);
+		ItemPromotions found = findBestItemPromotion(item, qty, codes);
+		Promotion bestPromotion = found.applied;
+
+		// A free promotion that gives no free piece yet (Q = N): not applied, only its hint (2026-10-12)
+		if (found.freeHint != null) {
+			response.setFreeQuantity(0);
+			response.setFreeQuantityAvailable(found.freeHint.getFreeQuantity());
+			response.setFreePromotionId(found.freeHint.getId());
+			response.setFreePromotionName(found.freeHint.getName());
+		}
 
 		// No promotion found → apply ERP pricing as-is (unchanged behavior)
 		if (bestPromotion == null) {
@@ -134,7 +146,9 @@ public class PromotionCalculationService {
 			applyItemPromotionBenefit(response, bestPromotion, effectiveUnitPrice);
 			int free = freePieces(bestPromotion, qty);
 			response.setFreeQuantity(free);
-			response.setFreeQuantityAvailable((bestPromotion.getFreeQuantity() != null ? bestPromotion.getFreeQuantity() : 0) - free);
+			response.setFreeQuantityAvailable(bestPromotion.getFreeQuantity() - free);
+			response.setFreePromotionId(bestPromotion.getId());
+			response.setFreePromotionName(bestPromotion.getName());
 			response.setPromotionId(bestPromotion.getId());
 			response.setPromotionName(bestPromotion.getName());
 			response.setPromotionCode(bestPromotion.getCode());
@@ -485,69 +499,82 @@ public class PromotionCalculationService {
 	// ─── Private Helpers ────────────────────────────────────────────────────────
 
 	/**
+	 * The item's promotions: the one applied, and a free promotion that gives no free piece yet (Q = N) but would take
+	 * the line from Q = N + 1, for the hint (null when none).
+	 */
+	private static final class ItemPromotions {
+		Promotion applied;
+		Promotion freeHint;
+	}
+
+	/**
 	 * Find the best promotion for a single item.
 	 * Scope priority: ITEM > ITEM_GROUP > ITEM_SUBFAMILY > ITEM_FAMILY > ALL_ITEMS (most specific wins).
 	 * Filters are applied per scope: a scope with no eligible candidate falls through to the next one.
 	 * Within scope: highest priority wins (ABSOLUTE).
+	 * <p>
+	 * 2026-10-12: a free promotion takes the line only with at least 1 free piece; the same cascade (each scope read
+	 * once) also finds the winner had a free promotion with 0 free piece been allowed: when that winner is such a free
+	 * promotion, it is the hint.
 	 */
-	private Promotion findBestItemPromotion(Item item, BigDecimal quantity, List<String> codes) {
+	private ItemPromotions findBestItemPromotion(Item item, BigDecimal quantity, List<String> codes) {
 		LocalDate today = LocalDate.now();
 		LocalTime now = LocalTime.now();
 		DayOfWeek todayDay = today.getDayOfWeek();
 
-		// ITEM scope (most specific)
+		List<Supplier<List<Promotion>>> scopes = new ArrayList<>();
 		if (item.getId() != null) {
-			Promotion best = selectBestFromList(
-					promotionRepository.findActiveByItemId(item.getId(), today),
-					quantity, codes, now, todayDay);
-			if (best != null) return best;
+			// ITEM scope (most specific), then ITEM_GROUP (curated set — more specific than taxonomy, less than direct item)
+			scopes.add(() -> promotionRepository.findActiveByItemId(item.getId(), today));
+			scopes.add(() -> promotionRepository.findActiveByGroupItemId(item.getId(), today));
 		}
-
-		// ITEM_GROUP scope (curated set — more specific than taxonomy, less than direct item)
-		if (item.getId() != null) {
-			Promotion best = selectBestFromList(
-					promotionRepository.findActiveByGroupItemId(item.getId(), today),
-					quantity, codes, now, todayDay);
-			if (best != null) return best;
-		}
-
-		// ITEM_SUBFAMILY scope
 		if (item.getItemSubFamily() != null) {
-			Promotion best = selectBestFromList(
-					promotionRepository.findActiveByItemSubFamilyId(item.getItemSubFamily().getId(), today),
-					quantity, codes, now, todayDay);
-			if (best != null) return best;
+			scopes.add(() -> promotionRepository.findActiveByItemSubFamilyId(item.getItemSubFamily().getId(), today));
 		}
-
-		// ITEM_FAMILY scope
 		if (item.getItemFamily() != null) {
-			Promotion best = selectBestFromList(
-					promotionRepository.findActiveByItemFamilyId(item.getItemFamily().getId(), today),
-					quantity, codes, now, todayDay);
-			if (best != null) return best;
+			scopes.add(() -> promotionRepository.findActiveByItemFamilyId(item.getItemFamily().getId(), today));
 		}
-
 		// ALL_ITEMS scope (least specific): fallback when no targeted promotion matched
-		return selectBestFromList(
-				promotionRepository.findActiveByScope(PromotionScope.ALL_ITEMS, today),
-				quantity, codes, now, todayDay);
+		scopes.add(() -> promotionRepository.findActiveByScope(PromotionScope.ALL_ITEMS, today));
+
+		ItemPromotions found = new ItemPromotions();
+		Promotion withZeroFree = null;
+		for (Supplier<List<Promotion>> scope : scopes) {
+			List<Promotion> candidates = scope.get();
+			if (found.applied == null) {
+				found.applied = selectBestFromList(candidates, quantity, codes, now, todayDay, false);
+			}
+			if (withZeroFree == null) {
+				withZeroFree = selectBestFromList(candidates, quantity, codes, now, todayDay, true);
+			}
+			if (found.applied != null && withZeroFree != null) {
+				break;
+			}
+		}
+		if (withZeroFree != null && withZeroFree.getBenefitType() == PromotionBenefitType.FREE_QUANTITY
+				&& freePieces(withZeroFree, quantity) == 0) {
+			found.freeHint = withZeroFree;
+		}
+		return found;
 	}
 
 	/**
 	 * From a list of pre-filtered (active + date-valid) promotions for a given scope,
 	 * apply remaining filters and return the highest-priority match.
 	 * Tiebreaker when priorities are equal: highest discount value wins (percentage → amount → freeQuantity).
+	 * 2026-10-12: a free promotion needs its N, and at least 1 free piece unless zeroFreeAllowed (the hint's cascade).
 	 */
 	private Promotion selectBestFromList(List<Promotion> candidates, BigDecimal quantity,
-			List<String> codes, LocalTime now, DayOfWeek todayDay) {
+			List<String> codes, LocalTime now, DayOfWeek todayDay, boolean zeroFreeAllowed) {
 		return candidates.stream()
 				// Cross-product promotions (getItem set) never discount the buy line
 				// itself — they are evaluated by the cart pass and applied to the
 				// get-item's line. Existing promotions all have getItem = null.
 				.filter(p -> p.getGetItem() == null)
-				// 2026-10-12: a free quantity without its N gives no free piece, and never takes the line
 				.filter(p -> p.getBenefitType() != PromotionBenefitType.FREE_QUANTITY
-						|| (p.getMinimumQuantity() != null && p.getMinimumQuantity() > 0))
+						|| (zeroFreeAllowed ? p.getMinimumQuantity() != null && p.getMinimumQuantity() > 0
+								&& p.getFreeQuantity() != null && p.getFreeQuantity() > 0
+								: freePieces(p, quantity) > 0))
 				.filter(p -> passesCodeFilter(p, codes))
 				.filter(p -> passesQuantityFilter(p, quantity))
 				.filter(p -> passesTimeFilter(p, now))

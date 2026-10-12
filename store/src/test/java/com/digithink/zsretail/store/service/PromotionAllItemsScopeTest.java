@@ -190,10 +190,12 @@ class PromotionAllItemsScopeTest {
 		Promotion q = freePromotion("ALLQTY", 3, 1);
 		assertPromotion(null, price(12, 2));
 		PriceCalculateResponseDTO r = price(12, 3);
-		assertPromotion(q, r);
+		assertPromotion(null, r); // 0 free piece: the promotion does not take the line (2026-10-12)
 		assertEquals(0, r.getFreeQuantity().intValue(), "3 pieces, buy 3 get 1: none free yet (was 1 added on top)");
 		assertEquals(1, r.getFreeQuantityAvailable().intValue(), "1 more piece is free");
+		assertEquals("ALLQTY", r.getFreePromotionName());
 		r = price(12, 4);
+		assertPromotion(q, r);
 		assertEquals(1, r.getFreeQuantity().intValue());
 		assertEquals(0, r.getFreeQuantityAvailable().intValue());
 		assertEquals(1, price(12, 7).getFreeQuantity().intValue(), "once per line");
@@ -220,6 +222,67 @@ class PromotionAllItemsScopeTest {
 		PriceCalculateResponseDTO decimal = engine.calculateItemPrice(12L, new BigDecimal("2.5"), null, new ArrayList<>());
 		assertPromotion(null, decimal);
 		assertNull(decimal.getFreeQuantity());
+	}
+
+	@Test
+	@DisplayName("Buy 2 get 1 at Q = 2 with a NAV discount of 10 %: the 10 % applies, 0 free, hint 1")
+	void freeAtThresholdKeepsSalesDiscount() {
+		freePromotion("B2G1", 2, 1);
+		erpPricing(10.0);
+		PriceCalculateResponseDTO r = price(12, 2);
+		assertPromotion(null, r);
+		assertEquals("SALES_DISCOUNT", r.getSource());
+		assertEquals(10.0, r.getDiscountPercentage().doubleValue(), 0.0);
+		assertHint(r, 0, 1);
+	}
+
+	@Test
+	@DisplayName("Buy 2 get 1 at Q = 2 with another percent promotion in a wider scope: that promotion applies, 0 free, hint 1")
+	void freeAtThresholdLetsAnotherPromotionApply() {
+		Promotion family = freePromotion("B2G1", 2, 1);
+		family.setScope(PromotionScope.ITEM_FAMILY);
+		family.setItemFamily(familyF);
+		Promotion all15 = promotion("ALL15", PromotionScope.ALL_ITEMS, 15, 0);
+		PriceCalculateResponseDTO r = price(10, 2);
+		assertPromotion(all15, r);
+		assertEquals(15.0, r.getDiscountPercentage().doubleValue(), 0.0);
+		assertHint(r, 0, 1);
+
+		r = price(10, 3);
+		assertPromotion(family, r);
+		assertNull(r.getDiscountPercentage(), "the free promotion takes the line from Q = 3, the 15 % does not stack");
+		assertHint(r, 1, 0);
+	}
+
+	@Test
+	@DisplayName("Buy 2 get 1 at Q = 3 with a NAV discount of 10 %: 1 free, no sales discount, hint 0")
+	void freeAboveThresholdReplacesSalesDiscount() {
+		Promotion q = freePromotion("B2G1", 2, 1);
+		erpPricing(10.0);
+		PriceCalculateResponseDTO r = price(12, 3);
+		assertPromotion(q, r);
+		assertNull(r.getDiscountPercentage());
+		assertHint(r, 1, 0);
+	}
+
+	@Test
+	@DisplayName("Buy 2 get 1 at Q = 1: nothing from the free promotion, no hint; the NAV discount applies")
+	void freeBelowThresholdNoHint() {
+		freePromotion("B2G1", 2, 1);
+		erpPricing(10.0);
+		PriceCalculateResponseDTO r = price(12, 1);
+		assertPromotion(null, r);
+		assertEquals(10.0, r.getDiscountPercentage().doubleValue(), 0.0);
+		assertNull(r.getFreeQuantity());
+		assertNull(r.getFreeQuantityAvailable());
+		assertNull(r.getFreePromotionName());
+	}
+
+	/** The free promotion B2G1 named, with these free pieces and these still to scan. */
+	private static void assertHint(PriceCalculateResponseDTO r, int free, int available) {
+		assertEquals(free, r.getFreeQuantity().intValue(), "free pieces");
+		assertEquals(available, r.getFreeQuantityAvailable().intValue(), "free pieces still to scan");
+		assertEquals("B2G1", r.getFreePromotionName());
 	}
 
 	@Test
