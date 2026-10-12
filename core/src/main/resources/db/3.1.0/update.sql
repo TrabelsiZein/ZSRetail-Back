@@ -14,6 +14,10 @@
 -- the names and types Hibernate uses, so ddl-auto finds them complete. They exist, empty, on every store, whatever
 -- rfid.enabled; a head office database (it has ho_store) never gets them.
 --
+-- Data, payment method "Retenue à la source" (type RETENUE_SOURCE): added inactive with the neutral code RETENUE_SOURCE
+-- (store and head office, as the seed), only when no row of that type exists. A database that has it already (EMTOP
+-- since 1.12.1: active, with its ERP code as the code) keeps its row unchanged.
+--
 -- The session options are set here (sqlcmd starts with QUOTED_IDENTIFIER OFF); SSMS has them on already.
 
 SET QUOTED_IDENTIFIER ON;
@@ -139,9 +143,26 @@ BEGIN
 END
 GO
 
+-- Payment method "Retenue à la source": inactive, neutral code; the admin switches it on and types the ERP code as its
+-- code. Nothing is done when a row of the type exists (EMTOP 1.12.1), nor when the code is taken by another row.
+IF NOT EXISTS (SELECT 1 FROM payment_method WHERE type = 'RETENUE_SOURCE')
+	AND NOT EXISTS (SELECT 1 FROM payment_method WHERE code = 'RETENUE_SOURCE')
+BEGIN
+	INSERT INTO payment_method (code, name, type, description, active, display_order,
+		require_title_number, require_due_date, require_drawer_name, require_issuing_bank,
+		requires_confirmation, created_at, updated_at, created_by, updated_by)
+	VALUES ('RETENUE_SOURCE', N'Retenue à la source', 'RETENUE_SOURCE', N'Paiement par retenue à la source',
+		0, 10, 0, 0, 0, 0, 0, SYSDATETIME(), SYSDATETIME(), 'System', 'System');
+END
+GO
+
 UPDATE APP_VERSION SET version = '3.1.0';
 
--- The release notes of 3.1.0 are written when the release is closed (the RFID screens are not built yet).
+-- The notes of 3.1.0 are written again on each run (the script may run more than once). The RFID notes are added
+-- when the release is closed (the RFID screens are not finished yet).
+DELETE FROM APP_RELEASE_NOTES WHERE version = '3.1.0';
+INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
+('3.1.0', 'NEW', N'Nouveau moyen de paiement « Retenue à la source », inactif à l''installation : l''activer dans Moyens de paiement et saisir comme code le code ERP du règlement.');
 
 GO
 

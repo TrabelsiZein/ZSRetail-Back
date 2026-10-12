@@ -550,6 +550,18 @@ public class ZZDataInitializer {
 		virementBancaire.setCreatedBy("System");
 		virementBancaire.setUpdatedBy("System");
 		paymentMethodRepository.save(virementBancaire);
+
+		// Retenue à la source - Order 10, inactive: the admin switches it on and types the ERP code as its code
+		PaymentMethod retenueSource = new PaymentMethod();
+		retenueSource.setCode("RETENUE_SOURCE");
+		retenueSource.setName("Retenue à la source");
+		retenueSource.setType(PaymentMethodType.RETENUE_SOURCE);
+		retenueSource.setDescription("Paiement par retenue à la source");
+		retenueSource.setActive(false);
+		retenueSource.setDisplayOrder(10);
+		retenueSource.setCreatedBy("System");
+		retenueSource.setUpdatedBy("System");
+		paymentMethodRepository.save(retenueSource);
 	}
 
 	/**
