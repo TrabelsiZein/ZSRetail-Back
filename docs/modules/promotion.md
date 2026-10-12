@@ -111,7 +111,9 @@ until the ticket is paid; "Gratuit" on the free row of the printed ticket (logge
 "1 free per group" not in 3.1.0. Deploy: close the pending and table tickets before upgrading (`docs/deploy-note.md`).
 
 Tests: `PromotionAllItemsScopeTest` (`freeTable`, `quantityPromotionPerLine`, `freeWithoutMinimum`,
-`crossProductFreeOnlyWhenScanned`), `DecimalSafetyNetTest.crossProductIgnoresDecimalLines`.
+`crossProductFreeOnlyWhenScanned`), `DecimalSafetyNetTest.crossProductIgnoresDecimalLines`; `SaleDecimalQuantityTest`
+(`stockTakenPaidPlusFree`, `stockTakenPaidPlusFreeParked`: today's payload paid 3 + free 1 takes 4 from the stock;
+`freeQuantityRefusedOnDecimalLine`).
 
 ### Frontend — New Files
 

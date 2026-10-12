@@ -134,6 +134,20 @@ primary key, <n> rows kept`); `core/src/main/resources/db/2.3.0/update.sql` does
 runs once. When both tables exist the start is refused, naming both, and the script ends with an error without writing
 APP_VERSION: keep the one with the head office's `barcodes.cursor` row, drop the other. A store, and a head office without that connector, have no such table: nothing happens there.
 
+## Upgrade from 2.3.0 to 3.1.0: close the open tickets first
+
+**Before deploying 3.1.0 on a store, pay or cancel every pending ticket and every table ticket** (decision of
+2026-10-12). From 3.1.0 a free piece of a "buy N get M" promotion is free only when it is scanned, and a cart line holds
+all its pieces, the free ones included (`docs/modules/promotion.md`, "Free pieces only when scanned"). A ticket left open
+across the upgrade comes back in the new till with the lines of before: its lines hold the paid pieces only, and a
+cross-product free item comes back as a separate line at 100%, not as a free piece of its item's line.
+
+Then, as for every 3.1.0 store: run `core/src/main/resources/db/3.1.0/update.sql` (with sqlcmd `-f 65001`) and deploy
+the WAR and the front together. A POS still running the front of before (cached) against 3.1.0 still adds the free
+pieces on top, counted by the new rule from the pieces it sends (buy 2 get 1: 3 pieces scanned give 1 more, 2 give
+none), and the stock stays right: the payment payload did not change (`quantity` = paid, `freeQuantity` = free). Reload
+the till's page after the upgrade.
+
 ## Rollback from 2.3.0 to 2.2.2
 
 2.2.2 is the single WAR (`zsretailws.war`) and reads the outside file of 2.2.2. Stop Tomcat, then:

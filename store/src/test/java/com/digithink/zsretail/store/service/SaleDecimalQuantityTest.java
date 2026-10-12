@@ -408,6 +408,62 @@ class SaleDecimalQuantityTest {
 		assertTrue(json.writeValueAsString(line).contains("\"quantity\":0.2,"), json.writeValueAsString(line));
 	}
 
+	// ─── Free pieces (decision of 2026-10-12: stock taken = pieces scanned) ──────
+
+	@Test
+	@DisplayName("Free pieces: paid 3 + free 1 as the till sends them, a paid line and a free line, stock taken 4 (5 to 1)")
+	void stockTakenPaidPlusFree() throws Exception {
+		settings.put(QuantityPolicy.SETTING, "false");
+		ProcessSaleRequestDTO.SaleLineDTO line = line("3", 150.0);
+		line.setFreeQuantity(1);
+		SalesHeader sale = sales.processCompleteSale(request(line), cashier);
+
+		assertPaidAndFree(sale);
+		assertQuantity("1", stock.quantityOf("VH52-1L"), "4 pieces left the store");
+		assertEquals(4, stock.movements(StockMovementType.SALE).stream().map(StockMovement::getQuantity)
+				.reduce(BigDecimal.ZERO, BigDecimal::add).intValue());
+	}
+
+	@Test
+	@DisplayName("Free pieces on a parked ticket: saved with the 4 pieces of the cart line (stock untouched), completed as paid 3 + free 1: stock taken 4")
+	void stockTakenPaidPlusFreeParked() throws Exception {
+		settings.put(QuantityPolicy.SETTING, "false");
+		SalesHeader parked = sales.savePendingSale(request(line("4", 200.0)), cashier);
+		assertQuantity("4", only(parked).getQuantity());
+		assertQuantity("5", stock.quantityOf("VH52-1L"), "a parked ticket does not touch the stock");
+
+		ProcessSaleRequestDTO.SaleLineDTO paid = line("3", 150.0);
+		paid.setFreeQuantity(1);
+		SalesHeader sale = sales.completePendingSale(parked.getId(), request(paid), cashier);
+
+		assertPaidAndFree(sale);
+		assertQuantity("1", stock.quantityOf("VH52-1L"));
+	}
+
+	@Test
+	@DisplayName("A free quantity on a decimal line is refused before anything is written")
+	void freeQuantityRefusedOnDecimalLine() {
+		ProcessSaleRequestDTO.SaleLineDTO line = line("2.5", 125.0);
+		line.setFreeQuantity(1);
+
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+				() -> sales.processCompleteSale(request(line), cashier));
+		assertTrue(e.getMessage().contains("no free quantity"), e.getMessage());
+		assertTrue(e.getMessage().contains("VH52-1L"), e.getMessage());
+		assertTrue(headers.isEmpty() && savedLines.isEmpty(), "nothing written");
+		assertQuantity("5", stock.quantityOf("VH52-1L"));
+	}
+
+	/** The ticket's lines: the paid line of 3 and the free line of 1 (100%, total 0). */
+	private void assertPaidAndFree(SalesHeader sale) {
+		List<SalesLine> lines = savedLines.stream().filter(l -> l.getSalesHeader() == sale).collect(Collectors.toList());
+		assertEquals(2, lines.size());
+		assertQuantity("3", lines.get(0).getQuantity());
+		assertQuantity("1", lines.get(1).getQuantity());
+		assertEquals(100.0, lines.get(1).getDiscountPercentage(), 0.0);
+		assertEquals(0.0, lines.get(1).getLineTotalIncludingVat(), 0.0);
+	}
+
 	// ─── Fixtures ────────────────────────────────────────────────────
 
 	/** A line as the till sends it: the bulk item, this quantity, the litre price, and its own (ignored) total. */
