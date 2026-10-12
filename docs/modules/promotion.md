@@ -131,7 +131,9 @@ against this back end keeps the old behaviour and the stock stays right. Pending
   line with free pieces is not selected: "This line has free pieces: pay the table normally" (`splitAndPay` copies the
   saved line, whose amount excluding VAT counts all Q pieces, and the completed ticket goes to NAV).
 - **Pending tickets list**: each line shows its amount excluding VAT from the till's amounts (including VAT minus its
-  VAT), the paid pieces, as the ticket's subtotal; the saved `lineTotal` counts every piece.
+  VAT), the paid pieces, as the ticket's subtotal; the saved `lineTotal` counts every piece. A saved line keeps no free
+  count: when the list opens each whole line asks its price again (`askFreeAnswer`, as the recall), and a line with free
+  pieces reads "3 x TND 27.65 (1 free) = TND 55.29" (the free pieces of the promotions of today).
 
 **For the cashiers** (3.1.0): a free piece is never added by the till any more. Scan or read **every** piece the customer
 takes, the free ones too: the till makes the free ones free ("1 free" on the line) and the receipt shows them on their
