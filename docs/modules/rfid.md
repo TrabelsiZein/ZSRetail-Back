@@ -13,7 +13,7 @@ store's database.
 | Tags: the table (one tag = one piece, in stock / sold, linked to an item), the Tags page, the Tag assignment page and its button on the reception lines | done ("Tags", "Tag assignment") |
 | The RFID button of the POS and its cart lines (`ItemSelection.vue`, front 10d3961, c9488f1, aa8b512, 2bfbe49) | done ("The front pages", "POS: the RFID button") |
 | Payment and pending tickets: the cart's tags sent with the ticket, a recalled pending ticket's tags (front 9656b58); a pending ticket paid with its tags (back 59aff36) | done ("POS: payment and pending tickets", "At the POS") |
-| Later: the Read button of the return screen | not started |
+| The Read button of the return screen (`ReturnProducts.vue`, front 3a68335); the RFID texts checked in five languages and right to left (front 2e5395c) | done ("POS: the Read button of the return screen") |
 
 **Package map** (store project, `com.digithink.zsretail.store.rfid`): `model` (`RfidReader`, `PosMachine`), `repository`,
 `service` (`RfidReaderService`, `PosMachineService`, `RfidReadService`, `RfidAddresses`), `reader` (`RfidReaderDevice`,
@@ -142,9 +142,18 @@ Refusals of `readForRequest`, the reader never called:
 
 **One request at a time per reader**: a lock per reader id, taken without waiting; a second request for a busy reader
 answers at once `BUSY` (`The RFID reader 'R' is busy with another read: try again in a moment.`), never queues. Two
-readers read at the same time. The lock is freed whatever happens (a failure included).
+readers read at the same time. The lock is freed whatever happens (a failure included). Every read goes through it:
+the POS cart's `POST /rfid/pos-read` and the return screen's `POST /rfid/read` (the reader of the request's machine),
+the tag assignment read and the Test read (the reader by id), Test connection; so a second click on the same machine,
+and a read from another machine linked to the same reader, are refused (409) while a read runs. The POS machines page
+accepts the same reader on several machines (no unique key on `pos_machine.reader_id`): their reads take turns.
+The lock is held until the reader call returns; there is no time limit of its own: a read lasts the TCP check (at
+most 2 s), the SDK's connection (its own 5 s limit), the reading time and 300 ms. The browser's 30 s timeout does not
+free it: the read ends on the server as it would have.
 
-Tests: `RfidTagCollectorTest`, `RfidReadServiceTest` (with `FakeRfidReader`), `RfidBeansTest`.
+Tests: `RfidTagCollectorTest`, `RfidReadServiceTest` (with `FakeRfidReader`), `RfidReaderBusyTest` (a POS read held
+open: the same machine again, another machine on the reader, the return read, the assignment, the Test read all BUSY at
+once, another reader reads meanwhile, all free after), `RfidBeansTest`.
 
 ## The Hopeland reader (RFID step 5)
 
@@ -447,6 +456,26 @@ router guard (home) and the search bar hide them, like the other store-mode page
   that old ticket's completion); the customer goes back to the passenger customer, as after a payment. A new cart still
   posts `save-pending`. Table mode is unchanged: there Save as pending on an occupied table still posts `save-pending`
   and leaves a second pending ticket on the table (known, not changed in 3.1.0).
+- **POS: the Read button of the return screen** (`views/pos/ReturnProducts.vue`, front 3a68335): on a store with RFID a
+  ticket loaded for a return gets its tags (`GET /rfid/ticket-tags?ticketNumber=`); when some are still sold, a panel
+  under the lines: **Read** (the POS button's look: `components/pos/RfidReadButton.vue` and `RfidResultLine.vue`, shared
+  with the cart) reads with this POS machine's reader (`POST /rfid/read`; a refusal, such as no reader here, is that
+  endpoint's own message, decision of 2026-10-12: `pos-read` gives no EPC of a sold tag). A tag read is kept for the
+  return when it is of this ticket, still sold, of an item with a return quantity: the first read, at most the item's
+  whole pieces typed, its paid and free lines together. The others are counted on the result line: not from this
+  ticket, already returned, of an item with no return quantity, above the return quantity, not read clearly (weak, never
+  named). The tags kept are worked out from the last read and the quantities typed now, so a change of quantity adjusts
+  them: the request never carries more tags than the pieces. A note per item returned that holds tags: returned whole
+  (every line of the item, paid and free, to its last piece), its tags go back in stock automatically, no read; in part,
+  "N piece(s) not read, their tag stays sold". The return is never blocked. `ProcessReturnRequestDTO.returnedEpcs` is
+  sent only when tags are kept: with RFID off or a ticket without tags the screen and the request are as before. The
+  tags not loaded: said in red (the pieces of a line returned in part then stay sold). Texts `pos.returnProducts.rfid.*`
+  in the five languages.
+- **The RFID texts** (step 9, front 2e5395c): every RFID text of the POS screen, the payment, the pending tickets and the
+  return screen goes through an i18n key, each in the five languages with the same placeholders. Right to left: the
+  button, the result line and the return panel use flex and gap only, so they mirror; the POS machine, reader and item
+  names before a count are set apart for the text direction (`rfidIsolate`, Unicode FSI ... PDI), else in Arabic the
+  count showed away from its word.
 
 ## Permissions (the front pages)
 
@@ -484,4 +513,5 @@ address with no reader fails after 5 s (the SDK's own timeout, with a stack trac
 - `HopelandRfidReaderManualTest`: the real reader, only with `-Drfid.reader=ip:port` (step 5 above); skipped otherwise.
 
 Full suite on 2026-10-11 after step 7: 974 tests, 0 failures, 2 skipped (the two live tests that need hardware). On
-2026-10-12 after the pending ticket payment fix (59aff36): 1031 tests, 0 failures, 2 skipped.
+2026-10-12 after the pending ticket payment fix (59aff36): 1031 tests, 0 failures, 2 skipped; with
+`RfidReaderBusyTest` (cc6759d): 1032 tests, 0 failures, 2 skipped.
