@@ -28,12 +28,15 @@ public class PriceCalculateResponseDTO {
 
 	/**
 	 * FREE_QUANTITY promotion: the free pieces among the line's pieces (the quantity asked is all the pieces, the free
-	 * ones included; decision of 2026-10-12, a free piece is never added on top). Buy 2 get 1: quantity 2 → 0, 3 → 1,
-	 * 6 → 1 (once per line).
+	 * ones included; decision of 2026-10-12, a free piece is never added on top), repeated for each group of N + M pieces.
+	 * Buy 2 get 1: quantity 2 → 0, 3 → 1, 6 → 2, 9 → 3.
 	 */
 	private Integer freeQuantity;
 
-	/** FREE_QUANTITY promotion: the free pieces still to scan (M - freeQuantity), for a hint "1 more piece is free". */
+	/**
+	 * FREE_QUANTITY promotion: the free pieces of the group in progress still to scan, for a hint "1 more piece is free".
+	 * Buy 2 get 1: quantity 2 or 5 → 1; 3, 4 or 6 → 0.
+	 */
 	private Integer freeQuantityAvailable;
 
 	/**

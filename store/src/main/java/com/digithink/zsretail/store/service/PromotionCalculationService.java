@@ -44,7 +44,9 @@ import lombok.extern.log4j.Log4j2;
  * Precedence per item:
  *   1. Effective unit price = SalesPrice if found, else item base price.
  *   2. FREE_QUANTITY promotion: always applied on the effective price. Free pieces only when scanned (decision of
- *      2026-10-12): the line's quantity Q is all its pieces, free = min(M, max(0, Q - N)) (freePieces). It takes the
+ *      2026-10-12): the line's quantity Q is all its pieces; per group of G = N + M pieces, free = floor(Q / G) x M
+ *      + min(M, max(0, (Q mod G) - N)) (freePieces), the free pieces of the group in progress still to scan:
+ *      freeAvailable. It takes the
  *      line only when it gives at least 1 free piece (Q >= N + 1); with 0 the line is priced as if it did not exist
  *      (another promotion, else ERP pricing) and the answer carries it as a hint (freeQuantityAvailable,
  *      freePromotionName). No N: never selected, no free piece.
@@ -123,7 +125,7 @@ public class PromotionCalculationService {
 		// A free promotion that gives no free piece yet (Q = N): not applied, only its hint (2026-10-12)
 		if (found.freeHint != null) {
 			response.setFreeQuantity(0);
-			response.setFreeQuantityAvailable(found.freeHint.getFreeQuantity());
+			response.setFreeQuantityAvailable(freeAvailable(found.freeHint, qty));
 			response.setFreePromotionId(found.freeHint.getId());
 			response.setFreePromotionName(found.freeHint.getName());
 		}
@@ -146,7 +148,7 @@ public class PromotionCalculationService {
 			applyItemPromotionBenefit(response, bestPromotion, effectiveUnitPrice);
 			int free = freePieces(bestPromotion, qty);
 			response.setFreeQuantity(free);
-			response.setFreeQuantityAvailable(bestPromotion.getFreeQuantity() - free);
+			response.setFreeQuantityAvailable(freeAvailable(bestPromotion, qty));
 			response.setFreePromotionId(bestPromotion.getId());
 			response.setFreePromotionName(bestPromotion.getName());
 			response.setPromotionId(bestPromotion.getId());
@@ -461,9 +463,10 @@ public class PromotionCalculationService {
 	}
 
 	/**
-	 * Same-item FREE_QUANTITY "buy N, get M free", once per line (decision of 2026-10-12: a free piece is never added on
-	 * top, it is free only when scanned or read): of the line's Q pieces, min(M, max(0, Q - N)) are free. 0 without N
-	 * or M, and for a quantity not whole.
+	 * Same-item FREE_QUANTITY "buy N, get M free", repeated for each group of G = N + M pieces (decisions of 2026-10-12:
+	 * a free piece is never added on top, it is free only when scanned or read; every group gives its M): of the line's
+	 * Q pieces, floor(Q / G) x M + min(M, max(0, (Q mod G) - N)) are free. Buy 2 get 1: Q = 1 to 9 gives 0, 0, 1, 1, 1,
+	 * 2, 2, 2, 3. 0 without N or M, and for a quantity not whole.
 	 */
 	static int freePieces(Promotion p, BigDecimal pieces) {
 		int n = p.getMinimumQuantity() != null ? p.getMinimumQuantity() : 0;
@@ -471,7 +474,23 @@ public class PromotionCalculationService {
 		if (n <= 0 || m <= 0 || pieces == null || pieces.signum() <= 0 || !Quantities.isWhole(pieces)) {
 			return 0;
 		}
-		return Math.min(m, Math.max(0, pieces.intValue() - n));
+		int q = pieces.intValue();
+		int group = n + m;
+		return q / group * m + Math.min(m, Math.max(0, q % group - n));
+	}
+
+	/**
+	 * The free pieces of the group in progress not scanned yet (the hint "1 more piece is free"): with r = Q mod (N + M),
+	 * M - max(0, r - N) once r reaches N, else 0. Buy 2 get 1: Q = 2 or 5 → 1; 3, 4 or 6 → 0. 0 when freePieces would be.
+	 */
+	static int freeAvailable(Promotion p, BigDecimal pieces) {
+		int n = p.getMinimumQuantity() != null ? p.getMinimumQuantity() : 0;
+		int m = p.getFreeQuantity() != null ? p.getFreeQuantity() : 0;
+		if (n <= 0 || m <= 0 || pieces == null || pieces.signum() <= 0 || !Quantities.isWhole(pieces)) {
+			return 0;
+		}
+		int r = pieces.intValue() % (n + m);
+		return r >= n ? m - Math.max(0, r - n) : 0;
 	}
 
 	/** Does this cart item match the promotion's buy-side target (any scope)? */

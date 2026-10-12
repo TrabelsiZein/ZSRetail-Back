@@ -60,8 +60,8 @@ Prepare: "buy 2, get 1 free" on item A; an ERP or manual 10% on A is a plus; a c
 
 - [ ] Scan A once, then twice: no free piece, no badge; at 2 the line says "<promotion>: 1 more piece(s) free" and keeps its 10% (if any).
 - [ ] Scan A a third time: "1 free" badge, the full price of 3 struck through, the total of 2 pieces; no 10% on the line.
-- [ ] Scan A up to 6: still 1 free (once per line).
-- [ ] Pay: `sales_line` → the paid line quantity 5 and a free line quantity 1 at 100%; the item's stock down by 6; the receipt shows both lines.
+- [ ] Scan A a fifth time: "1 free" and "1 more piece(s) free" together; a sixth: "2 free" (each group of 3 gives its free piece).
+- [ ] Pay: `sales_line` → the paid line quantity 4 and a free line quantity 2 at 100%; the item's stock down by 6; the receipt shows both lines.
 - [ ] Scan 2 X without Y: a hint at the top of the cart names Y; no line added. Scan Y: its line says "1 free", Y costs 0; scan a second Y: 1 free, 1 paid.
 - [ ] Park a ticket with 3 A, recall it: the line holds 3 pieces and "1 free" again.
 - [ ] Table mode: a table with 3 A, split bill, select the A line: refused ("This line has free pieces: pay the table normally"); pay the table normally.

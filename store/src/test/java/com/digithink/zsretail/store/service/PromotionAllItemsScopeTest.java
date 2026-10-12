@@ -198,18 +198,31 @@ class PromotionAllItemsScopeTest {
 		assertPromotion(q, r);
 		assertEquals(1, r.getFreeQuantity().intValue());
 		assertEquals(0, r.getFreeQuantityAvailable().intValue());
-		assertEquals(1, price(12, 7).getFreeQuantity().intValue(), "once per line");
+		assertEquals(1, price(12, 7).getFreeQuantity().intValue(), "7 pieces, buy 3 get 1: 1 group of 4 and 3 pieces");
+		assertEquals(2, price(12, 8).getFreeQuantity().intValue(), "8 pieces: 2 groups of 4, 2 free");
 	}
 
 	@Test
-	@DisplayName("Free pieces, buy 2 get 1 (2026-10-12): Q = 1, 2, 3, 4, 6 gives 0, 0, 1, 1, 1 free; 2.5 none")
+	@DisplayName("Free pieces, buy 2 get 1, each group of 3 (2026-10-12): Q = 1 to 9 gives 0, 0, 1, 1, 1, 2, 2, 2, 3 free and 0, 1, 0, 0, 1, 0, 0, 1, 0 to scan; 2.5 none")
 	void freeTable() {
 		Promotion q = freePromotion("B2G1", 2, 1);
-		int[] pieces = { 1, 2, 3, 4, 6 };
-		int[] free = { 0, 0, 1, 1, 1 };
-		for (int i = 0; i < pieces.length; i++) {
-			assertEquals(free[i], PromotionCalculationService.freePieces(q, BigDecimal.valueOf(pieces[i])), "Q = " + pieces[i]);
+		int[] free = { 0, 0, 1, 1, 1, 2, 2, 2, 3 };
+		int[] available = { 0, 1, 0, 0, 1, 0, 0, 1, 0 };
+		for (int pieces = 1; pieces <= 9; pieces++) {
+			assertEquals(free[pieces - 1], PromotionCalculationService.freePieces(q, BigDecimal.valueOf(pieces)), "free, Q = " + pieces);
+			assertEquals(available[pieces - 1], PromotionCalculationService.freeAvailable(q, BigDecimal.valueOf(pieces)),
+					"to scan, Q = " + pieces);
 		}
+		Promotion b3g2 = freePromotion("B3G2", 3, 2);
+		int[] free32 = { 0, 0, 0, 1, 2, 2, 2, 2, 3, 4, 4 }; // groups of 5
+		for (int pieces = 1; pieces <= 11; pieces++) {
+			assertEquals(free32[pieces - 1], PromotionCalculationService.freePieces(b3g2, BigDecimal.valueOf(pieces)),
+					"buy 3 get 2, Q = " + pieces);
+		}
+		assertEquals(2, PromotionCalculationService.freeAvailable(b3g2, BigDecimal.valueOf(3)));
+		assertEquals(1, PromotionCalculationService.freeAvailable(b3g2, BigDecimal.valueOf(4)));
+		assertEquals(0, PromotionCalculationService.freeAvailable(b3g2, BigDecimal.valueOf(5)));
+		promotions.remove(b3g2);
 		assertEquals(0, PromotionCalculationService.freePieces(q, new BigDecimal("2.5")));
 		assertEquals(0, PromotionCalculationService.freePieces(q, new BigDecimal("3.5")));
 		assertEquals(1, PromotionCalculationService.freePieces(q, new BigDecimal("3.000")));
@@ -218,7 +231,11 @@ class PromotionAllItemsScopeTest {
 		assertEquals(0, price(12, 2).getFreeQuantity().intValue());
 		assertEquals(1, price(12, 3).getFreeQuantity().intValue());
 		assertEquals(1, price(12, 4).getFreeQuantity().intValue());
-		assertEquals(1, price(12, 6).getFreeQuantity().intValue());
+		assertEquals(2, price(12, 6).getFreeQuantity().intValue(), "each group of 3 gives its free piece");
+		PriceCalculateResponseDTO five = price(12, 5);
+		assertEquals(1, five.getFreeQuantity().intValue());
+		assertEquals(1, five.getFreeQuantityAvailable().intValue(), "5 pieces: 1 free, and 1 more piece is free");
+		assertEquals(3, price(12, 9).getFreeQuantity().intValue());
 		PriceCalculateResponseDTO decimal = engine.calculateItemPrice(12L, new BigDecimal("2.5"), null, new ArrayList<>());
 		assertPromotion(null, decimal);
 		assertNull(decimal.getFreeQuantity());

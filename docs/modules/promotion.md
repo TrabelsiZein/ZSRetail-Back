@@ -75,10 +75,12 @@ When a promotion grants free items (`benefit_type = FREE_QUANTITY`):
 "A free piece is never added on top. It is free only when it is scanned or read. Stock taken = pieces scanned." For every
 store and every cart line, with or without RFID tags.
 
-**Same item, "buy N, get M free"** (once per line, not per group): Q = all the pieces of the line (scanned, typed or
-read), free = min(M, max(0, Q - N)), paid = Q - free. N = 2, M = 1: Q = 2 → 2 paid; 3 → 2 + 1 free; 4 → 3 + 1 free;
-6 → 5 + 1 free. `PromotionCalculationService.freePieces`; `POST /price-calculate` answers `freeQuantity` (the free
-pieces among the quantity asked), `freeQuantityAvailable` (M - freeQuantity: "1 more piece is free") and
+**Same item, "buy N, get M free"**, repeated for each group of G = N + M pieces (decision of Zein, 2026-10-12, every
+store, no setting): Q = all the pieces of the line (scanned, typed or read), free = floor(Q / G) x M + min(M, max(0,
+(Q mod G) - N)), paid = Q - free. N = 2, M = 1: Q = 1 to 9 → 0, 0, 1, 1, 1, 2, 2, 2, 3 free (6 pieces: 4 paid + 2 free).
+`PromotionCalculationService.freePieces`; `POST /price-calculate` answers `freeQuantity` (the free pieces among the
+quantity asked), `freeQuantityAvailable` (the free pieces of the group in progress not scanned yet: with r = Q mod G,
+M - max(0, r - N) once r reaches N, else 0; buy 2 get 1: Q = 2 or 5 → 1, Q = 3, 4 or 6 → 0; `freeAvailable`) and
 `freePromotionId` / `freePromotionName` (the free promotion they speak of).
 
 **A free promotion takes the line only when it gives at least 1 free piece** (Q >= N + 1, correction of 2026-10-12):
@@ -140,10 +142,9 @@ is paid with the whole table, not by a split bill. Before the upgrade, pay or ca
 Open points (decisions of 2026-10-12, nothing changed for them): a return refunds each paid piece at its price and a
 free line is returned on its own for 0, so a customer can return the paid pieces at full price and keep the free one;
 a pending or table line's `line_total` (excluding VAT, computed by the server from all Q pieces) counts the free pieces
-until the ticket is paid; "Gratuit" on the free row of the printed ticket (logged, not in 3.1.0); one free per line,
-"1 free per group" not in 3.1.0. Deploy: close the pending and table tickets before upgrading (`docs/deploy-note.md`).
+until the ticket is paid; "Gratuit" on the free row of the printed ticket (logged, not in 3.1.0). Deploy: close the pending and table tickets before upgrading (`docs/deploy-note.md`).
 
-Tests: `PromotionAllItemsScopeTest` (`freeTable`, `quantityPromotionPerLine`, `freeWithoutMinimum`,
+Tests: `PromotionAllItemsScopeTest` (`freeTable`: buy 2 get 1 and buy 3 get 2, the free pieces and those to scan, `quantityPromotionPerLine`, `freeWithoutMinimum`,
 `freeAtThresholdKeepsSalesDiscount`, `freeAtThresholdLetsAnotherPromotionApply`,
 `freeAboveThresholdReplacesSalesDiscount`, `freeBelowThresholdNoHint`,
 `crossProductFreeOnlyWhenScanned`), `DecimalSafetyNetTest.crossProductIgnoresDecimalLines`; `SaleDecimalQuantityTest`
