@@ -27,10 +27,14 @@ public class PriceCalculateResponseDTO {
 	private Double discountAmount;
 
 	/**
-	 * Number of free units granted. From FREE_QUANTITY promotion.
-	 * Example: buy 3, get 1 free → freeQuantity=1 when quantity >= minimumQuantity.
+	 * FREE_QUANTITY promotion: the free pieces among the line's pieces (the quantity asked is all the pieces, the free
+	 * ones included; decision of 2026-10-12, a free piece is never added on top). Buy 2 get 1: quantity 2 → 0, 3 → 1,
+	 * 6 → 1 (once per line).
 	 */
 	private Integer freeQuantity;
+
+	/** FREE_QUANTITY promotion: the free pieces still to scan (M - freeQuantity), for a hint "1 more piece is free". */
+	private Integer freeQuantityAvailable;
 
 	/** ID of the applied promotion — use this to persist promotion_id on the sales line. */
 	private Long promotionId;

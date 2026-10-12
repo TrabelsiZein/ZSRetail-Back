@@ -185,18 +185,56 @@ class PromotionAllItemsScopeTest {
 	}
 
 	@Test
-	@DisplayName("An all-items quantity promotion checks the quantity per line")
+	@DisplayName("An all-items quantity promotion checks the quantity per line; the free piece is one of the line's pieces (2026-10-12)")
 	void quantityPromotionPerLine() {
-		Promotion q = promotion("ALLQTY", PromotionScope.ALL_ITEMS, 0, 0);
-		q.setPromotionType(PromotionType.QUANTITY_PROMOTION);
-		q.setBenefitType(PromotionBenefitType.FREE_QUANTITY);
-		q.setDiscountPercentage(null);
-		q.setFreeQuantity(1);
-		q.setMinimumQuantity(3);
+		Promotion q = freePromotion("ALLQTY", 3, 1);
 		assertPromotion(null, price(12, 2));
 		PriceCalculateResponseDTO r = price(12, 3);
 		assertPromotion(q, r);
+		assertEquals(0, r.getFreeQuantity().intValue(), "3 pieces, buy 3 get 1: none free yet (was 1 added on top)");
+		assertEquals(1, r.getFreeQuantityAvailable().intValue(), "1 more piece is free");
+		r = price(12, 4);
 		assertEquals(1, r.getFreeQuantity().intValue());
+		assertEquals(0, r.getFreeQuantityAvailable().intValue());
+		assertEquals(1, price(12, 7).getFreeQuantity().intValue(), "once per line");
+	}
+
+	@Test
+	@DisplayName("Free pieces, buy 2 get 1 (2026-10-12): Q = 1, 2, 3, 4, 6 gives 0, 0, 1, 1, 1 free; 2.5 none")
+	void freeTable() {
+		Promotion q = freePromotion("B2G1", 2, 1);
+		int[] pieces = { 1, 2, 3, 4, 6 };
+		int[] free = { 0, 0, 1, 1, 1 };
+		for (int i = 0; i < pieces.length; i++) {
+			assertEquals(free[i], PromotionCalculationService.freePieces(q, BigDecimal.valueOf(pieces[i])), "Q = " + pieces[i]);
+		}
+		assertEquals(0, PromotionCalculationService.freePieces(q, new BigDecimal("2.5")));
+		assertEquals(0, PromotionCalculationService.freePieces(q, new BigDecimal("3.5")));
+		assertEquals(1, PromotionCalculationService.freePieces(q, new BigDecimal("3.000")));
+
+		assertPromotion(null, price(12, 1));
+		assertEquals(0, price(12, 2).getFreeQuantity().intValue());
+		assertEquals(1, price(12, 3).getFreeQuantity().intValue());
+		assertEquals(1, price(12, 4).getFreeQuantity().intValue());
+		assertEquals(1, price(12, 6).getFreeQuantity().intValue());
+		PriceCalculateResponseDTO decimal = engine.calculateItemPrice(12L, new BigDecimal("2.5"), null, new ArrayList<>());
+		assertPromotion(null, decimal);
+		assertNull(decimal.getFreeQuantity());
+	}
+
+	@Test
+	@DisplayName("A free quantity without its N (2026-10-12): no free piece, and the line keeps its other price (SalesDiscount, another promotion)")
+	void freeWithoutMinimum() {
+		Promotion q = freePromotion("NO_N", 0, 1);
+		q.setMinimumQuantity(null);
+		q.setPriority(9);
+		assertEquals(0, PromotionCalculationService.freePieces(q, BigDecimal.valueOf(5)));
+		assertPromotion(null, price(12, 5));
+		erpPricing(15.0);
+		assertEquals("SALES_DISCOUNT", price(12, 5).getSource());
+		erpPricing(null);
+		Promotion all10 = promotion("ALL10", PromotionScope.ALL_ITEMS, 10, 0);
+		assertPromotion(all10, price(12, 5));
 	}
 
 	@Test
@@ -226,11 +264,58 @@ class PromotionAllItemsScopeTest {
 		assertEquals(20L, adj.get(0).getGetItemId().longValue());
 		assertEquals(1, adj.get(0).getEntitledUnits().intValue());
 		assertEquals(1, adj.get(0).getFreeUnits().intValue());
+		assertEquals(1, adj.get(0).getFreeQuantity().intValue(), "the Y piece in the cart is free");
+		assertEquals(0, adj.get(0).getFreeQuantityAvailable().intValue());
 
 		adj = engine.calculateCartPromotion(400.0, Collections.singletonList(line(20, 4)), new ArrayList<>())
 				.getCrossProductAdjustments();
 		assertTrue(adj.isEmpty(), "the benefit item's own line must not count as buy quantity");
 		assertPromotion(null, price(10, 2)); // never discounts the buy line itself
+	}
+
+	@Test
+	@DisplayName("Cross-product free pieces (2026-10-12): free Y = min(freeUnits, Y's pieces in the cart); Y absent: none free, all available")
+	void crossProductFreeOnlyWhenScanned() {
+		Promotion x = freePromotion("XFREE", 2, 1);
+		x.setGetItem(items.get(20L));
+
+		CrossProductAdjustmentDTO absent = cross(line(10, 4));
+		assertEquals(2, absent.getEntitledUnits().intValue());
+		assertEquals(2, absent.getFreeUnits().intValue(), "kept: what a till of before 3.1.0 adds on top");
+		assertEquals(0, absent.getFreeQuantity().intValue());
+		assertEquals(2, absent.getFreeQuantityAvailable().intValue(), "2 pieces of Y are free when scanned");
+
+		CrossProductAdjustmentDTO one = cross(line(10, 4), line(20, 1));
+		assertEquals(1, one.getFreeQuantity().intValue());
+		assertEquals(1, one.getFreeQuantityAvailable().intValue());
+
+		CrossProductAdjustmentDTO more = cross(line(10, 4), line(20, 5));
+		assertEquals(2, more.getFreeQuantity().intValue(), "the other 3 pieces of Y are paid");
+		assertEquals(0, more.getFreeQuantityAvailable().intValue());
+
+		CartCalculateRequestDTO.CartItemDTO decimalY = line(20, 1);
+		decimalY.setQuantity(new BigDecimal("1.5"));
+		CrossProductAdjustmentDTO fraction = cross(line(10, 4), decimalY);
+		assertEquals(0, fraction.getFreeQuantity().intValue(), "never a free piece on a fraction");
+		assertEquals(2, fraction.getFreeQuantityAvailable().intValue());
+	}
+
+	private CrossProductAdjustmentDTO cross(CartCalculateRequestDTO.CartItemDTO... lines) {
+		List<CrossProductAdjustmentDTO> adj = engine.calculateCartPromotion(500.0, Arrays.asList(lines), new ArrayList<>())
+				.getCrossProductAdjustments();
+		assertEquals(1, adj.size());
+		return adj.get(0);
+	}
+
+	/** An all-items "buy n, get m free". */
+	private Promotion freePromotion(String code, int n, int m) {
+		Promotion q = promotion(code, PromotionScope.ALL_ITEMS, 0, 0);
+		q.setPromotionType(PromotionType.QUANTITY_PROMOTION);
+		q.setBenefitType(PromotionBenefitType.FREE_QUANTITY);
+		q.setDiscountPercentage(null);
+		q.setFreeQuantity(m);
+		q.setMinimumQuantity(n);
+		return q;
 	}
 
 	@Test

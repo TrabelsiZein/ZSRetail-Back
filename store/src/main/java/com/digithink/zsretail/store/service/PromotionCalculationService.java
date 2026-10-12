@@ -42,7 +42,9 @@ import lombok.extern.log4j.Log4j2;
  *
  * Precedence per item:
  *   1. Effective unit price = SalesPrice if found, else item base price.
- *   2. FREE_QUANTITY promotion: always applied on the effective price.
+ *   2. FREE_QUANTITY promotion: always applied on the effective price. Free pieces only when scanned (decision of
+ *      2026-10-12): the line's quantity Q is all its pieces, free = min(M, max(0, Q - N)) (freePieces); no N: never
+ *      selected, no free piece.
  *   3. PERCENTAGE/FIXED promotion vs SalesDiscount: best discount wins (higher % applied).
  *   4. No promotion: ERP pricing (SalesPrice / SalesDiscount) applied as-is.
  *
@@ -130,6 +132,9 @@ public class PromotionCalculationService {
 		// FREE_QUANTITY: always apply on effective price — quantity benefit, no comparison needed
 		if (bestPromotion.getBenefitType() == PromotionBenefitType.FREE_QUANTITY) {
 			applyItemPromotionBenefit(response, bestPromotion, effectiveUnitPrice);
+			int free = freePieces(bestPromotion, qty);
+			response.setFreeQuantity(free);
+			response.setFreeQuantityAvailable((bestPromotion.getFreeQuantity() != null ? bestPromotion.getFreeQuantity() : 0) - free);
 			response.setPromotionId(bestPromotion.getId());
 			response.setPromotionName(bestPromotion.getName());
 			response.setPromotionCode(bestPromotion.getCode());
@@ -404,6 +409,10 @@ public class PromotionCalculationService {
 				int freeUnits = entitled * (p.getFreeQuantity() != null ? p.getFreeQuantity() : 0);
 				if (freeUnits <= 0) continue;
 				adj.setFreeUnits(freeUnits);
+				// Free pieces only when scanned (2026-10-12): the pieces of Y in the cart, at most freeUnits
+				int free = Math.min(freeUnits, wholePiecesOf(getItemId, cartItems));
+				adj.setFreeQuantity(free);
+				adj.setFreeQuantityAvailable(freeUnits - free);
 			} else if (p.getBenefitType() == PromotionBenefitType.PERCENTAGE_DISCOUNT) {
 				if (p.getDiscountPercentage() == null || p.getDiscountPercentage() <= 0) continue;
 				adj.setDiscountPercentage(p.getDiscountPercentage());
@@ -420,6 +429,35 @@ public class PromotionCalculationService {
 		}
 
 		return adjustments;
+	}
+
+	/**
+	 * The pieces of this item in the cart lines; a line with a quantity not whole counts none (never a free piece on a
+	 * fraction, as checkQuantities refuses a free quantity on a decimal line).
+	 */
+	private static int wholePiecesOf(Long itemId, List<CartCalculateRequestDTO.CartItemDTO> cartItems) {
+		int pieces = 0;
+		for (CartCalculateRequestDTO.CartItemDTO line : cartItems) {
+			if (itemId.equals(line.getItemId()) && line.getQuantity() != null && line.getQuantity().signum() > 0
+					&& Quantities.isWhole(line.getQuantity())) {
+				pieces += line.getQuantity().intValue();
+			}
+		}
+		return pieces;
+	}
+
+	/**
+	 * Same-item FREE_QUANTITY "buy N, get M free", once per line (decision of 2026-10-12: a free piece is never added on
+	 * top, it is free only when scanned or read): of the line's Q pieces, min(M, max(0, Q - N)) are free. 0 without N
+	 * or M, and for a quantity not whole.
+	 */
+	static int freePieces(Promotion p, BigDecimal pieces) {
+		int n = p.getMinimumQuantity() != null ? p.getMinimumQuantity() : 0;
+		int m = p.getFreeQuantity() != null ? p.getFreeQuantity() : 0;
+		if (n <= 0 || m <= 0 || pieces == null || pieces.signum() <= 0 || !Quantities.isWhole(pieces)) {
+			return 0;
+		}
+		return Math.min(m, Math.max(0, pieces.intValue() - n));
 	}
 
 	/** Does this cart item match the promotion's buy-side target (any scope)? */
@@ -507,6 +545,9 @@ public class PromotionCalculationService {
 				// itself — they are evaluated by the cart pass and applied to the
 				// get-item's line. Existing promotions all have getItem = null.
 				.filter(p -> p.getGetItem() == null)
+				// 2026-10-12: a free quantity without its N gives no free piece, and never takes the line
+				.filter(p -> p.getBenefitType() != PromotionBenefitType.FREE_QUANTITY
+						|| (p.getMinimumQuantity() != null && p.getMinimumQuantity() > 0))
 				.filter(p -> passesCodeFilter(p, codes))
 				.filter(p -> passesQuantityFilter(p, quantity))
 				.filter(p -> passesTimeFilter(p, now))
@@ -571,7 +612,7 @@ public class PromotionCalculationService {
 				response.setDiscountAmount(p.getDiscountAmount());
 				break;
 			case FREE_QUANTITY:
-				response.setFreeQuantity(p.getFreeQuantity());
+				// the free pieces of the line: calculateItemPrice, from its quantity (freePieces)
 				break;
 		}
 	}

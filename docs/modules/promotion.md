@@ -70,6 +70,49 @@ When a promotion grants free items (`benefit_type = FREE_QUANTITY`):
   2. Free line: `quantity = freeQuantity`, `discountPercentage = 100`, `discountSource = PROMOTION`, `lineTotalIncludingVat = 0`, `vatAmount = 0`
 - Free lines return amount is correctly 0 TND (lineTotalIncludingVat = 0 flows through return calculation naturally)
 
+### Free pieces only when scanned (3.1.0, decision of 2026-10-12)
+
+"A free piece is never added on top. It is free only when it is scanned or read. Stock taken = pieces scanned." For every
+store and every cart line, with or without RFID tags.
+
+**Same item, "buy N, get M free"** (once per line, not per group): Q = all the pieces of the line (scanned, typed or
+read), free = min(M, max(0, Q - N)), paid = Q - free. N = 2, M = 1: Q = 2 → 2 paid; 3 → 2 + 1 free; 4 → 3 + 1 free;
+6 → 5 + 1 free. `PromotionCalculationService.freePieces`; `POST /price-calculate` answers `freeQuantity` (the free
+pieces among the quantity asked) and `freeQuantityAvailable` (M - freeQuantity: "1 more piece is free"). Below N the
+promotion is not selected, as before; at Q = N it is selected with 0 free (the line keeps no SalesDiscount: a
+FREE_QUANTITY promotion never compares with it, as before). A FREE_QUANTITY promotion without N (or N = 0) gives no
+free piece and is never selected (the line keeps its other promotion or ERP price). A quantity not whole never has a
+free piece (`passesQuantityFilter`, and `checkQuantities` refuses a free quantity on a decimal line).
+
+**Cross-product, "buy N of X, get M of Y free"** (per group, as before): `POST /price-calculate/cart` adjustments carry
+`freeQuantity` = min(freeUnits, Y's whole pieces in the cart lines) and `freeQuantityAvailable` = freeUnits -
+freeQuantity. `freeUnits` (entitled x M) keeps its meaning so a till of before 3.1.0 still running (cached, no version
+check) behaves as before. The free pieces of Y apply whatever Y's price (SalesPrice or SalesDiscount); a manual discount
+on Y's line as for a same-item free promotion; Y with its own same-item free promotion too: the larger of the two, never
+the sum (front).
+
+**The split paid / free stays in the front** (decision of 2026-10-12): the payment payload keeps its meaning (line
+`quantity` = paid pieces, `freeQuantity` = free pieces) and `SalesHeaderService` is unchanged: a paid line and a free
+line, `decrementStockForSalesLines` takes both (stock taken = paid + free = pieces scanned). A till of before 3.1.0
+against this back end keeps the old behaviour and the stock stays right. Pending and table tickets save the cart line
+(all Q pieces); the recall re-prices, so the free pieces come back.
+
+Front (3.1.0, to build): the cart line's quantity is all the pieces, `paidQuantity(line) = quantity - freeQuantity` in
+the line totals and the payment payload; "1 free" on the line; the cross-product free line of Y is no longer added
+(`autoFreePromotionId`, `reconcileCrossAdjustments`): `freeQuantity` on Y's own line, a hint when Y is not in the
+cart; the recall of a pending or table ticket re-prices each line; **the split bill** (`SplitBillModal`) re-prices the
+selected lines and refuses a line with free pieces: "This line has free pieces: pay the table normally" (`splitAndPay`
+copies the saved lines, whose amount excluding VAT counts all Q pieces, and the completed ticket goes to NAV).
+
+Open points (decisions of 2026-10-12, nothing changed for them): a return refunds each paid piece at its price and a
+free line is returned on its own for 0, so a customer can return the paid pieces at full price and keep the free one;
+a pending or table line's `line_total` (excluding VAT, computed by the server from all Q pieces) counts the free pieces
+until the ticket is paid; "Gratuit" on the free row of the printed ticket (logged, not in 3.1.0); one free per line,
+"1 free per group" not in 3.1.0. Deploy: close the pending and table tickets before upgrading (`docs/deploy-note.md`).
+
+Tests: `PromotionAllItemsScopeTest` (`freeTable`, `quantityPromotionPerLine`, `freeWithoutMinimum`,
+`crossProductFreeOnlyWhenScanned`), `DecimalSafetyNetTest.crossProductIgnoresDecimalLines`.
+
 ### Frontend — New Files
 
 - **`src/views/admin/PromotionsManagement.vue`** — Full CRUD admin page:
@@ -142,7 +185,8 @@ When a promotion grants free items (`benefit_type = FREE_QUANTITY`):
    Cross-product promotions (`get_item_id` set) are skipped here; the cart pass handles them.
 2. **Within that scope**: highest `priority`; on a tie, highest `discount_percentage`, then
    `discount_amount`, then `free_quantity` (raw field values, not converted to money).
-3. **ERP comparison**: SalesPrice, if any, is the base price. FREE_QUANTITY always applies.
+3. **ERP comparison**: SalesPrice, if any, is the base price. FREE_QUANTITY always applies (with its N; free pieces
+   only among the pieces scanned, 3.1.0).
    Otherwise the promotion applies only if its effective % (fixed amount ÷ unit price) beats the
    customer's SalesDiscount %. If it loses, ERP pricing is kept and no other scope is tried.
 

@@ -375,6 +375,15 @@ class DecimalSafetyNetTest {
 		assertEquals(1, mixed.getCrossProductAdjustments().size());
 		assertEquals(Integer.valueOf(2), mixed.getCrossProductAdjustments().get(0).getEntitledUnits(), "the 4 whole only");
 		assertEquals(Integer.valueOf(2), mixed.getCrossProductAdjustments().get(0).getFreeUnits());
+		// 2026-10-12: the gift is free only when scanned; a gift line with decimals holds no free piece
+		assertEquals(Integer.valueOf(0), mixed.getCrossProductAdjustments().get(0).getFreeQuantity(), "no gift in the cart");
+		CartCalculateResponseDTO giftAsFraction = service.calculateCartPromotion(null,
+				Arrays.asList(cartLine(1L, "4.5"), cartLine(3L, "4"), cartLine(2L, "1.5")), null);
+		assertEquals(Integer.valueOf(0), giftAsFraction.getCrossProductAdjustments().get(0).getFreeQuantity());
+		CartCalculateResponseDTO giftScanned = service.calculateCartPromotion(null,
+				Arrays.asList(cartLine(1L, "4.5"), cartLine(3L, "4"), cartLine(2L, "1")), null);
+		assertEquals(Integer.valueOf(1), giftScanned.getCrossProductAdjustments().get(0).getFreeQuantity());
+		assertEquals(Integer.valueOf(1), giftScanned.getCrossProductAdjustments().get(0).getFreeQuantityAvailable());
 	}
 
 	private static CartCalculateRequestDTO.CartItemDTO cartLine(Long itemId, String quantity) {
