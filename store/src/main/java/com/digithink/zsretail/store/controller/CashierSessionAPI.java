@@ -20,6 +20,7 @@ import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.store.exception.CashDiscrepancyException;
 import com.digithink.zsretail.store.service.CashierSessionService;
+import com.digithink.zsretail.store.service.SessionReportService;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -30,6 +31,9 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
+
+	@Autowired
+	private SessionReportService sessionReportService;
 
 	/**
 	 * Get current user's open session
@@ -403,6 +407,23 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			return ResponseEntity.ok(service.getSessionDetails(id));
 		} catch (Exception e) {
 			log.error("CashierSessionAPI::getSessionDetails:error: " + e.getMessage(), e);
+			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/**
+	 * 3.1.0: the session ticket, X for an open session, Z for a closed or verified one, read-only (admin and responsible
+	 * pages; docs/modules/cash-sessions.md). 404 when the session does not exist.
+	 */
+	@GetMapping("/{id}/report-ticket")
+	public ResponseEntity<?> getReportTicket(@PathVariable Long id) {
+		try {
+			log.info("CashierSessionAPI::getReportTicket: " + id);
+			return ResponseEntity.ok(sessionReportService.build(id));
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.status(404).body(createErrorResponse(e.getMessage()));
+		} catch (Exception e) {
+			log.error("CashierSessionAPI::getReportTicket:error: " + e.getMessage(), e);
 			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
 		}
 	}
