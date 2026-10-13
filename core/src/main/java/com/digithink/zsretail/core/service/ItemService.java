@@ -1,8 +1,13 @@
 package com.digithink.zsretail.core.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.persistence.criteria.Predicate;
@@ -11,6 +16,7 @@ import javax.persistence.criteria.Subquery;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -18,15 +24,18 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemBarcode;
 import com.digithink.zsretail.core.model.ItemFamily;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
+import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
 import com.digithink.zsretail.core.repository.ItemFamilyRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
+import com.digithink.zsretail.core.repository.PosItemSearchRepository;
 import com.digithink.zsretail.core.repository._BaseRepository;
-import com.digithink.zsretail.core.utils.Quantities;
+import com.digithink.zsretail.core.utils.SearchText;
 
 @Service
 public class ItemService extends _BaseService<Item, Long> {
@@ -51,15 +60,105 @@ public class ItemService extends _BaseService<Item, Long> {
 	@Autowired
 	private StockMovementService stockMovementService;
 
+	@Autowired
+	private ItemBarcodeRepository itemBarcodeRepository;
+
+	@Autowired
+	private PosItemSearchRepository posItemSearchRepository;
+
+	/** 3.1.0, the till's search: the most items one answer holds. */
+	public static final int POS_SEARCH_LIMIT = 30;
+
+	/** 3.1.0, the purchase search: the most items found by a part of a barcode (SQL Server takes 2,100 parameters). */
+	static final int BARCODE_MATCHES_LIMIT = 1000;
+
+	/**
+	 * 3.1.0: the till's search answer, the items, whether there were more than {@link #POS_SEARCH_LIMIT}, and the item
+	 * of the whole barcode or code typed (null when none: Enter in the till's search adds that item).
+	 */
+	public static final class PosSearch {
+		private final List<Item> items;
+		private final boolean more;
+		private final Long exactId;
+
+		PosSearch(List<Item> items, boolean more, Long exactId) {
+			this.items = items;
+			this.more = more;
+			this.exactId = exactId;
+		}
+
+		public List<Item> getItems() {
+			return items;
+		}
+
+		public boolean isMore() {
+			return more;
+		}
+
+		public Long getExactId() {
+			return exactId;
+		}
+	}
+
+	/**
+	 * 3.1.0: the till's search over the whole catalogue, whatever family or sub-family is open. A whole barcode or item
+	 * code typed comes first (exact, through its unique index); then the items whose name or code holds every word typed,
+	 * anywhere and in any order, case and accents ignored, by name ({@link PosItemSearchRepository}). Only the items the
+	 * grid lists ({@link #listedInPos}, in an active sub-family or none). The words: {@link SearchText#words} (fewer than
+	 * 2 characters: nothing). The families and sub-families found by the same text: PosCatalogueService.search.
+	 */
+	public PosSearch searchPos(String query) {
+		List<String> words = SearchText.words(query);
+		if (words.isEmpty()) {
+			return new PosSearch(List.of(), false, null);
+		}
+		Map<Long, Item> found = new LinkedHashMap<>();
+		Optional<Item> exact = exactPosMatch(query.trim());
+		exact.ifPresent(item -> found.put(item.getId(), item));
+		Long exactId = exact.map(Item::getId).orElse(null);
+		List<Long> ids = posItemSearchRepository.findIds(words, POS_SEARCH_LIMIT + 1);
+		boolean more = ids.size() > POS_SEARCH_LIMIT;
+		Map<Long, Item> byId = itemRepository.findAllById(ids).stream()
+				.collect(Collectors.toMap(Item::getId, item -> item));
+		for (Long id : ids) {
+			Item item = byId.get(id);
+			if (item != null) {
+				found.putIfAbsent(id, item);
+			}
+		}
+		List<Item> items = new ArrayList<>(found.values());
+		if (items.size() > POS_SEARCH_LIMIT) {
+			return new PosSearch(new ArrayList<>(items.subList(0, POS_SEARCH_LIMIT)), true, exactId);
+		}
+		return new PosSearch(items, more, exactId);
+	}
+
+	/** The item of a whole barcode (active) or item code typed, when the grid would list it. */
+	private Optional<Item> exactPosMatch(String text) {
+		Optional<Item> byBarcode = itemBarcodeRepository.findByBarcode(text)
+				.filter(barcode -> barcode.getActive() == null || Boolean.TRUE.equals(barcode.getActive()))
+				.map(ItemBarcode::getItem);
+		return (byBarcode.isPresent() ? byBarcode : itemRepository.findByItemCode(text))
+				.filter(ItemService::shownInPosGrid);
+	}
+
+	/** {@link #listedInPos} in an active sub-family or none: the items the grid can reach (POS_GRID_COUNTS). */
+	static boolean shownInPosGrid(Item item) {
+		ItemSubFamily subFamily = item.getItemSubFamily();
+		return listedInPos(item)
+				&& (subFamily == null || subFamily.getActive() == null || Boolean.TRUE.equals(subFamily.getActive()));
+	}
+
 	/**
 	 * Manual stock adjustment (POST /item/{id}/adjust-stock): the quantity as before (StockService) and, since step 7A,
 	 * its ADJUSTMENT_IN or ADJUSTMENT_OUT movement with the reason as note, in one transaction. Both do nothing when the
-	 * supply is the ERP's. No item save: no catalogue change is recorded on a head office.
+	 * supply is the ERP's. No item save: no catalogue change is recorded on a head office. 3.1.0: the delta may carry
+	 * decimals (ItemAPI checks them against QuantityPolicy first).
 	 */
 	@Transactional(rollbackFor = Exception.class)
-	public void adjustStock(Long itemId, int delta, String reason) {
-		stockService.adjustStock(itemId, Quantities.of(delta), reason);
-		stockMovementService.recordAdjustment(itemId, Quantities.of(delta), reason);
+	public void adjustStock(Long itemId, BigDecimal delta, String reason) {
+		stockService.adjustStock(itemId, delta, reason);
+		stockMovementService.recordAdjustment(itemId, delta, reason);
 	}
 
 	@Override
@@ -207,23 +306,23 @@ public class ItemService extends _BaseService<Item, Long> {
 	 * unitPrice > 0) applied.
 	 */
 	public Page<Item> searchItemsForPurchase(String search, Pageable pageable) {
+		String likeValue = StringUtils.hasText(search) ? "%" + search.toLowerCase() + "%" : null;
+		// 3.1.0: the items of a part of a barcode first, in one pass over the barcodes; inside the item query (EXISTS or
+		// IN) SQL Server scanned the barcodes once per item: 250 ms to 1 s per keystroke on 3,000 to 8,000 items, 8 to
+		// 80 ms in two steps
+		List<Long> barcodeItemIds = likeValue == null ? List.of()
+				: itemBarcodeRepository.findItemIdsByBarcodeLike(likeValue, PageRequest.of(0, BARCODE_MATCHES_LIMIT));
 		Specification<Item> spec = (root, query, cb) -> {
 			query.distinct(true);
 			Predicate predicate = cb.isTrue(root.get("active"));
 
-			if (StringUtils.hasText(search)) {
-				String likeValue = "%" + search.toLowerCase() + "%";
-				Predicate codeNameMatch = cb.or(cb.like(cb.lower(root.get("itemCode")), likeValue),
+			if (likeValue != null) {
+				Predicate match = cb.or(cb.like(cb.lower(root.get("itemCode")), likeValue),
 						cb.like(cb.lower(root.get("name")), likeValue));
-
-				Subquery<Long> barcodeSubquery = query.subquery(Long.class);
-				var barcodeRoot = barcodeSubquery.from(com.digithink.zsretail.core.model.ItemBarcode.class);
-				barcodeSubquery.select(barcodeRoot.get("item").get("id"));
-				barcodeSubquery.where(cb.equal(barcodeRoot.get("item").get("id"), root.get("id")),
-						cb.or(cb.isTrue(barcodeRoot.get("active")), cb.isNull(barcodeRoot.get("active"))),
-						cb.like(cb.lower(barcodeRoot.get("barcode")), likeValue));
-
-				predicate = cb.and(predicate, cb.or(codeNameMatch, cb.exists(barcodeSubquery)));
+				if (!barcodeItemIds.isEmpty()) {
+					match = cb.or(match, root.get("id").in(barcodeItemIds));
+				}
+				predicate = cb.and(predicate, match);
 			}
 
 			return predicate;

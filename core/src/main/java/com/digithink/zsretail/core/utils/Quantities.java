@@ -120,7 +120,7 @@ public final class Quantities {
 	}
 
 	/**
-	 * 2.2.1, step 5: the refusal of a writer not converted yet (returns, invoices, purchases, compositions, stock
+	 * 2.2.1, step 5: the refusal of a writer not converted yet (invoices, purchases, compositions, until 3.1.0 the stock
 	 * adjustments, the head office's own BLs and supply invoices) when it meets a quantity with decimals: it names the
 	 * item and the place, and nothing is written (never a rounded value).
 	 */

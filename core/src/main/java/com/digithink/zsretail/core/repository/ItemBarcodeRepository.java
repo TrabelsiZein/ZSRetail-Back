@@ -21,6 +21,14 @@ public interface ItemBarcodeRepository extends _BaseRepository<ItemBarcode, Long
 
 	Optional<ItemBarcode> findByBarcode(String barcode);
 
+	/**
+	 * 3.1.0, the purchase search: the items of the active barcodes matching a lower-case LIKE pattern, in one pass over
+	 * the barcodes (ItemService.searchItemsForPurchase).
+	 */
+	@Query("select distinct b.item.id from ItemBarcode b where (b.active is null or b.active = true)"
+			+ " and lower(b.barcode) like :pattern")
+	List<Long> findItemIdsByBarcodeLike(@Param("pattern") String pattern, Pageable pageable);
+
 	List<ItemBarcode> findByItemIdAndActiveTrue(Long itemId);
 
 	Optional<ItemBarcode> findByItemIdAndIsPrimaryTrue(Long itemId);

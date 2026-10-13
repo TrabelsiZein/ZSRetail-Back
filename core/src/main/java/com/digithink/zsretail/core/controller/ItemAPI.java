@@ -1,5 +1,6 @@
 package com.digithink.zsretail.core.controller;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +45,9 @@ import com.digithink.zsretail.core.service.ItemBarcodeService;
 import com.digithink.zsretail.core.service.ItemCompositionService;
 import com.digithink.zsretail.core.service.ItemDeletionCheck;
 import com.digithink.zsretail.core.service.ItemService;
+import com.digithink.zsretail.core.service.PosCatalogueService;
 import com.digithink.zsretail.core.service.PricingService;
+import com.digithink.zsretail.core.service.QuantityPolicy;
 import com.digithink.zsretail.core.utils.Quantities;
 
 import java.util.Optional;
@@ -76,6 +79,12 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 
 	@Autowired
 	private GeneralSetupService generalSetupService;
+
+	@Autowired
+	private QuantityPolicy quantityPolicy;
+
+	@Autowired
+	private PosCatalogueService posCatalogue;
 
 	@Value("${pos.pricing.enable-sales-price-group:false}")
 	private boolean priceGroupEnabled;
@@ -379,6 +388,36 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	 * 2.2.2: the items of a family without a sub-family, as the POS grid lists them (ItemSelection.vue: one extra tile
 	 * after the sub-families, or the family opens directly on them when it has no sub-family tile).
 	 */
+	/**
+	 * 3.1.0: the till's search over the whole catalogue: {families, subFamilies: those whose name matches and that lead
+	 * to something to sell (PosCatalogueService.search), content: the items as the grid gets them (ItemService.searchPos),
+	 * more: true when more than ItemService.POS_SEARCH_LIMIT items matched, exactId: the item of the whole barcode or code
+	 * typed, else null}. Under 2 characters: nothing.
+	 */
+	@GetMapping("/pos/search")
+	public ResponseEntity<?> searchForPos(@RequestParam(defaultValue = "") String q) {
+		try {
+			PosCatalogueService.Found found = posCatalogue.search(q);
+			ItemService.PosSearch search = service.searchPos(q);
+			List<Item> items = search.getItems();
+			if (!isPosShowImages()) {
+				found.getFamilies().forEach(f -> f.setImageFilename(null));
+				found.getSubFamilies().forEach(sf -> sf.setImageFilename(null));
+				items.forEach(i -> i.setImageUrl(null));
+			}
+			Map<String, Object> response = new HashMap<>();
+			response.put("families", found.getFamilies());
+			response.put("subFamilies", found.getSubFamilies());
+			response.put("content", items);
+			response.put("more", search.isMore());
+			response.put("exactId", search.getExactId());
+			return ResponseEntity.ok(response);
+		} catch (Exception e) {
+			log.error("ItemAPI::searchForPos:error: " + getDetailedMessage(e), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
 	@GetMapping("/pos/without-sub-family/{familyId}")
 	public ResponseEntity<?> getWithoutSubFamilyForPos(@PathVariable Long familyId) {
 		try {
@@ -487,13 +526,15 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			}
 			Item item = service.findById(id)
 					.orElseThrow(() -> new IllegalArgumentException("Item not found: " + id));
-			// 2.2.1: stock adjustments stay whole for now (0.5 was read as 0 until 2.2.0); refused by name, nothing written
-			if (!Quantities.isWhole(request.getDelta())) {
-				return ResponseEntity.badRequest().body(createErrorResponse(Quantities.notSupportedYet(item.getItemCode(),
-						item.getName(), request.getDelta(), "stock adjustments")));
+			// 3.1.0: a decimal delta (1.82 L) with the store setting ALLOW_DECIMAL_QUANTITY, at most 3 decimals; without
+			// it refused by name, nothing written (whole only in 2.2.1 to 3.0; 0.5 was read as 0 until 2.2.0)
+			BigDecimal delta = request.getDelta();
+			if (!Quantities.isWhole(delta) && !quantityPolicy.decimalAllowed()) {
+				return ResponseEntity.badRequest()
+						.body(createErrorResponse(Quantities.notAllowedInStore(item.getItemCode(), item.getName(), delta)));
 			}
-			int delta = request.getDelta().intValueExact();
-			service.adjustStock(id, delta, reason); // step 7A: with its stock movement
+			quantityPolicy.check(delta, Quantities.itemLabel(item.getItemCode(), item.getName()));
+			service.adjustStock(id, Quantities.normalize(delta), reason); // step 7A: with its stock movement
 			Item updated = service.findById(id).orElse(item);
 			return ResponseEntity.ok(updated);
 		} catch (IllegalArgumentException e) {

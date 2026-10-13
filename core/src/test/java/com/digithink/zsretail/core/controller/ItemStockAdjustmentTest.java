@@ -20,14 +20,17 @@ import org.junit.jupiter.api.Test;
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.controller._BaseController;
 import com.digithink.zsretail.core.dto.AdjustStockRequestDTO;
+import com.digithink.zsretail.core.model.GeneralSetup;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.StockMovement;
 import com.digithink.zsretail.core.model.enumeration.StockMovementDirection;
 import com.digithink.zsretail.core.model.enumeration.StockMovementType;
+import com.digithink.zsretail.core.repository.GeneralSetupRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.StockMovementRepository;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.ItemService;
+import com.digithink.zsretail.core.service.QuantityPolicy;
 import com.digithink.zsretail.core.service.StockMovementService;
 import com.digithink.zsretail.core.service.StockService;
 import com.digithink.zsretail.core.service._BaseService;
@@ -43,6 +46,8 @@ class ItemStockAdjustmentTest {
 	private final Map<Long, Item> items = new LinkedHashMap<>();
 	private final List<StockMovement> movements = new ArrayList<>();
 	private final List<String> stockUpdates = new ArrayList<>();
+	/** The general setting ALLOW_DECIMAL_QUANTITY; null: absent (a head office, a store before 2.2.1). */
+	private String decimalSetting;
 	private Item item;
 
 	@BeforeEach
@@ -100,15 +105,34 @@ class ItemStockAdjustmentTest {
 				return "admin";
 			}
 		});
+		GeneralSetupRepository setups = proxy(GeneralSetupRepository.class, (method, args) -> {
+			if ("findByCode".equals(method) && QuantityPolicy.SETTING.equals(args[0]) && decimalSetting != null) {
+				GeneralSetup setting = new GeneralSetup();
+				setting.setCode(QuantityPolicy.SETTING);
+				setting.setValeur(decimalSetting);
+				return Optional.of(setting);
+			}
+			return "findByCode".equals(method) ? Optional.empty() : UNHANDLED;
+		});
+		QuantityPolicy quantityPolicy = new QuantityPolicy();
+		set(quantityPolicy, QuantityPolicy.class, "generalSetupRepository", setups);
 		ItemAPI api = new ItemAPI();
 		set(api, _BaseController.class, "service", service);
 		set(api, ItemAPI.class, "applicationModeService", mode);
+		set(api, ItemAPI.class, "quantityPolicy", quantityPolicy);
 		return api;
 	}
 
 	private static AdjustStockRequestDTO request(Integer delta, String reason) {
 		AdjustStockRequestDTO request = new AdjustStockRequestDTO();
 		request.setDelta(delta == null ? null : java.math.BigDecimal.valueOf(delta));
+		request.setReason(reason);
+		return request;
+	}
+
+	private static AdjustStockRequestDTO decimal(String delta, String reason) {
+		AdjustStockRequestDTO request = new AdjustStockRequestDTO();
+		request.setDelta(new BigDecimal(delta));
 		request.setReason(reason);
 		return request;
 	}
@@ -181,26 +205,44 @@ class ItemStockAdjustmentTest {
 	}
 
 	@Test
-	@DisplayName("2.2.1: a decimal delta is refused naming the item, nothing written (0.5 was read as 0 until 2.2.0); 2.0 is 2")
-	void decimalDeltaRefused() throws Exception {
+	@DisplayName("3.1.0, setting off: a decimal delta is refused naming the item and the setting, nothing written; 2.0 is 2")
+	void decimalDeltaRefusedWithoutSetting() throws Exception {
 		item.setName("Vanille 1L");
-		AdjustStockRequestDTO decimal = new AdjustStockRequestDTO();
-		decimal.setDelta(new BigDecimal("1.5"));
-		decimal.setReason("COUNT");
-		org.springframework.http.ResponseEntity<?> refused = api(true).adjustStock(7L, decimal);
+		org.springframework.http.ResponseEntity<?> refused = api(true).adjustStock(7L, decimal("1.5", "COUNT"));
 		assertEquals(400, refused.getStatusCodeValue());
-		assertEquals("Item B001 (Vanille 1L): the quantity 1.5 has decimals, and decimal quantities are not supported in"
-				+ " stock adjustments yet.", refused.getBody());
-		decimal.setDelta(new BigDecimal("0.5"));
-		assertEquals(400, api(true).adjustStock(7L, decimal).getStatusCodeValue());
+		assertEquals("Item B001 (Vanille 1L): the quantity 1.5 has decimals, and decimal quantities are not allowed in"
+				+ " this store (General Setup, Allow decimal quantities).", refused.getBody());
+		assertEquals(400, api(true).adjustStock(7L, decimal("0.5", "COUNT")).getStatusCodeValue());
 		assertEquals(BigDecimal.valueOf(10), item.getStockQuantity());
 		assertTrue(stockUpdates.isEmpty());
 		assertTrue(movements.isEmpty());
 
-		AdjustStockRequestDTO whole = new AdjustStockRequestDTO();
-		whole.setDelta(new BigDecimal("2.0"));
-		assertEquals(200, api(true).adjustStock(7L, whole).getStatusCodeValue());
+		assertEquals(200, api(true).adjustStock(7L, decimal("2.0", "COUNT")).getStatusCodeValue());
 		assertEquals(BigDecimal.valueOf(12), item.getStockQuantity());
 		assertEquals(BigDecimal.valueOf(2), movements.get(0).getQuantity());
+	}
+
+	@Test
+	@DisplayName("3.1.0, setting on: 1.82 and -0.5 adjust the stock with their movements; a 4th decimal is refused, nothing written")
+	void decimalDeltaWithSetting() throws Exception {
+		decimalSetting = "true";
+		item.setStockQuantity(BigDecimal.ZERO);
+
+		assertEquals(200, api(true).adjustStock(7L, decimal("1.820", "COUNT")).getStatusCodeValue());
+		assertEquals(new BigDecimal("1.82"), item.getStockQuantity());
+		assertEquals(StockMovementType.ADJUSTMENT_IN, movements.get(0).getMovementType());
+		assertEquals(new BigDecimal("1.82"), movements.get(0).getQuantity());
+
+		assertEquals(200, api(true).adjustStock(7L, decimal("-0.5", "DAMAGE")).getStatusCodeValue());
+		assertEquals(new BigDecimal("1.32"), item.getStockQuantity());
+		assertEquals(StockMovementType.ADJUSTMENT_OUT, movements.get(1).getMovementType());
+		assertEquals(new BigDecimal("0.5"), movements.get(1).getQuantity());
+		assertEquals("DAMAGE", movements.get(1).getNotes());
+
+		org.springframework.http.ResponseEntity<?> refused = api(true).adjustStock(7L, decimal("0.0005", "COUNT"));
+		assertEquals(400, refused.getStatusCodeValue());
+		assertTrue(String.valueOf(refused.getBody()).contains("at most 3 decimals"), String.valueOf(refused.getBody()));
+		assertEquals(new BigDecimal("1.32"), item.getStockQuantity());
+		assertEquals(2, movements.size());
 	}
 }

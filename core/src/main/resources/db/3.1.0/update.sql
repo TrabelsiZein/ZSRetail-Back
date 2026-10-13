@@ -162,7 +162,8 @@ UPDATE APP_VERSION SET version = '3.1.0';
 -- when the release is closed (the RFID screens are not finished yet).
 DELETE FROM APP_RELEASE_NOTES WHERE version = '3.1.0';
 INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
-('3.1.0', 'NEW', N'Nouveau moyen de paiement « Retenue à la source », inactif à l''installation : l''activer dans Moyens de paiement et saisir comme code le code ERP du règlement.');
+('3.1.0', 'NEW', N'Nouveau moyen de paiement « Retenue à la source », inactif à l''installation : l''activer dans Moyens de paiement et saisir comme code le code ERP du règlement.'),
+('3.1.0', 'IMPROVE', N'Ajuster le stock : une variation décimale (1,82 L, au plus 3 décimales) est acceptée quand le magasin autorise les quantités décimales (Configuration générale) ; sinon elle est refusée en nommant l''article, jamais arrondie.');
 
 GO
 

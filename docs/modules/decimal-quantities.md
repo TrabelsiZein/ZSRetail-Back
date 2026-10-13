@@ -2,7 +2,8 @@
 
 Bulk items sold by the litre or the kilo (Happyness: perfume "V H 52 1L" sold 0.2 or 0.058 at the till). Built in
 steps on `release/2.2.1` (both repos); this page says what each step converted. Steps 1 to 6 are done (2026-10-09 and 10).
-2.2.2 (`release/2.2.2`), step 1: returns with decimal quantities (2026-10-10), see "2.2.2, step 1" below.
+2.2.2 (`release/2.2.2`), step 1: returns with decimal quantities (2026-10-10), see "2.2.2, step 1" below. 3.1.0: stock
+adjustments (2026-10-13), see "3.1.0: stock adjustments".
 
 ## Rules
 
@@ -149,10 +150,10 @@ the summary said.
   reads the quantity as `BigDecimal`), invoices from tickets ("Ticket T-...: Item ..."), purchases
   (`ProcessPurchaseRequestDTO` `BigDecimal`), compositions (`ItemComposition` keeps an `Integer` column; a JSON 1.5 is
   kept apart in the transient `decimalQuantity` and refused by `ItemCompositionService.save`), stock adjustments
-  (`AdjustStockRequestDTO.delta` `BigDecimal`, 400), the head office's own BL ("Line 1: Item ..."), its supply invoice
+  (until 3.0; converted in 3.1.0, see below), the head office's own BL ("Line 1: Item ..."), its supply invoice
   ("<BL number>, line 1: Item ...", 409; with the PER_BL rhythm the text goes to the BL's invoice note). Until 2.2.0 a
   JSON 0.5 in these requests was read as 0 and 1.5 as 1. Front: the same text from `common.decimalQuantity.notSupported`
-  (en, fr, ar) on `PurchaseNew.vue`, `KitComponentsManager.vue`, `ItemManagement.vue` (adjust stock), `Deliveries.vue`
+  (en, fr, ar) on `PurchaseNew.vue`, `KitComponentsManager.vue`, `Deliveries.vue`
   (under the quantity box). The return screen (`ReturnProducts.vue`) lists a decimal line with its quantity, a "Not
   returnable" badge and "0.2 sold with decimals: this line cannot be returned yet. The other lines of the ticket can be
   returned." (no box, no rounding; the server sends it with `returnable: false` and `remainingQuantity: 0`); the whole
@@ -235,6 +236,23 @@ the summary said.
 - **Whole returns are as in 2.2.1** (pinned in `ReturnRefundLoyaltyTest.wholeReturnAsIn221` with the values the 2.2.1
   code produced: stored line, copy JSON and hash, NAV return header and line JSON, for sold 3, return 1 then 2).
 
+## 3.1.0: stock adjustments
+
+Asked by Happyness (2026-10-13): "Ajuster le stock" refused 1.82 L of a bulk item, so a stock that sales had left
+fractional could not be corrected on the item page.
+
+- **Server** (`ItemAPI.adjustStock`): the delta (`AdjustStockRequestDTO.delta`, `BigDecimal`) may carry decimals when
+  `QuantityPolicy.decimalAllowed()`; setting off or absent (a head office has no such setting): 400
+  `Quantities.notAllowedInStore` ("Item B001 (Vanille 1L): the quantity 1.5 has decimals, and decimal quantities are
+  not allowed in this store (General Setup, Allow decimal quantities)."), nothing written. More than 3 decimals:
+  `QuantityPolicy.check`, 400 even when on. A whole delta never reads the setting (2.0 is 2). The delta is normalized
+  and goes as it is to `ItemService.adjustStock(Long, BigDecimal, String)`, which writes the stock
+  (`StockService.adjustStock`) and its ADJUSTMENT_IN / ADJUSTMENT_OUT movement of `|delta|` (1.82 in, 0.5 out).
+- **Front** (`ItemManagement.vue`, adjust stock box): `step="any"` with `appConfig.allowDecimalQuantity`, else `1`; a
+  decimal is refused before the call with `common.decimalQuantity.notAllowed` (setting off) or
+  `common.decimalQuantity.tooManyDecimals` (a 4th decimal), en, fr, ar. `common.decimalQuantity.where.stockAdjustments`
+  is gone.
+
 ## Still whole, and how each reacts to a decimal (after step 5)
 
 | Place | Reaction |
@@ -243,7 +261,7 @@ the summary said.
 | Invoices from tickets (`InvoiceService`, `InvoiceLine`) | 400 naming the ticket and the item, before the invoice number is taken |
 | Purchases (`PurchaseHeaderService`, `PurchaseLine`) | 400 naming the item (screen and server) |
 | Compositions of a pack (`ItemComposition`) | 400 naming the component (screen and server) |
-| Stock adjustment (`ItemAPI.adjustStock`) | 400 naming the item (screen and server) |
+| Stock adjustment (`ItemAPI.adjustStock`) | 3.1.0: converted (above). Until 3.0: 400 naming the item (screen and server) |
 | Head office BL made at the head office (`HoDeliveryService`) | 400 "Line n: Item ..." (text under the box on the page) |
 | Head office supply invoice (HEAD_OFFICE source, `HoSupplyInvoiceLine`) | a BL received with a decimal: 409 naming the BL, the line and the item; PER_BL: the text in the BL's invoice note |
 | Excel item import, stock column | the row refused with its number |
@@ -304,10 +322,12 @@ the difference, a 4th decimal refused by row and code), `decimalRefusedWhenSetti
 return screen line, invoice and composition refusals, the Excel import by row, item and buy X get Y promotions, the guard
 and its 400, the global setting unchanged), `TaxStampRuleTest` (true, TRUE, 1; no item), `AppConfigAPITest`
 (`taxStampActive`), `SaleCompletionLoyaltyStampTest.stampSettingReadings`, `ReturnRefundLoyaltyTest.decimalSoldLineRefused`
-/ `decimalAskedRefused`, `ItemStockAdjustmentTest.decimalDeltaRefused`, `HeadOfficeWarehouseTest.decimalPurchaseRefused`,
+/ `decimalAskedRefused`, `HeadOfficeWarehouseTest.decimalPurchaseRefused`,
 `HoDeliveryServiceTest` (1.5 named), `HoSupplyInvoiceServiceTest.decimalReceivedNotInvoiced`, `CashCountQuantityTest`. Step 6: `DecimalColumnsCheckTest`, `StockArithmeticSqlTest`.
 2.2.2: `ReturnRefundLoyaltyTest` (`decimalSoldLineReturnedInParts`: 0.5 returned 0.2 then 0.3, 0.1 refused, stock,
 vouchers, points; `wholeLineReturnedWithDecimals`: 1.5 of 2 refused off, accepted on; `decimalLineReturnedWhole`;
 `decimalSoldLineSettingOff`; `decimalsBeyondThreeRefused`; `ticketDetails`; `wholeReturnAsIn221`),
 `SalesCopyReceiverTest.decimalReturnArrivesAsSent`, `DecimalSafetyNetTest` (the return screen line with the setting off,
 the return copy no longer guarded).
+3.1.0: `ItemStockAdjustmentTest` (`decimalDeltaRefusedWithoutSetting`: 1.5 and 0.5 refused by name, nothing written, 2.0
+is 2; `decimalDeltaWithSetting`: 1.82 in and 0.5 out from 0, stock 1.32, their movements, 0.0005 refused).

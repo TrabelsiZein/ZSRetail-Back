@@ -175,8 +175,8 @@ class HeadOfficeWarehouseTest {
 				Collections.singletonMap("hooks", hoCatalogue)).getBeanProvider(CatalogueHeadOfficeHooks.class));
 		int before = catalogueChanges();
 
-		items.adjustStock(b001.getId(), 12, "COUNT");
-		items.adjustStock(b001.getId(), -2, "DAMAGE");
+		items.adjustStock(b001.getId(), BigDecimal.valueOf(12), "COUNT");
+		items.adjustStock(b001.getId(), BigDecimal.valueOf(-2), "DAMAGE");
 
 		assertEquals(10, stock.stockOf("B001"));
 		assertEquals(1, stock.movements(StockMovementType.ADJUSTMENT_IN).size());
