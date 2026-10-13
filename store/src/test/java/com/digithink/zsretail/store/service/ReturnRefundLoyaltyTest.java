@@ -468,14 +468,7 @@ class ReturnRefundLoyaltyTest {
 		returnQuantity(sale, 0, "0.2");
 		returnQuantity(sale, 1, "1");
 
-		com.digithink.zsretail.store.controller.ReturnHeaderAPI api = new com.digithink.zsretail.store.controller.ReturnHeaderAPI();
-		for (String name : new String[] { "salesHeaderRepository", "salesLineRepository", "returnLineRepository",
-				"returnHeaderRepository", "quantityPolicy" }) {
-			Field from = ReturnHeaderService.class.getDeclaredField(name);
-			from.setAccessible(true);
-			inject(api, com.digithink.zsretail.store.controller.ReturnHeaderAPI.class, name, from.get(returns));
-		}
-		inject(api, com.digithink.zsretail.core.controller._BaseController.class, "service", returns);
+		com.digithink.zsretail.store.controller.ReturnHeaderAPI api = ticketDetailsApi();
 		com.fasterxml.jackson.databind.ObjectMapper json = new com.fasterxml.jackson.databind.ObjectMapper()
 				.findAndRegisterModules();
 
@@ -506,6 +499,33 @@ class ReturnRefundLoyaltyTest {
 		assertEquals("2", json.valueToTree(lines.get(1)).get("remainingQuantity").toString());
 	}
 
+	/** The ticket details endpoint over the stubs of this test (the service's repositories). */
+	private com.digithink.zsretail.store.controller.ReturnHeaderAPI ticketDetailsApi() throws Exception {
+		com.digithink.zsretail.store.controller.ReturnHeaderAPI api = new com.digithink.zsretail.store.controller.ReturnHeaderAPI();
+		for (String name : new String[] { "salesHeaderRepository", "salesLineRepository", "returnLineRepository",
+				"returnHeaderRepository", "quantityPolicy" }) {
+			Field from = ReturnHeaderService.class.getDeclaredField(name);
+			from.setAccessible(true);
+			inject(api, com.digithink.zsretail.store.controller.ReturnHeaderAPI.class, name, from.get(returns));
+		}
+		inject(api, com.digithink.zsretail.core.controller._BaseController.class, "service", returns);
+		return api;
+	}
+
+	@Test
+	@DisplayName("3.1.0: ticket details refuse a pending or cancelled ticket, as the return itself does; a completed one loads")
+	void ticketDetailsOnlyForCompletedTickets() throws Exception {
+		com.digithink.zsretail.store.controller.ReturnHeaderAPI api = ticketDetailsApi();
+		SalesHeader sale = sale(null, 0.0, 0, 0.0, 60.0);
+		for (TransactionStatus status : new TransactionStatus[] { TransactionStatus.PENDING, TransactionStatus.CANCELLED }) {
+			sale.setStatus(status);
+			org.springframework.http.ResponseEntity<?> refused = api.getTicketDetails(sale.getSalesNumber());
+			assertEquals(400, refused.getStatusCodeValue(), status.name());
+			assertEquals("Only completed tickets can be returned", refused.getBody(), status.name());
+		}
+		sale.setStatus(TransactionStatus.COMPLETED);
+		assertEquals(200, api.getTicketDetails(sale.getSalesNumber()).getStatusCodeValue());
+	}
 	// ─── 2.2.2: a whole return gives the values of 2.2.1 ─────────────
 
 	/** Sold 3 at 20.000 TTC (16.807 HT, 19%), returned 1 then 2: stored line, copy JSON and hash, NAV payload of 2.2.1. */

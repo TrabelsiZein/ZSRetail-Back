@@ -22,6 +22,7 @@ import com.digithink.zsretail.core.model.ReturnHeader;
 import com.digithink.zsretail.core.model.ReturnLine;
 import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
 import com.digithink.zsretail.core.repository.ReturnHeaderRepository;
 import com.digithink.zsretail.core.repository.ReturnLineRepository;
 import com.digithink.zsretail.core.repository.SalesHeaderRepository;
@@ -258,6 +259,12 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 
 			SalesHeader salesHeader = salesHeaderRepository.findBySalesNumber(ticketNumber)
 					.orElseThrow(() -> new IllegalArgumentException("Ticket not found: " + ticketNumber));
+
+			// 3.1.0: as the return itself (ReturnHeaderService.processReturn): a pending or cancelled ticket is refused when it
+			// is looked up, not only when the return is sent
+			if (salesHeader.getStatus() != TransactionStatus.COMPLETED) {
+				return ResponseEntity.badRequest().body(createErrorResponse("Only completed tickets can be returned"));
+			}
 
 			// Check if ticket can be returned
 			boolean canReturn = service.canReturnTicket(salesHeader);
