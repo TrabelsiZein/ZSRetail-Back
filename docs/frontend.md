@@ -85,14 +85,16 @@
   greyed while none waits (not hidden: the other buttons keep their places); the tickets are per cashier session, so
   the count is never stale.
 - **3.1.0, close session window** (`ItemSelection.vue`, decided with Zein, 2026-10-13): pending tickets are said first
-  (a banner with "See the pending tickets"; "Close session" greyed meanwhile), not after the counting. The window opens
-  with a cash line ready (the CLIENT_ESPECES method), the cursor in its amount (methods loaded on the button, the line
-  added before the window shows, its field `autofocus`). One line per method counted: method, amount (3 decimals), ✕;
-  a "+ method" button per active method in the payment page's order adds one, its cursor placed; the line without
-  method is labelled "Fond de caisse" (the float: the server counts it as cash, `CashierSessionService`, and does not
-  list it on the closing ticket; it was "Espèces", next to "Client Espèce"), last. The "line total" column (always the
-  amount, quantity 1) and the full-screen size are gone (860 px). The amounts the POS expects are never shown (blind
-  count; the server compares, the cash difference check). What is sent is unchanged.
+  (a banner with "See the pending tickets"; "Close session" greyed meanwhile), not after the counting. Every active
+  method is a row with its amount (`fillCloseCountLines`, `closeCountMethods`: the payment page's order), then the row
+  without method, labelled "Fond de caisse" (the float: the server counts it as cash, `CashierSessionService`, and does
+  not list it on the closing ticket; it was "Espèces", next to "Client Espèce"), apart. The cashier fills what was
+  counted (Tab goes down the rows), a filled row is tinted; only the rows with an amount are sent (`countedLines`), at
+  least one and none negative to close. The rows are made before the window shows (methods loaded on the button), the
+  cursor in the first (`autofocus`). The total counted is in the footer, left of the buttons; notes on one line; 640
+  px, fits a 768 px till without scrolling. The amounts the POS expects are never shown (blind count; the server
+  compares, the cash difference check). The request is the same (one line per method counted). A first version (a
+  cash line and "+ method" buttons) was dropped for this one.
   **EMTOP's "typing in the close session window writes nothing, until it is closed and opened again"**: the cash
   difference popup, closed over the window, could stay in the page as an invisible layer on top (its closing never
   finished: "transitioning", `display: block`, z-index 1041), taking the cashier's clicks; seen with
