@@ -120,7 +120,8 @@
   words under its box (the whole sentence in the tooltip and the toast). The RFID button reads "RFID", as on the till.
   Fixes: a badge scanned for a return was kept for every later return made without leaving the screen (now one badge
   per return); the screen stayed filled 2 s after a return with its button active (a second click sent it again):
-  emptied at once; the return was sent with the field's number, not the ticket loaded; the server's English refusals
+  emptied at once, then back to the till (Zein, 2026-10-13; after the voucher's print window is written, its receipt
+  being built by this screen); the return was sent with the field's number, not the ticket loaded; the server's English refusals
   (ticket not found, too old, not completed, simple return off, quantity above what is left) are said in the screen's
   language (`serverErrorText`).
 - **3.1.0, the till's top rows**: the barcode field and the search share the row equally (one row down to 800 px, the
