@@ -1,15 +1,15 @@
 # Cash sessions: tickets X and Z
 
-**Status**: 3.1.0, step A done (backend). Step B (the print code and the buttons of the two session pages) follows.
+**Status**: 3.1.0. Step A (backend, `478ed95`) and step B (the print code and the buttons of the two session pages,
+front `45cfd32`) done; step 2: the cashier's closing ticket is the ticket Z (setting `CASHIER_CLOSING_TICKET`).
 
 A cashier session (`CashierSession`) is `OPENED` by the cashier, `CLOSED` by the cashier with the count of the till
 (`SessionCashCount` rows `POS_USER`), then `TERMINATED` when a responsible verifies it (rows `RESPONSIBLE`,
 `responsibleClosureCash`). Customers (ParaFendri, ZEN) asked for the "ticket X" (the open session so far) and the
 "ticket Z" (the closed session): one 80 mm ticket built from one DTO.
 
-Store application only; nothing on the head office. No table, column or setting was added; the sale, payment, return
-and closing code is unchanged. The cashier's closing ticket in the POS (`getSessionCloseTicketData`,
-`printSessionCloseTicket`) stays as it is.
+Store application only; nothing on the head office. No table or column was added; the sale, payment, return and
+closing code is unchanged. One General setup row (step 2) chooses the ticket the till prints at the cashier's closing.
 
 ## Endpoint
 
@@ -85,6 +85,39 @@ the verification form sends the total of every method, and the session history p
 
 **Modified after closing.** `changePaymentMethod` is allowed on a `CLOSED` session not yet synchronised: `realCash`
 moves, the cashier's count does not, so a Z printed again differs from the first one. The ticket then says so.
+
+## Printing (front)
+
+`src/views/admin/session/printSessionReport.js`, the one print code: `printSessionReport(vm, sessionId)` opens the print
+window first (a popup is allowed only then), calls the endpoint, writes the 80 mm ticket (`sessionReportHtml`, the
+style of the cashier's closing ticket, store name and logo from `appConfig/companyInfo`, amounts with 3 decimals) and
+prints. It never throws: a blocked popup or a failed request shows a toast and the window closes. It takes `$i18n`,
+`$http`, `$toast` and the company info from the page before the request, so the ticket still prints when the page is
+gone by then. Labels: `admin.sessionReport.*`, five locales.
+
+- Order of the blocks: header (title from `type`), VENTES, RETOURS and the net line, PAIEMENTS, CONTRÔLE, the
+  responsible's verification, "Modifié après clôture", "Imprimé le … par …".
+- CONTRÔLE and the verification per method: two lines per method (the name, then the amounts in three columns of a
+  third of the width each under a header line "Attendu / Compté / Écart"; "Attendu" only on a ticket X), 12 px; the
+  name beside three amounts did not fit 80 mm.
+- The admin pages: a button in the session details of `SessionDashboard.vue` and `SessionHistory.vue`, "Imprimer
+  ticket X" for an open session, "Imprimer ticket Z" otherwise (`admin.sessionReport.printX` / `printZ`).
+
+## The cashier's closing ticket (step 2)
+
+`CASHIER_CLOSING_TICKET` (`general-setup.md`): `Z` (the default, also when the row is absent) or `DECLARED`.
+
+- `ItemSelection.vue`, `closeSession`: once `POST /cashier-session/close` answers, with `Z` the till prints the ticket Z
+  of the closed session (`printSessionReport(this, data.session.id)`), with `DECLARED` the declared amounts as before
+  (`printSessionCloseTicket(sessionCloseTicket)`). The close endpoint still returns `sessionCloseTicket`; the till does
+  not read it for a Z. The back end's closing code did not change.
+- The session is closed before anything prints: the print is best effort and is not awaited. A blocked popup or a
+  printer failure leaves the session closed and the logout goes on.
+- The print window is opened when the close answers, the moment the declared ticket opened its window; the ticket's
+  request follows at once. Opening it before the close request would leave an empty window open during the cash
+  difference warning and the badge scan, and a badge retry calls `closeSession` without a click anyway.
+- The logout 1500 ms after the closing is unchanged: the ticket's request is sent with the token before it, the window
+  is the browser's, and the print code needs nothing of the page once it started.
 
 ## Open points
 

@@ -37,6 +37,21 @@ public class AppConfigAPI {
 	/** 2.2.2: a store setting, display only: amounts with 3 decimals on the POS, payment and return screens. */
 	public static final String POS_AMOUNTS_THREE_DECIMALS = "POS_AMOUNTS_3_DECIMALS";
 
+	/**
+	 * 3.1.0: a store setting, the ticket the till prints when the cashier closes the session: "Z" (the ticket Z, also
+	 * when the row is absent) or "DECLARED" (the amounts declared only, the closing ticket of before).
+	 */
+	public static final String CASHIER_CLOSING_TICKET = "CASHIER_CLOSING_TICKET";
+
+	/** CASHIER_CLOSING_TICKET read: "DECLARED" in any case, else "Z"; null on a head office (no till). */
+	String cashierClosingTicket() {
+		if (applicationModeService.isHeadOffice()) {
+			return null;
+		}
+		return "DECLARED".equalsIgnoreCase(generalSetupService.findValueByCode(CASHIER_CLOSING_TICKET)) ? "DECLARED"
+				: "Z";
+	}
+
 	private final ApplicationModeService applicationModeService;
 	private final LicenseService licenseService;
 	private final GeneralSetupService generalSetupService;
@@ -100,7 +115,8 @@ public class AppConfigAPI {
 						&& (decimalColumns == null || decimalColumns.ready()), // 2.2.1: off while a column is still int
 				taxStampRule.active(),
 				"true".equalsIgnoreCase(generalSetupService.findValueByCode(POS_AMOUNTS_THREE_DECIMALS)),
-				applicationModeService.isRfidEnabled()
+				applicationModeService.isRfidEnabled(),
+				cashierClosingTicket()
 		));
 	}
 

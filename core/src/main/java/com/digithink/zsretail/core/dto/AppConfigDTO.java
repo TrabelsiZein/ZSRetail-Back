@@ -158,4 +158,10 @@ public class AppConfigDTO {
 	 * read as false by the frontend when missing.
 	 */
 	private boolean rfidEnabled;
+
+	/**
+	 * 3.1.0: the ticket the till prints when the cashier closes the session, GeneralSetup CASHIER_CLOSING_TICKET: "Z"
+	 * (the ticket Z, also when the row is absent) or "DECLARED" (the amounts declared only); null on a head office.
+	 */
+	private String cashierClosingTicket;
 }

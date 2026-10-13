@@ -52,7 +52,7 @@ class AppConfigAPITest {
 	 * RFID step 2 (rfidEnabled). */
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
 			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock", "supplySource",
-			"allowDecimalQuantity", "taxStampActive", "posAmountsThreeDecimals", "rfidEnabled");
+			"allowDecimalQuantity", "taxStampActive", "posAmountsThreeDecimals", "rfidEnabled", "cashierClosingTicket");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";
@@ -71,8 +71,13 @@ class AppConfigAPITest {
 		values.put("TOMBOLA_ENABLED", "true");
 		values.put(TaxStampRule.SETTING, "true");
 		values.put(AppConfigAPI.POS_AMOUNTS_THREE_DECIMALS, "TRUE");
+		values.put(AppConfigAPI.CASHIER_CLOSING_TICKET, "declared");
+		values.putAll(SETUP_OVERRIDES);
 		return values;
 	}
+
+	/** Settings of one test over the stub values (a null value: the row absent); cleared after the test. */
+	private static final Map<String, String> SETUP_OVERRIDES = new HashMap<>();
 
 	// Mode of today's presets (with or without an ERP) and pos.pricing.enable-sales-price-group
 
@@ -276,6 +281,24 @@ class AppConfigAPITest {
 		assertEquals("true", erp.get("posAmountsThreeDecimals").toString()); // 2.2.2: POS_AMOUNTS_3_DECIMALS, any case
 		assertFalse(new AppConfigDTO().isPosAmountsThreeDecimals()); // the row absent (a head office): off
 		assertEquals("false", erp.get("rfidEnabled").toString()); // RFID step 2: no rfid.enabled line
+	}
+
+	@Test
+	@DisplayName("3.1.0: cashierClosingTicket: DECLARED in any case, Z otherwise and when the row is absent, null on a head office")
+	void cashierClosingTicket() throws Exception {
+		try {
+			assertEquals("DECLARED", dynamics().getCashierClosingTicket()); // the stub: "declared"
+			assertEquals("DECLARED", linkedStore().getCashierClosingTicket());
+			assertNull(headOffice().getCashierClosingTicket(), "a head office has no till");
+			SETUP_OVERRIDES.put(AppConfigAPI.CASHIER_CLOSING_TICKET, null);
+			assertEquals("Z", standalone().getCashierClosingTicket(), "the row absent: the ticket Z");
+			SETUP_OVERRIDES.put(AppConfigAPI.CASHIER_CLOSING_TICKET, "Z");
+			assertEquals("Z", dynamics().getCashierClosingTicket());
+			SETUP_OVERRIDES.put(AppConfigAPI.CASHIER_CLOSING_TICKET, "anything");
+			assertEquals("Z", dynamics().getCashierClosingTicket());
+		} finally {
+			SETUP_OVERRIDES.clear();
+		}
 	}
 
 	private static void inject(Object target, Class<?> declaringClass, String fieldName, Object value) throws Exception {

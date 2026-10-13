@@ -11,6 +11,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.controller.AppConfigAPI;
 import com.digithink.zsretail.core.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.core.erp.model.ErpSyncJob;
 import com.digithink.zsretail.core.erp.repository.ErpSyncJobRepository;
@@ -1034,6 +1035,10 @@ public class ZZDataInitializer {
 			ensureConfig("POS_AMOUNTS_3_DECIMALS", "false",
 					"Show amounts with 3 decimals on the POS screens (POS, payment and return screens) instead of 2. Display only: admin pages, reports and printed documents do not change.",
 					false, ConfigType.BOOLEAN);
+			// 3.1.0: the ticket printed when the cashier closes the session (docs/modules/cash-sessions.md)
+			ensureConfigWithOptions(AppConfigAPI.CASHIER_CLOSING_TICKET, "Z",
+					"Ticket printed when the cashier closes the session: Z = the full ticket Z (sales, VAT, returns, payments, control), DECLARED = the amounts declared only.",
+					false, ConfigType.SELECT, "Z,DECLARED");
 		}
 
 		// ── Table management ──────────────────────────────────────────────────

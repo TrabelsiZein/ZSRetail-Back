@@ -1701,7 +1701,7 @@ catalogue only, and `headoffice.supply.source=HEAD_OFFICE`.
 | `LOYALTY_ENABLED` | Only in `GET /config`, which no head office page reads; points adjusted at the head office do not ask it | — |
 | `PASSENGER_CUSTOMER` | Written at the first start, never read (no sale, Customers page hidden) | — |
 | `ERP_SKIP_CHEQUE_PAYMENTS` | No: the export of a store's sessions | — |
-| `ALWAYS_SHOW_BADGE_SCAN_POPUP`, `POS_SHOW_STOCK`, `TABLE_MANAGEMENT_*`, `MAX_DAYS_FOR_RETURN`, `ENABLE_SIMPLE_RETURN`, `RETURN_VOUCHER_VALIDITY_DAYS`, `BLOCK_RETURN_FOR_PROMOTION`, `AUTO_ADD_CASH_PAYMENT_ON_PAYMENT_PAGE`, `ENABLE_CASH_DISCREPANCY_CHECK`, `ENABLE_PAYMENT_METHOD_CHANGE`, `PLAFOND_ESPECE`, `PAYMENT_METHOD_*_TITLE_NUMBER_LENGTH`, `ENABLE_TAX_STAMP`, `TAX_STAMP_VALUE_MILLIMES`, `TICKET_SHOW_LOYALTY_*`, `TOMBOLA_ENABLED` | No: the till, its tickets, returns, payments and sessions | — |
+| `ALWAYS_SHOW_BADGE_SCAN_POPUP`, `POS_SHOW_STOCK`, `TABLE_MANAGEMENT_*`, `MAX_DAYS_FOR_RETURN`, `ENABLE_SIMPLE_RETURN`, `RETURN_VOUCHER_VALIDITY_DAYS`, `BLOCK_RETURN_FOR_PROMOTION`, `AUTO_ADD_CASH_PAYMENT_ON_PAYMENT_PAGE`, `ENABLE_CASH_DISCREPANCY_CHECK`, `CASHIER_CLOSING_TICKET`, `ENABLE_PAYMENT_METHOD_CHANGE`, `PLAFOND_ESPECE`, `PAYMENT_METHOD_*_TITLE_NUMBER_LENGTH`, `ENABLE_TAX_STAMP`, `TAX_STAMP_VALUE_MILLIMES`, `TICKET_SHOW_LOYALTY_*`, `TOMBOLA_ENABLED` | No: the till, its tickets, returns, payments and sessions | — |
 
 A head office whose catalogue and supply come from the ERP shows two cards: Invoices from the ERP (the two invoice
 settings) and ERP (tracking level).
