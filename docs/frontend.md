@@ -105,6 +105,22 @@
   closes), so no layer can stay, whatever the transition; tested: 5 runs, the "force close" path (badge cancelled),
   and real typing after "Close" of the popup. The exact trigger stays unproven (intermittent; a background browser tab
   also stops transitions, which muddied the tests).
+- **3.1.0, returns screen** (`ReturnProducts.vue`, decided with Zein, 2026-10-13): one screen on a 1366 x 768 or 1024 x
+  768 till (it was 2.2 screens tall). One top row: title, ticket field (a scan, then Enter; after a load or a refusal
+  its text is selected, so the next scan replaces it), back. The ticket on one line of chips (number, date, customer,
+  cashier, discount, total). The lines on the left, the return panel on the right, always in view (sticky): the type
+  as two buttons (return voucher, the default; cash refund only with simple returns enabled), pieces returned, the
+  amounts (goods, ticket discount, points share only when one of them lowers the refund), the voucher amount or the
+  cash to refund, "Process the return". Under 992 px the panel is under the lines, compact and pinned to the bottom of
+  the screen. The table: left / sold in one column, the price incl. VAT (and the line's discount; no HT nor VAT
+  lines), the quantity with - / + / "All" (still typed, decimals as the store allows; empty at load, "0" as
+  placeholder), the refund ("—" while nothing returned); "Return all" above. A refused quantity is said in a few
+  words under its box (the whole sentence in the tooltip and the toast). The RFID button reads "RFID", as on the till.
+  Fixes: a badge scanned for a return was kept for every later return made without leaving the screen (now one badge
+  per return); the screen stayed filled 2 s after a return with its button active (a second click sent it again):
+  emptied at once; the return was sent with the field's number, not the ticket loaded; the server's English refusals
+  (ticket not found, too old, not completed, simple return off, quantity above what is left) are said in the screen's
+  language (`serverErrorText`).
 - **3.1.0, the till's top rows**: the barcode field and the search share the row equally (one row down to 800 px, the
   RFID button between them). Back, the breadcrumb, the search chip and the view toggle stay on one line: long names end
   in "…" (`chip-text`) and, under 1200 px, the toggle shows its icon only (its name as tooltip). The grid view
