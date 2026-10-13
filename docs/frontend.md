@@ -72,6 +72,18 @@
   (delete amber with its icon, C red, "Exact amount" green), "Process payment" the one solid colour. On a wide till the
   balance is the keypad's screen, above its keys ("To pay" / "Change" / "Paid", large), instead of the details header;
   the keys follow the screen's height (64 px at 720, 74 at 768, 90 from ~850) so everything fits the column.
+- **3.1.0, pending tickets window** (`ItemSelection.vue`, decided with Zein, 2026-10-13): a compact list, newest first,
+  one scroll (the window's), no footer: per ticket its number, time and "x min ago", table or customer (not the
+  passenger customer), "n article(s): the first two names", the total including VAT in large, "Continue", and apart
+  (gap, separator, outlined) the ✕ that cancels it. A tap opens its lines at prices including VAT, as the till shows
+  them (`pendingLineInclVat`, `pendingUnitInclVat`; until 3.0 the lines showed prices excluding VAT). A search over
+  number, customer, table, article name or code and total ("160" finds 160.000; `matchesWords` of
+  `libs/search-text.js`), with the count. "Delete" is "Cancel ticket" everywhere, since it is: the ticket becomes
+  CANCELLED and stays in the history (confirmation: "Keep" / "Cancel ticket"). After "Continue", a chip in the cart
+  header ("Pending ticket HS…", the number only on a small till) while it is worked on (`pos.pendingTicketNumber`,
+  cleared with `pendingTicketId`; none on a table ticket, which has its own sign). The "Pending tickets" button is
+  greyed while none waits (not hidden: the other buttons keep their places); the tickets are per cashier session, so
+  the count is never stale.
 - **3.1.0, the till's top rows**: the barcode field and the search share the row equally (one row down to 800 px, the
   RFID button between them). Back, the breadcrumb, the search chip and the view toggle stay on one line: long names end
   in "…" (`chip-text`) and, under 1200 px, the toggle shows its icon only (its name as tooltip). The grid view
