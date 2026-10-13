@@ -390,7 +390,7 @@ class SessionReportServiceTest {
 	}
 
 	@Test
-	@DisplayName("Control on Z: the cashier's count per method, the float's rows as cash, a method not counted = 0")
+	@DisplayName("Control on Z: the cashier's count per method, the float's rows as cash")
 	void controlZ() {
 		standardSession();
 		close(376.72);
@@ -407,11 +407,26 @@ class SessionReportServiceTest {
 		ControlLine cardLine = control(dto.getControl(), "TPE");
 		assertEquals(200.0, cardLine.getExpected(), EPS);
 		assertEquals(0.0, cardLine.getDifference(), EPS);
+		assertNull(dto.getVerification(), "CLOSED: no verification block");
+	}
+
+	@Test
+	@DisplayName("Control on Z: a method the cashier did not declare is null (\"—\"), a method declared with 0 stays 0")
+	void undeclaredMethod() {
+		standardSession();
+		close(376.72);
+		count(CounterType.POS_USER, cash, 376.72);
+		count(CounterType.POS_USER, card, 0.0); // a row of 0 (an older till, or a closing with a total of 0)
+		SessionReportTicketDTO dto = service.build(7L);
+
 		ControlLine voucherLine = control(dto.getControl(), "BON");
 		assertEquals(41.0, voucherLine.getExpected(), EPS);
-		assertEquals(0.0, voucherLine.getCounted(), EPS);
-		assertEquals(-41.0, voucherLine.getDifference(), EPS);
-		assertNull(dto.getVerification(), "CLOSED: no verification block");
+		assertNull(voucherLine.getCounted(), "no voucher row: not declared");
+		assertNull(voucherLine.getDifference());
+		ControlLine cardLine = control(dto.getControl(), "TPE");
+		assertEquals(0.0, cardLine.getCounted(), EPS, "declared with 0");
+		assertEquals(-200.0, cardLine.getDifference(), EPS);
+		assertEquals(0.0, control(dto.getControl(), "ESP").getDifference(), EPS);
 	}
 
 	@Test
@@ -461,7 +476,11 @@ class SessionReportServiceTest {
 		assertTrue(verification.isPerMethod());
 		assertEquals(0.0, control(verification.getLines(), "ESP").getDifference(), EPS);
 		assertEquals(-5.0, control(verification.getLines(), "TPE").getDifference(), EPS);
-		assertEquals(-41.0, control(verification.getLines(), "BON").getDifference(), EPS);
+		// the responsible counted no voucher (no RESPONSIBLE row): null, not 0
+		ControlLine voucher = control(verification.getLines(), "BON");
+		assertEquals(41.0, voucher.getExpected(), EPS);
+		assertNull(voucher.getCounted());
+		assertNull(voucher.getDifference());
 		assertNull(verification.getTotalCounted());
 	}
 

@@ -17,6 +17,9 @@ public interface PaymentRepository extends _BaseRepository<Payment, Long> {
 
 	List<Payment> findBySalesHeader(SalesHeader salesHeader);
 
+	/** 3.1.0, day journal: the payments of several tickets in one query (never called with an empty list). */
+	List<Payment> findBySalesHeaderIn(List<SalesHeader> salesHeaders);
+
 	List<Payment> findByPaymentMethod(PaymentMethod paymentMethod);
 
 	@Query("SELECT p FROM Payment p JOIN p.salesHeader sh WHERE sh.cashierSession = :session AND sh.status NOT IN :excludedStatuses")

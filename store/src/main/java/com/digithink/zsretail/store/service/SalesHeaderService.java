@@ -288,7 +288,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 				freeLine.setUnitPrice(lineDTO.getUnitPrice());
 				freeLine.setLineTotal(0.0);
 				freeLine.setDiscountPercentage(100.0);
-				freeLine.setDiscountAmount(lineDTO.getUnitPrice() != null ? lineDTO.getUnitPrice() * lineDTO.getFreeQuantity() : 0.0);
+				freeLine.setDiscountAmount(freeLineDiscountAmount(lineDTO)); // 3.1.0: TTC, as every other line
 				freeLine.setDiscountSource("PROMOTION");
 				freeLine.setVatPercent(lineDTO.getVatPercent() != null ? lineDTO.getVatPercent() : item.getDefaultVAT());
 				freeLine.setVatAmount(0.0);
@@ -601,7 +601,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 				freeLine.setUnitPrice(lineDTO.getUnitPrice());
 				freeLine.setLineTotal(0.0);
 				freeLine.setDiscountPercentage(100.0);
-				freeLine.setDiscountAmount(lineDTO.getUnitPrice() != null ? lineDTO.getUnitPrice() * lineDTO.getFreeQuantity() : 0.0);
+				freeLine.setDiscountAmount(freeLineDiscountAmount(lineDTO)); // 3.1.0: TTC, as every other line
 				freeLine.setDiscountSource("PROMOTION");
 				freeLine.setVatPercent(lineDTO.getVatPercent() != null ? lineDTO.getVatPercent() : item.getDefaultVAT());
 				freeLine.setVatAmount(0.0);
@@ -814,6 +814,18 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		salesHeader.setTableNumber(targetTableNumber);
 		save(salesHeader);
 		log.info("Table ticket {} transferred to table {}", salesHeaderId, targetTableNumber);
+	}
+
+	/**
+	 * 3.1.0: the discount of the free-item line of a FREE_QUANTITY promotion: the free pieces' TTC value,
+	 * unitPriceIncludingVat x freeQuantity, the whole line's TTC discount as every other line stores it (it was
+	 * unitPrice x freeQuantity, an HT amount: 1.900 too low on a free 10.000 HT item at 19 %).
+	 */
+	static double freeLineDiscountAmount(ProcessSaleRequestDTO.SaleLineDTO lineDTO) {
+		if (lineDTO.getUnitPriceIncludingVat() == null || lineDTO.getFreeQuantity() == null) {
+			return 0.0;
+		}
+		return lineDTO.getUnitPriceIncludingVat() * lineDTO.getFreeQuantity();
 	}
 
 	/**

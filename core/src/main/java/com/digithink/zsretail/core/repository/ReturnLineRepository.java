@@ -11,6 +11,9 @@ import java.util.List;
 public interface ReturnLineRepository extends _BaseRepository<ReturnLine, Long> {
 	
 	List<ReturnLine> findByReturnHeader(ReturnHeader returnHeader);
+
+	/** 3.1.0, day journal: the lines of several returns in one query (never called with an empty list). */
+	List<ReturnLine> findByReturnHeaderIn(List<ReturnHeader> returnHeaders);
 	
 	void deleteByReturnHeader(ReturnHeader returnHeader);
 }

@@ -154,7 +154,9 @@ public class SessionReportService {
 			Double counted = null;
 			if (!open) {
 				if (declared) {
-					counted = posCounted.getOrDefault(key, 0.0);
+					// a method without a count row was not declared: null ("—"), as the session history's detail; a row
+					// of 0 stays 0 (the till sends no row of 0 since 3.1.0, an older till or closing could)
+					counted = posCounted.get(key);
 				} else if (methods.isCash(key)) {
 					// a session closed with a total only (no count row): that total is the cash counted
 					counted = session.getPosUserClosureCash();
@@ -194,23 +196,9 @@ public class SessionReportService {
 		double loyalty = 0.0;
 		for (SalesHeader sale : sales) {
 			List<SalesLine> ticketLines = linesByTicket.getOrDefault(sale.getId(), Collections.emptyList());
-			double[] goodsAndStamp = ReturnHeaderService.goodsAndStamp(ticketLines);
-			double ticketTotal = sale.getTotalAmount() != null ? sale.getTotalAmount()
-					: goodsAndStamp[0] + goodsAndStamp[1];
-			double goodsPaid = ticketTotal - goodsAndStamp[1];
-			total += ticketTotal;
-			stamp += goodsAndStamp[1];
-			if (goodsAndStamp[0] > 0) {
-				double factor = goodsPaid / goodsAndStamp[0];
-				for (SalesLine line : ticketLines) {
-					if (!ReturnHeaderService.isTaxStamp(line.getItem())) {
-						ttcByRate.merge(rate(line), ttc(line) * factor, Double::sum);
-					}
-				}
-			} else if (goodsPaid != 0.0) {
-				// a ticket without goods lines but with an amount (old data): kept at 0 % so that the totals still add up
-				ttcByRate.merge(0, goodsPaid, Double::sum);
-			}
+			double[] totalAndStamp = addTicketTtcByRate(sale, ticketLines, ttcByRate);
+			total += totalAndStamp[0];
+			stamp += totalAndStamp[1];
 			for (SalesLine line : ticketLines) {
 				if (!ReturnHeaderService.isTaxStamp(line.getItem())) {
 					lineDiscounts += lineDiscount(line);
@@ -240,6 +228,29 @@ public class SessionReportService {
 	}
 
 	/**
+	 * Adds one ticket's goods TTC per VAT rate to ttcByRate: each goods line's TTC times (ticket total - fiscal stamp) /
+	 * goods TTC, so the ticket discount and the loyalty points are spread over the rates; a ticket with an amount and no
+	 * goods line (old data) adds it at 0 %. Returns {ticket total, stamp}. Also read by the day journal (one ticket).
+	 */
+	static double[] addTicketTtcByRate(SalesHeader sale, List<SalesLine> ticketLines, Map<Integer, Double> ttcByRate) {
+		double[] goodsAndStamp = ReturnHeaderService.goodsAndStamp(ticketLines);
+		double ticketTotal = sale.getTotalAmount() != null ? sale.getTotalAmount() : goodsAndStamp[0] + goodsAndStamp[1];
+		double goodsPaid = ticketTotal - goodsAndStamp[1];
+		if (goodsAndStamp[0] > 0) {
+			double factor = goodsPaid / goodsAndStamp[0];
+			for (SalesLine line : ticketLines) {
+				if (!ReturnHeaderService.isTaxStamp(line.getItem())) {
+					ttcByRate.merge(rate(line), ttc(line) * factor, Double::sum);
+				}
+			}
+		} else if (goodsPaid != 0.0) {
+			// a ticket without goods lines but with an amount (old data): kept at 0 % so that the totals still add up
+			ttcByRate.merge(0, goodsPaid, Double::sum);
+		}
+		return new double[] { ticketTotal, goodsAndStamp[1] };
+	}
+
+	/**
 	 * The VAT lines, their TTC rounded to the millime and adding up to goodsTtc exactly (the rounding remainder goes to
 	 * the largest rate); HT = TTC / (1 + rate) to the millime, VAT = TTC - HT.
 	 */
@@ -263,8 +274,9 @@ public class SessionReportService {
 
 	/**
 	 * A line's discount, TTC, for the whole line (as the till sends it, and as applyDecimalLineAmounts stores it). The
-	 * free-item line the server adds (FREE_QUANTITY promotion: total 0, 100 %) stores unitPrice x quantity, an HT
-	 * amount: its TTC value is taken instead.
+	 * free-item line the server adds (FREE_QUANTITY promotion: total 0, 100 %) is read at its TTC value: the value
+	 * stored since 3.1.0 (SalesHeaderService.freeLineDiscountAmount), and the right one for the lines stored before
+	 * with unitPrice x quantity, an HT amount.
 	 */
 	static double lineDiscount(SalesLine line) {
 		boolean free = line.getLineTotalIncludingVat() != null && line.getLineTotalIncludingVat() == 0.0
@@ -378,8 +390,9 @@ public class SessionReportService {
 		if (!respCounted.isEmpty()) {
 			verification.setPerMethod(true);
 			for (String key : keys) {
+				// a method without a RESPONSIBLE row was not counted by the responsible: null, as the cashier's count
 				verification.getLines().add(controlLine(key, methods, expected.getOrDefault(key, 0.0),
-						respCounted.getOrDefault(key, 0.0)));
+						respCounted.get(key)));
 			}
 		} else {
 			double totalExpected = keys.stream().mapToDouble(k -> millimes(expected.getOrDefault(k, 0.0))).sum();

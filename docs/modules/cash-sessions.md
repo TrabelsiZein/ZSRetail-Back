@@ -57,8 +57,9 @@ VAT 0 % line.
 **Discounts.** Three lines:
 - `lineDiscounts`: `SalesLine.discountAmount`, which is the discount **of the whole line, TTC** (the till's
   `lineAmountsInclVat`, the server's `applyDecimalLineAmounts`; `pos_db_prod`: 1 162 discounted lines out of 1 162).
-  Exception: the free-item line the server adds for a FREE_QUANTITY promotion (`lineTotalIncludingVat` 0, 100 %) stores
-  `unitPrice x freeQuantity`, an HT amount; its TTC value `unitPriceIncludingVat x quantity` is counted instead;
+  The free-item line the server adds for a FREE_QUANTITY promotion (`lineTotalIncludingVat` 0, 100 %) is counted at
+  `unitPriceIncludingVat x quantity`: the value stored since 3.1.0, and the right TTC value of the lines stored before
+  (they hold `unitPrice x freeQuantity`, HT; see "Closed points");
 - `ticketDiscounts`: `SalesHeader.discountAmount`;
 - `loyaltyDiscounts`: `SalesHeader.loyaltyDeductionAmount` (points are not a payment).
 
@@ -75,7 +76,10 @@ voucher spent is the `RETURN_VOUCHER` method. The sum of the payment lines is `t
   `recalculateRealCashForClosedSession` when an admin changes a payment method), else
   `CashierSessionService.getExpectedCash` (`calculateRealCash`: opening cash + cash payments - change - simple returns).
   Another method: its payments. The cash line is always there (the opening cash).
-- Counted (Z): the `POS_USER` rows per method, the rows without method (the float) as cash, a method with no row = 0. A
+- Counted (Z): the `POS_USER` rows per method, the rows without method (the float) as cash. A method without a row
+  was not declared: counted and difference null ("—", as the session history's detail); a row of 0 stays 0. Since
+  3.1.0 the till sends no row of 0 (an empty line is not sent), so a method declared 0 at the till reads as not
+  declared; only an older till or closing leaves rows of 0. A
   session closed with a total only (no row) has its `posUserClosureCash` as the cash counted, the other methods null.
 - The methods in the till's order (`displayOrder`, then code); the name of today's method.
 
@@ -127,6 +131,58 @@ Queries: `CashierSessionRepository.findByStatusInAndClosedAtGreaterThanEqualAndC
 (Z) and `findByStatusInAndClosedAtGreaterThanEqualAndClosedAtLessThanOrStatusOrderByOpenedAtAsc` (X: "And" binds
 before "Or", so (closed today) or (open)); then the session ticket's queries per session.
 
+## Journal
+
+Read-only reporting of the store's days (back end; no page yet). Nothing is stored, the selling code is untouched.
+
+**The two date rules.**
+- **Tickets and returns by their own date**, whatever their session: every ticket, finished (status neither
+  `PENDING` nor `CANCELLED`, so `REFUNDED` counts) or cancelled, by its `salesDate`, as the sales reports
+  (`SalesReportService`); a return by its `returnDate`. A ticket parked at 23:50 and finished at 00:10 is on the day
+  it was parked (its `completedDate` is not read).
+- **The store ticket Z by the sessions closed** (closedAt, "Store ticket X / Z"). So the journal of a day and the Z
+  of that day differ when a session crosses midnight: the journal splits its tickets by their date, the Z takes the
+  whole session on its closing day.
+
+**`GET /cashier-session/store-days?month=YYYY-MM`** (`StoreDaysService`, `DayRowDTO`), newest first, one row per date
+with at least one finished ticket, cancelled ticket, return, session closed or session opened and still open:
+`date`, `sessionsClosed` (closed that date, the Z's rule), `sessionsOpen` (opened that date and still open),
+`ticketsCount`, `returnsCount`, `cancelledCount`, `totalTTC` (finished tickets), `returnsAmount`, `net`, `inProgress`
+(today's row only, while a session is open, whatever its opening day: a session opened yesterday and still open sells into today's journal; `CashierSessionRepository.countByStatus`). A month without anything: `[]`; 400 for a month that does not parse.
+Light queries (dates and amounts only): `SalesHeaderRepository.findFinishedTimesAndTotals`,
+`findSalesDatesByStatusBetween`, `ReturnHeaderRepository.findReturnTimesAndAmounts`, the Z's session query over the
+month, `CashierSessionRepository.findByStatusAndOpenedAtGreaterThanEqualAndOpenedAtLessThan`.
+
+**`GET /cashier-session/day-journal?date=YYYY-MM-DD`** (`DayJournalService`, `DayJournalDTO`): `date`, `storeName`,
+`lines[]` in time order, `totals`. 404 when the date has no line, 400 for a date that does not parse.
+- A line: `time`, `number`, `type` (`TICKET`, `RETURN`, `CANCELLED`), `sessionNumber`, `cashierName` (the session's
+  cashier), `customerName` (null for the passenger customer `PASSENGER_CUSTOMER`, and for a return), `totalHT`,
+  `totalVat`, `taxStamp`, `totalTTC`, `payments[]` (`methodName`, `amount`).
+- A ticket: HT and VAT as on the session ticket (the ticket discount and the points spread over the rates,
+  `SessionReportService.addTicketTtcByRate` and `vatLines`, shared), so HT + VAT + stamp = TTC; `taxStamp` was added
+  to the columns asked so that the line adds up. Payments per method, the cash net of the change.
+- A return: its amount given back, negative; HT in the proportion of its lines (their HT over their TTC), VAT = the
+  rest. Its money out is a payment line, negative: a simple return under the cash method, a return voucher under the
+  return voucher method.
+- A cancelled ticket: amounts 0, no payment.
+- `totals`: `ticketsCount`, `returnsCount`, `cancelledCount`, `totalHT`, `totalVat`, `taxStamp`, `totalTTC` (the
+  finished tickets), `returnsAmount`, `net` (= totalTTC - returnsAmount), `payments[]` per method in the till's order:
+  the lines' payments added up, returns included, so they add up to `net` (the cash: in, minus change, minus cash
+  refunds; the voucher method: vouchers taken, minus vouchers given).
+- Queries: `SalesHeaderRepository.findFinishedBetween`,
+  `findByStatusAndSalesDateGreaterThanEqualAndSalesDateLessThanOrderBySalesDateAsc`,
+  `ReturnHeaderRepository.findByReturnDateGreaterThanEqualAndReturnDateLessThanOrderByReturnDateAsc`, then one query
+  each for the lines, payments and return lines (`findBySalesHeaderIn`, `findByReturnHeaderIn`, never with an empty
+  list).
+
+**Excel**: `GET /cashier-session/day-journal/excel?date=` (`journal-2026-10-13.xlsx`, 404 as the journal) and
+`GET /cashier-session/store-days/excel?month=` (`jours-2026-10.xlsx`), `JournalExcel` (Apache POI, already in core):
+one sheet, a header row (French, as the store's printed tickets), one row per line or day, a totals row, amounts
+`#,##0.000`. The journal has two totals rows: "Total ventes TTC" (the finished tickets' HT, VAT, stamp, TTC) then
+"Net" (the amount columns added up, returns included, so its TTC is the day's net), with the totals per method.
+
+No role check, as the session ticket.
+
 ## Printing (front)
 
 `src/views/admin/session/printSessionReport.js`, the one print code: `printSessionReport(vm, sessionId)` opens the print
@@ -160,21 +216,33 @@ gone by then. Labels: `admin.sessionReport.*`, five locales.
 - The logout 1500 ms after the closing is unchanged: the ticket's request is sent with the token before it, the window
   is the browser's, and the print code needs nothing of the page once it started.
 
-## Open points
+## Closed points
 
-- **The FREE_QUANTITY line stores an HT discount.** `SalesHeaderService` (sale and parked ticket completed) adds the
-  free-item line with `discountAmount = unitPrice x freeQuantity`, the HT amount, where every other line stores the TTC
-  discount of the whole line. The ticket X / Z reads its TTC value instead (`SessionReportService.lineDiscount`); the
-  promotion code is unchanged for now. No such line in `pos_db_prod` on 2026-10-13. Anything else that sums
-  `SalesLine.discountAmount` would mix HT and TTC on these lines.
+- **The FREE_QUANTITY line stored an HT discount (fixed in 3.1.0).** For a "X bought, Y free" promotion the server adds
+  the free-item line itself (`SalesHeaderService`, at a sale and when a parked ticket is completed): totals 0, 100 %.
+  Its `discountAmount` was `unitPrice x freeQuantity`, the price **without VAT**, where every other line stores the
+  discount of the whole line **with VAT**. Example: an item at 10.000 HT, 19 % (11.900 TTC), "2 bought, 1 free": the
+  free line stored 10.000 instead of 11.900, 1.900 too low, the VAT of the free piece. No total and no VAT amount was
+  wrong; only the discount shown for that line: the receipt and its reprints ("Remise : -10.000 (100%)"), the head
+  office's ticket copy and detail. The ERP export sends the 100 % rate, the connectors do not read the amount.
+  Fix: `SalesHeaderService.freeLineDiscountAmount` stores `unitPriceIncludingVat x freeQuantity` in both places
+  (`FreeLineDiscountTest`). The lines stored before keep their HT value (none in `pos_db_prod` on 2026-10-13); the
+  ticket X / Z keeps reading every free line at its TTC value (`SessionReportService.lineDiscount`), right for both.
 
 ## Tests
 
 `store/src/test/.../service/SessionReportServiceTest`: X (no closing date, pending, expected only), Z with a ticket
 discount over two rates, a stamp and points (exact VAT lines and HT + VAT + stamp = TTC), payments (cash net of change,
-two methods, voucher, sum = TTC), returns and net, the cashier's count (float, method not counted), the stored realCash,
+two methods, voucher, sum = TTC), returns and net, the cashier's count (float), a method not declared (null) beside one declared 0, the stored realCash,
 a closing with a total only, the verification per method and in total, modified after closing, the free-item line,
 rounding over 60 uneven tickets, an empty session, an unknown session, and the JSON of a Z.
+
+`DayJournalServiceTest`: a day with two tickets, a cancelled ticket and a return (time order, amounts, cash net of the
+change, a ticket of the day before and a pending one left out); totals and per method adding up to net; a return
+voucher; the passenger customer gives null; a ticket parked before midnight on the day of its salesDate; an empty day
+refused; the Excel file. `StoreDaysServiceTest`: two days newest first with their counts and net; inProgress on today's row only, with any
+session open (one opened the day before too); a session closed the next day; an empty month; the Excel file. `FreeLineDiscountTest`: the free line's
+discount TTC.
 
 `store/src/test/.../service/StoreReportServiceTest` (the real SessionReportService over several sessions in memory):
 Z sums two sessions closed the same day (sales, returns, net, payments, control, float); VAT lines of the same rate

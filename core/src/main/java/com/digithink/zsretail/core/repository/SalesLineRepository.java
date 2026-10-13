@@ -15,6 +15,9 @@ public interface SalesLineRepository extends _BaseRepository<SalesLine, Long> {
 
 	List<SalesLine> findBySalesHeader(SalesHeader salesHeader);
 
+	/** 3.1.0, day journal: the lines of several tickets in one query (never called with an empty list). */
+	List<SalesLine> findBySalesHeaderIn(List<SalesHeader> salesHeaders);
+
 	List<SalesLine> findByItem(Item item);
 
 	void deleteBySalesHeader(SalesHeader salesHeader);

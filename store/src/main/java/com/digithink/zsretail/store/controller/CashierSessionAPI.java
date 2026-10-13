@@ -22,6 +22,8 @@ import com.digithink.zsretail.store.exception.CashDiscrepancyException;
 import com.digithink.zsretail.store.service.CashierSessionService;
 import com.digithink.zsretail.store.service.SessionReportService;
 import com.digithink.zsretail.store.service.StoreReportService;
+import com.digithink.zsretail.store.service.DayJournalService;
+import com.digithink.zsretail.store.service.StoreDaysService;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -38,6 +40,12 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 
 	@Autowired
 	private StoreReportService storeReportService;
+
+	@Autowired
+	private DayJournalService dayJournalService;
+
+	@Autowired
+	private StoreDaysService storeDaysService;
 
 	/**
 	 * Get current user's open session
@@ -470,6 +478,105 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			log.error("CashierSessionAPI::getStoreReportTicketZ:error: " + e.getMessage(), e);
 			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
 		}
+	}
+
+	/**
+	 * 3.1.0: the days of a month (YYYY-MM), newest first, read-only (docs/modules/cash-sessions.md, "Journal"). 400 for
+	 * a month that does not parse; a month without anything gives an empty list.
+	 */
+	@GetMapping("/store-days")
+	public ResponseEntity<?> getStoreDays(@RequestParam String month) {
+		java.time.YearMonth yearMonth = parseMonth(month);
+		if (yearMonth == null) {
+			return ResponseEntity.badRequest().body(createErrorResponse("month: '" + month + "' is not a month YYYY-MM"));
+		}
+		try {
+			return ResponseEntity.ok(storeDaysService.buildMonth(yearMonth));
+		} catch (Exception e) {
+			log.error("CashierSessionAPI::getStoreDays:error: " + e.getMessage(), e);
+			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/** 3.1.0: the days of a month as .xlsx (jours-YYYY-MM.xlsx). */
+	@GetMapping("/store-days/excel")
+	public ResponseEntity<?> getStoreDaysExcel(@RequestParam String month) {
+		java.time.YearMonth yearMonth = parseMonth(month);
+		if (yearMonth == null) {
+			return ResponseEntity.badRequest().body(createErrorResponse("month: '" + month + "' is not a month YYYY-MM"));
+		}
+		try {
+			byte[] file = com.digithink.zsretail.store.service.JournalExcel.days(yearMonth,
+					storeDaysService.buildMonth(yearMonth));
+			return excel(file, com.digithink.zsretail.store.service.JournalExcel.daysFileName(yearMonth));
+		} catch (Exception e) {
+			log.error("CashierSessionAPI::getStoreDaysExcel:error: " + e.getMessage(), e);
+			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/**
+	 * 3.1.0: the journal of a date (YYYY-MM-DD): every finished ticket, return and cancelled ticket of that date, read-only.
+	 * 400 for a date that does not parse, 404 when the date has no line.
+	 */
+	@GetMapping("/day-journal")
+	public ResponseEntity<?> getDayJournal(@RequestParam String date) {
+		java.time.LocalDate day = parseDate(date);
+		if (day == null) {
+			return ResponseEntity.badRequest().body(createErrorResponse("date: '" + date + "' is not a date YYYY-MM-DD"));
+		}
+		try {
+			return ResponseEntity.ok(dayJournalService.build(day));
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.status(404).body(createErrorResponse(e.getMessage()));
+		} catch (Exception e) {
+			log.error("CashierSessionAPI::getDayJournal:error: " + e.getMessage(), e);
+			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/** 3.1.0: the journal of a date as .xlsx (journal-YYYY-MM-DD.xlsx); 404 when the date has no line. */
+	@GetMapping("/day-journal/excel")
+	public ResponseEntity<?> getDayJournalExcel(@RequestParam String date) {
+		java.time.LocalDate day = parseDate(date);
+		if (day == null) {
+			return ResponseEntity.badRequest().body(createErrorResponse("date: '" + date + "' is not a date YYYY-MM-DD"));
+		}
+		try {
+			com.digithink.zsretail.store.dto.DayJournalDTO journal = dayJournalService.build(day);
+			return excel(com.digithink.zsretail.store.service.JournalExcel.journal(journal),
+					com.digithink.zsretail.store.service.JournalExcel.journalFileName(journal));
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.status(404).body(createErrorResponse(e.getMessage()));
+		} catch (Exception e) {
+			log.error("CashierSessionAPI::getDayJournalExcel:error: " + e.getMessage(), e);
+			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	private static java.time.LocalDate parseDate(String value) {
+		try {
+			return java.time.LocalDate.parse(value);
+		} catch (java.time.format.DateTimeParseException e) {
+			return null;
+		}
+	}
+
+	private static java.time.YearMonth parseMonth(String value) {
+		try {
+			return java.time.YearMonth.parse(value);
+		} catch (java.time.format.DateTimeParseException e) {
+			return null;
+		}
+	}
+
+	/** An .xlsx download: the file, its type and its name. */
+	private static ResponseEntity<byte[]> excel(byte[] file, String fileName) {
+		return ResponseEntity.ok()
+				.header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+				.contentType(org.springframework.http.MediaType.parseMediaType(
+						com.digithink.zsretail.store.service.JournalExcel.CONTENT_TYPE))
+				.body(file);
 	}
 
 	/**
