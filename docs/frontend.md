@@ -84,6 +84,22 @@
   cleared with `pendingTicketId`; none on a table ticket, which has its own sign). The "Pending tickets" button is
   greyed while none waits (not hidden: the other buttons keep their places); the tickets are per cashier session, so
   the count is never stale.
+- **3.1.0, close session window** (`ItemSelection.vue`, decided with Zein, 2026-10-13): pending tickets are said first
+  (a banner with "See the pending tickets"; "Close session" greyed meanwhile), not after the counting. The window opens
+  with a cash line ready (the CLIENT_ESPECES method), the cursor in its amount (methods loaded on the button, the line
+  added before the window shows, its field `autofocus`). One line per method counted: method, amount (3 decimals), ✕;
+  a "+ method" button per active method in the payment page's order adds one, its cursor placed; the line without
+  method is labelled "Fond de caisse" (the float: the server counts it as cash, `CashierSessionService`, and does not
+  list it on the closing ticket; it was "Espèces", next to "Client Espèce"), last. The "line total" column (always the
+  amount, quantity 1) and the full-screen size are gone (860 px). The amounts the POS expects are never shown (blind
+  count; the server compares, the cash difference check). What is sent is unchanged.
+  **EMTOP's "typing in the close session window writes nothing, until it is closed and opened again"**: the cash
+  difference popup, closed over the window, could stay in the page as an invisible layer on top (its closing never
+  finished: "transitioning", `display: block`, z-index 1041), taking the cashier's clicks; seen with
+  `elementFromPoint` on the amount field. The popup is now rendered with `v-if` (removed from the page as soon as it
+  closes), so no layer can stay, whatever the transition; tested: 5 runs, the "force close" path (badge cancelled),
+  and real typing after "Close" of the popup. The exact trigger stays unproven (intermittent; a background browser tab
+  also stops transitions, which muddied the tests).
 - **3.1.0, the till's top rows**: the barcode field and the search share the row equally (one row down to 800 px, the
   RFID button between them). Back, the breadcrumb, the search chip and the view toggle stay on one line: long names end
   in "…" (`chip-text`) and, under 1200 px, the toggle shows its icon only (its name as tooltip). The grid view
