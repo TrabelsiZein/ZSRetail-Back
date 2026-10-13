@@ -41,6 +41,17 @@ public interface CashierSessionRepository extends _BaseRepository<CashierSession
 	
 	long countByOpenedAtGreaterThanEqual(LocalDateTime date);
 
+	/** 3.1.0, store ticket Z: the sessions of the given statuses closed in [from, to), oldest opening first. */
+	List<CashierSession> findByStatusInAndClosedAtGreaterThanEqualAndClosedAtLessThanOrderByOpenedAtAsc(
+			List<SessionStatus> statuses, LocalDateTime from, LocalDateTime to);
+
+	/**
+	 * 3.1.0, store ticket X: (the sessions of the given statuses closed in [from, to)) or (the sessions of the given
+	 * status), oldest opening first ("And" binds before "Or" in a derived query).
+	 */
+	List<CashierSession> findByStatusInAndClosedAtGreaterThanEqualAndClosedAtLessThanOrStatusOrderByOpenedAtAsc(
+			List<SessionStatus> statuses, LocalDateTime from, LocalDateTime to, SessionStatus status);
+
 	// Query methods for synchronization
 	// Find sessions that are CLOSED or TERMINATED and not totally synched
 	List<CashierSession> findByStatusInAndSynchronizationStatusNot(

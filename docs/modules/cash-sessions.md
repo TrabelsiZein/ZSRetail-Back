@@ -86,6 +86,47 @@ the verification form sends the total of every method, and the session history p
 **Modified after closing.** `changePaymentMethod` is allowed on a `CLOSED` session not yet synchronised: `realCash`
 moves, the cashier's count does not, so a Z printed again differs from the first one. The ticket then says so.
 
+## Store ticket X / Z
+
+The whole store for one day: the session tickets of the day's sessions added up. Back end only for now; nothing is
+stored, and the selling and session code is untouched.
+
+- `GET /cashier-session/store-report-ticket/x`: the store ticket X of today (the server's date).
+- `GET /cashier-session/store-report-ticket/z?date=YYYY-MM-DD`: the store ticket Z of that date; 400 for a date that
+  does not parse.
+- 404 with the reason when no session matches. No role check, as the session ticket.
+
+**The date rule.**
+- **Z of a date D**: every session `CLOSED` or `TERMINATED` whose `closedAt` is on D (from D 00:00 included to D+1 00:00
+  excluded), **whatever its opening**: a session opened the day before and closed after midnight is in the Z of its
+  closing day. The open sessions are left out.
+- **X**: today, every session **closed today** (`CLOSED` or `TERMINATED`, the Z's rule for today) and every session
+  **open now** (`OPENED`, opened any day). After the last closing of the day, the X and the Z of today hold the same
+  sessions; a session opened yesterday and closed today is in both. A session open since two days is in today's X with
+  all its sales.
+
+`store.service.StoreReportService` (`buildX()`, `buildZ(LocalDate)`), into `store.dto.StoreReportTicketDTO`:
+`type`, `date`, `storeName` (`CompanyInformation.companyName`), `sessions[]` (`id`, `sessionNumber`, `cashierName`,
+`openedAt`, `closedAt`, `status`, oldest opening first; the admin page opens a session's details with `id`), `sales`, `returns`, `netSales`, `payments[]`, `openingCash`,
+`control[]`, `modifiedAfterClosingCount` (Z only, null on the X: how many of the sessions had a payment method
+changed after their closing, the session ticket's flag), `printedAt`, `printedBy`. The blocks have the shapes of the
+session ticket (`SessionReportTicketDTO`).
+
+How it is computed: one session ticket per session (`SessionReportService.build`, the rules above, the stored realCash
+of a closed session), then added up in BigDecimal from their millimes:
+- VENTES: counts and amounts added up; the VAT lines of the same rate merged into one (HT, VAT and TTC each added up,
+  so HT + VAT = TTC per rate and HT + VAT + stamp = TTC); the pending tickets on the X only (null on the Z).
+- RETOURS, the net line and PAIEMENTS: added up, the methods merged by code in the till's order (`displayOrder`).
+- CONTRÔLE: expected = the sessions' expected added up; counted = their counts added up, **null on the X**, and null for
+  a method one session declared nothing for (a session closed with a total only has the cash alone); difference =
+  counted - expected. `openingCash`, the "Fond de caisse" line: the sessions' opening cash added up, for information:
+  the cash line's expected amount and count already hold it, as on the session ticket.
+- Not carried over: the responsible's verification of each session.
+
+Queries: `CashierSessionRepository.findByStatusInAndClosedAtGreaterThanEqualAndClosedAtLessThanOrderByOpenedAtAsc`
+(Z) and `findByStatusInAndClosedAtGreaterThanEqualAndClosedAtLessThanOrStatusOrderByOpenedAtAsc` (X: "And" binds
+before "Or", so (closed today) or (open)); then the session ticket's queries per session.
+
 ## Printing (front)
 
 `src/views/admin/session/printSessionReport.js`, the one print code: `printSessionReport(vm, sessionId)` opens the print
@@ -134,3 +175,12 @@ discount over two rates, a stamp and points (exact VAT lines and HT + VAT + stam
 two methods, voucher, sum = TTC), returns and net, the cashier's count (float, method not counted), the stored realCash,
 a closing with a total only, the verification per method and in total, modified after closing, the free-item line,
 rounding over 60 uneven tickets, an empty session, an unknown session, and the JSON of a Z.
+
+`store/src/test/.../service/StoreReportServiceTest` (the real SessionReportService over several sessions in memory):
+Z sums two sessions closed the same day (sales, returns, net, payments, control, float); VAT lines of the same rate
+merged and HT + VAT + stamp = TTC; Z ignores a session closed another day and an open one; a session opened yesterday
+and closed today in today's Z only; a terminated session and the day's bounds; Z without a session refused with the
+date; X with the sessions closed today and the open ones (counted null, pending tickets, a session open since two
+days), not yesterday's closed one; a session opened yesterday and closed today in today's X, the X and the Z of today
+holding the same sessions; X without a session refused; a method a session did not declare keeps the counted null;
+`modifiedAfterClosingCount` on the Z.

@@ -21,6 +21,7 @@ import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.store.exception.CashDiscrepancyException;
 import com.digithink.zsretail.store.service.CashierSessionService;
 import com.digithink.zsretail.store.service.SessionReportService;
+import com.digithink.zsretail.store.service.StoreReportService;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -34,6 +35,9 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 
 	@Autowired
 	private SessionReportService sessionReportService;
+
+	@Autowired
+	private StoreReportService storeReportService;
 
 	/**
 	 * Get current user's open session
@@ -424,6 +428,46 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			return ResponseEntity.status(404).body(createErrorResponse(e.getMessage()));
 		} catch (Exception e) {
 			log.error("CashierSessionAPI::getReportTicket:error: " + e.getMessage(), e);
+			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/**
+	 * 3.1.0: the store ticket X, today: the sessions closed today and those open now, added up, read-only
+	 * (docs/modules/cash-sessions.md, "Store ticket X / Z"). 404 when there is none.
+	 */
+	@GetMapping("/store-report-ticket/x")
+	public ResponseEntity<?> getStoreReportTicketX() {
+		try {
+			log.info("CashierSessionAPI::getStoreReportTicketX");
+			return ResponseEntity.ok(storeReportService.buildX());
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.status(404).body(createErrorResponse(e.getMessage()));
+		} catch (Exception e) {
+			log.error("CashierSessionAPI::getStoreReportTicketX:error: " + e.getMessage(), e);
+			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/**
+	 * 3.1.0: the store ticket Z of a date (YYYY-MM-DD): the sessions closed that day, added up, read-only. 400 for a
+	 * date that does not parse, 404 when no session was closed that day.
+	 */
+	@GetMapping("/store-report-ticket/z")
+	public ResponseEntity<?> getStoreReportTicketZ(@RequestParam String date) {
+		java.time.LocalDate day;
+		try {
+			day = java.time.LocalDate.parse(date);
+		} catch (java.time.format.DateTimeParseException e) {
+			return ResponseEntity.badRequest().body(createErrorResponse("date: '" + date + "' is not a date YYYY-MM-DD"));
+		}
+		try {
+			log.info("CashierSessionAPI::getStoreReportTicketZ: " + day);
+			return ResponseEntity.ok(storeReportService.buildZ(day));
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.status(404).body(createErrorResponse(e.getMessage()));
+		} catch (Exception e) {
+			log.error("CashierSessionAPI::getStoreReportTicketZ:error: " + e.getMessage(), e);
 			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
 		}
 	}
