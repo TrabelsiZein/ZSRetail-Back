@@ -86,9 +86,12 @@
   the count is never stale.
 - **3.1.0, close session window** (`ItemSelection.vue`, decided with Zein, 2026-10-13): pending tickets are said first
   (a banner with "See the pending tickets"; "Close session" greyed meanwhile), not after the counting. Every active
-  method is a row with its amount (`fillCloseCountLines`, `closeCountMethods`: the payment page's order), then the row
-  without method, labelled "Fond de caisse" (the float: the server counts it as cash, `CashierSessionService`, and does
-  not list it on the closing ticket; it was "Espèces", next to "Client Espèce"), apart. The cashier fills what was
+  method is a row with its amount (`fillCloseCountLines`, `closeCountMethods`: the payment page's order). No "Fond de
+  caisse" row any more (a row without method, counted as cash by the server, not listed on the closing ticket): the
+  cash row is the whole drawer, and says so under it with the float declared at opening ("Tout le tiroir, fond de
+  caisse de 20.000 TND compris", `openingFloat` from the current session, `cashMethodId`: the `CLIENT_ESPECES` method;
+  not shown at 0). The window closes by Cancel only: no closing on a click beside it, on Escape, no header cross (asked
+  by Zein: a stray click lost the counting). The cashier fills what was
   counted (Tab goes down the rows), a filled row is tinted; only the rows with an amount are sent (`countedLines`), at
   least one and none negative to close. The rows are made before the window shows (methods loaded on the button), the
   cursor in the first (`autofocus`). The total counted is in the footer, left of the buttons; notes on one line; 640

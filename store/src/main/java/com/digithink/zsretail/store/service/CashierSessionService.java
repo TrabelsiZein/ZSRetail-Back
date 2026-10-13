@@ -296,7 +296,13 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		// Use provided actualCash or calculated from lines for POS user closure cash
 		Double posUserClosureCash = request.getActualCash() != null ? request.getActualCash() : calculatedPosUserCash;
 
-		checkCashDiscrepancy(session, realCash, posUserClosureCash, request);
+		// 3.1.0: the cash check compares cash with cash: realCash counts only the cash (opening + cash sales - change -
+		// simple returns), so only the cash rows are compared with it, not the card slips, cheques or vouchers counted
+		// beside (they made a false difference); posUserClosureCash stays the total counted, which the session reports
+		// compare with all the sales
+		Double countedCash = request.getActualCash() != null ? request.getActualCash()
+				: countedCash(request.getCashCountLines());
+		checkCashDiscrepancy(session, realCash, countedCash, request);
 
 		session.setPosUserClosureCash(posUserClosureCash);
 
@@ -344,6 +350,23 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		}
 
 		return session;
+	}
+
+	/**
+	 * 3.1.0: the cash counted at closing: the rows of the cash method (CLIENT_ESPECES) and the rows without method (the
+	 * float, "fond de caisse"), the cash the expected amount (calculateRealCash) is made of; null without any row.
+	 */
+	Double countedCash(List<CloseSessionRequestDTO.CashCountLineDTO> lines) {
+		if (lines == null || lines.isEmpty()) {
+			return null;
+		}
+		Long cashMethodId = paymentMethodRepository.findByType(PaymentMethodType.CLIENT_ESPECES)
+				.map(PaymentMethod::getId).orElse(null);
+		return lines.stream()
+				.filter(line -> line.getPaymentMethodId() == null || line.getPaymentMethodId().equals(cashMethodId))
+				.mapToDouble(line -> (line.getDenominationValue() != null ? line.getDenominationValue() : 0.0)
+						* (line.getQuantity() != null ? line.getQuantity() : 0))
+				.sum();
 	}
 
 	/**
