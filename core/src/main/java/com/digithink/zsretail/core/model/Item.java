@@ -92,6 +92,55 @@ public class Item extends _BaseEntity {
 	@JoinColumn(name = "item_sub_family_id")
 	private ItemSubFamily itemSubFamily;
 
+	// Item variants (ZEN), step 1: one item per variant of the ERP (item_code = NAV item number + "~" + variant code).
+	// Written by the imports; null for a customer whose ERP gives no variant. The brand goes in brand above.
+
+	/** The ERP's item number of the variant (several items share it). */
+	@Column(name = "nav_item_no")
+	private String navItemNo;
+
+	@Column(name = "variant_code")
+	private String variantCode;
+
+	@Column(name = "variant_description")
+	private String variantDescription;
+
+	@Column(name = "size_code")
+	private String sizeCode;
+
+	@Column(name = "size_description")
+	private String sizeDescription;
+
+	/** The ERP's order of the sizes (S before M before L). */
+	@Column(name = "size_sort_order")
+	private Integer sizeSortOrder;
+
+	@Column(name = "color_code")
+	private String colorCode;
+
+	@Column(name = "color_description")
+	private String colorDescription;
+
+	@Column(name = "choice_code")
+	private String choiceCode;
+
+	@Column(name = "choice_description")
+	private String choiceDescription;
+
+	@Column(name = "season_code")
+	private String seasonCode;
+
+	@Column(name = "division_code")
+	private String divisionCode;
+
+	/** item_category.code (the level above the family); by code, no foreign key. */
+	@Column(name = "category_code")
+	private String categoryCode;
+
+	/** item_section.code (the level below the sub-family); by code, no foreign key. */
+	@Column(name = "section_code")
+	private String sectionCode;
+
 	/**
 	 * When false, item is hidden from POS (e.g. system items like Tax Stamp).
 	 * Default true for normal products.

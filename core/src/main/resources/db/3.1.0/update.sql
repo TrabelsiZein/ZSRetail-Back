@@ -14,6 +14,11 @@
 -- the names and types Hibernate uses, so ddl-auto finds them complete. They exist, empty, on every store, whatever
 -- rfid.enabled; a head office database (it has ho_store) never gets them.
 --
+-- Schema, item variants (ZEN, docs/variants-zen-analysis-2026-10-14.md): nullable columns of item (the variant, its size,
+-- colour, choice, season, division, catégorie and section codes) and item_family.category_code, two new tables
+-- item_category and item_section (store and head office, empty), and the clearance of ho_stock_point_item (a head office
+-- only). Re-runnable; no data changed.
+--
 -- Data, payment method "Retenue à la source" (type RETENUE_SOURCE): added inactive with the neutral code RETENUE_SOURCE
 -- (store and head office, as the seed), only when no row of that type exists. A database that has it already (EMTOP
 -- since 1.12.1: active, with its ERP code as the code) keeps its row unchanged.
@@ -153,6 +158,76 @@ BEGIN
 		requires_confirmation, created_at, updated_at, created_by, updated_by)
 	VALUES ('RETENUE_SOURCE', N'Retenue à la source', 'RETENUE_SOURCE', N'Paiement par retenue à la source',
 		0, 10, 0, 0, 0, 0, 0, SYSDATETIME(), SYSDATETIME(), 'System', 'System');
+END
+GO
+
+-- Item variants (ZEN), step 1 (docs/variants-zen-analysis-2026-10-14.md): one item per variant of the ERP. New nullable
+-- columns of item, the catégorie of a family, and two new tables item_category (above the family) and item_section
+-- (below the sub-family), on a store and on a head office, as the families. Empty for a customer whose ERP gives no
+-- variant. No data is changed.
+IF COL_LENGTH('item', 'nav_item_no') IS NULL ALTER TABLE item ADD nav_item_no varchar(255) NULL;
+IF COL_LENGTH('item', 'variant_code') IS NULL ALTER TABLE item ADD variant_code varchar(255) NULL;
+IF COL_LENGTH('item', 'variant_description') IS NULL ALTER TABLE item ADD variant_description varchar(255) NULL;
+IF COL_LENGTH('item', 'size_code') IS NULL ALTER TABLE item ADD size_code varchar(255) NULL;
+IF COL_LENGTH('item', 'size_description') IS NULL ALTER TABLE item ADD size_description varchar(255) NULL;
+IF COL_LENGTH('item', 'size_sort_order') IS NULL ALTER TABLE item ADD size_sort_order int NULL;
+IF COL_LENGTH('item', 'color_code') IS NULL ALTER TABLE item ADD color_code varchar(255) NULL;
+IF COL_LENGTH('item', 'color_description') IS NULL ALTER TABLE item ADD color_description varchar(255) NULL;
+IF COL_LENGTH('item', 'choice_code') IS NULL ALTER TABLE item ADD choice_code varchar(255) NULL;
+IF COL_LENGTH('item', 'choice_description') IS NULL ALTER TABLE item ADD choice_description varchar(255) NULL;
+IF COL_LENGTH('item', 'season_code') IS NULL ALTER TABLE item ADD season_code varchar(255) NULL;
+IF COL_LENGTH('item', 'division_code') IS NULL ALTER TABLE item ADD division_code varchar(255) NULL;
+IF COL_LENGTH('item', 'category_code') IS NULL ALTER TABLE item ADD category_code varchar(255) NULL;
+IF COL_LENGTH('item', 'section_code') IS NULL ALTER TABLE item ADD section_code varchar(255) NULL;
+IF COL_LENGTH('item_family', 'category_code') IS NULL ALTER TABLE item_family ADD category_code varchar(255) NULL;
+GO
+IF OBJECT_ID(N'item_category', N'U') IS NULL
+BEGIN
+	CREATE TABLE item_category (
+		id bigint IDENTITY(1,1) NOT NULL,
+		active bit NULL,
+		created_at datetime2 NULL,
+		created_by varchar(255) NULL,
+		updated_at datetime2 NULL,
+		updated_by varchar(255) NULL,
+		erp_external_id varchar(255) NULL,
+		code varchar(255) NOT NULL,
+		name varchar(255) NOT NULL,
+		description varchar(255) NULL,
+		display_order int NULL,
+		origin varchar(20) NULL,
+		CONSTRAINT PK_item_category PRIMARY KEY (id),
+		CONSTRAINT uk_item_category_code UNIQUE (code)
+	);
+END
+GO
+IF OBJECT_ID(N'item_section', N'U') IS NULL
+BEGIN
+	CREATE TABLE item_section (
+		id bigint IDENTITY(1,1) NOT NULL,
+		active bit NULL,
+		created_at datetime2 NULL,
+		created_by varchar(255) NULL,
+		updated_at datetime2 NULL,
+		updated_by varchar(255) NULL,
+		erp_external_id varchar(255) NULL,
+		code varchar(255) NOT NULL,
+		name varchar(255) NOT NULL,
+		description varchar(255) NULL,
+		display_order int NULL,
+		sub_family_code varchar(255) NULL,
+		origin varchar(20) NULL,
+		CONSTRAINT PK_item_section PRIMARY KEY (id),
+		CONSTRAINT uk_item_section_code UNIQUE (code)
+	);
+END
+GO
+-- The clearance of a head office's point de stock row (a head office only: a store has no ho_stock_point_item). Null
+-- is read as false.
+IF OBJECT_ID(N'ho_stock_point_item', N'U') IS NOT NULL
+BEGIN
+	IF COL_LENGTH('ho_stock_point_item', 'clearance') IS NULL ALTER TABLE ho_stock_point_item ADD clearance bit NULL;
+	IF COL_LENGTH('ho_stock_point_item', 'clearance_price') IS NULL ALTER TABLE ho_stock_point_item ADD clearance_price numeric(18,3) NULL;
 END
 GO
 

@@ -1,5 +1,7 @@
 package com.digithink.zsretail.headoffice.model;
 
+import java.math.BigDecimal;
+
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Index;
@@ -51,4 +53,12 @@ public class HoStockPointItem extends _BaseEntity {
 
 	@Column(name = "unit_price", nullable = false)
 	private Double unitPrice;
+
+	/** Item variants (ZEN), step 1: the ERP's clearance flag for this point; null is false (rows written before it). */
+	@Column(name = "clearance")
+	private Boolean clearance;
+
+	/** Item variants (ZEN), step 1: the ERP's clearance price for this point, as read; null when none. */
+	@Column(name = "clearance_price", precision = 18, scale = 3)
+	private BigDecimal clearancePrice;
 }

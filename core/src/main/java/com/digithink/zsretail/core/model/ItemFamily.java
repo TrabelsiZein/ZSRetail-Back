@@ -34,6 +34,10 @@ public class ItemFamily extends _BaseEntity {
 
 	private Integer displayOrder = 0;
 
+	/** Item variants (ZEN), step 1: item_category.code, the catégorie above the family; null when none. */
+	@Column(name = "category_code")
+	private String categoryCode;
+
 	/** Filename of the POS image (e.g. "12.jpg"). Null when no image is configured. */
 	@Column(name = "image_filename")
 	private String imageFilename;
