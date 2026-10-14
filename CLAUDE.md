@@ -23,6 +23,7 @@ Each folder below is a project with its `pom.xml`; the parent lists them. What g
 | `connectors` | `zsretail-connectors` (pom) | the list of the connector projects, the one dependency of the WARs | |
 | `connectors/happyness` | `zsretail-connector-happyness` | `com.digithink.zsretail.connector.happyness` | erp-api |
 | `connectors/emtop` | `zsretail-connector-emtop` | `com.digithink.zsretail.connector.emtop` | erp-api |
+| `connectors/zen` | `zsretail-connector-zen` (3.1.0, item variants; its own tests on the API samples) | `com.digithink.zsretail.connector.zen` | erp-api |
 | `core` | `zsretail-core` | `com.digithink.zsretail.core` | erp-api |
 | `store` | `zsretail-store` (WAR, main class `StoreApplication`) | `com.digithink.zsretail.store` | core; the connectors at runtime |
 | `headoffice` | `zsretail-headoffice` (WAR, main class `HeadOfficeApplication`) | `com.digithink.zsretail.headoffice` | core; the connectors at runtime |

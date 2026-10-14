@@ -91,9 +91,13 @@ class ConnectorNamesGuardTest {
 	/**
 	 * Code cleanup step 8, follow-up 2: what a user can read (a string literal: a message, a setting's description) never
 	 * names a connector: its name, its old name (the last part of its old prefix), nor NAV. Comments may tell the history.
-	 * No exception (the old name of the catalogue state table is declared by its connector, code cleanup step 8).
+	 * No exception (the old name of the catalogue state table is declared by its connector, code cleanup step 8). Item
+	 * variants (ZEN), step 8: a name is a whole word, with no letter or digit before or after it, so that "frozen" or
+	 * "citizen" is not the connector zen; not \b, which takes _ for a letter and would no longer catch navpospages_state
+	 * or ERP_ZEN_PASSWORD.
 	 */
-	static final Pattern NAMED = Pattern.compile("(?i)" + String.join("|", connectorWords()) + "|(?-i)\\bNAV\\b");
+	static final Pattern NAMED = Pattern.compile(
+			"(?i)(?<![a-z0-9])(?:" + String.join("|", connectorWords()) + ")(?![a-z0-9])|(?-i)\\bNAV\\b");
 
 	private static List<String> connectorWords() {
 		List<String> words = new ArrayList<>();
@@ -138,6 +142,11 @@ class ConnectorNamesGuardTest {
 		assertEquals(4, namedInStrings("x/A.java", Arrays.asList("throw new X(\"the navpospages connector\");",
 				"log.info(\"sent to NAV\");", "msg(\"Happyness head office\");", "// the NAV of EMTOP",
 				"String table = \"navpospages_state\";", "\"the ERP\", \"navigation\"")).size());
+		// Item variants (ZEN), step 8: zen as a whole word only
+		assertEquals(Arrays.asList("x/A.java:1: \"the zen connector\"", "x/A.java:2: \"ERP_ZEN_PASSWORD\"",
+				"x/A.java:3: \"erp.zen.base-url\""), namedInStrings("x/A.java", Arrays.asList("msg(\"the zen connector\");",
+						"env(\"ERP_ZEN_PASSWORD\");", "key(\"erp.zen.base-url\");", "\"frozen\", \"citizen\", \"Zenith\", \"dozens\"",
+						"\"emtopX\", \"2happyness\"")));
 	}
 
 	@Test
@@ -150,7 +159,8 @@ class ConnectorNamesGuardTest {
 		assertTrue(allowed(BASE + "connector/happyness/sync/NavPosPagesInvoices.java"));
 		assertTrue(allowed(BASE + "connector/emtop/mapper/DynamicsNavMapper.java"));
 		assertTrue(!allowed(BASE + "core/config/ErpConnectorEnvironmentPostProcessor.java"), "since step 7: no exception");
-		assertTrue(TEXTS.containsAll(Arrays.asList("erp.emtop", "erp.happyness", "erp.dynamicsnav", "erp.navpospages")),
+		assertTrue(TEXTS.containsAll(Arrays.asList("erp.emtop", "erp.happyness", "erp.dynamicsnav", "erp.navpospages",
+				"erp.zen")),
 				"from the descriptors, new and old: " + TEXTS);
 		assertTrue(!allowed(BASE + "core/config/NodeOwnership.java"));
 		assertTrue(!allowed(BASE + "erp/api/ErpAbilities.java"));

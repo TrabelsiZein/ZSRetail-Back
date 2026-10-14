@@ -1,0 +1,112 @@
+package com.digithink.zsretail.connector.zen.config;
+
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.PropertyResolver;
+import org.springframework.stereotype.Component;
+
+import com.digithink.zsretail.connector.zen.ZenConnectorDescriptor;
+import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
+import com.digithink.zsretail.erp.api.ErpConnectors;
+
+import lombok.extern.log4j.Log4j2;
+
+/**
+ * Item variants (ZEN), step 8: the startup refusals of ZEN's connector, as the other connectors: an
+ * {@link IllegalStateException} naming the key, so the application does not start. Read from the environment before
+ * the settings are bound ({@link ZenProperties} depends on this bean). Exists only with erp.connector=zen. One INFO
+ * line when the settings are accepted: the address, the company and the pages (never a password).
+ */
+@Component(ZenStartupCheck.BEAN_NAME)
+@ConditionalOnErpConnector(ZenConnectorDescriptor.NAME)
+@Log4j2
+public class ZenStartupCheck {
+
+	public static final String BEAN_NAME = "zenStartupCheck";
+
+	static final String P = ZenProperties.PREFIX + ".";
+
+	public ZenStartupCheck(Environment environment) {
+		check(environment);
+		log.info(summary(environment));
+	}
+
+	/** Throws {@link IllegalStateException} naming the key when the connector cannot start. */
+	public static void check(PropertyResolver env) {
+		if (!ErpConnectors.isErpCatalogueOnlyHeadOffice(env)) {
+			throw new IllegalStateException("Invalid value '" + ZenConnectorDescriptor.NAME
+					+ "' for property erp.connector: this connector only reads a catalogue, on a head office whose catalogue"
+					+ " only comes from the ERP (the head office application, ownership.catalogue=ERP, ownership.customers"
+					+ " and ownership.supply not ERP).");
+		}
+		for (String key : new String[] { "base-url", "company", "username", "password" }) {
+			if (trimmed(env.getProperty(P + key)).isEmpty()) {
+				throw new IllegalStateException("Missing value for property " + P + key + ": required with erp.connector="
+						+ ZenConnectorDescriptor.NAME + ".");
+			}
+		}
+		String baseUrl = trimmed(env.getProperty(P + "base-url"));
+		if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
+			throw new IllegalStateException("Invalid value '" + baseUrl + "' for property " + P
+					+ "base-url: the address of the NAV instance, http://host:port/instance");
+		}
+		String vat = env.getProperty(P + "default-vat");
+		long vatValue = wholeNumber(vat);
+		if (vatValue < 0 || vatValue > 100) {
+			throw new IllegalStateException("Invalid value '" + (vat == null ? "" : vat) + "' for property " + P
+					+ "default-vat: a whole number from 0 to 100 (the VAT of a row that gives none, e.g. 19)");
+		}
+		for (String key : new String[] { "api-path", "page.stock-points", "page.categories", "page.barcodes" }) {
+			if (env.containsProperty(P + key) && trimmed(env.getProperty(P + key)).isEmpty()) {
+				throw new IllegalStateException("Missing value for property " + P + key
+						+ ": remove the line to use the default, or write the value.");
+			}
+		}
+		checkRange(env, "barcode-page-size", 1, 5000);
+		checkRange(env, "packet-size", 1, 5000);
+		if (env.containsProperty(P + "dry-run")) {
+			String dryRun = trimmed(env.getProperty(P + "dry-run"));
+			if (!"true".equalsIgnoreCase(dryRun) && !"false".equalsIgnoreCase(dryRun)) {
+				throw new IllegalStateException("Invalid value '" + dryRun + "' for property " + P
+						+ "dry-run: true (read and compare only) or false");
+			}
+		}
+		checkRange(env, "connect-timeout-seconds", 1, Integer.MAX_VALUE);
+		checkRange(env, "read-timeout-seconds", 1, Integer.MAX_VALUE);
+	}
+
+	/** The startup line: address, company and pages (never a password). */
+	public static String summary(PropertyResolver env) {
+		return "ERP connector " + ZenConnectorDescriptor.NAME + " (read only, GET): "
+				+ trimmed(env.getProperty(P + "base-url")) + ", API " + env.getProperty(P + "api-path", "api/sat/zsretail/v1.0")
+				+ ", company " + trimmed(env.getProperty(P + "company")) + ", pages "
+				+ env.getProperty(P + "page.stock-points", "stockPoints") + ", "
+				+ env.getProperty(P + "page.categories", "itemCategories") + ", "
+				+ env.getProperty(P + "page.barcodes", "ItemBarCodePOS");
+	}
+
+	/** When present, a whole number from min to max. */
+	private static void checkRange(PropertyResolver env, String key, long min, long max) {
+		if (!env.containsProperty(P + key)) {
+			return;
+		}
+		String raw = env.getProperty(P + key);
+		long value = wholeNumber(raw);
+		if (value < min || value > max) {
+			throw new IllegalStateException("Invalid value '" + raw + "' for property " + P + key + ": a whole number"
+					+ (max == Integer.MAX_VALUE ? ", at least " + min : " from " + min + " to " + max));
+		}
+	}
+
+	/** The trimmed value as a whole number; -1 when absent or not one. */
+	private static long wholeNumber(String raw) {
+		try {
+			return Long.parseLong(trimmed(raw));
+		} catch (NumberFormatException e) {
+			return -1;
+		}
+	}
+
+	private static String trimmed(String raw) {
+		return raw == null ? "" : raw.trim();
+	}
+}

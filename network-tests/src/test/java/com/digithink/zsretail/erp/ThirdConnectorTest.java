@@ -28,6 +28,7 @@ import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.connector.emtop.connector.DynamicsNavConnector;
 import com.digithink.zsretail.connector.happyness.connector.NavPosPagesConnector;
+import com.digithink.zsretail.connector.zen.connector.ZenConnector;
 import com.digithink.zsretail.core.config.ErpConnectorEnvironmentPostProcessor;
 import com.digithink.zsretail.core.config.InstallationTypeEnvironmentPostProcessor;
 import com.digithink.zsretail.core.config.MachineFileEnvironmentPostProcessor;
@@ -123,7 +124,7 @@ class ThirdConnectorTest {
 		assertFalse(ErpConnectors.names().contains(NAME));
 		IllegalStateException refused = assertThrows(IllegalStateException.class, () -> start("erp.connector=thirdco"));
 		assertTrue(refused.getMessage().startsWith("Invalid value 'thirdco' for property erp.connector: none | emtop |"
-				+ " happyness."),
+				+ " happyness | zen."),
 				refused.getMessage());
 	}
 
@@ -131,7 +132,7 @@ class ThirdConnectorTest {
 	@DisplayName("Its descriptor alone: its name accepted, its abilities known, its bean chosen, the others not")
 	void descriptorAlone() throws Exception {
 		withThirdConnector(() -> {
-			assertEquals(Arrays.asList("none", "emtop", "happyness", NAME), ErpConnectors.names());
+			assertEquals(Arrays.asList("none", "emtop", "happyness", NAME, "zen"), ErpConnectors.names(), "by name");
 			StandardEnvironment env = start("erp.connector=thirdco", "erp.thirdco.base-url=http://erp.test");
 			assertEquals(NAME, ErpConnectors.inEffect(env));
 			assertEquals(EnumSet.of(ErpAbility.SUPPLY_INVOICES), ErpAbilities.of(NAME));
@@ -143,6 +144,7 @@ class ThirdConnectorTest {
 			assertFalse(registered(env, NoOpErpConnector.class));
 			assertFalse(registered(env, DynamicsNavConnector.class));
 			assertFalse(registered(env, NavPosPagesConnector.class));
+			assertFalse(registered(env, ZenConnector.class));
 			// The two others are chosen as before, beside it
 			StandardEnvironment emtop = start("erp.connector=emtop");
 			assertEquals("emtop", ErpConnectors.inEffect(emtop));

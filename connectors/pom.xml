@@ -22,10 +22,12 @@
 	<modules>
 		<module>emtop</module>
 		<module>happyness</module>
+		<module>zen</module>
 	</modules>
 
 	<dependencies>
 		<dependency><groupId>com.digithink</groupId><artifactId>zsretail-connector-emtop</artifactId><version>${project.version}</version></dependency>
 		<dependency><groupId>com.digithink</groupId><artifactId>zsretail-connector-happyness</artifactId><version>${project.version}</version></dependency>
+		<dependency><groupId>com.digithink</groupId><artifactId>zsretail-connector-zen</artifactId><version>${project.version}</version></dependency>
 	</dependencies>
 </project>

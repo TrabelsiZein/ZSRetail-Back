@@ -46,10 +46,11 @@ class ErpAbilitiesTest {
 		assertEquals(EnumSet.noneOf(ErpAbility.class), ErpAbilities.of("emtop"));
 		assertEquals(EnumSet.of(ErpAbility.HEAD_OFFICE_STOCK_POINTS, ErpAbility.SUPPLY_INVOICES),
 				ErpAbilities.of("happyness"));
+		// Item variants (ZEN), step 8: the points de stock; its supply invoices come at step 9
+		assertEquals(EnumSet.of(ErpAbility.HEAD_OFFICE_STOCK_POINTS), ErpAbilities.of("zen"));
 		assertThrows(IllegalArgumentException.class, () -> ErpAbilities.of("sap"));
 		assertEquals(Collections.singletonList("happyness"), ErpAbilities.connectorsWith(ErpAbility.SUPPLY_INVOICES));
-		assertEquals(Collections.singletonList("happyness"),
-				ErpAbilities.connectorsWith(ErpAbility.HEAD_OFFICE_STOCK_POINTS));
+		assertEquals(Arrays.asList("happyness", "zen"), ErpAbilities.connectorsWith(ErpAbility.HEAD_OFFICE_STOCK_POINTS));
 	}
 
 	/** A start the way Spring Boot runs it, the outside file holding these lines. */

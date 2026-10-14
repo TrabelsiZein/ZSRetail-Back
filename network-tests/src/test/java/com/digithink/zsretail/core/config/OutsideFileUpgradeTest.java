@@ -53,8 +53,8 @@ class OutsideFileUpgradeTest {
 			"ownership.loyalty=HEAD_OFFICE", "ownership.supply=HEAD_OFFICE", "sales.upstream=HEAD_OFFICE",
 			"erp.dynamicsnav.enabled=false", "headoffice.url=http://localhost:888/zsretail/api", "headoffice.api-key=key" };
 
-	static final String CHOSEN_BY = " The ERP connector is chosen by erp.connector only (none | emtop | happyness; no"
-			+ " line: none).";
+	static final String CHOSEN_BY = " The ERP connector is chosen by erp.connector only (none | emtop | happyness | zen;"
+			+ " no line: none).";
 	static final String RENAME = " Rename them: the keys of a connector are erp.<its name>.*.";
 
 	@TempDir

@@ -1,0 +1,2 @@
+# Item variants (ZEN), step 8: this connector declares itself (its name and abilities) to erp-api
+com.digithink.zsretail.erp.api.ErpConnectorDescriptor=com.digithink.zsretail.connector.zen.ZenConnectorDescriptor

@@ -199,13 +199,14 @@ they declare today.
 | `none` | — | — |
 | `emtop` | — | — |
 | `happyness` | yes | yes |
+| `zen` (3.1.0, item variants step 8) | yes | — (step 9) |
 
 - `HEAD_OFFICE_STOCK_POINTS` (was `CATALOGUE_BY_STOCK_POINTS`): the head office keeps several points de stock in its own
   tables (`ho_stock_point`, `ho_stock_point_item`, the points page), filled by the single catalogue job `SYNC_CATALOGUE`. Not
   "reads items by location": every connector may do that.
 - `SUPPLY_INVOICES`: the ERP's supply invoices are read, so a head office may set `headoffice.supply.source=ERP`.
 
-`ErpAbilities.connectorInEffect(env)` (none, emtop, happyness) is the value of `erp.connector`;
+`ErpAbilities.connectorInEffect(env)` (none, emtop, happyness, zen) is the value of `erp.connector`;
 `hasConnector(env)` is true for any connector but none. A new ability is added there when the code needs it, never a test on
 a connector name.
 
@@ -346,6 +347,35 @@ erp-api since code cleanup step 6.2; not the two admin views of `erp/dto`, in co
 libraries. What would break the rule goes on an allow-list
 inside the test, each line with its reason (an entry nothing uses any more fails too); empty since code cleanup step
 5.8e (navpospages untied at 5.8c, dynamicsnav at 5.8d).
+
+## ZEN's connector (`erp.zen`, item variants, 3.1.0, step 8)
+
+Project `connectors/zen` (`com.digithink.zsretail.connector.zen`), built like `connectors/happyness`: its descriptor
+(`ZenConnectorDescriptor`, ability `HEAD_OFFICE_STOCK_POINTS`; `SUPPLY_INVOICES` at step 9), its settings
+(`ZenProperties`, checked by `ZenStartupCheck`; keys in `docs/deployment-modes.md`), an NTLM client refusing anything but
+GET (`ZenConfig`, `ZenRestClient`, following `@odata.nextLink`), the mapper (`ZenMapper`), the source the engine reads
+(`ZenCatalogueSource`, `readsChangesOnly()` true), the engine's settings and a read-only `ErpConnector` (`ZenConnector`).
+- Pages of ZEN's custom API (`<base-url>/api/sat/zsretail/v1.0/companies(<company>)/`): `stockPoints`, read per location
+  with `$filter=locationCode eq '<code>'` and, from a checkpoint, `and lastModifiedDateTime ge <time in UTC>`, no
+  `$select` (so the fields `active` and `vat` are read when the API gives them); `itemCategories`; the barcodes, Happyness's
+  page with `Variant_Code` (`ItemBarCodePOS` by default, to confirm; a page may be given as a whole address).
+- Items: one per row, code `itemNo~variantCode` (`itemNo` alone without a variant); name and description the
+  `itemDescription`; the 14 variant fields (blank as null); brand `brandCode`; family and sub-family `familyCode`,
+  `subFamilyCode`; `publicPrice` before VAT, 0 or none inactive; `active` false inactive, absent active; VAT the row's
+  `vat` when given, else `default-vat`; `lastModifiedAt` from `lastModifiedDateTime` (NAV's 0001-01-01: none); the
+  location's `clearance` (absent: false) and `clearancePrice`. The rows of another location, a blank `itemNo`, a `~` in
+  `itemNo` or `variantCode`, the same item and variant twice are left out. Not used: `barCode` (the barcodes page is
+  read), `stockPointDescription`, `itemCategoryCode`, `baseUnitOfMeasure`, `brandDescription`, `clothingStyleCode`,
+  `cutCode`, `noOfPieces`.
+- The tree by `indentation`: 0 catégories, 1 families (`categoryExternalId` = the parent when it is a catégorie), 2
+  sub-families (left out when the parent is not a family of the read), 3 sections (left out when the parent is not a
+  sub-family of the read); display order `presentationOrder`.
+- Barcodes: the item is `Item_No~Variant_Code`; those of new items are read by `(Item_No eq '..' and Variant_Code eq
+  '..')`, the rows of other variants left out.
+- Tests: `ZenMapperTest` (on the two samples of the API in `connectors/zen/src/test/resources/zen`),
+  `ZenRestClientTest`, `ZenCatalogueSourceTest` (in the project); `ZenStartupCheckTest`, the pinned lists of
+  `ErpConnectorTest`, `OutsideFileUpgradeTest`, `ThirdConnectorTest`, `ErpAbilitiesTest`, `ErpAbilityBeansTest`
+  (network-tests). `ConnectorNamesGuardTest` takes a connector's name as a whole word (no letter or digit around it).
 
 ## Head office catalogue from the ERP pages (`erp.happyness`)
 

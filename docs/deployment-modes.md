@@ -73,11 +73,11 @@ application runs with its profile store only. ...`. `application.standalone` sta
 an old file that named the application's own type kept working; only the other type was refused.
 
 **ERP connector** (code cleanup step 1; since code cleanup step 8 the only way): one line chooses it,
-`erp.connector=none | emtop | happyness` (trimmed, any case), in the installation's outside file. Absent or `none`: no
+`erp.connector=none | emtop | happyness | zen` (trimmed, any case), in the installation's outside file. Absent or `none`: no
 connector. The conditions, the connectors and the startup summary read it (`ErpConnectorEnvironmentPostProcessor.inEffect`).
 `core/config/ErpConnectorEnvironmentPostProcessor` checks it once the configuration files are read: an unknown value
 (an empty `erp.connector=` included) stops the startup, `Invalid value '<v>' for property erp.connector: none | emtop |
-happyness.`
+happyness | zen.`
 
 **The old enabled lines are refused** (code cleanup step 8, decision of 2026-10-11): `erp.dynamicsnav.enabled` and
 `erp.navpospages.enabled`, found in any property source (the outside file, a configuration file, a `-D`, an environment
@@ -99,7 +99,7 @@ Each connector declares its old prefix (`ErpConnectorDescriptor.oldKeyPrefix()`)
 core. The upgrade of an outside file: `docs/deploy-note.md`, "Upgrade from 2.2.2 to 2.3.0: the outside file".
 
 Code cleanup step 5: the values are the customers' names, one connector per customer even when two ERPs look alike:
-`emtop` (EMTOP's Dynamics NAV, keys `erp.emtop.*`) and `happyness` (Happyness's POS pages, keys `erp.happyness.*`);
+`emtop` (EMTOP's Dynamics NAV, keys `erp.emtop.*`), `happyness` (Happyness's POS pages, keys `erp.happyness.*`) and, since 3.1.0, `zen` (ZEN's NAV custom API, keys `erp.zen.*`, below);
 they were `dynamicsnav` and `navpospages`, which no installed file used. The names and `@ConditionalOnErpConnector` are in
 `erp/api` (`ErpConnectors`); erp-api asks the application which connector is in effect through `ErpConnectorResolver`
 (`core/config/ErpConnectorInEffect`, registered in `META-INF/spring.factories`), so it names no key of the application.
@@ -288,6 +288,33 @@ Step 6: the four catalogue import jobs hand the changes only (`docs/modules/head
 and the jobs are enabled on the ERP jobs page (none is switched on by these files). Items of the ERP no longer in the location
 are made inactive at the head office whatever their number; only an empty answer for the location deactivates nothing (a
 warning in the summary). The key `erp.happyness.deactivate-guard-percent` is gone (2026-10-08): since code cleanup step 8 a leftover line stops the startup.
+
+**The connector of ZEN's head office: `erp.zen.*`** (item variants, 3.1.0, step 8; project connectors/zen; GET only, it
+never writes to the ERP). A head office whose catalogue only comes from the ERP (`ownership.catalogue=ERP`), as
+Happyness's. ZEN's NAV gives a custom API, `api/sat/zsretail/v1.0`, with the pages `stockPoints` (one row per location,
+item and variant) and `itemCategories` (the tree catégorie > famille > sous-famille > section), and Happyness's barcode
+page with the variant code. One item per variant, code `itemNo~variantCode`; the rows of a location are read as the
+changes since its checkpoint (`docs/modules/erp-sync.md`, "Items run of changes only"). Its supply invoices come at step 9:
+until then `headoffice.supply.source=ERP` is refused with it.
+
+| Key | Meaning | Default |
+|---|---|---|
+| `erp.zen.base-url` | The NAV instance, e.g. `http://host:7048/ZEN` (the API path and the company follow it) | required |
+| `erp.zen.company` | The company's id in the API (`companies(<id>)`), e.g. `89c8b192-3f2e-f111-9f24-7ced8db3f120` | required |
+| `erp.zen.domain`, `.username`, `.password` | NTLM account (domain may be blank) | username and password required |
+| `erp.zen.default-vat` | The VAT of a row that gives none (the API has no VAT field yet), whole number 0 to 100 | required |
+| `erp.zen.api-path` | The path of the custom API under base-url | `api/sat/zsretail/v1.0` |
+| `erp.zen.page.stock-points`, `.page.categories`, `.page.barcodes` | The pages under `companies(<id>)`, or a whole address (`http...`) for a page published elsewhere | `stockPoints`, `itemCategories`, `ItemBarCodePOS` (the barcodes page name to confirm with ZEN) |
+| `erp.zen.barcode-page-size` | Barcodes per call, 1 to 5000 | `1000` |
+| `erp.zen.connect-timeout-seconds`, `.read-timeout-seconds` | At least 1 | `10`, `60` |
+| `erp.zen.packet-size` | Rows applied per transaction, 1 to 5000 | `500` |
+| `erp.zen.dry-run` | `true` (read, compare, summary only) \| `false` | `false` |
+
+Startup refusals with `erp.connector=zen` (the message names the key): not a head office whose catalogue only comes from
+the ERP; a blank address, company, username or password; an address that is not `http(s)://`; a wrong `default-vat`,
+`barcode-page-size`, `packet-size`, `dry-run` or timeout; a blank `api-path` or page. One INFO line at startup: `ERP
+connector zen (read only, GET): <address>, API <path>, company <id>, pages <three>`; the installation summary shows `NAV
+<address>`.
 
 **Step 9 questions** (tasks 9.1b to 9.1g): `isCatalogueFromErp()`, `isCustomersFromErp()`, `isSupplyFromErp()`, `hasErp()` (some
 owner is the ERP). With the ERP owning all or nothing they answer alike for every configuration that starts, except the

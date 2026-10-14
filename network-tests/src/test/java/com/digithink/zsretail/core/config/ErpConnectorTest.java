@@ -38,8 +38,8 @@ import com.digithink.zsretail.support.Starts;
  */
 class ErpConnectorTest {
 
-	private static final String CHOSEN_BY = " The ERP connector is chosen by erp.connector only (none | emtop | happyness;"
-			+ " no line: none).";
+	private static final String CHOSEN_BY = " The ERP connector is chosen by erp.connector only (none | emtop | happyness"
+			+ " | zen; no line: none).";
 
 	@TempDir
 	Path folder;
@@ -106,6 +106,7 @@ class ErpConnectorTest {
 		assertEquals("emtop", ErpConnectorEnvironmentPostProcessor.inEffect(nav));
 		assertEquals("happyness",
 				ErpConnectorEnvironmentPostProcessor.inEffect(headOfficeWith("erp.connector=Happyness")));
+		assertEquals("zen", ErpConnectorEnvironmentPostProcessor.inEffect(headOfficeWith("erp.connector= ZEN ")));
 		assertEquals("none", ErpConnectorEnvironmentPostProcessor.inEffect(startWith("erp.connector=NONE")));
 		assertEquals("none", ErpConnectorEnvironmentPostProcessor.inEffect(startWith("server.port=1")));
 		List<String> names = new ArrayList<>();
@@ -116,10 +117,10 @@ class ErpConnectorTest {
 	@Test
 	@DisplayName("Unknown value: refused naming the key and the values")
 	void unknown() {
-		assertEquals("Invalid value ' nav ' for property erp.connector: none | emtop | happyness.",
+		assertEquals("Invalid value ' nav ' for property erp.connector: none | emtop | happyness | zen.",
 				refusal(() -> ErpConnectorEnvironmentPostProcessor.inEffect(new MockEnvironment()
 						.withProperty("erp.connector", " nav "))));
-		assertEquals("Invalid value '' for property erp.connector: none | emtop | happyness.",
+		assertEquals("Invalid value '' for property erp.connector: none | emtop | happyness | zen.",
 				refusal(() -> startWith("erp.connector=")));
 	}
 
@@ -264,5 +265,11 @@ class ErpConnectorTest {
 		line = InstallationSummary.summary(pages, NodeOwnership.resolve(pages));
 		assertTrue(line.contains("ERP connector happyness, "), line);
 		assertFalse(line.contains("NAV "), line);
+
+		// Item variants (ZEN), step 8: the address of ZEN's NAV
+		StandardEnvironment zen = headOfficeWith("erp.connector=zen", "ownership.catalogue=ERP",
+				"erp.zen.base-url=http://nav.test:7158/ZEN");
+		line = InstallationSummary.summary(zen, NodeOwnership.resolve(zen));
+		assertTrue(line.contains("ERP connector zen, NAV http://nav.test:7158/ZEN"), line);
 	}
 }

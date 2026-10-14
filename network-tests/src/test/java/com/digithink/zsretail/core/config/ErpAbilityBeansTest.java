@@ -92,13 +92,30 @@ class ErpAbilityBeansTest {
 		assertEquals(3, withBeans.size(), withBeans.toString());
 	}
 
+	@Test
+	@DisplayName("Item variants (ZEN), step 8: the stock point beans with erp.connector=zen, on a head office whose catalogue"
+			+ " only comes from the ERP only")
+	void stockPointBeansWithZen() {
+		Map<String, MockEnvironment> environments = new LinkedHashMap<>();
+		environments.put("catalogue only, erp.connector=zen", chosen(catalogueOnlyHeadOffice(), "zen"));
+		environments.put("catalogue only, erp.connector= ZEN ", catalogueOnlyHeadOffice("erp.connector= ZEN "));
+		environments.put("store, erp.connector=zen", chosen(Installations.type("store"), "zen"));
+		environments.put("head office without an ERP, erp.connector=zen", chosen(Installations.type("headoffice"), "zen"));
+		for (Map.Entry<String, MockEnvironment> entry : environments.entrySet()) {
+			boolean expected = entry.getKey().startsWith("catalogue only");
+			for (Class<?> bean : STOCK_POINT_BEANS) {
+				assertEquals(expected, registered(entry.getValue(), bean), entry.getKey() + " " + bean.getSimpleName());
+			}
+		}
+	}
+
 	/** Every configuration of the repository and the six shapes, plus the connector chosen each way. */
 	private static Map<String, MockEnvironment> configurations() {
 		Map<String, MockEnvironment> environments = new LinkedHashMap<>();
 		Installations.machineFiles().forEach(file -> environments.put(file, Installations.machine(file)));
 		Installations.configFiles().forEach(file -> environments.put(file, Installations.config(file)));
 		Installations.variants().forEach(variant -> environments.put(variant, Installations.preset(variant)));
-		for (String connector : new String[] { "none", "emtop", "happyness" }) {
+		for (String connector : new String[] { "none", "emtop", "happyness", "zen" }) {
 			environments.put("store, erp.connector=" + connector, chosen(Installations.type("store"), connector));
 			environments.put("catalogue only, erp.connector=" + connector,
 					chosen(catalogueOnlyHeadOffice(), connector));
@@ -111,13 +128,14 @@ class ErpAbilityBeansTest {
 	void oneConnector() {
 		List<Class<?>> connectors = Arrays.asList(com.digithink.zsretail.erp.api.NoOpErpConnector.class,
 				com.digithink.zsretail.connector.emtop.connector.DynamicsNavConnector.class,
-				com.digithink.zsretail.connector.happyness.connector.NavPosPagesConnector.class);
+				com.digithink.zsretail.connector.happyness.connector.NavPosPagesConnector.class,
+				com.digithink.zsretail.connector.zen.connector.ZenConnector.class);
 		for (Map.Entry<String, MockEnvironment> entry : configurations().entrySet()) {
 			MockEnvironment env = entry.getValue();
 			String inEffect = ErpConnectorEnvironmentPostProcessor.inEffect(env);
 			// The old conditions, by the connector in effect: DynamicsNavConnector for emtop, NavPosPagesConnector for
-			// happyness, NoOp for none
-			Class<?> expected = connectors.get(Arrays.asList("none", "emtop", "happyness").indexOf(inEffect));
+			// happyness, NoOp for none; item variants (ZEN), step 8: ZenConnector for zen
+			Class<?> expected = connectors.get(Arrays.asList("none", "emtop", "happyness", "zen").indexOf(inEffect));
 			List<Class<?>> present = new ArrayList<>();
 			for (Class<?> connector : connectors) {
 				if (registered(env, connector)) {
@@ -129,7 +147,8 @@ class ErpAbilityBeansTest {
 	}
 
 	@Test
-	@DisplayName("Step 3: the engine, its job, state, head office reads and import exist where the connector happyness puts them")
+	@DisplayName("Step 3: the engine, its job, state, head office reads and import exist where the connectors happyness and"
+			+ " zen put them")
 	void engineBeans() {
 		List<Class<?>> engine = Arrays.asList(com.digithink.zsretail.core.erp.engine.JdbcCatalogueState.class,
 				com.digithink.zsretail.core.erp.engine.JpaHeadOfficeCatalogue.class,
@@ -137,7 +156,8 @@ class ErpAbilityBeansTest {
 				com.digithink.zsretail.core.erp.engine.CatalogueEngine.class, com.digithink.zsretail.core.erp.engine.CatalogueJob.class);
 		List<String> withBeans = new ArrayList<>();
 		for (Map.Entry<String, MockEnvironment> entry : configurations().entrySet()) {
-			boolean expected = "happyness".equals(ErpConnectorEnvironmentPostProcessor.inEffect(entry.getValue()));
+			String inEffect = ErpConnectorEnvironmentPostProcessor.inEffect(entry.getValue());
+			boolean expected = "happyness".equals(inEffect) || "zen".equals(inEffect);
 			if (expected) {
 				withBeans.add(entry.getKey());
 			}
@@ -147,7 +167,8 @@ class ErpAbilityBeansTest {
 		}
 		assertTrue(withBeans.contains("store, erp.connector=happyness"), withBeans.toString());
 		assertTrue(withBeans.contains(Installations.HAPPYNESS_HEAD_OFFICE), withBeans.toString());
-		assertEquals(3, withBeans.size(), withBeans.toString());
+		assertTrue(withBeans.contains("catalogue only, erp.connector=zen"), withBeans.toString());
+		assertEquals(5, withBeans.size(), withBeans.toString());
 	}
 
 	@Test
@@ -159,8 +180,10 @@ class ErpAbilityBeansTest {
 			assertTrue(NodeOwnership.resolve(env).isErpCatalogueOnly());
 			assertTrue(NodeOwnership.isSupplyFromErpSourceSet(env));
 		}
+		// Item variants (ZEN), step 8: zen reads no supply invoice yet (step 9): refused as without a connector
 		for (MockEnvironment env : Arrays.asList(catalogueOnlyHeadOffice(),
-				chosen(catalogueOnlyHeadOffice(), "none"), chosen(catalogueOnlyHeadOffice(), "emtop"))) {
+				chosen(catalogueOnlyHeadOffice(), "none"), chosen(catalogueOnlyHeadOffice(), "emtop"),
+				chosen(catalogueOnlyHeadOffice(), "zen"))) {
 			env.setProperty("headoffice.supply.source", "ERP");
 			String message = org.junit.jupiter.api.Assertions
 					.assertThrows(IllegalStateException.class, () -> NodeOwnership.resolve(env)).getMessage();
