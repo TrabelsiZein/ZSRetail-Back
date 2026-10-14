@@ -33,8 +33,8 @@ import com.digithink.zsretail.connector.zen.dto.ZenStockPointRow;
  */
 class ZenRestClientTest {
 
-	static final String COMPANY = "89c8b192-3f2e-f111-9f24-7ced8db3f120";
-	static final String ROOT = "http://nav.test:7158/ZEN/api/sat/zsretail/v1.0/companies(" + COMPANY + ")/";
+	static final String COMPANY_ID = "89c8b192-3f2e-f111-9f24-7ced8db3f120";
+	static final String ROOT = "http://nav.test:7158/ZEN/api/sat/zsretail/v1.0/companies(" + COMPANY_ID + ")/";
 
 	private ZenProperties properties;
 	private RestTemplate template;
@@ -45,7 +45,8 @@ class ZenRestClientTest {
 	void setUp() {
 		properties = new ZenProperties();
 		properties.setBaseUrl("http://nav.test:7158/ZEN");
-		properties.setCompany(COMPANY);
+		properties.setCompany("ZEN");
+		properties.setCompanyId(COMPANY_ID); // no lookup: see companyByName
 		properties.setUsername("user");
 		properties.setPassword("secret");
 		properties.setDefaultVat(19);
@@ -134,8 +135,41 @@ class ZenRestClientTest {
 				+ "/ZEN/ODataV4/Company('ZEN')/ItemBarCodePOS"));
 		assertEquals(ROOT + "stockPoints", client.pageUrl("stockPoints"));
 		properties.setApiPath("/api/other/v2.0/");
-		assertEquals("http://nav.test:7158/ZEN/api/other/v2.0/companies(" + COMPANY + ")/stockPoints",
-				properties.pageAddress("stockPoints"));
+		assertEquals("http://nav.test:7158/ZEN/api/other/v2.0/companies(" + COMPANY_ID + ")/stockPoints",
+				properties.pageAddress("stockPoints", COMPANY_ID));
+	}
+
+	@Test
+	@DisplayName("Step 10: without company-id, the id is looked up once by the company's name (quote doubled, encoded),"
+			+ " then every page is under companies(id)")
+	void companyByName() {
+		properties.setCompanyId(null);
+		properties.setCompany("ZEN SA'S");
+		server.expect(requestTo("http://nav.test:7158/ZEN/api/sat/zsretail/v1.0/companies?$filter=name%20eq%20'ZEN%20SA''S'"))
+				.andExpect(method(HttpMethod.GET)).andRespond(withSuccess(
+						"{\"value\":[{\"id\":\"" + COMPANY_ID + "\",\"name\":\"ZEN SA'S\"}]}", MediaType.APPLICATION_JSON));
+		server.expect(requestTo(ROOT + "itemCategories")).andRespond(withSuccess("{\"value\":[]}", MediaType.APPLICATION_JSON));
+		server.expect(requestTo(ROOT + "stockPoints?$filter=locationCode%20eq%20'ARGENTE'"))
+				.andRespond(withSuccess("{\"value\":[]}", MediaType.APPLICATION_JSON));
+
+		client.readCategories();
+		client.readStockPoints("ARGENTE", null);
+
+		server.verify(); // one lookup only
+		assertEquals(COMPANY_ID, client.companyId());
+	}
+
+	@Test
+	@DisplayName("Step 10: no company of that name: refused naming it and the two keys")
+	void unknownCompany() {
+		properties.setCompanyId(" ");
+		properties.setCompany("NOBODY");
+		server.expect(requestTo("http://nav.test:7158/ZEN/api/sat/zsretail/v1.0/companies?$filter=name%20eq%20'NOBODY'"))
+				.andRespond(withSuccess("{\"value\":[]}", MediaType.APPLICATION_JSON));
+
+		ZenReadException failed = assertThrows(ZenReadException.class, () -> client.readCategories());
+		assertTrue(failed.getMessage().startsWith("zen: no company named 'NOBODY' in the API"), failed.getMessage());
+		assertTrue(failed.getMessage().endsWith("check erp.zen.company, or set erp.zen.company-id"), failed.getMessage());
 	}
 
 	@Test

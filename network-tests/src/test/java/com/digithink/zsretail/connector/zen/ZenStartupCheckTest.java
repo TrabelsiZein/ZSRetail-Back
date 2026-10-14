@@ -29,7 +29,7 @@ class ZenStartupCheckTest {
 		env.setProperty("ownership.catalogue", "ERP");
 		env.setProperty("erp.connector", "zen");
 		env.setProperty("erp.zen.base-url", BASE_URL);
-		env.setProperty("erp.zen.company", "89c8b192-3f2e-f111-9f24-7ced8db3f120");
+		env.setProperty("erp.zen.company", "ZEN SA");
 		env.setProperty("erp.zen.username", "user");
 		env.setProperty("erp.zen.password", "secret");
 		env.setProperty("erp.zen.default-vat", "19");
@@ -64,7 +64,7 @@ class ZenStartupCheckTest {
 		new ZenStartupCheck(env); // the bean checks and logs
 		String line = ZenStartupCheck.summary(env);
 		assertEquals("ERP connector zen (read only, GET): " + BASE_URL + ", API api/sat/zsretail/v1.0, company"
-				+ " 89c8b192-3f2e-f111-9f24-7ced8db3f120, pages stockPoints, itemCategories, ItemBarCodePOS", line);
+				+ " ZEN SA, pages stockPoints, itemCategories, ItemBarCodePOS", line);
 		assertFalse(line.contains("secret"));
 	}
 
@@ -83,11 +83,22 @@ class ZenStartupCheckTest {
 	@Test
 	@DisplayName("Required keys, the address, the VAT and the numbers: refused naming the key")
 	void refusals() {
-		for (String key : new String[] { "base-url", "company", "username", "password" }) {
+		for (String key : new String[] { "base-url", "username", "password" }) {
 			String expected = "Missing value for property erp.zen." + key + ": required with erp.connector=zen.";
 			assertEquals(expected, refusal(with("erp.zen." + key, "  ")), key + " blank");
 			assertEquals(expected, refusal(with("erp.zen." + key, null)), key + " absent");
 		}
+		// Step 10: the company by its name or by its id; neither: refused
+		String company = "Missing value for property erp.zen.company: the company's name (or its id in the API,"
+				+ " erp.zen.company-id), required with erp.connector=zen.";
+		assertEquals(company, refusal(with("erp.zen.company", " ")));
+		assertEquals(company, refusal(with("erp.zen.company", null)));
+		MockEnvironment byId = with("erp.zen.company", null);
+		byId.setProperty("erp.zen.company-id", "89c8b192-3f2e-f111-9f24-7ced8db3f120");
+		ZenStartupCheck.check(byId);
+		assertEquals("ERP connector zen (read only, GET): " + BASE_URL + ", API api/sat/zsretail/v1.0, company id"
+				+ " 89c8b192-3f2e-f111-9f24-7ced8db3f120, pages stockPoints, itemCategories, ItemBarCodePOS",
+				ZenStartupCheck.summary(byId), "the id is used as it is");
 		assertEquals("Invalid value 'nav.test:7158/ZEN' for property erp.zen.base-url: the address of the NAV instance,"
 				+ " http://host:port/instance", refusal(with("erp.zen.base-url", "nav.test:7158/ZEN")));
 		String vat = "for property erp.zen.default-vat: a whole number from 0 to 100 (the VAT of a row that gives none, e.g. 19)";

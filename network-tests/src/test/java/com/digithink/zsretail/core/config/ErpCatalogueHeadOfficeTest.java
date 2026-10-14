@@ -180,10 +180,11 @@ class ErpCatalogueHeadOfficeTest {
 		String line = InstallationSummary.summary(env, NodeOwnership.resolve(env));
 		assertTrue(line.contains("catalogue ERP, customers LOCAL"), line);
 		assertTrue(line.contains(phrase), line);
-		// configs/: only the Happyness head office (configs/customers since 2026-10-11), the real example, says it
+		// configs/: only the Happyness head office (configs/customers since 2026-10-11), the real example, says it; item
+		// variants (ZEN), step 10: and the ZEN head office, the same combination
 		for (String machine : Installations.machineFiles()) {
 			MockEnvironment other = Installations.machine(machine);
-			assertEquals(machine.equals(ModeQuestionTruthTableTest.HAPPYNESS_HEAD_OFFICE),
+			assertEquals(Installations.ERP_CATALOGUE_HEAD_OFFICES.contains(machine),
 					InstallationSummary.summary(other, NodeOwnership.resolve(other)).contains(phrase), machine);
 		}
 		// configs/: only the Happyness head office, the real example of this mode, says it

@@ -47,6 +47,16 @@ public final class Installations {
 	 */
 	public static final String HAPPYNESS_HEAD_OFFICE = "customers/happyness-headoffice.properties";
 
+	/**
+	 * Item variants (ZEN), step 10: the ZEN head office, configured as the Happyness head office with the connector zen;
+	 * its supply source stays HEAD_OFFICE until step 9 (zen does not read the ERP's invoices yet).
+	 */
+	public static final String ZEN_HEAD_OFFICE = "customers/zen-headoffice.properties";
+
+	/** The files of configs/ of a head office whose catalogue only comes from the ERP: Happyness's and ZEN's. */
+	public static final java.util.List<String> ERP_CATALOGUE_HEAD_OFFICES = java.util.Arrays.asList(HAPPYNESS_HEAD_OFFICE,
+			ZEN_HEAD_OFFICE);
+
 	/** configs/local: the files of this PC's installations, checked as committed (ERP catalogue, step 1). */
 	static final String LOCAL = "local/";
 

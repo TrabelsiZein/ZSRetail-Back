@@ -18,7 +18,10 @@ This folder holds every such file of the repository (code cleanup step 7: deploy
   dev\                       this PC's dev instances (store A, store B, store C, the dev head office, with NAV)
   rehearsal\                 the rehearsal pair (devenv\rehearsal.ps1)
   customers\                 customers' values without their passwords; happyness-headoffice: the Happyness head
-                             office (catalogue only from the ERP, its stores' invoices from the ERP, no stock)
+                             office (catalogue only from the ERP, its stores' invoices from the ERP, no stock);
+                             zen-headoffice and zen-store (3.1.0): the ZEN head office, configured as Happyness's with
+                             erp.connector=zen (supply HEAD_OFFICE until step 9 of the item variants), and a store of
+                             its network (erp.connector=none), every value a CHANGE_ME placeholder
   happyness-from-scratch\    the Happyness franchise as first set up on this PC on 2026-10-04: a head office and two
                              stores without the ERP catalogue (ports 889, 557, 558)
   local\                     this PC's own files (e.g. test_happyness_ho.properties), never committed since

@@ -272,9 +272,10 @@ class HeadOfficeErpCatalogueRecorderTest {
 		assertFalse(registered(Installations.preset("headoffice-erp")), "head office with the full ERP");
 		assertFalse(registered(Installations.type("store")), "store");
 		assertFalse(registered(Installations.preset("store-erp")), "ERP store");
-		// The Happyness head office (configs/customers since 2026-10-11) has it; no other file of configs/
+		// The Happyness head office (configs/customers since 2026-10-11) has it; item variants (ZEN), step 10: and the ZEN
+		// head office; no other file of configs/
 		for (String machine : Installations.machineFiles()) {
-			assertEquals(machine.equals(Installations.HAPPYNESS_HEAD_OFFICE),
+			assertEquals(Installations.ERP_CATALOGUE_HEAD_OFFICES.contains(machine),
 					registered(Installations.machine(machine)), "configs/" + machine);
 		}
 		for (String config : Installations.configFiles()) {

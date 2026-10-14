@@ -156,9 +156,10 @@ class HeadOfficeErpCatalogueFilterTest {
 			}
 			assertFalse(registered(env), "variant " + variant);
 		}
-		// configs/: only the Happyness head office (configs/customers since 2026-10-11) has the filter
+		// configs/: only the Happyness head office (configs/customers since 2026-10-11) has the filter; item variants (ZEN),
+		// step 10: and the ZEN head office, the same combination
 		for (String machine : Installations.machineFiles()) {
-			assertEquals(machine.equals(ModeQuestionTruthTableTest.HAPPYNESS_HEAD_OFFICE),
+			assertEquals(Installations.ERP_CATALOGUE_HEAD_OFFICES.contains(machine),
 					registered(Installations.machine(machine)), "configs/" + machine);
 		}
 		// configs/: only the Happyness head office, the real example of this mode, has the filter

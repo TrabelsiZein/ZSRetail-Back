@@ -111,18 +111,23 @@ class ErpAbilitiesTest {
 		assertTrue(machines.size() + configs.size() > 10);
 		int withPages = 0;
 		int withNav = 0;
+		int withZen = 0;
 		for (int i = 0; i < machines.size() + configs.size(); i++) {
 			String name = i < machines.size() ? machines.get(i) : configs.get(i - machines.size());
 			MockEnvironment env = i < machines.size() ? Installations.machine(name) : Installations.config(name);
 			boolean pages = "happyness".equals(lineOf(env));
 			boolean nav = "emtop".equals(lineOf(env));
+			// Item variants (ZEN), step 10: the ZEN head office has the points de stock, not yet the supply invoices
+			boolean zen = "zen".equals(lineOf(env));
 			withPages += pages ? 1 : 0;
 			withNav += nav ? 1 : 0;
-			assertEquals(pages, ErpAbilities.has(env, ErpAbility.HEAD_OFFICE_STOCK_POINTS), name);
+			withZen += zen ? 1 : 0;
+			assertEquals(pages || zen, ErpAbilities.has(env, ErpAbility.HEAD_OFFICE_STOCK_POINTS), name);
 			assertEquals(pages, ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES), name);
-			assertEquals(nav || pages, ErpAbilities.hasConnector(env), name);
+			assertEquals(nav || pages || zen, ErpAbilities.hasConnector(env), name);
 		}
 		assertEquals(1, withPages, "the Happyness head office of configs/customers");
 		assertEquals(4, withNav, "the NAV files of configs/dev and configs/customers");
+		assertEquals(1, withZen, "the ZEN head office of configs/customers");
 	}
 }

@@ -134,9 +134,10 @@ class ModeQuestionTruthTableTest {
 				fail(installation.getKey() + " does not start");
 			}
 			// The Happyness head office is the real example of the new head office combination (ERP catalogue, step 5),
-			// checked against its answers; every other installation is checked against the old answers
-			assertEquals(installation.getKey().equals("machine " + HAPPYNESS_HEAD_OFFICE), catalogueOnly(ownership),
-					installation.getKey());
+			// checked against its answers; every other installation is checked against the old answers. Item variants
+			// (ZEN), step 10: the ZEN head office is the same combination
+			assertEquals(Installations.ERP_CATALOGUE_HEAD_OFFICES.stream().anyMatch(
+					file -> installation.getKey().equals("machine " + file)), catalogueOnly(ownership), installation.getKey());
 			// Invoices from the ERP: the Happyness head office is also the only one whose supply source is the ERP
 			assertEquals(installation.getKey().equals("machine " + HAPPYNESS_HEAD_OFFICE),
 					NodeOwnership.isSupplyFromErpSourceSet(installation.getValue()), installation.getKey());

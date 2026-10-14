@@ -24,6 +24,7 @@ import com.digithink.zsretail.connector.zen.config.ZenProperties;
 import com.digithink.zsretail.connector.zen.dto.ZenBarcodeRow;
 import com.digithink.zsretail.connector.zen.dto.ZenCategoryRow;
 import com.digithink.zsretail.connector.zen.dto.ZenCollection;
+import com.digithink.zsretail.connector.zen.dto.ZenCompanyRow;
 import com.digithink.zsretail.connector.zen.dto.ZenStockPointRow;
 import com.digithink.zsretail.connector.zen.mapper.ZenMapper;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
@@ -35,14 +36,20 @@ import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
  * ignored, and active and vat are read when the API gives them. The barcodes are read one page per call, after an
  * entry number, the caller asking again from the highest Entry_No received; those of some items by Item_No and
  * Variant_Code. An HTTP error, a timeout or no answer throws {@link ZenReadException} naming the page and the status.
- * No retry.
+ * No retry. Step 10: every page is under companies(id) of the custom API; the id is erp.zen.company-id, or looked up once
+ * by the company's name ({@link #companyId()}).
  */
 @Component
 @ConditionalOnErpConnector(ZenConnectorDescriptor.NAME)
 public class ZenRestClient implements ZenSource {
 
+	/** Step 10: the page of the companies of the API, read to find the id of company (the name). */
+	static final String COMPANIES = "companies";
+
 	private final RestTemplate restTemplate;
 	private final ZenProperties properties;
+	/** Step 10: the company's id, from company-id or looked up once by name, kept until the application stops. */
+	private volatile String companyId;
 
 	public ZenRestClient(@Qualifier(ZenConfig.REST_TEMPLATE) RestTemplate restTemplate, ZenProperties properties) {
 		this.restTemplate = restTemplate;
@@ -123,8 +130,40 @@ public class ZenRestClient implements ZenSource {
 		return page(page).build().toUriString();
 	}
 
+	/** A page under companies(id) (the id found first), or a whole address as it is (no lookup). */
 	private UriComponentsBuilder page(String page) {
-		return UriComponentsBuilder.fromHttpUrl(properties.pageAddress(page));
+		String name = page == null ? "" : page.trim();
+		boolean whole = name.startsWith("http://") || name.startsWith("https://");
+		return UriComponentsBuilder.fromHttpUrl(properties.pageAddress(page, whole ? null : companyId()));
+	}
+
+	/**
+	 * Step 10: the company's id in the API: company-id when set (no call); else looked up once by company (the name),
+	 * GET api-path/companies?$filter=name eq '<name>' (a quote doubled, the address encoded as for Happyness), then kept.
+	 * No company of that name: {@link ZenReadException} naming it.
+	 */
+	public String companyId() {
+		String known = companyId;
+		if (known != null) {
+			return known;
+		}
+		String configured = properties.getCompanyId() == null ? "" : properties.getCompanyId().trim();
+		if (!configured.isEmpty()) {
+			companyId = configured;
+			return configured;
+		}
+		String name = properties.getCompany() == null ? "" : properties.getCompany().trim();
+		URI uri = UriComponentsBuilder.fromHttpUrl(properties.apiAddress() + COMPANIES)
+				.queryParam("$filter", "name eq '" + quoted(name) + "'").build().encode().toUri();
+		ZenCollection<ZenCompanyRow> body = get(COMPANIES, uri, new ParameterizedTypeReference<ZenCollection<ZenCompanyRow>>() {
+		});
+		List<ZenCompanyRow> rows = body == null || body.getValue() == null ? new ArrayList<>() : body.getValue();
+		if (rows.isEmpty() || rows.get(0).getId() == null || rows.get(0).getId().trim().isEmpty()) {
+			throw new ZenReadException(COMPANIES, "zen: no company named '" + name + "' in the API (" + uri
+					+ "): check erp.zen.company, or set erp.zen.company-id", null);
+		}
+		companyId = rows.get(0).getId().trim();
+		return companyId;
 	}
 
 	private <T> List<T> readAll(String page, URI first, ParameterizedTypeReference<ZenCollection<T>> type) {

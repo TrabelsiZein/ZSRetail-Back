@@ -170,6 +170,7 @@ from the type file, a file states the mode lines that preset gave, so every key 
 | `customers/store-prod.properties` | `store` | the customer without an ERP |
 | `happyness-from-scratch/headoffice.properties`, `store-1.properties`, `store-2.properties` | `headoffice`, `store` + the network lines | the Happyness franchise first set up on this PC (889, 557, 558), without the ERP catalogue |
 | `customers/happyness-headoffice.properties` | `headoffice` + the catalogue only from the ERP, `erp.connector=happyness`, invoices from the ERP, no stock | the Happyness head office (was `local/happyness_ho.properties`, its own PC file, until 2026-10-11; `configs/local` is no longer in the repository) |
+| `customers/zen-headoffice.properties`, `customers/zen-store.properties` (3.1.0, item variants step 10) | `headoffice` as the Happyness head office with `erp.connector=zen` (supply `HEAD_OFFICE` until step 9), `store` + the network lines with `erp.connector=none` | the ZEN head office and a store of its network, placeholders (`CHANGE_ME`) |
 
 "The NAV lines": catalogue, customers, supply `ERP`, sales to `ERP`, `erp.connector=emtop`. "The network lines": catalogue and supply
 `HEAD_OFFICE`, sales to `HEAD_OFFICE`.
@@ -300,7 +301,8 @@ until then `headoffice.supply.source=ERP` is refused with it.
 | Key | Meaning | Default |
 |---|---|---|
 | `erp.zen.base-url` | The NAV instance, e.g. `http://host:7048/ZEN` (the API path and the company follow it) | required |
-| `erp.zen.company` | The company's id in the API (`companies(<id>)`), e.g. `89c8b192-3f2e-f111-9f24-7ced8db3f120` | required |
+| `erp.zen.company` | The company's name, as for Happyness; its id in the API (`companies(<id>)`) is looked up once by `GET <api>/companies?$filter=name eq '<name>'` and kept until the application stops (step 10) | required unless `company-id` is set |
+| `erp.zen.company-id` | Optional: the company's id in the API, e.g. `89c8b192-3f2e-f111-9f24-7ced8db3f120`; when set it is used as it is and nothing is looked up (it wins over `company`) | — |
 | `erp.zen.domain`, `.username`, `.password` | NTLM account (domain may be blank) | username and password required |
 | `erp.zen.default-vat` | The VAT of a row that gives none (the API has no VAT field yet), whole number 0 to 100 | required |
 | `erp.zen.api-path` | The path of the custom API under base-url | `api/sat/zsretail/v1.0` |
@@ -311,9 +313,9 @@ until then `headoffice.supply.source=ERP` is refused with it.
 | `erp.zen.dry-run` | `true` (read, compare, summary only) \| `false` | `false` |
 
 Startup refusals with `erp.connector=zen` (the message names the key): not a head office whose catalogue only comes from
-the ERP; a blank address, company, username or password; an address that is not `http(s)://`; a wrong `default-vat`,
+the ERP; a blank address, username or password; neither a company nor a company id; an address that is not `http(s)://`; a wrong `default-vat`,
 `barcode-page-size`, `packet-size`, `dry-run` or timeout; a blank `api-path` or page. One INFO line at startup: `ERP
-connector zen (read only, GET): <address>, API <path>, company <id>, pages <three>`; the installation summary shows `NAV
+connector zen (read only, GET): <address>, API <path>, company <name> (or `company id <id>`), pages <three>`; the installation summary shows `NAV
 <address>`.
 
 **Step 9 questions** (tasks 9.1b to 9.1g): `isCatalogueFromErp()`, `isCustomersFromErp()`, `isSupplyFromErp()`, `hasErp()` (some

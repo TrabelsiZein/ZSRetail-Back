@@ -282,7 +282,8 @@ class MachineFileTest {
 				headOffices.add(file);
 			}
 		}
-		assertEquals(Arrays.asList("customers/happyness-headoffice.properties", "dev/headoffice-erp.properties",
+		assertEquals(Arrays.asList("customers/happyness-headoffice.properties", "customers/zen-headoffice.properties",
+				"dev/headoffice-erp.properties",
 				"dev/headoffice.properties",
 				"happyness-from-scratch/headoffice.properties", "rehearsal/headoffice.properties"), headOffices);
 		assertEquals("headoffice", Installations.typeOf("local/test_happyness_ho.properties"));

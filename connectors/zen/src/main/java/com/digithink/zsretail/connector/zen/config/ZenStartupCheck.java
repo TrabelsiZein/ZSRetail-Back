@@ -38,11 +38,16 @@ public class ZenStartupCheck {
 					+ " only comes from the ERP (the head office application, ownership.catalogue=ERP, ownership.customers"
 					+ " and ownership.supply not ERP).");
 		}
-		for (String key : new String[] { "base-url", "company", "username", "password" }) {
+		for (String key : new String[] { "base-url", "username", "password" }) {
 			if (trimmed(env.getProperty(P + key)).isEmpty()) {
 				throw new IllegalStateException("Missing value for property " + P + key + ": required with erp.connector="
 						+ ZenConnectorDescriptor.NAME + ".");
 			}
+		}
+		// Step 10: the company by its name (its id looked up once) or by its id
+		if (trimmed(env.getProperty(P + "company")).isEmpty() && trimmed(env.getProperty(P + "company-id")).isEmpty()) {
+			throw new IllegalStateException("Missing value for property " + P + "company: the company's name (or its id"
+					+ " in the API, " + P + "company-id), required with erp.connector=" + ZenConnectorDescriptor.NAME + ".");
 		}
 		String baseUrl = trimmed(env.getProperty(P + "base-url"));
 		if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
@@ -78,10 +83,16 @@ public class ZenStartupCheck {
 	public static String summary(PropertyResolver env) {
 		return "ERP connector " + ZenConnectorDescriptor.NAME + " (read only, GET): "
 				+ trimmed(env.getProperty(P + "base-url")) + ", API " + env.getProperty(P + "api-path", "api/sat/zsretail/v1.0")
-				+ ", company " + trimmed(env.getProperty(P + "company")) + ", pages "
+				+ ", company " + company(env) + ", pages "
 				+ env.getProperty(P + "page.stock-points", "stockPoints") + ", "
 				+ env.getProperty(P + "page.categories", "itemCategories") + ", "
 				+ env.getProperty(P + "page.barcodes", "ItemBarCodePOS");
+	}
+
+	/** The company as the reads find it: "id <id>" when company-id is set (used as it is), else its name. */
+	private static String company(PropertyResolver env) {
+		String id = trimmed(env.getProperty(P + "company-id"));
+		return id.isEmpty() ? trimmed(env.getProperty(P + "company")) : "id " + id;
 	}
 
 	/** When present, a whole number from min to max. */

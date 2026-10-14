@@ -31,8 +31,13 @@ public class ZenProperties {
 	private String baseUrl;
 	/** The path of the custom API under base-url. */
 	private String apiPath = "api/sat/zsretail/v1.0";
-	/** The company's id in the API (companies(id)), e.g. 89c8b192-3f2e-f111-9f24-7ced8db3f120. */
+	/**
+	 * The company's name, as for Happyness. Step 10: its id in the API (companies(id)) is looked up once by this name,
+	 * unless company-id is set.
+	 */
 	private String company;
+	/** Step 10, optional: the company's id in the API (companies(id)); when set, used as it is, no lookup by name. */
+	private String companyId;
 	private String domain;
 	private String username;
 	private String password;
@@ -63,24 +68,28 @@ public class ZenProperties {
 		private String barcodes = "ItemBarCodePOS";
 	}
 
-	/** base-url / api-path / companies(company) / page; a page written as a whole address as it is. */
-	public String pageAddress(String page) {
+	/** base-url / api-path / companies(companyId) / page; a page written as a whole address as it is. */
+	public String pageAddress(String page, String companyId) {
 		String name = page == null ? "" : page.trim();
 		if (name.startsWith("http://") || name.startsWith("https://")) {
 			return name;
 		}
-		return companyAddress() + name;
+		return companyAddress(companyId) + name;
 	}
 
-	/** base-url / api-path / companies(company) / */
-	public String companyAddress() {
+	/** base-url / api-path / companies(companyId) / */
+	public String companyAddress(String companyId) {
+		return apiAddress() + "companies(" + trimmed(companyId) + ")/";
+	}
+
+	/** Step 10: base-url / api-path / (the companies of the API are listed there). */
+	public String apiAddress() {
 		String base = trimmed(baseUrl);
 		String path = trimmed(apiPath);
 		while (path.startsWith("/")) {
 			path = path.substring(1);
 		}
-		return (base.endsWith("/") ? base : base + "/") + (path.isEmpty() ? "" : path.endsWith("/") ? path : path + "/")
-				+ "companies(" + trimmed(company) + ")/";
+		return (base.endsWith("/") ? base : base + "/") + (path.isEmpty() ? "" : path.endsWith("/") ? path : path + "/");
 	}
 
 	private static String trimmed(String value) {

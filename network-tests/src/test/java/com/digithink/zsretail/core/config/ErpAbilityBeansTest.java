@@ -65,7 +65,9 @@ class ErpAbilityBeansTest {
 	@DisplayName("Same stock point beans as before in every configuration")
 	void sameBeans() {
 		Map<String, MockEnvironment> environments = new LinkedHashMap<>();
-		Installations.machineFiles().forEach(file -> environments.put(file, Installations.machine(file)));
+		// The ZEN head office (step 10) came after the old conditions: its beans are checked in stockPointBeansWithZen
+		Installations.machineFiles().stream().filter(file -> !file.equals(Installations.ZEN_HEAD_OFFICE))
+				.forEach(file -> environments.put(file, Installations.machine(file)));
 		Installations.configFiles().forEach(file -> environments.put(file, Installations.config(file)));
 		Installations.variants().forEach(variant -> environments.put(variant, Installations.preset(variant)));
 		environments.put("catalogue only, no connector", catalogueOnlyHeadOffice());
@@ -101,6 +103,8 @@ class ErpAbilityBeansTest {
 		environments.put("catalogue only, erp.connector= ZEN ", catalogueOnlyHeadOffice("erp.connector= ZEN "));
 		environments.put("store, erp.connector=zen", chosen(Installations.type("store"), "zen"));
 		environments.put("head office without an ERP, erp.connector=zen", chosen(Installations.type("headoffice"), "zen"));
+		// Step 10: the ZEN head office of configs/customers
+		environments.put("catalogue only, " + Installations.ZEN_HEAD_OFFICE, Installations.machine(Installations.ZEN_HEAD_OFFICE));
 		for (Map.Entry<String, MockEnvironment> entry : environments.entrySet()) {
 			boolean expected = entry.getKey().startsWith("catalogue only");
 			for (Class<?> bean : STOCK_POINT_BEANS) {
@@ -168,7 +172,8 @@ class ErpAbilityBeansTest {
 		assertTrue(withBeans.contains("store, erp.connector=happyness"), withBeans.toString());
 		assertTrue(withBeans.contains(Installations.HAPPYNESS_HEAD_OFFICE), withBeans.toString());
 		assertTrue(withBeans.contains("catalogue only, erp.connector=zen"), withBeans.toString());
-		assertEquals(5, withBeans.size(), withBeans.toString());
+		assertTrue(withBeans.contains(Installations.ZEN_HEAD_OFFICE), withBeans.toString());
+		assertEquals(6, withBeans.size(), withBeans.toString());
 	}
 
 	@Test

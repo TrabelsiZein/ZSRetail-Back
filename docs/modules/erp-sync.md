@@ -355,7 +355,7 @@ Project `connectors/zen` (`com.digithink.zsretail.connector.zen`), built like `c
 (`ZenProperties`, checked by `ZenStartupCheck`; keys in `docs/deployment-modes.md`), an NTLM client refusing anything but
 GET (`ZenConfig`, `ZenRestClient`, following `@odata.nextLink`), the mapper (`ZenMapper`), the source the engine reads
 (`ZenCatalogueSource`, `readsChangesOnly()` true), the engine's settings and a read-only `ErpConnector` (`ZenConnector`).
-- Pages of ZEN's custom API (`<base-url>/api/sat/zsretail/v1.0/companies(<company>)/`): `stockPoints`, read per location
+- Pages of ZEN's custom API (`<base-url>/api/sat/zsretail/v1.0/companies(<id>)/`, the id `erp.zen.company-id` or looked up once by the company's name `erp.zen.company`, step 10): `stockPoints`, read per location
   with `$filter=locationCode eq '<code>'` and, from a checkpoint, `and lastModifiedDateTime ge <time in UTC>`, no
   `$select` (so the fields `active` and `vat` are read when the API gives them); `itemCategories`; the barcodes, Happyness's
   page with `Variant_Code` (`ItemBarCodePOS` by default, to confirm; a page may be given as a whole address).
