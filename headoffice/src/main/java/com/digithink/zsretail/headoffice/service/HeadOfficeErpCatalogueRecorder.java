@@ -86,6 +86,18 @@ public class HeadOfficeErpCatalogueRecorder {
 		return importAndRecord(call, CatalogueKind.SUBFAMILY);
 	}
 
+	/** Item variants (ZEN), step 7: the catégories, recorded for every store as the families. */
+	@Around("execution(* com.digithink.zsretail.core.erp.service.ErpItemBootstrapService.importItemCategories(..))")
+	public Object categories(ProceedingJoinPoint call) throws Throwable {
+		return importAndRecord(call, CatalogueKind.CATEGORY);
+	}
+
+	/** Item variants (ZEN), step 7: the sections, recorded for every store as the sub-families. */
+	@Around("execution(* com.digithink.zsretail.core.erp.service.ErpItemBootstrapService.importItemSections(..))")
+	public Object sections(ProceedingJoinPoint call) throws Throwable {
+		return importAndRecord(call, CatalogueKind.SECTION);
+	}
+
 	@Around("execution(* com.digithink.zsretail.core.erp.service.ErpItemBootstrapService.importItems(..))")
 	public Object items(ProceedingJoinPoint call) throws Throwable {
 		return importAndRecord(call, CatalogueKind.ITEM);

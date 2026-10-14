@@ -13,20 +13,26 @@ import org.springframework.stereotype.Component;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.link.dto.CatalogueBarcodeCopyDTO;
+import com.digithink.zsretail.core.link.dto.CatalogueCategoryCopyDTO;
 import com.digithink.zsretail.core.link.dto.CatalogueFamilyCopyDTO;
 import com.digithink.zsretail.core.link.dto.CatalogueItemCopyDTO;
+import com.digithink.zsretail.core.link.dto.CatalogueSectionCopyDTO;
 import com.digithink.zsretail.core.link.dto.CatalogueSubFamilyCopyDTO;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ItemBarcode;
+import com.digithink.zsretail.core.model.ItemCategory;
 import com.digithink.zsretail.core.model.ItemComposition;
 import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
+import com.digithink.zsretail.core.repository.ItemCategoryRepository;
 import com.digithink.zsretail.core.repository.ItemCompositionRepository;
 import com.digithink.zsretail.core.repository.ItemFamilyRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.ItemSectionRepository;
 import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
 
 import lombok.Getter;
@@ -57,14 +63,73 @@ public class CatalogueCopyWriter {
 	private final ItemRepository items;
 	private final ItemBarcodeRepository barcodes;
 	private final ItemCompositionRepository compositions;
+	/** Item variants (ZEN), step 7. */
+	private final ItemCategoryRepository categories;
+	private final ItemSectionRepository sections;
 
 	public CatalogueCopyWriter(ItemFamilyRepository families, ItemSubFamilyRepository subFamilies, ItemRepository items,
-			ItemBarcodeRepository barcodes, ItemCompositionRepository compositions) {
+			ItemBarcodeRepository barcodes, ItemCompositionRepository compositions, ItemCategoryRepository categories,
+			ItemSectionRepository sections) {
 		this.families = families;
 		this.subFamilies = subFamilies;
 		this.items = items;
 		this.barcodes = barcodes;
 		this.compositions = compositions;
+		this.categories = categories;
+		this.sections = sections;
+	}
+
+	// ─── Catégories and sections (item variants, ZEN, step 7) ────
+
+	/** A catégorie by code: created or updated, never deleted; never waits. */
+	public Outcome saveCategory(CatalogueCategoryCopyDTO copy) {
+		Optional<ItemCategory> found = categories.findByCode(copy.getCode());
+		if (found.isPresent() && isHeadOffice(found.get().getOrigin())
+				&& CatalogueCategoryCopyDTO.of(found.get()).equals(copy)) {
+			return Outcome.unchanged();
+		}
+		ItemCategory category = found.orElseGet(ItemCategory::new);
+		category.setCode(copy.getCode());
+		category.setName(copy.getName());
+		category.setDescription(copy.getDescription());
+		category.setDisplayOrder(copy.getDisplayOrder());
+		category.setActive(!Boolean.FALSE.equals(copy.getActive()));
+		if (category.getId() == null) {
+			category.setOrigin(RecordOrigin.HEAD_OFFICE);
+			category.setCreatedBy(RecordOrigin.HEAD_OFFICE.name());
+		}
+		category.setUpdatedBy(RecordOrigin.HEAD_OFFICE.name());
+		ItemCategory saved = categories.save(category);
+		if (!isHeadOffice(saved.getOrigin())) {
+			categories.setOrigin(saved.getId(), RecordOrigin.HEAD_OFFICE);
+		}
+		return Outcome.written(null);
+	}
+
+	/** A section by code, its sub-family by code only: created or updated, never deleted; never waits. */
+	public Outcome saveSection(CatalogueSectionCopyDTO copy) {
+		Optional<ItemSection> found = sections.findByCode(copy.getCode());
+		if (found.isPresent() && isHeadOffice(found.get().getOrigin())
+				&& CatalogueSectionCopyDTO.of(found.get()).equals(copy)) {
+			return Outcome.unchanged();
+		}
+		ItemSection section = found.orElseGet(ItemSection::new);
+		section.setCode(copy.getCode());
+		section.setName(copy.getName());
+		section.setDescription(copy.getDescription());
+		section.setDisplayOrder(copy.getDisplayOrder());
+		section.setSubFamilyCode(copy.getSubFamilyCode());
+		section.setActive(!Boolean.FALSE.equals(copy.getActive()));
+		if (section.getId() == null) {
+			section.setOrigin(RecordOrigin.HEAD_OFFICE);
+			section.setCreatedBy(RecordOrigin.HEAD_OFFICE.name());
+		}
+		section.setUpdatedBy(RecordOrigin.HEAD_OFFICE.name());
+		ItemSection saved = sections.save(section);
+		if (!isHeadOffice(saved.getOrigin())) {
+			sections.setOrigin(saved.getId(), RecordOrigin.HEAD_OFFICE);
+		}
+		return Outcome.written(null);
 	}
 
 	// ─── Families and sub-families ───────────────────────────────
@@ -80,6 +145,7 @@ public class CatalogueCopyWriter {
 		family.setName(copy.getName());
 		family.setDescription(copy.getDescription());
 		family.setDisplayOrder(copy.getDisplayOrder());
+		family.setCategoryCode(copy.getCategoryCode()); // item variants (ZEN), step 7: by code only
 		family.setActive(!Boolean.FALSE.equals(copy.getActive()));
 		if (family.getId() == null) {
 			family.setOrigin(RecordOrigin.HEAD_OFFICE);
@@ -171,7 +237,25 @@ public class CatalogueCopyWriter {
 		item.setDefaultVAT(copy.getDefaultVAT());
 		item.setUnitOfMeasure(copy.getUnitOfMeasure());
 		item.setCategory(copy.getCategory());
-		item.setBrand(copy.getBrand());
+		// Item variants (ZEN), step 7: the brand only when the head office gives one (a blank never erases it), the 14
+		// variant fields always, as the head office's import writes them (null stays null)
+		if (hasText(copy.getBrand())) {
+			item.setBrand(copy.getBrand());
+		}
+		item.setNavItemNo(copy.getNavItemNo());
+		item.setVariantCode(copy.getVariantCode());
+		item.setVariantDescription(copy.getVariantDescription());
+		item.setSizeCode(copy.getSizeCode());
+		item.setSizeDescription(copy.getSizeDescription());
+		item.setSizeSortOrder(copy.getSizeSortOrder());
+		item.setColorCode(copy.getColorCode());
+		item.setColorDescription(copy.getColorDescription());
+		item.setChoiceCode(copy.getChoiceCode());
+		item.setChoiceDescription(copy.getChoiceDescription());
+		item.setSeasonCode(copy.getSeasonCode());
+		item.setDivisionCode(copy.getDivisionCode());
+		item.setCategoryCode(copy.getCategoryCode());
+		item.setSectionCode(copy.getSectionCode());
 		item.setItemDiscGroup(copy.getItemDiscGroup());
 		item.setMaximumAuthorizedDiscount(copy.getMaximumAuthorizedDiscount());
 		item.setShowInPos(!Boolean.FALSE.equals(copy.getShowInPos()));
@@ -214,6 +298,9 @@ public class CatalogueCopyWriter {
 		}
 		CatalogueItemCopyDTO current = CatalogueItemCopyDTO.of(item, item.getHeadOfficePrice(),
 				compositions.findByParentItemId(item.getId()));
+		if (!hasText(copy.getBrand())) {
+			current.setBrand(copy.getBrand()); // a blank brand is not written: not a difference (step 7)
+		}
 		return current.equals(copy) && (copy.getBarcode() == null || !legacyBarcodeElsewhere(copy.getBarcode(), item));
 	}
 
@@ -328,6 +415,20 @@ public class CatalogueCopyWriter {
 	 */
 	public boolean remove(CatalogueKind kind, String code) {
 		switch (kind) {
+			case CATEGORY:
+				return categories.findByCode(code).filter(c -> isHeadOffice(c.getOrigin()) && isActive(c.getActive()))
+						.map(c -> {
+							c.setActive(false);
+							categories.save(c);
+							return true;
+						}).orElse(false);
+			case SECTION:
+				return sections.findByCode(code).filter(s -> isHeadOffice(s.getOrigin()) && isActive(s.getActive()))
+						.map(s -> {
+							s.setActive(false);
+							sections.save(s);
+							return true;
+						}).orElse(false);
 			case FAMILY:
 				return families.findByCode(code).filter(f -> isHeadOffice(f.getOrigin()) && isActive(f.getActive()))
 						.map(f -> {
@@ -385,6 +486,10 @@ public class CatalogueCopyWriter {
 
 	private static boolean isHeadOffice(RecordOrigin origin) {
 		return origin == RecordOrigin.HEAD_OFFICE;
+	}
+
+	private static boolean hasText(String value) {
+		return value != null && !value.trim().isEmpty();
 	}
 
 	private static boolean isActive(Boolean active) {

@@ -73,7 +73,8 @@ class StoreCatalogueGuardTest {
 				(method, args) -> "countOnItemsOfOrigin".equals(method) && args[0] == RecordOrigin.HEAD_OFFICE ? 3L
 						: UNHANDLED);
 		CatalogueCopyWriter writer = new CatalogueCopyWriter(store.familyRepository(), store.subFamilyRepository(),
-				store.itemRepository(), store.barcodeRepository(), store.compositionRepository());
+				store.itemRepository(), store.barcodeRepository(), store.compositionRepository(), store.categoryRepository(),
+					store.sectionRepository());
 		return new StoreCatalogueGuard(catalogueRights, store.itemRepository(), store.familyRepository(),
 				store.subFamilyRepository(), store.barcodeRepository(), salesPrices, writer, new HeadOfficeLinkStatus());
 	}

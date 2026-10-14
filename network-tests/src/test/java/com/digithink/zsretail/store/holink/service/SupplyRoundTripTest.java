@@ -166,7 +166,8 @@ class SupplyRoundTripTest {
 		};
 		HeadOfficeClient client = new HeadOfficeClient(rest, setup, URL, "key", "2.1.0");
 		CatalogueCopyWriter writer = new CatalogueCopyWriter(db.familyRepository(), db.subFamilyRepository(),
-				db.itemRepository(), db.barcodeRepository(), db.compositionRepository());
+				db.itemRepository(), db.barcodeRepository(), db.compositionRepository(), db.categoryRepository(),
+					db.sectionRepository());
 		CatalogueDownHandler catalogueHandler = new CatalogueDownHandler(writer, link.downRecordLog(),
 				new CatalogueRights(rightRepository()), link.exchangeLog(), TransactionOperations.withoutTransaction());
 		reception = new DeliveryReceptionService(received.repository(), stock.itemRepository(), stock.stockService(),

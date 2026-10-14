@@ -25,21 +25,27 @@ import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.link.dto.CatalogueBarcodeCopyDTO;
+import com.digithink.zsretail.core.link.dto.CatalogueCategoryCopyDTO;
 import com.digithink.zsretail.core.link.dto.CatalogueFamilyCopyDTO;
 import com.digithink.zsretail.core.link.dto.CatalogueItemCopyDTO;
+import com.digithink.zsretail.core.link.dto.CatalogueSectionCopyDTO;
 import com.digithink.zsretail.core.link.dto.CatalogueSubFamilyCopyDTO;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ItemBarcode;
+import com.digithink.zsretail.core.model.ItemCategory;
 import com.digithink.zsretail.core.model.ItemComposition;
 import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.model._BaseEntity;
 import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
+import com.digithink.zsretail.core.repository.ItemCategoryRepository;
 import com.digithink.zsretail.core.repository.ItemCompositionRepository;
 import com.digithink.zsretail.core.repository.ItemFamilyRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.ItemSectionRepository;
 import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
 import com.digithink.zsretail.core.service.CatalogueCodeChangeException;
 import com.digithink.zsretail.core.service.CatalogueCodeTooLongException;
@@ -65,7 +71,8 @@ import lombok.extern.log4j.Log4j2;
  * has a row for it, built from that row; a store with no point receives no ERP item and no ERP barcode; the selling
  * price lists are not used there. Stock point copies, step 4: there, an ERP item and its barcodes are recorded for the
  * stores whose point has a row for the item (active or not), never for every store; none when no point has it. A head
- * office with a manual catalogue keeps the rules above. See
+ * office with a manual catalogue keeps the rules above. Item variants (ZEN), step 7: the catégories (CATEGORY:) and the
+ * sections (SECTION:) go to every store, as the families; the item copy carries the 14 variant fields. See
  * docs/modules/head-office.md, "Catalogue owned by the head office" and "Stock points".
  */
 @Service
@@ -97,14 +104,19 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 	 */
 	private final HoStockPointItemRepository stockPointItems;
 	private final StoreRepository stores;
+	/** Item variants (ZEN), step 7: the catégories and the sections (null in the tests that have none). */
+	private final ItemCategoryRepository categories;
+	private final ItemSectionRepository sections;
 
 	@Autowired
 	public HoCatalogueService(ItemFamilyRepository families, ItemSubFamilyRepository subFamilies, ItemRepository items,
 			ItemBarcodeRepository barcodes, ItemCompositionRepository compositions, HoPriceListLineRepository priceLines,
 			ObjectProvider<CopiesDownFeed> feed, PlatformTransactionManager transactionManager,
-			HoStockPointItemRepository stockPointItems, StoreRepository stores, ApplicationModeService mode) {
+			HoStockPointItemRepository stockPointItems, StoreRepository stores, ApplicationModeService mode,
+			ItemCategoryRepository categories, ItemSectionRepository sections) {
 		this(families, subFamilies, items, barcodes, compositions, priceLines, (Supplier<CopiesDownFeed>) feed::getObject,
-				new TransactionTemplate(transactionManager), mode.isErpCatalogueOnly() ? stockPointItems : null, stores);
+				new TransactionTemplate(transactionManager), mode.isErpCatalogueOnly() ? stockPointItems : null, stores,
+				categories, sections);
 	}
 
 	/** With given collaborators, without stock points: used by the tests. */
@@ -114,11 +126,23 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 		this(families, subFamilies, items, barcodes, compositions, priceLines, feed, writeTransactions, null, null);
 	}
 
-	/** With given collaborators and stock points: used by the tests. */
+	/** With given collaborators and stock points, without catégories and sections: used by the tests. */
 	public HoCatalogueService(ItemFamilyRepository families, ItemSubFamilyRepository subFamilies, ItemRepository items,
 			ItemBarcodeRepository barcodes, ItemCompositionRepository compositions, HoPriceListLineRepository priceLines,
 			Supplier<CopiesDownFeed> feed, TransactionOperations writeTransactions,
 			HoStockPointItemRepository stockPointItems, StoreRepository stores) {
+		this(families, subFamilies, items, barcodes, compositions, priceLines, feed, writeTransactions, stockPointItems,
+				stores, null, null);
+	}
+
+	/** With given collaborators, stock points, catégories and sections. */
+	public HoCatalogueService(ItemFamilyRepository families, ItemSubFamilyRepository subFamilies, ItemRepository items,
+			ItemBarcodeRepository barcodes, ItemCompositionRepository compositions, HoPriceListLineRepository priceLines,
+			Supplier<CopiesDownFeed> feed, TransactionOperations writeTransactions,
+			HoStockPointItemRepository stockPointItems, StoreRepository stores, ItemCategoryRepository categories,
+			ItemSectionRepository sections) {
+		this.categories = categories;
+		this.sections = sections;
 		this.stockPointItems = stockPointItems;
 		this.stores = stores;
 		this.families = families;
@@ -148,6 +172,19 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 			}
 		}
 		Map<String, JsonNode> copies = new LinkedHashMap<>();
+		// Item variants (ZEN), step 7: the catégories and the sections, for every store, as the families
+		if (byKind.containsKey(CatalogueKind.CATEGORY) && categories != null) {
+			for (ItemCategory category : categories.findByCodeIn(byKind.get(CatalogueKind.CATEGORY))) {
+				copies.put(CatalogueKind.CATEGORY.recordCode(category.getCode()),
+						COPY_MAPPER.valueToTree(CatalogueCategoryCopyDTO.of(category)));
+			}
+		}
+		if (byKind.containsKey(CatalogueKind.SECTION) && sections != null) {
+			for (ItemSection section : sections.findByCodeIn(byKind.get(CatalogueKind.SECTION))) {
+				copies.put(CatalogueKind.SECTION.recordCode(section.getCode()),
+						COPY_MAPPER.valueToTree(CatalogueSectionCopyDTO.of(section)));
+			}
+		}
 		if (byKind.containsKey(CatalogueKind.FAMILY)) {
 			for (ItemFamily family : families.findByCodeIn(byKind.get(CatalogueKind.FAMILY))) {
 				copies.put(CatalogueKind.FAMILY.recordCode(family.getCode()),
@@ -384,8 +421,14 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 	@Override
 	public Map<String, StoreTargets> currentTargets() {
 		Map<String, StoreTargets> result = new LinkedHashMap<>();
+		if (categories != null) {
+			addTargets(result, CatalogueKind.CATEGORY, categories.findAllCodes()); // item variants (ZEN), step 7
+		}
 		addTargets(result, CatalogueKind.FAMILY, families.findAllCodes());
 		addTargets(result, CatalogueKind.SUBFAMILY, subFamilies.findAllCodes());
+		if (sections != null) {
+			addTargets(result, CatalogueKind.SECTION, sections.findAllCodes());
+		}
 		if (stockPointItems != null) {
 			addPointTargets(result);
 			return result;
@@ -461,7 +504,9 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 	}
 
 	static String codeChangeMessage(CatalogueKind kind, String previousCode) {
-		String what = kind == CatalogueKind.ITEM ? "item" : kind == CatalogueKind.FAMILY ? "family" : "sub-family";
+		String what = kind == CatalogueKind.ITEM ? "item"
+				: kind == CatalogueKind.FAMILY ? "family"
+						: kind == CatalogueKind.CATEGORY ? "catégorie" : kind == CatalogueKind.SECTION ? "section" : "sub-family";
 		return "The code of the " + what + " " + previousCode
 				+ " cannot be changed: the stores know it by its code. Create a new one and deactivate this one.";
 	}
@@ -787,6 +832,10 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 	/** The business code of a record of this kind. */
 	static String codeOf(CatalogueKind kind, _BaseEntity record) {
 		switch (kind) {
+			case CATEGORY:
+				return ((ItemCategory) record).getCode();
+			case SECTION:
+				return ((ItemSection) record).getCode();
 			case FAMILY:
 				return ((ItemFamily) record).getCode();
 			case SUBFAMILY:

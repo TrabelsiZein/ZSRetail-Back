@@ -22,6 +22,8 @@ public class CatalogueFamilyCopyDTO {
 	private String description;
 	private Integer displayOrder;
 	private Boolean active;
+	/** Item variants (ZEN), step 7: ItemCategory.code of its catégorie, by code only; null when none. */
+	private String categoryCode;
 
 	public static CatalogueFamilyCopyDTO of(ItemFamily family) {
 		CatalogueFamilyCopyDTO copy = new CatalogueFamilyCopyDTO();
@@ -29,6 +31,7 @@ public class CatalogueFamilyCopyDTO {
 		copy.name = family.getName();
 		copy.description = family.getDescription();
 		copy.displayOrder = family.getDisplayOrder();
+		copy.categoryCode = family.getCategoryCode();
 		copy.active = !Boolean.FALSE.equals(family.getActive());
 		return copy;
 	}

@@ -104,7 +104,8 @@ class ItemAPICatalogueGuardTest {
 		if (withGuard) {
 			SalesPriceRepository salesPrices = proxy(SalesPriceRepository.class, (method, args) -> UNHANDLED);
 			CatalogueCopyWriter writer = new CatalogueCopyWriter(store.familyRepository(), store.subFamilyRepository(),
-					store.itemRepository(), store.barcodeRepository(), store.compositionRepository());
+					store.itemRepository(), store.barcodeRepository(), store.compositionRepository(), store.categoryRepository(),
+					store.sectionRepository());
 			StoreCatalogueGuard guard = new StoreCatalogueGuard(rights, store.itemRepository(), store.familyRepository(),
 					store.subFamilyRepository(), store.barcodeRepository(), salesPrices, writer, new HeadOfficeLinkStatus());
 			set(api, ItemAPI.class, "catalogueGuard", new StaticListableBeanFactory(Collections.singletonMap("guard", guard))

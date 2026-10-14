@@ -4,10 +4,12 @@ package com.digithink.zsretail.core.model.enumeration;
  * Head office plan, step 6: the four kinds of catalogue records that travel down as copies (domain CATALOGUE), in the
  * order a store applies them (a sub-family needs its family, an item its family and sub-family, a barcode its item). The
  * record code of the copies down is the prefix and the business code: FAMILY:F1, SUBFAMILY:SF1, ITEM:B001,
- * BARCODE:6191234567890.
+ * BARCODE:6191234567890. Item variants (ZEN), step 7: the catégories (CATEGORY:VET) before the families and the sections
+ * (SECTION:MANCHE) after the sub-families; the declaration order is the order a store applies them (a store of an older
+ * build, which does not know these two kinds, leaves their records out as records without a known kind).
  */
 public enum CatalogueKind {
-	FAMILY, SUBFAMILY, ITEM, BARCODE;
+	CATEGORY, FAMILY, SUBFAMILY, SECTION, ITEM, BARCODE;
 
 	/** Longest business code that fits in a record code (record_code is 100 characters; the longest prefix is 10). */
 	public static final int MAX_CODE_LENGTH = 90;

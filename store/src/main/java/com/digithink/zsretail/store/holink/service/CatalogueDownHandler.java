@@ -16,8 +16,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.link.dto.CatalogueBarcodeCopyDTO;
+import com.digithink.zsretail.core.link.dto.CatalogueCategoryCopyDTO;
 import com.digithink.zsretail.core.link.dto.CatalogueFamilyCopyDTO;
 import com.digithink.zsretail.core.link.dto.CatalogueItemCopyDTO;
+import com.digithink.zsretail.core.link.dto.CatalogueSectionCopyDTO;
 import com.digithink.zsretail.core.link.dto.CatalogueSubFamilyCopyDTO;
 import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
@@ -35,8 +37,8 @@ import lombok.extern.log4j.Log4j2;
 
 /**
  * Head office plan, task 6.2: the store side of the CATALOGUE domain on the copies down mechanism, on a store whose
- * catalogue is the head office's. Records FAMILY:, SUBFAMILY:, ITEM: and BARCODE: are applied in that order within a
- * page by {@link CatalogueCopyWriter}, each in its own transaction and tracked in hol_down_record (APPLIED, WAITING for
+ * catalogue is the head office's. Records CATEGORY: (item variants, ZEN, step 7), FAMILY:, SUBFAMILY:, SECTION:, ITEM:
+ * and BARCODE: are applied in that order (the order of CatalogueKind) within a page by {@link CatalogueCopyWriter}, each in its own transaction and tracked in hol_down_record (APPLIED, WAITING for
  * a family, sub-family, item or component missing here, ERROR), retried at every cycle. Removed codes become inactive.
  * The store's other local records are not switched off. Before each pull ({@link #prepare}), when the right "may change
  * its selling prices" is off, the own prices give way to the head office price.
@@ -217,6 +219,10 @@ public class CatalogueDownHandler implements DownHandler {
 
 	private CatalogueCopyWriter.Outcome save(Copy copy) {
 		switch (copy.kind) {
+			case CATEGORY:
+				return writer.saveCategory(copy.category);
+			case SECTION:
+				return writer.saveSection(copy.section);
 			case FAMILY:
 				return writer.saveFamily(copy.family);
 			case SUBFAMILY:
@@ -243,6 +249,16 @@ public class CatalogueDownHandler implements DownHandler {
 		Copy copy = new Copy(kind);
 		String code;
 		switch (kind) {
+			case CATEGORY:
+				copy.category = COPY_MAPPER.treeToValue(record, CatalogueCategoryCopyDTO.class);
+				code = copy.category.getCode();
+				copy.name = copy.category.getName();
+				break;
+			case SECTION:
+				copy.section = COPY_MAPPER.treeToValue(record, CatalogueSectionCopyDTO.class);
+				code = copy.section.getCode();
+				copy.name = copy.section.getName();
+				break;
 			case FAMILY:
 				copy.family = COPY_MAPPER.treeToValue(record, CatalogueFamilyCopyDTO.class);
 				code = copy.family.getCode();
@@ -277,6 +293,8 @@ public class CatalogueDownHandler implements DownHandler {
 		String code;
 		String name;
 		String payload;
+		CatalogueCategoryCopyDTO category;
+		CatalogueSectionCopyDTO section;
 		CatalogueFamilyCopyDTO family;
 		CatalogueSubFamilyCopyDTO subFamily;
 		CatalogueItemCopyDTO item;

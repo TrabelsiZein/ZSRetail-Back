@@ -52,6 +52,25 @@ public class CatalogueItemCopyDTO {
 	private List<Component> components = new ArrayList<>();
 	private Boolean active;
 
+	// Item variants (ZEN), step 7: the 14 variant fields of the item, as the head office has them (null for an item
+	// without variant). A store of an older build ignores them (unknown properties are ignored).
+	private String navItemNo;
+	private String variantCode;
+	private String variantDescription;
+	private String sizeCode;
+	private String sizeDescription;
+	private Integer sizeSortOrder;
+	private String colorCode;
+	private String colorDescription;
+	private String choiceCode;
+	private String choiceDescription;
+	private String seasonCode;
+	private String divisionCode;
+	/** ItemCategory.code, by code only (the store never waits for it). */
+	private String categoryCode;
+	/** ItemSection.code, by code only (the store never waits for it). */
+	private String sectionCode;
+
 	/** One component of a pack. */
 	@Data
 	@NoArgsConstructor
@@ -90,6 +109,20 @@ public class CatalogueItemCopyDTO {
 			copy.components.sort(Comparator.comparing(Component::getItemCode));
 		}
 		copy.active = !Boolean.FALSE.equals(item.getActive());
+		copy.navItemNo = item.getNavItemNo();
+		copy.variantCode = item.getVariantCode();
+		copy.variantDescription = item.getVariantDescription();
+		copy.sizeCode = item.getSizeCode();
+		copy.sizeDescription = item.getSizeDescription();
+		copy.sizeSortOrder = item.getSizeSortOrder();
+		copy.colorCode = item.getColorCode();
+		copy.colorDescription = item.getColorDescription();
+		copy.choiceCode = item.getChoiceCode();
+		copy.choiceDescription = item.getChoiceDescription();
+		copy.seasonCode = item.getSeasonCode();
+		copy.divisionCode = item.getDivisionCode();
+		copy.categoryCode = item.getCategoryCode();
+		copy.sectionCode = item.getSectionCode();
 		return copy;
 	}
 }

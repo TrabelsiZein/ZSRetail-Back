@@ -98,7 +98,8 @@ class CatalogueRoundTripTest {
 
 		rights = new CatalogueRights(rightRepository());
 		CatalogueCopyWriter writer = new CatalogueCopyWriter(store.familyRepository(), store.subFamilyRepository(),
-				store.itemRepository(), store.barcodeRepository(), store.compositionRepository());
+				store.itemRepository(), store.barcodeRepository(), store.compositionRepository(), store.categoryRepository(),
+					store.sectionRepository());
 		handler = new CatalogueDownHandler(writer, link.downRecordLog(), rights, link.exchangeLog(),
 				TransactionOperations.withoutTransaction());
 		SalesPriceRepository salesPrices = proxy(SalesPriceRepository.class,

@@ -345,6 +345,10 @@ public class InMemoryItems {
 			((ItemSubFamily) row).setOrigin(origin);
 		} else if (row instanceof ItemBarcode) {
 			((ItemBarcode) row).setOrigin(origin);
+		} else if (row instanceof ItemCategory) {
+			((ItemCategory) row).setOrigin(origin);
+		} else if (row instanceof ItemSection) {
+			((ItemSection) row).setOrigin(origin);
 		}
 	}
 }
