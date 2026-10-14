@@ -8,8 +8,10 @@ import com.digithink.zsretail.core.config.ConditionalOnErpAbility;
 import com.digithink.zsretail.core.erp.service.ErpItemBootstrapService;
 import com.digithink.zsretail.erp.api.ErpAbility;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemCategoryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemSectionDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
 
 /**
@@ -46,5 +48,15 @@ public class BootstrapCatalogueImport implements CatalogueImport {
 	@Override
 	public void subFamilies(List<ErpItemSubFamilyDTO> packet) {
 		bootstrap.importItemSubFamilies(packet);
+	}
+
+	@Override
+	public void categories(List<ErpItemCategoryDTO> packet) {
+		bootstrap.importItemCategories(packet);
+	}
+
+	@Override
+	public void sections(List<ErpItemSectionDTO> packet) {
+		bootstrap.importItemSections(packet);
 	}
 }

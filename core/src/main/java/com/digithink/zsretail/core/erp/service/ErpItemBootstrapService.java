@@ -21,18 +21,23 @@ import com.digithink.zsretail.core.erp.enumeration.ErpSyncOperation;
 import com.digithink.zsretail.core.model.Customer;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ItemBarcode;
+import com.digithink.zsretail.core.model.ItemCategory;
 import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.model.Location;
 import com.digithink.zsretail.core.model.SalesDiscount;
 import com.digithink.zsretail.core.model.SalesPrice;
+import com.digithink.zsretail.core.model._BaseEntity;
 import com.digithink.zsretail.core.model.enumeration.SalesDiscountSalesType;
 import com.digithink.zsretail.core.model.enumeration.SalesDiscountType;
 import com.digithink.zsretail.core.model.enumeration.SalesPriceType;
 import com.digithink.zsretail.core.repository.CustomerRepository;
 import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
+import com.digithink.zsretail.core.repository.ItemCategoryRepository;
 import com.digithink.zsretail.core.repository.ItemFamilyRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.ItemSectionRepository;
 import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
 import com.digithink.zsretail.core.repository.LocationRepository;
 import com.digithink.zsretail.core.repository.SalesDiscountRepository;
@@ -40,8 +45,10 @@ import com.digithink.zsretail.core.repository.SalesPriceRepository;
 import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemCategoryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemSectionDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
 import com.digithink.zsretail.erp.api.dto.ErpLocationDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSalesDiscountDTO;
@@ -66,6 +73,9 @@ public class ErpItemBootstrapService {
 	private final SalesDiscountRepository salesDiscountRepository;
 	private final ErpCommunicationService communicationService;
 	private final GeneralSetupService generalSetupService;
+	/** Item variants (ZEN), step 4: the catégories and the sections. */
+	private final ItemCategoryRepository itemCategoryRepository;
+	private final ItemSectionRepository itemSectionRepository;
 
 	@Transactional
 	public List<ItemFamily> importItemFamilies(List<ErpItemFamilyDTO> families) {
@@ -97,6 +107,121 @@ public class ErpItemBootstrapService {
 			persisted.add(itemFamilyRepository.save(entity));
 		}
 		return persisted;
+	}
+
+	/**
+	 * Item variants (ZEN), step 4: the catégories (above the families), found by ERP id then by code, as the families.
+	 */
+	@Transactional
+	public List<ItemCategory> importItemCategories(List<ErpItemCategoryDTO> categories) {
+		if (categories == null || categories.isEmpty()) {
+			return Collections.emptyList();
+		}
+		List<ItemCategory> persisted = new ArrayList<>();
+		for (ErpItemCategoryDTO dto : categories) {
+			if (dto == null) {
+				continue;
+			}
+			ItemCategory entity = findCategoryByExternalOrCode(dto.getExternalId(), dto.getCode())
+					.orElseGet(ItemCategory::new);
+			boolean isNew = entity.getId() == null;
+			entity.setErpExternalId(defaultString(dto.getExternalId()));
+			entity.setCode(defaultString(dto.getCode(), dto.getExternalId()));
+			entity.setName(defaultString(dto.getName(), dto.getCode(), dto.getExternalId()));
+			entity.setDescription(defaultString(dto.getDescription()));
+			if (dto.getDisplayOrder() != null) {
+				entity.setDisplayOrder(dto.getDisplayOrder());
+			} else if (entity.getDisplayOrder() == null) {
+				entity.setDisplayOrder(0);
+			}
+			if (dto.getActive() != null) {
+				entity.setActive(dto.getActive());
+			}
+			if (!StringUtils.hasText(entity.getCode())) {
+				String message = "Skipping item category import because no code/external identifier provided";
+				LOGGER.warn("{}: {}", message, dto);
+				recordWarning(ErpSyncOperation.IMPORT_ITEM_CATEGORIES, dto,
+						resolveIdentifier(dto.getExternalId(), dto.getCode()), message);
+				continue;
+			}
+			stamp(entity, isNew);
+			persisted.add(itemCategoryRepository.save(entity));
+		}
+		return persisted;
+	}
+
+	/**
+	 * Item variants (ZEN), step 4: the sections (below the sub-families), found by ERP id then by code; the sub-family is
+	 * kept by code (trimmed, blank as null), never looked up: a section is never held back for its sub-family.
+	 */
+	@Transactional
+	public List<ItemSection> importItemSections(List<ErpItemSectionDTO> sections) {
+		if (sections == null || sections.isEmpty()) {
+			return Collections.emptyList();
+		}
+		List<ItemSection> persisted = new ArrayList<>();
+		for (ErpItemSectionDTO dto : sections) {
+			if (dto == null) {
+				continue;
+			}
+			ItemSection entity = findSectionByExternalOrCode(dto.getExternalId(), dto.getCode()).orElseGet(ItemSection::new);
+			boolean isNew = entity.getId() == null;
+			entity.setErpExternalId(defaultString(dto.getExternalId()));
+			entity.setCode(defaultString(dto.getCode(), dto.getExternalId()));
+			entity.setName(defaultString(dto.getName(), dto.getCode(), dto.getExternalId()));
+			entity.setDescription(defaultString(dto.getDescription()));
+			if (dto.getDisplayOrder() != null) {
+				entity.setDisplayOrder(dto.getDisplayOrder());
+			} else if (entity.getDisplayOrder() == null) {
+				entity.setDisplayOrder(0);
+			}
+			if (dto.getActive() != null) {
+				entity.setActive(dto.getActive());
+			}
+			entity.setSubFamilyCode(StringUtils.hasText(dto.getSubFamilyExternalId())
+					? dto.getSubFamilyExternalId().trim()
+					: null);
+			if (!StringUtils.hasText(entity.getCode())) {
+				String message = "Skipping item section import because no code/external identifier provided";
+				LOGGER.warn("{}: {}", message, dto);
+				recordWarning(ErpSyncOperation.IMPORT_ITEM_SECTIONS, dto,
+						resolveIdentifier(dto.getExternalId(), dto.getCode()), message);
+				continue;
+			}
+			stamp(entity, isNew);
+			persisted.add(itemSectionRepository.save(entity));
+		}
+		return persisted;
+	}
+
+	/** Created and updated by the import. */
+	private static void stamp(_BaseEntity entity, boolean isNew) {
+		if (isNew) {
+			entity.setCreatedBy(SYSTEM_USER);
+			entity.setCreatedAt(LocalDateTime.now());
+		}
+		entity.setUpdatedBy(SYSTEM_USER);
+		entity.setUpdatedAt(LocalDateTime.now());
+	}
+
+	private Optional<ItemCategory> findCategoryByExternalOrCode(String externalId, String code) {
+		if (StringUtils.hasText(externalId)) {
+			Optional<ItemCategory> byExternalId = itemCategoryRepository.findByErpExternalId(externalId);
+			if (byExternalId.isPresent()) {
+				return byExternalId;
+			}
+		}
+		return StringUtils.hasText(code) ? itemCategoryRepository.findByCode(code) : Optional.empty();
+	}
+
+	private Optional<ItemSection> findSectionByExternalOrCode(String externalId, String code) {
+		if (StringUtils.hasText(externalId)) {
+			Optional<ItemSection> byExternalId = itemSectionRepository.findByErpExternalId(externalId);
+			if (byExternalId.isPresent()) {
+				return byExternalId;
+			}
+		}
+		return StringUtils.hasText(code) ? itemSectionRepository.findByCode(code) : Optional.empty();
 	}
 
 	@Transactional
@@ -433,6 +558,10 @@ public class ErpItemBootstrapService {
 		}
 		if (dto.getActive() != null) {
 			entity.setActive(dto.getActive());
+		}
+		// Item variants (ZEN), step 4: the catégorie above the family, by code, only when the ERP gives one
+		if (StringUtils.hasText(dto.getCategoryExternalId())) {
+			entity.setCategoryCode(dto.getCategoryExternalId().trim());
 		}
 	}
 

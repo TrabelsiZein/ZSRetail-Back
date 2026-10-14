@@ -298,6 +298,18 @@ gone from every point, a point that answered no row) keep its variant fields and
 item description. Tests: `core/erp/engine/CatalogueEngineVariantsTest` (the real import over in-memory tables),
 `JpaHeadOfficeCatalogueTest` (the items query on H2).
 
+**Catégories and sections (step 4)**: `ErpCategories` gives, from the same categories page, the catégories (above the
+families, table `item_category`) and the sections (below the sub-families, table `item_section`); an ERP that has none
+uses the 2-argument constructor (empty reads). The job `SYNC_CATALOGUE` runs, in order: categories, families,
+sub-families, sections, items, barcodes. The two new parts are handed like the families (one packet per run, compared
+by code on name, description, ERP id, parent code, and display order and active when the ERP gives them); they never
+wait and nothing waits for them. An empty read is 0 read, 0 changed, nothing imported, no warning. A family keeps its
+catégorie by code (`item_family.category_code`, written and compared only when the ERP gives one); a section keeps its
+sub-family by code; an item keeps its catégorie and section by code and is never held back for them. Not sent to the
+stores yet. Tests: `core/erp/engine/CatalogueCategoriesTest`; the families and sub-families of an ERP without
+catégories (Happyness) are summarised as before (`CatalogueEngineTest.catalogueJobOneRun`, network-tests). Each part
+reads the categories page: two more reads of that small page per run.
+
 Tests: `core/erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows of navpospages through its adapter,
 `NavPosPagesFixture`), `NavPosPagesInvoicesTest`, `NavPosPagesCatalogueSourceTest`.
 

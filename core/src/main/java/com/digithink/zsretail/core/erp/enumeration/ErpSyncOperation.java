@@ -9,5 +9,7 @@ public enum ErpSyncOperation {
 	EXPORT_PAYMENT_LINE, EXPORT_RETURN, EXPORT_RETURN_LINE, UPDATE_RETURN, EXPORT_SESSION, SYNC_ERP_DELETIONS,
 	IMPORT_SUPPLY_INVOICES,
 	/** Release 2.2: one run of the job SYNC_CATALOGUE (one row of the communications log per run). */
-	SYNC_CATALOGUE
+	SYNC_CATALOGUE,
+	/** Item variants (ZEN), step 4: a catégorie or a section left out by the import (a warning row). */
+	IMPORT_ITEM_CATEGORIES, IMPORT_ITEM_SECTIONS
 }

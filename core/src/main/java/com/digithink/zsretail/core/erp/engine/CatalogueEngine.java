@@ -28,8 +28,10 @@ import com.digithink.zsretail.erp.api.ErpRead;
 import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 import com.digithink.zsretail.erp.api.RunSummary;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemCategoryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemSectionDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
 
 /**
@@ -45,6 +47,9 @@ import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
  * run writes, before handing over, how many items of the ERP are not at the head office yet; the barcode run waits while
  * that number is above 0 or no item run happened. The items run counts before applying, then again once every packet
  * is applied: 0 proves the new items were saved.</li>
+ * <li><b>Catégories and sections</b> (item variants, ZEN, step 4): above the families and below the sub-families, read
+ * from the same categories page, handed like the families, one packet per run; they never wait and nothing waits for
+ * them (an item and a section keep them by code). An ERP that gives none reads 0 and hands nothing.</li>
  * <li><b>Items.</b> Compared on what the import applies: name, description, VAT, active, ERP id, family and sub-family
  * (only when the ERP's one exists at the head office), the price with VAT at 3 decimals, discount group and maximum
  * discount (the import clears them); item variants (ZEN, step 3): the 14 variant fields ({@code ItemVariant}) and the
@@ -157,7 +162,8 @@ public class CatalogueEngine {
 			if (here == null) {
 				fresh++;
 				changes.add(family);
-			} else if (differs(family.getCode(), family.getName(), family.getDescription(), here)) {
+			} else if (differs(family.getCode(), family.getName(), family.getDescription(), here)
+					|| givenAndDifferent(family.getCategoryExternalId(), here.categoryCode)) {
 				changes.add(family);
 			}
 		}
@@ -194,6 +200,84 @@ public class CatalogueEngine {
 		changes.sort(Comparator.comparing(ErpItemSubFamilyDTO::getCode));
 		List<ErpItemSubFamilyDTO> handed = summary.handOver(changes, fresh, cap());
 		return run(handed, summary, part);
+	}
+
+	// ─── Catégories and sections (item variants, ZEN, step 4) ───
+
+	/**
+	 * The catégories (above the families), as the families: compared by code with the head office's (name, description,
+	 * display order and active when the ERP gives them, ERP id), one packet handed per run. Never waits. An ERP that gives
+	 * none (an empty read) hands nothing.
+	 */
+	public CatalogueRun<ErpItemCategoryDTO> categories() {
+		Part part = Part.CATEGORIES;
+		RunSummary summary = new RunSummary("categories", source.pageLabel(part), settings.dryRun());
+		ErpRead<ErpItemCategoryDTO> read = source.categories().getCategories();
+		summary.read(read);
+		Map<String, HeadOfficeCatalogue.Level> local = headOffice.categories();
+		List<ErpItemCategoryDTO> changes = new ArrayList<>();
+		int fresh = 0;
+		for (ErpItemCategoryDTO category : read.getRows()) {
+			HeadOfficeCatalogue.Level here = local.get(category.getCode());
+			if (here == null) {
+				fresh++;
+				changes.add(category);
+			} else if (differs(category.getCode(), category.getName(), category.getDescription(),
+					category.getDisplayOrder(), category.getActive(), category.getExternalId(), null, here)) {
+				changes.add(category);
+			}
+		}
+		changes.sort(Comparator.comparing(ErpItemCategoryDTO::getCode));
+		List<ErpItemCategoryDTO> handed = summary.handOver(changes, fresh, cap());
+		return run(handed, summary, part);
+	}
+
+	/**
+	 * The sections (below the sub-families), as the catégories, their sub-family code compared too. Never waits: the
+	 * sub-family is kept by code, a section is never held back for it.
+	 */
+	public CatalogueRun<ErpItemSectionDTO> sections() {
+		Part part = Part.CATEGORIES;
+		RunSummary summary = new RunSummary("sections", source.pageLabel(part), settings.dryRun());
+		ErpRead<ErpItemSectionDTO> read = source.categories().getSections();
+		summary.read(read);
+		Map<String, HeadOfficeCatalogue.Level> local = headOffice.sections();
+		List<ErpItemSectionDTO> changes = new ArrayList<>();
+		int fresh = 0;
+		for (ErpItemSectionDTO section : read.getRows()) {
+			HeadOfficeCatalogue.Level here = local.get(section.getCode());
+			if (here == null) {
+				fresh++;
+				changes.add(section);
+			} else if (differs(section.getCode(), section.getName(), section.getDescription(), section.getDisplayOrder(),
+					section.getActive(), section.getExternalId(), section.getSubFamilyExternalId(), here)) {
+				changes.add(section);
+			}
+		}
+		changes.sort(Comparator.comparing(ErpItemSectionDTO::getCode));
+		List<ErpItemSectionDTO> handed = summary.handOver(changes, fresh, cap());
+		return run(handed, summary, part);
+	}
+
+	/**
+	 * A catégorie or a section against the head office's, on what the import applies: the name (the code when blank),
+	 * the description (null = blank), the ERP id, the parent code (blank = none), the display order and the active flag
+	 * when the ERP gives them (the import keeps the head office's otherwise).
+	 */
+	private static boolean differs(String code, String name, String description, Integer displayOrder, Boolean active,
+			String erpExternalId, String parentCode, HeadOfficeCatalogue.Level here) {
+		return !text(name, code).equals(text(here.name, null))
+				|| !text(description, null).equals(text(here.description, null))
+				|| !text(erpExternalId, null).equals(text(here.erpExternalId, null))
+				|| !Objects.equals(blankToNull(parentCode), blankToNull(here.parentCode))
+				|| (displayOrder != null && !displayOrder.equals(here.displayOrder))
+				|| (active != null && active != !Boolean.FALSE.equals(here.active));
+	}
+
+	/** True when the ERP gives a value (not blank) that is not the head office's. */
+	private static boolean givenAndDifferent(String erpValue, String headOfficeValue) {
+		String given = blankToNull(erpValue);
+		return given != null && !given.equals(blankToNull(headOfficeValue));
 	}
 
 	/**

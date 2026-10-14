@@ -24,7 +24,8 @@ import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 /**
  * Release 2.2: the job SYNC_CATALOGUE ("Sync catalogue"), the whole catalogue from the ERP in one run, in this order:
  * every family, every sub-family, the items and the rows of every point de stock, then the barcodes (the barcode run,
- * until it has caught up, the barcodes of the new items included). Replaces the four catalogue jobs on a head office
+ * until it has caught up, the barcodes of the new items included). Item variants (ZEN), step 4: every catégorie before
+ * the families and every section after the sub-families; an ERP that gives none reads 0 and hands nothing (no warning). Replaces the four catalogue jobs on a head office
  * whose catalogue comes from the ERP (HeadOfficeErpJobs).
  * <ul>
  * <li>No active point de stock: nothing is read, a warning ({@link CatalogueEngine#NO_STOCK_POINT}).</li>
@@ -40,8 +41,11 @@ import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 @ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
 public class CatalogueJob implements ErpCatalogueSync {
 
+	/** Item variants (ZEN), step 4: the catégories (before the families) and the sections (after the sub-families). */
+	static final String CATEGORIES = "categories";
 	static final String FAMILIES = "families";
 	static final String SUB_FAMILIES = "subFamilies";
+	static final String SECTIONS = "sections";
 	static final String ITEMS = "items";
 	static final String BARCODES = "barcodes";
 
@@ -91,13 +95,23 @@ public class CatalogueJob implements ErpCatalogueSync {
 			if (stockPoints.activePoints().isEmpty()) {
 				warnings.add(CatalogueEngine.NO_STOCK_POINT);
 			} else {
-				current = FAMILIES;
-				boolean go = inRounds(parts, FAMILIES, "Families", engine::families,
-						run -> importer.families(run.getHanded()), warnings);
+				current = CATEGORIES;
+				boolean go = inRounds(parts, CATEGORIES, "Categories", engine::categories,
+						run -> importer.categories(run.getHanded()), warnings);
+				if (go) {
+					current = FAMILIES;
+					go = inRounds(parts, FAMILIES, "Families", engine::families,
+							run -> importer.families(run.getHanded()), warnings);
+				}
 				if (go) {
 					current = SUB_FAMILIES;
 					go = inRounds(parts, SUB_FAMILIES, "Sub-families", engine::subFamilies,
 							run -> importer.subFamilies(run.getHanded()), warnings);
+				}
+				if (go) {
+					current = SECTIONS;
+					go = inRounds(parts, SECTIONS, "Sections", engine::sections,
+							run -> importer.sections(run.getHanded()), warnings);
 				}
 				if (go) {
 					current = ITEMS;
@@ -219,8 +233,10 @@ public class CatalogueJob implements ErpCatalogueSync {
 	}
 
 	private static String label(String key) {
-		Function<String, String> labels = k -> FAMILIES.equals(k) ? "Families"
-				: SUB_FAMILIES.equals(k) ? "Sub-families" : ITEMS.equals(k) ? "Items" : "Barcodes";
+		Function<String, String> labels = k -> CATEGORIES.equals(k) ? "Categories"
+				: FAMILIES.equals(k) ? "Families"
+						: SUB_FAMILIES.equals(k) ? "Sub-families"
+								: SECTIONS.equals(k) ? "Sections" : ITEMS.equals(k) ? "Items" : "Barcodes";
 		return labels.apply(key);
 	}
 

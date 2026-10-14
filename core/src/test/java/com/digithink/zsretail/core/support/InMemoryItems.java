@@ -15,15 +15,19 @@ import java.util.stream.Collectors;
 
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ItemBarcode;
+import com.digithink.zsretail.core.model.ItemCategory;
 import com.digithink.zsretail.core.model.ItemComposition;
 import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.model._BaseEntity;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
+import com.digithink.zsretail.core.repository.ItemCategoryRepository;
 import com.digithink.zsretail.core.repository.ItemCompositionRepository;
 import com.digithink.zsretail.core.repository.ItemFamilyRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.ItemSectionRepository;
 import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
 
 /**
@@ -41,6 +45,9 @@ public class InMemoryItems {
 	public final Map<Long, Item> items = new LinkedHashMap<>();
 	public final Map<Long, ItemBarcode> barcodes = new LinkedHashMap<>();
 	public final Map<Long, ItemComposition> compositions = new LinkedHashMap<>();
+	/** Item variants (ZEN), step 4: the catégories and the sections. */
+	public final Map<Long, ItemCategory> categories = new LinkedHashMap<>();
+	public final Map<Long, ItemSection> sections = new LinkedHashMap<>();
 
 	private long nextId;
 
@@ -261,6 +268,49 @@ public class InMemoryItems {
 					return common(barcodes, method, args);
 				default:
 					return common(barcodes, method, args);
+			}
+		});
+	}
+
+	/** Item variants (ZEN), step 4. */
+	public ItemCategoryRepository categoryRepository() {
+		return proxy(ItemCategoryRepository.class, (method, args) -> {
+			switch (method) {
+				case "findByCode":
+					return categories.values().stream().filter(c -> c.getCode().equals(args[0])).findFirst();
+				case "findByErpExternalId":
+					return categories.values().stream().filter(c -> Objects.equals(c.getErpExternalId(), args[0]))
+							.findFirst();
+				case "findByCodeIn":
+					return categories.values().stream().filter(c -> ((Collection<?>) args[0]).contains(c.getCode()))
+							.collect(Collectors.toList());
+				case "findAllCodes":
+					return categories.values().stream().map(ItemCategory::getCode).collect(Collectors.toList());
+				default:
+					return common(categories, method, args);
+			}
+		});
+	}
+
+	/** Item variants (ZEN), step 4. */
+	public ItemSectionRepository sectionRepository() {
+		return proxy(ItemSectionRepository.class, (method, args) -> {
+			switch (method) {
+				case "findByCode":
+					return sections.values().stream().filter(s -> s.getCode().equals(args[0])).findFirst();
+				case "findByErpExternalId":
+					return sections.values().stream().filter(s -> Objects.equals(s.getErpExternalId(), args[0]))
+							.findFirst();
+				case "findByCodeIn":
+					return sections.values().stream().filter(s -> ((Collection<?>) args[0]).contains(s.getCode()))
+							.collect(Collectors.toList());
+				case "findBySubFamilyCode":
+					return sections.values().stream().filter(s -> Objects.equals(s.getSubFamilyCode(), args[0]))
+							.collect(Collectors.toList());
+				case "findAllCodes":
+					return sections.values().stream().map(ItemSection::getCode).collect(Collectors.toList());
+				default:
+					return common(sections, method, args);
 			}
 		});
 	}

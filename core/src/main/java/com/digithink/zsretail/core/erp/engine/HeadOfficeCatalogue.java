@@ -1,6 +1,7 @@
 package com.digithink.zsretail.core.erp.engine;
 
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import com.digithink.zsretail.core.erp.service.ItemVariant;
@@ -35,6 +36,16 @@ public interface HeadOfficeCatalogue extends ErpInvoiceStart {
 		return null;
 	}
 
+	/** Item variants (ZEN), step 4: the catégories, by code; none by default (a head office read without them). */
+	default Map<String, Level> categories() {
+		return new LinkedHashMap<>();
+	}
+
+	/** Item variants (ZEN), step 4: the sections, by code; none by default. */
+	default Map<String, Level> sections() {
+		return new LinkedHashMap<>();
+	}
+
 	/** A family or a sub-family as the head office has it. */
 	class Family {
 		public final String code;
@@ -42,13 +53,46 @@ public interface HeadOfficeCatalogue extends ErpInvoiceStart {
 		public final String description;
 		public final Boolean active;
 		public final String erpExternalId;
+		/** Item variants (ZEN), step 4: item_family.category_code (a family only; null for a sub-family). */
+		public final String categoryCode;
 
 		public Family(String code, String name, String description, Boolean active, String erpExternalId) {
+			this(code, name, description, active, erpExternalId, null);
+		}
+
+		public Family(String code, String name, String description, Boolean active, String erpExternalId,
+				String categoryCode) {
 			this.code = code;
 			this.name = name;
 			this.description = description;
 			this.active = active;
 			this.erpExternalId = erpExternalId;
+			this.categoryCode = categoryCode;
+		}
+	}
+
+	/**
+	 * Item variants (ZEN), step 4: a catégorie (above the families) or a section (below the sub-families) as the head
+	 * office has it; parentCode is a section's sub-family code, null for a catégorie.
+	 */
+	class Level {
+		public final String code;
+		public final String name;
+		public final String description;
+		public final Integer displayOrder;
+		public final Boolean active;
+		public final String erpExternalId;
+		public final String parentCode;
+
+		public Level(String code, String name, String description, Integer displayOrder, Boolean active,
+				String erpExternalId, String parentCode) {
+			this.code = code;
+			this.name = name;
+			this.description = description;
+			this.displayOrder = displayOrder;
+			this.active = active;
+			this.erpExternalId = erpExternalId;
+			this.parentCode = parentCode;
 		}
 	}
 

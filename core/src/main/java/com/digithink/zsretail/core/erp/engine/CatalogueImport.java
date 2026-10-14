@@ -3,8 +3,10 @@ package com.digithink.zsretail.core.erp.engine;
 import java.util.List;
 
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemCategoryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemSectionDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
 
 /**
@@ -27,5 +29,15 @@ public interface CatalogueImport {
 	/** Release 2.2, the job SYNC_CATALOGUE: one packet of sub-families (importItemSubFamilies). */
 	default void subFamilies(List<ErpItemSubFamilyDTO> packet) {
 		throw new UnsupportedOperationException("subFamilies");
+	}
+
+	/** Item variants (ZEN), step 4: one packet of catégories (importItemCategories). */
+	default void categories(List<ErpItemCategoryDTO> packet) {
+		throw new UnsupportedOperationException("categories");
+	}
+
+	/** Item variants (ZEN), step 4: one packet of sections (importItemSections). */
+	default void sections(List<ErpItemSectionDTO> packet) {
+		throw new UnsupportedOperationException("sections");
 	}
 }

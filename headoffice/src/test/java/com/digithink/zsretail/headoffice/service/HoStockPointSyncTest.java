@@ -128,7 +128,7 @@ class HoStockPointSyncTest {
 	/** The item and barcode imports as stubs, called through the real aspect. */
 	private ErpItemBootstrapService guarded() {
 		ErpItemBootstrapService stub = new ErpItemBootstrapService(null, null, null, null, null, null, null, null, null,
-				null) {
+				null, null, null) {
 			@Override
 			@SuppressWarnings("unchecked")
 			public List<Item> importItems(List<ErpItemDTO> list) {

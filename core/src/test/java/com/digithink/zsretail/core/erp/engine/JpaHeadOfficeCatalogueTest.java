@@ -15,13 +15,16 @@ import org.junit.jupiter.api.Test;
 
 import com.digithink.zsretail.core.erp.service.ItemVariant;
 import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemCategory;
 import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 
 /**
  * Item variants (ZEN), step 3: the items query of JpaHeadOfficeCatalogue, run as it is with Hibernate over an in-memory
  * H2 database (no Spring context): the 14 variant fields and the brand come back with the item (blank as null), and an
- * item without them comes back as before ({@link ItemVariant#NONE}, no brand).
+ * item without them comes back as before ({@link ItemVariant#NONE}, no brand). Step 4: the catégories, the sections and
+ * the catégorie of a family.
  */
 class JpaHeadOfficeCatalogueTest {
 
@@ -30,17 +33,31 @@ class JpaHeadOfficeCatalogueTest {
 	@BeforeAll
 	static void database() {
 		sessions = new Configuration().addAnnotatedClass(ItemFamily.class).addAnnotatedClass(ItemSubFamily.class)
-				.addAnnotatedClass(Item.class)
+				.addAnnotatedClass(Item.class).addAnnotatedClass(ItemCategory.class).addAnnotatedClass(ItemSection.class)
 				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", "jdbc:h2:mem:hocatalogue;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
 				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
+			ItemCategory category = new ItemCategory();
+			category.setCode("VET");
+			category.setName("Categorie Vetements");
+			category.setDisplayOrder(40000);
+			category.setErpExternalId("VET");
+			session.persist(category);
 			ItemFamily family = new ItemFamily();
 			family.setCode("HOM");
 			family.setName("Famille Homme");
+			family.setCategoryCode("VET");
 			session.persist(family);
+			ItemSection section = new ItemSection();
+			section.setCode("MANCHE");
+			section.setName("Section Avec manche");
+			section.setDisplayOrder(70000);
+			section.setSubFamilyCode("CHEM");
+			section.setActive(Boolean.FALSE);
+			session.persist(section);
 			ItemSubFamily subFamily = new ItemSubFamily();
 			subFamily.setCode("CHEM");
 			subFamily.setName("Sous-Famille Chemise");
@@ -108,6 +125,28 @@ class JpaHeadOfficeCatalogueTest {
 			assertEquals("1000", bike.erpExternalId);
 			assertEquals(ItemVariant.NONE, bike.variant);
 			assertNull(bike.brand);
+		}
+	}
+
+	@Test
+	@DisplayName("Step 4: the catégories, the sections with their sub-family, the catégorie of a family")
+	void categoriesSectionsAndTheFamilysCategory() {
+		try (Session session = sessions.openSession()) {
+			JpaHeadOfficeCatalogue catalogue = new JpaHeadOfficeCatalogue(session, null);
+
+			HeadOfficeCatalogue.Level category = catalogue.categories().get("VET");
+			assertEquals("Categorie Vetements", category.name);
+			assertEquals(40000, category.displayOrder);
+			assertEquals("VET", category.erpExternalId);
+			assertEquals(Boolean.TRUE, category.active);
+			assertNull(category.parentCode);
+			HeadOfficeCatalogue.Level section = catalogue.sections().get("MANCHE");
+			assertEquals("Section Avec manche", section.name);
+			assertEquals(70000, section.displayOrder);
+			assertEquals("CHEM", section.parentCode);
+			assertEquals(Boolean.FALSE, section.active);
+			assertEquals("VET", catalogue.families().get("HOM").categoryCode);
+			assertNull(catalogue.subFamilies().get("CHEM").categoryCode);
 		}
 	}
 }

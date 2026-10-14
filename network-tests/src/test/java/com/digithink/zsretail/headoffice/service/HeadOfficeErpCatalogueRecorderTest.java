@@ -89,7 +89,7 @@ class HeadOfficeErpCatalogueRecorderTest {
 
 	private ErpItemBootstrapService guarded(CatalogueHeadOfficeHooks hooks) {
 		ErpItemBootstrapService imports = new ErpItemBootstrapService(null, null, null, null, null, null, null, null,
-				null, null) {
+				null, null, null, null) {
 			@Override
 			@SuppressWarnings("unchecked")
 			public List<ItemFamily> importItemFamilies(List<ErpItemFamilyDTO> families) {
@@ -203,7 +203,7 @@ class HeadOfficeErpCatalogueRecorderTest {
 	@DisplayName("A failing import: nothing recorded, rolled back, its error goes up")
 	void failingImport() {
 		ErpItemBootstrapService imports = new ErpItemBootstrapService(null, null, null, null, null, null, null, null,
-				null, null) {
+				null, null, null, null) {
 			@Override
 			public List<Item> importItems(List<ErpItemDTO> items) {
 				throw new IllegalArgumentException("save failed");

@@ -41,11 +41,36 @@ public class JpaHeadOfficeCatalogue implements HeadOfficeCatalogue {
 	@Override
 	public Map<String, Family> families() {
 		Map<String, Family> families = new LinkedHashMap<>();
-		for (Object[] row : rows("select f.code, f.name, f.description, f.active, f.erpExternalId from ItemFamily f")) {
-			families.put((String) row[0],
-					new Family((String) row[0], (String) row[1], (String) row[2], (Boolean) row[3], (String) row[4]));
+		for (Object[] row : rows(
+				"select f.code, f.name, f.description, f.active, f.erpExternalId, f.categoryCode from ItemFamily f")) {
+			families.put((String) row[0], new Family((String) row[0], (String) row[1], (String) row[2], (Boolean) row[3],
+					(String) row[4], (String) row[5]));
 		}
 		return families;
+	}
+
+	/** Item variants (ZEN), step 4. */
+	@Override
+	public Map<String, Level> categories() {
+		Map<String, Level> categories = new LinkedHashMap<>();
+		for (Object[] row : rows(
+				"select c.code, c.name, c.description, c.displayOrder, c.active, c.erpExternalId from ItemCategory c")) {
+			categories.put((String) row[0], new Level((String) row[0], (String) row[1], (String) row[2],
+					(Integer) row[3], (Boolean) row[4], (String) row[5], null));
+		}
+		return categories;
+	}
+
+	/** Item variants (ZEN), step 4: with the sub-family code of each section. */
+	@Override
+	public Map<String, Level> sections() {
+		Map<String, Level> sections = new LinkedHashMap<>();
+		for (Object[] row : rows("select s.code, s.name, s.description, s.displayOrder, s.active, s.erpExternalId,"
+				+ " s.subFamilyCode from ItemSection s")) {
+			sections.put((String) row[0], new Level((String) row[0], (String) row[1], (String) row[2], (Integer) row[3],
+					(Boolean) row[4], (String) row[5], (String) row[6]));
+		}
+		return sections;
 	}
 
 	@Override

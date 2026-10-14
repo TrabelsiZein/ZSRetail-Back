@@ -913,8 +913,14 @@ class CatalogueEngineTest extends NavPosPagesFixture {
 		assertEquals(50, stockPoints.rows(FRANCHISE).size());
 		assertTrue(headOffice.barcodes.size() > 0);
 		assertEquals(Boolean.TRUE, part("barcodes").get("caughtUp"));
-		for (String name : new String[] { "families", "subFamilies", "items", "barcodes" }) {
+		for (String name : new String[] { "categories", "families", "subFamilies", "sections", "items", "barcodes" }) {
 			assertTrue(part(name).containsKey("durationMs"), name);
+		}
+		// Item variants (ZEN), step 4: this ERP gives no catégorie and no section: read 0, nothing handed, no warning
+		for (String name : new String[] { "categories", "sections" }) {
+			assertEquals(0, part(name).get("read"), name);
+			assertEquals(0, part(name).get("changed"), name);
+			assertEquals(0, part(name).get("handed"), name);
 		}
 
 		job().syncCatalogue(); // nothing changed: a success, every part checked
