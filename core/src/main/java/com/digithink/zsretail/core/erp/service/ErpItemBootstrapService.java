@@ -477,6 +477,12 @@ public class ErpItemBootstrapService {
 				entity.setItemFamily(sf.getItemFamily());
 			}
 		});
+		// Item variants (ZEN), step 3: the 14 variant fields always, null when the ERP gives none; the brand only when the
+		// ERP gives one, so a brand typed by hand is never erased by an ERP that has none
+		ItemVariant.of(dto).applyTo(entity);
+		if (StringUtils.hasText(dto.getBrand())) {
+			entity.setBrand(dto.getBrand().trim());
+		}
 	}
 
 	private void applyBarcodeValues(ItemBarcode entity, ErpItemBarcodeDTO dto, Item item) {

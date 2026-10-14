@@ -165,6 +165,8 @@ public class InMemoryItems {
 							.collect(Collectors.toList());
 				case "findAllCodes":
 					return families.values().stream().map(ItemFamily::getCode).collect(Collectors.toList());
+				case "findByErpExternalId": // the ERP import
+					return families.values().stream().filter(f -> Objects.equals(f.getErpExternalId(), args[0])).findFirst();
 				default:
 					return common(families, method, args);
 			}
@@ -181,6 +183,9 @@ public class InMemoryItems {
 							.collect(Collectors.toList());
 				case "findAllCodes":
 					return subFamilies.values().stream().map(ItemSubFamily::getCode).collect(Collectors.toList());
+				case "findByErpExternalId": // the ERP import
+					return subFamilies.values().stream().filter(f -> Objects.equals(f.getErpExternalId(), args[0]))
+							.findFirst();
 				default:
 					return common(subFamilies, method, args);
 			}
@@ -192,6 +197,8 @@ public class InMemoryItems {
 			switch (method) {
 				case "findByItemCode":
 					return itemByCode((String) args[0]);
+				case "findByErpExternalId": // the ERP import
+					return items.values().stream().filter(i -> Objects.equals(i.getErpExternalId(), args[0])).findFirst();
 				case "findByItemCodeIn":
 					return items.values().stream().filter(i -> ((Collection<?>) args[0]).contains(i.getItemCode()))
 							.collect(Collectors.toList());

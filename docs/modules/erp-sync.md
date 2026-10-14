@@ -286,6 +286,18 @@ before had other keys until code cleanup step 8: their descriptors give the old 
 `erp.navpospages`), every key under it is refused naming its new name, and EMTOP's gives the NAV address of the startup
 summary. A new connector has no old prefix.
 
+**Item variants (ZEN, 3.1.0, step 3; `docs/variants-zen-analysis-2026-10-14.md`)**: an ERP may hand one item per
+variant (code = ERP item number + `~` + variant code). `ErpItemDTO` carries 14 variant fields (`navItemNo`,
+`variantCode`, `variantDescription`, `sizeCode`, `sizeDescription`, `sizeSortOrder`, `colorCode`, `colorDescription`,
+`choiceCode`, `choiceDescription`, `seasonCode`, `divisionCode`, `categoryCode`, `sectionCode`) and `brand`.
+`ErpItemBootstrapService` always writes the 14 fields (trimmed, blank as null; null for EMTOP and Happyness, which give
+none) and writes `brand` only when the ERP gives one, so a brand typed by hand is never erased. The items run compares
+the 14 fields (`erp/service/ItemVariant`) and the brand when given, so a size or colour change at the ERP is a change of
+the item; the rows of the points de stock do not compare them. The engine's own copies of a head office item (an item
+gone from every point, a point that answered no row) keep its variant fields and brand. The item name stays the ERP's
+item description. Tests: `core/erp/engine/CatalogueEngineVariantsTest` (the real import over in-memory tables),
+`JpaHeadOfficeCatalogueTest` (the items query on H2).
+
 Tests: `core/erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows of navpospages through its adapter,
 `NavPosPagesFixture`), `NavPosPagesInvoicesTest`, `NavPosPagesCatalogueSourceTest`.
 

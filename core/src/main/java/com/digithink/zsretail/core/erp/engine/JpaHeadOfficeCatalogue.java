@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.digithink.zsretail.core.config.ConditionalOnErpAbility;
+import com.digithink.zsretail.core.erp.service.ItemVariant;
 import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.erp.api.ErpAbility;
 
@@ -58,15 +59,24 @@ public class JpaHeadOfficeCatalogue implements HeadOfficeCatalogue {
 		return subFamilies;
 	}
 
+	/** Item variants (ZEN), step 3: with the 14 variant fields (columns 11 to 24) and the brand (25). */
+	static final String ITEMS = "select i.itemCode, i.name, i.description, i.unitPrice, i.defaultVAT, i.active,"
+			+ " i.erpExternalId, i.itemDiscGroup, i.maximumAuthorizedDiscount, f.code, sf.code,"
+			+ " i.navItemNo, i.variantCode, i.variantDescription, i.sizeCode, i.sizeDescription, i.sizeSortOrder,"
+			+ " i.colorCode, i.colorDescription, i.choiceCode, i.choiceDescription, i.seasonCode, i.divisionCode,"
+			+ " i.categoryCode, i.sectionCode, i.brand"
+			+ " from Item i left join i.itemFamily f left join i.itemSubFamily sf";
+
 	@Override
 	public Map<String, Item> items() {
 		Map<String, Item> items = new LinkedHashMap<>();
-		for (Object[] row : rows("select i.itemCode, i.name, i.description, i.unitPrice, i.defaultVAT, i.active,"
-				+ " i.erpExternalId, i.itemDiscGroup, i.maximumAuthorizedDiscount, f.code, sf.code"
-				+ " from Item i left join i.itemFamily f left join i.itemSubFamily sf")) {
+		for (Object[] row : rows(ITEMS)) {
+			ItemVariant variant = new ItemVariant((String) row[11], (String) row[12], (String) row[13], (String) row[14],
+					(String) row[15], (Integer) row[16], (String) row[17], (String) row[18], (String) row[19],
+					(String) row[20], (String) row[21], (String) row[22], (String) row[23], (String) row[24]);
 			items.put((String) row[0], new Item((String) row[0], (String) row[1], (String) row[2], (Double) row[3],
 					(Integer) row[4], (Boolean) row[5], (String) row[6], (String) row[7], (Double) row[8], (String) row[9],
-					(String) row[10]));
+					(String) row[10], variant, (String) row[25]));
 		}
 		return items;
 	}

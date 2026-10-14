@@ -3,6 +3,7 @@ package com.digithink.zsretail.core.erp.engine;
 import java.util.Collection;
 import java.util.Map;
 
+import com.digithink.zsretail.core.erp.service.ItemVariant;
 import com.digithink.zsretail.erp.api.ErpInvoiceStart;
 
 /**
@@ -74,10 +75,22 @@ public interface HeadOfficeCatalogue extends ErpInvoiceStart {
 		public final Double maximumAuthorizedDiscount;
 		public final String familyCode;
 		public final String subFamilyCode;
+		/** Item variants (ZEN), step 3: the 14 variant fields; {@link ItemVariant#NONE} for an item without. */
+		public final ItemVariant variant;
+		/** Item variants (ZEN), step 3: item.brand (written by the import only when the ERP gives one). */
+		public final String brand;
 
+		/** An item without variant fields and without brand. */
 		public Item(String code, String name, String description, Double unitPrice, Integer defaultVat, Boolean active,
 				String erpExternalId, String itemDiscGroup, Double maximumAuthorizedDiscount, String familyCode,
 				String subFamilyCode) {
+			this(code, name, description, unitPrice, defaultVat, active, erpExternalId, itemDiscGroup,
+					maximumAuthorizedDiscount, familyCode, subFamilyCode, ItemVariant.NONE, null);
+		}
+
+		public Item(String code, String name, String description, Double unitPrice, Integer defaultVat, Boolean active,
+				String erpExternalId, String itemDiscGroup, Double maximumAuthorizedDiscount, String familyCode,
+				String subFamilyCode, ItemVariant variant, String brand) {
 			this.code = code;
 			this.name = name;
 			this.description = description;
@@ -89,6 +102,8 @@ public interface HeadOfficeCatalogue extends ErpInvoiceStart {
 			this.maximumAuthorizedDiscount = maximumAuthorizedDiscount;
 			this.familyCode = familyCode;
 			this.subFamilyCode = subFamilyCode;
+			this.variant = variant == null ? ItemVariant.NONE : variant;
+			this.brand = brand;
 		}
 
 		/** Came from the ERP: only the ERP import sets erp_external_id on an item. */

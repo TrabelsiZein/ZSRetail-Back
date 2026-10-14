@@ -19,7 +19,7 @@ public class ErpItemDTO implements ErpTimestamped {
 	private OffsetDateTime lastModifiedAt;
 
 	// Item variants (ZEN), step 2: one ERP item per variant (code = ERP item number + "~" + variant code). Null for a
-	// connector that gives no variant; the import writes them as they are.
+	// connector that gives no variant; the import always writes them (trimmed, blank as null), the brand only when given.
 
 	/** The ERP's item number of the variant (several items share it). */
 	private String navItemNo;
@@ -45,8 +45,6 @@ public class ErpItemDTO implements ErpTimestamped {
 	private Boolean clearance;
 	/** The point de stock row's clearance price, as read; null when none. */
 	private BigDecimal clearancePrice;
-	/** The item's VAT rate (percent) when the ERP gives one; null: the connector's default VAT applies. */
-	private Integer vatPercent;
 
 	public String getExternalId() {
 		return externalId;
@@ -279,13 +277,5 @@ public class ErpItemDTO implements ErpTimestamped {
 
 	public void setClearancePrice(BigDecimal clearancePrice) {
 		this.clearancePrice = clearancePrice;
-	}
-
-	public Integer getVatPercent() {
-		return vatPercent;
-	}
-
-	public void setVatPercent(Integer vatPercent) {
-		this.vatPercent = vatPercent;
 	}
 }

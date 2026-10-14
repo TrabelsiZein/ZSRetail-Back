@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.core.config.ConditionalOnErpAbility;
+import com.digithink.zsretail.core.erp.service.ItemVariant;
 import com.digithink.zsretail.erp.api.CatalogueRun;
 import com.digithink.zsretail.erp.api.CatalogueSettings;
 import com.digithink.zsretail.erp.api.ErpAbility;
@@ -46,7 +47,8 @@ import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
  * is applied: 0 proves the new items were saved.</li>
  * <li><b>Items.</b> Compared on what the import applies: name, description, VAT, active, ERP id, family and sub-family
  * (only when the ERP's one exists at the head office), the price with VAT at 3 decimals, discount group and maximum
- * discount (the import clears them). A null or zero price makes the item inactive (the connector's mapper). Release
+ * discount (the import clears them); item variants (ZEN, step 3): the 14 variant fields ({@code ItemVariant}) and the
+ * brand when the ERP gives one. The copies the engine makes of a head office item keep its variant fields and brand. A null or zero price makes the item inactive (the connector's mapper). Release
  * 2.2: the items page is read once per active stock point, in list order ({@link StockPoints}; none: the run does
  * nothing); every point's rows are written in full (new, changed, gone = inactive, never deleted), after the items; the
  * item gets its default copy from the first point where it is active, else the first that has it. A point that
@@ -287,7 +289,7 @@ public class CatalogueEngine {
 		Map<String, ErpItemDTO> merged = new LinkedHashMap<>();
 		for (PointRead read : reads) {
 			List<ErpItemDTO> ofPoint = read.read > 0 ? read.result.getRows()
-					: allSilent ? new ArrayList<>() : fromStored(read.stored);
+					: allSilent ? new ArrayList<>() : fromStored(read.stored, local);
 			for (ErpItemDTO item : ofPoint) {
 				ErpItemDTO first = merged.get(item.getCode());
 				if (first == null || (!Boolean.TRUE.equals(first.getActive()) && Boolean.TRUE.equals(item.getActive()))) {
@@ -538,8 +540,12 @@ public class CatalogueEngine {
 		return row.unitPrice == null ? BigDecimal.ZERO : BigDecimal.valueOf(row.unitPrice);
 	}
 
-	/** A point's last known rows as items of the ERP, for the merge when the point answered no row. */
-	private List<ErpItemDTO> fromStored(Map<String, StockPoints.Row> stored) {
+	/**
+	 * A point's last known rows as items of the ERP, for the merge when the point answered no row. Item variants (ZEN),
+	 * step 3: the variant fields and the brand are those of the head office item (a row has none), so that such a copy
+	 * never empties them.
+	 */
+	private List<ErpItemDTO> fromStored(Map<String, StockPoints.Row> stored, Map<String, HeadOfficeCatalogue.Item> local) {
 		List<ErpItemDTO> items = new ArrayList<>();
 		for (StockPoints.Row row : stored.values()) {
 			ErpItemDTO item = new ErpItemDTO();
@@ -552,6 +558,11 @@ public class CatalogueEngine {
 			item.setDefaultVAT(settings.defaultVat());
 			item.setUnitPrice(price(row));
 			item.setActive(row.active);
+			HeadOfficeCatalogue.Item here = local.get(row.itemCode);
+			if (here != null) {
+				here.variant.copyTo(item);
+				item.setBrand(here.brand);
+			}
 			items.add(item);
 		}
 		return items;
@@ -586,7 +597,11 @@ public class CatalogueEngine {
 		return trimmed.isEmpty() ? null : trimmed;
 	}
 
-	/** The fields the import applies, the price with VAT at 3 decimals. */
+	/**
+	 * The fields the import applies, the price with VAT at 3 decimals. Item variants (ZEN), step 3: also the 14 variant
+	 * fields ({@link ItemVariant}, blank as null; all null on both sides for an ERP without variants) and the brand when
+	 * the ERP gives one (the import keeps the head office's otherwise).
+	 */
 	private static boolean differs(ErpItemDTO item, HeadOfficeCatalogue.Item here, Set<String> familyCodes,
 			Set<String> subFamilyCodes) {
 		if (!text(item.getName(), item.getCode()).equals(text(here.name, null))
@@ -594,6 +609,13 @@ public class CatalogueEngine {
 				|| !Objects.equals(item.getDefaultVAT(), here.defaultVat) || item.getActive() != here.isActive()
 				|| !item.getCode().equals(here.erpExternalId) || !text(here.itemDiscGroup, null).isEmpty()
 				|| here.maximumAuthorizedDiscount != null) {
+			return true;
+		}
+		if (!ItemVariant.of(item).equals(here.variant)) {
+			return true;
+		}
+		String brand = text(item.getBrand(), null);
+		if (!brand.isEmpty() && !brand.equals(text(here.brand, null))) {
 			return true;
 		}
 		if (withVat(item.getUnitPrice(), item.getDefaultVAT())
@@ -616,7 +638,7 @@ public class CatalogueEngine {
 		return (price == null ? BigDecimal.ZERO : price).multiply(rate).setScale(3, RoundingMode.HALF_UP);
 	}
 
-	/** The head office item as it is, inactive. */
+	/** The head office item as it is, inactive (its variant fields and brand kept, step 3). */
 	private static ErpItemDTO inactiveCopy(HeadOfficeCatalogue.Item here) {
 		ErpItemDTO item = new ErpItemDTO();
 		item.setExternalId(here.erpExternalId.trim());
@@ -629,6 +651,8 @@ public class CatalogueEngine {
 		item.setMaximumAuthorizedDiscount(here.maximumAuthorizedDiscount);
 		item.setFamilyExternalId(here.familyCode);
 		item.setSubFamilyExternalId(here.subFamilyCode);
+		here.variant.copyTo(item);
+		item.setBrand(here.brand);
 		item.setActive(Boolean.FALSE);
 		return item;
 	}
