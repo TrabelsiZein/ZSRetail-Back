@@ -318,6 +318,25 @@ not change. The item does not compare them. No price logic: the stores keep the 
 de stock" (`StockPointItemDTO`) shows both values. Tests: `CatalogueClearanceTest` (core), `HoStockPointRowsTest` (H2),
 `HoStockPointItemsServiceTest.clearance`.
 
+**Items run of changes only (step 6)**: a connector whose `ErpCatalogueSource.readsChangesOnly()` is true (ZEN) is read
+per point de stock from its checkpoint: `items(location, since)`, the connector filtering `lastModifiedAt ge since`;
+since is null on the first run (a whole read). Happyness and EMTOP (false) run the whole read exactly as before
+(`CatalogueEngine.readAndApplyItems` branches to `readAndApplyChanges` only for such a connector).
+- Checkpoint: `erp_catalogue_state`, key `items.since:<point id>`, ISO time with offset = the highest `lastModifiedAt`
+  of the rows the point answered (never earlier than the one it had), written once all the point's rows are applied;
+  kept when the point failed, answered no row or no dated row, and in a dry run. `CatalogueEngine.checkpoint(pointId)`,
+  `resetCheckpoint(pointId)` (the next run of that point is a whole read; no screen yet).
+- Nothing is deactivated by absence. A row answered inactive makes its row inactive; an item is active when one of its
+  rows in the active points is (answered, else stored): its last active row answered inactive makes it inactive, an
+  answered active row active again. The rows at the checkpoint itself come back (ge) and compare unchanged.
+- The codes answered are handled in packets of packet-size: only the stored rows of a packet's codes are loaded
+  (`StockPoints.rows(pointId, codes)`, an `IN` query in `HoStockPointRows`), then the packet's items, then its rows of
+  each point. A failed packet of items ends the run; a point whose rows fail stops (checkpoint kept), the others go on,
+  the run ends in error. A point answering no row is a success.
+- Summary: `changesOnly`, and per point `since`, `read`, `maxSeen`, `new`, `changed`, `deactivated`, `written`,
+  `checkpoint`, `checkpointWritten` (`failed` when it failed). Tests: `CatalogueChangesOnlyTest` (core),
+  `HoStockPointRowsTest.readsTheRowsOfSomeCodes` (H2).
+
 Tests: `core/erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows of navpospages through its adapter,
 `NavPosPagesFixture`), `NavPosPagesInvoicesTest`, `NavPosPagesCatalogueSourceTest`.
 

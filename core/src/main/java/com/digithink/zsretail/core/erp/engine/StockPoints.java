@@ -1,6 +1,8 @@
 package com.digithink.zsretail.core.erp.engine;
 
 import java.math.BigDecimal;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -19,6 +21,23 @@ public interface StockPoints {
 
 	/** Every row of the point (active or not), by item code. */
 	Map<String, Row> rows(long pointId);
+
+	/**
+	 * Item variants (ZEN), step 6: the rows of the point for these item codes only (active or not), by item code. The
+	 * items run of a connector that reads changes only loads no other row. By default taken from {@link #rows(long)} (the
+	 * tests' maps); HoStockPointRows reads only these rows.
+	 */
+	default Map<String, Row> rows(long pointId, Collection<String> itemCodes) {
+		Map<String, Row> all = rows(pointId);
+		Map<String, Row> found = new LinkedHashMap<>();
+		for (String code : itemCodes) {
+			Row row = all.get(code);
+			if (row != null) {
+				found.put(code, row);
+			}
+		}
+		return found;
+	}
 
 	/**
 	 * Writes these rows of the point (new ones created, the others replaced), in one transaction. A row whose item is not

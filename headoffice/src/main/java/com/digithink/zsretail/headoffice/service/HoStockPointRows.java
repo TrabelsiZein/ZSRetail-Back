@@ -2,6 +2,7 @@ package com.digithink.zsretail.headoffice.service;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -63,13 +64,33 @@ public class HoStockPointRows implements StockPoints {
 		return active;
 	}
 
+	/** The columns of a row as the engine reads it, from HoStockPointItem r and Item i. */
+	private static final String ROW_COLUMNS = "select i.itemCode, r.name, r.description, r.familyCode,"
+			+ " r.subFamilyCode, r.unitPrice, r.active, r.clearance, r.clearancePrice from HoStockPointItem r, Item i"
+			+ " where r.itemId = i.id and r.stockPointId = :point";
+
 	@Override
 	public Map<String, Row> rows(long pointId) {
 		Map<String, Row> found = new LinkedHashMap<>();
-		List<?> result = entityManager.createQuery("select i.itemCode, r.name, r.description, r.familyCode,"
-				+ " r.subFamilyCode, r.unitPrice, r.active, r.clearance, r.clearancePrice from HoStockPointItem r, Item i"
-				+ " where r.itemId = i.id and r.stockPointId = :point order by i.itemCode")
-				.setParameter("point", pointId).getResultList();
+		addRows(found, entityManager.createQuery(ROW_COLUMNS + " order by i.itemCode").setParameter("point", pointId)
+				.getResultList());
+		return found;
+	}
+
+	/** Item variants (ZEN), step 6: only the rows of these item codes, in chunks of {@value #IN_CHUNK}. */
+	@Override
+	public Map<String, Row> rows(long pointId, Collection<String> itemCodes) {
+		Map<String, Row> found = new LinkedHashMap<>();
+		List<String> codes = new ArrayList<>(itemCodes);
+		for (int from = 0; from < codes.size(); from += IN_CHUNK) {
+			addRows(found, entityManager.createQuery(ROW_COLUMNS + " and i.itemCode in :codes order by i.itemCode")
+					.setParameter("point", pointId)
+					.setParameter("codes", codes.subList(from, Math.min(from + IN_CHUNK, codes.size()))).getResultList());
+		}
+		return found;
+	}
+
+	private static void addRows(Map<String, Row> found, List<?> result) {
 		for (Object line : result) {
 			Object[] row = (Object[]) line;
 			// Item variants (ZEN), step 5: a null clearance (rows written before it) is false
@@ -77,7 +98,6 @@ public class HoStockPointRows implements StockPoints {
 					(String) row[4], (Double) row[5], !Boolean.FALSE.equals(row[6]), Boolean.TRUE.equals(row[7]),
 					(BigDecimal) row[8]));
 		}
-		return found;
 	}
 
 	@Override

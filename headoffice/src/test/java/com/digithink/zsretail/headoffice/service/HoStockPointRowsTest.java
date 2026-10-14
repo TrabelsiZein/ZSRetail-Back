@@ -111,6 +111,28 @@ class HoStockPointRowsTest {
 		assertNull(tie.getClearancePrice());
 	}
 
+	@Test
+	@DisplayName("Step 6: the rows of some item codes only, of this point only")
+	void readsTheRowsOfSomeCodes() {
+		session.beginTransaction();
+		HoStockPointItem other = new HoStockPointItem(); // the same item at another point
+		other.setStockPointId(POINT + 1);
+		other.setItemId(stored("14ZDU05~001").getItemId());
+		other.setName("in another point");
+		other.setUnitPrice(2.0);
+		session.persist(other);
+		session.getTransaction().commit();
+		session.clear();
+
+		Map<String, Row> read = rows.rows(POINT, Arrays.asList("14ZDU05~001", "NOT-AN-ITEM"));
+
+		assertEquals(1, read.size());
+		Row tie = read.get("14ZDU05~001");
+		assertEquals("14ZDU05~001", tie.name, "the row of this point");
+		assertTrue(tie.clearance);
+		assertTrue(rows.rows(POINT, java.util.Collections.emptyList()).isEmpty());
+	}
+
 	private Item item(String code) {
 		Item item = new Item();
 		item.setItemCode(code);

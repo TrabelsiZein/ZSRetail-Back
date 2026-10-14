@@ -2,14 +2,19 @@ package com.digithink.zsretail.core.erp.engine;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -337,6 +342,9 @@ public class CatalogueEngine {
 		if (waiting != null) {
 			return run(new ArrayList<>(), summary.waiting(waiting), part);
 		}
+		if (source.readsChangesOnly()) {
+			return readAndApplyChanges(points, summary, part); // item variants (ZEN), step 6
+		}
 		// Every point read first, in list order: a failed read fails the run before anything is applied
 		List<PointRead> reads = new ArrayList<>();
 		for (StockPoints.Point point : points) {
@@ -519,6 +527,313 @@ public class CatalogueEngine {
 							+ read.written + ", " + read.millis + " ms");
 		}
 		return run(applied, summary, part);
+	}
+
+	// ─── Items, changes only (item variants, ZEN, step 6) ───────
+
+	/**
+	 * The checkpoint of a point de stock in the state table (key + point id): the highest ERP time (lastModifiedAt) of
+	 * the rows of the point applied, ISO with its offset.
+	 */
+	static final String ITEMS_SINCE = "items.since:";
+
+	/** The checkpoint of this point, or null (none, or not readable): its next read is a whole read. */
+	public OffsetDateTime checkpoint(long pointId) {
+		String value = state.get(ITEMS_SINCE + pointId);
+		if (value == null || value.trim().isEmpty()) {
+			return null;
+		}
+		try {
+			return OffsetDateTime.parse(value.trim());
+		} catch (DateTimeParseException e) {
+			return null;
+		}
+	}
+
+	/** Forgets the checkpoint of this point: its next items run reads every row of it (nothing deactivated by absence). */
+	public void resetCheckpoint(long pointId) {
+		state.remove(ITEMS_SINCE + pointId);
+	}
+
+	/**
+	 * The items run of a connector that reads changes only ({@link ErpCatalogueSource#readsChangesOnly()}):
+	 * <ul>
+	 * <li>Each active point is read from its checkpoint ({@link #checkpoint}; null: every row), in list order; a failed
+	 * read fails the run before anything is applied. A point that answers no row has no change: a success.</li>
+	 * <li>Nothing is deactivated by absence: a row or an item not answered stays as it is. A row answered inactive makes
+	 * its point's row inactive; an item is active when one of its rows in the active points is (the rows answered, else the
+	 * rows stored), so an item whose last active row is answered inactive becomes inactive, and an answered active row
+	 * makes it active again. The item's other fields come from its first row answered active, else its first row answered
+	 * (as the whole read); the compares of an item and of a row are those of the whole read.</li>
+	 * <li>The codes answered are handled in packets of packet-size, by code: only the stored rows of a packet's codes are
+	 * loaded ({@link StockPoints#rows(long, java.util.Collection)}), then the packet's items are applied, then its rows of
+	 * each point. A failed packet of items ends the run in error. A point whose rows fail stops there (its later packets
+	 * skipped); the other points go on and the run ends in error.</li>
+	 * <li>The checkpoint of a point is written once all its rows are applied: the highest lastModifiedAt of the rows it
+	 * answered (never earlier than the one it had); not when it failed, nor when it answered no dated row, nor in a dry
+	 * run.</li>
+	 * </ul>
+	 */
+	private CatalogueRun<ErpItemDTO> readAndApplyChanges(List<StockPoints.Point> points, RunSummary summary, Part part) {
+		summary.put("changesOnly", true);
+		List<ChangesRead> reads = new ArrayList<>();
+		for (StockPoints.Point point : points) {
+			OffsetDateTime since = checkpoint(point.id);
+			long start = System.nanoTime();
+			ErpRead<ErpItemDTO> rows;
+			try {
+				rows = source.items(point.code, since);
+			} catch (RuntimeException e) {
+				recordRead(point, StockPoints.READ_FAILED, "read failed: " + e.getMessage());
+				throw e;
+			}
+			summary.addRead(rows);
+			reads.add(new ChangesRead(point, since, rows, millisSince(start)));
+		}
+		Map<String, HeadOfficeCatalogue.Item> local = headOffice.items();
+		Set<String> familyCodes = headOffice.families().keySet();
+		Set<String> subFamilyCodes = headOffice.subFamilies().keySet();
+		String taxStamp = headOffice.taxStampErpCode();
+
+		TreeSet<String> answered = new TreeSet<>();
+		reads.forEach(read -> answered.addAll(read.rows.keySet()));
+		if (taxStamp != null && answered.remove(taxStamp)) {
+			summary.leftOut(TAX_STAMP_ITEM); // the import never saves it: it would wait for ever
+		}
+		Set<String> freshCodes = answered.stream().filter(code -> !local.containsKey(code)).collect(Collectors.toSet());
+		// Counted before applying: while a packet of new items is not saved, the barcodes wait
+		saveRun(ITEMS_RUN, ITEMS_PENDING, freshCodes.size());
+		boolean barcodesStarted = cursor() > 0;
+		int size = settings.packetSize();
+		List<String> codes = new ArrayList<>(answered);
+		List<ErpItemDTO> applied = new ArrayList<>();
+		int changed = 0;
+		int deactivated = 0;
+		int packets = 0;
+		int notInCategories = 0;
+		List<String> notInCategoriesFirst = new ArrayList<>();
+		for (int from = 0; from < codes.size(); from += size) {
+			List<String> packet = codes.subList(from, Math.min(from + size, codes.size()));
+			// The stored rows of these codes only, in every active point
+			Map<Long, Map<String, StockPoints.Row>> stored = new HashMap<>();
+			for (StockPoints.Point point : points) {
+				stored.put(point.id, stockPoints.rows(point.id, packet));
+			}
+			// The rows of each point, compared before the items (whose blank names are filled below)
+			Map<Long, List<StockPoints.Row>> rowsToWrite = new HashMap<>();
+			for (ChangesRead read : reads) {
+				List<StockPoints.Row> toWrite = new ArrayList<>();
+				rowsToWrite.put(read.point.id, toWrite);
+				Map<String, StockPoints.Row> ofPoint = stored.get(read.point.id);
+				for (String code : packet) {
+					ErpItemDTO row = read.rows.get(code);
+					if (row == null) {
+						continue;
+					}
+					StockPoints.Row here = ofPoint.get(code);
+					StockPoints.Row next = rowOf(row, here, familyCodes, subFamilyCodes);
+					if (here == null) {
+						read.fresh++;
+						toWrite.add(next);
+					} else if (differs(next, here)) {
+						if (here.active && !next.active) {
+							read.deactivated++;
+						} else {
+							read.changed++;
+						}
+						toWrite.add(next);
+					}
+				}
+			}
+			// The items: active when one of their rows in the active points is (answered, else stored)
+			List<ErpItemDTO> itemChanges = new ArrayList<>();
+			for (String code : packet) {
+				ErpItemDTO item = null;
+				boolean active = false;
+				for (ChangesRead read : reads) {
+					ErpItemDTO row = read.rows.get(code);
+					if (row != null) {
+						if (item == null || (!Boolean.TRUE.equals(item.getActive()) && Boolean.TRUE.equals(row.getActive()))) {
+							item = row;
+						}
+						active |= Boolean.TRUE.equals(row.getActive());
+					} else {
+						StockPoints.Row kept = stored.get(read.point.id).get(code);
+						active |= kept != null && kept.active;
+					}
+				}
+				item.setActive(active);
+				String missing = missingCategory(item, familyCodes, subFamilyCodes);
+				if (missing != null) {
+					notInCategories++;
+					if (notInCategoriesFirst.size() < NOT_IN_CATEGORIES_SHOWN) {
+						notInCategoriesFirst.add(code + " (" + missing + ")");
+					}
+				}
+				HeadOfficeCatalogue.Item here = local.get(code);
+				if (here == null) {
+					itemChanges.add(item); // a blank name: the import gives it the code
+					continue;
+				}
+				// A blank Description (name and description) never replaces the head office's: kept, not a change
+				if (text(item.getName(), null).isEmpty()) {
+					item.setName(here.name);
+				}
+				if (text(item.getDescription(), null).isEmpty()) {
+					item.setDescription(here.description);
+				}
+				if (differs(item, here, familyCodes, subFamilyCodes)) {
+					if (here.isActive() && !active) {
+						deactivated++;
+					} else {
+						changed++;
+					}
+					itemChanges.add(item);
+				}
+			}
+			if (settings.dryRun()) {
+				continue;
+			}
+			if (!itemChanges.isEmpty()) {
+				// New items once the barcodes have started: their barcodes may be behind the cursor
+				if (barcodesStarted) {
+					for (ErpItemDTO item : itemChanges) {
+						if (freshCodes.contains(item.getCode())) {
+							state.put(NEEDS_BARCODES + item.getCode(), "1");
+						}
+					}
+				}
+				try {
+					importer.items(itemChanges);
+				} catch (RuntimeException e) {
+					String message = "Items: packet " + (from / size + 1) + " failed, " + applied.size()
+							+ " rows applied before it (each point is read again from its checkpoint): " + e.getMessage();
+					for (ChangesRead read : reads) {
+						recordRead(read.point, StockPoints.READ_FAILED, "rows not written: " + message);
+					}
+					throw new IllegalStateException(message, e);
+				}
+				applied.addAll(itemChanges);
+				packets++;
+			}
+			// The rows of each point, after the packet's items (a row needs its item)
+			for (ChangesRead read : reads) {
+				List<StockPoints.Row> toWrite = rowsToWrite.get(read.point.id);
+				if (read.failed != null || toWrite.isEmpty()) {
+					continue;
+				}
+				long start = System.nanoTime();
+				try {
+					read.written += stockPoints.write(read.point.id, toWrite);
+				} catch (RuntimeException e) {
+					read.failed = "Stock point " + read.point.code + ": packet " + (from / size + 1) + " failed, "
+							+ read.written + " rows written before it (its checkpoint kept, the next run reads it again): "
+							+ e.getMessage();
+					recordRead(read.point, StockPoints.READ_FAILED, read.failed);
+				}
+				read.millis += millisSince(start);
+			}
+		}
+		if (!settings.dryRun() && !freshCodes.isEmpty()) {
+			// Counted again once applied: the new items the import did not save (if any) keep the barcodes waiting
+			Set<String> saved = headOffice.items().keySet();
+			state.put(ITEMS_PENDING, String.valueOf(freshCodes.stream().filter(code -> !saved.contains(code)).count()));
+		}
+		// The checkpoint of each point whose rows were all applied
+		List<String> failures = new ArrayList<>();
+		for (ChangesRead read : reads) {
+			if (read.failed != null) {
+				failures.add(read.failed);
+				continue;
+			}
+			if (!settings.dryRun() && read.maxSeen != null) {
+				read.checkpoint = read.since != null && read.since.isAfter(read.maxSeen) ? read.since : read.maxSeen;
+				state.put(ITEMS_SINCE + read.point.id, read.checkpoint.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+			}
+			recordRead(read.point, StockPoints.READ_OK, "read " + read.read + " since " + dateText(read.since) + ", new "
+					+ read.fresh + ", changed " + read.changed + ", deactivated " + read.deactivated + ", written "
+					+ read.written + ", checkpoint " + dateText(read.checkpoint) + ", " + read.millis + " ms");
+		}
+		summary.put("new", freshCodes.size());
+		summary.put("changed", changed);
+		summary.put("deactivated", deactivated);
+		if (notInCategories > 0) {
+			summary.put("notInCategories", notInCategories);
+			summary.put("notInCategoriesFirst", String.join(", ", notInCategoriesFirst)); // text: never a list in the log
+		}
+		summary.put("applied", applied.size());
+		summary.put("packets", packets);
+		summary.put("stockPoints", changesSummaries(reads));
+		if (!failures.isEmpty()) {
+			throw new IllegalStateException(String.join("; ", failures));
+		}
+		return run(applied, summary, part);
+	}
+
+	/** One point's read of changes: its rows by code, the time it was read from, the highest time read. */
+	private static final class ChangesRead {
+		final StockPoints.Point point;
+		/** The checkpoint the point was read from; null: a whole read. */
+		final OffsetDateTime since;
+		final int read;
+		/** The rows answered, by item code. */
+		final Map<String, ErpItemDTO> rows = new LinkedHashMap<>();
+		/** The highest lastModifiedAt of the rows answered; null when none has one. */
+		final OffsetDateTime maxSeen;
+		long millis;
+		int fresh;
+		int changed;
+		int deactivated;
+		int written;
+		/** Why the point stopped (a packet of its rows failed); null when all its rows were applied. */
+		String failed;
+		/** The checkpoint written by this run; null: none written. */
+		OffsetDateTime checkpoint;
+
+		ChangesRead(StockPoints.Point point, OffsetDateTime since, ErpRead<ErpItemDTO> result, long millis) {
+			this.point = point;
+			this.since = since;
+			this.read = result.getRead();
+			this.millis = millis;
+			OffsetDateTime highest = null;
+			for (ErpItemDTO row : result.getRows()) {
+				rows.put(row.getCode(), row);
+				OffsetDateTime at = row.getLastModifiedAt();
+				if (at != null && (highest == null || at.isAfter(highest))) {
+					highest = at;
+				}
+			}
+			this.maxSeen = highest;
+		}
+	}
+
+	/** The stockPoints part of the summary of a run of changes: per point code, in list order. */
+	private static Map<String, Object> changesSummaries(List<ChangesRead> reads) {
+		Map<String, Object> points = new LinkedHashMap<>();
+		for (ChangesRead read : reads) {
+			Map<String, Object> values = new LinkedHashMap<>();
+			values.put("name", read.point.name);
+			values.put("since", dateText(read.since));
+			values.put("read", read.read);
+			values.put("maxSeen", dateText(read.maxSeen));
+			values.put("new", read.fresh);
+			values.put("changed", read.changed);
+			values.put("deactivated", read.deactivated);
+			values.put("written", read.written);
+			values.put("checkpoint", dateText(read.checkpoint));
+			values.put("checkpointWritten", read.checkpoint != null);
+			if (read.failed != null) {
+				values.put("failed", read.failed);
+			}
+			values.put("durationMs", read.millis);
+			points.put(read.point.code, values);
+		}
+		return points;
+	}
+
+	/** ISO with its offset; null stays null (text: the summary goes to the log as JSON). */
+	private static String dateText(OffsetDateTime value) {
+		return value == null ? null : value.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 	}
 
 	/** Step 4: the point's last read, for the points page; never in a dry run; a failure to record is only logged. */

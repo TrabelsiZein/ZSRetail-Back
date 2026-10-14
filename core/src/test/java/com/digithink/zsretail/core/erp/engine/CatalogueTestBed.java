@@ -1,12 +1,15 @@
 package com.digithink.zsretail.core.erp.engine;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
@@ -51,6 +54,13 @@ final class CatalogueTestBed {
 	final List<ErpItemSectionDTO> sections = new ArrayList<>();
 	/** True: the page read through the 2-argument ErpCategories (an ERP without catégories and sections). */
 	boolean twoLevelsOnly;
+	/**
+	 * Step 6: true, the ERP reads changes only: items(location, since) answers the rows whose lastModifiedAt is at or
+	 * after since (every row when since is null), as the connector filters them.
+	 */
+	boolean changesOnly;
+	/** Step 6: each read of changes, "LOCATION since VALUE" (VALUE null for a whole read). */
+	final List<String> sinceAsked = new ArrayList<>();
 	/** How many times the import of catégories and of sections was called. */
 	int categoryImports;
 	int sectionImports;
@@ -214,6 +224,7 @@ final class CatalogueTestBed {
 		to.setBrand(from.getBrand());
 		to.setClearance(from.getClearance());
 		to.setClearancePrice(from.getClearancePrice());
+		to.setLastModifiedAt(from.getLastModifiedAt());
 		return to;
 	}
 
@@ -236,6 +247,19 @@ final class CatalogueTestBed {
 		public ErpRead<ErpItemDTO> items(String locationCode) {
 			return read(items.getOrDefault(locationCode, new ArrayList<>()).stream().map(CatalogueTestBed::copy)
 					.collect(Collectors.toList()));
+		}
+
+		@Override
+		public ErpRead<ErpItemDTO> items(String locationCode, OffsetDateTime since) {
+			sinceAsked.add(locationCode + " since " + since);
+			return read(items.getOrDefault(locationCode, new ArrayList<>()).stream()
+					.filter(row -> since == null || row.getLastModifiedAt() == null || !row.getLastModifiedAt().isBefore(since))
+					.map(CatalogueTestBed::copy).collect(Collectors.toList()));
+		}
+
+		@Override
+		public boolean readsChangesOnly() {
+			return changesOnly;
 		}
 
 		@Override
@@ -341,6 +365,11 @@ final class CatalogueTestBed {
 		final List<Point> points = new ArrayList<>();
 		final Map<Long, Map<String, Row>> rows = new HashMap<>();
 		int writes;
+		/** Step 6: loads of every row of a point, and loads of the rows of some codes ("point:code,code"). */
+		int wholeLoads;
+		final List<String> codeLoads = new ArrayList<>();
+		/** Step 6: the points whose writes fail. */
+		final Set<Long> failing = new HashSet<>();
 
 		@Override
 		public List<Point> activePoints() {
@@ -349,11 +378,29 @@ final class CatalogueTestBed {
 
 		@Override
 		public Map<String, Row> rows(long pointId) {
+			wholeLoads++;
+			return new LinkedHashMap<>(rows.getOrDefault(pointId, new TreeMap<>()));
+		}
+
+		/** The rows as stored, without counting a load (the tests' view). */
+		Map<String, Row> stored(long pointId) {
 			return new LinkedHashMap<>(rows.getOrDefault(pointId, new TreeMap<>()));
 		}
 
 		@Override
+		public Map<String, Row> rows(long pointId, Collection<String> itemCodes) {
+			codeLoads.add(pointId + ":" + String.join(",", itemCodes));
+			Map<String, Row> ofPoint = rows.getOrDefault(pointId, new TreeMap<>());
+			Map<String, Row> found = new LinkedHashMap<>();
+			itemCodes.stream().filter(ofPoint::containsKey).forEach(code -> found.put(code, ofPoint.get(code)));
+			return found;
+		}
+
+		@Override
 		public int write(long pointId, List<Row> packet) {
+			if (failing.contains(pointId)) {
+				throw new IllegalStateException("connection lost");
+			}
 			writes++;
 			Map<String, Row> ofPoint = rows.computeIfAbsent(pointId, id -> new TreeMap<>());
 			int written = 0;
