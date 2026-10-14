@@ -8,6 +8,16 @@ public class ErpItemFamilyDTO {
 	private String description;
 	private Integer displayOrder;
 	private Boolean active;
+	/** Item variants (ZEN), step 2: the ERP id of its catégorie (the level above); null when the ERP gives none. */
+	private String categoryExternalId;
+
+	public String getCategoryExternalId() {
+		return categoryExternalId;
+	}
+
+	public void setCategoryExternalId(String categoryExternalId) {
+		this.categoryExternalId = categoryExternalId;
+	}
 
 	public String getExternalId() {
 		return externalId;

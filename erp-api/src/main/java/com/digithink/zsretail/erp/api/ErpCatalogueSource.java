@@ -1,5 +1,6 @@
 package com.digithink.zsretail.erp.api;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
@@ -22,6 +23,23 @@ public interface ErpCatalogueSource {
 
 	/** Every item of one location (a point de stock: its code in the ERP). */
 	ErpRead<ErpItemDTO> items(String locationCode);
+
+	/**
+	 * Item variants (ZEN), step 2: the items of one location changed since this time (null: every item, as
+	 * {@link #items(String)}). By default every item, whatever the time: a connector that reads changes only overrides
+	 * it and {@link #readsChangesOnly()}.
+	 */
+	default ErpRead<ErpItemDTO> items(String locationCode, OffsetDateTime since) {
+		return items(locationCode);
+	}
+
+	/**
+	 * Item variants (ZEN), step 2: true when {@link #items(String, OffsetDateTime)} with a time answers only the rows
+	 * changed since then (a row not answered is unchanged, not gone). False by default: each read is the whole location.
+	 */
+	default boolean readsChangesOnly() {
+		return false;
+	}
 
 	/**
 	 * One page of barcodes whose position is above this one; an empty read (0 rows read) means caught up. The positions
