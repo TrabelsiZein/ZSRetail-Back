@@ -601,7 +601,8 @@ public class CatalogueEngine {
 		return new StockPoints.Row(item.getCode(), name, description.isEmpty() ? null : description,
 				known(item.getFamilyExternalId(), familyCodes, here == null ? null : here.familyCode),
 				known(item.getSubFamilyExternalId(), subFamilyCodes, here == null ? null : here.subFamilyCode),
-				item.getUnitPrice() == null ? 0.0 : item.getUnitPrice().doubleValue(), Boolean.TRUE.equals(item.getActive()));
+				item.getUnitPrice() == null ? 0.0 : item.getUnitPrice().doubleValue(), Boolean.TRUE.equals(item.getActive()),
+				Boolean.TRUE.equals(item.getClearance()), item.getClearancePrice());
 	}
 
 	/** The ERP's code when the head office has it, else the code kept. */
@@ -610,14 +611,27 @@ public class CatalogueEngine {
 		return code != null && headOfficeCodes.contains(code) ? code : blankToNull(kept);
 	}
 
-	/** Name, description, family, sub-family, active, the price with VAT at 3 decimals. */
+	/**
+	 * Name, description, family, sub-family, active, the price with VAT at 3 decimals. Item variants (ZEN), step 5: the
+	 * clearance flag (a null column read as false, an ERP without it gives false) and the clearance price at 3 decimals
+	 * (null = no price).
+	 */
 	private boolean differs(StockPoints.Row row, StockPoints.Row here) {
 		Integer vat = settings.defaultVat();
 		return !text(row.name, null).equals(text(here.name, null))
 				|| !text(row.description, null).equals(text(here.description, null))
 				|| !Objects.equals(blankToNull(row.familyCode), blankToNull(here.familyCode))
 				|| !Objects.equals(blankToNull(row.subFamilyCode), blankToNull(here.subFamilyCode))
-				|| row.active != here.active || withVat(price(row), vat).compareTo(withVat(price(here), vat)) != 0;
+				|| row.active != here.active || withVat(price(row), vat).compareTo(withVat(price(here), vat)) != 0
+				|| row.clearance != here.clearance || !samePrice(row.clearancePrice, here.clearancePrice);
+	}
+
+	/** Both null, or equal at 3 decimals (HALF_UP). */
+	static boolean samePrice(BigDecimal a, BigDecimal b) {
+		if (a == null || b == null) {
+			return a == null && b == null;
+		}
+		return a.setScale(3, RoundingMode.HALF_UP).compareTo(b.setScale(3, RoundingMode.HALF_UP)) == 0;
 	}
 
 	private static BigDecimal price(StockPoints.Row row) {

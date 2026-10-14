@@ -165,6 +165,8 @@ public class HoStockPointItemsService {
 			view.setSubFamilyName(subFamilyNames.get(row.getSubFamilyCode()));
 			view.setUnitPrice(row.getUnitPrice());
 			view.setActive(!Boolean.FALSE.equals(row.getActive()));
+			view.setClearance(Boolean.TRUE.equals(row.getClearance()));
+			view.setClearancePrice(row.getClearancePrice());
 			view.setDefaultVAT(item.getDefaultVAT());
 			view.setType(item.getType() == null ? null : item.getType().name());
 			view.setUnitOfMeasure(item.getUnitOfMeasure());

@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.dto;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,6 +38,10 @@ public class StockPointItemDTO {
 	/** Before VAT (the meaning of item.unitPrice). */
 	private Double unitPrice;
 	private Boolean active;
+	/** Item variants (ZEN), step 5: the ERP's clearance flag for this point (null column: false). */
+	private Boolean clearance;
+	/** Item variants (ZEN), step 5: the ERP's clearance price for this point, as read; null when none. */
+	private BigDecimal clearancePrice;
 
 	// From the item
 	private Integer defaultVAT;

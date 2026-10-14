@@ -310,6 +310,14 @@ stores yet. Tests: `core/erp/engine/CatalogueCategoriesTest`; the families and s
 catégories (Happyness) are summarised as before (`CatalogueEngineTest.catalogueJobOneRun`, network-tests). Each part
 reads the categories page: two more reads of that small page per run.
 
+**Clearance of a point de stock row (step 5)**: `ErpItemDTO.clearance` / `clearancePrice` are the values of the point
+read; `StockPoints.Row` carries them (`ho_stock_point_item.clearance`, `clearance_price`, written and read by
+`HoStockPointRows`; a null column, a row written before 3.1.0, is false). The row compare adds the flag (null = false on
+both sides) and the clearance price at 3 decimals (null = no price): the rows of an ERP without clearance (Happyness) do
+not change. The item does not compare them. No price logic: the stores keep the row's price; the page "Items by point
+de stock" (`StockPointItemDTO`) shows both values. Tests: `CatalogueClearanceTest` (core), `HoStockPointRowsTest` (H2),
+`HoStockPointItemsServiceTest.clearance`.
+
 Tests: `core/erp/engine/CatalogueEngineTest` (the engine and the job, fed page rows of navpospages through its adapter,
 `NavPosPagesFixture`), `NavPosPagesInvoicesTest`, `NavPosPagesCatalogueSourceTest`.
 

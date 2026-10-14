@@ -1,5 +1,6 @@
 package com.digithink.zsretail.core.erp.engine;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -54,9 +55,19 @@ public interface StockPoints {
 		public final String subFamilyCode;
 		public final Double unitPrice;
 		public final boolean active;
+		/** Item variants (ZEN), step 5: the ERP's clearance flag for this point (a null column is false). */
+		public final boolean clearance;
+		/** Item variants (ZEN), step 5: the ERP's clearance price for this point, as read; null when none. */
+		public final BigDecimal clearancePrice;
 
+		/** A row without clearance. */
 		public Row(String itemCode, String name, String description, String familyCode, String subFamilyCode,
 				Double unitPrice, boolean active) {
+			this(itemCode, name, description, familyCode, subFamilyCode, unitPrice, active, false, null);
+		}
+
+		public Row(String itemCode, String name, String description, String familyCode, String subFamilyCode,
+				Double unitPrice, boolean active, boolean clearance, BigDecimal clearancePrice) {
 			this.itemCode = itemCode;
 			this.name = name;
 			this.description = description;
@@ -64,11 +75,14 @@ public interface StockPoints {
 			this.subFamilyCode = subFamilyCode;
 			this.unitPrice = unitPrice;
 			this.active = active;
+			this.clearance = clearance;
+			this.clearancePrice = clearancePrice;
 		}
 
-		/** The same row, inactive. */
+		/** The same row, inactive (its clearance kept). */
 		public Row inactive() {
-			return new Row(itemCode, name, description, familyCode, subFamilyCode, unitPrice, false);
+			return new Row(itemCode, name, description, familyCode, subFamilyCode, unitPrice, false, clearance,
+					clearancePrice);
 		}
 	}
 }

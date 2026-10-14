@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.service;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -66,13 +67,15 @@ public class HoStockPointRows implements StockPoints {
 	public Map<String, Row> rows(long pointId) {
 		Map<String, Row> found = new LinkedHashMap<>();
 		List<?> result = entityManager.createQuery("select i.itemCode, r.name, r.description, r.familyCode,"
-				+ " r.subFamilyCode, r.unitPrice, r.active from HoStockPointItem r, Item i"
+				+ " r.subFamilyCode, r.unitPrice, r.active, r.clearance, r.clearancePrice from HoStockPointItem r, Item i"
 				+ " where r.itemId = i.id and r.stockPointId = :point order by i.itemCode")
 				.setParameter("point", pointId).getResultList();
 		for (Object line : result) {
 			Object[] row = (Object[]) line;
+			// Item variants (ZEN), step 5: a null clearance (rows written before it) is false
 			found.put((String) row[0], new Row((String) row[0], (String) row[1], (String) row[2], (String) row[3],
-					(String) row[4], (Double) row[5], !Boolean.FALSE.equals(row[6])));
+					(String) row[4], (Double) row[5], !Boolean.FALSE.equals(row[6]), Boolean.TRUE.equals(row[7]),
+					(BigDecimal) row[8]));
 		}
 		return found;
 	}
@@ -106,6 +109,8 @@ public class HoStockPointRows implements StockPoints {
 			saved.setSubFamilyCode(row.subFamilyCode);
 			saved.setUnitPrice(row.unitPrice == null ? 0.0 : row.unitPrice);
 			saved.setActive(row.active);
+			saved.setClearance(row.clearance);
+			saved.setClearancePrice(row.clearancePrice);
 			toSave.add(saved);
 		}
 		rows.saveAll(toSave);

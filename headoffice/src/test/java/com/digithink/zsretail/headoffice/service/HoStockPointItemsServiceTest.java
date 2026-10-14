@@ -133,4 +133,20 @@ class HoStockPointItemsServiceTest {
 		assertEquals(2, view.getBarcodes().size());
 		assertFalse(service.row(999L).isPresent());
 	}
+
+	@Test
+	@DisplayName("Item variants (ZEN), step 5: the row's clearance and clearance price; a row of before without clearance")
+	void clearance() {
+		when(rows.findById(row.getId())).thenReturn(Optional.of(row));
+		StockPointItemDTO before = service.row(row.getId()).get();
+		assertFalse(before.getClearance(), "a null column is false");
+		assertNull(before.getClearancePrice());
+
+		row.setClearance(Boolean.TRUE);
+		row.setClearancePrice(new java.math.BigDecimal("7.000"));
+		StockPointItemDTO view = service.row(row.getId()).get();
+		assertTrue(view.getClearance());
+		assertEquals(0, new java.math.BigDecimal("7.000").compareTo(view.getClearancePrice()));
+		assertEquals(12.5, view.getUnitPrice(), "the row's price as before");
+	}
 }
