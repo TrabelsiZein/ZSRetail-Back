@@ -297,7 +297,8 @@ the 14 fields (`erp/service/ItemVariant`) and the brand when given, so a size or
 the item; the rows of the points de stock do not compare them. The engine's own copies of a head office item (an item
 gone from every point, a point that answered no row) keep its variant fields and brand. The item name stays the ERP's
 item description. Tests: `core/erp/engine/CatalogueEngineVariantsTest` (the real import over in-memory tables),
-`JpaHeadOfficeCatalogueTest` (the items query on H2).
+`JpaHeadOfficeCatalogueTest` (the items query on H2). The read-only page "NAV items" (step 11a, one line per NAV item
+number): `docs/modules/head-office.md`, "NAV items".
 
 **Catégories and sections (step 4)**: `ErpCategories` gives, from the same categories page, the catégories (above the
 families, table `item_category`) and the sections (below the sub-families, table `item_section`); an ERP that has none

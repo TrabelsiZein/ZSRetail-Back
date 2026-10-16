@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ import com.digithink.zsretail.core.model.enumeration.LicenseStatus;
 import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.core.service.LicenseService;
 import com.digithink.zsretail.core.service.LoyaltyService;
+import com.digithink.zsretail.core.service.NavItemService;
 import com.digithink.zsretail.core.service.TaxStampRule;
 import com.digithink.zsretail.core.service.TaxStampRuleTest;
 import com.digithink.zsretail.core.support.TestModes;
@@ -49,10 +51,11 @@ class AppConfigAPITest {
 	 * step 6 (catalogueFromHeadOffice), step 7A (supplyFromHeadOffice), headoffice.stock.enabled (headOfficeStock),
 	 * invoices from the ERP (supplySource), always last; then 2.2.1 decimal quantities (allowDecimalQuantity) and the tax
 	 * stamp rule (taxStampActive); then 2.2.2 amounts with 3 decimals on the POS screens (posAmountsThreeDecimals); then
-	 * RFID step 2 (rfidEnabled). */
+	 * RFID step 2 (rfidEnabled); then 3.1.0 cashierClosingTicket and the NAV items page of item variants (navItems). */
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
 			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock", "supplySource",
-			"allowDecimalQuantity", "taxStampActive", "posAmountsThreeDecimals", "rfidEnabled", "cashierClosingTicket");
+			"allowDecimalQuantity", "taxStampActive", "posAmountsThreeDecimals", "rfidEnabled", "cashierClosingTicket",
+			"navItems");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";
@@ -145,6 +148,7 @@ class AppConfigAPITest {
 		inject(api, AppConfigAPI.class, "appVersion", APP_VERSION);
 		inject(api, AppConfigAPI.class, "loyaltyService", loyalty);
 		inject(api, AppConfigAPI.class, "taxStampRule", TaxStampRuleTest.rule(setup.get(TaxStampRule.SETTING), true));
+		inject(api, AppConfigAPI.class, "navItemService", NAV_ITEM_SERVICE[0]);
 		return api.getConfig().getBody();
 	}
 
@@ -300,6 +304,36 @@ class AppConfigAPITest {
 			SETUP_OVERRIDES.clear();
 		}
 	}
+
+	@Test
+	@DisplayName("Item variants (ZEN), step 11a: navItems is the NAV item service's answer, read on each call; false without it")
+	void navItems() throws Exception {
+		boolean[] exists = { false };
+		NavItemService navItemService = new NavItemService(null, null, null, null, Optional.empty()) {
+			@Override
+			public boolean hasNavItems() {
+				return exists[0];
+			}
+		};
+		assertFalse(dynamics().isNavItems(), "no NAV item service (a hand-built API): false");
+		AppConfigDTO before = configWith(navItemService);
+		assertFalse(before.isNavItems());
+		exists[0] = true; // a catalogue read or a copy down brought the first variant
+		assertTrue(configWith(navItemService).isNavItems(), "no cache: the next call sees it");
+	}
+
+	/** The store preset without an ERP (standalone()), with this NAV item service. */
+	private static AppConfigDTO configWith(NavItemService navItemService) throws Exception {
+		NAV_ITEM_SERVICE[0] = navItemService;
+		try {
+			return standalone();
+		} finally {
+			NAV_ITEM_SERVICE[0] = null;
+		}
+	}
+
+	/** The NAV item service config() injects, null = none (navItems false). */
+	private static final NavItemService[] NAV_ITEM_SERVICE = { null };
 
 	private static void inject(Object target, Class<?> declaringClass, String fieldName, Object value) throws Exception {
 		Field field = declaringClass.getDeclaredField(fieldName);

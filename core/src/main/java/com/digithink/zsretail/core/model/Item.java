@@ -6,8 +6,10 @@ import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
+import javax.persistence.Index;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
+import javax.persistence.Table;
 
 import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
@@ -26,6 +28,8 @@ import lombok.NoArgsConstructor;
  * properties are ignored so it serializes like a loaded Item.
  */
 @Entity
+// Item variants (ZEN), step 11a: the "NAV items" page groups by nav_item_no (also in db/3.1.0/update.sql)
+@Table(name = "item", indexes = @Index(name = "ix_item_nav_item_no", columnList = "nav_item_no"))
 // franchiseSalesPrice, fromFranchiseAdmin: fields of the franchise profiles removed at step 9 (task 9.4a), still sent
 // by older screens: ignored, never refused. Their columns stay in the table.
 @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler", "franchiseSalesPrice", "fromFranchiseAdmin" })

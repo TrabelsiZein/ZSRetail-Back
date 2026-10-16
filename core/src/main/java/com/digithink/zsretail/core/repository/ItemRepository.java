@@ -5,6 +5,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -122,4 +124,46 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 	/** Inventory count, at the validation: [id, stockQuantity] of these items (at most 2,000 ids per call). */
 	@Query("select i.id, i.stockQuantity from Item i where i.id in :ids")
 	List<Object[]> findStockByIds(@Param("ids") Collection<Long> ids);
+
+	/**
+	 * Item variants (ZEN), step 11a: at least one item carries a NAV item number (GET /config navItems, the "NAV items"
+	 * menu entry). One seek on ix_item_nav_item_no.
+	 */
+	boolean existsByNavItemNoIsNotNull();
+
+	/**
+	 * Step 11a, page "NAV items": the items counted in a line and in the count of lines. search: lower case with % already
+	 * around it (the NAV item number or the item's name), null = not filtered; activeOnly: TRUE = the active variants only,
+	 * null = every variant.
+	 */
+	String NAV_ITEMS_WHERE = " where i.navItemNo is not null"
+			+ " and (:search is null or lower(i.navItemNo) like :search or lower(i.name) like :search)"
+			+ " and (:activeOnly is null or i.active is null or i.active = true)";
+
+	/**
+	 * Step 11a: one line per NAV item number, by number: [NAV item number, name, family name, sub-family name, catégorie
+	 * code, section code, number of variants, stock of the variants]. The ERP gives the name and the classification per
+	 * NAV item, so its variants share them; min keeps one when they differ.
+	 */
+	String NAV_ITEMS = "select i.navItemNo, min(i.name), min(f.name), min(sf.name), min(i.categoryCode),"
+			+ " min(i.sectionCode), count(i), sum(i.stockQuantity) from Item i left join i.itemFamily f"
+			+ " left join i.itemSubFamily sf" + NAV_ITEMS_WHERE + " group by i.navItemNo order by i.navItemNo";
+
+	String NAV_ITEMS_COUNT = "select count(distinct i.navItemNo) from Item i" + NAV_ITEMS_WHERE;
+
+	@Query(value = NAV_ITEMS, countQuery = NAV_ITEMS_COUNT)
+	Page<Object[]> findNavItems(@Param("search") String search, @Param("activeOnly") Boolean activeOnly,
+			Pageable page);
+
+	/**
+	 * Step 11a: the variants of one NAV item number, by size order (no order last), colour, choice, then item code.
+	 * activeOnly as {@link #NAV_ITEMS_WHERE}.
+	 */
+	String NAV_ITEM_VARIANTS = "select i from Item i where i.navItemNo = :navItemNo"
+			+ " and (:activeOnly is null or i.active is null or i.active = true)"
+			+ " order by case when i.sizeSortOrder is null then 1 else 0 end, i.sizeSortOrder, i.colorCode,"
+			+ " i.choiceCode, i.itemCode";
+
+	@Query(NAV_ITEM_VARIANTS)
+	List<Item> findNavItemVariants(@Param("navItemNo") String navItemNo, @Param("activeOnly") Boolean activeOnly);
 }

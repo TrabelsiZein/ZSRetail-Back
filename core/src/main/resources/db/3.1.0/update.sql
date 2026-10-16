@@ -16,8 +16,8 @@
 --
 -- Schema, item variants (ZEN, docs/variants-zen-analysis-2026-10-14.md): nullable columns of item (the variant, its size,
 -- colour, choice, season, division, catégorie and section codes) and item_family.category_code, two new tables
--- item_category and item_section (store and head office, empty), and the clearance of ho_stock_point_item (a head office
--- only). Re-runnable; no data changed.
+-- item_category and item_section (store and head office, empty), the clearance of ho_stock_point_item (a head office
+-- only) and the index ix_item_nav_item_no (step 11a, the "NAV items" page). Re-runnable; no data changed.
 --
 -- Data, payment method "Retenue à la source" (type RETENUE_SOURCE): added inactive with the neutral code RETENUE_SOURCE
 -- (store and head office, as the seed), only when no row of that type exists. A database that has it already (EMTOP
@@ -180,6 +180,12 @@ IF COL_LENGTH('item', 'division_code') IS NULL ALTER TABLE item ADD division_cod
 IF COL_LENGTH('item', 'category_code') IS NULL ALTER TABLE item ADD category_code varchar(255) NULL;
 IF COL_LENGTH('item', 'section_code') IS NULL ALTER TABLE item ADD section_code varchar(255) NULL;
 IF COL_LENGTH('item_family', 'category_code') IS NULL ALTER TABLE item_family ADD category_code varchar(255) NULL;
+GO
+-- Item variants (ZEN), step 11a: the "NAV items" page groups the items by nav_item_no and GET /config asks whether one
+-- item has it. A plain index, as the entity's @Index: a filtered one on item would refuse every later write to item from
+-- a session with QUOTED_IDENTIFIER OFF (sqlcmd's default), for every customer.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_item_nav_item_no' AND object_id = OBJECT_ID(N'item'))
+	CREATE INDEX ix_item_nav_item_no ON item (nav_item_no);
 GO
 IF OBJECT_ID(N'item_category', N'U') IS NULL
 BEGIN

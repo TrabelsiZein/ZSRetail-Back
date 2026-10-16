@@ -334,3 +334,22 @@ checkpoint" button. Steps 1–8, 10 and 12 are the go-live path. Steps 1–7 do 
 | Q10 | Which NAV API gives ZEN's posted invoices to the franchise (as Happyness's invoice pages)? | step 9 |
 | Q11 | A sample where `categoryCode` … `sectionCode` are filled (all empty today) | step 8 tests |
 | Q12 | ZEN stores: `erp.connector=none` (sales go to the head office only)? Head office sales to NAV: out of scope? | step 10 |
+
+## F. Done and to do
+
+Steps 1–10: the commits "Item variants (ZEN) step 1" … "variants: ZEN config files + company name (step 10)" on
+`release/3.1.0`.
+
+**Step 11a (2026-10-16), front part A**: the read-only page "NAV items" (store and head office, one line per NAV item
+number, its variants on opening, the variant × point de stock price grid with clearance at the head office, stock only
+where the installation keeps its own) and the "Variant" block of the item form. Decisions: the Items permission shared,
+`navItems` of `GET /config` read on each call (no cache), a View action only for the rows with a NAV item number, status
+Active / All (Active by default). The index `ix_item_nav_item_no` is plain, not filtered (a filtered index on `item`
+would refuse sqlcmd writes with `QUOTED_IDENTIFIER OFF` for every customer). Details: `docs/modules/head-office.md`,
+"NAV items".
+
+To do:
+- (a) `ZenStartupCheck` must accept `erp.connector=zen` on a store whose catalogue is the ERP's (ZEN's own stores).
+  Not for the 30/10 go-live. The stock rule already answers "no stock" for such a store (`KeepsOwnStockTest`).
+- (b) The stores' stock per variant at the head office, from `ho_store_stock` (the network stock), on the NAV items
+  page. Later.

@@ -164,4 +164,10 @@ public class AppConfigDTO {
 	 * (the ticket Z, also when the row is absent) or "DECLARED" (the amounts declared only); null on a head office.
 	 */
 	private String cashierClosingTicket;
+
+	/**
+	 * Item variants (ZEN), step 11a: at least one item carries a NAV item number, so the "NAV items" page exists (menu
+	 * entry and route). Read on each call (one index seek); false for a customer whose ERP gives no variant.
+	 */
+	private boolean navItems;
 }

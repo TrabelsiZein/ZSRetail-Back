@@ -82,6 +82,15 @@ public class ApplicationModeService {
 		return headOfficeWithoutStock;
 	}
 
+	/**
+	 * Item variants (ZEN), step 11a: this installation keeps its own stock: the supply is not the ERP's and it is not a
+	 * head office with headoffice.stock.enabled=false. The rule the item pages already use (frontend: !supplyFromErp &&
+	 * headOfficeKeepsStock); no key of its own.
+	 */
+	public boolean keepsOwnStock() {
+		return !isSupplyFromErp() && !headOfficeWithoutStock;
+	}
+
 	/** True on a store that calls a head office (headoffice.url set): the "Head office link" page exists. */
 	public boolean isHeadOfficeLinked() {
 		return headOfficeLinked;

@@ -86,7 +86,26 @@ public interface HoStockPointItemRepository extends _BaseRepository<HoStockPoint
 	List<String> findBarcodesOfPoints(@Param("pointIds") Collection<Long> pointIds,
 			@Param("excludedItemCode") String excludedItemCode);
 
-	String ROWS_WHERE = " where r.itemId = i.id and p.id = r.stockPointId"
+	/**
+	 * Item variants (ZEN), step 11a, page "NAV items": [NAV item number, number of active points where at least one of
+	 * its variants has an active row], for these numbers (at most one page of them).
+	 */
+	String NAV_ITEM_POINT_COUNTS = "select i.navItemNo, count(distinct r.stockPointId)"
+			+ " from HoStockPointItem r, Item i, HoStockPoint p where r.itemId = i.id and p.id = r.stockPointId"
+			+ " and i.navItemNo in :navItemNos and (r.active is null or r.active = true)"
+			+ " and (p.active is null or p.active = true) group by i.navItemNo";
+
+	/** Step 11a: [item id, point id, unit price, active, clearance, clearance price] of every row of these items. */
+	String ROWS_OF_ITEMS = "select r.itemId, r.stockPointId, r.unitPrice, r.active, r.clearance, r.clearancePrice"
+			+ " from HoStockPointItem r where r.itemId in :itemIds";
+
+	@Query(NAV_ITEM_POINT_COUNTS)
+	List<Object[]> countActivePointsOfNavItems(@Param("navItemNos") Collection<String> navItemNos);
+
+	@Query(ROWS_OF_ITEMS)
+	List<Object[]> findRowsOfItems(@Param("itemIds") Collection<Long> itemIds);
+
+	String ROWS_WHERE =" where r.itemId = i.id and p.id = r.stockPointId"
 			+ " and (:pointId is null or r.stockPointId = :pointId)"
 			+ " and (:search is null or lower(i.itemCode) like :search or lower(r.name) like :search"
 			+ " or exists (select b.id from ItemBarcode b where b.item.id = i.id and lower(b.barcode) like :search))"

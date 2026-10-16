@@ -1708,6 +1708,43 @@ catalogue only, and `headoffice.supply.source=HEAD_OFFICE`.
 A head office whose catalogue and supply come from the ERP shows two cards: Invoices from the ERP (the two invoice
 settings) and ERP (tracking level).
 
+### NAV items (item variants, ZEN, 3.1.0, step 11a)
+A read-only page, store and head office, for a catalogue of one item per ERP variant (`item.nav_item_no` set,
+`docs/variants-zen-analysis-2026-10-14.md`): one line per NAV item number, a line opens on its variants.
+
+- **When it exists**: `GET /config` `navItems` = at least one item has a NAV item number
+  (`ItemRepository.existsByNavItemNoIsNotNull`, one seek on `ix_item_nav_item_no`), read on each call, no cache: the
+  menu entry appears at the next login or reload after the first catalogue read (head office) or copy down (store).
+  EMTOP and Happyness have no NAV item number: no entry, the route sends home (frontend `appConfig/navItems`; store
+  route `admin-nav-items` in `NAV_ITEMS_ROUTES`, head office twin `admin-headoffice-nav-items` with `meta.navItems`).
+  No configuration key.
+- **Permission**: the Items one (`admin-item-management` on a store, `admin-headoffice-items` on a head office); no
+  permission of its own, nothing added to the role seeds or the Roles page.
+- **API** (core, `NavItemAPI`, `NavItemService`): `GET /nav-item?page&size&search&status` (status `ACTIVE`, the default:
+  the active variants only, a NAV item without one has no line; `ALL`: every variant) answers `{content, page, size,
+  totalElements, totalPages, withStock, withStockPoints}`; a line: NAV item number, name (the NAV description), family,
+  sub-family, catégorie and section (code and name; a store has no catégorie/section rows, the name is null there),
+  number of variants, active points de stock (head office), stock. `GET /nav-item/variants?navItemNo&status`: the
+  variants by size order (none last), colour, choice, code. The NAV number is a query parameter: it may hold a `/`.
+- **Grouping**: `ItemRepository.NAV_ITEMS` groups and pages in the database (`group by nav_item_no`, a count query
+  apart); the variants are read only when a line opens. Index `ix_item_nav_item_no` (entity `@Index` and
+  `db/3.1.0/update.sql`), plain on purpose: a filtered index on `item` would refuse every later write to `item` from a
+  session with `QUOTED_IDENTIFIER OFF` (sqlcmd's default) on every customer.
+- **Stock**: only where the installation keeps its own, `ApplicationModeService.keepsOwnStock()` = the supply not the
+  ERP's and not a head office with `headoffice.stock.enabled=false` (the rule the Items page already uses; frontend
+  getter `appConfig/keepsStock`). ZEN's head office: no stock; ZEN's franchise store (`erp.connector=none`): its stock; a
+  store whose catalogue is the ERP's (the supply then too): no stock (`KeepsOwnStockTest` on the deploy files).
+- **Points de stock** (head office only, `HoNavItemStockPoints`, the core interface `NavItemStockPoints`): per line, the
+  active points where a variant has an active row; per variant, a price grid with one column per point that has a row
+  of one of the variants (list order): the price with VAT, a clearance price shown after the normal price struck
+  through, an inactive row greyed. A store shows each variant's own price.
+- **Item form**: a read-only "Variant" block after the basic information (NAV item number, variant code and
+  description, size and its order, colour, choice, season, division, catégorie, section), rendered only when the item
+  has a NAV item number, with a link to the page searched on that number. Such an item opens read-only; on a head office
+  whose catalogue is the ERP's its row gets a View action (no other item gains one).
+- Tests: `NavItemQueryTest` (the grouped queries on H2), `NavItemStockPointsQueryTest` (head office, on H2),
+  `NavItemServiceTest`, `AppConfigAPITest` (`navItems`), `KeepsOwnStockTest` (network-tests).
+
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter
 `appConfig/erpOwnsOnlyCatalogue`): `nodeType` `HEAD_OFFICE`, `ownership.CATALOGUE` `ERP`, `CUSTOMERS` and `SUPPLY` not `ERP`,
