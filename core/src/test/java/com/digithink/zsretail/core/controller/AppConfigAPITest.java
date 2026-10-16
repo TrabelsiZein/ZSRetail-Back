@@ -25,6 +25,7 @@ import com.digithink.zsretail.core.model.enumeration.LicenseStatus;
 import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.core.service.LicenseService;
 import com.digithink.zsretail.core.service.LoyaltyService;
+import com.digithink.zsretail.core.service.ItemTreeService;
 import com.digithink.zsretail.core.service.NavItemService;
 import com.digithink.zsretail.core.service.TaxStampRule;
 import com.digithink.zsretail.core.service.TaxStampRuleTest;
@@ -51,11 +52,12 @@ class AppConfigAPITest {
 	 * step 6 (catalogueFromHeadOffice), step 7A (supplyFromHeadOffice), headoffice.stock.enabled (headOfficeStock),
 	 * invoices from the ERP (supplySource), always last; then 2.2.1 decimal quantities (allowDecimalQuantity) and the tax
 	 * stamp rule (taxStampActive); then 2.2.2 amounts with 3 decimals on the POS screens (posAmountsThreeDecimals); then
-	 * RFID step 2 (rfidEnabled); then 3.1.0 cashierClosingTicket and the NAV items page of item variants (navItems). */
+	 * RFID step 2 (rfidEnabled); then 3.1.0 cashierClosingTicket and the NAV items page of item variants (navItems), then
+	 * its Catégories and Sections pages (itemCategories, itemSections). */
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
 			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock", "supplySource",
 			"allowDecimalQuantity", "taxStampActive", "posAmountsThreeDecimals", "rfidEnabled", "cashierClosingTicket",
-			"navItems");
+			"navItems", "itemCategories", "itemSections");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";
@@ -149,6 +151,7 @@ class AppConfigAPITest {
 		inject(api, AppConfigAPI.class, "loyaltyService", loyalty);
 		inject(api, AppConfigAPI.class, "taxStampRule", TaxStampRuleTest.rule(setup.get(TaxStampRule.SETTING), true));
 		inject(api, AppConfigAPI.class, "navItemService", NAV_ITEM_SERVICE[0]);
+		inject(api, AppConfigAPI.class, "itemTreeService", ITEM_TREE_SERVICE[0]);
 		return api.getConfig().getBody();
 	}
 
@@ -334,6 +337,41 @@ class AppConfigAPITest {
 
 	/** The NAV item service config() injects, null = none (navItems false). */
 	private static final NavItemService[] NAV_ITEM_SERVICE = { null };
+
+	/** The tree service config() injects, null = none (itemCategories, itemSections false). */
+	private static final ItemTreeService[] ITEM_TREE_SERVICE = { null };
+
+	@Test
+	@DisplayName("Item variants (ZEN), step 11b: itemCategories and itemSections are the tree service's answers, read on each call")
+	void itemTree() throws Exception {
+		boolean[] rows = { false, false }; // catégories, sections
+		ItemTreeService tree = new ItemTreeService(null, null, null, null) {
+			@Override
+			public boolean hasCategories() {
+				return rows[0];
+			}
+
+			@Override
+			public boolean hasSections() {
+				return rows[1];
+			}
+		};
+		AppConfigDTO none = dynamics();
+		assertFalse(none.isItemCategories(), "no tree service (a hand-built API): false");
+		assertFalse(none.isItemSections());
+		ITEM_TREE_SERVICE[0] = tree;
+		try {
+			assertFalse(standalone().isItemCategories(), "empty tables (EMTOP, Happyness)");
+			rows[0] = true; // the first catalogue read or copy down
+			AppConfigDTO categoriesOnly = standalone();
+			assertTrue(categoriesOnly.isItemCategories(), "no cache: the next call sees it");
+			assertFalse(categoriesOnly.isItemSections(), "each table its own answer");
+			rows[1] = true;
+			assertTrue(standalone().isItemSections());
+		} finally {
+			ITEM_TREE_SERVICE[0] = null;
+		}
+	}
 
 	private static void inject(Object target, Class<?> declaringClass, String fieldName, Object value) throws Exception {
 		Field field = declaringClass.getDeclaredField(fieldName);

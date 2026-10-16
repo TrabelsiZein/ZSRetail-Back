@@ -24,6 +24,9 @@ public interface ItemCategoryRepository extends _BaseRepository<ItemCategory, Lo
 	@Query("select c.code from ItemCategory c")
 	List<String> findAllCodes();
 
+	/** Item variants (ZEN), step 11b: the table has a row, active or not (GET /config itemCategories). */
+	boolean existsByCodeIsNotNull();
+
 	/** Item variants (ZEN), step 7: the origin of one row (the column is not updatable through a save), as the families. */
 	@Modifying(flushAutomatically = true)
 	@Query("update ItemCategory x set x.origin = :origin where x.id = :id")

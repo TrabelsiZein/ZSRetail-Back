@@ -170,4 +170,13 @@ public class AppConfigDTO {
 	 * entry and route). Read on each call (one index seek); false for a customer whose ERP gives no variant.
 	 */
 	private boolean navItems;
+
+	/**
+	 * Item variants (ZEN), step 11b: the catégorie table has a row, so the "Catégories" page exists (and the famille page
+	 * shows each family's catégorie). Read on each call; false for a customer whose ERP gives no tree.
+	 */
+	private boolean itemCategories;
+
+	/** Step 11b: the section table has a row, so the "Sections" page exists. Read on each call. */
+	private boolean itemSections;
 }

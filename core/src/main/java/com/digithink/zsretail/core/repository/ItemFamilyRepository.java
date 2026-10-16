@@ -33,4 +33,14 @@ public interface ItemFamilyRepository extends _BaseRepository<ItemFamily, Long> 
 	@Modifying(flushAutomatically = true)
 	@Query("update ItemFamily x set x.origin = :origin where x.id = :id")
 	int setOrigin(@Param("id") Long id, @Param("origin") RecordOrigin origin);
+
+	/** Item variants (ZEN), step 11b, page "Catégories": [catégorie code, number of families under it], active or not. */
+	String FAMILY_COUNTS_BY_CATEGORY = "select f.categoryCode, count(f) from ItemFamily f"
+			+ " where f.categoryCode is not null group by f.categoryCode";
+
+	@Query(FAMILY_COUNTS_BY_CATEGORY)
+	List<Object[]> countFamiliesByCategory();
+
+	/** Step 11b: the families under one catégorie (a catégorie line opened), in list order. */
+	List<ItemFamily> findByCategoryCodeOrderByDisplayOrderAscCodeAsc(String categoryCode);
 }

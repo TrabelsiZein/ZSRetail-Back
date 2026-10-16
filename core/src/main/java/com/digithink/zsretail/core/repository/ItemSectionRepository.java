@@ -26,6 +26,9 @@ public interface ItemSectionRepository extends _BaseRepository<ItemSection, Long
 	@Query("select s.code from ItemSection s")
 	List<String> findAllCodes();
 
+	/** Item variants (ZEN), step 11b: the table has a row, active or not (GET /config itemSections). */
+	boolean existsByCodeIsNotNull();
+
 	/** Item variants (ZEN), step 7: the origin of one row (the column is not updatable through a save), as the families. */
 	@Modifying(flushAutomatically = true)
 	@Query("update ItemSection x set x.origin = :origin where x.id = :id")

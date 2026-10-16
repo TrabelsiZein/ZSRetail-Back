@@ -348,7 +348,18 @@ Active / All (Active by default). The index `ix_item_nav_item_no` is plain, not 
 would refuse sqlcmd writes with `QUOTED_IDENTIFIER OFF` for every customer). Details: `docs/modules/head-office.md`,
 "NAV items".
 
+**Step 11b (2026-10-16), front part B**: the clearance in the price cell and the details of "Items by point de stock"
+(no new column), the read-only pages "Catégories" (families per catégorie, a line opens on its families) and
+"Sections" (path catégorie › famille › sous-famille), their menu entries by `GET /config` `itemCategories` /
+`itemSections` (a row in the table; no cache), the Items permission, the catégorie column of the famille page (only
+with catégories; no section column on the sous-famille page). `CHANGELOG.md` in both repos, backfilled to 1.12.0.
+Details: `docs/modules/head-office.md`, "Catégories, sections and clearance".
+
 To do:
+- To confirm with ZEN: `clearancePrice` is HT (before VAT), like `publicPrice`; the pages show it with VAT as
+  `clearancePrice × (1 + VAT)`.
+- When 3.1.0 is closed: write its `APP_RELEASE_NOTES` in `db/3.1.0/update.sql` from `CHANGELOG.md` (only two rows
+  today; RFID, tickets X / Z, the journal and the variants are missing).
 - (a) `ZenStartupCheck` must accept `erp.connector=zen` on a store whose catalogue is the ERP's (ZEN's own stores).
   Not for the 30/10 go-live. The stock rule already answers "no stock" for such a store (`KeepsOwnStockTest`).
 - (b) The stores' stock per variant at the head office, from `ho_store_stock` (the network stock), on the NAV items

@@ -1745,6 +1745,26 @@ A read-only page, store and head office, for a catalogue of one item per ERP var
 - Tests: `NavItemQueryTest` (the grouped queries on H2), `NavItemStockPointsQueryTest` (head office, on H2),
   `NavItemServiceTest`, `AppConfigAPITest` (`navItems`), `KeepsOwnStockTest` (network-tests).
 
+### Catégories, sections and clearance (item variants, ZEN, 3.1.0, step 11b)
+- **Pages "Catégories" and "Sections"** (read only, store and head office; store routes `admin-item-categories`,
+  `admin-item-sections` (`CATEGORY_ROUTES`, `SECTION_ROUTES`), head office twins with `meta.itemCategories` / `meta.itemSections`): the ERP's
+  tree catégorie > famille > sous-famille > section (`ItemTreeService`). Catégories: code, name, status, number of
+  families (`ItemFamilyRepository.FAMILY_COUNTS_BY_CATEGORY`, active or not); a line opens on its families
+  (`GET /item-category/families?code`). Sections: code, name, status and the path catégorie › famille › sous-famille
+  (by codes; a level without a row shows its code only). API GET only: `GET /item-category`, `GET /item-section`
+  (`ItemCategoryAPI`, `ItemSectionAPI`, not the generic controller: nothing is written here). A few hundred rows at
+  most, read whole.
+- **When they exist**: `GET /config` `itemCategories` / `itemSections` = the table has a row (an exists query each, read
+  on each call, no cache). Empty for EMTOP and Happyness: no entry, the routes send home. The Items permission, as NAV
+  items.
+- **Famille page**: a "Catégorie" column (code and name) only when `itemCategories` is true. The sous-famille page has
+  no section column (a sous-famille has several sections; the Sections page shows the link).
+- **Items by point de stock** (head office): a row in clearance shows, in its price cell and in the details price
+  block, its normal price struck through, the clearance price with VAT (`clearancePrice × (1 + VAT)`, as the other
+  prices of the page) and a "Soldé" badge. No new column, no price logic changed; a null clearance reads false, so
+  Happyness's page is as before.
+- Tests: `ItemTreeQueryTest` (H2), `ItemTreeServiceTest`, `AppConfigAPITest` (`itemCategories`, `itemSections`).
+
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter
 `appConfig/erpOwnsOnlyCatalogue`): `nodeType` `HEAD_OFFICE`, `ownership.CATALOGUE` `ERP`, `CUSTOMERS` and `SUPPLY` not `ERP`,

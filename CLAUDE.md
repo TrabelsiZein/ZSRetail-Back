@@ -123,3 +123,7 @@ touching it.
 All ZS Retail documentation lives in `docs/` in this repo — index in `docs/README.md` (and `../../CLAUDE.md`); what past
 steps did is in `docs/history/`.
 Keep the relevant `docs/modules/*.md` updated in the same commit as the code change.
+
+**CHANGELOG.md** (root of this repo): every commit that changes behaviour, a DB script or a config key adds its line
+under the version of its branch (Features / Enhancements / Fixes / DB script / Config). When a version is closed, its
+`APP_RELEASE_NOTES` in `db/<version>/update.sql` are written from it.

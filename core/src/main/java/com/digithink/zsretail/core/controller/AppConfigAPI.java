@@ -18,6 +18,7 @@ import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.model.enumeration.SalesUpstream;
 import com.digithink.zsretail.core.service.DecimalColumnsCheck;
 import com.digithink.zsretail.core.service.GeneralSetupService;
+import com.digithink.zsretail.core.service.ItemTreeService;
 import com.digithink.zsretail.core.service.LicenseService;
 import com.digithink.zsretail.core.service.LoyaltyService;
 import com.digithink.zsretail.core.service.NavItemService;
@@ -76,6 +77,10 @@ public class AppConfigAPI {
 	@Autowired(required = false)
 	private NavItemService navItemService;
 
+	/** As navItemService: absent in the hand-built tests (itemCategories, itemSections false). */
+	@Autowired(required = false)
+	private ItemTreeService itemTreeService;
+
 	/**
 	 * GET /config - returns public app config (standalone, enableSalesPriceGroup, loyaltyEnabled, etc.).
 	 * Allowed without authentication so the frontend can load it on app init.
@@ -122,7 +127,9 @@ public class AppConfigAPI {
 				"true".equalsIgnoreCase(generalSetupService.findValueByCode(POS_AMOUNTS_THREE_DECIMALS)),
 				applicationModeService.isRfidEnabled(),
 				cashierClosingTicket(),
-				navItemService != null && navItemService.hasNavItems()
+				navItemService != null && navItemService.hasNavItems(),
+				itemTreeService != null && itemTreeService.hasCategories(),
+				itemTreeService != null && itemTreeService.hasSections()
 		));
 	}
 
