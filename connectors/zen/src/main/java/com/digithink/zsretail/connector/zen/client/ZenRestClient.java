@@ -1,11 +1,15 @@
 package com.digithink.zsretail.connector.zen.client;
 
 import java.net.URI;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
@@ -33,9 +37,11 @@ import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
  * Item variants (ZEN), step 8: the reads of ZEN's API, GET only, as the other NAV connectors. The tree and the rows of
  * one location follow @odata.nextLink to the end; the rows of a location are filtered by locationCode, and from a
  * checkpoint by lastModifiedDateTime ge (the time in UTC). No $select on these two pages: the fields not used are
- * ignored, and active and vat are read when the API gives them. The barcodes are read one page per call, after an
- * entry number, the caller asking again from the highest Entry_No received; those of some items by Item_No and
- * Variant_Code. An HTTP error, a timeout or no answer throws {@link ZenReadException} naming the page and the status.
+ * ignored, and active and vat are read when the API gives them. Step 12a, ZEN's page barCodes: the barcodes are read
+ * one page per call, after a position (lastModifiedDateTime in epoch milliseconds, {@link ZenMapper#position}), the
+ * caller asking again from the highest position received; a full page is completed to the end of its last
+ * millisecond, so that a page never ends in the middle of one; those of some items by itemNo and variantCode. An HTTP
+ * error, a timeout or no answer throws {@link ZenReadException} naming the page and the status.
  * No retry. Step 10: every page is under companies(id) of the custom API; the id is erp.zen.company-id, or looked up once
  * by the company's name ({@link #companyId()}).
  */
@@ -45,6 +51,11 @@ public class ZenRestClient implements ZenSource {
 
 	/** Step 10: the page of the companies of the API, read to find the id of company (the name). */
 	static final String COMPANIES = "companies";
+	/** Step 12a: the field of the barcodes' cursor. */
+	static final String MODIFIED = "lastModifiedDateTime";
+	private static final ParameterizedTypeReference<ZenCollection<ZenBarcodeRow>> BARCODES =
+			new ParameterizedTypeReference<ZenCollection<ZenBarcodeRow>>() {
+			};
 
 	private final RestTemplate restTemplate;
 	private final ZenProperties properties;
@@ -85,15 +96,71 @@ public class ZenRestClient implements ZenSource {
 				+ since.withOffsetSameInstant(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 	}
 
+	/**
+	 * Step 12a: one page by lastModifiedDateTime, $top barcode-page-size, the rows above the position
+	 * ({@link #barcodesAfterFilter}). A full page may end in the middle of a millisecond whose other rows are on the
+	 * next page, past the cursor: then every row of its last millisecond is read too ({@link #barcodesAtFilter}, the
+	 * next links followed), those already on the page (same id) once.
+	 */
 	@Override
-	public List<ZenBarcodeRow> readBarcodesAfter(long entryNo) {
+	public List<ZenBarcodeRow> readBarcodesAfter(long position) {
 		String page = properties.getPage().getBarcodes();
-		URI uri = page(page).queryParam("$filter", "Entry_No gt " + entryNo).queryParam("$orderby", "Entry_No")
-				.queryParam("$top", properties.getBarcodePageSize()).queryParam("$select", ZenBarcodeRow.FIELDS).build()
-				.encode().toUri();
-		ZenCollection<ZenBarcodeRow> body = get(page, uri, new ParameterizedTypeReference<ZenCollection<ZenBarcodeRow>>() {
-		});
-		return body == null || body.getValue() == null ? new ArrayList<>() : new ArrayList<>(body.getValue());
+		int size = properties.getBarcodePageSize();
+		UriComponentsBuilder first = page(page);
+		String filter = barcodesAfterFilter(position);
+		if (filter != null) {
+			first.queryParam("$filter", filter);
+		}
+		URI uri = first.queryParam("$orderby", MODIFIED).queryParam("$top", size)
+				.queryParam("$select", ZenBarcodeRow.FIELDS).build().encode().toUri();
+		ZenCollection<ZenBarcodeRow> body = get(page, uri, BARCODES);
+		List<ZenBarcodeRow> rows = body == null || body.getValue() == null ? new ArrayList<>()
+				: new ArrayList<>(body.getValue());
+		if (rows.size() < size) {
+			return rows;
+		}
+		long last = rows.stream().mapToLong(row -> ZenMapper.position(row.getLastModifiedDateTime())).max()
+				.getAsLong();
+		URI rest = page(page).queryParam("$filter", barcodesAtFilter(last)).queryParam("$select", ZenBarcodeRow.FIELDS)
+				.build().encode().toUri();
+		Set<String> seen = rows.stream().map(ZenRestClient::rowKey).collect(Collectors.toCollection(HashSet::new));
+		for (ZenBarcodeRow row : readAll(page, rest, BARCODES)) {
+			if (seen.add(rowKey(row))) {
+				rows.add(row);
+			}
+		}
+		return rows;
+	}
+
+	/**
+	 * The rows above a position: none at 0 or below (every row, NAV's empty date included); else lastModifiedDateTime
+	 * ge the next millisecond, in UTC (2026-10-11T16:53:37.151Z).
+	 */
+	public static String barcodesAfterFilter(long position) {
+		return position <= 0 ? null : MODIFIED + " ge " + instant(position + 1);
+	}
+
+	/**
+	 * Every row of one position: ge its millisecond and lt the next one; for {@link ZenMapper#EMPTY_DATE_POSITION},
+	 * every row before 1970-01-01T00:00:00.002Z (NAV's empty date 0001-01-01 included).
+	 */
+	public static String barcodesAtFilter(long position) {
+		if (position <= ZenMapper.EMPTY_DATE_POSITION) {
+			return MODIFIED + " lt " + instant(ZenMapper.EMPTY_DATE_POSITION + 1);
+		}
+		return MODIFIED + " ge " + instant(position) + " and " + MODIFIED + " lt " + instant(position + 1);
+	}
+
+	private static String instant(long millis) {
+		return DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(millis));
+	}
+
+	/** The row's id; without one, its values (never the case in the API: two such rows are then one). */
+	private static String rowKey(ZenBarcodeRow row) {
+		String id = row.getId() == null ? "" : row.getId().trim();
+		return !id.isEmpty() ? id
+				: "|" + row.getItemNo() + "|" + row.getVariantCode() + "|" + row.getBarCode() + "|"
+						+ row.getLastModifiedDateTime();
 	}
 
 	@Override
@@ -104,13 +171,12 @@ public class ZenRestClient implements ZenSource {
 		String page = properties.getPage().getBarcodes();
 		URI uri = page(page).queryParam("$filter", barcodesOfItemsFilter(itemCodes))
 				.queryParam("$select", ZenBarcodeRow.FIELDS).build().encode().toUri();
-		return readAll(page, uri, new ParameterizedTypeReference<ZenCollection<ZenBarcodeRow>>() {
-		});
+		return readAll(page, uri, BARCODES);
 	}
 
 	/**
-	 * (Item_No eq 'A' and Variant_Code eq 'V') or ...: an item code itemNo~variantCode cut at its first ~, a code without
-	 * ~ is an item without a variant (Variant_Code eq ''); quotes doubled.
+	 * (itemNo eq 'A' and variantCode eq 'V') or ...: an item code itemNo~variantCode cut at its first ~, a code without
+	 * ~ is an item without a variant (variantCode eq ''); quotes doubled.
 	 */
 	public static String barcodesOfItemsFilter(List<String> itemCodes) {
 		StringBuilder filter = new StringBuilder();
@@ -119,8 +185,8 @@ public class ZenRestClient implements ZenSource {
 			int cut = text.indexOf(ZenMapper.SEPARATOR);
 			String itemNo = cut < 0 ? text : text.substring(0, cut);
 			String variant = cut < 0 ? "" : text.substring(cut + ZenMapper.SEPARATOR.length());
-			filter.append(filter.length() == 0 ? "" : " or ").append("(Item_No eq '").append(quoted(itemNo))
-					.append("' and Variant_Code eq '").append(quoted(variant)).append("')");
+			filter.append(filter.length() == 0 ? "" : " or ").append("(itemNo eq '").append(quoted(itemNo))
+					.append("' and variantCode eq '").append(quoted(variant)).append("')");
 		}
 		return filter.toString();
 	}

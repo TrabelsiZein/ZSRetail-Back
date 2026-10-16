@@ -12,8 +12,8 @@ import lombok.Setter;
 
 /**
  * Item variants (ZEN), step 8: the settings of ZEN's connector (prefix erp.zen), a NAV whose custom API
- * (api/sat/zsretail/v1.0) gives the pages stockPoints and itemCategories, and the barcodes page of Happyness with the
- * variant code. Read only: the connector sends GET requests only. The values are checked before they are bound
+ * (api/sat/zsretail/v1.0) gives the pages stockPoints, itemCategories and (step 12a) barCodes. Read only: the connector
+ * sends GET requests only. The values are checked before they are bound
  * ({@link ZenStartupCheck}): a wrong value stops the startup with a message naming the key. Exists only with
  * erp.connector=zen.
  */
@@ -64,8 +64,8 @@ public class ZenProperties {
 		private String stockPoints = "stockPoints";
 		/** The tree of the item categories, by indentation: catégorie, famille, sous-famille, section. */
 		private String categories = "itemCategories";
-		/** The barcodes: Happyness's barcode page and Variant_Code (the name to confirm with ZEN). */
-		private String barcodes = "ItemBarCodePOS";
+		/** The barcodes (step 12a: ZEN's page barCodes, read by lastModifiedDateTime). */
+		private String barcodes = "barCodes";
 	}
 
 	/** base-url / api-path / companies(companyId) / page; a page written as a whole address as it is. */

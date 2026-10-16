@@ -3,6 +3,7 @@ package com.digithink.zsretail.connector.zen.client;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,15 +49,17 @@ class ZenCatalogueSourceTest {
 		}
 
 		@Override
-		public List<ZenBarcodeRow> readBarcodesAfter(long entryNo) {
-			return Collections.singletonList(new ZenBarcodeRow("70061", "001", "9000002740592", entryNo + 1));
+		public List<ZenBarcodeRow> readBarcodesAfter(long position) {
+			reads.add("barcodes after " + position);
+			return Collections.singletonList(
+					new ZenBarcodeRow("a1", "70061", "001", "9000002740592", "2026-10-11T16:53:37.151Z"));
 		}
 
 		@Override
 		public List<ZenBarcodeRow> readBarcodesOfItems(List<String> itemCodes) {
 			// The ERP may answer more than asked for (another variant of the same item)
-			return Arrays.asList(new ZenBarcodeRow("70061", "001", "9000002740592", 1L),
-					new ZenBarcodeRow("70061", "002", "9000002740593", 2L));
+			return Arrays.asList(new ZenBarcodeRow("a1", "70061", "001", "9000002740592", "2026-10-11T16:53:37.151Z"),
+					new ZenBarcodeRow("a2", "70061", "002", "9000002740593", "2026-10-11T16:53:37.152Z"));
 		}
 
 		@Override
@@ -82,9 +85,12 @@ class ZenCatalogueSourceTest {
 	}
 
 	@Test
-	@DisplayName("Barcodes: by Entry_No; of some items, only those asked for")
+	@DisplayName("Barcodes: after the engine's position, each row's position its lastModifiedDateTime in epoch"
+			+ " milliseconds; of some items, only those asked for")
 	void barcodes() {
-		assertEquals(Long.valueOf(121), source.barcodesAfter(120).getRows().get(0).getPosition());
+		long at = Instant.parse("2026-10-11T16:53:37.151Z").toEpochMilli();
+		assertEquals(Long.valueOf(at), source.barcodesAfter(at - 1).getRows().get(0).getPosition());
+		assertEquals(Arrays.asList("barcodes after " + (at - 1)), reads);
 
 		ErpRead<ErpBarcodeRow> read = source.barcodesOfItems(Collections.singletonList("70061~001"));
 
@@ -94,11 +100,11 @@ class ZenCatalogueSourceTest {
 	}
 
 	@Test
-	@DisplayName("The pages: stockPoints, itemCategories, ItemBarCodePOS by default")
+	@DisplayName("The pages: stockPoints, itemCategories, barCodes by default")
 	void pages() {
 		assertEquals("stockPoints", source.pageLabel(Part.ITEMS));
 		assertEquals("itemCategories", source.pageLabel(Part.CATEGORIES));
-		assertEquals("ItemBarCodePOS", source.pageLabel(Part.BARCODES));
+		assertEquals("barCodes", source.pageLabel(Part.BARCODES));
 		assertEquals("http://nav.test/stockPoints", source.pageUrl(Part.ITEMS));
 	}
 }

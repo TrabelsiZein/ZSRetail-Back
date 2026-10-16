@@ -64,7 +64,7 @@ class ZenStartupCheckTest {
 		new ZenStartupCheck(env); // the bean checks and logs
 		String line = ZenStartupCheck.summary(env);
 		assertEquals("ERP connector zen (read only, GET): " + BASE_URL + ", API api/sat/zsretail/v1.0, company"
-				+ " ZEN SA, pages stockPoints, itemCategories, ItemBarCodePOS", line);
+				+ " ZEN SA, pages stockPoints, itemCategories, barCodes", line);
 		assertFalse(line.contains("secret"));
 	}
 
@@ -97,7 +97,7 @@ class ZenStartupCheckTest {
 		byId.setProperty("erp.zen.company-id", "89c8b192-3f2e-f111-9f24-7ced8db3f120");
 		ZenStartupCheck.check(byId);
 		assertEquals("ERP connector zen (read only, GET): " + BASE_URL + ", API api/sat/zsretail/v1.0, company id"
-				+ " 89c8b192-3f2e-f111-9f24-7ced8db3f120, pages stockPoints, itemCategories, ItemBarCodePOS",
+				+ " 89c8b192-3f2e-f111-9f24-7ced8db3f120, pages stockPoints, itemCategories, barCodes",
 				ZenStartupCheck.summary(byId), "the id is used as it is");
 		assertEquals("Invalid value 'nav.test:7158/ZEN' for property erp.zen.base-url: the address of the NAV instance,"
 				+ " http://host:port/instance", refusal(with("erp.zen.base-url", "nav.test:7158/ZEN")));

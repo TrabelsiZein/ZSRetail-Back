@@ -86,7 +86,7 @@ public class ZenStartupCheck {
 				+ ", company " + company(env) + ", pages "
 				+ env.getProperty(P + "page.stock-points", "stockPoints") + ", "
 				+ env.getProperty(P + "page.categories", "itemCategories") + ", "
-				+ env.getProperty(P + "page.barcodes", "ItemBarCodePOS");
+				+ env.getProperty(P + "page.barcodes", "barCodes");
 	}
 
 	/** The company as the reads find it: "id <id>" when company-id is set (used as it is), else its name. */

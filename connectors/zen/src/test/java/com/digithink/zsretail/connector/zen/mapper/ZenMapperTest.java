@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collections;
@@ -280,20 +281,43 @@ class ZenMapperTest {
 	}
 
 	@Test
-	@DisplayName("Barcodes: the item of the row with its variant; a blank barcode or Item_No left out; every position kept")
+	@DisplayName("Barcodes: the item of the row with its variant; a blank barCode or itemNo, a date not readable left out;"
+			+ " every position kept, NAV's empty date at 1")
 	void barcodes() {
-		ErpRead<ErpBarcodeRow> read = mapper.barcodeRows(Arrays.asList(new ZenBarcodeRow("70061", "001", "9000002740592", 11L),
-				new ZenBarcodeRow("1000", "", "6191234567890", 12L), new ZenBarcodeRow("70061", "002", " ", 13L),
-				new ZenBarcodeRow("", "001", "9000000000000", 14L)));
+		long t1 = Instant.parse("2026-10-11T16:53:37.150Z").toEpochMilli();
+		long t2 = Instant.parse("2026-10-11T16:53:38Z").toEpochMilli();
+		ErpRead<ErpBarcodeRow> read = mapper.barcodeRows(Arrays.asList(
+				new ZenBarcodeRow("a1", "70061", "001", "9000002740592", "2026-10-11T16:53:37.15Z"),
+				new ZenBarcodeRow("a2", "1000", "", "6191234567890", "0001-01-01T00:00:00Z"),
+				new ZenBarcodeRow("a3", "70061", "002", " ", "2026-10-11T17:53:38+01:00"),
+				new ZenBarcodeRow("a4", "", "001", "9000000000000", null),
+				new ZenBarcodeRow("a5", "70061", "003", "9000000000001", "yesterday")));
 
 		assertEquals(Arrays.asList("70061~001", "1000"), read.getRows().stream()
 				.map(row -> row.getBarcode().getItemExternalId()).collect(Collectors.toList()));
 		assertEquals("9000002740592", read.getRows().get(0).getBarcode().getBarcode());
-		assertEquals(Long.valueOf(11), read.getRows().get(0).getPosition());
-		assertEquals(Arrays.asList(11L, 12L, 13L, 14L), read.getPositions());
-		assertEquals(Long.valueOf(14), read.getHighestPosition());
+		assertEquals(Long.valueOf(t1), read.getRows().get(0).getPosition());
+		assertEquals(Long.valueOf(ZenMapper.EMPTY_DATE_POSITION), read.getRows().get(1).getPosition());
+		assertEquals(Arrays.asList(t1, 1L, t2, 1L, 1L), read.getPositions());
+		assertEquals(Long.valueOf(t2), read.getHighestPosition());
 		assertEquals(1, read.getLeftOut(ZenMapper.BLANK_BARCODE));
 		assertEquals(1, read.getLeftOut(ZenMapper.BLANK_BARCODE_ITEM));
+		assertEquals(1, read.getLeftOut(ZenMapper.UNREADABLE_DATE));
+	}
+
+	@Test
+	@DisplayName("Step 12a: a barcode's position is its lastModifiedDateTime in epoch milliseconds, rounded down; 1"
+			+ " without a date, before 1970 or not readable")
+	void barcodePosition() {
+		long at = Instant.parse("2026-10-11T16:53:37.150Z").toEpochMilli();
+		assertEquals(at, ZenMapper.position("2026-10-11T16:53:37.15Z"));
+		assertEquals(at, ZenMapper.position("2026-10-11T18:53:37.1509999+02:00"), "in UTC, below the millisecond cut");
+		assertEquals(1, ZenMapper.position("0001-01-01T00:00:00Z"));
+		assertEquals(1, ZenMapper.position(" "));
+		assertEquals(1, ZenMapper.position(null));
+		assertEquals(1, ZenMapper.position("1753-01-01T00:00:00Z"));
+		assertEquals(1, ZenMapper.position("not a date"));
+		assertEquals(253402300799999L, ZenMapper.position("9999-12-31T23:59:59.999Z"), "a long holds any date");
 	}
 
 	private static <T> List<String> codes(ErpRead<T> read, Function<T, String> code) {

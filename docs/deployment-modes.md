@@ -293,8 +293,8 @@ warning in the summary). The key `erp.happyness.deactivate-guard-percent` is gon
 **The connector of ZEN's head office: `erp.zen.*`** (item variants, 3.1.0, step 8; project connectors/zen; GET only, it
 never writes to the ERP). A head office whose catalogue only comes from the ERP (`ownership.catalogue=ERP`), as
 Happyness's. ZEN's NAV gives a custom API, `api/sat/zsretail/v1.0`, with the pages `stockPoints` (one row per location,
-item and variant) and `itemCategories` (the tree catégorie > famille > sous-famille > section), and Happyness's barcode
-page with the variant code. One item per variant, code `itemNo~variantCode`; the rows of a location are read as the
+item and variant), `itemCategories` (the tree catégorie > famille > sous-famille > section) and `barCodes` (step 12a, read
+by `lastModifiedDateTime`, `docs/modules/erp-sync.md`). One item per variant, code `itemNo~variantCode`; the rows of a location are read as the
 changes since its checkpoint (`docs/modules/erp-sync.md`, "Items run of changes only"). Its supply invoices come at step 9:
 until then `headoffice.supply.source=ERP` is refused with it.
 
@@ -306,7 +306,7 @@ until then `headoffice.supply.source=ERP` is refused with it.
 | `erp.zen.domain`, `.username`, `.password` | NTLM account (domain may be blank) | username and password required |
 | `erp.zen.default-vat` | The VAT of a row that gives none (the API has no VAT field yet), whole number 0 to 100 | required |
 | `erp.zen.api-path` | The path of the custom API under base-url | `api/sat/zsretail/v1.0` |
-| `erp.zen.page.stock-points`, `.page.categories`, `.page.barcodes` | The pages under `companies(<id>)`, or a whole address (`http...`) for a page published elsewhere | `stockPoints`, `itemCategories`, `ItemBarCodePOS` (the barcodes page name to confirm with ZEN) |
+| `erp.zen.page.stock-points`, `.page.categories`, `.page.barcodes` | The pages under `companies(<id>)`, or a whole address (`http...`) for a page published elsewhere | `stockPoints`, `itemCategories`, `barCodes` (step 12a; `ItemBarCodePOS` before) |
 | `erp.zen.barcode-page-size` | Barcodes per call, 1 to 5000 | `1000` |
 | `erp.zen.connect-timeout-seconds`, `.read-timeout-seconds` | At least 1 | `10`, `60` |
 | `erp.zen.packet-size` | Rows applied per transaction, 1 to 5000 | `500` |

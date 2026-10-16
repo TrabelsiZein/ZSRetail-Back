@@ -36,6 +36,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Item variants (step 11c): the return screen's ticket lookup and the return voucher lines give the item's
   `variantDescription` (`ReturnHeaderAPI`), so the till and the tickets show "name — variant" (null for the other
   customers: the name alone, as before). The sale lines already carried it through the item.
+- Item variants (step 12a): ZEN's connector reads ZEN's real barcodes page `barCodes` (`itemNo`, `variantCode`,
+  `barCode`, `lastModifiedDateTime`, `id`) instead of Happyness's `ItemBarCodePOS`; the barcode cursor is
+  `lastModifiedDateTime` in epoch milliseconds (NAV's empty date: 1), a full page completed with every row of its last
+  millisecond so that none is skipped and the run ends caught up; a barcode changed in NAV is read again.
 
 ### Fixes
 - The closing cash check compares cash with cash.
@@ -56,6 +60,7 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - `erp.connector=zen` and `erp.zen.*` (`base-url`, `company` or `company-id`, `domain`, `username`, `password`,
   `default-vat`, `packet-size`, `dry-run`, page names); deploy files `configs/customers/zen-headoffice.properties` and
   `zen-store.properties`.
+- `erp.zen.page.barcodes` defaults to `barCodes` (step 12a; was `ItemBarCodePOS`).
 - General setup `CASHIER_CLOSING_TICKET` (`Z`, the default, or `DECLARED`).
 
 ## 2.3.0 — 2026-10-11 (tag `v2.3.0`)

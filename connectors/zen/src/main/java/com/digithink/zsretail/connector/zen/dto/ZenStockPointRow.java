@@ -45,8 +45,11 @@ public class ZenStockPointRow {
 	private BigDecimal publicPrice;
 	private Boolean clearance;
 	private BigDecimal clearancePrice;
-	/** Not in the API yet (assumed name): null when absent, read as true. */
+	/** Not in the API (seen on ZEN's test NAV, step 12a; assumed name): null when absent, read as true. */
 	private Boolean active;
-	/** Not in the API yet (assumed name): the item's VAT rate in percent; null when absent (the default VAT applies). */
+	/**
+	 * Not in the API (seen on ZEN's test NAV, step 12a; assumed name): the item's VAT rate in percent; null when absent
+	 * (erp.zen.default-vat applies).
+	 */
 	private BigDecimal vat;
 }

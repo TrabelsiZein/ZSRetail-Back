@@ -44,8 +44,9 @@ import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
  * read, are left out (the import would never save them, and the items would wait for them for ever). A blank code and
  * another indentation are left out. Display order: presentationOrder. As Happyness, each read counts every row of the
  * page, the rows of the other levels as left out by their indentation.</li>
- * <li>Barcodes: Happyness's barcode page and Variant_Code; the item is {@link #itemCode} of Item_No and Variant_Code. A
- * blank barcode or Item_No is left out; the position of every row read is kept.</li>
+ * <li>Barcodes (step 12a, ZEN's page barCodes): the item is {@link #itemCode} of itemNo and variantCode; the position
+ * {@link #position} of lastModifiedDateTime. A blank barCode or itemNo, and a date not readable, are left out; the
+ * position of every row read is kept. unitOfMeasureCode is not read: every row is kept whatever its unit.</li>
  * </ul>
  */
 public class ZenMapper {
@@ -65,8 +66,15 @@ public class ZenMapper {
 	public static final String FAMILY_WITHOUT_CATEGORY = "famille whose parent is not a catégorie";
 	public static final String PARENT_NOT_FAMILY = "parent not a famille of the read";
 	public static final String PARENT_NOT_SUB_FAMILY = "parent not a sous-famille of the read";
-	public static final String BLANK_BARCODE = "blank Cross_Reference_No";
-	public static final String BLANK_BARCODE_ITEM = "blank Item_No";
+	public static final String BLANK_BARCODE = "blank barCode";
+	public static final String BLANK_BARCODE_ITEM = "blank itemNo";
+	public static final String UNREADABLE_DATE = "lastModifiedDateTime not readable";
+
+	/**
+	 * Step 12a: the position of a barcode row without a date: NAV's empty date 0001-01-01, a blank, a date before 1970
+	 * or one not readable. Above 0, the cursor of nothing read yet (every row), so the cursor passes these rows too.
+	 */
+	public static final long EMPTY_DATE_POSITION = 1;
 
 	static final int CATEGORY = 0;
 	static final int FAMILY = 1;
@@ -303,29 +311,49 @@ public class ZenMapper {
 
 	/**
 	 * The rows of a barcode read, one by one, for the catalogue engine (its cursor, the highest position of the same
-	 * barcode, the rows already at the head office): a blank barcode or Item_No left out, every other row kept with its
-	 * Entry_No as its position and its item code built with the variant. The positions of every row read are kept.
+	 * barcode, the rows already at the head office): a blank barCode or itemNo, or a date not readable, left out; every
+	 * other row kept with its {@link #position} and its item code built with the variant. The positions of every row
+	 * read are kept.
 	 */
 	public ErpRead<ErpBarcodeRow> barcodeRows(List<ZenBarcodeRow> rows) {
 		Map<String, Integer> leftOut = new LinkedHashMap<>();
 		List<ErpBarcodeRow> kept = new ArrayList<>();
 		List<Long> positions = new ArrayList<>();
 		for (ZenBarcodeRow row : rows) {
-			positions.add(row.getEntryNo());
-			String barcode = trimmed(row.getCrossReferenceNo());
+			long position = position(row.getLastModifiedDateTime());
+			positions.add(position);
+			String barcode = trimmed(row.getBarCode());
 			if (barcode.isEmpty()) {
 				count(leftOut, BLANK_BARCODE);
 			} else if (trimmed(row.getItemNo()).isEmpty()) {
 				count(leftOut, BLANK_BARCODE_ITEM);
+			} else if (!readableDate(row.getLastModifiedDateTime())) {
+				count(leftOut, UNREADABLE_DATE);
 			} else {
 				ErpItemBarcodeDTO dto = new ErpItemBarcodeDTO();
 				dto.setExternalId(barcode);
 				dto.setBarcode(barcode);
 				dto.setItemExternalId(itemCode(row.getItemNo(), row.getVariantCode()));
-				kept.add(new ErpBarcodeRow(dto, row.getEntryNo()));
+				kept.add(new ErpBarcodeRow(dto, position));
 			}
 		}
 		return new ErpRead<>(kept, rows.size(), leftOut, positions);
+	}
+
+	/**
+	 * Step 12a: the position of a barcode row for the engine's cursor, its lastModifiedDateTime in epoch milliseconds
+	 * (the instant rounded down to the millisecond: the rows of one millisecond share a position);
+	 * {@link #EMPTY_DATE_POSITION} for NAV's empty date, a blank, a date before 1970 or one not readable.
+	 */
+	public static long position(String lastModifiedDateTime) {
+		OffsetDateTime at = modifiedAt(lastModifiedDateTime);
+		return at == null ? EMPTY_DATE_POSITION : Math.max(EMPTY_DATE_POSITION, at.toInstant().toEpochMilli());
+	}
+
+	/** Blank, NAV's empty date, or an ISO date with its offset. */
+	private static boolean readableDate(String value) {
+		String text = trimmed(value);
+		return text.isEmpty() || text.startsWith("0001-01-01") || modifiedAt(text) != null;
 	}
 
 	// ─── Helpers ────────────────────────────────────────────────

@@ -23,3 +23,6 @@ private_key.pem
 .classpath
 .factorypath
 .settings/
+
+# This PC's own outside files with real passwords (configs/README.txt)
+configs/local/

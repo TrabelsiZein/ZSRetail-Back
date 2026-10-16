@@ -334,6 +334,8 @@ checkpoint" button. Steps 1–8, 10 and 12 are the go-live path. Steps 1–7 do 
 | Q10 | Which NAV API gives ZEN's posted invoices to the franchise (as Happyness's invoice pages)? | step 9 |
 | Q11 | A sample where `categoryCode` … `sectionCode` are filled (all empty today) | step 8 tests |
 | Q12 | ZEN stores: `erp.connector=none` (sales go to the head office only)? Head office sales to NAV: out of scope? | step 10 |
+| Q13 | Page `barCodes`, `unitOfMeasureCode`: can a barcode be of a unit other than the piece (a box of 6)? Today every row is kept whatever its unit, so such a barcode would sell one piece of the variant (step 12a) | before go-live |
+| Q14 | Page `barCodes`: is `lastModifiedDateTime` NAV's `SystemModifiedAt`, and does a key cover it? Every barcode run filters and sorts on it (`$filter ge`, `$orderby`): without a key, a whole scan of the table per call (step 12a) | volume |
 
 ## F. Done and to do
 
@@ -362,7 +364,36 @@ return details, the A4 invoice and the warranty slip; the return endpoints give 
 (`ReturnHeaderAPI.itemData`). Not the head office history (later). Details: `docs/modules/head-office.md`, "Variant
 label".
 
+**Step 12a (2026-10-16), connectors/zen on ZEN's real barcodes page**: ZEN's test NAV
+(`http://192.168.10.124:7048/BC280`, company id `1d6c4f00-6ac9-f111-9db8-ad3d0c589c9c`, NTLM) read for the first time.
+Its barcodes are the custom page `barCodes` (`id` GUID, `itemNo`, `variantCode`, `unitOfMeasureCode`, `barCode`,
+`description`, `lastModifiedDateTime`), not Happyness's `ItemBarCodePOS`: no `Entry_No`. `stockPoints` has no `active`
+and no `vat` (the mapper already reads them as active and `erp.zen.default-vat`; only comments changed);
+`itemCategories` is empty for now. Changes, in `connectors/zen` only (engine and the other connectors untouched):
+- `ZenBarcodeRow` with ZEN's names, `$select=id,itemNo,variantCode,barCode,lastModifiedDateTime`; default page
+  `erp.zen.page.barcodes=barCodes`; the barcodes of some items by `(itemNo eq '..' and variantCode eq '..')`.
+- The engine's barcode position (a long, "the rows above it") is the row's `lastModifiedDateTime` in epoch
+  milliseconds, the instant rounded down to the millisecond (`ZenMapper.position`); NAV's empty date 0001-01-01, a date
+  before 1970 or one not readable: position 1 (a date not readable is also left out). Cursor 0 reads with no filter,
+  after it `$filter=lastModifiedDateTime ge <cursor + 1 ms, UTC>`, `$orderby=lastModifiedDateTime`, `$top`.
+- **A full page is completed to its last millisecond**: when a page has `$top` rows, every row of the millisecond of
+  its last row is read too (`ge P and lt P+1ms`; for position 1 `lt 1970-01-01T00:00:00.002Z`; next links followed),
+  a row already on the page (same `id`) once. Why: with a plain `ge <cursor>` the engine's guard ("rows at or below the
+  cursor: cursor kept") would end every run as not caught up, and a millisecond with more rows than a page (a bulk
+  import, NAV's empty date) would hold the cursor for ever; with `gt`, the rows of a millisecond cut by `$top` would be
+  skipped. A page ending on a whole millisecond keeps the engine's contract exactly (the rows above the cursor, an
+  empty answer when caught up). Cost: one more GET per full page.
+- A barcode changed in NAV (moved to another variant) gets a new date and is read again: the engine keeps the latest.
+  Not seen, as with `Entry_No`: a deleted barcode; a NAV transaction committed after the cursor passed its time.
+- An `Entry_No` cursor already in a ZEN head office database (tests) reads as a time in 1970: one whole read again,
+  harmless.
+- Tests: `ZenRestClientTest`, `ZenMapperTest`, `ZenCatalogueSourceTest`; `ZenBarcodeCursorTest` (network-tests: the
+  engine on the real client, mapper and source against a fake `barCodes` page answering the filters); the startup line
+  of `ZenStartupCheckTest`.
+
 To do:
+- Step 12a: the `$filter` / `$orderby` on `lastModifiedDateTime` against the real `barCodes` page (tested in parallel);
+  Q13 (`unitOfMeasureCode`) and Q14 (a key on the date) with ZEN.
 - To confirm with ZEN: `clearancePrice` is HT (before VAT), like `publicPrice`; the pages show it with VAT as
   `clearancePrice × (1 + VAT)`.
 - When 3.1.0 is closed: write its `APP_RELEASE_NOTES` in `db/3.1.0/update.sql` from `CHANGELOG.md` (only two rows

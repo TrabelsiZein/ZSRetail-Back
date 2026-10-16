@@ -22,8 +22,8 @@ import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 /**
  * Item variants (ZEN), step 8: ZEN's API as the catalogue engine reads it, through the mapper. The tree gives the
  * catégories, families, sub-families and sections; the rows of a location are read as the changes since its checkpoint
- * ({@link #readsChangesOnly()}: a row not answered is unchanged, never gone); the barcodes by Entry_No, their items
- * with the variant.
+ * ({@link #readsChangesOnly()}: a row not answered is unchanged, never gone); the barcodes by lastModifiedDateTime
+ * (step 12a, the position in epoch milliseconds), their items with the variant.
  */
 @Component
 @ConditionalOnErpConnector(ZenConnectorDescriptor.NAME)

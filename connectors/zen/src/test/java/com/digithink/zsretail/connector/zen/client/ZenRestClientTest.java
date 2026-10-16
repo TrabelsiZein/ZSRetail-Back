@@ -1,6 +1,7 @@
 package com.digithink.zsretail.connector.zen.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -8,9 +9,11 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,11 +28,13 @@ import com.digithink.zsretail.connector.zen.config.ZenConfig;
 import com.digithink.zsretail.connector.zen.config.ZenProperties;
 import com.digithink.zsretail.connector.zen.dto.ZenBarcodeRow;
 import com.digithink.zsretail.connector.zen.dto.ZenStockPointRow;
+import com.digithink.zsretail.connector.zen.mapper.ZenMapper;
 
 /**
  * Item variants (ZEN), step 8: the addresses and filters of the reads of ZEN's API, against a mock server (no live
  * call): the rows of a location from a checkpoint (lastModifiedDateTime ge, in UTC), the next links followed, the
- * barcodes by Entry_No and by item and variant, a page given as a whole address, GET only.
+ * barcodes of the page barCodes by lastModifiedDateTime (step 12a, a full page completed to its last millisecond) and by
+ * item and variant, a page given as a whole address, GET only.
  */
 class ZenRestClientTest {
 
@@ -104,26 +109,104 @@ class ZenRestClientTest {
 	}
 
 	@Test
-	@DisplayName("Barcodes: one page after an Entry_No; those of some items by Item_No and Variant_Code")
-	void barcodes() {
-		server.expect(requestTo(ROOT + "ItemBarCodePOS?$filter=Entry_No%20gt%20120&$orderby=Entry_No&$top=1000"
-				+ "&$select=Item_No,Variant_Code,Cross_Reference_No,Entry_No")).andRespond(withSuccess(
-						"{\"value\":[{\"Item_No\":\"70061\",\"Variant_Code\":\"001\",\"Cross_Reference_No\":\"9000002740592\","
-								+ "\"Entry_No\":121}]}",
-						MediaType.APPLICATION_JSON));
-		server.expect(requestTo(ROOT + "ItemBarCodePOS?$filter=(Item_No%20eq%20'70061'%20and%20Variant_Code%20eq%20'001')"
-				+ "%20or%20(Item_No%20eq%20'1000'%20and%20Variant_Code%20eq%20'')"
-				+ "&$select=Item_No,Variant_Code,Cross_Reference_No,Entry_No"))
-				.andRespond(withSuccess("{\"value\":[]}", MediaType.APPLICATION_JSON));
+	@DisplayName("Step 12a: the barcodes' filters: above a position, its next millisecond in UTC (none at 0); the rows of"
+			+ " one millisecond; those of the empty date, every row before 1970-01-01T00:00:00.002Z")
+	void barcodeFilters() {
+		long at = Instant.parse("2026-10-11T16:53:37.150Z").toEpochMilli();
+		assertNull(ZenRestClient.barcodesAfterFilter(0), "nothing read yet: every row");
+		assertEquals("lastModifiedDateTime ge 2026-10-11T16:53:37.151Z", ZenRestClient.barcodesAfterFilter(at));
+		assertEquals("lastModifiedDateTime ge 1970-01-01T00:00:00.002Z",
+				ZenRestClient.barcodesAfterFilter(ZenMapper.EMPTY_DATE_POSITION));
+		assertEquals("lastModifiedDateTime ge 2026-10-11T16:53:37.150Z and lastModifiedDateTime lt 2026-10-11T16:53:37.151Z",
+				ZenRestClient.barcodesAtFilter(at));
+		assertEquals("lastModifiedDateTime lt 1970-01-01T00:00:00.002Z",
+				ZenRestClient.barcodesAtFilter(ZenMapper.EMPTY_DATE_POSITION));
+	}
 
-		List<ZenBarcodeRow> page = client.readBarcodesAfter(120);
-		client.readBarcodesOfItems(Arrays.asList("70061~001", "1000"));
+	@Test
+	@DisplayName("Step 12a: barCodes from 0: no filter, by lastModifiedDateTime, $top, $select of ZEN's names; a page"
+			+ " not full is the whole answer")
+	void barcodesFromTheStart() {
+		server.expect(requestTo(ROOT + "barCodes?$orderby=lastModifiedDateTime&$top=1000"
+				+ "&$select=id,itemNo,variantCode,barCode,lastModifiedDateTime")).andExpect(method(HttpMethod.GET))
+				.andRespond(withSuccess("{\"value\":[" + barcode("a1", "70061", "001", "9000002740592",
+						"0001-01-01T00:00:00Z") + "]}", MediaType.APPLICATION_JSON));
+
+		List<ZenBarcodeRow> page = client.readBarcodesAfter(0);
 
 		server.verify();
+		assertEquals(1, page.size());
+		assertEquals("a1", page.get(0).getId());
+		assertEquals("70061", page.get(0).getItemNo());
 		assertEquals("001", page.get(0).getVariantCode());
-		assertEquals(Long.valueOf(121), page.get(0).getEntryNo());
-		assertEquals("(Item_No eq '70061' and Variant_Code eq '001') or (Item_No eq 'LS-10PC' and Variant_Code eq"
-				+ " 'LS-10PC-B')", ZenRestClient.barcodesOfItemsFilter(Arrays.asList("70061~001", "LS-10PC~LS-10PC-B")));
+		assertEquals("9000002740592", page.get(0).getBarCode());
+		assertEquals("0001-01-01T00:00:00Z", page.get(0).getLastModifiedDateTime());
+	}
+
+	@Test
+	@DisplayName("Step 12a: a full page is completed with every row of its last millisecond (next links followed),"
+			+ " a row already on the page once")
+	void fullPageCompletedToItsLastMillisecond() {
+		properties.setBarcodePageSize(2);
+		long cursor = Instant.parse("2026-10-11T16:53:37.150Z").toEpochMilli();
+		String next = ROOT + "barCodes?$skiptoken=2";
+		server.expect(requestTo(ROOT + "barCodes?$filter=lastModifiedDateTime%20ge%202026-10-11T16:53:37.151Z"
+				+ "&$orderby=lastModifiedDateTime&$top=2&$select=id,itemNo,variantCode,barCode,lastModifiedDateTime"))
+				.andRespond(withSuccess("{\"value\":[" + barcode("b1", "70061", "001", "1", "2026-10-11T16:53:37.151Z")
+						+ "," + barcode("b2", "70061", "002", "2", "2026-10-11T17:53:38.2+01:00") + "]}",
+						MediaType.APPLICATION_JSON));
+		server.expect(requestTo(ROOT + "barCodes?$filter=lastModifiedDateTime%20ge%202026-10-11T16:53:38.200Z"
+				+ "%20and%20lastModifiedDateTime%20lt%202026-10-11T16:53:38.201Z"
+				+ "&$select=id,itemNo,variantCode,barCode,lastModifiedDateTime"))
+				.andRespond(withSuccess("{\"value\":[" + barcode("b2", "70061", "002", "2", "2026-10-11T16:53:38.2Z")
+						+ "," + barcode("b3", "70061", "003", "3", "2026-10-11T16:53:38.2Z") + "],\"@odata.nextLink\":\""
+						+ next + "\"}", MediaType.APPLICATION_JSON));
+		server.expect(requestTo(next)).andRespond(withSuccess("{\"value\":["
+				+ barcode("b4", "70061", "004", "4", "2026-10-11T16:53:38.2004Z") + "]}", MediaType.APPLICATION_JSON));
+
+		List<ZenBarcodeRow> page = client.readBarcodesAfter(cursor);
+
+		server.verify();
+		assertEquals(Arrays.asList("b1", "b2", "b3", "b4"),
+				page.stream().map(ZenBarcodeRow::getId).collect(Collectors.toList()));
+	}
+
+	@Test
+	@DisplayName("Step 12a: a full page of NAV's empty date is completed with every row before 1970")
+	void fullPageOfEmptyDates() {
+		properties.setBarcodePageSize(1);
+		server.expect(requestTo(ROOT + "barCodes?$orderby=lastModifiedDateTime&$top=1"
+				+ "&$select=id,itemNo,variantCode,barCode,lastModifiedDateTime")).andRespond(withSuccess(
+						"{\"value\":[" + barcode("e1", "1000", "", "1", "0001-01-01T00:00:00Z") + "]}",
+						MediaType.APPLICATION_JSON));
+		server.expect(requestTo(ROOT + "barCodes?$filter=lastModifiedDateTime%20lt%201970-01-01T00:00:00.002Z"
+				+ "&$select=id,itemNo,variantCode,barCode,lastModifiedDateTime")).andRespond(withSuccess(
+						"{\"value\":[" + barcode("e1", "1000", "", "1", "0001-01-01T00:00:00Z") + ","
+								+ barcode("e2", "1001", "", "2", "0001-01-01T00:00:00Z") + "]}",
+						MediaType.APPLICATION_JSON));
+
+		assertEquals(2, client.readBarcodesAfter(0).size());
+		server.verify();
+	}
+
+	@Test
+	@DisplayName("Step 12a: the barcodes of some items by itemNo and variantCode, every page")
+	void barcodesOfItems() {
+		server.expect(requestTo(ROOT + "barCodes?$filter=(itemNo%20eq%20'70061'%20and%20variantCode%20eq%20'001')"
+				+ "%20or%20(itemNo%20eq%20'1000'%20and%20variantCode%20eq%20'')"
+				+ "&$select=id,itemNo,variantCode,barCode,lastModifiedDateTime"))
+				.andRespond(withSuccess("{\"value\":[]}", MediaType.APPLICATION_JSON));
+
+		assertTrue(client.readBarcodesOfItems(Arrays.asList("70061~001", "1000")).isEmpty());
+		server.verify();
+		assertEquals("(itemNo eq '70061' and variantCode eq '001') or (itemNo eq 'O''NEIL' and variantCode eq"
+				+ " 'LS-10PC-B')", ZenRestClient.barcodesOfItemsFilter(Arrays.asList("70061~001", "O'NEIL~LS-10PC-B")));
+	}
+
+	private static String barcode(String id, String itemNo, String variantCode, String barCode, String modified) {
+		return "{\"id\":\"" + id + "\",\"itemNo\":\"" + itemNo + "\",\"variantCode\":\"" + variantCode
+				+ "\",\"unitOfMeasureCode\":\"PCS\",\"barCode\":\"" + barCode + "\",\"description\":\"\","
+				+ "\"lastModifiedDateTime\":\"" + modified + "\"}";
 	}
 
 	@Test

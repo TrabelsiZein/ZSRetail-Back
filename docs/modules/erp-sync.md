@@ -358,8 +358,8 @@ GET (`ZenConfig`, `ZenRestClient`, following `@odata.nextLink`), the mapper (`Ze
 (`ZenCatalogueSource`, `readsChangesOnly()` true), the engine's settings and a read-only `ErpConnector` (`ZenConnector`).
 - Pages of ZEN's custom API (`<base-url>/api/sat/zsretail/v1.0/companies(<id>)/`, the id `erp.zen.company-id` or looked up once by the company's name `erp.zen.company`, step 10): `stockPoints`, read per location
   with `$filter=locationCode eq '<code>'` and, from a checkpoint, `and lastModifiedDateTime ge <time in UTC>`, no
-  `$select` (so the fields `active` and `vat` are read when the API gives them); `itemCategories`; the barcodes, Happyness's
-  page with `Variant_Code` (`ItemBarCodePOS` by default, to confirm; a page may be given as a whole address).
+  `$select` (so the fields `active` and `vat` are read when the API gives them; ZEN's test NAV has neither, step 12a);
+  `itemCategories`; the barcodes, ZEN's page `barCodes` (step 12a, by default; a page may be given as a whole address).
 - Items: one per row, code `itemNo~variantCode` (`itemNo` alone without a variant); name and description the
   `itemDescription`; the 14 variant fields (blank as null); brand `brandCode`; family and sub-family `familyCode`,
   `subFamilyCode`; `publicPrice` before VAT, 0 or none inactive; `active` false inactive, absent active; VAT the row's
@@ -371,10 +371,19 @@ GET (`ZenConfig`, `ZenRestClient`, following `@odata.nextLink`), the mapper (`Ze
 - The tree by `indentation`: 0 catégories, 1 families (`categoryExternalId` = the parent when it is a catégorie), 2
   sub-families (left out when the parent is not a family of the read), 3 sections (left out when the parent is not a
   sub-family of the read); display order `presentationOrder`.
-- Barcodes: the item is `Item_No~Variant_Code`; those of new items are read by `(Item_No eq '..' and Variant_Code eq
-  '..')`, the rows of other variants left out.
+- Barcodes (step 12a, page `barCodes`: `id`, `itemNo`, `variantCode`, `barCode`, `lastModifiedDateTime`, with
+  `$select`): the item is `itemNo~variantCode`; a blank `barCode` or `itemNo`, a date not readable, left out. Every row
+  is kept whatever its `unitOfMeasureCode` (a question for ZEN). The engine's position is `lastModifiedDateTime` in
+  epoch milliseconds (rounded down; NAV's empty date, a date before 1970 or not readable: 1): cursor 0 reads with no
+  filter, after it `$filter=lastModifiedDateTime ge <cursor + 1 ms in UTC>`, `$orderby=lastModifiedDateTime`, `$top`
+  `barcode-page-size`. A full page is completed with every row of its last millisecond (`ge P and lt P+1ms`, next links
+  followed, the same `id` once), so a page never ends in the middle of a millisecond: the engine's guard "rows at or
+  below the cursor" never fires, an empty answer is caught up, a millisecond bigger than a page is read whole. A barcode
+  changed in NAV is read again (its new date). Those of new items are read by `(itemNo eq '..' and variantCode eq '..')`,
+  the rows of other variants left out.
 - Tests: `ZenMapperTest` (on the two samples of the API in `connectors/zen/src/test/resources/zen`),
-  `ZenRestClientTest`, `ZenCatalogueSourceTest` (in the project); `ZenStartupCheckTest`, the pinned lists of
+  `ZenRestClientTest`, `ZenCatalogueSourceTest` (in the project); `ZenBarcodeCursorTest` (the engine's barcode cursor on
+  a fake `barCodes` page), `ZenStartupCheckTest`, the pinned lists of
   `ErpConnectorTest`, `OutsideFileUpgradeTest`, `ThirdConnectorTest`, `ErpAbilitiesTest`, `ErpAbilityBeansTest`
   (network-tests). `ConnectorNamesGuardTest` takes a connector's name as a whole word (no letter or digit around it).
 
