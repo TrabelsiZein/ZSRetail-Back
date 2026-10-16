@@ -272,6 +272,41 @@ class LinkJobSchedulerTest {
 	}
 
 	@Test
+	@DisplayName("Run now with more to do: the next run 5 s after it, not at the time the trigger had computed; the"
+			+ " catch-up goes on")
+	void runNowWithMoreToDo() {
+		scheduler.start();
+		jobService.setInterval(push, 1800L);
+		push.next = LinkJobRun.of(LinkJobResult.SUCCESS, "1000 copied, more to come", true);
+
+		assertTrue(scheduler.runNow(push));
+
+		long seconds = ChronoUnit.SECONDS.between(LocalDateTime.now(), scheduler.view(push).getNextRunAt());
+		assertTrue(seconds >= 0 && seconds <= 5, "next run in " + seconds + " s, not the 20 s first delay nor 30 min");
+		assertEquals(Duration.ofSeconds(5), scheduler.nextDelay(push), "the trigger keeps catching up");
+	}
+
+	@Test
+	@DisplayName("Run now with nothing more: the next run one frequency after it, as after a scheduled run; the other"
+			+ " jobs keep their time")
+	void runNowCaughtUp() {
+		scheduler.start();
+		LocalDateTime heartbeatBefore = scheduler.view(heartbeat).getNextRunAt();
+		push.next = LinkJobRun.of(LinkJobResult.SUCCESS, "1000 copied, more to come", true);
+		scheduler.execute(push); // a scheduled run that was catching up
+		push.next = LinkJobRun.success("nothing more");
+
+		assertTrue(scheduler.runNow(push));
+
+		LocalDateTime expected = LocalDateTime.now().plusSeconds(120);
+		assertTrue(Math.abs(ChronoUnit.SECONDS.between(scheduler.view(push).getNextRunAt(), expected)) <= 5,
+				String.valueOf(scheduler.view(push).getNextRunAt()));
+		assertEquals(Duration.ofSeconds(120), scheduler.nextDelay(push));
+		assertTrue(Math.abs(ChronoUnit.SECONDS.between(scheduler.view(heartbeat).getNextRunAt(), heartbeatBefore)) <= 1,
+				"the other job untouched");
+	}
+
+	@Test
 	@DisplayName("Reschedule after a change: the next run comes one new frequency from now; views in order with the limits")
 	void rescheduleAndViews() {
 		scheduler.start();

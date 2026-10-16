@@ -50,6 +50,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - ZEN's barcodes (step 12a): the run no longer ends on "rows at or below the cursor". NAV keeps the dates in SQL
   datetime (1/300 s) and rounded the filter's cursor + 1 ms back to the cursor; the filters are now
   `lastModifiedDateTime gt <cursor>` and, to complete a full page, `eq <its last time>`.
+- Head office link (store): after a "Run now" the job's next run comes from the end of that run, 5 s later when it has
+  more to do (e.g. the catalogue copies down by cycles of 1,000), else its frequency; it stayed at the time the
+  schedule had computed before (30 min for the copies), also when the page stopped waiting after 30 s.
 
 ### DB script (`db/3.1.0/update.sql`, store and head office)
 - RFID tables on a store: `rfid_reader` (with `min_signal`), `pos_machine`, `rfid_tag`, `rfid_sale_tag`.

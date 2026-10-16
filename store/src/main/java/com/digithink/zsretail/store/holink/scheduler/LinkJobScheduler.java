@@ -38,8 +38,8 @@ import lombok.extern.log4j.Log4j2;
 /**
  * Runs the jobs of the head office link (task 2.6) on one thread, ho-link-1: the jobs never run at the same time, and
  * only this thread calls the head office; no request, sale or session waits for it. Each job: first run after its
- * first delay, then its frequency (saved or default, read at each run) after the end of the previous run, or
- * {@link #CATCH_UP_DELAY} while it has more to do. Each run is recorded (last run, result, message, duration) and the
+ * first delay, then its frequency (saved or default, read at each run) after the end of the previous run (a "Run now"
+ * included), or {@link #CATCH_UP_DELAY} while it has more to do. Each run is recorded (last run, result, message, duration) and the
  * exchange log is purged when due.
  * <p>
  * The thread pool is deliberately not a bean: a TaskScheduler bean would replace Spring Boot's default one, and the
@@ -157,7 +157,8 @@ public class LinkJobScheduler {
 	/**
 	 * "Run now": one run of the job on the ho-link thread, queued behind a run in progress, waited for up to
 	 * {@link #RUN_NOW_TIMEOUT}. Returns false when the wait ended first or the jobs are not started (no run then from
-	 * the request thread).
+	 * the request thread). Then, on the ho-link thread even when the wait ended first, the job's next run comes from the
+	 * end of this one, as after a scheduled run: {@link #CATCH_UP_DELAY} when it has more to do, else its frequency.
 	 */
 	public boolean runNow(LinkJob job) {
 		ThreadPoolTaskScheduler scheduler;
@@ -168,7 +169,10 @@ public class LinkJobScheduler {
 			return false;
 		}
 		try {
-			scheduler.submit(() -> execute(job)).get(RUN_NOW_TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+			scheduler.submit(() -> {
+				execute(job);
+				scheduleFromNow(job);
+			}).get(RUN_NOW_TIMEOUT.getSeconds(), TimeUnit.SECONDS);
 			return true;
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
@@ -180,6 +184,12 @@ public class LinkJobScheduler {
 
 	/** After a frequency change: the next run comes one new frequency from now. */
 	public synchronized void reschedule(LinkJob job) {
+		catchingUp.remove(job.getCode());
+		scheduleFromNow(job);
+	}
+
+	/** The job's schedule replaced: its next run {@link #nextDelay} from now (a run in progress finishes). */
+	private synchronized void scheduleFromNow(LinkJob job) {
 		if (taskScheduler == null) {
 			return;
 		}
@@ -187,7 +197,6 @@ public class LinkJobScheduler {
 		if (current != null) {
 			current.cancel(false); // a run in progress finishes
 		}
-		catchingUp.remove(job.getCode());
 		schedule(job, Instant.now().plus(nextDelay(job)));
 	}
 
