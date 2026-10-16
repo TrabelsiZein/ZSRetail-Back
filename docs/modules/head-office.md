@@ -1744,6 +1744,12 @@ A read-only page, store and head office, for a catalogue of one item per ERP var
   whose catalogue is the ERP's its row gets a View action (no other item gains one).
 - Tests: `NavItemQueryTest` (the grouped queries on H2), `NavItemStockPointsQueryTest` (head office, on H2),
   `NavItemServiceTest`, `AppConfigAPITest` (`navItems`), `KeepsOwnStockTest` (network-tests).
+- **Step 11d (front only)**: the page is named "ERP items" ("Articles ERP", "أصناف ERP"; the routes, the API and the
+  "NAV item no." column keep NAV) and comes before "Items" (renamed from "Item Management"; "Articles", "العناصر") in
+  the menu. A click anywhere on a line opens or closes it (the chevron kept). In the variants: the variant column shows
+  the variant description only when it differs from the NAV item's (trimmed, any case: ZEN gives the item's description
+  when the sizes and colours have none), else the variant code; size, colour and choice read "description (code)", the
+  code alone without a description. The Filters card starts collapsed.
 
 ### Catégories, sections and clearance (item variants, ZEN, 3.1.0, step 11b)
 - **Pages "Catégories" and "Sections"** (read only, store and head office; store routes `admin-item-categories`,
