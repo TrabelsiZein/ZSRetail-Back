@@ -33,6 +33,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   catalogue.
 - `GET /config` gains `cashierClosingTicket`, `navItems`, `itemCategories`, `itemSections` (each read on each call).
 - Session report: an undeclared payment method reads null.
+- Item variants (step 11c): the return screen's ticket lookup and the return voucher lines give the item's
+  `variantDescription` (`ReturnHeaderAPI`), so the till and the tickets show "name — variant" (null for the other
+  customers: the name alone, as before). The sale lines already carried it through the item.
 
 ### Fixes
 - The closing cash check compares cash with cash.

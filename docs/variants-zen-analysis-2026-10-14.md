@@ -355,6 +355,13 @@ would refuse sqlcmd writes with `QUOTED_IDENTIFIER OFF` for every customer). Det
 with catégories; no section column on the sous-famille page). `CHANGELOG.md` in both repos, backfilled to 1.12.0.
 Details: `docs/modules/head-office.md`, "Catégories, sections and clearance".
 
+**Step 11c (2026-10-16), store display of variants**: one label rule, "name — variant description" when the variant
+is not empty, differs from the name and the name does not already end with it as whole words (case and spaces ignored),
+on the till (tiles, cart, recall, recap, split bill, returns), the printed tickets and vouchers, the admin ticket and
+return details, the A4 invoice and the warranty slip; the return endpoints give `variantDescription`
+(`ReturnHeaderAPI.itemData`). Not the head office history (later). Details: `docs/modules/head-office.md`, "Variant
+label".
+
 To do:
 - To confirm with ZEN: `clearancePrice` is HT (before VAT), like `publicPrice`; the pages show it with VAT as
   `clearancePrice × (1 + VAT)`.

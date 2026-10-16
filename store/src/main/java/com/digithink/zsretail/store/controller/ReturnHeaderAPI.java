@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.core.controller._BaseController;
+import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ReturnHeader;
 import com.digithink.zsretail.core.model.ReturnLine;
 import com.digithink.zsretail.core.model.SalesHeader;
@@ -89,15 +90,7 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 			BigDecimal returnedQuantity) {
 		Map<String, Object> lineData = new HashMap<>();
 		lineData.put("id", salesLine.getId());
-		if (salesLine.getItem() != null) {
-			Map<String, Object> itemData = new HashMap<>();
-			itemData.put("id", salesLine.getItem().getId());
-			itemData.put("name", salesLine.getItem().getName());
-			itemData.put("itemCode", salesLine.getItem().getItemCode());
-			lineData.put("item", itemData);
-		} else {
-			lineData.put("item", null);
-		}
+		lineData.put("item", itemData(salesLine.getItem()));
 		lineData.put("quantity", salesLine.getQuantity());
 		lineData.put("unitPrice", salesLine.getUnitPrice());
 		lineData.put("lineTotal", salesLine.getLineTotal());
@@ -303,15 +296,7 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 					}
 					Map<String, Object> lineData = new HashMap<>();
 					lineData.put("id", salesLine.getId());
-					if (salesLine.getItem() != null) {
-						Map<String, Object> itemData = new HashMap<>();
-						itemData.put("id", salesLine.getItem().getId());
-						itemData.put("name", salesLine.getItem().getName());
-						itemData.put("itemCode", salesLine.getItem().getItemCode());
-						lineData.put("item", itemData);
-					} else {
-						lineData.put("item", null);
-					}
+					lineData.put("item", itemData(salesLine.getItem()));
 					lineData.put("quantity", originalQuantity); // Original purchased quantity
 					lineData.put("unitPrice", salesLine.getUnitPrice());
 					lineData.put("lineTotal", salesLine.getLineTotal());
@@ -568,14 +553,26 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 		}
 		lineData.put("vatPercent", vatPercent);
 
-		// Add item details
+		// Add item details (absent, not null, when the line has no item, as before)
 		if (line.getItem() != null) {
-			Map<String, Object> itemData = new HashMap<>();
-			itemData.put("id", line.getItem().getId());
-			itemData.put("name", line.getItem().getName());
-			itemData.put("itemCode", line.getItem().getItemCode());
-			lineData.put("item", itemData);
+			lineData.put("item", itemData(line.getItem()));
 		}
 		return lineData;
+	}
+
+	/**
+	 * The item of a return screen or voucher line: id, name, code and, item variants (ZEN) step 11c, the variant
+	 * description the screens and the tickets add to the name (null for an item without variant). Null without an item.
+	 */
+	private static Map<String, Object> itemData(Item item) {
+		if (item == null) {
+			return null;
+		}
+		Map<String, Object> itemData = new HashMap<>();
+		itemData.put("id", item.getId());
+		itemData.put("name", item.getName());
+		itemData.put("itemCode", item.getItemCode());
+		itemData.put("variantDescription", item.getVariantDescription());
+		return itemData;
 	}
 }

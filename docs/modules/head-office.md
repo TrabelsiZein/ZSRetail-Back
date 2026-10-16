@@ -1765,6 +1765,23 @@ A read-only page, store and head office, for a catalogue of one item per ERP var
   Happyness's page is as before.
 - Tests: `ItemTreeQueryTest` (H2), `ItemTreeServiceTest`, `AppConfigAPITest` (`itemCategories`, `itemSections`).
 
+### Variant label (item variants, ZEN, 3.1.0, step 11c, store)
+- **Rule**, one place (frontend `src/libs/item-label.js`, `itemLabel(item)`): an item reads `name — variantDescription`
+  when its variant description, trimmed, is not empty, differs from the name and the name does not already end with it
+  as whole words (`JEANS` + `S` still reads `JEANS — S`); the comparisons ignore case and spaces. Otherwise the name
+  exactly as before: EMTOP and Happyness have no variant description. Proof: `tools/item-label-check.mjs` (Node).
+- **Where**: the till's item tiles, cart lines (a collapsed line with a variant may take two lines, one otherwise),
+  pending and table recall (the cart line keeps `variantDescription`), discount popup, RFID messages, payment recap,
+  split bill, return screen; the printed sale, split and reprinted tickets (`ReceiptTemplate.vue`), both return
+  vouchers, the admin ticket and return details, the A4 invoice (`InvoiceTemplate.vue`) and the warranty slip. Not the
+  head office's ticket and return history (later). X / Z tickets and the journal list no item.
+- **Data**: a sale line points to its item and sends it whole, `variantDescription` included (sale, split, pending
+  and table tickets, ticket history: `SalesLineVariantJsonTest`). The return endpoints build their own item map
+  (`ReturnHeaderAPI.itemData`: id, name, code, variant description; `ReturnLineDataTest`). No copy of the label is
+  kept with the sale: a reprint shows the item's current name and variant, as the name alone did before.
+- **Ticket printer**: 80 mm only; the name column (about 21 characters) wraps the label like a long name, and a word
+  longer than the column breaks (`overflow-wrap: anywhere` in `receiptPrintStyles.js`).
+
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter
 `appConfig/erpOwnsOnlyCatalogue`): `nodeType` `HEAD_OFFICE`, `ownership.CATALOGUE` `ERP`, `CUSTOMERS` and `SUPPLY` not `ERP`,
