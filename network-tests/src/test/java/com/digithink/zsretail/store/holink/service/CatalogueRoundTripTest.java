@@ -166,6 +166,24 @@ class CatalogueRoundTripTest {
 	}
 
 	@Test
+	@DisplayName("Speed: the tracking rows of a page are read in one query, never one per record; the same rows written"
+			+ " (a record received again unchanged writes nothing)")
+	void trackingRowsReadOncePerPage() {
+		sync();
+
+		assertEquals(1, link.downRecordPageReads, "one read for the page of 4 records");
+		assertEquals(0, link.downRecordReads, "no row read one by one");
+		assertEquals(4, link.downRecordWrites);
+		assertEquals(4, link.downRecords.values().stream().filter(r -> r.getStatus() == DownRecordStatus.APPLIED).count());
+
+		cursor = "";
+		sync(); // the same 4 records again, unchanged
+		assertEquals(2, link.downRecordPageReads);
+		assertEquals(0, link.downRecordReads);
+		assertEquals(4, link.downRecordWrites, "nothing written again");
+	}
+
+	@Test
 	@DisplayName("A local item with the same code becomes the head office item: values and price replaced, stock and cost kept;"
 			+ " the store's other local items stay as they are")
 	void sameCodeTakenOver() {

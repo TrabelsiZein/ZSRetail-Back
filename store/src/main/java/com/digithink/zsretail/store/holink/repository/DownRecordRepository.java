@@ -19,6 +19,9 @@ public interface DownRecordRepository extends _BaseRepository<DownRecord, Long> 
 
 	Optional<DownRecord> findByDomainAndRecordCode(DataDomain domain, String recordCode);
 
+	/** The rows of these codes, one query for a page of copies down (DownRecordLog.rowsOf). */
+	List<DownRecord> findByDomainAndRecordCodeIn(DataDomain domain, Collection<String> recordCodes);
+
 	List<DownRecord> findByDomainAndStatusIn(DataDomain domain, Collection<DownRecordStatus> statuses);
 
 	/** The rows to check (DownRecordLog.list): every column but the payload, sorted and paged by the database. */

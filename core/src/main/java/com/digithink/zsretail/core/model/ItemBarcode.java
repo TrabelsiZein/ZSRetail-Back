@@ -4,8 +4,10 @@ import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
+import javax.persistence.Index;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
+import javax.persistence.Table;
 
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -19,6 +21,8 @@ import lombok.NoArgsConstructor;
  * multiple barcodes
  */
 @Entity
+// The barcodes of an item (no index is made for a foreign key on SQL Server; also in db/3.1.0/update.sql)
+@Table(indexes = @Index(name = "ix_item_barcode_item", columnList = "item_id"))
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor

@@ -172,14 +172,27 @@ public final class InMemoryStoreLink {
 		});
 	}
 
+	/** The reads of hol_down_record: one row by code, and the rows of a page (findByDomainAndRecordCodeIn). */
+	public int downRecordReads;
+	public int downRecordPageReads;
+	public int downRecordWrites;
+
 	public DownRecordLog downRecordLog() {
 		return new DownRecordLog(proxy(DownRecordRepository.class, (method, a) -> {
 			switch (method) {
 				case "findByDomainAndRecordCode":
+					downRecordReads++;
 					return Optional.ofNullable(downRecords.get(a[1]));
+				case "findByDomainAndRecordCodeIn": {
+					downRecordPageReads++;
+					Collection<?> codes = (Collection<?>) a[1];
+					return downRecords.values().stream().filter(r -> r.getDomain() == a[0] && codes.contains(r.getRecordCode()))
+							.collect(Collectors.toList());
+				}
 				case "save": {
 					DownRecord row = (DownRecord) a[0];
 					downRecords.put(row.getRecordCode(), row);
+					downRecordWrites++;
 					return row;
 				}
 				case "delete":

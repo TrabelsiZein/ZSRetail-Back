@@ -5,7 +5,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -127,9 +129,10 @@ public class CatalogueDownHandler implements DownHandler {
 			copies.add(copy);
 		}
 		copies.sort(Comparator.comparing(copy -> copy.kind)); // a family before its sub-families, items, barcodes
+		Map<String, DownRecord> known = trackingRows(copies);
 		for (Copy copy : copies) {
 			appliedThisCycle.add(copy.code);
-			applyAndTrack(copy, copy.payload, result);
+			applyAndTrack(copy, copy.payload, result, known);
 		}
 		for (String code : removed) {
 			CatalogueKind kind = CatalogueKind.ofRecordCode(code);
@@ -173,7 +176,7 @@ public class CatalogueDownHandler implements DownHandler {
 			}
 			copies.sort(Comparator.comparing(copy -> copy.kind));
 			for (Copy copy : copies) {
-				applyAndTrack(copy, null, result);
+				applyAndTrack(copy, null, result, null);
 			}
 		} finally {
 			appliedThisCycle.clear();
@@ -181,18 +184,40 @@ public class CatalogueDownHandler implements DownHandler {
 		return result;
 	}
 
-	/** One record in its own transaction with its tracking row; payload null keeps the stored copy (a retry). */
-	private void applyAndTrack(Copy copy, String payload, DownApplyResult result) {
+	/**
+	 * The tracking rows of a page's records, read once (not once per record); null when the read fails: each record
+	 * then reads its own, as before.
+	 */
+	private Map<String, DownRecord> trackingRows(List<Copy> copies) {
+		if (copies.isEmpty()) {
+			return null;
+		}
+		List<String> codes = copies.stream().map(copy -> copy.code).distinct().collect(Collectors.toList());
+		try {
+			return transactions.execute(status -> records.rowsOf(DataDomain.CATALOGUE, codes));
+		} catch (RuntimeException e) {
+			return null;
+		}
+	}
+
+	/**
+	 * One record in its own transaction with its tracking row; payload null keeps the stored copy (a retry). known: the
+	 * page's tracking rows ({@link #trackingRows}), or null (the row is read here).
+	 */
+	private void applyAndTrack(Copy copy, String payload, DownApplyResult result, Map<String, DownRecord> known) {
 		CatalogueCopyWriter.Outcome outcome;
 		try {
 			outcome = transactions.execute(status -> {
 				CatalogueCopyWriter.Outcome saved = save(copy);
 				records.track(DataDomain.CATALOGUE, copy.code, copy.name,
 						saved.isApplied() ? DownRecordStatus.APPLIED : DownRecordStatus.WAITING, saved.getReason(),
-						saved.getInfo(), payload);
+						saved.getInfo(), payload, known);
 				return saved;
 			});
 		} catch (RuntimeException e) {
+			if (known != null) {
+				known.remove(copy.code); // rolled back: the row in memory may not be the database's; read it again
+			}
 			String reason = "not saved (" + SalesCopyFinder.cause(e) + ")";
 			result.addError(copy.code, reason);
 			try {

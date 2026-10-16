@@ -105,23 +105,45 @@ public interface HoStockPointItemRepository extends _BaseRepository<HoStockPoint
 	@Query(ROWS_OF_ITEMS)
 	List<Object[]> findRowsOfItems(@Param("itemIds") Collection<Long> itemIds);
 
-	String ROWS_WHERE =" where r.itemId = i.id and p.id = r.stockPointId"
+	String ROWS_FROM = " from HoStockPointItem r, Item i, HoStockPoint p";
+
+	/** Every filter but the search; a null filter is not applied (each test reads the row itself: cheap). */
+	String ROWS_WHERE = " where r.itemId = i.id and p.id = r.stockPointId"
 			+ " and (:pointId is null or r.stockPointId = :pointId)"
-			+ " and (:search is null or lower(i.itemCode) like :search or lower(r.name) like :search"
-			+ " or exists (select b.id from ItemBarcode b where b.item.id = i.id and lower(b.barcode) like :search))"
 			+ " and (:familyCode is null or r.familyCode = :familyCode)"
 			+ " and (:subFamilyCode is null or r.subFamilyCode = :subFamilyCode)"
 			+ " and (:priceMin is null or r.unitPrice >= :priceMin) and (:priceMax is null or r.unitPrice <= :priceMax)"
 			+ " and (:active is null or r.active = :active)";
 
 	/**
-	 * Step 4, page "Items by point de stock": [row, item, point] by point (list order) then item code. search: lower case
-	 * with % already around it (item code, the row's name, a barcode); every filter null = not filtered.
+	 * The search, only in the query of a search: the item code, the row's name or a barcode of the item. Written as
+	 * ":search is null or ... exists" in one query, SQL Server could plan the exists for every row even without a search
+	 * (a scan of item_barcode per row: minutes on 21,903 rows, ZEN's test head office).
 	 */
-	@Query(value = "select r, i, p from HoStockPointItem r, Item i, HoStockPoint p" + ROWS_WHERE
-			+ " order by p.sortOrder, i.itemCode",
-			countQuery = "select count(r) from HoStockPointItem r, Item i, HoStockPoint p" + ROWS_WHERE)
-	Page<Object[]> findRows(@Param("pointId") Long pointId, @Param("search") String search,
+	String ROWS_SEARCH = " and (lower(i.itemCode) like :search or lower(r.name) like :search"
+			+ " or exists (select b.id from ItemBarcode b where b.item.id = i.id and lower(b.barcode) like :search))";
+
+	String ROWS_ORDER = " order by p.sortOrder, i.itemCode";
+
+	String ROWS = "select r, i, p" + ROWS_FROM + ROWS_WHERE + ROWS_ORDER;
+	String ROWS_COUNT = "select count(r)" + ROWS_FROM + ROWS_WHERE;
+	String ROWS_SEARCHED = "select r, i, p" + ROWS_FROM + ROWS_WHERE + ROWS_SEARCH + ROWS_ORDER;
+	String ROWS_SEARCHED_COUNT = "select count(r)" + ROWS_FROM + ROWS_WHERE + ROWS_SEARCH;
+
+	/**
+	 * Step 4, page "Items by point de stock", no search: [row, item, point] by point (list order) then item code; every
+	 * filter null = not filtered.
+	 */
+	@Query(value = ROWS, countQuery = ROWS_COUNT)
+	Page<Object[]> findRows(@Param("pointId") Long pointId, @Param("familyCode") String familyCode,
+			@Param("subFamilyCode") String subFamilyCode, @Param("priceMin") Double priceMin,
+			@Param("priceMax") Double priceMax, @Param("active") Boolean active, Pageable page);
+
+	/**
+	 * The same rows with a search: lower case with % already around it (item code, the row's name, a barcode).
+	 */
+	@Query(value = ROWS_SEARCHED, countQuery = ROWS_SEARCHED_COUNT)
+	Page<Object[]> findRowsSearched(@Param("pointId") Long pointId, @Param("search") String search,
 			@Param("familyCode") String familyCode, @Param("subFamilyCode") String subFamilyCode,
 			@Param("priceMin") Double priceMin, @Param("priceMax") Double priceMax, @Param("active") Boolean active,
 			Pageable page);

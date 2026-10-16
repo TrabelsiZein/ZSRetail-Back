@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -84,9 +85,10 @@ class HoStockPointItemsServiceTest {
 	@Test
 	@DisplayName("A row: name, description, family, sub-family, price and active from the row; VAT and barcodes from the item")
 	void rowView() {
-		when(rows.findRows(any(), any(), any(), any(), any(), any(), any(), any(Pageable.class)))
+		when(rows.findRows(any(), any(), any(), any(), any(), any(), any(Pageable.class)))
 				.thenReturn(page(new Object[] { row, item, franchise }));
 		Page<StockPointItemDTO> answer = service.rows(null, null, null, null, null, null, null, 0, 20);
+		verify(rows, never()).findRowsSearched(any(), any(), any(), any(), any(), any(), any(), any(Pageable.class));
 		assertEquals(41, answer.getTotalElements());
 		StockPointItemDTO view = answer.getContent().get(0);
 		assertEquals("FRANCHISE", view.getStockPointCode());
@@ -110,11 +112,13 @@ class HoStockPointItemsServiceTest {
 	@DisplayName("Filters: search lower case with % around, blanks are none, status mapped, size kept from 1 to 200")
 	@SuppressWarnings("unchecked")
 	void filters() {
-		when(rows.findRows(any(), any(), any(), any(), any(), any(), any(), any(Pageable.class))).thenReturn(page());
+		when(rows.findRowsSearched(any(), any(), any(), any(), any(), any(), any(), any(Pageable.class)))
+				.thenReturn(page());
 		service.rows(franchise.getId(), "  AbC ", " ", "SF1", 1.0, 9.0, "inactive", 3, 999);
 		ArgumentCaptor<Pageable> paging = ArgumentCaptor.forClass(Pageable.class);
-		verify(rows).findRows(eq(franchise.getId()), eq("%abc%"), isNull(), eq("SF1"), eq(1.0), eq(9.0), eq(Boolean.FALSE),
-				paging.capture());
+		verify(rows).findRowsSearched(eq(franchise.getId()), eq("%abc%"), isNull(), eq("SF1"), eq(1.0), eq(9.0),
+				eq(Boolean.FALSE), paging.capture());
+		verify(rows, never()).findRows(any(), any(), any(), any(), any(), any(), any(Pageable.class));
 		assertEquals(3, paging.getValue().getPageNumber());
 		assertEquals(200, paging.getValue().getPageSize());
 		assertNull(HoStockPointItemsService.active(" all "));

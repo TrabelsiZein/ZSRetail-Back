@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,7 +59,35 @@ public class DownRecordLog {
 	 */
 	public boolean track(DataDomain domain, String code, String name, DownRecordStatus status, String reason,
 			String info, String payload) {
-		Optional<DownRecord> found = repository.findByDomainAndRecordCode(domain, code);
+		return track(domain, code, name, status, reason, info, payload, null);
+	}
+
+	/**
+	 * The rows of these codes in one query (a page of copies down: one read per page, not one per record; each read of
+	 * one row scanned the table, the codes being sent as nvarchar). Every code asked is a key, null when it has no row.
+	 */
+	public Map<String, DownRecord> rowsOf(DataDomain domain, Collection<String> codes) {
+		Map<String, DownRecord> rows = new HashMap<>();
+		for (String code : codes) {
+			rows.put(code, null);
+		}
+		if (!codes.isEmpty()) {
+			for (DownRecord row : repository.findByDomainAndRecordCodeIn(domain, codes)) {
+				rows.put(row.getRecordCode(), row);
+			}
+		}
+		return rows;
+	}
+
+	/**
+	 * {@link #track(DataDomain, String, String, DownRecordStatus, String, String, String)} with the rows read for the
+	 * page ({@link #rowsOf}): a code there is not read again (null: no row), another one is; the row written is put back
+	 * in known. known null: read as before.
+	 */
+	public boolean track(DataDomain domain, String code, String name, DownRecordStatus status, String reason,
+			String info, String payload, Map<String, DownRecord> known) {
+		Optional<DownRecord> found = known != null && known.containsKey(code) ? Optional.ofNullable(known.get(code))
+				: repository.findByDomainAndRecordCode(domain, code);
 		DownRecord row = found.orElseGet(DownRecord::new);
 		String cutReason = cut(reason);
 		String cutInfo = cut(info);
@@ -84,7 +113,10 @@ public class DownRecordLog {
 			row.setStatus(status);
 			row.setStatusSince(now);
 		}
-		repository.save(row);
+		DownRecord saved = repository.save(row);
+		if (known != null) {
+			known.put(code, saved);
+		}
 		return true;
 	}
 

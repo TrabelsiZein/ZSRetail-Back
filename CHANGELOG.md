@@ -53,12 +53,20 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Head office link (store): after a "Run now" the job's next run comes from the end of that run, 5 s later when it has
   more to do (e.g. the catalogue copies down by cycles of 1,000), else its frequency; it stayed at the time the
   schedule had computed before (30 min for the copies), also when the page stopped waiting after 30 s.
+- Speed with a large catalogue (ZEN's test head office, 21,903 items): the page "Items by point de stock" without a
+  search no longer reads every item's barcodes (its query took minutes; the barcode search is only in the query of a
+  search); the store reads the tracking rows of a page of copies down in one query, not one per record (each read
+  scanned `hol_down_record`); a page of barcodes is read with its items in one query; a store's pull reads its changes
+  in the new index alone (the domain cast to `varchar`). Same answers and rows as before.
 
 ### DB script (`db/3.1.0/update.sql`, store and head office)
 - RFID tables on a store: `rfid_reader` (with `min_signal`), `pos_machine`, `rfid_tag`, `rfid_sale_tag`.
 - Payment method "Retenue à la source", inactive (kept as it is where EMTOP 1.12.1 has it).
 - Item variants: 14 nullable columns of `item`, `item_family.category_code`, tables `item_category` and `item_section`,
   `ho_stock_point_item.clearance` and `clearance_price` (head office), index `ix_item_nav_item_no` (plain, not filtered).
+- Speed: index `ix_item_barcode_item` (`item_barcode.item_id`, store and head office); on a head office
+  `ix_ho_down_change_pull` (`domain`, `change_version`, `store_id`, `record_code`) replaces `ix_ho_down_change_version`.
+  Re-runnable, no data changed.
 - `APP_VERSION` 3.1.0; release notes to complete when the version is closed (RFID is missing).
 
 ### Config

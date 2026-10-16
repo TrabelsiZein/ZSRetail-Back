@@ -845,7 +845,7 @@ Data the head office owns reaches its stores as copies down (design 2.3): the st
 | Table (entity) | Content |
 |---|---|
 | `ho_down_sequence` (`HoDownSequence`) | One row per domain: `last_version`, the domain's last change number |
-| `ho_down_change` (`HoDownChange`) | One row per (`domain`, `record_code`, `store_id`), `store_id` null = every store (also stores created later); `change_version` = the number of the record's last change for that store. Unique `uk_ho_down_change`, index `ix_ho_down_change_version` (`domain`, `change_version`) |
+| `ho_down_change` (`HoDownChange`) | One row per (`domain`, `record_code`, `store_id`), `store_id` null = every store (also stores created later); `change_version` = the number of the record's last change for that store. Unique `uk_ho_down_change`, index `ix_ho_down_change_pull` (`domain`, `change_version`, `store_id`, `record_code`; 3.1.0, it replaces `ix_ho_down_change_version`): a pull reads the changes after its cursor in the index alone, the domain cast to `varchar` in `findChanged` (a native query) so SQL Server seeks it |
 
 - `CopiesDownFeed.recordChange(domain, code, stores)`, called inside the writer's transaction (`Propagation.MANDATORY`): increments the domain's number (`update ... set last_version = last_version + 1`, the row stays locked until the commit, so one domain's numbers are given in commit order), then moves the rows of the stores concerned to it. A change of targets passes the old and the new stores together (`StoreTargets.union`): a store taken off gets the code as removed.
 - "Changed" covers created, edited, activated or deactivated, deleted, and targets changed: each is one `recordChange`.
@@ -925,7 +925,7 @@ Known limit: the copy names its item, family, sub-family and benefit item by cod
 | Removed: used here | `active=false`, kept (an inactive one stays as it is); targeted again later: updated again (and active as sent) |
 | Removed: a local promotion with that code, or no promotion | Nothing |
 
-**Tracking** (task 3.5): table `hol_down_record` (`DownRecord`, `DownRecordLog`), one row per (`domain`, `record_code`), unique `uk_hol_down_record`: `record_name`, `status` (`APPLIED`, `WAITING`, `ERROR`), `reason` (1000), `info` (1000), `payload` (the copy last received, `NVARCHAR(MAX)`), `received_at` (store clock of the copy; a copy received again unchanged does not move it), `status_since`, plus `_BaseEntity` columns. A row is written only when something changed, so the same answer applied twice writes nothing. A removal deletes the row. Generic: later domains use the same table.
+**Tracking** (task 3.5): table `hol_down_record` (`DownRecord`, `DownRecordLog`), one row per (`domain`, `record_code`), unique `uk_hol_down_record`: `record_name`, `status` (`APPLIED`, `WAITING`, `ERROR`), `reason` (1000), `info` (1000), `payload` (the copy last received, `NVARCHAR(MAX)`), `received_at` (store clock of the copy; a copy received again unchanged does not move it), `status_since`, plus `_BaseEntity` columns. A row is written only when something changed, so the same answer applied twice writes nothing. A removal deletes the row. Generic: later domains use the same table. The catalogue reads the rows of a page in one query (`DownRecordLog.rowsOf`, 3.1.0 speed fix) and tracks each record with them (`track(..., known)`): one read per page, not one per record (each read of one row scanned the table, the code being sent as `nvarchar`); a record that fails is read again before its `ERROR` row.
 - Every cycle, after the pulls, `retry()` applies again the `WAITING` and `ERROR` rows (by code) from their copy; the codes the pulls of this cycle just applied are skipped. The retries run also when the head office is unreachable (they need only the store's data). A record still waiting keeps the job result `WARNING`; it writes no exchange log row (a retry is not a pull).
 - Job counts: `applied`, `unchanged`, `removed`, `waiting`, `in error` cover the pulls and the retries of the cycle.
 
@@ -1598,7 +1598,7 @@ Done (step 4), the screens (frontend routes with `meta.erpCatalogue`: menu, guar
   a failed packet of items or of rows is FAILED with its message), in the list of points;
   `GET admin/headoffice/stock-points/items` (filters stockPointId, search, familyCode, subFamilyCode, priceMin, priceMax,
   status ALL | ACTIVE | INACTIVE, page, size up to 200; `HoStockPointItemsService`, query
-  `HoStockPointItemRepository.findRows`) and `GET admin/headoffice/stock-points/items/{rowId}`. The two permissions are
+  `HoStockPointItemRepository.findRows`, or `findRowsSearched` with a search: the barcode `exists` only in the query of a search, 3.1.0 speed fix: one query with `:search is null or ... exists` scanned `item_barcode` once per row, minutes on 21,903 rows; index `ix_item_barcode_item`) and `GET admin/headoffice/stock-points/items/{rowId}`. The two permissions are
   given to ADMIN at startup (`ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS`).
 - Tests: `HoStockPointItemsServiceTest`, `CatalogueEngineTest.lastReads`, `QueryParameterBindingTest` (the rows query),
   `ZZDataInitializerRolesTest`.

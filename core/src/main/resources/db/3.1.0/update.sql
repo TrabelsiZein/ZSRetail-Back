@@ -19,6 +19,9 @@
 -- item_category and item_section (store and head office, empty), the clearance of ho_stock_point_item (a head office
 -- only) and the index ix_item_nav_item_no (step 11a, the "NAV items" page). Re-runnable; no data changed.
 --
+-- Indexes, speed (store and head office): ix_item_barcode_item (item_barcode.item_id); on a head office
+-- ix_ho_down_change_pull replaces ix_ho_down_change_version. Re-runnable; no data changed.
+--
 -- Data, payment method "Retenue à la source" (type RETENUE_SOURCE): added inactive with the neutral code RETENUE_SOURCE
 -- (store and head office, as the seed), only when no row of that type exists. A database that has it already (EMTOP
 -- since 1.12.1: active, with its ERP code as the code) keeps its row unchanged.
@@ -234,6 +237,25 @@ IF OBJECT_ID(N'ho_stock_point_item', N'U') IS NOT NULL
 BEGIN
 	IF COL_LENGTH('ho_stock_point_item', 'clearance') IS NULL ALTER TABLE ho_stock_point_item ADD clearance bit NULL;
 	IF COL_LENGTH('ho_stock_point_item', 'clearance_price') IS NULL ALTER TABLE ho_stock_point_item ADD clearance_price numeric(18,3) NULL;
+END
+GO
+
+-- Speed (ZEN's test head office, 21,903 items): the barcodes of an item (store and head office). Hibernate creates no
+-- index for a foreign key on SQL Server: without it every read of the barcodes by item scans the table (the "Items by
+-- point de stock" page with a search, its rows' barcodes, the imports). As the entity's @Index.
+IF OBJECT_ID(N'item_barcode', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_item_barcode_item' AND object_id = OBJECT_ID(N'item_barcode'))
+	CREATE INDEX ix_item_barcode_item ON item_barcode (item_id);
+GO
+-- Speed: the pull of a store's copies down reads the domain's changes after its cursor in the index alone (a head office
+-- only). It replaces ix_ho_down_change_version (domain, change_version), which did not hold the store and the code: SQL
+-- Server read the whole table at every page. As the entity's @Index.
+IF OBJECT_ID(N'ho_down_change', N'U') IS NOT NULL
+BEGIN
+	IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_ho_down_change_pull' AND object_id = OBJECT_ID(N'ho_down_change'))
+		CREATE INDEX ix_ho_down_change_pull ON ho_down_change (domain, change_version, store_id, record_code);
+	IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_ho_down_change_version' AND object_id = OBJECT_ID(N'ho_down_change'))
+		DROP INDEX ix_ho_down_change_version ON ho_down_change;
 END
 GO
 

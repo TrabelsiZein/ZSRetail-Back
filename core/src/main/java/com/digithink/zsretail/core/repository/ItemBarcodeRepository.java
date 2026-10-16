@@ -39,8 +39,13 @@ public interface ItemBarcodeRepository extends _BaseRepository<ItemBarcode, Long
 
 	List<ItemBarcode> findByItemIdIn(List<Long> itemIds);
 
-	/** Head office plan, step 6: the barcodes of these values. */
-	List<ItemBarcode> findByBarcodeIn(Collection<String> barcodes);
+	/**
+	 * Head office plan, step 6: the barcodes of these values, with their items in the same query (a page of copies down:
+	 * else one select per barcode for its item). The item is never null (item_id not null): the same barcodes as a plain
+	 * read.
+	 */
+	@Query("select b from ItemBarcode b join fetch b.item where b.barcode in :barcodes")
+	List<ItemBarcode> findByBarcodeIn(@Param("barcodes") Collection<String> barcodes);
 
 	/** Step 6: every barcode value except those of one item code (the startup backfill of the catalogue copies). */
 	@Query("select b.barcode from ItemBarcode b where b.item.itemCode <> :excludedItemCode")

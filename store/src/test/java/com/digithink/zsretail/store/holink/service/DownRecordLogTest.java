@@ -39,9 +39,43 @@ class DownRecordLogTest {
 
 	private final Map<String, DownRecord> table = new LinkedHashMap<>();
 	private int writes;
+	private int reads;
+	private int pageReads;
 	private LocalDateTime now = LocalDateTime.of(2026, 10, 3, 9, 0);
 
 	private final DownRecordLog log = new DownRecordLog(repository(), () -> now);
+
+	@Test
+	@DisplayName("A page's rows read once: every code a key (null without a row); tracked with them, no row read again,"
+			+ " the same rows written; the row written kept for the page; a code outside the page read as before")
+	void pageRows() {
+		log.track(D, "P1", "Summer", DownRecordStatus.WAITING, "not in this store: item I9", null, "{\"v\":1}");
+		reads = 0;
+		writes = 0;
+
+		Map<String, DownRecord> known = log.rowsOf(D, java.util.Arrays.asList("P1", "P2"));
+		assertEquals(1, pageReads);
+		assertEquals(2, known.size());
+		assertEquals("Summer", known.get("P1").getRecordName());
+		assertTrue(known.containsKey("P2"));
+		assertNull(known.get("P2"));
+
+		assertFalse(log.track(D, "P1", "Summer", DownRecordStatus.WAITING, "not in this store: item I9", null,
+				"{\"v\":1}", known), "unchanged: nothing written");
+		assertTrue(log.track(D, "P2", "Winter", DownRecordStatus.APPLIED, null, null, "{\"v\":1}", known));
+		assertEquals(0, reads, "no row read one by one");
+		assertEquals(1, writes);
+		assertEquals(DownRecordStatus.APPLIED, table.get("P2").getStatus());
+		assertEquals(table.get("P2"), known.get("P2"), "the row written is the page's now");
+		assertFalse(log.track(D, "P2", "Winter", DownRecordStatus.APPLIED, null, null, "{\"v\":1}", known),
+				"the same code twice in a page: compared with the row just written");
+		assertEquals(0, reads);
+
+		assertTrue(log.track(D, "P3", "Spring", DownRecordStatus.APPLIED, null, null, "{}", known));
+		assertEquals(1, reads, "a code not read with the page: read as before");
+		assertTrue(log.rowsOf(D, java.util.Collections.emptyList()).isEmpty());
+		assertEquals(1, pageReads, "no query for no code");
+	}
 
 	@Test
 	@DisplayName("Written only when something changed; reception and status times move only with their own change")
@@ -140,7 +174,14 @@ class DownRecordLogTest {
 				new Class<?>[] { DownRecordRepository.class }, (proxy, method, args) -> {
 					switch (method.getName()) {
 						case "findByDomainAndRecordCode":
+							reads++;
 							return Optional.ofNullable(table.get(args[1]));
+						case "findByDomainAndRecordCodeIn": {
+							pageReads++;
+							Collection<?> codes = (Collection<?>) args[1];
+							return table.values().stream().filter(r -> codes.contains(r.getRecordCode()))
+									.collect(Collectors.toList());
+						}
 						case "save":
 							DownRecord row = (DownRecord) args[0];
 							table.put(row.getRecordCode(), row);

@@ -70,9 +70,14 @@ public class HoStockPointItemsService {
 	public Page<StockPointItemDTO> rows(Long pointId, String search, String familyCode, String subFamilyCode,
 			Double priceMin, Double priceMax, String status, int page, int size) {
 		String like = blank(search) ? null : "%" + search.trim().toLowerCase(Locale.ROOT) + "%";
-		Page<Object[]> found = rows.findRows(pointId, like, blank(familyCode) ? null : familyCode.trim(),
-				blank(subFamilyCode) ? null : subFamilyCode.trim(), priceMin, priceMax, active(status),
-				PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_SIZE)));
+		String family = blank(familyCode) ? null : familyCode.trim();
+		String subFamily = blank(subFamilyCode) ? null : subFamilyCode.trim();
+		Boolean active = active(status);
+		PageRequest paging = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_SIZE));
+		// The barcode search only in the query of a search (its exists cost minutes without one, ZEN's test head office)
+		Page<Object[]> found = like == null
+				? rows.findRows(pointId, family, subFamily, priceMin, priceMax, active, paging)
+				: rows.findRowsSearched(pointId, like, family, subFamily, priceMin, priceMax, active, paging);
 		List<HoStockPointItem> pageRows = new ArrayList<>();
 		List<Item> pageItems = new ArrayList<>();
 		List<HoStockPoint> pagePoints = new ArrayList<>();

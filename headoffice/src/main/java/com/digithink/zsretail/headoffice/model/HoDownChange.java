@@ -26,7 +26,8 @@ import lombok.NoArgsConstructor;
 @Table(name = "ho_down_change",
 		uniqueConstraints = @UniqueConstraint(name = "uk_ho_down_change", columnNames = { "domain", "record_code",
 				"store_id" }),
-		indexes = @Index(name = "ix_ho_down_change_version", columnList = "domain,change_version"))
+		// The pull reads the changes after a cursor in this index alone (db/3.1.0: it replaces ix_ho_down_change_version)
+		indexes = @Index(name = "ix_ho_down_change_pull", columnList = "domain,change_version,store_id,record_code"))
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
