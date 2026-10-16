@@ -47,6 +47,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - The RFID Tags page list on SQL Server (Msg 402); a pending ticket paid with its tags no longer breaks
   `uk_rfid_sale_tag_header_epc`.
 - A FREE_QUANTITY discount in the session report.
+- ZEN's barcodes (step 12a): the run no longer ends on "rows at or below the cursor". NAV keeps the dates in SQL
+  datetime (1/300 s) and rounded the filter's cursor + 1 ms back to the cursor; the filters are now
+  `lastModifiedDateTime gt <cursor>` and, to complete a full page, `eq <its last time>`.
 
 ### DB script (`db/3.1.0/update.sql`, store and head office)
 - RFID tables on a store: `rfid_reader` (with `min_signal`), `pos_machine`, `rfid_tag`, `rfid_sale_tag`.

@@ -109,17 +109,18 @@ class ZenRestClientTest {
 	}
 
 	@Test
-	@DisplayName("Step 12a: the barcodes' filters: above a position, its next millisecond in UTC (none at 0); the rows of"
-			+ " one millisecond; those of the empty date, every row before 1970-01-01T00:00:00.002Z")
+	@DisplayName("Step 12a: the barcodes' filters: above a position, gt that very time in UTC, never + 1 ms (none at 0);"
+			+ " the rows of one time, eq it; those of the empty date, every row before 1970")
 	void barcodeFilters() {
-		long at = Instant.parse("2026-10-11T16:53:37.150Z").toEpochMilli();
+		// The live run's cursor: NAV's SQL datetime tick .207 (1/300 s), as NAV shows it
+		long at = Instant.parse("2026-10-16T17:00:44.207Z").toEpochMilli();
+		assertEquals(1792170044207L, at);
 		assertNull(ZenRestClient.barcodesAfterFilter(0), "nothing read yet: every row");
-		assertEquals("lastModifiedDateTime ge 2026-10-11T16:53:37.151Z", ZenRestClient.barcodesAfterFilter(at));
-		assertEquals("lastModifiedDateTime ge 1970-01-01T00:00:00.002Z",
+		assertEquals("lastModifiedDateTime gt 2026-10-16T17:00:44.207Z", ZenRestClient.barcodesAfterFilter(at));
+		assertEquals("lastModifiedDateTime gt 1970-01-01T00:00:00.001Z",
 				ZenRestClient.barcodesAfterFilter(ZenMapper.EMPTY_DATE_POSITION));
-		assertEquals("lastModifiedDateTime ge 2026-10-11T16:53:37.150Z and lastModifiedDateTime lt 2026-10-11T16:53:37.151Z",
-				ZenRestClient.barcodesAtFilter(at));
-		assertEquals("lastModifiedDateTime lt 1970-01-01T00:00:00.002Z",
+		assertEquals("lastModifiedDateTime eq 2026-10-16T17:00:44.207Z", ZenRestClient.barcodesAtFilter(at));
+		assertEquals("lastModifiedDateTime lt 1970-01-01T00:00:00Z",
 				ZenRestClient.barcodesAtFilter(ZenMapper.EMPTY_DATE_POSITION));
 	}
 
@@ -144,25 +145,24 @@ class ZenRestClientTest {
 	}
 
 	@Test
-	@DisplayName("Step 12a: a full page is completed with every row of its last millisecond (next links followed),"
-			+ " a row already on the page once")
-	void fullPageCompletedToItsLastMillisecond() {
+	@DisplayName("Step 12a: a full page is completed with every row of its last time, eq it (next links followed), a"
+			+ " row already on the page once")
+	void fullPageCompletedToItsLastTime() {
 		properties.setBarcodePageSize(2);
-		long cursor = Instant.parse("2026-10-11T16:53:37.150Z").toEpochMilli();
+		long cursor = Instant.parse("2026-10-16T17:00:44.207Z").toEpochMilli();
 		String next = ROOT + "barCodes?$skiptoken=2";
-		server.expect(requestTo(ROOT + "barCodes?$filter=lastModifiedDateTime%20ge%202026-10-11T16:53:37.151Z"
+		server.expect(requestTo(ROOT + "barCodes?$filter=lastModifiedDateTime%20gt%202026-10-16T17:00:44.207Z"
 				+ "&$orderby=lastModifiedDateTime&$top=2&$select=id,itemNo,variantCode,barCode,lastModifiedDateTime"))
-				.andRespond(withSuccess("{\"value\":[" + barcode("b1", "70061", "001", "1", "2026-10-11T16:53:37.151Z")
-						+ "," + barcode("b2", "70061", "002", "2", "2026-10-11T17:53:38.2+01:00") + "]}",
+				.andRespond(withSuccess("{\"value\":[" + barcode("b1", "70061", "001", "1", "2026-10-16T17:00:44.21Z")
+						+ "," + barcode("b2", "70061", "002", "2", "2026-10-16T18:00:45.003+01:00") + "]}",
 						MediaType.APPLICATION_JSON));
-		server.expect(requestTo(ROOT + "barCodes?$filter=lastModifiedDateTime%20ge%202026-10-11T16:53:38.200Z"
-				+ "%20and%20lastModifiedDateTime%20lt%202026-10-11T16:53:38.201Z"
+		server.expect(requestTo(ROOT + "barCodes?$filter=lastModifiedDateTime%20eq%202026-10-16T17:00:45.003Z"
 				+ "&$select=id,itemNo,variantCode,barCode,lastModifiedDateTime"))
-				.andRespond(withSuccess("{\"value\":[" + barcode("b2", "70061", "002", "2", "2026-10-11T16:53:38.2Z")
-						+ "," + barcode("b3", "70061", "003", "3", "2026-10-11T16:53:38.2Z") + "],\"@odata.nextLink\":\""
+				.andRespond(withSuccess("{\"value\":[" + barcode("b2", "70061", "002", "2", "2026-10-16T17:00:45.003Z")
+						+ "," + barcode("b3", "70061", "003", "3", "2026-10-16T17:00:45.003Z") + "],\"@odata.nextLink\":\""
 						+ next + "\"}", MediaType.APPLICATION_JSON));
 		server.expect(requestTo(next)).andRespond(withSuccess("{\"value\":["
-				+ barcode("b4", "70061", "004", "4", "2026-10-11T16:53:38.2004Z") + "]}", MediaType.APPLICATION_JSON));
+				+ barcode("b4", "70061", "004", "4", "2026-10-16T17:00:45.003Z") + "]}", MediaType.APPLICATION_JSON));
 
 		List<ZenBarcodeRow> page = client.readBarcodesAfter(cursor);
 
@@ -179,7 +179,7 @@ class ZenRestClientTest {
 				+ "&$select=id,itemNo,variantCode,barCode,lastModifiedDateTime")).andRespond(withSuccess(
 						"{\"value\":[" + barcode("e1", "1000", "", "1", "0001-01-01T00:00:00Z") + "]}",
 						MediaType.APPLICATION_JSON));
-		server.expect(requestTo(ROOT + "barCodes?$filter=lastModifiedDateTime%20lt%201970-01-01T00:00:00.002Z"
+		server.expect(requestTo(ROOT + "barCodes?$filter=lastModifiedDateTime%20lt%201970-01-01T00:00:00Z"
 				+ "&$select=id,itemNo,variantCode,barCode,lastModifiedDateTime")).andRespond(withSuccess(
 						"{\"value\":[" + barcode("e1", "1000", "", "1", "0001-01-01T00:00:00Z") + ","
 								+ barcode("e2", "1001", "", "2", "0001-01-01T00:00:00Z") + "]}",

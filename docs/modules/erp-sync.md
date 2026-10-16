@@ -375,10 +375,13 @@ GET (`ZenConfig`, `ZenRestClient`, following `@odata.nextLink`), the mapper (`Ze
   `$select`): the item is `itemNo~variantCode`; a blank `barCode` or `itemNo`, a date not readable, left out. Every row
   is kept whatever its `unitOfMeasureCode` (a question for ZEN). The engine's position is `lastModifiedDateTime` in
   epoch milliseconds (rounded down; NAV's empty date, a date before 1970 or not readable: 1): cursor 0 reads with no
-  filter, after it `$filter=lastModifiedDateTime ge <cursor + 1 ms in UTC>`, `$orderby=lastModifiedDateTime`, `$top`
-  `barcode-page-size`. A full page is completed with every row of its last millisecond (`ge P and lt P+1ms`, next links
-  followed, the same `id` once), so a page never ends in the middle of a millisecond: the engine's guard "rows at or
-  below the cursor" never fires, an empty answer is caught up, a millisecond bigger than a page is read whole. A barcode
+  filter, after it `$filter=lastModifiedDateTime gt <cursor in UTC>`, `$orderby=lastModifiedDateTime`, `$top`
+  `barcode-page-size`. A full page is completed with every row of its last time (`eq P`; position 1: `lt 1970`; next
+  links followed, the same `id` once), so a page never ends in the middle of a time: the engine's guard "rows at or
+  below the cursor" never fires, an empty answer is caught up, a time bigger than a page is read whole. Never a time
+  computed from the cursor (+ 1 ms, a half-open range): NAV keeps these dates in SQL `datetime` (ticks of 1/300 s,
+  `.000 .003 .007`) and SQL rounds a time it is given to a tick (`ge .208` is `ge .207`); `gt` and `eq` on a time NAV
+  gave land on its own tick (step 12a follow-up). A barcode
   changed in NAV is read again (its new date). Those of new items are read by `(itemNo eq '..' and variantCode eq '..')`,
   the rows of other variants left out.
 - Tests: `ZenMapperTest` (on the two samples of the API in `connectors/zen/src/test/resources/zen`),

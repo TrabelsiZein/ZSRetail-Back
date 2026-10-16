@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -49,10 +50,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Item variants (ZEN), step 12a: the catalogue engine's barcode cursor on ZEN's page barCodes, the real client, mapper
- * and source against a fake page that answers the filters on lastModifiedDateTime as the API does (no live call). The
- * engine is not changed: a page completed to its last millisecond keeps its contract (the rows above the cursor, an
- * empty answer when caught up), so a millisecond with more rows than a page, NAV's empty date included, is never cut
- * and the guard "rows at or below the cursor" never fires.
+ * and source against a fake page that answers the filters on lastModifiedDateTime as the API does, to the millisecond
+ * (no live call; the times are NAV's SQL datetime ticks, .000 .003 .007). The engine is not changed: a page completed
+ * to its last time keeps its contract (the rows above the cursor, gt it, an empty answer when caught up), so a time
+ * with more rows than a page, NAV's empty date included, is never cut and the guard "rows at or below the cursor"
+ * never fires.
  */
 class ZenBarcodeCursorTest {
 
@@ -104,21 +106,21 @@ class ZenBarcodeCursorTest {
 					}
 				});
 
-		// Four rows of NAV's empty date and four of one millisecond: each more than a page of 3
+		// Four rows of NAV's empty date and four of one time: each more than a page of 3
 		for (int n = 1; n <= 4; n++) {
 			page.add(row(n, "0001-01-01T00:00:00Z"));
 		}
-		page.add(row(5, "2026-10-11T16:53:37.150Z"));
-		page.add(row(6, "2026-10-11T16:53:37.151Z"));
-		page.add(row(7, "2026-10-11T16:53:37.151Z"));
-		page.add(row(8, "2026-10-11T17:53:37.151+01:00"));
-		page.add(row(9, "2026-10-11T16:53:37.1514Z"));
+		page.add(row(5, "2026-10-11T16:53:37.147Z"));
+		page.add(row(6, "2026-10-11T16:53:37.15Z"));
+		page.add(row(7, "2026-10-11T16:53:37.150Z"));
+		page.add(row(8, "2026-10-11T17:53:37.15+01:00"));
+		page.add(row(9, "2026-10-11T16:53:37.15Z"));
 		page.add(row(10, "2026-10-11T16:53:38Z"));
 	}
 
 	@Test
-	@DisplayName("A first run reads every row, a millisecond bigger than a page never cut, caught up, no guard; the cursor"
-			+ " is the last row's lastModifiedDateTime in epoch milliseconds")
+	@DisplayName("A first run reads every row, a time bigger than a page never cut, caught up, no guard; the cursor is"
+			+ " the last row's lastModifiedDateTime in epoch milliseconds")
 	void firstRun() {
 		CatalogueRun<ErpItemBarcodeDTO> run = engine.barcodes();
 
@@ -127,11 +129,10 @@ class ZenBarcodeCursorTest {
 		assertEquals(10, run.count("applied"));
 		assertEquals(10, headOffice.barcodes.size());
 		assertEquals(4, run.count("pagesRead"), "3 pages and the empty answer");
-		assertEquals(Arrays.asList(null, "lastModifiedDateTime lt 1970-01-01T00:00:00.002Z",
-				"lastModifiedDateTime ge 1970-01-01T00:00:00.002Z",
-				"lastModifiedDateTime ge 2026-10-11T16:53:37.151Z and lastModifiedDateTime lt 2026-10-11T16:53:37.152Z",
-				"lastModifiedDateTime ge 2026-10-11T16:53:37.152Z", "lastModifiedDateTime ge 2026-10-11T16:53:38.001Z"),
-				filters, "each full page completed to its last millisecond");
+		assertEquals(Arrays.asList(null, "lastModifiedDateTime lt 1970-01-01T00:00:00Z",
+				"lastModifiedDateTime gt 1970-01-01T00:00:00.001Z", "lastModifiedDateTime eq 2026-10-11T16:53:37.150Z",
+				"lastModifiedDateTime gt 2026-10-11T16:53:37.150Z", "lastModifiedDateTime gt 2026-10-11T16:53:38Z"),
+				filters, "each full page completed to its last time");
 		assertEquals(String.valueOf(Instant.parse("2026-10-11T16:53:38Z").toEpochMilli()), state.get("barcodes.cursor"));
 	}
 
@@ -147,7 +148,7 @@ class ZenBarcodeCursorTest {
 		assertNull(idle.getSummary().get("guard"));
 		assertEquals(1, idle.count("pagesRead"));
 		assertEquals(0, idle.count("applied"));
-		assertEquals(Collections.singletonList("lastModifiedDateTime ge 2026-10-11T16:53:38.001Z"), filters);
+		assertEquals(Collections.singletonList("lastModifiedDateTime gt 2026-10-11T16:53:38Z"), filters);
 
 		page.set(9, new ZenBarcodeRow("id10", "70061", "001", barcode(10), "2026-10-11T16:54:00Z"));
 		CatalogueRun<ErpItemBarcodeDTO> moved = engine.barcodes();
@@ -160,7 +161,10 @@ class ZenBarcodeCursorTest {
 
 	// ─── The fake page barCodes ─────────────────────────────────
 
-	/** $filter on lastModifiedDateTime (ge, lt, and), by lastModifiedDateTime (NAV's order kept for a tie), $top. */
+	/**
+	 * $filter on lastModifiedDateTime (gt, ge, eq, lt, and), to the millisecond; by lastModifiedDateTime (NAV's order
+	 * kept for a tie), $top.
+	 */
 	private ClientHttpResponse answer(ClientHttpRequest request) throws IOException {
 		MultiValueMap<String, String> query = UriComponentsBuilder.fromUri(request.getURI()).build().getQueryParams();
 		String filter = query.getFirst("$filter") == null ? null
@@ -183,21 +187,31 @@ class ZenBarcodeCursorTest {
 			if (parts.length != 3 || !parts[0].equals("lastModifiedDateTime")) {
 				throw new AssertionError("a filter the fake page does not answer: " + filter);
 			}
-			int compared = modified(row).compareTo(Instant.parse(parts[2]));
-			boolean kept = parts[1].equals("ge") ? compared >= 0 : parts[1].equals("lt") ? compared < 0 : fail(filter);
-			if (!kept) {
+			int compared = modified(row).compareTo(Instant.parse(parts[2]).truncatedTo(ChronoUnit.MILLIS));
+			if (!kept(parts[1], compared, filter)) {
 				return false;
 			}
 		}
 		return true;
 	}
 
-	private static boolean fail(String filter) {
-		throw new AssertionError("an operator the fake page does not answer: " + filter);
+	private static boolean kept(String operator, int compared, String filter) {
+		switch (operator) {
+		case "gt":
+			return compared > 0;
+		case "ge":
+			return compared >= 0;
+		case "eq":
+			return compared == 0;
+		case "lt":
+			return compared < 0;
+		default:
+			throw new AssertionError("an operator the fake page does not answer: " + filter);
+		}
 	}
 
 	private static Instant modified(ZenBarcodeRow row) {
-		return OffsetDateTime.parse(row.getLastModifiedDateTime()).toInstant();
+		return OffsetDateTime.parse(row.getLastModifiedDateTime()).toInstant().truncatedTo(ChronoUnit.MILLIS);
 	}
 
 	private static ZenBarcodeRow row(int n, String modified) {

@@ -98,9 +98,9 @@ public class ZenRestClient implements ZenSource {
 
 	/**
 	 * Step 12a: one page by lastModifiedDateTime, $top barcode-page-size, the rows above the position
-	 * ({@link #barcodesAfterFilter}). A full page may end in the middle of a millisecond whose other rows are on the
-	 * next page, past the cursor: then every row of its last millisecond is read too ({@link #barcodesAtFilter}, the
-	 * next links followed), those already on the page (same id) once.
+	 * ({@link #barcodesAfterFilter}). A full page may end in the middle of a time whose other rows are on the next
+	 * page, past the cursor: then every row of its last time is read too ({@link #barcodesAtFilter}, the next links
+	 * followed), those already on the page (same id) once.
 	 */
 	@Override
 	public List<ZenBarcodeRow> readBarcodesAfter(long position) {
@@ -133,22 +133,25 @@ public class ZenRestClient implements ZenSource {
 	}
 
 	/**
-	 * The rows above a position: none at 0 or below (every row, NAV's empty date included); else lastModifiedDateTime
-	 * ge the next millisecond, in UTC (2026-10-11T16:53:37.151Z).
+	 * The rows above a position: none at 0 or below (every row, NAV's empty date included); else lastModifiedDateTime gt
+	 * the position itself, in UTC (2026-10-11T16:53:37.150Z). Never the position + 1 ms: NAV keeps these dates in SQL
+	 * datetime (ticks of 1/300 s, .000 .003 .007, shown to the millisecond), and SQL rounds a time it is given to a
+	 * tick: ge .208 is ge .207, the rows at the cursor came back and the engine's guard stopped the run (step 12a
+	 * follow-up). The position is a time NAV gave, so gt and eq on it land on its own tick.
 	 */
 	public static String barcodesAfterFilter(long position) {
-		return position <= 0 ? null : MODIFIED + " ge " + instant(position + 1);
+		return position <= 0 ? null : MODIFIED + " gt " + instant(position);
 	}
 
 	/**
-	 * Every row of one position: ge its millisecond and lt the next one; for {@link ZenMapper#EMPTY_DATE_POSITION},
-	 * every row before 1970-01-01T00:00:00.002Z (NAV's empty date 0001-01-01 included).
+	 * Every row of one position: lastModifiedDateTime eq it; for {@link ZenMapper#EMPTY_DATE_POSITION}, every row
+	 * before 1970 (NAV's empty date 0001-01-01 included).
 	 */
 	public static String barcodesAtFilter(long position) {
 		if (position <= ZenMapper.EMPTY_DATE_POSITION) {
-			return MODIFIED + " lt " + instant(ZenMapper.EMPTY_DATE_POSITION + 1);
+			return MODIFIED + " lt " + instant(0);
 		}
-		return MODIFIED + " ge " + instant(position) + " and " + MODIFIED + " lt " + instant(position + 1);
+		return MODIFIED + " eq " + instant(position);
 	}
 
 	private static String instant(long millis) {

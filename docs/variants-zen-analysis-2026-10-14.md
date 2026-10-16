@@ -375,10 +375,10 @@ and no `vat` (the mapper already reads them as active and `erp.zen.default-vat`;
 - The engine's barcode position (a long, "the rows above it") is the row's `lastModifiedDateTime` in epoch
   milliseconds, the instant rounded down to the millisecond (`ZenMapper.position`); NAV's empty date 0001-01-01, a date
   before 1970 or one not readable: position 1 (a date not readable is also left out). Cursor 0 reads with no filter,
-  after it `$filter=lastModifiedDateTime ge <cursor + 1 ms, UTC>`, `$orderby=lastModifiedDateTime`, `$top`.
-- **A full page is completed to its last millisecond**: when a page has `$top` rows, every row of the millisecond of
-  its last row is read too (`ge P and lt P+1ms`; for position 1 `lt 1970-01-01T00:00:00.002Z`; next links followed),
-  a row already on the page (same `id`) once. Why: with a plain `ge <cursor>` the engine's guard ("rows at or below the
+  after it `$filter=lastModifiedDateTime gt <cursor, UTC>`, `$orderby=lastModifiedDateTime`, `$top`.
+- **A full page is completed to its last time**: when a page has `$top` rows, every row of the time of its last row
+  is read too (`eq P`; for position 1 `lt 1970-01-01T00:00:00Z`; next links followed), a row already on the page (same
+  `id`) once. Why: with a plain `ge <cursor>` the engine's guard ("rows at or below the
   cursor: cursor kept") would end every run as not caught up, and a millisecond with more rows than a page (a bulk
   import, NAV's empty date) would hold the cursor for ever; with `gt`, the rows of a millisecond cut by `$top` would be
   skipped. A page ending on a whole millisecond keeps the engine's contract exactly (the rows above the cursor, an
@@ -387,6 +387,13 @@ and no `vat` (the mapper already reads them as active and `erp.zen.default-vat`;
   Not seen, as with `Entry_No`: a deleted barcode; a NAV transaction committed after the cursor passed its time.
 - An `Entry_No` cursor already in a ZEN head office database (tests) reads as a time in 1970: one whole read again,
   harmless.
+- **Follow-up (live run, 2026-10-16)**: the first filters were `ge <cursor + 1 ms>` and `ge P and lt P+1ms`. The run
+  against ZEN's NAV ended with "the ERP answered rows at or below the cursor 1792170044207: cursor kept"
+  (17:00:44.207Z): NAV keeps `lastModifiedDateTime` in SQL `datetime` (ticks of 1/300 s, `.000 .003 .007`, shown to
+  the millisecond) and SQL rounds the time of a filter to a tick, so `ge .208` was `ge .207` and the rows at the
+  cursor came back. Now `gt <cursor>` and `eq P`, on times NAV gave (they land on their own tick); the position is
+  unchanged. Rule: never a time computed from a NAV date (+ 1 ms, a half-open range). The `stockPoints` checkpoint is
+  the highest date NAV gave, read with `ge` (the rows at it read again, unchanged: harmless); no other date is computed.
 - Tests: `ZenRestClientTest`, `ZenMapperTest`, `ZenCatalogueSourceTest`; `ZenBarcodeCursorTest` (network-tests: the
   engine on the real client, mapper and source against a fake `barCodes` page answering the filters); the startup line
   of `ZenStartupCheckTest`.
