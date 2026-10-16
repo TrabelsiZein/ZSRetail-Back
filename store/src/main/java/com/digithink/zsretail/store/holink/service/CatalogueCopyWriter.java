@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
@@ -341,7 +342,8 @@ public class CatalogueCopyWriter {
 		Item target = item.get();
 		boolean active = !Boolean.FALSE.equals(copy.getActive());
 		Optional<ItemBarcode> found = barcodes.findByBarcode(copy.getBarcode());
-		boolean legacyElsewhere = active && legacyBarcodeElsewhere(copy.getBarcode(), target);
+		List<Item> legacyHolders = active ? legacyHolders(copy.getBarcode(), target) : new ArrayList<>();
+		boolean legacyElsewhere = !legacyHolders.isEmpty();
 		if (found.isPresent() && !legacyElsewhere && isHeadOffice(found.get().getOrigin())
 				&& Objects.equals(found.get().getItem().getId(), target.getId())
 				&& Objects.equals(found.get().getDescription(), copy.getDescription())
@@ -366,7 +368,7 @@ public class CatalogueCopyWriter {
 		if (!isHeadOffice(saved.getOrigin())) {
 			barcodes.setOrigin(saved.getId(), RecordOrigin.HEAD_OFFICE);
 		}
-		String legacy = active ? clearLegacyBarcode(copy.getBarcode(), target) : null;
+		String legacy = clearLegacyBarcode(legacyHolders); // the holders read above, none when inactive
 		List<String> notes = new ArrayList<>();
 		if (moved || legacy != null) {
 			StringBuilder note = new StringBuilder("barcode ").append(copy.getBarcode());
@@ -383,26 +385,38 @@ public class CatalogueCopyWriter {
 		return Outcome.written(moved ? "moved from the store's item " + previousItem.getItemCode() : null, notes);
 	}
 
-	/** True when another item holds this value in its old item.barcode field. */
+	/**
+	 * The other items that hold this value in their old item.barcode field, read once for the check and the clearing of
+	 * a barcode; none for a blank value.
+	 */
+	private List<Item> legacyHolders(String value, Item owner) {
+		if (value == null || value.trim().isEmpty()) {
+			return new ArrayList<>();
+		}
+		return items.findAllByBarcode(value).stream().filter(other -> !Objects.equals(other.getId(), owner.getId()))
+				.collect(Collectors.toList());
+	}
+
+	/** True when another item holds this value in its old item.barcode field (an item copy's check, as before). */
 	private boolean legacyBarcodeElsewhere(String value, Item owner) {
 		return items.findAllByBarcode(value).stream().anyMatch(other -> !Objects.equals(other.getId(), owner.getId()));
 	}
 
-	/**
-	 * Clears the old item.barcode field of the other items that hold this value (a scan at the till looks there after the
-	 * barcode table). Returns those items' codes, null when none.
-	 */
+	/** {@link #clearLegacyBarcode(List)} of the other items that hold this value. */
 	private String clearLegacyBarcode(String value, Item owner) {
-		if (value == null || value.trim().isEmpty()) {
-			return null;
-		}
+		return clearLegacyBarcode(legacyHolders(value, owner));
+	}
+
+	/**
+	 * Clears the old item.barcode field of these items ({@link #legacyHolders}; a scan at the till looks there after the
+	 * barcode table). Returns their codes, null when none.
+	 */
+	private String clearLegacyBarcode(List<Item> holders) {
 		List<String> cleared = new ArrayList<>();
-		for (Item other : items.findAllByBarcode(value)) {
-			if (!Objects.equals(other.getId(), owner.getId())) {
-				other.setBarcode(null);
-				items.save(other);
-				cleared.add(other.getItemCode());
-			}
+		for (Item other : holders) {
+			other.setBarcode(null);
+			items.save(other);
+			cleared.add(other.getItemCode());
 		}
 		return cleared.isEmpty() ? null : String.join(", ", cleared);
 	}

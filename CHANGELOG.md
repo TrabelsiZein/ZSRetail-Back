@@ -58,13 +58,16 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   search); the store reads the tracking rows of a page of copies down in one query, not one per record (each read
   scanned `hol_down_record`); a page of barcodes is read with its items in one query; a store's pull reads its changes
   in the new index alone (the domain cast to `varchar`). Same answers and rows as before.
+- Speed of the copies down, barcode phase (store): each barcode received read the old `item.barcode` field twice, a
+  scan of `item` each time (3–5 s per page of 100 on 21,904 items); now one read, on an index.
 
 ### DB script (`db/3.1.0/update.sql`, store and head office)
 - RFID tables on a store: `rfid_reader` (with `min_signal`), `pos_machine`, `rfid_tag`, `rfid_sale_tag`.
 - Payment method "Retenue à la source", inactive (kept as it is where EMTOP 1.12.1 has it).
 - Item variants: 14 nullable columns of `item`, `item_family.category_code`, tables `item_category` and `item_section`,
   `ho_stock_point_item.clearance` and `clearance_price` (head office), index `ix_item_nav_item_no` (plain, not filtered).
-- Speed: index `ix_item_barcode_item` (`item_barcode.item_id`, store and head office); on a head office
+- Speed: indexes `ix_item_barcode_item` (`item_barcode.item_id`) and `ix_item_barcode` (`item.barcode`), store and
+  head office; on a head office
   `ix_ho_down_change_pull` (`domain`, `change_version`, `store_id`, `record_code`) replaces `ix_ho_down_change_version`.
   Re-runnable, no data changed.
 - `APP_VERSION` 3.1.0; release notes to complete when the version is closed (RFID is missing).

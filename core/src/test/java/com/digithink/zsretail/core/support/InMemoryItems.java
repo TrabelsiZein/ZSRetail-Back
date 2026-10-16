@@ -56,6 +56,8 @@ public class InMemoryItems {
 	/** Invoices from the ERP: ItemRepository.updateCost calls. */
 	public int costUpdates;
 	public int barcodeSaves;
+	/** Reads of the old item.barcode field (ItemRepository.findAllByBarcode). */
+	public int legacyBarcodeReads;
 
 	public InMemoryItems(long firstId) {
 		this.nextId = firstId;
@@ -217,6 +219,7 @@ public class InMemoryItems {
 				case "findByBarcode":
 					return items.values().stream().filter(i -> Objects.equals(i.getBarcode(), args[0])).findFirst();
 				case "findAllByBarcode":
+					legacyBarcodeReads++;
 					return items.values().stream().filter(i -> Objects.equals(i.getBarcode(), args[0])).collect(Collectors.toList());
 				case "findByOwnPriceTrue":
 					return items.values().stream().filter(i -> Boolean.TRUE.equals(i.getOwnPrice())).collect(Collectors.toList());

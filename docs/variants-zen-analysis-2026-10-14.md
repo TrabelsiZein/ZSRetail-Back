@@ -398,7 +398,20 @@ and no `vat` (the mapper already reads them as active and `erp.zen.default-vat`;
   engine on the real client, mapper and source against a fake `barCodes` page answering the filters); the startup line
   of `ZenStartupCheckTest`.
 
+**Speed with ZEN's catalogue (2026-10-16, back 2fe0b34 and the next commit)**: measured on ZEN's test head office and
+store (21,903 items, 21,940 barcodes, 43,843 records pulled). Fixed in code: the "Items by point de stock" query without
+a search (the barcode `exists` only with a search; index `ix_item_barcode_item`), the store's tracking rows read once
+per page, a page of barcodes read with its items, the pull's `findChanged` on the index `ix_ho_down_change_pull`, and
+the store's barcode apply (the old `item.barcode` field read once, on the index `ix_item_barcode`).
+Not code, the development machine (left to Zein): the machine's commit charge is at its limit (39.9 GB of 42.7 GB:
+Eclipse 4.9 GB, `vmmem` WSL/Docker 4.1 GB, the JVMs without `-Xmx`), Windows tells SQL Server "physical memory low"
+about every minute and SQL Server gives its memory back (buffer pool 16 MB of a 3.5 GB target, page life expectancy
+38 s, the plan cache emptied): every query reads from disk again. Remedies: `min server memory` 2-4 GB, or less
+committed memory (`vmmem` stopped when WSL/Docker is not needed, `-Xmx` on the Eclipse launches). Measure speed only
+once that is done.
+
 To do:
+- Development machine: SQL Server's memory (above), before any speed measurement.
 - Step 12a: the `$filter` / `$orderby` on `lastModifiedDateTime` against the real `barCodes` page (tested in parallel);
   Q13 (`unitOfMeasureCode`) and Q14 (a key on the date) with ZEN.
 - To confirm with ZEN: `clearancePrice` is HT (before VAT), like `publicPrice`; the pages show it with VAT as

@@ -19,8 +19,8 @@
 -- item_category and item_section (store and head office, empty), the clearance of ho_stock_point_item (a head office
 -- only) and the index ix_item_nav_item_no (step 11a, the "NAV items" page). Re-runnable; no data changed.
 --
--- Indexes, speed (store and head office): ix_item_barcode_item (item_barcode.item_id); on a head office
--- ix_ho_down_change_pull replaces ix_ho_down_change_version. Re-runnable; no data changed.
+-- Indexes, speed (store and head office): ix_item_barcode_item (item_barcode.item_id), ix_item_barcode (item.barcode);
+-- on a head office ix_ho_down_change_pull replaces ix_ho_down_change_version. Re-runnable; no data changed.
 --
 -- Data, payment method "Retenue à la source" (type RETENUE_SOURCE): added inactive with the neutral code RETENUE_SOURCE
 -- (store and head office, as the seed), only when no row of that type exists. A database that has it already (EMTOP
@@ -246,6 +246,12 @@ GO
 IF OBJECT_ID(N'item_barcode', N'U') IS NOT NULL
 	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_item_barcode_item' AND object_id = OBJECT_ID(N'item_barcode'))
 	CREATE INDEX ix_item_barcode_item ON item_barcode (item_id);
+GO
+-- Speed: the old item.barcode field, read for each barcode a store receives (a value there is cleared when the head
+-- office sends it): without an index a scan of item per barcode (815 reads, 16-19 ms on 21,904 items, ZEN's test store).
+-- Store and head office. As the entity's @Index.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_item_barcode' AND object_id = OBJECT_ID(N'item'))
+	CREATE INDEX ix_item_barcode ON item (barcode);
 GO
 -- Speed: the pull of a store's copies down reads the domain's changes after its cursor in the index alone (a head office
 -- only). It replaces ix_ho_down_change_version (domain, change_version), which did not hold the store and the code: SQL

@@ -292,6 +292,8 @@ class CatalogueRoundTripTest {
 		Item legacy = store.item("L2", 4.0, null);
 		legacy.setBarcode("6191234567890");
 		sync();
+		assertEquals(1, store.legacyBarcodeReads, "the old barcode field read once for the barcode received (check and"
+				+ " clearing share it)");
 		Item item = storeItem("B001");
 		assertEquals(item.getId(), localBarcode.getItem().getId(), "the same row, moved");
 		assertEquals(RecordOrigin.HEAD_OFFICE, localBarcode.getOrigin());

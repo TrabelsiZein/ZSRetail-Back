@@ -28,8 +28,10 @@ import lombok.NoArgsConstructor;
  * properties are ignored so it serializes like a loaded Item.
  */
 @Entity
-// Item variants (ZEN), step 11a: the "NAV items" page groups by nav_item_no (also in db/3.1.0/update.sql)
-@Table(name = "item", indexes = @Index(name = "ix_item_nav_item_no", columnList = "nav_item_no"))
+// Item variants (ZEN), step 11a: the "NAV items" page groups by nav_item_no; the old barcode field, read for each barcode
+// a store receives (both also in db/3.1.0/update.sql)
+@Table(name = "item", indexes = { @Index(name = "ix_item_nav_item_no", columnList = "nav_item_no"),
+		@Index(name = "ix_item_barcode", columnList = "barcode") })
 // franchiseSalesPrice, fromFranchiseAdmin: fields of the franchise profiles removed at step 9 (task 9.4a), still sent
 // by older screens: ignored, never refused. Their columns stay in the table.
 @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler", "franchiseSalesPrice", "fromFranchiseAdmin" })
