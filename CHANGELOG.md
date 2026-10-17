@@ -40,6 +40,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `barCode`, `lastModifiedDateTime`, `id`) instead of Happyness's `ItemBarCodePOS`; the barcode cursor is
   `lastModifiedDateTime` in epoch milliseconds (NAV's empty date: 1), a full page completed with every row of its last
   millisecond so that none is skipped and the run ends caught up; a barcode changed in NAV is read again.
+- Item variants (ZEN): the connector builds the variant description from the size, colour and choice descriptions
+  ("Taille Standard / VERT PISTACHE / 1er Choix", the blank ones left out) and no longer reads NAV's
+  `variantDescription` (always the item description on ZEN's platform); a change of one of them changes the item. The
+  item name stays NAV's item description.
 
 ### Fixes
 - The closing cash check compares cash with cash.
@@ -66,6 +70,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Payment method "Retenue à la source", inactive (kept as it is where EMTOP 1.12.1 has it).
 - Item variants: 14 nullable columns of `item`, `item_family.category_code`, tables `item_category` and `item_section`,
   `ho_stock_point_item.clearance` and `clearance_price` (head office), index `ix_item_nav_item_no` (plain, not filtered).
+- Item variants (ZEN): `item.variant_description` rebuilt from `size_description`, `color_description`,
+  `choice_description` (" / ", the blank ones left out, null when none) for the items with a `nav_item_no`;
+  re-runnable.
 - Speed: indexes `ix_item_barcode_item` (`item_barcode.item_id`) and `ix_item_barcode` (`item.barcode`), store and
   head office; on a head office
   `ix_ho_down_change_pull` (`domain`, `change_version`, `store_id`, `record_code`) replaces `ix_ho_down_change_version`.

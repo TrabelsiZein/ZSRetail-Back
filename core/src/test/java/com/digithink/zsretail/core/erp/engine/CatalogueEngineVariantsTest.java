@@ -126,6 +126,21 @@ class CatalogueEngineVariantsTest {
 	}
 
 	@Test
+	@DisplayName("The variant description alone changes at the ERP (ZEN builds it from the descriptions): the item is"
+			+ " changed and updated")
+	void variantDescriptionAloneIsAChange() {
+		engine.items();
+		s001.setVariantDescription("Noir / 1er Choix");
+
+		CatalogueRun<ErpItemDTO> run = engine.items();
+
+		assertEquals(1, run.count("changed"));
+		assertEquals(Collections.singletonList("70061~001"), codes(run.getHanded()));
+		assertEquals("Noir / 1er Choix", item("70061~001").getVariantDescription());
+		assertEquals("Noir", item("70061~001").getColorDescription(), "the other fields as before");
+	}
+
+	@Test
 	@DisplayName("The ERP gives a blank brand for an item that has one: not a change, and kept when the item is updated")
 	void blankBrandKeepsTheBrand() {
 		engine.items();

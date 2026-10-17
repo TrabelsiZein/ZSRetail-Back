@@ -11,7 +11,8 @@ import lombok.Setter;
 /**
  * A row of the page stockPoints: one item and variant of one location (a point de stock), with the variant's fields,
  * the item's classification and the location's price and clearance. The names are those of the API (no $select: the
- * fields not used here are ignored, and active and vat are read when the API gives them).
+ * fields not used here are ignored, and active and vat are read when the API gives them). variantDescription is not
+ * read: on ZEN's platform it is always the item description (the mapper builds the variant's own).
  */
 @Getter
 @Setter
@@ -26,7 +27,6 @@ public class ZenStockPointRow {
 	private String lastModifiedDateTime;
 	private String itemDescription;
 	private String stockPointDescription;
-	private String variantDescription;
 	private String sizeCode;
 	private String sizeDescription;
 	private Integer sizeSortOrder;

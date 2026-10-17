@@ -410,6 +410,15 @@ about every minute and SQL Server gives its memory back (buffer pool 16 MB of a 
 committed memory (`vmmem` stopped when WSL/Docker is not needed, `-Xmx` on the Eclipse launches). Measure speed only
 once that is done.
 
+**Variant description built by the connector (2026-10-17)**: on ZEN's real platform `stockPoints.variantDescription`
+is always the item description (NAV never composes it; the 2026-10-11 sample's "S / Noir / 1er Choix" was not what ZEN
+gives). `ZenMapper.variantDescription` builds it from `sizeDescription`, `colorDescription`, `choiceDescription`
+(trimmed, the blank ones left out, " / "; "" when none) and NAV's field is no longer read (removed from
+`ZenStockPointRow`). `item.name` stays the item description. The engine compares it with the other variant fields, so a
+colour description changed at ZEN is a change of the item (`CatalogueEngineVariantsTest`). `db/3.1.0/update.sql`
+rebuilds `item.variant_description` for the items with a `nav_item_no` (store and head office), so the first items run
+after the upgrade sees no change. Front unchanged ("name — variant description").
+
 To do:
 - Development machine: SQL Server's memory (above), before any speed measurement.
 - Step 12a: the `$filter` / `$orderby` on `lastModifiedDateTime` against the real `barCodes` page (tested in parallel);

@@ -361,7 +361,12 @@ GET (`ZenConfig`, `ZenRestClient`, following `@odata.nextLink`), the mapper (`Ze
   `$select` (so the fields `active` and `vat` are read when the API gives them; ZEN's test NAV has neither, step 12a);
   `itemCategories`; the barcodes, ZEN's page `barCodes` (step 12a, by default; a page may be given as a whole address).
 - Items: one per row, code `itemNo~variantCode` (`itemNo` alone without a variant); name and description the
-  `itemDescription`; the 14 variant fields (blank as null); brand `brandCode`; family and sub-family `familyCode`,
+  `itemDescription`; the 14 variant fields (blank as null), except the variant description, which the mapper builds:
+  `sizeDescription`, `colorDescription`, `choiceDescription`, trimmed, the blank ones left out, joined with " / "
+  ("Taille Standard / VERT PISTACHE / 1er Choix"; "" when none, stored null as every blank variant field). NAV's
+  `variantDescription` is not read: on ZEN's platform it is always the item description. A change of one of the three
+  descriptions is a change of the item (the engine compares `variantDescription` with the other variant fields).
+  `db/3.1.0/update.sql` rebuilds `item.variant_description` the same way for the items with a `nav_item_no`; brand `brandCode`; family and sub-family `familyCode`,
   `subFamilyCode`; `publicPrice` before VAT, 0 or none inactive; `active` false inactive, absent active; VAT the row's
   `vat` when given, else `default-vat`; `lastModifiedAt` from `lastModifiedDateTime` (NAV's 0001-01-01: none); the
   location's `clearance` (absent: false) and `clearancePrice`. The rows of another location, a blank `itemNo`, a `~` in

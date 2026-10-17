@@ -31,7 +31,9 @@ import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
  * <ul>
  * <li>Items (stockPoints, the rows of one location): one item of the ERP per item and variant, its code
  * {@link #itemCode} (itemNo~variantCode, itemNo alone without a variant). Name and description: itemDescription, never
- * the variant's. The 14 variant fields, blank as null. Brand: brandCode (blank: null, the head office keeps its own).
+ * the variant's. The 14 variant fields, blank as null, except the variant description: built here
+ * ({@link #variantDescription}), NAV's variantDescription is not read (on ZEN's platform it is always the item
+ * description). Brand: brandCode (blank: null, the head office keeps its own).
  * Family and sub-family by code. publicPrice is before VAT; a null or zero price makes the item inactive (noted, as
  * Happyness). active false makes it inactive; absent (the API has no such field yet) it is true. VAT: the row's vat
  * when it gives one (rounded to a whole number), else the default. lastModifiedAt: lastModifiedDateTime, none for NAV's
@@ -53,6 +55,9 @@ public class ZenMapper {
 
 	/** Between the item number and the variant code in an item code. */
 	public static final String SEPARATOR = "~";
+
+	/** Between the size, colour and choice descriptions in a variant description. */
+	public static final String VARIANT_PARTS = " / ";
 
 	public static final String BLANK_ITEM_NO = "blank itemNo";
 	public static final String SEPARATOR_IN_CODE = "~ in itemNo or variantCode";
@@ -92,6 +97,22 @@ public class ZenMapper {
 		String item = trimmed(itemNo);
 		String variant = trimmed(variantCode);
 		return variant.isEmpty() ? item : item + SEPARATOR + variant;
+	}
+
+	/**
+	 * The variant's description: the size, colour and choice descriptions, trimmed, the blank ones left out, in that
+	 * order, joined with {@link #VARIANT_PARTS}; "" when all three are blank. db/3.1.0/update.sql builds the same from
+	 * the item's columns.
+	 */
+	public static String variantDescription(String size, String color, String choice) {
+		StringBuilder text = new StringBuilder();
+		for (String part : new String[] { size, color, choice }) {
+			String trimmed = trimmed(part);
+			if (!trimmed.isEmpty()) {
+				text.append(text.length() == 0 ? "" : VARIANT_PARTS).append(trimmed);
+			}
+		}
+		return text.toString();
 	}
 
 	// ─── Items ──────────────────────────────────────────────────
@@ -158,7 +179,8 @@ public class ZenMapper {
 		}
 		item.setNavItemNo(itemNo);
 		item.setVariantCode(blankToNull(row.getVariantCode()));
-		item.setVariantDescription(blankToNull(row.getVariantDescription()));
+		item.setVariantDescription(
+				variantDescription(row.getSizeDescription(), row.getColorDescription(), row.getChoiceDescription()));
 		item.setSizeCode(blankToNull(row.getSizeCode()));
 		item.setSizeDescription(blankToNull(row.getSizeDescription()));
 		item.setSizeSortOrder(row.getSizeSortOrder());

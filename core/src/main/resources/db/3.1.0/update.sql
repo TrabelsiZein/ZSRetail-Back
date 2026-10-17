@@ -19,6 +19,9 @@
 -- item_category and item_section (store and head office, empty), the clearance of ho_stock_point_item (a head office
 -- only) and the index ix_item_nav_item_no (step 11a, the "NAV items" page). Re-runnable; no data changed.
 --
+-- Data, item variants (ZEN): item.variant_description rebuilt from size, colour and choice descriptions (' / ') for the
+-- items with a nav_item_no, as connectors/zen now builds it. Re-runnable.
+--
 -- Indexes, speed (store and head office): ix_item_barcode_item (item_barcode.item_id), ix_item_barcode (item.barcode);
 -- on a head office ix_ho_down_change_pull replaces ix_ho_down_change_version. Re-runnable; no data changed.
 --
@@ -238,6 +241,16 @@ BEGIN
 	IF COL_LENGTH('ho_stock_point_item', 'clearance') IS NULL ALTER TABLE ho_stock_point_item ADD clearance bit NULL;
 	IF COL_LENGTH('ho_stock_point_item', 'clearance_price') IS NULL ALTER TABLE ho_stock_point_item ADD clearance_price numeric(18,3) NULL;
 END
+GO
+-- The variant description (store and head office): connectors/zen builds it from the size, colour and choice
+-- descriptions, trimmed, the blank ones left out, joined with ' / ' (null when none, as the import stores a blank
+-- variant field); NAV's variantDescription is always the item description on ZEN's platform and is not read. The items
+-- already there get the same value, so the next items run sees no change. Only the items of an ERP with variants (nav_item_no; none for EMTOP and Happyness). Re-runnable.
+UPDATE item SET variant_description = NULLIF(ISNULL(STUFF(
+		ISNULL(' / ' + NULLIF(LTRIM(RTRIM(size_description)), ''), '')
+		+ ISNULL(' / ' + NULLIF(LTRIM(RTRIM(color_description)), ''), '')
+		+ ISNULL(' / ' + NULLIF(LTRIM(RTRIM(choice_description)), ''), ''), 1, 3, ''), ''), '')
+WHERE nav_item_no IS NOT NULL;
 GO
 
 -- Speed (ZEN's test head office, 21,903 items): the barcodes of an item (store and head office). Hibernate creates no

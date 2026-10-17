@@ -98,7 +98,8 @@ class ZenMapperTest {
 		assertEquals("CHEMISE", shirt.getDescription());
 		assertEquals("70061", shirt.getNavItemNo());
 		assertEquals("001", shirt.getVariantCode());
-		assertEquals("S / Noir / 1er Choix", shirt.getVariantDescription());
+		assertEquals("Noir", shirt.getVariantDescription(),
+				"built from the descriptions (size and choice blank in the sample), not NAV's \"S / Noir / 1er Choix\"");
 		assertEquals("S", shirt.getSizeCode());
 		assertNull(shirt.getSizeDescription(), "blank: null");
 		assertEquals(20, shirt.getSizeSortOrder());
@@ -144,6 +145,8 @@ class ZenMapperTest {
 		assertEquals("VERT PISTACHE", tie.getColorDescription());
 		assertEquals("001", tie.getChoiceCode());
 		assertEquals("1er Choix", tie.getChoiceDescription());
+		assertEquals("VERT PISTACHE / 1er Choix", tie.getVariantDescription(),
+				"no size description in the sample; NAV's variantDescription (the item description) not read");
 		assertTrue(tie.getClearance());
 		assertEquals(0, new BigDecimal("7").compareTo(tie.getClearancePrice()));
 		assertEquals(OffsetDateTime.parse("2026-10-11T16:53:37.16Z"), tie.getLastModifiedAt());
@@ -153,6 +156,36 @@ class ZenMapperTest {
 			kept += mapper.items(location, stockPoints).getKept();
 		}
 		assertEquals(100, kept);
+	}
+
+	@Test
+	@DisplayName("Variant description: size / colour / choice descriptions, trimmed, the blank ones left out, \"\" when"
+			+ " none; NAV's variantDescription never read")
+	void variantDescription() throws IOException {
+		ErpRead<ErpItemDTO> read = mapper.items(null, Arrays.asList(
+				row("{`itemNo`:`14ZDU05`,`variantCode`:`001`,`itemDescription`:`CRAVATE HM PETIT CARREAUX SATINE`,"
+						+ "`variantDescription`:`CRAVATE HM PETIT CARREAUX SATINE`,`sizeDescription`:` Taille Standard `,"
+						+ "`colorDescription`:`VERT PISTACHE`,`choiceDescription`:`1er Choix`,`publicPrice`:19.5}"),
+				row("{`itemNo`:`A`,`variantCode`:`1`,`itemDescription`:`A`,`sizeDescription`:`S`,"
+						+ "`colorDescription`:`  `,`choiceDescription`:`1er Choix`,`publicPrice`:1}"),
+				row("{`itemNo`:`B`,`variantCode`:`1`,`itemDescription`:`B`,`variantDescription`:`B`,"
+						+ "`sizeDescription`:``,`choiceDescription`:null,`publicPrice`:1}")));
+
+		Map<String, ErpItemDTO> items = byCode(read);
+		ErpItemDTO tie = items.get("14ZDU05~001");
+		assertEquals("Taille Standard / VERT PISTACHE / 1er Choix", tie.getVariantDescription());
+		assertEquals("CRAVATE HM PETIT CARREAUX SATINE", tie.getName(), "the item description, untouched");
+		assertEquals("S / 1er Choix", items.get("A~1").getVariantDescription(), "no double separator");
+		assertEquals("", items.get("B~1").getVariantDescription(), "all blank: \"\", not null, not NAV's");
+		assertEquals("", ZenMapper.variantDescription(null, null, null));
+		assertEquals("Noir", ZenMapper.variantDescription("", "Noir", " "));
+		assertEquals("S", ZenMapper.variantDescription("S", null, ""), "no trailing separator");
+		// A colour description changed at ZEN changes the variant description (the engine compares it)
+		ErpItemDTO recoloured = mapper.items(null, Collections.singletonList(
+				row("{`itemNo`:`14ZDU05`,`variantCode`:`001`,`itemDescription`:`CRAVATE`,`sizeDescription`:`Taille Standard`,"
+						+ "`colorDescription`:`VERT D'EAU`,`choiceDescription`:`1er Choix`,`publicPrice`:19.5}")))
+				.getRows().get(0);
+		assertEquals("Taille Standard / VERT D'EAU / 1er Choix", recoloured.getVariantDescription());
 	}
 
 	@Test
