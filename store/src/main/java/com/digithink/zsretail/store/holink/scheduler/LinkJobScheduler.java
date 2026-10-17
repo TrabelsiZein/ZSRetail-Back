@@ -39,7 +39,8 @@ import lombok.extern.log4j.Log4j2;
  * Runs the jobs of the head office link (task 2.6) on one thread, ho-link-1: the jobs never run at the same time, and
  * only this thread calls the head office; no request, sale or session waits for it. Each job: first run after its
  * first delay, then its frequency (saved or default, read at each run) after the end of the previous run (a "Run now"
- * included), or {@link #CATCH_UP_DELAY} while it has more to do. Each run is recorded (last run, result, message, duration) and the
+ * included), or {@link #CATCH_UP_DELAY} while it has more to do, or (3.1.0) {@link #RETRY_DELAY} after a failure on a
+ * timeout or an I/O error, at most {@link #MAX_RETRIES} times in a row. Each run is recorded (last run, result, message, duration) and the
  * exchange log is purged when due.
  * <p>
  * The thread pool is deliberately not a bean: a TaskScheduler bean would replace Spring Boot's default one, and the
@@ -52,6 +53,12 @@ public class LinkJobScheduler {
 
 	static final Duration CATCH_UP_DELAY = Duration.ofSeconds(5);
 
+	/** 3.1.0: the next run after a failure worth a retry (a timeout or an I/O error, {@link LinkJobRun#isRetryable}). */
+	static final Duration RETRY_DELAY = Duration.ofSeconds(10);
+
+	/** 3.1.0: retries after consecutive retryable failures; the next failure goes back to the frequency. */
+	static final int MAX_RETRIES = 3;
+
 	/** Longest wait of "Run now": a run in progress plus its own. */
 	static final Duration RUN_NOW_TIMEOUT = Duration.ofSeconds(30);
 
@@ -60,6 +67,10 @@ public class LinkJobScheduler {
 	private final LinkExchangeLog exchangeLog;
 
 	private final Map<String, Boolean> catchingUp = new ConcurrentHashMap<>();
+	/** 3.1.0: consecutive retryable failures per job; absent after any other run. */
+	private final Map<String, Integer> failures = new ConcurrentHashMap<>();
+	/** 3.1.0: the next run is a retry ({@link #RETRY_DELAY}). */
+	private final Map<String, Boolean> retrying = new ConcurrentHashMap<>();
 	private final Map<String, ScheduledFuture<?>> futures = new ConcurrentHashMap<>();
 	private ThreadPoolTaskScheduler taskScheduler;
 	private Instant startedAt;
@@ -120,8 +131,14 @@ public class LinkJobScheduler {
 		return new Date(last.getTime() + nextDelay(job).toMillis());
 	}
 
-	/** The catch-up delay while the job has more to do, otherwise its frequency in force. */
+	/**
+	 * The retry delay after a retryable failure (at most {@link #MAX_RETRIES} in a row), the catch-up delay while the
+	 * job has more to do, otherwise its frequency in force.
+	 */
 	Duration nextDelay(LinkJob job) {
+		if (Boolean.TRUE.equals(retrying.get(job.getCode()))) {
+			return RETRY_DELAY;
+		}
 		if (Boolean.TRUE.equals(catchingUp.get(job.getCode()))) {
 			return CATCH_UP_DELAY;
 		}
@@ -148,10 +165,39 @@ public class LinkJobScheduler {
 					SalesCopyFinder.cause(e));
 		}
 		catchingUp.put(job.getCode(), run.isRunAgainSoon());
+		run = retryOrNot(job, run);
 		jobService.recordRun(job.getCode(), run, at, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
 		exchangeLog.afterRun(job.getCode(), run.getResult(), LocalDateTime.now()); // step 5: one row when it works again
 		exchangeLog.purgeIfDue(LocalDateTime.now());
 		return run;
+	}
+
+	/**
+	 * 3.1.0: after a retryable failure (a timeout or an I/O error), the next run {@link #RETRY_DELAY} later, up to
+	 * {@link #MAX_RETRIES} in a row, the message saying so ("retry in 10 s (1/3)"); the failure after them goes back to
+	 * the frequency, with one WARN line, and the count starts again. Any other run resets the count (its next run as
+	 * before: the catch-up delay or the frequency).
+	 */
+	private LinkJobRun retryOrNot(LinkJob job, LinkJobRun run) {
+		String code = job.getCode();
+		if (!run.isRetryable()) {
+			failures.remove(code);
+			retrying.remove(code);
+			return run;
+		}
+		int failed = failures.merge(code, 1, Integer::sum);
+		if (failed <= MAX_RETRIES) {
+			retrying.put(code, true);
+			return run.withMessage(run.getMessage() + ", retry in " + RETRY_DELAY.getSeconds() + " s (" + failed + "/"
+					+ MAX_RETRIES + ")");
+		}
+		failures.remove(code);
+		retrying.remove(code);
+		long frequency = nextDelay(job).getSeconds();
+		log.warn("Head office link: {} failed {} times in a row, retries stopped; next run at its frequency ({} s): {}",
+				code, failed, frequency, run.getMessage());
+		return run.withMessage(run.getMessage() + ", " + MAX_RETRIES + " retries failed, next run at the frequency ("
+				+ frequency + " s)");
 	}
 
 	/**
@@ -185,6 +231,8 @@ public class LinkJobScheduler {
 	/** After a frequency change: the next run comes one new frequency from now. */
 	public synchronized void reschedule(LinkJob job) {
 		catchingUp.remove(job.getCode());
+		failures.remove(job.getCode());
+		retrying.remove(job.getCode());
 		scheduleFromNow(job);
 	}
 

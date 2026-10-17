@@ -70,6 +70,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Speed of the copies down, barcode phase (store): each barcode received read the old `item.barcode` field twice, a
   scan of `item` each time (3–5 s per page of 100 on 21,904 items); now one read, on an index.
 
+- Head office link (store), copies down: a slow head office no longer stops the catalogue catch-up for 30 min. The
+  pull has its own read timeout (60 s, `headoffice.copies-down.read-timeout-seconds`; heartbeat and pushes keep
+  10 s); a read timeout is `TIMEOUT` "head office answered too slowly (read timeout 60 s)", not OFFLINE; a run that
+  failed on a timeout or an I/O error runs again 10 s later, up to 3 times ("retry in 10 s (1/3)"), the 4th back to
+  the frequency with one WARN line; a failed pull is logged at WARN (was INFO).
 ### DB script (`db/3.1.0/update.sql`, store and head office)
 - RFID tables on a store: `rfid_reader` (with `min_signal`), `pos_machine`, `rfid_tag`, `rfid_sale_tag`.
 - Payment method "Retenue à la source", inactive (kept as it is where EMTOP 1.12.1 has it).
@@ -92,6 +97,7 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `default-vat`, `packet-size`, `dry-run`, page names); deploy files `configs/customers/zen-headoffice.properties` and
   `zen-store.properties`.
 - `erp.zen.page.barcodes` defaults to `barCodes` (step 12a; was `ItemBarCodePOS`).
+- `headoffice.copies-down.read-timeout-seconds` (store, default 60): the read timeout of the pull of copies down.
 - General setup `CASHIER_CLOSING_TICKET` (`Z`, the default, or `DECLARED`).
 
 ## 2.3.0 — 2026-10-11 (tag `v2.3.0`)

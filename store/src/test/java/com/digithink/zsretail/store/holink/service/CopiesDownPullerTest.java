@@ -460,4 +460,33 @@ class CopiesDownPullerTest {
 		return new LinkExchangeLog(repository, TransactionOperations.withoutTransaction(), 30);
 	}
 
+
+	@Test
+	@DisplayName("3.1.0: a read timeout is TIMEOUT \"head office answered too slowly (read timeout 60 s)\" and a run to"
+			+ " retry soon, as a refused connection (OFFLINE); an HTTP 503 is not retried")
+	void readTimeoutRetried() {
+		cursors.put(DataDomain.PROMOTIONS, cursor("5"));
+		expect("5", request -> {
+			throw new java.net.SocketTimeoutException("Read timed out");
+		});
+		LinkJobRun slow = job.run();
+		server.verify();
+		assertEquals(LinkJobResult.ERROR, slow.getResult());
+		assertEquals("PROMOTIONS: not delivered, the store keeps its last copy (TIMEOUT: head office answered too slowly"
+				+ " (read timeout 60 s))", slow.getMessage());
+		assertTrue(slow.isRetryable());
+		assertEquals("5", savedCursor(), "cursor unchanged");
+
+		setUp(job);
+		expect("5", request -> {
+			throw new ConnectException("Connection refused");
+		});
+		LinkJobRun refused = job.run();
+		assertTrue(refused.isRetryable(), "an I/O error");
+		assertTrue(refused.getMessage().contains("(OFFLINE: head office unreachable"), refused.getMessage());
+
+		setUp(job);
+		expect("5", withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+		assertFalse(job.run().isRetryable(), "an answer, not a timeout or an I/O error");
+	}
 }

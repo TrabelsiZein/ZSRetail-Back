@@ -1,5 +1,6 @@
 package com.digithink.zsretail.store.holink.client;
 
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -77,6 +78,9 @@ public class HeadOfficeClient {
 
 	static final int CONNECT_TIMEOUT_MS = 5_000;
 	static final int READ_TIMEOUT_MS = 10_000;
+	/** 3.1.0: the pull of copies down's own read timeout, in seconds, while headoffice.copies-down.read-timeout-seconds is not set. */
+	public static final int DOWN_READ_TIMEOUT_SECONDS = 60;
+	static final String DOWN_READ_TIMEOUT_KEY = "headoffice.copies-down.read-timeout-seconds";
 	static final int LIVE_CONNECT_TIMEOUT_MS = 2_000;
 	static final int LIVE_READ_TIMEOUT_MS = 3_000;
 	static final String LOYALTY_PATH = "/ho/loyalty";
@@ -95,6 +99,10 @@ public class HeadOfficeClient {
 	/** Step 4: the live questions (enrol phone check, member edit), on a request thread: short timeouts. */
 	private final RestTemplate liveTemplate;
 
+	/** 3.1.0: the pull of copies down (pages of up to 1,000 records): its own read timeout, the connect timeout as above. */
+	private final RestTemplate downTemplate;
+	private final int downReadTimeoutSeconds;
+
 	private final GeneralSetupService generalSetupService;
 	private final String baseUrl;
 	private final String apiKey;
@@ -106,9 +114,10 @@ public class HeadOfficeClient {
 	@Autowired
 	public HeadOfficeClient(GeneralSetupService generalSetupService, ApplicationModeService applicationModeService,
 			@Value("${headoffice.url}") String url, @Value("${headoffice.api-key:}") String apiKey,
-			@Value("${app.version:unknown}") String appVersion) {
-		this(newRestTemplate(), newLiveRestTemplate(), generalSetupService, url, apiKey, appVersion,
-				applicationModeService);
+			@Value("${app.version:unknown}") String appVersion,
+			@Value("${" + DOWN_READ_TIMEOUT_KEY + ":" + DOWN_READ_TIMEOUT_SECONDS + "}") int downReadTimeoutSeconds) {
+		this(newRestTemplate(), newLiveRestTemplate(), newDownRestTemplate(downReadTimeoutSeconds),
+				positive(downReadTimeoutSeconds), generalSetupService, url, apiKey, appVersion, applicationModeService);
 	}
 
 	/** With a given RestTemplate: used by the tests (MockRestServiceServer). The heartbeat sends the version only. */
@@ -117,18 +126,21 @@ public class HeadOfficeClient {
 		this(restTemplate, generalSetupService, url, apiKey, appVersion, null);
 	}
 
-	/** With a given RestTemplate and the store's ownership: used by the tests. The live questions use it too. */
+	/** With a given RestTemplate and the store's ownership: used by the tests. The live questions and the pull use it too. */
 	public HeadOfficeClient(RestTemplate restTemplate, GeneralSetupService generalSetupService, String url,
 			String apiKey, String appVersion, ApplicationModeService ownership) {
-		this(restTemplate, restTemplate, generalSetupService, url, apiKey, appVersion, ownership);
+		this(restTemplate, restTemplate, restTemplate, DOWN_READ_TIMEOUT_SECONDS, generalSetupService, url, apiKey,
+				appVersion, ownership);
 	}
 
-	private HeadOfficeClient(RestTemplate restTemplate, RestTemplate liveTemplate,
-			GeneralSetupService generalSetupService, String url, String apiKey, String appVersion,
-			ApplicationModeService ownership) {
+	private HeadOfficeClient(RestTemplate restTemplate, RestTemplate liveTemplate, RestTemplate downTemplate,
+			int downReadTimeoutSeconds, GeneralSetupService generalSetupService, String url, String apiKey,
+			String appVersion, ApplicationModeService ownership) {
 		this.ownership = ownership;
 		this.restTemplate = restTemplate;
 		this.liveTemplate = liveTemplate;
+		this.downTemplate = downTemplate;
+		this.downReadTimeoutSeconds = downReadTimeoutSeconds;
 		this.generalSetupService = generalSetupService;
 		this.baseUrl = withoutTrailingSlash(url.trim());
 		this.apiKey = apiKey == null ? "" : apiKey.trim();
@@ -143,6 +155,20 @@ public class HeadOfficeClient {
 	/** Step 4: the live questions, which a user's request waits for: connect 2 s, read 3 s. */
 	static RestTemplate newLiveRestTemplate() {
 		return newRestTemplate(LIVE_CONNECT_TIMEOUT_MS, LIVE_READ_TIMEOUT_MS);
+	}
+
+	/** 3.1.0: the pull of copies down: connect 5 s, read the given seconds (0 or less: the default 60 s). */
+	static RestTemplate newDownRestTemplate(int readTimeoutSeconds) {
+		return newRestTemplate(CONNECT_TIMEOUT_MS, positive(readTimeoutSeconds) * 1000);
+	}
+
+	private static int positive(int seconds) {
+		return seconds > 0 ? seconds : DOWN_READ_TIMEOUT_SECONDS;
+	}
+
+	/** 3.1.0: the read timeout of the pull of copies down, in seconds. */
+	public int getDownReadTimeoutSeconds() {
+		return downReadTimeoutSeconds;
 	}
 
 	private static RestTemplate newRestTemplate(int connectMs, int readMs) {
@@ -238,7 +264,8 @@ public class HeadOfficeClient {
 			return PullAnswer.failed(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
 					"head office call failed (" + cause(e) + ")"));
 		}
-		Answer<CopiesDownAnswerDTO> answer = call(HttpMethod.GET, null, uri, null, CopiesDownAnswerDTO.class);
+		Answer<CopiesDownAnswerDTO> answer = call(HttpMethod.GET, null, uri, null, CopiesDownAnswerDTO.class,
+				downTemplate, downReadTimeoutSeconds);
 		if (answer.failure != null) {
 			return PullAnswer.failed(answer.failure);
 		}
@@ -441,6 +468,16 @@ public class HeadOfficeClient {
 	 * The address is the base URL plus {@code path}, or {@code uri} when given (already encoded). Never throws.
 	 */
 	private <T> Answer<T> call(HttpMethod method, String path, URI uri, Object body, Class<T> answerType) {
+		return call(method, path, uri, body, answerType, restTemplate, null);
+	}
+
+	/**
+	 * The same with a given RestTemplate. 3.1.0: with {@code readTimeoutSeconds} (the pull of copies down), a read
+	 * timeout is {@link HeadOfficeLinkState#TIMEOUT} "head office answered too slowly (read timeout 60 s)", not OFFLINE;
+	 * without it (the heartbeat, the pushes) every I/O error stays OFFLINE as before.
+	 */
+	private <T> Answer<T> call(HttpMethod method, String path, URI uri, Object body, Class<T> answerType,
+			RestTemplate template, Integer readTimeoutSeconds) {
 		String storeCode;
 		try {
 			storeCode = readStoreCode();
@@ -461,8 +498,8 @@ public class HeadOfficeClient {
 			// The body is written here (UTF-8, dates as ISO strings), whatever the RestTemplate's converters
 			HttpEntity<?> entity = method == HttpMethod.GET ? new HttpEntity<>(headers)
 					: new HttpEntity<>(WIRE_MAPPER.writeValueAsBytes(body), headers);
-			ResponseEntity<T> response = uri != null ? restTemplate.exchange(uri, method, entity, answerType)
-					: restTemplate.exchange(baseUrl + path, method, entity, answerType);
+			ResponseEntity<T> response = uri != null ? template.exchange(uri, method, entity, answerType)
+					: template.exchange(baseUrl + path, method, entity, answerType);
 			if (response.getStatusCodeValue() != 200) {
 				return new Answer<>(null, fromStatus(response.getStatusCodeValue()));
 			}
@@ -475,12 +512,33 @@ public class HeadOfficeClient {
 		} catch (RestClientResponseException e) {
 			return new Answer<>(null, fromStatus(e.getRawStatusCode()));
 		} catch (ResourceAccessException e) {
+			if (readTimeoutSeconds != null && isReadTimeout(e)) {
+				return Answer.failed(HeadOfficeLinkState.TIMEOUT, slowAnswer(readTimeoutSeconds));
+			}
 			return Answer.failed(HeadOfficeLinkState.OFFLINE, "head office unreachable (" + cause(e) + ")");
 		} catch (RestClientException e) {
 			return Answer.failed(HeadOfficeLinkState.ERROR, "unreadable answer from the head office (" + cause(e) + ")");
 		} catch (RuntimeException e) {
 			return Answer.failed(HeadOfficeLinkState.ERROR, "head office call failed (" + cause(e) + ")");
 		}
+	}
+
+	/** 3.1.0: the message of a read timeout of the pull, e.g. "head office answered too slowly (read timeout 60 s)". */
+	static String slowAnswer(int readTimeoutSeconds) {
+		return "head office answered too slowly (read timeout " + readTimeoutSeconds + " s)";
+	}
+
+	/**
+	 * 3.1.0: the connection was made but no answer came in time (SocketTimeoutException "Read timed out"). A connect
+	 * timeout ("connect timed out", ConnectTimeoutException), a refused connection or an unknown host is not one.
+	 */
+	static boolean isReadTimeout(Exception e) {
+		Throwable cause = NestedExceptionUtils.getMostSpecificCause(e);
+		if (!(cause instanceof SocketTimeoutException)) {
+			return false;
+		}
+		String message = cause.getMessage() == null ? "" : cause.getMessage().toLowerCase(Locale.ROOT);
+		return !message.contains("connect");
 	}
 
 	/** The body of a 200 answer, or the failure; exactly one of the two is set. */

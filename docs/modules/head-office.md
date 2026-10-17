@@ -560,6 +560,7 @@ A store with `headoffice.url` set sends a heartbeat to its head office. Store-si
 | `headoffice.url` | Head office base URL including the context path, e.g. `http://localhost:888/zsretail/api`; trailing slashes are tolerated. Absent or blank: no link. None of the link beans exists (`@ConditionalOnInstallation(LINKED_TO_HEAD_OFFICE)`, `core/config/Installation.LINKED_TO_HEAD_OFFICE`, which reads the key like the startup: `NodeOwnership.isHeadOfficeLinkSet`) and the store behaves as before |
 | `headoffice.api-key` | The key shown once on the head office Stores page; trimmed; sent in `X-Store-Key`; never written in a log line |
 | `headoffice.heartbeat-interval-seconds` | Default `60` |
+| `headoffice.copies-down.read-timeout-seconds` | 3.1.0: the read timeout of the pull of copies down (`COPIES_DOWN`), in seconds, default `60` (0 or less: 60). Connect stays 5 s; the heartbeat and the pushes keep their 10 s read timeout |
 
 **Startup checks** (the store does not start), only when `headoffice.url` is set, in `NodeOwnership.resolve` next to the head office checks:
 
@@ -592,6 +593,7 @@ Without the URL these keys are not checked. The URL scheme is not checked: HTTP 
 | `ERROR` | 200 whose body cannot be read (HTML, broken JSON, empty) | `unreadable answer from the head office (...)` |
 | `ERROR` | `DEFAULT_LOCATION` cannot be read (database) | `DEFAULT_LOCATION could not be read (...)`; no call |
 | `OFFLINE` | Connection error, unknown host, timeout | `head office unreachable (<cause>)` |
+| `TIMEOUT` | 3.1.0, the pull of copies down only: connected, no answer within `headoffice.copies-down.read-timeout-seconds` (a read timeout; a connect timeout stays `OFFLINE`). The heartbeat never gives it | `head office answered too slowly (read timeout 60 s)` |
 | `NOT_CONFIGURED` | `DEFAULT_LOCATION` empty | no call is made |
 
 **Status**: `HeadOfficeLinkStatus`, in memory only (no table; `PENDING` again after a restart): state, last attempt and last success (store clock), last message, head office `serverTime` of the last success. A failure keeps the last success. Shown on the store's "Head office link" page (task 1.5, below).
@@ -795,6 +797,8 @@ Backend of the jobs and exchange log of the store's Head office link page (model
 | `SUPPLY_PUSH` | `SupplyPushJob` (step 7A) | and the goods come from the head office (`NodeOwnership.isSupplyFromHeadOffice`) | 5 | 35 s | `headoffice.supply-push.interval-seconds` (300 since 2.2.2, 60 before) |
 
 2.2.2 default frequencies (when none is saved from the Jobs page; a saved frequency always wins, `LinkJobService.intervalSeconds`): heartbeat 3 min, sales push 30 min, copies from the head office 30 min, loyalty to the head office 10 min, delivery confirmations 5 min (constants `DEFAULT_INTERVAL_SECONDS` of each job, `LinkJobDefaultsTest`). The first-run delays (15 to 35 s) and the 5 s catch-up while pages wait are unchanged. A store that never saved a frequency takes the new defaults at its next start (its `hol_job` rows hold no interval); one that saved some keeps them. The head office's OFFLINE threshold moves from 180 s to 540 s with it (a 3 min heartbeat against 180 s would show every store OFFLINE once per cycle).
+
+**Retry after a timeout or an I/O error** (3.1.0): a run the job marks retryable (`LinkJobRun.retryable`; today `COPIES_DOWN` when a domain's pull ended `TIMEOUT` or `OFFLINE`) runs again 10 s later (`RETRY_DELAY`), at most 3 times in a row (`MAX_RETRIES`); its last message says so, e.g. `CATALOGUE: not delivered, the store keeps its last copy (TIMEOUT: head office answered too slowly (read timeout 60 s)), retry in 10 s (1/3)`. The 4th failure in a row goes back to the frequency, with one WARN line (`... failed 4 times in a row, retries stopped; next run at its frequency (1800 s)`) and the message `..., 3 retries failed, next run at the frequency (1800 s)`; the next failure starts a new chain. Any other run (a success, an HTTP error, a job that throws) resets the count and keeps its rule (5 s while more to do, else the frequency); a frequency change too. A "Run now" follows the same rule. A failed pull is logged at WARN when it starts (INFO before 3.1.0), at DEBUG while the same failure repeats. Tests: `LinkJobSchedulerTest` (retry), `HeadOfficeClientTest` (`pullReadTimeout`, `downReadTimeoutFromTheProperty`), `CopiesDownPullerTest.readTimeoutRetried`.
 
 **Add a job** (later steps): one bean implementing `LinkJob` with the condition that decides whether it exists, an `@Order` for its place in the list and a new code; it writes its own exchange log rows through `LinkExchangeLog`. Nothing else changes: the scheduler, the jobs list, the frequency, run now and the log pick it up.
 

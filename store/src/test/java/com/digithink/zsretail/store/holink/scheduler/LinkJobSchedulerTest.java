@@ -210,6 +210,79 @@ class LinkJobSchedulerTest {
 		assertEquals(Duration.ofSeconds(120), scheduler.nextDelay(push));
 	}
 
+	private static final String SLOW = "CATALOGUE: not delivered, the store keeps its last copy (TIMEOUT: head office"
+			+ " answered too slowly (read timeout 60 s))";
+
+	private String lastMessage(FakeJob job) {
+		return jobService.state(job.getCode()).getLastMessage();
+	}
+
+	@Test
+	@DisplayName("3.1.0 retry: fail, fail, success: 10 s, 10 s, then the frequency, the count reset (the next failure is 1/3)")
+	void retryThenSuccess() {
+		push.next = LinkJobRun.retryable(LinkJobResult.ERROR, SLOW);
+		scheduler.execute(push);
+		assertEquals(Duration.ofSeconds(10), scheduler.nextDelay(push));
+		assertEquals(SLOW + ", retry in 10 s (1/3)", lastMessage(push), "the Link page's last message");
+		scheduler.execute(push);
+		assertEquals(Duration.ofSeconds(10), scheduler.nextDelay(push));
+		assertEquals(SLOW + ", retry in 10 s (2/3)", lastMessage(push));
+
+		push.next = LinkJobRun.of(LinkJobResult.SUCCESS, "CATALOGUE: 1000 applied", true);
+		scheduler.execute(push);
+		assertEquals(Duration.ofSeconds(5), scheduler.nextDelay(push), "a success keeps its rule: 5 s while more to do");
+		push.next = LinkJobRun.success("CATALOGUE: nothing new");
+		scheduler.execute(push);
+		assertEquals(Duration.ofSeconds(120), scheduler.nextDelay(push), "else its frequency");
+
+		push.next = LinkJobRun.retryable(LinkJobResult.ERROR, SLOW);
+		scheduler.execute(push);
+		assertEquals(SLOW + ", retry in 10 s (1/3)", lastMessage(push), "the count started again");
+		assertTrue(lines(Level.WARN).isEmpty(), "no chain stopped");
+	}
+
+	@Test
+	@DisplayName("3.1.0 retry: 4 failures in a row: 3 retries 10 s apart, the 4th back to the frequency with one WARN line;"
+			+ " then a new chain")
+	void fourFailuresBackToFrequency() {
+		push.next = LinkJobRun.retryable(LinkJobResult.ERROR, SLOW);
+		for (int failure = 1; failure <= 3; failure++) {
+			scheduler.execute(push);
+			assertEquals(Duration.ofSeconds(10), scheduler.nextDelay(push), "failure " + failure);
+		}
+		assertTrue(lines(Level.WARN).isEmpty());
+
+		scheduler.execute(push);
+		assertEquals(Duration.ofSeconds(120), scheduler.nextDelay(push), "the 4th: the frequency, as before 3.1.0");
+		assertEquals(SLOW + ", 3 retries failed, next run at the frequency (120 s)", lastMessage(push));
+		List<String> warnings = lines(Level.WARN);
+		assertEquals(1, warnings.size());
+		assertTrue(warnings.get(0).startsWith("Head office link: SALES_PUSH failed 4 times in a row, retries stopped;"
+				+ " next run at its frequency (120 s)"), warnings.get(0));
+
+		scheduler.execute(push);
+		assertEquals(Duration.ofSeconds(10), scheduler.nextDelay(push), "the next period starts a new chain");
+		assertEquals(SLOW + ", retry in 10 s (1/3)", lastMessage(push));
+	}
+
+	@Test
+	@DisplayName("3.1.0 retry: an error that is not a timeout or an I/O error (HTTP 500) keeps the frequency and resets"
+			+ " the count; a frequency change too")
+	void otherErrorNoRetry() {
+		push.next = LinkJobRun.retryable(LinkJobResult.ERROR, SLOW);
+		scheduler.execute(push);
+		push.next = LinkJobRun.error("CATALOGUE: unexpected answer from the head office: HTTP 500");
+		scheduler.execute(push);
+		assertEquals(Duration.ofSeconds(120), scheduler.nextDelay(push));
+		assertEquals("CATALOGUE: unexpected answer from the head office: HTTP 500", lastMessage(push), "no retry text");
+
+		push.next = LinkJobRun.retryable(LinkJobResult.ERROR, SLOW);
+		scheduler.execute(push);
+		assertEquals(SLOW + ", retry in 10 s (1/3)", lastMessage(push));
+		scheduler.reschedule(push);
+		assertEquals(Duration.ofSeconds(120), scheduler.nextDelay(push), "a frequency change ends the retries");
+	}
+
 	@Test
 	@DisplayName("Each run is recorded (start, result, message, duration) in memory and hol_job; the log is purged at most once a day")
 	void runRecorded() {

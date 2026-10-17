@@ -38,7 +38,9 @@ import com.digithink.zsretail.core.link.dto.SalesCopyResultDTO;
 import com.digithink.zsretail.core.link.dto.SessionCopyDTO;
 import com.digithink.zsretail.core.link.dto.TicketCopyDTO;
 import com.digithink.zsretail.core.service.GeneralSetupService;
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.store.holink.dto.HeadOfficeCallResult;
+import com.digithink.zsretail.store.holink.dto.PullAnswer;
 import com.digithink.zsretail.store.holink.dto.SalesPushAnswer;
 import com.digithink.zsretail.store.holink.enumeration.HeadOfficeLinkState;
 import com.digithink.zsretail.store.holink.enumeration.SalesCopyType;
@@ -324,5 +326,66 @@ class HeadOfficeClientTest {
 		server.verify(); // no request
 		assertEquals(HeadOfficeLinkState.NOT_CONFIGURED, notConfigured.getState());
 		assertFalse(notConfigured.isDelivered());
+	}
+
+	// --- 3.1.0: the pull of copies down, its own read timeout ---
+
+	private static final String DOWN = "http://ho.example:888/zsretail/api/ho/down/catalogue";
+
+	private PullAnswer pullWith(ResponseCreator answer) {
+		server.expect(requestTo(org.hamcrest.Matchers.startsWith(DOWN))).andExpect(method(HttpMethod.GET))
+				.andRespond(answer);
+		PullAnswer pulled = client.pull(DataDomain.CATALOGUE, "", 1000);
+		server.verify();
+		return pulled;
+	}
+
+	@Test
+	@DisplayName("3.1.0: a read timeout of the pull is TIMEOUT \"head office answered too slowly (read timeout 60 s)\";"
+			+ " refused, unknown host and a connect timeout stay OFFLINE; the heartbeat's read timeout stays OFFLINE")
+	void pullReadTimeout() {
+		PullAnswer slow = pullWith(failWith(new SocketTimeoutException("Read timed out")));
+		assertEquals(HeadOfficeLinkState.TIMEOUT, slow.getState());
+		assertEquals("head office answered too slowly (read timeout 60 s)", slow.getMessage());
+		assertFalse(slow.isDelivered());
+
+		server.reset();
+		PullAnswer refused = pullWith(failWith(new ConnectException("Connection refused")));
+		assertEquals(HeadOfficeLinkState.OFFLINE, refused.getState());
+		assertEquals("head office unreachable (ConnectException: Connection refused)", refused.getMessage());
+		server.reset();
+		assertEquals(HeadOfficeLinkState.OFFLINE, pullWith(failWith(new UnknownHostException("ho.example"))).getState());
+		server.reset();
+		assertEquals(HeadOfficeLinkState.OFFLINE,
+				pullWith(failWith(new SocketTimeoutException("connect timed out"))).getState(), "a connect timeout");
+
+		server.reset();
+		HeadOfficeCallResult heartbeat = answer(failWith(new SocketTimeoutException("Read timed out")));
+		assertEquals(HeadOfficeLinkState.OFFLINE, heartbeat.getState(), "HEARTBEAT unchanged");
+	}
+
+	@Test
+	@DisplayName("3.1.0: the pull's read timeout comes from headoffice.copies-down.read-timeout-seconds (default 60 s);"
+			+ " connect 5 s; the heartbeat and pushes keep 10 s")
+	void downReadTimeoutFromTheProperty() throws Exception {
+		java.lang.reflect.Constructor<?> spring = Arrays.stream(HeadOfficeClient.class.getConstructors())
+				.filter(c -> c.isAnnotationPresent(org.springframework.beans.factory.annotation.Autowired.class))
+				.findFirst().get();
+		java.lang.annotation.Annotation[] last = spring.getParameterAnnotations()[spring.getParameterCount() - 1];
+		assertEquals("${headoffice.copies-down.read-timeout-seconds:60}",
+				((org.springframework.beans.factory.annotation.Value) last[0]).value());
+
+		HeadOfficeClient fromProperty = (HeadOfficeClient) spring.newInstance(null, null, URL, KEY, "3.1.0", 45);
+		assertEquals(45, fromProperty.getDownReadTimeoutSeconds());
+		RestTemplate down = (RestTemplate) ReflectionTestUtils.getField(fromProperty, "downTemplate");
+		RequestConfig config = (RequestConfig) ReflectionTestUtils.getField(down.getRequestFactory(), "requestConfig");
+		assertEquals(45_000, config.getSocketTimeout(), "the read timeout");
+		assertEquals(5_000, config.getConnectTimeout(), "connect unchanged");
+		RestTemplate others = (RestTemplate) ReflectionTestUtils.getField(fromProperty, "restTemplate");
+		assertEquals(10_000, ((RequestConfig) ReflectionTestUtils.getField(others.getRequestFactory(), "requestConfig"))
+				.getSocketTimeout(), "heartbeat and pushes as before");
+
+		HeadOfficeClient zero = (HeadOfficeClient) spring.newInstance(null, null, URL, KEY, "3.1.0", 0);
+		assertEquals(60, zero.getDownReadTimeoutSeconds(), "0 or less: the default");
 	}
 }

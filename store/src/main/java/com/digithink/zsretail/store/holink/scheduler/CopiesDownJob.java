@@ -15,6 +15,7 @@ import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.store.holink.dto.DownApplyResult;
 import com.digithink.zsretail.store.holink.dto.LinkJobRun;
+import com.digithink.zsretail.store.holink.enumeration.HeadOfficeLinkState;
 import com.digithink.zsretail.store.holink.enumeration.LinkJobResult;
 import com.digithink.zsretail.store.holink.service.CopiesDownPuller;
 import com.digithink.zsretail.store.holink.service.SalesCopyFinder;
@@ -82,17 +83,27 @@ public class CopiesDownJob implements LinkJob {
 		}
 		LinkJobResult result = LinkJobResult.SUCCESS;
 		List<String> messages = new ArrayList<>();
+		boolean retryable = false;
 		for (CopiesDownPuller.DomainRun run : cycle.getRuns()) {
 			report(run);
 			messages.add(run.getDomain() + ": " + message(run));
 			if (run.getFailure() != null) {
 				result = LinkJobResult.ERROR;
+				retryable |= transientFailure(run);
 			} else if (result == LinkJobResult.SUCCESS
 					&& run.getPulled().getProblems() + run.getRetried().getProblems() > 0) {
 				result = LinkJobResult.WARNING;
 			}
 		}
-		return LinkJobRun.of(result, String.join("; ", messages), cycle.isMore());
+		String message = String.join("; ", messages);
+		// 3.1.0: a timeout or an I/O error: the scheduler retries in 10 s, up to 3 times, before the frequency
+		return retryable ? LinkJobRun.retryable(result, message) : LinkJobRun.of(result, message, cycle.isMore());
+	}
+
+	/** 3.1.0: the pull itself failed on a read timeout or an I/O error (the head office slow or not reachable). */
+	static boolean transientFailure(CopiesDownPuller.DomainRun run) {
+		return run.getFailure() != null
+				&& (run.getState() == HeadOfficeLinkState.TIMEOUT || run.getState() == HeadOfficeLinkState.OFFLINE);
 	}
 
 	private static String message(CopiesDownPuller.DomainRun run) {
@@ -120,15 +131,16 @@ public class CopiesDownJob implements LinkJob {
 	}
 
 	/**
-	 * INFO when a pull brought something, when a retry applied or removed something, and when delivery fails or comes
-	 * back; DEBUG otherwise (a record still waiting is not repeated at INFO every cycle).
+	 * INFO when a pull brought something, when a retry applied or removed something, and when delivery comes back; WARN
+	 * when delivery fails (3.1.0; INFO before); DEBUG otherwise (a record still waiting, the same failure again, are not
+	 * repeated every cycle).
 	 */
 	private void report(CopiesDownPuller.DomainRun run) {
 		DataDomain domain = run.getDomain();
 		String previous = lastFailure.get(domain);
 		if (run.getFailure() != null) {
 			if (!run.getFailure().equals(previous)) {
-				log.info("Head office copies down: {} {}", domain, run.getFailure());
+				log.warn("Head office copies down: {} {}", domain, run.getFailure());
 			} else {
 				log.debug("Head office copies down: {} still {}", domain, run.getFailure());
 			}
