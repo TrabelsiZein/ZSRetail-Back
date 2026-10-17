@@ -28,8 +28,10 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
 - Payment split (test log I-50): the cash method is net of the change given back, as the ticket Z
   (`SessionReportService.paymentsByMethod`): Σ cash payments − the change of each ticket with a cash payment, once per
   ticket. It counted the cash tendered (371.347 instead of 347.167 on `zen_store`, 12 tickets).
-- Known, not changed: the sales and purchase reports grouped by FAMILY (`SalesReportService`, `JOIN i.itemFamily f`)
-  still drop the items without a family; their `COALESCE(f.name, 'No Family')` never applies.
+- The sales and purchase reports grouped by FAMILY (`SalesReportService`, test log I-66) count the items without a
+  family too, under "—" (`LEFT JOIN i.itemFamily f`; the inner join left them out, and its "No Family" label never
+  applied). Their totals now equal the ITEM grouping's. The sales report does not take off the loyalty points (in any
+  grouping): its total is the tickets' total plus the points spent.
 
 **CRITICAL FIX — CAST for DAY/MONTH grouping:**
 - Bug: `CONCAT(YEAR(date), '-', MONTH(date))` produced arithmetic (2026 + 3 = 2029) because Hibernate treats YEAR()/MONTH()/DAY() as integers.

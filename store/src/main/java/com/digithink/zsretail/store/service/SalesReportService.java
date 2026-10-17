@@ -56,8 +56,9 @@ public class SalesReportService {
 
         switch (groupBy.toUpperCase()) {
             case "FAMILY":
-                extraJoin     = "JOIN sl.item i JOIN i.itemFamily f ";
-                selectLabel   = "COALESCE(f.name, 'No Family')";
+                // 3.1.0: the items without a family too, under "—" (an inner join left them out)
+                extraJoin     = "JOIN sl.item i LEFT JOIN i.itemFamily f ";
+                selectLabel   = "COALESCE(f.name, '—')";
                 groupByClause = "f.name";
                 break;
             case "SUBFAMILY":
@@ -138,8 +139,9 @@ public class SalesReportService {
 
         switch (groupBy.toUpperCase()) {
             case "FAMILY":
-                extraJoin     = "JOIN pl.item i JOIN i.itemFamily f ";
-                selectLabel   = "COALESCE(f.name, 'No Family')";
+                // 3.1.0: the items without a family too, under "—" (an inner join left them out)
+                extraJoin     = "JOIN pl.item i LEFT JOIN i.itemFamily f ";
+                selectLabel   = "COALESCE(f.name, '—')";
                 groupByClause = "f.name";
                 break;
             case "VENDOR":

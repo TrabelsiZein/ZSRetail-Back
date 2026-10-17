@@ -54,6 +54,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   item name stays NAV's item description.
 
 ### Fixes
+- Reports grouped by family (test log I-66): the sales and purchase reports count the items without a family, under
+  "—" (they were left out).
 - Statistics (test log I-49, I-50): "Top 5 products" counts the items without a family (family "—"); the payment split's
   cash is net of the change given back, as the ticket Z (it counted the cash tendered).
 - A return's total and a session's expected cash to the millime (test log I-07): `total_return_amount` and `real_cash`
