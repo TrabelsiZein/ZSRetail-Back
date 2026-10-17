@@ -54,6 +54,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   item name stays NAV's item description.
 
 ### Fixes
+- Sales report (test log I-67 re-test): the report answered 500 in every grouping since the points fix (HQL
+  `unexpected token: /`: Hibernate 5 takes a single term after `THEN`); the points share is in parentheses.
 - Stock report: a negative stock has its own status `NEGATIVE` (was `OUT`, test log I-52). Statistics: a KPI delta is
   null, no comparison, when the previous period is 0 (was 0.00, test log I-51).
 - Sales report (test log I-67): the loyalty points spent are taken off as the ticket discount, in every grouping, so the

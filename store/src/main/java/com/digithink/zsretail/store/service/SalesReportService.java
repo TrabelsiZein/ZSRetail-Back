@@ -95,9 +95,10 @@ public class SalesReportService {
         // discountPercentage is always stored (for fixed-amount discounts the frontend computes it).
         String hdrRate = "COALESCE(sl.salesHeader.discountPercentage, 0.0) / 100.0";
         // 3.1.0 (test log I-67): the loyalty points spent, spread the same way: the till's total is the lines after the
-        // ticket discount minus the points, so each line keeps total / (total + points) of it (1 without points)
+        // ticket discount minus the points, so each line keeps total / (total + points) of it (1 without points).
+        // The THEN branch is in parentheses: Hibernate 5's HQL takes a single term after THEN, a bare division fails.
         String pointsKept = "(CASE WHEN COALESCE(sl.salesHeader.loyaltyDeductionAmount, 0.0) > 0 "
-                + "THEN sl.salesHeader.totalAmount / (sl.salesHeader.totalAmount + sl.salesHeader.loyaltyDeductionAmount) "
+                + "THEN (sl.salesHeader.totalAmount / (sl.salesHeader.totalAmount + sl.salesHeader.loyaltyDeductionAmount)) "
                 + "ELSE 1.0 END)";
         String kept = "(1.0 - " + hdrRate + ") * " + pointsKept;
         String jpql =
