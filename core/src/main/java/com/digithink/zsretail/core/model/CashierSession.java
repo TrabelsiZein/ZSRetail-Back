@@ -8,9 +8,12 @@ import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
+import javax.persistence.PrePersist;
+import javax.persistence.PreUpdate;
 
 import com.digithink.zsretail.core.model.enumeration.SessionStatus;
 import com.digithink.zsretail.core.model.enumeration.SynchronizationStatus;
+import com.digithink.zsretail.core.utils.Quantities;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -69,4 +72,14 @@ public class CashierSession extends _BaseEntity {
 	private SynchronizationStatus synchronizationStatus = SynchronizationStatus.NOT_SYNCHED;
 
 	private String erpNo; // External reference from ERP (e.g., document number)
+
+	/**
+	 * 3.1.0 (test log I-07): the expected cash (realCash) is stored to the millime, half up ({@link
+	 * Quantities#roundAmount}), as the tickets and returns it adds up.
+	 */
+	@PrePersist
+	@PreUpdate
+	public void roundAmounts() {
+		realCash = Quantities.roundAmountOrNull(realCash);
+	}
 }

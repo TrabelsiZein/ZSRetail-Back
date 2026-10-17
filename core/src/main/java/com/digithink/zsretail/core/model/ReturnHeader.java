@@ -8,10 +8,13 @@ import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
+import javax.persistence.PrePersist;
+import javax.persistence.PreUpdate;
 
 import com.digithink.zsretail.core.model.enumeration.ReturnType;
 import com.digithink.zsretail.core.model.enumeration.SynchronizationStatus;
 import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
+import com.digithink.zsretail.core.utils.Quantities;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -66,5 +69,15 @@ public class ReturnHeader extends _BaseEntity {
 	private String erpNo; // Document_No from Dynamics NAV
 
 	private Double discountPercentage;
+
+	/**
+	 * 3.1.0 (test log I-07): the amount given back is stored to the millime, half up ({@link Quantities#roundAmount}),
+	 * as the voucher made from it; the discount percentage stays as computed.
+	 */
+	@PrePersist
+	@PreUpdate
+	public void roundAmounts() {
+		totalReturnAmount = Quantities.roundAmountOrNull(totalReturnAmount);
+	}
 }
 

@@ -34,6 +34,7 @@ import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.BadgeService;
 import com.digithink.zsretail.core.service._BaseService;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.store.dto.CloseSessionRequestDTO;
 import com.digithink.zsretail.store.dto.SessionCloseTicketDTO;
 import com.digithink.zsretail.store.dto.SessionDashboardDTO;
@@ -231,7 +232,8 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			}
 		}
 
-		return realCash;
+		// 3.1.0 (test log I-07): to the millime, as stored, so the closing check compares the same value (no 0.0002)
+		return Quantities.roundAmount(realCash);
 	}
 
 	/**

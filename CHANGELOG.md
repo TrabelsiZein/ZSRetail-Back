@@ -54,6 +54,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   item name stays NAV's item description.
 
 ### Fixes
+- A return's total and a session's expected cash to the millime (test log I-07): `total_return_amount` and `real_cash`
+  stored rounded half up; the closing cash check compares the rounded expected cash.
 - Return vouchers to the millime (test log I-07): `voucher_amount` and the amount used are stored rounded half up, and a
   voucher payment debits the voucher with the payment's rounded amount (remaining and "fully used" read on the millimes),
   so the voucher and its payment carry the same value.

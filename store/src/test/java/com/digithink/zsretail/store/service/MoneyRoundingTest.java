@@ -8,7 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.digithink.zsretail.core.model.CashierSession;
 import com.digithink.zsretail.core.model.Payment;
+import com.digithink.zsretail.core.model.ReturnHeader;
 import com.digithink.zsretail.core.model.ReturnVoucher;
 import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.SalesLine;
@@ -76,6 +78,22 @@ class MoneyRoundingTest {
 				"the payment of 21.313 then fits the voucher");
 		before.setUsedAmount(10.0001);
 		assertEquals(11.313, new ReturnVoucherService().getRemainingAmount(before), 0.0);
+	}
+
+	@Test
+	@DisplayName("A return's total 24.6568 stored 24.657; a session's expected cash 191.8698 stored 191.870")
+	void returnTotalAndSessionCash() {
+		ReturnHeader cashRefund = new ReturnHeader();
+		cashRefund.setTotalReturnAmount(24.6568);
+		cashRefund.setDiscountPercentage(20.000012345);
+		cashRefund.roundAmounts();
+		assertEquals(24.657, cashRefund.getTotalReturnAmount(), 0.0);
+		assertEquals(20.000012345, cashRefund.getDiscountPercentage(), 0.0, "a percentage is not an amount");
+
+		CashierSession session = new CashierSession();
+		session.setRealCash(191.8698);
+		session.roundAmounts();
+		assertEquals(191.870, session.getRealCash(), 0.0);
 	}
 
 	@Test

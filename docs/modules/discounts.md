@@ -57,7 +57,10 @@
 - Return vouchers too: `ReturnVoucher.roundAmounts` (voucherAmount, usedAmount); `ReturnVoucherService` reads the
   remaining amount and "fully used" on the millimes and debits the payment's amount rounded, so a voucher and its
   payment carry the same value (a voucher stored before with 21.3129 offers 21.313 and is used up by it).
-- Not covered: the return header's `total_return_amount` and the session's `real_cash` keep their precision.
+- A return's total (`ReturnHeader.roundAmounts`, `total_return_amount`) and a session's expected cash
+  (`CashierSession.roundAmounts`, `real_cash`) too; `CashierSessionService.calculateRealCash` returns its sum rounded, so
+  the closing check compares the value that is stored (191.870, no longer 191.8698 against a count of 191.870).
+- Not covered: the return lines' amounts and the counted amounts keep the precision they are sent with.
 - Tickets stored before keep their values (no script).
 
 ### Backend Processing
