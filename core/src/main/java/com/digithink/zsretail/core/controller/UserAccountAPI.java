@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.core.dto.CreateUserRequestDTO;
 import com.digithink.zsretail.core.dto.UserAccountDTO;
+import com.digithink.zsretail.core.exception.RoleChangeRefusedException;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model.enumeration.BadgePermission;
 import com.digithink.zsretail.core.model.enumeration.Role;
@@ -141,8 +142,15 @@ public class UserAccountAPI {
 				return ResponseEntity.badRequest().body(createErrorResponse("Role is required"));
 			}
 
+			// I-21: only an administrator creates an Administrateur
+			userAccountService.checkRoleChange(currentUserProvider.getCurrentUser(), new UserAccount(),
+					request.getAppRoleId());
+
 			UserAccountDTO createdUser = userAccountService.createUser(request);
 			return ResponseEntity.status(HttpStatus.CREATED).body(createdUser);
+		} catch (RoleChangeRefusedException e) {
+			log.warn("UserAccountAPI::createUser:refused: {}", e.getMessage());
+			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(createErrorResponse(e.getMessage()));
 		} catch (RuntimeException e) {
 			log.error("UserAccountAPI::createUser:error: " + e.getMessage(), e);
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
@@ -185,16 +193,20 @@ public class UserAccountAPI {
 					appRoleId = Long.valueOf(((String) appRoleObj).trim());
 				}
 				if (appRoleId != null) {
+					// I-21: not one's own role; the Administrateur role given or removed by an administrator only
+					userAccountService.checkRoleChange(currentUserProvider.getCurrentUser(), user, appRoleId);
 					// Sets the AppRole (permissions source) and keeps the legacy Role enum in sync.
 					userAccountService.applyAppRole(user, appRoleId);
 				}
 			} else if (request.containsKey("role")) {
 				// Backward compatibility: legacy callers that still send only the Role enum.
 				Object roleObj = request.get("role");
-				if (roleObj instanceof String) {
-					user.setRole(Role.valueOf((String) roleObj));
-				} else if (roleObj instanceof Role) {
-					user.setRole((Role) roleObj);
+				Role newRole = roleObj instanceof String ? Role.valueOf((String) roleObj)
+						: roleObj instanceof Role ? (Role) roleObj : null;
+				if (newRole != null) {
+					userAccountService.checkRoleChange(currentUserProvider.getCurrentUser(), user, newRole,
+							newRole != user.getRole());
+					user.setRole(newRole);
 				}
 			}
 			if (request.containsKey("active")) {
@@ -266,6 +278,9 @@ public class UserAccountAPI {
 
 			UserAccount updatedUser = userAccountService.save(user);
 			return ResponseEntity.ok(UserAccountDTO.fromEntity(updatedUser));
+		} catch (RoleChangeRefusedException e) {
+			log.warn("UserAccountAPI::updateUser:refused: {}", e.getMessage());
+			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(createErrorResponse(e.getMessage()));
 		} catch (RuntimeException e) {
 			log.error("UserAccountAPI::updateUser:error: " + e.getMessage(), e);
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));

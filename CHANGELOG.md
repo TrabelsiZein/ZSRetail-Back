@@ -54,6 +54,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   item name stays NAV's item description.
 
 ### Fixes
+- Users (`/user-account`, test log I-21): nobody changes the role of his own account, and only an administrator gives
+  or removes the Administrateur role, on an edit or a new user; a refused change answers 403 with the reason in French
+  (`RoleChangeRefusedException`). A responsible could make himself Administrateur.
 - The closing cash check compares cash with cash.
 - The return's ticket lookup refuses a ticket that is not completed.
 - The RFID Tags page list on SQL Server (Msg 402); a pending ticket paid with its tags no longer breaks

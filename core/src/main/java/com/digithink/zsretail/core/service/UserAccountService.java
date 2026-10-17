@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.digithink.zsretail.core.dto.CreateUserRequestDTO;
 import com.digithink.zsretail.core.dto.UserAccountDTO;
+import com.digithink.zsretail.core.exception.RoleChangeRefusedException;
 import com.digithink.zsretail.core.model.AppRole;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model.enumeration.Role;
@@ -115,6 +116,39 @@ public class UserAccountService extends _BaseService<UserAccount, Long> {
 				.orElseThrow(() -> new RuntimeException("Role not found with id: " + appRoleId));
 		user.setAppRole(appRole);
 		user.setRole(deriveLegacyRole(appRole));
+	}
+
+	/**
+	 * I-21: may {@code actor} give the AppRole {@code newAppRoleId} to {@code target} (a new user when its id is null)?
+	 * Nothing to check when the role does not change (an edit sends the unchanged role back).
+	 *
+	 * @throws RoleChangeRefusedException with the message for the user
+	 */
+	public void checkRoleChange(UserAccount actor, UserAccount target, Long newAppRoleId) {
+		AppRole newRole = appRoleRepository.findById(newAppRoleId)
+				.orElseThrow(() -> new RuntimeException("Role not found with id: " + newAppRoleId));
+		Long currentId = target.getAppRole() == null ? null : target.getAppRole().getId();
+		checkRoleChange(actor, target, deriveLegacyRole(newRole), !newRole.getId().equals(currentId));
+	}
+
+	/**
+	 * I-21, the two rules: nobody changes his own role; only an administrator gives or removes the Administrateur role
+	 * ({@link Role#ADMIN}, kept in step with the built-in AppRole ADMIN by {@link #applyAppRole}).
+	 *
+	 * @param changed whether the request changes the target's role (no check otherwise)
+	 * @throws RoleChangeRefusedException with the message for the user
+	 */
+	public void checkRoleChange(UserAccount actor, UserAccount target, Role newRole, boolean changed) {
+		if (!changed) {
+			return;
+		}
+		if (actor != null && target.getId() != null && target.getId().equals(actor.getId())) {
+			throw new RoleChangeRefusedException(RoleChangeRefusedException.OWN_ROLE);
+		}
+		boolean adminInvolved = newRole == Role.ADMIN || target.getRole() == Role.ADMIN;
+		if (adminInvolved && (actor == null || actor.getRole() != Role.ADMIN)) {
+			throw new RoleChangeRefusedException(RoleChangeRefusedException.ADMIN_ONLY);
+		}
 	}
 
 	private Role deriveLegacyRole(AppRole appRole) {
