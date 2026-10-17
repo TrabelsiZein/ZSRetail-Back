@@ -324,8 +324,17 @@ public class CatalogueEngine {
 		if (!itemsRunning.compareAndSet(false, true)) {
 			throw new ErpSyncWarningException(ITEMS_ALREADY_RUNNING);
 		}
+		long started = System.nanoTime();
 		try {
-			return readAndApplyItems();
+			CatalogueRun<ErpItemDTO> run = readAndApplyItems();
+			// 3.1.0: one line per items step, so a run shows where its time went (equal: compared, nothing to write)
+			int read = run.count("read");
+			int equal = Math.max(0, read - run.count("new") - run.count("changed") - run.count("deactivated"));
+			org.apache.logging.log4j.LogManager.getLogger(CatalogueEngine.class).info(
+					"ERP catalogue items: {} rows read, {} equal, {} new, {} changed, {} deactivated, {} written in {} ms",
+					read, equal, run.count("new"), run.count("changed"), run.count("deactivated"), run.count("applied"),
+					(System.nanoTime() - started) / 1_000_000);
+			return run;
 		} finally {
 			itemsRunning.set(false);
 		}

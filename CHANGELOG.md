@@ -75,6 +75,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   10 s); a read timeout is `TIMEOUT` "head office answered too slowly (read timeout 60 s)", not OFFLINE; a run that
   failed on a timeout or an I/O error runs again 10 s later, up to 3 times ("retry in 10 s (1/3)"), the 4th back to
   the frequency with one WARN line; a failed pull is logged at WARN (was INFO).
+- ERP catalogue, items step (speed): a packet of items reads its existing items in one query by ERP id and one by
+  code, the families and sub-families once, instead of up to five SELECTs per row (each scanning `item`, which has no
+  index on `erp_external_id`, and flushing the packet); the item and point de stock row updates go by JDBC batches of
+  100 (that transaction only). One INFO line per items step (rows read, equal, new, changed, written, ms) and per
+  packet. Unchanged rows were already never written (the engine compares every field).
 ### DB script (`db/3.1.0/update.sql`, store and head office)
 - RFID tables on a store: `rfid_reader` (with `min_signal`), `pos_machine`, `rfid_tag`, `rfid_sale_tag`.
 - Payment method "Retenue à la source", inactive (kept as it is where EMTOP 1.12.1 has it).

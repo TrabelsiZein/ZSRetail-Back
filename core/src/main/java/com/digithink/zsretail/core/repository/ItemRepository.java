@@ -65,6 +65,9 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 
 	Optional<Item> findByErpExternalId(String erpExternalId);
 
+	/** 3.1.0 speed: the items of these ERP ids (one packet of the ERP import, at most 1,000 ids). */
+	List<Item> findByErpExternalIdIn(Collection<String> erpExternalIds);
+
 	List<Item> findByType(ItemType type);
 
 	List<Item> findByStockQuantityLessThan(BigDecimal quantity);

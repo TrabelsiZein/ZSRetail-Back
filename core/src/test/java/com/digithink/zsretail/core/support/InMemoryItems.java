@@ -208,6 +208,9 @@ public class InMemoryItems {
 					return itemByCode((String) args[0]);
 				case "findByErpExternalId": // the ERP import
 					return items.values().stream().filter(i -> Objects.equals(i.getErpExternalId(), args[0])).findFirst();
+				case "findByErpExternalIdIn": // the ERP import, 3.1.0: one packet at a time
+					return items.values().stream().filter(i -> ((Collection<?>) args[0]).contains(i.getErpExternalId()))
+							.collect(Collectors.toList());
 				case "findByItemCodeIn":
 					return items.values().stream().filter(i -> ((Collection<?>) args[0]).contains(i.getItemCode()))
 							.collect(Collectors.toList());

@@ -11,6 +11,8 @@ import java.util.stream.Collectors;
 
 import javax.persistence.EntityManager;
 
+import org.hibernate.Session;
+
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -103,6 +105,7 @@ public class HoStockPointRows implements StockPoints {
 	@Override
 	@Transactional
 	public int write(long pointId, List<Row> packet) {
+		batchWrites();
 		Map<String, Long> itemIds = itemIds(packet.stream().map(row -> row.itemCode).collect(Collectors.toList()));
 		Map<Long, HoStockPointItem> existing = existing(pointId, new ArrayList<>(itemIds.values()));
 		List<HoStockPointItem> toSave = new ArrayList<>();
@@ -151,6 +154,20 @@ public class HoStockPointRows implements StockPoints {
 					: summary.substring(0, HoStockPoint.LAST_READ_SUMMARY_LENGTH));
 			points.save(point);
 		});
+	}
+
+	/** 3.1.0 speed: the rows of this transaction written by JDBC batches (updates; new rows use IDENTITY). */
+	static final int WRITE_BATCH_SIZE = 100;
+
+	private void batchWrites() {
+		if (entityManager == null) {
+			return;
+		}
+		try {
+			entityManager.unwrap(Session.class).setJdbcBatchSize(WRITE_BATCH_SIZE);
+		} catch (RuntimeException e) {
+			// not a Hibernate session: the writes go one by one, as before
+		}
 	}
 
 	/** item code to item.id, for the codes the head office has. */

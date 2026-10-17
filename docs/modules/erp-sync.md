@@ -319,6 +319,16 @@ both sides) and the clearance price at 3 decimals (null = no price): the rows of
 not change. The item does not compare them. Tests: `CatalogueClearanceTest` (core), `HoStockPointRowsTest` (H2),
 `HoStockPointItemsServiceTest.clearance`.
 
+**Items step speed (2026-10-17)**: the engine hands the import only the rows it found new, changed or gone (every
+field compared: the item fields, `ItemVariant`, the brand when given); an equal row is read, never written. The import
+(`ErpItemBootstrapService.importItems`) reads a packet's items in one query by ERP id (`findByErpExternalIdIn`) and one
+by code, and the families and sub-families once per packet, instead of up to five SELECTs per row (each one scanned
+`item`, which has no index on `erp_external_id`, and auto-flushed the packet); its writes and those of
+`HoStockPointRows.write` go by JDBC batches of 100 (`Session.setJdbcBatchSize`, that transaction only; new rows still
+one by one, IDENTITY). Log: `ERP catalogue items: N rows read, E equal, ... written in T ms` per step, `ERP items
+import: ...` per packet. The run of 17/10 (846 s, 21,086 changed) was a real change: the first run after the
+variant description was built by the connector, before the 3.1.0 UPDATE. Test: `ErpItemImportLookupsTest`.
+
 **Clearance price at the till (2026-10-17, reverses step 11b's "no price logic")**: one rule,
 `headoffice/service/StockPointPrice.sellingPrice` / `clearanceApplies`: a row with clearance true and a clearance price
 above 0 sells at its clearance price, any other row (clearance false or null, a price null or 0) at its own price. Both

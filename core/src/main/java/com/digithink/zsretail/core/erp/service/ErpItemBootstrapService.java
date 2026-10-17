@@ -7,8 +7,17 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
+
+import org.hibernate.Session;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -273,8 +282,14 @@ public class ErpItemBootstrapService {
 			return Collections.emptyList();
 		}
 
+		long started = System.nanoTime();
+		batchWrites();
 		List<Item> persisted = new ArrayList<>();
 		String taxStampErpCode = generalSetupService.findValueByCode("TAX_STAMP_ERP_ITEM_CODE");
+		// 3.1.0 speed: the packet's items, families and sub-families read once, not one SELECT per row (each also
+		// flushed the whole packet before it ran)
+		ItemLookups lookups = new ItemLookups(items);
+		int created = 0;
 		for (ErpItemDTO dto : items) {
 			if (dto == null) {
 				continue;
@@ -284,9 +299,9 @@ public class ErpItemBootstrapService {
 				LOGGER.debug("Skipping ERP item with code {} (tax stamp item - using local TAX_STAMP)", taxStampErpCode);
 				continue;
 			}
-			Item entity = resolveItem(dto);
+			Item entity = lookups.item(dto.getExternalId(), dto.getCode()).orElseGet(Item::new);
 			boolean isNew = entity.getId() == null;
-			applyItemValues(entity, dto);
+			applyItemValues(entity, dto, lookups);
 			if (!StringUtils.hasText(entity.getItemCode())) {
 				String message = "Skipping item import because no code/external identifier provided";
 				LOGGER.warn("{}: {}", message, dto);
@@ -297,12 +312,136 @@ public class ErpItemBootstrapService {
 			if (isNew) {
 				entity.setCreatedBy(SYSTEM_USER);
 				entity.setCreatedAt(LocalDateTime.now());
+				created++;
 			}
 			entity.setUpdatedBy(SYSTEM_USER);
 			entity.setUpdatedAt(LocalDateTime.now());
-			persisted.add(itemRepository.save(entity));
+			Item saved = itemRepository.save(entity);
+			lookups.saved(saved); // a later row of the packet with the same code finds it
+			persisted.add(saved);
 		}
+		LOGGER.info("ERP items import: {} rows handed, {} written ({} new, {} updated) in {} ms", items.size(),
+				persisted.size(), created, persisted.size() - created, (System.nanoTime() - started) / 1_000_000);
 		return persisted;
+	}
+
+	/** 3.1.0 speed: rows per JDBC batch for the item writes of one import transaction (updates; inserts use IDENTITY). */
+	static final int WRITE_BATCH_SIZE = 100;
+
+	/** Most parameters in one IN list (SQL Server takes 2,100 per statement). */
+	static final int IN_CHUNK = 1000;
+
+	/** Looked up only for the batch size of this transaction; null in the tests without a database. */
+	@PersistenceContext
+	private EntityManager entityManager;
+
+	/** The item writes of this transaction sent by JDBC batches (this session only: other writes are unchanged). */
+	private void batchWrites() {
+		if (entityManager == null) {
+			return;
+		}
+		try {
+			entityManager.unwrap(Session.class).setJdbcBatchSize(WRITE_BATCH_SIZE);
+		} catch (RuntimeException e) {
+			LOGGER.debug("ERP items import: JDBC batch size not set ({})", e.getMessage());
+		}
+	}
+
+	/**
+	 * 3.1.0 speed: the items of one packet by ERP id and by code (two queries per 1,000 rows), the families and
+	 * sub-families by ERP id and by code (read whole: a few hundred rows). The same order as the lookups of before: the
+	 * ERP id first, then the code.
+	 */
+	private final class ItemLookups {
+
+		private final Map<String, Item> itemsByExternalId = new HashMap<>();
+		private final Map<String, Item> itemsByCode = new HashMap<>();
+		private Map<String, ItemFamily> familiesByExternalId;
+		private Map<String, ItemFamily> familiesByCode;
+		private Map<String, ItemSubFamily> subFamiliesByExternalId;
+		private Map<String, ItemSubFamily> subFamiliesByCode;
+
+		ItemLookups(List<ErpItemDTO> packet) {
+			Set<String> externalIds = new LinkedHashSet<>();
+			Set<String> codes = new LinkedHashSet<>();
+			for (ErpItemDTO dto : packet) {
+				if (dto == null) {
+					continue;
+				}
+				if (StringUtils.hasText(dto.getExternalId())) {
+					externalIds.add(dto.getExternalId());
+				}
+				if (StringUtils.hasText(dto.getCode())) {
+					codes.add(dto.getCode());
+				}
+			}
+			for (List<String> chunk : chunks(externalIds)) {
+				itemRepository.findByErpExternalIdIn(chunk).forEach(item -> putFirst(itemsByExternalId,
+						item.getErpExternalId(), item));
+			}
+			for (List<String> chunk : chunks(codes)) {
+				itemRepository.findByItemCodeIn(chunk).forEach(item -> putFirst(itemsByCode, item.getItemCode(), item));
+			}
+		}
+
+		Optional<Item> item(String externalId, String code) {
+			if (StringUtils.hasText(externalId) && itemsByExternalId.containsKey(externalId)) {
+				return Optional.of(itemsByExternalId.get(externalId));
+			}
+			return StringUtils.hasText(code) ? Optional.ofNullable(itemsByCode.get(code)) : Optional.empty();
+		}
+
+		void saved(Item item) {
+			putFirst(itemsByExternalId, item.getErpExternalId(), item);
+			putFirst(itemsByCode, item.getItemCode(), item);
+		}
+
+		Optional<ItemFamily> family(String identifier) {
+			if (!StringUtils.hasText(identifier)) {
+				return Optional.empty();
+			}
+			if (familiesByExternalId == null) {
+				familiesByExternalId = new HashMap<>();
+				familiesByCode = new HashMap<>();
+				for (ItemFamily family : itemFamilyRepository.findAll()) {
+					putFirst(familiesByExternalId, family.getErpExternalId(), family);
+					putFirst(familiesByCode, family.getCode(), family);
+				}
+			}
+			ItemFamily found = familiesByExternalId.get(identifier);
+			return Optional.ofNullable(found != null ? found : familiesByCode.get(identifier));
+		}
+
+		Optional<ItemSubFamily> subFamily(String identifier) {
+			if (!StringUtils.hasText(identifier)) {
+				return Optional.empty();
+			}
+			if (subFamiliesByExternalId == null) {
+				subFamiliesByExternalId = new HashMap<>();
+				subFamiliesByCode = new HashMap<>();
+				for (ItemSubFamily subFamily : itemSubFamilyRepository.findAll()) {
+					putFirst(subFamiliesByExternalId, subFamily.getErpExternalId(), subFamily);
+					putFirst(subFamiliesByCode, subFamily.getCode(), subFamily);
+				}
+			}
+			ItemSubFamily found = subFamiliesByExternalId.get(identifier);
+			return Optional.ofNullable(found != null ? found : subFamiliesByCode.get(identifier));
+		}
+	}
+
+	private static <T> void putFirst(Map<String, T> map, String key, T value) {
+		if (StringUtils.hasText(key)) {
+			map.putIfAbsent(key, value);
+		}
+	}
+
+	private static List<List<String>> chunks(Set<String> values) {
+		List<String> all = new ArrayList<>(values);
+		List<List<String>> chunks = new ArrayList<>();
+		for (int from = 0; from < all.size(); from += IN_CHUNK) {
+			chunks.add(all.subList(from, Math.min(from + IN_CHUNK, all.size())));
+		}
+		return chunks;
 	}
 
 	@Transactional
@@ -426,17 +565,6 @@ public class ErpItemBootstrapService {
 		return itemFamilyRepository.findByCode(identifier);
 	}
 
-	private Optional<ItemSubFamily> resolveSubFamily(String identifier) {
-		if (!StringUtils.hasText(identifier)) {
-			return Optional.empty();
-		}
-		Optional<ItemSubFamily> byExternal = itemSubFamilyRepository.findByErpExternalId(identifier);
-		if (byExternal.isPresent()) {
-			return byExternal;
-		}
-		return itemSubFamilyRepository.findByCode(identifier);
-	}
-
 	private Optional<ItemFamily> findFamilyByExternalOrCode(String externalId, String code) {
 		if (StringUtils.hasText(externalId)) {
 			Optional<ItemFamily> byExternalId = itemFamilyRepository.findByErpExternalId(externalId);
@@ -465,10 +593,6 @@ public class ErpItemBootstrapService {
 			return itemSubFamilyRepository.findByCode(code);
 		}
 		return Optional.empty();
-	}
-
-	private Item resolveItem(ErpItemDTO dto) {
-		return findItemByExternalOrCode(dto.getExternalId(), dto.getCode()).orElseGet(Item::new);
 	}
 
 	private Optional<Item> resolveItem(String identifier) {
@@ -581,7 +705,7 @@ public class ErpItemBootstrapService {
 		entity.setItemFamily(family);
 	}
 
-	private void applyItemValues(Item entity, ErpItemDTO dto) {
+	private void applyItemValues(Item entity, ErpItemDTO dto, ItemLookups lookups) {
 		entity.setErpExternalId(defaultString(dto.getExternalId()));
 		entity.setItemCode(defaultString(dto.getCode(), dto.getExternalId()));
 		entity.setName(defaultString(dto.getName(), dto.getCode(), dto.getExternalId()));
@@ -593,8 +717,8 @@ public class ErpItemBootstrapService {
 		if (dto.getActive() != null) {
 			entity.setActive(dto.getActive());
 		}
-		Optional<ItemFamily> familyOpt = resolveFamily(dto.getFamilyExternalId());
-		Optional<ItemSubFamily> subFamilyOpt = resolveSubFamily(dto.getSubFamilyExternalId());
+		Optional<ItemFamily> familyOpt = lookups.family(dto.getFamilyExternalId());
+		Optional<ItemSubFamily> subFamilyOpt = lookups.subFamily(dto.getSubFamilyExternalId());
 
 		familyOpt.ifPresent(entity::setItemFamily);
 
