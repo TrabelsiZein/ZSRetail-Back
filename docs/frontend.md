@@ -34,7 +34,10 @@
   the price at the bottom (prices line up in a row). Without a picture, a small grey package mark instead of the large
   blue icon; with "Show images in the POS" off, no picture place at all. Compact view: 3 lines too. Tiles are never
   narrower than 140 px on a till screen (fewer columns at 1024 or 800 px, names read in full; phones keep 120 px). An
-  item already in the cart shows its quantity in the tile's corner ("×2", `cartQuantities`).
+  item already in the cart shows its quantity in the tile's corner ("×2", `cartQuantities`). A name with its variant
+  ("name — size / colour / choice", `hasVariantLabel`) takes up to 6 lines: the variants of an item differ at the end.
+  A tile in clearance (ZEN, `clearanceShown`): the struck public price and the "Soldé" badge on a line of their own
+  (they wrap, the badge cut with "…" if need be), the price sold under them; all inside the tile at 140 and 120 px.
 - **3.1.0, payment page (`Payment.vue`), fixes**: the payments typed are kept while the cashier picks a customer (the
   Customer button opens another page): `savePaymentDraft` puts them in the store (`pos.paymentDraft`), and
   `restorePaymentDraft` takes them back once when the page opens again on the same cart (items and quantities; a
