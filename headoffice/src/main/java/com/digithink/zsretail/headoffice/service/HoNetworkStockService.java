@@ -29,6 +29,7 @@ import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.link.dto.StockReportDTO;
 import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
+import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.headoffice.model.HoStoreStock;
 import com.digithink.zsretail.headoffice.model.Store;
@@ -61,6 +62,10 @@ public class HoNetworkStockService {
 
 	/** False on a head office with headoffice.stock.enabled=false: no head office column, belowZero ignores it. */
 	private final boolean keepsStock;
+
+	/** I-24: the items' variants on the list (a field: the tests build the service without it). */
+	@Autowired(required = false)
+	private ItemRepository items;
 
 	@Autowired
 	public HoNetworkStockService(HoStoreStockRepository stocks, StoreRepository stores,
@@ -163,11 +168,13 @@ public class HoNetworkStockService {
 						.put(String.valueOf(row.getStoreId()), row.getQuantity());
 			}
 		}
+		Map<String, String> variants = ItemVariantsByCode.of(this.items, codes);
 		List<Map<String, Object>> content = new ArrayList<>();
 		for (Object[] row : items.getContent()) {
 			Map<String, Object> line = new LinkedHashMap<>();
 			line.put("itemCode", row[0]);
 			line.put("itemName", row[1]);
+			if (variants.get((String) row[0]) != null) line.put("variantDescription", variants.get((String) row[0]));
 			// 2.2.1: the head office stock with its decimals, without trailing zeros
 			line.put("headOffice", !keepsStock ? null : row[2] == null ? BigDecimal.ZERO : Quantities.normalize((BigDecimal) row[2]));
 			line.put("byStore", byCode.getOrDefault((String) row[0], new LinkedHashMap<>()));

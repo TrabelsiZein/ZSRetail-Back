@@ -60,6 +60,8 @@ public class DeliveryDTO {
 		private Long itemId;
 		private String itemCode;
 		private String itemName;
+		/** I-24: the item's variant (the head office catalogue), null without one; the page shows "name — variant". */
+		private String variantDescription;
 		private BigDecimal quantitySent; // 2.2.1: up to 3 decimals
 		private BigDecimal quantityReceived;
 		/** Received minus sent; null until received. */

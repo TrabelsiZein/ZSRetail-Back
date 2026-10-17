@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -32,6 +33,7 @@ import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
 import com.digithink.zsretail.core.model.enumeration.ReturnType;
 import com.digithink.zsretail.core.model.enumeration.SessionStatus;
 import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
+import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.PaymentMethodRepository;
 import com.digithink.zsretail.headoffice.model.HoReturn;
 import com.digithink.zsretail.headoffice.model.HoReturnLine;
@@ -78,6 +80,9 @@ public class ConsolidatedSalesService {
 	private final StoreRepository stores;
 	/** The head office's own payment methods: its CLIENT_ESPECES method is the cash row of a session's summary. */
 	private final PaymentMethodRepository paymentMethods;
+	/** I-24: the items' variants on the details (a field: the tests build the service without it). */
+	@Autowired(required = false)
+	private ItemRepository items;
 
 	public ConsolidatedSalesService(HoTicketRepository tickets, HoSessionRepository sessions,
 			HoReturnRepository returns, StoreRepository stores, PaymentMethodRepository paymentMethods) {
@@ -154,10 +159,12 @@ public class ConsolidatedSalesService {
 			detail.put("loyaltyDeductionAmount", ticket.getLoyaltyDeductionAmount());
 			detail.put("tableNumber", ticket.getTableNumber());
 			List<Map<String, Object>> lines = new ArrayList<>();
+			Map<String, String> variants = ItemVariantsByCode.of(items,
+					ticket.getLines().stream().map(HoTicketLine::getItemCode).collect(Collectors.toList()));
 			for (HoTicketLine line : ticket.getLines()) {
 				Map<String, Object> row = new LinkedHashMap<>();
 				row.put("lineNo", line.getLineNo());
-				row.put("item", object("itemCode", line.getItemCode(), "name", line.getItemName()));
+				row.put("item", itemObject(line.getItemCode(), line.getItemName(), variants));
 				row.put("quantity", line.getQuantity());
 				row.put("unitPrice", line.getUnitPrice());
 				row.put("discountPercentage", line.getDiscountPercentage());
@@ -308,10 +315,12 @@ public class ConsolidatedSalesService {
 			detail.put("returnHeader",
 					returnRow(header, storesById(), originalTickets(Collections.singletonList(header))));
 			List<Map<String, Object>> lines = new ArrayList<>();
+			Map<String, String> variants = ItemVariantsByCode.of(items,
+					header.getLines().stream().map(HoReturnLine::getItemCode).collect(Collectors.toList()));
 			for (HoReturnLine line : header.getLines()) {
 				Map<String, Object> row = new LinkedHashMap<>();
 				row.put("lineNo", line.getLineNo());
-				row.put("item", object("itemCode", line.getItemCode(), "name", line.getItemName()));
+				row.put("item", itemObject(line.getItemCode(), line.getItemName(), variants));
 				row.put("quantity", line.getQuantity());
 				row.put("unitPrice", line.getUnitPrice());
 				row.put("unitPriceIncludingVat", line.getUnitPriceIncludingVat());
@@ -550,6 +559,13 @@ public class ConsolidatedSalesService {
 	}
 
 	/** Keys and values in turn; keeps the order. */
+	/** A line's item: code and name, and its variant when the head office item has one (I-24; else the shape of before). */
+	private static Map<String, Object> itemObject(String code, String name, Map<String, String> variants) {
+		Map<String, Object> item = object("itemCode", code, "name", name);
+		if (variants.get(code) != null) item.put("variantDescription", variants.get(code));
+		return item;
+	}
+
 	private static Map<String, Object> object(Object... keysAndValues) {
 		Map<String, Object> object = new LinkedHashMap<>();
 		for (int i = 0; i < keysAndValues.length; i += 2) {

@@ -596,6 +596,9 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 				ticketMap.put("createdByUser", ticket.getCreatedByUser());
 				ticketMap.put("cashierSession", ticket.getCashierSession());
 				ticketMap.put("customer", ticket.getCustomer());
+				// I-54: the loyalty card of the sale, for the list's column
+				ticketMap.put("loyaltyCardNumber",
+						ticket.getLoyaltyMember() == null ? null : ticket.getLoyaltyMember().getCardNumber());
 				ticketMap.put("salesLinesCount", salesLines.size());
 				ticketMap.put("paymentsCount", payments.size());
 				ticketMap.put("synchronizationStatus", ticket.getSynchronizationStatus());

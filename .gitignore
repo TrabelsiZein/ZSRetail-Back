@@ -26,3 +26,5 @@ private_key.pem
 
 # This PC's own outside files with real passwords (configs/README.txt)
 configs/local/
+/eclipse/
+/tests/

@@ -99,6 +99,9 @@ stored, and the selling and session code is untouched.
 - `GET /cashier-session/store-report-ticket/z?date=YYYY-MM-DD`: the store ticket Z of that date; 400 for a date that
   does not parse.
 - 404 with the reason when no session matches. No role check, as the session ticket.
+- Test log I-19 (2026-10-17, front only): the Journal's day page does not print the store Z while a session opened on
+  or before that day is still open (the X of today lists the sessions open now); it names them ("Sessions still open:
+  ..."). The Z itself is unchanged and still shown.
 
 **The date rule.**
 - **Z of a date D**: every session `CLOSED` or `TERMINATED` whose `closedAt` is on D (from D 00:00 included to D+1 00:00

@@ -140,6 +140,11 @@ public class ItemBarcodeAPI extends _BaseController<ItemBarcode, Long, ItemBarco
 				Item item = itemOpt.get();
 				// Return item as-is - price calculation will be done in addToCart
 				return ResponseEntity.ok(item);
+			} else if (itemBarcodeService.isInactiveItemBarcode(barcode)) {
+				Map<String, Object> body = new HashMap<>();
+				body.put("message", "Inactive item with barcode: " + barcode);
+				body.put("inactive", true);
+				return ResponseEntity.status(404).body(body);
 			} else {
 				return ResponseEntity.status(404).body(createErrorResponse("Item not found with barcode: " + barcode));
 			}

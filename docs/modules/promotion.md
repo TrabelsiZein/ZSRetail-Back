@@ -263,7 +263,7 @@ IF COL_LENGTH('promotion', 'origin') IS NULL
 
 The origin is sent in the promotion JSON and never read from a request (`@JsonProperty(access = READ_ONLY)`): the client can never set it. Only the pull job writes `HEAD_OFFICE`; a write through the API keeps the origin the promotion has.
 
-**Write guards** (`PromotionAPI`, task 3.2, with Zein's correction of 2026-10-03: no `promotions.allow-local` setting). The generic CRUD of `_BaseController` is covered: `create`, `update` and `deleteById` are overridden. Reads (`GET /promotion`, `/{id}`, `/paginated`, `/findByField`, `/{id}/usage-count`) are unchanged.
+**Write guards** (`PromotionAPI`, task 3.2, with Zein's correction of 2026-10-03: no `promotions.allow-local` setting). The generic CRUD of `_BaseController` is covered: `create`, `update` and `deleteById` are overridden. Reads (`GET /promotion`, `/{id}`, `/paginated`, `/findByField`, `/{id}/usage-count`) are unchanged. `/paginated` takes `active` (true: active, a null flag counts as active; false: inactive; none: all, 2026-10-17): the list page's Active / Inactive / All filter, default All.
 
 | Store | Request | Answer |
 |---|---|---|

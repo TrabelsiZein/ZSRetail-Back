@@ -107,7 +107,7 @@ class PromotionAPIGuardTest {
 		assertEquals(404, api.update(99L, body(99L, "X")).getStatusCodeValue());
 
 		assertEquals(200, api.getById(2L).getStatusCodeValue(), "consulting stays allowed");
-		assertEquals(200, api.getAllPaginated(0, 20, null).getStatusCodeValue());
+		assertEquals(200, api.getAllPaginated(0, 20, null, null).getStatusCodeValue());
 	}
 
 	@Test

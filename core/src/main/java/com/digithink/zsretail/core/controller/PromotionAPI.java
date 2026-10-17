@@ -39,16 +39,17 @@ public class PromotionAPI extends _BaseController<Promotion, Long, PromotionServ
 
 	/**
 	 * Get paginated promotions with optional search.
-	 * GET /promotion/paginated?page=0&size=20&search=term
+	 * GET /promotion/paginated?page=0&size=20&search=term&active=true|false (no active: all)
 	 */
 	@GetMapping("/paginated")
 	public ResponseEntity<?> getAllPaginated(
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "20") int size,
-			@RequestParam(required = false) String search) {
+			@RequestParam(required = false) String search,
+			@RequestParam(required = false) Boolean active) {
 		try {
-			log.info("PromotionAPI::getAllPaginated::page={}, size={}, search={}", page, size, search);
-			Page<Promotion> promotions = promotionService.findAllPaginated(page, size, search);
+			log.info("PromotionAPI::getAllPaginated::page={}, size={}, search={}, active={}", page, size, search, active);
+			Page<Promotion> promotions = promotionService.findAllPaginated(page, size, search, active);
 			return ResponseEntity.ok(promotions);
 		} catch (Exception e) {
 			String detailedMessage = getDetailedMessage(e);

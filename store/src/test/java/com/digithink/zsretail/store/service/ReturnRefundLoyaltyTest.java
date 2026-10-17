@@ -311,6 +311,22 @@ class ReturnRefundLoyaltyTest {
 	}
 
 	@Test
+	@DisplayName("I-57: the points removed are rounded down as the points earned (24.657 DT returned removes 24, not 25)")
+	void removedPointsRoundedDown() throws Exception {
+		LoyaltyMember m = member(48);
+		SalesHeader sale = sale(null, 0.0, 0, 0.0, 24.657, 23.681);
+		earned(sale, m, flatProgram(), 48);
+
+		returnLines(sale, ReturnType.SIMPLE_RETURN, 0);
+		assertEquals(24, sumOf(sale, m, LoyaltyTransactionType.REVERSED)); // was 25 (48 - floor(23.681 + stamp))
+		assertEquals(24, m.getLoyaltyPoints().intValue());
+
+		returnLines(sale, ReturnType.SIMPLE_RETURN, 1);
+		assertEquals(48, sumOf(sale, m, LoyaltyTransactionType.REVERSED)); // the last return removes the rest
+		assertEquals(0, m.getLoyaltyPoints().intValue());
+	}
+
+	@Test
 	@DisplayName("Tiered program: returning 200 of 650 DT recalculates the points on the 450 DT kept")
 	void tieredPartialReturns() throws Exception {
 		LoyaltyMember m = member(1300);

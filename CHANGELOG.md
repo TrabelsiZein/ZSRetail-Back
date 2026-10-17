@@ -54,6 +54,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   item name stays NAV's item description.
 
 ### Fixes
+- Batch 3 (test log 2026-10-17): a scan of a known barcode whose item is inactive answers 404 with `inactive: true`
+  (the till says "Inactive item"), and an inactive item is never found by the scan (I-04); points removed on a return are
+  rounded down as the points earned, the money returned at the sale's rate (24.657 TND returned removes 24, was 25), a
+  tiered program still removing what the money kept loses to a lower tier (I-57); the head office ticket and return
+  details, network stock and delivery note lines give the item's `variantDescription` when the head office item has one
+  (I-24); the sales history list gives `loyaltyCardNumber` (I-54); `GET /promotion/paginated` takes `active`
+  (true / false, none: all).
 - Invoices (test log I-71): the invoice header's and lines' amounts (HT, VAT, discount, TTC) are stored to the millime,
   half up, on every save, as the tickets (I-07); the header is the sum of the rounded lines. Unit prices unchanged;
   invoices stored before are not corrected.

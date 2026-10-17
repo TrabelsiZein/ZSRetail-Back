@@ -662,6 +662,8 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 		BigDecimal received = null;
 		boolean difference = false;
 		List<DeliveryDTO.Line> lines = new ArrayList<>();
+		Map<String, String> variants = !withLines ? new HashMap<>() : ItemVariantsByCode.of(items,
+				delivery.getLines().stream().map(HoDeliveryLine::getItemCode).collect(Collectors.toList()));
 		for (HoDeliveryLine line : delivery.getLines()) {
 			sent = sent.add(line.getQuantitySent());
 			if (line.getQuantityReceived() != null) {
@@ -674,6 +676,7 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 				row.setItemId(line.getItemId());
 				row.setItemCode(line.getItemCode());
 				row.setItemName(line.getItemName());
+				row.setVariantDescription(variants.get(line.getItemCode()));
 				row.setQuantitySent(line.getQuantitySent());
 				row.setQuantityReceived(line.getQuantityReceived());
 				row.setDifference(line.getQuantityReceived() == null ? null

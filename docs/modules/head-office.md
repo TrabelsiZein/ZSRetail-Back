@@ -216,6 +216,14 @@ Frontend commits 0928f9e, 68c027a, 32cd1be, on `feature/ho-step-6`.
 - A "Head office" badge on head office items. Such an item has View (the form read-only, with a consult-only note: no barcode, pack or image changes), the barcode list and Adjust stock. It has no Edit and no Delete.
 - With `mayChangePrices`: "Change the price" (`PUT /item/{id}/own-price {unitPrice}`, not for packs) and, when the item has an own price, "Back to the head office price" (`DELETE`, after a confirmation). Without the right, neither action is shown.
 - The pricing cell shows an "Own price" badge with the head office price beside it.
+- Test log I-31, I-33 (2026-10-17): an item in clearance (ZEN) shows the public price struck, the price sold and the
+  "Soldé" badge, the till's rule (front `clearanceShown`, `ClearancePrice.vue`). A store's own price on a clearance item
+  is the price sold and keeps the struck price and the badge (the own price wins, the item stays in clearance), here
+  and at the till.
+- Test log I-24 (2026-10-17): the list shows "name — variant" (front `itemLabel`), as the head office lists: ticket and
+  return details (`ConsolidatedSalesService`), Network stock (`HoNetworkStockService.page`) and delivery notes
+  (`DeliveryDTO.Line.variantDescription`) give the head office item's `variantDescription` by code
+  (`ItemVariantsByCode`, one query per page; absent when the item has none).
 - The store's own items keep every action.
 
 **Families, sub-families** (`ItemFamiliesManagement.vue`, `ItemSubFamiliesManagement.vue`):

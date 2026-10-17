@@ -116,9 +116,16 @@ public class ItemBarcodeService extends _BaseService<ItemBarcode, Long> {
 		Optional<ItemBarcode> itemBarcode = itemBarcodeRepository.findByBarcode(barcode);
 		return itemBarcode.filter(bc -> bc.getActive() == null || Boolean.TRUE.equals(bc.getActive()))
 				.map(ItemBarcode::getItem)
+				.filter(item -> !Boolean.FALSE.equals(item.getActive()))
 				// PACKAGE (kit) items have no price of their own — they explode into components
 				.filter(item -> item.getType() == ItemType.PACKAGE
 						|| (item.getUnitPrice() != null && item.getUnitPrice() > 0));
+	}
+
+	/** True when the barcode is known and its item is inactive: the till says "inactive", not "not found" (I-04). */
+	public boolean isInactiveItemBarcode(String barcode) {
+		return itemBarcodeRepository.findByBarcode(barcode).map(ItemBarcode::getItem)
+				.filter(item -> Boolean.FALSE.equals(item.getActive())).isPresent();
 	}
 
 	/**

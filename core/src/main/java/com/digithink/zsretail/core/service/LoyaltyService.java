@@ -502,8 +502,8 @@ public class LoyaltyService {
 		int alreadyReversed = sumPoints(loyaltyTransactionRepository
 				.findByLoyaltyMemberAndSalesHeaderAndType(member, originalSale, LoyaltyTransactionType.REVERSED));
 		LoyaltyProgram program = earnedTxs.get(0).getLoyaltyProgram();
-		int kept = pointsKeptAfterReturn(program, originalSale, returnedShare, stampAmount);
-		int toReverse = Math.max(0, earned - alreadyReversed - kept);
+		int removed = pointsRemovedAfterReturn(program, originalSale, returnedShare, stampAmount, earned);
+		int toReverse = Math.max(0, removed - alreadyReversed);
 		if (toReverse <= 0) return;
 
 		int balanceBefore = member.getLoyaltyPoints();
@@ -531,21 +531,29 @@ public class LoyaltyService {
 	}
 
 	/**
-	 * Points a sale should still carry once returnedShare of its goods was returned, recalculated
-	 * with the sale's program the way earnPoints computed them: flat programs on the total with the
-	 * fiscal stamp, tiered programs on the goods money without it.
+	 * Points to have removed from a sale once returnedShare of its goods was returned (cumulative, at most
+	 * earned). The money returned earns its points as a sale does, rounded down at the sale's rate (I-57:
+	 * 24.657 TND returned removes 24 points, not 25); a tiered program also removes what the money kept loses
+	 * when it falls to a lower tier. A full return removes everything earned.
 	 */
-	static int pointsKeptAfterReturn(LoyaltyProgram program, SalesHeader sale, double returnedShare, double stampAmount) {
-		if (program == null || returnedShare >= 1.0) return 0;
+	static int pointsRemovedAfterReturn(LoyaltyProgram program, SalesHeader sale, double returnedShare,
+			double stampAmount, int earned) {
+		if (program == null || returnedShare >= 1.0) return earned;
 		double total = sale.getTotalAmount() != null ? sale.getTotalAmount() : 0.0;
-		double stamp = Math.max(0.0, stampAmount);
-		double goodsMoneyKept = roundToMillimes(Math.max(0.0, total - stamp) * (1.0 - returnedShare));
+		double goodsMoney = roundToMillimes(Math.max(0.0, total - Math.max(0.0, stampAmount)));
+		double goodsMoneyKept = roundToMillimes(goodsMoney * (1.0 - returnedShare));
+		double goodsMoneyReturned = roundToMillimes(goodsMoney - goodsMoneyKept);
+		int removed;
 		if (sortedTierCopies(program).isEmpty()) {
-			double base = roundToMillimes(goodsMoneyKept + stamp);
-			return (int) Math.floor(base * program.getPointsPerDinar());
+			removed = (int) Math.floor(goodsMoneyReturned * program.getPointsPerDinar() + 1e-9);
+		} else {
+			double saleRate = resolvePointsPerDinar(program, goodsMoney);
+			double keptRate = resolvePointsPerDinar(program, goodsMoneyKept);
+			removed = (int) Math.floor(goodsMoneyReturned * saleRate + 1e-9)
+					+ (int) Math.floor(goodsMoneyKept * saleRate + 1e-9)
+					- (int) Math.floor(goodsMoneyKept * keptRate + 1e-9);
 		}
-		double rate = resolvePointsPerDinar(program, goodsMoneyKept);
-		return (int) Math.floor(goodsMoneyKept * rate + 1e-9);
+		return Math.min(earned, Math.max(0, removed));
 	}
 
 	private static int sumPoints(List<LoyaltyTransaction> transactions) {

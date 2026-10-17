@@ -352,7 +352,7 @@ are before VAT, the item's VAT applies. The head office applies it where it deci
 `publicPrice` (the row's price) for the till's display; null both otherwise. The store sells what it receives (scan,
 tiles, cart, ticket, price lookup: all from `item.unitPrice`, no store rule); returns and reprints use the prices of
 the sale line. The store keeps the two values in `item.clearance` and `item.public_price` (written by the copies down
-only; a store's own price still wins). A change of clearance or clearance price is a row change (`differs`), and
+only; a store's own price still wins, and keeps the till's struck price and badge, test log I-33). A change of clearance or clearance price is a row change (`differs`), and
 `HoStockPointRows.write` hands every written row to `stockPointRowsChanged`: the stores of the point receive the item
 again. The head office pages read the same rule: `StockPointItemDTO` and `NavItemVariantsDTO.PointPrice` give
 `clearanceApplies` and `sellingPrice`. EMTOP and Happyness rows have no clearance: unchanged. Items already at a store
