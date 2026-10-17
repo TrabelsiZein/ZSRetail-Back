@@ -12,6 +12,7 @@ import com.digithink.zsretail.core.model.ReturnVoucher;
 import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
 import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.core.service._BaseService;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.store.repository.ReturnVoucherRepository;
 
 import lombok.extern.log4j.Log4j2;
@@ -48,8 +49,9 @@ public class ReturnVoucherService extends _BaseService<ReturnVoucher, Long> {
 			return false;
 		}
 
-		// Check if fully used
-		if (voucher.getUsedAmount() != null && voucher.getUsedAmount() >= voucher.getVoucherAmount()) {
+		// Check if fully used (3.1.0: on the millimes, as stored since then; a voucher stored before keeps 4 decimals)
+		if (voucher.getUsedAmount() != null
+				&& Quantities.roundAmount(voucher.getUsedAmount()) >= Quantities.roundAmount(voucher.getVoucherAmount())) {
 			return false;
 		}
 
@@ -62,7 +64,8 @@ public class ReturnVoucherService extends _BaseService<ReturnVoucher, Long> {
 	}
 
 	/**
-	 * Get remaining amount on voucher
+	 * Get remaining amount on voucher; 3.1.0 (test log I-07): to the millime, so a voucher stored before with 21.3129
+	 * offers 21.313, the amount its payment is stored with.
 	 */
 	public double getRemainingAmount(ReturnVoucher voucher) {
 		if (voucher == null) {
@@ -70,14 +73,15 @@ public class ReturnVoucherService extends _BaseService<ReturnVoucher, Long> {
 		}
 
 		double used = voucher.getUsedAmount() != null ? voucher.getUsedAmount() : 0.0;
-		return voucher.getVoucherAmount() - used;
+		return Quantities.roundAmount(Quantities.roundAmount(voucher.getVoucherAmount()) - Quantities.roundAmount(used));
 	}
 
 	/**
 	 * Use voucher amount (called when voucher is used as payment)
 	 */
 	@Transactional(rollbackFor = Exception.class)
-	public ReturnVoucher useVoucherAmount(String voucherNumber, double amount) throws Exception {
+	public ReturnVoucher useVoucherAmount(String voucherNumber, double requestedAmount) throws Exception {
+		double amount = Quantities.roundAmount(requestedAmount); // 3.1.0 (I-07): the debit is the payment's amount, as stored
 		ReturnVoucher voucher = returnVoucherRepository.findByVoucherNumber(voucherNumber)
 			.orElseThrow(() -> new IllegalArgumentException("Voucher not found: " + voucherNumber));
 
@@ -90,11 +94,12 @@ public class ReturnVoucherService extends _BaseService<ReturnVoucher, Long> {
 			throw new IllegalArgumentException("Amount (" + amount + ") exceeds remaining voucher amount (" + remaining + ")");
 		}
 
-		double newUsedAmount = (voucher.getUsedAmount() != null ? voucher.getUsedAmount() : 0.0) + amount;
+		double newUsedAmount = Quantities
+				.roundAmount((voucher.getUsedAmount() != null ? voucher.getUsedAmount() : 0.0) + amount);
 		voucher.setUsedAmount(newUsedAmount);
 
 		// If fully used, mark as completed
-		if (newUsedAmount >= voucher.getVoucherAmount()) {
+		if (newUsedAmount >= Quantities.roundAmount(voucher.getVoucherAmount())) {
 			voucher.setStatus(TransactionStatus.COMPLETED);
 		}
 

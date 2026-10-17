@@ -9,8 +9,11 @@ import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
+import javax.persistence.PrePersist;
+import javax.persistence.PreUpdate;
 
 import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.Data;
@@ -53,5 +56,16 @@ public class ReturnVoucher extends _BaseEntity {
 	private Double usedAmount = 0.0;
 
 	private String notes;
+
+	/**
+	 * 3.1.0 (test log I-07): the voucher's amount and the amount used are stored to the millime, half up ({@link
+	 * Quantities#roundAmount}), as the payments that use it.
+	 */
+	@PrePersist
+	@PreUpdate
+	public void roundAmounts() {
+		voucherAmount = Quantities.roundAmountOrNull(voucherAmount);
+		usedAmount = Quantities.roundAmountOrNull(usedAmount);
+	}
 }
 

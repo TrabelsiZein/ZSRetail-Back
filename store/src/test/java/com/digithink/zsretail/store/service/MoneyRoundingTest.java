@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.digithink.zsretail.core.model.Payment;
+import com.digithink.zsretail.core.model.ReturnVoucher;
 import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.SalesLine;
 
@@ -57,6 +58,24 @@ class MoneyRoundingTest {
 		voucher.setTotalAmount(21.3129);
 		voucher.roundAmounts();
 		assertEquals(21.313, voucher.getTotalAmount(), 0.0);
+	}
+
+	@Test
+	@DisplayName("A voucher to the millime, as its payment: 21.3129 stored 21.313; one stored before offers 21.313")
+	void voucher() {
+		ReturnVoucher voucher = new ReturnVoucher();
+		voucher.setVoucherAmount(21.3129);
+		voucher.setUsedAmount(0.0);
+		voucher.roundAmounts();
+		assertEquals(21.313, voucher.getVoucherAmount(), 0.0);
+
+		ReturnVoucher before = new ReturnVoucher();
+		before.setVoucherAmount(21.3129); // stored before 3.1.0, never saved again
+		before.setUsedAmount(0.0);
+		assertEquals(21.313, new ReturnVoucherService().getRemainingAmount(before), 0.0,
+				"the payment of 21.313 then fits the voucher");
+		before.setUsedAmount(10.0001);
+		assertEquals(11.313, new ReturnVoucherService().getRemainingAmount(before), 0.0);
 	}
 
 	@Test

@@ -990,12 +990,14 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 				if (!returnVoucherService.isVoucherValid(voucher)) {
 					throw new IllegalStateException("Return voucher is not valid (expired or fully used)");
 				}
+				// 3.1.0 (test log I-07): the voucher is debited with the payment's amount as stored, to the millime
+				double voucherDebit = Quantities.roundAmount(paymentDTO.getAmount());
 				double remainingAmount = returnVoucherService.getRemainingAmount(voucher);
-				if (paymentDTO.getAmount() > remainingAmount) {
+				if (voucherDebit > remainingAmount) {
 					throw new IllegalArgumentException("Payment amount (" + paymentDTO.getAmount()
 							+ ") exceeds remaining voucher amount (" + remainingAmount + ")");
 				}
-				returnVoucherService.useVoucherAmount(paymentDTO.getReference(), paymentDTO.getAmount());
+				returnVoucherService.useVoucherAmount(paymentDTO.getReference(), voucherDebit);
 				paymentDTO.setReference(paymentDTO.getReference());
 			}
 

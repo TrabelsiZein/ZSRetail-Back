@@ -54,7 +54,10 @@
   the 995 completed tickets of Store A and `zen_store` (2026-10-17) was more than 0.010 short.
 - The change (`changeAmount`): rounded paid − rounded total, with a cash payment only, never below 0 (no more 0.0002 or
   3.5E-15).
-- Not covered: return vouchers (`voucher_amount`) and the session's `real_cash` keep their precision.
+- Return vouchers too: `ReturnVoucher.roundAmounts` (voucherAmount, usedAmount); `ReturnVoucherService` reads the
+  remaining amount and "fully used" on the millimes and debits the payment's amount rounded, so a voucher and its
+  payment carry the same value (a voucher stored before with 21.3129 offers 21.313 and is used up by it).
+- Not covered: the return header's `total_return_amount` and the session's `real_cash` keep their precision.
 - Tickets stored before keep their values (no script).
 
 ### Backend Processing

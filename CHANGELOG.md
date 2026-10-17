@@ -54,6 +54,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   item name stays NAV's item description.
 
 ### Fixes
+- Return vouchers to the millime (test log I-07): `voucher_amount` and the amount used are stored rounded half up, and a
+  voucher payment debits the voucher with the payment's rounded amount (remaining and "fully used" read on the millimes),
+  so the voucher and its payment carry the same value.
 - Ticket amounts to the millime (test log I-07): a ticket's amounts, its lines' amounts and its payments are stored
   rounded to 3 decimals, half up, on every save (`roundAmounts` of `SalesHeader`, `SalesLine`, `Payment`; unit prices and
   percentages untouched); paid vs total is checked on the rounded values with the till's tolerance of 0.010 (a sale more
