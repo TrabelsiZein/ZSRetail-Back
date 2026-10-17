@@ -37,6 +37,12 @@
   server's answer), the ticket, the head office copy, and the same VAT as the X / Z. Example: 4 × 23.681 TTC at 19 %,
   −10 %: 85.252 = 71.640 HT + 13.612 VAT (the till's 79.600 + 15.124 before).
 - A ticket without a ticket-wide reduction keeps the till's values, untouched.
+- The invoice made from tickets (`InvoiceService`, test log I-63): its lines are built from the sales lines as before
+  (any grouping), plus one line "Remise ticket <number>" per ticket with a ticket-wide reduction
+  (`InvoiceService.reductionLine`): no item, quantity 1, no VAT rate (spread over the ticket's rates), HT, VAT and TTC =
+  what was paid (`applyTicketReductionToTotals` on a copy, so a ticket stored before I-48 gets the same line) minus the
+  ticket's lines, negative. The invoice's totals (the sum of its lines) are the tickets' totals. A ticket without a
+  reduction adds no line. The invoice is not exported to the ERP (NAV gets only each ticket's `POS_Invoice` flag).
 - The ERP ticket export's gross (for `Discount_Percent` = (discount + points) / gross) is the lines' TTC, stamp
   included: the till's subtotal + VAT before 3.1.0, so NAV receives the same % as before.
 - Tickets stored before 3.1.0 keep the till's header values (no correction script); the X / Z were already right.

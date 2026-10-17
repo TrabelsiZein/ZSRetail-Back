@@ -6,6 +6,7 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -128,9 +129,11 @@ public class InvoiceService extends _BaseService<InvoiceHeader, Long> {
 
 		// Lines of the selected tickets, read before anything is written
 		List<SalesLine> allLines = new ArrayList<>();
+		Map<Long, List<SalesLine>> linesByTicket = new LinkedHashMap<>();
 		for (SalesHeader ticket : tickets) {
 			List<SalesLine> ticketLines = salesLineRepository.findBySalesHeader(ticket);
 			allLines.addAll(ticketLines);
+			linesByTicket.put(ticket.getId(), ticketLines);
 		}
 		refuseDecimalLines(allLines);
 
@@ -164,6 +167,13 @@ public class InvoiceService extends _BaseService<InvoiceHeader, Long> {
 
 		// Build invoice lines based on selected tickets and grouping mode
 		List<InvoiceLine> invoiceLines = buildInvoiceLines(invoice, allLines, effectiveMode);
+		// I-63: one "Remise" line per ticket with a ticket-wide reduction, so the invoice adds up to what was paid
+		for (SalesHeader ticket : tickets) {
+			InvoiceLine reduction = reductionLine(invoice, ticket, linesByTicket.get(ticket.getId()));
+			if (reduction != null) {
+				invoiceLines.add(reduction);
+			}
+		}
 
 		// Compute totals
 		double subtotal = invoiceLines.stream().mapToDouble(l -> l.getSubtotal() != null ? l.getSubtotal() : 0.0)
@@ -207,6 +217,48 @@ public class InvoiceService extends _BaseService<InvoiceHeader, Long> {
 						line.getItem() == null ? null : line.getItem().getName(), line.getQuantity(), "invoices"));
 			}
 		}
+	}
+
+	/**
+	 * 3.1.0 (test log I-63): the line of a ticket's ticket-wide reduction (ticket discount, cart promotion, loyalty
+	 * points), or null when it has none (its invoice is the one of before). The ticket's lines stay at their amounts
+	 * before the reduction; this line is what was paid minus those lines, HT, VAT and TTC, all negative, so the invoice
+	 * adds up to the tickets. What was paid is the ticket's HT and VAT after the reduction as I-48 computes them
+	 * (SalesHeaderService.applyTicketReductionToTotals, on a copy): the stored header for a ticket since I-48, the same
+	 * computation for a ticket stored before (whose header kept the till's amounts before the reduction).
+	 */
+	static InvoiceLine reductionLine(InvoiceHeader invoice, SalesHeader ticket, List<SalesLine> ticketLines) {
+		SalesHeader paid = new SalesHeader();
+		paid.setDiscountAmount(ticket.getDiscountAmount());
+		paid.setLoyaltyDeductionAmount(ticket.getLoyaltyDeductionAmount());
+		paid.setTotalAmount(ticket.getTotalAmount());
+		if (!SalesHeaderService.applyTicketReductionToTotals(paid, ticketLines)) {
+			return null;
+		}
+		double linesHt = 0.0;
+		double linesVat = 0.0;
+		double linesTtc = 0.0;
+		for (SalesLine line : ticketLines) {
+			linesHt += line.getLineTotal() != null ? line.getLineTotal() : 0.0;
+			linesVat += line.getVatAmount() != null ? line.getVatAmount() : 0.0;
+			linesTtc += line.getLineTotalIncludingVat() != null ? line.getLineTotalIncludingVat() : 0.0;
+		}
+		double ht = Quantities.roundAmount(paid.getSubtotal() - linesHt);
+		double vat = Quantities.roundAmount(paid.getTaxAmount() - linesVat);
+		double ttc = Quantities.roundAmount(paid.getSubtotal() + paid.getTaxAmount() - linesTtc);
+
+		InvoiceLine line = new InvoiceLine();
+		line.setInvoice(invoice);
+		line.setLineDescription("Remise ticket " + ticket.getSalesNumber());
+		line.setQuantity(1);
+		line.setUnitPrice(ht);
+		line.setUnitPriceIncludingVat(ttc);
+		line.setSubtotal(ht);
+		line.setTaxAmount(vat);
+		line.setTotalAmount(ttc);
+		line.setLineTotalIncludingVat(ttc);
+		line.setVatPercent(null); // spread over the ticket's rates
+		return line;
 	}
 
 	/** Backward-compatible overload without snapshot data. */
