@@ -59,6 +59,11 @@ setting refreshes `/config`, and a till reads it again at its next login. What t
 
 ## POS screens: amounts with 3 decimals (2.2.2)
 
+**3.1.0 (test log I-06): the till always shows 3 decimals, as the receipt.** The getter `appConfig/posAmountDecimals`
+returns 3 whatever the setting; the setting's field is no longer on the General Setup page. The row, the `GET /config`
+key and the state stay (nothing removed from a database), unused. Since 3.1.0 the ticket amounts are also stored to the
+millime (`discounts.md`, "Amounts stored to the millime"). What follows describes 2.2.2.
+
 A store setting (General Setup, POS section, BOOLEAN, `false`, created at start-up on a store only):
 `POS_AMOUNTS_3_DECIMALS` "Show amounts with 3 decimals on the POS screens". Sent by `GET /config` as
 `posAmountsThreeDecimals`, read in the front through the getter `appConfig/posAmountDecimals` (2 or 3); saving the setting

@@ -1014,18 +1014,43 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 			payment = paymentService.save(payment);
 			payments.add(payment);
-			totalPaid += paymentDTO.getAmount();
+			totalPaid += Quantities.roundAmount(paymentDTO.getAmount()); // I-07: as the payment is stored
 			log.info("Payment created: {} - Method: {}, Amount: {}", payment.getId(), paymentMethod.getName(),
 					paymentDTO.getAmount());
 		}
 
-		salesHeader.setPaidAmount(totalPaid);
+		checkPaidCoversTotal(totalPaid, request.getTotalAmount());
+		salesHeader.setPaidAmount(Quantities.roundAmount(totalPaid));
 		boolean hasCashPayment = payments.stream()
 				.anyMatch(p -> p.getPaymentMethod() != null
 						&& p.getPaymentMethod().getType() == PaymentMethodType.CLIENT_ESPECES);
-		double change = totalPaid - request.getTotalAmount();
-		salesHeader.setChangeAmount((change > 0 && hasCashPayment) ? change : 0.0);
+		salesHeader.setChangeAmount(changeAmount(totalPaid, request.getTotalAmount(), hasCashPayment));
 		return payments;
+	}
+
+	/** The till's own tolerance: a ticket is paid when at most 0.010 remains (Payment.vue, isFullyPaid). */
+	static final double PAID_SHORT_TOLERANCE = 0.010;
+
+	/**
+	 * 3.1.0 (test log I-07): refuses a sale whose payments, rounded to the millime, fall short of the rounded total by
+	 * more than the till's tolerance (0.010). Before, the server checked nothing.
+	 */
+	static void checkPaidCoversTotal(double paid, double total) {
+		double shortBy = Quantities.roundAmount(Quantities.roundAmount(total) - Quantities.roundAmount(paid));
+		if (shortBy > PAID_SHORT_TOLERANCE) {
+			throw new IllegalArgumentException("Paid amount (" + millimes(paid) + ") is less than the ticket total ("
+					+ millimes(total) + ")");
+		}
+	}
+
+	/** 3.1.0 (test log I-07): the change, rounded paid minus rounded total, only with a cash payment; never below 0. */
+	static double changeAmount(double paid, double total, boolean hasCashPayment) {
+		double change = Quantities.roundAmount(Quantities.roundAmount(paid) - Quantities.roundAmount(total));
+		return (change > 0 && hasCashPayment) ? change : 0.0;
+	}
+
+	private static String millimes(double amount) {
+		return BigDecimal.valueOf(Quantities.roundAmount(amount)).setScale(3, RoundingMode.HALF_UP).toPlainString();
 	}
 
 	/**
@@ -1196,8 +1221,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		boolean hasCashPayment = ticketPayments.stream().anyMatch(p -> p.getPaymentMethod() != null
 				&& p.getPaymentMethod().getType() == PaymentMethodType.CLIENT_ESPECES);
 		double total = ticket.getTotalAmount() != null ? ticket.getTotalAmount() : 0.0;
-		double change = totalPaid - total;
-		ticket.setChangeAmount((change > 0 && hasCashPayment) ? change : 0.0);
+		ticket.setChangeAmount(changeAmount(totalPaid, total, hasCashPayment));
 	}
 
 	/**

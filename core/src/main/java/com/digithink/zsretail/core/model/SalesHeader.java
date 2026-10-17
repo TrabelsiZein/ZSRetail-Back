@@ -8,10 +8,13 @@ import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
+import javax.persistence.PrePersist;
+import javax.persistence.PreUpdate;
 import javax.persistence.Transient;
 
 import com.digithink.zsretail.core.model.enumeration.SynchronizationStatus;
 import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import lombok.Data;
@@ -146,4 +149,20 @@ public class SalesHeader extends _BaseEntity {
 	/** TND value of the loyalty points redeemed (deducted from total) */
 	@Column(name = "loyalty_deduction_amount")
 	private Double loyaltyDeductionAmount;
+
+	/**
+	 * 3.1.0 (test log I-07): the ticket's money amounts are stored to the millime, half up ({@link
+	 * Quantities#roundAmount}), on every save; the discount percentage is not an amount and stays as sent.
+	 */
+	@PrePersist
+	@PreUpdate
+	public void roundAmounts() {
+		subtotal = Quantities.roundAmountOrNull(subtotal);
+		taxAmount = Quantities.roundAmountOrNull(taxAmount);
+		discountAmount = Quantities.roundAmountOrNull(discountAmount);
+		totalAmount = Quantities.roundAmountOrNull(totalAmount);
+		paidAmount = Quantities.roundAmountOrNull(paidAmount);
+		changeAmount = Quantities.roundAmountOrNull(changeAmount);
+		loyaltyDeductionAmount = Quantities.roundAmountOrNull(loyaltyDeductionAmount);
+	}
 }

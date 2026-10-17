@@ -109,6 +109,11 @@ public final class Quantities {
 		return milli.doubleValue() / 1000;
 	}
 
+	/** {@link #roundAmount} for a stored amount that may be null (3.1.0, test log I-07). */
+	public static Double roundAmountOrNull(Double amount) {
+		return amount == null ? null : roundAmount(amount);
+	}
+
 	/**
 	 * The one place where a unit amount is multiplied by a quantity for a sale line. A whole quantity gives exactly the
 	 * product of 2.2.0 (unit amount times the whole number, not rounded); a decimal quantity gives the product rounded to

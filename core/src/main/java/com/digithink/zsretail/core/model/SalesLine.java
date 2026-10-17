@@ -6,6 +6,8 @@ import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
+import javax.persistence.PrePersist;
+import javax.persistence.PreUpdate;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.digithink.zsretail.core.utils.Quantities;
@@ -86,5 +88,19 @@ public class SalesLine extends _BaseEntity {
 	/** The quantity without trailing zeros (the column has 3 decimals): 2.000 is 2, 0.200 is 0.2. */
 	public BigDecimal getQuantity() {
 		return Quantities.normalize(quantity);
+	}
+
+	/**
+	 * 3.1.0 (test log I-07): the line's amounts are stored to the millime, half up ({@link Quantities#roundAmount}), on
+	 * every save. The unit prices are prices, not amounts, and keep their precision (a unit price including VAT is often
+	 * HT x 1.19 with 4 decimals); the discount percentage stays as sent.
+	 */
+	@PrePersist
+	@PreUpdate
+	public void roundAmounts() {
+		discountAmount = Quantities.roundAmountOrNull(discountAmount);
+		lineTotal = Quantities.roundAmountOrNull(lineTotal);
+		vatAmount = Quantities.roundAmountOrNull(vatAmount);
+		lineTotalIncludingVat = Quantities.roundAmountOrNull(lineTotalIncludingVat);
 	}
 }

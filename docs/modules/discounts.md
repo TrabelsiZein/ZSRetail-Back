@@ -41,6 +41,22 @@
   included: the till's subtotal + VAT before 3.1.0, so NAV receives the same % as before.
 - Tickets stored before 3.1.0 keep the till's header values (no correction script); the X / Z were already right.
 
+### Amounts stored to the millime (3.1.0, test log I-07)
+- Every save of a ticket, a line or a payment rounds its money amounts to 3 decimals, half up
+  (`Quantities.roundAmount`), in the entities' `roundAmounts` (`@PrePersist` / `@PreUpdate`), so every path (sale,
+  parked ticket, split, payment method change) stores the same: `SalesHeader` subtotal, taxAmount, discountAmount,
+  totalAmount, paidAmount, changeAmount, loyaltyDeductionAmount; `SalesLine` discountAmount, lineTotal, vatAmount,
+  lineTotalIncludingVat; `Payment` totalAmount. **Not rounded**: the unit prices (prices, not amounts; a unit price
+  including VAT is often HT × 1.19 with 4 decimals) and the percentages. The calculation itself is unchanged.
+- Paid vs total, on the rounded values (`SalesHeaderService.checkPaidCoversTotal`): a sale is refused when the payments
+  fall short of the total by more than **0.010**, the till's own tolerance (`Payment.vue`, `isFullyPaid`); before, the
+  server checked nothing. A payment of the 2-decimal amount (314.14 for 314.141) still passes, as at the till. None of
+  the 995 completed tickets of Store A and `zen_store` (2026-10-17) was more than 0.010 short.
+- The change (`changeAmount`): rounded paid − rounded total, with a cash payment only, never below 0 (no more 0.0002 or
+  3.5E-15).
+- Not covered: return vouchers (`voucher_amount`) and the session's `real_cash` keep their precision.
+- Tickets stored before keep their values (no script).
+
 ### Backend Processing
 - `ProcessSaleRequestDTO.SaleLineDTO` includes discount and VAT fields
 - `SalesHeaderService` receives DTO values and stores them in `SalesLine` entity

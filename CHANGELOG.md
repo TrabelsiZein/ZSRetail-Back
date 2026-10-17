@@ -54,6 +54,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   item name stays NAV's item description.
 
 ### Fixes
+- Ticket amounts to the millime (test log I-07): a ticket's amounts, its lines' amounts and its payments are stored
+  rounded to 3 decimals, half up, on every save (`roundAmounts` of `SalesHeader`, `SalesLine`, `Payment`; unit prices and
+  percentages untouched); paid vs total is checked on the rounded values with the till's tolerance of 0.010 (a sale more
+  short is refused, before nothing was checked) and the change is rounded paid − rounded total (no more 0.0002). Tickets
+  stored before are not corrected; vouchers and the session's real cash are not covered.
 - Ticket HT and VAT after a ticket-wide reduction (test log I-48): a ticket with a ticket discount, a cart promotion or
   loyalty points spent stores the HT and VAT of what was paid, spread over the VAT rates in proportion to the lines'
   TTC as the ticket X / Z spreads them (`SalesHeaderService.applyTicketReductionToTotals`), so HT + VAT + stamp = total
