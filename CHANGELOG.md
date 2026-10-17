@@ -54,6 +54,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   item name stays NAV's item description.
 
 ### Fixes
+- Ticket HT and VAT after a ticket-wide reduction (test log I-48): a ticket with a ticket discount, a cart promotion or
+  loyalty points spent stores the HT and VAT of what was paid, spread over the VAT rates in proportion to the lines'
+  TTC as the ticket X / Z spreads them (`SalesHeaderService.applyTicketReductionToTotals`), so HT + VAT + stamp = total
+  on the receipt, the ticket and the head office copy (85.252 = 71.640 + 13.612, was 79.600 + 15.124). The lines keep
+  their amounts before the reduction; a ticket without one keeps the till's values. The ERP ticket export takes its
+  gross from the lines, so NAV receives the same discount % as before. Tickets stored before are not corrected.
 - Users (`/user-account`, test log I-21): nobody changes the role of his own account, and only an administrator gives
   or removes the Administrateur role, on an edit or a new user; a refused change answers 403 with the reason in French
   (`RoleChangeRefusedException`). A responsible could make himself Administrateur.

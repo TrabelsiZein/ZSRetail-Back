@@ -23,6 +23,24 @@
 7. Discount fields stored in cart item (`discountPercentage`, `discountAmount`)
 8. When proceeding to payment, complete line data (including discounts and VAT) sent to backend
 
+### Ticket-wide reduction: the ticket's HT and VAT (3.1.0, test log I-48)
+- A ticket-wide reduction is a ticket discount, a cart promotion (header `discountAmount` / `discountPercentage`) or
+  loyalty points spent (`loyaltyDeductionAmount`, a discount, not a means of payment).
+- The **lines keep their amounts before it** (`lineTotal`, `vatAmount`, `lineTotalIncludingVat`): every reader applies
+  the reduction itself — the return refund (`ReturnHeaderService`), the ERP ticket export (one `Discount_Percent`), the
+  sales report (lines × (1 − header %)), the ticket X / Z and the journal (`SessionReportService.addTicketTtcByRate`).
+- The **header** `subtotal` / `taxAmount` carry it: once the sale is saved and the points are known,
+  `SalesHeaderService.applyTicketReductionToTotals` spreads the goods total paid (total − fiscal stamp) over the VAT rates
+  in proportion to the lines' TTC, with the X / Z's own code (`addTicketTtcByRate`, `vatLines`: TTC per rate to the
+  millime, remainder to the largest rate, HT = TTC × 100 / (100 + rate), VAT = TTC − HT). `taxAmount` = the VAT,
+  `subtotal` = total − VAT (goods HT + stamp, as the till sends it). So HT + VAT = total on the receipt (it prints the
+  server's answer), the ticket, the head office copy, and the same VAT as the X / Z. Example: 4 × 23.681 TTC at 19 %,
+  −10 %: 85.252 = 71.640 HT + 13.612 VAT (the till's 79.600 + 15.124 before).
+- A ticket without a ticket-wide reduction keeps the till's values, untouched.
+- The ERP ticket export's gross (for `Discount_Percent` = (discount + points) / gross) is the lines' TTC, stamp
+  included: the till's subtotal + VAT before 3.1.0, so NAV receives the same % as before.
+- Tickets stored before 3.1.0 keep the till's header values (no correction script); the X / Z were already right.
+
 ### Backend Processing
 - `ProcessSaleRequestDTO.SaleLineDTO` includes discount and VAT fields
 - `SalesHeaderService` receives DTO values and stores them in `SalesLine` entity

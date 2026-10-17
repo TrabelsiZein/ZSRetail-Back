@@ -1,10 +1,13 @@
 package com.digithink.zsretail.store.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -317,6 +320,11 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 		// Process loyalty points (earn and/or redeem) after sale is committed
 		salesHeader = processLoyaltyPoints(salesHeader, loyaltyMember, request, currentSession, taxStampAmount);
+
+		// I-48: HT and VAT after a ticket-wide reduction, once the points deduction is known
+		if (applyTicketReductionToTotals(salesHeader, salesLines)) {
+			salesHeader = save(salesHeader);
+		}
 
 		// Update stock (standalone only; shared helper)
 		decrementStockForSalesLines(salesLines, salesHeader);
@@ -638,6 +646,11 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		// Loyalty points, as for a direct sale; before the export so the deduction is included
 		salesHeader = processLoyaltyPoints(salesHeader, loyaltyMember, request, currentSession, taxStampAmount);
 
+		// I-48: HT and VAT after a ticket-wide reduction, as for a direct sale
+		if (applyTicketReductionToTotals(salesHeader, salesLines)) {
+			salesHeader = save(salesHeader);
+		}
+
 		SaleTagHooks tagHook = saleTagHook();
 		if (tagHook != null) {
 			tagHook.ticketCompleted(salesHeader, lineTags);
@@ -814,6 +827,33 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		salesHeader.setTableNumber(targetTableNumber);
 		save(salesHeader);
 		log.info("Table ticket {} transferred to table {}", salesHeaderId, targetTableNumber);
+	}
+
+	/**
+	 * I-48 (3.1.0): a ticket with a ticket-wide reduction (ticket discount, cart promotion, loyalty points) gets its HT
+	 * and VAT from what was paid: the goods total after the reduction, spread over the VAT rates in proportion to the
+	 * lines' TTC exactly as the ticket X / Z spread it ({@link SessionReportService#addTicketTtcByRate},
+	 * {@link SessionReportService#vatLines}), so subtotal + VAT = total to the millime and the receipt, the ticket, the
+	 * head office copy and the X / Z give one VAT. The subtotal keeps the fiscal stamp, as the till sends it. The lines
+	 * keep their amounts before the reduction (the returns, the ERP export and the sales report apply it).
+	 *
+	 * @return false, and nothing changed, for a ticket without a ticket-wide reduction: the till's values stay
+	 */
+	static boolean applyTicketReductionToTotals(SalesHeader salesHeader, List<SalesLine> salesLines) {
+		double discount = salesHeader.getDiscountAmount() != null ? salesHeader.getDiscountAmount() : 0.0;
+		double points = salesHeader.getLoyaltyDeductionAmount() != null ? salesHeader.getLoyaltyDeductionAmount() : 0.0;
+		if ((discount <= 0 && points <= 0) || salesHeader.getTotalAmount() == null) {
+			return false;
+		}
+		Map<Integer, Double> ttcByRate = new TreeMap<>();
+		double[] totalAndStamp = SessionReportService.addTicketTtcByRate(salesHeader, salesLines, ttcByRate);
+		BigDecimal total = BigDecimal.valueOf(totalAndStamp[0]).setScale(3, RoundingMode.HALF_UP);
+		BigDecimal stamp = BigDecimal.valueOf(totalAndStamp[1]).setScale(3, RoundingMode.HALF_UP);
+		BigDecimal vat = SessionReportService.vatLines(ttcByRate, total.subtract(stamp)).stream()
+				.map(line -> BigDecimal.valueOf(line.getVatAmount())).reduce(BigDecimal.ZERO, BigDecimal::add);
+		salesHeader.setTaxAmount(vat.doubleValue());
+		salesHeader.setSubtotal(total.subtract(vat).doubleValue());
+		return true;
 	}
 
 	/**

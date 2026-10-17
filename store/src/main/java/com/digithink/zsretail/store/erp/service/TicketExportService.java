@@ -243,11 +243,14 @@ public class TicketExportService implements ErpExportJob {
 			dto.setCashierSessionId(ticket.getCashierSession().getSessionNumber());
 		}
 
+		List<SalesLine> salesLines = salesLineRepository.findBySalesHeader(ticket);
+
 		// Set discount percentage — combines header discount + loyalty deduction into
 		// a single Discount_Percent so NAV can reconcile: gross × (1 − pct/100) =
-		// Ticket_Amount
-		double gross = (ticket.getSubtotal() != null ? ticket.getSubtotal() : 0.0)
-				+ (ticket.getTaxAmount() != null ? ticket.getTaxAmount() : 0.0);
+		// Ticket_Amount. I-48: gross = the lines' TTC (stamp included), what the till's
+		// subtotal + VAT were; since 3.1.0 those carry the reduction on a reduced ticket
+		double gross = salesLines.stream()
+				.mapToDouble(l -> l.getLineTotalIncludingVat() != null ? l.getLineTotalIncludingVat() : 0.0).sum();
 		double totalDeduction = (ticket.getDiscountAmount() != null ? ticket.getDiscountAmount() : 0.0)
 				+ (ticket.getLoyaltyDeductionAmount() != null ? ticket.getLoyaltyDeductionAmount() : 0.0);
 		if (totalDeduction > 0 && gross > 0) {
@@ -271,7 +274,6 @@ public class TicketExportService implements ErpExportJob {
 		}
 
 		// Convert lines
-		List<SalesLine> salesLines = salesLineRepository.findBySalesHeader(ticket);
 		for (SalesLine salesLine : salesLines) {
 			dto.getLines().add(toErpTicketLineDTO(salesLine));
 		}
