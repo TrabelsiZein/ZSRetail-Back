@@ -22,6 +22,15 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
 
 **Rows of `stock_movement`** (without an ERP only; one row per stock change, never updated): `SALE`, `CUSTOMER_RETURN_SIMPLE`, `CUSTOMER_RETURN_VOUCHER`, `PURCHASE_RECEPTION`, and since step 7A `ADJUSTMENT_IN` / `ADJUSTMENT_OUT`: `POST /item/{id}/adjust-stock` (`ItemService.adjustStock`) writes the quantity as before and its movement in the same transaction (quantity = the absolute delta, `reference_type` `ADJUSTMENT`, the reason `COUNT`, `CORRECTION` or `DAMAGE` as note). Before step 7A an adjustment wrote no movement. Since 2.1.0 the validation of an inventory count writes `INVENTORY_IN` / `INVENTORY_OUT` (one per item whose counted quantity differs from the stock; quantity = the absolute difference, `reference_type` `INVENTORY`, `reference_id` the `inventory_count` id, its number as note; `modules/inventory-count.md`). The report groups and filters by the type's name, so both appear without a change in `ReportService`; the frontend type filter of `StockMovementsReport.vue` lists them with translated labels ("Inventory count (up)" / "(down)"). `OPENING_STOCK` is never written.
 
+**Statistics page (`AnalyticsRepository`, `GET /admin/analytics/...`), 3.1.0:**
+- Top products (test log I-49): items with or without a family (`LEFT JOIN item_family`), family "—" when none; the
+  inner join gave no row at all on a catalogue without families (ZEN).
+- Payment split (test log I-50): the cash method is net of the change given back, as the ticket Z
+  (`SessionReportService.paymentsByMethod`): Σ cash payments − the change of each ticket with a cash payment, once per
+  ticket. It counted the cash tendered (371.347 instead of 347.167 on `zen_store`, 12 tickets).
+- Known, not changed: the sales and purchase reports grouped by FAMILY (`SalesReportService`, `JOIN i.itemFamily f`)
+  still drop the items without a family; their `COALESCE(f.name, 'No Family')` never applies.
+
 **CRITICAL FIX — CAST for DAY/MONTH grouping:**
 - Bug: `CONCAT(YEAR(date), '-', MONTH(date))` produced arithmetic (2026 + 3 = 2029) because Hibernate treats YEAR()/MONTH()/DAY() as integers.
 - Fix applied to all 5 time-based methods: `CONCAT(CAST(YEAR(date) AS string), '-', CAST(MONTH(date) AS string))` (and same for DAY).
