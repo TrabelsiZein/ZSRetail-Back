@@ -175,7 +175,8 @@ public class InvoiceService extends _BaseService<InvoiceHeader, Long> {
 			}
 		}
 
-		// Compute totals
+		// Compute totals, on the lines rounded as they are stored, so the header is their sum to the millime
+		invoiceLines.forEach(InvoiceLine::roundAmounts);
 		double subtotal = invoiceLines.stream().mapToDouble(l -> l.getSubtotal() != null ? l.getSubtotal() : 0.0)
 				.sum();
 		double taxAmount = invoiceLines.stream().mapToDouble(l -> l.getTaxAmount() != null ? l.getTaxAmount() : 0.0)

@@ -54,6 +54,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   item name stays NAV's item description.
 
 ### Fixes
+- Invoices (test log I-71): the invoice header's and lines' amounts (HT, VAT, discount, TTC) are stored to the millime,
+  half up, on every save, as the tickets (I-07); the header is the sum of the rounded lines. Unit prices unchanged;
+  invoices stored before are not corrected.
 - Sales report (test log I-67 re-test): the report answered 500 in every grouping since the points fix (HQL
   `unexpected token: /`: Hibernate 5 takes a single term after `THEN`); the points share is in parentheses.
 - Stock report: a negative stock has its own status `NEGATIVE` (was `OUT`, test log I-52). Statistics: a KPI delta is

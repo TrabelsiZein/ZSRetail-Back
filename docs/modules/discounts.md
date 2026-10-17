@@ -43,6 +43,9 @@
   what was paid (`applyTicketReductionToTotals` on a copy, so a ticket stored before I-48 gets the same line) minus the
   ticket's lines, negative. The invoice's totals (the sum of its lines) are the tickets' totals. A ticket without a
   reduction adds no line. The invoice is not exported to the ERP (NAV gets only each ticket's `POS_Invoice` flag).
+  Amounts to the millime (test log I-71): the lines' and the header's HT, VAT, discount and TTC are rounded half up
+  on every save (`InvoiceLine` / `InvoiceHeader.roundAmounts`, as the tickets, I-07), and the header sums the rounded
+  lines; unit prices stay as computed.
 - The ERP ticket export's gross (for `Discount_Percent` = (discount + points) / gross) is the lines' TTC, stamp
   included: the till's subtotal + VAT before 3.1.0, so NAV receives the same % as before.
 - Tickets stored before 3.1.0 keep the till's header values (no correction script); the X / Z were already right.

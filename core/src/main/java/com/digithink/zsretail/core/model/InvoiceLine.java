@@ -4,7 +4,10 @@ import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
+import javax.persistence.PrePersist;
+import javax.persistence.PreUpdate;
 
+import com.digithink.zsretail.core.utils.Quantities;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.Data;
@@ -70,5 +73,18 @@ public class InvoiceLine extends _BaseEntity {
 	private Double lineTotalIncludingVat;
 
 	private Integer vatPercent;
+
+	/**
+	 * 3.1.0: the line's money amounts are stored to the millime, half up ({@link Quantities#roundAmount}), on every
+	 * save, as the ticket lines (test log I-07); unit prices stay as computed.
+	 */
+	@PrePersist
+	@PreUpdate
+	public void roundAmounts() {
+		subtotal = Quantities.roundAmountOrNull(subtotal);
+		taxAmount = Quantities.roundAmountOrNull(taxAmount);
+		totalAmount = Quantities.roundAmountOrNull(totalAmount);
+		lineTotalIncludingVat = Quantities.roundAmountOrNull(lineTotalIncludingVat);
+	}
 }
 

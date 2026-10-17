@@ -10,8 +10,11 @@ import javax.persistence.Enumerated;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
+import javax.persistence.PrePersist;
+import javax.persistence.PreUpdate;
 
 import com.digithink.zsretail.core.model.enumeration.InvoiceLineGroupingMode;
+import com.digithink.zsretail.core.utils.Quantities;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -62,5 +65,18 @@ public class InvoiceHeader extends _BaseEntity {
 
 	@OneToMany(mappedBy = "invoice")
 	private List<InvoiceLine> lines;
+
+	/**
+	 * 3.1.0: the invoice's money amounts are stored to the millime, half up ({@link Quantities#roundAmount}), on every
+	 * save, as the tickets (test log I-07).
+	 */
+	@PrePersist
+	@PreUpdate
+	public void roundAmounts() {
+		subtotal = Quantities.roundAmountOrNull(subtotal);
+		taxAmount = Quantities.roundAmountOrNull(taxAmount);
+		discountAmount = Quantities.roundAmountOrNull(discountAmount);
+		totalAmount = Quantities.roundAmountOrNull(totalAmount);
+	}
 }
 
