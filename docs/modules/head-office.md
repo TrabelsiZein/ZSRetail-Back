@@ -115,9 +115,9 @@ The three Sales pages are described under "Consolidated sales API", "Head office
 - The horizontal wrapper `src/layouts/horizontal/LayoutHorizontal.vue` has the Navbar (language, search, user menu), the license warning banner and the API error popup.
 - Arabic right to left and small screens (below 1200 px the menu is the slide-in vertical menu) work in the Vuexy template. This was checked in the browser during the inventory, with the layout switched in memory; the finished task is checked at L2 (table below).
 - Shared code, used by the horizontal wrapper only for now:
-  - `src/layouts/mixinApiErrorPopup.js`: listens for `show-sweetalert-error` (emitted by `jwtService`) and shows the error. It removes its listener when the layout is destroyed, and its title is the i18n key `common.unexpectedError`.
+  - `src/layouts/mixinApiErrorPopup.js`: listens for `show-sweetalert-error` (emitted by `jwtService`) and shows the error. It removes its listener when the layout is destroyed. Since 3.1.0 (test log I-01, I-02) it is used by both layouts (`LayoutVertical.vue`, the store, no longer has its own copy), `jwtService` emits only for an unexpected error (a 5xx or no answer; a 4xx is shown by its screen), and the message is one toast that does not block, titled `common.error`: the server's `message`, else the generic French "Une erreur est survenue. Veuillez réessayer." (`apiErrorText`), never raw JSON.
   - `src/layouts/components/LicenseWarningBanner.vue`: shown while the license status is `WARNING`.
-- `LayoutVertical.vue` keeps its own copy of both, unchanged, and can switch to the mixin and the component at step 9.
+- `LayoutVertical.vue` keeps its own copy of the license banner, unchanged, and can switch to the component at step 9.
 
 **Navbar.** The search bar shows when the user can read the home page of the installation: `admin-headoffice-home` on a head office, `home` on a store.
 
