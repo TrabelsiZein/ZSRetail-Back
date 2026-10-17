@@ -54,6 +54,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   item name stays NAV's item description.
 
 ### Fixes
+- Sales report (test log I-67): the loyalty points spent are taken off as the ticket discount, in every grouping, so the
+  report adds up to the tickets' paid total; the points share is in the discount column.
 - Invoice made from tickets (test log I-63): a ticket with a ticket discount, a cart promotion or points spent adds one
   "Remise ticket <number>" line (HT, VAT, TTC negative), so the invoice adds up to what was paid; the ticket's lines are
   unchanged and a ticket without a reduction gives the invoice of before.

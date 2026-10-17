@@ -30,8 +30,11 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
   ticket. It counted the cash tendered (371.347 instead of 347.167 on `zen_store`, 12 tickets).
 - The sales and purchase reports grouped by FAMILY (`SalesReportService`, test log I-66) count the items without a
   family too, under "—" (`LEFT JOIN i.itemFamily f`; the inner join left them out, and its "No Family" label never
-  applied). Their totals now equal the ITEM grouping's. The sales report does not take off the loyalty points (in any
-  grouping): its total is the tickets' total plus the points spent.
+  applied). Their totals now equal the ITEM grouping's.
+- The sales report (every grouping) takes off the ticket discount (lines × (1 − header %)) and, since 3.1.0 (test log
+  I-67), the loyalty points spent the same way: each line × total / (total + points) of its ticket, 1 without points;
+  the points share is in the discount column with the ticket discount. Its total is the tickets' paid total (507.498 on
+  `zen_store`, was 509.598).
 
 **CRITICAL FIX — CAST for DAY/MONTH grouping:**
 - Bug: `CONCAT(YEAR(date), '-', MONTH(date))` produced arithmetic (2026 + 3 = 2029) because Hibernate treats YEAR()/MONTH()/DAY() as integers.
