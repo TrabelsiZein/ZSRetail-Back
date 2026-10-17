@@ -80,6 +80,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   index on `erp_external_id`, and flushing the packet); the item and point de stock row updates go by JDBC batches of
   100 (that transaction only). One INFO line per items step (rows read, equal, new, changed, written, ms) and per
   packet. Unchanged rows were already never written (the engine compares every field).
+- ERP catalogue run: a page read that fails on an I/O error or a timeout (e.g. a VPN drop) is read again once 5 s
+  later, with one WARN line, for every connector; a second failure fails the step as before; cursors and
+  checkpoints move only on a read that succeeds.
 ### DB script (`db/3.1.0/update.sql`, store and head office)
 - RFID tables on a store: `rfid_reader` (with `min_signal`), `pos_machine`, `rfid_tag`, `rfid_sale_tag`.
 - Payment method "Retenue à la source", inactive (kept as it is where EMTOP 1.12.1 has it).

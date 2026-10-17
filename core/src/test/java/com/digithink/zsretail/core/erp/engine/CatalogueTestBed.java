@@ -52,6 +52,10 @@ final class CatalogueTestBed {
 	final List<ErpItemFamilyDTO> families = new ArrayList<>();
 	final List<ErpItemSubFamilyDTO> subFamilies = new ArrayList<>();
 	final List<ErpItemSectionDTO> sections = new ArrayList<>();
+	/** 3.1.0: thrown by the next item reads, one each, before the page is answered (a retry test). */
+	final java.util.Deque<RuntimeException> itemReadFailures = new java.util.ArrayDeque<>();
+	/** 3.1.0: the pauses of the engine before a retried read (none really waited). */
+	final List<java.time.Duration> pauses = new ArrayList<>();
 	/** True: the page read through the 2-argument ErpCategories (an ERP without catégories and sections). */
 	boolean twoLevelsOnly;
 	/**
@@ -134,7 +138,8 @@ final class CatalogueTestBed {
 				bootstrap.importItemSections(packet);
 			}
 		};
-		engine = new CatalogueEngine(new Source(), new Tables(), points, state, settings, importer);
+		engine = new CatalogueEngine(new Source(), new Tables(), points, state, settings, importer,
+				delay -> pauses.add(delay));
 	}
 
 	/** The job SYNC_CATALOGUE on this bed, its log in {@link #logged}. */
@@ -245,16 +250,25 @@ final class CatalogueTestBed {
 
 		@Override
 		public ErpRead<ErpItemDTO> items(String locationCode) {
+			failIfAsked();
 			return read(items.getOrDefault(locationCode, new ArrayList<>()).stream().map(CatalogueTestBed::copy)
 					.collect(Collectors.toList()));
 		}
 
 		@Override
 		public ErpRead<ErpItemDTO> items(String locationCode, OffsetDateTime since) {
+			failIfAsked();
 			sinceAsked.add(locationCode + " since " + since);
 			return read(items.getOrDefault(locationCode, new ArrayList<>()).stream()
 					.filter(row -> since == null || row.getLastModifiedAt() == null || !row.getLastModifiedAt().isBefore(since))
 					.map(CatalogueTestBed::copy).collect(Collectors.toList()));
+		}
+
+		private void failIfAsked() {
+			RuntimeException failure = itemReadFailures.poll();
+			if (failure != null) {
+				throw failure;
+			}
 		}
 
 		@Override

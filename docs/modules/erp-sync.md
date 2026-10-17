@@ -319,6 +319,15 @@ both sides) and the clearance price at 3 decimals (null = no price): the rows of
 not change. The item does not compare them. Tests: `CatalogueClearanceTest` (core), `HoStockPointRowsTest` (H2),
 `HoStockPointItemsServiceTest.clearance`.
 
+**Page read retry (2026-10-17)**: every page the catalogue engine reads (categories, the items of a point, whole or
+since its checkpoint, the barcodes after the cursor or of some items) goes through `RetryingCatalogueSource`, for every
+connector: a read that fails on an I/O error or a timeout (an `IOException` among its causes: VPN drop, connection
+refused, connect or read timeout) is read again once 5 s later with one WARN line (`ERP catalogue: reading the page
+barCodes after 1792170044207 failed (ConnectTimeoutException: ...), retry in 5 s (1/1)`); a second failure fails the
+step as before. The same page is asked again: no cursor or checkpoint moves before a read succeeds, and a read that
+succeeds on the retry records no failed read. Another failure (an answer refused) is not retried. Test:
+`CatalogueReadRetryTest`.
+
 **Items step speed (2026-10-17)**: the engine hands the import only the rows it found new, changed or gone (every
 field compared: the item fields, `ItemVariant`, the brand when given); an equal row is read, never written. The import
 (`ErpItemBootstrapService.importItems`) reads a packet's items in one query by ERP id (`findByErpExternalIdIn`) and one

@@ -18,6 +18,7 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.core.config.ConditionalOnErpAbility;
@@ -137,9 +138,17 @@ public class CatalogueEngine {
 	/** One barcode run at a time. */
 	private final AtomicBoolean barcodesRunning = new AtomicBoolean();
 
+	@Autowired
 	public CatalogueEngine(ErpCatalogueSource source, HeadOfficeCatalogue headOffice, StockPoints stockPoints,
 			CatalogueState state, CatalogueSettings settings, CatalogueImport importer) {
-		this.source = source;
+		this(source, headOffice, stockPoints, state, settings, importer, RetryingCatalogueSource.SLEEP);
+	}
+
+	/** 3.1.0: the page reads retried once after an I/O error or a timeout, after this pause (none in the tests). */
+	CatalogueEngine(ErpCatalogueSource source, HeadOfficeCatalogue headOffice, StockPoints stockPoints,
+			CatalogueState state, CatalogueSettings settings, CatalogueImport importer,
+			RetryingCatalogueSource.Pause pause) {
+		this.source = new RetryingCatalogueSource(source, pause);
 		this.headOffice = headOffice;
 		this.stockPoints = stockPoints;
 		this.state = state;
