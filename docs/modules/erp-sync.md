@@ -325,8 +325,11 @@ connector: a read that fails on an I/O error or a timeout (an `IOException` amon
 refused, connect or read timeout) is read again once 5 s later with one WARN line (`ERP catalogue: reading the page
 barCodes after 1792170044207 failed (ConnectTimeoutException: ...), retry in 5 s (1/1)`); a second failure fails the
 step as before. The same page is asked again: no cursor or checkpoint moves before a read succeeds, and a read that
-succeeds on the retry records no failed read. Another failure (an answer refused) is not retried. Test:
-`CatalogueReadRetryTest`.
+succeeds on the retry records no failed read. Another failure (an answer refused) is not retried. The connectors
+keep the I/O error as the cause of their read exception: ZEN (`ZenReadException`) and Happyness
+(`NavPosPagesReadException`, `NavPosPagesReadRetryTest` in network-tests: the real client, a connect timeout read
+again). EMTOP has no catalogue source (no ability): its catalogue does not go through the engine, so no retry there.
+Tests: `CatalogueReadRetryTest`, `NavPosPagesReadRetryTest`.
 
 **Items step speed (2026-10-17)**: the engine hands the import only the rows it found new, changed or gone (every
 field compared: the item fields, `ItemVariant`, the brand when given); an equal row is read, never written. The import

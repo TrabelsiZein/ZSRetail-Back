@@ -20,25 +20,26 @@ import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
  * error or a timeout (an {@link IOException} in its causes: a VPN drop, connection refused, read timed out) is read
  * again once, {@link #RETRY_DELAY} later, with one WARN line; a second failure goes up as before and fails the step.
  * The same page is asked again (same location, time, cursor or items): no cursor or checkpoint moves before a read
- * succeeds. Any other failure (an answer the connector refuses) goes up at once.
+ * succeeds. Any other failure (an answer the connector refuses) goes up at once. Public for the connector tests of
+ * network-tests (the real client of each connector, wrapped as the engine wraps it).
  */
-final class RetryingCatalogueSource implements ErpCatalogueSource {
+public final class RetryingCatalogueSource implements ErpCatalogueSource {
 
-	static final Duration RETRY_DELAY = Duration.ofSeconds(5);
+	public static final Duration RETRY_DELAY = Duration.ofSeconds(5);
 
 	private static final Logger LOG = LogManager.getLogger(CatalogueEngine.class);
 
 	/** The wait before the retry; Thread.sleep in the application, none in the tests. */
-	interface Pause {
+	public interface Pause {
 		void sleep(Duration delay) throws InterruptedException;
 	}
 
-	static final Pause SLEEP = delay -> Thread.sleep(delay.toMillis());
+	public static final Pause SLEEP = delay -> Thread.sleep(delay.toMillis());
 
 	private final ErpCatalogueSource source;
 	private final Pause pause;
 
-	RetryingCatalogueSource(ErpCatalogueSource source, Pause pause) {
+	public RetryingCatalogueSource(ErpCatalogueSource source, Pause pause) {
 		this.source = source;
 		this.pause = pause;
 	}
