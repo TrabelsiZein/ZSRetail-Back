@@ -325,7 +325,10 @@ field compared: the item fields, `ItemVariant`, the brand when given); an equal 
 by code, and the families and sub-families once per packet, instead of up to five SELECTs per row (each one scanned
 `item`, which has no index on `erp_external_id`, and auto-flushed the packet); its writes and those of
 `HoStockPointRows.write` go by JDBC batches of 100 (`Session.setJdbcBatchSize`, that transaction only; new rows still
-one by one, IDENTITY). Log: `ERP catalogue items: N rows read, E equal, ... written in T ms` per step, `ERP items
+one by one, IDENTITY). Indexes (2026-10-17, db/3.1.0/update.sql, re-runnable; also `` on the entities):
+`ix_item_erp_external_id` (`item.erp_external_id`) and `ix_item_barcode_erp_external_id`
+(`item_barcode.erp_external_id`), the ERP id lookups of the item and barcode imports; **to run by hand on existing
+databases** (the two `CREATE INDEX` statements after `ix_item_barcode` in the script). Log: `ERP catalogue items: N rows read, E equal, ... written in T ms` per step, `ERP items
 import: ...` per packet. The run of 17/10 (846 s, 21,086 changed) was a real change: the first run after the
 variant description was built by the connector, before the 3.1.0 UPDATE. Test: `ErpItemImportLookupsTest`.
 

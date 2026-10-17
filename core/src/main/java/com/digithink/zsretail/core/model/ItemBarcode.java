@@ -22,7 +22,8 @@ import lombok.NoArgsConstructor;
  */
 @Entity
 // The barcodes of an item (no index is made for a foreign key on SQL Server; also in db/3.1.0/update.sql)
-@Table(indexes = @Index(name = "ix_item_barcode_item", columnList = "item_id"))
+@Table(indexes = { @Index(name = "ix_item_barcode_item", columnList = "item_id"),
+		@Index(name = "ix_item_barcode_erp_external_id", columnList = "erp_external_id") })
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor

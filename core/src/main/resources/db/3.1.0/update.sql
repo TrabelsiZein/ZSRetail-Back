@@ -25,7 +25,8 @@
 -- Schema, clearance at the till (ZEN): item.clearance and item.public_price, nullable (store and head office; written
 -- on a store only). Re-runnable; no data changed.
 --
--- Indexes, speed (store and head office): ix_item_barcode_item (item_barcode.item_id), ix_item_barcode (item.barcode);
+-- Indexes, speed (store and head office): ix_item_barcode_item (item_barcode.item_id), ix_item_barcode (item.barcode),
+-- ix_item_erp_external_id (item.erp_external_id), ix_item_barcode_erp_external_id (item_barcode.erp_external_id);
 -- on a head office ix_ho_down_change_pull replaces ix_ho_down_change_version. Re-runnable; no data changed.
 --
 -- Data, payment method "Retenue à la source" (type RETENUE_SOURCE): added inactive with the neutral code RETENUE_SOURCE
@@ -276,6 +277,15 @@ GO
 -- Store and head office. As the entity's @Index.
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_item_barcode' AND object_id = OBJECT_ID(N'item'))
 	CREATE INDEX ix_item_barcode ON item (barcode);
+GO
+-- Speed, the ERP import (store and head office): an item and a barcode are looked up by their ERP id first
+-- (findByErpExternalId, findByErpExternalIdIn): without an index each lookup scans the table (21,903 items, 21,940
+-- barcodes on ZEN's test head office). As the entities' @Index. Re-runnable; no data changed.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_item_erp_external_id' AND object_id = OBJECT_ID(N'item'))
+	CREATE INDEX ix_item_erp_external_id ON item (erp_external_id);
+IF OBJECT_ID(N'item_barcode', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_item_barcode_erp_external_id' AND object_id = OBJECT_ID(N'item_barcode'))
+	CREATE INDEX ix_item_barcode_erp_external_id ON item_barcode (erp_external_id);
 GO
 -- Speed: the pull of a store's copies down reads the domain's changes after its cursor in the index alone (a head office
 -- only). It replaces ix_ho_down_change_version (domain, change_version), which did not hold the store and the code: SQL

@@ -90,6 +90,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   re-runnable.
 - Clearance at the till (ZEN): nullable `item.clearance` (bit) and `item.public_price` (float), store and head office
   (written on a store only, by the copies down); re-runnable, no data changed.
+- Speed, the ERP import: indexes `ix_item_erp_external_id` (`item.erp_external_id`) and
+  `ix_item_barcode_erp_external_id` (`item_barcode.erp_external_id`), store and head office; re-runnable.
 - Speed: indexes `ix_item_barcode_item` (`item_barcode.item_id`) and `ix_item_barcode` (`item.barcode`), store and
   head office; on a head office
   `ix_ho_down_change_pull` (`domain`, `change_version`, `store_id`, `record_code`) replaces `ix_ho_down_change_version`.
