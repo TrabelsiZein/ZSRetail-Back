@@ -42,6 +42,18 @@ public class NavItemVariantsDTO {
 		private boolean active;
 		private boolean clearance;
 		private BigDecimal clearancePrice;
+		/**
+		 * Item variants (ZEN), clearance (2026-10-17): the row sells at its clearance price (the head office's rule,
+		 * headoffice StockPointPrice: clearance true and a clearance price above 0).
+		 */
+		private boolean clearanceApplies;
+		/** The price a store of this point sells at, before VAT: the clearance price when it applies, else unitPrice. */
+		private Double sellingPrice;
+
+		/** Without the head office's rule applied (clearanceApplies false, sellingPrice null). */
+		public PointPrice(Double unitPrice, boolean active, boolean clearance, BigDecimal clearancePrice) {
+			this(unitPrice, active, clearance, clearancePrice, false, null);
+		}
 	}
 
 	@Data

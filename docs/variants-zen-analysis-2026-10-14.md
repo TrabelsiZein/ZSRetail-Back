@@ -322,7 +322,7 @@ checkpoint" button. Steps 1–8, 10 and 12 are the go-live path. Steps 1–7 do 
 
 | # | Question | Blocks |
 |---|---|---|
-| Q1 | Clearance at the till: does a store sell at `clearancePrice` when `clearance` is true? (One line in `pointCopy` if yes.) | step 5 |
+| Q1 | Clearance at the till: does a store sell at `clearancePrice` when `clearance` is true? (One line in `pointCopy` if yes.) **Answered 2026-10-17: yes, when the clearance price is above 0** (step 11b's "no price logic" reversed; section F) | step 5 |
 | Q2 | Item name = item description + variant description? | step 8 |
 | Q3 | VAT: one default rate, or per item (not in the API)? Is `publicPrice` with VAT? | step 8 |
 | Q4 | `publicPrice` = 0 (19 % of the sample): inactive, as Happyness, or sold at 0? | step 8 |
@@ -418,6 +418,19 @@ gives). `ZenMapper.variantDescription` builds it from `sizeDescription`, `colorD
 colour description changed at ZEN is a change of the item (`CatalogueEngineVariantsTest`). `db/3.1.0/update.sql`
 rebuilds `item.variant_description` for the items with a `nav_item_no` (store and head office), so the first items run
 after the upgrade sees no change. Front unchanged ("name — variant description").
+
+**Clearance price at the till (2026-10-17), decision reversed**: Q1 answered and step 11b's "no price logic changed"
+reversed. A point's row with clearance true and a clearance price above 0 sells at the clearance price (HT, the item's
+VAT); otherwise the public price, as before. The rule is applied at the head office, where a store's price is already
+decided (`HoCatalogueService.pointCopy`, one rule `headoffice/service/StockPointPrice`), not at the store, which has no
+point rows: the store sells the price it receives, so scan, cart, ticket and price lookup need no change; returns and
+reprints use the sale line's prices. The copy also carries `clearance` and `publicPrice` (store columns
+`item.clearance`, `item.public_price`, db/3.1.0) for the till's display: the public price struck through, the price
+sold and the "Clearance" badge on the tile and the cart line; the ticket prints the price sold. The head office pages
+use the back end's `clearanceApplies` (a clearance price of 0 is no longer shown struck). Details:
+`docs/modules/erp-sync.md`, "Clearance price at the till". To do at the upgrade: items already copied to a store are
+sent again only on a row change or a change of the store's point; ZEN's test store needs one (its point taken away and
+given back) to receive its clearance prices.
 
 To do:
 - Development machine: SQL Server's memory (above), before any speed measurement.

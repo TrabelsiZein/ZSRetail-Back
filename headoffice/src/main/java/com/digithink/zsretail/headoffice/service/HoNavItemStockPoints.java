@@ -53,9 +53,15 @@ public class HoNavItemStockPoints implements NavItemStockPoints {
 			return prices;
 		}
 		for (Object[] row : rowRepository.findRowsOfItems(itemIds)) {
+			Double unitPrice = (Double) row[2];
+			Boolean clearance = (Boolean) row[4];
+			BigDecimal clearancePrice = (BigDecimal) row[5];
+			// Item variants (ZEN), clearance (2026-10-17): the price the point's stores sell at, by the one rule
 			prices.computeIfAbsent((Long) row[0], id -> new LinkedHashMap<>()).put((Long) row[1],
-					new NavItemVariantsDTO.PointPrice((Double) row[2], !Boolean.FALSE.equals(row[3]),
-							Boolean.TRUE.equals(row[4]), (BigDecimal) row[5]));
+					new NavItemVariantsDTO.PointPrice(unitPrice, !Boolean.FALSE.equals(row[3]),
+							Boolean.TRUE.equals(clearance), clearancePrice,
+							StockPointPrice.clearanceApplies(clearance, clearancePrice),
+							StockPointPrice.sellingPrice(unitPrice, clearance, clearancePrice)));
 		}
 		return prices;
 	}

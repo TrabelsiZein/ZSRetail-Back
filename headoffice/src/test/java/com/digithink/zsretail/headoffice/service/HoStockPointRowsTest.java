@@ -9,6 +9,8 @@ import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -19,6 +21,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
+import org.springframework.transaction.support.TransactionOperations;
 
 import com.digithink.zsretail.core.erp.engine.StockPoints.Row;
 import com.digithink.zsretail.core.model.Item;
@@ -56,9 +60,13 @@ class HoStockPointRowsTest {
 		row(tie, Boolean.TRUE, new BigDecimal("7.000"));
 		session.getTransaction().commit();
 		session.clear();
-		HoStockPointItemRepository repository = (HoStockPointItemRepository) Proxy.newProxyInstance(
-				HoStockPointItemRepository.class.getClassLoader(), new Class<?>[] { HoStockPointItemRepository.class },
-				(proxy, method, args) -> {
+		rows = new HoStockPointRows(null, saving(), session, null);
+	}
+
+	/** The repository's saveAll as the session's. */
+	private HoStockPointItemRepository saving() {
+		return (HoStockPointItemRepository) Proxy.newProxyInstance(HoStockPointItemRepository.class.getClassLoader(),
+				new Class<?>[] { HoStockPointItemRepository.class }, (proxy, method, args) -> {
 					if ("saveAll".equals(method.getName())) {
 						List<Object> saved = new ArrayList<>();
 						for (Object entity : (Iterable<?>) args[0]) {
@@ -69,7 +77,6 @@ class HoStockPointRowsTest {
 					}
 					throw new UnsupportedOperationException("Unexpected call: " + method.getName());
 				});
-		rows = new HoStockPointRows(null, repository, session, null);
 	}
 
 	@AfterEach
@@ -109,6 +116,36 @@ class HoStockPointRowsTest {
 		HoStockPointItem tie = stored("14ZDU05~001");
 		assertEquals(Boolean.FALSE, tie.getClearance());
 		assertNull(tie.getClearancePrice());
+	}
+
+	@Test
+	@DisplayName("Clearance (2026-10-17): a row whose clearance alone changed is written and its item handed to the"
+			+ " copies down for the point's stores, as any row change")
+	void clearanceChangeRecordedForTheStores() {
+		List<Long> recorded = new ArrayList<>();
+		HoCatalogueService recorder = new HoCatalogueService(null, null, null, null, null, null, () -> null,
+				TransactionOperations.withoutTransaction()) {
+			@Override
+			public void stockPointRowsChanged(long pointId, Collection<Long> itemIds, Collection<Long> barcodeItemIds) {
+				assertEquals(POINT, pointId);
+				recorded.addAll(itemIds);
+			}
+		};
+		HoStockPointRows recording = new HoStockPointRows(null, saving(),
+				session, new StaticListableBeanFactory(Collections.singletonMap("catalogue", recorder))
+						.getBeanProvider(HoCatalogueService.class));
+		Long tieId = stored("14ZDU05~001").getItemId();
+		session.clear();
+
+		session.beginTransaction();
+		// The row of before: its name, price 1.0, active, clearance true at 7.000; only the clearance price changes
+		recording.write(POINT, Collections.singletonList(
+				new Row("14ZDU05~001", "14ZDU05~001", null, null, null, 1.0, true, true, new BigDecimal("5.000"))));
+		session.getTransaction().commit();
+		session.clear();
+
+		assertEquals(Collections.singletonList(tieId), recorded);
+		assertEquals(0, new BigDecimal("5.000").compareTo(stored("14ZDU05~001").getClearancePrice()));
 	}
 
 	@Test

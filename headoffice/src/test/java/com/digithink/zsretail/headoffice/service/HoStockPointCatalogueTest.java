@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -214,6 +215,80 @@ class HoStockPointCatalogueTest {
 				Collections.singletonList(b002.getId()));
 		assertEquals(Arrays.asList("BARCODE:222", "ITEM:B002"), new ArrayList<>(records(pull(a, cursorA)).keySet()));
 		assertTrue(pull(b, cursorB).getRecords().isEmpty());
+	}
+
+	/** The row of this item in this point. */
+	private HoStockPointItem rowOf(long point, Item item) {
+		return ho.stockPointItemRepository().findByStockPointIdAndItemIdIn(point, Collections.singletonList(item.getId()))
+				.get(0);
+	}
+
+	@Test
+	@DisplayName("Clearance (2026-10-17): a row in clearance at 7 is sent at 7 with clearance true and its public price;"
+			+ " at 0 or with no price, at the public price with no clearance; the other point untouched")
+	void clearancePriceSent() {
+		HoStockPointItem b003InP2 = rowOf(p2, b003);
+		b003InP2.setClearance(true);
+		b003InP2.setClearancePrice(new BigDecimal("7.000"));
+		HoStockPointItem b002InP2 = rowOf(p2, b002);
+		b002InP2.setClearance(true);
+		b002InP2.setClearancePrice(BigDecimal.ZERO);
+
+		Map<String, JsonNode> ofB = records(pull(b, ""));
+		JsonNode tie = ofB.get("ITEM:B003");
+		assertEquals(7.0, tie.get("unitPrice").asDouble(), "the clearance price, before VAT as the row's");
+		assertTrue(tie.get("clearance").asBoolean());
+		assertEquals(33.0, tie.get("publicPrice").asDouble(), "the row's public price, for the till to strike");
+		assertEquals(19, tie.get("defaultVAT").asInt(), "the item's VAT applies to it as to any price");
+		JsonNode atZero = ofB.get("ITEM:B002");
+		assertEquals(25.0, atZero.get("unitPrice").asDouble(), "a clearance price of 0: the public price");
+		assertTrue(atZero.get("clearance").isNull());
+		assertTrue(atZero.get("publicPrice").isNull());
+
+		b002InP2.setClearancePrice(null);
+		assertEquals(25.0, records(pull(b, "")).get("ITEM:B002").get("unitPrice").asDouble(), "no clearance price");
+		assertEquals(12.0, records(pull(a, "")).get("ITEM:B001").get("unitPrice").asDouble(), "P1 is not in clearance");
+	}
+
+	@Test
+	@DisplayName("Clearance: a Happyness row (clearance and clearance price null) is sent as before, at its price")
+	void happynessRowAsBefore() {
+		HoStockPointItem row = rowOf(p1, b001);
+		assertNull(row.getClearance(), "a row written by an ERP without clearance");
+		assertNull(row.getClearancePrice());
+
+		JsonNode b001A = records(pull(a, "")).get("ITEM:B001");
+		assertEquals(12.0, b001A.get("unitPrice").asDouble());
+		assertTrue(b001A.get("clearance").isNull());
+		assertTrue(b001A.get("publicPrice").isNull());
+		assertNull(HoCatalogueService.pointCopy(b001, Collections.singletonMap(b001.getId(), row), null).getClearance());
+		assertEquals(5.0, records(pull(a, "")).get("ITEM:MAIN").get("unitPrice").asDouble(), "a hand-made item: its price");
+	}
+
+	@Test
+	@DisplayName("Clearance: a row's clearance changed by the items run reaches the stores of its point (the copy of"
+			+ " before, no new channel), at the clearance price, then back at the public price")
+	void clearanceChangeReachesThePoint() {
+		String cursorA = pull(a, "").getCursor();
+		String cursorB = pull(b, "").getCursor();
+		HoStockPointItem row = rowOf(p1, b001);
+		row.setClearance(true);
+		row.setClearancePrice(new BigDecimal("7.000"));
+
+		// What HoStockPointRows.write does for every row it writes (HoStockPointRowsTest: a clearance-only change)
+		catalogue.stockPointRowsChanged(p1, Collections.singletonList(b001.getId()), Collections.emptyList());
+		CopiesDownAnswerDTO toA = pull(a, cursorA);
+		JsonNode b001A = records(toA).get("ITEM:B001");
+		assertEquals(7.0, b001A.get("unitPrice").asDouble());
+		assertTrue(b001A.get("clearance").asBoolean());
+		assertEquals(12.0, b001A.get("publicPrice").asDouble());
+		assertTrue(pull(b, cursorB).getRecords().isEmpty(), "B's point has no such change");
+
+		row.setClearance(false);
+		catalogue.stockPointRowsChanged(p1, Collections.singletonList(b001.getId()), Collections.emptyList());
+		b001A = records(pull(a, toA.getCursor())).get("ITEM:B001");
+		assertEquals(12.0, b001A.get("unitPrice").asDouble(), "the clearance ended: the public price again");
+		assertTrue(b001A.get("clearance").isNull());
 	}
 
 	@Test

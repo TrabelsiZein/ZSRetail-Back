@@ -153,4 +153,26 @@ class HoStockPointItemsServiceTest {
 		assertEquals(0, new java.math.BigDecimal("7.000").compareTo(view.getClearancePrice()));
 		assertEquals(12.5, view.getUnitPrice(), "the row's price as before");
 	}
+
+	@Test
+	@DisplayName("Clearance (2026-10-17): the price the point's stores sell at, by the one rule (StockPointPrice)")
+	void sellingPrice() {
+		when(rows.findById(row.getId())).thenReturn(Optional.of(row));
+		StockPointItemDTO happyness = service.row(row.getId()).get();
+		assertFalse(happyness.getClearanceApplies(), "a row of before (Happyness): no clearance");
+		assertEquals(12.5, happyness.getSellingPrice(), "its own price");
+
+		row.setClearance(Boolean.TRUE);
+		row.setClearancePrice(new java.math.BigDecimal("7.000"));
+		StockPointItemDTO tie = service.row(row.getId()).get();
+		assertTrue(tie.getClearanceApplies());
+		assertEquals(7.0, tie.getSellingPrice(), "the clearance price");
+		assertEquals(12.5, tie.getUnitPrice(), "the public price, still given");
+
+		row.setClearancePrice(java.math.BigDecimal.ZERO);
+		StockPointItemDTO atZero = service.row(row.getId()).get();
+		assertFalse(atZero.getClearanceApplies(), "clearance true at 0: not applied");
+		assertTrue(atZero.getClearance(), "the ERP's flag as read");
+		assertEquals(12.5, atZero.getSellingPrice());
+	}
 }

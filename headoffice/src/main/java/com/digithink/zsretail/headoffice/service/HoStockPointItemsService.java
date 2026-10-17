@@ -172,6 +172,8 @@ public class HoStockPointItemsService {
 			view.setActive(!Boolean.FALSE.equals(row.getActive()));
 			view.setClearance(Boolean.TRUE.equals(row.getClearance()));
 			view.setClearancePrice(row.getClearancePrice());
+			view.setClearanceApplies(StockPointPrice.clearanceApplies(row)); // clearance (2026-10-17): the one rule
+			view.setSellingPrice(StockPointPrice.sellingPrice(row));
 			view.setDefaultVAT(item.getDefaultVAT());
 			view.setType(item.getType() == null ? null : item.getType().name());
 			view.setUnitOfMeasure(item.getUnitOfMeasure());

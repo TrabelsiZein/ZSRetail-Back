@@ -316,9 +316,25 @@ reads the categories page: two more reads of that small page per run.
 read; `StockPoints.Row` carries them (`ho_stock_point_item.clearance`, `clearance_price`, written and read by
 `HoStockPointRows`; a null column, a row written before 3.1.0, is false). The row compare adds the flag (null = false on
 both sides) and the clearance price at 3 decimals (null = no price): the rows of an ERP without clearance (Happyness) do
-not change. The item does not compare them. No price logic: the stores keep the row's price; the page "Items by point
-de stock" (`StockPointItemDTO`) shows both values. Tests: `CatalogueClearanceTest` (core), `HoStockPointRowsTest` (H2),
+not change. The item does not compare them. Tests: `CatalogueClearanceTest` (core), `HoStockPointRowsTest` (H2),
 `HoStockPointItemsServiceTest.clearance`.
+
+**Clearance price at the till (2026-10-17, reverses step 11b's "no price logic")**: one rule,
+`headoffice/service/StockPointPrice.sellingPrice` / `clearanceApplies`: a row with clearance true and a clearance price
+above 0 sells at its clearance price, any other row (clearance false or null, a price null or 0) at its own price. Both
+are before VAT, the item's VAT applies. The head office applies it where it decides a store's price,
+`HoCatalogueService.pointCopy`: the item copy's `unitPrice` is the clearance price, with `clearance` true and
+`publicPrice` (the row's price) for the till's display; null both otherwise. The store sells what it receives (scan,
+tiles, cart, ticket, price lookup: all from `item.unitPrice`, no store rule); returns and reprints use the prices of
+the sale line. The store keeps the two values in `item.clearance` and `item.public_price` (written by the copies down
+only; a store's own price still wins). A change of clearance or clearance price is a row change (`differs`), and
+`HoStockPointRows.write` hands every written row to `stockPointRowsChanged`: the stores of the point receive the item
+again. The head office pages read the same rule: `StockPointItemDTO` and `NavItemVariantsDTO.PointPrice` give
+`clearanceApplies` and `sellingPrice`. EMTOP and Happyness rows have no clearance: unchanged. Items already at a store
+are sent again only on a row change or a change of the store's point (none at the upgrade). Tests:
+`StockPointPriceTest`, `HoStockPointCatalogueTest` (clearance), `HoStockPointRowsTest`
+(`clearanceChangeRecordedForTheStores`), `HoStockPointItemsServiceTest.sellingPrice`, store `ClearanceAtTheTillTest`,
+network-tests `ClearanceRoundTripTest`.
 
 **Items run of changes only (step 6)**: a connector whose `ErpCatalogueSource.readsChangesOnly()` is true (ZEN) is read
 per point de stock from its checkpoint: `items(location, since)`, the connector filtering `lastModifiedAt ge since`;

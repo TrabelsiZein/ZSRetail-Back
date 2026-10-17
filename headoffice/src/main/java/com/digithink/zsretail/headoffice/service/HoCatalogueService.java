@@ -282,7 +282,9 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 	 * The copy of an item for a store with a stock point: null (answered as removed) when the item came from the ERP and
 	 * has no row in the point; otherwise built from the item, then the row's name, description, family, sub-family,
 	 * price and active flag (active only when the item is too). Price: always the row's (release 2.2: the selling price
-	 * lists are not used on this head office). An item not from the ERP: the item as it is, at its own price.
+	 * lists are not used on this head office), its clearance price when it applies ({@link StockPointPrice}, item
+	 * variants (ZEN), 2026-10-17), the copy then carrying clearance true and the row's public price. An item not from
+	 * the ERP: the item as it is, at its own price.
 	 */
 	static CatalogueItemCopyDTO pointCopy(Item item, Map<Long, HoStockPointItem> rows, List<ItemComposition> packs) {
 		if (!fromErp(item)) {
@@ -292,7 +294,10 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 		if (row == null) {
 			return null;
 		}
-		CatalogueItemCopyDTO copy = CatalogueItemCopyDTO.of(item, row.getUnitPrice(), packs);
+		CatalogueItemCopyDTO copy = CatalogueItemCopyDTO.of(item, StockPointPrice.sellingPrice(row), packs);
+		boolean clearance = StockPointPrice.clearanceApplies(row);
+		copy.setClearance(clearance ? Boolean.TRUE : null);
+		copy.setPublicPrice(clearance ? row.getUnitPrice() : null);
 		copy.setName(row.getName());
 		copy.setDescription(row.getDescription());
 		copy.setFamilyCode(row.getFamilyCode());

@@ -1767,7 +1767,7 @@ A read-only page, store and head office, for a catalogue of one item per ERP var
   no section column (a sous-famille has several sections; the Sections page shows the link).
 - **Items by point de stock** (head office): a row in clearance shows, in its price cell and in the details price
   block, its normal price struck through, the clearance price with VAT (`clearancePrice × (1 + VAT)`, as the other
-  prices of the page) and a "Soldé" badge. No new column, no price logic changed; a null clearance reads false, so
+  prices of the page) and a "Soldé" badge. No new column; since 2026-10-17 the struck price follows the back end's `clearanceApplies` and the stores sell the clearance price (`docs/modules/erp-sync.md`, "Clearance price at the till"); a null clearance reads false, so
   Happyness's page is as before.
 - Tests: `ItemTreeQueryTest` (H2), `ItemTreeServiceTest`, `AppConfigAPITest` (`itemCategories`, `itemSections`).
 

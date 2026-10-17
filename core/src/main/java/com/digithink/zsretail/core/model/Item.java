@@ -178,6 +178,23 @@ public class Item extends _BaseEntity {
 	@JsonProperty(access = JsonProperty.Access.READ_ONLY)
 	private Double headOfficePrice;
 
+	/**
+	 * Item variants (ZEN), clearance (2026-10-17), a store only: true while the head office sends this item at the
+	 * clearance price of the store's point de stock (headOfficePrice is then that price); null otherwise, and on a head
+	 * office. The till shows publicPrice struck through. Written by the copies down only, never read from JSON.
+	 */
+	@Column(name = "clearance")
+	@JsonProperty(access = JsonProperty.Access.READ_ONLY)
+	private Boolean clearance;
+
+	/**
+	 * Item variants (ZEN), clearance (2026-10-17), a store only: the point's public price before VAT while the item is
+	 * sent at its clearance price (clearance true); null otherwise. Shown struck through; never sold. Never read from JSON.
+	 */
+	@Column(name = "public_price")
+	@JsonProperty(access = JsonProperty.Access.READ_ONLY)
+	private Double publicPrice;
+
 	/** The stock without trailing zeros (the column has 3 decimals): 5.000 is 5, 0.800 is 0.8. */
 	public BigDecimal getStockQuantity() {
 		return Quantities.normalize(stockQuantity);

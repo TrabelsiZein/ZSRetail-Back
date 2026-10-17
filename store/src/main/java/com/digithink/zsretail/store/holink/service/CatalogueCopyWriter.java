@@ -265,6 +265,10 @@ public class CatalogueCopyWriter {
 		item.setItemSubFamily(subFamily);
 		item.setActive(!Boolean.FALSE.equals(copy.getActive()));
 		item.setHeadOfficePrice(copy.getUnitPrice());
+		// Item variants (ZEN), clearance (2026-10-17): the head office price is then the point's clearance price; the
+		// public price is kept for the till to show it struck through. Always written: null when the clearance ends
+		item.setClearance(copy.getClearance());
+		item.setPublicPrice(copy.getPublicPrice());
 		if (takenOver || !Boolean.TRUE.equals(item.getOwnPrice())) {
 			item.setOwnPrice(null);
 			item.setUnitPrice(copy.getUnitPrice()); // an own price is kept, the head office price saved beside

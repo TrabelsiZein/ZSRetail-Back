@@ -40,6 +40,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `barCode`, `lastModifiedDateTime`, `id`) instead of Happyness's `ItemBarCodePOS`; the barcode cursor is
   `lastModifiedDateTime` in epoch milliseconds (NAV's empty date: 1), a full page completed with every row of its last
   millisecond so that none is skipped and the run ends caught up; a barcode changed in NAV is read again.
+- Item variants (ZEN), clearance at the till: a point de stock row with clearance true and a clearance price above 0
+  sells at its clearance price (before VAT, the item's VAT); the head office sends it as the item's price to the stores
+  of the point (`HoCatalogueService.pointCopy`, one rule `StockPointPrice`), with `clearance` and `publicPrice` for the
+  till's display; a clearance change reaches the stores as any row change. The head office pages give
+  `clearanceApplies` and `sellingPrice`. EMTOP and Happyness unchanged (no clearance).
 - Item variants (ZEN): the connector builds the variant description from the size, colour and choice descriptions
   ("Taille Standard / VERT PISTACHE / 1er Choix", the blank ones left out) and no longer reads NAV's
   `variantDescription` (always the item description on ZEN's platform); a change of one of them changes the item. The
@@ -73,6 +78,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Item variants (ZEN): `item.variant_description` rebuilt from `size_description`, `color_description`,
   `choice_description` (" / ", the blank ones left out, null when none) for the items with a `nav_item_no`;
   re-runnable.
+- Clearance at the till (ZEN): nullable `item.clearance` (bit) and `item.public_price` (float), store and head office
+  (written on a store only, by the copies down); re-runnable, no data changed.
 - Speed: indexes `ix_item_barcode_item` (`item_barcode.item_id`) and `ix_item_barcode` (`item.barcode`), store and
   head office; on a head office
   `ix_ho_down_change_pull` (`domain`, `change_version`, `store_id`, `record_code`) replaces `ix_ho_down_change_version`.

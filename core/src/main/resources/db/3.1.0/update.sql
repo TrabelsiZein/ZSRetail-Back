@@ -22,6 +22,9 @@
 -- Data, item variants (ZEN): item.variant_description rebuilt from size, colour and choice descriptions (' / ') for the
 -- items with a nav_item_no, as connectors/zen now builds it. Re-runnable.
 --
+-- Schema, clearance at the till (ZEN): item.clearance and item.public_price, nullable (store and head office; written
+-- on a store only). Re-runnable; no data changed.
+--
 -- Indexes, speed (store and head office): ix_item_barcode_item (item_barcode.item_id), ix_item_barcode (item.barcode);
 -- on a head office ix_ho_down_change_pull replaces ix_ho_down_change_version. Re-runnable; no data changed.
 --
@@ -251,6 +254,14 @@ UPDATE item SET variant_description = NULLIF(ISNULL(STUFF(
 		+ ISNULL(' / ' + NULLIF(LTRIM(RTRIM(color_description)), ''), '')
 		+ ISNULL(' / ' + NULLIF(LTRIM(RTRIM(choice_description)), ''), ''), 1, 3, ''), ''), '')
 WHERE nav_item_no IS NOT NULL;
+GO
+-- Clearance at the till (item variants, ZEN, 2026-10-17): a store sells the clearance price of its point de stock
+-- (ho_stock_point_item clearance true and clearance_price above 0), which the head office sends as the item's price.
+-- Two nullable columns of item, written by the copies down only: clearance (true while the item is sent at that price)
+-- and public_price (the point's public price before VAT, shown struck through at the till). The entity is shared, so
+-- they exist on a head office too, always null there. Re-runnable; no data changed.
+IF COL_LENGTH('item', 'clearance') IS NULL ALTER TABLE item ADD clearance bit NULL;
+IF COL_LENGTH('item', 'public_price') IS NULL ALTER TABLE item ADD public_price float NULL;
 GO
 
 -- Speed (ZEN's test head office, 21,903 items): the barcodes of an item (store and head office). Hibernate creates no

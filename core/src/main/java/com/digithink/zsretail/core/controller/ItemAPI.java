@@ -234,6 +234,9 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			// Step 6: never read from JSON; null on every store whose catalogue is not the head office's
 			entity.setOwnPrice(existingItem.getOwnPrice());
 			entity.setHeadOfficePrice(existingItem.getHeadOfficePrice());
+			// Item variants (ZEN), clearance: written by the copies down only
+			entity.setClearance(existingItem.getClearance());
+			entity.setPublicPrice(existingItem.getPublicPrice());
 			Item updated = service.save(entity);
 			return ResponseEntity.ok(updated);
 		} catch (CatalogueCodeChangeException e) {

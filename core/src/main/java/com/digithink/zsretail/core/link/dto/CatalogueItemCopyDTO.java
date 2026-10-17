@@ -71,6 +71,12 @@ public class CatalogueItemCopyDTO {
 	/** ItemSection.code, by code only (the store never waits for it). */
 	private String sectionCode;
 
+	// Item variants (ZEN), clearance (2026-10-17): set only while the store's point sells the item at its clearance
+	// price (unitPrice is then the clearance price): clearance true and the point's public price before VAT, shown
+	// struck through at the till. Null otherwise (EMTOP, Happyness, a hand-made item). An older store ignores them.
+	private Boolean clearance;
+	private Double publicPrice;
+
 	/** One component of a pack. */
 	@Data
 	@NoArgsConstructor
@@ -123,6 +129,8 @@ public class CatalogueItemCopyDTO {
 		copy.divisionCode = item.getDivisionCode();
 		copy.categoryCode = item.getCategoryCode();
 		copy.sectionCode = item.getSectionCode();
+		copy.clearance = item.getClearance();
+		copy.publicPrice = item.getPublicPrice();
 		return copy;
 	}
 }

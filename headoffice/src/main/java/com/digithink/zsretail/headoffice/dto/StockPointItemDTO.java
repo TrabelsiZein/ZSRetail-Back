@@ -42,6 +42,13 @@ public class StockPointItemDTO {
 	private Boolean clearance;
 	/** Item variants (ZEN), step 5: the ERP's clearance price for this point, as read; null when none. */
 	private BigDecimal clearancePrice;
+	/**
+	 * Item variants (ZEN), clearance (2026-10-17): the row sells at its clearance price (StockPointPrice: clearance true
+	 * and a clearance price above 0).
+	 */
+	private Boolean clearanceApplies;
+	/** The price the point's stores sell at, before VAT: the clearance price when it applies, else unitPrice. */
+	private Double sellingPrice;
 
 	// From the item
 	private Integer defaultVAT;
