@@ -74,6 +74,14 @@ public class NavItemVariantsDTO {
 		private Double unitPrice;
 		/** The VAT rate of the prices (percent), as item.defaultVAT. */
 		private Integer defaultVAT;
+		/**
+		 * Item variants (ZEN), clearance (2026-10-17), a store only: item.clearance, item.publicPrice (before VAT) and
+		 * item.ownPrice, as the till receives them; the page strikes publicPrice with the till's rule (front
+		 * clearanceShown). Null on a head office (its prices are per point) and for the other customers.
+		 */
+		private Boolean clearance;
+		private Double publicPrice;
+		private Boolean ownPrice;
 		/** Null where the installation keeps no stock of its own. */
 		private BigDecimal stockQuantity;
 		/** Head office only: point de stock id to the variant's row there (no entry: no row); null on a store. */

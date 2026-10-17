@@ -45,6 +45,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   of the point (`HoCatalogueService.pointCopy`, one rule `StockPointPrice`), with `clearance` and `publicPrice` for the
   till's display; a clearance change reaches the stores as any row change. The head office pages give
   `clearanceApplies` and `sellingPrice`. EMTOP and Happyness unchanged (no clearance).
+- ERP items page at a store: `GET /nav-item/variants` gives each variant's `clearance`, `publicPrice` and `ownPrice` as
+  the till has them (null at a head office and for the other customers), so the page strikes the public price as the
+  till does.
 - Item variants (ZEN): the connector builds the variant description from the size, colour and choice descriptions
   ("Taille Standard / VERT PISTACHE / 1er Choix", the blank ones left out) and no longer reads NAV's
   `variantDescription` (always the item description on ZEN's platform); a change of one of them changes the item. The

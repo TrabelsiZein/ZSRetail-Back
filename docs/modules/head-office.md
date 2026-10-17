@@ -1741,7 +1741,10 @@ A read-only page, store and head office, for a catalogue of one item per ERP var
 - **Points de stock** (head office only, `HoNavItemStockPoints`, the core interface `NavItemStockPoints`): per line, the
   active points where a variant has an active row; per variant, a price grid with one column per point that has a row
   of one of the variants (list order): the price with VAT, a clearance price shown after the normal price struck
-  through, an inactive row greyed. A store shows each variant's own price.
+  through, an inactive row greyed. A store shows each variant's own price; a variant sent at its clearance price
+  (`clearance`, `publicPrice`, `ownPrice` of the item, as the till has them) shows its public price struck, the price
+  sold and the "Soldé" badge with the till's rule (front `clearanceShown`), through the head office's component
+  (`ClearancePrice.vue`).
 - **Item form**: a read-only "Variant" block after the basic information (NAV item number, variant code and
   description, size and its order, colour, choice, season, division, catégorie, section), rendered only when the item
   has a NAV item number, with a link to the page searched on that number. Such an item opens read-only; on a head office

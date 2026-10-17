@@ -176,6 +176,9 @@ public class NavItemService {
 		variant.setActive(item.getActive() == null || item.getActive());
 		variant.setUnitPrice(item.getUnitPrice());
 		variant.setDefaultVAT(item.getDefaultVAT());
+		variant.setClearance(item.getClearance());
+		variant.setPublicPrice(item.getPublicPrice());
+		variant.setOwnPrice(item.getOwnPrice());
 		if (withStock) {
 			variant.setStockQuantity(item.getStockQuantity() == null ? BigDecimal.ZERO : item.getStockQuantity());
 		}

@@ -169,6 +169,33 @@ class NavItemServiceTest {
 	}
 
 	@Test
+	@DisplayName("Store, clearance (ZEN): a variant carries the item's clearance, public price and own price as the till has them; the others null")
+	void storeClearance() {
+		Item zen = variant(1L, "14ZDU05~001", "3");
+		zen.setUnitPrice(7.0);
+		zen.setClearance(true);
+		zen.setPublicPrice(19.5);
+		Item own = variant(2L, "14ZDU05~002", "1");
+		own.setUnitPrice(7.0);
+		own.setClearance(true);
+		own.setPublicPrice(19.5);
+		own.setOwnPrice(true);
+		Item happyness = variant(3L, "14ZDU05~003", "2");
+		when(items.findNavItemVariants(eq("14ZDU05"), any())).thenReturn(Arrays.asList(zen, own, happyness));
+
+		List<NavItemVariantsDTO.Variant> variants = service(franchiseStore(), null).variants("14ZDU05", false)
+				.getVariants();
+		assertEquals(Boolean.TRUE, variants.get(0).getClearance());
+		assertEquals(19.5, variants.get(0).getPublicPrice());
+		assertEquals(7.0, variants.get(0).getUnitPrice(), "the price sold, as before");
+		assertNull(variants.get(0).getOwnPrice());
+		assertEquals(Boolean.TRUE, variants.get(1).getOwnPrice(), "the page strikes nothing under a store's own price");
+		assertNull(variants.get(2).getClearance(), "Happyness, EMTOP: no clearance");
+		assertNull(variants.get(2).getPublicPrice());
+		assertNull(variants.get(2).getOwnPrice());
+	}
+
+	@Test
 	@DisplayName("ERP store (EMTOP's supply): no stock in the lines nor the variants")
 	void erpStoreWithoutStock() {
 		oneLine();
