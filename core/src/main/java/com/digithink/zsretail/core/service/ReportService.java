@@ -179,7 +179,8 @@ public class ReportService {
     // ─────────────────────────────────────────────────────────────────────────
 
     private String stockStatus(BigDecimal qty, long min) {
-        if (qty.signum() <= 0)  return "OUT"; // 2.2.1: 0.2 is in stock
+        if (qty.signum() < 0)   return "NEGATIVE"; // 3.1.0 (test log I-52): a data problem, not an empty shelf
+        if (qty.signum() == 0)  return "OUT"; // 2.2.1: 0.2 is in stock
         if (qty.compareTo(BigDecimal.valueOf(min)) < 0) return "LOW";
         return "OK";
     }

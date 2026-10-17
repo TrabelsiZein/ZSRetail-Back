@@ -54,6 +54,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   item name stays NAV's item description.
 
 ### Fixes
+- Stock report: a negative stock has its own status `NEGATIVE` (was `OUT`, test log I-52). Statistics: a KPI delta is
+  null, no comparison, when the previous period is 0 (was 0.00, test log I-51).
 - Sales report (test log I-67): the loyalty points spent are taken off as the ticket discount, in every grouping, so the
   report adds up to the tickets' paid total; the points share is in the discount column.
 - Invoice made from tickets (test log I-63): a ticket with a ticket discount, a cart promotion or points spent adds one

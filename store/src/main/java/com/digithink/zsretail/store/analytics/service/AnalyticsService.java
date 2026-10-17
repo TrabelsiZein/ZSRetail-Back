@@ -191,9 +191,10 @@ public class AnalyticsService {
 		return revenue.divide(BigDecimal.valueOf(transactionCount), MONEY_SCALE, RoundingMode.HALF_UP);
 	}
 
+	/** 3.1.0 (test log I-51): null (no comparison) when the previous period is 0, not a flat 0.00 %. */
 	private static BigDecimal computeDeltaPercent(BigDecimal current, BigDecimal previous) {
 		if (previous == null || previous.compareTo(BigDecimal.ZERO) == 0) {
-			return BigDecimal.ZERO.setScale(PERCENT_SCALE, RoundingMode.HALF_UP);
+			return null;
 		}
 		BigDecimal delta = current.subtract(previous)
 				.multiply(BigDecimal.valueOf(100))
@@ -203,7 +204,7 @@ public class AnalyticsService {
 
 	private static BigDecimal computeDeltaPercent(long current, long previous) {
 		if (previous <= 0) {
-			return BigDecimal.ZERO.setScale(PERCENT_SCALE, RoundingMode.HALF_UP);
+			return null; // I-51: no comparison
 		}
 		BigDecimal delta = BigDecimal.valueOf(current - previous)
 				.multiply(BigDecimal.valueOf(100))

@@ -36,6 +36,12 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
   the points share is in the discount column with the ticket discount. Its total is the tickets' paid total (507.498 on
   `zen_store`, was 509.598).
 
+- Stock report status (`ReportService.stockStatus`, 3.1.0, test log I-52): `NEGATIVE` below 0 (a data problem: a
+  missing BL, a wrong count), `OUT` at 0, `LOW` below the minimum, else `OK`; the page shows a negative quantity in red,
+  and its "Out of stock" card counts the items at 0 only.
+- Statistics KPI deltas (`AnalyticsService.computeDeltaPercent`, 3.1.0, test log I-51): null when the previous period
+  is 0 (no comparison); the page shows "—" in grey instead of a green "▲ 0.00%".
+
 **CRITICAL FIX — CAST for DAY/MONTH grouping:**
 - Bug: `CONCAT(YEAR(date), '-', MONTH(date))` produced arithmetic (2026 + 3 = 2029) because Hibernate treats YEAR()/MONTH()/DAY() as integers.
 - Fix applied to all 5 time-based methods: `CONCAT(CAST(YEAR(date) AS string), '-', CAST(MONTH(date) AS string))` (and same for DAY).
