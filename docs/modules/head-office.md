@@ -1867,7 +1867,7 @@ A BL (delivery note) sends goods from the head office stock to one store (design
 | `POST /` `{storeId, documentDate, note, lines: [{itemCode or itemId, quantity}]}` | 201 the draft. 400 with the line: `Choose the store of the BL.`, `Unknown store id 9.`, `The store C is inactive.`, `A BL needs at least one line.`, `Line 2: unknown item B999.`, `Line 1: the item OFF is inactive.`, `Line 1: the item S1 is a service: it has no stock.`, `Line 1: the tax stamp cannot be delivered.`, `Line 1: the quantity must be a whole number above 0.`, `Line 3: the item B001 is already on line 1.`; 409 for a store whose goods do not come from the head office |
 | `PUT /{id}` | 200 the draft replaced; 409 `Only a draft BL can be changed: BL-000001 is SENT.`; 404 |
 | `DELETE /{id}` | 204; 409 when not a draft; 404 |
-| `POST /{id}/validate` | 200 the BL `SENT`; 409 not a draft, store, stock; 400 an item no longer deliverable; 404 |
+| `POST /{id}/validate` | 200 the BL `SENT`; 409 not a draft, store, stock; 400 an item no longer deliverable; 404. Since 3.1.0 (test log I-35) the answer has `missingSupplyPrices`: the codes of the items without a supply price for the store (`HoSupplyInvoiceService.missingSupplyPrices`, the same `pricesFor` as the invoice). A warning only: the BL is sent, one WARN line, and the Deliveries page shows a toast that does not block (the first 10 codes). A BL carries no price; the store's cost comes with the supply invoice, which refuses an item without a price (`create`, 409; the preview lists them in `missingPrices`) |
 
 Page permission `read:admin-headoffice-deliveries` (33 head office permissions).
 

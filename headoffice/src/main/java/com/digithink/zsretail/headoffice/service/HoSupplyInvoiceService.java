@@ -145,6 +145,32 @@ public class HoSupplyInvoiceService {
 	}
 
 	/**
+	 * 3.1.0 (test log I-35): the items of a BL being sent that have no supply price for its store (the price its supply
+	 * invoice, and so the store's cost, will need), by code, once each, in line order. A warning, never a refusal: in
+	 * PERCENT_OFF mode without a percentage no item can be priced, so all of them.
+	 */
+	public List<String> missingSupplyPrices(Store store, List<Item> lineItems) {
+		Map<Long, Double> prices;
+		try {
+			prices = supplyPrices.pricesFor(store, lineItems);
+		} catch (IllegalStateException e) {
+			prices = Collections.emptyMap();
+		}
+		return missingCodes(lineItems, prices);
+	}
+
+	/** The codes of the items absent from prices, once each, in the order given. */
+	static List<String> missingCodes(List<Item> lineItems, Map<Long, Double> prices) {
+		Set<String> missing = new LinkedHashSet<>();
+		for (Item item : lineItems) {
+			if (!prices.containsKey(item.getId())) {
+				missing.add(item.getItemCode());
+			}
+		}
+		return new ArrayList<>(missing);
+	}
+
+	/**
 	 * What the invoice would be, written nowhere: lines, totals, and the items without a supply price (in missingPrices,
 	 * and as lines flagged missingPrice, without a price, outside the totals).
 	 */

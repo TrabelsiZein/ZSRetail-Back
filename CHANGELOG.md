@@ -54,6 +54,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   item name stays NAV's item description.
 
 ### Fixes
+- Head office BL sent with items without a supply price (test log I-35): the validation's answer lists them
+  (`missingSupplyPrices`) and logs one WARN line; the BL is sent as before (their supply invoice, and so the store's cost,
+  wait for a price).
 - Reports grouped by family (test log I-66): the sales and purchase reports count the items without a family, under
   "—" (they were left out).
 - Statistics (test log I-49, I-50): "Top 5 products" counts the items without a family (family "—"); the payment split's

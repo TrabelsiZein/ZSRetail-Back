@@ -47,6 +47,11 @@ public class DeliveryDTO {
 	/** True when a line was received in another quantity than sent. */
 	private boolean difference;
 	private List<Line> lines;
+	/**
+	 * 3.1.0 (test log I-35): in the answer of the validation only, the codes of the items without a supply price for
+	 * the store (their supply invoice, and so the store's cost, cannot be made); a warning, the BL is sent. Else null.
+	 */
+	private List<String> missingSupplyPrices;
 
 	@Data
 	@NoArgsConstructor

@@ -255,10 +255,12 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 		// Without stock (headoffice.stock.enabled=false): no check, ALLOW_NEGATIVE_STOCK is not read
 		boolean checkStock = keepsStock && !stock.isNegativeStockAllowed();
 		List<String> shortages = new ArrayList<>();
+		List<Item> lineItems = new ArrayList<>();
 		for (HoDeliveryLine line : delivery.getLines()) {
 			Item item = items.findById(line.getItemId()).orElseThrow(() -> new IllegalArgumentException(
 					"Line " + line.getLineNo() + ": the item " + line.getItemCode() + " no longer exists."));
 			checkDeliverable(line.getLineNo(), item);
+			lineItems.add(item);
 			BigDecimal inStock = stockOf(item);
 			if (checkStock && inStock.compareTo(line.getQuantitySent()) < 0) {
 				shortages.add(shortage(item.getItemCode(), inStock, line.getQuantitySent()));
@@ -288,7 +290,18 @@ public class HoDeliveryService implements DownDomainProvider, SupplyConfirmation
 		feed.get().recordChange(DataDomain.SUPPLY, DeliveryCopyDTO.recordCode(number),
 				StoreTargets.of(Collections.singletonList(saved.getStoreId())));
 		log.info("Head office BL {} sent to store {}: {} lines", number, store.getCode(), saved.getLines().size());
-		return Optional.of(view(saved, store, true, false)); // the stock was changed by native updates: GET /{id} reads it
+		DeliveryDTO sent = view(saved, store, true, false); // the stock was changed by native updates: GET /{id} reads it
+		// 3.1.0 (test log I-35): sent anyway; the page warns about the items its supply invoice could not price
+		HoSupplyInvoiceService invoiceService = invoices.get();
+		if (invoiceService != null) {
+			List<String> missing = invoiceService.missingSupplyPrices(store, lineItems);
+			sent.setMissingSupplyPrices(missing);
+			if (!missing.isEmpty()) {
+				log.warn("Head office BL {} sent to store {} with {} item(s) without a supply price: {}", number,
+						store.getCode(), missing.size(), String.join(", ", missing));
+			}
+		}
+		return Optional.of(sent);
 	}
 
 	/** The head office stock of the item, null as 0 (2.2.1: with its decimals). */
