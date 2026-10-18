@@ -1,6 +1,7 @@
 package com.digithink.zsretail.core.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -48,12 +49,17 @@ class ZZDataInitializerUsersTest {
 
 		List<UserAccount> saved = new ArrayList<>();
 		UserAccountRepository users = stub(UserAccountRepository.class, (method, args) -> {
+			if ("findByBadgeCode".equals(method)) {
+				return Optional.empty(); // step S: the responsible's generated badge code is free
+			}
 			if (!"save".equals(method)) {
 				return UNHANDLED;
 			}
 			saved.add((UserAccount) args[0]);
 			return args[0];
 		});
+		BadgeService badgeService = new BadgeService();
+		inject(badgeService, BadgeService.class, "userAccountRepository", users);
 		AppRoleRepository roles = stub(AppRoleRepository.class, (method, args) -> "findByName".equals(method)
 				? Optional.of(new AppRole((String) args[0], (String) args[0], "POS_USER".equals(args[0])))
 				: UNHANDLED);
@@ -71,6 +77,7 @@ class ZZDataInitializerUsersTest {
 
 		ZZDataInitializer initializer = new ZZDataInitializer();
 		inject(initializer, ZZDataInitializer.class, "userRepository", users);
+		inject(initializer, ZZDataInitializer.class, "badgeService", badgeService);
 		inject(initializer, ZZDataInitializer.class, "appRoleRepository", roles);
 		inject(initializer, ZZDataInitializer.class, "passwordEncoder", encoder);
 		inject(initializer, ZZDataInitializer.class, "applicationModeService", mode);
@@ -102,6 +109,8 @@ class ZZDataInitializerUsersTest {
 			List<UserAccount> saved = seedUsers(new MockEnvironment(), flags[0]);
 			assertEquals(Arrays.asList("admin/ADMIN/ADMIN", "responsible/RESPONSIBLE/RESPONSIBLE",
 					"cashier/POS_USER/POS_USER"), usernames(saved));
+			// step S: a generated badge code, no longer the fixed RESP-BADGE-001
+			assertTrue(saved.get(1).getBadgeCode().matches("RESPONSIBL-\\d{4}"), saved.get(1).getBadgeCode());
 		}
 	}
 

@@ -1,10 +1,10 @@
 package com.digithink.zsretail.core.service;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Optional;
-import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -30,6 +30,9 @@ public class BadgeService {
 
 	/** Step S (3.1.0): the failure reason of a scan of a deactivated user's badge. */
 	public static final String BADGE_OWNER_INACTIVE = "BADGE_OWNER_INACTIVE";
+
+	/** Step S (3.1.0): the random part of a generated badge code (was java.util.Random, predictable). */
+	private static final SecureRandom RANDOM = new SecureRandom();
 
 	@Autowired
 	private UserAccountRepository userAccountRepository;
@@ -170,13 +173,12 @@ public class BadgeService {
 			prefix = prefix.substring(0, 10);
 		}
 		
-		Random random = new Random();
 		String badgeCode;
 		boolean exists = true;
 		int attempts = 0;
 		
 		do {
-			int randomNum = 1000 + random.nextInt(9000); // 4-digit random number
+			int randomNum = 1000 + RANDOM.nextInt(9000); // 4-digit random number (step S: SecureRandom)
 			badgeCode = prefix + "-" + randomNum;
 			exists = userAccountRepository.findByBadgeCode(badgeCode).isPresent();
 			attempts++;

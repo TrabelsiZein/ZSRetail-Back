@@ -33,6 +33,9 @@
 -- (store and head office, as the seed), only when no row of that type exists. A database that has it already (EMTOP
 -- since 1.12.1: active, with its ERP code as the code) keeps its row unchanged.
 --
+-- Security (step S): the filtered unique index ux_user_account_badge_code (one user per badge code), store and head
+-- office; skipped with a warning when two users already share a code. Re-runnable; no data changed.
+--
 -- The session options are set here (sqlcmd starts with QUOTED_IDENTIFIER OFF); SSMS has them on already.
 
 SET QUOTED_IDENTIFIER ON;
@@ -296,6 +299,24 @@ BEGIN
 		CREATE INDEX ix_ho_down_change_pull ON ho_down_change (domain, change_version, store_id, record_code);
 	IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_ho_down_change_version' AND object_id = OBJECT_ID(N'ho_down_change'))
 		DROP INDEX ix_ho_down_change_version ON ho_down_change;
+END
+GO
+
+-- Security (step S): one user per badge code (store and head office). Filtered (badge_code IS NOT NULL), so any number
+-- of users without a badge; UserBadgeCodeIndex creates the same index at the start of a new database (Hibernate cannot
+-- create a filtered one). Re-runnable; when two users already share a code nothing is created and a warning names the
+-- count: give one of them another code on the Users page, then run the script again (or restart: the application
+-- creates it). A later write to user_account from a session with QUOTED_IDENTIFIER OFF (sqlcmd's default) is refused:
+-- keep the SET lines at the top of every script.
+IF COL_LENGTH('user_account', 'badge_code') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ux_user_account_badge_code' AND object_id = OBJECT_ID(N'user_account'))
+BEGIN
+	DECLARE @sharedBadgeCodes int = (SELECT COUNT(*) FROM (SELECT badge_code FROM user_account WHERE badge_code IS NOT NULL
+		GROUP BY badge_code HAVING COUNT(*) > 1) shared);
+	IF @sharedBadgeCodes > 0
+		RAISERROR(N'3.1.0: %d badge code(s) held by more than one user: ux_user_account_badge_code not created.', 10, 1, @sharedBadgeCodes);
+	ELSE
+		CREATE UNIQUE INDEX ux_user_account_badge_code ON user_account (badge_code) WHERE badge_code IS NOT NULL;
 END
 GO
 

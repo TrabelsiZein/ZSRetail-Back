@@ -142,6 +142,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   in the rows nor in the statistics (`topBadges` removed), which give `failedScans` (the "Failed" card showed 0).
 - Security (step S): the badge of a deactivated user is refused: at a scan `BADGE_OWNER_INACTIVE` (logged like the
   other refusals), at the close with a cash difference as an unknown badge. It opened every action before.
+- Security (step S): badge codes are unique in the database (filtered index `ux_user_account_badge_code`, created by
+  the script, or at the start of a new database by `UserBadgeCodeIndex`); a generated code takes its 4 digits from
+  `SecureRandom` (was `java.util.Random`); a new database's responsible gets a generated badge code, logged once at the
+  first start, instead of the fixed `RESP-BADGE-001` written in the source.
 ### DB script (`db/3.1.0/update.sql`, store and head office)
 - RFID tables on a store: `rfid_reader` (with `min_signal`), `pos_machine`, `rfid_tag`, `rfid_sale_tag`.
 - Payment method "Retenue à la source", inactive (kept as it is where EMTOP 1.12.1 has it).
@@ -158,6 +162,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   head office; on a head office
   `ix_ho_down_change_pull` (`domain`, `change_version`, `store_id`, `record_code`) replaces `ix_ho_down_change_version`.
   Re-runnable, no data changed.
+- Security (step S): filtered unique index `ux_user_account_badge_code` (`user_account.badge_code`, not null), store
+  and head office; skipped with a warning when two users already share a code; re-runnable, no data changed.
 - `APP_VERSION` 3.1.0; release notes to complete when the version is closed (RFID is missing).
 
 ### Config

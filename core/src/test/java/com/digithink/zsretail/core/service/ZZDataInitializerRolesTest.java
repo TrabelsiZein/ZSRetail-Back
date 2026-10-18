@@ -178,11 +178,17 @@ class ZZDataInitializerRolesTest {
 				usernames.add(((com.digithink.zsretail.core.model.UserAccount) args[0]).getUsername());
 				return args[0];
 			}
+			if ("findByBadgeCode".equals(method)) {
+				return Optional.empty(); // step S: the responsible's generated badge code is free
+			}
 			return UNHANDLED;
 		});
+		BadgeService badgeService = new BadgeService();
+		inject(badgeService, BadgeService.class, "userAccountRepository", users);
 		ZZDataInitializer initializer = new ZZDataInitializer();
 		inject(initializer, ZZDataInitializer.class, "appRoleRepository", roleRepository);
 		inject(initializer, ZZDataInitializer.class, "userRepository", users);
+		inject(initializer, ZZDataInitializer.class, "badgeService", badgeService);
 		inject(initializer, ZZDataInitializer.class, "applicationModeService", mode);
 		inject(initializer, ZZDataInitializer.class, "passwordEncoder",
 				org.springframework.security.crypto.password.NoOpPasswordEncoder.getInstance());

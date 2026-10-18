@@ -46,6 +46,13 @@
   the permission); the close with a cash difference (`findUserByBadgeCode`) refuses it too ("Badge validation failed:
   BADGE_NOT_EXISTS", as an unknown badge). The till shows its generic "unexpected error" text for this reason until the
   front maps it. Test: `BadgeServiceInactiveOwnerTest`.
+- **Badge codes are unique** in the database: filtered unique index `ux_user_account_badge_code`
+  (`WHERE badge_code IS NOT NULL`), by `db/3.1.0/update.sql` and, on a new database, by `UserBadgeCodeIndex` at the
+  start (Hibernate cannot create a filtered index; `unique = true` on the column would refuse a second user without a
+  badge). `UserAccountAPI` still refuses a code taken, with its message. **Generated codes** keep their form (up to 10
+  letters of the username, "-", 4 digits) with the digits from `SecureRandom`. **A new database's responsible** gets a
+  generated code, logged once at the first start ("First start: the badge code of the user 'responsible' is ..."),
+  no longer `RESP-BADGE-001`.
 
 The sections below are the original implementation summary.
 

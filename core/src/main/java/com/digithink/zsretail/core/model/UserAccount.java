@@ -58,6 +58,9 @@ public class UserAccount extends _BaseEntity implements UserDetails {
 	private AppRole appRole;
 
 	// Badge fields
+	// Step S (3.1.0): unique when not null, by the filtered index ux_user_account_badge_code (db/3.1.0/update.sql, and
+	// UserBadgeCodeIndex at the start of a new database); never unique = true here: Hibernate would create an unfiltered
+	// index, which refuses a second user without a badge
 	@Column(name = "badge_code", nullable = true)
 	private String badgeCode;
 

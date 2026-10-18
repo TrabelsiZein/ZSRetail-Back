@@ -43,11 +43,16 @@ import com.digithink.zsretail.core.repository.UserAccountRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 
+import lombok.extern.log4j.Log4j2;
+
 @Component
+@Log4j2
 public class ZZDataInitializer {
 
 	@Autowired
 	private UserAccountRepository userRepository;
+	@Autowired
+	private BadgeService badgeService;
 	@Autowired
 	private AppRoleRepository appRoleRepository;
 	@Autowired
@@ -409,7 +414,11 @@ public class ZZDataInitializer {
 		responsible.setActive(true);
 		responsible.setRole(Role.RESPONSIBLE);
 		responsible.setAppRole(responsibleRole);
-		responsible.setBadgeCode("RESP-BADGE-001");
+		// Step S (3.1.0): a generated code, no longer the fixed RESP-BADGE-001 written in this source; logged once here,
+		// at the first start (the only time initUsers runs), so the installer can print the badge or change it
+		responsible.setBadgeCode(badgeService.generateBadgeCode(responsible));
+		log.info("First start: the badge code of the user '{}' is {} (Users page: print it or change it)",
+				responsible.getUsername(), responsible.getBadgeCode());
 		responsible.setBadgePermissions("CONSULT_CUSTOMER_LIST,MAKE_RETURN,APPLY_LINE_DISCOUNT,APPLY_TOTAL_DISCOUNT");
 		responsible.setBadgeExpirationDate(LocalDateTime.now().plusYears(10));
 		responsible.setBadgeRevoked(false);
