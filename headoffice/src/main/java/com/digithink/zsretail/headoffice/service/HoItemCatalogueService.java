@@ -32,7 +32,9 @@ import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.ItemSectionRepository;
 import com.digithink.zsretail.core.service.NavItemService;
 import com.digithink.zsretail.headoffice.dto.ItemCatalogueCardDTO;
+import com.digithink.zsretail.headoffice.dto.ItemCatalogueFiltersDTO;
 import com.digithink.zsretail.headoffice.dto.ItemCatalogueLineDTO;
+import com.digithink.zsretail.headoffice.repository.HoItemCatalogueQuery;
 import com.digithink.zsretail.headoffice.repository.HoItemCatalogueRepository;
 import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
 import com.digithink.zsretail.headoffice.repository.HoStockPointRepository;
@@ -42,7 +44,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * Fiches items (3.1.0), step 1: the list of the head office page "Fiches items" (docs/modules/head-office.md), on every
  * head office: one line per NAV item number, else one per item, grouped and paged by the database
- * ({@link HoItemCatalogueRepository}). The stock is given only where the head office keeps its own; the point de stock
+ * ({@link HoItemCatalogueQuery}). The stock is given only where the head office keeps its own; the point de stock
  * counts read ho_stock_point_item (0 on a head office without points de stock).
  */
 @Service
@@ -62,6 +64,53 @@ public class HoItemCatalogueService {
 	private final ItemRepository itemRepository;
 	private final ItemBarcodeRepository barcodeRepository;
 	private final HoNavItemStockPoints pointPrices;
+	private final HoItemCatalogueQuery query;
+
+	/** The page's flags and filter choices, from the data (read once when the page opens). */
+	public ItemCatalogueFiltersDTO filters() {
+		ItemCatalogueFiltersDTO filters = new ItemCatalogueFiltersDTO();
+		Object[] flags = query.rows(HoItemCatalogueQuery.FLAGS).get(0);
+		filters.setHasVariants(flag(flags[0]));
+		filters.setHasFamilies(flag(flags[1]));
+		filters.setHasCategorySection(flag(flags[2]));
+		filters.setStockPointCount(flags[3] == null ? 0 : ((Number) flags[3]).longValue());
+		filters.setHasBarcodes(flag(flags[4]));
+		if (filters.isHasFamilies()) {
+			for (Object[] row : query.rows(HoItemCatalogueQuery.FAMILIES)) {
+				filters.getFamilies().add(new ItemCatalogueFiltersDTO.Option(id(row[0]), (String) row[1], (String) row[2], null));
+			}
+			for (Object[] row : query.rows(HoItemCatalogueQuery.SUB_FAMILIES)) {
+				filters.getSubFamilies()
+						.add(new ItemCatalogueFiltersDTO.Option(id(row[0]), (String) row[1], (String) row[2], id(row[3])));
+			}
+		}
+		if (filters.isHasCategorySection()) {
+			for (Object[] row : query.rows(HoItemCatalogueQuery.DIVISIONS)) {
+				filters.getDivisions().add(new ItemCatalogueFiltersDTO.Option(null, (String) row[0], null, null));
+			}
+			for (Object[] row : query.rows(HoItemCatalogueQuery.CATEGORIES)) {
+				filters.getCategories().add(new ItemCatalogueFiltersDTO.Option(null, (String) row[0], (String) row[1], null));
+			}
+			for (Object[] row : query.rows(HoItemCatalogueQuery.SECTIONS)) {
+				filters.getSections().add(new ItemCatalogueFiltersDTO.Option(null, (String) row[0], (String) row[1], null));
+			}
+		}
+		if (filters.getStockPointCount() > 0) {
+			for (Object[] row : query.rows(HoItemCatalogueQuery.STOCK_POINTS)) {
+				filters.getStockPoints()
+						.add(new ItemCatalogueFiltersDTO.Option(id(row[0]), (String) row[1], (String) row[2], null));
+			}
+		}
+		return filters;
+	}
+
+	private static boolean flag(Object value) {
+		return value != null && ((Number) value).intValue() == 1;
+	}
+
+	private static Long id(Object value) {
+		return value == null ? null : ((Number) value).longValue();
+	}
 
 	/** True when the lines carry the stock (the head office keeps its own). */
 	public boolean withStock() {
@@ -78,12 +127,17 @@ public class HoItemCatalogueService {
 	 * activeOnly: the active variants only (a line whose variants are all inactive is absent), else every variant.
 	 */
 	public Page<ItemCatalogueLineDTO> page(String search, boolean activeOnly, int page, int size) {
-		String like = NavItemService.likeOf(search);
-		int allStatuses = activeOnly ? 0 : 1;
+		HoItemCatalogueQuery.Criteria criteria = new HoItemCatalogueQuery.Criteria();
+		criteria.setLike(NavItemService.likeOf(search));
+		criteria.setActiveOnly(activeOnly);
+		return page(criteria, page, size);
+	}
+
+	/** One page of lines of the criteria (the search already as a like, see NavItemService.likeOf). */
+	public Page<ItemCatalogueLineDTO> page(HoItemCatalogueQuery.Criteria criteria, int page, int size) {
 		PageRequest paging = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_SIZE));
-		// The barcode search only in the query of a search, as Items by point de stock (2fe0b34)
-		Page<Object[]> found = like == null ? lines.findLines(allStatuses, paging)
-				: lines.findLinesSearched(like, allStatuses, paging);
+		// Only the filters set are in the statement (the barcode search only in a search's, 2fe0b34)
+		Page<Object[]> found = query.lines(criteria, paging);
 		boolean withStock = withStock();
 		List<ItemCatalogueLineDTO> content = found.getContent().stream().map(row -> line(row, withStock))
 				.collect(Collectors.toList());
@@ -249,34 +303,42 @@ public class HoItemCatalogueService {
 	}
 
 	/**
-	 * One row of {@link HoItemCatalogueRepository#SELECT} as a line, read by the repository's column constants (the order
-	 * of its aliases, {@link HoItemCatalogueRepository#LINE_COLUMNS}); public for the query test.
+	 * One row of {@link HoItemCatalogueQuery#SELECT} as a line, read by the column constants (the order
+	 * of its aliases, {@link HoItemCatalogueQuery#LINE_COLUMNS}); public for the query test.
 	 */
 	public static ItemCatalogueLineDTO line(Object[] row, boolean withStock) {
 		ItemCatalogueLineDTO line = new ItemCatalogueLineDTO();
-		String navItemNo = (String) row[HoItemCatalogueRepository.COL_NAV_ITEM_NO];
+		String navItemNo = (String) row[HoItemCatalogueQuery.COL_NAV_ITEM_NO];
 		line.setNavItemNo(navItemNo);
 		line.setSingle(navItemNo == null);
 		if (navItemNo == null) {
-			line.setItemId(((Number) row[HoItemCatalogueRepository.COL_ITEM_ID]).longValue());
-			line.setCode((String) row[HoItemCatalogueRepository.COL_ITEM_CODE]);
+			line.setItemId(((Number) row[HoItemCatalogueQuery.COL_ITEM_ID]).longValue());
+			line.setCode((String) row[HoItemCatalogueQuery.COL_ITEM_CODE]);
 		} else {
 			line.setCode(navItemNo);
 		}
-		line.setName((String) row[HoItemCatalogueRepository.COL_ITEM_NAME]);
-		line.setFamilyName((String) row[HoItemCatalogueRepository.COL_FAMILY_NAME]);
-		line.setSubFamilyName((String) row[HoItemCatalogueRepository.COL_SUB_FAMILY_NAME]);
-		line.setCategoryCode((String) row[HoItemCatalogueRepository.COL_CATEGORY_CODE]);
-		line.setSectionCode((String) row[HoItemCatalogueRepository.COL_SECTION_CODE]);
-		Object variants = row[HoItemCatalogueRepository.COL_VARIANT_COUNT];
+		line.setName((String) row[HoItemCatalogueQuery.COL_ITEM_NAME]);
+		line.setFamilyName((String) row[HoItemCatalogueQuery.COL_FAMILY_NAME]);
+		line.setSubFamilyName((String) row[HoItemCatalogueQuery.COL_SUB_FAMILY_NAME]);
+		line.setCategoryCode((String) row[HoItemCatalogueQuery.COL_CATEGORY_CODE]);
+		line.setSectionCode((String) row[HoItemCatalogueQuery.COL_SECTION_CODE]);
+		Object variants = row[HoItemCatalogueQuery.COL_VARIANT_COUNT];
 		line.setVariants(variants == null ? 0 : ((Number) variants).longValue());
-		Object anyActive = row[HoItemCatalogueRepository.COL_ANY_ACTIVE];
+		Object anyActive = row[HoItemCatalogueQuery.COL_ANY_ACTIVE];
 		line.setActive(anyActive != null && ((Number) anyActive).intValue() == 1);
 		if (withStock) {
-			Object stock = row[HoItemCatalogueRepository.COL_STOCK_QUANTITY];
+			Object stock = row[HoItemCatalogueQuery.COL_STOCK_QUANTITY];
 			line.setStockQuantity(stock == null ? BigDecimal.ZERO : new BigDecimal(stock.toString()));
 		}
+		line.setPriceMin(price(row[HoItemCatalogueQuery.COL_PRICE_MIN]));
+		line.setPriceMax(price(row[HoItemCatalogueQuery.COL_PRICE_MAX]));
 		return line;
+	}
+
+	/** A price with VAT, to the third decimal (the SQL product of a float and a decimal); null stays null. */
+	private static Double price(Object value) {
+		return value == null ? null
+				: new BigDecimal(value.toString()).setScale(3, java.math.RoundingMode.HALF_UP).doubleValue();
 	}
 
 	/** The catégorie and section names of the page's codes, one read each. */

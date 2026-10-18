@@ -203,7 +203,7 @@ class ItemCatalogueCardTest {
 					repositories.getRepository(ItemCategoryRepository.class),
 					repositories.getRepository(ItemSectionRepository.class), TestModes.standalone(),
 					repositories.getRepository(ItemRepository.class),
-					repositories.getRepository(ItemBarcodeRepository.class), new HoNavItemStockPoints(rows, points));
+					repositories.getRepository(ItemBarcodeRepository.class), new HoNavItemStockPoints(rows, points), null);
 			return work.apply(service);
 		}
 	}

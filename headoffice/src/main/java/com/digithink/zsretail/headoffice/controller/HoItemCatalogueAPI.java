@@ -12,7 +12,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.digithink.zsretail.core.service.NavItemService;
+import com.digithink.zsretail.headoffice.dto.ItemCatalogueFiltersDTO;
 import com.digithink.zsretail.headoffice.dto.ItemCatalogueLineDTO;
+import com.digithink.zsretail.headoffice.repository.HoItemCatalogueQuery;
 import com.digithink.zsretail.headoffice.service.HoItemCatalogueService;
 
 import lombok.RequiredArgsConstructor;
@@ -30,15 +33,43 @@ public class HoItemCatalogueAPI {
 	private final HoItemCatalogueService service;
 
 	/**
-	 * GET /admin/headoffice/item-catalogue?page&size&search&status: {content, page, size, totalElements, totalPages,
-	 * withStock, withStockPoints}. status: ACTIVE (the default: the active variants only) or ALL.
+	 * GET /admin/headoffice/item-catalogue?page&size&search&status&familyId&subFamilyId&divisionCode&categoryCode
+	 * &sectionCode&stockPointId&variants&priceMin&priceMax&sort&dir: {content, page, size, totalElements, totalPages,
+	 * withStock, withStockPoints}. status: ACTIVE (the default: the active variants only) or ALL; variants: ALL (default),
+	 * YES (2 variants or more of the status), NO; priceMin / priceMax: the item's own price with VAT; sort: code (default,
+	 * natural for the codes of digits only), name, family; dir: asc (default) or desc. Every filter optional.
 	 */
 	@GetMapping
 	public ResponseEntity<Map<String, Object>> page(@RequestParam(name = "page", defaultValue = "0") int page,
 			@RequestParam(name = "size", defaultValue = "20") int size,
 			@RequestParam(name = "search", required = false) String search,
-			@RequestParam(name = "status", required = false) String status) {
-		Page<ItemCatalogueLineDTO> lines = service.page(search, activeOnly(status), page, size);
+			@RequestParam(name = "status", required = false) String status,
+			@RequestParam(name = "familyId", required = false) Long familyId,
+			@RequestParam(name = "subFamilyId", required = false) Long subFamilyId,
+			@RequestParam(name = "divisionCode", required = false) String divisionCode,
+			@RequestParam(name = "categoryCode", required = false) String categoryCode,
+			@RequestParam(name = "sectionCode", required = false) String sectionCode,
+			@RequestParam(name = "stockPointId", required = false) Long stockPointId,
+			@RequestParam(name = "variants", required = false) String variants,
+			@RequestParam(name = "priceMin", required = false) Double priceMin,
+			@RequestParam(name = "priceMax", required = false) Double priceMax,
+			@RequestParam(name = "sort", required = false) String sort,
+			@RequestParam(name = "dir", required = false) String dir) {
+		HoItemCatalogueQuery.Criteria criteria = new HoItemCatalogueQuery.Criteria();
+		criteria.setLike(NavItemService.likeOf(search));
+		criteria.setActiveOnly(activeOnly(status));
+		criteria.setFamilyId(familyId);
+		criteria.setSubFamilyId(subFamilyId);
+		criteria.setDivisionCode(divisionCode);
+		criteria.setCategoryCode(categoryCode);
+		criteria.setSectionCode(sectionCode);
+		criteria.setStockPointId(stockPointId);
+		criteria.setVariants(variants);
+		criteria.setPriceMin(priceMin);
+		criteria.setPriceMax(priceMax);
+		criteria.setSort(sort);
+		criteria.setDescending("desc".equalsIgnoreCase(dir == null ? null : dir.trim()));
+		Page<ItemCatalogueLineDTO> lines = service.page(criteria, page, size);
 		Map<String, Object> response = new LinkedHashMap<>();
 		response.put("content", lines.getContent());
 		response.put("page", lines.getNumber());
@@ -48,6 +79,15 @@ public class HoItemCatalogueAPI {
 		response.put("withStock", service.withStock());
 		response.put("withStockPoints", service.withStockPoints());
 		return ResponseEntity.ok(response);
+	}
+
+	/**
+	 * GET /admin/headoffice/item-catalogue/filters: the page's flags (hasVariants, hasFamilies, hasCategorySection,
+	 * stockPointCount, hasBarcodes) and filter choices, from the data; read once when the page opens.
+	 */
+	@GetMapping("filters")
+	public ResponseEntity<ItemCatalogueFiltersDTO> filters() {
+		return ResponseEntity.ok(service.filters());
 	}
 
 	/**

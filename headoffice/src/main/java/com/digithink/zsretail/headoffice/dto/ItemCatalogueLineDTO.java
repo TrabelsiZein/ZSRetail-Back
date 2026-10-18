@@ -50,4 +50,9 @@ public class ItemCatalogueLineDTO {
 
 	/** True when the line is one item (no NAV number): the page offers its actions on the line. */
 	private boolean single;
+
+	/** The smallest and largest of its items' own prices with VAT (the variants of the status); null without price. */
+	private Double priceMin;
+
+	private Double priceMax;
 }

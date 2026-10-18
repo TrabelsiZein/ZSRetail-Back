@@ -1839,6 +1839,31 @@ core class touched).
   0.25 s for its count, whatever it matches (a barcode, a name, 665 lines, none); no search 70 ms and 40 ms.
 - **Points de stock**: by NAV number through `HoStockPointItemRepository.countActivePointsOfNavItems` (the ERP items
   page's query, unchanged), by item id for the single items (`HoItemCatalogueRepository.ITEM_POINT_COUNTS`).
+- **The page follows the customer's data** (2026-10-18, after the tests on ZEN and Happyness), no configuration:
+  `GET /admin/headoffice/item-catalogue/filters` (read once when the page opens) answers the flags `hasVariants` (a NAV
+  number has 2 items or more), `hasFamilies`, `hasCategorySection` (a division, catégorie or section), `stockPointCount`,
+  `hasBarcodes`, and the filter choices (families and sub-families that have an item, the division codes of the items,
+  catégories and sections with their names, the points de stock in list order). The list's Variants, Family /
+  Sub-family, Category / Section and Points de stock (more than one) columns and filters show only with their flag; the
+  search placeholder names the NAV number and the barcode only where they exist.
+- **List filters and sort** (`HoItemCatalogueQuery`, native SQL built with only the filters set; the two fixed list
+  queries of `HoItemCatalogueRepository` are gone): `familyId`, `subFamilyId`, `divisionCode`, `categoryCode`,
+  `sectionCode`, `stockPointId` (an active row there), `variants=ALL|YES|NO` (2 variants or more of the status),
+  `priceMin` / `priceMax` (the item's own price with VAT, `unit_price × (1 + defaultvat / 100)`), `sort=code|name|family`,
+  `dir=asc|desc`. The filters on the items keep whole lines (a NAV item shows when one variant of the status matches and
+  counts every variant of the status): two derived tables joined, kn (NAV numbers) and ki (items without one); written
+  in the outer WHERE beside "kn.nav IS NOT NULL OR", a point de stock filter took 2.3 s instead of 0.2 s on Happyness.
+  A line gains `priceMin` / `priceMax` (with VAT, the variants of the status). The page sends status All by default
+  (the API's default stays Active).
+- **Natural code sort**: the codes of digits only first, by their number (`000002` before `0000016`), then the others
+  as text, then the smallest item id; written `code COLLATE Latin1_General_BIN NOT LIKE '%[^0-9]%'` (every SQL Server
+  version; 2 to 3 times cheaper than a REPLACE chain under the database's collation: 0.4 to 1.0 s of CPU against 1.5 to
+  2.7 s for Happyness's 40,839 lines). The H2 tests run a portable form (REPLACE of the ten digits). Name and Family
+  sorts then sort by code; lines without a family last.
+- **Measured** (2026-10-18, dev SQL Server 2019 starved of memory, page life expectancy 72 s; page / count, warm):
+  Happyness `zs_test_happy_ho_new` (40,839 lines, no NAV number, families, 2 points): no filter 0.32-0.44 s / 0.05 s for
+  every sort; family 0.29 s / 0.08 s; price range 0.57-0.60 s / 0.13-0.16 s; point de stock 0.14-0.20 s / 0.05-0.11 s;
+  search 0.9-1.8 s / 0.8-1.3 s. ZEN `zen_headoffice` (2,385 lines): at most 0.41 s for a page and its count.
 - **Step 2, the item card (back end)**: `GET /admin/headoffice/item-catalogue/card?navItemNo=…|itemId=…[&search=…]`
   (`HoItemCatalogueAPI.card`, `HoItemCatalogueService.card`, `ItemCatalogueCardDTO`), one answer for the popup. Exactly
   one key (a blank `navItemNo` counts as absent), else 400 `{"error"}`; 404 `{"error":"Not found"}` when nothing is

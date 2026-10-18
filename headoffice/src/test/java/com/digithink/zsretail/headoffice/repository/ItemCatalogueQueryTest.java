@@ -34,6 +34,8 @@ import org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy;
 
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ItemBarcode;
+import com.digithink.zsretail.core.model.ItemCategory;
+import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.ItemFamily;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.service.NavItemService;
@@ -44,7 +46,7 @@ import com.digithink.zsretail.headoffice.service.HoItemCatalogueService;
 
 /**
  * Fiches items (3.1.0), step 1: the native queries of the head office page "Fiches items"
- * (HoItemCatalogueRepository.LINES, LINES_COUNT, LINES_SEARCHED, LINES_SEARCHED_COUNT) and its point count by item
+ * (HoItemCatalogueQuery.build: the lines and their count, plain and searched; the flags and filter choices) and its point count by item
  * (ITEM_POINT_COUNTS), run as they are with Hibernate over an in-memory H2 database (no Spring context), with the table
  * and column names of the applications (Spring's naming strategies).
  * <p>
@@ -64,6 +66,7 @@ class ItemCatalogueQueryTest {
 		configuration.setImplicitNamingStrategy(new SpringImplicitNamingStrategy());
 		sessions = configuration.addAnnotatedClass(ItemFamily.class).addAnnotatedClass(ItemSubFamily.class)
 				.addAnnotatedClass(Item.class).addAnnotatedClass(ItemBarcode.class).addAnnotatedClass(HoStockPoint.class)
+				.addAnnotatedClass(ItemCategory.class).addAnnotatedClass(ItemSection.class)
 				.addAnnotatedClass(HoStockPointItem.class)
 				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", "jdbc:h2:mem:itemcatalogue;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
@@ -142,15 +145,18 @@ class ItemCatalogueQueryTest {
 	}
 
 	/** The lines as the service builds them (with the stock). search: as typed, blank for none. */
+	private static HoItemCatalogueQuery.Criteria criteria(String search, boolean all) {
+		HoItemCatalogueQuery.Criteria criteria = new HoItemCatalogueQuery.Criteria();
+		criteria.setLike(NavItemService.likeOf(search));
+		criteria.setActiveOnly(!all);
+		return criteria;
+	}
+
 	private static List<ItemCatalogueLineDTO> lines(String search, boolean all, int first, int max) {
-		String like = NavItemService.likeOf(search);
+		HoItemCatalogueQuery.Built built = HoItemCatalogueQuery.build(criteria(search, all), true);
 		try (Session session = sessions.openSession()) {
-			NativeQuery<?> query = session.createNativeQuery(
-					like == null ? HoItemCatalogueRepository.LINES : HoItemCatalogueRepository.LINES_SEARCHED);
-			query.setParameter("allStatuses", all ? 1 : 0);
-			if (like != null) {
-				query.setParameter("search", like);
-			}
+			NativeQuery<?> query = session.createNativeQuery(built.getLines());
+			built.getParameters().forEach(query::setParameter);
 			return query.setFirstResult(first).setMaxResults(max).list().stream()
 					.map(row -> HoItemCatalogueService.line((Object[]) row, true)).collect(Collectors.toList());
 		}
@@ -161,14 +167,10 @@ class ItemCatalogueQueryTest {
 	}
 
 	private static long count(String search, boolean all) {
-		String like = NavItemService.likeOf(search);
+		HoItemCatalogueQuery.Built built = HoItemCatalogueQuery.build(criteria(search, all), true);
 		try (Session session = sessions.openSession()) {
-			NativeQuery<?> query = session.createNativeQuery(like == null ? HoItemCatalogueRepository.LINES_COUNT
-					: HoItemCatalogueRepository.LINES_SEARCHED_COUNT);
-			query.setParameter("allStatuses", all ? 1 : 0);
-			if (like != null) {
-				query.setParameter("search", like);
-			}
+			NativeQuery<?> query = session.createNativeQuery(built.getCount());
+			built.getParameters().forEach(query::setParameter);
 			return ((Number) query.uniqueResult()).longValue();
 		}
 	}
@@ -261,16 +263,21 @@ class ItemCatalogueQueryTest {
 		assertEquals(3, lines("70061~l", true).get(0).getVariants());
 	}
 
+	/** The result column labels of a statement without parameters. */
+	static List<String> columnLabels(SessionFactory sessions, String sql) {
+		return columnLabels(sessions, sql, java.util.Collections.emptyMap());
+	}
+
 	/**
-	 * The result column labels of a native query, run over JDBC (its named parameters bound in order: allStatuses 1,
-	 * search '%a%'). Lower case: H2 gives the aliases in upper case.
+	 * The result column labels of a native query, run over JDBC (its named parameters bound by name, in order of
+	 * appearance). Lower case: H2 gives the aliases in upper case.
 	 */
-	private static List<String> columnLabels(String sql) {
+	static List<String> columnLabels(SessionFactory sessions, String sql, Map<String, Object> parameters) {
 		List<Object> values = new ArrayList<>();
-		Matcher parameter = Pattern.compile(":(allStatuses|search)\\b").matcher(sql);
+		Matcher parameter = Pattern.compile(":([A-Za-z]+)\\b").matcher(sql);
 		StringBuffer jdbc = new StringBuffer();
 		while (parameter.find()) {
-			values.add("allStatuses".equals(parameter.group(1)) ? (Object) 1 : "%a%");
+			values.add(parameters.get(parameter.group(1)));
 			parameter.appendReplacement(jdbc, "?");
 		}
 		parameter.appendTail(jdbc);
@@ -296,26 +303,47 @@ class ItemCatalogueQueryTest {
 	@Test
 	@DisplayName("Every column of the native queries has its own alias: SQL Server names an aggregate without one \"\"")
 	void columnAliases() {
-		assertEquals(HoItemCatalogueRepository.LINE_COLUMNS, columnLabels(HoItemCatalogueRepository.LINES));
-		assertEquals(HoItemCatalogueRepository.LINE_COLUMNS, columnLabels(HoItemCatalogueRepository.LINES_SEARCHED));
-		assertEquals(Arrays.asList(HoItemCatalogueRepository.COUNT_COLUMN),
-				columnLabels(HoItemCatalogueRepository.LINES_COUNT));
-		assertEquals(Arrays.asList(HoItemCatalogueRepository.COUNT_COLUMN),
-				columnLabels(HoItemCatalogueRepository.LINES_SEARCHED_COUNT));
-		List<String> columns = HoItemCatalogueRepository.LINE_COLUMNS;
+		HoItemCatalogueQuery.Criteria every = criteria("a", true);
+		every.setFamilyId(1L);
+		every.setSubFamilyId(1L);
+		every.setDivisionCode("D");
+		every.setCategoryCode("C");
+		every.setSectionCode("S");
+		every.setStockPointId(1L);
+		every.setVariants("YES");
+		every.setPriceMin(1.0);
+		every.setPriceMax(9.0);
+		every.setSort("family");
+		for (HoItemCatalogueQuery.Criteria criteria : Arrays.asList(criteria(null, true), criteria("a", false), every)) {
+			HoItemCatalogueQuery.Built built = HoItemCatalogueQuery.build(criteria, true);
+			assertEquals(HoItemCatalogueQuery.LINE_COLUMNS, columnLabels(sessions, built.getLines(), built.getParameters()));
+			assertEquals(Arrays.asList(HoItemCatalogueQuery.COUNT_COLUMN),
+					columnLabels(sessions, built.getCount(), built.getParameters()));
+		}
+		assertEquals(Arrays.asList("has_variants", "has_families", "has_category_section", "stock_point_count", "has_barcodes"),
+				columnLabels(sessions, HoItemCatalogueQuery.FLAGS));
+		assertEquals(Arrays.asList("id", "code", "name"), columnLabels(sessions, HoItemCatalogueQuery.FAMILIES));
+		assertEquals(Arrays.asList("id", "code", "name", "family_id"), columnLabels(sessions, HoItemCatalogueQuery.SUB_FAMILIES));
+		assertEquals(Arrays.asList("code"), columnLabels(sessions, HoItemCatalogueQuery.DIVISIONS));
+		assertEquals(Arrays.asList("code", "name"), columnLabels(sessions, HoItemCatalogueQuery.CATEGORIES));
+		assertEquals(Arrays.asList("code", "name"), columnLabels(sessions, HoItemCatalogueQuery.SECTIONS));
+		assertEquals(Arrays.asList("id", "code", "name"), columnLabels(sessions, HoItemCatalogueQuery.STOCK_POINTS));
+		List<String> columns = HoItemCatalogueQuery.LINE_COLUMNS;
 		assertEquals(columns.size(), new HashSet<>(columns).size(), "unique aliases");
 		columns.forEach(column -> assertFalse(column.trim().isEmpty(), "no empty alias"));
-		assertEquals("nav_item_no", columns.get(HoItemCatalogueRepository.COL_NAV_ITEM_NO));
-		assertEquals("item_id", columns.get(HoItemCatalogueRepository.COL_ITEM_ID));
-		assertEquals("item_code", columns.get(HoItemCatalogueRepository.COL_ITEM_CODE));
-		assertEquals("item_name", columns.get(HoItemCatalogueRepository.COL_ITEM_NAME));
-		assertEquals("family_name", columns.get(HoItemCatalogueRepository.COL_FAMILY_NAME));
-		assertEquals("sub_family_name", columns.get(HoItemCatalogueRepository.COL_SUB_FAMILY_NAME));
-		assertEquals("category_code", columns.get(HoItemCatalogueRepository.COL_CATEGORY_CODE));
-		assertEquals("section_code", columns.get(HoItemCatalogueRepository.COL_SECTION_CODE));
-		assertEquals("variant_count", columns.get(HoItemCatalogueRepository.COL_VARIANT_COUNT));
-		assertEquals("any_active", columns.get(HoItemCatalogueRepository.COL_ANY_ACTIVE));
-		assertEquals("stock_quantity", columns.get(HoItemCatalogueRepository.COL_STOCK_QUANTITY));
+		assertEquals("nav_item_no", columns.get(HoItemCatalogueQuery.COL_NAV_ITEM_NO));
+		assertEquals("item_id", columns.get(HoItemCatalogueQuery.COL_ITEM_ID));
+		assertEquals("item_code", columns.get(HoItemCatalogueQuery.COL_ITEM_CODE));
+		assertEquals("item_name", columns.get(HoItemCatalogueQuery.COL_ITEM_NAME));
+		assertEquals("family_name", columns.get(HoItemCatalogueQuery.COL_FAMILY_NAME));
+		assertEquals("sub_family_name", columns.get(HoItemCatalogueQuery.COL_SUB_FAMILY_NAME));
+		assertEquals("category_code", columns.get(HoItemCatalogueQuery.COL_CATEGORY_CODE));
+		assertEquals("section_code", columns.get(HoItemCatalogueQuery.COL_SECTION_CODE));
+		assertEquals("variant_count", columns.get(HoItemCatalogueQuery.COL_VARIANT_COUNT));
+		assertEquals("any_active", columns.get(HoItemCatalogueQuery.COL_ANY_ACTIVE));
+		assertEquals("stock_quantity", columns.get(HoItemCatalogueQuery.COL_STOCK_QUANTITY));
+		assertEquals("price_min", columns.get(HoItemCatalogueQuery.COL_PRICE_MIN));
+		assertEquals("price_max", columns.get(HoItemCatalogueQuery.COL_PRICE_MAX));
 	}
 
 	@Test
