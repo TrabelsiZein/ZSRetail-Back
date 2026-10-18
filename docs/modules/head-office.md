@@ -1836,8 +1836,35 @@ core class touched).
   0.25 s for its count, whatever it matches (a barcode, a name, 665 lines, none); no search 70 ms and 40 ms.
 - **Points de stock**: by NAV number through `HoStockPointItemRepository.countActivePointsOfNavItems` (the ERP items
   page's query, unchanged), by item id for the single items (`HoItemCatalogueRepository.ITEM_POINT_COUNTS`).
+- **Step 2, the item card (back end)**: `GET /admin/headoffice/item-catalogue/card?navItemNo=…|itemId=…[&search=…]`
+  (`HoItemCatalogueAPI.card`, `HoItemCatalogueService.card`, `ItemCatalogueCardDTO`), one answer for the popup. Exactly
+  one key (a blank `navItemNo` counts as absent), else 400 `{"error"}`; 404 `{"error":"Not found"}` when nothing is
+  found. `itemId` of an item that has a NAV number answers its NAV item's card (a card is always a line of the list).
+  - `header`: `navItemNo` or `itemId`, `code`, `name`, `active`, `single`, family, sub-family, catégorie and section
+    (code and name) with the list's rules (the smallest value; active when one variant is), `variantsCount` (every
+    variant), `withStock`, `withStockPoints`.
+  - `variants`: every variant, active or not, in the ERP items page's order (`ItemRepository.findNavItemVariants`:
+    size order, none last, colour, choice, code): `itemId`, `itemCode`, variant code and description, size, colour and
+    choice (code and description), `seasonCode`, `divisionCode`, `active`, `type`, `isPackage` (type `PACKAGE`, as the
+    pack configuration reads it), `defaultVAT`, `unitPrice` (before VAT), `stockQuantity` (only with `withStock`),
+    `barcodes` `[{barcode, isPrimary, description}]` (the active ones, by value, one IN query for all the variants),
+    `highlighted`, `prices` (point id → the ERP items page's `PointPrice`: `unitPrice`, `active`, `clearance`,
+    `clearancePrice`, `clearanceApplies`, `sellingPrice`).
+  - `stockPoints` `[{id, code, name}]`: the points with a row of one of the variants, in list order
+    (`HoNavItemStockPoints.prices` / `points`, unchanged); with no point de stock, no point and no price.
+  - `details`: the item form's read-only fields (`description`, `unitOfMeasure`, `category`, `brand`, `itemDiscGroup`,
+    `maximumAuthorizedDiscount`, `costPrice`, `showInPos`, `imageUrl`, `origin`) of the highlighted variant, else the
+    first one, with its `itemId`.
+  - Highlight: the first variant (in the order) whose item code, legacy barcode or an active barcode equals the search
+    (trimmed, any case); a "contains" match, the NAV number or an inactive barcode highlights nothing.
+  - Measured on `zen_headoffice`, NAV item 42ZTAPOH04 (90 variants, 1 point): the card's queries (variants by
+    `ix_item_nav_item_no`, families, barcodes and rows by item id, points) 64 ms cold, 0 to 12 ms warm, about 1,500
+    logical reads.
 - Tests: `ItemCatalogueQueryTest` (headoffice, H2 with Spring's naming strategies: grouping, status, paging and count,
-  barcode exact and contains, legacy barcode, an item code equal to a NAV number, point counts by item).
+  barcode exact and contains, legacy barcode, an item code equal to a NAV number, point counts by item);
+  `ItemCatalogueCardTest` (the card through the real repositories on H2: header, variants in order, barcodes per
+  variant, points and rows with an inactive row and a clearance, highlight exact and contains, single item, the API's
+  400 and 404, no point de stock).
 
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter

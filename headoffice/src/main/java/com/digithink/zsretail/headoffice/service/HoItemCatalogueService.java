@@ -1,11 +1,16 @@
 package com.digithink.zsretail.headoffice.service;
 
 import java.math.BigDecimal;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
@@ -15,11 +20,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.dto.NavItemVariantsDTO;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemBarcode;
 import com.digithink.zsretail.core.model.ItemCategory;
 import com.digithink.zsretail.core.model.ItemSection;
+import com.digithink.zsretail.core.model.enumeration.ItemType;
+import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
 import com.digithink.zsretail.core.repository.ItemCategoryRepository;
+import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.ItemSectionRepository;
 import com.digithink.zsretail.core.service.NavItemService;
+import com.digithink.zsretail.headoffice.dto.ItemCatalogueCardDTO;
 import com.digithink.zsretail.headoffice.dto.ItemCatalogueLineDTO;
 import com.digithink.zsretail.headoffice.repository.HoItemCatalogueRepository;
 import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
@@ -47,6 +59,9 @@ public class HoItemCatalogueService {
 	private final ItemCategoryRepository categoryRepository;
 	private final ItemSectionRepository sectionRepository;
 	private final ApplicationModeService mode;
+	private final ItemRepository itemRepository;
+	private final ItemBarcodeRepository barcodeRepository;
+	private final HoNavItemStockPoints pointPrices;
 
 	/** True when the lines carry the stock (the head office keeps its own). */
 	public boolean withStock() {
@@ -75,6 +90,162 @@ public class HoItemCatalogueService {
 		names(content);
 		pointCounts(content);
 		return new PageImpl<>(content, found.getPageable(), found.getTotalElements());
+	}
+
+	/**
+	 * Step 2: the card of one line, every variant active or not. Exactly one key: navItemNo (blank counts as absent), or
+	 * itemId (an item with a NAV number gives its NAV item's card); else IllegalArgumentException. Empty when nothing is
+	 * found. search: the variant whose item code, legacy barcode or an active barcode equals it (trimmed, any case) is
+	 * highlighted, the first one in the order; a "contains" match highlights nothing.
+	 */
+	public Optional<ItemCatalogueCardDTO> card(String navItemNo, Long itemId, String search) {
+		boolean byNavItemNo = navItemNo != null && !navItemNo.trim().isEmpty();
+		if (byNavItemNo == (itemId != null)) {
+			throw new IllegalArgumentException("Give exactly one of navItemNo and itemId.");
+		}
+		List<Item> items;
+		if (byNavItemNo) {
+			items = itemRepository.findNavItemVariants(navItemNo.trim(), null);
+		} else {
+			Optional<Item> item = itemRepository.findById(itemId);
+			if (!item.isPresent()) {
+				return Optional.empty();
+			}
+			items = item.get().getNavItemNo() == null ? Collections.singletonList(item.get())
+					: itemRepository.findNavItemVariants(item.get().getNavItemNo(), null);
+		}
+		if (items.isEmpty()) {
+			return Optional.empty();
+		}
+		ItemCatalogueCardDTO card = new ItemCatalogueCardDTO();
+		boolean withStock = withStock();
+		boolean withStockPoints = withStockPoints();
+		header(card.getHeader(), items, withStock, withStockPoints);
+		List<Long> ids = items.stream().map(Item::getId).collect(Collectors.toList());
+		Map<Long, List<ItemBarcode>> barcodes = barcodeRepository.findByItemIdInAndActiveTrue(ids).stream()
+				.collect(Collectors.groupingBy(barcode -> barcode.getItem().getId()));
+		String exact = search == null || search.trim().isEmpty() ? null : search.trim();
+		Item highlighted = null;
+		for (Item item : items) {
+			ItemCatalogueCardDTO.Variant variant = variant(item, withStock,
+					barcodes.getOrDefault(item.getId(), Collections.emptyList()));
+			if (highlighted == null && exact != null && matches(variant, item, exact)) {
+				variant.setHighlighted(true);
+				highlighted = item;
+			}
+			card.getVariants().add(variant);
+		}
+		if (withStockPoints) {
+			Map<Long, Map<Long, NavItemVariantsDTO.PointPrice>> prices = pointPrices.prices(ids);
+			Set<Long> pointIds = new LinkedHashSet<>();
+			for (ItemCatalogueCardDTO.Variant variant : card.getVariants()) {
+				Map<Long, NavItemVariantsDTO.PointPrice> rows = prices.getOrDefault(variant.getItemId(),
+						Collections.emptyMap());
+				variant.getPrices().putAll(rows);
+				pointIds.addAll(rows.keySet());
+			}
+			if (!pointIds.isEmpty()) {
+				card.setStockPoints(pointPrices.points(pointIds));
+			}
+		}
+		card.setDetails(details(highlighted != null ? highlighted : items.get(0)));
+		return Optional.of(card);
+	}
+
+	/** The line's header, with the list's rules: smallest name, family, codes; active when one variant is. */
+	private void header(ItemCatalogueCardDTO.Header header, List<Item> items, boolean withStock,
+			boolean withStockPoints) {
+		Item first = items.get(0);
+		String navItemNo = first.getNavItemNo();
+		header.setNavItemNo(navItemNo);
+		header.setSingle(navItemNo == null);
+		if (navItemNo == null) {
+			header.setItemId(first.getId());
+			header.setCode(first.getItemCode());
+		} else {
+			header.setCode(navItemNo);
+		}
+		header.setName(smallest(items, Item::getName));
+		header.setFamilyName(smallest(items, item -> item.getItemFamily() == null ? null : item.getItemFamily().getName()));
+		header.setSubFamilyName(
+				smallest(items, item -> item.getItemSubFamily() == null ? null : item.getItemSubFamily().getName()));
+		header.setCategoryCode(smallest(items, Item::getCategoryCode));
+		header.setSectionCode(smallest(items, Item::getSectionCode));
+		header.setActive(items.stream().anyMatch(HoItemCatalogueService::isActive));
+		header.setVariantsCount(items.size());
+		header.setWithStock(withStock);
+		header.setWithStockPoints(withStockPoints);
+		if (header.getCategoryCode() != null) {
+			categoryRepository.findByCodeIn(Collections.singleton(header.getCategoryCode())).stream().findFirst()
+					.ifPresent(category -> header.setCategoryName(category.getName()));
+		}
+		if (header.getSectionCode() != null) {
+			sectionRepository.findByCodeIn(Collections.singleton(header.getSectionCode())).stream().findFirst()
+					.ifPresent(section -> header.setSectionName(section.getName()));
+		}
+	}
+
+	private static ItemCatalogueCardDTO.Variant variant(Item item, boolean withStock, List<ItemBarcode> barcodes) {
+		ItemCatalogueCardDTO.Variant variant = new ItemCatalogueCardDTO.Variant();
+		variant.setItemId(item.getId());
+		variant.setItemCode(item.getItemCode());
+		variant.setVariantCode(item.getVariantCode());
+		variant.setVariantDescription(item.getVariantDescription());
+		variant.setSizeCode(item.getSizeCode());
+		variant.setSizeDescription(item.getSizeDescription());
+		variant.setColorCode(item.getColorCode());
+		variant.setColorDescription(item.getColorDescription());
+		variant.setChoiceCode(item.getChoiceCode());
+		variant.setChoiceDescription(item.getChoiceDescription());
+		variant.setSeasonCode(item.getSeasonCode());
+		variant.setDivisionCode(item.getDivisionCode());
+		variant.setActive(isActive(item));
+		variant.setType(item.getType() == null ? null : item.getType().name());
+		variant.setIsPackage(item.getType() == ItemType.PACKAGE);
+		variant.setDefaultVAT(item.getDefaultVAT());
+		variant.setUnitPrice(item.getUnitPrice());
+		if (withStock) {
+			variant.setStockQuantity(item.getStockQuantity() == null ? BigDecimal.ZERO : item.getStockQuantity());
+		}
+		for (ItemBarcode barcode : barcodes) {
+			variant.getBarcodes().add(new ItemCatalogueCardDTO.Barcode(barcode.getBarcode(),
+					Boolean.TRUE.equals(barcode.getIsPrimary()), barcode.getDescription()));
+		}
+		variant.getBarcodes().sort(Comparator.comparing(ItemCatalogueCardDTO.Barcode::getBarcode,
+				Comparator.nullsLast(Comparator.naturalOrder())));
+		return variant;
+	}
+
+	/** The item code, the legacy barcode or an active barcode equals the search (any case). */
+	private static boolean matches(ItemCatalogueCardDTO.Variant variant, Item item, String exact) {
+		return exact.equalsIgnoreCase(item.getItemCode()) || exact.equalsIgnoreCase(item.getBarcode())
+				|| variant.getBarcodes().stream().anyMatch(barcode -> exact.equalsIgnoreCase(barcode.getBarcode()));
+	}
+
+	private static ItemCatalogueCardDTO.Details details(Item item) {
+		ItemCatalogueCardDTO.Details details = new ItemCatalogueCardDTO.Details();
+		details.setItemId(item.getId());
+		details.setDescription(item.getDescription());
+		details.setUnitOfMeasure(item.getUnitOfMeasure());
+		details.setCategory(item.getCategory());
+		details.setBrand(item.getBrand());
+		details.setItemDiscGroup(item.getItemDiscGroup());
+		details.setMaximumAuthorizedDiscount(item.getMaximumAuthorizedDiscount());
+		details.setCostPrice(item.getCostPrice());
+		details.setShowInPos(!Boolean.FALSE.equals(item.getShowInPos()));
+		details.setImageUrl(item.getImageUrl());
+		details.setOrigin(item.getOrigin() == null ? null : item.getOrigin().name());
+		return details;
+	}
+
+	/** A null active counts as active, as everywhere. */
+	private static boolean isActive(Item item) {
+		return item.getActive() == null || item.getActive();
+	}
+
+	/** The smallest non-null value (the list's MIN), null when none. */
+	private static String smallest(List<Item> items, Function<Item, String> value) {
+		return items.stream().map(value).filter(Objects::nonNull).min(Comparator.naturalOrder()).orElse(null);
 	}
 
 	/** One row of {@link HoItemCatalogueRepository#SELECT} as a line (public for the query test). */
