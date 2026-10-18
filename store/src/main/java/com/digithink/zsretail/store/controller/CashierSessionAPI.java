@@ -19,6 +19,7 @@ import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.store.exception.CashDiscrepancyException;
+import com.digithink.zsretail.store.exception.TillRightRequiredException;
 import com.digithink.zsretail.store.service.CashierSessionService;
 import com.digithink.zsretail.store.service.SessionReportService;
 import com.digithink.zsretail.store.service.StoreReportService;
@@ -129,14 +130,12 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 				String notes = (String) request.get("notes");
 				closeRequest.setNotes(notes);
 				
-				// Parse badge code and permission (optional, for discrepancy validation)
-				if (request.get("badgeCode") != null) {
-					closeRequest.setBadgeCode((String) request.get("badgeCode"));
+				// Step D (3.1.0): the grant of the badge scan for a close with a cash difference (badgeCode and
+				// badgePermission are no longer read)
+				if (request.get("tillGrant") != null) {
+					closeRequest.setTillGrant(String.valueOf(request.get("tillGrant")));
 				}
-				if (request.get("badgePermission") != null) {
-					closeRequest.setBadgePermission((String) request.get("badgePermission"));
-				}
-				// 2.2.2: the admin saw the difference warning and confirmed it (no badge for an admin)
+				// The user saw the difference warning and confirmed it: counts when his role holds the right (step C)
 				closeRequest.setDiscrepancyConfirmed(Boolean.TRUE.equals(request.get("discrepancyConfirmed")));
 				
 				// Parse cash count lines
@@ -212,6 +211,9 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 				com.digithink.zsretail.store.dto.SessionCloseTicketDTO ticketData = service.getSessionCloseTicketData(closedSession.getId());
 				return ResponseEntity.ok(java.util.Map.of("session", closedSession, "sessionCloseTicket", ticketData));
 			}
+		} catch (TillRightRequiredException e) {
+			log.warn("CashierSessionAPI::closeSession:till right required: " + e.getMessage());
+			return e.response();
 		} catch (CashDiscrepancyException e) {
 			log.warn("CashierSessionAPI::closeSession:cash discrepancy detected: " + e.getMessage());
 			return ResponseEntity.badRequest().body(e.getErrorData());

@@ -54,6 +54,7 @@ import com.digithink.zsretail.core.support.InMemoryStock;
 import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.store.dto.ProcessSaleRequestDTO;
 import com.digithink.zsretail.store.erp.service.SessionExportService;
+import com.digithink.zsretail.store.support.InMemoryTillRights;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -127,6 +128,7 @@ class SaleDecimalQuantityTest {
 		});
 
 		sales = new SalesHeaderService();
+		set(sales, SalesHeaderService.class, "tillRightsGuard", InMemoryTillRights.allowAll()); // step D
 		set(sales, _BaseService.class, "currentUserProvider", new CurrentUserProvider() {
 			@Override
 			public String getCurrentUserName() {

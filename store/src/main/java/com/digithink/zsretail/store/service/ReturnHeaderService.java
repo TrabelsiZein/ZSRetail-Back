@@ -50,6 +50,10 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 
+	/** Step D (3.1.0): the till right of the return, checked on the request. */
+	@Autowired
+	private TillRightsGuard tillRightsGuard;
+
 	@Autowired
 	private ReturnHeaderRepository returnHeaderRepository;
 
@@ -338,6 +342,9 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 		if (isBlockReturnForPromotion() && "PROMOTION".equals(originalSalesHeader.getDiscountSource())) {
 			throw new IllegalStateException("Ce ticket bénéficie d'une promotion globale. Aucun retour n'est autorisé pour les articles en promotion.");
 		}
+
+		// Step D: the return needs the role's right or the grant of a badge scan (403 otherwise, nothing written)
+		tillRightsGuard.checkReturn(request, currentUser, currentSession, "RETURN of " + request.getTicketNumber());
 
 		// Get all sales lines for the original ticket
 		List<SalesLine> originalSalesLines = salesLineRepository.findBySalesHeader(originalSalesHeader);

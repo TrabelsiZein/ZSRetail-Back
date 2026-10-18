@@ -61,7 +61,7 @@ class BadgeServiceInactiveOwnerTest {
 		// Step C (3.1.0): the badge opens what its owner's role holds
 		AppRole role = new AppRole("RESPONSIBLE", "Responsable", false);
 		role.setPermissions(new HashSet<>(Arrays.asList(BadgePermission.MAKE_RETURN.key(),
-				BadgePermission.APPLY_TOTAL_DISCOUNT.key())));
+				BadgePermission.APPLY_TOTAL_DISCOUNT.key(), BadgePermission.CONSULT_CUSTOMER_LIST.key())));
 		owner.setAppRole(role);
 		owner.setBadgeExpirationDate(LocalDateTime.now().plusYears(1));
 		owner.setBadgeRevoked(false);
@@ -93,20 +93,23 @@ class BadgeServiceInactiveOwnerTest {
 	}
 
 	@Test
-	@DisplayName("Owner active, or active unset (read as active): the scan passes as before, logged as a success")
+	@DisplayName("Owner active, or active unset (read as active): the scan passes as before; logged as a success for the customer list, and (step D) not for an action checked on its request, whose request logs the pass")
 	void activeOwnerStillPasses() {
 		owner("B-ON", true);
 		owner("B-NULL", null);
 
 		for (String code : new String[] { "B-ON", "B-NULL" }) {
-			BadgeService.BadgeScanResult result = service.scanBadge(code, BadgePermission.APPLY_TOTAL_DISCOUNT, cashier,
-					null);
-			assertTrue(result.isSuccess(), code);
-			assertNull(result.getFailureReason(), code);
+			for (BadgePermission action : new BadgePermission[] { BadgePermission.CONSULT_CUSTOMER_LIST,
+					BadgePermission.APPLY_TOTAL_DISCOUNT }) {
+				BadgeService.BadgeScanResult result = service.scanBadge(code, action, cashier, null);
+				assertTrue(result.isSuccess(), code);
+				assertNull(result.getFailureReason(), code);
+			}
 			assertTrue(service.findUserByBadgeCode(code).isPresent(), code);
 		}
 		assertEquals(2, logged.size());
 		assertTrue(logged.stream().allMatch(BadgeScanLog::getSuccess));
+		assertTrue(logged.stream().allMatch(row -> row.getFunctionality() == BadgePermission.CONSULT_CUSTOMER_LIST));
 	}
 
 	// ─── Stub plumbing (as CashierSessionDiscrepancyRightTest) ─────────────

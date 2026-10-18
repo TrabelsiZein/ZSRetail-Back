@@ -26,6 +26,7 @@ import com.digithink.zsretail.store.dto.ChangePaymentMethodRequestDTO;
 import com.digithink.zsretail.store.dto.PrepareInvoiceRequestDTO;
 import com.digithink.zsretail.store.dto.ProcessSaleRequestDTO;
 import com.digithink.zsretail.store.dto.SplitBillRequestDTO;
+import com.digithink.zsretail.store.exception.TillRightRequiredException;
 import com.digithink.zsretail.store.service.SalesHeaderService;
 
 import lombok.extern.log4j.Log4j2;
@@ -150,6 +151,9 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 
 			return ResponseEntity.ok(saleResponse);
 
+		} catch (TillRightRequiredException e) {
+			log.warn("SalesHeaderAPI::processSale:till right required: " + e.getMessage());
+			return e.response();
 		} catch (IllegalArgumentException e) {
 			log.error("SalesHeaderAPI::processSale:validation error: " + e.getMessage(), e);
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
@@ -204,6 +208,9 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 
 			return ResponseEntity.ok(saleResponse);
 
+		} catch (TillRightRequiredException e) {
+			log.warn("SalesHeaderAPI::savePendingSale:till right required: " + e.getMessage());
+			return e.response();
 		} catch (IllegalArgumentException e) {
 			log.error("SalesHeaderAPI::savePendingSale:validation error: " + e.getMessage(), e);
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
@@ -375,6 +382,9 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			UserAccount currentUser = currentUserProvider.getCurrentUser();
 			SalesHeader updatedSale = service.updatePendingSale(id, request, currentUser);
 			return ResponseEntity.ok(updatedSale);
+		} catch (TillRightRequiredException e) {
+			log.warn("SalesHeaderAPI::updatePendingSale:till right required: " + e.getMessage());
+			return e.response();
 		} catch (IllegalStateException e) {
 			log.warn("SalesHeaderAPI::updatePendingSale:conflict: " + e.getMessage());
 			return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(e.getMessage()));
@@ -446,6 +456,9 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 
 			return ResponseEntity.ok(saleResponse);
 
+		} catch (TillRightRequiredException e) {
+			log.warn("SalesHeaderAPI::completePendingSale:till right required: " + e.getMessage());
+			return e.response();
 		} catch (IllegalArgumentException e) {
 			log.error("SalesHeaderAPI::completePendingSale:validation error: " + e.getMessage(), e);
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));

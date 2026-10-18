@@ -25,7 +25,9 @@ import lombok.extern.log4j.Log4j2;
  * role (app_role_permission "till:..." keys, {@link BadgePermission#key()}), never to a user's card: the logged user
  * passes an action when his role holds it ({@link #roleHolds}); otherwise a badge is scanned, and it opens the action
  * when its owner's role holds it. Every pass is logged in badge_scan_log: a scan (grantedBy BADGE, success or the
- * refusal reason) or a pass on the role's right (grantedBy ROLE, no badge code, the owner is the logged user).
+ * refusal reason) or a pass on the role's right (grantedBy ROLE, no badge code, the owner is the logged user). Step D:
+ * for an action the server checks on its request, a scan's success gives a grant (the store's TillGrantService) and its
+ * pass is logged when the request uses it ({@link #logBadgePass}), not at the scan.
  */
 @Service
 @Log4j2
@@ -164,10 +166,13 @@ public class BadgeService {
 			return result;
 		}
 
-		// Success
+		// Success. Step D (3.1.0): for an action the server checks on its request, the pass is logged when the request
+		// uses the scan's grant (logBadgePass), not here: a scan whose action never happens leaves no pass
 		result.setSuccess(true);
 		result.setHasPermission(true);
-		logBadgeScan(result, scannedBy, sessionId);
+		if (!permission.checkedOnRequest()) {
+			logBadgeScan(result, scannedBy, sessionId);
+		}
 
 		return result;
 	}
@@ -177,20 +182,39 @@ public class BadgeService {
 	 * user himself, his open session. The caller checked {@link #roleHolds} first.
 	 */
 	public void logRolePass(UserAccount actor, BadgePermission action) {
+		logRolePass(actor, action, openSessionId(actor));
+	}
+
+	/** Step D: the same, in the session of the request that does the action. */
+	public void logRolePass(UserAccount actor, BadgePermission action, Long sessionId) {
+		logPass(actor, actor, null, action, sessionId, GrantedBy.ROLE, "ROLE");
+	}
+
+	/**
+	 * Step D (3.1.0): logs a pass on a badge's grant, when the request doing the action uses it (grantedBy BADGE): the
+	 * user who scanned, the badge's owner and code, the request's session.
+	 */
+	public void logBadgePass(UserAccount scannedBy, UserAccount owner, String badgeCode, BadgePermission action,
+			Long sessionId) {
+		logPass(scannedBy, owner, badgeCode, action, sessionId, GrantedBy.BADGE, "SCAN");
+	}
+
+	private void logPass(UserAccount actor, UserAccount owner, String badgeCode, BadgePermission action, Long sessionId,
+			GrantedBy grantedBy, String scanType) {
 		try {
 			BadgeScanLog row = new BadgeScanLog();
 			row.setScannedBy(actor);
-			row.setScannedUser(actor);
-			row.setScannedBadgeCode(null);
+			row.setScannedUser(owner);
+			row.setScannedBadgeCode(badgeCode);
 			row.setFunctionality(action);
 			row.setSuccess(true);
-			row.setGrantedBy(GrantedBy.ROLE);
-			row.setSessionId(openSessionId(actor));
+			row.setGrantedBy(grantedBy);
+			row.setSessionId(sessionId);
 			row.setTimestamp(LocalDateTime.now());
-			row.setScanType("ROLE");
+			row.setScanType(scanType);
 			badgeScanLogRepository.save(row);
 		} catch (Exception e) {
-			log.error("Error logging a till pass on the role's right: {}", e.getMessage(), e);
+			log.error("Error logging a till pass ({}): {}", grantedBy, e.getMessage(), e);
 		}
 	}
 

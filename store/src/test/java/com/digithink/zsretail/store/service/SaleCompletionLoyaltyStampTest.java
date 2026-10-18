@@ -56,6 +56,7 @@ import com.digithink.zsretail.core.service.StockService;
 import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.store.dto.ProcessSaleRequestDTO;
 import com.digithink.zsretail.store.erp.service.SessionExportService;
+import com.digithink.zsretail.store.support.InMemoryTillRights;
 
 /**
  * Loyalty points and fiscal stamp on both ways a sale is completed: a normal sale
@@ -142,6 +143,7 @@ class SaleCompletionLoyaltyStampTest {
 		}));
 
 		sales = new SalesHeaderService();
+		inject(sales, SalesHeaderService.class, "tillRightsGuard", InMemoryTillRights.allowAll()); // step D
 		inject(sales, _BaseService.class, "currentUserProvider", new CurrentUserProvider() {
 			@Override
 			public String getCurrentUserName() {

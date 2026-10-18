@@ -17,7 +17,6 @@ import com.digithink.zsretail.core.model.PaymentMethod;
 import com.digithink.zsretail.core.model.ReturnHeader;
 import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.UserAccount;
-import com.digithink.zsretail.core.model.enumeration.BadgePermission;
 import com.digithink.zsretail.core.model.enumeration.CounterType;
 import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
 import com.digithink.zsretail.core.model.enumeration.ReturnType;
@@ -32,7 +31,6 @@ import com.digithink.zsretail.core.repository.ReturnHeaderRepository;
 import com.digithink.zsretail.core.repository.SalesHeaderRepository;
 import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
-import com.digithink.zsretail.core.service.BadgeService;
 import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.store.dto.CloseSessionRequestDTO;
@@ -86,8 +84,9 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	@Autowired
 	private GeneralSetupRepository generalSetupRepository;
 
+	/** Step D (3.1.0): the right to close with a cash difference, checked on the close. */
 	@Autowired
-	private BadgeService badgeService;
+	private TillRightsGuard tillRightsGuard;
 
 	@Autowired
 	private ApplicationModeService applicationModeService;
@@ -373,11 +372,11 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 
 	/**
 	 * The cash counted against the cash expected when the session is closed (ENABLE_CASH_DISCREPANCY_CHECK, on when the
-	 * setting is absent). A difference above 0.01 needs the right CLOSE_SESSION_WITH_DISCREPANCY, else
-	 * {@link CashDiscrepancyException} (the till then shows the difference and asks for the right). Step C (3.1.0): the
-	 * right is the role's: the logged user whose role holds it confirms the difference shown ({@code discrepancyConfirmed},
-	 * as an admin did in 2.2.2: the first request still gets the warning); anyone else brings a badge whose owner's role
-	 * holds it. The confirmation means nothing from a user whose role does not hold the right.
+	 * setting is absent). A difference above 0.01 needs the right CLOSE_SESSION_WITH_DISCREPANCY (TillRightsGuard): the
+	 * logged user whose role holds it confirms the difference shown ({@code discrepancyConfirmed}, step C; the first
+	 * request still gets the warning), anyone else sends the grant of a badge scan ({@code tillGrant}, step D, used once).
+	 * Neither came: {@link CashDiscrepancyException} (the till shows the difference and asks for the right). A
+	 * confirmation from a role without the right, or a grant not valid: 403 TILL_RIGHT_REQUIRED.
 	 */
 	void checkCashDiscrepancy(CashierSession session, Double realCash, Double posUserClosureCash,
 			CloseSessionRequestDTO request) {
@@ -395,36 +394,14 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			// Compare amounts with tolerance of 0.01 TND for floating point precision
 			double difference = Math.abs(realCash - posUserClosureCash);
 			if (difference > 0.01) {
-				if (request.isDiscrepancyConfirmed()
-						&& badgeService.roleHolds(loggedUser(), BadgePermission.CLOSE_SESSION_WITH_DISCREPANCY)) {
-					// Step C: the logged user's role holds the right: no badge, but the difference warning first (the
-					// till shows it on the CashDiscrepancyException below) and his confirmation
-					log.info("Session closure with discrepancy authorized by the role's right: session "
-							+ session.getSessionNumber() + ", user " + currentUserProvider.getCurrentUserName()
-							+ ", expected " + realCash + ", counted " + posUserClosureCash + ", no badge");
-				} else if (request.getBadgeCode() != null && !request.getBadgeCode().trim().isEmpty()
-						&& request.getBadgePermission() != null
-						&& request.getBadgePermission().equals("CLOSE_SESSION_WITH_DISCREPANCY")) {
-					// Badge provided - validate it without logging (already logged by frontend
-					// scan)
-					// Use findUserByBadgeCode which checks revoked/expired, then check permission
-					java.util.Optional<UserAccount> badgeUserOpt = badgeService
-							.findUserByBadgeCode(request.getBadgeCode().trim());
-					if (!badgeUserOpt.isPresent()) {
-						throw new IllegalStateException("Badge validation failed: BADGE_NOT_EXISTS");
-					}
-
-					UserAccount badgeUser = badgeUserOpt.get();
-					// Step C: the badge opens the close when its owner's role holds the right
-					if (!badgeService.roleHolds(badgeUser, BadgePermission.CLOSE_SESSION_WITH_DISCREPANCY)) {
-						throw new IllegalStateException("Badge validation failed: BADGE_NO_ACCESS");
-					}
-					// Badge validated successfully - proceed with closure
-					log.info("Session closure with discrepancy authorized by the badge of " + badgeUser.getUsername());
-				} else {
-					// Badge NOT provided - throw structured exception for frontend
+				if (!tillRightsGuard.closeWithDifference(loggedUser(), session, request.isDiscrepancyConfirmed(),
+						request.getTillGrant())) {
+					// Neither a confirmation nor a grant: the till shows the difference, then asks for the right
 					throw new CashDiscrepancyException(realCash, posUserClosureCash, difference);
 				}
+				log.info("Session closure with discrepancy authorized ({}): session {}, user {}, expected {}, counted {}",
+						request.isDiscrepancyConfirmed() ? "role's right" : "badge's grant", session.getSessionNumber(),
+						currentUserProvider.getCurrentUserName(), realCash, posUserClosureCash);
 			}
 		}
 	}

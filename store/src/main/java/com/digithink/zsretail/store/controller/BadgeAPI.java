@@ -25,6 +25,7 @@ import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.BadgeService;
 import com.digithink.zsretail.store.dto.BadgeScanLogDTO;
 import com.digithink.zsretail.store.service.BadgeScanLogService;
+import com.digithink.zsretail.store.service.TillGrantService;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -44,6 +45,10 @@ public class BadgeAPI {
 
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
+
+	/** Step D (3.1.0): the grant of a successful scan, for the request that does the action. */
+	@Autowired
+	private TillGrantService tillGrantService;
 
 	/** Step S (3.1.0): the permission of the Badge scan history page, required by the three history reads below. */
 	static final String SCAN_HISTORY_PERMISSION = "read:admin-badge-scan-history";
@@ -89,16 +94,23 @@ public class BadgeAPI {
 			UserAccount scannedBy = currentUserProvider.getCurrentUser();
 			// Step C (3.1.0): the session logged is the scanning user's open session, read here (the till's sessionId,
 			// still sent, is not trusted)
-			BadgeService.BadgeScanResult result = badgeService.scanBadge(badgeCode, permission, scannedBy,
-					badgeService.openSessionId(scannedBy));
+			Long sessionId = badgeService.openSessionId(scannedBy);
+			BadgeService.BadgeScanResult result = badgeService.scanBadge(badgeCode, permission, scannedBy, sessionId);
 
 			Map<String, Object> response = new HashMap<>();
 			response.put("success", result.isSuccess());
 			response.put("hasPermission", result.isHasPermission());
 			response.put("failureReason", result.getFailureReason());
-			
+
 			if (result.getScannedUser() != null) {
 				response.put("user", createUserResponse(result.getScannedUser()));
+			}
+			// Step D (3.1.0): an action the server checks on its request gets a grant (token, action, badgeOwnerId,
+			// issuedAt, expiresAt), used once by that request in this session; null for the customer list, or without
+			// an open session
+			if (result.isSuccess()) {
+				response.put("grant", tillGrantService.issue(permission, scannedBy, result.getScannedUser(),
+						badgeCode.trim(), sessionId));
 			}
 
 			if (result.isSuccess()) {

@@ -56,6 +56,7 @@ import com.digithink.zsretail.core.service.StockService;
 import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.store.dto.ProcessReturnRequestDTO;
 import com.digithink.zsretail.store.repository.ReturnVoucherRepository;
+import com.digithink.zsretail.store.support.InMemoryTillRights;
 
 /**
  * Returns: money refunded and member points. Tickets without loyalty points keep their
@@ -132,6 +133,7 @@ class ReturnRefundLoyaltyTest {
 		}));
 
 		returns = new ReturnHeaderService();
+		inject(returns, ReturnHeaderService.class, "tillRightsGuard", InMemoryTillRights.allowAll()); // step D
 		inject(returns, _BaseService.class, "currentUserProvider", new CurrentUserProvider() {
 			@Override
 			public String getCurrentUserName() {

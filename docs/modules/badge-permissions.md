@@ -1,8 +1,54 @@
 # Badge-Based Permission System - Implementation Summary
 
-## Till rights on the role (3.1.0, step C)
+## The server checks the rights on the requests (3.1.0, step D)
 
-The rule of today. The sections after it (2.2.2, S, B) tell what came before; where they disagree, this one holds.
+With step C below, the rule of today. The sections after them (2.2.2, S, B) tell what came before.
+
+- **Which requests**: an action is `checkedOnRequest` (`BadgePermission`, served in `tillActions`) when one request
+  does it: a sale or a pending save with a manual discount (`APPLY_LINE_DISCOUNT` per line, `APPLY_TOTAL_DISCOUNT`
+  for the header), a return (`MAKE_RETURN`), a close with a cash difference (`CLOSE_SESSION_WITH_DISCREPANCY`). The
+  customer list is not (no single request does it): its pass stays the scan or `POST /badge/pass`.
+- **The rule, per action of a request** (`TillRightsGuard`, inside the request's transaction, before anything is
+  written): the logged user's role holds the right → it passes, logged once per request (`ROLE`); else a valid grant
+  of a badge scan came with it → it passes, the grant is used, the pass logged (`BADGE`: the user who scanned, the
+  badge's owner and code, the session); else **403** `{error: TILL_RIGHT_REQUIRED, action, reason, lineIndex?}`,
+  nothing of the request kept (grants used before it in the same request included). `reason`: `NO_GRANT`,
+  `GRANT_UNKNOWN`, `GRANT_USED`, `GRANT_EXPIRED`, `GRANT_OTHER_SESSION`, `GRANT_OTHER_ACTION`; `lineIndex` the index of
+  the request's line whose discount needs the right.
+- **Manual discounts only**: a line or header whose `discountSource` is `MANUAL` with a percentage or an amount above
+  0.001. Promotions, price lists and lines without a source need nothing (a recalled pending ticket's lines come back
+  without their source; the split payment of a table ticket takes its lines from the stored ticket).
+- **A pending ticket keeps what it held**: `update-pending/{id}` and `complete-pending/{id}` compare each manual line
+  discount with the stored line of the same item, and the header discount with the stored header (read before they are
+  replaced): not a larger percentage, or not a larger amount, passes without a right or a grant (it was authorised, and
+  logged, when stored; a ticket parked before the upgrade too). A new or larger discount follows the rule. A new ticket
+  (`process-sale`, `save-pending`) is credited nothing.
+- **The grant** (`till_grant`, `TillGrantService`): `POST /badge/scan` answers, for a success of an action checked on
+  its request, `grant: {token, action, badgeOwnerId, issuedAt, expiresAt}` (null for the customer list, or when the
+  scanning user has no open session). The token is 32 random bytes (base64url, 43 characters); the table keeps its
+  SHA-256 only. One action, the scanning user's open session, used once (a conditional update: two requests cannot
+  both use it), good until used, until the session is no longer the open one, or `TILL_GRANT_MAX_MINUTES` after the
+  scan (General Setup, stores, **240** by default; not a positive number: 240). The row keeps the user who scanned, the
+  owner, the badge code, `consumed_at` and `consumed_by_ref` ("SALE ...", "PENDING ...", "RETURN of ...",
+  "CLOSE ...").
+- **What the requests carry**: `ProcessSaleRequestDTO.tillGrant` (header) and `SaleLineDTO.tillGrant` (each line) on
+  `process-sale`, `save-pending`, `update-pending/{id}`, `complete-pending/{id}`; `ProcessReturnRequestDTO.tillGrant`;
+  the close `tillGrant` (`badgeCode` and `badgePermission` are no longer read), `discrepancyConfirmed` staying the
+  role's confirmation. Closing with a difference: a confirmation from a role holding the right passes (ROLE); a grant
+  passes (BADGE); neither → 400 `CASH_DISCREPANCY` (the warning, as before); a confirmation from a role without the
+  right, or a grant not valid → 403.
+- **The scan log**: a scan's success of an action checked on its request writes no row any more; its pass is logged
+  when the request uses the grant (a scan whose action never happens leaves no pass). Failed scans are logged as before;
+  the customer list's successful scan too. The statistics count the `BADGE` rows (refusals, customer-list scans, grants
+  used).
+- The head office is unchanged (no till, no grant; its copies of the sales are built from the entities).
+- Schema: `till_grant` (store only) by `db/3.1.0/update.sql`, and by Hibernate at the start.
+- Tests: `TillRightsGuardTest` (the matrix: role, grants per line and header, used, expired, other action, other
+  session, unknown, a race, the discounts that need nothing, the pending credit, returns, the grant's issue and
+  lifetime), `CashierSessionDiscrepancyRightTest` (the close), helper `store.support.InMemoryTillRights` (the real
+  guard over in-memory tables; `allowAll()` for the tests of something else).
+
+## Till rights on the role (3.1.0, step C)
 
 - **A till right belongs to the role**: five role permissions, the `key()` of `BadgePermission`:
   `till:consult-customer-list`, `till:make-return`, `till:apply-line-discount`, `till:apply-total-discount`,

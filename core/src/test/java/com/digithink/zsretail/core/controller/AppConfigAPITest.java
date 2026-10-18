@@ -301,18 +301,22 @@ class AppConfigAPITest {
 		for (AppConfigDTO store : Arrays.asList(standalone(), dynamics(), linkedStore())) {
 			List<String> actualCodes = new ArrayList<>();
 			List<String> actualKeys = new ArrayList<>();
+			List<Boolean> actualChecked = new ArrayList<>();
 			store.getTillActions().forEach(a -> {
 				actualCodes.add(a.getCode());
 				actualKeys.add(a.getKey());
+				actualChecked.add(a.isCheckedOnRequest());
 			});
 			assertEquals(codes, actualCodes, "codes");
 			assertEquals(keys, actualKeys, "keys");
+			// step D: the customer list is the one action no request checks
+			assertEquals(Arrays.asList(false, true, true, true, true), actualChecked, "checkedOnRequest");
 			for (BadgePermission action : BadgePermission.values()) {
 				assertEquals("till:" + action.name().toLowerCase().replace('_', '-'), action.key(), action.name());
 			}
 		}
 		assertEquals(Arrays.asList(), headOffice().getTillActions(), "a head office has no till");
-		assertEquals("{\"code\":\"MAKE_RETURN\",\"key\":\"till:make-return\"}",
+		assertEquals("{\"code\":\"MAKE_RETURN\",\"key\":\"till:make-return\",\"checkedOnRequest\":true}",
 				new ObjectMapper().valueToTree(standalone()).get("tillActions").get(1).toString());
 	}
 

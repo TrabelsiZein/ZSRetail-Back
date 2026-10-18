@@ -100,6 +100,10 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	@Autowired
 	private PricingService pricingService;
 
+	/** Step D (3.1.0): the till rights of the manual discounts, checked on the request. */
+	@Autowired
+	private TillRightsGuard tillRightsGuard;
+
 	@Autowired
 	private StockService stockService;
 
@@ -155,6 +159,9 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 		// Generate sales number
 		String salesNumber = generateSalesNumber();
+
+		// Step D: the manual discounts need the role's right or a badge's grant (403 otherwise, nothing written)
+		tillRightsGuard.checkSale(request, currentUser, currentSession, null, "SALE " + salesNumber);
 
 		// Create sales header
 		SalesHeader salesHeader = new SalesHeader();
@@ -359,6 +366,9 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		// Generate sales number
 		String salesNumber = generateSalesNumber();
 
+		// Step D: the manual discounts need the role's right or a badge's grant (403 otherwise, nothing written)
+		tillRightsGuard.checkSale(request, currentUser, currentSession, null, "PENDING " + salesNumber);
+
 		// Create sales header with PENDING status
 		SalesHeader salesHeader = new SalesHeader();
 		salesHeader.setSalesNumber(salesNumber);
@@ -464,6 +474,13 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 					"Sale is not in PENDING status. Current status: " + salesHeader.getStatus());
 		}
 
+		// Step D: a manual discount the ticket did not hold needs the role's right or a badge's grant; read before the
+		// header and the lines are replaced (what the ticket held passes). The grants are of the user's open session.
+		CashierSession openSession = cashierSessionRepository
+				.findByCashierAndStatus(currentUser, com.digithink.zsretail.core.model.enumeration.SessionStatus.OPENED)
+				.orElse(null);
+		tillRightsGuard.checkSale(request, currentUser, openSession, salesHeader, "PENDING " + salesHeader.getSalesNumber());
+
 		// Update header totals
 		salesHeader.setSubtotal(request.getSubtotal());
 		salesHeader.setTaxAmount(request.getTaxAmount());
@@ -534,6 +551,10 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		if (!salesHeader.getCashierSession().getId().equals(currentSession.getId())) {
 			throw new IllegalStateException("Pending sale does not belong to current session");
 		}
+
+		// Step D: a manual discount the ticket did not hold needs the role's right or a badge's grant; read before the
+		// header and the lines are replaced (what the ticket held passes)
+		tillRightsGuard.checkSale(request, currentUser, currentSession, salesHeader, "SALE " + salesHeader.getSalesNumber());
 
 		// Update totals (in case they changed)
 		salesHeader.setSubtotal(request.getSubtotal());

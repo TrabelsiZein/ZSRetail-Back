@@ -42,6 +42,12 @@ public class ProcessSaleRequestDTO {
 	/** Table number (set when table management is enabled, null otherwise) */
 	private Integer tableNumber;
 
+	/**
+	 * Step D (3.1.0): the grant token of a badge scan for the header's manual discount (APPLY_TOTAL_DISCOUNT), when the
+	 * logged user's role does not hold the right; null otherwise (TillRightsGuard).
+	 */
+	private String tillGrant;
+
 	private List<SaleLineDTO> lines;
 	private List<PaymentDTO> payments;
 	
@@ -71,6 +77,12 @@ public class ProcessSaleRequestDTO {
 
 		/** RFID: the tags of the pieces of this line read at the POS (none: empty or null); the paid pieces only. */
 		private List<String> epcs;
+
+		/**
+		 * Step D (3.1.0): the grant token of a badge scan for this line's manual discount (APPLY_LINE_DISCOUNT), when
+		 * the logged user's role does not hold the right; null otherwise (TillRightsGuard).
+		 */
+		private String tillGrant;
 	}
 	
 	@Data

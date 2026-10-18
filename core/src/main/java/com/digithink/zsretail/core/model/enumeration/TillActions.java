@@ -16,11 +16,11 @@ public final class TillActions {
 	private TillActions() {
 	}
 
-	/** Every action, in the enum's order: {code: the constant name, key: the role permission key}. */
+	/** Every action, in the enum's order: {code: the constant name, key: the role permission key, checkedOnRequest}. */
 	public static List<TillActionDTO> all() {
 		List<TillActionDTO> actions = new ArrayList<>();
 		for (BadgePermission action : BadgePermission.values()) {
-			actions.add(new TillActionDTO(action.name(), action.key()));
+			actions.add(new TillActionDTO(action.name(), action.key(), action.checkedOnRequest()));
 		}
 		return Collections.unmodifiableList(actions);
 	}

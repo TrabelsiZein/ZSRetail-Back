@@ -55,6 +55,18 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Till authorisation, step C: closing with a cash difference: the logged user whose role holds
   `till:close-session-with-discrepancy` confirms the difference (`discrepancyConfirmed`) whatever the role's name;
   anyone else brings a badge whose owner's role holds it (2.2.2: an admin by the role enum only, a badge by its list).
+- Till authorisation, step D: the server checks the till rights on the requests that do the actions: each manual line
+  discount and the manual header discount of `process-sale`, `save-pending`, `update-pending/{id}`,
+  `complete-pending/{id}`, the return (`process-return`) and the close with a cash difference. The role's right passes
+  (logged ROLE once per request); else the request carries the grant of a badge scan (`tillGrant`, per line, header,
+  return, close), used once (logged BADGE with the badge's owner); else 403 `{error: TILL_RIGHT_REQUIRED, action,
+  reason, lineIndex}` and nothing of the request is kept. A pending ticket keeps the discounts it held (not larger).
+  Promotions, price lists and lines without a source need nothing; the split payment and the head office unchanged.
+- Till authorisation, step D: `POST /badge/scan` gives a grant for the actions checked on their request (`grant: {token,
+  action, badgeOwnerId, issuedAt, expiresAt}`): one action, the scanning user's open session, single use, good for
+  `TILL_GRANT_MAX_MINUTES` (240); only its SHA-256 is stored. Such a scan's success is logged when the grant is used,
+  no longer at the scan. `GET /config tillActions` gives `checkedOnRequest`. The close takes `tillGrant` instead of
+  `badgeCode` and `badgePermission`.
 - Item variants (step 11c): the return screen's ticket lookup and the return voucher lines give the item's
   `variantDescription` (`ReturnHeaderAPI`), so the till and the tickets show "name — variant" (null for the other
   customers: the name alone, as before). The sale lines already carried it through the item.
@@ -190,6 +202,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   and `scanned_badge_code` nullable, store and head office, re-runnable (also at each start, `TillSchemaUpgrade`). The
   till rights are given to the roles by the first start, not by the script (it must read `ALWAYS_SHOW_BADGE_SCAN_POPUP`
   first). `user_account.badge_permissions` is kept, unused (deprecated, dropped in the next version).
+- Till authorisation, step D: table `till_grant` on a store (the grants of the badge scans: token SHA-256, action,
+  session, user who scanned, owner, badge code, issued, expires, consumed, by what); re-runnable, no data changed.
 - `APP_VERSION` 3.1.0; release notes to complete when the version is closed (RFID is missing).
 
 ### Config
@@ -203,6 +217,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - General setup `ALWAYS_SHOW_BADGE_SCAN_POPUP` removed (till authorisation, step C): no longer created; on a store its
   row is read once by the till rights migration, then deleted. `TILL_RIGHTS_MIGRATED` (read only): written once by that
   migration, with its date and the role × right matrix.
+- General setup `TILL_GRANT_MAX_MINUTES` (store, default 240): the minutes a badge scan's grant stays good when no
+  request used it (till authorisation, step D).
 
 ## 2.3.0 — 2026-10-11 (tag `v2.3.0`)
 

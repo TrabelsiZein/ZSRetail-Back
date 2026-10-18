@@ -43,6 +43,9 @@
 -- ALWAYS_SHOW_BADGE_SCAN_POPUP and the users' badge lists, then deletes the setting): nothing of them here, and
 -- user_account.badge_permissions is kept, unused, for a rollback.
 --
+-- Till grants (step D): table till_grant on a store, what a badge scan authorised (one action, the scanning user's
+-- session, used once by the request doing the action, the SHA-256 of its token only). Re-runnable; no data changed.
+--
 -- The session options are set here (sqlcmd starts with QUOTED_IDENTIFIER OFF); SSMS has them on already.
 
 SET QUOTED_IDENTIFIER ON;
@@ -339,6 +342,35 @@ END
 GO
 IF COL_LENGTH('badge_scan_log', 'granted_by') IS NOT NULL
 	EXEC('UPDATE badge_scan_log SET granted_by = ''BADGE'' WHERE granted_by IS NULL');
+GO
+
+-- Till grants (step D): what a badge scan authorised, used once by the request doing the action (a store only; as the
+-- entity TillGrant, which a start creates too)
+IF OBJECT_ID(N'ho_store', N'U') IS NULL AND OBJECT_ID(N'till_grant', N'U') IS NULL
+BEGIN
+	CREATE TABLE till_grant (
+		id bigint IDENTITY(1,1) NOT NULL,
+		active bit NULL,
+		created_at datetime2 NULL,
+		created_by varchar(255) NULL,
+		updated_at datetime2 NULL,
+		updated_by varchar(255) NULL,
+		token_hash varchar(64) NOT NULL,
+		action varchar(50) NOT NULL,
+		session_id bigint NOT NULL,
+		scanned_by_user_id bigint NOT NULL,
+		badge_owner_id bigint NOT NULL,
+		badge_code varchar(50) NOT NULL,
+		issued_at datetime2 NOT NULL,
+		expires_at datetime2 NOT NULL,
+		consumed_at datetime2 NULL,
+		consumed_by_ref varchar(100) NULL,
+		CONSTRAINT PK_till_grant PRIMARY KEY (id),
+		CONSTRAINT uk_till_grant_token_hash UNIQUE (token_hash),
+		CONSTRAINT fk_till_grant_scanned_by FOREIGN KEY (scanned_by_user_id) REFERENCES user_account (id),
+		CONSTRAINT fk_till_grant_badge_owner FOREIGN KEY (badge_owner_id) REFERENCES user_account (id)
+	);
+END
 GO
 
 UPDATE APP_VERSION SET version = '3.1.0';

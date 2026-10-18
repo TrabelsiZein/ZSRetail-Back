@@ -25,6 +25,7 @@ import com.digithink.zsretail.core.repository.GeneralSetupRepository;
 import com.digithink.zsretail.core.repository.PaymentMethodRepository;
 import com.digithink.zsretail.store.dto.CloseSessionRequestDTO;
 import com.digithink.zsretail.store.exception.CashDiscrepancyException;
+import com.digithink.zsretail.store.support.InMemoryTillRights;
 
 /**
  * 3.1.0: the cash check at closing compares cash with cash. The expected amount (calculateRealCash) is the cash only:
@@ -47,6 +48,7 @@ class CashierSessionCountedCashTest {
 		cash.setId(CASH);
 		cash.setType(PaymentMethodType.CLIENT_ESPECES);
 		service = new CashierSessionService();
+		set(service, "tillRightsGuard", InMemoryTillRights.allowAll()); // step D: the rights are not what this tests
 		set(service, "paymentMethodRepository", proxy(PaymentMethodRepository.class, (m, a) ->
 				"findByType".equals(m) && a[0] == PaymentMethodType.CLIENT_ESPECES ? Optional.of(cash) : UNHANDLED));
 		set(service, "generalSetupRepository", proxy(GeneralSetupRepository.class, (m, a) -> {

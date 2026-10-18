@@ -16,9 +16,15 @@ public class CloseSessionRequestDTO {
 	private Double actualCash;
 	private String notes;
 	private List<CashCountLineDTO> cashCountLines;
-	private String badgeCode; // Badge code scanned for discrepancy validation
-	private String badgePermission; // Permission being validated (should be "CLOSE_SESSION_WITH_DISCREPANCY")
-	/** 2.2.2: an admin saw the cash difference warning and confirmed it; no badge is asked of an admin. */
+	/**
+	 * Step D (3.1.0): the grant token of the badge scan that authorised closing with a cash difference
+	 * (CLOSE_SESSION_WITH_DISCREPANCY); replaces the badge code and action sent before.
+	 */
+	private String tillGrant;
+	/**
+	 * The logged user saw the cash difference warning and confirmed it; it counts when his role holds
+	 * till:close-session-with-discrepancy (step C), and needs no badge.
+	 */
 	private boolean discrepancyConfirmed;
 
 	@Data

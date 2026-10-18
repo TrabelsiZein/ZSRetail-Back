@@ -32,6 +32,7 @@ import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.QuantityPolicy;
 import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.store.dto.ProcessReturnRequestDTO;
+import com.digithink.zsretail.store.exception.TillRightRequiredException;
 import com.digithink.zsretail.store.service.ReturnHeaderService;
 
 import lombok.extern.log4j.Log4j2;
@@ -448,6 +449,9 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 
 			return ResponseEntity.ok(returnResponse);
 
+		} catch (TillRightRequiredException e) {
+			log.warn("ReturnHeaderAPI::processReturn:till right required: " + e.getMessage());
+			return e.response();
 		} catch (IllegalArgumentException e) {
 			log.error("ReturnHeaderAPI::processReturn:validation error: " + e.getMessage(), e);
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
