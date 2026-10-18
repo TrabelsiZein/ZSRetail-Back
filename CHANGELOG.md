@@ -35,6 +35,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Fiches items, step 2, the item card: `GET /admin/headoffice/item-catalogue/card?navItemNo|itemId[&search]`, one
   answer with the header, every variant (active or not) with its active barcodes and point de stock rows, the points,
   and the item form's read-only details; the variant whose code or barcode equals the search is highlighted.
+- Item cards, step 3: the list's `status=INACTIVE` (the lines without an active variant); the card gives each variant's
+  `minStockLevel` and, in its details, `minStockLevel` and `lastDirectCost` (only where the head office keeps its
+  stock). Headoffice project only.
 
 ### Enhancements
 - Till authorisation, step B: `GET /config` serves `tillActions`, the registry of the five badge actions (`{code, key}`,

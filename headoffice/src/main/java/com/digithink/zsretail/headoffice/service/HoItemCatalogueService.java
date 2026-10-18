@@ -208,7 +208,7 @@ public class HoItemCatalogueService {
 				card.setStockPoints(pointPrices.points(pointIds));
 			}
 		}
-		card.setDetails(details(highlighted != null ? highlighted : items.get(0)));
+		card.setDetails(details(highlighted != null ? highlighted : items.get(0), withStock));
 		return Optional.of(card);
 	}
 
@@ -267,6 +267,7 @@ public class HoItemCatalogueService {
 		if (withStock) {
 			variant.setStockQuantity(item.getStockQuantity() == null ? BigDecimal.ZERO : item.getStockQuantity());
 		}
+		variant.setMinStockLevel(item.getMinStockLevel());
 		for (ItemBarcode barcode : barcodes) {
 			variant.getBarcodes().add(new ItemCatalogueCardDTO.Barcode(barcode.getBarcode(),
 					Boolean.TRUE.equals(barcode.getIsPrimary()), barcode.getDescription()));
@@ -282,7 +283,8 @@ public class HoItemCatalogueService {
 				|| variant.getBarcodes().stream().anyMatch(barcode -> exact.equalsIgnoreCase(barcode.getBarcode()));
 	}
 
-	private static ItemCatalogueCardDTO.Details details(Item item) {
+	/** The details of one variant; the last direct cost only where the head office keeps its own stock. */
+	private static ItemCatalogueCardDTO.Details details(Item item, boolean withStock) {
 		ItemCatalogueCardDTO.Details details = new ItemCatalogueCardDTO.Details();
 		details.setItemId(item.getId());
 		details.setDescription(item.getDescription());
@@ -292,6 +294,10 @@ public class HoItemCatalogueService {
 		details.setItemDiscGroup(item.getItemDiscGroup());
 		details.setMaximumAuthorizedDiscount(item.getMaximumAuthorizedDiscount());
 		details.setCostPrice(item.getCostPrice());
+		details.setMinStockLevel(item.getMinStockLevel());
+		if (withStock) {
+			details.setLastDirectCost(item.getLastDirectCost());
+		}
 		details.setShowInPos(!Boolean.FALSE.equals(item.getShowInPos()));
 		details.setImageUrl(item.getImageUrl());
 		details.setOrigin(item.getOrigin() == null ? null : item.getOrigin().name());

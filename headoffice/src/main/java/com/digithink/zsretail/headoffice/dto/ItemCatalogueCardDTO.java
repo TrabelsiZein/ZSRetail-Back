@@ -117,6 +117,9 @@ public class ItemCatalogueCardDTO {
 		/** Null where the head office keeps no stock of its own. */
 		private BigDecimal stockQuantity;
 
+		/** The item's minimum stock (the Items page's low stock rule: stock <= minimum); null when not set. */
+		private Integer minStockLevel;
+
 		/** The active barcodes, by value. */
 		private List<Barcode> barcodes = new ArrayList<>();
 
@@ -159,6 +162,12 @@ public class ItemCatalogueCardDTO {
 		private Double maximumAuthorizedDiscount;
 
 		private Double costPrice;
+
+		/** The item's minimum stock; null when not set. */
+		private Integer minStockLevel;
+
+		/** The last direct cost; null where the head office keeps no stock of its own. */
+		private Double lastDirectCost;
 
 		private boolean showInPos;
 

@@ -67,7 +67,9 @@ Frontend: since task 1.6 a head office has only its own routes (see "Head office
 | Sales | Tickets history | `admin-headoffice-tickets` | `/headoffice/tickets` | none (head office only, task 2.5) |
 | Sales | Sessions | `admin-headoffice-sessions` | `/headoffice/sessions` | none (head office only, task 2.5) |
 | Sales | Returns | `admin-headoffice-returns` | `/headoffice/returns` | none (head office only, task 2.5) |
-| Catalogue | Items | `admin-headoffice-items` | `/headoffice/items` | `admin-item-management` |
+| Catalogue | Item cards (3.1.0) | `admin-headoffice-item-cards` | `/headoffice/item-cards` | none (head office only) |
+| Catalogue | Items (ERP catalogue: no menu entry, redirected to Item cards, Item cards step 3) | `admin-headoffice-items` | `/headoffice/items` | `admin-item-management` |
+| Catalogue | ERP items (no menu entry, always redirected to Item cards, Item cards step 3) | `admin-headoffice-nav-items` | `/headoffice/nav-items` | `admin-nav-items` |
 | Catalogue | Families | `admin-headoffice-item-families` | `/headoffice/item-families` | `admin-item-families` |
 | Catalogue | Sub-families | `admin-headoffice-item-subfamilies` | `/headoffice/item-subfamilies` | `admin-item-subfamilies` |
 | Catalogue | Barcodes | `admin-headoffice-item-barcodes` | `/headoffice/item-barcodes` | `admin-item-barcodes` |
@@ -1765,6 +1767,9 @@ A read-only page, store and head office, for a catalogue of one item per ERP var
   the variant description only when it differs from the NAV item's (trimmed, any case: ZEN gives the item's description
   when the sizes and colours have none), else the variant code; size, colour and choice read "description (code)", the
   code alone without a description. The Filters card starts collapsed.
+- **Item cards, step 3 (head office)**: the head office page has no menu entry any more and its route
+  `/headoffice/nav-items` redirects to Item cards (query kept, `search` read as `q`); see "Fiches items". The store page
+  (`admin-nav-items`), the API and the item form's Variant block link are unchanged.
 
 ### Catégories, sections and clearance (item variants, ZEN, 3.1.0, step 11b)
 - **Pages "Catégories" and "Sections"** (read only, store and head office; store routes `admin-item-categories`,
@@ -1805,9 +1810,10 @@ A read-only page, store and head office, for a catalogue of one item per ERP var
 
 ### Fiches items (head office, 3.1.0, in progress)
 One read-only head office page that unites Items, ERP items and Items by point de stock: a list, and an item card in a
-popup (later steps). New code beside the three pages: their routes, menu entries and APIs (`/item`, `/nav-item`,
-`/admin/headoffice/stock-points/items`) do not change, and nothing of it is in a store WAR (headoffice project only, no
-core class touched).
+popup. New code beside the three pages: their APIs (`/item`, `/nav-item`, `/admin/headoffice/stock-points/items`) do not
+change, and nothing of it is in a store WAR (headoffice project only, no core class touched). Since step 3 (below) the
+ERP items page and, when the catalogue is the ERP's, the Items page are hidden from the head office menu and their
+routes send to Item cards.
 
 - **Step 1, the list (back end)**: `GET /admin/headoffice/item-catalogue?page&size&search&status` (`HoItemCatalogueAPI`,
   `HoItemCatalogueService`, `HoItemCatalogueRepository`), on every head office (ERP catalogue or manual, with or
@@ -1884,8 +1890,8 @@ core class touched).
   - `stockPoints` `[{id, code, name}]`: the points with a row of one of the variants, in list order
     (`HoNavItemStockPoints.prices` / `points`, unchanged); with no point de stock, no point and no price.
   - `details`: the item form's read-only fields (`description`, `unitOfMeasure`, `category`, `brand`, `itemDiscGroup`,
-    `maximumAuthorizedDiscount`, `costPrice`, `showInPos`, `imageUrl`, `origin`) of the highlighted variant, else the
-    first one, with its `itemId`.
+    `maximumAuthorizedDiscount`, `costPrice`, `minStockLevel`, `lastDirectCost` (step 3, only with `withStock`),
+    `showInPos`, `imageUrl`, `origin`) of the highlighted variant, else the first one, with its `itemId`.
   - Highlight: the first variant (in the order) whose item code, legacy barcode or an active barcode equals the search
     (trimmed, any case); a "contains" match, the NAV number or an inactive barcode highlights nothing.
   - Measured on `zen_headoffice`, NAV item 42ZTAPOH04 (90 variants, 1 point): the card's queries (variants by
@@ -1896,6 +1902,39 @@ core class touched).
   `ItemCatalogueCardTest` (the card through the real repositories on H2: header, variants in order, barcodes per
   variant, points and rows with an inactive row and a clearance, highlight exact and contains, single item, the API's
   400 and 404, no point de stock).
+- **Step 3, the old pages hidden** (2026-10-18, both repos; inventory of what the old pages did first). Item cards replaces
+  the head office pages **ERP items** (always) and **Items** when the catalogue comes from the ERP; Items by point de
+  stock stays. The routes are kept one release, as redirects, and the store pages, routes, shared components, i18n keys
+  and APIs do not change.
+  - **Routes** (`router/headoffice-routes.js`): `admin-headoffice-nav-items` is a route-level `redirect` to
+    `admin-headoffice-item-cards` (before the guards, so also without `navItems`); `admin-headoffice-items` carries
+    `meta.ownCatalogue` and a `beforeEnter` (`byCatalogueOwner`) that sends to Item cards when
+    `appConfig/catalogueFromErp` (read from `/config` in `main.js` before the router starts); otherwise the Items page
+    opens as before. Both keep the query and read `search` as `q` when `q` is absent (`router/item-cards-query.js`). The
+    twin rule is unchanged: `/admin/item-management?…` and `/admin/nav-items?q=…` typed on a head office reach their
+    head office route, then Item cards. Not `meta.headOfficeHidden` (it sends home).
+  - **Menu** (`navigation/headoffice/index.js`): no ERP items entry; the Items entry only when the catalogue is not the
+    ERP's (`shownByCatalogueOwner` in `linkShown()`, the menu, the search bar and the Roles page); the home quick link
+    "Items" is now Item cards. `withPermission` and `headOfficeQuickLinks` skip a link whose route (or menu link) is gone
+    with a `console.warn`, never an error (`navigation/headoffice/menu-links.js`, checked by
+    `tools/headoffice-menu-check.mjs`). A permission is named after the first link the head office shows: the Items
+    permission is "Item cards" where the catalogue is the ERP's, "Items" otherwise. `read:admin-headoffice-items` stays
+    the permission of all these pages (`ZZDataInitializer`, roles unchanged).
+  - **Card Details** (`ItemCatalogueCard.vue`; `ItemCatalogueCardDTO`, headoffice only): Brand, Minimum stock
+    (`details.minStockLevel`), the image as a thumbnail (`GET /item-image/item/{id}`, public, as the item form) instead of
+    "Image: yes/no"; where the head office keeps its stock (`withStock`): Stock of the details' variant with the Items
+    page's "Low stock" badge (stock, none counting 0, `<=` the minimum) and Last direct cost (`details.lastDirectCost`,
+    null without stock). Each `variants[]` gains `minStockLevel`; the Variants tab's stock cell shows the same badge.
+  - **Status Inactive** on the list: `status=INACTIVE` = the lines without an active variant (every variant counted;
+    `HAVING` on the line's active flag, `HoItemCatalogueQuery.Criteria.inactiveOnly`); the page offers All (default),
+    Active, Inactive, kept in the address.
+  - **Price filter**: with VAT on Item cards (`unit_price × (1 + VAT)`); the old Items page filtered `unit_price` before
+    VAT.
+  - What a head office without an ERP catalogue keeps on Items (Item cards cannot write it): add, edit, delete an item;
+    barcodes; kits; the image; prices, VAT, max discount, discount group, shown in POS. Moving them to the card is a
+    later step.
+  - Tests: `ItemCatalogueFiltersQueryTest.inactiveStatus`, `ItemCatalogueCardTest` (minimum stock, last direct cost);
+    front `tools/headoffice-menu-check.mjs`.
 
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter
@@ -2459,7 +2498,8 @@ status | set-key | reset`.
 | Log in as admin | Menu on top: Home, Network, Catalogue, Customers & loyalty, Settings; home quick links to head office pages | Vertical menu exactly as before; no Network group |
 | Each menu entry | Opens the page under `/headoffice/...` | — |
 | Type a store URL, e.g. `/admin/customers?x=1`, `/pos/items`, `/admin/statistics` | `/headoffice/customers?x=1`; head office home; head office home | Store pages as before |
-| Type `/headoffice/items` | Items | Store home |
+| Type `/headoffice/items` | Items without an ERP catalogue; Item cards (query kept, `search` as `q`) with one (Item cards step 3) | Store home |
+| Type `/headoffice/nav-items?q=x` | Item cards searched on x (Item cards step 3) | Store home |
 | Arabic | Menu mirrored, dropdowns open to the left | As before |
 | Window below 1200 px | Burger opens the head office menu on the side | As before |
 | Search bar | Only head office pages | As before |

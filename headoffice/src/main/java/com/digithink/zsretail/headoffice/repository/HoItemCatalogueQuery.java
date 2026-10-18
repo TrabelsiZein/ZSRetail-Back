@@ -124,6 +124,12 @@ public class HoItemCatalogueQuery {
 
 		private boolean activeOnly = true;
 
+		/**
+		 * Status Inactive: only the lines without an active variant (a NAV item whose variants are all inactive, an inactive
+		 * item); read with activeOnly false (every variant counted).
+		 */
+		private boolean inactiveOnly;
+
 		private Long familyId;
 
 		private Long subFamilyId;
@@ -189,7 +195,7 @@ public class HoItemCatalogueQuery {
 	/** The statements of a criteria; portable: the code sort in SQL that H2 knows (the query tests). */
 	public static Built build(Criteria c, boolean portable) {
 		Map<String, Object> parameters = new LinkedHashMap<>();
-		parameters.put("allStatuses", c.isActiveOnly() ? 0 : 1);
+		parameters.put("allStatuses", c.isActiveOnly() && !c.isInactiveOnly() ? 0 : 1);
 		List<String> match = conditions(c, "m", parameters);
 		boolean search = c.getLike() != null;
 		if (search) {
@@ -204,12 +210,16 @@ public class HoItemCatalogueQuery {
 					+ " WHERE m.nav_item_no IS NULL" + and(match) + ") ki ON ki.id = i.id";
 			where += " AND (kn.nav IS NOT NULL OR ki.id IS NOT NULL)";
 		}
-		String having = "";
+		List<String> groups = new ArrayList<>();
 		if ("YES".equalsIgnoreCase(trim(c.getVariants()))) {
-			having = " HAVING COUNT(*) > 1";
+			groups.add("COUNT(*) > 1");
 		} else if ("NO".equalsIgnoreCase(trim(c.getVariants()))) {
-			having = " HAVING COUNT(*) = 1";
+			groups.add("COUNT(*) = 1");
 		}
+		if (c.isInactiveOnly()) {
+			groups.add("MAX(CASE WHEN i.active IS NULL OR i.active = 1 THEN 1 ELSE 0 END) = 0");
+		}
+		String having = groups.isEmpty() ? "" : " HAVING " + String.join(" AND ", groups);
 		String lines = SELECT + joins + where + GROUP + having + " ORDER BY " + order(c, portable);
 		String count = "SELECT COUNT(*) AS " + COUNT_COLUMN + " FROM (SELECT i.nav_item_no AS n FROM item i" + joins + where
 				+ GROUP + having + ") g";

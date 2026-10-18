@@ -35,7 +35,8 @@ public class HoItemCatalogueAPI {
 	/**
 	 * GET /admin/headoffice/item-catalogue?page&size&search&status&familyId&subFamilyId&divisionCode&categoryCode
 	 * &sectionCode&stockPointId&variants&priceMin&priceMax&sort&dir: {content, page, size, totalElements, totalPages,
-	 * withStock, withStockPoints}. status: ACTIVE (the default: the active variants only) or ALL; variants: ALL (default),
+	 * withStock, withStockPoints}. status: ACTIVE (the default: the active variants only), ALL, or INACTIVE (the lines
+	 * without an active variant, every variant counted); variants: ALL (default),
 	 * YES (2 variants or more of the status), NO; priceMin / priceMax: the item's own price with VAT; sort: code (default,
 	 * natural for the codes of digits only), name, family; dir: asc (default) or desc. Every filter optional.
 	 */
@@ -58,6 +59,7 @@ public class HoItemCatalogueAPI {
 		HoItemCatalogueQuery.Criteria criteria = new HoItemCatalogueQuery.Criteria();
 		criteria.setLike(NavItemService.likeOf(search));
 		criteria.setActiveOnly(activeOnly(status));
+		criteria.setInactiveOnly(inactiveOnly(status));
 		criteria.setFamilyId(familyId);
 		criteria.setSubFamilyId(subFamilyId);
 		criteria.setDivisionCode(divisionCode);
@@ -112,8 +114,13 @@ public class HoItemCatalogueAPI {
 		return Collections.singletonMap("error", message);
 	}
 
-	/** ALL in any case: every variant; anything else (absent, ACTIVE): the active ones only. */
+	/** ALL or INACTIVE in any case: every variant; anything else (absent, ACTIVE): the active ones only. */
 	static boolean activeOnly(String status) {
-		return status == null || !"ALL".equalsIgnoreCase(status.trim());
+		return status == null || !("ALL".equalsIgnoreCase(status.trim()) || inactiveOnly(status));
+	}
+
+	/** INACTIVE in any case: only the lines without an active variant. */
+	static boolean inactiveOnly(String status) {
+		return status != null && "INACTIVE".equalsIgnoreCase(status.trim());
 	}
 }

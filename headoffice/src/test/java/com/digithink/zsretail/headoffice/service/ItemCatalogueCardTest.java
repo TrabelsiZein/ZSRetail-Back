@@ -151,6 +151,8 @@ class ItemCatalogueCardTest {
 		item.setDefaultVAT(19);
 		item.setUnitPrice(16.39);
 		item.setStockQuantity(new BigDecimal(sizeOrder));
+		item.setMinStockLevel(2);
+		item.setLastDirectCost(5.0 + sizeOrder);
 		session.persist(item);
 		return item;
 	}
@@ -274,6 +276,9 @@ class ItemCatalogueCardTest {
 		assertTrue(highlighted(card).isEmpty(), "no search: none");
 		assertEquals(Long.valueOf(s), card.getDetails().getItemId(), "details: the first variant");
 		assertEquals("DG-S", card.getDetails().getItemDiscGroup());
+		assertEquals(Integer.valueOf(2), vs.getMinStockLevel(), "the low stock rule's minimum, per variant");
+		assertEquals(Integer.valueOf(2), card.getDetails().getMinStockLevel());
+		assertEquals(Double.valueOf(6.0), card.getDetails().getLastDirectCost(), "stock kept here: the last direct cost");
 	}
 
 	@Test

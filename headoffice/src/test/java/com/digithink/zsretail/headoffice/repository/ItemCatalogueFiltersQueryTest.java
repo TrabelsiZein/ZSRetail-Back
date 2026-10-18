@@ -271,6 +271,38 @@ class ItemCatalogueFiltersQueryTest {
 	}
 
 	@Test
+	@DisplayName("Status Inactive: only the lines without an active variant, every variant counted (70061, with L inactive, is not one)")
+	void inactiveStatus() {
+		assertTrue(codes(c -> c.setInactiveOnly(true)).isEmpty(), "every fixture line has an active variant");
+		List<Long> added;
+		try (Session session = sessions.openSession()) {
+			session.beginTransaction();
+			added = Arrays.asList(
+					item(session, "ZZ~A", "ZZ", "ZULU", null, null, false, 2.0, 0, null, null, null).getId(),
+					item(session, "ZZ~B", "ZZ", "ZULU", null, null, false, 3.0, 0, null, null, null).getId(),
+					item(session, "Y9", null, "YANKEE", null, null, false, 4.0, 0, null, null, null).getId());
+			session.getTransaction().commit();
+		}
+		try {
+			assertEquals(Arrays.asList("Y9", "ZZ"), codes(c -> c.setInactiveOnly(true)));
+			// Inactive wins over activeOnly: the inactive variants are read
+			assertEquals(Arrays.asList("Y9", "ZZ"), codes(c -> { c.setActiveOnly(true); c.setInactiveOnly(true); }));
+			assertEquals(2, line(c -> c.setInactiveOnly(true), "ZZ").getVariants());
+			assertFalse(line(c -> c.setInactiveOnly(true), "ZZ").isActive());
+			assertEquals(Arrays.asList("ZZ"), codes(c -> { c.setInactiveOnly(true); c.setVariants("YES"); }));
+			assertEquals(Arrays.asList("Y9"), codes(c -> { c.setInactiveOnly(true); c.setLike("%yank%"); }));
+			assertEquals(2, page(c -> c.setInactiveOnly(true), 0, 1).getTotalElements());
+			assertFalse(codes(c -> c.setActiveOnly(true)).contains("ZZ"), "status Active: no line");
+		} finally {
+			try (Session session = sessions.openSession()) {
+				session.beginTransaction();
+				added.forEach(id -> session.delete(session.get(Item.class, id)));
+				session.getTransaction().commit();
+			}
+		}
+	}
+
+	@Test
 	@DisplayName("Search and filters together")
 	void searchWithFilters() {
 		assertEquals(Arrays.asList("70061"), codes(c -> { c.setLike("%chem%"); c.setFamilyId(hom); }));
