@@ -27,6 +27,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `GET /item-category/families?code`, `GET /item-section` (with the path catégorie › famille › sous-famille); GET only.
 
 ### Enhancements
+- Till authorisation, step B: `GET /config` serves `tillActions`, the registry of the five badge actions (`{code, key}`,
+  `BadgePermission.key()` = the `till:*` role permission key of step C), empty on a head office; the frontend builds its
+  badge lists, labels and filters from it.
 - Promotions: a free piece only when scanned (buy N get M), repeated for each group of N + M pieces; the free pieces
   carry RFID tags; a return is whole per item.
 - Stock adjustments accept decimal quantities when the store allows them; the till's search runs over the whole

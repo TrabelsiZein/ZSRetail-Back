@@ -21,6 +21,7 @@ import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.dto.AppConfigDTO;
+import com.digithink.zsretail.core.model.enumeration.BadgePermission;
 import com.digithink.zsretail.core.model.enumeration.LicenseStatus;
 import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.core.service.LicenseService;
@@ -53,11 +54,11 @@ class AppConfigAPITest {
 	 * invoices from the ERP (supplySource), always last; then 2.2.1 decimal quantities (allowDecimalQuantity) and the tax
 	 * stamp rule (taxStampActive); then 2.2.2 amounts with 3 decimals on the POS screens (posAmountsThreeDecimals); then
 	 * RFID step 2 (rfidEnabled); then 3.1.0 cashierClosingTicket and the NAV items page of item variants (navItems), then
-	 * its Catégories and Sections pages (itemCategories, itemSections). */
+	 * its Catégories and Sections pages (itemCategories, itemSections); then step B's till actions registry (tillActions). */
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
 			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock", "supplySource",
 			"allowDecimalQuantity", "taxStampActive", "posAmountsThreeDecimals", "rfidEnabled", "cashierClosingTicket",
-			"navItems", "itemCategories", "itemSections");
+			"navItems", "itemCategories", "itemSections", "tillActions");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";
@@ -288,6 +289,31 @@ class AppConfigAPITest {
 		assertEquals("true", erp.get("posAmountsThreeDecimals").toString()); // 2.2.2: POS_AMOUNTS_3_DECIMALS, any case
 		assertFalse(new AppConfigDTO().isPosAmountsThreeDecimals()); // the row absent (a head office): off
 		assertEquals("false", erp.get("rfidEnabled").toString()); // RFID step 2: no rfid.enabled line
+	}
+
+	@Test
+	@DisplayName("Step B: tillActions is the registry, the five BadgePermission constants with their till:* keys in order, on every store; empty on a head office")
+	void tillActions() throws Exception {
+		List<String> codes = Arrays.asList("CONSULT_CUSTOMER_LIST", "MAKE_RETURN", "APPLY_LINE_DISCOUNT",
+				"APPLY_TOTAL_DISCOUNT", "CLOSE_SESSION_WITH_DISCREPANCY");
+		List<String> keys = Arrays.asList("till:consult-customer-list", "till:make-return", "till:apply-line-discount",
+				"till:apply-total-discount", "till:close-session-with-discrepancy");
+		for (AppConfigDTO store : Arrays.asList(standalone(), dynamics(), linkedStore())) {
+			List<String> actualCodes = new ArrayList<>();
+			List<String> actualKeys = new ArrayList<>();
+			store.getTillActions().forEach(a -> {
+				actualCodes.add(a.getCode());
+				actualKeys.add(a.getKey());
+			});
+			assertEquals(codes, actualCodes, "codes");
+			assertEquals(keys, actualKeys, "keys");
+			for (BadgePermission action : BadgePermission.values()) {
+				assertEquals("till:" + action.name().toLowerCase().replace('_', '-'), action.key(), action.name());
+			}
+		}
+		assertEquals(Arrays.asList(), headOffice().getTillActions(), "a head office has no till");
+		assertEquals("{\"code\":\"MAKE_RETURN\",\"key\":\"till:make-return\"}",
+				new ObjectMapper().valueToTree(standalone()).get("tillActions").get(1).toString());
 	}
 
 	@Test

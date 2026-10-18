@@ -179,4 +179,11 @@ public class AppConfigDTO {
 
 	/** Step 11b: the section table has a row, so the "Sections" page exists. Read on each call. */
 	private boolean itemSections;
+
+	/**
+	 * Step B (3.1.0): the till actions a badge authorises, {code, key} each (TillActions.all(), the one registry): the
+	 * frontend builds its badge lists, labels and filters from it. Empty on a head office (no till); read as empty by
+	 * the frontend when missing (an older backend).
+	 */
+	private List<TillActionDTO> tillActions;
 }

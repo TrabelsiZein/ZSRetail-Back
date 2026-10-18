@@ -54,6 +54,26 @@
   generated code, logged once at the first start ("First start: the badge code of the user 'responsible' is ..."),
   no longer `RESP-BADGE-001`.
 
+## Till authorisation (3.1.0, step B)
+
+The till rights move to the role at step C (`till:*` permissions); step B prepares the ground without changing what
+the user sees:
+
+- **The registry, once**: `BadgePermission` (its constant names stay what the database stores and what the till sends
+  to `POST /badge/scan`) gains `key()`, the role permission key (`till:consult-customer-list`, ...);
+  `TillActions.all()` lists `{code, key}`; `GET /config` serves it as `tillActions` (empty on a head office, which has
+  no till; read as empty by a frontend on an older backend). The frontend builds its badge lists, labels (i18n
+  `pos.badge.permissions.<code lower case>`, 3 locales) and filters from it: no list of the five in the front
+  (`tillAuth.js`, Users page, badge popup, scan history filter).
+- **One helper, one popup (front)**: `src/services/tillAuth.js` `requireTillAction(action, {sessionId, scope,
+  reuse, ownRightAccepted})` → `Promise<Authorisation {action, grantedBy: 'ROLE'|'BADGE', badgeOwnerId,
+  badgeOwnerName, badgeCode, grantToken: null, at}>`, rejected (`TillAuthCancelled`) on cancel or a route change; the
+  decision is the pure `decide()` of `till-auth-rules.js` (today's rule: admin never asked, `ALWAYS_SHOW_BADGE_SCAN_POPUP`,
+  else the user's own valid badge); `TillAuthPopup.vue` mounted once in `src/layouts/full/LayoutFull.vue` and driven by
+  the helper. A grant is good for one gesture; a caller hands it to the next screen in memory only (`consumeGrant`,
+  30 s), never in the URL. `tools/till-auth-check.mjs` proves `decide()` equals the old `isBadgeScanRequired` on 200
+  rows. The till screens switch to the helper one by one (B2-B5); until then their own popups keep working.
+
 The sections below are the original implementation summary.
 
 ## Overview

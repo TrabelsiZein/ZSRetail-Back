@@ -1,6 +1,7 @@
 package com.digithink.zsretail.core.controller;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +17,7 @@ import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.dto.AppConfigDTO;
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.model.enumeration.SalesUpstream;
+import com.digithink.zsretail.core.model.enumeration.TillActions;
 import com.digithink.zsretail.core.service.DecimalColumnsCheck;
 import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.core.service.ItemTreeService;
@@ -129,7 +131,9 @@ public class AppConfigAPI {
 				cashierClosingTicket(),
 				navItemService != null && navItemService.hasNavItems(),
 				itemTreeService != null && itemTreeService.hasCategories(),
-				itemTreeService != null && itemTreeService.hasSections()
+				itemTreeService != null && itemTreeService.hasSections(),
+				// step B: the till actions registry; a head office has no till
+				applicationModeService.isHeadOffice() ? Collections.emptyList() : TillActions.all()
 		));
 	}
 
