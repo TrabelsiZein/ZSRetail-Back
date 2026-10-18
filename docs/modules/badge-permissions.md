@@ -5,24 +5,28 @@
 - **Five actions** need a badge permission (`BadgePermission`): `CONSULT_CUSTOMER_LIST` (customer list: till, payment,
   the list itself), `MAKE_RETURN` (the Returns button of the till and the return screen), `APPLY_LINE_DISCOUNT` (till),
   `APPLY_TOTAL_DISCOUNT` (payment), `CLOSE_SESSION_WITH_DISCREPANCY` (closing a session with a cash difference).
-- **The till's rule, one place**: `src/services/badgeService.js` `isBadgeScanRequired(permission, http)`, called by every
-  screen (`ItemSelection.vue`, `Payment.vue`, `CustomerList.vue`, `ReturnProducts.vue`): an admin never gets the popup;
-  otherwise always when `ALWAYS_SHOW_BADGE_SCAN_POPUP` is on, else when the user's own badge (present, not revoked, not
-  expired) does not hold the permission; any error asks for the badge.
+- **The till's rule, one place** (since step B, 3.1.0: `src/services/till-auth-rules.js` `decide()`, asked through
+  `tillAuth.requireTillAction` by every screen; before: `badgeService.isBadgeScanRequired`): an admin never gets the
+  popup; otherwise always when `ALWAYS_SHOW_BADGE_SCAN_POPUP` is on, else when the user's own badge (present, not
+  revoked, not expired) does not hold the permission; any error asks for the badge. A grant is good for one gesture
+  (every opening of a discount dialog asks; the Returns and Customers buttons hand their grant to the next screen, which
+  asks once more only when opened by a typed URL or a refresh).
 - **Closing with a difference is decided by the server**: `CashierSessionService.checkCashDiscrepancy` (with
   `ENABLE_CASH_DISCREPANCY_CHECK` on, absent = on, a difference above 0.01) answers 400 `CASH_DISCREPANCY` unless a
   badge holding `CLOSE_SESSION_WITH_DISCREPANCY` comes with the request; the till then shows the difference popup, then
-  the badge popup, and sends the close again with the badge code. It does not read `ALWAYS_SHOW_BADGE_SCAN_POPUP`.
+  the badge popup (`requireTillAction(..., {ownRightAccepted: false})`), and sends the close again with the badge code
+  and action of the authorisation (`badgeCode`, `badgePermission`). It does not read `ALWAYS_SHOW_BADGE_SCAN_POPUP`.
 - **Admin, never asked for a badge (2.2.2, every installation)**: on the five actions the till checks nothing and shows no
   popup, even with `ALWAYS_SHOW_BADGE_SCAN_POPUP` on. Closing with a difference: an admin still gets the difference
   popup (a typing mistake in the counted cash never closes silently), with "Check the counted amounts..." and the button
-  "Confirm and close" instead of the badge; the till sends the close again with `discrepancyConfirmed: true`, which the
+  "Confirm and close" instead of the badge (the wording follows `tillAuth.passesWithoutScan`; the helper grants
+  `ROLE` without a popup); the till sends the close again with `discrepancyConfirmed: true`, which the
   server accepts from an admin only (from anyone else it means nothing), with the log line "Session closure with
   discrepancy authorized by the admin role: session ..., user ..., expected ..., counted ..., no badge". No badge scan
   is logged for an admin (none happens).
   Cashiers, responsibles and custom roles: unchanged (same checks, same popups, same scan history).
 - **Who is an admin** (one definition per side): the logged user's role `UserAccount.role` is `ADMIN`. Server:
-  `CurrentUserProvider.currentUserIsAdmin()`; till: `badgeService.isAdminUser(user)` on
+  `CurrentUserProvider.currentUserIsAdmin()`; till: `till-auth-rules.isAdminUser(user)` on
   `GET /user-account/current` (`role`). The role is kept in step with the built-in role ADMIN by
   `UserAccountService.applyAppRole`; a custom role maps to POS_USER or RESPONSIBLE, never ADMIN.
 - Tests: `CashierSessionAdminBadgeTest` (admin without a badge passes; cashier, responsible, custom role refused as in
@@ -71,8 +75,17 @@ the user sees:
   decision is the pure `decide()` of `till-auth-rules.js` (today's rule: admin never asked, `ALWAYS_SHOW_BADGE_SCAN_POPUP`,
   else the user's own valid badge); `TillAuthPopup.vue` mounted once in `src/layouts/full/LayoutFull.vue` and driven by
   the helper. A grant is good for one gesture; a caller hands it to the next screen in memory only (`consumeGrant`,
-  30 s), never in the URL. `tools/till-auth-check.mjs` proves `decide()` equals the old `isBadgeScanRequired` on 200
-  rows. The till screens switch to the helper one by one (B2-B5); until then their own popups keep working.
+  30 s), never in the URL. `tools/till-auth-check.mjs` proves `decide()` equals the old `isBadgeScanRequired` (its
+  copy) on 250 rows: 200 for the actions, 10 with the user unknown, 40 for the discrepancy close.
+- **Done (B2-B5 + cleanup)**: every till screen asks through the helper: `CustomerList` and its two callers (B2; the
+  `?returnTo=` query no longer skips the check, it is the Back button's target), the Returns button and `ReturnProducts`
+  (B3; one scan covers the whole return, the second ask at Process return is gone), the line and total discount dialogs
+  (B4; no sticky scan), the discrepancy close (B5; `ownRightAccepted: false`, the server still deciding;
+  `passesWithoutScan` words the warning). `BadgeScanPopup.vue`, `badgeService.isBadgeScanRequired`,
+  `BADGE_PERMISSIONS`, `isAdminUser` / `isCurrentUserAdmin` and the front's lists of the five are gone; `badgeService`
+  keeps `scanBadge` and `getFailureReasonMessage`. Before/after on the four screens: 8 popup instances → 0 (one in the
+  layout), 7 copied checks → 0, 23 flags → 4 (`showDiscrepancyPopup`, `discrepancyData`, `pendingCloseSessionData`,
+  `closeAuthorisation`, plus `closePassesOnOwnRight` for the wording), 37 methods → 7.
 
 The sections below are the original implementation summary.
 
