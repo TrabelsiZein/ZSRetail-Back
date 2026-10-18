@@ -25,6 +25,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   point de stock price grid at the head office, the stock only where the installation keeps its own.
 - Catégories and Sections pages API (step 11b): `GET /item-category` (with the number of families),
   `GET /item-category/families?code`, `GET /item-section` (with the path catégorie › famille › sous-famille); GET only.
+- Fiches items, head office page API (step 1, the list): `GET /admin/headoffice/item-catalogue?page&size&search&status`
+  on every head office, one line per NAV item number, else one per item; search on NAV number, item code, name and
+  barcode; GET only, the other item pages and APIs unchanged.
 
 ### Enhancements
 - Till authorisation, step B: `GET /config` serves `tillActions`, the registry of the five badge actions (`{code, key}`,

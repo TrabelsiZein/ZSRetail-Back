@@ -1803,6 +1803,42 @@ A read-only page, store and head office, for a catalogue of one item per ERP var
 - **Ticket printer**: 80 mm only; the name column (about 21 characters) wraps the label like a long name, and a word
   longer than the column breaks (`overflow-wrap: anywhere` in `receiptPrintStyles.js`).
 
+### Fiches items (head office, 3.1.0, in progress)
+One read-only head office page that unites Items, ERP items and Items by point de stock: a list, and an item card in a
+popup (later steps). New code beside the three pages: their routes, menu entries and APIs (`/item`, `/nav-item`,
+`/admin/headoffice/stock-points/items`) do not change, and nothing of it is in a store WAR (headoffice project only, no
+core class touched).
+
+- **Step 1, the list (back end)**: `GET /admin/headoffice/item-catalogue?page&size&search&status` (`HoItemCatalogueAPI`,
+  `HoItemCatalogueService`, `HoItemCatalogueRepository`), on every head office (ERP catalogue or manual, with or
+  without variants or points de stock): no configuration key, no `@Conditional` bean. JWT like the other admin APIs;
+  the page will have the Items permission (`admin-headoffice-items`). Answer `{content, page, size, totalElements,
+  totalPages, withStock, withStockPoints}`; `withStock` = `ApplicationModeService.keepsOwnStock()`, `withStockPoints` =
+  a point de stock exists (`ho_stock_point` has a row; the ERP items page's own flag is true on every head office).
+- **A line**: one per NAV item number when the item has one, else one per item (packs, TAX_STAMP, items made by hand).
+  Key `navItemNo` or `itemId` (never both); `code` (the NAV number or the item code), name, family, sub-family,
+  catégorie and section (code and name), `variants` (1 for a single item), `stockPoints` (active points where an item
+  of the line has an active row, 0 without points), `active` (a NAV line is active when one variant is), `stockQuantity`
+  (the sum, only with `withStock`), `single` (no NAV number: the page offers the item's actions on the line). Order:
+  code, then the smallest item id. At most 200 lines per page.
+- **Status**: `ACTIVE` (the default) counts the active variants only, so a NAV item whose variants are all inactive
+  and an inactive item have no line; `ALL` counts every variant and shows such lines inactive.
+- **Search** (trimmed, any case, contains): NAV number, item code, name, the legacy `item.barcode` and
+  `item_barcode.barcode`. A search keeps whole lines: a NAV item shows when one of its variants (of the status)
+  matches, and every variant of the status is counted, not only the matching one.
+- **SQL** (native, standard: it runs on H2 in `ItemCatalogueQueryTest`): `GROUP BY nav_item_no, CASE WHEN nav_item_no
+  IS NULL THEN id END`, so an item code equal to another item's NAV number stays its own line; the count is a
+  `COUNT(*)` over the grouped query. The search parameter is cast to `VARCHAR(255)` (the driver sends text as
+  nvarchar). The barcode part is only in the query of a search, and the matching items are a `UNION` (text match, then
+  barcodes) joined as derived tables: written as `OR id IN (barcodes)` and `nav_item_no IN (...)` SQL Server probed
+  `item_barcode` once per variant row (ZEN's test head office: 294,025 probes, 2.5 s for a page and as much for its
+  count). Measured on `zen_headoffice` (21,904 items, 21,940 barcodes, 2,384 NAV numbers): a search 0.3 s for a page and
+  0.25 s for its count, whatever it matches (a barcode, a name, 665 lines, none); no search 70 ms and 40 ms.
+- **Points de stock**: by NAV number through `HoStockPointItemRepository.countActivePointsOfNavItems` (the ERP items
+  page's query, unchanged), by item id for the single items (`HoItemCatalogueRepository.ITEM_POINT_COUNTS`).
+- Tests: `ItemCatalogueQueryTest` (headoffice, H2 with Spring's naming strategies: grouping, status, paging and count,
+  barcode exact and contains, legacy barcode, an item code equal to a NAV number, point counts by item).
+
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter
 `appConfig/erpOwnsOnlyCatalogue`): `nodeType` `HEAD_OFFICE`, `ownership.CATALOGUE` `ERP`, `CUSTOMERS` and `SUPPLY` not `ERP`,
