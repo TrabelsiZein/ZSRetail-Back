@@ -456,6 +456,39 @@ class SaleCompletionLoyaltyStampTest {
 	}
 
 	@Test
+	@DisplayName("Till rights: a pending ticket keeps each line's discount source and promotion, and its header's, on save and on update (a recalled ticket sends them again); none stays none")
+	void pendingTicketKeepsDiscountSources() throws Exception {
+		com.digithink.zsretail.core.model.Promotion promotion = new com.digithink.zsretail.core.model.Promotion();
+		promotion.setId(70L);
+		inject(sales, SalesHeaderService.class, "promotionRepository", stub(
+				com.digithink.zsretail.core.repository.PromotionRepository.class,
+				(m, a) -> "findById".equals(m) ? Optional.ofNullable(70L == (Long) a[0] ? promotion : null) : UNHANDLED));
+
+		ProcessSaleRequestDTO held = request(150, null, 0);
+		held.getLines().get(0).setDiscountSource("PROMOTION");
+		held.getLines().get(0).setPromotionId(70L);
+		held.setDiscountSource("MANUAL");
+		held.setDiscountAmount(5.0);
+		SalesHeader pending = sales.savePendingSale(held, cashier);
+		SalesLine saved = savedLines.get(savedLines.size() - 1);
+		assertEquals("PROMOTION", saved.getDiscountSource());
+		assertSame(promotion, saved.getPromotion());
+		assertEquals("MANUAL", pending.getDiscountSource());
+
+		ProcessSaleRequestDTO again = request(150, null, 0);
+		again.getLines().get(0).setDiscountSource("MANUAL");
+		again.getLines().get(0).setPromotionId(70L); // a promotion id with another source is not kept
+		SalesHeader updated = sales.updatePendingSale(pending.getId(), again, cashier);
+		SalesLine resaved = savedLines.get(savedLines.size() - 1);
+		assertEquals("MANUAL", resaved.getDiscountSource());
+		assertNull(resaved.getPromotion());
+		assertNull(updated.getDiscountSource(), "no header discount source any more");
+
+		sales.updatePendingSale(pending.getId(), request(150, null, 0), cashier);
+		assertNull(savedLines.get(savedLines.size() - 1).getDiscountSource());
+	}
+
+	@Test
 	@DisplayName("RFID hook: put on hold, saved again (even with no tag left), completed, cancelled")
 	void hookOnPendingTicket() throws Exception {
 		RecordingSaleTagHooks hook = withHook();

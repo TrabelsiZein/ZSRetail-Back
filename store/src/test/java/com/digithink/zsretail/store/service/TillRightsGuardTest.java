@@ -134,7 +134,8 @@ class TillRightsGuardTest {
 	@Test
 	@DisplayName("Without the right and without a grant: 403 for the first manual line, its index; then for the header")
 	void noRightNoGrant() {
-		ProcessSaleRequestDTO request = sale(line(1, "PROMOTION", 20.0, 4.0), line(2, "MANUAL", 10.0, 1.0));
+		rights.promotion(50, true);
+		ProcessSaleRequestDTO request = sale(promoted(1, 50L, 20.0), line(2, "MANUAL", 10.0, 1.0));
 		TillRightRequiredException lineRefused = refused(() -> checkSale(request, cashier));
 		assertEquals(LINE, lineRefused.getAction());
 		assertEquals(Reason.NO_GRANT, lineRefused.getReason());
@@ -149,14 +150,82 @@ class TillRightsGuardTest {
 		assertTrue(rights.log.isEmpty());
 	}
 
+	private static ProcessSaleRequestDTO.SaleLineDTO promoted(long itemId, Long promotionId, Double percentage) {
+		ProcessSaleRequestDTO.SaleLineDTO line = line(itemId, "PROMOTION", percentage, 1.0);
+		line.setPromotionId(promotionId);
+		return line;
+	}
+
 	@Test
-	@DisplayName("Discounts that need nothing: promotions, price lists, no source, zero, a header promotion")
-	void otherDiscountsNeedNothing() {
-		ProcessSaleRequestDTO request = withHeader(sale(line(1, "PROMOTION", 100.0, 9.0),
-				line(2, "SALES_DISCOUNT", 5.0, 1.0), line(3, "SALES_PRICE", null, 0.5), line(4, null, 10.0, 2.0),
-				line(5, "MANUAL", 0.0, 0.0), line(6, "MANUAL", null, null)), "PROMOTION", 10.0, 8.0);
+	@DisplayName("Sources the server verifies need nothing: an active promotion, the item's price list (not a larger percentage), a cart promotion; no discount at all needs nothing either")
+	void verifiedSourcesNeedNothing() {
+		rights.promotion(50, true);
+		rights.promotion(60, true);
+		rights.priceListDiscounts.put(2L, 5.0);
+		rights.priceListDiscounts.put(3L, 8.0);
+		ProcessSaleRequestDTO request = sale(promoted(1, 50L, 100.0), line(2, "SALES_DISCOUNT", 5.0, 1.0),
+				line(3, "SALES_PRICE", 8.0, 0.5), line(4, null, null, null), line(5, "MANUAL", 0.0, 0.0),
+				line(6, "FOO", null, null));
+		withHeader(request, "PROMOTION", 10.0, 8.0).setPromotionId(60L);
 		assertDoesNotThrow(() -> checkSale(request, cashier));
 		assertTrue(rights.log.isEmpty());
+	}
+
+	@Test
+	@DisplayName("A price list source is verified for the customer the till priced for: the request's, else the default customer (as POST /price-calculate)")
+	void priceListCustomer() {
+		com.digithink.zsretail.core.model.Customer passenger = new com.digithink.zsretail.core.model.Customer();
+		rights.defaultCustomer = passenger;
+		rights.priceListDiscounts.put(2L, 5.0);
+		assertDoesNotThrow(() -> checkSale(sale(line(2, "SALES_DISCOUNT", 5.0, 1.0)), cashier));
+		assertEquals(java.util.Collections.singletonList(passenger), rights.pricedFor, "no customer id: the default one");
+	}
+
+	@Test
+	@DisplayName("A source missing, unknown or not verified counts as MANUAL: 403 NO_GRANT for the line, passes on the role's right or a grant")
+	void unverifiedSourcesCountAsManual() {
+		rights.promotion(51, false); // inactive
+		rights.priceListDiscounts.put(12L, 5.0);
+		Object[][] rows = {
+				{ line(10, null, 10.0, 1.0), "no source" },
+				{ line(10, "FOO", 10.0, 1.0), "an unknown source" },
+				{ line(10, "", null, 1.0), "an empty source" },
+				{ promoted(10, null, 10.0), "PROMOTION without a promotion" },
+				{ promoted(10, 999L, 10.0), "PROMOTION of an unknown promotion" },
+				{ promoted(10, 51L, 10.0), "PROMOTION of an inactive promotion" },
+				{ line(11, "SALES_DISCOUNT", 5.0, 1.0), "SALES_DISCOUNT on an item without a price list discount" },
+				{ line(12, "SALES_DISCOUNT", 7.0, 1.0), "SALES_DISCOUNT above the price list's 5%" },
+				{ line(12, "SALES_PRICE", 9.0, 1.0), "SALES_PRICE above the price list's 5%" },
+		};
+		for (Object[] row : rows) {
+			ProcessSaleRequestDTO.SaleLineDTO line = (ProcessSaleRequestDTO.SaleLineDTO) row[0];
+			TillRightRequiredException refused = refused(() -> checkSale(sale(line), cashier));
+			assertEquals(LINE, refused.getAction(), (String) row[1]);
+			assertEquals(Reason.NO_GRANT, refused.getReason(), (String) row[1]);
+			assertEquals(Integer.valueOf(0), refused.getLineIndex(), (String) row[1]);
+
+			assertDoesNotThrow(() -> checkSale(sale(line), holder), (String) row[1] + ", role's right");
+			line.setTillGrant(rights.grant(LINE, 7L, cashier, responsible));
+			assertDoesNotThrow(() -> checkSale(sale(line), cashier), (String) row[1] + ", a grant");
+		}
+		// the header: a discount without a source, or a cart promotion that is not one, needs the total right
+		ProcessSaleRequestDTO noSource = withHeader(sale(line(1, null, null, null)), null, null, 5.0);
+		assertEquals(TOTAL, refused(() -> checkSale(noSource, cashier)).getAction());
+		ProcessSaleRequestDTO fakeCart = withHeader(sale(line(1, null, null, null)), "PROMOTION", 10.0, 5.0);
+		fakeCart.setPromotionId(999L);
+		assertEquals(TOTAL, refused(() -> checkSale(fakeCart, cashier)).getAction());
+	}
+
+	@Test
+	@DisplayName("A pending ticket of before (its lines stored without a source): recalled unchanged, its discounts count as MANUAL and pass on what it held; a larger one asks")
+	void oldPendingWithoutSources() {
+		rights.storedLines.add(stored(1, 10.0, 2.0)); // no source, as before this fix
+		SalesHeader held = pending(null, null);
+		assertDoesNotThrow(() -> guard.checkSale(sale(line(1, null, 10.0, 2.0)), cashier, session, held, "SALE P40"),
+				"no re-ask for the discount it held");
+		assertTrue(rights.log.isEmpty());
+		assertEquals(LINE, refused(() -> guard.checkSale(sale(line(1, null, 12.0, 2.4)), cashier, session, held,
+				"SALE P40")).getAction());
 	}
 
 	@Test
@@ -346,8 +415,9 @@ class TillRightsGuardTest {
 		assertTrue(!TillRightsGuard.notAbove(15.0, 3.0, 10.0, 2.0));
 		assertTrue(!TillRightsGuard.notAbove(null, 2.5, null, 2.0));
 		assertTrue(!TillRightsGuard.notAbove(10.0, null, null, null));
-		assertTrue(!TillRightsGuard.manual("PROMOTION", 10.0, 1.0));
-		assertTrue(TillRightsGuard.manual("MANUAL", null, 0.01));
-		assertTrue(!TillRightsGuard.manual("MANUAL", 0.0005, null));
+		assertTrue(TillRightsGuard.discounted(null, 0.01));
+		assertTrue(TillRightsGuard.discounted(10.0, null));
+		assertTrue(!TillRightsGuard.discounted(0.0005, null));
+		assertTrue(!TillRightsGuard.discounted(null, null));
 	}
 }

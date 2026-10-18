@@ -73,10 +73,17 @@ list of its own (labels: i18n `pos.badge.permissions.<code lower case>`).
   came → it passes, the grant is used, the pass logged (BADGE); else **403** `{error: TILL_RIGHT_REQUIRED, action,
   reason, lineIndex?}` and nothing of the request is kept. `reason`: `NO_GRANT`, `GRANT_UNKNOWN`, `GRANT_USED`,
   `GRANT_EXPIRED`, `GRANT_OTHER_SESSION`, `GRANT_OTHER_ACTION`.
-- **Which discounts**: source `MANUAL` with a percentage or an amount above 0.001, per line (`SaleLineDTO.tillGrant`)
-  and for the header (`ProcessSaleRequestDTO.tillGrant`), on `process-sale`, `save-pending`, `update-pending/{id}`,
-  `complete-pending/{id}`. Promotions, price lists and lines without a source need nothing; the split payment of a
-  table ticket takes its lines from the stored ticket.
+- **Which discounts**: every discount (a percentage or an amount above 0.001), per line (`SaleLineDTO.tillGrant`) and
+  for the header (`ProcessSaleRequestDTO.tillGrant`), on `process-sale`, `save-pending`, `update-pending/{id}`,
+  `complete-pending/{id}`, unless the server verifies its source: `PROMOTION` with its promotion (`promotionId`,
+  existing and active; the header's: its cart promotion); `SALES_PRICE` or `SALES_DISCOUNT` when the price list
+  (`PricingService`, as `POST /price-calculate`) gives the item, for the request's customer (else the stored ticket's,
+  else the default customer, as the price calculation), a discount at least the line's percentage. A source missing,
+  unknown or not verified counts as `MANUAL`. The split payment of a table ticket takes its lines from the stored ticket.
+- **Pending tickets keep their sources**: `save-pending` and `update-pending/{id}` store each line's `discount_source`
+  and promotion, and the header's, as a completed sale does (the columns of `sales_line` and `sales_header`); the till
+  sends them again when it recalls the ticket (the pending list and the table grid). A ticket parked before has none:
+  its discounts count as `MANUAL`, and pass as long as they are not above what it held (below).
 - **A pending ticket keeps what it held**: saved again or completed, a discount not above the stored one (same item;
   not a larger percentage, or not a larger amount) passes: it was authorised, and logged, when stored (a ticket parked
   before the upgrade too). A new ticket is credited nothing.
@@ -136,8 +143,9 @@ Nothing changes for anyone on the day of the upgrade until an administrator edit
 
 ## Known limits
 
-- A discount without a source is not checked (a recalled pending ticket's lines come back without theirs; the
-  pending tables do not store it). A client sending a manual discount without its source passes unchecked.
+- A promotion is verified by its existence and activity, not by its rules (scope, dates, quantities): a client naming
+  an active promotion on a line it does not cover passes unchecked. A price list discount is verified for the item
+  and the customer.
 - The till's abilities date from the login: a right removed since passes the till's own decision, the server refuses
   it (403, then a badge); a right added since shows the popup until the next login.
 - The router checks a page's permission only where its route declares one (`meta.resource`, at the end of the guard);

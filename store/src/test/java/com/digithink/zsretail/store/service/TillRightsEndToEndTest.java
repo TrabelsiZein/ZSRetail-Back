@@ -251,10 +251,15 @@ class TillRightsEndToEndTest {
 	}
 
 	private Map<String, Object> saleWithLineDiscount(String grant) {
+		return saleWithLineDiscount(grant, "MANUAL", null);
+	}
+
+	private Map<String, Object> saleWithLineDiscount(String grant, String source, Long promotionId) {
 		Map<String, Object> line = new HashMap<>();
 		line.put("itemId", 10);
 		line.put("quantity", 1);
-		line.put("discountSource", "MANUAL");
+		line.put("discountSource", source);
+		line.put("promotionId", promotionId);
 		line.put("discountPercentage", 10.0);
 		line.put("discountAmount", 1.5);
 		line.put("tillGrant", grant);
@@ -412,6 +417,28 @@ class TillRightsEndToEndTest {
 
 		assertRefused(request(RETURN, "forged-token"), RETURN, "GRANT_UNKNOWN");
 		assertEquals(1, rights.log.size(), "only the one pass");
+	}
+
+	@Test
+	@DisplayName("Discount sources over HTTP: missing, unknown, or a promotion the server cannot find count as MANUAL (403 without the right, passes with a grant); an active promotion and the item's price list pass")
+	void discountSources() throws Exception {
+		logged = cashier;
+		for (Object[] row : new Object[][] { { null, null }, { "SOMETHING", null }, { "PROMOTION", null },
+				{ "PROMOTION", 999L }, { "SALES_DISCOUNT", null } }) {
+			MockHttpServletResponse refused = send("/sales-header/process-sale",
+					saleWithLineDiscount(null, (String) row[0], (Long) row[1]));
+			assertRefused(refused, LINE, "NO_GRANT");
+			String token = scan(responsible, LINE);
+			assertEquals(200, send("/sales-header/process-sale", saleWithLineDiscount(token, (String) row[0],
+					(Long) row[1])).getStatus(), String.valueOf(row[0]));
+		}
+		rights.promotion(80, true);
+		rights.priceListDiscounts.put(10L, 10.0);
+		int rows = rights.log.size();
+		assertEquals(200, send("/sales-header/process-sale", saleWithLineDiscount(null, "PROMOTION", 80L)).getStatus());
+		assertEquals(200, send("/sales-header/process-sale", saleWithLineDiscount(null, "SALES_DISCOUNT", null))
+				.getStatus(), "the line's 10% is the price list's");
+		assertEquals(rows, rights.log.size(), "a verified source is no pass to log");
 	}
 
 	@Test

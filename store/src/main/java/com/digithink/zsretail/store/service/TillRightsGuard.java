@@ -8,13 +8,21 @@ import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.digithink.zsretail.core.dto.PricingResult;
 import com.digithink.zsretail.core.model.CashierSession;
+import com.digithink.zsretail.core.model.Customer;
+import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.SalesLine;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model.enumeration.BadgePermission;
+import com.digithink.zsretail.core.repository.CustomerRepository;
+import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.PromotionRepository;
 import com.digithink.zsretail.core.repository.SalesLineRepository;
 import com.digithink.zsretail.core.service.BadgeService;
+import com.digithink.zsretail.core.service.CustomerService;
+import com.digithink.zsretail.core.service.PricingService;
 import com.digithink.zsretail.store.dto.ProcessReturnRequestDTO;
 import com.digithink.zsretail.store.dto.ProcessSaleRequestDTO;
 import com.digithink.zsretail.store.exception.TillRightRequiredException;
@@ -29,11 +37,13 @@ import com.digithink.zsretail.store.model.TillGrant;
  * {@link TillRightRequiredException} (403 TILL_RIGHT_REQUIRED). Called inside the request's transaction, before it
  * writes anything: a refusal keeps nothing of the request, grants used by it included.
  * <ul>
- * <li>A sale, a pending save or update, a pending completion: each line with a manual discount (source MANUAL, a
- * percentage or an amount above 0) needs APPLY_LINE_DISCOUNT, the header's manual discount APPLY_TOTAL_DISCOUNT. A
- * pending ticket saved again or completed keeps what it held: a discount not above the one stored (same item; the
- * percentage, else the amount) passes, authorised when it was stored. Discounts of other sources (promotions, price
- * lists) need nothing; the split payment of a table ticket takes its lines from the stored ticket.</li>
+ * <li>A sale, a pending save or update, a pending completion: each discounted line (a percentage or an amount above
+ * 0) needs APPLY_LINE_DISCOUNT, a discounted header APPLY_TOTAL_DISCOUNT, unless the server verifies the discount's
+ * source ({@link #verifiedLineSource}, {@link #verifiedHeaderSource}): PROMOTION with an existing active promotion;
+ * SALES_PRICE or SALES_DISCOUNT when the price list gives the item, for the customer, a discount at least as large. A
+ * source missing, unknown or not verified counts as MANUAL. A pending ticket saved again or completed keeps what it
+ * held: a discount not above the one stored (same item; the percentage, else the amount) passes, authorised when it was
+ * stored. The split payment of a table ticket takes its lines from the stored ticket.</li>
  * <li>A return: MAKE_RETURN.</li>
  * <li>Closing with a cash difference: {@link #closeWithDifference}.</li>
  * </ul>
@@ -44,6 +54,11 @@ public class TillRightsGuard {
 	/** The amounts and percentages compared (a millime). */
 	static final double EPSILON = 0.001;
 
+	/** The discount sources the till sends (POST /price-calculate, the discount dialogs). */
+	static final String PROMOTION = "PROMOTION";
+	static final String SALES_PRICE = "SALES_PRICE";
+	static final String SALES_DISCOUNT = "SALES_DISCOUNT";
+
 	@Autowired
 	private BadgeService badgeService;
 
@@ -52,6 +67,21 @@ public class TillRightsGuard {
 
 	@Autowired
 	private SalesLineRepository salesLineRepository;
+
+	@Autowired
+	private PromotionRepository promotionRepository;
+
+	@Autowired
+	private ItemRepository itemRepository;
+
+	@Autowired
+	private CustomerRepository customerRepository;
+
+	@Autowired
+	private PricingService pricingService;
+
+	@Autowired
+	private CustomerService customerService;
 
 	/**
 	 * The discounts of a sale or pending request.
@@ -65,17 +95,69 @@ public class TillRightsGuard {
 				: Collections.<SalesLine>emptyList();
 		List<ProcessSaleRequestDTO.SaleLineDTO> lines = request.getLines() != null ? request.getLines()
 				: Collections.<ProcessSaleRequestDTO.SaleLineDTO>emptyList();
+		Customer customer = customerOf(request, pending);
 		for (int i = 0; i < lines.size(); i++) {
 			ProcessSaleRequestDTO.SaleLineDTO line = lines.get(i);
-			if (manual(line.getDiscountSource(), line.getDiscountPercentage(), line.getDiscountAmount())
+			if (discounted(line.getDiscountPercentage(), line.getDiscountAmount()) && !verifiedLineSource(line, customer)
 					&& !creditedLine(line, stored)) {
 				require(BadgePermission.APPLY_LINE_DISCOUNT, line.getTillGrant(), i, user, session, ref, rolePassed);
 			}
 		}
-		if (manual(request.getDiscountSource(), request.getDiscountPercentage(), request.getDiscountAmount())
+		if (discounted(request.getDiscountPercentage(), request.getDiscountAmount()) && !verifiedHeaderSource(request)
 				&& !creditedHeader(request, pending)) {
 			require(BadgePermission.APPLY_TOTAL_DISCOUNT, request.getTillGrant(), null, user, session, ref, rolePassed);
 		}
+	}
+
+	/**
+	 * A line's discount whose source the server verifies, so it needs no right: PROMOTION with its promotion (existing,
+	 * active); SALES_PRICE or SALES_DISCOUNT when the price list gives this item, for this customer, a discount at least
+	 * the line's percentage (PricingService, as POST /price-calculate). False for MANUAL, a missing or unknown source, or
+	 * a claim the server cannot verify: the line then needs APPLY_LINE_DISCOUNT.
+	 */
+	boolean verifiedLineSource(ProcessSaleRequestDTO.SaleLineDTO line, Customer customer) {
+		String source = line.getDiscountSource();
+		if (PROMOTION.equals(source)) {
+			return activePromotion(line.getPromotionId());
+		}
+		if (!SALES_PRICE.equals(source) && !SALES_DISCOUNT.equals(source)) {
+			return false;
+		}
+		Item item = line.getItemId() == null ? null : itemRepository.findById(line.getItemId()).orElse(null);
+		if (item == null) {
+			return false;
+		}
+		PricingResult priceList = pricingService.calculateItemPrice(item, customer, line.getQuantity(), null);
+		Double listed = priceList == null ? null : priceList.getDiscountPercentage();
+		return positive(listed) && (line.getDiscountPercentage() == null
+				|| line.getDiscountPercentage() <= listed + EPSILON);
+	}
+
+	/** The header's discount the server verifies: PROMOTION with its cart promotion (existing, active). */
+	boolean verifiedHeaderSource(ProcessSaleRequestDTO request) {
+		return PROMOTION.equals(request.getDiscountSource()) && activePromotion(request.getPromotionId());
+	}
+
+	private boolean activePromotion(Long promotionId) {
+		return promotionId != null && promotionRepository.findById(promotionId)
+				.map(promotion -> !Boolean.FALSE.equals(promotion.getActive())).orElse(false);
+	}
+
+	/**
+	 * The customer the till priced the lines for, as POST /price-calculate resolves it: the request's, else the stored
+	 * ticket's, else the default customer (PASSENGER_CUSTOMER).
+	 */
+	private Customer customerOf(ProcessSaleRequestDTO request, SalesHeader pending) {
+		if (request.getCustomerId() != null) {
+			Customer customer = customerRepository.findById(request.getCustomerId()).orElse(null);
+			if (customer != null) {
+				return customer;
+			}
+		}
+		if (pending != null && pending.getCustomer() != null) {
+			return pending.getCustomer();
+		}
+		return customerService.getDefaultCustomer();
 	}
 
 	/** A return: the right to make it, or the grant of the scan at the Returns button. */
@@ -124,9 +206,9 @@ public class TillRightsGuard {
 				idOf(session));
 	}
 
-	/** A manual discount: source MANUAL with a percentage or an amount above 0. */
-	static boolean manual(String source, Double percentage, Double amount) {
-		return "MANUAL".equals(source) && (positive(percentage) || positive(amount));
+	/** A discount: a percentage or an amount above 0.001, whatever its source. */
+	static boolean discounted(Double percentage, Double amount) {
+		return positive(percentage) || positive(amount);
 	}
 
 	/** A line discount the pending ticket held for the same item: not a larger percentage, else not a larger amount. */

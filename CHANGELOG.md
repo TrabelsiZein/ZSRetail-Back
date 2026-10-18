@@ -72,6 +72,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `UserAccountDTO`, `CreateUserRequestDTO` and `GET /user-account/cashiers` no longer carry `role`; `PUT
   /user-account/{id}` no longer reads it; creating a user needs `appRoleId`. Users of before without an AppRole get the
   role named as their enum value at the start (as before, now by JDBC).
+- Till rights, discount sources: every discount of a sale or pending request needs the right (or a grant) unless the
+  server verifies its source: PROMOTION with an existing active promotion, SALES_PRICE / SALES_DISCOUNT with the item's
+  price list discount for the customer (not a larger percentage). A source missing, unknown or not verified counts as
+  MANUAL (403 `NO_GRANT` without the right). `save-pending` and `update-pending/{id}` now store each line's and the
+  header's discount source and promotion, so a recalled ticket keeps them; a ticket parked before counts as MANUAL and
+  passes on the discounts it held.
 - Item variants (step 11c): the return screen's ticket lookup and the return voucher lines give the item's
   `variantDescription` (`ReturnHeaderAPI`), so the till and the tickets show "name — variant" (null for the other
   customers: the name alone, as before). The sale lines already carried it through the item.
@@ -212,6 +218,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Step E: `user_account.role` nullable (its type kept; also at each start, `TillSchemaUpgrade`), kept unused
   (deprecated, dropped in the next version); the users without an AppRole given the role of their enum's name. Store
   and head office, re-runnable.
+- Discount sources of pending tickets: `sales_line` / `sales_header` `.discount_source` and `.promotion_id` made sure
+  of (they exist already); nothing filled in, the pending tickets of before keep nulls. Re-runnable.
 - `APP_VERSION` 3.1.0; release notes to complete when the version is closed (RFID is missing).
 
 ### Config

@@ -392,6 +392,23 @@ IF COL_LENGTH('user_account', 'role') IS NOT NULL AND OBJECT_ID(N'app_role', N'U
 		JOIN app_role r ON r.name = u.role WHERE u.app_role_id IS NULL');
 GO
 
+-- Till rights, discount sources (after step E): a pending ticket keeps each discount's source and promotion, as a
+-- completed sale does, in the same columns (sales_line / sales_header .discount_source, .promotion_id), which the
+-- entities have created long ago; made sure of here. Nothing is filled in: a pending ticket stored before keeps nulls
+-- (its discounts then count as MANUAL and pass on what it held). Re-runnable.
+IF OBJECT_ID(N'sales_line', N'U') IS NOT NULL
+BEGIN
+	IF COL_LENGTH('sales_line', 'discount_source') IS NULL ALTER TABLE sales_line ADD discount_source varchar(20) NULL;
+	IF COL_LENGTH('sales_line', 'promotion_id') IS NULL ALTER TABLE sales_line ADD promotion_id bigint NULL;
+END
+GO
+IF OBJECT_ID(N'sales_header', N'U') IS NOT NULL
+BEGIN
+	IF COL_LENGTH('sales_header', 'discount_source') IS NULL ALTER TABLE sales_header ADD discount_source varchar(20) NULL;
+	IF COL_LENGTH('sales_header', 'promotion_id') IS NULL ALTER TABLE sales_header ADD promotion_id bigint NULL;
+END
+GO
+
 UPDATE APP_VERSION SET version = '3.1.0';
 
 -- The notes of 3.1.0 are written again on each run (the script may run more than once). The RFID notes are added

@@ -4,6 +4,7 @@ import static com.digithink.zsretail.core.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.core.support.InMemoryLoyalty.proxy;
 
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -12,17 +13,26 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import com.digithink.zsretail.core.dto.PricingResult;
 import com.digithink.zsretail.core.model.BadgeScanLog;
 import com.digithink.zsretail.core.model.CashierSession;
+import com.digithink.zsretail.core.model.Customer;
 import com.digithink.zsretail.core.model.GeneralSetup;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.Promotion;
 import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.SalesLine;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model.enumeration.BadgePermission;
 import com.digithink.zsretail.core.repository.BadgeScanLogRepository;
+import com.digithink.zsretail.core.repository.CustomerRepository;
 import com.digithink.zsretail.core.repository.GeneralSetupRepository;
+import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.PromotionRepository;
 import com.digithink.zsretail.core.repository.SalesLineRepository;
 import com.digithink.zsretail.core.service.BadgeService;
+import com.digithink.zsretail.core.service.CustomerService;
+import com.digithink.zsretail.core.service.PricingService;
 import com.digithink.zsretail.store.dto.ProcessReturnRequestDTO;
 import com.digithink.zsretail.store.dto.ProcessSaleRequestDTO;
 import com.digithink.zsretail.store.dto.TillGrantDTO;
@@ -47,6 +57,13 @@ public final class InMemoryTillRights {
 	public final List<SalesLine> storedLines = new ArrayList<>();
 	/** General Setup by code (TILL_GRANT_MAX_MINUTES). */
 	public final Map<String, String> settings = new HashMap<>();
+	/** The promotions by id (a PROMOTION source is verified against them). */
+	public final Map<Long, Promotion> promotions = new HashMap<>();
+	/** The price list's discount percentage by item id (a SALES_PRICE / SALES_DISCOUNT source is verified on it). */
+	public final Map<Long, Double> priceListDiscounts = new HashMap<>();
+	/** The default customer (PASSENGER_CUSTOMER), and the customers the price list was asked for. */
+	public Customer defaultCustomer;
+	public final List<Customer> pricedFor = new ArrayList<>();
 
 	public final BadgeService badges = new BadgeService();
 	public final TillGrantService grantService = new TillGrantService();
@@ -76,6 +93,30 @@ public final class InMemoryTillRights {
 			set(guard, TillRightsGuard.class, "tillGrantService", grantService);
 			set(guard, TillRightsGuard.class, "salesLineRepository", proxy(SalesLineRepository.class,
 					(m, a) -> "findBySalesHeader".equals(m) ? new ArrayList<>(storedLines) : UNHANDLED));
+			set(guard, TillRightsGuard.class, "promotionRepository", proxy(PromotionRepository.class,
+					(m, a) -> "findById".equals(m) ? Optional.ofNullable(promotions.get(a[0])) : UNHANDLED));
+			set(guard, TillRightsGuard.class, "itemRepository", proxy(ItemRepository.class, (m, a) -> {
+				if (!"findById".equals(m)) return UNHANDLED;
+				Item item = new Item();
+				item.setId((Long) a[0]);
+				return Optional.of(item);
+			}));
+			set(guard, TillRightsGuard.class, "customerRepository", proxy(CustomerRepository.class,
+					(m, a) -> "findById".equals(m) ? Optional.empty() : UNHANDLED));
+			set(guard, TillRightsGuard.class, "customerService", new CustomerService() {
+				@Override
+				public Customer getDefaultCustomer() {
+					return defaultCustomer;
+				}
+			});
+			set(guard, TillRightsGuard.class, "pricingService", new PricingService() {
+				@Override
+				public PricingResult calculateItemPrice(Item item, Customer customer, BigDecimal quantity,
+						String responsibilityCenter) {
+					pricedFor.add(customer);
+					return new PricingResult(10.0, false, priceListDiscounts.get(item.getId()), "ITEM");
+				}
+			});
 		} catch (Exception e) {
 			throw new IllegalStateException(e);
 		}
@@ -111,6 +152,15 @@ public final class InMemoryTillRights {
 					return UNHANDLED;
 			}
 		});
+	}
+
+	/** An existing promotion, active or not. */
+	public Promotion promotion(long id, boolean active) {
+		Promotion promotion = new Promotion();
+		promotion.setId(id);
+		promotion.setActive(active);
+		promotions.put(id, promotion);
+		return promotion;
 	}
 
 	/** A successful scan's grant (as POST /badge/scan gives it): the token the till holds. */

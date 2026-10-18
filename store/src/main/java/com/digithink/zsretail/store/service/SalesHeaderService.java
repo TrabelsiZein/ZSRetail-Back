@@ -385,6 +385,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		salesHeader.setChangeAmount(0.0);
 		salesHeader.setNotes(request.getNotes());
 		salesHeader.setTableNumber(request.getTableNumber());
+		keepDiscountSource(salesHeader, request); // the till's rights: a recalled ticket keeps its sources
 		// completedDate is null for pending sales
 
 		// Set customer - use provided customer or passenger customer
@@ -437,6 +438,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 			// Apply pricing from PricingService (SalesPrice/SalesDiscount)
 			applyPricingToSalesLine(salesLine, item, customer, lineDTO);
+			keepDiscountSource(salesLine, lineDTO);
 
 			salesLine = salesLineService.save(salesLine);
 			salesLines.add(salesLine);
@@ -494,6 +496,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		if (request.getCustomerId() != null) {
 			customerRepository.findById(request.getCustomerId()).ifPresent(salesHeader::setCustomer);
 		}
+		keepDiscountSource(salesHeader, request); // the till's rights: a recalled ticket keeps its sources
 
 		salesHeader = save(salesHeader);
 
@@ -511,6 +514,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			salesLine.setItem(item);
 			salesLine.setQuantity(lineDTO.getQuantity());
 			applyPricingToSalesLine(salesLine, item, customer, lineDTO);
+			keepDiscountSource(salesLine, lineDTO);
 			salesLineService.save(salesLine);
 			addLineTags(lineTags, salesLine, lineDTO);
 		}
@@ -1770,6 +1774,26 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		line.setLineTotal(netHt);
 		line.setVatAmount(netTtc - netHt);
 		line.setLineTotalIncludingVat(netTtc);
+	}
+
+	/**
+	 * Till rights (3.1.0): a pending ticket's line keeps the source of its discount and its promotion, as a completed
+	 * sale's does, so a recalled ticket sends them again and the server can verify them (TillRightsGuard); a line stored
+	 * before had none and counts as MANUAL.
+	 */
+	private void keepDiscountSource(SalesLine salesLine, ProcessSaleRequestDTO.SaleLineDTO lineDTO) {
+		salesLine.setDiscountSource(lineDTO.getDiscountSource());
+		salesLine.setPromotion("PROMOTION".equals(lineDTO.getDiscountSource()) && lineDTO.getPromotionId() != null
+				? promotionRepository.findById(lineDTO.getPromotionId()).orElse(null)
+				: null);
+	}
+
+	/** The same for a pending ticket's header discount (MANUAL, or PROMOTION with its cart promotion). */
+	private void keepDiscountSource(SalesHeader salesHeader, ProcessSaleRequestDTO request) {
+		salesHeader.setDiscountSource(request.getDiscountSource());
+		salesHeader.setPromotion("PROMOTION".equals(request.getDiscountSource()) && request.getPromotionId() != null
+				? promotionRepository.findById(request.getPromotionId()).orElse(null)
+				: null);
 	}
 
 	/**
