@@ -285,7 +285,9 @@ class ItemCatalogueFiltersQueryTest {
 				null, null, null, query).filters());
 		assertTrue(filters.isHasVariants());
 		assertTrue(filters.isHasFamilies());
-		assertTrue(filters.isHasCategorySection());
+		assertTrue(filters.isHasDivision());
+		assertTrue(filters.isHasCategory());
+		assertTrue(filters.isHasSection());
 		assertEquals(3, filters.getStockPointCount());
 		assertFalse(filters.isHasBarcodes());
 		assertEquals(Arrays.asList("FEM", "HOM"),

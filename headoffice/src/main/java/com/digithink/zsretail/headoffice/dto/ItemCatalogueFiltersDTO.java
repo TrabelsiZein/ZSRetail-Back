@@ -21,8 +21,14 @@ public class ItemCatalogueFiltersDTO {
 	/** An item has a family. */
 	private boolean hasFamilies;
 
-	/** An item has a division, a catégorie or a section. */
-	private boolean hasCategorySection;
+	/** An item has a division. */
+	private boolean hasDivision;
+
+	/** An item has a catégorie. */
+	private boolean hasCategory;
+
+	/** An item has a section. */
+	private boolean hasSection;
 
 	/** The points de stock (active or not). */
 	private long stockPointCount;

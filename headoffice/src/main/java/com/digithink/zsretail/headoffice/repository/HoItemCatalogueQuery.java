@@ -282,15 +282,16 @@ public class HoItemCatalogueQuery {
 	}
 
 	/**
-	 * The flags of the page, from the data: [has_variants, has_families, has_category_section, stock_point_count,
-	 * has_barcodes].
+	 * The flags of the page, from the data: [has_variants, has_families, has_division, has_category, has_section,
+	 * stock_point_count, has_barcodes]; one existence check each (ZEN has catégories and divisions but no section).
 	 */
 	public static final String FLAGS = "SELECT"
 			+ " CASE WHEN EXISTS (SELECT 1 FROM item v WHERE v.nav_item_no IS NOT NULL GROUP BY v.nav_item_no"
 			+ " HAVING COUNT(*) > 1) THEN 1 ELSE 0 END AS has_variants,"
 			+ " CASE WHEN EXISTS (SELECT 1 FROM item v WHERE v.item_family_id IS NOT NULL) THEN 1 ELSE 0 END AS has_families,"
-			+ " CASE WHEN EXISTS (SELECT 1 FROM item v WHERE v.division_code IS NOT NULL OR v.category_code IS NOT NULL"
-			+ " OR v.section_code IS NOT NULL) THEN 1 ELSE 0 END AS has_category_section,"
+			+ " CASE WHEN EXISTS (SELECT 1 FROM item v WHERE v.division_code IS NOT NULL) THEN 1 ELSE 0 END AS has_division,"
+			+ " CASE WHEN EXISTS (SELECT 1 FROM item v WHERE v.category_code IS NOT NULL) THEN 1 ELSE 0 END AS has_category,"
+			+ " CASE WHEN EXISTS (SELECT 1 FROM item v WHERE v.section_code IS NOT NULL) THEN 1 ELSE 0 END AS has_section,"
 			+ " (SELECT COUNT(*) FROM ho_stock_point p) AS stock_point_count,"
 			+ " CASE WHEN EXISTS (SELECT 1 FROM item_barcode b) THEN 1 ELSE 0 END AS has_barcodes";
 

@@ -29,9 +29,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   on every head office, one line per NAV item number, else one per item; search on NAV number, item code, name and
   barcode; GET only, the other item pages and APIs unchanged.
 - Fiches items follows the customer's data: `GET /admin/headoffice/item-catalogue/filters` (flags hasVariants,
-  hasFamilies, hasCategorySection, stockPointCount, hasBarcodes and the filter choices); the list filters on family,
-  sub-family, division, catégorie, section, point de stock, has variants and price with VAT, sorts by code (natural for
-  the codes of digits only), name or family, and gives each line its price range with VAT.
+  hasFamilies, hasDivision, hasCategory, hasSection, stockPointCount, hasBarcodes and the filter choices); the list
+  filters on family, sub-family, division, catégorie, section, point de stock, has variants and price with VAT, sorts by
+  code (natural for the codes of digits only), name or family, and gives each line its price range with VAT.
 - Fiches items, step 2, the item card: `GET /admin/headoffice/item-catalogue/card?navItemNo|itemId[&search]`, one
   answer with the header, every variant (active or not) with its active barcodes and point de stock rows, the points,
   and the item form's read-only details; the variant whose code or barcode equals the search is highlighted.

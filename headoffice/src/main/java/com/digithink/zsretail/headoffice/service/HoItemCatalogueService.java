@@ -72,9 +72,11 @@ public class HoItemCatalogueService {
 		Object[] flags = query.rows(HoItemCatalogueQuery.FLAGS).get(0);
 		filters.setHasVariants(flag(flags[0]));
 		filters.setHasFamilies(flag(flags[1]));
-		filters.setHasCategorySection(flag(flags[2]));
-		filters.setStockPointCount(flags[3] == null ? 0 : ((Number) flags[3]).longValue());
-		filters.setHasBarcodes(flag(flags[4]));
+		filters.setHasDivision(flag(flags[2]));
+		filters.setHasCategory(flag(flags[3]));
+		filters.setHasSection(flag(flags[4]));
+		filters.setStockPointCount(flags[5] == null ? 0 : ((Number) flags[5]).longValue());
+		filters.setHasBarcodes(flag(flags[6]));
 		if (filters.isHasFamilies()) {
 			for (Object[] row : query.rows(HoItemCatalogueQuery.FAMILIES)) {
 				filters.getFamilies().add(new ItemCatalogueFiltersDTO.Option(id(row[0]), (String) row[1], (String) row[2], null));
@@ -84,13 +86,17 @@ public class HoItemCatalogueService {
 						.add(new ItemCatalogueFiltersDTO.Option(id(row[0]), (String) row[1], (String) row[2], id(row[3])));
 			}
 		}
-		if (filters.isHasCategorySection()) {
+		if (filters.isHasDivision()) {
 			for (Object[] row : query.rows(HoItemCatalogueQuery.DIVISIONS)) {
 				filters.getDivisions().add(new ItemCatalogueFiltersDTO.Option(null, (String) row[0], null, null));
 			}
+		}
+		if (filters.isHasCategory()) {
 			for (Object[] row : query.rows(HoItemCatalogueQuery.CATEGORIES)) {
 				filters.getCategories().add(new ItemCatalogueFiltersDTO.Option(null, (String) row[0], (String) row[1], null));
 			}
+		}
+		if (filters.isHasSection()) {
 			for (Object[] row : query.rows(HoItemCatalogueQuery.SECTIONS)) {
 				filters.getSections().add(new ItemCatalogueFiltersDTO.Option(null, (String) row[0], (String) row[1], null));
 			}

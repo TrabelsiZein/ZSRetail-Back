@@ -1841,11 +1841,14 @@ core class touched).
   page's query, unchanged), by item id for the single items (`HoItemCatalogueRepository.ITEM_POINT_COUNTS`).
 - **The page follows the customer's data** (2026-10-18, after the tests on ZEN and Happyness), no configuration:
   `GET /admin/headoffice/item-catalogue/filters` (read once when the page opens) answers the flags `hasVariants` (a NAV
-  number has 2 items or more), `hasFamilies`, `hasCategorySection` (a division, catégorie or section), `stockPointCount`,
-  `hasBarcodes`, and the filter choices (families and sub-families that have an item, the division codes of the items,
-  catégories and sections with their names, the points de stock in list order). The list's Variants, Family /
-  Sub-family, Category / Section and Points de stock (more than one) columns and filters show only with their flag; the
-  search placeholder names the NAV number and the barcode only where they exist.
+  number has 2 items or more), `hasFamilies`, `hasDivision`, `hasCategory`, `hasSection` (one existence check each: ZEN
+  has divisions but no catégorie or section), `stockPointCount`, `hasBarcodes`, and the filter choices (families and
+  sub-families that have an item, the division codes of the items, catégories and sections with their names, the points
+  de stock in list order). The list's Variants, Family / Sub-family, Category / Section (with a catégorie or a section)
+  and Points de stock (more than one) columns, and the Division, Catégorie and Section filters each with its own flag,
+  show only when the data has them; the search placeholder names the NAV number and the barcode only where they exist.
+  The list has no Actions column: a click on a line, or Enter on the focused line, opens the card; Configure pack and
+  Adjust stock are in the card (its header for a single item, each variant's menu for a NAV item), as on the Items page.
 - **List filters and sort** (`HoItemCatalogueQuery`, native SQL built with only the filters set; the two fixed list
   queries of `HoItemCatalogueRepository` are gone): `familyId`, `subFamilyId`, `divisionCode`, `categoryCode`,
   `sectionCode`, `stockPointId` (an active row there), `variants=ALL|YES|NO` (2 variants or more of the status),

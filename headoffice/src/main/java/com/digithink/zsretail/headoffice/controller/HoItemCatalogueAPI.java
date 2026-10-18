@@ -82,8 +82,8 @@ public class HoItemCatalogueAPI {
 	}
 
 	/**
-	 * GET /admin/headoffice/item-catalogue/filters: the page's flags (hasVariants, hasFamilies, hasCategorySection,
-	 * stockPointCount, hasBarcodes) and filter choices, from the data; read once when the page opens.
+	 * GET /admin/headoffice/item-catalogue/filters: the page's flags (hasVariants, hasFamilies, hasDivision, hasCategory,
+	 * hasSection, stockPointCount, hasBarcodes) and filter choices, from the data; read once when the page opens.
 	 */
 	@GetMapping("filters")
 	public ResponseEntity<ItemCatalogueFiltersDTO> filters() {

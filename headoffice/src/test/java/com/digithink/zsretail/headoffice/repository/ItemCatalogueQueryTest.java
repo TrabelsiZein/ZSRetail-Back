@@ -320,7 +320,8 @@ class ItemCatalogueQueryTest {
 			assertEquals(Arrays.asList(HoItemCatalogueQuery.COUNT_COLUMN),
 					columnLabels(sessions, built.getCount(), built.getParameters()));
 		}
-		assertEquals(Arrays.asList("has_variants", "has_families", "has_category_section", "stock_point_count", "has_barcodes"),
+		assertEquals(Arrays.asList("has_variants", "has_families", "has_division", "has_category", "has_section",
+				"stock_point_count", "has_barcodes"),
 				columnLabels(sessions, HoItemCatalogueQuery.FLAGS));
 		assertEquals(Arrays.asList("id", "code", "name"), columnLabels(sessions, HoItemCatalogueQuery.FAMILIES));
 		assertEquals(Arrays.asList("id", "code", "name", "family_id"), columnLabels(sessions, HoItemCatalogueQuery.SUB_FAMILIES));
@@ -344,6 +345,17 @@ class ItemCatalogueQueryTest {
 		assertEquals("stock_quantity", columns.get(HoItemCatalogueQuery.COL_STOCK_QUANTITY));
 		assertEquals("price_min", columns.get(HoItemCatalogueQuery.COL_PRICE_MIN));
 		assertEquals("price_max", columns.get(HoItemCatalogueQuery.COL_PRICE_MAX));
+	}
+
+	@Test
+	@DisplayName("Flags per field: a catégorie without any division or section (ZEN's shape) gives has_category only")
+	void flagsPerField() {
+		try (Session session = sessions.openSession()) {
+			Object[] flags = (Object[]) session.createNativeQuery(HoItemCatalogueQuery.FLAGS).uniqueResult();
+			List<Integer> values = Arrays.stream(flags).map(value -> ((Number) value).intValue()).collect(Collectors.toList());
+			// [has_variants, has_families, has_division, has_category, has_section, stock_point_count, has_barcodes]
+			assertEquals(Arrays.asList(1, 1, 0, 1, 0, 2, 1), values);
+		}
 	}
 
 	@Test
