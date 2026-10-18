@@ -28,6 +28,14 @@
 - Tests: `CashierSessionAdminBadgeTest` (admin without a badge passes; cashier, responsible, custom role refused as in
   2.2.1; a valid badge passes, an unknown or insufficient one refused as in 2.2.1).
 
+## Security (3.1.0, step S)
+
+- **Removed endpoints** (no caller in ZSRetail-Front): the whole `/user` controller (`UseAccountAPI`: generic CRUD on
+  the raw `UserAccount`, password hash included, and `PUT /user/{id}/role`, which set the role enum with no I-21 check);
+  the badge lookups `GET /badge/by-badge/{code}`, `POST /badge/check-permission`, `GET /user-account/by-badge/{code}`,
+  `GET` and `PUT /user-account/{id}/badge` (no log, any logged user). Users and badges are edited through
+  `PUT /user-account/{id}` and the `/user-account/{id}/badge/generate|revoke|reactivate` actions only.
+
 The sections below are the original implementation summary.
 
 ## Overview
@@ -96,9 +104,7 @@ A comprehensive badge-based permission system has been implemented to control ac
 #### 1.6 BadgeAPI Controller
 **File**: `store/src/main/java/com/digithink/zsretail/store/controller/BadgeAPI.java`
 - REST endpoints:
-  - `GET /badge/by-badge/{badgeCode}` - Find user by badge code
-  - `POST /badge/check-permission` - Check badge permission (no logging)
-  - `POST /badge/scan` - Scan badge and log attempt
+  - `POST /badge/scan` - Scan badge and log attempt (3.1.0: `by-badge` and `check-permission` removed)
   - `GET /badge/scan-history` - Get scan history (admin only)
   - `GET /badge/{badgeCode}/scan-history` - Get history for specific badge
   - `GET /badge/scan-statistics` - Get scan statistics (admin only)

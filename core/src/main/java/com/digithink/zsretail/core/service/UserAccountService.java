@@ -160,20 +160,6 @@ public class UserAccountService extends _BaseService<UserAccount, Long> {
 	}
 
 	/**
-	 * Update user role
-	 */
-	@Transactional
-	public UserAccountDTO updateUserRole(Long userId, com.digithink.zsretail.core.model.enumeration.Role role) throws Exception {
-		UserAccount user = findById(userId)
-			.orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
-
-		user.setRole(role);
-		UserAccount savedUser = save(user);
-		
-		return UserAccountDTO.fromEntity(savedUser);
-	}
-
-	/**
 	 * Toggle user active status
 	 */
 	@Transactional

@@ -131,6 +131,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - ERP catalogue run: a page read that fails on an I/O error or a timeout (e.g. a VPN drop) is read again once 5 s
   later, with one WARN line, for every connector; a second failure fails the step as before; cursors and
   checkpoints move only on a read that succeeds.
+- Security (step S): the `/user` controller is removed (`UseAccountAPI`: generic CRUD on the raw `UserAccount`, password
+  hash included, and `PUT /user/{id}/role`, which set the role enum without the I-21 check), and so are the unlogged
+  badge lookups `GET /badge/by-badge/{code}`, `POST /badge/check-permission`, `GET /user-account/by-badge/{code}`,
+  `GET` and `PUT /user-account/{id}/badge`; no caller in the front.
 ### DB script (`db/3.1.0/update.sql`, store and head office)
 - RFID tables on a store: `rfid_reader` (with `min_signal`), `pos_machine`, `rfid_tag`, `rfid_sale_tag`.
 - Payment method "Retenue à la source", inactive (kept as it is where EMTOP 1.12.1 has it).
