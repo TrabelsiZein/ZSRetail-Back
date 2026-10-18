@@ -152,6 +152,10 @@ class ZZDataInitializerModeTest {
 			@Override
 			public void run() {
 			}
+
+			@Override
+			public void assignRolesOfLegacyUsers() {
+			}
 		});
 		set(initializer, "tillRightsMigration", new TillRightsMigration(null, null, null, null) {
 			@Override

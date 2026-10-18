@@ -82,7 +82,7 @@ public class JWTAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 
 		JSONObject authRep = new JSONObject();
 
-		authRep.put("role", user.getRole());
+		// Step E (3.1.0): no "role" (the enum is retired); the role is appRoleName / isPosRole below
 		authRep.put("fullName", user.getFullName());
 		authRep.put("token", token);
 		authRep.put("status", 200);

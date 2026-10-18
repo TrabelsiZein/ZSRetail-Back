@@ -19,7 +19,6 @@ import com.digithink.zsretail.core.dto.CreateUserRequestDTO;
 import com.digithink.zsretail.core.dto.UserAccountDTO;
 import com.digithink.zsretail.core.exception.RoleChangeRefusedException;
 import com.digithink.zsretail.core.model.UserAccount;
-import com.digithink.zsretail.core.model.enumeration.Role;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.BadgeService;
 import com.digithink.zsretail.core.service.UserAccountService;
@@ -60,7 +59,7 @@ public class UserAccountAPI {
 					m.put("id", u.getId());
 					m.put("username", u.getUsername());
 					m.put("fullName", u.getFullName());
-					m.put("role", u.getRole());
+					m.put("appRoleName", u.getAppRole() != null ? u.getAppRole().getName() : null); // step E: no enum
 					return m;
 				})
 				.collect(Collectors.toList());
@@ -193,18 +192,8 @@ public class UserAccountAPI {
 				if (appRoleId != null) {
 					// I-21: not one's own role; the Administrateur role given or removed by an administrator only
 					userAccountService.checkRoleChange(currentUserProvider.getCurrentUser(), user, appRoleId);
-					// Sets the AppRole (permissions source) and keeps the legacy Role enum in sync.
+					// Sets the AppRole: the user's role (step E: the enum Role and its "role" field are retired)
 					userAccountService.applyAppRole(user, appRoleId);
-				}
-			} else if (request.containsKey("role")) {
-				// Backward compatibility: legacy callers that still send only the Role enum.
-				Object roleObj = request.get("role");
-				Role newRole = roleObj instanceof String ? Role.valueOf((String) roleObj)
-						: roleObj instanceof Role ? (Role) roleObj : null;
-				if (newRole != null) {
-					userAccountService.checkRoleChange(currentUserProvider.getCurrentUser(), user, newRole,
-							newRole != user.getRole());
-					user.setRole(newRole);
 				}
 			}
 			if (request.containsKey("active")) {

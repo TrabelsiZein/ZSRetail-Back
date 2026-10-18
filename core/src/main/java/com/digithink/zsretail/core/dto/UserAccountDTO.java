@@ -3,7 +3,6 @@ package com.digithink.zsretail.core.dto;
 import java.time.LocalDateTime;
 
 import com.digithink.zsretail.core.model.UserAccount;
-import com.digithink.zsretail.core.model.enumeration.Role;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -19,7 +18,6 @@ public class UserAccountDTO {
 	private String fullName;
 	private String email;
 	private Boolean active;
-	private Role role; // legacy enum (backward compat)
 
 	// Dynamic role assignment
 	private Long appRoleId;
@@ -41,7 +39,6 @@ public class UserAccountDTO {
 		dto.setFullName(user.getFullName());
 		dto.setEmail(user.getEmail());
 		dto.setActive(user.getActive());
-		dto.setRole(user.getRole());
 
 		if (user.getAppRole() != null) {
 			dto.setAppRoleId(user.getAppRole().getId());

@@ -29,8 +29,8 @@ import com.digithink.zsretail.core.erp.enumeration.ErpSyncOperation;
 import com.digithink.zsretail.core.erp.model.ErpCommunication;
 import com.digithink.zsretail.core.erp.repository.ErpCommunicationRepository;
 import com.digithink.zsretail.core.model.UserAccount;
-import com.digithink.zsretail.core.model.enumeration.Role;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.security.SystemRoles;
 
 import lombok.RequiredArgsConstructor;
 
@@ -135,7 +135,7 @@ public class ErpCommunicationAdminController {
 
 	private void ensureAdminAccess() {
 		UserAccount currentUser = currentUserProvider.getCurrentUser();
-		if (currentUser == null || currentUser.getRole() != Role.ADMIN) {
+		if (!SystemRoles.isAdmin(currentUser)) { // step E: the system role ADMIN
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin privileges required");
 		}
 	}

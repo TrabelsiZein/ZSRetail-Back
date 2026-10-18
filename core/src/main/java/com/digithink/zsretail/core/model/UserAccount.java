@@ -5,8 +5,6 @@ import java.util.Collection;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
-import javax.persistence.EnumType;
-import javax.persistence.Enumerated;
 import javax.persistence.FetchType;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
@@ -15,7 +13,6 @@ import javax.persistence.Transient;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import com.digithink.zsretail.core.model.enumeration.Role;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -49,9 +46,9 @@ public class UserAccount extends _BaseEntity implements UserDetails {
 	@Transient
 	private Long company;
 
-	@Column(nullable = false)
-	@Enumerated(EnumType.STRING)
-	private Role role;
+	// Step E (3.1.0): the enum Role is retired; the user's role is appRole (an administrator: the system role ADMIN,
+	// SystemRoles). The column user_account.role stays in a database of before, made nullable (TillSchemaUpgrade,
+	// db/3.1.0/update.sql), unused but by TillRightsMigration's one reading; dropped in the next version.
 
 	@ManyToOne(fetch = FetchType.EAGER)
 	@JoinColumn(name = "app_role_id", nullable = true)

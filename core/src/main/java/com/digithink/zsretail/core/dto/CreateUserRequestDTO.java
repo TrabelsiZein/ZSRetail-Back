@@ -1,6 +1,5 @@
 package com.digithink.zsretail.core.dto;
 
-import com.digithink.zsretail.core.model.enumeration.Role;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -15,6 +14,5 @@ public class CreateUserRequestDTO {
 	private String password;
 	private String fullName;
 	private String email;
-	private Role role; // legacy/optional — kept for backward compat
 	private Long appRoleId; // dynamic AppRole assignment (source of permissions)
 }

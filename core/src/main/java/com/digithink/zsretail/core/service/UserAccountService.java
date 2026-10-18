@@ -15,10 +15,10 @@ import com.digithink.zsretail.core.dto.UserAccountDTO;
 import com.digithink.zsretail.core.exception.RoleChangeRefusedException;
 import com.digithink.zsretail.core.model.AppRole;
 import com.digithink.zsretail.core.model.UserAccount;
-import com.digithink.zsretail.core.model.enumeration.Role;
 import com.digithink.zsretail.core.repository.AppRoleRepository;
 import com.digithink.zsretail.core.repository.UserAccountRepository;
 import com.digithink.zsretail.core.repository._BaseRepository;
+import com.digithink.zsretail.core.security.SystemRoles;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -91,13 +91,11 @@ public class UserAccountService extends _BaseService<UserAccount, Long> {
 		user.setPassword(request.getPassword());
 		user.setActive(true);
 
-		// Assign the dynamic AppRole (source of permissions) and keep the legacy enum in sync.
-		if (request.getAppRoleId() != null) {
-			applyAppRole(user, request.getAppRoleId());
-		} else {
-			// Backward compatibility: legacy callers that still send only the Role enum.
-			user.setRole(request.getRole());
+		// The user's role is his AppRole (step E: the enum Role is retired); a user without one cannot log in usefully
+		if (request.getAppRoleId() == null) {
+			throw new RuntimeException("A role is required");
 		}
+		applyAppRole(user, request.getAppRoleId());
 
 		// Save user (password will be encrypted in save method)
 		UserAccount savedUser = save(user);
@@ -105,17 +103,11 @@ public class UserAccountService extends _BaseService<UserAccount, Long> {
 		return UserAccountDTO.fromEntity(savedUser);
 	}
 
-	/**
-	 * Assign the given AppRole to a user and keep the legacy {@link Role} enum in sync.
-	 * The enum is still consulted by ERP-admin endpoints and badge logic, so it must stay set.
-	 * Built-in role names (ADMIN/RESPONSIBLE/POS_USER) map to the matching enum; custom roles
-	 * map to POS_USER when they target the cashier interface, otherwise RESPONSIBLE.
-	 */
+	/** Assigns the given AppRole to a user: the source of his permissions, page and till rights. */
 	public void applyAppRole(UserAccount user, Long appRoleId) {
 		AppRole appRole = appRoleRepository.findById(appRoleId)
 				.orElseThrow(() -> new RuntimeException("Role not found with id: " + appRoleId));
 		user.setAppRole(appRole);
-		user.setRole(deriveLegacyRole(appRole));
 	}
 
 	/**
@@ -128,34 +120,26 @@ public class UserAccountService extends _BaseService<UserAccount, Long> {
 		AppRole newRole = appRoleRepository.findById(newAppRoleId)
 				.orElseThrow(() -> new RuntimeException("Role not found with id: " + newAppRoleId));
 		Long currentId = target.getAppRole() == null ? null : target.getAppRole().getId();
-		checkRoleChange(actor, target, deriveLegacyRole(newRole), !newRole.getId().equals(currentId));
+		checkRoleChange(actor, target, newRole, !newRole.getId().equals(currentId));
 	}
 
 	/**
 	 * I-21, the two rules: nobody changes his own role; only an administrator gives or removes the Administrateur role
-	 * ({@link Role#ADMIN}, kept in step with the built-in AppRole ADMIN by {@link #applyAppRole}).
+	 * (step E: the system role ADMIN, {@link SystemRoles}).
 	 *
 	 * @param changed whether the request changes the target's role (no check otherwise)
 	 * @throws RoleChangeRefusedException with the message for the user
 	 */
-	public void checkRoleChange(UserAccount actor, UserAccount target, Role newRole, boolean changed) {
+	public void checkRoleChange(UserAccount actor, UserAccount target, AppRole newRole, boolean changed) {
 		if (!changed) {
 			return;
 		}
 		if (actor != null && target.getId() != null && target.getId().equals(actor.getId())) {
 			throw new RoleChangeRefusedException(RoleChangeRefusedException.OWN_ROLE);
 		}
-		boolean adminInvolved = newRole == Role.ADMIN || target.getRole() == Role.ADMIN;
-		if (adminInvolved && (actor == null || actor.getRole() != Role.ADMIN)) {
+		boolean adminInvolved = SystemRoles.isAdminRole(newRole) || SystemRoles.isAdmin(target);
+		if (adminInvolved && !SystemRoles.isAdmin(actor)) {
 			throw new RoleChangeRefusedException(RoleChangeRefusedException.ADMIN_ONLY);
-		}
-	}
-
-	private Role deriveLegacyRole(AppRole appRole) {
-		try {
-			return Role.valueOf(appRole.getName());
-		} catch (IllegalArgumentException ex) {
-			return Boolean.TRUE.equals(appRole.getIsPosRole()) ? Role.POS_USER : Role.RESPONSIBLE;
 		}
 	}
 

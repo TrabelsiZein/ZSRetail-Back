@@ -90,7 +90,7 @@ class ZZDataInitializerUsersTest {
 	private static List<String> usernames(List<UserAccount> users) {
 		List<String> names = new ArrayList<>();
 		for (UserAccount user : users) {
-			names.add(user.getUsername() + "/" + user.getRole() + "/" + user.getAppRole().getName());
+			names.add(user.getUsername() + "/" + user.getAppRole().getName()); // step E: no enum
 		}
 		return names;
 	}
@@ -99,7 +99,7 @@ class ZZDataInitializerUsersTest {
 	@DisplayName("Head office: only the admin account is created")
 	void headOfficeSeedsAdminOnly() throws Exception {
 		List<UserAccount> saved = seedUsers(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE"), true);
-		assertEquals(Arrays.asList("admin/ADMIN/ADMIN"), usernames(saved));
+		assertEquals(Arrays.asList("admin/ADMIN"), usernames(saved));
 	}
 
 	@Test
@@ -107,8 +107,8 @@ class ZZDataInitializerUsersTest {
 	void storesSeedThreeAccounts() throws Exception {
 		for (boolean[] flags : STORE_PROFILES) {
 			List<UserAccount> saved = seedUsers(new MockEnvironment(), flags[0]);
-			assertEquals(Arrays.asList("admin/ADMIN/ADMIN", "responsible/RESPONSIBLE/RESPONSIBLE",
-					"cashier/POS_USER/POS_USER"), usernames(saved));
+			assertEquals(Arrays.asList("admin/ADMIN", "responsible/RESPONSIBLE",
+					"cashier/POS_USER"), usernames(saved));
 			// step S: a generated badge code, no longer the fixed RESP-BADGE-001
 			assertTrue(saved.get(1).getBadgeCode().matches("RESPONSIBL-\\d{4}"), saved.get(1).getBadgeCode());
 		}

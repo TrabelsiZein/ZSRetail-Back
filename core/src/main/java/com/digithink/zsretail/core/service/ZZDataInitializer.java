@@ -28,7 +28,6 @@ import com.digithink.zsretail.core.model.enumeration.BadgePermission;
 import com.digithink.zsretail.core.model.enumeration.ConfigType;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
-import com.digithink.zsretail.core.model.enumeration.Role;
 import com.digithink.zsretail.core.repository.AppReleaseNoteRepository;
 import com.digithink.zsretail.core.repository.AppRoleRepository;
 import com.digithink.zsretail.core.repository.AppVersionRepository;
@@ -100,6 +99,8 @@ public class ZZDataInitializer {
 
 		// Always run — idempotent, seeds default roles if they don't exist yet
 		ensureDefaultRoles();
+		// Step E (3.1.0): the users of before without an AppRole get the role of their enum's name (once there is one)
+		tillSchemaUpgrade.assignRolesOfLegacyUsers();
 
 		// Step C (3.1.0): on a store of before, once, the till rights of the users' badges go to their roles
 		tillRightsMigration.run();
@@ -185,33 +186,12 @@ public class ZZDataInitializer {
 		}
 		// Release 2.2: a head office has no till and no store manager: only ADMIN is created there. A head office database
 		// that already has RESPONSIBLE and POS_USER keeps them as they are (nothing is deleted or changed).
-		AppRole responsibleRole = applicationModeService.isHeadOffice()
-				? appRoleRepository.findByName("RESPONSIBLE").orElse(null)
-				: ensureRole("RESPONSIBLE", "Responsable", false, RESPONSIBLE_PERMISSIONS);
 		if (!applicationModeService.isHeadOffice()) {
+			ensureRole("RESPONSIBLE", "Responsable", false, RESPONSIBLE_PERMISSIONS);
 			ensureRole("POS_USER", "Caissier", true, POS_PERMISSIONS);
 		}
-
-		// Migrate existing users that have no appRole yet
-		userRepository.findAll().forEach(user -> {
-			if (user.getAppRole() == null && user.getRole() != null) {
-				switch (user.getRole()) {
-				case ADMIN:
-					user.setAppRole(adminRole);
-					break;
-				case RESPONSIBLE:
-					if (responsibleRole != null) {
-						user.setAppRole(responsibleRole);
-					}
-					break;
-				case POS_USER:
-					appRoleRepository.findByName("POS_USER").ifPresent(user::setAppRole);
-					break;
-				}
-				user.setUpdatedBy("System");
-				userRepository.save(user);
-			}
-		});
+		// Step E (3.1.0): the users of before without a role get the role of their enum's name by JDBC
+		// (TillSchemaUpgrade.assignRolesOfLegacyUsers, called by init after this method), the enum being retired
 	}
 
 	private AppRole ensureRole(String name, String label, boolean isPosRole, java.util.Set<String> permissions) {
@@ -421,7 +401,6 @@ public class ZZDataInitializer {
 		admin.setPassword(passwordEncoder.encode("P@ssw0rd"));
 		admin.setEmail("admin@zsretail.tn");
 		admin.setActive(true);
-		admin.setRole(Role.ADMIN);
 		admin.setAppRole(adminRole);
 		admin.setCreatedBy("System");
 		admin.setUpdatedBy("System");
@@ -439,7 +418,6 @@ public class ZZDataInitializer {
 		responsible.setPassword(passwordEncoder.encode("123.0"));
 		responsible.setEmail("responsible@zsretail.tn");
 		responsible.setActive(true);
-		responsible.setRole(Role.RESPONSIBLE);
 		responsible.setAppRole(responsibleRole);
 		// Step S (3.1.0): a generated code, no longer the fixed RESP-BADGE-001 written in this source; logged once here,
 		// at the first start (the only time initUsers runs), so the installer can print the badge or change it
@@ -459,7 +437,6 @@ public class ZZDataInitializer {
 		posUser.setPassword(passwordEncoder.encode("cashier"));
 		posUser.setEmail("123");
 		posUser.setActive(true);
-		posUser.setRole(Role.POS_USER);
 		posUser.setAppRole(posRole);
 		posUser.setCreatedBy("System");
 		posUser.setUpdatedBy("System");

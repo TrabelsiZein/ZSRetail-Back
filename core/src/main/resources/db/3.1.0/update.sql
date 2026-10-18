@@ -46,6 +46,10 @@
 -- Till grants (step D): table till_grant on a store, what a badge scan authorised (one action, the scanning user's
 -- session, used once by the request doing the action, the SHA-256 of its token only). Re-runnable; no data changed.
 --
+-- The enum Role retired (step E): user_account.role becomes nullable (its type kept; a user created now leaves it
+-- empty), kept unused until the next version, and a user of before without an AppRole gets the role named as his enum
+-- value (as the start did through the entity). Store and head office, re-runnable.
+--
 -- The session options are set here (sqlcmd starts with QUOTED_IDENTIFIER OFF); SSMS has them on already.
 
 SET QUOTED_IDENTIFIER ON;
@@ -371,6 +375,21 @@ BEGIN
 		CONSTRAINT fk_till_grant_badge_owner FOREIGN KEY (badge_owner_id) REFERENCES user_account (id)
 	);
 END
+GO
+
+-- The enum Role retired (step E): user_account.role nullable with its own type (as TillSchemaUpgrade at each start),
+-- then the users without an AppRole given the role of their enum's name. Re-runnable.
+DECLARE @roleType nvarchar(200) = (SELECT TYPE_NAME(user_type_id)
+	+ CASE WHEN max_length = -1 THEN '(max)'
+		WHEN TYPE_NAME(user_type_id) IN ('nvarchar', 'nchar') THEN '(' + CAST(max_length / 2 AS varchar(10)) + ')'
+		ELSE '(' + CAST(max_length AS varchar(10)) + ')' END
+	FROM sys.columns WHERE object_id = OBJECT_ID(N'user_account') AND name = 'role' AND is_nullable = 0);
+IF @roleType IS NOT NULL
+	EXEC('ALTER TABLE user_account ALTER COLUMN role ' + @roleType + ' NULL');
+GO
+IF COL_LENGTH('user_account', 'role') IS NOT NULL AND OBJECT_ID(N'app_role', N'U') IS NOT NULL
+	EXEC('UPDATE u SET u.app_role_id = r.id, u.updated_by = ''System'' FROM user_account u
+		JOIN app_role r ON r.name = u.role WHERE u.app_role_id IS NULL');
 GO
 
 UPDATE APP_VERSION SET version = '3.1.0';

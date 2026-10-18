@@ -23,7 +23,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.model.AppRole;
 import com.digithink.zsretail.core.model.UserAccount;
-import com.digithink.zsretail.core.model.enumeration.Role;
 import com.digithink.zsretail.core.support.TestModes;
 
 /**
@@ -33,8 +32,8 @@ import com.digithink.zsretail.core.support.TestModes;
  */
 class JWTAuthenticationFilterTest {
 
-	/** Keys of a successful login answer for a user with an AppRole, as built before task 1.1. */
-	private static final TreeSet<String> LOGIN_KEYS = new TreeSet<>(Arrays.asList("role", "fullName", "token",
+	/** Keys of a successful login answer for a user with an AppRole (step E, 3.1.0: no "role", the enum is retired). */
+	private static final TreeSet<String> LOGIN_KEYS = new TreeSet<>(Arrays.asList("fullName", "token",
 			"status", "permissions", "appRoleId", "appRoleName", "appRoleLabel", "isPosRole"));
 
 	// Mode of today's presets: without an ERP (store) or with one (store-erp); task 9.3
@@ -59,11 +58,10 @@ class JWTAuthenticationFilterTest {
 		return mode(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE"), true);
 	}
 
-	private static UserAccount user(String username, Role role, AppRole appRole) {
+	private static UserAccount user(String username, AppRole appRole) {
 		UserAccount user = new UserAccount();
 		user.setUsername(username);
 		user.setFullName(username + " user");
-		user.setRole(role);
 		user.setAppRole(appRole);
 		return user;
 	}
@@ -76,7 +74,7 @@ class JWTAuthenticationFilterTest {
 	}
 
 	private static UserAccount cashier() {
-		return user("cashier", Role.POS_USER, appRole(3L, "POS_USER", true));
+		return user("cashier", appRole(3L, "POS_USER", true));
 	}
 
 	private static MockHttpServletResponse login(ApplicationModeService mode, UserAccount user) throws Exception {
@@ -103,8 +101,8 @@ class JWTAuthenticationFilterTest {
 	@Test
 	@DisplayName("Head office: an admin role and a user without AppRole still log in")
 	void headOfficeAllowsOtherRoles() throws Exception {
-		for (UserAccount user : Arrays.asList(user("admin", Role.ADMIN, appRole(1L, "ADMIN", false)),
-				user("legacy", Role.ADMIN, null))) {
+		for (UserAccount user : Arrays.asList(user("admin", appRole(1L, "ADMIN", false)),
+				user("legacy", null))) {
 			MockHttpServletResponse response = login(headOffice(), user);
 
 			assertEquals(200, response.getStatus(), user.getUsername());
@@ -131,7 +129,7 @@ class JWTAuthenticationFilterTest {
 			JSONObject body = new JSONObject(response.getContentAsString());
 			assertEquals(LOGIN_KEYS, new TreeSet<>(body.keySet()));
 			assertEquals(200, body.getInt("status"));
-			assertEquals("POS_USER", body.getString("role"));
+			assertFalse(body.has("role"), "step E: no enum");
 			assertEquals("cashier user", body.getString("fullName"));
 			assertEquals(header, SecurityParams.HEADER_PREFIX + body.getString("token"));
 			assertEquals(3L, body.getLong("appRoleId"));

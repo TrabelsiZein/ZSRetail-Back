@@ -16,28 +16,31 @@ import org.junit.jupiter.api.Test;
 import com.digithink.zsretail.core.exception.RoleChangeRefusedException;
 import com.digithink.zsretail.core.model.AppRole;
 import com.digithink.zsretail.core.model.UserAccount;
-import com.digithink.zsretail.core.model.enumeration.Role;
 import com.digithink.zsretail.core.repository.AppRoleRepository;
+import com.digithink.zsretail.core.security.SystemRoles;
 
 /**
  * I-21 (test session 2026-10-17): nobody changes his own role; only an administrator gives or removes the
- * Administrateur role. {@code UserAccountService.checkRoleChange} over the three built-in roles; no Spring context.
+ * Administrateur role. Step E (3.1.0): the administrator is the system role ADMIN (SystemRoles), the enum is retired.
+ * {@code UserAccountService.checkRoleChange} over the three built-in roles and a custom one; no Spring context.
  */
 class UserRoleChangeRuleTest {
 
 	private final AppRole adminRole = role(1L, "ADMIN", false);
 	private final AppRole responsibleRole = role(2L, "RESPONSIBLE", false);
 	private final AppRole cashierRole = role(3L, "POS_USER", true);
+	private final AppRole chefRole = role(4L, "CHEF_CAISSE", false);
 
-	private final UserAccount admin = user(1L, adminRole, Role.ADMIN);
-	private final UserAccount responsible = user(2L, responsibleRole, Role.RESPONSIBLE);
-	private final UserAccount cashier = user(3L, cashierRole, Role.POS_USER);
+	private final UserAccount admin = user(1L, adminRole);
+	private final UserAccount responsible = user(2L, responsibleRole);
+	private final UserAccount cashier = user(3L, cashierRole);
+	private final UserAccount chef = user(4L, chefRole);
 
 	private UserAccountService service;
 
 	@BeforeEach
 	void setUp() throws Exception {
-		Map<Long, AppRole> roles = Map.of(1L, adminRole, 2L, responsibleRole, 3L, cashierRole);
+		Map<Long, AppRole> roles = Map.of(1L, adminRole, 2L, responsibleRole, 3L, cashierRole, 4L, chefRole);
 		AppRoleRepository repository = (AppRoleRepository) Proxy.newProxyInstance(getClass().getClassLoader(),
 				new Class<?>[] { AppRoleRepository.class }, (proxy, method, args) -> {
 					if ("findById".equals(method.getName())) {
@@ -99,13 +102,19 @@ class UserRoleChangeRuleTest {
 	}
 
 	@Test
-	@DisplayName("The legacy Role field follows the same rules")
-	void legacyRoleField() {
-		assertThrows(RoleChangeRefusedException.class,
-				() -> service.checkRoleChange(responsible, responsible, Role.ADMIN, true));
-		assertThrows(RoleChangeRefusedException.class,
-				() -> service.checkRoleChange(responsible, cashier, Role.ADMIN, true));
-		assertDoesNotThrow(() -> service.checkRoleChange(admin, cashier, Role.ADMIN, true));
+	@DisplayName("Step E: a custom role is never an administrator, even holding every permission; no role, no user neither")
+	void onlyTheSystemRoleIsAdmin() {
+		chefRole.setPermissions(new java.util.HashSet<>(adminRole.getPermissions()));
+		chefRole.getPermissions().add("write:admin-roles");
+		RoleChangeRefusedException e = assertThrows(RoleChangeRefusedException.class,
+				() -> service.checkRoleChange(chef, cashier, 1L));
+		assertEquals(RoleChangeRefusedException.ADMIN_ONLY, e.getMessage());
+		assertDoesNotThrow(() -> service.checkRoleChange(chef, cashier, 2L));
+		assertThrows(RoleChangeRefusedException.class, () -> service.checkRoleChange(null, cashier, 1L));
+		assertEquals(false, SystemRoles.isAdmin(user(9L, null)));
+		assertEquals(false, SystemRoles.isAdmin(null));
+		assertEquals(true, SystemRoles.isAdmin(admin));
+		assertEquals(false, SystemRoles.isAdminRole(role(5L, "admin", false)), "the name, exactly");
 	}
 
 	private static AppRole role(Long id, String name, boolean pos) {
@@ -114,11 +123,10 @@ class UserRoleChangeRuleTest {
 		return role;
 	}
 
-	private static UserAccount user(Long id, AppRole appRole, Role legacy) {
+	private static UserAccount user(Long id, AppRole appRole) {
 		UserAccount user = new UserAccount();
 		user.setId(id);
 		user.setAppRole(appRole);
-		user.setRole(legacy);
 		return user;
 	}
 }

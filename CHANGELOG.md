@@ -67,6 +67,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `TILL_GRANT_MAX_MINUTES` (240); only its SHA-256 is stored. Such a scan's success is logged when the grant is used,
   no longer at the scan. `GET /config tillActions` gives `checkedOnRequest`. The close takes `tillGrant` instead of
   `badgeCode` and `badgePermission`.
+- Step E: the enum `Role` is retired; a user's role is his AppRole and an administrator the user of the system role
+  named ADMIN (`SystemRoles`; the ERP admin pages and the rule giving or removing the ADMIN role use it). The login,
+  `UserAccountDTO`, `CreateUserRequestDTO` and `GET /user-account/cashiers` no longer carry `role`; `PUT
+  /user-account/{id}` no longer reads it; creating a user needs `appRoleId`. Users of before without an AppRole get the
+  role named as their enum value at the start (as before, now by JDBC).
 - Item variants (step 11c): the return screen's ticket lookup and the return voucher lines give the item's
   `variantDescription` (`ReturnHeaderAPI`), so the till and the tickets show "name — variant" (null for the other
   customers: the name alone, as before). The sale lines already carried it through the item.
@@ -204,6 +209,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   first). `user_account.badge_permissions` is kept, unused (deprecated, dropped in the next version).
 - Till authorisation, step D: table `till_grant` on a store (the grants of the badge scans: token SHA-256, action,
   session, user who scanned, owner, badge code, issued, expires, consumed, by what); re-runnable, no data changed.
+- Step E: `user_account.role` nullable (its type kept; also at each start, `TillSchemaUpgrade`), kept unused
+  (deprecated, dropped in the next version); the users without an AppRole given the role of their enum's name. Store
+  and head office, re-runnable.
 - `APP_VERSION` 3.1.0; release notes to complete when the version is closed (RFID is missing).
 
 ### Config
