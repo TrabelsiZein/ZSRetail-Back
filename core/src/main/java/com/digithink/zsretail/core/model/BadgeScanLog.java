@@ -43,7 +43,7 @@ public class BadgeScanLog extends _BaseEntity {
 	private Boolean success; // Success or failure
 
 	@Column(name = "failure_reason", length = 500, nullable = true)
-	private String failureReason; // "BADGE_NOT_EXISTS", "BADGE_NO_ACCESS", "BADGE_EXPIRED", "BADGE_REVOKED"
+	private String failureReason; // "BADGE_NOT_EXISTS", "BADGE_NO_ACCESS", "BADGE_EXPIRED", "BADGE_REVOKED", "BADGE_OWNER_INACTIVE"
 
 	@Column(name = "session_id", nullable = true)
 	private Long sessionId; // CashierSession ID (nullable)

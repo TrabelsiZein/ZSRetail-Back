@@ -28,6 +28,9 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class BadgeService {
 
+	/** Step S (3.1.0): the failure reason of a scan of a deactivated user's badge. */
+	public static final String BADGE_OWNER_INACTIVE = "BADGE_OWNER_INACTIVE";
+
 	@Autowired
 	private UserAccountRepository userAccountRepository;
 
@@ -59,6 +62,12 @@ public class BadgeService {
 		// Check if badge is expired
 		if (isBadgeExpired(user)) {
 			log.warn("Badge scan attempted for expired badge: {}", badgeCode);
+			return Optional.empty();
+		}
+
+		// Step S (3.1.0): the badge of a deactivated user opens nothing (the close with a cash difference included)
+		if (isBadgeOwnerInactive(user)) {
+			log.warn("Badge of an inactive user refused: {}", user.getUsername());
 			return Optional.empty();
 		}
 
@@ -124,6 +133,14 @@ public class BadgeService {
 		if (isBadgeExpired(user)) {
 			result.setSuccess(false);
 			result.setFailureReason("BADGE_EXPIRED");
+			logBadgeScan(result, scannedBy, sessionId);
+			return result;
+		}
+
+		// Step S (3.1.0): the owner's account is deactivated
+		if (isBadgeOwnerInactive(user)) {
+			result.setSuccess(false);
+			result.setFailureReason(BADGE_OWNER_INACTIVE);
 			logBadgeScan(result, scannedBy, sessionId);
 			return result;
 		}
@@ -231,6 +248,14 @@ public class BadgeService {
 			return false; // No expiration date means never expires
 		}
 		return LocalDateTime.now().isAfter(user.getBadgeExpirationDate());
+	}
+
+	/**
+	 * Step S (3.1.0): whether the badge's owner is a deactivated user (active false; null is read as active, as the users
+	 * list reads it). Such a badge is refused, BADGE_OWNER_INACTIVE at a scan.
+	 */
+	public boolean isBadgeOwnerInactive(UserAccount user) {
+		return user != null && Boolean.FALSE.equals(user.getActive());
 	}
 
 	/**

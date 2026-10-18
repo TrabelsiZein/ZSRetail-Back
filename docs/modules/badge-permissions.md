@@ -41,6 +41,11 @@
   `id`, `timestamp`, `scannedByUsername`/`FullName`, `scannedUserUsername`/`FullName` (the owner), `functionality`,
   `success`, `failureReason`, `sessionId`; never the badge code nor a `UserAccount`. The statistics give `failedScans`
   and no longer the most scanned badge codes. The `badgeCode` filter still searches by an exact code.
+- **A deactivated user's badge opens nothing** (`BadgeService.isBadgeOwnerInactive`: `active` false, null read as
+  active): a scan is refused `BADGE_OWNER_INACTIVE` and logged like the other refusals (after revoked and expired, before
+  the permission); the close with a cash difference (`findUserByBadgeCode`) refuses it too ("Badge validation failed:
+  BADGE_NOT_EXISTS", as an unknown badge). The till shows its generic "unexpected error" text for this reason until the
+  front maps it. Test: `BadgeServiceInactiveOwnerTest`.
 
 The sections below are the original implementation summary.
 

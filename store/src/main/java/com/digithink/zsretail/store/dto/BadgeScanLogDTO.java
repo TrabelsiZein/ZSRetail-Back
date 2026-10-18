@@ -28,7 +28,7 @@ public class BadgeScanLogDTO {
 	/** The action asked (BadgePermission name). */
 	private String functionality;
 	private Boolean success;
-	/** BADGE_NOT_EXISTS, BADGE_REVOKED, BADGE_EXPIRED, BADGE_NO_ACCESS; null on success. */
+	/** BADGE_NOT_EXISTS, BADGE_REVOKED, BADGE_EXPIRED, BADGE_OWNER_INACTIVE, BADGE_NO_ACCESS; null on success. */
 	private String failureReason;
 	private Long sessionId;
 

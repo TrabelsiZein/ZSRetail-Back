@@ -140,6 +140,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   and give flat rows (`BadgeScanLogDTO`, the fields the page reads) instead of the entity, which carried both users'
   `UserAccount` (password hash, badge code): the "Scanned by" and "Badge owner" columns are filled again; no badge code
   in the rows nor in the statistics (`topBadges` removed), which give `failedScans` (the "Failed" card showed 0).
+- Security (step S): the badge of a deactivated user is refused: at a scan `BADGE_OWNER_INACTIVE` (logged like the
+  other refusals), at the close with a cash difference as an unknown badge. It opened every action before.
 ### DB script (`db/3.1.0/update.sql`, store and head office)
 - RFID tables on a store: `rfid_reader` (with `min_signal`), `pos_machine`, `rfid_tag`, `rfid_sale_tag`.
 - Payment method "Retenue à la source", inactive (kept as it is where EMTOP 1.12.1 has it).
