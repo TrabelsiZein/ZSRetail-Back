@@ -42,13 +42,13 @@ public interface BadgeScanLogRepository extends _BaseRepository<BadgeScanLog, Lo
 			@Param("grantedBy") GrantedBy grantedBy,
 			Pageable pageable);
 
-	/** The scans of the period (step C: the passes on the role's right are not scans). */
-	@Query("SELECT COUNT(b) FROM BadgeScanLog b WHERE b.grantedBy = com.digithink.zsretail.core.model.enumeration.GrantedBy.BADGE AND " +
+	/** The rows of the period: the badge scans and the passes on the role's right (both are what the history lists). */
+	@Query("SELECT COUNT(b) FROM BadgeScanLog b WHERE " +
 			"(:fromDate IS NULL OR b.timestamp >= :fromDate) AND " +
 			"(:toDate IS NULL OR b.timestamp <= :toDate)")
 	Long countScansInPeriod(@Param("fromDate") LocalDateTime fromDate, @Param("toDate") LocalDateTime toDate);
 
-	@Query("SELECT COUNT(b) FROM BadgeScanLog b WHERE b.grantedBy = com.digithink.zsretail.core.model.enumeration.GrantedBy.BADGE AND b.success = true AND " +
+	@Query("SELECT COUNT(b) FROM BadgeScanLog b WHERE b.success = true AND " +
 			"(:fromDate IS NULL OR b.timestamp >= :fromDate) AND " +
 			"(:toDate IS NULL OR b.timestamp <= :toDate)")
 	Long countSuccessfulScansInPeriod(@Param("fromDate") LocalDateTime fromDate, @Param("toDate") LocalDateTime toDate);

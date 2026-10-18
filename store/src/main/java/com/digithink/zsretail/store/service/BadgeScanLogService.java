@@ -84,7 +84,8 @@ public class BadgeScanLogService extends _BaseService<BadgeScanLog, Long> {
 	}
 
 	/**
-	 * Get scan statistics
+	 * The statistics of the period over every row of the log (ROLE and BADGE): total, passed, refused, pass rate. The
+	 * history page lists both, so its tiles count both.
 	 */
 	public Map<String, Object> getScanStatistics(LocalDateTime fromDate, LocalDateTime toDate) {
 		Map<String, Object> stats = new HashMap<>();
@@ -107,9 +108,9 @@ public class BadgeScanLogService extends _BaseService<BadgeScanLog, Long> {
 			stats.put("successRate", 0.0);
 		}
 
-		// Get all scans in period for detailed statistics (step C: the scans only, not the passes on the role's right)
+		// Every row of the period, as the history lists them: the badge scans and the passes on the role's right
 		List<BadgeScanLog> allScans = badgeScanLogRepository
-				.findWithFilters(null, null, null, fromDate, toDate, null, GrantedBy.BADGE, PageRequest.of(0, Integer.MAX_VALUE))
+				.findWithFilters(null, null, null, fromDate, toDate, null, null, PageRequest.of(0, Integer.MAX_VALUE))
 				.getContent();
 
 		// Step S: no "most scanned badges" any more (it listed badge codes; the page never showed it)

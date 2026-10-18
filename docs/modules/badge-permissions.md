@@ -101,7 +101,8 @@ list of its own (labels: i18n `pos.badge.permissions.<code lower case>`).
   grant (a scan whose action never happens leaves no pass). The customer list's scan is its pass.
 - The Badge scan history page (`read:admin-badge-scan-history`, else 403): flat rows (`BadgeScanLogDTO`, never a badge
   code), filters by badge code, user, action, success, `grantedBy` and dates; an "Accordé par" column; CSV export. The
-  statistics count the BADGE rows.
+  statistics (`/badge/scan-statistics`, the tiles Total / Accordés / Refusés / taux) count every row of the period, ROLE
+  and BADGE, as the list shows them.
 
 ## Upgrade (day one)
 

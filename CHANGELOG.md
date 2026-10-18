@@ -99,6 +99,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   item name stays NAV's item description.
 
 ### Fixes
+- Badge scan history: the statistics count every row of the period, the passes on the role's right (ROLE) with the
+  badge scans (BADGE), as the list shows them (the tiles said 19 for a list of 20).
 - Batch 3 (test log 2026-10-17): a scan of a known barcode whose item is inactive answers 404 with `inactive: true`
   (the till says "Inactive item"), and an inactive item is never found by the scan (I-04); points removed on a return are
   rounded down as the points earned, the money returned at the sale's rate (24.657 TND returned removes 24, was 25), a
