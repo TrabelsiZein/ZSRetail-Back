@@ -6,11 +6,19 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.hibernate.Session;
@@ -251,6 +259,63 @@ class ItemCatalogueQueryTest {
 		assertEquals(0, lines("dead~a", false).size(), "an inactive variant matches nothing with the status Active");
 		assertEquals(0, lines("70061~l", false).size(), "70061~L inactive: no line with the status Active");
 		assertEquals(3, lines("70061~l", true).get(0).getVariants());
+	}
+
+	/**
+	 * The result column labels of a native query, run over JDBC (its named parameters bound in order: allStatuses 1,
+	 * search '%a%'). Lower case: H2 gives the aliases in upper case.
+	 */
+	private static List<String> columnLabels(String sql) {
+		List<Object> values = new ArrayList<>();
+		Matcher parameter = Pattern.compile(":(allStatuses|search)\\b").matcher(sql);
+		StringBuffer jdbc = new StringBuffer();
+		while (parameter.find()) {
+			values.add("allStatuses".equals(parameter.group(1)) ? (Object) 1 : "%a%");
+			parameter.appendReplacement(jdbc, "?");
+		}
+		parameter.appendTail(jdbc);
+		try (Session session = sessions.openSession()) {
+			return session.doReturningWork(connection -> {
+				try (PreparedStatement statement = connection.prepareStatement(jdbc.toString())) {
+					for (int i = 0; i < values.size(); i++) {
+						statement.setObject(i + 1, values.get(i));
+					}
+					try (ResultSet result = statement.executeQuery()) {
+						ResultSetMetaData meta = result.getMetaData();
+						List<String> labels = new ArrayList<>();
+						for (int i = 1; i <= meta.getColumnCount(); i++) {
+							labels.add(meta.getColumnLabel(i) == null ? "" : meta.getColumnLabel(i).toLowerCase(Locale.ROOT));
+						}
+						return labels;
+					}
+				}
+			});
+		}
+	}
+
+	@Test
+	@DisplayName("Every column of the native queries has its own alias: SQL Server names an aggregate without one \"\"")
+	void columnAliases() {
+		assertEquals(HoItemCatalogueRepository.LINE_COLUMNS, columnLabels(HoItemCatalogueRepository.LINES));
+		assertEquals(HoItemCatalogueRepository.LINE_COLUMNS, columnLabels(HoItemCatalogueRepository.LINES_SEARCHED));
+		assertEquals(Arrays.asList(HoItemCatalogueRepository.COUNT_COLUMN),
+				columnLabels(HoItemCatalogueRepository.LINES_COUNT));
+		assertEquals(Arrays.asList(HoItemCatalogueRepository.COUNT_COLUMN),
+				columnLabels(HoItemCatalogueRepository.LINES_SEARCHED_COUNT));
+		List<String> columns = HoItemCatalogueRepository.LINE_COLUMNS;
+		assertEquals(columns.size(), new HashSet<>(columns).size(), "unique aliases");
+		columns.forEach(column -> assertFalse(column.trim().isEmpty(), "no empty alias"));
+		assertEquals("nav_item_no", columns.get(HoItemCatalogueRepository.COL_NAV_ITEM_NO));
+		assertEquals("item_id", columns.get(HoItemCatalogueRepository.COL_ITEM_ID));
+		assertEquals("item_code", columns.get(HoItemCatalogueRepository.COL_ITEM_CODE));
+		assertEquals("item_name", columns.get(HoItemCatalogueRepository.COL_ITEM_NAME));
+		assertEquals("family_name", columns.get(HoItemCatalogueRepository.COL_FAMILY_NAME));
+		assertEquals("sub_family_name", columns.get(HoItemCatalogueRepository.COL_SUB_FAMILY_NAME));
+		assertEquals("category_code", columns.get(HoItemCatalogueRepository.COL_CATEGORY_CODE));
+		assertEquals("section_code", columns.get(HoItemCatalogueRepository.COL_SECTION_CODE));
+		assertEquals("variant_count", columns.get(HoItemCatalogueRepository.COL_VARIANT_COUNT));
+		assertEquals("any_active", columns.get(HoItemCatalogueRepository.COL_ANY_ACTIVE));
+		assertEquals("stock_quantity", columns.get(HoItemCatalogueRepository.COL_STOCK_QUANTITY));
 	}
 
 	@Test

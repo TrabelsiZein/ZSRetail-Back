@@ -1,6 +1,8 @@
 package com.digithink.zsretail.headoffice.repository;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -34,12 +36,39 @@ public interface HoItemCatalogueRepository extends Repository<Item, Long> {
 	String GROUP = " GROUP BY i.nav_item_no, CASE WHEN i.nav_item_no IS NULL THEN i.id END";
 
 	/**
+	 * The columns of a line, each with its alias, in this order (the service reads them by the index constants below).
+	 * Every column needs its alias: SQL Server names an aggregate without one "" and Hibernate's auto-discovery of a
+	 * native query refuses two empty names (NonUniqueDiscoveredSqlAliasException); H2 names them itself
+	 * (ItemCatalogueQueryTest checks the names).
+	 */
+	List<String> LINE_COLUMNS = Collections.unmodifiableList(Arrays.asList("nav_item_no", "item_id", "item_code",
+			"item_name", "family_name", "sub_family_name", "category_code", "section_code", "variant_count", "any_active",
+			"stock_quantity"));
+
+	int COL_NAV_ITEM_NO = 0;
+	int COL_ITEM_ID = 1;
+	int COL_ITEM_CODE = 2;
+	int COL_ITEM_NAME = 3;
+	int COL_FAMILY_NAME = 4;
+	int COL_SUB_FAMILY_NAME = 5;
+	int COL_CATEGORY_CODE = 6;
+	int COL_SECTION_CODE = 7;
+	int COL_VARIANT_COUNT = 8;
+	int COL_ANY_ACTIVE = 9;
+	int COL_STOCK_QUANTITY = 10;
+
+	/** The alias of the counts. */
+	String COUNT_COLUMN = "line_count";
+
+	/**
 	 * [NAV item number (null for one item), smallest item id, smallest item code, name, family name, sub-family name,
 	 * catégorie code, section code, items counted, 1 when one item counted is active else 0, sum of the stock].
 	 */
-	String SELECT = "SELECT i.nav_item_no, MIN(i.id), MIN(i.item_code), MIN(i.name), MIN(f.name), MIN(sf.name),"
-			+ " MIN(i.category_code), MIN(i.section_code), COUNT(*),"
-			+ " MAX(CASE WHEN i.active IS NULL OR i.active = 1 THEN 1 ELSE 0 END), SUM(i.stock_quantity)"
+	String SELECT = "SELECT i.nav_item_no AS nav_item_no, MIN(i.id) AS item_id, MIN(i.item_code) AS item_code,"
+			+ " MIN(i.name) AS item_name, MIN(f.name) AS family_name, MIN(sf.name) AS sub_family_name,"
+			+ " MIN(i.category_code) AS category_code, MIN(i.section_code) AS section_code, COUNT(*) AS variant_count,"
+			+ " MAX(CASE WHEN i.active IS NULL OR i.active = 1 THEN 1 ELSE 0 END) AS any_active,"
+			+ " SUM(i.stock_quantity) AS stock_quantity"
 			+ " FROM item i LEFT JOIN item_family f ON f.id = i.item_family_id"
 			+ " LEFT JOIN item_sub_family sf ON sf.id = i.item_sub_family_id";
 
@@ -69,13 +98,13 @@ public interface HoItemCatalogueRepository extends Repository<Item, Long> {
 
 	String LINES = SELECT + " WHERE " + STATUS_OF_I + GROUP + ORDER;
 
-	String LINES_COUNT = "SELECT COUNT(*) FROM (SELECT i.nav_item_no AS n FROM item i WHERE " + STATUS_OF_I + GROUP
-			+ ") g";
+	String LINES_COUNT = "SELECT COUNT(*) AS " + COUNT_COLUMN + " FROM (SELECT i.nav_item_no AS n FROM item i WHERE "
+			+ STATUS_OF_I + GROUP + ") g";
 
 	String LINES_SEARCHED = SELECT + SEARCHED_JOINS + " WHERE " + STATUS_OF_I + SEARCHED_WHERE + GROUP + ORDER;
 
-	String LINES_SEARCHED_COUNT = "SELECT COUNT(*) FROM (SELECT i.nav_item_no AS n FROM item i" + SEARCHED_JOINS
-			+ " WHERE " + STATUS_OF_I + SEARCHED_WHERE + GROUP + ") g";
+	String LINES_SEARCHED_COUNT = "SELECT COUNT(*) AS " + COUNT_COLUMN + " FROM (SELECT i.nav_item_no AS n FROM item i"
+			+ SEARCHED_JOINS + " WHERE " + STATUS_OF_I + SEARCHED_WHERE + GROUP + ") g";
 
 	/** [item id, active points where the item has an active row], for these items (one page of single-item lines). */
 	String ITEM_POINT_COUNTS = "select r.itemId, count(distinct r.stockPointId) from HoStockPointItem r, HoStockPoint p"

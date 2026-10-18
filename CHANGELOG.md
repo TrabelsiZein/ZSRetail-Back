@@ -105,6 +105,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   item name stays NAV's item description.
 
 ### Fixes
+- Fiches items list (`GET /admin/headoffice/item-catalogue`): failed on SQL Server ("duplicated sql alias []", the page
+  showed no item): every column of its native queries now has its own alias.
 - Badge scan history: the statistics count every row of the period, the passes on the role's right (ROLE) with the
   badge scans (BADGE), as the list shows them (the tiles said 19 for a list of 20).
 - Batch 3 (test log 2026-10-17): a scan of a known barcode whose item is inactive answers 404 with `inactive: true`

@@ -248,27 +248,33 @@ public class HoItemCatalogueService {
 		return items.stream().map(value).filter(Objects::nonNull).min(Comparator.naturalOrder()).orElse(null);
 	}
 
-	/** One row of {@link HoItemCatalogueRepository#SELECT} as a line (public for the query test). */
+	/**
+	 * One row of {@link HoItemCatalogueRepository#SELECT} as a line, read by the repository's column constants (the order
+	 * of its aliases, {@link HoItemCatalogueRepository#LINE_COLUMNS}); public for the query test.
+	 */
 	public static ItemCatalogueLineDTO line(Object[] row, boolean withStock) {
 		ItemCatalogueLineDTO line = new ItemCatalogueLineDTO();
-		String navItemNo = (String) row[0];
+		String navItemNo = (String) row[HoItemCatalogueRepository.COL_NAV_ITEM_NO];
 		line.setNavItemNo(navItemNo);
 		line.setSingle(navItemNo == null);
 		if (navItemNo == null) {
-			line.setItemId(((Number) row[1]).longValue());
-			line.setCode((String) row[2]);
+			line.setItemId(((Number) row[HoItemCatalogueRepository.COL_ITEM_ID]).longValue());
+			line.setCode((String) row[HoItemCatalogueRepository.COL_ITEM_CODE]);
 		} else {
 			line.setCode(navItemNo);
 		}
-		line.setName((String) row[3]);
-		line.setFamilyName((String) row[4]);
-		line.setSubFamilyName((String) row[5]);
-		line.setCategoryCode((String) row[6]);
-		line.setSectionCode((String) row[7]);
-		line.setVariants(row[8] == null ? 0 : ((Number) row[8]).longValue());
-		line.setActive(row[9] != null && ((Number) row[9]).intValue() == 1);
+		line.setName((String) row[HoItemCatalogueRepository.COL_ITEM_NAME]);
+		line.setFamilyName((String) row[HoItemCatalogueRepository.COL_FAMILY_NAME]);
+		line.setSubFamilyName((String) row[HoItemCatalogueRepository.COL_SUB_FAMILY_NAME]);
+		line.setCategoryCode((String) row[HoItemCatalogueRepository.COL_CATEGORY_CODE]);
+		line.setSectionCode((String) row[HoItemCatalogueRepository.COL_SECTION_CODE]);
+		Object variants = row[HoItemCatalogueRepository.COL_VARIANT_COUNT];
+		line.setVariants(variants == null ? 0 : ((Number) variants).longValue());
+		Object anyActive = row[HoItemCatalogueRepository.COL_ANY_ACTIVE];
+		line.setActive(anyActive != null && ((Number) anyActive).intValue() == 1);
 		if (withStock) {
-			line.setStockQuantity(row[10] == null ? BigDecimal.ZERO : new BigDecimal(row[10].toString()));
+			Object stock = row[HoItemCatalogueRepository.COL_STOCK_QUANTITY];
+			line.setStockQuantity(stock == null ? BigDecimal.ZERO : new BigDecimal(stock.toString()));
 		}
 		return line;
 	}

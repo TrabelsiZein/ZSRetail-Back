@@ -1829,7 +1829,10 @@ core class touched).
 - **SQL** (native, standard: it runs on H2 in `ItemCatalogueQueryTest`): `GROUP BY nav_item_no, CASE WHEN nav_item_no
   IS NULL THEN id END`, so an item code equal to another item's NAV number stays its own line; the count is a
   `COUNT(*)` over the grouped query. The search parameter is cast to `VARCHAR(255)` (the driver sends text as
-  nvarchar). The barcode part is only in the query of a search, and the matching items are a `UNION` (text match, then
+  nvarchar). Every selected column has its own alias (`HoItemCatalogueRepository.LINE_COLUMNS`, `line_count` for the
+  counts), read by the repository's column constants: SQL Server names an aggregate without an alias "" and Hibernate
+  refuses two empty names ("duplicated sql alias []"), while H2 names them itself; `ItemCatalogueQueryTest` checks the
+  result column labels. The barcode part is only in the query of a search, and the matching items are a `UNION` (text match, then
   barcodes) joined as derived tables: written as `OR id IN (barcodes)` and `nav_item_no IN (...)` SQL Server probed
   `item_barcode` once per variant row (ZEN's test head office: 294,025 probes, 2.5 s for a page and as much for its
   count). Measured on `zen_headoffice` (21,904 items, 21,940 barcodes, 2,384 NAV numbers): a search 0.3 s for a page and
