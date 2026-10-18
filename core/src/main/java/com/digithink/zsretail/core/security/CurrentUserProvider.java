@@ -59,4 +59,19 @@ public class CurrentUserProvider {
 			return false;
 		}
 	}
+
+	/**
+	 * Step S (3.1.0): whether the logged user's role ({@code UserAccount.appRole}) holds a permission key, e.g.
+	 * {@code "read:admin-badge-scan-history"}: the same keys the frontend menu reads. False when no user is logged, the
+	 * user has no role, or the role does not hold it.
+	 */
+	public boolean currentUserHasPermission(String permissionKey) {
+		try {
+			UserAccount user = getCurrentUser();
+			return user != null && user.getAppRole() != null && user.getAppRole().getPermissions() != null
+					&& user.getAppRole().getPermissions().contains(permissionKey);
+		} catch (RuntimeException e) {
+			return false;
+		}
+	}
 }

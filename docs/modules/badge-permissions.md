@@ -22,7 +22,7 @@
   is logged for an admin (none happens).
   Cashiers, responsibles and custom roles: unchanged (same checks, same popups, same scan history).
 - **Who is an admin** (one definition per side): the logged user's role `UserAccount.role` is `ADMIN`. Server:
-  `CurrentUserProvider.currentUserIsAdmin()` (also used by `BadgeAPI`); till: `badgeService.isAdminUser(user)` on
+  `CurrentUserProvider.currentUserIsAdmin()`; till: `badgeService.isAdminUser(user)` on
   `GET /user-account/current` (`role`). The role is kept in step with the built-in role ADMIN by
   `UserAccountService.applyAppRole`; a custom role maps to POS_USER or RESPONSIBLE, never ADMIN.
 - Tests: `CashierSessionAdminBadgeTest` (admin without a badge passes; cashier, responsible, custom role refused as in
@@ -35,6 +35,12 @@
   the badge lookups `GET /badge/by-badge/{code}`, `POST /badge/check-permission`, `GET /user-account/by-badge/{code}`,
   `GET` and `PUT /user-account/{id}/badge` (no log, any logged user). Users and badges are edited through
   `PUT /user-account/{id}` and the `/user-account/{id}/badge/generate|revoke|reactivate` actions only.
+- **Scan history reads** (`GET /badge/scan-history`, `/badge/{code}/scan-history`, `/badge/scan-statistics`): 403
+  unless the logged user's role holds `read:admin-badge-scan-history`, the page's permission
+  (`CurrentUserProvider.currentUserHasPermission`; ADMIN and RESPONSIBLE by default). The rows are `BadgeScanLogDTO`:
+  `id`, `timestamp`, `scannedByUsername`/`FullName`, `scannedUserUsername`/`FullName` (the owner), `functionality`,
+  `success`, `failureReason`, `sessionId`; never the badge code nor a `UserAccount`. The statistics give `failedScans`
+  and no longer the most scanned badge codes. The `badgeCode` filter still searches by an exact code.
 
 The sections below are the original implementation summary.
 
@@ -105,9 +111,9 @@ A comprehensive badge-based permission system has been implemented to control ac
 **File**: `store/src/main/java/com/digithink/zsretail/store/controller/BadgeAPI.java`
 - REST endpoints:
   - `POST /badge/scan` - Scan badge and log attempt (3.1.0: `by-badge` and `check-permission` removed)
-  - `GET /badge/scan-history` - Get scan history (admin only)
-  - `GET /badge/{badgeCode}/scan-history` - Get history for specific badge
-  - `GET /badge/scan-statistics` - Get scan statistics (admin only)
+  - `GET /badge/scan-history` - Get scan history (3.1.0: `read:admin-badge-scan-history`, rows `BadgeScanLogDTO`)
+  - `GET /badge/{badgeCode}/scan-history` - Get history for specific badge (same rule)
+  - `GET /badge/scan-statistics` - Get scan statistics (same rule)
 
 #### 1.7 UserAccountAPI Updates
 **File**: `core/src/main/java/com/digithink/zsretail/core/controller/UserAccountAPI.java`

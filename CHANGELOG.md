@@ -135,6 +135,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   hash included, and `PUT /user/{id}/role`, which set the role enum without the I-21 check), and so are the unlogged
   badge lookups `GET /badge/by-badge/{code}`, `POST /badge/check-permission`, `GET /user-account/by-badge/{code}`,
   `GET` and `PUT /user-account/{id}/badge`; no caller in the front.
+- Security (step S): the badge scan history reads (`/badge/scan-history`, `/badge/{code}/scan-history`,
+  `/badge/scan-statistics`) answer 403 unless the role holds `read:admin-badge-scan-history` (any logged user read them),
+  and give flat rows (`BadgeScanLogDTO`, the fields the page reads) instead of the entity, which carried both users'
+  `UserAccount` (password hash, badge code): the "Scanned by" and "Badge owner" columns are filled again; no badge code
+  in the rows nor in the statistics (`topBadges` removed), which give `failedScans` (the "Failed" card showed 0).
 ### DB script (`db/3.1.0/update.sql`, store and head office)
 - RFID tables on a store: `rfid_reader` (with `min_signal`), `pos_machine`, `rfid_tag`, `rfid_sale_tag`.
 - Payment method "Retenue à la source", inactive (kept as it is where EMTOP 1.12.1 has it).

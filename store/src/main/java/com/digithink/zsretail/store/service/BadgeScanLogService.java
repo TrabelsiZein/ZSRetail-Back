@@ -94,6 +94,8 @@ public class BadgeScanLogService extends _BaseService<BadgeScanLog, Long> {
 		// Successful scans
 		Long successfulScans = badgeScanLogRepository.countSuccessfulScansInPeriod(fromDate, toDate);
 		stats.put("successfulScans", successfulScans != null ? successfulScans : 0L);
+		// Step S: the "Failed" card of the page reads failedScans (it was never sent, so it showed 0)
+		stats.put("failedScans", (totalScans != null ? totalScans : 0L) - (successfulScans != null ? successfulScans : 0L));
 
 		// Success rate
 		if (totalScans != null && totalScans > 0) {
@@ -108,17 +110,7 @@ public class BadgeScanLogService extends _BaseService<BadgeScanLog, Long> {
 				.findWithFilters(null, null, null, fromDate, toDate, null, PageRequest.of(0, Integer.MAX_VALUE))
 				.getContent();
 
-		// Most scanned badges
-		Map<String, Long> badgeCounts = allScans.stream()
-				.collect(Collectors.groupingBy(BadgeScanLog::getScannedBadgeCode, Collectors.counting()));
-		List<Map<String, Object>> topBadges = badgeCounts.entrySet().stream()
-				.sorted((e1, e2) -> Long.compare(e2.getValue(), e1.getValue())).limit(10).map(e -> {
-					Map<String, Object> badgeStat = new HashMap<>();
-					badgeStat.put("badgeCode", e.getKey());
-					badgeStat.put("scanCount", e.getValue());
-					return badgeStat;
-				}).collect(Collectors.toList());
-		stats.put("topBadges", topBadges);
+		// Step S: no "most scanned badges" any more (it listed badge codes; the page never showed it)
 
 		// Most accessed permissions
 		Map<BadgePermission, Long> permissionCounts = allScans.stream()

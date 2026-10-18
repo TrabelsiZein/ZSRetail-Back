@@ -22,6 +22,7 @@ import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model.enumeration.BadgePermission;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.BadgeService;
+import com.digithink.zsretail.store.dto.BadgeScanLogDTO;
 import com.digithink.zsretail.store.service.BadgeScanLogService;
 
 import lombok.extern.log4j.Log4j2;
@@ -43,11 +44,19 @@ public class BadgeAPI {
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
 
+	/** Step S (3.1.0): the permission of the Badge scan history page, required by the three history reads below. */
+	static final String SCAN_HISTORY_PERMISSION = "read:admin-badge-scan-history";
+
 	/**
-	 * Check if current user is admin (the one definition: {@link CurrentUserProvider#currentUserIsAdmin()})
+	 * Step S: the history reads answer 403 unless the logged user's role holds the page's permission (the menu's rule:
+	 * ADMIN and RESPONSIBLE by default, a custom role when ticked).
 	 */
-	private boolean isAdmin() {
-		return currentUserProvider.currentUserIsAdmin();
+	private ResponseEntity<?> refusedUnlessScanHistoryAllowed() {
+		if (currentUserProvider.currentUserHasPermission(SCAN_HISTORY_PERMISSION)) {
+			return null;
+		}
+		return ResponseEntity.status(HttpStatus.FORBIDDEN)
+				.body(createErrorResponse("The badge scan history needs the permission " + SCAN_HISTORY_PERMISSION));
 	}
 
 	/**
@@ -118,11 +127,10 @@ public class BadgeAPI {
 			@RequestParam(defaultValue = "20") int size) {
 		try {
 			log.info("BadgeAPI::getScanHistory");
-			
-//			if (!isAdmin()) {
-//				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-//						.body(createErrorResponse("Only administrators can access scan history"));
-//			}
+			ResponseEntity<?> refused = refusedUnlessScanHistoryAllowed();
+			if (refused != null) {
+				return refused;
+			}
 
 			BadgePermission permissionEnum = null;
 			if (permission != null && !permission.trim().isEmpty()) {
@@ -136,7 +144,7 @@ public class BadgeAPI {
 			Page<BadgeScanLog> scanLogs = badgeScanLogService.getScanHistoryPaginated(
 					badgeCode, userId, permissionEnum, fromDate, toDate, success, page, size);
 
-			return ResponseEntity.ok(scanLogs);
+			return ResponseEntity.ok(scanLogs.map(BadgeScanLogDTO::from));
 		} catch (Exception e) {
 			log.error("BadgeAPI::getScanHistory:error: {}", e.getMessage(), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -157,17 +165,16 @@ public class BadgeAPI {
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "20") int size) {
 		try {
-			log.info("BadgeAPI::getBadgeScanHistory: {}", badgeCode);
-			
-//			if (!isAdmin()) {
-//				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-//						.body(createErrorResponse("Only administrators can access scan history"));
-//			}
+			log.info("BadgeAPI::getBadgeScanHistory");
+			ResponseEntity<?> refused = refusedUnlessScanHistoryAllowed();
+			if (refused != null) {
+				return refused;
+			}
 
 			Page<BadgeScanLog> scanLogs = badgeScanLogService.getScanHistoryPaginated(
 					badgeCode, null, null, fromDate, toDate, success, page, size);
 
-			return ResponseEntity.ok(scanLogs);
+			return ResponseEntity.ok(scanLogs.map(BadgeScanLogDTO::from));
 		} catch (Exception e) {
 			log.error("BadgeAPI::getBadgeScanHistory:error: {}", e.getMessage(), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -185,11 +192,10 @@ public class BadgeAPI {
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime toDate) {
 		try {
 			log.info("BadgeAPI::getScanStatistics");
-			
-//			if (!isAdmin()) {
-//				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-//						.body(createErrorResponse("Only administrators can access statistics"));
-//			}
+			ResponseEntity<?> refused = refusedUnlessScanHistoryAllowed();
+			if (refused != null) {
+				return refused;
+			}
 
 			Map<String, Object> statistics = badgeScanLogService.getScanStatistics(fromDate, toDate);
 			return ResponseEntity.ok(statistics);
