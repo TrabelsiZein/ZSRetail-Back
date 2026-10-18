@@ -10,7 +10,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -19,9 +21,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.digithink.zsretail.core.model.AppRole;
 import com.digithink.zsretail.core.model.BadgeScanLog;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model.enumeration.BadgePermission;
+import com.digithink.zsretail.core.model.enumeration.GrantedBy;
 import com.digithink.zsretail.core.repository.BadgeScanLogRepository;
 import com.digithink.zsretail.core.repository.UserAccountRepository;
 
@@ -54,7 +58,11 @@ class BadgeServiceInactiveOwnerTest {
 		owner.setUsername("owner-" + badgeCode);
 		owner.setActive(active);
 		owner.setBadgeCode(badgeCode);
-		owner.setBadgePermissions("MAKE_RETURN,APPLY_TOTAL_DISCOUNT");
+		// Step C (3.1.0): the badge opens what its owner's role holds
+		AppRole role = new AppRole("RESPONSIBLE", "Responsable", false);
+		role.setPermissions(new HashSet<>(Arrays.asList(BadgePermission.MAKE_RETURN.key(),
+				BadgePermission.APPLY_TOTAL_DISCOUNT.key())));
+		owner.setAppRole(role);
 		owner.setBadgeExpirationDate(LocalDateTime.now().plusYears(1));
 		owner.setBadgeRevoked(false);
 		badges.put(badgeCode, owner);
@@ -79,6 +87,7 @@ class BadgeServiceInactiveOwnerTest {
 		assertSame(cashier, row.getScannedBy());
 		assertEquals(BadgePermission.MAKE_RETURN, row.getFunctionality());
 		assertEquals(7L, row.getSessionId());
+		assertEquals(GrantedBy.BADGE, row.getGrantedBy(), "a scan");
 		// the close with a cash difference reads the badge through findUserByBadgeCode: refused too
 		assertFalse(service.findUserByBadgeCode("B-GONE").isPresent());
 	}
@@ -100,7 +109,7 @@ class BadgeServiceInactiveOwnerTest {
 		assertTrue(logged.stream().allMatch(BadgeScanLog::getSuccess));
 	}
 
-	// ─── Stub plumbing (as CashierSessionAdminBadgeTest) ─────────────
+	// ─── Stub plumbing (as CashierSessionDiscrepancyRightTest) ─────────────
 
 	private interface Handler {
 		Object handle(String method, Object[] args);

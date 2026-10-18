@@ -126,13 +126,19 @@ class ZZDataInitializerRolesTest {
 	private static final Set<String> INVENTORY = new HashSet<>(
 			java.util.Arrays.asList("read:admin-inventory-counts", "write:admin-inventory-counts"));
 
+	/** Step C (3.1.0): the five till rights of a role (BadgePermission.key()), as the Roles page lists them. */
+	private static final Set<String> TILL_RIGHTS = new HashSet<>(java.util.Arrays.asList("till:consult-customer-list",
+			"till:make-return", "till:apply-line-discount", "till:apply-total-discount",
+			"till:close-session-with-discrepancy"));
+
 	/**
-	 * ADMIN of a new store database: today's set plus the till (the frontend's "POS" button), and the inventory count
-	 * pages when the stock is kept here ({@code standalone}: the supply is not the ERP's).
+	 * ADMIN of a new store database: today's set plus the till (the frontend's "POS" button) and its five rights (step
+	 * C), and the inventory count pages when the stock is kept here ({@code standalone}: the supply is not the ERP's).
 	 */
 	private static Set<String> storeAdminPermissions(boolean standalone) throws Exception {
 		Set<String> expected = new HashSet<>(staticSet("ADMIN_PERMISSIONS"));
 		expected.add(CASHIER_INTERFACE);
+		expected.addAll(TILL_RIGHTS);
 		if (standalone) {
 			expected.addAll(INVENTORY);
 		}
@@ -227,6 +233,23 @@ class ZZDataInitializerRolesTest {
 				assertFalse(hasHeadOfficePermission(role), role.getName());
 			}
 		}
+	}
+
+	@Test
+	@DisplayName("Step C (3.1.0), new store database: every role holds the five till rights, the cashier's too; a head office"
+			+ " none (no till); ADMIN_PERMISSIONS does not carry them (the head office starts from it)")
+	void tillRightsOnEveryRoleOfANewStore() throws Exception {
+		for (boolean[] flags : STORE_PROFILES) {
+			Map<String, AppRole> roles = seedRoles(new MockEnvironment(), flags[0], Collections.emptyMap());
+			for (String name : new String[] { "ADMIN", "RESPONSIBLE", "POS_USER" }) {
+				assertTrue(roles.get(name).getPermissions().containsAll(TILL_RIGHTS), name);
+			}
+		}
+		assertEquals(TILL_RIGHTS, staticSet("TILL_PERMISSIONS"), "the keys of BadgePermission");
+		Map<String, AppRole> headOffice = seedRoles(headOffice(), true, Collections.emptyMap());
+		assertTrue(Collections.disjoint(TILL_RIGHTS, headOffice.get("ADMIN").getPermissions()), "head office ADMIN");
+		assertTrue(Collections.disjoint(TILL_RIGHTS, staticSet("ADMIN_PERMISSIONS")));
+		assertTrue(Collections.disjoint(TILL_RIGHTS, staticSet("HEAD_OFFICE_ADMIN_PERMISSIONS")));
 	}
 
 	@Test

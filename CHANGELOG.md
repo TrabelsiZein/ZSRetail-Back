@@ -36,6 +36,25 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   catalogue.
 - `GET /config` gains `cashierClosingTicket`, `navItems`, `itemCategories`, `itemSections` (each read on each call).
 - Session report: an undeclared payment method reads null.
+- Till authorisation, step C: the till rights belong to the role, five permissions `till:consult-customer-list`,
+  `till:make-return`, `till:apply-line-discount`, `till:apply-total-discount`, `till:close-session-with-discrepancy`
+  (listed by `GET /app-roles/permissions`, sent with the login's `permissions` as the page permissions); a new store
+  database gives the five to every role, a head office none. A badge is a credential only (code, expiry, revoked): it
+  opens an action when its owner's role holds it, else `BADGE_NO_ACCESS`. The per-user badge list is no longer read or
+  written (`badgePermissions` removed from the user DTO and `PUT /user-account/{id}`).
+- Till authorisation, step C: on a store of before, at its first start, once (`TILL_RIGHTS_MIGRATED`), each role gets
+  the rights every active user of the role passes today without a badge (an admin: the five; with
+  `ALWAYS_SHOW_BADGE_SCAN_POPUP` on: nobody else; else his card's list with a valid badge, the close with a difference
+  excepted); the role ADMIN gets the five; rights only added; the role × right matrix logged once. Nothing changes at
+  the till on the day of the upgrade.
+- Till authorisation, step C: every pass is logged in `badge_scan_log` with `granted_by`: a scan (BADGE) or a pass on
+  the role's right (ROLE, no badge code, the owner is the logged user), the latter by `POST /badge/pass {action}` (403
+  `TILL_RIGHT_REQUIRED` when the role does not hold it); `GET /badge/scan-history` filters `grantedBy` and its rows give
+  it; the statistics count the scans only; a scan logs the scanning user's open session (the till's `sessionId` is no
+  longer trusted).
+- Till authorisation, step C: closing with a cash difference: the logged user whose role holds
+  `till:close-session-with-discrepancy` confirms the difference (`discrepancyConfirmed`) whatever the role's name;
+  anyone else brings a badge whose owner's role holds it (2.2.2: an admin by the role enum only, a badge by its list).
 - Item variants (step 11c): the return screen's ticket lookup and the return voucher lines give the item's
   `variantDescription` (`ReturnHeaderAPI`), so the till and the tickets show "name — variant" (null for the other
   customers: the name alone, as before). The sale lines already carried it through the item.
@@ -167,6 +186,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   Re-runnable, no data changed.
 - Security (step S): filtered unique index `ux_user_account_badge_code` (`user_account.badge_code`, not null), store
   and head office; skipped with a warning when two users already share a code; re-runnable, no data changed.
+- Till authorisation, step C: `badge_scan_log.granted_by` (varchar(10), nullable; the rows of before set to `BADGE`)
+  and `scanned_badge_code` nullable, store and head office, re-runnable (also at each start, `TillSchemaUpgrade`). The
+  till rights are given to the roles by the first start, not by the script (it must read `ALWAYS_SHOW_BADGE_SCAN_POPUP`
+  first). `user_account.badge_permissions` is kept, unused (deprecated, dropped in the next version).
 - `APP_VERSION` 3.1.0; release notes to complete when the version is closed (RFID is missing).
 
 ### Config
@@ -177,6 +200,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - `erp.zen.page.barcodes` defaults to `barCodes` (step 12a; was `ItemBarCodePOS`).
 - `headoffice.copies-down.read-timeout-seconds` (store, default 60): the read timeout of the pull of copies down.
 - General setup `CASHIER_CLOSING_TICKET` (`Z`, the default, or `DECLARED`).
+- General setup `ALWAYS_SHOW_BADGE_SCAN_POPUP` removed (till authorisation, step C): no longer created; on a store its
+  row is read once by the till rights migration, then deleted. `TILL_RIGHTS_MIGRATED` (read only): written once by that
+  migration, with its date and the role × right matrix.
 
 ## 2.3.0 — 2026-10-11 (tag `v2.3.0`)
 

@@ -36,6 +36,13 @@
 -- Security (step S): the filtered unique index ux_user_account_badge_code (one user per badge code), store and head
 -- office; skipped with a warning when two users already share a code. Re-runnable; no data changed.
 --
+-- Till rights on the role (step C, docs/modules/badge-permissions.md): badge_scan_log also records the passes on the
+-- logged user's own role right: scanned_badge_code becomes nullable, granted_by (ROLE or BADGE) is added and the rows of
+-- before are marked BADGE (they are scans). Store and head office (the table is in both), re-runnable. The rights
+-- themselves are given to the roles by the application at its first start (TillRightsMigration: it reads
+-- ALWAYS_SHOW_BADGE_SCAN_POPUP and the users' badge lists, then deletes the setting): nothing of them here, and
+-- user_account.badge_permissions is kept, unused, for a rollback.
+--
 -- The session options are set here (sqlcmd starts with QUOTED_IDENTIFIER OFF); SSMS has them on already.
 
 SET QUOTED_IDENTIFIER ON;
@@ -318,6 +325,20 @@ BEGIN
 	ELSE
 		CREATE UNIQUE INDEX ux_user_account_badge_code ON user_account (badge_code) WHERE badge_code IS NOT NULL;
 END
+GO
+
+-- Till rights on the role (step C): the passes on the role's right in the scan log (no badge code, granted_by ROLE); the
+-- rows of before are scans. As the entity and TillSchemaUpgrade (which does the same at each start). Re-runnable.
+IF OBJECT_ID(N'badge_scan_log', N'U') IS NOT NULL
+BEGIN
+	IF COL_LENGTH('badge_scan_log', 'granted_by') IS NULL ALTER TABLE badge_scan_log ADD granted_by varchar(10) NULL;
+	IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'badge_scan_log') AND name = 'scanned_badge_code'
+		AND is_nullable = 0)
+		ALTER TABLE badge_scan_log ALTER COLUMN scanned_badge_code varchar(50) NULL;
+END
+GO
+IF COL_LENGTH('badge_scan_log', 'granted_by') IS NOT NULL
+	EXEC('UPDATE badge_scan_log SET granted_by = ''BADGE'' WHERE granted_by IS NULL');
 GO
 
 UPDATE APP_VERSION SET version = '3.1.0';

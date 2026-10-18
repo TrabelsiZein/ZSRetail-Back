@@ -1,6 +1,8 @@
 package com.digithink.zsretail.core.controller;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.core.dto.AppRoleRequestDTO;
 import com.digithink.zsretail.core.model.AppRole;
+import com.digithink.zsretail.core.model.enumeration.BadgePermission;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.AppRoleService;
 
@@ -93,6 +96,16 @@ public class AppRoleAPI {
         "read:cashier-interface"
     );
 
+    /** Step C (3.1.0): with the five till rights of the role (BadgePermission.key(), "till:..."), defined once there. */
+    private static final List<String> ALL_PERMISSIONS_WITH_TILL;
+    static {
+        List<String> all = new ArrayList<>(ALL_PERMISSIONS);
+        for (BadgePermission action : BadgePermission.values()) {
+            all.add(action.key());
+        }
+        ALL_PERMISSIONS_WITH_TILL = Collections.unmodifiableList(all);
+    }
+
     @GetMapping
     public List<AppRole> getAll() {
         return appRoleService.findAll();
@@ -100,7 +113,7 @@ public class AppRoleAPI {
 
     @GetMapping("/permissions")
     public List<String> getAllPermissions() {
-        return ALL_PERMISSIONS;
+        return ALL_PERMISSIONS_WITH_TILL;
     }
 
     @GetMapping("/{id}")

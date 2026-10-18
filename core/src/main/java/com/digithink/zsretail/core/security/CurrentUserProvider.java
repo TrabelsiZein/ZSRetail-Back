@@ -6,7 +6,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 import com.digithink.zsretail.core.model.UserAccount;
-import com.digithink.zsretail.core.model.enumeration.Role;
 import com.digithink.zsretail.core.repository.UserAccountRepository;
 
 /**
@@ -44,20 +43,6 @@ public class CurrentUserProvider {
 			username = principal.toString();
 		}
 		return username;
-	}
-
-	/**
-	 * 2.2.2: the one definition of an admin on the server: the logged user's role is {@link Role#ADMIN}
-	 * ({@code UserAccount.role}, kept in step with the built-in role ADMIN by {@code UserAccountService.applyAppRole}; a
-	 * custom role is never ADMIN). An admin is never asked for a badge. False when no user is logged (or not found).
-	 */
-	public boolean currentUserIsAdmin() {
-		try {
-			UserAccount user = getCurrentUser();
-			return user != null && user.getRole() == Role.ADMIN;
-		} catch (RuntimeException e) {
-			return false;
-		}
 	}
 
 	/**

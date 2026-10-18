@@ -147,6 +147,17 @@ class ZZDataInitializerModeTest {
 		set(initializer, "appVersionRepository", repository(AppVersionRepository.class, 1, null, null));
 		set(initializer, "appReleaseNoteRepository", repository(AppReleaseNoteRepository.class, 1, null, null));
 		set(initializer, "appVersion", "9.9.9-test");
+		// Step C (3.1.0): the till schema and the one-time till rights migration have their own tests
+		set(initializer, "tillSchemaUpgrade", new TillSchemaUpgrade(null) {
+			@Override
+			public void run() {
+			}
+		});
+		set(initializer, "tillRightsMigration", new TillRightsMigration(null, null, null, null) {
+			@Override
+			public void run() {
+			}
+		});
 		Method init = ZZDataInitializer.class.getDeclaredMethod("init");
 		init.invoke(initializer);
 		return writes;

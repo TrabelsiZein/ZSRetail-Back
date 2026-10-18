@@ -26,9 +26,8 @@ public class UserAccountDTO {
 	private String appRoleName;
 	private String appRoleLabel;
 
-	// Badge-related fields
+	// Badge-related fields (step C, 3.1.0: the badge is a credential; the till rights are the role's)
 	private String badgeCode;
-	private String badgePermissions; // Comma-separated string
 	private LocalDateTime badgeExpirationDate;
 	private Boolean badgeRevoked;
 	private LocalDateTime badgeRevokedAt;
@@ -52,7 +51,6 @@ public class UserAccountDTO {
 
 		// Badge fields
 		dto.setBadgeCode(user.getBadgeCode());
-		dto.setBadgePermissions(user.getBadgePermissions());
 		dto.setBadgeExpirationDate(user.getBadgeExpirationDate());
 		dto.setBadgeRevoked(user.getBadgeRevoked());
 		dto.setBadgeRevokedAt(user.getBadgeRevokedAt());

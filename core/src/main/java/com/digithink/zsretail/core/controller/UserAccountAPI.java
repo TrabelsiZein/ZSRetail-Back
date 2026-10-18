@@ -19,7 +19,6 @@ import com.digithink.zsretail.core.dto.CreateUserRequestDTO;
 import com.digithink.zsretail.core.dto.UserAccountDTO;
 import com.digithink.zsretail.core.exception.RoleChangeRefusedException;
 import com.digithink.zsretail.core.model.UserAccount;
-import com.digithink.zsretail.core.model.enumeration.BadgePermission;
 import com.digithink.zsretail.core.model.enumeration.Role;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.BadgeService;
@@ -27,7 +26,6 @@ import com.digithink.zsretail.core.service.UserAccountService;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import lombok.extern.log4j.Log4j2;
@@ -237,27 +235,7 @@ public class UserAccountAPI {
 				}
 			}
 
-			if (request.containsKey("badgePermissions")) {
-				Object permissionsObj = request.get("badgePermissions");
-				if (permissionsObj instanceof List) {
-					@SuppressWarnings("unchecked")
-					List<String> permissionsList = (List<String>) permissionsObj;
-					Set<BadgePermission> permissions = permissionsList.stream()
-							.map(p -> {
-								try {
-									return BadgePermission.valueOf(p);
-								} catch (IllegalArgumentException e) {
-									return null;
-								}
-							})
-							.filter(p -> p != null)
-							.collect(Collectors.toSet());
-					user.setBadgePermissions(badgeService.badgePermissionsToString(permissions));
-				} else if (permissionsObj instanceof String) {
-					user.setBadgePermissions((String) permissionsObj);
-				}
-			}
-
+			// Step C (3.1.0): no badge permission list any more (the till rights are the role's); one sent is ignored
 			if (request.containsKey("badgeExpirationDate")) {
 				Object expirationObj = request.get("badgeExpirationDate");
 				if (expirationObj == null || expirationObj.toString().trim().isEmpty()) {
@@ -269,11 +247,6 @@ public class UserAccountAPI {
 						log.warn("Invalid badge expiration date format: {}", expirationObj);
 					}
 				}
-			}
-
-			// Initialize badge permissions based on role if not set
-			if (user.getBadgePermissions() == null || user.getBadgePermissions().trim().isEmpty()) {
-				badgeService.initializeBadgePermissionsForRole(user);
 			}
 
 			UserAccount updatedUser = userAccountService.save(user);
@@ -364,11 +337,6 @@ public class UserAccountAPI {
 
 			String badgeCode = badgeService.generateBadgeCode(user);
 			user.setBadgeCode(badgeCode);
-			
-			// Initialize permissions based on role if not set
-			if (user.getBadgePermissions() == null || user.getBadgePermissions().trim().isEmpty()) {
-				badgeService.initializeBadgePermissionsForRole(user);
-			}
 
 			UserAccount updatedUser = userAccountService.save(user);
 			

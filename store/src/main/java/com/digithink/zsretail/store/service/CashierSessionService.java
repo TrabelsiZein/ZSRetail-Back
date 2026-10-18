@@ -373,11 +373,11 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 
 	/**
 	 * The cash counted against the cash expected when the session is closed (ENABLE_CASH_DISCREPANCY_CHECK, on when the
-	 * setting is absent). A difference above 0.01 needs a badge holding CLOSE_SESSION_WITH_DISCREPANCY, else
-	 * {@link CashDiscrepancyException} (the till then shows the difference and asks for the badge). 2.2.2: when the logged
-	 * user is an admin ({@link CurrentUserProvider#currentUserIsAdmin()}) no badge is checked: the first request still
-	 * gets the difference (the warning); the request confirming it ({@code discrepancyConfirmed}) goes through, logged
-	 * as authorised by the admin role. The confirmation means nothing for any other user.
+	 * setting is absent). A difference above 0.01 needs the right CLOSE_SESSION_WITH_DISCREPANCY, else
+	 * {@link CashDiscrepancyException} (the till then shows the difference and asks for the right). Step C (3.1.0): the
+	 * right is the role's: the logged user whose role holds it confirms the difference shown ({@code discrepancyConfirmed},
+	 * as an admin did in 2.2.2: the first request still gets the warning); anyone else brings a badge whose owner's role
+	 * holds it. The confirmation means nothing from a user whose role does not hold the right.
 	 */
 	void checkCashDiscrepancy(CashierSession session, Double realCash, Double posUserClosureCash,
 			CloseSessionRequestDTO request) {
@@ -395,10 +395,11 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			// Compare amounts with tolerance of 0.01 TND for floating point precision
 			double difference = Math.abs(realCash - posUserClosureCash);
 			if (difference > 0.01) {
-				if (request.isDiscrepancyConfirmed() && currentUserProvider.currentUserIsAdmin()) {
-					// 2.2.2: an admin is never asked for a badge, but sees the difference warning first (the till
-					// shows it on the CashDiscrepancyException below) and confirms it
-					log.info("Session closure with discrepancy authorized by the admin role: session "
+				if (request.isDiscrepancyConfirmed()
+						&& badgeService.roleHolds(loggedUser(), BadgePermission.CLOSE_SESSION_WITH_DISCREPANCY)) {
+					// Step C: the logged user's role holds the right: no badge, but the difference warning first (the
+					// till shows it on the CashDiscrepancyException below) and his confirmation
+					log.info("Session closure with discrepancy authorized by the role's right: session "
 							+ session.getSessionNumber() + ", user " + currentUserProvider.getCurrentUserName()
 							+ ", expected " + realCash + ", counted " + posUserClosureCash + ", no badge");
 				} else if (request.getBadgeCode() != null && !request.getBadgeCode().trim().isEmpty()
@@ -414,18 +415,26 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 					}
 
 					UserAccount badgeUser = badgeUserOpt.get();
-					boolean hasPermission = badgeService.hasPermission(badgeUser,
-							BadgePermission.CLOSE_SESSION_WITH_DISCREPANCY);
-					if (!hasPermission) {
+					// Step C: the badge opens the close when its owner's role holds the right
+					if (!badgeService.roleHolds(badgeUser, BadgePermission.CLOSE_SESSION_WITH_DISCREPANCY)) {
 						throw new IllegalStateException("Badge validation failed: BADGE_NO_ACCESS");
 					}
 					// Badge validated successfully - proceed with closure
-					log.info("Session closure with discrepancy authorized by badge: " + request.getBadgeCode());
+					log.info("Session closure with discrepancy authorized by the badge of " + badgeUser.getUsername());
 				} else {
 					// Badge NOT provided - throw structured exception for frontend
 					throw new CashDiscrepancyException(realCash, posUserClosureCash, difference);
 				}
 			}
+		}
+	}
+
+	/** The logged user, null without one (a request with no security context). */
+	private UserAccount loggedUser() {
+		try {
+			return currentUserProvider.getCurrentUser();
+		} catch (RuntimeException e) {
+			return null;
 		}
 	}
 

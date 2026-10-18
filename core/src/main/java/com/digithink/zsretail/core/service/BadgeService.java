@@ -2,27 +2,30 @@ package com.digithink.zsretail.core.service;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.digithink.zsretail.core.model.BadgeScanLog;
+import com.digithink.zsretail.core.model.CashierSession;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model.enumeration.BadgePermission;
-import com.digithink.zsretail.core.model.enumeration.Role;
+import com.digithink.zsretail.core.model.enumeration.GrantedBy;
+import com.digithink.zsretail.core.model.enumeration.SessionStatus;
 import com.digithink.zsretail.core.repository.BadgeScanLogRepository;
+import com.digithink.zsretail.core.repository.CashierSessionRepository;
 import com.digithink.zsretail.core.repository.UserAccountRepository;
 
 import lombok.extern.log4j.Log4j2;
 
 /**
- * BadgeService - handles all badge-related business logic
+ * The badge (a credential: code, expiry, revoked) and the till rights. Step C (3.1.0): a till right belongs to the
+ * role (app_role_permission "till:..." keys, {@link BadgePermission#key()}), never to a user's card: the logged user
+ * passes an action when his role holds it ({@link #roleHolds}); otherwise a badge is scanned, and it opens the action
+ * when its owner's role holds it. Every pass is logged in badge_scan_log: a scan (grantedBy BADGE, success or the
+ * refusal reason) or a pass on the role's right (grantedBy ROLE, no badge code, the owner is the logged user).
  */
 @Service
 @Log4j2
@@ -40,6 +43,9 @@ public class BadgeService {
 	@Autowired
 	private BadgeScanLogRepository badgeScanLogRepository;
 
+	@Autowired
+	private CashierSessionRepository cashierSessionRepository;
+
 	/**
 	 * Find user by badge code
 	 * Validates expiration and revocation
@@ -55,7 +61,7 @@ public class BadgeService {
 		}
 
 		UserAccount user = userOpt.get();
-		
+
 		// Check if badge is revoked
 		if (isBadgeRevoked(user)) {
 			log.warn("Badge scan attempted for revoked badge: {}", badgeCode);
@@ -78,28 +84,30 @@ public class BadgeService {
 	}
 
 	/**
-	 * Check if badge has permission
+	 * Step C (3.1.0): whether the user's role holds the till right of the action (app_role_permission
+	 * {@link BadgePermission#key()}). False without a user, a role or an action. The one rule of the server: the logged
+	 * user's own right, and what a scanned badge opens (its owner's role).
 	 */
-	public boolean checkBadgePermission(String badgeCode, BadgePermission permission) {
-		Optional<UserAccount> userOpt = findUserByBadgeCode(badgeCode);
-		if (!userOpt.isPresent()) {
-			return false;
-		}
-
-		UserAccount user = userOpt.get();
-		return hasPermission(user, permission);
+	public boolean roleHolds(UserAccount user, BadgePermission action) {
+		return user != null && action != null && user.getAppRole() != null && user.getAppRole().getPermissions() != null
+				&& user.getAppRole().getPermissions().contains(action.key());
 	}
 
 	/**
-	 * Check if user has specific permission
+	 * Step C: the id of the user's open cashier session, logged with a pass (null without one, e.g. an admin page, or
+	 * when it cannot be read: the log never stops a scan).
 	 */
-	public boolean hasPermission(UserAccount user, BadgePermission permission) {
-		if (user == null || user.getBadgePermissions() == null || user.getBadgePermissions().trim().isEmpty()) {
-			return false;
+	public Long openSessionId(UserAccount user) {
+		if (user == null || cashierSessionRepository == null) {
+			return null;
 		}
-
-		Set<BadgePermission> permissions = parseBadgePermissions(user.getBadgePermissions());
-		return permissions.contains(permission);
+		try {
+			return cashierSessionRepository.findByCashierAndStatus(user, SessionStatus.OPENED)
+					.map(CashierSession::getId).orElse(null);
+		} catch (RuntimeException e) {
+			log.warn("Open session of {} not read for the badge log: {}", user.getUsername(), e.getMessage());
+			return null;
+		}
 	}
 
 	/**
@@ -148,8 +156,8 @@ public class BadgeService {
 			return result;
 		}
 
-		// Check permission
-		if (!hasPermission(user, permission)) {
+		// Step C (3.1.0): the badge opens the action when its owner's role holds the right
+		if (!roleHolds(user, permission)) {
 			result.setSuccess(false);
 			result.setFailureReason("BADGE_NO_ACCESS");
 			logBadgeScan(result, scannedBy, sessionId);
@@ -165,6 +173,28 @@ public class BadgeService {
 	}
 
 	/**
+	 * Step C (3.1.0): logs a pass on the logged user's own role right (grantedBy ROLE): no badge code, the owner is the
+	 * user himself, his open session. The caller checked {@link #roleHolds} first.
+	 */
+	public void logRolePass(UserAccount actor, BadgePermission action) {
+		try {
+			BadgeScanLog row = new BadgeScanLog();
+			row.setScannedBy(actor);
+			row.setScannedUser(actor);
+			row.setScannedBadgeCode(null);
+			row.setFunctionality(action);
+			row.setSuccess(true);
+			row.setGrantedBy(GrantedBy.ROLE);
+			row.setSessionId(openSessionId(actor));
+			row.setTimestamp(LocalDateTime.now());
+			row.setScanType("ROLE");
+			badgeScanLogRepository.save(row);
+		} catch (Exception e) {
+			log.error("Error logging a till pass on the role's right: {}", e.getMessage(), e);
+		}
+	}
+
+	/**
 	 * Generate unique badge code
 	 */
 	public String generateBadgeCode(UserAccount user) {
@@ -172,23 +202,23 @@ public class BadgeService {
 		if (prefix.length() > 10) {
 			prefix = prefix.substring(0, 10);
 		}
-		
+
 		String badgeCode;
 		boolean exists = true;
 		int attempts = 0;
-		
+
 		do {
 			int randomNum = 1000 + RANDOM.nextInt(9000); // 4-digit random number (step S: SecureRandom)
 			badgeCode = prefix + "-" + randomNum;
 			exists = userAccountRepository.findByBadgeCode(badgeCode).isPresent();
 			attempts++;
 		} while (exists && attempts < 100);
-		
+
 		if (exists) {
 			// Fallback: use timestamp
 			badgeCode = prefix + "-" + System.currentTimeMillis();
 		}
-		
+
 		return badgeCode;
 	}
 
@@ -199,7 +229,7 @@ public class BadgeService {
 		if (badgeCode == null || badgeCode.trim().isEmpty()) {
 			return false;
 		}
-		
+
 		String trimmed = badgeCode.trim();
 		// Minimum 6 characters, maximum 50 characters, alphanumeric and hyphens
 		return trimmed.length() >= 6 && trimmed.length() <= 50 && trimmed.matches("^[A-Za-z0-9\\-]+$");
@@ -218,9 +248,9 @@ public class BadgeService {
 		user.setBadgeRevokedAt(LocalDateTime.now());
 		user.setBadgeRevokedBy(revokedBy);
 		user.setBadgeRevokeReason(reason);
-		
+
 		userAccountRepository.save(user);
-		log.info("Badge revoked for user: {} by: {} reason: {}", user.getUsername(), 
+		log.info("Badge revoked for user: {} by: {} reason: {}", user.getUsername(),
 				revokedBy != null ? revokedBy.getUsername() : "System", reason);
 	}
 
@@ -237,7 +267,7 @@ public class BadgeService {
 		user.setBadgeRevokedAt(null);
 		user.setBadgeRevokedBy(null);
 		user.setBadgeRevokeReason(null);
-		
+
 		userAccountRepository.save(user);
 		log.info("Badge reactivated for user: {}", user.getUsername());
 	}
@@ -271,66 +301,6 @@ public class BadgeService {
 	}
 
 	/**
-	 * Parse badge permissions string to Set
-	 */
-	public Set<BadgePermission> parseBadgePermissions(String permissionsString) {
-		if (permissionsString == null || permissionsString.trim().isEmpty()) {
-			return new HashSet<>();
-		}
-
-		return Arrays.stream(permissionsString.split(","))
-				.map(String::trim)
-				.filter(s -> !s.isEmpty())
-				.map(s -> {
-					try {
-						return BadgePermission.valueOf(s);
-					} catch (IllegalArgumentException e) {
-						log.warn("Invalid badge permission: {}", s);
-						return null;
-					}
-				})
-				.filter(p -> p != null)
-				.collect(Collectors.toSet());
-	}
-
-	/**
-	 * Convert Set of BadgePermission to comma-separated string
-	 */
-	public String badgePermissionsToString(Set<BadgePermission> permissions) {
-		if (permissions == null || permissions.isEmpty()) {
-			return "";
-		}
-		return permissions.stream()
-				.map(BadgePermission::name)
-				.collect(Collectors.joining(","));
-	}
-
-	/**
-	 * Get all permissions for RESPONSIBLE role (default)
-	 */
-	public Set<BadgePermission> getAllPermissions() {
-		return new HashSet<>(Arrays.asList(BadgePermission.values()));
-	}
-
-	/**
-	 * Initialize badge permissions for user based on role
-	 */
-	public void initializeBadgePermissionsForRole(UserAccount user) {
-		if (user == null || user.getRole() == null) {
-			return;
-		}
-
-		if (user.getRole() == Role.RESPONSIBLE) {
-			// RESPONSIBLE gets all permissions by default
-			Set<BadgePermission> allPermissions = getAllPermissions();
-			user.setBadgePermissions(badgePermissionsToString(allPermissions));
-		} else {
-			// POS_USER gets no permissions by default
-			user.setBadgePermissions("");
-		}
-	}
-
-	/**
 	 * Log badge scan attempt
 	 */
 	private void logBadgeScan(BadgeScanResult result, UserAccount scannedBy, Long sessionId) {
@@ -344,9 +314,10 @@ public class BadgeService {
 			log.setFailureReason(result.getFailureReason());
 			log.setSessionId(sessionId);
 			log.setTimestamp(LocalDateTime.now());
+			log.setGrantedBy(GrantedBy.BADGE);
 			// scanType is kept for backward compatibility but not used
 			log.setScanType("SCAN");
-			
+
 			badgeScanLogRepository.save(log);
 		} catch (Exception e) {
 			log.error("Error logging badge scan: {}", e.getMessage(), e);
@@ -414,4 +385,3 @@ public class BadgeService {
 		}
 	}
 }
-

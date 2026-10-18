@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.PostConstruct;
 
@@ -23,6 +24,7 @@ import com.digithink.zsretail.core.model.GeneralSetup;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.PaymentMethod;
 import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.model.enumeration.BadgePermission;
 import com.digithink.zsretail.core.model.enumeration.ConfigType;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
@@ -53,6 +55,10 @@ public class ZZDataInitializer {
 	private UserAccountRepository userRepository;
 	@Autowired
 	private BadgeService badgeService;
+	@Autowired
+	private TillSchemaUpgrade tillSchemaUpgrade;
+	@Autowired
+	private TillRightsMigration tillRightsMigration;
 	@Autowired
 	private AppRoleRepository appRoleRepository;
 	@Autowired
@@ -89,8 +95,14 @@ public class ZZDataInitializer {
 
 	@PostConstruct
 	public void init() {
+		// Till rights (3.1.0): the column changes Hibernate cannot make, before anything is written
+		tillSchemaUpgrade.run();
+
 		// Always run — idempotent, seeds default roles if they don't exist yet
 		ensureDefaultRoles();
+
+		// Step C (3.1.0): on a store of before, once, the till rights of the users' badges go to their roles
+		tillRightsMigration.run();
 
 		if (userRepository.count() == 0) {
 			initUsers();
@@ -245,6 +257,7 @@ public class ZZDataInitializer {
 			return permissions;
 		}
 		permissions.add("read:cashier-interface");
+		permissions.addAll(TILL_PERMISSIONS); // step C: the five till rights, on every role of a new store
 		if (!applicationModeService.isSupplyFromErp()) {
 			permissions.addAll(INVENTORY_ADMIN_PERMISSIONS);
 		}
@@ -261,6 +274,14 @@ public class ZZDataInitializer {
 	}
 
 	// ── Default permission sets ────────────────────────────────────────────────
+
+	/**
+	 * Step C (3.1.0): the five till rights (BadgePermission.key(), "till:..."), given to every role of a new store
+	 * database, the cashier's included (the store restricts them on the Roles page). Never on a head office (no till),
+	 * never added to a role of before at a start: TillRightsMigration gives those once, from the users' badges.
+	 */
+	static final Set<String> TILL_PERMISSIONS = Arrays.stream(BadgePermission.values()).map(BadgePermission::key)
+			.collect(Collectors.toCollection(HashSet::new));
 
 	/**
 	 * Head office only: one permission per head office route, "read:" + the route's meta.resource in ZSRetail-Front
@@ -375,9 +396,15 @@ public class ZZDataInitializer {
 					"write:admin-loyalty-member-functions", "read:admin-report-sales", "read:admin-report-loyalty",
 					"read:admin-report-sessions", "read:admin-report-promotions",
 					"read:verify-session"));
+	static {
+		RESPONSIBLE_PERMISSIONS.addAll(TILL_PERMISSIONS); // step C: a role of a store only
+	}
 
 	private static final java.util.Set<String> POS_PERMISSIONS = new java.util.HashSet<>(
 			java.util.Arrays.asList("read:cashier-interface"));
+	static {
+		POS_PERMISSIONS.addAll(TILL_PERMISSIONS); // step C: the cashier's too; the store restricts them on the Roles page
+	}
 
 	/**
 	 * Create initial users: Admin, Responsible, POS User
@@ -419,7 +446,6 @@ public class ZZDataInitializer {
 		responsible.setBadgeCode(badgeService.generateBadgeCode(responsible));
 		log.info("First start: the badge code of the user '{}' is {} (Users page: print it or change it)",
 				responsible.getUsername(), responsible.getBadgeCode());
-		responsible.setBadgePermissions("CONSULT_CUSTOMER_LIST,MAKE_RETURN,APPLY_LINE_DISCOUNT,APPLY_TOTAL_DISCOUNT");
 		responsible.setBadgeExpirationDate(LocalDateTime.now().plusYears(10));
 		responsible.setBadgeRevoked(false);
 		responsible.setCreatedBy("System");
@@ -1025,9 +1051,7 @@ public class ZZDataInitializer {
 		ensureConfig("DEFAULT_LOCATION", "", "Default location code for the system", false, ConfigType.STRING);
 		ensureConfig("PASSENGER_CUSTOMER", "", "Passenger customer code for POS tickets when no customer is selected",
 				false, ConfigType.STRING);
-		ensureConfig("ALWAYS_SHOW_BADGE_SCAN_POPUP", "false",
-				"If true, always show badge scan popup for restricted functionalities, even if the current user has permission. If false, only show if current user lacks permission.",
-				false, ConfigType.BOOLEAN);
+		// Step C (3.1.0): ALWAYS_SHOW_BADGE_SCAN_POPUP is retired (TillRightsMigration reads it once, then deletes it)
 		ensureConfig("POS_SHOW_IMAGES", "true",
 				"Show product/family/subfamily images in POS cashier screen. Set to false to disable images if the system is slow.",
 				false, ConfigType.BOOLEAN);

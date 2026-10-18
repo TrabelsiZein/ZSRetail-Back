@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import com.digithink.zsretail.core.model.BadgeScanLog;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model.enumeration.BadgePermission;
+import com.digithink.zsretail.core.model.enumeration.GrantedBy;
 import com.digithink.zsretail.core.repository.BadgeScanLogRepository;
 import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.core.service._BaseService;
@@ -72,13 +73,14 @@ public class BadgeScanLogService extends _BaseService<BadgeScanLog, Long> {
 	}
 
 	/**
-	 * Get paginated scan history with filters
+	 * Get paginated scan history with filters; step C (3.1.0): grantedBy ROLE (passes on the role's right), BADGE (scans)
+	 * or null (both)
 	 */
 	public Page<BadgeScanLog> getScanHistoryPaginated(String badgeCode, Long userId, BadgePermission permission,
-			LocalDateTime fromDate, LocalDateTime toDate, Boolean success, int page, int size) {
+			LocalDateTime fromDate, LocalDateTime toDate, Boolean success, GrantedBy grantedBy, int page, int size) {
 		Pageable pageable = PageRequest.of(page, size);
 		return badgeScanLogRepository.findWithFilters(badgeCode, userId, permission, fromDate, toDate, success,
-				pageable);
+				grantedBy, pageable);
 	}
 
 	/**
@@ -105,9 +107,9 @@ public class BadgeScanLogService extends _BaseService<BadgeScanLog, Long> {
 			stats.put("successRate", 0.0);
 		}
 
-		// Get all scans in period for detailed statistics
+		// Get all scans in period for detailed statistics (step C: the scans only, not the passes on the role's right)
 		List<BadgeScanLog> allScans = badgeScanLogRepository
-				.findWithFilters(null, null, null, fromDate, toDate, null, PageRequest.of(0, Integer.MAX_VALUE))
+				.findWithFilters(null, null, null, fromDate, toDate, null, GrantedBy.BADGE, PageRequest.of(0, Integer.MAX_VALUE))
 				.getContent();
 
 		// Step S: no "most scanned badges" any more (it listed badge codes; the page never showed it)
@@ -146,7 +148,7 @@ public class BadgeScanLogService extends _BaseService<BadgeScanLog, Long> {
 
 		// Get all scans in period
 		return badgeScanLogRepository
-				.findWithFilters(null, null, null, fromDate, toDate, null, PageRequest.of(0, Integer.MAX_VALUE))
+				.findWithFilters(null, null, null, fromDate, toDate, null, null, PageRequest.of(0, Integer.MAX_VALUE))
 				.getContent();
 	}
 }

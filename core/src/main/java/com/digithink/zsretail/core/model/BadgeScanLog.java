@@ -10,13 +10,16 @@ import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 
 import com.digithink.zsretail.core.model.enumeration.BadgePermission;
+import com.digithink.zsretail.core.model.enumeration.GrantedBy;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 /**
- * BadgeScanLog entity - tracks all badge scan attempts for audit purposes
+ * BadgeScanLog entity - every till authorisation for audit purposes: a badge scan (grantedBy BADGE, success or refusal)
+ * or, since step C (3.1.0), a pass on the logged user's role right (grantedBy ROLE: no badge code, the owner is the
+ * logged user)
  */
 @Entity
 @Data
@@ -28,8 +31,14 @@ public class BadgeScanLog extends _BaseEntity {
 	@JoinColumn(name = "scanned_by_user_id", nullable = false)
 	private UserAccount scannedBy; // Who performed the scan
 
-	@Column(name = "scanned_badge_code", nullable = false, length = 50)
+	// Step C (3.1.0): null for a pass on the role's right (db/3.1.0/update.sql and TillSchemaUpgrade relax the NOT NULL)
+	@Column(name = "scanned_badge_code", nullable = true, length = 50)
 	private String scannedBadgeCode; // Which badge was scanned
+
+	/** Step C (3.1.0): ROLE or BADGE; the rows of before are scans (set to BADGE by the script and at the start). */
+	@Enumerated(EnumType.STRING)
+	@Column(name = "granted_by", length = 10, nullable = true)
+	private GrantedBy grantedBy;
 
 	@ManyToOne
 	@JoinColumn(name = "scanned_user_id", nullable = true)
@@ -52,6 +61,6 @@ public class BadgeScanLog extends _BaseEntity {
 	private LocalDateTime timestamp = LocalDateTime.now();
 
 	@Column(name = "scan_type", length = 20, nullable = false)
-	private String scanType = "BARCODE"; // "BARCODE" or "QR_CODE"
+	private String scanType = "BARCODE"; // "SCAN" for a scan, "ROLE" for a pass on the role's right (step C)
 }
 

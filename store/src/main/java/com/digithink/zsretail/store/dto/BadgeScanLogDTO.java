@@ -31,6 +31,8 @@ public class BadgeScanLogDTO {
 	/** BADGE_NOT_EXISTS, BADGE_REVOKED, BADGE_EXPIRED, BADGE_OWNER_INACTIVE, BADGE_NO_ACCESS; null on success. */
 	private String failureReason;
 	private Long sessionId;
+	/** Step C (3.1.0): ROLE (the logged user's role holds the right, no badge; the owner is himself) or BADGE (a scan). */
+	private String grantedBy;
 
 	public static BadgeScanLogDTO from(BadgeScanLog log) {
 		BadgeScanLogDTO dto = new BadgeScanLogDTO();
@@ -50,6 +52,7 @@ public class BadgeScanLogDTO {
 		dto.setSuccess(log.getSuccess());
 		dto.setFailureReason(log.getFailureReason());
 		dto.setSessionId(log.getSessionId());
+		dto.setGrantedBy(log.getGrantedBy() != null ? log.getGrantedBy().name() : "BADGE"); // rows of before: scans
 		return dto;
 	}
 }

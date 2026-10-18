@@ -1,6 +1,63 @@
 # Badge-Based Permission System - Implementation Summary
 
-## Current rules (2.2.2)
+## Till rights on the role (3.1.0, step C)
+
+The rule of today. The sections after it (2.2.2, S, B) tell what came before; where they disagree, this one holds.
+
+- **A till right belongs to the role**: five role permissions, the `key()` of `BadgePermission`:
+  `till:consult-customer-list`, `till:make-return`, `till:apply-line-discount`, `till:apply-total-discount`,
+  `till:close-session-with-discrepancy`. `GET /app-roles/permissions` lists them after the page permissions (the Roles
+  page shows them in a "Till" block from `tillActions`); they reach the till with the login's `permissions`, as the page
+  permissions do (CASL `till` / `make-return`, ...), so a role edited takes effect at the user's next login.
+- **A badge is a credential only**: code, expiry, revoked (and its owner active, step S). Scanned, it opens an action
+  when its owner's role holds the right (`BadgeService.roleHolds`), else `BADGE_NO_ACCESS`. No per-user list any more:
+  `UserAccount.badgePermissions`, `UserAccountDTO.badgePermissions`, the list in `PUT /user-account/{id}` and
+  `BadgeService.hasPermission` / `parseBadgePermissions` / `initializeBadgePermissionsForRole` are gone.
+  **Deprecated**: the column `user_account.badge_permissions` stays one release for a rollback, read once by the
+  migration below and never written; it is dropped in the next version.
+- **`ALWAYS_SHOW_BADGE_SCAN_POPUP` is removed**: no longer created, its row deleted at the first start of a store (after
+  the migration read it), no reader left (back or front).
+- **A new store database** gives the five rights to every role (ADMIN, RESPONSIBLE, POS_USER: `ZZDataInitializer`
+  `TILL_PERMISSIONS`); a store restricts them on the Roles page. A head office has no till: no right, no migration.
+- **A store of before: the migration, once** (`TillRightsMigration`, at the first start, after the roles exist; marker
+  `TILL_RIGHTS_MIGRATED`, a read-only General Setup row holding the date and the matrix). A role gets a right only when
+  every active user of the role passes that action today without a badge, so nothing changes at the till on the day of
+  the upgrade:
+  - an admin (`UserAccount.role` ADMIN, the 2.2.2 rule) passes the five, whatever the setting or his card;
+  - anyone else passes nothing while `ALWAYS_SHOW_BADGE_SCAN_POPUP` is on;
+  - else the actions of his card's list (exact names, trimmed) when his own badge is valid (a code, not revoked, not
+    expired), never the close with a difference (the server took it from an admin or a badge only).
+
+  The role named ADMIN gets the five; a role without an active user gets none; rights are only added (a role created
+  at this start keeps its seed). The role × right matrix is logged once at INFO ("Till rights given to the roles from
+  the users' badges (ALWAYS_SHOW_BADGE_SCAN_POPUP was on|off): {ADMIN=..., RESPONSIBLE=...}"). The script does not
+  delete the setting: the first start must read it. Matrix of the local copies (2026-10-18, read only):
+
+  | Role | `pos_db_prod` (Store A, EMTOP, setting on) | the other store copies |
+  |---|---|---|
+  | ADMIN | the five | the five |
+  | RESPONSIBLE | none | consult-customer-list, make-return, apply-line-discount, apply-total-discount |
+  | CONTROLE (EMTOP) | none | — |
+  | POS_USER | none | none |
+
+- **Every pass is logged** in `badge_scan_log`, `granted_by`: `BADGE` (a scan, success or the refusal reason, as
+  before; the session is the scanning user's open session, read by the server, the till's `sessionId` is no longer
+  trusted) or `ROLE` (a pass on the logged user's own right: no badge code, the owner is the user himself, his open
+  session; `POST /badge/pass {action}` logs it, 403 `{error: TILL_RIGHT_REQUIRED, action}` when the role does not hold
+  the action, and the till then asks for a badge). `scanned_badge_code` is nullable. `GET /badge/scan-history` filters
+  `grantedBy` (ROLE, BADGE; none: both) and its rows give `grantedBy`; `/badge/{code}/scan-history` and the statistics
+  count the scans (BADGE) only.
+- **Closing with a cash difference**: the logged user whose role holds `till:close-session-with-discrepancy` confirms
+  the difference shown (`discrepancyConfirmed`, the first request still gets the `CASH_DISCREPANCY` warning), whatever
+  the role's name; anyone else brings a badge whose owner's role holds it (`badgeCode`, `badgePermission`).
+  `CurrentUserProvider.currentUserIsAdmin` is gone (it was its only reader).
+- Schema: `badge_scan_log.granted_by` (varchar(10), null; the rows of before set to BADGE) and `scanned_badge_code`
+  nullable, by `db/3.1.0/update.sql` and at each start by `TillSchemaUpgrade` (a database already at 3.1.0).
+- Tests: `TillRightsMigrationTest` (the rule; the run on H2: marker, head office, add-only, setting row, a database
+  without the old columns), `CashierSessionDiscrepancyRightTest` (the close on the role's right and by a badge),
+  `ZZDataInitializerRolesTest` (the seed), `BadgeServiceInactiveOwnerTest`.
+
+## Rules of 2.2.2 (before step C)
 
 - **Five actions** need a badge permission (`BadgePermission`): `CONSULT_CUSTOMER_LIST` (customer list: till, payment,
   the list itself), `MAKE_RETURN` (the Returns button of the till and the return screen), `APPLY_LINE_DISCOUNT` (till),

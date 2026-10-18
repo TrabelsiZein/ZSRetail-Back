@@ -2,13 +2,12 @@ package com.digithink.zsretail.store.service;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 
@@ -20,7 +19,7 @@ import com.digithink.zsretail.core.model.AppRole;
 import com.digithink.zsretail.core.model.CashierSession;
 import com.digithink.zsretail.core.model.GeneralSetup;
 import com.digithink.zsretail.core.model.UserAccount;
-import com.digithink.zsretail.core.model.enumeration.Role;
+import com.digithink.zsretail.core.model.enumeration.BadgePermission;
 import com.digithink.zsretail.core.repository.GeneralSetupRepository;
 import com.digithink.zsretail.core.repository.UserAccountRepository;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
@@ -30,11 +29,13 @@ import com.digithink.zsretail.store.dto.CloseSessionRequestDTO;
 import com.digithink.zsretail.store.exception.CashDiscrepancyException;
 
 /**
- * 2.2.2, step 2: closing a session with a cash difference. An admin (the logged user's role is ADMIN) closes without a
- * badge; a cashier, a responsible or a custom role is refused without a badge and passes with a valid one, exactly as in
- * 2.2.1. The real check of CashierSessionService and BadgeService over in-memory stubs.
+ * Closing a session with a cash difference. Step C (3.1.0): the right is the role's
+ * (till:close-session-with-discrepancy). The logged user whose role holds it confirms the difference shown, without a
+ * badge (the first request still gets the warning); anyone else brings a badge whose owner's role holds it. The role's
+ * name means nothing (an ADMIN role without the right is refused). The real check of CashierSessionService and
+ * BadgeService over in-memory stubs.
  */
-class CashierSessionAdminBadgeTest {
+class CashierSessionDiscrepancyRightTest {
 
 	private static final double EXPECTED = 120.0;
 	private static final double COUNTED = 115.0;
@@ -79,13 +80,18 @@ class CashierSessionAdminBadgeTest {
 		inject(service, _BaseService.class, "currentUserProvider", currentUser);
 	}
 
-	private static UserAccount user(String login, Role role, String appRoleName) {
+	/** A user of the role {@code roleName}, which holds the right to close with a difference or not. */
+	private static UserAccount user(String login, String roleName, boolean holdsClose) {
 		UserAccount user = new UserAccount();
 		user.setUsername(login);
-		user.setRole(role);
-		AppRole appRole = new AppRole();
-		appRole.setName(appRoleName);
-		user.setAppRole(appRole);
+		AppRole role = new AppRole(roleName, roleName, "POS_USER".equals(roleName));
+		role.setPermissions(new HashSet<>());
+		role.getPermissions().add("read:cashier-interface");
+		role.getPermissions().add(BadgePermission.MAKE_RETURN.key());
+		if (holdsClose) {
+			role.getPermissions().add(BadgePermission.CLOSE_SESSION_WITH_DISCREPANCY.key());
+		}
+		user.setAppRole(role);
 		return user;
 	}
 
@@ -102,65 +108,64 @@ class CashierSessionAdminBadgeTest {
 		service.checkCashDiscrepancy(session, EXPECTED, COUNTED, request(badgeCode));
 	}
 
-	private void assertRefusedAsToday() {
-		CashDiscrepancyException refused = assertThrows(CashDiscrepancyException.class, () -> close(null));
-		assertEquals("CASH_DISCREPANCY", refused.getErrorData().get("error"));
-		assertEquals(EXPECTED, refused.getErrorData().get("expectedAmount"));
-		assertEquals(COUNTED, refused.getErrorData().get("actualAmount"));
-		assertEquals(5.0, (Double) refused.getErrorData().get("discrepancyAmount"), 1e-9);
-	}
-
 	private void closeConfirmed(String badgeCode) {
 		CloseSessionRequestDTO request = request(badgeCode);
 		request.setDiscrepancyConfirmed(true);
 		service.checkCashDiscrepancy(session, EXPECTED, COUNTED, request);
 	}
 
-	@Test
-	@DisplayName("Admin: the difference is shown first (CASH_DISCREPANCY), the confirmed close goes through without a badge (setting on, or absent: on)")
-	void adminConfirmsWithoutBadge() {
-		loggedUser = user("admin", Role.ADMIN, "ADMIN");
-		assertRefusedAsToday(); // the warning: a typing mistake never closes silently
-		assertDoesNotThrow(() -> closeConfirmed(null));
-		settings.put("ENABLE_CASH_DISCREPANCY_CHECK", "true");
-		assertRefusedAsToday();
-		assertDoesNotThrow(() -> closeConfirmed(null));
-		assertDoesNotThrow(() -> closeConfirmed("NO-SUCH-BADGE"), "no badge is checked for an admin who confirmed");
+	private void assertWarned(Runnable close) {
+		CashDiscrepancyException refused = assertThrows(CashDiscrepancyException.class, close::run);
+		assertEquals("CASH_DISCREPANCY", refused.getErrorData().get("error"));
+		assertEquals(EXPECTED, refused.getErrorData().get("expectedAmount"));
+		assertEquals(COUNTED, refused.getErrorData().get("actualAmount"));
+		assertEquals(5.0, (Double) refused.getErrorData().get("discrepancyAmount"), 1e-9);
 	}
 
 	@Test
-	@DisplayName("The confirmation means nothing for a cashier, a responsible or a custom role: refused without a badge as in 2.2.1")
-	void confirmationOnlyForAdmin() {
-		settings.put("ENABLE_CASH_DISCREPANCY_CHECK", "true");
-		for (UserAccount other : new UserAccount[] { user("cashier", Role.POS_USER, "POS_USER"),
-				user("responsible", Role.RESPONSIBLE, "RESPONSIBLE"), user("chef", Role.RESPONSIBLE, "CHEF_CAISSE") }) {
-			loggedUser = other;
-			assertThrows(CashDiscrepancyException.class, () -> closeConfirmed(null), other.getUsername());
+	@DisplayName("Role holding the right (ADMIN, or a custom role): the difference is shown first, the confirmed close goes through without a badge (setting on, or absent: on)")
+	void roleRightConfirmsWithoutBadge() {
+		for (UserAccount holder : new UserAccount[] { user("admin", "ADMIN", true), user("chef", "CHEF_CAISSE", true),
+				user("cashier", "POS_USER", true) }) {
+			loggedUser = holder;
+			settings.clear();
+			assertWarned(() -> close(null)); // the warning: a typing mistake never closes silently
+			assertDoesNotThrow(() -> closeConfirmed(null), holder.getUsername());
+			settings.put("ENABLE_CASH_DISCREPANCY_CHECK", "true");
+			assertWarned(() -> close(null));
+			assertDoesNotThrow(() -> closeConfirmed(null), holder.getUsername());
+			assertDoesNotThrow(() -> closeConfirmed("NO-SUCH-BADGE"), "no badge is checked for a confirmed role right");
 		}
 	}
 
 	@Test
-	@DisplayName("Cashier and responsible without a badge: refused exactly as in 2.2.1 (CASH_DISCREPANCY with the amounts)")
-	void othersRefusedWithoutBadge() {
+	@DisplayName("Role without the right (the cashier, the responsible, a custom role, even one named ADMIN): the confirmation means nothing, the difference is shown again")
+	void confirmationNeedsTheRight() {
 		settings.put("ENABLE_CASH_DISCREPANCY_CHECK", "true");
-		loggedUser = user("cashier", Role.POS_USER, "POS_USER");
-		assertRefusedAsToday();
-		loggedUser = user("responsible", Role.RESPONSIBLE, "RESPONSIBLE");
-		assertRefusedAsToday();
+		for (UserAccount other : new UserAccount[] { user("cashier", "POS_USER", false),
+				user("responsible", "RESPONSIBLE", false), user("chef", "CHEF_CAISSE", false), user("odd", "ADMIN", false) }) {
+			loggedUser = other;
+			assertWarned(() -> close(null));
+			assertWarned(() -> closeConfirmed(null));
+		}
+		UserAccount noRole = new UserAccount();
+		noRole.setUsername("norole");
+		loggedUser = noRole;
+		assertWarned(() -> closeConfirmed(null));
+		loggedUser = null; // no security context
+		assertWarned(() -> closeConfirmed(null));
 	}
 
 	@Test
-	@DisplayName("Cashier with a valid badge passes as in 2.2.1; a badge without the permission or unknown is refused as in 2.2.1")
-	void cashierWithBadge() {
+	@DisplayName("A badge whose owner's role holds the right passes; an owner's role without it is refused BADGE_NO_ACCESS; an unknown badge BADGE_NOT_EXISTS")
+	void badgeOfARoleHoldingTheRight() {
 		settings.put("ENABLE_CASH_DISCREPANCY_CHECK", "true");
-		loggedUser = user("cashier", Role.POS_USER, "POS_USER");
-		UserAccount responsible = user("responsible", Role.RESPONSIBLE, "RESPONSIBLE");
+		loggedUser = user("cashier", "POS_USER", false);
+		UserAccount responsible = user("responsible", "RESPONSIBLE", true);
 		responsible.setBadgeCode("B-RESP");
-		responsible.setBadgePermissions("MAKE_RETURN,CLOSE_SESSION_WITH_DISCREPANCY");
 		badges.put("B-RESP", responsible);
-		UserAccount other = user("other", Role.POS_USER, "POS_USER");
+		UserAccount other = user("other", "POS_USER", false);
 		other.setBadgeCode("B-OTHER");
-		other.setBadgePermissions("MAKE_RETURN");
 		badges.put("B-OTHER", other);
 
 		assertDoesNotThrow(() -> close("B-RESP"));
@@ -171,45 +176,12 @@ class CashierSessionAdminBadgeTest {
 	}
 
 	@Test
-	@DisplayName("Not admin: a custom role (legacy role RESPONSIBLE), the ADMIN role name on another enum, no logged user")
-	void onlyTheAdminRole() {
-		loggedUser = user("chef", Role.RESPONSIBLE, "CHEF_CAISSE");
-		assertRefusedAsToday();
-		loggedUser = user("odd", Role.POS_USER, "ADMIN"); // the definition is the role enum, kept in step with the built-in role
-		assertRefusedAsToday();
-		loggedUser = null;
-		assertRefusedAsToday();
-	}
-
-	@Test
-	@DisplayName("No difference, or the check off: nobody is asked for anything (as in 2.2.1)")
+	@DisplayName("No difference, or the check off: nobody is asked for anything")
 	void noDifferenceOrCheckOff() {
-		loggedUser = user("cashier", Role.POS_USER, "POS_USER");
+		loggedUser = user("cashier", "POS_USER", false);
 		assertDoesNotThrow(() -> service.checkCashDiscrepancy(session, EXPECTED, EXPECTED + 0.005, request(null)));
 		settings.put("ENABLE_CASH_DISCREPANCY_CHECK", "false");
 		assertDoesNotThrow(() -> close(null));
-	}
-
-	@Test
-	@DisplayName("CurrentUserProvider.currentUserIsAdmin: the role ADMIN only; false without a logged user")
-	void adminDefinition() {
-		CurrentUserProvider provider = new CurrentUserProvider() {
-			@Override
-			public UserAccount getCurrentUser() {
-				if (loggedUser == null) {
-					throw new IllegalStateException("no authentication");
-				}
-				return loggedUser;
-			}
-		};
-		loggedUser = user("admin", Role.ADMIN, "ADMIN");
-		assertTrue(provider.currentUserIsAdmin());
-		loggedUser = user("responsible", Role.RESPONSIBLE, "RESPONSIBLE");
-		assertFalse(provider.currentUserIsAdmin());
-		loggedUser = user("chef", Role.RESPONSIBLE, "CHEF_CAISSE");
-		assertFalse(provider.currentUserIsAdmin());
-		loggedUser = null;
-		assertFalse(provider.currentUserIsAdmin());
 	}
 
 	// ─── Stub plumbing ───────────────────────────────────────────────

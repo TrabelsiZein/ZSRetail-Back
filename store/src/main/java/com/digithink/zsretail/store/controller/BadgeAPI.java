@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.digithink.zsretail.core.model.BadgeScanLog;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model.enumeration.BadgePermission;
+import com.digithink.zsretail.core.model.enumeration.GrantedBy;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.BadgeService;
 import com.digithink.zsretail.store.dto.BadgeScanLogDTO;
@@ -70,8 +71,6 @@ public class BadgeAPI {
 			
 			String badgeCode = (String) request.get("badgeCode");
 			String permissionStr = (String) request.get("permission");
-			Long sessionId = request.get("sessionId") != null ? 
-					Long.parseLong(request.get("sessionId").toString()) : null;
 
 			if (badgeCode == null || badgeCode.trim().isEmpty()) {
 				return ResponseEntity.badRequest().body(createErrorResponse("Badge code is required"));
@@ -88,7 +87,10 @@ public class BadgeAPI {
 			}
 
 			UserAccount scannedBy = currentUserProvider.getCurrentUser();
-			BadgeService.BadgeScanResult result = badgeService.scanBadge(badgeCode, permission, scannedBy, sessionId);
+			// Step C (3.1.0): the session logged is the scanning user's open session, read here (the till's sessionId,
+			// still sent, is not trusted)
+			BadgeService.BadgeScanResult result = badgeService.scanBadge(badgeCode, permission, scannedBy,
+					badgeService.openSessionId(scannedBy));
 
 			Map<String, Object> response = new HashMap<>();
 			response.put("success", result.isSuccess());
@@ -112,8 +114,45 @@ public class BadgeAPI {
 	}
 
 	/**
+	 * Step C (3.1.0): a pass on the logged user's own role right, logged (grantedBy ROLE). The till asks it when its role
+	 * holds the action (the abilities of the login); 403 TILL_RIGHT_REQUIRED when the role does not hold it (any more):
+	 * the till then asks for a badge. POST /badge/pass {action}
+	 */
+	@PostMapping("/pass")
+	public ResponseEntity<?> rolePass(@RequestBody Map<String, Object> request) {
+		try {
+			String actionStr = request.get("action") != null ? request.get("action").toString() : null;
+			BadgePermission action;
+			try {
+				action = BadgePermission.valueOf(actionStr);
+			} catch (IllegalArgumentException | NullPointerException e) {
+				return ResponseEntity.badRequest().body(createErrorResponse("Invalid action: " + actionStr));
+			}
+			UserAccount actor = currentUserProvider.getCurrentUser();
+			if (!badgeService.roleHolds(actor, action)) {
+				Map<String, Object> refused = new HashMap<>();
+				refused.put("error", TILL_RIGHT_REQUIRED);
+				refused.put("action", action.name());
+				return ResponseEntity.status(HttpStatus.FORBIDDEN).body(refused);
+			}
+			badgeService.logRolePass(actor, action);
+			Map<String, Object> response = new HashMap<>();
+			response.put("grantedBy", "ROLE");
+			response.put("action", action.name());
+			return ResponseEntity.ok(response);
+		} catch (Exception e) {
+			log.error("BadgeAPI::rolePass:error: {}", e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/** Step C (3.1.0): the error of a till action the logged user's role does not hold (and no badge authorised it). */
+	public static final String TILL_RIGHT_REQUIRED = "TILL_RIGHT_REQUIRED";
+
+	/**
 	 * Get badge scan history with filters
-	 * GET /badge/scan-history
+	 * GET /badge/scan-history; step C (3.1.0): grantedBy ROLE or BADGE filters the two kinds of rows
 	 */
 	@GetMapping("/scan-history")
 	public ResponseEntity<?> getScanHistory(
@@ -123,6 +162,7 @@ public class BadgeAPI {
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fromDate,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime toDate,
 			@RequestParam(required = false) Boolean success,
+			@RequestParam(required = false) String grantedBy,
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "20") int size) {
 		try {
@@ -141,8 +181,17 @@ public class BadgeAPI {
 				}
 			}
 
+			GrantedBy grantedByEnum = null;
+			if (grantedBy != null && !grantedBy.trim().isEmpty()) {
+				try {
+					grantedByEnum = GrantedBy.valueOf(grantedBy.trim());
+				} catch (IllegalArgumentException e) {
+					return ResponseEntity.badRequest().body(createErrorResponse("Invalid grantedBy: " + grantedBy));
+				}
+			}
+
 			Page<BadgeScanLog> scanLogs = badgeScanLogService.getScanHistoryPaginated(
-					badgeCode, userId, permissionEnum, fromDate, toDate, success, page, size);
+					badgeCode, userId, permissionEnum, fromDate, toDate, success, grantedByEnum, page, size);
 
 			return ResponseEntity.ok(scanLogs.map(BadgeScanLogDTO::from));
 		} catch (Exception e) {
@@ -172,7 +221,7 @@ public class BadgeAPI {
 			}
 
 			Page<BadgeScanLog> scanLogs = badgeScanLogService.getScanHistoryPaginated(
-					badgeCode, null, null, fromDate, toDate, success, page, size);
+					badgeCode, null, null, fromDate, toDate, success, GrantedBy.BADGE, page, size);
 
 			return ResponseEntity.ok(scanLogs.map(BadgeScanLogDTO::from));
 		} catch (Exception e) {

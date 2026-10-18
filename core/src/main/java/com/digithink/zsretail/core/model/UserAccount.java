@@ -64,8 +64,9 @@ public class UserAccount extends _BaseEntity implements UserDetails {
 	@Column(name = "badge_code", nullable = true)
 	private String badgeCode;
 
-	@Column(name = "badge_permissions", length = 500, nullable = true)
-	private String badgePermissions; // Comma-separated BadgePermission enum values
+	// Step C (3.1.0): the till rights are the role's (app_role_permission "till:..."); the column badge_permissions (the
+	// user's list of before) stays in the database for one release (a rollback reads it), never read nor written by the
+	// application again, except once by TillRightsMigration
 
 	@Column(name = "badge_expiration_date", nullable = true)
 	private LocalDateTime badgeExpirationDate;
