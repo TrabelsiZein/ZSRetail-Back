@@ -32,6 +32,12 @@ public class ItemCatalogueCardDTO {
 	/** The read-only fields of the item form, from the highlighted variant, else the first one. */
 	private Details details;
 
+	/**
+	 * The stock each active store last sent (ho_store_stock) for the card's item codes, by store code then item code;
+	 * empty where no store sends its stock.
+	 */
+	private List<StoreStock> storeStocks = new ArrayList<>();
+
 	@Data
 	@NoArgsConstructor
 	public static class Header {
@@ -71,6 +77,28 @@ public class ItemCatalogueCardDTO {
 		private boolean withStock;
 
 		private boolean withStockPoints;
+
+		/** True when storeStocks has a row. */
+		private boolean withStoreStocks;
+	}
+
+	@Data
+	@NoArgsConstructor
+	public static class StoreStock {
+
+		private String storeCode;
+
+		private String storeName;
+
+		private String itemCode;
+
+		/** The variant's description; null for a single item. */
+		private String variantDescription;
+
+		private BigDecimal quantity;
+
+		/** Store clock when the store read it (yyyy-MM-ddTHH:mm[:ss]); null when not sent. */
+		private String storeTime;
 	}
 
 	@Data

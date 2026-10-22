@@ -9,6 +9,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
@@ -47,9 +48,12 @@ import com.digithink.zsretail.headoffice.controller.HoItemCatalogueAPI;
 import com.digithink.zsretail.headoffice.dto.ItemCatalogueCardDTO;
 import com.digithink.zsretail.headoffice.model.HoStockPoint;
 import com.digithink.zsretail.headoffice.model.HoStockPointItem;
+import com.digithink.zsretail.headoffice.model.HoStoreStock;
+import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.HoItemCatalogueRepository;
 import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
 import com.digithink.zsretail.headoffice.repository.HoStockPointRepository;
+import com.digithink.zsretail.headoffice.repository.HoStoreStockRepository;
 
 /**
  * Fiches items (3.1.0), step 2: the item card (HoItemCatalogueService.card, HoItemCatalogueAPI.card) through the real
@@ -58,7 +62,8 @@ import com.digithink.zsretail.headoffice.repository.HoStockPointRepository;
  * <p>
  * NAV item 70061 (catégorie VET): S (size 1; barcodes 3700000000024, 3700000000017 primary, 3700000000099 inactive), M
  * (size 2; barcode 3700000000031), L (size 3, inactive). Points FRANCHISE and MAG1: S in both (in clearance at 9 in
- * FRANCHISE), M in MAG1 inactive, L in none. PACK-1: a pack without NAV number.
+ * FRANCHISE), M in MAG1 inactive, L in none. PACK-1: a pack without NAV number. Stores MAG-B, MAG-A (active, made in
+ * that order) and MAG-X (inactive) sent their stock of S and M; MAG-A also of OTHER-1; none of L or PACK-1.
  */
 class ItemCatalogueCardTest {
 
@@ -125,6 +130,16 @@ class ItemCatalogueCardTest {
 			row(session, franchise, s, 19.5, true, true, "9");
 			row(session, mag1, s, 19.5, true, null, null);
 			row(session, mag1, m, 21.0, false, false, null);
+			long storeB = store(session, "MAG-B", true);
+			long storeA = store(session, "MAG-A", true);
+			long storeX = store(session, "MAG-X", false);
+			stock(session, storeB, "70061~S", "4");
+			stock(session, storeB, "70061~M", "-1");
+			stock(session, storeA, "70061~S", "2.500");
+			stock(session, storeA, "70061~M", "0");
+			stock(session, storeA, "OTHER-1", "7");
+			stock(session, storeX, "70061~S", "9");
+			stock(session, storeX, "70061~M", "9");
 			session.getTransaction().commit();
 		}
 	}
@@ -140,6 +155,7 @@ class ItemCatalogueCardTest {
 		item.setNavItemNo("70061");
 		item.setName("CHEMISE");
 		item.setVariantCode(code.substring(6));
+		item.setVariantDescription("Taille " + code.substring(6));
 		item.setSizeCode(code.substring(6));
 		item.setSizeSortOrder(sizeOrder);
 		item.setColorCode("BLK");
@@ -189,6 +205,28 @@ class ItemCatalogueCardTest {
 		session.persist(row);
 	}
 
+	private static long store(Session session, String code, boolean active) {
+		Store store = new Store();
+		store.setCode(code);
+		store.setName("Magasin " + code);
+		store.setApiKeyHash("hash-" + code);
+		store.setActive(active);
+		session.persist(store);
+		return store.getId();
+	}
+
+	private static void stock(Session session, long storeId, String itemCode, String quantity) {
+		HoStoreStock row = new HoStoreStock();
+		row.setStoreId(storeId);
+		row.setItemCode(itemCode);
+		row.setItemName("CHEMISE");
+		row.setQuantity(new BigDecimal(quantity));
+		row.setOwnItem(false);
+		row.setStoreTime(LocalDateTime.of(2026, 10, 20, 9, 30));
+		row.setReceivedAt(LocalDateTime.of(2026, 10, 20, 9, 31));
+		session.persist(row);
+	}
+
 	/** The work with a service (and its API) over one session's repositories; noPoints: no point de stock exists. */
 	private static <T> T withService(boolean noPoints, Function<HoItemCatalogueService, T> work) {
 		try (Session session = sessions.openSession()) {
@@ -205,7 +243,8 @@ class ItemCatalogueCardTest {
 					repositories.getRepository(ItemCategoryRepository.class),
 					repositories.getRepository(ItemSectionRepository.class), TestModes.standalone(),
 					repositories.getRepository(ItemRepository.class),
-					repositories.getRepository(ItemBarcodeRepository.class), new HoNavItemStockPoints(rows, points), null);
+					repositories.getRepository(ItemBarcodeRepository.class), new HoNavItemStockPoints(rows, points), null,
+					repositories.getRepository(HoStoreStockRepository.class));
 			return work.apply(service);
 		}
 	}
@@ -326,6 +365,31 @@ class ItemCatalogueCardTest {
 		ResponseEntity<?> ok = api("70061", null);
 		assertEquals(HttpStatus.OK, ok.getStatusCode());
 		assertTrue(ok.getBody() instanceof ItemCatalogueCardDTO);
+	}
+
+	@Test
+	@DisplayName("Stock per store: a NAV item's variants at the active stores, by store code then item code")
+	void storeStocks() {
+		ItemCatalogueCardDTO card = card("70061", null, null);
+		assertTrue(card.getHeader().isWithStoreStocks());
+		assertEquals(Arrays.asList("MAG-A 70061~M", "MAG-A 70061~S", "MAG-B 70061~M", "MAG-B 70061~S"),
+				card.getStoreStocks().stream().map(row -> row.getStoreCode() + " " + row.getItemCode())
+						.collect(Collectors.toList()),
+				"4 rows: not OTHER-1, not the inactive MAG-X, none of L");
+		ItemCatalogueCardDTO.StoreStock first = card.getStoreStocks().get(1);
+		assertEquals("Magasin MAG-A", first.getStoreName());
+		assertEquals("Taille S", first.getVariantDescription());
+		assertEquals("2.5", first.getQuantity().toPlainString(), "decimals without trailing zeros");
+		assertEquals("2026-10-20T09:30", first.getStoreTime());
+		assertEquals(0, new BigDecimal("-1").compareTo(card.getStoreStocks().get(2).getQuantity()));
+	}
+
+	@Test
+	@DisplayName("Stock per store: an item no store sent gives no row and withStoreStocks false")
+	void noStoreStocks() {
+		ItemCatalogueCardDTO single = card(null, pack, null);
+		assertFalse(single.getHeader().isWithStoreStocks());
+		assertTrue(single.getStoreStocks().isEmpty());
 	}
 
 	@Test

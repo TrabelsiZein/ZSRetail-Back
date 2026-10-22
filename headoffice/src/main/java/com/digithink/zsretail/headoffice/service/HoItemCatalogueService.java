@@ -31,6 +31,7 @@ import com.digithink.zsretail.core.repository.ItemCategoryRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.ItemSectionRepository;
 import com.digithink.zsretail.core.service.NavItemService;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.headoffice.dto.ItemCatalogueCardDTO;
 import com.digithink.zsretail.headoffice.dto.ItemCatalogueFiltersDTO;
 import com.digithink.zsretail.headoffice.dto.ItemCatalogueLineDTO;
@@ -38,6 +39,7 @@ import com.digithink.zsretail.headoffice.repository.HoItemCatalogueQuery;
 import com.digithink.zsretail.headoffice.repository.HoItemCatalogueRepository;
 import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
 import com.digithink.zsretail.headoffice.repository.HoStockPointRepository;
+import com.digithink.zsretail.headoffice.repository.HoStoreStockRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -65,6 +67,7 @@ public class HoItemCatalogueService {
 	private final ItemBarcodeRepository barcodeRepository;
 	private final HoNavItemStockPoints pointPrices;
 	private final HoItemCatalogueQuery query;
+	private final HoStoreStockRepository storeStocks;
 
 	/** The page's flags and filter choices, from the data (read once when the page opens). */
 	public ItemCatalogueFiltersDTO filters() {
@@ -209,7 +212,31 @@ public class HoItemCatalogueService {
 			}
 		}
 		card.setDetails(details(highlighted != null ? highlighted : items.get(0), withStock));
+		storeStocks(card);
 		return Optional.of(card);
+	}
+
+	/**
+	 * The Stock per store tab: what each active store last sent for the card's item codes (one query), with the
+	 * variant's description on a NAV item's rows; withStoreStocks when a row exists.
+	 */
+	private void storeStocks(ItemCatalogueCardDTO card) {
+		Map<String, String> descriptions = new HashMap<>();
+		for (ItemCatalogueCardDTO.Variant variant : card.getVariants()) {
+			descriptions.put(variant.getItemCode(), variant.getVariantDescription());
+		}
+		boolean single = card.getHeader().isSingle();
+		for (Object[] row : storeStocks.findAtActiveStores(descriptions.keySet())) {
+			ItemCatalogueCardDTO.StoreStock stock = new ItemCatalogueCardDTO.StoreStock();
+			stock.setStoreCode((String) row[0]);
+			stock.setStoreName((String) row[1]);
+			stock.setItemCode((String) row[2]);
+			stock.setVariantDescription(single ? null : descriptions.get(row[2]));
+			stock.setQuantity(row[3] == null ? BigDecimal.ZERO : Quantities.normalize((BigDecimal) row[3]));
+			stock.setStoreTime(row[4] == null ? null : row[4].toString());
+			card.getStoreStocks().add(stock);
+		}
+		card.getHeader().setWithStoreStocks(!card.getStoreStocks().isEmpty());
 	}
 
 	/** The line's header, with the list's rules: smallest name, family, codes; active when one variant is. */

@@ -1935,6 +1935,17 @@ routes send to Item cards.
     later step.
   - Tests: `ItemCatalogueFiltersQueryTest.inactiveStatus`, `ItemCatalogueCardTest` (minimum stock, last direct cost);
     front `tools/headoffice-menu-check.mjs`.
+- **Stock per store** (2026-10-22, both repos): the card answers `storeStocks` `[{storeCode, storeName, itemCode,
+  variantDescription, quantity, storeTime}]`, what each store last sent (`ho_store_stock`, "Stock of the stores", task
+  7A.5) for the card's item codes, and `header.withStoreStocks` (a row exists). One query
+  (`HoStoreStockRepository.findAtActiveStores`: `ho_store_stock` joined to `ho_store` on `store_id`, the active stores
+  only (null counts as active, as the network stock page's default), by store code then item code); the store's own
+  items with the same code are kept, as on that page; `variantDescription` from the card's variants, null for a single
+  item; `storeTime` as text. A head office where no store sends its stock (an ERP head office, stores without
+  `ownership.supply=HEAD_OFFICE`) has no row: the card's tab "Stock per store" is absent (it follows the data, like
+  Variants, Barcodes and Stock points). The card endpoint and the network stock page are unchanged. Tests:
+  `ItemCatalogueCardTest.storeStocks` (2 variants × 2 active stores = 4 rows in order, an inactive store and another
+  code left out), `noStoreStocks`.
 
 ### Head office with the catalogue only from the ERP: the pages (frontend, ERP catalogue step 4)
 Frontend commit fb3aadd. Mode question `erpOwnsOnlyCatalogue` (`src/navigation/mode-questions.js`, getter

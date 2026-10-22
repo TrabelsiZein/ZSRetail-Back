@@ -20,6 +20,15 @@ public interface HoStoreStockRepository extends _BaseRepository<HoStoreStock, Lo
 	@Query("select s from HoStoreStock s where s.itemCode in :codes and (:storeId = 0L or s.storeId = :storeId)")
 	List<HoStoreStock> findByCodes(@Param("codes") Collection<String> codes, @Param("storeId") Long storeId);
 
+	/**
+	 * Fiches items, the card's Stock per store tab: [store code, store name, itemCode, quantity, storeTime] of these item
+	 * codes at the active stores (a null active counts as active), by store code then item code.
+	 */
+	@Query("select st.code, st.name, s.itemCode, s.quantity, s.storeTime from HoStoreStock s, Store st"
+			+ " where st.id = s.storeId and s.itemCode in :codes and (st.active is null or st.active = true)"
+			+ " order by st.code, s.itemCode")
+	List<Object[]> findAtActiveStores(@Param("codes") Collection<String> codes);
+
 	/** [storeId, last received_at] per store. */
 	@Query("select s.storeId, max(s.receivedAt) from HoStoreStock s group by s.storeId")
 	List<Object[]> lastReceivedByStore();

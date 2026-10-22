@@ -110,6 +110,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   ("Taille Standard / VERT PISTACHE / 1er Choix", the blank ones left out) and no longer reads NAV's
   `variantDescription` (always the item description on ZEN's platform); a change of one of them changes the item. The
   item name stays NAV's item description.
+- Fiches items card (`GET /admin/headoffice/item-catalogue/card`): `storeStocks`, the stock each active store last sent
+  for the card's item codes (`ho_store_stock`, one query, by store code then item code), and `header.withStoreStocks`;
+  empty where no store sends its stock. Parameters and the other fields unchanged.
 
 ### Fixes
 - Fiches items list (`GET /admin/headoffice/item-catalogue`): failed on SQL Server ("duplicated sql alias []", the page

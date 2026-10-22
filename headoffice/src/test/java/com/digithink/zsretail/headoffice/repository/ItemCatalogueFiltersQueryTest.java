@@ -314,7 +314,7 @@ class ItemCatalogueFiltersQueryTest {
 	@DisplayName("The page's flags and filter choices, from the data")
 	void filters() {
 		ItemCatalogueFiltersDTO filters = withQuery(query -> new HoItemCatalogueService(null, null, null, null, null, null,
-				null, null, null, query).filters());
+				null, null, null, query, null).filters());
 		assertTrue(filters.isHasVariants());
 		assertTrue(filters.isHasFamilies());
 		assertTrue(filters.isHasDivision());
