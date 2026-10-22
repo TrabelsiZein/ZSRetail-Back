@@ -1858,7 +1858,9 @@ routes send to Item cards.
 - **List filters and sort** (`HoItemCatalogueQuery`, native SQL built with only the filters set; the two fixed list
   queries of `HoItemCatalogueRepository` are gone): `familyId`, `subFamilyId`, `divisionCode`, `categoryCode`,
   `sectionCode`, `stockPointId` (an active row there), `variants=ALL|YES|NO` (2 variants or more of the status),
-  `priceMin` / `priceMax` (the item's own price with VAT, `unit_price × (1 + defaultvat / 100)`), `sort=code|name|family`,
+  `priceMin` / `priceMax` (the item's own price with VAT, `unit_price × (1 + defaultvat / 100)`), `sort=code|name|family|variants|price`
+  (2026-10-22: variants = the line's `variant_count`, price = its `price_min`, lines without a price last both ways; each
+  then by code ascending; no sort on the point de stock count, which is read after the page, not in the SQL),
   `dir=asc|desc`. The filters on the items keep whole lines (a NAV item shows when one variant of the status matches and
   counts every variant of the status): two derived tables joined, kn (NAV numbers) and ki (items without one); written
   in the outer WHERE beside "kn.nav IS NOT NULL OR", a point de stock filter took 2.3 s instead of 0.2 s on Happyness.

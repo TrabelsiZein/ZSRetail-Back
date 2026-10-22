@@ -38,7 +38,8 @@ public class HoItemCatalogueAPI {
 	 * withStock, withStockPoints}. status: ACTIVE (the default: the active variants only), ALL, or INACTIVE (the lines
 	 * without an active variant, every variant counted); variants: ALL (default),
 	 * YES (2 variants or more of the status), NO; priceMin / priceMax: the item's own price with VAT; sort: code (default,
-	 * natural for the codes of digits only), name, family; dir: asc (default) or desc. Every filter optional.
+	 * natural for the codes of digits only), name, family, variants, price (lines without a price last); dir: asc
+	 * (default) or desc. Every filter optional.
 	 */
 	@GetMapping
 	public ResponseEntity<Map<String, Object>> page(@RequestParam(name = "page", defaultValue = "0") int page,

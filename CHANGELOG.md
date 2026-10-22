@@ -113,6 +113,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Fiches items card (`GET /admin/headoffice/item-catalogue/card`): `storeStocks`, the stock each active store last sent
   for the card's item codes (`ho_store_stock`, one query, by store code then item code), and `header.withStoreStocks`;
   empty where no store sends its stock. Parameters and the other fields unchanged.
+- Fiches items list (`GET /admin/headoffice/item-catalogue`): `sort=variants` (the line's variant count) and
+  `sort=price` (its smallest price with VAT, lines without a price last both ways), each then by code.
 
 ### Fixes
 - Fiches items list (`GET /admin/headoffice/item-catalogue`): failed on SQL Server ("duplicated sql alias []", the page

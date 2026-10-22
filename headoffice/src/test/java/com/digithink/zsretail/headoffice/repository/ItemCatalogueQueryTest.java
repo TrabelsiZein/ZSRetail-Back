@@ -52,7 +52,7 @@ import com.digithink.zsretail.headoffice.service.HoItemCatalogueService;
  * <p>
  * NAV item 70061: S (active, barcode 3700000000017), M (active), L (inactive). NAV item DEAD: two inactive variants.
  * Items without NAV number: 70061 (its code is 70061's NAV number), PACK-1 (legacy barcode LEG-555, rows in an active and
- * an inactive point), OLD-1 (inactive).
+ * an inactive point), OLD-1 (inactive). Prices without VAT: S 20, M 10, L 5, DEAD~A 8, PACK-1 15; the others none.
  */
 class ItemCatalogueQueryTest {
 
@@ -84,12 +84,15 @@ class ItemCatalogueQueryTest {
 			chem.setItemFamily(hom);
 			session.persist(chem);
 			Item s = item(session, "70061~S", "70061", "CHEMISE", hom, chem, true, null, "4");
-			item(session, "70061~M", "70061", "CHEMISE", hom, chem, true, null, "2");
-			item(session, "70061~L", "70061", "CHEMISE", hom, chem, false, null, "7");
-			item(session, "DEAD~A", "DEAD", "ANCIEN", null, null, false, null, "1");
+			s.setUnitPrice(20.0);
+			item(session, "70061~M", "70061", "CHEMISE", hom, chem, true, null, "2").setUnitPrice(10.0);
+			item(session, "70061~L", "70061", "CHEMISE", hom, chem, false, null, "7").setUnitPrice(5.0);
+			item(session, "DEAD~A", "DEAD", "ANCIEN", null, null, false, null, "1").setUnitPrice(8.0);
 			item(session, "DEAD~B", "DEAD", "ANCIEN", null, null, false, null, "1");
 			item(session, "70061", null, "CODE EGAL A UN NUMERO NAV", null, null, null, null, "5");
-			pack = item(session, "PACK-1", null, "Pack cadeau", hom, null, true, "LEG-555", null).getId();
+			Item packItem = item(session, "PACK-1", null, "Pack cadeau", hom, null, true, "LEG-555", null);
+			packItem.setUnitPrice(15.0);
+			pack = packItem.getId();
 			item(session, "OLD-1", null, "Retired", null, null, false, null, "3");
 			ItemBarcode barcode = new ItemBarcode();
 			barcode.setBarcode("3700000000017");
@@ -224,6 +227,40 @@ class ItemCatalogueQueryTest {
 		assertEquals(3, count(null, false));
 		assertEquals(2, lines.get(0).getVariants(), "S and M; L inactive");
 		assertEquals(0, new BigDecimal("6").compareTo(lines.get(0).getStockQuantity()));
+	}
+
+	/** The line codes of a sort (status All unless activeOnly). */
+	private static List<String> sorted(String sort, boolean descending, boolean activeOnly) {
+		HoItemCatalogueQuery.Criteria criteria = criteria(null, !activeOnly);
+		criteria.setSort(sort);
+		criteria.setDescending(descending);
+		HoItemCatalogueQuery.Built built = HoItemCatalogueQuery.build(criteria, true);
+		try (Session session = sessions.openSession()) {
+			NativeQuery<?> query = session.createNativeQuery(built.getLines());
+			built.getParameters().forEach(query::setParameter);
+			return codes(query.list().stream().map(row -> HoItemCatalogueService.line((Object[]) row, true))
+					.collect(Collectors.toList()));
+		}
+	}
+
+	@Test
+	@DisplayName("Variants sort: the line's variant count, then by code")
+	void variantsSort() {
+		assertEquals(Arrays.asList("item:70061", "item:OLD-1", "item:PACK-1", "nav:DEAD", "nav:70061"),
+				sorted("variants", false, false));
+		assertEquals(Arrays.asList("nav:70061", "nav:DEAD", "item:70061", "item:OLD-1", "item:PACK-1"),
+				sorted("variants", true, false), "descending, the ties still by code ascending");
+	}
+
+	@Test
+	@DisplayName("Price sort: the line's smallest price of the status, then by code; lines without a price last both ways")
+	void priceSort() {
+		assertEquals(Arrays.asList("nav:70061", "nav:DEAD", "item:PACK-1", "item:70061", "item:OLD-1"),
+				sorted("price", false, false), "70061 from 5 (L), DEAD 8, PACK-1 15, then no price");
+		assertEquals(Arrays.asList("item:PACK-1", "nav:DEAD", "nav:70061", "item:70061", "item:OLD-1"),
+				sorted("price", true, false));
+		assertEquals(Arrays.asList("nav:70061", "item:PACK-1", "item:70061"), sorted("price", false, true),
+				"Active: 70061 from 10 (L inactive)");
 	}
 
 	@Test

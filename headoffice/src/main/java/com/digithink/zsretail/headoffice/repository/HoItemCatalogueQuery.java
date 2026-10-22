@@ -270,12 +270,22 @@ public class HoItemCatalogueQuery {
 		return conditions.isEmpty() ? "" : " AND " + String.join(" AND ", conditions);
 	}
 
-	/** The order: code (natural), name or family (lines without a family last), each then by code. */
+	/**
+	 * The order: code (natural), name, family (lines without a family last), variants (the line's variant_count) or price
+	 * (its price_min, lines without a price last), each then by code.
+	 */
 	static String order(Criteria c, boolean portable) {
 		String dir = c.isDescending() ? " DESC" : " ASC";
 		String sort = trim(c.getSort());
 		if ("name".equalsIgnoreCase(sort)) {
 			return "MIN(i.name)" + dir + ", " + codeOrder(" ASC", portable);
+		}
+		if ("variants".equalsIgnoreCase(sort)) {
+			return "COUNT(*)" + dir + ", " + codeOrder(" ASC", portable);
+		}
+		if ("price".equalsIgnoreCase(sort)) {
+			return "CASE WHEN MIN(" + PRICE_OF_I + ") IS NULL THEN 1 ELSE 0 END, MIN(" + PRICE_OF_I + ")" + dir + ", "
+					+ codeOrder(" ASC", portable);
 		}
 		if ("family".equalsIgnoreCase(sort)) {
 			return "CASE WHEN MIN(f.name) IS NULL THEN 1 ELSE 0 END, MIN(f.name)" + dir + ", MIN(sf.name)" + dir + ", "
