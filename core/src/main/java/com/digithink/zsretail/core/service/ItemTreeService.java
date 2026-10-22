@@ -66,6 +66,7 @@ public class ItemTreeService {
 		List<ItemTreeDTO.Category> lines = new ArrayList<>();
 		for (ItemCategory category : categories) {
 			ItemTreeDTO.Category line = new ItemTreeDTO.Category();
+			line.setId(category.getId());
 			line.setCode(category.getCode());
 			line.setName(category.getName());
 			line.setDescription(category.getDescription());
@@ -120,6 +121,7 @@ public class ItemTreeService {
 		List<ItemTreeDTO.Section> lines = new ArrayList<>();
 		for (ItemSection section : sections) {
 			ItemTreeDTO.Section line = new ItemTreeDTO.Section();
+			line.setId(section.getId());
 			line.setCode(section.getCode());
 			line.setName(section.getName());
 			line.setDescription(section.getDescription());

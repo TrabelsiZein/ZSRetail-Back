@@ -50,6 +50,9 @@
 -- empty), kept unused until the next version, and a user of before without an AppRole gets the role named as his enum
 -- value (as the start did through the entity). Store and head office, re-runnable.
 --
+-- Schema, promotions by catégorie and section (ZEN): promotion.item_category_id and item_section_id, nullable, with their
+-- foreign keys and indexes (store and head office). Re-runnable; no data changed.
+
 -- The session options are set here (sqlcmd starts with QUOTED_IDENTIFIER OFF); SSMS has them on already.
 
 SET QUOTED_IDENTIFIER ON;
@@ -407,6 +410,25 @@ BEGIN
 	IF COL_LENGTH('sales_header', 'discount_source') IS NULL ALTER TABLE sales_header ADD discount_source varchar(20) NULL;
 	IF COL_LENGTH('sales_header', 'promotion_id') IS NULL ALTER TABLE sales_header ADD promotion_id bigint NULL;
 END
+GO
+
+-- Promotions by catégorie and section (ZEN, docs/modules/promotion.md): two nullable targets of promotion, the catégorie
+-- (scope CATEGORY) and the section (scope SECTION), store and head office. No default, no data changed: every promotion
+-- of before keeps both empty. The foreign key is added only when the column has none (a database already started with
+-- this version got one from Hibernate). Re-runnable.
+IF COL_LENGTH('promotion', 'item_category_id') IS NULL ALTER TABLE promotion ADD item_category_id bigint NULL;
+IF COL_LENGTH('promotion', 'item_section_id') IS NULL ALTER TABLE promotion ADD item_section_id bigint NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_key_columns fkc JOIN sys.columns c ON c.object_id = fkc.parent_object_id
+		AND c.column_id = fkc.parent_column_id WHERE fkc.parent_object_id = OBJECT_ID(N'promotion') AND c.name = 'item_category_id')
+	ALTER TABLE promotion ADD CONSTRAINT fk_promotion_item_category FOREIGN KEY (item_category_id) REFERENCES item_category (id);
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_key_columns fkc JOIN sys.columns c ON c.object_id = fkc.parent_object_id
+		AND c.column_id = fkc.parent_column_id WHERE fkc.parent_object_id = OBJECT_ID(N'promotion') AND c.name = 'item_section_id')
+	ALTER TABLE promotion ADD CONSTRAINT fk_promotion_item_section FOREIGN KEY (item_section_id) REFERENCES item_section (id);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'promotion') AND name = 'idx_promotion_item_category_id')
+	CREATE INDEX idx_promotion_item_category_id ON promotion (item_category_id);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'promotion') AND name = 'idx_promotion_item_section_id')
+	CREATE INDEX idx_promotion_item_section_id ON promotion (item_section_id);
 GO
 
 UPDATE APP_VERSION SET version = '3.1.0';

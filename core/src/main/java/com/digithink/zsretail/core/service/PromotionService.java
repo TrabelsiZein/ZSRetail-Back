@@ -197,6 +197,25 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 			promotion.setItemSubFamily(null);
 		}
 
+		// 3.1.0 (ZEN): catégorie and section. Each of the two scopes needs its target and owns it alone (the item, family
+		// and sub-family lookups have no scope filter: a leftover FK would match there); any other scope keeps neither.
+		if (promotion.getScope() == PromotionScope.CATEGORY) {
+			if (promotion.getItemCategory() == null || promotion.getItemCategory().getId() == null) {
+				throw new IllegalArgumentException("A CATEGORY promotion must target a catégorie");
+			}
+			clearSingleTargets(promotion);
+		} else {
+			promotion.setItemCategory(null);
+		}
+		if (promotion.getScope() == PromotionScope.SECTION) {
+			if (promotion.getItemSection() == null || promotion.getItemSection().getId() == null) {
+				throw new IllegalArgumentException("A SECTION promotion must target a section");
+			}
+			clearSingleTargets(promotion);
+		} else {
+			promotion.setItemSection(null);
+		}
+
 		// Cross-product benefit target: only meaningful for quantity promotions;
 		// "benefit on the same purchased product" is expressed as getItem = null.
 		if (promotion.getPromotionType() != PromotionType.QUANTITY_PROMOTION) {
@@ -208,12 +227,19 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 		}
 	}
 
+	/** The item, family and sub-family targets, cleared for a CATEGORY or SECTION promotion. */
+	private static void clearSingleTargets(Promotion promotion) {
+		promotion.setItem(null);
+		promotion.setItemFamily(null);
+		promotion.setItemSubFamily(null);
+	}
+
 	/**
 	 * Validates that an update does not change locked fields when the promotion
 	 * has already been used in sales. Throws IllegalStateException if violations found.
 	 *
 	 * Locked fields (when used): promotionType, benefitType, discountPercentage,
-	 * discountAmount, freeQuantity, scope, item, itemFamily, itemSubFamily,
+	 * discountAmount, freeQuantity, scope, item, itemFamily, itemSubFamily, itemCategory, itemSection (3.1.0),
 	 * groupItems, getItem, minimumQuantity, minimumAmount, requiresCode, code.
 	 *
 	 * Allowed fields (always): name, description, startDate, endDate, active,
@@ -244,6 +270,10 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 			violations.add("item");
 		if (!entityIdEqual(existing.getItemFamily(), updated.getItemFamily()))
 			violations.add("itemFamily");
+		if (!entityIdEqual(existing.getItemCategory(), updated.getItemCategory()))
+			violations.add("itemCategory");
+		if (!entityIdEqual(existing.getItemSection(), updated.getItemSection()))
+			violations.add("itemSection");
 		if (!entityIdEqual(existing.getItemSubFamily(), updated.getItemSubFamily()))
 			violations.add("itemSubFamily");
 		if (!groupItemIdsEqual(existing.getGroupItems(), updated.getGroupItems()))

@@ -49,7 +49,9 @@ import lombok.NoArgsConstructor;
 		@Index(name = "idx_promotion_active_dates",       columnList = "active,start_date,end_date"),
 		@Index(name = "idx_promotion_item_id",            columnList = "item_id"),
 		@Index(name = "idx_promotion_item_family_id",     columnList = "item_family_id"),
-		@Index(name = "idx_promotion_item_sub_family_id", columnList = "item_sub_family_id")
+		@Index(name = "idx_promotion_item_sub_family_id", columnList = "item_sub_family_id"),
+		@Index(name = "idx_promotion_item_category_id",   columnList = "item_category_id"),
+		@Index(name = "idx_promotion_item_section_id",    columnList = "item_section_id")
 	}
 )
 @Data
@@ -100,6 +102,16 @@ public class Promotion extends _BaseEntity {
 	@ManyToOne
 	@JoinColumn(name = "item_sub_family_id")
 	private ItemSubFamily itemSubFamily;
+
+	/** Populated when scope = CATEGORY (3.1.0, ZEN): the catégorie, the level above the family. */
+	@ManyToOne
+	@JoinColumn(name = "item_category_id")
+	private ItemCategory itemCategory;
+
+	/** Populated when scope = SECTION (3.1.0, ZEN): the section, the level below the sub-family. */
+	@ManyToOne
+	@JoinColumn(name = "item_section_id")
+	private ItemSection itemSection;
 
 	/**
 	 * Populated when scope = ITEM_GROUP — an arbitrary curated set of items this

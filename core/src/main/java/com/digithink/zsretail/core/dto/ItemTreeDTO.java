@@ -17,6 +17,8 @@ public final class ItemTreeDTO {
 	@Data
 	@NoArgsConstructor
 	public static class Category {
+		/** 3.1.0: the row id, for the promotion form's catégorie picker (sent back as { id }). */
+		private Long id;
 		private String code;
 		private String name;
 		private String description;
@@ -37,6 +39,8 @@ public final class ItemTreeDTO {
 	@Data
 	@NoArgsConstructor
 	public static class Section {
+		/** 3.1.0: the row id, for the promotion form's section picker (sent back as { id }). */
+		private Long id;
 		private String code;
 		private String name;
 		private String description;

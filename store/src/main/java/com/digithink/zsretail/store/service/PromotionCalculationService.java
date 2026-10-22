@@ -56,7 +56,7 @@ import lombok.extern.log4j.Log4j2;
  * Cart promotions (CART scope) are independent and always considered.
  *
  * Promotion selection:
- *   - Scope priority: ITEM > ITEM_GROUP > ITEM_SUBFAMILY > ITEM_FAMILY > ALL_ITEMS (most specific wins;
+ *   - Scope priority: ITEM > ITEM_GROUP > SECTION > ITEM_SUBFAMILY > ITEM_FAMILY > CATEGORY > ALL_ITEMS (most specific wins;
  *     a scope with no eligible candidate falls through to the next one)
  *   - Within scope: highest priority wins (ABSOLUTE — no best-value override)
  *   - requiresCode promotions: only active when their code is in appliedCodes
@@ -339,6 +339,9 @@ public class PromotionCalculationService {
 		result.put("itemId", p.getItem() != null ? p.getItem().getId() : null);
 		result.put("itemFamilyId", p.getItemFamily() != null ? p.getItemFamily().getId() : null);
 		result.put("itemSubFamilyId", p.getItemSubFamily() != null ? p.getItemSubFamily().getId() : null);
+		// 3.1.0 (ZEN): by code, as the items carry them
+		result.put("itemCategoryCode", p.getItemCategory() != null ? p.getItemCategory().getCode() : null);
+		result.put("itemSectionCode", p.getItemSection() != null ? p.getItemSection().getCode() : null);
 		result.put("groupItemIds", p.getScope() == PromotionScope.ITEM_GROUP
 				? p.getGroupItems().stream().map(Item::getId).collect(Collectors.toList())
 				: null);
@@ -507,12 +510,36 @@ public class PromotionCalculationService {
 			case ITEM_FAMILY:
 				return p.getItemFamily() != null && item.getItemFamily() != null
 						&& p.getItemFamily().getId().equals(item.getItemFamily().getId());
+			case SECTION:
+				return p.getItemSection() != null && sectionCodeOf(item) != null
+					&& sectionCodeOf(item).equals(p.getItemSection().getCode());
+			case CATEGORY:
+				return p.getItemCategory() != null && categoryCodeOf(item) != null
+					&& categoryCodeOf(item).equals(p.getItemCategory().getCode());
 			case ALL_ITEMS:
 				// Every cart line is a buy line; the caller already skips the get-item's own line
 				return true;
 			default:
 				return false;
 		}
+	}
+
+	/** 3.1.0 (ZEN): the item's section code; null when it has none (blank counts as none). */
+	static String sectionCodeOf(Item item) {
+		return blankToNull(item.getSectionCode());
+	}
+
+	/** 3.1.0 (ZEN): the item's catégorie code, else its family's; null when neither has one (blank counts as none). */
+	static String categoryCodeOf(Item item) {
+		String own = blankToNull(item.getCategoryCode());
+		if (own != null || item.getItemFamily() == null) {
+			return own;
+		}
+		return blankToNull(item.getItemFamily().getCategoryCode());
+	}
+
+	private static String blankToNull(String code) {
+		return code == null || code.trim().isEmpty() ? null : code.trim();
 	}
 
 	// ─── Private Helpers ────────────────────────────────────────────────────────
@@ -528,7 +555,7 @@ public class PromotionCalculationService {
 
 	/**
 	 * Find the best promotion for a single item.
-	 * Scope priority: ITEM > ITEM_GROUP > ITEM_SUBFAMILY > ITEM_FAMILY > ALL_ITEMS (most specific wins).
+	 * Scope priority: ITEM > ITEM_GROUP > SECTION > ITEM_SUBFAMILY > ITEM_FAMILY > CATEGORY > ALL_ITEMS (most specific wins).
 	 * Filters are applied per scope: a scope with no eligible candidate falls through to the next one.
 	 * Within scope: highest priority wins (ABSOLUTE).
 	 * <p>
@@ -547,11 +574,21 @@ public class PromotionCalculationService {
 			scopes.add(() -> promotionRepository.findActiveByItemId(item.getId(), today));
 			scopes.add(() -> promotionRepository.findActiveByGroupItemId(item.getId(), today));
 		}
+		// SECTION (3.1.0, ZEN): below the sub-family, so before it; skipped for an item without a section code
+		String sectionCode = sectionCodeOf(item);
+		if (sectionCode != null) {
+			scopes.add(() -> promotionRepository.findActiveBySectionCode(sectionCode, today));
+		}
 		if (item.getItemSubFamily() != null) {
 			scopes.add(() -> promotionRepository.findActiveByItemSubFamilyId(item.getItemSubFamily().getId(), today));
 		}
 		if (item.getItemFamily() != null) {
 			scopes.add(() -> promotionRepository.findActiveByItemFamilyId(item.getItemFamily().getId(), today));
+		}
+		// CATEGORY (3.1.0, ZEN): above the family, so after it; skipped for an item without a catégorie
+		String categoryCode = categoryCodeOf(item);
+		if (categoryCode != null) {
+			scopes.add(() -> promotionRepository.findActiveByCategoryCode(categoryCode, today));
 		}
 		// ALL_ITEMS scope (least specific): fallback when no targeted promotion matched
 		scopes.add(() -> promotionRepository.findActiveByScope(PromotionScope.ALL_ITEMS, today));

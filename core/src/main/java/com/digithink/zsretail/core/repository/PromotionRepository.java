@@ -70,6 +70,34 @@ public interface PromotionRepository extends _BaseRepository<Promotion, Long> {
 		@Param("today") LocalDate today);
 
 	/**
+	 * 3.1.0 (ZEN): active SECTION promotions whose section has this code (the item's section code), valid today. The
+	 * scope filter keeps a promotion of another scope out even if it ever kept a section.
+	 */
+	@Query("SELECT p FROM Promotion p WHERE p.active = true "
+		+ "AND p.scope = com.digithink.zsretail.core.model.enumeration.PromotionScope.SECTION "
+		+ "AND p.itemSection.code = :code "
+		+ "AND (p.startDate IS NULL OR p.startDate <= :today) "
+		+ "AND (p.endDate   IS NULL OR p.endDate   >= :today) "
+		+ "ORDER BY p.priority DESC")
+	List<Promotion> findActiveBySectionCode(
+		@Param("code") String code,
+		@Param("today") LocalDate today);
+
+	/**
+	 * 3.1.0 (ZEN): active CATEGORY promotions whose catégorie has this code (the item's catégorie code, else its
+	 * family's), valid today. Scope filter as {@link #findActiveBySectionCode}.
+	 */
+	@Query("SELECT p FROM Promotion p WHERE p.active = true "
+		+ "AND p.scope = com.digithink.zsretail.core.model.enumeration.PromotionScope.CATEGORY "
+		+ "AND p.itemCategory.code = :code "
+		+ "AND (p.startDate IS NULL OR p.startDate <= :today) "
+		+ "AND (p.endDate   IS NULL OR p.endDate   >= :today) "
+		+ "ORDER BY p.priority DESC")
+	List<Promotion> findActiveByCategoryCode(
+		@Param("code") String code,
+		@Param("today") LocalDate today);
+
+	/**
 	 * Active ITEM_GROUP promotions whose item group contains the given item, valid today.
 	 * The scope filter guarantees promotions of other scopes are never returned,
 	 * even if stale promotion_group_item rows were ever left behind.

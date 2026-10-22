@@ -45,6 +45,12 @@ public class PromotionCopyDTO {
 	/** ItemSubFamily.code; null when none. */
 	private String itemSubFamilyCode;
 
+	/** ItemCategory.code (3.1.0, ZEN, scope CATEGORY); null when none. A store of an older build ignores it. */
+	private String itemCategoryCode;
+
+	/** ItemSection.code (3.1.0, ZEN, scope SECTION); null when none. */
+	private String itemSectionCode;
+
 	/** Item codes of an ITEM_GROUP promotion, sorted; empty for the other scopes. */
 	private List<String> groupItemCodes = new ArrayList<>();
 
@@ -79,6 +85,8 @@ public class PromotionCopyDTO {
 		copy.itemCode = promotion.getItem() == null ? null : promotion.getItem().getItemCode();
 		copy.itemFamilyCode = promotion.getItemFamily() == null ? null : promotion.getItemFamily().getCode();
 		copy.itemSubFamilyCode = promotion.getItemSubFamily() == null ? null : promotion.getItemSubFamily().getCode();
+		copy.itemCategoryCode = promotion.getItemCategory() == null ? null : promotion.getItemCategory().getCode();
+		copy.itemSectionCode = promotion.getItemSection() == null ? null : promotion.getItemSection().getCode();
 		copy.groupItemCodes = promotion.getGroupItems() == null ? new ArrayList<>()
 				: promotion.getGroupItems().stream().map(Item::getItemCode).sorted().collect(Collectors.toList());
 		copy.getItemCode = promotion.getGetItem() == null ? null : promotion.getGetItem().getItemCode();

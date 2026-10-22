@@ -27,15 +27,19 @@ import org.springframework.transaction.support.TransactionOperations;
 
 import com.digithink.zsretail.core.link.dto.PromotionCopyDTO;
 import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemCategory;
 import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.model.Promotion;
 import com.digithink.zsretail.core.model.enumeration.PromotionBenefitType;
 import com.digithink.zsretail.core.model.enumeration.PromotionScope;
 import com.digithink.zsretail.core.model.enumeration.PromotionType;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.core.repository.ItemCategoryRepository;
 import com.digithink.zsretail.core.repository.ItemFamilyRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.ItemSectionRepository;
 import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
 import com.digithink.zsretail.core.repository.PromotionRepository;
 import com.digithink.zsretail.core.service.PromotionService;
@@ -66,6 +70,8 @@ class PromotionDownHandlerTest {
 	private final Map<String, Item> items = new HashMap<>();
 	private final Map<String, ItemFamily> families = new HashMap<>();
 	private final Map<String, ItemSubFamily> subFamilies = new HashMap<>();
+	private final Map<String, ItemCategory> categories = new HashMap<>();
+	private final Map<String, ItemSection> sections = new HashMap<>();
 	private final Map<Long, Long> usages = new HashMap<>();
 	private int saves;
 
@@ -95,6 +101,16 @@ class PromotionDownHandlerTest {
 		subFamily.setId(7201L);
 		subFamily.setCode("SF1");
 		subFamilies.put("SF1", subFamily);
+		categories.clear();
+		sections.clear();
+		ItemCategory category = new ItemCategory();
+		category.setId(7301L);
+		category.setCode("VET");
+		categories.put("VET", category);
+		ItemSection section = new ItemSection();
+		section.setId(7401L);
+		section.setCode("MANCHE");
+		sections.put("MANCHE", section);
 		for (int i = 1; i <= 3; i++) {
 			Item item = new Item();
 			item.setId(7000L + i);
@@ -107,7 +123,8 @@ class PromotionDownHandlerTest {
 		repository.setAccessible(true);
 		repository.set(promotionService, promotionRepository());
 		handler = new PromotionDownHandler(promotionService, promotionRepository(), itemRepository(),
-				familyRepository(), subFamilyRepository(), new DownRecordLog(trackingRepository()),
+				familyRepository(), subFamilyRepository(), categoryRepository(), sectionRepository(),
+				new DownRecordLog(trackingRepository()),
 				TransactionOperations.withoutTransaction());
 	}
 
@@ -347,6 +364,75 @@ class PromotionDownHandlerTest {
 	}
 
 	@Test
+	@DisplayName("3.1.0 (ZEN): catégorie and section travel by code, resolved to this store's copied rows")
+	void categoryAndSection() throws Exception {
+		Promotion category = hoPromotion("CAT", PromotionScope.CATEGORY);
+		category.setItemCategory(hoCategory("VET"));
+		Promotion section = hoPromotion("SEC", PromotionScope.SECTION);
+		section.setItemSection(hoSection("MANCHE"));
+		JsonNode wireCopy = copy(category);
+		assertEquals("VET", wireCopy.get("itemCategoryCode").asText());
+		assertFalse(wireCopy.toString().contains("\"id\""), "no database id");
+
+		DownApplyResult result = apply(category, section);
+		assertEquals(2, result.getApplied(), String.valueOf(result));
+		assertSame(categories.get("VET"), stored("CAT").getItemCategory(), "the store's catégorie, id 7301");
+		assertSame(sections.get("MANCHE"), stored("SEC").getItemSection());
+		assertNull(stored("CAT").getItemSection());
+		assertEquals(PromotionCopyDTO.of(category), PromotionCopyDTO.of(stored("CAT")), "same promotion, by codes");
+		assertEquals(PromotionCopyDTO.of(section), PromotionCopyDTO.of(stored("SEC")));
+	}
+
+	@Test
+	@DisplayName("3.1.0 (ZEN): a catégorie or section missing: WAITING, an existing copy becomes inactive, applies once the row exists")
+	void missingCategoryAndSection() throws Exception {
+		Promotion category = hoPromotion("CAT", PromotionScope.CATEGORY);
+		category.setItemCategory(hoCategory("VET"));
+		apply(category);
+		assertTrue(stored("CAT").getActive());
+
+		category.setItemCategory(hoCategory("MEUBLES")); // the head office now targets a catégorie not here yet
+		Promotion section = hoPromotion("SEC", PromotionScope.SECTION);
+		section.setItemSection(hoSection("COL"));
+		DownApplyResult result = apply(category, section);
+		assertEquals(2, result.getWaiting(), String.valueOf(result));
+		assertEquals("not in this store: catégorie MEUBLES", tracked("CAT").getReason());
+		assertEquals("not in this store: section COL", tracked("SEC").getReason());
+		assertFalse(stored("CAT").getActive(), "the copy it had is deactivated");
+		assertSame(categories.get("VET"), stored("CAT").getItemCategory(), "its target unchanged");
+		assertNull(stored("SEC"));
+		handler.retry(); // end of the pull's cycle
+
+		ItemCategory meubles = new ItemCategory();
+		meubles.setId(7302L);
+		meubles.setCode("MEUBLES");
+		categories.put("MEUBLES", meubles);
+		ItemSection col = new ItemSection();
+		col.setId(7402L);
+		col.setCode("COL");
+		sections.put("COL", col);
+		DownApplyResult retry = handler.retry();
+		assertEquals(2, retry.getApplied(), String.valueOf(retry));
+		assertSame(meubles, stored("CAT").getItemCategory());
+		assertTrue(stored("CAT").getActive());
+		assertSame(col, stored("SEC").getItemSection());
+	}
+
+	private static ItemCategory hoCategory(String code) {
+		ItemCategory category = new ItemCategory();
+		category.setId(31L);
+		category.setCode(code);
+		return category;
+	}
+
+	private static ItemSection hoSection(String code) {
+		ItemSection section = new ItemSection();
+		section.setId(41L);
+		section.setCode(code);
+		return section;
+	}
+
+	@Test
 	@DisplayName("Task 3.5: family, sub-family and benefit item missing are WAITING too; a promotion the store has becomes inactive")
 	void otherTargetsAndExisting() throws Exception {
 		Promotion family = hoPromotion("FAM", PromotionScope.ITEM_FAMILY);
@@ -533,6 +619,24 @@ class PromotionDownHandlerTest {
 		return proxy(ItemFamilyRepository.class, (method, args) -> {
 			if ("findByCode".equals(method)) {
 				return Optional.ofNullable(families.get(args[0]));
+			}
+			throw new UnsupportedOperationException(method);
+		});
+	}
+
+	private ItemCategoryRepository categoryRepository() {
+		return proxy(ItemCategoryRepository.class, (method, args) -> {
+			if ("findByCode".equals(method)) {
+				return Optional.ofNullable(categories.get(args[0]));
+			}
+			throw new UnsupportedOperationException(method);
+		});
+	}
+
+	private ItemSectionRepository sectionRepository() {
+		return proxy(ItemSectionRepository.class, (method, args) -> {
+			if ("findByCode".equals(method)) {
+				return Optional.ofNullable(sections.get(args[0]));
 			}
 			throw new UnsupportedOperationException(method);
 		});

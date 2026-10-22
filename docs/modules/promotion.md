@@ -13,8 +13,9 @@
 **`promotion`** (Flyway migrations 018–021):
 - `code` (UNIQUE), `name`, `description`
 - `promotion_type` (SIMPLE_DISCOUNT / QUANTITY_PROMOTION / CART_DISCOUNT)
-- `scope` (ITEM / ITEM_GROUP / ITEM_FAMILY / ITEM_SUBFAMILY / ALL_ITEMS / CART)
+- `scope` (ITEM / ITEM_GROUP / ITEM_FAMILY / ITEM_SUBFAMILY / SECTION / CATEGORY / ALL_ITEMS / CART)
 - `item_id`, `item_family_id`, `item_sub_family_id` (nullable FKs — scope determines which is used)
+- `item_category_id`, `item_section_id` (3.1.0, ZEN, nullable FKs to `item_category` / `item_section`): the target of a CATEGORY / SECTION promotion; see **Catégorie and section scopes**
 - `promotion_group_item` join table (1.10.0): the item set of an ITEM_GROUP promotion
 - ALL_ITEMS has no target: `PromotionService.save` clears the three FKs and the group items (the per-item FK lookups have no scope filter, so a leftover FK would make it match early)
 - `get_item_id` (nullable FK, 1.10.0): cross-product benefit target, QUANTITY_PROMOTION only, evaluated by the cart pass
@@ -24,7 +25,7 @@
 - `start_date`, `end_date`, `priority`, `active`
 - `day_of_week` (comma-separated, e.g. "1,2,3"), `time_start`, `time_end`
 - `requires_code` (boolean — if true, only activates when code is entered by cashier)
-- DB indexes on: scope, active+dates, item_id, item_family_id, item_sub_family_id, promotion_type
+- DB indexes on: scope, active+dates, item_id, item_family_id, item_sub_family_id, item_category_id, item_section_id, promotion_type
 
 **`sales_line`** (Flyway migration 022):
 - Added `discount_source` (VARCHAR 30), `promotion_id` (FK → promotion, nullable)
@@ -36,7 +37,7 @@
 
 - **`model/Promotion.java`** — Entity with all fields above
 - **`core/model/enumeration/PromotionType.java`** — SIMPLE_DISCOUNT, QUANTITY_PROMOTION, CART_DISCOUNT
-- **`core/model/enumeration/PromotionScope.java`** — ITEM, ITEM_GROUP, ITEM_FAMILY, ITEM_SUBFAMILY, ALL_ITEMS, CART
+- **`core/model/enumeration/PromotionScope.java`** — ITEM, ITEM_GROUP, ITEM_FAMILY, ITEM_SUBFAMILY, SECTION, CATEGORY (3.1.0), ALL_ITEMS, CART
 - **`core/model/enumeration/PromotionBenefitType.java`** — PERCENTAGE_DISCOUNT, FIXED_DISCOUNT, FREE_QUANTITY
 - **`repository/PromotionRepository.java`** — standard JpaRepository + `GET /promotion/{id}/usage-count` support
 - **`service/PromotionService.java`** — CRUD + `getUsageCount(id)` (counts distinct sales headers linked to promotion)
@@ -215,11 +216,48 @@ Tests: `PromotionAllItemsScopeTest` (`freeTable`: buy 2 get 1 and buy 3 get 2, t
   - `pos.itemSelection.promoCode.*` (placeholder, applied, alreadyApplied, invalid, reason.*)
   - `pos.returnProducts.freeItem`, `pos.returnProducts.freeNoRefund`, `pos.returnProducts.freeLinesInfo`, `pos.returnProducts.promotion`
 
+### Catégorie and section scopes (3.1.0, ZEN, 2026-10-22)
+
+ZEN's tree is catégorie > famille > sous-famille > section. A promotion can target a catégorie (scope `CATEGORY`,
+`promotion.item_category_id`) or a section (scope `SECTION`, `promotion.item_section_id`). Zero change where the two
+tables are empty (EMTOP, Happyness): the scopes are not offered and an item without the codes never reads them.
+
+- **Matching, at ticket time** (nothing is expanded at save): an item carries its catégorie and section as codes
+  (`item.category_code`, `item.section_code`, no foreign key). The item's section = its `sectionCode`; its catégorie =
+  its own `categoryCode`, else its famille's `categoryCode` (decision of 2026-10-22). Blank counts as none.
+  `PromotionCalculationService.sectionCodeOf` / `categoryCodeOf`; `PromotionRepository.findActiveBySectionCode` /
+  `findActiveByCategoryCode` join on the target's code and filter on the scope.
+- **Order** (decision of 2026-10-22): SECTION right after ITEM_GROUP (the section is below the sous-famille), CATEGORY
+  right after ITEM_FAMILY; each branch is added only when the item has the code, the existing branches unchanged.
+- **Cart pass**: `matchesBuyTarget` matches the same codes, so a cross-product promotion can have a catégorie or section
+  buy side. Free pieces and minimum quantity still count per cart line, as for a family.
+- **Save** (`PromotionService.normalise`): CATEGORY needs its catégorie, SECTION its section (400 otherwise); each owns
+  its target alone (item, family and sub-family cleared); every other scope has both new keys cleared. Both targets
+  are locked once the promotion is used. The existing scopes are validated as before.
+- **Head office to store**: `PromotionCopyDTO.itemCategoryCode` / `itemSectionCode`; the store resolves them by code in
+  the catégorie and section rows the head office copies (`PromotionDownHandler.resolve`). Missing: WAITING ("not in
+  this store: catégorie X" / "section X"), an existing copy deactivated, retried each cycle, as a family. A store of
+  a build before this change cannot read the new scope: the record is in ERROR there and skipped (accepted).
+- **Promo code** (`GET /price-calculate/promo-code/{code}`): also answers `itemCategoryCode` / `itemSectionCode`; the
+  till already re-prices every line for a scope other than ITEM, so no till change.
+- **Front** (`PromotionsManagement.vue`, store and head office): reads `GET /item-category` and `GET /item-section` once
+  on load (their entries now carry the row `id`); a scope is offered only when its list has rows, in tree order
+  (Catégorie before Famille, Section after Sous-famille). Pickers as the famille one (a section shows its sous-famille);
+  the list's target column and the read-only consult view show `[code] name`. The promotion report shows no target.
+- **SQL**: `db/3.1.0/update.sql`, section "Promotions by catégorie and section": the two columns, their foreign keys
+  (only when the column has none) and indexes; no data changed.
+- **Data**: on 2026-10-22 ZEN's test databases had 1 catégorie, no section, and no item or famille carrying a code
+  (analysis question Q11), so these scopes match nothing there until ZEN fills the codes.
+- Tests: `PromotionCategorySectionScopeTest` (order, own vs famille catégorie, no codes no reads, scope filter,
+  cross-product, save rules), `PromotionDownHandlerTest` (`categoryAndSection`, `missingCategoryAndSection`);
+  `PromotionAllItemsScopeTest` unchanged (its stubs throw on any other lookup).
+
 ### Resolution order (per item)
 
 `PromotionCalculationService.findBestItemPromotion` then `calculateItemPrice`:
 
-1. **Scope cascade**, most specific first: ITEM > ITEM_GROUP > ITEM_SUBFAMILY > ITEM_FAMILY > ALL_ITEMS.
+1. **Scope cascade**, most specific first: ITEM > ITEM_GROUP > SECTION > ITEM_SUBFAMILY > ITEM_FAMILY > CATEGORY > ALL_ITEMS
+   (SECTION and CATEGORY since 3.1.0, each skipped for an item without a section / catégorie code).
    Each scope loads its active, in-date promotions, then drops those failing the promo-code,
    minimum-quantity, time-window or day-of-week filters. A scope left with no candidate falls
    through to the next one. The first scope with a candidate wins; less specific scopes are not consulted.
@@ -242,7 +280,7 @@ price and never goes through promotion pricing.
 ### Key Design Decisions
 
 - **Zero Preloading**: No Vuex preloading of promotions; all calculation is server-side per event (<5ms with DB indexes)
-- **Single promotion per item**: Most specific scope wins (ITEM > ITEM_GROUP > ITEM_SUBFAMILY > ITEM_FAMILY > ALL_ITEMS), then highest priority, then best value — never stacked at item level
+- **Single promotion per item**: Most specific scope wins (ITEM > ITEM_GROUP > SECTION > ITEM_SUBFAMILY > ITEM_FAMILY > CATEGORY > ALL_ITEMS), then highest priority, then best value — never stacked at item level
 - **ITEM-level + CART-level can coexist**: A line can have an ITEM-scope promotion AND the cart can have a CART-scope discount simultaneously
 - **Priority is absolute within a scope**: Higher `priority` value always wins regardless of discount value — intentional business control. It never overrides scope specificity
 - **ERP pricing vs promotion**: SalesPrice sets the base price the promotion applies to; a percentage/fixed promotion applies only if it beats the customer's SalesDiscount; FREE_QUANTITY always applies

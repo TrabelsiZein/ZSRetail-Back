@@ -38,6 +38,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Item cards, step 3: the list's `status=INACTIVE` (the lines without an active variant); the card gives each variant's
   `minStockLevel` and, in its details, `minStockLevel` and `lastDirectCost` (only where the head office keeps its
   stock). Headoffice project only.
+- Promotions by catégorie and section (ZEN): scopes `CATEGORY` and `SECTION`, targets `promotion.item_category_id` /
+  `item_section_id`. Matched at ticket time on the item's codes (catégorie: the item's own code, else its famille's);
+  order item > group > section > sous-famille > famille > catégorie > all items, each new branch only for an item
+  with the code (no change where the codes are empty: EMTOP, Happyness). Cross-product buy side too. Save: each new
+  scope needs its target, other scopes keep neither; both locked once used. Head office copy by code
+  (`itemCategoryCode`, `itemSectionCode`), missing = waiting as a famille; a store of an older build skips such a
+  promotion (error). `GET /item-category` and `GET /item-section` entries carry the row `id`.
 
 ### Enhancements
 - Till authorisation, step B: `GET /config` serves `tillActions`, the registry of the five badge actions (`{code, key}`,
@@ -229,6 +236,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 ### DB script (`db/3.1.0/update.sql`, store and head office)
 - RFID tables on a store: `rfid_reader` (with `min_signal`), `pos_machine`, `rfid_tag`, `rfid_sale_tag`.
 - Payment method "Retenue à la source", inactive (kept as it is where EMTOP 1.12.1 has it).
+- Promotions by catégorie and section: nullable `promotion.item_category_id` and `item_section_id`, their foreign keys
+  (only when the column has none) and indexes, store and head office; re-runnable, no data changed.
 - Item variants: 14 nullable columns of `item`, `item_family.category_code`, tables `item_category` and `item_section`,
   `ho_stock_point_item.clearance` and `clearance_price` (head office), index `ix_item_nav_item_no` (plain, not filtered).
 - Item variants (ZEN): `item.variant_description` rebuilt from `size_description`, `color_description`,

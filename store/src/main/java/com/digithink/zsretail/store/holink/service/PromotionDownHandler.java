@@ -17,13 +17,17 @@ import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.link.dto.PromotionCopyDTO;
 import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemCategory;
 import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.model.Promotion;
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.core.repository.ItemCategoryRepository;
 import com.digithink.zsretail.core.repository.ItemFamilyRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.ItemSectionRepository;
 import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
 import com.digithink.zsretail.core.repository.PromotionRepository;
 import com.digithink.zsretail.core.service.PromotionService;
@@ -66,6 +70,9 @@ public class PromotionDownHandler implements DownHandler {
 	private final ItemRepository items;
 	private final ItemFamilyRepository families;
 	private final ItemSubFamilyRepository subFamilies;
+	/** 3.1.0 (ZEN): the catégories and sections the head office copies to this store. */
+	private final ItemCategoryRepository categories;
+	private final ItemSectionRepository sections;
 	private final TransactionOperations transactions;
 	private final DownRecordLog records;
 
@@ -75,20 +82,25 @@ public class PromotionDownHandler implements DownHandler {
 	@Autowired
 	public PromotionDownHandler(PromotionService promotionService, PromotionRepository promotions,
 			ItemRepository items, ItemFamilyRepository families, ItemSubFamilyRepository subFamilies,
-			DownRecordLog records, PlatformTransactionManager transactionManager) {
-		this(promotionService, promotions, items, families, subFamilies, records, timed(transactionManager));
+			ItemCategoryRepository categories, ItemSectionRepository sections, DownRecordLog records,
+			PlatformTransactionManager transactionManager) {
+		this(promotionService, promotions, items, families, subFamilies, categories, sections, records,
+				timed(transactionManager));
 	}
 
 	/** With given transactions: used by the tests. */
 	public PromotionDownHandler(PromotionService promotionService, PromotionRepository promotions,
 			ItemRepository items, ItemFamilyRepository families, ItemSubFamilyRepository subFamilies,
-			DownRecordLog records, TransactionOperations transactions) {
+			ItemCategoryRepository categories, ItemSectionRepository sections, DownRecordLog records,
+			TransactionOperations transactions) {
 		this.records = records;
 		this.promotionService = promotionService;
 		this.promotions = promotions;
 		this.items = items;
 		this.families = families;
 		this.subFamilies = subFamilies;
+		this.categories = categories;
+		this.sections = sections;
 		this.transactions = transactions;
 	}
 
@@ -327,6 +339,19 @@ public class PromotionDownHandler implements DownHandler {
 				resolved.missing.add("sub-family " + copy.getItemSubFamilyCode());
 			}
 		}
+		// 3.1.0 (ZEN): catégorie and section, by code from the tables the head office copies, as the family
+		if (copy.getItemCategoryCode() != null) {
+			resolved.category = categories.findByCode(copy.getItemCategoryCode()).orElse(null);
+			if (resolved.category == null) {
+				resolved.missing.add("catégorie " + copy.getItemCategoryCode());
+			}
+		}
+		if (copy.getItemSectionCode() != null) {
+			resolved.section = sections.findByCode(copy.getItemSectionCode()).orElse(null);
+			if (resolved.section == null) {
+				resolved.missing.add("section " + copy.getItemSectionCode());
+			}
+		}
 		if (copy.getGetItemCode() != null) {
 			resolved.getItem = items.findByItemCode(copy.getGetItemCode()).orElse(null);
 			if (resolved.getItem == null) {
@@ -362,6 +387,8 @@ public class PromotionDownHandler implements DownHandler {
 		promotion.setItem(resolved.item);
 		promotion.setItemFamily(resolved.family);
 		promotion.setItemSubFamily(resolved.subFamily);
+		promotion.setItemCategory(resolved.category);
+		promotion.setItemSection(resolved.section);
 		promotion.setGroupItems(new HashSet<>(resolved.groupItems));
 		promotion.setGetItem(resolved.getItem);
 		promotion.setMinimumQuantity(copy.getMinimumQuantity());
@@ -391,6 +418,8 @@ public class PromotionDownHandler implements DownHandler {
 		Item item;
 		ItemFamily family;
 		ItemSubFamily subFamily;
+		ItemCategory category;
+		ItemSection section;
 		Item getItem;
 		final Set<Item> groupItems = new HashSet<>();
 		final List<String> missingGroupItems = new ArrayList<>();
