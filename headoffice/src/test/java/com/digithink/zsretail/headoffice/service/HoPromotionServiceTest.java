@@ -37,6 +37,7 @@ import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.PromotionHeadOfficeHooks;
 import com.digithink.zsretail.core.service.PromotionService;
 import com.digithink.zsretail.core.service._BaseService;
+import com.digithink.zsretail.core.support.InMemoryItems;
 import com.digithink.zsretail.headoffice.dto.PromotionTargetsDTO;
 import com.digithink.zsretail.headoffice.dto.PromotionWithTargetsDTO;
 import com.digithink.zsretail.headoffice.model.HoPromotionStore;
@@ -57,6 +58,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 class HoPromotionServiceTest {
 
 	private final InMemoryDownTables tables = new InMemoryDownTables();
+	private final InMemoryItems catalogue = new InMemoryItems(1000);
 
 	/** The head office promotion table, by id. */
 	private final Map<Long, Promotion> promotions = new LinkedHashMap<>();
@@ -87,6 +89,7 @@ class HoPromotionServiceTest {
 		b = store(2L, "RS02");
 		promotionService = new PromotionService();
 		inject(promotionService, PromotionService.class, "promotionRepository", promotionRepository());
+		inject(promotionService, PromotionService.class, "itemRepository", catalogue.itemRepository());
 		inject(promotionService, _BaseService.class, "currentUserProvider", new CurrentUserProvider() {
 			@Override
 			public String getCurrentUserName() {
@@ -354,11 +357,13 @@ class HoPromotionServiceTest {
 
 	// ─── Stubs ────────────────────────────────────────────────────
 
-	private static Item item(Long id, String code) {
+	/** An item of the head office catalogue: a group is loaded from it by id at save (3.1.0). */
+	private Item item(Long id, String code) {
 		Item item = new Item();
 		item.setId(id);
 		item.setItemCode(code);
 		item.setName(code);
+		catalogue.items.put(id, item);
 		return item;
 	}
 

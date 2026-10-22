@@ -115,6 +115,9 @@ public class Promotion extends _BaseEntity {
 		indexes = @Index(name = "idx_promo_group_item_item", columnList = "item_id"))
 	// Admin UI only needs id/itemCode/name per member — keep the JSON payload flat
 	@com.fasterxml.jackson.annotation.JsonIgnoreProperties({"itemFamily", "itemSubFamily"})
+	// 3.1.0: read by distinct id (Item equality leaves out the id: items sent as { id } were collapsed into one);
+	// PromotionService.save loads them from the database
+	@JsonDeserialize(using = com.digithink.zsretail.core.utils.GroupItemsDeserializer.class)
 	@lombok.ToString.Exclude
 	@lombok.EqualsAndHashCode.Exclude
 	private Set<Item> groupItems = new HashSet<>();

@@ -4,7 +4,10 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -28,6 +31,7 @@ import com.digithink.zsretail.core.model.enumeration.PromotionBenefitType;
 import com.digithink.zsretail.core.model.enumeration.PromotionScope;
 import com.digithink.zsretail.core.model.enumeration.PromotionType;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.PromotionRepository;
 import com.digithink.zsretail.core.repository._BaseRepository;
 
@@ -39,6 +43,10 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 
 	@Autowired
 	private PromotionRepository promotionRepository;
+
+	/** 3.1.0: the items of a group, loaded by id at save ({@link #loadGroupItems}). */
+	@Autowired
+	private ItemRepository itemRepository;
 
 	/** Audit user of a promotion received from the head office (task 3.3). */
 	public static final String HEAD_OFFICE_USER = "HEAD_OFFICE";
@@ -88,6 +96,7 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 	@Override
 	@Transactional
 	public Promotion save(Promotion promotion) throws Exception {
+		loadGroupItems(promotion);
 		normalise(promotion);
 		PromotionHeadOfficeHooks hooks = headOfficeHooks();
 		String previousCode = hooks == null || promotion.getId() == null ? null
@@ -125,6 +134,38 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 			promotionRepository.findById(id).ifPresent(hooks::beforeDelete);
 		}
 		super.deleteById(id);
+	}
+
+	/**
+	 * 3.1.0: the items of an ITEM_GROUP promotion, rebuilt from the distinct ids received and loaded from the database,
+	 * so the group never depends on what the caller sent for each item ({@code { id }} only or a full item) nor on
+	 * {@link Item} equality, which leaves out the id. An item without an id, or an id unknown here, is refused. Other
+	 * scopes are left to {@link #normalise}, which empties their group.
+	 */
+	void loadGroupItems(Promotion promotion) {
+		if (promotion.getScope() != PromotionScope.ITEM_GROUP || promotion.getGroupItems() == null
+				|| promotion.getGroupItems().isEmpty()) {
+			return;
+		}
+		Set<Long> ids = new LinkedHashSet<>();
+		for (Item item : promotion.getGroupItems()) {
+			if (item == null || item.getId() == null) {
+				throw new IllegalArgumentException("Every item of an ITEM_GROUP promotion needs its id");
+			}
+			ids.add(item.getId());
+		}
+		Map<Long, Item> found = new LinkedHashMap<>();
+		for (Item item : itemRepository.findAllById(ids)) {
+			found.put(item.getId(), item);
+		}
+		List<Long> unknown = ids.stream().filter(id -> !found.containsKey(id)).collect(Collectors.toList());
+		if (!unknown.isEmpty()) {
+			throw new IllegalArgumentException("Unknown item id(s) in the group: " + unknown);
+		}
+		// Loaded items: distinct item codes (unique column), so the set keeps each of them
+		Set<Item> items = new LinkedHashSet<>();
+		ids.forEach(id -> items.add(found.get(id)));
+		promotion.setGroupItems(items);
 	}
 
 	/** The head office hooks; null on a store (no such bean) and in tests that do not set them. */

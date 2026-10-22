@@ -126,6 +126,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   default order store code then item code (was store id).
 
 ### Fixes
+- Promotions, group of items (Emtop 1.12.1: a group saved with one item): the back end no longer depends on what the
+  screen sends. `groupItems` is read by distinct id (`{ id }`, `{ id, itemCode }` or a full item give the same group)
+  and `PromotionService.save` loads those ids from the database; an unknown id or an item without an id is refused.
+  `Item` equality is unchanged.
 - Fiches items list (`GET /admin/headoffice/item-catalogue`): failed on SQL Server ("duplicated sql alias []", the page
   showed no item): every column of its native queries now has its own alias.
 - Badge scan history: the statistics count every row of the period, the passes on the role's right (ROLE) with the
