@@ -10,6 +10,24 @@
 - **Line-Level Discounts**: `ItemSelection.vue` now supports applying discounts to individual cart items. Users can apply discounts as a percentage or fixed amount via a modal dialog. Discounts are applied to totals including VAT, and all calculations (subtotal, tax, total) account for discounts correctly. Discount percentage is formatted to 3 decimal places (e.g., "78.463%"). Discount badge and chip display in cart items.
 - **Internationalization (i18n)**: Comprehensive translation support added for all POS pages. All hardcoded strings replaced with translation keys using Vue i18n. Supported languages: English (en), Arabic (ar), French (fr). Translation files located in `src/libs/i18n/locales/`. RTL support for Arabic with proper styling adjustments. Language switcher added to login page. All pages fully translated including: Login, Open Session, Item Selection, Payment, Return Products, Customer Management, Tickets History, Returns Management, Item Barcodes, Item Families, Item Subfamilies, Session History.
 - **2.2.2, POS grid**: `ItemSelection.vue` reads its families and sub-families from the POS endpoints (`/item-family/pos`, `/item-sub-family/pos/by-family/{id}`), which leave out the empty ones when the store settings "Hide empty families / sub-families in the POS screen" are on; a family's items without sub-family get one extra tile, or the family opens directly on them when it has no sub-family tile. See `modules/general-setup.md`, "POS screen: empty families and sub-families".
+- **3.1.0, Till levels** (ZEN, step 2, 2026-10-22): the grid of `ItemSelection.vue` is one list of levels from
+  `GET /config` (`appConfig/itemCategories`, `itemSections`): `[category] family subFamily [section]` → items
+  (`src/libs/till-levels.js`, `LEVELS`: each level's calls, icon, labels, order, picture kind; `levelsFor`). State: `trail`
+  (the tile opened at each level, the breadcrumb), `tiles` (the open level's), `items`, `currentView` (`tiles` /
+  `items`), `opensOnItems`, `levelCache` (tiles per depth and parent), `itemCache`; methods `loadLevel`, `showChildren`,
+  `openTile`, `openTrailAt` (a chip; the chip of a tile of items does nothing), `navigateBack` (pops the trail),
+  `openSearchHit`. **Fall-through** at every level, one tile at the end only when it holds something: "Sans catégorie"
+  (opens the familles of no catégorie, `GET /item-family/pos?withoutCategory=true`), "Sans famille"
+  (`/item/pos/without-family?category=`), "Sans sous-famille" (2.2.2), "Sans section" (`/item/pos/without-section/{id}`);
+  a tile whose only tile is its items' fall-through opens straight on them (2.2.2's family rule, now for a catégorie
+  without famille and a sous-famille without section too). Orders: catégories as the families (display order, then
+  name), sections as the sub-families (name). **Search**: groups Catégories, Familles, Sous-familles, Sections, Articles
+  (the two new ones only with their level); a level hit shows the names above it ("Vêtements › Homme › Chemise",
+  `hitPlace`: the server's `path` less the hit; without it a sub-family's family, as before) and opens where it lives
+  from its path (`stepsByLevel`: a famille of no catégorie under "Sans catégorie"; a level above is the tile of its list
+  when read, else the path's step). **Without both flags** (EMTOP, Happyness) the levels are `[family, subFamily]` with
+  the calls, orders, tiles, breadcrumb and search of 2.2.2 / 3.1.0 (`tools/till-levels-check.mjs` compares the orders with
+  the old code). Back end: `modules/head-office.md`, "Till levels catégorie and section".
 - **3.1.0, free pieces only when scanned** (decision of 2026-10-12, `modules/promotion.md`): a cart line's quantity is all
   its pieces, the free ones of a "buy N get M" included; `freeQuantity` comes from the back end, `paidQuantity`
   (`libs/quantity.js`) counts the amounts and the payment's line quantity (paid pieces, the free ones as
@@ -21,8 +39,8 @@
   `searchQuery`, so the on-screen keyboard counts too), 250 ms after the last keystroke, it asks `GET /item/pos/search?q=`
   and the grid shows, whatever level is open, the families found, then the sub-families found (their family's name
   under the tile), then the items, each with its place ("Family › Sub-family", `itemPlace`); a family opens as from
-  the families, a sub-family opens on its items with its family in the breadcrumb (`openSearchedSubFamily`; Back: that
-  family), an item goes to the cart as a grid item; an answer to an older text is dropped (`searchSeq`). The letters
+  the families, a sub-family opens on its items with its family in the breadcrumb (`openSearchHit` since the till levels;
+  Back: that family), an item goes to the cart as a grid item; an answer to an older text is dropped (`searchSeq`). The letters
   matching the search are coloured in names and codes (`libs/search-text.js`, `highlightParts`: every word, accents and
   case ignored as the server compares; plain text spans, never HTML). Each group of the results has a full-row header
   with its count ("Families (1)", `pos.itemSelection.search.groups`). Every tile that opens (family, sub-family, items
