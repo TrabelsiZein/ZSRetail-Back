@@ -7,7 +7,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.persistence.criteria.Predicate;
@@ -26,12 +28,14 @@ import org.springframework.util.StringUtils;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ItemBarcode;
 import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
 import com.digithink.zsretail.core.repository.ItemFamilyRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.ItemSectionRepository;
 import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
 import com.digithink.zsretail.core.repository.PosItemSearchRepository;
 import com.digithink.zsretail.core.repository._BaseRepository;
@@ -65,6 +69,13 @@ public class ItemService extends _BaseService<Item, Long> {
 
 	@Autowired
 	private PosItemSearchRepository posItemSearchRepository;
+
+	@Autowired
+	private ItemSectionRepository itemSectionRepository;
+
+	/** 3.1.0 (ZEN): whether the installation has catégories and sections (the till's extra levels). */
+	@Autowired
+	private ItemTreeService itemTreeService;
 
 	/** 3.1.0, the till's search: the most items one answer holds. */
 	public static final int POS_SEARCH_LIMIT = 30;
@@ -366,6 +377,62 @@ public class ItemService extends _BaseService<Item, Long> {
 				.orElseThrow(() -> new IllegalArgumentException("Item family not found: " + familyId));
 		return itemRepository.findByItemFamilyAndItemSubFamilyIsNull(family).stream().filter(ItemService::listedInPos)
 				.collect(Collectors.toList());
+	}
+
+	/**
+	 * 3.1.0 (ZEN), GET /item/pos/by-section/{id}: the items of a section as the grid lists them: the items of the
+	 * section's own sub-family (item_section.sub_family_code) that carry its code. None when the installation has no
+	 * section, or the section's sub-family does not exist; unknown section: IllegalArgumentException.
+	 */
+	public List<Item> findPosItemsOfSection(Long sectionId) {
+		if (!itemTreeService.hasSections()) {
+			return new ArrayList<>();
+		}
+		ItemSection section = itemSectionRepository.findById(sectionId)
+				.orElseThrow(() -> new IllegalArgumentException("Item section not found: " + sectionId));
+		String subFamilyCode = PosCatalogueService.levelCode(section.getSubFamilyCode());
+		String code = PosCatalogueService.levelCode(section.getCode());
+		Optional<ItemSubFamily> subFamily = subFamilyCode == null ? Optional.empty()
+				: itemSubFamilyRepository.findByCode(subFamilyCode);
+		if (!subFamily.isPresent() || code == null) {
+			return new ArrayList<>();
+		}
+		return itemRepository.findByItemSubFamily(subFamily.get()).stream().filter(ItemService::listedInPos)
+				.filter(item -> code.equals(PosCatalogueService.levelCode(item.getSectionCode())))
+				.collect(Collectors.toList());
+	}
+
+	/**
+	 * 3.1.0 (ZEN), GET /item/pos/without-section/{subFamilyId}: the items of a sub-family that no section of it holds
+	 * (no section code, or a code that is not one of its sections), as the grid lists them. The items of an inactive
+	 * section of it stay hidden. None when the installation has no section; unknown sub-family: IllegalArgumentException.
+	 */
+	public List<Item> findPosItemsWithoutSection(Long subFamilyId) {
+		if (!itemTreeService.hasSections()) {
+			return new ArrayList<>();
+		}
+		ItemSubFamily subFamily = itemSubFamilyRepository.findById(subFamilyId)
+				.orElseThrow(() -> new IllegalArgumentException("Item sub-family not found: " + subFamilyId));
+		Set<String> sectionCodes = itemSectionRepository.findBySubFamilyCode(subFamily.getCode()).stream()
+				.map(section -> PosCatalogueService.levelCode(section.getCode())).filter(Objects::nonNull)
+				.collect(Collectors.toSet());
+		return itemRepository.findByItemSubFamily(subFamily).stream().filter(ItemService::listedInPos).filter(item -> {
+			String code = PosCatalogueService.levelCode(item.getSectionCode());
+			return code == null || !sectionCodes.contains(code);
+		}).collect(Collectors.toList());
+	}
+
+	/**
+	 * 3.1.0 (ZEN), GET /item/pos/without-family?category: the items without famille and sous-famille that carry this
+	 * catégorie code, as the grid lists them. None for a blank code or when the installation has no catégorie.
+	 */
+	public List<Item> findPosItemsWithoutFamily(String categoryCode) {
+		String code = PosCatalogueService.levelCode(categoryCode);
+		if (code == null || !itemTreeService.hasCategories()) {
+			return new ArrayList<>();
+		}
+		return itemRepository.findByCategoryCodeAndItemFamilyIsNullAndItemSubFamilyIsNull(code).stream()
+				.filter(ItemService::listedInPos).collect(Collectors.toList());
 	}
 
 	/**

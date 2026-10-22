@@ -1791,6 +1791,47 @@ A read-only page, store and head office, for a catalogue of one item per ERP var
   Happyness's page is as before.
 - Tests: `ItemTreeQueryTest` (H2), `ItemTreeServiceTest`, `AppConfigAPITest` (`itemCategories`, `itemSections`).
 
+### Till levels catégorie and section (item variants, ZEN, 3.1.0, step 1: API)
+The till's drill-down becomes one list of levels, `[catégorie?] famille sous-famille [section?] → items`, the optional
+levels only where `GET /config` gives `itemCategories` / `itemSections` (the front, step 2, reads them). Read only,
+store and head office, `PosCatalogueService` and `ItemService`; the selling side is untouched.
+- **Tree**: the item's own. Its catégorie is its famille's (`item_family.category_code`); a section is one of its own
+  sous-famille (`item_section.sub_family_code`), matched on the item's `section_code` (codes trimmed, blank = none). An
+  item with a section code but no sous-famille is reached by no section (as the local ZEN rows TEST-SEC: no tile, as
+  before). Each listed item is reached once.
+- **Fall-throughs**, what no tile of a level holds, shown under the level above: the familles whose catégorie code is
+  empty or names no catégorie; the items without famille and sous-famille that carry a catégorie code; the items of a
+  sous-famille whose section code is empty or not one of its sections. An inactive catégorie or section hides what it
+  holds, as an inactive sous-famille does.
+- **Endpoints** (each `[]` when the installation has not the level, no error even for an unknown id; the codes as query
+  parameters, an ERP code may hold a '/'; images stripped by `POS_SHOW_IMAGES` as the other POS calls):
+
+  | Call | Answer |
+  |---|---|
+  | `GET /item-category/pos` | the active catégories (entities), by display order then code |
+  | `GET /item-family/pos?category={code}` | the active familles of that catégorie |
+  | `GET /item-family/pos?withoutCategory=true` | the active familles of no catégorie (fall-through) |
+  | `GET /item-section/pos?subFamily={id}` | the active sections of a sous-famille, by display order then code; 400 for an unknown sous-famille |
+  | `GET /item/pos/by-section/{id}` | the items of a section (own sous-famille, its code), `listedInPos`; 400 for an unknown section |
+  | `GET /item/pos/without-section/{subFamilyId}` | the items of a sous-famille in none of its sections (fall-through) |
+  | `GET /item/pos/without-family?category={code}` | the items of a catégorie without famille (fall-through) |
+
+  `GET /item-family/pos` without parameter is unchanged (both parameters: 400). Empty tiles: catégories follow
+  `POS_HIDE_EMPTY_FAMILIES` (a catégorie leads to an item through an active famille with items, or items without
+  famille), sections `POS_HIDE_EMPTY_SUB_FAMILIES`; off, the active lists as they are. Counted with two grouped queries
+  beside `countPosGridItems`, on the same conditions (`ItemRepository.POS_LISTED`): `countPosSectionItems` (sous-famille,
+  section code) and `countPosCategoryItems` (catégorie code of the items without famille).
+- **Search** (`GET /item/pos/search`): with catégories, `categories` (active, leading to an item); with sections,
+  `sections` (active, in an active sous-famille of an active famille, holding an item); at most 10 each, ordered as the
+  families. Then every hit of `families`, `subFamilies`, `categories`, `sections` is the entity's own fields plus
+  `path`, a list of `{level: category|family|subFamily|section, id, code, name}` from its catégorie down to itself
+  (`PosLevelDTO`; the front shows "Homme › Chemise" and opens the level by the ids). Without both levels nothing is
+  added and the two tables are not read: EMTOP and Happyness get the answer of before, byte for byte. `content`, `more`
+  and `exactId` are unchanged.
+- Tests: `PosCatalogueLevelsTest` (lists, settings, search groups, paths, levels off), `PosLevelItemsTest` (items,
+  fall-throughs, each item reached once), `PosLevelCountQueryTest` (H2, the two queries against `listedInPos`),
+  `PosSearchResponseTest` (the JSON without levels equals the one of before; the hits with their path).
+
 ### Variant label (item variants, ZEN, 3.1.0, step 11c, store)
 - **Rule**, one place (frontend `src/libs/item-label.js`, `itemLabel(item)`): an item reads `name — variantDescription`
   when its variant description, trimmed, is not empty, differs from the name and the name does not already end with it

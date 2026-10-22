@@ -49,6 +49,18 @@ class PosCatalogueSearchTest {
 				(method, args) -> "findAll".equals(method) && args.length == 0 ? families : UNHANDLED));
 		inject(service, "itemSubFamilyRepository", proxy(ItemSubFamilyRepository.class,
 				(method, args) -> "findAll".equals(method) && args.length == 0 ? subFamilies : UNHANDLED));
+		// no catégorie, no section (EMTOP, Happyness): the search of before (PosCatalogueLevelsTest for ZEN's levels)
+		inject(service, "itemTreeService", new ItemTreeService(null, null, null, null) {
+			@Override
+			public boolean hasCategories() {
+				return false;
+			}
+
+			@Override
+			public boolean hasSections() {
+				return false;
+			}
+		});
 	}
 
 	private ItemFamily family(long id, String name, Boolean active) {

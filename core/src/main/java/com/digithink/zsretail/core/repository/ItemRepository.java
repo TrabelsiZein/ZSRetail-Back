@@ -81,6 +81,13 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 	/** 2.2.2: the items of a family without a sub-family (the till's extra tile). */
 	List<Item> findByItemFamilyAndItemSubFamilyIsNull(ItemFamily itemFamily);
 
+	/** 3.1.0 (ZEN): the items without famille and sous-famille that carry this catégorie code (the till's fall-through). */
+	List<Item> findByCategoryCodeAndItemFamilyIsNullAndItemSubFamilyIsNull(String categoryCode);
+
+	/** The conditions of {@code ItemService.listedInPos} on the item {@code i}: the items the POS grid lists. */
+	String POS_LISTED = "(i.active is null or i.active = true) and (i.showInPos is null or i.showInPos = true)"
+			+ " and i.unitPrice > 0";
+
 	/**
 	 * 2.2.2, the one grouped query of the POS grid's counts: the items the grid lists ({@code ItemService.listedInPos},
 	 * the same conditions), in an active sub-family (or none), counted by the sub-family's family, the item's own
@@ -89,12 +96,34 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 	 */
 	String POS_GRID_COUNTS = "select sff.id, f.id, sf.id, count(i) from Item i left join i.itemSubFamily sf"
 			+ " left join sf.itemFamily sff left join i.itemFamily f"
-			+ " where (i.active is null or i.active = true) and (i.showInPos is null or i.showInPos = true)"
-			+ " and i.unitPrice > 0 and (sf.id is null or sf.active is null or sf.active = true)"
+			+ " where " + POS_LISTED + " and (sf.id is null or sf.active is null or sf.active = true)"
 			+ " group by sff.id, f.id, sf.id";
 
 	@Query(POS_GRID_COUNTS)
 	List<Object[]> countPosGridItems();
+
+	/**
+	 * 3.1.0 (ZEN), the till's sections: the items the grid lists in an active sub-family that carry a section code,
+	 * counted by sub-family and section code: rows {sub-family id, section code, count}. A section holds the items of its
+	 * own sub-family that carry its code (PosCatalogueService).
+	 */
+	String POS_SECTION_COUNTS = "select sf.id, i.sectionCode, count(i) from Item i join i.itemSubFamily sf"
+			+ " where " + POS_LISTED + " and (sf.active is null or sf.active = true) and i.sectionCode is not null"
+			+ " group by sf.id, i.sectionCode";
+
+	@Query(POS_SECTION_COUNTS)
+	List<Object[]> countPosSectionItems();
+
+	/**
+	 * 3.1.0 (ZEN), the till's catégories: the items the grid lists with no famille and no sous-famille, counted by their
+	 * own catégorie code: rows {catégorie code, count}. They fall through to their catégorie (no famille to open).
+	 */
+	String POS_CATEGORY_COUNTS = "select i.categoryCode, count(i) from Item i"
+			+ " where " + POS_LISTED + " and i.itemFamily is null and i.itemSubFamily is null and i.categoryCode is not null"
+			+ " group by i.categoryCode";
+
+	@Query(POS_CATEGORY_COUNTS)
+	List<Object[]> countPosCategoryItems();
 
 	/** Head office plan, step 6: the items of these codes. */
 	List<Item> findByItemCodeIn(Collection<String> itemCodes);

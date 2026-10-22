@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
@@ -59,8 +60,36 @@ public class ItemFamilyAPI extends _BaseController<ItemFamily, Long, ItemFamilyS
 	 * empty families when the store setting POS_HIDE_EMPTY_FAMILIES is on (PosCatalogueService).
 	 */
 	@GetMapping("/pos")
-	public ResponseEntity<?> getAllForPos() {
-		return families(true);
+	public ResponseEntity<?> getAllForPos(@RequestParam(name = "category", required = false) String category,
+			@RequestParam(name = "withoutCategory", defaultValue = "false") boolean withoutCategory) {
+		if (category == null && !withoutCategory) {
+			return families(true);
+		}
+		if (category != null && withoutCategory) {
+			return ResponseEntity.badRequest().body(createErrorResponse("category or withoutCategory, not both"));
+		}
+		return categoryFamilies(category);
+	}
+
+	/**
+	 * 3.1.0 (ZEN): GET /item-family/pos?category={code}, the active families of one catégorie, or ?withoutCategory=true
+	 * (category null here), the active families of none; each as the POS list (PosCatalogueService). [] without
+	 * catégories.
+	 */
+	private ResponseEntity<?> categoryFamilies(String category) {
+		try {
+			log.info("ItemFamilyAPI::getAll (POS, " + (category == null ? "without catégorie" : "catégorie " + category)
+					+ ")");
+			List<ItemFamily> families = category == null ? posCatalogue.familiesWithoutCategory()
+					: posCatalogue.familiesOfCategory(category);
+			if (!isPosShowImages()) {
+				families.forEach(f -> f.setImageFilename(null));
+			}
+			return ResponseEntity.ok(families);
+		} catch (Exception e) {
+			log.error("ItemFamilyAPI::getAll:error: " + getDetailedMessage(e), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
 	}
 
 	private ResponseEntity<?> families(boolean pos) {

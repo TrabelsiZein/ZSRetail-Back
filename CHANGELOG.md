@@ -45,6 +45,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   scope needs its target, other scopes keep neither; both locked once used. Head office copy by code
   (`itemCategoryCode`, `itemSectionCode`), missing = waiting as a famille; a store of an older build skips such a
   promotion (error). `GET /item-category` and `GET /item-section` entries carry the row `id`.
+- Till levels catégorie and section, step 1, API only (ZEN; docs/modules/head-office.md, "Till levels"): read-only POS
+  lists `GET /item-category/pos`, `GET /item-family/pos?category={code}` and `?withoutCategory=true`,
+  `GET /item-section/pos?subFamily={id}`, `GET /item/pos/by-section/{id}`, the fall-throughs
+  `GET /item/pos/without-section/{subFamilyId}` and `GET /item/pos/without-family?category={code}`; a section holds the
+  items of its own sous-famille that carry its code. `GET /item/pos/search` adds `categories` and `sections` and a `path`
+  on every hit, only where the installation has the level: without catégories and sections (EMTOP, Happyness) every
+  new list is empty and the search answer is unchanged.
 
 ### Enhancements
 - Till authorisation, step B: `GET /config` serves `tillActions`, the registry of the five badge actions (`{code, key}`,

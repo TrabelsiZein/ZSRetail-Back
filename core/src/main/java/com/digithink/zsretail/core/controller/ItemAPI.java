@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.dto.AdjustStockRequestDTO;
+import com.digithink.zsretail.core.dto.PosLevelDTO;
 import com.digithink.zsretail.core.dto.PricingResult;
 import com.digithink.zsretail.core.dto.QuickProductRequestDTO;
 import com.digithink.zsretail.core.model.Customer;
@@ -395,7 +396,9 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	 * 3.1.0: the till's search over the whole catalogue: {families, subFamilies: those whose name matches and that lead
 	 * to something to sell (PosCatalogueService.search), content: the items as the grid gets them (ItemService.searchPos),
 	 * more: true when more than ItemService.POS_SEARCH_LIMIT items matched, exactId: the item of the whole barcode or code
-	 * typed, else null}. Under 2 characters: nothing.
+	 * typed, else null}. Under 2 characters: nothing. 3.1.0 (ZEN), with catégories or sections only (GET /config
+	 * itemCategories, itemSections): categories and sections (each only with its level), and every family, sub-family,
+	 * catégorie and section found carries its path (PosLevelDTO); without both, the answer above, unchanged.
 	 */
 	@GetMapping("/pos/search")
 	public ResponseEntity<?> searchForPos(@RequestParam(defaultValue = "") String q) {
@@ -409,8 +412,14 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 				items.forEach(i -> i.setImageUrl(null));
 			}
 			Map<String, Object> response = new HashMap<>();
-			response.put("families", found.getFamilies());
-			response.put("subFamilies", found.getSubFamilies());
+			response.put("families", hits(found, found.getFamilies()));
+			response.put("subFamilies", hits(found, found.getSubFamilies()));
+			if (found.getCategories() != null) {
+				response.put("categories", hits(found, found.getCategories()));
+			}
+			if (found.getSections() != null) {
+				response.put("sections", hits(found, found.getSections()));
+			}
 			response.put("content", items);
 			response.put("more", search.isMore());
 			response.put("exactId", search.getExactId());
@@ -421,14 +430,49 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 		}
 	}
 
+	/** The search's hits as they are, or each with its path when the answer carries paths (3.1.0, ZEN). */
+	private static List<?> hits(PosCatalogueService.Found found, List<?> entries) {
+		if (!found.hasPaths()) {
+			return entries;
+		}
+		return entries.stream().map(entry -> new PosLevelDTO.Hit<>(entry, found.pathOf(entry)))
+				.collect(Collectors.toList());
+	}
+
 	@GetMapping("/pos/without-sub-family/{familyId}")
 	public ResponseEntity<?> getWithoutSubFamilyForPos(@PathVariable Long familyId) {
+		return posItems(() -> service.findPosItemsWithoutSubFamily(familyId));
+	}
+
+	/** 3.1.0 (ZEN): the items of a section (ItemService.findPosItemsOfSection); [] without sections. */
+	@GetMapping("/pos/by-section/{sectionId}")
+	public ResponseEntity<?> getBySectionForPos(@PathVariable Long sectionId) {
+		return posItems(() -> service.findPosItemsOfSection(sectionId));
+	}
+
+	/** 3.1.0 (ZEN): the items of a sub-family that none of its sections holds; [] without sections. */
+	@GetMapping("/pos/without-section/{subFamilyId}")
+	public ResponseEntity<?> getWithoutSectionForPos(@PathVariable Long subFamilyId) {
+		return posItems(() -> service.findPosItemsWithoutSection(subFamilyId));
+	}
+
+	/**
+	 * 3.1.0 (ZEN): the items without famille of a catégorie (code as a parameter: an ERP code may hold a '/'); [] without
+	 * catégories.
+	 */
+	@GetMapping("/pos/without-family")
+	public ResponseEntity<?> getWithoutFamilyForPos(@RequestParam(name = "category", defaultValue = "") String category) {
+		return posItems(() -> service.findPosItemsWithoutFamily(category));
+	}
+
+	/** The till's items of one tile, without images when POS_SHOW_IMAGES is off; 400 with the message on an error. */
+	private ResponseEntity<?> posItems(Supplier<List<Item>> items) {
 		try {
-			List<Item> items = service.findPosItemsWithoutSubFamily(familyId);
+			List<Item> list = items.get();
 			if (!isPosShowImages()) {
-				items.forEach(i -> i.setImageUrl(null));
+				list.forEach(i -> i.setImageUrl(null));
 			}
-			return ResponseEntity.ok(items);
+			return ResponseEntity.ok(list);
 		} catch (Exception e) {
 			return ResponseEntity.badRequest().body(createErrorResponse(getDetailedMessage(e)));
 		}

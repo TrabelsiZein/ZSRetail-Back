@@ -35,7 +35,8 @@ empty sub-families in the POS screen".
   `GET /item/pos/without-sub-family/{familyId}`. Both settings off, the first two return exactly what `GET /item-family`
   and `GET /item-sub-family/by-family/{id}` return (the same code, nothing counted). Admin pages, filters, imports and
   every other caller keep the full lists (they still call the old endpoints). Head office and sync: unchanged. Scan and
-  search: unchanged.
+  search: unchanged. 3.1.0 (ZEN): the catégories follow `POS_HIDE_EMPTY_FAMILIES` and the sections
+  `POS_HIDE_EMPTY_SUB_FAMILIES` (`modules/head-office.md`, "Till levels catégorie and section").
 - **Counted with one grouped query**, `ItemRepository.countPosGridItems` (JPQL, the conditions of `listedInPos`; kept the
   same by `PosGridCountQueryTest` on H2), run once per list when a setting is on. Local timing (2026-10-10, SQL Server,
   equivalent SQL): 7 806 items (copy of a store with 63 families, 193 sub-families) 19 ms cold, 7 to 8 ms warm; 3 181

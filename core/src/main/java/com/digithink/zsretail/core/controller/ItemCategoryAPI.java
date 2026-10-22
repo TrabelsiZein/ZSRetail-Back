@@ -9,7 +9,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.core.dto.ItemTreeDTO;
+import com.digithink.zsretail.core.model.ItemCategory;
 import com.digithink.zsretail.core.service.ItemTreeService;
+import com.digithink.zsretail.core.service.PosCatalogueService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -25,6 +27,8 @@ public class ItemCategoryAPI {
 
 	private final ItemTreeService itemTreeService;
 
+	private final PosCatalogueService posCatalogue;
+
 	/** GET /item-category: every catégorie with its number of families. */
 	@GetMapping
 	public ResponseEntity<List<ItemTreeDTO.Category>> categories() {
@@ -35,5 +39,14 @@ public class ItemCategoryAPI {
 	@GetMapping("families")
 	public ResponseEntity<List<ItemTreeDTO.Family>> families(@RequestParam(name = "code") String code) {
 		return ResponseEntity.ok(itemTreeService.familiesOf(code));
+	}
+
+	/**
+	 * 3.1.0 (ZEN), GET /item-category/pos: the catégories of the till (active, without the empty ones when
+	 * POS_HIDE_EMPTY_FAMILIES is on; PosCatalogueService); [] without catégories.
+	 */
+	@GetMapping("pos")
+	public ResponseEntity<List<ItemCategory>> pos() {
+		return ResponseEntity.ok(posCatalogue.categories());
 	}
 }
