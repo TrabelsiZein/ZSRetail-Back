@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.headoffice.repository.HoNetworkStockQuery;
 import com.digithink.zsretail.headoffice.service.HoNetworkStockService;
 
 import lombok.extern.log4j.Log4j2;
@@ -34,12 +35,27 @@ public class HoNetworkStockAPI {
 		this.service = service;
 	}
 
-	/** The head office items with their stock and each store's: {stores, content, totalElements, ...}. */
+	/**
+	 * The head office items with their stock and each store's: {stores, content, totalElements, ...}. 3.1.0: familyId,
+	 * subFamilyId, divisionCode, categoryCode, sectionCode; stock ALL (default), IN_STOCK, ZERO, BELOW_ZERO on the columns
+	 * shown; belowZero=true is stock=BELOW_ZERO (when stock is absent).
+	 */
 	@GetMapping
 	public ResponseEntity<?> page(@RequestParam(required = false) Long storeId,
 			@RequestParam(required = false) String search, @RequestParam(required = false) Integer page,
-			@RequestParam(required = false) Integer size, @RequestParam(required = false) Boolean belowZero) {
-		return answer(() -> ResponseEntity.ok(service.page(storeId, search, page, size, Boolean.TRUE.equals(belowZero))));
+			@RequestParam(required = false) Integer size, @RequestParam(required = false) Boolean belowZero,
+			@RequestParam(required = false) String stock, @RequestParam(required = false) Long familyId,
+			@RequestParam(required = false) Long subFamilyId, @RequestParam(required = false) String divisionCode,
+			@RequestParam(required = false) String categoryCode, @RequestParam(required = false) String sectionCode) {
+		HoNetworkStockQuery.Criteria filters = new HoNetworkStockQuery.Criteria();
+		filters.setStock(stock != null && !stock.trim().isEmpty() ? stock
+				: Boolean.TRUE.equals(belowZero) ? HoNetworkStockQuery.BELOW_ZERO : null);
+		filters.setFamilyId(familyId);
+		filters.setSubFamilyId(subFamilyId);
+		filters.setDivisionCode(divisionCode);
+		filters.setCategoryCode(categoryCode);
+		filters.setSectionCode(sectionCode);
+		return answer(() -> ResponseEntity.ok(service.page(storeId, search, page, size, filters)));
 	}
 
 	/** The stores' own items (not from the head office) with their stock. */

@@ -15,11 +15,15 @@ import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
 import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
+import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.headoffice.model.HoStoreStock;
+import com.digithink.zsretail.headoffice.repository.HoNetworkStockQuery;
 import com.digithink.zsretail.headoffice.repository.HoStoreStockRepository;
 import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
 import com.digithink.zsretail.store.holink.model.StockCopy;
@@ -127,27 +131,6 @@ public final class InMemoryNetworkStock {
 					return last.entrySet().stream().map(e -> new Object[] { e.getKey(), e.getValue() })
 							.collect(Collectors.toList());
 				}
-				case "findHeadOfficeItems":
-				case "findHeadOfficeItemsStoresOnly": { // the second: belowZero never looks at the head office stock
-					boolean headOfficeColumn = "findHeadOfficeItems".equals(method);
-					Collection<?> types = (Collection<?>) args[0];
-					String search = (String) args[2];
-					long storeId = (Long) args[3];
-					boolean belowZero = Boolean.TRUE.equals(args[4]);
-					List<Object[]> items = ho.items.values().stream()
-							.filter(i -> i.getType() == null || types.contains(i.getType()))
-							.filter(i -> !args[1].equals(i.getItemCode()))
-							.filter(i -> search == null || like(i.getItemCode(), search) || like(i.getName(), search))
-							.filter(i -> !belowZero
-									|| (headOfficeColumn && i.getStockQuantity() != null && i.getStockQuantity().signum() < 0)
-									|| storeStock.values().stream().anyMatch(s -> s.getItemCode().equals(i.getItemCode())
-											&& s.getQuantity().signum() < 0 && (storeId == 0 ? ho.stores.get(s.getStoreId()) != null && Boolean.TRUE.equals(ho.stores.get(s.getStoreId()).getActive())
-													: s.getStoreId() == storeId)))
-							.sorted(Comparator.comparing(Item::getItemCode))
-							.map(i -> new Object[] { i.getItemCode(), i.getName(), i.getStockQuantity() })
-							.collect(Collectors.toList());
-					return page(items, (Pageable) args[5]);
-				}
 				case "findOwnItems": {
 					long storeId = (Long) args[1];
 					String search = (String) args[2];
@@ -164,6 +147,59 @@ public final class InMemoryNetworkStock {
 					return UNHANDLED;
 			}
 		});
+	}
+
+	/**
+	 * The head office items of the network stock page over the head office's items, applying the rules of
+	 * {@link HoNetworkStockQuery} (its SQL is tested on H2 by NetworkStockQueryTest): products and packs (or no type), not
+	 * the tax stamp, the search and item filters, the stock filter on the columns shown (a store without the item counts
+	 * as 0), by code.
+	 */
+	public HoNetworkStockQuery lineQuery(InMemoryCatalogue ho) {
+		return new HoNetworkStockQuery() {
+			@Override
+			public Page<Object[]> lines(Criteria c, Pageable pageable) {
+				String search = c.getLike();
+				List<Object[]> items = ho.items.values().stream()
+						.filter(i -> i.getType() == null || i.getType() == ItemType.PRODUCT || i.getType() == ItemType.PACKAGE)
+						.filter(i -> !CatalogueKind.TAX_STAMP_CODE.equals(i.getItemCode()))
+						.filter(i -> search == null || like(i.getItemCode(), search) || like(i.getName(), search))
+						.filter(i -> c.getFamilyId() == null
+								|| (i.getItemFamily() != null && c.getFamilyId().equals(i.getItemFamily().getId())))
+						.filter(i -> c.getSubFamilyId() == null
+								|| (i.getItemSubFamily() != null && c.getSubFamilyId().equals(i.getItemSubFamily().getId())))
+						.filter(i -> c.getDivisionCode() == null || c.getDivisionCode().equals(i.getDivisionCode()))
+						.filter(i -> c.getCategoryCode() == null || c.getCategoryCode().equals(i.getCategoryCode()))
+						.filter(i -> c.getSectionCode() == null || c.getSectionCode().equals(i.getSectionCode()))
+						.filter(i -> stockKept(ho, c, i))
+						.sorted(Comparator.comparing(Item::getItemCode))
+						.map(i -> new Object[] { i.getItemCode(), i.getName(), i.getStockQuantity() })
+						.collect(Collectors.toList());
+				return page(items, pageable);
+			}
+		};
+	}
+
+	/** The stock filter on the columns shown: the head office (when a column), the store asked for or the active ones. */
+	private boolean stockKept(InMemoryCatalogue ho, HoNetworkStockQuery.Criteria c, Item item) {
+		String stock = c.getStock() == null ? "" : c.getStock();
+		Predicate<BigDecimal> test;
+		if (HoNetworkStockQuery.IN_STOCK.equals(stock)) {
+			test = q -> q.signum() > 0;
+		} else if (HoNetworkStockQuery.BELOW_ZERO.equals(stock)) {
+			test = q -> q.signum() < 0;
+		} else if (HoNetworkStockQuery.ZERO.equals(stock)) {
+			test = q -> q.signum() != 0;
+		} else {
+			return true;
+		}
+		boolean any = (c.isHeadOfficeColumn()
+				&& test.test(item.getStockQuantity() == null ? BigDecimal.ZERO : item.getStockQuantity()))
+				|| storeStock.values().stream().anyMatch(s -> s.getItemCode().equals(item.getItemCode())
+						&& test.test(s.getQuantity()) && (c.getStoreId() == 0
+								? ho.stores.get(s.getStoreId()) != null && !Boolean.FALSE.equals(ho.stores.get(s.getStoreId()).getActive())
+								: s.getStoreId() == c.getStoreId()));
+		return HoNetworkStockQuery.ZERO.equals(stock) ? !any : any;
 	}
 
 	public HoStoreStock stockAt(Long storeId, String itemCode) {

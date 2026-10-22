@@ -115,6 +115,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   empty where no store sends its stock. Parameters and the other fields unchanged.
 - Fiches items list (`GET /admin/headoffice/item-catalogue`): `sort=variants` (the line's variant count) and
   `sort=price` (its smallest price with VAT, lines without a price last both ways), each then by code.
+- Network stock (`GET /admin/headoffice/stock`): `stock=ALL|IN_STOCK|ZERO|BELOW_ZERO` on the columns shown (the head
+  office's stock where it keeps one, and the stores shown; `belowZero=true` still means `BELOW_ZERO`), and the item
+  filters `familyId`, `subFamilyId`, `divisionCode`, `categoryCode`, `sectionCode`; native SQL built with only the
+  filters set (`HoNetworkStockQuery`).
 
 ### Fixes
 - Fiches items list (`GET /admin/headoffice/item-catalogue`): failed on SQL Server ("duplicated sql alias []", the page

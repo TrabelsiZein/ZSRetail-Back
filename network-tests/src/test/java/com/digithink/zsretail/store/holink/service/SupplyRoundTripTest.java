@@ -140,7 +140,7 @@ class SupplyRoundTripTest {
 				() -> holder[0], TransactionOperations.withoutTransaction());
 		hoDeliveries = hoTables.service(hoStock, () -> holder[0], () -> NOW);
 		hoNetwork = new HoNetworkStockService(network.storeStockRepository(ho), ho.storeRepository(),
-				TransactionOperations.withoutTransaction(), () -> NOW);
+				network.lineQuery(ho), TransactionOperations.withoutTransaction(), () -> NOW);
 		feed = new InMemoryDownTables().feed(Arrays.asList(catalogue, hoDeliveries));
 		holder[0] = feed;
 		ItemFamily f1 = ho.family("F1");
@@ -639,7 +639,7 @@ class SupplyRoundTripTest {
 		ho.itemByCode("B002").get().setStockQuantity(BigDecimal.valueOf(-5)); // a head office value left from before: ignored
 		push.runCycle();
 		HoNetworkStockService noStock = new HoNetworkStockService(network.storeStockRepository(ho), ho.storeRepository(),
-				TransactionOperations.withoutTransaction(), () -> NOW, false);
+				network.lineQuery(ho), TransactionOperations.withoutTransaction(), () -> NOW, false);
 
 		Map<String, Object> page = noStock.page(null, null, 0, 20, false);
 		assertEquals(Arrays.asList("B001", "B002", "B009"), codes(page));

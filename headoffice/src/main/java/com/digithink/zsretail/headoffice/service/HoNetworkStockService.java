@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -27,12 +26,11 @@ import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.link.dto.StockReportDTO;
-import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
-import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.headoffice.model.HoStoreStock;
 import com.digithink.zsretail.headoffice.model.Store;
+import com.digithink.zsretail.headoffice.repository.HoNetworkStockQuery;
 import com.digithink.zsretail.headoffice.repository.HoStoreStockRepository;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
 
@@ -50,17 +48,17 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class HoNetworkStockService {
 
-	static final List<ItemType> STOCK_TYPES = Arrays.asList(ItemType.PRODUCT, ItemType.PACKAGE);
 	static final int DEFAULT_SIZE = 20;
 	static final int MAX_SIZE = 200;
 	static final int CODE_LENGTH = 100;
 
 	private final HoStoreStockRepository stocks;
 	private final StoreRepository stores;
+	private final HoNetworkStockQuery query;
 	private final TransactionOperations writeTransactions;
 	private final Supplier<LocalDateTime> clock;
 
-	/** False on a head office with headoffice.stock.enabled=false: no head office column, belowZero ignores it. */
+	/** False on a head office with headoffice.stock.enabled=false: no head office column, the stock filter ignores it. */
 	private final boolean keepsStock;
 
 	/** I-24: the items' variants on the list (a field: the tests build the service without it). */
@@ -68,24 +66,25 @@ public class HoNetworkStockService {
 	private ItemRepository items;
 
 	@Autowired
-	public HoNetworkStockService(HoStoreStockRepository stocks, StoreRepository stores,
+	public HoNetworkStockService(HoStoreStockRepository stocks, StoreRepository stores, HoNetworkStockQuery query,
 			PlatformTransactionManager transactionManager, ApplicationModeService mode) {
-		this(stocks, stores, new TransactionTemplate(transactionManager), LocalDateTime::now,
+		this(stocks, stores, query, new TransactionTemplate(transactionManager), LocalDateTime::now,
 				!mode.isHeadOfficeWithoutStock());
 	}
 
 	/** With given transactions and clock, the head office keeping its stock: used by the tests. */
-	public HoNetworkStockService(HoStoreStockRepository stocks, StoreRepository stores,
+	public HoNetworkStockService(HoStoreStockRepository stocks, StoreRepository stores, HoNetworkStockQuery query,
 			TransactionOperations writeTransactions, Supplier<LocalDateTime> clock) {
-		this(stocks, stores, writeTransactions, clock, true);
+		this(stocks, stores, query, writeTransactions, clock, true);
 	}
 
 	/** With given transactions, clock, and whether the head office keeps its stock. */
-	public HoNetworkStockService(HoStoreStockRepository stocks, StoreRepository stores,
+	public HoNetworkStockService(HoStoreStockRepository stocks, StoreRepository stores, HoNetworkStockQuery query,
 			TransactionOperations writeTransactions, Supplier<LocalDateTime> clock, boolean keepsStock) {
 		this.keepsStock = keepsStock;
 		this.stocks = stocks;
 		this.stores = stores;
+		this.query = query;
 		this.writeTransactions = writeTransactions;
 		this.clock = clock;
 	}
@@ -147,19 +146,33 @@ public class HoNetworkStockService {
 	 * {stores: [{id, code, name, lastStockAt}], content: [{itemCode, itemName, headOffice, byStore: {"&lt;storeId&gt;":
 	 * quantity}}], totalElements, totalPages, number, size}. storeId: one store, null or 0: every active store. A store
 	 * that never sent an item has no entry for it. belowZero true: only the items whose stock is below zero in a column
-	 * shown (the head office, or the store asked for, or any active store). A head office without stock
-	 * (headoffice.stock.enabled=false): headOffice is null and belowZero looks at the stores only.
+	 * shown (the head office, or the store asked for, or any active store), as stock=BELOW_ZERO. A head office without
+	 * stock (headoffice.stock.enabled=false): headOffice is null and the stock filter looks at the stores only.
 	 */
 	@Transactional(readOnly = true)
 	public Map<String, Object> page(Long storeId, String search, Integer page, Integer size, boolean belowZero) {
+		HoNetworkStockQuery.Criteria filters = new HoNetworkStockQuery.Criteria();
+		if (belowZero) {
+			filters.setStock(HoNetworkStockQuery.BELOW_ZERO);
+		}
+		return page(storeId, search, page, size, filters);
+	}
+
+	/**
+	 * Network stock (3.1.0), step 1: the same page with the filters of {@link HoNetworkStockQuery.Criteria} (family,
+	 * sub-family, division, catégorie, section; stock ALL, IN_STOCK, ZERO, BELOW_ZERO on the columns shown); its search,
+	 * store and head office column are set here.
+	 */
+	@Transactional(readOnly = true)
+	public Map<String, Object> page(Long storeId, String search, Integer page, Integer size,
+			HoNetworkStockQuery.Criteria filters) {
 		long wanted = storeId == null ? 0L : storeId;
 		List<Store> shown = shownStores(wanted);
 		PageRequest request = PageRequest.of(pageNumber(page), pageSize(size));
-		Page<Object[]> items = keepsStock
-				? stocks.findHeadOfficeItems(STOCK_TYPES, CatalogueKind.TAX_STAMP_CODE, like(search), wanted, belowZero,
-						request)
-				: stocks.findHeadOfficeItemsStoresOnly(STOCK_TYPES, CatalogueKind.TAX_STAMP_CODE, like(search), wanted,
-						belowZero, request);
+		filters.setLike(like(search));
+		filters.setStoreId(wanted);
+		filters.setHeadOfficeColumn(keepsStock);
+		Page<Object[]> items = query.lines(filters, request);
 		List<String> codes = items.getContent().stream().map(row -> (String) row[0]).collect(Collectors.toList());
 		Map<String, Map<String, BigDecimal>> byCode = new HashMap<>();
 		if (!codes.isEmpty()) {
@@ -176,7 +189,7 @@ public class HoNetworkStockService {
 			line.put("itemName", row[1]);
 			if (variants.get((String) row[0]) != null) line.put("variantDescription", variants.get((String) row[0]));
 			// 2.2.1: the head office stock with its decimals, without trailing zeros
-			line.put("headOffice", !keepsStock ? null : row[2] == null ? BigDecimal.ZERO : Quantities.normalize((BigDecimal) row[2]));
+			line.put("headOffice", !keepsStock ? null : row[2] == null ? BigDecimal.ZERO : Quantities.normalize(new BigDecimal(row[2].toString())));
 			line.put("byStore", byCode.getOrDefault((String) row[0], new LinkedHashMap<>()));
 			content.add(line);
 		}
