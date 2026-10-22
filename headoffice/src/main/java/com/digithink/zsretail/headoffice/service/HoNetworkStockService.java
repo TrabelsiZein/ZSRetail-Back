@@ -159,21 +159,29 @@ public class HoNetworkStockService {
 	}
 
 	/**
-	 * Network stock (3.1.0), step 1: the same page with the filters of {@link HoNetworkStockQuery.Criteria} (family,
+	 * Network stock (3.1.0): the same page with the filters of {@link HoNetworkStockQuery.Criteria} (step 1: family,
 	 * sub-family, division, catégorie, section; stock ALL, IN_STOCK, ZERO, BELOW_ZERO on the columns shown); its search,
-	 * store and head office column are set here.
+	 * store and head office column are set here. Step 2: sort code (natural, the default), name, headOffice (where the
+	 * head office keeps stock), store-&lt;id&gt; (a store shown; another one sorts by code), total (2 stores shown or
+	 * more, else by code); descending. Each row gains itemId and navItemNo (the item card), and with 2 stores shown or
+	 * more totalStores (the sum of the stores shown that sent the item, null when none did); the answer gains
+	 * withTotal.
 	 */
 	@Transactional(readOnly = true)
 	public Map<String, Object> page(Long storeId, String search, Integer page, Integer size,
-			HoNetworkStockQuery.Criteria filters) {
+			HoNetworkStockQuery.Criteria filters, String sort, boolean descending) {
 		long wanted = storeId == null ? 0L : storeId;
 		List<Store> shown = shownStores(wanted);
+		boolean withTotal = shown.size() >= 2;
 		PageRequest request = PageRequest.of(pageNumber(page), pageSize(size));
 		filters.setLike(like(search));
 		filters.setStoreId(wanted);
 		filters.setHeadOfficeColumn(keepsStock);
+		sortOf(filters, sort, shown, withTotal);
+		filters.setDescending(descending);
 		Page<Object[]> items = query.lines(filters, request);
-		List<String> codes = items.getContent().stream().map(row -> (String) row[0]).collect(Collectors.toList());
+		List<String> codes = items.getContent().stream().map(row -> (String) row[HoNetworkStockQuery.COL_ITEM_CODE])
+				.collect(Collectors.toList());
 		Map<String, Map<String, BigDecimal>> byCode = new HashMap<>();
 		if (!codes.isEmpty()) {
 			for (HoStoreStock row : stocks.findByCodes(codes, wanted)) {
@@ -184,17 +192,25 @@ public class HoNetworkStockService {
 		Map<String, String> variants = ItemVariantsByCode.of(this.items, codes);
 		List<Map<String, Object>> content = new ArrayList<>();
 		for (Object[] row : items.getContent()) {
+			String code = (String) row[HoNetworkStockQuery.COL_ITEM_CODE];
+			Object stock = row[HoNetworkStockQuery.COL_STOCK_QUANTITY];
+			Object id = row[HoNetworkStockQuery.COL_ITEM_ID];
+			Map<String, BigDecimal> byStore = byCode.getOrDefault(code, new LinkedHashMap<>());
 			Map<String, Object> line = new LinkedHashMap<>();
-			line.put("itemCode", row[0]);
-			line.put("itemName", row[1]);
-			if (variants.get((String) row[0]) != null) line.put("variantDescription", variants.get((String) row[0]));
+			line.put("itemCode", code);
+			line.put("itemName", row[HoNetworkStockQuery.COL_ITEM_NAME]);
+			if (variants.get(code) != null) line.put("variantDescription", variants.get(code));
+			line.put("itemId", id == null ? null : ((Number) id).longValue());
+			line.put("navItemNo", row[HoNetworkStockQuery.COL_NAV_ITEM_NO]);
 			// 2.2.1: the head office stock with its decimals, without trailing zeros
-			line.put("headOffice", !keepsStock ? null : row[2] == null ? BigDecimal.ZERO : Quantities.normalize(new BigDecimal(row[2].toString())));
-			line.put("byStore", byCode.getOrDefault((String) row[0], new LinkedHashMap<>()));
+			line.put("headOffice", !keepsStock ? null : stock == null ? BigDecimal.ZERO : Quantities.normalize(new BigDecimal(stock.toString())));
+			line.put("byStore", byStore);
+			if (withTotal) line.put("totalStores", totalOf(byStore, shown));
 			content.add(line);
 		}
 		Map<String, Object> answer = new LinkedHashMap<>();
 		answer.put("stores", storeViews(shown));
+		answer.put("withTotal", withTotal);
 		answer.put("content", content);
 		answer.put("totalElements", items.getTotalElements());
 		answer.put("totalPages", items.getTotalPages());
@@ -203,31 +219,87 @@ public class HoNetworkStockService {
 		return answer;
 	}
 
+	/** The same page by code (step 1's callers). */
+	@Transactional(readOnly = true)
+	public Map<String, Object> page(Long storeId, String search, Integer page, Integer size,
+			HoNetworkStockQuery.Criteria filters) {
+		return page(storeId, search, page, size, filters, null, false);
+	}
+
+	/**
+	 * The sort asked for, as the query reads it: a store column only for a store shown, the total only with 2 stores
+	 * shown or more; anything else (absent, unknown, an old link's store) by code.
+	 */
+	private static void sortOf(HoNetworkStockQuery.Criteria filters, String sort, List<Store> shown, boolean withTotal) {
+		String value = sort == null ? "" : sort.trim();
+		filters.setSort(HoNetworkStockQuery.SORT_CODE);
+		filters.setSortStoreId(null);
+		if (HoNetworkStockQuery.SORT_NAME.equals(value) || HoNetworkStockQuery.SORT_HEAD_OFFICE.equals(value)) {
+			filters.setSort(value);
+		} else if (HoNetworkStockQuery.SORT_TOTAL.equals(value) && withTotal) {
+			filters.setSort(value);
+		} else if (value.startsWith(HoNetworkStockQuery.SORT_STORE + "-")) {
+			try {
+				long id = Long.parseLong(value.substring(HoNetworkStockQuery.SORT_STORE.length() + 1));
+				if (shown.stream().anyMatch(store -> store.getId() == id)) {
+					filters.setSort(HoNetworkStockQuery.SORT_STORE);
+					filters.setSortStoreId(id);
+				}
+			} catch (NumberFormatException e) {
+				// by code
+			}
+		}
+	}
+
+	/** The sum of the stores shown that sent the item; null when none did. */
+	private static BigDecimal totalOf(Map<String, BigDecimal> byStore, List<Store> shown) {
+		BigDecimal total = null;
+		for (Store store : shown) {
+			BigDecimal quantity = byStore.get(String.valueOf(store.getId()));
+			if (quantity != null) {
+				total = total == null ? quantity : total.add(quantity);
+			}
+		}
+		return total == null ? null : Quantities.normalize(total);
+	}
+
 	/**
 	 * The stores' own items (not from the head office): {content: [{storeId, storeCode, storeName, itemCode, itemName,
-	 * quantity, storeTime, receivedAt}], totalElements, totalPages, number, size}, by store and code. belowZero true: only
-	 * those whose stock is below zero.
+	 * quantity, storeTime, receivedAt}], totalElements, totalPages, number, size}, by store code and item code. belowZero
+	 * true: only those whose stock is below zero.
 	 */
 	@Transactional(readOnly = true)
 	public Map<String, Object> ownItems(Long storeId, String search, Integer page, Integer size, boolean belowZero) {
-		Page<HoStoreStock> rows = stocks.findOwnItems(Boolean.TRUE, storeId == null ? 0L : storeId, like(search), belowZero,
-				PageRequest.of(pageNumber(page), pageSize(size)));
-		Map<Long, Store> byId = new HashMap<>();
-		for (Store store : stores.findAll()) {
-			byId.put(store.getId(), store);
-		}
+		return ownItems(storeId, search, page, size, belowZero ? HoNetworkStockQuery.BELOW_ZERO : null, null, false);
+	}
+
+	/**
+	 * Network stock (3.1.0), step 2: the own items with the stock filter on their quantity (IN_STOCK, ZERO, BELOW_ZERO;
+	 * other: all) and the sort store (code, the default), code (natural), name, quantity, storeTime, receivedAt; each
+	 * then by store and code. The same rows and values as before.
+	 */
+	@Transactional(readOnly = true)
+	public Map<String, Object> ownItems(Long storeId, String search, Integer page, Integer size, String stock, String sort,
+			boolean descending) {
+		HoNetworkStockQuery.Criteria filters = new HoNetworkStockQuery.Criteria();
+		filters.setStoreId(storeId == null ? 0L : storeId);
+		filters.setLike(like(search));
+		filters.setStock(stock);
+		filters.setSort(sort == null ? null : sort.trim());
+		filters.setDescending(descending);
+		Page<Object[]> rows = query.ownLines(filters, PageRequest.of(pageNumber(page), pageSize(size)));
 		List<Map<String, Object>> content = new ArrayList<>();
-		for (HoStoreStock row : rows.getContent()) {
-			Store store = byId.get(row.getStoreId());
+		for (Object[] row : rows.getContent()) {
+			Object quantity = row[HoNetworkStockQuery.OWN_QUANTITY];
 			Map<String, Object> line = new LinkedHashMap<>();
-			line.put("storeId", row.getStoreId());
-			line.put("storeCode", store == null ? null : store.getCode());
-			line.put("storeName", store == null ? null : store.getName());
-			line.put("itemCode", row.getItemCode());
-			line.put("itemName", row.getItemName());
-			line.put("quantity", row.getQuantity());
-			line.put("storeTime", row.getStoreTime() == null ? null : row.getStoreTime().toString());
-			line.put("receivedAt", row.getReceivedAt() == null ? null : row.getReceivedAt().toString());
+			line.put("storeId", ((Number) row[HoNetworkStockQuery.OWN_STORE_ID]).longValue());
+			line.put("storeCode", row[HoNetworkStockQuery.OWN_STORE_CODE]);
+			line.put("storeName", row[HoNetworkStockQuery.OWN_STORE_NAME]);
+			line.put("itemCode", row[HoNetworkStockQuery.OWN_ITEM_CODE]);
+			line.put("itemName", row[HoNetworkStockQuery.OWN_ITEM_NAME]);
+			line.put("quantity", quantity == null ? BigDecimal.ZERO : Quantities.normalize(new BigDecimal(quantity.toString())));
+			line.put("storeTime", time(row[HoNetworkStockQuery.OWN_STORE_TIME]));
+			line.put("receivedAt", time(row[HoNetworkStockQuery.OWN_RECEIVED_AT]));
 			content.add(line);
 		}
 		Map<String, Object> answer = new LinkedHashMap<>();
@@ -265,6 +337,17 @@ public class HoNetworkStockService {
 			views.add(view);
 		}
 		return views;
+	}
+
+	/** A time of a native row (a Timestamp, or a LocalDateTime) as LocalDateTime.toString(), as the entity gave it. */
+	private static String time(Object value) {
+		if (value == null) {
+			return null;
+		}
+		if (value instanceof java.sql.Timestamp) {
+			return ((java.sql.Timestamp) value).toLocalDateTime().toString();
+		}
+		return value.toString();
 	}
 
 	private static String like(String search) {

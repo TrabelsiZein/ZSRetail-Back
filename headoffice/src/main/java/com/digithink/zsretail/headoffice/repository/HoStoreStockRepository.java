@@ -3,8 +3,6 @@ package com.digithink.zsretail.headoffice.repository;
 import java.util.Collection;
 import java.util.List;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -32,17 +30,5 @@ public interface HoStoreStockRepository extends _BaseRepository<HoStoreStock, Lo
 	@Query("select s.storeId, max(s.receivedAt) from HoStoreStock s group by s.storeId")
 	List<Object[]> lastReceivedByStore();
 
-	/**
-	 * The stores own items (own TRUE: not from the head office), by store and code; storeId 0 = every store. belowZero
-	 * true: only those whose stock is below zero.
-	 */
-	@Query(value = "select s from HoStoreStock s where s.ownItem = :own and (:storeId = 0L or s.storeId = :storeId)"
-			+ " and (:search is null or lower(s.itemCode) like :search or lower(s.itemName) like :search)"
-			+ " and (:belowZero = false or s.quantity < 0)"
-			+ " order by s.storeId, s.itemCode",
-			countQuery = "select count(s) from HoStoreStock s where s.ownItem = :own and (:storeId = 0L or s.storeId = :storeId)"
-					+ " and (:search is null or lower(s.itemCode) like :search or lower(s.itemName) like :search)"
-					+ " and (:belowZero = false or s.quantity < 0)")
-	Page<HoStoreStock> findOwnItems(@Param("own") Boolean own, @Param("storeId") Long storeId,
-			@Param("search") String search, @Param("belowZero") Boolean belowZero, Pageable page);
+	// Network stock (3.1.0): the page's two lists are HoNetworkStockQuery (native SQL with filters and sorts)
 }

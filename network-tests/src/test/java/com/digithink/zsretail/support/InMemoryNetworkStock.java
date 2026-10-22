@@ -131,18 +131,6 @@ public final class InMemoryNetworkStock {
 					return last.entrySet().stream().map(e -> new Object[] { e.getKey(), e.getValue() })
 							.collect(Collectors.toList());
 				}
-				case "findOwnItems": {
-					long storeId = (Long) args[1];
-					String search = (String) args[2];
-					List<HoStoreStock> own = storeStock.values().stream()
-							.filter(s -> Objects.equals(s.getOwnItem(), args[0]))
-							.filter(s -> storeId == 0 || s.getStoreId() == storeId)
-							.filter(s -> search == null || like(s.getItemCode(), search) || like(s.getItemName(), search))
-							.filter(s -> !Boolean.TRUE.equals(args[3]) || s.getQuantity().signum() < 0)
-							.sorted(Comparator.comparing(HoStoreStock::getStoreId).thenComparing(HoStoreStock::getItemCode))
-							.collect(Collectors.toList());
-					return page(own, (Pageable) args[4]);
-				}
 				default:
 					return UNHANDLED;
 			}
@@ -173,11 +161,35 @@ public final class InMemoryNetworkStock {
 						.filter(i -> c.getSectionCode() == null || c.getSectionCode().equals(i.getSectionCode()))
 						.filter(i -> stockKept(ho, c, i))
 						.sorted(Comparator.comparing(Item::getItemCode))
-						.map(i -> new Object[] { i.getItemCode(), i.getName(), i.getStockQuantity() })
+						.map(i -> new Object[] { i.getItemCode(), i.getName(), i.getStockQuantity(), i.getId(), i.getNavItemNo() })
 						.collect(Collectors.toList());
 				return page(items, pageable);
 			}
+
+			/** The stores' own items, by store code and item code (the sorts are tested on H2, not here). */
+			@Override
+			public Page<Object[]> ownLines(Criteria c, Pageable pageable) {
+				String search = c.getLike();
+				String stock = c.getStock() == null ? "" : c.getStock();
+				List<Object[]> own = storeStock.values().stream()
+						.filter(s -> Boolean.TRUE.equals(s.getOwnItem()))
+						.filter(s -> c.getStoreId() == 0 || s.getStoreId() == c.getStoreId())
+						.filter(s -> search == null || like(s.getItemCode(), search) || like(s.getItemName(), search))
+						.filter(s -> HoNetworkStockQuery.IN_STOCK.equals(stock) ? s.getQuantity().signum() > 0
+								: HoNetworkStockQuery.ZERO.equals(stock) ? s.getQuantity().signum() == 0
+										: !HoNetworkStockQuery.BELOW_ZERO.equals(stock) || s.getQuantity().signum() < 0)
+						.sorted(Comparator.comparing((HoStoreStock s) -> storeCode(ho, s)).thenComparing(HoStoreStock::getItemCode))
+						.map(s -> new Object[] { s.getStoreId(), storeCode(ho, s),
+								ho.stores.get(s.getStoreId()) == null ? null : ho.stores.get(s.getStoreId()).getName(),
+								s.getItemCode(), s.getItemName(), s.getQuantity(), s.getStoreTime(), s.getReceivedAt() })
+						.collect(Collectors.toList());
+				return page(own, pageable);
+			}
 		};
+	}
+
+	private static String storeCode(InMemoryCatalogue ho, HoStoreStock row) {
+		return ho.stores.get(row.getStoreId()) == null ? "" : ho.stores.get(row.getStoreId()).getCode();
 	}
 
 	/** The stock filter on the columns shown: the head office (when a column), the store asked for or the active ones. */

@@ -145,7 +145,7 @@ class NetworkStockQueryTest {
 	private static List<String> codes(Consumer<HoNetworkStockQuery.Criteria> set) {
 		HoNetworkStockQuery.Criteria criteria = new HoNetworkStockQuery.Criteria();
 		set.accept(criteria);
-		HoNetworkStockQuery.Built built = HoNetworkStockQuery.build(criteria);
+		HoNetworkStockQuery.Built built = HoNetworkStockQuery.build(criteria, true);
 		try (Session session = sessions.openSession()) {
 			NativeQuery<?> lines = session.createNativeQuery(built.getLines());
 			NativeQuery<?> count = session.createNativeQuery(built.getCount());
@@ -219,8 +219,8 @@ class NetworkStockQueryTest {
 		every.setCategoryCode("C");
 		every.setSectionCode("S");
 		every.setStock(HoNetworkStockQuery.ZERO);
-		HoNetworkStockQuery.Built built = HoNetworkStockQuery.build(every);
-		assertEquals(Arrays.asList("item_code", "item_name", "stock_quantity"),
+		HoNetworkStockQuery.Built built = HoNetworkStockQuery.build(every, true);
+		assertEquals(Arrays.asList("item_code", "item_name", "stock_quantity", "item_id", "nav_item_no"),
 				ItemCatalogueQueryTest.columnLabels(sessions, built.getLines(), built.getParameters()));
 		assertEquals(Arrays.asList(HoNetworkStockQuery.COUNT_COLUMN),
 				ItemCatalogueQueryTest.columnLabels(sessions, built.getCount(), built.getParameters()));

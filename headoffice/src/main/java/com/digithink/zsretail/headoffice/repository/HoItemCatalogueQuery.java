@@ -302,6 +302,18 @@ public class HoItemCatalogueQuery {
 	}
 
 	/**
+	 * The same natural order on any code column (Network stock, 3.1.0): the codes of 1 to 38 digits first, by their
+	 * number, then the others as text, then id; the same SQL as {@link #codeOrder(String, boolean)} on another column.
+	 */
+	public static String codeOrder(String code, String id, String dir, boolean portable) {
+		String size = "(" + code + " <> '' AND " + code + " NOT LIKE '" + repeat('_', 39) + "%')";
+		String number = "(" + size + " AND " + (portable ? withoutDigits(code) + " = ''"
+				: code + " COLLATE Latin1_General_BIN NOT LIKE '%[^0-9]%'") + ")";
+		return "CASE WHEN " + number + " THEN 0 ELSE 1 END" + dir + ", CASE WHEN " + number + " THEN CAST(" + code
+				+ " AS DECIMAL(38,0)) END" + dir + ", " + code + dir + ", " + id + dir;
+	}
+
+	/**
 	 * The flags of the page, from the data: [has_variants, has_families, has_division, has_category, has_section,
 	 * stock_point_count, has_barcodes]; one existence check each (ZEN has catégories and divisions but no section).
 	 */

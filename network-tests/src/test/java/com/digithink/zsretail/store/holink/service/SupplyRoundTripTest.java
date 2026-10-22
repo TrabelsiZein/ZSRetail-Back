@@ -606,6 +606,11 @@ class SupplyRoundTripTest {
 		assertEquals(BigDecimal.valueOf(50), rows.get(0).get("headOffice"));
 		assertEquals("{" + b.getId() + "=48}", rows.get(0).get("byStore").toString());
 		assertEquals(3L, page.get("totalElements"));
+		// Network stock step 2: the keys of the item card; B and C shown: the total of the stores shown
+		assertEquals(ho.itemByCode("B001").get().getId(), rows.get(0).get("itemId"));
+		assertTrue(rows.get(0).containsKey("navItemNo"));
+		assertEquals(Boolean.TRUE, page.get("withTotal"));
+		assertEquals(BigDecimal.valueOf(48), rows.get(0).get("totalStores"));
 
 		assertEquals(1, ((List<?>) hoNetwork.page(c.getId(), null, 0, 20, false).get("stores")).size());
 		assertEquals("{}", ((List<Map<String, Object>>) hoNetwork.page(c.getId(), null, 0, 20, false).get("content")).get(0)
@@ -620,6 +625,8 @@ class SupplyRoundTripTest {
 		assertEquals("OWN1", own.get(0).get("itemCode"));
 		assertEquals("B", own.get(0).get("storeCode"));
 		assertEquals(BigDecimal.valueOf(3), own.get(0).get("quantity"));
+		assertEquals(1, codes(hoNetwork.ownItems(null, null, 0, 20, "IN_STOCK", null, false)).size(), "step 2: in stock");
+		assertEquals(0, codes(hoNetwork.ownItems(null, null, 0, 20, "ZERO", null, false)).size());
 	}
 
 	@SuppressWarnings("unchecked")

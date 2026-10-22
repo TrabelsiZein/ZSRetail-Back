@@ -38,7 +38,8 @@ public class HoNetworkStockAPI {
 	/**
 	 * The head office items with their stock and each store's: {stores, content, totalElements, ...}. 3.1.0: familyId,
 	 * subFamilyId, divisionCode, categoryCode, sectionCode; stock ALL (default), IN_STOCK, ZERO, BELOW_ZERO on the columns
-	 * shown; belowZero=true is stock=BELOW_ZERO (when stock is absent).
+	 * shown; belowZero=true is stock=BELOW_ZERO (when stock is absent). Step 2: sort code (default), name, headOffice,
+	 * store-&lt;id&gt;, total; dir asc (default) or desc.
 	 */
 	@GetMapping
 	public ResponseEntity<?> page(@RequestParam(required = false) Long storeId,
@@ -46,24 +47,40 @@ public class HoNetworkStockAPI {
 			@RequestParam(required = false) Integer size, @RequestParam(required = false) Boolean belowZero,
 			@RequestParam(required = false) String stock, @RequestParam(required = false) Long familyId,
 			@RequestParam(required = false) Long subFamilyId, @RequestParam(required = false) String divisionCode,
-			@RequestParam(required = false) String categoryCode, @RequestParam(required = false) String sectionCode) {
+			@RequestParam(required = false) String categoryCode, @RequestParam(required = false) String sectionCode,
+			@RequestParam(required = false) String sort, @RequestParam(required = false) String dir) {
 		HoNetworkStockQuery.Criteria filters = new HoNetworkStockQuery.Criteria();
-		filters.setStock(stock != null && !stock.trim().isEmpty() ? stock
-				: Boolean.TRUE.equals(belowZero) ? HoNetworkStockQuery.BELOW_ZERO : null);
+		filters.setStock(stockOf(stock, belowZero));
 		filters.setFamilyId(familyId);
 		filters.setSubFamilyId(subFamilyId);
 		filters.setDivisionCode(divisionCode);
 		filters.setCategoryCode(categoryCode);
 		filters.setSectionCode(sectionCode);
-		return answer(() -> ResponseEntity.ok(service.page(storeId, search, page, size, filters)));
+		return answer(() -> ResponseEntity.ok(service.page(storeId, search, page, size, filters, sort, descending(dir))));
 	}
 
-	/** The stores' own items (not from the head office) with their stock. */
+	/**
+	 * The stores' own items (not from the head office) with their stock. Step 2: stock ALL (default), IN_STOCK, ZERO,
+	 * BELOW_ZERO on the row's quantity (belowZero=true as BELOW_ZERO); sort store (default), code, name, quantity,
+	 * storeTime, receivedAt; dir asc or desc.
+	 */
 	@GetMapping("/own")
 	public ResponseEntity<?> own(@RequestParam(required = false) Long storeId,
 			@RequestParam(required = false) String search, @RequestParam(required = false) Integer page,
-			@RequestParam(required = false) Integer size, @RequestParam(required = false) Boolean belowZero) {
-		return answer(() -> ResponseEntity.ok(service.ownItems(storeId, search, page, size, Boolean.TRUE.equals(belowZero))));
+			@RequestParam(required = false) Integer size, @RequestParam(required = false) Boolean belowZero,
+			@RequestParam(required = false) String stock, @RequestParam(required = false) String sort,
+			@RequestParam(required = false) String dir) {
+		return answer(() -> ResponseEntity.ok(service.ownItems(storeId, search, page, size, stockOf(stock, belowZero), sort,
+				descending(dir))));
+	}
+
+	private static String stockOf(String stock, Boolean belowZero) {
+		return stock != null && !stock.trim().isEmpty() ? stock
+				: Boolean.TRUE.equals(belowZero) ? HoNetworkStockQuery.BELOW_ZERO : null;
+	}
+
+	private static boolean descending(String dir) {
+		return "desc".equalsIgnoreCase(dir == null ? null : dir.trim());
 	}
 
 	private ResponseEntity<?> answer(Supplier<ResponseEntity<?>> call) {
