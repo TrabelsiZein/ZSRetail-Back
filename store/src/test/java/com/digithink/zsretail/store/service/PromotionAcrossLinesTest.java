@@ -251,13 +251,50 @@ class PromotionAcrossLinesTest {
 	void oneLineAsBefore() {
 		Promotion p = free("NAV21", PromotionScope.ITEM, 2, 1);
 		p.setNavItemNo("N1");
-		assertTrue(engine.calculateCartPromotion(300.0, Collections.singletonList(line(10, 3, 100)), codes(), null)
-				.getLineResults().isEmpty());
 		PriceCalculateResponseDTO withCart = engine.calculateItemPrice(10L, BigDecimal.valueOf(3), null, codes(),
 				Collections.singletonList(line(10, 1, 100)));
 		PriceCalculateResponseDTO alone = engine.calculateItemPrice(10L, BigDecimal.valueOf(3), null, codes());
 		assertEquals(alone, withCart, "the line's own quantity (3) wins; no acrossLines");
 		assertFree(p, 1, 0, alone);
+		// The cart pass answers the one line too (was: none), priced alone
+		List<PriceCalculateResponseDTO> results = engine.calculateCartPromotion(300.0,
+				Collections.singletonList(line(10, 3, 100)), codes(), null).getLineResults();
+		assertEquals(1, results.size());
+		assertFalse(results.get(0).getAcrossLines());
+		results.get(0).setAcrossLines(null);
+		assertEquals(alone, results.get(0), "the same answer as the line priced alone");
+	}
+
+	@Test
+	@DisplayName("The cart pass answers every line, whether or not its price depends on the other lines")
+	void everyLineAnswered() {
+		Promotion p = free("NAV21", PromotionScope.ITEM, 2, 1);
+		p.setNavItemNo("N1");
+		Map<Long, PriceCalculateResponseDTO> lines = lineResults(
+				Arrays.asList(line(10, 1, 100), line(11, 2, 80), line(30, 1, 50), line(70, 1, 20)));
+		assertEquals(Arrays.asList(10L, 11L, 30L, 70L), new ArrayList<>(lines.keySet()));
+		assertTrue(lines.get(10L).getAcrossLines());
+		assertFalse(lines.get(30L).getAcrossLines());
+		assertFalse(lines.get(70L).getAcrossLines());
+	}
+
+	@Test
+	@DisplayName("Screen test case 6: 6 pieces / 2 free, then the other line removed: the line left has no free piece, its hint back")
+	void groupDissolved() {
+		Promotion p = free("NAV21", PromotionScope.ITEM, 2, 1);
+		p.setNavItemNo("N1");
+		item(13, "N1", shirts, null, 100.0); // taille 36, the same price as taille 38 (item 10)
+		Map<Long, PriceCalculateResponseDTO> lines = lineResults(Arrays.asList(line(13, 2, 100), line(10, 4, 100)));
+		assertFree(p, 2, 0, lines.get(13L));
+		assertFree(p, 0, 0, lines.get(10L));
+
+		lines = lineResults(Collections.singletonList(line(13, 2, 100)));
+		PriceCalculateResponseDTO left = lines.get(13L);
+		assertNull(left.getPromotionId(), "2 pieces alone: not taken");
+		assertEquals(0, left.getFreeQuantity().intValue(), "no free piece");
+		assertEquals(1, left.getFreeQuantityAvailable().intValue(), "the hint: 1 more piece free");
+		assertEquals(p.getId(), left.getFreePromotionId());
+		assertFalse(left.getAcrossLines());
 	}
 
 	@Test

@@ -63,9 +63,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   carries yet. A copy without them (null / empty) compares equal to an existing promotion: nothing rewritten (EMTOP,
   Happyness). A store of an older build ignores the fields.
 - Promotions on every variant of a NAV item, step 2, counted across the cart lines (rule 6a): `POST /price-calculate`
-  takes `cartLines` (the cart in order) and answers `acrossLines`; the cart pass (`customerId`) adds `lineResults`, each
-  line priced with the cart around it. Quantity promotions on NAV targets and a NAV free item are accepted; a benefit
-  on both an item and an ERP item number is refused; buy NAV = get NAV is a same-item promotion. Cross-product:
+  takes `cartLines` (the cart in order) and answers `acrossLines`; the cart pass (`customerId`) adds `lineResults`, every
+  line priced with the cart around it (a cart of one item: its line priced alone). Quantity promotions on NAV targets
+  and a NAV free item are accepted; a benefit on both an item and an ERP item number is refused; buy NAV = get NAV is
+  a same-item promotion. Cross-product:
   `getNavItemNo`, `freeByItemId`, `entitledByItemId` (cheapest first). Promo code: `navItemNo`, `groupNavItemNos`,
   `getNavItemNo`. Without `cartLines`, or a cart of one line: priced exactly as before.
 - Till levels catégorie and section, step 1, API only (ZEN; docs/modules/head-office.md, "Till levels"): read-only POS

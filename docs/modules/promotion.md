@@ -337,16 +337,19 @@ is priced exactly as before.
 - **API** (decision A): `POST /price-calculate` takes `cartLines` (`{itemId, quantity, unitPrice}`, the cart in order,
   this line included; absent: first; none or this line alone: priced alone, exactly as before) and answers
   `acrossLines` (the answer differs from the line priced alone). The cart pass (`POST /price-calculate/cart`, with
-  `customerId`) adds `lineResults`: each line priced with the cart around it, with `acrossLines`; none for one line. A
-  till of before sends no lines and ignores `lineResults`: single-line pricing as before.
+  `customerId`) adds `lineResults`: every line priced with the cart around it, with `acrossLines`; a cart of one item,
+  its line priced alone (screen test case 6 of 2026-10-23: a line left alone by a removal must lose the free pieces of
+  the group it was in). A till of before sends no lines and ignores `lineResults`: single-line pricing as before.
 - **Cross-product**: entitled = floor(Q / N) over every buy line (before: the sum of each line's floor); the benefit
   on an item or on any variant of an ERP item number (`getNavItemNo`): `freeByItemId` (free pieces per line) or
   `entitledByItemId` (discounted units per line), cheapest first; `getItemName` of a NAV benefit with no variant in
   the cart from `ItemRepository.findNavItemNames`. Promo code (`GET /price-calculate/promo-code/{code}`):
   also `navItemNo`, `groupNavItemNos`, `getNavItemNo`.
 - **Till** (`ItemSelection.vue`): every price question carries the cart's lines (`priceLines`, `libs/free-pieces.js`);
-  the cart pass applies `lineResults` (`applyLineResults`) to a line whose answer depends on the others or did, never
-  to a line with a manual discount, then the cross-product adjustments (`freeByItemId`, `entitledByItemId`); a line
+  the cart pass applies `lineResults` (`applyLineResults`) to every line whose answer differs from what it shows, as a
+  per-line answer (the hint included), never to a line with a manual discount (a cross-product's discount on a line is
+  compared apart), then the cross-product adjustments (`freeByItemId`, `entitledByItemId`). A line taken by a free
+  promotion with 0 free piece of its own (decision C) shows the promotion's name as a badge (`freeGroupLine`). A line
   keeps `navItemNo` (an ITEM code on an ERP item number re-prices its variants' lines), `freePromotionId` and
   `acrossLines`. Recall and pending list: the ticket's lines go with each question. Payment: its price questions carry
   the cart; a code with `getNavItemNo` is refused there as one with `getItemId`. Split bill (decision D): a line that

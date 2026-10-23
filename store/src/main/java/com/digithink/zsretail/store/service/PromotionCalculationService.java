@@ -317,7 +317,7 @@ public class PromotionCalculationService {
 	/**
 	 * The cart pass of the till (POST /price-calculate/cart): the cart promotion and the cross-product adjustments as
 	 * above, and 3.1.0 (rule 6a) each line priced with the cart around it (lineResults, acrossLines when it differs
-	 * from the line priced alone), so the till corrects the lines another line's change moved. A cart of one line: none.
+	 * from the line priced alone), so the till corrects the lines another line's change moved. A cart of one item: its line(s) priced alone.
 	 */
 	public CartCalculateResponseDTO calculateCartPromotion(Double cartTotal,
 			List<CartCalculateRequestDTO.CartItemDTO> cartItems, List<String> appliedCodes, Long customerId) {
@@ -325,6 +325,25 @@ public class PromotionCalculationService {
 		List<String> codes = (appliedCodes != null) ? appliedCodes : new ArrayList<>();
 		List<CartLine> lines = cartLines(cartItems, null, null);
 		if (lines == null) {
+			// One item left (a line removed, the cart's last one): each line priced alone, so the till never keeps the
+			// free pieces or the hint of a group that no longer exists (screen test of 2026-10-23, case 6)
+			Customer customer = null;
+			for (CartCalculateRequestDTO.CartItemDTO line : cartItems == null ? List.<CartCalculateRequestDTO.CartItemDTO>of()
+					: cartItems) {
+				if (line == null || line.getItemId() == null || line.getQuantity() == null || line.getQuantity().signum() <= 0) {
+					continue;
+				}
+				Optional<Item> item = itemRepository.findById(line.getItemId());
+				if (!item.isPresent()) {
+					continue;
+				}
+				customer = customer != null ? customer : resolveCustomer(customerId);
+				PricingResult pricing = pricingService.calculateItemPrice(item.get(), customer, line.getQuantity(), null);
+				PriceCalculateResponseDTO alone = price(item.get(), line.getQuantity(), pricing,
+						findBestItemPromotion(item.get(), line.getQuantity(), codes));
+				alone.setAcrossLines(false);
+				response.getLineResults().add(alone);
+			}
 			return response;
 		}
 		Customer customer = resolveCustomer(customerId);
