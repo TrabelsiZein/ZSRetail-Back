@@ -2,6 +2,7 @@ package com.digithink.zsretail.connector.zen.mapper;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -14,9 +15,12 @@ import java.util.Set;
 
 import com.digithink.zsretail.connector.zen.dto.ZenBarcodeRow;
 import com.digithink.zsretail.connector.zen.dto.ZenCategoryRow;
+import com.digithink.zsretail.connector.zen.dto.ZenInvoiceLineRow;
+import com.digithink.zsretail.connector.zen.dto.ZenInvoiceRow;
 import com.digithink.zsretail.connector.zen.dto.ZenStockPointRow;
 import com.digithink.zsretail.erp.api.ErpBarcodeRow;
 import com.digithink.zsretail.erp.api.ErpCategories;
+import com.digithink.zsretail.erp.api.ErpQuantities;
 import com.digithink.zsretail.erp.api.ErpRead;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemCategoryDTO;
@@ -24,6 +28,7 @@ import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemSectionDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSupplyInvoiceDTO;
 
 /**
  * Item variants (ZEN), step 8: the rows of ZEN's API to the Erp*DTO classes, with the counts of each read. No Spring:
@@ -49,6 +54,7 @@ import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
  * <li>Barcodes (step 12a, ZEN's page barCodes): the item is {@link #itemCode} of itemNo and variantCode; the position
  * {@link #position} of lastModifiedDateTime. A blank barCode or itemNo, and a date not readable, are left out; the
  * position of every row read is kept. unitOfMeasureCode is not read: every row is kept whatever its unit.</li>
+ * <li>Invoices (step 9, NAV's page SalesInvoice): see {@link #invoices}.</li>
  * </ul>
  */
 public class ZenMapper {
@@ -74,6 +80,19 @@ public class ZenMapper {
 	public static final String BLANK_BARCODE = "blank barCode";
 	public static final String BLANK_BARCODE_ITEM = "blank itemNo";
 	public static final String UNREADABLE_DATE = "lastModifiedDateTime not readable";
+	public static final String BLANK_NUMBER = "blank No";
+	public static final String CANCELLED = "cancelled (Cancelled true)";
+	public static final String COMMENT_LINE = "line without type (comment)";
+	public static final String ZERO_OTHER_LINE = "line of another type with amount 0";
+	public static final String WITH_WARNINGS = "invoice with warnings";
+	public static final String NO_LINE = "no line: no totals";
+	public static final String CORRECTIVE = "corrective invoice (Corrective true: it cancels a credit memo)";
+
+	/** Lines and Total_Amount_Excl_VAT may differ by this much (rounding of the ERP), as Happyness. */
+	public static final BigDecimal TOTAL_TOLERANCE = new BigDecimal("0.005");
+	static final String ITEM_TYPE = "Item";
+	/** The blank option as some OData versions write it. */
+	static final String BLANK_TYPE = "_x0020_";
 
 	/**
 	 * Step 12a: the position of a barcode row without a date: NAV's empty date 0001-01-01, a blank, a date before 1970
@@ -376,6 +395,113 @@ public class ZenMapper {
 	private static boolean readableDate(String value) {
 		String text = trimmed(value);
 		return text.isEmpty() || text.startsWith("0001-01-01") || modifiedAt(text) != null;
+	}
+
+	// ─── Invoices (step 9) ──────────────────────────────────────
+
+	/**
+	 * Step 9: NAV's posted sales invoices to {@link ErpSupplyInvoiceDTO}, in the order read, as Happyness's
+	 * (NavPosPagesMapper.invoices). A row without a number, and a cancelled one (Cancelled true: never handed, never
+	 * saved), are left out. Customer: Sell_to_Customer_No. pricesIncludingVat stays null (ZEN's prices are before VAT; the
+	 * page has no such field). Lines: Type Item with an item number is ITEM, its item code {@link #itemCode} of No and
+	 * Variant_Code (the code the catalogue writes); another type with an amount is OTHER (no item code); a line without
+	 * type (a comment, " ") and a line of another type at amount 0 are left out. The three totals come from the first
+	 * line. Warnings: a corrective invoice (it cancels a credit memo; read as any other, also noted), an item quantity
+	 * with more than 3 decimals, lines that differ from Total_Amount_Excl_VAT by more than {@link #TOTAL_TOLERANCE}, an
+	 * Item line without item number, no line.
+	 */
+	public ErpRead<ErpSupplyInvoiceDTO> invoices(List<ZenInvoiceRow> rows) {
+		Map<String, Integer> leftOut = new LinkedHashMap<>();
+		Map<String, Integer> notes = new LinkedHashMap<>();
+		List<ErpSupplyInvoiceDTO> invoices = new ArrayList<>();
+		for (ZenInvoiceRow row : rows) {
+			String number = row.getNumber();
+			if (number.isEmpty()) {
+				count(leftOut, BLANK_NUMBER);
+				continue;
+			}
+			if (row.isCancelled()) {
+				count(leftOut, CANCELLED);
+				continue;
+			}
+			ErpSupplyInvoiceDTO invoice = new ErpSupplyInvoiceDTO();
+			invoice.setNumber(number);
+			invoice.setCustomerNo(blankToNull(row.text(ZenInvoiceRow.CUSTOMER_NO)));
+			invoice.setCustomerName(blankToNull(row.text(ZenInvoiceRow.CUSTOMER_NAME)));
+			invoice.setDocumentDate(invoiceDate(row.text(ZenInvoiceRow.DOCUMENT_DATE)));
+			invoice.setPostingDate(invoiceDate(row.text(ZenInvoiceRow.POSTING_DATE)));
+			List<String> warnings = invoice.getWarnings();
+			if (row.isCorrective()) {
+				warnings.add(CORRECTIVE);
+				count(notes, CORRECTIVE);
+			}
+			if (row.getLines().isEmpty()) {
+				warnings.add(NO_LINE);
+			} else {
+				ZenInvoiceLineRow first = row.getLines().get(0);
+				invoice.setTotalExclVat(first.getTotalAmountExclVat());
+				invoice.setTotalVat(first.getTotalVatAmount());
+				invoice.setTotalInclVat(first.getTotalAmountInclVat());
+			}
+			BigDecimal sum = BigDecimal.ZERO;
+			for (ZenInvoiceLineRow source : row.getLines()) {
+				String type = trimmed(source.getType());
+				BigDecimal amount = source.getLineAmount() == null ? BigDecimal.ZERO : source.getLineAmount();
+				if (type.isEmpty() || BLANK_TYPE.equals(type)) {
+					count(leftOut, COMMENT_LINE);
+					continue;
+				}
+				boolean item = ITEM_TYPE.equalsIgnoreCase(type);
+				if (item && trimmed(source.getNo()).isEmpty()) {
+					warnings.add("line " + source.getLineNo() + ": an Item line without an item number");
+					item = false;
+				}
+				if (!item && amount.signum() == 0) {
+					count(leftOut, ZERO_OTHER_LINE);
+					continue;
+				}
+				ErpSupplyInvoiceDTO.Line line = new ErpSupplyInvoiceDTO.Line();
+				line.setLineNo(source.getLineNo());
+				line.setType(item ? ErpSupplyInvoiceDTO.LineType.ITEM : ErpSupplyInvoiceDTO.LineType.OTHER);
+				line.setItemCode(item ? itemCode(source.getNo(), source.getVariantCode()) : null);
+				line.setDescription(blankToNull(source.getDescription()));
+				line.setQuantity(source.getQuantity());
+				line.setUnitOfMeasure(blankToNull(source.getUnitOfMeasureCode()));
+				line.setUnitPrice(source.getUnitPrice());
+				line.setLineDiscountPercent(source.getLineDiscountPercent());
+				line.setLineAmount(source.getLineAmount());
+				// As Happyness (2.2.1): a decimal quantity is read as the ERP sends it; more than 3 decimals cannot be kept
+				if (item && source.getQuantity() != null
+						&& ErpQuantities.decimals(source.getQuantity()) > ErpQuantities.SCALE) {
+					warnings.add("line " + source.getLineNo() + ": quantity " + source.getQuantity().toPlainString()
+							+ " of item " + line.getItemCode() + " has more than " + ErpQuantities.SCALE + " decimals");
+				}
+				sum = sum.add(amount);
+				invoice.getLines().add(line);
+			}
+			if (invoice.getTotalExclVat() != null && sum.subtract(invoice.getTotalExclVat()).abs().compareTo(TOTAL_TOLERANCE) > 0) {
+				warnings.add("the lines add up to " + sum.toPlainString() + ", Total_Amount_Excl_VAT is "
+						+ invoice.getTotalExclVat().toPlainString());
+			}
+			if (!warnings.isEmpty()) {
+				count(notes, WITH_WARNINGS);
+			}
+			invoices.add(invoice);
+		}
+		return new ErpRead<>(invoices, rows.size(), leftOut, notes, null);
+	}
+
+	/** yyyy-MM-dd; null when blank, not a date, or NAV's empty date 0001-01-01. */
+	private static LocalDate invoiceDate(String value) {
+		String text = trimmed(value);
+		if (text.isEmpty() || text.startsWith("0001-01-01")) {
+			return null;
+		}
+		try {
+			return LocalDate.parse(text.length() > 10 ? text.substring(0, 10) : text);
+		} catch (DateTimeParseException e) {
+			return null;
+		}
 	}
 
 	// ─── Helpers ────────────────────────────────────────────────

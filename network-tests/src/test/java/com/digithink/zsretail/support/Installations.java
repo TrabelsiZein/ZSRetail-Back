@@ -49,7 +49,7 @@ public final class Installations {
 
 	/**
 	 * Item variants (ZEN), step 10: the ZEN head office, configured as the Happyness head office with the connector zen;
-	 * its supply source stays HEAD_OFFICE until step 9 (zen does not read the ERP's invoices yet).
+	 * its supply source stays HEAD_OFFICE until the live test of step 9b (zen reads the ERP's invoices since step 9a).
 	 */
 	public static final String ZEN_HEAD_OFFICE = "customers/zen-headoffice.properties";
 

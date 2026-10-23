@@ -331,7 +331,7 @@ checkpoint" button. Steps 1–8, 10 and 12 are the go-live path. Steps 1–7 do 
 | Q7 | Authentication and paging of the API; the test instance address | step 8 |
 | Q8 | `brand`: code or description in `item.brand`? Season and division descriptions (not in the API) needed? | step 1 |
 | Q9 | Should a famille point to its catégorie at the head office (one nullable column on `item_family`)? | steps 1, 4 |
-| Q10 | Which NAV API gives ZEN's posted invoices to the franchise (as Happyness's invoice pages)? | step 9 |
+| Q10 | Which NAV API gives ZEN's posted invoices to the franchise (as Happyness's invoice pages)? **Answered 2026-10-23: NAV's standard OData V4 page `SalesInvoice` of the company `ESP` (lines `SalesInvoiceSalesInvLines`), every posted sales invoice of the company: only the stores' customers are read** (section F, step 9a) | step 9 |
 | Q11 | A sample where `categoryCode` … `sectionCode` are filled (all empty today) | step 8 tests |
 | Q12 | ZEN stores: `erp.connector=none` (sales go to the head office only)? Head office sales to NAV: out of scope? | step 10 |
 | Q13 | Page `barCodes`, `unitOfMeasureCode`: can a barcode be of a unit other than the piece (a box of 6)? Today every row is kept whatever its unit, so such a barcode would sell one piece of the variant (step 12a) | before go-live |
@@ -444,3 +444,17 @@ To do:
   Not for the 30/10 go-live. The stock rule already answers "no stock" for such a store (`KeepsOwnStockTest`).
 - (b) The stores' stock per variant at the head office, from `ho_store_stock` (the network stock), on the NAV items
   page. Later.
+
+**Step 9a (2026-10-23), the supply invoices read in connectors/zen**: NAV's standard OData V4 page `SalesInvoice` under
+`Company('ESP')` (the sample `SalesInvoice.json` saved by Zein), read as Happyness's invoices (`ZenInvoices`, a copy of
+`NavPosPagesInvoices`: by year prefix `FVE26` after the head office's highest number, the General Setup "Read ERP
+invoices after number" as the starting point), item code `No~Variant_Code` (`ZenMapper.itemCode`, the catalogue's),
+ability `SUPPLY_INVOICES`, settings `erp.zen.invoices.*` all optional. Decisions (2026-10-23, with Zein): the page holds
+every sales invoice of the company, so only those of the stores' ERP customer numbers are read, **every store that has
+one, active or not** (an invoice left out at the read is never read again: the assignment keeps its own rules); the
+numbers come from the head office through a new erp-api interface `ErpInvoiceCustomers` (`HoErpInvoiceCustomers` on
+`StoreRepository`), not from core (core reads no head office table); a cancelled invoice is read past and left out, a
+corrective one read with a warning. Details: `docs/modules/head-office.md`, "Invoices from the ERP, ZEN". Still open:
+the live read (step 9b, `headoffice.supply.source=ERP` on ZEN's test head office, with Zein); an invoice to a customer
+whose store gets its ERP customer number later is passed over once a later invoice is saved; `VAT_Percent` is not kept
+(a head office invoice line has no VAT rate).

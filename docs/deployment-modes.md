@@ -170,7 +170,7 @@ from the type file, a file states the mode lines that preset gave, so every key 
 | `customers/store-prod.properties` | `store` | the customer without an ERP |
 | `happyness-from-scratch/headoffice.properties`, `store-1.properties`, `store-2.properties` | `headoffice`, `store` + the network lines | the Happyness franchise first set up on this PC (889, 557, 558), without the ERP catalogue |
 | `customers/happyness-headoffice.properties` | `headoffice` + the catalogue only from the ERP, `erp.connector=happyness`, invoices from the ERP, no stock | the Happyness head office (was `local/happyness_ho.properties`, its own PC file, until 2026-10-11; `configs/local` is no longer in the repository) |
-| `customers/zen-headoffice.properties`, `customers/zen-store.properties` (3.1.0, item variants step 10) | `headoffice` as the Happyness head office with `erp.connector=zen` (supply `HEAD_OFFICE` until step 9), `store` + the network lines with `erp.connector=none` | the ZEN head office and a store of its network, placeholders (`CHANGE_ME`) |
+| `customers/zen-headoffice.properties`, `customers/zen-store.properties` (3.1.0, item variants step 10) | `headoffice` as the Happyness head office with `erp.connector=zen` (supply `HEAD_OFFICE` until the live test of step 9b; the real installation `ERP`), `store` + the network lines with `erp.connector=none` | the ZEN head office and a store of its network, placeholders (`CHANGE_ME`) |
 
 "The NAV lines": catalogue, customers, supply `ERP`, sales to `ERP`, `erp.connector=emtop`. "The network lines": catalogue and supply
 `HEAD_OFFICE`, sales to `HEAD_OFFICE`.
@@ -295,13 +295,14 @@ never writes to the ERP). A head office whose catalogue only comes from the ERP 
 Happyness's. ZEN's NAV gives a custom API, `api/sat/zsretail/v1.0`, with the pages `stockPoints` (one row per location,
 item and variant), `itemCategories` (the tree catégorie > famille > sous-famille > section) and `barCodes` (step 12a, read
 by `lastModifiedDateTime`, `docs/modules/erp-sync.md`). One item per variant, code `itemNo~variantCode`; the rows of a location are read as the
-changes since its checkpoint (`docs/modules/erp-sync.md`, "Items run of changes only"). Its supply invoices come at step 9:
-until then `headoffice.supply.source=ERP` is refused with it.
+changes since its checkpoint (`docs/modules/erp-sync.md`, "Items run of changes only"). Step 9: its supply invoices, on
+NAV's standard OData V4 page `SalesInvoice` under `Company('<company>')`, only those of the stores' ERP customer numbers
+(`docs/modules/head-office.md`, "Invoices from the ERP, ZEN"): `headoffice.supply.source=ERP` is accepted with it.
 
 | Key | Meaning | Default |
 |---|---|---|
 | `erp.zen.base-url` | The NAV instance, e.g. `http://host:7048/ZEN` (the API path and the company follow it) | required |
-| `erp.zen.company` | The company's name, as for Happyness; its id in the API (`companies(<id>)`) is looked up once by `GET <api>/companies?$filter=name eq '<name>'` and kept until the application stops (step 10) | required unless `company-id` is set |
+| `erp.zen.company` | The company's name, as for Happyness (`ESP` at ZEN); its id in the API (`companies(<id>)`) is looked up once by `GET <api>/companies?$filter=name eq '<name>'` and kept until the application stops (step 10). Step 9: the invoices page is under `Company('<name>')` of the OData path | required unless `company-id` is set; always with `headoffice.supply.source=ERP` |
 | `erp.zen.company-id` | Optional: the company's id in the API, e.g. `89c8b192-3f2e-f111-9f24-7ced8db3f120`; when set it is used as it is and nothing is looked up (it wins over `company`) | — |
 | `erp.zen.domain`, `.username`, `.password` | NTLM account (domain may be blank) | username and password required |
 | `erp.zen.default-vat` | The VAT of a row that gives none (the API has no VAT field yet), whole number 0 to 100 | required |
@@ -310,13 +311,22 @@ until then `headoffice.supply.source=ERP` is refused with it.
 | `erp.zen.barcode-page-size` | Barcodes per call, 1 to 5000 | `1000` |
 | `erp.zen.connect-timeout-seconds`, `.read-timeout-seconds` | At least 1 | `10`, `60` |
 | `erp.zen.packet-size` | Rows applied per transaction, 1 to 5000 | `500` |
-| `erp.zen.dry-run` | `true` (read, compare, summary only) \| `false` | `false` |
+| `erp.zen.dry-run` | `true` (read, compare, summary only; the invoices too) \| `false` | `false` |
+| `erp.zen.invoices.page` (step 9) | The posted sales invoices, a page under `<base-url>/<odata-path>/Company('<company>')/`, or a whole address; read when `headoffice.supply.source=ERP`. Where the reading starts is the General Setup "Read ERP invoices after number" | `SalesInvoice` |
+| `erp.zen.invoices.lines-expand` | Navigation property of the lines (`$expand`), letters, digits and `_` | `SalesInvoiceSalesInvLines` |
+| `erp.zen.invoices.odata-path` | NAV's standard OData V4 path under base-url | `ODataV4` |
+| `erp.zen.invoices.number-prefix` | Start of every number, no spaces; the year follows in 2 digits (`FVE` + `26`) | `FVE` |
+| `erp.zen.invoices.page-size` | Invoices read per year and run, 1 to 1000 (the cancelled ones not counted) | `50` |
+| `erp.zen.invoices.seller-name` | The seller named on the stores' purchase invoices | `ZEN` |
 
 Startup refusals with `erp.connector=zen` (the message names the key): not a head office whose catalogue only comes from
 the ERP; a blank address, username or password; neither a company nor a company id; an address that is not `http(s)://`; a wrong `default-vat`,
-`barcode-page-size`, `packet-size`, `dry-run` or timeout; a blank `api-path` or page. One INFO line at startup: `ERP
-connector zen (read only, GET): <address>, API <path>, company <name> (or `company id <id>`), pages <three>`; the installation summary shows `NAV
-<address>`.
+`barcode-page-size`, `packet-size`, `dry-run` or timeout; a blank `api-path` or page. Step 9: a blank `invoices.page`,
+`invoices.odata-path` or `invoices.seller-name` line, a `lines-expand` that is not an OData name, a prefix with a space, a
+`page-size` out of 1 to 1000; with `headoffice.supply.source=ERP`, no company name. One INFO line at startup: `ERP
+connector zen (read only, GET): <address>, API <path>, company <name> (or `company id <id>`), pages <three>` (with the ERP
+supply also `, invoices ODataV4 Company('ESP')/SalesInvoice (lines ..., prefix FVE, 50 per year and run, seller ZEN)`);
+the installation summary shows `NAV <address>`.
 
 **Step 9 questions** (tasks 9.1b to 9.1g): `isCatalogueFromErp()`, `isCustomersFromErp()`, `isSupplyFromErp()`, `hasErp()` (some
 owner is the ERP). With the ERP owning all or nothing they answer alike for every configuration that starts, except the

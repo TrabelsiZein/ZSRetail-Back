@@ -57,6 +57,9 @@ import com.digithink.zsretail.support.Installations;
  * <p>
  * RFID step 2: the record gained the key rfid.enabled (the store type file says false): "keys 52" and one line per
  * configuration, false on a store, (none) on a head office; every other line unchanged.
+ * <p>
+ * Item variants (ZEN), step 9: erp.zen.company of configs/customers/zen-headoffice.properties is ESP, ZEN's company
+ * (the invoices page is under Company('ESP')), was CHANGE_ME; every other line unchanged.
  */
 class ConfigurationKeysProofTest {
 

@@ -18,6 +18,10 @@ public interface StoreRepository extends _BaseRepository<Store, Long> {
 	/** Invoices from the ERP: the store whose ERP customer number is this one (unique, any case). */
 	Optional<Store> findByErpCustomerNoIgnoreCase(String erpCustomerNo);
 
+	/** Item variants (ZEN), step 9: every ERP customer number of a store (active or not), as stored. */
+	@Query("select s.erpCustomerNo from Store s where s.erpCustomerNo is not null")
+	List<String> findErpCustomerNumbers();
+
 	/** Step 6: the stores whose selling price list is this one. */
 	@Query("select s.id from Store s where s.sellingPriceListId = :listId")
 	List<Long> findIdsBySellingPriceListId(@Param("listId") Long listId);

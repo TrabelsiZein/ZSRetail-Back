@@ -82,6 +82,14 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   items of its own sous-famille that carry its code. `GET /item/pos/search` adds `categories` and `sections` and a `path`
   on every hit, only where the installation has the level: without catégories and sections (EMTOP, Happyness) every
   new list is empty and the search answer is unchanged.
+- Supply invoices of ZEN's NAV, step 9a (the read; docs/modules/head-office.md, "Invoices from the ERP, ZEN"): the
+  connector `zen` reads NAV's OData V4 page `SalesInvoice` under `Company('ESP')` as Happyness's invoices (by year
+  prefix `FVE26` after the head office's highest number, the General Setup "Read ERP invoices after number" as the
+  starting point), only the invoices of the stores' ERP customer numbers (every store that has one, active or not:
+  erp-api `ErpInvoiceCustomers`, head office `HoErpInvoiceCustomers`; none: nothing read, a warning); item code
+  `No~Variant_Code`; a cancelled invoice read past and left out, a corrective one read with a warning; the runs in
+  the communications log. Ability `SUPPLY_INVOICES`: `headoffice.supply.source=ERP` is accepted with `zen` (the
+  configs keep `HEAD_OFFICE` until the live test, step 9b).
 
 ### Enhancements
 - Till authorisation, step B: `GET /config` serves `tillActions`, the registry of the five badge actions (`{code, key}`,
@@ -330,6 +338,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `default-vat`, `packet-size`, `dry-run`, page names); deploy files `configs/customers/zen-headoffice.properties` and
   `zen-store.properties`.
 - `erp.zen.page.barcodes` defaults to `barCodes` (step 12a; was `ItemBarCodePOS`).
+- `erp.zen.invoices.*` (step 9, all optional): `page` (`SalesInvoice`), `lines-expand` (`SalesInvoiceSalesInvLines`),
+  `odata-path` (`ODataV4`), `number-prefix` (`FVE`), `page-size` (50, 1 to 1000), `seller-name` (`ZEN`).
+  `erp.zen.company` is required with `headoffice.supply.source=ERP` (the invoices page is under `Company('<name>')`);
+  `configs/customers/zen-headoffice.properties` names ZEN's company `ESP`.
 - `headoffice.copies-down.read-timeout-seconds` (store, default 60): the read timeout of the pull of copies down.
 - `erp.emtop.connect-timeout-seconds` (default 30) and `erp.emtop.read-timeout-seconds` (default 600): the emtop
   connector's NAV timeouts.

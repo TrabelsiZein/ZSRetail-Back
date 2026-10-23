@@ -6,8 +6,11 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -29,6 +32,8 @@ import com.digithink.zsretail.connector.zen.dto.ZenBarcodeRow;
 import com.digithink.zsretail.connector.zen.dto.ZenCategoryRow;
 import com.digithink.zsretail.connector.zen.dto.ZenCollection;
 import com.digithink.zsretail.connector.zen.dto.ZenCompanyRow;
+import com.digithink.zsretail.connector.zen.dto.ZenInvoiceLineRow;
+import com.digithink.zsretail.connector.zen.dto.ZenInvoiceRow;
 import com.digithink.zsretail.connector.zen.dto.ZenStockPointRow;
 import com.digithink.zsretail.connector.zen.mapper.ZenMapper;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
@@ -43,11 +48,13 @@ import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
  * millisecond, so that a page never ends in the middle of one; those of some items by itemNo and variantCode. An HTTP
  * error, a timeout or no answer throws {@link ZenReadException} naming the page and the status.
  * No retry. Step 10: every page is under companies(id) of the custom API; the id is erp.zen.company-id, or looked up once
- * by the company's name ({@link #companyId()}).
+ * by the company's name ({@link #companyId()}). Step 9: the supply invoices are not on the custom API but on NAV's
+ * standard OData V4 page SalesInvoice under Company('name') ({@link ZenInvoiceSource}, the same client and
+ * credentials), read by number per year prefix, only those of the stores' customers.
  */
 @Component
 @ConditionalOnErpConnector(ZenConnectorDescriptor.NAME)
-public class ZenRestClient implements ZenSource {
+public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 
 	/** Step 10: the page of the companies of the API, read to find the id of company (the name). */
 	static final String COMPANIES = "companies";
@@ -55,6 +62,9 @@ public class ZenRestClient implements ZenSource {
 	static final String MODIFIED = "lastModifiedDateTime";
 	private static final ParameterizedTypeReference<ZenCollection<ZenBarcodeRow>> BARCODES =
 			new ParameterizedTypeReference<ZenCollection<ZenBarcodeRow>>() {
+			};
+	private static final ParameterizedTypeReference<ZenCollection<ZenInvoiceRow>> INVOICES =
+			new ParameterizedTypeReference<ZenCollection<ZenInvoiceRow>>() {
 			};
 
 	private final RestTemplate restTemplate;
@@ -197,6 +207,138 @@ public class ZenRestClient implements ZenSource {
 	@Override
 	public String pageUrl(String page) {
 		return page(page).build().toUriString();
+	}
+
+	// ─── Step 9: the invoices (NAV's standard OData V4 page) ─────
+
+	/** Invoice numbers per GET when they are read again by number (a short URL), as Happyness. */
+	static final int NUMBERS_PER_READ = 20;
+
+	/**
+	 * {@link #invoicesAfterFilter}, $orderby=No, $top=invoices.page-size, the next links followed up to page-size,
+	 * $select of the header fields used, the lines expanded with their own $select.
+	 */
+	@Override
+	public List<ZenInvoiceRow> readInvoicesAfter(String yearPrefix, String afterNumber,
+			Collection<String> customerNumbers) {
+		if (customerNumbers == null || customerNumbers.isEmpty()) {
+			return new ArrayList<>();
+		}
+		return readInvoices(invoicesAfterFilter(yearPrefix, afterNumber, customerNumbers),
+				properties.getInvoices().getPageSize());
+	}
+
+	/** $filter=No eq '..' or No eq '..', {@link #NUMBERS_PER_READ} numbers per GET, the fields and lines of the read. */
+	@Override
+	public List<ZenInvoiceRow> readInvoicesByNumbers(List<String> numbers) {
+		List<ZenInvoiceRow> rows = new ArrayList<>();
+		if (numbers == null) {
+			return rows;
+		}
+		for (int from = 0; from < numbers.size(); from += NUMBERS_PER_READ) {
+			List<String> some = numbers.subList(from, Math.min(from + NUMBERS_PER_READ, numbers.size()));
+			rows.addAll(readInvoices(numbersFilter(some), some.size()));
+		}
+		return rows;
+	}
+
+	/** One GET: $filter={@link #firstInvoiceFilter}, $orderby=No, $top=1, $select=No. */
+	@Override
+	public String readFirstInvoiceNumber(String numberPrefix, Collection<String> customerNumbers) {
+		if (customerNumbers == null || customerNumbers.isEmpty()) {
+			return null;
+		}
+		String page = properties.getInvoices().getPage().trim();
+		URI uri = invoicesPage().queryParam("$filter", firstInvoiceFilter(numberPrefix, customerNumbers))
+				.queryParam("$orderby", "No").queryParam("$top", 1).queryParam("$select", ZenInvoiceRow.NO).build()
+				.encode().toUri();
+		ZenCollection<ZenInvoiceRow> body = get(page, uri, INVOICES);
+		if (body == null || body.getValue() == null || body.getValue().isEmpty()) {
+			return null;
+		}
+		String number = body.getValue().get(0).getNumber();
+		return number.isEmpty() ? null : number;
+	}
+
+	@Override
+	public String invoicesPageUrl() {
+		return invoicesPage().build().toUriString();
+	}
+
+	/**
+	 * startswith(No,'FVE26') [and No gt 'FVE2600001'] and ({@link #customersFilter}): only startswith on a first read; No
+	 * gt alone would also give the later years (the numbers are compared as text). Quotes doubled.
+	 */
+	public static String invoicesAfterFilter(String yearPrefix, String afterNumber, Collection<String> customerNumbers) {
+		return "startswith(No,'" + quoted(yearPrefix) + "')"
+				+ (afterNumber == null || afterNumber.trim().isEmpty() ? "" : " and No gt '" + quoted(afterNumber) + "'")
+				+ " and " + customersFilter(customerNumbers);
+	}
+
+	/** startswith(No,'FVE') and ({@link #customersFilter}). */
+	public static String firstInvoiceFilter(String numberPrefix, Collection<String> customerNumbers) {
+		return "startswith(No,'" + quoted(numberPrefix) + "') and " + customersFilter(customerNumbers);
+	}
+
+	/**
+	 * (Sell_to_Customer_No eq 'A' or Sell_to_Customer_No eq 'B'), in brackets (and binds before or): each number trimmed,
+	 * in upper case (a NAV customer number is a code, upper case; the head office matches a store at any case), once, a
+	 * blank one left out, quotes doubled.
+	 */
+	public static String customersFilter(Collection<String> customerNumbers) {
+		Set<String> numbers = new LinkedHashSet<>();
+		for (String number : customerNumbers == null ? new ArrayList<String>() : customerNumbers) {
+			String text = number == null ? "" : number.trim().toUpperCase(Locale.ROOT);
+			if (!text.isEmpty()) {
+				numbers.add(text);
+			}
+		}
+		StringBuilder filter = new StringBuilder();
+		for (String number : numbers) {
+			filter.append(filter.length() == 0 ? "" : " or ").append(ZenInvoiceRow.CUSTOMER_NO).append(" eq '")
+					.append(quoted(number)).append("'");
+		}
+		return "(" + filter + ")";
+	}
+
+	/** No eq 'x' or No eq 'y', quotes doubled. */
+	public static String numbersFilter(List<String> numbers) {
+		StringBuilder filter = new StringBuilder();
+		for (String number : numbers) {
+			filter.append(filter.length() == 0 ? "" : " or ").append("No eq '").append(quoted(number)).append("'");
+		}
+		return filter.toString();
+	}
+
+	/** The invoices of the filter, by number, at most max (the next links followed until then), their lines resolved. */
+	private List<ZenInvoiceRow> readInvoices(String filter, int max) {
+		ZenProperties.Invoices settings = properties.getInvoices();
+		String page = settings.getPage().trim();
+		String expand = settings.getLinesExpand().trim();
+		URI uri = invoicesPage().queryParam("$filter", filter).queryParam("$orderby", "No").queryParam("$top", max)
+				.queryParam("$select", ZenInvoiceRow.FIELDS)
+				.queryParam("$expand", expand + "($select=" + ZenInvoiceLineRow.FIELDS + ")").build().encode().toUri();
+		List<ZenInvoiceRow> rows = new ArrayList<>();
+		URI next = uri;
+		while (next != null && rows.size() < max) {
+			ZenCollection<ZenInvoiceRow> body = get(page, next, INVOICES);
+			if (body == null || body.getValue() == null) {
+				break;
+			}
+			rows.addAll(body.getValue());
+			String link = body.getNextLink();
+			next = link == null || link.trim().isEmpty() ? null : URI.create(link.trim());
+		}
+		List<ZenInvoiceRow> kept = rows.size() > max ? new ArrayList<>(rows.subList(0, max)) : rows;
+		for (ZenInvoiceRow row : kept) {
+			row.resolveLines(expand);
+		}
+		return kept;
+	}
+
+	/** base-url / odata-path / Company('company') / the invoices page (never companies(id) of the custom API). */
+	private UriComponentsBuilder invoicesPage() {
+		return UriComponentsBuilder.fromHttpUrl(properties.invoicesPageAddress());
 	}
 
 	/** A page under companies(id) (the id found first), or a whole address as it is (no lookup). */

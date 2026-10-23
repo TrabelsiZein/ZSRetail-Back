@@ -138,7 +138,7 @@ class ThirdConnectorTest {
 			assertEquals(EnumSet.of(ErpAbility.SUPPLY_INVOICES), ErpAbilities.of(NAME));
 			assertTrue(ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES));
 			assertFalse(ErpAbilities.has(env, ErpAbility.HEAD_OFFICE_STOCK_POINTS));
-			assertEquals(Arrays.asList("happyness", NAME), ErpAbilities.connectorsWith(ErpAbility.SUPPLY_INVOICES));
+			assertEquals(Arrays.asList("happyness", NAME, "zen"), ErpAbilities.connectorsWith(ErpAbility.SUPPLY_INVOICES));
 			assertEquals("ERP http://erp.test", ErpConnectorEnvironmentPostProcessor.summaryAddress(env));
 			assertTrue(registered(env, ThirdConnector.class));
 			assertFalse(registered(env, NoOpErpConnector.class));

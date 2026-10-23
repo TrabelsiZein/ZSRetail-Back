@@ -46,10 +46,10 @@ class ErpAbilitiesTest {
 		assertEquals(EnumSet.noneOf(ErpAbility.class), ErpAbilities.of("emtop"));
 		assertEquals(EnumSet.of(ErpAbility.HEAD_OFFICE_STOCK_POINTS, ErpAbility.SUPPLY_INVOICES),
 				ErpAbilities.of("happyness"));
-		// Item variants (ZEN), step 8: the points de stock; its supply invoices come at step 9
-		assertEquals(EnumSet.of(ErpAbility.HEAD_OFFICE_STOCK_POINTS), ErpAbilities.of("zen"));
+		// Item variants (ZEN), step 8: the points de stock; step 9: its supply invoices
+		assertEquals(EnumSet.of(ErpAbility.HEAD_OFFICE_STOCK_POINTS, ErpAbility.SUPPLY_INVOICES), ErpAbilities.of("zen"));
 		assertThrows(IllegalArgumentException.class, () -> ErpAbilities.of("sap"));
-		assertEquals(Collections.singletonList("happyness"), ErpAbilities.connectorsWith(ErpAbility.SUPPLY_INVOICES));
+		assertEquals(Arrays.asList("happyness", "zen"), ErpAbilities.connectorsWith(ErpAbility.SUPPLY_INVOICES));
 		assertEquals(Arrays.asList("happyness", "zen"), ErpAbilities.connectorsWith(ErpAbility.HEAD_OFFICE_STOCK_POINTS));
 	}
 
@@ -117,13 +117,13 @@ class ErpAbilitiesTest {
 			MockEnvironment env = i < machines.size() ? Installations.machine(name) : Installations.config(name);
 			boolean pages = "happyness".equals(lineOf(env));
 			boolean nav = "emtop".equals(lineOf(env));
-			// Item variants (ZEN), step 10: the ZEN head office has the points de stock, not yet the supply invoices
+			// Item variants (ZEN), step 10: the ZEN head office has the points de stock; step 9: the supply invoices too
 			boolean zen = "zen".equals(lineOf(env));
 			withPages += pages ? 1 : 0;
 			withNav += nav ? 1 : 0;
 			withZen += zen ? 1 : 0;
 			assertEquals(pages || zen, ErpAbilities.has(env, ErpAbility.HEAD_OFFICE_STOCK_POINTS), name);
-			assertEquals(pages, ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES), name);
+			assertEquals(pages || zen, ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES), name);
 			assertEquals(nav || pages || zen, ErpAbilities.hasConnector(env), name);
 		}
 		assertEquals(1, withPages, "the Happyness head office of configs/customers");

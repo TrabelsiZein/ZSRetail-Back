@@ -202,7 +202,7 @@ they declare today.
 | `none` | — | — |
 | `emtop` | — | — |
 | `happyness` | yes | yes |
-| `zen` (3.1.0, item variants step 8) | yes | — (step 9) |
+| `zen` (3.1.0, item variants step 8) | yes | yes (step 9) |
 
 - `HEAD_OFFICE_STOCK_POINTS` (was `CATALOGUE_BY_STOCK_POINTS`): the head office keeps several points de stock in its own
   tables (`ho_stock_point`, `ho_stock_point_item`, the points page), filled by the single catalogue job `SYNC_CATALOGUE`. Not
@@ -396,7 +396,7 @@ inside the test, each line with its reason (an entry nothing uses any more fails
 ## ZEN's connector (`erp.zen`, item variants, 3.1.0, step 8)
 
 Project `connectors/zen` (`com.digithink.zsretail.connector.zen`), built like `connectors/happyness`: its descriptor
-(`ZenConnectorDescriptor`, ability `HEAD_OFFICE_STOCK_POINTS`; `SUPPLY_INVOICES` at step 9), its settings
+(`ZenConnectorDescriptor`, abilities `HEAD_OFFICE_STOCK_POINTS` and, step 9, `SUPPLY_INVOICES`), its settings
 (`ZenProperties`, checked by `ZenStartupCheck`; keys in `docs/deployment-modes.md`), an NTLM client refusing anything but
 GET (`ZenConfig`, `ZenRestClient`, following `@odata.nextLink`), the mapper (`ZenMapper`), the source the engine reads
 (`ZenCatalogueSource`, `readsChangesOnly()` true), the engine's settings and a read-only `ErpConnector` (`ZenConnector`).
@@ -433,8 +433,14 @@ GET (`ZenConfig`, `ZenRestClient`, following `@odata.nextLink`), the mapper (`Ze
   gave land on its own tick (step 12a follow-up). A barcode
   changed in NAV is read again (its new date). Those of new items are read by `(itemNo eq '..' and variantCode eq '..')`,
   the rows of other variants left out.
+- Supply invoices (step 9): not on the custom API but on NAV's standard OData V4 page `SalesInvoice` under
+  `Company('<erp.zen.company>')` (ESP), the same client; `ZenInvoices`, a copy of Happyness's invoice read (by year
+  prefix after the head office's highest number), only the invoices of the stores' ERP customer numbers
+  (`ErpInvoiceCustomers`, erp-api, given by the head office's `HoErpInvoiceCustomers`). Details in `head-office.md`,
+  "Invoices from the ERP, ZEN".
 - Tests: `ZenMapperTest` (on the two samples of the API in `connectors/zen/src/test/resources/zen`),
-  `ZenRestClientTest`, `ZenCatalogueSourceTest` (in the project); `ZenBarcodeCursorTest` (the engine's barcode cursor on
+  `ZenRestClientTest`, `ZenCatalogueSourceTest` (in the project); step 9: `ZenMapperInvoicesTest` (the sample
+  `SalesInvoice.json`), `ZenInvoiceClientTest`, `ZenInvoicesTest`; `ZenBarcodeCursorTest` (the engine's barcode cursor on
   a fake `barCodes` page), `ZenStartupCheckTest`, the pinned lists of
   `ErpConnectorTest`, `OutsideFileUpgradeTest`, `ThirdConnectorTest`, `ErpAbilitiesTest`, `ErpAbilityBeansTest`
   (network-tests). `ConnectorNamesGuardTest` takes a connector's name as a whole word (no letter or digit around it).

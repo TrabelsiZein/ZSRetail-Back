@@ -180,19 +180,18 @@ class ErpAbilityBeansTest {
 	@DisplayName("headoffice.supply.source=ERP: accepted with the ability SUPPLY_INVOICES, by erp.connector")
 	void supplySource() {
 		for (MockEnvironment env : Arrays.asList(catalogueOnlyHeadOffice("erp.connector= HAPPYNESS "),
-				chosen(catalogueOnlyHeadOffice(), "happyness"))) {
+				chosen(catalogueOnlyHeadOffice(), "happyness"), chosen(catalogueOnlyHeadOffice(), "zen"))) {
 			env.setProperty("headoffice.supply.source", "ERP");
 			assertTrue(NodeOwnership.resolve(env).isErpCatalogueOnly());
 			assertTrue(NodeOwnership.isSupplyFromErpSourceSet(env));
 		}
-		// Item variants (ZEN), step 8: zen reads no supply invoice yet (step 9): refused as without a connector
+		// Item variants (ZEN), step 9: zen reads the supply invoices (accepted above); the others refused
 		for (MockEnvironment env : Arrays.asList(catalogueOnlyHeadOffice(),
-				chosen(catalogueOnlyHeadOffice(), "none"), chosen(catalogueOnlyHeadOffice(), "emtop"),
-				chosen(catalogueOnlyHeadOffice(), "zen"))) {
+				chosen(catalogueOnlyHeadOffice(), "none"), chosen(catalogueOnlyHeadOffice(), "emtop"))) {
 			env.setProperty("headoffice.supply.source", "ERP");
 			String message = org.junit.jupiter.api.Assertions
 					.assertThrows(IllegalStateException.class, () -> NodeOwnership.resolve(env)).getMessage();
-			assertTrue(message.contains("erp.connector=happyness. Choose it"), message);
+			assertTrue(message.contains("erp.connector=happyness or erp.connector=zen. Choose it"), message);
 		}
 	}
 }

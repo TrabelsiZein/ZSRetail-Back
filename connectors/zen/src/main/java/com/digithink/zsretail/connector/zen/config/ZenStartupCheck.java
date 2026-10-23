@@ -14,7 +14,8 @@ import lombok.extern.log4j.Log4j2;
  * Item variants (ZEN), step 8: the startup refusals of ZEN's connector, as the other connectors: an
  * {@link IllegalStateException} naming the key, so the application does not start. Read from the environment before
  * the settings are bound ({@link ZenProperties} depends on this bean). Exists only with erp.connector=zen. One INFO
- * line when the settings are accepted: the address, the company and the pages (never a password).
+ * line when the settings are accepted: the address, the company and the pages (never a password); step 9: the
+ * invoices page and its settings when headoffice.supply.source=ERP.
  */
 @Component(ZenStartupCheck.BEAN_NAME)
 @ConditionalOnErpConnector(ZenConnectorDescriptor.NAME)
@@ -24,6 +25,9 @@ public class ZenStartupCheck {
 	public static final String BEAN_NAME = "zenStartupCheck";
 
 	static final String P = ZenProperties.PREFIX + ".";
+
+	/** A field or navigation property of an OData page: it goes into the URL as it is. */
+	static final String ODATA_NAME = "[A-Za-z_][A-Za-z0-9_]*";
 
 	public ZenStartupCheck(Environment environment) {
 		check(environment);
@@ -77,16 +81,69 @@ public class ZenStartupCheck {
 		}
 		checkRange(env, "connect-timeout-seconds", 1, Integer.MAX_VALUE);
 		checkRange(env, "read-timeout-seconds", 1, Integer.MAX_VALUE);
+		checkInvoices(env);
 	}
 
-	/** The startup line: address, company and pages (never a password). */
+	/**
+	 * Step 9, the invoices: every key optional; a line written blank is refused, the lines property an OData name, the
+	 * prefix without spaces, page-size from 1 to 1000. With headoffice.supply.source=ERP the company's name is required:
+	 * the invoices page is under Company('name'), the custom API's company-id does not name it there.
+	 */
+	private static void checkInvoices(PropertyResolver env) {
+		for (String key : new String[] { "invoices.page", "invoices.odata-path", "invoices.seller-name" }) {
+			if (env.containsProperty(P + key) && trimmed(env.getProperty(P + key)).isEmpty()) {
+				throw new IllegalStateException("Missing value for property " + P + key
+						+ ": remove the line to use the default, or write the value.");
+			}
+		}
+		String expandKey = P + "invoices.lines-expand";
+		if (env.containsProperty(expandKey) && !trimmed(env.getProperty(expandKey)).matches(ODATA_NAME)) {
+			throw new IllegalStateException("Invalid value '" + trimmed(env.getProperty(expandKey)) + "' for property "
+					+ expandKey + ": the navigation property of the lines, letters, digits and _ (e.g."
+					+ " SalesInvoiceSalesInvLines)");
+		}
+		String prefixKey = P + "invoices.number-prefix";
+		String prefix = trimmed(env.getProperty(prefixKey, "FVE"));
+		if (prefix.isEmpty() || !prefix.matches("\\S+")) {
+			throw new IllegalStateException("Invalid value '" + trimmed(env.getProperty(prefixKey)) + "' for property "
+					+ prefixKey + ": the start of every invoice number, without spaces, e.g. FVE (the year follows in 2"
+					+ " digits)");
+		}
+		checkRange(env, "invoices.page-size", 1, 1000);
+		if (erpSupply(env) && trimmed(env.getProperty(P + "company")).isEmpty()) {
+			throw new IllegalStateException("Missing value for property " + P + "company: the company's name (ESP at"
+					+ " ZEN), required with headoffice.supply.source=ERP: the invoices page is under Company('<name>') of"
+					+ " the OData path (" + P + "company-id is the custom API's).");
+		}
+	}
+
+	/** The startup line: address, company and pages (never a password); the invoices page with the ERP supply. */
 	public static String summary(PropertyResolver env) {
 		return "ERP connector " + ZenConnectorDescriptor.NAME + " (read only, GET): "
 				+ trimmed(env.getProperty(P + "base-url")) + ", API " + env.getProperty(P + "api-path", "api/sat/zsretail/v1.0")
 				+ ", company " + company(env) + ", pages "
 				+ env.getProperty(P + "page.stock-points", "stockPoints") + ", "
 				+ env.getProperty(P + "page.categories", "itemCategories") + ", "
-				+ env.getProperty(P + "page.barcodes", "barCodes");
+				+ env.getProperty(P + "page.barcodes", "barCodes")
+				+ (erpSupply(env) ? invoices(env) : "");
+	}
+
+	/**
+	 * Step 9: ", invoices ODataV4 Company('ESP')/SalesInvoice (lines SalesInvoiceSalesInvLines, prefix FVE, 50 per year
+	 * and run, seller ZEN)".
+	 */
+	private static String invoices(PropertyResolver env) {
+		return ", invoices " + trimmed(env.getProperty(P + "invoices.odata-path", "ODataV4")) + " Company('"
+				+ trimmed(env.getProperty(P + "company")) + "')/" + trimmed(env.getProperty(P + "invoices.page", "SalesInvoice"))
+				+ " (lines " + trimmed(env.getProperty(P + "invoices.lines-expand", "SalesInvoiceSalesInvLines")) + ", prefix "
+				+ trimmed(env.getProperty(P + "invoices.number-prefix", "FVE")) + ", "
+				+ trimmed(env.getProperty(P + "invoices.page-size", "50")) + " per year and run, seller "
+				+ trimmed(env.getProperty(P + "invoices.seller-name", "ZEN")) + ")";
+	}
+
+	/** The stores' supply documents are the ERP's invoices (headoffice.supply.source=ERP). */
+	private static boolean erpSupply(PropertyResolver env) {
+		return "ERP".equalsIgnoreCase(trimmed(env.getProperty("headoffice.supply.source")));
 	}
 
 	/** The company as the reads find it: "id <id>" when company-id is set (used as it is), else its name. */

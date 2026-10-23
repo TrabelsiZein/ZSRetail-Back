@@ -1406,6 +1406,32 @@ the customer field), `NavPosPagesInvoicesTest` (per year, start number, max per 
 `NavPosPagesStartupCheckTest`, `NavPosPagesConnectorTest` (the keys bound), `NavPosPagesLiveReadTest#liveReadInvoices`
 (skipped unless `-Dnavpospages.live=true`: years 2021, the default customer field `Sell_to_Customer_No`, GET only).
 
+**Invoices from the ERP, ZEN (item variants, 3.1.0, step 9a: the read in `connectors/zen`)**. The same head office flow
+(`HoErpInvoiceService`, the store reception: unchanged), the connector `zen` with the ability `SUPPLY_INVOICES`. The
+invoices are not on ZEN's custom API: NAV's standard OData V4 page `SalesInvoice`,
+`<base-url>/ODataV4/Company('<erp.zen.company>')/SalesInvoice` (ZEN's company is `ESP`; the custom API's
+`erp.zen.company-id` is not used there, so `erp.zen.company` is required with `headoffice.supply.source=ERP`), same NTLM
+credentials, GET only, lines `SalesInvoiceSalesInvLines`. Settings `erp.zen.invoices.*`, all optional
+(`docs/deployment-modes.md`); the starting point is the General Setup "Read ERP invoices after number" (checked by
+`ZenInvoiceSettingCheck`: `FVE`, 2 digits of the year, digits). `ZenInvoices` is a copy of `NavPosPagesInvoices` (a connector
+sees only erp-api), with these differences:
+
+| Part | Detail |
+|---|---|
+| Only the stores' invoices | The page holds every posted sales invoice of the company. `ErpInvoiceCustomers.storeCustomerNumbers()` (erp-api; `HoErpInvoiceCustomers`, on a head office with the ERP supply): the ERP customer number of **every store that has one, active or not, whatever it owns**, trimmed, sorted. The filter only tells the stores' invoices from the other sales: an inactive store or one not supplied by the head office is the assignment's business (`STORE_INACTIVE`, `STORE_NOT_SUPPLIED`, assigned later), since an invoice left out at the read is never read again (the read goes on after the highest number saved). None: no GET, a warning, the run's summary `waiting: no store has an ERP customer number` |
+| `ZenRestClient.readInvoicesAfter(prefix, after, customers)` | `$filter=startswith(No,'FVE26') and No gt '<after>' and (Sell_to_Customer_No eq '4110001' or Sell_to_Customer_No eq '4110002')` (the numbers in upper case, once, quotes doubled), `$orderby=No`, `$top=page-size`, next links followed up to page-size; `$select=No,Sell_to_Customer_No,Sell_to_Customer_Name,Document_Date,Posting_Date,Cancelled,Corrective`; `$expand=SalesInvoiceSalesInvLines($select=Document_No,Line_No,Type,No,Variant_Code,Description,Quantity,Unit_of_Measure_Code,Unit_Price,Line_Discount_Percent,Line_Amount,Total_Amount_Excl_VAT,Total_VAT_Amount,Total_Amount_Incl_VAT)`. `Unit_Cost_LCY` and `VAT_Percent` are never read (a head office invoice line keeps no VAT rate). The first invoice (no starting point): `startswith(No,'FVE') and (<customers>)`, `$top=1`. By number: `No eq '..' or ...`, 20 per GET, whatever the customer |
+| Cancelled | `Cancelled` true: left out (counted `cancelled` in the summary's `leftOut`, one log line naming them), never handed. A run reads past them: page after page (each after the last number of the one before) until page-size invoices not cancelled or the end of the year, so a page of cancelled invoices cannot hold the year. A cancelled invoice above the highest number saved is read again (and left out) at each run until a later one is saved: the cursor is the head office's highest saved number (`HoErpInvoiceService.highestByYear`), never the connector's. An invoice cancelled in NAV after the head office read it is not undone |
+| Corrective | `Corrective` true (it cancels a credit memo): read as any other, the warning `corrective invoice (Corrective true: it cancels a credit memo)` on the invoice and counted in the summary's notes |
+| Lines | `Type` `Item` with an item number: `ITEM`, item code `ZenMapper.itemCode(No, Variant_Code)` = `32ZFCHD21~001` (`No` alone when `Variant_Code` is blank), the code of the catalogue sync; otherwise as Happyness (comment lines and other types at 0 left out, other types with an amount `OTHER`) |
+| Header | No totals on the header: the three totals from the first line (as Happyness); no `Prices_Including_VAT` (ZEN's prices are before VAT): `pricesIncludingVat` null |
+| Seller | `erp.zen.invoices.seller-name`, default `ZEN` |
+
+Seen on ZEN's test NAV (the sample `connectors/zen/src/test/resources/zen/SalesInvoice.json`, 2026-10-23): one invoice
+`FVE2600001` of customer `4110001` (Point de vente El Kef), five `Item` lines, the five variants `001`-`005` of
+`32ZFCHD21`, unit `PCS`, every amount 0. Tests: `ZenMapperInvoicesTest`, `ZenInvoiceClientTest`, `ZenInvoicesTest`
+(connectors/zen), `ZenStartupCheckTest` (network-tests). `headoffice.supply.source` stays `HEAD_OFFICE` in the configs
+until the live test (step 9b).
+
 **Invoices from the ERP, step (b): the head office side** (tables, the two-step job, the store's ERP customer number, the
 supply source switch; no store code, nothing sent to the stores yet, no page). `headoffice.supply.source=ERP`
 (`docs/deployment-modes.md`), accepted only on a head office whose catalogue only comes from the ERP, with the connector.
