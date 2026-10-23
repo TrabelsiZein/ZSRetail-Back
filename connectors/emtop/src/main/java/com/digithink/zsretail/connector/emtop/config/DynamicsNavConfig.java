@@ -41,6 +41,8 @@ public class DynamicsNavConfig {
 
 		HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory();
 		requestFactory.setHttpClient(clientBuilder.build());
+		requestFactory.setConnectTimeout(properties.getConnectTimeoutSeconds() * 1000);
+		requestFactory.setReadTimeout(properties.getReadTimeoutSeconds() * 1000);
 
 		RestTemplate restTemplate = new RestTemplate(requestFactory);
 		

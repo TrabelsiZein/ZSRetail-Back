@@ -128,7 +128,10 @@
 - `connectors/emtop/src/main/java/com/digithink/zsretail/connector/emtop/dto/DynamicsNavSalesOrderLineDTO.java` - Line DTO
 - `store/src/main/java/com/digithink/zsretail/store/erp/service/TicketExportService.java` - Export service
 - `connectors/emtop/src/main/java/com/digithink/zsretail/connector/emtop/client/DynamicsNavRestClient.java` - NAV client
-- `connectors/emtop/src/main/java/com/digithink/zsretail/connector/emtop/config/DynamicsNavConfig.java` - RestTemplate config
+- `connectors/emtop/src/main/java/com/digithink/zsretail/connector/emtop/config/DynamicsNavConfig.java` - RestTemplate config: connect timeout
+  `erp.emtop.connect-timeout-seconds` (30) and read timeout `erp.emtop.read-timeout-seconds` (600, the silence allowed
+  while waiting for NAV's data, not the length of a read). Without them a call NAV never answered held the one scheduler
+  thread for good: no ERP job ran by itself any more, only "Run now" (Emtop 1.12.1, 2026-10-22)
 - `core/src/main/java/com/digithink/zsretail/core/erp/service/ErpSyncJobRunner.java` - Job runner integration
 
 

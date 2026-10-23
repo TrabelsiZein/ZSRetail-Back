@@ -17,6 +17,13 @@ public class DynamicsNavProperties {
 	private String domain;
 	private String username;
 	private String password;
+	/** Opening the connection to NAV: fails only when NAV cannot be reached (VPN down, server off). */
+	private int connectTimeoutSeconds = 30;
+	/**
+	 * Silence allowed while waiting for NAV's data (not the length of the whole read): without it a call NAV never
+	 * answers blocks the ERP scheduler for good. Generous for the first full read of the items.
+	 */
+	private int readTimeoutSeconds = 600;
 
 	public String getCompanyUrlSegment() {
 		if (company == null || company.trim().isEmpty()) {

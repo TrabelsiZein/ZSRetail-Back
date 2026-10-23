@@ -164,6 +164,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   default order store code then item code (was store id).
 
 ### Fixes
+- ERP jobs no longer stop for good on a NAV call that never answers (Emtop 1.12.1, 2026-10-22: Import Customers waited
+  on NAV from 14:18 and no job ran by itself again, only "Run now"): the emtop connector's client has a connect timeout
+  (30 s) and a read timeout (600 s of silence, not the length of a read), like the happyness and zen connectors.
 - Promotions, group of items (Emtop 1.12.1: a group saved with one item): the back end no longer depends on what the
   screen sends. `groupItems` is read by distinct id (`{ id }`, `{ id, itemCode }` or a full item give the same group)
   and `PromotionService.save` loads those ids from the database; an unknown id or an item without an id is refused.
@@ -322,6 +325,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `zen-store.properties`.
 - `erp.zen.page.barcodes` defaults to `barCodes` (step 12a; was `ItemBarCodePOS`).
 - `headoffice.copies-down.read-timeout-seconds` (store, default 60): the read timeout of the pull of copies down.
+- `erp.emtop.connect-timeout-seconds` (default 30) and `erp.emtop.read-timeout-seconds` (default 600): the emtop
+  connector's NAV timeouts.
 - General setup `CASHIER_CLOSING_TICKET` (`Z`, the default, or `DECLARED`).
 - General setup `ALWAYS_SHOW_BADGE_SCAN_POPUP` removed (till authorisation, step C): no longer created; on a store its
   row is read once by the till rights migration, then deleted. `TILL_RIGHTS_MIGRATED` (read only): written once by that
