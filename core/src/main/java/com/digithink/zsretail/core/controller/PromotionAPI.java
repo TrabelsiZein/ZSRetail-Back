@@ -91,6 +91,10 @@ public class PromotionAPI extends _BaseController<Promotion, Long, PromotionServ
 					: promotionService.findById(promotion.getId());
 			promotion.setOrigin(existing.map(Promotion::getOrigin).orElse(null)); // new: local
 			return ResponseEntity.status(HttpStatus.CREATED).body(promotionService.save(promotion));
+		} catch (IllegalArgumentException e) {
+			// 3.1.0: a target refused by the save rules (PromotionService.normalise), as the head office answers it
+			log.warn("PromotionAPI::create:refused: {}", e.getMessage());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(createErrorResponse(e.getMessage()));
 		} catch (Exception e) {
 			String detailedMessage = getDetailedMessage(e);
 			log.error("PromotionAPI::create:error: " + detailedMessage, e);
@@ -152,6 +156,9 @@ public class PromotionAPI extends _BaseController<Promotion, Long, PromotionServ
 		} catch (IllegalStateException e) {
 			log.warn("PromotionAPI::update: locked field violation for id={}: {}", id, e.getMessage());
 			return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+		} catch (IllegalArgumentException e) {
+			log.warn("PromotionAPI::update:refused for id={}: {}", id, e.getMessage());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(createErrorResponse(e.getMessage()));
 		} catch (Exception e) {
 			String detailedMessage = getDetailedMessage(e);
 			log.error("PromotionAPI::update:error: " + detailedMessage, e);

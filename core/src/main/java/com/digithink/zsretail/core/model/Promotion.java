@@ -5,7 +5,9 @@ import java.time.LocalTime;
 import java.util.HashSet;
 import java.util.Set;
 
+import javax.persistence.CollectionTable;
 import javax.persistence.Column;
+import javax.persistence.ElementCollection;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
@@ -51,7 +53,8 @@ import lombok.NoArgsConstructor;
 		@Index(name = "idx_promotion_item_family_id",     columnList = "item_family_id"),
 		@Index(name = "idx_promotion_item_sub_family_id", columnList = "item_sub_family_id"),
 		@Index(name = "idx_promotion_item_category_id",   columnList = "item_category_id"),
-		@Index(name = "idx_promotion_item_section_id",    columnList = "item_section_id")
+		@Index(name = "idx_promotion_item_section_id",    columnList = "item_section_id"),
+		@Index(name = "idx_promotion_nav_item_no",        columnList = "nav_item_no")
 	}
 )
 @Data
@@ -92,6 +95,13 @@ public class Promotion extends _BaseEntity {
 	@ManyToOne
 	@JoinColumn(name = "item_id")
 	private Item item;
+
+	/**
+	 * Scope ITEM, 3.1.0 (ZEN): the NAV item number targeted instead of one item row: every item carrying it in
+	 * item.nav_item_no (all the variants, also the ones synced after the promotion). Never set together with item.
+	 */
+	@Column(name = "nav_item_no")
+	private String navItemNo;
 
 	/** Populated when scope = ITEM_FAMILY */
 	@ManyToOne
@@ -135,6 +145,21 @@ public class Promotion extends _BaseEntity {
 	private Set<Item> groupItems = new HashSet<>();
 
 	/**
+	 * Scope ITEM_GROUP, 3.1.0 (ZEN): NAV item numbers of the group, each standing for all its variants (as
+	 * {@link #navItemNo}); a group holds item rows, NAV item numbers or both. LAZY, read only for an item carrying a
+	 * NAV item number.
+	 */
+	@ElementCollection(fetch = FetchType.LAZY)
+	@CollectionTable(
+		name = "promotion_group_nav_item",
+		joinColumns = @JoinColumn(name = "promotion_id"),
+		indexes = @Index(name = "idx_promo_group_nav_item_nav", columnList = "nav_item_no"))
+	@Column(name = "nav_item_no", nullable = false)
+	@lombok.ToString.Exclude
+	@lombok.EqualsAndHashCode.Exclude
+	private Set<String> groupNavItemNos = new HashSet<>();
+
+	/**
 	 * Optional cross-product benefit target (QUANTITY_PROMOTION only).
 	 * When set, the benefit (percentage / fixed / free units) applies to THIS
 	 * item instead of the purchased one: "buy N of <target> → benefit on getItem".
@@ -150,6 +175,14 @@ public class Promotion extends _BaseEntity {
 			{"itemFamily", "itemSubFamily", "hibernateLazyInitializer", "handler"})
 	@lombok.ToString.Exclude
 	private Item getItem;
+
+	/**
+	 * 3.1.0 (ZEN): the cross-product benefit on any variant of this NAV item number, instead of one item row (getItem).
+	 * Refused at save until the cart pass counts across lines (variants, step 2); the per-item pass skips a promotion
+	 * carrying it, as one carrying getItem.
+	 */
+	@Column(name = "get_nav_item_no")
+	private String getNavItemNo;
 
 	// ─── Thresholds (conditions) ──────────────────────────────────────────────
 

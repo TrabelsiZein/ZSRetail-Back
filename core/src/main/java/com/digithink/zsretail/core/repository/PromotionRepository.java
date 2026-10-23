@@ -113,10 +113,35 @@ public interface PromotionRepository extends _BaseRepository<Promotion, Long> {
 		@Param("today") LocalDate today);
 
 	/**
-	 * Active cross-product promotions (benefit lands on getItem instead of the
-	 * purchased product), valid today. Evaluated only by the cart pass.
+	 * 3.1.0 (ZEN): active ITEM promotions on this NAV item number (every variant carrying it), valid today. The scope
+	 * filter keeps a promotion of another scope out even if it ever kept a NAV item number.
 	 */
-	@Query("SELECT p FROM Promotion p WHERE p.active = true AND p.getItem IS NOT NULL "
+	@Query("SELECT p FROM Promotion p WHERE p.active = true "
+		+ "AND p.scope = com.digithink.zsretail.core.model.enumeration.PromotionScope.ITEM "
+		+ "AND p.navItemNo = :navItemNo "
+		+ "AND (p.startDate IS NULL OR p.startDate <= :today) "
+		+ "AND (p.endDate   IS NULL OR p.endDate   >= :today) "
+		+ "ORDER BY p.priority DESC")
+	List<Promotion> findActiveByNavItemNo(
+		@Param("navItemNo") String navItemNo,
+		@Param("today") LocalDate today);
+
+	/** 3.1.0 (ZEN): active ITEM_GROUP promotions whose NAV item numbers hold this one, valid today. */
+	@Query("SELECT p FROM Promotion p JOIN p.groupNavItemNos n WHERE p.active = true "
+		+ "AND p.scope = com.digithink.zsretail.core.model.enumeration.PromotionScope.ITEM_GROUP "
+		+ "AND n = :navItemNo "
+		+ "AND (p.startDate IS NULL OR p.startDate <= :today) "
+		+ "AND (p.endDate   IS NULL OR p.endDate   >= :today) "
+		+ "ORDER BY p.priority DESC")
+	List<Promotion> findActiveByGroupNavItemNo(
+		@Param("navItemNo") String navItemNo,
+		@Param("today") LocalDate today);
+
+	/**
+	 * Active cross-product promotions (benefit lands on getItem, or 3.1.0 on any variant of getNavItemNo, instead of
+	 * the purchased product), valid today. Evaluated only by the cart pass.
+	 */
+	@Query("SELECT p FROM Promotion p WHERE p.active = true AND (p.getItem IS NOT NULL OR p.getNavItemNo IS NOT NULL) "
 		+ "AND (p.startDate IS NULL OR p.startDate <= :today) "
 		+ "AND (p.endDate   IS NULL OR p.endDate   >= :today) "
 		+ "ORDER BY p.priority DESC")

@@ -16,16 +16,19 @@
 - `scope` (ITEM / ITEM_GROUP / ITEM_FAMILY / ITEM_SUBFAMILY / SECTION / CATEGORY / ALL_ITEMS / CART)
 - `item_id`, `item_family_id`, `item_sub_family_id` (nullable FKs — scope determines which is used)
 - `item_category_id`, `item_section_id` (3.1.0, ZEN, nullable FKs to `item_category` / `item_section`): the target of a CATEGORY / SECTION promotion; see **Catégorie and section scopes**
+- `nav_item_no` (3.1.0, ZEN, nullable varchar(255)): an ITEM promotion on every variant of a NAV item, instead of `item_id`; see **Every variant of a NAV item**
 - `promotion_group_item` join table (1.10.0): the item set of an ITEM_GROUP promotion
+- `promotion_group_nav_item` table (3.1.0, ZEN; `promotion_id`, `nav_item_no`): the NAV item numbers of an ITEM_GROUP promotion
 - ALL_ITEMS has no target: `PromotionService.save` clears the three FKs and the group items (the per-item FK lookups have no scope filter, so a leftover FK would make it match early)
 - `get_item_id` (nullable FK, 1.10.0): cross-product benefit target, QUANTITY_PROMOTION only, evaluated by the cart pass
+- `get_nav_item_no` (3.1.0, ZEN, nullable): the benefit on any variant of a NAV item; refused at save until step 2
 - `minimum_quantity`, `minimum_amount`
 - `benefit_type` (PERCENTAGE_DISCOUNT / FIXED_DISCOUNT / FREE_QUANTITY)
 - `discount_percentage`, `discount_amount`, `free_quantity`
 - `start_date`, `end_date`, `priority`, `active`
 - `day_of_week` (comma-separated, e.g. "1,2,3"), `time_start`, `time_end`
 - `requires_code` (boolean — if true, only activates when code is entered by cashier)
-- DB indexes on: scope, active+dates, item_id, item_family_id, item_sub_family_id, item_category_id, item_section_id, promotion_type
+- DB indexes on: scope, active+dates, item_id, item_family_id, item_sub_family_id, item_category_id, item_section_id, nav_item_no, promotion_group_nav_item.nav_item_no, promotion_type
 
 **`sales_line`** (Flyway migration 022):
 - Added `discount_source` (VARCHAR 30), `promotion_id` (FK → promotion, nullable)
@@ -252,12 +255,47 @@ tables are empty (EMTOP, Happyness): the scopes are not offered and an item with
   cross-product, save rules), `PromotionDownHandlerTest` (`categoryAndSection`, `missingCategoryAndSection`);
   `PromotionAllItemsScopeTest` unchanged (its stubs throw on any other lookup).
 
+### Every variant of a NAV item (3.1.0, ZEN), step 1
+
+At ZEN every variant is its own item row; the variants of one ERP item share `item.nav_item_no`. EMTOP and Happyness
+have no NAV item number on any row (only the ZEN connector fills it): nothing below ever happens there. Design and
+steps (step 0, 2026-10-23): 1 data and matching, 1b the "toutes les variantes" box of the promotion form, 3 the head
+office copy and `Item` equality, 2 counting across cart lines (every scope, decision 6a), 4 the lookup popup.
+
+- **Targets**: an ITEM promotion targets one item row (`item`, as before) or one NAV item number (`navItemNo`); an
+  ITEM_GROUP holds item rows, NAV item numbers (`groupNavItemNos`) or both. A NAV item number stands for every item
+  carrying it at ticket time, also the variants synced after the promotion was made: nothing is expanded at save.
+  `getNavItemNo` (the benefit of a cross-product on any variant) is in the entity and the table only.
+- **Matching** (`findBestItemPromotion`): for an item carrying a NAV item number, ITEM on its row > ITEM on its NAV
+  number (`findActiveByNavItemNo`) > its groups, the groups of rows (`findActiveByGroupItemId`) and of NAV numbers
+  (`findActiveByGroupNavItemNo`) read as one level where priority decides (decisions 4 of 2026-10-23); then the scopes
+  below as before. An item without one reads exactly what it read before (blank counts as none). Both lookups filter
+  on the scope. `matchesBuyTarget` (cart pass, cross-product buy side) matches a NAV number the same way; a group's
+  NAV numbers are read only for an item carrying one. A promotion with `getNavItemNo` never discounts the buy line
+  (`selectBestFromList`, as `getItem`), and the cart pass reads it (`findActiveCrossProductPromotions`) but skips it
+  until step 2. Quantities still count per cart line in step 1.
+- **Save** (`PromotionService.normalise`, also for a copy received from the head office): the three trimmed, blank =
+  none; an ITEM with both `item` and `navItemNo` is refused; `navItemNo` kept on ITEM only, `groupNavItemNos` on
+  ITEM_GROUP only (a group needs at least one row or NAV number), `getNavItemNo` cleared outside QUANTITY_PROMOTION as
+  `getItem`. Until step 2 a QUANTITY_PROMOTION with `navItemNo`, `groupNavItemNos` or `getNavItemNo` is refused ("buy N"
+  would count each variant's line alone). All three locked once the promotion is used. `POST /promotion` and
+  `PUT /promotion/{id}` answer a refusal with 400 and its reason (500 before 3.1.0).
+- **SQL**: `db/3.1.0/update.sql`, section "Promotions on every variant of a NAV item"; no data changed.
+- **Not yet**: the head office copy carries no NAV target before step 3 (a store receives such a promotion without
+  target: it matches nothing); no screen sets one before step 1b.
+- Tests: `PromotionNavTargetTest` (every variant, a variant synced later, order, groups one level, no NAV number no
+  reads, scope filter, benefit on a NAV number, buy side), `PromotionGroupItemsTest` (save rules, lock);
+  `PromotionAllItemsScopeTest` and `PromotionCategorySectionScopeTest` unchanged (their stubs throw on any other lookup);
+  `QueryParameterBindingTest` binds the two new queries.
+
 ### Resolution order (per item)
 
 `PromotionCalculationService.findBestItemPromotion` then `calculateItemPrice`:
 
 1. **Scope cascade**, most specific first: ITEM > ITEM_GROUP > SECTION > ITEM_SUBFAMILY > ITEM_FAMILY > CATEGORY > ALL_ITEMS
-   (SECTION and CATEGORY since 3.1.0, each skipped for an item without a section / catégorie code).
+   (SECTION and CATEGORY since 3.1.0, each skipped for an item without a section / catégorie code; for an item carrying
+   a NAV item number, ITEM on its row > ITEM on its NAV number > groups of rows and of NAV numbers, see **Every variant
+   of a NAV item**).
    Each scope loads its active, in-date promotions, then drops those failing the promo-code,
    minimum-quantity, time-window or day-of-week filters. A scope left with no candidate falls
    through to the next one. The first scope with a candidate wins; less specific scopes are not consulted.

@@ -52,6 +52,9 @@
 --
 -- Schema, promotions by catégorie and section (ZEN): promotion.item_category_id and item_section_id, nullable, with their
 -- foreign keys and indexes (store and head office). Re-runnable; no data changed.
+--
+-- Schema, promotions on every variant of a NAV item (ZEN): promotion.nav_item_no and get_nav_item_no, nullable, and the
+-- table promotion_group_nav_item, with their indexes (store and head office). Re-runnable; no data changed.
 
 -- The session options are set here (sqlcmd starts with QUOTED_IDENTIFIER OFF); SSMS has them on already.
 
@@ -429,6 +432,29 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'promotion
 	CREATE INDEX idx_promotion_item_category_id ON promotion (item_category_id);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'promotion') AND name = 'idx_promotion_item_section_id')
 	CREATE INDEX idx_promotion_item_section_id ON promotion (item_section_id);
+GO
+
+-- Promotions on every variant of a NAV item (ZEN, docs/modules/promotion.md): promotion.nav_item_no (scope ITEM: every
+-- item carrying that item.nav_item_no, also the variants synced later), promotion.get_nav_item_no (the benefit on any
+-- variant, refused at save until the till counts across cart lines) and promotion_group_nav_item (the NAV item numbers
+-- of an ITEM_GROUP promotion), store and head office. varchar(255) as item.nav_item_no. No default, no data changed:
+-- every promotion of before keeps them empty. A database already started with this version has them from Hibernate
+-- (its own key names); each object is added only when missing. Re-runnable.
+IF COL_LENGTH('promotion', 'nav_item_no') IS NULL ALTER TABLE promotion ADD nav_item_no varchar(255) NULL;
+IF COL_LENGTH('promotion', 'get_nav_item_no') IS NULL ALTER TABLE promotion ADD get_nav_item_no varchar(255) NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'promotion') AND name = 'idx_promotion_nav_item_no')
+	CREATE INDEX idx_promotion_nav_item_no ON promotion (nav_item_no);
+IF OBJECT_ID(N'promotion_group_nav_item', N'U') IS NULL
+	CREATE TABLE promotion_group_nav_item (
+		promotion_id bigint NOT NULL,
+		nav_item_no varchar(255) NOT NULL,
+		CONSTRAINT pk_promotion_group_nav_item PRIMARY KEY (promotion_id, nav_item_no),
+		CONSTRAINT fk_promotion_group_nav_item_promotion FOREIGN KEY (promotion_id) REFERENCES promotion (id));
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'promotion_group_nav_item')
+		AND name = 'idx_promo_group_nav_item_nav')
+	CREATE INDEX idx_promo_group_nav_item_nav ON promotion_group_nav_item (nav_item_no);
 GO
 
 UPDATE APP_VERSION SET version = '3.1.0';

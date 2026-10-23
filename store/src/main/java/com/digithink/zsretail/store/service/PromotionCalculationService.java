@@ -496,14 +496,20 @@ public class PromotionCalculationService {
 		return r >= n ? m - Math.max(0, r - n) : 0;
 	}
 
-	/** Does this cart item match the promotion's buy-side target (any scope)? */
+	/**
+	 * Does this cart item match the promotion's buy-side target (any scope)? 3.1.0 (ZEN): a NAV item number target
+	 * matches every variant carrying it; the NAV numbers of a group are read only for an item carrying one.
+	 */
 	private boolean matchesBuyTarget(Promotion p, Item item) {
+		String navItemNo = blankToNull(item.getNavItemNo());
 		switch (p.getScope()) {
 			case ITEM:
-				return p.getItem() != null && p.getItem().getId().equals(item.getId());
+				return p.getItem() != null && p.getItem().getId().equals(item.getId())
+						|| navItemNo != null && navItemNo.equals(p.getNavItemNo());
 			case ITEM_GROUP:
 				return p.getGroupItems().stream()
-						.anyMatch(gi -> gi.getId() != null && gi.getId().equals(item.getId()));
+						.anyMatch(gi -> gi.getId() != null && gi.getId().equals(item.getId()))
+						|| navItemNo != null && p.getGroupNavItemNos().contains(navItemNo);
 			case ITEM_SUBFAMILY:
 				return p.getItemSubFamily() != null && item.getItemSubFamily() != null
 						&& p.getItemSubFamily().getId().equals(item.getItemSubFamily().getId());
@@ -555,7 +561,8 @@ public class PromotionCalculationService {
 
 	/**
 	 * Find the best promotion for a single item.
-	 * Scope priority: ITEM > ITEM_GROUP > SECTION > ITEM_SUBFAMILY > ITEM_FAMILY > CATEGORY > ALL_ITEMS (most specific wins).
+	 * Scope priority: ITEM > ITEM_GROUP > SECTION > ITEM_SUBFAMILY > ITEM_FAMILY > CATEGORY > ALL_ITEMS (most specific wins);
+	 * 3.1.0, for an item carrying a NAV item number: ITEM on its row > ITEM on its NAV number > its groups (rows and NAV).
 	 * Filters are applied per scope: a scope with no eligible candidate falls through to the next one.
 	 * Within scope: highest priority wins (ABSOLUTE).
 	 * <p>
@@ -569,10 +576,23 @@ public class PromotionCalculationService {
 		DayOfWeek todayDay = today.getDayOfWeek();
 
 		List<Supplier<List<Promotion>>> scopes = new ArrayList<>();
+		// 3.1.0 (ZEN): an item carrying a NAV item number also reads the promotions on that number (every variant): right
+		// after the ones on its own row, and its groups with NAV numbers at the level of its groups of rows (priority
+		// decides between them). An item without one (EMTOP, Happyness) reads exactly what it read before.
+		String navItemNo = blankToNull(item.getNavItemNo());
 		if (item.getId() != null) {
 			// ITEM scope (most specific), then ITEM_GROUP (curated set — more specific than taxonomy, less than direct item)
 			scopes.add(() -> promotionRepository.findActiveByItemId(item.getId(), today));
-			scopes.add(() -> promotionRepository.findActiveByGroupItemId(item.getId(), today));
+			if (navItemNo != null) {
+				scopes.add(() -> promotionRepository.findActiveByNavItemNo(navItemNo, today));
+				scopes.add(() -> {
+					List<Promotion> groups = new ArrayList<>(promotionRepository.findActiveByGroupItemId(item.getId(), today));
+					groups.addAll(promotionRepository.findActiveByGroupNavItemNo(navItemNo, today));
+					return groups; // a group holding the row and its NAV number comes twice: same best, harmless
+				});
+			} else {
+				scopes.add(() -> promotionRepository.findActiveByGroupItemId(item.getId(), today));
+			}
 		}
 		// SECTION (3.1.0, ZEN): below the sub-family, so before it; skipped for an item without a section code
 		String sectionCode = sectionCodeOf(item);
@@ -625,8 +645,9 @@ public class PromotionCalculationService {
 		return candidates.stream()
 				// Cross-product promotions (getItem set) never discount the buy line
 				// itself — they are evaluated by the cart pass and applied to the
-				// get-item's line. Existing promotions all have getItem = null.
-				.filter(p -> p.getGetItem() == null)
+				// get-item's line. Existing promotions all have getItem = null. 3.1.0: the same for a benefit on a NAV
+				// item number (getNavItemNo).
+				.filter(p -> p.getGetItem() == null && p.getGetNavItemNo() == null)
 				.filter(p -> p.getBenefitType() != PromotionBenefitType.FREE_QUANTITY
 						|| (zeroFreeAllowed ? p.getMinimumQuantity() != null && p.getMinimumQuantity() > 0
 								&& p.getFreeQuantity() != null && p.getFreeQuantity() > 0

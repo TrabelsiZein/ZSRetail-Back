@@ -45,6 +45,15 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   scope needs its target, other scopes keep neither; both locked once used. Head office copy by code
   (`itemCategoryCode`, `itemSectionCode`), missing = waiting as a famille; a store of an older build skips such a
   promotion (error). `GET /item-category` and `GET /item-section` entries carry the row `id`.
+- Promotions on every variant of a NAV item, step 1 (ZEN): an ITEM promotion targets one item row (`item`) or one NAV
+  item number (`navItemNo`: every item carrying it, also variants synced later), an ITEM_GROUP holds item rows and/or
+  NAV item numbers (`groupNavItemNos`); `getNavItemNo` (benefit on any variant) is stored but refused for now.
+  Matched at ticket time: item on its row > item on its NAV number > its groups (rows and NAV numbers one level,
+  priority decides), read only for an item carrying a NAV item number (EMTOP, Happyness: the same reads and answers);
+  cross-product buy side too. Save: an ITEM never holds both, a NAV number only on ITEM, NAV numbers only on
+  ITEM_GROUP, trimmed; a quantity promotion on a NAV target or with a NAV benefit is refused (400) until the till counts
+  the lines of a NAV item together (step 2); the three locked once used. The head office copy and the screens follow
+  (steps 1b and 3).
 - Till levels catégorie and section, step 1, API only (ZEN; docs/modules/head-office.md, "Till levels"): read-only POS
   lists `GET /item-category/pos`, `GET /item-family/pos?category={code}` and `?withoutCategory=true`,
   `GET /item-section/pos?subFamily={id}`, `GET /item/pos/by-section/{id}`, the fall-throughs
@@ -144,6 +153,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   screen sends. `groupItems` is read by distinct id (`{ id }`, `{ id, itemCode }` or a full item give the same group)
   and `PromotionService.save` loads those ids from the database; an unknown id or an item without an id is refused.
   `Item` equality is unchanged.
+- Promotions page of a store (`POST /promotion`, `PUT /promotion/{id}`): a promotion refused by the save rules (a group
+  without items, a catégorie or section promotion without its target, the NAV targets' rules) answers 400 with the
+  reason, as the head office does; it answered 500.
 - Fiches items list (`GET /admin/headoffice/item-catalogue`): failed on SQL Server ("duplicated sql alias []", the page
   showed no item): every column of its native queries now has its own alias.
 - Badge scan history: the statistics count every row of the period, the passes on the role's right (ROLE) with the
@@ -245,6 +257,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Payment method "Retenue à la source", inactive (kept as it is where EMTOP 1.12.1 has it).
 - Promotions by catégorie and section: nullable `promotion.item_category_id` and `item_section_id`, their foreign keys
   (only when the column has none) and indexes, store and head office; re-runnable, no data changed.
+- Promotions on every variant of a NAV item: nullable `promotion.nav_item_no` and `get_nav_item_no` (varchar(255), as
+  `item.nav_item_no`), index `idx_promotion_nav_item_no`, table `promotion_group_nav_item` (`promotion_id`,
+  `nav_item_no`, primary key both, foreign key to `promotion`) with index `idx_promo_group_nav_item_nav`; store and head
+  office, re-runnable, no data changed.
 - Item variants: 14 nullable columns of `item`, `item_family.category_code`, tables `item_category` and `item_section`,
   `ho_stock_point_item.clearance` and `clearance_price` (head office), index `ix_item_nav_item_no` (plain, not filtered).
 - Item variants (ZEN): `item.variant_description` rebuilt from `size_description`, `color_description`,

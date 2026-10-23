@@ -175,18 +175,41 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 
 	/** The target normalisation of {@link #save}, also applied to a promotion received from the head office. */
 	public void normalise(Promotion promotion) {
+		// 3.1.0 (ZEN): the NAV item number targets, trimmed, blank = none
+		promotion.setNavItemNo(trimToNull(promotion.getNavItemNo()));
+		promotion.setGetNavItemNo(trimToNull(promotion.getGetNavItemNo()));
+		cleanNavItemNos(promotion);
+
 		if (promotion.getScope() == PromotionScope.ITEM_GROUP) {
-			if (promotion.getGroupItems() == null || promotion.getGroupItems().isEmpty()) {
+			if ((promotion.getGroupItems() == null || promotion.getGroupItems().isEmpty())
+					&& promotion.getGroupNavItemNos().isEmpty()) {
 				throw new IllegalArgumentException("An ITEM_GROUP promotion must target at least one item");
 			}
 			promotion.setItem(null);
 			promotion.setItemFamily(null);
 			promotion.setItemSubFamily(null);
-		} else if (promotion.getGroupItems() == null) {
-			// A null collection would be skipped by merge and could leave stale join rows
-			promotion.setGroupItems(new HashSet<>());
+			if (promotion.getGroupItems() == null) {
+				promotion.setGroupItems(new HashSet<>());
+			}
 		} else {
-			promotion.getGroupItems().clear();
+			if (promotion.getGroupItems() == null) {
+				// A null collection would be skipped by merge and could leave stale join rows
+				promotion.setGroupItems(new HashSet<>());
+			} else {
+				promotion.getGroupItems().clear();
+			}
+			promotion.getGroupNavItemNos().clear();
+		}
+
+		// 3.1.0 (ZEN): an ITEM promotion targets one item row or one NAV item number (all its variants), never both;
+		// only ITEM keeps a NAV item number (its lookup filters on the scope, this keeps the rows clean).
+		if (promotion.getScope() == PromotionScope.ITEM) {
+			if (promotion.getItem() != null && promotion.getNavItemNo() != null) {
+				throw new IllegalArgumentException(
+						"An ITEM promotion targets one item or one ERP item number (all its variants), not both");
+			}
+		} else {
+			promotion.setNavItemNo(null);
 		}
 
 		// ALL_ITEMS has no target. The per-item lookups match by FK without a scope filter,
@@ -220,11 +243,61 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 		// "benefit on the same purchased product" is expressed as getItem = null.
 		if (promotion.getPromotionType() != PromotionType.QUANTITY_PROMOTION) {
 			promotion.setGetItem(null);
+			promotion.setGetNavItemNo(null);
 		} else if (promotion.getGetItem() != null && promotion.getScope() == PromotionScope.ITEM
 				&& promotion.getItem() != null
 				&& entityIdEqual(promotion.getGetItem(), promotion.getItem())) {
 			promotion.setGetItem(null);
 		}
+
+		// 3.1.0 (ZEN), until the till counts the pieces of every cart line of a NAV item (step 2): a quantity promotion
+		// counts each cart line alone, so "buy N" on a NAV item number or its benefit on one is refused for now.
+		if (promotion.getPromotionType() == PromotionType.QUANTITY_PROMOTION) {
+			if (promotion.getNavItemNo() != null || !promotion.getGroupNavItemNos().isEmpty()) {
+				throw new IllegalArgumentException(
+						"A quantity promotion cannot target an ERP item number (all its variants) yet");
+			}
+			if (promotion.getGetNavItemNo() != null) {
+				throw new IllegalArgumentException(
+						"The benefit item of a quantity promotion cannot be an ERP item number (all its variants) yet");
+			}
+		}
+	}
+
+	/** Trimmed; null when blank. */
+	private static String trimToNull(String value) {
+		return value == null || value.trim().isEmpty() ? null : value.trim();
+	}
+
+	/**
+	 * 3.1.0: the NAV item numbers of the group trimmed, without blanks or repeats, in the same collection (never null,
+	 * as groupItems: a null collection would be skipped by merge).
+	 */
+	private static void cleanNavItemNos(Promotion promotion) {
+		Set<String> values = promotion.getGroupNavItemNos();
+		if (values == null) {
+			promotion.setGroupNavItemNos(new HashSet<>());
+			return;
+		}
+		Set<String> clean = navItemNos(values);
+		if (!clean.equals(values)) {
+			values.clear();
+			values.addAll(clean);
+		}
+	}
+
+	/** 3.1.0: NAV item numbers trimmed, without blanks or repeats; never null. */
+	private static Set<String> navItemNos(Set<String> values) {
+		Set<String> clean = new LinkedHashSet<>();
+		if (values != null) {
+			for (String value : values) {
+				String no = trimToNull(value);
+				if (no != null) {
+					clean.add(no);
+				}
+			}
+		}
+		return clean;
 	}
 
 	/** The item, family and sub-family targets, cleared for a CATEGORY or SECTION promotion. */
@@ -240,7 +313,8 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 	 *
 	 * Locked fields (when used): promotionType, benefitType, discountPercentage,
 	 * discountAmount, freeQuantity, scope, item, itemFamily, itemSubFamily, itemCategory, itemSection (3.1.0),
-	 * groupItems, getItem, minimumQuantity, minimumAmount, requiresCode, code.
+	 * groupItems, getItem, navItemNo, groupNavItemNos, getNavItemNo (3.1.0), minimumQuantity, minimumAmount,
+	 * requiresCode, code.
 	 *
 	 * Allowed fields (always): name, description, startDate, endDate, active,
 	 * priority, timeStart, timeEnd, dayOfWeek.
@@ -268,6 +342,10 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 			violations.add("scope");
 		if (!entityIdEqual(existing.getItem(), updated.getItem()))
 			violations.add("item");
+		if (!Objects.equals(trimToNull(existing.getNavItemNo()), trimToNull(updated.getNavItemNo())))
+			violations.add("navItemNo");
+		if (!navItemNos(existing.getGroupNavItemNos()).equals(navItemNos(updated.getGroupNavItemNos())))
+			violations.add("groupNavItemNos");
 		if (!entityIdEqual(existing.getItemFamily(), updated.getItemFamily()))
 			violations.add("itemFamily");
 		if (!entityIdEqual(existing.getItemCategory(), updated.getItemCategory()))
@@ -280,6 +358,8 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 			violations.add("groupItems");
 		if (!entityIdEqual(existing.getGetItem(), updated.getGetItem()))
 			violations.add("getItem");
+		if (!Objects.equals(trimToNull(existing.getGetNavItemNo()), trimToNull(updated.getGetNavItemNo())))
+			violations.add("getNavItemNo");
 		if (!Objects.equals(existing.getMinimumQuantity(), updated.getMinimumQuantity()))
 			violations.add("minimumQuantity");
 		if (!Objects.equals(existing.getMinimumAmount(), updated.getMinimumAmount()))
