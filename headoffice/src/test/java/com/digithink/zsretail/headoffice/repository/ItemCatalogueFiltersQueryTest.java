@@ -71,6 +71,7 @@ class ItemCatalogueFiltersQueryTest {
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
 			ItemFamily homme = family(session, "HOM", "Homme");
+			homme.setCategoryCode("VET");
 			ItemFamily femme = family(session, "FEM", "Femme");
 			ItemSubFamily chemises = subFamily(session, "CHEM", "Chemises", homme);
 			ItemSubFamily robesRow = subFamily(session, "ROBE", "Robes", femme);
@@ -84,6 +85,7 @@ class ItemCatalogueFiltersQueryTest {
 			ItemSection manche = new ItemSection();
 			manche.setCode("MANCHE");
 			manche.setName("Manches");
+			manche.setSubFamilyCode("CHEM");
 			session.persist(manche);
 			item(session, "70061~S", "70061", "CHEMISE", homme, chemises, true, 10.0, 19, "PAP", "VET", "MANCHE");
 			Item m = item(session, "70061~M", "70061", "CHEMISE", homme, chemises, true, 20.0, 19, "PAP", "VET", "MANCHE");
@@ -330,6 +332,11 @@ class ItemCatalogueFiltersQueryTest {
 		assertEquals("PAP", filters.getDivisions().get(0).getCode());
 		assertEquals("Vêtements", filters.getCategories().get(0).getName());
 		assertEquals("Manches", filters.getSections().get(0).getName());
+		// Classification column: a family's catégorie and a section's sub-family, the filters' narrowing
+		assertEquals(Arrays.asList(null, "VET"), filters.getFamilies().stream().map(ItemCatalogueFiltersDTO.Option::getParentCode)
+				.collect(Collectors.toList()));
+		assertEquals("CHEM", filters.getSections().get(0).getParentCode());
+		assertEquals(null, filters.getSubFamilies().get(0).getParentCode());
 		assertEquals(Arrays.asList("P1", "P2", "P3"),
 				filters.getStockPoints().stream().map(ItemCatalogueFiltersDTO.Option::getCode).collect(Collectors.toList()));
 	}

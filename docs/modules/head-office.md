@@ -1639,7 +1639,10 @@ Done (step 4), the screens (frontend routes with `meta.erpCatalogue`: menu, guar
   `GET admin/headoffice/stock-points/items` (filters stockPointId, search, familyCode, subFamilyCode, priceMin, priceMax,
   status ALL | ACTIVE | INACTIVE, page, size up to 200; `HoStockPointItemsService`, query
   `HoStockPointItemRepository.findRows`, or `findRowsSearched` with a search: the barcode `exists` only in the query of a search, 3.1.0 speed fix: one query with `:search is null or ... exists` scanned `item_barcode` once per row, minutes on 21,903 rows; index `ix_item_barcode_item`) and `GET admin/headoffice/stock-points/items/{rowId}`. The two permissions are
-  given to ADMIN at startup (`ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS`).
+  given to ADMIN at startup (`ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS`). Classification column (3.1.0): a
+  row also gives the item's `categoryCode` / `categoryName` / `sectionCode` / `sectionName` (the names read once per
+  page, no read without a code: null on EMTOP and Happyness); the family and sub-family stay the row's. No filter on
+  them (the page's Classification column only).
 - Tests: `HoStockPointItemsServiceTest`, `CatalogueEngineTest.lastReads`, `QueryParameterBindingTest` (the rows query),
   `ZZDataInitializerRolesTest`.
 
@@ -1923,6 +1926,12 @@ routes send to Item cards.
   show only when the data has them; the search placeholder names the NAV number and the barcode only where they exist.
   The list has no Actions column: a click on a line, or Enter on the focused line, opens the card; Configure pack and
   Adjust stock are in the card (its header for a single item, each variant's menu for a NAV item), as on the Items page.
+- **Classification column** (2026-10-23, every items page, `docs/frontend.md`): the Family / Sub-family and Category /
+  Section columns are one "Classification" column, catégorie › famille › sous-famille › section (still sorted by
+  family); the filters in that order, the catégorie and section ones only when `GET /config` has the level (as the menus'
+  Catégories and Sections pages) and the page has choices. The filter choices give `parentCode` for the narrowing: a
+  family's `item_family.category_code`, a section's `item_section.sub_family_code` (null otherwise, and on a customer
+  without the levels); a sub-family keeps its `parentId`. `ItemCatalogueFiltersQueryTest.filters`.
 - **List filters and sort** (`HoItemCatalogueQuery`, native SQL built with only the filters set; the two fixed list
   queries of `HoItemCatalogueRepository` are gone): `familyId`, `subFamilyId`, `divisionCode`, `categoryCode`,
   `sectionCode`, `stockPointId` (an active row there), `variants=ALL|YES|NO` (2 variants or more of the status),

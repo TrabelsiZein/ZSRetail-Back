@@ -20,11 +20,15 @@ import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ItemBarcode;
+import com.digithink.zsretail.core.model.ItemCategory;
 import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
+import com.digithink.zsretail.core.repository.ItemCategoryRepository;
 import com.digithink.zsretail.core.repository.ItemFamilyRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.repository.ItemSectionRepository;
 import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
 import com.digithink.zsretail.erp.api.ErpAbility;
 import com.digithink.zsretail.headoffice.dto.StockPointItemDTO;
@@ -52,15 +56,20 @@ public class HoStockPointItemsService {
 	private final ItemBarcodeRepository barcodes;
 	private final ItemFamilyRepository families;
 	private final ItemSubFamilyRepository subFamilies;
+	private final ItemCategoryRepository categories;
+	private final ItemSectionRepository sections;
 
 	public HoStockPointItemsService(HoStockPointItemRepository rows, HoStockPointRepository points, ItemRepository items,
-			ItemBarcodeRepository barcodes, ItemFamilyRepository families, ItemSubFamilyRepository subFamilies) {
+			ItemBarcodeRepository barcodes, ItemFamilyRepository families, ItemSubFamilyRepository subFamilies,
+			ItemCategoryRepository categories, ItemSectionRepository sections) {
 		this.rows = rows;
 		this.points = points;
 		this.items = items;
 		this.barcodes = barcodes;
 		this.families = families;
 		this.subFamilies = subFamilies;
+		this.categories = categories;
+		this.sections = sections;
 	}
 
 	/**
@@ -127,10 +136,12 @@ public class HoStockPointItemsService {
 		return value == null || value.trim().isEmpty();
 	}
 
-	/** The names of the families and the barcodes of one page, read once. */
+	/** The names of the families, catégories and sections and the barcodes of one page, read once. */
 	private final class Views {
 		final Map<String, String> familyNames = new HashMap<>();
 		final Map<String, String> subFamilyNames = new HashMap<>();
+		final Map<String, String> categoryNames = new HashMap<>();
+		final Map<String, String> sectionNames = new HashMap<>();
 		final Map<Long, List<ItemBarcode>> barcodesByItem;
 
 		Views(List<HoStockPointItem> pageRows, List<Item> pageItems) {
@@ -146,6 +157,21 @@ public class HoStockPointItemsService {
 			if (!subFamilyCodes.isEmpty()) {
 				for (ItemSubFamily subFamily : subFamilies.findByCodeIn(subFamilyCodes)) {
 					subFamilyNames.put(subFamily.getCode(), subFamily.getName());
+				}
+			}
+			// Classification column (3.1.0): the items' catégories and sections (none on a customer without them: no read)
+			List<String> categoryCodes = pageItems.stream().map(Item::getCategoryCode).filter(Objects::nonNull).distinct()
+					.collect(Collectors.toList());
+			List<String> sectionCodes = pageItems.stream().map(Item::getSectionCode).filter(Objects::nonNull).distinct()
+					.collect(Collectors.toList());
+			if (!categoryCodes.isEmpty()) {
+				for (ItemCategory category : categories.findByCodeIn(categoryCodes)) {
+					categoryNames.put(category.getCode(), category.getName());
+				}
+			}
+			if (!sectionCodes.isEmpty()) {
+				for (ItemSection section : sections.findByCodeIn(sectionCodes)) {
+					sectionNames.put(section.getCode(), section.getName());
 				}
 			}
 			List<Long> itemIds = pageItems.stream().map(Item::getId).distinct().collect(Collectors.toList());
@@ -178,6 +204,10 @@ public class HoStockPointItemsService {
 			view.setType(item.getType() == null ? null : item.getType().name());
 			view.setUnitOfMeasure(item.getUnitOfMeasure());
 			view.setCategory(item.getCategory());
+			view.setCategoryCode(item.getCategoryCode());
+			view.setCategoryName(categoryNames.get(item.getCategoryCode()));
+			view.setSectionCode(item.getSectionCode());
+			view.setSectionName(sectionNames.get(item.getSectionCode()));
 			view.setBrand(item.getBrand());
 			view.setItemDiscGroup(item.getItemDiscGroup());
 			view.setMaximumAuthorizedDiscount(item.getMaximumAuthorizedDiscount());

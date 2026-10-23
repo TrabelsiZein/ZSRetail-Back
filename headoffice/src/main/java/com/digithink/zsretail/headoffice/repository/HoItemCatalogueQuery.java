@@ -327,8 +327,9 @@ public class HoItemCatalogueQuery {
 			+ " (SELECT COUNT(*) FROM ho_stock_point p) AS stock_point_count,"
 			+ " CASE WHEN EXISTS (SELECT 1 FROM item_barcode b) THEN 1 ELSE 0 END AS has_barcodes";
 
-	/** The families that have an item: [id, code, name]. */
-	public static final String FAMILIES = "SELECT f.id AS id, f.code AS code, f.name AS name FROM item_family f"
+	/** The families that have an item: [id, code, name, catégorie code]. */
+	public static final String FAMILIES = "SELECT f.id AS id, f.code AS code, f.name AS name,"
+			+ " f.category_code AS category_code FROM item_family f"
 			+ " WHERE f.id IN (SELECT v.item_family_id FROM item v) ORDER BY f.name, f.code";
 
 	/** The sub-families that have an item: [id, code, name, family id]. */
@@ -345,8 +346,9 @@ public class HoItemCatalogueQuery {
 			+ " LEFT JOIN item_category c ON c.code = v.category_code WHERE v.category_code IS NOT NULL"
 			+ " GROUP BY v.category_code ORDER BY v.category_code";
 
-	/** The section codes of the items with their name: [code, name]. */
-	public static final String SECTIONS = "SELECT v.section_code AS code, MIN(s.name) AS name FROM item v"
+	/** The section codes of the items with their name and their sub-family's code: [code, name, sub-family code]. */
+	public static final String SECTIONS = "SELECT v.section_code AS code, MIN(s.name) AS name,"
+			+ " MIN(s.sub_family_code) AS sub_family_code FROM item v"
 			+ " LEFT JOIN item_section s ON s.code = v.section_code WHERE v.section_code IS NOT NULL"
 			+ " GROUP BY v.section_code ORDER BY v.section_code";
 

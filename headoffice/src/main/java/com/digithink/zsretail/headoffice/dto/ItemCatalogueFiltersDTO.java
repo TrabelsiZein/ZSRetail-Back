@@ -36,7 +36,7 @@ public class ItemCatalogueFiltersDTO {
 	/** A barcode exists. */
 	private boolean hasBarcodes;
 
-	/** The families that have an item, by name. */
+	/** The families that have an item, by name, with their catégorie (parentCode, null without one). */
 	private List<Option> families = new ArrayList<>();
 
 	/** The sub-families that have an item, by name, with their family (parentId). */
@@ -47,6 +47,7 @@ public class ItemCatalogueFiltersDTO {
 
 	private List<Option> categories = new ArrayList<>();
 
+	/** The section codes of the items, with their sub-family's code (parentCode, null when the table has no row). */
 	private List<Option> sections = new ArrayList<>();
 
 	/** The points de stock in list order. */
@@ -66,5 +67,11 @@ public class ItemCatalogueFiltersDTO {
 
 		/** A sub-family's family id; null otherwise. */
 		private Long parentId;
+
+		/**
+		 * Classification column (3.1.0): a family's catégorie code, a section's sub-family code (the page's filters
+		 * narrow the level below by it); null otherwise.
+		 */
+		private String parentCode;
 	}
 }

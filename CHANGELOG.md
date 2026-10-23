@@ -176,6 +176,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   rows give `itemId`, `navItemNo` and `totalStores`, the answer `withTotal`. `GET .../stock/own`: `stock`
   (IN_STOCK, ZERO, BELOW_ZERO on the row's quantity), `sort` (store, code, name, quantity, storeTime, receivedAt), `dir`;
   default order store code then item code (was store id).
+- Classification column (every items page, catégorie › famille › sous-famille › section): the filter choices of
+  `GET /admin/headoffice/item-catalogue/filters` give `parentCode` (a family's catégorie, a section's sub-family code)
+  for the level filters' narrowing; the rows of `GET /admin/headoffice/stock-points/items` (and `/items/{rowId}`) the
+  item's `categoryCode`, `categoryName`, `sectionCode`, `sectionName`; the barcode rows (`GET /item-barcode/list`,
+  `/item-barcode/items-without-barcode`) the item's `categoryCode`, `sectionCode`. All nullable: null on a customer
+  without catégories and sections (EMTOP, Happyness). No filter, sort or other answer changed.
 
 ### Fixes
 - ERP jobs no longer stop for good on a NAV call that never answers (Emtop 1.12.1, 2026-10-22: Import Customers waited

@@ -73,7 +73,8 @@ public interface ItemBarcodeRepository extends _BaseRepository<ItemBarcode, Long
 	 * starting with it: a seek on the unique index of item_barcode.barcode), or null.
 	 */
 	String BARCODE_ROWS = "select new com.digithink.zsretail.core.dto.ItemBarcodeRowDTO(b.id, b.barcode, b.isPrimary,"
-			+ " b.description, b.active, i.id, i.itemCode, i.name, i.active, i.origin, f.name, sf.name)"
+			+ " b.description, b.active, i.id, i.itemCode, i.name, i.active, i.origin, f.name, sf.name, i.categoryCode,"
+			+ " i.sectionCode)"
 			+ BARCODE_ROWS_FROM + " order by b.barcode";
 
 	String BARCODE_ROWS_COUNT = "select count(b)" + BARCODE_ROWS_FROM;
@@ -89,7 +90,8 @@ public interface ItemBarcodeRepository extends _BaseRepository<ItemBarcode, Long
 
 	/** The items without any active barcode (and nothing in the old item.barcode field), by item code. */
 	String WITHOUT_BARCODE = "select new com.digithink.zsretail.core.dto.ItemWithoutBarcodeRowDTO(i.id, i.itemCode, i.name,"
-			+ " i.active, i.origin, f.name, sf.name)" + WITHOUT_BARCODE_FROM + " order by i.itemCode";
+			+ " i.active, i.origin, f.name, sf.name, i.categoryCode, i.sectionCode)" + WITHOUT_BARCODE_FROM
+			+ " order by i.itemCode";
 
 	String WITHOUT_BARCODE_COUNT = "select count(i)" + WITHOUT_BARCODE_FROM;
 

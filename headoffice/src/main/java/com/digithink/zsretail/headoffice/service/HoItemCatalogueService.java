@@ -82,32 +82,35 @@ public class HoItemCatalogueService {
 		filters.setHasBarcodes(flag(flags[6]));
 		if (filters.isHasFamilies()) {
 			for (Object[] row : query.rows(HoItemCatalogueQuery.FAMILIES)) {
-				filters.getFamilies().add(new ItemCatalogueFiltersDTO.Option(id(row[0]), (String) row[1], (String) row[2], null));
+				filters.getFamilies().add(
+						new ItemCatalogueFiltersDTO.Option(id(row[0]), (String) row[1], (String) row[2], null, (String) row[3]));
 			}
 			for (Object[] row : query.rows(HoItemCatalogueQuery.SUB_FAMILIES)) {
 				filters.getSubFamilies()
-						.add(new ItemCatalogueFiltersDTO.Option(id(row[0]), (String) row[1], (String) row[2], id(row[3])));
+						.add(new ItemCatalogueFiltersDTO.Option(id(row[0]), (String) row[1], (String) row[2], id(row[3]), null));
 			}
 		}
 		if (filters.isHasDivision()) {
 			for (Object[] row : query.rows(HoItemCatalogueQuery.DIVISIONS)) {
-				filters.getDivisions().add(new ItemCatalogueFiltersDTO.Option(null, (String) row[0], null, null));
+				filters.getDivisions().add(new ItemCatalogueFiltersDTO.Option(null, (String) row[0], null, null, null));
 			}
 		}
 		if (filters.isHasCategory()) {
 			for (Object[] row : query.rows(HoItemCatalogueQuery.CATEGORIES)) {
-				filters.getCategories().add(new ItemCatalogueFiltersDTO.Option(null, (String) row[0], (String) row[1], null));
+				filters.getCategories()
+						.add(new ItemCatalogueFiltersDTO.Option(null, (String) row[0], (String) row[1], null, null));
 			}
 		}
 		if (filters.isHasSection()) {
 			for (Object[] row : query.rows(HoItemCatalogueQuery.SECTIONS)) {
-				filters.getSections().add(new ItemCatalogueFiltersDTO.Option(null, (String) row[0], (String) row[1], null));
+				filters.getSections()
+						.add(new ItemCatalogueFiltersDTO.Option(null, (String) row[0], (String) row[1], null, (String) row[2]));
 			}
 		}
 		if (filters.getStockPointCount() > 0) {
 			for (Object[] row : query.rows(HoItemCatalogueQuery.STOCK_POINTS)) {
 				filters.getStockPoints()
-						.add(new ItemCatalogueFiltersDTO.Option(id(row[0]), (String) row[1], (String) row[2], null));
+						.add(new ItemCatalogueFiltersDTO.Option(id(row[0]), (String) row[1], (String) row[2], null, null));
 			}
 		}
 		return filters;

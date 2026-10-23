@@ -12,8 +12,8 @@ import lombok.NoArgsConstructor;
 
 /**
  * Stock points, step 4: one row of a point as the page "Items by point de stock" reads it (read only). Name,
- * description, family, sub-family, price and active come from the row; the VAT, the barcodes and the other fields from
- * the head office item.
+ * description, family, sub-family, price and active come from the row; the VAT, the barcodes, the catégorie, the section
+ * and the other fields from the head office item.
  */
 @Data
 @NoArgsConstructor
@@ -55,6 +55,14 @@ public class StockPointItemDTO {
 	private String type;
 	private String unitOfMeasure;
 	private String category;
+	/**
+	 * Classification column (3.1.0): the item's catégorie and section (item variants, ZEN), with their names; null on a
+	 * customer without them.
+	 */
+	private String categoryCode;
+	private String categoryName;
+	private String sectionCode;
+	private String sectionName;
 	private String brand;
 	private String itemDiscGroup;
 	private Double maximumAuthorizedDiscount;

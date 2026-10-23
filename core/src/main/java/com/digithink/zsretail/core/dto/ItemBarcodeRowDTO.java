@@ -28,4 +28,7 @@ public class ItemBarcodeRowDTO {
 	private RecordOrigin origin;
 	private String familyName;
 	private String subFamilyName;
+	/** Classification column (3.1.0): the item's catégorie and section codes (ZEN); null on a customer without them. */
+	private String categoryCode;
+	private String sectionCode;
 }

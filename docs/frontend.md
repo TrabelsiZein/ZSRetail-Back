@@ -28,6 +28,24 @@
   when read, else the path's step). **Without both flags** (EMTOP, Happyness) the levels are `[family, subFamily]` with
   the calls, orders, tiles, breadcrumb and search of 2.2.2 / 3.1.0 (`tools/till-levels-check.mjs` compares the orders with
   the old code). Back end: `modules/head-office.md`, "Till levels catégorie and section".
+- **3.1.0, Classification column** (2026-10-23): every items page shows the item's levels in one "Classification"
+  column, in hierarchy order catégorie › famille › sous-famille › section, the empty levels left out, each level by its
+  name with its code as tooltip (the code alone without a name): Items (store, and head office without ERP), ERP items,
+  Item cards and the item card's band, Items by point de stock, Barcodes, Print labels, and the Sections page's path.
+  One helper, `src/libs/item-classification.js` (`classificationSteps` reads the list DTOs' flat fields and the item
+  entity's `itemFamily` / `itemSubFamily`; `loadLevelNames` reads `/item-category` and `/item-section` once for the rows
+  that carry only the codes, only when `appConfig/itemCategories` / `itemSections` are on), and one cell,
+  `components/admin/ItemClassification.vue`. **Filters** (Item cards, Network stock): catégorie, famille, sous-famille,
+  section in that order; catégorie and section only with the level (`levelFilters`: the `/config` flag, as the menus, and
+  choices on the page); a catégorie narrows the families, a family the sub-families (none before a family, as before), the
+  nearest chosen level the sections (`narrowedOptions`, the choices' `parentCode` / `parentId`); a parent changed clears
+  what no longer fits (`fittingChoices`). The other pages keep their family / sub-family filters (their APIs filter on no
+  catégorie or section). **Item form**: Classification block Type, [Catégorie], Famille, Sous-famille, [Section], the two
+  new ones read only and only with their level (no longer in the Variant block); the same in the details of Items by
+  point de stock; the item card's Details tab lists the four levels in order. The item's free-text field `category` is
+  labelled "Catégorie (texte libre)" (form, point de stock details, data import) so it is not taken for the level.
+  **Without catégories and sections** (EMTOP, Happyness): famille › sous-famille with the names of before, the same
+  filters, no extra call. Checked by `tools/item-classification-check.mjs`.
 - **3.1.0, free pieces only when scanned** (decision of 2026-10-12, `modules/promotion.md`): a cart line's quantity is all
   its pieces, the free ones of a "buy N get M" included; `freeQuantity` comes from the back end, `paidQuantity`
   (`libs/quantity.js`) counts the amounts and the payment's line quantity (paid pieces, the free ones as

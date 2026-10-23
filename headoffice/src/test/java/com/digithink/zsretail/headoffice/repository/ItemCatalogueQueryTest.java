@@ -360,11 +360,11 @@ class ItemCatalogueQueryTest {
 		assertEquals(Arrays.asList("has_variants", "has_families", "has_division", "has_category", "has_section",
 				"stock_point_count", "has_barcodes"),
 				columnLabels(sessions, HoItemCatalogueQuery.FLAGS));
-		assertEquals(Arrays.asList("id", "code", "name"), columnLabels(sessions, HoItemCatalogueQuery.FAMILIES));
+		assertEquals(Arrays.asList("id", "code", "name", "category_code"), columnLabels(sessions, HoItemCatalogueQuery.FAMILIES));
 		assertEquals(Arrays.asList("id", "code", "name", "family_id"), columnLabels(sessions, HoItemCatalogueQuery.SUB_FAMILIES));
 		assertEquals(Arrays.asList("code"), columnLabels(sessions, HoItemCatalogueQuery.DIVISIONS));
 		assertEquals(Arrays.asList("code", "name"), columnLabels(sessions, HoItemCatalogueQuery.CATEGORIES));
-		assertEquals(Arrays.asList("code", "name"), columnLabels(sessions, HoItemCatalogueQuery.SECTIONS));
+		assertEquals(Arrays.asList("code", "name", "sub_family_code"), columnLabels(sessions, HoItemCatalogueQuery.SECTIONS));
 		assertEquals(Arrays.asList("id", "code", "name"), columnLabels(sessions, HoItemCatalogueQuery.STOCK_POINTS));
 		List<String> columns = HoItemCatalogueQuery.LINE_COLUMNS;
 		assertEquals(columns.size(), new HashSet<>(columns).size(), "unique aliases");

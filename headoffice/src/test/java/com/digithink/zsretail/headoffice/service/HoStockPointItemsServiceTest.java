@@ -27,8 +27,12 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemCategory;
 import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.ItemSubFamily;
+import com.digithink.zsretail.core.repository.ItemCategoryRepository;
+import com.digithink.zsretail.core.repository.ItemSectionRepository;
 import com.digithink.zsretail.headoffice.dto.StockPointItemDTO;
 import com.digithink.zsretail.headoffice.model.HoStockPoint;
 import com.digithink.zsretail.headoffice.model.HoStockPointItem;
@@ -44,6 +48,8 @@ class HoStockPointItemsServiceTest {
 
 	private InMemoryCatalogue ho;
 	private HoStockPointItemRepository rows;
+	private ItemCategoryRepository categories;
+	private ItemSectionRepository sections;
 	private HoStockPointItemsService service;
 	private HoStockPoint franchise;
 	private HoStockPointItem row;
@@ -53,8 +59,10 @@ class HoStockPointItemsServiceTest {
 	void setUp() {
 		ho = new InMemoryCatalogue(1);
 		rows = mock(HoStockPointItemRepository.class);
+		categories = mock(ItemCategoryRepository.class);
+		sections = mock(ItemSectionRepository.class);
 		service = new HoStockPointItemsService(rows, ho.stockPointRepository(), ho.itemRepository(),
-				ho.barcodeRepository(), ho.familyRepository(), ho.subFamilyRepository());
+				ho.barcodeRepository(), ho.familyRepository(), ho.subFamilyRepository(), categories, sections);
 		ItemFamily f1 = ho.family("F1");
 		ItemSubFamily sf1 = ho.subFamily("SF1", f1);
 		ho.subFamily("SF2", f1);
@@ -106,6 +114,35 @@ class HoStockPointItemsServiceTest {
 		assertEquals(Arrays.asList("111", "222"),
 				Arrays.asList(view.getBarcodes().get(0).getBarcode(), view.getBarcodes().get(1).getBarcode()));
 		assertTrue(view.getBarcodes().get(0).getIsPrimary());
+	}
+
+	@Test
+	@DisplayName("Classification column: catégorie and section from the item with their names; none without them, no read")
+	void categoryAndSection() {
+		when(rows.findById(row.getId())).thenReturn(Optional.of(row));
+		StockPointItemDTO without = service.row(row.getId()).get();
+		assertNull(without.getCategoryCode());
+		assertNull(without.getCategoryName());
+		assertNull(without.getSectionCode());
+		assertNull(without.getSectionName());
+		verify(categories, never()).findByCodeIn(any());
+		verify(sections, never()).findByCodeIn(any());
+
+		ItemCategory vet = new ItemCategory();
+		vet.setCode("VET");
+		vet.setName("Vêtements");
+		ItemSection manche = new ItemSection();
+		manche.setCode("MANCHE");
+		manche.setName("Manches");
+		when(categories.findByCodeIn(any())).thenReturn(Arrays.asList(vet));
+		when(sections.findByCodeIn(any())).thenReturn(Arrays.asList(manche));
+		item.setCategoryCode("VET");
+		item.setSectionCode("MANCHE");
+		StockPointItemDTO view = service.row(row.getId()).get();
+		assertEquals("VET", view.getCategoryCode());
+		assertEquals("Vêtements", view.getCategoryName());
+		assertEquals("MANCHE", view.getSectionCode());
+		assertEquals("Manches", view.getSectionName());
 	}
 
 	@Test
