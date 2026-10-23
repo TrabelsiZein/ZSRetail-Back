@@ -14,6 +14,14 @@ be: `history/project-sorting.md` (code cleanup steps 5 to 7).
 | `headoffice` | `zsretail-headoffice` (WAR, `HeadOfficeApplication`) | `com.digithink.zsretail.headoffice` | core; the connectors at runtime | stores, points de stock, the tickets received, BLs, supply invoices, the `/ho/**` API; `application-headoffice.properties` |
 | `network-tests` | `zsretail-network-tests` | tests only | store, headoffice (their `classes` jars), the connectors | the tests that need both applications |
 
+## Java target
+
+The parent's `<java.version>` stays 11, though the build and the customer servers run JDK 21 or later. Spring Boot
+2.3.9 brings Spring Framework 5.2.13, whose ASM copy reads class files up to Java 15 (major version 59): with target 21
+(tried 2026-10-23) the code compiles, but the scanning of components, entities and repositories fails on
+"Unsupported class file major version 65", in the tests and at startup alike. Moving the target needs the Spring Boot
+upgrade, a separate topic after 2026-10-30.
+
 ## Where a class goes
 
 Used by both applications: core. Only by a store: store. Only by a head office: headoffice. A connector's classes:
