@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.digithink.zsretail.core.dto.ItemLookupLineDTO;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ItemBarcode;
 import com.digithink.zsretail.core.model.ItemFamily;
@@ -34,6 +35,7 @@ import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
 import com.digithink.zsretail.core.repository.ItemFamilyRepository;
+import com.digithink.zsretail.core.repository.ItemLookupQuery;
 import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.ItemSectionRepository;
 import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
@@ -66,6 +68,10 @@ public class ItemService extends _BaseService<Item, Long> {
 
 	@Autowired
 	private ItemBarcodeRepository itemBarcodeRepository;
+
+	/** Promotions for variants, step 4: the target lookup of the promotion form. */
+	@Autowired
+	private ItemLookupQuery itemLookupQuery;
 
 	@Autowired
 	private PosItemSearchRepository posItemSearchRepository;
@@ -316,6 +322,24 @@ public class ItemService extends _BaseService<Item, Long> {
 	 * search term (code, name, or barcode). No POS-specific filters (showInPos,
 	 * unitPrice > 0) applied.
 	 */
+	/**
+	 * Promotions for variants, step 4 (2026-10-23): one page of the promotion form's target lookup (GET /item/lookup).
+	 * scope: ITEM, FAMILY, SUBFAMILY, CATEGORY or SECTION (any case; another: IllegalArgumentException); search on code
+	 * and name, scope ITEM also the ERP item number and the barcodes (two steps, as {@link #searchItemsForPurchase}).
+	 */
+	public Page<ItemLookupLineDTO> lookup(String scope, String search, int page, int size) {
+		String kind = scope == null ? "" : scope.trim().toUpperCase(java.util.Locale.ROOT);
+		ItemLookupQuery.from(kind, false, false); // an unknown scope is refused before any read
+		String likeValue = StringUtils.hasText(search) ? "%" + search.trim().toLowerCase() + "%" : null;
+		List<Long> barcodeItemIds = likeValue == null || !ItemLookupQuery.ITEM.equals(kind) ? List.of()
+				: itemBarcodeRepository.findItemIdsByBarcodeLike(likeValue, PageRequest.of(0, BARCODE_MATCHES_LIMIT));
+		return itemLookupQuery.page(kind, likeValue, barcodeItemIds,
+				PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), LOOKUP_MAX_SIZE)));
+	}
+
+	/** The largest page of the target lookup. */
+	static final int LOOKUP_MAX_SIZE = 50;
+
 	public Page<Item> searchItemsForPurchase(String search, Pageable pageable) {
 		String likeValue = StringUtils.hasText(search) ? "%" + search.toLowerCase() + "%" : null;
 		// 3.1.0: the items of a part of a barcode first, in one pass over the barcodes; inside the item query (EXISTS or

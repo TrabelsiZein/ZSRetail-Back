@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.dto.AdjustStockRequestDTO;
+import com.digithink.zsretail.core.dto.ItemLookupLineDTO;
 import com.digithink.zsretail.core.dto.PosLevelDTO;
 import com.digithink.zsretail.core.dto.PricingResult;
 import com.digithink.zsretail.core.dto.QuickProductRequestDTO;
@@ -364,6 +365,34 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			return ResponseEntity.ok(response);
 		} catch (Exception e) {
 			log.error("ItemAPI::searchItems:error: " + e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/**
+	 * Promotions for variants, step 4 (2026-10-23): GET /item/lookup?scope&q&page&size, the target lookup of the
+	 * promotion form, read only: {content, totalElements, totalPages, number, size}. scope ITEM: NAV_ITEM lines (every
+	 * variant of an ERP item number) and ROW lines (one item) in one list; FAMILY, SUBFAMILY, CATEGORY, SECTION: their
+	 * rows (ItemLookupQuery). size at most 50. An unknown scope: 400.
+	 */
+	@GetMapping("/lookup")
+	public ResponseEntity<?> lookup(@RequestParam(defaultValue = "ITEM") String scope,
+			@RequestParam(defaultValue = "") String q,
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "20") int size) {
+		try {
+			Page<ItemLookupLineDTO> lines = service.lookup(scope, q, page, size);
+			Map<String, Object> response = new HashMap<>();
+			response.put("content", lines.getContent());
+			response.put("totalElements", lines.getTotalElements());
+			response.put("totalPages", lines.getTotalPages());
+			response.put("number", lines.getNumber());
+			response.put("size", lines.getSize());
+			return ResponseEntity.ok(response);
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(createErrorResponse(e.getMessage()));
+		} catch (Exception e) {
+			log.error("ItemAPI::lookup:error: " + e.getMessage(), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
 		}
 	}

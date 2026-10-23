@@ -310,6 +310,24 @@ office copy and `Item` equality, 2 counting across cart lines (every scope, deci
   list page, for the numbers not known yet; none when the page has no NAV target).
   `NavItemService.namesOf`, `ItemRepository.NAV_ITEM_NAMES` (a seek on `ix_item_nav_item_no` on ZEN's French_CI_AS,
   plan checked); test `NavItemQueryTest.names`.
+- **Target lookup (step 4, 2026-10-23)**: a list button beside each target field of the form (item, free item, group
+  items, famille, sous-famille, catégorie, section) opens `LookupModal.vue` (`components/admin`): a search (300 ms), a
+  page of 20 lines, the total, the pages; single = a click picks and closes, multiple (group items) = a box per line
+  and "Add (n)". The typed searches are unchanged. API `GET /item/lookup?scope&q&page&size` (core, read only, size at
+  most 50; `ItemService.lookup`, `ItemLookupQuery`, native SQL): scope ITEM gives, in one UNION ALL, a `NAV_ITEM` line
+  per ERP item number of the active items (`id` its lowest active variant, `variantCount`) and a `ROW` line per active
+  item, by name, the NAV line before its variants, then by code; packs (PACKAGE) and inactive items left out (active
+  1 or null); search on code, name, ERP item number and barcodes (their item ids read first, as `GET /item/search`), a
+  NAV line matching when one of its variants does (a derived table of the matching numbers joined to the group).
+  FAMILY, SUBFAMILY (its famille), CATEGORY, SECTION (its sous-famille, by code): code and name of the active rows. The
+  total comes with the lines (`COUNT(*) OVER()`). The labels are built by the screen (i18n): "<name> — toutes variantes
+  (<n°>)", "<name> — <variant> (<code>)", "[code] name (parent)". A customer without ERP item numbers gets ROW lines
+  only, from the same statement. Picked: a ROW as the typed search; a NAV_ITEM on the item or the free item = its
+  variant with "toutes les variantes" ticked (unticking it clears the field: no single item was chosen); in the group a
+  chip on the ERP item number (`groupNavItemNos`) or the item, duplicates skipped; a sous-famille also sets the famille
+  filter. Speed on ZEN's head office (21,904 items, SHOWPLAN and runs of 2026-10-23): a scan of the item table per half
+  (a search `LIKE '%…%'` can use no index), about 260 ms for a page and its total with a search, 200 ms without; no
+  index would help. Test: `ItemLookupQueryTest` (H2, SQL Server mode).
 - Tests: `PromotionNavTargetTest` (every variant, a variant synced later, order, groups one level, no NAV number no
   reads, scope filter, benefit on a NAV number, buy side), `PromotionGroupItemsTest` (save rules, lock);
   `PromotionAllItemsScopeTest` and `PromotionCategorySectionScopeTest` unchanged (their stubs throw on any other lookup);
