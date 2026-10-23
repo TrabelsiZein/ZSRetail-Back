@@ -26,4 +26,11 @@ public class PriceCalculateRequestDTO {
 	 * Only code-required promotions whose code is in this list will be considered.
 	 */
 	private List<String> appliedCodes = new ArrayList<>();
+
+	/**
+	 * 3.1.0, promotions counted across cart lines (rule 6a): the cart's lines in cart order, this one included (its
+	 * quantity is the one above; absent from the list, it counts as the first line). Absent, empty or this line alone:
+	 * the line is priced alone, as before (a till of before sends none).
+	 */
+	private List<CartCalculateRequestDTO.CartItemDTO> cartLines = new ArrayList<>();
 }

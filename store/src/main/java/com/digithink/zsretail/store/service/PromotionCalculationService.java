@@ -1,7 +1,7 @@
 package com.digithink.zsretail.store.service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
+
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -9,9 +9,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -61,6 +67,9 @@ import lombok.extern.log4j.Log4j2;
  *   - Within scope: highest priority wins (ABSOLUTE — no best-value override)
  *   - requiresCode promotions: only active when their code is in appliedCodes
  *   - Filters: active + date valid + time valid + day valid + minimum quantity met
+ *
+ * 3.1.0, rule 6a (2026-10-23): with the cart's other lines (POST /price-calculate cartLines, the cart pass) a quantity
+ * promotion counts the whole pieces of every line of its target, level by level (resolveCart); alone, as above.
  */
 @Service
 @Log4j2
@@ -94,6 +103,17 @@ public class PromotionCalculationService {
 	 */
 	public PriceCalculateResponseDTO calculateItemPrice(Long itemId, BigDecimal quantity,
 			Long customerId, List<String> appliedCodes) {
+		return calculateItemPrice(itemId, quantity, customerId, appliedCodes, null);
+	}
+
+	/**
+	 * 3.1.0 (rule 6a, 2026-10-23): the line priced with the cart around it. cartLines: the cart's lines in cart order,
+	 * this one included (absent: first); null, empty or no line of another item: priced alone, exactly as before. With
+	 * other lines the quantity promotions count the pieces of every line of their target (resolveCart) and the answer
+	 * says whether it differs from the line priced alone (acrossLines).
+	 */
+	public PriceCalculateResponseDTO calculateItemPrice(Long itemId, BigDecimal quantity, Long customerId,
+			List<String> appliedCodes, List<CartCalculateRequestDTO.CartItemDTO> cartLines) {
 
 		// Load item
 		Item item = itemRepository.findById(itemId)
@@ -108,6 +128,23 @@ public class PromotionCalculationService {
 		// Delegate SalesPrice / SalesDiscount to existing PricingService
 		PricingResult pricingResult = pricingService.calculateItemPrice(item, customer, qty, null);
 
+		List<CartLine> lines = cartLines(cartLines, item, qty);
+		if (lines == null) {
+			return price(item, qty, pricingResult, findBestItemPromotion(item, qty, codes));
+		}
+		CartLine self = lines.stream().filter(line -> line.self).findFirst().orElseThrow(IllegalStateException::new);
+		PriceCalculateResponseDTO answer = price(item, qty, pricingResult, resolveCart(lines, codes).get(self));
+		PriceCalculateResponseDTO alone = price(item, qty, pricingResult, findBestItemPromotion(item, qty, codes));
+		answer.setAcrossLines(!sameAnswer(answer, alone));
+		return answer;
+	}
+
+	/**
+	 * The line's price from its promotions (found): SalesPrice / SalesDiscount against the promotion, as before 3.1.0.
+	 * found.free / available / hintAvailable, when set (a line counted with others), replace the line's own count.
+	 */
+	private PriceCalculateResponseDTO price(Item item, BigDecimal qty, PricingResult pricingResult, ItemPromotions found) {
+		Long itemId = item.getId();
 		PriceCalculateResponseDTO response = new PriceCalculateResponseDTO();
 		response.setItemId(itemId);
 		response.setPriceIncludesVat(pricingResult.getPriceIncludesVat());
@@ -118,14 +155,13 @@ public class PromotionCalculationService {
 		boolean hasSalesDiscount = salesDiscountPct != null && salesDiscountPct > 0;
 		Double effectiveUnitPrice = pricingResult.getUnitPrice();
 
-		// Always look for the best promotion
-		ItemPromotions found = findBestItemPromotion(item, qty, codes);
 		Promotion bestPromotion = found.applied;
 
 		// A free promotion that gives no free piece yet (Q = N): not applied, only its hint (2026-10-12)
 		if (found.freeHint != null) {
 			response.setFreeQuantity(0);
-			response.setFreeQuantityAvailable(freeAvailable(found.freeHint, qty));
+			response.setFreeQuantityAvailable(
+					found.hintAvailable != null ? found.hintAvailable : freeAvailable(found.freeHint, qty));
 			response.setFreePromotionId(found.freeHint.getId());
 			response.setFreePromotionName(found.freeHint.getName());
 		}
@@ -146,9 +182,12 @@ public class PromotionCalculationService {
 		// FREE_QUANTITY: always apply on effective price — quantity benefit, no comparison needed
 		if (bestPromotion.getBenefitType() == PromotionBenefitType.FREE_QUANTITY) {
 			applyItemPromotionBenefit(response, bestPromotion, effectiveUnitPrice);
-			int free = freePieces(bestPromotion, qty);
+			// 3.1.0: counted with other lines, the line's share of the group's free pieces (0 possible: the line is
+			// still taken by the promotion, decision C of 2026-10-23)
+			int free = found.free != null ? found.free : freePieces(bestPromotion, qty);
 			response.setFreeQuantity(free);
-			response.setFreeQuantityAvailable(freeAvailable(bestPromotion, qty));
+			response.setFreeQuantityAvailable(
+					found.available != null ? found.available : freeAvailable(bestPromotion, qty));
 			response.setFreePromotionId(bestPromotion.getId());
 			response.setFreePromotionName(bestPromotion.getName());
 			response.setPromotionId(bestPromotion.getId());
@@ -275,6 +314,44 @@ public class PromotionCalculationService {
 		return response;
 	}
 
+	/**
+	 * The cart pass of the till (POST /price-calculate/cart): the cart promotion and the cross-product adjustments as
+	 * above, and 3.1.0 (rule 6a) each line priced with the cart around it (lineResults, acrossLines when it differs
+	 * from the line priced alone), so the till corrects the lines another line's change moved. A cart of one line: none.
+	 */
+	public CartCalculateResponseDTO calculateCartPromotion(Double cartTotal,
+			List<CartCalculateRequestDTO.CartItemDTO> cartItems, List<String> appliedCodes, Long customerId) {
+		CartCalculateResponseDTO response = calculateCartPromotion(cartTotal, cartItems, appliedCodes);
+		List<String> codes = (appliedCodes != null) ? appliedCodes : new ArrayList<>();
+		List<CartLine> lines = cartLines(cartItems, null, null);
+		if (lines == null) {
+			return response;
+		}
+		Customer customer = resolveCustomer(customerId);
+		Map<CartLine, ItemPromotions> resolved = resolveCart(lines, codes);
+		for (CartLine line : lines) {
+			PricingResult pricing = pricingService.calculateItemPrice(line.item, customer, line.quantity, null);
+			PriceCalculateResponseDTO answer = price(line.item, line.quantity, pricing, resolved.get(line));
+			PriceCalculateResponseDTO alone = price(line.item, line.quantity, pricing,
+					findBestItemPromotion(line.item, line.quantity, codes));
+			answer.setAcrossLines(!sameAnswer(answer, alone));
+			response.getLineResults().add(answer);
+		}
+		return response;
+	}
+
+	/** Two answers give the line the same price, free pieces and promotion. */
+	private static boolean sameAnswer(PriceCalculateResponseDTO a, PriceCalculateResponseDTO b) {
+		return Objects.equals(a.getUnitPrice(), b.getUnitPrice())
+				&& Objects.equals(a.getDiscountPercentage(), b.getDiscountPercentage())
+				&& Objects.equals(a.getDiscountAmount(), b.getDiscountAmount())
+				&& Objects.equals(a.getFreeQuantity(), b.getFreeQuantity())
+				&& Objects.equals(a.getFreeQuantityAvailable(), b.getFreeQuantityAvailable())
+				&& Objects.equals(a.getFreePromotionId(), b.getFreePromotionId())
+				&& Objects.equals(a.getPromotionId(), b.getPromotionId())
+				&& Objects.equals(a.getSource(), b.getSource());
+	}
+
 	// ─── Promo Code Validation ───────────────────────────────────────────────────
 
 	/**
@@ -346,6 +423,12 @@ public class PromotionCalculationService {
 				? p.getGroupItems().stream().map(Item::getId).collect(Collectors.toList())
 				: null);
 		result.put("getItemId", p.getGetItem() != null ? p.getGetItem().getId() : null);
+		// 3.1.0 (ZEN): the targets on every variant of an ERP item number
+		result.put("navItemNo", p.getNavItemNo());
+		result.put("groupNavItemNos", p.getScope() == PromotionScope.ITEM_GROUP
+				? p.getGroupNavItemNos().stream().sorted().collect(Collectors.toList())
+				: null);
+		result.put("getNavItemNo", p.getGetNavItemNo());
 
 		return result;
 	}
@@ -354,10 +437,11 @@ public class PromotionCalculationService {
 
 	/**
 	 * Evaluate active cross-product quantity promotions against the cart lines.
-	 * Entitlement per promotion = sum over matching buy lines of
-	 * floor(lineQuantity / minimumQuantity). One adjustment per get-item:
-	 * the highest-priority matching promotion wins. 2.2.1: a buy line with a
-	 * quantity not whole (0.2 L) never counts.
+	 * Entitlement per promotion (3.1.0, rule 6a) = floor(Q / minimumQuantity), Q the whole pieces of every buy line
+	 * (before: the sum of each line's floor). One adjustment per benefit target (an item, or 3.1.0 an ERP item
+	 * number): the highest-priority matching promotion wins. 2.2.1: a buy line with a quantity not whole (0.2 L) never
+	 * counts. The free pieces (or the entitled units of a discount) go to the benefit lines cheapest unit price first,
+	 * then cart order (freeByItemId, entitledByItemId), at most each line's whole pieces: never a piece added.
 	 */
 	private List<CrossProductAdjustmentDTO> evaluateCrossProductPromotions(
 			List<CartCalculateRequestDTO.CartItemDTO> cartItems, List<String> codes,
@@ -382,33 +466,43 @@ public class PromotionCalculationService {
 		Map<Long, Item> itemsById = itemRepository.findAllById(cartItemIds).stream()
 				.collect(Collectors.toMap(Item::getId, i -> i));
 
-		java.util.Set<Long> targetedGetItems = new java.util.HashSet<>();
+		Set<String> targetedGetItems = new HashSet<>();
 
 		for (Promotion p : crossPromos) { // already ordered by priority DESC
 			if (p.getPromotionType() != com.digithink.zsretail.core.model.enumeration.PromotionType.QUANTITY_PROMOTION) continue;
 			if (p.getMinimumQuantity() == null || p.getMinimumQuantity() <= 0) continue;
-			if (p.getGetItem() == null || p.getGetItem().getId() == null) continue;
+			// 3.1.0 (ZEN): the benefit on one item, or on any variant of an ERP item number
+			String getNavItemNo = p.getGetItem() == null ? blankToNull(p.getGetNavItemNo()) : null;
+			if (getNavItemNo == null && (p.getGetItem() == null || p.getGetItem().getId() == null)) continue;
 			if (!passesCodeFilter(p, codes)) continue;
 			if (!passesTimeFilter(p, now)) continue;
 			if (!passesDayFilter(p, todayDay)) continue;
 
-			Long getItemId = p.getGetItem().getId();
-			if (targetedGetItems.contains(getItemId)) continue; // best promo per get-item already found
+			String getKey = getNavItemNo != null ? "nav:" + getNavItemNo : "id:" + p.getGetItem().getId();
+			if (targetedGetItems.contains(getKey)) continue; // best promo per benefit target already found
 
-			int entitled = 0;
+			int pieces = 0;
+			List<CartLine> getLines = new ArrayList<>();
+			int index = 0;
 			for (CartCalculateRequestDTO.CartItemDTO line : cartItems) {
+				int position = index++;
 				if (line.getItemId() == null || line.getQuantity() == null || line.getQuantity().signum() <= 0) continue;
+				Item cartItem = itemsById.get(line.getItemId());
 				// The benefit item itself never counts as buy quantity — otherwise a
 				// family/group buy-side containing the get-item would self-trigger
-				if (line.getItemId().equals(getItemId)) continue;
-				Item cartItem = itemsById.get(line.getItemId());
+				if (isBenefitLine(p, getNavItemNo, line.getItemId(), cartItem)) {
+					// a line of the benefit item counts by its id, even when its item was not read with the cart's
+					Item benefit = cartItem != null ? cartItem : p.getGetItem();
+					getLines.add(new CartLine(benefit, line.getQuantity(), priceOf(line, benefit), position, false));
+					continue;
+				}
 				if (cartItem != null && matchesBuyTarget(p, cartItem)) {
 					// 2.2.1: a decimal line is not eligible for a quantity-based promotion (never a free item on a fraction)
 					if (!Quantities.isWhole(line.getQuantity())) continue;
-					entitled += line.getQuantity().divide(BigDecimal.valueOf(p.getMinimumQuantity()), 0, RoundingMode.FLOOR)
-							.intValueExact();
+					pieces += line.getQuantity().intValue();
 				}
 			}
+			int entitled = pieces / p.getMinimumQuantity();
 			if (entitled <= 0) continue;
 
 			CrossProductAdjustmentDTO adj = new CrossProductAdjustmentDTO();
@@ -416,12 +510,20 @@ public class PromotionCalculationService {
 			adj.setPromotionName(p.getName());
 			adj.setPromotionCode(p.getCode());
 			adj.setBenefitType(p.getBenefitType().name());
-			Item getItem = p.getGetItem();
-			adj.setGetItemId(getItem.getId());
-			adj.setGetItemCode(getItem.getItemCode());
-			adj.setGetItemName(getItem.getName());
-			adj.setGetItemUnitPrice(getItem.getUnitPrice());
-			adj.setGetItemDefaultVat(getItem.getDefaultVAT());
+			if (getNavItemNo == null) {
+				Item getItem = p.getGetItem();
+				adj.setGetItemId(getItem.getId());
+				adj.setGetItemCode(getItem.getItemCode());
+				adj.setGetItemName(getItem.getName());
+				adj.setGetItemUnitPrice(getItem.getUnitPrice());
+				adj.setGetItemDefaultVat(getItem.getDefaultVAT());
+			} else {
+				adj.setGetNavItemNo(getNavItemNo);
+				Item variant = getLines.isEmpty() ? null : getLines.get(0).item;
+				adj.setGetItemName(variant != null ? variant.getName() : navItemName(getNavItemNo));
+				adj.setGetItemUnitPrice(variant != null ? variant.getUnitPrice() : null);
+				adj.setGetItemDefaultVat(variant != null ? variant.getDefaultVAT() : null);
+			}
 			adj.setEntitledUnits(entitled);
 
 			if (p.getBenefitType() == PromotionBenefitType.FREE_QUANTITY) {
@@ -429,40 +531,70 @@ public class PromotionCalculationService {
 				if (freeUnits <= 0) continue;
 				adj.setFreeUnits(freeUnits);
 				// Free pieces only when scanned (2026-10-12): the pieces of Y in the cart, at most freeUnits
-				int free = Math.min(freeUnits, wholePiecesOf(getItemId, cartItems));
+				adj.setFreeByItemId(byItemId(share(getLines, freeUnits)));
+				int free = adj.getFreeByItemId().values().stream().mapToInt(Integer::intValue).sum();
 				adj.setFreeQuantity(free);
 				adj.setFreeQuantityAvailable(freeUnits - free);
 			} else if (p.getBenefitType() == PromotionBenefitType.PERCENTAGE_DISCOUNT) {
 				if (p.getDiscountPercentage() == null || p.getDiscountPercentage() <= 0) continue;
 				adj.setDiscountPercentage(p.getDiscountPercentage());
+				adj.setEntitledByItemId(byItemId(share(getLines, entitled)));
 			} else { // FIXED_DISCOUNT
 				if (p.getDiscountAmount() == null || p.getDiscountAmount() <= 0) continue;
 				adj.setDiscountAmount(p.getDiscountAmount());
+				adj.setEntitledByItemId(byItemId(share(getLines, entitled)));
 			}
 
 			adjustments.add(adj);
-			targetedGetItems.add(getItemId);
+			targetedGetItems.add(getKey);
 
-			log.debug("evaluateCrossProductPromotions: promo '{}' → get item {} entitled={}",
-					p.getName(), getItemId, entitled);
+			log.debug("evaluateCrossProductPromotions: promo '{}' → benefit {} entitled={}",
+					p.getName(), getKey, entitled);
 		}
 
 		return adjustments;
 	}
 
+	/** A line of the promotion's benefit target: its item, or 3.1.0 a variant of its ERP item number. */
+	private static boolean isBenefitLine(Promotion p, String getNavItemNo, Long itemId, Item item) {
+		if (getNavItemNo != null) {
+			return item != null && getNavItemNo.equals(blankToNull(item.getNavItemNo()));
+		}
+		return itemId.equals(p.getGetItem().getId());
+	}
+
+	/** 3.1.0: the name of an ERP item number no line of the cart carries (the hint "scan X"); the number without one. */
+	private String navItemName(String navItemNo) {
+		List<Object[]> names = itemRepository.findNavItemNames(java.util.Collections.singleton(navItemNo));
+		return names.isEmpty() || names.get(0)[1] == null ? navItemNo : (String) names.get(0)[1];
+	}
+
 	/**
-	 * The pieces of this item in the cart lines; a line with a quantity not whole counts none (never a free piece on a
-	 * fraction, as checkQuantities refuses a free quantity on a decimal line).
+	 * 3.1.0 (decision 5 of 2026-10-23): units given to lines cheapest unit price first, then cart order, at most each
+	 * line's whole pieces (never on a fraction): line → units, the lines given none left out.
 	 */
-	private static int wholePiecesOf(Long itemId, List<CartCalculateRequestDTO.CartItemDTO> cartItems) {
-		int pieces = 0;
-		for (CartCalculateRequestDTO.CartItemDTO line : cartItems) {
-			if (itemId.equals(line.getItemId()) && line.getQuantity() != null && line.getQuantity().signum() > 0
-					&& Quantities.isWhole(line.getQuantity())) {
-				pieces += line.getQuantity().intValue();
+	static Map<CartLine, Integer> share(List<CartLine> lines, int units) {
+		Map<CartLine, Integer> given = new LinkedHashMap<>();
+		List<CartLine> order = new ArrayList<>(lines);
+		order.sort(Comparator.comparingDouble((CartLine line) -> line.price).thenComparingInt(line -> line.index));
+		int left = units;
+		for (CartLine line : order) {
+			if (left <= 0) {
+				break;
+			}
+			int give = Math.min(left, line.pieces());
+			if (give > 0) {
+				given.put(line, give);
+				left -= give;
 			}
 		}
-		return pieces;
+		return given;
+	}
+
+	private static Map<Long, Integer> byItemId(Map<CartLine, Integer> given) {
+		Map<Long, Integer> byId = new LinkedHashMap<>();
+		given.forEach((line, units) -> byId.merge(line.item.getId(), units, Integer::sum));
+		return byId;
 	}
 
 	/**
@@ -557,6 +689,260 @@ public class PromotionCalculationService {
 	private static final class ItemPromotions {
 		Promotion applied;
 		Promotion freeHint;
+		/**
+		 * 3.1.0 (rule 6a), the line counted with others: its share of the group's free pieces, the pieces still to scan
+		 * (on the group's last line only) and the hint's; null when the line is priced alone (its own count).
+		 */
+		Integer free;
+		Integer available;
+		Integer hintAvailable;
+	}
+
+	// ─── 3.1.0: quantity promotions counted across the cart lines (rule 6a, decisions B and C of 2026-10-23) ───
+
+	/** A cart line as the engine counts it: its item, its pieces, its unit price (the free pieces' order), its place. */
+	static final class CartLine {
+		final Item item;
+		final BigDecimal quantity;
+		final double price;
+		final int index;
+		/** The line asked (POST /price-calculate). */
+		final boolean self;
+
+		CartLine(Item item, BigDecimal quantity, double price, int index, boolean self) {
+			this.item = item;
+			this.quantity = quantity;
+			this.price = price;
+			this.index = index;
+			this.self = self;
+		}
+
+		/** Its whole pieces; none for a quantity not whole (never counted by a quantity promotion, 2.2.1). */
+		int pieces() {
+			return Quantities.isWhole(quantity) ? quantity.intValue() : 0;
+		}
+	}
+
+	/** The cascade's levels, most specific first (decision B): each counts only the lines no earlier level took. */
+	private enum Level {
+		ROW, NAV_ITEM, GROUP, SECTION, SUB_FAMILY, FAMILY, CATEGORY, ALL_ITEMS
+	}
+
+	/**
+	 * The cart lines sent, as the engine counts them, in cart order: the line asked (self, when given) with its own
+	 * quantity, first when absent from the list. Lines without an item or a quantity are left out. Null when the cart
+	 * holds no two items: the line is priced alone, as before.
+	 */
+	private List<CartLine> cartLines(List<CartCalculateRequestDTO.CartItemDTO> sent, Item self, BigDecimal selfQuantity) {
+		if (sent == null || sent.isEmpty()) {
+			return null;
+		}
+		List<CartCalculateRequestDTO.CartItemDTO> usable = sent.stream()
+				.filter(line -> line != null && line.getItemId() != null && line.getQuantity() != null
+						&& line.getQuantity().signum() > 0)
+				.collect(Collectors.toList());
+		Set<Long> others = usable.stream().map(CartCalculateRequestDTO.CartItemDTO::getItemId)
+				.collect(Collectors.toCollection(LinkedHashSet::new));
+		if (self != null) {
+			others.remove(self.getId());
+		}
+		if (others.size() < (self != null ? 1 : 2)) {
+			return null;
+		}
+		Map<Long, Item> items = new HashMap<>();
+		itemRepository.findAllById(others).forEach(item -> items.put(item.getId(), item));
+		List<CartLine> lines = new ArrayList<>();
+		boolean selfPlaced = false;
+		if (self != null && usable.stream().noneMatch(line -> line.getItemId().equals(self.getId()))) {
+			lines.add(new CartLine(self, selfQuantity, priceOf(null, self), 0, true));
+			selfPlaced = true;
+		}
+		for (CartCalculateRequestDTO.CartItemDTO line : usable) {
+			if (self != null && line.getItemId().equals(self.getId())) {
+				if (!selfPlaced) { // the line asked counts once, with its own quantity
+					lines.add(new CartLine(self, selfQuantity, priceOf(line, self), lines.size(), true));
+					selfPlaced = true;
+				}
+				continue;
+			}
+			Item item = items.get(line.getItemId());
+			if (item != null) {
+				lines.add(new CartLine(item, line.getQuantity(), priceOf(line, item), lines.size(), false));
+			}
+		}
+		return lines;
+	}
+
+	/** The unit price the till sent for the line, else the item's; 0 without one. */
+	private static double priceOf(CartCalculateRequestDTO.CartItemDTO line, Item item) {
+		if (line != null && line.getUnitPrice() != null) {
+			return line.getUnitPrice();
+		}
+		return item.getUnitPrice() != null ? item.getUnitPrice() : 0.0;
+	}
+
+	/**
+	 * Rule 6a (2026-10-23): every line's promotions with the cart around it. Level by level, most specific first
+	 * (decision B), over the lines no earlier level took: a promotion counts Q = the whole pieces of those lines it
+	 * targets (its minimum quantity and its free pieces read Q, a line not whole keeps its own quantity: never a
+	 * quantity promotion), each line takes its best promotion of the level as the cascade does (priority, then value),
+	 * and a line taken leaves the next levels. A free promotion giving at least 1 free piece takes every line it counts
+	 * (decision C: a line given 0 is priced at full price, no other promotion); its free pieces go cheapest unit price
+	 * first, then cart order, and the pieces still to scan to its last line only. Below N + 1 it takes no line, the
+	 * hint as before. Lines of one level that take another promotion of the same level still count in Q.
+	 */
+	private Map<CartLine, ItemPromotions> resolveCart(List<CartLine> lines, List<String> codes) {
+		LocalDate today = LocalDate.now();
+		LocalTime now = LocalTime.now();
+		DayOfWeek todayDay = today.getDayOfWeek();
+		Map<CartLine, ItemPromotions> found = new LinkedHashMap<>();
+		lines.forEach(line -> found.put(line, new ItemPromotions()));
+		Set<CartLine> hintDone = new HashSet<>();
+		Map<Long, List<CartLine>> hintLines = new LinkedHashMap<>();
+		Map<Long, Integer> hintAvailable = new HashMap<>();
+		List<CartLine> open = new ArrayList<>(lines);
+
+		for (Level level : Level.values()) {
+			if (open.isEmpty()) {
+				break;
+			}
+			Map<String, List<Promotion>> reads = new HashMap<>();
+			Map<CartLine, List<Promotion>> candidates = new LinkedHashMap<>();
+			for (CartLine line : open) {
+				candidates.put(line, read(level, line.item, today, reads));
+			}
+			Map<Long, Integer> counted = new HashMap<>();
+			for (List<Promotion> list : candidates.values()) {
+				for (Promotion p : list) {
+					counted.computeIfAbsent(p.getId(), id -> open.stream().filter(line -> matches(level, p, line.item))
+							.mapToInt(CartLine::pieces).sum());
+				}
+			}
+			Map<Long, List<CartLine>> takenBy = new LinkedHashMap<>();
+			Map<Long, Promotion> taking = new HashMap<>();
+			for (CartLine line : open) {
+				Function<Promotion, BigDecimal> quantityOf = p -> line.pieces() > 0
+						? BigDecimal.valueOf(counted.getOrDefault(p.getId(), 0)) : line.quantity;
+				List<Promotion> list = candidates.get(line);
+				ItemPromotions promotions = found.get(line);
+				Promotion applied = selectBestFromList(list, quantityOf, codes, now, todayDay, false);
+				if (!hintDone.contains(line)) {
+					Promotion withZeroFree = selectBestFromList(list, quantityOf, codes, now, todayDay, true);
+					if (withZeroFree != null) {
+						hintDone.add(line);
+						BigDecimal q = quantityOf.apply(withZeroFree);
+						if (withZeroFree.getBenefitType() == PromotionBenefitType.FREE_QUANTITY
+								&& freePieces(withZeroFree, q) == 0) {
+							promotions.freeHint = withZeroFree;
+							hintLines.computeIfAbsent(withZeroFree.getId(), id -> new ArrayList<>()).add(line);
+							hintAvailable.put(withZeroFree.getId(), freeAvailable(withZeroFree, q));
+						}
+					}
+				}
+				if (applied != null) {
+					promotions.applied = applied;
+					takenBy.computeIfAbsent(applied.getId(), id -> new ArrayList<>()).add(line);
+					taking.put(applied.getId(), applied);
+				}
+			}
+			for (Map.Entry<Long, List<CartLine>> taken : takenBy.entrySet()) {
+				Promotion p = taking.get(taken.getKey());
+				if (p.getBenefitType() == PromotionBenefitType.FREE_QUANTITY) {
+					List<CartLine> group = taken.getValue();
+					BigDecimal q = BigDecimal.valueOf(counted.getOrDefault(p.getId(), 0));
+					Map<CartLine, Integer> shares = share(group, freePieces(p, q));
+					CartLine last = group.get(group.size() - 1);
+					for (CartLine line : group) {
+						found.get(line).free = shares.getOrDefault(line, 0);
+						found.get(line).available = line == last ? freeAvailable(p, q) : 0;
+					}
+				}
+				open.removeAll(taken.getValue());
+			}
+		}
+		// The pieces still to scan of a free promotion below its threshold: on its last line only
+		hintLines.forEach((promotionId, group) -> {
+			CartLine last = group.get(group.size() - 1);
+			group.forEach(line -> found.get(line).hintAvailable = line == last ? hintAvailable.get(promotionId) : 0);
+		});
+		return found;
+	}
+
+	/** The promotions of one level for an item, read once per key in a cart (as findBestItemPromotion reads them). */
+	private List<Promotion> read(Level level, Item item, LocalDate today, Map<String, List<Promotion>> reads) {
+		String navItemNo = blankToNull(item.getNavItemNo());
+		switch (level) {
+			case ROW:
+				return item.getId() == null ? List.of()
+						: reads.computeIfAbsent("row:" + item.getId(),
+								key -> promotionRepository.findActiveByItemId(item.getId(), today));
+			case NAV_ITEM:
+				return item.getId() == null || navItemNo == null ? List.of()
+						: reads.computeIfAbsent("nav:" + navItemNo,
+								key -> promotionRepository.findActiveByNavItemNo(navItemNo, today));
+			case GROUP: {
+				if (item.getId() == null) {
+					return List.of();
+				}
+				List<Promotion> groups = new ArrayList<>(reads.computeIfAbsent("group:" + item.getId(),
+						key -> promotionRepository.findActiveByGroupItemId(item.getId(), today)));
+				if (navItemNo != null) {
+					groups.addAll(reads.computeIfAbsent("groupNav:" + navItemNo,
+							key -> promotionRepository.findActiveByGroupNavItemNo(navItemNo, today)));
+				}
+				return groups;
+			}
+			case SECTION: {
+				String code = sectionCodeOf(item);
+				return code == null ? List.of()
+						: reads.computeIfAbsent("section:" + code,
+								key -> promotionRepository.findActiveBySectionCode(code, today));
+			}
+			case SUB_FAMILY:
+				return item.getItemSubFamily() == null ? List.of()
+						: reads.computeIfAbsent("subFamily:" + item.getItemSubFamily().getId(),
+								key -> promotionRepository.findActiveByItemSubFamilyId(item.getItemSubFamily().getId(), today));
+			case FAMILY:
+				return item.getItemFamily() == null ? List.of()
+						: reads.computeIfAbsent("family:" + item.getItemFamily().getId(),
+								key -> promotionRepository.findActiveByItemFamilyId(item.getItemFamily().getId(), today));
+			case CATEGORY: {
+				String code = categoryCodeOf(item);
+				return code == null ? List.of()
+						: reads.computeIfAbsent("category:" + code,
+								key -> promotionRepository.findActiveByCategoryCode(code, today));
+			}
+			default:
+				return reads.computeIfAbsent("all", key -> promotionRepository.findActiveByScope(PromotionScope.ALL_ITEMS, today));
+		}
+	}
+
+	/** Does the promotion, read at this level, target this item (the lines counted in its Q)? */
+	private static boolean matches(Level level, Promotion p, Item item) {
+		String navItemNo = blankToNull(item.getNavItemNo());
+		switch (level) {
+			case ROW:
+				return p.getItem() != null && Objects.equals(p.getItem().getId(), item.getId());
+			case NAV_ITEM:
+				return navItemNo != null && navItemNo.equals(p.getNavItemNo());
+			case GROUP:
+				return p.getGroupItems().stream().anyMatch(gi -> gi.getId() != null && gi.getId().equals(item.getId()))
+						|| navItemNo != null && p.getGroupNavItemNos().contains(navItemNo);
+			case SECTION:
+				return p.getItemSection() != null && sectionCodeOf(item) != null
+						&& sectionCodeOf(item).equals(p.getItemSection().getCode());
+			case SUB_FAMILY:
+				return p.getItemSubFamily() != null && item.getItemSubFamily() != null
+						&& Objects.equals(p.getItemSubFamily().getId(), item.getItemSubFamily().getId());
+			case FAMILY:
+				return p.getItemFamily() != null && item.getItemFamily() != null
+						&& Objects.equals(p.getItemFamily().getId(), item.getItemFamily().getId());
+			case CATEGORY:
+				return p.getItemCategory() != null && categoryCodeOf(item) != null
+						&& categoryCodeOf(item).equals(p.getItemCategory().getCode());
+			default:
+				return true;
+		}
 	}
 
 	/**
@@ -642,6 +1028,12 @@ public class PromotionCalculationService {
 	 */
 	private Promotion selectBestFromList(List<Promotion> candidates, BigDecimal quantity,
 			List<String> codes, LocalTime now, DayOfWeek todayDay, boolean zeroFreeAllowed) {
+		return selectBestFromList(candidates, p -> quantity, codes, now, todayDay, zeroFreeAllowed);
+	}
+
+	/** 3.1.0 (rule 6a): each promotion with its own quantity Q (the pieces of the cart lines it counts). */
+	private Promotion selectBestFromList(List<Promotion> candidates, Function<Promotion, BigDecimal> quantityOf,
+			List<String> codes, LocalTime now, DayOfWeek todayDay, boolean zeroFreeAllowed) {
 		return candidates.stream()
 				// Cross-product promotions (getItem set) never discount the buy line
 				// itself — they are evaluated by the cart pass and applied to the
@@ -651,9 +1043,9 @@ public class PromotionCalculationService {
 				.filter(p -> p.getBenefitType() != PromotionBenefitType.FREE_QUANTITY
 						|| (zeroFreeAllowed ? p.getMinimumQuantity() != null && p.getMinimumQuantity() > 0
 								&& p.getFreeQuantity() != null && p.getFreeQuantity() > 0
-								: freePieces(p, quantity) > 0))
+								: freePieces(p, quantityOf.apply(p)) > 0))
 				.filter(p -> passesCodeFilter(p, codes))
-				.filter(p -> passesQuantityFilter(p, quantity))
+				.filter(p -> passesQuantityFilter(p, quantityOf.apply(p)))
 				.filter(p -> passesTimeFilter(p, now))
 				.filter(p -> passesDayFilter(p, todayDay))
 				.max(Comparator

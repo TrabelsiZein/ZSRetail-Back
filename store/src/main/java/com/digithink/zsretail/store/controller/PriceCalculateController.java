@@ -58,7 +58,8 @@ public class PriceCalculateController {
 					request.getItemId(),
 					request.getQuantity(),
 					request.getCustomerId(),
-					request.getAppliedCodes());
+					request.getAppliedCodes(),
+					request.getCartLines());
 
 			return ResponseEntity.ok(response);
 
@@ -88,7 +89,8 @@ public class PriceCalculateController {
 			CartCalculateResponseDTO response = promotionCalculationService.calculateCartPromotion(
 					request.getCartTotal(),
 					request.getCartItems(),
-					request.getAppliedCodes());
+					request.getAppliedCodes(),
+					request.getCustomerId());
 
 			return ResponseEntity.ok(response);
 

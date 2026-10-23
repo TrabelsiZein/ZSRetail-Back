@@ -67,4 +67,10 @@ public class PriceCalculateResponseDTO {
 	 *   "BASE_PRICE"     – item unit price, no special pricing
 	 */
 	private String source;
+
+	/**
+	 * 3.1.0 (rule 6a): true when this answer depends on the other cart lines (it differs from the line priced alone),
+	 * false when it does not; null when the line was priced alone (no cart lines sent).
+	 */
+	private Boolean acrossLines;
 }

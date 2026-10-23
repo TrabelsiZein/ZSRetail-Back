@@ -55,4 +55,22 @@ public class CrossProductAdjustmentDTO {
 
 	/** FIXED_DISCOUNT only: TND amount applied per entitled unit. */
 	private Double discountAmount;
+
+	/**
+	 * 3.1.0 (ZEN): the benefit on any variant of this ERP item number (getItemId then null; getItemName the name of
+	 * one of them).
+	 */
+	private String getNavItemNo;
+
+	/**
+	 * 3.1.0, FREE_QUANTITY: the free pieces per benefit line (item id → pieces), cheapest unit price first, then cart
+	 * order; their sum is freeQuantity. Empty when none.
+	 */
+	private java.util.Map<Long, Integer> freeByItemId = new java.util.LinkedHashMap<>();
+
+	/**
+	 * 3.1.0, PERCENTAGE / FIXED: the entitled units per benefit line (item id → units, at most its whole pieces),
+	 * cheapest unit price first, then cart order.
+	 */
+	private java.util.Map<Long, Integer> entitledByItemId = new java.util.LinkedHashMap<>();
 }

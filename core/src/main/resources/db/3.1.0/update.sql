@@ -436,7 +436,7 @@ GO
 
 -- Promotions on every variant of a NAV item (ZEN, docs/modules/promotion.md): promotion.nav_item_no (scope ITEM: every
 -- item carrying that item.nav_item_no, also the variants synced later), promotion.get_nav_item_no (the benefit on any
--- variant, refused at save until the till counts across cart lines) and promotion_group_nav_item (the NAV item numbers
+-- variant, a cross-product benefit) and promotion_group_nav_item (the NAV item numbers
 -- of an ITEM_GROUP promotion), store and head office. varchar(255) as item.nav_item_no. No default, no data changed:
 -- every promotion of before keeps them empty. A database already started with this version has them from Hibernate
 -- (its own key names); each object is added only when missing. Re-runnable.

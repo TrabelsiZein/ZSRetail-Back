@@ -21,7 +21,7 @@
 - `promotion_group_nav_item` table (3.1.0, ZEN; `promotion_id`, `nav_item_no`): the NAV item numbers of an ITEM_GROUP promotion
 - ALL_ITEMS has no target: `PromotionService.save` clears the three FKs and the group items (the per-item FK lookups have no scope filter, so a leftover FK would make it match early)
 - `get_item_id` (nullable FK, 1.10.0): cross-product benefit target, QUANTITY_PROMOTION only, evaluated by the cart pass
-- `get_nav_item_no` (3.1.0, ZEN, nullable): the benefit on any variant of a NAV item; refused at save until step 2
+- `get_nav_item_no` (3.1.0, ZEN, nullable): the cross-product benefit on any variant of a NAV item (step 2)
 - `minimum_quantity`, `minimum_amount`
 - `benefit_type` (PERCENTAGE_DISCOUNT / FIXED_DISCOUNT / FREE_QUANTITY)
 - `discount_percentage`, `discount_amount`, `free_quantity`
@@ -233,7 +233,8 @@ tables are empty (EMTOP, Happyness): the scopes are not offered and an item with
 - **Order** (decision of 2026-10-22): SECTION right after ITEM_GROUP (the section is below the sous-famille), CATEGORY
   right after ITEM_FAMILY; each branch is added only when the item has the code, the existing branches unchanged.
 - **Cart pass**: `matchesBuyTarget` matches the same codes, so a cross-product promotion can have a catégorie or section
-  buy side. Free pieces and minimum quantity still count per cart line, as for a family.
+  buy side. Free pieces and minimum quantity count the pieces of every cart line of the target (rule 6a, step 2 of
+  the promotions for variants), as for a family.
 - **Save** (`PromotionService.normalise`): CATEGORY needs its catégorie, SECTION its section (400 otherwise); each owns
   its target alone (item, family and sub-family cleared); every other scope has both new keys cleared. Both targets
   are locked once the promotion is used. The existing scopes are validated as before.
@@ -272,13 +273,14 @@ office copy and `Item` equality, 2 counting across cart lines (every scope, deci
   below as before. An item without one reads exactly what it read before (blank counts as none). Both lookups filter
   on the scope. `matchesBuyTarget` (cart pass, cross-product buy side) matches a NAV number the same way; a group's
   NAV numbers are read only for an item carrying one. A promotion with `getNavItemNo` never discounts the buy line
-  (`selectBestFromList`, as `getItem`), and the cart pass reads it (`findActiveCrossProductPromotions`) but skips it
-  until step 2. Quantities still count per cart line in step 1.
+  (`selectBestFromList`, as `getItem`); the cart pass gives it to the lines of the NAV number's variants (step 2).
+  Quantities count across the cart lines since step 2 (**Counted across the cart lines** below).
 - **Save** (`PromotionService.normalise`, also for a copy received from the head office): the three trimmed, blank =
   none; an ITEM with both `item` and `navItemNo` is refused; `navItemNo` kept on ITEM only, `groupNavItemNos` on
   ITEM_GROUP only (a group needs at least one row or NAV number), `getNavItemNo` cleared outside QUANTITY_PROMOTION as
-  `getItem`. Until step 2 a QUANTITY_PROMOTION with `navItemNo`, `groupNavItemNos` or `getNavItemNo` is refused ("buy N"
-  would count each variant's line alone). All three locked once the promotion is used. `POST /promotion` and
+  `getItem`; a benefit on both `getItem` and `getNavItemNo` is refused; an ITEM promotion whose `getNavItemNo` equals
+  its `navItemNo` is a same-item promotion (`getNavItemNo` cleared, decision 6c). Steps 1 to 3 refused NAV targets on
+  a QUANTITY_PROMOTION; step 2 lifted it. All three locked once the promotion is used. `POST /promotion` and
   `PUT /promotion/{id}` answer a refusal with 400 and its reason (500 before 3.1.0).
 - **SQL**: `db/3.1.0/update.sql`, section "Promotions on every variant of a NAV item"; no data changed.
 - **Head office to store (step 3)**: `PromotionCopyDTO.navItemNo`, `getNavItemNo` and `groupNavItemNos` (sorted;
@@ -301,7 +303,7 @@ office copy and `Item` equality, 2 counting across cart lines (every scope, deci
   `navItemNo`. A chosen item that has one shows "Toutes les variantes de cet item (<n°>)" under the field; checked, the
   form sends `navItemNo` and no `item`. The same box on each chip of a group (checked chips go as `groupNavItemNos`,
   the others as `groupItems`) and under the free item (`getNavItemNo`). The boxes are hidden on a quantity promotion
-  (`NAV_TARGETS_FOR_QUANTITY = false`, flipped by step 2): the save would refuse it. An edit loads the three targets and
+  until step 2 (`NAV_TARGETS_FOR_QUANTITY`, true since step 2). An edit loads the three targets and
   sends them back unchanged (a saved NAV target shows its label, its box checked and disabled; X clears it); they lock
   with the other targets once used. The list's target and benefit columns and the consult view read "<name> —
   toutes variantes (<n°>)"; a group counts rows and NAV numbers. The names come from `GET /nav-item/names` (one read per
@@ -312,6 +314,48 @@ office copy and `Item` equality, 2 counting across cart lines (every scope, deci
   reads, scope filter, benefit on a NAV number, buy side), `PromotionGroupItemsTest` (save rules, lock);
   `PromotionAllItemsScopeTest` and `PromotionCategorySectionScopeTest` unchanged (their stubs throw on any other lookup);
   `QueryParameterBindingTest` binds the two new queries.
+
+### Counted across the cart lines (3.1.0, rule 6a, step 2 of the promotions for variants)
+
+Decisions of 2026-10-23, every customer, no setting: a quantity promotion (a minimum quantity, "buy N, get M free",
+the buy side of a cross-product) counts Q = the whole pieces of **every cart line of its target** (an item row, a NAV
+item, a group, a section, a sous-famille, a famille, a catégorie, all items), not each line alone. A cart of one line
+is priced exactly as before.
+
+- **Levels** (decision B): row, NAV item, group (rows and NAV numbers), section, sous-famille, famille, catégorie, all
+  items. Each level counts only the lines no earlier level took: a line taken by its own row promotion does not count
+  in its NAV item's Q (6b), nor a line taken by a NAV promotion in its famille's. Within a level each line takes its
+  best promotion as the cascade does; Q counts every open line of the level that the promotion targets.
+- **Free pieces**: F = freePieces(N, M, Q), repeated per group (6 pieces of "2 → 1" = 2 free), given to the lines it
+  counts cheapest unit price first, then cart order, at most each line's pieces; never a piece added (only scanned
+  pieces are free). With at least 1 free piece the promotion takes every line it counts (decision C): a line given 0
+  is at full price with that promotion and no other one. Below N + 1 it takes no line and the hint is as before; the
+  pieces still to scan ("N more free") are on the cart's last line of the target only.
+- **Engine** (`PromotionCalculationService.resolveCart`): reads each level's promotions once per key for the cart,
+  `selectBestFromList` with each promotion's own Q, the SalesPrice / SalesDiscount comparison per line as before. A line
+  not whole keeps its own quantity (never a quantity promotion, 2.2.1).
+- **API** (decision A): `POST /price-calculate` takes `cartLines` (`{itemId, quantity, unitPrice}`, the cart in order,
+  this line included; absent: first; none or this line alone: priced alone, exactly as before) and answers
+  `acrossLines` (the answer differs from the line priced alone). The cart pass (`POST /price-calculate/cart`, with
+  `customerId`) adds `lineResults`: each line priced with the cart around it, with `acrossLines`; none for one line. A
+  till of before sends no lines and ignores `lineResults`: single-line pricing as before.
+- **Cross-product**: entitled = floor(Q / N) over every buy line (before: the sum of each line's floor); the benefit
+  on an item or on any variant of an ERP item number (`getNavItemNo`): `freeByItemId` (free pieces per line) or
+  `entitledByItemId` (discounted units per line), cheapest first; `getItemName` of a NAV benefit with no variant in
+  the cart from `ItemRepository.findNavItemNames`. Promo code (`GET /price-calculate/promo-code/{code}`):
+  also `navItemNo`, `groupNavItemNos`, `getNavItemNo`.
+- **Till** (`ItemSelection.vue`): every price question carries the cart's lines (`priceLines`, `libs/free-pieces.js`);
+  the cart pass applies `lineResults` (`applyLineResults`) to a line whose answer depends on the others or did, never
+  to a line with a manual discount, then the cross-product adjustments (`freeByItemId`, `entitledByItemId`); a line
+  keeps `navItemNo` (an ITEM code on an ERP item number re-prices its variants' lines), `freePromotionId` and
+  `acrossLines`. Recall and pending list: the ticket's lines go with each question. Payment: its price questions carry
+  the cart; a code with `getNavItemNo` is refused there as one with `getItemId`. Split bill (decision D): a line that
+  counts in a free promotion giving a free piece to another line (taken by it, 0 of its own) is not paid alone either.
+- Tests: `PromotionAcrossLinesTest` (NAV item two variants, repeat per group, hint on the last line, 6b, group,
+  section, famille and levels, all items, decision C, one line as before, unrelated lines, cross buy side, free item on
+  any variant); `PromotionAllItemsScopeTest`, `PromotionCategorySectionScopeTest`, `DecimalSafetyNetTest` unchanged.
+  Before deploying: check EMTOP and Happyness for quantity promotions with a scope other than ITEM (their counting
+  changes).
 
 ### Resolution order (per item)
 
@@ -335,8 +379,8 @@ office copy and `Item` equality, 2 counting across cart lines (every scope, deci
 ALL_ITEMS (next release after 1.11.0) is the storewide fallback. Example: "family Desserts 5%" +
 "all items 10%" gives desserts 5% and every other item 10%. To give desserts 10% too, raise or
 deactivate the family promotion. If the family promotion is filtered out (wrong day, code not
-entered, quantity not met), desserts fall through to the 10%. Minimum quantity is checked per cart
-line, as for every scope. As the buy side of a cross-product promotion, ALL_ITEMS matches every
+entered, quantity not met), desserts fall through to the 10%. Minimum quantity is checked on the pieces of every
+cart line of the target since step 2 of the promotions for variants (rule 6a), as for every scope. As the buy side of a cross-product promotion, ALL_ITEMS matches every
 cart line except the benefit item's own line. The TAX_STAMP line is added server-side at a fixed
 price and never goes through promotion pricing.
 

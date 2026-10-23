@@ -129,20 +129,29 @@ class PromotionGroupItemsTest {
 	}
 
 	@Test
-	@DisplayName("Refused (400): an ITEM on a row and a NAV number; a group with neither; NAV targets of a quantity promotion")
+	@DisplayName("Refused (400): an ITEM on a row and a NAV number; a group with neither; a benefit on an item and a NAV number")
 	void navTargetsRefused() {
 		assertEquals("An ITEM promotion targets one item or one ERP item number (all its variants), not both",
 				refusal("\"scope\":\"ITEM\",\"item\":{\"id\":1},\"navItemNo\":\"N1\""));
 		assertEquals("An ITEM_GROUP promotion must target at least one item",
 				refusal("\"scope\":\"ITEM_GROUP\",\"groupNavItemNos\":[\" \"]"));
 		String quantity = "\"promotionType\":\"QUANTITY_PROMOTION\",\"minimumQuantity\":2,";
-		assertEquals("A quantity promotion cannot target an ERP item number (all its variants) yet",
-				refusal(quantity + "\"scope\":\"ITEM\",\"navItemNo\":\"N1\""));
-		assertEquals("A quantity promotion cannot target an ERP item number (all its variants) yet",
-				refusal(quantity + "\"scope\":\"ITEM_GROUP\",\"groupNavItemNos\":[\"N1\"]"));
-		assertEquals("The benefit item of a quantity promotion cannot be an ERP item number (all its variants) yet",
-				refusal(quantity + "\"scope\":\"ITEM\",\"item\":{\"id\":1},\"getNavItemNo\":\"N2\""));
+		assertEquals("The benefit item is one item or one ERP item number (all its variants), not both",
+				refusal(quantity + "\"scope\":\"ITEM\",\"item\":{\"id\":1},\"getItem\":{\"id\":2},\"getNavItemNo\":\"N2\""));
 		assertTrue(table.isEmpty());
+	}
+
+	@Test
+	@DisplayName("Step 2: a quantity promotion takes NAV targets and a NAV benefit; buy NAV = get NAV is a same-item promotion")
+	void navTargetsOnQuantityPromotions() throws Exception {
+		String quantity = "\"promotionType\":\"QUANTITY_PROMOTION\",\"minimumQuantity\":2,";
+		Promotion item = service.save(promotion(quantity + "\"scope\":\"ITEM\",\"navItemNo\":\"N1\",\"getNavItemNo\":\"N2\""));
+		assertEquals("N1", table.get(item.getId()).getNavItemNo());
+		assertEquals("N2", table.get(item.getId()).getGetNavItemNo());
+		Promotion group = service.save(promotion(quantity + "\"scope\":\"ITEM_GROUP\",\"groupNavItemNos\":[\"N1\"]"));
+		assertEquals(Collections.singleton("N1"), table.get(group.getId()).getGroupNavItemNos());
+		Promotion same = service.save(promotion(quantity + "\"scope\":\"ITEM\",\"navItemNo\":\"N1\",\"getNavItemNo\":\" N1\""));
+		assertNull(table.get(same.getId()).getGetNavItemNo(), "buy N1, get N1: the same item (decision 6c)");
 	}
 
 	@Test

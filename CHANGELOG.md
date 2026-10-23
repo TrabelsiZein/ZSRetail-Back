@@ -62,6 +62,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   missing only with none of its rows and no NAV number), and logs one INFO line for a number no item of the store
   carries yet. A copy without them (null / empty) compares equal to an existing promotion: nothing rewritten (EMTOP,
   Happyness). A store of an older build ignores the fields.
+- Promotions on every variant of a NAV item, step 2, counted across the cart lines (rule 6a): `POST /price-calculate`
+  takes `cartLines` (the cart in order) and answers `acrossLines`; the cart pass (`customerId`) adds `lineResults`, each
+  line priced with the cart around it. Quantity promotions on NAV targets and a NAV free item are accepted; a benefit
+  on both an item and an ERP item number is refused; buy NAV = get NAV is a same-item promotion. Cross-product:
+  `getNavItemNo`, `freeByItemId`, `entitledByItemId` (cheapest first). Promo code: `navItemNo`, `groupNavItemNos`,
+  `getNavItemNo`. Without `cartLines`, or a cart of one line: priced exactly as before.
 - Till levels catégorie and section, step 1, API only (ZEN; docs/modules/head-office.md, "Till levels"): read-only POS
   lists `GET /item-category/pos`, `GET /item-family/pos?category={code}` and `?withoutCategory=true`,
   `GET /item-section/pos?subFamily={id}`, `GET /item/pos/by-section/{id}`, the fall-throughs
@@ -161,6 +167,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   screen sends. `groupItems` is read by distinct id (`{ id }`, `{ id, itemCode }` or a full item give the same group)
   and `PromotionService.save` loads those ids from the database; an unknown id or an item without an id is refused.
   `Item` equality is unchanged.
+- Quantity promotions count the whole pieces of every cart line of their target (rule 6a, every customer, decided
+  2026-10-23): a minimum quantity or a "buy N get M free" on a famille, sous-famille, section, catégorie, group, NAV
+  item or all items read each line alone (2 shirts of one famille in two lines never reached "buy 2"); the cross-product
+  buy side summed each line's floor (1 + 1 pieces never reached N = 2). Level by level (row, NAV item, group, section,
+  sous-famille, famille, catégorie, all items), each level counting only the lines no earlier level took; free pieces
+  cheapest first, then cart order; a free promotion giving a free piece takes every line it counts. A cart of one line
+  is priced as before. Check EMTOP and Happyness quantity promotions on other scopes than ITEM before deploying.
 - `Item` equality, root cause of the group saved with one item (Emtop 1.12.1): two items are equal when they have the
   same id (read through `getId()`, a Hibernate proxy equals its item), an item without an id only to itself, one hash
   for every item; Lombok's equality left the id out, so items with only an id were all equal. The other maps keyed by

@@ -250,17 +250,15 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 			promotion.setGetItem(null);
 		}
 
-		// 3.1.0 (ZEN), until the till counts the pieces of every cart line of a NAV item (step 2): a quantity promotion
-		// counts each cart line alone, so "buy N" on a NAV item number or its benefit on one is refused for now.
-		if (promotion.getPromotionType() == PromotionType.QUANTITY_PROMOTION) {
-			if (promotion.getNavItemNo() != null || !promotion.getGroupNavItemNos().isEmpty()) {
-				throw new IllegalArgumentException(
-						"A quantity promotion cannot target an ERP item number (all its variants) yet");
-			}
-			if (promotion.getGetNavItemNo() != null) {
-				throw new IllegalArgumentException(
-						"The benefit item of a quantity promotion cannot be an ERP item number (all its variants) yet");
-			}
+		// 3.1.0 (ZEN): the benefit on one item or on every variant of an ERP item number, never both; "buy N of an ERP
+		// item, get M of the same ERP item" is a same-item promotion (decision 6c), as getItem equal to item above
+		if (promotion.getGetItem() != null && promotion.getGetNavItemNo() != null) {
+			throw new IllegalArgumentException(
+					"The benefit item is one item or one ERP item number (all its variants), not both");
+		}
+		if (promotion.getGetNavItemNo() != null && promotion.getScope() == PromotionScope.ITEM
+				&& promotion.getGetNavItemNo().equals(promotion.getNavItemNo())) {
+			promotion.setGetNavItemNo(null);
 		}
 	}
 

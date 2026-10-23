@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -192,7 +193,7 @@ class PromotionNavTargetTest {
 	}
 
 	@Test
-	@DisplayName("A benefit on a NAV number never discounts the buy line; the cart pass skips it (step 2)")
+	@DisplayName("A benefit on a NAV number never discounts the buy line; the cart pass gives it to the NAV number's lines")
 	void benefitOnNavNumber() {
 		Promotion x = crossProduct("XNAV", PromotionScope.ITEM);
 		x.setNavItemNo("N1");
@@ -204,7 +205,13 @@ class PromotionNavTargetTest {
 		x.setMinimumQuantity(1);
 
 		assertPromotion(null, price(10), "the buy line is not discounted");
-		assertTrue(cart(line(10, 2), line(12, 1)).isEmpty(), "no adjustment before step 2");
+		// Step 2 (was: no adjustment, the cart pass skipped a NAV benefit): 2 entitled units, item 12 holds 1 piece
+		List<CrossProductAdjustmentDTO> adj = cart(line(10, 2), line(12, 1));
+		assertEquals(1, adj.size());
+		assertEquals("N2", adj.get(0).getGetNavItemNo());
+		assertNull(adj.get(0).getGetItemId());
+		assertEquals(2, adj.get(0).getEntitledUnits().intValue());
+		assertEquals(Collections.singletonMap(12L, 1), adj.get(0).getEntitledByItemId());
 	}
 
 	@Test

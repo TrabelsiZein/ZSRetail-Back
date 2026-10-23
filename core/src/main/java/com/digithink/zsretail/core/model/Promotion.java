@@ -178,8 +178,8 @@ public class Promotion extends _BaseEntity {
 
 	/**
 	 * 3.1.0 (ZEN): the cross-product benefit on any variant of this NAV item number, instead of one item row (getItem).
-	 * Refused at save until the cart pass counts across lines (variants, step 2); the per-item pass skips a promotion
-	 * carrying it, as one carrying getItem.
+	 * The cart pass gives its free pieces (or entitled units) to the cart lines of its variants; the per-item pass skips
+	 * a promotion carrying it, as one carrying getItem.
 	 */
 	@Column(name = "get_nav_item_no")
 	private String getNavItemNo;

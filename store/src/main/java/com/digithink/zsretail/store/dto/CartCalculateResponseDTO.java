@@ -39,4 +39,11 @@ public class CartCalculateResponseDTO {
 	 * Independent of the CART-scope promotion above.
 	 */
 	private List<CrossProductAdjustmentDTO> crossProductAdjustments = new ArrayList<>();
+
+	/**
+	 * 3.1.0 (rule 6a): with two lines or more, each line priced with the cart around it (one per line, by itemId;
+	 * acrossLines tells whether it differs from the line priced alone). Empty for a cart of one line. A till of before
+	 * ignores it.
+	 */
+	private List<PriceCalculateResponseDTO> lineResults = new ArrayList<>();
 }
