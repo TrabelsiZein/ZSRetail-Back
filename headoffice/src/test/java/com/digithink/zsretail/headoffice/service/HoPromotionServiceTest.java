@@ -258,6 +258,28 @@ class HoPromotionServiceTest {
 			assertFalse(name.equals("id") || name.endsWith("Id"), name);
 		}
 		assertFalse(copy.toString().contains("501"), "no item id");
+		assertTrue(copy.get("navItemNo").isNull(), "no ERP item number target: null, as a copy of before reads");
+		assertEquals("[]", copy.get("groupNavItemNos").toString());
+	}
+
+	@Test
+	@DisplayName("3.1.0 (ZEN) payload: the ERP item number targets as they are, a group's sorted")
+	void payloadNavTargets() throws Exception {
+		Promotion item = promotion(null, "NAV1");
+		item.setScope(PromotionScope.ITEM);
+		item.setNavItemNo("N1");
+		promotionService.save(item);
+		Promotion group = promotion(null, "NAV2");
+		group.setScope(PromotionScope.ITEM_GROUP);
+		group.getGroupNavItemNos().addAll(Arrays.asList("N3", "N2"));
+		promotionService.save(group);
+
+		Map<String, JsonNode> byCode = new HashMap<>();
+		pull(a, "").getRecords().forEach(record -> byCode.put(record.get("code").asText(), record));
+		assertEquals("N1", byCode.get("NAV1").get("navItemNo").asText());
+		assertTrue(byCode.get("NAV1").get("itemCode").isNull());
+		assertEquals("[\"N2\",\"N3\"]", byCode.get("NAV2").get("groupNavItemNos").toString());
+		assertEquals("[]", byCode.get("NAV2").get("groupItemCodes").toString());
 	}
 
 	@Test

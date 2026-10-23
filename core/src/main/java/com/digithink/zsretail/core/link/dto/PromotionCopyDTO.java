@@ -21,7 +21,8 @@ import lombok.NoArgsConstructor;
 
 /**
  * Head office plan, task 3.3: a promotion as it travels down to the stores, by business codes only (promotion code,
- * item code, family code, sub-family code, group item codes, benefit item code), never a database id. The store
+ * item code, family code, sub-family code, group item codes, benefit item code; 3.1.0 the ERP item numbers of the
+ * targets on every variant), never a database id. The store
  * resolves the codes to its own records. Also used by the store to compare what it has with what it receives: two
  * promotions with equal copies are the same promotion.
  */
@@ -57,6 +58,15 @@ public class PromotionCopyDTO {
 	/** Item code of the cross-product benefit (getItem); null when none. */
 	private String getItemCode;
 
+	/**
+	 * 3.1.0 (ZEN), promotions on every variant: the ERP item number of an ITEM promotion (Promotion.navItemNo), of the
+	 * benefit (getNavItemNo) and of a group (groupNavItemNos, sorted); null / empty when none, as in a copy of before, so
+	 * a copy without them compares equal. They travel as they are: the store never waits for an item carrying them.
+	 */
+	private String navItemNo;
+	private String getNavItemNo;
+	private List<String> groupNavItemNos = new ArrayList<>();
+
 	@JsonDeserialize(using = WholeQuantityDeserializer.class) // 2.2.1: whole only, 1.5 refused (400)
 	private Integer minimumQuantity;
 	private Double minimumAmount;
@@ -90,6 +100,10 @@ public class PromotionCopyDTO {
 		copy.groupItemCodes = promotion.getGroupItems() == null ? new ArrayList<>()
 				: promotion.getGroupItems().stream().map(Item::getItemCode).sorted().collect(Collectors.toList());
 		copy.getItemCode = promotion.getGetItem() == null ? null : promotion.getGetItem().getItemCode();
+		copy.navItemNo = promotion.getNavItemNo();
+		copy.getNavItemNo = promotion.getGetNavItemNo();
+		copy.groupNavItemNos = promotion.getGroupNavItemNos() == null ? new ArrayList<>()
+				: promotion.getGroupNavItemNos().stream().sorted().collect(Collectors.toList());
 		copy.minimumQuantity = promotion.getMinimumQuantity();
 		copy.minimumAmount = promotion.getMinimumAmount();
 		copy.benefitType = promotion.getBenefitType();

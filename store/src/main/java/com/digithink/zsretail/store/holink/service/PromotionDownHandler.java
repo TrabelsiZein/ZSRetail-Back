@@ -3,6 +3,7 @@ package com.digithink.zsretail.store.holink.service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -39,6 +40,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
+import lombok.extern.log4j.Log4j2;
+
 /**
  * Head office plan, task 3.3: the store side of the promotions on the copies down mechanism. Exists only when
  * promotions are owned by the head office. A received promotion is saved by its code with origin HEAD_OFFICE, its
@@ -51,6 +54,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
  */
 @Component
 @ConditionalOnInstallation(Installation.PROMOTIONS_FROM_HEAD_OFFICE)
+@Log4j2
 public class PromotionDownHandler implements DownHandler {
 
 	static final String CODE_CLASH = "code already used by a local promotion of this store";
@@ -259,6 +263,7 @@ public class PromotionDownHandler implements DownHandler {
 		if (existing.isPresent() && PromotionCopyDTO.of(existing.get()).equals(PromotionCopyDTO.of(candidate))) {
 			return new Outcome(DownRecordStatus.APPLIED, null, info, false);
 		}
+		logNumbersNotHere(copy);
 		promotionService.saveReceived(candidate);
 		return new Outcome(DownRecordStatus.APPLIED, null, info, true);
 	}
@@ -367,7 +372,9 @@ public class PromotionDownHandler implements DownHandler {
 					resolved.missingGroupItems.add(code);
 				}
 			}
-			if (!copy.getGroupItemCodes().isEmpty() && resolved.groupItems.isEmpty()) {
+			// 3.1.0 (ZEN): a group that also holds ERP item numbers applies without any of its rows
+			if (!copy.getGroupItemCodes().isEmpty() && resolved.groupItems.isEmpty() && navItemNos(copy).isEmpty()
+					&& copy.getNavItemNo() == null) {
 				resolved.missing.add("group items " + String.join(", ", resolved.missingGroupItems));
 			}
 		}
@@ -391,6 +398,10 @@ public class PromotionDownHandler implements DownHandler {
 		promotion.setItemSection(resolved.section);
 		promotion.setGroupItems(new HashSet<>(resolved.groupItems));
 		promotion.setGetItem(resolved.getItem);
+		// 3.1.0 (ZEN): the ERP item number targets as they are (every variant carrying them at ticket time)
+		promotion.setNavItemNo(copy.getNavItemNo());
+		promotion.setGetNavItemNo(copy.getGetNavItemNo());
+		promotion.setGroupNavItemNos(new HashSet<>(navItemNos(copy)));
 		promotion.setMinimumQuantity(copy.getMinimumQuantity());
 		promotion.setMinimumAmount(copy.getMinimumAmount());
 		promotion.setBenefitType(copy.getBenefitType());
@@ -406,6 +417,31 @@ public class PromotionDownHandler implements DownHandler {
 		promotion.setPriority(copy.getPriority() == null ? 0 : copy.getPriority());
 		promotion.setActive(copy.getActive() == null ? Boolean.TRUE : copy.getActive());
 		return promotion;
+	}
+
+	/** 3.1.0: the group's ERP item numbers of a copy; empty for a copy of before (none) or a null list. */
+	private static List<String> navItemNos(PromotionCopyDTO copy) {
+		return copy.getGroupNavItemNos() == null ? new ArrayList<>() : copy.getGroupNavItemNos();
+	}
+
+	/**
+	 * 3.1.0 (ZEN): an ERP item number target that no item of this store carries yet is not a missing target (the
+	 * promotion applies to the variants synced later): one info line, nothing waits.
+	 */
+	private void logNumbersNotHere(PromotionCopyDTO copy) {
+		Set<String> numbers = new LinkedHashSet<>(navItemNos(copy));
+		if (copy.getNavItemNo() != null) {
+			numbers.add(copy.getNavItemNo());
+		}
+		if (copy.getGetNavItemNo() != null) {
+			numbers.add(copy.getGetNavItemNo());
+		}
+		for (String number : numbers) {
+			if (number != null && !items.existsByNavItemNo(number)) {
+				log.info("Promotion {}: no item of this store has ERP item number {} yet; its variants will match once synced",
+						copy.getCode(), number);
+			}
+		}
 	}
 
 	private static String codeOf(JsonNode record) {

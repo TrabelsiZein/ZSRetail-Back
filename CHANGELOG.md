@@ -57,6 +57,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Promotions on every variant of a NAV item, step 1b: `GET /item/search` items carry `navItemNo` (null without one);
   `GET /nav-item/names?navItemNo=..&navItemNo=..` (read only): `{number: name}` of the NAV item numbers asked (at most
   200, a number no item carries left out), the names of the promotions' NAV targets.
+- Promotions on every variant of a NAV item, step 3: the head office copy carries `navItemNo`, `getNavItemNo` and
+  `groupNavItemNos` (sorted); the store saves them as they are, never waiting for an item carrying them (a group is
+  missing only with none of its rows and no NAV number), and logs one INFO line for a number no item of the store
+  carries yet. A copy without them (null / empty) compares equal to an existing promotion: nothing rewritten (EMTOP,
+  Happyness). A store of an older build ignores the fields.
 - Till levels catégorie and section, step 1, API only (ZEN; docs/modules/head-office.md, "Till levels"): read-only POS
   lists `GET /item-category/pos`, `GET /item-family/pos?category={code}` and `?withoutCategory=true`,
   `GET /item-section/pos?subFamily={id}`, `GET /item/pos/by-section/{id}`, the fall-throughs
@@ -156,6 +161,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   screen sends. `groupItems` is read by distinct id (`{ id }`, `{ id, itemCode }` or a full item give the same group)
   and `PromotionService.save` loads those ids from the database; an unknown id or an item without an id is refused.
   `Item` equality is unchanged.
+- `Item` equality, root cause of the group saved with one item (Emtop 1.12.1): two items are equal when they have the
+  same id (read through `getId()`, a Hibernate proxy equals its item), an item without an id only to itself, one hash
+  for every item; Lombok's equality left the id out, so items with only an id were all equal. The other maps keyed by
+  an item hold saved rows (invoice and purchase invoice lines grouped by item, head office supply prices): unchanged.
 - Promotions page of a store (`POST /promotion`, `PUT /promotion/{id}`): a promotion refused by the save rules (a group
   without items, a catégorie or section promotion without its target, the NAV targets' rules) answers 400 with the
   reason, as the head office does; it answered 500.

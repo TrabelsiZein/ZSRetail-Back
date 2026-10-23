@@ -18,7 +18,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 /**
@@ -36,8 +35,7 @@ import lombok.NoArgsConstructor;
 // franchiseSalesPrice, fromFranchiseAdmin: fields of the franchise profiles removed at step 9 (task 9.4a), still sent
 // by older screens: ignored, never refused. Their columns stay in the table.
 @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler", "franchiseSalesPrice", "fromFranchiseAdmin" })
-@Data
-@EqualsAndHashCode(callSuper = false)
+@Data // equals and hashCode written below (by id), so Lombok generates neither
 @NoArgsConstructor
 public class Item extends _BaseEntity {
 
@@ -199,5 +197,31 @@ public class Item extends _BaseEntity {
 	/** The stock without trailing zeros (the column has 3 decimals): 5.000 is 5, 0.800 is 0.8. */
 	public BigDecimal getStockQuantity() {
 		return Quantities.normalize(stockQuantity);
+	}
+
+	/**
+	 * 3.1.0: an item is its row. Two items are equal when they have the same id, read through getId() so a Hibernate
+	 * proxy equals its loaded item; an item without an id (not saved yet) is equal only to itself. The Lombok equality
+	 * of before left the id out (it is in _BaseEntity): items sent as { id } only were all equal, and a set kept one.
+	 */
+	@Override
+	public boolean equals(Object other) {
+		if (this == other) {
+			return true;
+		}
+		if (!(other instanceof Item)) {
+			return false;
+		}
+		Long id = getId();
+		return id != null && id.equals(((Item) other).getId());
+	}
+
+	/**
+	 * One value for every item, so the hash never changes when an item gets its id at save (a set holding it stays
+	 * right); the sets and maps of items are small (a promotion group, the lines of an invoice).
+	 */
+	@Override
+	public int hashCode() {
+		return Item.class.hashCode();
 	}
 }

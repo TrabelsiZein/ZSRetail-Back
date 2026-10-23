@@ -164,6 +164,12 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 	boolean existsByNavItemNoIsNotNull();
 
 	/**
+	 * Promotions for variants, step 3: an item of this installation carries this ERP item number (a promotion received
+	 * on it whose variants are not synced yet is only logged). One seek on ix_item_nav_item_no.
+	 */
+	boolean existsByNavItemNo(String navItemNo);
+
+	/**
 	 * Step 11a, page "NAV items": the items counted in a line and in the count of lines. search: lower case with % already
 	 * around it (the NAV item number or the item's name), null = not filtered; activeOnly: TRUE = the active variants only,
 	 * null = every variant.

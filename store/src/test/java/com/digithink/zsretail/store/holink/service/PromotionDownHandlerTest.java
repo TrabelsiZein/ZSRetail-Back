@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,7 @@ import com.digithink.zsretail.store.holink.model.DownRecord;
 import com.digithink.zsretail.store.holink.repository.DownRecordRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
@@ -79,6 +81,8 @@ class PromotionDownHandlerTest {
 	private final Map<String, DownRecord> tracking = new LinkedHashMap<>();
 	private int trackingWrites;
 	private long nextId;
+	/** 3.1.0: the ERP item numbers the handler looked for in the store's items (the info line). */
+	private final List<String> numbersChecked = new ArrayList<>();
 
 	private PromotionDownHandler handler;
 
@@ -90,6 +94,7 @@ class PromotionDownHandlerTest {
 		subFamilies.clear();
 		usages.clear();
 		saves = 0;
+		numbersChecked.clear();
 		tracking.clear();
 		trackingWrites = 0;
 		nextId = 1;
@@ -492,6 +497,71 @@ class PromotionDownHandlerTest {
 	}
 
 	@Test
+	@DisplayName("3.1.0 (ZEN): ERP item number targets travel as they are, never WAITING, a number not here only logged")
+	void navTargets() throws Exception {
+		items.get("I1").setNavItemNo("N1");
+		Promotion item = hoPromotion("NAV", PromotionScope.ITEM);
+		item.setNavItemNo("N1");
+		Promotion navs = hoPromotion("NAVS", PromotionScope.ITEM_GROUP);
+		navs.getGroupNavItemNos().addAll(Arrays.asList("N2", "N1"));
+		Promotion mixed = hoPromotion("MIXED", PromotionScope.ITEM_GROUP);
+		mixed.getGroupItems().add(hoItem("I9")); // no such item here
+		mixed.getGroupNavItemNos().add("N3"); // no item carries it here yet
+
+		DownApplyResult result = apply(item, navs, mixed);
+		assertEquals(3, result.getApplied(), String.valueOf(result));
+		assertEquals(0, result.getWaiting());
+		assertEquals("N1", stored("NAV").getNavItemNo());
+		assertNull(stored("NAV").getItem());
+		assertEquals(new HashSet<>(Arrays.asList("N1", "N2")), stored("NAVS").getGroupNavItemNos());
+		assertTrue(stored("NAVS").getGroupItems().isEmpty());
+		assertEquals(Collections.singleton("N3"), stored("MIXED").getGroupNavItemNos());
+		assertTrue(stored("MIXED").getGroupItems().isEmpty());
+		assertEquals(DownRecordStatus.APPLIED, tracked("MIXED").getStatus());
+		assertEquals("group items not in this store: I9", tracked("MIXED").getInfo());
+		assertEquals(Arrays.asList("N1", "N1", "N2", "N3"), numbersChecked.stream().sorted().collect(Collectors.toList()),
+				"each number looked for once per promotion written (the info line for N2 and N3)");
+		for (Promotion p : Arrays.asList(item, navs)) {
+			assertEquals(PromotionCopyDTO.of(p), PromotionCopyDTO.of(stored(p.getCode())), "same promotion, by codes");
+		}
+		assertEquals(Arrays.asList("N1", "N2"), PromotionCopyDTO.of(navs).getGroupNavItemNos(), "sorted");
+
+		int savesBefore = saves;
+		numbersChecked.clear();
+		DownApplyResult again = apply(item, navs, mixed);
+		assertEquals(3, again.getUnchanged());
+		assertEquals(savesBefore, saves, "nothing written");
+		assertTrue(numbersChecked.isEmpty(), "nothing logged for a copy unchanged");
+	}
+
+	@Test
+	@DisplayName("3.1.0: a copy of before (without the ERP item number fields) compares equal: nothing rewritten")
+	void copyOfBeforeEqual() throws Exception {
+		Promotion item = hoPromotion("ITEM", PromotionScope.ITEM);
+		item.setItem(hoItem("I1"));
+		Promotion group = hoPromotion("GRP", PromotionScope.ITEM_GROUP);
+		group.getGroupItems().add(hoItem("I1"));
+		group.getGroupItems().add(hoItem("I2"));
+		apply(item, group);
+		int savesBefore = saves;
+
+		List<JsonNode> before = new ArrayList<>();
+		for (Promotion p : Arrays.asList(item, group)) {
+			ObjectNode old = (ObjectNode) copy(p);
+			old.remove(Arrays.asList("navItemNo", "getNavItemNo", "groupNavItemNos"));
+			before.add(old);
+		}
+		DownApplyResult result = handler.apply(before, Collections.emptyList());
+		assertEquals(2, result.getUnchanged(), String.valueOf(result));
+		assertEquals(savesBefore, saves, "no promotion written");
+		assertTrue(numbersChecked.isEmpty());
+		// The tracking row keeps the copy's text as received (another text: the row's payload is rewritten, its status
+		// stays APPLIED), as for any copy whose text changes
+		assertEquals(DownRecordStatus.APPLIED, tracked("GRP").getStatus());
+		assertFalse(tracked("GRP").getPayload().contains("groupNavItemNos"));
+	}
+
+	@Test
 	@DisplayName("Task 3.5: a code clash is ERROR, retried; once the local promotion is gone, the head office one applies")
 	void clashRetried() throws Exception {
 		Promotion mine = local("SALE", null, true);
@@ -610,6 +680,10 @@ class PromotionDownHandlerTest {
 		return proxy(ItemRepository.class, (method, args) -> {
 			if ("findByItemCode".equals(method)) {
 				return Optional.ofNullable(items.get(args[0]));
+			}
+			if ("existsByNavItemNo".equals(method)) {
+				numbersChecked.add((String) args[0]);
+				return items.values().stream().anyMatch(i -> args[0].equals(i.getNavItemNo()));
 			}
 			throw new UnsupportedOperationException(method);
 		});

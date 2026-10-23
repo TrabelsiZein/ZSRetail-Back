@@ -281,8 +281,22 @@ office copy and `Item` equality, 2 counting across cart lines (every scope, deci
   would count each variant's line alone). All three locked once the promotion is used. `POST /promotion` and
   `PUT /promotion/{id}` answer a refusal with 400 and its reason (500 before 3.1.0).
 - **SQL**: `db/3.1.0/update.sql`, section "Promotions on every variant of a NAV item"; no data changed.
-- **Not yet**: the head office copy carries no NAV target before step 3 (a store receives such a promotion without
-  target: it matches nothing).
+- **Head office to store (step 3)**: `PromotionCopyDTO.navItemNo`, `getNavItemNo` and `groupNavItemNos` (sorted;
+  null / empty when none, as a copy of before reads, so an existing promotion compares equal and is not rewritten).
+  `PromotionDownHandler.build` copies them as they are: a NAV target never makes a promotion WAITING (the variants
+  synced later match it); a group is missing only when none of its rows is here and it holds no NAV number. A number no
+  item of the store carries yet is one INFO log line when the promotion is written ("no item of this store has ERP
+  item number X yet"). A store of a build before this step ignores the fields (unknown fields ignored) and saves the
+  promotion without that target: it matches nothing there. Tests: `PromotionDownHandlerTest` (`navTargets`,
+  `copyOfBeforeEqual`), `HoPromotionServiceTest.payloadNavTargets`.
+- **`Item` equality (step 3, root cause of the group saved with one item)**: `Item.equals` / `hashCode` are written
+  by hand: equal by id read through `getId()` (a Hibernate proxy equals its item, and an item compares with a proxy not
+  loaded without loading it), an item without an id equal only to itself, one hash for every item (it never changes
+  when the id comes at save; the sets and maps of items are small: a promotion group, an invoice's lines). Lombok's
+  `@EqualsAndHashCode(callSuper = false)` left the id out. The other maps keyed by `Item` hold saved rows only
+  (`InvoiceService` and `PurchaseInvoiceService`, the lines of saved tickets / purchases; `HoSupplyPriceService`, items
+  loaded by code or id), so they group as before. The group workarounds (`GroupItemsDeserializer`, `loadGroupItems`)
+  stay. Test: `ItemEqualityTest`.
 - **Form (step 1b, `PromotionsManagement.vue`)**: the item search is unchanged; `GET /item/search` gives each item its
   `navItemNo`. A chosen item that has one shows "Toutes les variantes de cet item (<n°>)" under the field; checked, the
   form sends `navItemNo` and no `item`. The same box on each chip of a group (checked chips go as `groupNavItemNos`,
@@ -371,4 +385,4 @@ The page is read-only when `ownership.PROMOTIONS` from `GET /config` is `HEAD_OF
 
 **Item groups saved with one item (fixed 2026-10-03, found at L2 of step 3)**: the promotions page sent each group item as `{id}` only. `Promotion.groupItems` is a `Set<Item>` and `Item` uses `@EqualsAndHashCode(callSuper = false)`, which leaves out the id (it is in `_BaseEntity`): items with only an id are all equal, so the set kept one item. Every ITEM_GROUP promotion created or edited from the page before the fix holds one item (two such promotions in `pos_db_prod`, ids from 1.10.0 on). The page now sends `{id, itemCode}` (frontend `PromotionsManagement.vue`). An existing group promotion is corrected by editing it and saving its items again.
 
-**Back end hardened (3.1.0, 2026-10-22)**: the group no longer depends on what the caller sends nor on `Item` equality (unchanged). `Promotion.groupItems` is read by `GroupItemsDeserializer` (`core.utils`): one entry per distinct id, an element `{ id, ... }` or a bare id, an element without an id refused (400). `PromotionService.save` (`loadGroupItems`, before `normalise`) loads those ids with `ItemRepository.findAllById` and refuses an unknown id ("Unknown item id(s) in the group: [..]"), so `POST /promotion`, `PUT /promotion/{id}` and the head office create (`PromotionWithTargetsDTO`) all give the same group for `{ id }`, `{ id, itemCode }` or full items. The store's copy from the head office is unchanged (group items by code, loaded by `PromotionDownHandler`). Test: `PromotionGroupItemsTest`.
+**Back end hardened (3.1.0, 2026-10-22)**: the group no longer depends on what the caller sends nor on `Item` equality (made by id since, step 3 of the promotions for variants, see **Every variant of a NAV item**). `Promotion.groupItems` is read by `GroupItemsDeserializer` (`core.utils`): one entry per distinct id, an element `{ id, ... }` or a bare id, an element without an id refused (400). `PromotionService.save` (`loadGroupItems`, before `normalise`) loads those ids with `ItemRepository.findAllById` and refuses an unknown id ("Unknown item id(s) in the group: [..]"), so `POST /promotion`, `PUT /promotion/{id}` and the head office create (`PromotionWithTargetsDTO`) all give the same group for `{ id }`, `{ id, itemCode }` or full items. The store's copy from the head office is unchanged (group items by code, loaded by `PromotionDownHandler`). Test: `PromotionGroupItemsTest`.
