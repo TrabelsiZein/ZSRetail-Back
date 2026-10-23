@@ -316,8 +316,8 @@ office copy and `Item` equality, 2 counting across cart lines (every scope, deci
   and "Add (n)". The typed searches are unchanged. API `GET /item/lookup?scope&q&page&size` (core, read only, size at
   most 50; `ItemService.lookup`, `ItemLookupQuery`, native SQL): scope ITEM gives, in one UNION ALL, a `NAV_ITEM` line
   per ERP item number of the active items (`id` its lowest active variant, `variantCount`) and a `ROW` line per active
-  item, by name, the NAV line before its variants, then by code; packs (PACKAGE) and inactive items left out (active
-  1 or null); search on code, name, ERP item number and barcodes (their item ids read first, as `GET /item/search`), a
+  item, by name, ERP item number (two ERP items of one name: each NAV line right above its own variants), the NAV line
+  before its variants, then by code; packs (PACKAGE) and inactive items left out (active 1 or null); search on code, name, ERP item number and barcodes (their item ids read first, as `GET /item/search`), a
   NAV line matching when one of its variants does (a derived table of the matching numbers joined to the group).
   FAMILY, SUBFAMILY (its famille), CATEGORY, SECTION (its sous-famille, by code): code and name of the active rows. The
   total comes with the lines (`COUNT(*) OVER()`). The labels are built by the screen (i18n): "<name> — toutes variantes

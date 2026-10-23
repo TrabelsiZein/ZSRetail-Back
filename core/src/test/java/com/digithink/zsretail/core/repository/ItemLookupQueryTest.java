@@ -181,6 +181,32 @@ class ItemLookupQueryTest {
 	}
 
 	@Test
+	@DisplayName("Two ERP items of one name: each 'all variants' line right above its own variants (by ERP item number)")
+	void sameNameErpItems() {
+		// rows added for this test only, removed after (the other tests count the base rows)
+		List<String> added = Arrays.asList("P2~R", "P1~B", "P2~A");
+		try (Session session = sessions.openSession()) {
+			session.beginTransaction();
+			item(session, "P2~R", "P2", "PULL", "Rouge", true, ItemType.PRODUCT);
+			item(session, "P1~B", "P1", "PULL", "Bleu", true, ItemType.PRODUCT);
+			item(session, "P2~A", "P2", "PULL", "Ambre", true, ItemType.PRODUCT);
+			session.getTransaction().commit();
+		}
+		try {
+			assertEquals(Arrays.asList("NAV_ITEM P1", "ROW P1~B", "NAV_ITEM P2", "ROW P2~A", "ROW P2~R"),
+					lines(lookup(ItemLookupQuery.ITEM, "pull", null, 0, 20)));
+		} finally {
+			try (Session session = sessions.openSession()) {
+				session.beginTransaction();
+				for (String code : added) {
+					session.delete(session.get(Item.class, ids.remove(code)));
+				}
+				session.getTransaction().commit();
+			}
+		}
+	}
+
+	@Test
 	@DisplayName("Barcode: the items of a matching barcode (ids read before) and their ERP item number's line")
 	void barcode() {
 		Page<ItemLookupLineDTO> page = lookup(ItemLookupQuery.ITEM, "6190005307694",

@@ -59,7 +59,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   200, a number no item carries left out), the names of the promotions' NAV targets.
 - Promotions on every variant of a NAV item, step 4: `GET /item/lookup?scope&q&page&size` (read only), the target lookup
   of the promotion form: scope ITEM, one list of ERP item lines (every active variant of an ERP item number, its
-  lowest id and its number of variants) and item lines, by name, the ERP item line first; search on code, name, ERP
+  lowest id and its number of variants) and item lines, by name and ERP item number, each ERP item line right above
+  its own variants; search on code, name, ERP
   item number and barcode; packs and inactive items left out; FAMILY, SUBFAMILY, CATEGORY, SECTION: their active
   rows, with the parent's name. Without ERP item numbers: item lines only, the same statement.
 - Promotions on every variant of a NAV item, step 3: the head office copy carries `navItemNo`, `getNavItemNo` and

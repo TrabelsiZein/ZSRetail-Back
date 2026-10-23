@@ -23,8 +23,9 @@ import com.digithink.zsretail.core.dto.ItemLookupLineDTO;
  * <p>
  * Scope ITEM: one paged list of two kinds of lines in one UNION ALL, the same column types on both sides: a NAV_ITEM line
  * per ERP item number of the active items (its lowest id, the name of its rows, the number of its active variants) and
- * a ROW line per active item. Ordered by name, the NAV_ITEM line before its variants, then by code. A customer without
- * ERP item numbers (EMTOP, Happyness) gets only ROW lines from the same statement. Packs (type PACKAGE) are left out,
+ * a ROW line per active item. Ordered by name, ERP item number, the NAV_ITEM line before its variants, then by code. A
+ * customer without ERP item numbers (EMTOP, Happyness) gets only ROW lines from the same statement. Packs (type PACKAGE)
+ * are left out,
  * as by the item pickers (a pack never enters the cart). Search: code, name, ERP item number, and the items of a
  * barcode (their ids, read before by ItemService as for GET /item/search); a NAV_ITEM line matches when one of its
  * variants does. Active: active 1 or null.
@@ -97,7 +98,10 @@ public class ItemLookupQuery {
 	 * lines (COUNT(*) OVER(), before the paging), in the lookup's order.
 	 */
 	public static String linesOf(String scope, String from) {
-		String order = ITEM.equals(scope) ? " ORDER BY x.name, x.kind_order, x.code" : " ORDER BY x.name, x.code, x.id";
+		// ITEM: by name, then ERP item number (two ERP items of one name: each "all variants" line right above its own
+		// variants), the NAV line before its rows, then code
+		String order = ITEM.equals(scope) ? " ORDER BY x.name, x.nav_item_no, x.kind_order, x.code"
+				: " ORDER BY x.name, x.code, x.id";
 		return "SELECT x.kind, x.id, x.code, x.name, x.variant_description, x.nav_item_no, x.variant_count, x.parent_name,"
 				+ " COUNT(*) OVER() AS total_count FROM (" + from + ") x" + order;
 	}
