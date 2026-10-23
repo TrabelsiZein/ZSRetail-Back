@@ -282,7 +282,18 @@ office copy and `Item` equality, 2 counting across cart lines (every scope, deci
   `PUT /promotion/{id}` answer a refusal with 400 and its reason (500 before 3.1.0).
 - **SQL**: `db/3.1.0/update.sql`, section "Promotions on every variant of a NAV item"; no data changed.
 - **Not yet**: the head office copy carries no NAV target before step 3 (a store receives such a promotion without
-  target: it matches nothing); no screen sets one before step 1b.
+  target: it matches nothing).
+- **Form (step 1b, `PromotionsManagement.vue`)**: the item search is unchanged; `GET /item/search` gives each item its
+  `navItemNo`. A chosen item that has one shows "Toutes les variantes de cet item (<n°>)" under the field; checked, the
+  form sends `navItemNo` and no `item`. The same box on each chip of a group (checked chips go as `groupNavItemNos`,
+  the others as `groupItems`) and under the free item (`getNavItemNo`). The boxes are hidden on a quantity promotion
+  (`NAV_TARGETS_FOR_QUANTITY = false`, flipped by step 2): the save would refuse it. An edit loads the three targets and
+  sends them back unchanged (a saved NAV target shows its label, its box checked and disabled; X clears it); they lock
+  with the other targets once used. The list's target and benefit columns and the consult view read "<name> —
+  toutes variantes (<n°>)"; a group counts rows and NAV numbers. The names come from `GET /nav-item/names` (one read per
+  list page, for the numbers not known yet; none when the page has no NAV target).
+  `NavItemService.namesOf`, `ItemRepository.NAV_ITEM_NAMES` (a seek on `ix_item_nav_item_no` on ZEN's French_CI_AS,
+  plan checked); test `NavItemQueryTest.names`.
 - Tests: `PromotionNavTargetTest` (every variant, a variant synced later, order, groups one level, no NAV number no
   reads, scope filter, benefit on a NAV number, buy side), `PromotionGroupItemsTest` (save rules, lock);
   `PromotionAllItemsScopeTest` and `PromotionCategorySectionScopeTest` unchanged (their stubs throw on any other lookup);

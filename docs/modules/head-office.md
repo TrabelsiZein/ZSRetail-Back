@@ -1740,6 +1740,7 @@ A read-only page, store and head office, for a catalogue of one item per ERP var
   sub-family, catégorie and section (code and name; a store has no catégorie/section rows, the name is null there),
   number of variants, active points de stock (head office), stock. `GET /nav-item/variants?navItemNo&status`: the
   variants by size order (none last), colour, choice, code. The NAV number is a query parameter: it may hold a `/`.
+  `GET /nav-item/names?navItemNo=..` (promotions on every variant, step 1b): `{number: name}` of the numbers asked.
 - **Grouping**: `ItemRepository.NAV_ITEMS` groups and pages in the database (`group by nav_item_no`, a count query
   apart); the variants are read only when a line opens. Index `ix_item_nav_item_no` (entity `@Index` and
   `db/3.1.0/update.sql`), plain on purpose: a filtered index on `item` would refuse every later write to `item` from a

@@ -2,8 +2,10 @@ package com.digithink.zsretail.core.service;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -89,6 +91,23 @@ public class NavItemService {
 			lines.forEach(line -> line.setStockPoints(counts.getOrDefault(line.getNavItemNo(), 0L)));
 		}
 		return new PageImpl<>(lines, rows.getPageable(), rows.getTotalElements());
+	}
+
+	/**
+	 * Promotions for variants, step 1b: the name of each NAV item number asked (trimmed, blanks left out, at most
+	 * {@value #MAX_SIZE}); a number no item carries has no entry.
+	 */
+	public Map<String, String> namesOf(Collection<String> navItemNos) {
+		Set<String> numbers = navItemNos == null ? new LinkedHashSet<>()
+				: navItemNos.stream().filter(Objects::nonNull).map(String::trim).filter(no -> !no.isEmpty()).limit(MAX_SIZE)
+						.collect(Collectors.toCollection(LinkedHashSet::new));
+		Map<String, String> names = new LinkedHashMap<>();
+		if (!numbers.isEmpty()) {
+			for (Object[] row : itemRepository.findNavItemNames(numbers)) {
+				names.put((String) row[0], (String) row[1]);
+			}
+		}
+		return names;
 	}
 
 	/** The variants of one NAV item number (activeOnly as {@link #page}), with their rows on a head office. */

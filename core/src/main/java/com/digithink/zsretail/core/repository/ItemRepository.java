@@ -198,4 +198,14 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 
 	@Query(NAV_ITEM_VARIANTS)
 	List<Item> findNavItemVariants(@Param("navItemNo") String navItemNo, @Param("activeOnly") Boolean activeOnly);
+
+	/**
+	 * Promotions for variants, step 1b: [NAV item number, name] of these numbers (the name of a promotion target on a
+	 * NAV item number); every variant counts. A seek on ix_item_nav_item_no on ZEN's French_CI_AS (plan checked).
+	 */
+	String NAV_ITEM_NAMES = "select i.navItemNo, min(i.name) from Item i where i.navItemNo in :navItemNos"
+			+ " group by i.navItemNo";
+
+	@Query(NAV_ITEM_NAMES)
+	List<Object[]> findNavItemNames(@Param("navItemNos") Collection<String> navItemNos);
 }

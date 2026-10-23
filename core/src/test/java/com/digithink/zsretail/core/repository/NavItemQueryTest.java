@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.hibernate.Session;
@@ -169,6 +170,19 @@ class NavItemQueryTest {
 	void paging() {
 		assertEquals(Arrays.asList("14ZDU05", "70061"), numbers(lines(null, null, 0, 2)));
 		assertEquals(Arrays.asList("LS-10PC"), numbers(lines(null, null, 2, 2)));
+	}
+
+	@Test
+	@DisplayName("Names (promotion targets): one row per number asked that an item carries, inactive variants too")
+	void names() {
+		try (Session session = sessions.openSession()) {
+			List<Object[]> rows = session.createQuery(ItemRepository.NAV_ITEM_NAMES, Object[].class)
+					.setParameter("navItemNos", Arrays.asList("70061", "LS-10PC", "UNKNOWN", "EMTOP-1")).list();
+			Map<String, String> names = rows.stream().collect(Collectors.toMap(row -> (String) row[0], row -> (String) row[1]));
+			assertEquals(2, names.size(), names.toString());
+			assertEquals("CHEMISE", names.get("70061"));
+			assertEquals("LOT 10 PIECES", names.get("LS-10PC"), "its only variant is inactive");
+		}
 	}
 
 	@Test

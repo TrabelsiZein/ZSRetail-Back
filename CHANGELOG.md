@@ -54,6 +54,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   ITEM_GROUP, trimmed; a quantity promotion on a NAV target or with a NAV benefit is refused (400) until the till counts
   the lines of a NAV item together (step 2); the three locked once used. The head office copy and the screens follow
   (steps 1b and 3).
+- Promotions on every variant of a NAV item, step 1b: `GET /item/search` items carry `navItemNo` (null without one);
+  `GET /nav-item/names?navItemNo=..&navItemNo=..` (read only): `{number: name}` of the NAV item numbers asked (at most
+  200, a number no item carries left out), the names of the promotions' NAV targets.
 - Till levels catégorie and section, step 1, API only (ZEN; docs/modules/head-office.md, "Till levels"): read-only POS
   lists `GET /item-category/pos`, `GET /item-family/pos?category={code}` and `?withoutCategory=true`,
   `GET /item-section/pos?subFamily={id}`, `GET /item/pos/by-section/{id}`, the fall-throughs

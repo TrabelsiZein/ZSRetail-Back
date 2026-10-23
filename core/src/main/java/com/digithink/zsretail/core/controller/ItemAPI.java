@@ -352,6 +352,8 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 				dto.put("defaultVAT", item.getDefaultVAT() != null ? item.getDefaultVAT() : 0);
 				// Step 6: HEAD_OFFICE for a head office item, null for an own item (read by the purchase item picker)
 				dto.put("origin", item.getOrigin() != null ? item.getOrigin().name() : null);
+				// Promotions for variants, step 1b: the ERP item number of a variant (ZEN), null elsewhere
+				dto.put("navItemNo", item.getNavItemNo());
 				return dto;
 			}).collect(Collectors.toList());
 			Map<String, Object> response = new HashMap<>();
