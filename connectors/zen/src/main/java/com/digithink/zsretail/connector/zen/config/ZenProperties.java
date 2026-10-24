@@ -45,7 +45,7 @@ public class ZenProperties {
 	private Page page = new Page();
 	/** Barcodes read per call ($top). */
 	private int barcodePageSize = 1000;
-	/** The VAT of a row that gives none (the API has no VAT field yet), a whole number from 0 to 100. */
+	/** The VAT of a row without vatPercent, a whole number from 0 to 100. */
 	private Integer defaultVat;
 	private int connectTimeoutSeconds = 10;
 	private int readTimeoutSeconds = 60;

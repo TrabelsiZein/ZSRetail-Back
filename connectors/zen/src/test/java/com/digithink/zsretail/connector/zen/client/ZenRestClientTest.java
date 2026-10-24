@@ -1,6 +1,7 @@
 package com.digithink.zsretail.connector.zen.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -9,6 +10,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -79,7 +81,9 @@ class ZenRestClientTest {
 		server.expect(requestTo(ROOT + "stockPoints?$filter=locationCode%20eq%20'FRANCHISE'%20and%20lastModifiedDateTime"
 				+ "%20ge%202026-10-11T16:53:37.15Z")).andExpect(method(HttpMethod.GET))
 				.andRespond(withSuccess("{\"value\":[{\"locationCode\":\"FRANCHISE\",\"itemNo\":\"14ZDU05\",\"variantCode\":"
-						+ "\"001\",\"publicPrice\":19.5,\"clearance\":true,\"clearancePrice\":7}],\"@odata.nextLink\":\"" + next
+						+ "\"001\",\"vatPercent\":19,\"unitPrice\":16.38655,\"clearancePriceExclVAT\":5.88235,"
+						+ "\"stockPointBlocked\":false,\"itemBlocked\":false,\"variantBlocked\":true,\"publicPrice\":19.5,"
+						+ "\"clearance\":true,\"clearancePrice\":7}],\"@odata.nextLink\":\"" + next
 						+ "\"}", MediaType.APPLICATION_JSON));
 		server.expect(requestTo(next)).andExpect(method(HttpMethod.GET)).andRespond(withSuccess(
 				"{\"value\":[{\"locationCode\":\"FRANCHISE\",\"itemNo\":\"14ZDU05\",\"variantCode\":\"002\"}]}",
@@ -92,6 +96,12 @@ class ZenRestClientTest {
 		assertEquals(2, rows.size());
 		assertEquals("002", rows.get(1).getVariantCode());
 		assertTrue(rows.get(0).getClearance());
+		assertEquals(0, new BigDecimal("16.38655").compareTo(rows.get(0).getUnitPrice()));
+		assertEquals(0, new BigDecimal("5.88235").compareTo(rows.get(0).getClearancePriceExclVAT()));
+		assertEquals(0, new BigDecimal("19").compareTo(rows.get(0).getVatPercent()));
+		assertTrue(rows.get(0).getVariantBlocked());
+		assertFalse(rows.get(0).getItemBlocked());
+		assertNull(rows.get(1).getStockPointBlocked(), "absent: null");
 	}
 
 	@Test

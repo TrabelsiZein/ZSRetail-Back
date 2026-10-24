@@ -39,10 +39,13 @@ import com.digithink.zsretail.erp.api.dto.ErpSupplyInvoiceDTO;
  * the variant's. The 14 variant fields, blank as null, except the variant description: built here
  * ({@link #variantDescription}), NAV's variantDescription is not read (on ZEN's platform it is always the item
  * description). Brand: brandCode (blank: null, the head office keeps its own).
- * Family and sub-family by code. publicPrice is before VAT; a null or zero price makes the item inactive (noted, as
- * Happyness). active false makes it inactive; absent (the API has no such field yet) it is true. VAT: the row's vat
- * when it gives one (rounded to a whole number), else the default. lastModifiedAt: lastModifiedDateTime, none for NAV's
- * empty date 0001-01-01. The location's clearance (null: false) and clearance price. Left out: a blank itemNo, a code
+ * Family and sub-family by code. The price is unitPrice, before VAT (publicPrice is the price with VAT, never read as
+ * the price); a null or zero price makes the item inactive (noted, as Happyness). itemBlocked, variantBlocked or
+ * stockPointBlocked true makes it inactive, each noted (null: not blocked). VAT: vatPercent when the row gives it
+ * (rounded to a whole number), else the default. A check only, the data untouched: publicPrice that is not
+ * unitPrice × (1 + VAT / 100) at 3 decimals is noted, and the same for clearancePrice against clearancePriceExclVAT.
+ * lastModifiedAt: lastModifiedDateTime, none for NAV's empty date 0001-01-01. The location's clearance (null: false)
+ * and clearance price before VAT (clearancePriceExclVAT, never clearancePrice). Left out: a blank itemNo, a code
  * with ~ in itemNo or variantCode (it could not be read back), a row of another location, the same item and variant
  * twice (the first kept).</li>
  * <li>Categories (itemCategories), by indentation: 0 catégorie, 1 famille, 2 sous-famille, 3 section; the parent is
@@ -69,9 +72,13 @@ public class ZenMapper {
 	public static final String SEPARATOR_IN_CODE = "~ in itemNo or variantCode";
 	public static final String OTHER_LOCATION = "row of another location";
 	public static final String SAME_ROW = "same item and variant twice";
-	public static final String ZERO_PRICE = "null or zero publicPrice";
-	public static final String INACTIVE = "active false";
-	public static final String VAT_NOT_WHOLE = "vat not a whole number (rounded)";
+	public static final String ZERO_PRICE = "null or zero unitPrice";
+	public static final String ITEM_BLOCKED = "itemBlocked";
+	public static final String VARIANT_BLOCKED = "variantBlocked";
+	public static final String STOCK_POINT_BLOCKED = "stockPointBlocked";
+	public static final String VAT_NOT_WHOLE = "vatPercent not a whole number (rounded)";
+	public static final String PUBLIC_PRICE_INCONSISTENT = "publicPrice inconsistent with unitPrice × VAT";
+	public static final String CLEARANCE_PRICE_INCONSISTENT = "clearancePrice inconsistent with clearancePriceExclVAT × VAT";
 	public static final String NO_DATE = "no lastModifiedDateTime (0001-01-01)";
 	public static final String BLANK_CODE = "blank code";
 	public static final String FAMILY_WITHOUT_CATEGORY = "famille whose parent is not a catégorie";
@@ -99,6 +106,8 @@ public class ZenMapper {
 	 * or one not readable. Above 0, the cursor of nothing read yet (every row), so the cursor passes these rows too.
 	 */
 	public static final long EMPTY_DATE_POSITION = 1;
+
+	private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
 
 	static final int CATEGORY = 0;
 	static final int FAMILY = 1;
@@ -176,8 +185,9 @@ public class ZenMapper {
 		item.setDescription(trimmed(row.getItemDescription()));
 		item.setFamilyExternalId(blankToNull(row.getFamilyCode()));
 		item.setSubFamilyExternalId(blankToNull(row.getSubFamilyCode()));
-		item.setDefaultVAT(vat(row.getVat(), notes));
-		BigDecimal price = row.getPublicPrice();
+		int vat = vat(row.getVatPercent(), notes);
+		item.setDefaultVAT(vat);
+		BigDecimal price = row.getUnitPrice();
 		boolean active = true;
 		if (price == null || price.signum() == 0) {
 			// As Happyness: an item without a price is not sold; active again when the ERP gives it a price
@@ -187,10 +197,10 @@ public class ZenMapper {
 		} else {
 			item.setUnitPrice(price);
 		}
-		if (Boolean.FALSE.equals(row.getActive())) {
-			count(notes, INACTIVE);
-			active = false;
-		}
+		// The engine makes the item active when one of its rows is: a row blocked only at its location keeps it elsewhere
+		active &= !blocked(row.getItemBlocked(), ITEM_BLOCKED, notes);
+		active &= !blocked(row.getVariantBlocked(), VARIANT_BLOCKED, notes);
+		active &= !blocked(row.getStockPointBlocked(), STOCK_POINT_BLOCKED, notes);
 		item.setActive(active);
 		item.setLastModifiedAt(modifiedAt(row.getLastModifiedDateTime()));
 		if (item.getLastModifiedAt() == null) {
@@ -213,12 +223,39 @@ public class ZenMapper {
 		item.setSectionCode(blankToNull(row.getSectionCode()));
 		item.setBrand(blankToNull(row.getBrandCode()));
 		item.setClearance(Boolean.TRUE.equals(row.getClearance()));
-		item.setClearancePrice(row.getClearancePrice());
+		item.setClearancePrice(row.getClearancePriceExclVAT());
+		checkWithVat(price, row.getPublicPrice(), vat, PUBLIC_PRICE_INCONSISTENT, notes);
+		checkWithVat(row.getClearancePriceExclVAT(), row.getClearancePrice(), vat, CLEARANCE_PRICE_INCONSISTENT, notes);
 		return item;
 	}
 
-	/** The row's VAT rounded to a whole number (noted when it was not one), else the default. */
-	private Integer vat(BigDecimal vat, Map<String, Integer> notes) {
+	/** True (noted) when the flag is true; null is not blocked. */
+	private static boolean blocked(Boolean flag, String note, Map<String, Integer> notes) {
+		if (Boolean.TRUE.equals(flag)) {
+			count(notes, note);
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * A check only: noted when both prices are above 0 and the price with VAT is not the one before VAT × (1 + vat / 100)
+	 * at 3 decimals (HALF_UP).
+	 */
+	private static void checkWithVat(BigDecimal beforeVat, BigDecimal withVat, int vat, String note,
+			Map<String, Integer> notes) {
+		if (beforeVat == null || withVat == null || beforeVat.signum() == 0 || withVat.signum() == 0) {
+			return;
+		}
+		BigDecimal computed = beforeVat.multiply(HUNDRED.add(BigDecimal.valueOf(vat))).divide(HUNDRED)
+				.setScale(3, RoundingMode.HALF_UP);
+		if (computed.compareTo(withVat) != 0) {
+			count(notes, note);
+		}
+	}
+
+	/** The row's vatPercent rounded to a whole number (noted when it was not one), else the default. */
+	private int vat(BigDecimal vat, Map<String, Integer> notes) {
 		if (vat == null) {
 			return defaultVat;
 		}

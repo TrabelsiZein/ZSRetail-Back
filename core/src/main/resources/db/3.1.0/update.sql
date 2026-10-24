@@ -262,11 +262,17 @@ BEGIN
 END
 GO
 -- The clearance of a head office's point de stock row (a head office only: a store has no ho_stock_point_item). Null
--- is read as false.
+-- is read as false. The clearance price before VAT keeps 5 decimals, as ZEN's API gives it (2026-10-24): at 3 the
+-- price with VAT could be one millime off. A column made with 3 decimals (an earlier 3.1.0 build) is widened, its
+-- values kept. Re-runnable.
 IF OBJECT_ID(N'ho_stock_point_item', N'U') IS NOT NULL
 BEGIN
 	IF COL_LENGTH('ho_stock_point_item', 'clearance') IS NULL ALTER TABLE ho_stock_point_item ADD clearance bit NULL;
-	IF COL_LENGTH('ho_stock_point_item', 'clearance_price') IS NULL ALTER TABLE ho_stock_point_item ADD clearance_price numeric(18,3) NULL;
+	IF COL_LENGTH('ho_stock_point_item', 'clearance_price') IS NULL
+		ALTER TABLE ho_stock_point_item ADD clearance_price numeric(18,5) NULL;
+	ELSE IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'ho_stock_point_item') AND name = 'clearance_price'
+		AND scale < 5)
+		ALTER TABLE ho_stock_point_item ALTER COLUMN clearance_price numeric(18,5) NULL;
 END
 GO
 -- The variant description (store and head office): connectors/zen builds it from the size, colour and choice

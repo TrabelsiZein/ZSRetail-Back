@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -37,9 +38,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * Item variants (ZEN), step 8: the mapper on the two samples of ZEN's API (src/test/resources/zen, as received on
- * 2026-10-11 and 2026-10-14) and on rows written here for what the samples do not have (the fields active and vat, a
- * blank variant, orphans of the tree).
+ * Item variants (ZEN), step 8: the mapper on the two samples of ZEN's API (src/test/resources/zen: NewstockPointS.json
+ * as received on 2026-10-24, the page with the prices before VAT, vatPercent and the blocked flags; itemCategories.json
+ * of 2026-10-14) and on rows written here for what the samples do not have (several locations, a price 0, a blocked
+ * flag, no vatPercent, prices that do not agree, a blank variant, orphans of the tree).
  */
 class ZenMapperTest {
 
@@ -51,7 +53,7 @@ class ZenMapperTest {
 
 	@BeforeAll
 	static void samples() throws IOException {
-		stockPoints = sample("stockPoints.json", new TypeReference<ZenCollection<ZenStockPointRow>>() {
+		stockPoints = sample("NewstockPointS.json", new TypeReference<ZenCollection<ZenStockPointRow>>() {
 		});
 		categories = sample("itemCategories.json", new TypeReference<ZenCollection<ZenCategoryRow>>() {
 		});
@@ -83,79 +85,74 @@ class ZenMapperTest {
 	}
 
 	@Test
-	@DisplayName("Sample, ARGENTE: its 6 rows (the others of another location), the fields of 70061~001")
+	@DisplayName("Sample, FRANCH-01: its 100 rows active, the price before VAT from unitPrice, the clearance price from"
+			+ " clearancePriceExclVAT, vatPercent, the fields of 14ZDU05~001; publicPrice and clearancePrice agree")
 	void sampleOfOneLocation() {
-		ErpRead<ErpItemDTO> read = mapper.items("ARGENTE", stockPoints);
+		ErpRead<ErpItemDTO> read = mapper.items("FRANCH-01", stockPoints);
 
 		assertEquals(100, read.getRead());
-		assertEquals(6, read.getKept());
-		assertEquals(94, read.getLeftOut(ZenMapper.OTHER_LOCATION));
-		assertEquals(Arrays.asList("70061~001", "70061~002", "70061~003", "70061~004", "LS-10PC~LS-10PC-B", "LS-75~LS-75-B"),
-				read.getRows().stream().map(ErpItemDTO::getCode).collect(Collectors.toList()));
-		ErpItemDTO shirt = read.getRows().get(0);
-		assertEquals("70061~001", shirt.getExternalId());
-		assertEquals("CHEMISE", shirt.getName(), "itemDescription, never the variant's");
-		assertEquals("CHEMISE", shirt.getDescription());
-		assertEquals("70061", shirt.getNavItemNo());
-		assertEquals("001", shirt.getVariantCode());
-		assertEquals("Noir", shirt.getVariantDescription(),
-				"built from the descriptions (size and choice blank in the sample), not NAV's \"S / Noir / 1er Choix\"");
-		assertEquals("S", shirt.getSizeCode());
-		assertNull(shirt.getSizeDescription(), "blank: null");
-		assertEquals(20, shirt.getSizeSortOrder());
-		assertEquals("001", shirt.getColorCode());
-		assertEquals("Noir", shirt.getColorDescription());
-		assertNull(shirt.getChoiceCode());
-		assertNull(shirt.getChoiceDescription());
-		assertNull(shirt.getSeasonCode());
-		assertNull(shirt.getDivisionCode());
-		assertNull(shirt.getCategoryCode());
-		assertNull(shirt.getSectionCode());
-		assertNull(shirt.getFamilyExternalId());
-		assertNull(shirt.getSubFamilyExternalId());
-		assertNull(shirt.getBrand(), "blank brandCode: null, the head office keeps its brand");
-		assertEquals(19, shirt.getDefaultVAT());
-		assertNull(shirt.getLastModifiedAt(), "NAV's empty date 0001-01-01");
-		assertFalse(shirt.getClearance());
-		assertEquals(0, BigDecimal.ZERO.compareTo(shirt.getClearancePrice()));
-		// Every row of ARGENTE has publicPrice 0 and no date in the sample
-		assertFalse(shirt.getActive());
-		assertEquals(6, read.getNote(ZenMapper.ZERO_PRICE));
-		assertEquals(6, read.getNote(ZenMapper.NO_DATE));
+		assertEquals(100, read.getKept());
+		assertEquals(100, read.getRows().stream().filter(ErpItemDTO::getActive).count());
+		assertEquals(100, read.getRows().stream().filter(ErpItemDTO::getClearance).count());
+		assertTrue(read.getNotes().isEmpty(), "no price 0, no block, every date, the prices with VAT agree: " + read.getNotes());
+		ErpItemDTO tie = byCode(read).get("14ZDU05~001");
+		assertEquals("14ZDU05~001", tie.getExternalId());
+		assertTrue(tie.getActive());
+		assertEquals(0, new BigDecimal("16.38655").compareTo(tie.getUnitPrice()), "unitPrice, never publicPrice 19.5");
+		assertEquals(0, new BigDecimal("5.88235").compareTo(tie.getClearancePrice()),
+				"clearancePriceExclVAT, never clearancePrice 7");
+		assertTrue(tie.getClearance());
+		assertEquals(19, tie.getDefaultVAT(), "vatPercent");
+		assertEquals("CRAVATE HM PETIT CARREAUX SATINE", tie.getName(), "itemDescription, never the variant's");
+		assertEquals("CRAVATE HM PETIT CARREAUX SATINE", tie.getDescription());
+		assertEquals("14ZDU05", tie.getNavItemNo());
+		assertEquals("001", tie.getVariantCode());
+		assertEquals("Taille Standard / VERT PISTACHE / 1er Choix", tie.getVariantDescription(),
+				"built from the descriptions; NAV's variantDescription (the item description) not read");
+		assertEquals("STD", tie.getSizeCode());
+		assertEquals("Taille Standard", tie.getSizeDescription());
+		assertEquals(60, tie.getSizeSortOrder());
+		assertEquals("07072", tie.getColorCode());
+		assertEquals("VERT PISTACHE", tie.getColorDescription());
+		assertEquals("01", tie.getChoiceCode());
+		assertEquals("1er Choix", tie.getChoiceDescription());
+		assertEquals("ANC", tie.getSeasonCode());
+		assertEquals("DSZ", tie.getDivisionCode());
+		assertEquals("ZEN", tie.getBrand());
+		assertNull(tie.getCategoryCode(), "blank: null");
+		assertNull(tie.getSectionCode());
+		assertNull(tie.getFamilyExternalId());
+		assertNull(tie.getSubFamilyExternalId());
+		assertEquals(OffsetDateTime.parse("2026-10-23T21:42:08.763Z"), tie.getLastModifiedAt());
+		// The till sells unitPrice × (1 + VAT / 100): 16.38655 × 1.19 = 19.500 at 3 decimals, ZEN's publicPrice
+		assertEquals(0, new BigDecimal("19.500").compareTo(
+				tie.getUnitPrice().multiply(new BigDecimal("1.19")).setScale(3, RoundingMode.HALF_UP)));
+		// Another location: every row of the sample left out
+		ErpRead<ErpItemDTO> other = mapper.items("ARGENTE", stockPoints);
+		assertEquals(0, other.getKept());
+		assertEquals(100, other.getLeftOut(ZenMapper.OTHER_LOCATION));
 	}
 
 	@Test
-	@DisplayName("Sample, FRANCHISE: priced rows active, price before VAT, brand, clearance 7, the time read; 3 at price 0")
-	void sampleOfFranchise() {
-		ErpRead<ErpItemDTO> read = mapper.items("FRANCHISE", stockPoints);
+	@DisplayName("Several locations: the rows of the location read, the others left out; no location: every row")
+	void severalLocations() throws IOException {
+		List<ZenStockPointRow> rows = Arrays.asList(
+				row("{`locationCode`:`ARGENTE`,`itemNo`:`70061`,`variantCode`:`001`,`itemDescription`:`CHEMISE`,`unitPrice`:10}"),
+				row("{`locationCode`:`FRANCHISE`,`itemNo`:`70061`,`variantCode`:`002`,`itemDescription`:`CHEMISE`,"
+						+ "`unitPrice`:12}"),
+				row("{`locationCode`:` franchise `,`itemNo`:`70061`,`variantCode`:`003`,`itemDescription`:`CHEMISE`,"
+						+ "`unitPrice`:12}"));
 
-		assertEquals(84, read.getKept());
-		assertEquals(3, read.getNote(ZenMapper.ZERO_PRICE));
-		assertEquals(81, read.getRows().stream().filter(ErpItemDTO::getActive).count());
-		assertEquals(81, read.getRows().stream().filter(ErpItemDTO::getClearance).count());
-		ErpItemDTO tie = byCode(read).get("14ZDU05~001");
-		assertTrue(tie.getActive());
-		assertEquals(0, new BigDecimal("19.5").compareTo(tie.getUnitPrice()), "publicPrice, before VAT");
-		assertEquals("CRAVATE HM PETIT CARREAUX SATINE", tie.getName());
-		assertEquals("ZEN", tie.getBrand());
-		assertEquals("DSZ", tie.getDivisionCode());
-		assertEquals("ANC", tie.getSeasonCode());
-		assertEquals("STD", tie.getSizeCode());
-		assertEquals(60, tie.getSizeSortOrder());
-		assertEquals("VERT PISTACHE", tie.getColorDescription());
-		assertEquals("001", tie.getChoiceCode());
-		assertEquals("1er Choix", tie.getChoiceDescription());
-		assertEquals("VERT PISTACHE / 1er Choix", tie.getVariantDescription(),
-				"no size description in the sample; NAV's variantDescription (the item description) not read");
-		assertTrue(tie.getClearance());
-		assertEquals(0, new BigDecimal("7").compareTo(tie.getClearancePrice()));
-		assertEquals(OffsetDateTime.parse("2026-10-11T16:53:37.16Z"), tie.getLastModifiedAt());
-		// The four locations: every row of the sample is one item of one location
-		int kept = 0;
-		for (String location : new String[] { "ARGENTE", "BLANC", "BLEU", "FRANCHISE" }) {
-			kept += mapper.items(location, stockPoints).getKept();
-		}
-		assertEquals(100, kept);
+		ErpRead<ErpItemDTO> argente = mapper.items("ARGENTE", rows);
+		ErpRead<ErpItemDTO> franchise = mapper.items("FRANCHISE", rows);
+
+		assertEquals(Arrays.asList("70061~001"),
+				argente.getRows().stream().map(ErpItemDTO::getCode).collect(Collectors.toList()));
+		assertEquals(2, argente.getLeftOut(ZenMapper.OTHER_LOCATION));
+		assertEquals(Arrays.asList("70061~002", "70061~003"),
+				franchise.getRows().stream().map(ErpItemDTO::getCode).collect(Collectors.toList()), "trimmed, any case");
+		assertEquals(1, franchise.getLeftOut(ZenMapper.OTHER_LOCATION));
+		assertEquals(3, mapper.items(null, rows).getKept());
 	}
 
 	@Test
@@ -165,11 +162,11 @@ class ZenMapperTest {
 		ErpRead<ErpItemDTO> read = mapper.items(null, Arrays.asList(
 				row("{`itemNo`:`14ZDU05`,`variantCode`:`001`,`itemDescription`:`CRAVATE HM PETIT CARREAUX SATINE`,"
 						+ "`variantDescription`:`CRAVATE HM PETIT CARREAUX SATINE`,`sizeDescription`:` Taille Standard `,"
-						+ "`colorDescription`:`VERT PISTACHE`,`choiceDescription`:`1er Choix`,`publicPrice`:19.5}"),
+						+ "`colorDescription`:`VERT PISTACHE`,`choiceDescription`:`1er Choix`,`unitPrice`:16.38655}"),
 				row("{`itemNo`:`A`,`variantCode`:`1`,`itemDescription`:`A`,`sizeDescription`:`S`,"
-						+ "`colorDescription`:`  `,`choiceDescription`:`1er Choix`,`publicPrice`:1}"),
+						+ "`colorDescription`:`  `,`choiceDescription`:`1er Choix`,`unitPrice`:1}"),
 				row("{`itemNo`:`B`,`variantCode`:`1`,`itemDescription`:`B`,`variantDescription`:`B`,"
-						+ "`sizeDescription`:``,`choiceDescription`:null,`publicPrice`:1}")));
+						+ "`sizeDescription`:``,`choiceDescription`:null,`unitPrice`:1}")));
 
 		Map<String, ErpItemDTO> items = byCode(read);
 		ErpItemDTO tie = items.get("14ZDU05~001");
@@ -183,7 +180,7 @@ class ZenMapperTest {
 		// A colour description changed at ZEN changes the variant description (the engine compares it)
 		ErpItemDTO recoloured = mapper.items(null, Collections.singletonList(
 				row("{`itemNo`:`14ZDU05`,`variantCode`:`001`,`itemDescription`:`CRAVATE`,`sizeDescription`:`Taille Standard`,"
-						+ "`colorDescription`:`VERT D'EAU`,`choiceDescription`:`1er Choix`,`publicPrice`:19.5}")))
+						+ "`colorDescription`:`VERT D'EAU`,`choiceDescription`:`1er Choix`,`unitPrice`:16.38655}")))
 				.getRows().get(0);
 		assertEquals("Taille Standard / VERT D'EAU / 1er Choix", recoloured.getVariantDescription());
 	}
@@ -192,7 +189,7 @@ class ZenMapperTest {
 	@DisplayName("A blank variant code: the item number alone, no variant code")
 	void blankVariantCode() throws IOException {
 		ErpRead<ErpItemDTO> read = mapper.items("BLEU", Collections.singletonList(
-				row("{`locationCode`:`BLEU`,`itemNo`:`1000`,`variantCode`:``,`itemDescription`:`Bicyclette`,`publicPrice`:100}")));
+				row("{`locationCode`:`BLEU`,`itemNo`:`1000`,`variantCode`:``,`itemDescription`:`Bicyclette`,`unitPrice`:100}")));
 
 		ErpItemDTO bike = read.getRows().get(0);
 		assertEquals("1000", bike.getCode());
@@ -202,49 +199,115 @@ class ZenMapperTest {
 	}
 
 	@Test
-	@DisplayName("active and vat absent (the API today): active, the default VAT; present: read; a VAT rounded and noted")
-	void activeAndVat() throws IOException {
+	@DisplayName("vatPercent: read; absent, the default VAT; not a whole number, rounded and noted")
+	void vatPercent() throws IOException {
 		ErpRead<ErpItemDTO> read = mapper.items(null, Arrays.asList(
-				row("{`itemNo`:`A`,`variantCode`:`1`,`itemDescription`:`A`,`publicPrice`:10}"),
-				row("{`itemNo`:`B`,`variantCode`:`1`,`itemDescription`:`B`,`publicPrice`:10,`active`:false,`vat`:7}"),
-				row("{`itemNo`:`C`,`variantCode`:`1`,`itemDescription`:`C`,`publicPrice`:10,`active`:true,`vat`:12.5}")));
+				row("{`itemNo`:`A`,`variantCode`:`1`,`itemDescription`:`A`,`unitPrice`:10}"),
+				row("{`itemNo`:`B`,`variantCode`:`1`,`itemDescription`:`B`,`unitPrice`:10,`vatPercent`:7}"),
+				row("{`itemNo`:`C`,`variantCode`:`1`,`itemDescription`:`C`,`unitPrice`:10,`vatPercent`:12.5}")));
 
 		Map<String, ErpItemDTO> items = byCode(read);
-		assertTrue(items.get("A~1").getActive(), "active absent: true");
-		assertEquals(19, items.get("A~1").getDefaultVAT(), "vat absent: the default");
-		assertFalse(items.get("B~1").getActive());
+		assertEquals(19, items.get("A~1").getDefaultVAT(), "vatPercent absent: the default");
 		assertEquals(7, items.get("B~1").getDefaultVAT());
-		assertTrue(items.get("C~1").getActive());
 		assertEquals(13, items.get("C~1").getDefaultVAT());
-		assertEquals(1, read.getNote(ZenMapper.INACTIVE));
 		assertEquals(1, read.getNote(ZenMapper.VAT_NOT_WHOLE));
+		assertTrue(items.values().stream().allMatch(ErpItemDTO::getActive));
 	}
 
 	@Test
-	@DisplayName("Price 0 or none: inactive, at 0; clearance absent: false, no clearance price")
-	void zeroPriceAndClearance() throws IOException {
+	@DisplayName("Blocked: itemBlocked, variantBlocked or stockPointBlocked true alone makes the row inactive, each with"
+			+ " its note; false or absent: active")
+	void blockedFlags() throws IOException {
 		ErpRead<ErpItemDTO> read = mapper.items(null, Arrays.asList(
-				row("{`itemNo`:`A`,`variantCode`:`1`,`itemDescription`:`A`,`publicPrice`:0,`active`:true}"),
-				row("{`itemNo`:`B`,`variantCode`:`1`,`itemDescription`:`B`}")));
+				row("{`itemNo`:`A`,`variantCode`:`1`,`unitPrice`:10,`itemBlocked`:true,`variantBlocked`:false,"
+						+ "`stockPointBlocked`:false}"),
+				row("{`itemNo`:`B`,`variantCode`:`1`,`unitPrice`:10,`itemBlocked`:false,`variantBlocked`:true,"
+						+ "`stockPointBlocked`:false}"),
+				row("{`itemNo`:`C`,`variantCode`:`1`,`unitPrice`:10,`itemBlocked`:false,`variantBlocked`:false,"
+						+ "`stockPointBlocked`:true}"),
+				row("{`itemNo`:`D`,`variantCode`:`1`,`unitPrice`:10,`itemBlocked`:false,`variantBlocked`:false,"
+						+ "`stockPointBlocked`:false}"),
+				row("{`itemNo`:`E`,`variantCode`:`1`,`unitPrice`:10}"),
+				row("{`itemNo`:`F`,`variantCode`:`1`,`unitPrice`:0,`itemBlocked`:true,`variantBlocked`:true,"
+						+ "`stockPointBlocked`:true}")));
 
 		Map<String, ErpItemDTO> items = byCode(read);
-		assertFalse(items.get("A~1").getActive(), "price 0, even when the row says active");
+		assertFalse(items.get("A~1").getActive(), "itemBlocked");
+		assertFalse(items.get("B~1").getActive(), "variantBlocked");
+		assertFalse(items.get("C~1").getActive(), "stockPointBlocked");
+		assertTrue(items.get("D~1").getActive(), "all false");
+		assertTrue(items.get("E~1").getActive(), "absent: not blocked");
+		assertFalse(items.get("F~1").getActive());
+		// F: every reason counted, so the job report says each
+		assertEquals(2, read.getNote(ZenMapper.ITEM_BLOCKED));
+		assertEquals(2, read.getNote(ZenMapper.VARIANT_BLOCKED));
+		assertEquals(2, read.getNote(ZenMapper.STOCK_POINT_BLOCKED));
+		assertEquals(1, read.getNote(ZenMapper.ZERO_PRICE));
+		assertEquals(0, new BigDecimal("10").compareTo(items.get("A~1").getUnitPrice()), "a blocked row keeps its price");
+	}
+
+	@Test
+	@DisplayName("Price 0 or none: inactive, at 0, never publicPrice; clearance absent: false, no clearance price;"
+			+ " clearancePrice alone (with VAT): no clearance price")
+	void zeroPriceAndClearance() throws IOException {
+		ErpRead<ErpItemDTO> read = mapper.items(null, Arrays.asList(
+				row("{`itemNo`:`A`,`variantCode`:`1`,`itemDescription`:`A`,`unitPrice`:0,`publicPrice`:0}"),
+				row("{`itemNo`:`B`,`variantCode`:`1`,`itemDescription`:`B`}"),
+				row("{`itemNo`:`C`,`variantCode`:`1`,`itemDescription`:`C`,`unitPrice`:0,`publicPrice`:19.5}"),
+				row("{`itemNo`:`D`,`variantCode`:`1`,`itemDescription`:`D`,`unitPrice`:10,`clearance`:true,"
+						+ "`clearancePrice`:7}")));
+
+		Map<String, ErpItemDTO> items = byCode(read);
+		assertFalse(items.get("A~1").getActive(), "price 0");
 		assertEquals(0, BigDecimal.ZERO.compareTo(items.get("A~1").getUnitPrice()));
 		assertFalse(items.get("B~1").getActive(), "no price");
-		assertEquals(2, read.getNote(ZenMapper.ZERO_PRICE));
+		assertEquals(0, BigDecimal.ZERO.compareTo(items.get("B~1").getUnitPrice()));
+		assertFalse(items.get("C~1").getActive(), "unitPrice 0: publicPrice is never the price");
+		assertEquals(0, BigDecimal.ZERO.compareTo(items.get("C~1").getUnitPrice()));
+		assertEquals(3, read.getNote(ZenMapper.ZERO_PRICE));
 		assertFalse(items.get("B~1").getClearance(), "clearance absent: false");
 		assertNull(items.get("B~1").getClearancePrice());
 		assertNull(items.get("B~1").getLastModifiedAt());
+		assertTrue(items.get("D~1").getClearance());
+		assertNull(items.get("D~1").getClearancePrice(), "clearancePrice is with VAT: never read as the price");
+		assertEquals(0, read.getNote(ZenMapper.PUBLIC_PRICE_INCONSISTENT), "a price 0 is not checked");
+	}
+
+	@Test
+	@DisplayName("A check only: publicPrice not unitPrice × (1 + VAT / 100) at 3 decimals noted, and clearancePrice"
+			+ " against clearancePriceExclVAT; the prices kept as read")
+	void pricesWithVatChecked() throws IOException {
+		ErpRead<ErpItemDTO> read = mapper.items(null, Arrays.asList(
+				// Agree (sample values: 16.38655 × 1.19 = 19.4999945, 5.88235 × 1.19 = 6.9999965)
+				row("{`itemNo`:`A`,`variantCode`:`1`,`unitPrice`:16.38655,`publicPrice`:19.5,`vatPercent`:19,"
+						+ "`clearance`:true,`clearancePriceExclVAT`:5.88235,`clearancePrice`:7}"),
+				// The row's VAT, not the default: 10 × 1.07 = 10.7
+				row("{`itemNo`:`B`,`variantCode`:`1`,`unitPrice`:10,`publicPrice`:10.7,`vatPercent`:7}"),
+				// Do not agree
+				row("{`itemNo`:`C`,`variantCode`:`1`,`unitPrice`:16.38655,`publicPrice`:19.51,`vatPercent`:19,"
+						+ "`clearance`:true,`clearancePriceExclVAT`:5.88235,`clearancePrice`:7.5}"),
+				row("{`itemNo`:`D`,`variantCode`:`1`,`unitPrice`:10,`publicPrice`:10,"
+						+ "`clearancePriceExclVAT`:0,`clearancePrice`:0}"),
+				// No price with VAT: nothing to check
+				row("{`itemNo`:`E`,`variantCode`:`1`,`unitPrice`:10,`clearancePriceExclVAT`:5}")));
+
+		assertEquals(2, read.getNote(ZenMapper.PUBLIC_PRICE_INCONSISTENT), "C, and D (10 × 1.19 is 11.9)");
+		assertEquals(1, read.getNote(ZenMapper.CLEARANCE_PRICE_INCONSISTENT), "C");
+		Map<String, ErpItemDTO> items = byCode(read);
+		assertTrue(items.get("C~1").getActive(), "a check only: the row stays active");
+		assertEquals(0, new BigDecimal("16.38655").compareTo(items.get("C~1").getUnitPrice()));
+		assertEquals(0, new BigDecimal("5.88235").compareTo(items.get("C~1").getClearancePrice()));
+		assertEquals(0, new BigDecimal("5").compareTo(items.get("E~1").getClearancePrice()));
 	}
 
 	@Test
 	@DisplayName("Left out: a blank itemNo, ~ in a code, the same item and variant twice (the first kept)")
 	void leftOut() throws IOException {
 		ErpRead<ErpItemDTO> read = mapper.items(null, Arrays.asList(
-				row("{`itemNo`:` `,`variantCode`:`1`,`publicPrice`:1}"),
-				row("{`itemNo`:`A~B`,`variantCode`:`1`,`publicPrice`:1}"),
-				row("{`itemNo`:`A`,`variantCode`:`1`,`itemDescription`:`first`,`publicPrice`:1}"),
-				row("{`itemNo`:`A`,`variantCode`:`1`,`itemDescription`:`second`,`publicPrice`:1}")));
+				row("{`itemNo`:` `,`variantCode`:`1`,`unitPrice`:1}"),
+				row("{`itemNo`:`A~B`,`variantCode`:`1`,`unitPrice`:1}"),
+				row("{`itemNo`:`A`,`variantCode`:`1`,`itemDescription`:`first`,`unitPrice`:1}"),
+				row("{`itemNo`:`A`,`variantCode`:`1`,`itemDescription`:`second`,`unitPrice`:1}")));
 
 		assertEquals(4, read.getRead());
 		assertEquals(1, read.getKept());

@@ -402,7 +402,7 @@ GET (`ZenConfig`, `ZenRestClient`, following `@odata.nextLink`), the mapper (`Ze
 (`ZenCatalogueSource`, `readsChangesOnly()` true), the engine's settings and a read-only `ErpConnector` (`ZenConnector`).
 - Pages of ZEN's custom API (`<base-url>/api/sat/zsretail/v1.0/companies(<id>)/`, the id `erp.zen.company-id` or looked up once by the company's name `erp.zen.company`, step 10): `stockPoints`, read per location
   with `$filter=locationCode eq '<code>'` and, from a checkpoint, `and lastModifiedDateTime ge <time in UTC>`, no
-  `$select` (so the fields `active` and `vat` are read when the API gives them; ZEN's test NAV has neither, step 12a);
+  `$select` (the fields not used are ignored);
   `itemCategories`; the barcodes, ZEN's page `barCodes` (step 12a, by default; a page may be given as a whole address).
 - Items: one per row, code `itemNo~variantCode` (`itemNo` alone without a variant); name and description the
   `itemDescription`; the 14 variant fields (blank as null), except the variant description, which the mapper builds:
@@ -411,12 +411,28 @@ GET (`ZenConfig`, `ZenRestClient`, following `@odata.nextLink`), the mapper (`Ze
   `variantDescription` is not read: on ZEN's platform it is always the item description. A change of one of the three
   descriptions is a change of the item (the engine compares `variantDescription` with the other variant fields).
   `db/3.1.0/update.sql` rebuilds `item.variant_description` the same way for the items with a `nav_item_no`; brand `brandCode`; family and sub-family `familyCode`,
-  `subFamilyCode`; `publicPrice` before VAT, 0 or none inactive; `active` false inactive, absent active; VAT the row's
-  `vat` when given, else `default-vat`; `lastModifiedAt` from `lastModifiedDateTime` (NAV's 0001-01-01: none); the
-  location's `clearance` (absent: false) and `clearancePrice`. The rows of another location, a blank `itemNo`, a `~` in
-  `itemNo` or `variantCode`, the same item and variant twice are left out. Not used: `barCode` (the barcodes page is
-  read), `stockPointDescription`, `itemCategoryCode`, `baseUnitOfMeasure`, `brandDescription`, `clothingStyleCode`,
-  `cutCode`, `noOfPieces`.
+  `subFamilyCode`; the price `unitPrice` (before VAT), 0 or none inactive (noted "null or zero unitPrice");
+  `itemBlocked`, `variantBlocked` or `stockPointBlocked` true inactive, each noted under its name (absent: not
+  blocked; the engine keeps an item active while one of its rows is); VAT `vatPercent` (rounded to a whole number,
+  noted when it was not one), absent `default-vat`; `lastModifiedAt` from `lastModifiedDateTime` (NAV's 0001-01-01:
+  none); the location's `clearance` (absent: false) and clearance price `clearancePriceExclVAT` (before VAT). The rows of
+  another location, a blank `itemNo`, a `~` in `itemNo` or `variantCode`, the same item and variant twice are left out.
+  Not used: `barCode` (the barcodes page is read), `stockPointDescription`, `itemCategoryCode`, `baseUnitOfMeasure`,
+  `brandDescription`, `clothingStyleCode`, `cutCode`, `noOfPieces`.
+- Prices with VAT (the page of 2026-10-24): `publicPrice` and `clearancePrice` are `unitPrice` and
+  `clearancePriceExclVAT` × (1 + `vatPercent` / 100) at 3 decimals (all 100 rows of ZEN's sample). They are never read
+  as a price (the till adds the VAT to the price it receives); a check only: a pair that does not agree is noted
+  ("publicPrice inconsistent with unitPrice × VAT", "clearancePrice inconsistent with clearancePriceExclVAT × VAT"), the
+  data untouched, both above 0 only. The page before had only the prices with VAT, read as before VAT (a till sold
+  19.50 × 1.19 = 23.205): a row with `publicPrice` but no `unitPrice` fails the read of its location
+  (`ZenCatalogueSource.NO_UNIT_PRICE`, "stockPoints has no unitPrice: update the page"; the point's read failed,
+  nothing applied, its checkpoint kept). ZEN's prices before VAT have 5 decimals (16.38655): `item.unit_price` and
+  `ho_stock_point_item.unit_price` are float, `ho_stock_point_item.clearance_price` is `numeric(18,5)` since then (at 3
+  decimals a price like 16.38655 would sell at 19.501; `db/3.1.0/update.sql` widens a column made with 3), the engine compares
+  a clearance price at 5 decimals (`CatalogueEngine.samePrice`). **Deploying it on a head office that already read
+  ZEN's rows**: the read is incremental, so the rows NAV does not change again keep the price with VAT as their price.
+  Reset every point's checkpoint (the `items.since:<point id>` keys of `erp_catalogue_state`): the next run is a whole
+  read, the prices change, the stores receive their items again.
 - The tree by `indentation`: 0 catégories, 1 families (`categoryExternalId` = the parent when it is a catégorie), 2
   sub-families (left out when the parent is not a family of the read), 3 sections (left out when the parent is not a
   sub-family of the read); display order `presentationOrder`.

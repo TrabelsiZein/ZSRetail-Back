@@ -95,6 +95,8 @@ public class CatalogueEngine {
 
 	/** Item numbers per call of the barcodes of new items. */
 	static final int ITEMS_PER_BARCODE_CALL = 20;
+	/** The decimals of a clearance price before VAT: those of ho_stock_point_item.clearance_price (ZEN gives 5). */
+	static final int PRICE_SCALE = 5;
 
 	public static final String TAX_STAMP_ITEM = "tax stamp item (TAX_STAMP_ERP_ITEM_CODE)";
 	public static final String ITEM_NOT_AT_HEAD_OFFICE = "item not at the head office";
@@ -946,8 +948,8 @@ public class CatalogueEngine {
 
 	/**
 	 * Name, description, family, sub-family, active, the price with VAT at 3 decimals. Item variants (ZEN), step 5: the
-	 * clearance flag (a null column read as false, an ERP without it gives false) and the clearance price at 3 decimals
-	 * (null = no price).
+	 * clearance flag (a null column read as false, an ERP without it gives false) and the clearance price before VAT at
+	 * {@link #PRICE_SCALE} decimals (null = no price).
 	 */
 	private boolean differs(StockPoints.Row row, StockPoints.Row here) {
 		Integer vat = settings.defaultVat();
@@ -959,12 +961,13 @@ public class CatalogueEngine {
 				|| row.clearance != here.clearance || !samePrice(row.clearancePrice, here.clearancePrice);
 	}
 
-	/** Both null, or equal at 3 decimals (HALF_UP). */
+	/** Both null, or equal at {@link #PRICE_SCALE} decimals (HALF_UP). */
 	static boolean samePrice(BigDecimal a, BigDecimal b) {
 		if (a == null || b == null) {
 			return a == null && b == null;
 		}
-		return a.setScale(3, RoundingMode.HALF_UP).compareTo(b.setScale(3, RoundingMode.HALF_UP)) == 0;
+		return a.setScale(PRICE_SCALE, RoundingMode.HALF_UP)
+				.compareTo(b.setScale(PRICE_SCALE, RoundingMode.HALF_UP)) == 0;
 	}
 
 	private static BigDecimal price(StockPoints.Row row) {

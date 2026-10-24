@@ -100,7 +100,8 @@ class CatalogueClearanceTest {
 	}
 
 	@Test
-	@DisplayName("Same price and clearance price (7 against 7.000): no change; 7.001 is a change")
+	@DisplayName("Same price and clearance price (7 against 7.000): no change; 7.001 is a change; before VAT at 5"
+			+ " decimals (ZEN): 5.88235 against 5.882350 none, 5.88236 a change")
 	void samePricesNoChange() {
 		ErpItemDTO inFranchise = item("14ZDU05~001", true, new BigDecimal("7.000"));
 		bed.items.put(FRANCHISE, new ArrayList<>(Collections.singletonList(inFranchise)));
@@ -116,6 +117,15 @@ class CatalogueClearanceTest {
 		CatalogueRun<ErpItemDTO> other = bed.engine.items();
 		assertEquals(1, pointSummary(other, FRANCHISE).get("changed"));
 		assertEquals(0, new BigDecimal("7.001").compareTo(bed.points.rows(FRANCHISE_ID).get("14ZDU05~001").clearancePrice));
+
+		inFranchise.setClearancePrice(new BigDecimal("5.88235"));
+		bed.engine.items();
+		inFranchise.setClearancePrice(new BigDecimal("5.882350"));
+		assertEquals(0, pointSummary(bed.engine.items(), FRANCHISE).get("changed"));
+		inFranchise.setClearancePrice(new BigDecimal("5.88236"));
+		assertEquals(1, pointSummary(bed.engine.items(), FRANCHISE).get("changed"), "a change below the millime");
+		assertEquals(0,
+				new BigDecimal("5.88236").compareTo(bed.points.rows(FRANCHISE_ID).get("14ZDU05~001").clearancePrice));
 	}
 
 	/** An item of the ERP at one point, with its clearance as the point gives it (null: an ERP without clearance). */

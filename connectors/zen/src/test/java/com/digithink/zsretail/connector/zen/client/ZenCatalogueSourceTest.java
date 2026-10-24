@@ -1,8 +1,12 @@
 package com.digithink.zsretail.connector.zen.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -17,20 +21,29 @@ import org.junit.jupiter.api.Test;
 import com.digithink.zsretail.connector.zen.config.ZenProperties;
 import com.digithink.zsretail.connector.zen.dto.ZenBarcodeRow;
 import com.digithink.zsretail.connector.zen.dto.ZenCategoryRow;
+import com.digithink.zsretail.connector.zen.dto.ZenCollection;
 import com.digithink.zsretail.connector.zen.dto.ZenStockPointRow;
 import com.digithink.zsretail.connector.zen.mapper.ZenMapper;
 import com.digithink.zsretail.erp.api.ErpBarcodeRow;
 import com.digithink.zsretail.erp.api.ErpCatalogueSource.Part;
 import com.digithink.zsretail.erp.api.ErpRead;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Item variants (ZEN), step 8: the source the catalogue engine reads, on a fake API: it reads changes only, passes the
- * checkpoint to the read of a location, keeps the barcodes of the items asked for only, names its pages.
+ * checkpoint to the read of a location, keeps the barcodes of the items asked for only, names its pages; the sample of
+ * stockPoints (NewstockPointS.json, 2026-10-24) read through it; a row of the old page (publicPrice, no unitPrice)
+ * fails the read of its location.
  */
 class ZenCatalogueSourceTest {
 
+	private static final ObjectMapper JSON = new ObjectMapper();
+
 	private final List<String> reads = new ArrayList<>();
+	/** The rows the fake API answers for a location; null: one row of 70061~001 without prices. */
+	private List<ZenStockPointRow> stockPoints;
 
 	private final ZenSource api = new ZenSource() {
 		@Override
@@ -41,6 +54,9 @@ class ZenCatalogueSourceTest {
 		@Override
 		public List<ZenStockPointRow> readStockPoints(String locationCode, OffsetDateTime since) {
 			reads.add(locationCode + " since " + since);
+			if (stockPoints != null) {
+				return stockPoints;
+			}
 			ZenStockPointRow row = new ZenStockPointRow();
 			row.setLocationCode(locationCode);
 			row.setItemNo("70061");
@@ -82,6 +98,39 @@ class ZenCatalogueSourceTest {
 		assertEquals(Arrays.asList("ARGENTE since 2026-10-11T16:53:37.150Z", "BLANC since null"), reads);
 		assertEquals("70061~001", changes.getRows().get(0).getCode());
 		assertEquals("VET", source.categories().getCategories().getRows().get(0).getCode());
+	}
+
+	@Test
+	@DisplayName("The sample of stockPoints through the source: 100 rows of FRANCH-01, the price before VAT")
+	void sample() throws IOException {
+		try (InputStream in = getClass().getResourceAsStream("/zen/NewstockPointS.json")) {
+			stockPoints = JSON.readValue(in, new TypeReference<ZenCollection<ZenStockPointRow>>() {
+			}).getValue();
+		}
+
+		ErpRead<ErpItemDTO> read = source.items("FRANCH-01");
+
+		assertEquals(100, read.getKept());
+		ErpItemDTO tie = read.getRows().stream().filter(item -> item.getCode().equals("14ZDU05~001")).findFirst().get();
+		assertEquals(0, new BigDecimal("16.38655").compareTo(tie.getUnitPrice()));
+		assertEquals(0, new BigDecimal("5.88235").compareTo(tie.getClearancePrice()));
+	}
+
+	@Test
+	@DisplayName("The old page: a row with publicPrice but no unitPrice fails the read of the location, nothing mapped")
+	void oldPageFails() throws IOException {
+		stockPoints = Arrays.asList(
+				JSON.readValue("{\"itemNo\":\"14ZDU05\",\"variantCode\":\"001\",\"unitPrice\":16.38655,\"publicPrice\":19.5}",
+						ZenStockPointRow.class),
+				JSON.readValue("{\"itemNo\":\"14ZDU05\",\"variantCode\":\"002\",\"publicPrice\":19.5}", ZenStockPointRow.class));
+
+		ZenReadException failed = assertThrows(ZenReadException.class, () -> source.items("FRANCH-01", null));
+
+		assertEquals("stockPoints has no unitPrice: update the page", failed.getMessage());
+		assertEquals("stockPoints", failed.getPage());
+		// No price at all (neither field): not the old page, the mapper's price 0
+		stockPoints = Arrays.asList(JSON.readValue("{\"itemNo\":\"A\",\"variantCode\":\"1\"}", ZenStockPointRow.class));
+		assertEquals(1, source.items("FRANCH-01").getNote(ZenMapper.ZERO_PRICE));
 	}
 
 	@Test

@@ -58,7 +58,10 @@ public class HoStockPointItem extends _BaseEntity {
 	@Column(name = "clearance")
 	private Boolean clearance;
 
-	/** Item variants (ZEN), step 1: the ERP's clearance price for this point, as read; null when none. */
-	@Column(name = "clearance_price", precision = 18, scale = 3)
+	/**
+	 * Item variants (ZEN), step 1: the ERP's clearance price for this point, before VAT, as read; null when none. 5
+	 * decimals, as ZEN's API (2026-10-24): at 3 the price with VAT could be one millime off.
+	 */
+	@Column(name = "clearance_price", precision = 18, scale = 5)
 	private BigDecimal clearancePrice;
 }

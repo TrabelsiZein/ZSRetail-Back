@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.connector.zen.ZenConnectorDescriptor;
 import com.digithink.zsretail.connector.zen.config.ZenProperties;
+import com.digithink.zsretail.connector.zen.dto.ZenStockPointRow;
 import com.digithink.zsretail.connector.zen.mapper.ZenMapper;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 import com.digithink.zsretail.erp.api.ErpBarcodeRow;
@@ -23,11 +24,15 @@ import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
  * Item variants (ZEN), step 8: ZEN's API as the catalogue engine reads it, through the mapper. The tree gives the
  * catégories, families, sub-families and sections; the rows of a location are read as the changes since its checkpoint
  * ({@link #readsChangesOnly()}: a row not answered is unchanged, never gone); the barcodes by lastModifiedDateTime
- * (step 12a, the position in epoch milliseconds), their items with the variant.
+ * (step 12a, the position in epoch milliseconds), their items with the variant. The page before 2026-10-24 had the
+ * prices with VAT only: a row with publicPrice but no unitPrice fails the read of its location ({@link #NO_UNIT_PRICE}),
+ * nothing applied.
  */
 @Component
 @ConditionalOnErpConnector(ZenConnectorDescriptor.NAME)
 public class ZenCatalogueSource implements ErpCatalogueSource {
+
+	public static final String NO_UNIT_PRICE = "stockPoints has no unitPrice: update the page";
 
 	private final ZenSource pages;
 	private final ZenMapper mapper;
@@ -56,10 +61,17 @@ public class ZenCatalogueSource implements ErpCatalogueSource {
 		return items(locationCode, null);
 	}
 
-	/** The rows of the location modified at or after since (null: every row). */
+	/**
+	 * The rows of the location modified at or after since (null: every row). A row of the old page (publicPrice, no
+	 * unitPrice) fails the read: its price with VAT would be sold as the price before VAT.
+	 */
 	@Override
 	public ErpRead<ErpItemDTO> items(String locationCode, OffsetDateTime since) {
-		return mapper.items(locationCode, pages.readStockPoints(locationCode, since));
+		List<ZenStockPointRow> rows = pages.readStockPoints(locationCode, since);
+		if (rows.stream().anyMatch(row -> row.getPublicPrice() != null && row.getUnitPrice() == null)) {
+			throw new ZenReadException(pageLabel(Part.ITEMS), NO_UNIT_PRICE, null);
+		}
+		return mapper.items(locationCode, rows);
 	}
 
 	@Override

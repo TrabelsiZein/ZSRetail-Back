@@ -301,6 +301,14 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   the script, or at the start of a new database by `UserBadgeCodeIndex`); a generated code takes its 4 digits from
   `SecureRandom` (was `java.util.Random`); a new database's responsible gets a generated badge code, logged once at the
   first start, instead of the fixed `RESP-BADGE-001` written in the source.
+- connector-zen: stockPoints new fields — HT prices (unitPrice, clearancePriceExclVAT), vatPercent, the three blocked
+  flags. `publicPrice` and `clearancePrice` are the prices with VAT and were read as the prices before VAT (a till sold
+  19.50 × 1.19); they are now a check only (a pair that does not agree with the price before VAT × VAT is noted). VAT
+  from `vatPercent` (absent: `erp.zen.default-vat`); `itemBlocked`, `variantBlocked` or `stockPointBlocked` true makes
+  the row inactive, each noted; the guessed `active` and `vat` fields are gone. A row of the old page (`publicPrice`, no
+  `unitPrice`) fails the read of its location, nothing applied. The engine compares a clearance price at 5 decimals.
+  **Deploy**: on a head office that already read ZEN's rows, reset the points' checkpoints (`items.since:*` keys of
+  `erp_catalogue_state`), else the rows NAV does not change again keep the price with VAT (docs/modules/erp-sync.md).
 ### DB script (`db/3.1.0/update.sql`, store and head office)
 - RFID tables on a store: `rfid_reader` (with `min_signal`), `pos_machine`, `rfid_tag`, `rfid_sale_tag`.
 - Payment method "Retenue à la source", inactive (kept as it is where EMTOP 1.12.1 has it).
@@ -336,6 +344,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   and head office, re-runnable.
 - Discount sources of pending tickets: `sales_line` / `sales_header` `.discount_source` and `.promotion_id` made sure
   of (they exist already); nothing filled in, the pending tickets of before keep nulls. Re-runnable.
+- ZEN's clearance price before VAT keeps 5 decimals: `ho_stock_point_item.clearance_price` `numeric(18,5)` (head
+  office; a column made with 3 decimals widened, its values kept); re-runnable.
 - `APP_VERSION` 3.1.0; release notes to complete when the version is closed (RFID is missing).
 
 ### Config
@@ -343,6 +353,7 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - `erp.connector=zen` and `erp.zen.*` (`base-url`, `company` or `company-id`, `domain`, `username`, `password`,
   `default-vat`, `packet-size`, `dry-run`, page names); deploy files `configs/customers/zen-headoffice.properties` and
   `zen-store.properties`.
+- `erp.zen.default-vat`: the VAT of a stockPoints row without `vatPercent` (the page gives it since 2026-10-24).
 - `erp.zen.page.barcodes` defaults to `barCodes` (step 12a; was `ItemBarCodePOS`).
 - `erp.zen.invoices.*` (step 9, all optional): `page` (`SalesInvoice`), `lines-expand` (`SalesInvoiceSalesInvLines`),
   `odata-path` (`ODataV4`), `number-prefix` (`FVE`), `page-size` (50, 1 to 1000), `seller-name` (`ZEN`).
