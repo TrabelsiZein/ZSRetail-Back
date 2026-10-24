@@ -126,7 +126,7 @@ class ZenCatalogueSourceTest {
 
 		ZenReadException failed = assertThrows(ZenReadException.class, () -> source.items("FRANCH-01", null));
 
-		assertEquals("stockPoints has no unitPrice: update the page", failed.getMessage());
+		assertEquals("zen: stockPoints has no unitPrice: update the page", failed.getMessage());
 		assertEquals("stockPoints", failed.getPage());
 		// No price at all (neither field): not the old page, the mapper's price 0
 		stockPoints = Arrays.asList(JSON.readValue("{\"itemNo\":\"A\",\"variantCode\":\"1\"}", ZenStockPointRow.class));

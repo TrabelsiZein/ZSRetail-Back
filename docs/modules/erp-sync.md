@@ -425,7 +425,7 @@ GET (`ZenConfig`, `ZenRestClient`, following `@odata.nextLink`), the mapper (`Ze
   ("publicPrice inconsistent with unitPrice × VAT", "clearancePrice inconsistent with clearancePriceExclVAT × VAT"), the
   data untouched, both above 0 only. The page before had only the prices with VAT, read as before VAT (a till sold
   19.50 × 1.19 = 23.205): a row with `publicPrice` but no `unitPrice` fails the read of its location
-  (`ZenCatalogueSource.NO_UNIT_PRICE`, "stockPoints has no unitPrice: update the page"; the point's read failed,
+  (`ZenCatalogueSource.NO_UNIT_PRICE`, "zen: stockPoints has no unitPrice: update the page"; the point's read failed,
   nothing applied, its checkpoint kept). ZEN's prices before VAT have 5 decimals (16.38655): `item.unit_price` and
   `ho_stock_point_item.unit_price` are float, `ho_stock_point_item.clearance_price` is `numeric(18,5)` since then (at 3
   decimals a price like 16.38655 would sell at 19.501; `db/3.1.0/update.sql` widens a column made with 3), the engine compares

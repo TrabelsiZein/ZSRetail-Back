@@ -32,7 +32,7 @@ import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 @ConditionalOnErpConnector(ZenConnectorDescriptor.NAME)
 public class ZenCatalogueSource implements ErpCatalogueSource {
 
-	public static final String NO_UNIT_PRICE = "stockPoints has no unitPrice: update the page";
+	public static final String NO_UNIT_PRICE = "zen: stockPoints has no unitPrice: update the page";
 
 	private final ZenSource pages;
 	private final ZenMapper mapper;
