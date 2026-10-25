@@ -10,7 +10,7 @@ import com.digithink.zsretail.erp.api.ErpConnectorDescriptor;
  * Item variants (ZEN), step 8: this connector as it declares itself to erp-api and the application
  * (META-INF/spring.factories of this project): ZEN's NAV and its custom API api/sat/zsretail/v1.0, keys erp.zen.*, a
  * head office's catalogue by points de stock, one item per variant, read as the changes since a checkpoint. A new
- * connector: no old keys, no dead keys. Step 9: the supply invoices of the ERP (NAV's page SalesInvoice, ability
+ * connector: no old keys, no dead keys. Step 9: the supply invoices of the ERP (salesInvoices of ZEN's franchise API, ability
  * SUPPLY_INVOICES): headoffice.supply.source=ERP is accepted with it.
  */
 public class ZenConnectorDescriptor implements ErpConnectorDescriptor {

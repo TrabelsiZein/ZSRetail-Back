@@ -48,7 +48,7 @@ public class ZenConnector implements ErpConnector {
 
 	static final String READ_ONLY = "The zen ERP connector is read only: it sends nothing to the ERP.";
 
-	/** Step 9: the supply invoices of ZEN's NAV (its page SalesInvoice). */
+	/** Step 9: the supply invoices of ZEN's NAV (salesInvoices of its franchise API). */
 	private final ZenInvoices invoices;
 
 	/** The summary of the last fetch of this thread, for the communications log (as the other connectors). */

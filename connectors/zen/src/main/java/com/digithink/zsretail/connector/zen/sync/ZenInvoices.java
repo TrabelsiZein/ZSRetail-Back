@@ -34,9 +34,9 @@ import lombok.extern.log4j.Log4j2;
  * Item variants (ZEN), step 9: the supply invoices of ZEN's NAV, as Happyness's NavPosPagesInvoices (copied, not shared:
  * a connector sees only erp-api): one read per year prefix (FVE26) after the highest number the head office has of
  * that year, the starting point the General Setup "Read ERP invoices after number". ZenConnector answers
- * fetchSupplyInvoices and the seller name from here. Two differences: NAV's page SalesInvoice holds every posted sales
+ * fetchSupplyInvoices and the seller name from here. Two differences: ZEN's page salesInvoices holds every posted sales
  * invoice of the company, so only those of the stores' customers are read ({@link ErpInvoiceCustomers}: none, nothing
- * read); a cancelled invoice is read past and left out. Nothing is kept between runs: the head office's numbers are the
+ * read); a cancelled invoice is read past and left out (once the page gives cancelled: not yet). Nothing is kept between runs: the head office's numbers are the
  * memory. Its runs write the engine's {@link RunSummary} format.
  */
 @Component

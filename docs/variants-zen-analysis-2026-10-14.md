@@ -331,11 +331,13 @@ checkpoint" button. Steps 1–8, 10 and 12 are the go-live path. Steps 1–7 do 
 | Q7 | Authentication and paging of the API; the test instance address | step 8 |
 | Q8 | `brand`: code or description in `item.brand`? Season and division descriptions (not in the API) needed? | step 1 |
 | Q9 | Should a famille point to its catégorie at the head office (one nullable column on `item_family`)? | steps 1, 4 |
-| Q10 | Which NAV API gives ZEN's posted invoices to the franchise (as Happyness's invoice pages)? **Answered 2026-10-23: NAV's standard OData V4 page `SalesInvoice` of the company `ESP` (lines `SalesInvoiceSalesInvLines`), every posted sales invoice of the company: only the stores' customers are read** (section F, step 9a) | step 9 |
+| Q10 | Which NAV API gives ZEN's posted invoices to the franchise (as Happyness's invoice pages)? **Answered 2026-10-23: NAV's standard OData V4 page `SalesInvoice` of the company `ESP` (lines `SalesInvoiceSalesInvLines`), every posted sales invoice of the company: only the stores' customers are read** (section F, step 9a). **2026-10-24: moved by ZEN's NAV team to their custom API `api/sat/franchise/v1.0`, page `salesInvoices` (lines `salesInvoiceLines`), same `companies(<id>)`** (section F, step 9a-bis) | step 9 |
 | Q11 | A sample where `categoryCode` … `sectionCode` are filled (all empty today) | step 8 tests |
 | Q12 | ZEN stores: `erp.connector=none` (sales go to the head office only)? Head office sales to NAV: out of scope? | step 10 |
 | Q13 | Page `barCodes`, `unitOfMeasureCode`: can a barcode be of a unit other than the piece (a box of 6)? Today every row is kept whatever its unit, so such a barcode would sell one piece of the variant (step 12a) | before go-live |
 | Q14 | Page `barCodes`: is `lastModifiedDateTime` NAV's `SystemModifiedAt`, and does a key cover it? Every barcode run filters and sorts on it (`$filter ge`, `$orderby`): without a key, a whole scan of the table per call (step 12a) | volume |
+| Q15 | Page `salesInvoices`: can ZEN add `cancelled` and `corrective` to it (FlowFields of the posted sales invoice)? Without them a cancelled invoice is read and sent to its store (step 9a-bis) | before `headoffice.supply.source=ERP` |
+| Q16 | Does ZEN use invoice discounts on the invoices to the stores? The store's cost is `lineAmount` ÷ quantity (before an invoice discount); today such an invoice only gets the warning "the lines add up to X, amount is Y" (step 9a-bis) | before `headoffice.supply.source=ERP` |
 
 ## F. Done and to do
 
@@ -458,3 +460,17 @@ corrective one read with a warning. Details: `docs/modules/head-office.md`, "Inv
 the live read (step 9b, `headoffice.supply.source=ERP` on ZEN's test head office, with Zein); an invoice to a customer
 whose store gets its ERP customer number later is passed over once a later invoice is saved; `VAT_Percent` is not kept
 (a head office invoice line has no VAT rate).
+
+**Step 9a-bis (2026-10-25), the invoices on ZEN's franchise API**: ZEN's NAV team moved the invoices to a second custom
+API, `api/sat/franchise/v1.0/companies(<id>)/salesInvoices?$expand=salesInvoiceLines` (the sample
+`NewsalesInvoices.json` saved by Zein, in the tests `salesInvoices.json`: `FVE2600002`, twelve variants of `43ZBPND01`
+and the G/L rounding line at -0.002). The connector reads it instead of `SalesInvoice`: the same company id as the
+zsretail API (`erp.zen.company` alone is enough again), the key `erp.zen.invoices.api-path` instead of `odata-path`, the
+camelCase fields (`number`, `sellToCustomerNo`, `lineType` with NAV's enum values `Item`, `G_x002F_L_x0020_Account`,
+`_x0020_`, ...). Decisions (2026-10-25, with Zein): the totals from the header (`amount`, `amountIncludingVAT`, the VAT
+their difference), `TOTAL_TOLERANCE` kept against the header's `amount`; no `$select` on the header, so `cancelled` and
+`corrective` are read with no code change once ZEN adds them (until then every invoice is read and sent to its store);
+a `currencyCode` that is not blank gives a warning. Unchanged: the selling price never from the invoice, the store's
+costs (last direct cost = `unitPrice`, cost = `lineAmount` ÷ quantity), `ErpSupplyInvoiceDTO`, the head office, the copy
+down and the store. Questions for ZEN: Q15 (`cancelled` and `corrective` on `salesInvoices`) and Q16 (invoice
+discounts). Still open: the live read (step 9b, with the NAV user's permission on the franchise API).

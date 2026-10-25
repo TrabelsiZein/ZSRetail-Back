@@ -449,14 +449,14 @@ GET (`ZenConfig`, `ZenRestClient`, following `@odata.nextLink`), the mapper (`Ze
   gave land on its own tick (step 12a follow-up). A barcode
   changed in NAV is read again (its new date). Those of new items are read by `(itemNo eq '..' and variantCode eq '..')`,
   the rows of other variants left out.
-- Supply invoices (step 9): not on the custom API but on NAV's standard OData V4 page `SalesInvoice` under
-  `Company('<erp.zen.company>')` (ESP), the same client; `ZenInvoices`, a copy of Happyness's invoice read (by year
+- Supply invoices (step 9): on ZEN's second custom API, `api/sat/franchise/v1.0`, page `salesInvoices` under the same
+  `companies(<id>)` (NAV's OData V4 page `SalesInvoice` until 2026-10-25), the same client; `ZenInvoices`, a copy of Happyness's invoice read (by year
   prefix after the head office's highest number), only the invoices of the stores' ERP customer numbers
   (`ErpInvoiceCustomers`, erp-api, given by the head office's `HoErpInvoiceCustomers`). Details in `head-office.md`,
   "Invoices from the ERP, ZEN".
 - Tests: `ZenMapperTest` (on the two samples of the API in `connectors/zen/src/test/resources/zen`),
   `ZenRestClientTest`, `ZenCatalogueSourceTest` (in the project); step 9: `ZenMapperInvoicesTest` (the sample
-  `SalesInvoice.json`), `ZenInvoiceClientTest`, `ZenInvoicesTest`; `ZenBarcodeCursorTest` (the engine's barcode cursor on
+  `salesInvoices.json`), `ZenInvoiceClientTest`, `ZenInvoicesTest`; `ZenBarcodeCursorTest` (the engine's barcode cursor on
   a fake `barCodes` page), `ZenStartupCheckTest`, the pinned lists of
   `ErpConnectorTest`, `OutsideFileUpgradeTest`, `ThirdConnectorTest`, `ErpAbilitiesTest`, `ErpAbilityBeansTest`
   (network-tests). `ConnectorNamesGuardTest` takes a connector's name as a whole word (no letter or digit around it).

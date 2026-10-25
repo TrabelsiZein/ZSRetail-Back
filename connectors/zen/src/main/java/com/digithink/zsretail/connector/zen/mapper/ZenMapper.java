@@ -57,7 +57,7 @@ import com.digithink.zsretail.erp.api.dto.ErpSupplyInvoiceDTO;
  * <li>Barcodes (step 12a, ZEN's page barCodes): the item is {@link #itemCode} of itemNo and variantCode; the position
  * {@link #position} of lastModifiedDateTime. A blank barCode or itemNo, and a date not readable, are left out; the
  * position of every row read is kept. unitOfMeasureCode is not read: every row is kept whatever its unit.</li>
- * <li>Invoices (step 9, NAV's page SalesInvoice): see {@link #invoices}.</li>
+ * <li>Invoices (step 9, salesInvoices of ZEN's franchise API): see {@link #invoices}.</li>
  * </ul>
  */
 public class ZenMapper {
@@ -88,14 +88,15 @@ public class ZenMapper {
 	public static final String BLANK_BARCODE_ITEM = "blank itemNo";
 	public static final String UNREADABLE_DATE = "lastModifiedDateTime not readable";
 	public static final String BLANK_NUMBER = "blank No";
-	public static final String CANCELLED = "cancelled (Cancelled true)";
+	public static final String CANCELLED = "cancelled (cancelled true)";
 	public static final String COMMENT_LINE = "line without type (comment)";
 	public static final String ZERO_OTHER_LINE = "line of another type with amount 0";
 	public static final String WITH_WARNINGS = "invoice with warnings";
-	public static final String NO_LINE = "no line: no totals";
-	public static final String CORRECTIVE = "corrective invoice (Corrective true: it cancels a credit memo)";
+	public static final String NO_LINE = "no line";
+	public static final String CORRECTIVE = "corrective invoice (corrective true: it cancels a credit memo)";
+	public static final String FOREIGN_CURRENCY = "invoice in a foreign currency";
 
-	/** Lines and Total_Amount_Excl_VAT may differ by this much (rounding of the ERP), as Happyness. */
+	/** The lines and the header's amount may differ by this much (rounding of the ERP), as Happyness. */
 	public static final BigDecimal TOTAL_TOLERANCE = new BigDecimal("0.005");
 	static final String ITEM_TYPE = "Item";
 	/** The blank option as some OData versions write it. */
@@ -437,15 +438,17 @@ public class ZenMapper {
 	// ─── Invoices (step 9) ──────────────────────────────────────
 
 	/**
-	 * Step 9: NAV's posted sales invoices to {@link ErpSupplyInvoiceDTO}, in the order read, as Happyness's
-	 * (NavPosPagesMapper.invoices). A row without a number, and a cancelled one (Cancelled true: never handed, never
-	 * saved), are left out. Customer: Sell_to_Customer_No. pricesIncludingVat stays null (ZEN's prices are before VAT; the
-	 * page has no such field). Lines: Type Item with an item number is ITEM, its item code {@link #itemCode} of No and
-	 * Variant_Code (the code the catalogue writes); another type with an amount is OTHER (no item code); a line without
-	 * type (a comment, " ") and a line of another type at amount 0 are left out. The three totals come from the first
-	 * line. Warnings: a corrective invoice (it cancels a credit memo; read as any other, also noted), an item quantity
-	 * with more than 3 decimals, lines that differ from Total_Amount_Excl_VAT by more than {@link #TOTAL_TOLERANCE}, an
-	 * Item line without item number, no line.
+	 * Step 9: ZEN's posted sales invoices (salesInvoices) to {@link ErpSupplyInvoiceDTO}, in the order read, as
+	 * Happyness's (NavPosPagesMapper.invoices). A row without a number, and a cancelled one (cancelled true, once the page
+	 * gives it: never handed, never saved), are left out. Customer: sellToCustomerNo. pricesIncludingVat stays null (ZEN's
+	 * prices are before VAT; the page has no such field). Lines: lineType Item with an item number is ITEM, its item code
+	 * {@link #itemCode} of number and variantCode (the code the catalogue writes); another type with an amount is OTHER
+	 * (no item code: a G/L account, a resource, the rounding line); a line without type (a comment, _x0020_) and a line of
+	 * another type at amount 0 are left out. Totals from the header: before VAT amount, with VAT amountIncludingVAT, the
+	 * VAT their difference. Warnings: a corrective invoice (corrective true: it cancels a credit memo; read as any other,
+	 * also noted), a currencyCode that is not blank (also noted), an item quantity with more than 3 decimals, lines whose
+	 * lineAmount differs from the header's amount by more than {@link #TOTAL_TOLERANCE} (an invoice discount, a line
+	 * left out), an Item line without item number, no line.
 	 */
 	public ErpRead<ErpSupplyInvoiceDTO> invoices(List<ZenInvoiceRow> rows) {
 		Map<String, Integer> leftOut = new LinkedHashMap<>();
@@ -472,14 +475,19 @@ public class ZenMapper {
 				warnings.add(CORRECTIVE);
 				count(notes, CORRECTIVE);
 			}
+			String currency = trimmed(row.text(ZenInvoiceRow.CURRENCY));
+			if (!currency.isEmpty()) {
+				warnings.add(FOREIGN_CURRENCY + " (currencyCode " + currency + ")");
+				count(notes, FOREIGN_CURRENCY);
+			}
 			if (row.getLines().isEmpty()) {
 				warnings.add(NO_LINE);
-			} else {
-				ZenInvoiceLineRow first = row.getLines().get(0);
-				invoice.setTotalExclVat(first.getTotalAmountExclVat());
-				invoice.setTotalVat(first.getTotalVatAmount());
-				invoice.setTotalInclVat(first.getTotalAmountInclVat());
 			}
+			BigDecimal excl = row.decimal(ZenInvoiceRow.AMOUNT);
+			BigDecimal incl = row.decimal(ZenInvoiceRow.AMOUNT_INCL_VAT);
+			invoice.setTotalExclVat(excl);
+			invoice.setTotalInclVat(incl);
+			invoice.setTotalVat(excl == null || incl == null ? null : incl.subtract(excl));
 			BigDecimal sum = BigDecimal.ZERO;
 			for (ZenInvoiceLineRow source : row.getLines()) {
 				String type = trimmed(source.getType());
@@ -516,9 +524,8 @@ public class ZenMapper {
 				sum = sum.add(amount);
 				invoice.getLines().add(line);
 			}
-			if (invoice.getTotalExclVat() != null && sum.subtract(invoice.getTotalExclVat()).abs().compareTo(TOTAL_TOLERANCE) > 0) {
-				warnings.add("the lines add up to " + sum.toPlainString() + ", Total_Amount_Excl_VAT is "
-						+ invoice.getTotalExclVat().toPlainString());
+			if (excl != null && sum.subtract(excl).abs().compareTo(TOTAL_TOLERANCE) > 0) {
+				warnings.add("the lines add up to " + sum.toPlainString() + ", amount is " + excl.toPlainString());
 			}
 			if (!warnings.isEmpty()) {
 				count(notes, WITH_WARNINGS);

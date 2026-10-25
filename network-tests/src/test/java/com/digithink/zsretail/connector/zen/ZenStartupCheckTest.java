@@ -118,13 +118,14 @@ class ZenStartupCheckTest {
 	void invoiceRefusals() {
 		ZenStartupCheck.check(with("erp.zen.invoices.number-prefix", " FVX "));
 		ZenStartupCheck.check(with("erp.zen.invoices.page-size", "1000"));
-		ZenStartupCheck.check(with("erp.zen.invoices.lines-expand", "SalesInvoiceSalesInvLines"));
-		for (String key : new String[] { "invoices.page", "invoices.odata-path", "invoices.seller-name" }) {
+		ZenStartupCheck.check(with("erp.zen.invoices.lines-expand", "salesInvoiceLines"));
+		ZenStartupCheck.check(with("erp.zen.invoices.api-path", "api/sat/franchise/v2.0"));
+		for (String key : new String[] { "invoices.page", "invoices.api-path", "invoices.seller-name" }) {
 			assertEquals("Missing value for property erp.zen." + key + ": remove the line to use the default, or write the"
 					+ " value.", refusal(with("erp.zen." + key, " ")), key);
 		}
 		assertEquals("Invalid value 'Sales Lines' for property erp.zen.invoices.lines-expand: the navigation property of"
-				+ " the lines, letters, digits and _ (e.g. SalesInvoiceSalesInvLines)",
+				+ " the lines, letters, digits and _ (e.g. salesInvoiceLines)",
 				refusal(with("erp.zen.invoices.lines-expand", "Sales Lines")));
 		assertEquals("Invalid value 'FV E' for property erp.zen.invoices.number-prefix: the start of every invoice number,"
 				+ " without spaces, e.g. FVE (the year follows in 2 digits)",
@@ -136,24 +137,22 @@ class ZenStartupCheckTest {
 	}
 
 	@Test
-	@DisplayName("Step 9, headoffice.supply.source=ERP: the company's name required (Company('name') of the OData path); the startup line names the invoices page")
+	@DisplayName("Step 9, headoffice.supply.source=ERP: the company by its name or its id (the same companies(id)); the startup line names the invoices page")
 	void invoicesWithErpSupply() {
 		MockEnvironment env = with("erp.zen.company", "ESP");
 		env.setProperty("headoffice.supply.source", "ERP");
 		ZenStartupCheck.check(env);
 		assertEquals("ERP connector zen (read only, GET): " + BASE_URL + ", API api/sat/zsretail/v1.0, company ESP, pages"
-				+ " stockPoints, itemCategories, barCodes, invoices ODataV4 Company('ESP')/SalesInvoice (lines"
-				+ " SalesInvoiceSalesInvLines, prefix FVE, 50 per year and run, seller ZEN)", ZenStartupCheck.summary(env));
+				+ " stockPoints, itemCategories, barCodes, invoices api/sat/franchise/v1.0 salesInvoices (lines"
+				+ " salesInvoiceLines, prefix FVE, 50 per year and run, seller ZEN)", ZenStartupCheck.summary(env));
 		env.setProperty("erp.zen.invoices.page-size", "20");
 		env.setProperty("erp.zen.invoices.seller-name", "ZEN Franchise");
 		assertTrue(ZenStartupCheck.summary(env).endsWith("prefix FVE, 20 per year and run, seller ZEN Franchise)"));
 
 		MockEnvironment byId = with("erp.zen.company", null);
 		byId.setProperty("erp.zen.company-id", "1d6c4f00-6ac9-f111-9db8-ad3d0c589c9c");
-		ZenStartupCheck.check(byId); // the head office's own supply: the id alone is enough
 		byId.setProperty("headoffice.supply.source", "ERP");
-		assertEquals("Missing value for property erp.zen.company: the company's name (ESP at ZEN), required with"
-				+ " headoffice.supply.source=ERP: the invoices page is under Company('<name>') of the OData path"
-				+ " (erp.zen.company-id is the custom API's).", refusal(byId));
+		ZenStartupCheck.check(byId); // the id alone is enough: the invoices API is under the same companies(id)
+		assertTrue(ZenStartupCheck.summary(byId).contains("company id 1d6c4f00-6ac9-f111-9db8-ad3d0c589c9c, pages"));
 	}
 }

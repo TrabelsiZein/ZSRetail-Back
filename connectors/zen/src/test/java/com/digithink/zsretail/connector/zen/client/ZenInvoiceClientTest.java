@@ -31,20 +31,20 @@ import com.digithink.zsretail.connector.zen.dto.ZenInvoiceRow;
 
 /**
  * Item variants (ZEN), step 9: the address and the filters of the invoices read, against a mock server (no live call):
- * NAV's standard OData V4 page under Company('ESP'), never the custom API; per year prefix after a number, only the
- * stores' customers; the header and line fields selected; the next links followed up to page-size; by number 20 per GET;
- * the first invoice of the stores; no customer, no GET.
+ * salesInvoices of ZEN's franchise API under companies(id), the id of the zsretail API; per year prefix after a number,
+ * only the stores' customers; no $select on the header, the line fields selected; the next links followed up to
+ * page-size; by number 20 per GET; the first invoice of the stores; no customer, no GET.
  */
 class ZenInvoiceClientTest {
 
-	static final String PAGE = "http://nav.test:7048/BC280/ODataV4/Company('ESP')/SalesInvoice";
-	static final String SELECT = "$select=No,Sell_to_Customer_No,Sell_to_Customer_Name,Document_Date,Posting_Date,"
-			+ "Cancelled,Corrective";
+	static final String COMPANY_ID = "1d6c4f00-6ac9-f111-9db8-ad3d0c589c9c";
+	static final String PAGE = "http://nav.test:7048/BC280/api/sat/franchise/v1.0/companies(" + COMPANY_ID
+			+ ")/salesInvoices";
 	/** The lines expanded with their $select: the = inside the $expand value is sent encoded (%3D), as Happyness's. */
-	static final String LINES = "$expand=SalesInvoiceSalesInvLines($select%3DDocument_No,Line_No,Type,No,Variant_Code,"
-			+ "Description,Quantity,Unit_of_Measure_Code,Unit_Price,Line_Discount_Percent,Line_Amount,Total_Amount_Excl_VAT,"
-			+ "Total_VAT_Amount,Total_Amount_Incl_VAT)";
+	static final String LINES = "$expand=salesInvoiceLines($select%3DdocumentNo,lineNo,lineType,number,variantCode,"
+			+ "description,quantity,unitOfMeasureCode,unitPrice,lineDiscountPercent,lineAmount)";
 	static final List<String> STORES = Arrays.asList("4110001", "4110002");
+	static final String CUSTOMERS = "(sellToCustomerNo%20eq%20'4110001'%20or%20sellToCustomerNo%20eq%20'4110002')";
 
 	private ZenProperties properties;
 	private MockRestServiceServer server;
@@ -55,7 +55,7 @@ class ZenInvoiceClientTest {
 		properties = new ZenProperties();
 		properties.setBaseUrl("http://nav.test:7048/BC280");
 		properties.setCompany("ESP");
-		properties.setCompanyId("1d6c4f00-6ac9-f111-9db8-ad3d0c589c9c"); // the custom API's: not used for the invoices
+		properties.setCompanyId(COMPANY_ID); // the zsretail API's: the same company on the franchise API
 		properties.setUsername("user");
 		properties.setPassword("secret");
 		properties.setDefaultVat(19);
@@ -65,9 +65,9 @@ class ZenInvoiceClientTest {
 	}
 
 	private static String invoice(String number) {
-		return "{\"No\":\"" + number + "\",\"Sell_to_Customer_No\":\"4110001\",\"Cancelled\":false,\"Corrective\":false,"
-				+ "\"SalesInvoiceSalesInvLines\":[{\"Line_No\":10000,\"Type\":\"Item\",\"No\":\"32ZFCHD21\",\"Variant_Code\":"
-				+ "\"001\",\"Quantity\":1,\"Line_Amount\":90.000}]}";
+		return "{\"number\":\"" + number + "\",\"sellToCustomerNo\":\"4110001\",\"amount\":90.000,"
+				+ "\"salesInvoiceLines\":[{\"lineNo\":10000,\"lineType\":\"Item\",\"number\":\"32ZFCHD21\",\"variantCode\":"
+				+ "\"001\",\"quantity\":1,\"lineAmount\":90.000}]}";
 	}
 
 	private static String numbers(List<ZenInvoiceRow> rows) {
@@ -77,43 +77,57 @@ class ZenInvoiceClientTest {
 	@Test
 	@DisplayName("The filters: the year prefix, after a number when there is one, the stores' customers in brackets (upper case, once, quotes doubled)")
 	void filters() {
-		assertEquals("startswith(No,'FVE26') and No gt 'FVE2600001' and (Sell_to_Customer_No eq '4110001' or"
-				+ " Sell_to_Customer_No eq '4110002')", ZenRestClient.invoicesAfterFilter("FVE26", "FVE2600001", STORES));
-		assertEquals("startswith(No,'FVE26') and (Sell_to_Customer_No eq '4110001' or Sell_to_Customer_No eq '4110002')",
+		assertEquals("startswith(number,'FVE26') and number gt 'FVE2600001' and (sellToCustomerNo eq '4110001' or"
+				+ " sellToCustomerNo eq '4110002')", ZenRestClient.invoicesAfterFilter("FVE26", "FVE2600001", STORES));
+		assertEquals("startswith(number,'FVE26') and (sellToCustomerNo eq '4110001' or sellToCustomerNo eq '4110002')",
 				ZenRestClient.invoicesAfterFilter("FVE26", null, STORES), "a first read: startswith only");
-		assertEquals("startswith(No,'FVE26') and (Sell_to_Customer_No eq '4110001' or Sell_to_Customer_No eq '4110002')",
+		assertEquals("startswith(number,'FVE26') and (sellToCustomerNo eq '4110001' or sellToCustomerNo eq '4110002')",
 				ZenRestClient.invoicesAfterFilter("FVE26", " ", STORES));
-		assertEquals("(Sell_to_Customer_No eq 'C-01' or Sell_to_Customer_No eq 'O''NEIL')",
+		assertEquals("(sellToCustomerNo eq 'C-01' or sellToCustomerNo eq 'O''NEIL')",
 				ZenRestClient.customersFilter(Arrays.asList(" c-01 ", "C-01", "", null, "o'neil")));
-		assertEquals("(Sell_to_Customer_No eq '4110001')", ZenRestClient.customersFilter(Collections.singleton("4110001")));
-		assertEquals("startswith(No,'FVE') and (Sell_to_Customer_No eq '4110001' or Sell_to_Customer_No eq '4110002')",
+		assertEquals("(sellToCustomerNo eq '4110001')", ZenRestClient.customersFilter(Collections.singleton("4110001")));
+		assertEquals("startswith(number,'FVE') and (sellToCustomerNo eq '4110001' or sellToCustomerNo eq '4110002')",
 				ZenRestClient.firstInvoiceFilter("FVE", STORES));
-		assertEquals("No eq 'FVE2600001' or No eq 'FVE''26'", ZenRestClient.numbersFilter(Arrays.asList("FVE2600001",
-				"FVE'26")));
+		assertEquals("number eq 'FVE2600001' or number eq 'FVE''26'", ZenRestClient.numbersFilter(Arrays.asList(
+				"FVE2600001", "FVE'26")));
 	}
 
 	@Test
-	@DisplayName("The page: base-url / ODataV4 / Company('ESP') / SalesInvoice (a quote doubled), or a whole address; the OData path a setting")
+	@DisplayName("The page: base-url / api/sat/franchise/v1.0 / companies(id) / salesInvoices, the API path a setting, or a whole address")
 	void pageAddress() {
-		assertEquals(PAGE, properties.invoicesPageAddress());
+		assertEquals(PAGE, properties.invoicesPageAddress(COMPANY_ID));
 		assertEquals(PAGE, client.invoicesPageUrl());
-		properties.setCompany("O'Neil SA");
-		assertEquals("http://nav.test:7048/BC280/ODataV4/Company('O''Neil SA')/SalesInvoice", properties.invoicesPageAddress());
 		properties.setBaseUrl("http://nav.test:7048/BC280/");
-		properties.getInvoices().setOdataPath("/OData/");
-		properties.setCompany("ESP");
-		assertEquals("http://nav.test:7048/BC280/OData/Company('ESP')/SalesInvoice", properties.invoicesPageAddress());
-		properties.getInvoices().setPage("https://nav.test/ODataV4/Company('ESP')/PostedSalesInvoices");
-		assertEquals("https://nav.test/ODataV4/Company('ESP')/PostedSalesInvoices", properties.invoicesPageAddress());
+		properties.getInvoices().setApiPath("/api/zen/franchise/v2.0/");
+		assertEquals("http://nav.test:7048/BC280/api/zen/franchise/v2.0/companies(" + COMPANY_ID + ")/salesInvoices",
+				properties.invoicesPageAddress(COMPANY_ID));
+		properties.getInvoices().setPage("https://nav.test/api/sat/franchise/v1.0/companies(x)/postedInvoices");
+		assertTrue(properties.invoicesPageIsAddress());
+		assertEquals("https://nav.test/api/sat/franchise/v1.0/companies(x)/postedInvoices",
+				properties.invoicesPageAddress(null));
 	}
 
 	@Test
-	@DisplayName("A year after a number: the whole address (filter, by number, $top page-size, header and line fields), the next link followed, the lines resolved")
+	@DisplayName("Without company-id: the id looked up once by the company's name on the zsretail API, then the invoices under it")
+	void companyLookedUp() {
+		properties.setCompanyId(null);
+		server.expect(requestTo("http://nav.test:7048/BC280/api/sat/zsretail/v1.0/companies?$filter=name%20eq%20'ESP'"))
+				.andRespond(withSuccess("{\"value\":[{\"id\":\"" + COMPANY_ID + "\",\"name\":\"ESP\"}]}",
+						MediaType.APPLICATION_JSON));
+		server.expect(requestTo(PAGE + "?$filter=number%20eq%20'FVE2600001'&$orderby=number&$top=1&" + LINES))
+				.andRespond(withSuccess("{\"value\":[" + invoice("FVE2600001") + "]}", MediaType.APPLICATION_JSON));
+
+		assertEquals("FVE2600001", numbers(client.readInvoicesByNumbers(Collections.singletonList("FVE2600001"))));
+		assertEquals(PAGE, client.invoicesPageUrl(), "the id kept: no second lookup");
+		server.verify();
+	}
+
+	@Test
+	@DisplayName("A year after a number: the whole address (filter, by number, $top page-size, no header $select, the lines), the next link followed, the lines resolved")
 	void readAfter() {
 		String next = PAGE + "?$skiptoken=2";
-		server.expect(requestTo(PAGE + "?$filter=startswith(No,'FVE26')%20and%20No%20gt%20'FVE2600001'%20and"
-				+ "%20(Sell_to_Customer_No%20eq%20'4110001'%20or%20Sell_to_Customer_No%20eq%20'4110002')&$orderby=No&$top=50&"
-				+ SELECT + "&" + LINES)).andExpect(method(HttpMethod.GET))
+		server.expect(requestTo(PAGE + "?$filter=startswith(number,'FVE26')%20and%20number%20gt%20'FVE2600001'%20and%20"
+				+ CUSTOMERS + "&$orderby=number&$top=50&" + LINES)).andExpect(method(HttpMethod.GET))
 				.andRespond(withSuccess("{\"value\":[" + invoice("FVE2600002") + "],\"@odata.nextLink\":\"" + next + "\"}",
 						MediaType.APPLICATION_JSON));
 		server.expect(requestTo(next)).andExpect(method(HttpMethod.GET))
@@ -125,15 +139,17 @@ class ZenInvoiceClientTest {
 		assertEquals("FVE2600002,FVE2600003", numbers(rows));
 		assertEquals("32ZFCHD21", rows.get(0).getLines().get(0).getNo());
 		assertEquals("001", rows.get(0).getLines().get(0).getVariantCode());
+		assertEquals("Item", rows.get(0).getLines().get(0).getType());
 		assertEquals("90.000", rows.get(0).getLines().get(0).getLineAmount().toPlainString(), "exact decimals");
+		assertEquals("90.000", rows.get(0).decimal(ZenInvoiceRow.AMOUNT).toPlainString(), "exact decimals");
 	}
 
 	@Test
 	@DisplayName("At most page-size invoices: no next link followed past it, the extra rows of a page cut")
 	void pageSize() {
 		properties.getInvoices().setPageSize(2);
-		server.expect(requestTo(PAGE + "?$filter=startswith(No,'FVE26')%20and%20(Sell_to_Customer_No%20eq%20'4110001'"
-				+ "%20or%20Sell_to_Customer_No%20eq%20'4110002')&$orderby=No&$top=2&" + SELECT + "&" + LINES))
+		server.expect(requestTo(PAGE + "?$filter=startswith(number,'FVE26')%20and%20" + CUSTOMERS
+				+ "&$orderby=number&$top=2&" + LINES))
 				.andRespond(withSuccess("{\"value\":[" + invoice("FVE2600001") + "," + invoice("FVE2600002") + ","
 						+ invoice("FVE2600003") + "],\"@odata.nextLink\":\"" + PAGE + "?$skiptoken=3\"}",
 						MediaType.APPLICATION_JSON));
@@ -152,12 +168,12 @@ class ZenInvoiceClientTest {
 	}
 
 	@Test
-	@DisplayName("The first invoice of the stores: one GET, $top=1, $select=No; none on the page: null")
+	@DisplayName("The first invoice of the stores: one GET, $top=1, $select=number; none on the page: null")
 	void firstInvoice() {
-		String filter = "$filter=startswith(No,'FVE')%20and%20(Sell_to_Customer_No%20eq%20'4110001'%20or"
-				+ "%20Sell_to_Customer_No%20eq%20'4110002')&$orderby=No&$top=1&$select=No";
+		String filter = "$filter=startswith(number,'FVE')%20and%20" + CUSTOMERS
+				+ "&$orderby=number&$top=1&$select=number";
 		server.expect(requestTo(PAGE + "?" + filter)).andExpect(method(HttpMethod.GET))
-				.andRespond(withSuccess("{\"value\":[{\"No\":\" FVE2500007 \"}]}", MediaType.APPLICATION_JSON));
+				.andRespond(withSuccess("{\"value\":[{\"number\":\" FVE2500007 \"}]}", MediaType.APPLICATION_JSON));
 		server.expect(requestTo(PAGE + "?" + filter)).andRespond(withSuccess("{\"value\":[]}", MediaType.APPLICATION_JSON));
 
 		assertEquals("FVE2500007", client.readFirstInvoiceNumber("FVE", STORES));
@@ -172,11 +188,11 @@ class ZenInvoiceClientTest {
 		for (int i = 1; i <= 21; i++) {
 			asked.add(String.format("FVE26%05d", i));
 		}
-		String first = asked.subList(0, 20).stream().map(number -> "No%20eq%20'" + number + "'")
+		String first = asked.subList(0, 20).stream().map(number -> "number%20eq%20'" + number + "'")
 				.collect(Collectors.joining("%20or%20"));
-		server.expect(requestTo(PAGE + "?$filter=" + first + "&$orderby=No&$top=20&" + SELECT + "&" + LINES))
+		server.expect(requestTo(PAGE + "?$filter=" + first + "&$orderby=number&$top=20&" + LINES))
 				.andRespond(withSuccess("{\"value\":[" + invoice("FVE2600001") + "]}", MediaType.APPLICATION_JSON));
-		server.expect(requestTo(PAGE + "?$filter=No%20eq%20'FVE2600021'&$orderby=No&$top=1&" + SELECT + "&" + LINES))
+		server.expect(requestTo(PAGE + "?$filter=number%20eq%20'FVE2600021'&$orderby=number&$top=1&" + LINES))
 				.andRespond(withSuccess("{\"value\":[" + invoice("FVE2600021") + "]}", MediaType.APPLICATION_JSON));
 
 		assertEquals("FVE2600001,FVE2600021", numbers(client.readInvoicesByNumbers(asked)));
@@ -186,12 +202,12 @@ class ZenInvoiceClientTest {
 	@Test
 	@DisplayName("An HTTP error names the page and the status")
 	void httpError() {
-		server.expect(requestTo(PAGE + "?$filter=No%20eq%20'FVE2600001'&$orderby=No&$top=1&" + SELECT + "&" + LINES))
+		server.expect(requestTo(PAGE + "?$filter=number%20eq%20'FVE2600001'&$orderby=number&$top=1&" + LINES))
 				.andRespond(withStatus(HttpStatus.NOT_FOUND));
 		ZenReadException failure = assertThrows(ZenReadException.class,
 				() -> client.readInvoicesByNumbers(Collections.singletonList("FVE2600001")));
-		assertEquals("SalesInvoice", failure.getPage());
-		assertTrue(failure.getMessage().startsWith("zen: reading the page SalesInvoice failed: HTTP 404"),
+		assertEquals("salesInvoices", failure.getPage());
+		assertTrue(failure.getMessage().startsWith("zen: reading the page salesInvoices failed: HTTP 404"),
 				failure.getMessage());
 	}
 }

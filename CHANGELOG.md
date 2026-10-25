@@ -83,7 +83,7 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   on every hit, only where the installation has the level: without catégories and sections (EMTOP, Happyness) every
   new list is empty and the search answer is unchanged.
 - Supply invoices of ZEN's NAV, step 9a (the read; docs/modules/head-office.md, "Invoices from the ERP, ZEN"): the
-  connector `zen` reads NAV's OData V4 page `SalesInvoice` under `Company('ESP')` as Happyness's invoices (by year
+  connector `zen` reads ZEN's posted sales invoices (since moved to ZEN's franchise API, see Enhancements) as Happyness's invoices (by year
   prefix `FVE26` after the head office's highest number, the General Setup "Read ERP invoices after number" as the
   starting point), only the invoices of the stores' ERP customer numbers (every store that has one, active or not:
   erp-api `ErpInvoiceCustomers`, head office `HoErpInvoiceCustomers`; none: nothing read, a warning); item code
@@ -182,6 +182,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   item's `categoryCode`, `categoryName`, `sectionCode`, `sectionName`; the barcode rows (`GET /item-barcode/list`,
   `/item-barcode/items-without-barcode`) the item's `categoryCode`, `sectionCode`. All nullable: null on a customer
   without catégories and sections (EMTOP, Happyness). No filter, sort or other answer changed.
+- Supply invoices of ZEN, on ZEN's franchise API (its NAV team moved them): the connector `zen` reads
+  `api/sat/franchise/v1.0/companies(<id>)/salesInvoices` (the zsretail API's company id) with the lines
+  `salesInvoiceLines`, instead of NAV's OData V4 page `SalesInvoice`; the camelCase fields (`number`,
+  `sellToCustomerNo`, `lineType`, ...); the totals from the header (`amount`, `amountIncludingVAT`, the VAT their
+  difference), the lines checked against `amount`; no `$select` on the header, so `cancelled` and `corrective` are read
+  once the page gives them (not yet: until then every invoice is read and sent); a `currencyCode` that is not blank
+  gives a warning. Item code, line types, costs at the store and the head office flow unchanged.
 
 ### Fixes
 - ERP jobs no longer stop for good on a NAV call that never answers (Emtop 1.12.1, 2026-10-22: Import Customers waited
@@ -355,9 +362,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `zen-store.properties`.
 - `erp.zen.default-vat`: the VAT of a stockPoints row without `vatPercent` (the page gives it since 2026-10-24).
 - `erp.zen.page.barcodes` defaults to `barCodes` (step 12a; was `ItemBarCodePOS`).
-- `erp.zen.invoices.*` (step 9, all optional): `page` (`SalesInvoice`), `lines-expand` (`SalesInvoiceSalesInvLines`),
-  `odata-path` (`ODataV4`), `number-prefix` (`FVE`), `page-size` (50, 1 to 1000), `seller-name` (`ZEN`).
-  `erp.zen.company` is required with `headoffice.supply.source=ERP` (the invoices page is under `Company('<name>')`);
+- `erp.zen.invoices.*` (step 9, all optional): `page` (`salesInvoices`), `lines-expand` (`salesInvoiceLines`),
+  `api-path` (`api/sat/franchise/v1.0`), `number-prefix` (`FVE`), `page-size` (50, 1 to 1000), `seller-name` (`ZEN`).
+  The company as for the other pages (`company` or `company-id`: the invoices API is under the same `companies(<id>)`);
   `configs/customers/zen-headoffice.properties` names ZEN's company `ESP`.
 - `headoffice.copies-down.read-timeout-seconds` (store, default 60): the read timeout of the pull of copies down.
 - `erp.emtop.connect-timeout-seconds` (default 30) and `erp.emtop.read-timeout-seconds` (default 600): the emtop

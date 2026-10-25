@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -24,14 +25,14 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * Item variants (ZEN), step 9: the invoices of NAV's page SalesInvoice to ErpSupplyInvoiceDTO, on the sample saved by
- * Zein (src/test/resources/zen/SalesInvoice.json, ZEN's test NAV, 2026-10-23: one invoice, five variants of one item,
- * amounts 0) and on rows written here for what the sample does not have (amounts, a blank variant, a cancelled or
- * corrective invoice, comment and G/L lines).
+ * Item variants (ZEN), step 9: the invoices of salesInvoices (ZEN's franchise API) to ErpSupplyInvoiceDTO, on the
+ * sample saved by Zein (src/test/resources/zen/salesInvoices.json, ZEN's test NAV, 2026-10-24: one invoice, twelve
+ * variants of one item and the G/L rounding line at -0.002) and on rows written here for what the sample does not have
+ * (a blank variant, a cancelled or corrective invoice once the page gives the flags, comment lines, a currency).
  */
 class ZenMapperInvoicesTest {
 
-	static final String LINES = "SalesInvoiceSalesInvLines";
+	static final String LINES = "salesInvoiceLines";
 	private static final ObjectMapper JSON = new ObjectMapper();
 
 	private final ZenMapper mapper = new ZenMapper(19);
@@ -45,7 +46,7 @@ class ZenMapperInvoicesTest {
 	}
 
 	static List<ZenInvoiceRow> sample() throws IOException {
-		try (InputStream in = ZenMapperInvoicesTest.class.getResourceAsStream("/zen/SalesInvoice.json")) {
+		try (InputStream in = ZenMapperInvoicesTest.class.getResourceAsStream("/zen/salesInvoices.json")) {
 			List<ZenInvoiceRow> rows = JSON.readValue(in, new TypeReference<ZenCollection<ZenInvoiceRow>>() {
 			}).getValue();
 			rows.forEach(row -> row.resolveLines(LINES));
@@ -53,20 +54,19 @@ class ZenMapperInvoicesTest {
 		}
 	}
 
-	/** One invoice of the page: its header fields, then its lines as JSON objects. */
+	/** One invoice of the page, its totals 90.000 / 107.100: its other header fields, then its lines as JSON objects. */
 	static String invoice(String number, String header, String... lines) {
-		return "{\"No\":\"" + number + "\",\"Sell_to_Customer_No\":\"4110001\",\"Sell_to_Customer_Name\":\"Point de vente"
-				+ " El Kef\",\"Document_Date\":\"2026-10-22\",\"Posting_Date\":\"2026-10-23\",\"Cancelled\":false,"
-				+ "\"Corrective\":false" + (header.isEmpty() ? "" : "," + header) + ",\"" + LINES + "\":["
-				+ String.join(",", lines) + "]}";
+		return "{\"number\":\"" + number + "\",\"sellToCustomerNo\":\"4110001\",\"sellToCustomerName\":\"Point de vente"
+				+ " El Kef\",\"documentDate\":\"2026-10-22\",\"postingDate\":\"2026-10-23\",\"currencyCode\":\"\","
+				+ "\"amount\":90.000,\"amountIncludingVAT\":107.100" + (header.isEmpty() ? "" : "," + header) + ",\""
+				+ LINES + "\":[" + String.join(",", lines) + "]}";
 	}
 
 	static String line(int lineNo, String type, String no, String variant, String quantity, String amount) {
-		return "{\"Line_No\":" + lineNo + ",\"Type\":\"" + type + "\",\"No\":\"" + no + "\",\"Variant_Code\":\""
-				+ variant + "\",\"Description\":\"CHEMISE\",\"Quantity\":" + quantity + ",\"Unit_of_Measure_Code\":\"PCS\","
-				+ "\"Unit_Price\":20.000,\"Line_Discount_Percent\":0,\"Line_Amount\":" + amount + ",\"VAT_Percent\":19,"
-				+ "\"Unit_Cost_LCY\":7,\"Total_Amount_Excl_VAT\":90.000,\"Total_VAT_Amount\":17.100,"
-				+ "\"Total_Amount_Incl_VAT\":107.100}";
+		return "{\"lineNo\":" + lineNo + ",\"lineType\":\"" + type + "\",\"number\":\"" + no + "\",\"variantCode\":\""
+				+ variant + "\",\"description\":\"CHEMISE\",\"quantity\":" + quantity + ",\"unitOfMeasureCode\":\"PCS\","
+				+ "\"unitPrice\":20.000,\"lineDiscountPercent\":0,\"lineAmount\":" + amount + ",\"amount\":" + amount
+				+ ",\"vatPercent\":19}";
 	}
 
 	static String page(String... invoices) {
@@ -78,44 +78,53 @@ class ZenMapperInvoicesTest {
 	}
 
 	@Test
-	@DisplayName("The sample: one invoice of the store's customer, the five variants as five ITEM lines No~Variant_Code, the totals of the first line")
+	@DisplayName("The sample: twelve ITEM lines number~variantCode, the rounding line OTHER, the totals of the header, no warning")
 	void sampleInvoice() throws IOException {
 		ErpRead<ErpSupplyInvoiceDTO> read = mapper.invoices(sample());
 		assertEquals(1, read.getRead());
 		assertEquals(Collections.emptyMap(), read.getLeftOut());
 		assertEquals(Collections.emptyMap(), read.getNotes());
 		ErpSupplyInvoiceDTO invoice = read.getRows().get(0);
-		assertEquals("FVE2600001", invoice.getNumber());
+		assertEquals("FVE2600002", invoice.getNumber());
 		assertEquals("4110001", invoice.getCustomerNo());
 		assertEquals("Point de vente El Kef", invoice.getCustomerName());
-		assertEquals(LocalDate.of(2026, 10, 22), invoice.getDocumentDate());
-		assertEquals(LocalDate.of(2026, 10, 22), invoice.getPostingDate());
+		assertEquals(LocalDate.of(2026, 10, 24), invoice.getDocumentDate());
+		assertEquals(LocalDate.of(2026, 10, 24), invoice.getPostingDate());
 		assertNull(invoice.getPricesIncludingVat(), "ZEN's prices are before VAT: the page has no such field");
 		assertNull(invoice.getYearPrefix(), "set by the run, from the year read");
-		assertEquals(0, invoice.getTotalExclVat().signum());
-		assertEquals(0, invoice.getTotalVat().signum());
-		assertEquals(0, invoice.getTotalInclVat().signum());
-		assertEquals(Arrays.asList("32ZFCHD21~001", "32ZFCHD21~002", "32ZFCHD21~003", "32ZFCHD21~004", "32ZFCHD21~005"),
-				itemCodes(invoice), "the code the catalogue sync writes");
+		assertEquals("133.798", invoice.getTotalExclVat().toPlainString());
+		assertEquals("159.22", invoice.getTotalInclVat().toPlainString());
+		assertEquals("25.422", invoice.getTotalVat().toPlainString(), "the difference");
+		List<String> codes = new ArrayList<>();
+		for (int variant = 1; variant <= 12; variant++) {
+			codes.add(String.format("43ZBPND01~%03d", variant));
+		}
+		codes.add(null);
+		assertEquals(codes, itemCodes(invoice), "the code the catalogue sync writes; the G/L line has none");
 		ErpSupplyInvoiceDTO.Line first = invoice.getLines().get(0);
 		assertEquals(Integer.valueOf(10000), first.getLineNo());
 		assertEquals(ErpSupplyInvoiceDTO.LineType.ITEM, first.getType());
-		assertEquals("CHEMISE", first.getDescription());
+		assertEquals("JEANS", first.getDescription());
 		assertEquals(0, first.getQuantity().compareTo(BigDecimal.ONE));
 		assertEquals("PCS", first.getUnitOfMeasure());
-		assertEquals(0, first.getUnitPrice().signum());
-		assertEquals(0, first.getLineDiscountPercent().signum());
-		assertEquals(0, first.getLineAmount().signum(), "an item at price 0 is kept");
-		assertTrue(invoice.getWarnings().isEmpty(), invoice.getWarnings().toString());
+		assertEquals(0, first.getUnitPrice().compareTo(new BigDecimal("12")));
+		assertEquals(0, first.getLineDiscountPercent().compareTo(new BigDecimal("15")));
+		assertEquals("10.2", first.getLineAmount().toPlainString());
+		ErpSupplyInvoiceDTO.Line rounding = invoice.getLines().get(12);
+		assertEquals(Integer.valueOf(130000), rounding.getLineNo());
+		assertEquals(ErpSupplyInvoiceDTO.LineType.OTHER, rounding.getType(), "G_x002F_L_x0020_Account with an amount");
+		assertEquals(0, rounding.getLineAmount().compareTo(new BigDecimal("-0.002")),
+				"NAV writes it -0.00200000000000000000: kept as sent");
+		assertTrue(invoice.getWarnings().isEmpty(), "the lines add up to the amount: " + invoice.getWarnings());
 	}
 
 	@Test
-	@DisplayName("Amounts exact (90.000 stays 90.000), a blank variant gives No alone, comments and G/L lines at 0 left out, a G/L line with an amount OTHER")
+	@DisplayName("Amounts exact (90.000 stays 90.000), a blank variant gives number alone, blank and G/L lines at 0 left out, a G/L line with an amount OTHER")
 	void linesAndAmounts() throws IOException {
 		ErpRead<ErpSupplyInvoiceDTO> read = mapper.invoices(rows(page(invoice("FVE2600002", "",
 				line(10000, "Item", "32ZFCHD21", "001", "2", "40.000"), line(20000, "Item", " 42ZTAPOH04 ", " ", "1.5", "30.000"),
-				line(30000, " ", "", "", "0", "0"), line(40000, "G/L Account", "7070", "", "1", "20.000"),
-				line(50000, "G/L Account", "7071", "", "1", "0")))));
+				line(30000, "_x0020_", "", "", "0", "0"), line(40000, "G_x002F_L_x0020_Account", "7070", "", "1", "20.000"),
+				line(50000, "G_x002F_L_x0020_Account", "7071", "", "1", "0")))));
 		ErpSupplyInvoiceDTO invoice = read.getRows().get(0);
 		assertEquals(Arrays.asList("32ZFCHD21~001", "42ZTAPOH04", null), itemCodes(invoice));
 		assertEquals(Arrays.asList(ErpSupplyInvoiceDTO.LineType.ITEM, ErpSupplyInvoiceDTO.LineType.ITEM,
@@ -132,11 +141,11 @@ class ZenMapperInvoicesTest {
 	}
 
 	@Test
-	@DisplayName("Cancelled: left out and counted; corrective: read, with a warning and a note; a blank number left out")
+	@DisplayName("Once the page gives them: cancelled left out and counted; corrective read, with a warning and a note; a blank number left out")
 	void cancelledAndCorrective() throws IOException {
 		ErpRead<ErpSupplyInvoiceDTO> read = mapper.invoices(rows(page(
-				invoice("FVE2600003", "\"Cancelled\":true", line(10000, "Item", "32ZFCHD21", "001", "1", "90")),
-				invoice("FVE2600004", "\"Corrective\":true", line(10000, "Item", "32ZFCHD21", "001", "1", "90")),
+				invoice("FVE2600003", "\"cancelled\":true", line(10000, "Item", "32ZFCHD21", "001", "1", "90")),
+				invoice("FVE2600004", "\"corrective\":true", line(10000, "Item", "32ZFCHD21", "001", "1", "90")),
 				invoice(" ", "", line(10000, "Item", "32ZFCHD21", "001", "1", "90")))));
 		assertEquals(3, read.getRead());
 		assertEquals(Arrays.asList("FVE2600004"),
@@ -149,19 +158,36 @@ class ZenMapperInvoicesTest {
 	}
 
 	@Test
-	@DisplayName("Warnings as Happyness: lines off the total, more than 3 decimals, an Item line without number, no line")
+	@DisplayName("Warnings: lines off the header's amount, more than 3 decimals, an Item line without number, no line, a currency")
 	void warnings() throws IOException {
 		ErpRead<ErpSupplyInvoiceDTO> read = mapper.invoices(rows(page(
 				invoice("FVE2600005", "", line(10000, "Item", "32ZFCHD21", "001", "1.2345", "80.000"),
 						line(20000, "Item", "", "", "1", "5")),
-				invoice("FVE2600006", ""))));
+				invoice("FVE2600006", ""),
+				invoice("FVE2600007", "\"currencyCode\":\"EUR\"", line(10000, "Item", "32ZFCHD21", "001", "1", "90.000")))));
 		List<String> first = read.getRows().get(0).getWarnings();
 		assertEquals(Arrays.asList("line 10000: quantity 1.2345 of item 32ZFCHD21~001 has more than 3 decimals",
-				"line 20000: an Item line without an item number", "the lines add up to 85.000, Total_Amount_Excl_VAT is 90.000"),
-				first);
+				"line 20000: an Item line without an item number", "the lines add up to 85.000, amount is 90.000"), first);
 		assertEquals(ErpSupplyInvoiceDTO.LineType.OTHER, read.getRows().get(0).getLines().get(1).getType());
-		assertEquals(Arrays.asList(ZenMapper.NO_LINE), read.getRows().get(1).getWarnings());
-		assertNull(read.getRows().get(1).getTotalExclVat());
-		assertEquals(Integer.valueOf(2), read.getNotes().get(ZenMapper.WITH_WARNINGS));
+		assertEquals(Arrays.asList(ZenMapper.NO_LINE, "the lines add up to 0, amount is 90.000"),
+				read.getRows().get(1).getWarnings());
+		assertEquals("90.000", read.getRows().get(1).getTotalExclVat().toPlainString(), "the totals are the header's");
+		assertEquals(Arrays.asList(ZenMapper.FOREIGN_CURRENCY + " (currencyCode EUR)"), read.getRows().get(2).getWarnings());
+		assertEquals(Integer.valueOf(1), read.getNotes().get(ZenMapper.FOREIGN_CURRENCY));
+		assertEquals(Integer.valueOf(3), read.getNotes().get(ZenMapper.WITH_WARNINGS));
+	}
+
+	@Test
+	@DisplayName("An invoice discount: the header's amount below the lines' lineAmount, a warning; no amount on the header: no totals, no check")
+	void invoiceDiscountAndNoTotals() throws IOException {
+		ErpRead<ErpSupplyInvoiceDTO> read = mapper.invoices(rows(page(
+				invoice("FVE2600008", "", line(10000, "Item", "32ZFCHD21", "001", "1", "100.000")),
+				"{\"number\":\"FVE2600009\",\"" + LINES + "\":[" + line(10000, "Item", "32ZFCHD21", "001", "1", "90") + "]}")));
+		assertEquals(Arrays.asList("the lines add up to 100.000, amount is 90.000"), read.getRows().get(0).getWarnings());
+		ErpSupplyInvoiceDTO none = read.getRows().get(1);
+		assertNull(none.getTotalExclVat());
+		assertNull(none.getTotalVat());
+		assertNull(none.getTotalInclVat());
+		assertTrue(none.getWarnings().isEmpty(), none.getWarnings().toString());
 	}
 }

@@ -86,11 +86,11 @@ public class ZenStartupCheck {
 
 	/**
 	 * Step 9, the invoices: every key optional; a line written blank is refused, the lines property an OData name, the
-	 * prefix without spaces, page-size from 1 to 1000. With headoffice.supply.source=ERP the company's name is required:
-	 * the invoices page is under Company('name'), the custom API's company-id does not name it there.
+	 * prefix without spaces, page-size from 1 to 1000. The company as for the other pages (its name or its id): the
+	 * invoices API is under the same companies(id).
 	 */
 	private static void checkInvoices(PropertyResolver env) {
-		for (String key : new String[] { "invoices.page", "invoices.odata-path", "invoices.seller-name" }) {
+		for (String key : new String[] { "invoices.page", "invoices.api-path", "invoices.seller-name" }) {
 			if (env.containsProperty(P + key) && trimmed(env.getProperty(P + key)).isEmpty()) {
 				throw new IllegalStateException("Missing value for property " + P + key
 						+ ": remove the line to use the default, or write the value.");
@@ -100,7 +100,7 @@ public class ZenStartupCheck {
 		if (env.containsProperty(expandKey) && !trimmed(env.getProperty(expandKey)).matches(ODATA_NAME)) {
 			throw new IllegalStateException("Invalid value '" + trimmed(env.getProperty(expandKey)) + "' for property "
 					+ expandKey + ": the navigation property of the lines, letters, digits and _ (e.g."
-					+ " SalesInvoiceSalesInvLines)");
+					+ " salesInvoiceLines)");
 		}
 		String prefixKey = P + "invoices.number-prefix";
 		String prefix = trimmed(env.getProperty(prefixKey, "FVE"));
@@ -110,11 +110,6 @@ public class ZenStartupCheck {
 					+ " digits)");
 		}
 		checkRange(env, "invoices.page-size", 1, 1000);
-		if (erpSupply(env) && trimmed(env.getProperty(P + "company")).isEmpty()) {
-			throw new IllegalStateException("Missing value for property " + P + "company: the company's name (ESP at"
-					+ " ZEN), required with headoffice.supply.source=ERP: the invoices page is under Company('<name>') of"
-					+ " the OData path (" + P + "company-id is the custom API's).");
-		}
 	}
 
 	/** The startup line: address, company and pages (never a password); the invoices page with the ERP supply. */
@@ -129,13 +124,13 @@ public class ZenStartupCheck {
 	}
 
 	/**
-	 * Step 9: ", invoices ODataV4 Company('ESP')/SalesInvoice (lines SalesInvoiceSalesInvLines, prefix FVE, 50 per year
-	 * and run, seller ZEN)".
+	 * Step 9: ", invoices api/sat/franchise/v1.0 salesInvoices (lines salesInvoiceLines, prefix FVE, 50 per year and run,
+	 * seller ZEN)".
 	 */
 	private static String invoices(PropertyResolver env) {
-		return ", invoices " + trimmed(env.getProperty(P + "invoices.odata-path", "ODataV4")) + " Company('"
-				+ trimmed(env.getProperty(P + "company")) + "')/" + trimmed(env.getProperty(P + "invoices.page", "SalesInvoice"))
-				+ " (lines " + trimmed(env.getProperty(P + "invoices.lines-expand", "SalesInvoiceSalesInvLines")) + ", prefix "
+		return ", invoices " + trimmed(env.getProperty(P + "invoices.api-path", "api/sat/franchise/v1.0")) + " "
+				+ trimmed(env.getProperty(P + "invoices.page", "salesInvoices"))
+				+ " (lines " + trimmed(env.getProperty(P + "invoices.lines-expand", "salesInvoiceLines")) + ", prefix "
 				+ trimmed(env.getProperty(P + "invoices.number-prefix", "FVE")) + ", "
 				+ trimmed(env.getProperty(P + "invoices.page-size", "50")) + " per year and run, seller "
 				+ trimmed(env.getProperty(P + "invoices.seller-name", "ZEN")) + ")";

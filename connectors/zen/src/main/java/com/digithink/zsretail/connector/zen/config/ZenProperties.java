@@ -13,8 +13,8 @@ import lombok.Setter;
 /**
  * Item variants (ZEN), step 8: the settings of ZEN's connector (prefix erp.zen), a NAV whose custom API
  * (api/sat/zsretail/v1.0) gives the pages stockPoints, itemCategories and (step 12a) barCodes; step 9: the supply
- * invoices on NAV's standard OData V4 page SalesInvoice ({@link Invoices}). Read only: the connector sends GET requests
- * only. The values are checked before they are bound
+ * invoices on ZEN's second custom API, api/sat/franchise/v1.0, page salesInvoices ({@link Invoices}). Read only: the
+ * connector sends GET requests only. The values are checked before they are bound
  * ({@link ZenStartupCheck}): a wrong value stops the startup with a message naming the key. Exists only with
  * erp.connector=zen.
  */
@@ -34,7 +34,7 @@ public class ZenProperties {
 	private String apiPath = "api/sat/zsretail/v1.0";
 	/**
 	 * The company's name, as for Happyness (ZEN's is ESP). Step 10: its id in the API (companies(id)) is looked up once by
-	 * this name, unless company-id is set. Step 9: the invoices page is under Company('name') of the OData path.
+	 * this name, unless company-id is set. Step 9: the same id addresses the invoices API.
 	 */
 	private String company;
 	/** Step 10, optional: the company's id in the API (companies(id)); when set, used as it is, no lookup by name. */
@@ -53,7 +53,7 @@ public class ZenProperties {
 	private int packetSize = 500;
 	/** Read, compare and log the summary only: nothing handed to the import, the state table not touched. */
 	private boolean dryRun = false;
-	/** Step 9: the supply invoices, read on NAV's standard OData V4 pages (not the custom API). */
+	/** Step 9: the supply invoices, read on ZEN's franchise API (not the zsretail one). */
 	private Invoices invoices = new Invoices();
 
 	/**
@@ -73,18 +73,19 @@ public class ZenProperties {
 
 	/**
 	 * Step 9: how ZEN's posted sales invoices are read, as Happyness's (one read per year prefix, after the highest number
-	 * the head office has of that year): the page SalesInvoice of NAV's OData V4, under Company('company'), every key
-	 * optional. Where the reading starts is the General Setup "Read ERP invoices after number", never a key here.
+	 * the head office has of that year): the page salesInvoices of ZEN's franchise API, under companies(id) (the id of
+	 * the zsretail API: one company), every key optional. Where the reading starts is the General Setup "Read ERP
+	 * invoices after number", never a key here.
 	 */
 	@Getter
 	@Setter
 	public static class Invoices {
-		/** The posted sales invoices, a name under Company('...') of the OData path, or a whole address. */
-		private String page = "SalesInvoice";
+		/** The posted sales invoices, a name under companies(id) of the invoices API, or a whole address. */
+		private String page = "salesInvoices";
 		/** The navigation property of the lines on the invoices page ($expand). */
-		private String linesExpand = "SalesInvoiceSalesInvLines";
-		/** NAV's standard OData V4 path under base-url. */
-		private String odataPath = "ODataV4";
+		private String linesExpand = "salesInvoiceLines";
+		/** The path of ZEN's franchise API under base-url. */
+		private String apiPath = "api/sat/franchise/v1.0";
 		/** The start of every number; the year follows it in 2 digits (FVE + 26). */
 		private String numberPrefix = "FVE";
 		/** Invoices read per year and run at most (the cancelled ones not counted). */
@@ -116,21 +117,21 @@ public class ZenProperties {
 	}
 
 	/**
-	 * Step 9: base-url / odata-path / Company('company') / the invoices page (a quote of the name doubled); a page written
-	 * as a whole address as it is. The company by its name: the custom API's company-id is not used there.
+	 * Step 9: base-url / invoices.api-path / companies(companyId) / the invoices page; a page written as a whole address
+	 * as it is. The company's id is the zsretail API's (one company, one id).
 	 */
-	public String invoicesPageAddress() {
+	public String invoicesPageAddress(String companyId) {
 		String name = trimmed(invoices.getPage());
 		if (name.startsWith("http://") || name.startsWith("https://")) {
 			return name;
 		}
-		String base = trimmed(baseUrl);
-		String path = trimmed(invoices.getOdataPath());
-		while (path.startsWith("/")) {
-			path = path.substring(1);
-		}
-		return (base.endsWith("/") ? base : base + "/") + (path.isEmpty() ? "" : path.endsWith("/") ? path : path + "/")
-				+ "Company('" + trimmed(company).replace("'", "''") + "')/" + name;
+		return apiAddress(invoices.getApiPath()) + "companies(" + trimmed(companyId) + ")/" + name;
+	}
+
+	/** Step 9: the invoices page is a whole address (no company id needed). */
+	public boolean invoicesPageIsAddress() {
+		String name = trimmed(invoices.getPage());
+		return name.startsWith("http://") || name.startsWith("https://");
 	}
 
 	/** base-url / api-path / companies(companyId) / page; a page written as a whole address as it is. */
@@ -149,6 +150,11 @@ public class ZenProperties {
 
 	/** Step 10: base-url / api-path / (the companies of the API are listed there). */
 	public String apiAddress() {
+		return apiAddress(apiPath);
+	}
+
+	/** base-url / the given API path / */
+	private String apiAddress(String apiPath) {
 		String base = trimmed(baseUrl);
 		String path = trimmed(apiPath);
 		while (path.startsWith("/")) {

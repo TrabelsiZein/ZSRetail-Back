@@ -6,7 +6,7 @@ import java.util.List;
 import com.digithink.zsretail.connector.zen.dto.ZenInvoiceRow;
 
 /**
- * Item variants (ZEN), step 9: the reads of ZEN's posted sales invoices (NAV's standard OData V4 page SalesInvoice, GET
+ * Item variants (ZEN), step 9: the reads of ZEN's posted sales invoices (page salesInvoices of ZEN's franchise API, GET
  * only), as ZenInvoices uses them: the REST client, or a fake in the tests.
  */
 public interface ZenInvoiceSource {

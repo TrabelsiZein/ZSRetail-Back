@@ -33,14 +33,14 @@ import com.fasterxml.jackson.databind.node.BooleanNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 
 /**
- * Item variants (ZEN), step 9: the invoice runs on a fake SalesInvoice page holding the invoices of two stores and of
+ * Item variants (ZEN), step 9: the invoice runs on a fake salesInvoices page holding the invoices of two stores and of
  * another customer of the company: only the stores' are read, per year from the starting point (as Happyness), the
  * cancelled ones read past and left out, none without a store's customer; ZenConnector hands the runs and keeps their
  * summary for the communications log.
  */
 class ZenInvoicesTest {
 
-	static final String PAGE = "http://nav.test/ODataV4/Company('ESP')/SalesInvoice";
+	static final String PAGE = "http://nav.test/api/sat/franchise/v1.0/companies(1d6c4f00-6ac9-f111-9db8-ad3d0c589c9c)/salesInvoices";
 	static final String OTHER_CUSTOMER = "4119999";
 
 	/** The page: by number, filtered as NAV filters (prefix, after, the customers), page-size per GET. */
@@ -53,7 +53,7 @@ class ZenInvoicesTest {
 			row.set(ZenInvoiceRow.NO, TextNode.valueOf(number));
 			row.set(ZenInvoiceRow.CUSTOMER_NO, TextNode.valueOf(customer));
 			row.set(ZenInvoiceRow.CANCELLED, BooleanNode.valueOf(cancelled));
-			invoices.add(row.resolveLines("SalesInvoiceSalesInvLines"));
+			invoices.add(row.resolveLines("salesInvoiceLines"));
 		}
 
 		private List<ZenInvoiceRow> sorted() {

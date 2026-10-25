@@ -1,6 +1,7 @@
 package com.digithink.zsretail.connector.zen.dto;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -20,28 +21,31 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 
 /**
- * Item variants (ZEN), step 9: a row of NAV's posted sales invoices page (SalesInvoice), kept field by field as
- * Happyness's NavPosInvoiceRow: the lines property is a setting, so no field name of it is fixed here.
+ * Item variants (ZEN), step 9: a row of the posted sales invoices page of ZEN's franchise API (salesInvoices), kept
+ * field by field as Happyness's NavPosInvoiceRow: the lines property is a setting, so no field name of it is fixed here.
  * {@link #resolveLines} turns the expanded lines into {@link ZenInvoiceLineRow}. Read by {@link Reader}: the amounts stay
- * exact decimals (a tree of the default mapper holds doubles, 90.000 would become 90.0). The header has no totals and no
- * Prices_Including_VAT (ZEN's prices are before VAT).
+ * exact decimals (a tree of the default mapper holds doubles, 90.000 would become 90.0). The header gives the totals
+ * before and with VAT (amount, amountIncludingVAT); no pricesIncludingVAT (ZEN's prices are before VAT). The header is
+ * read without $select: cancelled and corrective are read once the page gives them (not yet, a question for ZEN).
  */
 @JsonDeserialize(using = ZenInvoiceRow.Reader.class)
 public class ZenInvoiceRow {
 
-	public static final String NO = "No";
-	public static final String CUSTOMER_NO = "Sell_to_Customer_No";
-	public static final String CUSTOMER_NAME = "Sell_to_Customer_Name";
-	public static final String DOCUMENT_DATE = "Document_Date";
-	public static final String POSTING_DATE = "Posting_Date";
-	/** True once NAV cancelled the invoice (a credit memo cancels it): never read. */
-	public static final String CANCELLED = "Cancelled";
-	/** True for an invoice that cancels a credit memo: read, with a warning. */
-	public static final String CORRECTIVE = "Corrective";
-
-	/** The header fields read ($select). */
-	public static final String FIELDS = String.join(",", NO, CUSTOMER_NO, CUSTOMER_NAME, DOCUMENT_DATE, POSTING_DATE,
-			CANCELLED, CORRECTIVE);
+	public static final String NO = "number";
+	public static final String CUSTOMER_NO = "sellToCustomerNo";
+	public static final String CUSTOMER_NAME = "sellToCustomerName";
+	public static final String DOCUMENT_DATE = "documentDate";
+	public static final String POSTING_DATE = "postingDate";
+	/** The total before VAT. */
+	public static final String AMOUNT = "amount";
+	/** The total with VAT. */
+	public static final String AMOUNT_INCL_VAT = "amountIncludingVAT";
+	/** Blank for the local currency. */
+	public static final String CURRENCY = "currencyCode";
+	/** True once NAV cancelled the invoice (a credit memo cancels it): never read. Not on the page yet. */
+	public static final String CANCELLED = "cancelled";
+	/** True for an invoice that cancels a credit memo: read, with a warning. Not on the page yet. */
+	public static final String CORRECTIVE = "corrective";
 
 	/** Exact decimals: 41.000 stays 41.000 (no double, no trailing zeros stripped). */
 	private static final ObjectMapper DECIMALS = new ObjectMapper()
@@ -82,6 +86,22 @@ public class ZenInvoiceRow {
 		return value == null || value.isNull() ? null : value.asText();
 	}
 
+	/** The decimal of a field, exact; null when absent, JSON null or not a number. */
+	public BigDecimal decimal(String name) {
+		JsonNode value = fields.get(name);
+		if (value == null || value.isNull()) {
+			return null;
+		}
+		if (value.isNumber()) {
+			return value.decimalValue();
+		}
+		try {
+			return new BigDecimal(value.asText().trim());
+		} catch (NumberFormatException e) {
+			return null;
+		}
+	}
+
 	/** The invoice number, trimmed; "" when none. */
 	@JsonIgnore
 	public String getNumber() {
@@ -89,13 +109,13 @@ public class ZenInvoiceRow {
 		return number == null ? "" : number.trim();
 	}
 
-	/** Cancelled true (a JSON boolean or the text true). */
+	/** cancelled true (a JSON boolean or the text true); false while the page does not give it. */
 	@JsonIgnore
 	public boolean isCancelled() {
 		return "true".equalsIgnoreCase(String.valueOf(text(CANCELLED)).trim());
 	}
 
-	/** Corrective true (a JSON boolean or the text true). */
+	/** corrective true (a JSON boolean or the text true); false while the page does not give it. */
 	@JsonIgnore
 	public boolean isCorrective() {
 		return "true".equalsIgnoreCase(String.valueOf(text(CORRECTIVE)).trim());

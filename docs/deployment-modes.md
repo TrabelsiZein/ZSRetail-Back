@@ -302,7 +302,7 @@ NAV's standard OData V4 page `SalesInvoice` under `Company('<company>')`, only t
 | Key | Meaning | Default |
 |---|---|---|
 | `erp.zen.base-url` | The NAV instance, e.g. `http://host:7048/ZEN` (the API path and the company follow it) | required |
-| `erp.zen.company` | The company's name, as for Happyness (`ESP` at ZEN); its id in the API (`companies(<id>)`) is looked up once by `GET <api>/companies?$filter=name eq '<name>'` and kept until the application stops (step 10). Step 9: the invoices page is under `Company('<name>')` of the OData path | required unless `company-id` is set; always with `headoffice.supply.source=ERP` |
+| `erp.zen.company` | The company's name, as for Happyness (`ESP` at ZEN); its id in the API (`companies(<id>)`) is looked up once by `GET <api>/companies?$filter=name eq '<name>'` and kept until the application stops (step 10). Step 9: the same id addresses the invoices API | required unless `company-id` is set |
 | `erp.zen.company-id` | Optional: the company's id in the API, e.g. `89c8b192-3f2e-f111-9f24-7ced8db3f120`; when set it is used as it is and nothing is looked up (it wins over `company`) | — |
 | `erp.zen.domain`, `.username`, `.password` | NTLM account (domain may be blank) | username and password required |
 | `erp.zen.default-vat` | The VAT of a row that gives none (the API has no VAT field yet), whole number 0 to 100 | required |
@@ -312,9 +312,9 @@ NAV's standard OData V4 page `SalesInvoice` under `Company('<company>')`, only t
 | `erp.zen.connect-timeout-seconds`, `.read-timeout-seconds` | At least 1 | `10`, `60` |
 | `erp.zen.packet-size` | Rows applied per transaction, 1 to 5000 | `500` |
 | `erp.zen.dry-run` | `true` (read, compare, summary only; the invoices too) \| `false` | `false` |
-| `erp.zen.invoices.page` (step 9) | The posted sales invoices, a page under `<base-url>/<odata-path>/Company('<company>')/`, or a whole address; read when `headoffice.supply.source=ERP`. Where the reading starts is the General Setup "Read ERP invoices after number" | `SalesInvoice` |
-| `erp.zen.invoices.lines-expand` | Navigation property of the lines (`$expand`), letters, digits and `_` | `SalesInvoiceSalesInvLines` |
-| `erp.zen.invoices.odata-path` | NAV's standard OData V4 path under base-url | `ODataV4` |
+| `erp.zen.invoices.page` (step 9) | The posted sales invoices, a page under `<base-url>/<invoices.api-path>/companies(<id>)/` (the id of `company` / `company-id`), or a whole address; read when `headoffice.supply.source=ERP`. Where the reading starts is the General Setup "Read ERP invoices after number" | `salesInvoices` |
+| `erp.zen.invoices.lines-expand` | Navigation property of the lines (`$expand`), letters, digits and `_` | `salesInvoiceLines` |
+| `erp.zen.invoices.api-path` | The path of ZEN's franchise API under base-url (2026-10-25; `invoices.odata-path` and NAV's standard page `SalesInvoice` before) | `api/sat/franchise/v1.0` |
 | `erp.zen.invoices.number-prefix` | Start of every number, no spaces; the year follows in 2 digits (`FVE` + `26`) | `FVE` |
 | `erp.zen.invoices.page-size` | Invoices read per year and run, 1 to 1000 (the cancelled ones not counted) | `50` |
 | `erp.zen.invoices.seller-name` | The seller named on the stores' purchase invoices | `ZEN` |
@@ -322,10 +322,10 @@ NAV's standard OData V4 page `SalesInvoice` under `Company('<company>')`, only t
 Startup refusals with `erp.connector=zen` (the message names the key): not a head office whose catalogue only comes from
 the ERP; a blank address, username or password; neither a company nor a company id; an address that is not `http(s)://`; a wrong `default-vat`,
 `barcode-page-size`, `packet-size`, `dry-run` or timeout; a blank `api-path` or page. Step 9: a blank `invoices.page`,
-`invoices.odata-path` or `invoices.seller-name` line, a `lines-expand` that is not an OData name, a prefix with a space, a
-`page-size` out of 1 to 1000; with `headoffice.supply.source=ERP`, no company name. One INFO line at startup: `ERP
+`invoices.api-path` or `invoices.seller-name` line, a `lines-expand` that is not an OData name, a prefix with a space, a
+`page-size` out of 1 to 1000. One INFO line at startup: `ERP
 connector zen (read only, GET): <address>, API <path>, company <name> (or `company id <id>`), pages <three>` (with the ERP
-supply also `, invoices ODataV4 Company('ESP')/SalesInvoice (lines ..., prefix FVE, 50 per year and run, seller ZEN)`);
+supply also `, invoices api/sat/franchise/v1.0 salesInvoices (lines ..., prefix FVE, 50 per year and run, seller ZEN)`);
 the installation summary shows `NAV <address>`.
 
 **Step 9 questions** (tasks 9.1b to 9.1g): `isCatalogueFromErp()`, `isCustomersFromErp()`, `isSupplyFromErp()`, `hasErp()` (some

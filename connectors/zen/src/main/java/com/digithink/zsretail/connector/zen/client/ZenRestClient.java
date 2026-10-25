@@ -48,9 +48,9 @@ import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
  * millisecond, so that a page never ends in the middle of one; those of some items by itemNo and variantCode. An HTTP
  * error, a timeout or no answer throws {@link ZenReadException} naming the page and the status.
  * No retry. Step 10: every page is under companies(id) of the custom API; the id is erp.zen.company-id, or looked up once
- * by the company's name ({@link #companyId()}). Step 9: the supply invoices are not on the custom API but on NAV's
- * standard OData V4 page SalesInvoice under Company('name') ({@link ZenInvoiceSource}, the same client and
- * credentials), read by number per year prefix, only those of the stores' customers.
+ * by the company's name ({@link #companyId()}). Step 9: the supply invoices are on ZEN's second custom API,
+ * api/sat/franchise/v1.0, page salesInvoices under the same companies(id) ({@link ZenInvoiceSource}, the same client
+ * and credentials), read by number per year prefix, only those of the stores' customers.
  */
 @Component
 @ConditionalOnErpConnector(ZenConnectorDescriptor.NAME)
@@ -209,14 +209,15 @@ public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 		return page(page).build().toUriString();
 	}
 
-	// ─── Step 9: the invoices (NAV's standard OData V4 page) ─────
+	// ─── Step 9: the invoices (ZEN's franchise API) ──────────────
 
 	/** Invoice numbers per GET when they are read again by number (a short URL), as Happyness. */
 	static final int NUMBERS_PER_READ = 20;
 
 	/**
-	 * {@link #invoicesAfterFilter}, $orderby=No, $top=invoices.page-size, the next links followed up to page-size,
-	 * $select of the header fields used, the lines expanded with their own $select.
+	 * {@link #invoicesAfterFilter}, $orderby=number, $top=invoices.page-size, the next links followed up to page-size,
+	 * the lines expanded with their own $select. No $select on the header: cancelled and corrective are read once the
+	 * page gives them, and a field named there that the page does not have would fail the read (HTTP 400).
 	 */
 	@Override
 	public List<ZenInvoiceRow> readInvoicesAfter(String yearPrefix, String afterNumber,
@@ -228,7 +229,7 @@ public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 				properties.getInvoices().getPageSize());
 	}
 
-	/** $filter=No eq '..' or No eq '..', {@link #NUMBERS_PER_READ} numbers per GET, the fields and lines of the read. */
+	/** $filter=number eq '..' or number eq '..', {@link #NUMBERS_PER_READ} numbers per GET, the lines of the read. */
 	@Override
 	public List<ZenInvoiceRow> readInvoicesByNumbers(List<String> numbers) {
 		List<ZenInvoiceRow> rows = new ArrayList<>();
@@ -242,7 +243,7 @@ public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 		return rows;
 	}
 
-	/** One GET: $filter={@link #firstInvoiceFilter}, $orderby=No, $top=1, $select=No. */
+	/** One GET: $filter={@link #firstInvoiceFilter}, $orderby=number, $top=1, $select=number. */
 	@Override
 	public String readFirstInvoiceNumber(String numberPrefix, Collection<String> customerNumbers) {
 		if (customerNumbers == null || customerNumbers.isEmpty()) {
@@ -250,8 +251,8 @@ public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 		}
 		String page = properties.getInvoices().getPage().trim();
 		URI uri = invoicesPage().queryParam("$filter", firstInvoiceFilter(numberPrefix, customerNumbers))
-				.queryParam("$orderby", "No").queryParam("$top", 1).queryParam("$select", ZenInvoiceRow.NO).build()
-				.encode().toUri();
+				.queryParam("$orderby", ZenInvoiceRow.NO).queryParam("$top", 1).queryParam("$select", ZenInvoiceRow.NO)
+				.build().encode().toUri();
 		ZenCollection<ZenInvoiceRow> body = get(page, uri, INVOICES);
 		if (body == null || body.getValue() == null || body.getValue().isEmpty()) {
 			return null;
@@ -266,22 +267,23 @@ public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 	}
 
 	/**
-	 * startswith(No,'FVE26') [and No gt 'FVE2600001'] and ({@link #customersFilter}): only startswith on a first read; No
-	 * gt alone would also give the later years (the numbers are compared as text). Quotes doubled.
+	 * startswith(number,'FVE26') [and number gt 'FVE2600001'] and ({@link #customersFilter}): only startswith on a first
+	 * read; number gt alone would also give the later years (the numbers are compared as text). Quotes doubled.
 	 */
 	public static String invoicesAfterFilter(String yearPrefix, String afterNumber, Collection<String> customerNumbers) {
-		return "startswith(No,'" + quoted(yearPrefix) + "')"
-				+ (afterNumber == null || afterNumber.trim().isEmpty() ? "" : " and No gt '" + quoted(afterNumber) + "'")
+		return "startswith(" + ZenInvoiceRow.NO + ",'" + quoted(yearPrefix) + "')"
+				+ (afterNumber == null || afterNumber.trim().isEmpty() ? ""
+						: " and " + ZenInvoiceRow.NO + " gt '" + quoted(afterNumber) + "'")
 				+ " and " + customersFilter(customerNumbers);
 	}
 
-	/** startswith(No,'FVE') and ({@link #customersFilter}). */
+	/** startswith(number,'FVE') and ({@link #customersFilter}). */
 	public static String firstInvoiceFilter(String numberPrefix, Collection<String> customerNumbers) {
-		return "startswith(No,'" + quoted(numberPrefix) + "') and " + customersFilter(customerNumbers);
+		return "startswith(" + ZenInvoiceRow.NO + ",'" + quoted(numberPrefix) + "') and " + customersFilter(customerNumbers);
 	}
 
 	/**
-	 * (Sell_to_Customer_No eq 'A' or Sell_to_Customer_No eq 'B'), in brackets (and binds before or): each number trimmed,
+	 * (sellToCustomerNo eq 'A' or sellToCustomerNo eq 'B'), in brackets (and binds before or): each number trimmed,
 	 * in upper case (a NAV customer number is a code, upper case; the head office matches a store at any case), once, a
 	 * blank one left out, quotes doubled.
 	 */
@@ -301,23 +303,27 @@ public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 		return "(" + filter + ")";
 	}
 
-	/** No eq 'x' or No eq 'y', quotes doubled. */
+	/** number eq 'x' or number eq 'y', quotes doubled. */
 	public static String numbersFilter(List<String> numbers) {
 		StringBuilder filter = new StringBuilder();
 		for (String number : numbers) {
-			filter.append(filter.length() == 0 ? "" : " or ").append("No eq '").append(quoted(number)).append("'");
+			filter.append(filter.length() == 0 ? "" : " or ").append(ZenInvoiceRow.NO).append(" eq '")
+					.append(quoted(number)).append("'");
 		}
 		return filter.toString();
 	}
 
-	/** The invoices of the filter, by number, at most max (the next links followed until then), their lines resolved. */
+	/**
+	 * The invoices of the filter, by number, at most max (the next links followed until then), their lines resolved. No
+	 * $select on the header ({@link #readInvoicesAfter}).
+	 */
 	private List<ZenInvoiceRow> readInvoices(String filter, int max) {
 		ZenProperties.Invoices settings = properties.getInvoices();
 		String page = settings.getPage().trim();
 		String expand = settings.getLinesExpand().trim();
-		URI uri = invoicesPage().queryParam("$filter", filter).queryParam("$orderby", "No").queryParam("$top", max)
-				.queryParam("$select", ZenInvoiceRow.FIELDS)
-				.queryParam("$expand", expand + "($select=" + ZenInvoiceLineRow.FIELDS + ")").build().encode().toUri();
+		URI uri = invoicesPage().queryParam("$filter", filter).queryParam("$orderby", ZenInvoiceRow.NO)
+				.queryParam("$top", max).queryParam("$expand", expand + "($select=" + ZenInvoiceLineRow.FIELDS + ")")
+				.build().encode().toUri();
 		List<ZenInvoiceRow> rows = new ArrayList<>();
 		URI next = uri;
 		while (next != null && rows.size() < max) {
@@ -336,9 +342,13 @@ public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 		return kept;
 	}
 
-	/** base-url / odata-path / Company('company') / the invoices page (never companies(id) of the custom API). */
+	/**
+	 * base-url / invoices.api-path / companies(id) / the invoices page (the id found first, as for the other pages), or a
+	 * whole address as it is (no lookup).
+	 */
 	private UriComponentsBuilder invoicesPage() {
-		return UriComponentsBuilder.fromHttpUrl(properties.invoicesPageAddress());
+		return UriComponentsBuilder.fromHttpUrl(
+				properties.invoicesPageAddress(properties.invoicesPageIsAddress() ? null : companyId()));
 	}
 
 	/** A page under companies(id) (the id found first), or a whole address as it is (no lookup). */
