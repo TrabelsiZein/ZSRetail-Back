@@ -1,8 +1,8 @@
 # Orders to the head office (Commandes centrale)
 
-**Status**: steps 1 and 2 of 5 done (3.1.1): the store's back end, the head office's back end and the zen connector.
-Still to come: the screens (the store's and the head office's, with the head office permission). Nothing outside
-`connectors/zen` is specific to ZEN.
+**Status**: steps 1 to 3 of 5 done (3.1.1): the store's back end, the head office's back end and the zen connector, the
+store's screens (`admin-pages.md`, "Commandes centrale"). Still to come: the head office's screen, with its permission.
+Nothing outside `connectors/zen` is specific to ZEN.
 
 A franchise store prepares an order of ERP items to its head office: it opens an ERP item, sees the live NAV stock of
 each variant at its own location, fills quantities in its draft, and sends it. The head office receives it and posts it
@@ -91,7 +91,7 @@ cancelled order or an unknown number is left as it is, noted on the tracking row
 
 | Method and path | Answer |
 |---|---|
-| `GET /store-order/catalogue?page&size&search&categoryCode&familyId&subFamilyId&sectionCode&sort&dir` | `{content, page, size, totalElements, totalPages}`, one line per NAV item number with an active variant: `navItemNo`, `name`, `mainImage`, `variantCount`, `price`, `vatRate`, `familyName`, `subFamilyName`, `categoryCode` / `Name`, `sectionCode` / `Name` |
+| `GET /store-order/catalogue?page&size&search&categoryCode&familyId&subFamilyId&sectionCode&sort&dir` | `{content, page, size, totalElements, totalPages}`, one line per NAV item number with an active variant: `navItemNo`, `name`, `mainImage`, `mainImageItemId`, `variantCount`, `price`, `vatRate`, `familyName`, `subFamilyName`, `categoryCode` / `Name`, `sectionCode` / `Name` |
 | `GET /store-order/variants?navItemNo` | `{navItemNo, name, variants: [{itemId, itemCode, variantCode, variantDescription, sizeCode, sizeDescription, colorCode, colorDescription, choiceCode, choiceDescription, price, vatRate, mainImage, images, stock, draftQuantity}]}`; 404 for a number no active item carries; **503** without the head office |
 | `GET /store-order/draft` | the draft with its lines; 204 when there is none |
 | `POST /store-order/draft/lines` `{itemId, quantity}` | the draft (204 for a 0 without a draft) |
@@ -113,11 +113,12 @@ that match (the items found by `ItemBarcodeRepository.findItemIdsByBarcodeLike`,
 counts all its active variants. Levels: `categoryCode` (the item's own catégorie, else its famille's, as the promotions
 match it), `familyId`, `subFamilyId`, `sectionCode`. Sort: `navItemNo` (the default) or `name` (then number), `dir`
 `asc` or `desc`. `price` is the first variant's `publicPrice` (before VAT, sent by the head office), else its
-`unitPrice`; `vatRate` its `defaultVAT`; `mainImage` the `image_url` of the first variant that has one. The variants'
+`unitPrice`; `vatRate` its `defaultVAT`; `mainImage` the `image_url` of the first variant that has one, `mainImageItemId` that variant (its image at `item-image/item/{id}`). The variants'
 order is the "NAV items" page's (size order, colour, choice, code).
 
 **Variants**: the local active variants, then one live call to the head office; the stock is merged by variant code (any
-case); a variant NAV gives no row for shows 0, a row of another NAV item is ignored. Nothing is answered without the
+case); a variant NAV gives no row for has a stock null (unknown, the screen shows "—"), a row of another NAV item is
+ignored. Nothing is answered without the
 head office (no partial answer).
 
 **Permissions**: `read:admin-store-orders` and `write:admin-store-orders` ("Commandes centrale"), in
@@ -269,8 +270,16 @@ the defaults. ZEN (`ZenStoreOrders`, fields in `ZenOrderFields`, the contract se
 refuses every method but GET, except a POST to the sales orders page. A field ZEN renames is one line of
 `ZenOrderFields`.
 
+## The store's screens (step 3)
+
+Front `views/admin/store-orders/` and `components/admin/store-orders/` (`admin-pages.md`, "Commandes centrale"): the
+Catalogue (tiles, filters in the URL, the variants modal with the NAV stock, the cart beside it) and Mes commandes (the
+list, one order). Shown only where `/config` gives `supplyFromHeadOffice` and `navItems`. Two fields serve them:
+`mainImageItemId` on a catalogue line (the tile's image is read at `item-image/item/{id}`), and a variant's `stock`
+**null** when NAV gives no row for it (shown "—", never 0).
+
 ## Still to come
 
-- The screens: the store's (catalogue, variants grid with the stock, draft, list) and the head office's (list, order,
-  actions), with the head office permission (`read:admin-headoffice-store-orders`, added with its route).
+- The head office's screen (list, order, actions), with its permission (`read:admin-headoffice-store-orders`, added with
+  its route).
 - ZEN: the lookup by `externalDocumentNo`, and the real addresses of the two pages (a change of `erp.zen.*.path`).

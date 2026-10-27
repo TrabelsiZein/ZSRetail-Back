@@ -170,8 +170,10 @@ public class StoreOrderService {
 			Item first = variants.get(0);
 			dto.setPrice(priceOf(first));
 			dto.setVatRate(first.getDefaultVAT());
-			dto.setMainImage(variants.stream().map(Item::getImageUrl).filter(StoreOrderService::hasText).findFirst()
-					.orElse(null));
+			variants.stream().filter(item -> hasText(item.getImageUrl())).findFirst().ifPresent(item -> {
+				dto.setMainImage(item.getImageUrl());
+				dto.setMainImageItemId(item.getId()); // the screen reads it at item-image/item/{id}
+			});
 		}
 		return dto;
 	}
@@ -232,7 +234,8 @@ public class StoreOrderService {
 			variant.setVatRate(item.getDefaultVAT());
 			variant.setMainImage(hasText(item.getImageUrl()) ? item.getImageUrl() : null);
 			variant.setImages(imagesByItem.getOrDefault(item.getId(), new ArrayList<>()));
-			variant.setStock(Quantities.normalize(stock.getOrDefault(variantKey(item.getVariantCode()), BigDecimal.ZERO)));
+			BigDecimal inNav = stock.get(variantKey(item.getVariantCode()));
+			variant.setStock(inNav == null ? null : Quantities.normalize(inNav)); // null: NAV gave no row for it
 			variant.setDraftQuantity(drafted.get(item.getId()));
 			dto.getVariants().add(variant);
 		}

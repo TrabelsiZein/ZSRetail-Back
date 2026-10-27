@@ -47,6 +47,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   a sort (number, or name then number, either way). The "NAV items" page sends none of them: same lines, same order.
 - Head office copies down: several providers per domain (`CopiesDownFeed`), each answering its own codes: the SUPPLY
   domain carries the supply documents and the store orders' statuses together.
+- Store orders, for the store's screens (step 3): a catalogue line gives `mainImageItemId` (the item of its image, read
+  at `item-image/item/{id}`); a variant NAV gives no row for has `stock` null (unknown) instead of 0.
 
 ### DB script (`db/3.1.1/store-orders.sql`, then `db/3.1.1/update.sql`, store and head office)
 - `store-orders.sql`: tables `hol_order` (unique `number`, index `ix_hol_order_status`, filtered unique index

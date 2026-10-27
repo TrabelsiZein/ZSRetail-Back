@@ -45,7 +45,7 @@ public class StoreOrderVariantsDTO {
 		private String mainImage;
 		/** The item's images (item_image), the main one first. */
 		private List<ItemImageDTO> images = new ArrayList<>();
-		/** NAV's stock at the store's location; 0 when NAV gives no row for the variant. */
+		/** NAV's stock at the store's location; null when NAV gives no row for the variant (the screen shows "—"). */
 		private BigDecimal stock;
 		/** The quantity of this variant in the store's draft; null when it has no line. */
 		private BigDecimal draftQuantity;

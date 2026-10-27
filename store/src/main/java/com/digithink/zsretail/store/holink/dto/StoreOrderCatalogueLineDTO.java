@@ -18,6 +18,9 @@ public class StoreOrderCatalogueLineDTO {
 	/** The first variant's image (item.imageUrl, the first variant that has one, in the variants' order); null without. */
 	private String mainImage;
 
+	/** The item of that image (the screen reads it at item-image/item/{id}); null without an image. */
+	private Long mainImageItemId;
+
 	/** The active variants. */
 	private long variantCount;
 

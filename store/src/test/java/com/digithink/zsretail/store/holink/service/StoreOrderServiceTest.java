@@ -360,7 +360,7 @@ class StoreOrderServiceTest {
 	// ─── Variants and catalogue ──────────────────────────────────
 
 	@Test
-	@DisplayName("Variants: NAV's stock merged by variant (none: 0, another NAV item ignored), images, the draft's quantity")
+	@DisplayName("Variants: NAV's stock merged by variant (none: null, another NAV item ignored), images, the draft's quantity")
 	void variantsWithStock() {
 		put(large, 3);
 		ItemImage image = new ItemImage();
@@ -379,7 +379,7 @@ class StoreOrderServiceTest {
 		StoreOrderVariantsDTO.Variant s = answer.getVariants().get(0);
 		StoreOrderVariantsDTO.Variant l = answer.getVariants().get(1);
 		assertEquals(0, new BigDecimal("4").compareTo(s.getStock()));
-		assertEquals(0, BigDecimal.ZERO.compareTo(l.getStock()), "no NAV row for L (the 99 is another item's)");
+		assertNull(l.getStock(), "no NAV row for L (the 99 is another item's): unknown, never 0");
 		assertEquals(25.0, s.getPrice());
 		assertEquals(1, s.getImages().size());
 		assertEquals("https://cdn/s.png", s.getImages().get(0).getPath());
@@ -430,6 +430,7 @@ class StoreOrderServiceTest {
 		assertEquals(25.0, dto.getPrice(), "the first variant's public price");
 		assertEquals(19, dto.getVatRate());
 		assertEquals("l.png", dto.getMainImage(), "the first variant with an image");
+		assertEquals(large.getId(), dto.getMainImageItemId(), "its item, for item-image/item/{id}");
 		assertEquals("VET", dto.getCategoryCode());
 	}
 
