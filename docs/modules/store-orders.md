@@ -1,8 +1,8 @@
 # Orders to the head office (Commandes centrale)
 
-**Status**: steps 1 to 3 of 5 done (3.1.1): the store's back end, the head office's back end and the zen connector, the
-store's screens (`admin-pages.md`, "Commandes centrale"). Still to come: the head office's screen, with its permission.
-Nothing outside `connectors/zen` is specific to ZEN.
+**Status**: steps 1 to 4 of 5 done (3.1.1): the store's back end, the head office's back end and the zen connector, the
+store's screens (`admin-pages.md`, "Commandes centrale") and the head office's ("Commandes des magasins"). Nothing
+outside `connectors/zen` is specific to ZEN.
 
 A franchise store prepares an order of ERP items to its head office: it opens an ERP item, sees the live NAV stock of
 each variant at its own location, fills quantities in its draft, and sends it. The head office receives it and posts it
@@ -278,8 +278,16 @@ list, one order). Shown only where `/config` gives `supplyFromHeadOffice` and `n
 `mainImageItemId` on a catalogue line (the tile's image is read at `item-image/item/{id}`), and a variant's `stock`
 **null** when NAV gives no row for it (shown "—", never 0).
 
+## The head office's screen (step 4)
+
+"Commandes des magasins" (`admin-pages.md`): the list and an order's page with its actions, in the Network menu, only on a
+head office whose `GET /config` gives **`storeOrdersPost`** (`ERP` or `MANUAL`, from `headoffice.storeorders.post`;
+null without the key and on every store). Permissions **`read:admin-headoffice-store-orders`** (the pages) and
+**`write:admin-headoffice-store-orders`** (mark posted, reject, retry), given to ADMIN at every start only on such a head
+office (`ZZDataInitializer.HEAD_OFFICE_STORE_ORDER_PERMISSIONS`, apart from `HEAD_OFFICE_ADMIN_PERMISSIONS`: the
+frontend's head office routes are both sets). The head office routes' `meta.writePermission` lists the write permission
+on the Roles page.
+
 ## Still to come
 
-- The head office's screen (list, order, actions), with its permission (`read:admin-headoffice-store-orders`, added with
-  its route).
 - ZEN: the lookup by `externalDocumentNo`, and the real addresses of the two pages (a change of `erp.zen.*.path`).

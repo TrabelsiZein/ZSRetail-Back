@@ -186,4 +186,10 @@ public class AppConfigDTO {
 	 * the frontend when missing (an older backend).
 	 */
 	private List<TillActionDTO> tillActions;
+
+	/**
+	 * 3.1.1 (store orders): on a head office, how it posts its stores' orders, ERP or MANUAL (headoffice.storeorders.post);
+	 * null when it takes none, and always on a store. The head office's "Commandes des magasins" page exists only when set.
+	 */
+	private String storeOrdersPost;
 }

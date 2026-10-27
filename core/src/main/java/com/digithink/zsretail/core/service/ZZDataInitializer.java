@@ -175,7 +175,7 @@ public class ZZDataInitializer {
 	private void ensureDefaultRoles() {
 		AppRole adminRole = ensureRole("ADMIN", "Administrateur", false, adminPermissions());
 		if (applicationModeService.isHeadOffice()) {
-			addMissingPermissions(adminRole, HEAD_OFFICE_ADMIN_PERMISSIONS);
+			addMissingPermissions(adminRole, headOfficeAdminPermissions());
 		} else {
 			// The Licence page: a database of before it gets it at its first start, so an admin keeps the licence upload
 			Set<String> wanted = new HashSet<>(LICENSE_ADMIN_PERMISSIONS);
@@ -240,7 +240,7 @@ public class ZZDataInitializer {
 	private Set<String> adminPermissions() {
 		Set<String> permissions = new HashSet<>(ADMIN_PERMISSIONS);
 		if (applicationModeService.isHeadOffice()) {
-			permissions.addAll(HEAD_OFFICE_ADMIN_PERMISSIONS);
+			permissions.addAll(headOfficeAdminPermissions());
 			return permissions;
 		}
 		permissions.add("read:cashier-interface");
@@ -317,6 +317,23 @@ public class ZZDataInitializer {
 			"read:admin-headoffice-erp-invoices", // invoices from the ERP (headoffice.supply.source=ERP)
 			"read:admin-headoffice-stock-points", // release 2.2: points de stock (head office with the ERP catalogue)
 			"read:admin-headoffice-stock-point-items"));
+
+	/**
+	 * 3.1.1: the head office's "Commandes des magasins" page (read) and its actions (write), the stores' orders
+	 * (docs/modules/store-orders.md); given to ADMIN at every start only on a head office with headoffice.storeorders.post
+	 * set. With {@link #HEAD_OFFICE_ADMIN_PERMISSIONS}, the frontend's head office routes and their write permissions.
+	 */
+	static final Set<String> HEAD_OFFICE_STORE_ORDER_PERMISSIONS = new HashSet<>(
+			Arrays.asList("read:admin-headoffice-store-orders", "write:admin-headoffice-store-orders"));
+
+	/** A head office's ADMIN permissions: every head office page, the stores' orders when it takes them. */
+	private Set<String> headOfficeAdminPermissions() {
+		Set<String> permissions = new HashSet<>(HEAD_OFFICE_ADMIN_PERMISSIONS);
+		if (applicationModeService.getStoreOrdersPost() != null) {
+			permissions.addAll(HEAD_OFFICE_STORE_ORDER_PERMISSIONS);
+		}
+		return permissions;
+	}
 
 	/** Store with headoffice.url only: the "Head office link" page (task 1.5). */
 	static final Set<String> HEAD_OFFICE_LINK_ADMIN_PERMISSIONS = new HashSet<>(

@@ -58,7 +58,7 @@ class AppConfigAPITest {
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
 			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock", "supplySource",
 			"allowDecimalQuantity", "taxStampActive", "posAmountsThreeDecimals", "rfidEnabled", "cashierClosingTicket",
-			"navItems", "itemCategories", "itemSections", "tillActions");
+			"navItems", "itemCategories", "itemSections", "tillActions", "storeOrdersPost");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";
@@ -401,6 +401,19 @@ class AppConfigAPITest {
 		} finally {
 			ITEM_TREE_SERVICE[0] = null;
 		}
+	}
+
+	@Test
+	@DisplayName("3.1.1, storeOrdersPost: MANUAL on a head office with the key; null without it and always on a store")
+	void storeOrdersPost() throws Exception {
+		assertEquals(null, headOffice().getStoreOrdersPost(), "a head office without the key takes no order");
+		AppConfigDTO manual = config(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")
+				.withProperty("headoffice.storeorders.post", "manual"), true, true);
+		assertEquals("MANUAL", manual.getStoreOrdersPost());
+		AppConfigDTO store = config(new MockEnvironment().withProperty("headoffice.storeorders.post", "MANUAL"), true, true);
+		assertEquals(null, store.getStoreOrdersPost(), "a store never reads the key");
+		assertEquals(null, linkedStore().getStoreOrdersPost());
+		// ERP needs a connector with ErpAbility.STORE_ORDERS (zen): network-tests StoreOrdersPostKeyTest
 	}
 
 	private static void inject(Object target, Class<?> declaringClass, String fieldName, Object value) throws Exception {

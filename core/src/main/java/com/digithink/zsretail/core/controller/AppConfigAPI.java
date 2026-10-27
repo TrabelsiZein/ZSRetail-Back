@@ -133,7 +133,8 @@ public class AppConfigAPI {
 				itemTreeService != null && itemTreeService.hasCategories(),
 				itemTreeService != null && itemTreeService.hasSections(),
 				// step B: the till actions registry; a head office has no till
-				applicationModeService.isHeadOffice() ? Collections.emptyList() : TillActions.all()
+				applicationModeService.isHeadOffice() ? Collections.emptyList() : TillActions.all(),
+				applicationModeService.getStoreOrdersPost() // 3.1.1: ERP, MANUAL or null (a store: always null)
 		));
 	}
 

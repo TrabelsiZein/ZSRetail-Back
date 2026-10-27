@@ -40,6 +40,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   variantStock?itemNo=&locationCode=`; the lookup `GET salesOrders?$filter=externalDocumentNo eq '..'` first (an order
   found is reused; a lookup that fails posts nothing), then `POST salesOrders` → `orderNo`. The RestTemplate still
   refuses every method but GET, except a POST to the sales orders page.
+- Orders to the head office, step 4 (the head office's screens): `GET /config` gives `storeOrdersPost`, `ERP` or `MANUAL`
+  on a head office with `headoffice.storeorders.post`, null otherwise and on every store; permissions
+  `read:admin-headoffice-store-orders` and `write:admin-headoffice-store-orders`, given to ADMIN at every start only on
+  such a head office (`ZZDataInitializer.HEAD_OFFICE_STORE_ORDER_PERMISSIONS`).
 
 ### Enhancements
 - NAV items grouped read (`NavItemService.page`, `ItemRepository.NAV_ITEMS`): optional level filters (catégorie, the

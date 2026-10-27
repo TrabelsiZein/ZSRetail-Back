@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
+import com.digithink.zsretail.core.support.TestModes;
 import com.digithink.zsretail.erp.api.ErpAbilities;
 import com.digithink.zsretail.erp.api.ErpAbility;
 import com.digithink.zsretail.support.Installations;
@@ -47,6 +48,11 @@ class StoreOrdersPostKeyTest {
 		NodeOwnership.resolve(erp);
 		assertTrue(Installation.HEAD_OFFICE_STORE_ORDERS.isTrue(erp));
 		assertTrue(Installation.HEAD_OFFICE_STORE_ORDERS_ERP.isTrue(erp));
+
+		// 3.1.1, step 4: GET /config storeOrdersPost
+		assertEquals("ERP", TestModes.of(erp).getStoreOrdersPost());
+		assertEquals("MANUAL", TestModes.of(manual).getStoreOrdersPost());
+		assertEquals(null, TestModes.of(none).getStoreOrdersPost());
 	}
 
 	@Test

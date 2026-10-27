@@ -48,6 +48,9 @@ public class ApplicationModeService {
 	/** 3.1.1: a head office with headoffice.storeorders.post=ERP (NodeOwnership.isStoreOrdersByErpSet); false on a store. */
 	private boolean storeOrdersByErp;
 
+	/** 3.1.1: a head office with headoffice.storeorders.post set, MANUAL or ERP (NodeOwnership.isStoreOrdersSet). */
+	private boolean storeOrders;
+
 	/** Fails the startup when node.type, ownership.* or sales.upstream holds an invalid value. */
 	@PostConstruct
 	void initOwnership() {
@@ -62,6 +65,15 @@ public class ApplicationModeService {
 		supplyFromErpSource = NodeOwnership.isSupplyFromErpSourceSet(environment);
 		rfidEnabled = NodeOwnership.isRfidSet(environment);
 		storeOrdersByErp = NodeOwnership.isStoreOrdersByErpSet(environment);
+		storeOrders = NodeOwnership.isStoreOrdersSet(environment);
+	}
+
+	/**
+	 * 3.1.1 (store orders): how a head office posts its stores' orders, ERP or MANUAL; null when it takes none
+	 * (headoffice.storeorders.post absent) and always on a store. GET /config storeOrdersPost.
+	 */
+	public String getStoreOrdersPost() {
+		return storeOrdersByErp ? "ERP" : storeOrders ? "MANUAL" : null;
 	}
 
 	/**

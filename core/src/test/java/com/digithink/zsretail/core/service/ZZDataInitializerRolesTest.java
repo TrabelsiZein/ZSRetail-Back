@@ -145,6 +145,33 @@ class ZZDataInitializerRolesTest {
 		return expected;
 	}
 
+	/**
+	 * 3.1.1: the head office route of the stores' orders and its write permission (route meta.writePermission), given only
+	 * where headoffice.storeorders.post is set: the frontend's head office routes are HEAD_OFFICE_PERMISSIONS plus its read.
+	 */
+	private static final Set<String> HEAD_OFFICE_STORE_ORDERS = new HashSet<>(
+			java.util.Arrays.asList("read:admin-headoffice-store-orders", "write:admin-headoffice-store-orders"));
+
+	@Test
+	@DisplayName("3.1.1, head office: the stores' orders (read and write) to ADMIN only with headoffice.storeorders.post, new or existing database")
+	void headOfficeStoreOrders() throws Exception {
+		assertEquals(HEAD_OFFICE_STORE_ORDERS, staticSet("HEAD_OFFICE_STORE_ORDER_PERMISSIONS"));
+		assertTrue(java.util.Collections.disjoint(HEAD_OFFICE_STORE_ORDERS, staticSet("HEAD_OFFICE_ADMIN_PERMISSIONS")),
+				"not given to every head office");
+		MockEnvironment takesOrders = headOffice().withProperty("headoffice.storeorders.post", "MANUAL");
+		Map<String, AppRole> roles = seedRoles(takesOrders, true, Collections.emptyMap(), new ArrayList<>());
+		assertTrue(roles.get("ADMIN").getPermissions().containsAll(HEAD_OFFICE_STORE_ORDERS), "new database");
+		assertTrue(java.util.Collections.disjoint(HEAD_OFFICE_STORE_ORDERS,
+				seedRoles(headOffice(), true, Collections.emptyMap(), new ArrayList<>()).get("ADMIN").getPermissions()),
+				"a head office without the key: neither");
+
+		Map<String, AppRole> existing = existingRoles("read:home", "read:admin-headoffice-stores");
+		List<String> topUp = new ArrayList<>();
+		seedRoles(takesOrders, true, existing, topUp);
+		assertTrue(existing.get("ADMIN").getPermissions().containsAll(HEAD_OFFICE_STORE_ORDERS), "existing database, at the start");
+		assertEquals(Collections.singletonList("ADMIN"), topUp);
+	}
+
 	private static MockEnvironment headOffice() {
 		return new MockEnvironment().withProperty("node.type", "HEAD_OFFICE");
 	}
