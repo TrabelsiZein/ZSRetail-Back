@@ -63,6 +63,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   série, Colis possibles, Calculé le) and `sizeOrder` (ZEN: `ordreTaille`); EMTOP and Happyness leave them empty. Test
   sample `connectors/zen/src/test/resources/zen/infoArticles.json` (ZEN's test NAV, 43ZBPND01 for 4110001).
 
+- Store orders, quantity ≤ available (docs/modules/store-orders.md): `POST /store-order/draft/lines` takes an optional
+  `availableQty` (the variants window: the quantity available shown on the cell, null for none) that the line keeps
+  (`hol_order_line.available_qty`); a quantity above the availability sent, or else the line's (the cart), is refused
+  with 409 and nothing saved; the send refuses a draft with any line above its availability (409). The lines answer
+  `availableQty`.
+
 ### Fixes
 - Store orders lists: `GET admin/headoffice/store-orders` and the store's `GET /store-order` answered 500 ("Parameter
   value [1] did not match expected type [java.lang.Integer]"): the "every store / every status" flags are `long` and the
@@ -76,6 +82,7 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   at each start when missing (`StoreOrderDraftIndex`: a new database runs no script).
 - `update.sql`: `APP_VERSION` 3.1.1 (it stops while `store-orders.sql` has not run); notes written when the version is
   closed.
+- `store-orders.sql`: column `hol_order_line.available_qty` numeric(18,3) NULL (added when missing; a start adds it too).
 - `store-orders.sql`, step 2: tables `ho_store_order` (unique `store_id`, `number`; FK to `ho_store`; index
   `ix_ho_store_order_status`) and `ho_store_order_line` (FK to `ho_store_order`) on a head office only. Re-runnable, no
   data changed.

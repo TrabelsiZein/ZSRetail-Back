@@ -106,9 +106,16 @@ public class StoreOrderAPI {
 		return answer(() -> orNoContent(service.draft()));
 	}
 
-	/** POST /store-order/draft/lines {itemId, quantity}: adds or replaces the item's line (0 removes it); the draft. */
+	/**
+	 * POST /store-order/draft/lines {itemId, quantity, availableQty?}: adds or replaces the item's line (0 removes it); the
+	 * draft. 409 for a quantity above the availability (the one sent, else the line's).
+	 */
 	@PostMapping("/draft/lines")
 	public ResponseEntity<?> putLine(@RequestBody(required = false) StoreOrderInputDTO body) {
+		if (body != null && body.isAvailableQtySent()) {
+			return answer(() -> orNoContent(service.putLine(body.getItemId(), body.getQuantity(), body.getAvailableQty(),
+					userName())));
+		}
 		return answer(() -> orNoContent(service.putLine(body == null ? null : body.getItemId(),
 				body == null ? null : body.getQuantity(), userName())));
 	}

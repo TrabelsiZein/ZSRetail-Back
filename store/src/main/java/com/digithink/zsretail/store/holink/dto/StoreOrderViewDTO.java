@@ -47,6 +47,8 @@ public class StoreOrderViewDTO {
 		private String description;
 		private String variantDescription;
 		private BigDecimal quantity;
+		/** The availability the line was ordered against (null: no limit). */
+		private BigDecimal availableQty;
 	}
 
 	/** A row of the list: the header only. */
@@ -75,6 +77,6 @@ public class StoreOrderViewDTO {
 
 	private static Line line(StoreOrderLine line) {
 		return new Line(line.getId(), line.getItemId(), line.getItemCode(), line.getNavItemNo(), line.getVariantCode(),
-				line.getDescription(), line.getVariantDescription(), line.getQuantity());
+				line.getDescription(), line.getVariantDescription(), line.getQuantity(), line.getAvailableQty());
 	}
 }

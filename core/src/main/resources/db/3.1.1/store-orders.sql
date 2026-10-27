@@ -7,7 +7,8 @@
 --
 -- Schema, store only (a head office database has ho_store and never gets them): hol_order and hol_order_line, the orders
 -- of the store to its head office and their lines, with the names and types Hibernate uses (a start creates them too),
--- and the filtered unique index ux_hol_order_draft (one DRAFT at a time; also made at each start, StoreOrderDraftIndex).
+-- and the filtered unique index ux_hol_order_draft (one DRAFT at a time; also made at each start, StoreOrderDraftIndex);
+-- hol_order_line.available_qty, the availability a line was ordered against (added when missing).
 -- They exist, empty, on every store; only a store whose goods come from the head office uses them.
 --
 -- Schema, store and head office: item_image, the images of an item (any number, in sort order). Nothing writes it yet;
@@ -93,6 +94,12 @@ BEGIN
 		CONSTRAINT fk_hol_order_line_order FOREIGN KEY (order_id) REFERENCES hol_order (id)
 	);
 END
+GO
+
+-- A line's availability: the quantity the head office made available when the line was added or replaced from the
+-- variants window (its quantity's precision; NULL: none was given, no limit). Added to a table of an earlier run too.
+IF OBJECT_ID(N'hol_order_line', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order_line', N'available_qty') IS NULL
+	ALTER TABLE hol_order_line ADD available_qty numeric(18,3) NULL;
 GO
 
 -- The images of an item (store and head office; as the entity ItemImage)

@@ -47,8 +47,9 @@ numeric(18,3), plus the `_BaseEntity` columns (`created_at`, `created_by` = the 
 
 `hol_order_line` (store only): `order_id` (FK `fk_hol_order_line_order`), `item_id` (no foreign key, as the other
 `hol_` tables), `item_code` varchar(100), `nav_item_no` varchar(255), `variant_code` varchar(50), `description` and
-`variant_description` varchar(255), `quantity` numeric(18,3) (the stock's precision); unique (`order_id`, `item_id`):
-one line per variant.
+`variant_description` varchar(255), `quantity` numeric(18,3) (the stock's precision), `available_qty` numeric(18,3)
+nullable (the quantity available the line was ordered against, below); unique (`order_id`, `item_id`): one line per
+variant.
 
 `item_image` (store and head office): `item_id`, `source` varchar(10) (`FILE`: a file name of the uploads; `URL`),
 `path` varchar(1000), `sort_order` int, `is_main` bit; index `ix_item_image_item` (`item_id`, `sort_order`). Nothing
@@ -84,6 +85,14 @@ cancelled order or an unknown number is left as it is, noted on the tracking row
   answer (its edits wait). Accepted: `SENT`. Refused by the head office (`accepted: false`): 409 with its reason. Not
   answered (unreachable, timeout, 401/402, an HTTP error): 503. Refused or not answered, the order stays a draft and
   nothing is saved.
+- **Quantity ≤ available**: a line's quantity may not exceed the quantity the head office made available for it.
+  The variants window sends each line with the quantity available shown on its cell (`availableQty`; null: none known,
+  no limit) and the line keeps it (`hol_order_line.available_qty`, replaced at each add from the window); the cart sends
+  none and the line's own is the limit. Above it: 409 ("Item X: 25 asked but only 20 available at the head office"),
+  nothing saved. 0 always removes. **Send** refuses a draft with any line above its availability (409, nothing sent).
+  The screens: a cell above it turns red with "Max n" in its title, the footer counts them and "Ajouter à la commande"
+  waits until they are fixed (no clamping); in the cart a line above it turns red, its save is refused, and "quantity /
+  available" shows on hover ("—" when none is known).
 - **Cancel**: only a draft.
 - **Concurrency**: the edits and the send lock the draft's row (`findForUpdate`); two first lines at the same time make
   one draft (the second one meets `ux_hol_order_draft` and goes into the first's draft).
@@ -95,17 +104,17 @@ cancelled order or an unknown number is left as it is, noted on the tracking row
 | `GET /store-order/catalogue?page&size&search&categoryCode&familyId&subFamilyId&sectionCode&sort&dir` | `{content, page, size, totalElements, totalPages}`, one line per NAV item number with an active variant: `navItemNo`, `name`, `mainImage`, `mainImageItemId`, `variantCount`, `price`, `vatRate`, `familyName`, `subFamilyName`, `categoryCode` / `Name`, `sectionCode` / `Name` |
 | `GET /store-order/variants?navItemNo` | `{navItemNo, name, variants: [{itemId, itemCode, variantCode, variantDescription, sizeCode, sizeDescription, colorCode, colorDescription, choiceCode, choiceDescription, price, vatRate, mainImage, images, stock, details, sizeOrder, draftQuantity}]}`; 404 for a number no active item carries; **409** with the head office's reason when it refuses the store (no ERP customer number); **503** without the head office |
 | `GET /store-order/draft` | the draft with its lines; 204 when there is none |
-| `POST /store-order/draft/lines` `{itemId, quantity}` | the draft (204 for a 0 without a draft) |
+| `POST /store-order/draft/lines` `{itemId, quantity, availableQty?}` | the draft (204 for a 0 without a draft); 409 above the availability (the one sent, else the line's) |
 | `DELETE /store-order/draft/lines/{itemId}` | the draft; 404 without a draft |
 | `PUT /store-order/draft/note` `{note}` | the draft; 404 without a draft |
-| `POST /store-order/{id}/send` | the order `SENT`; 409 not a draft, no line, or refused; 503 not answered |
+| `POST /store-order/{id}/send` | the order `SENT`; 409 not a draft, no line, a line above its availability, or refused; 503 not answered |
 | `POST /store-order/{id}/cancel` | the order `CANCELLED`; 409 not a draft |
 | `GET /store-order?status&from&to&page&size` | `{content, totalElements, totalPages, number, size}`, newest first, without lines; `status` one of the statuses or `ALL`; `from`, `to` `yyyy-MM-dd`, the creation day, both included |
 | `GET /store-order/{id}` | the order with its lines |
 | `GET /item/{id}/images` | `[{id, source, path, sortOrder, main}]`, the main one first (core: store and head office) |
 
 An order is `{id, number, status, createdAt, createdBy, sentAt, navOrderNo, errorMessage, note, lineCount, totalQty,
-lines: [{id, itemId, itemCode, navItemNo, variantCode, description, variantDescription, quantity}]}`. Errors are
+lines: [{id, itemId, itemCode, navItemNo, variantCode, description, variantDescription, quantity, availableQty}]}`. Errors are
 `{"error": "..."}`: 400 invalid data, 404, 409, 503.
 
 **Catalogue**: the grouped read of the "NAV items" page (`NavItemService.page(NavItemFilter, ...)`,

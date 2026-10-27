@@ -67,6 +67,7 @@ import com.digithink.zsretail.store.holink.enumeration.DownRecordStatus;
 import com.digithink.zsretail.store.holink.enumeration.StoreOrderStatus;
 import com.digithink.zsretail.store.holink.model.DownRecord;
 import com.digithink.zsretail.store.holink.model.StoreOrder;
+import com.digithink.zsretail.store.holink.model.StoreOrderLine;
 import com.digithink.zsretail.store.support.InMemoryStoreLink;
 import com.digithink.zsretail.store.support.InMemoryStoreOrders;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -324,6 +325,70 @@ class StoreOrderServiceTest {
 		IllegalStateException e = assertThrows(IllegalStateException.class, () -> service.send(id, "admin"));
 		assertEquals("The head office refused order " + FIRST + ": item 70061~S blocked in NAV", e.getMessage());
 		assertEquals(StoreOrderStatus.DRAFT, orders.orders.get(id).getStatus());
+	}
+
+	// ─── Quantity ≤ available ────────────────────────────────────
+
+	private StoreOrderViewDTO putFromWindow(Item item, int quantity, Integer available) {
+		return service.putLine(item.getId(), Quantities.of(quantity), available == null ? null : Quantities.of(available),
+				"admin").orElse(null);
+	}
+
+	@Test
+	@DisplayName("From the variants window: a quantity above the availability sent is refused (409), nothing saved; up to"
+			+ " it, the line keeps that availability; none sent: no limit")
+	void windowAvailability() {
+		IllegalStateException above = assertThrows(IllegalStateException.class, () -> putFromWindow(small, 6, 5));
+		assertTrue(above.getMessage().contains("6 asked but only 5 available"), above.getMessage());
+		assertTrue(above.getMessage().contains("70061~S"), above.getMessage());
+		assertNull(draft(), "no draft made by a refused line");
+
+		StoreOrderViewDTO view = putFromWindow(small, 5, 5);
+		assertEquals(0, new BigDecimal("5").compareTo(view.getLines().get(0).getAvailableQty()));
+		assertEquals(0, new BigDecimal("5").compareTo(draft().getLines().get(0).getAvailableQty()));
+
+		putFromWindow(large, 40, null);
+		StoreOrderLine unlimited = draft().getLines().stream().filter(l -> l.getItemId().equals(large.getId())).findFirst().get();
+		assertNull(unlimited.getAvailableQty(), "no availability given: none kept, no limit");
+
+		putFromWindow(small, 2, 3);
+		assertEquals(0, new BigDecimal("3").compareTo(draft().getLines().get(0).getAvailableQty()), "the window's newer one");
+	}
+
+	@Test
+	@DisplayName("From the cart (no availability sent): the line's own is the limit and stays; a line without one: no limit")
+	void cartAvailability() {
+		putFromWindow(small, 2, 5);
+		IllegalStateException above = assertThrows(IllegalStateException.class, () -> put(small, 6));
+		assertTrue(above.getMessage().contains("6 asked but only 5 available"), above.getMessage());
+		assertEquals(0, new BigDecimal("2").compareTo(draft().getLines().get(0).getQuantity()), "unchanged");
+
+		put(small, 4);
+		StoreOrderLine line = draft().getLines().get(0);
+		assertEquals(0, new BigDecimal("4").compareTo(line.getQuantity()));
+		assertEquals(0, new BigDecimal("5").compareTo(line.getAvailableQty()), "kept");
+
+		put(large, 99);
+		assertEquals(2, draft().getLines().size(), "a line never given an availability: no limit");
+		put(small, 0);
+		assertEquals(1, draft().getLines().size(), "0 still removes, whatever the availability");
+	}
+
+	@Test
+	@DisplayName("Send refuses a draft with a line above its availability (409), nothing sent; within it, sent")
+	void sendWithinAvailability() {
+		putFromWindow(small, 3, 5);
+		StoreOrder draft = draft();
+		draft.getLines().get(0).setAvailableQty(new BigDecimal("2")); // the availability lowered since (data from before)
+		IllegalStateException above = assertThrows(IllegalStateException.class, () -> service.send(draft.getId(), "admin"));
+		assertTrue(above.getMessage().contains("asks 3 but only 2 are available"), above.getMessage());
+		assertEquals(StoreOrderStatus.DRAFT, draft.getStatus());
+		server.verify(); // nothing sent to the head office
+
+		draft.getLines().get(0).setAvailableQty(new BigDecimal("3"));
+		expectSend(FIRST, accepted(FIRST));
+		service.send(draft.getId(), "admin");
+		assertEquals(StoreOrderStatus.SENT, draft.getStatus());
 	}
 
 	@Test

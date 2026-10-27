@@ -60,7 +60,18 @@ public class StoreOrderLine extends _BaseEntity {
 	@Column(nullable = false, precision = Quantities.PRECISION, scale = Quantities.SCALE)
 	private BigDecimal quantity;
 
+	/**
+	 * The quantity the head office made available when the line was added or replaced from the variants window; the
+	 * line's quantity may not exceed it. Null: none was given (no limit).
+	 */
+	@Column(name = "available_qty", precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal availableQty;
+
 	public BigDecimal getQuantity() {
 		return Quantities.normalize(quantity);
+	}
+
+	public BigDecimal getAvailableQty() {
+		return availableQty == null ? null : Quantities.normalize(availableQty);
 	}
 }

@@ -279,6 +279,29 @@ public class StoreOrderService {
 	 * (not for a 0). Answers the draft; empty when a 0 found no draft.
 	 */
 	public Optional<StoreOrderViewDTO> putLine(Long itemId, BigDecimal quantity, String user) {
+		return putLine(itemId, quantity, KEEP_AVAILABLE, user);
+	}
+
+	/**
+	 * The same from the variants window, with the quantity available it showed (null: none, no limit): it becomes the
+	 * line's, and the quantity may not exceed it (409).
+	 */
+	public Optional<StoreOrderViewDTO> putLine(Long itemId, BigDecimal quantity, BigDecimal available, String user) {
+		return putLine(itemId, quantity, new Availability(available), user);
+	}
+
+	/** The availability a line is put with: the one given (null: no limit), or the line's own (KEEP_AVAILABLE). */
+	private static final class Availability {
+		private final BigDecimal quantity;
+
+		private Availability(BigDecimal quantity) {
+			this.quantity = quantity == null ? null : Quantities.normalize(quantity);
+		}
+	}
+
+	private static final Availability KEEP_AVAILABLE = new Availability(null);
+
+	private Optional<StoreOrderViewDTO> putLine(Long itemId, BigDecimal quantity, Availability available, String user) {
 		if (itemId == null) {
 			throw new IllegalArgumentException("itemId is required");
 		}
@@ -286,14 +309,14 @@ public class StoreOrderService {
 			throw new IllegalArgumentException("quantity is required, 0 or more");
 		}
 		try {
-			return Optional.ofNullable(edits.execute(status -> applyLine(itemId, quantity, user)));
+			return Optional.ofNullable(edits.execute(status -> applyLine(itemId, quantity, available, user)));
 		} catch (DataIntegrityViolationException e) {
 			// Two first lines at the same time: the other request made the draft (ux_hol_order_draft); this one goes in it
-			return Optional.ofNullable(edits.execute(status -> applyLine(itemId, quantity, user)));
+			return Optional.ofNullable(edits.execute(status -> applyLine(itemId, quantity, available, user)));
 		}
 	}
 
-	private StoreOrderViewDTO applyLine(Long itemId, BigDecimal quantity, String user) {
+	private StoreOrderViewDTO applyLine(Long itemId, BigDecimal quantity, Availability available, String user) {
 		if (quantity.signum() == 0) {
 			Optional<StoreOrder> draft = lockedDraft();
 			if (!draft.isPresent()) {
@@ -307,6 +330,9 @@ public class StoreOrderService {
 		StoreOrder draft = lockedDraft().orElseGet(() -> newDraft(user));
 		StoreOrderLine line = draft.getLines().stream().filter(l -> itemId.equals(l.getItemId())).findFirst()
 				.orElse(null);
+		// The window's availability when it gave one, else the line's own (the cart); none: no limit
+		BigDecimal limit = available != KEEP_AVAILABLE ? available.quantity : line == null ? null : line.getAvailableQty();
+		checkAvailable(quantity, limit, Quantities.itemLabel(item.getItemCode(), item.getName()));
 		if (line == null) {
 			line = new StoreOrderLine();
 			line.setOrder(draft);
@@ -320,8 +346,18 @@ public class StoreOrderService {
 			draft.getLines().add(line);
 		}
 		line.setQuantity(Quantities.normalize(quantity));
+		line.setAvailableQty(limit);
 		line.setUpdatedBy(user);
 		return save(draft, user);
+	}
+
+	/** A quantity above the availability (none: no limit) is refused (409), the figures named. */
+	static void checkAvailable(BigDecimal quantity, BigDecimal available, String label) {
+		if (available != null && quantity.compareTo(available) > 0) {
+			throw new IllegalStateException("Item " + label + ": " + Quantities.normalize(quantity).toPlainString()
+					+ " asked but only " + Quantities.normalize(available).toPlainString()
+					+ " available at the head office: lower the quantity");
+		}
 	}
 
 	/** Only an active ERP item that is not a pack is ordered (400 otherwise, by its code). */
@@ -381,6 +417,14 @@ public class StoreOrderService {
 			requireDraft(order, "sent");
 			if (order.getLines().isEmpty()) {
 				throw new IllegalStateException("Order " + order.getNumber() + " has no line: nothing to send");
+			}
+			for (StoreOrderLine line : order.getLines()) {
+				if (line.getAvailableQty() != null && line.getQuantity().compareTo(line.getAvailableQty()) > 0) {
+					throw new IllegalStateException("Order " + order.getNumber() + " is not sent: item "
+							+ Quantities.itemLabel(line.getItemCode(), line.getDescription()) + " asks "
+							+ line.getQuantity().toPlainString() + " but only " + line.getAvailableQty().toPlainString()
+							+ " are available at the head office: lower the quantity");
+				}
 			}
 			String storeCode = client.readStoreCode();
 			if (storeCode == null) {
