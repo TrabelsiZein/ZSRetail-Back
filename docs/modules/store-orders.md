@@ -288,6 +288,10 @@ office (`ZZDataInitializer.HEAD_OFFICE_STORE_ORDER_PERMISSIONS`, apart from `HEA
 frontend's head office routes are both sets). The head office routes' `meta.writePermission` lists the write permission
 on the Roles page.
 
+**Without ZEN** (dev helper): `node tools/zen-mock.mjs [port=9999] [fail=1] [delay=ms]` in ZSRetail-Front fakes the two pages
+(stock from the editable `tools/zen-mock-stock.json` by item number, since the connector sends no variant code; the lookup;
+the POST, `fail=1` answering 500); it prints the two `erp.zen.*.path` lines for the ZEN head office file.
+
 ## Still to come
 
 - ZEN: the lookup by `externalDocumentNo`, and the real addresses of the two pages (a change of `erp.zen.*.path`).
