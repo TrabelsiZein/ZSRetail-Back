@@ -2,7 +2,7 @@ keys 58
 == configs/customers/erp-prod.properties
 profiles=store
 app.upload.dir=C:/uploads/pos-images
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=emtop
 erp.emtop.base-url=http://192.168.10.156:7048/GP_HAMMAMI/ODataV4
 erp.emtop.company=005-SCPC
@@ -62,7 +62,7 @@ zsretail.machine-file.loaded=<repo>/configs/customers/erp-prod.properties
 == configs/customers/happyness-headoffice.properties
 profiles=headoffice
 app.upload.dir=uploads/headoffice/pos-images
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=happyness
 erp.emtop.base-url=(none)
 erp.emtop.company=(none)
@@ -122,7 +122,7 @@ zsretail.machine-file.loaded=<repo>/configs/customers/happyness-headoffice.prope
 == configs/customers/store-prod.properties
 profiles=store
 app.upload.dir=C://zsretail/uploads/pos-images
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=(none)
 erp.emtop.base-url=(none)
 erp.emtop.company=(none)
@@ -182,7 +182,7 @@ zsretail.machine-file.loaded=<repo>/configs/customers/store-prod.properties
 == configs/customers/zen-headoffice.properties
 profiles=headoffice
 app.upload.dir=uploads/headoffice/pos-images
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=zen
 erp.emtop.base-url=(none)
 erp.emtop.company=(none)
@@ -242,7 +242,7 @@ zsretail.machine-file.loaded=<repo>/configs/customers/zen-headoffice.properties
 == configs/customers/zen-store.properties
 profiles=store
 app.upload.dir=C:/zsretail-zen/store/uploads/pos-images
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=none
 erp.emtop.base-url=(none)
 erp.emtop.company=(none)
@@ -302,7 +302,7 @@ zsretail.machine-file.loaded=<repo>/configs/customers/zen-store.properties
 == configs/dev/headoffice-erp.properties
 profiles=headoffice
 app.upload.dir=uploads/headoffice/pos-images
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=emtop
 erp.emtop.base-url=http://192.168.10.166:24/test4/ODataV4
 erp.emtop.company=005-SCPC
@@ -362,7 +362,7 @@ zsretail.machine-file.loaded=<repo>/configs/dev/headoffice-erp.properties
 == configs/dev/headoffice.properties
 profiles=headoffice
 app.upload.dir=uploads/headoffice/pos-images
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=(none)
 erp.emtop.base-url=(none)
 erp.emtop.company=(none)
@@ -422,7 +422,7 @@ zsretail.machine-file.loaded=<repo>/configs/dev/headoffice.properties
 == configs/dev/store-a-erp.properties
 profiles=store
 app.upload.dir=(none)
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=emtop
 erp.emtop.base-url=http://192.168.10.156:7048/GP_HAMMAMI/ODataV4
 erp.emtop.company=005-SCPC
@@ -482,7 +482,7 @@ zsretail.machine-file.loaded=<repo>/configs/dev/store-a-erp.properties
 == configs/dev/store-a.properties
 profiles=store
 app.upload.dir=(none)
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=(none)
 erp.emtop.base-url=(none)
 erp.emtop.company=(none)
@@ -542,7 +542,7 @@ zsretail.machine-file.loaded=<repo>/configs/dev/store-a.properties
 == configs/dev/store-b.properties
 profiles=store
 app.upload.dir=uploads/store-b/pos-images
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=(none)
 erp.emtop.base-url=(none)
 erp.emtop.company=(none)
@@ -602,7 +602,7 @@ zsretail.machine-file.loaded=<repo>/configs/dev/store-b.properties
 == configs/dev/store-c.properties
 profiles=store
 app.upload.dir=uploads/store-c/pos-images
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=(none)
 erp.emtop.base-url=(none)
 erp.emtop.company=(none)
@@ -662,7 +662,7 @@ zsretail.machine-file.loaded=<repo>/configs/dev/store-c.properties
 == configs/dev/store-test-nav.properties
 profiles=store
 app.upload.dir=C:/uploads/pos-images
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=emtop
 erp.emtop.base-url=http://192.168.10.166:24/test4/ODataV4
 erp.emtop.company=005-SCPC
@@ -722,7 +722,7 @@ zsretail.machine-file.loaded=<repo>/configs/dev/store-test-nav.properties
 == configs/happyness-from-scratch/headoffice.properties
 profiles=headoffice
 app.upload.dir=C:/zsretail-happyness/uploads/pos-images
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=(none)
 erp.emtop.base-url=(none)
 erp.emtop.company=(none)
@@ -782,7 +782,7 @@ zsretail.machine-file.loaded=<repo>/configs/happyness-from-scratch/headoffice.pr
 == configs/happyness-from-scratch/store-1.properties
 profiles=store
 app.upload.dir=C:/zsretail-happyness/store-1/uploads/pos-images
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=(none)
 erp.emtop.base-url=(none)
 erp.emtop.company=(none)
@@ -842,7 +842,7 @@ zsretail.machine-file.loaded=<repo>/configs/happyness-from-scratch/store-1.prope
 == configs/happyness-from-scratch/store-2.properties
 profiles=store
 app.upload.dir=C:/zsretail-happyness/store-2/uploads/pos-images
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=(none)
 erp.emtop.base-url=(none)
 erp.emtop.company=(none)
@@ -902,7 +902,7 @@ zsretail.machine-file.loaded=<repo>/configs/happyness-from-scratch/store-2.prope
 == configs/rehearsal/headoffice.properties
 profiles=headoffice
 app.upload.dir=C:/zsretail-rehearsal/headoffice/uploads/pos-images
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=(none)
 erp.emtop.base-url=(none)
 erp.emtop.company=(none)
@@ -962,7 +962,7 @@ zsretail.machine-file.loaded=<repo>/configs/rehearsal/headoffice.properties
 == configs/rehearsal/store-1.properties
 profiles=store
 app.upload.dir=C:/zsretail-rehearsal/store-1/uploads/pos-images
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=(none)
 erp.emtop.base-url=(none)
 erp.emtop.company=(none)
@@ -1022,7 +1022,7 @@ zsretail.machine-file.loaded=<repo>/configs/rehearsal/store-1.properties
 == configs/rehearsal/store-2.properties
 profiles=store
 app.upload.dir=C:/zsretail-rehearsal/store-2/uploads/pos-images
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=(none)
 erp.emtop.base-url=(none)
 erp.emtop.company=(none)
@@ -1082,7 +1082,7 @@ zsretail.machine-file.loaded=<repo>/configs/rehearsal/store-2.properties
 == no outside file, store
 profiles=store
 app.upload.dir=(none)
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=(none)
 erp.emtop.base-url=(none)
 erp.emtop.company=(none)
@@ -1142,7 +1142,7 @@ zsretail.machine-file.loaded=(none)
 == no outside file, headoffice
 profiles=headoffice
 app.upload.dir=(none)
-app.version=3.1.0
+app.version=3.1.1
 erp.connector=(none)
 erp.emtop.base-url=(none)
 erp.emtop.company=(none)

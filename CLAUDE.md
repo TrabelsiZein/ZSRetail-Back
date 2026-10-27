@@ -8,7 +8,7 @@ the development contract; this file covers backend specifics only.
 - Java 11 · Spring Boot 2.3.9 · two applications, each packaged as a **WAR** (deployed to Tomcat 9)
 - Spring Security + JWT · JPA/Hibernate · SQL Server
 - Maven, several projects under one parent `com.digithink:zsretail-parent` (the `pom.xml` of this folder), one
-  version for all of them: the product version, currently 3.1.0 (release/2.3.0 keeps 2.3.0, release/2.2.2 keeps 2.2.x for hotfixes)
+  version for all of them: the product version, currently 3.1.1 (release/3.1.0 keeps 3.1.0, release/2.3.0 keeps 2.3.0, release/2.2.2 keeps 2.2.x for hotfixes)
 - springdoc-openapi UI for API docs
 - Context path `/zsretail/api`, port `444`
 

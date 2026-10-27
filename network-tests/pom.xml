@@ -10,7 +10,7 @@
 	<parent>
 		<groupId>com.digithink</groupId>
 		<artifactId>zsretail-parent</artifactId>
-		<version>3.1.0</version>
+		<version>3.1.1</version>
 	</parent>
 	<artifactId>zsretail-network-tests</artifactId>
 	<name>ZS Retail network tests</name>
