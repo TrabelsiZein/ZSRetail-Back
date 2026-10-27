@@ -1,5 +1,5 @@
 -- ============================================================
--- Version 3.1.0 (in progress) — RFID au magasin
+-- Version 3.1.0 — RFID au magasin
 -- ============================================================
 -- Deployment order:
 --   1) Run db/2.3.0 first if the database is older than 2.3.0 (this script stops, without changing anything, while
@@ -465,12 +465,30 @@ GO
 
 UPDATE APP_VERSION SET version = '3.1.0';
 
--- The notes of 3.1.0 are written again on each run (the script may run more than once). The RFID notes are added
--- when the release is closed (the RFID screens are not finished yet).
+-- The notes of 3.1.0 are written again on each run (the script may run more than once); written from CHANGELOG.md when
+-- the version was closed (2026-10-27).
 DELETE FROM APP_RELEASE_NOTES WHERE version = '3.1.0';
 INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
+('3.1.0', 'NEW', N'RFID au magasin (option rfid.enabled) : lecteurs et postes de caisse, étiquettes et leur affectation, lecture des pièces en caisse, au retour et à la réception.'),
+('3.1.0', 'NEW', N'Ticket X et ticket Z d''une session de caisse et de la journée du magasin ; la clôture de caisse imprime le ticket Z (Configuration générale, CASHIER_CLOSING_TICKET).'),
+('3.1.0', 'NEW', N'Journal : les journées d''un mois, le journal d''une journée et leurs exports Excel.'),
 ('3.1.0', 'NEW', N'Nouveau moyen de paiement « Retenue à la source », inactif à l''installation : l''activer dans Moyens de paiement et saisir comme code le code ERP du règlement.'),
-('3.1.0', 'IMPROVE', N'Ajuster le stock : une variation décimale (1,82 L, au plus 3 décimales) est acceptée quand le magasin autorise les quantités décimales (Configuration générale) ; sinon elle est refusée en nommant l''article, jamais arrondie.');
+('3.1.0', 'NEW', N'Articles à variantes (ZEN) : un article par variante de l''ERP (taille, couleur, choix), les catégories et les sections, la page Articles ERP ; en caisse, la navigation par catégorie et par section.'),
+('3.1.0', 'NEW', N'Soldes (ZEN) : un article soldé se vend à son prix soldé, le prix public barré en caisse.'),
+('3.1.0', 'NEW', N'Promotions par catégorie et par section, et promotions sur toutes les variantes d''un article ERP.'),
+('3.1.0', 'NEW', N'Siège : la page Fiches articles (liste filtrée, fiche avec variantes, codes-barres, points de stock et stock des magasins), les filtres et tris du Stock réseau, la colonne Classification sur les pages d''articles.'),
+('3.1.0', 'NEW', N'Siège ZEN : les factures de l''ERP sont lues pour les magasins.'),
+('3.1.0', 'IMPROVE', N'Droits de caisse portés par le rôle (page Rôles) : remise ligne, remise totale, retour, liste des clients, clôture avec écart. Le badge n''est plus qu''un identifiant ; à la mise à jour chaque rôle reçoit les droits de ses utilisateurs, rien ne change en caisse ce jour-là.'),
+('3.1.0', 'IMPROVE', N'Le serveur vérifie les droits de caisse sur les remises manuelles, les retours et la clôture avec écart ; un badge scanné autorise une seule action.'),
+('3.1.0', 'IMPROVE', N'Les promotions par quantité comptent les pièces de toutes les lignes du panier ; une pièce offerte seulement quand elle est scannée.'),
+('3.1.0', 'IMPROVE', N'Ajuster le stock : une variation décimale (1,82 L, au plus 3 décimales) est acceptée quand le magasin autorise les quantités décimales (Configuration générale) ; sinon elle est refusée en nommant l''article, jamais arrondie.'),
+('3.1.0', 'IMPROVE', N'Montants au millime : tickets, retours, avoirs, factures et caisse attendue ; le HT et la TVA d''un ticket avec remise globale ou points de fidélité sont ceux du montant payé.'),
+('3.1.0', 'IMPROVE', N'Lien avec le siège : rattrapage du catalogue plus sûr avec un siège lent, nouvel essai automatique, catalogue de plus de 20 000 articles plus rapide.'),
+('3.1.0', 'FIX', N'Promotion sur un groupe d''articles enregistrée avec un seul article.'),
+('3.1.0', 'FIX', N'Rapport des ventes, facture depuis des tickets (ligne « Remise ticket »), rapports par famille et statistiques : les remises, les points de fidélité et les articles sans famille sont comptés.'),
+('3.1.0', 'FIX', N'Utilisateurs : seul un administrateur donne le rôle Administrateur, et personne ne change son propre rôle.'),
+('3.1.0', 'FIX', N'Badges : le badge d''un utilisateur désactivé est refusé et un code de badge est unique.'),
+('3.1.0', 'FIX', N'Tâches ERP (Emtop) : un appel à NAV sans réponse ne bloque plus les tâches.');
 
 GO
 

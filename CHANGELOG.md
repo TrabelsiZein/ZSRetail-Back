@@ -4,7 +4,7 @@ One section per product version, newest first. Every commit that changes behavio
 its line here, under the version of its branch. The screens are in `ZSRetail-Front/CHANGELOG.md`. The French notes shown
 in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql` from this file when a version is closed.
 
-## 3.1.0 — in progress (branch `release/3.1.0`)
+## 3.1.0 — 2026-10-27 (tag `v3.1.0`)
 
 ### Features
 - RFID at the store (`rfid.enabled`, docs/modules/rfid.md): readers (Hopeland SDK, a fake reader for tests) and POS
@@ -353,7 +353,7 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   of (they exist already); nothing filled in, the pending tickets of before keep nulls. Re-runnable.
 - ZEN's clearance price before VAT keeps 5 decimals: `ho_stock_point_item.clearance_price` `numeric(18,5)` (head
   office; a column made with 3 decimals widened, its values kept); re-runnable.
-- `APP_VERSION` 3.1.0; release notes to complete when the version is closed (RFID is missing).
+- `APP_VERSION` 3.1.0 and its notes.
 
 ### Config
 - `rfid.enabled` (store, default false).
