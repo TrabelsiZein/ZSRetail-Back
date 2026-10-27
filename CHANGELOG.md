@@ -4,6 +4,39 @@ One section per product version, newest first. Every commit that changes behavio
 its line here, under the version of its branch. The screens are in `ZSRetail-Front/CHANGELOG.md`. The French notes shown
 in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql` from this file when a version is closed.
 
+## 3.1.1 — in progress (branch `release/3.1.1`)
+
+### Features
+- Orders to the head office ("Commandes centrale"), step 1, the store's back end (docs/modules/store-orders.md), on a
+  store whose goods come from its head office only (elsewhere the URLs answer 404): `hol_order` / `hol_order_line`, one
+  draft at a time numbered `<store code>-<year>-<6 digits>` at its creation, one line per variant (the same item again
+  replaces its quantity, 0 removes it), only active ERP items; `GET /store-order/catalogue` (the NAV items grouped
+  read, filters search / barcode / catégorie / famille / sous-famille / section, sort by number or name, the first
+  variant's price and image), `GET /store-order/variants` (the variants with NAV's live stock at the store's location,
+  asked to the head office: 503 without it, no partial answer), the draft (`GET`, `POST /draft/lines`, `DELETE
+  /draft/lines/{itemId}`, `PUT /draft/note`), `POST /store-order/{id}/send` (synchronous `POST /ho/orders`, the row
+  locked meanwhile: accepted SENT; refused 409, not answered 503, nothing saved), `POST /store-order/{id}/cancel` (a
+  draft only), `GET /store-order` (status, date range) and `GET /store-order/{id}`. What the head office does with an
+  order comes down with the SUPPLY copies (record `ORD:<number>`, kind `STORE_ORDER`: SENT, POSTED with the NAV
+  number, ERROR with the reason). The head office side is step 2.
+- Item images: `item_image` (any number per item, `FILE` or `URL`, sort order, main), entity and `GET /item/{id}/images`
+  (store and head office), read only; `item.imageUrl` stays the main image everywhere.
+- Permissions `read:admin-store-orders`, `write:admin-store-orders` ("Commandes centrale"), listed by
+  `GET /app-roles/permissions`, given to ADMIN at every start of a store whose goods come from the head office.
+
+### Enhancements
+- NAV items grouped read (`NavItemService.page`, `ItemRepository.NAV_ITEMS`): optional level filters (catégorie, the
+  item's own else its famille's; famille; sous-famille; section), the NAV items of the barcodes matching the search, and
+  a sort (number, or name then number, either way). The "NAV items" page sends none of them: same lines, same order.
+
+### DB script (`db/3.1.1/store-orders.sql`, then `db/3.1.1/update.sql`, store and head office)
+- `store-orders.sql`: tables `hol_order` (unique `number`, index `ix_hol_order_status`, filtered unique index
+  `ux_hol_order_draft`: one DRAFT) and `hol_order_line` (unique `order_id`, `item_id`; FK to `hol_order`) on a store
+  only; `item_image` (index `ix_item_image_item`) on both. Re-runnable, no data changed. The filtered index is also made
+  at each start when missing (`StoreOrderDraftIndex`: a new database runs no script).
+- `update.sql`: `APP_VERSION` 3.1.1 (it stops while `store-orders.sql` has not run); notes written when the version is
+  closed.
+
 ## 3.1.0 — 2026-10-27 (tag `v3.1.0`)
 
 ### Features

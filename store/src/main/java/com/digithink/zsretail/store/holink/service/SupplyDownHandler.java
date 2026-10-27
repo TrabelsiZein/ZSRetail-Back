@@ -14,6 +14,7 @@ import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.link.dto.DeliveryCopyDTO;
 import com.digithink.zsretail.core.link.dto.ErpInvoiceCopyDTO;
+import com.digithink.zsretail.core.link.dto.StoreOrderStatusCopyDTO;
 import com.digithink.zsretail.core.link.dto.SupplyInvoiceCopyDTO;
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.store.holink.dto.DownApplyResult;
@@ -52,10 +53,13 @@ public class SupplyDownHandler implements DownHandler {
 	/** Step 7B: writes the invoices (records INV:, kind INVOICE). */
 	private final SupplyInvoiceWriter invoices;
 
+	/** 3.1.1: writes what the head office did with an order of this store (records ORD:, kind STORE_ORDER). */
+	private final StoreOrderStatusWriter orders;
+
 	@Autowired
 	public SupplyDownHandler(DeliveryReceptionService reception, DownRecordLog records, SupplyInvoiceWriter invoices,
-			PlatformTransactionManager transactionManager) {
-		this(reception, records, timed(transactionManager), invoices);
+			StoreOrderStatusWriter orders, PlatformTransactionManager transactionManager) {
+		this(reception, records, timed(transactionManager), invoices, orders);
 	}
 
 	/** With given transactions, without invoices (7A): used by the tests. */
@@ -64,9 +68,16 @@ public class SupplyDownHandler implements DownHandler {
 		this(reception, records, transactions, null);
 	}
 
-	/** With given transactions and invoices: used by the tests. */
+	/** With given transactions and invoices, without the orders' statuses: used by the tests. */
 	public SupplyDownHandler(DeliveryReceptionService reception, DownRecordLog records,
 			TransactionOperations transactions, SupplyInvoiceWriter invoices) {
+		this(reception, records, transactions, invoices, null);
+	}
+
+	/** With given transactions, invoices and orders' statuses: used by the tests. */
+	public SupplyDownHandler(DeliveryReceptionService reception, DownRecordLog records,
+			TransactionOperations transactions, SupplyInvoiceWriter invoices, StoreOrderStatusWriter orders) {
+		this.orders = orders;
 		this.invoices = invoices;
 		this.reception = reception;
 		this.records = records;
@@ -95,6 +106,10 @@ public class SupplyDownHandler implements DownHandler {
 			}
 			if (kind != null && ErpInvoiceCopyDTO.KIND.equals(kind.asText())) {
 				applyErpInvoice(record, result); // invoices from the ERP, step (c)
+				continue;
+			}
+			if (kind != null && StoreOrderStatusCopyDTO.KIND.equals(kind.asText())) {
+				applyOrderStatus(record, result); // 3.1.1: the orders to the head office
 				continue;
 			}
 			DeliveryCopyDTO copy;
@@ -235,6 +250,55 @@ public class SupplyDownHandler implements DownHandler {
 						copy.getInvoiceNumber(), DownRecordStatus.ERROR, reason, null, payload));
 			} catch (RuntimeException ignored) {
 				// counted; retried below at the next cycle
+			}
+		}
+	}
+
+	/**
+	 * 3.1.1: what the head office did with an order of this store (record ORD:&lt;number&gt;), written on the order by
+	 * {@link StoreOrderStatusWriter} in its own transaction, tracked APPLIED (the information says when the order is not
+	 * here or was never sent) or ERROR (retried).
+	 */
+	private void applyOrderStatus(JsonNode record, DownApplyResult result) {
+		StoreOrderStatusCopyDTO copy;
+		try {
+			copy = COPY_MAPPER.treeToValue(record, StoreOrderStatusCopyDTO.class);
+		} catch (Exception e) {
+			result.addError(NO_CODE, "unreadable record (" + SalesCopyFinder.cause(e) + ")");
+			return;
+		}
+		if (copy.getOrderNumber() == null || copy.getOrderNumber().trim().isEmpty()) {
+			result.addError(NO_CODE, "record without an order number");
+			return;
+		}
+		String number = copy.getOrderNumber().trim();
+		String code = StoreOrderStatusCopyDTO.recordCode(number);
+		String payload = record.toString();
+		try {
+			if (orders == null) {
+				throw new IllegalStateException("no order writer on this store");
+			}
+			StoreOrderStatusWriter.Outcome outcome = transactions.execute(status -> {
+				StoreOrderStatusWriter.Outcome written = orders.apply(copy);
+				String info = written == StoreOrderStatusWriter.Outcome.UNKNOWN_ORDER ? "no such order at this store"
+						: written == StoreOrderStatusWriter.Outcome.NOT_SENT ? "the order was never sent from this store"
+								: null;
+				records.track(DataDomain.SUPPLY, code, number, DownRecordStatus.APPLIED, null, info, payload);
+				return written;
+			});
+			if (outcome == StoreOrderStatusWriter.Outcome.WRITTEN) {
+				result.addApplied();
+			} else {
+				result.addUnchanged();
+			}
+		} catch (RuntimeException e) {
+			String reason = "not saved (" + SalesCopyFinder.cause(e) + ")";
+			result.addError(code, reason);
+			try {
+				transactions.executeWithoutResult(status -> records.track(DataDomain.SUPPLY, code, number,
+						DownRecordStatus.ERROR, reason, null, payload));
+			} catch (RuntimeException ignored) {
+				// counted; retried at the next cycle
 			}
 		}
 	}

@@ -175,6 +175,7 @@ public class ZZDataInitializer {
 			Set<String> wanted = new HashSet<>(LICENSE_ADMIN_PERMISSIONS);
 			if (applicationModeService.isSupplyFromHeadOffice()) {
 				wanted.addAll(SUPPLY_ADMIN_PERMISSIONS); // step 7A: the BL reception page
+				wanted.addAll(STORE_ORDER_ADMIN_PERMISSIONS); // 3.1.1: the orders to the head office
 			}
 			if (!applicationModeService.isSupplyFromErp()) {
 				wanted.addAll(INVENTORY_ADMIN_PERMISSIONS); // inventory count: a store that keeps its own stock
@@ -248,6 +249,7 @@ public class ZZDataInitializer {
 			permissions.addAll(HEAD_OFFICE_LINK_ADMIN_PERMISSIONS);
 			if (applicationModeService.isSupplyFromHeadOffice()) {
 				permissions.addAll(SUPPLY_ADMIN_PERMISSIONS);
+				permissions.addAll(STORE_ORDER_ADMIN_PERMISSIONS);
 			}
 		}
 		return permissions;
@@ -339,6 +341,13 @@ public class ZZDataInitializer {
 
 	/** Store whose goods come from the head office (step 7A): the BL reception page; given to ADMIN at every start. */
 	static final Set<String> SUPPLY_ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:admin-holink-deliveries"));
+
+	/**
+	 * Store whose goods come from the head office (3.1.1): the "Commandes centrale" pages, the orders to the head office
+	 * (docs/modules/store-orders.md); given to ADMIN at every start, as the BL reception page.
+	 */
+	static final Set<String> STORE_ORDER_ADMIN_PERMISSIONS = new HashSet<>(
+			Arrays.asList("read:admin-store-orders", "write:admin-store-orders"));
 
 	private static final Set<String> ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:home",
 			"read:admin-users", "write:admin-users", "delete:admin-users", "read:admin-sessions",

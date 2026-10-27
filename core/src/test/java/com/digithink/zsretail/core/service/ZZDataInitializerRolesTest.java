@@ -419,14 +419,16 @@ class ZZDataInitializerRolesTest {
 	}
 
 	@Test
-	@DisplayName("Step 7A, store whose goods come from the head office: ADMIN gets the BL reception page on a new database"
-			+ " (saved once) and at the next start of an existing database (only that permission); other roles untouched")
+	@DisplayName("Step 7A, store whose goods come from the head office: ADMIN gets the BL reception page and (3.1.1) the"
+			+ " orders to the head office on a new database (saved once) and at the next start of an existing database"
+			+ " (only those permissions); other roles untouched")
 	void suppliedStoreAdminGetsReception() throws Exception {
 		List<String> saves = new ArrayList<>();
 		Map<String, AppRole> roles = seedRoles(suppliedStore(), true, Collections.emptyMap(), saves);
 		Set<String> expected = storeAdminPermissions(true);
 		expected.add("read:admin-holink-status");
 		expected.add("read:admin-holink-deliveries");
+		expected.addAll(STORE_ORDERS);
 		assertEquals(expected, roles.get("ADMIN").getPermissions());
 		assertEquals(java.util.Arrays.asList("ADMIN", "RESPONSIBLE", "POS_USER"), saves, "each role saved once");
 		assertEquals(staticSet("RESPONSIBLE_PERMISSIONS"), roles.get("RESPONSIBLE").getPermissions());
@@ -438,6 +440,7 @@ class ZZDataInitializerRolesTest {
 		Set<String> toppedUp = new HashSet<>(java.util.Arrays.asList("read:home", "read:admin-holink-status",
 				"read:admin-holink-deliveries", LICENSE));
 		toppedUp.addAll(INVENTORY);
+		toppedUp.addAll(STORE_ORDERS);
 		assertEquals(toppedUp, existing.get("ADMIN").getPermissions(), "nothing else added or removed");
 		assertEquals(Collections.singleton("read:home"), existing.get("RESPONSIBLE").getPermissions());
 
@@ -445,7 +448,12 @@ class ZZDataInitializerRolesTest {
 		seedRoles(suppliedStore(), true, existing, nextStart);
 		assertTrue(nextStart.isEmpty(), "saved: " + nextStart);
 		assertFalse(staticSet("ADMIN_PERMISSIONS").contains("read:admin-holink-deliveries"), "store set untouched");
+		assertFalse(staticSet("ADMIN_PERMISSIONS").contains("read:admin-store-orders"), "store set untouched");
 	}
+
+	/** 3.1.1: the orders to the head office, only on a store whose goods come from the head office. */
+	private static final Set<String> STORE_ORDERS = new HashSet<>(
+			java.util.Arrays.asList("read:admin-store-orders", "write:admin-store-orders"));
 
 	// --- Stubs ---
 

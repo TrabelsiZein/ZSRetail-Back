@@ -2,6 +2,7 @@ package com.digithink.zsretail.core.repository;
 
 import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -171,27 +172,58 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 
 	/**
 	 * Step 11a, page "NAV items": the items counted in a line and in the count of lines. search: lower case with % already
-	 * around it (the NAV item number or the item's name), null = not filtered; activeOnly: TRUE = the active variants only,
-	 * null = every variant.
+	 * around it (the NAV item number or the item's name), null = not filtered; barcodeItemIds: the items whose barcode
+	 * matches the search, their NAV item numbers match too (never empty: {@link #NO_ITEM_IDS} for none); activeOnly: TRUE
+	 * = the active variants only, null = every variant.
+	 * <p>
+	 * 3.1.1 (store orders): the level filters, each null = not filtered: categoryCode (the item's own catégorie, else its
+	 * famille's, as the promotions match it), familyId, subFamilyId, sectionCode. The name and the classification are per
+	 * NAV item (its variants share them) and a barcode matches through its NAV item number, so a line keeps all its
+	 * variants in its count.
 	 */
 	String NAV_ITEMS_WHERE = " where i.navItemNo is not null"
-			+ " and (:search is null or lower(i.navItemNo) like :search or lower(i.name) like :search)"
-			+ " and (:activeOnly is null or i.active is null or i.active = true)";
+			+ " and (:search is null or lower(i.navItemNo) like :search or lower(i.name) like :search"
+			+ " or i.navItemNo in (select b.navItemNo from Item b where b.id in :barcodeItemIds))"
+			+ " and (:activeOnly is null or i.active is null or i.active = true)"
+			+ " and (:categoryCode is null or coalesce(i.categoryCode, f.categoryCode) = :categoryCode)"
+			+ " and (:familyId is null or f.id = :familyId)"
+			+ " and (:subFamilyId is null or sf.id = :subFamilyId)"
+			+ " and (:sectionCode is null or i.sectionCode = :sectionCode)";
+
+	/** The item ids of {@link #NAV_ITEMS_WHERE} when no barcode matches (an IN list is never empty). */
+	List<Long> NO_ITEM_IDS = Collections.singletonList(-1L);
+
+	String NAV_ITEMS_FROM = " from Item i left join i.itemFamily f left join i.itemSubFamily sf";
 
 	/**
-	 * Step 11a: one line per NAV item number, by number: [NAV item number, name, family name, sub-family name, catégorie
-	 * code, section code, number of variants, stock of the variants]. The ERP gives the name and the classification per
-	 * NAV item, so its variants share them; min keeps one when they differ.
+	 * Step 11a: one line per NAV item number: [NAV item number, name, family name, sub-family name, catégorie code,
+	 * section code, number of variants, stock of the variants]. The ERP gives the name and the classification per NAV
+	 * item, so its variants share them; min keeps one when they differ. 3.1.1: the order is the page's sort
+	 * (NavItemService: by number, or by name then number).
 	 */
 	String NAV_ITEMS = "select i.navItemNo, min(i.name), min(f.name), min(sf.name), min(i.categoryCode),"
-			+ " min(i.sectionCode), count(i), sum(i.stockQuantity) from Item i left join i.itemFamily f"
-			+ " left join i.itemSubFamily sf" + NAV_ITEMS_WHERE + " group by i.navItemNo order by i.navItemNo";
+			+ " min(i.sectionCode), count(i), sum(i.stockQuantity)" + NAV_ITEMS_FROM + NAV_ITEMS_WHERE
+			+ " group by i.navItemNo";
 
-	String NAV_ITEMS_COUNT = "select count(distinct i.navItemNo) from Item i" + NAV_ITEMS_WHERE;
+	String NAV_ITEMS_COUNT = "select count(distinct i.navItemNo)" + NAV_ITEMS_FROM + NAV_ITEMS_WHERE;
 
 	@Query(value = NAV_ITEMS, countQuery = NAV_ITEMS_COUNT)
-	Page<Object[]> findNavItems(@Param("search") String search, @Param("activeOnly") Boolean activeOnly,
-			Pageable page);
+	Page<Object[]> findNavItems(@Param("search") String search, @Param("barcodeItemIds") Collection<Long> barcodeItemIds,
+			@Param("activeOnly") Boolean activeOnly, @Param("categoryCode") String categoryCode,
+			@Param("familyId") Long familyId, @Param("subFamilyId") Long subFamilyId,
+			@Param("sectionCode") String sectionCode, Pageable page);
+
+	/**
+	 * 3.1.1 (store orders): the variants of these NAV item numbers (a page's, at most 200), activeOnly as
+	 * {@link #NAV_ITEMS_WHERE}, each number's in the order of {@link #NAV_ITEM_VARIANTS}: its first is the line's price
+	 * and image.
+	 */
+	@Query("select i from Item i where i.navItemNo in :navItemNos"
+			+ " and (:activeOnly is null or i.active is null or i.active = true)"
+			+ " order by i.navItemNo, case when i.sizeSortOrder is null then 1 else 0 end, i.sizeSortOrder, i.colorCode,"
+			+ " i.choiceCode, i.itemCode")
+	List<Item> findVariantsOfNavItems(@Param("navItemNos") Collection<String> navItemNos,
+			@Param("activeOnly") Boolean activeOnly);
 
 	/**
 	 * Step 11a: the variants of one NAV item number, by size order (no order last), colour, choice, then item code.

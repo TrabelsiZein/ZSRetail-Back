@@ -39,7 +39,10 @@ import com.digithink.zsretail.core.link.dto.LoyaltyMovementCopyDTO;
 import com.digithink.zsretail.core.link.dto.LoyaltyPhoneCheckDTO;
 import com.digithink.zsretail.core.link.dto.LoyaltyPointsAdjustDTO;
 import com.digithink.zsretail.core.link.dto.SalesCopyAnswerDTO;
+import com.digithink.zsretail.core.link.dto.SalesCopyResultDTO;
 import com.digithink.zsretail.core.link.dto.StockReportDTO;
+import com.digithink.zsretail.core.link.dto.StoreOrderDTO;
+import com.digithink.zsretail.core.link.dto.VariantStockDTO;
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.model.enumeration.SalesUpstream;
 import com.digithink.zsretail.core.service.GeneralSetupService;
@@ -85,6 +88,9 @@ public class HeadOfficeClient {
 	static final int LIVE_READ_TIMEOUT_MS = 3_000;
 	static final String LOYALTY_PATH = "/ho/loyalty";
 	static final String SUPPLY_PATH = "/ho/supply";
+	/** 3.1.1: the orders to the head office; their two calls wait for NAV at the head office: connect 2 s, read 15 s. */
+	static final String ORDERS_PATH = "/ho/orders";
+	static final int ORDER_READ_TIMEOUT_MS = 15_000;
 
 	static final String KEY_REFUSED = "store code or key refused by the head office";
 	static final String NO_LICENSE = "the head office has no valid license";
@@ -103,6 +109,9 @@ public class HeadOfficeClient {
 	private final RestTemplate downTemplate;
 	private final int downReadTimeoutSeconds;
 
+	/** 3.1.1: the orders' live calls (variant stock, send), on a request thread: the head office asks NAV meanwhile. */
+	private final RestTemplate orderTemplate;
+
 	private final GeneralSetupService generalSetupService;
 	private final String baseUrl;
 	private final String apiKey;
@@ -117,7 +126,8 @@ public class HeadOfficeClient {
 			@Value("${app.version:unknown}") String appVersion,
 			@Value("${" + DOWN_READ_TIMEOUT_KEY + ":" + DOWN_READ_TIMEOUT_SECONDS + "}") int downReadTimeoutSeconds) {
 		this(newRestTemplate(), newLiveRestTemplate(), newDownRestTemplate(downReadTimeoutSeconds),
-				positive(downReadTimeoutSeconds), generalSetupService, url, apiKey, appVersion, applicationModeService);
+				positive(downReadTimeoutSeconds), newOrderRestTemplate(), generalSetupService, url, apiKey, appVersion,
+				applicationModeService);
 	}
 
 	/** With a given RestTemplate: used by the tests (MockRestServiceServer). The heartbeat sends the version only. */
@@ -126,21 +136,25 @@ public class HeadOfficeClient {
 		this(restTemplate, generalSetupService, url, apiKey, appVersion, null);
 	}
 
-	/** With a given RestTemplate and the store's ownership: used by the tests. The live questions and the pull use it too. */
+	/**
+	 * With a given RestTemplate and the store's ownership: used by the tests. The live questions, the pull and the orders
+	 * use it too.
+	 */
 	public HeadOfficeClient(RestTemplate restTemplate, GeneralSetupService generalSetupService, String url,
 			String apiKey, String appVersion, ApplicationModeService ownership) {
-		this(restTemplate, restTemplate, restTemplate, DOWN_READ_TIMEOUT_SECONDS, generalSetupService, url, apiKey,
-				appVersion, ownership);
+		this(restTemplate, restTemplate, restTemplate, DOWN_READ_TIMEOUT_SECONDS, restTemplate, generalSetupService, url,
+				apiKey, appVersion, ownership);
 	}
 
 	private HeadOfficeClient(RestTemplate restTemplate, RestTemplate liveTemplate, RestTemplate downTemplate,
-			int downReadTimeoutSeconds, GeneralSetupService generalSetupService, String url, String apiKey,
-			String appVersion, ApplicationModeService ownership) {
+			int downReadTimeoutSeconds, RestTemplate orderTemplate, GeneralSetupService generalSetupService, String url,
+			String apiKey, String appVersion, ApplicationModeService ownership) {
 		this.ownership = ownership;
 		this.restTemplate = restTemplate;
 		this.liveTemplate = liveTemplate;
 		this.downTemplate = downTemplate;
 		this.downReadTimeoutSeconds = downReadTimeoutSeconds;
+		this.orderTemplate = orderTemplate;
 		this.generalSetupService = generalSetupService;
 		this.baseUrl = withoutTrailingSlash(url.trim());
 		this.apiKey = apiKey == null ? "" : apiKey.trim();
@@ -160,6 +174,11 @@ public class HeadOfficeClient {
 	/** 3.1.0: the pull of copies down: connect 5 s, read the given seconds (0 or less: the default 60 s). */
 	static RestTemplate newDownRestTemplate(int readTimeoutSeconds) {
 		return newRestTemplate(CONNECT_TIMEOUT_MS, positive(readTimeoutSeconds) * 1000);
+	}
+
+	/** 3.1.1: the orders' live calls: connect 2 s, read 15 s (the head office answers after asking NAV). */
+	static RestTemplate newOrderRestTemplate() {
+		return newRestTemplate(LIVE_CONNECT_TIMEOUT_MS, ORDER_READ_TIMEOUT_MS);
 	}
 
 	private static int positive(int seconds) {
@@ -391,11 +410,50 @@ public class HeadOfficeClient {
 		}
 	}
 
+	// ─── Orders to the head office (3.1.1) ───────────────────────
+
 	/**
-	 * A live question, on the live RestTemplate (short timeouts): the 200 body, the head office's refusal with its
-	 * status and {"error"} text, or why there is no answer (401 and 402 as for the heartbeat). Never throws.
+	 * 3.1.1, live question: NAV's stock of every variant of a NAV item at this store's location, GET
+	 * /ho/orders/variant-stock?navItemNo= (the head office reads the location from X-Store-Code), [{itemNo, variantCode,
+	 * quantity}].
 	 */
+	public LiveAnswer<VariantStockDTO[]> variantStock(String navItemNo) {
+		try {
+			URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl + ORDERS_PATH + "/variant-stock")
+					.queryParam("navItemNo", "{navItemNo}").encode().buildAndExpand(navItemNo == null ? "" : navItemNo)
+					.toUri();
+			return live(orderTemplate, HttpMethod.GET, uri, null, VariantStockDTO[].class);
+		} catch (RuntimeException e) {
+			return LiveAnswer.notAnswered(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"head office call failed (" + cause(e) + ")"));
+		}
+	}
+
+	/**
+	 * 3.1.1, live question: one order sent, POST /ho/orders; the head office's answer for it (accepted, or refused with
+	 * its reason). The head office takes an order number once.
+	 */
+	public LiveAnswer<SalesCopyResultDTO> sendOrder(StoreOrderDTO order) {
+		try {
+			URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl + ORDERS_PATH).build().toUri();
+			return live(orderTemplate, HttpMethod.POST, uri, order, SalesCopyResultDTO.class);
+		} catch (RuntimeException e) {
+			return LiveAnswer.notAnswered(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"head office call failed (" + cause(e) + ")"));
+		}
+	}
+
+	/** A live question on the live RestTemplate (short timeouts), as {@link #live(RestTemplate, HttpMethod, URI, Object, Class)}. */
 	private <T> LiveAnswer<T> live(HttpMethod method, URI uri, Object body, Class<T> answerType) {
+		return live(liveTemplate, method, uri, body, answerType);
+	}
+
+	/**
+	 * A live question on the given RestTemplate: the 200 body, the head office's refusal with its status and {"error"}
+	 * text, or why there is no answer (401 and 402 as for the heartbeat). Never throws.
+	 */
+	private <T> LiveAnswer<T> live(RestTemplate template, HttpMethod method, URI uri, Object body,
+			Class<T> answerType) {
 		String storeCode;
 		try {
 			storeCode = readStoreCode();
@@ -416,7 +474,7 @@ public class HeadOfficeClient {
 		try {
 			HttpEntity<?> entity = body == null ? new HttpEntity<>(headers)
 					: new HttpEntity<>(WIRE_MAPPER.writeValueAsBytes(body), headers);
-			ResponseEntity<T> response = liveTemplate.exchange(uri, method, entity, answerType);
+			ResponseEntity<T> response = template.exchange(uri, method, entity, answerType);
 			if (response.getStatusCodeValue() != 200 || response.getBody() == null) {
 				return LiveAnswer.notAnswered(response.getStatusCodeValue() != 200
 						? fromStatus(response.getStatusCodeValue())

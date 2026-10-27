@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -28,6 +29,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
@@ -48,6 +50,9 @@ import com.digithink.zsretail.core.support.TestModes;
  * query. The queries themselves: NavItemQueryTest; the three ZEN deploy files: KeepsOwnStockTest (network-tests).
  */
 class NavItemServiceTest {
+
+	/** The order of the "NAV items" page: by NAV item number. */
+	private static final Sort BY_NUMBER = Sort.by(Sort.Direction.ASC, "navItemNo");
 
 	private final ItemRepository items = mock(ItemRepository.class);
 	private final ItemCategoryRepository categories = mock(ItemCategoryRepository.class);
@@ -77,7 +82,7 @@ class NavItemServiceTest {
 	private void oneLine() {
 		Object[] row = { "70061", "CHEMISE", "Homme", "Chemises", "VET", "MANCHE", 4L, new BigDecimal("13") };
 		Page<Object[]> page = new PageImpl<>(Collections.singletonList(row), PageRequest.of(0, 20), 1);
-		when(items.findNavItems(any(), any(), any(Pageable.class))).thenReturn(page);
+		when(items.findNavItems(any(), any(), any(), any(), any(), any(), any(), any(Pageable.class))).thenReturn(page);
 		ItemCategory vet = new ItemCategory();
 		vet.setCode("VET");
 		vet.setName("Vêtements");
@@ -150,7 +155,8 @@ class NavItemServiceTest {
 		assertFalse(service.withStockPoints());
 
 		NavItemDTO line = service.page(" Chem ", true, 0, 20).getContent().get(0);
-		verify(items).findNavItems(eq("%chem%"), eq(Boolean.TRUE), eq(PageRequest.of(0, 20)));
+		verify(items).findNavItems(eq("%chem%"), eq(ItemRepository.NO_ITEM_IDS), eq(Boolean.TRUE), isNull(), isNull(), isNull(),
+				isNull(), eq(PageRequest.of(0, 20, BY_NUMBER)));
 		assertEquals("70061", line.getNavItemNo());
 		assertEquals(4L, line.getVariants());
 		assertEquals(new BigDecimal("13"), line.getStockQuantity());
@@ -216,7 +222,8 @@ class NavItemServiceTest {
 		assertTrue(service.withStockPoints());
 
 		NavItemDTO line = service.page(null, false, 0, 20).getContent().get(0);
-		verify(items).findNavItems(null, null, PageRequest.of(0, 20));
+		verify(items).findNavItems(null, ItemRepository.NO_ITEM_IDS, null, null, null, null, null,
+				PageRequest.of(0, 20, BY_NUMBER));
 		assertNull(line.getStockQuantity());
 		assertEquals(Long.valueOf(2), line.getStockPoints());
 
@@ -238,7 +245,8 @@ class NavItemServiceTest {
 		when(none.activePointCounts(anyCollection())).thenReturn(Collections.emptyMap());
 		NavItemService service = service(headOfficeWithStock(), none);
 		NavItemDTO line = service.page(null, true, -3, 9999).getContent().get(0);
-		verify(items).findNavItems(null, Boolean.TRUE, PageRequest.of(0, NavItemService.MAX_SIZE));
+		verify(items).findNavItems(null, ItemRepository.NO_ITEM_IDS, Boolean.TRUE, null, null, null, null,
+				PageRequest.of(0, NavItemService.MAX_SIZE, BY_NUMBER));
 		assertEquals(Long.valueOf(0), line.getStockPoints());
 		assertEquals(new BigDecimal("13"), line.getStockQuantity(), "a head office with stock gives it");
 

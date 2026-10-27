@@ -18,11 +18,14 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.dto.NavItemDTO;
+import com.digithink.zsretail.core.dto.NavItemFilter;
 import com.digithink.zsretail.core.dto.NavItemVariantsDTO;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ItemCategory;
@@ -81,8 +84,24 @@ public class NavItemService {
 	 * variants only (a NAV item whose variants are all inactive has no line), else every variant.
 	 */
 	public Page<NavItemDTO> page(String search, boolean activeOnly, int page, int size) {
-		Page<Object[]> rows = itemRepository.findNavItems(likeOf(search), activeOnly ? Boolean.TRUE : null,
-				PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_SIZE)));
+		NavItemFilter filter = new NavItemFilter();
+		filter.setSearch(search);
+		filter.setActiveOnly(activeOnly);
+		return page(filter, page, size);
+	}
+
+	/**
+	 * 3.1.1 (store orders): one page of lines by NAV item number, filtered on the search (and the barcodes matched by the
+	 * caller) and the classification levels, sorted by number or by name (then number).
+	 */
+	public Page<NavItemDTO> page(NavItemFilter filter, int page, int size) {
+		Collection<Long> barcodeItemIds = filter.getBarcodeItemIds() == null || filter.getBarcodeItemIds().isEmpty()
+				? ItemRepository.NO_ITEM_IDS
+				: filter.getBarcodeItemIds();
+		Page<Object[]> rows = itemRepository.findNavItems(likeOf(filter.getSearch()), barcodeItemIds,
+				filter.isActiveOnly() ? Boolean.TRUE : null, blankToNull(filter.getCategoryCode()), filter.getFamilyId(),
+				filter.getSubFamilyId(), blankToNull(filter.getSectionCode()),
+				PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_SIZE), sortOf(filter)));
 		List<NavItemDTO> lines = rows.getContent().stream().map(this::line).collect(Collectors.toList());
 		names(lines);
 		if (stockPoints != null && !lines.isEmpty()) {
@@ -202,6 +221,38 @@ public class NavItemService {
 			variant.setStockQuantity(item.getStockQuantity() == null ? BigDecimal.ZERO : item.getStockQuantity());
 		}
 		return variant;
+	}
+
+	/**
+	 * The order of a page (public for the query test): by number (the default), or by the line's name then number. The
+	 * name is an aggregate (min(i.name), the line's), passed as is to the statement; the number is the grouped column.
+	 */
+	public static Sort sortOf(NavItemFilter filter) {
+		Sort.Direction direction = filter.isDescending() ? Sort.Direction.DESC : Sort.Direction.ASC;
+		Sort byNumber = Sort.by(direction, "navItemNo");
+		if (NavItemFilter.SORT_NAME.equalsIgnoreCase(filter.getSort() == null ? "" : filter.getSort().trim())) {
+			return JpaSort.unsafe(direction, "min(i.name)").and(byNumber);
+		}
+		return byNumber;
+	}
+
+	/**
+	 * 3.1.1 (store orders): the variants of these NAV item numbers, active ones only, by number then in the variants'
+	 * order; empty for none.
+	 */
+	public Map<String, List<Item>> activeVariantsOf(Collection<String> navItemNos) {
+		Map<String, List<Item>> variants = new LinkedHashMap<>();
+		if (navItemNos == null || navItemNos.isEmpty()) {
+			return variants;
+		}
+		for (Item item : itemRepository.findVariantsOfNavItems(navItemNos, Boolean.TRUE)) {
+			variants.computeIfAbsent(item.getNavItemNo(), no -> new ArrayList<>()).add(item);
+		}
+		return variants;
+	}
+
+	private static String blankToNull(String value) {
+		return value == null || value.trim().isEmpty() ? null : value.trim();
 	}
 
 	/** Lower case with % around it, null when blank. */

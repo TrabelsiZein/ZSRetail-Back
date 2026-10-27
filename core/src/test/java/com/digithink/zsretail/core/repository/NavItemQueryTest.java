@@ -17,7 +17,9 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.jpa.repository.query.QueryUtils;
 
+import com.digithink.zsretail.core.dto.NavItemFilter;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ItemFamily;
 import com.digithink.zsretail.core.model.ItemSubFamily;
@@ -97,19 +99,30 @@ class NavItemQueryTest {
 		session.persist(item);
 	}
 
+	/** The page of NAV_ITEMS as Spring Data runs it: the service's default sort (by number) appended by QueryUtils. */
 	private static List<Object[]> lines(String search, Boolean activeOnly, int first, int max) {
 		try (Session session = sessions.openSession()) {
-			Query<Object[]> query = session.createQuery(ItemRepository.NAV_ITEMS, Object[].class);
-			query.setParameter("search", search).setParameter("activeOnly", activeOnly);
+			String statement = QueryUtils.applySorting(ItemRepository.NAV_ITEMS, NavItemService.sortOf(new NavItemFilter()),
+					"i");
+			Query<Object[]> query = session.createQuery(statement, Object[].class);
+			bind(query, search, activeOnly);
 			return query.setFirstResult(first).setMaxResults(max).list();
 		}
 	}
 
 	private static long count(String search, Boolean activeOnly) {
 		try (Session session = sessions.openSession()) {
-			return session.createQuery(ItemRepository.NAV_ITEMS_COUNT, Long.class).setParameter("search", search)
-					.setParameter("activeOnly", activeOnly).uniqueResult();
+			Query<Long> query = session.createQuery(ItemRepository.NAV_ITEMS_COUNT, Long.class);
+			bind(query, search, activeOnly);
+			return query.uniqueResult();
 		}
+	}
+
+	/** The parameters of the "NAV items" page: search and status only, no barcode, no level (NavItemService.page). */
+	private static void bind(Query<?> query, String search, Boolean activeOnly) {
+		query.setParameter("search", search).setParameterList("barcodeItemIds", ItemRepository.NO_ITEM_IDS)
+				.setParameter("activeOnly", activeOnly).setParameter("categoryCode", null)
+				.setParameter("familyId", null).setParameter("subFamilyId", null).setParameter("sectionCode", null);
 	}
 
 	private static List<String> variants(String navItemNo, Boolean activeOnly) {
