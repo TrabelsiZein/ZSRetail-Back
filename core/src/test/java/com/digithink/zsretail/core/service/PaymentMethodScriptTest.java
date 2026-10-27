@@ -75,10 +75,12 @@ class PaymentMethodScriptTest {
 	void releaseNotesRunTwice() throws Exception {
 		String sql = statements();
 		int delete = sql.indexOf("DELETE FROM APP_RELEASE_NOTES WHERE version = '3.1.0';");
-		int insert = sql.indexOf("INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES ('3.1.0', 'NEW',"
-				+ " N'Nouveau moyen de paiement « Retenue à la source »");
+		int insert = sql.indexOf("INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES ('3.1.0', ");
+		// One row of the notes (closed 2026-10-27: they are written from the CHANGELOG, this one among them)
+		int note = sql.indexOf("('3.1.0', 'NEW', N'Nouveau moyen de paiement « Retenue à la source »");
 		assertTrue(delete >= 0, "DELETE of the 3.1.0 notes");
-		assertTrue(insert > delete, "the note, after the DELETE");
+		assertTrue(insert > delete, "the notes, after the DELETE");
+		assertTrue(note > insert, "the note of Retenue à la source, in the notes");
 		assertEquals(1, count(sql, "INSERT INTO APP_RELEASE_NOTES"));
 	}
 
