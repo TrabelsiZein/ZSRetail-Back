@@ -22,6 +22,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import java.math.BigDecimal;
 import java.net.ConnectException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -360,7 +361,8 @@ class StoreOrderServiceTest {
 	// ─── Variants and catalogue ──────────────────────────────────
 
 	@Test
-	@DisplayName("Variants: NAV's stock merged by variant (none: null, another NAV item ignored), images, the draft's quantity")
+	@DisplayName("Variants: NAV's stock merged by variant (none: null, another NAV item ignored), details and size order,"
+			+ " images, the draft's quantity")
 	void variantsWithStock() {
 		put(large, 3);
 		ItemImage image = new ItemImage();
@@ -371,7 +373,8 @@ class StoreOrderServiceTest {
 		image.setMain(true);
 		when(images.findOfItems(anyCollection())).thenReturn(Collections.singletonList(image));
 		server.expect(requestTo(STOCK)).andExpect(method(HttpMethod.GET)).andExpect(header("X-Store-Code", "S01"))
-				.andRespond(withSuccess("[{\"itemNo\":\"70061\",\"variantCode\":\"s\",\"quantity\":4},"
+				.andRespond(withSuccess("[{\"itemNo\":\"70061\",\"variantCode\":\"s\",\"quantity\":4,"
+						+ "\"details\":{\"Prix net\":\"12.5\",\"Stock\":\"48\"},\"sizeOrder\":160},"
 						+ "{\"itemNo\":\"OTHER\",\"variantCode\":\"L\",\"quantity\":99}]", MediaType.APPLICATION_JSON));
 		StoreOrderVariantsDTO answer = service.variants(" 70061 ").get();
 		server.verify();
@@ -380,6 +383,11 @@ class StoreOrderServiceTest {
 		StoreOrderVariantsDTO.Variant l = answer.getVariants().get(1);
 		assertEquals(0, new BigDecimal("4").compareTo(s.getStock()));
 		assertNull(l.getStock(), "no NAV row for L (the 99 is another item's): unknown, never 0");
+		assertEquals(Arrays.asList("Prix net", "Stock"), new ArrayList<>(s.getDetails().keySet()), "in order");
+		assertEquals("48", s.getDetails().get("Stock"));
+		assertEquals(Integer.valueOf(160), s.getSizeOrder());
+		assertNull(l.getDetails());
+		assertNull(l.getSizeOrder());
 		assertEquals(25.0, s.getPrice());
 		assertEquals(1, s.getImages().size());
 		assertEquals("https://cdn/s.png", s.getImages().get(0).getPath());
@@ -402,6 +410,16 @@ class StoreOrderServiceTest {
 		when(navItems.activeVariantsOf(Collections.singletonList("NOPE"))).thenReturn(new LinkedHashMap<>());
 		assertFalse(service.variants("NOPE").isPresent());
 		assertThrows(IllegalArgumentException.class, () -> service.variants(" "));
+	}
+
+	@Test
+	@DisplayName("Variants refused by the head office (409, no ERP customer number): 409 with its reason, not a 503")
+	void variantsRefused() {
+		server.expect(requestTo(STOCK)).andRespond(withStatus(HttpStatus.CONFLICT).contentType(MediaType.APPLICATION_JSON)
+				.body("{\"error\":\"Store S01 has no ERP customer number at the head office\"}"));
+		IllegalStateException e = assertThrows(IllegalStateException.class, () -> service.variants("70061"));
+		assertEquals("The head office refused the stock of 70061: Store S01 has no ERP customer number at the head office",
+				e.getMessage());
 	}
 
 	@Test

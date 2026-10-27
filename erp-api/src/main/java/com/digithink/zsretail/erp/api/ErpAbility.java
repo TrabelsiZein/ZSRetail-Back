@@ -19,7 +19,7 @@ public enum ErpAbility {
 
 	/**
 	 * 3.1.1: posting the stores' orders as sales orders (ErpConnector.postSalesOrder, looked up first by their number)
-	 * and reading the variants' stock of a location (fetchVariantStock), so a head office may set
+	 * and reading the variants' stock for a store (fetchVariantStock), so a head office may set
 	 * headoffice.storeorders.post=ERP.
 	 */
 	STORE_ORDERS

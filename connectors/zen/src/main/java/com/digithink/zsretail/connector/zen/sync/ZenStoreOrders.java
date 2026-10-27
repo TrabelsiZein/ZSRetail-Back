@@ -16,8 +16,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * 3.1.1 (store orders): the stores' orders in ZEN's NAV, on the two pages of the contract sent to ZEN
- * (erp.zen.variantstock.path, erp.zen.salesorders.path; the fields in {@link ZenOrderFields}). ZenConnector answers
+ * 3.1.1 (store orders): the stores' orders in ZEN's NAV: the variants' stock on ZEN's page infoArticles
+ * (erp.zen.variantstock.path), the sales orders on the page of the contract sent to ZEN (erp.zen.salesorders.path); the
+ * fields in {@link ZenOrderFields}. ZenConnector answers
  * fetchVariantStock and postSalesOrder from here. Posting first looks up NAV's order of the same externalDocumentNo (the
  * store's order number) and reuses its number: an order posted again after a lost answer is never doubled. The lookup
  * is required: when the page cannot answer it, the order is not posted (failure, retried by the head office's job).
@@ -32,9 +33,12 @@ public class ZenStoreOrders {
 		this.client = client;
 	}
 
-	/** NAV's stock of every variant of the item at the location; ZenReadException naming the page when it fails. */
-	public List<ErpVariantStockDTO> variantStock(String itemNo, String locationCode) {
-		return client.readVariantStock(itemNo, locationCode);
+	/**
+	 * NAV's stock of every variant of the item for the ERP customer (the store's); ZenReadException naming the page when
+	 * it fails.
+	 */
+	public List<ErpVariantStockDTO> variantStock(String itemNo, String customerNo) {
+		return client.readVariantStock(itemNo, customerNo);
 	}
 
 	/**

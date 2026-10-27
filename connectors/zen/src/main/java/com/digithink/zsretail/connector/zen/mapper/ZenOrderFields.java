@@ -1,8 +1,11 @@
 package com.digithink.zsretail.connector.zen.mapper;
 
-import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 import com.digithink.zsretail.erp.api.dto.ErpSalesOrderDTO;
@@ -14,24 +17,33 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * 3.1.1 (store orders): the field names of ZEN's two pages of the store orders and their mapping, in one place (a field
- * ZEN renames is one line here), as the contract sent to ZEN gives them:
+ * ZEN renames is one line here):
  * <ul>
- * <li>GET variantStock?itemNo=&amp;locationCode= → [{itemNo, variantCode, quantity}] (a plain array, or OData's
- * {"value": [...]});</li>
- * <li>POST salesOrders {locationCode, customerNo, externalDocumentNo, orderDate, lines: [{itemNo, variantCode,
- * quantity}]} → {orderNo};</li>
+ * <li>ZEN's real page GET infoArticles?$filter=article eq '..' and client eq '..' → {"value": [{article, codeVariante,
+ * client, ..., ordreTaille, ..., stock, qteVrac, disponible, calculeLe}]}, one row per variant, the stock of the item
+ * for the store's ERP customer (no location): the quantity is disponible, never stock;</li>
+ * <li>as the contract sent to ZEN gives them (commandesVente not published yet): POST salesOrders {locationCode,
+ * customerNo, externalDocumentNo, orderDate, lines: [{itemNo, variantCode, quantity}]} → {orderNo};</li>
  * <li>the lookup before it: GET salesOrders?$filter=externalDocumentNo eq '..'&amp;$select=orderNo → {"value":
  * [{orderNo}]}.</li>
  * </ul>
  */
 public final class ZenOrderFields {
 
-	// The variant stock page: query parameters and row fields
-	public static final String STOCK_ITEM_PARAM = "itemNo";
-	public static final String STOCK_LOCATION_PARAM = "locationCode";
-	public static final String STOCK_ITEM_NO = "itemNo";
-	public static final String STOCK_VARIANT_CODE = "variantCode";
-	public static final String STOCK_QUANTITY = "quantity";
+	// The variant stock page (infoArticles): the filter's fields and the row's
+	public static final String STOCK_ITEM_NO = "article";
+	public static final String STOCK_CUSTOMER = "client";
+	public static final String STOCK_VARIANT_CODE = "codeVariante";
+	/** What the store can order: disponible, never stock (stock is one of the details). */
+	public static final String STOCK_QUANTITY = "disponible";
+	public static final String STOCK_SIZE_ORDER = "ordreTaille";
+	public static final String STOCK_COMPUTED_AT = "calculeLe";
+	/** The details of a row (the tooltip of the store's cell), in this order: the field, its label. */
+	static final String[][] STOCK_DETAILS = { { "prixUnitaire", "Prix unitaire" }, { "remisePourcent", "Remise %" },
+			{ "prixNet", "Prix net" }, { "stock", "Stock" }, { "qteVrac", "Qt\u00e9 vrac" },
+			{ "vracAutorise", "Vrac autoris\u00e9" }, { "contenanceSerie", "Contenance s\u00e9rie" },
+			{ "colisPossibles", "Colis possibles" }, { STOCK_COMPUTED_AT, "Calcul\u00e9 le" } };
+	static final DateTimeFormatter COMPUTED_AT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
 	// The sales order: header, lines, answer
 	public static final String ORDER_LOCATION = "locationCode";
@@ -50,8 +62,12 @@ public final class ZenOrderFields {
 	private ZenOrderFields() {
 	}
 
-	/** The rows of the variant stock answer, as an array or under "value"; a row without an item number is left out. */
-	public static List<ErpVariantStockDTO> stockRows(JsonNode answer) {
+	/**
+	 * The rows of the variant stock answer, as an array or under "value"; a row without an item number is left out. The
+	 * quantity is disponible (null when the row has none), the size order ordreTaille, the details the labelled fields
+	 * the row has (an empty value left out; a boolean Oui / Non, calculeLe as dd/MM/yyyy HH:mm in the given zone).
+	 */
+	public static List<ErpVariantStockDTO> stockRows(JsonNode answer, ZoneId zone) {
 		List<ErpVariantStockDTO> rows = new ArrayList<>();
 		JsonNode array = answer == null ? null : answer.isArray() ? answer : answer.get(VALUE);
 		if (array == null || !array.isArray()) {
@@ -63,10 +79,43 @@ public final class ZenOrderFields {
 				continue;
 			}
 			JsonNode quantity = row.get(STOCK_QUANTITY);
+			JsonNode sizeOrder = row.get(STOCK_SIZE_ORDER);
+			LinkedHashMap<String, String> details = new LinkedHashMap<>();
+			for (String[] detail : STOCK_DETAILS) {
+				String value = detailText(row.get(detail[0]), detail[0], zone);
+				if (!value.isEmpty()) {
+					details.put(detail[1], value);
+				}
+			}
 			rows.add(new ErpVariantStockDTO(itemNo, text(row, STOCK_VARIANT_CODE),
-					quantity == null || quantity.isNull() ? BigDecimal.ZERO : quantity.decimalValue()));
+					quantity == null || !quantity.isNumber() ? null : quantity.decimalValue(),
+					details.isEmpty() ? null : details,
+					sizeOrder == null || !sizeOrder.isNumber() ? null : sizeOrder.intValue()));
 		}
 		return rows;
+	}
+
+	/** article eq '43ZBPND01' and client eq '4110001' (a quote doubled). */
+	public static String stockFilter(String itemNo, String customerNo) {
+		return STOCK_ITEM_NO + " eq '" + quoted(itemNo) + "' and " + STOCK_CUSTOMER + " eq '" + quoted(customerNo) + "'";
+	}
+
+	private static String detailText(JsonNode value, String field, ZoneId zone) {
+		if (value == null || value.isNull()) {
+			return "";
+		}
+		if (value.isBoolean()) {
+			return value.booleanValue() ? "Oui" : "Non";
+		}
+		String text = value.asText().trim();
+		if (STOCK_COMPUTED_AT.equals(field) && !text.isEmpty()) {
+			try {
+				return OffsetDateTime.parse(text).atZoneSameInstant(zone).format(COMPUTED_AT);
+			} catch (DateTimeParseException e) {
+				return text;
+			}
+		}
+		return text;
 	}
 
 	/** The body of the POST: the order's header, its date as yyyy-MM-dd, its lines (an empty variant code as ""). */
@@ -106,8 +155,11 @@ public final class ZenOrderFields {
 
 	/** externalDocumentNo eq 'S01-2026-000012' (a quote doubled). */
 	public static String lookupFilter(String externalDocumentNo) {
-		String value = externalDocumentNo == null ? "" : externalDocumentNo.trim().replace("'", "''");
-		return ORDER_EXTERNAL_NO + " eq '" + value + "'";
+		return ORDER_EXTERNAL_NO + " eq '" + quoted(externalDocumentNo) + "'";
+	}
+
+	private static String quoted(String value) {
+		return value == null ? "" : value.trim().replace("'", "''");
 	}
 
 	private static String text(JsonNode row, String field) {

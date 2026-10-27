@@ -103,10 +103,11 @@ public interface ErpConnector {
 	String STORE_ORDERS_NOT_SUPPORTED = "The ERP connector in effect does not take the stores' orders";
 
 	/**
-	 * 3.1.1 (store orders): the ERP's stock of every variant of an ERP item number at a location, read now. Only a
-	 * connector with ErpAbility.STORE_ORDERS reads it; every other one throws {@link ErpNotSupportedException}.
+	 * 3.1.1 (store orders): the ERP's stock of every variant of an ERP item number for a store, read now: its location
+	 * (the store code) and its ERP customer number, each connector reading what its ERP filters by (ZEN: the customer).
+	 * Only a connector with ErpAbility.STORE_ORDERS reads it; every other one throws {@link ErpNotSupportedException}.
 	 */
-	default List<ErpVariantStockDTO> fetchVariantStock(String itemNo, String locationCode) {
+	default List<ErpVariantStockDTO> fetchVariantStock(String itemNo, String locationCode, String customerNo) {
 		throw new ErpNotSupportedException(STORE_ORDERS_NOT_SUPPORTED + " (no variant stock).");
 	}
 

@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -76,12 +77,15 @@ class HoStoreOrderServiceTest {
 		down = new InMemoryDownTables();
 		CopiesDownFeed[] holder = new CopiesDownFeed[1];
 		HoStoreOrderService made = new HoStoreOrderService(tables.repository(), ho.storeRepository(),
-				(itemNo, location) -> {
-					stockAsked.add(itemNo + "@" + location);
+				(itemNo, location, customerNo) -> {
+					stockAsked.add(itemNo + "@" + location + "/" + customerNo);
 					if (stockFailure != null) {
 						throw stockFailure;
 					}
-					return Arrays.asList(new ErpVariantStockDTO(itemNo, "S", new BigDecimal("4.000")),
+					LinkedHashMap<String, String> details = new LinkedHashMap<>();
+					details.put("Prix net", "12.5");
+					details.put("Stock", "48");
+					return Arrays.asList(new ErpVariantStockDTO(itemNo, "S", new BigDecimal("4.000"), details, 160),
 							new ErpVariantStockDTO(itemNo, "", null));
 				}, () -> holder[0], TransactionOperations.withoutTransaction(), () -> NOW, byErp);
 		holder[0] = down.feed(Arrays.asList(made, erpInvoices()));
@@ -197,19 +201,35 @@ class HoStoreOrderServiceTest {
 	// ─── Variant stock ───────────────────────────────────────────
 
 	@Test
-	@DisplayName("Variant stock: the connector asked with the store's code as the location; 503 without it; 400 without a number")
+	@DisplayName("Variant stock: the connector asked with the store's code and ERP customer number; details and size order"
+			+ " passed on; 503 without it; 400 without a number")
 	void variantStock() {
 		List<VariantStockDTO> rows = service.variantStock(b, " 70061 ");
-		assertEquals(Collections.singletonList("70061@B"), stockAsked);
+		assertEquals(Collections.singletonList("70061@B/C-0001"), stockAsked);
 		assertEquals(2, rows.size());
 		assertEquals("S", rows.get(0).getVariantCode());
 		assertEquals(0, new BigDecimal("4").compareTo(rows.get(0).getQuantity()));
-		assertEquals(0, BigDecimal.ZERO.compareTo(rows.get(1).getQuantity()), "a row without quantity: 0");
+		assertEquals(Arrays.asList("Prix net", "Stock"), new ArrayList<>(rows.get(0).getDetails().keySet()), "in order");
+		assertEquals(Integer.valueOf(160), rows.get(0).getSizeOrder());
+		assertNull(rows.get(1).getQuantity(), "a row without quantity: unknown, never 0");
+		assertNull(rows.get(1).getDetails());
+		assertNull(rows.get(1).getSizeOrder());
 		stockFailure = new ErpNotSupportedException("The ERP connector in effect does not take the stores' orders");
 		HoStoreOrderService.ErpUnavailableException e = assertThrows(HoStoreOrderService.ErpUnavailableException.class,
 				() -> service.variantStock(b, "70061"));
 		assertTrue(e.getMessage().contains("does not take the stores' orders"), e.getMessage());
 		assertThrows(IllegalArgumentException.class, () -> service.variantStock(b, " "));
+	}
+
+	@Test
+	@DisplayName("Variant stock of a store without an ERP customer number: the reception's refusal, the ERP not asked")
+	void variantStockWithoutCustomerNo() {
+		b.setErpCustomerNo(" ");
+		HoStoreOrderService.StoreRefusedException e = assertThrows(HoStoreOrderService.StoreRefusedException.class,
+				() -> service.variantStock(b, "70061"));
+		assertEquals(service.receive(b, order(FIRST, "B", line("70061~S", "S", 2))).getMessage(), e.getMessage());
+		assertTrue(e.getMessage().startsWith("Store B has no ERP customer number"), e.getMessage());
+		assertTrue(stockAsked.isEmpty());
 	}
 
 	// ─── Admin actions and the copies down ───────────────────────

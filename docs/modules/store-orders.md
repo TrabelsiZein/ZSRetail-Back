@@ -5,7 +5,8 @@ store's screens (`admin-pages.md`, "Commandes centrale") and the head office's (
 outside `connectors/zen` is specific to ZEN.
 
 A franchise store prepares an order of ERP items to its head office: it opens an ERP item, sees the live NAV stock of
-each variant at its own location, fills quantities in its draft, and sends it. The head office receives it and posts it
+each variant for it (ZEN: what NAV makes available to the store's ERP customer), fills quantities in its draft, and
+sends it. The head office receives it and posts it
 into NAV; what became of it comes back to the store. **Online only**: without the head office's answer the store sees no
 stock and cannot send (a clear error, nothing saved).
 
@@ -92,7 +93,7 @@ cancelled order or an unknown number is left as it is, noted on the tracking row
 | Method and path | Answer |
 |---|---|
 | `GET /store-order/catalogue?page&size&search&categoryCode&familyId&subFamilyId&sectionCode&sort&dir` | `{content, page, size, totalElements, totalPages}`, one line per NAV item number with an active variant: `navItemNo`, `name`, `mainImage`, `mainImageItemId`, `variantCount`, `price`, `vatRate`, `familyName`, `subFamilyName`, `categoryCode` / `Name`, `sectionCode` / `Name` |
-| `GET /store-order/variants?navItemNo` | `{navItemNo, name, variants: [{itemId, itemCode, variantCode, variantDescription, sizeCode, sizeDescription, colorCode, colorDescription, choiceCode, choiceDescription, price, vatRate, mainImage, images, stock, draftQuantity}]}`; 404 for a number no active item carries; **503** without the head office |
+| `GET /store-order/variants?navItemNo` | `{navItemNo, name, variants: [{itemId, itemCode, variantCode, variantDescription, sizeCode, sizeDescription, colorCode, colorDescription, choiceCode, choiceDescription, price, vatRate, mainImage, images, stock, details, sizeOrder, draftQuantity}]}`; 404 for a number no active item carries; **409** with the head office's reason when it refuses the store (no ERP customer number); **503** without the head office |
 | `GET /store-order/draft` | the draft with its lines; 204 when there is none |
 | `POST /store-order/draft/lines` `{itemId, quantity}` | the draft (204 for a 0 without a draft) |
 | `DELETE /store-order/draft/lines/{itemId}` | the draft; 404 without a draft |
@@ -117,9 +118,11 @@ match it), `familyId`, `subFamilyId`, `sectionCode`. Sort: `navItemNo` (the defa
 order is the "NAV items" page's (size order, colour, choice, code).
 
 **Variants**: the local active variants, then one live call to the head office; the stock is merged by variant code (any
-case); a variant NAV gives no row for has a stock null (unknown, the screen shows "—"), a row of another NAV item is
-ignored. Nothing is answered without the
-head office (no partial answer).
+case); a variant NAV gives no row (or no quantity) for has a stock null (unknown, the screen shows "—"), a row of another
+NAV item is ignored. `details` (label → value, in order) and `sizeOrder` are the first row's of the variant, as the
+connector gave them (null otherwise; only ZEN fills them): informational, nothing is computed from them. Nothing is
+answered without the head office (no partial answer); a refusal of the head office (409) is relayed as a 409 with its
+reason ("The head office refused the stock of <number>: ..."), as for a send.
 
 **Permissions**: `read:admin-store-orders` and `write:admin-store-orders` ("Commandes centrale"), in
 `GET /app-roles/permissions`; given to the ADMIN role at every start of a store whose goods come from the head office,
@@ -131,9 +134,10 @@ everywhere, the API itself checks no role.
 All through `HeadOfficeClient`, on the `/ho/**` chain with `X-Store-Code` / `X-Store-Key`, on its own RestTemplate:
 connect 2 s, read 15 s (the head office asks NAV meanwhile).
 
-**Variant stock**: `GET /ho/orders/variant-stock?navItemNo=` → `[VariantStockDTO]` `{itemNo, variantCode, quantity}`.
-The head office reads the location from the authenticated `X-Store-Code` (no location parameter: a store cannot read
-another store's stock) and asks NAV through its connector.
+**Variant stock**: `GET /ho/orders/variant-stock?navItemNo=` → `[VariantStockDTO]` `{itemNo, variantCode, quantity,
+details, sizeOrder}` (the last two optional: an older head office or store ignores them). The head office knows the store
+from the authenticated `X-Store-Code` (no parameter: a store cannot read another store's stock) and asks NAV through its
+connector with the store's code and ERP customer number.
 
 **Send**: `POST /ho/orders` with `StoreOrderDTO` `{number, locationCode, note, createdAt, sentAt, lines: [{itemCode,
 navItemNo, variantCode, description, variantDescription, quantity}]}` (`locationCode` is the store code, the NAV
@@ -215,8 +219,12 @@ only; the same failure again records nothing.
   reason, nothing saved (the store shows 409 with it): the store has no ERP customer number (Stores page), a
   `locationCode` that is not the store's code, no line, a line without item code, a quantity of 0 or less or with more
   than 3 decimals.
-- **Variant stock** (`GET /ho/orders/variant-stock?navItemNo=`): `ErpConnector.fetchVariantStock(navItemNo, store code)`;
-  a connector that cannot (`ErpNotSupportedException`) or an ERP error answers 503 `{"error"}`, never a partial list.
+- **Variant stock** (`GET /ho/orders/variant-stock?navItemNo=`): `ErpConnector.fetchVariantStock(navItemNo, store code,
+  ERP customer number)`, each connector using what its ERP filters by (ZEN: the customer). A store without an ERP customer
+  number is refused before the ERP is asked, with the reception's reason: 409 `{"error": "Store <code> has no ERP customer
+  number at the head office: ..."}`. A connector that cannot (`ErpNotSupportedException`) or an ERP error answers 503
+  `{"error"}`, never a partial list. The quantity stays null when the connector gives none; `details` and `sizeOrder`
+  pass through unchanged.
 - **Posting (ERP mode)**: the job takes up to 50 orders `SENT` or `ERROR`, oldest first. Each is posted outside any
   transaction as `ErpSalesOrderDTO`: `locationCode` = the store code, `customerNo` = the store's ERP customer number
   (none any more: ERROR without calling the ERP), `externalDocumentNo` = the order number, `orderDate` = the store's
@@ -234,7 +242,7 @@ only; the same failure again records nothing.
 | Method and path | Answer |
 |---|---|
 | `POST /ho/orders` (store key) `StoreOrderDTO` | `{documentNumber, accepted, message}` |
-| `GET /ho/orders/variant-stock?navItemNo` (store key) | `[{itemNo, variantCode, quantity}]`; 400 without a number; 503 |
+| `GET /ho/orders/variant-stock?navItemNo` (store key) | `[{itemNo, variantCode, quantity, details, sizeOrder}]`; 400 without a number; 409 without the store's ERP customer number; 503 |
 | `GET admin/headoffice/store-orders?storeId&status&from&to&sort&dir&page&size` | `{content, totalElements, totalPages, number, size, postMode}`, without lines; `status` one of the four or `ALL`; `from`, `to` the reception day, both included; `sort` `receivedAt` (default), `number`, `status`, `postedAt`, `store`; `dir` `desc` (default) or `asc`; `postMode` `ERP` or `MANUAL` |
 | `GET admin/headoffice/store-orders/{id}` | the order with its lines |
 | `POST admin/headoffice/store-orders/{id}/mark-posted` `{navOrderNo}` | the order `POSTED`, mode MANUAL |
@@ -254,18 +262,31 @@ answer, the address).
 
 ### The connector (erp-api and connectors/zen)
 
-`ErpConnector.fetchVariantStock(itemNo, locationCode)` (default: `ErpNotSupportedException`) and
+`ErpConnector.fetchVariantStock(itemNo, locationCode, customerNo)` (default: `ErpNotSupportedException`) and
 `postSalesOrder(ErpSalesOrderDTO)` (default: a failure "does not take the stores' orders"); EMTOP and Happyness keep
-the defaults. ZEN (`ZenStoreOrders`, fields in `ZenOrderFields`, the contract sent to ZEN):
+the defaults. `ErpVariantStockDTO` `{itemNo, variantCode, quantity, details, sizeOrder}`: `details` (an ordered map
+label → value, strings) and `sizeOrder` are optional, filled by a connector with what its ERP gives. ZEN
+(`ZenStoreOrders`, fields in `ZenOrderFields`):
 
-- `GET <erp.zen.variantstock.path>?itemNo=&locationCode=` → `[{itemNo, variantCode, quantity}]` (a plain array or OData's
-  `{"value": [...]}`);
+- **the stock, ZEN's real page** `infoArticles` (2026-10-27): `GET <erp.zen.variantstock.path>?$filter=article eq
+  '<item>' and client eq '<ERP customer number>'` (a quote doubled) → `{"value": [...]}`, one row per variant: `article,
+  codeVariante, client, designation, marque, unite, devise, prixUnitaire, remisePourcent, prixNet, vracAutorise,
+  codeCouleur, libelleCouleur, codeChoix, codeTaille, ordreTaille, codeBarres, qteSerieType, contenanceSerie,
+  colisPossibles, stock, qteVrac, disponible, calculeLe`. The page has **no location**: the stock is NAV's for the store's
+  ERP customer (the store code is not sent). Mapping: `itemNo` = `article`, `variantCode` = `codeVariante` (the same codes as
+  the catalogue's, `001`...), **`quantity` = `disponible`, never `stock`** (null when the row has none), `sizeOrder` =
+  `ordreTaille`, `details` in this order: Prix unitaire, Remise %, Prix net, Stock, Qté vrac, Vrac autorisé (Oui / Non),
+  Contenance série, Colis possibles, Calculé le (`calculeLe` as `dd/MM/yyyy HH:mm` in the head office's time zone); an
+  empty value is left out. Sample: `connectors/zen/src/test/resources/zen/infoArticles.json` (43ZBPND01, client
+  4110001: `disponible` 203 or 101 where `stock` is 1 to 69; size 36 has `ordreTaille` 220, after 46's 200, so its column comes last);
 - lookup `GET <erp.zen.salesorders.path>?$filter=externalDocumentNo eq '<number>'&$select=orderNo` → `{"value":
   [{orderNo}]}`: **ZEN must support this filter** (asked 2026-10-28); until then every posting fails and stays ERROR;
 - `POST <erp.zen.salesorders.path>` `{locationCode, customerNo, externalDocumentNo, orderDate (yyyy-MM-dd), lines:
   [{itemNo, variantCode, quantity}]}` → `{orderNo}`.
 
-`erp.zen.variantstock.path` (default `variantStock`) and `erp.zen.salesorders.path` (default `salesOrders`): a name under
+The sales orders are still on the contract sent to ZEN (`commandesVente` not published yet).
+
+`erp.zen.variantstock.path` (default `infoArticles`) and `erp.zen.salesorders.path` (default `salesOrders`): a name under
 `companies(id)` of `erp.zen.api-path`, or a whole address; blank refused at the start. The connector's RestTemplate still
 refuses every method but GET, except a POST to the sales orders page. A field ZEN renames is one line of
 `ZenOrderFields`.
@@ -276,7 +297,10 @@ Front `views/admin/store-orders/` and `components/admin/store-orders/` (`admin-p
 Catalogue (tiles, filters in the URL, the variants modal with the NAV stock, the cart beside it) and Mes commandes (the
 list, one order). Shown only where `/config` gives `supplyFromHeadOffice` and `navItems`. Two fields serve them:
 `mainImageItemId` on a catalogue line (the tile's image is read at `item-image/item/{id}`), and a variant's `stock`
-**null** when NAV gives no row for it (shown "—", never 0).
+**null** when NAV gives no row for it (shown "—", never 0). In the variants matrix, the size columns follow `sizeOrder`
+when the variants carry one (a size's: the smallest of its variants; a size without one after them), else the back end's
+order; a cell with `details` shows an info icon whose tooltip lists "label : value" (`store-orders-api.js`
+`variantMatrix`, `detailLines`; `tools/store-orders-check.mjs`).
 
 ## The head office's screen (step 4)
 
@@ -288,10 +312,13 @@ office (`ZZDataInitializer.HEAD_OFFICE_STORE_ORDER_PERMISSIONS`, apart from `HEA
 frontend's head office routes are both sets). The head office routes' `meta.writePermission` lists the write permission
 on the Roles page.
 
-**Without ZEN** (dev helper): `node tools/zen-mock.mjs [port=9999] [fail=1] [delay=ms]` in ZSRetail-Front fakes the two pages
-(stock from the editable `tools/zen-mock-stock.json` by item number, since the connector sends no variant code; the lookup;
-the POST, `fail=1` answering 500); it prints the two `erp.zen.*.path` lines for the ZEN head office file.
+**Without ZEN** (dev helper): `node tools/zen-mock.mjs [port=9999] [fail=1] [delay=ms]` in ZSRetail-Front fakes the pages:
+`infoArticles` with ZEN's field names (the rows read from ZEN's test NAV in `tools/zen-mock-info-articles.json` for
+43ZBPND01 and 43ZFCHD17, else rows built from the editable `tools/zen-mock-stock.json`), the lookup, the POST (`fail=1`
+answering 500). It prints the `erp.zen.salesorders.path` line for the ZEN head office file, and the
+`erp.zen.variantstock.path` line to use only without the VPN.
 
 ## Still to come
 
-- ZEN: the lookup by `externalDocumentNo`, and the real addresses of the two pages (a change of `erp.zen.*.path`).
+- ZEN: the sales orders page `commandesVente` and its lookup by `externalDocumentNo` (a change of `erp.zen.salesorders.path`
+  and of the fields in `ZenOrderFields`).

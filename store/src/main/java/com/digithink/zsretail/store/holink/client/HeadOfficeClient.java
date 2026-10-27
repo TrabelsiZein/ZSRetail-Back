@@ -413,9 +413,9 @@ public class HeadOfficeClient {
 	// ─── Orders to the head office (3.1.1) ───────────────────────
 
 	/**
-	 * 3.1.1, live question: NAV's stock of every variant of a NAV item at this store's location, GET
-	 * /ho/orders/variant-stock?navItemNo= (the head office reads the location from X-Store-Code), [{itemNo, variantCode,
-	 * quantity}].
+	 * 3.1.1, live question: NAV's stock of every variant of a NAV item for this store, GET
+	 * /ho/orders/variant-stock?navItemNo= (the head office reads the store from X-Store-Code), [{itemNo, variantCode,
+	 * quantity, details, sizeOrder}]; 409 with its reason for a store it will not answer (no ERP customer number).
 	 */
 	public LiveAnswer<VariantStockDTO[]> variantStock(String navItemNo) {
 		try {

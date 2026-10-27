@@ -53,6 +53,15 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   domain carries the supply documents and the store orders' statuses together.
 - Store orders, for the store's screens (step 3): a catalogue line gives `mainImageItemId` (the item of its image, read
   at `item-image/item/{id}`); a variant NAV gives no row for has `stock` null (unknown) instead of 0.
+- Store orders, the variants' stock on ZEN's real page `infoArticles` (docs/modules/store-orders.md): the head office asks
+  the connector with the store's code **and ERP customer number** (`ErpConnector.fetchVariantStock(itemNo, locationCode,
+  customerNo)`); a store without an ERP customer number is refused before the ERP is asked, with the reception's reason
+  (`/ho/orders/variant-stock` 409; the store relays a 409 with it instead of a 503). connector-zen reads `infoArticles?$filter=
+  article eq '..' and client eq '..'` (no location): the quantity is `disponible`, never `stock`; null when a row has none
+  (unknown, shown "—"). `VariantStockDTO` / `ErpVariantStockDTO` and the store's variants answer gain the optional
+  `details` (ordered label → value; ZEN: Prix unitaire, Remise %, Prix net, Stock, Qté vrac, Vrac autorisé, Contenance
+  série, Colis possibles, Calculé le) and `sizeOrder` (ZEN: `ordreTaille`); EMTOP and Happyness leave them empty. Test
+  sample `connectors/zen/src/test/resources/zen/infoArticles.json` (ZEN's test NAV, 43ZBPND01 for 4110001).
 
 ### Fixes
 - Store orders lists: `GET admin/headoffice/store-orders` and the store's `GET /store-order` answered 500 ("Parameter
@@ -77,6 +86,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `configs/customers/zen-headoffice.properties`.
 - `erp.zen.variantstock.path` (default `variantStock`) and `erp.zen.salesorders.path` (default `salesOrders`): a name under
   `companies(id)` of `erp.zen.api-path`, or a whole address.
+- `erp.zen.variantstock.path`: default now `infoArticles` (ZEN's real page under the zsretail API); a whole address is
+  still accepted. A head office file that pointed it at the mock's `variantStock` drops the line (or points it at the
+  mock's `infoArticles` to work without the VPN).
 
 ## 3.1.0 — 2026-10-27 (tag `v3.1.0`)
 

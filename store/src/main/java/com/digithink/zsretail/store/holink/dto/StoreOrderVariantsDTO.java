@@ -2,6 +2,7 @@ package com.digithink.zsretail.store.holink.dto;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 import com.digithink.zsretail.core.dto.ItemImageDTO;
@@ -47,6 +48,10 @@ public class StoreOrderVariantsDTO {
 		private List<ItemImageDTO> images = new ArrayList<>();
 		/** NAV's stock at the store's location; null when NAV gives no row for the variant (the screen shows "—"). */
 		private BigDecimal stock;
+		/** The connector's information on the variant, label → value in order (the cell's tooltip); null without. */
+		private LinkedHashMap<String, String> details;
+		/** The ERP's order of the variant's size (the order of the size columns); null without. */
+		private Integer sizeOrder;
 		/** The quantity of this variant in the store's draft; null when it has no line. */
 		private BigDecimal draftQuantity;
 	}

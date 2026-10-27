@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -434,13 +435,15 @@ public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 
 	private static final ObjectMapper JSON = new ObjectMapper();
 
-	/** GET variantStock?itemNo=&amp;locationCode=: NAV's stock of every variant of the item at the location. */
-	public List<ErpVariantStockDTO> readVariantStock(String itemNo, String locationCode) {
+	/**
+	 * GET infoArticles?$filter=article eq '..' and client eq '..': NAV's stock of every variant of the item for the
+	 * store's ERP customer (ZEN's page has no location).
+	 */
+	public List<ErpVariantStockDTO> readVariantStock(String itemNo, String customerNo) {
 		String name = properties.getVariantstock().getPath();
-		URI uri = page(name).queryParam(ZenOrderFields.STOCK_ITEM_PARAM, itemNo == null ? "" : itemNo.trim())
-				.queryParam(ZenOrderFields.STOCK_LOCATION_PARAM, locationCode == null ? "" : locationCode.trim())
-				.build().encode().toUri();
-		return ZenOrderFields.stockRows(json(name, uri, HttpMethod.GET, null));
+		URI uri = page(name).queryParam("$filter", ZenOrderFields.stockFilter(itemNo, customerNo)).build().encode()
+				.toUri();
+		return ZenOrderFields.stockRows(json(name, uri, HttpMethod.GET, null), ZoneId.systemDefault());
 	}
 
 	/**

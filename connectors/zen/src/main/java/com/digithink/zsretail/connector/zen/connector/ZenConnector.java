@@ -72,13 +72,16 @@ public class ZenConnector implements ErpConnector {
 		this(invoices, null);
 	}
 
-	/** 3.1.1: NAV's stock of the variants of an item at a location ({@link ZenStoreOrders#variantStock}). */
+	/**
+	 * 3.1.1: NAV's stock of the variants of an item for the store's ERP customer ({@link ZenStoreOrders#variantStock};
+	 * ZEN's page has no location).
+	 */
 	@Override
-	public List<ErpVariantStockDTO> fetchVariantStock(String itemNo, String locationCode) {
+	public List<ErpVariantStockDTO> fetchVariantStock(String itemNo, String locationCode, String customerNo) {
 		if (orders == null) {
-			return ErpConnector.super.fetchVariantStock(itemNo, locationCode);
+			return ErpConnector.super.fetchVariantStock(itemNo, locationCode, customerNo);
 		}
-		return orders.variantStock(itemNo, locationCode);
+		return orders.variantStock(itemNo, customerNo);
 	}
 
 	/** 3.1.1: a store's order as NAV's sales order, looked up first ({@link ZenStoreOrders#post}). */

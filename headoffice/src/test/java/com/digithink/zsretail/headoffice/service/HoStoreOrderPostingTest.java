@@ -60,7 +60,7 @@ class HoStoreOrderPostingTest {
 		b.setErpCustomerNo(" C-0001 ");
 		down = new InMemoryDownTables();
 		CopiesDownFeed[] holder = new CopiesDownFeed[1];
-		service = new HoStoreOrderService(tables.repository(), ho.storeRepository(), (item, location) -> null,
+		service = new HoStoreOrderService(tables.repository(), ho.storeRepository(), (item, location, customer) -> null,
 				() -> holder[0], TransactionOperations.withoutTransaction(), () -> HoStoreOrderServiceTest.NOW, true);
 		holder[0] = down.feed(Arrays.asList(service));
 		holder[0].initialise();

@@ -48,8 +48,9 @@ public class HeadOfficeOrdersAPI {
 	}
 
 	/**
-	 * GET /ho/orders/variant-stock?navItemNo=: [{itemNo, variantCode, quantity}], the ERP's stock of every variant at the
-	 * store's location, read now. 400 without a number, 503 {"error"} when the ERP does not answer it.
+	 * GET /ho/orders/variant-stock?navItemNo=: [{itemNo, variantCode, quantity, details, sizeOrder}], the ERP's stock of
+	 * every variant for the store, read now. 400 without a number, 409 {"error"} for a store without an ERP customer
+	 * number, 503 {"error"} when the ERP does not answer it.
 	 */
 	@GetMapping("/variant-stock")
 	public ResponseEntity<?> variantStock(@AuthenticationPrincipal Store store,
@@ -58,6 +59,8 @@ public class HeadOfficeOrdersAPI {
 			return ResponseEntity.ok(service.variantStock(store, navItemNo));
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(Collections.singletonMap("error", e.getMessage()));
+		} catch (HoStoreOrderService.StoreRefusedException e) {
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(Collections.singletonMap("error", e.getMessage()));
 		} catch (HoStoreOrderService.ErpUnavailableException e) {
 			log.warn("Store orders, variant stock: {}", e.getMessage());
 			return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)

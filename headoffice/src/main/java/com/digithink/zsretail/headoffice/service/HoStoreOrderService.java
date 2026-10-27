@@ -56,7 +56,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * MANUAL or ERP. The reception (POST /ho/orders, the store authenticated by its key): an order is taken once per store
  * and number, the same number again answers the order already here; a store without an ERP customer number, an empty
  * order or another location than the store's is refused ({accepted: false} with the reason: the store shows it, nothing
- * saved). The live stock of a store's variants asks the connector (503 without it). The admin actions: "mark posted"
+ * saved). The live stock of a store's variants asks the connector with its code and ERP customer number (refused, as
+ * the reception, without the number; 503 without the connector). The admin actions: "mark posted"
  * (MANUAL mode), "reject" (both modes, never posted afterwards); "retry now" is the job's ({@link HoStoreOrderPosting}).
  * <p>
  * What became of an order goes down to its store only (domain SUPPLY, record ORD:&lt;number&gt;, kind STORE_ORDER), recorded
@@ -99,7 +100,7 @@ public class HoStoreOrderService implements DownDomainProvider {
 
 	/** The connector's read of the variants' stock, as this service calls it. */
 	public interface VariantStockReader {
-		List<ErpVariantStockDTO> read(String itemNo, String locationCode);
+		List<ErpVariantStockDTO> read(String itemNo, String locationCode, String customerNo);
 	}
 
 	@Autowired
@@ -132,6 +133,15 @@ public class HoStoreOrderService implements DownDomainProvider {
 	/** True in ERP mode (the job posts), false in MANUAL mode. */
 	public boolean isByErp() {
 		return byErp;
+	}
+
+	/** The store cannot be answered as it is (no ERP customer number): 409 for the caller, with the reason. */
+	public static class StoreRefusedException extends RuntimeException {
+		private static final long serialVersionUID = 1L;
+
+		public StoreRefusedException(String message) {
+			super(message);
+		}
 	}
 
 	/** The ERP does not answer what was asked, or answers an error: 503 for the caller. */
@@ -173,11 +183,20 @@ public class HoStoreOrderService implements DownDomainProvider {
 		return SalesCopyResultDTO.accepted(number);
 	}
 
+	private static boolean hasCustomerNo(Store store) {
+		return store.getErpCustomerNo() != null && !store.getErpCustomerNo().trim().isEmpty();
+	}
+
+	/** The refusal of a store without an ERP customer number: its orders and its variants' stock. */
+	private static String noCustomerNo(Store store) {
+		return "Store " + store.getCode() + " has no ERP customer number at the head office: the head office must set it"
+				+ " (Stores page) before the ERP can take its orders";
+	}
+
 	/** Why the head office will never take this order; null when it takes it. */
 	static String refusalOf(Store store, StoreOrderDTO order) {
-		if (store.getErpCustomerNo() == null || store.getErpCustomerNo().trim().isEmpty()) {
-			return "Store " + store.getCode() + " has no ERP customer number at the head office: the head office must set it"
-					+ " (Stores page) before the ERP can take its orders";
+		if (!hasCustomerNo(store)) {
+			return noCustomerNo(store);
 		}
 		String location = order.getLocationCode() == null ? "" : order.getLocationCode().trim();
 		if (!location.isEmpty() && !location.equalsIgnoreCase(store.getCode())) {
@@ -243,16 +262,21 @@ public class HoStoreOrderService implements DownDomainProvider {
 	// ─── Live variant stock (GET /ho/orders/variant-stock) ───────
 
 	/**
-	 * The ERP's stock of every variant of an ERP item number at the store's location (its code), asked now. 400 without
-	 * a number; {@link ErpUnavailableException} when the connector cannot read it or the ERP fails (no partial answer).
+	 * The ERP's stock of every variant of an ERP item number for the store (its code and its ERP customer number), asked
+	 * now; the details and size order as the connector gave them, an unknown quantity kept null. 400 without a number;
+	 * {@link StoreRefusedException} for a store without an ERP customer number (the reception's refusal);
+	 * {@link ErpUnavailableException} when the connector cannot read it or the ERP fails (no partial answer).
 	 */
 	public List<VariantStockDTO> variantStock(Store store, String navItemNo) {
 		if (navItemNo == null || navItemNo.trim().isEmpty()) {
 			throw new IllegalArgumentException("navItemNo is required");
 		}
+		if (!hasCustomerNo(store)) {
+			throw new StoreRefusedException(noCustomerNo(store));
+		}
 		List<ErpVariantStockDTO> rows;
 		try {
-			rows = stockReader.read(navItemNo.trim(), store.getCode());
+			rows = stockReader.read(navItemNo.trim(), store.getCode(), store.getErpCustomerNo().trim());
 		} catch (RuntimeException e) {
 			throw new ErpUnavailableException("The ERP's stock of " + navItemNo.trim() + " at " + store.getCode()
 					+ " could not be read: " + e.getMessage(), e);
@@ -261,7 +285,8 @@ public class HoStoreOrderService implements DownDomainProvider {
 		for (ErpVariantStockDTO row : rows == null ? Collections.<ErpVariantStockDTO>emptyList() : rows) {
 			if (row != null) {
 				answer.add(new VariantStockDTO(row.getItemNo(), row.getVariantCode(),
-						row.getQuantity() == null ? BigDecimal.ZERO : Quantities.normalize(row.getQuantity())));
+						row.getQuantity() == null ? null : Quantities.normalize(row.getQuantity()), row.getDetails(),
+						row.getSizeOrder()));
 			}
 		}
 		return answer;

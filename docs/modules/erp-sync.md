@@ -209,7 +209,7 @@ they declare today.
   "reads items by location": every connector may do that.
 - `SUPPLY_INVOICES`: the ERP's supply invoices are read, so a head office may set `headoffice.supply.source=ERP`.
 - `STORE_ORDERS` (3.1.1): the stores' orders are posted as sales orders (`ErpConnector.postSalesOrder`, looked up first by
-  their external document number) and the variants' stock of a location is read (`fetchVariantStock`), so a head office
+  their external document number) and the variants' stock for a store is read (`fetchVariantStock`, with its code and ERP customer number), so a head office
   may set `headoffice.storeorders.post=ERP`; the job `POST_STORE_ORDERS` posts them (`docs/modules/store-orders.md`).
   Every other connector keeps the two defaults: not supported.
 

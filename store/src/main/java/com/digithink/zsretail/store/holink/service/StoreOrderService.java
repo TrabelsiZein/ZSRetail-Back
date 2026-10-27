@@ -200,14 +200,23 @@ public class StoreOrderService {
 			return Optional.empty();
 		}
 		LiveAnswer<VariantStockDTO[]> answer = client.variantStock(number);
+		if (answer.isAnswered() && answer.getStatus() == 409) {
+			// The head office will not answer this store as it is (no ERP customer number): its reason, as for a send
+			throw new IllegalStateException("The head office refused the stock of " + number + ": "
+					+ (hasText(answer.getError()) ? answer.getError() : "no reason given"));
+		}
 		if (!answer.isOk()) {
 			throw new HeadOfficeUnavailableException(unavailable("read the stock of " + number, answer));
 		}
 		Map<String, BigDecimal> stock = new HashMap<>();
+		Map<String, VariantStockDTO> rows = new HashMap<>();
 		for (VariantStockDTO row : answer.getBody()) {
 			if (row != null && row.getItemNo() != null && number.equalsIgnoreCase(row.getItemNo().trim())) {
-				stock.merge(variantKey(row.getVariantCode()), row.getQuantity() == null ? BigDecimal.ZERO : row.getQuantity(),
-						BigDecimal::add);
+				String key = variantKey(row.getVariantCode());
+				if (row.getQuantity() != null) {
+					stock.merge(key, row.getQuantity(), BigDecimal::add);
+				}
+				rows.putIfAbsent(key, row); // its details and size order: the first row's
 			}
 		}
 		Map<Long, List<ItemImageDTO>> imagesByItem = new HashMap<>();
@@ -235,7 +244,10 @@ public class StoreOrderService {
 			variant.setMainImage(hasText(item.getImageUrl()) ? item.getImageUrl() : null);
 			variant.setImages(imagesByItem.getOrDefault(item.getId(), new ArrayList<>()));
 			BigDecimal inNav = stock.get(variantKey(item.getVariantCode()));
-			variant.setStock(inNav == null ? null : Quantities.normalize(inNav)); // null: NAV gave no row for it
+			variant.setStock(inNav == null ? null : Quantities.normalize(inNav)); // null: NAV gave no row (or no quantity)
+			VariantStockDTO row = rows.get(variantKey(item.getVariantCode()));
+			variant.setDetails(row == null ? null : row.getDetails());
+			variant.setSizeOrder(row == null ? null : row.getSizeOrder());
 			variant.setDraftQuantity(drafted.get(item.getId()));
 			dto.getVariants().add(variant);
 		}
