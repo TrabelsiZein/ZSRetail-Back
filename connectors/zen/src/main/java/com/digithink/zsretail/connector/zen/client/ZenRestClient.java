@@ -431,7 +431,7 @@ public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 		return value == null ? "" : value.trim().replace("'", "''");
 	}
 
-	// ─── 3.1.1: the store orders (variantstock.path, salesorders.path) ─
+	// ─── 3.1.1: the store orders (infoArticles, commandesVente) ─
 
 	private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -440,32 +440,46 @@ public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 	 * store's ERP customer (ZEN's page has no location).
 	 */
 	public List<ErpVariantStockDTO> readVariantStock(String itemNo, String customerNo) {
-		String name = properties.getVariantstock().getPath();
+		String name = ZenOrderFields.VARIANT_STOCK_PAGE;
 		URI uri = page(name).queryParam("$filter", ZenOrderFields.stockFilter(itemNo, customerNo)).build().encode()
 				.toUri();
 		return ZenOrderFields.stockRows(json(name, uri, HttpMethod.GET, null), ZoneId.systemDefault());
 	}
 
 	/**
-	 * GET salesOrders?$filter=externalDocumentNo eq '..'&amp;$select=orderNo: the number of NAV's order of this external
-	 * document number; empty when there is none. A page that cannot answer it throws (the order is then not posted).
+	 * GET commandesVente?$filter=numeroDocExterne eq '..'&amp;$expand=lignesCommande: NAV's order of this external
+	 * document number with its lines; null when there is none. A page that cannot answer it throws (the order is then
+	 * not posted).
 	 */
-	public String findSalesOrderNo(String externalDocumentNo) {
-		String name = properties.getSalesorders().getPath();
+	public JsonNode findSalesOrder(String externalDocumentNo) {
+		String name = ZenOrderFields.SALES_ORDERS_PAGE;
 		URI uri = page(name).queryParam("$filter", ZenOrderFields.lookupFilter(externalDocumentNo))
-				.queryParam("$select", ZenOrderFields.ORDER_NO).build().encode().toUri();
-		return ZenOrderFields.foundOrderNo(json(name, uri, HttpMethod.GET, null));
+				.queryParam("$expand", ZenOrderFields.ORDER_LINES).build().encode().toUri();
+		return ZenOrderFields.orderOf(json(name, uri, HttpMethod.GET, null));
 	}
 
-	/** POST salesOrders with the order's body (JSON): NAV's answer. */
+	/** GET commandesVente(id)?$expand=lignesCommande: NAV's order of this id with its lines. */
+	public JsonNode readSalesOrder(String id) {
+		String name = ZenOrderFields.orderPage(id);
+		URI uri = page(name).queryParam("$expand", ZenOrderFields.ORDER_LINES).build().encode().toUri();
+		return ZenOrderFields.orderOf(json(name, uri, HttpMethod.GET, null));
+	}
+
+	/** POST commandesVente with the order's body (JSON; the header, its lines nested or not): NAV's answer. */
 	public JsonNode postSalesOrder(JsonNode body) {
-		String name = properties.getSalesorders().getPath();
+		String name = ZenOrderFields.SALES_ORDERS_PAGE;
 		return json(name, page(name).build().encode().toUri(), HttpMethod.POST, body);
+	}
+
+	/** POST commandesVente(id)/lignesCommande with one line: NAV's answer. */
+	public JsonNode postSalesOrderLine(String orderId, JsonNode line) {
+		String name = ZenOrderFields.orderLinesPage(orderId);
+		return json(name, page(name).build().encode().toUri(), HttpMethod.POST, line);
 	}
 
 	/** The address of the sales orders page (the communications log; the interceptor allows a POST there only). */
 	public String salesOrdersUrl() {
-		return page(properties.getSalesorders().getPath()).build().toUriString();
+		return page(ZenOrderFields.SALES_ORDERS_PAGE).build().toUriString();
 	}
 
 	/** One call with a JSON body or none, its JSON answer (null when empty); an error throws as a read does. */

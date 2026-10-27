@@ -44,6 +44,7 @@ public class HoStoreOrder extends _BaseEntity {
 	public static final int NUMBER_LENGTH = 30;
 	public static final int NOTE_LENGTH = 500;
 	public static final int ERROR_LENGTH = 1000;
+	public static final int NAV_MESSAGE_LENGTH = 500;
 
 	/** ho_store.id of the store that sent it. */
 	@Column(name = "store_id", nullable = false)
@@ -82,6 +83,10 @@ public class HoStoreOrder extends _BaseEntity {
 	/** Why the posting failed (ERROR) or why the head office refused it (REJECTED). */
 	@Column(name = "error_message", length = ERROR_LENGTH)
 	private String errorMessage;
+
+	/** NAV's message on the order when it was posted (its answer); null when it gave none. */
+	@Column(name = "nav_message", length = NAV_MESSAGE_LENGTH)
+	private String navMessage;
 
 	/** The postings tried by the job or "retry now" (ERP mode). */
 	@Column(name = "post_attempts", nullable = false)

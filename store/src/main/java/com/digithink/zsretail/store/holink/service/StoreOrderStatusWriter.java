@@ -1,8 +1,12 @@
 package com.digithink.zsretail.store.holink.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 import org.springframework.stereotype.Component;
@@ -10,14 +14,17 @@ import org.springframework.stereotype.Component;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.link.dto.StoreOrderStatusCopyDTO;
+import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.store.holink.enumeration.StoreOrderStatus;
 import com.digithink.zsretail.store.holink.model.StoreOrder;
+import com.digithink.zsretail.store.holink.model.StoreOrderLine;
 import com.digithink.zsretail.store.holink.repository.StoreOrderRepository;
 
 /**
  * 3.1.1: what the head office did with an order of this store (record ORD:&lt;number&gt; of the SUPPLY copies down, kind
  * STORE_ORDER), written on the order by {@link SupplyDownHandler} inside its transaction: SENT, POSTED with its NAV
- * number, or ERROR with the reason. An order this store never sent (a draft, a cancelled one) or does not have is left as
+ * number and the answer of NAV (its message, per line by item code the quantity accepted and its message), or ERROR
+ * with the reason. An order this store never sent (a draft, a cancelled one) or does not have is left as
  * it is. See docs/modules/store-orders.md.
  */
 @Component
@@ -60,16 +67,44 @@ public class StoreOrderStatusWriter {
 		String error = status == StoreOrderStatus.ERROR
 				? DeliveryReceptionService.cut(blankToNull(copy.getErrorMessage()), StoreOrder.ERROR_LENGTH)
 				: null;
+		String navMessage = DeliveryReceptionService.cut(blankToNull(copy.getNavMessage()), StoreOrder.NAV_MESSAGE_LENGTH);
+		Map<String, StoreOrderStatusCopyDTO.Line> answers = new HashMap<>();
+		if (copy.getLines() != null) {
+			for (StoreOrderStatusCopyDTO.Line line : copy.getLines()) {
+				if (line != null && line.getItemCode() != null) {
+					answers.put(line.getItemCode().trim(), line);
+				}
+			}
+		}
+		boolean linesChanged = false;
+		for (StoreOrderLine line : order.getLines()) {
+			StoreOrderStatusCopyDTO.Line answer = answers.get(line.getItemCode() == null ? "" : line.getItemCode().trim());
+			BigDecimal accepted = answer == null || answer.getAcceptedQty() == null ? null
+					: answer.getAcceptedQty().setScale(Quantities.SCALE, RoundingMode.HALF_UP);
+			String message = answer == null ? null
+					: DeliveryReceptionService.cut(blankToNull(answer.getMessage()), StoreOrder.NAV_MESSAGE_LENGTH);
+			if (!sameQuantity(line.getNavAcceptedQty(), accepted) || !Objects.equals(line.getNavLineMessage(), message)) {
+				line.setNavAcceptedQty(accepted);
+				line.setNavLineMessage(message);
+				linesChanged = true;
+			}
+		}
 		if (order.getStatus() == status && Objects.equals(order.getNavOrderNo(), navOrderNo)
-				&& Objects.equals(order.getErrorMessage(), error)) {
+				&& Objects.equals(order.getErrorMessage(), error) && Objects.equals(order.getNavMessage(), navMessage)
+				&& !linesChanged) {
 			return Outcome.UNCHANGED;
 		}
 		order.setStatus(status);
 		order.setNavOrderNo(navOrderNo);
 		order.setErrorMessage(error);
+		order.setNavMessage(navMessage);
 		order.setUpdatedBy("Head office");
 		orders.save(order);
 		return Outcome.WRITTEN;
+	}
+
+	private static boolean sameQuantity(BigDecimal first, BigDecimal second) {
+		return first == null ? second == null : second != null && first.compareTo(second) == 0;
 	}
 
 	static StoreOrderStatus statusOf(String status) {

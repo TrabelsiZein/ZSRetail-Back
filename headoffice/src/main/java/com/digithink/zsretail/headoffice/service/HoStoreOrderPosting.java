@@ -21,8 +21,8 @@ import com.digithink.zsretail.core.erp.service.ErpSynchronizationManager;
 import com.digithink.zsretail.core.utils.ErrorTexts;
 import com.digithink.zsretail.erp.api.ErpStoreOrderPosting;
 import com.digithink.zsretail.erp.api.ErpSyncWarningException;
-import com.digithink.zsretail.erp.api.dto.ErpOperationResult;
 import com.digithink.zsretail.erp.api.dto.ErpSalesOrderDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSalesOrderResult;
 import com.digithink.zsretail.headoffice.dto.HoStoreOrderDTO;
 import com.digithink.zsretail.headoffice.enumeration.HoStoreOrderStatus;
 import com.digithink.zsretail.headoffice.repository.HoStoreOrderRepository;
@@ -34,9 +34,10 @@ import lombok.extern.log4j.Log4j2;
  * up to {@value #BATCH} orders waiting (SENT, ERROR), oldest first, and posts each one as a sales order of the ERP
  * through the connector (ErpSynchronizationManager: one row of the communications log per order): the connector looks up
  * an order of the same external document number first, so an order posted again after a lost answer is never doubled.
- * Success: POSTED with the ERP's number; failure: ERROR with the reason, retried at the next run (no limit). The ERP is
- * called outside any transaction; an order being posted is not posted a second time at once (the job and "retry now").
- * A REJECTED order is never taken. See docs/modules/store-orders.md.
+ * Success: POSTED with the ERP's number and its answer (its message, the quantity accepted and the message per line);
+ * failure: ERROR with the reason, retried at the next run (no limit). The ERP is called outside any transaction; an
+ * order being posted is not posted a second time at once (the job and "retry now"). A REJECTED order is never taken.
+ * See docs/modules/store-orders.md.
  */
 @Service
 @ConditionalOnInstallation(Installation.HEAD_OFFICE_STORE_ORDERS_ERP)
@@ -50,7 +51,7 @@ public class HoStoreOrderPosting implements ErpStoreOrderPosting {
 	private final HoStoreOrderService service;
 	private final HoStoreOrderRepository orders;
 	/** One posting into the ERP, logged (ErpSynchronizationManager.postSalesOrder). */
-	private final Function<ErpSalesOrderDTO, ErpOperationResult> poster;
+	private final Function<ErpSalesOrderDTO, ErpSalesOrderResult> poster;
 	private final TransactionOperations reads;
 
 	/** The orders being posted now, by id. */
@@ -64,7 +65,7 @@ public class HoStoreOrderPosting implements ErpStoreOrderPosting {
 
 	/** With a given poster and transactions: used by the tests. */
 	public HoStoreOrderPosting(HoStoreOrderService service, HoStoreOrderRepository orders,
-			Function<ErpSalesOrderDTO, ErpOperationResult> poster, TransactionOperations reads) {
+			Function<ErpSalesOrderDTO, ErpSalesOrderResult> poster, TransactionOperations reads) {
 		this.service = service;
 		this.orders = orders;
 		this.poster = poster;
@@ -140,11 +141,13 @@ public class HoStoreOrderPosting implements ErpStoreOrderPosting {
 				return Optional.empty();
 			}
 			String navOrderNo = null;
+			ErpSalesOrderResult answer = null;
 			String failure;
 			try {
-				ErpOperationResult result = poster.apply(sales.get());
+				ErpSalesOrderResult result = poster.apply(sales.get());
 				if (result != null && result.isSuccess()) {
 					navOrderNo = result.getExternalReference();
+					answer = result;
 					failure = null;
 				} else {
 					failure = result == null || result.getMessage() == null ? "the ERP refused the order"
@@ -153,7 +156,7 @@ public class HoStoreOrderPosting implements ErpStoreOrderPosting {
 			} catch (RuntimeException e) {
 				failure = ErrorTexts.cause(e);
 			}
-			return service.recordPosting(id, navOrderNo, failure);
+			return service.recordPosting(id, navOrderNo, answer, failure);
 		} finally {
 			inFlight.remove(id);
 		}

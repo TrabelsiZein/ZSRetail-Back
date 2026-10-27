@@ -43,6 +43,7 @@ public class StoreOrder extends _BaseEntity {
 	public static final int NUMBER_LENGTH = 30;
 	public static final int NOTE_LENGTH = 500;
 	public static final int ERROR_LENGTH = 1000;
+	public static final int NAV_MESSAGE_LENGTH = 500;
 
 	/** Store code, year and sequence, e.g. S01-2026-000012. */
 	@Column(nullable = false, length = NUMBER_LENGTH)
@@ -63,6 +64,10 @@ public class StoreOrder extends _BaseEntity {
 	/** Why the head office could not post the order into NAV (status ERROR). */
 	@Column(name = "error_message", length = ERROR_LENGTH)
 	private String errorMessage;
+
+	/** NAV's message on the order when it was posted (its answer); null when it gave none. */
+	@Column(name = "nav_message", length = NAV_MESSAGE_LENGTH)
+	private String navMessage;
 
 	@Column(length = NOTE_LENGTH)
 	private String note;

@@ -23,6 +23,7 @@ import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 import com.digithink.zsretail.erp.api.dto.ErpOperationResult;
 import com.digithink.zsretail.erp.api.dto.ErpSalesOrderDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSalesOrderResult;
 import com.digithink.zsretail.headoffice.enumeration.HoStoreOrderStatus;
 import com.digithink.zsretail.headoffice.enumeration.PostedMode;
 import com.digithink.zsretail.headoffice.model.HoDownChange;
@@ -30,6 +31,7 @@ import com.digithink.zsretail.headoffice.model.HoStoreOrder;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
 import com.digithink.zsretail.core.link.dto.StoreOrderDTO;
+import com.digithink.zsretail.core.link.dto.StoreOrderStatusCopyDTO;
 
 /**
  * 3.1.1, the job POST_STORE_ORDERS and "retry now" (ERP mode): the orders waiting (SENT, ERROR), oldest first, posted
@@ -50,7 +52,7 @@ class HoStoreOrderPostingTest {
 	private Store b;
 	private final List<ErpSalesOrderDTO> posted = new ArrayList<>();
 	/** What the ERP answers next. */
-	private Function<ErpSalesOrderDTO, ErpOperationResult> erp;
+	private Function<ErpSalesOrderDTO, ErpSalesOrderResult> erp;
 
 	@BeforeEach
 	void setUp() {
@@ -64,7 +66,7 @@ class HoStoreOrderPostingTest {
 				() -> holder[0], TransactionOperations.withoutTransaction(), () -> HoStoreOrderServiceTest.NOW, true);
 		holder[0] = down.feed(Arrays.asList(service));
 		holder[0].initialise();
-		erp = order -> ErpOperationResult.success("SO-0042");
+		erp = order -> ErpSalesOrderResult.of(ErpOperationResult.success("SO-0042"));
 		posting = new HoStoreOrderPosting(service, tables.repository(), order -> {
 			posted.add(order);
 			return erp.apply(order);
@@ -111,10 +113,53 @@ class HoStoreOrderPostingTest {
 	}
 
 	@Test
+	@DisplayName("NAV's answer kept: its message on the order, per line (by ERP item number and variant) the quantity accepted"
+			+ " (to 3 decimals, a line given twice added up) and its messages; a line NAV did not answer keeps none; all of it"
+			+ " in the store's copy")
+	void answerKept() {
+		HoStoreOrder order = receive(FIRST);
+		erp = o -> {
+			ErpSalesOrderResult result = ErpSalesOrderResult.of(ErpOperationResult.success("CV26000004"));
+			result.setOrderMessage(" Commande reçue ");
+			result.getLines().add(new ErpSalesOrderResult.Line("70061", "S", new BigDecimal("1"), "Stock insuffisant"));
+			result.getLines().add(new ErpSalesOrderResult.Line(" 70061 ", " S ", new BigDecimal("0.5004"), " "));
+			result.getLines().add(new ErpSalesOrderResult.Line("AUTRE", "", BigDecimal.TEN, "pas à nous"));
+			return result;
+		};
+		posting.postStoreOrders();
+		assertEquals(HoStoreOrderStatus.POSTED, order.getStatus());
+		assertEquals("Commande reçue", order.getNavMessage());
+		assertEquals(0, new BigDecimal("1.5").compareTo(order.getLines().get(0).getNavAcceptedQty()), "2 asked, 1.5 accepted");
+		assertEquals("Stock insuffisant", order.getLines().get(0).getNavLineMessage());
+		assertNull(order.getLines().get(1).getNavAcceptedQty(), "BOUGIE: NAV gave no line");
+		assertNull(order.getLines().get(1).getNavLineMessage());
+
+		StoreOrderStatusCopyDTO copy = HoStoreOrderService.copyOf(order);
+		assertEquals("Commande reçue", copy.getNavMessage());
+		assertEquals(2, copy.getLines().size());
+		assertEquals("70061~S", copy.getLines().get(0).getItemCode());
+		assertEquals(0, new BigDecimal("1.5").compareTo(copy.getLines().get(0).getAcceptedQty()));
+		assertEquals("Stock insuffisant", copy.getLines().get(0).getMessage());
+		assertEquals("BOUGIE", copy.getLines().get(1).getItemCode());
+		assertNull(copy.getLines().get(1).getAcceptedQty());
+	}
+
+	@Test
+	@DisplayName("Without NAV's answer (a connector giving none, a posting by hand): no message, no lines in the copy")
+	void noAnswer() {
+		HoStoreOrder order = receive(FIRST);
+		posting.postStoreOrders();
+		assertEquals(HoStoreOrderStatus.POSTED, order.getStatus());
+		assertNull(order.getNavMessage());
+		assertNull(HoStoreOrderService.copyOf(order).getLines(), "nothing answered: no lines go down");
+	}
+
+	@Test
 	@DisplayName("Failure: ERROR with the reason, the job WARNING; the same failure again changes nothing for the store; posted at a later run")
 	void errorThenRetried() {
 		HoStoreOrder order = receive(FIRST);
-		erp = o -> ErpOperationResult.failure("zen: posting to the page salesOrders failed: HTTP 400 Bad Request");
+		erp = o -> ErpSalesOrderResult
+				.of(ErpOperationResult.failure("zen: posting to the page commandesVente failed: HTTP 400 Bad Request"));
 		ErpSyncWarningException warning = assertThrows(ErpSyncWarningException.class, () -> posting.postStoreOrders());
 		assertTrue(warning.getMessage().startsWith("1 of 1 store orders not posted"), warning.getMessage());
 		assertEquals(HoStoreOrderStatus.ERROR, order.getStatus());
@@ -131,7 +176,7 @@ class HoStoreOrderPostingTest {
 		assertThrows(ErpSyncWarningException.class, () -> posting.postStoreOrders());
 		assertTrue(order.getErrorMessage().contains("connection reset"), order.getErrorMessage());
 
-		erp = o -> ErpOperationResult.success("SO-0043");
+		erp = o -> ErpSalesOrderResult.of(ErpOperationResult.success("SO-0043"));
 		posting.postStoreOrders();
 		assertEquals(HoStoreOrderStatus.POSTED, order.getStatus());
 		assertEquals("SO-0043", order.getNavOrderNo());

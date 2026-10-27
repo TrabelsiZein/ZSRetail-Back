@@ -40,16 +40,17 @@ Nothing in the sales, returns, BL, stock or copies-down paths changed. The only 
 ## Tables
 
 `hol_order` (store only): `number` varchar(30) unique (`uk_hol_order_number`), `status` varchar(20), `sent_at`
-datetime2, `nav_order_no` varchar(50), `error_message` varchar(1000), `note` varchar(500), `line_count` int, `total_qty`
-numeric(18,3), plus the `_BaseEntity` columns (`created_at`, `created_by` = the user who made the draft). Index
+datetime2, `nav_order_no` varchar(50), `error_message` varchar(1000), `nav_message` varchar(500) (NAV's message when the
+head office posted it), `note` varchar(500), `line_count` int, `total_qty` numeric(18,3), plus the `_BaseEntity` columns (`created_at`, `created_by` = the user who made the draft). Index
 `ix_hol_order_status` (`status`, `created_at`); filtered unique index `ux_hol_order_draft` on `status` where
 `status = 'DRAFT'`: one draft at a time.
 
 `hol_order_line` (store only): `order_id` (FK `fk_hol_order_line_order`), `item_id` (no foreign key, as the other
 `hol_` tables), `item_code` varchar(100), `nav_item_no` varchar(255), `variant_code` varchar(50), `description` and
 `variant_description` varchar(255), `quantity` numeric(18,3) (the stock's precision), `available_qty` numeric(18,3)
-nullable (the quantity available the line was ordered against, below); unique (`order_id`, `item_id`): one line per
-variant.
+nullable (the quantity available the line was ordered against, below), `nav_accepted_qty` numeric(18,3) and
+`nav_line_message` varchar(500), both nullable (NAV's answer on the line when the head office posted the order); unique
+(`order_id`, `item_id`): one line per variant.
 
 `item_image` (store and head office): `item_id`, `source` varchar(10) (`FILE`: a file name of the uploads; `URL`),
 `path` varchar(1000), `sort_order` int, `is_main` bit; index `ix_item_image_item` (`item_id`, `sort_order`). Nothing
@@ -113,8 +114,9 @@ cancelled order or an unknown number is left as it is, noted on the tracking row
 | `GET /store-order/{id}` | the order with its lines |
 | `GET /item/{id}/images` | `[{id, source, path, sortOrder, main}]`, the main one first (core: store and head office) |
 
-An order is `{id, number, status, createdAt, createdBy, sentAt, navOrderNo, errorMessage, note, lineCount, totalQty,
-lines: [{id, itemId, itemCode, navItemNo, variantCode, description, variantDescription, quantity, availableQty}]}`. Errors are
+An order is `{id, number, status, createdAt, createdBy, sentAt, navOrderNo, errorMessage, navMessage, note, lineCount,
+totalQty, lines: [{id, itemId, itemCode, navItemNo, variantCode, description, variantDescription, quantity,
+availableQty, navAcceptedQty, navLineMessage}]}`. Errors are
 `{"error": "..."}`: 400 invalid data, 404, 409, 503.
 
 **Catalogue**: the grouped read of the "NAV items" page (`NavItemService.page(NavItemFilter, ...)`,
@@ -154,7 +156,10 @@ location; dates `yyyy-MM-ddTHH:mm:ss`); answered by a `SalesCopyResultDTO` `{doc
 200 must name the same number; `accepted: false` is a refusal with its reason.
 
 **Statuses down**: copies down of the **SUPPLY** domain, record `ORD:<number>`, `StoreOrderStatusCopyDTO` `{kind:
-"STORE_ORDER", orderNumber, status, navOrderNo, errorMessage, statusAt}`, to that store only. The number is
+"STORE_ORDER", orderNumber, status, navOrderNo, errorMessage, navMessage, lines, statusAt}`, to that store only:
+`navMessage` and `lines` `[{itemCode, acceptedQty, message}]` are NAV's answer when the head office posted the order
+(`lines` null when NAV answered none: not posted yet, posted by hand); the store writes them on the order and on its
+lines by item code (a line not in the copy keeps none), and a change of the answer alone is written too. The number is
 `orderNumber`, never `number`: a store of an older build reads no BL number in it and refuses the record instead of
 taking it for a BL. Applied by `SupplyDownHandler` → `StoreOrderStatusWriter` in its own transaction, tracked in
 `hol_down_record` (`APPLIED`, or `ERROR` and retried at the next cycles).
@@ -200,12 +205,13 @@ Shared code that changed: `CopiesDownFeed` takes several providers per domain (e
 `ho_store_order`: `store_id` (FK `fk_ho_store_order_store`), `number` varchar(30), unique (`store_id`, `number`)
 (`uk_ho_store_order_number`), `status` varchar(20), `location_code` varchar(50), `sent_at` (the store's clock),
 `received_at` (the head office's), `nav_order_no` varchar(50), `posted_at`, `posted_mode` varchar(10), `error_message`
-varchar(1000), `post_attempts` int, `last_attempt_at`, `note` varchar(500), `line_count` int, `total_qty`
-numeric(18,3), plus the `_BaseEntity` columns (`created_by` = the store code, `updated_by` = who posted by hand or
+varchar(1000), `nav_message` varchar(500) (NAV's message on the order when posted), `post_attempts` int,
+`last_attempt_at`, `note` varchar(500), `line_count` int, `total_qty` numeric(18,3), plus the `_BaseEntity` columns (`created_by` = the store code, `updated_by` = who posted by hand or
 rejected). Index `ix_ho_store_order_status` (`status`, `received_at`).
 
 `ho_store_order_line`: `order_id` (FK), `item_code` varchar(100), `nav_item_no`, `variant_code`, `description`,
-`variant_description`, `quantity` numeric(18,3), as the store sent them (no item id: the store's means nothing here).
+`variant_description`, `quantity` numeric(18,3), as the store sent them (no item id: the store's means nothing here);
+`nav_accepted_qty` numeric(18,3) and `nav_line_message` varchar(500), nullable: NAV's answer on the line when posted.
 
 Created by `db/3.1.1/store-orders.sql` when the database has `ho_store`; `ddl-auto` creates the same tables.
 
@@ -218,7 +224,7 @@ Created by `db/3.1.1/store-orders.sql` when the database has `ho_store`; `ddl-au
 | `ERROR` | the posting failed, `error_message`; ERP mode: posted again at each run, no limit | `ERROR` with the message |
 | `REJECTED` | refused by the head office with a message; never posted, by the job or by hand | `ERROR` with the message |
 
-Each change the store sees (status, ERP number, message) records `ORD:<number>` in the same transaction, for that store
+Each change the store sees (status, ERP number, message, NAV's answer) records `ORD:<number>` in the same transaction, for that store
 only; the same failure again records nothing.
 
 ### Rules
@@ -238,10 +244,13 @@ only; the same failure again records nothing.
   transaction as `ErpSalesOrderDTO`: `locationCode` = the store code, `customerNo` = the store's ERP customer number
   (none any more: ERROR without calling the ERP), `externalDocumentNo` = the order number, `orderDate` = the store's
   send date (else the reception's), lines `itemNo` (the line's ERP item number, else its item code up to `~`),
-  `variantCode` (empty for none), `quantity`. Success: `POSTED`; failure: `ERROR`, and the job ends WARNING naming the
+  `variantCode` (empty for none), `quantity`. Success: `POSTED`, and the ERP's answer (`ErpSalesOrderResult`) kept: its
+  message on the order in `nav_message`, per line (matched by ERP item number and variant; a line given twice added up,
+  its messages joined) the quantity accepted in `nav_accepted_qty` (to 3 decimals) and its message; a line the ERP did
+  not answer keeps none. Failure: `ERROR`, and the job ends WARNING naming the
   first one. An order being posted is not posted a second time at once (the job and "retry now").
-- **Idempotence**: the connector looks up the ERP's order of the same `externalDocumentNo` first and reuses its number;
-  when the lookup cannot be answered, nothing is posted (ERROR, retried).
+- **Idempotence**: the connector looks up the ERP's order of the same `externalDocumentNo` first and reuses its number
+  (ZEN: and posts the lines it lacks); when the lookup cannot be answered, nothing is posted (ERROR, retried).
 - **Admin actions**: "mark posted" `{navOrderNo}` (MANUAL mode only: 409 in ERP mode), "reject" `{message}` (both
   modes), "retry now" (ERP mode only: 409 in MANUAL mode); each only on an order `SENT` or `ERROR` (409 otherwise). No
   deletion.
@@ -259,8 +268,8 @@ only; the same failure again records nothing.
 | `POST admin/headoffice/store-orders/{id}/retry` | the order after the posting (`POSTED`, or `ERROR` with the reason) |
 
 An order is `{id, storeId, storeCode, storeName, number, status, locationCode, sentAt, receivedAt, navOrderNo, postedAt,
-postedMode, errorMessage, postAttempts, lastAttemptAt, note, lineCount, totalQty, updatedBy, lines: [{id, itemCode,
-navItemNo, variantCode, description, variantDescription, quantity}]}`.
+postedMode, errorMessage, navMessage, postAttempts, lastAttemptAt, note, lineCount, totalQty, updatedBy, lines: [{id,
+itemCode, navItemNo, variantCode, description, variantDescription, quantity, navAcceptedQty, navLineMessage}]}`.
 
 ### The job
 
@@ -277,7 +286,7 @@ the defaults. `ErpVariantStockDTO` `{itemNo, variantCode, quantity, details, siz
 label → value, strings) and `sizeOrder` are optional, filled by a connector with what its ERP gives. ZEN
 (`ZenStoreOrders`, fields in `ZenOrderFields`):
 
-- **the stock, ZEN's real page** `infoArticles` (2026-10-27): `GET <erp.zen.variantstock.path>?$filter=article eq
+- **the stock, ZEN's real page** `infoArticles` (2026-10-27): `GET infoArticles?$filter=article eq
   '<item>' and client eq '<ERP customer number>'` (a quote doubled) → `{"value": [...]}`, one row per variant: `article,
   codeVariante, client, designation, marque, unite, devise, prixUnitaire, remisePourcent, prixNet, vracAutorise,
   codeCouleur, libelleCouleur, codeChoix, codeTaille, ordreTaille, codeBarres, qteSerieType, contenanceSerie,
@@ -288,17 +297,31 @@ label → value, strings) and `sizeOrder` are optional, filled by a connector wi
   Contenance série, Colis possibles, Calculé le (`calculeLe` as `dd/MM/yyyy HH:mm` in the head office's time zone); an
   empty value is left out. Sample: `connectors/zen/src/test/resources/zen/infoArticles.json` (43ZBPND01, client
   4110001: `disponible` 203 or 101 where `stock` is 1 to 69; size 36 has `ordreTaille` 220, after 46's 200, so its column comes last);
-- lookup `GET <erp.zen.salesorders.path>?$filter=externalDocumentNo eq '<number>'&$select=orderNo` → `{"value":
-  [{orderNo}]}`: **ZEN must support this filter** (asked 2026-10-28); until then every posting fails and stays ERROR;
-- `POST <erp.zen.salesorders.path>` `{locationCode, customerNo, externalDocumentNo, orderDate (yyyy-MM-dd), lines:
-  [{itemNo, variantCode, quantity}]}` → `{orderNo}`.
+- **the sales orders, ZEN's real page** `commandesVente` (2026-10-28), under the same `companies(id)`:
+  - lookup, required: `GET commandesVente?$filter=numeroDocExterne eq '<number>'&$expand=lignesCommande` (a quote
+    doubled); when it cannot be answered nothing is posted (ERROR, retried);
+  - found: reused; the lines NAV does not have (by `article` and `codeVariante`: a posting that stopped half-way) are
+    posted one by one, then the order read again (`GET commandesVente(<id>)?$expand=lignesCommande`);
+  - none: one `POST commandesVente` with the lines nested (deep insert): header `numeroDocExterne` (the order number),
+    `referenceZS` (the store code), `commandeZS` true, `client` (the store's ERP customer number), `dateCommande` (the
+    send date, `yyyy-MM-dd`), no `dateLivraisonSouhaitee`; lines `lignesCommande: [{article, codeVariante, mode,
+    quantiteDemandee}]` (pieces; `mode` only when `erp.zen.order.mode` is set, no `nbColis`). When NAV answers a 4xx
+    whose body names `lignesCommande`, a navigation property or a deep insert, the header is posted alone, then one
+    `POST commandesVente(<id>)/lignesCommande` per line; any other refusal is the order's failure. An answer without
+    its lines is followed by the read by id (when that read fails: success with `numero`, without the lines' answer);
+  - NAV's answer: `numero` (the ERP's number; none: failure), `statut`, `message`, `montantTTC`; per line
+    `quantite` (the quantity accepted), `colisAcceptes`, `message`, `prixUnitaire`, `remisePourcent`, `montantTTC`. The
+    connector gives `numero`, `message` and per line `article`, `codeVariante`, `quantite`, `message`
+    (`ErpSalesOrderResult`); the whole answer is in the communications log, whose message names the path taken ("posted
+    with its n lines in one call (deep insert)", "NAV refused the nested lines: header then n lines posted one by one",
+    "already exists: reused, nothing posted" or "its n missing lines posted"). An order NAV answers with a `numero` is
+    POSTED whatever `statut` says. Sample: `connectors/zen/src/test/resources/zen/commandesVente.json` (CV26000003,
+    made by hand in NAV: `commandeZS` false, `quantiteDemandee` 0, `quantite` 10 per line).
 
-The sales orders are still on the contract sent to ZEN (`commandesVente` not published yet).
-
-`erp.zen.variantstock.path` (default `infoArticles`) and `erp.zen.salesorders.path` (default `salesOrders`): a name under
-`companies(id)` of `erp.zen.api-path`, or a whole address; blank refused at the start. The connector's RestTemplate still
-refuses every method but GET, except a POST to the sales orders page. A field ZEN renames is one line of
-`ZenOrderFields`.
+The page names (`infoArticles`, `commandesVente`, `lignesCommande`) are constants of `ZenOrderFields`, not settings.
+`erp.zen.order.mode` (empty by default: the field is not sent and NAV keeps its own) is to be removed once ZEN confirms
+the value. The connector's RestTemplate still refuses every method but GET, except a POST to `commandesVente` and to
+`commandesVente(<id>)/lignesCommande`. A field ZEN renames is one line of `ZenOrderFields`.
 
 ## The store's screens (step 3)
 
@@ -311,6 +334,11 @@ when the variants carry one (a size's: the smallest of its variants; a size with
 order; a cell with `details` shows an info icon whose tooltip lists "label : value" (`store-orders-api.js`
 `variantMatrix`, `detailLines`; `tools/store-orders-check.mjs`).
 
+**NAV's answer** on both order pages (the store's and the head office's): the message on the order in an info box, and
+once a line carries an answer the columns accepted and message; a line accepted below its quantity is highlighted
+(`store-orders-api.js` `hasNavAnswer`, `acceptedShort`). The store's page says "Réponse de la centrale" and "Acceptée",
+never "NAV".
+
 ## The head office's screen (step 4)
 
 "Commandes des magasins" (`admin-pages.md`): the list and an order's page with its actions, in the Network menu, only on a
@@ -321,13 +349,8 @@ office (`ZZDataInitializer.HEAD_OFFICE_STORE_ORDER_PERMISSIONS`, apart from `HEA
 frontend's head office routes are both sets). The head office routes' `meta.writePermission` lists the write permission
 on the Roles page.
 
-**Without ZEN** (dev helper): `node tools/zen-mock.mjs [port=9999] [fail=1] [delay=ms]` in ZSRetail-Front fakes the pages:
-`infoArticles` with ZEN's field names (the rows read from ZEN's test NAV in `tools/zen-mock-info-articles.json` for
-43ZBPND01 and 43ZFCHD17, else rows built from the editable `tools/zen-mock-stock.json`), the lookup, the POST (`fail=1`
-answering 500). It prints the `erp.zen.salesorders.path` line for the ZEN head office file, and the
-`erp.zen.variantstock.path` line to use only without the VPN.
-
 ## Still to come
 
-- ZEN: the sales orders page `commandesVente` and its lookup by `externalDocumentNo` (a change of `erp.zen.salesorders.path`
-  and of the fields in `ZenOrderFields`).
+- ZEN: the value of `mode` on the order lines (then `erp.zen.order.mode` removed and the value set in
+  `ZenOrderFields`); what NAV fills in `statut`, `message` and `quantite` on a ZS order, read at the first live posting
+  (if `quantite` comes later than the POST, every line would read short until then).

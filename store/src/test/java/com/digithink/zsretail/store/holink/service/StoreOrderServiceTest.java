@@ -558,6 +558,47 @@ class StoreOrderServiceTest {
 	}
 
 	@Test
+	@DisplayName("Down: NAV's answer written: its message on the order, per line by item code the quantity accepted and its"
+			+ " message (a line not in the copy keeps none); the same answer again changes nothing, another one does")
+	void answerDown() {
+		InMemoryStoreLink link = new InMemoryStoreLink(new InMemoryLoyalty(500_000));
+		StoreOrder order = orders.add(FIRST, StoreOrderStatus.SENT);
+		for (String code : Arrays.asList("70061~S", "BOUGIE")) {
+			StoreOrderLine line = new StoreOrderLine();
+			line.setOrder(order);
+			line.setItemCode(code);
+			line.setQuantity(new BigDecimal("2"));
+			order.getLines().add(line);
+		}
+		StoreOrderStatusCopyDTO copy = new StoreOrderStatusCopyDTO();
+		copy.setOrderNumber(FIRST);
+		copy.setStatus("POSTED");
+		copy.setNavOrderNo("CV26000004");
+		copy.setNavMessage(" Commande reçue ");
+		copy.setLines(Collections.singletonList(
+				new StoreOrderStatusCopyDTO.Line("70061~S", new BigDecimal("1.5"), "Stock insuffisant")));
+		SupplyDownHandler handler = new SupplyDownHandler(null, link.downRecordLog(),
+				TransactionOperations.withoutTransaction(), null, new StoreOrderStatusWriter(orders.repository()));
+		ObjectMapper mapper = new ObjectMapper();
+		assertEquals(1, handler.apply(Collections.singletonList(mapper.valueToTree(copy)), Collections.emptyList())
+				.getApplied());
+		assertEquals("Commande reçue", order.getNavMessage());
+		assertEquals(0, new BigDecimal("1.5").compareTo(order.getLines().get(0).getNavAcceptedQty()));
+		assertEquals("Stock insuffisant", order.getLines().get(0).getNavLineMessage());
+		assertNull(order.getLines().get(1).getNavAcceptedQty());
+		assertEquals(0, new BigDecimal("1.5").compareTo(StoreOrderViewDTO.of(order).getLines().get(0).getNavAcceptedQty()));
+		assertEquals("Commande reçue", StoreOrderViewDTO.of(order).getNavMessage());
+
+		assertEquals(1, handler.apply(Collections.singletonList(mapper.valueToTree(copy)), Collections.emptyList())
+				.getUnchanged());
+		copy.setLines(Collections.singletonList(new StoreOrderStatusCopyDTO.Line("70061~S", new BigDecimal("2"), null)));
+		assertEquals(1, handler.apply(Collections.singletonList(mapper.valueToTree(copy)), Collections.emptyList())
+				.getApplied(), "only a line's answer changed");
+		assertEquals(0, new BigDecimal("2").compareTo(order.getLines().get(0).getNavAcceptedQty()));
+		assertNull(order.getLines().get(0).getNavLineMessage());
+	}
+
+	@Test
 	@DisplayName("Down: an order never sent or unknown here is left as it is (noted); a bad status is an error, retried")
 	void statusesDownIgnored() {
 		InMemoryStoreLink link = new InMemoryStoreLink(new InMemoryLoyalty(500_000));

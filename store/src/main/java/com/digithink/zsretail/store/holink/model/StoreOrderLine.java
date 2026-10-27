@@ -60,6 +60,14 @@ public class StoreOrderLine extends _BaseEntity {
 	@Column(nullable = false, precision = Quantities.PRECISION, scale = Quantities.SCALE)
 	private BigDecimal quantity;
 
+	/** The quantity NAV accepted (its quantite) when the order was posted; null: NAV gave none (or not posted yet). */
+	@Column(name = "nav_accepted_qty", precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal navAcceptedQty;
+
+	/** NAV's message on the line when the order was posted; null when it gave none. */
+	@Column(name = "nav_line_message", length = StoreOrder.NAV_MESSAGE_LENGTH)
+	private String navLineMessage;
+
 	/**
 	 * The quantity the head office made available when the line was added or replaced from the variants window; the
 	 * line's quantity may not exceed it. Null: none was given (no limit).
@@ -69,6 +77,10 @@ public class StoreOrderLine extends _BaseEntity {
 
 	public BigDecimal getQuantity() {
 		return Quantities.normalize(quantity);
+	}
+
+	public BigDecimal getNavAcceptedQty() {
+		return navAcceptedQty == null ? null : Quantities.normalize(navAcceptedQty);
 	}
 
 	public BigDecimal getAvailableQty() {

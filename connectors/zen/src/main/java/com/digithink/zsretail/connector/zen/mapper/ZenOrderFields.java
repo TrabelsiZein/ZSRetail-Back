@@ -5,10 +5,13 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Set;
 
 import com.digithink.zsretail.erp.api.dto.ErpSalesOrderDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSalesOrderResult;
 import com.digithink.zsretail.erp.api.dto.ErpVariantStockDTO;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -16,19 +19,26 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * 3.1.1 (store orders): the field names of ZEN's two pages of the store orders and their mapping, in one place (a field
- * ZEN renames is one line here):
+ * 3.1.1 (store orders): ZEN's two pages of the store orders under the zsretail API, their field names and their mapping,
+ * in one place (a field ZEN renames is one line here):
  * <ul>
- * <li>ZEN's real page GET infoArticles?$filter=article eq '..' and client eq '..' → {"value": [{article, codeVariante,
- * client, ..., ordreTaille, ..., stock, qteVrac, disponible, calculeLe}]}, one row per variant, the stock of the item
- * for the store's ERP customer (no location): the quantity is disponible, never stock;</li>
- * <li>as the contract sent to ZEN gives them (commandesVente not published yet): POST salesOrders {locationCode,
- * customerNo, externalDocumentNo, orderDate, lines: [{itemNo, variantCode, quantity}]} → {orderNo};</li>
- * <li>the lookup before it: GET salesOrders?$filter=externalDocumentNo eq '..'&amp;$select=orderNo → {"value":
- * [{orderNo}]}.</li>
+ * <li>GET infoArticles?$filter=article eq '..' and client eq '..' → {"value": [{article, codeVariante, client, ...,
+ * ordreTaille, ..., stock, qteVrac, disponible, calculeLe}]}, one row per variant, the stock of the item for the store's
+ * ERP customer (no location): the quantity is disponible, never stock;</li>
+ * <li>commandesVente, the sales orders: POST {numeroDocExterne, referenceZS, commandeZS, client, dateCommande,
+ * lignesCommande: [{article, codeVariante, mode, quantiteDemandee}]} → {id, numero, statut, message, montantTTC, ...};
+ * the lines (contained collection lignesCommande) answer quantite (accepted), colisAcceptes, message, prixUnitaire,
+ * remisePourcent, montantTTC. The lookup before it: GET commandesVente?$filter=numeroDocExterne eq
+ * '..'&amp;$expand=lignesCommande. A line alone: POST commandesVente(id)/lignesCommande.</li>
  * </ul>
  */
 public final class ZenOrderFields {
+
+	// The pages (under companies(id) of the zsretail API)
+	public static final String VARIANT_STOCK_PAGE = "infoArticles";
+	public static final String SALES_ORDERS_PAGE = "commandesVente";
+	/** The contained collection of an order's lines (deep insert, $expand, a line alone). */
+	public static final String ORDER_LINES = "lignesCommande";
 
 	// The variant stock page (infoArticles): the filter's fields and the row's
 	public static final String STOCK_ITEM_NO = "article";
@@ -40,21 +50,37 @@ public final class ZenOrderFields {
 	public static final String STOCK_COMPUTED_AT = "calculeLe";
 	/** The details of a row (the tooltip of the store's cell), in this order: the field, its label. */
 	static final String[][] STOCK_DETAILS = { { "prixUnitaire", "Prix unitaire" }, { "remisePourcent", "Remise %" },
-			{ "prixNet", "Prix net" }, { "stock", "Stock" }, { "qteVrac", "Qt\u00e9 vrac" },
-			{ "vracAutorise", "Vrac autoris\u00e9" }, { "contenanceSerie", "Contenance s\u00e9rie" },
-			{ "colisPossibles", "Colis possibles" }, { STOCK_COMPUTED_AT, "Calcul\u00e9 le" } };
+			{ "prixNet", "Prix net" }, { "stock", "Stock" }, { "qteVrac", "Qté vrac" },
+			{ "vracAutorise", "Vrac autorisé" }, { "contenanceSerie", "Contenance série" },
+			{ "colisPossibles", "Colis possibles" }, { STOCK_COMPUTED_AT, "Calculé le" } };
 	static final DateTimeFormatter COMPUTED_AT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
-	// The sales order: header, lines, answer
-	public static final String ORDER_LOCATION = "locationCode";
-	public static final String ORDER_CUSTOMER = "customerNo";
-	public static final String ORDER_EXTERNAL_NO = "externalDocumentNo";
-	public static final String ORDER_DATE = "orderDate";
-	public static final String ORDER_LINES = "lines";
-	public static final String LINE_ITEM_NO = "itemNo";
-	public static final String LINE_VARIANT_CODE = "variantCode";
-	public static final String LINE_QUANTITY = "quantity";
-	public static final String ORDER_NO = "orderNo";
+	// The sales order (commandesVente): header sent
+	/** The store's order number: the lookup's key. */
+	public static final String ORDER_EXTERNAL_NO = "numeroDocExterne";
+	/** The store's code. */
+	public static final String ORDER_STORE = "referenceZS";
+	/** Always true: an order of ZS. */
+	public static final String ORDER_FROM_ZS = "commandeZS";
+	/** The store's ERP customer number. */
+	public static final String ORDER_CUSTOMER = "client";
+	public static final String ORDER_DATE = "dateCommande";
+	// The header answered
+	public static final String ORDER_ID = "id";
+	public static final String ORDER_NO = "numero";
+	public static final String ORDER_STATUS = "statut";
+	public static final String ORDER_MESSAGE = "message";
+	// A line sent
+	public static final String LINE_ITEM_NO = "article";
+	public static final String LINE_VARIANT_CODE = "codeVariante";
+	/** erp.zen.order.mode; left out when empty. */
+	public static final String LINE_MODE = "mode";
+	/** The pieces the store asks for. */
+	public static final String LINE_REQUESTED = "quantiteDemandee";
+	// A line answered
+	/** The pieces NAV accepted. */
+	public static final String LINE_ACCEPTED = "quantite";
+	public static final String LINE_MESSAGE = "message";
 
 	/** OData's collection: the rows under "value". */
 	static final String VALUE = "value";
@@ -118,44 +144,130 @@ public final class ZenOrderFields {
 		return text;
 	}
 
-	/** The body of the POST: the order's header, its date as yyyy-MM-dd, its lines (an empty variant code as ""). */
-	public static ObjectNode orderBody(ErpSalesOrderDTO order) {
-		ObjectNode body = JsonNodeFactory.instance.objectNode();
-		body.put(ORDER_LOCATION, order.getLocationCode());
-		body.put(ORDER_CUSTOMER, order.getCustomerNo());
-		body.put(ORDER_EXTERNAL_NO, order.getExternalDocumentNo());
-		body.put(ORDER_DATE, order.getOrderDate() == null ? null
-				: order.getOrderDate().format(DateTimeFormatter.ISO_LOCAL_DATE));
+	// ─── The sales order ─────────────────────────────────────────
+
+	/** The deep insert: the header with its lines nested under lignesCommande. */
+	public static ObjectNode orderBody(ErpSalesOrderDTO order, String mode) {
+		ObjectNode body = headerBody(order);
 		ArrayNode lines = body.putArray(ORDER_LINES);
 		for (ErpSalesOrderDTO.Line line : order.getLines()) {
-			ObjectNode row = lines.addObject();
-			row.put(LINE_ITEM_NO, line.getItemNo());
-			row.put(LINE_VARIANT_CODE, line.getVariantCode() == null ? "" : line.getVariantCode());
-			row.put(LINE_QUANTITY, line.getQuantity());
+			lines.add(lineBody(line, mode));
 		}
 		return body;
 	}
 
-	/** The ERP's order number of the POST's answer; empty when it has none. */
-	public static String orderNoOf(JsonNode answer) {
-		return answer == null ? "" : text(answer, ORDER_NO);
+	/**
+	 * The header: numeroDocExterne (the store's order number), referenceZS (the store's code), commandeZS true, client,
+	 * dateCommande as yyyy-MM-dd; no dateLivraisonSouhaitee.
+	 */
+	public static ObjectNode headerBody(ErpSalesOrderDTO order) {
+		ObjectNode body = JsonNodeFactory.instance.objectNode();
+		body.put(ORDER_EXTERNAL_NO, order.getExternalDocumentNo());
+		body.put(ORDER_STORE, order.getLocationCode());
+		body.put(ORDER_FROM_ZS, true);
+		body.put(ORDER_CUSTOMER, order.getCustomerNo());
+		body.put(ORDER_DATE, order.getOrderDate() == null ? null
+				: order.getOrderDate().format(DateTimeFormatter.ISO_LOCAL_DATE));
+		return body;
 	}
 
-	/** The order number of the lookup's first row (under "value", or a single object); empty when none was found. */
-	public static String foundOrderNo(JsonNode answer) {
-		if (answer == null) {
-			return "";
+	/** A line: article, codeVariante ("" without one), mode only when set, quantiteDemandee (pieces); no nbColis. */
+	public static ObjectNode lineBody(ErpSalesOrderDTO.Line line, String mode) {
+		ObjectNode row = JsonNodeFactory.instance.objectNode();
+		row.put(LINE_ITEM_NO, line.getItemNo());
+		row.put(LINE_VARIANT_CODE, line.getVariantCode() == null ? "" : line.getVariantCode());
+		if (mode != null && !mode.trim().isEmpty()) {
+			row.put(LINE_MODE, mode.trim());
+		}
+		row.put(LINE_REQUESTED, line.getQuantity());
+		return row;
+	}
+
+	/** The order of an answer: the lookup's first row (under "value"), or the object itself; null when none. */
+	public static JsonNode orderOf(JsonNode answer) {
+		if (answer == null || answer.isNull()) {
+			return null;
 		}
 		JsonNode array = answer.isArray() ? answer : answer.get(VALUE);
 		if (array != null && array.isArray()) {
-			return array.size() == 0 ? "" : text(array.get(0), ORDER_NO);
+			return array.size() == 0 ? null : array.get(0);
 		}
-		return text(answer, ORDER_NO);
+		return answer;
 	}
 
-	/** externalDocumentNo eq 'S01-2026-000012' (a quote doubled). */
+	/** NAV's order number (numero); empty when it has none. */
+	public static String orderNoOf(JsonNode order) {
+		return text(order, ORDER_NO);
+	}
+
+	/** NAV's id of the order (the address of its lines); empty when it has none. */
+	public static String orderIdOf(JsonNode order) {
+		return text(order, ORDER_ID);
+	}
+
+	/** The order came with its lines (lignesCommande, an array). */
+	public static boolean hasLines(JsonNode order) {
+		JsonNode lines = order == null ? null : order.get(ORDER_LINES);
+		return lines != null && lines.isArray();
+	}
+
+	/** The order's answer: its message (null when empty) and its lines: article, variant, quantite, message. */
+	public static void answerInto(JsonNode order, ErpSalesOrderResult result) {
+		String message = text(order, ORDER_MESSAGE);
+		result.setOrderMessage(message.isEmpty() ? null : message);
+		List<ErpSalesOrderResult.Line> lines = new ArrayList<>();
+		JsonNode rows = order == null ? null : order.get(ORDER_LINES);
+		if (rows != null && rows.isArray()) {
+			for (JsonNode row : rows) {
+				JsonNode accepted = row.get(LINE_ACCEPTED);
+				String lineMessage = text(row, LINE_MESSAGE);
+				lines.add(new ErpSalesOrderResult.Line(text(row, LINE_ITEM_NO), text(row, LINE_VARIANT_CODE),
+						accepted == null || !accepted.isNumber() ? null : accepted.decimalValue(),
+						lineMessage.isEmpty() ? null : lineMessage));
+			}
+		}
+		result.setLines(lines);
+	}
+
+	/**
+	 * The lines of the store's order that NAV's order does not have (by article and variant): after a posting that
+	 * stopped half-way (header and some lines), the ones still to post.
+	 */
+	public static List<ErpSalesOrderDTO.Line> missingLines(ErpSalesOrderDTO order, JsonNode navOrder) {
+		Set<String> present = new HashSet<>();
+		JsonNode rows = navOrder == null ? null : navOrder.get(ORDER_LINES);
+		if (rows != null && rows.isArray()) {
+			for (JsonNode row : rows) {
+				present.add(lineKey(text(row, LINE_ITEM_NO), text(row, LINE_VARIANT_CODE)));
+			}
+		}
+		List<ErpSalesOrderDTO.Line> missing = new ArrayList<>();
+		for (ErpSalesOrderDTO.Line line : order.getLines()) {
+			if (!present.contains(lineKey(line.getItemNo(), line.getVariantCode()))) {
+				missing.add(line);
+			}
+		}
+		return missing;
+	}
+
+	/** article and variant, trimmed, no variant as "". */
+	public static String lineKey(String itemNo, String variantCode) {
+		return (itemNo == null ? "" : itemNo.trim()) + "\u0000" + (variantCode == null ? "" : variantCode.trim());
+	}
+
+	/** numeroDocExterne eq 'ZS01-2026-000012' (a quote doubled). */
 	public static String lookupFilter(String externalDocumentNo) {
 		return ORDER_EXTERNAL_NO + " eq '" + quoted(externalDocumentNo) + "'";
+	}
+
+	/** The order of this id, under the sales orders page: commandesVente(id). */
+	public static String orderPage(String id) {
+		return SALES_ORDERS_PAGE + "(" + id.trim() + ")";
+	}
+
+	/** The lines of the order of this id: commandesVente(id)/lignesCommande. */
+	public static String orderLinesPage(String id) {
+		return orderPage(id) + "/" + ORDER_LINES;
 	}
 
 	private static String quoted(String value) {

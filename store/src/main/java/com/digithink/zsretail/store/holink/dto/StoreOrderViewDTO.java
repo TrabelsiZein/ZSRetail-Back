@@ -29,6 +29,8 @@ public class StoreOrderViewDTO {
 	private LocalDateTime sentAt;
 	private String navOrderNo;
 	private String errorMessage;
+	/** The head office's message from its ERP on the order when it was posted. */
+	private String navMessage;
 	private String note;
 	private int lineCount;
 	private BigDecimal totalQty;
@@ -49,6 +51,9 @@ public class StoreOrderViewDTO {
 		private BigDecimal quantity;
 		/** The availability the line was ordered against (null: no limit). */
 		private BigDecimal availableQty;
+		/** The quantity the head office accepted when it posted the order (null: none given). */
+		private BigDecimal navAcceptedQty;
+		private String navLineMessage;
 	}
 
 	/** A row of the list: the header only. */
@@ -62,6 +67,7 @@ public class StoreOrderViewDTO {
 		view.setSentAt(order.getSentAt());
 		view.setNavOrderNo(order.getNavOrderNo());
 		view.setErrorMessage(order.getErrorMessage());
+		view.setNavMessage(order.getNavMessage());
 		view.setNote(order.getNote());
 		view.setLineCount(order.getLineCount());
 		view.setTotalQty(order.getTotalQty());
@@ -77,6 +83,7 @@ public class StoreOrderViewDTO {
 
 	private static Line line(StoreOrderLine line) {
 		return new Line(line.getId(), line.getItemId(), line.getItemCode(), line.getNavItemNo(), line.getVariantCode(),
-				line.getDescription(), line.getVariantDescription(), line.getQuantity(), line.getAvailableQty());
+				line.getDescription(), line.getVariantDescription(), line.getQuantity(), line.getAvailableQty(),
+				line.getNavAcceptedQty(), line.getNavLineMessage());
 	}
 }

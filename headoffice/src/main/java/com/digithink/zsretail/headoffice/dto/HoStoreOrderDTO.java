@@ -36,6 +36,8 @@ public class HoStoreOrderDTO {
 	/** ERP or MANUAL; null until posted. */
 	private String postedMode;
 	private String errorMessage;
+	/** NAV's message on the order when it was posted. */
+	private String navMessage;
 	private int postAttempts;
 	private LocalDateTime lastAttemptAt;
 	private String note;
@@ -57,6 +59,9 @@ public class HoStoreOrderDTO {
 		private String description;
 		private String variantDescription;
 		private BigDecimal quantity;
+		/** The quantity NAV accepted when the order was posted (null: none given). */
+		private BigDecimal navAcceptedQty;
+		private String navLineMessage;
 	}
 
 	/** A row of the list: the header only; store null when it is gone. */
@@ -75,6 +80,7 @@ public class HoStoreOrderDTO {
 		view.setPostedAt(order.getPostedAt());
 		view.setPostedMode(order.getPostedMode() == null ? null : order.getPostedMode().name());
 		view.setErrorMessage(order.getErrorMessage());
+		view.setNavMessage(order.getNavMessage());
 		view.setPostAttempts(order.getPostAttempts());
 		view.setLastAttemptAt(order.getLastAttemptAt());
 		view.setNote(order.getNote());
@@ -93,6 +99,7 @@ public class HoStoreOrderDTO {
 
 	private static Line line(HoStoreOrderLine line) {
 		return new Line(line.getId(), line.getItemCode(), line.getNavItemNo(), line.getVariantCode(),
-				line.getDescription(), line.getVariantDescription(), line.getQuantity());
+				line.getDescription(), line.getVariantDescription(), line.getQuantity(), line.getNavAcceptedQty(),
+				line.getNavLineMessage());
 	}
 }

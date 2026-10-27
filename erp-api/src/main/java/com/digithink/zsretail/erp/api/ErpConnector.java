@@ -18,6 +18,7 @@ import com.digithink.zsretail.erp.api.dto.ErpReturnDTO;
 import com.digithink.zsretail.erp.api.dto.ErpReturnLineDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSalesDiscountDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSalesOrderDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSalesOrderResult;
 import com.digithink.zsretail.erp.api.dto.ErpSalesPriceDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSessionDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSupplyInvoiceDTO;
@@ -114,11 +115,12 @@ public interface ErpConnector {
 	/**
 	 * 3.1.1 (store orders): posts a store's order as a sales order of the ERP; success with the ERP's order number as the
 	 * external reference. The connector first looks up an order of the same externalDocumentNo and answers its number
-	 * when there is one (never a second order). Only a connector with ErpAbility.STORE_ORDERS posts; every other one
+	 * when there is one (never a second order). The result carries the ERP's answer: its message on the order and, per
+	 * line, the quantity accepted and its message. Only a connector with ErpAbility.STORE_ORDERS posts; every other one
 	 * answers a failure.
 	 */
-	default ErpOperationResult postSalesOrder(ErpSalesOrderDTO order) {
-		return ErpOperationResult.failure(STORE_ORDERS_NOT_SUPPORTED + ".");
+	default ErpSalesOrderResult postSalesOrder(ErpSalesOrderDTO order) {
+		return ErpSalesOrderResult.of(ErpOperationResult.failure(STORE_ORDERS_NOT_SUPPORTED + "."));
 	}
 
 	default PullOperationResult<?> getLastPullOperationResult() {

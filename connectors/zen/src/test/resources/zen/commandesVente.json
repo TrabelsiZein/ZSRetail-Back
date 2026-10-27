@@ -1,0 +1,77 @@
+{
+  "@odata.context": "http://192.168.10.124:7048/BC280/api/sat/zsretail/v1.0/$metadata#companies(1d6c4f00-6ac9-f111-9db8-ad3d0c589c9c)/commandesVente",
+  "value": [
+    {
+      "@odata.etag": "W/\"JzIwOzEzMDYwNzQ4ODY2MzQwOTgyNTQwMTswMDsn\"",
+      "id": "2e707462-ded1-f111-9db8-ad3d0c589c9c",
+      "numero": "CV26000003",
+      "referenceZS": "",
+      "numeroDocExterne": "",
+      "commandeZS": false,
+      "client": "4110001",
+      "dateCommande": "2026-10-27",
+      "dateLivraisonSouhaitee": "0001-01-01",
+      "statut": "",
+      "message": "",
+      "ordrePrelevement": "",
+      "montantTTC": 1606.5,
+      "derniereModification": "2026-10-27T08:14:10.007Z",
+      "lignesCommande": [
+        {
+          "@odata.etag": "W/\"JzIwOzE0NzIwNTUwMDkyNDc2ODkzMjg5MTswMDsn\"",
+          "id": "30707462-ded1-f111-9db8-ad3d0c589c9c",
+          "numeroCommande": "CV26000003",
+          "numeroLigne": 10000,
+          "article": "43ZBPND01",
+          "codeVariante": "001",
+          "mode": "",
+          "nbColis": 0,
+          "quantiteDemandee": 0,
+          "colisAcceptes": 0,
+          "quantite": 10,
+          "message": "",
+          "prixUnitaire": 45,
+          "remisePourcent": 0,
+          "montantTTC": 535.5,
+          "derniereModification": "2026-10-27T21:02:46.983Z"
+        },
+        {
+          "@odata.etag": "W/\"JzE4OzU0OTYxMDAyMzI4NDIzNjU5ODE7MDA7Jw==\"",
+          "id": "8a4c9e83-49d2-f111-9db8-ad3d0c589c9c",
+          "numeroCommande": "CV26000003",
+          "numeroLigne": 20000,
+          "article": "43ZBPND01",
+          "codeVariante": "002",
+          "mode": "",
+          "nbColis": 0,
+          "quantiteDemandee": 0,
+          "colisAcceptes": 0,
+          "quantite": 10,
+          "message": "",
+          "prixUnitaire": 45,
+          "remisePourcent": 0,
+          "montantTTC": 535.5,
+          "derniereModification": "2026-10-27T21:02:48.527Z"
+        },
+        {
+          "@odata.etag": "W/\"JzIwOzEwODc4OTExMzQ4NTQ0Nzg1ODk3MTswMDsn\"",
+          "id": "8b4c9e83-49d2-f111-9db8-ad3d0c589c9c",
+          "numeroCommande": "CV26000003",
+          "numeroLigne": 30000,
+          "article": "43ZBPND01",
+          "codeVariante": "003",
+          "mode": "",
+          "nbColis": 0,
+          "quantiteDemandee": 0,
+          "colisAcceptes": 0,
+          "quantite": 10,
+          "message": "",
+          "prixUnitaire": 45,
+          "remisePourcent": 0,
+          "montantTTC": 535.5,
+          "derniereModification": "2026-10-27T21:02:49.303Z"
+        }
+      ]
+    }
+  ]
+}

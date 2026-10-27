@@ -36,7 +36,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   store sees records `ORD:<number>` for that store (REJECTED goes down as ERROR with its message).
 - erp-api: `ErpConnector.fetchVariantStock` and `postSalesOrder` (defaults: not supported), `ErpAbility.STORE_ORDERS`,
   `ErpStoreOrderPosting`. EMTOP and Happyness unchanged.
-- connector-zen: the store orders on the contract sent to ZEN (`ZenStoreOrders`, the fields in `ZenOrderFields`): `GET
+- connector-zen (replaced by ZEN's real pages, below): the store orders on the contract sent to ZEN (`ZenStoreOrders`, the
+  fields in `ZenOrderFields`): `GET
   variantStock?itemNo=&locationCode=`; the lookup `GET salesOrders?$filter=externalDocumentNo eq '..'` first (an order
   found is reused; a lookup that fails posts nothing), then `POST salesOrders` → `orderNo`. The RestTemplate still
   refuses every method but GET, except a POST to the sales orders page.
@@ -44,6 +45,17 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   on a head office with `headoffice.storeorders.post`, null otherwise and on every store; permissions
   `read:admin-headoffice-store-orders` and `write:admin-headoffice-store-orders`, given to ADMIN at every start only on
   such a head office (`ZZDataInitializer.HEAD_OFFICE_STORE_ORDER_PERMISSIONS`).
+- Store orders, ZEN's real page `commandesVente` (docs/modules/store-orders.md): the lookup `GET
+  commandesVente?$filter=numeroDocExterne eq '..'&$expand=lignesCommande` (required); none found: one POST with the
+  lines nested (`numeroDocExterne`, `referenceZS` = the store code, `commandeZS` true, `client`, `dateCommande`;
+  `lignesCommande` `article`, `codeVariante`, `mode` when set, `quantiteDemandee`), and when NAV answers a 4xx refusing
+  the nested lines, the header then one POST per line on `commandesVente(id)/lignesCommande`; an order found reused, the
+  lines it lacks posted. NAV's answer kept (`ErpSalesOrderResult`, the return of `ErpConnector.postSalesOrder`):
+  `numero` as the ERP number, its `message` on `ho_store_order.nav_message`, per line `quantite` and `message` on
+  `ho_store_order_line.nav_accepted_qty` and `nav_line_message`, sent down with `ORD:` (`navMessage`, `lines`) and
+  written on `hol_order` / `hol_order_line`; both order views give them. The communications log message names the path
+  taken. The page names are constants of `ZenOrderFields`. Sample
+  `connectors/zen/src/test/resources/zen/commandesVente.json`.
 
 ### Enhancements
 - NAV items grouped read (`NavItemService.page`, `ItemRepository.NAV_ITEMS`): optional level filters (catégorie, the
@@ -83,6 +95,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - `update.sql`: `APP_VERSION` 3.1.1 (it stops while `store-orders.sql` has not run); notes written when the version is
   closed.
 - `store-orders.sql`: column `hol_order_line.available_qty` numeric(18,3) NULL (added when missing; a start adds it too).
+- `store-orders.sql`: columns `hol_order.nav_message` varchar(500), `hol_order_line.nav_accepted_qty` numeric(18,3) and
+  `nav_line_message` varchar(500) (store), `ho_store_order.nav_message`, `ho_store_order_line.nav_accepted_qty` and
+  `nav_line_message` (head office), all NULL, each added when missing (a start adds them too).
 - `store-orders.sql`, step 2: tables `ho_store_order` (unique `store_id`, `number`; FK to `ho_store`; index
   `ix_ho_store_order_status`) and `ho_store_order_line` (FK to `ho_store_order`) on a head office only. Re-runnable, no
   data changed.
@@ -91,11 +106,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - `headoffice.storeorders.post` (head office, optional): `MANUAL` or `ERP` (needs a connector with
   `ErpAbility.STORE_ORDERS`: zen); absent, the head office takes no store order. Set to `ERP` in
   `configs/customers/zen-headoffice.properties`.
-- `erp.zen.variantstock.path` (default `variantStock`) and `erp.zen.salesorders.path` (default `salesOrders`): a name under
-  `companies(id)` of `erp.zen.api-path`, or a whole address.
-- `erp.zen.variantstock.path`: default now `infoArticles` (ZEN's real page under the zsretail API); a whole address is
-  still accepted. A head office file that pointed it at the mock's `variantStock` drops the line (or points it at the
-  mock's `infoArticles` to work without the VPN).
+- `erp.zen.order.mode` (head office with the connector zen, optional): the `mode` of every line of a sales order on
+  `commandesVente`; empty or absent, the field is not sent. To be removed once ZEN confirms the value. (The pages are no
+  longer settings: `erp.zen.variantstock.path` and `erp.zen.salesorders.path`, added earlier in 3.1.1 for the mock, are
+  gone; a line left in a file is ignored.)
 
 ## 3.1.0 — 2026-10-27 (tag `v3.1.0`)
 

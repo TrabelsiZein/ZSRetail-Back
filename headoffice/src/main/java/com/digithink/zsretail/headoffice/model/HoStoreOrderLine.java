@@ -53,7 +53,19 @@ public class HoStoreOrderLine extends _BaseEntity {
 	@Column(nullable = false, precision = Quantities.PRECISION, scale = Quantities.SCALE)
 	private BigDecimal quantity;
 
+	/** The quantity NAV accepted (its quantite) when the order was posted; null: NAV gave none (or not posted yet). */
+	@Column(name = "nav_accepted_qty", precision = Quantities.PRECISION, scale = Quantities.SCALE)
+	private BigDecimal navAcceptedQty;
+
+	/** NAV's message on the line when the order was posted; null when it gave none. */
+	@Column(name = "nav_line_message", length = HoStoreOrder.NAV_MESSAGE_LENGTH)
+	private String navLineMessage;
+
 	public BigDecimal getQuantity() {
 		return Quantities.normalize(quantity);
+	}
+
+	public BigDecimal getNavAcceptedQty() {
+		return navAcceptedQty == null ? null : Quantities.normalize(navAcceptedQty);
 	}
 }

@@ -56,31 +56,20 @@ public class ZenProperties {
 	/** Step 9: the supply invoices, read on ZEN's franchise API (not the zsretail one). */
 	private Invoices invoices = new Invoices();
 	/**
-	 * 3.1.1 (store orders): the live stock of the variants of an item for a store's ERP customer, ZEN's page infoArticles
-	 * (key erp.zen.variantstock.path).
+	 * 3.1.1 (store orders): the stores' orders posted on ZEN's page commandesVente (its name and the page infoArticles of
+	 * the variants' stock in ZenOrderFields, not settings).
 	 */
-	private Path variantstock = new Path("infoArticles");
-	/**
-	 * 3.1.1 (store orders): the sales orders of the stores, looked up by externalDocumentNo then posted (key
-	 * erp.zen.salesorders.path): the only address this connector sends a POST to.
-	 */
-	private Path salesorders = new Path("salesOrders");
+	private Order order = new Order();
 
-	/**
-	 * 3.1.1: one page of the store orders: a name under companies(id) of the custom API (api-path), as the other pages,
-	 * or a whole address (http or https), e.g. when ZEN publishes it elsewhere: a change of address is a change of key.
-	 */
+	/** 3.1.1: the sales orders of the stores. */
 	@Getter
 	@Setter
-	public static class Path {
-		private String path;
-
-		public Path() {
-		}
-
-		public Path(String path) {
-			this.path = path;
-		}
+	public static class Order {
+		/**
+		 * The mode of every line (key erp.zen.order.mode); empty: the field is left out and NAV keeps its own. TODO remove
+		 * the key once ZEN confirms the value.
+		 */
+		private String mode;
 	}
 
 	/**

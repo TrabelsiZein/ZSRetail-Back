@@ -1,6 +1,7 @@
 package com.digithink.zsretail.headoffice.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
@@ -39,6 +40,7 @@ import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.erp.api.ErpConnector;
 import com.digithink.zsretail.erp.api.dto.ErpSalesOrderDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSalesOrderResult;
 import com.digithink.zsretail.erp.api.dto.ErpVariantStockDTO;
 import com.digithink.zsretail.headoffice.dto.HoStoreOrderDTO;
 import com.digithink.zsretail.headoffice.enumeration.HoStoreOrderStatus;
@@ -342,6 +344,15 @@ public class HoStoreOrderService implements DownDomainProvider {
 	 * order.
 	 */
 	public Optional<HoStoreOrderDTO> recordPosting(Long id, String navOrderNo, String failure) {
+		return recordPosting(id, navOrderNo, null, failure);
+	}
+
+	/**
+	 * The same with the ERP's answer (null: none): on success its message on the order and, per line (matched by ERP item
+	 * number and variant), the quantity it accepted and its message, kept and sent down with the status.
+	 */
+	public Optional<HoStoreOrderDTO> recordPosting(Long id, String navOrderNo, ErpSalesOrderResult answer,
+			String failure) {
 		return Optional.ofNullable(transactions.execute(status -> orders.findForUpdate(id).map(order -> {
 			LocalDateTime at = clock.get();
 			order.setPostAttempts(order.getPostAttempts() + 1);
@@ -353,6 +364,9 @@ public class HoStoreOrderService implements DownDomainProvider {
 				order.setPostedAt(at);
 				order.setPostedMode(PostedMode.ERP);
 				order.setErrorMessage(null);
+				if (answer != null) {
+					keepAnswer(order, answer);
+				}
 			} else if (order.getStatus() == HoStoreOrderStatus.SENT || order.getStatus() == HoStoreOrderStatus.ERROR) {
 				order.setStatus(HoStoreOrderStatus.ERROR);
 				order.setErrorMessage(cut(failure == null ? "the ERP gave no order number" : failure,
@@ -365,6 +379,37 @@ public class HoStoreOrderService implements DownDomainProvider {
 			}
 			return viewOf(order);
 		}).orElse(null)));
+	}
+
+	/**
+	 * The ERP's answer kept on the order: its message, and per line (by ERP item number and variant) the quantity accepted
+	 * (added up when the ERP gives the line twice, to 3 decimals) and the messages (joined); a line the ERP did not answer
+	 * keeps none.
+	 */
+	static void keepAnswer(HoStoreOrder order, ErpSalesOrderResult answer) {
+		order.setNavMessage(cut(blankToNull(answer.getOrderMessage()), HoStoreOrder.NAV_MESSAGE_LENGTH));
+		Map<String, BigDecimal> accepted = new HashMap<>();
+		Map<String, String> messages = new HashMap<>();
+		for (ErpSalesOrderResult.Line line : answer.getLines()) {
+			String key = lineKey(line.getItemNo(), line.getVariantCode());
+			if (line.getAcceptedQty() != null) {
+				accepted.merge(key, line.getAcceptedQty(), BigDecimal::add);
+			}
+			String message = blankToNull(line.getMessage());
+			if (message != null) {
+				messages.merge(key, message, (first, second) -> first + " / " + second);
+			}
+		}
+		for (HoStoreOrderLine line : order.getLines()) {
+			String key = lineKey(itemNoOf(line), line.getVariantCode());
+			BigDecimal quantity = accepted.get(key);
+			line.setNavAcceptedQty(quantity == null ? null : quantity.setScale(Quantities.SCALE, RoundingMode.HALF_UP));
+			line.setNavLineMessage(cut(messages.get(key), HoStoreOrder.NAV_MESSAGE_LENGTH));
+		}
+	}
+
+	private static String lineKey(String itemNo, String variantCode) {
+		return (itemNo == null ? "" : itemNo.trim()) + "\u0000" + (variantCode == null ? "" : variantCode.trim());
 	}
 
 	// ─── Admin actions ───────────────────────────────────────────
@@ -490,13 +535,17 @@ public class HoStoreOrderService implements DownDomainProvider {
 		}
 	}
 
-	/** What the store sees of the order: its status as the copy gives it, the ERP's number, the message. */
+	/** What the store sees of the order: its status as the copy gives it, the ERP's number, the message, NAV's answer. */
 	private static String seenByStore(HoStoreOrder order) {
 		StoreOrderStatusCopyDTO copy = copyOf(order);
-		return copy.getStatus() + "|" + copy.getNavOrderNo() + "|" + copy.getErrorMessage();
+		return copy.getStatus() + "|" + copy.getNavOrderNo() + "|" + copy.getErrorMessage() + "|" + copy.getNavMessage()
+				+ "|" + copy.getLines();
 	}
 
-	/** The copy of an order for its store: REJECTED goes down as ERROR with its message. */
+	/**
+	 * The copy of an order for its store: REJECTED goes down as ERROR with its message; NAV's answer on the order and its
+	 * lines (the lines only when NAV answered one).
+	 */
 	static StoreOrderStatusCopyDTO copyOf(HoStoreOrder order) {
 		StoreOrderStatusCopyDTO copy = new StoreOrderStatusCopyDTO();
 		copy.setOrderNumber(order.getNumber());
@@ -505,6 +554,12 @@ public class HoStoreOrderService implements DownDomainProvider {
 				: status == null ? null : status.name());
 		copy.setNavOrderNo(order.getNavOrderNo());
 		copy.setErrorMessage(order.getErrorMessage());
+		copy.setNavMessage(order.getNavMessage());
+		if (order.getLines().stream()
+				.anyMatch(line -> line.getNavAcceptedQty() != null || line.getNavLineMessage() != null)) {
+			copy.setLines(order.getLines().stream().map(line -> new StoreOrderStatusCopyDTO.Line(line.getItemCode(),
+					line.getNavAcceptedQty(), line.getNavLineMessage())).collect(Collectors.toList()));
+		}
 		LocalDateTime at = order.getUpdatedAt();
 		copy.setStatusAt(at == null ? null : at.withNano(0).toString());
 		return copy;

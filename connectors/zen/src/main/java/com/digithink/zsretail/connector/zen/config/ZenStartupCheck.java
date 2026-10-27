@@ -64,8 +64,7 @@ public class ZenStartupCheck {
 			throw new IllegalStateException("Invalid value '" + (vat == null ? "" : vat) + "' for property " + P
 					+ "default-vat: a whole number from 0 to 100 (the VAT of a row that gives none, e.g. 19)");
 		}
-		for (String key : new String[] { "api-path", "page.stock-points", "page.categories", "page.barcodes",
-				"variantstock.path", "salesorders.path" }) {
+		for (String key : new String[] { "api-path", "page.stock-points", "page.categories", "page.barcodes" }) {
 			if (env.containsProperty(P + key) && trimmed(env.getProperty(P + key)).isEmpty()) {
 				throw new IllegalStateException("Missing value for property " + P + key
 						+ ": remove the line to use the default, or write the value.");

@@ -28,6 +28,7 @@ import com.digithink.zsretail.erp.api.dto.ErpReturnDTO;
 import com.digithink.zsretail.erp.api.dto.ErpReturnLineDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSalesDiscountDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSalesOrderDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSalesOrderResult;
 import com.digithink.zsretail.erp.api.dto.ErpSalesPriceDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSessionDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSupplyInvoiceDTO;
@@ -86,7 +87,7 @@ public class ZenConnector implements ErpConnector {
 
 	/** 3.1.1: a store's order as NAV's sales order, looked up first ({@link ZenStoreOrders#post}). */
 	@Override
-	public ErpOperationResult postSalesOrder(ErpSalesOrderDTO order) {
+	public ErpSalesOrderResult postSalesOrder(ErpSalesOrderDTO order) {
 		if (orders == null) {
 			return ErpConnector.super.postSalesOrder(order);
 		}

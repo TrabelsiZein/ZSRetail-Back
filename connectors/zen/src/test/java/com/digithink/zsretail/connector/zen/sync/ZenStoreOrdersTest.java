@@ -42,27 +42,39 @@ import com.digithink.zsretail.connector.zen.config.ZenProperties;
 import com.digithink.zsretail.connector.zen.connector.ZenConnector;
 import com.digithink.zsretail.connector.zen.mapper.ZenOrderFields;
 import com.digithink.zsretail.erp.api.ErpNotSupportedException;
-import com.digithink.zsretail.erp.api.dto.ErpOperationResult;
 import com.digithink.zsretail.erp.api.dto.ErpSalesOrderDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSalesOrderResult;
 import com.digithink.zsretail.erp.api.dto.ErpVariantStockDTO;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * 3.1.1, the stores' orders in ZEN's NAV against a mock server (no live call), with the real RestTemplate of the
- * settings: the variant stock on ZEN's real page infoArticles (the sample src/test/resources/zen/infoArticles.json, read
- * from ZEN's test NAV on 2026-10-27: 43ZBPND01 for the client 4110001, twelve variants), the lookup by externalDocumentNo before the POST (an
- * order found is reused, nothing posted; a lookup that fails posts nothing), the body of the POST and its answer, the
- * pages' addresses from erp.zen.variantstock.path and erp.zen.salesorders.path, and the interceptor: a POST to the
- * sales orders page only.
+ * settings: the variant stock on ZEN's page infoArticles (the sample src/test/resources/zen/infoArticles.json, read from
+ * ZEN's test NAV on 2026-10-27: 43ZBPND01 for the client 4110001, twelve variants); the sales orders on its page
+ * commandesVente (the sample src/test/resources/zen/commandesVente.json, CV26000003 read with $expand=lignesCommande
+ * from ZEN's test NAV on 2026-10-27: three lines of 43ZBPND01, quantite 10 each): the lookup by numeroDocExterne with
+ * the lines before any POST (an order found is reused, its missing lines posted; a lookup that fails posts nothing), the
+ * deep insert and its body, the header then one POST per line when NAV refuses the nested lines, NAV's answer (numero,
+ * message, quantite and message per line), and the interceptor: a POST to commandesVente and its orders' lines only.
  */
 class ZenStoreOrdersTest {
 
 	static final String COMPANY_ID = "89c8b192-3f2e-f111-9f24-7ced8db3f120";
 	static final String ROOT = "http://nav.test:7158/ZEN/api/sat/zsretail/v1.0/companies(" + COMPANY_ID + ")/";
-	static final String NUMBER = "B-2026-000001";
-	static final String LOOKUP = ROOT + "salesOrders?$filter=externalDocumentNo%20eq%20'" + NUMBER + "'&$select=orderNo";
+	static final String NUMBER = "ZS01-2026-000001";
+	static final String LOOKUP = ROOT + "commandesVente?$filter=numeroDocExterne%20eq%20'" + NUMBER
+			+ "'&$expand=lignesCommande";
+	static final String ORDERS = ROOT + "commandesVente";
+	/** The id of CV26000003 in the sample. */
+	static final String ID = "2e707462-ded1-f111-9db8-ad3d0c589c9c";
+	static final String BY_ID = ROOT + "commandesVente(" + ID + ")?$expand=lignesCommande";
+	static final String LINES = ROOT + "commandesVente(" + ID + ")/lignesCommande";
 	static final String STOCK = ROOT + "infoArticles?$filter=article%20eq%20'43ZBPND01'%20and%20client%20eq%20'4110001'";
+	static final String NONE = "{\"value\":[]}";
+	static final ObjectMapper JSON = new ObjectMapper();
 
 	private ZenProperties properties;
 	private RestTemplate template;
@@ -83,18 +95,40 @@ class ZenStoreOrdersTest {
 	private void build() {
 		template = ZenConfig.restTemplate(properties);
 		server = MockRestServiceServer.bindTo(template).build();
-		orders = new ZenStoreOrders(new ZenRestClient(template, properties));
+		orders = new ZenStoreOrders(new ZenRestClient(template, properties), properties);
 	}
 
+	/** The store's order: the three variants of the sample, 12 pieces asked of 002 (NAV accepted 10). */
 	static ErpSalesOrderDTO order() {
 		ErpSalesOrderDTO order = new ErpSalesOrderDTO();
-		order.setLocationCode("B");
-		order.setCustomerNo("C-0001");
+		order.setLocationCode("ZS01");
+		order.setCustomerNo("4110001");
 		order.setExternalDocumentNo(NUMBER);
 		order.setOrderDate(LocalDate.of(2026, 10, 27));
-		order.getLines().add(new ErpSalesOrderDTO.Line("70061", "S", new BigDecimal("2")));
-		order.getLines().add(new ErpSalesOrderDTO.Line("BOUGIE", "", new BigDecimal("1.5")));
+		order.getLines().add(new ErpSalesOrderDTO.Line("43ZBPND01", "001", new BigDecimal("10")));
+		order.getLines().add(new ErpSalesOrderDTO.Line("43ZBPND01", "002", new BigDecimal("12")));
+		order.getLines().add(new ErpSalesOrderDTO.Line("43ZBPND01", "003", new BigDecimal("10")));
 		return order;
+	}
+
+	/** The lookup's answer: the sample of commandesVente (under "value"). */
+	static String found() throws IOException {
+		try (InputStream in = ZenStoreOrdersTest.class.getResourceAsStream("/zen/commandesVente.json")) {
+			return new String(StreamUtils.copyToByteArray(in), StandardCharsets.UTF_8);
+		}
+	}
+
+	/** CV26000003 alone (GET by its id): the sample's row. */
+	static ObjectNode navOrder() throws IOException {
+		return (ObjectNode) JSON.readTree(found()).get("value").get(0);
+	}
+
+	/** The order as a POST answers it: the header without its lines, with this message. */
+	static String header(String message) throws IOException {
+		ObjectNode header = navOrder();
+		header.remove("lignesCommande");
+		header.put("message", message);
+		return header.toString();
 	}
 
 	// ─── Variant stock ───────────────────────────────────────────
@@ -109,7 +143,6 @@ class ZenStoreOrdersTest {
 	@DisplayName("Variant stock on the sample of infoArticles: filtered on article and client; the quantity disponible (never"
 			+ " stock), the size order ordreTaille, the details in order")
 	void variantStock() throws IOException {
-		assertEquals("infoArticles", new ZenProperties().getVariantstock().getPath(), "the default page");
 		server.expect(requestTo(STOCK)).andExpect(method(HttpMethod.GET))
 				.andRespond(withSuccess(sample(), MediaType.APPLICATION_JSON));
 		List<ErpVariantStockDTO> rows = orders.variantStock(" 43ZBPND01 ", " 4110001 ");
@@ -159,112 +192,244 @@ class ZenStoreOrdersTest {
 	}
 
 	@Test
-	@DisplayName("Variant stock failing: ZenReadException naming the page and the status; the path from erp.zen.variantstock.path")
+	@DisplayName("Variant stock failing: ZenReadException naming the page and the status")
 	void variantStockFails() {
-		properties.getVariantstock().setPath("https://zen.example/franchise/infoArticles");
-		build();
-		server.expect(requestTo("https://zen.example/franchise/infoArticles?$filter=article%20eq%20'70061'%20and%20client"
-				+ "%20eq%20'C-0001'")).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+		server.expect(requestTo(ROOT + "infoArticles?$filter=article%20eq%20'70061'%20and%20client%20eq%20'C-0001'"))
+				.andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
 		ZenReadException e = assertThrows(ZenReadException.class, () -> orders.variantStock("70061", "C-0001"));
-		assertTrue(e.getMessage().startsWith("zen: reading the page https://zen.example/franchise/infoArticles"
-				+ " failed: HTTP 500"), e.getMessage());
+		assertTrue(e.getMessage().startsWith("zen: reading the page infoArticles failed: HTTP 500"), e.getMessage());
 	}
 
 	// ─── Sales orders ────────────────────────────────────────────
 
 	@Test
-	@DisplayName("Posted: the lookup finds none, then POST salesOrders with the contract's body; success with NAV's orderNo")
-	void posted() {
+	@DisplayName("The sample read back: numero, id, no message; per line article, variant, quantite (accepted), no message")
+	void sampleAnswer() throws IOException {
+		JsonNode order = ZenOrderFields.orderOf(JSON.readTree(found()));
+		assertEquals("CV26000003", ZenOrderFields.orderNoOf(order));
+		assertEquals(ID, ZenOrderFields.orderIdOf(order));
+		assertTrue(ZenOrderFields.hasLines(order));
+		ErpSalesOrderResult result = new ErpSalesOrderResult();
+		ZenOrderFields.answerInto(order, result);
+		assertNull(result.getOrderMessage(), "an empty message: none");
+		assertEquals(3, result.getLines().size());
+		ErpSalesOrderResult.Line first = result.getLines().get(0);
+		assertEquals("43ZBPND01", first.getItemNo());
+		assertEquals("001", first.getVariantCode());
+		assertEquals(0, new BigDecimal("10").compareTo(first.getAcceptedQty()), "quantite, not quantiteDemandee (0)");
+		assertNull(first.getMessage());
+		assertNull(ZenOrderFields.orderOf(JSON.readTree(NONE)), "none found");
+	}
+
+	@Test
+	@DisplayName("Posted in one call (deep insert): the lookup finds none, POST commandesVente with the header and its lines"
+			+ " nested (no mode when the key is empty, no dateLivraisonSouhaitee, no nbColis), then the order read with its"
+			+ " lines: success with numero, NAV's message and per line the quantity accepted")
+	void postedDeepInsert() throws IOException {
 		server.expect(requestTo(LOOKUP)).andExpect(method(HttpMethod.GET))
-				.andRespond(withSuccess("{\"value\":[]}", MediaType.APPLICATION_JSON));
-		server.expect(requestTo(ROOT + "salesOrders")).andExpect(method(HttpMethod.POST))
+				.andRespond(withSuccess(NONE, MediaType.APPLICATION_JSON));
+		server.expect(requestTo(ORDERS)).andExpect(method(HttpMethod.POST))
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-				.andExpect(jsonPath("$.locationCode").value("B")).andExpect(jsonPath("$.customerNo").value("C-0001"))
-				.andExpect(jsonPath("$.externalDocumentNo").value(NUMBER))
-				.andExpect(jsonPath("$.orderDate").value("2026-10-27"))
-				.andExpect(jsonPath("$.lines[0].itemNo").value("70061"))
-				.andExpect(jsonPath("$.lines[0].variantCode").value("S"))
-				.andExpect(jsonPath("$.lines[0].quantity").value(2))
-				.andExpect(jsonPath("$.lines[1].variantCode").value(""))
-				.andExpect(jsonPath("$.lines[1].quantity").value(1.5))
-				.andRespond(withSuccess("{\"orderNo\":\"SO-0042\"}", MediaType.APPLICATION_JSON));
-		ErpOperationResult result = orders.post(order());
+				.andExpect(jsonPath("$.numeroDocExterne").value(NUMBER))
+				.andExpect(jsonPath("$.referenceZS").value("ZS01"))
+				.andExpect(jsonPath("$.commandeZS").value(true))
+				.andExpect(jsonPath("$.client").value("4110001"))
+				.andExpect(jsonPath("$.dateCommande").value("2026-10-27"))
+				.andExpect(jsonPath("$.dateLivraisonSouhaitee").doesNotExist())
+				.andExpect(jsonPath("$.lignesCommande.length()").value(3))
+				.andExpect(jsonPath("$.lignesCommande[1].article").value("43ZBPND01"))
+				.andExpect(jsonPath("$.lignesCommande[1].codeVariante").value("002"))
+				.andExpect(jsonPath("$.lignesCommande[1].quantiteDemandee").value(12))
+				.andExpect(jsonPath("$.lignesCommande[1].mode").doesNotExist())
+				.andExpect(jsonPath("$.lignesCommande[1].nbColis").doesNotExist())
+				.andRespond(withSuccess(header("Commande reçue"), MediaType.APPLICATION_JSON));
+		server.expect(requestTo(BY_ID)).andExpect(method(HttpMethod.GET)).andRespond(
+				withSuccess(navOrder().put("message", "Commande reçue").toString(), MediaType.APPLICATION_JSON));
+		ErpSalesOrderResult result = orders.post(order());
 		server.verify();
 		assertTrue(result.isSuccess(), result.getMessage());
-		assertEquals("SO-0042", result.getExternalReference());
-		assertEquals(ROOT + "salesOrders", result.getUrl());
-		assertEquals(NUMBER, ((JsonNode) result.getActualRequestPayload()).get("externalDocumentNo").asText());
+		assertEquals("CV26000003", result.getExternalReference());
+		assertEquals(ORDERS, result.getUrl());
+		assertEquals("NAV's order CV26000003 of " + NUMBER + ": posted with its 3 lines in one call (deep insert)",
+				result.getMessage());
+		assertEquals(NUMBER, ((JsonNode) result.getActualRequestPayload()).get("numeroDocExterne").asText());
+		assertEquals("Commande reçue", result.getOrderMessage());
+		assertEquals(3, result.getLines().size());
+		assertEquals(0, new BigDecimal("10").compareTo(result.getLines().get(1).getAcceptedQty()), "12 asked, 10 accepted");
 	}
 
 	@Test
-	@DisplayName("Already in NAV (an answer lost): the lookup's order reused, nothing posted")
-	void reused() {
-		server.expect(requestTo(LOOKUP))
-				.andRespond(withSuccess("{\"value\":[{\"orderNo\":\"SO-0041\"}]}", MediaType.APPLICATION_JSON));
-		ErpOperationResult result = orders.post(order());
+	@DisplayName("erp.zen.order.mode set: every line sends its mode; an answer with its lines is not read again")
+	void mode() throws IOException {
+		properties.getOrder().setMode(" VRAC ");
+		server.expect(requestTo(LOOKUP)).andRespond(withSuccess(NONE, MediaType.APPLICATION_JSON));
+		server.expect(requestTo(ORDERS)).andExpect(method(HttpMethod.POST))
+				.andExpect(jsonPath("$.lignesCommande[0].mode").value("VRAC"))
+				.andExpect(jsonPath("$.lignesCommande[2].mode").value("VRAC"))
+				.andRespond(withSuccess(navOrder().toString(), MediaType.APPLICATION_JSON));
+		assertTrue(orders.post(order()).isSuccess());
+		server.verify();
+	}
+
+	@Test
+	@DisplayName("NAV refuses the nested lines (a 4xx naming lignesCommande): the header alone, then one POST per line on"
+			+ " commandesVente(id)/lignesCommande, then the order read with its lines")
+	void headerThenLines() throws IOException {
+		server.expect(requestTo(LOOKUP)).andRespond(withSuccess(NONE, MediaType.APPLICATION_JSON));
+		server.expect(requestTo(ORDERS)).andExpect(method(HttpMethod.POST)).andExpect(jsonPath("$.lignesCommande").exists())
+				.andRespond(withStatus(HttpStatus.BAD_REQUEST).contentType(MediaType.APPLICATION_JSON).body(
+						"{\"error\":{\"code\":\"BadRequest\",\"message\":\"Deep insert is not supported for lignesCommande\"}}"));
+		server.expect(requestTo(ORDERS)).andExpect(method(HttpMethod.POST))
+				.andExpect(jsonPath("$.lignesCommande").doesNotExist())
+				.andExpect(jsonPath("$.numeroDocExterne").value(NUMBER))
+				.andRespond(withSuccess(header(""), MediaType.APPLICATION_JSON));
+		for (String variant : Arrays.asList("001", "002", "003")) {
+			server.expect(requestTo(LINES)).andExpect(method(HttpMethod.POST))
+					.andExpect(jsonPath("$.article").value("43ZBPND01"))
+					.andExpect(jsonPath("$.codeVariante").value(variant))
+					.andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+		}
+		server.expect(requestTo(BY_ID)).andRespond(withSuccess(navOrder().toString(), MediaType.APPLICATION_JSON));
+		ErpSalesOrderResult result = orders.post(order());
+		server.verify();
+		assertTrue(result.isSuccess(), result.getMessage());
+		assertEquals("CV26000003", result.getExternalReference());
+		assertTrue(result.getMessage().endsWith("NAV refused the nested lines: header then 3 lines posted one by one"),
+				result.getMessage());
+		assertEquals(3, result.getLines().size());
+	}
+
+	@Test
+	@DisplayName("Already in NAV with all its lines (an answer lost): reused with the lines' answer, nothing posted")
+	void reused() throws IOException {
+		server.expect(requestTo(LOOKUP)).andExpect(method(HttpMethod.GET))
+				.andRespond(withSuccess(found(), MediaType.APPLICATION_JSON));
+		ErpSalesOrderResult result = orders.post(order());
 		server.verify(); // no POST expected
 		assertTrue(result.isSuccess());
-		assertEquals("SO-0041", result.getExternalReference());
-		assertTrue(String.valueOf(result.getActualResponsePayload()).contains("reused"));
+		assertEquals("CV26000003", result.getExternalReference());
+		assertTrue(result.getMessage().endsWith("already exists: reused, nothing posted"), result.getMessage());
+		assertEquals(3, result.getLines().size());
 	}
 
 	@Test
-	@DisplayName("The lookup fails (the page cannot filter on externalDocumentNo): a failure, nothing posted")
+	@DisplayName("Already in NAV with only some of its lines (a posting stopped half-way): only the missing lines posted,"
+			+ " then the order read again")
+	void completed() throws IOException {
+		ObjectNode partial = navOrder();
+		ArrayNode lines = (ArrayNode) partial.get("lignesCommande");
+		lines.remove(2);
+		lines.remove(1);
+		server.expect(requestTo(LOOKUP))
+				.andRespond(withSuccess("{\"value\":[" + partial + "]}", MediaType.APPLICATION_JSON));
+		for (String variant : Arrays.asList("002", "003")) {
+			server.expect(requestTo(LINES)).andExpect(method(HttpMethod.POST))
+					.andExpect(jsonPath("$.codeVariante").value(variant))
+					.andExpect(jsonPath("$.quantiteDemandee").value("002".equals(variant) ? 12 : 10))
+					.andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+		}
+		server.expect(requestTo(BY_ID)).andRespond(withSuccess(navOrder().toString(), MediaType.APPLICATION_JSON));
+		ErpSalesOrderResult result = orders.post(order());
+		server.verify();
+		assertTrue(result.isSuccess(), result.getMessage());
+		assertTrue(result.getMessage().endsWith("already exists: reused, its 2 missing lines posted"), result.getMessage());
+		assertEquals(3, result.getLines().size());
+	}
+
+	@Test
+	@DisplayName("The lookup fails: a failure, nothing posted")
 	void lookupRequired() {
 		server.expect(requestTo(LOOKUP)).andRespond(withStatus(HttpStatus.BAD_REQUEST)
 				.body("{\"error\":{\"message\":\"filter not supported\"}}").contentType(MediaType.APPLICATION_JSON));
-		ErpOperationResult result = orders.post(order());
+		ErpSalesOrderResult result = orders.post(order());
 		server.verify();
 		assertFalse(result.isSuccess());
-		assertTrue(result.getMessage().startsWith("zen: reading the page salesOrders failed: HTTP 400"), result.getMessage());
+		assertTrue(result.getMessage().startsWith("zen: reading the page commandesVente failed: HTTP 400"),
+				result.getMessage());
 		assertTrue(result.getMessage().contains("filter not supported"), result.getMessage());
-		assertEquals(ROOT + "salesOrders", result.getUrl());
+		assertEquals(ORDERS, result.getUrl());
 	}
 
 	@Test
-	@DisplayName("A POST refused by NAV, or answered without orderNo: a failure with the reason")
+	@DisplayName("A POST refused for another reason (no fallback), or answered without numero: a failure with the reason")
 	void postFailures() {
-		server.expect(requestTo(LOOKUP)).andRespond(withSuccess("{\"value\":[]}", MediaType.APPLICATION_JSON));
-		server.expect(requestTo(ROOT + "salesOrders")).andExpect(method(HttpMethod.POST))
-				.andRespond(withStatus(HttpStatus.BAD_REQUEST).body("Customer C-0001 is blocked"));
-		ErpOperationResult refused = orders.post(order());
+		server.expect(requestTo(LOOKUP)).andRespond(withSuccess(NONE, MediaType.APPLICATION_JSON));
+		server.expect(requestTo(ORDERS)).andExpect(method(HttpMethod.POST))
+				.andRespond(withStatus(HttpStatus.BAD_REQUEST).body("Le client 4110001 est bloqué"));
+		ErpSalesOrderResult refused = orders.post(order());
+		server.verify(); // the header alone never posted
 		assertFalse(refused.isSuccess());
-		assertTrue(refused.getMessage().startsWith("zen: posting to the page salesOrders failed: HTTP 400"),
+		assertTrue(refused.getMessage().startsWith("zen: posting to the page commandesVente failed: HTTP 400"),
 				refused.getMessage());
-		assertTrue(refused.getMessage().contains("Customer C-0001 is blocked"));
 
 		server.reset();
-		server.expect(requestTo(LOOKUP)).andRespond(withSuccess("{\"value\":[]}", MediaType.APPLICATION_JSON));
-		server.expect(requestTo(ROOT + "salesOrders")).andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
-		ErpOperationResult noNumber = orders.post(order());
+		server.expect(requestTo(LOOKUP)).andRespond(withSuccess(NONE, MediaType.APPLICATION_JSON));
+		server.expect(requestTo(ORDERS)).andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+		ErpSalesOrderResult noNumber = orders.post(order());
 		assertFalse(noNumber.isSuccess());
-		assertEquals("zen: NAV answered the order " + NUMBER + " without its orderNo", noNumber.getMessage());
+		assertEquals("zen: NAV answered the order " + NUMBER + " without its numero", noNumber.getMessage());
 
 		ErpSalesOrderDTO without = order();
 		without.setExternalDocumentNo(" ");
 		assertFalse(orders.post(without).isSuccess(), "never posted without its number");
 	}
 
+	@Test
+	@DisplayName("Posted, but its lines cannot be read back: success with numero (the order is in NAV), no lines' answer")
+	void linesUnreadable() throws IOException {
+		server.expect(requestTo(LOOKUP)).andRespond(withSuccess(NONE, MediaType.APPLICATION_JSON));
+		server.expect(requestTo(ORDERS)).andRespond(withSuccess(header("ok"), MediaType.APPLICATION_JSON));
+		server.expect(requestTo(BY_ID)).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+		ErpSalesOrderResult result = orders.post(order());
+		server.verify();
+		assertTrue(result.isSuccess());
+		assertEquals("CV26000003", result.getExternalReference());
+		assertTrue(result.getMessage().contains("its lines could not be read"), result.getMessage());
+		assertEquals("ok", result.getOrderMessage());
+		assertTrue(result.getLines().isEmpty());
+	}
+
+	@Test
+	@DisplayName("Only a 4xx naming the nested lines falls back; a 5xx or another 4xx does not")
+	void nestedLinesRefused() {
+		server.expect(requestTo(ORDERS)).andRespond(withStatus(HttpStatus.BAD_REQUEST)
+				.body("{\"error\":{\"message\":\"The navigation property 'lignesCommande' cannot be used\"}}"));
+		server.expect(requestTo(ORDERS)).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR).body("lignesCommande"));
+		server.expect(requestTo(ORDERS)).andRespond(withStatus(HttpStatus.BAD_REQUEST).body("Article inconnu"));
+		ZenRestClient client = new ZenRestClient(template, properties);
+		assertTrue(ZenStoreOrders.nestedLinesRefused(
+				assertThrows(ZenReadException.class, () -> client.postSalesOrder(JSON.createObjectNode()))));
+		assertFalse(ZenStoreOrders.nestedLinesRefused(
+				assertThrows(ZenReadException.class, () -> client.postSalesOrder(JSON.createObjectNode()))));
+		assertFalse(ZenStoreOrders.nestedLinesRefused(
+				assertThrows(ZenReadException.class, () -> client.postSalesOrder(JSON.createObjectNode()))));
+	}
+
 	// ─── The interceptor and the connector ───────────────────────
 
 	@Test
-	@DisplayName("The interceptor: a POST to the sales orders page only; anything else but GET refused before it leaves")
+	@DisplayName("The interceptor: a POST to commandesVente and to the lines of one of its orders only; anything else but"
+			+ " GET refused before it leaves")
 	void postOnlyToSalesOrders() {
 		IllegalStateException refused = assertThrows(IllegalStateException.class,
 				() -> template.postForObject(ROOT + "stockPoints", "{}", String.class));
 		assertTrue(refused.getMessage().contains("only reads from the ERP (GET)"), refused.getMessage());
-		assertThrows(IllegalStateException.class, () -> template.put(ROOT + "salesOrders", "{}"), "a PUT, even there");
-		assertEquals("/salesOrders", ZenConfig.GetOnly.postPathOf(" /salesOrders/ "));
-		assertEquals("/franchise/orders", ZenConfig.GetOnly.postPathOf("https://zen.example/franchise/orders"));
-		assertNull(ZenConfig.GetOnly.postPathOf(" "));
+		assertThrows(IllegalStateException.class, () -> template.put(ORDERS, "{}"), "a PUT, even there");
+		ZenConfig.GetOnly guard = new ZenConfig.GetOnly(ZenOrderFields.SALES_ORDERS_PAGE);
+		String company = "/ZEN/api/sat/zsretail/v1.0/companies(x)/";
+		assertTrue(guard.postAllowed(company + "commandesVente"));
+		assertTrue(guard.postAllowed(company + "commandesVente(" + ID + ")/lignesCommande"));
+		assertFalse(guard.postAllowed(company + "commandesVente(" + ID + ")"));
+		assertFalse(guard.postAllowed(company + "commandesVente/lignesCommande"));
+		assertFalse(guard.postAllowed(company + "infoArticles"));
+		assertFalse(new ZenConfig.GetOnly().postAllowed(company + "commandesVente"));
 	}
 
 	@Test
 	@DisplayName("ZenConnector answers from here; without the orders (the invoices' tests) the defaults: not supported")
-	void connector() {
-		server.expect(requestTo(LOOKUP))
-				.andRespond(withSuccess("{\"value\":[{\"orderNo\":\"SO-0041\"}]}", MediaType.APPLICATION_JSON));
-		assertEquals("SO-0041", new ZenConnector(null, orders).postSalesOrder(order()).getExternalReference());
+	void connector() throws IOException {
+		server.expect(requestTo(LOOKUP)).andRespond(withSuccess(found(), MediaType.APPLICATION_JSON));
+		assertEquals("CV26000003", new ZenConnector(null, orders).postSalesOrder(order()).getExternalReference());
 		ZenConnector withoutOrders = new ZenConnector(null);
 		assertFalse(withoutOrders.postSalesOrder(order()).isSuccess());
 		assertThrows(ErpNotSupportedException.class, () -> withoutOrders.fetchVariantStock("70061", "B", "C-0001"));
