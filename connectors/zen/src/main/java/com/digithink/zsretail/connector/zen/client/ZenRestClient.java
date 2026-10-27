@@ -1,5 +1,6 @@
 package com.digithink.zsretail.connector.zen.client;
 
+import java.io.IOException;
 import java.net.URI;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -7,6 +8,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -16,7 +18,10 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
@@ -36,7 +41,11 @@ import com.digithink.zsretail.connector.zen.dto.ZenInvoiceLineRow;
 import com.digithink.zsretail.connector.zen.dto.ZenInvoiceRow;
 import com.digithink.zsretail.connector.zen.dto.ZenStockPointRow;
 import com.digithink.zsretail.connector.zen.mapper.ZenMapper;
+import com.digithink.zsretail.connector.zen.mapper.ZenOrderFields;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
+import com.digithink.zsretail.erp.api.dto.ErpVariantStockDTO;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Item variants (ZEN), step 8: the reads of ZEN's API, GET only, as the other NAV connectors. The tree and the rows of
@@ -419,5 +428,68 @@ public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 
 	static String quoted(String value) {
 		return value == null ? "" : value.trim().replace("'", "''");
+	}
+
+	// ─── 3.1.1: the store orders (variantstock.path, salesorders.path) ─
+
+	private static final ObjectMapper JSON = new ObjectMapper();
+
+	/** GET variantStock?itemNo=&amp;locationCode=: NAV's stock of every variant of the item at the location. */
+	public List<ErpVariantStockDTO> readVariantStock(String itemNo, String locationCode) {
+		String name = properties.getVariantstock().getPath();
+		URI uri = page(name).queryParam(ZenOrderFields.STOCK_ITEM_PARAM, itemNo == null ? "" : itemNo.trim())
+				.queryParam(ZenOrderFields.STOCK_LOCATION_PARAM, locationCode == null ? "" : locationCode.trim())
+				.build().encode().toUri();
+		return ZenOrderFields.stockRows(json(name, uri, HttpMethod.GET, null));
+	}
+
+	/**
+	 * GET salesOrders?$filter=externalDocumentNo eq '..'&amp;$select=orderNo: the number of NAV's order of this external
+	 * document number; empty when there is none. A page that cannot answer it throws (the order is then not posted).
+	 */
+	public String findSalesOrderNo(String externalDocumentNo) {
+		String name = properties.getSalesorders().getPath();
+		URI uri = page(name).queryParam("$filter", ZenOrderFields.lookupFilter(externalDocumentNo))
+				.queryParam("$select", ZenOrderFields.ORDER_NO).build().encode().toUri();
+		return ZenOrderFields.foundOrderNo(json(name, uri, HttpMethod.GET, null));
+	}
+
+	/** POST salesOrders with the order's body (JSON): NAV's answer. */
+	public JsonNode postSalesOrder(JsonNode body) {
+		String name = properties.getSalesorders().getPath();
+		return json(name, page(name).build().encode().toUri(), HttpMethod.POST, body);
+	}
+
+	/** The address of the sales orders page (the communications log; the interceptor allows a POST there only). */
+	public String salesOrdersUrl() {
+		return page(properties.getSalesorders().getPath()).build().toUriString();
+	}
+
+	/** One call with a JSON body or none, its JSON answer (null when empty); an error throws as a read does. */
+	private JsonNode json(String page, URI uri, HttpMethod method, JsonNode body) {
+		String what = method == HttpMethod.GET ? "reading the page " + page : "posting to the page " + page;
+		try {
+			HttpHeaders headers = new HttpHeaders();
+			headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+			HttpEntity<String> entity;
+			if (body == null) {
+				entity = new HttpEntity<>(headers);
+			} else {
+				headers.setContentType(MediaType.APPLICATION_JSON);
+				entity = new HttpEntity<>(JSON.writeValueAsString(body), headers);
+			}
+			ResponseEntity<String> answer = restTemplate.exchange(uri, method, entity, String.class);
+			String text = answer.getBody();
+			return text == null || text.trim().isEmpty() ? null : JSON.readTree(text);
+		} catch (HttpStatusCodeException e) {
+			String detail = e.getResponseBodyAsString();
+			throw new ZenReadException(page, "zen: " + what + " failed: HTTP " + e.getRawStatusCode() + " "
+					+ e.getStatusText() + " (" + uri + ")" + (detail == null || detail.trim().isEmpty() ? ""
+							: ": " + (detail.length() > 500 ? detail.substring(0, 500) : detail)), e);
+		} catch (ResourceAccessException e) {
+			throw new ZenReadException(page, "zen: " + what + " failed: no answer or timeout (" + e.getMessage() + ")", e);
+		} catch (RestClientException | IOException e) {
+			throw new ZenReadException(page, "zen: " + what + " failed: " + e.getMessage(), e);
+		}
 	}
 }

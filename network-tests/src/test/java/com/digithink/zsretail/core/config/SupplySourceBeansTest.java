@@ -37,6 +37,7 @@ import com.digithink.zsretail.headoffice.service.DownDomainProvider;
 import com.digithink.zsretail.headoffice.service.HoCatalogueService;
 import com.digithink.zsretail.headoffice.service.HoDeliveryService;
 import com.digithink.zsretail.headoffice.service.HoErpInvoiceService;
+import com.digithink.zsretail.headoffice.service.HoStoreOrderService;
 import com.digithink.zsretail.headoffice.service.HoNetworkStockService;
 import com.digithink.zsretail.headoffice.service.HoPriceListService;
 import com.digithink.zsretail.headoffice.service.HoSupplyInvoiceService;
@@ -87,6 +88,7 @@ class SupplySourceBeansTest {
 		modes.put("head office, catalogue only from the ERP, supply source ERP", erpSupply());
 		modes.put("Happyness head office (configs/customers)",
 				Installations.machine(ModeQuestionTruthTableTest.HAPPYNESS_HEAD_OFFICE));
+		modes.put("ZEN head office (configs/customers)", Installations.machine(Installations.ZEN_HEAD_OFFICE));
 		return modes;
 	}
 
@@ -122,12 +124,13 @@ class SupplySourceBeansTest {
 	}
 
 	@Test
-	@DisplayName("Exactly one SUPPLY provider where a head office supplies its stores; none on a store or a head office with all three in the ERP")
+	@DisplayName("Exactly one SUPPLY provider of the supply documents where a head office supplies its stores, none on a store or"
+			+ " a head office with all three in the ERP; 3.1.1: the store orders beside it where headoffice.storeorders.post is set")
 	void oneSupplyProviderPerMode() throws Exception {
 		List<Class<?>> supplyProviders = providers().stream().filter(p -> domainOf(p) == DataDomain.SUPPLY)
 				.collect(Collectors.toList());
-		assertTrue(supplyProviders.containsAll(Arrays.asList(HoDeliveryService.class, HoErpInvoiceService.class)),
-				supplyProviders.toString());
+		assertTrue(supplyProviders.containsAll(Arrays.asList(HoDeliveryService.class, HoErpInvoiceService.class,
+				HoStoreOrderService.class)), supplyProviders.toString());
 		Map<String, String> expected = new LinkedHashMap<>();
 		expected.put("store", "[]");
 		expected.put("store with the ERP", "[]");
@@ -136,6 +139,7 @@ class SupplySourceBeansTest {
 		expected.put("head office, catalogue only from the ERP", "[HoDeliveryService]");
 		expected.put("head office, catalogue only from the ERP, supply source ERP", "[HoErpInvoiceService]");
 		expected.put("Happyness head office (configs/customers)", "[HoErpInvoiceService]");
+		expected.put("ZEN head office (configs/customers)", "[HoDeliveryService, HoStoreOrderService]");
 		for (Map.Entry<String, MockEnvironment> mode : modes().entrySet()) {
 			List<String> present = supplyProviders.stream().filter(p -> registered(mode.getValue(), p))
 					.map(Class::getSimpleName).collect(Collectors.toList());

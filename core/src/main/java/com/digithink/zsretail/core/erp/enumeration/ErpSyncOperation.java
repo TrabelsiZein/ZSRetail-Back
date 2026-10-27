@@ -11,5 +11,7 @@ public enum ErpSyncOperation {
 	/** Release 2.2: one run of the job SYNC_CATALOGUE (one row of the communications log per run). */
 	SYNC_CATALOGUE,
 	/** Item variants (ZEN), step 4: a catégorie or a section left out by the import (a warning row). */
-	IMPORT_ITEM_CATEGORIES, IMPORT_ITEM_SECTIONS
+	IMPORT_ITEM_CATEGORIES, IMPORT_ITEM_SECTIONS,
+	/** 3.1.1: one store order posted into the ERP as a sales order (the job POST_STORE_ORDERS, or "retry now"). */
+	EXPORT_SALES_ORDER
 }

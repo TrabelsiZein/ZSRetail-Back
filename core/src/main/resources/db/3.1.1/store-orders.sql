@@ -13,6 +13,10 @@
 -- Schema, store and head office: item_image, the images of an item (any number, in sort order). Nothing writes it yet;
 -- item.image_url stays the main image of the till, the admin pages and the copies down.
 --
+-- Schema, head office only (step 2; a database with ho_store): ho_store_order and ho_store_order_line, the orders the
+-- stores send, one per store and number (uk_ho_store_order_number), with the names and types Hibernate uses. They exist,
+-- empty, on every head office; only one with headoffice.storeorders.post set takes orders.
+--
 -- Re-runnable: each object only when missing; no data changed.
 
 -- The session options are set here (sqlcmd starts with QUOTED_IDENTIFIER OFF); SSMS has them on already.
@@ -109,6 +113,63 @@ BEGIN
 		CONSTRAINT PK_item_image PRIMARY KEY (id)
 	);
 	CREATE INDEX ix_item_image_item ON item_image (item_id, sort_order);
+END
+GO
+
+-- The orders of the stores at the head office (a head office only; as the entity HoStoreOrder)
+IF OBJECT_ID(N'ho_store', N'U') IS NOT NULL AND OBJECT_ID(N'ho_store_order', N'U') IS NULL
+BEGIN
+	CREATE TABLE ho_store_order (
+		id bigint IDENTITY(1,1) NOT NULL,
+		active bit NULL,
+		created_at datetime2 NULL,
+		created_by varchar(255) NULL,
+		updated_at datetime2 NULL,
+		updated_by varchar(255) NULL,
+		store_id bigint NOT NULL,
+		number varchar(30) NOT NULL,
+		status varchar(20) NOT NULL,
+		location_code varchar(50) NULL,
+		sent_at datetime2 NULL,
+		received_at datetime2 NOT NULL,
+		nav_order_no varchar(50) NULL,
+		posted_at datetime2 NULL,
+		posted_mode varchar(10) NULL,
+		error_message varchar(1000) NULL,
+		post_attempts int NOT NULL,
+		last_attempt_at datetime2 NULL,
+		note varchar(500) NULL,
+		line_count int NOT NULL,
+		total_qty numeric(18,3) NOT NULL,
+		CONSTRAINT PK_ho_store_order PRIMARY KEY (id),
+		CONSTRAINT uk_ho_store_order_number UNIQUE (store_id, number),
+		CONSTRAINT fk_ho_store_order_store FOREIGN KEY (store_id) REFERENCES ho_store (id)
+	);
+	CREATE INDEX ix_ho_store_order_status ON ho_store_order (status, received_at);
+END
+GO
+
+-- Their lines, by codes as the store sent them (as the entity HoStoreOrderLine)
+IF OBJECT_ID(N'ho_store', N'U') IS NOT NULL AND OBJECT_ID(N'ho_store_order_line', N'U') IS NULL
+BEGIN
+	CREATE TABLE ho_store_order_line (
+		id bigint IDENTITY(1,1) NOT NULL,
+		active bit NULL,
+		created_at datetime2 NULL,
+		created_by varchar(255) NULL,
+		updated_at datetime2 NULL,
+		updated_by varchar(255) NULL,
+		order_id bigint NOT NULL,
+		item_code varchar(100) NOT NULL,
+		nav_item_no varchar(255) NULL,
+		variant_code varchar(50) NULL,
+		description varchar(255) NULL,
+		variant_description varchar(255) NULL,
+		quantity numeric(18,3) NOT NULL,
+		CONSTRAINT PK_ho_store_order_line PRIMARY KEY (id),
+		CONSTRAINT fk_ho_store_order_line_order FOREIGN KEY (order_id) REFERENCES ho_store_order (id)
+	);
+	CREATE INDEX ix_ho_store_order_line_order ON ho_store_order_line (order_id);
 END
 GO
 

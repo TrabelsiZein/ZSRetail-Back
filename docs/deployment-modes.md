@@ -407,13 +407,15 @@ own questions stay `@ConditionalOnErpAbility` and `@ConditionalOnErpConnector` (
 | `HEAD_OFFICE_OWN_SUPPLY` | A head office without an ERP, or with the catalogue only from the ERP, that makes the BLs and supply invoices of its stores itself. | 6 |
 | `HEAD_OFFICE_ERP_SUPPLY` | A head office with the catalogue only from the ERP whose stores' supply documents are the ERP's invoices. | 2 |
 | `HEAD_OFFICE_WITHOUT_STOCK` | A head office that keeps no stock and makes no purchases. | 1 |
+| `HEAD_OFFICE_STORE_ORDERS` | A head office that takes its stores' orders: `headoffice.storeorders.post` is MANUAL or ERP (`docs/modules/store-orders.md`). | 3 |
+| `HEAD_OFFICE_STORE_ORDERS_ERP` | A head office whose job posts its stores' orders into the ERP: `headoffice.storeorders.post=ERP`. | 1 |
 | `LINKED_TO_HEAD_OFFICE` | A store that calls a head office: `headoffice.url` is set. | 7 |
 | `SALES_TO_HEAD_OFFICE` | A linked store that copies its sales to the head office. | 5 |
 | `COPIES_FROM_HEAD_OFFICE` | A linked store with at least one domain owned by the head office: it pulls the copies down. | 3 |
 | `CATALOGUE_FROM_HEAD_OFFICE` | A linked store whose catalogue and selling prices are the head office's. | 5 |
 | `PROMOTIONS_FROM_HEAD_OFFICE` | A linked store whose promotions are the head office's. | 1 |
 | `LOYALTY_FROM_HEAD_OFFICE` | A linked store whose loyalty program and members are the head office's. | 8 |
-| `SUPPLY_FROM_HEAD_OFFICE` | A linked store whose goods come from the head office by BL (`ownership.supply=HEAD_OFFICE` written in its file). | 7 |
+| `SUPPLY_FROM_HEAD_OFFICE` | A linked store whose goods come from the head office by BL (`ownership.supply=HEAD_OFFICE` written in its file). | 11 (3.1.1: the orders to the head office, 4) |
 | `RFID` | A store that reads RFID tags: `rfid.enabled=true` (`docs/modules/rfid.md`). | 7 (and its 2 repositories) |
 
 Three answers combine `NodeOwnership` methods as the old conditions did: `HEAD_OFFICE` (`nodeTypeOf == HEAD_OFFICE`),

@@ -30,6 +30,7 @@ import com.digithink.zsretail.core.erp.repository.ErpSyncJobRepository;
 import com.digithink.zsretail.core.erp.service.ErpSyncCheckpointService;
 import com.digithink.zsretail.core.erp.service.ErpSyncJobRunner;
 import com.digithink.zsretail.core.support.TestModes;
+import com.digithink.zsretail.erp.api.ErpStoreOrderPosting;
 import com.digithink.zsretail.erp.api.ErpSupplyInvoiceImport;
 import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 import com.digithink.zsretail.support.Installations;
@@ -96,6 +97,42 @@ class HeadOfficeErpJobsTest {
 				"catalogue only without the source: Sync catalogue only");
 		assertTrue(new HeadOfficeErpJobs(repository(), true, true).refusedTypes().equals(withErpSupply.refusedTypes()));
 		assertTrue(new HeadOfficeErpJobs(repository()).refuses(ErpSyncJobType.IMPORT_SUPPLY_INVOICES));
+	}
+
+	@Test
+	@DisplayName("3.1.1: POST_STORE_ORDERS offered only with headoffice.storeorders.post=ERP (the ZEN head office); refused elsewhere")
+	void storeOrdersOnlyByErp() {
+		HeadOfficeErpJobs zen = jobsOf(Installations.machine(Installations.ZEN_HEAD_OFFICE));
+		assertFalse(zen.refuses(ErpSyncJobType.POST_STORE_ORDERS));
+		assertFalse(zen.refuses(ErpSyncJobType.SYNC_CATALOGUE));
+		assertTrue(zen.refuses(ErpSyncJobType.IMPORT_SUPPLY_INVOICES), "its supply source stays HEAD_OFFICE");
+		MockEnvironment manual = catalogueOnly();
+		manual.setProperty("headoffice.storeorders.post", "MANUAL");
+		MockEnvironment[] others = { manual, catalogueOnly(), erpSupply(), Installations.type("headoffice"),
+				Installations.machine(Installations.HAPPYNESS_HEAD_OFFICE),
+				Installations.machine("dev/headoffice-erp.properties") };
+		for (MockEnvironment other : others) {
+			assertTrue(jobsOf(other).refuses(ErpSyncJobType.POST_STORE_ORDERS));
+		}
+		assertFalse(new HeadOfficeErpJobs(repository(), false, false, true).refuses(ErpSyncJobType.POST_STORE_ORDERS));
+	}
+
+	@Test
+	@DisplayName("3.1.1, the runner: the store orders' posting when it exists; a warning otherwise")
+	void storeOrdersRunner() {
+		ErpSyncJob job = new ErpSyncJob();
+		job.setJobType(ErpSyncJobType.POST_STORE_ORDERS);
+		ErpSyncJobRunner none = new ErpSyncJobRunner(null, new ErpSyncCheckpointService(null), null, null);
+		ErpSyncWarningException warning = assertThrows(ErpSyncWarningException.class, () -> none.run(job));
+		assertTrue(warning.getMessage().contains("headoffice.storeorders.post=ERP"), warning.getMessage());
+
+		int[] runs = new int[1];
+		DefaultListableBeanFactory factory = new DefaultListableBeanFactory();
+		factory.registerSingleton("posting", (ErpStoreOrderPosting) () -> runs[0]++);
+		ErpSyncJobRunner runner = new ErpSyncJobRunner(null, new ErpSyncCheckpointService(null), null, null);
+		ReflectionTestUtils.setField(runner, "storeOrderPosting", factory.getBeanProvider(ErpStoreOrderPosting.class));
+		runner.run(job);
+		assertEquals(1, runs[0]);
 	}
 
 	@Test

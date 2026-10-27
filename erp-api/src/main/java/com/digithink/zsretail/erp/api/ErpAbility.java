@@ -15,5 +15,12 @@ public enum ErpAbility {
 	HEAD_OFFICE_STOCK_POINTS,
 
 	/** Reading the ERP's supply invoices (ErpSupplyInvoiceImport), so a head office may set headoffice.supply.source=ERP. */
-	SUPPLY_INVOICES
+	SUPPLY_INVOICES,
+
+	/**
+	 * 3.1.1: posting the stores' orders as sales orders (ErpConnector.postSalesOrder, looked up first by their number)
+	 * and reading the variants' stock of a location (fetchVariantStock), so a head office may set
+	 * headoffice.storeorders.post=ERP.
+	 */
+	STORE_ORDERS
 }

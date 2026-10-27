@@ -1,7 +1,8 @@
 # Orders to the head office (Commandes centrale)
 
-**Status**: step 1 of 5 done (3.1.1): the store's back end. Still to come: the head office side (step 2), then the
-screens. Nothing here is specific to ZEN: ZEN's part is the head office's connector (step 2).
+**Status**: steps 1 and 2 of 5 done (3.1.1): the store's back end, the head office's back end and the zen connector.
+Still to come: the screens (the store's and the head office's, with the head office permission). Nothing outside
+`connectors/zen` is specific to ZEN.
 
 A franchise store prepares an order of ERP items to its head office: it opens an ERP item, sees the live NAV stock of
 each variant at its own location, fills quantities in its draft, and sends it. The head office receives it and posts it
@@ -144,14 +145,132 @@ location; dates `yyyy-MM-ddTHH:mm:ss`); answered by a `SalesCopyResultDTO` `{doc
 taking it for a BL. Applied by `SupplyDownHandler` → `StoreOrderStatusWriter` in its own transaction, tracked in
 `hol_down_record` (`APPLIED`, or `ERROR` and retried at the next cycles).
 
-## What step 2 (the head office) owes
+## The head office (step 2)
 
-- `GET /ho/orders/variant-stock`: the store from `X-Store-Code`, its NAV location (the store code), NAV's stock of every
-  variant of the item through the connector (an ability in `ErpAbilities`; ZEN's in `connectors/zen` only). An error
-  answers an HTTP error (the store shows 503), never a partial list.
-- `POST /ho/orders`: check `locationCode` against `X-Store-Code`; save the order (its own head office table, e.g.
-  `ho_store_order`), taking a number once (the same number again answers `accepted: true` without a second order);
-  answer `accepted: false` with a reason for an order it will never take (unknown item, empty order).
-- Post it into NAV (a job or right away) and send `ORD:<number>` down to the store with `POSTED` and the NAV number, or
-  `ERROR` and the reason.
-- The head office's screens of the orders received; then the store's screens (catalogue, variants grid, draft, list).
+### Where it exists
+
+Only on a head office with **`headoffice.storeorders.post`** in its outside file (`NodeOwnership.STORE_ORDERS_POST_KEY`;
+`Installation.HEAD_OFFICE_STORE_ORDERS`):
+
+| Value | Meaning |
+|---|---|
+| absent | the head office takes no store order: no bean, `/ho/orders` answers 404 (the store shows 503) |
+| `MANUAL` | the orders are received; the head office types the ERP's order number of each one ("mark posted") |
+| `ERP` | the orders are received and the job `POST_STORE_ORDERS` posts them into the ERP (`Installation.HEAD_OFFICE_STORE_ORDERS_ERP`); needs a connector with `ErpAbility.STORE_ORDERS` (zen only), else the startup stops naming the key |
+
+Any other value stops the startup; a store never reads the key. `configs/customers/zen-headoffice.properties` (and the
+local test file of the ZEN head office) say `ERP`; the Happyness, EMTOP and dev head offices have no line (no new bean:
+`InstallationBeansProofTest`).
+
+### Classes
+
+| Class | Role |
+|---|---|
+| `headoffice.model.HoStoreOrder`, `HoStoreOrderLine` | `ho_store_order`, `ho_store_order_line` |
+| `headoffice.enumeration.HoStoreOrderStatus` | `SENT`, `POSTED`, `ERROR`, `REJECTED` |
+| `headoffice.enumeration.PostedMode` | `ERP`, `MANUAL` |
+| `headoffice.repository.HoStoreOrderRepository` | by store and number, the row lock, the job's ids, the copies down, the list page |
+| `headoffice.service.HoStoreOrderService` | reception, variant stock, "mark posted", "reject", reads; the SUPPLY provider of the `ORD:` records |
+| `headoffice.service.HoStoreOrderPosting` | the job `POST_STORE_ORDERS` and "retry now" (ERP mode), implements erp-api `ErpStoreOrderPosting` |
+| `headoffice.controller.HeadOfficeOrdersAPI` | `/ho/orders` (store key) |
+| `headoffice.controller.HoStoreOrderAPI` | `admin/headoffice/store-orders` (JWT) |
+| `headoffice.dto.HoStoreOrderDTO` | an order as the page reads it |
+
+Shared code that changed: `CopiesDownFeed` takes several providers per domain (each answers only its own codes: `BL:`,
+`INV:`, `ERPINV:`, `ORD:`); `HeadOfficeErpJobs` offers `POST_STORE_ORDERS` in ERP mode only; core's ERP jobs
+(`ErpSyncJobType.POST_STORE_ORDERS`, `ErpSyncOperation.EXPORT_SALES_ORDER`, the runner, the seed);
+`ErpSynchronizationManager.postSalesOrder` (one row of the communications log per posting).
+
+### Tables (head office only)
+
+`ho_store_order`: `store_id` (FK `fk_ho_store_order_store`), `number` varchar(30), unique (`store_id`, `number`)
+(`uk_ho_store_order_number`), `status` varchar(20), `location_code` varchar(50), `sent_at` (the store's clock),
+`received_at` (the head office's), `nav_order_no` varchar(50), `posted_at`, `posted_mode` varchar(10), `error_message`
+varchar(1000), `post_attempts` int, `last_attempt_at`, `note` varchar(500), `line_count` int, `total_qty`
+numeric(18,3), plus the `_BaseEntity` columns (`created_by` = the store code, `updated_by` = who posted by hand or
+rejected). Index `ix_ho_store_order_status` (`status`, `received_at`).
+
+`ho_store_order_line`: `order_id` (FK), `item_code` varchar(100), `nav_item_no`, `variant_code`, `description`,
+`variant_description`, `quantity` numeric(18,3), as the store sent them (no item id: the store's means nothing here).
+
+Created by `db/3.1.1/store-orders.sql` when the database has `ho_store`; `ddl-auto` creates the same tables.
+
+### Statuses at the head office
+
+| Status | Meaning | The store sees |
+|---|---|---|
+| `SENT` | received, waiting for the ERP | `SENT` (nothing goes down: the store has it already) |
+| `POSTED` | in the ERP, `nav_order_no`, `posted_at`, `posted_mode` ERP or MANUAL | `POSTED` with the number |
+| `ERROR` | the posting failed, `error_message`; ERP mode: posted again at each run, no limit | `ERROR` with the message |
+| `REJECTED` | refused by the head office with a message; never posted, by the job or by hand | `ERROR` with the message |
+
+Each change the store sees (status, ERP number, message) records `ORD:<number>` in the same transaction, for that store
+only; the same failure again records nothing.
+
+### Rules
+
+- **Reception** (`POST /ho/orders`): the store is the key's (`X-Store-Code`); taken once per store and number (the same
+  number again answers `accepted: true`, the order already here unchanged). Refused with `accepted: false` and the
+  reason, nothing saved (the store shows 409 with it): the store has no ERP customer number (Stores page), a
+  `locationCode` that is not the store's code, no line, a line without item code, a quantity of 0 or less or with more
+  than 3 decimals.
+- **Variant stock** (`GET /ho/orders/variant-stock?navItemNo=`): `ErpConnector.fetchVariantStock(navItemNo, store code)`;
+  a connector that cannot (`ErpNotSupportedException`) or an ERP error answers 503 `{"error"}`, never a partial list.
+- **Posting (ERP mode)**: the job takes up to 50 orders `SENT` or `ERROR`, oldest first. Each is posted outside any
+  transaction as `ErpSalesOrderDTO`: `locationCode` = the store code, `customerNo` = the store's ERP customer number
+  (none any more: ERROR without calling the ERP), `externalDocumentNo` = the order number, `orderDate` = the store's
+  send date (else the reception's), lines `itemNo` (the line's ERP item number, else its item code up to `~`),
+  `variantCode` (empty for none), `quantity`. Success: `POSTED`; failure: `ERROR`, and the job ends WARNING naming the
+  first one. An order being posted is not posted a second time at once (the job and "retry now").
+- **Idempotence**: the connector looks up the ERP's order of the same `externalDocumentNo` first and reuses its number;
+  when the lookup cannot be answered, nothing is posted (ERROR, retried).
+- **Admin actions**: "mark posted" `{navOrderNo}` (MANUAL mode only: 409 in ERP mode), "reject" `{message}` (both
+  modes), "retry now" (ERP mode only: 409 in MANUAL mode); each only on an order `SENT` or `ERROR` (409 otherwise). No
+  deletion.
+
+### Endpoints
+
+| Method and path | Answer |
+|---|---|
+| `POST /ho/orders` (store key) `StoreOrderDTO` | `{documentNumber, accepted, message}` |
+| `GET /ho/orders/variant-stock?navItemNo` (store key) | `[{itemNo, variantCode, quantity}]`; 400 without a number; 503 |
+| `GET admin/headoffice/store-orders?storeId&status&from&to&sort&dir&page&size` | `{content, totalElements, totalPages, number, size, postMode}`, without lines; `status` one of the four or `ALL`; `from`, `to` the reception day, both included; `sort` `receivedAt` (default), `number`, `status`, `postedAt`, `store`; `dir` `desc` (default) or `asc`; `postMode` `ERP` or `MANUAL` |
+| `GET admin/headoffice/store-orders/{id}` | the order with its lines |
+| `POST admin/headoffice/store-orders/{id}/mark-posted` `{navOrderNo}` | the order `POSTED`, mode MANUAL |
+| `POST admin/headoffice/store-orders/{id}/reject` `{message}` | the order `REJECTED` |
+| `POST admin/headoffice/store-orders/{id}/retry` | the order after the posting (`POSTED`, or `ERROR` with the reason) |
+
+An order is `{id, storeId, storeCode, storeName, number, status, locationCode, sentAt, receivedAt, navOrderNo, postedAt,
+postedMode, errorMessage, postAttempts, lastAttemptAt, note, lineCount, totalQty, updatedBy, lines: [{id, itemCode,
+navItemNo, variantCode, description, variantDescription, quantity}]}`.
+
+### The job
+
+`POST_STORE_ORDERS`, seeded **disabled** like the other ERP jobs, every 5 minutes (`0 */5 * * * *`), on a head office
+with `headoffice.storeorders.post=ERP` only (refused, switched off and hidden on every other head office): switch it on
+in the ERP jobs page. Each posting is one row `EXPORT_SALES_ORDER` of the communications log (the body sent, NAV's
+answer, the address).
+
+### The connector (erp-api and connectors/zen)
+
+`ErpConnector.fetchVariantStock(itemNo, locationCode)` (default: `ErpNotSupportedException`) and
+`postSalesOrder(ErpSalesOrderDTO)` (default: a failure "does not take the stores' orders"); EMTOP and Happyness keep
+the defaults. ZEN (`ZenStoreOrders`, fields in `ZenOrderFields`, the contract sent to ZEN):
+
+- `GET <erp.zen.variantstock.path>?itemNo=&locationCode=` → `[{itemNo, variantCode, quantity}]` (a plain array or OData's
+  `{"value": [...]}`);
+- lookup `GET <erp.zen.salesorders.path>?$filter=externalDocumentNo eq '<number>'&$select=orderNo` → `{"value":
+  [{orderNo}]}`: **ZEN must support this filter** (asked 2026-10-28); until then every posting fails and stays ERROR;
+- `POST <erp.zen.salesorders.path>` `{locationCode, customerNo, externalDocumentNo, orderDate (yyyy-MM-dd), lines:
+  [{itemNo, variantCode, quantity}]}` → `{orderNo}`.
+
+`erp.zen.variantstock.path` (default `variantStock`) and `erp.zen.salesorders.path` (default `salesOrders`): a name under
+`companies(id)` of `erp.zen.api-path`, or a whole address; blank refused at the start. The connector's RestTemplate still
+refuses every method but GET, except a POST to the sales orders page. A field ZEN renames is one line of
+`ZenOrderFields`.
+
+## Still to come
+
+- The screens: the store's (catalogue, variants grid with the stock, draft, list) and the head office's (list, order,
+  actions), with the head office permission (`read:admin-headoffice-store-orders`, added with its route).
+- ZEN: the lookup by `externalDocumentNo`, and the real addresses of the two pages (a change of `erp.zen.*.path`).

@@ -100,6 +100,9 @@ public final class InMemoryCatalogue extends InMemoryItems {
 				case "findIdsByStockPointId":
 					return stores.values().stream().filter(s -> Objects.equals(s.getStockPointId(), args[0]))
 							.map(Store::getId).collect(Collectors.toList());
+				case "findAllById": // 3.1.1: the stores of a page of orders
+					return stores.values().stream().filter(s -> ((java.util.Collection<?>) args[0]).contains(s.getId()))
+							.collect(Collectors.toList());
 				default:
 					return common(stores, method, args);
 			}

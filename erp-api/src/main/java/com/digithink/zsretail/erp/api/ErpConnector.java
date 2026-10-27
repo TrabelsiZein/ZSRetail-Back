@@ -17,12 +17,14 @@ import com.digithink.zsretail.erp.api.dto.ErpPaymentLineDTO;
 import com.digithink.zsretail.erp.api.dto.ErpReturnDTO;
 import com.digithink.zsretail.erp.api.dto.ErpReturnLineDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSalesDiscountDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSalesOrderDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSalesPriceDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSessionDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSupplyInvoiceDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSyncFilter;
 import com.digithink.zsretail.erp.api.dto.ErpTicketDTO;
 import com.digithink.zsretail.erp.api.dto.ErpTicketLineDTO;
+import com.digithink.zsretail.erp.api.dto.ErpVariantStockDTO;
 import com.digithink.zsretail.erp.api.dto.PullOperationResult;
 
 /**
@@ -95,6 +97,27 @@ public interface ErpConnector {
 	/** 2.2.1: the same invoices, given by number (read again). Only the navpospages connector reads them. */
 	default List<ErpSupplyInvoiceDTO> fetchSupplyInvoicesByNumbers(List<String> numbers) {
 		return Collections.emptyList();
+	}
+
+	/** 3.1.1 (store orders): the text of the two defaults below. */
+	String STORE_ORDERS_NOT_SUPPORTED = "The ERP connector in effect does not take the stores' orders";
+
+	/**
+	 * 3.1.1 (store orders): the ERP's stock of every variant of an ERP item number at a location, read now. Only a
+	 * connector with ErpAbility.STORE_ORDERS reads it; every other one throws {@link ErpNotSupportedException}.
+	 */
+	default List<ErpVariantStockDTO> fetchVariantStock(String itemNo, String locationCode) {
+		throw new ErpNotSupportedException(STORE_ORDERS_NOT_SUPPORTED + " (no variant stock).");
+	}
+
+	/**
+	 * 3.1.1 (store orders): posts a store's order as a sales order of the ERP; success with the ERP's order number as the
+	 * external reference. The connector first looks up an order of the same externalDocumentNo and answers its number
+	 * when there is one (never a second order). Only a connector with ErpAbility.STORE_ORDERS posts; every other one
+	 * answers a failure.
+	 */
+	default ErpOperationResult postSalesOrder(ErpSalesOrderDTO order) {
+		return ErpOperationResult.failure(STORE_ORDERS_NOT_SUPPORTED + ".");
 	}
 
 	default PullOperationResult<?> getLastPullOperationResult() {

@@ -22,6 +22,11 @@ public enum ErpSyncJobType {
 	 * Release 2.2: the whole catalogue in one run (families, sub-families, the items of every point de stock, barcodes), on a
 	 * head office whose catalogue comes from the ERP through the navpospages connector only (ErpCatalogueSync).
 	 */
-	SYNC_CATALOGUE
+	SYNC_CATALOGUE,
+	/**
+	 * 3.1.1: the stores' orders posted into the ERP as sales orders (a head office with headoffice.storeorders.post=ERP,
+	 * ErpStoreOrderPosting).
+	 */
+	POST_STORE_ORDERS
 }
 

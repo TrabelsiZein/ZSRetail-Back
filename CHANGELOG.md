@@ -23,11 +23,30 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   (store and head office), read only; `item.imageUrl` stays the main image everywhere.
 - Permissions `read:admin-store-orders`, `write:admin-store-orders` ("Commandes centrale"), listed by
   `GET /app-roles/permissions`, given to ADMIN at every start of a store whose goods come from the head office.
+- Orders to the head office, step 2, the head office's back end (docs/modules/store-orders.md), only with
+  `headoffice.storeorders.post` (MANUAL or ERP; absent: no bean, 404): `POST /ho/orders` takes a store's order once per
+  store and number (the same number again: accepted, the order already here), refused with `accepted: false` and the
+  reason without the store's ERP customer number, for another location, without lines or with a quantity not above 0;
+  `GET /ho/orders/variant-stock?navItemNo=` (the connector, the store's code as the location; 503 without it);
+  `ho_store_order` statuses SENT, POSTED, ERROR, REJECTED. ERP mode: the job `POST_STORE_ORDERS` (ERP jobs page, seeded
+  disabled, every 5 minutes) posts the orders SENT and ERROR as sales orders (external document number = the order's,
+  the store's location and ERP customer number), success POSTED with NAV's number, failure ERROR retried at each run (no
+  limit), one communications log row per posting. Admin `admin/headoffice/store-orders`: list (store, status, dates,
+  sort), one order, "mark posted" (MANUAL), "reject" (both: REJECTED, never posted), "retry now" (ERP). Every change the
+  store sees records `ORD:<number>` for that store (REJECTED goes down as ERROR with its message).
+- erp-api: `ErpConnector.fetchVariantStock` and `postSalesOrder` (defaults: not supported), `ErpAbility.STORE_ORDERS`,
+  `ErpStoreOrderPosting`. EMTOP and Happyness unchanged.
+- connector-zen: the store orders on the contract sent to ZEN (`ZenStoreOrders`, the fields in `ZenOrderFields`): `GET
+  variantStock?itemNo=&locationCode=`; the lookup `GET salesOrders?$filter=externalDocumentNo eq '..'` first (an order
+  found is reused; a lookup that fails posts nothing), then `POST salesOrders` → `orderNo`. The RestTemplate still
+  refuses every method but GET, except a POST to the sales orders page.
 
 ### Enhancements
 - NAV items grouped read (`NavItemService.page`, `ItemRepository.NAV_ITEMS`): optional level filters (catégorie, the
   item's own else its famille's; famille; sous-famille; section), the NAV items of the barcodes matching the search, and
   a sort (number, or name then number, either way). The "NAV items" page sends none of them: same lines, same order.
+- Head office copies down: several providers per domain (`CopiesDownFeed`), each answering its own codes: the SUPPLY
+  domain carries the supply documents and the store orders' statuses together.
 
 ### DB script (`db/3.1.1/store-orders.sql`, then `db/3.1.1/update.sql`, store and head office)
 - `store-orders.sql`: tables `hol_order` (unique `number`, index `ix_hol_order_status`, filtered unique index
@@ -36,6 +55,16 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   at each start when missing (`StoreOrderDraftIndex`: a new database runs no script).
 - `update.sql`: `APP_VERSION` 3.1.1 (it stops while `store-orders.sql` has not run); notes written when the version is
   closed.
+- `store-orders.sql`, step 2: tables `ho_store_order` (unique `store_id`, `number`; FK to `ho_store`; index
+  `ix_ho_store_order_status`) and `ho_store_order_line` (FK to `ho_store_order`) on a head office only. Re-runnable, no
+  data changed.
+
+### Config
+- `headoffice.storeorders.post` (head office, optional): `MANUAL` or `ERP` (needs a connector with
+  `ErpAbility.STORE_ORDERS`: zen); absent, the head office takes no store order. Set to `ERP` in
+  `configs/customers/zen-headoffice.properties`.
+- `erp.zen.variantstock.path` (default `variantStock`) and `erp.zen.salesorders.path` (default `salesOrders`): a name under
+  `companies(id)` of `erp.zen.api-path`, or a whole address.
 
 ## 3.1.0 — 2026-10-27 (tag `v3.1.0`)
 

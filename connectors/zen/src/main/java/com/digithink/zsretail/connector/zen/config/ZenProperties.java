@@ -55,6 +55,30 @@ public class ZenProperties {
 	private boolean dryRun = false;
 	/** Step 9: the supply invoices, read on ZEN's franchise API (not the zsretail one). */
 	private Invoices invoices = new Invoices();
+	/** 3.1.1 (store orders): the live stock of the variants of an item at a location (key erp.zen.variantstock.path). */
+	private Path variantstock = new Path("variantStock");
+	/**
+	 * 3.1.1 (store orders): the sales orders of the stores, looked up by externalDocumentNo then posted (key
+	 * erp.zen.salesorders.path): the only address this connector sends a POST to.
+	 */
+	private Path salesorders = new Path("salesOrders");
+
+	/**
+	 * 3.1.1: one page of the store orders: a name under companies(id) of the custom API (api-path), as the other pages,
+	 * or a whole address (http or https), e.g. when ZEN publishes it elsewhere: a change of address is a change of key.
+	 */
+	@Getter
+	@Setter
+	public static class Path {
+		private String path;
+
+		public Path() {
+		}
+
+		public Path(String path) {
+			this.path = path;
+		}
+	}
 
 	/**
 	 * The pages: a name under the company of the API, or a whole address (http or https) for a page published

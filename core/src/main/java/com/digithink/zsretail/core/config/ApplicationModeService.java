@@ -45,6 +45,9 @@ public class ApplicationModeService {
 	/** RFID step 2: a store with rfid.enabled=true (NodeOwnership.isRfidSet); false on a head office. */
 	private boolean rfidEnabled;
 
+	/** 3.1.1: a head office with headoffice.storeorders.post=ERP (NodeOwnership.isStoreOrdersByErpSet); false on a store. */
+	private boolean storeOrdersByErp;
+
 	/** Fails the startup when node.type, ownership.* or sales.upstream holds an invalid value. */
 	@PostConstruct
 	void initOwnership() {
@@ -58,6 +61,15 @@ public class ApplicationModeService {
 		// Invoices from the ERP: read on a head office only, like headoffice.stock.enabled
 		supplyFromErpSource = NodeOwnership.isSupplyFromErpSourceSet(environment);
 		rfidEnabled = NodeOwnership.isRfidSet(environment);
+		storeOrdersByErp = NodeOwnership.isStoreOrdersByErpSet(environment);
+	}
+
+	/**
+	 * 3.1.1 (store orders): true on a head office with headoffice.storeorders.post=ERP, the job POST_STORE_ORDERS posts the
+	 * stores' orders into the ERP. Always false on a store.
+	 */
+	public boolean isStoreOrdersByErp() {
+		return storeOrdersByErp;
 	}
 
 	/** RFID step 2: true on a store with rfid.enabled=true, the RFID beans exist (Installation.RFID). */

@@ -150,6 +150,12 @@ public class ZZDataInitializer {
 				createErpJob("0 0 * * * *", ErpSyncJobType.SYNC_CATALOGUE, "Sync catalogue: reads everything from the ERP:"
 						+ " families, sub-families, the items of every point de stock, barcodes", false);
 			}
+			// 3.1.1: the stores' orders posted into the ERP, on a head office with headoffice.storeorders.post=ERP (also
+			// when the other jobs were seeded before; idempotent, disabled like the others)
+			if (applicationModeService.isStoreOrdersByErp()) {
+				createErpJob("0 */5 * * * *", ErpSyncJobType.POST_STORE_ORDERS, "Every 5 minutes: the stores' orders"
+						+ " waiting (sent, or in error) posted into the ERP as sales orders", false);
+			}
 		}
 
 		// Ensure tax stamp item exists (idempotent)

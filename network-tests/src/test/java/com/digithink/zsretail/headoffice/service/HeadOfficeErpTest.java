@@ -55,7 +55,8 @@ class HeadOfficeErpTest {
 	private static final Set<ErpSyncJobType> REFUSED_HERE = EnumSet.of(ErpSyncJobType.EXPORT_CUSTOMERS,
 			ErpSyncJobType.EXPORT_TICKETS, ErpSyncJobType.EXPORT_RETURNS, ErpSyncJobType.EXPORT_SESSIONS,
 			ErpSyncJobType.IMPORT_SALES_PRICES_AND_DISCOUNTS, ErpSyncJobType.IMPORT_SUPPLY_INVOICES,
-			ErpSyncJobType.SYNC_CATALOGUE); // release 2.2: only with the catalogue from the ERP
+			ErpSyncJobType.SYNC_CATALOGUE, // release 2.2: only with the catalogue from the ERP
+			ErpSyncJobType.POST_STORE_ORDERS); // 3.1.1: only with headoffice.storeorders.post=ERP
 
 	private final Map<Long, ErpSyncJob> table = new LinkedHashMap<>();
 	private int saves;
@@ -235,7 +236,7 @@ class HeadOfficeErpTest {
 			assertEquals(REFUSED_HERE, kept.refusedTypes());
 			for (ErpSyncJobType type : ErpSyncJobType.values()) {
 				assertEquals(HeadOfficeErpJobs.isRefused(type) || HeadOfficeErpJobs.OFFERED_WITH_ERP_SUPPLY.contains(type)
-						|| type == ErpSyncJobType.SYNC_CATALOGUE,
+						|| HeadOfficeErpJobs.OFFERED_WITH_STORE_ORDERS.contains(type) || type == ErpSyncJobType.SYNC_CATALOGUE,
 						kept.refuses(type), type.name());
 			}
 		}

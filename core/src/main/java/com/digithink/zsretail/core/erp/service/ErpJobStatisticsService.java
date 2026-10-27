@@ -94,6 +94,8 @@ public class ErpJobStatisticsService {
 			return Arrays.asList(ErpSyncOperation.SYNC_ERP_DELETIONS);
 		case IMPORT_SUPPLY_INVOICES:
 			return Arrays.asList(ErpSyncOperation.IMPORT_SUPPLY_INVOICES);
+		case POST_STORE_ORDERS:
+			return Arrays.asList(ErpSyncOperation.EXPORT_SALES_ORDER);
 		case EXPORT_CUSTOMERS:
 			return Arrays.asList(ErpSyncOperation.EXPORT_CUSTOMER);
 		case EXPORT_TICKETS:

@@ -63,6 +63,10 @@ public class HeadOfficeErpJobs {
 	public static final Set<ErpSyncJobType> OFFERED_WITH_ERP_SUPPLY = Collections
 			.unmodifiableSet(EnumSet.of(ErpSyncJobType.IMPORT_SUPPLY_INVOICES));
 
+	/** 3.1.1: offered only on a head office with headoffice.storeorders.post=ERP; refused on every other one. */
+	public static final Set<ErpSyncJobType> OFFERED_WITH_STORE_ORDERS = Collections
+			.unmodifiableSet(EnumSet.of(ErpSyncJobType.POST_STORE_ORDERS));
+
 	static final String REFUSED = "This ERP job does not run on a head office";
 
 	private final ErpSyncJobRepository jobs;
@@ -77,7 +81,7 @@ public class HeadOfficeErpJobs {
 	 */
 	@Autowired
 	public HeadOfficeErpJobs(ErpSyncJobRepository jobs, ZZDataInitializer seededFirst, ApplicationModeService mode) {
-		this(jobs, mode.isErpCatalogueOnly(), mode.isSupplyFromErpSource());
+		this(jobs, mode.isErpCatalogueOnly(), mode.isSupplyFromErpSource(), mode.isStoreOrdersByErp());
 	}
 
 	/** Without the mode: the refused jobs of a head office whose ERP owns all three, or without an ERP. */
@@ -100,17 +104,32 @@ public class HeadOfficeErpJobs {
 	 * {@link #OFFERED_WITH_ERP_SUPPLY}. Used by the tests too.
 	 */
 	public HeadOfficeErpJobs(ErpSyncJobRepository jobs, boolean catalogueOnly, boolean supplyFromErp) {
+		this(jobs, catalogueOnly, supplyFromErp, false);
+	}
+
+	/**
+	 * As above; storeOrdersByErp (3.1.1): headoffice.storeorders.post=ERP, which adds {@link #OFFERED_WITH_STORE_ORDERS};
+	 * refused on every other head office. Used by the tests too.
+	 */
+	public HeadOfficeErpJobs(ErpSyncJobRepository jobs, boolean catalogueOnly, boolean supplyFromErp,
+			boolean storeOrdersByErp) {
 		this.jobs = jobs;
 		if (catalogueOnly) {
 			Set<ErpSyncJobType> offered = EnumSet.copyOf(OFFERED_WHEN_CATALOGUE_ONLY);
 			if (supplyFromErp) {
 				offered.addAll(OFFERED_WITH_ERP_SUPPLY);
 			}
+			if (storeOrdersByErp) {
+				offered.addAll(OFFERED_WITH_STORE_ORDERS);
+			}
 			this.refused = Collections.unmodifiableSet(EnumSet.complementOf(EnumSet.copyOf(offered)));
 		} else {
 			Set<ErpSyncJobType> refusedHere = EnumSet.copyOf(NOT_ON_HEAD_OFFICE);
 			refusedHere.addAll(OFFERED_WITH_ERP_SUPPLY);
 			refusedHere.add(ErpSyncJobType.SYNC_CATALOGUE); // release 2.2: only with the catalogue from the ERP
+			if (!storeOrdersByErp) {
+				refusedHere.addAll(OFFERED_WITH_STORE_ORDERS);
+			}
 			this.refused = Collections.unmodifiableSet(refusedHere);
 		}
 	}

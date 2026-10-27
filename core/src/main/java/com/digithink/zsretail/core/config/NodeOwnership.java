@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -88,6 +89,11 @@ public final class NodeOwnership {
 	 * BLs and invoices, the default) or ERP (the ERP's invoices, read by a connector with ErpAbility.SUPPLY_INVOICES).
 	 */
 	static final String SUPPLY_SOURCE_KEY = "headoffice.supply.source";
+	/**
+	 * Head office only, 3.1.1 (store orders): how the stores' orders reach the ERP, MANUAL (typed) or ERP (the job
+	 * POST_STORE_ORDERS, a connector with ErpAbility.STORE_ORDERS); absent, the head office takes no order.
+	 */
+	public static final String STORE_ORDERS_POST_KEY = "headoffice.storeorders.post";
 	/**
 	 * RFID step 2: a store that reads RFID tags (true) or not (false, the default, stated in the store type file). Never
 	 * true on a head office.
@@ -313,6 +319,48 @@ public final class NodeOwnership {
 	}
 
 	/**
+	 * 3.1.1 (store orders): true on a head office that takes its stores' orders, headoffice.storeorders.post MANUAL or
+	 * ERP; absent, the head office takes none (no bean, /ho/orders answers 404). A store never reads the key. Throws like
+	 * the startup on an invalid value.
+	 */
+	public static boolean isStoreOrdersSet(PropertyResolver env) {
+		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && storeOrdersPost(env) != null;
+	}
+
+	/** 3.1.1: true on a head office with headoffice.storeorders.post=ERP (the job POST_STORE_ORDERS posts them). */
+	public static boolean isStoreOrdersByErpSet(PropertyResolver env) {
+		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && "ERP".equals(storeOrdersPost(env));
+	}
+
+	/**
+	 * headoffice.storeorders.post, trimmed, upper case: MANUAL or ERP; null when absent. Any other value (blank included)
+	 * throws {@link IllegalStateException} naming the key. Called on a head office only.
+	 */
+	private static String storeOrdersPost(PropertyResolver env) {
+		if (!env.containsProperty(STORE_ORDERS_POST_KEY)) {
+			return null;
+		}
+		String raw = env.getProperty(STORE_ORDERS_POST_KEY);
+		String value = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT);
+		if ("MANUAL".equals(value) || "ERP".equals(value)) {
+			return value;
+		}
+		throw new IllegalStateException("Invalid value '" + raw + "' for property " + STORE_ORDERS_POST_KEY
+				+ ": MANUAL (the head office types the ERP's order number of each store order) or ERP (a job posts them"
+				+ " into the ERP); remove the line for a head office that takes no store order");
+	}
+
+	/** 3.1.1: headoffice.storeorders.post=ERP needs a connector that posts the stores' orders (ErpAbility.STORE_ORDERS). */
+	private static void checkStoreOrdersPost(PropertyResolver env) {
+		if ("ERP".equals(storeOrdersPost(env)) && !ErpAbilities.has(env, ErpAbility.STORE_ORDERS)) {
+			throw new IllegalStateException("Invalid combination: " + STORE_ORDERS_POST_KEY + "=ERP without a connector"
+					+ " that posts the stores' orders: "
+					+ ErpConnectorEnvironmentPostProcessor.howToChoose(ErpAbilities.connectorsWith(ErpAbility.STORE_ORDERS))
+					+ ". Choose it, or set " + STORE_ORDERS_POST_KEY + " to MANUAL.");
+		}
+	}
+
+	/**
 	 * Invoices from the ERP: headoffice.supply.source=ERP needs a head office whose catalogue only comes from the ERP and
 	 * a connector that reads the invoices (ErpAbility.SUPPLY_INVOICES).
 	 */
@@ -419,6 +467,7 @@ public final class NodeOwnership {
 		checkErpOwnsAllOrNothing(owners, headOffice);
 		if (headOffice) {
 			checkSupplySource(env, owners);
+			checkStoreOrdersPost(env);
 		}
 
 		String catalogueKey = DataDomain.CATALOGUE.getPropertyKey();

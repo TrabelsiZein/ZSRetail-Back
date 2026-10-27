@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import com.digithink.zsretail.core.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.core.erp.model.ErpSyncJob;
 import com.digithink.zsretail.erp.api.ErpCatalogueSync;
+import com.digithink.zsretail.erp.api.ErpStoreOrderPosting;
 import com.digithink.zsretail.erp.api.ErpSupplyInvoiceImport;
 import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
@@ -47,6 +48,10 @@ public class ErpSyncJobRunner {
 	/** Release 2.2: the job SYNC_CATALOGUE (navpospages connector only). A field, so the constructor stays as it is. */
 	@Autowired(required = false)
 	private ObjectProvider<ErpCatalogueSync> catalogueSync;
+
+	/** 3.1.1: the job POST_STORE_ORDERS (HoStoreOrderPosting, headoffice.storeorders.post=ERP). A field, as the two above. */
+	@Autowired(required = false)
+	private ObjectProvider<ErpStoreOrderPosting> storeOrderPosting;
 
 	/**
 	 * Code cleanup step 5 (knot d): the exports of the store's documents (tickets, returns, sessions), by job type. A field,
@@ -143,6 +148,15 @@ public class ErpSyncJobRunner {
 							+ " catalogue comes from the ERP, through a connector that keeps points de stock");
 				}
 				catalogue.syncCatalogue();
+				break;
+			case POST_STORE_ORDERS:
+				// 3.1.1: no checkpoint (the orders' status is the memory: SENT and ERROR wait)
+				ErpStoreOrderPosting posting = storeOrderPosting == null ? null : storeOrderPosting.getIfAvailable();
+				if (posting == null) {
+					throw new ErpSyncWarningException("The stores' orders are posted into the ERP only on a head office"
+							+ " with headoffice.storeorders.post=ERP");
+				}
+				posting.postStoreOrders();
 				break;
 			default:
 				LOGGER.warn("Unhandled ERP sync job type {} for job {}", jobType, job.getJobType());

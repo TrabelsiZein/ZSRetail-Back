@@ -4,7 +4,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -83,10 +85,45 @@ public class CopiesDownFeed {
 		this.changes = changes;
 		this.sequences = sequences;
 		for (DownDomainProvider provider : providers) {
-			this.providers.put(provider.getDomain(), provider);
+			// 3.1.1: a domain may have several providers (SUPPLY: the BLs or the ERP's invoices, and the store orders)
+			this.providers.merge(provider.getDomain(), provider, Combined::new);
 		}
 		this.readTransactions = readTransactions;
 		this.writeTransactions = writeTransactions;
+	}
+
+	/**
+	 * 3.1.1: the providers of one domain together. Each one answers only the codes it owns (by their prefix: BL:, INV:,
+	 * ERPINV:, ORD:), so the copies of a page are the union of their answers, and so are the records of the backfill.
+	 */
+	static final class Combined implements DownDomainProvider {
+
+		private final DownDomainProvider first;
+		private final DownDomainProvider second;
+
+		Combined(DownDomainProvider first, DownDomainProvider second) {
+			this.first = first;
+			this.second = second;
+		}
+
+		@Override
+		public DataDomain getDomain() {
+			return first.getDomain();
+		}
+
+		@Override
+		public Map<String, JsonNode> load(Store store, List<String> codes) {
+			Map<String, JsonNode> copies = new HashMap<>(first.load(store, codes));
+			copies.putAll(second.load(store, codes));
+			return copies;
+		}
+
+		@Override
+		public Map<String, StoreTargets> currentTargets() {
+			Map<String, StoreTargets> targets = new LinkedHashMap<>(first.currentTargets());
+			targets.putAll(second.currentTargets());
+			return targets;
+		}
 	}
 
 	/** Stock points (speed): the JDBC batch of {@link #recordChangesForStore}; null in the tests (the JPA path). */

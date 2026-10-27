@@ -25,6 +25,7 @@ import com.digithink.zsretail.erp.api.dto.ErpPaymentLineDTO;
 import com.digithink.zsretail.erp.api.dto.ErpReturnDTO;
 import com.digithink.zsretail.erp.api.dto.ErpReturnLineDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSalesDiscountDTO;
+import com.digithink.zsretail.erp.api.dto.ErpSalesOrderDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSalesPriceDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSessionDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSupplyInvoiceDTO;
@@ -106,6 +107,14 @@ public class ErpSynchronizationManager {
 	/** Code cleanup, step 2: the seller named on the stores' purchase invoices, from the connector; null without one. */
 	public String supplyInvoiceSellerName() {
 		return erpConnector.supplyInvoiceSellerName();
+	}
+
+	/**
+	 * 3.1.1 (store orders): one store order posted into the ERP as a sales order, logged in the communications log like
+	 * the other pushes (the order as the request, the connector's answer as the response).
+	 */
+	public ErpOperationResult postSalesOrder(ErpSalesOrderDTO order) {
+		return executePushOperation(ErpSyncOperation.EXPORT_SALES_ORDER, order, () -> erpConnector.postSalesOrder(order));
 	}
 
 	public List<ErpDeletionLogEntryDTO> pullDeletionLog(ErpSyncFilter filter) {

@@ -46,8 +46,10 @@ class ErpAbilitiesTest {
 		assertEquals(EnumSet.noneOf(ErpAbility.class), ErpAbilities.of("emtop"));
 		assertEquals(EnumSet.of(ErpAbility.HEAD_OFFICE_STOCK_POINTS, ErpAbility.SUPPLY_INVOICES),
 				ErpAbilities.of("happyness"));
-		// Item variants (ZEN), step 8: the points de stock; step 9: its supply invoices
-		assertEquals(EnumSet.of(ErpAbility.HEAD_OFFICE_STOCK_POINTS, ErpAbility.SUPPLY_INVOICES), ErpAbilities.of("zen"));
+		// Item variants (ZEN), step 8: the points de stock; step 9: its supply invoices; 3.1.1: the stores' orders
+		assertEquals(EnumSet.of(ErpAbility.HEAD_OFFICE_STOCK_POINTS, ErpAbility.SUPPLY_INVOICES, ErpAbility.STORE_ORDERS),
+				ErpAbilities.of("zen"));
+		assertEquals(Arrays.asList("zen"), ErpAbilities.connectorsWith(ErpAbility.STORE_ORDERS));
 		assertThrows(IllegalArgumentException.class, () -> ErpAbilities.of("sap"));
 		assertEquals(Arrays.asList("happyness", "zen"), ErpAbilities.connectorsWith(ErpAbility.SUPPLY_INVOICES));
 		assertEquals(Arrays.asList("happyness", "zen"), ErpAbilities.connectorsWith(ErpAbility.HEAD_OFFICE_STOCK_POINTS));

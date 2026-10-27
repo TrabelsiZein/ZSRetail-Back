@@ -47,6 +47,14 @@ public enum Installation {
 	HEAD_OFFICE_WITHOUT_STOCK("A head office that keeps no stock and makes no purchases.",
 			NodeOwnership::isHeadOfficeWithoutStockSet),
 
+	/** 3.1.1: a head office that takes its stores' orders (headoffice.storeorders.post MANUAL or ERP). */
+	HEAD_OFFICE_STORE_ORDERS("A head office that takes its stores' orders: headoffice.storeorders.post is MANUAL or ERP.",
+			NodeOwnership::isStoreOrdersSet),
+
+	/** 3.1.1: a head office whose job posts its stores' orders into the ERP (headoffice.storeorders.post=ERP). */
+	HEAD_OFFICE_STORE_ORDERS_ERP("A head office whose job posts its stores' orders into the ERP:"
+			+ " headoffice.storeorders.post=ERP.", NodeOwnership::isStoreOrdersByErpSet),
+
 	// ─── Store linked to a head office ──────────────────────────
 
 	/** A store that calls a head office (headoffice.url set). */

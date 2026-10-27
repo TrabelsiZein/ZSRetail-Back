@@ -197,17 +197,21 @@ abilities (`erp/api/ErpAbility`), read from the environment, so a condition uses
 cleanup step 7 each connector declares its abilities in its descriptor (`ErpConnectorDescriptor`); the table is what
 they declare today.
 
-| Connector | `HEAD_OFFICE_STOCK_POINTS` | `SUPPLY_INVOICES` |
-|---|---|---|
-| `none` | — | — |
-| `emtop` | — | — |
-| `happyness` | yes | yes |
-| `zen` (3.1.0, item variants step 8) | yes | yes (step 9) |
+| Connector | `HEAD_OFFICE_STOCK_POINTS` | `SUPPLY_INVOICES` | `STORE_ORDERS` |
+|---|---|---|---|
+| `none` | — | — | — |
+| `emtop` | — | — | — |
+| `happyness` | yes | yes | — |
+| `zen` (3.1.0, item variants step 8) | yes | yes (step 9) | yes (3.1.1) |
 
 - `HEAD_OFFICE_STOCK_POINTS` (was `CATALOGUE_BY_STOCK_POINTS`): the head office keeps several points de stock in its own
   tables (`ho_stock_point`, `ho_stock_point_item`, the points page), filled by the single catalogue job `SYNC_CATALOGUE`. Not
   "reads items by location": every connector may do that.
 - `SUPPLY_INVOICES`: the ERP's supply invoices are read, so a head office may set `headoffice.supply.source=ERP`.
+- `STORE_ORDERS` (3.1.1): the stores' orders are posted as sales orders (`ErpConnector.postSalesOrder`, looked up first by
+  their external document number) and the variants' stock of a location is read (`fetchVariantStock`), so a head office
+  may set `headoffice.storeorders.post=ERP`; the job `POST_STORE_ORDERS` posts them (`docs/modules/store-orders.md`).
+  Every other connector keeps the two defaults: not supported.
 
 `ErpAbilities.connectorInEffect(env)` (none, emtop, happyness, zen) is the value of `erp.connector`;
 `hasConnector(env)` is true for any connector but none. A new ability is added there when the code needs it, never a test on
