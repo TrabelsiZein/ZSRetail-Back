@@ -46,11 +46,11 @@ public interface HoStoreOrderRepository extends _BaseRepository<HoStoreOrder, Lo
 	 * A page of orders, in the page's sort. anyStore / anyStatus 1: every store / status, else the given one; from / to:
 	 * received_at at or after / before, null = not filtered.
 	 */
-	@Query(value = "select o from HoStoreOrder o where (:anyStore = 1 or o.storeId = :storeId)"
-			+ " and (:anyStatus = 1 or o.status = :status)"
+	@Query(value = "select o from HoStoreOrder o where (:anyStore = 1L or o.storeId = :storeId)"
+			+ " and (:anyStatus = 1L or o.status = :status)"
 			+ " and (:from is null or o.receivedAt >= :from) and (:to is null or o.receivedAt < :to)",
-			countQuery = "select count(o) from HoStoreOrder o where (:anyStore = 1 or o.storeId = :storeId)"
-					+ " and (:anyStatus = 1 or o.status = :status)"
+			countQuery = "select count(o) from HoStoreOrder o where (:anyStore = 1L or o.storeId = :storeId)"
+					+ " and (:anyStatus = 1L or o.status = :status)"
 					+ " and (:from is null or o.receivedAt >= :from) and (:to is null or o.receivedAt < :to)")
 	Page<HoStoreOrder> findPage(@Param("anyStore") long anyStore, @Param("storeId") Long storeId,
 			@Param("anyStatus") long anyStatus, @Param("status") HoStoreOrderStatus status,

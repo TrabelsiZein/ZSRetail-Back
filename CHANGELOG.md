@@ -54,6 +54,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Store orders, for the store's screens (step 3): a catalogue line gives `mainImageItemId` (the item of its image, read
   at `item-image/item/{id}`); a variant NAV gives no row for has `stock` null (unknown) instead of 0.
 
+### Fixes
+- Store orders lists: `GET admin/headoffice/store-orders` and the store's `GET /store-order` answered 500 ("Parameter
+  value [1] did not match expected type [java.lang.Integer]"): the "every store / every status" flags are `long` and the
+  statement compared them with an `int` literal; now `1L`, as the BL reception list. `HoStoreOrderPageQueryTest` and
+  `StoreOrderPageQueryTest` run the real statements on H2 with and without each filter.
+
 ### DB script (`db/3.1.1/store-orders.sql`, then `db/3.1.1/update.sql`, store and head office)
 - `store-orders.sql`: tables `hol_order` (unique `number`, index `ix_hol_order_status`, filtered unique index
   `ux_hol_order_draft`: one DRAFT) and `hol_order_line` (unique `order_id`, `item_id`; FK to `hol_order`) on a store

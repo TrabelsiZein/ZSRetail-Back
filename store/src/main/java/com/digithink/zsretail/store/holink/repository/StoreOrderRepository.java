@@ -39,9 +39,9 @@ public interface StoreOrderRepository extends _BaseRepository<StoreOrder, Long> 
 	 * A page of orders, newest first. anyStatus 1: every status, else the given one; from / to: created_at at or after /
 	 * before, null = not filtered.
 	 */
-	@Query(value = "select o from StoreOrder o where (:anyStatus = 1 or o.status = :status)"
+	@Query(value = "select o from StoreOrder o where (:anyStatus = 1L or o.status = :status)"
 			+ " and (:from is null or o.createdAt >= :from) and (:to is null or o.createdAt < :to) order by o.id desc",
-			countQuery = "select count(o) from StoreOrder o where (:anyStatus = 1 or o.status = :status)"
+			countQuery = "select count(o) from StoreOrder o where (:anyStatus = 1L or o.status = :status)"
 					+ " and (:from is null or o.createdAt >= :from) and (:to is null or o.createdAt < :to)")
 	Page<StoreOrder> findPage(@Param("anyStatus") long anyStatus, @Param("status") StoreOrderStatus status,
 			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to, Pageable page);
