@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -96,11 +97,15 @@ public final class InMemoryStoreOrders {
 					boolean any = (Long) args[0] == 1L;
 					LocalDateTime from = (LocalDateTime) args[2];
 					LocalDateTime to = (LocalDateTime) args[3];
+					String text = (Long) args[4] == 1L ? null : textOf((String) args[5]);
 					List<StoreOrder> rows = orders.values().stream().filter(o -> any || o.getStatus() == args[1])
 							.filter(o -> from == null || !o.getCreatedAt().isBefore(from))
 							.filter(o -> to == null || o.getCreatedAt().isBefore(to))
+							.filter(o -> text == null || matches(text, o.getNumber(), o.getNavOrderNo())
+									|| o.getLines().stream().anyMatch(l -> matches(text, l.getItemCode(), l.getNavItemNo(),
+											l.getDescription())))
 							.sorted(Comparator.comparing(StoreOrder::getId).reversed()).collect(Collectors.toList());
-					Pageable page = (Pageable) args[4];
+					Pageable page = (Pageable) args[6];
 					int startRow = (int) Math.min(rows.size(), page.getOffset());
 					int end = Math.min(rows.size(), startRow + page.getPageSize());
 					return new PageImpl<>(new ArrayList<>(rows.subList(startRow, end)), page, rows.size());
@@ -109,5 +114,21 @@ public final class InMemoryStoreOrders {
 					return UNHANDLED;
 			}
 		});
+	}
+
+	/** The searched text of a LIKE pattern '%text%' (lower case, its escapes undone). */
+	static String textOf(String pattern) {
+		String text = pattern.substring(1, pattern.length() - 1);
+		return text.replace("\\%", "%").replace("\\_", "_").replace("\\[", "[").replace("\\\\", "\\");
+	}
+
+	/** One of the values contains the text, ignoring case. */
+	static boolean matches(String text, String... values) {
+		for (String value : values) {
+			if (value != null && value.toLowerCase(Locale.ROOT).contains(text)) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

@@ -38,6 +38,7 @@ import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
 import com.digithink.zsretail.core.repository.ItemImageRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.service.ItemBarcodeService;
 import com.digithink.zsretail.core.service.NavItemService;
 import com.digithink.zsretail.core.service.QuantityPolicy;
 import com.digithink.zsretail.core.utils.Quantities;
@@ -490,16 +491,20 @@ public class StoreOrderService {
 
 	/**
 	 * A page {content, totalElements, totalPages, number, size} of orders, newest first, without their lines. status:
-	 * one of {@link StoreOrderStatus}, blank or ALL for every one; from / to: the creation day, both included.
+	 * one of {@link StoreOrderStatus}, blank or ALL for every one; from / to: the creation day, both included; search:
+	 * in the order number, the head office's order number, a line's item code, ERP item number or name (blank: every
+	 * order).
 	 */
-	public Map<String, Object> list(String status, LocalDate from, LocalDate to, Integer page, Integer size) {
+	public Map<String, Object> list(String status, LocalDate from, LocalDate to, String search, Integer page,
+			Integer size) {
 		StoreOrderStatus wanted = statusOf(status);
+		String text = ItemBarcodeService.containsPattern(search);
 		int number = page == null ? 0 : Math.max(page, 0);
 		int rows = size == null ? DEFAULT_PAGE_SIZE : Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
 		Map<String, Object> answer = edits.execute(tx -> {
 			Page<StoreOrder> found = orders.findPage(wanted == null ? 1L : 0L, wanted,
 					from == null ? null : from.atStartOfDay(), to == null ? null : to.plusDays(1).atStartOfDay(),
-					PageRequest.of(number, rows));
+					text == null ? 1L : 0L, text == null ? "%" : text, PageRequest.of(number, rows));
 			Map<String, Object> result = new LinkedHashMap<>();
 			result.put("content", found.getContent().stream().map(StoreOrderViewDTO::row).collect(Collectors.toList()));
 			result.put("totalElements", found.getTotalElements());

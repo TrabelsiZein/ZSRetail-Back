@@ -21,6 +21,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.query.QueryUtils;
 
+import com.digithink.zsretail.core.service.ItemBarcodeService;
 import com.digithink.zsretail.headoffice.enumeration.HoStoreOrderStatus;
 import com.digithink.zsretail.headoffice.model.HoStoreOrder;
 import com.digithink.zsretail.headoffice.model.HoStoreOrderLine;
@@ -41,7 +42,7 @@ class HoStoreOrderPageQueryTest {
 	@BeforeAll
 	static void database() throws Exception {
 		Method findPage = HoStoreOrderRepository.class.getMethod("findPage", long.class, Long.class, long.class,
-				HoStoreOrderStatus.class, LocalDateTime.class, LocalDateTime.class, Pageable.class);
+				HoStoreOrderStatus.class, LocalDateTime.class, LocalDateTime.class, long.class, String.class, Pageable.class);
 		org.springframework.data.jpa.repository.Query query = findPage
 				.getAnnotation(org.springframework.data.jpa.repository.Query.class);
 		page = query.value();
@@ -53,8 +54,11 @@ class HoStoreOrderPageQueryTest {
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
-			order(session, "A", 1L, HoStoreOrderStatus.SENT, LocalDateTime.of(2026, 10, 20, 9, 0));
-			order(session, "B", 1L, HoStoreOrderStatus.POSTED, LocalDateTime.of(2026, 10, 25, 9, 0));
+			HoStoreOrder a = order(session, "A", 1L, HoStoreOrderStatus.SENT, LocalDateTime.of(2026, 10, 20, 9, 0));
+			line(session, a, "70061~S", "70061", "Chemise 50% lin");
+			HoStoreOrder b = order(session, "B", 1L, HoStoreOrderStatus.POSTED, LocalDateTime.of(2026, 10, 25, 9, 0));
+			b.setNavOrderNo("CV26000004");
+			line(session, b, "BOUGIE", null, "Bougie");
 			order(session, "C", 2L, HoStoreOrderStatus.ERROR, LocalDateTime.of(2026, 10, 26, 9, 0));
 			session.getTransaction().commit();
 		}
@@ -65,7 +69,7 @@ class HoStoreOrderPageQueryTest {
 		sessions.close();
 	}
 
-	private static void order(Session session, String number, Long storeId, HoStoreOrderStatus status,
+	private static HoStoreOrder order(Session session, String number, Long storeId, HoStoreOrderStatus status,
 			LocalDateTime receivedAt) {
 		HoStoreOrder order = new HoStoreOrder();
 		order.setNumber(number);
@@ -74,25 +78,43 @@ class HoStoreOrderPageQueryTest {
 		order.setReceivedAt(receivedAt);
 		order.setTotalQty(BigDecimal.ONE);
 		session.persist(order);
+		return order;
+	}
+
+	private static void line(Session session, HoStoreOrder order, String itemCode, String navItemNo, String description) {
+		HoStoreOrderLine line = new HoStoreOrderLine();
+		line.setOrder(order);
+		line.setItemCode(itemCode);
+		line.setNavItemNo(navItemNo);
+		line.setDescription(description);
+		line.setQuantity(BigDecimal.ONE);
+		session.persist(line);
 	}
 
 	/** The numbers of a page and the count, the parameters bound as HoStoreOrderService.list binds them. */
 	private static String run(Long storeId, HoStoreOrderStatus status, LocalDateTime from, LocalDateTime to, Sort sort) {
+		return run(storeId, status, from, to, null, sort);
+	}
+
+	private static String run(Long storeId, HoStoreOrderStatus status, LocalDateTime from, LocalDateTime to, String search,
+			Sort sort) {
 		try (Session session = sessions.openSession()) {
 			Query<HoStoreOrder> rows = session.createQuery(QueryUtils.applySorting(page, sort, "o"), HoStoreOrder.class);
-			bind(rows, storeId, status, from, to);
+			bind(rows, storeId, status, from, to, search);
 			Query<Long> total = session.createQuery(count, Long.class);
-			bind(total, storeId, status, from, to);
+			bind(total, storeId, status, from, to, search);
 			return rows.list().stream().map(HoStoreOrder::getNumber).collect(Collectors.joining()) + "/" + total.uniqueResult();
 		}
 	}
 
 	private static void bind(Query<?> query, Long storeId, HoStoreOrderStatus status, LocalDateTime from,
-			LocalDateTime to) {
+			LocalDateTime to, String search) {
+		String text = ItemBarcodeService.containsPattern(search);
 		long anyStore = storeId == null ? 1L : 0L;
 		long anyStatus = status == null ? 1L : 0L;
 		query.setParameter("anyStore", anyStore).setParameter("storeId", storeId).setParameter("anyStatus", anyStatus)
-				.setParameter("status", status).setParameter("from", from).setParameter("to", to);
+				.setParameter("status", status).setParameter("from", from).setParameter("to", to)
+				.setParameter("anyText", text == null ? 1L : 0L).setParameter("text", text == null ? "%" : text);
 	}
 
 	private static final Sort NEWEST = Sort.by(Sort.Direction.DESC, "receivedAt").and(Sort.by(Sort.Direction.DESC, "id"));
@@ -124,5 +146,18 @@ class HoStoreOrderPageQueryTest {
 				run(null, null, null, null, Sort.by(Sort.Direction.DESC, "number")),
 				run(null, null, null, null, Sort.by(Sort.Direction.ASC, "status")));
 		assertEquals(Arrays.asList("BAC/3", "ABC/3", "CBA/3", "CBA/3"), got);
+	}
+
+	@Test
+	@DisplayName("The search, run as it is: the number, the ERP order number, a line's code, ERP item number or name, any"
+			+ " case; a % searched as a character; with the other filters")
+	void search() {
+		assertEquals("A/1", run(null, null, null, null, "a", NEWEST), "the number A (any case), and no other");
+		assertEquals("B/1", run(null, null, null, null, "cv2600", NEWEST), "the ERP order number");
+		assertEquals("A/1", run(null, null, null, null, "70061~s", NEWEST), "a line's code");
+		assertEquals("A/1", run(null, null, null, null, "CHEMISE", NEWEST), "a line's name");
+		assertEquals("A/1", run(null, null, null, null, "50%", NEWEST), "a % as a character");
+		assertEquals("A/1", run(null, null, null, null, "%", NEWEST), "% alone: only the name that has one");
+		assertEquals("/0", run(2L, null, null, null, "chemise", NEWEST), "with the store");
 	}
 }

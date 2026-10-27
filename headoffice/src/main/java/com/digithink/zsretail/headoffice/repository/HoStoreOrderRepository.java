@@ -43,16 +43,26 @@ public interface HoStoreOrderRepository extends _BaseRepository<HoStoreOrder, Lo
 	List<Object[]> findTargets(@Param("statuses") Collection<HoStoreOrderStatus> statuses);
 
 	/**
-	 * A page of orders, in the page's sort. anyStore / anyStatus 1: every store / status, else the given one; from / to:
-	 * received_at at or after / before, null = not filtered.
+	 * The filters of {@link #findPage}: store, status, reception, and the text: the order number, the ERP order number, or
+	 * a line's item code, ERP item number or name (lower case, the pattern's wildcards escaped with a backslash).
 	 */
-	@Query(value = "select o from HoStoreOrder o where (:anyStore = 1L or o.storeId = :storeId)"
-			+ " and (:anyStatus = 1L or o.status = :status)"
-			+ " and (:from is null or o.receivedAt >= :from) and (:to is null or o.receivedAt < :to)",
-			countQuery = "select count(o) from HoStoreOrder o where (:anyStore = 1L or o.storeId = :storeId)"
-					+ " and (:anyStatus = 1L or o.status = :status)"
-					+ " and (:from is null or o.receivedAt >= :from) and (:to is null or o.receivedAt < :to)")
+	String PAGE_FILTERS = " where (:anyStore = 1L or o.storeId = :storeId) and (:anyStatus = 1L or o.status = :status)"
+			+ " and (:from is null or o.receivedAt >= :from) and (:to is null or o.receivedAt < :to)"
+			+ " and (:anyText = 1L or lower(o.number) like :text escape '\\'"
+			+ " or lower(o.navOrderNo) like :text escape '\\'"
+			+ " or exists (select l.id from HoStoreOrderLine l where l.order = o"
+			+ " and (lower(l.itemCode) like :text escape '\\' or lower(l.navItemNo) like :text escape '\\'"
+			+ " or lower(l.description) like :text escape '\\')))";
+
+	/**
+	 * A page of orders, in the page's sort. anyStore / anyStatus / anyText 1: every store / status / text, else the given
+	 * one; from / to: received_at at or after / before, null = not filtered; text: a LIKE pattern (ItemBarcodeService
+	 * containsPattern).
+	 */
+	@Query(value = "select o from HoStoreOrder o" + PAGE_FILTERS,
+			countQuery = "select count(o) from HoStoreOrder o" + PAGE_FILTERS)
 	Page<HoStoreOrder> findPage(@Param("anyStore") long anyStore, @Param("storeId") Long storeId,
 			@Param("anyStatus") long anyStatus, @Param("status") HoStoreOrderStatus status,
-			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to, Pageable page);
+			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to, @Param("anyText") long anyText,
+			@Param("text") String text, Pageable page);
 }

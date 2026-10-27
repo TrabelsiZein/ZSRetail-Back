@@ -36,13 +36,24 @@ public interface StoreOrderRepository extends _BaseRepository<StoreOrder, Long> 
 	String findLastNumber(@Param("prefix") String prefix);
 
 	/**
-	 * A page of orders, newest first. anyStatus 1: every status, else the given one; from / to: created_at at or after /
-	 * before, null = not filtered.
+	 * The filters of {@link #findPage}: status, creation, and the text: the order number, the head office's order number,
+	 * or a line's item code, ERP item number or name (lower case, the pattern's wildcards escaped with a backslash).
 	 */
-	@Query(value = "select o from StoreOrder o where (:anyStatus = 1L or o.status = :status)"
-			+ " and (:from is null or o.createdAt >= :from) and (:to is null or o.createdAt < :to) order by o.id desc",
-			countQuery = "select count(o) from StoreOrder o where (:anyStatus = 1L or o.status = :status)"
-					+ " and (:from is null or o.createdAt >= :from) and (:to is null or o.createdAt < :to)")
+	String PAGE_FILTERS = " where (:anyStatus = 1L or o.status = :status)"
+			+ " and (:from is null or o.createdAt >= :from) and (:to is null or o.createdAt < :to)"
+			+ " and (:anyText = 1L or lower(o.number) like :text escape '\\'"
+			+ " or lower(o.navOrderNo) like :text escape '\\'"
+			+ " or exists (select l.id from StoreOrderLine l where l.order = o"
+			+ " and (lower(l.itemCode) like :text escape '\\' or lower(l.navItemNo) like :text escape '\\'"
+			+ " or lower(l.description) like :text escape '\\')))";
+
+	/**
+	 * A page of orders, newest first. anyStatus / anyText 1: every status / text, else the given one; from / to:
+	 * created_at at or after / before, null = not filtered; text: a LIKE pattern (ItemBarcodeService containsPattern).
+	 */
+	@Query(value = "select o from StoreOrder o" + PAGE_FILTERS + " order by o.id desc",
+			countQuery = "select count(o) from StoreOrder o" + PAGE_FILTERS)
 	Page<StoreOrder> findPage(@Param("anyStatus") long anyStatus, @Param("status") StoreOrderStatus status,
-			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to, Pageable page);
+			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to, @Param("anyText") long anyText,
+			@Param("text") String text, Pageable page);
 }

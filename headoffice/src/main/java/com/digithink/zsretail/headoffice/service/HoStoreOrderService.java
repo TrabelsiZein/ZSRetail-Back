@@ -37,6 +37,7 @@ import com.digithink.zsretail.core.link.dto.StoreOrderDTO;
 import com.digithink.zsretail.core.link.dto.StoreOrderStatusCopyDTO;
 import com.digithink.zsretail.core.link.dto.VariantStockDTO;
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
+import com.digithink.zsretail.core.service.ItemBarcodeService;
 import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.erp.api.ErpConnector;
 import com.digithink.zsretail.erp.api.dto.ErpSalesOrderDTO;
@@ -473,11 +474,13 @@ public class HoStoreOrderService implements DownDomainProvider {
 	/**
 	 * A page {content, totalElements, totalPages, number, size} without the lines. storeId null: every store; status
 	 * blank or ALL: every one; from / to: the reception day, both included; sort receivedAt (the default), number,
-	 * status, postedAt or store; dir asc or desc (the default).
+	 * status, postedAt or store; dir asc or desc (the default); search: in the order number, the ERP order number, a
+	 * line's item code, ERP item number or name (blank: every order).
 	 */
-	public Map<String, Object> list(Long storeId, String status, LocalDate from, LocalDate to, String sort, String dir,
-			Integer page, Integer size) {
+	public Map<String, Object> list(Long storeId, String status, LocalDate from, LocalDate to, String search, String sort,
+			String dir, Integer page, Integer size) {
 		HoStoreOrderStatus wanted = statusOf(status);
+		String text = ItemBarcodeService.containsPattern(search);
 		String property = SORTS.getOrDefault(sort == null ? "" : sort.trim(), "receivedAt");
 		Sort.Direction direction = "asc".equalsIgnoreCase(dir == null ? "" : dir.trim()) ? Sort.Direction.ASC
 				: Sort.Direction.DESC;
@@ -487,7 +490,7 @@ public class HoStoreOrderService implements DownDomainProvider {
 		return transactions.execute(tx -> {
 			Page<HoStoreOrder> found = orders.findPage(storeId == null ? 1L : 0L, storeId, wanted == null ? 1L : 0L,
 					wanted, from == null ? null : from.atStartOfDay(), to == null ? null : to.plusDays(1).atStartOfDay(),
-					request);
+					text == null ? 1L : 0L, text == null ? "%" : text, request);
 			Map<Long, Store> byId = new HashMap<>();
 			for (Store store : stores.findAllById(found.getContent().stream().map(HoStoreOrder::getStoreId)
 					.collect(Collectors.toSet()))) {

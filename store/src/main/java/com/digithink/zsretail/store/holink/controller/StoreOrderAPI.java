@@ -145,16 +145,18 @@ public class StoreOrderAPI {
 	}
 
 	/**
-	 * GET /store-order?status&amp;from&amp;to&amp;page&amp;size: {content, totalElements, totalPages, number, size}, newest
-	 * first, without lines. status: DRAFT, SENT, POSTED, ERROR, CANCELLED, or none / ALL; from, to: yyyy-MM-dd, the
-	 * creation day, both included.
+	 * GET /store-order?status&amp;from&amp;to&amp;search&amp;page&amp;size: {content, totalElements, totalPages, number,
+	 * size}, newest first, without lines. status: DRAFT, SENT, POSTED, ERROR, CANCELLED, or none / ALL; from, to: yyyy-MM-dd, the
+	 * creation day, both included; search: in the order number, the head office's order number, a line's code or
+	 * name.
 	 */
 	@GetMapping
 	public ResponseEntity<?> list(@RequestParam(required = false) String status,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+			@RequestParam(required = false) String search,
 			@RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
-		return answer(() -> ResponseEntity.ok(service.list(status, from, to, page, size)));
+		return answer(() -> ResponseEntity.ok(service.list(status, from, to, search, page, size)));
 	}
 
 	/** GET /store-order/{id}: the order with its lines. */

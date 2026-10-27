@@ -110,7 +110,7 @@ cancelled order or an unknown number is left as it is, noted on the tracking row
 | `PUT /store-order/draft/note` `{note}` | the draft; 404 without a draft |
 | `POST /store-order/{id}/send` | the order `SENT`; 409 not a draft, no line, a line above its availability, or refused; 503 not answered |
 | `POST /store-order/{id}/cancel` | the order `CANCELLED`; 409 not a draft |
-| `GET /store-order?status&from&to&page&size` | `{content, totalElements, totalPages, number, size}`, newest first, without lines; `status` one of the statuses or `ALL`; `from`, `to` `yyyy-MM-dd`, the creation day, both included |
+| `GET /store-order?status&from&to&search&page&size` | `{content, totalElements, totalPages, number, size}`, newest first, without lines; `status` one of the statuses or `ALL`; `from`, `to` `yyyy-MM-dd`, the creation day, both included; `search` in the order number, the head office's order number, a line's item code, ERP item number or name (any case, a `%` or `_` a character; blank: every order) |
 | `GET /store-order/{id}` | the order with its lines |
 | `GET /item/{id}/images` | `[{id, source, path, sortOrder, main}]`, the main one first (core: store and head office) |
 
@@ -261,7 +261,7 @@ only; the same failure again records nothing.
 |---|---|
 | `POST /ho/orders` (store key) `StoreOrderDTO` | `{documentNumber, accepted, message}` |
 | `GET /ho/orders/variant-stock?navItemNo` (store key) | `[{itemNo, variantCode, quantity, details, sizeOrder}]`; 400 without a number; 409 without the store's ERP customer number; 503 |
-| `GET admin/headoffice/store-orders?storeId&status&from&to&sort&dir&page&size` | `{content, totalElements, totalPages, number, size, postMode}`, without lines; `status` one of the four or `ALL`; `from`, `to` the reception day, both included; `sort` `receivedAt` (default), `number`, `status`, `postedAt`, `store`; `dir` `desc` (default) or `asc`; `postMode` `ERP` or `MANUAL` |
+| `GET admin/headoffice/store-orders?storeId&status&from&to&search&sort&dir&page&size` | `{content, totalElements, totalPages, number, size, postMode}`, without lines; `status` one of the four or `ALL`; `from`, `to` the reception day, both included; `search` in the order number, the ERP order number, a line's item code, ERP item number or name (as the store's); `sort` `receivedAt` (default), `number`, `status`, `postedAt`, `store`; `dir` `desc` (default) or `asc`; `postMode` `ERP` or `MANUAL` |
 | `GET admin/headoffice/store-orders/{id}` | the order with its lines |
 | `POST admin/headoffice/store-orders/{id}/mark-posted` `{navOrderNo}` | the order `POSTED`, mode MANUAL |
 | `POST admin/headoffice/store-orders/{id}/reject` `{message}` | the order `REJECTED` |
@@ -333,6 +333,13 @@ list, one order). Shown only where `/config` gives `supplyFromHeadOffice` and `n
 when the variants carry one (a size's: the smallest of its variants; a size without one after them), else the back end's
 order; a cell with `details` shows an info icon whose tooltip lists "label : value" (`store-orders-api.js`
 `variantMatrix`, `detailLines`; `tools/store-orders-check.mjs`).
+
+**The lists** "Mes commandes" and "Commandes des magasins" have a search (the order number, the ERP / head office
+number, a line's code or name; debounced 400 ms, Enter at once) and keep their filters in the URL (`q`, `storeId`,
+`status`, `from`, `to`; `store-orders-api.js` `listFiltersFromQuery`, `queryOfListFilters`, `listParams`). **An order's
+page**, the same on both sides: a header card (`OrderHeaderCard`) in three groups, Document (number, store, dates),
+Processing (status, ERP order number, the head office's posting mode and attempts, the messages) and Totals (lines,
+pieces), the note in its own block; the lines (`OrderLinesTable`) with their number in the order and a sortable code.
 
 **NAV's answer** on both order pages (the store's and the head office's): the message on the order in an info box, and
 once a line carries an answer the columns accepted and message; a line accepted below its quantity is highlighted

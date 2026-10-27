@@ -295,18 +295,38 @@ class HoStoreOrderServiceTest {
 		received();
 		service.receive(c, order("C-2026-000001", "C", line("70061~L", "L", 5)));
 		service.reject(tables.byNumber("C-2026-000001").getId(), "non", "admin");
-		Map<String, Object> all = service.list(null, null, null, null, null, null, null, null);
+		Map<String, Object> all = service.list(null, null, null, null, null, null, null, null, null);
 		assertEquals(2L, all.get("totalElements"));
-		Map<String, Object> rejected = service.list(null, "rejected", null, null, null, null, null, null);
+		Map<String, Object> rejected = service.list(null, "rejected", null, null, null, null, null, null, null);
 		assertEquals(1L, rejected.get("totalElements"));
 		@SuppressWarnings("unchecked")
-		List<HoStoreOrderDTO> rows = (List<HoStoreOrderDTO>) service.list(b.getId(), "ALL", null, null, "number", "asc",
-				0, 20).get("content");
+		List<HoStoreOrderDTO> rows = (List<HoStoreOrderDTO>) service.list(b.getId(), "ALL", null, null, null, "number",
+				"asc", 0, 20).get("content");
 		assertEquals(1, rows.size());
 		assertEquals("Store B", rows.get(0).getStoreName());
 		assertNull(rows.get(0).getLines(), "a row has no lines");
 		assertEquals(2, service.get(tables.byNumber(FIRST).getId()).get().getLines().size());
-		assertThrows(IllegalArgumentException.class, () -> service.list(null, "LOST", null, null, null, null, null, null));
+		assertThrows(IllegalArgumentException.class, () -> service.list(null, "LOST", null, null, null, null, null, null, null));
+	}
+
+	@Test
+	@DisplayName("List, the search: the order number, the ERP order number, a line's code, ERP item number or name, any case;"
+			+ " blank: every order")
+	void listSearch() {
+		received();
+		service.receive(c, order("C-2026-000001", "C", line("70061~L", "L", 5)));
+		service.markPosted(tables.byNumber("C-2026-000001").getId(), "CV26000009", "admin");
+		assertEquals(1L, service.list(null, null, null, null, " " + FIRST.toLowerCase() + " ", null, null, null, null)
+				.get("totalElements"), "the number, any case");
+		assertEquals(1L, service.list(null, null, null, null, "cv2600000", null, null, null, null).get("totalElements"),
+				"the ERP order number");
+		assertEquals(1L, service.list(null, null, null, null, "70061~S", null, null, null, null).get("totalElements"),
+				"a line's code");
+		assertEquals(2L, service.list(null, null, null, null, "chemise", null, null, null, null).get("totalElements"),
+				"a line's name");
+		assertEquals(0L, service.list(null, null, null, null, "%", null, null, null, null).get("totalElements"),
+				"a wildcard is a character");
+		assertEquals(2L, service.list(null, null, null, null, " ", null, null, null, null).get("totalElements"));
 	}
 
 	/** The record codes of the orders. */

@@ -9,6 +9,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -86,13 +87,17 @@ final class InMemoryHoStoreOrders {
 					boolean anyStatus = (Long) args[2] == 1L;
 					LocalDateTime from = (LocalDateTime) args[4];
 					LocalDateTime to = (LocalDateTime) args[5];
+					String text = (Long) args[6] == 1L ? null : textOf((String) args[7]);
 					List<HoStoreOrder> rows = orders.values().stream()
 							.filter(o -> anyStore || o.getStoreId().equals(args[1]))
 							.filter(o -> anyStatus || o.getStatus() == args[3])
 							.filter(o -> from == null || !o.getReceivedAt().isBefore(from))
 							.filter(o -> to == null || o.getReceivedAt().isBefore(to))
+							.filter(o -> text == null || matches(text, o.getNumber(), o.getNavOrderNo())
+									|| o.getLines().stream().anyMatch(l -> matches(text, l.getItemCode(), l.getNavItemNo(),
+											l.getDescription())))
 							.sorted(Comparator.comparing(HoStoreOrder::getId).reversed()).collect(Collectors.toList());
-					Pageable page = (Pageable) args[6];
+					Pageable page = (Pageable) args[8];
 					int start = (int) Math.min(rows.size(), page.getOffset());
 					int end = Math.min(rows.size(), start + page.getPageSize());
 					return new PageImpl<>(new ArrayList<>(rows.subList(start, end)), page, rows.size());
@@ -101,5 +106,21 @@ final class InMemoryHoStoreOrders {
 					return UNHANDLED;
 			}
 		});
+	}
+
+	/** The searched text of a LIKE pattern '%text%' (lower case, its escapes undone). */
+	static String textOf(String pattern) {
+		String text = pattern.substring(1, pattern.length() - 1);
+		return text.replace("\\%", "%").replace("\\_", "_").replace("\\[", "[").replace("\\\\", "\\");
+	}
+
+	/** One of the values contains the text, ignoring case. */
+	static boolean matches(String text, String... values) {
+		for (String value : values) {
+			if (value != null && value.toLowerCase(Locale.ROOT).contains(text)) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

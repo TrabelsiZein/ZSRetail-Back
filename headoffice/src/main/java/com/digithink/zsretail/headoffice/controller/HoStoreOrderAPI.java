@@ -53,20 +53,22 @@ public class HoStoreOrderAPI {
 	}
 
 	/**
-	 * GET admin/headoffice/store-orders?storeId&amp;status&amp;from&amp;to&amp;sort&amp;dir&amp;page&amp;size: {content,
-	 * totalElements, totalPages, number, size, postMode}. status SENT, POSTED, ERROR, REJECTED or none / ALL; from, to
-	 * yyyy-MM-dd, the reception day, both included; sort receivedAt (the default), number, status, postedAt, store; dir
-	 * desc (the default) or asc. postMode: ERP or MANUAL (which actions the page offers).
+	 * GET admin/headoffice/store-orders?storeId&amp;status&amp;from&amp;to&amp;search&amp;sort&amp;dir&amp;page&amp;size:
+	 * {content, totalElements, totalPages, number, size, postMode}. status SENT, POSTED, ERROR, REJECTED or none / ALL;
+	 * from, to yyyy-MM-dd, the reception day, both included; search: in the order number, the ERP order number, a line's
+	 * code or name; sort receivedAt (the default), number, status, postedAt, store; dir desc (the default) or asc.
+	 * postMode: ERP or MANUAL (which actions the page offers).
 	 */
 	@GetMapping
 	public ResponseEntity<?> list(@RequestParam(required = false) Long storeId,
 			@RequestParam(required = false) String status,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+			@RequestParam(required = false) String search,
 			@RequestParam(required = false) String sort, @RequestParam(required = false) String dir,
 			@RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
 		return answer(() -> {
-			Map<String, Object> result = service.list(storeId, status, from, to, sort, dir, page, size);
+			Map<String, Object> result = service.list(storeId, status, from, to, search, sort, dir, page, size);
 			result.put("postMode", service.isByErp() ? "ERP" : "MANUAL");
 			return ResponseEntity.ok(result);
 		});

@@ -58,6 +58,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `connectors/zen/src/test/resources/zen/commandesVente.json`.
 
 ### Enhancements
+- Store orders, the lists: a `search` parameter on `GET /store-order` and `GET admin/headoffice/store-orders`, in the
+  order number, the ERP (head office) order number and the lines' item code, ERP item number and name (any case, the
+  wildcards searched as characters; `ItemBarcodeService.containsPattern`).
 - NAV items grouped read (`NavItemService.page`, `ItemRepository.NAV_ITEMS`): optional level filters (catégorie, the
   item's own else its famille's; famille; sous-famille; section), the NAV items of the barcodes matching the search, and
   a sort (number, or name then number, either way). The "NAV items" page sends none of them: same lines, same order.
