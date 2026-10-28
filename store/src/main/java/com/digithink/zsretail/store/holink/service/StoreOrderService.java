@@ -52,6 +52,7 @@ import com.digithink.zsretail.store.holink.dto.StoreOrderVariantsDTO;
 import com.digithink.zsretail.store.holink.dto.StoreOrderViewDTO;
 import com.digithink.zsretail.store.holink.enumeration.StoreOrderStatus;
 import com.digithink.zsretail.store.holink.model.StoreOrder;
+import com.digithink.zsretail.store.holink.model.StoreOrderColis;
 import com.digithink.zsretail.store.holink.model.StoreOrderLine;
 import com.digithink.zsretail.store.holink.repository.StoreOrderRepository;
 
@@ -288,6 +289,9 @@ public class StoreOrderService {
 			variant.setDraftQuantity(drafted.get(item.getId()));
 			dto.getVariants().add(variant);
 		}
+		dto.setDraftColis(edits.execute(status -> currentDraft().flatMap(draft -> draft.getColis().stream()
+				.filter(colis -> number.equals(colis.getNavItemNo())).findFirst()).map(StoreOrderColis::getNbColis)
+				.orElse(null)));
 		return Optional.of(dto);
 	}
 
@@ -388,6 +392,82 @@ public class StoreOrderService {
 		return save(draft, user);
 	}
 
+	// ─── The draft's colis (3.1.1) ───────────────────────────────
+
+	/**
+	 * The colis of an ERP item in the draft, from the variants window: the number replaces the item's (0 removes its row;
+	 * a missing draft is made, not for a 0), with the head office's figures it showed: colisPossibles (the limit, 409
+	 * above it; null: no limit) and contenance (informative). Only a number an active ERP item carries (400 otherwise).
+	 * Answers the draft; empty when a 0 found no draft.
+	 */
+	public Optional<StoreOrderViewDTO> putColis(String navItemNo, Integer nbColis, Integer colisPossibles,
+			Integer contenance, String user) {
+		if (!hasText(navItemNo)) {
+			throw new IllegalArgumentException("navItemNo is required");
+		}
+		if (nbColis == null || nbColis < 0) {
+			throw new IllegalArgumentException("nbColis is required, 0 or more");
+		}
+		String number = navItemNo.trim();
+		try {
+			return Optional.ofNullable(edits.execute(status -> applyColis(number, nbColis, colisPossibles, contenance, user)));
+		} catch (DataIntegrityViolationException e) {
+			// Two first lines at the same time: the other request made the draft (ux_hol_order_draft); this one goes in it
+			return Optional.ofNullable(edits.execute(status -> applyColis(number, nbColis, colisPossibles, contenance, user)));
+		}
+	}
+
+	private StoreOrderViewDTO applyColis(String navItemNo, int nbColis, Integer colisPossibles, Integer contenance,
+			String user) {
+		if (nbColis == 0) {
+			return lockedDraft().map(draft -> removeColis(draft, navItemNo, user)).orElse(null);
+		}
+		List<Item> variants = navItems.activeVariantsOf(Collections.singletonList(navItemNo)).getOrDefault(navItemNo,
+				Collections.emptyList());
+		if (variants.isEmpty()) {
+			throw new IllegalArgumentException("No active ERP item " + navItemNo + ": it cannot be ordered");
+		}
+		checkColisAvailable(nbColis, colisPossibles, Quantities.itemLabel(navItemNo, variants.get(0).getName()));
+		StoreOrder draft = lockedDraft().orElseGet(() -> newDraft(user));
+		StoreOrderColis colis = draft.getColis().stream().filter(c -> navItemNo.equals(c.getNavItemNo())).findFirst()
+				.orElse(null);
+		if (colis == null) {
+			colis = new StoreOrderColis();
+			colis.setOrder(draft);
+			colis.setNavItemNo(navItemNo);
+			colis.setDescription(variants.get(0).getName());
+			colis.setCreatedBy(user == null ? colis.getCreatedBy() : user);
+			draft.getColis().add(colis);
+		}
+		colis.setNbColis(nbColis);
+		colis.setColisPossibles(colisPossibles);
+		colis.setContenance(contenance != null && contenance > 0 ? contenance : null);
+		colis.setUpdatedBy(user);
+		return save(draft, user);
+	}
+
+	/** Colis above the colis possibles (none: no limit) are refused (409), the figures named. */
+	static void checkColisAvailable(int nbColis, Integer colisPossibles, String label) {
+		if (colisPossibles != null && nbColis > colisPossibles) {
+			throw new IllegalStateException("Item " + label + ": " + nbColis + " colis asked but only " + colisPossibles
+					+ " possible at the head office: lower the number of colis");
+		}
+	}
+
+	/** Removes the item's colis from the draft (none: unchanged). Empty when there is no draft. */
+	public Optional<StoreOrderViewDTO> removeColis(String navItemNo, String user) {
+		if (!hasText(navItemNo)) {
+			throw new IllegalArgumentException("navItemNo is required");
+		}
+		return Optional.ofNullable(edits.execute(
+				status -> lockedDraft().map(draft -> removeColis(draft, navItemNo.trim(), user)).orElse(null)));
+	}
+
+	private StoreOrderViewDTO removeColis(StoreOrder draft, String navItemNo, String user) {
+		boolean removed = draft.getColis().removeIf(colis -> navItemNo.equals(colis.getNavItemNo()));
+		return removed ? save(draft, user) : StoreOrderViewDTO.of(draft);
+	}
+
 	/** A quantity above the availability (none: no limit) is refused (409), the figures named. */
 	static void checkAvailable(BigDecimal quantity, BigDecimal available, String label) {
 		if (available != null && quantity.compareTo(available) > 0) {
@@ -452,8 +532,16 @@ public class StoreOrderService {
 	public Optional<StoreOrderViewDTO> send(Long id, String user) {
 		return Optional.ofNullable(sends.execute(status -> orders.findForUpdate(id).map(order -> {
 			requireDraft(order, "sent");
-			if (order.getLines().isEmpty()) {
+			if (order.isEmpty()) {
 				throw new IllegalStateException("Order " + order.getNumber() + " has no line: nothing to send");
+			}
+			for (StoreOrderColis colis : order.getColis()) {
+				if (colis.getColisPossibles() != null && colis.getNbColis() > colis.getColisPossibles()) {
+					throw new IllegalStateException("Order " + order.getNumber() + " is not sent: item "
+							+ Quantities.itemLabel(colis.getNavItemNo(), colis.getDescription()) + " asks "
+							+ colis.getNbColis() + " colis but only " + colis.getColisPossibles()
+							+ " are possible at the head office: lower the number of colis");
+				}
 			}
 			for (StoreOrderLine line : order.getLines()) {
 				if (line.getAvailableQty() != null && line.getQuantity().compareTo(line.getAvailableQty()) > 0) {
@@ -499,6 +587,10 @@ public class StoreOrderService {
 		for (StoreOrderLine line : order.getLines()) {
 			up.getLines().add(new StoreOrderDTO.Line(line.getItemCode(), line.getNavItemNo(), line.getVariantCode(),
 					line.getDescription(), line.getVariantDescription(), line.getQuantity()));
+		}
+		for (StoreOrderColis colis : order.getColis()) {
+			up.getColis().add(new StoreOrderDTO.Colis(colis.getNavItemNo(), colis.getDescription(), colis.getNbColis(),
+					colis.getContenance(), colis.getColisPossibles()));
 		}
 		return up;
 	}
@@ -589,6 +681,8 @@ public class StoreOrderService {
 							.map(line -> new StoreOrderLastDTO.Line(line.getItemId(), line.getVariantCode(),
 									line.getQuantity()))
 							.collect(Collectors.toList()));
+					last.setNbColis(order.getColis().stream().filter(colis -> number.equals(colis.getNavItemNo()))
+							.map(StoreOrderColis::getNbColis).findFirst().orElse(null));
 					return last;
 				}).orElse(null)));
 	}

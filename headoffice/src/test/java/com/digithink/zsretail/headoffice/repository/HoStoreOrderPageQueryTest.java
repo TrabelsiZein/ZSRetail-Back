@@ -24,6 +24,7 @@ import org.springframework.data.jpa.repository.query.QueryUtils;
 import com.digithink.zsretail.core.service.ItemBarcodeService;
 import com.digithink.zsretail.headoffice.enumeration.HoStoreOrderStatus;
 import com.digithink.zsretail.headoffice.model.HoStoreOrder;
+import com.digithink.zsretail.headoffice.model.HoStoreOrderColis;
 import com.digithink.zsretail.headoffice.model.HoStoreOrderLine;
 
 /**
@@ -48,6 +49,7 @@ class HoStoreOrderPageQueryTest {
 		page = query.value();
 		count = query.countQuery();
 		sessions = new Configuration().addAnnotatedClass(HoStoreOrder.class).addAnnotatedClass(HoStoreOrderLine.class)
+				.addAnnotatedClass(HoStoreOrderColis.class)
 				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", "jdbc:h2:mem:hostoreorders;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
 				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")

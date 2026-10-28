@@ -31,14 +31,34 @@ public class ErpSalesOrderDTO {
 
 	private List<Line> lines = new ArrayList<>();
 
+	/**
+	 * A line: pieces of a variant (nbColis null), or 3.1.1 a number of colis of an item (nbColis set, variantCode empty,
+	 * quantity the pieces they hold when known, informative).
+	 */
 	@Data
 	@NoArgsConstructor
 	@AllArgsConstructor
 	public static class Line {
 		/** The ERP item number. */
 		private String itemNo;
-		/** The ERP variant code; empty for an item without variants. */
+		/** The ERP variant code; empty for an item without variants and for colis. */
 		private String variantCode;
 		private BigDecimal quantity;
+		/** 3.1.1: the number of colis of a colis line; null for a line of pieces. */
+		private Integer nbColis;
+
+		/** A line of pieces. */
+		public Line(String itemNo, String variantCode, BigDecimal quantity) {
+			this(itemNo, variantCode, quantity, null);
+		}
+
+		/** 3.1.1: a line of colis of an item. */
+		public static Line colis(String itemNo, int nbColis, BigDecimal pieces) {
+			return new Line(itemNo, "", pieces, nbColis);
+		}
+
+		public boolean isColis() {
+			return nbColis != null;
+		}
 	}
 }

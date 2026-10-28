@@ -26,6 +26,7 @@ import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.dto.NavItemFilter;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.store.holink.dto.StoreOrderCatalogueLineDTO;
+import com.digithink.zsretail.store.holink.dto.StoreOrderColisInputDTO;
 import com.digithink.zsretail.store.holink.dto.StoreOrderInputDTO;
 import com.digithink.zsretail.store.holink.service.StoreOrderService;
 
@@ -126,6 +127,23 @@ public class StoreOrderAPI {
 		}
 		return answer(() -> orNoContent(service.putLine(body == null ? null : body.getItemId(),
 				body == null ? null : body.getQuantity(), userName())));
+	}
+
+	/**
+	 * POST /store-order/draft/colis {navItemNo, nbColis, colisPossibles?, contenance?}: the colis of the item in the draft
+	 * (0 removes them); the draft (204 for a 0 without a draft). 409 above the colis possibles.
+	 */
+	@PostMapping("/draft/colis")
+	public ResponseEntity<?> putColis(@RequestBody(required = false) StoreOrderColisInputDTO body) {
+		return answer(() -> orNoContent(service.putColis(body == null ? null : body.getNavItemNo(),
+				body == null ? null : body.getNbColis(), body == null ? null : body.getColisPossibles(),
+				body == null ? null : body.getContenance(), userName())));
+	}
+
+	/** DELETE /store-order/draft/colis?navItemNo: the draft without the item's colis; 404 without a draft. */
+	@DeleteMapping("/draft/colis")
+	public ResponseEntity<?> removeColis(@RequestParam(name = "navItemNo", required = false) String navItemNo) {
+		return answer(() -> found(service.removeColis(navItemNo, userName())));
 	}
 
 	/** DELETE /store-order/draft/lines/{itemId}: the draft without the item's line; 404 without a draft. */

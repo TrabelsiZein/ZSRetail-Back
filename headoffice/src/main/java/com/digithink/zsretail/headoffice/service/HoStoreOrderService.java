@@ -9,12 +9,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -48,6 +50,7 @@ import com.digithink.zsretail.headoffice.dto.HoStoreOrderDTO;
 import com.digithink.zsretail.headoffice.enumeration.HoStoreOrderStatus;
 import com.digithink.zsretail.headoffice.enumeration.PostedMode;
 import com.digithink.zsretail.headoffice.model.HoStoreOrder;
+import com.digithink.zsretail.headoffice.model.HoStoreOrderColis;
 import com.digithink.zsretail.headoffice.model.HoStoreOrderLine;
 import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.HoErpInvoiceRepository;
@@ -223,10 +226,24 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 		if (!location.isEmpty() && !location.equalsIgnoreCase(store.getCode())) {
 			return "location " + location + " is not the store's (" + store.getCode() + ")";
 		}
-		if (order.getLines() == null || order.getLines().isEmpty()) {
+		List<StoreOrderDTO.Line> lines = order.getLines() == null ? Collections.emptyList() : order.getLines();
+		List<StoreOrderDTO.Colis> colis = order.getColis() == null ? Collections.emptyList() : order.getColis();
+		if (lines.isEmpty() && colis.isEmpty()) {
 			return "order without a line";
 		}
-		for (StoreOrderDTO.Line line : order.getLines()) {
+		Set<String> colisItems = new HashSet<>();
+		for (StoreOrderDTO.Colis row : colis) {
+			if (row == null || row.getNavItemNo() == null || row.getNavItemNo().trim().isEmpty()) {
+				return "colis without an ERP item number";
+			}
+			if (row.getNbColis() == null || row.getNbColis() < 1) {
+				return "item " + row.getNavItemNo().trim() + ": the number of colis must be 1 or more";
+			}
+			if (!colisItems.add(row.getNavItemNo().trim())) {
+				return "item " + row.getNavItemNo().trim() + ": colis given twice";
+			}
+		}
+		for (StoreOrderDTO.Line line : lines) {
 			if (line == null || line.getItemCode() == null || line.getItemCode().trim().isEmpty()) {
 				return "a line without an item code";
 			}
@@ -249,8 +266,22 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 		order.setReceivedAt(clock.get());
 		order.setNote(cut(blankToNull(dto.getNote()), HoStoreOrder.NOTE_LENGTH));
 		order.setCreatedBy(store.getCode());
+		int totalColis = 0;
+		for (StoreOrderDTO.Colis row : dto.getColis() == null ? Collections.<StoreOrderDTO.Colis>emptyList() : dto.getColis()) {
+			HoStoreOrderColis colis = new HoStoreOrderColis();
+			colis.setOrder(order);
+			colis.setNavItemNo(row.getNavItemNo().trim());
+			colis.setDescription(cut(blankToNull(row.getDescription()), 255));
+			colis.setNbColis(row.getNbColis());
+			colis.setContenance(row.getContenance());
+			colis.setColisPossibles(row.getColisPossibles());
+			colis.setCreatedBy(store.getCode());
+			order.getColis().add(colis);
+			totalColis += row.getNbColis();
+		}
+		order.setTotalColis(totalColis);
 		BigDecimal total = BigDecimal.ZERO;
-		for (StoreOrderDTO.Line dtoLine : dto.getLines()) {
+		for (StoreOrderDTO.Line dtoLine : dto.getLines() == null ? Collections.<StoreOrderDTO.Line>emptyList() : dto.getLines()) {
 			HoStoreOrderLine line = new HoStoreOrderLine();
 			line.setOrder(order);
 			line.setItemCode(cut(dtoLine.getItemCode().trim(), 100));
@@ -336,6 +367,11 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 			sales.getLines().add(new ErpSalesOrderDTO.Line(itemNoOf(line),
 					line.getVariantCode() == null ? "" : line.getVariantCode(), line.getQuantity()));
 		}
+		// 3.1.1: each colis row, a line of colis of its item (the pieces they hold when known, informative)
+		for (HoStoreOrderColis colis : order.getColis()) {
+			sales.getLines().add(ErpSalesOrderDTO.Line.colis(colis.getNavItemNo(), colis.getNbColis(),
+					colis.getContenance() == null ? null : BigDecimal.valueOf((long) colis.getNbColis() * colis.getContenance())));
+		}
 		return sales;
 	}
 
@@ -410,7 +446,21 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 		order.setNavMessage(cut(blankToNull(answer.getOrderMessage()), HoStoreOrder.NAV_MESSAGE_LENGTH));
 		Map<String, BigDecimal> accepted = new HashMap<>();
 		Map<String, String> messages = new HashMap<>();
+		Map<String, Integer> colisAccepted = new HashMap<>();
+		Map<String, String> colisMessages = new HashMap<>();
 		for (ErpSalesOrderResult.Line line : answer.getLines()) {
+			if (line.isColis()) {
+				// 3.1.1: the answer of a colis line, by its item
+				String item = line.getItemNo() == null ? "" : line.getItemNo().trim();
+				if (line.getAcceptedColis() != null) {
+					colisAccepted.merge(item, line.getAcceptedColis(), Integer::sum);
+				}
+				String message = blankToNull(line.getMessage());
+				if (message != null) {
+					colisMessages.merge(item, message, (first, second) -> first + " / " + second);
+				}
+				continue;
+			}
 			String key = lineKey(line.getItemNo(), line.getVariantCode());
 			if (line.getAcceptedQty() != null) {
 				accepted.merge(key, line.getAcceptedQty(), BigDecimal::add);
@@ -425,6 +475,10 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 			BigDecimal quantity = accepted.get(key);
 			line.setNavAcceptedQty(quantity == null ? null : quantity.setScale(Quantities.SCALE, RoundingMode.HALF_UP));
 			line.setNavLineMessage(cut(messages.get(key), HoStoreOrder.NAV_MESSAGE_LENGTH));
+		}
+		for (HoStoreOrderColis colis : order.getColis()) {
+			colis.setNavAcceptedColis(colisAccepted.get(colis.getNavItemNo().trim()));
+			colis.setNavMessage(cut(colisMessages.get(colis.getNavItemNo().trim()), HoStoreOrder.NAV_MESSAGE_LENGTH));
 		}
 	}
 
@@ -637,7 +691,7 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 	private static String seenByStore(HoStoreOrder order) {
 		StoreOrderStatusCopyDTO copy = copyOf(order);
 		return copy.getStatus() + "|" + copy.getNavOrderNo() + "|" + copy.getErrorMessage() + "|" + copy.getNavMessage()
-				+ "|" + copy.getLines() + "|" + copy.getInvoiceNo() + "|" + copy.getDeliveredAt();
+				+ "|" + copy.getLines() + "|" + copy.getColis() + "|" + copy.getInvoiceNo() + "|" + copy.getDeliveredAt();
 	}
 
 	/**
@@ -659,6 +713,10 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 				.anyMatch(line -> line.getNavAcceptedQty() != null || line.getNavLineMessage() != null)) {
 			copy.setLines(order.getLines().stream().map(line -> new StoreOrderStatusCopyDTO.Line(line.getItemCode(),
 					line.getNavAcceptedQty(), line.getNavLineMessage())).collect(Collectors.toList()));
+		}
+		if (order.getColis().stream().anyMatch(colis -> colis.getNavAcceptedColis() != null || colis.getNavMessage() != null)) {
+			copy.setColis(order.getColis().stream().map(colis -> new StoreOrderStatusCopyDTO.Colis(colis.getNavItemNo(),
+					colis.getNavAcceptedColis(), colis.getNavMessage())).collect(Collectors.toList()));
 		}
 		LocalDateTime at = order.getUpdatedAt();
 		copy.setStatusAt(at == null ? null : at.withNano(0).toString());

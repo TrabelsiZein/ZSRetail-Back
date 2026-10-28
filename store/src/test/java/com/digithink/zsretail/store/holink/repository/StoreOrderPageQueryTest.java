@@ -20,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import com.digithink.zsretail.core.service.ItemBarcodeService;
 import com.digithink.zsretail.store.holink.enumeration.StoreOrderStatus;
 import com.digithink.zsretail.store.holink.model.StoreOrder;
+import com.digithink.zsretail.store.holink.model.StoreOrderColis;
 import com.digithink.zsretail.store.holink.model.StoreOrderLine;
 
 /**
@@ -43,6 +44,7 @@ class StoreOrderPageQueryTest {
 		page = query.value();
 		count = query.countQuery();
 		sessions = new Configuration().addAnnotatedClass(StoreOrder.class).addAnnotatedClass(StoreOrderLine.class)
+				.addAnnotatedClass(StoreOrderColis.class)
 				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", "jdbc:h2:mem:storeorders;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
 				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")

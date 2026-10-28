@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.digithink.zsretail.headoffice.model.HoStoreOrder;
+import com.digithink.zsretail.headoffice.model.HoStoreOrderColis;
 import com.digithink.zsretail.headoffice.model.HoStoreOrderLine;
 import com.digithink.zsretail.headoffice.model.Store;
 
@@ -46,11 +47,30 @@ public class HoStoreOrderDTO {
 	private LocalDateTime lastAttemptAt;
 	private String note;
 	private int lineCount;
+	/** The pieces of the lines (the colis apart). */
 	private BigDecimal totalQty;
+	/** 3.1.1: the colis in all. */
+	private int totalColis;
 	/** Who posted it by hand or rejected it, as the last change names it. */
 	private String updatedBy;
 	/** Null in a list row. */
 	private List<Line> lines;
+	/** 3.1.1: the colis, one per ERP item; null in a list row. */
+	private List<Colis> colis;
+
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class Colis {
+		private Long id;
+		private String navItemNo;
+		private String description;
+		private int nbColis;
+		private Integer contenance;
+		private Integer colisPossibles;
+		private Integer navAcceptedColis;
+		private String navMessage;
+	}
 
 	@Data
 	@NoArgsConstructor
@@ -92,6 +112,7 @@ public class HoStoreOrderDTO {
 		view.setNote(order.getNote());
 		view.setLineCount(order.getLineCount());
 		view.setTotalQty(order.getTotalQty());
+		view.setTotalColis(order.getTotalColis());
 		view.setUpdatedBy(order.getUpdatedBy());
 		return view;
 	}
@@ -100,7 +121,13 @@ public class HoStoreOrderDTO {
 	public static HoStoreOrderDTO of(HoStoreOrder order, Store store) {
 		HoStoreOrderDTO view = row(order, store);
 		view.setLines(order.getLines().stream().map(HoStoreOrderDTO::line).collect(Collectors.toList()));
+		view.setColis(order.getColis().stream().map(HoStoreOrderDTO::colis).collect(Collectors.toList()));
 		return view;
+	}
+
+	private static Colis colis(HoStoreOrderColis colis) {
+		return new Colis(colis.getId(), colis.getNavItemNo(), colis.getDescription(), colis.getNbColis(),
+				colis.getContenance(), colis.getColisPossibles(), colis.getNavAcceptedColis(), colis.getNavMessage());
 	}
 
 	private static Line line(HoStoreOrderLine line) {

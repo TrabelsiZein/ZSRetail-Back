@@ -81,6 +81,15 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `invoiceNo` and `deliveredAt` and the store writes DELIVERED. erp-api: `ErpSupplyInvoiceDTO.orderNo` (null for the
   connectors that give none: Happyness and EMTOP unchanged); connector-zen: `orderNo` of `salesInvoices`. Store:
   `GET /admin/deliveries/by-number?number=` (a received document by its number, 404 when not here).
+- Store orders, colis (ZEN's série): an order holds colis of an ERP item apart from its lines (`hol_order_colis` /
+  `ho_store_order_colis`, one row per item: nb_colis, contenance, colis_possibles, NAV's colis accepted and message;
+  `total_colis` on both orders, `total_qty` the pieces of the lines only). Store `POST /store-order/draft/colis` (0
+  removes; above the colis possibles 409, checked again at the send) and `DELETE /store-order/draft/colis?navItemNo=`;
+  `draftColis` in the variants answer; an order of colis alone is sent and taken. The head office posts each as a colis
+  line (erp-api `ErpSalesOrderDTO.Line.nbColis`; answer `ErpSalesOrderResult.Line.colis` / `acceptedColis`), keeps
+  NAV's answer on the colis row and sends it down (`StoreOrderStatusCopyDTO.colis`). connector-zen: a colis line
+  `{article, mode: "colis", nbColis}` (pieces lines keep `erp.zen.order.mode`, vrac), NAV's `colisAcceptes` read on
+  colis lines, a colis line missing until NAV has one of the item; details gain "Types de série" (`qteSerieType`).
 - Store orders, `GET /store-order/last?navItemNo=`: the last order of this store sent with a line of that ERP item (not
   a draft, not cancelled): number, status, date, and its quantity of each variant (the variants window's "Dernière
   commande"); 204 without one.
@@ -154,6 +163,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `nav_line_message` (head office), all NULL, each added when missing (a start adds them too).
 - `store-orders.sql`: columns `invoice_no` varchar(30) and `delivered_at` date, NULL, on `hol_order` (store) and
   `ho_store_order` (head office), each added when missing (a start adds them too): the invoice of a DELIVERED order.
+- `store-orders.sql`: tables `hol_order_colis` (store; unique order and item; FK to `hol_order`) and
+  `ho_store_order_colis` (head office; FK to `ho_store_order`, index on the order), columns `hol_order.total_colis` and
+  `ho_store_order.total_colis` int NULL, each when missing.
 - `store-orders.sql`: column `ho_erp_invoice.order_no` varchar(50) NULL and index `ix_ho_erp_invoice_order` (head
   office), each added when missing: the sales order an ERP invoice names. The invoices read before keep none.
 - `store-orders.sql`, step 2: tables `ho_store_order` (unique `store_id`, `number`; FK to `ho_store`; index

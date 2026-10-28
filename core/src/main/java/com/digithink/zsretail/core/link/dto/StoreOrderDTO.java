@@ -37,6 +37,24 @@ public class StoreOrderDTO {
 
 	private List<Line> lines = new ArrayList<>();
 
+	/** 3.1.1: the colis ordered, one per ERP item (an older head office ignores them). */
+	private List<Colis> colis = new ArrayList<>();
+
+	/** 3.1.1: a number of colis of an ERP item (ZEN's série: contenance pieces each). */
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	public static class Colis {
+		private String navItemNo;
+		private String description;
+		private Integer nbColis;
+		/** The pieces in one colis, as the head office gave them; null when unknown (informative). */
+		private Integer contenance;
+		/** The colis the head office had made available when the store added them; null when none was given. */
+		private Integer colisPossibles;
+	}
+
 	/** One variant ordered. */
 	@Data
 	@NoArgsConstructor

@@ -11,7 +11,7 @@
 -- hol_order_line.available_qty, the availability a line was ordered against (added when missing);
 -- hol_order.nav_message, hol_order_line.nav_accepted_qty and nav_line_message, NAV's answer as the head office sends it
 -- down (added when missing); hol_order.invoice_no and delivered_at, NAV's invoice of a DELIVERED order (added when
--- missing).
+-- missing); hol_order_colis, the colis of an ERP item in an order (ZEN's série), and hol_order.total_colis.
 -- They exist, empty, on every store; only a store whose goods come from the head office uses them.
 --
 -- Schema, store and head office: item_image, the images of an item (any number, in sort order). Nothing writes it yet;
@@ -21,7 +21,8 @@
 -- stores send, one per store and number (uk_ho_store_order_number), with the names and types Hibernate uses, and
 -- NAV's answer when the order was posted: ho_store_order.nav_message, ho_store_order_line.nav_accepted_qty and
 -- nav_line_message (added when missing); ho_store_order.invoice_no and delivered_at, the ERP invoice that delivered it
--- (status DELIVERED, set by the invoice import from the invoice's orderNo; added when missing); ho_erp_invoice.order_no
+-- (status DELIVERED, set by the invoice import from the invoice's orderNo; added when missing); ho_store_order_colis and
+-- ho_store_order.total_colis, the colis of the stores' orders; ho_erp_invoice.order_no
 -- and its index ix_ho_erp_invoice_order, the sales order an ERP invoice names (added when missing; the invoices read
 -- before keep none). They exist, empty, on every head office; only one with
 -- headoffice.storeorders.post set takes orders.
@@ -131,6 +132,38 @@ IF OBJECT_ID(N'hol_order', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order', N'deli
 	ALTER TABLE hol_order ADD delivered_at date NULL;
 GO
 
+-- The colis of an ERP item in an order (a store only; as the entity StoreOrderColis): one row per item and order, apart
+-- from the lines (a colis is of the item, never of a variant); the head office's figures when added, NAV's answer
+IF OBJECT_ID(N'ho_store', N'U') IS NULL AND OBJECT_ID(N'hol_order', N'U') IS NOT NULL
+	AND OBJECT_ID(N'hol_order_colis', N'U') IS NULL
+BEGIN
+	CREATE TABLE hol_order_colis (
+		id bigint IDENTITY(1,1) NOT NULL,
+		active bit NULL,
+		created_at datetime2 NULL,
+		created_by varchar(255) NULL,
+		updated_at datetime2 NULL,
+		updated_by varchar(255) NULL,
+		order_id bigint NOT NULL,
+		nav_item_no varchar(255) NOT NULL,
+		description varchar(255) NULL,
+		nb_colis int NOT NULL,
+		contenance int NULL,
+		colis_possibles int NULL,
+		nav_accepted_colis int NULL,
+		nav_message varchar(500) NULL,
+		CONSTRAINT PK_hol_order_colis PRIMARY KEY (id),
+		CONSTRAINT uk_hol_order_colis_item UNIQUE (order_id, nav_item_no),
+		CONSTRAINT fk_hol_order_colis_order FOREIGN KEY (order_id) REFERENCES hol_order (id)
+	);
+END
+GO
+
+-- The colis of an order in all (total_qty counts the pieces of the lines only). Added to a table of an earlier run too.
+IF OBJECT_ID(N'hol_order', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order', N'total_colis') IS NULL
+	ALTER TABLE hol_order ADD total_colis int NULL;
+GO
+
 -- The images of an item (store and head office; as the entity ItemImage)
 IF OBJECT_ID(N'item_image', N'U') IS NULL
 BEGIN
@@ -230,6 +263,36 @@ IF OBJECT_ID(N'ho_store_order', N'U') IS NOT NULL AND COL_LENGTH(N'ho_store_orde
 GO
 IF OBJECT_ID(N'ho_store_order', N'U') IS NOT NULL AND COL_LENGTH(N'ho_store_order', N'delivered_at') IS NULL
 	ALTER TABLE ho_store_order ADD delivered_at date NULL;
+GO
+
+-- The colis of the stores' orders (a head office only; as the entity HoStoreOrderColis), as the store sent them, NAV's
+-- answer once posted (its colisAcceptes and message)
+IF OBJECT_ID(N'ho_store', N'U') IS NOT NULL AND OBJECT_ID(N'ho_store_order', N'U') IS NOT NULL
+	AND OBJECT_ID(N'ho_store_order_colis', N'U') IS NULL
+BEGIN
+	CREATE TABLE ho_store_order_colis (
+		id bigint IDENTITY(1,1) NOT NULL,
+		active bit NULL,
+		created_at datetime2 NULL,
+		created_by varchar(255) NULL,
+		updated_at datetime2 NULL,
+		updated_by varchar(255) NULL,
+		order_id bigint NOT NULL,
+		nav_item_no varchar(255) NOT NULL,
+		description varchar(255) NULL,
+		nb_colis int NOT NULL,
+		contenance int NULL,
+		colis_possibles int NULL,
+		nav_accepted_colis int NULL,
+		nav_message varchar(500) NULL,
+		CONSTRAINT PK_ho_store_order_colis PRIMARY KEY (id),
+		CONSTRAINT fk_ho_store_order_colis_order FOREIGN KEY (order_id) REFERENCES ho_store_order (id)
+	);
+	CREATE INDEX ix_ho_store_order_colis_order ON ho_store_order_colis (order_id);
+END
+GO
+IF OBJECT_ID(N'ho_store_order', N'U') IS NOT NULL AND COL_LENGTH(N'ho_store_order', N'total_colis') IS NULL
+	ALTER TABLE ho_store_order ADD total_colis int NULL;
 GO
 
 -- The sales order an ERP invoice names (its orderNo), kept so that an order posted after its invoice was read is

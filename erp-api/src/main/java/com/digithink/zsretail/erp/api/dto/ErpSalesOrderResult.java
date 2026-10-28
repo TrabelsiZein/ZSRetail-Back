@@ -50,5 +50,14 @@ public class ErpSalesOrderResult extends ErpOperationResult {
 		private BigDecimal acceptedQty;
 		/** The ERP's message on the line; null when it gave none. */
 		private String message;
+		/** 3.1.1: a line of colis (the answer of a colis line). */
+		private boolean colis;
+		/** 3.1.1: the colis the ERP accepted on a colis line; null when it gave none. */
+		private Integer acceptedColis;
+
+		/** A line of pieces. */
+		public Line(String itemNo, String variantCode, BigDecimal acceptedQty, String message) {
+			this(itemNo, variantCode, acceptedQty, message, false, null);
+		}
 	}
 }

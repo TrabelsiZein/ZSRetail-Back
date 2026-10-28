@@ -21,12 +21,14 @@ import org.springframework.data.domain.Pageable;
 
 import com.digithink.zsretail.store.holink.enumeration.StoreOrderStatus;
 import com.digithink.zsretail.store.holink.model.StoreOrder;
+import com.digithink.zsretail.store.holink.model.StoreOrderColis;
 import com.digithink.zsretail.store.holink.model.StoreOrderLine;
 
 /**
  * 3.1.1, the variants window's last order (StoreOrderRepository.findWithNavItem), run as it is with Hibernate over an
  * in-memory H2 database (no Spring context). Orders, by id: A (POSTED, 43ZBPND01), B (SENT, another item), C (CANCELLED,
- * 43ZBPND01), D (DRAFT, 43ZBPND01): the last one sent with the item is A, whatever came after it.
+ * 43ZBPND01), D (DRAFT, 43ZBPND01), E (SENT, colis of 55ZCOLIS1 only): the last one sent with the item is A, whatever
+ * came after it; an order holding only colis of an item is one of its orders (E).
  */
 class StoreOrderLastQueryTest {
 
@@ -39,6 +41,7 @@ class StoreOrderLastQueryTest {
 				Pageable.class);
 		statement = method.getAnnotation(org.springframework.data.jpa.repository.Query.class).value();
 		sessions = new Configuration().addAnnotatedClass(StoreOrder.class).addAnnotatedClass(StoreOrderLine.class)
+				.addAnnotatedClass(StoreOrderColis.class)
 				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", "jdbc:h2:mem:storeorderlast;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
 				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
@@ -49,6 +52,11 @@ class StoreOrderLastQueryTest {
 			line(session, order(session, "B", StoreOrderStatus.SENT), 2L, "32ZFCHD21");
 			line(session, order(session, "C", StoreOrderStatus.CANCELLED), 1L, "43ZBPND01");
 			line(session, order(session, "D", StoreOrderStatus.DRAFT), 1L, "43ZBPND01");
+			StoreOrderColis colis = new StoreOrderColis();
+			colis.setOrder(order(session, "E", StoreOrderStatus.SENT));
+			colis.setNavItemNo("55ZCOLIS1");
+			colis.setNbColis(3);
+			session.persist(colis);
 			session.getTransaction().commit();
 		}
 	}
@@ -93,6 +101,7 @@ class StoreOrderLastQueryTest {
 		assertEquals("A", run("43ZBPND01", sent));
 		assertEquals("B", run("32ZFCHD21", sent));
 		assertEquals("", run("99ZZZZZ99", sent));
+		assertEquals("E", run("55ZCOLIS1", sent), "colis only: one of the item's orders");
 		assertEquals("D", run("43ZBPND01", Arrays.asList(StoreOrderStatus.values())), "newest first");
 	}
 }

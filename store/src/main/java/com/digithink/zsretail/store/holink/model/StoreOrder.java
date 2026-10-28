@@ -37,7 +37,7 @@ import lombok.ToString;
 		indexes = @Index(name = "ix_hol_order_status", columnList = "status, created_at"))
 @Data
 @EqualsAndHashCode(callSuper = false)
-@ToString(exclude = "lines")
+@ToString(exclude = { "lines", "colis" })
 @NoArgsConstructor
 public class StoreOrder extends _BaseEntity {
 
@@ -92,7 +92,20 @@ public class StoreOrder extends _BaseEntity {
 	@OrderBy("id")
 	private List<StoreOrderLine> lines = new ArrayList<>();
 
-	/** lineCount and totalQty from the lines. */
+	/** 3.1.1: the colis of the order, one row per ERP item. */
+	@OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+	@OrderBy("id")
+	private List<StoreOrderColis> colis = new ArrayList<>();
+
+	/** 3.1.1: the colis of the order in all (total_qty counts the pieces of the lines only); null on older rows. */
+	@Column(name = "total_colis")
+	private Integer totalColis;
+
+	public int getTotalColis() {
+		return totalColis == null ? 0 : totalColis;
+	}
+
+	/** lineCount and totalQty from the lines (pieces), totalColis from the colis. */
 	public void recount() {
 		lineCount = lines.size();
 		BigDecimal total = BigDecimal.ZERO;
@@ -100,6 +113,12 @@ public class StoreOrder extends _BaseEntity {
 			total = total.add(line.getQuantity() == null ? BigDecimal.ZERO : line.getQuantity());
 		}
 		totalQty = Quantities.normalize(total);
+		totalColis = colis.stream().mapToInt(StoreOrderColis::getNbColis).sum();
+	}
+
+	/** Nothing ordered: no line and no colis. */
+	public boolean isEmpty() {
+		return lines.isEmpty() && colis.isEmpty();
 	}
 
 	/** 3 decimals at most (DECIMAL(18,3)), read without trailing zeros. */

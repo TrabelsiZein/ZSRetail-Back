@@ -36,8 +36,9 @@ public interface StoreOrderRepository extends _BaseRepository<StoreOrder, Long> 
 	 * 3.1.1: the orders of these statuses holding a line of this ERP item number, newest first (the variants window's
 	 * last order: the first one).
 	 */
-	@Query("select o from StoreOrder o where o.status in :statuses and exists (select l.id from StoreOrderLine l"
-			+ " where l.order = o and l.navItemNo = :navItemNo) order by o.id desc")
+	@Query("select o from StoreOrder o where o.status in :statuses and (exists (select l.id from StoreOrderLine l"
+			+ " where l.order = o and l.navItemNo = :navItemNo) or exists (select c.id from StoreOrderColis c"
+			+ " where c.order = o and c.navItemNo = :navItemNo)) order by o.id desc")
 	List<StoreOrder> findWithNavItem(@Param("navItemNo") String navItemNo,
 			@Param("statuses") Collection<StoreOrderStatus> statuses, Pageable page);
 

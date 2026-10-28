@@ -19,6 +19,7 @@ import com.digithink.zsretail.core.link.dto.StoreOrderStatusCopyDTO;
 import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.store.holink.enumeration.StoreOrderStatus;
 import com.digithink.zsretail.store.holink.model.StoreOrder;
+import com.digithink.zsretail.store.holink.model.StoreOrderColis;
 import com.digithink.zsretail.store.holink.model.StoreOrderLine;
 import com.digithink.zsretail.store.holink.repository.StoreOrderRepository;
 
@@ -93,6 +94,26 @@ public class StoreOrderStatusWriter {
 			if (!sameQuantity(line.getNavAcceptedQty(), accepted) || !Objects.equals(line.getNavLineMessage(), message)) {
 				line.setNavAcceptedQty(accepted);
 				line.setNavLineMessage(message);
+				linesChanged = true;
+			}
+		}
+		// 3.1.1: NAV's answer on the colis, by ERP item number (a row not in the copy keeps none)
+		Map<String, StoreOrderStatusCopyDTO.Colis> colisAnswers = new HashMap<>();
+		if (copy.getColis() != null) {
+			for (StoreOrderStatusCopyDTO.Colis answer : copy.getColis()) {
+				if (answer != null && answer.getNavItemNo() != null) {
+					colisAnswers.put(answer.getNavItemNo().trim(), answer);
+				}
+			}
+		}
+		for (StoreOrderColis colis : order.getColis()) {
+			StoreOrderStatusCopyDTO.Colis answer = colisAnswers.get(colis.getNavItemNo().trim());
+			Integer accepted = answer == null ? null : answer.getAcceptedColis();
+			String message = answer == null ? null
+					: DeliveryReceptionService.cut(blankToNull(answer.getMessage()), StoreOrder.NAV_MESSAGE_LENGTH);
+			if (!Objects.equals(colis.getNavAcceptedColis(), accepted) || !Objects.equals(colis.getNavMessage(), message)) {
+				colis.setNavAcceptedColis(accepted);
+				colis.setNavMessage(message);
 				linesChanged = true;
 			}
 		}

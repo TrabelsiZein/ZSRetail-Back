@@ -25,6 +25,9 @@ public class StoreOrderVariantsDTO {
 
 	private List<Variant> variants = new ArrayList<>();
 
+	/** 3.1.1: the draft's colis of this item (null: none). */
+	private Integer draftColis;
+
 	@Data
 	@NoArgsConstructor
 	public static class Variant {

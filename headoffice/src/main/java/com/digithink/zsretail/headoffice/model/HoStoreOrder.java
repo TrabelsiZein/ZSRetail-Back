@@ -38,7 +38,7 @@ import lombok.ToString;
 		indexes = @Index(name = "ix_ho_store_order_status", columnList = "status, received_at"))
 @Data
 @EqualsAndHashCode(callSuper = false)
-@ToString(exclude = "lines")
+@ToString(exclude = { "lines", "colis" })
 @NoArgsConstructor
 public class HoStoreOrder extends _BaseEntity {
 
@@ -117,6 +117,19 @@ public class HoStoreOrder extends _BaseEntity {
 	@OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
 	@OrderBy("id")
 	private List<HoStoreOrderLine> lines = new ArrayList<>();
+
+	/** 3.1.1: the colis of the order, one row per ERP item. */
+	@OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+	@OrderBy("id")
+	private List<HoStoreOrderColis> colis = new ArrayList<>();
+
+	/** 3.1.1: the colis of the order in all (total_qty counts the pieces of the lines only); null on older rows. */
+	@Column(name = "total_colis")
+	private Integer totalColis;
+
+	public int getTotalColis() {
+		return totalColis == null ? 0 : totalColis;
+	}
 
 	/** 3 decimals at most (DECIMAL(18,3)), read without trailing zeros. */
 	public BigDecimal getTotalQty() {

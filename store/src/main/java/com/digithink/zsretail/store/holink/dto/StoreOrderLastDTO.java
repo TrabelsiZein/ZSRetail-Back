@@ -24,6 +24,8 @@ public class StoreOrderLastDTO {
 	private LocalDateTime date;
 	/** The order's lines of that ERP item only. */
 	private List<Line> lines;
+	/** 3.1.1: the order's colis of that ERP item (null: none). */
+	private Integer nbColis;
 
 	@Data
 	@NoArgsConstructor

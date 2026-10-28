@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.digithink.zsretail.store.holink.model.StoreOrder;
+import com.digithink.zsretail.store.holink.model.StoreOrderColis;
 import com.digithink.zsretail.store.holink.model.StoreOrderLine;
 
 import lombok.AllArgsConstructor;
@@ -37,9 +38,29 @@ public class StoreOrderViewDTO {
 	private LocalDate deliveredAt;
 	private String note;
 	private int lineCount;
+	/** The pieces of the lines (the colis apart). */
 	private BigDecimal totalQty;
+	/** 3.1.1: the colis in all. */
+	private int totalColis;
 	/** Null in a list row. */
 	private List<Line> lines;
+	/** 3.1.1: the colis, one per ERP item; null in a list row. */
+	private List<Colis> colis;
+
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class Colis {
+		private Long id;
+		private String navItemNo;
+		private String description;
+		private int nbColis;
+		private Integer contenance;
+		private Integer colisPossibles;
+		/** The colis the head office's ERP accepted when it posted the order (null: none given). */
+		private Integer navAcceptedColis;
+		private String navMessage;
+	}
 
 	@Data
 	@NoArgsConstructor
@@ -77,6 +98,7 @@ public class StoreOrderViewDTO {
 		view.setNote(order.getNote());
 		view.setLineCount(order.getLineCount());
 		view.setTotalQty(order.getTotalQty());
+		view.setTotalColis(order.getTotalColis());
 		return view;
 	}
 
@@ -84,7 +106,13 @@ public class StoreOrderViewDTO {
 	public static StoreOrderViewDTO of(StoreOrder order) {
 		StoreOrderViewDTO view = row(order);
 		view.setLines(order.getLines().stream().map(StoreOrderViewDTO::line).collect(Collectors.toList()));
+		view.setColis(order.getColis().stream().map(StoreOrderViewDTO::colis).collect(Collectors.toList()));
 		return view;
+	}
+
+	private static Colis colis(StoreOrderColis colis) {
+		return new Colis(colis.getId(), colis.getNavItemNo(), colis.getDescription(), colis.getNbColis(),
+				colis.getContenance(), colis.getColisPossibles(), colis.getNavAcceptedColis(), colis.getNavMessage());
 	}
 
 	private static Line line(StoreOrderLine line) {
