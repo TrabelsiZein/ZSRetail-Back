@@ -470,6 +470,7 @@ public class ZenMapper {
 			invoice.setCustomerName(blankToNull(row.text(ZenInvoiceRow.CUSTOMER_NAME)));
 			invoice.setDocumentDate(invoiceDate(row.text(ZenInvoiceRow.DOCUMENT_DATE)));
 			invoice.setPostingDate(invoiceDate(row.text(ZenInvoiceRow.POSTING_DATE)));
+			invoice.setOrderNo(blankToNull(row.text(ZenInvoiceRow.ORDER_NO)));
 			List<String> warnings = invoice.getWarnings();
 			if (row.isCorrective()) {
 				warnings.add(CORRECTIVE);

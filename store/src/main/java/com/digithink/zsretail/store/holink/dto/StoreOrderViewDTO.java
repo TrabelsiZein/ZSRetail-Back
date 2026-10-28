@@ -1,6 +1,7 @@
 package com.digithink.zsretail.store.holink.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -22,7 +23,7 @@ public class StoreOrderViewDTO {
 
 	private Long id;
 	private String number;
-	/** DRAFT, SENT, POSTED, ERROR or CANCELLED. */
+	/** DRAFT, SENT, POSTED, ERROR, CANCELLED or DELIVERED. */
 	private String status;
 	private LocalDateTime createdAt;
 	private String createdBy;
@@ -31,6 +32,9 @@ public class StoreOrderViewDTO {
 	private String errorMessage;
 	/** The head office's message from its ERP on the order when it was posted. */
 	private String navMessage;
+	/** DELIVERED: the invoice of the order (a document of the reception page) and its posting date. */
+	private String invoiceNo;
+	private LocalDate deliveredAt;
 	private String note;
 	private int lineCount;
 	private BigDecimal totalQty;
@@ -68,6 +72,8 @@ public class StoreOrderViewDTO {
 		view.setNavOrderNo(order.getNavOrderNo());
 		view.setErrorMessage(order.getErrorMessage());
 		view.setNavMessage(order.getNavMessage());
+		view.setInvoiceNo(order.getInvoiceNo());
+		view.setDeliveredAt(order.getDeliveredAt());
 		view.setNote(order.getNote());
 		view.setLineCount(order.getLineCount());
 		view.setTotalQty(order.getTotalQty());

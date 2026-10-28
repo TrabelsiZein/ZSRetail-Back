@@ -36,6 +36,8 @@ public class ZenInvoiceRow {
 	public static final String CUSTOMER_NAME = "sellToCustomerName";
 	public static final String DOCUMENT_DATE = "documentDate";
 	public static final String POSTING_DATE = "postingDate";
+	/** 3.1.1: the sales order the invoice delivers (the commandesVente numero, CV26000004); blank for none. */
+	public static final String ORDER_NO = "orderNo";
 	/** The total before VAT. */
 	public static final String AMOUNT = "amount";
 	/** The total with VAT. */

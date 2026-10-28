@@ -2,6 +2,8 @@ package com.digithink.zsretail.store.holink.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -23,9 +25,9 @@ import com.digithink.zsretail.store.holink.repository.StoreOrderRepository;
 /**
  * 3.1.1: what the head office did with an order of this store (record ORD:&lt;number&gt; of the SUPPLY copies down, kind
  * STORE_ORDER), written on the order by {@link SupplyDownHandler} inside its transaction: SENT, POSTED with its NAV
- * number and the answer of NAV (its message, per line by item code the quantity accepted and its message), or ERROR
- * with the reason. An order this store never sent (a draft, a cancelled one) or does not have is left as
- * it is. See docs/modules/store-orders.md.
+ * number and the answer of NAV (its message, per line by item code the quantity accepted and its message), ERROR
+ * with the reason, or DELIVERED with NAV's invoice number and its posting date. An order this store never sent (a draft,
+ * a cancelled one) or does not have is left as it is. See docs/modules/store-orders.md.
  */
 @Component
 @ConditionalOnInstallation(Installation.SUPPLY_FROM_HEAD_OFFICE)
@@ -33,7 +35,7 @@ public class StoreOrderStatusWriter {
 
 	/** The statuses the head office gives. */
 	static final List<StoreOrderStatus> FROM_HEAD_OFFICE = Arrays.asList(StoreOrderStatus.SENT, StoreOrderStatus.POSTED,
-			StoreOrderStatus.ERROR);
+			StoreOrderStatus.ERROR, StoreOrderStatus.DELIVERED);
 
 	/** What one record did. */
 	public enum Outcome {
@@ -68,6 +70,11 @@ public class StoreOrderStatusWriter {
 				? DeliveryReceptionService.cut(blankToNull(copy.getErrorMessage()), StoreOrder.ERROR_LENGTH)
 				: null;
 		String navMessage = DeliveryReceptionService.cut(blankToNull(copy.getNavMessage()), StoreOrder.NAV_MESSAGE_LENGTH);
+		boolean delivered = status == StoreOrderStatus.DELIVERED;
+		String invoiceNo = delivered
+				? DeliveryReceptionService.cut(blankToNull(copy.getInvoiceNo()), StoreOrder.INVOICE_NO_LENGTH)
+				: null;
+		LocalDate deliveredAt = delivered ? dayOf(copy.getDeliveredAt()) : null;
 		Map<String, StoreOrderStatusCopyDTO.Line> answers = new HashMap<>();
 		if (copy.getLines() != null) {
 			for (StoreOrderStatusCopyDTO.Line line : copy.getLines()) {
@@ -91,6 +98,7 @@ public class StoreOrderStatusWriter {
 		}
 		if (order.getStatus() == status && Objects.equals(order.getNavOrderNo(), navOrderNo)
 				&& Objects.equals(order.getErrorMessage(), error) && Objects.equals(order.getNavMessage(), navMessage)
+				&& Objects.equals(order.getInvoiceNo(), invoiceNo) && Objects.equals(order.getDeliveredAt(), deliveredAt)
 				&& !linesChanged) {
 			return Outcome.UNCHANGED;
 		}
@@ -98,9 +106,23 @@ public class StoreOrderStatusWriter {
 		order.setNavOrderNo(navOrderNo);
 		order.setErrorMessage(error);
 		order.setNavMessage(navMessage);
+		order.setInvoiceNo(invoiceNo);
+		order.setDeliveredAt(deliveredAt);
 		order.setUpdatedBy("Head office");
 		orders.save(order);
 		return Outcome.WRITTEN;
+	}
+
+	/** yyyy-MM-dd; null when absent or unreadable (information only). */
+	static LocalDate dayOf(String text) {
+		if (text == null || text.trim().isEmpty()) {
+			return null;
+		}
+		try {
+			return LocalDate.parse(text.trim());
+		} catch (DateTimeParseException e) {
+			return null;
+		}
 	}
 
 	private static boolean sameQuantity(BigDecimal first, BigDecimal second) {
@@ -116,7 +138,8 @@ public class StoreOrderStatusWriter {
 		} catch (IllegalArgumentException e) {
 			// below
 		}
-		throw new IllegalArgumentException("status " + status + " is not one the head office gives (SENT, POSTED, ERROR)");
+		throw new IllegalArgumentException(
+				"status " + status + " is not one the head office gives (SENT, POSTED, ERROR, DELIVERED)");
 	}
 
 	private static String blankToNull(String value) {

@@ -1,6 +1,7 @@
 package com.digithink.zsretail.store.holink.model;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,6 +45,7 @@ public class StoreOrder extends _BaseEntity {
 	public static final int NOTE_LENGTH = 500;
 	public static final int ERROR_LENGTH = 1000;
 	public static final int NAV_MESSAGE_LENGTH = 500;
+	public static final int INVOICE_NO_LENGTH = 30;
 
 	/** Store code, year and sequence, e.g. S01-2026-000012. */
 	@Column(nullable = false, length = NUMBER_LENGTH)
@@ -68,6 +70,14 @@ public class StoreOrder extends _BaseEntity {
 	/** NAV's message on the order when it was posted (its answer); null when it gave none. */
 	@Column(name = "nav_message", length = NAV_MESSAGE_LENGTH)
 	private String navMessage;
+
+	/** DELIVERED: NAV's invoice of the order, received as a document of "Réception des bons de livraison". */
+	@Column(name = "invoice_no", length = INVOICE_NO_LENGTH)
+	private String invoiceNo;
+
+	/** DELIVERED: the invoice's posting date. */
+	@Column(name = "delivered_at")
+	private LocalDate deliveredAt;
 
 	@Column(length = NOTE_LENGTH)
 	private String note;

@@ -24,7 +24,11 @@ public class StoreOrderStatusCopyDTO {
 
 	private String kind = KIND;
 	private String orderNumber;
-	/** SENT (at the head office, not in NAV yet), POSTED (in NAV, navOrderNo set) or ERROR (errorMessage set). */
+	/**
+	 * SENT (at the head office, not in NAV yet), POSTED (in NAV, navOrderNo set), ERROR (errorMessage set) or DELIVERED
+	 * (3.1.1: NAV invoiced it, invoiceNo and deliveredAt set). A store of an earlier build refuses DELIVERED (the record in
+	 * error, retried) until it is upgraded.
+	 */
 	private String status;
 	/** The NAV document number once posted. */
 	private String navOrderNo;
@@ -37,6 +41,10 @@ public class StoreOrderStatusCopyDTO {
 	 * by hand).
 	 */
 	private List<Line> lines;
+	/** DELIVERED: the ERP invoice of the order (the number the store receives it under, ERPINV:). */
+	private String invoiceNo;
+	/** DELIVERED: the invoice's posting date, yyyy-MM-dd. */
+	private String deliveredAt;
 	/** yyyy-MM-ddTHH:mm:ss, head office clock of the status. */
 	private String statusAt;
 

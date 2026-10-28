@@ -74,6 +74,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - The item copies down carry the item's URL images (`CatalogueItemCopyDTO.images`: url, main, sort); the store replaces
   its URL rows with them (its FILE rows kept; absent: kept). The store order catalogue's tile takes the first variant's
   main URL image when no variant has an `image_url`.
+- Store orders, status DELIVERED: on a head office that reads the ERP's invoices (`headoffice.supply.source=ERP`) and
+  takes store orders, an invoice saved by the import whose `orderNo` is a POSTED order's `nav_order_no` makes it
+  DELIVERED (`invoice_no` = the invoice number, `delivered_at` = its posting date) in the invoice's own transaction,
+  for the store whose ERP customer number is the invoice's; the run counts `ordersDelivered`. The `ORD:` copy carries
+  `invoiceNo` and `deliveredAt` and the store writes DELIVERED. erp-api: `ErpSupplyInvoiceDTO.orderNo` (null for the
+  connectors that give none: Happyness and EMTOP unchanged); connector-zen: `orderNo` of `salesInvoices`. Store:
+  `GET /admin/deliveries/by-number?number=` (a received document by its number, 404 when not here).
 
 ### Enhancements
 - Store orders, the lists: a `search` parameter on `GET /store-order` and `GET admin/headoffice/store-orders`, in the
@@ -138,6 +145,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - `store-orders.sql`: columns `hol_order.nav_message` varchar(500), `hol_order_line.nav_accepted_qty` numeric(18,3) and
   `nav_line_message` varchar(500) (store), `ho_store_order.nav_message`, `ho_store_order_line.nav_accepted_qty` and
   `nav_line_message` (head office), all NULL, each added when missing (a start adds them too).
+- `store-orders.sql`: columns `invoice_no` varchar(30) and `delivered_at` date, NULL, on `hol_order` (store) and
+  `ho_store_order` (head office), each added when missing (a start adds them too): the invoice of a DELIVERED order.
 - `store-orders.sql`, step 2: tables `ho_store_order` (unique `store_id`, `number`; FK to `ho_store`; index
   `ix_ho_store_order_status`) and `ho_store_order_line` (FK to `ho_store_order`) on a head office only. Re-runnable, no
   data changed.

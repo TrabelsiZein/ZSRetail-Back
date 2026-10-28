@@ -10,7 +10,8 @@
 -- and the filtered unique index ux_hol_order_draft (one DRAFT at a time; also made at each start, StoreOrderDraftIndex);
 -- hol_order_line.available_qty, the availability a line was ordered against (added when missing);
 -- hol_order.nav_message, hol_order_line.nav_accepted_qty and nav_line_message, NAV's answer as the head office sends it
--- down (added when missing).
+-- down (added when missing); hol_order.invoice_no and delivered_at, NAV's invoice of a DELIVERED order (added when
+-- missing).
 -- They exist, empty, on every store; only a store whose goods come from the head office uses them.
 --
 -- Schema, store and head office: item_image, the images of an item (any number, in sort order). Nothing writes it yet;
@@ -19,7 +20,8 @@
 -- Schema, head office only (step 2; a database with ho_store): ho_store_order and ho_store_order_line, the orders the
 -- stores send, one per store and number (uk_ho_store_order_number), with the names and types Hibernate uses, and
 -- NAV's answer when the order was posted: ho_store_order.nav_message, ho_store_order_line.nav_accepted_qty and
--- nav_line_message (added when missing). They exist, empty, on every head office; only one with
+-- nav_line_message (added when missing); ho_store_order.invoice_no and delivered_at, the ERP invoice that delivered it
+-- (status DELIVERED, set by the invoice import from the invoice's orderNo; added when missing). They exist, empty, on every head office; only one with
 -- headoffice.storeorders.post set takes orders.
 --
 -- Re-runnable: each object only when missing; no data changed.
@@ -118,6 +120,15 @@ IF OBJECT_ID(N'hol_order_line', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order_lin
 	ALTER TABLE hol_order_line ADD nav_line_message varchar(500) NULL;
 GO
 
+-- Delivered: NAV's invoice of the order (the document the store receives on "Réception des bons de livraison") and its
+-- posting date, as the head office sends them down with the status DELIVERED. Added to a table of an earlier run too.
+IF OBJECT_ID(N'hol_order', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order', N'invoice_no') IS NULL
+	ALTER TABLE hol_order ADD invoice_no varchar(30) NULL;
+GO
+IF OBJECT_ID(N'hol_order', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order', N'delivered_at') IS NULL
+	ALTER TABLE hol_order ADD delivered_at date NULL;
+GO
+
 -- The images of an item (store and head office; as the entity ItemImage)
 IF OBJECT_ID(N'item_image', N'U') IS NULL
 BEGIN
@@ -208,6 +219,15 @@ GO
 IF OBJECT_ID(N'ho_store_order_line', N'U') IS NOT NULL
 	AND COL_LENGTH(N'ho_store_order_line', N'nav_line_message') IS NULL
 	ALTER TABLE ho_store_order_line ADD nav_line_message varchar(500) NULL;
+GO
+
+-- Delivered: the ERP invoice whose orderNo is the order's ERP number (its number) and its posting date. Added to a table
+-- of an earlier run too.
+IF OBJECT_ID(N'ho_store_order', N'U') IS NOT NULL AND COL_LENGTH(N'ho_store_order', N'invoice_no') IS NULL
+	ALTER TABLE ho_store_order ADD invoice_no varchar(30) NULL;
+GO
+IF OBJECT_ID(N'ho_store_order', N'U') IS NOT NULL AND COL_LENGTH(N'ho_store_order', N'delivered_at') IS NULL
+	ALTER TABLE ho_store_order ADD delivered_at date NULL;
 GO
 
 SET NOEXEC OFF;

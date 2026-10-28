@@ -169,6 +169,11 @@ class DeliveryReceptionServiceTest {
 		assertEquals(5.0, transport.getLineAmount());
 		assertNull(transport.getUnitCost());
 
+		assertEquals(saved.getId(), reception.getByNumber(" " + NUMBER + " ").get().getId(),
+				"3.1.1: by its number, the link of a delivered order");
+		assertFalse(reception.getByNumber("FVE2699999").isPresent());
+		assertFalse(reception.getByNumber(" ").isPresent());
+
 		DeliveryReceptionService.Outcome again = reception.saveReceived(erpCopy(NUMBER, itemLine(20000, "B001", 99, 1)));
 		assertFalse(again.isWritten());
 		assertEquals(BigDecimal.valueOf(6), invoice().getLines().get(0).getQuantitySent(), "never changed");

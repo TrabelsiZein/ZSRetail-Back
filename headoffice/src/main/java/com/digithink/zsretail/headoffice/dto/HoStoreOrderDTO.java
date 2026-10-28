@@ -1,6 +1,7 @@
 package com.digithink.zsretail.headoffice.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -26,7 +27,7 @@ public class HoStoreOrderDTO {
 	private String storeCode;
 	private String storeName;
 	private String number;
-	/** SENT, POSTED, ERROR or REJECTED. */
+	/** SENT, POSTED, ERROR, REJECTED or DELIVERED. */
 	private String status;
 	private String locationCode;
 	private LocalDateTime sentAt;
@@ -38,6 +39,9 @@ public class HoStoreOrderDTO {
 	private String errorMessage;
 	/** NAV's message on the order when it was posted. */
 	private String navMessage;
+	/** DELIVERED: the ERP's invoice number and its posting date. */
+	private String invoiceNo;
+	private LocalDate deliveredAt;
 	private int postAttempts;
 	private LocalDateTime lastAttemptAt;
 	private String note;
@@ -81,6 +85,8 @@ public class HoStoreOrderDTO {
 		view.setPostedMode(order.getPostedMode() == null ? null : order.getPostedMode().name());
 		view.setErrorMessage(order.getErrorMessage());
 		view.setNavMessage(order.getNavMessage());
+		view.setInvoiceNo(order.getInvoiceNo());
+		view.setDeliveredAt(order.getDeliveredAt());
 		view.setPostAttempts(order.getPostAttempts());
 		view.setLastAttemptAt(order.getLastAttemptAt());
 		view.setNote(order.getNote());

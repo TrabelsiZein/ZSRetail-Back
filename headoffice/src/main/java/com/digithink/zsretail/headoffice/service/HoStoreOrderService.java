@@ -64,12 +64,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * (MANUAL mode), "reject" (both modes, never posted afterwards); "retry now" is the job's ({@link HoStoreOrderPosting}).
  * <p>
  * What became of an order goes down to its store only (domain SUPPLY, record ORD:&lt;number&gt;, kind STORE_ORDER), recorded
- * in the transaction of each change to POSTED, ERROR or REJECTED; REJECTED goes down as ERROR with its message (the
- * store has no such status). See docs/modules/store-orders.md.
+ * in the transaction of each change to POSTED, ERROR, REJECTED or DELIVERED; REJECTED goes down as ERROR with its message
+ * (the store has no such status). DELIVERED: the invoice import found the order's ERP number in an ERP invoice
+ * ({@link #deliveredBy}). See docs/modules/store-orders.md.
  */
 @Service
 @ConditionalOnInstallation(Installation.HEAD_OFFICE_STORE_ORDERS)
-public class HoStoreOrderService implements DownDomainProvider {
+public class HoStoreOrderService implements DownDomainProvider, StoreOrderDeliveries {
 
 	static final ObjectMapper COPY_MAPPER = new ObjectMapper();
 	static final int TIMEOUT_SECONDS = 15;
@@ -79,7 +80,7 @@ public class HoStoreOrderService implements DownDomainProvider {
 
 	/** The statuses that go down to the store: what the head office did with the order. */
 	static final List<HoStoreOrderStatus> COPIED_STATUSES = Arrays.asList(HoStoreOrderStatus.POSTED,
-			HoStoreOrderStatus.ERROR, HoStoreOrderStatus.REJECTED);
+			HoStoreOrderStatus.ERROR, HoStoreOrderStatus.REJECTED, HoStoreOrderStatus.DELIVERED);
 
 	/** The sorts of the list, by the page's name. */
 	static final Map<String, String> SORTS = new LinkedHashMap<>();
@@ -413,6 +414,52 @@ public class HoStoreOrderService implements DownDomainProvider {
 		return (itemNo == null ? "" : itemNo.trim()) + "\u0000" + (variantCode == null ? "" : variantCode.trim());
 	}
 
+	// ─── Delivered (the ERP's invoice of a posted order) ─────────
+
+	/**
+	 * The invoice import read an ERP invoice whose orderNo is this ERP order number: each POSTED order of that number
+	 * becomes DELIVERED, invoice_no the invoice's number, delivered_at its posting date (the head office's day when it has
+	 * none), and goes down to its store. Inside the import's transaction (the invoice and its orders saved together), the
+	 * rows locked. An order of another store than the invoice's customer (customer numbers both known and different) is
+	 * left as it is: a number typed by hand in MANUAL mode may be wrong. An order not POSTED (waiting, rejected, delivered
+	 * already by an earlier invoice) is left as it is.
+	 */
+	@Override
+	public int deliveredBy(String navOrderNo, String invoiceNo, LocalDate postingDate, String customerNo) {
+		String orderNo = blankToNull(navOrderNo);
+		String invoice = blankToNull(invoiceNo);
+		if (orderNo == null || invoice == null) {
+			return 0;
+		}
+		Integer changed = transactions.execute(status -> {
+			int count = 0;
+			for (HoStoreOrder order : orders.findForDelivery(orderNo, HoStoreOrderStatus.POSTED)) {
+				if (!ofCustomer(order, blankToNull(customerNo))) {
+					continue;
+				}
+				order.setStatus(HoStoreOrderStatus.DELIVERED);
+				order.setInvoiceNo(cut(invoice, HoStoreOrder.INVOICE_NO_LENGTH));
+				order.setDeliveredAt(postingDate != null ? postingDate : clock.get().toLocalDate());
+				order.setUpdatedBy(HEAD_OFFICE);
+				orders.save(order);
+				recordDown(order);
+				count++;
+			}
+			return count;
+		});
+		return changed == null ? 0 : changed;
+	}
+
+	/** True unless the order's store and the invoice name two different ERP customer numbers. */
+	private boolean ofCustomer(HoStoreOrder order, String customerNo) {
+		if (customerNo == null) {
+			return true;
+		}
+		Store store = stores.findById(order.getStoreId()).orElse(null);
+		String storeCustomer = store == null ? null : blankToNull(store.getErpCustomerNo());
+		return storeCustomer == null || storeCustomer.equalsIgnoreCase(customerNo);
+	}
+
 	// ─── Admin actions ───────────────────────────────────────────
 
 	/**
@@ -542,7 +589,7 @@ public class HoStoreOrderService implements DownDomainProvider {
 	private static String seenByStore(HoStoreOrder order) {
 		StoreOrderStatusCopyDTO copy = copyOf(order);
 		return copy.getStatus() + "|" + copy.getNavOrderNo() + "|" + copy.getErrorMessage() + "|" + copy.getNavMessage()
-				+ "|" + copy.getLines();
+				+ "|" + copy.getLines() + "|" + copy.getInvoiceNo() + "|" + copy.getDeliveredAt();
 	}
 
 	/**
@@ -558,6 +605,8 @@ public class HoStoreOrderService implements DownDomainProvider {
 		copy.setNavOrderNo(order.getNavOrderNo());
 		copy.setErrorMessage(order.getErrorMessage());
 		copy.setNavMessage(order.getNavMessage());
+		copy.setInvoiceNo(order.getInvoiceNo());
+		copy.setDeliveredAt(order.getDeliveredAt() == null ? null : order.getDeliveredAt().toString());
 		if (order.getLines().stream()
 				.anyMatch(line -> line.getNavAcceptedQty() != null || line.getNavLineMessage() != null)) {
 			copy.setLines(order.getLines().stream().map(line -> new StoreOrderStatusCopyDTO.Line(line.getItemCode(),
@@ -574,7 +623,7 @@ public class HoStoreOrderService implements DownDomainProvider {
 	}
 
 	/**
-	 * The orders of this store among the codes ORD:&lt;number&gt;, POSTED, ERROR or REJECTED; any other code has no entry
+	 * The orders of this store among the codes ORD:&lt;number&gt;, POSTED, ERROR, REJECTED or DELIVERED; any other code has no entry
 	 * here (another provider of the domain answers it, or it is answered as removed).
 	 */
 	@Override
@@ -590,7 +639,7 @@ public class HoStoreOrderService implements DownDomainProvider {
 		return copies;
 	}
 
-	/** Every order posted, in error or rejected, to its store (the startup backfill). */
+	/** Every order posted, in error, rejected or delivered, to its store (the startup backfill). */
 	@Override
 	public Map<String, StoreTargets> currentTargets() {
 		Map<String, StoreTargets> targets = new LinkedHashMap<>();

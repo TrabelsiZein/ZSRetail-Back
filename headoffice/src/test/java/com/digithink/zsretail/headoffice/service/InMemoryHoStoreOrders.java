@@ -71,6 +71,10 @@ final class InMemoryHoStoreOrders {
 							.filter(o -> o.getStoreId().equals(args[0]) && o.getNumber().equals(args[1])).findFirst();
 				case "save":
 					return save((HoStoreOrder) args[0]);
+				case "findForDelivery":
+					return orders.values().stream()
+							.filter(o -> args[0].equals(o.getNavOrderNo()) && o.getStatus() == args[1])
+							.sorted(Comparator.comparing(HoStoreOrder::getId)).collect(Collectors.toList());
 				case "findIdsByStatusIn":
 					return orders.values().stream().filter(o -> ((Collection<?>) args[0]).contains(o.getStatus()))
 							.sorted(Comparator.comparing(HoStoreOrder::getId)).limit(((Pageable) args[1]).getPageSize())

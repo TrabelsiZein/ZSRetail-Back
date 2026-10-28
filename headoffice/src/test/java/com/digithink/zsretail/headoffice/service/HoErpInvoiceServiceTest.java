@@ -276,6 +276,36 @@ class HoErpInvoiceServiceTest {
 	}
 
 	@Test
+	@DisplayName("3.1.1: a new invoice naming its sales order (orderNo) tells the store orders it delivers, with its number,"
+			+ " posting date and customer; none without orderNo, none for an invoice already here")
+	void deliversOrders() {
+		List<String> told = new ArrayList<>();
+		StoreOrderDeliveries deliveries = (orderNo, invoiceNo, postingDate, customerNo) -> {
+			told.add(orderNo + " " + invoiceNo + " " + postingDate + " " + customerNo);
+			return "CV26000004".equals(orderNo) ? 1 : 0;
+		};
+		service.useOrderDeliveries(deliveries);
+		twoInvoices();
+		erp.invoices.get(0).setOrderNo(" CV26000004 ");
+		erp.invoices.get(1).setOrderNo("CV26000099");
+		erp.invoices.add(invoice("FVV26000000103", "C-0001", item(10000, "6190000000017", "1", "6")));
+		Map<String, Object> summary = service.run();
+		assertEquals(Arrays.asList("CV26000004 FVV26000000101 2026-03-03 C-0001",
+				"CV26000099 FVV26000000102 2026-03-03 C-0009"), told);
+		assertEquals(1, summary.get("ordersDelivered"));
+
+		told.clear();
+		HoErpInvoiceService replaying = new HoErpInvoiceService(tables.repository(), ho.storeRepository(),
+				ho.itemRepository(), highest -> Collections.singletonList(erp.invoices.get(0)),
+				TransactionOperations.withoutTransaction(), () -> NOW);
+		replaying.useOrderDeliveries(deliveries);
+		Map<String, Object> again = replaying.run();
+		assertEquals(1, again.get("skipped"));
+		assertTrue(told.isEmpty(), "an invoice already here delivers nothing again: " + told);
+		assertNull(again.get("ordersDelivered"));
+	}
+
+	@Test
 	@DisplayName("Two runs: the second asks after the highest number of each year and saves nothing again; the first asks after none")
 	void twoRunsNoDuplicates() {
 		twoInvoices();

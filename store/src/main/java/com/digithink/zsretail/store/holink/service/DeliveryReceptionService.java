@@ -521,6 +521,15 @@ public class DeliveryReceptionService {
 		return deliveries.findById(id).map(d -> view(d, true, true));
 	}
 
+	/** 3.1.1: the document of this number (a BL or an ERP invoice), as {@link #get}; empty for a blank number. */
+	@Transactional(readOnly = true)
+	public Optional<ReceivedDeliveryDTO> getByNumber(String number) {
+		if (number == null || number.trim().isEmpty()) {
+			return Optional.empty();
+		}
+		return deliveries.findByNumber(number.trim()).map(d -> view(d, true, true));
+	}
+
 	/**
 	 * For the link page: {"toReceive": n, "received": n, "confirmations": {"PENDING": n, "SENT": n, "ERROR": n},
 	 * "stockWaiting": lines}.

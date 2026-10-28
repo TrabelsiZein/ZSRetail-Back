@@ -64,7 +64,9 @@ import lombok.extern.log4j.Log4j2;
  * <li>{@link #readNew}: the invoices after the head office's highest number of each year prefix (the connector starts a
  * year without one at its start number), each saved in its own transaction without a store. A number already here is
  * skipped (a run now beside the scheduler). The item codes not in the head office catalogue are listed in the warnings;
- * an invoice with a quantity of more than 3 decimals (2.2.1) or prices including the VAT is held. The first unexpected
+ * an invoice with a quantity of more than 3 decimals (2.2.1) or prices including the VAT is held. 3.1.1: an invoice that
+ * names the ERP's sales order it delivers (orderNo) marks the stores' orders posted under that number DELIVERED, in the
+ * invoice's transaction ({@link StoreOrderDeliveries}, on a head office that takes store orders). The first unexpected
  * failure stops the saving: the next run reads again after the highest number saved, so no invoice is passed over.</li>
  * <li>{@link #assignStores}: each invoice without a store and not held gets the store whose ERP customer number is its
  * customer, active and receiving from the head office (ownership.supply null or HEAD_OFFICE); otherwise its
@@ -147,6 +149,19 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 		this.clock = clock;
 		this.feed = feed;
 		this.sellerName = sellerName == null || sellerName.trim().isEmpty() ? DEFAULT_SELLER_NAME : sellerName.trim();
+	}
+
+	/** 3.1.1: the stores' orders an invoice delivers; none on a head office that takes no store order. */
+	private Supplier<StoreOrderDeliveries> orderDeliveries = () -> null;
+
+	@Autowired
+	public void setOrderDeliveries(ObjectProvider<StoreOrderDeliveries> orderDeliveries) {
+		this.orderDeliveries = orderDeliveries::getIfAvailable;
+	}
+
+	/** For the tests: the orders an invoice delivers. */
+	void useOrderDeliveries(StoreOrderDeliveries orderDeliveries) {
+		this.orderDeliveries = () -> orderDeliveries;
 	}
 
 	/** Stock points (release 2.2, step 3b): the rows of the points; null in the tests that do not set it. */
@@ -302,6 +317,7 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 		int saved = 0;
 		int skipped = 0;
 		int held = 0;
+		int[] delivered = { 0 };
 		String failure = null;
 		for (ErpSupplyInvoiceDTO invoice : read) {
 			String number = invoice == null || invoice.getNumber() == null ? "" : invoice.getNumber().trim();
@@ -311,7 +327,7 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 			}
 			Boolean outcome;
 			try {
-				outcome = writeTransactions.execute(status -> saveOne(invoice, number));
+				outcome = writeTransactions.execute(status -> saveOne(invoice, number, delivered));
 			} catch (DataIntegrityViolationException e) {
 				if (invoices.existsByBcNumber(number)) {
 					skipped++; // saved meanwhile by another run
@@ -334,16 +350,27 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 		summary.put("saved", saved);
 		summary.put("skipped", skipped);
 		summary.put("held", held);
+		if (delivered[0] > 0) {
+			summary.put("ordersDelivered", delivered[0]);
+		}
 		return failure;
 	}
 
-	/** Null when the number is already here; otherwise saved, true when held. */
-	private Boolean saveOne(ErpSupplyInvoiceDTO source, String number) {
+	/**
+	 * Null when the number is already here; otherwise saved, true when held. 3.1.1: the stores' orders it delivers marked
+	 * in the same transaction (counted in delivered[0]): saved together, or read again together at the next run.
+	 */
+	private Boolean saveOne(ErpSupplyInvoiceDTO source, String number, int[] delivered) {
 		if (invoices.existsByBcNumber(number)) {
 			return null;
 		}
 		HoErpInvoice invoice = build(source, number);
 		invoices.saveAndFlush(invoice); // a number saved meanwhile fails here (uk_ho_erp_invoice_number)
+		StoreOrderDeliveries deliveries = orderDeliveries.get();
+		String orderNo = blankToNull(source.getOrderNo());
+		if (deliveries != null && orderNo != null) {
+			delivered[0] += deliveries.deliveredBy(orderNo, number, source.getPostingDate(), source.getCustomerNo());
+		}
 		return invoice.getHeld();
 	}
 

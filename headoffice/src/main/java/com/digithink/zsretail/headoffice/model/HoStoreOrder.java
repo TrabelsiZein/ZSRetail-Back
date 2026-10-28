@@ -1,6 +1,7 @@
 package com.digithink.zsretail.headoffice.model;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,6 +46,7 @@ public class HoStoreOrder extends _BaseEntity {
 	public static final int NOTE_LENGTH = 500;
 	public static final int ERROR_LENGTH = 1000;
 	public static final int NAV_MESSAGE_LENGTH = 500;
+	public static final int INVOICE_NO_LENGTH = 30;
 
 	/** ho_store.id of the store that sent it. */
 	@Column(name = "store_id", nullable = false)
@@ -87,6 +89,14 @@ public class HoStoreOrder extends _BaseEntity {
 	/** NAV's message on the order when it was posted (its answer); null when it gave none. */
 	@Column(name = "nav_message", length = NAV_MESSAGE_LENGTH)
 	private String navMessage;
+
+	/** DELIVERED: the ERP's invoice of the order (its number, as ho_erp_invoice.bc_number). */
+	@Column(name = "invoice_no", length = INVOICE_NO_LENGTH)
+	private String invoiceNo;
+
+	/** DELIVERED: the invoice's posting date. */
+	@Column(name = "delivered_at")
+	private LocalDate deliveredAt;
 
 	/** The postings tried by the job or "retry now" (ERP mode). */
 	@Column(name = "post_attempts", nullable = false)

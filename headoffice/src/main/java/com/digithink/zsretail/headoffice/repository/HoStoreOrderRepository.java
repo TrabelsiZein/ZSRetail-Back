@@ -29,6 +29,11 @@ public interface HoStoreOrderRepository extends _BaseRepository<HoStoreOrder, Lo
 	@Query("select o from HoStoreOrder o where o.id = :id")
 	Optional<HoStoreOrder> findForUpdate(@Param("id") Long id);
 
+	/** The orders of this ERP number in this status, their rows locked until the end of the transaction (the deliveries). */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select o from HoStoreOrder o where o.navOrderNo = :navOrderNo and o.status = :status order by o.id")
+	List<HoStoreOrder> findForDelivery(@Param("navOrderNo") String navOrderNo, @Param("status") HoStoreOrderStatus status);
+
 	/** The ids of the orders of these statuses, oldest first (the job's run). */
 	@Query("select o.id from HoStoreOrder o where o.status in :statuses order by o.id")
 	List<Long> findIdsByStatusIn(@Param("statuses") Collection<HoStoreOrderStatus> statuses, Pageable page);

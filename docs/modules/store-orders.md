@@ -28,7 +28,7 @@ Nothing in the sales, returns, BL, stock or copies-down paths changed. The only 
 |---|---|
 | `store.holink.model.StoreOrder` | `hol_order`: number, status, sent at, NAV order number, error, note, line count, total quantity |
 | `store.holink.model.StoreOrderLine` | `hol_order_line`: one item (variant) of an order, its codes and descriptions copied |
-| `store.holink.enumeration.StoreOrderStatus` | `DRAFT`, `SENT`, `POSTED`, `ERROR`, `CANCELLED` |
+| `store.holink.enumeration.StoreOrderStatus` | `DRAFT`, `SENT`, `POSTED`, `ERROR`, `CANCELLED`, `DELIVERED` |
 | `store.holink.repository.StoreOrderRepository` | the draft, the row lock, the last number of a year, the list page |
 | `store.holink.service.StoreOrderService` | the rules: catalogue, variants with stock, draft, send, cancel, reads |
 | `store.holink.service.StoreOrderStatusWriter` | what the head office did with an order (copies down) |
@@ -41,7 +41,8 @@ Nothing in the sales, returns, BL, stock or copies-down paths changed. The only 
 
 `hol_order` (store only): `number` varchar(30) unique (`uk_hol_order_number`), `status` varchar(20), `sent_at`
 datetime2, `nav_order_no` varchar(50), `error_message` varchar(1000), `nav_message` varchar(500) (NAV's message when the
-head office posted it), `note` varchar(500), `line_count` int, `total_qty` numeric(18,3), plus the `_BaseEntity` columns (`created_at`, `created_by` = the user who made the draft). Index
+head office posted it), `invoice_no` varchar(30) and `delivered_at` date (NAV's invoice of a `DELIVERED` order and its
+posting date), `note` varchar(500), `line_count` int, `total_qty` numeric(18,3), plus the `_BaseEntity` columns (`created_at`, `created_by` = the user who made the draft). Index
 `ix_hol_order_status` (`status`, `created_at`); filtered unique index `ux_hol_order_draft` on `status` where
 `status = 'DRAFT'`: one draft at a time.
 
@@ -71,9 +72,11 @@ the start by `StoreOrderDraftIndex`.
 | `POSTED` | in NAV, `nav_order_no` set | the head office, down |
 | `ERROR` | the head office could not post it, `error_message` says why | the head office, down |
 | `CANCELLED` | a draft given up, never sent | the store |
+| `DELIVERED` | NAV invoiced it: `invoice_no` (the invoice the store receives on "Réceptions"), `delivered_at` (its posting date); `nav_order_no` kept | the head office, down |
 
-A status from the head office is written only on an order the store sent (`SENT`, `POSTED`, `ERROR`); a draft, a
-cancelled order or an unknown number is left as it is, noted on the tracking row.
+A status from the head office is written only on an order the store sent (`SENT`, `POSTED`, `ERROR`, `DELIVERED`); a
+draft, a cancelled order or an unknown number is left as it is, noted on the tracking row. `invoice_no` and
+`delivered_at` are kept only on a `DELIVERED` order (another status from the head office clears them).
 
 ## Rules
 
@@ -115,8 +118,8 @@ cancelled order or an unknown number is left as it is, noted on the tracking row
 | `GET /store-order/{id}` | the order with its lines |
 | `GET /item/{id}/images` | `[{id, source, path, sortOrder, main}]`, the main one first (core: store and head office) |
 
-An order is `{id, number, status, createdAt, createdBy, sentAt, navOrderNo, errorMessage, navMessage, note, lineCount,
-totalQty, lines: [{id, itemId, itemCode, navItemNo, variantCode, description, variantDescription, quantity,
+An order is `{id, number, status, createdAt, createdBy, sentAt, navOrderNo, errorMessage, navMessage, invoiceNo,
+deliveredAt, note, lineCount, totalQty, lines: [{id, itemId, itemCode, navItemNo, variantCode, description, variantDescription, quantity,
 availableQty, navAcceptedQty, navLineMessage}]}`. Errors are
 `{"error": "..."}`: 400 invalid data, 404, 409, 503.
 
@@ -157,7 +160,8 @@ location; dates `yyyy-MM-ddTHH:mm:ss`); answered by a `SalesCopyResultDTO` `{doc
 200 must name the same number; `accepted: false` is a refusal with its reason.
 
 **Statuses down**: copies down of the **SUPPLY** domain, record `ORD:<number>`, `StoreOrderStatusCopyDTO` `{kind:
-"STORE_ORDER", orderNumber, status, navOrderNo, errorMessage, navMessage, lines, statusAt}`, to that store only:
+"STORE_ORDER", orderNumber, status, navOrderNo, errorMessage, navMessage, lines, invoiceNo, deliveredAt, statusAt}`
+(`invoiceNo` and `deliveredAt` `yyyy-MM-dd` on a `DELIVERED` order only), to that store only:
 `navMessage` and `lines` `[{itemCode, acceptedQty, message}]` are NAV's answer when the head office posted the order
 (`lines` null when NAV answered none: not posted yet, posted by hand); the store writes them on the order and on its
 lines by item code (a line not in the copy keeps none), and a change of the answer alone is written too. The number is
@@ -187,10 +191,11 @@ local test file of the ZEN head office) say `ERP`; the Happyness, EMTOP and dev 
 | Class | Role |
 |---|---|
 | `headoffice.model.HoStoreOrder`, `HoStoreOrderLine` | `ho_store_order`, `ho_store_order_line` |
-| `headoffice.enumeration.HoStoreOrderStatus` | `SENT`, `POSTED`, `ERROR`, `REJECTED` |
+| `headoffice.enumeration.HoStoreOrderStatus` | `SENT`, `POSTED`, `ERROR`, `REJECTED`, `DELIVERED` |
 | `headoffice.enumeration.PostedMode` | `ERP`, `MANUAL` |
 | `headoffice.repository.HoStoreOrderRepository` | by store and number, the row lock, the job's ids, the copies down, the list page |
 | `headoffice.service.HoStoreOrderService` | reception, variant stock, "mark posted", "reject", reads; the SUPPLY provider of the `ORD:` records |
+| `headoffice.service.StoreOrderDeliveries` | what the invoice import tells of an invoice naming a sales order (implemented by `HoStoreOrderService`; absent without store orders) |
 | `headoffice.service.HoStoreOrderPosting` | the job `POST_STORE_ORDERS` and "retry now" (ERP mode), implements erp-api `ErpStoreOrderPosting` |
 | `headoffice.controller.HeadOfficeOrdersAPI` | `/ho/orders` (store key) |
 | `headoffice.controller.HoStoreOrderAPI` | `admin/headoffice/store-orders` (JWT) |
@@ -206,7 +211,8 @@ Shared code that changed: `CopiesDownFeed` takes several providers per domain (e
 `ho_store_order`: `store_id` (FK `fk_ho_store_order_store`), `number` varchar(30), unique (`store_id`, `number`)
 (`uk_ho_store_order_number`), `status` varchar(20), `location_code` varchar(50), `sent_at` (the store's clock),
 `received_at` (the head office's), `nav_order_no` varchar(50), `posted_at`, `posted_mode` varchar(10), `error_message`
-varchar(1000), `nav_message` varchar(500) (NAV's message on the order when posted), `post_attempts` int,
+varchar(1000), `nav_message` varchar(500) (NAV's message on the order when posted), `invoice_no` varchar(30) and
+`delivered_at` date (the ERP invoice that delivered it, its posting date), `post_attempts` int,
 `last_attempt_at`, `note` varchar(500), `line_count` int, `total_qty` numeric(18,3), plus the `_BaseEntity` columns (`created_by` = the store code, `updated_by` = who posted by hand or
 rejected). Index `ix_ho_store_order_status` (`status`, `received_at`).
 
@@ -224,6 +230,7 @@ Created by `db/3.1.1/store-orders.sql` when the database has `ho_store`; `ddl-au
 | `POSTED` | in the ERP, `nav_order_no`, `posted_at`, `posted_mode` ERP or MANUAL | `POSTED` with the number |
 | `ERROR` | the posting failed, `error_message`; ERP mode: posted again at each run, no limit | `ERROR` with the message |
 | `REJECTED` | refused by the head office with a message; never posted, by the job or by hand | `ERROR` with the message |
+| `DELIVERED` | a `POSTED` order an ERP invoice names (below, "Delivered"): `invoice_no`, `delivered_at` | `DELIVERED` with the invoice |
 
 Each change the store sees (status, ERP number, message, NAV's answer) records `ORD:<number>` in the same transaction, for that store
 only; the same failure again records nothing.
@@ -269,8 +276,37 @@ only; the same failure again records nothing.
 | `POST admin/headoffice/store-orders/{id}/retry` | the order after the posting (`POSTED`, or `ERROR` with the reason) |
 
 An order is `{id, storeId, storeCode, storeName, number, status, locationCode, sentAt, receivedAt, navOrderNo, postedAt,
-postedMode, errorMessage, navMessage, postAttempts, lastAttemptAt, note, lineCount, totalQty, updatedBy, lines: [{id,
+postedMode, errorMessage, navMessage, invoiceNo, deliveredAt, postAttempts, lastAttemptAt, note, lineCount, totalQty, updatedBy, lines: [{id,
 itemCode, navItemNo, variantCode, description, variantDescription, quantity, navAcceptedQty, navLineMessage}]}`.
+
+### Delivered (3.1.1)
+
+The ERP's invoice of a posted order makes it `DELIVERED`, on both sides. Generic: `ErpSupplyInvoiceDTO.orderNo` (erp-api)
+is the ERP's sales order an invoice delivers, null when the connector gives none (EMTOP and Happyness: no change).
+ZEN fills it from `orderNo` of the franchise page `salesInvoices` (the `commandesVente` `numero`, e.g. `CV26000004`;
+`ZenInvoiceRow.ORDER_NO`; the sample `salesInvoices.json` has `CV26000002`).
+
+- **Where**: a head office with `headoffice.supply.source=ERP` (the invoice import, job `IMPORT_SUPPLY_INVOICES`) **and**
+  `headoffice.storeorders.post` set (`StoreOrderDeliveries` is `HoStoreOrderService`); with one of them only, nothing.
+- **When**: an invoice is saved by the import (`HoErpInvoiceService.saveOne`), held or not, before its store is matched:
+  in **the invoice's transaction**, every `POSTED` `ho_store_order` whose `nav_order_no` is the invoice's `orderNo` (the
+  rows locked) becomes `DELIVERED`, `invoice_no` = the invoice number, `delivered_at` = its posting date (the head
+  office's day when it has none), and `ORD:<number>` is recorded for its store. Saved together or not at all: a failure
+  leaves the invoice unsaved, read again at the next run. The run's summary counts `ordersDelivered`.
+- **Not delivered**: an order of another store (the invoice's customer and the store's ERP customer number both known and
+  different: a number typed by hand in MANUAL mode may be wrong); an order not `POSTED` (waiting, rejected, delivered
+  already). A second invoice of the same order changes nothing: the first invoice is kept.
+- **Read once**: the import reads each invoice once (after the highest number). An invoice read before its order was
+  posted (MANUAL mode, the number typed after the invoice came) never delivers it: `ho_erp_invoice` keeps no `orderNo`.
+- **No action** takes a `DELIVERED` order (mark posted, reject, retry: 409, as on any order not waiting).
+- **The store**: `StoreOrderStatusWriter` writes `DELIVERED`, `invoice_no`, `delivered_at`. A store of an earlier
+  3.1.1 build refuses `DELIVERED` (the record in error, retried at each cycle) until it is upgraded. The invoice itself
+  reaches the store as before (`ERPINV:<number>`, once the import matched its store), on "Réceptions";
+  `GET /admin/deliveries/by-number?number=` answers it as `GET /admin/deliveries/{id}` (404 when not here yet).
+- **Screens**: "Livrée" (badge `light-primary`, a status of the filters) on both lists and order pages; the invoice
+  number under the ERP number in the lists; on the order's page (group Suivi / Traitement) the invoice and "Livrée le".
+  At the store the invoice links to "Réceptions" with `?number=` (the page opens it: to receive, or its detail; a toast
+  when it has not arrived); at the head office to the ERP invoices page with `?search=`.
 
 ### The job
 
@@ -368,6 +404,8 @@ on the Roles page.
 
 ## Still to come
 
+- Delivered: the invoice import reads each invoice once; keeping `orderNo` on `ho_erp_invoice` would let an order posted
+  by hand after its invoice came be delivered later (not done).
 - ZEN: whether `mode` stays `vrac` on every line (`colis` would need the packs on the order lines); `referenceZS`
   filterable (then the "not filterable" exception of the lookup removed); what NAV fills in `statut`, `message` and `quantite` on a ZS order, read at the first live posting
   (if `quantite` comes later than the POST, every line would read short until then).

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -259,6 +260,51 @@ class HoStoreOrderServiceTest {
 		assertThrows(IllegalStateException.class, () -> service.markPosted(order.getId(), "SO-1", "admin"), "posted");
 		assertThrows(IllegalArgumentException.class, () -> service.markPosted(order.getId(), " ", "admin"));
 		assertFalse(service.markPosted(999L, "SO-1", "admin").isPresent());
+	}
+
+	@Test
+	@DisplayName("Delivered: the POSTED order of the invoice's orderNo DELIVERED with the invoice and its posting date,"
+			+ " recorded for its store; not another store's customer, not twice, not an order waiting")
+	void delivered() {
+		HoStoreOrder order = received();
+		assertEquals(0, service.deliveredBy("SO-0042", "FVE2600009", LocalDate.of(2026, 10, 29), "C-0001"),
+				"waiting: no ERP number yet");
+		service.markPosted(order.getId(), "SO-0042", "admin");
+		assertEquals(0, service.deliveredBy("SO-0042", "FVE2600009", LocalDate.of(2026, 10, 29), "C-0002"),
+				"the invoice of another store's customer");
+		assertEquals(HoStoreOrderStatus.POSTED, order.getStatus());
+		assertEquals(0, service.deliveredBy("SO-0043", "FVE2600009", LocalDate.of(2026, 10, 29), "C-0001"));
+
+		assertEquals(1, service.deliveredBy(" SO-0042 ", " FVE2600009 ", LocalDate.of(2026, 10, 29), "c-0001"));
+		HoStoreOrderDTO view = service.get(order.getId()).get();
+		assertEquals("DELIVERED", view.getStatus());
+		assertEquals("FVE2600009", view.getInvoiceNo());
+		assertEquals(LocalDate.of(2026, 10, 29), view.getDeliveredAt());
+		assertEquals("SO-0042", view.getNavOrderNo(), "kept");
+		JsonNode copy = orderCopy(b);
+		assertEquals("DELIVERED", copy.get("status").asText());
+		assertEquals("FVE2600009", copy.get("invoiceNo").asText());
+		assertEquals("2026-10-29", copy.get("deliveredAt").asText());
+		assertEquals("SO-0042", copy.get("navOrderNo").asText());
+		assertNull(orderCopy(c));
+		assertEquals(Collections.singleton(StoreOrderCodes.of(FIRST)), service.currentTargets().keySet());
+
+		assertEquals(0, service.deliveredBy("SO-0042", "FVE2600010", LocalDate.of(2026, 10, 30), "C-0001"),
+				"delivered already: the first invoice kept");
+		assertEquals("FVE2600009", order.getInvoiceNo());
+		assertThrows(IllegalStateException.class, () -> service.reject(order.getId(), "late", "admin"));
+		assertEquals(1, ((List<?>) service.list(null, "DELIVERED", null, null, null, null, null, 0, 20).get("content")).size());
+	}
+
+	@Test
+	@DisplayName("Delivered without a posting date: the head office's day; without a customer on the invoice: any store")
+	void deliveredWithoutDateOrCustomer() {
+		HoStoreOrder order = received();
+		service.markPosted(order.getId(), "SO-0042", "admin");
+		assertEquals(1, service.deliveredBy("SO-0042", "FVE2600009", null, null));
+		assertEquals(NOW.toLocalDate(), order.getDeliveredAt());
+		assertEquals(0, service.deliveredBy(" ", "FVE2600009", null, null));
+		assertEquals(0, service.deliveredBy("SO-0042", " ", null, null));
 	}
 
 	@Test

@@ -21,6 +21,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import java.math.BigDecimal;
 import java.net.ConnectException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -596,6 +597,46 @@ class StoreOrderServiceTest {
 				.getApplied(), "only a line's answer changed");
 		assertEquals(0, new BigDecimal("2").compareTo(order.getLines().get(0).getNavAcceptedQty()));
 		assertNull(order.getLines().get(0).getNavLineMessage());
+	}
+
+	@Test
+	@DisplayName("Down, 3.1.1: DELIVERED with NAV's invoice number and its posting date, kept with the NAV order number;"
+			+ " the same again changes nothing; a status from the head office after it clears them")
+	void deliveredDown() {
+		InMemoryStoreLink link = new InMemoryStoreLink(new InMemoryLoyalty(500_000));
+		StoreOrder order = orders.add(FIRST, StoreOrderStatus.SENT);
+		statusDown(link, FIRST, "POSTED", "CV26000004", null);
+		StoreOrderStatusCopyDTO copy = new StoreOrderStatusCopyDTO();
+		copy.setOrderNumber(FIRST);
+		copy.setStatus("DELIVERED");
+		copy.setNavOrderNo("CV26000004");
+		copy.setInvoiceNo(" FVE2600009 ");
+		copy.setDeliveredAt("2026-10-29");
+		SupplyDownHandler handler = new SupplyDownHandler(null, link.downRecordLog(),
+				TransactionOperations.withoutTransaction(), null, new StoreOrderStatusWriter(orders.repository()));
+		ObjectMapper mapper = new ObjectMapper();
+		assertEquals(1, handler.apply(Collections.singletonList(mapper.valueToTree(copy)), Collections.emptyList())
+				.getApplied());
+		assertEquals(StoreOrderStatus.DELIVERED, order.getStatus());
+		assertEquals("CV26000004", order.getNavOrderNo());
+		assertEquals("FVE2600009", order.getInvoiceNo());
+		assertEquals(LocalDate.of(2026, 10, 29), order.getDeliveredAt());
+		StoreOrderViewDTO view = StoreOrderViewDTO.row(order);
+		assertEquals("DELIVERED", view.getStatus());
+		assertEquals("FVE2600009", view.getInvoiceNo());
+		assertEquals(LocalDate.of(2026, 10, 29), view.getDeliveredAt());
+		assertEquals(1, handler.apply(Collections.singletonList(mapper.valueToTree(copy)), Collections.emptyList())
+				.getUnchanged());
+
+		copy.setDeliveredAt("29/10/2026");
+		assertEquals(1, handler.apply(Collections.singletonList(mapper.valueToTree(copy)), Collections.emptyList())
+				.getApplied(), "an unreadable date is none, the status kept");
+		assertNull(order.getDeliveredAt());
+		assertEquals(StoreOrderStatus.DELIVERED, order.getStatus());
+
+		assertEquals(1, statusDown(link, FIRST, "POSTED", "CV26000004", null).getApplied());
+		assertNull(order.getInvoiceNo(), "only a DELIVERED order names its invoice");
+		assertNull(order.getDeliveredAt());
 	}
 
 	@Test

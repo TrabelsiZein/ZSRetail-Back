@@ -90,6 +90,7 @@ class ZenMapperInvoicesTest {
 		assertEquals("Point de vente El Kef", invoice.getCustomerName());
 		assertEquals(LocalDate.of(2026, 10, 24), invoice.getDocumentDate());
 		assertEquals(LocalDate.of(2026, 10, 24), invoice.getPostingDate());
+		assertEquals("CV26000002", invoice.getOrderNo(), "3.1.1: the commandesVente numero it delivers");
 		assertNull(invoice.getPricesIncludingVat(), "ZEN's prices are before VAT: the page has no such field");
 		assertNull(invoice.getYearPrefix(), "set by the run, from the year read");
 		assertEquals("133.798", invoice.getTotalExclVat().toPlainString());
@@ -135,6 +136,7 @@ class ZenMapperInvoicesTest {
 		assertEquals("107.100", invoice.getTotalInclVat().toPlainString());
 		assertEquals("1.5", invoice.getLines().get(1).getQuantity().toPlainString(), "a decimal quantity as sent");
 		assertEquals("40.000", invoice.getLines().get(0).getLineAmount().toPlainString());
+		assertNull(invoice.getOrderNo(), "no orderNo on the row: none");
 		assertEquals(Integer.valueOf(1), read.getLeftOut().get(ZenMapper.COMMENT_LINE));
 		assertEquals(Integer.valueOf(1), read.getLeftOut().get(ZenMapper.ZERO_OTHER_LINE));
 		assertTrue(invoice.getWarnings().isEmpty(), "the lines add up to 90.000: " + invoice.getWarnings());

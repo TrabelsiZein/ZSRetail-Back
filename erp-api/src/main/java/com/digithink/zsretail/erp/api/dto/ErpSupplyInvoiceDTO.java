@@ -30,6 +30,11 @@ public class ErpSupplyInvoiceDTO {
 	private LocalDate postingDate;
 	private String customerNo;
 	private String customerName;
+	/**
+	 * 3.1.1: the ERP's sales order this invoice delivers (ZEN: orderNo, the commandesVente numero); null when the page
+	 * gives none (the other connectors). The head office marks the store's order of that ERP number DELIVERED.
+	 */
+	private String orderNo;
 	private BigDecimal totalExclVat;
 	private BigDecimal totalVat;
 	private BigDecimal totalInclVat;

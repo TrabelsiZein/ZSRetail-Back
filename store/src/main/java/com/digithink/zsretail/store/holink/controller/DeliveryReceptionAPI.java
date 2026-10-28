@@ -51,6 +51,13 @@ public class DeliveryReceptionAPI {
 		return answer(() -> ResponseEntity.ok(service.list(status, page, size)));
 	}
 
+	/** 3.1.1: the document of this number, as GET /{id} (the link of a delivered order to its invoice); 404 when not here. */
+	@GetMapping("/by-number")
+	public ResponseEntity<?> byNumber(@RequestParam String number) {
+		return answer(() -> service.getByNumber(number).<ResponseEntity<?>>map(ResponseEntity::ok)
+				.orElseGet(this::notFound));
+	}
+
 	@GetMapping("/{id}")
 	public ResponseEntity<?> get(@PathVariable Long id) {
 		return answer(() -> service.get(id).<ResponseEntity<?>>map(ResponseEntity::ok).orElseGet(this::notFound));
