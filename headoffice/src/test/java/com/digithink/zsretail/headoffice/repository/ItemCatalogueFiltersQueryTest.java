@@ -29,17 +29,19 @@ import com.digithink.zsretail.core.model.ItemCategory;
 import com.digithink.zsretail.core.model.ItemFamily;
 import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.ItemSubFamily;
-import com.digithink.zsretail.headoffice.dto.ItemCatalogueFiltersDTO;
-import com.digithink.zsretail.headoffice.dto.ItemCatalogueLineDTO;
+import com.digithink.zsretail.core.dto.ItemCatalogueFiltersDTO;
+import com.digithink.zsretail.core.dto.ItemCatalogueLineDTO;
 import com.digithink.zsretail.headoffice.model.HoStockPoint;
 import com.digithink.zsretail.headoffice.model.HoStockPointItem;
+import com.digithink.zsretail.core.repository.ItemCatalogueQuery;
+import com.digithink.zsretail.core.service.ItemCatalogueService;
 import com.digithink.zsretail.headoffice.service.HoItemCatalogueService;
 
 /**
  * Fiches items (3.1.0): the list's filters, sorts and price columns and the page's flags and filter choices
- * (HoItemCatalogueQuery, HoItemCatalogueService.filters), the real query over an in-memory H2 database with the
- * applications' naming strategies (a Hibernate session as its EntityManager: the paging and the count as in the
- * applications).
+ * (ItemCatalogueQuery in core with the head office's point de stock, HoItemCatalogueService.filters), the real query
+ * over an in-memory H2 database with the applications' naming strategies (a Hibernate session as its EntityManager: the
+ * paging and the count as in the applications).
  * <p>
  * NAV item 70061 (Homme / Chemises, division PAP, catégorie VET, section MANCHE): S 10 + 19 % (11.90), M 20 + 19 %
  * (23.80, a row in P1), L inactive 30 + 19 % (35.70). NAV item ONE: one variant (Femme / Robes, 50, an inactive row in
@@ -169,11 +171,11 @@ class ItemCatalogueFiltersQueryTest {
 	}
 
 	/** The real query over one session (Hibernate's Session is the EntityManager). */
-	private static <T> T withQuery(Function<HoItemCatalogueQuery, T> work) {
+	private static <T> T withQuery(Function<ItemCatalogueQuery, T> work) {
 		try (Session session = sessions.openSession()) {
-			HoItemCatalogueQuery query = new HoItemCatalogueQuery();
+			ItemCatalogueQuery query = new ItemCatalogueQuery();
 			query.portable = true; // H2: the code sort in portable SQL
-			Field field = HoItemCatalogueQuery.class.getDeclaredField("entityManager");
+			Field field = ItemCatalogueQuery.class.getDeclaredField("entityManager");
 			field.setAccessible(true);
 			field.set(query, session);
 			return work.apply(query);
@@ -183,19 +185,19 @@ class ItemCatalogueFiltersQueryTest {
 	}
 
 	/** One page of lines of a criteria (status All unless the setup says otherwise), as the service maps them. */
-	private static Page<ItemCatalogueLineDTO> page(Consumer<HoItemCatalogueQuery.Criteria> setup, int page, int size) {
-		HoItemCatalogueQuery.Criteria criteria = new HoItemCatalogueQuery.Criteria();
+	private static Page<ItemCatalogueLineDTO> page(Consumer<ItemCatalogueQuery.Criteria> setup, int page, int size) {
+		ItemCatalogueQuery.Criteria criteria = new ItemCatalogueQuery.Criteria();
 		criteria.setActiveOnly(false);
 		setup.accept(criteria);
 		return withQuery(query -> query.lines(criteria, PageRequest.of(page, size))
-				.map(row -> HoItemCatalogueService.line(row, true)));
+				.map(row -> ItemCatalogueService.line(row, true)));
 	}
 
-	private static List<String> codes(Consumer<HoItemCatalogueQuery.Criteria> setup) {
+	private static List<String> codes(Consumer<ItemCatalogueQuery.Criteria> setup) {
 		return page(setup, 0, 50).getContent().stream().map(ItemCatalogueLineDTO::getCode).collect(Collectors.toList());
 	}
 
-	private static ItemCatalogueLineDTO line(Consumer<HoItemCatalogueQuery.Criteria> setup, String code) {
+	private static ItemCatalogueLineDTO line(Consumer<ItemCatalogueQuery.Criteria> setup, String code) {
 		return page(setup, 0, 50).getContent().stream().filter(l -> code.equals(l.getCode())).findFirst().orElse(null);
 	}
 
@@ -241,9 +243,9 @@ class ItemCatalogueFiltersQueryTest {
 	@Test
 	@DisplayName("Point de stock: a line when one of its variants has an active row there; the line counts all its variants")
 	void stockPointFilter() {
-		assertEquals(Arrays.asList("70061"), codes(c -> c.setStockPointId(p1)));
-		assertEquals(3, line(c -> c.setStockPointId(p1), "70061").getVariants(), "M has the row, S and L counted");
-		assertEquals(Arrays.asList("000002"), codes(c -> c.setStockPointId(p2)), "ONE's row in P2 is inactive");
+		assertEquals(Arrays.asList("70061"), codes(c -> HoItemCatalogueQuery.stockPoint(c, p1)));
+		assertEquals(3, line(c -> HoItemCatalogueQuery.stockPoint(c, p1), "70061").getVariants(), "M has the row, S and L counted");
+		assertEquals(Arrays.asList("000002"), codes(c -> HoItemCatalogueQuery.stockPoint(c, p2)), "ONE's row in P2 is inactive");
 	}
 
 	@Test
@@ -315,8 +317,9 @@ class ItemCatalogueFiltersQueryTest {
 	@Test
 	@DisplayName("The page's flags and filter choices, from the data")
 	void filters() {
-		ItemCatalogueFiltersDTO filters = withQuery(query -> new HoItemCatalogueService(null, null, null, null, null, null,
-				null, null, null, query, null).filters());
+		ItemCatalogueFiltersDTO filters = withQuery(query -> new HoItemCatalogueService(
+				new ItemCatalogueService(query, null, null, null), query, null, null, null, null, null, null, null, null, null)
+				.filters());
 		assertTrue(filters.isHasVariants());
 		assertTrue(filters.isHasFamilies());
 		assertTrue(filters.isHasDivision());

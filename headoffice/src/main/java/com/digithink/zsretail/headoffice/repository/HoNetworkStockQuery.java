@@ -15,12 +15,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
+import com.digithink.zsretail.core.repository.ItemCatalogueQuery;
 
 import lombok.Data;
 
 /**
  * Network stock (3.1.0): the two lists of the page "Network stock" (HoNetworkStockService), native SQL built with only
- * the filters set, as Item cards' {@link HoItemCatalogueQuery}.
+ * the filters set, as Item cards' {@link ItemCatalogueQuery}.
  * <p>
  * Head office items (step 1): products and packs (or no type), not the tax stamp. The stock filter looks at "the columns
  * shown": the head office's own stock (where it keeps one) and the stores shown (one store, or every active store),
@@ -217,7 +218,7 @@ public class HoNetworkStockQuery {
 		}
 		String where = ITEMS + (conditions.isEmpty() ? "" : " AND " + String.join(" AND ", conditions));
 		String dir = c.isDescending() ? " DESC" : " ASC";
-		String code = HoItemCatalogueQuery.codeOrder("i.item_code", "i.id", " ASC", portable);
+		String code = ItemCatalogueQuery.codeOrder("i.item_code", "i.id", " ASC", portable);
 		String sort = c.getSort() == null ? "" : c.getSort();
 		String join = "";
 		Map<String, Object> sortParameters = new LinkedHashMap<>();
@@ -236,7 +237,7 @@ public class HoNetworkStockQuery {
 					+ " ON t.item_code = i.item_code";
 			order = "CASE WHEN t.total IS NULL THEN 1 ELSE 0 END, t.total" + dir + ", " + code;
 		} else {
-			order = HoItemCatalogueQuery.codeOrder("i.item_code", "i.id", dir, portable);
+			order = ItemCatalogueQuery.codeOrder("i.item_code", "i.id", dir, portable);
 		}
 		String lines = SELECT + join + where + " ORDER BY " + order;
 		String count = "SELECT COUNT(*) AS " + COUNT_COLUMN + " FROM item i" + where;
@@ -288,11 +289,11 @@ public class HoNetworkStockQuery {
 		}
 		String where = " WHERE " + String.join(" AND ", conditions);
 		String dir = c.isDescending() ? " DESC" : " ASC";
-		String byStoreAndCode = "st.code ASC, " + HoItemCatalogueQuery.codeOrder("s.item_code", "s.id", " ASC", portable);
+		String byStoreAndCode = "st.code ASC, " + ItemCatalogueQuery.codeOrder("s.item_code", "s.id", " ASC", portable);
 		String sort = c.getSort() == null ? "" : c.getSort();
 		String order;
 		if (SORT_CODE.equals(sort)) {
-			order = HoItemCatalogueQuery.codeOrder("s.item_code", "s.id", dir, portable);
+			order = ItemCatalogueQuery.codeOrder("s.item_code", "s.id", dir, portable);
 		} else if (SORT_NAME.equals(sort)) {
 			order = "CASE WHEN s.item_name IS NULL THEN 1 ELSE 0 END, s.item_name" + dir + ", " + byStoreAndCode;
 		} else if (SORT_QUANTITY.equals(sort)) {
@@ -302,7 +303,7 @@ public class HoNetworkStockQuery {
 		} else if (SORT_RECEIVED_AT.equals(sort)) {
 			order = "CASE WHEN s.received_at IS NULL THEN 1 ELSE 0 END, s.received_at" + dir + ", " + byStoreAndCode;
 		} else {
-			order = "st.code" + dir + ", " + HoItemCatalogueQuery.codeOrder("s.item_code", "s.id", " ASC", portable);
+			order = "st.code" + dir + ", " + ItemCatalogueQuery.codeOrder("s.item_code", "s.id", " ASC", portable);
 		}
 		String lines = OWN_SELECT + where + " ORDER BY " + order;
 		String count = "SELECT COUNT(*) AS " + COUNT_COLUMN + " FROM ho_store_stock s" + where;

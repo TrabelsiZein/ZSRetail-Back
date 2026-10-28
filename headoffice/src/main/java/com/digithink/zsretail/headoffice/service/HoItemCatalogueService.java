@@ -14,27 +14,23 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.dto.ItemCatalogueFiltersDTO;
+import com.digithink.zsretail.core.dto.ItemCatalogueLineDTO;
 import com.digithink.zsretail.core.dto.NavItemVariantsDTO;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ItemBarcode;
-import com.digithink.zsretail.core.model.ItemCategory;
-import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
+import com.digithink.zsretail.core.repository.ItemCatalogueQuery;
 import com.digithink.zsretail.core.repository.ItemCategoryRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.ItemSectionRepository;
-import com.digithink.zsretail.core.service.NavItemService;
+import com.digithink.zsretail.core.service.ItemCatalogueService;
 import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.headoffice.dto.ItemCatalogueCardDTO;
-import com.digithink.zsretail.headoffice.dto.ItemCatalogueFiltersDTO;
-import com.digithink.zsretail.headoffice.dto.ItemCatalogueLineDTO;
 import com.digithink.zsretail.headoffice.repository.HoItemCatalogueQuery;
 import com.digithink.zsretail.headoffice.repository.HoItemCatalogueRepository;
 import com.digithink.zsretail.headoffice.repository.HoStockPointItemRepository;
@@ -45,88 +41,46 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Fiches items (3.1.0), step 1: the list of the head office page "Fiches items" (docs/modules/head-office.md), on every
- * head office: one line per NAV item number, else one per item, grouped and paged by the database
- * ({@link HoItemCatalogueQuery}). The stock is given only where the head office keeps its own; the point de stock
- * counts read ho_stock_point_item (0 on a head office without points de stock).
+ * head office: one line per NAV item number, else one per item, grouped and paged by the database. Since 3.1.1 the list,
+ * its flags and its choices are core's ({@link ItemCatalogueService}, shared with the store's Articles page); the head
+ * office adds its points de stock: the filter ({@link HoItemCatalogueQuery#stockPoint}), the count and choices of the
+ * page, and each line's count of active points (ho_stock_point_item, 0 on a head office without points de stock). The
+ * item card (step 2) is the head office's own.
  */
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class HoItemCatalogueService {
 
-	/** Lines per page at most. */
-	static final int MAX_SIZE = 200;
-
+	private final ItemCatalogueService catalogue;
+	private final ItemCatalogueQuery query;
 	private final HoItemCatalogueRepository lines;
 	private final HoStockPointItemRepository rows;
 	private final HoStockPointRepository points;
 	private final ItemCategoryRepository categoryRepository;
 	private final ItemSectionRepository sectionRepository;
-	private final ApplicationModeService mode;
 	private final ItemRepository itemRepository;
 	private final ItemBarcodeRepository barcodeRepository;
 	private final HoNavItemStockPoints pointPrices;
-	private final HoItemCatalogueQuery query;
 	private final HoStoreStockRepository storeStocks;
 
-	/** The page's flags and filter choices, from the data (read once when the page opens). */
+	/** The page's flags and filter choices, from the data (read once when the page opens), with the points de stock. */
 	public ItemCatalogueFiltersDTO filters() {
-		ItemCatalogueFiltersDTO filters = new ItemCatalogueFiltersDTO();
-		Object[] flags = query.rows(HoItemCatalogueQuery.FLAGS).get(0);
-		filters.setHasVariants(flag(flags[0]));
-		filters.setHasFamilies(flag(flags[1]));
-		filters.setHasDivision(flag(flags[2]));
-		filters.setHasCategory(flag(flags[3]));
-		filters.setHasSection(flag(flags[4]));
-		filters.setStockPointCount(flags[5] == null ? 0 : ((Number) flags[5]).longValue());
-		filters.setHasBarcodes(flag(flags[6]));
-		if (filters.isHasFamilies()) {
-			for (Object[] row : query.rows(HoItemCatalogueQuery.FAMILIES)) {
-				filters.getFamilies().add(
-						new ItemCatalogueFiltersDTO.Option(id(row[0]), (String) row[1], (String) row[2], null, (String) row[3]));
-			}
-			for (Object[] row : query.rows(HoItemCatalogueQuery.SUB_FAMILIES)) {
-				filters.getSubFamilies()
-						.add(new ItemCatalogueFiltersDTO.Option(id(row[0]), (String) row[1], (String) row[2], id(row[3]), null));
-			}
-		}
-		if (filters.isHasDivision()) {
-			for (Object[] row : query.rows(HoItemCatalogueQuery.DIVISIONS)) {
-				filters.getDivisions().add(new ItemCatalogueFiltersDTO.Option(null, (String) row[0], null, null, null));
-			}
-		}
-		if (filters.isHasCategory()) {
-			for (Object[] row : query.rows(HoItemCatalogueQuery.CATEGORIES)) {
-				filters.getCategories()
-						.add(new ItemCatalogueFiltersDTO.Option(null, (String) row[0], (String) row[1], null, null));
-			}
-		}
-		if (filters.isHasSection()) {
-			for (Object[] row : query.rows(HoItemCatalogueQuery.SECTIONS)) {
-				filters.getSections()
-						.add(new ItemCatalogueFiltersDTO.Option(null, (String) row[0], (String) row[1], null, (String) row[2]));
-			}
-		}
+		ItemCatalogueFiltersDTO filters = catalogue.filters();
+		Object count = query.rows(HoItemCatalogueQuery.STOCK_POINT_COUNT).get(0)[0];
+		filters.setStockPointCount(count == null ? 0 : ((Number) count).longValue());
 		if (filters.getStockPointCount() > 0) {
 			for (Object[] row : query.rows(HoItemCatalogueQuery.STOCK_POINTS)) {
-				filters.getStockPoints()
-						.add(new ItemCatalogueFiltersDTO.Option(id(row[0]), (String) row[1], (String) row[2], null, null));
+				filters.getStockPoints().add(new ItemCatalogueFiltersDTO.Option(
+						row[0] == null ? null : ((Number) row[0]).longValue(), (String) row[1], (String) row[2], null, null));
 			}
 		}
 		return filters;
 	}
 
-	private static boolean flag(Object value) {
-		return value != null && ((Number) value).intValue() == 1;
-	}
-
-	private static Long id(Object value) {
-		return value == null ? null : ((Number) value).longValue();
-	}
-
 	/** True when the lines carry the stock (the head office keeps its own). */
 	public boolean withStock() {
-		return mode.keepsOwnStock();
+		return catalogue.withStock();
 	}
 
 	/** True when a point de stock exists (the page's point de stock column and tab). */
@@ -135,27 +89,13 @@ public class HoItemCatalogueService {
 	}
 
 	/**
-	 * One page of lines. search: NAV item number, item code, name or barcode, contains, any case (blank: none);
-	 * activeOnly: the active variants only (a line whose variants are all inactive is absent), else every variant.
+	 * One page of lines of the criteria (the search already as a like, see NavItemService.likeOf; the point de stock
+	 * filter set by HoItemCatalogueQuery.stockPoint), each with its count of active points de stock.
 	 */
-	public Page<ItemCatalogueLineDTO> page(String search, boolean activeOnly, int page, int size) {
-		HoItemCatalogueQuery.Criteria criteria = new HoItemCatalogueQuery.Criteria();
-		criteria.setLike(NavItemService.likeOf(search));
-		criteria.setActiveOnly(activeOnly);
-		return page(criteria, page, size);
-	}
-
-	/** One page of lines of the criteria (the search already as a like, see NavItemService.likeOf). */
-	public Page<ItemCatalogueLineDTO> page(HoItemCatalogueQuery.Criteria criteria, int page, int size) {
-		PageRequest paging = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_SIZE));
-		// Only the filters set are in the statement (the barcode search only in a search's, 2fe0b34)
-		Page<Object[]> found = query.lines(criteria, paging);
-		boolean withStock = withStock();
-		List<ItemCatalogueLineDTO> content = found.getContent().stream().map(row -> line(row, withStock))
-				.collect(Collectors.toList());
-		names(content);
-		pointCounts(content);
-		return new PageImpl<>(content, found.getPageable(), found.getTotalElements());
+	public Page<ItemCatalogueLineDTO> page(ItemCatalogueQuery.Criteria criteria, int page, int size) {
+		Page<ItemCatalogueLineDTO> found = catalogue.page(criteria, page, size);
+		pointCounts(found.getContent());
+		return found;
 	}
 
 	/**
@@ -342,69 +282,6 @@ public class HoItemCatalogueService {
 	/** The smallest non-null value (the list's MIN), null when none. */
 	private static String smallest(List<Item> items, Function<Item, String> value) {
 		return items.stream().map(value).filter(Objects::nonNull).min(Comparator.naturalOrder()).orElse(null);
-	}
-
-	/**
-	 * One row of {@link HoItemCatalogueQuery#SELECT} as a line, read by the column constants (the order
-	 * of its aliases, {@link HoItemCatalogueQuery#LINE_COLUMNS}); public for the query test.
-	 */
-	public static ItemCatalogueLineDTO line(Object[] row, boolean withStock) {
-		ItemCatalogueLineDTO line = new ItemCatalogueLineDTO();
-		String navItemNo = (String) row[HoItemCatalogueQuery.COL_NAV_ITEM_NO];
-		line.setNavItemNo(navItemNo);
-		line.setSingle(navItemNo == null);
-		if (navItemNo == null) {
-			line.setItemId(((Number) row[HoItemCatalogueQuery.COL_ITEM_ID]).longValue());
-			line.setCode((String) row[HoItemCatalogueQuery.COL_ITEM_CODE]);
-		} else {
-			line.setCode(navItemNo);
-		}
-		line.setName((String) row[HoItemCatalogueQuery.COL_ITEM_NAME]);
-		line.setFamilyName((String) row[HoItemCatalogueQuery.COL_FAMILY_NAME]);
-		line.setSubFamilyName((String) row[HoItemCatalogueQuery.COL_SUB_FAMILY_NAME]);
-		line.setCategoryCode((String) row[HoItemCatalogueQuery.COL_CATEGORY_CODE]);
-		line.setSectionCode((String) row[HoItemCatalogueQuery.COL_SECTION_CODE]);
-		Object variants = row[HoItemCatalogueQuery.COL_VARIANT_COUNT];
-		line.setVariants(variants == null ? 0 : ((Number) variants).longValue());
-		Object anyActive = row[HoItemCatalogueQuery.COL_ANY_ACTIVE];
-		line.setActive(anyActive != null && ((Number) anyActive).intValue() == 1);
-		if (withStock) {
-			Object stock = row[HoItemCatalogueQuery.COL_STOCK_QUANTITY];
-			line.setStockQuantity(stock == null ? BigDecimal.ZERO : new BigDecimal(stock.toString()));
-		}
-		line.setPriceMin(price(row[HoItemCatalogueQuery.COL_PRICE_MIN]));
-		line.setPriceMax(price(row[HoItemCatalogueQuery.COL_PRICE_MAX]));
-		return line;
-	}
-
-	/** A price with VAT, to the third decimal (the SQL product of a float and a decimal); null stays null. */
-	private static Double price(Object value) {
-		return value == null ? null
-				: new BigDecimal(value.toString()).setScale(3, java.math.RoundingMode.HALF_UP).doubleValue();
-	}
-
-	/** The catégorie and section names of the page's codes, one read each. */
-	private void names(List<ItemCatalogueLineDTO> content) {
-		Set<String> categoryCodes = content.stream().map(ItemCatalogueLineDTO::getCategoryCode)
-				.filter(Objects::nonNull).collect(Collectors.toSet());
-		Set<String> sectionCodes = content.stream().map(ItemCatalogueLineDTO::getSectionCode)
-				.filter(Objects::nonNull).collect(Collectors.toSet());
-		Map<String, String> categories = new HashMap<>();
-		if (!categoryCodes.isEmpty()) {
-			for (ItemCategory category : categoryRepository.findByCodeIn(categoryCodes)) {
-				categories.put(category.getCode(), category.getName());
-			}
-		}
-		Map<String, String> sections = new HashMap<>();
-		if (!sectionCodes.isEmpty()) {
-			for (ItemSection section : sectionRepository.findByCodeIn(sectionCodes)) {
-				sections.put(section.getCode(), section.getName());
-			}
-		}
-		for (ItemCatalogueLineDTO line : content) {
-			line.setCategoryName(categories.get(line.getCategoryCode()));
-			line.setSectionName(sections.get(line.getSectionCode()));
-		}
 	}
 
 	/** The active point counts of the page: by NAV item number for the NAV lines, by item id for the single items. */

@@ -1,13 +1,14 @@
-package com.digithink.zsretail.headoffice.dto;
+package com.digithink.zsretail.core.dto;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Fiches items (3.1.0), step 1: one line of the head office page "Fiches items", a NAV item number (its variants) or
- * one item without NAV number. Its key is navItemNo or itemId, never both.
+ * Fiches items (3.1.0), step 1: one line of the head office page "Fiches items" (3.1.1: and of the store's grouped Articles
+ * page), a NAV item number (its variants) or one item without NAV number. Its key is navItemNo or itemId, never both.
  */
 @Data
 @NoArgsConstructor
@@ -39,7 +40,8 @@ public class ItemCatalogueLineDTO {
 	/** The variants counted (the active ones only with the status Active); 1 for a single item. */
 	private long variants;
 
-	/** The active points de stock where one of the line's items has an active row; 0 without any. */
+	/** The active points de stock where one of the line's items has an active row; 0 without any (head office only: 0 on
+	 * a store). */
 	private long stockPoints;
 
 	/** True when at least one item counted is active (always true with the status Active). */
@@ -55,4 +57,10 @@ public class ItemCatalogueLineDTO {
 	private Double priceMin;
 
 	private Double priceMax;
+
+	/**
+	 * 3.1.1: with a search, the ids of the line's items that match it (NAV number, item code, name or a barcode), so that a
+	 * page highlights the variants found; null without a search.
+	 */
+	private List<Long> matchedItemIds;
 }

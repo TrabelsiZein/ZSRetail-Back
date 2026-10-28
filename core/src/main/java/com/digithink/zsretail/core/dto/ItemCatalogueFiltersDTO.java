@@ -1,4 +1,4 @@
-package com.digithink.zsretail.headoffice.dto;
+package com.digithink.zsretail.core.dto;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,7 +30,7 @@ public class ItemCatalogueFiltersDTO {
 	/** An item has a section. */
 	private boolean hasSection;
 
-	/** The points de stock (active or not). */
+	/** The points de stock (active or not); head office only (0 on a store). */
 	private long stockPointCount;
 
 	/** A barcode exists. */
@@ -50,7 +50,7 @@ public class ItemCatalogueFiltersDTO {
 	/** The section codes of the items, with their sub-family's code (parentCode, null when the table has no row). */
 	private List<Option> sections = new ArrayList<>();
 
-	/** The points de stock in list order. */
+	/** The points de stock in list order; head office only (empty on a store). */
 	private List<Option> stockPoints = new ArrayList<>();
 
 	@Data

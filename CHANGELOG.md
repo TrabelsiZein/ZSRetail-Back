@@ -7,6 +7,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 ## 3.1.1 — in progress (branch `release/3.1.1`)
 
 ### Features
+- Store Articles page, grouped by NAV item: `GET /item-catalogue` and `GET /item-catalogue/filters` on a store, the head
+  office's item catalogue list read at the store (one line per NAV item number, else per item; price range, variants
+  count, stock, the classification filters, the price with VAT). The query moved to core (`ItemCatalogueQuery`,
+  `ItemCatalogueService`, `ItemCatalogueLineDTO`, `ItemCatalogueFiltersDTO`); the head office keeps its point de stock
+  filter and count in `HoItemCatalogueQuery` (an item condition of the criteria) and its endpoint unchanged. With a
+  search each line gives `matchedItemIds` (its items found: NAV number, item code, name or a barcode), on both.
 - Orders to the head office ("Commandes centrale"), step 1, the store's back end (docs/modules/store-orders.md), on a
   store whose goods come from its head office only (elsewhere the URLs answer 404): `hol_order` / `hol_order_line`, one
   draft at a time numbered `<store code>-<year>-<6 digits>` at its creation, one line per variant (the same item again

@@ -12,9 +12,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.digithink.zsretail.core.dto.ItemCatalogueFiltersDTO;
+import com.digithink.zsretail.core.dto.ItemCatalogueLineDTO;
+import com.digithink.zsretail.core.repository.ItemCatalogueQuery;
 import com.digithink.zsretail.core.service.NavItemService;
-import com.digithink.zsretail.headoffice.dto.ItemCatalogueFiltersDTO;
-import com.digithink.zsretail.headoffice.dto.ItemCatalogueLineDTO;
 import com.digithink.zsretail.headoffice.repository.HoItemCatalogueQuery;
 import com.digithink.zsretail.headoffice.service.HoItemCatalogueService;
 
@@ -57,7 +58,7 @@ public class HoItemCatalogueAPI {
 			@RequestParam(name = "priceMax", required = false) Double priceMax,
 			@RequestParam(name = "sort", required = false) String sort,
 			@RequestParam(name = "dir", required = false) String dir) {
-		HoItemCatalogueQuery.Criteria criteria = new HoItemCatalogueQuery.Criteria();
+		ItemCatalogueQuery.Criteria criteria = new ItemCatalogueQuery.Criteria();
 		criteria.setLike(NavItemService.likeOf(search));
 		criteria.setActiveOnly(activeOnly(status));
 		criteria.setInactiveOnly(inactiveOnly(status));
@@ -66,7 +67,7 @@ public class HoItemCatalogueAPI {
 		criteria.setDivisionCode(divisionCode);
 		criteria.setCategoryCode(categoryCode);
 		criteria.setSectionCode(sectionCode);
-		criteria.setStockPointId(stockPointId);
+		HoItemCatalogueQuery.stockPoint(criteria, stockPointId);
 		criteria.setVariants(variants);
 		criteria.setPriceMin(priceMin);
 		criteria.setPriceMax(priceMax);

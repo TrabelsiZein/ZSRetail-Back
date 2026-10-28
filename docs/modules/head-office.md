@@ -69,7 +69,7 @@ Frontend: since task 1.6 a head office has only its own routes (see "Head office
 | Sales | Returns | `admin-headoffice-returns` | `/headoffice/returns` | none (head office only, task 2.5) |
 | Catalogue | Item cards (3.1.0) | `admin-headoffice-item-cards` | `/headoffice/item-cards` | none (head office only) |
 | Catalogue | Items (ERP catalogue: no menu entry, redirected to Item cards, Item cards step 3) | `admin-headoffice-items` | `/headoffice/items` | `admin-item-management` |
-| Catalogue | ERP items (no menu entry, always redirected to Item cards, Item cards step 3) | `admin-headoffice-nav-items` | `/headoffice/nav-items` | `admin-nav-items` |
+| Catalogue | ERP items (no menu entry, always redirected to Item cards, Item cards step 3) | `admin-headoffice-nav-items` | `/headoffice/nav-items` | `admin-nav-items` (3.1.1: a redirect to Articles, grouped where items carry NAV numbers) |
 | Catalogue | Families | `admin-headoffice-item-families` | `/headoffice/item-families` | `admin-item-families` |
 | Catalogue | Sub-families | `admin-headoffice-item-subfamilies` | `/headoffice/item-subfamilies` | `admin-item-subfamilies` |
 | Catalogue | Barcodes | `admin-headoffice-item-barcodes` | `/headoffice/item-barcodes` | `admin-item-barcodes` |
@@ -1935,7 +1935,12 @@ routes send to Item cards.
   family's `item_family.category_code`, a section's `item_section.sub_family_code` (null otherwise, and on a customer
   without the levels); a sub-family keeps its `parentId`. `ItemCatalogueFiltersQueryTest.filters`.
 - **List filters and sort** (`HoItemCatalogueQuery`, native SQL built with only the filters set; the two fixed list
-  queries of `HoItemCatalogueRepository` are gone): `familyId`, `subFamilyId`, `divisionCode`, `categoryCode`,
+  queries of `HoItemCatalogueRepository` are gone. 3.1.1: the query, its flags and choices and the line DTOs are core's,
+  `core.repository.ItemCatalogueQuery`, `core.service.ItemCatalogueService`, `core.dto.ItemCatalogueLineDTO` /
+  `ItemCatalogueFiltersDTO`, shared with the store's Articles page (`GET /item-catalogue`, `admin-pages.md`); the head
+  office keeps in `HoItemCatalogueQuery` its point de stock filter, written as an item condition of the criteria
+  (`stockPoint`), the count and the choices of its points de stock; with a search each line also gives
+  `matchedItemIds`): `familyId`, `subFamilyId`, `divisionCode`, `categoryCode`,
   `sectionCode`, `stockPointId` (an active row there), `variants=ALL|YES|NO` (2 variants or more of the status),
   `priceMin` / `priceMax` (the item's own price with VAT, `unit_price × (1 + defaultvat / 100)`), `sort=code|name|family|variants|price`
   (2026-10-22: variants = the line's `variant_count`, price = its `price_min`, lines without a price last both ways; each

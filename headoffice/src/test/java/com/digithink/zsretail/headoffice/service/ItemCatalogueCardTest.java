@@ -43,6 +43,7 @@ import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
 import com.digithink.zsretail.core.repository.ItemCategoryRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.ItemSectionRepository;
+import com.digithink.zsretail.core.service.ItemCatalogueService;
 import com.digithink.zsretail.core.support.TestModes;
 import com.digithink.zsretail.headoffice.controller.HoItemCatalogueAPI;
 import com.digithink.zsretail.headoffice.dto.ItemCatalogueCardDTO;
@@ -238,12 +239,13 @@ class ItemCatalogueCardTest {
 				pointsSeen = mock(HoStockPointRepository.class);
 				when(pointsSeen.count()).thenReturn(0L);
 			}
+			ItemCategoryRepository categories = repositories.getRepository(ItemCategoryRepository.class);
+			ItemSectionRepository sections = repositories.getRepository(ItemSectionRepository.class);
 			HoItemCatalogueService service = new HoItemCatalogueService(
-					repositories.getRepository(HoItemCatalogueRepository.class), rows, pointsSeen,
-					repositories.getRepository(ItemCategoryRepository.class),
-					repositories.getRepository(ItemSectionRepository.class), TestModes.standalone(),
+					new ItemCatalogueService(null, categories, sections, TestModes.standalone()), null,
+					repositories.getRepository(HoItemCatalogueRepository.class), rows, pointsSeen, categories, sections,
 					repositories.getRepository(ItemRepository.class),
-					repositories.getRepository(ItemBarcodeRepository.class), new HoNavItemStockPoints(rows, points), null,
+					repositories.getRepository(ItemBarcodeRepository.class), new HoNavItemStockPoints(rows, points),
 					repositories.getRepository(HoStoreStockRepository.class));
 			return work.apply(service);
 		}

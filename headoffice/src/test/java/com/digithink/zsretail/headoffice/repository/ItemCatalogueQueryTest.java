@@ -39,14 +39,15 @@ import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.ItemFamily;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.service.NavItemService;
-import com.digithink.zsretail.headoffice.dto.ItemCatalogueLineDTO;
+import com.digithink.zsretail.core.dto.ItemCatalogueLineDTO;
 import com.digithink.zsretail.headoffice.model.HoStockPoint;
 import com.digithink.zsretail.headoffice.model.HoStockPointItem;
-import com.digithink.zsretail.headoffice.service.HoItemCatalogueService;
+import com.digithink.zsretail.core.repository.ItemCatalogueQuery;
+import com.digithink.zsretail.core.service.ItemCatalogueService;
 
 /**
  * Fiches items (3.1.0), step 1: the native queries of the head office page "Fiches items"
- * (HoItemCatalogueQuery.build: the lines and their count, plain and searched; the flags and filter choices) and its point count by item
+ * (ItemCatalogueQuery.build: the lines and their count, plain and searched; the flags and filter choices) and its point count by item
  * (ITEM_POINT_COUNTS), run as they are with Hibernate over an in-memory H2 database (no Spring context), with the table
  * and column names of the applications (Spring's naming strategies).
  * <p>
@@ -148,20 +149,20 @@ class ItemCatalogueQueryTest {
 	}
 
 	/** The lines as the service builds them (with the stock). search: as typed, blank for none. */
-	private static HoItemCatalogueQuery.Criteria criteria(String search, boolean all) {
-		HoItemCatalogueQuery.Criteria criteria = new HoItemCatalogueQuery.Criteria();
+	private static ItemCatalogueQuery.Criteria criteria(String search, boolean all) {
+		ItemCatalogueQuery.Criteria criteria = new ItemCatalogueQuery.Criteria();
 		criteria.setLike(NavItemService.likeOf(search));
 		criteria.setActiveOnly(!all);
 		return criteria;
 	}
 
 	private static List<ItemCatalogueLineDTO> lines(String search, boolean all, int first, int max) {
-		HoItemCatalogueQuery.Built built = HoItemCatalogueQuery.build(criteria(search, all), true);
+		ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria(search, all), true);
 		try (Session session = sessions.openSession()) {
 			NativeQuery<?> query = session.createNativeQuery(built.getLines());
 			built.getParameters().forEach(query::setParameter);
 			return query.setFirstResult(first).setMaxResults(max).list().stream()
-					.map(row -> HoItemCatalogueService.line((Object[]) row, true)).collect(Collectors.toList());
+					.map(row -> ItemCatalogueService.line((Object[]) row, true)).collect(Collectors.toList());
 		}
 	}
 
@@ -170,7 +171,7 @@ class ItemCatalogueQueryTest {
 	}
 
 	private static long count(String search, boolean all) {
-		HoItemCatalogueQuery.Built built = HoItemCatalogueQuery.build(criteria(search, all), true);
+		ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria(search, all), true);
 		try (Session session = sessions.openSession()) {
 			NativeQuery<?> query = session.createNativeQuery(built.getCount());
 			built.getParameters().forEach(query::setParameter);
@@ -231,14 +232,14 @@ class ItemCatalogueQueryTest {
 
 	/** The line codes of a sort (status All unless activeOnly). */
 	private static List<String> sorted(String sort, boolean descending, boolean activeOnly) {
-		HoItemCatalogueQuery.Criteria criteria = criteria(null, !activeOnly);
+		ItemCatalogueQuery.Criteria criteria = criteria(null, !activeOnly);
 		criteria.setSort(sort);
 		criteria.setDescending(descending);
-		HoItemCatalogueQuery.Built built = HoItemCatalogueQuery.build(criteria, true);
+		ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria, true);
 		try (Session session = sessions.openSession()) {
 			NativeQuery<?> query = session.createNativeQuery(built.getLines());
 			built.getParameters().forEach(query::setParameter);
-			return codes(query.list().stream().map(row -> HoItemCatalogueService.line((Object[]) row, true))
+			return codes(query.list().stream().map(row -> ItemCatalogueService.line((Object[]) row, true))
 					.collect(Collectors.toList()));
 		}
 	}
@@ -340,58 +341,60 @@ class ItemCatalogueQueryTest {
 	@Test
 	@DisplayName("Every column of the native queries has its own alias: SQL Server names an aggregate without one \"\"")
 	void columnAliases() {
-		HoItemCatalogueQuery.Criteria every = criteria("a", true);
+		ItemCatalogueQuery.Criteria every = criteria("a", true);
 		every.setFamilyId(1L);
 		every.setSubFamilyId(1L);
 		every.setDivisionCode("D");
 		every.setCategoryCode("C");
 		every.setSectionCode("S");
-		every.setStockPointId(1L);
+		HoItemCatalogueQuery.stockPoint(every, 1L);
 		every.setVariants("YES");
 		every.setPriceMin(1.0);
 		every.setPriceMax(9.0);
 		every.setSort("family");
-		for (HoItemCatalogueQuery.Criteria criteria : Arrays.asList(criteria(null, true), criteria("a", false), every)) {
-			HoItemCatalogueQuery.Built built = HoItemCatalogueQuery.build(criteria, true);
-			assertEquals(HoItemCatalogueQuery.LINE_COLUMNS, columnLabels(sessions, built.getLines(), built.getParameters()));
-			assertEquals(Arrays.asList(HoItemCatalogueQuery.COUNT_COLUMN),
+		for (ItemCatalogueQuery.Criteria criteria : Arrays.asList(criteria(null, true), criteria("a", false), every)) {
+			ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria, true);
+			assertEquals(ItemCatalogueQuery.LINE_COLUMNS, columnLabels(sessions, built.getLines(), built.getParameters()));
+			assertEquals(Arrays.asList(ItemCatalogueQuery.COUNT_COLUMN),
 					columnLabels(sessions, built.getCount(), built.getParameters()));
 		}
 		assertEquals(Arrays.asList("has_variants", "has_families", "has_division", "has_category", "has_section",
-				"stock_point_count", "has_barcodes"),
-				columnLabels(sessions, HoItemCatalogueQuery.FLAGS));
-		assertEquals(Arrays.asList("id", "code", "name", "category_code"), columnLabels(sessions, HoItemCatalogueQuery.FAMILIES));
-		assertEquals(Arrays.asList("id", "code", "name", "family_id"), columnLabels(sessions, HoItemCatalogueQuery.SUB_FAMILIES));
-		assertEquals(Arrays.asList("code"), columnLabels(sessions, HoItemCatalogueQuery.DIVISIONS));
-		assertEquals(Arrays.asList("code", "name"), columnLabels(sessions, HoItemCatalogueQuery.CATEGORIES));
-		assertEquals(Arrays.asList("code", "name", "sub_family_code"), columnLabels(sessions, HoItemCatalogueQuery.SECTIONS));
+				"has_barcodes"), columnLabels(sessions, ItemCatalogueQuery.FLAGS));
+		assertEquals(Arrays.asList("stock_point_count"), columnLabels(sessions, HoItemCatalogueQuery.STOCK_POINT_COUNT));
+		assertEquals(Arrays.asList("id", "code", "name", "category_code"), columnLabels(sessions, ItemCatalogueQuery.FAMILIES));
+		assertEquals(Arrays.asList("id", "code", "name", "family_id"), columnLabels(sessions, ItemCatalogueQuery.SUB_FAMILIES));
+		assertEquals(Arrays.asList("code"), columnLabels(sessions, ItemCatalogueQuery.DIVISIONS));
+		assertEquals(Arrays.asList("code", "name"), columnLabels(sessions, ItemCatalogueQuery.CATEGORIES));
+		assertEquals(Arrays.asList("code", "name", "sub_family_code"), columnLabels(sessions, ItemCatalogueQuery.SECTIONS));
 		assertEquals(Arrays.asList("id", "code", "name"), columnLabels(sessions, HoItemCatalogueQuery.STOCK_POINTS));
-		List<String> columns = HoItemCatalogueQuery.LINE_COLUMNS;
+		List<String> columns = ItemCatalogueQuery.LINE_COLUMNS;
 		assertEquals(columns.size(), new HashSet<>(columns).size(), "unique aliases");
 		columns.forEach(column -> assertFalse(column.trim().isEmpty(), "no empty alias"));
-		assertEquals("nav_item_no", columns.get(HoItemCatalogueQuery.COL_NAV_ITEM_NO));
-		assertEquals("item_id", columns.get(HoItemCatalogueQuery.COL_ITEM_ID));
-		assertEquals("item_code", columns.get(HoItemCatalogueQuery.COL_ITEM_CODE));
-		assertEquals("item_name", columns.get(HoItemCatalogueQuery.COL_ITEM_NAME));
-		assertEquals("family_name", columns.get(HoItemCatalogueQuery.COL_FAMILY_NAME));
-		assertEquals("sub_family_name", columns.get(HoItemCatalogueQuery.COL_SUB_FAMILY_NAME));
-		assertEquals("category_code", columns.get(HoItemCatalogueQuery.COL_CATEGORY_CODE));
-		assertEquals("section_code", columns.get(HoItemCatalogueQuery.COL_SECTION_CODE));
-		assertEquals("variant_count", columns.get(HoItemCatalogueQuery.COL_VARIANT_COUNT));
-		assertEquals("any_active", columns.get(HoItemCatalogueQuery.COL_ANY_ACTIVE));
-		assertEquals("stock_quantity", columns.get(HoItemCatalogueQuery.COL_STOCK_QUANTITY));
-		assertEquals("price_min", columns.get(HoItemCatalogueQuery.COL_PRICE_MIN));
-		assertEquals("price_max", columns.get(HoItemCatalogueQuery.COL_PRICE_MAX));
+		assertEquals("nav_item_no", columns.get(ItemCatalogueQuery.COL_NAV_ITEM_NO));
+		assertEquals("item_id", columns.get(ItemCatalogueQuery.COL_ITEM_ID));
+		assertEquals("item_code", columns.get(ItemCatalogueQuery.COL_ITEM_CODE));
+		assertEquals("item_name", columns.get(ItemCatalogueQuery.COL_ITEM_NAME));
+		assertEquals("family_name", columns.get(ItemCatalogueQuery.COL_FAMILY_NAME));
+		assertEquals("sub_family_name", columns.get(ItemCatalogueQuery.COL_SUB_FAMILY_NAME));
+		assertEquals("category_code", columns.get(ItemCatalogueQuery.COL_CATEGORY_CODE));
+		assertEquals("section_code", columns.get(ItemCatalogueQuery.COL_SECTION_CODE));
+		assertEquals("variant_count", columns.get(ItemCatalogueQuery.COL_VARIANT_COUNT));
+		assertEquals("any_active", columns.get(ItemCatalogueQuery.COL_ANY_ACTIVE));
+		assertEquals("stock_quantity", columns.get(ItemCatalogueQuery.COL_STOCK_QUANTITY));
+		assertEquals("price_min", columns.get(ItemCatalogueQuery.COL_PRICE_MIN));
+		assertEquals("price_max", columns.get(ItemCatalogueQuery.COL_PRICE_MAX));
 	}
 
 	@Test
 	@DisplayName("Flags per field: a catégorie without any division or section (ZEN's shape) gives has_category only")
 	void flagsPerField() {
 		try (Session session = sessions.openSession()) {
-			Object[] flags = (Object[]) session.createNativeQuery(HoItemCatalogueQuery.FLAGS).uniqueResult();
+			Object[] flags = (Object[]) session.createNativeQuery(ItemCatalogueQuery.FLAGS).uniqueResult();
 			List<Integer> values = Arrays.stream(flags).map(value -> ((Number) value).intValue()).collect(Collectors.toList());
-			// [has_variants, has_families, has_division, has_category, has_section, stock_point_count, has_barcodes]
-			assertEquals(Arrays.asList(1, 1, 0, 1, 0, 2, 1), values);
+			// [has_variants, has_families, has_division, has_category, has_section, has_barcodes]
+			assertEquals(Arrays.asList(1, 1, 0, 1, 0, 1), values);
+			assertEquals(2, ((Number) session.createNativeQuery(HoItemCatalogueQuery.STOCK_POINT_COUNT).uniqueResult())
+					.intValue(), "the head office counts its points de stock apart");
 		}
 	}
 
