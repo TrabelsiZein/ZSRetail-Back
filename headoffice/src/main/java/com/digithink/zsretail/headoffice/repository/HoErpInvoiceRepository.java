@@ -1,5 +1,7 @@
 package com.digithink.zsretail.headoffice.repository;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -23,6 +25,58 @@ public interface HoErpInvoiceRepository extends _BaseRepository<HoErpInvoice, Lo
 
 	/** 2.2.1: one invoice by its ERP number. */
 	Optional<HoErpInvoice> findByBcNumber(String bcNumber);
+
+	/**
+	 * The query of {@link #invoicesOfOrder}: native, the number cast to varchar so SQL Server seeks ix_ho_erp_invoice_order
+	 * (the driver's nvarchar would scan the table).
+	 */
+	String OF_ORDER = "select bc_number, posting_date, customer_no from ho_erp_invoice"
+			+ " where order_no = cast(:orderNo as varchar(50)) order by bc_number";
+
+	@Query(value = OF_ORDER, nativeQuery = true)
+	List<Object[]> findOfOrder(@Param("orderNo") String orderNo);
+
+	/** 3.1.1: an invoice of the ERP that names a sales order, as the store orders read it. */
+	final class OrderInvoice {
+		private final String number;
+		private final LocalDate postingDate;
+		private final String customerNo;
+
+		public OrderInvoice(String number, LocalDate postingDate, String customerNo) {
+			this.number = number;
+			this.postingDate = postingDate;
+			this.customerNo = customerNo;
+		}
+
+		public String getNumber() {
+			return number;
+		}
+
+		public LocalDate getPostingDate() {
+			return postingDate;
+		}
+
+		public String getCustomerNo() {
+			return customerNo;
+		}
+
+		/** The rows of {@link HoErpInvoiceRepository#OF_ORDER}, [bc_number, posting_date, customer_no], in their order. */
+		public static List<OrderInvoice> fromRows(List<Object[]> rows) {
+			List<OrderInvoice> found = new ArrayList<>();
+			for (Object[] row : rows) {
+				Object day = row[1];
+				LocalDate postingDate = day instanceof java.sql.Date ? ((java.sql.Date) day).toLocalDate()
+						: day instanceof LocalDate ? (LocalDate) day : null;
+				found.add(new OrderInvoice((String) row[0], postingDate, (String) row[2]));
+			}
+			return found;
+		}
+	}
+
+	/** 3.1.1: the invoices already imported whose orderNo is this ERP order number, by invoice number. */
+	default List<OrderInvoice> invoicesOfOrder(String orderNo) {
+		return OrderInvoice.fromRows(findOfOrder(orderNo));
+	}
 
 	/** 2.2.1: the numbers of the held invoices without a store whose hold reason is like this pattern, by number. */
 	@Query("select i.bcNumber from HoErpInvoice i where i.held = true and i.storeId is null and i.holdReason like :pattern"

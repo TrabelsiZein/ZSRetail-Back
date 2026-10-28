@@ -383,6 +383,7 @@ public class HoErpInvoiceService implements DownDomainProvider, SupplyConfirmati
 		invoice.setPostingDate(source.getPostingDate());
 		invoice.setCustomerNo(cut(blankToNull(source.getCustomerNo()), HoErpInvoice.CUSTOMER_NO_LENGTH));
 		invoice.setCustomerName(cut(blankToNull(source.getCustomerName()), HoErpInvoice.CUSTOMER_NAME_LENGTH));
+		invoice.setOrderNo(cut(blankToNull(source.getOrderNo()), HoErpInvoice.ORDER_NO_LENGTH));
 		invoice.setTotalExclVat(amount(source.getTotalExclVat()));
 		invoice.setTotalVat(amount(source.getTotalVat()));
 		invoice.setTotalInclVat(amount(source.getTotalInclVat()));

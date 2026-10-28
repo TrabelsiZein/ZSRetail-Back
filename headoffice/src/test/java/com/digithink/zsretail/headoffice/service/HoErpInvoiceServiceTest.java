@@ -293,6 +293,8 @@ class HoErpInvoiceServiceTest {
 		assertEquals(Arrays.asList("CV26000004 FVV26000000101 2026-03-03 C-0001",
 				"CV26000099 FVV26000000102 2026-03-03 C-0009"), told);
 		assertEquals(1, summary.get("ordersDelivered"));
+		assertEquals("CV26000004", saved("FVV26000000101").getOrderNo(), "kept: an order posted later finds it");
+		assertNull(saved("FVV26000000103").getOrderNo());
 
 		told.clear();
 		HoErpInvoiceService replaying = new HoErpInvoiceService(tables.repository(), ho.storeRepository(),

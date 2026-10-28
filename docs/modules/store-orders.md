@@ -196,6 +196,7 @@ local test file of the ZEN head office) say `ERP`; the Happyness, EMTOP and dev 
 | `headoffice.repository.HoStoreOrderRepository` | by store and number, the row lock, the job's ids, the copies down, the list page |
 | `headoffice.service.HoStoreOrderService` | reception, variant stock, "mark posted", "reject", reads; the SUPPLY provider of the `ORD:` records |
 | `headoffice.service.StoreOrderDeliveries` | what the invoice import tells of an invoice naming a sales order (implemented by `HoStoreOrderService`; absent without store orders) |
+| `headoffice.repository.HoErpInvoiceRepository.invoicesOfOrder` | the invoices already imported that name an ERP order number (an order posted after its invoice) |
 | `headoffice.service.HoStoreOrderPosting` | the job `POST_STORE_ORDERS` and "retry now" (ERP mode), implements erp-api `ErpStoreOrderPosting` |
 | `headoffice.controller.HeadOfficeOrdersAPI` | `/ho/orders` (store key) |
 | `headoffice.controller.HoStoreOrderAPI` | `admin/headoffice/store-orders` (JWT) |
@@ -220,7 +221,8 @@ rejected). Index `ix_ho_store_order_status` (`status`, `received_at`).
 `variant_description`, `quantity` numeric(18,3), as the store sent them (no item id: the store's means nothing here);
 `nav_accepted_qty` numeric(18,3) and `nav_line_message` varchar(500), nullable: NAV's answer on the line when posted.
 
-Created by `db/3.1.1/store-orders.sql` when the database has `ho_store`; `ddl-auto` creates the same tables.
+Created by `db/3.1.1/store-orders.sql` when the database has `ho_store`; `ddl-auto` creates the same tables. The same
+script adds `ho_erp_invoice.order_no` varchar(50) and its index `ix_ho_erp_invoice_order` (Delivered, below).
 
 ### Statuses at the head office
 
@@ -296,8 +298,12 @@ ZEN fills it from `orderNo` of the franchise page `salesInvoices` (the `commande
 - **Not delivered**: an order of another store (the invoice's customer and the store's ERP customer number both known and
   different: a number typed by hand in MANUAL mode may be wrong); an order not `POSTED` (waiting, rejected, delivered
   already). A second invoice of the same order changes nothing: the first invoice is kept.
-- **Read once**: the import reads each invoice once (after the highest number). An invoice read before its order was
-  posted (MANUAL mode, the number typed after the invoice came) never delivers it: `ho_erp_invoice` keeps no `orderNo`.
+- **Posted after its invoice**: `ho_erp_invoice.order_no` keeps each invoice's `orderNo` (index
+  `ix_ho_erp_invoice_order`). When an order becomes `POSTED` (the job, "retry now", "mark posted"), the invoices already
+  imported under its ERP number are looked up (`HoErpInvoiceRepository.invoicesOfOrder`, native, the number cast to
+  varchar: a seek), in the posting's transaction: the first of its store's customer, by invoice number, makes it
+  `DELIVERED` at once (the store then sees `DELIVERED` directly). Typical in MANUAL mode, when NAV invoiced the order
+  before the head office typed its number. The invoices read before this column existed keep none.
 - **No action** takes a `DELIVERED` order (mark posted, reject, retry: 409, as on any order not waiting).
 - **The store**: `StoreOrderStatusWriter` writes `DELIVERED`, `invoice_no`, `delivered_at`. A store of an earlier
   3.1.1 build refuses `DELIVERED` (the record in error, retried at each cycle) until it is upgraded. The invoice itself
@@ -404,8 +410,6 @@ on the Roles page.
 
 ## Still to come
 
-- Delivered: the invoice import reads each invoice once; keeping `orderNo` on `ho_erp_invoice` would let an order posted
-  by hand after its invoice came be delivered later (not done).
 - ZEN: whether `mode` stays `vrac` on every line (`colis` would need the packs on the order lines); `referenceZS`
   filterable (then the "not filterable" exception of the lookup removed); what NAV fills in `statut`, `message` and `quantite` on a ZS order, read at the first live posting
   (if `quantite` comes later than the POST, every line would read short until then).

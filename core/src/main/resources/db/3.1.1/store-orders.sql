@@ -21,7 +21,9 @@
 -- stores send, one per store and number (uk_ho_store_order_number), with the names and types Hibernate uses, and
 -- NAV's answer when the order was posted: ho_store_order.nav_message, ho_store_order_line.nav_accepted_qty and
 -- nav_line_message (added when missing); ho_store_order.invoice_no and delivered_at, the ERP invoice that delivered it
--- (status DELIVERED, set by the invoice import from the invoice's orderNo; added when missing). They exist, empty, on every head office; only one with
+-- (status DELIVERED, set by the invoice import from the invoice's orderNo; added when missing); ho_erp_invoice.order_no
+-- and its index ix_ho_erp_invoice_order, the sales order an ERP invoice names (added when missing; the invoices read
+-- before keep none). They exist, empty, on every head office; only one with
 -- headoffice.storeorders.post set takes orders.
 --
 -- Re-runnable: each object only when missing; no data changed.
@@ -228,6 +230,17 @@ IF OBJECT_ID(N'ho_store_order', N'U') IS NOT NULL AND COL_LENGTH(N'ho_store_orde
 GO
 IF OBJECT_ID(N'ho_store_order', N'U') IS NOT NULL AND COL_LENGTH(N'ho_store_order', N'delivered_at') IS NULL
 	ALTER TABLE ho_store_order ADD delivered_at date NULL;
+GO
+
+-- The sales order an ERP invoice names (its orderNo), kept so that an order posted after its invoice was read is
+-- delivered by it; the index serves that lookup. Invoices read before this script keep none.
+IF OBJECT_ID(N'ho_erp_invoice', N'U') IS NOT NULL AND COL_LENGTH(N'ho_erp_invoice', N'order_no') IS NULL
+	ALTER TABLE ho_erp_invoice ADD order_no varchar(50) NULL;
+GO
+IF OBJECT_ID(N'ho_erp_invoice', N'U') IS NOT NULL AND COL_LENGTH(N'ho_erp_invoice', N'order_no') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_ho_erp_invoice_order'
+		AND object_id = OBJECT_ID(N'ho_erp_invoice'))
+	CREATE INDEX ix_ho_erp_invoice_order ON ho_erp_invoice (order_no);
 GO
 
 SET NOEXEC OFF;

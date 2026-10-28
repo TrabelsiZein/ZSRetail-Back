@@ -81,6 +81,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `invoiceNo` and `deliveredAt` and the store writes DELIVERED. erp-api: `ErpSupplyInvoiceDTO.orderNo` (null for the
   connectors that give none: Happyness and EMTOP unchanged); connector-zen: `orderNo` of `salesInvoices`. Store:
   `GET /admin/deliveries/by-number?number=` (a received document by its number, 404 when not here).
+- Store orders, DELIVERED also when the invoice came first: the import keeps each invoice's `orderNo`
+  (`ho_erp_invoice.order_no`); an order that becomes POSTED (the job, "retry now", "mark posted") looks up the invoices
+  already imported under its ERP number (native, a seek) and is DELIVERED by the first of its store's customer in the
+  same transaction.
 
 ### Enhancements
 - Store orders, the lists: a `search` parameter on `GET /store-order` and `GET admin/headoffice/store-orders`, in the
@@ -147,6 +151,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `nav_line_message` (head office), all NULL, each added when missing (a start adds them too).
 - `store-orders.sql`: columns `invoice_no` varchar(30) and `delivered_at` date, NULL, on `hol_order` (store) and
   `ho_store_order` (head office), each added when missing (a start adds them too): the invoice of a DELIVERED order.
+- `store-orders.sql`: column `ho_erp_invoice.order_no` varchar(50) NULL and index `ix_ho_erp_invoice_order` (head
+  office), each added when missing: the sales order an ERP invoice names. The invoices read before keep none.
 - `store-orders.sql`, step 2: tables `ho_store_order` (unique `store_id`, `number`; FK to `ho_store`; index
   `ix_ho_store_order_status`) and `ho_store_order_line` (FK to `ho_store_order`) on a head office only. Re-runnable, no
   data changed.

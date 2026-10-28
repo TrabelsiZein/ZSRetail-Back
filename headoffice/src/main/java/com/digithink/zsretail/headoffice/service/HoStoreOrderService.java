@@ -15,6 +15,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -49,6 +50,8 @@ import com.digithink.zsretail.headoffice.enumeration.PostedMode;
 import com.digithink.zsretail.headoffice.model.HoStoreOrder;
 import com.digithink.zsretail.headoffice.model.HoStoreOrderLine;
 import com.digithink.zsretail.headoffice.model.Store;
+import com.digithink.zsretail.headoffice.repository.HoErpInvoiceRepository;
+import com.digithink.zsretail.headoffice.repository.HoErpInvoiceRepository.OrderInvoice;
 import com.digithink.zsretail.headoffice.repository.HoStoreOrderRepository;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -66,7 +69,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * What became of an order goes down to its store only (domain SUPPLY, record ORD:&lt;number&gt;, kind STORE_ORDER), recorded
  * in the transaction of each change to POSTED, ERROR, REJECTED or DELIVERED; REJECTED goes down as ERROR with its message
  * (the store has no such status). DELIVERED: the invoice import found the order's ERP number in an ERP invoice
- * ({@link #deliveredBy}). See docs/modules/store-orders.md.
+ * ({@link #deliveredBy}), or an order became POSTED under the number of an invoice imported before
+ * ({@link #deliverIfInvoiced}). See docs/modules/store-orders.md.
  */
 @Service
 @ConditionalOnInstallation(Installation.HEAD_OFFICE_STORE_ORDERS)
@@ -101,6 +105,19 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 	private final Supplier<LocalDateTime> clock;
 	/** headoffice.storeorders.post=ERP: the job posts; "mark posted" is refused. */
 	private final boolean byErp;
+
+	/** 3.1.1: the ERP invoices already imported that name an ERP order number (ho_erp_invoice.order_no); none in tests. */
+	private Function<String, List<OrderInvoice>> orderInvoices = orderNo -> Collections.emptyList();
+
+	@Autowired
+	public void setErpInvoices(HoErpInvoiceRepository erpInvoices) {
+		this.orderInvoices = erpInvoices::invoicesOfOrder;
+	}
+
+	/** For the tests: the invoices of an ERP order number. */
+	void useOrderInvoices(Function<String, List<OrderInvoice>> orderInvoices) {
+		this.orderInvoices = orderInvoices;
+	}
 
 	/** The connector's read of the variants' stock, as this service calls it. */
 	public interface VariantStockReader {
@@ -369,6 +386,7 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 				if (answer != null) {
 					keepAnswer(order, answer);
 				}
+				deliverIfInvoiced(order);
 			} else if (order.getStatus() == HoStoreOrderStatus.SENT || order.getStatus() == HoStoreOrderStatus.ERROR) {
 				order.setStatus(HoStoreOrderStatus.ERROR);
 				order.setErrorMessage(cut(failure == null ? "the ERP gave no order number" : failure,
@@ -434,12 +452,9 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 		Integer changed = transactions.execute(status -> {
 			int count = 0;
 			for (HoStoreOrder order : orders.findForDelivery(orderNo, HoStoreOrderStatus.POSTED)) {
-				if (!ofCustomer(order, blankToNull(customerNo))) {
+				if (!deliver(order, invoice, postingDate, customerNo)) {
 					continue;
 				}
-				order.setStatus(HoStoreOrderStatus.DELIVERED);
-				order.setInvoiceNo(cut(invoice, HoStoreOrder.INVOICE_NO_LENGTH));
-				order.setDeliveredAt(postingDate != null ? postingDate : clock.get().toLocalDate());
 				order.setUpdatedBy(HEAD_OFFICE);
 				orders.save(order);
 				recordDown(order);
@@ -448,6 +463,38 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 			return count;
 		});
 		return changed == null ? 0 : changed;
+	}
+
+	/**
+	 * The order (POSTED) DELIVERED by this invoice: invoice_no, delivered_at its posting date (the head office's day when it
+	 * has none). False, nothing changed, when the invoice is another store's customer's. The caller saves and records it.
+	 */
+	private boolean deliver(HoStoreOrder order, String invoiceNo, LocalDate postingDate, String customerNo) {
+		if (!ofCustomer(order, blankToNull(customerNo))) {
+			return false;
+		}
+		order.setStatus(HoStoreOrderStatus.DELIVERED);
+		order.setInvoiceNo(cut(invoiceNo.trim(), HoStoreOrder.INVOICE_NO_LENGTH));
+		order.setDeliveredAt(postingDate != null ? postingDate : clock.get().toLocalDate());
+		return true;
+	}
+
+	/**
+	 * An order just POSTED (the job, "retry now", "mark posted"): when the invoice import read its ERP invoice before
+	 * (ho_erp_invoice.order_no is its ERP number: NAV invoiced it before the head office knew the number, MANUAL mode),
+	 * it is DELIVERED by the first such invoice of its store's customer, in the same transaction, as the import would.
+	 */
+	private void deliverIfInvoiced(HoStoreOrder order) {
+		String orderNo = blankToNull(order.getNavOrderNo());
+		if (orderNo == null) {
+			return;
+		}
+		for (OrderInvoice invoice : orderInvoices.apply(orderNo)) {
+			if (blankToNull(invoice.getNumber()) != null
+					&& deliver(order, invoice.getNumber(), invoice.getPostingDate(), invoice.getCustomerNo())) {
+				return;
+			}
+		}
 	}
 
 	/** True unless the order's store and the invoice name two different ERP customer numbers. */
@@ -482,6 +529,7 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 			order.setPostedAt(clock.get());
 			order.setPostedMode(PostedMode.MANUAL);
 			order.setErrorMessage(null);
+			deliverIfInvoiced(order);
 			order.setUpdatedBy(user == null ? HEAD_OFFICE : user);
 			orders.save(order);
 			recordDown(order);

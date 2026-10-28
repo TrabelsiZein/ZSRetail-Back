@@ -35,7 +35,8 @@ import lombok.NoArgsConstructor;
 @Table(name = "ho_erp_invoice",
 		uniqueConstraints = @UniqueConstraint(name = "uk_ho_erp_invoice_number", columnNames = "bc_number"),
 		indexes = { @Index(name = "ix_ho_erp_invoice_store_status", columnList = "store_id,status"),
-				@Index(name = "ix_ho_erp_invoice_year", columnList = "year_prefix,bc_number") })
+				@Index(name = "ix_ho_erp_invoice_year", columnList = "year_prefix,bc_number"),
+				@Index(name = "ix_ho_erp_invoice_order", columnList = "order_no") })
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
@@ -47,6 +48,7 @@ public class HoErpInvoice extends _BaseEntity {
 	public static final int NOTE_LENGTH = 500;
 	public static final int USER_LENGTH = 100;
 	public static final int WARNINGS_LENGTH = 2000;
+	public static final int ORDER_NO_LENGTH = 50;
 
 	/** The ERP's number, e.g. FVV26000000123. */
 	@Column(name = "bc_number", nullable = false, length = NUMBER_LENGTH)
@@ -72,6 +74,13 @@ public class HoErpInvoice extends _BaseEntity {
 	/** ho_store.id of the store whose ERP customer number is customer_no; null until found. */
 	@Column(name = "store_id")
 	private Long storeId;
+
+	/**
+	 * 3.1.1: the ERP's sales order the invoice delivers (ErpSupplyInvoiceDTO.orderNo; null when the connector gives none):
+	 * a store's order posted under that number is DELIVERED by it, at the import or when it is posted later.
+	 */
+	@Column(name = "order_no", length = ORDER_NO_LENGTH)
+	private String orderNo;
 
 	@Column(name = "total_excl_vat")
 	private Double totalExclVat;

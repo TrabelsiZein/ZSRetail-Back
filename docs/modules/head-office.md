@@ -1441,7 +1441,7 @@ Seen on ZEN's test NAV (the sample `connectors/zen/src/test/resources/zen/salesI
 unit `PCS`, some with a line discount, and the G/L rounding line at -0.002 (NAV writes `-0.00200000000000000000`, kept
 as sent); the lines add up to `amount` 133.798, `amountIncludingVAT` 159.22 (VAT 25.422); `orderNo` `CV26000002`, the
 sales order it delivers (3.1.1: `ErpSupplyInvoiceDTO.orderNo`, a store's order of that ERP number becomes `DELIVERED`,
-`store-orders.md`, "Delivered"). Tests: `ZenMapperInvoicesTest`,
+`store-orders.md`, "Delivered"; kept in `ho_erp_invoice.order_no`). Tests: `ZenMapperInvoicesTest`,
 `ZenInvoiceClientTest`, `ZenInvoicesTest` (connectors/zen), `ZenStartupCheckTest` (network-tests).
 `headoffice.supply.source` stays `HEAD_OFFICE` in the configs until the live test (step 9b) and ZEN's answer on the
 cancelled invoices.

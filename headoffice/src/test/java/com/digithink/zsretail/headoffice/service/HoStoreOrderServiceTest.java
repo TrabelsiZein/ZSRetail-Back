@@ -35,6 +35,7 @@ import com.digithink.zsretail.headoffice.enumeration.HoStoreOrderStatus;
 import com.digithink.zsretail.headoffice.enumeration.PostedMode;
 import com.digithink.zsretail.headoffice.model.HoStoreOrder;
 import com.digithink.zsretail.headoffice.model.Store;
+import com.digithink.zsretail.headoffice.repository.HoErpInvoiceRepository.OrderInvoice;
 import com.digithink.zsretail.headoffice.support.InMemoryCatalogue;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -294,6 +295,60 @@ class HoStoreOrderServiceTest {
 		assertEquals("FVE2600009", order.getInvoiceNo());
 		assertThrows(IllegalStateException.class, () -> service.reject(order.getId(), "late", "admin"));
 		assertEquals(1, ((List<?>) service.list(null, "DELIVERED", null, null, null, null, null, 0, 20).get("content")).size());
+	}
+
+	@Test
+	@DisplayName("Posted after its invoice was read (MANUAL): mark posted finds the invoice of that ERP number and the order"
+			+ " is DELIVERED at once, the store sees DELIVERED; another store's customer's invoice is passed over")
+	void markPostedAfterTheInvoice() {
+		List<String> asked = new ArrayList<>();
+		service.useOrderInvoices(orderNo -> {
+			asked.add(orderNo);
+			return "SO-0042".equals(orderNo)
+					? Arrays.asList(new OrderInvoice("FVE2600007", LocalDate.of(2026, 10, 27), "C-0002"),
+							new OrderInvoice("FVE2600008", LocalDate.of(2026, 10, 28), "C-0001"))
+					: Collections.<OrderInvoice>emptyList();
+		});
+		HoStoreOrder order = received();
+		HoStoreOrderDTO view = service.markPosted(order.getId(), " SO-0042 ", "admin").get();
+		assertEquals(Collections.singletonList("SO-0042"), asked);
+		assertEquals("DELIVERED", view.getStatus());
+		assertEquals("FVE2600008", view.getInvoiceNo(), "FVE2600007 is store C's customer's");
+		assertEquals(LocalDate.of(2026, 10, 28), view.getDeliveredAt());
+		assertEquals("SO-0042", view.getNavOrderNo());
+		assertEquals("MANUAL", view.getPostedMode());
+		JsonNode copy = orderCopy(b);
+		assertEquals("DELIVERED", copy.get("status").asText());
+		assertEquals("FVE2600008", copy.get("invoiceNo").asText());
+
+		assertTrue(service.receive(b, order("B-2026-000002", "B", line("70061~S", "S", 1))).isAccepted());
+		HoStoreOrder second = tables.byNumber("B-2026-000002");
+		assertEquals("POSTED", service.markPosted(second.getId(), "SO-0099", "admin").get().getStatus(),
+				"no invoice of that number yet: POSTED, the import delivers it later");
+		assertNull(second.getInvoiceNo());
+	}
+
+	@Test
+	@DisplayName("Posted by the job after its invoice was read (ERP): DELIVERED in the posting's transaction, with NAV's"
+			+ " answer kept; a failed posting looks for nothing")
+	void postedByTheJobAfterTheInvoice() {
+		HoStoreOrderService erp = service(true);
+		List<String> asked = new ArrayList<>();
+		erp.useOrderInvoices(orderNo -> {
+			asked.add(orderNo);
+			return Collections.singletonList(new OrderInvoice("FVE2600011", null, null));
+		});
+		assertTrue(erp.receive(b, order(FIRST, "B", line("70061~S", "S", 2))).isAccepted());
+		HoStoreOrder order = tables.byNumber(FIRST);
+		erp.recordPosting(order.getId(), null, "NAV down");
+		assertTrue(asked.isEmpty(), "ERROR: no ERP number to look for");
+		HoStoreOrderDTO view = erp.recordPosting(order.getId(), "CV26000004", null).get();
+		assertEquals(Collections.singletonList("CV26000004"), asked);
+		assertEquals("DELIVERED", view.getStatus());
+		assertEquals("FVE2600011", view.getInvoiceNo());
+		assertEquals(NOW.toLocalDate(), view.getDeliveredAt(), "no posting date: the head office's day");
+		assertEquals("ERP", view.getPostedMode());
+		assertEquals("DELIVERED", orderCopy(b).get("status").asText());
 	}
 
 	@Test
