@@ -28,7 +28,9 @@ import lombok.extern.log4j.Log4j2;
  * <p>
  * Posting first looks up NAV's order of the same referenceZS (the store's order number) with its lines: an order
  * posted again after a lost answer is never doubled. The lookup is required: when the page cannot answer it, the order
- * is not posted (failure, retried by the head office's job). Then:
+ * is not posted (failure, retried by the head office's job); except when NAV answers that referenceZS is not
+ * filterable: the lookup is skipped, the order posted, and the communications log message says so (the duplicate check
+ * waits for ZEN to make the field filterable). Then:
  * <ul>
  * <li>found: reused; the lines NAV does not have (a posting that stopped half-way) are posted one by one;</li>
  * <li>none: one POST of the order with its lines nested (deep insert). When NAV answers a 4xx refusing the nested lines,
@@ -41,6 +43,10 @@ import lombok.extern.log4j.Log4j2;
 @ConditionalOnErpConnector(ZenConnectorDescriptor.NAME)
 @Log4j2
 public class ZenStoreOrders {
+
+	/** The communications log's note when NAV cannot filter on the order number. */
+	static final String LOOKUP_SKIPPED = "duplicate check skipped: " + ZenOrderFields.ORDER_REFERENCE
+			+ " not filterable";
 
 	private final ZenRestClient client;
 	private final ZenProperties properties;
@@ -72,9 +78,20 @@ public class ZenStoreOrders {
 					.failure("zen: a sales order without its external document number is not posted", body));
 		}
 		String url = null;
+		String skipped = "";
 		try {
 			url = client.salesOrdersUrl();
-			JsonNode found = client.findSalesOrder(number);
+			JsonNode found = null;
+			try {
+				found = client.findSalesOrder(number);
+			} catch (ZenReadException e) {
+				if (!lookupNotFilterable(e)) {
+					throw e;
+				}
+				log.warn("zen: NAV cannot filter on {} ({}); the order {} is posted without its duplicate check",
+						ZenOrderFields.ORDER_REFERENCE, e.getMessage(), number);
+				skipped = "; " + LOOKUP_SKIPPED;
+			}
 			if (found != null) {
 				return reused(order, number, found, body, url, mode);
 			}
@@ -92,9 +109,10 @@ public class ZenStoreOrders {
 				answer = postHeaderThenLines(order, mode);
 				path = "NAV refused the nested lines: header then " + order.getLines().size() + " lines posted one by one";
 			}
-			return answered(number, ZenOrderFields.orderOf(answer), body, url, path);
+			return answered(number, ZenOrderFields.orderOf(answer), body, url, path + skipped);
 		} catch (ZenReadException e) {
-			ErpSalesOrderResult failure = ErpSalesOrderResult.of(ErpOperationResult.failure(e.getMessage(), body));
+			ErpSalesOrderResult failure = ErpSalesOrderResult
+					.of(ErpOperationResult.failure(e.getMessage() + skipped, body));
 			failure.setUrl(url);
 			return failure;
 		}
@@ -167,6 +185,19 @@ public class ZenStoreOrders {
 					"zen: NAV answered the order " + number + " without its " + ZenOrderFields.ORDER_ID, null);
 		}
 		return id;
+	}
+
+	/**
+	 * NAV refused the lookup's filter because the order number's field cannot be filtered on ("Field 'referenceZS' is not
+	 * filterable"), read in NAV's answer (the exception's message names the URL, hence the field, always). Any other
+	 * failure of the lookup stops the posting.
+	 */
+	static boolean lookupNotFilterable(ZenReadException e) {
+		if (!(e.getCause() instanceof HttpStatusCodeException)) {
+			return false;
+		}
+		String answer = ((HttpStatusCodeException) e.getCause()).getResponseBodyAsString().toLowerCase(Locale.ROOT);
+		return answer.contains("'" + ZenOrderFields.ORDER_REFERENCE.toLowerCase(Locale.ROOT) + "' is not filterable");
 	}
 
 	/**

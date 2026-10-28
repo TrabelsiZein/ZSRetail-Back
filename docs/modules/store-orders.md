@@ -299,7 +299,12 @@ label → value, strings) and `sizeOrder` are optional, filled by a connector wi
   4110001: `disponible` 203 or 101 where `stock` is 1 to 69; size 36 has `ordreTaille` 220, after 46's 200, so its column comes last);
 - **the sales orders, ZEN's real page** `commandesVente` (2026-10-28), under the same `companies(id)`:
   - lookup, required: `GET commandesVente?$filter=referenceZS eq '<number>'&$expand=lignesCommande` (a quote
-    doubled); when it cannot be answered nothing is posted (ERROR, retried);
+    doubled); when it cannot be answered nothing is posted (ERROR, retried). One exception: NAV's answer says
+    `Field 'referenceZS' is not filterable` (read in its body, any HTTP status): the lookup is skipped, the order posted
+    as when none is found, and the communications log message ends with "duplicate check skipped: referenceZS not
+    filterable" (on a failure too). **Risk while it lasts:** an order whose POST answer is lost (timeout) is ERROR,
+    and the next run posts it again: NAV may then hold it twice. Remove the exception once ZEN makes the field
+    filterable;
   - found: reused; the lines NAV does not have (by `article` and `codeVariante`: a posting that stopped half-way) are
     posted one by one, then the order read again (`GET commandesVente(<id>)?$expand=lignesCommande`);
   - none: one `POST commandesVente` with the lines nested (deep insert): header `referenceZS` (the order number),

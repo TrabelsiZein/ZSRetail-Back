@@ -15,6 +15,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -32,6 +33,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.test.web.client.ResponseCreator;
 import org.springframework.util.StreamUtils;
 import org.springframework.web.client.RestTemplate;
 
@@ -362,6 +364,69 @@ class ZenStoreOrdersTest {
 				result.getMessage());
 		assertTrue(result.getMessage().contains("filter not supported"), result.getMessage());
 		assertEquals(ORDERS, result.getUrl());
+	}
+
+	/** NAV's refusal of the lookup's filter on referenceZS. */
+	static final String NOT_FILTERABLE = "{\"error\":{\"code\":\"BadRequest_InvalidRequestUrl\",\"message\":\"Field"
+			+ " 'referenceZS' is not filterable.  CorrelationId:  0d3f4a2e-0000-0000-0000-000000000000.\"}}";
+
+	@Test
+	@DisplayName("NAV refuses the filter on referenceZS (not filterable): the lookup skipped, the order posted, the"
+			+ " communications log message says the duplicate check was skipped")
+	void lookupNotFilterable() throws IOException {
+		server.expect(requestTo(LOOKUP)).andExpect(method(HttpMethod.GET)).andRespond(withStatus(HttpStatus.BAD_REQUEST)
+				.contentType(MediaType.APPLICATION_JSON).body(NOT_FILTERABLE));
+		server.expect(requestTo(ORDERS)).andExpect(method(HttpMethod.POST))
+				.andExpect(jsonPath("$.referenceZS").value(NUMBER))
+				.andExpect(jsonPath("$.lignesCommande.length()").value(3))
+				.andRespond(withSuccess(navOrder().toString(), MediaType.APPLICATION_JSON));
+		ErpSalesOrderResult result = orders.post(order());
+		server.verify();
+		assertTrue(result.isSuccess(), result.getMessage());
+		assertEquals("CV26000003", result.getExternalReference());
+		assertEquals("NAV's order CV26000003 of " + NUMBER + ": posted with its 3 lines in one call (deep insert);"
+				+ " duplicate check skipped: referenceZS not filterable", result.getMessage());
+		assertEquals(3, result.getLines().size());
+	}
+
+	@Test
+	@DisplayName("Not filterable, then the POST refused: a failure whose message still says the check was skipped")
+	void lookupNotFilterableThenRefused() {
+		server.expect(requestTo(LOOKUP)).andRespond(withStatus(HttpStatus.BAD_REQUEST)
+				.contentType(MediaType.APPLICATION_JSON).body(NOT_FILTERABLE));
+		server.expect(requestTo(ORDERS)).andExpect(method(HttpMethod.POST))
+				.andRespond(withStatus(HttpStatus.BAD_REQUEST).body("Le client 4110001 est bloqué"));
+		ErpSalesOrderResult result = orders.post(order());
+		server.verify();
+		assertFalse(result.isSuccess());
+		assertTrue(result.getMessage().startsWith("zen: posting to the page commandesVente failed: HTTP 400"),
+				result.getMessage());
+		assertTrue(result.getMessage().endsWith("; duplicate check skipped: referenceZS not filterable"),
+				result.getMessage());
+	}
+
+	@Test
+	@DisplayName("Another lookup refusal still stops the posting: another field not filterable, a 400 about the filter"
+			+ " that does not say so, a 500, no answer")
+	void lookupOtherErrorsStop() {
+		List<ResponseCreator> refusals = Arrays.asList(
+				withStatus(HttpStatus.BAD_REQUEST).contentType(MediaType.APPLICATION_JSON)
+						.body("{\"error\":{\"message\":\"Field 'client' is not filterable.\"}}"),
+				withStatus(HttpStatus.BAD_REQUEST).contentType(MediaType.APPLICATION_JSON)
+						.body("{\"error\":{\"message\":\"Invalid filter on referenceZS\"}}"),
+				withStatus(HttpStatus.INTERNAL_SERVER_ERROR).body("The server could not answer"),
+				request -> {
+					throw new SocketTimeoutException("Read timed out");
+				});
+		for (ResponseCreator refusal : refusals) {
+			server.reset();
+			server.expect(requestTo(LOOKUP)).andRespond(refusal);
+			ErpSalesOrderResult result = orders.post(order());
+			server.verify(); // no POST expected
+			assertFalse(result.isSuccess());
+			assertTrue(result.getMessage().startsWith("zen: reading the page commandesVente failed"), result.getMessage());
+			assertFalse(result.getMessage().contains("duplicate check skipped"), result.getMessage());
+		}
 	}
 
 	@Test

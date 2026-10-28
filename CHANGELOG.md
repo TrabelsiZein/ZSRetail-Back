@@ -94,6 +94,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - connector-zen, `commandesVente`: NAV refused every order ("Control 'numeroDocExterne' is read-only"). The order number
   now goes in `referenceZS` (ZEN's field for it) and the lookup filters on `referenceZS eq '..'`; `numeroDocExterne` is
   never sent, and the store code is no longer sent (no writable header field fits it; `client` names the store).
+- connector-zen, `commandesVente`: when NAV answers the lookup with "Field 'referenceZS' is not filterable", the lookup
+  is skipped and the order posted; the communications log message ends with "duplicate check skipped: referenceZS not
+  filterable". Any other lookup error still stops the posting.
 - Store orders lists: `GET admin/headoffice/store-orders` and the store's `GET /store-order` answered 500 ("Parameter
   value [1] did not match expected type [java.lang.Integer]"): the "every store / every status" flags are `long` and the
   statement compared them with an `int` literal; now `1L`, as the BL reception list. `HoStoreOrderPageQueryTest` and
