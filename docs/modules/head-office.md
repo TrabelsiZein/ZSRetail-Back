@@ -858,7 +858,7 @@ Data the head office owns reaches its stores as copies down (design 2.3): the st
 
 | Table (entity) | Content |
 |---|---|
-| `ho_down_sequence` (`HoDownSequence`) | One row per domain: `last_version`, the domain's last change number |
+| `ho_down_sequence` (`HoDownSequence`) | One row per domain: `last_version`, the domain's last change number. 3.1.1: read and incremented by native queries, the domain cast to varchar (`HoDownSequenceRepository`), so SQL Server seeks the domain's own row: a pull of one domain never waits behind a writer of another (with the driver's nvarchar it scanned the table, and a store's LOYALTY, PROMOTIONS and SUPPLY pulls timed out, HTTP 500, while a catalogue writer held the CATALOGUE row) |
 | `ho_down_change` (`HoDownChange`) | One row per (`domain`, `record_code`, `store_id`), `store_id` null = every store (also stores created later); `change_version` = the number of the record's last change for that store. Unique `uk_ho_down_change`, index `ix_ho_down_change_pull` (`domain`, `change_version`, `store_id`, `record_code`; 3.1.0, it replaces `ix_ho_down_change_version`): a pull reads the changes after its cursor in the index alone, the domain cast to `varchar` in `findChanged` (a native query) so SQL Server seeks it |
 
 - `CopiesDownFeed.recordChange(domain, code, stores)`, called inside the writer's transaction (`Propagation.MANDATORY`): increments the domain's number (`update ... set last_version = last_version + 1`, the row stays locked until the commit, so one domain's numbers are given in commit order), then moves the rows of the stores concerned to it. A change of targets passes the old and the new stores together (`StoreTargets.union`): a store taken off gets the code as removed.
