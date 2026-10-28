@@ -81,6 +81,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `invoiceNo` and `deliveredAt` and the store writes DELIVERED. erp-api: `ErpSupplyInvoiceDTO.orderNo` (null for the
   connectors that give none: Happyness and EMTOP unchanged); connector-zen: `orderNo` of `salesInvoices`. Store:
   `GET /admin/deliveries/by-number?number=` (a received document by its number, 404 when not here).
+- Store orders, `GET /store-order/last?navItemNo=`: the last order of this store sent with a line of that ERP item (not
+  a draft, not cancelled): number, status, date, and its quantity of each variant (the variants window's "Dernière
+  commande"); 204 without one.
 - Store orders, DELIVERED also when the invoice came first: the import keeps each invoice's `orderNo`
   (`ho_erp_invoice.order_no`); an order that becomes POSTED (the job, "retry now", "mark posted") looks up the invoices
   already imported under its ERP number (native, a seek) and is DELIVERED by the first of its store's customer in the

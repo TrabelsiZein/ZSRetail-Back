@@ -93,6 +93,11 @@ public final class InMemoryStoreOrders {
 				}
 				case "save":
 					return save((StoreOrder) args[0]);
+				case "findWithNavItem":
+					return orders.values().stream().filter(o -> ((java.util.Collection<?>) args[1]).contains(o.getStatus()))
+							.filter(o -> o.getLines().stream().anyMatch(l -> args[0].equals(l.getNavItemNo())))
+							.sorted(Comparator.comparing(StoreOrder::getId).reversed())
+							.limit(((Pageable) args[2]).getPageSize()).collect(Collectors.toList());
 				case "findPage": {
 					boolean any = (Long) args[0] == 1L;
 					LocalDateTime from = (LocalDateTime) args[2];

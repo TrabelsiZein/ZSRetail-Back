@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -46,6 +47,7 @@ import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.store.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.store.holink.dto.LiveAnswer;
 import com.digithink.zsretail.store.holink.dto.StoreOrderCatalogueLineDTO;
+import com.digithink.zsretail.store.holink.dto.StoreOrderLastDTO;
 import com.digithink.zsretail.store.holink.dto.StoreOrderVariantsDTO;
 import com.digithink.zsretail.store.holink.dto.StoreOrderViewDTO;
 import com.digithink.zsretail.store.holink.enumeration.StoreOrderStatus;
@@ -559,6 +561,36 @@ public class StoreOrderService {
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException("Unknown status: " + status);
 		}
+	}
+
+	/** The orders the variants window's "last order" may be: sent to the head office (not a draft, not cancelled). */
+	static final List<StoreOrderStatus> LAST_ORDER_STATUSES = Arrays.asList(StoreOrderStatus.SENT,
+			StoreOrderStatus.POSTED, StoreOrderStatus.ERROR, StoreOrderStatus.DELIVERED);
+
+	/**
+	 * The last order of this store sent with a line of this ERP item number (the highest id; a draft or a cancelled
+	 * order is not one): its number, status, date (sent, else created) and its lines of that item. Empty for none; 400
+	 * without a number.
+	 */
+	public Optional<StoreOrderLastDTO> lastOrderOf(String navItemNo) {
+		if (!hasText(navItemNo)) {
+			throw new IllegalArgumentException("navItemNo is required");
+		}
+		String number = navItemNo.trim();
+		return Optional.ofNullable(edits.execute(tx -> orders.findWithNavItem(number, LAST_ORDER_STATUSES,
+				PageRequest.of(0, 1)).stream().findFirst().map(order -> {
+					StoreOrderLastDTO last = new StoreOrderLastDTO();
+					last.setId(order.getId());
+					last.setNumber(order.getNumber());
+					last.setStatus(order.getStatus().name());
+					last.setDate(order.getSentAt() != null ? order.getSentAt() : order.getCreatedAt());
+					last.setLines(order.getLines().stream()
+							.filter(line -> line.getNavItemNo() != null && number.equals(line.getNavItemNo().trim()))
+							.map(line -> new StoreOrderLastDTO.Line(line.getItemId(), line.getVariantCode(),
+									line.getQuantity()))
+							.collect(Collectors.toList()));
+					return last;
+				}).orElse(null)));
 	}
 
 	/** One order with its lines. */

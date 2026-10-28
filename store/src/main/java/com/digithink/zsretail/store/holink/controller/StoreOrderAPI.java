@@ -27,7 +27,6 @@ import com.digithink.zsretail.core.dto.NavItemFilter;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.store.holink.dto.StoreOrderCatalogueLineDTO;
 import com.digithink.zsretail.store.holink.dto.StoreOrderInputDTO;
-import com.digithink.zsretail.store.holink.dto.StoreOrderViewDTO;
 import com.digithink.zsretail.store.holink.service.StoreOrderService;
 
 import lombok.extern.log4j.Log4j2;
@@ -98,6 +97,15 @@ public class StoreOrderAPI {
 	@GetMapping("/variants")
 	public ResponseEntity<?> variants(@RequestParam(name = "navItemNo") String navItemNo) {
 		return answer(() -> found(service.variants(navItemNo)));
+	}
+
+	/**
+	 * GET /store-order/last?navItemNo: the last order sent with a line of this ERP item (number, status, date, its lines
+	 * of that item); 204 when there is none, 400 without a number.
+	 */
+	@GetMapping("/last")
+	public ResponseEntity<?> last(@RequestParam(name = "navItemNo", required = false) String navItemNo) {
+		return answer(() -> orNoContent(service.lastOrderOf(navItemNo)));
 	}
 
 	/** GET /store-order/draft: the draft with its lines; 204 when there is none. */
@@ -178,8 +186,8 @@ public class StoreOrderAPI {
 				.orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(error(NOT_FOUND)));
 	}
 
-	private static ResponseEntity<?> orNoContent(Optional<StoreOrderViewDTO> draft) {
-		return draft.<ResponseEntity<?>>map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
+	private static ResponseEntity<?> orNoContent(Optional<?> value) {
+		return value.<ResponseEntity<?>>map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
 	}
 
 	private ResponseEntity<?> answer(Supplier<ResponseEntity<?>> call) {

@@ -1,6 +1,7 @@
 package com.digithink.zsretail.store.holink.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,6 +31,15 @@ public interface StoreOrderRepository extends _BaseRepository<StoreOrder, Long> 
 	Optional<StoreOrder> findForUpdate(@Param("id") Long id);
 
 	Optional<StoreOrder> findByNumber(String number);
+
+	/**
+	 * 3.1.1: the orders of these statuses holding a line of this ERP item number, newest first (the variants window's
+	 * last order: the first one).
+	 */
+	@Query("select o from StoreOrder o where o.status in :statuses and exists (select l.id from StoreOrderLine l"
+			+ " where l.order = o and l.navItemNo = :navItemNo) order by o.id desc")
+	List<StoreOrder> findWithNavItem(@Param("navItemNo") String navItemNo,
+			@Param("statuses") Collection<StoreOrderStatus> statuses, Pageable page);
 
 	/** The highest number of a store and year (prefix with % after it, e.g. S01-2026-%); null for the first. */
 	@Query("select max(o.number) from StoreOrder o where o.number like :prefix")

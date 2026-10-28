@@ -108,6 +108,7 @@ draft, a cancelled order or an unknown number is left as it is, noted on the tra
 |---|---|
 | `GET /store-order/catalogue?page&size&search&categoryCode&familyId&subFamilyId&sectionCode&sort&dir` | `{content, page, size, totalElements, totalPages}`, one line per NAV item number with an active variant: `navItemNo`, `name`, `mainImage`, `mainImageItemId`, `variantCount`, `price`, `vatRate`, `familyName`, `subFamilyName`, `categoryCode` / `Name`, `sectionCode` / `Name` |
 | `GET /store-order/variants?navItemNo` | `{navItemNo, name, variants: [{itemId, itemCode, variantCode, variantDescription, sizeCode, sizeDescription, colorCode, colorDescription, choiceCode, choiceDescription, price, vatRate, mainImage, images, stock, details, sizeOrder, draftQuantity}]}`; 404 for a number no active item carries; **409** with the head office's reason when it refuses the store (no ERP customer number); **503** without the head office |
+| `GET /store-order/last?navItemNo` | the last order of this store **sent** with a line of that ERP item (`SENT`, `POSTED`, `ERROR` or `DELIVERED`: not a draft, not cancelled; the highest id): `{id, number, status, date, lines: [{itemId, variantCode, quantity}]}`, `date` the send's else the creation's, `lines` its lines of that item only; 204 when there is none; 400 without a number |
 | `GET /store-order/draft` | the draft with its lines; 204 when there is none |
 | `POST /store-order/draft/lines` `{itemId, quantity, availableQty?}` | the draft (204 for a 0 without a draft); 409 above the availability (the one sent, else the line's) |
 | `DELETE /store-order/draft/lines/{itemId}` | the draft; 404 without a draft |
@@ -385,6 +386,26 @@ list, one order). Shown only where `/config` gives `supplyFromHeadOffice` and `n
 when the variants carry one (a size's: the smallest of its variants; a size without one after them), else the back end's
 order; a cell with `details` shows an info icon whose tooltip lists "label : value" (`store-orders-api.js`
 `variantMatrix`, `detailLines`; `tools/store-orders-check.mjs`).
+
+**The variants window** (3.1.1 enhancements, `StoreOrderVariantsModal.vue`, rules in `store-orders-api.js`, proved by
+`tools/store-orders-check.mjs`):
+
+- **Headers**: a size, colour or choice whose description is empty or shared by another code of the item shows its code
+  (`dimensionLabels`: belts with three sizes "TAILLE" show 85, 90, 95).
+- **Totals**: a column and a row "Total" (per colour row, per size, in all), live as the cells are typed (`matrixTotals`,
+  the cells counted as the footer counts them).
+- **Prices** (this window only, under the images): purchase net price (`Prix net` of the connector's details, ZEN's
+  `prixNet`), discount (`Remise %`, `remisePourcent`), selling price with VAT (the variant's `price` before VAT ×
+  (1 + `vatRate` %)), margin = selling price before VAT − purchase net price, in TND and in % **of the selling price before
+  VAT**. Each shown once when every variant that has it agrees, else "variable", the values of each variant in its cell's
+  tooltip (`variantPrices`, `priceBlock`, `cellTooltipLines`). Hidden when no variant has any.
+- **Last order**: under the title "Dernière commande : date · number" (`GET /store-order/last`, a link to the order), and in
+  each cell the quantity of that variant in it, greyed. Read beside the variants; a failure shows nothing.
+- **Previous / next item**: the catalogue's lines of its current page (its filters, `neighbourItem`), by the footer's
+  arrows ("n / total") or ← → when no field has the focus; the cart is kept. With quantities typed and not added: "Ajouter
+  avant de passer ?" (Ajouter: added, then the next item; Ignorer: the next item, nothing added; Annuler: stays).
+- **Ajouter et suivant**: beside "Ajouter à la commande" when the page has a next item: adds the cells changed (none: just
+  moves), then opens the next item; an error keeps the window on the item.
 
 **The lists** "Mes commandes" and "Commandes des magasins" have a search (the order number, the ERP / head office
 number, a line's code or name; debounced 400 ms, Enter at once) and keep their filters in the URL (`q`, `storeId`,

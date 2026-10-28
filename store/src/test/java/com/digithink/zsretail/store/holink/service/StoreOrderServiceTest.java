@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -62,6 +63,7 @@ import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.store.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.store.holink.dto.DownApplyResult;
 import com.digithink.zsretail.store.holink.dto.StoreOrderCatalogueLineDTO;
+import com.digithink.zsretail.store.holink.dto.StoreOrderLastDTO;
 import com.digithink.zsretail.store.holink.dto.StoreOrderVariantsDTO;
 import com.digithink.zsretail.store.holink.dto.StoreOrderViewDTO;
 import com.digithink.zsretail.store.holink.enumeration.DownRecordStatus;
@@ -597,6 +599,51 @@ class StoreOrderServiceTest {
 				.getApplied(), "only a line's answer changed");
 		assertEquals(0, new BigDecimal("2").compareTo(order.getLines().get(0).getNavAcceptedQty()));
 		assertNull(order.getLines().get(0).getNavLineMessage());
+	}
+
+	@Test
+	@DisplayName("Last order of an item: the newest order sent holding it (not a draft, not cancelled), its date (sent,"
+			+ " else created) and its lines of that item only; none: empty; no number: 400")
+	void lastOrder() {
+		StoreOrder older = orders.add("S01-2026-000001", StoreOrderStatus.DELIVERED);
+		lastLine(older, 11L, "43ZBPND01", "001", "4");
+		StoreOrder last = orders.add("S01-2026-000002", StoreOrderStatus.POSTED);
+		last.setCreatedAt(LocalDateTime.of(2026, 10, 27, 9, 0));
+		last.setSentAt(LocalDateTime.of(2026, 10, 27, 10, 30));
+		lastLine(last, 11L, "43ZBPND01", "001", "2");
+		lastLine(last, 12L, "43ZBPND01", "002", "1.5");
+		lastLine(last, 30L, "32ZFCHD21", "001", "9");
+		StoreOrder cancelled = orders.add("S01-2026-000003", StoreOrderStatus.CANCELLED);
+		lastLine(cancelled, 11L, "43ZBPND01", "001", "7");
+		StoreOrder draft = orders.add("S01-2026-000004", StoreOrderStatus.DRAFT);
+		lastLine(draft, 11L, "43ZBPND01", "001", "8");
+
+		StoreOrderLastDTO found = service.lastOrderOf(" 43ZBPND01 ").get();
+		assertEquals("S01-2026-000002", found.getNumber());
+		assertEquals("POSTED", found.getStatus());
+		assertEquals(LocalDateTime.of(2026, 10, 27, 10, 30), found.getDate(), "the send's date");
+		assertEquals(Arrays.asList(11L, 12L),
+				found.getLines().stream().map(StoreOrderLastDTO.Line::getItemId).collect(Collectors.toList()),
+				"its lines of that item only");
+		assertEquals(0, new BigDecimal("1.5").compareTo(found.getLines().get(1).getQuantity()));
+		assertEquals("002", found.getLines().get(1).getVariantCode());
+
+		last.setSentAt(null);
+		assertEquals(LocalDateTime.of(2026, 10, 27, 9, 0), service.lastOrderOf("43ZBPND01").get().getDate(),
+				"not sent at: the creation");
+		assertFalse(service.lastOrderOf("99ZZZZZ99").isPresent());
+		assertThrows(IllegalArgumentException.class, () -> service.lastOrderOf(" "));
+	}
+
+	private static void lastLine(StoreOrder order, Long itemId, String navItemNo, String variantCode, String quantity) {
+		StoreOrderLine line = new StoreOrderLine();
+		line.setOrder(order);
+		line.setItemId(itemId);
+		line.setItemCode(navItemNo + "~" + variantCode);
+		line.setNavItemNo(navItemNo);
+		line.setVariantCode(variantCode);
+		line.setQuantity(new BigDecimal(quantity));
+		order.getLines().add(line);
 	}
 
 	@Test
