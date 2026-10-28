@@ -66,10 +66,10 @@ public class ZenProperties {
 	@Setter
 	public static class Order {
 		/**
-		 * The mode of every line (key erp.zen.order.mode); empty: the field is left out and NAV keeps its own. TODO remove
-		 * the key once ZEN confirms the value.
+		 * The mode of every line (key erp.zen.order.mode): vrac by default (NAV requires colis or vrac, 2026-10-28; vrac
+		 * for now); set empty, the field is left out.
 		 */
-		private String mode;
+		private String mode = "vrac";
 	}
 
 	/**

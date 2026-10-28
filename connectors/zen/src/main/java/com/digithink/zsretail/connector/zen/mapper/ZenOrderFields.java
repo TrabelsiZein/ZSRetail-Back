@@ -72,7 +72,7 @@ public final class ZenOrderFields {
 	// A line sent
 	public static final String LINE_ITEM_NO = "article";
 	public static final String LINE_VARIANT_CODE = "codeVariante";
-	/** erp.zen.order.mode; left out when empty. */
+	/** erp.zen.order.mode (vrac by default; NAV requires colis or vrac); left out when set empty. */
 	public static final String LINE_MODE = "mode";
 	/** The pieces the store asks for. */
 	public static final String LINE_REQUESTED = "quantiteDemandee";
@@ -156,8 +156,9 @@ public final class ZenOrderFields {
 	}
 
 	/**
-	 * The header: referenceZS (the store's order number), commandeZS true, client (the store's ERP customer number, the
-	 * only field naming the store), dateCommande as yyyy-MM-dd; no numeroDocExterne, no dateLivraisonSouhaitee.
+	 * The header: referenceZS (the store's order number), commandeZS always true, client (the store's ERP customer
+	 * number, the only field naming the store), dateCommande as yyyy-MM-dd; no numeroDocExterne, no
+	 * dateLivraisonSouhaitee.
 	 */
 	public static ObjectNode headerBody(ErpSalesOrderDTO order) {
 		ObjectNode body = JsonNodeFactory.instance.objectNode();

@@ -302,18 +302,18 @@ label → value, strings) and `sizeOrder` are optional, filled by a connector wi
     doubled); when it cannot be answered nothing is posted (ERROR, retried). One exception: NAV's answer says
     `Field 'referenceZS' is not filterable` (read in its body, any HTTP status): the lookup is skipped, the order posted
     as when none is found, and the communications log message ends with "duplicate check skipped: referenceZS not
-    filterable" (on a failure too). **Risk while it lasts:** an order whose POST answer is lost (timeout) is ERROR,
-    and the next run posts it again: NAV may then hold it twice. Remove the exception once ZEN makes the field
-    filterable;
+    filterable" (on a failure too). ZEN made the field filterable on 2026-10-28, so the exception should no longer
+    fire; while it does, an order whose POST answer is lost (timeout) is ERROR and the next run posts it again (NAV
+    may hold it twice);
   - found: reused; the lines NAV does not have (by `article` and `codeVariante`: a posting that stopped half-way) are
     posted one by one, then the order read again (`GET commandesVente(<id>)?$expand=lignesCommande`);
   - none: one `POST commandesVente` with the lines nested (deep insert): header `referenceZS` (the order number),
-    `commandeZS` true, `client` (the store's ERP customer number), `dateCommande` (the send date, `yyyy-MM-dd`), no
-    `dateLivraisonSouhaitee`. **No `numeroDocExterne`**: read-only on ZEN's side (NAV refused it: "Control
-    'numeroDocExterne' is read-only", 2026-10-28), ZEN put our number in `referenceZS`. The store code is not sent: no
+    `commandeZS` always true, `client` (the store's ERP customer number), `dateCommande` (the send date,
+    `yyyy-MM-dd`), no `dateLivraisonSouhaitee`. **No `numeroDocExterne`**: read-only on ZEN's side (NAV refused it:
+    "Control 'numeroDocExterne' is read-only", 2026-10-28), ZEN put our number in `referenceZS`. The store code is not sent: no
     other writable header field fits it (`ordrePrelevement` is NAV's picking order, `statut` / `message` are NAV's
     answer), and `client` already names the store; lines `lignesCommande: [{article, codeVariante, mode,
-    quantiteDemandee}]` (pieces; `mode` only when `erp.zen.order.mode` is set, no `nbColis`). When NAV answers a 4xx
+    quantiteDemandee}]` (pieces; `mode` from `erp.zen.order.mode`, `vrac` by default, left out when set empty; no `nbColis`). When NAV answers a 4xx
     whose body names `lignesCommande`, a navigation property or a deep insert, the header is posted alone, then one
     `POST commandesVente(<id>)/lignesCommande` per line; any other refusal is the order's failure. An answer without
     its lines is followed by the read by id (when that read fails: success with `numero`, without the lines' answer);
@@ -328,8 +328,8 @@ label → value, strings) and `sizeOrder` are optional, filled by a connector wi
     tests put the order number in its `referenceZS` where NAV answers our order).
 
 The page names (`infoArticles`, `commandesVente`, `lignesCommande`) are constants of `ZenOrderFields`, not settings.
-`erp.zen.order.mode` (empty by default: the field is not sent and NAV keeps its own) is to be removed once ZEN confirms
-the value. The connector's RestTemplate still refuses every method but GET, except a POST to `commandesVente` and to
+`erp.zen.order.mode` is `vrac` by default (NAV requires `colis` or `vrac` on every line, 2026-10-28: "vrac for now");
+set to `colis` it sends that, set empty the field is left out. The connector's RestTemplate still refuses every method but GET, except a POST to `commandesVente` and to
 `commandesVente(<id>)/lignesCommande`. A field ZEN renames is one line of `ZenOrderFields`.
 
 ## The store's screens (step 3)
@@ -367,6 +367,6 @@ on the Roles page.
 
 ## Still to come
 
-- ZEN: the value of `mode` on the order lines (then `erp.zen.order.mode` removed and the value set in
-  `ZenOrderFields`); what NAV fills in `statut`, `message` and `quantite` on a ZS order, read at the first live posting
+- ZEN: whether `mode` stays `vrac` on every line (`colis` would need the packs on the order lines); `referenceZS`
+  filterable (then the "not filterable" exception of the lookup removed); what NAV fills in `statut`, `message` and `quantite` on a ZS order, read at the first live posting
   (if `quantite` comes later than the POST, every line would read short until then).

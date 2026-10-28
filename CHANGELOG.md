@@ -97,6 +97,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - connector-zen, `commandesVente`: when NAV answers the lookup with "Field 'referenceZS' is not filterable", the lookup
   is skipped and the order posted; the communications log message ends with "duplicate check skipped: referenceZS not
   filterable". Any other lookup error still stops the posting.
+- connector-zen, `commandesVente`: every line sends `mode` `vrac` by default (`erp.zen.order.mode` overrides it, set
+  empty leaves it out); NAV refused lines without it ("Le mode de la ligne … doit être colis ou vrac").
 - Store orders lists: `GET admin/headoffice/store-orders` and the store's `GET /store-order` answered 500 ("Parameter
   value [1] did not match expected type [java.lang.Integer]"): the "every store / every status" flags are `long` and the
   statement compared them with an `int` literal; now `1L`, as the BL reception list. `HoStoreOrderPageQueryTest` and

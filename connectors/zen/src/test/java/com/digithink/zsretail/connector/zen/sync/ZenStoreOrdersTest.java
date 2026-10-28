@@ -234,8 +234,8 @@ class ZenStoreOrdersTest {
 
 	@Test
 	@DisplayName("Posted in one call (deep insert): the lookup finds none, POST commandesVente with the header (the order"
-			+ " number in referenceZS, no numeroDocExterne, no store code) and its lines nested (no mode when the key is empty,"
-			+ " no dateLivraisonSouhaitee, no nbColis), then the order read with its lines: success with numero, NAV's message"
+			+ " number in referenceZS, no numeroDocExterne, commandeZS true, no store code) and its lines nested (mode vrac by"
+			+ " default, no dateLivraisonSouhaitee, no nbColis), then the order read with its lines: success with numero, NAV's message"
 			+ " and per line the quantity accepted")
 	void postedDeepInsert() throws IOException {
 		server.expect(requestTo(LOOKUP)).andExpect(method(HttpMethod.GET))
@@ -252,7 +252,7 @@ class ZenStoreOrdersTest {
 				.andExpect(jsonPath("$.lignesCommande[1].article").value("43ZBPND01"))
 				.andExpect(jsonPath("$.lignesCommande[1].codeVariante").value("002"))
 				.andExpect(jsonPath("$.lignesCommande[1].quantiteDemandee").value(12))
-				.andExpect(jsonPath("$.lignesCommande[1].mode").doesNotExist())
+				.andExpect(jsonPath("$.lignesCommande[1].mode").value("vrac"))
 				.andExpect(jsonPath("$.lignesCommande[1].nbColis").doesNotExist())
 				.andRespond(withSuccess(header("Commande reçue"), MediaType.APPLICATION_JSON));
 		server.expect(requestTo(BY_ID)).andExpect(method(HttpMethod.GET)).andRespond(
@@ -274,13 +274,24 @@ class ZenStoreOrdersTest {
 	}
 
 	@Test
-	@DisplayName("erp.zen.order.mode set: every line sends its mode; an answer with its lines is not read again")
+	@DisplayName("erp.zen.order.mode set: every line sends its mode (trimmed); set empty: no mode; an answer with its lines"
+			+ " is not read again")
 	void mode() throws IOException {
-		properties.getOrder().setMode(" VRAC ");
+		assertEquals("vrac", new ZenProperties().getOrder().getMode(), "the default");
+		properties.getOrder().setMode(" colis ");
 		server.expect(requestTo(LOOKUP)).andRespond(withSuccess(NONE, MediaType.APPLICATION_JSON));
 		server.expect(requestTo(ORDERS)).andExpect(method(HttpMethod.POST))
-				.andExpect(jsonPath("$.lignesCommande[0].mode").value("VRAC"))
-				.andExpect(jsonPath("$.lignesCommande[2].mode").value("VRAC"))
+				.andExpect(jsonPath("$.lignesCommande[0].mode").value("colis"))
+				.andExpect(jsonPath("$.lignesCommande[2].mode").value("colis"))
+				.andRespond(withSuccess(navOrder().toString(), MediaType.APPLICATION_JSON));
+		assertTrue(orders.post(order()).isSuccess());
+		server.verify();
+
+		server.reset();
+		properties.getOrder().setMode("");
+		server.expect(requestTo(LOOKUP)).andRespond(withSuccess(NONE, MediaType.APPLICATION_JSON));
+		server.expect(requestTo(ORDERS)).andExpect(method(HttpMethod.POST))
+				.andExpect(jsonPath("$.lignesCommande[0].mode").doesNotExist())
 				.andRespond(withSuccess(navOrder().toString(), MediaType.APPLICATION_JSON));
 		assertTrue(orders.post(order()).isSuccess());
 		server.verify();
@@ -297,6 +308,7 @@ class ZenStoreOrdersTest {
 		server.expect(requestTo(ORDERS)).andExpect(method(HttpMethod.POST))
 				.andExpect(jsonPath("$.lignesCommande").doesNotExist())
 				.andExpect(jsonPath("$.referenceZS").value(NUMBER))
+				.andExpect(jsonPath("$.commandeZS").value(true))
 				.andExpect(jsonPath("$.numeroDocExterne").doesNotExist())
 				.andRespond(withSuccess(header(""), MediaType.APPLICATION_JSON));
 		for (String variant : Arrays.asList("001", "002", "003")) {
