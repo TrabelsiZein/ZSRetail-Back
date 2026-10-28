@@ -53,9 +53,10 @@ nullable (the quantity available the line was ordered against, below), `nav_acce
 (`order_id`, `item_id`): one line per variant.
 
 `item_image` (store and head office): `item_id`, `source` varchar(10) (`FILE`: a file name of the uploads; `URL`),
-`path` varchar(1000), `sort_order` int, `is_main` bit; index `ix_item_image_item` (`item_id`, `sort_order`). Nothing
-writes it yet (no upload, no sync). `item.image_url` is untouched and keeps meaning "the main image" for the till, the
-admin pages and the copies down.
+`path` varchar(1000), `sort_order` int, `is_main` bit; index `ix_item_image_item` (`item_id`, `sort_order`). 3.1.1,
+item images: on a ZEN head office the catalogue job writes the URL rows from ZEN's products API (`erp-sync.md`, "Item
+images") and the item copies carry them down to the stores (`head-office.md`, "Item images"); no upload writes FILE rows
+yet. `item.image_url` is untouched and keeps meaning "the main image" for the till and the admin pages.
 
 Created by `db/3.1.1/store-orders.sql` (guarded, re-runnable; run before `db/3.1.1/update.sql`, which stamps
 `APP_VERSION` 3.1.1). `ddl-auto` creates the same tables when the script did not run; the filtered index is then made at
@@ -125,7 +126,7 @@ that match (the items found by `ItemBarcodeRepository.findItemIdsByBarcodeLike`,
 counts all its active variants. Levels: `categoryCode` (the item's own catégorie, else its famille's, as the promotions
 match it), `familyId`, `subFamilyId`, `sectionCode`. Sort: `navItemNo` (the default) or `name` (then number), `dir`
 `asc` or `desc`. `price` is the first variant's `publicPrice` (before VAT, sent by the head office), else its
-`unitPrice`; `vatRate` its `defaultVAT`; `mainImage` the `image_url` of the first variant that has one, `mainImageItemId` that variant (its image at `item-image/item/{id}`). The variants'
+`unitPrice`; `vatRate` its `defaultVAT`; `mainImage` the `image_url` of the first variant that has one, `mainImageItemId` that variant (its image at `item-image/item/{id}`); none (3.1.1): the main URL image (`item_image`, source URL) of the first variant that has one, a full address the screen shows as it is. The variants'
 order is the "NAV items" page's (size order, colour, choice, code).
 
 **Variants**: the local active variants, then one live call to the head office; the stock is merged by variant code (any

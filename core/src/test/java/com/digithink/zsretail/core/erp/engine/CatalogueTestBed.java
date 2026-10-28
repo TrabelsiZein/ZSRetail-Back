@@ -144,7 +144,12 @@ final class CatalogueTestBed {
 
 	/** The job SYNC_CATALOGUE on this bed, its log in {@link #logged}. */
 	CatalogueJob job() {
-		return new CatalogueJob(engine, importer, points,
+		return job(null);
+	}
+
+	/** 3.1.1: the job with this images part (null: none), its log in {@link #logged}. */
+	CatalogueJob job(ItemImagesEngine images) {
+		return new CatalogueJob(engine, images, importer, points,
 				(status, summary, message, start, end) -> logged.add(new Object[] { status, message, summary }));
 	}
 

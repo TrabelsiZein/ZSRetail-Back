@@ -60,6 +60,26 @@ public class ZenProperties {
 	 * the variants' stock in ZenOrderFields, not settings).
 	 */
 	private Order order = new Order();
+	/**
+	 * 3.1.1 (item images): ZEN's products API (outside NAV), the images of the items. Read only when both its keys are
+	 * set (url and api-key); otherwise the catalogue job's images part is skipped.
+	 */
+	private Products products = new Products();
+
+	/** 3.1.1: ZEN's products API (its address and key; never NAV's login). */
+	@Getter
+	@Setter
+	public static class Products {
+		/** The search address, e.g. https://api-zentral.zen.com.tn/api/products/advanced-search-zs (a POST that reads). */
+		private String url;
+		/** The X-Api-Key header's value: a secret, in the machine file only. */
+		private String apiKey;
+
+		/** Both keys set. */
+		public boolean configured() {
+			return url != null && !url.trim().isEmpty() && apiKey != null && !apiKey.trim().isEmpty();
+		}
+	}
 
 	/** 3.1.1: the sales orders of the stores. */
 	@Getter

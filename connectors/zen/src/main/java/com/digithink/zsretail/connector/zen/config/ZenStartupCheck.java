@@ -82,6 +82,25 @@ public class ZenStartupCheck {
 		checkRange(env, "connect-timeout-seconds", 1, Integer.MAX_VALUE);
 		checkRange(env, "read-timeout-seconds", 1, Integer.MAX_VALUE);
 		checkInvoices(env);
+		checkProducts(env);
+	}
+
+	/**
+	 * 3.1.1 (item images): products.url and products.api-key both set (the images read) or both left out (not read); the
+	 * address http or https.
+	 */
+	private static void checkProducts(PropertyResolver env) {
+		String url = trimmed(env.getProperty(P + "products.url"));
+		String apiKey = trimmed(env.getProperty(P + "products.api-key"));
+		if (url.isEmpty() != apiKey.isEmpty()) {
+			String missing = url.isEmpty() ? "products.url" : "products.api-key";
+			throw new IllegalStateException("Missing value for property " + P + missing + ": the item images need both "
+					+ P + "products.url and " + P + "products.api-key (or neither: no images).");
+		}
+		if (!url.isEmpty() && !url.startsWith("http://") && !url.startsWith("https://")) {
+			throw new IllegalStateException("Invalid value '" + url + "' for property " + P
+					+ "products.url: the address of ZEN's products search, https://host/api/products/...");
+		}
 	}
 
 	/**
@@ -120,7 +139,9 @@ public class ZenStartupCheck {
 				+ env.getProperty(P + "page.stock-points", "stockPoints") + ", "
 				+ env.getProperty(P + "page.categories", "itemCategories") + ", "
 				+ env.getProperty(P + "page.barcodes", "barCodes")
-				+ (erpSupply(env) ? invoices(env) : "");
+				+ (erpSupply(env) ? invoices(env) : "")
+				+ (trimmed(env.getProperty(P + "products.url")).isEmpty() ? ""
+						: ", item images from " + trimmed(env.getProperty(P + "products.url")));
 	}
 
 	/**

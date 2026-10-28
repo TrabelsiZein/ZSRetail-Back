@@ -6,7 +6,9 @@ import java.util.List;
 
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ItemComposition;
+import com.digithink.zsretail.core.model.ItemImage;
 import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
+import com.digithink.zsretail.core.model.enumeration.ImageSource;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
@@ -20,7 +22,8 @@ import lombok.NoArgsConstructor;
 /**
  * Head office plan, step 6: an item as it travels down (record ITEM:&lt;code&gt;), by codes only, with the one selling
  * price worked out for the store that pulls (its price list's line, otherwise the base price). Never: stock, minimum
- * stock, cost fields, ERP id, image. A pack carries its components by item code.
+ * stock, cost fields, ERP id, image file (Item.imageUrl); 3.1.1: the images given by address (item_image URL) travel.
+ * A pack carries its components by item code.
  */
 @Data
 @NoArgsConstructor
@@ -76,6 +79,37 @@ public class CatalogueItemCopyDTO {
 	// struck through at the till. Null otherwise (EMTOP, Happyness, a hand-made item). An older store ignores them.
 	private Boolean clearance;
 	private Double publicPrice;
+
+	/**
+	 * 3.1.1 (item images): the item's images given by address (item_image source URL), in order, the main one first;
+	 * empty when it has none. Null: not sent (a head office of an older build): the store keeps its rows. A store of an
+	 * older build ignores it. Files (FILE) never travel.
+	 */
+	private List<Image> images;
+
+	/** One image given by address. */
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	public static class Image {
+		private String url;
+		private boolean main;
+		private int sort;
+	}
+
+	/** The URL images of an item (its rows in their order, FILE ones left out), as they travel. */
+	public static List<Image> imagesOf(List<ItemImage> rows) {
+		List<Image> images = new ArrayList<>();
+		if (rows != null) {
+			for (ItemImage row : rows) {
+				if (row.getSource() == ImageSource.URL) {
+					images.add(new Image(row.getPath(), row.isMain(), row.getSortOrder()));
+				}
+			}
+		}
+		return images;
+	}
 
 	/** One component of a pack. */
 	@Data

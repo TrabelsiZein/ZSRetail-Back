@@ -155,4 +155,28 @@ class ZenStartupCheckTest {
 		ZenStartupCheck.check(byId); // the id alone is enough: the invoices API is under the same companies(id)
 		assertTrue(ZenStartupCheck.summary(byId).contains("company id 1d6c4f00-6ac9-f111-9db8-ad3d0c589c9c, pages"));
 	}
+
+	@Test
+	@DisplayName("3.1.1, the item images: products.url and products.api-key both or neither, the address http(s); the"
+			+ " startup line names the address, never the key")
+	void products() {
+		String url = "https://api-zentral.zen.com.tn/api/products/advanced-search-zs";
+		MockEnvironment env = with("erp.zen.products.url", url);
+		env.setProperty("erp.zen.products.api-key", "the-key");
+		ZenStartupCheck.check(env);
+		String line = ZenStartupCheck.summary(env);
+		assertTrue(line.endsWith(", pages stockPoints, itemCategories, barCodes, item images from " + url), line);
+		assertFalse(line.contains("the-key"));
+
+		assertEquals("Missing value for property erp.zen.products.api-key: the item images need both"
+				+ " erp.zen.products.url and erp.zen.products.api-key (or neither: no images).",
+				refusal(with("erp.zen.products.url", url)));
+		assertEquals("Missing value for property erp.zen.products.url: the item images need both"
+				+ " erp.zen.products.url and erp.zen.products.api-key (or neither: no images).",
+				refusal(with("erp.zen.products.api-key", "the-key")));
+		MockEnvironment ftp = with("erp.zen.products.url", "ftp://zen/products");
+		ftp.setProperty("erp.zen.products.api-key", "the-key");
+		assertTrue(refusal(ftp).startsWith("Invalid value 'ftp://zen/products' for property erp.zen.products.url"));
+		ZenStartupCheck.check(with("erp.zen.products.url", " ")); // both blank: no images
+	}
 }

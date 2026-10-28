@@ -338,6 +338,29 @@ keep the I/O error as the cause of their read exception: ZEN (`ZenReadException`
 again). EMTOP has no catalogue source (no ability): its catalogue does not go through the engine, so no retry there.
 Tests: `CatalogueReadRetryTest`, `NavPosPagesReadRetryTest`.
 
+**Item images (3.1.1)**: the job's last part, `images`, after the barcodes, whenever the items part ran
+(`core/erp/engine/ItemImagesEngine`). A connector that reads images says so (`ErpCatalogueSource.readsItemImages()`,
+false by default: the part is skipped, `"skipped": "not configured"`, no warning; EMTOP and Happyness keep the default)
+and answers `itemImages(navItemNos)` (at most `ITEM_IMAGES_PER_CALL` = 100 per call) and `itemImagesChanged(from, to)`,
+each an `ErpItemImagesDTO {navItemNo, urls}` (the addresses in order, the first the main one; empty: the item has none).
+- Which items: the first run (no `images.since` in `erp_catalogue_state`) asks every NAV item number of the head office
+  (`HeadOfficeImages.navItemNos()`); the next runs ask the NAV item numbers of the items the items part handed in that
+  run (`CatalogueEngine.changedNavItemNos()`), then the items changed in the ERP from `images.since` less 5 minutes
+  (the two clocks) to the run's start. `images.since` = the run's start, written once every call succeeded, never in a
+  dry run. An I/O failure is read again once (`RetryingCatalogueSource`). To ask every item again, delete the
+  `images.since` row.
+- Applied per call (`JpaHeadOfficeImages`, one transaction): every variant of the NAV item (`item.nav_item_no`) gets the
+  addresses as `item_image` rows, source URL, the first `is_main`, `sort_order` 0, 1...; a variant already right is left
+  as it is; an empty list removes its URL rows; its FILE rows are never touched; an item not answered keeps its rows; an
+  address longer than `item_image.path` (1,000) is left out (`urlsTooLong`); a NAV item number the head office has not
+  is counted (`unknown`). The variants written are recorded for the stores (`CatalogueHeadOfficeHooks.afterImport`,
+  ITEM): their copies go down again with their images (`head-office.md`, "Item images").
+- Summary of the part (in the job's one communications log row): `source`, `mode` (first / changes), `since`, `asked`,
+  `calls`, `answered`, `changedInErp`, `itemsChanged`, `itemsEqual`, `itemsCleared`, `notAnswered`, `unknown`,
+  `durationMs`. **A failure never fails the job**: the part's `error`, the run a WARNING "Images failed (the catalogue
+  is saved, the next run asks again): ...", the parts before it saved, `images.since` unmoved.
+- Tests: `ItemImagesEngineTest`, `JpaHeadOfficeImagesTest` (H2), `CatalogueJobImagesTest` (core).
+
 **Items step speed (2026-10-17)**: the engine hands the import only the rows it found new, changed or gone (every
 field compared: the item fields, `ItemVariant`, the brand when given); an equal row is read, never written. The import
 (`ErpItemBootstrapService.importItems`) reads a packet's items in one query by ERP id (`findByErpExternalIdIn`) and one
@@ -458,6 +481,18 @@ GET (`ZenConfig`, `ZenRestClient`, following `@odata.nextLink`), the mapper (`Ze
   prefix after the head office's highest number), only the invoices of the stores' ERP customer numbers
   (`ErpInvoiceCustomers`, erp-api, given by the head office's `HoErpInvoiceCustomers`). Details in `head-office.md`,
   "Invoices from the ERP, ZEN".
+- Item images (3.1.1): ZEN's **products API**, outside NAV (`ZenProductsClient`): `erp.zen.products.url` (e.g.
+  `https://api-zentral.zen.com.tn/api/products/advanced-search-zs`) and `erp.zen.products.api-key` (header
+  `X-Api-Key`, a secret: the machine file only), both or neither (`ZenStartupCheck`; neither: no images). A POST that
+  reads: `{"skus": [<NAV item numbers>]}` or `{"updatedAt": {"start": .., "end": ..}}` (UTC, `yyyy-MM-ddTHH:mm:ss.SSSZ`).
+  Each product: `sku` (= `nav_item_no`), `frontImg` (the main image) then `detailsImg`, blank ones left out (none: the
+  item's URL images removed); `title`, `onSell`, `onSellB2b` and the two dates are not used. The answer is read as a
+  list, or a list under `data`, `products`, `items`, `results` or `value` (or `data.products`). Its own RestTemplate:
+  **no NAV login** (the NTLM one answers any host that asks), the connector's two timeouts, a guard letting only a POST
+  to that exact address leave (`ZenProductsClient.PostOnlyTo`); no proxy (the head office needs outbound HTTPS to the
+  API). A refusal: "zen: reading the products API failed: HTTP <status> (<url>): <body>", never the key.
+  Tests: `ZenProductsClientTest` (the sample `products.json` is built from the fields of ZEN's email of 2026-10-27, not
+  read from the API).
 - Tests: `ZenMapperTest` (on the two samples of the API in `connectors/zen/src/test/resources/zen`),
   `ZenRestClientTest`, `ZenCatalogueSourceTest` (in the project); step 9: `ZenMapperInvoicesTest` (the sample
   `salesInvoices.json`), `ZenInvoiceClientTest`, `ZenInvoicesTest`; `ZenBarcodeCursorTest` (the engine's barcode cursor on

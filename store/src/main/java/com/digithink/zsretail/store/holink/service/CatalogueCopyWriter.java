@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
@@ -24,14 +25,17 @@ import com.digithink.zsretail.core.model.ItemBarcode;
 import com.digithink.zsretail.core.model.ItemCategory;
 import com.digithink.zsretail.core.model.ItemComposition;
 import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemImage;
 import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
+import com.digithink.zsretail.core.model.enumeration.ImageSource;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
 import com.digithink.zsretail.core.repository.ItemCategoryRepository;
 import com.digithink.zsretail.core.repository.ItemCompositionRepository;
 import com.digithink.zsretail.core.repository.ItemFamilyRepository;
+import com.digithink.zsretail.core.repository.ItemImageRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.ItemSectionRepository;
 import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
@@ -67,10 +71,20 @@ public class CatalogueCopyWriter {
 	/** Item variants (ZEN), step 7. */
 	private final ItemCategoryRepository categories;
 	private final ItemSectionRepository sections;
+	/** 3.1.1 (item images): item_image; null in the tests built without it (the copies' images then not written). */
+	private final ItemImageRepository images;
 
+	/** Without item_image: used by the tests. */
 	public CatalogueCopyWriter(ItemFamilyRepository families, ItemSubFamilyRepository subFamilies, ItemRepository items,
 			ItemBarcodeRepository barcodes, ItemCompositionRepository compositions, ItemCategoryRepository categories,
 			ItemSectionRepository sections) {
+		this(families, subFamilies, items, barcodes, compositions, categories, sections, null);
+	}
+
+	@Autowired
+	public CatalogueCopyWriter(ItemFamilyRepository families, ItemSubFamilyRepository subFamilies, ItemRepository items,
+			ItemBarcodeRepository barcodes, ItemCompositionRepository compositions, ItemCategoryRepository categories,
+			ItemSectionRepository sections, ItemImageRepository images) {
 		this.families = families;
 		this.subFamilies = subFamilies;
 		this.items = items;
@@ -78,6 +92,7 @@ public class CatalogueCopyWriter {
 		this.compositions = compositions;
 		this.categories = categories;
 		this.sections = sections;
+		this.images = images;
 	}
 
 	// ─── Catégories and sections (item variants, ZEN, step 7) ────
@@ -283,6 +298,7 @@ public class CatalogueCopyWriter {
 			items.setOrigin(saved.getId(), RecordOrigin.HEAD_OFFICE);
 		}
 		savePack(saved, copy, components);
+		saveImages(saved, copy);
 		List<String> notes = new ArrayList<>();
 		String legacy = clearLegacyBarcode(copy.getBarcode(), saved);
 		if (legacy != null) {
@@ -306,7 +322,40 @@ public class CatalogueCopyWriter {
 		if (!hasText(copy.getBrand())) {
 			current.setBrand(copy.getBrand()); // a blank brand is not written: not a difference (step 7)
 		}
+		// 3.1.1: the URL images compared only when the copy carries them (none sent: the store keeps its rows)
+		current.setImages(copy.getImages() == null || images == null ? copy.getImages()
+				: CatalogueItemCopyDTO.imagesOf(images.findOfItem(item.getId())));
 		return current.equals(copy) && (copy.getBarcode() == null || !legacyBarcodeElsewhere(copy.getBarcode(), item));
+	}
+
+	/**
+	 * 3.1.1 (item images): the item's URL images as sent (the copy's order, main and sort), when the copy carries them;
+	 * left as they are when it does not (a head office of an older build). FILE rows (the store's own) never touched.
+	 */
+	private void saveImages(Item item, CatalogueItemCopyDTO copy) {
+		if (copy.getImages() == null || images == null) {
+			return;
+		}
+		List<CatalogueItemCopyDTO.Image> current = CatalogueItemCopyDTO.imagesOf(images.findOfItem(item.getId()));
+		if (current.equals(copy.getImages())) {
+			return;
+		}
+		images.deleteAll(images.findOfItem(item.getId()).stream().filter(image -> image.getSource() == ImageSource.URL)
+				.collect(Collectors.toList()));
+		for (CatalogueItemCopyDTO.Image sent : copy.getImages()) {
+			if (!hasText(sent.getUrl()) || sent.getUrl().length() > ItemImage.PATH_LENGTH) {
+				continue;
+			}
+			ItemImage image = new ItemImage();
+			image.setItemId(item.getId());
+			image.setSource(ImageSource.URL);
+			image.setPath(sent.getUrl());
+			image.setMain(sent.isMain());
+			image.setSortOrder(sent.getSort());
+			image.setCreatedBy(RecordOrigin.HEAD_OFFICE.name());
+			image.setUpdatedBy(RecordOrigin.HEAD_OFFICE.name());
+			images.save(image);
+		}
 	}
 
 	/** The pack's components as sent: missing ones added, others deleted, quantities as sent. */

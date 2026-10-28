@@ -1133,7 +1133,7 @@ Items, families, sub-families and barcodes decided by the head office reach ever
 | `SECTION:` (`CatalogueSectionCopyDTO`, step 7) | the same and `subFamilyCode` (a code only: never waited for) |
 | `ITEM:` (`CatalogueItemCopyDTO`) | `kind`, `itemCode`, `name`, `description`, `type`, `unitPrice` (the price for the pulling store: the line of its selling price list, otherwise `item.unitPrice`), `defaultVAT`, `unitOfMeasure`, `category`, `brand`, `itemDiscGroup`, `maximumAuthorizedDiscount`, `showInPos`, `barcode` (the old single field), `familyCode`, `subFamilyCode`, `components` (`[{itemCode, quantity}]`, active ones, sorted), `active`; step 7: the 14 variant fields (`navItemNo` ... `sectionCode`, by codes only; written by the store as they come, null stays null; `brand` written only when not blank) |
 | `BARCODE:` (`CatalogueBarcodeCopyDTO`) | `kind`, `barcode`, `itemCode`, `description`, `isPrimary`, `active` = barcode active **and** item active (a scan does not check the item) |
-| Never sent | `stockQuantity`, `minStockLevel`, `costPrice`, `lastDirectCost`, `lastDirectNetCost`, `franchiseSalesPrice`, `fromFranchiseAdmin`, `erpExternalId`, `imageUrl` / `imageFilename` (task 6.8) |
+| Never sent | `stockQuantity`, `minStockLevel`, `costPrice`, `lastDirectCost`, `lastDirectNetCost`, `franchiseSalesPrice`, `fromFranchiseAdmin`, `erpExternalId`, `imageUrl` / `imageFilename` (task 6.8); 3.1.1: the images given by address are sent (`images`, "Item images" below) |
 | Inactive at the head office | sent with `active=false` |
 | Deleted at the head office | answered as removed |
 
@@ -1183,13 +1183,23 @@ New columns (`ddl-auto`): `origin` `VARCHAR(20)` (`RecordOrigin`, null = local, 
 | `POST /admin/import/execute` FAMILIES, SUBFAMILIES, ITEMS, BARCODES, SALES_PRICES | 409 (plain text, like the other answers of that API) `Items, families, sub-families, barcodes and sales prices come from the head office on this store: they cannot be imported here.`; VENDORS follows the purchase right |
 | `POST`, `PUT`, `DELETE /sales-price` | 409 `Selling prices come from the head office on this store: sales prices cannot be written here.` (see `docs/modules/pricing.md`) |
 | The store's own items | Sellable and editable whatever the rights |
-| `ItemImageController` | Not guarded: images do not travel (task 6.8); a store may put its own picture on a head office item and the pull never overwrites it |
+| `ItemImageController` | Not guarded: image files do not travel (task 6.8); a store may put its own picture on a head office item and the pull never overwrites it (3.1.1: only the images given by address travel, see "Item images" below) |
 
 **Item search**: `GET /item/search` (the purchase item picker) gives `origin` for each item: `HEAD_OFFICE`, or null for an own item (on every installation; null where the catalogue is not the head office's).
 
 **Status**: `GET /catalogue/network` (JWT; 404 on any other store) and the `catalogue` block of `GET /admin/holink/status`: `{fromHeadOffice, linkState, mayChangePrices, canPurchase, ownPriceCount, salesPriceRowsOnHeadOfficeItems}`. `GET /admin/holink/received/catalogue` lists the records like any domain. `GET /config` field `catalogueFromHeadOffice` (last).
 
 **Images** (task 6.8, removed from version 2.1: plan, section 5, "Later, not scheduled"): files `uploads/pos-images/{family|subfamily|item}/{database id}.jpg` (JPEG, at most 400×400), the entity holding only `"<id>.jpg"`. Sending them would need an `imageVersion` in the copy, a `GET /ho/catalogue/images/{type}/{code}` and a store step that saves the file under its own id; to decide after L2.
+
+**Item images (3.1.1)**: the images given by address (`item_image`, source URL; on ZEN filled by the catalogue job
+from ZEN's products API, `erp-sync.md`, "Item images") travel with the item: `CatalogueItemCopyDTO.images`, a list of
+`{url, main, sort}` in the images' order, empty when the item has none (built by `HoCatalogueService` from
+`ItemImageRepository`, both store paths: stock point or not). The store's `CatalogueCopyWriter` replaces the item's URL
+rows with them (its FILE rows, the store's own, untouched) and counts them in "unchanged" (the same images: the copy is
+unchanged; other images: written). A copy without the field (a head office of an older build): the store keeps its
+rows; a store of an older build ignores it (unknown properties are ignored). `Item.imageUrl` still never travels. The
+first images run of a head office re-sends every item that got images to every store. Tests: `CatalogueCopyImagesTest`
+(store).
 
 ### Price lists (task 6.4)
 Head office without an ERP only (`HoPriceListService`, `HoPriceListAPI`, `@ConditionalOnInstallation(HEAD_OFFICE_WITHOUT_ERP)`).

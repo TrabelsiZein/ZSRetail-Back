@@ -14,6 +14,7 @@ import com.digithink.zsretail.erp.api.ErpCatalogueSource;
 import com.digithink.zsretail.erp.api.ErpCategories;
 import com.digithink.zsretail.erp.api.ErpRead;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemImagesDTO;
 
 /**
  * 3.1.0: the ERP's pages as the catalogue engine reads them, every connector alike. A page read that fails on an I/O
@@ -75,6 +76,27 @@ public final class RetryingCatalogueSource implements ErpCatalogueSource {
 	}
 
 	@Override
+	public boolean readsItemImages() {
+		return source.readsItemImages();
+	}
+
+	@Override
+	public List<ErpItemImagesDTO> itemImages(List<String> navItemNos) {
+		return read(source.itemImagesLabel(), " of " + navItemNos.size() + " items", () -> source.itemImages(navItemNos));
+	}
+
+	@Override
+	public List<ErpItemImagesDTO> itemImagesChanged(OffsetDateTime from, OffsetDateTime to) {
+		return read(source.itemImagesLabel(), " changed from " + from + " to " + to,
+				() -> source.itemImagesChanged(from, to));
+	}
+
+	@Override
+	public String itemImagesLabel() {
+		return source.itemImagesLabel();
+	}
+
+	@Override
 	public String pageLabel(Part part) {
 		return source.pageLabel(part);
 	}
@@ -85,13 +107,17 @@ public final class RetryingCatalogueSource implements ErpCatalogueSource {
 	}
 
 	private <T> T read(Part part, String which, Supplier<T> page) {
+		return read(source.pageLabel(part), which, page);
+	}
+
+	private <T> T read(String label, String which, Supplier<T> page) {
 		try {
 			return page.get();
 		} catch (RuntimeException e) {
 			if (!ioFailure(e)) {
 				throw e;
 			}
-			LOG.warn("ERP catalogue: reading the page {}{} failed ({}), retry in {} s (1/1)", source.pageLabel(part),
+			LOG.warn("ERP catalogue: reading the page {}{} failed ({}), retry in {} s (1/1)", label,
 					which, mostSpecific(e), RETRY_DELAY.getSeconds());
 			try {
 				pause.sleep(RETRY_DELAY);

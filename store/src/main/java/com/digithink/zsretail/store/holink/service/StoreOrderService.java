@@ -34,6 +34,7 @@ import com.digithink.zsretail.core.link.dto.StoreOrderDTO;
 import com.digithink.zsretail.core.link.dto.VariantStockDTO;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ItemImage;
+import com.digithink.zsretail.core.model.enumeration.ImageSource;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
 import com.digithink.zsretail.core.repository.ItemImageRepository;
@@ -153,10 +154,37 @@ public class StoreOrderService {
 		Page<NavItemDTO> lines = navItems.page(asked, page, size);
 		Map<String, List<Item>> variants = navItems.activeVariantsOf(
 				lines.getContent().stream().map(NavItemDTO::getNavItemNo).collect(Collectors.toList()));
-		return lines.map(line -> catalogueLine(line, variants.getOrDefault(line.getNavItemNo(), Collections.emptyList())));
+		Map<Long, String> mainUrls = mainUrlImages(variants.values().stream().flatMap(List::stream).map(Item::getId)
+				.collect(Collectors.toList()));
+		return lines.map(line -> catalogueLine(line, variants.getOrDefault(line.getNavItemNo(), Collections.emptyList()),
+				mainUrls));
 	}
 
-	private static StoreOrderCatalogueLineDTO catalogueLine(NavItemDTO line, List<Item> variants) {
+	/**
+	 * 3.1.1 (item images): the main image given by address (item_image source URL) of each of these items that has one:
+	 * its first URL image in the images' order.
+	 */
+	private Map<Long, String> mainUrlImages(List<Long> itemIds) {
+		Map<Long, String> urls = new HashMap<>();
+		for (int from = 0; from < itemIds.size(); from += IMAGE_IDS_PER_READ) {
+			for (ItemImage image : images
+					.findOfItems(itemIds.subList(from, Math.min(from + IMAGE_IDS_PER_READ, itemIds.size())))) {
+				if (image.getSource() == ImageSource.URL && hasText(image.getPath())) {
+					urls.putIfAbsent(image.getItemId(), image.getPath());
+				}
+			}
+		}
+		return urls;
+	}
+
+	/** Item ids per read of their images (the repository takes at most 2,000). */
+	static final int IMAGE_IDS_PER_READ = 1000;
+
+	/**
+	 * The line of a NAV item: its first variant's price; its image the first variant's Item.imageUrl (a file, read at
+	 * item-image/item/{id}), else (3.1.1) the first variant's main URL image (an address, shown as it is).
+	 */
+	static StoreOrderCatalogueLineDTO catalogueLine(NavItemDTO line, List<Item> variants, Map<Long, String> mainUrls) {
 		StoreOrderCatalogueLineDTO dto = new StoreOrderCatalogueLineDTO();
 		dto.setNavItemNo(line.getNavItemNo());
 		dto.setName(line.getName());
@@ -175,6 +203,12 @@ public class StoreOrderService {
 				dto.setMainImage(item.getImageUrl());
 				dto.setMainImageItemId(item.getId()); // the screen reads it at item-image/item/{id}
 			});
+			if (dto.getMainImage() == null) {
+				variants.stream().filter(item -> mainUrls.containsKey(item.getId())).findFirst().ifPresent(item -> {
+					dto.setMainImage(mainUrls.get(item.getId())); // a full address: the screen shows it as it is
+					dto.setMainImageItemId(item.getId());
+				});
+			}
 		}
 		return dto;
 	}

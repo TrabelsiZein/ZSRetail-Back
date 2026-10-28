@@ -34,6 +34,8 @@ import com.digithink.zsretail.erp.api.ErpSyncWarningException;
  * something back (a guard), and a dry run, make the run a warning with the reasons ({@link ErpSyncWarningException}:
  * "Run now" shows the reason, the job's status is WARNING).</li>
  * <li>One row of the communications log per run (operation SYNC_CATALOGUE): each part with its counts and duration.</li>
+ * <li>3.1.1: the items' images last, after the barcodes, whenever the items part ran ({@link ItemImagesEngine}):
+ * skipped when the connector reads none; a failure of it is a warning, never an error.</li>
  * </ul>
  * Code cleanup step 3: was NavPosPagesCatalogueJob of the navpospages connector; exists with the catalogue engine.
  */
@@ -48,6 +50,8 @@ public class CatalogueJob implements ErpCatalogueSync {
 	static final String SECTIONS = "sections";
 	static final String ITEMS = "items";
 	static final String BARCODES = "barcodes";
+	/** 3.1.1: the items' images, last ({@link ItemImagesEngine}). */
+	static final String IMAGES = "images";
 
 	public static final String DRY_RUN = "dry run: read and compared only, nothing written";
 
@@ -58,6 +62,8 @@ public class CatalogueJob implements ErpCatalogueSync {
 	}
 
 	private final CatalogueEngine engine;
+	/** 3.1.1: the images part, last; null: no images part (the tests without it). */
+	private final ItemImagesEngine images;
 	/** The engine's settings (the connector's keys): the dry run. */
 	private final CatalogueSettings settings;
 	private final CatalogueImport importer;
@@ -65,16 +71,23 @@ public class CatalogueJob implements ErpCatalogueSync {
 	private final CommunicationLog log;
 
 	@Autowired
-	public CatalogueJob(CatalogueEngine engine, CatalogueImport importer, StockPoints stockPoints,
-			ErpCommunicationService communications) {
-		this(engine, importer, stockPoints, (status, summary, message, start, end) -> communications
+	public CatalogueJob(CatalogueEngine engine, ItemImagesEngine images, CatalogueImport importer,
+			StockPoints stockPoints, ErpCommunicationService communications) {
+		this(engine, images, importer, stockPoints, (status, summary, message, start, end) -> communications
 				.logOperation(ErpSyncOperation.SYNC_CATALOGUE, null, summary, status, null, message, start, end));
 	}
 
-	/** With a given log: used by the tests. */
+	/** With a given log, without the images part: used by the tests. */
 	public CatalogueJob(CatalogueEngine engine, CatalogueImport importer, StockPoints stockPoints,
 			CommunicationLog log) {
+		this(engine, null, importer, stockPoints, log);
+	}
+
+	/** With a given log and images part: used by the tests. */
+	public CatalogueJob(CatalogueEngine engine, ItemImagesEngine images, CatalogueImport importer,
+			StockPoints stockPoints, CommunicationLog log) {
 		this.engine = engine;
+		this.images = images;
 		this.importer = importer;
 		this.stockPoints = stockPoints;
 		this.settings = engine.getSettings();
@@ -113,15 +126,20 @@ public class CatalogueJob implements ErpCatalogueSync {
 					go = inRounds(parts, SECTIONS, "Sections", engine::sections,
 							run -> importer.sections(run.getHanded()), warnings);
 				}
+				boolean itemsDone = false;
 				if (go) {
 					current = ITEMS;
 					go = once(parts, ITEMS, "Items", engine::items, warnings);
+					itemsDone = go;
 				}
 				if (go) {
 					current = BARCODES;
 					once(parts, BARCODES, "Barcodes", engine::barcodes, warnings);
 				}
 				current = null;
+				if (itemsDone && images != null) {
+					images(parts, warnings);
+				}
 				if (settings.dryRun()) {
 					warnings.add(DRY_RUN);
 				}
@@ -220,6 +238,27 @@ public class CatalogueJob implements ErpCatalogueSync {
 			warnings.add(label + ": not caught up, the next run goes on");
 		}
 		return noWait(run.getSummary(), label, warnings);
+	}
+
+	/**
+	 * 3.1.1 (item images), the last part: never stops nor fails the run. Skipped ("not configured") when the connector
+	 * reads no images; a failure (or a run of it already running) is a warning with the reason, the parts before it
+	 * saved, the images' checkpoint unmoved.
+	 */
+	private void images(Map<String, Object> parts, List<String> warnings) {
+		long started = System.nanoTime();
+		try {
+			CatalogueRun<?> run = images.run(engine.changedNavItemNos());
+			Map<String, Object> part = new LinkedHashMap<>(run.getSummary());
+			part.putIfAbsent("durationMs", millisSince(started));
+			parts.put(IMAGES, part);
+		} catch (RuntimeException e) {
+			Map<String, Object> failed = new LinkedHashMap<>();
+			failed.put("error", e.getMessage());
+			failed.put("durationMs", millisSince(started));
+			parts.put(IMAGES, failed);
+			warnings.add("Images failed (the catalogue is saved, the next run asks again): " + e.getMessage());
+		}
 	}
 
 	/** True unless the summary says the part waited (then a warning with the reason). */

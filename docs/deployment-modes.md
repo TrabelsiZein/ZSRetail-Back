@@ -318,6 +318,8 @@ NAV's standard OData V4 page `SalesInvoice` under `Company('<company>')`, only t
 | `erp.zen.invoices.number-prefix` | Start of every number, no spaces; the year follows in 2 digits (`FVE` + `26`) | `FVE` |
 | `erp.zen.invoices.page-size` | Invoices read per year and run, 1 to 1000 (the cancelled ones not counted) | `50` |
 | `erp.zen.invoices.seller-name` | The seller named on the stores' purchase invoices | `ZEN` |
+| `erp.zen.products.url` (3.1.1) | ZEN's products API (outside NAV), read for the item images by the catalogue job's last part; both products keys or neither (neither: no images) | (none) |
+| `erp.zen.products.api-key` (3.1.1) | Its `X-Api-Key`; a secret, in the installation's file only (`CHANGE_ME` in `configs/customers`) | (none) |
 
 Startup refusals with `erp.connector=zen` (the message names the key): not a head office whose catalogue only comes from
 the ERP; a blank address, username or password; neither a company nor a company id; an address that is not `http(s)://`; a wrong `default-vat`,

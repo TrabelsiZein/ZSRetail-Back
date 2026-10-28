@@ -35,6 +35,7 @@ import com.digithink.zsretail.core.model.ItemBarcode;
 import com.digithink.zsretail.core.model.ItemCategory;
 import com.digithink.zsretail.core.model.ItemComposition;
 import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemImage;
 import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.model._BaseEntity;
@@ -44,6 +45,7 @@ import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
 import com.digithink.zsretail.core.repository.ItemCategoryRepository;
 import com.digithink.zsretail.core.repository.ItemCompositionRepository;
 import com.digithink.zsretail.core.repository.ItemFamilyRepository;
+import com.digithink.zsretail.core.repository.ItemImageRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.ItemSectionRepository;
 import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
@@ -205,16 +207,20 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 					: compositions.findByParentItemIdIn(ids).stream()
 							.collect(Collectors.groupingBy(c -> c.getParentItem().getId()));
 			Map<Long, Double> listPrices = listPrices(store, ids);
+			Map<Long, List<ItemImage>> images = imagesOf(ids);
 			if (!hasStockPoint(store)) {
 				for (Item item : found) {
-					copies.put(CatalogueKind.ITEM.recordCode(item.getItemCode()), COPY_MAPPER.valueToTree(
-							CatalogueItemCopyDTO.of(item, priceFor(item, listPrices), packs.get(item.getId()))));
+					CatalogueItemCopyDTO copy = CatalogueItemCopyDTO.of(item, priceFor(item, listPrices),
+							packs.get(item.getId()));
+					withImages(copy, item, images);
+					copies.put(CatalogueKind.ITEM.recordCode(item.getItemCode()), COPY_MAPPER.valueToTree(copy));
 				}
 			} else {
 				Map<Long, HoStockPointItem> rows = pointRows(store, ids);
 				for (Item item : found) {
 					CatalogueItemCopyDTO copy = pointCopy(item, rows, packs.get(item.getId()));
 					if (copy != null) {
+						withImages(copy, item, images);
 						copies.put(CatalogueKind.ITEM.recordCode(item.getItemCode()), COPY_MAPPER.valueToTree(copy));
 					}
 				}
@@ -241,6 +247,41 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 			}
 		}
 		return copies;
+	}
+
+	// ─── Item images (3.1.1) ─────────────────────────────────────
+
+	/** Item ids per read of their images (the repository takes at most 2,000). */
+	static final int IMAGE_IDS_PER_READ = 1000;
+
+	/** item_image; null in the tests that build the service by hand: the copies then carry no images (not sent). */
+	private ItemImageRepository itemImages;
+
+	@Autowired(required = false)
+	public void setItemImages(ItemImageRepository itemImages) {
+		this.itemImages = itemImages;
+	}
+
+	/** The images of these items, by item id (none without the repository). */
+	private Map<Long, List<ItemImage>> imagesOf(List<Long> itemIds) {
+		Map<Long, List<ItemImage>> byItem = new HashMap<>();
+		if (itemImages == null) {
+			return byItem;
+		}
+		for (int from = 0; from < itemIds.size(); from += IMAGE_IDS_PER_READ) {
+			for (ItemImage image : itemImages
+					.findOfItems(itemIds.subList(from, Math.min(from + IMAGE_IDS_PER_READ, itemIds.size())))) {
+				byItem.computeIfAbsent(image.getItemId(), id -> new ArrayList<>()).add(image);
+			}
+		}
+		return byItem;
+	}
+
+	/** The copy carries the item's URL images (empty when it has none), once the repository is there. */
+	private void withImages(CatalogueItemCopyDTO copy, Item item, Map<Long, List<ItemImage>> images) {
+		if (itemImages != null) {
+			copy.setImages(CatalogueItemCopyDTO.imagesOf(images.get(item.getId())));
+		}
 	}
 
 	// ─── Stock points (release 2.2, step 3a) ─────────────────────

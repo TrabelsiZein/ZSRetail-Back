@@ -4,12 +4,14 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemImagesDTO;
 
 /**
  * Code cleanup step 3: the reads of the ERP's catalogue as the catalogue engine uses them (GET only), already
  * translated to the Erp*DTO classes. A connector implements it with its own client and mapper (which pages, which
  * fields); the engine compares, waits, keeps the barcode cursor and applies. Each read says how many rows it read and
- * which it left out, by reason (the connector's reasons, shown in the summary of the run).
+ * which it left out, by reason (the connector's reasons, shown in the summary of the run). 3.1.1: the items' images,
+ * optional (a connector may read them from another system than its ERP, e.g. ZEN's products API, a POST that reads).
  */
 public interface ErpCatalogueSource {
 
@@ -49,6 +51,35 @@ public interface ErpCatalogueSource {
 
 	/** Every barcode of these items (a few item codes per call). */
 	ErpRead<ErpBarcodeRow> barcodesOfItems(List<String> itemCodes);
+
+	/**
+	 * 3.1.1 (item images): true when the connector reads the items' images (its settings for them are set). False by
+	 * default: the catalogue job then skips its images part.
+	 */
+	default boolean readsItemImages() {
+		return false;
+	}
+
+	/**
+	 * 3.1.1: the images of these ERP items (NAV item numbers, at most {@link #ITEM_IMAGES_PER_CALL} per call); an item the
+	 * ERP does not know is not answered.
+	 */
+	default List<ErpItemImagesDTO> itemImages(List<String> navItemNos) {
+		throw new ErpNotSupportedException("item images");
+	}
+
+	/** 3.1.1: the images of the ERP items changed between these two times. */
+	default List<ErpItemImagesDTO> itemImagesChanged(OffsetDateTime from, OffsetDateTime to) {
+		throw new ErpNotSupportedException("item images");
+	}
+
+	/** 3.1.1: what the images are read from, shown in the summary of the run (no query, never a key). */
+	default String itemImagesLabel() {
+		return "item images";
+	}
+
+	/** 3.1.1: the item numbers asked per call of {@link #itemImages(List)}. */
+	int ITEM_IMAGES_PER_CALL = 100;
 
 	/** The name of the ERP page or table read for this part, shown in the summary of the run. */
 	String pageLabel(Part part);

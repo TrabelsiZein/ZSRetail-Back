@@ -139,6 +139,8 @@ public class CatalogueEngine {
 	private final AtomicBoolean itemsRunning = new AtomicBoolean();
 	/** One barcode run at a time. */
 	private final AtomicBoolean barcodesRunning = new AtomicBoolean();
+	/** 3.1.1 (item images): the NAV item numbers of the items the last items run handed (none in a dry run). */
+	private volatile Set<String> changedNavItemNos = new TreeSet<>();
 
 	@Autowired
 	public CatalogueEngine(ErpCatalogueSource source, HeadOfficeCatalogue headOffice, StockPoints stockPoints,
@@ -156,6 +158,11 @@ public class CatalogueEngine {
 		this.state = state;
 		this.settings = settings;
 		this.importer = importer;
+	}
+
+	/** 3.1.1 (item images): the NAV item numbers of the items the last items run handed (new, changed, deactivated). */
+	public Set<String> changedNavItemNos() {
+		return changedNavItemNos;
 	}
 
 	/** The settings in effect (the job reads the dry run from them). */
@@ -338,6 +345,13 @@ public class CatalogueEngine {
 		long started = System.nanoTime();
 		try {
 			CatalogueRun<ErpItemDTO> run = readAndApplyItems();
+			// 3.1.1 (item images): the NAV item numbers of the items handed, asked by the images part of this run
+			Set<String> navItemNos = new TreeSet<>();
+			if (!settings.dryRun()) {
+				run.getHanded().stream().map(ErpItemDTO::getNavItemNo).filter(Objects::nonNull).map(String::trim)
+						.filter(no -> !no.isEmpty()).forEach(navItemNos::add);
+			}
+			changedNavItemNos = navItemNos;
 			// 3.1.0: one line per items step, so a run shows where its time went (equal: compared, nothing to write)
 			int read = run.count("read");
 			int equal = Math.max(0, read - run.count("new") - run.count("changed") - run.count("deactivated"));

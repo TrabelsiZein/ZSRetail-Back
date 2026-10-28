@@ -19,6 +19,7 @@ import com.digithink.zsretail.erp.api.ErpCatalogueSource;
 import com.digithink.zsretail.erp.api.ErpCategories;
 import com.digithink.zsretail.erp.api.ErpRead;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemImagesDTO;
 
 /**
  * Item variants (ZEN), step 8: ZEN's API as the catalogue engine reads it, through the mapper. The tree gives the
@@ -37,17 +38,54 @@ public class ZenCatalogueSource implements ErpCatalogueSource {
 	private final ZenSource pages;
 	private final ZenMapper mapper;
 	private final ZenProperties properties;
+	/** 3.1.1 (item images): ZEN's products API; null: no images read (the tests without it). */
+	private final ZenProductsClient products;
 
 	@Autowired
-	public ZenCatalogueSource(ZenSource pages, ZenProperties properties) {
-		this(pages, new ZenMapper(properties.getDefaultVat()), properties);
+	public ZenCatalogueSource(ZenSource pages, ZenProperties properties, ZenProductsClient products) {
+		this(pages, new ZenMapper(properties.getDefaultVat()), properties, products);
 	}
 
-	/** With a given mapper: used by the tests. */
+	/** Without the products API: used by the tests. */
+	public ZenCatalogueSource(ZenSource pages, ZenProperties properties) {
+		this(pages, new ZenMapper(properties.getDefaultVat()), properties, null);
+	}
+
+	/** With a given mapper, without the products API: used by the tests. */
 	public ZenCatalogueSource(ZenSource pages, ZenMapper mapper, ZenProperties properties) {
+		this(pages, mapper, properties, null);
+	}
+
+	/** With a given mapper and products API: used by the tests. */
+	public ZenCatalogueSource(ZenSource pages, ZenMapper mapper, ZenProperties properties, ZenProductsClient products) {
 		this.pages = pages;
 		this.mapper = mapper;
 		this.properties = properties;
+		this.products = products;
+	}
+
+	// ─── Item images (3.1.1), ZEN's products API ─────────────────
+
+	/** Its address and key are set (erp.zen.products.url and api-key). */
+	@Override
+	public boolean readsItemImages() {
+		return products != null && products.configured();
+	}
+
+	@Override
+	public List<ErpItemImagesDTO> itemImages(List<String> navItemNos) {
+		return products.bySkus(navItemNos);
+	}
+
+	@Override
+	public List<ErpItemImagesDTO> itemImagesChanged(OffsetDateTime from, OffsetDateTime to) {
+		return products.changed(from, to);
+	}
+
+	@Override
+	public String itemImagesLabel() {
+		return products == null || products.url() == null ? ZenProductsClient.LABEL
+				: ZenProductsClient.LABEL + " " + products.url();
 	}
 
 	@Override

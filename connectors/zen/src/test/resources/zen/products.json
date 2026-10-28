@@ -1,0 +1,28 @@
+[
+  {
+    "sku": "40ZFEBF07",
+    "title": "ENSEMBLE",
+    "onSell": false,
+    "onSellB2b": true,
+    "dateActiveB2C": "2025-10-03T08:02:06.948Z",
+    "dateActiveB2B": "2025-07-10T13:51:00.551Z",
+    "frontImg": "https://images.zen.com.tn/uploads/8_U2_A9282_9d32e2eb62.JPG",
+    "detailsImg": "https://images.zen.com.tn/uploads/8_U2_A9282_14ea5b40fc.JPG"
+  },
+  {
+    "sku": "43ZFCHD17",
+    "title": "CHEMISE",
+    "onSell": true,
+    "onSellB2b": true,
+    "frontImg": "https://images.zen.com.tn/uploads/43ZFCHD17_front.JPG",
+    "detailsImg": ""
+  },
+  {
+    "sku": "28EZFDTD02",
+    "title": "SANS IMAGE",
+    "onSell": false,
+    "onSellB2b": false,
+    "frontImg": null,
+    "detailsImg": null
+  }
+]
