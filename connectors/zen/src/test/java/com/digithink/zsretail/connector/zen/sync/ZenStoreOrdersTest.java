@@ -294,7 +294,8 @@ class ZenStoreOrdersTest {
 
 	@Test
 	@DisplayName("3.1.1, a colis line: {article, codeVariante, mode colis, nbColis} (NAV requires the variant), no"
-			+ " quantiteDemandee, whatever erp.zen.order.mode says; pieces lines keep mode vrac; NAV's answer of the colis"
+			+ " quantiteDemandee = nbColis x contenance (NAV wants it positive), whatever erp.zen.order.mode says; pieces lines"
+			+ " keep mode vrac; NAV's answer of the colis"
 			+ " line read as colis, with colisAcceptes and its message")
 	void colisLine() throws IOException {
 		server.expect(requestTo(LOOKUP)).andRespond(withSuccess(NONE, MediaType.APPLICATION_JSON));
@@ -305,7 +306,7 @@ class ZenStoreOrdersTest {
 				.andExpect(jsonPath("$.lignesCommande[3].mode").value("colis"))
 				.andExpect(jsonPath("$.lignesCommande[3].nbColis").value(3))
 				.andExpect(jsonPath("$.lignesCommande[3].codeVariante").value("001"))
-				.andExpect(jsonPath("$.lignesCommande[3].quantiteDemandee").doesNotExist())
+				.andExpect(jsonPath("$.lignesCommande[3].quantiteDemandee").value(30))
 				.andRespond(withSuccess(navOrderWithColis().toString(), MediaType.APPLICATION_JSON));
 		ErpSalesOrderResult result = orders.post(orderWithColis());
 		server.verify();
@@ -318,6 +319,10 @@ class ZenStoreOrdersTest {
 		assertEquals(Integer.valueOf(2), colis.getAcceptedColis());
 		assertEquals("Colis partiel", colis.getMessage());
 
+		ObjectNode withPieces = ZenOrderFields.lineBody(ErpSalesOrderDTO.Line.colis("43ZBPND01", "001", 3,
+				new BigDecimal("15")), "vrac");
+		assertEquals("{\"article\":\"43ZBPND01\",\"codeVariante\":\"001\",\"mode\":\"colis\",\"nbColis\":3,"
+				+ "\"quantiteDemandee\":15}", withPieces.toString(), "3 colis of 5 pieces");
 		ObjectNode body = ZenOrderFields.lineBody(ErpSalesOrderDTO.Line.colis("43ZBPND01", "001", 3, null), "vrac");
 		assertEquals("{\"article\":\"43ZBPND01\",\"codeVariante\":\"001\",\"mode\":\"colis\",\"nbColis\":3}",
 				body.toString());

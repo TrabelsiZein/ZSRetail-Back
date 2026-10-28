@@ -398,8 +398,9 @@ label → value, strings) and `sizeOrder` are optional, filled by a connector wi
     other writable header field fits it (`ordrePrelevement` is NAV's picking order, `statut` / `message` are NAV's
     answer), and `client` already names the store; lines `lignesCommande: [{article, codeVariante, mode,
     quantiteDemandee}]` (pieces; `mode` from `erp.zen.order.mode`, `vrac` by default, left out when set empty; no `nbColis`);
-    3.1.1, a colis line `{article, codeVariante, mode: "colis", nbColis}` (the colour row's first variant; no
-    `quantiteDemandee`; "colis" is
+    3.1.1, a colis line `{article, codeVariante, mode: "colis", nbColis, quantiteDemandee}` (the colour row's first
+    variant; `quantiteDemandee` = nbColis × the row's contenance, NAV wanting a positive quantity, left out when the
+    contenance is unknown; "colis" is
     `ZenOrderFields.MODE_COLIS`, whatever `erp.zen.order.mode` says). When NAV answers a 4xx
     whose body names `lignesCommande`, a navigation property or a deep insert, the header is posted alone, then one
     `POST commandesVente(<id>)/lignesCommande` per line; any other refusal is the order's failure. An answer without

@@ -179,7 +179,9 @@ public final class ZenOrderFields {
 
 	/**
 	 * A line of pieces: article, codeVariante ("" without one), mode only when set, quantiteDemandee; no nbColis. 3.1.1, a
-	 * line of colis: article, codeVariante (NAV requires both on every line), mode "colis", nbColis; no quantiteDemandee.
+	 * line of colis: article, codeVariante (NAV requires both on every line), mode "colis", nbColis, and quantiteDemandee
+	 * the pieces they hold (nbColis x the row's contenance: NAV wants a positive quantity, 2026-10-28); left out when the
+	 * contenance is unknown (NAV then refuses the line with its message).
 	 */
 	public static ObjectNode lineBody(ErpSalesOrderDTO.Line line, String mode) {
 		ObjectNode row = JsonNodeFactory.instance.objectNode();
@@ -188,6 +190,9 @@ public final class ZenOrderFields {
 		if (line.isColis()) {
 			row.put(LINE_MODE, MODE_COLIS);
 			row.put(LINE_COLIS, line.getNbColis());
+			if (line.getQuantity() != null) {
+				row.put(LINE_REQUESTED, line.getQuantity());
+			}
 			return row;
 		}
 		if (mode != null && !mode.trim().isEmpty()) {
