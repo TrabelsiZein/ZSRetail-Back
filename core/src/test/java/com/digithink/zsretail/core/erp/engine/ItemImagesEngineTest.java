@@ -31,10 +31,11 @@ import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemImagesDTO;
 
 /**
- * 3.1.1 (item images): the images part of the catalogue job on a source and head office in memory: the first run asks
- * every NAV item number in calls of 100, the next ones the items changed by the items part then the ERP's changes from
- * the checkpoint (less 5 minutes) to the run's start; the checkpoint written once every call succeeded, never in a dry
- * run; a failed call leaves it; an I/O failure is read again once; not configured: skipped; the answer cleaned.
+ * 3.1.1 (item images): the images part of the catalogue job on a source and head office in memory: a full run (the first,
+ * then at most once per 24 h) asks every NAV item number in calls of 100 and writes its start as the checkpoint once
+ * every call succeeded; any other run asks only the items changed by the items part and leaves the checkpoint; never in
+ * a dry run; a failed full run leaves it (full again next time); an I/O failure is read again once; not configured:
+ * skipped; the answer cleaned.
  */
 class ItemImagesEngineTest {
 
@@ -47,8 +48,6 @@ class ItemImagesEngineTest {
 		boolean configured = true;
 		final Map<String, List<String>> images = new TreeMap<>();
 		final List<List<String>> asked = new ArrayList<>();
-		final List<String> windows = new ArrayList<>();
-		final List<ErpItemImagesDTO> changed = new ArrayList<>();
 		RuntimeException failure;
 		int failuresLeft;
 
@@ -63,13 +62,6 @@ class ItemImagesEngineTest {
 			asked.add(new ArrayList<>(navItemNos));
 			return navItemNos.stream().filter(images::containsKey)
 					.map(no -> new ErpItemImagesDTO(no, images.get(no))).collect(Collectors.toList());
-		}
-
-		@Override
-		public List<ErpItemImagesDTO> itemImagesChanged(OffsetDateTime from, OffsetDateTime to) {
-			fail();
-			windows.add(from + " " + to);
-			return changed;
 		}
 
 		private void fail() {
@@ -182,16 +174,16 @@ class ItemImagesEngineTest {
 	}
 
 	@Test
-	@DisplayName("First run: every NAV item number in calls of 100, each answer applied; the checkpoint is the run's start")
+	@DisplayName("First run (full): every NAV item number in calls of 100, each answer applied; the checkpoint its start")
 	void firstRun() {
 		headOffice.navItemNos.addAll(numbers(250));
 		source.images.put("N0001", Arrays.asList(FRONT, DETAILS));
 		source.images.put("N0150", Collections.singletonList(FRONT));
 		CatalogueRun<ErpItemImagesDTO> run = engine().run(Collections.singleton("N0001"));
 		assertEquals(Arrays.asList(100, 100, 50), source.asked.stream().map(List::size).collect(Collectors.toList()));
-		assertTrue(source.windows.isEmpty(), "no delta on the first run");
 		assertEquals(Arrays.asList(FRONT, DETAILS), headOffice.written.get("N0001"));
-		assertEquals("first", run.getSummary().get("mode"));
+		assertEquals("full", run.getSummary().get("mode"));
+		assertNull(run.getSummary().get("lastFull"));
 		assertEquals(250, run.getSummary().get("asked"));
 		assertEquals(3, run.getSummary().get("calls"));
 		assertEquals(2, run.getSummary().get("answered"));
@@ -201,48 +193,58 @@ class ItemImagesEngineTest {
 	}
 
 	@Test
-	@DisplayName("Next run: the items changed by the items part, then the ERP's changes from the checkpoint less 5 minutes")
+	@DisplayName("Within 24 h of the last full run: only the items changed by the items part; the checkpoint kept")
 	void changesRun() {
 		headOffice.navItemNos.addAll(Arrays.asList("A", "B", "C"));
-		state.put(ItemImagesEngine.IMAGES_SINCE, "2026-10-28T12:00Z");
+		state.put(ItemImagesEngine.IMAGES_SINCE, "2026-10-27T15:00:01Z"); // 23 h 59 min 59 s ago
 		source.images.put("B", Collections.singletonList(FRONT));
-		source.changed.add(new ErpItemImagesDTO("C", Arrays.asList(DETAILS)));
-		source.changed.add(new ErpItemImagesDTO("ZZ", Arrays.asList(DETAILS)));
+		source.images.put("C", Collections.singletonList(DETAILS));
 		CatalogueRun<ErpItemImagesDTO> run = engine().run(Arrays.asList(" B ", "A", "", null));
-		assertEquals(Collections.singletonList(Arrays.asList("A", "B")), source.asked);
-		assertEquals(Collections.singletonList("2026-10-28T11:55Z " + NOW), source.windows);
+		assertEquals(Collections.singletonList(Arrays.asList("A", "B")), source.asked, "C not asked: not changed");
 		assertEquals("changes", run.getSummary().get("mode"));
-		assertEquals(2, run.getSummary().get("changedInErp"));
+		assertEquals("2026-10-27T15:00:01Z", run.getSummary().get("lastFull"));
 		assertEquals(1, run.getSummary().get("notAnswered"), "A asked, not answered: its rows kept");
-		assertEquals(1, run.getSummary().get("unknown"), "ZZ: no item at the head office");
-		assertEquals(Collections.singletonList(DETAILS), headOffice.written.get("C"));
+		assertEquals(Collections.singletonList(FRONT), headOffice.written.get("B"));
+		assertEquals("2026-10-27T15:00:01Z", state.get(ItemImagesEngine.IMAGES_SINCE), "not a full run: kept");
+	}
+
+	@Test
+	@DisplayName("24 h after the last full run: full again (a picture replaced on ZEN's side is caught); the checkpoint moves")
+	void fullAgain() {
+		headOffice.navItemNos.addAll(Arrays.asList("A", "B"));
+		state.put(ItemImagesEngine.IMAGES_SINCE, "2026-10-27T15:00Z"); // exactly 24 h ago
+		source.images.put("A", Collections.singletonList(FRONT));
+		CatalogueRun<ErpItemImagesDTO> run = engine().run(Collections.emptySet());
+		assertEquals(Collections.singletonList(Arrays.asList("A", "B")), source.asked);
+		assertEquals("full", run.getSummary().get("mode"));
 		assertEquals(NOW.toString(), state.get(ItemImagesEngine.IMAGES_SINCE));
 	}
 
 	@Test
-	@DisplayName("Nothing changed by the items part: no call by number, only the ERP's changes")
-	void onlyTheDelta() {
+	@DisplayName("Nothing changed by the items part, not a full run: no call at all")
+	void nothingToAsk() {
 		state.put(ItemImagesEngine.IMAGES_SINCE, "2026-10-28T12:00Z");
-		engine().run(Collections.emptySet());
+		CatalogueRun<ErpItemImagesDTO> run = engine().run(Collections.emptySet());
 		assertTrue(source.asked.isEmpty());
-		assertEquals(1, source.windows.size());
+		assertEquals(0, run.getSummary().get("calls"));
 	}
 
 	@Test
-	@DisplayName("A failed call fails the run: what was applied stays, the checkpoint does not move")
+	@DisplayName("A failed full run: what was applied stays, the checkpoint not written, the next run full again")
 	void failure() {
 		headOffice.navItemNos.addAll(numbers(150));
 		source.images.put("N0001", Collections.singletonList(FRONT));
-		ItemImagesEngine engine = engine();
-		engine.run(Collections.emptySet()); // first run: checkpoint NOW
-		state.put(ItemImagesEngine.IMAGES_SINCE, "2026-10-28T12:00Z");
+		state.put(ItemImagesEngine.IMAGES_SINCE, "2026-10-26T12:00Z");
 		source.failure = new IllegalStateException("zen: reading the products API failed: HTTP 401");
 		source.failuresLeft = 1;
+		ItemImagesEngine engine = engine();
 		IllegalStateException e = assertThrows(IllegalStateException.class,
 				() -> engine.run(Collections.singleton("N0002")));
 		assertTrue(e.getMessage().contains("HTTP 401"));
-		assertEquals("2026-10-28T12:00Z", state.get(ItemImagesEngine.IMAGES_SINCE));
+		assertEquals("2026-10-26T12:00Z", state.get(ItemImagesEngine.IMAGES_SINCE));
 		assertTrue(pauses.isEmpty(), "not an I/O failure: not read again");
+		assertEquals("full", engine.run(Collections.emptySet()).getSummary().get("mode"), "full again");
+		assertEquals(NOW.toString(), state.get(ItemImagesEngine.IMAGES_SINCE));
 	}
 
 	@Test

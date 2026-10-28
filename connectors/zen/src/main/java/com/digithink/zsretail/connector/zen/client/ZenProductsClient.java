@@ -3,9 +3,6 @@ package com.digithink.zsretail.connector.zen.client;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -39,9 +36,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * 3.1.1 (item images): ZEN's products API (outside NAV, erp.zen.products.url), read for the items' images. A POST that
- * reads: {"skus": [..]} (the NAV item numbers) or {"updatedAt": {"start": .., "end": ..}} (UTC, ISO with
- * milliseconds), with the header X-Api-Key (erp.zen.products.api-key). Each product of the answer gives its sku (= our
- * nav_item_no) and two public addresses, frontImg (the main image) and detailsImg.
+ * reads: {"skus": [..]} (the NAV item numbers; it filters exactly), with the header X-Api-Key (erp.zen.products.api-key);
+ * the answer {"data": [{sku, title, onSell, onSellB2b, dateActiveB2C, dateActiveB2B, frontImg, detailsImg}]}, one row
+ * per item (no images per variant). Each gives its sku (= our nav_item_no) and two public addresses, frontImg (the main
+ * image) and detailsImg. Never "updatedAt": on ZEN's side any window answers the whole catalogue (10,893 products,
+ * 3.3 MB, 2026-10-28) and overrides "skus".
  * <p>
  * Its own RestTemplate: no NAV login (the connector's other one sends NTLM to any host that asks), the connector's two
  * timeouts, and a guard that lets only a POST to that exact address leave. A failed call is a {@link ZenReadException}
@@ -55,13 +54,11 @@ public class ZenProductsClient {
 	public static final String LABEL = "products API";
 	static final String API_KEY_HEADER = "X-Api-Key";
 	static final String SKUS = "skus";
-	static final String UPDATED_AT = "updatedAt";
 	static final String SKU = "sku";
 	static final String FRONT_IMAGE = "frontImg";
 	static final String DETAILS_IMAGE = "detailsImg";
 	/** Where an answer that is not a list may hold its products, in this order. */
 	static final String[] LIST_FIELDS = { "data", "products", "items", "results", "value" };
-	static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
 
 	private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -95,19 +92,6 @@ public class ZenProductsClient {
 		ArrayNode list = body.putArray(SKUS);
 		skus.forEach(list::add);
 		return products(post(body));
-	}
-
-	/** The images of the products changed between these two times. */
-	public List<ErpItemImagesDTO> changed(OffsetDateTime from, OffsetDateTime to) {
-		ObjectNode body = JSON.createObjectNode();
-		ObjectNode window = body.putObject(UPDATED_AT);
-		window.put("start", time(from));
-		window.put("end", time(to));
-		return products(post(body));
-	}
-
-	static String time(OffsetDateTime value) {
-		return value.withOffsetSameInstant(ZoneOffset.UTC).format(TIME);
 	}
 
 	private JsonNode post(JsonNode body) {

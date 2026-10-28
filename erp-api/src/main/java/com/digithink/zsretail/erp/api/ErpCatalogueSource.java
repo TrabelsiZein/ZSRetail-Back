@@ -68,11 +68,6 @@ public interface ErpCatalogueSource {
 		throw new ErpNotSupportedException("item images");
 	}
 
-	/** 3.1.1: the images of the ERP items changed between these two times. */
-	default List<ErpItemImagesDTO> itemImagesChanged(OffsetDateTime from, OffsetDateTime to) {
-		throw new ErpNotSupportedException("item images");
-	}
-
 	/** 3.1.1: what the images are read from, shown in the summary of the run (no query, never a key). */
 	default String itemImagesLabel() {
 		return "item images";

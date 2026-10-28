@@ -78,11 +78,6 @@ public class ZenCatalogueSource implements ErpCatalogueSource {
 	}
 
 	@Override
-	public List<ErpItemImagesDTO> itemImagesChanged(OffsetDateTime from, OffsetDateTime to) {
-		return products.changed(from, to);
-	}
-
-	@Override
 	public String itemImagesLabel() {
 		return products == null || products.url() == null ? ZenProductsClient.LABEL
 				: ZenProductsClient.LABEL + " " + products.url();

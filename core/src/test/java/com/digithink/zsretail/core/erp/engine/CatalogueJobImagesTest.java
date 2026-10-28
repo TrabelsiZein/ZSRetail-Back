@@ -74,20 +74,20 @@ class CatalogueJobImagesTest {
 	}
 
 	@Test
-	@DisplayName("Images last, after the barcodes: the first run asks every NAV item number; a success, its summary logged")
+	@DisplayName("Images last, after the barcodes: the first run is full (every NAV item number); a success, its summary logged")
 	void last() {
 		bed.job(images).syncCatalogue();
 		assertEquals(ErpCommunicationStatus.SUCCESS, bed.logged.get(0)[0]);
 		List<String> parts = partNames();
 		assertEquals("images", parts.get(parts.size() - 1));
 		assertTrue(parts.indexOf("barcodes") < parts.indexOf("images"));
-		assertEquals("first", bed.part("images").get("mode"));
+		assertEquals("full", bed.part("images").get("mode"));
 		assertEquals(1, bed.part("images").get("itemsChanged"));
 		assertEquals(Collections.singletonList(FRONT), headOffice.written.get("70061"));
 	}
 
 	@Test
-	@DisplayName("Next run: the NAV item numbers of the items the items part handed are asked by number")
+	@DisplayName("Next run within 24 h: only the NAV item numbers of the items the items part handed are asked")
 	void changedAsked() {
 		bed.job(images).syncCatalogue();
 		source.asked.clear();

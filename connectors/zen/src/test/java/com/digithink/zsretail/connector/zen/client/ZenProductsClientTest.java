@@ -17,7 +17,6 @@ import java.io.InputStream;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -39,11 +38,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * 3.1.1 (item images): ZEN's products API against a mock server (no live call), with the client's own RestTemplate.
- * The sample src/test/resources/zen/products.json is built from the fields of ZEN's email of 2026-10-27 (sku, title,
- * onSell, onSellB2b, the two dates, frontImg, detailsImg), not read from the API: to be replaced by a real answer.
- * The two bodies (skus; updatedAt in UTC with milliseconds), the X-Api-Key header, the shapes of an answer, the errors
- * (never the key), the guard (a POST to that address only), and the catalogue source reading images only when both
- * keys are set.
+ * The sample src/test/resources/zen/products.json has the shape of the live answer (checked by Zein from Chrome,
+ * 2026-10-28: {"data": [{sku, title, onSell, onSellB2b, dateActiveB2C, dateActiveB2B, frontImg, detailsImg}]}, flat,
+ * images per item only); the first product's values are those of ZEN's email of 2026-10-27, the two others made up
+ * (an empty detailsImg, no image). The body ({"skus"} alone, never "updatedAt"), the X-Api-Key header, the shapes of an
+ * answer, the errors (never the key), the guard (a POST to that address only), and the catalogue source reading images
+ * only when both keys are set.
  */
 class ZenProductsClientTest {
 
@@ -73,12 +73,14 @@ class ZenProductsClientTest {
 	}
 
 	@Test
-	@DisplayName("By skus: POST {skus} with X-Api-Key; frontImg then detailsImg, blanks left out, none: an empty list")
+	@DisplayName("By skus: POST {skus} alone (never updatedAt) with X-Api-Key; the answer under data; frontImg then"
+			+ " detailsImg, blanks left out, none: an empty list")
 	void bySkus() throws IOException {
 		server.expect(requestTo(URL)).andExpect(method(HttpMethod.POST))
 				.andExpect(header("X-Api-Key", KEY))
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
 				.andExpect(content().json("{\"skus\":[\"40ZFEBF07\",\"43ZFCHD17\",\"28EZFDTD02\"]}", true))
+				.andExpect(jsonPath("$.updatedAt").doesNotExist())
 				.andRespond(withSuccess(sample(), MediaType.APPLICATION_JSON));
 		List<ErpItemImagesDTO> products = client.bySkus(Arrays.asList("40ZFEBF07", "43ZFCHD17", "28EZFDTD02"));
 		server.verify();
@@ -87,19 +89,6 @@ class ZenProductsClientTest {
 		assertEquals(Collections.singletonList("https://images.zen.com.tn/uploads/43ZFCHD17_front.JPG"),
 				products.get(1).getUrls(), "an empty detailsImg left out");
 		assertEquals(Collections.emptyList(), products.get(2).getUrls(), "no image: its rows will be removed");
-	}
-
-	@Test
-	@DisplayName("Changed: POST {updatedAt: {start, end}} in UTC with milliseconds, nothing else")
-	void changed() {
-		server.expect(requestTo(URL)).andExpect(method(HttpMethod.POST))
-				.andExpect(content().json("{\"updatedAt\":{\"start\":\"2026-10-28T10:55:00.000Z\","
-						+ "\"end\":\"2026-10-28T14:00:00.250Z\"}}", true))
-				.andExpect(jsonPath("$.skus").doesNotExist())
-				.andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
-		assertTrue(client.changed(OffsetDateTime.parse("2026-10-28T11:55:00+01:00"),
-				OffsetDateTime.parse("2026-10-28T14:00:00.25Z")).isEmpty());
-		server.verify();
 	}
 
 	@Test

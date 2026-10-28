@@ -86,12 +86,6 @@ public final class RetryingCatalogueSource implements ErpCatalogueSource {
 	}
 
 	@Override
-	public List<ErpItemImagesDTO> itemImagesChanged(OffsetDateTime from, OffsetDateTime to) {
-		return read(source.itemImagesLabel(), " changed from " + from + " to " + to,
-				() -> source.itemImagesChanged(from, to));
-	}
-
-	@Override
 	public String itemImagesLabel() {
 		return source.itemImagesLabel();
 	}

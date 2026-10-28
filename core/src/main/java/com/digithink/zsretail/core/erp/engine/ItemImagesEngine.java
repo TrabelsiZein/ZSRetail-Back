@@ -33,25 +33,27 @@ import com.digithink.zsretail.erp.api.dto.ErpItemImagesDTO;
  * 3.1.1 (item images): the images part of the catalogue job (CatalogueJob, last), on a connector that reads them
  * ({@link ErpCatalogueSource#readsItemImages()}; otherwise the part is skipped, "not configured").
  * <ul>
- * <li><b>Which items.</b> The first run (no checkpoint) asks every NAV item number of the head office; the next ones ask
- * the NAV item numbers of the items the items part just changed, then the items changed in the ERP from the checkpoint
- * (less {@link #OVERLAP}, the two clocks) to the run's start.</li>
+ * <li><b>Which items.</b> Every run asks the NAV item numbers of the items the items part just changed; a full run asks
+ * every NAV item number of the head office instead, at most once per {@link #FULL_EVERY} (the first run, then when the
+ * last full run that succeeded is that old): it catches a picture replaced on ZEN's side for an item NAV did not change.
+ * No "changed since" read: ZEN's updatedAt filter answers the whole catalogue whatever the window (2026-10-28).</li>
  * <li><b>Calls.</b> {@link ErpCatalogueSource#ITEM_IMAGES_PER_CALL} numbers per call, each call's answer applied before
  * the next call ({@link HeadOfficeImages#apply}): the variants of an item answered get its images as URL rows (the
  * first main; none: their URL rows removed), FILE rows untouched; an item not answered keeps its rows. An address
  * longer than item_image.path is left out (counted).</li>
- * <li><b>Checkpoint.</b> images.since in the state table: the run's start, written once every call succeeded, never in a
- * dry run (which compares and counts only). A failed call fails the part: what was applied stays, the checkpoint does
- * not move, the next run asks again.</li>
+ * <li><b>Checkpoint.</b> images.since in the state table: the start of the last full run, written once every call of
+ * it succeeded, never in a dry run (which compares and counts only). A failed call fails the part: what was applied
+ * stays, the checkpoint does not move (a failed full run is full again at the next run).</li>
  * </ul>
  */
 @Component
 @ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
 public class ItemImagesEngine {
 
+	/** The start of the last full run (every NAV item number asked) that succeeded. */
 	static final String IMAGES_SINCE = "images.since";
-	/** The delta read starts this long before the checkpoint: the ERP's clock and ours may differ. */
-	static final Duration OVERLAP = Duration.ofMinutes(5);
+	/** A full run at most this often (no setting): it also catches a picture ZEN replaced on an unchanged item. */
+	static final Duration FULL_EVERY = Duration.ofHours(24);
 
 	public static final String NOT_CONFIGURED = "not configured";
 	static final String ALREADY_RUNNING = "an images run is already running: this one does not start";
@@ -87,7 +89,7 @@ public class ItemImagesEngine {
 		return source.readsItemImages();
 	}
 
-	/** The checkpoint, or null (none, or not readable): the next run asks every item. */
+	/** The start of the last full run, or null (none, or not readable): the next run is a full one. */
 	public OffsetDateTime checkpoint() {
 		String value = state.get(IMAGES_SINCE);
 		if (value == null || value.trim().isEmpty()) {
@@ -102,8 +104,8 @@ public class ItemImagesEngine {
 
 	/**
 	 * One images run; changedNavItemNos: the NAV item numbers of the items the items part changed in this run (asked
-	 * after a first run). Summary: mode (first / changes), since, asked, calls, answered, itemsChanged, itemsEqual,
-	 * itemsCleared, notAnswered, unknown, urlsTooLong, durationMs.
+	 * when the run is not a full one). Summary: mode (full / changes), lastFull, asked, calls, answered, itemsChanged,
+	 * itemsEqual, itemsCleared, notAnswered, unknown, urlsTooLong, durationMs.
 	 */
 	public CatalogueRun<ErpItemImagesDTO> run(Collection<String> changedNavItemNos) {
 		Map<String, Object> summary = new LinkedHashMap<>();
@@ -128,15 +130,16 @@ public class ItemImagesEngine {
 		OffsetDateTime since = checkpoint();
 		OffsetDateTime start = clock.get();
 		boolean write = !settings.dryRun();
+		boolean full = since == null || !start.isBefore(since.plus(FULL_EVERY));
 		List<String> asked = new ArrayList<>();
-		if (since == null) {
+		if (full) {
 			asked.addAll(headOffice.navItemNos());
 		} else if (changedNavItemNos != null) {
 			changedNavItemNos.stream().filter(no -> no != null && !no.trim().isEmpty()).map(String::trim)
 					.collect(Collectors.toCollection(TreeSet::new)).forEach(asked::add);
 		}
-		summary.put("mode", since == null ? "first" : "changes");
-		summary.put("since", since == null ? null : since.toString());
+		summary.put("mode", full ? "full" : "changes");
+		summary.put("lastFull", since == null ? null : since.toString());
 		summary.put("asked", asked.size());
 
 		HeadOfficeImages.Applied applied = new HeadOfficeImages.Applied();
@@ -150,22 +153,10 @@ public class ItemImagesEngine {
 			calls++;
 			applied.add(headOffice.apply(byNavItemNo(answer, answered, tooLong), write));
 		}
-		Set<String> askedSet = new TreeSet<>(asked);
-		int notAnswered = (int) askedSet.stream().filter(no -> !answered.contains(no)).count();
-		int changedInErp = 0;
-		if (since != null) {
-			List<ErpItemImagesDTO> answer = source.itemImagesChanged(since.minus(OVERLAP), start);
-			calls++;
-			Set<String> changed = new TreeSet<>();
-			Map<String, List<String>> urls = byNavItemNo(answer, changed, tooLong);
-			changedInErp = changed.size();
-			answered.addAll(changed);
-			applied.add(headOffice.apply(urls, write));
-		}
-		if (write) {
+		int notAnswered = (int) new TreeSet<>(asked).stream().filter(no -> !answered.contains(no)).count();
+		if (full && write) {
 			state.put(IMAGES_SINCE, start.toString());
 		}
-		summary.put("changedInErp", changedInErp);
 		summary.put("calls", calls);
 		summary.put("answered", answered.size());
 		summary.put("itemsChanged", applied.itemsChanged);

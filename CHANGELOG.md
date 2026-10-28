@@ -64,12 +64,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `connectors/zen/src/test/resources/zen/commandesVente.json`.
 - Item images from ZEN's products API (docs/modules/erp-sync.md, "Item images"): the job `SYNC_CATALOGUE` has a last
   part `images`, after the barcodes (`ItemImagesEngine`; skipped when the connector reads none: EMTOP and Happyness
-  unchanged). The first run asks every NAV item number in calls of 100, the next ones the items the items part changed
-  plus the products changed since the checkpoint `images.since`; every variant of a NAV item gets `frontImg` (main,
-  sort 0) and `detailsImg` (sort 1) as `item_image` URL rows, an empty answer removes them, FILE rows untouched. A
-  failure is a WARNING of the run, never an ERROR. erp-api: `ErpCatalogueSource.readsItemImages`, `itemImages`,
-  `itemImagesChanged`, `ErpItemImagesDTO`. connector-zen: `ZenProductsClient`, its own RestTemplate (no NAV login,
-  only a POST to that address), header `X-Api-Key`.
+  unchanged). Every run asks the NAV item numbers of the items the items part changed (calls of 100); a full run asks
+  every NAV item number, at most once per 24 h (the checkpoint `images.since`, no setting), which also catches a
+  picture replaced on ZEN's side. Every variant of a NAV item gets `frontImg` (main, sort 0) and `detailsImg` (sort 1)
+  as `item_image` URL rows, an empty answer removes them, FILE rows untouched. A failure is a WARNING of the run, never
+  an ERROR. erp-api: `ErpCatalogueSource.readsItemImages`, `itemImages`, `ErpItemImagesDTO`. connector-zen:
+  `ZenProductsClient` (`{"skus": [..]}` only, never `updatedAt`, which ZEN answers with the whole catalogue; answer
+  under `data`), its own RestTemplate (no NAV login, only a POST to that address), header `X-Api-Key`.
 - The item copies down carry the item's URL images (`CatalogueItemCopyDTO.images`: url, main, sort); the store replaces
   its URL rows with them (its FILE rows kept; absent: kept). The store order catalogue's tile takes the first variant's
   main URL image when no variant has an `image_url`.

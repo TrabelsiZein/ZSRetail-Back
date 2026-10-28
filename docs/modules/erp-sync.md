@@ -341,23 +341,24 @@ Tests: `CatalogueReadRetryTest`, `NavPosPagesReadRetryTest`.
 **Item images (3.1.1)**: the job's last part, `images`, after the barcodes, whenever the items part ran
 (`core/erp/engine/ItemImagesEngine`). A connector that reads images says so (`ErpCatalogueSource.readsItemImages()`,
 false by default: the part is skipped, `"skipped": "not configured"`, no warning; EMTOP and Happyness keep the default)
-and answers `itemImages(navItemNos)` (at most `ITEM_IMAGES_PER_CALL` = 100 per call) and `itemImagesChanged(from, to)`,
-each an `ErpItemImagesDTO {navItemNo, urls}` (the addresses in order, the first the main one; empty: the item has none).
-- Which items: the first run (no `images.since` in `erp_catalogue_state`) asks every NAV item number of the head office
-  (`HeadOfficeImages.navItemNos()`); the next runs ask the NAV item numbers of the items the items part handed in that
-  run (`CatalogueEngine.changedNavItemNos()`), then the items changed in the ERP from `images.since` less 5 minutes
-  (the two clocks) to the run's start. `images.since` = the run's start, written once every call succeeded, never in a
-  dry run. An I/O failure is read again once (`RetryingCatalogueSource`). To ask every item again, delete the
-  `images.since` row.
+and answers `itemImages(navItemNos)` (at most `ITEM_IMAGES_PER_CALL` = 100 per call), each an `ErpItemImagesDTO
+{navItemNo, urls}` (the addresses in order, the first the main one; empty: the item has none).
+- Which items: every run asks the NAV item numbers of the items the items part handed in that run
+  (`CatalogueEngine.changedNavItemNos()`; none changed: no call). A **full run** asks every NAV item number of the head
+  office instead (`HeadOfficeImages.navItemNos()`), at most once per 24 h (`FULL_EVERY`, no setting): the first run (no
+  `images.since` in `erp_catalogue_state`), then the first run 24 h or more after the last full one that succeeded; it
+  catches a picture replaced on ZEN's side for an item NAV did not change. `images.since` = the start of the last full
+  run, written once every call of it succeeded, never in a dry run; a failed full run is full again at the next run. No
+  "changed since" read: ZEN's `updatedAt` filter answers the whole catalogue whatever the window (2026-10-28). An I/O
+  failure is read again once (`RetryingCatalogueSource`). To make the next run full, delete the `images.since` row.
 - Applied per call (`JpaHeadOfficeImages`, one transaction): every variant of the NAV item (`item.nav_item_no`) gets the
   addresses as `item_image` rows, source URL, the first `is_main`, `sort_order` 0, 1...; a variant already right is left
   as it is; an empty list removes its URL rows; its FILE rows are never touched; an item not answered keeps its rows; an
   address longer than `item_image.path` (1,000) is left out (`urlsTooLong`); a NAV item number the head office has not
   is counted (`unknown`). The variants written are recorded for the stores (`CatalogueHeadOfficeHooks.afterImport`,
   ITEM): their copies go down again with their images (`head-office.md`, "Item images").
-- Summary of the part (in the job's one communications log row): `source`, `mode` (first / changes), `since`, `asked`,
-  `calls`, `answered`, `changedInErp`, `itemsChanged`, `itemsEqual`, `itemsCleared`, `notAnswered`, `unknown`,
-  `durationMs`. **A failure never fails the job**: the part's `error`, the run a WARNING "Images failed (the catalogue
+- Summary of the part (in the job's one communications log row): `source`, `mode` (full / changes), `lastFull`,
+  `asked`, `calls`, `answered`, `itemsChanged`, `itemsEqual`, `itemsCleared`, `notAnswered`, `unknown`, `durationMs`. **A failure never fails the job**: the part's `error`, the run a WARNING "Images failed (the catalogue
   is saved, the next run asks again): ...", the parts before it saved, `images.since` unmoved.
 - Tests: `ItemImagesEngineTest`, `JpaHeadOfficeImagesTest` (H2), `CatalogueJobImagesTest` (core).
 
@@ -484,15 +485,17 @@ GET (`ZenConfig`, `ZenRestClient`, following `@odata.nextLink`), the mapper (`Ze
 - Item images (3.1.1): ZEN's **products API**, outside NAV (`ZenProductsClient`): `erp.zen.products.url` (e.g.
   `https://api-zentral.zen.com.tn/api/products/advanced-search-zs`) and `erp.zen.products.api-key` (header
   `X-Api-Key`, a secret: the machine file only), both or neither (`ZenStartupCheck`; neither: no images). A POST that
-  reads: `{"skus": [<NAV item numbers>]}` or `{"updatedAt": {"start": .., "end": ..}}` (UTC, `yyyy-MM-ddTHH:mm:ss.SSSZ`).
-  Each product: `sku` (= `nav_item_no`), `frontImg` (the main image) then `detailsImg`, blank ones left out (none: the
-  item's URL images removed); `title`, `onSell`, `onSellB2b` and the two dates are not used. The answer is read as a
-  list, or a list under `data`, `products`, `items`, `results` or `value` (or `data.products`). Its own RestTemplate:
+  reads: `{"skus": [<NAV item numbers>]}` alone, which filters exactly; **never `updatedAt`**: on ZEN's side any window
+  answers the whole catalogue (10,893 products, 3.3 MB, checked 2026-10-28) and overrides `skus`. The answer
+  `{"data": [{sku, title, onSell, onSellB2b, dateActiveB2C, dateActiveB2B, frontImg, detailsImg}]}`, flat, one row
+  per item (no image per variant or colour). Each product: `sku` (= `nav_item_no`), `frontImg` (the main image) then
+  `detailsImg`, blank ones left out (none: the item's URL images removed); the other fields are not used. The reader
+  also takes a plain list or a list under `products`, `items`, `results` or `value`. Its own RestTemplate:
   **no NAV login** (the NTLM one answers any host that asks), the connector's two timeouts, a guard letting only a POST
   to that exact address leave (`ZenProductsClient.PostOnlyTo`); no proxy (the head office needs outbound HTTPS to the
   API). A refusal: "zen: reading the products API failed: HTTP <status> (<url>): <body>", never the key.
-  Tests: `ZenProductsClientTest` (the sample `products.json` is built from the fields of ZEN's email of 2026-10-27, not
-  read from the API).
+  Tests: `ZenProductsClientTest` (the sample `products.json` has the live answer's shape; the values of its first
+  product are those of ZEN's email of 2026-10-27).
 - Tests: `ZenMapperTest` (on the two samples of the API in `connectors/zen/src/test/resources/zen`),
   `ZenRestClientTest`, `ZenCatalogueSourceTest` (in the project); step 9: `ZenMapperInvoicesTest` (the sample
   `salesInvoices.json`), `ZenInvoiceClientTest`, `ZenInvoicesTest`; `ZenBarcodeCursorTest` (the engine's barcode cursor on
