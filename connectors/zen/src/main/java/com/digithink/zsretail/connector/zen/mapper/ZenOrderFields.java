@@ -179,17 +179,17 @@ public final class ZenOrderFields {
 
 	/**
 	 * A line of pieces: article, codeVariante ("" without one), mode only when set, quantiteDemandee; no nbColis. 3.1.1, a
-	 * line of colis: article, mode "colis", nbColis; no codeVariante, no quantiteDemandee.
+	 * line of colis: article, codeVariante (NAV requires both on every line), mode "colis", nbColis; no quantiteDemandee.
 	 */
 	public static ObjectNode lineBody(ErpSalesOrderDTO.Line line, String mode) {
 		ObjectNode row = JsonNodeFactory.instance.objectNode();
 		row.put(LINE_ITEM_NO, line.getItemNo());
+		row.put(LINE_VARIANT_CODE, line.getVariantCode() == null ? "" : line.getVariantCode());
 		if (line.isColis()) {
 			row.put(LINE_MODE, MODE_COLIS);
 			row.put(LINE_COLIS, line.getNbColis());
 			return row;
 		}
-		row.put(LINE_VARIANT_CODE, line.getVariantCode() == null ? "" : line.getVariantCode());
 		if (mode != null && !mode.trim().isEmpty()) {
 			row.put(LINE_MODE, mode.trim());
 		}
@@ -257,20 +257,21 @@ public final class ZenOrderFields {
 		JsonNode rows = navOrder == null ? null : navOrder.get(ORDER_LINES);
 		if (rows != null && rows.isArray()) {
 			for (JsonNode row : rows) {
-				present.add(lineKey(text(row, LINE_ITEM_NO), isColis(row) ? COLIS_KEY : text(row, LINE_VARIANT_CODE)));
+				present.add(lineKey(text(row, LINE_ITEM_NO), (isColis(row) ? COLIS_KEY : "") + text(row, LINE_VARIANT_CODE)));
 			}
 		}
 		List<ErpSalesOrderDTO.Line> missing = new ArrayList<>();
 		for (ErpSalesOrderDTO.Line line : order.getLines()) {
-			if (!present.contains(lineKey(line.getItemNo(), line.isColis() ? COLIS_KEY : line.getVariantCode()))) {
+			String variant = line.getVariantCode() == null ? "" : line.getVariantCode().trim();
+			if (!present.contains(lineKey(line.getItemNo(), (line.isColis() ? COLIS_KEY : "") + variant))) {
 				missing.add(line);
 			}
 		}
 		return missing;
 	}
 
-	/** 3.1.1: the variant part of a colis line's key (never a variant code: a colis line has none). */
-	private static final String COLIS_KEY = "\u0001colis";
+	/** 3.1.1: the mark before a colis line's variant in its key (a colis line is never a pieces line of that variant). */
+	private static final String COLIS_KEY = "colis|";
 
 	/** 3.1.1: a line of NAV's order in colis (its mode). */
 	static boolean isColis(JsonNode row) {

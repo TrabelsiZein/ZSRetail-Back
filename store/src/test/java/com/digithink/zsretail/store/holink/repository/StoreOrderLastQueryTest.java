@@ -55,6 +55,7 @@ class StoreOrderLastQueryTest {
 			StoreOrderColis colis = new StoreOrderColis();
 			colis.setOrder(order(session, "E", StoreOrderStatus.SENT));
 			colis.setNavItemNo("55ZCOLIS1");
+			colis.setVariantCode("001");
 			colis.setNbColis(3);
 			session.persist(colis);
 			session.getTransaction().commit();

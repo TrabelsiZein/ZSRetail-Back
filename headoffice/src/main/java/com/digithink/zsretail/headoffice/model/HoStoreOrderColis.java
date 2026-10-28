@@ -17,9 +17,9 @@ import lombok.NoArgsConstructor;
 import lombok.ToString;
 
 /**
- * 3.1.1: colis of an ERP item in a store's order at the head office (ZEN's série: contenance pieces per colis), as the
- * store sent them; posted to the ERP as a line of colis (no variant). NAV's answer kept beside them. Apart from the
- * lines: a colis is of the item, never of one variant. See docs/modules/store-orders.md.
+ * 3.1.1: colis of a colour row of an ERP item in a store's order at the head office (ZEN's série: contenance pieces per
+ * colis, per variant), as the store sent them: the item and the row's variant; posted to the ERP as a line of colis of
+ * that variant. NAV's answer kept beside them. Apart from the lines. See docs/modules/store-orders.md.
  */
 @Entity
 @Table(name = "ho_store_order_colis", indexes = @Index(name = "ix_ho_store_order_colis_order", columnList = "order_id"))
@@ -36,6 +36,17 @@ public class HoStoreOrderColis extends _BaseEntity {
 
 	@Column(name = "nav_item_no", nullable = false, length = 255)
 	private String navItemNo;
+
+	/**
+	 * The variant the colis are of: the first of its colour row in the store's window (NAV wants an item and a variant
+	 * on every line; the série is per colour).
+	 */
+	@Column(name = "variant_code", length = 50)
+	private String variantCode;
+
+	/** The colour of that row when added (its description). */
+	@Column(name = "color_description", length = 255)
+	private String colorDescription;
 
 	@Column(length = 255)
 	private String description;

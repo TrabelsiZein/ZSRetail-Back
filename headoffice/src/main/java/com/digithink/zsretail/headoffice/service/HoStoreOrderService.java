@@ -236,11 +236,14 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 			if (row == null || row.getNavItemNo() == null || row.getNavItemNo().trim().isEmpty()) {
 				return "colis without an ERP item number";
 			}
+			if (row.getVariantCode() == null || row.getVariantCode().trim().isEmpty()) {
+				return "item " + row.getNavItemNo().trim() + ": colis without a variant code (the ERP needs one)";
+			}
 			if (row.getNbColis() == null || row.getNbColis() < 1) {
 				return "item " + row.getNavItemNo().trim() + ": the number of colis must be 1 or more";
 			}
-			if (!colisItems.add(row.getNavItemNo().trim())) {
-				return "item " + row.getNavItemNo().trim() + ": colis given twice";
+			if (!colisItems.add(lineKey(row.getNavItemNo(), row.getVariantCode()))) {
+				return "item " + row.getNavItemNo().trim() + " variant " + row.getVariantCode().trim() + ": colis given twice";
 			}
 		}
 		for (StoreOrderDTO.Line line : lines) {
@@ -271,7 +274,9 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 			HoStoreOrderColis colis = new HoStoreOrderColis();
 			colis.setOrder(order);
 			colis.setNavItemNo(row.getNavItemNo().trim());
+			colis.setVariantCode(cut(row.getVariantCode().trim(), 50));
 			colis.setDescription(cut(blankToNull(row.getDescription()), 255));
+			colis.setColorDescription(cut(blankToNull(row.getColorDescription()), 255));
 			colis.setNbColis(row.getNbColis());
 			colis.setContenance(row.getContenance());
 			colis.setColisPossibles(row.getColisPossibles());
@@ -367,9 +372,9 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 			sales.getLines().add(new ErpSalesOrderDTO.Line(itemNoOf(line),
 					line.getVariantCode() == null ? "" : line.getVariantCode(), line.getQuantity()));
 		}
-		// 3.1.1: each colis row, a line of colis of its item (the pieces they hold when known, informative)
+		// 3.1.1: each colis row, a line of colis of its variant (the pieces they hold when known, informative)
 		for (HoStoreOrderColis colis : order.getColis()) {
-			sales.getLines().add(ErpSalesOrderDTO.Line.colis(colis.getNavItemNo(), colis.getNbColis(),
+			sales.getLines().add(ErpSalesOrderDTO.Line.colis(colis.getNavItemNo(), colis.getVariantCode(), colis.getNbColis(),
 					colis.getContenance() == null ? null : BigDecimal.valueOf((long) colis.getNbColis() * colis.getContenance())));
 		}
 		return sales;
@@ -450,8 +455,8 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 		Map<String, String> colisMessages = new HashMap<>();
 		for (ErpSalesOrderResult.Line line : answer.getLines()) {
 			if (line.isColis()) {
-				// 3.1.1: the answer of a colis line, by its item
-				String item = line.getItemNo() == null ? "" : line.getItemNo().trim();
+				// 3.1.1: the answer of a colis line, by its item and variant
+				String item = lineKey(line.getItemNo(), line.getVariantCode());
 				if (line.getAcceptedColis() != null) {
 					colisAccepted.merge(item, line.getAcceptedColis(), Integer::sum);
 				}
@@ -477,8 +482,9 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 			line.setNavLineMessage(cut(messages.get(key), HoStoreOrder.NAV_MESSAGE_LENGTH));
 		}
 		for (HoStoreOrderColis colis : order.getColis()) {
-			colis.setNavAcceptedColis(colisAccepted.get(colis.getNavItemNo().trim()));
-			colis.setNavMessage(cut(colisMessages.get(colis.getNavItemNo().trim()), HoStoreOrder.NAV_MESSAGE_LENGTH));
+			String key = lineKey(colis.getNavItemNo(), colis.getVariantCode());
+			colis.setNavAcceptedColis(colisAccepted.get(key));
+			colis.setNavMessage(cut(colisMessages.get(key), HoStoreOrder.NAV_MESSAGE_LENGTH));
 		}
 	}
 
@@ -716,7 +722,7 @@ public class HoStoreOrderService implements DownDomainProvider, StoreOrderDelive
 		}
 		if (order.getColis().stream().anyMatch(colis -> colis.getNavAcceptedColis() != null || colis.getNavMessage() != null)) {
 			copy.setColis(order.getColis().stream().map(colis -> new StoreOrderStatusCopyDTO.Colis(colis.getNavItemNo(),
-					colis.getNavAcceptedColis(), colis.getNavMessage())).collect(Collectors.toList()));
+					colis.getVariantCode(), colis.getNavAcceptedColis(), colis.getNavMessage())).collect(Collectors.toList()));
 		}
 		LocalDateTime at = order.getUpdatedAt();
 		copy.setStatusAt(at == null ? null : at.withNano(0).toString());

@@ -366,63 +366,79 @@ class HoStoreOrderServiceTest {
 	}
 
 	@Test
-	@DisplayName("3.1.1, colis: received beside the lines (totals apart), alone too; posted as a colis line of the item;"
-			+ " NAV's colis answer on the colis row, never on a pieces line; down with the status")
+	@DisplayName("3.1.1, colis by colour row: received beside the lines (totals apart), two colours of one item, alone"
+			+ " too; each posted as a colis line of its variant; NAV's colis answer on its row by variant, never on a pieces"
+			+ " line; down with the status")
 	void colis() {
 		StoreOrderDTO dto = order(FIRST, "B", line("70061~S", "S", 2));
-		dto.getColis().add(new StoreOrderDTO.Colis(" 43ZBPND01 ", "JEANS", 3, 10, 101));
+		dto.getColis().add(new StoreOrderDTO.Colis(" 43ZFCHD17 ", " 001 ", "CHEMISE", "BLEU", 2, 10, 30));
+		dto.getColis().add(new StoreOrderDTO.Colis("43ZFCHD17", "006", "CHEMISE", "ROSE", 1, 12, 8));
 		assertTrue(service.receive(b, dto).isAccepted());
 		HoStoreOrder order = tables.byNumber(FIRST);
-		assertEquals(1, order.getColis().size());
-		assertEquals("43ZBPND01", order.getColis().get(0).getNavItemNo());
-		assertEquals(Integer.valueOf(101), order.getColis().get(0).getColisPossibles());
+		assertEquals(2, order.getColis().size());
+		assertEquals("43ZFCHD17", order.getColis().get(0).getNavItemNo());
+		assertEquals("001", order.getColis().get(0).getVariantCode());
+		assertEquals("BLEU", order.getColis().get(0).getColorDescription());
+		assertEquals(Integer.valueOf(30), order.getColis().get(0).getColisPossibles());
 		assertEquals(3, order.getTotalColis());
 		assertEquals(0, new BigDecimal("2").compareTo(order.getTotalQty()), "the pieces of the lines only");
 		HoStoreOrderDTO view = service.get(order.getId()).get();
 		assertEquals(3, view.getTotalColis());
-		assertEquals("JEANS", view.getColis().get(0).getDescription());
+		assertEquals("ROSE", view.getColis().get(1).getColorDescription());
+		assertEquals("006", view.getColis().get(1).getVariantCode());
 
 		ErpSalesOrderDTO sales = HoStoreOrderService.salesOrderOf(order, b);
-		assertEquals(2, sales.getLines().size());
+		assertEquals(3, sales.getLines().size());
 		ErpSalesOrderDTO.Line colisLine = sales.getLines().get(1);
 		assertTrue(colisLine.isColis());
-		assertEquals("43ZBPND01", colisLine.getItemNo());
-		assertEquals("", colisLine.getVariantCode());
-		assertEquals(Integer.valueOf(3), colisLine.getNbColis());
-		assertEquals(0, new BigDecimal("30").compareTo(colisLine.getQuantity()), "3 x 10 pieces, informative");
+		assertEquals("43ZFCHD17", colisLine.getItemNo());
+		assertEquals("001", colisLine.getVariantCode());
+		assertEquals(Integer.valueOf(2), colisLine.getNbColis());
+		assertEquals(0, new BigDecimal("20").compareTo(colisLine.getQuantity()), "2 x 10 pieces, informative");
+		assertEquals("006", sales.getLines().get(2).getVariantCode());
 
 		ErpSalesOrderResult answer = new ErpSalesOrderResult();
 		answer.getLines().add(new ErpSalesOrderResult.Line("70061", "S", new BigDecimal("2"), null));
-		answer.getLines().add(new ErpSalesOrderResult.Line("43ZBPND01", "", new BigDecimal("20"), "Colis partiel", true, 2));
+		answer.getLines().add(new ErpSalesOrderResult.Line("43ZFCHD17", "001", new BigDecimal("10"), "Colis partiel", true, 1));
 		HoStoreOrderService.keepAnswer(order, answer);
-		assertEquals(Integer.valueOf(2), order.getColis().get(0).getNavAcceptedColis());
+		assertEquals(Integer.valueOf(1), order.getColis().get(0).getNavAcceptedColis());
 		assertEquals("Colis partiel", order.getColis().get(0).getNavMessage());
+		assertNull(order.getColis().get(1).getNavAcceptedColis(), "the ROSE row: NAV answered nothing on it");
 		assertEquals(0, new BigDecimal("2").compareTo(order.getLines().get(0).getNavAcceptedQty()));
 		StoreOrderStatusCopyDTO copy = HoStoreOrderService.copyOf(order);
-		assertEquals(1, copy.getColis().size());
-		assertEquals(Integer.valueOf(2), copy.getColis().get(0).getAcceptedColis());
+		assertEquals(2, copy.getColis().size());
+		assertEquals("001", copy.getColis().get(0).getVariantCode());
+		assertEquals(Integer.valueOf(1), copy.getColis().get(0).getAcceptedColis());
 		assertEquals("Colis partiel", copy.getColis().get(0).getMessage());
 
 		StoreOrderDTO only = order("B-2026-000002", "B");
-		only.getColis().add(new StoreOrderDTO.Colis("43ZBPND01", null, 1, null, null));
+		only.getColis().add(new StoreOrderDTO.Colis("43ZFCHD17", "001", null, null, 1, null, null));
 		assertTrue(service.receive(b, only).isAccepted(), "colis alone: an order");
 		assertNull(HoStoreOrderService.copyOf(tables.byNumber("B-2026-000002")).getColis(), "no answer yet: none down");
 	}
 
 	@Test
-	@DisplayName("3.1.1, colis refused: none at all with no line, 0 colis, no item number, the same item twice")
+	@DisplayName("3.1.1, colis refused: none at all with no line, 0 colis, no item number, no variant (the ERP needs one),"
+			+ " the same item and variant twice")
 	void colisRefused() {
 		assertTrue(HoStoreOrderService.refusalOf(b, order(FIRST, "B")).contains("without a line"));
 		StoreOrderDTO zero = order(FIRST, "B");
-		zero.getColis().add(new StoreOrderDTO.Colis("43ZBPND01", null, 0, null, null));
+		zero.getColis().add(new StoreOrderDTO.Colis("43ZFCHD17", "001", null, null, 0, null, null));
 		assertTrue(HoStoreOrderService.refusalOf(b, zero).contains("1 or more"));
 		StoreOrderDTO blank = order(FIRST, "B");
-		blank.getColis().add(new StoreOrderDTO.Colis(" ", null, 1, null, null));
+		blank.getColis().add(new StoreOrderDTO.Colis(" ", "001", null, null, 1, null, null));
 		assertTrue(HoStoreOrderService.refusalOf(b, blank).contains("without an ERP item number"));
+		StoreOrderDTO noVariant = order(FIRST, "B");
+		noVariant.getColis().add(new StoreOrderDTO.Colis("43ZFCHD17", " ", null, null, 1, null, null));
+		assertTrue(HoStoreOrderService.refusalOf(b, noVariant).contains("without a variant code"));
 		StoreOrderDTO twice = order(FIRST, "B");
-		twice.getColis().add(new StoreOrderDTO.Colis("43ZBPND01", null, 1, null, null));
-		twice.getColis().add(new StoreOrderDTO.Colis("43ZBPND01", null, 2, null, null));
+		twice.getColis().add(new StoreOrderDTO.Colis("43ZFCHD17", "001", null, null, 1, null, null));
+		twice.getColis().add(new StoreOrderDTO.Colis("43ZFCHD17", "001", null, null, 2, null, null));
 		assertTrue(HoStoreOrderService.refusalOf(b, twice).contains("twice"));
+		StoreOrderDTO twoColours = order(FIRST, "B");
+		twoColours.getColis().add(new StoreOrderDTO.Colis("43ZFCHD17", "001", null, null, 1, null, null));
+		twoColours.getColis().add(new StoreOrderDTO.Colis("43ZFCHD17", "006", null, null, 2, null, null));
+		assertNull(HoStoreOrderService.refusalOf(b, twoColours), "two colours of one item: taken");
 	}
 
 	@Test

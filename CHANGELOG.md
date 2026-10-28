@@ -90,6 +90,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   NAV's answer on the colis row and sends it down (`StoreOrderStatusCopyDTO.colis`). connector-zen: a colis line
   `{article, mode: "colis", nbColis}` (pieces lines keep `erp.zen.order.mode`, vrac), NAV's `colisAcceptes` read on
   colis lines, a colis line missing until NAV has one of the item; details gain "Types de série" (`qteSerieType`).
+- Store orders, colis per colour row (NAV refused an item-level colis line: "Le n° article et le code variante sont
+  obligatoires sur les lignes"; ZEN's série is per variant): each colis row is of a variant, the first of its colour row
+  (`variant_code`, `color_description` on `hol_order_colis` / `ho_store_order_colis`, one row per order, item and
+  variant); `POST /store-order/draft/colis` takes `variantCode` (an active variant of the item, 400 otherwise), `DELETE`
+  too; `draftColis` and the last order's `colis` by variant code; the head office refuses a colis without a variant;
+  connector-zen sends `{article, codeVariante, mode: "colis", nbColis}`, a colis line missing until NAV has one of its
+  variant. The store drops the first build's key `uk_hol_order_colis_item` at each start.
 - Store orders, `GET /store-order/last?navItemNo=`: the last order of this store sent with a line of that ERP item (not
   a draft, not cancelled): number, status, date, and its quantity of each variant (the variants window's "Dernière
   commande"); 204 without one.
@@ -166,6 +173,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - `store-orders.sql`: tables `hol_order_colis` (store; unique order and item; FK to `hol_order`) and
   `ho_store_order_colis` (head office; FK to `ho_store_order`, index on the order), columns `hol_order.total_colis` and
   `ho_store_order.total_colis` int NULL, each when missing.
+- `store-orders.sql`: columns `variant_code` varchar(50) and `color_description` varchar(255) NULL on `hol_order_colis`
+  and `ho_store_order_colis` (in the tables and added to those of an earlier run); `uk_hol_order_colis_item` (order,
+  item) dropped and `uk_hol_order_colis_variant` (order, item, variant) added, each when needed.
 - `store-orders.sql`: column `ho_erp_invoice.order_no` varchar(50) NULL and index `ix_ho_erp_invoice_order` (head
   office), each added when missing: the sales order an ERP invoice names. The invoices read before keep none.
 - `store-orders.sql`, step 2: tables `ho_store_order` (unique `store_id`, `number`; FK to `ho_store`; index

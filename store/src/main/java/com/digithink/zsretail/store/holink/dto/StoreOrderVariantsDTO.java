@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.digithink.zsretail.core.dto.ItemImageDTO;
 
@@ -25,8 +26,8 @@ public class StoreOrderVariantsDTO {
 
 	private List<Variant> variants = new ArrayList<>();
 
-	/** 3.1.1: the draft's colis of this item (null: none). */
-	private Integer draftColis;
+	/** 3.1.1: the draft's colis of this item by variant code (each colour row's variant); empty: none. */
+	private Map<String, Integer> draftColis = new LinkedHashMap<>();
 
 	@Data
 	@NoArgsConstructor

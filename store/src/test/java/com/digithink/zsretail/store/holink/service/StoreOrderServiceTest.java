@@ -278,44 +278,61 @@ class StoreOrderServiceTest {
 	// ─── Send ────────────────────────────────────────────────────
 
 	@Test
-	@DisplayName("3.1.1, colis: the first makes the draft, a row of the item apart from the lines (totals apart), again"
-			+ " replaces; above the colis possibles 409, nothing saved; 0 removes; an item no active variant carries 400")
+	@DisplayName("3.1.1, colis by colour row: the first makes the draft, a row of the item's variant apart from the lines"
+			+ " (totals apart), with its colour; again replaces; another colour its own row; above the colis possibles 409,"
+			+ " nothing saved; 0 removes; a variant the item does not have 400")
 	void colisDraft() {
-		StoreOrderViewDTO view = service.putColis(" 70061 ", 2, 5, 10, "admin").get();
+		small.setColorDescription("BLEU");
+		large.setColorDescription("ROSE");
+		StoreOrderViewDTO view = service.putColis(" 70061 ", " S ", 2, 5, 10, "admin").get();
 		assertEquals(FIRST, view.getNumber());
 		assertEquals(0, view.getLineCount());
 		assertEquals(2, view.getTotalColis());
 		StoreOrderViewDTO.Colis colis = view.getColis().get(0);
 		assertEquals("70061", colis.getNavItemNo());
+		assertEquals("S", colis.getVariantCode());
 		assertEquals("CHEMISE", colis.getDescription());
+		assertEquals("BLEU", colis.getColorDescription());
 		assertEquals(Integer.valueOf(5), colis.getColisPossibles());
 		assertEquals(Integer.valueOf(10), colis.getContenance());
 
 		put(small, 4);
-		view = service.putColis("70061", 3, 5, 10, "admin").get();
-		assertEquals(1, view.getColis().size(), "replaced, one row per item");
-		assertEquals(3, view.getTotalColis());
+		view = service.putColis("70061", "S", 3, 5, 10, "admin").get();
+		assertEquals(1, view.getColis().size(), "replaced, one row per variant");
+		view = service.putColis("70061", "L", 1, 8, 12, "admin").get();
+		assertEquals(2, view.getColis().size(), "another colour: its own row");
+		assertEquals("ROSE", view.getColis().get(1).getColorDescription());
+		assertEquals(4, view.getTotalColis());
 		assertEquals(0, new BigDecimal("4").compareTo(view.getTotalQty()), "the pieces of the lines only");
 		IllegalStateException over = assertThrows(IllegalStateException.class,
-				() -> service.putColis("70061", 6, 5, 10, "admin"));
+				() -> service.putColis("70061", "S", 6, 5, 10, "admin"));
 		assertTrue(over.getMessage().contains("6 colis asked but only 5"), over.getMessage());
-		assertEquals(3, draft().getTotalColis(), "nothing saved");
-		assertThrows(IllegalArgumentException.class, () -> service.putColis("99999", 1, null, null, "admin"));
-		assertThrows(IllegalArgumentException.class, () -> service.putColis("70061", -1, null, null, "admin"));
+		assertEquals(4, draft().getTotalColis(), "nothing saved");
+		assertThrows(IllegalArgumentException.class, () -> service.putColis("99999", "S", 1, null, null, "admin"));
+		assertThrows(IllegalArgumentException.class, () -> service.putColis("70061", "X", 1, null, null, "admin"));
+		assertThrows(IllegalArgumentException.class, () -> service.putColis("70061", " ", 1, null, null, "admin"));
+		assertThrows(IllegalArgumentException.class, () -> service.putColis("70061", "S", -1, null, null, "admin"));
 
-		assertTrue(service.putColis("70061", 0, null, null, "admin").get().getColis().isEmpty());
-		assertEquals(0, draft().getTotalColis());
-		service.putColis("70061", 1, null, null, "admin");
-		assertTrue(service.removeColis("70061", "admin").get().getColis().isEmpty());
+		assertEquals(1, service.putColis("70061", "S", 0, null, null, "admin").get().getColis().size(), "S removed, L kept");
+		assertEquals(1, draft().getTotalColis());
+		assertTrue(service.removeColis("70061", "L", "admin").get().getColis().isEmpty());
+
+		service.putColis("70061", "L", 2, 8, 12, "admin");
+		server.expect(requestTo(STOCK)).andExpect(method(HttpMethod.GET))
+				.andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+		StoreOrderVariantsDTO variants = service.variants("70061").get();
+		server.verify();
+		assertEquals(Collections.singletonMap("L", 2), variants.getDraftColis(), "the window's colis by variant");
 	}
 
 	@Test
-	@DisplayName("3.1.1, colis: a draft of colis only is sent, its colis up with the head office's figures; colis above"
-			+ " their possibles stop the send; a 0 without a draft makes none")
+	@DisplayName("3.1.1, colis: a draft of colis only is sent, its colis up with their variant, colour and the head"
+			+ " office's figures; colis above their possibles stop the send; a 0 without a draft makes none")
 	void colisSent() {
-		assertFalse(service.putColis("70061", 0, null, null, "admin").isPresent());
+		small.setColorDescription("BLEU");
+		assertFalse(service.putColis("70061", "S", 0, null, null, "admin").isPresent());
 		assertFalse(service.draft().isPresent());
-		service.putColis("70061", 2, 5, 10, "admin");
+		service.putColis("70061", "S", 2, 5, 10, "admin");
 		draft().getColis().get(0).setColisPossibles(1); // the head office's figure, lowered since
 		IllegalStateException over = assertThrows(IllegalStateException.class, () -> service.send(draft().getId(), "admin"));
 		assertTrue(over.getMessage().contains("2 colis but only 1"), over.getMessage());
@@ -324,39 +341,52 @@ class StoreOrderServiceTest {
 				.andExpect(jsonPath("$.lines.length()").value(0))
 				.andExpect(jsonPath("$.colis.length()").value(1))
 				.andExpect(jsonPath("$.colis[0].navItemNo").value("70061"))
+				.andExpect(jsonPath("$.colis[0].variantCode").value("S"))
 				.andExpect(jsonPath("$.colis[0].description").value("CHEMISE"))
+				.andExpect(jsonPath("$.colis[0].colorDescription").value("BLEU"))
 				.andExpect(jsonPath("$.colis[0].nbColis").value(2))
 				.andExpect(jsonPath("$.colis[0].contenance").value(10))
 				.andExpect(jsonPath("$.colis[0].colisPossibles").value(5)).andRespond(accepted(FIRST));
 		assertEquals("SENT", service.send(draft().getId(), "admin").get().getStatus());
 		server.verify();
+		assertEquals(Collections.singletonMap("S", 2), service.lastOrderOf("70061").get().getColis(),
+				"the last order's colis by variant");
 	}
 
 	@Test
-	@DisplayName("3.1.1, colis down: NAV's answer on each colis row by ERP item number; the same again changes nothing")
+	@DisplayName("3.1.1, colis down: NAV's answer on each colis row by ERP item number and variant; another variant's"
+			+ " answer is not this row's; the same again changes nothing")
 	void colisAnswerDown() {
 		InMemoryStoreLink link = new InMemoryStoreLink(new InMemoryLoyalty(500_000));
 		StoreOrder order = orders.add(FIRST, StoreOrderStatus.SENT);
-		StoreOrderColis row = new StoreOrderColis();
-		row.setOrder(order);
-		row.setNavItemNo("43ZBPND01");
-		row.setNbColis(3);
-		order.getColis().add(row);
+		StoreOrderColis bleu = colisRow(order, "001");
+		StoreOrderColis rose = colisRow(order, "006");
 		StoreOrderStatusCopyDTO copy = new StoreOrderStatusCopyDTO();
 		copy.setOrderNumber(FIRST);
 		copy.setStatus("POSTED");
 		copy.setNavOrderNo("CV26000009");
-		copy.setColis(Collections.singletonList(new StoreOrderStatusCopyDTO.Colis("43ZBPND01", 2, " Colis partiel ")));
+		copy.setColis(Collections.singletonList(new StoreOrderStatusCopyDTO.Colis("43ZFCHD17", "001", 2, " Colis partiel ")));
 		SupplyDownHandler handler = new SupplyDownHandler(null, link.downRecordLog(),
 				TransactionOperations.withoutTransaction(), null, new StoreOrderStatusWriter(orders.repository()));
 		ObjectMapper mapper = new ObjectMapper();
 		assertEquals(1, handler.apply(Collections.singletonList(mapper.valueToTree(copy)), Collections.emptyList())
 				.getApplied());
-		assertEquals(Integer.valueOf(2), row.getNavAcceptedColis());
-		assertEquals("Colis partiel", row.getNavMessage());
+		assertEquals(Integer.valueOf(2), bleu.getNavAcceptedColis());
+		assertEquals("Colis partiel", bleu.getNavMessage());
+		assertNull(rose.getNavAcceptedColis(), "the answer is the 001 row's only");
 		assertEquals(1, handler.apply(Collections.singletonList(mapper.valueToTree(copy)), Collections.emptyList())
 				.getUnchanged());
 		assertEquals(Integer.valueOf(2), StoreOrderViewDTO.of(order).getColis().get(0).getNavAcceptedColis());
+	}
+
+	private static StoreOrderColis colisRow(StoreOrder order, String variantCode) {
+		StoreOrderColis row = new StoreOrderColis();
+		row.setOrder(order);
+		row.setNavItemNo("43ZFCHD17");
+		row.setVariantCode(variantCode);
+		row.setNbColis(2);
+		order.getColis().add(row);
+		return row;
 	}
 
 	@Test

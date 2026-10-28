@@ -37,17 +37,21 @@ public class StoreOrderDTO {
 
 	private List<Line> lines = new ArrayList<>();
 
-	/** 3.1.1: the colis ordered, one per ERP item (an older head office ignores them). */
+	/** 3.1.1: the colis ordered, one per ERP item and colour row (its variant). */
 	private List<Colis> colis = new ArrayList<>();
 
-	/** 3.1.1: a number of colis of an ERP item (ZEN's série: contenance pieces each). */
+	/** 3.1.1: a number of colis of a colour row of an ERP item, by the row's variant (ZEN's série: contenance pieces each). */
 	@Data
 	@NoArgsConstructor
 	@AllArgsConstructor
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	public static class Colis {
 		private String navItemNo;
+		/** The row's variant (the first of its colour). */
+		private String variantCode;
 		private String description;
+		/** The colour of the row. */
+		private String colorDescription;
 		private Integer nbColis;
 		/** The pieces in one colis, as the head office gave them; null when unknown (informative). */
 		private Integer contenance;

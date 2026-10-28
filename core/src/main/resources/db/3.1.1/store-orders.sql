@@ -11,7 +11,8 @@
 -- hol_order_line.available_qty, the availability a line was ordered against (added when missing);
 -- hol_order.nav_message, hol_order_line.nav_accepted_qty and nav_line_message, NAV's answer as the head office sends it
 -- down (added when missing); hol_order.invoice_no and delivered_at, NAV's invoice of a DELIVERED order (added when
--- missing); hol_order_colis, the colis of an ERP item in an order (ZEN's série), and hol_order.total_colis.
+-- missing); hol_order_colis, the colis of a colour row of an ERP item in an order (ZEN's série, by the row's variant:
+-- variant_code, color_description; unique order, item and variant), and hol_order.total_colis.
 -- They exist, empty, on every store; only a store whose goods come from the head office uses them.
 --
 -- Schema, store and head office: item_image, the images of an item (any number, in sort order). Nothing writes it yet;
@@ -22,7 +23,8 @@
 -- NAV's answer when the order was posted: ho_store_order.nav_message, ho_store_order_line.nav_accepted_qty and
 -- nav_line_message (added when missing); ho_store_order.invoice_no and delivered_at, the ERP invoice that delivered it
 -- (status DELIVERED, set by the invoice import from the invoice's orderNo; added when missing); ho_store_order_colis and
--- ho_store_order.total_colis, the colis of the stores' orders; ho_erp_invoice.order_no
+-- ho_store_order.total_colis, the colis of the stores' orders (by variant: variant_code, color_description);
+-- ho_erp_invoice.order_no
 -- and its index ix_ho_erp_invoice_order, the sales order an ERP invoice names (added when missing; the invoices read
 -- before keep none). They exist, empty, on every head office; only one with
 -- headoffice.storeorders.post set takes orders.
@@ -132,8 +134,9 @@ IF OBJECT_ID(N'hol_order', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order', N'deli
 	ALTER TABLE hol_order ADD delivered_at date NULL;
 GO
 
--- The colis of an ERP item in an order (a store only; as the entity StoreOrderColis): one row per item and order, apart
--- from the lines (a colis is of the item, never of a variant); the head office's figures when added, NAV's answer
+-- The colis of a colour row of an ERP item in an order (a store only; as the entity StoreOrderColis): one row per item,
+-- variant (the first of its colour row) and order, apart from the lines; the head office's figures when added, NAV's
+-- answer
 IF OBJECT_ID(N'ho_store', N'U') IS NULL AND OBJECT_ID(N'hol_order', N'U') IS NOT NULL
 	AND OBJECT_ID(N'hol_order_colis', N'U') IS NULL
 BEGIN
@@ -146,6 +149,8 @@ BEGIN
 		updated_by varchar(255) NULL,
 		order_id bigint NOT NULL,
 		nav_item_no varchar(255) NOT NULL,
+		variant_code varchar(50) NULL,
+		color_description varchar(255) NULL,
 		description varchar(255) NULL,
 		nb_colis int NOT NULL,
 		contenance int NULL,
@@ -153,10 +158,24 @@ BEGIN
 		nav_accepted_colis int NULL,
 		nav_message varchar(500) NULL,
 		CONSTRAINT PK_hol_order_colis PRIMARY KEY (id),
-		CONSTRAINT uk_hol_order_colis_item UNIQUE (order_id, nav_item_no),
+		CONSTRAINT uk_hol_order_colis_variant UNIQUE (order_id, nav_item_no, variant_code),
 		CONSTRAINT fk_hol_order_colis_order FOREIGN KEY (order_id) REFERENCES hol_order (id)
 	);
 END
+GO
+
+-- A table of an earlier run (one row per item): the variant and colour of its row, one row per item and variant
+IF OBJECT_ID(N'hol_order_colis', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order_colis', N'variant_code') IS NULL
+	ALTER TABLE hol_order_colis ADD variant_code varchar(50) NULL;
+GO
+IF OBJECT_ID(N'hol_order_colis', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order_colis', N'color_description') IS NULL
+	ALTER TABLE hol_order_colis ADD color_description varchar(255) NULL;
+GO
+IF OBJECT_ID(N'uk_hol_order_colis_item', N'UQ') IS NOT NULL
+	ALTER TABLE hol_order_colis DROP CONSTRAINT uk_hol_order_colis_item;
+GO
+IF OBJECT_ID(N'hol_order_colis', N'U') IS NOT NULL AND OBJECT_ID(N'uk_hol_order_colis_variant', N'UQ') IS NULL
+	ALTER TABLE hol_order_colis ADD CONSTRAINT uk_hol_order_colis_variant UNIQUE (order_id, nav_item_no, variant_code);
 GO
 
 -- The colis of an order in all (total_qty counts the pieces of the lines only). Added to a table of an earlier run too.
@@ -279,6 +298,8 @@ BEGIN
 		updated_by varchar(255) NULL,
 		order_id bigint NOT NULL,
 		nav_item_no varchar(255) NOT NULL,
+		variant_code varchar(50) NULL,
+		color_description varchar(255) NULL,
 		description varchar(255) NULL,
 		nb_colis int NOT NULL,
 		contenance int NULL,
@@ -293,6 +314,14 @@ END
 GO
 IF OBJECT_ID(N'ho_store_order', N'U') IS NOT NULL AND COL_LENGTH(N'ho_store_order', N'total_colis') IS NULL
 	ALTER TABLE ho_store_order ADD total_colis int NULL;
+GO
+-- A table of an earlier run: the variant and colour of each colis row
+IF OBJECT_ID(N'ho_store_order_colis', N'U') IS NOT NULL AND COL_LENGTH(N'ho_store_order_colis', N'variant_code') IS NULL
+	ALTER TABLE ho_store_order_colis ADD variant_code varchar(50) NULL;
+GO
+IF OBJECT_ID(N'ho_store_order_colis', N'U') IS NOT NULL
+	AND COL_LENGTH(N'ho_store_order_colis', N'color_description') IS NULL
+	ALTER TABLE ho_store_order_colis ADD color_description varchar(255) NULL;
 GO
 
 -- The sales order an ERP invoice names (its orderNo), kept so that an order posted after its invoice was read is

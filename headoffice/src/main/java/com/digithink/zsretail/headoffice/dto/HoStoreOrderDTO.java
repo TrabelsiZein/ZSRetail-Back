@@ -64,7 +64,9 @@ public class HoStoreOrderDTO {
 	public static class Colis {
 		private Long id;
 		private String navItemNo;
+		private String variantCode;
 		private String description;
+		private String colorDescription;
 		private int nbColis;
 		private Integer contenance;
 		private Integer colisPossibles;
@@ -126,7 +128,8 @@ public class HoStoreOrderDTO {
 	}
 
 	private static Colis colis(HoStoreOrderColis colis) {
-		return new Colis(colis.getId(), colis.getNavItemNo(), colis.getDescription(), colis.getNbColis(),
+		return new Colis(colis.getId(), colis.getNavItemNo(), colis.getVariantCode(), colis.getDescription(),
+				colis.getColorDescription(), colis.getNbColis(),
 				colis.getContenance(), colis.getColisPossibles(), colis.getNavAcceptedColis(), colis.getNavMessage());
 	}
 

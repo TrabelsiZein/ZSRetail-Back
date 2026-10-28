@@ -130,20 +130,22 @@ public class StoreOrderAPI {
 	}
 
 	/**
-	 * POST /store-order/draft/colis {navItemNo, nbColis, colisPossibles?, contenance?}: the colis of the item in the draft
-	 * (0 removes them); the draft (204 for a 0 without a draft). 409 above the colis possibles.
+	 * POST /store-order/draft/colis {navItemNo, variantCode, nbColis, colisPossibles?, contenance?}: the colis of a colour
+	 * row of the item (its first variant) in the draft (0 removes them); the draft (204 for a 0 without a draft). 409
+	 * above the colis possibles; 400 for a variant the item does not have.
 	 */
 	@PostMapping("/draft/colis")
 	public ResponseEntity<?> putColis(@RequestBody(required = false) StoreOrderColisInputDTO body) {
 		return answer(() -> orNoContent(service.putColis(body == null ? null : body.getNavItemNo(),
-				body == null ? null : body.getNbColis(), body == null ? null : body.getColisPossibles(),
-				body == null ? null : body.getContenance(), userName())));
+				body == null ? null : body.getVariantCode(), body == null ? null : body.getNbColis(),
+				body == null ? null : body.getColisPossibles(), body == null ? null : body.getContenance(), userName())));
 	}
 
-	/** DELETE /store-order/draft/colis?navItemNo: the draft without the item's colis; 404 without a draft. */
+	/** DELETE /store-order/draft/colis?navItemNo&amp;variantCode: the draft without those colis; 404 without a draft. */
 	@DeleteMapping("/draft/colis")
-	public ResponseEntity<?> removeColis(@RequestParam(name = "navItemNo", required = false) String navItemNo) {
-		return answer(() -> found(service.removeColis(navItemNo, userName())));
+	public ResponseEntity<?> removeColis(@RequestParam(name = "navItemNo", required = false) String navItemNo,
+			@RequestParam(name = "variantCode", required = false) String variantCode) {
+		return answer(() -> found(service.removeColis(navItemNo, variantCode, userName())));
 	}
 
 	/** DELETE /store-order/draft/lines/{itemId}: the draft without the item's line; 404 without a draft. */
