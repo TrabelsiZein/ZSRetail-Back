@@ -25,11 +25,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * <li>GET infoArticles?$filter=article eq '..' and client eq '..' → {"value": [{article, codeVariante, client, ...,
  * ordreTaille, ..., stock, qteVrac, disponible, calculeLe}]}, one row per variant, the stock of the item for the store's
  * ERP customer (no location): the quantity is disponible, never stock;</li>
- * <li>commandesVente, the sales orders: POST {numeroDocExterne, referenceZS, commandeZS, client, dateCommande,
- * lignesCommande: [{article, codeVariante, mode, quantiteDemandee}]} → {id, numero, statut, message, montantTTC, ...};
- * the lines (contained collection lignesCommande) answer quantite (accepted), colisAcceptes, message, prixUnitaire,
- * remisePourcent, montantTTC. The lookup before it: GET commandesVente?$filter=numeroDocExterne eq
- * '..'&amp;$expand=lignesCommande. A line alone: POST commandesVente(id)/lignesCommande.</li>
+ * <li>commandesVente, the sales orders: POST {referenceZS, commandeZS, client, dateCommande, lignesCommande:
+ * [{article, codeVariante, mode, quantiteDemandee}]} → {id, numero, statut, message, montantTTC, ...}; the lines
+ * (contained collection lignesCommande) answer quantite (accepted), colisAcceptes, message, prixUnitaire,
+ * remisePourcent, montantTTC. The lookup before it: GET commandesVente?$filter=referenceZS eq
+ * '..'&amp;$expand=lignesCommande. A line alone: POST commandesVente(id)/lignesCommande. numeroDocExterne is never
+ * sent (read-only on ZEN's side, 2026-10-28).</li>
  * </ul>
  */
 public final class ZenOrderFields {
@@ -56,10 +57,8 @@ public final class ZenOrderFields {
 	static final DateTimeFormatter COMPUTED_AT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
 	// The sales order (commandesVente): header sent
-	/** The store's order number: the lookup's key. */
-	public static final String ORDER_EXTERNAL_NO = "numeroDocExterne";
-	/** The store's code. */
-	public static final String ORDER_STORE = "referenceZS";
+	/** The store's order number: the lookup's key (ZEN's field for it; numeroDocExterne is read-only there). */
+	public static final String ORDER_REFERENCE = "referenceZS";
 	/** Always true: an order of ZS. */
 	public static final String ORDER_FROM_ZS = "commandeZS";
 	/** The store's ERP customer number. */
@@ -157,13 +156,12 @@ public final class ZenOrderFields {
 	}
 
 	/**
-	 * The header: numeroDocExterne (the store's order number), referenceZS (the store's code), commandeZS true, client,
-	 * dateCommande as yyyy-MM-dd; no dateLivraisonSouhaitee.
+	 * The header: referenceZS (the store's order number), commandeZS true, client (the store's ERP customer number, the
+	 * only field naming the store), dateCommande as yyyy-MM-dd; no numeroDocExterne, no dateLivraisonSouhaitee.
 	 */
 	public static ObjectNode headerBody(ErpSalesOrderDTO order) {
 		ObjectNode body = JsonNodeFactory.instance.objectNode();
-		body.put(ORDER_EXTERNAL_NO, order.getExternalDocumentNo());
-		body.put(ORDER_STORE, order.getLocationCode());
+		body.put(ORDER_REFERENCE, order.getExternalDocumentNo());
 		body.put(ORDER_FROM_ZS, true);
 		body.put(ORDER_CUSTOMER, order.getCustomerNo());
 		body.put(ORDER_DATE, order.getOrderDate() == null ? null
@@ -255,9 +253,9 @@ public final class ZenOrderFields {
 		return (itemNo == null ? "" : itemNo.trim()) + "\u0000" + (variantCode == null ? "" : variantCode.trim());
 	}
 
-	/** numeroDocExterne eq 'ZS01-2026-000012' (a quote doubled). */
+	/** referenceZS eq 'ZS01-2026-000012' (a quote doubled). */
 	public static String lookupFilter(String externalDocumentNo) {
-		return ORDER_EXTERNAL_NO + " eq '" + quoted(externalDocumentNo) + "'";
+		return ORDER_REFERENCE + " eq '" + quoted(externalDocumentNo) + "'";
 	}
 
 	/** The order of this id, under the sales orders page: commandesVente(id). */

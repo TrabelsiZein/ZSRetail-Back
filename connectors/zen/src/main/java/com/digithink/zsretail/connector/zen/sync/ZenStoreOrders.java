@@ -26,7 +26,7 @@ import lombok.extern.log4j.Log4j2;
  * orders on its page commandesVente; the fields in {@link ZenOrderFields}. ZenConnector answers fetchVariantStock and
  * postSalesOrder from here.
  * <p>
- * Posting first looks up NAV's order of the same numeroDocExterne (the store's order number) with its lines: an order
+ * Posting first looks up NAV's order of the same referenceZS (the store's order number) with its lines: an order
  * posted again after a lost answer is never doubled. The lookup is required: when the page cannot answer it, the order
  * is not posted (failure, retried by the head office's job). Then:
  * <ul>

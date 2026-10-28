@@ -52,8 +52,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `read:admin-headoffice-store-orders` and `write:admin-headoffice-store-orders`, given to ADMIN at every start only on
   such a head office (`ZZDataInitializer.HEAD_OFFICE_STORE_ORDER_PERMISSIONS`).
 - Store orders, ZEN's real page `commandesVente` (docs/modules/store-orders.md): the lookup `GET
-  commandesVente?$filter=numeroDocExterne eq '..'&$expand=lignesCommande` (required); none found: one POST with the
-  lines nested (`numeroDocExterne`, `referenceZS` = the store code, `commandeZS` true, `client`, `dateCommande`;
+  commandesVente?$filter=referenceZS eq '..'&$expand=lignesCommande` (required); none found: one POST with the
+  lines nested (`referenceZS` = the order number, `commandeZS` true, `client`, `dateCommande`;
   `lignesCommande` `article`, `codeVariante`, `mode` when set, `quantiteDemandee`), and when NAV answers a 4xx refusing
   the nested lines, the header then one POST per line on `commandesVente(id)/lignesCommande`; an order found reused, the
   lines it lacks posted. NAV's answer kept (`ErpSalesOrderResult`, the return of `ErpConnector.postSalesOrder`):
@@ -91,6 +91,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `availableQty`.
 
 ### Fixes
+- connector-zen, `commandesVente`: NAV refused every order ("Control 'numeroDocExterne' is read-only"). The order number
+  now goes in `referenceZS` (ZEN's field for it) and the lookup filters on `referenceZS eq '..'`; `numeroDocExterne` is
+  never sent, and the store code is no longer sent (no writable header field fits it; `client` names the store).
 - Store orders lists: `GET admin/headoffice/store-orders` and the store's `GET /store-order` answered 500 ("Parameter
   value [1] did not match expected type [java.lang.Integer]"): the "every store / every status" flags are `long` and the
   statement compared them with an `int` literal; now `1L`, as the BL reception list. `HoStoreOrderPageQueryTest` and

@@ -298,13 +298,16 @@ label → value, strings) and `sizeOrder` are optional, filled by a connector wi
   empty value is left out. Sample: `connectors/zen/src/test/resources/zen/infoArticles.json` (43ZBPND01, client
   4110001: `disponible` 203 or 101 where `stock` is 1 to 69; size 36 has `ordreTaille` 220, after 46's 200, so its column comes last);
 - **the sales orders, ZEN's real page** `commandesVente` (2026-10-28), under the same `companies(id)`:
-  - lookup, required: `GET commandesVente?$filter=numeroDocExterne eq '<number>'&$expand=lignesCommande` (a quote
+  - lookup, required: `GET commandesVente?$filter=referenceZS eq '<number>'&$expand=lignesCommande` (a quote
     doubled); when it cannot be answered nothing is posted (ERROR, retried);
   - found: reused; the lines NAV does not have (by `article` and `codeVariante`: a posting that stopped half-way) are
     posted one by one, then the order read again (`GET commandesVente(<id>)?$expand=lignesCommande`);
-  - none: one `POST commandesVente` with the lines nested (deep insert): header `numeroDocExterne` (the order number),
-    `referenceZS` (the store code), `commandeZS` true, `client` (the store's ERP customer number), `dateCommande` (the
-    send date, `yyyy-MM-dd`), no `dateLivraisonSouhaitee`; lines `lignesCommande: [{article, codeVariante, mode,
+  - none: one `POST commandesVente` with the lines nested (deep insert): header `referenceZS` (the order number),
+    `commandeZS` true, `client` (the store's ERP customer number), `dateCommande` (the send date, `yyyy-MM-dd`), no
+    `dateLivraisonSouhaitee`. **No `numeroDocExterne`**: read-only on ZEN's side (NAV refused it: "Control
+    'numeroDocExterne' is read-only", 2026-10-28), ZEN put our number in `referenceZS`. The store code is not sent: no
+    other writable header field fits it (`ordrePrelevement` is NAV's picking order, `statut` / `message` are NAV's
+    answer), and `client` already names the store; lines `lignesCommande: [{article, codeVariante, mode,
     quantiteDemandee}]` (pieces; `mode` only when `erp.zen.order.mode` is set, no `nbColis`). When NAV answers a 4xx
     whose body names `lignesCommande`, a navigation property or a deep insert, the header is posted alone, then one
     `POST commandesVente(<id>)/lignesCommande` per line; any other refusal is the order's failure. An answer without
@@ -316,7 +319,8 @@ label → value, strings) and `sizeOrder` are optional, filled by a connector wi
     with its n lines in one call (deep insert)", "NAV refused the nested lines: header then n lines posted one by one",
     "already exists: reused, nothing posted" or "its n missing lines posted"). An order NAV answers with a `numero` is
     POSTED whatever `statut` says. Sample: `connectors/zen/src/test/resources/zen/commandesVente.json` (CV26000003,
-    made by hand in NAV: `commandeZS` false, `quantiteDemandee` 0, `quantite` 10 per line).
+    made by hand in NAV: `commandeZS` false, `referenceZS` empty, `quantiteDemandee` 0, `quantite` 10 per line; the
+    tests put the order number in its `referenceZS` where NAV answers our order).
 
 The page names (`infoArticles`, `commandesVente`, `lignesCommande`) are constants of `ZenOrderFields`, not settings.
 `erp.zen.order.mode` (empty by default: the field is not sent and NAV keeps its own) is to be removed once ZEN confirms

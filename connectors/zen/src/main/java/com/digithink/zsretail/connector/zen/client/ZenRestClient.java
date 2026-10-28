@@ -447,8 +447,8 @@ public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 	}
 
 	/**
-	 * GET commandesVente?$filter=numeroDocExterne eq '..'&amp;$expand=lignesCommande: NAV's order of this external
-	 * document number with its lines; null when there is none. A page that cannot answer it throws (the order is then
+	 * GET commandesVente?$filter=referenceZS eq '..'&amp;$expand=lignesCommande: NAV's order of this store order number
+	 * with its lines; null when there is none. A page that cannot answer it throws (the order is then
 	 * not posted).
 	 */
 	public JsonNode findSalesOrder(String externalDocumentNo) {

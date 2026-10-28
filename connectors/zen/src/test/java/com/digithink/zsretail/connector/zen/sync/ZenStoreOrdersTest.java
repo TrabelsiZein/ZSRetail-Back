@@ -55,7 +55,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * settings: the variant stock on ZEN's page infoArticles (the sample src/test/resources/zen/infoArticles.json, read from
  * ZEN's test NAV on 2026-10-27: 43ZBPND01 for the client 4110001, twelve variants); the sales orders on its page
  * commandesVente (the sample src/test/resources/zen/commandesVente.json, CV26000003 read with $expand=lignesCommande
- * from ZEN's test NAV on 2026-10-27: three lines of 43ZBPND01, quantite 10 each): the lookup by numeroDocExterne with
+ * from ZEN's test NAV on 2026-10-27: three lines of 43ZBPND01, quantite 10 each): the lookup by referenceZS with
  * the lines before any POST (an order found is reused, its missing lines posted; a lookup that fails posts nothing), the
  * deep insert and its body, the header then one POST per line when NAV refuses the nested lines, NAV's answer (numero,
  * message, quantite and message per line), and the interceptor: a POST to commandesVente and its orders' lines only.
@@ -65,7 +65,7 @@ class ZenStoreOrdersTest {
 	static final String COMPANY_ID = "89c8b192-3f2e-f111-9f24-7ced8db3f120";
 	static final String ROOT = "http://nav.test:7158/ZEN/api/sat/zsretail/v1.0/companies(" + COMPANY_ID + ")/";
 	static final String NUMBER = "ZS01-2026-000001";
-	static final String LOOKUP = ROOT + "commandesVente?$filter=numeroDocExterne%20eq%20'" + NUMBER
+	static final String LOOKUP = ROOT + "commandesVente?$filter=referenceZS%20eq%20'" + NUMBER
 			+ "'&$expand=lignesCommande";
 	static final String ORDERS = ROOT + "commandesVente";
 	/** The id of CV26000003 in the sample. */
@@ -118,9 +118,17 @@ class ZenStoreOrdersTest {
 		}
 	}
 
-	/** CV26000003 alone (GET by its id): the sample's row. */
+	/**
+	 * CV26000003 alone (GET by its id): the sample's row, with our order number in referenceZS (the sample was made by
+	 * hand in NAV: its referenceZS is empty).
+	 */
 	static ObjectNode navOrder() throws IOException {
-		return (ObjectNode) JSON.readTree(found()).get("value").get(0);
+		return ((ObjectNode) JSON.readTree(found()).get("value").get(0)).put("referenceZS", NUMBER);
+	}
+
+	/** The lookup's answer when NAV has the order: the sample's row under "value". */
+	static String foundOurs() throws IOException {
+		return "{\"value\":[" + navOrder() + "]}";
 	}
 
 	/** The order as a POST answers it: the header without its lines, with this message. */
@@ -219,19 +227,21 @@ class ZenStoreOrdersTest {
 		assertEquals(0, new BigDecimal("10").compareTo(first.getAcceptedQty()), "quantite, not quantiteDemandee (0)");
 		assertNull(first.getMessage());
 		assertNull(ZenOrderFields.orderOf(JSON.readTree(NONE)), "none found");
+		assertEquals("referenceZS eq 'ZS01-2026-0''1'", ZenOrderFields.lookupFilter(" ZS01-2026-0'1 "), "a quote doubled");
 	}
 
 	@Test
-	@DisplayName("Posted in one call (deep insert): the lookup finds none, POST commandesVente with the header and its lines"
-			+ " nested (no mode when the key is empty, no dateLivraisonSouhaitee, no nbColis), then the order read with its"
-			+ " lines: success with numero, NAV's message and per line the quantity accepted")
+	@DisplayName("Posted in one call (deep insert): the lookup finds none, POST commandesVente with the header (the order"
+			+ " number in referenceZS, no numeroDocExterne, no store code) and its lines nested (no mode when the key is empty,"
+			+ " no dateLivraisonSouhaitee, no nbColis), then the order read with its lines: success with numero, NAV's message"
+			+ " and per line the quantity accepted")
 	void postedDeepInsert() throws IOException {
 		server.expect(requestTo(LOOKUP)).andExpect(method(HttpMethod.GET))
 				.andRespond(withSuccess(NONE, MediaType.APPLICATION_JSON));
 		server.expect(requestTo(ORDERS)).andExpect(method(HttpMethod.POST))
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-				.andExpect(jsonPath("$.numeroDocExterne").value(NUMBER))
-				.andExpect(jsonPath("$.referenceZS").value("ZS01"))
+				.andExpect(jsonPath("$.referenceZS").value(NUMBER))
+				.andExpect(jsonPath("$.numeroDocExterne").doesNotExist())
 				.andExpect(jsonPath("$.commandeZS").value(true))
 				.andExpect(jsonPath("$.client").value("4110001"))
 				.andExpect(jsonPath("$.dateCommande").value("2026-10-27"))
@@ -252,7 +262,10 @@ class ZenStoreOrdersTest {
 		assertEquals(ORDERS, result.getUrl());
 		assertEquals("NAV's order CV26000003 of " + NUMBER + ": posted with its 3 lines in one call (deep insert)",
 				result.getMessage());
-		assertEquals(NUMBER, ((JsonNode) result.getActualRequestPayload()).get("numeroDocExterne").asText());
+		JsonNode sent = (JsonNode) result.getActualRequestPayload();
+		assertEquals(NUMBER, sent.get("referenceZS").asText());
+		assertFalse(sent.has("numeroDocExterne"), "read-only on ZEN's side: never sent");
+		assertFalse(sent.toString().contains("ZS01\""), "the store code travels nowhere: " + sent);
 		assertEquals("Commande reçue", result.getOrderMessage());
 		assertEquals(3, result.getLines().size());
 		assertEquals(0, new BigDecimal("10").compareTo(result.getLines().get(1).getAcceptedQty()), "12 asked, 10 accepted");
@@ -281,7 +294,8 @@ class ZenStoreOrdersTest {
 						"{\"error\":{\"code\":\"BadRequest\",\"message\":\"Deep insert is not supported for lignesCommande\"}}"));
 		server.expect(requestTo(ORDERS)).andExpect(method(HttpMethod.POST))
 				.andExpect(jsonPath("$.lignesCommande").doesNotExist())
-				.andExpect(jsonPath("$.numeroDocExterne").value(NUMBER))
+				.andExpect(jsonPath("$.referenceZS").value(NUMBER))
+				.andExpect(jsonPath("$.numeroDocExterne").doesNotExist())
 				.andRespond(withSuccess(header(""), MediaType.APPLICATION_JSON));
 		for (String variant : Arrays.asList("001", "002", "003")) {
 			server.expect(requestTo(LINES)).andExpect(method(HttpMethod.POST))
@@ -303,7 +317,7 @@ class ZenStoreOrdersTest {
 	@DisplayName("Already in NAV with all its lines (an answer lost): reused with the lines' answer, nothing posted")
 	void reused() throws IOException {
 		server.expect(requestTo(LOOKUP)).andExpect(method(HttpMethod.GET))
-				.andRespond(withSuccess(found(), MediaType.APPLICATION_JSON));
+				.andRespond(withSuccess(foundOurs(), MediaType.APPLICATION_JSON));
 		ErpSalesOrderResult result = orders.post(order());
 		server.verify(); // no POST expected
 		assertTrue(result.isSuccess());
@@ -428,7 +442,7 @@ class ZenStoreOrdersTest {
 	@Test
 	@DisplayName("ZenConnector answers from here; without the orders (the invoices' tests) the defaults: not supported")
 	void connector() throws IOException {
-		server.expect(requestTo(LOOKUP)).andRespond(withSuccess(found(), MediaType.APPLICATION_JSON));
+		server.expect(requestTo(LOOKUP)).andRespond(withSuccess(foundOurs(), MediaType.APPLICATION_JSON));
 		assertEquals("CV26000003", new ZenConnector(null, orders).postSalesOrder(order()).getExternalReference());
 		ZenConnector withoutOrders = new ZenConnector(null);
 		assertFalse(withoutOrders.postSalesOrder(order()).isSuccess());
