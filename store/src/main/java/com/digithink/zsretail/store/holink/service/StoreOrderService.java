@@ -396,10 +396,13 @@ public class StoreOrderService {
 
 	// ─── The draft's colis (3.1.1) ───────────────────────────────
 
-	/** The colis of an ERP item in an order, by variant code. */
+	/**
+	 * The colis of an ERP item in an order, by variant code. A row without a variant (the first colis build, by item) has
+	 * no place in the window and is left out (a null key would break the JSON answer).
+	 */
 	private static Map<String, Integer> colisOf(StoreOrder order, String navItemNo) {
 		Map<String, Integer> found = new LinkedHashMap<>();
-		order.getColis().stream().filter(colis -> navItemNo.equals(colis.getNavItemNo()))
+		order.getColis().stream().filter(colis -> navItemNo.equals(colis.getNavItemNo()) && hasText(colis.getVariantCode()))
 				.forEach(colis -> found.put(colis.getVariantCode(), colis.getNbColis()));
 		return found;
 	}
@@ -560,6 +563,12 @@ public class StoreOrderService {
 				throw new IllegalStateException("Order " + order.getNumber() + " has no line: nothing to send");
 			}
 			for (StoreOrderColis colis : order.getColis()) {
+				if (!hasText(colis.getVariantCode())) {
+					// The first colis build, by item: the ERP needs a variant (the head office would refuse the order)
+					throw new IllegalStateException("Order " + order.getNumber() + " is not sent: the colis of item "
+							+ Quantities.itemLabel(colis.getNavItemNo(), colis.getDescription())
+							+ " have no colour: remove them and enter them on a colour row of the item");
+				}
 				if (colis.getColisPossibles() != null && colis.getNbColis() > colis.getColisPossibles()) {
 					throw new IllegalStateException("Order " + order.getNumber() + " is not sent: item "
 							+ Quantities.itemLabel(colis.getNavItemNo(), colis.getDescription()) + " asks "

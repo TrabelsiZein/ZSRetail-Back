@@ -354,6 +354,30 @@ class StoreOrderServiceTest {
 	}
 
 	@Test
+	@DisplayName("3.1.1, a colis row of the first build (no variant): left out of the window's colis (no null key), the"
+			+ " send refused with what to do; removed, the draft is sent")
+	void colisWithoutVariant() {
+		small.setColorDescription("BLEU");
+		service.putColis("70061", "S", 1, null, null, "admin");
+		StoreOrderColis old = new StoreOrderColis();
+		old.setOrder(draft());
+		old.setNavItemNo("70061");
+		old.setNbColis(6);
+		draft().getColis().add(old);
+		server.expect(requestTo(STOCK)).andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+		assertEquals(Collections.singletonMap("S", 1), service.variants("70061").get().getDraftColis());
+		IllegalStateException refused = assertThrows(IllegalStateException.class,
+				() -> service.send(draft().getId(), "admin"));
+		assertTrue(refused.getMessage().contains("have no colour: remove them"), refused.getMessage());
+		draft().getColis().remove(old);
+		server.verify();
+		server.reset();
+		server.expect(requestTo(ORDERS)).andRespond(accepted(FIRST));
+		assertEquals("SENT", service.send(draft().getId(), "admin").get().getStatus());
+		server.verify();
+	}
+
+	@Test
 	@DisplayName("3.1.1, colis down: NAV's answer on each colis row by ERP item number and variant; another variant's"
 			+ " answer is not this row's; the same again changes nothing")
 	void colisAnswerDown() {

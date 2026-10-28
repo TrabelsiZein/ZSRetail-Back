@@ -96,7 +96,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   variant); `POST /store-order/draft/colis` takes `variantCode` (an active variant of the item, 400 otherwise), `DELETE`
   too; `draftColis` and the last order's `colis` by variant code; the head office refuses a colis without a variant;
   connector-zen sends `{article, codeVariante, mode: "colis", nbColis}`, a colis line missing until NAV has one of its
-  variant. The store drops the first build's key `uk_hol_order_colis_item` at each start.
+  variant. The store drops the first build's key `uk_hol_order_colis_item` at each start. A colis row of the first build (no
+  variant) is left out of the window's colis (its null key broke the variants answer: the window read "head office
+  unreachable") and stops the send with what to do (remove it, enter the colis on a colour row).
 - Store orders, `GET /store-order/last?navItemNo=`: the last order of this store sent with a line of that ERP item (not
   a draft, not cancelled): number, status, date, and its quantity of each variant (the variants window's "Dernière
   commande"); 204 without one.
