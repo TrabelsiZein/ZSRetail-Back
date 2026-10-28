@@ -3,6 +3,7 @@ package com.digithink.zsretail.headoffice.service;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -83,5 +84,75 @@ class JdbcDownChangeBatchTest {
 		verify(batch).write(DataDomain.CATALOGUE, 7, expected);
 		assertEquals(Long.valueOf(102), jdbcTables.sequences.get(DataDomain.CATALOGUE));
 		assertEquals(0, jdbcTables.changes.size(), "the batch wrote the rows, not JPA");
+	}
+
+	@Test
+	@DisplayName("3.1.1, every store: the update finds the row by store_id IS NULL (casts kept), the insert has no store")
+	@SuppressWarnings("unchecked")
+	void everyStore() {
+		JdbcTemplate jdbc = mock(JdbcTemplate.class);
+		when(jdbc.batchUpdate(eq(JdbcDownChangeBatch.UPDATE_EVERY_STORE), anyList())).thenReturn(new int[] { 1, 0 });
+		Map<String, Long> versions = new LinkedHashMap<>();
+		versions.put("ITEM:A", 21L);
+		versions.put("ITEM:B", 22L);
+		assertEquals(1, new JdbcDownChangeBatch(jdbc).writeEveryStore(DataDomain.CATALOGUE, versions));
+		ArgumentCaptor<List<Object[]>> updates = ArgumentCaptor.forClass(List.class);
+		verify(jdbc).batchUpdate(eq(JdbcDownChangeBatch.UPDATE_EVERY_STORE), updates.capture());
+		assertEquals(4, updates.getValue().get(0).length, "no store parameter");
+		ArgumentCaptor<List<Object[]>> inserts = ArgumentCaptor.forClass(List.class);
+		verify(jdbc).batchUpdate(eq(JdbcDownChangeBatch.INSERT_EVERY_STORE), inserts.capture());
+		assertArrayEquals(new Object[] { 22L, "CATALOGUE", "ITEM:B" },
+				Arrays.copyOfRange(inserts.getValue().get(0), 2, 5));
+		verify(jdbc, never()).batchUpdate(eq(JdbcDownChangeBatch.UPDATE), anyList());
+		assertTrue(JdbcDownChangeBatch.UPDATE_EVERY_STORE.contains("CAST(? AS varchar(20))")
+				&& JdbcDownChangeBatch.UPDATE_EVERY_STORE.contains("CAST(? AS varchar(100))")
+				&& JdbcDownChangeBatch.UPDATE_EVERY_STORE.endsWith("store_id IS NULL"));
+	}
+
+	@Test
+	@DisplayName("3.1.1, every store through the feed: the same rows and numbers as one recordChange per code, one"
+			+ " sequence update; with the batch, its every-store write")
+	void everyStoreThroughTheFeed() {
+		InMemoryDownTables one = new InMemoryDownTables();
+		CopiesDownFeed perCode = one.feed(Collections.emptyList());
+		one.sequences.put(DataDomain.CATALOGUE, 100L);
+		perCode.recordChange(DataDomain.CATALOGUE, "ITEM:A", StoreTargets.all()); // a row already there
+		for (String code : Arrays.asList("ITEM:A", "ITEM:B", "ITEM:C")) {
+			perCode.recordChange(DataDomain.CATALOGUE, code, StoreTargets.all());
+		}
+
+		InMemoryDownTables bulk = new InMemoryDownTables();
+		CopiesDownFeed bulkFeed = bulk.feed(Collections.emptyList());
+		bulk.sequences.put(DataDomain.CATALOGUE, 100L);
+		bulkFeed.recordChange(DataDomain.CATALOGUE, "ITEM:A", StoreTargets.all());
+		bulkFeed.recordChanges(DataDomain.CATALOGUE, Arrays.asList("ITEM:A", "ITEM:B", "", "ITEM:C", "ITEM:B"),
+				StoreTargets.all());
+
+		assertEquals(rows(one), rows(bulk));
+		assertEquals(Arrays.asList("ITEM:A every 102", "ITEM:B every 103", "ITEM:C every 104"), rows(bulk));
+		assertEquals(Long.valueOf(104), bulk.sequences.get(DataDomain.CATALOGUE));
+
+		InMemoryDownTables jdbcTables = new InMemoryDownTables();
+		CopiesDownFeed jdbcFeed = jdbcTables.feed(Collections.emptyList());
+		jdbcTables.sequences.put(DataDomain.CATALOGUE, 100L);
+		JdbcDownChangeBatch batch = mock(JdbcDownChangeBatch.class);
+		jdbcFeed.setBatch(batch);
+		jdbcFeed.recordChanges(DataDomain.CATALOGUE, Arrays.asList("ITEM:A", "ITEM:B"), StoreTargets.all());
+		Map<String, Long> expected = new LinkedHashMap<>();
+		expected.put("ITEM:A", 101L);
+		expected.put("ITEM:B", 102L);
+		verify(batch).writeEveryStore(DataDomain.CATALOGUE, expected);
+		assertEquals(0, jdbcTables.changes.size(), "the batch wrote the rows, not JPA");
+	}
+
+	/** "code store number" of every row, sorted ("every" for the every-store row). */
+	private static List<String> rows(InMemoryDownTables tables) {
+		List<String> rows = new java.util.ArrayList<>();
+		for (HoDownChange change : tables.changes) {
+			rows.add(change.getRecordCode() + " " + (change.getStoreId() == null ? "every" : change.getStoreId()) + " "
+					+ change.getChangeVersion());
+		}
+		Collections.sort(rows);
+		return rows;
 	}
 }

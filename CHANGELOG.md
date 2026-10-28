@@ -108,6 +108,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `ho_down_sequence` scanned the table (the driver's nvarchar against the varchar column) and waited on the locked
   CATALOGUE row. `HoDownSequenceRepository` reads and increments with native queries, the domain cast to varchar: a
   seek on the domain's own row.
+- Copies down, head office: a data import or the item images run recorded its codes one by one (a JPA lookup that
+  read every row of the domain per code, about 100 ms each), holding the CATALOGUE sequence row about 40 s per chunk of
+  500: the stores' CATALOGUE pulls timed out meanwhile (HTTP 500), and the first images run took 31 minutes for 17,140
+  codes. `CatalogueHeadOfficeHooks.afterImport` now records each chunk in bulk: `CopiesDownFeed.recordChanges` for every
+  store reserves the numbers in one update and writes the every-store rows with `JdbcDownChangeBatch.writeEveryStore`
+  (casts kept); the same rows and numbers as before.
 - connector-zen, `commandesVente`: NAV refused every order ("Control 'numeroDocExterne' is read-only"). The order number
   now goes in `referenceZS` (ZEN's field for it) and the lookup filters on `referenceZS eq '..'`; `numeroDocExterne` is
   never sent, and the store code is no longer sent (no writable header field fits it; `client` names the store).

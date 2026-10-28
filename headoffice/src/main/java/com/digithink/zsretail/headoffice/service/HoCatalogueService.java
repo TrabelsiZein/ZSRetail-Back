@@ -838,7 +838,10 @@ public class HoCatalogueService implements DownDomainProvider, CatalogueHeadOffi
 				.filter(code -> fits(kind, code)).collect(Collectors.toList());
 		for (int from = 0; from < list.size(); from += IMPORT_CHUNK) {
 			List<String> chunk = list.subList(from, Math.min(from + IMPORT_CHUNK, list.size()));
-			writeTransactions.executeWithoutResult(status -> chunk.forEach(code -> record(kind, code)));
+			// 3.1.1: in bulk, one number per code in this order (as one recordChange per code, in a fraction of the time)
+			List<String> recordCodes = chunk.stream().map(kind::recordCode).collect(Collectors.toList());
+			writeTransactions.executeWithoutResult(
+					status -> feed.get().recordChanges(DataDomain.CATALOGUE, recordCodes, StoreTargets.all()));
 		}
 		if (!list.isEmpty()) {
 			log.info("Head office catalogue: {} {} records from a data import made available to the stores", list.size(),

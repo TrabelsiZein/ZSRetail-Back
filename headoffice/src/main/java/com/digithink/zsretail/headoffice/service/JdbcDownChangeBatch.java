@@ -36,6 +36,12 @@ public class JdbcDownChangeBatch {
 	static final String INSERT = "INSERT INTO ho_down_change (active, created_at, created_by, updated_at, change_version,"
 			+ " domain, record_code, store_id) VALUES (1, ?, 'System', ?, ?, ?, ?, ?)";
 
+	/** 3.1.1: the every-store row of a code (store_id null), cast as above. */
+	static final String UPDATE_EVERY_STORE = "UPDATE ho_down_change SET change_version = ?, updated_at = ?"
+			+ " WHERE domain = CAST(? AS varchar(20)) AND record_code = CAST(? AS varchar(100)) AND store_id IS NULL";
+	static final String INSERT_EVERY_STORE = "INSERT INTO ho_down_change (active, created_at, created_by, updated_at,"
+			+ " change_version, domain, record_code) VALUES (1, ?, 'System', ?, ?, ?, ?)";
+
 	private final JdbcTemplate jdbc;
 
 	public JdbcDownChangeBatch(JdbcTemplate jdbc) {
@@ -44,6 +50,19 @@ public class JdbcDownChangeBatch {
 
 	/** versions: code to its new number, in order. Returns how many rows were inserted (the others were updated). */
 	public int write(DataDomain domain, long storeId, Map<String, Long> versions) {
+		return write(domain, Long.valueOf(storeId), versions);
+	}
+
+	/**
+	 * 3.1.1: the every-store rows (store_id null) of these codes, as {@link #write} for one store: a data import, the
+	 * item images run (thousands of codes; one JPA find and save per code took about 100 ms each, holding the
+	 * domain's sequence row meanwhile).
+	 */
+	public int writeEveryStore(DataDomain domain, Map<String, Long> versions) {
+		return write(domain, null, versions);
+	}
+
+	private int write(DataDomain domain, Long storeId, Map<String, Long> versions) {
 		Timestamp now = Timestamp.valueOf(LocalDateTime.now());
 		List<Map.Entry<String, Long>> entries = new ArrayList<>(versions.entrySet());
 		List<Object[]> inserts = new ArrayList<>();
@@ -51,22 +70,25 @@ public class JdbcDownChangeBatch {
 			List<Map.Entry<String, Long>> chunk = entries.subList(from, Math.min(from + BATCH, entries.size()));
 			List<Object[]> updates = new ArrayList<>();
 			for (Map.Entry<String, Long> entry : chunk) {
-				updates.add(new Object[] { entry.getValue(), now, domain.name(), entry.getKey(), storeId });
+				updates.add(storeId == null ? new Object[] { entry.getValue(), now, domain.name(), entry.getKey() }
+						: new Object[] { entry.getValue(), now, domain.name(), entry.getKey(), storeId });
 			}
-			int[] counts = jdbc.batchUpdate(UPDATE, updates);
+			int[] counts = jdbc.batchUpdate(storeId == null ? UPDATE_EVERY_STORE : UPDATE, updates);
 			for (int i = 0; i < chunk.size(); i++) {
 				if (counts[i] < 0 || counts[i] > 1) { // no count from the driver, or the unique key broken: never guess
 					throw new IllegalStateException("ho_down_change batch: update count " + counts[i] + " for "
-							+ chunk.get(i).getKey() + " of store " + storeId);
+							+ chunk.get(i).getKey() + " of " + (storeId == null ? "every store" : "store " + storeId));
 				}
 				if (counts[i] == 0) {
 					Map.Entry<String, Long> entry = chunk.get(i);
-					inserts.add(new Object[] { now, now, entry.getValue(), domain.name(), entry.getKey(), storeId });
+					inserts.add(storeId == null ? new Object[] { now, now, entry.getValue(), domain.name(), entry.getKey() }
+							: new Object[] { now, now, entry.getValue(), domain.name(), entry.getKey(), storeId });
 				}
 			}
 		}
 		for (int from = 0; from < inserts.size(); from += BATCH) {
-			jdbc.batchUpdate(INSERT, inserts.subList(from, Math.min(from + BATCH, inserts.size())));
+			jdbc.batchUpdate(storeId == null ? INSERT_EVERY_STORE : INSERT,
+					inserts.subList(from, Math.min(from + BATCH, inserts.size())));
 		}
 		return inserts.size();
 	}

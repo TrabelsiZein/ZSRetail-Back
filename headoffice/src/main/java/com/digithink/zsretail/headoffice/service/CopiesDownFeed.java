@@ -178,7 +178,9 @@ public class CopiesDownFeed {
 	 * Stock points, step 3a: the changes of many records for a list of stores, inside the writer's transaction, in bulk:
 	 * one update of the sequence for all of them, each code still its own number (in the order given), the rows of
 	 * each store read and written per chunk of {@value #BACKFILL_CHUNK} codes. Same rows as one {@link #recordChange} per
-	 * code. Every-store targets fall back to {@link #recordChange}; no store: nothing recorded, the sequence untouched.
+	 * code. 3.1.1: every-store targets in bulk too, their rows (store_id null) written with the JDBC batch when there is
+	 * one (a data import, the item images: thousands of codes in seconds; one {@link #recordChange} per code held the
+	 * domain's sequence row about 100 ms per code). No store: nothing recorded, the sequence untouched.
 	 */
 	@Transactional(propagation = Propagation.MANDATORY)
 	public void recordChanges(DataDomain domain, Collection<String> codes, StoreTargets stores) {
@@ -187,14 +189,17 @@ public class CopiesDownFeed {
 		if (list.isEmpty()) {
 			return;
 		}
-		if (stores.isAllStores()) {
-			list.forEach(code -> recordChange(domain, code, stores));
-			return;
-		}
-		if (stores.getStoreIds().isEmpty()) {
+		if (!stores.isAllStores() && stores.getStoreIds().isEmpty()) {
 			return;
 		}
 		Map<String, Long> versions = reserveVersions(domain, list);
+		if (stores.isAllStores()) {
+			if (batch != null) {
+				batch.writeEveryStore(domain, versions);
+			} else {
+				writeRows(domain, list, versions, null);
+			}
+		}
 		for (Long storeId : stores.getStoreIds()) {
 			writeRows(domain, list, versions, storeId);
 		}
