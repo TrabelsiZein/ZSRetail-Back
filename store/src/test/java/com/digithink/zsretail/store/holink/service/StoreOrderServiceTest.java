@@ -277,140 +277,159 @@ class StoreOrderServiceTest {
 
 	// ─── Send ────────────────────────────────────────────────────
 
+	/** One colis of 70061: 2 pieces of S, 3 of L (ZEN's qteSerieType), as the window sends it. */
+	private List<StoreOrderService.ColisPart> composition() {
+		return Arrays.asList(new StoreOrderService.ColisPart(small.getId(), 2),
+				new StoreOrderService.ColisPart(large.getId(), 3));
+	}
+
 	@Test
-	@DisplayName("3.1.1, colis by colour row: the first makes the draft, a row of the item's variant apart from the lines"
-			+ " (totals apart), with its colour; again replaces; another colour its own row; above the colis possibles 409,"
-			+ " nothing saved; 0 removes; a variant the item does not have 400")
+	@DisplayName("3.1.1, colis of the item: the first makes the draft, one row per item apart from the lines (totals apart),"
+			+ " its composition kept as a snapshot with its content; the cart's change keeps them; above the colis available"
+			+ " 409, nothing saved; a part not a variant of the item 400; 0 removes")
 	void colisDraft() {
-		small.setColorDescription("BLEU");
-		large.setColorDescription("ROSE");
-		StoreOrderViewDTO view = service.putColis(" 70061 ", " S ", 2, 5, 10, "admin").get();
+		StoreOrderViewDTO view = service.putColis(" 70061 ", 2, 5, composition(), "admin").get();
 		assertEquals(FIRST, view.getNumber());
 		assertEquals(0, view.getLineCount());
 		assertEquals(2, view.getTotalColis());
 		StoreOrderViewDTO.Colis colis = view.getColis().get(0);
 		assertEquals("70061", colis.getNavItemNo());
-		assertEquals("S", colis.getVariantCode());
 		assertEquals("CHEMISE", colis.getDescription());
-		assertEquals("BLEU", colis.getColorDescription());
-		assertEquals(Integer.valueOf(5), colis.getColisPossibles());
-		assertEquals(Integer.valueOf(10), colis.getContenance());
+		assertEquals(Integer.valueOf(5), colis.getColisAvailable());
+		assertEquals(Integer.valueOf(5), colis.getColisContent(), "2 + 3 pieces in one colis");
+		assertEquals(Arrays.asList("70061~S:2", "70061~L:3"), colis.getComposition().stream()
+				.map(part -> part.getItemCode() + ":" + part.getQtyPerColis()).collect(Collectors.toList()));
+		assertEquals("S", colis.getComposition().get(0).getVariantCode());
+		assertEquals("S", colis.getComposition().get(0).getSizeCode(), "the size copied (the composition as a matrix)");
 
 		put(small, 4);
-		view = service.putColis("70061", "S", 3, 5, 10, "admin").get();
-		assertEquals(1, view.getColis().size(), "replaced, one row per variant");
-		view = service.putColis("70061", "L", 1, 8, 12, "admin").get();
-		assertEquals(2, view.getColis().size(), "another colour: its own row");
-		assertEquals("ROSE", view.getColis().get(1).getColorDescription());
-		assertEquals(4, view.getTotalColis());
+		view = service.putColis("70061", 3, null, null, "admin").get();
+		assertEquals(1, view.getColis().size(), "replaced, one row per item");
+		assertEquals(3, view.getTotalColis());
+		assertEquals(Integer.valueOf(5), view.getColis().get(0).getColisAvailable(), "the cart: the row's own limit");
+		assertEquals(2, view.getColis().get(0).getComposition().size(), "the cart: the row's own composition");
 		assertEquals(0, new BigDecimal("4").compareTo(view.getTotalQty()), "the pieces of the lines only");
 		IllegalStateException over = assertThrows(IllegalStateException.class,
-				() -> service.putColis("70061", "S", 6, 5, 10, "admin"));
+				() -> service.putColis("70061", 6, null, null, "admin"));
 		assertTrue(over.getMessage().contains("6 colis asked but only 5"), over.getMessage());
-		assertEquals(4, draft().getTotalColis(), "nothing saved");
-		assertThrows(IllegalArgumentException.class, () -> service.putColis("99999", "S", 1, null, null, "admin"));
-		assertThrows(IllegalArgumentException.class, () -> service.putColis("70061", "X", 1, null, null, "admin"));
-		assertThrows(IllegalArgumentException.class, () -> service.putColis("70061", " ", 1, null, null, "admin"));
-		assertThrows(IllegalArgumentException.class, () -> service.putColis("70061", "S", -1, null, null, "admin"));
+		assertEquals(3, draft().getTotalColis(), "nothing saved");
+		assertThrows(IllegalArgumentException.class, () -> service.putColis("99999", 1, null, null, "admin"));
+		assertThrows(IllegalArgumentException.class, () -> service.putColis("70061", 1, 5,
+				Collections.singletonList(new StoreOrderService.ColisPart(999L, 1)), "admin"), "not a variant of 70061");
+		assertThrows(IllegalArgumentException.class, () -> service.putColis("70061", -1, null, null, "admin"));
 
-		assertEquals(1, service.putColis("70061", "S", 0, null, null, "admin").get().getColis().size(), "S removed, L kept");
-		assertEquals(1, draft().getTotalColis());
-		assertTrue(service.removeColis("70061", "L", "admin").get().getColis().isEmpty());
-
-		service.putColis("70061", "L", 2, 8, 12, "admin");
-		server.expect(requestTo(STOCK)).andExpect(method(HttpMethod.GET))
-				.andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
-		StoreOrderVariantsDTO variants = service.variants("70061").get();
-		server.verify();
-		assertEquals(Collections.singletonMap("L", 2), variants.getDraftColis(), "the window's colis by variant");
+		assertTrue(service.putColis("70061", 0, null, null, "admin").get().getColis().isEmpty());
+		assertEquals(0, draft().getTotalColis());
+		service.putColis("70061", 1, 5, composition(), "admin");
+		assertTrue(service.removeColis("70061", "admin").get().getColis().isEmpty());
 	}
 
 	@Test
-	@DisplayName("3.1.1, colis: a draft of colis only is sent, its colis up with their variant, colour and the head"
-			+ " office's figures; colis above their possibles stop the send; a 0 without a draft makes none")
+	@DisplayName("3.1.1, colis: a draft of colis only is sent, its colis up with their content, the colis available and the"
+			+ " composition by item code; colis above the colis available stop the send; a 0 without a draft makes none")
 	void colisSent() {
-		small.setColorDescription("BLEU");
-		assertFalse(service.putColis("70061", "S", 0, null, null, "admin").isPresent());
+		assertFalse(service.putColis("70061", 0, null, null, "admin").isPresent());
 		assertFalse(service.draft().isPresent());
-		service.putColis("70061", "S", 2, 5, 10, "admin");
-		draft().getColis().get(0).setColisPossibles(1); // the head office's figure, lowered since
+		service.putColis("70061", 2, 5, composition(), "admin");
+		draft().getColis().get(0).setColisAvailable(1); // the head office's figure, lowered since
 		IllegalStateException over = assertThrows(IllegalStateException.class, () -> service.send(draft().getId(), "admin"));
 		assertTrue(over.getMessage().contains("2 colis but only 1"), over.getMessage());
-		draft().getColis().get(0).setColisPossibles(5);
+		draft().getColis().get(0).setColisAvailable(5);
 		server.expect(requestTo(ORDERS)).andExpect(method(HttpMethod.POST))
 				.andExpect(jsonPath("$.lines.length()").value(0))
 				.andExpect(jsonPath("$.colis.length()").value(1))
 				.andExpect(jsonPath("$.colis[0].navItemNo").value("70061"))
-				.andExpect(jsonPath("$.colis[0].variantCode").value("S"))
 				.andExpect(jsonPath("$.colis[0].description").value("CHEMISE"))
-				.andExpect(jsonPath("$.colis[0].colorDescription").value("BLEU"))
 				.andExpect(jsonPath("$.colis[0].nbColis").value(2))
-				.andExpect(jsonPath("$.colis[0].contenance").value(10))
-				.andExpect(jsonPath("$.colis[0].colisPossibles").value(5)).andRespond(accepted(FIRST));
+				.andExpect(jsonPath("$.colis[0].colisContent").value(5))
+				.andExpect(jsonPath("$.colis[0].colisAvailable").value(5))
+				.andExpect(jsonPath("$.colis[0].composition.length()").value(2))
+				.andExpect(jsonPath("$.colis[0].composition[1].itemCode").value("70061~L"))
+				.andExpect(jsonPath("$.colis[0].composition[1].variantCode").value("L"))
+				.andExpect(jsonPath("$.colis[0].composition[1].qtyPerColis").value(3))
+				.andExpect(jsonPath("$.colis[0].composition[1].sizeCode").value("L")).andRespond(accepted(FIRST));
 		assertEquals("SENT", service.send(draft().getId(), "admin").get().getStatus());
 		server.verify();
-		assertEquals(Collections.singletonMap("S", 2), service.lastOrderOf("70061").get().getColis(),
-				"the last order's colis by variant");
+		assertEquals(Integer.valueOf(2), service.lastOrderOf("70061").get().getColis(), "the last order's colis");
 	}
 
 	@Test
-	@DisplayName("3.1.1, a colis row of the first build (no variant): left out of the window's colis (no null key), the"
-			+ " send refused with what to do; removed, the draft is sent")
-	void colisWithoutVariant() {
-		small.setColorDescription("BLEU");
-		service.putColis("70061", "S", 1, null, null, "admin");
-		StoreOrderColis old = new StoreOrderColis();
-		old.setOrder(draft());
-		old.setNavItemNo("70061");
-		old.setNbColis(6);
-		draft().getColis().add(old);
-		server.expect(requestTo(STOCK)).andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
-		assertEquals(Collections.singletonMap("S", 1), service.variants("70061").get().getDraftColis());
+	@DisplayName("3.1.1, vrac: pieces of a variant the head office sells by colis only are refused (409), from the window"
+			+ " and from the cart (the line keeps the rule), and stop the send; allowed or no rule: taken")
+	void vracRule() {
 		IllegalStateException refused = assertThrows(IllegalStateException.class,
-				() -> service.send(draft().getId(), "admin"));
-		assertTrue(refused.getMessage().contains("have no colour: remove them"), refused.getMessage());
-		draft().getColis().remove(old);
-		server.verify();
-		server.reset();
-		server.expect(requestTo(ORDERS)).andRespond(accepted(FIRST));
-		assertEquals("SENT", service.send(draft().getId(), "admin").get().getStatus());
-		server.verify();
+				() -> service.putLine(small.getId(), Quantities.of(2), new BigDecimal("10"), false, "admin"));
+		assertTrue(refused.getMessage().contains("not sold by pieces"), refused.getMessage());
+		assertFalse(service.draft().isPresent(), "nothing saved");
+		StoreOrderViewDTO view = service.putLine(small.getId(), Quantities.of(2), new BigDecimal("10"), true, "admin").get();
+		assertEquals(Boolean.TRUE, view.getLines().get(0).getVracAllowed());
+		service.putLine(large.getId(), Quantities.of(1), new BigDecimal("10"), null, "admin");
+		assertEquals(2, put(small, 3).getLineCount(), "the cart: the line's own rule (allowed)");
+		draft().getLines().get(0).setVracAllowed(false); // the rule the window gave, since false
+		assertThrows(IllegalStateException.class, () -> put(small, 4), "the cart: the line's own rule (refused)");
+		assertTrue(put(small, 0).getLines().stream().noneMatch(l -> l.getItemId().equals(small.getId())),
+				"0 removes whatever the rule");
+		service.putLine(small.getId(), Quantities.of(1), null, true, "admin");
+		draft().getLines().stream().filter(l -> l.getItemId().equals(small.getId())).findFirst().get().setVracAllowed(false);
+		IllegalStateException send = assertThrows(IllegalStateException.class, () -> service.send(draft().getId(), "admin"));
+		assertTrue(send.getMessage().contains("not sold by pieces"), send.getMessage());
 	}
 
 	@Test
-	@DisplayName("3.1.1, colis down: NAV's answer on each colis row by ERP item number and variant; another variant's"
-			+ " answer is not this row's; the same again changes nothing")
+	@DisplayName("3.1.1, the variants answer's colis data: each variant's pieces in one colis and vrac rule, the item's colis"
+			+ " available and content (their sum), the draft's colis; none without colis data")
+	void variantsColis() {
+		service.putColis("70061", 2, 30, composition(), "admin");
+		server.expect(requestTo(STOCK)).andRespond(withSuccess("[{\"itemNo\":\"70061\",\"variantCode\":\"S\",\"quantity\":4,"
+				+ "\"qtyPerColis\":2,\"vracAllowed\":false,\"colisAvailable\":30},{\"itemNo\":\"70061\",\"variantCode\":\"L\","
+				+ "\"quantity\":0,\"qtyPerColis\":1,\"vracAllowed\":true,\"colisAvailable\":30}]", MediaType.APPLICATION_JSON));
+		StoreOrderVariantsDTO answer = service.variants("70061").get();
+		server.verify();
+		assertEquals(Integer.valueOf(2), answer.getVariants().get(0).getQtyPerColis());
+		assertEquals(Boolean.FALSE, answer.getVariants().get(0).getVracAllowed());
+		assertEquals(Boolean.TRUE, answer.getVariants().get(1).getVracAllowed());
+		assertEquals(Integer.valueOf(30), answer.getColisAvailable());
+		assertEquals(Integer.valueOf(3), answer.getColisContent(), "2 + 1");
+		assertEquals(Integer.valueOf(2), answer.getDraftColis());
+
+		server.reset();
+		server.expect(requestTo(STOCK)).andRespond(withSuccess("[{\"itemNo\":\"70061\",\"variantCode\":\"S\",\"quantity\":4}]",
+				MediaType.APPLICATION_JSON));
+		StoreOrderVariantsDTO plain = service.variants("70061").get();
+		assertNull(plain.getColisAvailable());
+		assertNull(plain.getColisContent());
+		assertNull(plain.getVariants().get(0).getVracAllowed());
+	}
+
+	@Test
+	@DisplayName("3.1.1, colis down: NAV's answer on the item's colis row (colis and pieces accepted, colis number, message);"
+			+ " the same again changes nothing")
 	void colisAnswerDown() {
 		InMemoryStoreLink link = new InMemoryStoreLink(new InMemoryLoyalty(500_000));
 		StoreOrder order = orders.add(FIRST, StoreOrderStatus.SENT);
-		StoreOrderColis bleu = colisRow(order, "001");
-		StoreOrderColis rose = colisRow(order, "006");
+		StoreOrderColis row = new StoreOrderColis();
+		row.setOrder(order);
+		row.setNavItemNo("43ZFCHD17");
+		row.setNbColis(2);
+		order.getColis().add(row);
 		StoreOrderStatusCopyDTO copy = new StoreOrderStatusCopyDTO();
 		copy.setOrderNumber(FIRST);
 		copy.setStatus("POSTED");
 		copy.setNavOrderNo("CV26000009");
-		copy.setColis(Collections.singletonList(new StoreOrderStatusCopyDTO.Colis("43ZFCHD17", "001", 2, " Colis partiel ")));
+		copy.setColis(Collections.singletonList(
+				new StoreOrderStatusCopyDTO.Colis("43ZFCHD17", 2, new BigDecimal("52"), " COL-0007 ", " Colis partiel ")));
 		SupplyDownHandler handler = new SupplyDownHandler(null, link.downRecordLog(),
 				TransactionOperations.withoutTransaction(), null, new StoreOrderStatusWriter(orders.repository()));
 		ObjectMapper mapper = new ObjectMapper();
 		assertEquals(1, handler.apply(Collections.singletonList(mapper.valueToTree(copy)), Collections.emptyList())
 				.getApplied());
-		assertEquals(Integer.valueOf(2), bleu.getNavAcceptedColis());
-		assertEquals("Colis partiel", bleu.getNavMessage());
-		assertNull(rose.getNavAcceptedColis(), "the answer is the 001 row's only");
+		assertEquals(Integer.valueOf(2), row.getNavAcceptedColis());
+		assertEquals(0, new BigDecimal("52").compareTo(row.getNavAcceptedQty()));
+		assertEquals("COL-0007", row.getNavColisNumber());
+		assertEquals("Colis partiel", row.getNavMessage());
 		assertEquals(1, handler.apply(Collections.singletonList(mapper.valueToTree(copy)), Collections.emptyList())
 				.getUnchanged());
-		assertEquals(Integer.valueOf(2), StoreOrderViewDTO.of(order).getColis().get(0).getNavAcceptedColis());
-	}
-
-	private static StoreOrderColis colisRow(StoreOrder order, String variantCode) {
-		StoreOrderColis row = new StoreOrderColis();
-		row.setOrder(order);
-		row.setNavItemNo("43ZFCHD17");
-		row.setVariantCode(variantCode);
-		row.setNbColis(2);
-		order.getColis().add(row);
-		return row;
+		assertEquals("COL-0007", StoreOrderViewDTO.of(order).getColis().get(0).getNavColisNumber());
 	}
 
 	@Test

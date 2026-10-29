@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import com.digithink.zsretail.core.dto.ItemImageDTO;
 
@@ -26,8 +25,14 @@ public class StoreOrderVariantsDTO {
 
 	private List<Variant> variants = new ArrayList<>();
 
-	/** 3.1.1: the draft's colis of this item by variant code (each colour row's variant); empty: none. */
-	private Map<String, Integer> draftColis = new LinkedHashMap<>();
+	/** 3.1.1: the draft's colis of this item; null: none. */
+	private Integer draftColis;
+
+	/** 3.1.1: the colis of the item the store may order (ZEN's colisDisponibles); null: no colis data. */
+	private Integer colisAvailable;
+
+	/** 3.1.1: the pieces of one colis (the sum of the variants' qtyPerColis); null: no colis data. */
+	private Integer colisContent;
 
 	@Data
 	@NoArgsConstructor
@@ -56,6 +61,10 @@ public class StoreOrderVariantsDTO {
 		private LinkedHashMap<String, String> details;
 		/** The ERP's order of the variant's size (the order of the size columns); null without. */
 		private Integer sizeOrder;
+		/** 3.1.1: the variant's pieces in one colis (ZEN's qteSerieType); null: no colis data. */
+		private Integer qtyPerColis;
+		/** 3.1.1: the variant may be ordered by pieces (ZEN's vracAutorise); null: no rule. */
+		private Boolean vracAllowed;
 		/** The quantity of this variant in the store's draft; null when it has no line. */
 		private BigDecimal draftQuantity;
 	}

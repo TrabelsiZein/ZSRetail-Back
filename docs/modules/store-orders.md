@@ -317,40 +317,49 @@ ZEN fills it from `orderNo` of the franchise page `salesInvoices` (the `commande
 
 ### Colis (3.1.1)
 
-ZEN sells some items by série, **per variant** (`infoArticles`: `contenanceSerie` pieces per colis, `colisPossibles`,
-`qteSerieType`, `vracAutorise`, `qteVrac`, passed down as details; they differ between the colours of one item). A store
-may order **colis of a colour row** of an item beside or instead of pieces of its variants. NAV wants an item and a
-variant on every line ("Le n° article et le code variante sont obligatoires sur les lignes", 2026-10-28, on an item-level
-colis line): a row's colis are of **its first variant** (the first size of that colour in the window's size order). They
-live **apart from the lines**, one row per order, item and variant.
+ZEN's rules (confirmed live 2026-10-29: NAV took a colis line `{article, mode: "colis", nbColis}`, no variant, no
+quantity, `CV26000008`). A **série** is one colour's assortment: `qteSerieType` pieces of each variant, `contenanceSerie`
+the colour's total. A **colis** is the whole article, one série of every colour: its content is Σ `qteSerieType` of the
+item's variants (26 on 43ZFCHD17), its stock `colisDisponibles` (per item, the same on every row). A store orders colis
+of an item beside or instead of pieces; pieces (vrac) only of a variant whose `vracAutorise` is true. The colis live
+**apart from the lines**, one row per order and item, with the composition of one colis kept beside it.
 
 - **Tables** (`db/3.1.1/store-orders.sql`, guarded; `ddl-auto` makes the same): store `hol_order_colis` (`order_id`
-  FK, `nav_item_no`, `variant_code`, `color_description` (the row's colour), `description` (the item's name),
-  `nb_colis`, `contenance`, `colis_possibles`, `nav_accepted_colis`, `nav_message`; unique `uk_hol_order_colis_variant`
-  (order, item, variant)); head office `ho_store_order_colis` (the same columns, index on `order_id`); `total_colis` int
-  on `hol_order` and `ho_store_order` (null on older rows, read as 0). `total_qty` counts the pieces of the lines only. No
-  line, no line key changed. A table of the first colis build (one row per item) gets the two columns, and its key
-  `uk_hol_order_colis_item` is dropped by the script and at each start of a store (`StoreOrderDraftIndex`: Hibernate adds
-  the new key but never drops an old one).
-- **Store**: `POST /store-order/draft/colis {navItemNo, variantCode, nbColis, colisPossibles?, contenance?}` replaces the
-  row's colis (0 removes them; a missing draft is made, not for a 0; 204 for a 0 without a draft); only an active variant
-  of the item (400), its colour taken from it; `nbColis` above `colisPossibles` 409 ("6 colis asked but only 5
-  possible"), as pieces above the availability. `DELETE /store-order/draft/colis?navItemNo=&variantCode=`. The send
-  refuses colis above their possibles (409) and a draft with neither line nor colis. The variants answer gives
-  `draftColis` `{variantCode: n}`; an order gives `totalColis` and `colis: [{id, navItemNo, variantCode, description,
-  colorDescription, nbColis, contenance, colisPossibles, navAcceptedColis, navMessage}]`; the last order
-  (`GET /store-order/last`) counts an order holding only colis of the item, and gives `colis` `{variantCode: n}`.
-- **The link**: `StoreOrderDTO.colis [{navItemNo, variantCode, description, colorDescription, nbColis, contenance,
-  colisPossibles}]`; the head office refuses a colis without item number or variant code, with `nbColis` under 1, or the
-  same item and variant twice; two colours of one item, or an order of colis alone, are taken. Posted as
-  `ErpSalesOrderDTO.Line.colis(item, variant, nbColis, pieces)` (quantity = colis × contenance, informative). NAV's
-  answer of a colis line (`ErpSalesOrderResult.Line` `colis` true, `acceptedColis`, `message`) is kept on the colis row of
-  that item and variant (summed, messages joined), never on a pieces line; down in `StoreOrderStatusCopyDTO.colis
-  [{navItemNo, variantCode, acceptedColis, message}]` (only once NAV answered one), written on the store's row by item and
-  variant.
-- **Vrac**: `vracAutorise` false is shown as a warning only ("Vrac non autorisé (ZEN)"): NAV accepted pieces of such an
-  item (`CV26000004`, 2026-10-28), so NAV is the judge; the cells stay open.
-- **If NAV refuses "colis"**: the order is ERROR with NAV's message, as any refusal (then ask ZEN the exact value).
+  FK, `nav_item_no`, `description` (the item's name), `nb_colis`, `colis_content` (pieces in one colis),
+  `colis_disponibles` (the limit when added), `nav_accepted_colis`, `nav_accepted_qty`, `nav_numero_colis`,
+  `nav_message`; unique `uk_hol_order_colis_order_item` (order, item)); its child `hol_order_colis_detail` (`colis_id`,
+  `item_id`, `item_code`, `variant_code`, `qty_per_colis`, `size_code`, `size_description`, `color_code`,
+  `color_description`: one colis's pieces of each variant, copied when added, size and colour so the pages lay it out
+  as a matrix). Head office `ho_store_order_colis` (the same columns, index on `order_id`) and
+  `ho_store_order_colis_detail` (the same, by `item_code`, no `item_id`). `hol_order_line.vrac_allowed` (the variant's
+  rule when added). `total_colis` int on `hol_order` and `ho_store_order` (null on older rows, read as 0); `total_qty`
+  counts the pieces of the lines only. The per-colour build of 2026-10-28 left `variant_code`, `color_description`,
+  `contenance`, `colis_possibles` on the colis tables: nullable, unused. The script merges its rows into one per order
+  and item (the colis summed, the colours cleared, no composition: orders 6 and 8 of the dev stores) and drops the keys
+  `uk_hol_order_colis_item` and `uk_hol_order_colis_variant`; each start of a store drops them too
+  (`StoreOrderDraftIndex`: Hibernate adds a key but never drops one).
+- **Store**: `POST /store-order/draft/colis {navItemNo, nbColis, colisAvailable?, composition?: [{itemId, qtyPerColis}]}`
+  replaces the item's colis (0 removes them; a missing draft is made, not for a 0; 204 for a 0 without a draft). The
+  window sends the composition and the limit; the cart sends the number only (the row keeps its own). A part of another
+  item or an inactive variant: 400. `colis_content` = Σ `qtyPerColis`. `nbColis` above the colis available: 409 ("3
+  colis asked but only 2 available"), at the add and at the send. `DELETE /store-order/draft/colis?navItemNo=`. A pieces
+  line (`PUT /draft/line`, `vracAllowed` from the window) of a variant whose vrac is false: 409 ("… is not sold by pieces
+  (vrac not allowed at the head office): order it by colis"), at the add and at the send; the cart keeps the rule the
+  line was added with. The send refuses a draft with neither line nor colis. The variants answer gives per variant
+  `qtyPerColis` and `vracAllowed`, and `colisAvailable`, `colisContent`, `draftColis` (the draft's colis of the
+  item); an order gives `totalColis` and `colis: [{id, navItemNo, description, nbColis, colisContent, colisAvailable,
+  navAcceptedColis, navAcceptedQty, navColisNumber, navMessage, composition: [{itemId, itemCode, variantCode,
+  qtyPerColis, sizeCode, sizeDescription, colorCode, colorDescription}]}]`; the last order (`GET /store-order/last`)
+  counts an order holding only colis of the item and gives `colis` (its number).
+- **The link**: `StoreOrderDTO.colis [{navItemNo, description, nbColis, colisContent, colisAvailable, composition:
+  [{itemCode, variantCode, qtyPerColis, size, colour}]}]`; the head office refuses a colis without item number, with
+  `nbColis` under 1, or the same item twice; an order of colis alone is taken. Posted as
+  `ErpSalesOrderDTO.Line.colis(item, nbColis, pieces)` (pieces = colis × content, informative, not sent to ZEN). NAV's
+  answer of a colis line (`ErpSalesOrderResult.Line` `colis` true, `acceptedColis`, `acceptedQty`, `colisNumber`,
+  `message`) is kept on the item's colis row, never on a pieces line; down in `StoreOrderStatusCopyDTO.colis
+  [{navItemNo, acceptedColis, acceptedQty, colisNumber, message}]` (once NAV answered one), written on the store's row by
+  item.
+- **If NAV refuses a colis line**: the order is ERROR with NAV's message, as any refusal.
 
 ### The job
 
@@ -371,16 +380,18 @@ label → value, strings) and `sizeOrder` are optional, filled by a connector wi
   '<item>' and client eq '<ERP customer number>'` (a quote doubled) → `{"value": [...]}`, one row per variant: `article,
   codeVariante, client, designation, marque, unite, devise, prixUnitaire, remisePourcent, prixNet, vracAutorise,
   codeCouleur, libelleCouleur, codeChoix, codeTaille, ordreTaille, codeBarres, qteSerieType, contenanceSerie,
-  colisPossibles, stock, qteVrac, disponible, calculeLe`. The page has **no location**: the stock is NAV's for the store's
+  colisConformesSerie, colisConformesQte, colisTheoriques, colisDisponibles, stock, qteVrac, disponible, calculeLe`. The
+  page has **no location**: the stock is NAV's for the store's
   ERP customer (the store code is not sent). Mapping: `itemNo` = `article`, `variantCode` = `codeVariante` (the same codes as
   the catalogue's, `001`...), **`quantity` = `disponible`, never `stock`** (null when the row has none), `sizeOrder` =
-  `ordreTaille` (carried, no longer used by the screens: 3.1.1 they sort the sizes themselves), `details` in this order:
-  Prix unitaire, Remise %, Prix net, Stock, Qté vrac, Vrac autorisé (Oui / Non), Contenance série, Colis possibles,
-  Types de série (`qteSerieType`, 3.1.1), Calculé le (`calculeLe` as `dd/MM/yyyy HH:mm` in the head office's time
-  zone); an empty value is left out. Sample: `connectors/zen/src/test/resources/zen/infoArticles.json` (43ZBPND01, client
-  4110001: `disponible` 203 or 101 where `stock` is 1 to 69; size 36 has `ordreTaille` 220, after 46's 200;
-  `contenanceSerie` 10, `colisPossibles` 101 and `vracAutorise` false on every variant, `qteVrac` and `qteSerieType`
-  per variant);
+  `ordreTaille` (carried, no longer used by the screens: 3.1.1 they sort the sizes themselves), 3.1.1 the generic
+  optional fields `qtyPerColis` (`qteSerieType`), `vracAllowed` (`vracAutorise`) and `colisAvailable`
+  (`colisDisponibles`), `details` in this order: Prix unitaire, Remise %, Prix net, Stock, Qté vrac, Vrac autorisé (Oui /
+  Non), Qté par série, Contenance série, Colis disponibles, Colis théoriques, Colis conformes série, Colis conformes qté,
+  Calculé le (`calculeLe` as `dd/MM/yyyy HH:mm` in the head office's time zone); an empty value is left out. Sample:
+  `connectors/zen/src/test/resources/zen/infoArticles.json` (read live 2026-10-29: 43ZFCHD17, client 4110001, 20 variants
+  in 4 colours, `contenanceSerie` 5 (BLEU, ROSE) or 8 (ROSE CLAIR, MARRON), `qteSerieType` 1 or 2, Σ 26,
+  `colisDisponibles` 30, `vracAutorise` false on every variant);
 - **the sales orders, ZEN's real page** `commandesVente` (2026-10-28), under the same `companies(id)`:
   - lookup, required: `GET commandesVente?$filter=referenceZS eq '<number>'&$expand=lignesCommande` (a quote
     doubled); when it cannot be answered nothing is posted (ERROR, retried). One exception: NAV's answer says
@@ -398,19 +409,17 @@ label → value, strings) and `sizeOrder` are optional, filled by a connector wi
     other writable header field fits it (`ordrePrelevement` is NAV's picking order, `statut` / `message` are NAV's
     answer), and `client` already names the store; lines `lignesCommande: [{article, codeVariante, mode,
     quantiteDemandee}]` (pieces; `mode` from `erp.zen.order.mode`, `vrac` by default, left out when set empty; no `nbColis`);
-    3.1.1, a colis line `{article, codeVariante, mode: "colis", nbColis, quantiteDemandee}` (the colour row's first
-    variant; `quantiteDemandee` = nbColis × the row's contenance, NAV wanting a positive quantity, left out when the
-    contenance is unknown; "colis" is
+    3.1.1, a colis line `{article, mode: "colis", nbColis}` (the item: no variant, no quantity; "colis" is
     `ZenOrderFields.MODE_COLIS`, whatever `erp.zen.order.mode` says). When NAV answers a 4xx
     whose body names `lignesCommande`, a navigation property or a deep insert, the header is posted alone, then one
     `POST commandesVente(<id>)/lignesCommande` per line; any other refusal is the order's failure. An answer without
     its lines is followed by the read by id (when that read fails: success with `numero`, without the lines' answer);
   - NAV's answer: `numero` (the ERP's number; none: failure), `statut`, `message`, `montantTTC`; per line
-    `quantite` (the quantity accepted), `colisAcceptes`, `message`, `prixUnitaire`, `remisePourcent`, `montantTTC`. The
+    `quantite` (the quantity accepted), `colisAcceptes`, `numeroColis`, `message`, `prixUnitaire`, `remisePourcent`, `montantTTC`. The
     connector gives `numero`, `message` and per line `article`, `codeVariante`, `quantite`, `message`, and 3.1.1
-    for a line whose `mode` is colis `colis` true with `colisAcceptes` (`ErpSalesOrderResult.Line`); completing a
-    reused order, a colis line is missing until NAV has a colis line of its variant (never matched with the pieces line of
-    that variant); the whole answer is in the communications log, whose message names the path taken ("posted
+    for a line whose `mode` is colis `colis` true with `colisAcceptes` and `numeroColis` (`ErpSalesOrderResult.Line`);
+    completing a reused order, a colis line is missing until NAV has a colis line of its item (never matched with a pieces
+    line); the whole answer is in the communications log, whose message names the path taken ("posted
     with its n lines in one call (deep insert)", "NAV refused the nested lines: header then n lines posted one by one",
     "already exists: reused, nothing posted" or "its n missing lines posted"). An order NAV answers with a `numero` is
     POSTED whatever `statut` says. Sample: `connectors/zen/src/test/resources/zen/commandesVente.json` (CV26000003,
@@ -450,17 +459,17 @@ anything else alphabetically; the ERP's `sizeOrder` is not used); a cell with `d
 - **Previous / next item**: the catalogue's lines of its current page (its filters, `neighbourItem`), by the footer's
   arrows ("n / total") or ← → when no field has the focus; the cart is kept. With quantities typed and not added: "Ajouter
   avant de passer ?" (Ajouter: added, then the next item; Ignorer: the next item, nothing added; Annuler: stays).
-- **Série and colis** (3.1.1, from the head office's details, ZEN only): a série block (Contenance série "10 pièces",
-  Colis possibles, Types de série, Vrac autorisé, Qté vrac), once when the variants agree; a value of the colour rows that
-  differs reads "par couleur", each row's header listing its own in a tooltip (`rowSerieLines`); Qté vrac that differs
-  (per size) "variable", in the cells' tooltips (`serieBlock`). "Vrac non autorisé (ZEN)" as a warning badge on the
-  matrix when a variant says Non (`vracRefused`), the cells open. A "Colis" column at the end of each colour row
-  (`rowColis`: the row's first variant in the size order; max its Colis possibles, the field disabled without one;
-  "× n pièces" its Contenance série; the last order's colis of that variant greyed); the footer and the total row count
-  the colis; "Ajouter" sends each row changed (`POST /draft/colis` with its variant). The cart lists the colis apart
-  ("CHEMISE — BLEU", "2 colis (≈ 20 pièces)", `colisName`, the number editable up to the colis possibles, removable)
-  and totals them; both order pages show them in their own block above the lines (`OrderColisTable`, NAV's colis
-  accepted once posted) and "Colis" in the totals.
+- **Colis** (3.1.1, when the head office gives the item's `colisAvailable` or `colisContent`: ZEN): under the photos
+  "Nombre de colis [ n ] · 30 disponibles · 1 colis = 26 pièces" (the last order's colis greyed beside it; Tab reaches
+  the field before the cells). The n colis are laid on the matrix as a grey layer under each cell (n × its
+  `qtyPerColis`, "—" for a variant with none), on the row and column totals, and a total line "2 colis = 52 pièces"
+  (`colisSimulation`). A variant whose vrac is false has its cell disabled ("Vrac non autorisé : commande par colis",
+  `vracOpen`). The footer reads "x pièces + n colis (y pièces)". "Ajouter" sends the pieces (each line with its
+  `vracAllowed`) and the colis with their composition (`colisComposition`) and limit. The cart lists the colis apart
+  ("CHEMISE · 2 colis (= 52 pièces)", the number editable up to the colis available, removable) and totals them; the
+  catalogue's "Dans la commande" counts them ("12 + 2 colis"). Both order pages show them in their own block above the
+  lines (`OrderColisTable`: colis, pieces, a "Composition" expander laying the kept composition out as a matrix,
+  `compositionMatrix`; once posted NAV's colis and pieces accepted, numéro colis, message) and "Colis" in the totals.
 - **Ajouter et suivant**: beside "Ajouter à la commande" when the page has a next item: adds the cells changed (none: just
   moves), then opens the next item; an error keeps the window on the item.
 

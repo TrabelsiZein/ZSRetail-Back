@@ -53,15 +53,32 @@ public class StoreOrderViewDTO {
 	public static class Colis {
 		private Long id;
 		private String navItemNo;
-		private String variantCode;
 		private String description;
-		private String colorDescription;
 		private int nbColis;
-		private Integer contenance;
-		private Integer colisPossibles;
+		/** The pieces of one colis (the sum of the composition); null when unknown. */
+		private Integer colisContent;
+		private Integer colisAvailable;
 		/** The colis the head office's ERP accepted when it posted the order (null: none given). */
 		private Integer navAcceptedColis;
+		private BigDecimal navAcceptedQty;
+		private String navColisNumber;
 		private String navMessage;
+		/** One colis: the pieces of each variant, as the head office gave them when added. */
+		private List<ColisPart> composition;
+	}
+
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class ColisPart {
+		private Long itemId;
+		private String itemCode;
+		private String variantCode;
+		private int qtyPerColis;
+		private String sizeCode;
+		private String sizeDescription;
+		private String colorCode;
+		private String colorDescription;
 	}
 
 	@Data
@@ -81,6 +98,8 @@ public class StoreOrderViewDTO {
 		/** The quantity the head office accepted when it posted the order (null: none given). */
 		private BigDecimal navAcceptedQty;
 		private String navLineMessage;
+		/** 3.1.1: the variant may be ordered by pieces, as the head office said (null: no rule). */
+		private Boolean vracAllowed;
 	}
 
 	/** A row of the list: the header only. */
@@ -113,14 +132,17 @@ public class StoreOrderViewDTO {
 	}
 
 	private static Colis colis(StoreOrderColis colis) {
-		return new Colis(colis.getId(), colis.getNavItemNo(), colis.getVariantCode(), colis.getDescription(),
-				colis.getColorDescription(), colis.getNbColis(),
-				colis.getContenance(), colis.getColisPossibles(), colis.getNavAcceptedColis(), colis.getNavMessage());
+		return new Colis(colis.getId(), colis.getNavItemNo(), colis.getDescription(), colis.getNbColis(),
+				colis.getColisContent(), colis.getColisAvailable(), colis.getNavAcceptedColis(), colis.getNavAcceptedQty(),
+				colis.getNavColisNumber(), colis.getNavMessage(),
+				colis.getDetails().stream().map(detail -> new ColisPart(detail.getItemId(), detail.getItemCode(),
+						detail.getVariantCode(), detail.getQtyPerColis(), detail.getSizeCode(), detail.getSizeDescription(),
+						detail.getColorCode(), detail.getColorDescription())).collect(Collectors.toList()));
 	}
 
 	private static Line line(StoreOrderLine line) {
 		return new Line(line.getId(), line.getItemId(), line.getItemCode(), line.getNavItemNo(), line.getVariantCode(),
 				line.getDescription(), line.getVariantDescription(), line.getQuantity(), line.getAvailableQty(),
-				line.getNavAcceptedQty(), line.getNavLineMessage());
+				line.getNavAcceptedQty(), line.getNavLineMessage(), line.getVracAllowed());
 	}
 }

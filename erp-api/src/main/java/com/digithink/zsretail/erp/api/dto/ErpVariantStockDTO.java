@@ -30,7 +30,24 @@ public class ErpVariantStockDTO {
 	/** The ERP's order of the variant's size (the size columns of the store's screen); null when it gives none. */
 	private Integer sizeOrder;
 
+	/**
+	 * 3.1.1, colis: the pieces of this variant in one colis (ZEN's qteSerieType: a colis is one série of every colour of
+	 * the item); null when the connector gives none (no colis).
+	 */
+	private Integer qtyPerColis;
+
+	/** 3.1.1: the variant may be ordered by pieces (ZEN's vracAutorise); null when the connector gives none (no rule). */
+	private Boolean vracAllowed;
+
+	/** 3.1.1: the colis of the item the store may order (ZEN's colisDisponibles, the same on every row); null: none given. */
+	private Integer colisAvailable;
+
 	public ErpVariantStockDTO(String itemNo, String variantCode, BigDecimal quantity) {
 		this(itemNo, variantCode, quantity, null, null);
+	}
+
+	public ErpVariantStockDTO(String itemNo, String variantCode, BigDecimal quantity,
+			LinkedHashMap<String, String> details, Integer sizeOrder) {
+		this(itemNo, variantCode, quantity, details, sizeOrder, null, null, null);
 	}
 }

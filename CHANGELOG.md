@@ -100,6 +100,20 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   one of its variant. The store drops the first build's key `uk_hol_order_colis_item` at each start. A colis row of the first build (no
   variant) is left out of the window's colis (its null key broke the variants answer: the window read "head office
   unreachable") and stops the send with what to do (remove it, enter the colis on a colour row).
+- Store orders, colis by item (ZEN's final rules; NAV took `{article, mode: "colis", nbColis}`, CV26000008): a colis is
+  the whole article, one série of every colour, replacing the per-colour colis. One colis row per order and item,
+  `colis_content` (Σ `qteSerieType`) and `colis_disponibles` (ZEN's `colisDisponibles`) kept on it, its composition
+  (each variant's pieces per colis, size and colour) in `hol_order_colis_detail` / `ho_store_order_colis_detail`.
+  `POST /store-order/draft/colis {navItemNo, nbColis, colisAvailable?, composition?}` (409 above the colis available,
+  at the add and at the send), `DELETE ?navItemNo=`. Pieces of a variant whose `vracAutorise` is false are refused
+  (409, at the add and at the send; `hol_order_line.vrac_allowed`). erp-api: `ErpVariantStockDTO` `qtyPerColis`,
+  `vracAllowed`, `colisAvailable` (generic, optional); `ErpSalesOrderDTO.Line.colis(item, nbColis, pieces)`;
+  `ErpSalesOrderResult.Line` `acceptedQty` and `colisNumber` of a colis line, carried down with the order's status
+  (NAV's accepted colis, pieces, numéro colis, message). connector-zen: reads `qteSerieType`, `contenanceSerie`,
+  `colisDisponibles`, `colisTheoriques`, `colisConformesSerie`, `colisConformesQte`, `vracAutorise`, `qteVrac`
+  (details in that order), posts a colis line `{article, mode: "colis", nbColis}` (no variant, no quantity), reads
+  `numeroColis`; the infoArticles sample is 43ZFCHD17 read live. The store drops `uk_hol_order_colis_variant` too at
+  each start.
 - Store orders, `GET /store-order/last?navItemNo=`: the last order of this store sent with a line of that ERP item (not
   a draft, not cancelled): number, status, date, and its quantity of each variant (the variants window's "Dernière
   commande"); 204 without one.
@@ -179,6 +193,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - `store-orders.sql`: columns `variant_code` varchar(50) and `color_description` varchar(255) NULL on `hol_order_colis`
   and `ho_store_order_colis` (in the tables and added to those of an earlier run); `uk_hol_order_colis_item` (order,
   item) dropped and `uk_hol_order_colis_variant` (order, item, variant) added, each when needed.
+- `store-orders.sql`, colis by item: columns `colis_content`, `colis_disponibles` int, `nav_accepted_qty` numeric(18,3),
+  `nav_numero_colis` varchar(50) NULL on `hol_order_colis` and `ho_store_order_colis` (`variant_code`,
+  `color_description`, `contenance`, `colis_possibles` stay, unused); the per-colour rows merged into one per order and
+  item (colis summed, colour cleared, no composition); `uk_hol_order_colis_variant` dropped, `uk_hol_order_colis_order_item`
+  (order, item) added; tables `hol_order_colis_detail` and `ho_store_order_colis_detail` (FK to the colis row, index
+  on it); `hol_order_line.vrac_allowed` bit NULL. Each when missing.
 - `store-orders.sql`: column `ho_erp_invoice.order_no` varchar(50) NULL and index `ix_ho_erp_invoice_order` (head
   office), each added when missing: the sales order an ERP invoice names. The invoices read before keep none.
 - `store-orders.sql`, step 2: tables `ho_store_order` (unique `store_id`, `number`; FK to `ho_store`; index

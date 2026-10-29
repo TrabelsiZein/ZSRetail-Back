@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 import com.digithink.zsretail.headoffice.model.HoStoreOrder;
 import com.digithink.zsretail.headoffice.model.HoStoreOrderColis;
+import com.digithink.zsretail.headoffice.model.HoStoreOrderColisDetail;
 import com.digithink.zsretail.headoffice.model.HoStoreOrderLine;
 import com.digithink.zsretail.headoffice.model.Store;
 
@@ -64,14 +65,30 @@ public class HoStoreOrderDTO {
 	public static class Colis {
 		private Long id;
 		private String navItemNo;
-		private String variantCode;
 		private String description;
-		private String colorDescription;
 		private int nbColis;
-		private Integer contenance;
-		private Integer colisPossibles;
+		/** The pieces of one colis (the sum of the composition); null when unknown. */
+		private Integer colisContent;
+		private Integer colisAvailable;
 		private Integer navAcceptedColis;
+		private BigDecimal navAcceptedQty;
+		private String navColisNumber;
 		private String navMessage;
+		/** One colis: the pieces of each variant, as the store sent them. */
+		private List<ColisPart> composition;
+	}
+
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class ColisPart {
+		private String itemCode;
+		private String variantCode;
+		private int qtyPerColis;
+		private String sizeCode;
+		private String sizeDescription;
+		private String colorCode;
+		private String colorDescription;
 	}
 
 	@Data
@@ -128,9 +145,15 @@ public class HoStoreOrderDTO {
 	}
 
 	private static Colis colis(HoStoreOrderColis colis) {
-		return new Colis(colis.getId(), colis.getNavItemNo(), colis.getVariantCode(), colis.getDescription(),
-				colis.getColorDescription(), colis.getNbColis(),
-				colis.getContenance(), colis.getColisPossibles(), colis.getNavAcceptedColis(), colis.getNavMessage());
+		return new Colis(colis.getId(), colis.getNavItemNo(), colis.getDescription(), colis.getNbColis(),
+				colis.getColisContent(), colis.getColisAvailable(), colis.getNavAcceptedColis(), colis.getNavAcceptedQty(),
+				colis.getNavColisNumber(), colis.getNavMessage(),
+				colis.getDetails().stream().map(HoStoreOrderDTO::part).collect(Collectors.toList()));
+	}
+
+	private static ColisPart part(HoStoreOrderColisDetail detail) {
+		return new ColisPart(detail.getItemCode(), detail.getVariantCode(), detail.getQtyPerColis(), detail.getSizeCode(),
+				detail.getSizeDescription(), detail.getColorCode(), detail.getColorDescription());
 	}
 
 	private static Line line(HoStoreOrderLine line) {

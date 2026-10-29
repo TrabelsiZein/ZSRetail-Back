@@ -32,8 +32,8 @@ public class ErpSalesOrderDTO {
 	private List<Line> lines = new ArrayList<>();
 
 	/**
-	 * A line: pieces of a variant (nbColis null), or 3.1.1 a number of colis of a variant (nbColis set; quantity the
-	 * pieces they hold when known, informative).
+	 * A line: pieces of a variant (nbColis null), or 3.1.1 a number of colis of an item (nbColis set, no variant: a colis
+	 * is one série of every colour; quantity the pieces they hold when known, informative).
 	 */
 	@Data
 	@NoArgsConstructor
@@ -52,9 +52,9 @@ public class ErpSalesOrderDTO {
 			this(itemNo, variantCode, quantity, null);
 		}
 
-		/** 3.1.1: a line of colis of a variant. */
-		public static Line colis(String itemNo, String variantCode, int nbColis, BigDecimal pieces) {
-			return new Line(itemNo, variantCode == null ? "" : variantCode, pieces, nbColis);
+		/** 3.1.1: a line of colis of an item (no variant). */
+		public static Line colis(String itemNo, int nbColis, BigDecimal pieces) {
+			return new Line(itemNo, "", pieces, nbColis);
 		}
 
 		public boolean isColis() {

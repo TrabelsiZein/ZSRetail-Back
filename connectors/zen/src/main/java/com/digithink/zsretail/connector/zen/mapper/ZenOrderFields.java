@@ -49,12 +49,19 @@ public final class ZenOrderFields {
 	public static final String STOCK_QUANTITY = "disponible";
 	public static final String STOCK_SIZE_ORDER = "ordreTaille";
 	public static final String STOCK_COMPUTED_AT = "calculeLe";
+	/** 3.1.1: the pieces of the variant in one colis (a colis is one série of every colour of the item). */
+	public static final String STOCK_QTY_PER_COLIS = "qteSerieType";
+	/** 3.1.1: the variant may be ordered by pieces (vrac). */
+	public static final String STOCK_VRAC_ALLOWED = "vracAutorise";
+	/** 3.1.1: the colis of the item the store may order (the same on every row). */
+	public static final String STOCK_COLIS_AVAILABLE = "colisDisponibles";
 	/** The details of a row (the tooltip of the store's cell), in this order: the field, its label. */
 	static final String[][] STOCK_DETAILS = { { "prixUnitaire", "Prix unitaire" }, { "remisePourcent", "Remise %" },
 			{ "prixNet", "Prix net" }, { "stock", "Stock" }, { "qteVrac", "Qté vrac" },
-			{ "vracAutorise", "Vrac autorisé" }, { "contenanceSerie", "Contenance série" },
-			{ "colisPossibles", "Colis possibles" }, { "qteSerieType", "Types de série" },
-			{ STOCK_COMPUTED_AT, "Calculé le" } };
+			{ STOCK_VRAC_ALLOWED, "Vrac autorisé" }, { STOCK_QTY_PER_COLIS, "Qté par série" },
+			{ "contenanceSerie", "Contenance série" }, { STOCK_COLIS_AVAILABLE, "Colis disponibles" },
+			{ "colisTheoriques", "Colis théoriques" }, { "colisConformesSerie", "Colis conformes série" },
+			{ "colisConformesQte", "Colis conformes qté" }, { STOCK_COMPUTED_AT, "Calculé le" } };
 	static final DateTimeFormatter COMPUTED_AT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
 	// The sales order (commandesVente): header sent
@@ -83,6 +90,8 @@ public final class ZenOrderFields {
 	public static final String LINE_COLIS = "nbColis";
 	/** 3.1.1: the colis NAV accepted on a colis line. */
 	public static final String LINE_COLIS_ACCEPTED = "colisAcceptes";
+	/** 3.1.1: NAV's colis number on a colis line. */
+	public static final String LINE_COLIS_NUMBER = "numeroColis";
 	// A line answered
 	/** The pieces NAV accepted. */
 	public static final String LINE_ACCEPTED = "quantite";
@@ -119,12 +128,23 @@ public final class ZenOrderFields {
 					details.put(detail[1], value);
 				}
 			}
-			rows.add(new ErpVariantStockDTO(itemNo, text(row, STOCK_VARIANT_CODE),
+			ErpVariantStockDTO stock = new ErpVariantStockDTO(itemNo, text(row, STOCK_VARIANT_CODE),
 					quantity == null || !quantity.isNumber() ? null : quantity.decimalValue(),
 					details.isEmpty() ? null : details,
-					sizeOrder == null || !sizeOrder.isNumber() ? null : sizeOrder.intValue()));
+					sizeOrder == null || !sizeOrder.isNumber() ? null : sizeOrder.intValue());
+			// 3.1.1, colis: the série of the variant, the vrac rule, the colis of the item (null when the page lacks one)
+			stock.setQtyPerColis(intOf(row.get(STOCK_QTY_PER_COLIS)));
+			JsonNode vrac = row.get(STOCK_VRAC_ALLOWED);
+			stock.setVracAllowed(vrac == null || !vrac.isBoolean() ? null : vrac.booleanValue());
+			stock.setColisAvailable(intOf(row.get(STOCK_COLIS_AVAILABLE)));
+			rows.add(stock);
 		}
 		return rows;
+	}
+
+	/** A whole number of a row; null when absent or not a number. */
+	private static Integer intOf(JsonNode value) {
+		return value == null || !value.isNumber() ? null : value.intValue();
 	}
 
 	/** article eq '43ZBPND01' and client eq '4110001' (a quote doubled). */
@@ -179,22 +199,18 @@ public final class ZenOrderFields {
 
 	/**
 	 * A line of pieces: article, codeVariante ("" without one), mode only when set, quantiteDemandee; no nbColis. 3.1.1, a
-	 * line of colis: article, codeVariante (NAV requires both on every line), mode "colis", nbColis, and quantiteDemandee
-	 * the pieces they hold (nbColis x the row's contenance: NAV wants a positive quantity, 2026-10-28); left out when the
-	 * contenance is unknown (NAV then refuses the line with its message).
+	 * line of colis: article, mode "colis", nbColis only: a colis is the whole item (one série of every colour), NAV
+	 * composes it (accepted live on CV26000008, 2026-10-29); no codeVariante, no quantiteDemandee.
 	 */
 	public static ObjectNode lineBody(ErpSalesOrderDTO.Line line, String mode) {
 		ObjectNode row = JsonNodeFactory.instance.objectNode();
 		row.put(LINE_ITEM_NO, line.getItemNo());
-		row.put(LINE_VARIANT_CODE, line.getVariantCode() == null ? "" : line.getVariantCode());
 		if (line.isColis()) {
 			row.put(LINE_MODE, MODE_COLIS);
 			row.put(LINE_COLIS, line.getNbColis());
-			if (line.getQuantity() != null) {
-				row.put(LINE_REQUESTED, line.getQuantity());
-			}
 			return row;
 		}
+		row.put(LINE_VARIANT_CODE, line.getVariantCode() == null ? "" : line.getVariantCode());
 		if (mode != null && !mode.trim().isEmpty()) {
 			row.put(LINE_MODE, mode.trim());
 		}
@@ -244,10 +260,13 @@ public final class ZenOrderFields {
 				JsonNode accepted = row.get(LINE_ACCEPTED);
 				JsonNode colisAccepted = row.get(LINE_COLIS_ACCEPTED);
 				String lineMessage = text(row, LINE_MESSAGE);
+				boolean colis = isColis(row);
+				String colisNumber = text(row, LINE_COLIS_NUMBER);
 				lines.add(new ErpSalesOrderResult.Line(text(row, LINE_ITEM_NO), text(row, LINE_VARIANT_CODE),
 						accepted == null || !accepted.isNumber() ? null : accepted.decimalValue(),
-						lineMessage.isEmpty() ? null : lineMessage, isColis(row),
-						!isColis(row) || colisAccepted == null || !colisAccepted.isNumber() ? null : colisAccepted.intValue()));
+						lineMessage.isEmpty() ? null : lineMessage, colis,
+						!colis || colisAccepted == null || !colisAccepted.isNumber() ? null : colisAccepted.intValue(),
+						!colis || colisNumber.isEmpty() ? null : colisNumber));
 			}
 		}
 		result.setLines(lines);
@@ -262,20 +281,19 @@ public final class ZenOrderFields {
 		JsonNode rows = navOrder == null ? null : navOrder.get(ORDER_LINES);
 		if (rows != null && rows.isArray()) {
 			for (JsonNode row : rows) {
-				present.add(lineKey(text(row, LINE_ITEM_NO), (isColis(row) ? COLIS_KEY : "") + text(row, LINE_VARIANT_CODE)));
+				present.add(lineKey(text(row, LINE_ITEM_NO), isColis(row) ? COLIS_KEY : text(row, LINE_VARIANT_CODE)));
 			}
 		}
 		List<ErpSalesOrderDTO.Line> missing = new ArrayList<>();
 		for (ErpSalesOrderDTO.Line line : order.getLines()) {
-			String variant = line.getVariantCode() == null ? "" : line.getVariantCode().trim();
-			if (!present.contains(lineKey(line.getItemNo(), (line.isColis() ? COLIS_KEY : "") + variant))) {
+			if (!present.contains(lineKey(line.getItemNo(), line.isColis() ? COLIS_KEY : line.getVariantCode()))) {
 				missing.add(line);
 			}
 		}
 		return missing;
 	}
 
-	/** 3.1.1: the mark before a colis line's variant in its key (a colis line is never a pieces line of that variant). */
+	/** 3.1.1: the variant part of a colis line's key: a colis is of the item, never a pieces line of a variant. */
 	private static final String COLIS_KEY = "colis|";
 
 	/** 3.1.1: a line of NAV's order in colis (its mode). */

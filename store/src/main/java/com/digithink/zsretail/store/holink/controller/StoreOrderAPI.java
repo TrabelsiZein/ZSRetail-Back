@@ -3,9 +3,11 @@ package com.digithink.zsretail.store.holink.controller;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -123,29 +125,33 @@ public class StoreOrderAPI {
 	public ResponseEntity<?> putLine(@RequestBody(required = false) StoreOrderInputDTO body) {
 		if (body != null && body.isAvailableQtySent()) {
 			return answer(() -> orNoContent(service.putLine(body.getItemId(), body.getQuantity(), body.getAvailableQty(),
-					userName())));
+					body.getVracAllowed(), userName())));
 		}
 		return answer(() -> orNoContent(service.putLine(body == null ? null : body.getItemId(),
 				body == null ? null : body.getQuantity(), userName())));
 	}
 
 	/**
-	 * POST /store-order/draft/colis {navItemNo, variantCode, nbColis, colisPossibles?, contenance?}: the colis of a colour
-	 * row of the item (its first variant) in the draft (0 removes them); the draft (204 for a 0 without a draft). 409
-	 * above the colis possibles; 400 for a variant the item does not have.
+	 * POST /store-order/draft/colis {navItemNo, nbColis, colisAvailable?, composition?: [{itemId, qtyPerColis}]}: the colis
+	 * of the item in the draft (0 removes them), the composition of one colis kept as a snapshot (the cart sends none: the
+	 * row keeps its own); the draft (204 for a 0 without a draft). 409 above the colis available; 400 for a part that is
+	 * not one of the item's active variants.
 	 */
 	@PostMapping("/draft/colis")
 	public ResponseEntity<?> putColis(@RequestBody(required = false) StoreOrderColisInputDTO body) {
+		List<StoreOrderService.ColisPart> parts = body == null || body.getComposition() == null ? null
+				: body.getComposition().stream().map(part -> part == null ? null
+						: new StoreOrderService.ColisPart(part.getItemId(), part.getQtyPerColis()))
+						.collect(Collectors.toList());
 		return answer(() -> orNoContent(service.putColis(body == null ? null : body.getNavItemNo(),
-				body == null ? null : body.getVariantCode(), body == null ? null : body.getNbColis(),
-				body == null ? null : body.getColisPossibles(), body == null ? null : body.getContenance(), userName())));
+				body == null ? null : body.getNbColis(), body == null ? null : body.getColisAvailable(), parts,
+				userName())));
 	}
 
-	/** DELETE /store-order/draft/colis?navItemNo&amp;variantCode: the draft without those colis; 404 without a draft. */
+	/** DELETE /store-order/draft/colis?navItemNo: the draft without the item's colis; 404 without a draft. */
 	@DeleteMapping("/draft/colis")
-	public ResponseEntity<?> removeColis(@RequestParam(name = "navItemNo", required = false) String navItemNo,
-			@RequestParam(name = "variantCode", required = false) String variantCode) {
-		return answer(() -> found(service.removeColis(navItemNo, variantCode, userName())));
+	public ResponseEntity<?> removeColis(@RequestParam(name = "navItemNo", required = false) String navItemNo) {
+		return answer(() -> found(service.removeColis(navItemNo, userName())));
 	}
 
 	/** DELETE /store-order/draft/lines/{itemId}: the draft without the item's line; 404 without a draft. */

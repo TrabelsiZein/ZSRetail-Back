@@ -97,22 +97,29 @@ public class StoreOrderStatusWriter {
 				linesChanged = true;
 			}
 		}
-		// 3.1.1: NAV's answer on the colis, by ERP item number and variant (a row not in the copy keeps none)
+		// 3.1.1: NAV's answer on the colis, by ERP item number (a row not in the copy keeps none)
 		Map<String, StoreOrderStatusCopyDTO.Colis> colisAnswers = new HashMap<>();
 		if (copy.getColis() != null) {
 			for (StoreOrderStatusCopyDTO.Colis answer : copy.getColis()) {
 				if (answer != null && answer.getNavItemNo() != null) {
-					colisAnswers.put(colisKey(answer.getNavItemNo(), answer.getVariantCode()), answer);
+					colisAnswers.put(answer.getNavItemNo().trim(), answer);
 				}
 			}
 		}
 		for (StoreOrderColis colis : order.getColis()) {
-			StoreOrderStatusCopyDTO.Colis answer = colisAnswers.get(colisKey(colis.getNavItemNo(), colis.getVariantCode()));
+			StoreOrderStatusCopyDTO.Colis answer = colisAnswers.get(colis.getNavItemNo().trim());
 			Integer accepted = answer == null ? null : answer.getAcceptedColis();
+			BigDecimal pieces = answer == null || answer.getAcceptedQty() == null ? null
+					: answer.getAcceptedQty().setScale(Quantities.SCALE, RoundingMode.HALF_UP);
+			String number = answer == null ? null
+					: DeliveryReceptionService.cut(blankToNull(answer.getColisNumber()), StoreOrderColis.COLIS_NUMBER_LENGTH);
 			String message = answer == null ? null
 					: DeliveryReceptionService.cut(blankToNull(answer.getMessage()), StoreOrder.NAV_MESSAGE_LENGTH);
-			if (!Objects.equals(colis.getNavAcceptedColis(), accepted) || !Objects.equals(colis.getNavMessage(), message)) {
+			if (!Objects.equals(colis.getNavAcceptedColis(), accepted) || !sameQuantity(colis.getNavAcceptedQty(), pieces)
+					|| !Objects.equals(colis.getNavColisNumber(), number) || !Objects.equals(colis.getNavMessage(), message)) {
 				colis.setNavAcceptedColis(accepted);
+				colis.setNavAcceptedQty(pieces);
+				colis.setNavColisNumber(number);
 				colis.setNavMessage(message);
 				linesChanged = true;
 			}
@@ -132,10 +139,6 @@ public class StoreOrderStatusWriter {
 		order.setUpdatedBy("Head office");
 		orders.save(order);
 		return Outcome.WRITTEN;
-	}
-
-	private static String colisKey(String navItemNo, String variantCode) {
-		return (navItemNo == null ? "" : navItemNo.trim()) + "\u0000" + (variantCode == null ? "" : variantCode.trim());
 	}
 
 	/** yyyy-MM-dd; null when absent or unreadable (information only). */

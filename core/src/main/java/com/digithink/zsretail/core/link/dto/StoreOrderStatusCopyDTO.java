@@ -42,8 +42,7 @@ public class StoreOrderStatusCopyDTO {
 	 */
 	private List<Line> lines;
 	/**
-	 * 3.1.1: NAV's answer per colis row when it was posted, by ERP item number and variant; null when NAV gave none on a
-	 * colis row.
+	 * 3.1.1: NAV's answer per colis row when it was posted, by ERP item number; null when NAV gave none on a colis row.
 	 */
 	private List<Colis> colis;
 	/** DELIVERED: the ERP invoice of the order (the number the store receives it under, ERPINV:). */
@@ -72,9 +71,12 @@ public class StoreOrderStatusCopyDTO {
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	public static class Colis {
 		private String navItemNo;
-		private String variantCode;
 		/** The colis NAV accepted; null when it gave none. */
 		private Integer acceptedColis;
+		/** The pieces NAV accepted on the colis line (its quantite); null when it gave none. */
+		private BigDecimal acceptedQty;
+		/** NAV's colis number (its numeroColis); null when it gave none. */
+		private String colisNumber;
 		private String message;
 	}
 

@@ -37,26 +37,49 @@ public class StoreOrderDTO {
 
 	private List<Line> lines = new ArrayList<>();
 
-	/** 3.1.1: the colis ordered, one per ERP item and colour row (its variant). */
+	/** 3.1.1: the colis ordered, one row per ERP item. */
 	private List<Colis> colis = new ArrayList<>();
 
-	/** 3.1.1: a number of colis of a colour row of an ERP item, by the row's variant (ZEN's série: contenance pieces each). */
+	/**
+	 * 3.1.1: a number of colis of an ERP item (a colis is the whole item: one série of every colour, ZEN), with what the
+	 * head office gave when the store added them: the colis available, and the composition of one colis (the pieces of
+	 * each variant) and its content (their sum), kept so the order can be read again as it was.
+	 */
 	@Data
 	@NoArgsConstructor
 	@AllArgsConstructor
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	public static class Colis {
 		private String navItemNo;
-		/** The row's variant (the first of its colour). */
-		private String variantCode;
 		private String description;
-		/** The colour of the row. */
-		private String colorDescription;
 		private Integer nbColis;
-		/** The pieces in one colis, as the head office gave them; null when unknown (informative). */
-		private Integer contenance;
-		/** The colis the head office had made available when the store added them; null when none was given. */
-		private Integer colisPossibles;
+		/** The pieces of one colis (the sum of the composition); null when unknown. */
+		private Integer colisContent;
+		/** The colis the head office made available when the store added them; null when none was given. */
+		private Integer colisAvailable;
+		/** One colis: the pieces of each variant; empty when unknown. */
+		private List<ColisPart> composition = new ArrayList<>();
+	}
+
+	/** 3.1.1: the pieces of one variant in one colis. */
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	public static class ColisPart {
+		/** The store's item code (navItemNo~variantCode for a ZEN variant). */
+		private String itemCode;
+		private String variantCode;
+		private Integer qtyPerColis;
+		/** Its size and colour (the composition read again as a matrix). */
+		private String sizeCode;
+		private String sizeDescription;
+		private String colorCode;
+		private String colorDescription;
+
+		public ColisPart(String itemCode, String variantCode, Integer qtyPerColis) {
+			this(itemCode, variantCode, qtyPerColis, null, null, null, null);
+		}
 	}
 
 	/** One variant ordered. */

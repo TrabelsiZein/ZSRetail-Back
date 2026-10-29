@@ -11,8 +11,9 @@
 -- hol_order_line.available_qty, the availability a line was ordered against (added when missing);
 -- hol_order.nav_message, hol_order_line.nav_accepted_qty and nav_line_message, NAV's answer as the head office sends it
 -- down (added when missing); hol_order.invoice_no and delivered_at, NAV's invoice of a DELIVERED order (added when
--- missing); hol_order_colis, the colis of a colour row of an ERP item in an order (ZEN's série, by the row's variant:
--- variant_code, color_description; unique order, item and variant), and hol_order.total_colis.
+-- missing); hol_order_colis, the colis of an ERP item in an order (one row per order and item: a colis is the whole
+-- item, ZEN), hol_order_colis_detail (the composition of one colis), hol_order.total_colis and hol_order_line.vrac_allowed;
+-- the rows of the earlier colis builds (by colour) merged per item, their keys dropped.
 -- They exist, empty, on every store; only a store whose goods come from the head office uses them.
 --
 -- Schema, store and head office: item_image, the images of an item (any number, in sort order). Nothing writes it yet;
@@ -22,8 +23,9 @@
 -- stores send, one per store and number (uk_ho_store_order_number), with the names and types Hibernate uses, and
 -- NAV's answer when the order was posted: ho_store_order.nav_message, ho_store_order_line.nav_accepted_qty and
 -- nav_line_message (added when missing); ho_store_order.invoice_no and delivered_at, the ERP invoice that delivered it
--- (status DELIVERED, set by the invoice import from the invoice's orderNo; added when missing); ho_store_order_colis and
--- ho_store_order.total_colis, the colis of the stores' orders (by variant: variant_code, color_description);
+-- (status DELIVERED, set by the invoice import from the invoice's orderNo; added when missing); ho_store_order_colis,
+-- ho_store_order_colis_detail and ho_store_order.total_colis, the colis of the stores' orders (one row per order and
+-- item, with the composition the store sent);
 -- ho_erp_invoice.order_no
 -- and its index ix_ho_erp_invoice_order, the sales order an ERP invoice names (added when missing; the invoices read
 -- before keep none). They exist, empty, on every head office; only one with
@@ -134,9 +136,9 @@ IF OBJECT_ID(N'hol_order', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order', N'deli
 	ALTER TABLE hol_order ADD delivered_at date NULL;
 GO
 
--- The colis of a colour row of an ERP item in an order (a store only; as the entity StoreOrderColis): one row per item,
--- variant (the first of its colour row) and order, apart from the lines; the head office's figures when added, NAV's
--- answer
+-- The colis of an ERP item in an order (a store only; as the entity StoreOrderColis): one row per order and item, apart
+-- from the lines (a colis is the whole item: one série of every colour, ZEN); the colis available and the content of one
+-- colis when added, NAV's answer once posted (its colisAcceptes, quantite, numeroColis and message)
 IF OBJECT_ID(N'ho_store', N'U') IS NULL AND OBJECT_ID(N'hol_order', N'U') IS NOT NULL
 	AND OBJECT_ID(N'hol_order_colis', N'U') IS NULL
 BEGIN
@@ -149,33 +151,95 @@ BEGIN
 		updated_by varchar(255) NULL,
 		order_id bigint NOT NULL,
 		nav_item_no varchar(255) NOT NULL,
-		variant_code varchar(50) NULL,
-		color_description varchar(255) NULL,
 		description varchar(255) NULL,
 		nb_colis int NOT NULL,
-		contenance int NULL,
-		colis_possibles int NULL,
+		colis_content int NULL,
+		colis_disponibles int NULL,
 		nav_accepted_colis int NULL,
+		nav_accepted_qty numeric(18,3) NULL,
+		nav_numero_colis varchar(50) NULL,
 		nav_message varchar(500) NULL,
 		CONSTRAINT PK_hol_order_colis PRIMARY KEY (id),
-		CONSTRAINT uk_hol_order_colis_variant UNIQUE (order_id, nav_item_no, variant_code),
+		CONSTRAINT uk_hol_order_colis_order_item UNIQUE (order_id, nav_item_no),
 		CONSTRAINT fk_hol_order_colis_order FOREIGN KEY (order_id) REFERENCES hol_order (id)
 	);
 END
 GO
 
--- A table of an earlier run (one row per item): the variant and colour of its row, one row per item and variant
-IF OBJECT_ID(N'hol_order_colis', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order_colis', N'variant_code') IS NULL
-	ALTER TABLE hol_order_colis ADD variant_code varchar(50) NULL;
+-- A table of an earlier colis build: the columns of today (variant_code, color_description, contenance and
+-- colis_possibles stay, unused)
+IF OBJECT_ID(N'hol_order_colis', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order_colis', N'colis_content') IS NULL
+	ALTER TABLE hol_order_colis ADD colis_content int NULL;
 GO
-IF OBJECT_ID(N'hol_order_colis', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order_colis', N'color_description') IS NULL
-	ALTER TABLE hol_order_colis ADD color_description varchar(255) NULL;
+IF OBJECT_ID(N'hol_order_colis', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order_colis', N'colis_disponibles') IS NULL
+	ALTER TABLE hol_order_colis ADD colis_disponibles int NULL;
 GO
+IF OBJECT_ID(N'hol_order_colis', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order_colis', N'nav_accepted_qty') IS NULL
+	ALTER TABLE hol_order_colis ADD nav_accepted_qty numeric(18,3) NULL;
+GO
+IF OBJECT_ID(N'hol_order_colis', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order_colis', N'nav_numero_colis') IS NULL
+	ALTER TABLE hol_order_colis ADD nav_numero_colis varchar(50) NULL;
+GO
+
+-- Its rows by colour (the build of 2026-10-28): one row per order and item, the colis added up into the first, the
+-- colour dropped; their composition stays unknown (colis_content empty)
+IF OBJECT_ID(N'hol_order_colis', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order_colis', N'variant_code') IS NOT NULL
+	EXEC (N'
+	UPDATE c SET nb_colis = t.total
+	FROM hol_order_colis c
+	JOIN (SELECT MIN(id) AS keep_id, SUM(nb_colis) AS total FROM hol_order_colis
+		GROUP BY order_id, nav_item_no HAVING COUNT(*) > 1) t ON c.id = t.keep_id;
+	DELETE c
+	FROM hol_order_colis c
+	JOIN (SELECT order_id, nav_item_no, MIN(id) AS keep_id FROM hol_order_colis
+		GROUP BY order_id, nav_item_no HAVING COUNT(*) > 1) t
+		ON c.order_id = t.order_id AND c.nav_item_no = t.nav_item_no AND c.id <> t.keep_id;
+	UPDATE hol_order_colis SET variant_code = NULL, color_description = NULL
+	WHERE variant_code IS NOT NULL OR color_description IS NOT NULL;');
+GO
+
+-- The keys of the earlier colis builds dropped (also at each start, StoreOrderDraftIndex), today's added
 IF OBJECT_ID(N'uk_hol_order_colis_item', N'UQ') IS NOT NULL
 	ALTER TABLE hol_order_colis DROP CONSTRAINT uk_hol_order_colis_item;
 GO
-IF OBJECT_ID(N'hol_order_colis', N'U') IS NOT NULL AND OBJECT_ID(N'uk_hol_order_colis_variant', N'UQ') IS NULL
-	ALTER TABLE hol_order_colis ADD CONSTRAINT uk_hol_order_colis_variant UNIQUE (order_id, nav_item_no, variant_code);
+IF OBJECT_ID(N'uk_hol_order_colis_variant', N'UQ') IS NOT NULL
+	ALTER TABLE hol_order_colis DROP CONSTRAINT uk_hol_order_colis_variant;
+GO
+IF OBJECT_ID(N'hol_order_colis', N'U') IS NOT NULL AND OBJECT_ID(N'uk_hol_order_colis_order_item', N'UQ') IS NULL
+	ALTER TABLE hol_order_colis ADD CONSTRAINT uk_hol_order_colis_order_item UNIQUE (order_id, nav_item_no);
+GO
+
+-- The composition of one colis of a row (a store only; as the entity StoreOrderColisDetail): each variant's pieces as
+-- the head office gave them when the colis were added, its size and colour copied (the composition read as a matrix)
+IF OBJECT_ID(N'hol_order_colis', N'U') IS NOT NULL AND OBJECT_ID(N'hol_order_colis_detail', N'U') IS NULL
+BEGIN
+	CREATE TABLE hol_order_colis_detail (
+		id bigint IDENTITY(1,1) NOT NULL,
+		active bit NULL,
+		created_at datetime2 NULL,
+		created_by varchar(255) NULL,
+		updated_at datetime2 NULL,
+		updated_by varchar(255) NULL,
+		colis_id bigint NOT NULL,
+		item_id bigint NOT NULL,
+		item_code varchar(100) NOT NULL,
+		variant_code varchar(50) NULL,
+		qty_per_colis int NOT NULL,
+		size_code varchar(50) NULL,
+		size_description varchar(255) NULL,
+		color_code varchar(50) NULL,
+		color_description varchar(255) NULL,
+		CONSTRAINT PK_hol_order_colis_detail PRIMARY KEY (id),
+		CONSTRAINT fk_hol_order_colis_detail_colis FOREIGN KEY (colis_id) REFERENCES hol_order_colis (id)
+	);
+	CREATE INDEX ix_hol_order_colis_detail_colis ON hol_order_colis_detail (colis_id);
+END
+GO
+
+-- A line's vrac rule as the head office gave it when the line was added from the variants window (ZEN's vracAutorise;
+-- NULL: none given). Added to a table of an earlier run too.
+IF OBJECT_ID(N'hol_order_line', N'U') IS NOT NULL AND COL_LENGTH(N'hol_order_line', N'vrac_allowed') IS NULL
+	ALTER TABLE hol_order_line ADD vrac_allowed bit NULL;
 GO
 
 -- The colis of an order in all (total_qty counts the pieces of the lines only). Added to a table of an earlier run too.
@@ -284,8 +348,9 @@ IF OBJECT_ID(N'ho_store_order', N'U') IS NOT NULL AND COL_LENGTH(N'ho_store_orde
 	ALTER TABLE ho_store_order ADD delivered_at date NULL;
 GO
 
--- The colis of the stores' orders (a head office only; as the entity HoStoreOrderColis), as the store sent them, NAV's
--- answer once posted (its colisAcceptes and message)
+-- The colis of the stores' orders (a head office only; as the entity HoStoreOrderColis), one row per order and item, as
+-- the store sent them (the colis available, the content of one colis), NAV's answer once posted (its colisAcceptes,
+-- quantite, numeroColis and message)
 IF OBJECT_ID(N'ho_store', N'U') IS NOT NULL AND OBJECT_ID(N'ho_store_order', N'U') IS NOT NULL
 	AND OBJECT_ID(N'ho_store_order_colis', N'U') IS NULL
 BEGIN
@@ -298,13 +363,13 @@ BEGIN
 		updated_by varchar(255) NULL,
 		order_id bigint NOT NULL,
 		nav_item_no varchar(255) NOT NULL,
-		variant_code varchar(50) NULL,
-		color_description varchar(255) NULL,
 		description varchar(255) NULL,
 		nb_colis int NOT NULL,
-		contenance int NULL,
-		colis_possibles int NULL,
+		colis_content int NULL,
+		colis_disponibles int NULL,
 		nav_accepted_colis int NULL,
+		nav_accepted_qty numeric(18,3) NULL,
+		nav_numero_colis varchar(50) NULL,
 		nav_message varchar(500) NULL,
 		CONSTRAINT PK_ho_store_order_colis PRIMARY KEY (id),
 		CONSTRAINT fk_ho_store_order_colis_order FOREIGN KEY (order_id) REFERENCES ho_store_order (id)
@@ -315,13 +380,67 @@ GO
 IF OBJECT_ID(N'ho_store_order', N'U') IS NOT NULL AND COL_LENGTH(N'ho_store_order', N'total_colis') IS NULL
 	ALTER TABLE ho_store_order ADD total_colis int NULL;
 GO
--- A table of an earlier run: the variant and colour of each colis row
-IF OBJECT_ID(N'ho_store_order_colis', N'U') IS NOT NULL AND COL_LENGTH(N'ho_store_order_colis', N'variant_code') IS NULL
-	ALTER TABLE ho_store_order_colis ADD variant_code varchar(50) NULL;
+
+-- A table of an earlier colis build: the columns of today (variant_code, color_description, contenance and
+-- colis_possibles stay, unused)
+IF OBJECT_ID(N'ho_store_order_colis', N'U') IS NOT NULL AND COL_LENGTH(N'ho_store_order_colis', N'colis_content') IS NULL
+	ALTER TABLE ho_store_order_colis ADD colis_content int NULL;
 GO
 IF OBJECT_ID(N'ho_store_order_colis', N'U') IS NOT NULL
-	AND COL_LENGTH(N'ho_store_order_colis', N'color_description') IS NULL
-	ALTER TABLE ho_store_order_colis ADD color_description varchar(255) NULL;
+	AND COL_LENGTH(N'ho_store_order_colis', N'colis_disponibles') IS NULL
+	ALTER TABLE ho_store_order_colis ADD colis_disponibles int NULL;
+GO
+IF OBJECT_ID(N'ho_store_order_colis', N'U') IS NOT NULL
+	AND COL_LENGTH(N'ho_store_order_colis', N'nav_accepted_qty') IS NULL
+	ALTER TABLE ho_store_order_colis ADD nav_accepted_qty numeric(18,3) NULL;
+GO
+IF OBJECT_ID(N'ho_store_order_colis', N'U') IS NOT NULL
+	AND COL_LENGTH(N'ho_store_order_colis', N'nav_numero_colis') IS NULL
+	ALTER TABLE ho_store_order_colis ADD nav_numero_colis varchar(50) NULL;
+GO
+
+-- Its rows by colour (the build of 2026-10-28): one row per order and item, the colis added up into the first, the
+-- colour dropped; their composition stays unknown (colis_content empty)
+IF OBJECT_ID(N'ho_store_order_colis', N'U') IS NOT NULL
+	AND COL_LENGTH(N'ho_store_order_colis', N'variant_code') IS NOT NULL
+	EXEC (N'
+	UPDATE c SET nb_colis = t.total
+	FROM ho_store_order_colis c
+	JOIN (SELECT MIN(id) AS keep_id, SUM(nb_colis) AS total FROM ho_store_order_colis
+		GROUP BY order_id, nav_item_no HAVING COUNT(*) > 1) t ON c.id = t.keep_id;
+	DELETE c
+	FROM ho_store_order_colis c
+	JOIN (SELECT order_id, nav_item_no, MIN(id) AS keep_id FROM ho_store_order_colis
+		GROUP BY order_id, nav_item_no HAVING COUNT(*) > 1) t
+		ON c.order_id = t.order_id AND c.nav_item_no = t.nav_item_no AND c.id <> t.keep_id;
+	UPDATE ho_store_order_colis SET variant_code = NULL, color_description = NULL
+	WHERE variant_code IS NOT NULL OR color_description IS NOT NULL;');
+GO
+
+-- The composition of one colis of a row (a head office only; as the entity HoStoreOrderColisDetail), as the store sent
+-- it, by codes
+IF OBJECT_ID(N'ho_store_order_colis', N'U') IS NOT NULL AND OBJECT_ID(N'ho_store_order_colis_detail', N'U') IS NULL
+BEGIN
+	CREATE TABLE ho_store_order_colis_detail (
+		id bigint IDENTITY(1,1) NOT NULL,
+		active bit NULL,
+		created_at datetime2 NULL,
+		created_by varchar(255) NULL,
+		updated_at datetime2 NULL,
+		updated_by varchar(255) NULL,
+		colis_id bigint NOT NULL,
+		item_code varchar(100) NOT NULL,
+		variant_code varchar(50) NULL,
+		qty_per_colis int NOT NULL,
+		size_code varchar(50) NULL,
+		size_description varchar(255) NULL,
+		color_code varchar(50) NULL,
+		color_description varchar(255) NULL,
+		CONSTRAINT PK_ho_store_order_colis_detail PRIMARY KEY (id),
+		CONSTRAINT fk_ho_store_order_colis_detail_colis FOREIGN KEY (colis_id) REFERENCES ho_store_order_colis (id)
+	);
+	CREATE INDEX ix_ho_store_order_colis_detail_colis ON ho_store_order_colis_detail (colis_id);
+END
 GO
 
 -- The sales order an ERP invoice names (its orderNo), kept so that an order posted after its invoice was read is

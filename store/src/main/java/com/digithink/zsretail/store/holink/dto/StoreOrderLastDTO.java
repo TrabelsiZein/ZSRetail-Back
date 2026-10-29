@@ -2,9 +2,7 @@ package com.digithink.zsretail.store.holink.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -26,8 +24,8 @@ public class StoreOrderLastDTO {
 	private LocalDateTime date;
 	/** The order's lines of that ERP item only. */
 	private List<Line> lines;
-	/** 3.1.1: the order's colis of that ERP item by variant code (each colour row's variant); empty: none. */
-	private Map<String, Integer> colis = new LinkedHashMap<>();
+	/** 3.1.1: the order's colis of that ERP item; null: none. */
+	private Integer colis;
 
 	@Data
 	@NoArgsConstructor

@@ -75,6 +75,13 @@ public class StoreOrderLine extends _BaseEntity {
 	@Column(name = "available_qty", precision = Quantities.PRECISION, scale = Quantities.SCALE)
 	private BigDecimal availableQty;
 
+	/**
+	 * 3.1.1: the variant may be ordered by pieces, as the head office said when the line was added from the variants
+	 * window (ZEN's vracAutorise); false refuses the line and the send. Null: no rule given.
+	 */
+	@Column(name = "vrac_allowed")
+	private Boolean vracAllowed;
+
 	public BigDecimal getQuantity() {
 		return Quantities.normalize(quantity);
 	}

@@ -22,6 +22,7 @@ import org.springframework.data.domain.Pageable;
 import com.digithink.zsretail.store.holink.enumeration.StoreOrderStatus;
 import com.digithink.zsretail.store.holink.model.StoreOrder;
 import com.digithink.zsretail.store.holink.model.StoreOrderColis;
+import com.digithink.zsretail.store.holink.model.StoreOrderColisDetail;
 import com.digithink.zsretail.store.holink.model.StoreOrderLine;
 
 /**
@@ -42,6 +43,7 @@ class StoreOrderLastQueryTest {
 		statement = method.getAnnotation(org.springframework.data.jpa.repository.Query.class).value();
 		sessions = new Configuration().addAnnotatedClass(StoreOrder.class).addAnnotatedClass(StoreOrderLine.class)
 				.addAnnotatedClass(StoreOrderColis.class)
+				.addAnnotatedClass(StoreOrderColisDetail.class)
 				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", "jdbc:h2:mem:storeorderlast;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
 				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
@@ -55,7 +57,6 @@ class StoreOrderLastQueryTest {
 			StoreOrderColis colis = new StoreOrderColis();
 			colis.setOrder(order(session, "E", StoreOrderStatus.SENT));
 			colis.setNavItemNo("55ZCOLIS1");
-			colis.setVariantCode("001");
 			colis.setNbColis(3);
 			session.persist(colis);
 			session.getTransaction().commit();

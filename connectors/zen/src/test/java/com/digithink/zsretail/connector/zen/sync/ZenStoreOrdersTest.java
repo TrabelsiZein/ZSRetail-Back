@@ -75,7 +75,7 @@ class ZenStoreOrdersTest {
 	static final String ID = "2e707462-ded1-f111-9db8-ad3d0c589c9c";
 	static final String BY_ID = ROOT + "commandesVente(" + ID + ")?$expand=lignesCommande";
 	static final String LINES = ROOT + "commandesVente(" + ID + ")/lignesCommande";
-	static final String STOCK = ROOT + "infoArticles?$filter=article%20eq%20'43ZBPND01'%20and%20client%20eq%20'4110001'";
+	static final String STOCK = ROOT + "infoArticles?$filter=article%20eq%20'43ZFCHD17'%20and%20client%20eq%20'4110001'";
 	static final String NONE = "{\"value\":[]}";
 	static final ObjectMapper JSON = new ObjectMapper();
 
@@ -151,34 +151,37 @@ class ZenStoreOrdersTest {
 	}
 
 	@Test
-	@DisplayName("Variant stock on the sample of infoArticles: filtered on article and client; the quantity disponible (never"
-			+ " stock), the size order ordreTaille, the details in order")
+	@DisplayName("Variant stock on the sample of infoArticles (43ZFCHD17, read from ZEN's test NAV on 2026-10-29): filtered on"
+			+ " article and client; the quantity disponible (never stock), the size order ordreTaille, the details in order;"
+			+ " 3.1.1 colis: qteSerieType, vracAutorise, colisDisponibles in their fields")
 	void variantStock() throws IOException {
 		server.expect(requestTo(STOCK)).andExpect(method(HttpMethod.GET))
 				.andRespond(withSuccess(sample(), MediaType.APPLICATION_JSON));
-		List<ErpVariantStockDTO> rows = orders.variantStock(" 43ZBPND01 ", " 4110001 ");
+		List<ErpVariantStockDTO> rows = orders.variantStock(" 43ZFCHD17 ", " 4110001 ");
 		server.verify();
-		assertEquals(12, rows.size());
+		assertEquals(20, rows.size());
 		ErpVariantStockDTO first = rows.get(0);
-		assertEquals("43ZBPND01", first.getItemNo());
-		assertEquals("002", first.getVariantCode());
-		assertEquals(0, new BigDecimal("203").compareTo(first.getQuantity()), "disponible, not stock (48)");
-		assertEquals(Integer.valueOf(160), first.getSizeOrder());
+		assertEquals("43ZFCHD17", first.getItemNo());
+		assertEquals("005", first.getVariantCode());
+		assertEquals(0, BigDecimal.ZERO.compareTo(first.getQuantity()), "disponible");
+		assertEquals(Integer.valueOf(10), first.getSizeOrder());
 		assertEquals(Arrays.asList("Prix unitaire", "Remise %", "Prix net", "Stock", "Qt\u00e9 vrac", "Vrac autoris\u00e9",
-				"Contenance s\u00e9rie", "Colis possibles", "Types de s\u00e9rie", "Calcul\u00e9 le"),
+				"Qt\u00e9 par s\u00e9rie", "Contenance s\u00e9rie", "Colis disponibles", "Colis th\u00e9oriques",
+				"Colis conformes s\u00e9rie", "Colis conformes qt\u00e9", "Calcul\u00e9 le"),
 				new ArrayList<>(first.getDetails().keySet()));
-		assertEquals("2", first.getDetails().get("Types de s\u00e9rie"), "qteSerieType");
-		assertEquals("0", first.getDetails().get("Prix net"));
-		assertEquals("48", first.getDetails().get("Stock"));
-		assertEquals("2", first.getDetails().get("Qt\u00e9 vrac"));
+		assertEquals("1", first.getDetails().get("Qt\u00e9 par s\u00e9rie"), "qteSerieType");
+		assertEquals("5", first.getDetails().get("Contenance s\u00e9rie"), "the colour's total (BLEU)");
+		assertEquals("30", first.getDetails().get("Colis disponibles"));
 		assertEquals("Non", first.getDetails().get("Vrac autoris\u00e9"));
-		assertEquals("10", first.getDetails().get("Contenance s\u00e9rie"));
-		assertEquals("101", first.getDetails().get("Colis possibles"));
-		assertEquals(OffsetDateTime.parse("2026-10-27T19:36:14.06Z").atZoneSameInstant(ZoneId.systemDefault())
+		assertEquals(OffsetDateTime.parse("2026-10-29T18:06:14.72Z").atZoneSameInstant(ZoneId.systemDefault())
 				.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")), first.getDetails().get("Calcul\u00e9 le"));
-		ErpVariantStockDTO size36 = rows.stream().filter(row -> row.getVariantCode().equals("001")).findFirst().get();
-		assertEquals(Integer.valueOf(220), size36.getSizeOrder(), "ZEN's order, as it gives it");
-		assertEquals(0, new BigDecimal("203").compareTo(size36.getQuantity()));
+		assertEquals(Integer.valueOf(1), first.getQtyPerColis());
+		assertEquals(Boolean.FALSE, first.getVracAllowed());
+		assertEquals(Integer.valueOf(30), first.getColisAvailable());
+		ErpVariantStockDTO xl = rows.stream().filter(row -> row.getVariantCode().equals("004")).findFirst().get();
+		assertEquals(0, new BigDecimal("61").compareTo(xl.getQuantity()), "disponible, not stock (0)");
+		assertEquals(26, rows.stream().mapToInt(ErpVariantStockDTO::getQtyPerColis).sum(),
+				"one colis = one série of every colour: 5 + 5 + 8 + 8 pieces");
 	}
 
 	@Test
@@ -276,27 +279,26 @@ class ZenStoreOrdersTest {
 		assertEquals(0, new BigDecimal("10").compareTo(result.getLines().get(1).getAcceptedQty()), "12 asked, 10 accepted");
 	}
 
-	/** 3.1.1: the order with 3 colis of 43ZBPND01's variant 001 (its colour row) after its pieces (10 each: 30, informative). */
+	/** 3.1.1: the order with 3 colis of 43ZBPND01 after its pieces (the whole item; 26 pieces each: 78, informative). */
 	static ErpSalesOrderDTO orderWithColis() {
 		ErpSalesOrderDTO order = order();
-		order.getLines().add(ErpSalesOrderDTO.Line.colis("43ZBPND01", "001", 3, new BigDecimal("30")));
+		order.getLines().add(ErpSalesOrderDTO.Line.colis("43ZBPND01", 3, new BigDecimal("78")));
 		return order;
 	}
 
-	/** NAV's order with its colis line answered: mode colis, 2 colis of 3 accepted, a message. */
+	/** NAV's order with its colis line answered: mode colis, 2 colis of 3 accepted, 52 pieces, its colis number. */
 	static ObjectNode navOrderWithColis() throws IOException {
 		ObjectNode order = navOrder();
-		((ArrayNode) order.get("lignesCommande")).addObject().put("article", "43ZBPND01").put("codeVariante", "001")
+		((ArrayNode) order.get("lignesCommande")).addObject().put("article", "43ZBPND01").put("codeVariante", "")
 				.put("mode", "colis").put("nbColis", 3).put("quantiteDemandee", 0).put("colisAcceptes", 2)
-				.put("quantite", 20).put("message", "Colis partiel");
+				.put("quantite", 52).put("numeroColis", "COL-0007").put("colisTheorique", 3).put("message", "Colis partiel");
 		return order;
 	}
 
 	@Test
-	@DisplayName("3.1.1, a colis line: {article, codeVariante, mode colis, nbColis} (NAV requires the variant), no"
-			+ " quantiteDemandee = nbColis x contenance (NAV wants it positive), whatever erp.zen.order.mode says; pieces lines"
-			+ " keep mode vrac; NAV's answer of the colis"
-			+ " line read as colis, with colisAcceptes and its message")
+	@DisplayName("3.1.1, a colis line: {article, mode colis, nbColis} only, no codeVariante, no quantiteDemandee (NAV composes"
+			+ " the colis: CV26000008), whatever erp.zen.order.mode says; pieces lines keep mode vrac; NAV's answer of the"
+			+ " colis line read as colis, with colisAcceptes, quantite, numeroColis and its message")
 	void colisLine() throws IOException {
 		server.expect(requestTo(LOOKUP)).andRespond(withSuccess(NONE, MediaType.APPLICATION_JSON));
 		server.expect(requestTo(ORDERS)).andExpect(method(HttpMethod.POST))
@@ -305,8 +307,8 @@ class ZenStoreOrdersTest {
 				.andExpect(jsonPath("$.lignesCommande[3].article").value("43ZBPND01"))
 				.andExpect(jsonPath("$.lignesCommande[3].mode").value("colis"))
 				.andExpect(jsonPath("$.lignesCommande[3].nbColis").value(3))
-				.andExpect(jsonPath("$.lignesCommande[3].codeVariante").value("001"))
-				.andExpect(jsonPath("$.lignesCommande[3].quantiteDemandee").value(30))
+				.andExpect(jsonPath("$.lignesCommande[3].codeVariante").doesNotExist())
+				.andExpect(jsonPath("$.lignesCommande[3].quantiteDemandee").doesNotExist())
 				.andRespond(withSuccess(navOrderWithColis().toString(), MediaType.APPLICATION_JSON));
 		ErpSalesOrderResult result = orders.post(orderWithColis());
 		server.verify();
@@ -317,29 +319,31 @@ class ZenStoreOrdersTest {
 		ErpSalesOrderResult.Line colis = result.getLines().get(3);
 		assertTrue(colis.isColis());
 		assertEquals(Integer.valueOf(2), colis.getAcceptedColis());
+		assertEquals(0, new BigDecimal("52").compareTo(colis.getAcceptedQty()));
+		assertEquals("COL-0007", colis.getColisNumber());
 		assertEquals("Colis partiel", colis.getMessage());
+		assertNull(result.getLines().get(0).getColisNumber(), "a pieces line: no colis number");
 
-		ObjectNode withPieces = ZenOrderFields.lineBody(ErpSalesOrderDTO.Line.colis("43ZBPND01", "001", 3,
-				new BigDecimal("15")), "vrac");
-		assertEquals("{\"article\":\"43ZBPND01\",\"codeVariante\":\"001\",\"mode\":\"colis\",\"nbColis\":3,"
-				+ "\"quantiteDemandee\":15}", withPieces.toString(), "3 colis of 5 pieces");
-		ObjectNode body = ZenOrderFields.lineBody(ErpSalesOrderDTO.Line.colis("43ZBPND01", "001", 3, null), "vrac");
-		assertEquals("{\"article\":\"43ZBPND01\",\"codeVariante\":\"001\",\"mode\":\"colis\",\"nbColis\":3}",
-				body.toString());
+		ObjectNode body = ZenOrderFields.lineBody(ErpSalesOrderDTO.Line.colis("43ZBPND01", 3, new BigDecimal("78")), "vrac");
+		assertEquals("{\"article\":\"43ZBPND01\",\"mode\":\"colis\",\"nbColis\":3}", body.toString(),
+				"the pieces they hold are not sent");
 	}
 
 	@Test
-	@DisplayName("3.1.1, completing an order: a colis line is missing until NAV has a colis line of its variant (never"
-			+ " taken for the pieces line of that variant), then not posted again; another variant's colis still missing")
+	@DisplayName("3.1.1, completing an order: a colis line is missing until NAV has a colis line of the item (never taken"
+			+ " for a pieces line of no variant), then not posted again; another item's colis still missing")
 	void colisMissing() throws IOException {
 		assertEquals(Collections.singletonList(true),
 				ZenOrderFields.missingLines(orderWithColis(), navOrder()).stream().map(ErpSalesOrderDTO.Line::isColis)
-						.collect(Collectors.toList()), "NAV has the pieces of 001 only: its colis line is missing");
+						.collect(Collectors.toList()), "NAV has the pieces only: the colis line is missing");
 		assertTrue(ZenOrderFields.missingLines(orderWithColis(), navOrderWithColis()).isEmpty());
-		ErpSalesOrderDTO otherColour = new ErpSalesOrderDTO();
-		otherColour.getLines().add(ErpSalesOrderDTO.Line.colis("43ZBPND01", "007", 1, null));
-		assertEquals(1, ZenOrderFields.missingLines(otherColour, navOrderWithColis()).size(),
-				"the colis of 001 are not those of 007");
+		ErpSalesOrderDTO noVariant = new ErpSalesOrderDTO();
+		noVariant.getLines().add(new ErpSalesOrderDTO.Line("43ZBPND01", "", BigDecimal.ONE));
+		assertEquals(1, ZenOrderFields.missingLines(noVariant, navOrderWithColis()).size(),
+				"a pieces line of no variant is not the colis line");
+		ErpSalesOrderDTO other = new ErpSalesOrderDTO();
+		other.getLines().add(ErpSalesOrderDTO.Line.colis("43ZFCHD17", 1, null));
+		assertEquals(1, ZenOrderFields.missingLines(other, navOrderWithColis()).size(), "another item's colis");
 	}
 
 	@Test
