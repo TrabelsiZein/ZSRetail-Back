@@ -459,12 +459,14 @@ anything else alphabetically; the ERP's `sizeOrder` is not used); a cell with `d
 - **Previous / next item**: the catalogue's lines of its current page (its filters, `neighbourItem`), by the footer's
   arrows ("n / total") or ← → when no field has the focus; the cart is kept. With quantities typed and not added: "Ajouter
   avant de passer ?" (Ajouter: added, then the next item; Ignorer: the next item, nothing added; Annuler: stays).
-- **Colis** (3.1.1, when the head office gives the item's `colisAvailable` or `colisContent`: ZEN): under the photos
-  "Nombre de colis [ n ] · 30 disponibles · 1 colis = 26 pièces" (the last order's colis greyed beside it; Tab reaches
-  the field before the cells). The n colis are laid on the matrix as a grey layer under each cell (n × its
+- **Colis** (3.1.1, when the head office gives the item's `colisAvailable` or `colisContent`: ZEN): beside the photos
+  (with the prices under it) "Nombre de colis [ − n + ] = 52 pièces", then "30 disponibles", "1 colis = 26 pièces" and the
+  last order's colis as chips (− / + and ↑ ↓ between 0 and the colis available; red above it; Tab reaches the field
+  before the cells). The n colis are laid on the matrix as a grey layer under each cell (n × its
   `qtyPerColis`, "—" for a variant with none), on the row and column totals, and a total line "2 colis = 52 pièces"
   (`colisSimulation`). A variant whose vrac is false has its cell disabled ("Vrac non autorisé : commande par colis",
-  `vracOpen`). The footer reads "x pièces + n colis (y pièces)". "Ajouter" sends the pieces (each line with its
+  `vracOpen`); an item whose variants are all by colis only shows no pieces field: each cell its share of one colis
+  greyed ("× 2"), then its pieces for the colis typed as a badge. The footer reads "x pièces + n colis (y pièces)". "Ajouter" sends the pieces (each line with its
   `vracAllowed`) and the colis with their composition (`colisComposition`) and limit. The cart lists the colis apart
   ("CHEMISE · 2 colis (= 52 pièces)", the number editable up to the colis available, removable) and totals them; the
   catalogue's "Dans la commande" counts them ("12 + 2 colis"). Both order pages show them in their own block above the
