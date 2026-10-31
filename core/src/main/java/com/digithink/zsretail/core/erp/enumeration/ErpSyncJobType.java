@@ -4,10 +4,12 @@ package com.digithink.zsretail.core.erp.enumeration;
  * Job types representing scheduled ERP synchronization routines.
  */
 public enum ErpSyncJobType {
-	IMPORT_ITEM_FAMILIES,
-	IMPORT_ITEM_SUBFAMILIES,
-	IMPORT_ITEMS,
-	IMPORT_ITEM_BARCODES,
+	/**
+	 * 3.1.1: the catalogue in one run, in a fixed order (catégories, families, sub-families, sections, items, barcodes),
+	 * the first failing part stopping the run (ImportCatalogueJob). Replaced the four jobs IMPORT_ITEM_FAMILIES,
+	 * IMPORT_ITEM_SUBFAMILIES, IMPORT_ITEMS and IMPORT_ITEM_BARCODES (their rows converted by ErpSyncJobTypesUpgrade).
+	 */
+	IMPORT_CATALOGUE,
 	IMPORT_LOCATIONS,
 	IMPORT_CUSTOMERS,
 	IMPORT_SALES_PRICES_AND_DISCOUNTS,

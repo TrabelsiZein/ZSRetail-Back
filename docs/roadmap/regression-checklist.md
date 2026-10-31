@@ -127,7 +127,7 @@ Jobs run from ERP → ERP Sync Jobs → open the job → **Run Now** (the schedu
 
 **E1 — Item and price import**
 
-- [ ] Run Now on `IMPORT_ITEMS`, then `IMPORT_SALES_PRICES_AND_DISCOUNTS`.
+- [ ] Run Now on `IMPORT_CATALOGUE` (3.1.1: catégories, families, sub-families, sections, items, barcodes, in order), then `IMPORT_SALES_PRICES_AND_DISCOUNTS`.
 - [ ] Expected: job status SUCCESS; a NAV item and its price show at the till.
 - [ ] Where: `ERP_SYNC_JOB.last_status`, `last_run_at`; checkpoint moved forward in the job modal; ERP → ERP Logs: `IMPORT_*` rows with status SUCCESS.
 

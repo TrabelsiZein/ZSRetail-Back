@@ -16,10 +16,6 @@ import com.digithink.zsretail.erp.api.ErpSupplyInvoiceImport;
 import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.api.dto.ErpDeletionLogEntryDTO;
-import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
-import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
-import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
-import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
 import com.digithink.zsretail.erp.api.dto.ErpLocationDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSalesDiscountDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSalesPriceDTO;
@@ -60,6 +56,10 @@ public class ErpSyncJobRunner {
 	@Autowired(required = false)
 	private List<ErpExportJob> exportJobs;
 
+	/** 3.1.1: the job IMPORT_CATALOGUE (core, every installation). A field, as the ones above. */
+	@Autowired
+	private ImportCatalogueJob catalogueImport;
+
 	public void run(ErpSyncJob job) {
 		ErpSyncJobType jobType = job.getJobType();
 		if (jobType == null) {
@@ -70,25 +70,9 @@ public class ErpSyncJobRunner {
 		ErpSyncFilter filter = checkpointService.createFilterForJob(jobType);
 		try {
 			switch (jobType) {
-			case IMPORT_ITEM_FAMILIES:
-				List<ErpItemFamilyDTO> families = synchronizationManager.pullItemFamilies(filter);
-				erpItemBootstrapService.importItemFamilies(families);
-				checkpointService.updateLastSync(jobType, families);
-				break;
-			case IMPORT_ITEM_SUBFAMILIES:
-				List<ErpItemSubFamilyDTO> subFamilies = synchronizationManager.pullItemSubFamilies(filter);
-				erpItemBootstrapService.importItemSubFamilies(subFamilies);
-				checkpointService.updateLastSync(jobType, subFamilies);
-				break;
-			case IMPORT_ITEMS:
-				List<ErpItemDTO> items = synchronizationManager.pullItems(filter);
-				erpItemBootstrapService.importItems(items);
-				checkpointService.updateLastSync(jobType, items);
-				break;
-			case IMPORT_ITEM_BARCODES:
-				List<ErpItemBarcodeDTO> barcodes = synchronizationManager.pullItemBarcodes(filter);
-				erpItemBootstrapService.importItemBarcodes(barcodes);
-				checkpointService.updateLastSync(jobType, barcodes);
+			case IMPORT_CATALOGUE:
+				// 3.1.1: the four catalogue jobs in one run, in order (each part keeps its checkpoint)
+				catalogueImport.run();
 				break;
 			case IMPORT_LOCATIONS:
 				List<ErpLocationDTO> locations = synchronizationManager.pullLocations(filter);

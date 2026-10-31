@@ -76,14 +76,11 @@ public class ErpJobStatisticsService {
 
 	private List<ErpSyncOperation> mapJobTypeToOperations(ErpSyncJobType jobType) {
 		switch (jobType) {
-		case IMPORT_ITEM_FAMILIES:
-			return Arrays.asList(ErpSyncOperation.IMPORT_ITEM_FAMILIES);
-		case IMPORT_ITEM_SUBFAMILIES:
-			return Arrays.asList(ErpSyncOperation.IMPORT_ITEM_SUBFAMILIES);
-		case IMPORT_ITEMS:
-			return Arrays.asList(ErpSyncOperation.IMPORT_ITEMS);
-		case IMPORT_ITEM_BARCODES:
-			return Arrays.asList(ErpSyncOperation.IMPORT_ITEM_BARCODES);
+		case IMPORT_CATALOGUE:
+			// 3.1.1: the six parts of the run, each its operation in the communications log
+			return Arrays.asList(ErpSyncOperation.IMPORT_ITEM_CATEGORIES, ErpSyncOperation.IMPORT_ITEM_FAMILIES,
+					ErpSyncOperation.IMPORT_ITEM_SUBFAMILIES, ErpSyncOperation.IMPORT_ITEM_SECTIONS,
+					ErpSyncOperation.IMPORT_ITEMS, ErpSyncOperation.IMPORT_ITEM_BARCODES);
 		case IMPORT_LOCATIONS:
 			return Arrays.asList(ErpSyncOperation.IMPORT_LOCATIONS);
 		case IMPORT_CUSTOMERS:
