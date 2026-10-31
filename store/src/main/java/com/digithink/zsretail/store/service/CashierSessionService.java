@@ -125,6 +125,15 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	}
 
 	/**
+	 * 3.1.1: how many tickets a session holds, the sales completed (refunded since included). A count, never an amount:
+	 * the till shows it, and the cashier's closing count stays blind. One COUNT on the session's index.
+	 */
+	public long countSessionTickets(CashierSession session) {
+		return salesHeaderRepository.countByCashierSessionAndStatusIn(session,
+				Arrays.asList(TransactionStatus.COMPLETED, TransactionStatus.REFUNDED));
+	}
+
+	/**
 	 * Create a new cashier session with opening cash
 	 * 
 	 * @throws Exception

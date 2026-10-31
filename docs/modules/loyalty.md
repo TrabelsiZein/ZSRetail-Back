@@ -77,6 +77,11 @@
 - Locking follows the rate fields: editable while the program has no transactions, then any change returns HTTP 409 (resending the same tiers is accepted). In `PUT /loyalty/programs/{id}`, `earningTiers` absent or null = unchanged, `[]` = remove all tiers.
 - Mapping: `@ElementCollection(fetch = EAGER)` + `@Fetch(FetchMode.SELECT)`, so tiers are never join-fetched with another collection (no `MultipleBagFetchException` at startup).
 - Tests: `core/src/test/java/com/digithink/zsretail/core/service/LoyaltyEarningTiersTest.java` (plain JUnit 5 with in-memory stubs, no Spring context).
+- 3.1.1, the till's preview: `GET /loyalty/config` sends the active program's `earningTiers` (sorted; `[]` for a flat
+  program), and the till's right rail (catalogue hidden) shows "Points fidélité +n pts" with a member on the ticket:
+  `@/libs/loyalty-points` `pointsEarned(program, total, stamp)` is this section's rule on the total shown, read once per
+  screen (no call per scan); points spent at the payment lower what the sale finally earns. Proved by
+  `tools/loyalty-points-check.mjs` on the cases of `LoyaltyEarningTiersTest`: a change of the rule changes both.
 
 ### Returns
 

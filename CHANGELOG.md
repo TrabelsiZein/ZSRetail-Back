@@ -7,6 +7,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 ## 3.1.1 — in progress (branch `release/3.1.1`)
 
 ### Features
+- Till's right rail (catalogue hidden): `GET /cashier-session/current/ticket-count` `{"ticketCount": n}`, the tickets of
+  the current user's open session (completed, refunded since included; 0 without a session), a count and never an
+  amount (the closing count stays blind; `CashierSessionService.countSessionTickets`, `SessionTicketCountTest`).
+  `GET /loyalty/config` sends the active program's `earningTiers` (sorted), so the till shows the points a ticket will
+  earn with the sale's rule (`LoyaltyEarningTiersTest`).
 - POS screen, catalogue visible by default: a store General Setup row `POS_CATALOGUE_VISIBLE` (BOOLEAN, `false`, POS
   behaviour, created at start-up on a store only), sent by `GET /config` as `posCatalogueVisible` (last key; `false`
   when off or absent). How the till opens when it has no choice of its own (`docs/modules/general-setup.md`).
@@ -153,6 +158,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `availableQty`.
 
 ### Fixes
+- `GET /sales-header/pending-sales` sends each ticket's `discountSource` (MANUAL or PROMOTION): the till taking a held
+  ticket back no longer shows its cart offer a second time as a "Remise" (front CHANGELOG).
 - Copies down, head office: a store's pull of LOYALTY, PROMOTIONS or SUPPLY answered HTTP 500 (query timeout after
   15 s) while a catalogue writer was recording (seen during the first ZEN images run): the read of
   `ho_down_sequence` scanned the table (the driver's nvarchar against the varchar column) and waited on the locked
@@ -183,7 +190,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   only; `item_image` (index `ix_item_image_item`) on both. Re-runnable, no data changed. The filtered index is also made
   at each start when missing (`StoreOrderDraftIndex`: a new database runs no script).
 - `update.sql`: `APP_VERSION` 3.1.1 (it stops while `store-orders.sql` has not run); notes written when the version is
-  closed.
+  closed. The till's index `ix_sales_header_session_status` on `sales_header (cashier_session_id, status)` (re-runnable,
+  store and head office): the session's ticket count and its pending tickets read through it instead of a scan of every
+  sale.
 - `store-orders.sql`: column `hol_order_line.available_qty` numeric(18,3) NULL (added when missing; a start adds it too).
 - `store-orders.sql`: columns `hol_order.nav_message` varchar(500), `hol_order_line.nav_accepted_qty` numeric(18,3) and
   `nav_line_message` varchar(500) (store), `ho_store_order.nav_message`, `ho_store_order_line.nav_accepted_qty` and

@@ -11,8 +11,8 @@
 -- The application refuses to start while APP_VERSION differs from its own version, so step 2 must be done before 3.
 --
 -- This script stamps APP_VERSION 3.1.1 and writes the notes of the version; the schema of each feature is in its own
--- file of this folder (store-orders.sql: docs/modules/store-orders.md). It stops, without changing anything, while
--- store-orders.sql has not run (no item_image table).
+-- file of this folder (store-orders.sql: docs/modules/store-orders.md), but for one index of the till (below). It
+-- stops, without changing anything, while store-orders.sql has not run (no item_image table).
 
 -- The session options are set here (sqlcmd starts with QUOTED_IDENTIFIER OFF); SSMS has them on already.
 
@@ -39,6 +39,13 @@ BEGIN
 	RAISERROR(N'3.1.1: run db/3.1.1/store-orders.sql first (no item_image table). APP_VERSION not changed.', 16, 1);
 	SET NOEXEC ON;
 END
+GO
+
+-- The till (3.1.1): its session's tickets counted (GET /cashier-session/current/ticket-count, the right rail) and its
+-- pending tickets listed when its screen opens, by session and status: an index instead of a scan of every sale.
+IF OBJECT_ID(N'sales_header', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_sales_header_session_status' AND object_id = OBJECT_ID(N'sales_header'))
+	CREATE INDEX ix_sales_header_session_status ON sales_header (cashier_session_id, status);
 GO
 
 UPDATE APP_VERSION SET version = '3.1.1';

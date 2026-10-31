@@ -1,6 +1,7 @@
 package com.digithink.zsretail.core.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,6 +25,9 @@ public interface SalesHeaderRepository extends _BaseRepository<SalesHeader, Long
 	List<SalesHeader> findByCashierSession(CashierSession cashierSession);
 
 	List<SalesHeader> findByCashierSessionAndStatus(CashierSession cashierSession, TransactionStatus status);
+
+	/** 3.1.1: the tickets of a session in these statuses, counted (ix_sales_header_session_status, db/3.1.1). */
+	long countByCashierSessionAndStatusIn(CashierSession cashierSession, Collection<TransactionStatus> statuses);
 
 	/** Regular pending tickets only — excludes table-linked tickets (tableNumber IS NULL). */
 	List<SalesHeader> findByCashierSessionAndStatusAndTableNumberIsNull(CashierSession cashierSession, TransactionStatus status);

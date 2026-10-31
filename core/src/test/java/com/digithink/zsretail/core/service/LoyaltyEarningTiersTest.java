@@ -143,6 +143,19 @@ class LoyaltyEarningTiersTest {
 		assertEquals(2.0, LoyaltyService.resolvePointsPerDinar(p, 650));
 	}
 
+	@Test
+	@DisplayName("Config (3.1.1): the active program's tiers sent sorted, for the till's preview of the points earned; none: []")
+	void configSendsSortedTiers() {
+		currentProgram = program(1.0, tier(500, 2), tier(200, 1.5));
+		List<LoyaltyEarningTier> tiers = service.getLoyaltyConfig().getActiveProgram().getEarningTiers();
+		assertEquals(Arrays.asList(200.0, 500.0),
+				tiers.stream().map(LoyaltyEarningTier::getThresholdAmount).collect(Collectors.toList()));
+		assertEquals(Arrays.asList(1.5, 2.0), tiers.stream().map(LoyaltyEarningTier::getPointsPerDinar).collect(Collectors.toList()));
+
+		currentProgram = program(10.0);
+		assertTrue(service.getLoyaltyConfig().getActiveProgram().getEarningTiers().isEmpty());
+	}
+
 	// ─── Earning: flat programs must not change ──────────────────────
 
 	@Test

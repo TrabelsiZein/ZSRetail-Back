@@ -1,5 +1,6 @@
 package com.digithink.zsretail.store.controller;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -65,6 +66,23 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			}
 		} catch (Exception e) {
 			log.error("CashierSessionAPI::getCurrentSession:error: " + e.getMessage(), e);
+			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/**
+	 * 3.1.1: how many tickets the current user's open session holds, {"ticketCount": n} (0 without a session); read by
+	 * the till when its screen opens (catalogue hidden, the right rail). A count only, never an amount: the closing
+	 * count stays blind.
+	 */
+	@GetMapping("/current/ticket-count")
+	public ResponseEntity<?> getCurrentTicketCount() {
+		try {
+			UserAccount currentUser = currentUserProvider.getCurrentUser();
+			long count = service.getCurrentOpenSession(currentUser).map(service::countSessionTickets).orElse(0L);
+			return ResponseEntity.ok(Collections.singletonMap("ticketCount", count));
+		} catch (Exception e) {
+			log.error("CashierSessionAPI::getCurrentTicketCount:error: " + e.getMessage(), e);
 			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
 		}
 	}

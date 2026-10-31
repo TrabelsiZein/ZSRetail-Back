@@ -272,6 +272,9 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 				saleMap.put("subtotal", sale.getSubtotal());
 				saleMap.put("taxAmount", sale.getTaxAmount());
 				saleMap.put("discountAmount", sale.getDiscountAmount());
+				// 3.1.1: MANUAL or PROMOTION; a header discount from the cart's offer is not shown again as a "Remise"
+				// when the till takes the ticket back (the cart pass works the offer out again)
+				saleMap.put("discountSource", sale.getDiscountSource());
 				saleMap.put("totalAmount", sale.getTotalAmount());
 				saleMap.put("status", sale.getStatus());
 				saleMap.put("notes", sale.getNotes());

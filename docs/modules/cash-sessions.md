@@ -219,6 +219,18 @@ gone by then. Labels: `admin.sessionReport.*`, five locales.
 - The logout 1500 ms after the closing is unchanged: the ticket's request is sent with the token before it, the window
   is the browser's, and the print code needs nothing of the page once it started.
 
+## The session's ticket count at the till (3.1.1)
+
+`GET /cashier-session/current/ticket-count` answers `{"ticketCount": n}`: the tickets of the current user's open
+session, the sales `COMPLETED` (and `REFUNDED` since), 0 without a session (`CashierSessionService.countSessionTickets`,
+one COUNT on the index `ix_sales_header_session_status` of `db/3.1.1/update.sql`, which also serves the pending tickets
+listed when the till opens). The till shows it in its right rail, catalogue hidden (`../frontend.md`).
+
+**A count, never an amount.** The closing is a blind count: the cashier declares what the drawer holds, the server
+compares it with the cash expected and the till only says there is a difference. A session total, its sales or its
+returns in money shown at the till would let the cashier work the expected cash out; they stay on the session's tickets
+X / Z and the reports.
+
 ## Closed points
 
 - **The FREE_QUANTITY line stored an HT discount (fixed in 3.1.0).** For a "X bought, Y free" promotion the server adds

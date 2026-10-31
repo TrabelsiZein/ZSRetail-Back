@@ -122,7 +122,10 @@
   header ("Pending ticket HS…", the number only on a small till) while it is worked on (`pos.pendingTicketNumber`,
   cleared with `pendingTicketId`; none on a table ticket, which has its own sign). The "Pending tickets" button is
   greyed while none waits (not hidden: the other buttons keep their places); the tickets are per cashier session, so
-  the count is never stale.
+  the count is never stale. 3.1.1: "Continue" reads back the ticket's header discount (the "Remise" row) only when it is
+  not the cart's offer: holding a ticket, the server saves that offer as its header discount (`discountSource`
+  PROMOTION, sent by `/sales-header/pending-sales`), and the cart pass works it out again in the "Promo" row; it was
+  shown twice (counted once in the Total and at the payment, which rebuilds its summary).
 - **3.1.0, close session window** (`ItemSelection.vue`, decided with Zein, 2026-10-13): pending tickets are said first
   (a banner with "See the pending tickets"; "Close session" greyed meanwhile), not after the counting. Every active
   method is a row with its amount (`fillCloseCountLines`, `closeCountMethods`: the payment page's order). No "Fond de
@@ -195,8 +198,16 @@
   ticket (`lines`) over its totals (`summary`) on the right, the totals beside the action bar. **Catalogue hidden**
   (`.pos-content--ticket`; the catalogue kept mounted with `v-show`, so its levels, cache and in-cart badges stay): the
   ticket on the left over the whole height, a right rail as wide as the ticket column of before, filled from top to
-  bottom (asked by Zein: no free place, no margins): a fixed card in place of the ticker (`.till-info`, `tillInfo`: the
-  client with its code, the session, the cashier, whole values cut by CSS), the totals taking the free height (larger;
+  bottom (asked by Zein: no free place, no margins): one quiet line in place of the ticker, one row on every till
+  (`.till-info`, `tillInfo`: the client, the session, the session's ticket count as a pill, the cashier; small, each
+  one's label as its tooltip; a narrow rail cuts the values with "…", the client first, the count never; the client in
+  primary bold when the ticket has a customer of its own, `customerChosen`), the totals taking the free height (larger;
+  in the rail only, above the total: "Vous économisez" `ticketSavings`, on each line its reference, the struck public
+  price of a clearance else the full price of all its pieces, less what it costs after its discount, then the cart's
+  offer, shown only when the lines save something (`ticketLineSavings`: the offer alone is its "Promo" row already); "Points fidélité +n pts" `loyaltyPointsPreview` with a member on the ticket, the sale's rule in
+  `@/libs/loyalty-points` on the total shown, before points spent at the payment; the program from `/loyalty/config`
+  read once when a member is attached; the ticket count from `GET /cashier-session/current/ticket-count` read once when
+  the screen opens catalogue hidden: it reopens after each payment;
   the detail rows share it, a dashed line under each; the total last on a light green band, its amount at 2rem), the
   action buttons three a row (a shorter last row stretched: loyalty and admin shown or not, never a hole), Paiement last
   over the whole width under the total; their heights follow the screen's (`clamp` on `vh`: 48 to 58 px, Paiement 56 to
@@ -206,4 +217,15 @@
   (`localStorage` `zsretail.pos.catalogueOpen`, written by the icon), else General Setup `POS_CATALOGUE_VISIBLE`
   (`appConfig.posCatalogueVisible`, default no); table management always shows it and hides the icon
   (`catalogueToggleShown`). See `modules/general-setup.md`.
+- **3.1.1, one-row ticket lines** (`ItemSelection.vue`, 2026-10-31, catalogue hidden only, 768 px and wider; the open
+  view keeps its two-row lines). The ticket is wide there: each line is one row of about 45 px (70 to 90 before): its
+  number in the scan order (`cart.length - index`, `.cart-item-number`), the name and its badges, the unit price with
+  VAT (`.cart-item-unit`, the public price struck on a clearance; no column under 1200 px), the quantity (32 px buttons),
+  the line total (one 120 px column, so the columns stay aligned; a discount: the full amount small above), % and
+  remove. The header and the controls lend their parts to the line's grid (`display: contents`): no handler moved, a
+  tap on the name still opens the prices. A second row only when there is something to say: the line's offer
+  (`.cart-item-offer`, `showPromotionRow`), the prices opened, the free pieces still to scan. The newest line (on top)
+  carries a violet bar (`.cart-item--latest`) instead of opening its prices: in this view a scan opens no line (the
+  `cart.length` watcher and the mount); alternate rows shaded. Measured: 1366 x 730, 14 lines (7 with two-row lines);
+  1024 x 768, 14 (6 before 3.1.1).
 - **2.2.2, step 4**: the till's quantity box is a text box in both modes; with "Allow decimal quantities" off a decimal ("0,2", "0.5") is refused with a message and the box shows the line's quantity again (a number box read "0,2" as 2). General Setup: on a store linked to a head office, `DEFAULT_LOCATION` is labelled "Store code" with a help text (`SetupField` prop `help`). `public/index.html`: `translate="no"` and `<meta name="google" content="notranslate">`.

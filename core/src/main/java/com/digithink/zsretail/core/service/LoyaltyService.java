@@ -99,7 +99,7 @@ public class LoyaltyService {
 					p.getEndDate() != null ? p.getEndDate().toString() : null,
 					p.getPointsPerDinar(), p.getPointValueMillimes(),
 					p.getMinimumRedemptionPoints(), p.getMaximumRedemptionPercentage(),
-					p.getPointsExpiryDays());
+					p.getPointsExpiryDays(), sortedTierCopies(p)); // 3.1.1: the till's preview of the points earned
 		}
 
 		return new LoyaltyConfigDTO(enabled, programDTO);
