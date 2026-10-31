@@ -140,6 +140,14 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   same transaction.
 
 ### Enhancements
+- ERP jobs, every customer: one job `IMPORT_CATALOGUE` ("catalogue import") replaces `IMPORT_ITEM_FAMILIES`,
+  `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS` and `IMPORT_ITEM_BARCODES`. It runs, in this order, catégories, families,
+  sub-families, sections, items, barcodes (`ImportCatalogueJob`), each part with today's read, import and checkpoint, and
+  stops at the first failing part (the next run goes on). Barcodes now always come after their items: in one scheduler
+  tick the barcodes job used to run before the items job, a new item's barcodes were skipped and their checkpoint moved
+  past them. New `ErpConnector.fetchItemCategories` / `fetchItemSections` (default: none; emtop unchanged). The rows of
+  the four jobs are converted at startup (`ErpSyncJobTypesUpgrade`, before any read of the table): the cron of
+  `IMPORT_ITEMS`, enabled when any of the four was. EMTOP: one 12 h schedule instead of four (`docs/modules/erp-sync.md`).
 - Store orders, the lists: a `search` parameter on `GET /store-order` and `GET admin/headoffice/store-orders`, in the
   order number, the ERP (head office) order number and the lines' item code, ERP item number and name (any case, the
   wildcards searched as characters; `ItemBarcodeService.containsPattern`).
@@ -198,6 +206,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `ux_hol_order_draft`: one DRAFT) and `hol_order_line` (unique `order_id`, `item_id`; FK to `hol_order`) on a store
   only; `item_image` (index `ix_item_image_item`) on both. Re-runnable, no data changed. The filtered index is also made
   at each start when missing (`StoreOrderDraftIndex`: a new database runs no script).
+- `update.sql`: the ERP jobs' rows `IMPORT_ITEM_FAMILIES`, `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS`,
+  `IMPORT_ITEM_BARCODES` converted into one `IMPORT_CATALOGUE` (the cron of `IMPORT_ITEMS`, enabled when any of the four
+  was, then the four deleted; one transaction, re-runnable; the same batch the application runs at startup).
 - `update.sql`: `APP_VERSION` 3.1.1 (it stops while `store-orders.sql` has not run); notes written when the version is
   closed. The till's index `ix_sales_header_session_status` on `sales_header (cashier_session_id, status)` (re-runnable,
   store and head office): the session's ticket count and its pending tickets read through it instead of a scan of every

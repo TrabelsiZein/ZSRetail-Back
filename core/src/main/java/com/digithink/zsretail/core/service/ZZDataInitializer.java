@@ -17,6 +17,7 @@ import com.digithink.zsretail.core.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.core.erp.model.ErpSyncJob;
 import com.digithink.zsretail.core.erp.repository.ErpSyncJobRepository;
 import com.digithink.zsretail.core.erp.service.ErpSyncCheckpointService;
+import com.digithink.zsretail.core.erp.service.ErpSyncJobTypesUpgrade;
 import com.digithink.zsretail.core.model.AppReleaseNote;
 import com.digithink.zsretail.core.model.AppRole;
 import com.digithink.zsretail.core.model.AppVersion;
@@ -57,6 +58,8 @@ public class ZZDataInitializer {
 	@Autowired
 	private TillSchemaUpgrade tillSchemaUpgrade;
 	@Autowired
+	private ErpSyncJobTypesUpgrade erpSyncJobTypesUpgrade;
+	@Autowired
 	private TillRightsMigration tillRightsMigration;
 	@Autowired
 	private AppRoleRepository appRoleRepository;
@@ -94,6 +97,8 @@ public class ZZDataInitializer {
 
 	@PostConstruct
 	public void init() {
+		// 3.1.1: the four catalogue jobs of before into IMPORT_CATALOGUE, in JDBC, before any JPA read of erp_sync_job
+		erpSyncJobTypesUpgrade.run();
 		// Till rights (3.1.0): the column changes Hibernate cannot make, before anything is written
 		tillSchemaUpgrade.run();
 
@@ -1259,10 +1264,8 @@ public class ZZDataInitializer {
 	}
 
 	private void initErpSyncJobs() {
-		createErpJob("0 0 2 * * *", ErpSyncJobType.IMPORT_ITEM_FAMILIES, "Daily import of item families", false);
-		createErpJob("0 10 2 * * *", ErpSyncJobType.IMPORT_ITEM_SUBFAMILIES, "Daily import of item subfamilies", false);
-		createErpJob("0 0 * * * *", ErpSyncJobType.IMPORT_ITEMS, "Hourly import of items", false);
-		createErpJob("0 10 * * * *", ErpSyncJobType.IMPORT_ITEM_BARCODES, "Hourly import of item barcodes", false);
+		// 3.1.1: one job for the catalogue (was four: families, sub-families, items, barcodes), the cron of the items
+		createErpJob("0 0 * * * *", ErpSyncJobType.IMPORT_CATALOGUE, ErpSyncJobTypesUpgrade.DESCRIPTION, false);
 		createErpJob("0 20 2 * * *", ErpSyncJobType.IMPORT_LOCATIONS, "Daily import of locations", false);
 		createErpJob("0 30 * * * *", ErpSyncJobType.IMPORT_CUSTOMERS, "Hourly import of customers", false);
 		createErpJob("0 40 * * * *", ErpSyncJobType.IMPORT_SALES_PRICES_AND_DISCOUNTS,

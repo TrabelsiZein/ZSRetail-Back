@@ -22,6 +22,7 @@ import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.erp.model.ErpSyncJob;
 import com.digithink.zsretail.core.erp.repository.ErpSyncJobRepository;
 import com.digithink.zsretail.core.erp.service.ErpSyncCheckpointService;
+import com.digithink.zsretail.core.erp.service.ErpSyncJobTypesUpgrade;
 import com.digithink.zsretail.core.model.GeneralSetup;
 import com.digithink.zsretail.core.repository.AppReleaseNoteRepository;
 import com.digithink.zsretail.core.repository.AppRoleRepository;
@@ -162,6 +163,12 @@ class ZZDataInitializerModeTest {
 			public void run() {
 			}
 		});
+		// 3.1.1: the conversion of the four catalogue jobs has its own test (ErpSyncJobTypesUpgradeTest)
+		set(initializer, "erpSyncJobTypesUpgrade", new ErpSyncJobTypesUpgrade(null) {
+			@Override
+			public void run() {
+			}
+		});
 		Method init = ZZDataInitializer.class.getDeclaredMethod("init");
 		init.invoke(initializer);
 		return writes;
@@ -197,6 +204,12 @@ class ZZDataInitializerModeTest {
 			Writes writes = init(mode);
 			assertEquals(0, writes.customers, "no passenger customer");
 			assertTrue(writes.erpJobs > 0, "the ERP jobs");
+			// 3.1.1: one catalogue job, none of the four it replaced
+			assertTrue(writes.jobs.contains("IMPORT_CATALOGUE"), "the catalogue import: " + writes.jobs);
+			for (String old : new String[] { "IMPORT_ITEM_FAMILIES", "IMPORT_ITEM_SUBFAMILIES", "IMPORT_ITEMS",
+					"IMPORT_ITEM_BARCODES" }) {
+				assertFalse(writes.jobs.contains(old), old + ": " + writes.jobs);
+			}
 			assertTrue(writes.settings.contains("ERP_SYNC_TRACKING_LEVEL"), "an ERP-only setting: " + writes.settings);
 			assertTrue(writes.settings.containsAll(ErpSyncCheckpointService.getCheckpointDescriptions().keySet()),
 					"the ERP checkpoints: " + writes.settings);

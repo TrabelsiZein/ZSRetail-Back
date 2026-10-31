@@ -7,8 +7,10 @@ import java.util.Map;
 import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.api.dto.ErpDeletionLogEntryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemCategoryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemSectionDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
 import com.digithink.zsretail.erp.api.dto.ErpLocationDTO;
 import com.digithink.zsretail.erp.api.dto.ErpOperationResult;
@@ -33,9 +35,25 @@ import com.digithink.zsretail.erp.api.dto.PullOperationResult;
  */
 public interface ErpConnector {
 
+	/**
+	 * 3.1.1 (the catalogue job IMPORT_CATALOGUE): the catégories, the top level of the tree above the families, for a
+	 * connector whose ERP has one. None by default: the job then imports no catégorie and logs no read.
+	 */
+	default List<ErpItemCategoryDTO> fetchItemCategories(ErpSyncFilter filter) {
+		return Collections.emptyList();
+	}
+
 	List<ErpItemFamilyDTO> fetchItemFamilies(ErpSyncFilter filter);
 
 	List<ErpItemSubFamilyDTO> fetchItemSubFamilies(ErpSyncFilter filter);
+
+	/**
+	 * 3.1.1 (the catalogue job IMPORT_CATALOGUE): the sections, the level below the sub-families, for a connector whose ERP
+	 * has one. None by default, as {@link #fetchItemCategories}.
+	 */
+	default List<ErpItemSectionDTO> fetchItemSections(ErpSyncFilter filter) {
+		return Collections.emptyList();
+	}
 
 	List<ErpItemDTO> fetchItems(ErpSyncFilter filter);
 
