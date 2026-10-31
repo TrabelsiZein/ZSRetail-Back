@@ -73,11 +73,11 @@ application runs with its profile store only. ...`. `application.standalone` sta
 an old file that named the application's own type kept working; only the other type was refused.
 
 **ERP connector** (code cleanup step 1; since code cleanup step 8 the only way): one line chooses it,
-`erp.connector=none | emtop | happyness | zen` (trimmed, any case), in the installation's outside file. Absent or `none`: no
+`erp.connector=none | emtop | happyness | parafendri | zen` (trimmed, any case), in the installation's outside file. Absent or `none`: no
 connector. The conditions, the connectors and the startup summary read it (`ErpConnectorEnvironmentPostProcessor.inEffect`).
 `core/config/ErpConnectorEnvironmentPostProcessor` checks it once the configuration files are read: an unknown value
 (an empty `erp.connector=` included) stops the startup, `Invalid value '<v>' for property erp.connector: none | emtop |
-happyness | zen.`
+happyness | parafendri | zen.`
 
 **The old enabled lines are refused** (code cleanup step 8, decision of 2026-10-11): `erp.dynamicsnav.enabled` and
 `erp.navpospages.enabled`, found in any property source (the outside file, a configuration file, a `-D`, an environment
@@ -171,6 +171,7 @@ from the type file, a file states the mode lines that preset gave, so every key 
 | `happyness-from-scratch/headoffice.properties`, `store-1.properties`, `store-2.properties` | `headoffice`, `store` + the network lines | the Happyness franchise first set up on this PC (889, 557, 558), without the ERP catalogue |
 | `customers/happyness-headoffice.properties` | `headoffice` + the catalogue only from the ERP, `erp.connector=happyness`, invoices from the ERP, no stock | the Happyness head office (was `local/happyness_ho.properties`, its own PC file, until 2026-10-11; `configs/local` is no longer in the repository) |
 | `customers/zen-headoffice.properties`, `customers/zen-store.properties` (3.1.0, item variants step 10) | `headoffice` as the Happyness head office with `erp.connector=zen` (supply `HEAD_OFFICE` until the live test of step 9b; the real installation `ERP`), `store` + the network lines with `erp.connector=none` | the ZEN head office and a store of its network, placeholders (`CHANGE_ME`) |
+| `customers/parafendri-store.properties` (3.1.1, ParaFendri step 0) | `store` + the NAV lines with `erp.connector=parafendri`, `erp.sync.enabled=false` | a store of a ParaFendri point de vente, placeholders (`CHANGE_ME`) |
 
 "The NAV lines": catalogue, customers, supply `ERP`, sales to `ERP`, `erp.connector=emtop`. "The network lines": catalogue and supply
 `HEAD_OFFICE`, sales to `HEAD_OFFICE`.
@@ -329,6 +330,25 @@ the ERP; a blank address, username or password; neither a company nor a company 
 connector zen (read only, GET): <address>, API <path>, company <name> (or `company id <id>`), pages <three>` (with the ERP
 supply also `, invoices api/sat/franchise/v1.0 salesInvoices (lines ..., prefix FVE, 50 per year and run, seller ZEN)`);
 the installation summary shows `NAV <address>`.
+
+**The connector of ParaFendri's stores: `erp.parafendri.*`** (3.1.1, step 0; project connectors/parafendri; GET only).
+ParaFendri's Business Central 28 on-prem, its custom API `api/sat/zsretail/v1.0` (the family of ZEN's), NTLM; on the store
+of each of its points de vente as an EMTOP store (the NAV lines with `erp.connector=parafendri`), a head office later by
+configuration only. Step 0 is the settings and the connection test only: no job, no ability; `configs/customers/
+parafendri-store.properties` keeps `erp.sync.enabled=false`. The API path and the page names are the connector's own,
+not keys.
+
+| Key | Meaning | Default |
+|---|---|---|
+| `erp.parafendri.base-url` | The Business Central instance, e.g. `http://host:7048/BC280` (the API path and the company follow it); `http(s)`, a host, no query | required |
+| `erp.parafendri.company-id` | The company's id in the API (`companies(<id>)`), a GUID; `GET <base-url>/api/sat/zsretail/v1.0/companies` lists them | required |
+| `erp.parafendri.domain`, `.username`, `.password` | NTLM account (domain may be blank), given to the host of `base-url` only | username and password required |
+| `erp.parafendri.connect-timeout-seconds`, `.read-timeout-seconds` | At least 1 (EMTOP's values: a store connector) | `30`, `600` |
+
+Startup refusals with `erp.connector=parafendri` (the message names the key): a blank address, company id, username or
+password; an address that is not well formed; a company id that is not a GUID; a wrong timeout. No call to Business
+Central at startup. One INFO line: `ERP connector parafendri (read only, GET): <address>, API api/sat/zsretail/v1.0,
+company id <id>`; the installation summary shows `BC <address>`.
 
 **Step 9 questions** (tasks 9.1b to 9.1g): `isCatalogueFromErp()`, `isCustomersFromErp()`, `isSupplyFromErp()`, `hasErp()` (some
 owner is the ERP). With the ERP owning all or nothing they answer alike for every configuration that starts, except the

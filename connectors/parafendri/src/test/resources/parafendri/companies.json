@@ -1,0 +1,25 @@
+{
+  "@odata.context": "http://bc.test:7048/BC280/api/sat/zsretail/v1.0/$metadata#companies",
+  "value": [
+    {
+      "@odata.etag": "W/\"JzE5OzEyMzQ1Njc4OTAxMjM0NTY3ODkxOzAwOyc=\"",
+      "id": "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+      "systemVersion": "28.0.0.0",
+      "timestamp": 12345,
+      "name": "CRONUS",
+      "displayName": "CRONUS (demo)",
+      "businessProfileId": "",
+      "systemCreatedAt": "2026-01-05T08:00:00Z"
+    },
+    {
+      "@odata.etag": "W/\"JzE5Ozk4NzY1NDMyMTA5ODc2NTQzMjEwOzAwOyc=\"",
+      "id": "6b29fc40-ca47-1067-b31d-00dd010662da",
+      "systemVersion": "28.0.0.0",
+      "timestamp": 67890,
+      "name": "PARAFENDRI",
+      "displayName": "ParaFendri",
+      "businessProfileId": "",
+      "systemCreatedAt": "2026-01-05T08:00:00Z"
+    }
+  ]
+}

@@ -7,6 +7,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 ## 3.1.1 — in progress (branch `release/3.1.1`)
 
 ### Features
+- ERP connector `parafendri`, step 0 (ParaFendri's Business Central 28 on-prem, its custom API
+  `api/sat/zsretail/v1.0`, a store on the ERP as EMTOP's): project `connectors/parafendri`, accepted as
+  `erp.connector=parafendri`, no ability; the settings, the startup check, an NTLM GET-only client whose login goes to
+  the host of `base-url` only, and the connection test `ParafendriRestClient.checkCompany()` (the companies of the API,
+  `company-id` among them). Every `ErpConnector` method a stub: no job yet (`docs/modules/erp-sync.md`).
 - Till's right rail (catalogue hidden): `GET /cashier-session/current/ticket-count` `{"ticketCount": n}`, the tickets of
   the current user's open session (completed, refunded since included; 0 without a session), a count and never an
   amount (the closing count stays blind; `CashierSessionService.countSessionTickets`, `SessionTicketCountTest`).
@@ -218,6 +223,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   data changed.
 
 ### Config
+- `erp.connector=parafendri` and its keys `erp.parafendri.base-url`, `company-id` (a GUID), `domain`, `username`,
+  `password` (required but domain), `connect-timeout-seconds` (30), `read-timeout-seconds` (600). New file
+  `configs/customers/parafendri-store.properties` (placeholders, `erp.sync.enabled=false`).
 - `headoffice.storeorders.post` (head office, optional): `MANUAL` or `ERP` (needs a connector with
   `ErpAbility.STORE_ORDERS`: zen); absent, the head office takes no store order. Set to `ERP` in
   `configs/customers/zen-headoffice.properties`.

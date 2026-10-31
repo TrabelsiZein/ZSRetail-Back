@@ -1,0 +1,2 @@
+# ParaFendri, step 0: this connector declares itself (its name, no ability yet) to erp-api
+com.digithink.zsretail.erp.api.ErpConnectorDescriptor=com.digithink.zsretail.connector.parafendri.ParafendriConnectorDescriptor

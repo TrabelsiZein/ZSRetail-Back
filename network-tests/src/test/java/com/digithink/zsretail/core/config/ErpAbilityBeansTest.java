@@ -119,7 +119,7 @@ class ErpAbilityBeansTest {
 		Installations.machineFiles().forEach(file -> environments.put(file, Installations.machine(file)));
 		Installations.configFiles().forEach(file -> environments.put(file, Installations.config(file)));
 		Installations.variants().forEach(variant -> environments.put(variant, Installations.preset(variant)));
-		for (String connector : new String[] { "none", "emtop", "happyness", "zen" }) {
+		for (String connector : new String[] { "none", "emtop", "happyness", "parafendri", "zen" }) {
 			environments.put("store, erp.connector=" + connector, chosen(Installations.type("store"), connector));
 			environments.put("catalogue only, erp.connector=" + connector,
 					chosen(catalogueOnlyHeadOffice(), connector));
@@ -133,13 +133,16 @@ class ErpAbilityBeansTest {
 		List<Class<?>> connectors = Arrays.asList(com.digithink.zsretail.erp.api.NoOpErpConnector.class,
 				com.digithink.zsretail.connector.emtop.connector.DynamicsNavConnector.class,
 				com.digithink.zsretail.connector.happyness.connector.NavPosPagesConnector.class,
+				com.digithink.zsretail.connector.parafendri.connector.ParafendriConnector.class,
 				com.digithink.zsretail.connector.zen.connector.ZenConnector.class);
 		for (Map.Entry<String, MockEnvironment> entry : configurations().entrySet()) {
 			MockEnvironment env = entry.getValue();
 			String inEffect = ErpConnectorEnvironmentPostProcessor.inEffect(env);
 			// The old conditions, by the connector in effect: DynamicsNavConnector for emtop, NavPosPagesConnector for
-			// happyness, NoOp for none; item variants (ZEN), step 8: ZenConnector for zen
-			Class<?> expected = connectors.get(Arrays.asList("none", "emtop", "happyness", "zen").indexOf(inEffect));
+			// happyness, NoOp for none; item variants (ZEN), step 8: ZenConnector for zen; ParaFendri, step 0:
+			// ParafendriConnector for parafendri
+			Class<?> expected = connectors
+					.get(Arrays.asList("none", "emtop", "happyness", "parafendri", "zen").indexOf(inEffect));
 			List<Class<?>> present = new ArrayList<>();
 			for (Class<?> connector : connectors) {
 				if (registered(env, connector)) {

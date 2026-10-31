@@ -202,6 +202,7 @@ they declare today.
 | `none` | — | — | — |
 | `emtop` | — | — | — |
 | `happyness` | yes | yes | — |
+| `parafendri` (3.1.1, step 0, a store connector) | — | — | — |
 | `zen` (3.1.0, item variants step 8) | yes | yes (step 9) | yes (3.1.1) |
 
 - `HEAD_OFFICE_STOCK_POINTS` (was `CATALOGUE_BY_STOCK_POINTS`): the head office keeps several points de stock in its own
@@ -213,7 +214,7 @@ they declare today.
   may set `headoffice.storeorders.post=ERP`; the job `POST_STORE_ORDERS` posts them (`docs/modules/store-orders.md`).
   Every other connector keeps the two defaults: not supported.
 
-`ErpAbilities.connectorInEffect(env)` (none, emtop, happyness, zen) is the value of `erp.connector`;
+`ErpAbilities.connectorInEffect(env)` (none, emtop, happyness, parafendri, zen) is the value of `erp.connector`;
 `hasConnector(env)` is true for any connector but none. A new ability is added there when the code needs it, never a test on
 a connector name.
 
@@ -502,6 +503,41 @@ GET (`ZenConfig`, `ZenRestClient`, following `@odata.nextLink`), the mapper (`Ze
   a fake `barCodes` page), `ZenStartupCheckTest`, the pinned lists of
   `ErpConnectorTest`, `OutsideFileUpgradeTest`, `ThirdConnectorTest`, `ErpAbilitiesTest`, `ErpAbilityBeansTest`
   (network-tests). `ConnectorNamesGuardTest` takes a connector's name as a whole word (no letter or digit around it).
+
+## ParaFendri's connector (`erp.parafendri`, 3.1.1, step 0)
+
+ParaFendri: six points de vente of its own on Business Central 28 on-prem. Each runs a ZS Retail **store on the ERP as
+EMTOP's** (`ownership.*=ERP`, `sales.upstream=ERP`, `erp.connector=parafendri`, `configs/customers/parafendri-store.properties`);
+a head office may be added later by configuration only. Their API is the family of ZEN's: custom API pages under
+`<base-url>/api/sat/zsretail/v1.0/companies(<company-id>)/` (`locations`, `itemCategories`, `stockPoints`, `barCodes`,
+`stockLevels`, `customers`, `salesOrders`, `salesOrderLines`, `shipAndInvoice`), OData V4, NTLM, prices before VAT and
+`vatPercent` on the `stockPoints` row. Keys: `docs/deployment-modes.md`, "The connector of ParaFendri's stores".
+
+Project `connectors/parafendri` (`com.digithink.zsretail.connector.parafendri`), a copy of the existing code with no
+dependency on another connector:
+- `ParafendriConnectorDescriptor`: name `parafendri`, **no ability** (none needed by a store connector so far), the
+  summary `BC <base-url>`.
+- `config/ParafendriProperties` (`base-url`, `company-id`, `domain`, `username`, `password`, the two timeouts, EMTOP's
+  30 s / 600 s); the API path `api/sat/zsretail/v1.0` and the page names are constants of the connector, not keys.
+- `config/ParafendriStartupCheck`: the required keys, `base-url` well formed, `company-id` a GUID; on a store or a
+  head office alike (unlike ZEN's, which refuses anything but a head office whose catalogue comes from the ERP). No call
+  to Business Central at startup.
+- `config/ParafendriConfig`: NTLM `RestTemplate`, GET only (`GetOnly`), the login given to the host (and port) of
+  `base-url` only, not `AuthScope.ANY` as the other connectors: a next link or any other host gets no login.
+- `client/ParafendriRestClient`: `readCompanies()` (`GET <base-url>/api/sat/zsretail/v1.0/companies`, next links
+  followed) and `checkCompany()`, **the connection test**: the row of `company-id` (case ignored), else a
+  `ParafendriReadException` naming it and the companies found. A failed read names the page and the HTTP status
+  (`ParafendriReadException.getStatus()`). Nothing calls it in the application yet.
+- `connector/ParafendriConnector`: the `ErpConnector` of EMTOP's shape (a store connector, not a catalogue source),
+  every method a stub: the fetches answer an empty list, the pushes and updates a failure ("at step 0"). Hence
+  `erp.sync.enabled=false` in the store's file until the jobs are written.
+- Tests (in the project): `ParafendriRestClientTest` (mock server, the sample `companies.json`: two companies, one the
+  configured id; next links, an unknown id, an HTTP 401, GET only, the login's host), `ParafendriStartupCheckTest`;
+  `ParafendriLiveConnectionTest`, skipped unless `-Dparafendri.live=true`, reads the companies of a real Business Central
+  with the outside file named by `-Dparafendri.file` (no default; never the customer's production without Zein's
+  word). In network-tests the pinned lists name it (`ErpConnectorTest`, `ThirdConnectorTest`, `OutsideFileUpgradeTest`,
+  `ErpAbilitiesTest`, `ErpAbilityBeansTest`) and both proof records have the store's file (`configuration-keys.txt`:
+  its section, and `erp.parafendri.*=(none)` in every other configuration; `installation-beans.txt`: its line).
 
 ## Head office catalogue from the ERP pages (`erp.happyness`)
 
