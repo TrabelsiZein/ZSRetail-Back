@@ -20,13 +20,14 @@ import com.digithink.zsretail.connector.parafendri.config.ParafendriConfig;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriProperties;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCollection;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCompanyRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriItemCategoryRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 
 /**
  * ParaFendri, step 0: the reads of the custom API, GET only, following @odata.nextLink to the end. Step 0 reads one
  * page, the companies of the API (api-path/companies), and checks that company-id is among them: the connection test.
- * Step 1: the locations of the company (the points de vente) and the check of one code. An HTTP error, a timeout or no
+ * Step 1: the locations of the company (the points de vente) and the check of one code. Step 2: the tree itemCategories. An HTTP error, a timeout or no
  * answer throws {@link ParafendriReadException} naming the page and the status. No retry. Called once after the start
  * by {@code ParafendriConnectionCheck}, on its own thread.
  */
@@ -44,6 +45,11 @@ public class ParafendriRestClient {
 	static final String LOCATION_FIELDS = "code,name,lastModifiedDateTime";
 	private static final ParameterizedTypeReference<ParafendriCollection<ParafendriLocationRow>> LOCATION_ROWS =
 			new ParameterizedTypeReference<ParafendriCollection<ParafendriLocationRow>>() {
+			};
+	/** Step 2: the tree of catégories, familles, sous-familles and sections, under companies(company-id). */
+	static final String ITEM_CATEGORIES = "itemCategories";
+	private static final ParameterizedTypeReference<ParafendriCollection<ParafendriItemCategoryRow>> ITEM_CATEGORY_ROWS =
+			new ParameterizedTypeReference<ParafendriCollection<ParafendriItemCategoryRow>>() {
 			};
 
 	private final RestTemplate restTemplate;
@@ -87,6 +93,19 @@ public class ParafendriRestClient {
 		URI uri = UriComponentsBuilder.fromHttpUrl(properties.companyAddress() + LOCATIONS)
 				.queryParam("$select", LOCATION_FIELDS).build().encode().toUri();
 		return readAll(LOCATIONS, uri, LOCATION_ROWS);
+	}
+
+	/**
+	 * Step 2: every row of the tree of the company, GET companies(company-id)/itemCategories, next links followed (no
+	 * $select: the fields not used are ignored).
+	 */
+	public List<ParafendriItemCategoryRow> readItemCategories() {
+		return readAll(ITEM_CATEGORIES, URI.create(itemCategoriesAddress()), ITEM_CATEGORY_ROWS);
+	}
+
+	/** Step 2: the address of the tree, for the communications log. */
+	public String itemCategoriesAddress() {
+		return properties.companyAddress() + ITEM_CATEGORIES;
 	}
 
 	/** Step 1: true when the code (trimmed, its case ignored) is one of the locations of the company. */

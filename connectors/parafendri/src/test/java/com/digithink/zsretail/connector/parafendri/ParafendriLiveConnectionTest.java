@@ -8,7 +8,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,7 +24,11 @@ import com.digithink.zsretail.connector.parafendri.config.ParafendriConfig;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriProperties;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriStartupCheck;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCompanyRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriItemCategoryRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
+import com.digithink.zsretail.connector.parafendri.mapper.ParafendriMapper;
+import com.digithink.zsretail.erp.api.ErpCategories;
+import com.digithink.zsretail.erp.api.ErpRead;
 
 /**
  * ParaFendri, step 0: the connection test against a real Business Central, GET only (the companies of the API), the
@@ -75,5 +82,23 @@ class ParafendriLiveConnectionTest {
 		boolean found = client.checkLocation(code);
 		System.out.println("location " + code + (found ? " found" : " NOT found"));
 		assertTrue(found, "location " + code + " among the locations of the company");
+
+		// Step 2: the tree itemCategories, its count per level, what each level keeps and leaves out
+		start = System.currentTimeMillis();
+		List<ParafendriItemCategoryRow> tree = client.readItemCategories();
+		System.out.println("itemCategories: " + tree.size() + " rows, in " + (System.currentTimeMillis() - start) + " ms");
+		Map<Object, Long> perIndentation = tree.stream().collect(Collectors.groupingBy(
+				row -> row.getIndentation() == null ? "none" : row.getIndentation(), TreeMap::new, Collectors.counting()));
+		System.out.println("rows per indentation: " + perIndentation);
+		ErpCategories levels = new ParafendriMapper().categories(tree);
+		print("catégories (0)", levels.getCategories());
+		print("familles (1)", levels.getFamilies());
+		print("sous-familles (2)", levels.getSubFamilies());
+		print("sections (3)", levels.getSections());
+	}
+
+	private static void print(String level, ErpRead<?> read) {
+		System.out.println(level + ": read " + read.getRead() + ", kept " + read.getKept() + ", left out "
+				+ read.getLeftOut() + ", noted " + read.getNotes());
 	}
 }

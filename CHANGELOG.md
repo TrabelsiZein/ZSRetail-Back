@@ -12,6 +12,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `erp.connector=parafendri`, no ability; the settings, the startup check, an NTLM GET-only client whose login goes to
   the host of `base-url` only, and the connection test `ParafendriRestClient.checkCompany()` (the companies of the API,
   `company-id` among them). Every `ErpConnector` method a stub: no job yet (`docs/modules/erp-sync.md`).
+- ERP connector `parafendri`, step 2: the tree `itemCategories` for the job `IMPORT_CATALOGUE` (`fetchItemCategories`,
+  `fetchItemFamilies`, `fetchItemSubFamilies`, `fetchItemSections` by `indentation` 0 to 3, `ParafendriMapper` as ZEN's):
+  an orphan famille kept without its catégorie (noted), an orphan sous-famille or section, a deeper row and a blank code
+  left out with their reason, shown in the communications log; no ability.
 - ERP connector `parafendri`, step 1: the company's locations (`readLocations()`, `checkLocation(code)`), and a
   connection check after the start (`ParafendriConnectionCheck`, its own thread): the company and the store's General
   Setup `DEFAULT_LOCATION` checked in Business Central, one INFO line, or one WARNING naming the problem; it never stops

@@ -574,13 +574,29 @@ dependency on another connector:
   `DEFAULT_LOCATION` are not there yet, and a call there would hold the deploy up to the timeouts (30 s, 600 s) with
   Business Central down. Neither emtop nor ZEN calls their ERP at startup. On a head office (later) `DEFAULT_LOCATION`
   is empty: the check warns until a head office has its own check.
-- `connector/ParafendriConnector`: the `ErpConnector` of EMTOP's shape (a store connector, not a catalogue source),
-  every method a stub: the fetches answer an empty list, the pushes and updates a failure ("at step 0"). Hence
-  `erp.sync.enabled=false` in the store's file until the jobs are written.
+- `connector/ParafendriConnector`: the `ErpConnector` of EMTOP's shape (a store connector, not a catalogue source).
+  Step 2, the tree for the job `IMPORT_CATALOGUE`: `fetchItemCategories`, `fetchItemFamilies`, `fetchItemSubFamilies`,
+  `fetchItemSections` each read the page `itemCategories` (`ParafendriRestClient.readItemCategories()`,
+  `companies(<id>)/itemCategories`, next links followed, no `$select`; 121 rows at ParaFendri: no cache, one GET per
+  fetch) and keep their level through `mapper/ParafendriMapper` (`ErpRead` per level, as ZEN's mapper of the same API):
+  `indentation` 0 catégorie, 1 famille (`categoryExternalId` = its parent when the parent is a catégorie of the read;
+  else kept without one and noted "famille whose parent is not a catégorie"), 2 sous-famille (`familyExternalId`; left
+  out "parent not a famille of the read"), 3 section (`subFamilyExternalId`; left out "parent not a sous-famille of the
+  read"); code and external id `code`, name and description `description`, display order `presentationOrder`, active. A
+  blank code is left out at its level, a row without a level 0 to 3 with the sections ("indentation 4 (deeper than a
+  section)", "no indentation"); a level's read counts its own rows only. Each read goes to the communications log as
+  EMTOP's (`PullOperationResult`: the address, then `{read, kept, leftOut, notes, rows}`; the address alone when the read
+  fails), with one WARN line when a row was left out. No ability on the descriptor: `IMPORT_CATALOGUE` asks none (an
+  ability like `HEAD_OFFICE_STOCK_POINTS` would bring the head office's engine). Live, 2026-10-31: 121 rows, 2
+  catégories, 16 familles, 103 sous-familles, no section, nothing left out. The other fetches answer an empty list, the
+  pushes and updates a failure: `erp.sync.enabled=false` in the store's file until the items and barcodes are written.
 - Tests (in the project): `ParafendriRestClientTest` (mock server, the sample `companies.json`: two companies, one the
   configured id; next links, an unknown id, an HTTP 401, GET only, the login's host; step 1, the sample
   `locations.json` with the six points de vente PV-GREMDA, PV-LAFRANE, PV-MALL-SF, PV-NABEUL, PV-SOUSSE, PV-TANIOUR:
-  the address, a code found or not, next links, an HTTP 404), `ParafendriStartupCheckTest`,
+  the address, a code found or not, next links, an HTTP 404), step 2: `ParafendriMapperTest` (the sample
+  `itemCategories.json`: COS, COS-COF, COS-COF-PAR, COS-PAR and a section, an orphan famille kept and noted, an orphan
+  sous-famille, a section under a famille, a level 4 row and a blank code left out) and `ParafendriConnectorTest` (the
+  four fetches, one GET each, what the log receives, a failed read), `ParafendriStartupCheckTest`,
   `ParafendriConnectionCheckTest` (step 1: all found, Business Central down, an HTTP 503, the company missing,
   `DEFAULT_LOCATION` empty, the location missing, the locations page or the location failing; no exception, its own
   daemon thread); `ParafendriLiveConnectionTest`, skipped unless `-Dparafendri.live=true`, reads the companies and (step

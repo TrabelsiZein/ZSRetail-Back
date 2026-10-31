@@ -1,18 +1,27 @@
 package com.digithink.zsretail.connector.parafendri.connector;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.connector.parafendri.ParafendriConnectorDescriptor;
+import com.digithink.zsretail.connector.parafendri.client.ParafendriRestClient;
+import com.digithink.zsretail.connector.parafendri.mapper.ParafendriMapper;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
+import com.digithink.zsretail.erp.api.ErpCategories;
 import com.digithink.zsretail.erp.api.ErpConnector;
+import com.digithink.zsretail.erp.api.ErpRead;
 import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.api.dto.ErpDeletionLogEntryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemCategoryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemSectionDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
 import com.digithink.zsretail.erp.api.dto.ErpLocationDTO;
 import com.digithink.zsretail.erp.api.dto.ErpOperationResult;
@@ -26,28 +35,92 @@ import com.digithink.zsretail.erp.api.dto.ErpSessionDTO;
 import com.digithink.zsretail.erp.api.dto.ErpSyncFilter;
 import com.digithink.zsretail.erp.api.dto.ErpTicketDTO;
 import com.digithink.zsretail.erp.api.dto.ErpTicketLineDTO;
+import com.digithink.zsretail.erp.api.dto.PullOperationResult;
+
+import lombok.extern.log4j.Log4j2;
 
 /**
  * ParaFendri, step 0: the ERP connector of a store on ParaFendri's Business Central, the shape of EMTOP's (a store
  * connector, not a head office's catalogue source). Exists only with erp.connector=parafendri: the only ErpConnector
- * bean then. Nothing is implemented yet: every fetch answers an empty list, every push or update a failure, so the
- * store's file keeps erp.sync.enabled=false until the jobs are written.
+ * bean then. Step 2: the four levels of the tree (catégories, familles, sous-familles, sections) for the job
+ * IMPORT_CATALOGUE, each fetch reading the page itemCategories (121 rows: no cache) and keeping its level
+ * ({@link ParafendriMapper}); the read goes to the communications log as EMTOP's (the address, then the rows read, kept
+ * and left out by reason, and the rows), with one WARN line when a row was left out. Every other fetch answers an empty
+ * list, every push or update a failure, so the store's file keeps erp.sync.enabled=false until the jobs are written.
  */
 @Component
 @ConditionalOnErpConnector(ParafendriConnectorDescriptor.NAME)
+@Log4j2
 public class ParafendriConnector implements ErpConnector {
 
-	static final String NOT_YET = "The parafendri ERP connector is at step 0 (settings and connection test): it sends"
-			+ " nothing to the ERP yet.";
+	static final String NOT_YET = "The parafendri ERP connector does not send this to the ERP yet: nothing was sent.";
+
+	/** The read of the last fetch of this thread, for the communications log (as EMTOP's connector). */
+	private static final ThreadLocal<PullOperationResult<?>> LAST_PULL = new ThreadLocal<>();
+
+	private final ParafendriRestClient client;
+	private final ParafendriMapper mapper = new ParafendriMapper();
+
+	public ParafendriConnector(ParafendriRestClient client) {
+		this.client = client;
+	}
+
+	@Override
+	public List<ErpItemCategoryDTO> fetchItemCategories(ErpSyncFilter filter) {
+		return level("catégories", ErpCategories::getCategories);
+	}
 
 	@Override
 	public List<ErpItemFamilyDTO> fetchItemFamilies(ErpSyncFilter filter) {
-		return Collections.emptyList();
+		return level("familles", ErpCategories::getFamilies);
 	}
 
 	@Override
 	public List<ErpItemSubFamilyDTO> fetchItemSubFamilies(ErpSyncFilter filter) {
-		return Collections.emptyList();
+		return level("sous-familles", ErpCategories::getSubFamilies);
+	}
+
+	@Override
+	public List<ErpItemSectionDTO> fetchItemSections(ErpSyncFilter filter) {
+		return level("sections", ErpCategories::getSections);
+	}
+
+	/**
+	 * One level of the tree: the page read whole (the filter has no use: no checkpoint), the level kept; the address is
+	 * handed to the log before the read, so a failed read names it too.
+	 */
+	private <T> List<T> level(String label, Function<ErpCategories, ErpRead<T>> level) {
+		String address = client.itemCategoriesAddress();
+		LAST_PULL.set(new PullOperationResult<>(null, address, null));
+		ErpRead<T> read = level.apply(mapper.categories(client.readItemCategories()));
+		LAST_PULL.set(new PullOperationResult<>(read.getRows(), address, summary(read)));
+		if (!read.getLeftOut().isEmpty()) {
+			log.warn("ERP connector parafendri: {} of itemCategories: {} read, {} kept, left out {}{}", label,
+					read.getRead(), read.getKept(), read.getLeftOut(),
+					read.getNotes().isEmpty() ? "" : ", noted " + read.getNotes());
+		}
+		return read.getRows();
+	}
+
+	/** What the communications log shows of one read: the counts, the reasons, the rows kept. */
+	static Map<String, Object> summary(ErpRead<?> read) {
+		Map<String, Object> summary = new LinkedHashMap<>();
+		summary.put("read", read.getRead());
+		summary.put("kept", read.getKept());
+		summary.put("leftOut", read.getLeftOut());
+		summary.put("notes", read.getNotes());
+		summary.put("rows", read.getRows());
+		return summary;
+	}
+
+	@Override
+	public PullOperationResult<?> getLastPullOperationResult() {
+		return LAST_PULL.get();
+	}
+
+	@Override
+	public void clearLastPullOperationResult() {
+		LAST_PULL.remove();
 	}
 
 	@Override
