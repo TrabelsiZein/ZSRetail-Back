@@ -4,15 +4,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.DisplayName;
@@ -21,7 +26,9 @@ import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.mock.env.MockEnvironment;
 
+import com.digithink.zsretail.connector.parafendri.client.ParafendriReadException;
 import com.digithink.zsretail.connector.parafendri.client.ParafendriRestClient;
+import com.digithink.zsretail.connector.parafendri.connector.ParafendriConnector;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriConfig;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriProperties;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriStartupCheck;
@@ -33,9 +40,14 @@ import com.digithink.zsretail.connector.parafendri.dto.ParafendriStockPointRow;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrderRow;
 import com.digithink.zsretail.connector.parafendri.mapper.ParafendriMapper;
 import com.digithink.zsretail.erp.api.ErpCategories;
 import com.digithink.zsretail.erp.api.ErpRead;
+import com.digithink.zsretail.erp.api.ErpStoreLocation;
+import com.digithink.zsretail.erp.api.dto.ErpOperationResult;
+import com.digithink.zsretail.erp.api.dto.ErpTicketDTO;
+import com.digithink.zsretail.erp.api.dto.ErpTicketLineDTO;
 
 /**
  * ParaFendri, step 0: the connection test against a real Business Central, GET only (the companies of the API), the
@@ -51,9 +63,8 @@ import com.digithink.zsretail.erp.api.ErpRead;
 @EnabledIfSystemProperty(named = "parafendri.live", matches = "true")
 class ParafendriLiveConnectionTest {
 
-	@Test
-	@DisplayName("Live connection test (GET only): company-id among the companies; step 1: the locations, the store's among them")
-	void liveConnection() throws IOException {
+	/** The client of the outside file -Dparafendri.file, its settings checked as at startup. */
+	static ParafendriRestClient client() throws IOException {
 		String file = System.getProperty("parafendri.file", "").trim();
 		assertTrue(!file.isEmpty(), "-Dparafendri.file=<the outside file of the test installation> is required");
 		Path path = Paths.get(file);
@@ -67,7 +78,72 @@ class ParafendriLiveConnectionTest {
 		System.out.println(ParafendriStartupCheck.summary(env));
 		ParafendriProperties properties = Binder.get(env).bind(ParafendriProperties.PREFIX, ParafendriProperties.class)
 				.get();
-		ParafendriRestClient client = new ParafendriRestClient(ParafendriConfig.restTemplate(properties), properties);
+		return new ParafendriRestClient(ParafendriConfig.restTemplate(properties), properties);
+	}
+
+	/**
+	 * Step 6, a live POST of one test ticket: runs ONLY with -Dparafendri.live.post=true as well (never in the normal
+	 * suite, never alone: to run together on the test Business Central). One line, the first active item of the point
+	 * de vente (-Dparafendri.location, PV-GREMDA by default) at its price, quantity 1, ticket number ZSTEST + the time;
+	 * pushTicket, then pushTicket again: the second must find the first order (never twice). Creates one sales order.
+	 */
+	@Test
+	@EnabledIfSystemProperty(named = "parafendri.live.post", matches = "true")
+	@DisplayName("Live POST of one test ticket (only with -Dparafendri.live.post=true), then the same ticket again: no double")
+	void liveTicketPost() throws IOException {
+		ParafendriRestClient client = client();
+		String code = System.getProperty("parafendri.location", "PV-GREMDA");
+		ParafendriCollection<ParafendriStockPointRow> page = client.readStockPointsFirstPage(code, null);
+		ParafendriStockPointRow item = page.getValue().stream()
+				.filter(row -> row.getUnitPrice() != null && row.getUnitPrice().signum() > 0
+						&& !Boolean.TRUE.equals(row.getItemBlocked()) && !Boolean.TRUE.equals(row.getItemSalesBlocked())
+						&& !Boolean.TRUE.equals(row.getStockPointBlocked()))
+				.findFirst().orElseThrow(() -> new AssertionError("no active item with a price at " + code));
+		BigDecimal ttc = item.getUnitPrice()
+				.multiply(BigDecimal.ONE.add(item.getVatPercent().movePointLeft(2)))
+				.setScale(3, RoundingMode.HALF_UP);
+		ErpTicketDTO ticket = new ErpTicketDTO();
+		ticket.setTicketNumber("ZSTEST" + LocalDateTime.now().format(
+				DateTimeFormatter.ofPattern("yyMMddHHmmss")));
+		ticket.setSaleDate(LocalDateTime.now());
+		ticket.setCashierSessionId("ZSTEST");
+		ticket.setTotalAmount(ttc);
+		ticket.setTotalAmountExcludingVat(item.getUnitPrice().setScale(3, RoundingMode.HALF_UP));
+		ErpTicketLineDTO line = new ErpTicketLineDTO();
+		line.setLineNumber(1);
+		line.setItemExternalId(item.getItemNo().trim());
+		line.setQuantity(BigDecimal.ONE);
+		line.setUnitPrice(item.getUnitPrice());
+		line.setTotalAmountIncludingVat(ttc);
+		ticket.getLines().add(line);
+		ParafendriConnector connector =
+				new ParafendriConnector(client,
+						new ErpStoreLocation() {
+							@Override
+							public String defaultLocationCode() {
+								return code;
+							}
+
+							@Override
+							public List<String> defaultResponsibilityCenters() {
+								return new ArrayList<>();
+							}
+						});
+		ErpOperationResult first = connector.pushTicket(ticket);
+		System.out.println("POST " + ticket.getTicketNumber() + ": success " + first.isSuccess() + ", number "
+				+ first.getExternalReference() + ", " + first.getMessage());
+		assertTrue(first.isSuccess(), first.getMessage());
+		ErpOperationResult again = connector.pushTicket(ticket);
+		System.out.println("again: success " + again.isSuccess() + ", number " + again.getExternalReference() + ", "
+				+ again.getMessage());
+		assertTrue(again.isSuccess(), again.getMessage());
+		assertTrue(first.getExternalReference().equals(again.getExternalReference()), "the same order, not a second");
+	}
+
+	@Test
+	@DisplayName("Live connection test (GET only): company-id among the companies; step 1: the locations, the store's among them")
+	void liveConnection() throws IOException {
+		ParafendriRestClient client = client();
 
 		long start = System.currentTimeMillis();
 		for (ParafendriCompanyRow row : client.readCompanies()) {
@@ -145,6 +221,29 @@ class ParafendriLiveConnectionTest {
 			System.out.println("first barcode: " + firstBarcode.getBarcode() + " of " + firstBarcode.getItemExternalId()
 					+ ", id " + firstBarcode.getExternalId() + ", modified " + firstBarcode.getLastModifiedAt());
 		}
+
+		// Step 6 (GET only): the lookup of a ticket by its number, as pushTicket makes it before a POST, and the point
+		// de vente's customerNo (one stockPoints row; and how many values its rows carry)
+		String lookup = "ZSLOOKUP-" + code;
+		start = System.currentTimeMillis();
+		try {
+			List<ParafendriSalesOrderRow> orders = client.readSalesOrdersOfTicket(lookup);
+			System.out.println("salesOrders ticketNo eq '" + lookup + "': " + orders.size() + " rows, in "
+					+ (System.currentTimeMillis() - start) + " ms (" + client.salesOrdersAddress() + "): the no-double"
+					+ " guard works");
+		} catch (ParafendriReadException e) {
+			// Business Central refusing the filter (ticketNo not a stored, filterable field): the export posts anyway
+			assertTrue(ParafendriConnector.notFilterable(e), e.getMessage());
+			System.out.println("salesOrders ticketNo eq '" + lookup + "': HTTP " + e.getStatus() + " not filterable, in "
+					+ (System.currentTimeMillis() - start) + " ms: pushTicket posts anyway and the run warns once: "
+					+ ParafendriConnector.NO_DOUBLE_GUARD);
+		}
+		start = System.currentTimeMillis();
+		String customerNo = client.readCustomerNo(code);
+		Set<String> customers = rows.stream().map(row -> row.getCustomerNo() == null ? "(none)" : row.getCustomerNo().trim())
+				.collect(Collectors.toCollection(TreeSet::new));
+		System.out.println("customerNo of " + code + ": " + customerNo + ", in " + (System.currentTimeMillis() - start)
+				+ " ms; values on its " + rows.size() + " stockPoints rows: " + customers);
 	}
 
 	private static void print(String level, ErpRead<?> read) {

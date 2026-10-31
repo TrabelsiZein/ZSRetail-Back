@@ -1,0 +1,19 @@
+{
+  "ticketNo": "PV-GREMDA251031001",
+  "customerNo": "C-GREMDA",
+  "locationCode": "PV-GREMDA",
+  "orderDate": "2026-10-31",
+  "postingDate": "2026-10-31",
+  "ticketAmount": 58.983,
+  "amountIncludingVAT": 70.0,
+  "discountPercent": 4.10959,
+  "invoiceDiscountAmount": 0,
+  "invoiceDiscountPercent": 0,
+  "fenceNo": "SES-0042",
+  "salesOrderLines": [
+    { "lineNo": 10000, "itemNo": "COS-COF-PAR-0001", "quantity": 2, "unitPrice": 18.90756, "lineDiscountPercent": 0, "promotionNo": "", "amountIncludingVAT": 45.0 },
+    { "lineNo": 20000, "itemNo": "COS-PAR-HOM-0007", "quantity": 1, "unitPrice": 25.21008, "lineDiscountPercent": 10, "promotionNo": "PROMO10", "amountIncludingVAT": 27.0 },
+    { "lineNo": 30000, "itemNo": "COS-COF-PAR-0001", "quantity": 1, "unitPrice": 18.90756, "lineDiscountPercent": 100, "promotionNo": "1ACHETE1OFFERT", "amountIncludingVAT": 0.0 },
+    { "lineNo": 40000, "itemNo": "TIMBRE", "quantity": 1, "unitPrice": 1.0, "lineDiscountPercent": 0, "promotionNo": "", "amountIncludingVAT": 1.0 }
+  ]
+}

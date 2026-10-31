@@ -180,12 +180,35 @@ class ParafendriRestClientTest {
 	}
 
 	@Test
-	@DisplayName("GET only: any other method is refused before it leaves")
+	@DisplayName("GET only, but a POST to salesOrders (step 6): any other method or address refused before it leaves")
 	void getOnly() {
+		RestTemplate guarded = ParafendriConfig.restTemplate(properties);
 		IllegalStateException refused = assertThrows(IllegalStateException.class,
-				() -> ParafendriConfig.restTemplate(properties).postForObject(COMPANIES, "{}", String.class));
-		assertEquals("The parafendri connector only reads from the ERP (GET): POST " + COMPANIES
-				+ " refused, nothing was sent.", refused.getMessage());
+				() -> guarded.postForObject(COMPANIES, "{}", String.class));
+		assertEquals("The parafendri connector only reads from the ERP (GET), apart from posting the tickets to"
+				+ " salesOrders: POST " + COMPANIES + " refused, nothing was sent.", refused.getMessage());
+		String salesOrders = COMPANIES + "(" + COMPANY_ID + ")/salesOrders";
+		assertThrows(IllegalStateException.class, () -> guarded.put(salesOrders, "{}"), "a PUT, even to salesOrders");
+		assertThrows(IllegalStateException.class,
+				() -> guarded.postForObject(salesOrders + "?$expand=salesOrderLines", "{}", String.class), "a query");
+		assertThrows(IllegalStateException.class,
+				() -> guarded.postForObject(COMPANIES + "(" + COMPANY_ID + ")/salesOrdersX", "{}", String.class));
+		// The one write: a POST to .../salesOrders passes (answered by the mock server)
+		MockRestServiceServer posts = MockRestServiceServer.bindTo(guarded).build();
+		posts.expect(requestTo(salesOrders)).andExpect(method(HttpMethod.POST))
+				.andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+		guarded.postForObject(salesOrders, "{}", String.class);
+		posts.verify();
+	}
+
+	@Test
+	@DisplayName("Step 6: Business Central's error text, its code and message; a body that is not JSON as it is")
+	void errorText() {
+		assertEquals("BadRequest: Invalid field", ParafendriRestClient.errorText(
+				"{\"error\":{\"code\":\"BadRequest\",\"message\":\"Invalid field\"}}"));
+		assertEquals("Invalid field", ParafendriRestClient.errorText("{\"error\":{\"message\":\"Invalid field\"}}"));
+		assertEquals("Service Unavailable", ParafendriRestClient.errorText(" Service Unavailable "));
+		assertEquals("", ParafendriRestClient.errorText(null));
 	}
 
 	@Test

@@ -1,14 +1,21 @@
 package com.digithink.zsretail.store.erp.service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.digithink.zsretail.core.erp.enumeration.ErpCommunicationStatus;
 import com.digithink.zsretail.core.erp.enumeration.ErpSyncJobType;
+import com.digithink.zsretail.core.erp.enumeration.ErpSyncOperation;
+import com.digithink.zsretail.core.erp.service.ErpCommunicationService;
 import com.digithink.zsretail.core.erp.service.ErpExportJob;
 import com.digithink.zsretail.core.erp.service.ErpSynchronizationManager;
 import com.digithink.zsretail.core.model.SalesHeader;
@@ -18,6 +25,8 @@ import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
 import com.digithink.zsretail.core.repository.SalesHeaderRepository;
 import com.digithink.zsretail.core.repository.SalesLineRepository;
 import com.digithink.zsretail.core.service.GeneralSetupService;
+import com.digithink.zsretail.erp.api.ErpAbilities;
+import com.digithink.zsretail.erp.api.ErpAbility;
 import com.digithink.zsretail.erp.api.dto.ErpOperationResult;
 import com.digithink.zsretail.erp.api.dto.ErpTicketDTO;
 import com.digithink.zsretail.erp.api.dto.ErpTicketLineDTO;
@@ -34,6 +43,10 @@ public class TicketExportService implements ErpExportJob {
 	private final SalesHeaderRepository salesHeaderRepository;
 	private final SalesLineRepository salesLineRepository;
 	private final GeneralSetupService generalSetupService;
+	/** 3.1.1: the connector in effect's abilities are read from it (ErpAbilities). */
+	private final Environment environment;
+	/** 3.1.1: the warnings of a run (a connector posting tickets whole), once each. */
+	private final ErpCommunicationService communicationService;
 
 	@Override
 	public ErpSyncJobType jobType() {
@@ -68,17 +81,54 @@ public class TicketExportService implements ErpExportJob {
 		int successCount = 0;
 		int errorCount = 0;
 
-		for (SalesHeader ticket : ticketsToSync) {
-			try {
-				exportTicket(ticket);
-				successCount++;
-			} catch (Exception ex) {
-				LOGGER.error("Failed to export ticket {}: {}", ticket.getSalesNumber(), ex.getMessage(), ex);
-				errorCount++;
+		// 3.1.1: the connector's warnings of this run, each written once at its end
+		runWarnings.set(new LinkedHashSet<>());
+		try {
+			for (SalesHeader ticket : ticketsToSync) {
+				try {
+					exportTicket(ticket);
+					successCount++;
+				} catch (Exception ex) {
+					LOGGER.error("Failed to export ticket {}: {}", ticket.getSalesNumber(), ex.getMessage(), ex);
+					errorCount++;
+				}
 			}
+		} finally {
+			Set<String> warnings = runWarnings.get();
+			runWarnings.remove();
+			writeWarnings(warnings);
 		}
 
 		LOGGER.info("Ticket export completed. Success: {}, Errors: {}", successCount, errorCount);
+	}
+
+	/** 3.1.1: the connector's warnings of the current export run (exportTickets); none outside a run. */
+	private final ThreadLocal<Set<String>> runWarnings = new ThreadLocal<>();
+
+	/** 3.1.1: a result's warnings kept for the end of the run, or written now when the ticket is exported alone. */
+	private void keepWarnings(ErpOperationResult result) {
+		if (result.getWarnings().isEmpty()) {
+			return;
+		}
+		Set<String> run = runWarnings.get();
+		if (run != null) {
+			run.addAll(result.getWarnings());
+		} else {
+			writeWarnings(new LinkedHashSet<>(result.getWarnings()));
+		}
+	}
+
+	/** 3.1.1: each warning once, a WARN line and a WARNING row of the communications log (operation EXPORT_TICKET). */
+	private void writeWarnings(Set<String> warnings) {
+		if (warnings == null) {
+			return;
+		}
+		for (String warning : warnings) {
+			LOGGER.warn("Ticket export: {}", warning);
+			LocalDateTime now = LocalDateTime.now();
+			communicationService.logOperation(ErpSyncOperation.EXPORT_TICKET, null, null,
+					ErpCommunicationStatus.WARNING, null, warning, now, now);
+		}
 	}
 
 	/**
@@ -87,6 +137,12 @@ public class TicketExportService implements ErpExportJob {
 	@Transactional
 	public void exportTicket(SalesHeader ticket) {
 		LOGGER.info("Exporting ticket: {}", ticket.getSalesNumber());
+
+		// 3.1.1: a connector that posts a ticket whole (ErpAbility.WHOLE_TICKET_EXPORT) gets it in one call
+		if (ErpAbilities.has(environment, ErpAbility.WHOLE_TICKET_EXPORT)) {
+			exportWholeTicket(ticket);
+			return;
+		}
 
 		// If not synched at all, create header first
 		if (ticket.getSynchronizationStatus() == SynchronizationStatus.NOT_SYNCHED) {
@@ -134,6 +190,34 @@ public class TicketExportService implements ErpExportJob {
 				LOGGER.warn("Cannot update POS_Order for ticket {} - no ERP document number", ticket.getSalesNumber());
 			}
 		}
+	}
+
+	/**
+	 * 3.1.1 (ErpAbility.WHOLE_TICKET_EXPORT): the ticket with all its lines in one call (pushTicket), all or nothing. A
+	 * success gives the ERP's document number: the ticket and every line are synchronized at once. A failure leaves the
+	 * ticket as it was (nothing partial, no status update afterwards), retried at the next run; it is counted as an error
+	 * like a failed header. The connector makes sure a ticket is never posted twice (it looks it up first).
+	 */
+	private void exportWholeTicket(SalesHeader ticket) {
+		ErpOperationResult result = synchronizationManager.pushTicket(toErpTicketDTO(ticket));
+		keepWarnings(result);
+		if (!result.isSuccess() || result.getExternalReference() == null) {
+			String errorMsg = result.getMessage() != null ? result.getMessage()
+					: "Failed to get document number from ERP response";
+			LOGGER.error("Failed to export ticket {}: {}", ticket.getSalesNumber(), errorMsg);
+			throw new RuntimeException(errorMsg);
+		}
+		for (SalesLine line : salesLineRepository.findBySalesHeader(ticket)) {
+			if (!Boolean.TRUE.equals(line.getSynched())) {
+				line.setSynched(true);
+				salesLineRepository.save(line);
+			}
+		}
+		ticket.setErpNo(result.getExternalReference());
+		ticket.setSynchronizationStatus(SynchronizationStatus.TOTALLY_SYNCHED);
+		salesHeaderRepository.save(ticket);
+		LOGGER.info("Ticket {} exported whole to ERP with document number: {}", ticket.getSalesNumber(),
+				result.getExternalReference());
 	}
 
 	/**
@@ -256,10 +340,18 @@ public class TicketExportService implements ErpExportJob {
 		if (totalDeduction > 0 && gross > 0) {
 			dto.setDiscountPercentage(totalDeduction / gross * 100.0);
 		}
+		// 3.1.1 (a ticket posted whole): the same reduction as an amount including VAT
+		if (totalDeduction > 0) {
+			dto.setTicketDiscountAmount(BigDecimal.valueOf(totalDeduction));
+		}
 
 		// Set total amount
 		if (ticket.getTotalAmount() != null) {
 			dto.setTotalAmount(BigDecimal.valueOf(ticket.getTotalAmount()));
+		}
+		// 3.1.1 (a ticket posted whole): the total excluding VAT, after the ticket-wide reduction (I-48)
+		if (ticket.getSubtotal() != null) {
+			dto.setTotalAmountExcludingVat(BigDecimal.valueOf(ticket.getSubtotal()));
 		}
 
 		// Invoice fields for NAV (POS_Invoice, Fiscal_Registration)
@@ -273,9 +365,11 @@ public class TicketExportService implements ErpExportJob {
 			dto.setInvoiceCustomerName(ticket.getInvoiceCustomerName().trim());
 		}
 
-		// Convert lines
+		// Convert lines (3.1.1: each its position from 1, for a ticket posted whole)
 		for (SalesLine salesLine : salesLines) {
-			dto.getLines().add(toErpTicketLineDTO(salesLine));
+			ErpTicketLineDTO lineDTO = toErpTicketLineDTO(salesLine);
+			lineDTO.setLineNumber(dto.getLines().size() + 1);
+			dto.getLines().add(lineDTO);
 		}
 
 		return dto;
@@ -321,6 +415,13 @@ public class TicketExportService implements ErpExportJob {
 
 		if (line.getLineTotal() != null) {
 			dto.setTotalAmount(BigDecimal.valueOf(line.getLineTotal()));
+		}
+		// 3.1.1 (a ticket posted whole): the line's TTC and its promotion's code
+		if (line.getLineTotalIncludingVat() != null) {
+			dto.setTotalAmountIncludingVat(BigDecimal.valueOf(line.getLineTotalIncludingVat()));
+		}
+		if (line.getPromotion() != null) {
+			dto.setPromotionCode(line.getPromotion().getCode());
 		}
 
 		String locationCode = generalSetupService.findValueByCode("DEFAULT_LOCATION");

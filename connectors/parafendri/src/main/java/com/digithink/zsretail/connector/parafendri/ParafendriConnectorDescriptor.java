@@ -10,7 +10,7 @@ import com.digithink.zsretail.erp.api.ErpConnectorDescriptor;
  * ParaFendri, step 0: this connector as it declares itself to erp-api and the application
  * (META-INF/spring.factories of this project): ParaFendri's Business Central 28 on-prem and its custom API
  * api/sat/zsretail/v1.0, keys erp.parafendri.*, on the stores of its points de vente as EMTOP's. A new connector: no
- * old keys, no dead keys, no ability yet (step 0 is the settings and the connection test only).
+ * old keys, no dead keys. Step 6: WHOLE_TICKET_EXPORT, a ticket and its lines posted in one call (salesOrders).
  */
 public class ParafendriConnectorDescriptor implements ErpConnectorDescriptor {
 
@@ -24,7 +24,7 @@ public class ParafendriConnectorDescriptor implements ErpConnectorDescriptor {
 
 	@Override
 	public Set<ErpAbility> abilities() {
-		return EnumSet.noneOf(ErpAbility.class);
+		return EnumSet.of(ErpAbility.WHOLE_TICKET_EXPORT);
 	}
 
 	/** The startup summary: "BC" and the address of the Business Central instance. */

@@ -10,10 +10,14 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpStatusCodeException;
 
 import com.digithink.zsretail.connector.parafendri.ParafendriConnectorDescriptor;
+import com.digithink.zsretail.connector.parafendri.client.ParafendriReadException;
 import com.digithink.zsretail.connector.parafendri.client.ParafendriRestClient;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriBarcodeRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrder;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrderRow;
 import com.digithink.zsretail.connector.parafendri.mapper.ParafendriMapper;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 import com.digithink.zsretail.erp.api.ErpCategories;
@@ -52,9 +56,10 @@ import lombok.extern.log4j.Log4j2;
  * IMPORT_CATALOGUE, each fetch reading the page itemCategories (121 rows: no cache) and keeping its level
  * ({@link ParafendriMapper}); the read goes to the communications log as EMTOP's (the address, then the rows read, kept
  * and left out by reason, and the rows), with one WARN line when a row was left out. Step 3: the items, stockPoints of
- * the store's point de vente ({@link #fetchItems}). Step 4: the barcodes ({@link #fetchItemBarcodes}). Every other fetch
- * answers an empty list, every push or update a failure, so the store's file keeps erp.sync.enabled=false until the
- * jobs are written.
+ * the store's point de vente ({@link #fetchItems}). Step 4: the barcodes ({@link #fetchItemBarcodes}). Step 6: a
+ * ticket and its lines posted in one call as a sales order ({@link #pushTicket}), looked up first so never twice. Every
+ * other fetch answers an empty list, every other push or update a failure, so the store's file keeps
+ * erp.sync.enabled=false until the jobs are written.
  */
 @Component
 @ConditionalOnErpConnector(ParafendriConnectorDescriptor.NAME)
@@ -75,6 +80,8 @@ public class ParafendriConnector implements ErpConnector {
 	private final ParafendriRestClient client;
 	private final ErpStoreLocation storeLocation;
 	private final ParafendriMapper mapper = new ParafendriMapper();
+	/** Step 6: { location, customerNo } once read (customerNo(location)). */
+	private volatile String[] customerOfLocation;
 
 	public ParafendriConnector(ParafendriRestClient client, ErpStoreLocation storeLocation) {
 		this.client = client;
@@ -261,7 +268,100 @@ public class ParafendriConnector implements ErpConnector {
 
 	@Override
 	public ErpOperationResult pushTicket(ErpTicketDTO ticket) {
-		return ErpOperationResult.failure(NOT_YET);
+		String address = client.salesOrdersAddress();
+		String ticketNo = ticket == null || ticket.getTicketNumber() == null ? "" : ticket.getTicketNumber().trim();
+		String location = storeLocation.defaultLocationCode();
+		location = location == null ? "" : location.trim();
+		if (ticketNo.isEmpty() || location.isEmpty()) {
+			return ErpOperationResult.failure("parafendri: the ticket was not sent: "
+					+ (ticketNo.isEmpty() ? "it has no number" : "DEFAULT_LOCATION is not configured"), ticket, null,
+					address);
+		}
+		ParafendriSalesOrder order = null;
+		List<String> warnings = new ArrayList<>();
+		try {
+			// Never twice: a ticket already in Business Central (posted by an earlier run whose answer was lost) is
+			// answered with its order, nothing posted. Business Central refusing the filter (ticketNo not a stored,
+			// filterable field): posted anyway, the run warned once (TicketExportService)
+			ParafendriSalesOrderRow known = null;
+			try {
+				known = client.readSalesOrdersOfTicket(ticketNo).stream().filter(row -> notBlank(row.getNumber()))
+						.findFirst().orElse(null);
+			} catch (ParafendriReadException e) {
+				if (!notFilterable(e)) {
+					throw e;
+				}
+				warnings.add(NO_DOUBLE_GUARD);
+			}
+			if (known != null) {
+				ErpOperationResult result = ErpOperationResult.success(known.getNumber().trim(), ticket, known, address);
+				result.setMessage("parafendri: ticket " + ticketNo + " is already in Business Central as sales order "
+						+ known.getNumber().trim() + " (orderStatus " + known.getOrderStatus() + "): not posted again");
+				return result;
+			}
+			String customerNo = customerNo(location);
+			if (customerNo == null) {
+				return warned(ErpOperationResult.failure("parafendri: the ticket " + ticketNo + " was not sent: no"
+						+ " customerNo on the stockPoints rows of location " + location, ticket, null, address), warnings);
+			}
+			order = mapper.salesOrder(ticket, customerNo, location, warnings);
+			ParafendriSalesOrderRow created = client.postSalesOrder(order);
+			if (created == null || !notBlank(created.getNumber())) {
+				return warned(ErpOperationResult.failure("parafendri: Business Central answered the ticket " + ticketNo
+						+ " without a sales order number", order, created, address), warnings);
+			}
+			ErpOperationResult result = ErpOperationResult.success(created.getNumber().trim(), order, created, address);
+			result.setMessage("parafendri: ticket " + ticketNo + " posted as sales order " + created.getNumber().trim()
+					+ " (orderStatus " + created.getOrderStatus() + ")");
+			return warned(result, warnings);
+		} catch (ParafendriReadException e) {
+			return warned(ErpOperationResult.failure(e.getMessage(), order != null ? order : ticket, null, address),
+					warnings);
+		}
+	}
+
+	/** Step 6: said once per export run when Business Central does not let the lookup filter on ticketNo. */
+	public static final String NO_DOUBLE_GUARD = "no-double guard unavailable: ticketNo is not filterable in BC — ask the"
+			+ " BC contact to make ticketNo a stored, filterable field";
+
+	/**
+	 * Business Central's answer to a filter on a field it cannot filter: HTTP 400, "Field 'ticketNo' is not filterable"
+	 * in its status text (as seen live) or in its body (BadRequest_NotSupported).
+	 */
+	public static boolean notFilterable(ParafendriReadException e) {
+		if (!Integer.valueOf(400).equals(e.getStatus())) {
+			return false;
+		}
+		String body = e.getCause() instanceof HttpStatusCodeException
+				? ((HttpStatusCodeException) e.getCause()).getResponseBodyAsString()
+				: "";
+		return String.valueOf(e.getMessage()).contains("is not filterable")
+				|| String.valueOf(body).contains("is not filterable");
+	}
+
+	private static ErpOperationResult warned(ErpOperationResult result, List<String> warnings) {
+		warnings.forEach(result::addWarning);
+		return result;
+	}
+
+	/**
+	 * Step 6: the point de vente's customer in Business Central (customerNo of its stockPoints rows), read once per
+	 * location and kept; null when there is none (not kept: read again next time).
+	 */
+	private String customerNo(String location) {
+		String[] known = customerOfLocation;
+		if (known != null && known[0].equals(location)) {
+			return known[1];
+		}
+		String customerNo = client.readCustomerNo(location);
+		if (customerNo != null) {
+			customerOfLocation = new String[] { location, customerNo };
+		}
+		return customerNo;
+	}
+
+	private static boolean notBlank(String value) {
+		return value != null && !value.trim().isEmpty();
 	}
 
 	@Override

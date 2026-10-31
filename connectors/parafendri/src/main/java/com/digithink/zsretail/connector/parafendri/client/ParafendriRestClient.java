@@ -5,12 +5,16 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
@@ -26,8 +30,12 @@ import com.digithink.zsretail.connector.parafendri.dto.ParafendriCollection;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCompanyRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriItemCategoryRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrder;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrderRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriStockPointRow;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * ParaFendri, step 0: the reads of the custom API, GET only, following @odata.nextLink to the end. Step 0 reads one
@@ -50,6 +58,9 @@ public class ParafendriRestClient {
 	static final String LOCATION_FIELDS = "code,name,lastModifiedDateTime";
 	private static final ParameterizedTypeReference<ParafendriCollection<ParafendriLocationRow>> LOCATION_ROWS =
 			new ParameterizedTypeReference<ParafendriCollection<ParafendriLocationRow>>() {
+			};
+	private static final ParameterizedTypeReference<ParafendriCollection<ParafendriSalesOrderRow>> SALES_ORDER_ROWS =
+			new ParameterizedTypeReference<ParafendriCollection<ParafendriSalesOrderRow>>() {
 			};
 	/** Step 4: the barcodes of the company, under companies(company-id). */
 	static final String BARCODES = "barCodes";
@@ -201,6 +212,78 @@ public class ParafendriRestClient {
 			filter.append(filter.length() == 0 ? "" : " or ").append("itemNo eq '").append(quoted(itemNo)).append("'");
 		}
 		return filter.toString();
+	}
+
+	// ─── Step 6: the tickets, posted as sales orders ────────────
+
+	/** Step 6: base-url / api-path / companies(company-id) / salesOrders. */
+	public String salesOrdersAddress() {
+		return properties.companyAddress() + ParafendriConfig.SALES_ORDERS;
+	}
+
+	/** Step 6: the sales orders of one ticket, GET salesOrders?$filter=ticketNo eq 'X' (a quote doubled). */
+	public List<ParafendriSalesOrderRow> readSalesOrdersOfTicket(String ticketNo) {
+		URI uri = UriComponentsBuilder.fromHttpUrl(salesOrdersAddress())
+				.queryParam("$filter", "ticketNo eq '" + quoted(ticketNo) + "'").build().encode().toUri();
+		return readAll(ParafendriConfig.SALES_ORDERS, uri, SALES_ORDER_ROWS);
+	}
+
+	/**
+	 * Step 6: one ticket posted, its lines in the same POST (deep insert); Business Central's answer, the header with its
+	 * number and orderStatus. A refusal throws {@link ParafendriReadException} naming the status and Business Central's
+	 * own error text; no answer (a timeout) too: the ticket may have been created, which the next run's lookup finds.
+	 */
+	public ParafendriSalesOrderRow postSalesOrder(ParafendriSalesOrder order) {
+		String page = ParafendriConfig.SALES_ORDERS;
+		HttpHeaders headers = new HttpHeaders();
+		headers.setContentType(MediaType.APPLICATION_JSON);
+		headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+		try {
+			return restTemplate.exchange(URI.create(salesOrdersAddress()), HttpMethod.POST,
+					new HttpEntity<>(order, headers), ParafendriSalesOrderRow.class).getBody();
+		} catch (HttpStatusCodeException e) {
+			throw new ParafendriReadException(page, e.getRawStatusCode(), "parafendri: posting the ticket "
+					+ order.getTicketNo() + " to " + page + " failed: HTTP " + e.getRawStatusCode() + " "
+					+ e.getStatusText() + ": " + errorText(e.getResponseBodyAsString()), e);
+		} catch (ResourceAccessException e) {
+			throw new ParafendriReadException(page, null, "parafendri: posting the ticket " + order.getTicketNo()
+					+ " to " + page + " failed: no answer or timeout (" + e.getMessage() + "); the next run looks it up"
+					+ " before posting again", e);
+		} catch (RestClientException e) {
+			throw new ParafendriReadException(page, null, "parafendri: posting the ticket " + order.getTicketNo()
+					+ " to " + page + " failed: " + e.getMessage(), e);
+		}
+	}
+
+	/** Business Central's error {"error":{"code":"..","message":".."}} as "code: message"; else the body (cut). */
+	static String errorText(String body) {
+		String text = body == null ? "" : body.trim();
+		try {
+			JsonNode error = new ObjectMapper().readTree(text).path("error");
+			if (error.hasNonNull("message")) {
+				String code = error.path("code").asText("");
+				return (code.isEmpty() ? "" : code + ": ") + error.get("message").asText();
+			}
+		} catch (Exception e) {
+			// not JSON: the body as it is
+		}
+		return text.length() > 500 ? text.substring(0, 500) + "..." : text;
+	}
+
+	/**
+	 * Step 6: the point de vente's customer in Business Central, customerNo of one stockPoints row of the location
+	 * (GET stockPoints?$filter=locationCode eq 'X'&$top=1); null when the location has no row or no customerNo.
+	 */
+	public String readCustomerNo(String locationCode) {
+		URI uri = UriComponentsBuilder.fromHttpUrl(properties.companyAddress() + STOCK_POINTS)
+				.queryParam("$filter", stockPointsFilter(locationCode, null)).queryParam("$top", 1).build().encode()
+				.toUri();
+		ParafendriCollection<ParafendriStockPointRow> page = get(STOCK_POINTS, uri, STOCK_POINT_ROWS);
+		if (page == null || page.getValue() == null || page.getValue().isEmpty()) {
+			return null;
+		}
+		String customerNo = page.getValue().get(0).getCustomerNo();
+		return customerNo == null || customerNo.trim().isEmpty() ? null : customerNo.trim();
 	}
 
 	/** Step 4: item numbers per GET of their barcodes (a short address). */

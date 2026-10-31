@@ -15,6 +15,7 @@ import java.util.function.Function;
 
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriBarcodeRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriItemCategoryRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrder;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriStockPointRow;
 import com.digithink.zsretail.erp.api.ErpCategories;
 import com.digithink.zsretail.erp.api.ErpRead;
@@ -24,6 +25,8 @@ import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemSectionDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpTicketDTO;
+import com.digithink.zsretail.erp.api.dto.ErpTicketLineDTO;
 
 /**
  * ParaFendri, step 2: the rows of the API to the Erp*DTO classes. The tree itemCategories, as ZEN's (same API family):
@@ -307,6 +310,87 @@ public class ParafendriMapper {
 			barcodes.add(barcode);
 		}
 		return new ErpRead<>(barcodes, rows.size(), leftOut, notes, null);
+	}
+
+	// ─── Tickets (step 6, salesOrders) ──────────────────────────
+
+	/** Business Central's line numbers: 10000, 20000, ... (the step of its own pages). */
+	public static final int LINE_NO_STEP = 10000;
+	/** Decimals of a percentage sent (Business Central keeps 5 on Line Discount %; the amounts and prices as stored). */
+	static final int PERCENT_DECIMALS = 5;
+
+	/**
+	 * The item code TicketExportService gives the tax stamp when the General Setup TAX_STAMP_ERP_ITEM_CODE is empty (the
+	 * local item's code, unknown to Business Central).
+	 */
+	public static final String LOCAL_TAX_STAMP = "TAX_STAMP";
+	public static final String NO_TAX_STAMP_ITEM = "no tax stamp line sent: the General Setup TAX_STAMP_ERP_ITEM_CODE is"
+			+ " empty (set it to the stamp's item in BC)";
+
+	/**
+	 * Step 6: one ticket to the body of POST salesOrders, its lines inside (all to confirm with Sayf, ParaFendri's BC
+	 * contact). The header: ticketNo the ticket number; customerNo the point de vente's customer (customerNo of its
+	 * stockPoints rows); locationCode DEFAULT_LOCATION; orderDate and postingDate the ticket's date; ticketAmount the total
+	 * excluding VAT after the ticket-wide reduction (SalesHeader.subtotal), amountIncludingVAT the total paid (stamp
+	 * included); discountPercent the ticket-wide reduction (discount and loyalty points) as a % of the lines' TTC, the %
+	 * EMTOP sends as Discount_Percent, 0 without one; invoiceDiscountAmount and invoiceDiscountPercent 0; fenceNo the
+	 * cashier session number, as EMTOP's Fence_No. Each line: lineNo 10000 × its position among the lines sent; itemNo the
+	 * item's ERP code (the tax stamp's TAX_STAMP_ERP_ITEM_CODE, as for EMTOP; without it no stamp line, warned once:
+	 * {@link #NO_TAX_STAMP_ITEM}); quantity (decimals kept); unitPrice before VAT as stored, never rounded;
+	 * lineDiscountPercent (a free line: 100, its price kept, as EMTOP's); promotionNo the promotion's code, else "";
+	 * amountIncludingVAT the line's TTC before the ticket-wide reduction (a free line 0). A missing amount or percentage is
+	 * 0. warnings (may be null) gets what the run should say once.
+	 */
+	public ParafendriSalesOrder salesOrder(ErpTicketDTO ticket, String customerNo, String locationCode,
+			List<String> warnings) {
+		ParafendriSalesOrder order = new ParafendriSalesOrder();
+		order.setTicketNo(trimmed(ticket.getTicketNumber()));
+		order.setCustomerNo(trimmed(customerNo));
+		order.setLocationCode(trimmed(locationCode));
+		String date = ticket.getSaleDate() == null ? null : ticket.getSaleDate().toLocalDate().toString();
+		order.setOrderDate(date);
+		order.setPostingDate(date);
+		order.setTicketAmount(orZero(ticket.getTotalAmountExcludingVat()));
+		order.setAmountIncludingVAT(orZero(ticket.getTotalAmount()));
+		order.setDiscountPercent(percent(ticket.getDiscountPercentage() == null ? null
+				: BigDecimal.valueOf(ticket.getDiscountPercentage())));
+		order.setInvoiceDiscountAmount(BigDecimal.ZERO);
+		order.setInvoiceDiscountPercent(BigDecimal.ZERO);
+		order.setFenceNo(blankToNull(ticket.getCashierSessionId()));
+		int position = 0;
+		for (ErpTicketLineDTO line : ticket.getLines()) {
+			if (LOCAL_TAX_STAMP.equals(trimmed(line.getItemExternalId()))) {
+				// The stamp without its item in Business Central (General Setup TAX_STAMP_ERP_ITEM_CODE empty): no line
+				if (warnings != null && !warnings.contains(NO_TAX_STAMP_ITEM)) {
+					warnings.add(NO_TAX_STAMP_ITEM);
+				}
+				continue;
+			}
+			position++;
+			ParafendriSalesOrder.Line orderLine = new ParafendriSalesOrder.Line();
+			orderLine.setLineNo(position * LINE_NO_STEP);
+			orderLine.setItemNo(trimmed(line.getItemExternalId()));
+			orderLine.setQuantity(line.getQuantity());
+			orderLine.setUnitPrice(orZero(line.getUnitPrice()));
+			orderLine.setLineDiscountPercent(percent(line.getDiscountPercentage()));
+			orderLine.setPromotionNo(trimmed(line.getPromotionCode()));
+			orderLine.setAmountIncludingVAT(orZero(line.getTotalAmountIncludingVat()));
+			order.getSalesOrderLines().add(orderLine);
+		}
+		return order;
+	}
+
+	private static BigDecimal orZero(BigDecimal value) {
+		return value == null ? BigDecimal.ZERO : value;
+	}
+
+	/** A percentage at {@link #PERCENT_DECIMALS} decimals, trailing zeros dropped; none: 0. */
+	private static BigDecimal percent(BigDecimal value) {
+		if (value == null) {
+			return BigDecimal.ZERO;
+		}
+		BigDecimal rounded = value.setScale(PERCENT_DECIMALS, RoundingMode.HALF_UP).stripTrailingZeros();
+		return rounded.scale() < 0 ? rounded.setScale(0) : rounded;
 	}
 
 	/** A blank code: none; a code the tree does not keep at its level: none, noted; else the code. */

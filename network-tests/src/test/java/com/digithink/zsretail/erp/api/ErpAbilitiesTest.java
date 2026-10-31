@@ -50,8 +50,9 @@ class ErpAbilitiesTest {
 		assertEquals(EnumSet.of(ErpAbility.HEAD_OFFICE_STOCK_POINTS, ErpAbility.SUPPLY_INVOICES, ErpAbility.STORE_ORDERS),
 				ErpAbilities.of("zen"));
 		assertEquals(Arrays.asList("zen"), ErpAbilities.connectorsWith(ErpAbility.STORE_ORDERS));
-		// ParaFendri, step 0: a store connector, no ability yet
-		assertEquals(EnumSet.noneOf(ErpAbility.class), ErpAbilities.of("parafendri"));
+		// ParaFendri, step 6: a store connector posting a ticket whole (its lines in the same call)
+		assertEquals(EnumSet.of(ErpAbility.WHOLE_TICKET_EXPORT), ErpAbilities.of("parafendri"));
+		assertEquals(Arrays.asList("parafendri"), ErpAbilities.connectorsWith(ErpAbility.WHOLE_TICKET_EXPORT));
 		assertThrows(IllegalArgumentException.class, () -> ErpAbilities.of("sap"));
 		assertEquals(Arrays.asList("happyness", "zen"), ErpAbilities.connectorsWith(ErpAbility.SUPPLY_INVOICES));
 		assertEquals(Arrays.asList("happyness", "zen"), ErpAbilities.connectorsWith(ErpAbility.HEAD_OFFICE_STOCK_POINTS));

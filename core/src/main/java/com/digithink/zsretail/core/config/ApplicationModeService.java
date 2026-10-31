@@ -12,6 +12,10 @@ import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.model.enumeration.DataOwner;
 import com.digithink.zsretail.core.model.enumeration.NodeType;
 import com.digithink.zsretail.core.model.enumeration.SalesUpstream;
+import com.digithink.zsretail.erp.api.ErpAbilities;
+import com.digithink.zsretail.erp.api.ErpAbility;
+import com.digithink.zsretail.erp.api.ErpConnectorDescriptor;
+import com.digithink.zsretail.erp.api.ErpConnectors;
 
 /**
  * Exposes the installation type, the owner of each data domain and where the sales go (head office design 2.1, 2.2),
@@ -82,6 +86,16 @@ public class ApplicationModeService {
 	 */
 	public boolean isStoreOrdersByErp() {
 		return storeOrdersByErp;
+	}
+
+	/**
+	 * 3.1.1: true when the ERP connector in effect posts a ticket whole (ErpAbility.WHOLE_TICKET_EXPORT); its returns and
+	 * sessions are not exported yet, so their jobs are seeded disabled (ZZDataInitializer).
+	 */
+	public boolean isWholeTicketExport() {
+		// The descriptor of the connector in effect (an unknown name is refused at startup; core's tests see none)
+		ErpConnectorDescriptor connector = ErpConnectors.descriptor(ErpAbilities.connectorInEffect(environment));
+		return connector != null && connector.abilities().contains(ErpAbility.WHOLE_TICKET_EXPORT);
 	}
 
 	/** RFID step 2: true on a store with rfid.enabled=true, the RFID beans exist (Installation.RFID). */

@@ -1274,8 +1274,12 @@ public class ZZDataInitializer {
 				"Sync deletions from ERP Log (Sales Price, Sales Discount)", false);
 		createErpJob("0 0 0 1 1 *", ErpSyncJobType.EXPORT_TICKETS,
 				"Template job for exporting tickets (disabled by default)", false);
-		createErpJob("0 0 * * * *", ErpSyncJobType.EXPORT_RETURNS, "Export returns to ERP (runs every 1 hour)", true);
-		createErpJob("0 0 * * * *", ErpSyncJobType.EXPORT_SESSIONS, "Export sessions to ERP (runs every 1 hour)", true);
+		// 3.1.1: a connector posting tickets whole exports no return or session yet: those two seeded disabled
+		boolean documentExports = !applicationModeService.isWholeTicketExport();
+		createErpJob("0 0 * * * *", ErpSyncJobType.EXPORT_RETURNS, "Export returns to ERP (runs every 1 hour)",
+				documentExports);
+		createErpJob("0 0 * * * *", ErpSyncJobType.EXPORT_SESSIONS, "Export sessions to ERP (runs every 1 hour)",
+				documentExports);
 	}
 
 	/**

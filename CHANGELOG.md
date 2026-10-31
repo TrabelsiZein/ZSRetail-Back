@@ -12,6 +12,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `erp.connector=parafendri`, no ability; the settings, the startup check, an NTLM GET-only client whose login goes to
   the host of `base-url` only, and the connection test `ParafendriRestClient.checkCompany()` (the companies of the API,
   `company-id` among them). Every `ErpConnector` method a stub: no job yet (`docs/modules/erp-sync.md`).
+- ERP connector `parafendri`, step 6: the tickets posted to Business Central as sales orders, header and lines in one
+  POST (`salesOrders`, deep insert), looked up first by `ticketNo` so never twice (Business Central does not filter
+  `ticketNo` today: posted anyway, one warning per export run in the log and the communications log). New
+  `ErpAbility.WHOLE_TICKET_EXPORT`: with it `TicketExportService` sends each ticket whole (all or nothing); every
+  other connector unchanged. `ErpOperationResult.addWarning` (written once per run). With such a connector
+  `EXPORT_RETURNS` and `EXPORT_SESSIONS` are seeded disabled. The mapping, to confirm with ParaFendri's BC contact, in
+  `docs/modules/erp-sync.md`.
 - ERP connector `parafendri`, step 4: the barcodes (`fetchItemBarcodes`, `barCodes`, company-wide): every row on a
   first run, then from the checkpoint `ERP_SYNC_LAST_ITEM_BARCODE` plus the barcodes of the items the same run's items
   part got, so that an item added to a point de vente later gets its barcode; the row's GUID as the barcode's ERP id (a

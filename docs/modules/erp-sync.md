@@ -639,6 +639,60 @@ dependency on another connector:
   EMTOP; measured live 2026-10-31 for PV-GREMDA: 0 (its 13,165 items are the company's 13,165 barcodes), so no change in
   core; to measure at each other point de vente when it starts (the live test counts them). Live: 13,165 rows in one
   page, 5.0 s, all kept.
+- Step 6, the tickets (`pushTicket`, the job `EXPORT_TICKETS`): **one POST per ticket**, `companies(<id>)/salesOrders`
+  with its lines inside (`salesOrderLines`, a contained navigation property: a deep insert). The ability
+  **`ErpAbility.WHOLE_TICKET_EXPORT`** (erp-api; only this connector declares it) makes `TicketExportService` take one
+  branch at the top of `exportTicket` (`ErpAbilities.has(environment, ...)`, no configuration line): `pushTicket` with
+  every line; success = Business Central's number as the ticket's `erpNo`, every line synchronized and the ticket
+  `TOTALLY_SYNCHED` at once; failure = nothing changed (no partial state, no status update), counted as an error,
+  retried at the next run. Any other connector keeps the header, the lines one by one, then the status, unchanged (the
+  shared mapping only fills a few new optional fields of `ErpTicketDTO` / `ErpTicketLineDTO`: the lines' position, TTC
+  and promotion code, the ticket's HT and its reduction amount; emtop's mapper reads none of them).
+  - **Never twice**: before the POST, `GET salesOrders?$filter=ticketNo eq '<ticket number>'`; a ticket found is
+    answered with its order (its number, no POST). **Today Business Central answers 400 "Field 'ticketNo' is not
+    filterable"** (2026-10-31: of the header's fields only `number` and `orderStatus` filter); the export then posts
+    anyway and the run writes **one** WARN, in the log and as a WARNING row of the communications log (operation
+    `EXPORT_TICKET`): "no-double guard unavailable: ticketNo is not filterable in BC — ask the BC contact to make
+    ticketNo a stored, filterable field" (the connector's `ErpOperationResult.addWarning`, gathered by
+    `TicketExportService` and written once per run; a ticket exported alone writes its own). Any other failure of the
+    lookup: the ticket is not posted. Ticket numbers are `DEFAULT_LOCATION` + date + sequence, unique across the
+    points de vente.
+  - `customerNo`: the point de vente's customer, `customerNo` of one `stockPoints` row of `DEFAULT_LOCATION` (`$top=1`),
+    read at the first ticket and kept for the location (none: the ticket is not sent, read again next time).
+  - The mapping (`ParafendriMapper.salesOrder`), **each point to confirm with Sayf** (ParaFendri's BC contact):
+
+    | Business Central | Value |
+    |---|---|
+    | `ticketNo` | the ticket number |
+    | `customerNo`, `locationCode` | the point de vente's customer, `DEFAULT_LOCATION` |
+    | `orderDate`, `postingDate` | the ticket's date |
+    | `ticketAmount` | the total HT after the ticket-wide reduction (`SalesHeader.subtotal`) |
+    | `amountIncludingVAT` | the total TTC paid, stamp included (`totalAmount`) |
+    | `discountPercent` | the ticket-wide reduction (discount + loyalty points) as a % of the lines' TTC, 5 decimals: EMTOP's `Discount_Percent` |
+    | `invoiceDiscountAmount`, `invoiceDiscountPercent` | 0 |
+    | `fenceNo` | the cashier session number, as EMTOP's `Fence_No` (the ticket carries no till id) |
+    | `orderStatus` | never sent (Entered, Posted, Error, Double: set by BC), shown in the log message |
+    | line `lineNo` | 10000 × its position among the lines sent |
+    | line `itemNo` | the item's ERP code; the stamp's `TAX_STAMP_ERP_ITEM_CODE`, and without it no stamp line and one WARN per run |
+    | line `quantity`, `unitPrice` | decimals kept; the price before VAT as stored, never rounded |
+    | line `lineDiscountPercent` | as EMTOP's (stored, else derived; a free line 100, its price kept) |
+    | line `promotionNo` | the promotion's code, else "" |
+    | line `amountIncludingVAT` | the line's TTC before the ticket-wide reduction (a free line 0) |
+
+  - The communications log: one row per ticket (`EXPORT_TICKET`): the body sent, Business Central's answer, the
+    message with its number and `orderStatus` ("ticket X posted as sales order N (orderStatus Entered)", "already in
+    Business Central as ..."), Business Central's own error text on a refusal (`{"error":{"code","message"}}`). The
+    connector's only write: `GetOnly` lets a POST to `.../salesOrders` (no query) through, nothing else.
+  - Returns and sessions are not exported yet (later, with Sayf's pages): with a connector posting tickets whole
+    (`ApplicationModeService.isWholeTicketExport`) `ZZDataInitializer` seeds `EXPORT_RETURNS` and `EXPORT_SESSIONS`
+    disabled; `pushReturnHeader` / `Line` and `pushSession` answer a failure.
+  - Tests: `ParafendriSalesOrderMapperTest` (the sample `salesOrder-request.json`, the stamp without its ERP code),
+    `ParafendriTicketExportTest` (posted, already there, not filterable then posted with the warning, another lookup
+    failure, refused with BC's text, `customerNo` once, none, no location), the guard and BC's error text in
+    `ParafendriRestClientTest`, `TicketExportWholeTicketTest` (network-tests: the branch, all or nothing, emtop and none
+    unchanged, one warning per run, the seeding question). Live (GET only, 2026-10-31): the lookup answers 400 not
+    filterable, the test passes on that path; the live POST test runs only with `-Dparafendri.live.post=true` (one test
+    ticket, then the same again: no double), not run yet.
 - Tests (in the project): `ParafendriRestClientTest` (mock server, the sample `companies.json`: two companies, one the
   configured id; next links, an unknown id, an HTTP 401, GET only, the login's host; step 1, the sample
   `locations.json` with the six points de vente PV-GREMDA, PV-LAFRANE, PV-MALL-SF, PV-NABEUL, PV-SOUSSE, PV-TANIOUR:

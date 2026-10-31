@@ -24,6 +24,10 @@ public class ErpTicketDTO {
 	private Boolean posInvoice;
 	private String fiscalRegistration;
 	private String invoiceCustomerName;
+	/** 3.1.1 (a ticket posted whole): its total excluding VAT after the ticket-wide reduction (SalesHeader.subtotal). */
+	private BigDecimal totalAmountExcludingVat;
+	/** 3.1.1 (a ticket posted whole): its ticket-wide reduction including VAT, the discount plus the loyalty points spent. */
+	private BigDecimal ticketDiscountAmount;
 
 	public String getExternalId() {
 		return externalId;
@@ -144,5 +148,20 @@ public class ErpTicketDTO {
 	public void setInvoiceCustomerName(String invoiceCustomerName) {
 		this.invoiceCustomerName = invoiceCustomerName;
 	}
-}
 
+	public BigDecimal getTotalAmountExcludingVat() {
+		return totalAmountExcludingVat;
+	}
+
+	public void setTotalAmountExcludingVat(BigDecimal totalAmountExcludingVat) {
+		this.totalAmountExcludingVat = totalAmountExcludingVat;
+	}
+
+	public BigDecimal getTicketDiscountAmount() {
+		return ticketDiscountAmount;
+	}
+
+	public void setTicketDiscountAmount(BigDecimal ticketDiscountAmount) {
+		this.ticketDiscountAmount = ticketDiscountAmount;
+	}
+}
