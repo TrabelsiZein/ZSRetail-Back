@@ -527,15 +527,35 @@ dependency on another connector:
 - `client/ParafendriRestClient`: `readCompanies()` (`GET <base-url>/api/sat/zsretail/v1.0/companies`, next links
   followed) and `checkCompany()`, **the connection test**: the row of `company-id` (case ignored), else a
   `ParafendriReadException` naming it and the companies found. A failed read names the page and the HTTP status
-  (`ParafendriReadException.getStatus()`). Nothing calls it in the application yet.
+  (`ParafendriReadException.getStatus()`). Step 1: `readLocations()` (`GET companies(<company-id>)/locations?$select=
+  code,name,lastModifiedDateTime`, next links followed; `dto/ParafendriLocationRow`) and `checkLocation(code)` (true
+  when the code, trimmed, case ignored, is a location of the company).
+- `config/ParafendriConnectionCheck` (step 1): **the connection check after the start**, on `ApplicationReadyEvent`
+  (the database ready, the installation summary logged), on its own daemon thread `parafendri-connection-check`, so it
+  never delays the start nor a sale. `checkCompany()`, then `checkLocation(<General Setup DEFAULT_LOCATION>)`, read
+  through `ErpStoreLocation` (erp-api, answered by core). One INFO line `ERP connector parafendri: Business Central
+  reachable, company <name>, location <code> found.`, else one WARNING naming the problem: Business Central unreachable
+  or an HTTP status (the page named), the company missing, `DEFAULT_LOCATION` empty (always on a store's first run,
+  until it is set), the location not a location of the company, any other failure. It never throws: the store starts
+  and sells without the ERP. Not at `ParafendriStartupCheck` (the settings only, before the start): the database and
+  `DEFAULT_LOCATION` are not there yet, and a call there would hold the deploy up to the timeouts (30 s, 600 s) with
+  Business Central down. Neither emtop nor ZEN calls their ERP at startup. On a head office (later) `DEFAULT_LOCATION`
+  is empty: the check warns until a head office has its own check.
 - `connector/ParafendriConnector`: the `ErpConnector` of EMTOP's shape (a store connector, not a catalogue source),
   every method a stub: the fetches answer an empty list, the pushes and updates a failure ("at step 0"). Hence
   `erp.sync.enabled=false` in the store's file until the jobs are written.
 - Tests (in the project): `ParafendriRestClientTest` (mock server, the sample `companies.json`: two companies, one the
-  configured id; next links, an unknown id, an HTTP 401, GET only, the login's host), `ParafendriStartupCheckTest`;
-  `ParafendriLiveConnectionTest`, skipped unless `-Dparafendri.live=true`, reads the companies of a real Business Central
-  with the outside file named by `-Dparafendri.file` (no default; never the customer's production without Zein's
-  word). In network-tests the pinned lists name it (`ErpConnectorTest`, `ThirdConnectorTest`, `OutsideFileUpgradeTest`,
+  configured id; next links, an unknown id, an HTTP 401, GET only, the login's host; step 1, the sample
+  `locations.json` with the six points de vente PV-GREMDA, PV-LAFRANE, PV-MALL-SF, PV-NABEUL, PV-SOUSSE, PV-TANIOUR:
+  the address, a code found or not, next links, an HTTP 404), `ParafendriStartupCheckTest`,
+  `ParafendriConnectionCheckTest` (step 1: all found, Business Central down, an HTTP 503, the company missing,
+  `DEFAULT_LOCATION` empty, the location missing, the locations page or the location failing; no exception, its own
+  daemon thread); `ParafendriLiveConnectionTest`, skipped unless `-Dparafendri.live=true`, reads the companies and (step
+  1) the locations of a real Business Central and checks `-Dparafendri.location` (PV-GREMDA by default), with the
+  outside file named by `-Dparafendri.file` (no default; never the customer's production without Zein's word).
+- **Later step: the status on screen.** The connection check is a log line only. Showing it to the user means a small
+  change in core: record it in the communications log (`erp_communication`, the admin page) or add a "test connection"
+  button (an endpoint asking the connector through erp-api). In network-tests the pinned lists name it (`ErpConnectorTest`, `ThirdConnectorTest`, `OutsideFileUpgradeTest`,
   `ErpAbilitiesTest`, `ErpAbilityBeansTest`) and both proof records have the store's file (`configuration-keys.txt`:
   its section, and `erp.parafendri.*=(none)` in every other configuration; `installation-beans.txt`: its line).
 

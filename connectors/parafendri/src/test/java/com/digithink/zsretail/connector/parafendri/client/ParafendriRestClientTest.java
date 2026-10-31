@@ -1,6 +1,7 @@
 package com.digithink.zsretail.connector.parafendri.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -13,6 +14,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -30,6 +32,7 @@ import org.springframework.web.client.RestTemplate;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriConfig;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriProperties;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCompanyRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
 
 /**
  * ParaFendri, step 0: the connection test against a mock server (no live call): the companies of the API read from the
@@ -41,6 +44,7 @@ class ParafendriRestClientTest {
 
 	static final String COMPANY_ID = "6b29fc40-ca47-1067-b31d-00dd010662da";
 	static final String COMPANIES = "http://bc.test:7048/BC280/api/sat/zsretail/v1.0/companies";
+	static final String LOCATIONS = COMPANIES + "(" + COMPANY_ID + ")/locations?$select=code,name,lastModifiedDateTime";
 
 	private ParafendriProperties properties;
 	private RestTemplate template;
@@ -120,6 +124,57 @@ class ParafendriRestClientTest {
 		assertTrue(refused.getMessage().startsWith("parafendri: reading the page companies failed: HTTP 401 "),
 				refused.getMessage());
 		assertTrue(refused.getMessage().endsWith("(" + COMPANIES + ")"), refused.getMessage());
+	}
+
+	@Test
+	@DisplayName("Step 1, the locations: GET companies(id)/locations with $select, the six points de vente read")
+	void readLocations() throws IOException {
+		server.expect(requestTo(LOCATIONS)).andExpect(method(HttpMethod.GET))
+				.andRespond(withSuccess(sample("locations.json"), MediaType.APPLICATION_JSON));
+		List<ParafendriLocationRow> rows = client.readLocations();
+		server.verify();
+		assertEquals("PV-GREMDA, PV-LAFRANE, PV-MALL-SF, PV-NABEUL, PV-SOUSSE, PV-TANIOUR",
+				rows.stream().map(ParafendriLocationRow::getCode).collect(Collectors.joining(", ")));
+		assertEquals("PV Gremda", rows.get(0).getName());
+		assertEquals("2026-10-20T09:12:31.207Z", rows.get(0).getLastModifiedDateTime());
+	}
+
+	@Test
+	@DisplayName("Step 1, checkLocation: found (trimmed, case ignored), not found, blank; next links followed")
+	void checkLocation() throws IOException {
+		for (String code : new String[] { "PV-GREMDA", " pv-taniour " }) {
+			server.reset();
+			server.expect(requestTo(LOCATIONS))
+					.andRespond(withSuccess(sample("locations.json"), MediaType.APPLICATION_JSON));
+			assertTrue(client.checkLocation(code), code);
+			server.verify();
+		}
+		server.reset();
+		server.expect(requestTo(LOCATIONS)).andRespond(withSuccess(sample("locations.json"), MediaType.APPLICATION_JSON));
+		assertFalse(client.checkLocation("PV-TUNIS"));
+		server.verify();
+		// A blank code is no location, even beside a row without a code
+		ParafendriLocationRow noCode = new ParafendriLocationRow();
+		assertFalse(ParafendriRestClient.hasLocation(Arrays.asList(noCode), " "));
+		assertFalse(ParafendriRestClient.hasLocation(Arrays.asList(noCode), null));
+		server.reset();
+		server.expect(requestTo(LOCATIONS)).andRespond(withSuccess("{\"value\":[{\"code\":\"PV-NABEUL\"}],"
+				+ "\"@odata.nextLink\":\"" + LOCATIONS + "&$skiptoken=1\"}", MediaType.APPLICATION_JSON));
+		server.expect(requestTo(LOCATIONS + "&$skiptoken=1"))
+				.andRespond(withSuccess("{\"value\":[{\"code\":\"PV-SOUSSE\"}]}", MediaType.APPLICATION_JSON));
+		assertTrue(client.checkLocation("PV-SOUSSE"), "on the second page");
+		server.verify();
+	}
+
+	@Test
+	@DisplayName("Step 1, the locations: an HTTP error names the page locations and the status")
+	void locationsError() {
+		server.expect(requestTo(LOCATIONS)).andRespond(withStatus(HttpStatus.NOT_FOUND));
+		ParafendriReadException refused = assertThrows(ParafendriReadException.class, () -> client.checkLocation("PV-GREMDA"));
+		assertEquals("locations", refused.getPage());
+		assertEquals(Integer.valueOf(404), refused.getStatus());
+		assertTrue(refused.getMessage().startsWith("parafendri: reading the page locations failed: HTTP 404 "),
+				refused.getMessage());
 	}
 
 	@Test

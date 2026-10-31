@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Properties;
 
 import org.junit.jupiter.api.DisplayName;
@@ -20,6 +21,7 @@ import com.digithink.zsretail.connector.parafendri.config.ParafendriConfig;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriProperties;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriStartupCheck;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCompanyRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
 
 /**
  * ParaFendri, step 0: the connection test against a real Business Central, GET only (the companies of the API), the
@@ -36,7 +38,7 @@ import com.digithink.zsretail.connector.parafendri.dto.ParafendriCompanyRow;
 class ParafendriLiveConnectionTest {
 
 	@Test
-	@DisplayName("Live connection test: the companies of the API read (GET only), company-id among them")
+	@DisplayName("Live connection test (GET only): company-id among the companies; step 1: the locations, the store's among them")
 	void liveConnection() throws IOException {
 		String file = System.getProperty("parafendri.file", "").trim();
 		assertTrue(!file.isEmpty(), "-Dparafendri.file=<the outside file of the test installation> is required");
@@ -60,5 +62,18 @@ class ParafendriLiveConnectionTest {
 		ParafendriCompanyRow company = client.checkCompany();
 		System.out.println("company-id found: " + company.getName() + ", in " + (System.currentTimeMillis() - start)
 				+ " ms");
+
+		// Step 1: the locations of the company, and the store's (-Dparafendri.location, PV-GREMDA by default)
+		start = System.currentTimeMillis();
+		List<ParafendriLocationRow> locations = client.readLocations();
+		for (ParafendriLocationRow row : locations) {
+			System.out.println("location " + row.getCode() + " " + row.getName() + " (" + row.getLastModifiedDateTime()
+					+ ")");
+		}
+		System.out.println("locations: " + locations.size() + ", in " + (System.currentTimeMillis() - start) + " ms");
+		String code = System.getProperty("parafendri.location", "PV-GREMDA");
+		boolean found = client.checkLocation(code);
+		System.out.println("location " + code + (found ? " found" : " NOT found"));
+		assertTrue(found, "location " + code + " among the locations of the company");
 	}
 }
