@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.digithink.zsretail.core.erp.enumeration.ErpSyncJobType;
+import com.digithink.zsretail.core.erp.enumeration.ErpSyncOperation;
 import com.digithink.zsretail.core.model.GeneralSetup;
 import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.erp.api.dto.ErpSyncFilter;
@@ -32,14 +33,24 @@ public class ErpSyncCheckpointService {
 	private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
 	private static final Map<ErpSyncJobType, String> JOB_TYPE_TO_CODE;
+	/**
+	 * 3.1.1: the checkpoints of the parts of the job IMPORT_CATALOGUE, by the operation of each part: the codes of the four
+	 * jobs it replaced, unchanged. The catégories and the sections have none (read whole at each run).
+	 */
+	private static final Map<ErpSyncOperation, String> CATALOGUE_PART_TO_CODE;
 	private static final Map<String, String> CODE_TO_DESCRIPTION;
 
 	static {
+		Map<ErpSyncOperation, String> partToCode = new EnumMap<>(ErpSyncOperation.class);
+		partToCode.put(ErpSyncOperation.IMPORT_ITEM_FAMILIES, "ERP_SYNC_LAST_ITEM_FAMILY");
+		partToCode.put(ErpSyncOperation.IMPORT_ITEM_SUBFAMILIES, "ERP_SYNC_LAST_ITEM_SUBFAMILY");
+		partToCode.put(ErpSyncOperation.IMPORT_ITEMS, "ERP_SYNC_LAST_ITEM");
+		partToCode.put(ErpSyncOperation.IMPORT_ITEM_BARCODES, "ERP_SYNC_LAST_ITEM_BARCODE");
+		CATALOGUE_PART_TO_CODE = Collections.unmodifiableMap(partToCode);
+
 		Map<ErpSyncJobType, String> jobToCode = new EnumMap<>(ErpSyncJobType.class);
-		jobToCode.put(ErpSyncJobType.IMPORT_ITEM_FAMILIES, "ERP_SYNC_LAST_ITEM_FAMILY");
-		jobToCode.put(ErpSyncJobType.IMPORT_ITEM_SUBFAMILIES, "ERP_SYNC_LAST_ITEM_SUBFAMILY");
-		jobToCode.put(ErpSyncJobType.IMPORT_ITEMS, "ERP_SYNC_LAST_ITEM");
-		jobToCode.put(ErpSyncJobType.IMPORT_ITEM_BARCODES, "ERP_SYNC_LAST_ITEM_BARCODE");
+		// The catalogue job shows the items' checkpoint on the jobs page (its parts keep theirs, above)
+		jobToCode.put(ErpSyncJobType.IMPORT_CATALOGUE, "ERP_SYNC_LAST_ITEM");
 		jobToCode.put(ErpSyncJobType.IMPORT_LOCATIONS, "ERP_SYNC_LAST_LOCATION");
 		jobToCode.put(ErpSyncJobType.IMPORT_CUSTOMERS, "ERP_SYNC_LAST_CUSTOMER");
 		jobToCode.put(ErpSyncJobType.IMPORT_SALES_PRICES_AND_DISCOUNTS, "a");
@@ -67,7 +78,23 @@ public class ErpSyncCheckpointService {
 		return filter;
 	}
 
+	/** 3.1.1: the filter of one part of the catalogue job, from its checkpoint (none: every row). */
+	public ErpSyncFilter createFilterForCataloguePart(ErpSyncOperation part) {
+		ErpSyncFilter filter = new ErpSyncFilter();
+		resolveLastSync(CATALOGUE_PART_TO_CODE.get(part)).ifPresent(filter::setUpdatedAfter);
+		return filter;
+	}
+
 	public void updateLastSync(ErpSyncJobType jobType, Collection<?> payload) {
+		updateLastSync(JOB_TYPE_TO_CODE.get(jobType), payload);
+	}
+
+	/** 3.1.1: the checkpoint of one part of the catalogue job, from the rows it read, as the jobs it replaced did. */
+	public void updateLastSyncForCataloguePart(ErpSyncOperation part, Collection<?> payload) {
+		updateLastSync(CATALOGUE_PART_TO_CODE.get(part), payload);
+	}
+
+	private void updateLastSync(String code, Collection<?> payload) {
 		if (payload == null || payload.isEmpty()) {
 			return;
 		}
@@ -76,14 +103,17 @@ public class ErpSyncCheckpointService {
 				.filter(ErpTimestamped.class::isInstance).map(ErpTimestamped.class::cast)
 				.map(ErpTimestamped::getLastModifiedAt).filter(Objects::nonNull).max(Comparator.naturalOrder());
 
-		maxTimestamp.ifPresent(ts -> updateLastSync(jobType, ts));
+		maxTimestamp.ifPresent(ts -> updateLastSync(code, ts));
 	}
 
 	public void updateLastSync(ErpSyncJobType jobType, OffsetDateTime timestamp) {
+		updateLastSync(JOB_TYPE_TO_CODE.get(jobType), timestamp);
+	}
+
+	private void updateLastSync(String code, OffsetDateTime timestamp) {
 		if (timestamp == null) {
 			return;
 		}
-		String code = JOB_TYPE_TO_CODE.get(jobType);
 		if (code == null) {
 			return;
 		}
@@ -96,7 +126,10 @@ public class ErpSyncCheckpointService {
 	}
 
 	public Optional<OffsetDateTime> resolveLastSync(ErpSyncJobType jobType) {
-		String code = JOB_TYPE_TO_CODE.get(jobType);
+		return resolveLastSync(JOB_TYPE_TO_CODE.get(jobType));
+	}
+
+	private Optional<OffsetDateTime> resolveLastSync(String code) {
 		if (code == null) {
 			return Optional.empty();
 		}

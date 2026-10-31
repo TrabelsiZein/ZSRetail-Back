@@ -48,6 +48,34 @@ IF OBJECT_ID(N'sales_header', N'U') IS NOT NULL
 	CREATE INDEX ix_sales_header_session_status ON sales_header (cashier_session_id, status);
 GO
 
+-- The ERP jobs (3.1.1): the four catalogue jobs IMPORT_ITEM_FAMILIES, IMPORT_ITEM_SUBFAMILIES, IMPORT_ITEMS and
+-- IMPORT_ITEM_BARCODES become the one job IMPORT_CATALOGUE (docs/modules/erp-sync.md): the cron of IMPORT_ITEMS, enabled
+-- when any of the four was, then the four rows deleted, in one transaction. Nothing to do once they are gone (the script
+-- may run more than once). The application makes the same conversion at startup (ErpSyncJobTypesUpgrade, the same
+-- statements): the order of this script and the deploy does not matter. Store and head office alike.
+IF OBJECT_ID(N'erp_sync_job', N'U') IS NOT NULL
+	AND EXISTS (SELECT 1 FROM erp_sync_job WHERE job_type IN ('IMPORT_ITEM_FAMILIES', 'IMPORT_ITEM_SUBFAMILIES', 'IMPORT_ITEMS', 'IMPORT_ITEM_BARCODES'))
+BEGIN
+	BEGIN TRY
+		BEGIN TRANSACTION;
+		DECLARE @enabled BIT = CASE WHEN EXISTS (SELECT 1 FROM erp_sync_job WHERE job_type IN ('IMPORT_ITEM_FAMILIES', 'IMPORT_ITEM_SUBFAMILIES', 'IMPORT_ITEMS', 'IMPORT_ITEM_BARCODES') AND enabled = 1) THEN 1 ELSE 0 END;
+		DECLARE @cron VARCHAR(64) = COALESCE((SELECT TOP 1 cron_expression FROM erp_sync_job WHERE job_type = 'IMPORT_ITEMS'), '0 0 * * * *');
+		DECLARE @next DATETIME2 = (SELECT TOP 1 next_run_at FROM erp_sync_job WHERE job_type = 'IMPORT_ITEMS' AND enabled = 1 AND @enabled = 1);
+		IF EXISTS (SELECT 1 FROM erp_sync_job WHERE job_type = 'IMPORT_CATALOGUE')
+			UPDATE erp_sync_job SET cron_expression = @cron, enabled = @enabled, next_run_at = @next, updated_by = 'System', updated_at = SYSDATETIME() WHERE job_type = 'IMPORT_CATALOGUE';
+		ELSE
+			INSERT INTO erp_sync_job (active, created_at, created_by, updated_at, updated_by, cron_expression, description, enabled, job_type, next_run_at)
+			VALUES (1, SYSDATETIME(), 'System', SYSDATETIME(), 'System', @cron, N'Import of the catalogue: catégories, families, sub-families, sections, items, barcodes', @enabled, 'IMPORT_CATALOGUE', @next);
+		DELETE FROM erp_sync_job WHERE job_type IN ('IMPORT_ITEM_FAMILIES', 'IMPORT_ITEM_SUBFAMILIES', 'IMPORT_ITEMS', 'IMPORT_ITEM_BARCODES');
+		COMMIT TRANSACTION;
+	END TRY
+	BEGIN CATCH
+		IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+		THROW;
+	END CATCH
+END
+GO
+
 UPDATE APP_VERSION SET version = '3.1.1';
 
 -- The notes of 3.1.1 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

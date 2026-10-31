@@ -31,9 +31,10 @@ import lombok.extern.log4j.Log4j2;
  * hidden from the ERP jobs API and refused by the runner ({@link HeadOfficeErpGuard}).
  * <p>
  * ERP catalogue, step 3: on a head office whose catalogue only comes from the ERP
- * ({@link ApplicationModeService#isErpCatalogueOnly()}) only the four catalogue imports are offered
+ * ({@link ApplicationModeService#isErpCatalogueOnly()}) only its catalogue job is offered
  * ({@link #OFFERED_WHEN_CATALOGUE_ONLY}); every other job is treated like the exports ({@link #refusedTypes()}). Any
- * other head office keeps {@link #NOT_ON_HEAD_OFFICE}. Invoices from the ERP: IMPORT_SUPPLY_INVOICES
+ * other head office keeps {@link #NOT_ON_HEAD_OFFICE} (3.1.1: the catalogue import IMPORT_CATALOGUE runs there, as on
+ * a store on the ERP). Invoices from the ERP: IMPORT_SUPPLY_INVOICES
  * ({@link #OFFERED_WITH_ERP_SUPPLY}) is offered only on that head office with headoffice.supply.source=ERP, refused on
  * every other one.
  */
@@ -50,8 +51,8 @@ public class HeadOfficeErpJobs {
 	/**
 	 * ERP catalogue, step 3: the only jobs offered on a head office whose catalogue only comes from the ERP; every other
 	 * job type is refused there. Release 2.2: one job, SYNC_CATALOGUE ("Sync catalogue": families, sub-families, the items
-	 * of every point de stock, barcodes, in one run); the four separate catalogue jobs are refused there (switched off at
-	 * each start, hidden, not run).
+	 * of every point de stock, barcodes, in one run); the catalogue import IMPORT_CATALOGUE (3.1.1; the four separate jobs
+	 * before) is refused there (switched off at each start, hidden, not run).
 	 */
 	public static final Set<ErpSyncJobType> OFFERED_WHEN_CATALOGUE_ONLY = Collections
 			.unmodifiableSet(EnumSet.of(ErpSyncJobType.SYNC_CATALOGUE));

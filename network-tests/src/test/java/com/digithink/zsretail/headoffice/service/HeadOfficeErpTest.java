@@ -74,7 +74,7 @@ class HeadOfficeErpTest {
 			job.setJobType(type);
 			job.setCronExpression("0 0 * * * *");
 			boolean seededOn = type == ErpSyncJobType.EXPORT_RETURNS || type == ErpSyncJobType.EXPORT_SESSIONS;
-			job.setEnabled(seededOn || type == ErpSyncJobType.IMPORT_ITEMS); // IMPORT_ITEMS enabled by the admin
+			job.setEnabled(seededOn || type == ErpSyncJobType.IMPORT_CATALOGUE); // IMPORT_CATALOGUE enabled by the admin
 			job.setNextRunAt(job.getEnabled() ? LocalDateTime.of(2026, 10, 3, 13, 0) : null);
 			table.put(job.getId(), job);
 		}
@@ -94,8 +94,8 @@ class HeadOfficeErpTest {
 			assertFalse(job(type).getEnabled(), type.name());
 			assertNull(job(type).getNextRunAt(), type.name());
 		}
-		assertTrue(job(ErpSyncJobType.IMPORT_ITEMS).getEnabled());
-		assertNotNull(job(ErpSyncJobType.IMPORT_ITEMS).getNextRunAt());
+		assertTrue(job(ErpSyncJobType.IMPORT_CATALOGUE).getEnabled());
+		assertNotNull(job(ErpSyncJobType.IMPORT_CATALOGUE).getNextRunAt());
 		assertEquals(2, saves);
 
 		assertEquals(0, jobs.switchOff());
@@ -194,7 +194,7 @@ class HeadOfficeErpTest {
 		}
 		assertTrue(calls.isEmpty(), calls.toString());
 
-		Long items = job(ErpSyncJobType.IMPORT_ITEMS).getId();
+		Long items = job(ErpSyncJobType.IMPORT_CATALOGUE).getId();
 		assertEquals(200, guarded.runJobNow(items).getStatusCodeValue());
 		guarded.updateEnabled(items, new ErpSyncJobEnabledDTO());
 		guarded.updateJob(items, new ErpSyncJobUpdateDTO());
@@ -225,7 +225,8 @@ class HeadOfficeErpTest {
 		assertEquals(REFUSED_WHEN_CATALOGUE_ONLY, catalogueOnly.refusedTypes());
 		assertTrue(REFUSED_WHEN_CATALOGUE_ONLY.containsAll(HeadOfficeErpJobs.NOT_ON_HEAD_OFFICE));
 		assertTrue(catalogueOnly.refuses(ErpSyncJobType.IMPORT_LOCATIONS));
-		assertTrue(catalogueOnly.refuses(ErpSyncJobType.IMPORT_ITEMS), "release 2.2: the four imports are replaced");
+		assertTrue(catalogueOnly.refuses(ErpSyncJobType.IMPORT_CATALOGUE),
+				"release 2.2: the catalogue import is replaced (IMPORT_CATALOGUE since 3.1.1)");
 		assertFalse(catalogueOnly.refuses(ErpSyncJobType.SYNC_CATALOGUE));
 		assertFalse(catalogueOnly.refuses(null));
 
@@ -244,17 +245,15 @@ class HeadOfficeErpTest {
 	}
 
 	@Test
-	@DisplayName("Catalogue only from the ERP, at each start: every job but Sync catalogue disabled (the four imports too), no next run; Sync catalogue untouched")
+	@DisplayName("Catalogue only from the ERP, at each start: every job but Sync catalogue disabled (the catalogue import IMPORT_CATALOGUE too), no next run; Sync catalogue untouched")
 	void catalogueOnlySwitchedOffAtStart() {
 		job(ErpSyncJobType.IMPORT_LOCATIONS).setEnabled(true);
 		job(ErpSyncJobType.IMPORT_LOCATIONS).setNextRunAt(LocalDateTime.of(2026, 10, 3, 13, 0));
-		job(ErpSyncJobType.IMPORT_ITEM_BARCODES).setEnabled(true);
-		job(ErpSyncJobType.IMPORT_ITEM_BARCODES).setNextRunAt(LocalDateTime.of(2026, 10, 3, 13, 10));
 		job(ErpSyncJobType.SYNC_CATALOGUE).setEnabled(true);
 		job(ErpSyncJobType.SYNC_CATALOGUE).setNextRunAt(LocalDateTime.of(2026, 10, 3, 14, 0));
 		jobs = new HeadOfficeErpJobs(repository(), true);
 
-		assertEquals(5, jobs.switchOff(), "the two exports seeded enabled, the locations, items and barcodes enabled before");
+		assertEquals(4, jobs.switchOff(), "the two exports seeded enabled, the locations and the catalogue import enabled before");
 		for (ErpSyncJobType type : REFUSED_WHEN_CATALOGUE_ONLY) {
 			assertFalse(job(type).getEnabled(), type.name());
 			assertNull(job(type).getNextRunAt(), type.name());
@@ -265,7 +264,7 @@ class HeadOfficeErpTest {
 	}
 
 	@Test
-	@DisplayName("Catalogue only from the ERP: the runner refuses every job but the four imports with the warning; the four run")
+	@DisplayName("Catalogue only from the ERP: the runner refuses every job but Sync catalogue with the warning; Sync catalogue runs")
 	void catalogueOnlyRunnerRefuses() {
 		jobs = new HeadOfficeErpJobs(repository(), true);
 		List<ErpSyncJobType> ran = new ArrayList<>();
@@ -287,7 +286,7 @@ class HeadOfficeErpTest {
 	}
 
 	@Test
-	@DisplayName("Catalogue only from the ERP: GET admin/erp/jobs lists the four imports; run, enable, update, statistics of any other: 404")
+	@DisplayName("Catalogue only from the ERP: GET admin/erp/jobs lists Sync catalogue only; run, enable, update, statistics of any other: 404")
 	void catalogueOnlyApi() {
 		jobs = new HeadOfficeErpJobs(repository(), true);
 		List<String> calls = new ArrayList<>();

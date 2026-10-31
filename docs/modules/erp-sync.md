@@ -141,6 +141,39 @@
 (`TicketExportService`, `ReturnExportService`, `SessionExportService`, the store's): `ErpSyncJobRunner` calls the export of the
 job's type, in the same transaction as before (`ErpExportJobsTest`); an application without one sends nothing.
 
+**Catalogue import job `IMPORT_CATALOGUE`** (3.1.1, every customer): one job replaced the four `IMPORT_ITEM_FAMILIES`,
+`IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS`, `IMPORT_ITEM_BARCODES`, which ran each on its own cron, in no set order (in one
+scheduler tick by job type: barcodes before items, so a new item's barcodes were skipped while the barcodes checkpoint
+moved past them). `core/erp/service/ImportCatalogueJob`, called by `ErpSyncJobRunner`, runs in a fixed order:
+1. catégories: `ErpConnector.fetchItemCategories` (default: none) → `importItemCategories` (`item_category`, 3.1.0);
+2. families: `fetchItemFamilies` → `importItemFamilies` (`item_family`; its `category_code` when the connector gives
+   `categoryExternalId`), checkpoint `ERP_SYNC_LAST_ITEM_FAMILY`;
+3. sub-families: `fetchItemSubFamilies` → `importItemSubFamilies`, checkpoint `ERP_SYNC_LAST_ITEM_SUBFAMILY`;
+4. sections: `fetchItemSections` (default: none) → `importItemSections` (`item_section`, 3.1.0);
+5. items: `fetchItems` → `importItems`, checkpoint `ERP_SYNC_LAST_ITEM`;
+6. barcodes: `fetchItemBarcodes` → `importItemBarcodes`, checkpoint `ERP_SYNC_LAST_ITEM_BARCODE`.
+
+Each part is today's read through `ErpSynchronizationManager` (one communications log row, its operation as before:
+`IMPORT_ITEM_CATEGORIES`, `IMPORT_ITEM_FAMILIES`, ..., `IMPORT_ITEM_BARCODES`; `pullItemCategories` and `pullItemSections`
+write no row when the connector answers none without reading, so EMTOP's log is as before), today's import and, for the
+four parts that had one, the same General Setup checkpoint (`ErpSyncCheckpointService.createFilterForCataloguePart`,
+`updateLastSyncForCataloguePart`); catégories and sections are read whole. **The first failing part stops the run**: the
+parts before it are saved, the next run goes on, the job's status `ERROR: Items failed (the parts before it are saved;
+barcodes wait for the next run): ...` (a warning, e.g. no `DEFAULT_LOCATION`, stays `WARNING: ...`). The jobs page shows
+the items' checkpoint for the job; its statistics gather the six operations. It runs wherever the four ran: a store on the
+ERP and a head office whose ERP owns everything; a head office whose catalogue only comes from the ERP refuses it
+(`HeadOfficeErpJobs`, it has `SYNC_CATALOGUE`). EMTOP (2026-10-31, accepted): one schedule, the cron of `IMPORT_ITEMS`
+(every 12 h), and a failing part (e.g. `FamilyList`) now stops the items until the next run.
+
+**Conversion of the rows** (`core/erp/service/ErpSyncJobTypesUpgrade`): at startup, in JDBC, first thing in
+`ZZDataInitializer.init()` (before any JPA read of `erp_sync_job`: a row whose type the code no longer has would fail
+every read), when one of the four rows is there: `IMPORT_CATALOGUE` updated or inserted with the cron of `IMPORT_ITEMS`
+(`0 0 * * * *` without that row) and its next run, enabled when any of the four was, then the four rows deleted, one
+transaction. The same batch is in `db/3.1.1/update.sql` (the order of script and deploy does not matter); nothing to do
+once the four rows are gone. A new installation is seeded with `IMPORT_CATALOGUE` disabled (`0 0 * * * *`). Tests:
+`ImportCatalogueJobTest` (order, stop at the first failure, warnings), `ErpSyncJobTypesUpgradeTest` (the batch, the
+script holding it, the startup run).
+
 **ErpSyncOperation Enum:**
 - `IMPORT_ITEM_FAMILIES`, `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS`, `IMPORT_ITEM_BARCODES`, `IMPORT_LOCATIONS`, `IMPORT_CUSTOMERS` - Import operations
 - `EXPORT_CUSTOMER` - Export customer to ERP

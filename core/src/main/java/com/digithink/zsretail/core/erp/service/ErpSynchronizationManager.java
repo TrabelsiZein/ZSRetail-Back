@@ -15,8 +15,10 @@ import com.digithink.zsretail.erp.api.ErpConnector;
 import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.api.dto.ErpDeletionLogEntryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemCategoryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemSectionDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
 import com.digithink.zsretail.erp.api.dto.ErpLocationDTO;
 import com.digithink.zsretail.erp.api.dto.ErpOperationResult;
@@ -45,6 +47,21 @@ public class ErpSynchronizationManager {
 
 	private final ErpConnector erpConnector;
 	private final ErpCommunicationService communicationService;
+
+	/**
+	 * 3.1.1 (the catalogue job): the catégories. A connector without them answers none and reads nothing (the default of
+	 * ErpConnector): then no row is written in the communications log.
+	 */
+	public List<ErpItemCategoryDTO> pullItemCategories(ErpSyncFilter filter) {
+		return executePullOperation(ErpSyncOperation.IMPORT_ITEM_CATEGORIES, filter,
+				() -> erpConnector.fetchItemCategories(filter), true);
+	}
+
+	/** 3.1.1 (the catalogue job): the sections, as {@link #pullItemCategories}. */
+	public List<ErpItemSectionDTO> pullItemSections(ErpSyncFilter filter) {
+		return executePullOperation(ErpSyncOperation.IMPORT_ITEM_SECTIONS, filter,
+				() -> erpConnector.fetchItemSections(filter), true);
+	}
 
 	public List<ErpItemFamilyDTO> pullItemFamilies(ErpSyncFilter filter) {
 		return executePullOperation(ErpSyncOperation.IMPORT_ITEM_FAMILIES, filter,
@@ -269,6 +286,12 @@ public class ErpSynchronizationManager {
 	 */
 	private <T> List<T> executePullOperation(ErpSyncOperation operation, ErpSyncFilter filter,
 			OperationExecutor<List<T>> executor) {
+		return executePullOperation(operation, filter, executor, false);
+	}
+
+	/** quietWhenNothingRead: no row in the log when the connector answered none and read nothing (no pull result). */
+	private <T> List<T> executePullOperation(ErpSyncOperation operation, ErpSyncFilter filter,
+			OperationExecutor<List<T>> executor, boolean quietWhenNothingRead) {
 		LocalDateTime start = LocalDateTime.now();
 		try {
 			List<T> result = executor.execute();
@@ -278,6 +301,9 @@ public class ErpSynchronizationManager {
 			// This maintains abstraction - synchronization manager only talks to
 			// ErpConnector interface
 			PullOperationResult<?> pullResult = erpConnector.getLastPullOperationResult();
+			if (quietWhenNothingRead && pullResult == null && (result == null || result.isEmpty())) {
+				return result;
+			}
 
 			// For GET requests (pull operations), there is NO request payload/body
 			// The URL is already stored in the 'url' field, so requestPayload should be
