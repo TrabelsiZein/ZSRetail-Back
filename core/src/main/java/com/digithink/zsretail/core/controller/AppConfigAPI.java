@@ -42,6 +42,12 @@ public class AppConfigAPI {
 	public static final String POS_AMOUNTS_THREE_DECIMALS = "POS_AMOUNTS_3_DECIMALS";
 
 	/**
+	 * 3.1.1: a store setting, the POS screen opens with its item catalogue shown ("true") or on the ticket alone (false,
+	 * also when the row is absent). A till's own choice (its icon, kept by the browser) wins over it.
+	 */
+	public static final String POS_CATALOGUE_VISIBLE = "POS_CATALOGUE_VISIBLE";
+
+	/**
 	 * 3.1.0: a store setting, the ticket the till prints when the cashier closes the session: "Z" (the ticket Z, also
 	 * when the row is absent) or "DECLARED" (the amounts declared only, the closing ticket of before).
 	 */
@@ -134,7 +140,8 @@ public class AppConfigAPI {
 				itemTreeService != null && itemTreeService.hasSections(),
 				// step B: the till actions registry; a head office has no till
 				applicationModeService.isHeadOffice() ? Collections.emptyList() : TillActions.all(),
-				applicationModeService.getStoreOrdersPost() // 3.1.1: ERP, MANUAL or null (a store: always null)
+				applicationModeService.getStoreOrdersPost(), // 3.1.1: ERP, MANUAL or null (a store: always null)
+				"true".equalsIgnoreCase(generalSetupService.findValueByCode(POS_CATALOGUE_VISIBLE)) // 3.1.1
 		));
 	}
 

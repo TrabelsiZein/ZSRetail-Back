@@ -192,4 +192,10 @@ public class AppConfigDTO {
 	 * null when it takes none, and always on a store. The head office's "Commandes des magasins" page exists only when set.
 	 */
 	private String storeOrdersPost;
+
+	/**
+	 * 3.1.1: the POS screen opens with its item catalogue shown, GeneralSetup POS_CATALOGUE_VISIBLE "true" (any case);
+	 * false when off or absent (a head office). A till that chose with its icon keeps its own choice (the browser).
+	 */
+	private boolean posCatalogueVisible;
 }

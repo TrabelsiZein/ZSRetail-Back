@@ -185,4 +185,25 @@
   again. Left as they were: the search box's Enter (a scan there still adds the exact item and keeps the focus there),
   the on-screen keyboard and its toggle (`.floating-keyboard`, `.keyboard-btn-col`), and the refocus after a scan, an
   RFID read and a held ticket taken back.
+- **3.1.1, the collapsible catalogue** (`ItemSelection.vue`, 2026-10-31, layout only: the ticket lines and the totals
+  unchanged). A top row over the whole width, in both states: the catalogue's button (`.catalogue-toggle`, a `GridIcon`
+  for the tiles, light while hidden, solid primary while shown, `.catalogue-toggle--on`; `tabindex="-1"`, and
+  `onTillMouseDown` keeps the focus off it), then the
+  scan field, the RFID button, the search and the keyboard button (the same fields, moved out of the catalogue). Under
+  it `.pos-content` is one CSS grid with named areas. **Catalogue shown** (as before, 2/3 and 1/3): the ticker
+  (`info`) and the catalogue (`catalogue`: the path and the tiles) over the action bar (`actions`) on the left, the
+  ticket (`lines`) over its totals (`summary`) on the right, the totals beside the action bar. **Catalogue hidden**
+  (`.pos-content--ticket`; the catalogue kept mounted with `v-show`, so its levels, cache and in-cart badges stay): the
+  ticket on the left over the whole height, a right rail as wide as the ticket column of before, filled from top to
+  bottom (asked by Zein: no free place, no margins): a fixed card in place of the ticker (`.till-info`, `tillInfo`: the
+  client with its code, the session, the cashier, whole values cut by CSS), the totals taking the free height (larger;
+  the detail rows share it, a dashed line under each; the total last on a light green band, its amount at 2rem), the
+  action buttons three a row (a shorter last row stretched: loyalty and admin shown or not, never a hole), Paiement last
+  over the whole width under the total; their heights follow the screen's (`clamp` on `vh`: 48 to 58 px, Paiement 56 to
+  70 px), so a 730 px high window shows the totals without a scroll. The ticker shows only with the catalogue. Under 768 px the grid is off and the boxes stack as before (ticker, catalogue, action bar,
+  ticket, totals). Measured with two-row lines: 1366 x 768, 6 lines shown and 9 hidden (7 before); 1024 x 768, 5 and 9
+  (6 before); the top row costs one line when the catalogue is shown. **Which state**: the till's choice
+  (`localStorage` `zsretail.pos.catalogueOpen`, written by the icon), else General Setup `POS_CATALOGUE_VISIBLE`
+  (`appConfig.posCatalogueVisible`, default no); table management always shows it and hides the icon
+  (`catalogueToggleShown`). See `modules/general-setup.md`.
 - **2.2.2, step 4**: the till's quantity box is a text box in both modes; with "Allow decimal quantities" off a decimal ("0,2", "0.5") is refused with a message and the box shows the line's quantity again (a number box read "0,2" as 2). General Setup: on a store linked to a head office, `DEFAULT_LOCATION` is labelled "Store code" with a help text (`SetupField` prop `help`). `public/index.html`: `translate="no"` and `<meta name="google" content="notranslate">`.

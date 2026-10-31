@@ -7,6 +7,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 ## 3.1.1 — in progress (branch `release/3.1.1`)
 
 ### Features
+- POS screen, catalogue visible by default: a store General Setup row `POS_CATALOGUE_VISIBLE` (BOOLEAN, `false`, POS
+  behaviour, created at start-up on a store only), sent by `GET /config` as `posCatalogueVisible` (last key; `false`
+  when off or absent). How the till opens when it has no choice of its own (`docs/modules/general-setup.md`).
 - Store Articles page, grouped by NAV item: `GET /item-catalogue` and `GET /item-catalogue/filters` on a store, the head
   office's item catalogue list read at the store (one line per NAV item number, else per item; price range, variants
   count, stock, the classification filters, the price with VAT). The query moved to core (`ItemCatalogueQuery`,

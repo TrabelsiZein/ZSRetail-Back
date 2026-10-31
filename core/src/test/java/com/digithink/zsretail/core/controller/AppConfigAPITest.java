@@ -54,11 +54,12 @@ class AppConfigAPITest {
 	 * invoices from the ERP (supplySource), always last; then 2.2.1 decimal quantities (allowDecimalQuantity) and the tax
 	 * stamp rule (taxStampActive); then 2.2.2 amounts with 3 decimals on the POS screens (posAmountsThreeDecimals); then
 	 * RFID step 2 (rfidEnabled); then 3.1.0 cashierClosingTicket and the NAV items page of item variants (navItems), then
-	 * its Catégories and Sections pages (itemCategories, itemSections); then step B's till actions registry (tillActions). */
+	 * its Catégories and Sections pages (itemCategories, itemSections); then step B's till actions registry (tillActions);
+	 * then 3.1.1 store orders (storeOrdersPost) and the POS screen's catalogue shown when it opens (posCatalogueVisible). */
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
 			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock", "supplySource",
 			"allowDecimalQuantity", "taxStampActive", "posAmountsThreeDecimals", "rfidEnabled", "cashierClosingTicket",
-			"navItems", "itemCategories", "itemSections", "tillActions", "storeOrdersPost");
+			"navItems", "itemCategories", "itemSections", "tillActions", "storeOrdersPost", "posCatalogueVisible");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";
@@ -78,6 +79,7 @@ class AppConfigAPITest {
 		values.put(TaxStampRule.SETTING, "true");
 		values.put(AppConfigAPI.POS_AMOUNTS_THREE_DECIMALS, "TRUE");
 		values.put(AppConfigAPI.CASHIER_CLOSING_TICKET, "declared");
+		values.put(AppConfigAPI.POS_CATALOGUE_VISIBLE, "True");
 		values.putAll(SETUP_OVERRIDES);
 		return values;
 	}
@@ -288,6 +290,8 @@ class AppConfigAPITest {
 		assertEquals("true", erp.get("taxStampActive").toString()); // 2.2.1: ENABLE_TAX_STAMP true and the item
 		assertEquals("true", erp.get("posAmountsThreeDecimals").toString()); // 2.2.2: POS_AMOUNTS_3_DECIMALS, any case
 		assertFalse(new AppConfigDTO().isPosAmountsThreeDecimals()); // the row absent (a head office): off
+		assertEquals("true", erp.get("posCatalogueVisible").toString()); // 3.1.1: POS_CATALOGUE_VISIBLE, any case
+		assertFalse(new AppConfigDTO().isPosCatalogueVisible()); // the row absent (a head office): the ticket alone
 		assertEquals("false", erp.get("rfidEnabled").toString()); // RFID step 2: no rfid.enabled line
 	}
 
