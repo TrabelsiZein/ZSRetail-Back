@@ -1,0 +1,12 @@
+{
+  "@odata.context": "http://bc.test:7048/BC280/api/sat/zsretail/v1.0/$metadata#companies(6b29fc40-ca47-1067-b31d-00dd010662da)/barCodes",
+  "value": [
+    { "@odata.etag": "W/\"JzE5OzQwMTsn\"", "id": "b1c2d3e4-0001-f111-9a06-00155d66bd01", "itemNo": "ITM001", "barCode": "6191234500011", "unitOfMeasureCode": "PCS", "description": "", "lastModifiedDateTime": "2026-10-25T09:00:00.100Z" },
+    { "@odata.etag": "W/\"JzE5OzQwMjsn\"", "id": "b1c2d3e4-0002-f111-9a06-00155d66bd01", "itemNo": "ITM002", "barCode": "6191234500028", "unitOfMeasureCode": "PCS", "description": "", "lastModifiedDateTime": "2026-10-25T09:00:00.103Z" },
+    { "@odata.etag": "W/\"JzE5OzQwMzsn\"", "id": "b1c2d3e4-0003-f111-9a06-00155d66bd01", "itemNo": "ITM999", "barCode": "6191234500035", "unitOfMeasureCode": "PCS", "description": "", "lastModifiedDateTime": "2026-10-25T09:00:00.107Z" },
+    { "@odata.etag": "W/\"JzE5OzQwNDsn\"", "id": "b1c2d3e4-0004-f111-9a06-00155d66bd01", "itemNo": "ITM003", "barCode": "", "unitOfMeasureCode": "PCS", "description": "", "lastModifiedDateTime": "2026-10-25T09:00:00.110Z" },
+    { "@odata.etag": "W/\"JzE5OzQwNTsn\"", "id": "b1c2d3e4-0005-f111-9a06-00155d66bd01", "itemNo": "", "barCode": "6191234500042", "unitOfMeasureCode": "PCS", "description": "", "lastModifiedDateTime": "2026-10-25T09:00:00.113Z" },
+    { "@odata.etag": "W/\"JzE5OzQwNjsn\"", "id": "b1c2d3e4-0006-f111-9a06-00155d66bd01", "itemNo": "ITM011", "barCode": "6191234500059", "unitOfMeasureCode": "PCS", "description": "", "lastModifiedDateTime": "0001-01-01T00:00:00Z" },
+    { "@odata.etag": "W/\"JzE5OzQwNzsn\"", "id": "", "itemNo": "ITM004", "barCode": "6191234500066", "unitOfMeasureCode": "PCS", "description": "", "lastModifiedDateTime": "2026-10-25T09:00:00.117Z" }
+  ]
+}

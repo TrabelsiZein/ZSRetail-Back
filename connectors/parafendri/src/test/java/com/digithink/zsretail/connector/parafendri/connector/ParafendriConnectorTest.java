@@ -155,6 +155,7 @@ class ParafendriConnectorTest {
 	@AfterEach
 	void clear() {
 		connector.clearLastPullOperationResult();
+		ParafendriConnector.clearItemsOfThisRun(); // an items read from a checkpoint leaves them for the barcodes
 	}
 
 	private static String sample() throws IOException {
@@ -215,10 +216,10 @@ class ParafendriConnectorTest {
 	}
 
 	@Test
-	@DisplayName("The other fetches stay empty and send nothing (barcodes are step 4)")
+	@DisplayName("The other fetches stay empty and send nothing (customers, prices: later steps)")
 	void othersEmpty() {
-		assertEquals(Collections.emptyList(), connector.fetchItemBarcodes(null));
 		assertEquals(Collections.emptyList(), connector.fetchCustomers(null));
+		assertEquals(Collections.emptyList(), connector.fetchSalesPrices(null));
 		server.verify();
 	}
 }

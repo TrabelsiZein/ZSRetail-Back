@@ -21,6 +21,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.digithink.zsretail.connector.parafendri.ParafendriConnectorDescriptor;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriConfig;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriProperties;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriBarcodeRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCollection;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCompanyRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriItemCategoryRow;
@@ -49,6 +50,11 @@ public class ParafendriRestClient {
 	static final String LOCATION_FIELDS = "code,name,lastModifiedDateTime";
 	private static final ParameterizedTypeReference<ParafendriCollection<ParafendriLocationRow>> LOCATION_ROWS =
 			new ParameterizedTypeReference<ParafendriCollection<ParafendriLocationRow>>() {
+			};
+	/** Step 4: the barcodes of the company, under companies(company-id). */
+	static final String BARCODES = "barCodes";
+	private static final ParameterizedTypeReference<ParafendriCollection<ParafendriBarcodeRow>> BARCODE_ROWS =
+			new ParameterizedTypeReference<ParafendriCollection<ParafendriBarcodeRow>>() {
 			};
 	/** Step 3: the items of each point de vente, under companies(company-id). */
 	static final String STOCK_POINTS = "stockPoints";
@@ -145,9 +151,64 @@ public class ParafendriRestClient {
 	/** locationCode eq 'X' [and lastModifiedDateTime ge 2026-10-23T17:13:20.627Z]: the time in UTC, no + in the address. */
 	public static String stockPointsFilter(String locationCode, OffsetDateTime since) {
 		String filter = "locationCode eq '" + quoted(locationCode) + "'";
-		return since == null ? filter
-				: filter + " and lastModifiedDateTime ge "
-						+ since.withOffsetSameInstant(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+		return since == null ? filter : filter + " and lastModifiedDateTime ge " + utc(since);
+	}
+
+	/**
+	 * Step 4: the barcodes of the company (company-wide, no location), every row without a checkpoint, else the rows with
+	 * lastModifiedDateTime ge its time in UTC (ge as stockPoints), next links followed.
+	 */
+	public List<ParafendriBarcodeRow> readBarcodes(OffsetDateTime since) {
+		return readAll(BARCODES, barcodesUri(since), BARCODE_ROWS);
+	}
+
+	/** Step 4: the first page only of {@link #readBarcodes}, its next link with it (the live test). */
+	public ParafendriCollection<ParafendriBarcodeRow> readBarcodesFirstPage(OffsetDateTime since) {
+		return get(BARCODES, barcodesUri(since), BARCODE_ROWS);
+	}
+
+	/** Step 4: companies(company-id)/barCodes[?$filter=lastModifiedDateTime ge <time in UTC>]. */
+	public URI barcodesUri(OffsetDateTime since) {
+		UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(properties.companyAddress() + BARCODES);
+		if (since != null) {
+			builder.queryParam("$filter", "lastModifiedDateTime ge " + utc(since));
+		}
+		return builder.build().encode().toUri();
+	}
+
+	/**
+	 * Step 4: every barcode of these items, $filter=itemNo eq 'A' or itemNo eq 'B' (a quote doubled), {@link
+	 * #ITEMS_PER_BARCODE_READ} items per GET, next links followed.
+	 */
+	public List<ParafendriBarcodeRow> readBarcodesOfItems(List<String> itemNos) {
+		List<ParafendriBarcodeRow> rows = new ArrayList<>();
+		if (itemNos == null) {
+			return rows;
+		}
+		for (int from = 0; from < itemNos.size(); from += ITEMS_PER_BARCODE_READ) {
+			List<String> batch = itemNos.subList(from, Math.min(from + ITEMS_PER_BARCODE_READ, itemNos.size()));
+			URI uri = UriComponentsBuilder.fromHttpUrl(properties.companyAddress() + BARCODES)
+					.queryParam("$filter", itemsFilter(batch)).build().encode().toUri();
+			rows.addAll(readAll(BARCODES, uri, BARCODE_ROWS));
+		}
+		return rows;
+	}
+
+	/** itemNo eq 'A' or itemNo eq 'B' */
+	static String itemsFilter(List<String> itemNos) {
+		StringBuilder filter = new StringBuilder();
+		for (String itemNo : itemNos) {
+			filter.append(filter.length() == 0 ? "" : " or ").append("itemNo eq '").append(quoted(itemNo)).append("'");
+		}
+		return filter.toString();
+	}
+
+	/** Step 4: item numbers per GET of their barcodes (a short address). */
+	static final int ITEMS_PER_BARCODE_READ = 20;
+
+	/** The time in UTC, ISO (2026-10-25T08:15:42.317Z: no + in the address). */
+	static String utc(OffsetDateTime time) {
+		return time.withOffsetSameInstant(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 	}
 
 	static String quoted(String value) {

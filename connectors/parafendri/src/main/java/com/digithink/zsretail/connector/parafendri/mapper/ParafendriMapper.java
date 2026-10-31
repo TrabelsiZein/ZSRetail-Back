@@ -13,10 +13,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriBarcodeRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriItemCategoryRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriStockPointRow;
 import com.digithink.zsretail.erp.api.ErpCategories;
 import com.digithink.zsretail.erp.api.ErpRead;
+import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemCategoryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
@@ -35,7 +37,7 @@ import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
  * without a level 0 to 3 (counted with the sections, the deepest level).</li>
  * </ul>
  * Each level's read counts the rows of that level only: a row of another level is not "left out" of it. Step 3: the
- * items of stockPoints ({@link #items}).
+ * items of stockPoints ({@link #items}). Step 4: the barcodes of barCodes ({@link #barcodes}).
  */
 public class ParafendriMapper {
 
@@ -263,6 +265,48 @@ public class ParafendriMapper {
 			items.add(item);
 		}
 		return new ErpRead<>(items, rows.size(), leftOut, notes, null);
+	}
+
+	// ─── Barcodes (step 4, barCodes) ────────────────────────────
+
+	public static final String BLANK_BARCODE = "blank barCode";
+	public static final String BLANK_BARCODE_ITEM = "blank itemNo";
+
+	/**
+	 * Step 4: the rows of barCodes to barcodes: the value barCode, the item itemNo (item.erp_external_id since step 3),
+	 * the row's external id its id (the GUID: a barcode changed in Business Central replaces the old one; no id: the
+	 * value, as the import does), lastModifiedAt lastModifiedDateTime (0001-01-01: none, noted). The primary flag is not
+	 * set (as EMTOP's: the import leaves it). Left out with their reason: a blank barCode, a blank itemNo. A barcode of an
+	 * item this store does not have is kept: the import leaves it out.
+	 */
+	public ErpRead<ErpItemBarcodeDTO> barcodes(List<ParafendriBarcodeRow> rows) {
+		Map<String, Integer> leftOut = new LinkedHashMap<>();
+		Map<String, Integer> notes = new LinkedHashMap<>();
+		List<ErpItemBarcodeDTO> barcodes = new ArrayList<>();
+		for (ParafendriBarcodeRow row : rows) {
+			String value = trimmed(row.getBarCode());
+			String itemNo = trimmed(row.getItemNo());
+			if (value.isEmpty()) {
+				count(leftOut, BLANK_BARCODE);
+				continue;
+			}
+			if (itemNo.isEmpty()) {
+				count(leftOut, BLANK_BARCODE_ITEM);
+				continue;
+			}
+			ErpItemBarcodeDTO barcode = new ErpItemBarcodeDTO();
+			String id = trimmed(row.getId());
+			barcode.setExternalId(id.isEmpty() ? value : id);
+			barcode.setBarcode(value);
+			barcode.setItemExternalId(itemNo);
+			OffsetDateTime modified = modifiedAt(row.getLastModifiedDateTime());
+			if (modified == null) {
+				count(notes, NO_DATE);
+			}
+			barcode.setLastModifiedAt(modified);
+			barcodes.add(barcode);
+		}
+		return new ErpRead<>(barcodes, rows.size(), leftOut, notes, null);
 	}
 
 	/** A blank code: none; a code the tree does not keep at its level: none, noted; else the code. */

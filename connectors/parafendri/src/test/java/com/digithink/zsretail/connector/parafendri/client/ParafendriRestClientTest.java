@@ -238,6 +238,36 @@ class ParafendriRestClientTest {
 		server.verify();
 	}
 
+	@Test
+	@DisplayName("Step 4, barCodes: no filter without a checkpoint, ge its time in UTC with one")
+	void barcodesUri() {
+		String barcodes = COMPANIES + "(" + COMPANY_ID + ")/barCodes";
+		assertEquals(barcodes, client.barcodesUri(null).toString());
+		assertEquals(barcodes + "?$filter=lastModifiedDateTime%20ge%202026-10-25T08:00:00.117Z",
+				client.barcodesUri(java.time.OffsetDateTime.parse("2026-10-25T09:00:00.117+01:00")).toString());
+	}
+
+	@Test
+	@DisplayName("Step 4, the barcodes of some items: itemNo eq .. or .., 20 items per GET (25 items: two GETs), a quote doubled")
+	void barcodesOfItems() {
+		assertEquals("itemNo eq 'A' or itemNo eq 'O''NEIL'",
+				ParafendriRestClient.itemsFilter(Arrays.asList("A", "O'NEIL")));
+		List<String> items = new java.util.ArrayList<>();
+		for (int i = 1; i <= 25; i++) {
+			items.add(String.format("ITM%03d", i));
+		}
+		String barcodes = COMPANIES + "(" + COMPANY_ID + ")/barCodes?$filter=";
+		server.expect(requestTo(barcodes + ParafendriRestClient.itemsFilter(items.subList(0, 20)).replace(" ", "%20")))
+				.andRespond(withSuccess("{\"value\":[{\"itemNo\":\"ITM001\",\"barCode\":\"1\"}]}",
+						MediaType.APPLICATION_JSON));
+		server.expect(requestTo(barcodes + ParafendriRestClient.itemsFilter(items.subList(20, 25)).replace(" ", "%20")))
+				.andRespond(withSuccess("{\"value\":[{\"itemNo\":\"ITM021\",\"barCode\":\"21\"}]}",
+						MediaType.APPLICATION_JSON));
+		assertEquals(2, client.readBarcodesOfItems(items).size());
+		server.verify();
+		assertEquals(0, client.readBarcodesOfItems(java.util.Collections.emptyList()).size());
+	}
+
 	static String sample(String name) throws IOException {
 		try (InputStream in = ParafendriRestClientTest.class.getResourceAsStream("/parafendri/" + name)) {
 			return new String(in.readAllBytes(), StandardCharsets.UTF_8);

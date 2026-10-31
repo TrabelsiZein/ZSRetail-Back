@@ -1,16 +1,19 @@
 package com.digithink.zsretail.connector.parafendri.connector;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.connector.parafendri.ParafendriConnectorDescriptor;
 import com.digithink.zsretail.connector.parafendri.client.ParafendriRestClient;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriBarcodeRow;
 import com.digithink.zsretail.connector.parafendri.mapper.ParafendriMapper;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 import com.digithink.zsretail.erp.api.ErpCategories;
@@ -49,8 +52,9 @@ import lombok.extern.log4j.Log4j2;
  * IMPORT_CATALOGUE, each fetch reading the page itemCategories (121 rows: no cache) and keeping its level
  * ({@link ParafendriMapper}); the read goes to the communications log as EMTOP's (the address, then the rows read, kept
  * and left out by reason, and the rows), with one WARN line when a row was left out. Step 3: the items, stockPoints of
- * the store's point de vente ({@link #fetchItems}). Every other fetch answers an empty list, every push or update a
- * failure, so the store's file keeps erp.sync.enabled=false until the jobs are written.
+ * the store's point de vente ({@link #fetchItems}). Step 4: the barcodes ({@link #fetchItemBarcodes}). Every other fetch
+ * answers an empty list, every push or update a failure, so the store's file keeps erp.sync.enabled=false until the
+ * jobs are written.
  */
 @Component
 @ConditionalOnErpConnector(ParafendriConnectorDescriptor.NAME)
@@ -61,6 +65,12 @@ public class ParafendriConnector implements ErpConnector {
 
 	/** The read of the last fetch of this thread, for the communications log (as EMTOP's connector). */
 	private static final ThreadLocal<PullOperationResult<?>> LAST_PULL = new ThreadLocal<>();
+
+	/**
+	 * Step 4: the item numbers the items part of the job's run got from its checkpoint, for the barcodes part that comes
+	 * next on the same thread (set by {@link #fetchItems}, taken and cleared by {@link #fetchItemBarcodes}).
+	 */
+	private static final ThreadLocal<List<String>> ITEMS_OF_THIS_RUN = new ThreadLocal<>();
 
 	private final ParafendriRestClient client;
 	private final ErpStoreLocation storeLocation;
@@ -80,6 +90,7 @@ public class ParafendriConnector implements ErpConnector {
 	 */
 	@Override
 	public List<ErpItemDTO> fetchItems(ErpSyncFilter filter) {
+		ITEMS_OF_THIS_RUN.remove();
 		String location = storeLocation.defaultLocationCode();
 		if (location == null || location.trim().isEmpty()) {
 			throw new ErpSyncWarningException("DEFAULT_LOCATION is not configured");
@@ -99,7 +110,70 @@ public class ParafendriConnector implements ErpConnector {
 					read.getRead(), read.getKept(), read.getLeftOut(),
 					read.getNotes().isEmpty() ? "" : ", noted " + read.getNotes());
 		}
+		// Step 4: on a run from a checkpoint, the items it got have their barcodes read too (fetchItemBarcodes)
+		if (since != null) {
+			ITEMS_OF_THIS_RUN.set(read.getRows().stream().map(ErpItemDTO::getCode).collect(Collectors.toList()));
+		}
 		return read.getRows();
+	}
+
+	/**
+	 * Step 4: the barcodes. barCodes is company-wide (no location): every row on a first run (no checkpoint), else the
+	 * rows changed since the job's checkpoint ERP_SYNC_LAST_ITEM_BARCODE (lastModifiedDateTime ge), plus every barcode of
+	 * the items the items part of this run got from its own checkpoint ({@link #fetchItems}, the same thread just before):
+	 * an item added to the point de vente later, or fixed later, has its barcode read although that row did not change
+	 * (the checkpoint moved past it when the import left it out, its item not being here then). A row read twice (in both
+	 * reads) is kept once. A barcode of an item this store does not have is kept: the import leaves it out. The
+	 * communications log gets the address, the counts and the reasons, not the rows.
+	 */
+	@Override
+	public List<ErpItemBarcodeDTO> fetchItemBarcodes(ErpSyncFilter filter) {
+		List<String> runItems = ITEMS_OF_THIS_RUN.get();
+		ITEMS_OF_THIS_RUN.remove();
+		OffsetDateTime since = filter == null ? null : filter.getUpdatedAfter();
+		List<String> asked = since == null || runItems == null ? Collections.emptyList() : runItems;
+		String address = client.barcodesUri(since).toString();
+		LAST_PULL.set(new PullOperationResult<>(null, address, null));
+		List<ParafendriBarcodeRow> fromCheckpoint = client.readBarcodes(since);
+		List<ParafendriBarcodeRow> forItems = asked.isEmpty() ? Collections.emptyList()
+				: client.readBarcodesOfItems(asked);
+		Map<String, ParafendriBarcodeRow> rows = new LinkedHashMap<>();
+		int twice = 0;
+		for (ParafendriBarcodeRow row : concat(fromCheckpoint, forItems)) {
+			String key = row.getId() == null || row.getId().trim().isEmpty() ? "barCode:" + row.getBarCode()
+					: row.getId().trim();
+			if (rows.putIfAbsent(key, row) != null) {
+				twice++;
+			}
+		}
+		ErpRead<ErpItemBarcodeDTO> read = mapper.barcodes(new ArrayList<>(rows.values()));
+		Map<String, Object> summary = summary(read);
+		summary.remove("rows");
+		summary.put("since", since == null ? null : since.toString());
+		summary.put("readFromCheckpoint", fromCheckpoint.size());
+		summary.put("itemsAsked", asked.size());
+		summary.put("readForItems", forItems.size());
+		summary.put("sameRowTwice", twice);
+		LAST_PULL.set(new PullOperationResult<>(read.getRows(), address, summary));
+		if (!read.getLeftOut().isEmpty()) {
+			log.warn("ERP connector parafendri: barCodes: {} read, {} kept, left out {}{}", read.getRead(),
+					read.getKept(), read.getLeftOut(), read.getNotes().isEmpty() ? "" : ", noted " + read.getNotes());
+		}
+		return read.getRows();
+	}
+
+	/**
+	 * The run's items forgotten (the tests, between two cases on one thread). Not part of clearLastPullOperationResult:
+	 * the manager clears that after every read, between the items part and the barcodes part.
+	 */
+	static void clearItemsOfThisRun() {
+		ITEMS_OF_THIS_RUN.remove();
+	}
+
+	private static <T> List<T> concat(List<T> first, List<T> second) {
+		List<T> all = new ArrayList<>(first);
+		all.addAll(second);
+		return all;
 	}
 
 	@Override
@@ -158,11 +232,6 @@ public class ParafendriConnector implements ErpConnector {
 	@Override
 	public void clearLastPullOperationResult() {
 		LAST_PULL.remove();
-	}
-
-	@Override
-	public List<ErpItemBarcodeDTO> fetchItemBarcodes(ErpSyncFilter filter) {
-		return Collections.emptyList();
 	}
 
 	@Override

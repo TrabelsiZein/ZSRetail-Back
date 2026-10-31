@@ -12,6 +12,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `erp.connector=parafendri`, no ability; the settings, the startup check, an NTLM GET-only client whose login goes to
   the host of `base-url` only, and the connection test `ParafendriRestClient.checkCompany()` (the companies of the API,
   `company-id` among them). Every `ErpConnector` method a stub: no job yet (`docs/modules/erp-sync.md`).
+- ERP connector `parafendri`, step 4: the barcodes (`fetchItemBarcodes`, `barCodes`, company-wide): every row on a
+  first run, then from the checkpoint `ERP_SYNC_LAST_ITEM_BARCODE` plus the barcodes of the items the same run's items
+  part got, so that an item added to a point de vente later gets its barcode; the row's GUID as the barcode's ERP id (a
+  changed barcode replaces the old one); blank barcode or item left out with their reason in the communications log.
 - ERP connector `parafendri`, step 3: the items (`fetchItems`, `stockPoints` of the store's `DEFAULT_LOCATION`, from the
   checkpoint `ERP_SYNC_LAST_ITEM`): the price before VAT as received (never rounded), the VAT, the unit, inactive when
   blocked or without a price, the four links checked against the tree, left-out rows with their reason in the

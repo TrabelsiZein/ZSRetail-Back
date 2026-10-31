@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
@@ -25,9 +26,11 @@ import com.digithink.zsretail.connector.parafendri.config.ParafendriConfig;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriProperties;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriStartupCheck;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCompanyRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriBarcodeRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCollection;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriItemCategoryRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriStockPointRow;
+import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
 import com.digithink.zsretail.connector.parafendri.mapper.ParafendriMapper;
@@ -116,6 +119,31 @@ class ParafendriLiveConnectionTest {
 					+ first.getCategoryCode() + " / " + first.getFamilyExternalId() + " / " + first.getSubFamilyExternalId()
 					+ " / " + first.getSectionCode() + ", active " + first.getActive() + ", modified "
 					+ first.getLastModifiedAt());
+		}
+
+		// Step 4: page 1 of barCodes (company-wide, no checkpoint), its count and time; the orphans: barcodes whose itemNo
+		// is not in this point de vente's stockPoints (the import would leave them out, one warning row each)
+		start = System.currentTimeMillis();
+		ParafendriCollection<ParafendriBarcodeRow> barcodePage = client.readBarcodesFirstPage(null);
+		List<ParafendriBarcodeRow> barcodeRows = barcodePage.getValue() == null ? new ArrayList<>()
+				: barcodePage.getValue();
+		System.out.println("barCodes page 1: " + barcodeRows.size() + " rows, in " + (System.currentTimeMillis() - start)
+				+ " ms, more pages: "
+				+ (barcodePage.getNextLink() == null || barcodePage.getNextLink().trim().isEmpty() ? "no" : "yes"));
+		ErpRead<ErpItemBarcodeDTO> barcodes = new ParafendriMapper().barcodes(barcodeRows);
+		print("barcodes of page 1", barcodes);
+		Set<String> here = rows.stream().map(row -> row.getItemNo() == null ? "" : row.getItemNo().trim())
+				.collect(Collectors.toSet());
+		long orphans = barcodes.getRows().stream().filter(barcode -> !here.contains(barcode.getItemExternalId())).count();
+		long itemsWithBarcode = barcodes.getRows().stream().map(ErpItemBarcodeDTO::getItemExternalId)
+				.filter(here::contains).distinct().count();
+		System.out.println("orphan barcodes (itemNo not in the stockPoints of " + code + "): " + orphans
+				+ "; items of " + code + " with a barcode: " + itemsWithBarcode + " of " + here.size()
+				+ (barcodePage.getNextLink() == null ? "" : " (page 1 only)"));
+		if (!barcodes.getRows().isEmpty()) {
+			ErpItemBarcodeDTO firstBarcode = barcodes.getRows().get(0);
+			System.out.println("first barcode: " + firstBarcode.getBarcode() + " of " + firstBarcode.getItemExternalId()
+					+ ", id " + firstBarcode.getExternalId() + ", modified " + firstBarcode.getLastModifiedAt());
 		}
 	}
 

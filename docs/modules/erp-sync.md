@@ -609,6 +609,25 @@ dependency on another connector:
   the checkpoint, the counts and the reasons, not the rows (13,165 on a first read). Known limit, as EMTOP's: with the
   delta read, an item whose row is deleted in Business Central is not made inactive (a blocked one is). Live,
   2026-10-31, PV-GREMDA: 13,165 rows in one page, 4.4 s, all kept, nothing noted.
+- Step 4, the barcodes (`fetchItemBarcodes`, the job's barcodes part): the page `barCodes`, **company-wide** (no
+  location: one barcode per item of the company), every row on a first run (no checkpoint), else from the job's
+  checkpoint `ERP_SYNC_LAST_ITEM_BARCODE` (the newest `lastModifiedDateTime` of the barcodes it got) with
+  `lastModifiedDateTime ge <time in UTC>`, **plus every barcode of the items the items part of the same run got from its
+  own checkpoint** (`itemNo eq '..' or ..`, 20 items per GET): the importer leaves out a barcode whose item is not in the
+  store, and the checkpoint still moves past it, so an item added to the point de vente later (or fixed later) would
+  never get its barcode, its barcode row not changing. The items part notes its items in the connector (a `ThreadLocal`
+  of the job's thread, set by `fetchItems` on a run from a checkpoint, taken and cleared by `fetchItemBarcodes`; not by
+  `clearLastPullOperationResult`, which the manager calls after every read); a row read twice is kept once.
+  `ParafendriMapper.barcodes`: value `barCode`, item `itemNo` (the item's ERP id since step 3), external id the row's
+  `id` (a GUID: a barcode changed in Business Central replaces the old one, the import finding it by its ERP id first;
+  no id: the value), `lastModifiedAt` (0001-01-01: none, noted); the primary flag left to the import, as EMTOP's. Left
+  out with their reason: a blank `barCode`, a blank `itemNo`. Not read: `unitOfMeasureCode` (`item_barcode` has no
+  unit), `description` (empty). The communications log gets the address, the counts (`readFromCheckpoint`,
+  `itemsAsked`, `readForItems`, `sameRowTwice`) and the reasons, not the rows. **Barcodes of an item this store does not
+  have**: the core import writes one WARNING row each in the communications log ("parent item ... not found"), as for
+  EMTOP; measured live 2026-10-31 for PV-GREMDA: 0 (its 13,165 items are the company's 13,165 barcodes), so no change in
+  core; to measure at each other point de vente when it starts (the live test counts them). Live: 13,165 rows in one
+  page, 5.0 s, all kept.
 - Tests (in the project): `ParafendriRestClientTest` (mock server, the sample `companies.json`: two companies, one the
   configured id; next links, an unknown id, an HTTP 401, GET only, the login's host; step 1, the sample
   `locations.json` with the six points de vente PV-GREMDA, PV-LAFRANE, PV-MALL-SF, PV-NABEUL, PV-SOUSSE, PV-TANIOUR:
@@ -620,7 +639,10 @@ dependency on another connector:
   unit, the three blocks and the zero price, codes outside the tree, the empty date, the four left-out reasons), the
   items in `ParafendriConnectorTest` (the tree then `stockPoints`, the checkpoint's `ge`, the log without the rows, no
   `DEFAULT_LOCATION`), the filter and the paging in `ParafendriRestClientTest`, the unit in core's
-  `ErpItemImportLookupsTest`, `ParafendriStartupCheckTest`,
+  `ErpItemImportLookupsTest`; step 4: `ParafendriBarcodesMapperTest` (the sample `barCodes.json`),
+  `ParafendriBarcodesConnectorTest` (a first run reads all; an item added later gets its barcode through the read of
+  the run's items; a row read twice kept once; the run's items used once; items read whole: no read per item), the
+  address and the batches of 20 in `ParafendriRestClientTest`, `ParafendriStartupCheckTest`,
   `ParafendriConnectionCheckTest` (step 1: all found, Business Central down, an HTTP 503, the company missing,
   `DEFAULT_LOCATION` empty, the location missing, the locations page or the location failing; no exception, its own
   daemon thread); `ParafendriLiveConnectionTest`, skipped unless `-Dparafendri.live=true`, reads the companies and (step
