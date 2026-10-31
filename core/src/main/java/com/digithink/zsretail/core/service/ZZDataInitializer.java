@@ -1272,8 +1272,6 @@ public class ZZDataInitializer {
 				"Hourly import of sales prices and discounts", false);
 		createErpJob("0 50 * * * *", ErpSyncJobType.SYNC_ERP_DELETIONS,
 				"Sync deletions from ERP Log (Sales Price, Sales Discount)", false);
-		createErpJob("0 0 0 1 1 *", ErpSyncJobType.EXPORT_CUSTOMERS,
-				"Template job for exporting customers (disabled by default)", false);
 		createErpJob("0 0 0 1 1 *", ErpSyncJobType.EXPORT_TICKETS,
 				"Template job for exporting tickets (disabled by default)", false);
 		createErpJob("0 0 * * * *", ErpSyncJobType.EXPORT_RETURNS, "Export returns to ERP (runs every 1 hour)", true);

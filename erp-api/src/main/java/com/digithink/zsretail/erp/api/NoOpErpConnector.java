@@ -77,11 +77,6 @@ public class NoOpErpConnector implements ErpConnector {
 	}
 
 	@Override
-	public ErpOperationResult pushCustomer(ErpCustomerDTO customer) {
-		return ErpOperationResult.failure("ERP connector not configured");
-	}
-
-	@Override
 	public ErpOperationResult pushTicket(ErpTicketDTO ticket) {
 		return ErpOperationResult.failure("ERP connector not configured");
 	}

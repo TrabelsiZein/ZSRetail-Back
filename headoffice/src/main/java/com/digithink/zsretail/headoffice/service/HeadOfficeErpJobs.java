@@ -45,7 +45,7 @@ public class HeadOfficeErpJobs {
 
 	/** Never run, never offered on a head office. */
 	public static final Set<ErpSyncJobType> NOT_ON_HEAD_OFFICE = Collections.unmodifiableSet(EnumSet.of(
-			ErpSyncJobType.EXPORT_CUSTOMERS, ErpSyncJobType.EXPORT_TICKETS, ErpSyncJobType.EXPORT_RETURNS,
+			ErpSyncJobType.EXPORT_TICKETS, ErpSyncJobType.EXPORT_RETURNS,
 			ErpSyncJobType.EXPORT_SESSIONS, ErpSyncJobType.IMPORT_SALES_PRICES_AND_DISCOUNTS));
 
 	/**

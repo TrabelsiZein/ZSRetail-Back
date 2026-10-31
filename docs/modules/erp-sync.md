@@ -174,9 +174,20 @@ once the four rows are gone. A new installation is seeded with `IMPORT_CATALOGUE
 `ImportCatalogueJobTest` (order, stop at the first failure, warnings), `ErpSyncJobTypesUpgradeTest` (the batch, the
 script holding it, the startup run).
 
+**Removed job type `EXPORT_CUSTOMERS`** (3.1.1): never implemented (the runner only logged "not yet implemented", every
+connector's `pushCustomer` answered a failure, nothing called `ErpSynchronizationManager.pushCustomer`; with an ERP the
+customers come from it, the application never creates one). Gone: the job type, its operation `EXPORT_CUSTOMER`,
+`ErpConnector.pushCustomer` and its five implementations, `ErpSynchronizationManager.pushCustomer`, the disabled template
+row seeded by `ZZDataInitializer`, its place in `HeadOfficeErpJobs.NOT_ON_HEAD_OFFICE`. `IMPORT_CUSTOMERS` is unchanged.
+The rows: the job and operation columns are read with `EnumType.STRING`, so a value the code no longer has throws
+(`No enum constant`) on every read of the table (the scheduler, the jobs page, the communications log). The same
+startup step deletes them (`ErpSyncJobTypesUpgrade.DEAD_ROWS`: `erp_sync_job` rows of type `EXPORT_CUSTOMERS`,
+`erp_communication` rows of operation `EXPORT_CUSTOMER`, each table guarded, only when there are some), and
+`db/3.1.1/update.sql` holds the same statements. Seen 2026-10-31: one disabled row on `pos_db_prod` (EMTOP) and on
+`pos_headoffice`, no log row anywhere.
+
 **ErpSyncOperation Enum:**
 - `IMPORT_ITEM_FAMILIES`, `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS`, `IMPORT_ITEM_BARCODES`, `IMPORT_LOCATIONS`, `IMPORT_CUSTOMERS` - Import operations
-- `EXPORT_CUSTOMER` - Export customer to ERP
 - `EXPORT_TICKET` - Export ticket header to ERP (main operation)
 - `EXPORT_TICKET_LINE` - Export individual ticket line to ERP (automatically triggered by EXPORT_TICKET)
 - `UPDATE_TICKET` - Update ticket status (POS_Order) in ERP (automatically triggered by EXPORT_TICKET)

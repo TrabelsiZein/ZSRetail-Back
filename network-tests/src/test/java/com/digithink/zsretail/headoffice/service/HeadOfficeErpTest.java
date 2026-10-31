@@ -47,12 +47,12 @@ import com.digithink.zsretail.support.Installations;
  */
 class HeadOfficeErpTest {
 
-	private static final Set<ErpSyncJobType> REFUSED = EnumSet.of(ErpSyncJobType.EXPORT_CUSTOMERS,
+	private static final Set<ErpSyncJobType> REFUSED = EnumSet.of(
 			ErpSyncJobType.EXPORT_TICKETS, ErpSyncJobType.EXPORT_RETURNS, ErpSyncJobType.EXPORT_SESSIONS,
 			ErpSyncJobType.IMPORT_SALES_PRICES_AND_DISCOUNTS);
 
 	/** Invoices from the ERP: refused on a head office without headoffice.supply.source=ERP, besides {@link #REFUSED}. */
-	private static final Set<ErpSyncJobType> REFUSED_HERE = EnumSet.of(ErpSyncJobType.EXPORT_CUSTOMERS,
+	private static final Set<ErpSyncJobType> REFUSED_HERE = EnumSet.of(
 			ErpSyncJobType.EXPORT_TICKETS, ErpSyncJobType.EXPORT_RETURNS, ErpSyncJobType.EXPORT_SESSIONS,
 			ErpSyncJobType.IMPORT_SALES_PRICES_AND_DISCOUNTS, ErpSyncJobType.IMPORT_SUPPLY_INVOICES,
 			ErpSyncJobType.SYNC_CATALOGUE, // release 2.2: only with the catalogue from the ERP

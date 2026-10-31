@@ -153,6 +153,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   same transaction.
 
 ### Enhancements
+- ERP jobs: the job type `EXPORT_CUSTOMERS` is removed (never implemented: it only logged "not yet implemented"), with
+  its operation `EXPORT_CUSTOMER`, `ErpConnector.pushCustomer` (and its five stubs) and
+  `ErpSynchronizationManager.pushCustomer`. The rows of that type and operation are deleted at startup
+  (`ErpSyncJobTypesUpgrade`, before any read of the tables) and by `db/3.1.1/update.sql`. `IMPORT_CUSTOMERS` unchanged.
 - ERP jobs, every customer: one job `IMPORT_CATALOGUE` ("catalogue import") replaces `IMPORT_ITEM_FAMILIES`,
   `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS` and `IMPORT_ITEM_BARCODES`. It runs, in this order, catégories, families,
   sub-families, sections, items, barcodes (`ImportCatalogueJob`), each part with today's read, import and checkpoint, and
@@ -219,6 +223,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `ux_hol_order_draft`: one DRAFT) and `hol_order_line` (unique `order_id`, `item_id`; FK to `hol_order`) on a store
   only; `item_image` (index `ix_item_image_item`) on both. Re-runnable, no data changed. The filtered index is also made
   at each start when missing (`StoreOrderDraftIndex`: a new database runs no script).
+- `update.sql`: the rows of the removed job type deleted, `erp_sync_job` of type `EXPORT_CUSTOMERS` and
+  `erp_communication` of operation `EXPORT_CUSTOMER` (each table guarded; re-runnable; the same statements at startup).
 - `update.sql`: the ERP jobs' rows `IMPORT_ITEM_FAMILIES`, `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS`,
   `IMPORT_ITEM_BARCODES` converted into one `IMPORT_CATALOGUE` (the cron of `IMPORT_ITEMS`, enabled when any of the four
   was, then the four deleted; one transaction, re-runnable; the same batch the application runs at startup).

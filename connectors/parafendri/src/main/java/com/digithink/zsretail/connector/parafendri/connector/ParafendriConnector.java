@@ -260,11 +260,6 @@ public class ParafendriConnector implements ErpConnector {
 	}
 
 	@Override
-	public ErpOperationResult pushCustomer(ErpCustomerDTO customer) {
-		return ErpOperationResult.failure(NOT_YET);
-	}
-
-	@Override
 	public ErpOperationResult pushTicket(ErpTicketDTO ticket) {
 		return ErpOperationResult.failure(NOT_YET);
 	}

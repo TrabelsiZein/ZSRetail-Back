@@ -154,8 +154,6 @@ public interface ErpConnector {
 		// Default: no-op
 	}
 
-	ErpOperationResult pushCustomer(ErpCustomerDTO customer);
-
 	ErpOperationResult pushTicket(ErpTicketDTO ticket);
 
 	/**

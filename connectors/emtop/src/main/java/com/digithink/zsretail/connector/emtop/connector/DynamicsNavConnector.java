@@ -215,11 +215,6 @@ public class DynamicsNavConnector implements ErpConnector {
 	}
 
 	@Override
-	public ErpOperationResult pushCustomer(ErpCustomerDTO customer) {
-		return ErpOperationResult.failure("Not implemented");
-	}
-
-	@Override
 	public ErpOperationResult pushTicket(ErpTicketDTO ticket) {
 		return ErpOperationResult.failure("Not implemented");
 	}

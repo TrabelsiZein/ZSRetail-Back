@@ -97,4 +97,41 @@ class ErpSyncJobTypesUpgradeTest {
 		assertTrue(ErpSyncJobTypesUpgrade.PENDING.contains("OBJECT_ID(N'erp_sync_job', N'U') IS NOT NULL"),
 				"a new database (no table yet) has nothing to convert");
 	}
+
+	@Test
+	@DisplayName("The removed EXPORT_CUSTOMERS: its job rows and its EXPORT_CUSTOMER log rows deleted, each table guarded")
+	void deadRowsBatch() {
+		assertEquals("IF OBJECT_ID(N'erp_sync_job', N'U') IS NOT NULL DELETE FROM erp_sync_job WHERE job_type ="
+				+ " 'EXPORT_CUSTOMERS'; IF OBJECT_ID(N'erp_communication', N'U') IS NOT NULL DELETE FROM erp_communication"
+				+ " WHERE operation = 'EXPORT_CUSTOMER';", compact(ErpSyncJobTypesUpgrade.DEAD_ROWS));
+		assertTrue(ErpSyncJobTypesUpgrade.DEAD_ROWS_PENDING.contains("OBJECT_ID(N'erp_sync_job', N'U') IS NULL THEN 0"));
+		assertTrue(ErpSyncJobTypesUpgrade.DEAD_ROWS_PENDING.contains("OBJECT_ID(N'erp_communication', N'U') IS NULL"
+				+ " THEN 0"));
+	}
+
+	@Test
+	@DisplayName("The script deletes the removed type's rows with the same statements, before APP_VERSION is stamped")
+	void scriptHasTheDeadRows() throws Exception {
+		String sql = compact(script());
+		int at = sql.indexOf(compact(ErpSyncJobTypesUpgrade.DEAD_ROWS) + " GO");
+		assertTrue(at > 0, "ErpSyncJobTypesUpgrade.DEAD_ROWS, then GO, in " + SCRIPT);
+		assertTrue(at < sql.indexOf("UPDATE APP_VERSION SET version = '3.1.1';"));
+	}
+
+	@Test
+	@DisplayName("At startup: the removed type's rows deleted when there are some, nothing run otherwise")
+	void deletesDeadRows() {
+		JdbcTemplate jdbc = mock(JdbcTemplate.class);
+		when(jdbc.queryForObject(ErpSyncJobTypesUpgrade.PENDING, Integer.class)).thenReturn(0);
+		when(jdbc.queryForObject(ErpSyncJobTypesUpgrade.DEAD_ROWS_PENDING, Integer.class)).thenReturn(1);
+		new ErpSyncJobTypesUpgrade(jdbc).run();
+		verify(jdbc).execute(ErpSyncJobTypesUpgrade.DEAD_ROWS);
+		verify(jdbc, never()).execute(ErpSyncJobTypesUpgrade.CONVERSION);
+
+		JdbcTemplate none = mock(JdbcTemplate.class);
+		when(none.queryForObject(ErpSyncJobTypesUpgrade.PENDING, Integer.class)).thenReturn(0);
+		when(none.queryForObject(ErpSyncJobTypesUpgrade.DEAD_ROWS_PENDING, Integer.class)).thenReturn(0);
+		new ErpSyncJobTypesUpgrade(none).run();
+		verify(none, never()).execute(anyString());
+	}
 }

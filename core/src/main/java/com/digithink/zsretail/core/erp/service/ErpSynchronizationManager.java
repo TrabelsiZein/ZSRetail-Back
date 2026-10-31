@@ -141,11 +141,6 @@ public class ErpSynchronizationManager {
 				() -> erpConnector.fetchDeletionLog(filter));
 	}
 
-	public ErpOperationResult pushCustomer(ErpCustomerDTO customerDTO) {
-		return executePushOperation(ErpSyncOperation.EXPORT_CUSTOMER, customerDTO,
-				() -> erpConnector.pushCustomer(customerDTO));
-	}
-
 	public ErpOperationResult pushTicket(ErpTicketDTO ticketDTO) {
 		return executePushOperation(ErpSyncOperation.EXPORT_TICKET, ticketDTO,
 				() -> erpConnector.pushTicket(ticketDTO));
