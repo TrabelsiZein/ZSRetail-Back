@@ -31,8 +31,10 @@ import org.springframework.web.client.RestTemplate;
 
 import com.digithink.zsretail.connector.parafendri.config.ParafendriConfig;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriProperties;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriCollection;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCompanyRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriStockPointRow;
 
 /**
  * ParaFendri, step 0: the connection test against a mock server (no live call): the companies of the API read from the
@@ -199,6 +201,41 @@ class ParafendriRestClientTest {
 		credentials = ParafendriConfig.credentials(properties);
 		assertNotNull(credentials.getCredentials(new AuthScope("bc.test", 443)));
 		assertNull(credentials.getCredentials(new AuthScope("other.test", 443)));
+	}
+
+	@Test
+	@DisplayName("Step 3, the filter of stockPoints: the location (a quote doubled), from a checkpoint ge its time in UTC")
+	void stockPointsFilter() {
+		assertEquals("locationCode eq 'PV-GREMDA'", ParafendriRestClient.stockPointsFilter(" PV-GREMDA ", null));
+		assertEquals("locationCode eq 'O''NEIL'", ParafendriRestClient.stockPointsFilter("O'NEIL", null));
+		assertEquals("locationCode eq 'PV-GREMDA' and lastModifiedDateTime ge 2026-10-25T08:15:42.317Z",
+				ParafendriRestClient.stockPointsFilter("PV-GREMDA",
+						java.time.OffsetDateTime.parse("2026-10-25T09:15:42.317+01:00")));
+	}
+
+	@Test
+	@DisplayName("Step 3, stockPoints read to the end through the next links; the first page alone with its next link")
+	void stockPointsPaging() {
+		String first = COMPANIES + "(" + COMPANY_ID + ")/stockPoints?$filter=locationCode%20eq%20'PV-GREMDA'";
+		String next = first + "&$skiptoken=ITM001";
+		String page1 = "{\"value\":[{\"locationCode\":\"PV-GREMDA\",\"itemNo\":\"ITM001\",\"unitPrice\":18.90756}],"
+				+ "\"@odata.nextLink\":\"" + next + "\"}";
+		server.expect(requestTo(first)).andRespond(withSuccess(page1, MediaType.APPLICATION_JSON));
+		server.expect(requestTo(next)).andRespond(withSuccess(
+				"{\"value\":[{\"locationCode\":\"PV-GREMDA\",\"itemNo\":\"ITM002\"}]}", MediaType.APPLICATION_JSON));
+		assertEquals("ITM001, ITM002", client.readStockPoints("PV-GREMDA", null).stream()
+				.map(ParafendriStockPointRow::getItemNo).collect(Collectors.joining(", ")));
+		server.verify();
+
+		server.reset();
+		server.expect(requestTo(first)).andRespond(withSuccess(page1, MediaType.APPLICATION_JSON));
+		ParafendriCollection<ParafendriStockPointRow> page = client.readStockPointsFirstPage("PV-GREMDA", null);
+		assertEquals(1, page.getValue().size());
+		assertEquals(next, page.getNextLink());
+		assertEquals(new java.math.BigDecimal("18.90756"),
+				page.getValue().get(0)
+						.getUnitPrice(), "read as a BigDecimal, every decimal kept");
+		server.verify();
 	}
 
 	static String sample(String name) throws IOException {

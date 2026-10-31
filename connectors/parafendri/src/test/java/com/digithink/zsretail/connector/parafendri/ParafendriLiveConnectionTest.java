@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -24,7 +25,10 @@ import com.digithink.zsretail.connector.parafendri.config.ParafendriConfig;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriProperties;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriStartupCheck;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCompanyRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriCollection;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriItemCategoryRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriStockPointRow;
+import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
 import com.digithink.zsretail.connector.parafendri.mapper.ParafendriMapper;
 import com.digithink.zsretail.erp.api.ErpCategories;
@@ -95,6 +99,24 @@ class ParafendriLiveConnectionTest {
 		print("familles (1)", levels.getFamilies());
 		print("sous-familles (2)", levels.getSubFamilies());
 		print("sections (3)", levels.getSections());
+
+		// Step 3: page 1 of stockPoints of the point de vente (no checkpoint), its count and time, then what the items keep
+		start = System.currentTimeMillis();
+		ParafendriCollection<ParafendriStockPointRow> page = client.readStockPointsFirstPage(code, null);
+		List<ParafendriStockPointRow> rows = page.getValue() == null ? new ArrayList<>() : page.getValue();
+		System.out.println("stockPoints page 1 (" + code + "): " + rows.size() + " rows, in "
+				+ (System.currentTimeMillis() - start) + " ms, more pages: "
+				+ (page.getNextLink() == null || page.getNextLink().trim().isEmpty() ? "no" : "yes"));
+		ErpRead<ErpItemDTO> items = new ParafendriMapper().items(code, rows, levels);
+		print("items of page 1", items);
+		if (!items.getRows().isEmpty()) {
+			ErpItemDTO first = items.getRows().get(0);
+			System.out.println("first item: " + first.getCode() + " " + first.getName() + ", unit " + first.getUnitOfMeasure()
+					+ ", unitPrice " + first.getUnitPrice() + ", VAT " + first.getDefaultVAT() + ", links "
+					+ first.getCategoryCode() + " / " + first.getFamilyExternalId() + " / " + first.getSubFamilyExternalId()
+					+ " / " + first.getSectionCode() + ", active " + first.getActive() + ", modified "
+					+ first.getLastModifiedAt());
+		}
 	}
 
 	private static void print(String level, ErpRead<?> read) {

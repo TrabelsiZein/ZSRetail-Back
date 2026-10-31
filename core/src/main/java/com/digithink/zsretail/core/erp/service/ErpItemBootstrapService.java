@@ -736,6 +736,10 @@ public class ErpItemBootstrapService {
 		if (StringUtils.hasText(dto.getBrand())) {
 			entity.setBrand(dto.getBrand().trim());
 		}
+		// 3.1.1 (ParaFendri, step 3): the unit of measure only when the ERP gives one, as the brand
+		if (StringUtils.hasText(dto.getUnitOfMeasure())) {
+			entity.setUnitOfMeasure(dto.getUnitOfMeasure().trim());
+		}
 	}
 
 	private void applyBarcodeValues(ItemBarcode entity, ErpItemBarcodeDTO dto, Item item) {

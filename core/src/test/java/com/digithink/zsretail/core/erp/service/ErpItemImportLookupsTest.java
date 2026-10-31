@@ -125,4 +125,24 @@ class ErpItemImportLookupsTest {
 		assertEquals("NOUVEAU again", created.getName());
 		assertNull(tables.itemByCode("NONE").orElse(null));
 	}
+
+	@Test
+	@DisplayName("3.1.1: the unit of measure written when the ERP gives one (trimmed), kept when it gives none or a blank,"
+			+ " the price before VAT stored as received")
+	void unitOfMeasureOnlyWhenGiven() {
+		Item shirt = tables.itemByCode("70061~001").get();
+		shirt.setUnitOfMeasure("PCS");
+		ErpItemDTO blank = dto("70061~001", "CHEMISE S", "CHEM", null);
+		blank.setUnitOfMeasure("  ");
+		ErpItemDTO given = dto("NEW~001", "NOUVEAU", "CHEM", null);
+		given.setUnitOfMeasure(" UNITE ");
+		given.setUnitPrice(new BigDecimal("18.90756"));
+		ErpItemDTO none = dto("14ZDU05~001", "CRAVATE", "CHEM", null);
+		List<Item> saved = imports.importItems(Arrays.asList(blank, given, none));
+
+		assertEquals("PCS", saved.get(0).getUnitOfMeasure(), "a blank unit never erases the item's");
+		assertEquals("UNITE", saved.get(1).getUnitOfMeasure());
+		assertEquals(18.90756, saved.get(1).getUnitPrice(), 0.0, "not rounded");
+		assertNull(saved.get(2).getUnitOfMeasure(), "no unit given, none made up");
+	}
 }

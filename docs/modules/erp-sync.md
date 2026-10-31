@@ -590,13 +590,37 @@ dependency on another connector:
   ability like `HEAD_OFFICE_STOCK_POINTS` would bring the head office's engine). Live, 2026-10-31: 121 rows, 2
   catégories, 16 familles, 103 sous-familles, no section, nothing left out. The other fetches answer an empty list, the
   pushes and updates a failure: `erp.sync.enabled=false` in the store's file until the items and barcodes are written.
+- Step 3, the items (`fetchItems`, the job's items part): the page `stockPoints` of the store's point de vente (General
+  Setup `DEFAULT_LOCATION` through `ErpStoreLocation`; none: the warning "DEFAULT_LOCATION is not configured", as EMTOP's),
+  `$filter=locationCode eq '<code>'` and, from the job's checkpoint `ERP_SYNC_LAST_ITEM` (`filter.updatedAfter`: the
+  newest `lastModifiedDateTime` of the items it got, as EMTOP's `Modified_At`), `and lastModifiedDateTime ge <time in
+  UTC>`: `ge` as ZEN's, so that a row written in the same tick of the SQL `datetime` (1/300 s) as the newest row read is
+  never missed (the rows of that time are read again, the import is the same). Next links followed, no `$select`.
+  `ParafendriMapper.items`: code and external id `itemNo`; name and description `stockPointDescription`, else
+  `itemDescription`; unit `baseUnitOfMeasure` (blank: none; `ErpItemDTO.unitOfMeasure`, 3.1.1, written by the import only
+  when the ERP gives one); **the price `unitPrice` as received, before VAT, never rounded** (18.90756 × 1.19 = 22.4999964,
+  shown 22.500 by the till, which adds the VAT; 18.908 would give 22.501; ZEN's lesson); the VAT `vatPercent` (not a
+  whole number: rounded, noted); `lastModifiedAt` `lastModifiedDateTime` (0001-01-01: none, noted). Inactive, kept and
+  noted: `itemBlocked`, `itemSalesBlocked`, `stockPointBlocked`, a null or zero `unitPrice`. The four links
+  (`categoryCode`, `familyCode`, `subFamilyCode`, `sectionCode`): blank none; a code that is not a row the tree keeps at
+  its level (the tree is read again first, 121 rows) none and noted, the item kept. Left out with their reason: a blank
+  `itemNo`, a row of another location, no `vatPercent`, the same `itemNo` twice. Not read: `itemCategoryCode` (the
+  sous-famille again), `customerNo` (step 6). The communications log gets the address with its filter, the location,
+  the checkpoint, the counts and the reasons, not the rows (13,165 on a first read). Known limit, as EMTOP's: with the
+  delta read, an item whose row is deleted in Business Central is not made inactive (a blocked one is). Live,
+  2026-10-31, PV-GREMDA: 13,165 rows in one page, 4.4 s, all kept, nothing noted.
 - Tests (in the project): `ParafendriRestClientTest` (mock server, the sample `companies.json`: two companies, one the
   configured id; next links, an unknown id, an HTTP 401, GET only, the login's host; step 1, the sample
   `locations.json` with the six points de vente PV-GREMDA, PV-LAFRANE, PV-MALL-SF, PV-NABEUL, PV-SOUSSE, PV-TANIOUR:
   the address, a code found or not, next links, an HTTP 404), step 2: `ParafendriMapperTest` (the sample
   `itemCategories.json`: COS, COS-COF, COS-COF-PAR, COS-PAR and a section, an orphan famille kept and noted, an orphan
   sous-famille, a section under a famille, a level 4 row and a blank code left out) and `ParafendriConnectorTest` (the
-  four fetches, one GET each, what the log receives, a failed read), `ParafendriStartupCheckTest`,
+  four fetches, one GET each, what the log receives, a failed read), step 3: `ParafendriItemsMapperTest` (the sample
+  `stockPoints.json` against the tree of `itemCategories.json`: the fields, the price as received, the VAT rounded, the
+  unit, the three blocks and the zero price, codes outside the tree, the empty date, the four left-out reasons), the
+  items in `ParafendriConnectorTest` (the tree then `stockPoints`, the checkpoint's `ge`, the log without the rows, no
+  `DEFAULT_LOCATION`), the filter and the paging in `ParafendriRestClientTest`, the unit in core's
+  `ErpItemImportLookupsTest`, `ParafendriStartupCheckTest`,
   `ParafendriConnectionCheckTest` (step 1: all found, Business Central down, an HTTP 503, the company missing,
   `DEFAULT_LOCATION` empty, the location missing, the locations page or the location failing; no exception, its own
   daemon thread); `ParafendriLiveConnectionTest`, skipped unless `-Dparafendri.live=true`, reads the companies and (step

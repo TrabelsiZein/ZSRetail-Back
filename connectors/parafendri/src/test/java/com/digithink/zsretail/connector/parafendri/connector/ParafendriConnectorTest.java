@@ -1,6 +1,7 @@
 package com.digithink.zsretail.connector.parafendri.connector;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.test.web.client.ExpectedCount.times;
@@ -12,9 +13,11 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.AfterEach;
@@ -32,7 +35,10 @@ import com.digithink.zsretail.connector.parafendri.client.ParafendriRestClient;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriConfig;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriProperties;
 import com.digithink.zsretail.connector.parafendri.mapper.ParafendriMapper;
+import com.digithink.zsretail.erp.api.ErpStoreLocation;
+import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 import com.digithink.zsretail.erp.api.dto.ErpItemCategoryDTO;
+import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemSectionDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
@@ -63,7 +69,87 @@ class ParafendriConnectorTest {
 		properties.setPassword("secret");
 		RestTemplate template = ParafendriConfig.restTemplate(properties);
 		server = MockRestServiceServer.bindTo(template).build();
-		connector = new ParafendriConnector(new ParafendriRestClient(template, properties));
+		connector = new ParafendriConnector(new ParafendriRestClient(template, properties), location(() -> "PV-GREMDA"));
+	}
+
+	/** The store's location as the application answers it (General Setup DEFAULT_LOCATION). */
+	static ErpStoreLocation location(Supplier<String> code) {
+		return new ErpStoreLocation() {
+
+			@Override
+			public String defaultLocationCode() {
+				return code.get();
+			}
+
+			@Override
+			public List<String> defaultResponsibilityCenters() {
+				return Collections.emptyList();
+			}
+		};
+	}
+
+	private static String sample(String name) throws IOException {
+		try (InputStream in = ParafendriConnectorTest.class.getResourceAsStream("/parafendri/" + name)) {
+			return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+		}
+	}
+
+	static final String STOCK_POINTS = "http://bc.test:7048/BC280/api/sat/zsretail/v1.0/companies(" + COMPANY_ID
+			+ ")/stockPoints?$filter=locationCode%20eq%20'PV-GREMDA'";
+
+	@Test
+	@DisplayName("Step 3, the items: the tree read, then stockPoints of DEFAULT_LOCATION; the codes checked against the tree")
+	void items() throws IOException {
+		server.expect(requestTo(TREE)).andRespond(withSuccess(sample("itemCategories.json"), MediaType.APPLICATION_JSON));
+		server.expect(requestTo(STOCK_POINTS)).andExpect(method(HttpMethod.GET))
+				.andRespond(withSuccess(sample("stockPoints.json"), MediaType.APPLICATION_JSON));
+		List<ErpItemDTO> items = connector.fetchItems(new ErpSyncFilter());
+		server.verify();
+		assertEquals(9, items.size());
+		assertEquals("COS-COF-PAR", items.get(0).getSubFamilyExternalId());
+		assertNull(items.get(7).getSubFamilyExternalId(), "ITM008's SF-ORPH: not kept by the tree");
+	}
+
+	@Test
+	@DisplayName("Step 3, from the job's checkpoint: lastModifiedDateTime ge its time in UTC")
+	void itemsFromCheckpoint() throws IOException {
+		ErpSyncFilter filter = new ErpSyncFilter();
+		filter.setUpdatedAfter(OffsetDateTime.parse("2026-10-25T09:15:42.317+01:00"));
+		server.expect(requestTo(TREE)).andRespond(withSuccess(sample("itemCategories.json"), MediaType.APPLICATION_JSON));
+		server.expect(requestTo(STOCK_POINTS + "%20and%20lastModifiedDateTime%20ge%202026-10-25T08:15:42.317Z"))
+				.andRespond(withSuccess("{\"value\":[]}", MediaType.APPLICATION_JSON));
+		assertEquals(Collections.emptyList(), connector.fetchItems(filter));
+		server.verify();
+	}
+
+	@Test
+	@DisplayName("Step 3, the communications log: the address, the location, the counts and the reasons, not the rows")
+	@SuppressWarnings("unchecked")
+	void itemsHandedToTheLog() throws IOException {
+		server.expect(requestTo(TREE)).andRespond(withSuccess(sample("itemCategories.json"), MediaType.APPLICATION_JSON));
+		server.expect(requestTo(STOCK_POINTS))
+				.andRespond(withSuccess(sample("stockPoints.json"), MediaType.APPLICATION_JSON));
+		List<ErpItemDTO> items = connector.fetchItems(null);
+		PullOperationResult<?> pull = connector.getLastPullOperationResult();
+		assertEquals(STOCK_POINTS, pull.getUrl(), "the address read, its filter with it");
+		assertEquals(items, pull.getData());
+		Map<String, Object> summary = (Map<String, Object>) pull.getRawResponse();
+		assertEquals(13, summary.get("read"));
+		assertEquals(9, summary.get("kept"));
+		assertEquals(4, ((Map<String, Integer>) summary.get("leftOut")).size());
+		assertEquals(1, ((Map<String, Integer>) summary.get("notes")).get(ParafendriMapper.FAMILY_NOT_IN_TREE));
+		assertEquals("PV-GREMDA", summary.get("location"));
+		assertNull(summary.get("since"));
+		assertFalse(summary.containsKey("rows"), "about 13,000 rows on a first read: not in the log");
+	}
+
+	@Test
+	@DisplayName("Step 3, no DEFAULT_LOCATION: a warning (as EMTOP's), nothing read")
+	void itemsWithoutLocation() {
+		ParafendriConnector without = new ParafendriConnector(null, location(() -> " "));
+		ErpSyncWarningException warning = assertThrows(ErpSyncWarningException.class, () -> without.fetchItems(null));
+		assertEquals("DEFAULT_LOCATION is not configured", warning.getMessage());
+		server.verify();
 	}
 
 	@AfterEach
@@ -129,10 +215,10 @@ class ParafendriConnectorTest {
 	}
 
 	@Test
-	@DisplayName("The other fetches stay empty and send nothing (step 2 is the tree only)")
+	@DisplayName("The other fetches stay empty and send nothing (barcodes are step 4)")
 	void othersEmpty() {
-		assertEquals(Collections.emptyList(), connector.fetchItems(null));
 		assertEquals(Collections.emptyList(), connector.fetchItemBarcodes(null));
+		assertEquals(Collections.emptyList(), connector.fetchCustomers(null));
 		server.verify();
 	}
 }

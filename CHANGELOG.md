@@ -12,6 +12,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `erp.connector=parafendri`, no ability; the settings, the startup check, an NTLM GET-only client whose login goes to
   the host of `base-url` only, and the connection test `ParafendriRestClient.checkCompany()` (the companies of the API,
   `company-id` among them). Every `ErpConnector` method a stub: no job yet (`docs/modules/erp-sync.md`).
+- ERP connector `parafendri`, step 3: the items (`fetchItems`, `stockPoints` of the store's `DEFAULT_LOCATION`, from the
+  checkpoint `ERP_SYNC_LAST_ITEM`): the price before VAT as received (never rounded), the VAT, the unit, inactive when
+  blocked or without a price, the four links checked against the tree, left-out rows with their reason in the
+  communications log. `ErpItemDTO.unitOfMeasure` (erp-api, optional): the import writes `item.unit_of_measure` only when
+  the ERP gives one (emtop and zen give none: unchanged).
 - ERP connector `parafendri`, step 2: the tree `itemCategories` for the job `IMPORT_CATALOGUE` (`fetchItemCategories`,
   `fetchItemFamilies`, `fetchItemSubFamilies`, `fetchItemSections` by `indentation` 0 to 3, `ParafendriMapper` as ZEN's):
   an orphan famille kept without its catégorie (noted), an orphan sous-famille or section, a deeper row and a blank code

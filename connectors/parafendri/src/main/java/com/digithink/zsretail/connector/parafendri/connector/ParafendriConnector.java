@@ -1,5 +1,6 @@
 package com.digithink.zsretail.connector.parafendri.connector;
 
+import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,6 +16,8 @@ import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 import com.digithink.zsretail.erp.api.ErpCategories;
 import com.digithink.zsretail.erp.api.ErpConnector;
 import com.digithink.zsretail.erp.api.ErpRead;
+import com.digithink.zsretail.erp.api.ErpStoreLocation;
+import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.api.dto.ErpDeletionLogEntryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
@@ -45,8 +48,9 @@ import lombok.extern.log4j.Log4j2;
  * bean then. Step 2: the four levels of the tree (catégories, familles, sous-familles, sections) for the job
  * IMPORT_CATALOGUE, each fetch reading the page itemCategories (121 rows: no cache) and keeping its level
  * ({@link ParafendriMapper}); the read goes to the communications log as EMTOP's (the address, then the rows read, kept
- * and left out by reason, and the rows), with one WARN line when a row was left out. Every other fetch answers an empty
- * list, every push or update a failure, so the store's file keeps erp.sync.enabled=false until the jobs are written.
+ * and left out by reason, and the rows), with one WARN line when a row was left out. Step 3: the items, stockPoints of
+ * the store's point de vente ({@link #fetchItems}). Every other fetch answers an empty list, every push or update a
+ * failure, so the store's file keeps erp.sync.enabled=false until the jobs are written.
  */
 @Component
 @ConditionalOnErpConnector(ParafendriConnectorDescriptor.NAME)
@@ -59,10 +63,43 @@ public class ParafendriConnector implements ErpConnector {
 	private static final ThreadLocal<PullOperationResult<?>> LAST_PULL = new ThreadLocal<>();
 
 	private final ParafendriRestClient client;
+	private final ErpStoreLocation storeLocation;
 	private final ParafendriMapper mapper = new ParafendriMapper();
 
-	public ParafendriConnector(ParafendriRestClient client) {
+	public ParafendriConnector(ParafendriRestClient client, ErpStoreLocation storeLocation) {
 		this.client = client;
+		this.storeLocation = storeLocation;
+	}
+
+	/**
+	 * Step 3: the items of the store's point de vente (General Setup DEFAULT_LOCATION, none: a warning, as EMTOP's), the
+	 * page stockPoints from the job's checkpoint (filter.updatedAfter, ERP_SYNC_LAST_ITEM: the newest lastModifiedDateTime
+	 * of the items it got, as EMTOP's Modified_At), translated by {@link ParafendriMapper#items}. The tree is read again
+	 * first (121 rows) so that a code it does not keep is noted and not linked. The communications log gets the address,
+	 * the counts and the reasons, not the rows (about 13,000 on a first read).
+	 */
+	@Override
+	public List<ErpItemDTO> fetchItems(ErpSyncFilter filter) {
+		String location = storeLocation.defaultLocationCode();
+		if (location == null || location.trim().isEmpty()) {
+			throw new ErpSyncWarningException("DEFAULT_LOCATION is not configured");
+		}
+		OffsetDateTime since = filter == null ? null : filter.getUpdatedAfter();
+		String address = client.stockPointsUri(location, since).toString();
+		LAST_PULL.set(new PullOperationResult<>(null, address, null));
+		ErpCategories tree = mapper.categories(client.readItemCategories());
+		ErpRead<ErpItemDTO> read = mapper.items(location, client.readStockPoints(location, since), tree);
+		Map<String, Object> summary = summary(read);
+		summary.remove("rows");
+		summary.put("location", location.trim());
+		summary.put("since", since == null ? null : since.toString());
+		LAST_PULL.set(new PullOperationResult<>(read.getRows(), address, summary));
+		if (!read.getLeftOut().isEmpty()) {
+			log.warn("ERP connector parafendri: items of stockPoints ({}): {} read, {} kept, left out {}{}", location.trim(),
+					read.getRead(), read.getKept(), read.getLeftOut(),
+					read.getNotes().isEmpty() ? "" : ", noted " + read.getNotes());
+		}
+		return read.getRows();
 	}
 
 	@Override
@@ -121,11 +158,6 @@ public class ParafendriConnector implements ErpConnector {
 	@Override
 	public void clearLastPullOperationResult() {
 		LAST_PULL.remove();
-	}
-
-	@Override
-	public List<ErpItemDTO> fetchItems(ErpSyncFilter filter) {
-		return Collections.emptyList();
 	}
 
 	@Override

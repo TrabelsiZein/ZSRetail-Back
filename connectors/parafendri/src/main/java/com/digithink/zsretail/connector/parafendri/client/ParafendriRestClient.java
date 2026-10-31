@@ -1,6 +1,9 @@
 package com.digithink.zsretail.connector.parafendri.client;
 
 import java.net.URI;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -22,6 +25,7 @@ import com.digithink.zsretail.connector.parafendri.dto.ParafendriCollection;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCompanyRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriItemCategoryRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriStockPointRow;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 
 /**
@@ -45,6 +49,11 @@ public class ParafendriRestClient {
 	static final String LOCATION_FIELDS = "code,name,lastModifiedDateTime";
 	private static final ParameterizedTypeReference<ParafendriCollection<ParafendriLocationRow>> LOCATION_ROWS =
 			new ParameterizedTypeReference<ParafendriCollection<ParafendriLocationRow>>() {
+			};
+	/** Step 3: the items of each point de vente, under companies(company-id). */
+	static final String STOCK_POINTS = "stockPoints";
+	private static final ParameterizedTypeReference<ParafendriCollection<ParafendriStockPointRow>> STOCK_POINT_ROWS =
+			new ParameterizedTypeReference<ParafendriCollection<ParafendriStockPointRow>>() {
 			};
 	/** Step 2: the tree of catégories, familles, sous-familles and sections, under companies(company-id). */
 	static final String ITEM_CATEGORIES = "itemCategories";
@@ -106,6 +115,43 @@ public class ParafendriRestClient {
 	/** Step 2: the address of the tree, for the communications log. */
 	public String itemCategoriesAddress() {
 		return properties.companyAddress() + ITEM_CATEGORIES;
+	}
+
+	/**
+	 * Step 3: the rows of one point de vente, from a checkpoint when there is one (see {@link #stockPointsUri}), next
+	 * links followed.
+	 */
+	public List<ParafendriStockPointRow> readStockPoints(String locationCode, OffsetDateTime since) {
+		return readAll(STOCK_POINTS, stockPointsUri(locationCode, since), STOCK_POINT_ROWS);
+	}
+
+	/** Step 3: the first page only of the rows of one point de vente, its next link with it (the live test). */
+	public ParafendriCollection<ParafendriStockPointRow> readStockPointsFirstPage(String locationCode,
+			OffsetDateTime since) {
+		return get(STOCK_POINTS, stockPointsUri(locationCode, since), STOCK_POINT_ROWS);
+	}
+
+	/**
+	 * Step 3: companies(company-id)/stockPoints?$filter=locationCode eq 'X' (a quote doubled), and from a checkpoint
+	 * "and lastModifiedDateTime ge" its time in UTC: ge as ZEN's, so that a row Business Central wrote in the same tick of
+	 * its SQL datetime (1/300 s) as the newest row read before is never missed (the few rows of that time are read again;
+	 * the import is the same). No $select: the fields not used are ignored.
+	 */
+	public URI stockPointsUri(String locationCode, OffsetDateTime since) {
+		return UriComponentsBuilder.fromHttpUrl(properties.companyAddress() + STOCK_POINTS)
+				.queryParam("$filter", stockPointsFilter(locationCode, since)).build().encode().toUri();
+	}
+
+	/** locationCode eq 'X' [and lastModifiedDateTime ge 2026-10-23T17:13:20.627Z]: the time in UTC, no + in the address. */
+	public static String stockPointsFilter(String locationCode, OffsetDateTime since) {
+		String filter = "locationCode eq '" + quoted(locationCode) + "'";
+		return since == null ? filter
+				: filter + " and lastModifiedDateTime ge "
+						+ since.withOffsetSameInstant(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+	}
+
+	static String quoted(String value) {
+		return value == null ? "" : value.trim().replace("'", "''");
 	}
 
 	/** Step 1: true when the code (trimmed, its case ignored) is one of the locations of the company. */
