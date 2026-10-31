@@ -285,8 +285,9 @@ Startup refusals with `erp.connector=happyness` (the message names the key, the 
 office whose catalogue only comes from the ERP; a blank address, company, username or password; a wrong `default-vat`, `price-includes-vat`, `barcode-page-size`, `packet-size` or timeout; the old `max-changes-per-run`; a blank
 `page.invoices`, a wrong prefix, field name or `max-per-run`. One INFO line at startup: `ERP connector navpospages (read only, GET): <address>,
 company <company>, pages <three>`, followed by `, invoices <page>` when `headoffice.supply.source=ERP`.
-Step 6: the four catalogue import jobs hand the changes only (`docs/modules/head-office.md`); they run when `erp.sync.enabled=true`
-and the jobs are enabled on the ERP jobs page (none is switched on by these files). Items of the ERP no longer in the location
+The catalogue is read by the single job `SYNC_CATALOGUE` (release 2.2; the four catalogue import jobs of step 6 before it,
+`docs/modules/head-office.md`); it runs when `erp.sync.enabled=true` and the job is enabled on the ERP jobs page (none is
+switched on by these files). Items of the ERP no longer in the location
 are made inactive at the head office whatever their number; only an empty answer for the location deactivates nothing (a
 warning in the summary). The key `erp.happyness.deactivate-guard-percent` is gone (2026-10-08): since code cleanup step 8 a leftover line stops the startup.
 

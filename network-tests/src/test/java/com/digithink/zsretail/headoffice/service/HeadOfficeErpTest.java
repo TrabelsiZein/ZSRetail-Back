@@ -264,7 +264,7 @@ class HeadOfficeErpTest {
 	}
 
 	@Test
-	@DisplayName("Catalogue only from the ERP: the runner refuses every job but the four imports with the warning; the four run")
+	@DisplayName("Catalogue only from the ERP: the runner refuses every job but Sync catalogue with the warning; Sync catalogue runs")
 	void catalogueOnlyRunnerRefuses() {
 		jobs = new HeadOfficeErpJobs(repository(), true);
 		List<ErpSyncJobType> ran = new ArrayList<>();
@@ -286,7 +286,7 @@ class HeadOfficeErpTest {
 	}
 
 	@Test
-	@DisplayName("Catalogue only from the ERP: GET admin/erp/jobs lists the four imports; run, enable, update, statistics of any other: 404")
+	@DisplayName("Catalogue only from the ERP: GET admin/erp/jobs lists Sync catalogue only; run, enable, update, statistics of any other: 404")
 	void catalogueOnlyApi() {
 		jobs = new HeadOfficeErpJobs(repository(), true);
 		List<String> calls = new ArrayList<>();
