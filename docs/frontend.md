@@ -174,4 +174,15 @@
   X button, Esc or any navigation (which clears the box): the level that was open. More than 30 matches: the first 30
   and "type more words" (`pos.itemSelection.search.more`). One placeholder for every level
   (`searchPlaceholders.catalogue`; the per-level ones are gone). Server side: `backend.md`.
+- **3.1.1, the scan field keeps the focus** (`ItemSelection.vue`, 2026-10-31): the scan field is where the focus lives on
+  the till. A press on anything but a field the cashier types in (a button, a tile, a chip, a ticket line, an empty
+  place, a toast) never takes the focus (a document `mousedown` listener, capture phase, `preventDefault`; the click
+  still runs) and gives it back to the scan field (`onTillMouseDown`). The focus leaves it only for a field typed in
+  (search, quantity, promo code: `isTypingField`) or a popup, and comes back when that field is left for nowhere
+  (`onTillFocusOut`: Enter in a quantity box, a field turned disabled), when a popup closes (`bv::modal::hidden`), when
+  the scan field is free again after a lookup (watcher on `barcodeScanning`) and after a promo code is accepted (a
+  refused one stays in its box). Before: after a tap on "+" the next scan was lost and the scanner's Enter pressed "+"
+  again. Left as they were: the search box's Enter (a scan there still adds the exact item and keeps the focus there),
+  the on-screen keyboard and its toggle (`.floating-keyboard`, `.keyboard-btn-col`), and the refocus after a scan, an
+  RFID read and a held ticket taken back.
 - **2.2.2, step 4**: the till's quantity box is a text box in both modes; with "Allow decimal quantities" off a decimal ("0,2", "0.5") is refused with a message and the box shows the line's quantity again (a number box read "0,2" as 2). General Setup: on a store linked to a head office, `DEFAULT_LOCATION` is labelled "Store code" with a help text (`SetupField` prop `help`). `public/index.html`: `translate="no"` and `<meta name="google" content="notranslate">`.
