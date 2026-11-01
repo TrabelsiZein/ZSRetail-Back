@@ -229,6 +229,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `availableQty`.
 
 ### Fixes
+- Store linked to a head office after its database was created (ParaFendri Gremda): its ADMIN role now gets
+  `read:admin-holink-status` (the "Head office" menu: Jobs, Communications, Data exchanged) at the next start; before,
+  only a role created with `headoffice.url` already set had it, so the menu stayed hidden. Nothing is removed.
 - ERP connector `parafendri`, step 6: `amountIncludingVAT` is no longer sent on `salesOrders`, header nor lines
   (read-only in Business Central: the live POST answered HTTP 400 "Control 'amountIncludingVAT' is read-only"); BC
   computes it, the header's is read back from the answer and shown in the log message next to our total TTC.
