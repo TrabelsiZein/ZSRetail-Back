@@ -37,7 +37,9 @@ import com.digithink.zsretail.connector.parafendri.dto.ParafendriBarcodeRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCollection;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriItemCategoryRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriStockPointRow;
+import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
+import com.digithink.zsretail.erp.api.dto.ErpLocationDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrderRow;
@@ -254,6 +256,33 @@ class ParafendriLiveConnectionTest {
 		System.out.println("shipAndInvoice orderNo eq '" + lookup + "': " + invoices.size() + " rows, in "
 				+ (System.currentTimeMillis() - start) + " ms (" + client.shipAndInvoiceUri(lookup) + ")");
 		assertTrue(invoices.isEmpty(), "no invoice of an order that does not exist");
+
+		// The two reads the till relies on, through the connector (GET only): every location, and the one customer of
+		// the point de vente (customers?$filter=number eq its customerNo; the page whole if number is not filterable)
+		ParafendriConnector connector = new ParafendriConnector(client, new ErpStoreLocation() {
+			@Override
+			public String defaultLocationCode() {
+				return code;
+			}
+
+			@Override
+			public List<String> defaultResponsibilityCenters() {
+				return new ArrayList<>();
+			}
+		});
+		start = System.currentTimeMillis();
+		List<ErpLocationDTO> erpLocations = connector.fetchLocations(null);
+		System.out.println("fetchLocations: " + erpLocations.stream().map(l -> l.getCode() + " " + l.getName())
+				.collect(Collectors.toList()) + ", in " + (System.currentTimeMillis() - start) + " ms");
+		assertTrue(erpLocations.stream().anyMatch(l -> l.getCode().equalsIgnoreCase(code)), code + " among them");
+		start = System.currentTimeMillis();
+		List<ErpCustomerDTO> erpCustomers = connector.fetchCustomers(null);
+		System.out.println("fetchCustomers: " + erpCustomers.stream().map(c -> c.getCode() + " " + c.getName()
+				+ " active " + c.getActive() + " modified " + c.getLastModifiedAt()).collect(Collectors.toList())
+				+ ", in " + (System.currentTimeMillis() - start) + " ms, " + connector.getLastPullOperationResult().getUrl()
+				+ " " + connector.getLastPullOperationResult().getRawResponse());
+		connector.clearLastPullOperationResult();
+		assertTrue(erpCustomers.size() == 1, "one row, the account of " + code);
 	}
 
 	/**

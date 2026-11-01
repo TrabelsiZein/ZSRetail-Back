@@ -17,6 +17,7 @@ import com.digithink.zsretail.connector.parafendri.ParafendriConnectorDescriptor
 import com.digithink.zsretail.connector.parafendri.client.ParafendriReadException;
 import com.digithink.zsretail.connector.parafendri.client.ParafendriRestClient;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriBarcodeRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriCustomerRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrder;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrderRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriShipAndInvoiceRow;
@@ -61,7 +62,9 @@ import lombok.extern.log4j.Log4j2;
  * and left out by reason, and the rows), with one WARN line when a row was left out. Step 3: the items, stockPoints of
  * the store's point de vente ({@link #fetchItems}). Step 4: the barcodes ({@link #fetchItemBarcodes}). Step 6: a
  * ticket and its lines posted in one call as a sales order ({@link #pushTicket}), looked up first so never twice. Step
- * 7: the invoice of a ticket prepared for one, shipAndInvoice ({@link #requestInvoice}), looked up first too. Every
+ * 7: the invoice of a ticket prepared for one, shipAndInvoice ({@link #requestInvoice}), looked up first too. The
+ * locations of the company ({@link #fetchLocations}) and the one customer of the point de vente ({@link
+ * #fetchCustomers}), which the till needs as its default customer (PASSENGER_CUSTOMER). Every
  * other fetch answers an empty list, every other push or update a failure, so the store's file keeps
  * erp.sync.enabled=false until the jobs are written.
  */
@@ -245,14 +248,75 @@ public class ParafendriConnector implements ErpConnector {
 		LAST_PULL.remove();
 	}
 
+	/**
+	 * Every location of the company, the page the startup check reads (six rows), always whole: the core keeps no
+	 * checkpoint for the locations (ErpLocationDTO carries no time) and a row never changed is dated 0001-01-01, which a
+	 * delta would miss. None is marked as the default: the admin picks it on the Emplacements page, as at EMTOP.
+	 */
 	@Override
 	public List<ErpLocationDTO> fetchLocations(ErpSyncFilter filter) {
-		return Collections.emptyList();
+		String address = client.locationsAddress();
+		LAST_PULL.set(new PullOperationResult<>(null, address, null));
+		ErpRead<ErpLocationDTO> read = mapper.locations(client.readLocations());
+		LAST_PULL.set(new PullOperationResult<>(read.getRows(), address, summary(read)));
+		if (!read.getLeftOut().isEmpty()) {
+			log.warn("ERP connector parafendri: locations: {} read, {} kept, left out {}", read.getRead(),
+					read.getKept(), read.getLeftOut());
+		}
+		return read.getRows();
 	}
 
+	/**
+	 * One row only, the account of the store's point de vente (DEFAULT_LOCATION): its customerNo read from stockPoints
+	 * (the read pushTicket uses, fresh here), then customers?$filter=number eq 'X'; Business Central refusing that filter,
+	 * the page read whole and that number kept. Never another point de vente's account. Always read (one row): from the
+	 * job's checkpoint, a point de vente changed for one whose account changed earlier would never be read. No
+	 * DEFAULT_LOCATION or no customerNo: no row, one WARN.
+	 */
 	@Override
 	public List<ErpCustomerDTO> fetchCustomers(ErpSyncFilter filter) {
-		return Collections.emptyList();
+		String location = storeLocation.defaultLocationCode();
+		location = location == null ? "" : location.trim();
+		if (location.isEmpty()) {
+			log.warn("ERP connector parafendri: no customer read: DEFAULT_LOCATION is not configured");
+			return Collections.emptyList();
+		}
+		String customerNo = client.readCustomerNo(location);
+		if (customerNo == null) {
+			log.warn("ERP connector parafendri: no customer read: no customerNo on the stockPoints rows of location {}",
+					location);
+			return Collections.emptyList();
+		}
+		customerOfLocation = new String[] { location, customerNo };
+		String address = client.customerUri(customerNo).toString();
+		LAST_PULL.set(new PullOperationResult<>(null, address, null));
+		List<ParafendriCustomerRow> rows;
+		boolean wholePage = false;
+		try {
+			rows = client.readCustomer(customerNo);
+		} catch (ParafendriReadException e) {
+			if (!notFilterable(e)) {
+				throw e;
+			}
+			wholePage = true;
+			address = client.customersAddress();
+			LAST_PULL.set(new PullOperationResult<>(null, address, null));
+			rows = client.readCustomers();
+		}
+		ErpRead<ErpCustomerDTO> read = mapper.customer(customerNo, rows);
+		Map<String, Object> summary = summary(read);
+		summary.put("location", location);
+		summary.put("customerNo", customerNo);
+		summary.put("wholePage", wholePage);
+		LAST_PULL.set(new PullOperationResult<>(read.getRows(), address, summary));
+		if (read.getRows().isEmpty()) {
+			log.warn("ERP connector parafendri: customer {} of location {} not found in customers ({} read)", customerNo,
+					location, read.getRead());
+		} else if (wholePage) {
+			log.warn("ERP connector parafendri: customers: number is not filterable in BC, the page was read whole ({}"
+					+ " rows) for customer {}", read.getRead(), customerNo);
+		}
+		return read.getRows();
 	}
 
 	@Override

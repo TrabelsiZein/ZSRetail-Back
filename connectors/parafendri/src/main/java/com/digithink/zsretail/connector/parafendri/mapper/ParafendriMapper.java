@@ -9,22 +9,27 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriBarcodeRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriCustomerRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriItemCategoryRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrder;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriStockPointRow;
 import com.digithink.zsretail.erp.api.ErpCategories;
 import com.digithink.zsretail.erp.api.ErpRead;
+import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemCategoryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemFamilyDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemSectionDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
+import com.digithink.zsretail.erp.api.dto.ErpLocationDTO;
 import com.digithink.zsretail.erp.api.dto.ErpTicketDTO;
 import com.digithink.zsretail.erp.api.dto.ErpTicketLineDTO;
 
@@ -310,6 +315,82 @@ public class ParafendriMapper {
 			barcodes.add(barcode);
 		}
 		return new ErpRead<>(barcodes, rows.size(), leftOut, notes, null);
+	}
+
+	// ─── Locations and the point de vente's customer ───────────
+
+	public static final String SAME_CODE = "same code twice";
+	public static final String BLANK_NUMBER = "blank number";
+	public static final String OTHER_CUSTOMER = "another customer than the point de vente's";
+	/** Business Central's blank option of blocked (not blocked), as the API writes it. */
+	public static final String NOT_BLOCKED = "_x0020_";
+
+	/**
+	 * Every location of the company (the points de vente), code and name; a blank code, or a code read twice (its case
+	 * ignored), left out. None is marked as the default: the admin picks it on the Emplacements page (DEFAULT_LOCATION).
+	 */
+	public ErpRead<ErpLocationDTO> locations(List<ParafendriLocationRow> rows) {
+		Map<String, Integer> leftOut = new LinkedHashMap<>();
+		Set<String> seen = new HashSet<>();
+		List<ErpLocationDTO> locations = new ArrayList<>();
+		for (ParafendriLocationRow row : rows) {
+			String code = trimmed(row.getCode());
+			if (code.isEmpty()) {
+				count(leftOut, BLANK_CODE);
+				continue;
+			}
+			if (!seen.add(code.toUpperCase(Locale.ROOT))) {
+				count(leftOut, SAME_CODE);
+				continue;
+			}
+			ErpLocationDTO location = new ErpLocationDTO();
+			location.setExternalId(code);
+			location.setCode(code);
+			location.setName(trimmed(row.getName()));
+			locations.add(location);
+		}
+		return new ErpRead<>(locations, rows.size(), leftOut, new LinkedHashMap<>(), null);
+	}
+
+	/**
+	 * The point de vente's customer only (customerNo of its stockPoints rows): the first row of that number (its case
+	 * ignored), code and ERP id its number, active unless blocked; any other row (another point de vente's account, when
+	 * the page was read whole) left out, never imported.
+	 */
+	public ErpRead<ErpCustomerDTO> customer(String customerNo, List<ParafendriCustomerRow> rows) {
+		Map<String, Integer> leftOut = new LinkedHashMap<>();
+		Map<String, Integer> notes = new LinkedHashMap<>();
+		List<ErpCustomerDTO> customers = new ArrayList<>();
+		String wanted = trimmed(customerNo);
+		for (ParafendriCustomerRow row : rows) {
+			String number = trimmed(row.getNumber());
+			if (number.isEmpty()) {
+				count(leftOut, BLANK_NUMBER);
+				continue;
+			}
+			if (!number.equalsIgnoreCase(wanted) || !customers.isEmpty()) {
+				count(leftOut, number.equalsIgnoreCase(wanted) ? SAME_CODE : OTHER_CUSTOMER);
+				continue;
+			}
+			ErpCustomerDTO customer = new ErpCustomerDTO();
+			customer.setExternalId(number);
+			customer.setCode(number);
+			customer.setName(trimmed(row.getName()));
+			customer.setActive(!blocked(row.getBlocked()));
+			OffsetDateTime modified = modifiedAt(row.getLastModifiedDateTime());
+			if (modified == null) {
+				count(notes, NO_DATE);
+			}
+			customer.setLastModifiedAt(modified);
+			customers.add(customer);
+		}
+		return new ErpRead<>(customers, rows.size(), leftOut, notes, null);
+	}
+
+	/** Blocked unless blank or {@link #NOT_BLOCKED} (Ship, Invoice and All all block the till's sale). */
+	static boolean blocked(String value) {
+		String text = trimmed(value);
+		return !text.isEmpty() && !NOT_BLOCKED.equals(text);
 	}
 
 	// ─── Tickets (step 6, salesOrders) ──────────────────────────

@@ -216,10 +216,12 @@ class ParafendriConnectorTest {
 	}
 
 	@Test
-	@DisplayName("The other fetches stay empty and send nothing (customers, prices: later steps)")
+	@DisplayName("The other fetches stay empty and send nothing (prices, discounts, deletion log: later steps; locations"
+			+ " and the customer: ParafendriLocationsCustomersTest)")
 	void othersEmpty() {
-		assertEquals(Collections.emptyList(), connector.fetchCustomers(null));
 		assertEquals(Collections.emptyList(), connector.fetchSalesPrices(null));
+		assertEquals(Collections.emptyList(), connector.fetchSalesDiscounts(null));
+		assertEquals(Collections.emptyList(), connector.fetchDeletionLog(null));
 		server.verify();
 	}
 }

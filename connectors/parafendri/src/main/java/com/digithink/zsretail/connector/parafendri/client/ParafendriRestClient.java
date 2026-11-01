@@ -29,6 +29,7 @@ import com.digithink.zsretail.connector.parafendri.config.ParafendriProperties;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriBarcodeRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCollection;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCompanyRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriCustomerRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriItemCategoryRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrder;
@@ -341,6 +342,40 @@ public class ParafendriRestClient {
 		}
 		String customerNo = page.getValue().get(0).getCustomerNo();
 		return customerNo == null || customerNo.trim().isEmpty() ? null : customerNo.trim();
+	}
+
+	// ─── The locations and the point de vente's customer ───────
+
+	/** Step 1: the address of the locations page, as {@link #readLocations} reads it (the communications log). */
+	public String locationsAddress() {
+		return properties.companyAddress() + LOCATIONS + "?$select=" + LOCATION_FIELDS;
+	}
+
+	/** The customers of the company, under companies(company-id). */
+	static final String CUSTOMERS = "customers";
+	private static final ParameterizedTypeReference<ParafendriCollection<ParafendriCustomerRow>> CUSTOMER_ROWS =
+			new ParameterizedTypeReference<ParafendriCollection<ParafendriCustomerRow>>() {
+			};
+
+	/** companies(company-id)/customers?$filter=number eq 'X' (a quote doubled). */
+	public URI customerUri(String number) {
+		return UriComponentsBuilder.fromHttpUrl(customersAddress())
+				.queryParam("$filter", "number eq '" + quoted(number) + "'").build().encode().toUri();
+	}
+
+	/** base-url / api-path / companies(company-id) / customers. */
+	public String customersAddress() {
+		return properties.companyAddress() + CUSTOMERS;
+	}
+
+	/** The rows of one customer number, GET customers?$filter=number eq 'X', next links followed. */
+	public List<ParafendriCustomerRow> readCustomer(String number) {
+		return readAll(CUSTOMERS, customerUri(number), CUSTOMER_ROWS);
+	}
+
+	/** Every customer of the company (when number cannot be filtered), next links followed. */
+	public List<ParafendriCustomerRow> readCustomers() {
+		return readAll(CUSTOMERS, URI.create(customersAddress()), CUSTOMER_ROWS);
 	}
 
 	/** Step 4: item numbers per GET of their barcodes (a short address). */

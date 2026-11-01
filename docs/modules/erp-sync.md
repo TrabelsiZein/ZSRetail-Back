@@ -612,7 +612,8 @@ dependency on another connector:
   EMTOP's (`PullOperationResult`: the address, then `{read, kept, leftOut, notes, rows}`; the address alone when the read
   fails), with one WARN line when a row was left out. No ability on the descriptor: `IMPORT_CATALOGUE` asks none (an
   ability like `HEAD_OFFICE_STOCK_POINTS` would bring the head office's engine). Live, 2026-10-31: 121 rows, 2
-  catégories, 16 familles, 103 sous-familles, no section, nothing left out. The other fetches answer an empty list, the
+  catégories, 16 familles, 103 sous-familles, no section, nothing left out. The other fetches (but the locations and
+  the customer, below) answer an empty list, the
   pushes and updates a failure: `erp.sync.enabled=false` in the store's file until the items and barcodes are written.
 - Step 3, the items (`fetchItems`, the job's items part): the page `stockPoints` of the store's point de vente (General
   Setup `DEFAULT_LOCATION` through `ErpStoreLocation`; none: the warning "DEFAULT_LOCATION is not configured", as EMTOP's),
@@ -760,6 +761,29 @@ dependency on another connector:
   - **Open with Sayf**: the fiscal fields on `shipAndInvoice` (or the customer's own `customerNo`); whether Business
     Central posts the sales orders itself (e.g. a batch at night: an order posted that way is deleted, and an invoice
     asked later would fail at every run); what `shipAndInvoice` answers for an order already shipped.
+- **The locations and the point de vente's customer (2026-11-01)**, the two reads the till relies on (without them a
+  sale fails with "Default customer not found" and the Emplacements page is empty):
+  - `fetchLocations` (job `IMPORT_LOCATIONS`): every location of the company, the page the connection check reads
+    (`locations?$select=code,name,lastModifiedDateTime`), code (also the ERP id) and name; a blank code or a code read
+    twice (case ignored) left out. **Always whole**: the core keeps no checkpoint for the locations (`ErpLocationDTO`
+    carries no time) and a location never changed is dated 0001-01-01 (PV-TANIOUR), which a delta would miss. None is
+    marked as the default: the admin picks it on the Emplacements page (`DEFAULT_LOCATION`), as at EMTOP.
+  - `fetchCustomers` (job `IMPORT_CUSTOMERS`): **one row only**, the account of `DEFAULT_LOCATION`: its `customerNo` from
+    `stockPoints?$filter=locationCode eq '<code>'&$top=1` (the read of `pushTicket`, fresh here, and kept for it), then
+    `customers?$filter=number eq '<customerNo>'` (`dto/ParafendriCustomerRow`: `number`, `name`, `blocked`,
+    `lastModifiedDateTime`). Business Central refusing the filter (HTTP 400 "is not filterable"): the page read whole,
+    that number kept, one WARN. Never another point de vente's account (`ParafendriMapper.customer`: left out "another
+    customer than the point de vente's"). Code and ERP id the number, the name, **active unless blocked** (`_x0020_`,
+    Business Central's blank option, or blank: active; `Ship`, `Invoice`, `All`: inactive), `lastModifiedAt` its
+    `lastModifiedDateTime`. **Always read, not from the checkpoint** `ERP_SYNC_LAST_CUSTOMER` (one row: nothing to
+    save, and a point de vente changed for one whose account changed earlier would never be read). No
+    `DEFAULT_LOCATION`, or no `customerNo` on its rows: no row and one WARN; another failed read fails the job.
+  - Tests: `ParafendriLocationsCustomersTest` (the samples `locations.json` and `customers.json`: three accounts,
+    4110001 to 4110003, one blocked `All`), the live test (GET only) through the connector.
+  - **ParaFendri install**: run `IMPORT_LOCATIONS` and `IMPORT_CUSTOMERS` once, pick the default location on the
+    Emplacements page, set `PASSENGER_CUSTOMER` to the point de vente's customer number (e.g. 4110001). Picking the
+    location first is needed for the customer: `IMPORT_CUSTOMERS` reads the account of `DEFAULT_LOCATION` (none set:
+    no row), so after a first `IMPORT_CUSTOMERS` without it, run it again once the location is picked.
 - Tests (in the project): `ParafendriRestClientTest` (mock server, the sample `companies.json`: two companies, one the
   configured id; next links, an unknown id, an HTTP 401, GET only, the login's host; step 1, the sample
   `locations.json` with the six points de vente PV-GREMDA, PV-LAFRANE, PV-MALL-SF, PV-NABEUL, PV-SOUSSE, PV-TANIOUR:

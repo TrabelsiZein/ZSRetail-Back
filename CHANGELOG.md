@@ -7,6 +7,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 ## 3.1.1 — in progress (branch `release/3.1.1`)
 
 ### Features
+- ERP connector `parafendri`: the locations (`fetchLocations`, every location of the company, code and name, none
+  marked as the default) and the point de vente's customer (`fetchCustomers`, one row only: the account of
+  `DEFAULT_LOCATION`, its `customerNo` from `stockPoints`, then `customers?$filter=number eq`, the page read whole if
+  `number` is not filterable; blocked as inactive), both read whole each run. Install: `IMPORT_LOCATIONS`, the default
+  location on the Emplacements page, `IMPORT_CUSTOMERS`, `PASSENGER_CUSTOMER` = the customer number (e.g. 4110001).
 - ERP connector `parafendri`, step 7: the invoice of a ticket prepared for one, asked from Business Central
   (`shipAndInvoice`, POST `{ orderNo }`, looked up first by `orderNo` so never twice): its number kept on the ticket
   (`invoiceNumber`), its PDF written to `<app.upload.dir>/erp-invoices/<invoiceNo>.pdf`, the ticket `TOTALLY_SYNCHED`;

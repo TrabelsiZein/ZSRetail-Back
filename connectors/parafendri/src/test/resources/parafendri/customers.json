@@ -1,0 +1,8 @@
+{
+  "@odata.context": "http://bc.test:7048/BC280/api/sat/zsretail/v1.0/$metadata#companies(6b29fc40-ca47-1067-b31d-00dd010662da)/customers",
+  "value": [
+    { "@odata.etag": "W/\"JzE5OzQwMTsn\"", "number": "4110001", "name": "PV Gremda (clients passagers)", "blocked": "_x0020_", "lastModifiedDateTime": "2026-10-20T09:15:02.100Z" },
+    { "@odata.etag": "W/\"JzE5OzQwMjsn\"", "number": "4110002", "name": "PV Lafrane (clients passagers)", "blocked": "_x0020_", "lastModifiedDateTime": "2026-10-20T09:15:02.103Z" },
+    { "@odata.etag": "W/\"JzE5OzQwMzsn\"", "number": "4110003", "name": "PV Mall de Sfax (clients passagers)", "blocked": "All", "lastModifiedDateTime": "0001-01-01T00:00:00Z" }
+  ]
+}
