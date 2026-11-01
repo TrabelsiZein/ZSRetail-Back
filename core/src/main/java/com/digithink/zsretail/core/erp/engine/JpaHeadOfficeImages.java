@@ -17,6 +17,8 @@ import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.digithink.zsretail.core.config.ConditionalOnErpAbility;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.model.ItemImage;
 import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
 import com.digithink.zsretail.core.model.enumeration.ImageSource;
@@ -32,6 +34,7 @@ import com.digithink.zsretail.erp.api.ErpAbility;
  */
 @Component
 @ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_ERP_CATALOGUE_ONLY)
 public class JpaHeadOfficeImages implements HeadOfficeImages {
 
 	/** Item ids per IN (...) of the images' read (the repository takes at most 2,000). */

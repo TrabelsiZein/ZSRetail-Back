@@ -1,13 +1,16 @@
 package com.digithink.zsretail.connector.parafendri.client;
 
 import java.net.URI;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -36,6 +39,7 @@ import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrder;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrderRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriShipAndInvoiceRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriStockPointRow;
+import com.digithink.zsretail.connector.parafendri.mapper.ParafendriMapper;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -209,6 +213,72 @@ public class ParafendriRestClient {
 			rows.addAll(readAll(BARCODES, uri, BARCODE_ROWS));
 		}
 		return rows;
+	}
+
+	/** Head office catalogue: the address of a page of the company (no query), for the communications log. */
+	public String pageAddress(String page) {
+		return properties.companyAddress() + page;
+	}
+
+	/** Head office catalogue: barcode rows per page of {@link #readBarcodesAfter} (the engine's cursor). */
+	public static final int BARCODE_PAGE_SIZE = 1000;
+
+	/**
+	 * Head office catalogue, the engine's cursor (ZEN's contract, step 12a): one page by lastModifiedDateTime, $top
+	 * {@link #BARCODE_PAGE_SIZE}, the rows above the position ({@link #barcodesAfterFilter}; none: from the start). A full
+	 * page may end in the middle of a millisecond whose other rows are on the next page, past the cursor: then every row
+	 * of its last millisecond is read too ({@link #barcodesAtFilter}, next links followed), a row already on the page
+	 * (same id) once. Checked live on 2026-11-01: orderby, top, gt, lt and eq on a millisecond.
+	 */
+	public List<ParafendriBarcodeRow> readBarcodesAfter(long position) {
+		UriComponentsBuilder first = UriComponentsBuilder.fromHttpUrl(properties.companyAddress() + BARCODES);
+		String filter = barcodesAfterFilter(position);
+		if (filter != null) {
+			first.queryParam("$filter", filter);
+		}
+		URI uri = first.queryParam("$orderby", MODIFIED).queryParam("$top", BARCODE_PAGE_SIZE).build().encode().toUri();
+		ParafendriCollection<ParafendriBarcodeRow> body = get(BARCODES, uri, BARCODE_ROWS);
+		List<ParafendriBarcodeRow> rows = body == null || body.getValue() == null ? new ArrayList<>()
+				: new ArrayList<>(body.getValue());
+		if (rows.size() < BARCODE_PAGE_SIZE) {
+			return rows;
+		}
+		long last = rows.stream().mapToLong(row -> ParafendriMapper.position(row.getLastModifiedDateTime())).max()
+				.getAsLong();
+		URI rest = UriComponentsBuilder.fromHttpUrl(properties.companyAddress() + BARCODES)
+				.queryParam("$filter", barcodesAtFilter(last)).build().encode().toUri();
+		Set<String> seen = rows.stream().map(ParafendriRestClient::rowKey).collect(Collectors.toCollection(HashSet::new));
+		for (ParafendriBarcodeRow row : readAll(BARCODES, rest, BARCODE_ROWS)) {
+			if (seen.add(rowKey(row))) {
+				rows.add(row);
+			}
+		}
+		return rows;
+	}
+
+	static final String MODIFIED = "lastModifiedDateTime";
+
+	/** lastModifiedDateTime gt the position's instant; none for position 0 (the first read: every row). */
+	public static String barcodesAfterFilter(long position) {
+		return position <= 0 ? null : MODIFIED + " gt " + instant(position);
+	}
+
+	/** Every row of one position: eq its instant; for the empty date's position, every row before 1970. */
+	public static String barcodesAtFilter(long position) {
+		if (position <= ParafendriMapper.EMPTY_DATE_POSITION) {
+			return MODIFIED + " lt " + instant(0);
+		}
+		return MODIFIED + " eq " + instant(position);
+	}
+
+	private static String instant(long millis) {
+		return DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(millis));
+	}
+
+	/** The row's GUID id; without one, its value and item. */
+	private static String rowKey(ParafendriBarcodeRow row) {
+		String id = row.getId() == null ? "" : row.getId().trim();
+		return id.isEmpty() ? "barCode:" + row.getBarCode() + "|" + row.getItemNo() : id;
 	}
 
 	/** itemNo eq 'A' or itemNo eq 'B' */

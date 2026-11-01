@@ -15,8 +15,9 @@ public interface ErpConnectorResolver {
 
 	/**
 	 * True on a head office whose catalogue only comes from the ERP (its customers and supply not the ERP's), as the
-	 * startup resolves it: the only installation a connector with the ability HEAD_OFFICE_STOCK_POINTS serves. Throws like
-	 * the startup on an invalid configuration.
+	 * startup resolves it: the only installation where the catalogue engine of a connector with the ability
+	 * HEAD_OFFICE_STOCK_POINTS exists (its beans gated by that ability and by this installation: ParaFendri's connector
+	 * also serves stores, which keep their job IMPORT_CATALOGUE). Throws like the startup on an invalid configuration.
 	 */
 	boolean isErpCatalogueOnlyHeadOffice(PropertyResolver env);
 }

@@ -246,12 +246,15 @@ they declare today.
 | `none` | — | — | — |
 | `emtop` | — | — | — |
 | `happyness` | yes | yes | — |
-| `parafendri` (3.1.1, step 0, a store connector) | — | — | — |
+| `parafendri` (3.1.1: stores, and a head office whose catalogue comes from the ERP) | yes (head office catalogue) | — | — |
 | `zen` (3.1.0, item variants step 8) | yes | yes (step 9) | yes (3.1.1) |
 
 - `HEAD_OFFICE_STOCK_POINTS` (was `CATALOGUE_BY_STOCK_POINTS`): the head office keeps several points de stock in its own
   tables (`ho_stock_point`, `ho_stock_point_item`, the points page), filled by the single catalogue job `SYNC_CATALOGUE`. Not
-  "reads items by location": every connector may do that.
+  "reads items by location": every connector may do that. Its beans (the 7 of the engine in core, the 4 of the points
+  in the head office) exist with the ability **and** on a head office whose catalogue only comes from the ERP
+  (`@ConditionalOnInstallation(HEAD_OFFICE_ERP_CATALOGUE_ONLY)`, 3.1.1): ParaFendri is the first connector on stores and
+  a head office, and a store keeps its job `IMPORT_CATALOGUE` (`ErpAbilityBeansTest.parafendriStoreAndHeadOffice`).
 - `SUPPLY_INVOICES`: the ERP's supply invoices are read, so a head office may set `headoffice.supply.source=ERP`.
 - `STORE_ORDERS` (3.1.1): the stores' orders are posted as sales orders (`ErpConnector.postSalesOrder`, looked up first by
   their external document number) and the variants' stock for a store is read (`fetchVariantStock`, with its code and ERP customer number), so a head office
@@ -785,6 +788,56 @@ dependency on another connector:
     Emplacements page, set `PASSENGER_CUSTOMER` to the point de vente's customer number (e.g. 4110001). Picking the
     location first is needed for the customer: `IMPORT_CUSTOMERS` reads the account of `DEFAULT_LOCATION` (none set:
     no row), so after a first `IMPORT_CUSTOMERS` without it, run it again once the location is picked.
+- **The head office catalogue (2026-11-01)**: a ParaFendri head office whose catalogue comes from the ERP, its points de
+  stock the six points de vente, runs the catalogue engine as ZEN's and Happyness's: the job **`SYNC_CATALOGUE`**
+  (`CatalogueJob` → `CatalogueEngine`), not `IMPORT_CATALOGUE` (on such a head office the conversion of the four old jobs
+  still makes an `IMPORT_CATALOGUE` row, which `HeadOfficeErpJobs` switches off at each start and never offers).
+  - The descriptor declares `HEAD_OFFICE_STOCK_POINTS` beside `WHOLE_TICKET_EXPORT`. ParaFendri is the first connector
+    on stores and a head office: the engine's beans are gated by the ability **and** the installation
+    `HEAD_OFFICE_ERP_CATALOGUE_ONLY` (without it a store would have had the engine, which needs the head office's
+    `StockPoints` and creates `erp_catalogue_state`, and would not start). The connector's `ParafendriCatalogueSource` and
+    `ParafendriCatalogueSettings` exist only there too (`config/ParafendriHeadOfficeCondition`,
+    `ErpConnectors.isErpCatalogueOnlyHeadOffice`). A store (Gremda, Taniour...) is unchanged: `IMPORT_CATALOGUE`
+    through `ImportCatalogueJob` and the connector's fetches.
+  - `client/ParafendriCatalogueSource` (`ErpCatalogueSource`), the client and the mapper of steps 2 to 4, no HTTP code of
+    its own: `categories()` the tree `itemCategories` (catégories, familles, sous-familles, sections: the engine uses the
+    four levels); `items(point)` and `items(point, since)` the page `stockPoints` of the point (`locationCode eq`, from
+    its checkpoint `lastModifiedDateTime ge`, `readsChangesOnly()` true: a row not answered is unchanged, never gone),
+    the tree read again for the links, the prices before VAT as received, a blocked row inactive (step 3's rules);
+    `barcodesAfter(position)` and `barcodesOfItems(codes)` the page `barCodes`; `readsItemImages()` false.
+  - **The barcode cursor, ZEN's contract (step 12a)**: the position of a row is its `lastModifiedDateTime` in epoch
+    milliseconds (`ParafendriMapper.position`; the empty date 0001-01-01, a blank or an unreadable date: 1).
+    `ParafendriRestClient.readBarcodesAfter(position)`: `barCodes?$filter=lastModifiedDateTime gt <instant>` (no filter
+    from 0) `&$orderby=lastModifiedDateTime&$top=1000` (`BARCODE_PAGE_SIZE`, a constant); a full page may end inside a
+    millisecond whose other rows are on the next page, so every row of its last millisecond is read too
+    (`lastModifiedDateTime eq <instant>`, next links followed; for position 1, `lt 1970-01-01`), a row already on the
+    page once (its GUID `id`). `gt` and the strict order: no loop (the engine also stops when a page is at or below its
+    cursor), no millisecond half read; a barcode changed later has a newer time and comes back. As ZEN's, a row BC
+    commits after a later one with an earlier time could be passed; new items have their barcodes read by item
+    (`barcodesOfItems`, 20 per GET, the engine's "needs its barcodes"). Checked live on 2026-11-01 (GET): `$orderby`
+    asc and desc, `$top`, `gt`, `lt`, `eq` on a millisecond (one row). Every row's position, left out ones included,
+    goes to the engine; the external id is the GUID `id` (the value without one), as on a store.
+  - `config/ParafendriCatalogueSettings`: constants, no key: packets of 500, never a dry run, VAT 19 for the rows the
+    engine keeps without one (the rows read carry their own `vatPercent`).
+  - **The head office's file** (`<Tomcat>/conf/zsretail/zsretailws.properties`, the head office WAR): `ownership.catalogue=ERP`
+    (customers and supply kept here: `headoffice.supply.source=HEAD_OFFICE`; ParaFendri reads no supply invoice and
+    posts no store order), `headoffice.stock.enabled` as the customer wants, `erp.connector=parafendri`,
+    `erp.sync.enabled=true`, and the five `erp.parafendri.*` keys of the store (`base-url`, `company-id`, `domain`,
+    `username`, `password`). No `DEFAULT_LOCATION` on a head office: the connection check after the start warns that it
+    is empty (the company is still checked).
+  - **The first run**: start the head office (the seeding makes `SYNC_CATALOGUE`, disabled, hourly); on the points page
+    add the six points de stock, their codes the BC location codes `PV-GREMDA`, `PV-LAFRANE`, `PV-MALL-SF`, `PV-NABEUL`,
+    `PV-SOUSSE`, `PV-TANIOUR`; run `SYNC_CATALOGUE` once by hand (the tree, then the items of each point in list order,
+    then the barcodes until caught up); then enable it. Expected first run, from the live times of 2026-11-01 (13,165
+    rows per point): reads about 6 × 3.6 s for `stockPoints` and about 4 s for `barCodes` (14 pages); writes 13,165
+    items, about 79,000 rows of points and 13,165 barcodes: about 2 to 4 minutes. Later runs read the changes only.
+  - Tests: `ParafendriCatalogueSourceTest` (the samples of steps 2 to 4: the four levels, the items of one point whole
+    and from its checkpoint, the cursor from 0 and after a position, a full page completed with its last millisecond, the
+    barcodes by item, the filters, the ability declared), `ErpAbilityBeansTest` in network-tests (the engine's 7 beans
+    with a connector that keeps points de stock on such a head office only; the ParaFendri store of configs/customers,
+    a store and a head office without the catalogue from the ERP with `erp.connector=parafendri`: the connector, no
+    engine, no catalogue source, no stock point bean), `ErpAbilitiesTest` (the abilities), the live test (GET only):
+    the source's tree, the items of `-Dparafendri.location` and two pages of the cursor.
 - Tests (in the project): `ParafendriRestClientTest` (mock server, the sample `companies.json`: two companies, one the
   configured id; next links, an unknown id, an HTTP 401, GET only, the login's host; step 1, the sample
   `locations.json` with the six points de vente PV-GREMDA, PV-LAFRANE, PV-MALL-SF, PV-NABEUL, PV-SOUSSE, PV-TANIOUR:

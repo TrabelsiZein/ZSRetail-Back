@@ -7,6 +7,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 ## 3.1.1 — in progress (branch `release/3.1.1`)
 
 ### Features
+- ERP connector `parafendri`, head office catalogue: a ParaFendri head office whose catalogue comes from the ERP
+  (`ownership.catalogue=ERP`, its points de stock the six points de vente) runs the catalogue engine, job
+  `SYNC_CATALOGUE`: `ParafendriCatalogueSource` (the tree, `stockPoints` per point from its checkpoint, `barCodes` by a
+  cursor on `lastModifiedDateTime` in epoch milliseconds, ZEN's contract, and by item), the ability
+  `HEAD_OFFICE_STOCK_POINTS`. The engine's 7 beans in core now also need the installation
+  `HEAD_OFFICE_ERP_CATALOGUE_ONLY` (as the 4 of the head office already did), so a ParaFendri store keeps its job
+  `IMPORT_CATALOGUE` and starts as before.
 - ERP connector `parafendri`: the locations (`fetchLocations`, every location of the company, code and name, none
   marked as the default) and the point de vente's customer (`fetchCustomers`, one row only: the account of
   `DEFAULT_LOCATION`, its `customerNo` from `stockPoints`, then `customers?$filter=number eq`, the page read whole if

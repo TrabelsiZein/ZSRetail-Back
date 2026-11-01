@@ -26,6 +26,7 @@ import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.mock.env.MockEnvironment;
 
+import com.digithink.zsretail.connector.parafendri.client.ParafendriCatalogueSource;
 import com.digithink.zsretail.connector.parafendri.client.ParafendriReadException;
 import com.digithink.zsretail.connector.parafendri.client.ParafendriRestClient;
 import com.digithink.zsretail.connector.parafendri.connector.ParafendriConnector;
@@ -45,6 +46,7 @@ import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrderRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriShipAndInvoiceRow;
 import com.digithink.zsretail.connector.parafendri.mapper.ParafendriMapper;
+import com.digithink.zsretail.erp.api.ErpBarcodeRow;
 import com.digithink.zsretail.erp.api.ErpCategories;
 import com.digithink.zsretail.erp.api.ErpRead;
 import com.digithink.zsretail.erp.api.ErpStoreLocation;
@@ -283,6 +285,33 @@ class ParafendriLiveConnectionTest {
 				+ " " + connector.getLastPullOperationResult().getRawResponse());
 		connector.clearLastPullOperationResult();
 		assertTrue(erpCustomers.size() == 1, "one row, the account of " + code);
+
+		// Head office catalogue (GET only), through the catalogue source as the engine reads it: the tree, the items of
+		// the point de stock, then two pages of the barcode cursor (from the start, then after the first page's highest)
+		ParafendriCatalogueSource source = new ParafendriCatalogueSource(client);
+		start = System.currentTimeMillis();
+		ErpCategories sourceTree = source.categories();
+		System.out.println("source categories: " + sourceTree.getCategories().getKept() + " catégories, "
+				+ sourceTree.getFamilies().getKept() + " familles, " + sourceTree.getSubFamilies().getKept()
+				+ " sous-familles, " + sourceTree.getSections().getKept() + " sections, in "
+				+ (System.currentTimeMillis() - start) + " ms");
+		start = System.currentTimeMillis();
+		ErpRead<ErpItemDTO> pointItems = source.items(code);
+		print("source items of " + code + " (" + (System.currentTimeMillis() - start) + " ms)", pointItems);
+		assertTrue(pointItems.getKept() > 0, "items at " + code);
+		start = System.currentTimeMillis();
+		ErpRead<ErpBarcodeRow> firstPage = source.barcodesAfter(0);
+		long highest = firstPage.getPositions().stream().mapToLong(Long::longValue).max().orElse(0);
+		System.out.println("source barcodesAfter(0): read " + firstPage.getRead() + ", kept " + firstPage.getKept()
+				+ ", left out " + firstPage.getLeftOut() + ", highest position " + highest + " ("
+				+ java.time.Instant.ofEpochMilli(highest) + "), in " + (System.currentTimeMillis() - start) + " ms");
+		start = System.currentTimeMillis();
+		ErpRead<ErpBarcodeRow> secondPage = source.barcodesAfter(highest);
+		long lowest = secondPage.getPositions().stream().mapToLong(Long::longValue).min().orElse(Long.MAX_VALUE);
+		System.out.println("source barcodesAfter(" + highest + "): read " + secondPage.getRead() + ", lowest position "
+				+ (secondPage.getRead() == 0 ? "-" : String.valueOf(lowest)) + ", in "
+				+ (System.currentTimeMillis() - start) + " ms");
+		assertTrue(secondPage.getRead() == 0 || lowest > highest, "strictly after the cursor: never a row twice");
 	}
 
 	/**

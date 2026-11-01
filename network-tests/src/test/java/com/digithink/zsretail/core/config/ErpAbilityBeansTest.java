@@ -154,29 +154,66 @@ class ErpAbilityBeansTest {
 	}
 
 	@Test
-	@DisplayName("Step 3: the engine, its job, state, head office reads and import exist where the connectors happyness and"
-			+ " zen put them")
+	@DisplayName("Step 3: the engine, its job, state, head office reads, import and images exist with a connector that keeps"
+			+ " points de stock, on a head office whose catalogue only comes from the ERP only (ParaFendri: never on a store)")
 	void engineBeans() {
-		List<Class<?>> engine = Arrays.asList(com.digithink.zsretail.core.erp.engine.JdbcCatalogueState.class,
-				com.digithink.zsretail.core.erp.engine.JpaHeadOfficeCatalogue.class,
-				com.digithink.zsretail.core.erp.engine.BootstrapCatalogueImport.class,
-				com.digithink.zsretail.core.erp.engine.CatalogueEngine.class, com.digithink.zsretail.core.erp.engine.CatalogueJob.class);
 		List<String> withBeans = new ArrayList<>();
 		for (Map.Entry<String, MockEnvironment> entry : configurations().entrySet()) {
 			String inEffect = ErpConnectorEnvironmentPostProcessor.inEffect(entry.getValue());
-			boolean expected = "happyness".equals(inEffect) || "zen".equals(inEffect);
+			boolean expected = ("happyness".equals(inEffect) || "zen".equals(inEffect) || "parafendri".equals(inEffect))
+					&& NodeOwnership.isErpCatalogueOnlySet(entry.getValue());
 			if (expected) {
 				withBeans.add(entry.getKey());
 			}
-			for (Class<?> bean : engine) {
+			for (Class<?> bean : ENGINE_BEANS) {
 				assertEquals(expected, registered(entry.getValue(), bean), entry.getKey() + " " + bean.getSimpleName());
 			}
 		}
-		assertTrue(withBeans.contains("store, erp.connector=happyness"), withBeans.toString());
+		assertTrue(withBeans.contains("catalogue only, erp.connector=happyness"), withBeans.toString());
 		assertTrue(withBeans.contains(Installations.HAPPYNESS_HEAD_OFFICE), withBeans.toString());
 		assertTrue(withBeans.contains("catalogue only, erp.connector=zen"), withBeans.toString());
 		assertTrue(withBeans.contains(Installations.ZEN_HEAD_OFFICE), withBeans.toString());
-		assertEquals(6, withBeans.size(), withBeans.toString());
+		assertTrue(withBeans.contains("catalogue only, erp.connector=parafendri"), withBeans.toString());
+		assertEquals(5, withBeans.size(), withBeans.toString());
+	}
+
+	/** The catalogue engine's seven beans in core (ability HEAD_OFFICE_STOCK_POINTS and the installation). */
+	static final List<Class<?>> ENGINE_BEANS = Arrays.asList(com.digithink.zsretail.core.erp.engine.JdbcCatalogueState.class,
+			com.digithink.zsretail.core.erp.engine.JpaHeadOfficeCatalogue.class,
+			com.digithink.zsretail.core.erp.engine.JpaHeadOfficeImages.class,
+			com.digithink.zsretail.core.erp.engine.BootstrapCatalogueImport.class,
+			com.digithink.zsretail.core.erp.engine.CatalogueEngine.class,
+			com.digithink.zsretail.core.erp.engine.CatalogueJob.class,
+			com.digithink.zsretail.core.erp.engine.ItemImagesEngine.class);
+
+	@Test
+	@DisplayName("ParaFendri, the first connector on stores and a head office: its store (configs/customers) keeps the"
+			+ " connector and no engine, catalogue source or stock point bean; its head office whose catalogue comes from"
+			+ " the ERP has them all")
+	void parafendriStoreAndHeadOffice() {
+		List<Class<?>> source = Arrays.asList(
+				com.digithink.zsretail.connector.parafendri.client.ParafendriCatalogueSource.class,
+				com.digithink.zsretail.connector.parafendri.config.ParafendriCatalogueSettings.class);
+		Map<String, MockEnvironment> stores = new LinkedHashMap<>();
+		stores.put("customers/parafendri-store.properties", Installations.machine("customers/parafendri-store.properties"));
+		stores.put("store, erp.connector=parafendri", chosen(Installations.type("store"), "parafendri"));
+		stores.put("head office without an ERP, erp.connector=parafendri",
+				chosen(Installations.type("headoffice"), "parafendri"));
+		for (Map.Entry<String, MockEnvironment> entry : stores.entrySet()) {
+			assertTrue(registered(entry.getValue(),
+					com.digithink.zsretail.connector.parafendri.connector.ParafendriConnector.class), entry.getKey());
+			for (List<Class<?>> beans : Arrays.asList(ENGINE_BEANS, STOCK_POINT_BEANS, source)) {
+				for (Class<?> bean : beans) {
+					assertTrue(!registered(entry.getValue(), bean), entry.getKey() + " " + bean.getSimpleName());
+				}
+			}
+		}
+		MockEnvironment headOffice = chosen(catalogueOnlyHeadOffice(), "parafendri");
+		for (List<Class<?>> beans : Arrays.asList(ENGINE_BEANS, STOCK_POINT_BEANS, source)) {
+			for (Class<?> bean : beans) {
+				assertTrue(registered(headOffice, bean), "catalogue only " + bean.getSimpleName());
+			}
+		}
 	}
 
 	@Test

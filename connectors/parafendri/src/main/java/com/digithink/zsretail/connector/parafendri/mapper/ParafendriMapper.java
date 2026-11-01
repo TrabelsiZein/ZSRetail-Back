@@ -20,6 +20,7 @@ import com.digithink.zsretail.connector.parafendri.dto.ParafendriItemCategoryRow
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrder;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriStockPointRow;
+import com.digithink.zsretail.erp.api.ErpBarcodeRow;
 import com.digithink.zsretail.erp.api.ErpCategories;
 import com.digithink.zsretail.erp.api.ErpRead;
 import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
@@ -292,29 +293,71 @@ public class ParafendriMapper {
 		Map<String, Integer> notes = new LinkedHashMap<>();
 		List<ErpItemBarcodeDTO> barcodes = new ArrayList<>();
 		for (ParafendriBarcodeRow row : rows) {
-			String value = trimmed(row.getBarCode());
-			String itemNo = trimmed(row.getItemNo());
-			if (value.isEmpty()) {
-				count(leftOut, BLANK_BARCODE);
-				continue;
+			ErpItemBarcodeDTO barcode = barcode(row, leftOut, notes);
+			if (barcode != null) {
+				barcodes.add(barcode);
 			}
-			if (itemNo.isEmpty()) {
-				count(leftOut, BLANK_BARCODE_ITEM);
-				continue;
-			}
-			ErpItemBarcodeDTO barcode = new ErpItemBarcodeDTO();
-			String id = trimmed(row.getId());
-			barcode.setExternalId(id.isEmpty() ? value : id);
-			barcode.setBarcode(value);
-			barcode.setItemExternalId(itemNo);
-			OffsetDateTime modified = modifiedAt(row.getLastModifiedDateTime());
-			if (modified == null) {
-				count(notes, NO_DATE);
-			}
-			barcode.setLastModifiedAt(modified);
-			barcodes.add(barcode);
 		}
 		return new ErpRead<>(barcodes, rows.size(), leftOut, notes, null);
+	}
+
+	/**
+	 * Head office catalogue: the same rows for the catalogue engine, each kept row with its position, and the position of
+	 * every row read (left out ones included) for the engine's cursor ({@link #position}).
+	 */
+	public ErpRead<ErpBarcodeRow> barcodeRows(List<ParafendriBarcodeRow> rows) {
+		Map<String, Integer> leftOut = new LinkedHashMap<>();
+		Map<String, Integer> notes = new LinkedHashMap<>();
+		List<ErpBarcodeRow> kept = new ArrayList<>();
+		List<Long> positions = new ArrayList<>();
+		for (ParafendriBarcodeRow row : rows) {
+			long position = position(row.getLastModifiedDateTime());
+			positions.add(position);
+			ErpItemBarcodeDTO barcode = barcode(row, leftOut, notes);
+			if (barcode != null) {
+				kept.add(new ErpBarcodeRow(barcode, position));
+			}
+		}
+		return new ErpRead<>(kept, rows.size(), leftOut, positions);
+	}
+
+	/** One barcode row: null (counted in leftOut) without a value or an item; its external id the GUID id, else the value. */
+	private static ErpItemBarcodeDTO barcode(ParafendriBarcodeRow row, Map<String, Integer> leftOut,
+			Map<String, Integer> notes) {
+		String value = trimmed(row.getBarCode());
+		String itemNo = trimmed(row.getItemNo());
+		if (value.isEmpty()) {
+			count(leftOut, BLANK_BARCODE);
+			return null;
+		}
+		if (itemNo.isEmpty()) {
+			count(leftOut, BLANK_BARCODE_ITEM);
+			return null;
+		}
+		ErpItemBarcodeDTO barcode = new ErpItemBarcodeDTO();
+		String id = trimmed(row.getId());
+		barcode.setExternalId(id.isEmpty() ? value : id);
+		barcode.setBarcode(value);
+		barcode.setItemExternalId(itemNo);
+		OffsetDateTime modified = modifiedAt(row.getLastModifiedDateTime());
+		if (modified == null) {
+			count(notes, NO_DATE);
+		}
+		barcode.setLastModifiedAt(modified);
+		return barcode;
+	}
+
+	/** The position of Business Central's empty date (0001-01-01), a blank or an unreadable date: before every real one. */
+	public static final long EMPTY_DATE_POSITION = 1;
+
+	/**
+	 * The position of a barcode row for the engine's cursor (ZEN's contract, step 12a): its lastModifiedDateTime in epoch
+	 * milliseconds (the rows of one millisecond share a position); {@link #EMPTY_DATE_POSITION} for the empty date, a
+	 * blank, one before 1970 or one not readable.
+	 */
+	public static long position(String lastModifiedDateTime) {
+		OffsetDateTime at = modifiedAt(lastModifiedDateTime);
+		return at == null ? EMPTY_DATE_POSITION : Math.max(EMPTY_DATE_POSITION, at.toInstant().toEpochMilli());
 	}
 
 	// ─── Locations and the point de vente's customer ───────────
