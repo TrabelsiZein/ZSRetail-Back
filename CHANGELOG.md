@@ -7,6 +7,14 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 ## 3.1.1 — in progress (branch `release/3.1.1`)
 
 ### Features
+- ERP connector `parafendri`, step 7: the invoice of a ticket prepared for one, asked from Business Central
+  (`shipAndInvoice`, POST `{ orderNo }`, looked up first by `orderNo` so never twice): its number kept on the ticket
+  (`invoiceNumber`), its PDF written to `<app.upload.dir>/erp-invoices/<invoiceNo>.pdf`, the ticket `TOTALLY_SYNCHED`;
+  a failure leaves it `PARTIALLY_SYNCHED`, asked again next run. New `ErpConnector.requestInvoice` / `ErpInvoiceResult`
+  (covered by `WHOLE_TICKET_EXPORT`), new communications operation `REQUEST_INVOICE`. The fiscal registration and name
+  cannot be sent yet (no field in `shipAndInvoice`): in the message, one warning per run. A ticket with its `erpNo` is
+  never posted again (before, a ticket prepared for an invoice after its post would have been posted a second time).
+  EMTOP and `prepareInvoice` unchanged.
 - ERP connector `parafendri`, step 0 (ParaFendri's Business Central 28 on-prem, its custom API
   `api/sat/zsretail/v1.0`, a store on the ERP as EMTOP's): project `connectors/parafendri`, accepted as
   `erp.connector=parafendri`, no ability; the settings, the startup check, an NTLM GET-only client whose login goes to

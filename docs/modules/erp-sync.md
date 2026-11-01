@@ -682,7 +682,8 @@ dependency on another connector:
   - The communications log: one row per ticket (`EXPORT_TICKET`): the body sent, Business Central's answer, the
     message with its number and `orderStatus` ("ticket X posted as sales order N (orderStatus Entered)", "already in
     Business Central as ..."), Business Central's own error text on a refusal (`{"error":{"code","message"}}`). The
-    connector's only write: `GetOnly` lets a POST to `.../salesOrders` (no query) through, nothing else.
+    connector's writes: `GetOnly` lets a POST to `.../salesOrders` (no query) through, and since step 7 one to
+    `.../shipAndInvoice`, nothing else.
   - Returns and sessions are not exported yet (later, with Sayf's pages): with a connector posting tickets whole
     (`ApplicationModeService.isWholeTicketExport`) `ZZDataInitializer` seeds `EXPORT_RETURNS` and `EXPORT_SESSIONS`
     disabled; `pushReturnHeader` / `Line` and `pushSession` answer a failure.
@@ -693,6 +694,59 @@ dependency on another connector:
     unchanged, one warning per run, the seeding question). Live (GET only, 2026-10-31): the lookup answers 400 not
     filterable, the test passes on that path; the live POST test runs only with `-Dparafendri.live.post=true` (one test
     ticket, then the same again: no double), not run yet.
+- Step 7, the invoice of a ticket (`requestInvoice`, the same job `EXPORT_TICKETS`): Business Central's page
+  `companies(<id>)/shipAndInvoice` (key `orderNo`; fields `orderNo`, `invoiceNo`, `invoicePdfBase64`,
+  `lastModifiedDateTime`; no OData action): **POST `{ "orderNo": "<the ticket's erpNo>" }`**, Business Central ships and
+  invoices the sales order and answers the row with the invoice number and the PDF in base64.
+  - erp-api: `ErpConnector.requestInvoice(externalReference, fiscalRegistration, invoiceCustomerName)` →
+    `ErpInvoiceResult` (an `ErpOperationResult`: success, message, warnings, plus `invoiceNo` and `pdf`, bytes or null);
+    the default throws `ErpNotSupportedException`. No new ability: `WHOLE_TICKET_EXPORT` covers it (a connector posting
+    tickets whole answers it). Core: `ErpSynchronizationManager.requestInvoice`, logged as the other pushes under the
+    new operation **`REQUEST_INVOICE`** (counted with the job `EXPORT_TICKETS` in its statistics). The front's filter
+    list of the communications page (`ErpCommunications.vue`) does not list it yet (no front work in this step).
+  - **The service rule** (`TicketExportService`, the whole-ticket branch only): a ticket with its `erpNo` is **never
+    posted again**. An invoice is due when the ticket was prepared for one (`prepareInvoice`: `invoiced`, its fiscal
+    registration), has no `invoiceNumber` and no local invoice (`SalesHeader.invoice` null). Then:
+    - in the ERP already (prepared after the post: `prepareInvoice` set it back to `PARTIALLY_SYNCHED`):
+      `requestInvoice`; a failure throws (counted as an error of the run), the ticket stays `PARTIALLY_SYNCHED`;
+    - prepared before it went: posted whole, saved `PARTIALLY_SYNCHED` with its `erpNo`, then the invoice asked at once;
+      a failure keeps the post (not counted as an error), the invoice asked again next run;
+    - success: the PDF written, then `invoiceNumber` = Business Central's number and `TOTALLY_SYNCHED`. A PDF that cannot
+      be written fails the step (asked again next run: the lookup answers the same invoice); an answer without a PDF is
+      kept with a WARN line;
+    - in the ERP with nothing due (e.g. `PARTIALLY_SYNCHED` and not invoiced): `TOTALLY_SYNCHED` again, nothing sent.
+      Before step 7 such a ticket would have been posted a second time (the `ticketNo` lookup does not filter).
+  - `prepareInvoice` is unchanged; EMTOP's path is unchanged (POS_Invoice through `updateTicketStatus`, never
+    `requestInvoice`). The no-ERP invoices are untouched: a ticket with a local `InvoiceHeader` (`invoice` set, its
+    number in `invoiceNumber`) is never asked; with sales going to the ERP the till offers only "Prepare invoice".
+    `SalesHeader.invoiceNumber` now also holds an ERP invoice number with `invoice` null; it goes up to the head office
+    in the ticket's copy as before (`HoTicket.invoiceNumber`, shown in the head office's tickets).
+  - **Where the PDF lands**: `<app.upload.dir>/erp-invoices/<invoiceNo>.pdf` (`ErpInvoicePdfFiles`; a character other
+    than a letter, a digit, `.`, `_` or `-` becomes `_`), written through a `.part` file beside it. The ticket has no
+    path field: the place is derived from `invoiceNumber` (`ErpInvoicePdfFiles.pathOf`). Nothing serves the folder (the
+    images are served by `ItemImageController` from their own folders); a screen to open the PDF is a later step.
+    ParaFendri's file: `app.upload.dir=C:/zsretail-parafendri/store/uploads/pos-images`, so
+    `.../pos-images/erp-invoices/`.
+  - **Never twice** (`ParafendriConnector.requestInvoice`): first `GET shipAndInvoice?$filter=orderNo eq '<erpNo>'`; a
+    row with its `invoiceNo` answers (its PDF decoded), nothing posted. A failed lookup posts nothing.
+  - **Fiscal registration and name: not sendable** (`shipAndInvoice` has no field for them, **open with Sayf**): they
+    are written in the message of the `REQUEST_INVOICE` row ("...; not sent (shipAndInvoice has no field for them):
+    fiscal registration X, invoice name Y"), and the run writes **one** WARN, in the log and as a WARNING row
+    (operation `REQUEST_INVOICE`): "shipAndInvoice has no fiscal fields — ask the BC contact". Until Sayf adds them, the
+    invoice Business Central makes is in the name of the point de vente's customer (`customerNo` of the sales order).
+  - The communications log: the request `{ orderNo }`, the answer without the PDF (`invoicePdfBase64`: its length), the
+    message with the invoice number or Business Central's own error text.
+  - Tests: `ParafendriInvoiceTest` (the samples `shipAndInvoice-request.json` / `shipAndInvoice-answer.json`, a 49-byte
+    PDF: posted with the fiscal warning, already invoiced, refused with BC's text, the lookup failing, no PDF, no
+    invoice number, no order number), the guard in `ParafendriRestClientTest`, `TicketExportWholeTicketTest`
+    (network-tests: asked once and the PDF written, prepared before the post, refused, nothing due, one fiscal warning
+    per run, EMTOP unchanged). Live: the GET lookup always (a number that is no order: no row), not run yet (2026-11-01:
+    Business Central did not answer, a connection timeout on the first page; to run again with the VPN open, which also
+    checks that `orderNo` filters); the live POST `liveInvoicePost` runs only with `-Dparafendri.live.post=true
+    -Dparafendri.order=<a test ticket's order>`, not run yet.
+  - **Open with Sayf**: the fiscal fields on `shipAndInvoice` (or the customer's own `customerNo`); whether Business
+    Central posts the sales orders itself (e.g. a batch at night: an order posted that way is deleted, and an invoice
+    asked later would fail at every run); what `shipAndInvoice` answers for an order already shipped.
 - Tests (in the project): `ParafendriRestClientTest` (mock server, the sample `companies.json`: two companies, one the
   configured id; next links, an unknown id, an HTTP 401, GET only, the login's host; step 1, the sample
   `locations.json` with the six points de vente PV-GREMDA, PV-LAFRANE, PV-MALL-SF, PV-NABEUL, PV-SOUSSE, PV-TANIOUR:

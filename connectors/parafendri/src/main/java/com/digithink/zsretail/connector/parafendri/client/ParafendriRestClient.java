@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -32,6 +33,7 @@ import com.digithink.zsretail.connector.parafendri.dto.ParafendriItemCategoryRow
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrder;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrderRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriShipAndInvoiceRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriStockPointRow;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -61,6 +63,9 @@ public class ParafendriRestClient {
 			};
 	private static final ParameterizedTypeReference<ParafendriCollection<ParafendriSalesOrderRow>> SALES_ORDER_ROWS =
 			new ParameterizedTypeReference<ParafendriCollection<ParafendriSalesOrderRow>>() {
+			};
+	private static final ParameterizedTypeReference<ParafendriCollection<ParafendriShipAndInvoiceRow>> SHIP_AND_INVOICE_ROWS =
+			new ParameterizedTypeReference<ParafendriCollection<ParafendriShipAndInvoiceRow>>() {
 			};
 	/** Step 4: the barcodes of the company, under companies(company-id). */
 	static final String BARCODES = "barCodes";
@@ -268,6 +273,58 @@ public class ParafendriRestClient {
 			// not JSON: the body as it is
 		}
 		return text.length() > 500 ? text.substring(0, 500) + "..." : text;
+	}
+
+	// ─── Step 7: a ticket's invoice, shipAndInvoice ────────────
+
+	/** Step 7: base-url / api-path / companies(company-id) / shipAndInvoice. */
+	public String shipAndInvoiceAddress() {
+		return properties.companyAddress() + ParafendriConfig.SHIP_AND_INVOICE;
+	}
+
+	/** Step 7: the rows of one sales order, GET shipAndInvoice?$filter=orderNo eq 'X' (its key; a quote doubled). */
+	public List<ParafendriShipAndInvoiceRow> readShipAndInvoice(String orderNo) {
+		return readAll(ParafendriConfig.SHIP_AND_INVOICE, shipAndInvoiceUri(orderNo), SHIP_AND_INVOICE_ROWS);
+	}
+
+	/** Step 7: the address of the lookup of one sales order's invoice. */
+	public URI shipAndInvoiceUri(String orderNo) {
+		return UriComponentsBuilder.fromHttpUrl(shipAndInvoiceAddress())
+				.queryParam("$filter", "orderNo eq '" + quoted(orderNo) + "'").build().encode().toUri();
+	}
+
+	/**
+	 * Step 7: one sales order shipped and invoiced, POST { "orderNo": "X" } (Business Central has no field for the
+	 * customer's fiscal registration or name there); its answer, the row with invoiceNo and invoicePdfBase64. A refusal
+	 * throws {@link ParafendriReadException} naming the status and Business Central's own error text; no answer (a
+	 * timeout) too: the invoice may have been made, which the next run's lookup finds.
+	 */
+	public ParafendriShipAndInvoiceRow postShipAndInvoice(String orderNo) {
+		String page = ParafendriConfig.SHIP_AND_INVOICE;
+		HttpHeaders headers = new HttpHeaders();
+		headers.setContentType(MediaType.APPLICATION_JSON);
+		headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+		try {
+			return restTemplate.exchange(URI.create(shipAndInvoiceAddress()), HttpMethod.POST,
+					new HttpEntity<>(shipAndInvoiceRequest(orderNo), headers), ParafendriShipAndInvoiceRow.class)
+					.getBody();
+		} catch (HttpStatusCodeException e) {
+			throw new ParafendriReadException(page, e.getRawStatusCode(), "parafendri: asking the invoice of sales order "
+					+ orderNo + " from " + page + " failed: HTTP " + e.getRawStatusCode() + " " + e.getStatusText() + ": "
+					+ errorText(e.getResponseBodyAsString()), e);
+		} catch (ResourceAccessException e) {
+			throw new ParafendriReadException(page, null, "parafendri: asking the invoice of sales order " + orderNo
+					+ " from " + page + " failed: no answer or timeout (" + e.getMessage() + "); the next run looks it up"
+					+ " before asking again", e);
+		} catch (RestClientException e) {
+			throw new ParafendriReadException(page, null, "parafendri: asking the invoice of sales order " + orderNo
+					+ " from " + page + " failed: " + e.getMessage(), e);
+		}
+	}
+
+	/** Step 7: the body of the POST, { "orderNo": "X" }. */
+	public static Map<String, String> shipAndInvoiceRequest(String orderNo) {
+		return Collections.singletonMap("orderNo", orderNo);
 	}
 
 	/**

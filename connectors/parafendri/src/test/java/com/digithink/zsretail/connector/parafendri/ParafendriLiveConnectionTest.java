@@ -41,10 +41,12 @@ import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrderRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriShipAndInvoiceRow;
 import com.digithink.zsretail.connector.parafendri.mapper.ParafendriMapper;
 import com.digithink.zsretail.erp.api.ErpCategories;
 import com.digithink.zsretail.erp.api.ErpRead;
 import com.digithink.zsretail.erp.api.ErpStoreLocation;
+import com.digithink.zsretail.erp.api.dto.ErpInvoiceResult;
 import com.digithink.zsretail.erp.api.dto.ErpOperationResult;
 import com.digithink.zsretail.erp.api.dto.ErpTicketDTO;
 import com.digithink.zsretail.erp.api.dto.ErpTicketLineDTO;
@@ -244,6 +246,49 @@ class ParafendriLiveConnectionTest {
 				.collect(Collectors.toCollection(TreeSet::new));
 		System.out.println("customerNo of " + code + ": " + customerNo + ", in " + (System.currentTimeMillis() - start)
 				+ " ms; values on its " + rows.size() + " stockPoints rows: " + customers);
+
+		// Step 7 (GET only): the lookup of a sales order's invoice by orderNo (the key), as requestInvoice makes it
+		// before a POST: a number that is no order, so no row
+		start = System.currentTimeMillis();
+		List<ParafendriShipAndInvoiceRow> invoices = client.readShipAndInvoice(lookup);
+		System.out.println("shipAndInvoice orderNo eq '" + lookup + "': " + invoices.size() + " rows, in "
+				+ (System.currentTimeMillis() - start) + " ms (" + client.shipAndInvoiceUri(lookup) + ")");
+		assertTrue(invoices.isEmpty(), "no invoice of an order that does not exist");
+	}
+
+	/**
+	 * Step 7, a live POST of one invoice: runs ONLY with -Dparafendri.live.post=true and -Dparafendri.order=&lt;a sales
+	 * order of a test ticket&gt; (e.g. the one liveTicketPost made; never in the normal suite, to run together on the test
+	 * Business Central). requestInvoice, then requestInvoice again: the second must find the first invoice (never twice).
+	 * Ships and invoices that order in Business Central; the PDF is not written anywhere.
+	 */
+	@Test
+	@EnabledIfSystemProperty(named = "parafendri.live.post", matches = "true")
+	@DisplayName("Live POST of one invoice (only with -Dparafendri.live.post=true and -Dparafendri.order), then again: no double")
+	void liveInvoicePost() throws IOException {
+		String orderNo = System.getProperty("parafendri.order", "").trim();
+		assertTrue(!orderNo.isEmpty(), "-Dparafendri.order=<the sales order of a test ticket> is required");
+		ParafendriConnector connector = new ParafendriConnector(client(), new ErpStoreLocation() {
+			@Override
+			public String defaultLocationCode() {
+				return System.getProperty("parafendri.location", "PV-GREMDA");
+			}
+
+			@Override
+			public List<String> defaultResponsibilityCenters() {
+				return new ArrayList<>();
+			}
+		});
+		ErpInvoiceResult first = connector.requestInvoice(orderNo, "ZSTEST", null);
+		System.out.println("POST shipAndInvoice " + orderNo + ": success " + first.isSuccess() + ", invoice "
+				+ first.getInvoiceNo() + ", PDF " + (first.getPdf() == null ? "none" : first.getPdf().length + " bytes")
+				+ ", " + first.getMessage() + ", warnings " + first.getWarnings());
+		assertTrue(first.isSuccess(), first.getMessage());
+		ErpInvoiceResult again = connector.requestInvoice(orderNo, "ZSTEST", null);
+		System.out.println("again: success " + again.isSuccess() + ", invoice " + again.getInvoiceNo() + ", "
+				+ again.getMessage());
+		assertTrue(again.isSuccess(), again.getMessage());
+		assertTrue(first.getInvoiceNo().equals(again.getInvoiceNo()), "the same invoice, not a second");
 	}
 
 	private static void print(String level, ErpRead<?> read) {

@@ -2,6 +2,7 @@ package com.digithink.zsretail.connector.parafendri.connector;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -18,6 +19,7 @@ import com.digithink.zsretail.connector.parafendri.client.ParafendriRestClient;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriBarcodeRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrder;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriSalesOrderRow;
+import com.digithink.zsretail.connector.parafendri.dto.ParafendriShipAndInvoiceRow;
 import com.digithink.zsretail.connector.parafendri.mapper.ParafendriMapper;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
 import com.digithink.zsretail.erp.api.ErpCategories;
@@ -27,6 +29,7 @@ import com.digithink.zsretail.erp.api.ErpStoreLocation;
 import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.api.dto.ErpDeletionLogEntryDTO;
+import com.digithink.zsretail.erp.api.dto.ErpInvoiceResult;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemCategoryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
@@ -57,7 +60,8 @@ import lombok.extern.log4j.Log4j2;
  * ({@link ParafendriMapper}); the read goes to the communications log as EMTOP's (the address, then the rows read, kept
  * and left out by reason, and the rows), with one WARN line when a row was left out. Step 3: the items, stockPoints of
  * the store's point de vente ({@link #fetchItems}). Step 4: the barcodes ({@link #fetchItemBarcodes}). Step 6: a
- * ticket and its lines posted in one call as a sales order ({@link #pushTicket}), looked up first so never twice. Every
+ * ticket and its lines posted in one call as a sales order ({@link #pushTicket}), looked up first so never twice. Step
+ * 7: the invoice of a ticket prepared for one, shipAndInvoice ({@link #requestInvoice}), looked up first too. Every
  * other fetch answers an empty list, every other push or update a failure, so the store's file keeps
  * erp.sync.enabled=false until the jobs are written.
  */
@@ -318,6 +322,94 @@ public class ParafendriConnector implements ErpConnector {
 			return warned(ErpOperationResult.failure(e.getMessage(), order != null ? order : ticket, null, address),
 					warnings);
 		}
+	}
+
+	/**
+	 * Step 7: the invoice of a ticket already in Business Central (externalReference: its sales order number, the
+	 * ticket's ERP number). Looked up first, shipAndInvoice?$filter=orderNo eq 'X' (its key), so never made twice: a row
+	 * with its invoice number answers, nothing posted. Else one POST { orderNo }: Business Central ships and invoices the
+	 * order and answers the invoice number and the PDF in base64 (decoded here). The page has no field for the fiscal
+	 * registration or the invoice name: they are said in the message of the result and in one warning per export run
+	 * ({@link #NO_FISCAL_FIELDS}). A failed lookup posts nothing. The communications log gets the answer without the PDF.
+	 */
+	@Override
+	public ErpInvoiceResult requestInvoice(String externalReference, String fiscalRegistration,
+			String invoiceCustomerName) {
+		String address = client.shipAndInvoiceAddress();
+		String orderNo = externalReference == null ? "" : externalReference.trim();
+		if (orderNo.isEmpty()) {
+			return ErpInvoiceResult.of(ErpOperationResult.failure(
+					"parafendri: no invoice asked: the ticket has no sales order number", null, null, address));
+		}
+		Map<String, String> request = ParafendriRestClient.shipAndInvoiceRequest(orderNo);
+		try {
+			ParafendriShipAndInvoiceRow known = client.readShipAndInvoice(orderNo).stream()
+					.filter(row -> notBlank(row.getInvoiceNo())).findFirst().orElse(null);
+			if (known != null) {
+				return invoiced(known, request, address, "parafendri: sales order " + orderNo
+						+ " is already invoiced in Business Central as " + known.getInvoiceNo().trim()
+						+ ": not asked again");
+			}
+			ParafendriShipAndInvoiceRow made = client.postShipAndInvoice(orderNo);
+			if (made == null || !notBlank(made.getInvoiceNo())) {
+				return ErpInvoiceResult.of(ErpOperationResult.failure("parafendri: Business Central answered the invoice"
+						+ " of sales order " + orderNo + " without an invoice number", request,
+						made == null ? null : withoutPdf(made), address));
+			}
+			ErpInvoiceResult result = invoiced(made, request, address, "parafendri: sales order " + orderNo
+					+ " shipped and invoiced as " + made.getInvoiceNo().trim()
+					+ notSent(fiscalRegistration, invoiceCustomerName));
+			if (notBlank(fiscalRegistration) || notBlank(invoiceCustomerName)) {
+				result.addWarning(NO_FISCAL_FIELDS);
+			}
+			return result;
+		} catch (ParafendriReadException e) {
+			return ErpInvoiceResult.of(ErpOperationResult.failure(e.getMessage(), request, null, address));
+		}
+	}
+
+	/** Step 7: said once per export run when an invoice was asked with a fiscal registration or name not sendable. */
+	public static final String NO_FISCAL_FIELDS = "shipAndInvoice has no fiscal fields — ask the BC contact";
+
+	/** Step 7: a row with its invoice number as a success, the PDF decoded (none, or not readable: said, no PDF). */
+	private static ErpInvoiceResult invoiced(ParafendriShipAndInvoiceRow row, Object request, String address,
+			String message) {
+		byte[] pdf = null;
+		String unreadable = null;
+		if (notBlank(row.getInvoicePdfBase64())) {
+			try {
+				pdf = Base64.getMimeDecoder().decode(row.getInvoicePdfBase64().trim());
+			} catch (IllegalArgumentException e) {
+				unreadable = e.getMessage();
+			}
+		}
+		ErpInvoiceResult result = ErpInvoiceResult.invoiced(row.getInvoiceNo().trim(), pdf, request, withoutPdf(row),
+				address);
+		result.setMessage(message + (pdf != null && pdf.length > 0 ? ""
+				: unreadable != null ? "; its PDF could not be read (" + unreadable + ")" : "; no PDF in the answer"));
+		return result;
+	}
+
+	/** Step 7: the row for the communications log, the PDF's base64 replaced by its length. */
+	static Map<String, Object> withoutPdf(ParafendriShipAndInvoiceRow row) {
+		Map<String, Object> logged = new LinkedHashMap<>();
+		logged.put("orderNo", row.getOrderNo());
+		logged.put("invoiceNo", row.getInvoiceNo());
+		logged.put("lastModifiedDateTime", row.getLastModifiedDateTime());
+		logged.put("invoicePdfBase64", notBlank(row.getInvoicePdfBase64())
+				? row.getInvoicePdfBase64().trim().length() + " characters, not logged"
+				: null);
+		return logged;
+	}
+
+	/** Step 7: the fiscal registration and invoice name that shipAndInvoice cannot take, for the message. */
+	private static String notSent(String fiscalRegistration, String invoiceCustomerName) {
+		if (!notBlank(fiscalRegistration) && !notBlank(invoiceCustomerName)) {
+			return "";
+		}
+		return "; not sent (shipAndInvoice has no field for them): fiscal registration "
+				+ (notBlank(fiscalRegistration) ? fiscalRegistration.trim() : "-") + ", invoice name "
+				+ (notBlank(invoiceCustomerName) ? invoiceCustomerName.trim() : "-");
 	}
 
 	/** Step 6: said once per export run when Business Central does not let the lookup filter on ticketNo. */

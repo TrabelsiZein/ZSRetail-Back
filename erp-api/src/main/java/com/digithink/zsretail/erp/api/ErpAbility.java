@@ -27,7 +27,8 @@ public enum ErpAbility {
 	/**
 	 * 3.1.1 (ParaFendri, step 6): posting a ticket with its lines in one call (ErpConnector.pushTicket), so the store's
 	 * ticket export sends each ticket whole (all or nothing) instead of the header, the lines one by one, then the
-	 * status (TicketExportService).
+	 * status (TicketExportService). Step 7: such a connector also makes the invoice of a ticket prepared for one
+	 * (ErpConnector.requestInvoice), asked by the same export.
 	 */
 	WHOLE_TICKET_EXPORT
 }

@@ -13,7 +13,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -21,6 +25,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.springframework.mock.env.MockEnvironment;
 
@@ -40,6 +45,8 @@ import com.digithink.zsretail.core.repository.SalesLineRepository;
 import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.erp.api.ErpAbilities;
 import com.digithink.zsretail.erp.api.ErpAbility;
+import com.digithink.zsretail.core.model.InvoiceHeader;
+import com.digithink.zsretail.erp.api.dto.ErpInvoiceResult;
 import com.digithink.zsretail.erp.api.dto.ErpOperationResult;
 import com.digithink.zsretail.erp.api.dto.ErpTicketDTO;
 import com.digithink.zsretail.support.Installations;
@@ -48,7 +55,10 @@ import com.digithink.zsretail.support.Installations;
  * 3.1.1 (ParaFendri, step 6): TicketExportService with a connector that posts a ticket whole
  * (ErpAbility.WHOLE_TICKET_EXPORT, parafendri): one pushTicket with every line, success = the ERP number, the ticket
  * and its lines synchronized at once; failure = nothing changed, retried next run, no status update. Any other
- * connector (emtop) or none: today's path, the header first (pushTicketHeader), never pushTicket.
+ * connector (emtop) or none: today's path, the header first (pushTicketHeader), never pushTicket. Step 7: a ticket in
+ * the ERP is never posted again; prepared for an invoice, its invoice is asked once (requestInvoice), its number kept
+ * and its PDF written under app.upload.dir/erp-invoices; a failure leaves it PARTIALLY_SYNCHED. EMTOP's invoice path
+ * (updateTicketStatus with POS_Invoice) is unchanged.
  */
 class TicketExportWholeTicketTest {
 
@@ -59,6 +69,9 @@ class TicketExportWholeTicketTest {
 	private ErpCommunicationService communications;
 	private SalesHeader ticket;
 	private List<SalesLine> ticketLines;
+	/** Step 7: app.upload.dir of the test (the PDFs under erp-invoices/). */
+	@TempDir
+	Path uploads;
 
 	@BeforeEach
 	void setUp() {
@@ -98,7 +111,8 @@ class TicketExportWholeTicketTest {
 	private TicketExportService service(String connector) {
 		MockEnvironment env = Installations.type("store");
 		env.setProperty("erp.connector", connector);
-		return new TicketExportService(manager, headers, lines, setup, env, communications);
+		return new TicketExportService(manager, headers, lines, setup, env, communications,
+				new ErpInvoicePdfFiles(uploads.toString()));
 	}
 
 	@Test
@@ -187,10 +201,158 @@ class TicketExportWholeTicketTest {
 				ErpSyncOperation.EXPORT_TICKET), any(), any(), org.mockito.ArgumentMatchers.eq(ErpCommunicationStatus.WARNING),
 				any(), org.mockito.ArgumentMatchers.eq(guard), any(), any());
 
-		// Alone (not in a run): its warnings written at once
+		// Alone (not in a run): its warnings written at once (a ticket not posted yet: one with its erpNo is never
+		// posted again, step 7)
+		second.setErpNo(null);
+		second.setSynchronizationStatus(SynchronizationStatus.NOT_SYNCHED);
 		service("parafendri").exportTicket(second);
 		verify(communications, org.mockito.Mockito.times(2)).logOperation(any(), any(), any(),
 				org.mockito.ArgumentMatchers.eq(ErpCommunicationStatus.WARNING), any(), any(), any(), any());
+	}
+
+	// ─── Step 7: the invoice ────────────
+
+	private static final String PDF = "%PDF-1.4\n%test\n%%EOF\n";
+
+	/** The ticket in the ERP (step 6 done), then prepared for an invoice (prepareInvoice: back to PARTIALLY_SYNCHED). */
+	private void preparedInERP() {
+		ticket.setErpNo("CV-000001");
+		ticket.setSynchronizationStatus(SynchronizationStatus.PARTIALLY_SYNCHED);
+		prepared();
+	}
+
+	private void prepared() {
+		ticket.setInvoiced(true);
+		ticket.setFiscalRegistration("1234567A/M/000");
+		ticket.setInvoiceCustomerName("Société Test");
+	}
+
+	private static ErpInvoiceResult invoice(String number) {
+		return ErpInvoiceResult.invoiced(number, PDF.getBytes(StandardCharsets.UTF_8), null, null, null);
+	}
+
+	@Test
+	@DisplayName("Prepared after the post: the invoice asked once (never posted again), its number, its PDF written")
+	void invoiceRequestedOnce() throws IOException {
+		preparedInERP();
+		when(manager.requestInvoice("CV-000001", "1234567A/M/000", "Société Test")).thenReturn(invoice("FV-000001"));
+		service("parafendri").exportTicket(ticket);
+
+		verify(manager, never()).pushTicket(any());
+		verify(manager).requestInvoice("CV-000001", "1234567A/M/000", "Société Test");
+		assertEquals("FV-000001", ticket.getInvoiceNumber());
+		assertNull(ticket.getInvoice(), "no local invoice");
+		assertEquals(SynchronizationStatus.TOTALLY_SYNCHED, ticket.getSynchronizationStatus());
+		Path pdf = uploads.resolve("erp-invoices").resolve("FV-000001.pdf");
+		assertEquals(PDF, new String(Files.readAllBytes(pdf), StandardCharsets.UTF_8));
+		assertEquals(pdf, new ErpInvoicePdfFiles(uploads.toString()).pathOf("FV-000001"), "derived from the number");
+		verify(headers).save(ticket);
+
+		// Exported again (e.g. picked up by mistake): the invoice is there, nothing asked, nothing posted
+		ticket.setSynchronizationStatus(SynchronizationStatus.PARTIALLY_SYNCHED);
+		service("parafendri").exportTicket(ticket);
+		verify(manager, org.mockito.Mockito.times(1)).requestInvoice(anyString(), any(), any());
+		verify(manager, never()).pushTicket(any());
+		assertEquals(SynchronizationStatus.TOTALLY_SYNCHED, ticket.getSynchronizationStatus());
+	}
+
+	@Test
+	@DisplayName("Prepared before the post: posted whole, then the invoice asked at once with its ERP number")
+	void invoicedBeforeExport() {
+		prepared();
+		when(manager.pushTicket(any())).thenReturn(ErpOperationResult.success("CV-000002"));
+		when(manager.requestInvoice("CV-000002", "1234567A/M/000", "Société Test")).thenReturn(invoice("FV-000002"));
+		service("parafendri").exportTicket(ticket);
+
+		verify(manager).pushTicket(any());
+		verify(manager).requestInvoice("CV-000002", "1234567A/M/000", "Société Test");
+		assertEquals("CV-000002", ticket.getErpNo());
+		assertEquals("FV-000002", ticket.getInvoiceNumber());
+		assertEquals(SynchronizationStatus.TOTALLY_SYNCHED, ticket.getSynchronizationStatus());
+		assertTrue(Files.exists(uploads.resolve("erp-invoices").resolve("FV-000002.pdf")));
+	}
+
+	@Test
+	@DisplayName("The invoice refused: PARTIALLY_SYNCHED kept, no invoice number, never posted again; an error only when nothing else was done")
+	void invoiceRefused() {
+		preparedInERP();
+		when(manager.requestInvoice(anyString(), any(), any()))
+				.thenReturn(ErpInvoiceResult.of(ErpOperationResult.failure("parafendri: ... failed: HTTP 400")));
+		assertThrows(RuntimeException.class, () -> service("parafendri").exportTicket(ticket));
+		verify(manager, never()).pushTicket(any());
+		assertNull(ticket.getInvoiceNumber());
+		assertEquals("CV-000001", ticket.getErpNo());
+		assertEquals(SynchronizationStatus.PARTIALLY_SYNCHED, ticket.getSynchronizationStatus());
+		assertFalse(Files.exists(uploads.resolve("erp-invoices")));
+
+		// Just posted, then refused: the post kept (no error thrown), asked again next run
+		SalesHeader fresh = new SalesHeader();
+		fresh.setSalesNumber("PV-GREMDA251031003");
+		fresh.setSynchronizationStatus(SynchronizationStatus.NOT_SYNCHED);
+		fresh.setInvoiced(true);
+		fresh.setFiscalRegistration("1234567A/M/000");
+		when(lines.findBySalesHeader(fresh)).thenReturn(ticketLines);
+		when(manager.pushTicket(any())).thenReturn(ErpOperationResult.success("CV-000003"));
+		service("parafendri").exportTicket(fresh);
+		assertEquals("CV-000003", fresh.getErpNo());
+		assertNull(fresh.getInvoiceNumber());
+		assertEquals(SynchronizationStatus.PARTIALLY_SYNCHED, fresh.getSynchronizationStatus());
+	}
+
+	@Test
+	@DisplayName("In the ERP, nothing due (no invoice asked, or a local invoice): synchronized, never posted again, nothing asked")
+	void nothingDue() {
+		ticket.setErpNo("CV-000001");
+		ticket.setSynchronizationStatus(SynchronizationStatus.PARTIALLY_SYNCHED);
+		service("parafendri").exportTicket(ticket);
+		assertEquals(SynchronizationStatus.TOTALLY_SYNCHED, ticket.getSynchronizationStatus());
+
+		ticket.setSynchronizationStatus(SynchronizationStatus.PARTIALLY_SYNCHED);
+		ticket.setInvoiced(true);
+		ticket.setInvoice(new InvoiceHeader());
+		service("parafendri").exportTicket(ticket);
+		assertEquals(SynchronizationStatus.TOTALLY_SYNCHED, ticket.getSynchronizationStatus());
+		verify(manager, never()).pushTicket(any());
+		verify(manager, never()).requestInvoice(any(), any(), any());
+	}
+
+	@Test
+	@DisplayName("A run of two invoices with the fiscal warning: one WARNING row, under REQUEST_INVOICE")
+	void fiscalWarningOncePerRun() {
+		preparedInERP();
+		SalesHeader second = new SalesHeader();
+		second.setSalesNumber("PV-GREMDA251031002");
+		second.setErpNo("CV-000002");
+		second.setSynchronizationStatus(SynchronizationStatus.PARTIALLY_SYNCHED);
+		second.setInvoiced(true);
+		second.setFiscalRegistration("7654321B/M/000");
+		when(headers.findByStatusAndSynchronizationStatusNot(TransactionStatus.COMPLETED,
+				SynchronizationStatus.TOTALLY_SYNCHED)).thenReturn(Arrays.asList(ticket, second));
+		String fiscal = "shipAndInvoice has no fiscal fields — ask the BC contact";
+		when(manager.requestInvoice(anyString(), any(), any()))
+				.thenAnswer(call -> invoice("FV-" + call.getArgument(0)).addWarning(fiscal));
+
+		service("parafendri").exportTickets();
+		verify(manager, org.mockito.Mockito.times(2)).requestInvoice(anyString(), any(), any());
+		verify(communications, org.mockito.Mockito.times(1)).logOperation(org.mockito.ArgumentMatchers.eq(
+				ErpSyncOperation.REQUEST_INVOICE), any(), any(), org.mockito.ArgumentMatchers.eq(
+						ErpCommunicationStatus.WARNING), any(), org.mockito.ArgumentMatchers.eq(fiscal), any(), any());
+		assertEquals("FV-CV-000002", second.getInvoiceNumber());
+	}
+
+	@Test
+	@DisplayName("EMTOP: an invoiced ticket goes through updateTicketStatus (POS_Invoice) as before, never requestInvoice")
+	void emtopInvoiceUnchanged() {
+		preparedInERP();
+		ticketLines.forEach(line -> line.setSynched(true));
+		when(manager.updateTicketStatus("CV-000001", true, true, "1234567A/M/000", "Société Test"))
+				.thenReturn(ErpOperationResult.success("CV-000001"));
+		service("emtop").exportTicket(ticket);
+		verify(manager).updateTicketStatus("CV-000001", true, true, "1234567A/M/000", "Société Test");
+		verify(manager, never()).requestInvoice(any(), any(), any());
+		verify(manager, never()).pushTicket(any());
+		assertNull(ticket.getInvoiceNumber());
+		assertEquals(SynchronizationStatus.TOTALLY_SYNCHED, ticket.getSynchronizationStatus());
 	}
 
 	@Test

@@ -1,10 +1,12 @@
 package com.digithink.zsretail.store.erp.service;
 
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +29,7 @@ import com.digithink.zsretail.core.repository.SalesLineRepository;
 import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.erp.api.ErpAbilities;
 import com.digithink.zsretail.erp.api.ErpAbility;
+import com.digithink.zsretail.erp.api.dto.ErpInvoiceResult;
 import com.digithink.zsretail.erp.api.dto.ErpOperationResult;
 import com.digithink.zsretail.erp.api.dto.ErpTicketDTO;
 import com.digithink.zsretail.erp.api.dto.ErpTicketLineDTO;
@@ -47,6 +50,8 @@ public class TicketExportService implements ErpExportJob {
 	private final Environment environment;
 	/** 3.1.1: the warnings of a run (a connector posting tickets whole), once each. */
 	private final ErpCommunicationService communicationService;
+	/** 3.1.1 (step 7): the ERP's invoices of the tickets, as PDF files. */
+	private final ErpInvoicePdfFiles invoicePdfFiles;
 
 	@Override
 	public ErpSyncJobType jobType() {
@@ -82,7 +87,7 @@ public class TicketExportService implements ErpExportJob {
 		int errorCount = 0;
 
 		// 3.1.1: the connector's warnings of this run, each written once at its end
-		runWarnings.set(new LinkedHashSet<>());
+		runWarnings.set(new LinkedHashMap<>());
 		try {
 			for (SalesHeader ticket : ticketsToSync) {
 				try {
@@ -94,7 +99,7 @@ public class TicketExportService implements ErpExportJob {
 				}
 			}
 		} finally {
-			Set<String> warnings = runWarnings.get();
+			Map<String, ErpSyncOperation> warnings = runWarnings.get();
 			runWarnings.remove();
 			writeWarnings(warnings);
 		}
@@ -102,33 +107,39 @@ public class TicketExportService implements ErpExportJob {
 		LOGGER.info("Ticket export completed. Success: {}, Errors: {}", successCount, errorCount);
 	}
 
-	/** 3.1.1: the connector's warnings of the current export run (exportTickets); none outside a run. */
-	private final ThreadLocal<Set<String>> runWarnings = new ThreadLocal<>();
+	/**
+	 * 3.1.1: the connector's warnings of the current export run (exportTickets), each with the operation it came from;
+	 * none outside a run.
+	 */
+	private final ThreadLocal<Map<String, ErpSyncOperation>> runWarnings = new ThreadLocal<>();
 
 	/** 3.1.1: a result's warnings kept for the end of the run, or written now when the ticket is exported alone. */
-	private void keepWarnings(ErpOperationResult result) {
+	private void keepWarnings(ErpOperationResult result, ErpSyncOperation operation) {
 		if (result.getWarnings().isEmpty()) {
 			return;
 		}
-		Set<String> run = runWarnings.get();
-		if (run != null) {
-			run.addAll(result.getWarnings());
-		} else {
-			writeWarnings(new LinkedHashSet<>(result.getWarnings()));
+		Map<String, ErpSyncOperation> run = runWarnings.get();
+		Map<String, ErpSyncOperation> these = run != null ? run : new LinkedHashMap<>();
+		result.getWarnings().forEach(warning -> these.putIfAbsent(warning, operation));
+		if (run == null) {
+			writeWarnings(these);
 		}
 	}
 
-	/** 3.1.1: each warning once, a WARN line and a WARNING row of the communications log (operation EXPORT_TICKET). */
-	private void writeWarnings(Set<String> warnings) {
+	/**
+	 * 3.1.1: each warning once, a WARN line and a WARNING row of the communications log (its operation: EXPORT_TICKET,
+	 * REQUEST_INVOICE).
+	 */
+	private void writeWarnings(Map<String, ErpSyncOperation> warnings) {
 		if (warnings == null) {
 			return;
 		}
-		for (String warning : warnings) {
+		warnings.forEach((warning, operation) -> {
 			LOGGER.warn("Ticket export: {}", warning);
 			LocalDateTime now = LocalDateTime.now();
-			communicationService.logOperation(ErpSyncOperation.EXPORT_TICKET, null, null,
-					ErpCommunicationStatus.WARNING, null, warning, now, now);
-		}
+			communicationService.logOperation(operation, null, null, ErpCommunicationStatus.WARNING, null, warning, now,
+					now);
+		});
 	}
 
 	/**
@@ -197,10 +208,30 @@ public class TicketExportService implements ErpExportJob {
 	 * success gives the ERP's document number: the ticket and every line are synchronized at once. A failure leaves the
 	 * ticket as it was (nothing partial, no status update afterwards), retried at the next run; it is counted as an error
 	 * like a failed header. The connector makes sure a ticket is never posted twice (it looks it up first).
+	 * <p>
+	 * Step 7, the invoice: a ticket with its ERP number is never posted again. Prepared for an invoice (invoiced, no
+	 * invoice number yet, no local invoice), its invoice is asked from the ERP ({@link #requestInvoice}); prepared before
+	 * it went, it is asked right after the post, the ticket PARTIALLY_SYNCHED until the invoice is there. A ticket with
+	 * its ERP number and nothing due (back to PARTIALLY_SYNCHED with no invoice to ask) is TOTALLY_SYNCHED again.
 	 */
 	private void exportWholeTicket(SalesHeader ticket) {
+		if (notBlank(ticket.getErpNo())) {
+			if (!invoiceDue(ticket)) {
+				ticket.setSynchronizationStatus(SynchronizationStatus.TOTALLY_SYNCHED);
+				salesHeaderRepository.save(ticket);
+				LOGGER.info("Ticket {} already in the ERP as {}, nothing due: synchronized", ticket.getSalesNumber(),
+						ticket.getErpNo());
+				return;
+			}
+			if (!requestInvoice(ticket)) {
+				// Counted as an error of the run; the ticket stays PARTIALLY_SYNCHED, asked again next run
+				throw new RuntimeException("The invoice of ticket " + ticket.getSalesNumber() + " (" + ticket.getErpNo()
+						+ " in the ERP) was not made: asked again next run");
+			}
+			return;
+		}
 		ErpOperationResult result = synchronizationManager.pushTicket(toErpTicketDTO(ticket));
-		keepWarnings(result);
+		keepWarnings(result, ErpSyncOperation.EXPORT_TICKET);
 		if (!result.isSuccess() || result.getExternalReference() == null) {
 			String errorMsg = result.getMessage() != null ? result.getMessage()
 					: "Failed to get document number from ERP response";
@@ -214,10 +245,78 @@ public class TicketExportService implements ErpExportJob {
 			}
 		}
 		ticket.setErpNo(result.getExternalReference());
-		ticket.setSynchronizationStatus(SynchronizationStatus.TOTALLY_SYNCHED);
+		boolean invoiceDue = invoiceDue(ticket);
+		ticket.setSynchronizationStatus(
+				invoiceDue ? SynchronizationStatus.PARTIALLY_SYNCHED : SynchronizationStatus.TOTALLY_SYNCHED);
 		salesHeaderRepository.save(ticket);
 		LOGGER.info("Ticket {} exported whole to ERP with document number: {}", ticket.getSalesNumber(),
 				result.getExternalReference());
+		if (invoiceDue) {
+			// Prepared for an invoice before it went: asked now; a failure keeps the post (not an error), asked next run
+			requestInvoice(ticket);
+		}
+	}
+
+	/**
+	 * 3.1.1 (step 7): an invoice to ask from the ERP: the ticket prepared for one (prepareInvoice: invoiced, its fiscal
+	 * registration) and none made yet, neither by the ERP (no invoice number) nor here (no local invoice).
+	 */
+	static boolean invoiceDue(SalesHeader ticket) {
+		return Boolean.TRUE.equals(ticket.getInvoiced()) && !notBlank(ticket.getInvoiceNumber())
+				&& ticket.getInvoice() == null;
+	}
+
+	/**
+	 * 3.1.1 (step 7): the invoice of a ticket in the ERP asked (requestInvoice, its fiscal registration and invoice name
+	 * given). A success: the PDF written ({@link ErpInvoicePdfFiles}, its place derived from the number), then the
+	 * ticket's invoice number and TOTALLY_SYNCHED. Anything else (a refusal, no answer, the PDF not written) leaves the
+	 * ticket PARTIALLY_SYNCHED, asked again next run (the connector answers an invoice already made without making
+	 * another). True when the ticket has its invoice now.
+	 */
+	private boolean requestInvoice(SalesHeader ticket) {
+		ErpInvoiceResult result;
+		try {
+			result = synchronizationManager.requestInvoice(ticket.getErpNo(),
+					trimmedOrNull(ticket.getFiscalRegistration()), trimmedOrNull(ticket.getInvoiceCustomerName()));
+		} catch (Exception ex) {
+			LOGGER.error("Failed to request the invoice of ticket {} ({}): {}", ticket.getSalesNumber(),
+					ticket.getErpNo(), ex.getMessage(), ex);
+			return false;
+		}
+		keepWarnings(result, ErpSyncOperation.REQUEST_INVOICE);
+		if (!result.isSuccess() || !notBlank(result.getInvoiceNo())) {
+			LOGGER.error("Failed to request the invoice of ticket {} ({}): {}", ticket.getSalesNumber(),
+					ticket.getErpNo(),
+					result.getMessage() != null ? result.getMessage() : "no invoice number in the ERP's answer");
+			return false;
+		}
+		String invoiceNo = result.getInvoiceNo().trim();
+		if (result.getPdf() != null && result.getPdf().length > 0) {
+			try {
+				Path file = invoicePdfFiles.write(invoiceNo, result.getPdf());
+				LOGGER.info("Ticket {}: invoice {} written to {}", ticket.getSalesNumber(), invoiceNo, file);
+			} catch (IOException | RuntimeException ex) {
+				LOGGER.error("Ticket {}: the PDF of invoice {} could not be written ({}): asked again next run",
+						ticket.getSalesNumber(), invoiceNo, ex.getMessage(), ex);
+				return false;
+			}
+		} else {
+			LOGGER.warn("Ticket {}: the ERP made invoice {} without its PDF", ticket.getSalesNumber(), invoiceNo);
+		}
+		ticket.setInvoiceNumber(invoiceNo);
+		ticket.setSynchronizationStatus(SynchronizationStatus.TOTALLY_SYNCHED);
+		salesHeaderRepository.save(ticket);
+		LOGGER.info("Ticket {} ({} in the ERP) invoiced by the ERP: {}", ticket.getSalesNumber(), ticket.getErpNo(),
+				invoiceNo);
+		return true;
+	}
+
+	private static boolean notBlank(String value) {
+		return value != null && !value.trim().isEmpty();
+	}
+
+	private static String trimmedOrNull(String value) {
+		return notBlank(value) ? value.trim() : null;
 	}
 
 	/**

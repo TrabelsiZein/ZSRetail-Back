@@ -54,7 +54,9 @@ public class SalesHeader extends _BaseEntity {
 
 	/**
 	 * Optional denormalized invoice number for reporting and quick access.
-	 * Kept in sync with {@link InvoiceHeader#invoiceNumber}.
+	 * Kept in sync with {@link InvoiceHeader#invoiceNumber}. 3.1.1 (ParaFendri, step 7): or the ERP's invoice number of a
+	 * ticket prepared for an invoice and invoiced by the ERP (no InvoiceHeader then: invoice stays null; its PDF under
+	 * app.upload.dir/erp-invoices, TicketExportService).
 	 */
 	private String invoiceNumber;
 

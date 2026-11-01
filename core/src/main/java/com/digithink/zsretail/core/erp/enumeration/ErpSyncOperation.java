@@ -13,5 +13,7 @@ public enum ErpSyncOperation {
 	/** Item variants (ZEN), step 4: a catégorie or a section left out by the import (a warning row). */
 	IMPORT_ITEM_CATEGORIES, IMPORT_ITEM_SECTIONS,
 	/** 3.1.1: one store order posted into the ERP as a sales order (the job POST_STORE_ORDERS, or "retry now"). */
-	EXPORT_SALES_ORDER
+	EXPORT_SALES_ORDER,
+	/** 3.1.1 (ParaFendri, step 7): the invoice of a ticket asked from the ERP (the job EXPORT_TICKETS). */
+	REQUEST_INVOICE
 }

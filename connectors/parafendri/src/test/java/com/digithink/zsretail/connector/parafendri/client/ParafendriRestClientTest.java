@@ -180,24 +180,33 @@ class ParafendriRestClientTest {
 	}
 
 	@Test
-	@DisplayName("GET only, but a POST to salesOrders (step 6): any other method or address refused before it leaves")
+	@DisplayName("GET only, but a POST to salesOrders (step 6) or shipAndInvoice (step 7): anything else refused before it leaves")
 	void getOnly() {
 		RestTemplate guarded = ParafendriConfig.restTemplate(properties);
 		IllegalStateException refused = assertThrows(IllegalStateException.class,
 				() -> guarded.postForObject(COMPANIES, "{}", String.class));
 		assertEquals("The parafendri connector only reads from the ERP (GET), apart from posting the tickets to"
-				+ " salesOrders: POST " + COMPANIES + " refused, nothing was sent.", refused.getMessage());
+				+ " salesOrders and their invoices to shipAndInvoice: POST " + COMPANIES + " refused, nothing was sent.",
+				refused.getMessage());
+		String shipAndInvoice = COMPANIES + "(" + COMPANY_ID + ")/shipAndInvoice";
+		assertThrows(IllegalStateException.class, () -> guarded.patchForObject(shipAndInvoice, "{}", String.class),
+				"a PATCH, even to shipAndInvoice");
+		assertThrows(IllegalStateException.class,
+				() -> guarded.postForObject(shipAndInvoice + "?$filter=x", "{}", String.class), "a query");
 		String salesOrders = COMPANIES + "(" + COMPANY_ID + ")/salesOrders";
 		assertThrows(IllegalStateException.class, () -> guarded.put(salesOrders, "{}"), "a PUT, even to salesOrders");
 		assertThrows(IllegalStateException.class,
 				() -> guarded.postForObject(salesOrders + "?$expand=salesOrderLines", "{}", String.class), "a query");
 		assertThrows(IllegalStateException.class,
 				() -> guarded.postForObject(COMPANIES + "(" + COMPANY_ID + ")/salesOrdersX", "{}", String.class));
-		// The one write: a POST to .../salesOrders passes (answered by the mock server)
+		// The two writes: a POST to .../salesOrders and to .../shipAndInvoice pass (answered by the mock server)
 		MockRestServiceServer posts = MockRestServiceServer.bindTo(guarded).build();
 		posts.expect(requestTo(salesOrders)).andExpect(method(HttpMethod.POST))
 				.andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+		posts.expect(requestTo(shipAndInvoice)).andExpect(method(HttpMethod.POST))
+				.andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 		guarded.postForObject(salesOrders, "{}", String.class);
+		guarded.postForObject(shipAndInvoice, "{}", String.class);
 		posts.verify();
 	}
 
