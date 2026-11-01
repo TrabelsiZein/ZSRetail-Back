@@ -142,7 +142,8 @@ public class AppConfigAPI {
 				// step B: the till actions registry; a head office has no till
 				applicationModeService.isHeadOffice() ? Collections.emptyList() : TillActions.all(),
 				applicationModeService.getStoreOrdersPost(), // 3.1.1: ERP, MANUAL or null (a store: always null)
-				"true".equalsIgnoreCase(generalSetupService.findValueByCode(POS_CATALOGUE_VISIBLE)) // 3.1.1
+				"true".equalsIgnoreCase(generalSetupService.findValueByCode(POS_CATALOGUE_VISIBLE)), // 3.1.1
+				applicationModeService.isHeadOfficeStockPoints() // 3.1.1: the points de stock pages and filters
 		));
 	}
 

@@ -271,6 +271,14 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   statement compared them with an `int` literal; now `1L`, as the BL reception list. `HoStoreOrderPageQueryTest` and
   `StoreOrderPageQueryTest` run the real statements on H2 with and without each filter.
 
+### Removed
+- Head office page "Items by point de stock", back end: `GET /admin/headoffice/stock-points/items` and `/items/{rowId}`,
+  `HoStockPointItemsService`, `StockPointItemDTO`, the queries `findRows` / `findRowsSearched`; the rest of the Stock
+  points API stays. The permission `read:admin-headoffice-stock-point-items` is no longer given to ADMIN (checked first
+  on the ZEN, Happyness and ParaFendri test head offices: only ADMIN had it, with the Items permission); a role row
+  that has it stays, unread. Item cards' point filter replaces the page. `GET /config` gains `headOfficeStockPoints`
+  (the head office keeps points de stock: catalogue only from the ERP and a connector with `HEAD_OFFICE_STOCK_POINTS`).
+
 ### DB script (`db/3.1.1/store-orders.sql`, then `db/3.1.1/update.sql`, store and head office)
 - `store-orders.sql`: tables `hol_order` (unique `number`, index `ix_hol_order_status`, filtered unique index
   `ux_hol_order_draft`: one DRAFT) and `hol_order_line` (unique `order_id`, `item_id`; FK to `hol_order`) on a store

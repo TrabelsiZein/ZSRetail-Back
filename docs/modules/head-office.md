@@ -1668,32 +1668,28 @@ Done (step 3b), invoices from the ERP:
 - Tests: `HoErpInvoiceServiceTest` (`itemsOutsideTheStockPoint`, `storeWithoutStockPoint`).
 
 Done (step 4), the screens (frontend routes with `meta.erpCatalogue`: menu, guard and Roles page only when
-`appConfig/erpOwnsOnlyCatalogue`; hidden on a store and on every other head office):
+`appConfig/erpOwnsOnlyCatalogue` and, 3.1.1, `appConfig/headOfficeStockPoints` (GET /config `headOfficeStockPoints`:
+the connector has `HEAD_OFFICE_STOCK_POINTS`, so the Stock points API exists; `ApplicationModeService.
+isHeadOfficeStockPoints`); hidden on a store and on every other head office):
 - **Points de stock** (`/headoffice/stock-points`, `StockPoints.vue`, Catalogue menu, permission
   `read:admin-headoffice-stock-points`): the list in reading order (up and down buttons send the whole order), code,
-  name, status, items (a link to the next page filtered on the point), stores, last read; create, rename, activate,
-  deactivate, delete with the API's messages.
-- **Items by point de stock** (`/headoffice/stock-point-items?stockPointId=`, `StockPointItems.vue`, permission
-  `read:admin-headoffice-stock-point-items`): every row, the columns of the Items page plus the point; search (code,
-  name, barcode), point, family, sub-family, price, status; paged by the server; read only; the details popup has the
-  item details' layout (row: name, description, family, sub-family, price, active; item: VAT, barcodes, the rest). The
-  Items page is not changed.
+  name, status, items (3.1.1: a link to Item cards on the point, `?point=<id>&pointStatus=ALL`), stores, last read;
+  create, rename, activate, deactivate, delete with the API's messages.
+- **Items by point de stock**: retired in 3.1.1, see Item cards' point filter ("Fiches items", "Point de stock filter,
+  3.1.1" and "Point de stock values, 3.1.1 step 2"). Its route `/headoffice/stock-point-items?stockPointId=` sends on to
+  Item cards (`fromStockPointItems`: `point`, `pointStatus=ALL`); its API (`GET .../stock-points/items` and
+  `/items/{rowId}`, `HoStockPointItemsService`, `findRows` / `findRowsSearched`) and the permission
+  `read:admin-headoffice-stock-point-items` are gone (a role row that has it stays, unread).
 - **Stores page**: a column "Point de stock" (a warning badge when the store has none), a select next to the ERP
   customer number at creation and in edit (the active points with items, and "None"); changing the point of an existing
   store asks a confirmation saying the items of the previous and the new point, with their barcodes, are sent to it again
   (ZSRetail-Front release/2.3.0, stock point copies), then `PUT .../stock-point`.
 - Backend: the last read of each point (`ho_stock_point.last_read_at`, `last_read_status` OK / NO_ANSWER / FAILED,
   `last_read_summary`), written by the items run (`StockPoints.recordRead`, never in a dry run; a failed read,
-  a failed packet of items or of rows is FAILED with its message), in the list of points;
-  `GET admin/headoffice/stock-points/items` (filters stockPointId, search, familyCode, subFamilyCode, priceMin, priceMax,
-  status ALL | ACTIVE | INACTIVE, page, size up to 200; `HoStockPointItemsService`, query
-  `HoStockPointItemRepository.findRows`, or `findRowsSearched` with a search: the barcode `exists` only in the query of a search, 3.1.0 speed fix: one query with `:search is null or ... exists` scanned `item_barcode` once per row, minutes on 21,903 rows; index `ix_item_barcode_item`) and `GET admin/headoffice/stock-points/items/{rowId}`. The two permissions are
-  given to ADMIN at startup (`ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS`). Classification column (3.1.0): a
-  row also gives the item's `categoryCode` / `categoryName` / `sectionCode` / `sectionName` (the names read once per
-  page, no read without a code: null on EMTOP and Happyness); the family and sub-family stay the row's. No filter on
-  them (the page's Classification column only).
-- Tests: `HoStockPointItemsServiceTest`, `CatalogueEngineTest.lastReads`, `QueryParameterBindingTest` (the rows query),
-  `ZZDataInitializerRolesTest`.
+  a failed packet of items or of rows is FAILED with its message), in the list of points (3.1.1: the rows' page API
+  retired with the page, above). The permission `read:admin-headoffice-stock-points` is given to ADMIN at startup
+  (`ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS`).
+- Tests: `CatalogueEngineTest.lastReads`, `ZZDataInitializerRolesTest`, `ErpAbilityBeansTest.headOfficeStockPointsFlag`.
 
 Fixes after the first test of 2.2 (head office whose catalogue comes from the ERP only):
 - **One job, "Sync catalogue"** (`ErpSyncJobType.SYNC_CATALOGUE`, `core/erp/engine/CatalogueJob` (was `NavPosPagesCatalogueJob`) through the runner's hook
@@ -1713,9 +1709,7 @@ Fixes after the first test of 2.2 (head office whose catalogue comes from the ER
   on `/admin/headoffice/price-lists` and the PUT of a store's selling price list answer 403 (`HeadOfficeErpCatalogueFilter`),
   no selling price list on the Stores page. Existing lists and store settings are kept as they are (a list a store
   already had still gives its price in the copies; nobody can change it here).
-- Items by point de stock: the details popup scrolls and has the item details' look (its own modal id, the same
-  styles; the price block HT, VAT, TTC with the Items page colours); the Barcodes column counts the active barcodes, as
-  the Item Barcodes page.
+- Items by point de stock (popup and Barcodes column fixes): retired in 3.1.1, see Item cards point filter.
 
 Fixes after the second test of 2.2 (head office whose catalogue comes from the ERP only):
 - **A. Price lists.** Selling price lists are not used: the price sent to a store is always its point row's price (an
@@ -1864,10 +1858,9 @@ A read-only page, store and head office, for a catalogue of one item per ERP var
   items.
 - **Famille page**: a "Catégorie" column (code and name) only when `itemCategories` is true. The sous-famille page has
   no section column (a sous-famille has several sections; the Sections page shows the link).
-- **Items by point de stock** (head office): a row in clearance shows, in its price cell and in the details price
-  block, its normal price struck through, the clearance price with VAT (`clearancePrice × (1 + VAT)`, as the other
-  prices of the page) and a "Soldé" badge. No new column; since 2026-10-17 the struck price follows the back end's `clearanceApplies` and the stores sell the clearance price (`docs/modules/erp-sync.md`, "Clearance price at the till"); a null clearance reads false, so
-  Happyness's page is as before.
+- **Items by point de stock** (head office, the clearance in its price cell): retired in 3.1.1, see Item cards point
+  filter (the card's Stock points tab and, with a point chosen, the list's Price column strike the normal price by the
+  back end's `clearanceApplies`).
 - Tests: `ItemTreeQueryTest` (H2), `ItemTreeServiceTest`, `AppConfigAPITest` (`itemCategories`, `itemSections`).
 
 ### Till levels catégorie and section (item variants, ZEN, 3.1.0, step 1: API)
@@ -1933,7 +1926,8 @@ One read-only head office page that unites Items, ERP items and Items by point d
 popup. New code beside the three pages: their APIs (`/item`, `/nav-item`, `/admin/headoffice/stock-points/items`) do not
 change, and nothing of it is in a store WAR (headoffice project only, no core class touched). Since step 3 (below) the
 ERP items page and, when the catalogue is the ERP's, the Items page are hidden from the head office menu and their
-routes send to Item cards.
+routes send to Item cards. Items by point de stock: retired in 3.1.1 (its route sends here, its API is gone), see Item
+cards point filter.
 
 - **Step 1, the list (back end)**: `GET /admin/headoffice/item-catalogue?page&size&search&status` (`HoItemCatalogueAPI`,
   `HoItemCatalogueService`, `HoItemCatalogueRepository`), on every head office (ERP catalogue or manual, with or
@@ -2059,7 +2053,7 @@ routes send to Item cards.
   400 and 404, no point de stock).
 - **Step 3, the old pages hidden** (2026-10-18, both repos; inventory of what the old pages did first). Item cards replaces
   the head office pages **ERP items** (always) and **Items** when the catalogue comes from the ERP; Items by point de
-  stock stays. The routes are kept one release, as redirects, and the store pages, routes, shared components, i18n keys
+  stock stayed (retired in 3.1.1, see Item cards point filter). The routes are kept one release, as redirects, and the store pages, routes, shared components, i18n keys
   and APIs do not change.
   - **Routes** (`router/headoffice-routes.js`): `admin-headoffice-nav-items` is a route-level `redirect` to
     `admin-headoffice-item-cards` (before the guards, so also without `navItems`); `admin-headoffice-items` carries

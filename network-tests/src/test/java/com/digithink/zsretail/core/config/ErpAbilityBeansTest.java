@@ -16,8 +16,8 @@ import org.springframework.context.annotation.AnnotatedBeanDefinitionReader;
 import org.springframework.core.env.PropertyResolver;
 import org.springframework.mock.env.MockEnvironment;
 
+import com.digithink.zsretail.core.support.TestModes;
 import com.digithink.zsretail.headoffice.controller.HoStockPointAPI;
-import com.digithink.zsretail.headoffice.service.HoStockPointItemsService;
 import com.digithink.zsretail.headoffice.service.HoStockPointRows;
 import com.digithink.zsretail.headoffice.service.HoStockPointService;
 import com.digithink.zsretail.support.Installations;
@@ -31,8 +31,9 @@ import com.digithink.zsretail.support.Installations;
  */
 class ErpAbilityBeansTest {
 
+	/** 3.1.1: HoStockPointItemsService (the retired page "Items by point de stock") is gone. */
 	static final List<Class<?>> STOCK_POINT_BEANS = Arrays.asList(HoStockPointAPI.class, HoStockPointService.class,
-			HoStockPointRows.class, HoStockPointItemsService.class);
+			HoStockPointRows.class);
 
 	private static boolean registered(MockEnvironment env, Class<?> beanClass) {
 		DefaultListableBeanFactory registry = new DefaultListableBeanFactory();
@@ -125,6 +126,29 @@ class ErpAbilityBeansTest {
 					chosen(catalogueOnlyHeadOffice(), connector));
 		}
 		return environments;
+	}
+
+	@Test
+	@DisplayName("3.1.1: GET /config headOfficeStockPoints is true exactly where the Stock points API exists (emtop on a catalogue-only head office: false)")
+	void headOfficeStockPointsFlag() {
+		List<String> withPoints = new ArrayList<>();
+		for (Map.Entry<String, MockEnvironment> entry : configurations().entrySet()) {
+			boolean api = registered(entry.getValue(), HoStockPointAPI.class);
+			ApplicationModeService mode;
+			try {
+				mode = TestModes.of(entry.getValue());
+			} catch (IllegalStateException refused) {
+				// A shape that stops the startup (e.g. a catalogue from the head office without headoffice.url): no /config
+				continue;
+			}
+			assertEquals(api, mode.isHeadOfficeStockPoints(), entry.getKey());
+			if (api) {
+				withPoints.add(entry.getKey());
+			}
+		}
+		assertTrue(withPoints.containsAll(Arrays.asList("catalogue only, erp.connector=happyness",
+				"catalogue only, erp.connector=parafendri", "catalogue only, erp.connector=zen")), withPoints.toString());
+		assertTrue(!withPoints.contains("catalogue only, erp.connector=emtop"), withPoints.toString());
 	}
 
 	@Test

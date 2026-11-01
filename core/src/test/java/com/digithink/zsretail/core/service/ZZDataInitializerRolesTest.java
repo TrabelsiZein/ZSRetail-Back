@@ -56,8 +56,7 @@ class ZZDataInitializerRolesTest {
 			"read:admin-headoffice-stock-movements", "read:admin-headoffice-deliveries",
 			"read:admin-headoffice-network-stock", "read:admin-headoffice-supply-prices",
 			"read:admin-headoffice-supply-invoices", "read:admin-headoffice-store-balances",
-			"read:admin-headoffice-erp-invoices", "read:admin-headoffice-stock-points",
-			"read:admin-headoffice-stock-point-items"));
+			"read:admin-headoffice-erp-invoices", "read:admin-headoffice-stock-points"));
 
 	// Mode of today's presets: without an ERP (store) or with one (store-erp); task 9.3
 	private static final boolean[][] STORE_PROFILES = {

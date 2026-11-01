@@ -31,7 +31,7 @@
 - **3.1.0, Classification column** (2026-10-23): every items page shows the item's levels in one "Classification"
   column, in hierarchy order catégorie › famille › sous-famille › section, the empty levels left out, each level by its
   name with its code as tooltip (the code alone without a name): Items (store, and head office without ERP), ERP items,
-  Item cards and the item card's band, Items by point de stock, Barcodes, Print labels, and the Sections page's path.
+  Item cards and the item card's band, Barcodes, Print labels, and the Sections page's path (Items by point de stock: retired in 3.1.1).
   One helper, `src/libs/item-classification.js` (`classificationSteps` reads the list DTOs' flat fields and the item
   entity's `itemFamily` / `itemSubFamily`; `loadLevelNames` reads `/item-category` and `/item-section` once for the rows
   that carry only the codes, only when `appConfig/itemCategories` / `itemSections` are on), and one cell,

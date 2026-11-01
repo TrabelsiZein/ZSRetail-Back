@@ -325,8 +325,9 @@ public class ZZDataInitializer {
 			"read:admin-headoffice-supply-invoices",
 			"read:admin-headoffice-store-balances",
 			"read:admin-headoffice-erp-invoices", // invoices from the ERP (headoffice.supply.source=ERP)
-			"read:admin-headoffice-stock-points", // release 2.2: points de stock (head office with the ERP catalogue)
-			"read:admin-headoffice-stock-point-items"));
+			// release 2.2: points de stock (head office with the ERP catalogue); 3.1.1: read:admin-headoffice-stock-point-items
+			// gone with the page "Items by point de stock" (a role that has it keeps the row, nothing reads it)
+			"read:admin-headoffice-stock-points"));
 
 	/**
 	 * 3.1.1: the head office's "Commandes des magasins" page (read) and its actions (write), the stores' orders

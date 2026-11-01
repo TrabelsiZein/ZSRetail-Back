@@ -372,7 +372,7 @@ read; `StockPoints.Row` carries them (`ho_stock_point_item.clearance`, `clearanc
 `HoStockPointRows`; a null column, a row written before 3.1.0, is false). The row compare adds the flag (null = false on
 both sides) and the clearance price at 3 decimals (null = no price): the rows of an ERP without clearance (Happyness) do
 not change. The item does not compare them. Tests: `CatalogueClearanceTest` (core), `HoStockPointRowsTest` (H2),
-`HoStockPointItemsServiceTest.clearance`.
+`StockPointFilterQueryTest` (3.1.1, the Item cards point price; `HoStockPointItemsServiceTest` retired with its page).
 
 **Page read retry (2026-10-17)**: every page the catalogue engine reads (categories, the items of a point, whole or
 since its checkpoint, the barcodes after the cursor or of some items) goes through `RetryingCatalogueSource`, for every
@@ -450,7 +450,7 @@ again. The head office pages read the same rule: `StockPointItemDTO` and `NavIte
 `clearanceApplies` and `sellingPrice`. EMTOP and Happyness rows have no clearance: unchanged. Items already at a store
 are sent again only on a row change or a change of the store's point (none at the upgrade). Tests:
 `StockPointPriceTest`, `HoStockPointCatalogueTest` (clearance), `HoStockPointRowsTest`
-(`clearanceChangeRecordedForTheStores`), `HoStockPointItemsServiceTest.sellingPrice`, store `ClearanceAtTheTillTest`,
+(`clearanceChangeRecordedForTheStores`), `StockPointFilterQueryTest.pointPrice` (3.1.1), store `ClearanceAtTheTillTest`,
 network-tests `ClearanceRoundTripTest`.
 
 **Items run of changes only (step 6)**: a connector whose `ErpCatalogueSource.readsChangesOnly()` is true (ZEN) is read

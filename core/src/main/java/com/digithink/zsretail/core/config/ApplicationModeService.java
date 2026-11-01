@@ -226,4 +226,18 @@ public class ApplicationModeService {
 	public boolean isErpCatalogueOnly() {
 		return ownership.isErpCatalogueOnly();
 	}
+
+	/**
+	 * 3.1.1: a head office that keeps points de stock: its catalogue only comes from the ERP (isErpCatalogueOnly) and the
+	 * connector in effect has ErpAbility.HEAD_OFFICE_STOCK_POINTS, the two conditions of the Stock points API. Always
+	 * false on a store.
+	 */
+	public boolean isHeadOfficeStockPoints() {
+		if (!isErpCatalogueOnly()) {
+			return false;
+		}
+		// The descriptor of the connector in effect (an unknown name is refused at startup; core's tests see none)
+		ErpConnectorDescriptor connector = ErpConnectors.descriptor(ErpAbilities.connectorInEffect(environment));
+		return connector != null && connector.abilities().contains(ErpAbility.HEAD_OFFICE_STOCK_POINTS);
+	}
 }

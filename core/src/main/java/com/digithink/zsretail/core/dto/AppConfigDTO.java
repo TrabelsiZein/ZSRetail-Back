@@ -198,4 +198,11 @@ public class AppConfigDTO {
 	 * false when off or absent (a head office). A till that chose with its icon keeps its own choice (the browser).
 	 */
 	private boolean posCatalogueVisible;
+
+	/**
+	 * 3.1.1: the head office keeps points de stock: its catalogue only comes from the ERP and the connector in effect has
+	 * the ability HEAD_OFFICE_STOCK_POINTS (the Stock points API exists exactly then). The frontend shows the points de
+	 * stock pages, the stores' point and the Item cards' point filter on it; always false on a store.
+	 */
+	private boolean headOfficeStockPoints;
 }
