@@ -1997,6 +1997,15 @@ routes send to Item cards.
   in the outer WHERE beside "kn.nav IS NOT NULL OR", a point de stock filter took 2.3 s instead of 0.2 s on Happyness.
   A line gains `priceMin` / `priceMax` (with VAT, the variants of the status). The page sends status All by default
   (the API's default stays Active).
+- **Point de stock filter, 3.1.1** (step 1 of retiring Items by point de stock): the page shows it from one point (All
+  by default, not chosen: the list as before; the column still from two). With `stockPointId`, `stockPointStatus`
+  `ACTIVE` (default; absent, blank or unknown too) | `INACTIVE` (`r.active = 0`) | `ALL` (any row) picks the row at that
+  point (page: "Statut au point", address `pointStatus`), and `priceMin` / `priceMax` filter the row's selling price
+  with the item's VAT (the clearance price when it applies, `StockPointPrice`, else `r.unit_price`) instead of the
+  item's own price; all in the one subquery of the point (`HoItemCatalogueQuery.stockPoint`, head office only: core's
+  query, the card and the store's Articles page unchanged). The item Status filter applies as before. Measured on ZEN's
+  test head office (1 point): selling price ≤ 50 TND with VAT 13,892 items, own price 12,152. Test
+  `StockPointFilterQueryTest`.
 - **Natural code sort**: the codes of digits only first, by their number (`000002` before `0000016`), then the others
   as text, then the smallest item id; written `code COLLATE Latin1_General_BIN NOT LIKE '%[^0-9]%'` (every SQL Server
   version; 2 to 3 times cheaper than a REPLACE chain under the database's collation: 0.4 to 1.0 s of CPU against 1.5 to

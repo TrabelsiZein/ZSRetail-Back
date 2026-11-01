@@ -186,6 +186,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   same transaction.
 
 ### Enhancements
+- Item cards list (head office), with a point de stock chosen: `GET /admin/headoffice/item-catalogue` takes
+  `stockPointStatus` `ACTIVE` (default, the list as before) | `INACTIVE` | `ALL`, the row at that point, and
+  `priceMin` / `priceMax` filter the point's row selling price with VAT (the clearance price when it applies) instead
+  of the item's own price; without a point nothing changes (`HoItemCatalogueQuery.stockPoint`, head office only; core's
+  query and the store's Articles page unchanged). Step 1 of retiring "Items by point de stock".
 - ERP catalogue import, every connector: the barcodes are imported by windows of 1,000 rows, their items and existing
   barcodes read in four queries per window, written by JDBC batches of 100, the session emptied after each window
   (before: three queries per row, each flushing the whole packet; 13,165 ParaFendri barcodes ran more than 27 minutes).

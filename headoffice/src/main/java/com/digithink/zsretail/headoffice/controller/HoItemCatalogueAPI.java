@@ -35,12 +35,13 @@ public class HoItemCatalogueAPI {
 
 	/**
 	 * GET /admin/headoffice/item-catalogue?page&size&search&status&familyId&subFamilyId&divisionCode&categoryCode
-	 * &sectionCode&stockPointId&variants&priceMin&priceMax&sort&dir: {content, page, size, totalElements, totalPages,
-	 * withStock, withStockPoints}. status: ACTIVE (the default: the active variants only), ALL, or INACTIVE (the lines
-	 * without an active variant, every variant counted); variants: ALL (default),
-	 * YES (2 variants or more of the status), NO; priceMin / priceMax: the item's own price with VAT; sort: code (default,
-	 * natural for the codes of digits only), name, family, variants, price (lines without a price last); dir: asc
-	 * (default) or desc. Every filter optional.
+	 * &sectionCode&stockPointId&stockPointStatus&variants&priceMin&priceMax&sort&dir: {content, page, size, totalElements,
+	 * totalPages, withStock, withStockPoints}. status: ACTIVE (the default: the active variants only), ALL, or INACTIVE
+	 * (the lines without an active variant, every variant counted); stockPointStatus (3.1.1, with stockPointId only): the
+	 * row at that point ACTIVE (default), INACTIVE or ALL; variants: ALL (default), YES (2 variants or more of the
+	 * status), NO; priceMin / priceMax: the item's own price with VAT, with stockPointId (3.1.1) the point's row selling
+	 * price with VAT (HoItemCatalogueQuery.stockPoint); sort: code (default, natural for the codes of digits only), name,
+	 * family, variants, price (lines without a price last); dir: asc (default) or desc. Every filter optional.
 	 */
 	@GetMapping
 	public ResponseEntity<Map<String, Object>> page(@RequestParam(name = "page", defaultValue = "0") int page,
@@ -53,6 +54,7 @@ public class HoItemCatalogueAPI {
 			@RequestParam(name = "categoryCode", required = false) String categoryCode,
 			@RequestParam(name = "sectionCode", required = false) String sectionCode,
 			@RequestParam(name = "stockPointId", required = false) Long stockPointId,
+			@RequestParam(name = "stockPointStatus", required = false) String stockPointStatus,
 			@RequestParam(name = "variants", required = false) String variants,
 			@RequestParam(name = "priceMin", required = false) Double priceMin,
 			@RequestParam(name = "priceMax", required = false) Double priceMax,
@@ -67,10 +69,11 @@ public class HoItemCatalogueAPI {
 		criteria.setDivisionCode(divisionCode);
 		criteria.setCategoryCode(categoryCode);
 		criteria.setSectionCode(sectionCode);
-		HoItemCatalogueQuery.stockPoint(criteria, stockPointId);
 		criteria.setVariants(variants);
 		criteria.setPriceMin(priceMin);
 		criteria.setPriceMax(priceMax);
+		// After the prices: with a point, they filter its row's price instead of the item's
+		HoItemCatalogueQuery.stockPoint(criteria, stockPointId, stockPointStatus);
 		criteria.setSort(sort);
 		criteria.setDescending("desc".equalsIgnoreCase(dir == null ? null : dir.trim()));
 		Page<ItemCatalogueLineDTO> lines = service.page(criteria, page, size);
