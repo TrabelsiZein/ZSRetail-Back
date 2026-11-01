@@ -30,7 +30,8 @@ import lombok.extern.log4j.Log4j2;
  * purpose: the packs (/item/{id}/package-flag, /item-composition), the item images (/item-image) and the supply prices.
  * A GET always passes, except on the price lists. Release 2.2: the selling price lists are not used here: the PUT of a
  * store's selling price list is refused ({@link #PRICE_LIST_REFUSAL}); when the supply comes from the ERP, every request
- * on /admin/headoffice/price-lists too (no supply list is used either). With the head office's own BLs and invoices the
+ * on /admin/headoffice/price-lists too (no supply list is used either), and 3.1.1 the same with
+ * headoffice.supply.source=NONE (no store is supplied). With the head office's own BLs and invoices the
  * supply lists stay reachable (HoPriceListService refuses the selling ones). Existing lists and settings are kept. The ERP import writes through the repositories and never
  * reaches this filter.
  * <p>
@@ -45,7 +46,7 @@ public class HeadOfficeErpCatalogueFilter extends OncePerRequestFilter {
 			+ " and barcodes are read-only here.";
 	static final String REFUSAL_BODY = "{\"error\":\"" + REFUSAL + "\"}";
 
-	/** Release 2.2: the selling price lists (and, with the supply from the ERP, every price list), not used here. */
+	/** Release 2.2: the selling price lists (and, without supply lists, every price list), not used here. */
 	public static final String PRICE_LIST_REFUSAL = "The catalogue of this head office comes from the ERP: price lists are not used"
 			+ " here (the prices come from the ERP, per point de stock).";
 	public static final String PRICE_LIST_REFUSAL_BODY = "{\"error\":\"" + PRICE_LIST_REFUSAL + "\"}";
@@ -70,17 +71,20 @@ public class HeadOfficeErpCatalogueFilter extends OncePerRequestFilter {
 	static final List<String> FAMILY_PREFIXES = Collections
 			.unmodifiableList(Arrays.asList("/item-family", "/item-sub-family"));
 
-	/** Release 2.2: the stores' supply comes from the ERP (headoffice.supply.source=ERP): no price list is used at all. */
-	private final boolean supplyFromErp;
+	/**
+	 * Release 2.2: the stores' supply comes from the ERP (headoffice.supply.source=ERP), or 3.1.1 no store is supplied
+	 * (NONE): no price list is used at all.
+	 */
+	private final boolean noSupplyLists;
 
 	@Autowired
 	public HeadOfficeErpCatalogueFilter(ApplicationModeService mode) {
-		this(mode.isSupplyFromErpSource());
+		this(mode.isSupplyFromErpSource() || mode.isSupplyNone());
 	}
 
-	/** supplyFromErp as above; the no-argument one: supply from the ERP. Used by the tests. */
-	public HeadOfficeErpCatalogueFilter(boolean supplyFromErp) {
-		this.supplyFromErp = supplyFromErp;
+	/** noSupplyLists as above; the no-argument one: no supply list (supply from the ERP). Used by the tests. */
+	public HeadOfficeErpCatalogueFilter(boolean noSupplyLists) {
+		this.noSupplyLists = noSupplyLists;
 	}
 
 	public HeadOfficeErpCatalogueFilter() {
@@ -89,7 +93,7 @@ public class HeadOfficeErpCatalogueFilter extends OncePerRequestFilter {
 
 	@Override
 	protected boolean shouldNotFilter(HttpServletRequest request) {
-		return !refused(request.getMethod(), HeadOfficeWithoutStockFilter.path(request), supplyFromErp);
+		return !refused(request.getMethod(), HeadOfficeWithoutStockFilter.path(request), noSupplyLists);
 	}
 
 	@Override
@@ -99,24 +103,25 @@ public class HeadOfficeErpCatalogueFilter extends OncePerRequestFilter {
 				HeadOfficeWithoutStockFilter.path(request));
 		response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 		response.setContentType("application/json;charset=UTF-8");
-		response.getWriter().write(priceList(request.getMethod(), HeadOfficeWithoutStockFilter.path(request), supplyFromErp)
+		response.getWriter().write(priceList(request.getMethod(), HeadOfficeWithoutStockFilter.path(request), noSupplyLists)
 				? PRICE_LIST_REFUSAL_BODY
 				: REFUSAL_BODY);
 	}
 
 	/**
-	 * Release 2.2: the PUT of a store's selling price list; with the supply from the ERP, any request on the price lists.
+	 * Release 2.2: the PUT of a store's selling price list; without supply lists (ERP or NONE),
+	 * any request on the price lists.
 	 */
-	static boolean priceList(String method, String path, boolean supplyFromErp) {
+	static boolean priceList(String method, String path, boolean noSupplyLists) {
 		if (path == null) {
 			return false;
 		}
-		return (supplyFromErp && (path.equals(PRICE_LISTS) || path.startsWith(PRICE_LISTS + "/")))
+		return (noSupplyLists && (path.equals(PRICE_LISTS) || path.startsWith(PRICE_LISTS + "/")))
 				|| ("PUT".equalsIgnoreCase(method) && SELLING_PRICE_LIST.matcher(path).matches());
 	}
 
-	static boolean refused(String method, String path, boolean supplyFromErp) {
-		if (priceList(method, path, supplyFromErp)) {
+	static boolean refused(String method, String path, boolean noSupplyLists) {
+		if (priceList(method, path, noSupplyLists)) {
 			return true;
 		}
 		if (method == null || !WRITES.contains(method.toUpperCase())) {

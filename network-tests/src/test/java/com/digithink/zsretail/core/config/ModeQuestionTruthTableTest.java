@@ -205,7 +205,8 @@ class ModeQuestionTruthTableTest {
 			MockEnvironment wrong = Installations.type("headoffice");
 			wrong.setProperty(key, value);
 			assertEquals("Invalid value '" + value + "' for property headoffice.supply.source: HEAD_OFFICE (the head office"
-					+ " makes the BLs and invoices of its stores) or ERP (the stores' invoices are read from the ERP)",
+					+ " makes the BLs and invoices of its stores), ERP (the stores' invoices are read from the ERP) or NONE (the head"
+					+ " office supplies no store)",
 					refusal(wrong), value);
 		}
 	}

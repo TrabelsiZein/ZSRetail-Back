@@ -153,7 +153,8 @@ class ErpCatalogueHeadOfficeTest {
 			// Invoices from the ERP, step (b): the BLs, supply prices and invoices moved to @ConditionalOnInstallation(HEAD_OFFICE_OWN_SUPPLY),
 			// which keeps them here (headoffice.supply.source absent)
 			assertTrue(Questions.asks(bean, Installation.HEAD_OFFICE_WITHOUT_ERP)
-					|| Questions.asks(bean, Installation.HEAD_OFFICE_OWN_SUPPLY), bean.getSimpleName());
+					|| Questions.asks(bean, Installation.HEAD_OFFICE_OWN_SUPPLY)
+					|| Questions.asks(bean, Installation.HEAD_OFFICE_SUPPLIES_STORES), bean.getSimpleName());
 			assertTrue(registered(env, bean), bean.getSimpleName());
 		}
 		for (Class<?> bean : REFERENCE_LOCATION_BEANS) {

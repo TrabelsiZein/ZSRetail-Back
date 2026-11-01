@@ -386,12 +386,18 @@ the "Connect a store" procedure: `docs/modules/head-office.md`, "Head office lin
   reads it. `GET /config` field `headOfficeStock`. See `docs/modules/head-office.md`, "Head office without stock".
 - **Supply source** (invoices from the ERP), head office only: `headoffice.supply.source`, `HEAD_OFFICE` (default: the head
   office makes the BLs, supply prices and supply invoices of its stores) or `ERP` (the stores' invoices are read from the
-  ERP by the connector navpospages; the head office makes no BL, supply price or supply invoice). Read on a head office
-  only, like `headoffice.stock.enabled`; a store never reads it. Startup refusals: a value other than `HEAD_OFFICE` or
-  `ERP` (blank included); `ERP` on a head office whose catalogue does not come from the ERP alone (without an ERP, or
-  with the ERP owning all three); `ERP` without a connector that has the ability `SUPPLY_INVOICES` (the message names
-  `erp.connector=happyness`). `GET /config` field `supplySource`
-  (`HEAD_OFFICE` or `ERP` on a head office, `null` on a store). See `docs/modules/head-office.md`, "Invoices from the ERP".
+  ERP by the connector navpospages; the head office makes no BL, supply price or supply invoice) or, 3.1.1, `NONE` (the
+  head office supplies no store: no BL, supply price, supply invoice, what the stores owe, network stock or
+  `/ho/supply/**`; a store with `ownership.supply=HEAD_OFFICE` is refused at its heartbeat). Read on a head office
+  only, like `headoffice.stock.enabled`; a store never reads it. Startup refusals: a value other than `HEAD_OFFICE`,
+  `ERP` or `NONE` (blank included, any case accepted); `ERP` on a head office whose catalogue does not come from the ERP
+  alone (without an ERP, or with the ERP owning all three); `ERP` without a connector that has the ability
+  `SUPPLY_INVOICES` (the message names `erp.connector=happyness`); `NONE` with `headoffice.stock.enabled` `true` or
+  absent (`Invalid combination: headoffice.supply.source=NONE with headoffice.stock.enabled=true (or absent). ...`);
+  `NONE` with `headoffice.storeorders.post` set (`Invalid combination: headoffice.supply.source=NONE with
+  headoffice.storeorders.post=MANUAL. ...`). `GET /config` field `supplySource` (`HEAD_OFFICE`, `ERP` or `NONE` on a
+  head office, `null` on a store). See `docs/modules/head-office.md`, "Invoices from the ERP" and "Head office that
+  supplies no store".
 - **Stores page threshold** (task 1.5), head office only: `headoffice.offline-after-seconds`, whole number, at least 1, default `180`. A store whose last heartbeat is older is shown OFFLINE (exactly at the threshold it is still ONLINE). A wrong value stops the head office at startup. See `docs/modules/head-office.md`, "Status".
 - **GET /config** (task 0.5) returns three more fields after the existing ones, enums as their names:
   - `nodeType`: `"STORE"` or `"HEAD_OFFICE"`.
@@ -425,10 +431,11 @@ own questions stay `@ConditionalOnErpAbility` and `@ConditionalOnErpConnector` (
 |---|---|---|
 | `HEAD_OFFICE` | This installation is a head office. | 23 (one a `@Bean` method) |
 | `HEAD_OFFICE_WITH_ERP` | A head office whose ERP owns the catalogue, the customers and the supply. | 2 |
-| `HEAD_OFFICE_WITHOUT_ERP` | A head office without an ERP, or whose catalogue only comes from the ERP. | 6 |
+| `HEAD_OFFICE_WITHOUT_ERP` | A head office without an ERP, or whose catalogue only comes from the ERP. | 3 (3.1.1: the network stock and `HeadOfficeSupplyAPI` moved to `HEAD_OFFICE_SUPPLIES_STORES`) |
 | `HEAD_OFFICE_ERP_CATALOGUE_ONLY` | A head office whose catalogue only comes from the ERP; it keeps its customers and its supply. | 6 |
 | `HEAD_OFFICE_OWN_SUPPLY` | A head office without an ERP, or with the catalogue only from the ERP, that makes the BLs and supply invoices of its stores itself. | 6 |
 | `HEAD_OFFICE_ERP_SUPPLY` | A head office with the catalogue only from the ERP whose stores' supply documents are the ERP's invoices. | 2 |
+| `HEAD_OFFICE_SUPPLIES_STORES` | A head office without an ERP, or with the catalogue only from the ERP, that supplies its stores (`headoffice.supply.source` `HEAD_OFFICE` or `ERP`, not `NONE`). 3.1.1 | 3 |
 | `HEAD_OFFICE_WITHOUT_STOCK` | A head office that keeps no stock and makes no purchases. | 1 |
 | `HEAD_OFFICE_STORE_ORDERS` | A head office that takes its stores' orders: `headoffice.storeorders.post` is MANUAL or ERP (`docs/modules/store-orders.md`). | 3 |
 | `HEAD_OFFICE_STORE_ORDERS_ERP` | A head office whose job posts its stores' orders into the ERP: `headoffice.storeorders.post=ERP`. | 1 |
@@ -442,5 +449,6 @@ own questions stay `@ConditionalOnErpAbility` and `@ConditionalOnErpConnector` (
 | `RFID` | A store that reads RFID tags: `rfid.enabled=true` (`docs/modules/rfid.md`). | 7 (and its 2 repositories) |
 
 Three answers combine `NodeOwnership` methods as the old conditions did: `HEAD_OFFICE` (`nodeTypeOf == HEAD_OFFICE`),
-`HEAD_OFFICE_OWN_SUPPLY` (without ERP and not supply from the ERP), `HEAD_OFFICE_ERP_SUPPLY` (catalogue only from the ERP
-and supply from the ERP). A new question is a new value with its sentence; never a new annotation.
+`HEAD_OFFICE_OWN_SUPPLY` (without ERP, not supply from the ERP and, 3.1.1, not NONE), `HEAD_OFFICE_ERP_SUPPLY`
+(catalogue only from the ERP and supply from the ERP), `HEAD_OFFICE_SUPPLIES_STORES` (3.1.1: without ERP and not NONE).
+A new question is a new value with its sentence; never a new annotation.

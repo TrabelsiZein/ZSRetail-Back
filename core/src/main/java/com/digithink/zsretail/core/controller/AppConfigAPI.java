@@ -128,7 +128,8 @@ public class AppConfigAPI {
 				applicationModeService.isSupplyFromHeadOffice(),
 				!applicationModeService.isHeadOfficeWithoutStock(),
 				!applicationModeService.isHeadOffice() ? null
-						: applicationModeService.isSupplyFromErpSource() ? "ERP" : "HEAD_OFFICE",
+						: applicationModeService.isSupplyFromErpSource() ? "ERP"
+						: applicationModeService.isSupplyNone() ? "NONE" : "HEAD_OFFICE", // 3.1.1: NONE
 				"true".equalsIgnoreCase(generalSetupService.findValueByCode(QuantityPolicy.SETTING))
 						&& (decimalColumns == null || decimalColumns.ready()), // 2.2.1: off while a column is still int
 				taxStampRule.active(),

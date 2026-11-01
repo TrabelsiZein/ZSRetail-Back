@@ -22,14 +22,15 @@ import com.digithink.zsretail.headoffice.service.SupplyConfirmationReceiver;
 
 /**
  * Head office plan, step 7A: what a store sends up about its supply, under the /ho/** chain (store key, then license).
- * Head office without an ERP only. The confirmations go to whichever {@link SupplyConfirmationReceiver} exists (the BLs,
- * or the ERP's invoices with headoffice.supply.source=ERP), the stock to {@link HoNetworkStockService}. The store is the
- * principal set by {@link StoreApiKeyFilter}: a store code in the body is ignored. The answer has one result per
- * document, in batch order.
+ * Head office without an ERP only, and (3.1.1) not with headoffice.supply.source=NONE: no store is supplied there, so no
+ * store sends these. The confirmations go to whichever {@link SupplyConfirmationReceiver} exists (the BLs, or the ERP's
+ * invoices with headoffice.supply.source=ERP), the stock to {@link HoNetworkStockService}. The store is the principal set
+ * by {@link StoreApiKeyFilter}: a store code in the body is ignored. The answer has one result per document, in batch
+ * order.
  */
 @RestController
 @RequestMapping("ho/supply")
-@ConditionalOnInstallation(Installation.HEAD_OFFICE_WITHOUT_ERP)
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_SUPPLIES_STORES)
 public class HeadOfficeSupplyAPI {
 
 	private final SupplyConfirmationReceiver deliveries;

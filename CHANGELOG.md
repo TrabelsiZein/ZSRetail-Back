@@ -7,6 +7,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 ## 3.1.1 — in progress (branch `release/3.1.1`)
 
 ### Features
+- Head office that supplies no store: `headoffice.supply.source=NONE` beside `HEAD_OFFICE` and `ERP` (unchanged). No
+  supply bean: BLs, supply prices, supply invoices, what the stores owe, the ERP invoices, `/ho/supply/**` and the
+  network stock (new question `HEAD_OFFICE_SUPPLIES_STORES`); every price list refused on a head office whose
+  catalogue comes from the ERP. `GET /config` `supplySource` `NONE`. A store with `ownership.supply=HEAD_OFFICE` is
+  refused at its heartbeat, 409 `{"error"}` with the reason; the store (also changed) shows it as `REFUSED` with that
+  text in its Communications log (`docs/modules/head-office.md`, "Head office that supplies no store").
 - ERP connector `parafendri`, head office catalogue: a ParaFendri head office whose catalogue comes from the ERP
   (`ownership.catalogue=ERP`, its points de stock the six points de vente) runs the catalogue engine, job
   `SYNC_CATALOGUE`: `ParafendriCatalogueSource` (the tree, `stockPoints` per point from its checkpoint, `barCodes` by a
@@ -291,6 +297,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   data changed.
 
 ### Config
+- `headoffice.supply.source=NONE` (head office): accepted only with `headoffice.stock.enabled=false` and without
+  `headoffice.storeorders.post`, else the startup stops naming both keys.
 - `erp.connector=parafendri` and its keys `erp.parafendri.base-url`, `company-id` (a GUID), `domain`, `username`,
   `password` (required but domain), `connect-timeout-seconds` (30), `read-timeout-seconds` (600). New file
   `configs/customers/parafendri-store.properties` (placeholders, `erp.sync.enabled=false`).

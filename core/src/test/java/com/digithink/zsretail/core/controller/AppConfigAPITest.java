@@ -254,13 +254,16 @@ class AppConfigAPITest {
 	}
 
 	@Test
-	@DisplayName("Invoices from the ERP: supplySource HEAD_OFFICE or ERP on a head office, null on a store")
+	@DisplayName("Invoices from the ERP: supplySource HEAD_OFFICE, ERP or (3.1.1) NONE on a head office, null on a store")
 	void supplySource() throws Exception {
 		assertEquals(HO, headOffice().getSupplySource());
 		MockEnvironment erpSupply = new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")
 				.withProperty("ownership.catalogue", "ERP").withProperty("erp.connector", "happyness")
 				.withProperty("headoffice.supply.source", "ERP");
 		assertEquals("ERP", config(erpSupply, true, true).getSupplySource());
+		MockEnvironment none = new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")
+				.withProperty("headoffice.stock.enabled", "false").withProperty("headoffice.supply.source", "none");
+		assertEquals("NONE", config(none, true, true).getSupplySource());
 		for (AppConfigDTO c : Arrays.asList(standalone(), dynamics(), linkedStore())) {
 			assertNull(c.getSupplySource());
 		}

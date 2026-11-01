@@ -20,12 +20,12 @@ import lombok.extern.log4j.Log4j2;
 
 /**
  * Head office plan, task 7A.5: the stock of every store next to the head office's own stock (JWT, like the other admin
- * APIs). Head office without an ERP only: elsewhere these URLs answer 404. Errors {"error"}: 400 for an unknown store or a
- * page that cannot be read. See docs/modules/head-office.md, "Stock of the stores".
+ * APIs). Head office without an ERP only, not with headoffice.supply.source=NONE (3.1.1): elsewhere these URLs answer
+ * 404. Errors {"error"}: 400 for an unknown store or a page that cannot be read. See docs/modules/head-office.md, "Stock of the stores".
  */
 @RestController
 @RequestMapping("admin/headoffice/stock")
-@ConditionalOnInstallation(Installation.HEAD_OFFICE_WITHOUT_ERP)
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_SUPPLIES_STORES)
 @Log4j2
 public class HoNetworkStockAPI {
 

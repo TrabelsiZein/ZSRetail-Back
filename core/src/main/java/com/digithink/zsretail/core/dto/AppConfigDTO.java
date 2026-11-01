@@ -129,9 +129,9 @@ public class AppConfigDTO {
 	private boolean headOfficeStock;
 
 	/**
-	 * Invoices from the ERP: on a head office, HEAD_OFFICE (its own BLs and supply invoices) or ERP (the stores' invoices
-	 * are read from the ERP); null on a store, which never reads headoffice.supply.source. From
-	 * ApplicationModeService.isSupplyFromErpSource().
+	 * Invoices from the ERP: on a head office, HEAD_OFFICE (its own BLs and supply invoices), ERP (the stores' invoices
+	 * are read from the ERP) or, 3.1.1, NONE (it supplies no store); null on a store, which never reads
+	 * headoffice.supply.source. From ApplicationModeService.isSupplyFromErpSource() and isSupplyNone().
 	 */
 	private String supplySource;
 

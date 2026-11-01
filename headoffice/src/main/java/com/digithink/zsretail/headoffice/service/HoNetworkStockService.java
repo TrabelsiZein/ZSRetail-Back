@@ -38,13 +38,14 @@ import lombok.extern.log4j.Log4j2;
 
 /**
  * Head office plan, task 7A.5: the stock of every store, copied up (POST /ho/supply/stock), and the head office page of
- * the stock per store and item next to the head office's own stock. Head office without an ERP only. A store sends the
- * items whose stock changed since the head office last accepted it; each batch is saved in one transaction (a row per
- * store and item code, replaced), the codes the store no longer has are deleted. See docs/modules/head-office.md, "Stock
+ * the stock per store and item next to the head office's own stock. Head office without an ERP only, not with
+ * headoffice.supply.source=NONE (3.1.1: no store reports its stock there). A store sends the items whose stock changed
+ * since the head office last accepted it; each batch is saved in one transaction (a row per store and item code,
+ * replaced), the codes the store no longer has are deleted. See docs/modules/head-office.md, "Stock
  * of the stores".
  */
 @Service
-@ConditionalOnInstallation(Installation.HEAD_OFFICE_WITHOUT_ERP)
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_SUPPLIES_STORES)
 @Log4j2
 public class HoNetworkStockService {
 

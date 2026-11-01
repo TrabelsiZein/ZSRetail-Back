@@ -128,6 +128,7 @@ class OnHeadOfficeSupplyConditionTest {
 		assertFalse(registered(TestModes.erpOwners(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")),
 				HeadOfficeSupplyAPI.class));
 		assertFalse(registered(supplied(), HeadOfficeSupplyAPI.class));
-		assertTrue(Questions.asks(HeadOfficeSupplyAPI.class, Installation.HEAD_OFFICE_WITHOUT_ERP));
+		// 3.1.1: not on a head office that supplies no store (headoffice.supply.source=NONE)
+		assertTrue(Questions.asks(HeadOfficeSupplyAPI.class, Installation.HEAD_OFFICE_SUPPLIES_STORES));
 	}
 }

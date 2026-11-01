@@ -599,6 +599,7 @@ Without the URL these keys are not checked. The URL scheme is not checked: HTTP 
 | `ONLINE` | 200 with a readable body | none; the head office `serverTime` is kept |
 | `REFUSED` | 401 | `store code or key refused by the head office` |
 | `REFUSED` | 402 | `the head office has no valid license` |
+| `REFUSED` | 3.1.1, the heartbeat only: 409 with an `{"error"}` text (a head office that supplies no store, for a store with `ownership.supply=HEAD_OFFICE`) | the head office's text, e.g. `This head office supplies no store (headoffice.supply.source=NONE), ...` |
 | `ERROR` | Any other status, other 2xx and 3xx included | `unexpected answer from the head office: HTTP <code>` |
 | `ERROR` | 200 whose body cannot be read (HTML, broken JSON, empty) | `unreadable answer from the head office (...)` |
 | `ERROR` | `DEFAULT_LOCATION` cannot be read (database) | `DEFAULT_LOCATION could not be read (...)`; no call |
@@ -1249,6 +1250,40 @@ A head office that is only a consolidation layer (Happyness: catalogue, BLs, sup
 - Item answers unchanged (`costPrice` stays). The data import is not changed.
 - Switching `false` back to `true`: the stock was not moved by the BLs sent meanwhile; correct it item by item (adjust stock) before relying on it.
 - Tests: `HeadOfficeStockKeyTest` (default, `false`, strict values, ERP head office, every store kind with the key absent, `false` or unreadable: `/config` true and no filter bean; the filter's refused and passed paths), `HoDeliveryServiceTest.withoutStock`, `withoutStockItemRules`, `SupplyRoundTripTest.withoutHeadOfficeStock`.
+
+### Head office that supplies no store (`headoffice.supply.source=NONE`, 3.1.1)
+A consolidation layer that neither keeps stock nor supplies its stores (ParaFendri: catalogue from Business Central,
+promotions, loyalty, the stores' tickets; each store buys its goods itself). Third value of `headoffice.supply.source`
+beside `HEAD_OFFICE` and `ERP`, which are unchanged (Happyness, ZEN).
+- **Startup**: accepted only with `headoffice.stock.enabled=false` and without `headoffice.storeorders.post` (the store
+  orders need a supplying head office); otherwise `Invalid combination: headoffice.supply.source=NONE with ...` names
+  both keys (`NodeOwnership.checkSupplyNone`). Read on a head office only: a store never reads the key.
+- **Beans**: none of the supply ones. `HEAD_OFFICE_OWN_SUPPLY` (BLs, supply prices, supply invoices and what the stores
+  owe) and `HEAD_OFFICE_ERP_SUPPLY` (the ERP's invoices) are false; the new question `HEAD_OFFICE_SUPPLIES_STORES`
+  (`HeadOfficeSupplyAPI`, `/ho/supply/**`, and the network stock `HoNetworkStockService` / `HoNetworkStockAPI`, fed only
+  by the stores whose goods come from the head office) is false too: those URLs answer 404. No job: the head office runs
+  none for its own BLs, and `IMPORT_SUPPLY_INVOICES` is only seeded with `ERP`. The 3.1.1 store orders are refused at
+  startup (above).
+- **Price lists**: on a head office whose catalogue comes from the ERP, every request on `/admin/headoffice/price-lists`
+  is refused as with `ERP` (`HeadOfficeErpCatalogueFilter`: no supply list is used). Without an ERP the selling lists
+  stay; no new supply list can be created (frontend).
+- **The stores**: `GET /config` `supplySource` `NONE`. A store that reports `ownership.supply=HEAD_OFFICE` at its
+  heartbeat is answered 409 `{"error":"This head office supplies no store (headoffice.supply.source=NONE), but this
+  store gets its goods from the head office (ownership.supply=HEAD_OFFICE). Set ownership.supply=LOCAL in this store's
+  file and restart the store."}`, after its contact and owners are recorded (the Stores page shows them), with a WARN on
+  the head office. The store (3.1.1) shows `REFUSED` with that text on its Jobs page and writes it in its Communications
+  log (`HeartbeatJob`, at the change of state); a store of before shows `ERROR ... HTTP 409`. Its other jobs (sales,
+  loyalty) go on. A store with `LOCAL` or `ERP`, and a store of before 3.1 that sends no owners, are answered as before.
+- **Frontend**: the Supply group is empty and gone (BLs, supply prices, supply invoices, what the stores owe, by
+  `meta.ownSupply`; the ERP invoices by `meta.erpSupply`; the stock and purchase pages already by
+  `meta.headOfficeStock`); Network stock (`meta.suppliesStores`) and Company information (`meta.ownSupply`, only the
+  seller of the supply invoices) are hidden; menu, router guard and Roles page, one rule in
+  `src/navigation/headoffice/supply-source.js` (`tools/supply-source-check.mjs`). Stores page: no invoicing section and no
+  supply list; General Setup: no supply invoice settings; Price lists: no new supply list.
+- Tests: `SupplySourceNoneTest` (core: the two refusals, the values, a store), `SupplySourceBeansTest` (the two NONE
+  modes: no supply bean, no SUPPLY provider), `HeadOfficeHeartbeatAPITest` (409 and its body through MockMvc, then the
+  store's client reads it as `REFUSED`), `HeadOfficeErpCatalogueFilterTest.priceListsBySupplySource`,
+  `AppConfigAPITest.supplySource`.
 
 ### Head office without stock: the pages (frontend)
 Frontend commit d5cb48e. Getter `appConfig/headOfficeKeepsStock`: `false` only on a head office whose `/config` gives `headOfficeStock: false`; `true` by default, when the field is absent or `/config` fails, and always on a store. Every part below is shown by its existing condition (`withoutErp`, `supplyFromErp`, permissions, store rights) **and** this getter, so no store page changes.

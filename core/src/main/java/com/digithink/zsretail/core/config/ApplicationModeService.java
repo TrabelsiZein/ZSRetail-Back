@@ -46,6 +46,9 @@ public class ApplicationModeService {
 	/** A head office with headoffice.supply.source=ERP (NodeOwnership.isSupplyFromErpSourceSet); false on a store. */
 	private boolean supplyFromErpSource;
 
+	/** 3.1.1: a head office with headoffice.supply.source=NONE (NodeOwnership.isSupplyNoneSet); false on a store. */
+	private boolean supplyNone;
+
 	/** RFID step 2: a store with rfid.enabled=true (NodeOwnership.isRfidSet); false on a head office. */
 	private boolean rfidEnabled;
 
@@ -67,6 +70,7 @@ public class ApplicationModeService {
 		headOfficeWithoutStock = NodeOwnership.isHeadOfficeWithoutStockSet(environment);
 		// Invoices from the ERP: read on a head office only, like headoffice.stock.enabled
 		supplyFromErpSource = NodeOwnership.isSupplyFromErpSourceSet(environment);
+		supplyNone = NodeOwnership.isSupplyNoneSet(environment);
 		rfidEnabled = NodeOwnership.isRfidSet(environment);
 		storeOrdersByErp = NodeOwnership.isStoreOrdersByErpSet(environment);
 		storeOrders = NodeOwnership.isStoreOrdersSet(environment);
@@ -108,6 +112,15 @@ public class ApplicationModeService {
 	 * stores' supply documents are the ERP's invoices; the head office makes no BL, supply price or supply invoice.
 	 * Always false on a store.
 	 */
+	/**
+	 * 3.1.1: true on a head office with headoffice.supply.source=NONE: it supplies no store (no BL, supply price, supply
+	 * invoice or network stock; a store with ownership.supply=HEAD_OFFICE is refused at its heartbeat). Always false on a
+	 * store.
+	 */
+	public boolean isSupplyNone() {
+		return supplyNone;
+	}
+
 	public boolean isSupplyFromErpSource() {
 		return supplyFromErpSource;
 	}
