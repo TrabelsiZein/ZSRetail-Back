@@ -36,7 +36,6 @@ public class NavItemVariantsDTO {
 	/** The row of one variant in one point de stock (ho_stock_point_item). */
 	@Data
 	@NoArgsConstructor
-	@AllArgsConstructor
 	public static class PointPrice {
 		private Double unitPrice;
 		private boolean active;
@@ -49,6 +48,37 @@ public class NavItemVariantsDTO {
 		private boolean clearanceApplies;
 		/** The price a store of this point sells at, before VAT: the clearance price when it applies, else unitPrice. */
 		private Double sellingPrice;
+
+		/**
+		 * 3.1.1 (Item cards' Stock points tab): the row's own name, description, family and sub-family (codes and names),
+		 * what the point's stores receive (they may differ from the item's); null where not read (the NAV items page).
+		 */
+		private String name;
+		private String description;
+		private String familyCode;
+		private String familyName;
+		private String subFamilyCode;
+		private String subFamilyName;
+		/**
+		 * 3.1.1: the fields of the row that differ from the item's, among name, description, family, subFamily (trimmed,
+		 * null and blank the same, else compared exactly); empty when identical; null where not read.
+		 */
+		private List<String> differences;
+
+		/** True when one of the row's own values differs from the item's. */
+		public boolean isDiffers() {
+			return differences != null && !differences.isEmpty();
+		}
+
+		public PointPrice(Double unitPrice, boolean active, boolean clearance, BigDecimal clearancePrice,
+				boolean clearanceApplies, Double sellingPrice) {
+			this.unitPrice = unitPrice;
+			this.active = active;
+			this.clearance = clearance;
+			this.clearancePrice = clearancePrice;
+			this.clearanceApplies = clearanceApplies;
+			this.sellingPrice = sellingPrice;
+		}
 
 		/** Without the head office's rule applied (clearanceApplies false, sellingPrice null). */
 		public PointPrice(Double unitPrice, boolean active, boolean clearance, BigDecimal clearancePrice) {

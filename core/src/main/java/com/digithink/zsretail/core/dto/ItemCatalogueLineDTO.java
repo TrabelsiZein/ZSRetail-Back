@@ -59,6 +59,21 @@ public class ItemCatalogueLineDTO {
 	private Double priceMax;
 
 	/**
+	 * 3.1.1, head office with a point de stock chosen: priceMin / priceMax are the selling prices with VAT of the line's
+	 * rows at that point (the variants of the status with a row of the row status), not the items' own prices; false
+	 * otherwise (always false on a store).
+	 */
+	private boolean pointPrice;
+
+	/** 3.1.1, with pointPrice: the line's rows in clearance (selling at their clearance price); 0 otherwise. */
+	private long clearanceVariants;
+
+	/** 3.1.1, with pointPrice and a row in clearance: the rows' normal prices with VAT (struck on the page); else null. */
+	private Double normalPriceMin;
+
+	private Double normalPriceMax;
+
+	/**
 	 * 3.1.1: with a search, the ids of the line's items that match it (NAV number, item code, name or a barcode), so that a
 	 * page highlights the variants found; null without a search.
 	 */

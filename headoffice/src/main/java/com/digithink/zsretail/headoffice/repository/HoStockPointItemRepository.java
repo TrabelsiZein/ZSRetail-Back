@@ -95,12 +95,37 @@ public interface HoStockPointItemRepository extends _BaseRepository<HoStockPoint
 			+ " and i.navItemNo in :navItemNos and (r.active is null or r.active = true)"
 			+ " and (p.active is null or p.active = true) group by i.navItemNo";
 
-	/** Step 11a: [item id, point id, unit price, active, clearance, clearance price] of every row of these items. */
-	String ROWS_OF_ITEMS = "select r.itemId, r.stockPointId, r.unitPrice, r.active, r.clearance, r.clearancePrice"
-			+ " from HoStockPointItem r where r.itemId in :itemIds";
+	/**
+	 * Step 11a: [item id, point id, unit price, active, clearance, clearance price] of every row of these items; 3.1.1
+	 * (the Item cards' Stock points tab), then [row name, row description, row family code, row sub-family code, item
+	 * name, item description, item family code, item sub-family code].
+	 */
+	String ROWS_OF_ITEMS = "select r.itemId, r.stockPointId, r.unitPrice, r.active, r.clearance, r.clearancePrice,"
+			+ " r.name, r.description, r.familyCode, r.subFamilyCode, i.name, i.description, f.code, sf.code"
+			+ " from HoStockPointItem r, Item i left join i.itemFamily f left join i.itemSubFamily sf"
+			+ " where i.id = r.itemId and r.itemId in :itemIds";
 
 	@Query(NAV_ITEM_POINT_COUNTS)
 	List<Object[]> countActivePointsOfNavItems(@Param("navItemNos") Collection<String> navItemNos);
+
+	/**
+	 * 3.1.1, Item cards list with a point chosen: [NAV item number, item id, item active, item VAT, row price, row active,
+	 * clearance, clearance price] of the rows at the point of these NAV items' variants (POINT_ROWS_OF_ITEMS: of these
+	 * items); the service applies the statuses and the clearance rule (HoItemCatalogueService.pointPrices).
+	 */
+	String POINT_ROWS_SELECT = "select i.navItemNo, i.id, i.active, i.defaultVAT, r.unitPrice, r.active, r.clearance,"
+			+ " r.clearancePrice from HoStockPointItem r, Item i where i.id = r.itemId and r.stockPointId = :pointId";
+
+	String POINT_ROWS_OF_NAV_ITEMS = POINT_ROWS_SELECT + " and i.navItemNo in :navItemNos";
+
+	String POINT_ROWS_OF_ITEMS = POINT_ROWS_SELECT + " and i.id in :itemIds";
+
+	@Query(POINT_ROWS_OF_NAV_ITEMS)
+	List<Object[]> findPointRowsOfNavItems(@Param("pointId") Long pointId,
+			@Param("navItemNos") Collection<String> navItemNos);
+
+	@Query(POINT_ROWS_OF_ITEMS)
+	List<Object[]> findPointRowsOfItems(@Param("pointId") Long pointId, @Param("itemIds") Collection<Long> itemIds);
 
 	@Query(ROWS_OF_ITEMS)
 	List<Object[]> findRowsOfItems(@Param("itemIds") Collection<Long> itemIds);

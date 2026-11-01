@@ -191,6 +191,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `priceMin` / `priceMax` filter the point's row selling price with VAT (the clearance price when it applies) instead
   of the item's own price; without a point nothing changes (`HoItemCatalogueQuery.stockPoint`, head office only; core's
   query and the store's Articles page unchanged). Step 1 of retiring "Items by point de stock".
+- Item cards (head office), step 2: with a point chosen, each list line's `priceMin` / `priceMax` are its rows'
+  selling prices there with VAT (`pointPrice`, the price sort by them), with `clearanceVariants` and the normal range
+  `normalPriceMin` / `normalPriceMax`; core's `ItemCatalogueQuery.Criteria` gains `linePrice` / `linePriceJoin` (unset:
+  the SQL is unchanged). The card's point rows carry the row's own name, description, family and sub-family (codes and
+  names) and `differences` / `differs` against the item's.
 - ERP catalogue import, every connector: the barcodes are imported by windows of 1,000 rows, their items and existing
   barcodes read in four queries per window, written by JDBC batches of 100, the session emptied after each window
   (before: three queries per row, each flushing the whole packet; 13,165 ParaFendri barcodes ran more than 27 minutes).

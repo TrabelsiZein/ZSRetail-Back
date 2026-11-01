@@ -40,7 +40,9 @@ public class HoItemCatalogueAPI {
 	 * (the lines without an active variant, every variant counted); stockPointStatus (3.1.1, with stockPointId only): the
 	 * row at that point ACTIVE (default), INACTIVE or ALL; variants: ALL (default), YES (2 variants or more of the
 	 * status), NO; priceMin / priceMax: the item's own price with VAT, with stockPointId (3.1.1) the point's row selling
-	 * price with VAT (HoItemCatalogueQuery.stockPoint); sort: code (default, natural for the codes of digits only), name,
+	 * price with VAT (HoItemCatalogueQuery.stockPoint), and (step 2) each line's priceMin / priceMax are its rows' selling
+	 * prices there with pointPrice true, clearanceVariants and the normal range (the price sort follows them); sort:
+	 * code (default, natural for the codes of digits only), name,
 	 * family, variants, price (lines without a price last); dir: asc (default) or desc. Every filter optional.
 	 */
 	@GetMapping
@@ -76,7 +78,7 @@ public class HoItemCatalogueAPI {
 		HoItemCatalogueQuery.stockPoint(criteria, stockPointId, stockPointStatus);
 		criteria.setSort(sort);
 		criteria.setDescending("desc".equalsIgnoreCase(dir == null ? null : dir.trim()));
-		Page<ItemCatalogueLineDTO> lines = service.page(criteria, page, size);
+		Page<ItemCatalogueLineDTO> lines = service.page(criteria, page, size, stockPointId, stockPointStatus);
 		Map<String, Object> response = new LinkedHashMap<>();
 		response.put("content", lines.getContent());
 		response.put("page", lines.getNumber());

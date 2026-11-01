@@ -2006,6 +2006,19 @@ routes send to Item cards.
   query, the card and the store's Articles page unchanged). The item Status filter applies as before. Measured on ZEN's
   test head office (1 point): selling price ≤ 50 TND with VAT 13,892 items, own price 12,152. Test
   `StockPointFilterQueryTest`.
+- **Point de stock values, 3.1.1 step 2.** List, a point chosen: each line's `priceMin` / `priceMax` are the selling
+  prices with VAT of its rows there (the variants of the item status with a row of the row status, the step 1 rule;
+  a NAV line their range), `pointPrice` true, and the price sort follows them; added after the page,
+  `clearanceVariants` (rows selling at their clearance price) and, with one, `normalPriceMin` / `normalPriceMax` (the
+  page strikes the normal range before the selling one when it differs, and shows "N soldés", as the card's band).
+  Core's `ItemCatalogueQuery.Criteria` gained `linePrice` / `linePriceJoin` (null: the SQL is unchanged, asserted by
+  `StockPointFilterQueryTest.lineSqlUnchanged`), set by `HoItemCatalogueQuery.stockPoint` (`LEFT JOIN
+  ho_stock_point_item pr`, one row per item and point). Card, Stock points tab: each `PointPrice` also carries the row's
+  `name`, `description`, `familyCode` / `familyName`, `subFamilyCode` / `subFamilyName` and `differences` (the fields
+  that differ from the item's: trimmed, null and blank the same, else exact; `differs` when one does); under the price,
+  "À ce point" with the row's name and family › sub-family that differ, the description in the tooltip, nothing when
+  identical (ZEN and ParaFendri today). Tests `StockPointFilterQueryTest`, `HoNavItemStockPointsTest`,
+  `NavItemStockPointsQueryTest`.
 - **Natural code sort**: the codes of digits only first, by their number (`000002` before `0000016`), then the others
   as text, then the smallest item id; written `code COLLATE Latin1_General_BIN NOT LIKE '%[^0-9]%'` (every SQL Server
   version; 2 to 3 times cheaper than a REPLACE chain under the database's collation: 0.4 to 1.0 s of CPU against 1.5 to

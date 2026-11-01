@@ -1,6 +1,7 @@
 package com.digithink.zsretail.headoffice.service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -93,9 +94,83 @@ public class HoItemCatalogueService {
 	 * filter set by HoItemCatalogueQuery.stockPoint), each with its count of active points de stock.
 	 */
 	public Page<ItemCatalogueLineDTO> page(ItemCatalogueQuery.Criteria criteria, int page, int size) {
+		return page(criteria, page, size, null, null);
+	}
+
+	/**
+	 * 3.1.1, step 2: with a point (the criteria set by HoItemCatalogueQuery.stockPoint with the same point and row
+	 * status), each line's price is its rows' selling price there (from the query); its clearance count and normal range
+	 * are added here ({@link #pointPrices}).
+	 */
+	public Page<ItemCatalogueLineDTO> page(ItemCatalogueQuery.Criteria criteria, int page, int size, Long stockPointId,
+			String rowStatus) {
 		Page<ItemCatalogueLineDTO> found = catalogue.page(criteria, page, size);
 		pointCounts(found.getContent());
+		if (stockPointId != null) {
+			pointPrices(found.getContent(), stockPointId, criteria.isActiveOnly(), rowStatus);
+		}
 		return found;
+	}
+
+	/** The page's rows at the point: by NAV item number for the NAV lines, by item id for the single items. */
+	private void pointPrices(List<ItemCatalogueLineDTO> content, Long stockPointId, boolean activeOnly,
+			String rowStatus) {
+		List<String> navItemNos = content.stream().map(ItemCatalogueLineDTO::getNavItemNo).filter(Objects::nonNull)
+				.collect(Collectors.toList());
+		List<Long> itemIds = content.stream().map(ItemCatalogueLineDTO::getItemId).filter(Objects::nonNull)
+				.collect(Collectors.toList());
+		List<Object[]> pointRows = new ArrayList<>();
+		if (!navItemNos.isEmpty()) {
+			pointRows.addAll(rows.findPointRowsOfNavItems(stockPointId, navItemNos));
+		}
+		if (!itemIds.isEmpty()) {
+			pointRows.addAll(rows.findPointRowsOfItems(stockPointId, itemIds));
+		}
+		pointPrices(content, pointRows, activeOnly, rowStatus);
+	}
+
+	/**
+	 * Each line gets pointPrice true and, from its rows at the point ([NAV item number, item id, item active, item VAT,
+	 * row price, row active, clearance, clearance price], POINT_ROWS_SELECT) of the item status (activeOnly: active
+	 * items only) and of the row status: the count of rows selling at their clearance price and, when there is one, the
+	 * range of the rows' normal prices with VAT (the page strikes it when it differs from the selling range). Public for
+	 * the tests.
+	 */
+	public static void pointPrices(List<ItemCatalogueLineDTO> content, List<Object[]> pointRows, boolean activeOnly,
+			String rowStatus) {
+		Map<String, List<Object[]>> byLine = new HashMap<>();
+		for (Object[] row : pointRows) {
+			if ((activeOnly && Boolean.FALSE.equals(row[2]))
+					|| !HoItemCatalogueQuery.rowOfStatus((Boolean) row[5], rowStatus)) {
+				continue;
+			}
+			String key = row[0] != null ? "nav:" + row[0] : "item:" + ((Number) row[1]).longValue();
+			byLine.computeIfAbsent(key, k -> new ArrayList<>()).add(row);
+		}
+		for (ItemCatalogueLineDTO line : content) {
+			line.setPointPrice(true);
+			String key = line.isSingle() ? "item:" + line.getItemId() : "nav:" + line.getNavItemNo();
+			List<Object[]> lineRows = byLine.getOrDefault(key, Collections.emptyList());
+			Double min = null;
+			Double max = null;
+			long clearance = 0;
+			for (Object[] row : lineRows) {
+				if (StockPointPrice.clearanceApplies((Boolean) row[6], (BigDecimal) row[7])) {
+					clearance++;
+				}
+				if (row[4] != null) {
+					double vat = row[3] == null ? 0 : ((Number) row[3]).doubleValue();
+					double normal = ((Number) row[4]).doubleValue() * (1 + vat / 100.0);
+					min = min == null ? normal : Math.min(min, normal);
+					max = max == null ? normal : Math.max(max, normal);
+				}
+			}
+			line.setClearanceVariants(clearance);
+			if (clearance > 0) {
+				line.setNormalPriceMin(min);
+				line.setNormalPriceMax(max);
+			}
+		}
 	}
 
 	/**
