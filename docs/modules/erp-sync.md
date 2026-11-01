@@ -420,6 +420,19 @@ databases** (the two `CREATE INDEX` statements after `ix_item_barcode` in the sc
 import: ...` per packet. The run of 17/10 (846 s, 21,086 changed) was a real change: the first run after the
 variant description was built by the connector, before the 3.1.0 UPDATE. Test: `ErpItemImportLookupsTest`.
 
+**Barcodes step speed (3.1.1, 2026-11-01)**: `importItemBarcodes` ran three lookups per row (item by ERP id then by
+code, barcode by ERP id then by value), each auto-flushing a session that grew with the packet: quadratic, 13,165
+ParaFendri barcodes ran more than 27 minutes in one transaction. It now takes the packet by windows of 1,000 rows
+(`IN_CHUNK`): per window, four reads (`ItemRepository.findByErpExternalIdIn` / `findByItemCodeIn`,
+`ItemBarcodeRepository.findByErpExternalIdIn` / `findByBarcodeIn`, both with their item joined), the rows in memory
+with the same rules and messages (one WARNING row per barcode left out; ERP id before value; the primary flag only when
+given; a later row of the same barcode finds the one just saved, and a barcode whose value changed is no longer found
+by its old one), the writes by JDBC batches of 100, then a flush and a clear, so each window's session holds only its
+own rows (a clear every 100 rows would make each later update of an already-read barcode a SELECT by `merge`). The
+lookup keys compare as SQL Server's collation does (case and trailing spaces ignored), so a barcode the per-row query
+found is found here too. Log: `ERP item barcodes import: N rows handed, W written (C new, U updated) in T ms`. Test:
+`ErpBarcodeImportLookupsTest` (2,000 rows: 8 reads).
+
 **Clearance price at the till (2026-10-17, reverses step 11b's "no price logic")**: one rule,
 `headoffice/service/StockPointPrice.sellingPrice` / `clearanceApplies`: a row with clearance true and a clearance price
 above 0 sells at its clearance price, any other row (clearance false or null, a price null or 0) at its own price. Both

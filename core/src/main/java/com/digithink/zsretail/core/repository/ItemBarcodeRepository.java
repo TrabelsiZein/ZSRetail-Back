@@ -35,6 +35,10 @@ public interface ItemBarcodeRepository extends _BaseRepository<ItemBarcode, Long
 
 	Optional<ItemBarcode> findByErpExternalId(String erpExternalId);
 
+	/** 3.1.1, the ERP barcodes import: the barcodes of these ERP ids, with their items in the same query. */
+	@Query("select b from ItemBarcode b join fetch b.item where b.erpExternalId in :erpExternalIds")
+	List<ItemBarcode> findByErpExternalIdIn(@Param("erpExternalIds") Collection<String> erpExternalIds);
+
 	List<ItemBarcode> findByItemIdInAndActiveTrue(List<Long> itemIds);
 
 	List<ItemBarcode> findByItemIdIn(List<Long> itemIds);

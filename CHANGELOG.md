@@ -168,6 +168,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   same transaction.
 
 ### Enhancements
+- ERP catalogue import, every connector: the barcodes are imported by windows of 1,000 rows, their items and existing
+  barcodes read in four queries per window, written by JDBC batches of 100, the session emptied after each window
+  (before: three queries per row, each flushing the whole packet; 13,165 ParaFendri barcodes ran more than 27 minutes).
+  Same rules and warnings. New log line `ERP item barcodes import: N rows handed, ...`.
 - ERP jobs: the job type `EXPORT_CUSTOMERS` is removed (never implemented: it only logged "not yet implemented"), with
   its operation `EXPORT_CUSTOMER`, `ErpConnector.pushCustomer` (and its five stubs) and
   `ErpSynchronizationManager.pushCustomer`. The rows of that type and operation are deleted at startup
