@@ -39,22 +39,24 @@ class ParafendriSalesOrderMapperTest {
 	}
 
 	@Test
-	@DisplayName("The body of the POST, header and lines, exactly the sample (no orderStatus: Business Central sets it)")
+	@DisplayName("The body of the POST, header and lines, exactly the sample (no orderStatus, no amountIncludingVAT:"
+			+ " Business Central sets them)")
 	void body() throws Exception {
 		List<String> warnings = new ArrayList<>();
 		ParafendriSalesOrder order = mapper.salesOrder(ParafendriTickets.ticket(), " C-GREMDA ", "PV-GREMDA", warnings);
-		JSONAssert.assertEquals(sample("salesOrder-request.json"), new ObjectMapper().writeValueAsString(order), true);
+		String body = new ObjectMapper().writeValueAsString(order);
+		JSONAssert.assertEquals(sample("salesOrder-request.json"), body, true);
 		assertEquals(Collections.emptyList(), warnings);
+		assertTrue(!body.contains("amountIncludingVAT"), "read-only in BC (HTTP 400 when sent), header or line");
 	}
 
 	@Test
-	@DisplayName("The fields one by one: dates, totals, the reduction as discountPercent, the lines' numbers, price and TTC")
+	@DisplayName("The fields one by one: dates, totals, the reduction as discountPercent, the lines' numbers and price")
 	void fields() {
 		ParafendriSalesOrder order = mapper.salesOrder(ParafendriTickets.ticket(), "C-GREMDA", "PV-GREMDA", null);
 		assertEquals("2026-10-31", order.getOrderDate());
 		assertEquals("2026-10-31", order.getPostingDate());
 		assertEquals(new BigDecimal("58.983"), order.getTicketAmount(), "HT after the ticket-wide reduction");
-		assertEquals(new BigDecimal("70.0"), order.getAmountIncludingVAT());
 		assertEquals(new BigDecimal("4.10959"), order.getDiscountPercent(), "3 / 73 of the lines' TTC, 5 decimals");
 		assertEquals(0, BigDecimal.ZERO.compareTo(order.getInvoiceDiscountAmount()));
 		assertEquals(0, BigDecimal.ZERO.compareTo(order.getInvoiceDiscountPercent()));
@@ -64,7 +66,6 @@ class ParafendriSalesOrderMapperTest {
 		assertEquals(Integer.valueOf(30000), free.getLineNo());
 		assertEquals(new BigDecimal("18.90756"), free.getUnitPrice(), "never rounded");
 		assertEquals(new BigDecimal("100"), free.getLineDiscountPercent());
-		assertEquals(0, BigDecimal.ZERO.compareTo(free.getAmountIncludingVAT()));
 		assertEquals("", order.getSalesOrderLines().get(0).getPromotionNo(), "no promotion: empty");
 	}
 

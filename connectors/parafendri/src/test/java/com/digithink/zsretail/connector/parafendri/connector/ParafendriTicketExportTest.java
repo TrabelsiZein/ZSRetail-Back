@@ -12,6 +12,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -88,11 +89,14 @@ class ParafendriTicketExportTest {
 		server.verify();
 		assertTrue(result.isSuccess(), result.getMessage());
 		assertEquals("CV-000001", result.getExternalReference());
-		assertEquals("parafendri: ticket PV-GREMDA251031001 posted as sales order CV-000001 (orderStatus Entered)",
+		assertEquals("parafendri: ticket PV-GREMDA251031001 posted as sales order CV-000001 (orderStatus Entered, BC"
+				+ " amountIncludingVAT 70, our total TTC 70.0)",
 				result.getMessage());
 		assertEquals(SALES_ORDERS, result.getUrl());
 		assertTrue(result.getActualRequestPayload() instanceof ParafendriSalesOrder, "the body sent, for the log");
 		assertEquals("Entered", ((ParafendriSalesOrderRow) result.getActualResponsePayload()).getOrderStatus());
+		assertEquals(new BigDecimal("70"), ((ParafendriSalesOrderRow) result.getActualResponsePayload())
+				.getAmountIncludingVAT(), "read back from BC's answer");
 	}
 
 	@Test
@@ -106,7 +110,7 @@ class ParafendriTicketExportTest {
 		assertTrue(result.isSuccess());
 		assertEquals("CV-000001", result.getExternalReference());
 		assertEquals("parafendri: ticket PV-GREMDA251031001 is already in Business Central as sales order CV-000001"
-				+ " (orderStatus Posted): not posted again", result.getMessage());
+				+ " (orderStatus Posted, BC amountIncludingVAT 70, our total TTC 70.0): not posted again", result.getMessage());
 	}
 
 	@Test

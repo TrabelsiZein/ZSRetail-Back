@@ -681,7 +681,7 @@ dependency on another connector:
     | `customerNo`, `locationCode` | the point de vente's customer, `DEFAULT_LOCATION` |
     | `orderDate`, `postingDate` | the ticket's date |
     | `ticketAmount` | the total HT after the ticket-wide reduction (`SalesHeader.subtotal`) |
-    | `amountIncludingVAT` | the total TTC paid, stamp included (`totalAmount`) |
+    | `amountIncludingVAT` | **computed by BC**, never sent (read-only: sent, BC answers HTTP 400 "Control 'amountIncludingVAT' is read-only"); read back from the answer and put in the log message next to our total TTC (`totalAmount`, stamp included) |
     | `discountPercent` | the ticket-wide reduction (discount + loyalty points) as a % of the lines' TTC, 5 decimals: EMTOP's `Discount_Percent` |
     | `invoiceDiscountAmount`, `invoiceDiscountPercent` | 0 |
     | `fenceNo` | the cashier session number, as EMTOP's `Fence_No` (the ticket carries no till id) |
@@ -691,10 +691,11 @@ dependency on another connector:
     | line `quantity`, `unitPrice` | decimals kept; the price before VAT as stored, never rounded |
     | line `lineDiscountPercent` | as EMTOP's (stored, else derived; a free line 100, its price kept) |
     | line `promotionNo` | the promotion's code, else "" |
-    | line `amountIncludingVAT` | the line's TTC before the ticket-wide reduction (a free line 0) |
+    | line `amountIncludingVAT` | **computed by BC**, never sent (read-only, as the header's) |
 
   - The communications log: one row per ticket (`EXPORT_TICKET`): the body sent, Business Central's answer, the
-    message with its number and `orderStatus` ("ticket X posted as sales order N (orderStatus Entered)", "already in
+    message with its number, `orderStatus` and the two totals ("ticket X posted as sales order N (orderStatus Entered,
+    BC amountIncludingVAT 22.5, our total TTC 22.500)": BC's rounding of 18.90756 × 1.19 next to ours), "already in
     Business Central as ..."), Business Central's own error text on a refusal (`{"error":{"code","message"}}`). The
     connector's writes: `GetOnly` lets a POST to `.../salesOrders` (no query) through, and since step 7 one to
     `.../shipAndInvoice`, nothing else.

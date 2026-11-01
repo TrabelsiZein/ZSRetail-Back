@@ -364,7 +364,8 @@ public class ParafendriConnector implements ErpConnector {
 			if (known != null) {
 				ErpOperationResult result = ErpOperationResult.success(known.getNumber().trim(), ticket, known, address);
 				result.setMessage("parafendri: ticket " + ticketNo + " is already in Business Central as sales order "
-						+ known.getNumber().trim() + " (orderStatus " + known.getOrderStatus() + "): not posted again");
+						+ known.getNumber().trim() + " (orderStatus " + known.getOrderStatus() + amounts(known, ticket)
+						+ "): not posted again");
 				return result;
 			}
 			String customerNo = customerNo(location);
@@ -380,12 +381,22 @@ public class ParafendriConnector implements ErpConnector {
 			}
 			ErpOperationResult result = ErpOperationResult.success(created.getNumber().trim(), order, created, address);
 			result.setMessage("parafendri: ticket " + ticketNo + " posted as sales order " + created.getNumber().trim()
-					+ " (orderStatus " + created.getOrderStatus() + ")");
+					+ " (orderStatus " + created.getOrderStatus() + amounts(created, ticket) + ")");
 			return warned(result, warnings);
 		} catch (ParafendriReadException e) {
 			return warned(ErpOperationResult.failure(e.getMessage(), order != null ? order : ticket, null, address),
 					warnings);
 		}
+	}
+
+	/**
+	 * Business Central's total TTC (amountIncludingVAT, computed by it from the lines: never sent) next to ours, so the
+	 * two roundings can be compared (18.90756 × 1.19): ", BC amountIncludingVAT 22.5, our total TTC 22.500".
+	 */
+	static String amounts(ParafendriSalesOrderRow row, ErpTicketDTO ticket) {
+		return ", BC amountIncludingVAT " + (row.getAmountIncludingVAT() == null ? "-"
+				: row.getAmountIncludingVAT().toPlainString()) + ", our total TTC "
+				+ (ticket.getTotalAmount() == null ? "-" : ticket.getTotalAmount().toPlainString());
 	}
 
 	/**

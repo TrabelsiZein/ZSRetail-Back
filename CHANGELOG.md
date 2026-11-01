@@ -216,6 +216,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `availableQty`.
 
 ### Fixes
+- ERP connector `parafendri`, step 6: `amountIncludingVAT` is no longer sent on `salesOrders`, header nor lines
+  (read-only in Business Central: the live POST answered HTTP 400 "Control 'amountIncludingVAT' is read-only"); BC
+  computes it, the header's is read back from the answer and shown in the log message next to our total TTC.
 - `GET /sales-header/pending-sales` sends each ticket's `discountSource` (MANUAL or PROMOTION): the till taking a held
   ticket back no longer shows its cart offer a second time as a "Remise" (front CHANGELOG).
 - Copies down, head office: a store's pull of LOYALTY, PROMOTIONS or SUPPLY answered HTTP 500 (query timeout after

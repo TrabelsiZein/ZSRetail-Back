@@ -412,15 +412,14 @@ public class ParafendriMapper {
 	 * Step 6: one ticket to the body of POST salesOrders, its lines inside (all to confirm with Sayf, ParaFendri's BC
 	 * contact). The header: ticketNo the ticket number; customerNo the point de vente's customer (customerNo of its
 	 * stockPoints rows); locationCode DEFAULT_LOCATION; orderDate and postingDate the ticket's date; ticketAmount the total
-	 * excluding VAT after the ticket-wide reduction (SalesHeader.subtotal), amountIncludingVAT the total paid (stamp
-	 * included); discountPercent the ticket-wide reduction (discount and loyalty points) as a % of the lines' TTC, the %
+	 * excluding VAT after the ticket-wide reduction (SalesHeader.subtotal); amountIncludingVAT never sent, header or line
+	 * (Business Central computes it: read-only, its own in the answer); discountPercent the ticket-wide reduction (discount and loyalty points) as a % of the lines' TTC, the %
 	 * EMTOP sends as Discount_Percent, 0 without one; invoiceDiscountAmount and invoiceDiscountPercent 0; fenceNo the
 	 * cashier session number, as EMTOP's Fence_No. Each line: lineNo 10000 × its position among the lines sent; itemNo the
 	 * item's ERP code (the tax stamp's TAX_STAMP_ERP_ITEM_CODE, as for EMTOP; without it no stamp line, warned once:
 	 * {@link #NO_TAX_STAMP_ITEM}); quantity (decimals kept); unitPrice before VAT as stored, never rounded;
-	 * lineDiscountPercent (a free line: 100, its price kept, as EMTOP's); promotionNo the promotion's code, else "";
-	 * amountIncludingVAT the line's TTC before the ticket-wide reduction (a free line 0). A missing amount or percentage is
-	 * 0. warnings (may be null) gets what the run should say once.
+	 * lineDiscountPercent (a free line: 100, its price kept, as EMTOP's); promotionNo the promotion's code, else "". A
+	 * missing amount or percentage is 0. warnings (may be null) gets what the run should say once.
 	 */
 	public ParafendriSalesOrder salesOrder(ErpTicketDTO ticket, String customerNo, String locationCode,
 			List<String> warnings) {
@@ -432,7 +431,6 @@ public class ParafendriMapper {
 		order.setOrderDate(date);
 		order.setPostingDate(date);
 		order.setTicketAmount(orZero(ticket.getTotalAmountExcludingVat()));
-		order.setAmountIncludingVAT(orZero(ticket.getTotalAmount()));
 		order.setDiscountPercent(percent(ticket.getDiscountPercentage() == null ? null
 				: BigDecimal.valueOf(ticket.getDiscountPercentage())));
 		order.setInvoiceDiscountAmount(BigDecimal.ZERO);
@@ -455,7 +453,6 @@ public class ParafendriMapper {
 			orderLine.setUnitPrice(orZero(line.getUnitPrice()));
 			orderLine.setLineDiscountPercent(percent(line.getDiscountPercentage()));
 			orderLine.setPromotionNo(trimmed(line.getPromotionCode()));
-			orderLine.setAmountIncludingVAT(orZero(line.getTotalAmountIncludingVat()));
 			order.getSalesOrderLines().add(orderLine);
 		}
 		return order;

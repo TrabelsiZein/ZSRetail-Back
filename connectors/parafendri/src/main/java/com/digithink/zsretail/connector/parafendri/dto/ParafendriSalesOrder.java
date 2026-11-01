@@ -12,7 +12,9 @@ import lombok.Setter;
 
 /**
  * Step 6: one ticket as the body of POST companies(id)/salesOrders, the header and its lines (salesOrderLines, a
- * contained navigation property: inserted in the same POST). orderStatus is never sent: Business Central sets it.
+ * contained navigation property: inserted in the same POST). orderStatus is never sent: Business Central sets it; nor
+ * amountIncludingVAT, header or line: Business Central computes it (sent, it answers HTTP 400 "Control
+ * 'amountIncludingVAT' is read-only"), and answers the header's (ParafendriSalesOrderRow).
  */
 @Getter
 @Setter
@@ -33,8 +35,6 @@ public class ParafendriSalesOrder {
 	private String postingDate;
 	@JsonProperty("ticketAmount")
 	private BigDecimal ticketAmount;
-	@JsonProperty("amountIncludingVAT")
-	private BigDecimal amountIncludingVAT;
 	@JsonProperty("discountPercent")
 	private BigDecimal discountPercent;
 	@JsonProperty("invoiceDiscountAmount")
@@ -64,7 +64,5 @@ public class ParafendriSalesOrder {
 		private BigDecimal lineDiscountPercent;
 		@JsonProperty("promotionNo")
 		private String promotionNo;
-		@JsonProperty("amountIncludingVAT")
-		private BigDecimal amountIncludingVAT;
 	}
 }
