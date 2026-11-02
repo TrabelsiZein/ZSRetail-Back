@@ -2,6 +2,7 @@ package com.digithink.zsretail.core.controller;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.dto.AdjustCostRequestDTO;
+import com.digithink.zsretail.core.dto.ItemStockMovementDTO;
 import com.digithink.zsretail.core.dto.AdjustStockRequestDTO;
 import com.digithink.zsretail.core.dto.ItemLookupLineDTO;
 import com.digithink.zsretail.core.dto.PosLevelDTO;
@@ -35,10 +37,13 @@ import com.digithink.zsretail.core.dto.PricingResult;
 import com.digithink.zsretail.core.dto.QuickProductRequestDTO;
 import com.digithink.zsretail.core.model.Customer;
 import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.StockMovement;
 import com.digithink.zsretail.core.model.ItemBarcode;
 import com.digithink.zsretail.core.model.ItemComposition;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
+import com.digithink.zsretail.core.model.enumeration.StockMovementType;
 import com.digithink.zsretail.core.repository.CustomerRepository;
+import com.digithink.zsretail.core.repository.StockMovementRepository;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.CatalogueCodeChangeException;
 import com.digithink.zsretail.core.service.CatalogueCodeTooLongException;
@@ -90,6 +95,10 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	/** CMP: the user and the right of "Ajuster le CMP". */
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
+
+	/** 3.1.2, the item card: the item's last stock movements. */
+	@Autowired
+	private StockMovementRepository stockMovementRepository;
 
 	@Autowired
 	private PosCatalogueService posCatalogue;
@@ -672,6 +681,55 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			log.error("ItemAPI::adjustCost:error: " + e.getMessage(), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
 		}
+	}
+
+	/** 3.1.2: the right to see the line costs of a ticket (the same value as the store's SalesHeaderAPI.MARGINS_PERMISSION). */
+	public static final String MARGINS_PERMISSION = "read:admin-margins";
+
+	/** 3.1.2, the item card: movements read at most. */
+	public static final int MOVEMENTS_MAX = 100;
+
+	/**
+	 * 3.1.2, the item card's Stock tab: GET /item/{id}/stock-movements?size (20 by default, at most 100), the item's last
+	 * stock movements, newest first. The unit prices and the CMP adjustments (COST_ADJUSTMENT, its notes name the costs)
+	 * only for a role with write:admin-item-cost or read:admin-margins; without one, those rows are left out and every
+	 * unitPriceHt is null. An empty list for an item without movement (or unknown).
+	 */
+	@GetMapping("/{id}/stock-movements")
+	public ResponseEntity<List<ItemStockMovementDTO>> stockMovements(@PathVariable Long id,
+			@RequestParam(name = "size", defaultValue = "20") int size) {
+		int read = Math.min(Math.max(size, 1), MOVEMENTS_MAX);
+		return ResponseEntity.ok(movementsOf(stockMovementRepository.findByItem_IdOrderByIdDesc(id, PageRequest.of(0, read)),
+				mayReadCosts(currentUserProvider)));
+	}
+
+	/** A role that may see costs: "Ajuster le CMP" or the ticket line costs. */
+	static boolean mayReadCosts(CurrentUserProvider users) {
+		return users != null && (users.currentUserHasPermission(ADJUST_COST_PERMISSION)
+				|| users.currentUserHasPermission(MARGINS_PERMISSION));
+	}
+
+	/** The movements as the card shows them; without the cost right no price and no CMP adjustment. */
+	static List<ItemStockMovementDTO> movementsOf(List<StockMovement> movements, boolean withCosts) {
+		List<ItemStockMovementDTO> rows = new ArrayList<>();
+		for (StockMovement movement : movements) {
+			if (!withCosts && movement.getMovementType() == StockMovementType.COST_ADJUSTMENT) {
+				continue;
+			}
+			ItemStockMovementDTO row = new ItemStockMovementDTO();
+			row.setId(movement.getId());
+			row.setDate(movement.getCreatedAt());
+			row.setType(movement.getMovementType() == null ? null : movement.getMovementType().name());
+			row.setDirection(movement.getDirection() == null ? null : movement.getDirection().name());
+			row.setQuantity(movement.getQuantity());
+			row.setUnitPriceHt(withCosts ? movement.getUnitPriceHt() : null);
+			row.setReferenceType(movement.getReferenceType());
+			row.setReferenceId(movement.getReferenceId());
+			row.setNotes(movement.getNotes());
+			row.setCreatedBy(movement.getCreatedBy());
+			rows.add(row);
+		}
+		return rows;
 	}
 
 	/**
