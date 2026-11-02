@@ -130,9 +130,14 @@ public class ReportService {
         long withoutCost;
         long withoutPrice;
         long atCurrentCmp;
+        long count;
+        long low;
+        long out;
         Double cost;
         Double price;
         BigDecimal vat;
+        String family;
+        String subFamily;
 
         StockAt(String label, String code) {
             this.label = label;
@@ -174,6 +179,13 @@ public class ReportService {
             StockAt row = rows.computeIfAbsent(groupKey(groupBy, r, id), k -> newRow(groupBy, r, cmp, price, vat));
             row.qty = row.qty.add(qty);
             row.min += min;
+            row.count++;
+            String status = stockStatus(qty, min);
+            if ("LOW".equals(status)) {
+                row.low++;
+            } else if ("OUT".equals(status) || "NEGATIVE".equals(status)) {
+                row.out++;
+            }
             if (qty.signum() == 0) {
                 continue; // a stock of 0 is worth 0, with or without a cost or a price
             }
@@ -212,7 +224,12 @@ public class ReportService {
                 dto.setCostPriceTtc(row.cost == null ? null : rounded(BigDecimal.valueOf(row.cost).multiply(row.vat)));
                 dto.setUnitPrice(row.price);
                 dto.setUnitPriceTtc(row.price == null ? null : rounded(BigDecimal.valueOf(row.price).multiply(row.vat)));
+                dto.setFamilyName(row.family);
+                dto.setSubFamilyName(row.subFamily);
             }
+            dto.setItemCount(row.count);
+            dto.setItemsLow(row.low);
+            dto.setItemsOut(row.out);
             dto.setItemsWithoutCost(row.withoutCost > 0 ? row.withoutCost : null);
             dto.setItemsWithoutPrice(row.withoutPrice > 0 ? row.withoutPrice : null);
             dto.setItemsAtCurrentCmp(row.atCurrentCmp > 0 ? row.atCurrentCmp : null);
@@ -254,6 +271,8 @@ public class ReportService {
                 item.cost = cmp;
                 item.price = price;
                 item.vat = vat;
+                item.family = r[6] == null ? null : str(r[6]);
+                item.subFamily = r[7] == null ? null : str(r[7]);
                 return item;
             }
         }

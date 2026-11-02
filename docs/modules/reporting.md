@@ -14,7 +14,7 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
 **Methods:**
 - `getSalesReport(dateFrom, dateTo, groupBy)` — aggregates sales headers by DAY/MONTH/YEAR; returns `SalesReportRowDTO { label, totalHt, totalTtc, nbTickets }`
 - `getPurchaseReport(dateFrom, dateTo, groupBy)` — aggregates purchase headers; returns `PurchaseReportRowDTO { label, totalTtc, nbPurchases }`
-- `getStockReport(groupBy, filter, date)` (3.1.2) — the stock now (no date, or today) or at the end of a past day, per item, family, sub-family, category or section, with the filters of `StockReportFilter`; `getStockReport(groupBy, belowMinStock[, date])` delegate to it. Returns `StockReportRowDTO { groupLabel, itemCode, currentQty, minStockLevel, stockValue, stockValueTtc, sellingValue, sellingValueTtc, status, costPrice, costPriceTtc, unitPrice, unitPriceTtc, itemsWithoutCost, itemsWithoutPrice, itemsAtCurrentCmp }` (the prices on an item row only; the three counts absent when none). See "Stock report" below.
+- `getStockReport(groupBy, filter, date)` (3.1.2) — the stock now (no date, or today) or at the end of a past day, per item, family, sub-family, category or section, with the filters of `StockReportFilter`; `getStockReport(groupBy, belowMinStock[, date])` delegate to it. Returns `StockReportRowDTO { groupLabel, itemCode, currentQty, minStockLevel, stockValue, stockValueTtc, sellingValue, sellingValueTtc, status, costPrice, costPriceTtc, unitPrice, unitPriceTtc, itemsWithoutCost, itemsWithoutPrice, itemsAtCurrentCmp, itemCount, itemsLow, itemsOut, familyName, subFamilyName }` (the prices and the two names on an item row only; the first three counts absent when none, the other three always sent). See "Stock report" below.
 - `getStockMovementsReport(dateFrom, dateTo, groupBy)` — stock in/out by label; returns `StockMovementsReportRowDTO { label, qtyIn, qtyOut }`
 - `getLoyaltyReport(dateFrom, dateTo, groupBy)` — loyalty points earned/redeemed; returns `LoyaltyReportRowDTO { label, pointsEarned, pointsRedeemed }`
 - `getSessionReport(dateFrom, dateTo, groupBy)` — session totals; returns `SessionReportRowDTO { label, totalAmount, nbSessions }`
@@ -38,7 +38,7 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
 
 - Stock report status (`ReportService.stockStatus`, 3.1.0, test log I-52): `NEGATIVE` below 0 (a data problem: a
   missing BL, a wrong count), `OUT` at 0, `LOW` below the minimum, else `OK`; the page shows a negative quantity in red,
-  and its "Out of stock" card counts the items at 0 only.
+  and its "Out of stock" card counted the items at 0 only (3.1.2 rebuild: "Rupture / négatif", `itemsOut`, both).
 - **Stock report** (3.1.2, `GET /report/stock`, `ReportService.getStockReport`; the page's "Valeur au", today by
   default). **One path in Java for now and a past date** (the rebuild of 3.1.2): the items query `STOCK_ITEMS` with the
   filters, the rows grouped in Java in its order. Now: qty = the stock now, CMP = `costPrice`, one query, no movement
@@ -73,6 +73,10 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
     both cost values null; without a `unitPrice` and with a stock: both selling values null, the item counted in
     `itemsWithoutPrice`; each left out of its group's sums. **Rounding**: computed per item in BigDecimal, the row's
     values (and an item row's two Ttc prices) rounded once at the end to 3 decimals, half up; the prices sent as stored.
+  - **Counts and names**: every row sends `itemCount` (its items the filters kept; an item row 1), `itemsLow` (status
+    `LOW`) and `itemsOut` (`OUT` or `NEGATIVE`), each item by its own status at the date, so the page's totals add up in
+    every grouping (a group row's status, from its sums, can be `OK` with low items in it). An item row also sends
+    `familyName` and `subFamilyName` (null when none). Same loop, no new query.
   - **Now** (no date, or today's): one query.
   - **A past day D** (before today; 400 after today, 400 where the installation keeps no stock of its own): at the end
     of D (movements and cost changes from D + 1 at 00:00 are after). **qty(D)** = the stock now minus the movements
@@ -98,6 +102,21 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
     SECTION now, the filters in both paths, the status before the grouping), `ReportStockDateTest` (the 400s, the
     filter handed, an unknown status), `DecimalSafetyNetTest` (the decimal stock), `tools/stock-report-check.mjs` (the
     page's rules).
+  - **The page** (3.1.2 rebuild, `views/admin/reports/StockReport.vue`, same route, permission and menu entry; no chart,
+    no "Load report" button): `AdminListPage` (the admin banner, subtitle "Stock actuel" or "Stock au jj/mm/aaaa" of
+    the rows shown; the collapsible filters; the table card). Filters as Item cards: search (debounced 350 ms),
+    catégorie › famille › sous-famille › section with the choices of `GET /item-catalogue/filters` on a store,
+    `GET /admin/headoffice/item-catalogue/filters` on a head office (read once; catégorie and section only where the
+    installation has the level, `levelFilters`; famille only with `hasFamilies`), status (any of the five; "Sans
+    coût" only with the right below), the date where the installation keeps its own stock (max today). Each change
+    reloads (an older answer dropped) and is kept in the address (`q`, `family`, `subFamily`, `category`, `section`,
+    `status`, `date`, `groupBy`). Grouping buttons Article / Famille / Sous-famille / Catégorie / Section (the last two
+    as their filters). Totals strip: the sums of every row loaded (`itemCount`, `itemsLow`, `itemsOut`, the four
+    values, the three counts). Table: every column sortable, 50 a page; "—" with its reason for a null value. **The CMP
+    and the cost values** (columns, totals, the "Sans coût" status, Excel) only with `read:admin-margins`, in the page
+    only: the API sends them to every role, as the project's rule (no role check in the API). Excel: every row, the
+    columns of the grouping, empty cells for "—", `stock-<date>.xlsx`. Print: every row in a print-only table rendered
+    while printing, without filters, pages or buttons. Rules in `libs/stock-report.js`.
 - Statistics KPI deltas (`AnalyticsService.computeDeltaPercent`, 3.1.0, test log I-51): null when the previous period
   is 0 (no comparison); the page shows "—" in grey instead of a green "▲ 0.00%".
 - **Statistics margin** (3.1.2, `GET /admin/analytics/summary`): `margin`, `marginRate`, `linesWithoutCost`, the
@@ -127,7 +146,7 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
 
 ### Frontend — Report Pages
 
-**Common pattern for all 6 time-based reports (SalesReport, PurchaseReport, StockMovementsReport, LoyaltyReport, SessionReport, StockReport):**
+**Common pattern for the 5 time-based reports (SalesReport, PurchaseReport, StockMovementsReport, LoyaltyReport, SessionReport; StockReport since its 3.1.2 rebuild: "Stock report" above):**
 
 **Data / State:**
 - `currentPage: 1`, `perPage: 50`, `chartType: 'bar'`, `sortBy: 'value_desc'`
@@ -143,7 +162,6 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
 **Chart type switching:**
 - `chartType` prop drives `<vue-apex-charts :type="chartType">`.
 - Extra chart options for line/area: `stroke: { curve: 'smooth', width: 2 }`, `fill: { type: 'gradient' }`.
-- StockReport special case: `plotOptions: chartType === 'bar' ? { bar: { horizontal: true } } : {}` (was horizontal-only; now regular bar/line/area when type changes).
 
 **Toolbar (between summary cards and chart):**
 - `BButtonGroup` with Bar/Line/Area toggle buttons.

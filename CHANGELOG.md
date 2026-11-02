@@ -46,6 +46,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   statuses `LOW`, `OUT`, `NEGATIVE` of each item**: an item at 0 with no minimum is listed (it was not), and a family
   row sums only its items below the minimum (it compared its summed qty with its summed minimum)
   (`docs/modules/reporting.md`, "Stock report").
+- Stock report rows: `itemCount`, `itemsLow` and `itemsOut` (`OUT` or `NEGATIVE`) on every row, the items the filters
+  kept counted by their own status at the date (an item row: 1 and its own); `familyName` and `subFamilyName` on an item
+  row. Read in the same loop, no new query (for the page's items column and totals in every grouping).
 - Cost history of the items: table `item_cost_history`, one row per change of an item's CMP (date, old and new cost,
   source, document type and number, the entry's quantity and unit cost, the user's name), written in the transaction of
   the change: a local purchase (`LOCAL_PURCHASE`), an ERP invoice received (`INVOICE_RECEPTION`), a BL with its head

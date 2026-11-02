@@ -53,6 +53,15 @@ public class StockReportRowDTO {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Long itemsWithoutPrice;
 
+    /** The items of the row (an item row: 1), and among them those LOW and those OUT or NEGATIVE, by their own status. */
+    private long itemCount;
+    private long itemsLow;
+    private long itemsOut;
+
+    /** Item row only: its family and sub-family names; null when none. */
+    private String familyName;
+    private String subFamilyName;
+
     public StockReportRowDTO(String groupLabel, String itemCode, BigDecimal currentQty, Long minStockLevel,
             Double stockValue, String status) {
         this.groupLabel = groupLabel;

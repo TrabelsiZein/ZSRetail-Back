@@ -330,6 +330,29 @@ class StockValueAtDateTest {
 				"any of the statuses");
 	}
 
+	@Test
+	@DisplayName("Counts and names at D: a row's items, low and out (out or negative) by their own status; an item's family")
+	void countsAndNamesAtDate() {
+		Map<String, StockReportRowDTO> family = byLabel(reports.getStockReport("FAMILY", false, D));
+		StockReportRowDTO parfums = family.get("Parfums");
+		assertEquals(2, parfums.getItemCount());
+		assertEquals(1, parfums.getItemsLow(), "Alpha 7 below 10 at D");
+		assertEquals(0, parfums.getItemsOut());
+		StockReportRowDTO soins = family.get("Soins");
+		assertEquals(3, soins.getItemCount());
+		assertEquals(0, soins.getItemsLow());
+		assertEquals(2, soins.getItemsOut(), "Nouveau 0 at D and Zulu 0");
+		assertNull(soins.getFamilyName(), "no names on a group row");
+
+		Map<String, StockReportRowDTO> item = byLabel(reports.getStockReport("ITEM", false, D));
+		assertEquals("Parfums", item.get("Alpha").getFamilyName());
+		assertNull(item.get("Alpha").getSubFamilyName());
+		assertEquals(1, item.get("Alpha").getItemCount());
+		assertEquals(1, item.get("Alpha").getItemsLow());
+		assertEquals(1, item.get("Zulu").getItemsOut());
+		assertNull(item.get("Echo").getFamilyName());
+	}
+
 	private static StockReportFilter status(String... statuses) {
 		StockReportFilter filter = new StockReportFilter();
 		filter.getStatuses().addAll(Arrays.asList(statuses));
