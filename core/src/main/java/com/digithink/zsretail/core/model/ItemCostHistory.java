@@ -75,4 +75,10 @@ public class ItemCostHistory {
 	/** The user's name, or the writer of a change without one (HEAD_OFFICE, Import). */
 	@Column(name = "changed_by", length = 100)
 	private String changedBy;
+
+	/** The reason typed for a change by hand ("Ajuster le CMP", MANUAL), cut to 500; null for the others. */
+	@Column(length = NOTE_LENGTH)
+	private String note;
+
+	public static final int NOTE_LENGTH = 500;
 }

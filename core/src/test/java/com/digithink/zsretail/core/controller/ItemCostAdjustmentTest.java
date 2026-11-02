@@ -41,7 +41,8 @@ import com.digithink.zsretail.core.support.TestModes;
  * decimals, and writes one COST_ADJUSTMENT movement (quantity 0, the new CMP, "CMP old → new : reason", the user); it
  * answers 403 without the right write:admin-item-cost (checked here, not only in the menu) and where the installation
  * keeps no stock of its own, 400 for a missing reason or a bad cost. Real ItemAPI, ItemService, StockService and
- * StockMovementService over in-memory tables. 3.1.2: the change in the cost history (MANUAL, old and new, the user), and
+ * StockMovementService over in-memory tables. 3.1.2: the change in the cost history (MANUAL, old and new, the user, the
+ * reason as its note), and
  * GET /item/{id}/cost-history: 403 without a cost right (write:admin-item-cost or read:admin-margins) or where the
  * installation keeps no stock of its own, else the item's changes newest first.
  */
@@ -154,6 +155,7 @@ class ItemCostAdjustmentTest {
 		assertEquals(8.123, row.getNewCost());
 		assertEquals("admin", row.getChangedBy());
 		assertNull(row.getDocumentNumber());
+		assertEquals("Inventaire annuel", row.getNote(), "the reason typed, as the movement's");
 	}
 
 	@Test
@@ -202,6 +204,18 @@ class ItemCostAdjustmentTest {
 		assertEquals(200, api(TestModes.standalone()).adjustCost(item.getId(), request(9.0, "Contrôle")).getStatusCodeValue());
 		assertEquals(1, stock.movements.size());
 		assertTrue(stock.costHistory.isEmpty());
+	}
+
+	@Test
+	@DisplayName("Cost history: a reason longer than the note column is cut to 500")
+	void longReasonCut() throws Exception {
+		StringBuilder reason = new StringBuilder();
+		while (reason.length() < 600) {
+			reason.append("Recalcul ");
+		}
+		assertEquals(200, api(TestModes.standalone()).adjustCost(item.getId(), request(8.0, reason.toString()))
+				.getStatusCodeValue());
+		assertEquals(ItemCostHistory.NOTE_LENGTH, stock.costHistory.get(0).getNote().length());
 	}
 
 	@Test

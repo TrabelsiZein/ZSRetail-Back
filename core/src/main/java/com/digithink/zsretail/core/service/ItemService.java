@@ -215,7 +215,7 @@ public class ItemService extends _BaseService<Item, Long> {
 		itemRepository.setCostPrice(itemId, newCost, user);
 		stockMovementService.recordCostAdjustment(itemId, before, newCost, reason, user);
 		costHistoryService.record(itemId, before, newCost, null, newCost,
-				CostHistoryService.Origin.of(CostChangeSource.MANUAL, user));
+				CostHistoryService.Origin.of(CostChangeSource.MANUAL, user).withNote(reason));
 		return before;
 	}
 

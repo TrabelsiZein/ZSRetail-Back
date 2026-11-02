@@ -30,27 +30,37 @@ public class CostHistoryService {
 	@Autowired
 	private ItemCostHistoryRepository repository;
 
-	/** What changed the cost: its source, its document (type and number, or none) and who. */
+	/** What changed the cost: its source, its document (type and number, or none), who, and a note (a reason). */
 	public static final class Origin {
 		final CostChangeSource source;
 		final String documentType;
 		final String documentNumber;
 		final String changedBy;
+		final String note;
 
-		private Origin(CostChangeSource source, String documentType, String documentNumber, String changedBy) {
+		private Origin(CostChangeSource source, String documentType, String documentNumber, String changedBy,
+				String note) {
 			this.source = source;
 			this.documentType = documentType;
 			this.documentNumber = documentNumber;
 			this.changedBy = changedBy;
+			this.note = note;
 		}
 
 		public static Origin of(CostChangeSource source, String documentType, String documentNumber, String changedBy) {
-			return new Origin(source, documentType, documentNumber, changedBy);
+			return new Origin(source, documentType, documentNumber, changedBy, null);
 		}
 
 		/** A change without a document: by hand, an import, a creation. */
 		public static Origin of(CostChangeSource source, String changedBy) {
-			return new Origin(source, null, null, changedBy);
+			return new Origin(source, null, null, changedBy, null);
+		}
+
+		/** The same origin with a note: the reason of a change by hand, cut to ItemCostHistory.NOTE_LENGTH. */
+		public Origin withNote(String note) {
+			String cut = note == null || note.length() <= ItemCostHistory.NOTE_LENGTH ? note
+					: note.substring(0, ItemCostHistory.NOTE_LENGTH);
+			return new Origin(source, documentType, documentNumber, changedBy, cut);
 		}
 	}
 
@@ -74,6 +84,7 @@ public class CostHistoryService {
 		row.setQtyIn(qtyIn);
 		row.setUnitCostIn(unitCostIn);
 		row.setChangedBy(origin.changedBy);
+		row.setNote(origin.note);
 		repository.save(row);
 		log.debug("Cost history: itemId={} {} -> {} ({})", itemId, oldCost, newCost, origin.source);
 	}

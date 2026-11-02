@@ -89,6 +89,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   or delays the start.
 
 ### Enhancements
+- Cost history: the reason typed in "Ajuster le CMP" is kept on its row (`item_cost_history.note`, varchar(500), cut
+  there; null for the other sources) and sent with `GET /item/{id}/cost-history`.
 - Stock report: items without cost are no longer valued at 0. An item without CMP and with a stock other than 0 has
   `stockValue` null (was 0) and `itemsWithoutCost` 1; a family or sub-family row counts its items without cost
   (`itemsWithoutCost`), its value the sum of the others as before. Today's queries are unchanged, one more query finds
@@ -195,6 +197,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   (the head office keeps points de stock: catalogue only from the ERP and a connector with `HEAD_OFFICE_STOCK_POINTS`).
 
 ### DB script (`db/3.1.2/sales-line-unit-cost.sql` and `db/3.1.2/item-cost-history.sql`, then `db/3.1.2/update.sql`, store and head office, on a database at 3.1.1)
+- `item-cost-history.sql`: column `item_cost_history.note` varchar(500) NULL, in the table and added when missing (a
+  database that ran the script before it; a start adds it too).
 - `item-cost-history.sql`: table `item_cost_history` (no foreign key to `item`) and its index `ix_item_cost_history_item`
   `(item_id, changed_at)`, each created when missing (a start creates them too); empty at the start. `update.sql` stops
   while the table is missing.

@@ -12,6 +12,8 @@
 -- ix_item_cost_history_item (item_id, changed_at) serves the card's history and the CMP of a past day. Empty at the
 -- start: the stock value of a day before 3.1.2 takes the CMP of the item's first change, else its CMP now.
 --
+-- note: the reason typed in "Ajuster le CMP" (MANUAL rows), null for the others.
+--
 -- Re-runnable: each object only when missing; no data changed.
 
 -- The session options are set here (sqlcmd starts with QUOTED_IDENTIFIER OFF); SSMS has them on already.
@@ -49,9 +51,15 @@ BEGIN
 		qty_in numeric(18,3) NULL,
 		unit_cost_in float NULL,
 		changed_by varchar(100) NULL,
+		note varchar(500) NULL,
 		CONSTRAINT PK_item_cost_history PRIMARY KEY (id)
 	);
 END
+GO
+
+-- The reason of a change by hand ("Ajuster le CMP"), added when missing: a database that ran this script before it
+IF OBJECT_ID(N'item_cost_history', N'U') IS NOT NULL AND COL_LENGTH(N'item_cost_history', N'note') IS NULL
+	ALTER TABLE item_cost_history ADD note varchar(500) NULL;
 GO
 
 IF OBJECT_ID(N'item_cost_history', N'U') IS NOT NULL
