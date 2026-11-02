@@ -3,8 +3,6 @@ package com.digithink.zsretail.headoffice.repository;
 import java.util.Collection;
 import java.util.List;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -95,56 +93,41 @@ public interface HoStockPointItemRepository extends _BaseRepository<HoStockPoint
 			+ " and i.navItemNo in :navItemNos and (r.active is null or r.active = true)"
 			+ " and (p.active is null or p.active = true) group by i.navItemNo";
 
-	/** Step 11a: [item id, point id, unit price, active, clearance, clearance price] of every row of these items. */
-	String ROWS_OF_ITEMS = "select r.itemId, r.stockPointId, r.unitPrice, r.active, r.clearance, r.clearancePrice"
-			+ " from HoStockPointItem r where r.itemId in :itemIds";
+	/**
+	 * Step 11a: [item id, point id, unit price, active, clearance, clearance price] of every row of these items; 3.1.1
+	 * (the Item cards' Stock points tab), then [row name, row description, row family code, row sub-family code, item
+	 * name, item description, item family code, item sub-family code].
+	 */
+	String ROWS_OF_ITEMS = "select r.itemId, r.stockPointId, r.unitPrice, r.active, r.clearance, r.clearancePrice,"
+			+ " r.name, r.description, r.familyCode, r.subFamilyCode, i.name, i.description, f.code, sf.code"
+			+ " from HoStockPointItem r, Item i left join i.itemFamily f left join i.itemSubFamily sf"
+			+ " where i.id = r.itemId and r.itemId in :itemIds";
 
 	@Query(NAV_ITEM_POINT_COUNTS)
 	List<Object[]> countActivePointsOfNavItems(@Param("navItemNos") Collection<String> navItemNos);
 
+	/**
+	 * 3.1.1, Item cards list with a point chosen: [NAV item number, item id, item active, item VAT, row price, row active,
+	 * clearance, clearance price] of the rows at the point of these NAV items' variants (POINT_ROWS_OF_ITEMS: of these
+	 * items); the service applies the statuses and the clearance rule (HoItemCatalogueService.pointPrices).
+	 */
+	String POINT_ROWS_SELECT = "select i.navItemNo, i.id, i.active, i.defaultVAT, r.unitPrice, r.active, r.clearance,"
+			+ " r.clearancePrice from HoStockPointItem r, Item i where i.id = r.itemId and r.stockPointId = :pointId";
+
+	String POINT_ROWS_OF_NAV_ITEMS = POINT_ROWS_SELECT + " and i.navItemNo in :navItemNos";
+
+	String POINT_ROWS_OF_ITEMS = POINT_ROWS_SELECT + " and i.id in :itemIds";
+
+	@Query(POINT_ROWS_OF_NAV_ITEMS)
+	List<Object[]> findPointRowsOfNavItems(@Param("pointId") Long pointId,
+			@Param("navItemNos") Collection<String> navItemNos);
+
+	@Query(POINT_ROWS_OF_ITEMS)
+	List<Object[]> findPointRowsOfItems(@Param("pointId") Long pointId, @Param("itemIds") Collection<Long> itemIds);
+
 	@Query(ROWS_OF_ITEMS)
 	List<Object[]> findRowsOfItems(@Param("itemIds") Collection<Long> itemIds);
 
-	String ROWS_FROM = " from HoStockPointItem r, Item i, HoStockPoint p";
-
-	/** Every filter but the search; a null filter is not applied (each test reads the row itself: cheap). */
-	String ROWS_WHERE = " where r.itemId = i.id and p.id = r.stockPointId"
-			+ " and (:pointId is null or r.stockPointId = :pointId)"
-			+ " and (:familyCode is null or r.familyCode = :familyCode)"
-			+ " and (:subFamilyCode is null or r.subFamilyCode = :subFamilyCode)"
-			+ " and (:priceMin is null or r.unitPrice >= :priceMin) and (:priceMax is null or r.unitPrice <= :priceMax)"
-			+ " and (:active is null or r.active = :active)";
-
-	/**
-	 * The search, only in the query of a search: the item code, the row's name or a barcode of the item. Written as
-	 * ":search is null or ... exists" in one query, SQL Server could plan the exists for every row even without a search
-	 * (a scan of item_barcode per row: minutes on 21,903 rows, ZEN's test head office).
-	 */
-	String ROWS_SEARCH = " and (lower(i.itemCode) like :search or lower(r.name) like :search"
-			+ " or exists (select b.id from ItemBarcode b where b.item.id = i.id and lower(b.barcode) like :search))";
-
-	String ROWS_ORDER = " order by p.sortOrder, i.itemCode";
-
-	String ROWS = "select r, i, p" + ROWS_FROM + ROWS_WHERE + ROWS_ORDER;
-	String ROWS_COUNT = "select count(r)" + ROWS_FROM + ROWS_WHERE;
-	String ROWS_SEARCHED = "select r, i, p" + ROWS_FROM + ROWS_WHERE + ROWS_SEARCH + ROWS_ORDER;
-	String ROWS_SEARCHED_COUNT = "select count(r)" + ROWS_FROM + ROWS_WHERE + ROWS_SEARCH;
-
-	/**
-	 * Step 4, page "Items by point de stock", no search: [row, item, point] by point (list order) then item code; every
-	 * filter null = not filtered.
-	 */
-	@Query(value = ROWS, countQuery = ROWS_COUNT)
-	Page<Object[]> findRows(@Param("pointId") Long pointId, @Param("familyCode") String familyCode,
-			@Param("subFamilyCode") String subFamilyCode, @Param("priceMin") Double priceMin,
-			@Param("priceMax") Double priceMax, @Param("active") Boolean active, Pageable page);
-
-	/**
-	 * The same rows with a search: lower case with % already around it (item code, the row's name, a barcode).
-	 */
-	@Query(value = ROWS_SEARCHED, countQuery = ROWS_SEARCHED_COUNT)
-	Page<Object[]> findRowsSearched(@Param("pointId") Long pointId, @Param("search") String search,
-			@Param("familyCode") String familyCode, @Param("subFamilyCode") String subFamilyCode,
-			@Param("priceMin") Double priceMin, @Param("priceMax") Double priceMax, @Param("active") Boolean active,
-			Pageable page);
+	// 3.1.1: the two queries of the page "Items by point de stock" (findRows, findRowsSearched) are gone with the page;
+	// Item cards' point filter lists a point's rows (HoItemCatalogueQuery.stockPoint)
 }

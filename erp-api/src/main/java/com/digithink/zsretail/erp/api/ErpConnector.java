@@ -6,6 +6,7 @@ import java.util.Map;
 
 import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.api.dto.ErpDeletionLogEntryDTO;
+import com.digithink.zsretail.erp.api.dto.ErpInvoiceResult;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemCategoryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
@@ -154,8 +155,6 @@ public interface ErpConnector {
 		// Default: no-op
 	}
 
-	ErpOperationResult pushCustomer(ErpCustomerDTO customer);
-
 	ErpOperationResult pushTicket(ErpTicketDTO ticket);
 
 	/**
@@ -181,6 +180,17 @@ public interface ErpConnector {
 	/** Delegates to full signature with null billToName2 */
 	default ErpOperationResult updateTicketStatus(String externalReference, boolean posOrder, Boolean posInvoice, String fiscalRegistration) {
 		return updateTicketStatus(externalReference, posOrder, posInvoice, fiscalRegistration, null);
+	}
+
+	/**
+	 * 3.1.1 (ParaFendri, step 7): the invoice of a ticket already in the ERP (its document number, the external
+	 * reference), asked once the ticket was prepared for an invoice: the ERP's invoice number and its PDF. Part of
+	 * ErpAbility.WHOLE_TICKET_EXPORT (a connector posting tickets whole answers it); every other one throws {@link
+	 * ErpNotSupportedException} (EMTOP marks the invoice through updateTicketStatus).
+	 */
+	default ErpInvoiceResult requestInvoice(String externalReference, String fiscalRegistration,
+			String invoiceCustomerName) {
+		throw new ErpNotSupportedException("The ERP connector in effect does not make the tickets' invoices.");
 	}
 
 	/**

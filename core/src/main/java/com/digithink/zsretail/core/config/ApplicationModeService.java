@@ -12,6 +12,10 @@ import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.model.enumeration.DataOwner;
 import com.digithink.zsretail.core.model.enumeration.NodeType;
 import com.digithink.zsretail.core.model.enumeration.SalesUpstream;
+import com.digithink.zsretail.erp.api.ErpAbilities;
+import com.digithink.zsretail.erp.api.ErpAbility;
+import com.digithink.zsretail.erp.api.ErpConnectorDescriptor;
+import com.digithink.zsretail.erp.api.ErpConnectors;
 
 /**
  * Exposes the installation type, the owner of each data domain and where the sales go (head office design 2.1, 2.2),
@@ -42,6 +46,9 @@ public class ApplicationModeService {
 	/** A head office with headoffice.supply.source=ERP (NodeOwnership.isSupplyFromErpSourceSet); false on a store. */
 	private boolean supplyFromErpSource;
 
+	/** 3.1.1: a head office with headoffice.supply.source=NONE (NodeOwnership.isSupplyNoneSet); false on a store. */
+	private boolean supplyNone;
+
 	/** RFID step 2: a store with rfid.enabled=true (NodeOwnership.isRfidSet); false on a head office. */
 	private boolean rfidEnabled;
 
@@ -63,6 +70,7 @@ public class ApplicationModeService {
 		headOfficeWithoutStock = NodeOwnership.isHeadOfficeWithoutStockSet(environment);
 		// Invoices from the ERP: read on a head office only, like headoffice.stock.enabled
 		supplyFromErpSource = NodeOwnership.isSupplyFromErpSourceSet(environment);
+		supplyNone = NodeOwnership.isSupplyNoneSet(environment);
 		rfidEnabled = NodeOwnership.isRfidSet(environment);
 		storeOrdersByErp = NodeOwnership.isStoreOrdersByErpSet(environment);
 		storeOrders = NodeOwnership.isStoreOrdersSet(environment);
@@ -84,6 +92,16 @@ public class ApplicationModeService {
 		return storeOrdersByErp;
 	}
 
+	/**
+	 * 3.1.1: true when the ERP connector in effect posts a ticket whole (ErpAbility.WHOLE_TICKET_EXPORT); its returns and
+	 * sessions are not exported yet, so their jobs are seeded disabled (ZZDataInitializer).
+	 */
+	public boolean isWholeTicketExport() {
+		// The descriptor of the connector in effect (an unknown name is refused at startup; core's tests see none)
+		ErpConnectorDescriptor connector = ErpConnectors.descriptor(ErpAbilities.connectorInEffect(environment));
+		return connector != null && connector.abilities().contains(ErpAbility.WHOLE_TICKET_EXPORT);
+	}
+
 	/** RFID step 2: true on a store with rfid.enabled=true, the RFID beans exist (Installation.RFID). */
 	public boolean isRfidEnabled() {
 		return rfidEnabled;
@@ -94,6 +112,15 @@ public class ApplicationModeService {
 	 * stores' supply documents are the ERP's invoices; the head office makes no BL, supply price or supply invoice.
 	 * Always false on a store.
 	 */
+	/**
+	 * 3.1.1: true on a head office with headoffice.supply.source=NONE: it supplies no store (no BL, supply price, supply
+	 * invoice or network stock; a store with ownership.supply=HEAD_OFFICE is refused at its heartbeat). Always false on a
+	 * store.
+	 */
+	public boolean isSupplyNone() {
+		return supplyNone;
+	}
+
 	public boolean isSupplyFromErpSource() {
 		return supplyFromErpSource;
 	}
@@ -198,5 +225,19 @@ public class ApplicationModeService {
 	 */
 	public boolean isErpCatalogueOnly() {
 		return ownership.isErpCatalogueOnly();
+	}
+
+	/**
+	 * 3.1.1: a head office that keeps points de stock: its catalogue only comes from the ERP (isErpCatalogueOnly) and the
+	 * connector in effect has ErpAbility.HEAD_OFFICE_STOCK_POINTS, the two conditions of the Stock points API. Always
+	 * false on a store.
+	 */
+	public boolean isHeadOfficeStockPoints() {
+		if (!isErpCatalogueOnly()) {
+			return false;
+		}
+		// The descriptor of the connector in effect (an unknown name is refused at startup; core's tests see none)
+		ErpConnectorDescriptor connector = ErpConnectors.descriptor(ErpAbilities.connectorInEffect(environment));
+		return connector != null && connector.abilities().contains(ErpAbility.HEAD_OFFICE_STOCK_POINTS);
 	}
 }

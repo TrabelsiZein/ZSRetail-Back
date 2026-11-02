@@ -1,0 +1,8 @@
+{
+  "@odata.context": "http://bc.test:7048/BC280/api/sat/zsretail/v1.0/$metadata#companies(6b29fc40-ca47-1067-b31d-00dd010662da)/shipAndInvoice/$entity",
+  "@odata.etag": "W/\"JzE5OzUwMjsn\"",
+  "orderNo": "CV-000001",
+  "invoiceNo": "FV-000001",
+  "invoicePdfBase64": "JVBERi0xLjQKJVpTIFJldGFpbCB0ZXN0IGludm9pY2UgRlYtMDAwMDAxCiUlRU9GCg==",
+  "lastModifiedDateTime": "2026-11-01T09:30:12.447Z"
+}

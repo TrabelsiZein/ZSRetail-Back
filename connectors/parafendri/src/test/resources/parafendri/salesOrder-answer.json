@@ -1,0 +1,18 @@
+{
+  "@odata.context": "http://bc.test:7048/BC280/api/sat/zsretail/v1.0/$metadata#companies(6b29fc40-ca47-1067-b31d-00dd010662da)/salesOrders/$entity",
+  "@odata.etag": "W/\"JzE5OzUwMTsn\"",
+  "id": "c0ffee00-0001-f111-9a06-00155d66bd01",
+  "number": "CV-000001",
+  "ticketNo": "PV-GREMDA251031001",
+  "customerNo": "C-GREMDA",
+  "locationCode": "PV-GREMDA",
+  "orderDate": "2026-10-31",
+  "postingDate": "2026-10-31",
+  "ticketAmount": 58.983,
+  "amountIncludingVAT": 70,
+  "discountPercent": 4.10959,
+  "invoiceDiscountAmount": 0,
+  "invoiceDiscountPercent": 0,
+  "fenceNo": "SES-0042",
+  "orderStatus": "Entered"
+}

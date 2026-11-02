@@ -152,11 +152,6 @@ public class NavPosPagesConnector implements ErpConnector {
 	}
 
 	@Override
-	public ErpOperationResult pushCustomer(ErpCustomerDTO customer) {
-		return ErpOperationResult.failure(READ_ONLY);
-	}
-
-	@Override
 	public ErpOperationResult pushTicket(ErpTicketDTO ticket) {
 		return ErpOperationResult.failure(READ_ONLY);
 	}

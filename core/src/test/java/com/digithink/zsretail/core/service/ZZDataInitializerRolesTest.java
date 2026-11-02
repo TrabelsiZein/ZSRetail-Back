@@ -56,8 +56,7 @@ class ZZDataInitializerRolesTest {
 			"read:admin-headoffice-stock-movements", "read:admin-headoffice-deliveries",
 			"read:admin-headoffice-network-stock", "read:admin-headoffice-supply-prices",
 			"read:admin-headoffice-supply-invoices", "read:admin-headoffice-store-balances",
-			"read:admin-headoffice-erp-invoices", "read:admin-headoffice-stock-points",
-			"read:admin-headoffice-stock-point-items"));
+			"read:admin-headoffice-erp-invoices", "read:admin-headoffice-stock-points"));
 
 	// Mode of today's presets: without an ERP (store) or with one (store-erp); task 9.3
 	private static final boolean[][] STORE_PROFILES = {
@@ -410,7 +409,8 @@ class ZZDataInitializerRolesTest {
 
 	@Test
 	@DisplayName("Stores (standalone and ERP profiles, with and without headoffice.url) with existing roles: ADMIN receives the"
-			+ " Licence page and, without an ERP, the inventory count pages, once; nothing else; other roles untouched")
+			+ " Licence page, without an ERP the inventory count pages and (3.1.1) with headoffice.url the Head office pages,"
+			+ " once; nothing else; other roles untouched")
 	void storeExistingRolesUntouched() throws Exception {
 		MockEnvironment linked = new MockEnvironment()
 				.withProperty("headoffice.url", "http://localhost:888/zsretail/api")
@@ -426,6 +426,10 @@ class ZZDataInitializerRolesTest {
 				Set<String> expected = new HashSet<>(java.util.Arrays.asList("read:home", LICENSE));
 				if (flags[0]) {
 					expected.addAll(INVENTORY);
+				}
+				if (linkedStore) {
+					// 3.1.1: the "Head office" pages, for a store linked after its database was created
+					expected.addAll(ZZDataInitializer.HEAD_OFFICE_LINK_ADMIN_PERMISSIONS);
 				}
 				assertEquals(Collections.singletonList("ADMIN"), saves);
 				assertEquals(expected, existing.get("ADMIN").getPermissions(), "nothing else added or removed");

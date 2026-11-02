@@ -211,11 +211,15 @@ public class HeadOfficeClient {
 
 	/**
 	 * POST /ho/heartbeat with the application version and (task 3.6) the owner of each domain and the sales upstreams,
-	 * as GET /config gives them.
+	 * as GET /config gives them. 3.1.1: a 409 with an {"error"} text is REFUSED with that text (a head office that
+	 * supplies no store refuses a store whose goods come from it), so the Communications log shows why.
 	 */
 	public HeadOfficeCallResult heartbeat() {
 		Answer<HeadOfficeHeartbeatAnswerDTO> answer = post(HEARTBEAT_PATH, heartbeatBody(),
 				HeadOfficeHeartbeatAnswerDTO.class);
+		if (answer.conflict != null) {
+			return HeadOfficeCallResult.failure(HeadOfficeLinkState.REFUSED, answer.conflict);
+		}
 		return answer.failure != null ? answer.failure
 				: HeadOfficeCallResult.online(answer.body.getServerTime(), answer.body.getCanEditMembers(),
 						answer.body.getCanAdjustPoints(), answer.body.getRedeemRequiresOnline(),
@@ -568,7 +572,8 @@ public class HeadOfficeClient {
 		} catch (JsonProcessingException e) {
 			return Answer.failed(HeadOfficeLinkState.ERROR, "request could not be written (" + cause(e) + ")");
 		} catch (RestClientResponseException e) {
-			return new Answer<>(null, fromStatus(e.getRawStatusCode()));
+			return new Answer<>(null, fromStatus(e.getRawStatusCode()),
+					e.getRawStatusCode() == 409 ? errorText(e.getResponseBodyAsString()) : null);
 		} catch (ResourceAccessException e) {
 			if (readTimeoutSeconds != null && isReadTimeout(e)) {
 				return Answer.failed(HeadOfficeLinkState.TIMEOUT, slowAnswer(readTimeoutSeconds));
@@ -599,15 +604,24 @@ public class HeadOfficeClient {
 		return !message.contains("connect");
 	}
 
-	/** The body of a 200 answer, or the failure; exactly one of the two is set. */
+	/**
+	 * The body of a 200 answer, or the failure; exactly one of the two is set. 3.1.1: with a 409, also the head office's
+	 * {"error"} text (null otherwise), read by the heartbeat only.
+	 */
 	private static final class Answer<T> {
 
 		final T body;
 		final HeadOfficeCallResult failure;
+		final String conflict;
 
 		Answer(T body, HeadOfficeCallResult failure) {
+			this(body, failure, null);
+		}
+
+		Answer(T body, HeadOfficeCallResult failure, String conflict) {
 			this.body = body;
 			this.failure = failure;
+			this.conflict = conflict;
 		}
 
 		static <T> Answer<T> failed(HeadOfficeLinkState state, String message) {

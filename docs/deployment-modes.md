@@ -73,11 +73,11 @@ application runs with its profile store only. ...`. `application.standalone` sta
 an old file that named the application's own type kept working; only the other type was refused.
 
 **ERP connector** (code cleanup step 1; since code cleanup step 8 the only way): one line chooses it,
-`erp.connector=none | emtop | happyness | zen` (trimmed, any case), in the installation's outside file. Absent or `none`: no
+`erp.connector=none | emtop | happyness | parafendri | zen` (trimmed, any case), in the installation's outside file. Absent or `none`: no
 connector. The conditions, the connectors and the startup summary read it (`ErpConnectorEnvironmentPostProcessor.inEffect`).
 `core/config/ErpConnectorEnvironmentPostProcessor` checks it once the configuration files are read: an unknown value
 (an empty `erp.connector=` included) stops the startup, `Invalid value '<v>' for property erp.connector: none | emtop |
-happyness | zen.`
+happyness | parafendri | zen.`
 
 **The old enabled lines are refused** (code cleanup step 8, decision of 2026-10-11): `erp.dynamicsnav.enabled` and
 `erp.navpospages.enabled`, found in any property source (the outside file, a configuration file, a `-D`, an environment
@@ -171,6 +171,7 @@ from the type file, a file states the mode lines that preset gave, so every key 
 | `happyness-from-scratch/headoffice.properties`, `store-1.properties`, `store-2.properties` | `headoffice`, `store` + the network lines | the Happyness franchise first set up on this PC (889, 557, 558), without the ERP catalogue |
 | `customers/happyness-headoffice.properties` | `headoffice` + the catalogue only from the ERP, `erp.connector=happyness`, invoices from the ERP, no stock | the Happyness head office (was `local/happyness_ho.properties`, its own PC file, until 2026-10-11; `configs/local` is no longer in the repository) |
 | `customers/zen-headoffice.properties`, `customers/zen-store.properties` (3.1.0, item variants step 10) | `headoffice` as the Happyness head office with `erp.connector=zen` (supply `HEAD_OFFICE` until the live test of step 9b; the real installation `ERP`), `store` + the network lines with `erp.connector=none` | the ZEN head office and a store of its network, placeholders (`CHANGE_ME`) |
+| `customers/parafendri-store.properties` (3.1.1, ParaFendri step 0) | `store` + the NAV lines with `erp.connector=parafendri`, `erp.sync.enabled=false` | a store of a ParaFendri point de vente, placeholders (`CHANGE_ME`) |
 
 "The NAV lines": catalogue, customers, supply `ERP`, sales to `ERP`, `erp.connector=emtop`. "The network lines": catalogue and supply
 `HEAD_OFFICE`, sales to `HEAD_OFFICE`.
@@ -331,6 +332,25 @@ connector zen (read only, GET): <address>, API <path>, company <name> (or `compa
 supply also `, invoices api/sat/franchise/v1.0 salesInvoices (lines ..., prefix FVE, 50 per year and run, seller ZEN)`);
 the installation summary shows `NAV <address>`.
 
+**The connector of ParaFendri's stores: `erp.parafendri.*`** (3.1.1, step 0; project connectors/parafendri; GET only).
+ParaFendri's Business Central 28 on-prem, its custom API `api/sat/zsretail/v1.0` (the family of ZEN's), NTLM; on the store
+of each of its points de vente as an EMTOP store (the NAV lines with `erp.connector=parafendri`), a head office later by
+configuration only. Step 0 is the settings and the connection test only: no job, no ability; `configs/customers/
+parafendri-store.properties` keeps `erp.sync.enabled=false`. The API path and the page names are the connector's own,
+not keys.
+
+| Key | Meaning | Default |
+|---|---|---|
+| `erp.parafendri.base-url` | The Business Central instance, e.g. `http://host:7048/BC280` (the API path and the company follow it); `http(s)`, a host, no query | required |
+| `erp.parafendri.company-id` | The company's id in the API (`companies(<id>)`), a GUID; `GET <base-url>/api/sat/zsretail/v1.0/companies` lists them | required |
+| `erp.parafendri.domain`, `.username`, `.password` | NTLM account (domain may be blank), given to the host of `base-url` only | username and password required |
+| `erp.parafendri.connect-timeout-seconds`, `.read-timeout-seconds` | At least 1 (EMTOP's values: a store connector) | `30`, `600` |
+
+Startup refusals with `erp.connector=parafendri` (the message names the key): a blank address, company id, username or
+password; an address that is not well formed; a company id that is not a GUID; a wrong timeout. No call to Business
+Central at startup. One INFO line: `ERP connector parafendri (read only, GET): <address>, API api/sat/zsretail/v1.0,
+company id <id>`; the installation summary shows `BC <address>`.
+
 **Step 9 questions** (tasks 9.1b to 9.1g): `isCatalogueFromErp()`, `isCustomersFromErp()`, `isSupplyFromErp()`, `hasErp()` (some
 owner is the ERP). With the ERP owning all or nothing they answer alike for every configuration that starts, except the
 head office above (`ModeQuestionTruthTableTest`: every variant, every outside file of `configs/`, and a grid
@@ -366,12 +386,18 @@ the "Connect a store" procedure: `docs/modules/head-office.md`, "Head office lin
   reads it. `GET /config` field `headOfficeStock`. See `docs/modules/head-office.md`, "Head office without stock".
 - **Supply source** (invoices from the ERP), head office only: `headoffice.supply.source`, `HEAD_OFFICE` (default: the head
   office makes the BLs, supply prices and supply invoices of its stores) or `ERP` (the stores' invoices are read from the
-  ERP by the connector navpospages; the head office makes no BL, supply price or supply invoice). Read on a head office
-  only, like `headoffice.stock.enabled`; a store never reads it. Startup refusals: a value other than `HEAD_OFFICE` or
-  `ERP` (blank included); `ERP` on a head office whose catalogue does not come from the ERP alone (without an ERP, or
-  with the ERP owning all three); `ERP` without a connector that has the ability `SUPPLY_INVOICES` (the message names
-  `erp.connector=happyness`). `GET /config` field `supplySource`
-  (`HEAD_OFFICE` or `ERP` on a head office, `null` on a store). See `docs/modules/head-office.md`, "Invoices from the ERP".
+  ERP by the connector navpospages; the head office makes no BL, supply price or supply invoice) or, 3.1.1, `NONE` (the
+  head office supplies no store: no BL, supply price, supply invoice, what the stores owe, network stock or
+  `/ho/supply/**`; a store with `ownership.supply=HEAD_OFFICE` is refused at its heartbeat). Read on a head office
+  only, like `headoffice.stock.enabled`; a store never reads it. Startup refusals: a value other than `HEAD_OFFICE`,
+  `ERP` or `NONE` (blank included, any case accepted); `ERP` on a head office whose catalogue does not come from the ERP
+  alone (without an ERP, or with the ERP owning all three); `ERP` without a connector that has the ability
+  `SUPPLY_INVOICES` (the message names `erp.connector=happyness`); `NONE` with `headoffice.stock.enabled` `true` or
+  absent (`Invalid combination: headoffice.supply.source=NONE with headoffice.stock.enabled=true (or absent). ...`);
+  `NONE` with `headoffice.storeorders.post` set (`Invalid combination: headoffice.supply.source=NONE with
+  headoffice.storeorders.post=MANUAL. ...`). `GET /config` field `supplySource` (`HEAD_OFFICE`, `ERP` or `NONE` on a
+  head office, `null` on a store). See `docs/modules/head-office.md`, "Invoices from the ERP" and "Head office that
+  supplies no store".
 - **Stores page threshold** (task 1.5), head office only: `headoffice.offline-after-seconds`, whole number, at least 1, default `180`. A store whose last heartbeat is older is shown OFFLINE (exactly at the threshold it is still ONLINE). A wrong value stops the head office at startup. See `docs/modules/head-office.md`, "Status".
 - **GET /config** (task 0.5) returns three more fields after the existing ones, enums as their names:
   - `nodeType`: `"STORE"` or `"HEAD_OFFICE"`.
@@ -405,10 +431,11 @@ own questions stay `@ConditionalOnErpAbility` and `@ConditionalOnErpConnector` (
 |---|---|---|
 | `HEAD_OFFICE` | This installation is a head office. | 23 (one a `@Bean` method) |
 | `HEAD_OFFICE_WITH_ERP` | A head office whose ERP owns the catalogue, the customers and the supply. | 2 |
-| `HEAD_OFFICE_WITHOUT_ERP` | A head office without an ERP, or whose catalogue only comes from the ERP. | 6 |
+| `HEAD_OFFICE_WITHOUT_ERP` | A head office without an ERP, or whose catalogue only comes from the ERP. | 3 (3.1.1: the network stock and `HeadOfficeSupplyAPI` moved to `HEAD_OFFICE_SUPPLIES_STORES`) |
 | `HEAD_OFFICE_ERP_CATALOGUE_ONLY` | A head office whose catalogue only comes from the ERP; it keeps its customers and its supply. | 6 |
 | `HEAD_OFFICE_OWN_SUPPLY` | A head office without an ERP, or with the catalogue only from the ERP, that makes the BLs and supply invoices of its stores itself. | 6 |
 | `HEAD_OFFICE_ERP_SUPPLY` | A head office with the catalogue only from the ERP whose stores' supply documents are the ERP's invoices. | 2 |
+| `HEAD_OFFICE_SUPPLIES_STORES` | A head office without an ERP, or with the catalogue only from the ERP, that supplies its stores (`headoffice.supply.source` `HEAD_OFFICE` or `ERP`, not `NONE`). 3.1.1 | 3 |
 | `HEAD_OFFICE_WITHOUT_STOCK` | A head office that keeps no stock and makes no purchases. | 1 |
 | `HEAD_OFFICE_STORE_ORDERS` | A head office that takes its stores' orders: `headoffice.storeorders.post` is MANUAL or ERP (`docs/modules/store-orders.md`). | 3 |
 | `HEAD_OFFICE_STORE_ORDERS_ERP` | A head office whose job posts its stores' orders into the ERP: `headoffice.storeorders.post=ERP`. | 1 |
@@ -422,5 +449,6 @@ own questions stay `@ConditionalOnErpAbility` and `@ConditionalOnErpConnector` (
 | `RFID` | A store that reads RFID tags: `rfid.enabled=true` (`docs/modules/rfid.md`). | 7 (and its 2 repositories) |
 
 Three answers combine `NodeOwnership` methods as the old conditions did: `HEAD_OFFICE` (`nodeTypeOf == HEAD_OFFICE`),
-`HEAD_OFFICE_OWN_SUPPLY` (without ERP and not supply from the ERP), `HEAD_OFFICE_ERP_SUPPLY` (catalogue only from the ERP
-and supply from the ERP). A new question is a new value with its sentence; never a new annotation.
+`HEAD_OFFICE_OWN_SUPPLY` (without ERP, not supply from the ERP and, 3.1.1, not NONE), `HEAD_OFFICE_ERP_SUPPLY`
+(catalogue only from the ERP and supply from the ERP), `HEAD_OFFICE_SUPPLIES_STORES` (3.1.1: without ERP and not NONE).
+A new question is a new value with its sentence; never a new annotation.

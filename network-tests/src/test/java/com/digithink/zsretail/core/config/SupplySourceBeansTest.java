@@ -49,8 +49,10 @@ import com.digithink.zsretail.support.Installations;
  * Invoices from the ERP, step (b): the two conditions on the real files (no context). @ConditionalOnInstallation(HEAD_OFFICE_OWN_SUPPLY)
  * keeps the BLs, supply prices and supply invoices on a head office without an ERP and on a catalogue-only head office;
  * @ConditionalOnInstallation(HEAD_OFFICE_ERP_SUPPLY) puts the ERP invoices on a catalogue-only head office with
- * headoffice.supply.source=ERP. The catalogue feed, the selling price lists, the network stock and HeadOfficeSupplyAPI
- * keep @ConditionalOnInstallation(HEAD_OFFICE_WITHOUT_ERP). Every DownDomainProvider of the code base is scanned: in every mode there is
+ * headoffice.supply.source=ERP. The catalogue feed and the selling price lists
+ * keep @ConditionalOnInstallation(HEAD_OFFICE_WITHOUT_ERP), the network stock and HeadOfficeSupplyAPI since 3.1.1
+ * @ConditionalOnInstallation(HEAD_OFFICE_SUPPLIES_STORES): with headoffice.supply.source=NONE none of the supply beans
+ * exists. Every DownDomainProvider of the code base is scanned: in every mode there is
  * exactly one of the domain SUPPLY where a head office supplies its stores, none on a store or on a head office whose ERP
  * owns all three (as before), and exactly one confirmation receiver beside HeadOfficeSupplyAPI.
  */
@@ -62,7 +64,11 @@ class SupplySourceBeansTest {
 	static final List<Class<?>> ERP_SUPPLY_BEANS = Arrays.asList(HoErpInvoiceService.class, HoErpInvoiceAPI.class);
 
 	static final List<Class<?>> KEPT_WITHOUT_ERP_BEANS = Arrays.asList(HoCatalogueService.class, HoPriceListService.class,
-			HoPriceListAPI.class, HoNetworkStockService.class, HoNetworkStockAPI.class, HeadOfficeSupplyAPI.class);
+			HoPriceListAPI.class);
+
+	/** 3.1.1: what a store sends up about its supply, and the network stock it feeds: not with NONE. */
+	static final List<Class<?>> SUPPLIES_STORES_BEANS = Arrays.asList(HoNetworkStockService.class, HoNetworkStockAPI.class,
+			HeadOfficeSupplyAPI.class);
 
 	private static MockEnvironment catalogueOnly() {
 		MockEnvironment env = Installations.type("headoffice");
@@ -77,6 +83,13 @@ class SupplySourceBeansTest {
 		return env;
 	}
 
+	/** 3.1.1: a head office that supplies no store (accepted only without stock). */
+	private static MockEnvironment none(MockEnvironment env) {
+		env.setProperty("headoffice.stock.enabled", "false");
+		env.setProperty("headoffice.supply.source", "NONE");
+		return env;
+	}
+
 	/** The modes, by name. */
 	private static Map<String, MockEnvironment> modes() {
 		Map<String, MockEnvironment> modes = new LinkedHashMap<>();
@@ -86,6 +99,8 @@ class SupplySourceBeansTest {
 		modes.put("head office whose ERP owns all three", Installations.machine("dev/headoffice-erp.properties"));
 		modes.put("head office, catalogue only from the ERP", catalogueOnly());
 		modes.put("head office, catalogue only from the ERP, supply source ERP", erpSupply());
+		modes.put("head office without an ERP, supply source NONE", none(Installations.type("headoffice")));
+		modes.put("head office, catalogue only from the ERP, supply source NONE", none(catalogueOnly()));
 		modes.put("Happyness head office (configs/customers)",
 				Installations.machine(ModeQuestionTruthTableTest.HAPPYNESS_HEAD_OFFICE));
 		modes.put("ZEN head office (configs/customers)", Installations.machine(Installations.ZEN_HEAD_OFFICE));
@@ -138,6 +153,8 @@ class SupplySourceBeansTest {
 		expected.put("head office whose ERP owns all three", "[]");
 		expected.put("head office, catalogue only from the ERP", "[HoDeliveryService]");
 		expected.put("head office, catalogue only from the ERP, supply source ERP", "[HoErpInvoiceService]");
+		expected.put("head office without an ERP, supply source NONE", "[]");
+		expected.put("head office, catalogue only from the ERP, supply source NONE", "[]");
 		expected.put("Happyness head office (configs/customers)", "[HoErpInvoiceService]");
 		expected.put("ZEN head office (configs/customers)", "[HoDeliveryService, HoStoreOrderService]");
 		for (Map.Entry<String, MockEnvironment> mode : modes().entrySet()) {
@@ -159,18 +176,28 @@ class SupplySourceBeansTest {
 		for (Class<?> bean : KEPT_WITHOUT_ERP_BEANS) {
 			assertTrue(Questions.asks(bean, Installation.HEAD_OFFICE_WITHOUT_ERP), bean.getSimpleName());
 		}
+		for (Class<?> bean : SUPPLIES_STORES_BEANS) {
+			assertTrue(Questions.asks(bean, Installation.HEAD_OFFICE_SUPPLIES_STORES), bean.getSimpleName());
+		}
+		int noneModes = 0;
 		for (Map.Entry<String, MockEnvironment> mode : modes().entrySet()) {
 			MockEnvironment env = mode.getValue();
 			boolean withoutErp = NodeOwnership.isHeadOfficeWithoutErpSet(env);
 			boolean erpSupply = NodeOwnership.isSupplyFromErpSourceSet(env);
+			boolean none = NodeOwnership.isSupplyNoneSet(env);
+			noneModes += none ? 1 : 0;
 			for (Class<?> bean : OWN_SUPPLY_BEANS) {
-				assertEquals(withoutErp && !erpSupply, registered(env, bean), mode.getKey() + ": " + bean.getSimpleName());
+				assertEquals(withoutErp && !erpSupply && !none, registered(env, bean),
+						mode.getKey() + ": " + bean.getSimpleName());
 			}
 			for (Class<?> bean : ERP_SUPPLY_BEANS) {
 				assertEquals(erpSupply, registered(env, bean), mode.getKey() + ": " + bean.getSimpleName());
 			}
 			for (Class<?> bean : KEPT_WITHOUT_ERP_BEANS) {
 				assertEquals(withoutErp, registered(env, bean), mode.getKey() + ": " + bean.getSimpleName());
+			}
+			for (Class<?> bean : SUPPLIES_STORES_BEANS) {
+				assertEquals(withoutErp && !none, registered(env, bean), mode.getKey() + ": " + bean.getSimpleName());
 			}
 			long receivers = Arrays.asList(HoDeliveryService.class, HoErpInvoiceService.class).stream()
 					.filter(r -> registered(env, r)).count();
@@ -182,5 +209,6 @@ class SupplySourceBeansTest {
 				ConditionalOnInstallation.class.getAnnotation(org.springframework.context.annotation.Conditional.class)
 						.value()[0]);
 		assertFalse(registered(erpSupply(), HoDeliveryService.class));
+		assertEquals(2, noneModes, "3.1.1: the two modes with headoffice.supply.source=NONE");
 	}
 }

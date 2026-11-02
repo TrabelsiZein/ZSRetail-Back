@@ -10,6 +10,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.core.config.ConditionalOnErpAbility;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.erp.api.ErpAbility;
 import com.digithink.zsretail.erp.api.ErpConnectorDescriptor;
 import com.digithink.zsretail.erp.api.ErpConnectors;
@@ -35,6 +37,7 @@ import lombok.extern.log4j.Log4j2;
  */
 @Component
 @ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_ERP_CATALOGUE_ONLY)
 @Log4j2
 public class JdbcCatalogueState implements CatalogueState {
 

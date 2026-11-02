@@ -184,6 +184,11 @@ public class ZZDataInitializer {
 		} else {
 			// The Licence page: a database of before it gets it at its first start, so an admin keeps the licence upload
 			Set<String> wanted = new HashSet<>(LICENSE_ADMIN_PERMISSIONS);
+			// 3.1.1: the "Head office" pages (Jobs, Communications, Data exchanged) on a store linked after its database was
+			// created (its ADMIN role was made without them)
+			if (applicationModeService.isHeadOfficeLinked()) {
+				wanted.addAll(HEAD_OFFICE_LINK_ADMIN_PERMISSIONS);
+			}
 			if (applicationModeService.isSupplyFromHeadOffice()) {
 				wanted.addAll(SUPPLY_ADMIN_PERMISSIONS); // step 7A: the BL reception page
 				wanted.addAll(STORE_ORDER_ADMIN_PERMISSIONS); // 3.1.1: the orders to the head office
@@ -219,8 +224,8 @@ public class ZZDataInitializer {
 	/**
 	 * Head office: gives the ADMIN role every head office permission it lacks (a page added by a later step, or a
 	 * database created before), so they are never ticked by hand. Step 7A: the same on a store whose goods come from the
-	 * head office, for its BL reception page only; on every store, the Licence page. Removes nothing, saves only when one
-	 * is missing.
+	 * head office, for its BL reception page only; on every store, the Licence page; 3.1.1: on a store linked to a head
+	 * office, its "Head office" pages. Removes nothing, saves only when one is missing.
 	 */
 	private void addMissingPermissions(AppRole adminRole, Set<String> wanted) {
 		if (adminRole.getPermissions().containsAll(wanted)) {
@@ -238,9 +243,9 @@ public class ZZDataInitializer {
 	 * link" page (docs/modules/head-office.md) and, when its goods come from the head office, the BL reception page.
 	 * A store's ADMIN may also open the till (read:cashier-interface, the frontend's "POS" button); a head office never.
 	 * A store that keeps its own stock (the supply is not the ERP's) adds the inventory count pages.
-	 * Used when the role is created; afterwards a head office tops up its ADMIN role, and a store its Licence page, its BL
-	 * reception page (goods from the head office) and its inventory count pages (stock kept here) only (addMissingPermissions); other
-	 * roles and permissions are never changed.
+	 * Used when the role is created; afterwards a head office tops up its ADMIN role, and a store its Licence page, its
+	 * "Head office" pages (linked, 3.1.1), its BL reception page (goods from the head office) and its inventory count
+	 * pages (stock kept here) only (addMissingPermissions); other roles and permissions are never changed.
 	 */
 	private Set<String> adminPermissions() {
 		Set<String> permissions = new HashSet<>(ADMIN_PERMISSIONS);
@@ -320,8 +325,9 @@ public class ZZDataInitializer {
 			"read:admin-headoffice-supply-invoices",
 			"read:admin-headoffice-store-balances",
 			"read:admin-headoffice-erp-invoices", // invoices from the ERP (headoffice.supply.source=ERP)
-			"read:admin-headoffice-stock-points", // release 2.2: points de stock (head office with the ERP catalogue)
-			"read:admin-headoffice-stock-point-items"));
+			// release 2.2: points de stock (head office with the ERP catalogue); 3.1.1: read:admin-headoffice-stock-point-items
+			// gone with the page "Items by point de stock" (a role that has it keeps the row, nothing reads it)
+			"read:admin-headoffice-stock-points"));
 
 	/**
 	 * 3.1.1: the head office's "Commandes des magasins" page (read) and its actions (write), the stores' orders
@@ -1272,12 +1278,14 @@ public class ZZDataInitializer {
 				"Hourly import of sales prices and discounts", false);
 		createErpJob("0 50 * * * *", ErpSyncJobType.SYNC_ERP_DELETIONS,
 				"Sync deletions from ERP Log (Sales Price, Sales Discount)", false);
-		createErpJob("0 0 0 1 1 *", ErpSyncJobType.EXPORT_CUSTOMERS,
-				"Template job for exporting customers (disabled by default)", false);
 		createErpJob("0 0 0 1 1 *", ErpSyncJobType.EXPORT_TICKETS,
 				"Template job for exporting tickets (disabled by default)", false);
-		createErpJob("0 0 * * * *", ErpSyncJobType.EXPORT_RETURNS, "Export returns to ERP (runs every 1 hour)", true);
-		createErpJob("0 0 * * * *", ErpSyncJobType.EXPORT_SESSIONS, "Export sessions to ERP (runs every 1 hour)", true);
+		// 3.1.1: a connector posting tickets whole exports no return or session yet: those two seeded disabled
+		boolean documentExports = !applicationModeService.isWholeTicketExport();
+		createErpJob("0 0 * * * *", ErpSyncJobType.EXPORT_RETURNS, "Export returns to ERP (runs every 1 hour)",
+				documentExports);
+		createErpJob("0 0 * * * *", ErpSyncJobType.EXPORT_SESSIONS, "Export sessions to ERP (runs every 1 hour)",
+				documentExports);
 	}
 
 	/**

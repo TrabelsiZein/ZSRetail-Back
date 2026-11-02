@@ -1,0 +1,11 @@
+{
+  "@odata.context": "http://bc.test:7048/BC280/api/sat/zsretail/v1.0/$metadata#companies(6b29fc40-ca47-1067-b31d-00dd010662da)/locations(code,name,lastModifiedDateTime)",
+  "value": [
+    { "@odata.etag": "W/\"JzE5OzEwMTsn\"", "code": "PV-GREMDA", "name": "PV Gremda", "lastModifiedDateTime": "2026-10-20T09:12:31.207Z" },
+    { "@odata.etag": "W/\"JzE5OzEwMjsn\"", "code": "PV-LAFRANE", "name": "PV Lafrane", "lastModifiedDateTime": "2026-10-20T09:12:31.210Z" },
+    { "@odata.etag": "W/\"JzE5OzEwMzsn\"", "code": "PV-MALL-SF", "name": "PV Mall de Sfax", "lastModifiedDateTime": "2026-10-20T09:12:31.213Z" },
+    { "@odata.etag": "W/\"JzE5OzEwNDsn\"", "code": "PV-NABEUL", "name": "PV Nabeul", "lastModifiedDateTime": "2026-10-20T09:12:31.217Z" },
+    { "@odata.etag": "W/\"JzE5OzEwNTsn\"", "code": "PV-SOUSSE", "name": "PV Sousse", "lastModifiedDateTime": "2026-10-20T09:12:31.220Z" },
+    { "@odata.etag": "W/\"JzE5OzEwNjsn\"", "code": "PV-TANIOUR", "name": "PV Taniour", "lastModifiedDateTime": "0001-01-01T00:00:00Z" }
+  ]
+}

@@ -45,6 +45,11 @@ public class ErpItemDTO implements ErpTimestamped {
 	private Boolean clearance;
 	/** The point de stock row's clearance price, as read; null when none. */
 	private BigDecimal clearancePrice;
+	/**
+	 * 3.1.1 (ParaFendri, step 3): the unit of measure (item.unit_of_measure), optional; the import writes it only when
+	 * the ERP gives one, so a unit typed by hand is never erased by an ERP that has none.
+	 */
+	private String unitOfMeasure;
 
 	public String getExternalId() {
 		return externalId;
@@ -277,5 +282,13 @@ public class ErpItemDTO implements ErpTimestamped {
 
 	public void setClearancePrice(BigDecimal clearancePrice) {
 		this.clearancePrice = clearancePrice;
+	}
+
+	public String getUnitOfMeasure() {
+		return unitOfMeasure;
+	}
+
+	public void setUnitOfMeasure(String unitOfMeasure) {
+		this.unitOfMeasure = unitOfMeasure;
 	}
 }

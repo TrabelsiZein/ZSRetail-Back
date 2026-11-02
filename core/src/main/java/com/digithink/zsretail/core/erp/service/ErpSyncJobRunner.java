@@ -101,10 +101,6 @@ public class ErpSyncJobRunner {
 				erpItemBootstrapService.importSalesDiscounts(salesDiscounts);
 				checkpointService.updateLastSyncForSalesDiscounts(salesDiscounts);
 				break;
-			case EXPORT_CUSTOMERS:
-				LOGGER.info("ERP sync job {} is configured for EXPORT_CUSTOMERS. "
-						+ "Data extraction from POS is not yet implemented.", job.getJobType());
-				break;
 			case EXPORT_TICKETS:
 			case EXPORT_RETURNS:
 			case EXPORT_SESSIONS:

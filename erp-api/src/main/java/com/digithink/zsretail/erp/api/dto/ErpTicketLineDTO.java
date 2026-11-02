@@ -13,6 +13,10 @@ public class ErpTicketLineDTO {
 	private BigDecimal discountPercentage;
 	private BigDecimal totalAmount;
 	private String locationCode;
+	/** 3.1.1 (a ticket posted whole): the line's total including VAT, before a ticket-wide reduction. */
+	private BigDecimal totalAmountIncludingVat;
+	/** 3.1.1 (a ticket posted whole): the code of the promotion the line got, null without one. */
+	private String promotionCode;
 
 	public Integer getLineNumber() {
 		return lineNumber;
@@ -86,4 +90,20 @@ public class ErpTicketLineDTO {
 		this.locationCode = locationCode;
 	}
 
+
+	public BigDecimal getTotalAmountIncludingVat() {
+		return totalAmountIncludingVat;
+	}
+
+	public void setTotalAmountIncludingVat(BigDecimal totalAmountIncludingVat) {
+		this.totalAmountIncludingVat = totalAmountIncludingVat;
+	}
+
+	public String getPromotionCode() {
+		return promotionCode;
+	}
+
+	public void setPromotionCode(String promotionCode) {
+		this.promotionCode = promotionCode;
+	}
 }

@@ -257,6 +257,9 @@ public class InMemoryItems {
 				case "findByBarcodeIn":
 					return barcodes.values().stream().filter(b -> ((Collection<?>) args[0]).contains(b.getBarcode()))
 							.collect(Collectors.toList());
+				case "findByErpExternalIdIn": // the ERP import, 3.1.1: one window of rows at a time
+					return barcodes.values().stream().filter(b -> ((Collection<?>) args[0]).contains(b.getErpExternalId()))
+							.collect(Collectors.toList());
 				case "findAllBarcodesExceptItem":
 					return barcodes.values().stream().filter(b -> !b.getItem().getItemCode().equals(args[0]))
 							.map(ItemBarcode::getBarcode).collect(Collectors.toList());

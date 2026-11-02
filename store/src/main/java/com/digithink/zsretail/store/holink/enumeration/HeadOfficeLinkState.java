@@ -17,7 +17,11 @@ public enum HeadOfficeLinkState {
 	 */
 	TIMEOUT,
 
-	/** The head office is reachable but refuses the call: 401 (store code or key) or 402 (head office license). */
+	/**
+	 * The head office is reachable but refuses the call: 401 (store code or key) or 402 (head office license); 3.1.1, the
+	 * heartbeat only: 409 with the head office's reason (a head office that supplies no store, for a store whose goods come
+	 * from it).
+	 */
 	REFUSED,
 
 	/** Any other answer: another HTTP status, or a 200 whose body cannot be read. */

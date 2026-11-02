@@ -33,10 +33,19 @@ public enum Installation {
 	HEAD_OFFICE_ERP_CATALOGUE_ONLY("A head office whose catalogue only comes from the ERP; it keeps its customers and"
 			+ " its supply.", NodeOwnership::isErpCatalogueOnlySet),
 
-	/** A head office that makes the BLs and supply invoices of its stores (headoffice.supply.source not ERP). */
+	/** A head office that makes the BLs and supply invoices of its stores (headoffice.supply.source HEAD_OFFICE). */
 	HEAD_OFFICE_OWN_SUPPLY("A head office without an ERP, or with the catalogue only from the ERP, that makes the BLs"
 			+ " and supply invoices of its stores itself.",
-			env -> NodeOwnership.isHeadOfficeWithoutErpSet(env) && !NodeOwnership.isSupplyFromErpSourceSet(env)),
+			env -> NodeOwnership.isHeadOfficeWithoutErpSet(env) && !NodeOwnership.isSupplyFromErpSourceSet(env)
+					&& !NodeOwnership.isSupplyNoneSet(env)),
+
+	/**
+	 * 3.1.1: a head office without an ERP, or with the catalogue only from the ERP, that supplies its stores (its own BLs
+	 * or the ERP's invoices): headoffice.supply.source is not NONE. The stores' supply confirmations and stock.
+	 */
+	HEAD_OFFICE_SUPPLIES_STORES("A head office without an ERP, or with the catalogue only from the ERP, that supplies its"
+			+ " stores (headoffice.supply.source HEAD_OFFICE or ERP, not NONE).",
+			env -> NodeOwnership.isHeadOfficeWithoutErpSet(env) && !NodeOwnership.isSupplyNoneSet(env)),
 
 	/** A head office whose stores' supply documents are the ERP's invoices (headoffice.supply.source=ERP). */
 	HEAD_OFFICE_ERP_SUPPLY("A head office with the catalogue only from the ERP whose stores' supply documents are the"

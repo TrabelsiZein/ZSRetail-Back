@@ -22,6 +22,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.core.config.ConditionalOnErpAbility;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.erp.service.ItemVariant;
 import com.digithink.zsretail.erp.api.CatalogueRun;
 import com.digithink.zsretail.erp.api.CatalogueSettings;
@@ -86,6 +88,7 @@ import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
  */
 @Component
 @ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_ERP_CATALOGUE_ONLY)
 public class CatalogueEngine {
 
 	static final String ITEMS_RUN = "items.run";

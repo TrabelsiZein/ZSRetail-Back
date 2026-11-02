@@ -7,6 +7,61 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 ## 3.1.1 — in progress (branch `release/3.1.1`)
 
 ### Features
+- Head office that supplies no store: `headoffice.supply.source=NONE` beside `HEAD_OFFICE` and `ERP` (unchanged). No
+  supply bean: BLs, supply prices, supply invoices, what the stores owe, the ERP invoices, `/ho/supply/**` and the
+  network stock (new question `HEAD_OFFICE_SUPPLIES_STORES`); every price list refused on a head office whose
+  catalogue comes from the ERP. `GET /config` `supplySource` `NONE`. A store with `ownership.supply=HEAD_OFFICE` is
+  refused at its heartbeat, 409 `{"error"}` with the reason; the store (also changed) shows it as `REFUSED` with that
+  text in its Communications log (`docs/modules/head-office.md`, "Head office that supplies no store").
+- ERP connector `parafendri`, head office catalogue: a ParaFendri head office whose catalogue comes from the ERP
+  (`ownership.catalogue=ERP`, its points de stock the six points de vente) runs the catalogue engine, job
+  `SYNC_CATALOGUE`: `ParafendriCatalogueSource` (the tree, `stockPoints` per point from its checkpoint, `barCodes` by a
+  cursor on `lastModifiedDateTime` in epoch milliseconds, ZEN's contract, and by item), the ability
+  `HEAD_OFFICE_STOCK_POINTS`. The engine's 7 beans in core now also need the installation
+  `HEAD_OFFICE_ERP_CATALOGUE_ONLY` (as the 4 of the head office already did), so a ParaFendri store keeps its job
+  `IMPORT_CATALOGUE` and starts as before.
+- ERP connector `parafendri`: the locations (`fetchLocations`, every location of the company, code and name, none
+  marked as the default) and the point de vente's customer (`fetchCustomers`, one row only: the account of
+  `DEFAULT_LOCATION`, its `customerNo` from `stockPoints`, then `customers?$filter=number eq`, the page read whole if
+  `number` is not filterable; blocked as inactive), both read whole each run. Install: `IMPORT_LOCATIONS`, the default
+  location on the Emplacements page, `IMPORT_CUSTOMERS`, `PASSENGER_CUSTOMER` = the customer number (e.g. 4110001).
+- ERP connector `parafendri`, step 7: the invoice of a ticket prepared for one, asked from Business Central
+  (`shipAndInvoice`, POST `{ orderNo }`, looked up first by `orderNo` so never twice): its number kept on the ticket
+  (`invoiceNumber`), its PDF written to `<app.upload.dir>/erp-invoices/<invoiceNo>.pdf`, the ticket `TOTALLY_SYNCHED`;
+  a failure leaves it `PARTIALLY_SYNCHED`, asked again next run. New `ErpConnector.requestInvoice` / `ErpInvoiceResult`
+  (covered by `WHOLE_TICKET_EXPORT`), new communications operation `REQUEST_INVOICE`. The fiscal registration and name
+  cannot be sent yet (no field in `shipAndInvoice`): in the message, one warning per run. A ticket with its `erpNo` is
+  never posted again (before, a ticket prepared for an invoice after its post would have been posted a second time).
+  EMTOP and `prepareInvoice` unchanged.
+- ERP connector `parafendri`, step 0 (ParaFendri's Business Central 28 on-prem, its custom API
+  `api/sat/zsretail/v1.0`, a store on the ERP as EMTOP's): project `connectors/parafendri`, accepted as
+  `erp.connector=parafendri`, no ability; the settings, the startup check, an NTLM GET-only client whose login goes to
+  the host of `base-url` only, and the connection test `ParafendriRestClient.checkCompany()` (the companies of the API,
+  `company-id` among them). Every `ErpConnector` method a stub: no job yet (`docs/modules/erp-sync.md`).
+- ERP connector `parafendri`, step 6: the tickets posted to Business Central as sales orders, header and lines in one
+  POST (`salesOrders`, deep insert), looked up first by `ticketNo` so never twice (Business Central does not filter
+  `ticketNo` today: posted anyway, one warning per export run in the log and the communications log). New
+  `ErpAbility.WHOLE_TICKET_EXPORT`: with it `TicketExportService` sends each ticket whole (all or nothing); every
+  other connector unchanged. `ErpOperationResult.addWarning` (written once per run). With such a connector
+  `EXPORT_RETURNS` and `EXPORT_SESSIONS` are seeded disabled. The mapping, to confirm with ParaFendri's BC contact, in
+  `docs/modules/erp-sync.md`.
+- ERP connector `parafendri`, step 4: the barcodes (`fetchItemBarcodes`, `barCodes`, company-wide): every row on a
+  first run, then from the checkpoint `ERP_SYNC_LAST_ITEM_BARCODE` plus the barcodes of the items the same run's items
+  part got, so that an item added to a point de vente later gets its barcode; the row's GUID as the barcode's ERP id (a
+  changed barcode replaces the old one); blank barcode or item left out with their reason in the communications log.
+- ERP connector `parafendri`, step 3: the items (`fetchItems`, `stockPoints` of the store's `DEFAULT_LOCATION`, from the
+  checkpoint `ERP_SYNC_LAST_ITEM`): the price before VAT as received (never rounded), the VAT, the unit, inactive when
+  blocked or without a price, the four links checked against the tree, left-out rows with their reason in the
+  communications log. `ErpItemDTO.unitOfMeasure` (erp-api, optional): the import writes `item.unit_of_measure` only when
+  the ERP gives one (emtop and zen give none: unchanged).
+- ERP connector `parafendri`, step 2: the tree `itemCategories` for the job `IMPORT_CATALOGUE` (`fetchItemCategories`,
+  `fetchItemFamilies`, `fetchItemSubFamilies`, `fetchItemSections` by `indentation` 0 to 3, `ParafendriMapper` as ZEN's):
+  an orphan famille kept without its catégorie (noted), an orphan sous-famille or section, a deeper row and a blank code
+  left out with their reason, shown in the communications log; no ability.
+- ERP connector `parafendri`, step 1: the company's locations (`readLocations()`, `checkLocation(code)`), and a
+  connection check after the start (`ParafendriConnectionCheck`, its own thread): the company and the store's General
+  Setup `DEFAULT_LOCATION` checked in Business Central, one INFO line, or one WARNING naming the problem; it never stops
+  or delays the start.
 - Till's right rail (catalogue hidden): `GET /cashier-session/current/ticket-count` `{"ticketCount": n}`, the tickets of
   the current user's open session (completed, refunded since included; 0 without a session), a count and never an
   amount (the closing count stays blind; `CashierSessionService.countSessionTickets`, `SessionTicketCountTest`).
@@ -131,6 +186,24 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   same transaction.
 
 ### Enhancements
+- Item cards list (head office), with a point de stock chosen: `GET /admin/headoffice/item-catalogue` takes
+  `stockPointStatus` `ACTIVE` (default, the list as before) | `INACTIVE` | `ALL`, the row at that point, and
+  `priceMin` / `priceMax` filter the point's row selling price with VAT (the clearance price when it applies) instead
+  of the item's own price; without a point nothing changes (`HoItemCatalogueQuery.stockPoint`, head office only; core's
+  query and the store's Articles page unchanged). Step 1 of retiring "Items by point de stock".
+- Item cards (head office), step 2: with a point chosen, each list line's `priceMin` / `priceMax` are its rows'
+  selling prices there with VAT (`pointPrice`, the price sort by them), with `clearanceVariants` and the normal range
+  `normalPriceMin` / `normalPriceMax`; core's `ItemCatalogueQuery.Criteria` gains `linePrice` / `linePriceJoin` (unset:
+  the SQL is unchanged). The card's point rows carry the row's own name, description, family and sub-family (codes and
+  names) and `differences` / `differs` against the item's.
+- ERP catalogue import, every connector: the barcodes are imported by windows of 1,000 rows, their items and existing
+  barcodes read in four queries per window, written by JDBC batches of 100, the session emptied after each window
+  (before: three queries per row, each flushing the whole packet; 13,165 ParaFendri barcodes ran more than 27 minutes).
+  Same rules and warnings. New log line `ERP item barcodes import: N rows handed, ...`.
+- ERP jobs: the job type `EXPORT_CUSTOMERS` is removed (never implemented: it only logged "not yet implemented"), with
+  its operation `EXPORT_CUSTOMER`, `ErpConnector.pushCustomer` (and its five stubs) and
+  `ErpSynchronizationManager.pushCustomer`. The rows of that type and operation are deleted at startup
+  (`ErpSyncJobTypesUpgrade`, before any read of the tables) and by `db/3.1.1/update.sql`. `IMPORT_CUSTOMERS` unchanged.
 - ERP jobs, every customer: one job `IMPORT_CATALOGUE` ("catalogue import") replaces `IMPORT_ITEM_FAMILIES`,
   `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS` and `IMPORT_ITEM_BARCODES`. It runs, in this order, catégories, families,
   sub-families, sections, items, barcodes (`ImportCatalogueJob`), each part with today's read, import and checkpoint, and
@@ -166,6 +239,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `availableQty`.
 
 ### Fixes
+- Store linked to a head office after its database was created (ParaFendri Gremda): its ADMIN role now gets
+  `read:admin-holink-status` (the "Head office" menu: Jobs, Communications, Data exchanged) at the next start; before,
+  only a role created with `headoffice.url` already set had it, so the menu stayed hidden. Nothing is removed.
+- ERP connector `parafendri`, step 6: `amountIncludingVAT` is no longer sent on `salesOrders`, header nor lines
+  (read-only in Business Central: the live POST answered HTTP 400 "Control 'amountIncludingVAT' is read-only"); BC
+  computes it, the header's is read back from the answer and shown in the log message next to our total TTC.
 - `GET /sales-header/pending-sales` sends each ticket's `discountSource` (MANUAL or PROMOTION): the till taking a held
   ticket back no longer shows its cart offer a second time as a "Remise" (front CHANGELOG).
 - Copies down, head office: a store's pull of LOYALTY, PROMOTIONS or SUPPLY answered HTTP 500 (query timeout after
@@ -192,11 +271,21 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   statement compared them with an `int` literal; now `1L`, as the BL reception list. `HoStoreOrderPageQueryTest` and
   `StoreOrderPageQueryTest` run the real statements on H2 with and without each filter.
 
+### Removed
+- Head office page "Items by point de stock", back end: `GET /admin/headoffice/stock-points/items` and `/items/{rowId}`,
+  `HoStockPointItemsService`, `StockPointItemDTO`, the queries `findRows` / `findRowsSearched`; the rest of the Stock
+  points API stays. The permission `read:admin-headoffice-stock-point-items` is no longer given to ADMIN (checked first
+  on the ZEN, Happyness and ParaFendri test head offices: only ADMIN had it, with the Items permission); a role row
+  that has it stays, unread. Item cards' point filter replaces the page. `GET /config` gains `headOfficeStockPoints`
+  (the head office keeps points de stock: catalogue only from the ERP and a connector with `HEAD_OFFICE_STOCK_POINTS`).
+
 ### DB script (`db/3.1.1/store-orders.sql`, then `db/3.1.1/update.sql`, store and head office)
 - `store-orders.sql`: tables `hol_order` (unique `number`, index `ix_hol_order_status`, filtered unique index
   `ux_hol_order_draft`: one DRAFT) and `hol_order_line` (unique `order_id`, `item_id`; FK to `hol_order`) on a store
   only; `item_image` (index `ix_item_image_item`) on both. Re-runnable, no data changed. The filtered index is also made
   at each start when missing (`StoreOrderDraftIndex`: a new database runs no script).
+- `update.sql`: the rows of the removed job type deleted, `erp_sync_job` of type `EXPORT_CUSTOMERS` and
+  `erp_communication` of operation `EXPORT_CUSTOMER` (each table guarded; re-runnable; the same statements at startup).
 - `update.sql`: the ERP jobs' rows `IMPORT_ITEM_FAMILIES`, `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS`,
   `IMPORT_ITEM_BARCODES` converted into one `IMPORT_CATALOGUE` (the cron of `IMPORT_ITEMS`, enabled when any of the four
   was, then the four deleted; one transaction, re-runnable; the same batch the application runs at startup).
@@ -229,6 +318,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   data changed.
 
 ### Config
+- `headoffice.supply.source=NONE` (head office): accepted only with `headoffice.stock.enabled=false` and without
+  `headoffice.storeorders.post`, else the startup stops naming both keys.
+- `erp.connector=parafendri` and its keys `erp.parafendri.base-url`, `company-id` (a GUID), `domain`, `username`,
+  `password` (required but domain), `connect-timeout-seconds` (30), `read-timeout-seconds` (600). New file
+  `configs/customers/parafendri-store.properties` (placeholders, `erp.sync.enabled=false`).
 - `headoffice.storeorders.post` (head office, optional): `MANUAL` or `ERP` (needs a connector with
   `ErpAbility.STORE_ORDERS`: zen); absent, the head office takes no store order. Set to `ERP` in
   `configs/customers/zen-headoffice.properties`.

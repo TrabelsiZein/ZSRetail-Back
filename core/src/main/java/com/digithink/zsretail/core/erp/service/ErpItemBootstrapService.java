@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -450,40 +451,161 @@ public class ErpItemBootstrapService {
 			return Collections.emptyList();
 		}
 
+		long started = System.nanoTime();
+		batchWrites();
 		List<ItemBarcode> persisted = new ArrayList<>();
-		for (ErpItemBarcodeDTO dto : barcodes) {
-			if (dto == null) {
-				continue;
-			}
-			Optional<Item> itemOpt = resolveItem(dto.getItemExternalId());
-			if (!itemOpt.isPresent()) {
-				String message = String.format("Skipping item barcode because parent item %s not found",
-						dto.getItemExternalId());
-				LOGGER.warn("{}: {}", message, dto.getBarcode());
-				recordWarning(ErpSyncOperation.IMPORT_ITEM_BARCODES, dto,
-						resolveIdentifier(dto.getExternalId(), dto.getBarcode()), message);
-				continue;
-			}
+		int created = 0;
+		// 3.1.1 speed: one window of rows at a time, its items and barcodes read in four queries, then written and the
+		// session emptied (before: three lookups per row, each flushing the whole packet: 13,165 rows > 27 minutes)
+		for (int from = 0; from < barcodes.size(); from += IN_CHUNK) {
+			List<ErpItemBarcodeDTO> window = barcodes.subList(from, Math.min(from + IN_CHUNK, barcodes.size()));
+			BarcodeLookups lookups = new BarcodeLookups(window);
+			for (ErpItemBarcodeDTO dto : window) {
+				if (dto == null) {
+					continue;
+				}
+				Optional<Item> itemOpt = lookups.item(dto.getItemExternalId());
+				if (!itemOpt.isPresent()) {
+					String message = String.format("Skipping item barcode because parent item %s not found",
+							dto.getItemExternalId());
+					LOGGER.warn("{}: {}", message, dto.getBarcode());
+					recordWarning(ErpSyncOperation.IMPORT_ITEM_BARCODES, dto,
+							resolveIdentifier(dto.getExternalId(), dto.getBarcode()), message);
+					continue;
+				}
 
-			ItemBarcode entity = resolveItemBarcode(dto);
-			boolean isNew = entity.getId() == null;
-			applyBarcodeValues(entity, dto, itemOpt.get());
-			if (!StringUtils.hasText(entity.getBarcode())) {
-				String message = "Skipping item barcode import because no barcode value provided";
-				LOGGER.warn("{}: {}", message, dto);
-				recordWarning(ErpSyncOperation.IMPORT_ITEM_BARCODES, dto,
-						resolveIdentifier(dto.getExternalId(), dto.getBarcode()), message);
-				continue;
+				ItemBarcode entity = lookups.barcode(dto.getExternalId(), dto.getBarcode()).orElseGet(ItemBarcode::new);
+				boolean isNew = entity.getId() == null;
+				String externalIdBefore = entity.getErpExternalId();
+				String valueBefore = entity.getBarcode();
+				applyBarcodeValues(entity, dto, itemOpt.get());
+				if (!StringUtils.hasText(entity.getBarcode())) {
+					String message = "Skipping item barcode import because no barcode value provided";
+					LOGGER.warn("{}: {}", message, dto);
+					recordWarning(ErpSyncOperation.IMPORT_ITEM_BARCODES, dto,
+							resolveIdentifier(dto.getExternalId(), dto.getBarcode()), message);
+					continue;
+				}
+				if (isNew) {
+					entity.setCreatedBy(SYSTEM_USER);
+					entity.setCreatedAt(LocalDateTime.now());
+					created++;
+				}
+				entity.setUpdatedBy(SYSTEM_USER);
+				entity.setUpdatedAt(LocalDateTime.now());
+				ItemBarcode saved = itemBarcodeRepository.save(entity);
+				lookups.saved(saved, externalIdBefore, valueBefore); // a later row of the window finds it as the DB would
+				persisted.add(saved);
 			}
-			if (isNew) {
-				entity.setCreatedBy(SYSTEM_USER);
-				entity.setCreatedAt(LocalDateTime.now());
-			}
-			entity.setUpdatedBy(SYSTEM_USER);
-			entity.setUpdatedAt(LocalDateTime.now());
-			persisted.add(itemBarcodeRepository.save(entity));
+			flushAndClear();
 		}
+		LOGGER.info("ERP item barcodes import: {} rows handed, {} written ({} new, {} updated) in {} ms",
+				barcodes.size(), persisted.size(), created, persisted.size() - created,
+				(System.nanoTime() - started) / 1_000_000);
 		return persisted;
+	}
+
+	/**
+	 * 3.1.1 speed: the window's rows written (JDBC batches of {@value #WRITE_BATCH_SIZE}) and the session emptied, so the
+	 * next window's reads flush and dirty-check only their own rows. The saved barcodes returned stay readable (their
+	 * item is loaded with them); the head office recorder empties the session before it reads them anyway.
+	 */
+	private void flushAndClear() {
+		if (entityManager == null) {
+			return;
+		}
+		entityManager.flush();
+		entityManager.clear();
+	}
+
+	/**
+	 * 3.1.1 speed: the items and barcodes of one window of barcode rows, read in four queries (items by ERP id and by
+	 * code, barcodes by ERP id and by value, each in IN lists of {@value #IN_CHUNK}), looked up in the same order as the
+	 * queries per row of before: the item by ERP id then by code (the same identifier), the barcode by ERP id then by
+	 * value. Keys compare as SQL Server compares them (case and trailing spaces ignored), so a value the per-row query
+	 * found is found here too (else a second row of the same barcode, refused by the unique key).
+	 */
+	private final class BarcodeLookups {
+
+		private final Map<String, Item> itemsByExternalId = new HashMap<>();
+		private final Map<String, Item> itemsByCode = new HashMap<>();
+		private final Map<String, ItemBarcode> barcodesByExternalId = new HashMap<>();
+		private final Map<String, ItemBarcode> barcodesByValue = new HashMap<>();
+
+		BarcodeLookups(List<ErpItemBarcodeDTO> window) {
+			Set<String> itemIds = new LinkedHashSet<>();
+			Set<String> externalIds = new LinkedHashSet<>();
+			Set<String> values = new LinkedHashSet<>();
+			for (ErpItemBarcodeDTO dto : window) {
+				if (dto == null) {
+					continue;
+				}
+				if (StringUtils.hasText(dto.getItemExternalId())) {
+					itemIds.add(dto.getItemExternalId());
+				}
+				if (StringUtils.hasText(dto.getExternalId())) {
+					externalIds.add(dto.getExternalId());
+				}
+				if (StringUtils.hasText(dto.getBarcode())) {
+					values.add(dto.getBarcode());
+				}
+			}
+			for (List<String> chunk : chunks(itemIds)) {
+				itemRepository.findByErpExternalIdIn(chunk)
+						.forEach(item -> putFirst(itemsByExternalId, key(item.getErpExternalId()), item));
+				itemRepository.findByItemCodeIn(chunk)
+						.forEach(item -> putFirst(itemsByCode, key(item.getItemCode()), item));
+			}
+			for (List<String> chunk : chunks(externalIds)) {
+				itemBarcodeRepository.findByErpExternalIdIn(chunk)
+						.forEach(barcode -> putFirst(barcodesByExternalId, key(barcode.getErpExternalId()), barcode));
+			}
+			for (List<String> chunk : chunks(values)) {
+				itemBarcodeRepository.findByBarcodeIn(chunk)
+						.forEach(barcode -> putFirst(barcodesByValue, key(barcode.getBarcode()), barcode));
+			}
+		}
+
+		Optional<Item> item(String identifier) {
+			if (!StringUtils.hasText(identifier)) {
+				return Optional.empty();
+			}
+			Item found = itemsByExternalId.get(key(identifier));
+			return Optional.ofNullable(found != null ? found : itemsByCode.get(key(identifier)));
+		}
+
+		Optional<ItemBarcode> barcode(String externalId, String value) {
+			if (StringUtils.hasText(externalId) && barcodesByExternalId.containsKey(key(externalId))) {
+				return Optional.of(barcodesByExternalId.get(key(externalId)));
+			}
+			return StringUtils.hasText(value) ? Optional.ofNullable(barcodesByValue.get(key(value))) : Optional.empty();
+		}
+
+		/** The saved barcode under its new ERP id and value, no longer under those it had before the row. */
+		void saved(ItemBarcode barcode, String externalIdBefore, String valueBefore) {
+			forget(barcodesByExternalId, externalIdBefore, barcode);
+			forget(barcodesByValue, valueBefore, barcode);
+			putFirst(barcodesByExternalId, key(barcode.getErpExternalId()), barcode);
+			putFirst(barcodesByValue, key(barcode.getBarcode()), barcode);
+		}
+
+		private void forget(Map<String, ItemBarcode> map, String keyBefore, ItemBarcode barcode) {
+			if (StringUtils.hasText(keyBefore) && map.get(key(keyBefore)) == barcode) {
+				map.remove(key(keyBefore));
+			}
+		}
+	}
+
+	/** A lookup key as SQL Server compares the column (case-insensitive collation, trailing spaces ignored). */
+	static String key(String value) {
+		if (value == null) {
+			return null;
+		}
+		int end = value.length();
+		while (end > 0 && value.charAt(end - 1) == ' ') {
+			end--;
+		}
+		return value.substring(0, end).toLowerCase(Locale.ROOT);
 	}
 
 	@Transactional
@@ -595,17 +717,6 @@ public class ErpItemBootstrapService {
 		return Optional.empty();
 	}
 
-	private Optional<Item> resolveItem(String identifier) {
-		if (!StringUtils.hasText(identifier)) {
-			return Optional.empty();
-		}
-		Optional<Item> byExternal = itemRepository.findByErpExternalId(identifier);
-		if (byExternal.isPresent()) {
-			return byExternal;
-		}
-		return itemRepository.findByItemCode(identifier);
-	}
-
 	private Optional<Item> findItemByExternalOrCode(String externalId, String code) {
 		if (StringUtils.hasText(externalId)) {
 			Optional<Item> byExternalId = itemRepository.findByErpExternalId(externalId);
@@ -615,23 +726,6 @@ public class ErpItemBootstrapService {
 		}
 		if (StringUtils.hasText(code)) {
 			return itemRepository.findByItemCode(code);
-		}
-		return Optional.empty();
-	}
-
-	private ItemBarcode resolveItemBarcode(ErpItemBarcodeDTO dto) {
-		return findBarcodeByExternalOrValue(dto.getExternalId(), dto.getBarcode()).orElseGet(ItemBarcode::new);
-	}
-
-	private Optional<ItemBarcode> findBarcodeByExternalOrValue(String externalId, String barcode) {
-		if (StringUtils.hasText(externalId)) {
-			Optional<ItemBarcode> byExternal = itemBarcodeRepository.findByErpExternalId(externalId);
-			if (byExternal.isPresent()) {
-				return byExternal;
-			}
-		}
-		if (StringUtils.hasText(barcode)) {
-			return itemBarcodeRepository.findByBarcode(barcode);
 		}
 		return Optional.empty();
 	}
@@ -735,6 +829,10 @@ public class ErpItemBootstrapService {
 		ItemVariant.of(dto).applyTo(entity);
 		if (StringUtils.hasText(dto.getBrand())) {
 			entity.setBrand(dto.getBrand().trim());
+		}
+		// 3.1.1 (ParaFendri, step 3): the unit of measure only when the ERP gives one, as the brand
+		if (StringUtils.hasText(dto.getUnitOfMeasure())) {
+			entity.setUnitOfMeasure(dto.getUnitOfMeasure().trim());
 		}
 	}
 

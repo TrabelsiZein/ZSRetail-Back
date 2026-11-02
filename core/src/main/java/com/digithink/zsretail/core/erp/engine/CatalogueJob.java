@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.core.config.ConditionalOnErpAbility;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.erp.enumeration.ErpCommunicationStatus;
 import com.digithink.zsretail.core.erp.enumeration.ErpSyncOperation;
 import com.digithink.zsretail.core.erp.service.ErpCommunicationService;
@@ -41,6 +43,7 @@ import com.digithink.zsretail.erp.api.ErpSyncWarningException;
  */
 @Component
 @ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_ERP_CATALOGUE_ONLY)
 public class CatalogueJob implements ErpCatalogueSync {
 
 	/** Item variants (ZEN), step 4: the catégories (before the families) and the sections (after the sub-families). */

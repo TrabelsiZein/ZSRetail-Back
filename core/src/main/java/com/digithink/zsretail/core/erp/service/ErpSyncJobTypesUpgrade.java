@@ -13,7 +13,9 @@ import org.springframework.stereotype.Component;
  * next run while it is enabled), enabled when any of the four was; then the four rows are deleted, in one transaction.
  * Idempotent: once the four rows are gone it does nothing. The same batch is in db/3.1.1/update.sql (the order of the
  * script and the deploy does not matter). Store and head office alike (a head office refuses the job when its catalogue
- * comes from the ERP only, HeadOfficeErpJobs).
+ * comes from the ERP only, HeadOfficeErpJobs). Then the rows of the job type removed, EXPORT_CUSTOMERS, and of its
+ * operation EXPORT_CUSTOMER in the communications log are deleted ({@link #DEAD_ROWS}), for the same reason: the two
+ * columns are read with EnumType.STRING, a value the code no longer has throws on every read.
  */
 @Component
 public class ErpSyncJobTypesUpgrade {
@@ -60,22 +62,48 @@ public class ErpSyncJobTypesUpgrade {
 			+ "\tEND CATCH\n"
 			+ "END";
 
+	/**
+	 * 3.1.1: the rows of the job type removed, EXPORT_CUSTOMERS (never implemented: the runner only logged it, every
+	 * connector answered a failure; a disabled template row on every installation with an ERP), and of its operation in
+	 * the communications log, EXPORT_CUSTOMER: how many there are (0 when a table is missing).
+	 */
+	static final String DEAD_ROWS_PENDING = "SELECT"
+			+ " (CASE WHEN OBJECT_ID(N'erp_sync_job', N'U') IS NULL THEN 0"
+			+ " ELSE (SELECT COUNT(*) FROM erp_sync_job WHERE job_type = 'EXPORT_CUSTOMERS') END)"
+			+ " + (CASE WHEN OBJECT_ID(N'erp_communication', N'U') IS NULL THEN 0"
+			+ " ELSE (SELECT COUNT(*) FROM erp_communication WHERE operation = 'EXPORT_CUSTOMER') END)";
+
+	/** Their deletion, one T-SQL batch, idempotent; copied as it is into db/3.1.1/update.sql. */
+	public static final String DEAD_ROWS = ""
+			+ "IF OBJECT_ID(N'erp_sync_job', N'U') IS NOT NULL\n"
+			+ "\tDELETE FROM erp_sync_job WHERE job_type = 'EXPORT_CUSTOMERS';\n"
+			+ "IF OBJECT_ID(N'erp_communication', N'U') IS NOT NULL\n"
+			+ "\tDELETE FROM erp_communication WHERE operation = 'EXPORT_CUSTOMER';";
+
 	private final JdbcTemplate jdbc;
 
 	public ErpSyncJobTypesUpgrade(JdbcTemplate jdbc) {
 		this.jdbc = jdbc;
 	}
 
-	/** The conversion when there is something to convert; called first by ZZDataInitializer.init(). */
+	/**
+	 * The conversion of the four catalogue jobs, then the deletion of the rows of the removed type, each only when there is
+	 * something to do; called first by ZZDataInitializer.init().
+	 */
 	public void run() {
 		Integer pending = jdbc.queryForObject(PENDING, Integer.class);
-		if (pending == null || pending == 0) {
-			return;
+		if (pending != null && pending > 0) {
+			jdbc.execute(CONVERSION);
+			Boolean enabled = jdbc.queryForObject(
+					"SELECT enabled FROM erp_sync_job WHERE job_type = 'IMPORT_CATALOGUE'", Boolean.class);
+			LOGGER.info("ERP jobs: the four catalogue jobs converted into IMPORT_CATALOGUE ({})",
+					Boolean.TRUE.equals(enabled) ? "enabled" : "disabled");
 		}
-		jdbc.execute(CONVERSION);
-		Boolean enabled = jdbc.queryForObject(
-				"SELECT enabled FROM erp_sync_job WHERE job_type = 'IMPORT_CATALOGUE'", Boolean.class);
-		LOGGER.info("ERP jobs: the four catalogue jobs converted into IMPORT_CATALOGUE ({})",
-				Boolean.TRUE.equals(enabled) ? "enabled" : "disabled");
+		Integer dead = jdbc.queryForObject(DEAD_ROWS_PENDING, Integer.class);
+		if (dead != null && dead > 0) {
+			jdbc.execute(DEAD_ROWS);
+			LOGGER.info("ERP jobs: {} row(s) of the removed job EXPORT_CUSTOMERS (job and communications log) deleted",
+					dead);
+		}
 	}
 }

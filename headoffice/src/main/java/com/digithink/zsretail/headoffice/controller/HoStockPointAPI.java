@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.core.config.ConditionalOnErpAbility;
@@ -22,7 +21,6 @@ import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.erp.api.ErpAbility;
 import com.digithink.zsretail.headoffice.dto.StockPointDTO;
-import com.digithink.zsretail.headoffice.service.HoStockPointItemsService;
 import com.digithink.zsretail.headoffice.service.HoStockPointService;
 
 import lombok.extern.log4j.Log4j2;
@@ -43,33 +41,13 @@ public class HoStockPointAPI {
 	private static final String NOT_FOUND = "Not found";
 
 	private final HoStockPointService service;
-	private final HoStockPointItemsService rows;
 
-	public HoStockPointAPI(HoStockPointService service, HoStockPointItemsService rows) {
+	public HoStockPointAPI(HoStockPointService service) {
 		this.service = service;
-		this.rows = rows;
 	}
 
-	/**
-	 * Step 4: a page {content, totalElements, totalPages, number, size} of the points' rows, by point then item code.
-	 * Every filter optional: stockPointId, search (item code, name, barcode), familyCode, subFamilyCode, priceMin and
-	 * priceMax (before VAT), status ALL | ACTIVE | INACTIVE. 400 for another status.
-	 */
-	@GetMapping("/items")
-	public ResponseEntity<?> items(@RequestParam(required = false) Long stockPointId,
-			@RequestParam(required = false) String search, @RequestParam(required = false) String familyCode,
-			@RequestParam(required = false) String subFamilyCode, @RequestParam(required = false) Double priceMin,
-			@RequestParam(required = false) Double priceMax, @RequestParam(required = false) String status,
-			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-		return answer(() -> ResponseEntity.ok(
-				rows.rows(stockPointId, search, familyCode, subFamilyCode, priceMin, priceMax, status, page, size)));
-	}
-
-	/** Step 4: one row with its item's details (the details popup). */
-	@GetMapping("/items/{rowId}")
-	public ResponseEntity<?> item(@PathVariable Long rowId) {
-		return answer(() -> rows.row(rowId).<ResponseEntity<?>>map(ResponseEntity::ok).orElseGet(this::notFound));
-	}
+	// 3.1.1: GET /items and /items/{rowId} (the page "Items by point de stock") are gone; a point's rows are listed by
+	// Item cards (GET /admin/headoffice/item-catalogue?stockPointId=&stockPointStatus=)
 
 	/** Every point in list order. */
 	@GetMapping

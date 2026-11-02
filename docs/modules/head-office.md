@@ -599,6 +599,7 @@ Without the URL these keys are not checked. The URL scheme is not checked: HTTP 
 | `ONLINE` | 200 with a readable body | none; the head office `serverTime` is kept |
 | `REFUSED` | 401 | `store code or key refused by the head office` |
 | `REFUSED` | 402 | `the head office has no valid license` |
+| `REFUSED` | 3.1.1, the heartbeat only: 409 with an `{"error"}` text (a head office that supplies no store, for a store with `ownership.supply=HEAD_OFFICE`) | the head office's text, e.g. `This head office supplies no store (headoffice.supply.source=NONE), ...` |
 | `ERROR` | Any other status, other 2xx and 3xx included | `unexpected answer from the head office: HTTP <code>` |
 | `ERROR` | 200 whose body cannot be read (HTML, broken JSON, empty) | `unreadable answer from the head office (...)` |
 | `ERROR` | `DEFAULT_LOCATION` cannot be read (database) | `DEFAULT_LOCATION could not be read (...)`; no call |
@@ -1250,6 +1251,40 @@ A head office that is only a consolidation layer (Happyness: catalogue, BLs, sup
 - Switching `false` back to `true`: the stock was not moved by the BLs sent meanwhile; correct it item by item (adjust stock) before relying on it.
 - Tests: `HeadOfficeStockKeyTest` (default, `false`, strict values, ERP head office, every store kind with the key absent, `false` or unreadable: `/config` true and no filter bean; the filter's refused and passed paths), `HoDeliveryServiceTest.withoutStock`, `withoutStockItemRules`, `SupplyRoundTripTest.withoutHeadOfficeStock`.
 
+### Head office that supplies no store (`headoffice.supply.source=NONE`, 3.1.1)
+A consolidation layer that neither keeps stock nor supplies its stores (ParaFendri: catalogue from Business Central,
+promotions, loyalty, the stores' tickets; each store buys its goods itself). Third value of `headoffice.supply.source`
+beside `HEAD_OFFICE` and `ERP`, which are unchanged (Happyness, ZEN).
+- **Startup**: accepted only with `headoffice.stock.enabled=false` and without `headoffice.storeorders.post` (the store
+  orders need a supplying head office); otherwise `Invalid combination: headoffice.supply.source=NONE with ...` names
+  both keys (`NodeOwnership.checkSupplyNone`). Read on a head office only: a store never reads the key.
+- **Beans**: none of the supply ones. `HEAD_OFFICE_OWN_SUPPLY` (BLs, supply prices, supply invoices and what the stores
+  owe) and `HEAD_OFFICE_ERP_SUPPLY` (the ERP's invoices) are false; the new question `HEAD_OFFICE_SUPPLIES_STORES`
+  (`HeadOfficeSupplyAPI`, `/ho/supply/**`, and the network stock `HoNetworkStockService` / `HoNetworkStockAPI`, fed only
+  by the stores whose goods come from the head office) is false too: those URLs answer 404. No job: the head office runs
+  none for its own BLs, and `IMPORT_SUPPLY_INVOICES` is only seeded with `ERP`. The 3.1.1 store orders are refused at
+  startup (above).
+- **Price lists**: on a head office whose catalogue comes from the ERP, every request on `/admin/headoffice/price-lists`
+  is refused as with `ERP` (`HeadOfficeErpCatalogueFilter`: no supply list is used). Without an ERP the selling lists
+  stay; no new supply list can be created (frontend).
+- **The stores**: `GET /config` `supplySource` `NONE`. A store that reports `ownership.supply=HEAD_OFFICE` at its
+  heartbeat is answered 409 `{"error":"This head office supplies no store (headoffice.supply.source=NONE), but this
+  store gets its goods from the head office (ownership.supply=HEAD_OFFICE). Set ownership.supply=LOCAL in this store's
+  file and restart the store."}`, after its contact and owners are recorded (the Stores page shows them), with a WARN on
+  the head office. The store (3.1.1) shows `REFUSED` with that text on its Jobs page and writes it in its Communications
+  log (`HeartbeatJob`, at the change of state); a store of before shows `ERROR ... HTTP 409`. Its other jobs (sales,
+  loyalty) go on. A store with `LOCAL` or `ERP`, and a store of before 3.1 that sends no owners, are answered as before.
+- **Frontend**: the Supply group is empty and gone (BLs, supply prices, supply invoices, what the stores owe, by
+  `meta.ownSupply`; the ERP invoices by `meta.erpSupply`; the stock and purchase pages already by
+  `meta.headOfficeStock`); Network stock (`meta.suppliesStores`) and Company information (`meta.ownSupply`, only the
+  seller of the supply invoices) are hidden; menu, router guard and Roles page, one rule in
+  `src/navigation/headoffice/supply-source.js` (`tools/supply-source-check.mjs`). Stores page: no invoicing section and no
+  supply list; General Setup: no supply invoice settings; Price lists: no new supply list.
+- Tests: `SupplySourceNoneTest` (core: the two refusals, the values, a store), `SupplySourceBeansTest` (the two NONE
+  modes: no supply bean, no SUPPLY provider), `HeadOfficeHeartbeatAPITest` (409 and its body through MockMvc, then the
+  store's client reads it as `REFUSED`), `HeadOfficeErpCatalogueFilterTest.priceListsBySupplySource`,
+  `AppConfigAPITest.supplySource`.
+
 ### Head office without stock: the pages (frontend)
 Frontend commit d5cb48e. Getter `appConfig/headOfficeKeepsStock`: `false` only on a head office whose `/config` gives `headOfficeStock: false`; `true` by default, when the field is absent or `/config` fails, and always on a store. Every part below is shown by its existing condition (`withoutErp`, `supplyFromErp`, permissions, store rights) **and** this getter, so no store page changes.
 
@@ -1633,32 +1668,28 @@ Done (step 3b), invoices from the ERP:
 - Tests: `HoErpInvoiceServiceTest` (`itemsOutsideTheStockPoint`, `storeWithoutStockPoint`).
 
 Done (step 4), the screens (frontend routes with `meta.erpCatalogue`: menu, guard and Roles page only when
-`appConfig/erpOwnsOnlyCatalogue`; hidden on a store and on every other head office):
+`appConfig/erpOwnsOnlyCatalogue` and, 3.1.1, `appConfig/headOfficeStockPoints` (GET /config `headOfficeStockPoints`:
+the connector has `HEAD_OFFICE_STOCK_POINTS`, so the Stock points API exists; `ApplicationModeService.
+isHeadOfficeStockPoints`); hidden on a store and on every other head office):
 - **Points de stock** (`/headoffice/stock-points`, `StockPoints.vue`, Catalogue menu, permission
   `read:admin-headoffice-stock-points`): the list in reading order (up and down buttons send the whole order), code,
-  name, status, items (a link to the next page filtered on the point), stores, last read; create, rename, activate,
-  deactivate, delete with the API's messages.
-- **Items by point de stock** (`/headoffice/stock-point-items?stockPointId=`, `StockPointItems.vue`, permission
-  `read:admin-headoffice-stock-point-items`): every row, the columns of the Items page plus the point; search (code,
-  name, barcode), point, family, sub-family, price, status; paged by the server; read only; the details popup has the
-  item details' layout (row: name, description, family, sub-family, price, active; item: VAT, barcodes, the rest). The
-  Items page is not changed.
+  name, status, items (3.1.1: a link to Item cards on the point, `?point=<id>&pointStatus=ALL`), stores, last read;
+  create, rename, activate, deactivate, delete with the API's messages.
+- **Items by point de stock**: retired in 3.1.1, see Item cards' point filter ("Fiches items", "Point de stock filter,
+  3.1.1" and "Point de stock values, 3.1.1 step 2"). Its route `/headoffice/stock-point-items?stockPointId=` sends on to
+  Item cards (`fromStockPointItems`: `point`, `pointStatus=ALL`); its API (`GET .../stock-points/items` and
+  `/items/{rowId}`, `HoStockPointItemsService`, `findRows` / `findRowsSearched`) and the permission
+  `read:admin-headoffice-stock-point-items` are gone (a role row that has it stays, unread).
 - **Stores page**: a column "Point de stock" (a warning badge when the store has none), a select next to the ERP
   customer number at creation and in edit (the active points with items, and "None"); changing the point of an existing
   store asks a confirmation saying the items of the previous and the new point, with their barcodes, are sent to it again
   (ZSRetail-Front release/2.3.0, stock point copies), then `PUT .../stock-point`.
 - Backend: the last read of each point (`ho_stock_point.last_read_at`, `last_read_status` OK / NO_ANSWER / FAILED,
   `last_read_summary`), written by the items run (`StockPoints.recordRead`, never in a dry run; a failed read,
-  a failed packet of items or of rows is FAILED with its message), in the list of points;
-  `GET admin/headoffice/stock-points/items` (filters stockPointId, search, familyCode, subFamilyCode, priceMin, priceMax,
-  status ALL | ACTIVE | INACTIVE, page, size up to 200; `HoStockPointItemsService`, query
-  `HoStockPointItemRepository.findRows`, or `findRowsSearched` with a search: the barcode `exists` only in the query of a search, 3.1.0 speed fix: one query with `:search is null or ... exists` scanned `item_barcode` once per row, minutes on 21,903 rows; index `ix_item_barcode_item`) and `GET admin/headoffice/stock-points/items/{rowId}`. The two permissions are
-  given to ADMIN at startup (`ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS`). Classification column (3.1.0): a
-  row also gives the item's `categoryCode` / `categoryName` / `sectionCode` / `sectionName` (the names read once per
-  page, no read without a code: null on EMTOP and Happyness); the family and sub-family stay the row's. No filter on
-  them (the page's Classification column only).
-- Tests: `HoStockPointItemsServiceTest`, `CatalogueEngineTest.lastReads`, `QueryParameterBindingTest` (the rows query),
-  `ZZDataInitializerRolesTest`.
+  a failed packet of items or of rows is FAILED with its message), in the list of points (3.1.1: the rows' page API
+  retired with the page, above). The permission `read:admin-headoffice-stock-points` is given to ADMIN at startup
+  (`ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS`).
+- Tests: `CatalogueEngineTest.lastReads`, `ZZDataInitializerRolesTest`, `ErpAbilityBeansTest.headOfficeStockPointsFlag`.
 
 Fixes after the first test of 2.2 (head office whose catalogue comes from the ERP only):
 - **One job, "Sync catalogue"** (`ErpSyncJobType.SYNC_CATALOGUE`, `core/erp/engine/CatalogueJob` (was `NavPosPagesCatalogueJob`) through the runner's hook
@@ -1678,9 +1709,7 @@ Fixes after the first test of 2.2 (head office whose catalogue comes from the ER
   on `/admin/headoffice/price-lists` and the PUT of a store's selling price list answer 403 (`HeadOfficeErpCatalogueFilter`),
   no selling price list on the Stores page. Existing lists and store settings are kept as they are (a list a store
   already had still gives its price in the copies; nobody can change it here).
-- Items by point de stock: the details popup scrolls and has the item details' look (its own modal id, the same
-  styles; the price block HT, VAT, TTC with the Items page colours); the Barcodes column counts the active barcodes, as
-  the Item Barcodes page.
+- Items by point de stock (popup and Barcodes column fixes): retired in 3.1.1, see Item cards point filter.
 
 Fixes after the second test of 2.2 (head office whose catalogue comes from the ERP only):
 - **A. Price lists.** Selling price lists are not used: the price sent to a store is always its point row's price (an
@@ -1829,10 +1858,9 @@ A read-only page, store and head office, for a catalogue of one item per ERP var
   items.
 - **Famille page**: a "Catégorie" column (code and name) only when `itemCategories` is true. The sous-famille page has
   no section column (a sous-famille has several sections; the Sections page shows the link).
-- **Items by point de stock** (head office): a row in clearance shows, in its price cell and in the details price
-  block, its normal price struck through, the clearance price with VAT (`clearancePrice × (1 + VAT)`, as the other
-  prices of the page) and a "Soldé" badge. No new column; since 2026-10-17 the struck price follows the back end's `clearanceApplies` and the stores sell the clearance price (`docs/modules/erp-sync.md`, "Clearance price at the till"); a null clearance reads false, so
-  Happyness's page is as before.
+- **Items by point de stock** (head office, the clearance in its price cell): retired in 3.1.1, see Item cards point
+  filter (the card's Stock points tab and, with a point chosen, the list's Price column strike the normal price by the
+  back end's `clearanceApplies`).
 - Tests: `ItemTreeQueryTest` (H2), `ItemTreeServiceTest`, `AppConfigAPITest` (`itemCategories`, `itemSections`).
 
 ### Till levels catégorie and section (item variants, ZEN, 3.1.0, step 1: API)
@@ -1898,7 +1926,8 @@ One read-only head office page that unites Items, ERP items and Items by point d
 popup. New code beside the three pages: their APIs (`/item`, `/nav-item`, `/admin/headoffice/stock-points/items`) do not
 change, and nothing of it is in a store WAR (headoffice project only, no core class touched). Since step 3 (below) the
 ERP items page and, when the catalogue is the ERP's, the Items page are hidden from the head office menu and their
-routes send to Item cards.
+routes send to Item cards. Items by point de stock: retired in 3.1.1 (its route sends here, its API is gone), see Item
+cards point filter.
 
 - **Step 1, the list (back end)**: `GET /admin/headoffice/item-catalogue?page&size&search&status` (`HoItemCatalogueAPI`,
   `HoItemCatalogueService`, `HoItemCatalogueRepository`), on every head office (ERP catalogue or manual, with or
@@ -1962,6 +1991,28 @@ routes send to Item cards.
   in the outer WHERE beside "kn.nav IS NOT NULL OR", a point de stock filter took 2.3 s instead of 0.2 s on Happyness.
   A line gains `priceMin` / `priceMax` (with VAT, the variants of the status). The page sends status All by default
   (the API's default stays Active).
+- **Point de stock filter, 3.1.1** (step 1 of retiring Items by point de stock): the page shows it from one point (All
+  by default, not chosen: the list as before; the column still from two). With `stockPointId`, `stockPointStatus`
+  `ACTIVE` (default; absent, blank or unknown too) | `INACTIVE` (`r.active = 0`) | `ALL` (any row) picks the row at that
+  point (page: "Statut au point", address `pointStatus`), and `priceMin` / `priceMax` filter the row's selling price
+  with the item's VAT (the clearance price when it applies, `StockPointPrice`, else `r.unit_price`) instead of the
+  item's own price; all in the one subquery of the point (`HoItemCatalogueQuery.stockPoint`, head office only: core's
+  query, the card and the store's Articles page unchanged). The item Status filter applies as before. Measured on ZEN's
+  test head office (1 point): selling price ≤ 50 TND with VAT 13,892 items, own price 12,152. Test
+  `StockPointFilterQueryTest`.
+- **Point de stock values, 3.1.1 step 2.** List, a point chosen: each line's `priceMin` / `priceMax` are the selling
+  prices with VAT of its rows there (the variants of the item status with a row of the row status, the step 1 rule;
+  a NAV line their range), `pointPrice` true, and the price sort follows them; added after the page,
+  `clearanceVariants` (rows selling at their clearance price) and, with one, `normalPriceMin` / `normalPriceMax` (the
+  page strikes the normal range before the selling one when it differs, and shows "N soldés", as the card's band).
+  Core's `ItemCatalogueQuery.Criteria` gained `linePrice` / `linePriceJoin` (null: the SQL is unchanged, asserted by
+  `StockPointFilterQueryTest.lineSqlUnchanged`), set by `HoItemCatalogueQuery.stockPoint` (`LEFT JOIN
+  ho_stock_point_item pr`, one row per item and point). Card, Stock points tab: each `PointPrice` also carries the row's
+  `name`, `description`, `familyCode` / `familyName`, `subFamilyCode` / `subFamilyName` and `differences` (the fields
+  that differ from the item's: trimmed, null and blank the same, else exact; `differs` when one does); under the price,
+  "À ce point" with the row's name and family › sub-family that differ, the description in the tooltip, nothing when
+  identical (ZEN and ParaFendri today). Tests `StockPointFilterQueryTest`, `HoNavItemStockPointsTest`,
+  `NavItemStockPointsQueryTest`.
 - **Natural code sort**: the codes of digits only first, by their number (`000002` before `0000016`), then the others
   as text, then the smallest item id; written `code COLLATE Latin1_General_BIN NOT LIKE '%[^0-9]%'` (every SQL Server
   version; 2 to 3 times cheaper than a REPLACE chain under the database's collation: 0.4 to 1.0 s of CPU against 1.5 to
@@ -2002,7 +2053,7 @@ routes send to Item cards.
   400 and 404, no point de stock).
 - **Step 3, the old pages hidden** (2026-10-18, both repos; inventory of what the old pages did first). Item cards replaces
   the head office pages **ERP items** (always) and **Items** when the catalogue comes from the ERP; Items by point de
-  stock stays. The routes are kept one release, as redirects, and the store pages, routes, shared components, i18n keys
+  stock stayed (retired in 3.1.1, see Item cards point filter). The routes are kept one release, as redirects, and the store pages, routes, shared components, i18n keys
   and APIs do not change.
   - **Routes** (`router/headoffice-routes.js`): `admin-headoffice-nav-items` is a route-level `redirect` to
     `admin-headoffice-item-cards` (before the guards, so also without `navItems`); `admin-headoffice-items` carries
@@ -2406,7 +2457,7 @@ The head office of an ERP customer (ParaFendri) gets its items, families, sub-fa
 | `DynamicsNavRestClient`, `DynamicsNavConnector`, `DynamicsNavConfig` (`erp.connector=emtop`) | The NAV connector instead of the no-op one | Needed for the imports |
 | Selling services | Not reached: no cashier session or cashier login on a head office (task 1.1); franchise flags refused everywhere since task 9.4a | Unchanged |
 
-**Jobs on a head office** (`HeadOfficeErpJobs.NOT_ON_HEAD_OFFICE`, never run, never offered): `EXPORT_CUSTOMERS`, `EXPORT_TICKETS`, `EXPORT_RETURNS`, `EXPORT_SESSIONS` (a head office has no ticket, return or session, and a customer created there must not reach the ERP) and `IMPORT_SALES_PRICES_AND_DISCOUNTS` (filtered on the responsibility center of one location, it would give one store's prices as if they were the network's; a head office does not sell, and each ERP store imports its own prices). Offered: `IMPORT_ITEM_FAMILIES`, `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS`, `IMPORT_ITEM_BARCODES`, `IMPORT_LOCATIONS` (needed to choose the reference location), `SYNC_ERP_DELETIONS`, and `IMPORT_CUSTOMERS` (import only, disabled as seeded: the head office Customers page can show the ERP customers; nothing goes back to the ERP).
+**Jobs on a head office** (`HeadOfficeErpJobs.NOT_ON_HEAD_OFFICE`, never run, never offered): `EXPORT_TICKETS`, `EXPORT_RETURNS`, `EXPORT_SESSIONS` (a head office has no ticket, return or session) and `IMPORT_SALES_PRICES_AND_DISCOUNTS` (filtered on the responsibility center of one location, it would give one store's prices as if they were the network's; a head office does not sell, and each ERP store imports its own prices). Offered: `IMPORT_ITEM_FAMILIES`, `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS`, `IMPORT_ITEM_BARCODES`, `IMPORT_LOCATIONS` (needed to choose the reference location), `SYNC_ERP_DELETIONS`, and `IMPORT_CUSTOMERS` (import only, disabled as seeded: the head office Customers page can show the ERP customers; nothing goes back to the ERP).
 
 **Jobs on a head office whose catalogue only comes from the ERP** (ERP catalogue, step 3; `isErpCatalogueOnly`): only
 `SYNC_CATALOGUE` is offered (release 2.2; the four catalogue imports before, `IMPORT_CATALOGUE` since 3.1.1, refused here)

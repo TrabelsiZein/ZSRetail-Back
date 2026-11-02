@@ -5,7 +5,7 @@ package com.digithink.zsretail.core.erp.enumeration;
  */
 public enum ErpSyncOperation {
 	IMPORT_ITEM_FAMILIES, IMPORT_ITEM_SUBFAMILIES, IMPORT_ITEMS, IMPORT_ITEM_BARCODES, IMPORT_LOCATIONS,
-	IMPORT_CUSTOMERS, IMPORT_SALES_PRICES, IMPORT_SALES_DISCOUNTS, EXPORT_CUSTOMER, EXPORT_TICKET, EXPORT_TICKET_LINE, UPDATE_TICKET, EXPORT_PAYMENT_HEADER,
+	IMPORT_CUSTOMERS, IMPORT_SALES_PRICES, IMPORT_SALES_DISCOUNTS, EXPORT_TICKET, EXPORT_TICKET_LINE, UPDATE_TICKET, EXPORT_PAYMENT_HEADER,
 	EXPORT_PAYMENT_LINE, EXPORT_RETURN, EXPORT_RETURN_LINE, UPDATE_RETURN, EXPORT_SESSION, SYNC_ERP_DELETIONS,
 	IMPORT_SUPPLY_INVOICES,
 	/** Release 2.2: one run of the job SYNC_CATALOGUE (one row of the communications log per run). */
@@ -13,5 +13,7 @@ public enum ErpSyncOperation {
 	/** Item variants (ZEN), step 4: a catégorie or a section left out by the import (a warning row). */
 	IMPORT_ITEM_CATEGORIES, IMPORT_ITEM_SECTIONS,
 	/** 3.1.1: one store order posted into the ERP as a sales order (the job POST_STORE_ORDERS, or "retry now"). */
-	EXPORT_SALES_ORDER
+	EXPORT_SALES_ORDER,
+	/** 3.1.1 (ParaFendri, step 7): the invoice of a ticket asked from the ERP (the job EXPORT_TICKETS). */
+	REQUEST_INVOICE
 }

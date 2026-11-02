@@ -10,6 +10,7 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,6 +24,7 @@ import com.digithink.zsretail.core.erp.model.ErpSyncJob;
 import com.digithink.zsretail.core.erp.repository.ErpSyncJobRepository;
 import com.digithink.zsretail.core.erp.service.ErpSyncCheckpointService;
 import com.digithink.zsretail.core.erp.service.ErpSyncJobTypesUpgrade;
+import com.digithink.zsretail.core.model.AppRole;
 import com.digithink.zsretail.core.model.GeneralSetup;
 import com.digithink.zsretail.core.repository.AppReleaseNoteRepository;
 import com.digithink.zsretail.core.repository.AppRoleRepository;
@@ -114,12 +116,33 @@ class ZZDataInitializerModeTest {
 		field.set(target, value);
 	}
 
+	/**
+	 * 3.1.1: the roles repository with an ADMIN role already saved (a database of before): findByName("ADMIN") gives it,
+	 * every other call as {@link #repository}.
+	 */
+	private static AppRoleRepository rolesWith(AppRole admin) {
+		AppRoleRepository others = repository(AppRoleRepository.class, 1, null, null);
+		return (AppRoleRepository) Proxy.newProxyInstance(AppRoleRepository.class.getClassLoader(),
+				new Class<?>[] { AppRoleRepository.class }, (proxy, method, args) -> {
+					if (method.getName().equals("findByName") && "ADMIN".equals(args[0])) {
+						return Optional.of(admin);
+					}
+					return method.invoke(others, args);
+				});
+	}
+
 	private static Writes init(ApplicationModeService mode) throws Exception {
+		return init(mode, null);
+	}
+
+	/** admin: an ADMIN role already saved (a database of before), or null (a first start: the role is created). */
+	private static Writes init(ApplicationModeService mode, AppRole admin) throws Exception {
 		Writes writes = new Writes();
 		ZZDataInitializer initializer = new ZZDataInitializer();
 		set(initializer, "applicationModeService", mode);
 		set(initializer, "userRepository", repository(UserAccountRepository.class, 1, null, null));
-		set(initializer, "appRoleRepository", repository(AppRoleRepository.class, 1, null, null));
+		set(initializer, "appRoleRepository",
+				admin == null ? repository(AppRoleRepository.class, 1, null, null) : rolesWith(admin));
 		set(initializer, "passwordEncoder", new PasswordEncoder() {
 			@Override
 			public String encode(CharSequence raw) {
@@ -241,5 +264,34 @@ class ZZDataInitializerModeTest {
 				"the invoice settings: " + writes.settings);
 		assertTrue(writes.jobs.containsAll(java.util.Arrays.asList("SYNC_CATALOGUE", "IMPORT_SUPPLY_INVOICES")),
 				"the head office jobs: " + writes.jobs);
+	}
+
+	/** An ADMIN role of a store database created before its file had the head office lines. */
+	private static AppRole adminOfBefore() {
+		AppRole admin = new AppRole("ADMIN", "Administrateur", false);
+		admin.setPermissions(new HashSet<>(java.util.Arrays.asList("read:admin-dashboard", "read:admin-users")));
+		return admin;
+	}
+
+	@Test
+	@DisplayName("3.1.1: the ADMIN role of before gets the Head office pages at the start of a store linked to a head office, not of an unlinked store; nothing removed")
+	void headOfficeLinkPagesToppedUp() throws Exception {
+		// Gremda's shape: its own ERP, promotions and loyalty from the head office
+		ApplicationModeService linked = TestModes.of(TestModes.erpOwners(new MockEnvironment()
+				.withProperty("headoffice.url", "http://localhost:888/zsretail/api").withProperty("headoffice.api-key", "k")
+				.withProperty("ownership.promotions", "HEAD_OFFICE").withProperty("ownership.loyalty", "HEAD_OFFICE")));
+		AppRole admin = adminOfBefore();
+		init(linked, admin);
+		assertTrue(admin.getPermissions().containsAll(ZZDataInitializer.HEAD_OFFICE_LINK_ADMIN_PERMISSIONS),
+				"linked: " + admin.getPermissions());
+		assertTrue(admin.getPermissions().containsAll(java.util.Arrays.asList("read:admin-dashboard", "read:admin-users")),
+				"nothing removed: " + admin.getPermissions());
+
+		for (ApplicationModeService unlinked : new ApplicationModeService[] { TestModes.erp(), TestModes.standalone() }) {
+			AppRole notLinked = adminOfBefore();
+			init(unlinked, notLinked);
+			assertFalse(notLinked.getPermissions().contains("read:admin-holink-status"),
+					"unlinked: " + notLinked.getPermissions());
+		}
 	}
 }

@@ -174,9 +174,20 @@ once the four rows are gone. A new installation is seeded with `IMPORT_CATALOGUE
 `ImportCatalogueJobTest` (order, stop at the first failure, warnings), `ErpSyncJobTypesUpgradeTest` (the batch, the
 script holding it, the startup run).
 
+**Removed job type `EXPORT_CUSTOMERS`** (3.1.1): never implemented (the runner only logged "not yet implemented", every
+connector's `pushCustomer` answered a failure, nothing called `ErpSynchronizationManager.pushCustomer`; with an ERP the
+customers come from it, the application never creates one). Gone: the job type, its operation `EXPORT_CUSTOMER`,
+`ErpConnector.pushCustomer` and its five implementations, `ErpSynchronizationManager.pushCustomer`, the disabled template
+row seeded by `ZZDataInitializer`, its place in `HeadOfficeErpJobs.NOT_ON_HEAD_OFFICE`. `IMPORT_CUSTOMERS` is unchanged.
+The rows: the job and operation columns are read with `EnumType.STRING`, so a value the code no longer has throws
+(`No enum constant`) on every read of the table (the scheduler, the jobs page, the communications log). The same
+startup step deletes them (`ErpSyncJobTypesUpgrade.DEAD_ROWS`: `erp_sync_job` rows of type `EXPORT_CUSTOMERS`,
+`erp_communication` rows of operation `EXPORT_CUSTOMER`, each table guarded, only when there are some), and
+`db/3.1.1/update.sql` holds the same statements. Seen 2026-10-31: one disabled row on `pos_db_prod` (EMTOP) and on
+`pos_headoffice`, no log row anywhere.
+
 **ErpSyncOperation Enum:**
 - `IMPORT_ITEM_FAMILIES`, `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS`, `IMPORT_ITEM_BARCODES`, `IMPORT_LOCATIONS`, `IMPORT_CUSTOMERS` - Import operations
-- `EXPORT_CUSTOMER` - Export customer to ERP
 - `EXPORT_TICKET` - Export ticket header to ERP (main operation)
 - `EXPORT_TICKET_LINE` - Export individual ticket line to ERP (automatically triggered by EXPORT_TICKET)
 - `UPDATE_TICKET` - Update ticket status (POS_Order) in ERP (automatically triggered by EXPORT_TICKET)
@@ -235,18 +246,22 @@ they declare today.
 | `none` | — | — | — |
 | `emtop` | — | — | — |
 | `happyness` | yes | yes | — |
+| `parafendri` (3.1.1: stores, and a head office whose catalogue comes from the ERP) | yes (head office catalogue) | — | — |
 | `zen` (3.1.0, item variants step 8) | yes | yes (step 9) | yes (3.1.1) |
 
 - `HEAD_OFFICE_STOCK_POINTS` (was `CATALOGUE_BY_STOCK_POINTS`): the head office keeps several points de stock in its own
   tables (`ho_stock_point`, `ho_stock_point_item`, the points page), filled by the single catalogue job `SYNC_CATALOGUE`. Not
-  "reads items by location": every connector may do that.
+  "reads items by location": every connector may do that. Its beans (the 7 of the engine in core, the 4 of the points
+  in the head office) exist with the ability **and** on a head office whose catalogue only comes from the ERP
+  (`@ConditionalOnInstallation(HEAD_OFFICE_ERP_CATALOGUE_ONLY)`, 3.1.1): ParaFendri is the first connector on stores and
+  a head office, and a store keeps its job `IMPORT_CATALOGUE` (`ErpAbilityBeansTest.parafendriStoreAndHeadOffice`).
 - `SUPPLY_INVOICES`: the ERP's supply invoices are read, so a head office may set `headoffice.supply.source=ERP`.
 - `STORE_ORDERS` (3.1.1): the stores' orders are posted as sales orders (`ErpConnector.postSalesOrder`, looked up first by
   their external document number) and the variants' stock for a store is read (`fetchVariantStock`, with its code and ERP customer number), so a head office
   may set `headoffice.storeorders.post=ERP`; the job `POST_STORE_ORDERS` posts them (`docs/modules/store-orders.md`).
   Every other connector keeps the two defaults: not supported.
 
-`ErpAbilities.connectorInEffect(env)` (none, emtop, happyness, zen) is the value of `erp.connector`;
+`ErpAbilities.connectorInEffect(env)` (none, emtop, happyness, parafendri, zen) is the value of `erp.connector`;
 `hasConnector(env)` is true for any connector but none. A new ability is added there when the code needs it, never a test on
 a connector name.
 
@@ -357,7 +372,7 @@ read; `StockPoints.Row` carries them (`ho_stock_point_item.clearance`, `clearanc
 `HoStockPointRows`; a null column, a row written before 3.1.0, is false). The row compare adds the flag (null = false on
 both sides) and the clearance price at 3 decimals (null = no price): the rows of an ERP without clearance (Happyness) do
 not change. The item does not compare them. Tests: `CatalogueClearanceTest` (core), `HoStockPointRowsTest` (H2),
-`HoStockPointItemsServiceTest.clearance`.
+`StockPointFilterQueryTest` (3.1.1, the Item cards point price; `HoStockPointItemsServiceTest` retired with its page).
 
 **Page read retry (2026-10-17)**: every page the catalogue engine reads (categories, the items of a point, whole or
 since its checkpoint, the barcodes after the cursor or of some items) goes through `RetryingCatalogueSource`, for every
@@ -408,6 +423,19 @@ databases** (the two `CREATE INDEX` statements after `ix_item_barcode` in the sc
 import: ...` per packet. The run of 17/10 (846 s, 21,086 changed) was a real change: the first run after the
 variant description was built by the connector, before the 3.1.0 UPDATE. Test: `ErpItemImportLookupsTest`.
 
+**Barcodes step speed (3.1.1, 2026-11-01)**: `importItemBarcodes` ran three lookups per row (item by ERP id then by
+code, barcode by ERP id then by value), each auto-flushing a session that grew with the packet: quadratic, 13,165
+ParaFendri barcodes ran more than 27 minutes in one transaction. It now takes the packet by windows of 1,000 rows
+(`IN_CHUNK`): per window, four reads (`ItemRepository.findByErpExternalIdIn` / `findByItemCodeIn`,
+`ItemBarcodeRepository.findByErpExternalIdIn` / `findByBarcodeIn`, both with their item joined), the rows in memory
+with the same rules and messages (one WARNING row per barcode left out; ERP id before value; the primary flag only when
+given; a later row of the same barcode finds the one just saved, and a barcode whose value changed is no longer found
+by its old one), the writes by JDBC batches of 100, then a flush and a clear, so each window's session holds only its
+own rows (a clear every 100 rows would make each later update of an already-read barcode a SELECT by `merge`). The
+lookup keys compare as SQL Server's collation does (case and trailing spaces ignored), so a barcode the per-row query
+found is found here too. Log: `ERP item barcodes import: N rows handed, W written (C new, U updated) in T ms`. Test:
+`ErpBarcodeImportLookupsTest` (2,000 rows: 8 reads).
+
 **Clearance price at the till (2026-10-17, reverses step 11b's "no price logic")**: one rule,
 `headoffice/service/StockPointPrice.sellingPrice` / `clearanceApplies`: a row with clearance true and a clearance price
 above 0 sells at its clearance price, any other row (clearance false or null, a price null or 0) at its own price. Both
@@ -422,7 +450,7 @@ again. The head office pages read the same rule: `StockPointItemDTO` and `NavIte
 `clearanceApplies` and `sellingPrice`. EMTOP and Happyness rows have no clearance: unchanged. Items already at a store
 are sent again only on a row change or a change of the store's point (none at the upgrade). Tests:
 `StockPointPriceTest`, `HoStockPointCatalogueTest` (clearance), `HoStockPointRowsTest`
-(`clearanceChangeRecordedForTheStores`), `HoStockPointItemsServiceTest.sellingPrice`, store `ClearanceAtTheTillTest`,
+(`clearanceChangeRecordedForTheStores`), `StockPointFilterQueryTest.pointPrice` (3.1.1), store `ClearanceAtTheTillTest`,
 network-tests `ClearanceRoundTripTest`.
 
 **Items run of changes only (step 6)**: a connector whose `ErpCatalogueSource.readsChangesOnly()` is true (ZEN) is read
@@ -535,6 +563,306 @@ GET (`ZenConfig`, `ZenRestClient`, following `@odata.nextLink`), the mapper (`Ze
   a fake `barCodes` page), `ZenStartupCheckTest`, the pinned lists of
   `ErpConnectorTest`, `OutsideFileUpgradeTest`, `ThirdConnectorTest`, `ErpAbilitiesTest`, `ErpAbilityBeansTest`
   (network-tests). `ConnectorNamesGuardTest` takes a connector's name as a whole word (no letter or digit around it).
+
+## ParaFendri's connector (`erp.parafendri`, 3.1.1, step 0)
+
+ParaFendri: six points de vente of its own on Business Central 28 on-prem. Each runs a ZS Retail **store on the ERP as
+EMTOP's** (`ownership.*=ERP`, `sales.upstream=ERP`, `erp.connector=parafendri`, `configs/customers/parafendri-store.properties`);
+a head office may be added later by configuration only. Their API is the family of ZEN's: custom API pages under
+`<base-url>/api/sat/zsretail/v1.0/companies(<company-id>)/` (`locations`, `itemCategories`, `stockPoints`, `barCodes`,
+`stockLevels`, `customers`, `salesOrders`, `salesOrderLines`, `shipAndInvoice`), OData V4, NTLM, prices before VAT and
+`vatPercent` on the `stockPoints` row. Keys: `docs/deployment-modes.md`, "The connector of ParaFendri's stores".
+
+Project `connectors/parafendri` (`com.digithink.zsretail.connector.parafendri`), a copy of the existing code with no
+dependency on another connector:
+- `ParafendriConnectorDescriptor`: name `parafendri`, **no ability** (none needed by a store connector so far), the
+  summary `BC <base-url>`.
+- `config/ParafendriProperties` (`base-url`, `company-id`, `domain`, `username`, `password`, the two timeouts, EMTOP's
+  30 s / 600 s); the API path `api/sat/zsretail/v1.0` and the page names are constants of the connector, not keys.
+- `config/ParafendriStartupCheck`: the required keys, `base-url` well formed, `company-id` a GUID; on a store or a
+  head office alike (unlike ZEN's, which refuses anything but a head office whose catalogue comes from the ERP). No call
+  to Business Central at startup.
+- `config/ParafendriConfig`: NTLM `RestTemplate`, GET only (`GetOnly`), the login given to the host (and port) of
+  `base-url` only, not `AuthScope.ANY` as the other connectors: a next link or any other host gets no login.
+- `client/ParafendriRestClient`: `readCompanies()` (`GET <base-url>/api/sat/zsretail/v1.0/companies`, next links
+  followed) and `checkCompany()`, **the connection test**: the row of `company-id` (case ignored), else a
+  `ParafendriReadException` naming it and the companies found. A failed read names the page and the HTTP status
+  (`ParafendriReadException.getStatus()`). Step 1: `readLocations()` (`GET companies(<company-id>)/locations?$select=
+  code,name,lastModifiedDateTime`, next links followed; `dto/ParafendriLocationRow`) and `checkLocation(code)` (true
+  when the code, trimmed, case ignored, is a location of the company).
+- `config/ParafendriConnectionCheck` (step 1): **the connection check after the start**, on `ApplicationReadyEvent`
+  (the database ready, the installation summary logged), on its own daemon thread `parafendri-connection-check`, so it
+  never delays the start nor a sale. `checkCompany()`, then `checkLocation(<General Setup DEFAULT_LOCATION>)`, read
+  through `ErpStoreLocation` (erp-api, answered by core). One INFO line `ERP connector parafendri: Business Central
+  reachable, company <name>, location <code> found.`, else one WARNING naming the problem: Business Central unreachable
+  or an HTTP status (the page named), the company missing, `DEFAULT_LOCATION` empty (always on a store's first run,
+  until it is set), the location not a location of the company, any other failure. It never throws: the store starts
+  and sells without the ERP. Not at `ParafendriStartupCheck` (the settings only, before the start): the database and
+  `DEFAULT_LOCATION` are not there yet, and a call there would hold the deploy up to the timeouts (30 s, 600 s) with
+  Business Central down. Neither emtop nor ZEN calls their ERP at startup. On a head office (later) `DEFAULT_LOCATION`
+  is empty: the check warns until a head office has its own check.
+- `connector/ParafendriConnector`: the `ErpConnector` of EMTOP's shape (a store connector, not a catalogue source).
+  Step 2, the tree for the job `IMPORT_CATALOGUE`: `fetchItemCategories`, `fetchItemFamilies`, `fetchItemSubFamilies`,
+  `fetchItemSections` each read the page `itemCategories` (`ParafendriRestClient.readItemCategories()`,
+  `companies(<id>)/itemCategories`, next links followed, no `$select`; 121 rows at ParaFendri: no cache, one GET per
+  fetch) and keep their level through `mapper/ParafendriMapper` (`ErpRead` per level, as ZEN's mapper of the same API):
+  `indentation` 0 catégorie, 1 famille (`categoryExternalId` = its parent when the parent is a catégorie of the read;
+  else kept without one and noted "famille whose parent is not a catégorie"), 2 sous-famille (`familyExternalId`; left
+  out "parent not a famille of the read"), 3 section (`subFamilyExternalId`; left out "parent not a sous-famille of the
+  read"); code and external id `code`, name and description `description`, display order `presentationOrder`, active. A
+  blank code is left out at its level, a row without a level 0 to 3 with the sections ("indentation 4 (deeper than a
+  section)", "no indentation"); a level's read counts its own rows only. Each read goes to the communications log as
+  EMTOP's (`PullOperationResult`: the address, then `{read, kept, leftOut, notes, rows}`; the address alone when the read
+  fails), with one WARN line when a row was left out. No ability on the descriptor: `IMPORT_CATALOGUE` asks none (an
+  ability like `HEAD_OFFICE_STOCK_POINTS` would bring the head office's engine). Live, 2026-10-31: 121 rows, 2
+  catégories, 16 familles, 103 sous-familles, no section, nothing left out. The other fetches (but the locations and
+  the customer, below) answer an empty list, the
+  pushes and updates a failure: `erp.sync.enabled=false` in the store's file until the items and barcodes are written.
+- Step 3, the items (`fetchItems`, the job's items part): the page `stockPoints` of the store's point de vente (General
+  Setup `DEFAULT_LOCATION` through `ErpStoreLocation`; none: the warning "DEFAULT_LOCATION is not configured", as EMTOP's),
+  `$filter=locationCode eq '<code>'` and, from the job's checkpoint `ERP_SYNC_LAST_ITEM` (`filter.updatedAfter`: the
+  newest `lastModifiedDateTime` of the items it got, as EMTOP's `Modified_At`), `and lastModifiedDateTime ge <time in
+  UTC>`: `ge` as ZEN's, so that a row written in the same tick of the SQL `datetime` (1/300 s) as the newest row read is
+  never missed (the rows of that time are read again, the import is the same). Next links followed, no `$select`.
+  `ParafendriMapper.items`: code and external id `itemNo`; name and description `stockPointDescription`, else
+  `itemDescription`; unit `baseUnitOfMeasure` (blank: none; `ErpItemDTO.unitOfMeasure`, 3.1.1, written by the import only
+  when the ERP gives one); **the price `unitPrice` as received, before VAT, never rounded** (18.90756 × 1.19 = 22.4999964,
+  shown 22.500 by the till, which adds the VAT; 18.908 would give 22.501; ZEN's lesson); the VAT `vatPercent` (not a
+  whole number: rounded, noted); `lastModifiedAt` `lastModifiedDateTime` (0001-01-01: none, noted). Inactive, kept and
+  noted: `itemBlocked`, `itemSalesBlocked`, `stockPointBlocked`, a null or zero `unitPrice`. The four links
+  (`categoryCode`, `familyCode`, `subFamilyCode`, `sectionCode`): blank none; a code that is not a row the tree keeps at
+  its level (the tree is read again first, 121 rows) none and noted, the item kept. Left out with their reason: a blank
+  `itemNo`, a row of another location, no `vatPercent`, the same `itemNo` twice. Not read: `itemCategoryCode` (the
+  sous-famille again), `customerNo` (step 6). The communications log gets the address with its filter, the location,
+  the checkpoint, the counts and the reasons, not the rows (13,165 on a first read). Known limit, as EMTOP's: with the
+  delta read, an item whose row is deleted in Business Central is not made inactive (a blocked one is). Live,
+  2026-10-31, PV-GREMDA: 13,165 rows in one page, 4.4 s, all kept, nothing noted.
+- Step 4, the barcodes (`fetchItemBarcodes`, the job's barcodes part): the page `barCodes`, **company-wide** (no
+  location: one barcode per item of the company), every row on a first run (no checkpoint), else from the job's
+  checkpoint `ERP_SYNC_LAST_ITEM_BARCODE` (the newest `lastModifiedDateTime` of the barcodes it got) with
+  `lastModifiedDateTime ge <time in UTC>`, **plus every barcode of the items the items part of the same run got from its
+  own checkpoint** (`itemNo eq '..' or ..`, 20 items per GET): the importer leaves out a barcode whose item is not in the
+  store, and the checkpoint still moves past it, so an item added to the point de vente later (or fixed later) would
+  never get its barcode, its barcode row not changing. The items part notes its items in the connector (a `ThreadLocal`
+  of the job's thread, set by `fetchItems` on a run from a checkpoint, taken and cleared by `fetchItemBarcodes`; not by
+  `clearLastPullOperationResult`, which the manager calls after every read); a row read twice is kept once.
+  `ParafendriMapper.barcodes`: value `barCode`, item `itemNo` (the item's ERP id since step 3), external id the row's
+  `id` (a GUID: a barcode changed in Business Central replaces the old one, the import finding it by its ERP id first;
+  no id: the value), `lastModifiedAt` (0001-01-01: none, noted); the primary flag left to the import, as EMTOP's. Left
+  out with their reason: a blank `barCode`, a blank `itemNo`. Not read: `unitOfMeasureCode` (`item_barcode` has no
+  unit), `description` (empty). The communications log gets the address, the counts (`readFromCheckpoint`,
+  `itemsAsked`, `readForItems`, `sameRowTwice`) and the reasons, not the rows. **Barcodes of an item this store does not
+  have**: the core import writes one WARNING row each in the communications log ("parent item ... not found"), as for
+  EMTOP; measured live 2026-10-31 for PV-GREMDA: 0 (its 13,165 items are the company's 13,165 barcodes), so no change in
+  core; to measure at each other point de vente when it starts (the live test counts them). Live: 13,165 rows in one
+  page, 5.0 s, all kept.
+- Step 6, the tickets (`pushTicket`, the job `EXPORT_TICKETS`): **one POST per ticket**, `companies(<id>)/salesOrders`
+  with its lines inside (`salesOrderLines`, a contained navigation property: a deep insert). The ability
+  **`ErpAbility.WHOLE_TICKET_EXPORT`** (erp-api; only this connector declares it) makes `TicketExportService` take one
+  branch at the top of `exportTicket` (`ErpAbilities.has(environment, ...)`, no configuration line): `pushTicket` with
+  every line; success = Business Central's number as the ticket's `erpNo`, every line synchronized and the ticket
+  `TOTALLY_SYNCHED` at once; failure = nothing changed (no partial state, no status update), counted as an error,
+  retried at the next run. Any other connector keeps the header, the lines one by one, then the status, unchanged (the
+  shared mapping only fills a few new optional fields of `ErpTicketDTO` / `ErpTicketLineDTO`: the lines' position, TTC
+  and promotion code, the ticket's HT and its reduction amount; emtop's mapper reads none of them).
+  - **Never twice**: before the POST, `GET salesOrders?$filter=ticketNo eq '<ticket number>'`; a ticket found is
+    answered with its order (its number, no POST). **Today Business Central answers 400 "Field 'ticketNo' is not
+    filterable"** (2026-10-31: of the header's fields only `number` and `orderStatus` filter); the export then posts
+    anyway and the run writes **one** WARN, in the log and as a WARNING row of the communications log (operation
+    `EXPORT_TICKET`): "no-double guard unavailable: ticketNo is not filterable in BC — ask the BC contact to make
+    ticketNo a stored, filterable field" (the connector's `ErpOperationResult.addWarning`, gathered by
+    `TicketExportService` and written once per run; a ticket exported alone writes its own). Any other failure of the
+    lookup: the ticket is not posted. Ticket numbers are `DEFAULT_LOCATION` + date + sequence, unique across the
+    points de vente.
+  - `customerNo`: the point de vente's customer, `customerNo` of one `stockPoints` row of `DEFAULT_LOCATION` (`$top=1`),
+    read at the first ticket and kept for the location (none: the ticket is not sent, read again next time).
+  - The mapping (`ParafendriMapper.salesOrder`), **each point to confirm with Sayf** (ParaFendri's BC contact):
+
+    | Business Central | Value |
+    |---|---|
+    | `ticketNo` | the ticket number |
+    | `customerNo`, `locationCode` | the point de vente's customer, `DEFAULT_LOCATION` |
+    | `orderDate`, `postingDate` | the ticket's date |
+    | `ticketAmount` | the total HT after the ticket-wide reduction (`SalesHeader.subtotal`) |
+    | `amountIncludingVAT` | **computed by BC**, never sent (read-only: sent, BC answers HTTP 400 "Control 'amountIncludingVAT' is read-only"); read back from the answer and put in the log message next to our total TTC (`totalAmount`, stamp included) |
+    | `discountPercent` | the ticket-wide reduction (discount + loyalty points) as a % of the lines' TTC, 5 decimals: EMTOP's `Discount_Percent` |
+    | `invoiceDiscountAmount`, `invoiceDiscountPercent` | 0 |
+    | `fenceNo` | the cashier session number, as EMTOP's `Fence_No` (the ticket carries no till id) |
+    | `orderStatus` | never sent (Entered, Posted, Error, Double: set by BC), shown in the log message |
+    | line `lineNo` | 10000 × its position among the lines sent |
+    | line `itemNo` | the item's ERP code; the stamp's `TAX_STAMP_ERP_ITEM_CODE`, and without it no stamp line and one WARN per run |
+    | line `quantity`, `unitPrice` | decimals kept; the price before VAT as stored, never rounded |
+    | line `lineDiscountPercent` | as EMTOP's (stored, else derived; a free line 100, its price kept) |
+    | line `promotionNo` | the promotion's code, else "" |
+    | line `amountIncludingVAT` | **computed by BC**, never sent (read-only, as the header's) |
+
+  - The communications log: one row per ticket (`EXPORT_TICKET`): the body sent, Business Central's answer, the
+    message with its number, `orderStatus` and the two totals ("ticket X posted as sales order N (orderStatus Entered,
+    BC amountIncludingVAT 22.5, our total TTC 22.500)": BC's rounding of 18.90756 × 1.19 next to ours), "already in
+    Business Central as ..."), Business Central's own error text on a refusal (`{"error":{"code","message"}}`). The
+    connector's writes: `GetOnly` lets a POST to `.../salesOrders` (no query) through, and since step 7 one to
+    `.../shipAndInvoice`, nothing else.
+  - Returns and sessions are not exported yet (later, with Sayf's pages): with a connector posting tickets whole
+    (`ApplicationModeService.isWholeTicketExport`) `ZZDataInitializer` seeds `EXPORT_RETURNS` and `EXPORT_SESSIONS`
+    disabled; `pushReturnHeader` / `Line` and `pushSession` answer a failure.
+  - Tests: `ParafendriSalesOrderMapperTest` (the sample `salesOrder-request.json`, the stamp without its ERP code),
+    `ParafendriTicketExportTest` (posted, already there, not filterable then posted with the warning, another lookup
+    failure, refused with BC's text, `customerNo` once, none, no location), the guard and BC's error text in
+    `ParafendriRestClientTest`, `TicketExportWholeTicketTest` (network-tests: the branch, all or nothing, emtop and none
+    unchanged, one warning per run, the seeding question). Live (GET only, 2026-10-31): the lookup answers 400 not
+    filterable, the test passes on that path; the live POST test runs only with `-Dparafendri.live.post=true` (one test
+    ticket, then the same again: no double), not run yet.
+- Step 7, the invoice of a ticket (`requestInvoice`, the same job `EXPORT_TICKETS`): Business Central's page
+  `companies(<id>)/shipAndInvoice` (key `orderNo`; fields `orderNo`, `invoiceNo`, `invoicePdfBase64`,
+  `lastModifiedDateTime`; no OData action): **POST `{ "orderNo": "<the ticket's erpNo>" }`**, Business Central ships and
+  invoices the sales order and answers the row with the invoice number and the PDF in base64.
+  - erp-api: `ErpConnector.requestInvoice(externalReference, fiscalRegistration, invoiceCustomerName)` →
+    `ErpInvoiceResult` (an `ErpOperationResult`: success, message, warnings, plus `invoiceNo` and `pdf`, bytes or null);
+    the default throws `ErpNotSupportedException`. No new ability: `WHOLE_TICKET_EXPORT` covers it (a connector posting
+    tickets whole answers it). Core: `ErpSynchronizationManager.requestInvoice`, logged as the other pushes under the
+    new operation **`REQUEST_INVOICE`** (counted with the job `EXPORT_TICKETS` in its statistics). The front's filter
+    list of the communications page (`ErpCommunications.vue`) does not list it yet (no front work in this step).
+  - **The service rule** (`TicketExportService`, the whole-ticket branch only): a ticket with its `erpNo` is **never
+    posted again**. An invoice is due when the ticket was prepared for one (`prepareInvoice`: `invoiced`, its fiscal
+    registration), has no `invoiceNumber` and no local invoice (`SalesHeader.invoice` null). Then:
+    - in the ERP already (prepared after the post: `prepareInvoice` set it back to `PARTIALLY_SYNCHED`):
+      `requestInvoice`; a failure throws (counted as an error of the run), the ticket stays `PARTIALLY_SYNCHED`;
+    - prepared before it went: posted whole, saved `PARTIALLY_SYNCHED` with its `erpNo`, then the invoice asked at once;
+      a failure keeps the post (not counted as an error), the invoice asked again next run;
+    - success: the PDF written, then `invoiceNumber` = Business Central's number and `TOTALLY_SYNCHED`. A PDF that cannot
+      be written fails the step (asked again next run: the lookup answers the same invoice); an answer without a PDF is
+      kept with a WARN line;
+    - in the ERP with nothing due (e.g. `PARTIALLY_SYNCHED` and not invoiced): `TOTALLY_SYNCHED` again, nothing sent.
+      Before step 7 such a ticket would have been posted a second time (the `ticketNo` lookup does not filter).
+  - `prepareInvoice` is unchanged; EMTOP's path is unchanged (POS_Invoice through `updateTicketStatus`, never
+    `requestInvoice`). The no-ERP invoices are untouched: a ticket with a local `InvoiceHeader` (`invoice` set, its
+    number in `invoiceNumber`) is never asked; with sales going to the ERP the till offers only "Prepare invoice".
+    `SalesHeader.invoiceNumber` now also holds an ERP invoice number with `invoice` null; it goes up to the head office
+    in the ticket's copy as before (`HoTicket.invoiceNumber`, shown in the head office's tickets).
+  - **Where the PDF lands**: `<app.upload.dir>/erp-invoices/<invoiceNo>.pdf` (`ErpInvoicePdfFiles`; a character other
+    than a letter, a digit, `.`, `_` or `-` becomes `_`), written through a `.part` file beside it. The ticket has no
+    path field: the place is derived from `invoiceNumber` (`ErpInvoicePdfFiles.pathOf`). Nothing serves the folder (the
+    images are served by `ItemImageController` from their own folders); a screen to open the PDF is a later step.
+    ParaFendri's file: `app.upload.dir=C:/zsretail-parafendri/store/uploads/pos-images`, so
+    `.../pos-images/erp-invoices/`.
+  - **Never twice** (`ParafendriConnector.requestInvoice`): first `GET shipAndInvoice?$filter=orderNo eq '<erpNo>'`; a
+    row with its `invoiceNo` answers (its PDF decoded), nothing posted. A failed lookup posts nothing.
+  - **Fiscal registration and name: not sendable** (`shipAndInvoice` has no field for them, **open with Sayf**): they
+    are written in the message of the `REQUEST_INVOICE` row ("...; not sent (shipAndInvoice has no field for them):
+    fiscal registration X, invoice name Y"), and the run writes **one** WARN, in the log and as a WARNING row
+    (operation `REQUEST_INVOICE`): "shipAndInvoice has no fiscal fields — ask the BC contact". Until Sayf adds them, the
+    invoice Business Central makes is in the name of the point de vente's customer (`customerNo` of the sales order).
+  - The communications log: the request `{ orderNo }`, the answer without the PDF (`invoicePdfBase64`: its length), the
+    message with the invoice number or Business Central's own error text.
+  - Tests: `ParafendriInvoiceTest` (the samples `shipAndInvoice-request.json` / `shipAndInvoice-answer.json`, a 49-byte
+    PDF: posted with the fiscal warning, already invoiced, refused with BC's text, the lookup failing, no PDF, no
+    invoice number, no order number), the guard in `ParafendriRestClientTest`, `TicketExportWholeTicketTest`
+    (network-tests: asked once and the PDF written, prepared before the post, refused, nothing due, one fiscal warning
+    per run, EMTOP unchanged). Live: the GET lookup always (a number that is no order: no row), not run yet (2026-11-01:
+    Business Central did not answer, a connection timeout on the first page; to run again with the VPN open, which also
+    checks that `orderNo` filters); the live POST `liveInvoicePost` runs only with `-Dparafendri.live.post=true
+    -Dparafendri.order=<a test ticket's order>`, not run yet.
+  - **Open with Sayf**: the fiscal fields on `shipAndInvoice` (or the customer's own `customerNo`); whether Business
+    Central posts the sales orders itself (e.g. a batch at night: an order posted that way is deleted, and an invoice
+    asked later would fail at every run); what `shipAndInvoice` answers for an order already shipped.
+- **The locations and the point de vente's customer (2026-11-01)**, the two reads the till relies on (without them a
+  sale fails with "Default customer not found" and the Emplacements page is empty):
+  - `fetchLocations` (job `IMPORT_LOCATIONS`): every location of the company, the page the connection check reads
+    (`locations?$select=code,name,lastModifiedDateTime`), code (also the ERP id) and name; a blank code or a code read
+    twice (case ignored) left out. **Always whole**: the core keeps no checkpoint for the locations (`ErpLocationDTO`
+    carries no time) and a location never changed is dated 0001-01-01 (PV-TANIOUR), which a delta would miss. None is
+    marked as the default: the admin picks it on the Emplacements page (`DEFAULT_LOCATION`), as at EMTOP.
+  - `fetchCustomers` (job `IMPORT_CUSTOMERS`): **one row only**, the account of `DEFAULT_LOCATION`: its `customerNo` from
+    `stockPoints?$filter=locationCode eq '<code>'&$top=1` (the read of `pushTicket`, fresh here, and kept for it), then
+    `customers?$filter=number eq '<customerNo>'` (`dto/ParafendriCustomerRow`: `number`, `name`, `blocked`,
+    `lastModifiedDateTime`). Business Central refusing the filter (HTTP 400 "is not filterable"): the page read whole,
+    that number kept, one WARN. Never another point de vente's account (`ParafendriMapper.customer`: left out "another
+    customer than the point de vente's"). Code and ERP id the number, the name, **active unless blocked** (`_x0020_`,
+    Business Central's blank option, or blank: active; `Ship`, `Invoice`, `All`: inactive), `lastModifiedAt` its
+    `lastModifiedDateTime`. **Always read, not from the checkpoint** `ERP_SYNC_LAST_CUSTOMER` (one row: nothing to
+    save, and a point de vente changed for one whose account changed earlier would never be read). No
+    `DEFAULT_LOCATION`, or no `customerNo` on its rows: no row and one WARN; another failed read fails the job.
+  - Tests: `ParafendriLocationsCustomersTest` (the samples `locations.json` and `customers.json`: three accounts,
+    4110001 to 4110003, one blocked `All`), the live test (GET only) through the connector.
+  - **ParaFendri install**: run `IMPORT_LOCATIONS` and `IMPORT_CUSTOMERS` once, pick the default location on the
+    Emplacements page, set `PASSENGER_CUSTOMER` to the point de vente's customer number (e.g. 4110001). Picking the
+    location first is needed for the customer: `IMPORT_CUSTOMERS` reads the account of `DEFAULT_LOCATION` (none set:
+    no row), so after a first `IMPORT_CUSTOMERS` without it, run it again once the location is picked.
+- **The head office catalogue (2026-11-01)**: a ParaFendri head office whose catalogue comes from the ERP, its points de
+  stock the six points de vente, runs the catalogue engine as ZEN's and Happyness's: the job **`SYNC_CATALOGUE`**
+  (`CatalogueJob` → `CatalogueEngine`), not `IMPORT_CATALOGUE` (on such a head office the conversion of the four old jobs
+  still makes an `IMPORT_CATALOGUE` row, which `HeadOfficeErpJobs` switches off at each start and never offers).
+  - The descriptor declares `HEAD_OFFICE_STOCK_POINTS` beside `WHOLE_TICKET_EXPORT`. ParaFendri is the first connector
+    on stores and a head office: the engine's beans are gated by the ability **and** the installation
+    `HEAD_OFFICE_ERP_CATALOGUE_ONLY` (without it a store would have had the engine, which needs the head office's
+    `StockPoints` and creates `erp_catalogue_state`, and would not start). The connector's `ParafendriCatalogueSource` and
+    `ParafendriCatalogueSettings` exist only there too (`config/ParafendriHeadOfficeCondition`,
+    `ErpConnectors.isErpCatalogueOnlyHeadOffice`). A store (Gremda, Taniour...) is unchanged: `IMPORT_CATALOGUE`
+    through `ImportCatalogueJob` and the connector's fetches.
+  - `client/ParafendriCatalogueSource` (`ErpCatalogueSource`), the client and the mapper of steps 2 to 4, no HTTP code of
+    its own: `categories()` the tree `itemCategories` (catégories, familles, sous-familles, sections: the engine uses the
+    four levels); `items(point)` and `items(point, since)` the page `stockPoints` of the point (`locationCode eq`, from
+    its checkpoint `lastModifiedDateTime ge`, `readsChangesOnly()` true: a row not answered is unchanged, never gone),
+    the tree read again for the links, the prices before VAT as received, a blocked row inactive (step 3's rules);
+    `barcodesAfter(position)` and `barcodesOfItems(codes)` the page `barCodes`; `readsItemImages()` false.
+  - **The barcode cursor, ZEN's contract (step 12a)**: the position of a row is its `lastModifiedDateTime` in epoch
+    milliseconds (`ParafendriMapper.position`; the empty date 0001-01-01, a blank or an unreadable date: 1).
+    `ParafendriRestClient.readBarcodesAfter(position)`: `barCodes?$filter=lastModifiedDateTime gt <instant>` (no filter
+    from 0) `&$orderby=lastModifiedDateTime&$top=1000` (`BARCODE_PAGE_SIZE`, a constant); a full page may end inside a
+    millisecond whose other rows are on the next page, so every row of its last millisecond is read too
+    (`lastModifiedDateTime eq <instant>`, next links followed; for position 1, `lt 1970-01-01`), a row already on the
+    page once (its GUID `id`). `gt` and the strict order: no loop (the engine also stops when a page is at or below its
+    cursor), no millisecond half read; a barcode changed later has a newer time and comes back. As ZEN's, a row BC
+    commits after a later one with an earlier time could be passed; new items have their barcodes read by item
+    (`barcodesOfItems`, 20 per GET, the engine's "needs its barcodes"). Checked live on 2026-11-01 (GET): `$orderby`
+    asc and desc, `$top`, `gt`, `lt`, `eq` on a millisecond (one row). Every row's position, left out ones included,
+    goes to the engine; the external id is the GUID `id` (the value without one), as on a store.
+  - `config/ParafendriCatalogueSettings`: constants, no key: packets of 500, never a dry run, VAT 19 for the rows the
+    engine keeps without one (the rows read carry their own `vatPercent`).
+  - **The head office's file** (`<Tomcat>/conf/zsretail/zsretailws.properties`, the head office WAR): `ownership.catalogue=ERP`
+    (customers and supply kept here: `headoffice.supply.source=HEAD_OFFICE`; ParaFendri reads no supply invoice and
+    posts no store order), `headoffice.stock.enabled` as the customer wants, `erp.connector=parafendri`,
+    `erp.sync.enabled=true`, and the five `erp.parafendri.*` keys of the store (`base-url`, `company-id`, `domain`,
+    `username`, `password`). No `DEFAULT_LOCATION` on a head office: the connection check after the start warns that it
+    is empty (the company is still checked).
+  - **The first run**: start the head office (the seeding makes `SYNC_CATALOGUE`, disabled, hourly); on the points page
+    add the six points de stock, their codes the BC location codes `PV-GREMDA`, `PV-LAFRANE`, `PV-MALL-SF`, `PV-NABEUL`,
+    `PV-SOUSSE`, `PV-TANIOUR`; run `SYNC_CATALOGUE` once by hand (the tree, then the items of each point in list order,
+    then the barcodes until caught up); then enable it. Expected first run, from the live times of 2026-11-01 (13,165
+    rows per point): reads about 6 × 3.6 s for `stockPoints` and about 4 s for `barCodes` (14 pages); writes 13,165
+    items, about 79,000 rows of points and 13,165 barcodes: about 2 to 4 minutes. Later runs read the changes only.
+  - Tests: `ParafendriCatalogueSourceTest` (the samples of steps 2 to 4: the four levels, the items of one point whole
+    and from its checkpoint, the cursor from 0 and after a position, a full page completed with its last millisecond, the
+    barcodes by item, the filters, the ability declared), `ErpAbilityBeansTest` in network-tests (the engine's 7 beans
+    with a connector that keeps points de stock on such a head office only; the ParaFendri store of configs/customers,
+    a store and a head office without the catalogue from the ERP with `erp.connector=parafendri`: the connector, no
+    engine, no catalogue source, no stock point bean), `ErpAbilitiesTest` (the abilities), the live test (GET only):
+    the source's tree, the items of `-Dparafendri.location` and two pages of the cursor.
+- Tests (in the project): `ParafendriRestClientTest` (mock server, the sample `companies.json`: two companies, one the
+  configured id; next links, an unknown id, an HTTP 401, GET only, the login's host; step 1, the sample
+  `locations.json` with the six points de vente PV-GREMDA, PV-LAFRANE, PV-MALL-SF, PV-NABEUL, PV-SOUSSE, PV-TANIOUR:
+  the address, a code found or not, next links, an HTTP 404), step 2: `ParafendriMapperTest` (the sample
+  `itemCategories.json`: COS, COS-COF, COS-COF-PAR, COS-PAR and a section, an orphan famille kept and noted, an orphan
+  sous-famille, a section under a famille, a level 4 row and a blank code left out) and `ParafendriConnectorTest` (the
+  four fetches, one GET each, what the log receives, a failed read), step 3: `ParafendriItemsMapperTest` (the sample
+  `stockPoints.json` against the tree of `itemCategories.json`: the fields, the price as received, the VAT rounded, the
+  unit, the three blocks and the zero price, codes outside the tree, the empty date, the four left-out reasons), the
+  items in `ParafendriConnectorTest` (the tree then `stockPoints`, the checkpoint's `ge`, the log without the rows, no
+  `DEFAULT_LOCATION`), the filter and the paging in `ParafendriRestClientTest`, the unit in core's
+  `ErpItemImportLookupsTest`; step 4: `ParafendriBarcodesMapperTest` (the sample `barCodes.json`),
+  `ParafendriBarcodesConnectorTest` (a first run reads all; an item added later gets its barcode through the read of
+  the run's items; a row read twice kept once; the run's items used once; items read whole: no read per item), the
+  address and the batches of 20 in `ParafendriRestClientTest`, `ParafendriStartupCheckTest`,
+  `ParafendriConnectionCheckTest` (step 1: all found, Business Central down, an HTTP 503, the company missing,
+  `DEFAULT_LOCATION` empty, the location missing, the locations page or the location failing; no exception, its own
+  daemon thread); `ParafendriLiveConnectionTest`, skipped unless `-Dparafendri.live=true`, reads the companies and (step
+  1) the locations of a real Business Central and checks `-Dparafendri.location` (PV-GREMDA by default), with the
+  outside file named by `-Dparafendri.file` (no default; never the customer's production without Zein's word).
+- **Later step: the status on screen.** The connection check is a log line only. Showing it to the user means a small
+  change in core: record it in the communications log (`erp_communication`, the admin page) or add a "test connection"
+  button (an endpoint asking the connector through erp-api). In network-tests the pinned lists name it (`ErpConnectorTest`, `ThirdConnectorTest`, `OutsideFileUpgradeTest`,
+  `ErpAbilitiesTest`, `ErpAbilityBeansTest`) and both proof records have the store's file (`configuration-keys.txt`:
+  its section, and `erp.parafendri.*=(none)` in every other configuration; `installation-beans.txt`: its line).
 
 ## Head office catalogue from the ERP pages (`erp.happyness`)
 

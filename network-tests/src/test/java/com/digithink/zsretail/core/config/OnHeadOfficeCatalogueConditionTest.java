@@ -127,7 +127,8 @@ class OnHeadOfficeCatalogueConditionTest {
 			assertFalse(registered(standalone(link()).withProperty("ownership.catalogue", "HEAD_OFFICE"), bean));
 			// Invoices from the ERP, step (b): the BLs, supply prices and invoices carry @ConditionalOnInstallation(HEAD_OFFICE_OWN_SUPPLY)
 			assertTrue(Questions.asks(bean, Installation.HEAD_OFFICE_WITHOUT_ERP)
-					|| Questions.asks(bean, Installation.HEAD_OFFICE_OWN_SUPPLY), bean.getSimpleName());
+					|| Questions.asks(bean, Installation.HEAD_OFFICE_OWN_SUPPLY)
+					|| Questions.asks(bean, Installation.HEAD_OFFICE_SUPPLIES_STORES), bean.getSimpleName());
 		}
 		assertEquals(OnInstallationCondition.class,
 				ConditionalOnInstallation.class.getAnnotation(Conditional.class).value()[0]);

@@ -1,5 +1,8 @@
 package com.digithink.zsretail.erp.api.dto;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class ErpOperationResult {
 
 	private boolean success;
@@ -117,5 +120,23 @@ public class ErpOperationResult {
 
 	public void setUrl(String url) {
 		this.url = url;
+	}
+
+	/**
+	 * 3.1.1: what the connector wants said once per run, whatever the outcome (e.g. a check the ERP does not allow);
+	 * TicketExportService writes each distinct one once per export run, in the log and the communications log.
+	 */
+	private final List<String> warnings = new ArrayList<>();
+
+	public List<String> getWarnings() {
+		return warnings;
+	}
+
+	/** Adds a warning (a blank one is ignored); returns this result. */
+	public ErpOperationResult addWarning(String warning) {
+		if (warning != null && !warning.trim().isEmpty()) {
+			warnings.add(warning.trim());
+		}
+		return this;
 	}
 }

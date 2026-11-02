@@ -147,5 +147,12 @@ class NavItemStockPointsQueryTest {
 		assertNull(byKey.get(s + "@" + mag1)[4], "a null clearance stays null (the service reads it as false)");
 		assertEquals(Boolean.FALSE, byKey.get(m + "@" + mag1)[3]);
 		assertEquals(Boolean.TRUE, byKey.get(m + "@" + old)[3]);
+		// 3.1.1: the row's own values, then the item's (an item without family: its codes null)
+		assertEquals(14, clearance.length);
+		assertEquals("row", clearance[6]);
+		assertNull(clearance[7]);
+		assertNull(clearance[8]);
+		assertEquals("70061~S", clearance[10], "the item's name");
+		assertNull(clearance[12], "no family on the item: the left join gives null");
 	}
 }

@@ -5,6 +5,8 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.core.config.ConditionalOnErpAbility;
+import com.digithink.zsretail.core.config.ConditionalOnInstallation;
+import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.erp.service.ErpItemBootstrapService;
 import com.digithink.zsretail.erp.api.ErpAbility;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
@@ -22,6 +24,7 @@ import com.digithink.zsretail.erp.api.dto.ErpItemSubFamilyDTO;
  */
 @Component
 @ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
+@ConditionalOnInstallation(Installation.HEAD_OFFICE_ERP_CATALOGUE_ONLY)
 public class BootstrapCatalogueImport implements CatalogueImport {
 
 	private final ErpItemBootstrapService bootstrap;

@@ -127,6 +127,40 @@ class HeadOfficeErpCatalogueFilterTest {
 		}
 	}
 
+	/** The mode service as the startup builds it on this environment. */
+	private static ApplicationModeService mode(MockEnvironment env) throws Exception {
+		ApplicationModeService mode = new ApplicationModeService();
+		java.lang.reflect.Field field = ApplicationModeService.class.getDeclaredField("environment");
+		field.setAccessible(true);
+		field.set(mode, env);
+		java.lang.reflect.Method init = ApplicationModeService.class.getDeclaredMethod("initOwnership");
+		init.setAccessible(true);
+		init.invoke(mode);
+		return mode;
+	}
+
+	@Test
+	@DisplayName("3.1.1: built from the mode, every price list refused with supply source ERP or NONE, passed with HEAD_OFFICE")
+	void priceListsBySupplySource() throws Exception {
+		MockEnvironment none = catalogueOnlyHeadOffice();
+		none.setProperty("headoffice.stock.enabled", "false");
+		none.setProperty("headoffice.supply.source", "NONE");
+		MockEnvironment erp = catalogueOnlyHeadOffice();
+		erp.setProperty("headoffice.supply.source", "ERP");
+		erp.setProperty("erp.connector", "happyness");
+		MockEnvironment own = catalogueOnlyHeadOffice();
+		own.setProperty("headoffice.supply.source", "HEAD_OFFICE");
+		for (MockEnvironment env : new MockEnvironment[] { none, erp, own }) {
+			MockHttpServletResponse response = new MockHttpServletResponse();
+			MockFilterChain chain = new MockFilterChain();
+			new HeadOfficeErpCatalogueFilter(mode(env)).doFilter(request("GET", "/admin/headoffice/price-lists"), response,
+					chain);
+			boolean refused = env != own;
+			assertEquals(refused ? 403 : 200, response.getStatus(), env.getProperty("headoffice.supply.source"));
+			assertEquals(refused, chain.getRequest() == null, env.getProperty("headoffice.supply.source"));
+		}
+	}
+
 	@Test
 	@DisplayName("The bean exists only on a head office with the catalogue only from the ERP")
 	void whereTheBeanExists() {

@@ -9,8 +9,9 @@ import com.digithink.zsretail.headoffice.model.HoStockPointItem;
  * item at a point de stock, the one rule of the head office. The point's row in clearance with a clearance price above
  * 0 sells at its clearance price; any other row (clearance false or null, a clearance price null or 0) at its own price
  * as before. Both prices are before VAT: the item's VAT applies to either. Used by the copies to the stores
- * ({@link HoCatalogueService#pointCopy}), so a store sells the price it receives, and by the head office's pages (Items by
- * point de stock, the NAV items grid). EMTOP and Happyness rows have no clearance: their price is the row's.
+ * ({@link HoCatalogueService#pointCopy}), so a store sells the price it receives, and by the head office's pages (Item
+ * cards: its card and, 3.1.1, the point filter and price; the NAV items grid). EMTOP and Happyness rows have no clearance:
+ * their price is the row's.
  */
 public final class StockPointPrice {
 

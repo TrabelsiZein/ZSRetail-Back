@@ -16,8 +16,8 @@ import org.springframework.context.annotation.AnnotatedBeanDefinitionReader;
 import org.springframework.core.env.PropertyResolver;
 import org.springframework.mock.env.MockEnvironment;
 
+import com.digithink.zsretail.core.support.TestModes;
 import com.digithink.zsretail.headoffice.controller.HoStockPointAPI;
-import com.digithink.zsretail.headoffice.service.HoStockPointItemsService;
 import com.digithink.zsretail.headoffice.service.HoStockPointRows;
 import com.digithink.zsretail.headoffice.service.HoStockPointService;
 import com.digithink.zsretail.support.Installations;
@@ -31,8 +31,9 @@ import com.digithink.zsretail.support.Installations;
  */
 class ErpAbilityBeansTest {
 
+	/** 3.1.1: HoStockPointItemsService (the retired page "Items by point de stock") is gone. */
 	static final List<Class<?>> STOCK_POINT_BEANS = Arrays.asList(HoStockPointAPI.class, HoStockPointService.class,
-			HoStockPointRows.class, HoStockPointItemsService.class);
+			HoStockPointRows.class);
 
 	private static boolean registered(MockEnvironment env, Class<?> beanClass) {
 		DefaultListableBeanFactory registry = new DefaultListableBeanFactory();
@@ -119,7 +120,7 @@ class ErpAbilityBeansTest {
 		Installations.machineFiles().forEach(file -> environments.put(file, Installations.machine(file)));
 		Installations.configFiles().forEach(file -> environments.put(file, Installations.config(file)));
 		Installations.variants().forEach(variant -> environments.put(variant, Installations.preset(variant)));
-		for (String connector : new String[] { "none", "emtop", "happyness", "zen" }) {
+		for (String connector : new String[] { "none", "emtop", "happyness", "parafendri", "zen" }) {
 			environments.put("store, erp.connector=" + connector, chosen(Installations.type("store"), connector));
 			environments.put("catalogue only, erp.connector=" + connector,
 					chosen(catalogueOnlyHeadOffice(), connector));
@@ -128,18 +129,44 @@ class ErpAbilityBeansTest {
 	}
 
 	@Test
+	@DisplayName("3.1.1: GET /config headOfficeStockPoints is true exactly where the Stock points API exists (emtop on a catalogue-only head office: false)")
+	void headOfficeStockPointsFlag() {
+		List<String> withPoints = new ArrayList<>();
+		for (Map.Entry<String, MockEnvironment> entry : configurations().entrySet()) {
+			boolean api = registered(entry.getValue(), HoStockPointAPI.class);
+			ApplicationModeService mode;
+			try {
+				mode = TestModes.of(entry.getValue());
+			} catch (IllegalStateException refused) {
+				// A shape that stops the startup (e.g. a catalogue from the head office without headoffice.url): no /config
+				continue;
+			}
+			assertEquals(api, mode.isHeadOfficeStockPoints(), entry.getKey());
+			if (api) {
+				withPoints.add(entry.getKey());
+			}
+		}
+		assertTrue(withPoints.containsAll(Arrays.asList("catalogue only, erp.connector=happyness",
+				"catalogue only, erp.connector=parafendri", "catalogue only, erp.connector=zen")), withPoints.toString());
+		assertTrue(!withPoints.contains("catalogue only, erp.connector=emtop"), withPoints.toString());
+	}
+
+	@Test
 	@DisplayName("Part 5: exactly one ErpConnector bean, the one the old conditions gave (NoOp no longer beside navpospages)")
 	void oneConnector() {
 		List<Class<?>> connectors = Arrays.asList(com.digithink.zsretail.erp.api.NoOpErpConnector.class,
 				com.digithink.zsretail.connector.emtop.connector.DynamicsNavConnector.class,
 				com.digithink.zsretail.connector.happyness.connector.NavPosPagesConnector.class,
+				com.digithink.zsretail.connector.parafendri.connector.ParafendriConnector.class,
 				com.digithink.zsretail.connector.zen.connector.ZenConnector.class);
 		for (Map.Entry<String, MockEnvironment> entry : configurations().entrySet()) {
 			MockEnvironment env = entry.getValue();
 			String inEffect = ErpConnectorEnvironmentPostProcessor.inEffect(env);
 			// The old conditions, by the connector in effect: DynamicsNavConnector for emtop, NavPosPagesConnector for
-			// happyness, NoOp for none; item variants (ZEN), step 8: ZenConnector for zen
-			Class<?> expected = connectors.get(Arrays.asList("none", "emtop", "happyness", "zen").indexOf(inEffect));
+			// happyness, NoOp for none; item variants (ZEN), step 8: ZenConnector for zen; ParaFendri, step 0:
+			// ParafendriConnector for parafendri
+			Class<?> expected = connectors
+					.get(Arrays.asList("none", "emtop", "happyness", "parafendri", "zen").indexOf(inEffect));
 			List<Class<?>> present = new ArrayList<>();
 			for (Class<?> connector : connectors) {
 				if (registered(env, connector)) {
@@ -151,29 +178,66 @@ class ErpAbilityBeansTest {
 	}
 
 	@Test
-	@DisplayName("Step 3: the engine, its job, state, head office reads and import exist where the connectors happyness and"
-			+ " zen put them")
+	@DisplayName("Step 3: the engine, its job, state, head office reads, import and images exist with a connector that keeps"
+			+ " points de stock, on a head office whose catalogue only comes from the ERP only (ParaFendri: never on a store)")
 	void engineBeans() {
-		List<Class<?>> engine = Arrays.asList(com.digithink.zsretail.core.erp.engine.JdbcCatalogueState.class,
-				com.digithink.zsretail.core.erp.engine.JpaHeadOfficeCatalogue.class,
-				com.digithink.zsretail.core.erp.engine.BootstrapCatalogueImport.class,
-				com.digithink.zsretail.core.erp.engine.CatalogueEngine.class, com.digithink.zsretail.core.erp.engine.CatalogueJob.class);
 		List<String> withBeans = new ArrayList<>();
 		for (Map.Entry<String, MockEnvironment> entry : configurations().entrySet()) {
 			String inEffect = ErpConnectorEnvironmentPostProcessor.inEffect(entry.getValue());
-			boolean expected = "happyness".equals(inEffect) || "zen".equals(inEffect);
+			boolean expected = ("happyness".equals(inEffect) || "zen".equals(inEffect) || "parafendri".equals(inEffect))
+					&& NodeOwnership.isErpCatalogueOnlySet(entry.getValue());
 			if (expected) {
 				withBeans.add(entry.getKey());
 			}
-			for (Class<?> bean : engine) {
+			for (Class<?> bean : ENGINE_BEANS) {
 				assertEquals(expected, registered(entry.getValue(), bean), entry.getKey() + " " + bean.getSimpleName());
 			}
 		}
-		assertTrue(withBeans.contains("store, erp.connector=happyness"), withBeans.toString());
+		assertTrue(withBeans.contains("catalogue only, erp.connector=happyness"), withBeans.toString());
 		assertTrue(withBeans.contains(Installations.HAPPYNESS_HEAD_OFFICE), withBeans.toString());
 		assertTrue(withBeans.contains("catalogue only, erp.connector=zen"), withBeans.toString());
 		assertTrue(withBeans.contains(Installations.ZEN_HEAD_OFFICE), withBeans.toString());
-		assertEquals(6, withBeans.size(), withBeans.toString());
+		assertTrue(withBeans.contains("catalogue only, erp.connector=parafendri"), withBeans.toString());
+		assertEquals(5, withBeans.size(), withBeans.toString());
+	}
+
+	/** The catalogue engine's seven beans in core (ability HEAD_OFFICE_STOCK_POINTS and the installation). */
+	static final List<Class<?>> ENGINE_BEANS = Arrays.asList(com.digithink.zsretail.core.erp.engine.JdbcCatalogueState.class,
+			com.digithink.zsretail.core.erp.engine.JpaHeadOfficeCatalogue.class,
+			com.digithink.zsretail.core.erp.engine.JpaHeadOfficeImages.class,
+			com.digithink.zsretail.core.erp.engine.BootstrapCatalogueImport.class,
+			com.digithink.zsretail.core.erp.engine.CatalogueEngine.class,
+			com.digithink.zsretail.core.erp.engine.CatalogueJob.class,
+			com.digithink.zsretail.core.erp.engine.ItemImagesEngine.class);
+
+	@Test
+	@DisplayName("ParaFendri, the first connector on stores and a head office: its store (configs/customers) keeps the"
+			+ " connector and no engine, catalogue source or stock point bean; its head office whose catalogue comes from"
+			+ " the ERP has them all")
+	void parafendriStoreAndHeadOffice() {
+		List<Class<?>> source = Arrays.asList(
+				com.digithink.zsretail.connector.parafendri.client.ParafendriCatalogueSource.class,
+				com.digithink.zsretail.connector.parafendri.config.ParafendriCatalogueSettings.class);
+		Map<String, MockEnvironment> stores = new LinkedHashMap<>();
+		stores.put("customers/parafendri-store.properties", Installations.machine("customers/parafendri-store.properties"));
+		stores.put("store, erp.connector=parafendri", chosen(Installations.type("store"), "parafendri"));
+		stores.put("head office without an ERP, erp.connector=parafendri",
+				chosen(Installations.type("headoffice"), "parafendri"));
+		for (Map.Entry<String, MockEnvironment> entry : stores.entrySet()) {
+			assertTrue(registered(entry.getValue(),
+					com.digithink.zsretail.connector.parafendri.connector.ParafendriConnector.class), entry.getKey());
+			for (List<Class<?>> beans : Arrays.asList(ENGINE_BEANS, STOCK_POINT_BEANS, source)) {
+				for (Class<?> bean : beans) {
+					assertTrue(!registered(entry.getValue(), bean), entry.getKey() + " " + bean.getSimpleName());
+				}
+			}
+		}
+		MockEnvironment headOffice = chosen(catalogueOnlyHeadOffice(), "parafendri");
+		for (List<Class<?>> beans : Arrays.asList(ENGINE_BEANS, STOCK_POINT_BEANS, source)) {
+			for (Class<?> bean : beans) {
+				assertTrue(registered(headOffice, bean), "catalogue only " + bean.getSimpleName());
+			}
+		}
 	}
 
 	@Test

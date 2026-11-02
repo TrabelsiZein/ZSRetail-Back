@@ -158,6 +158,16 @@ public class ItemCatalogueQuery {
 
 		private Double priceMax;
 
+		/**
+		 * 3.1.1: an installation's own price of one item row (alias i), with VAT, in place of the item's own price for the
+		 * line's price_min / price_max and the price sort (the head office's point de stock: its row's selling price); null
+		 * (the default) for the item's own price. Its table, if any, joined by linePriceJoin (its parameters in
+		 * itemParameters); used by the lines statement only, never the count.
+		 */
+		private String linePrice;
+
+		private String linePriceJoin;
+
 		/** code (default), name or family. */
 		private String sort;
 
@@ -228,10 +238,24 @@ public class ItemCatalogueQuery {
 			groups.add("MAX(CASE WHEN i.active IS NULL OR i.active = 1 THEN 1 ELSE 0 END) = 0");
 		}
 		String having = groups.isEmpty() ? "" : " HAVING " + String.join(" AND ", groups);
-		String lines = SELECT + joins + where + GROUP + having + " ORDER BY " + order(c, portable);
+		String lines = select(c) + joins + where + GROUP + having + " ORDER BY " + order(c, portable);
 		String count = "SELECT COUNT(*) AS " + COUNT_COLUMN + " FROM (SELECT i.nav_item_no AS n FROM item i" + joins + where
 				+ GROUP + having + ") g";
 		return new Built(lines, count, parameters);
+	}
+
+	/** The lines' SELECT: {@link #SELECT} as it is, or (3.1.1) with the criteria's line price and its join. */
+	static String select(Criteria c) {
+		if (c.getLinePrice() == null) {
+			return SELECT;
+		}
+		return SELECT.replace(PRICE_OF_I, c.getLinePrice())
+				+ (c.getLinePriceJoin() == null ? "" : c.getLinePriceJoin());
+	}
+
+	/** The price of one item row (alias i) of the lines: the criteria's line price, else the item's own with VAT. */
+	static String linePrice(Criteria c) {
+		return c.getLinePrice() == null ? PRICE_OF_I : c.getLinePrice();
 	}
 
 	/** The filters on one item row (alias m), their parameters added. */
@@ -291,7 +315,8 @@ public class ItemCatalogueQuery {
 			return "COUNT(*)" + dir + ", " + codeOrder(" ASC", portable);
 		}
 		if ("price".equalsIgnoreCase(sort)) {
-			return "CASE WHEN MIN(" + PRICE_OF_I + ") IS NULL THEN 1 ELSE 0 END, MIN(" + PRICE_OF_I + ")" + dir + ", "
+			String price = linePrice(c);
+			return "CASE WHEN MIN(" + price + ") IS NULL THEN 1 ELSE 0 END, MIN(" + price + ")" + dir + ", "
 					+ codeOrder(" ASC", portable);
 		}
 		if ("family".equalsIgnoreCase(sort)) {

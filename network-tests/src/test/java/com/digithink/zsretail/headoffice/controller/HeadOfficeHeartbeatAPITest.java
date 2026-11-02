@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.lang.reflect.Field;
@@ -28,11 +29,21 @@ import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.MethodParameter;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.http.client.MockClientHttpRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.context.request.NativeWebRequest;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.method.support.ModelAndViewContainer;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.link.dto.HeadOfficeHeartbeatAnswerDTO;
@@ -44,6 +55,8 @@ import com.digithink.zsretail.headoffice.model.Store;
 import com.digithink.zsretail.headoffice.repository.StoreRepository;
 import com.digithink.zsretail.headoffice.service.StoreService;
 import com.digithink.zsretail.store.holink.client.HeadOfficeClient;
+import com.digithink.zsretail.store.holink.dto.HeadOfficeCallResult;
+import com.digithink.zsretail.store.holink.enumeration.HeadOfficeLinkState;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -317,6 +330,85 @@ class HeadOfficeHeartbeatAPITest {
 		assertEquals("HEAD_OFFICE", row.getOwnerPromotions());
 		assertEquals("LOCAL", row.getOwnerCatalogue());
 		assertEquals("HEAD_OFFICE", row.getReportedSalesUpstreams());
+	}
+
+	// ─── 3.1.1: a head office that supplies no store (headoffice.supply.source=NONE) ───
+
+	private StoreService service() throws Exception {
+		Field field = HeadOfficeHeartbeatAPI.class.getDeclaredField("storeService");
+		field.setAccessible(true);
+		return (StoreService) field.get(api);
+	}
+
+	/** POST /ho/heartbeat through MockMvc on this API (the principal resolved as the filter sets it). */
+	private MockHttpServletResponse post(HeadOfficeHeartbeatAPI on, Map<String, String> owners) throws Exception {
+		MockMvc mvc = MockMvcBuilders.standaloneSetup(on).setCustomArgumentResolvers(new HandlerMethodArgumentResolver() {
+			@Override
+			public boolean supportsParameter(MethodParameter parameter) {
+				return parameter.getParameterType() == Store.class;
+			}
+
+			@Override
+			public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer container,
+					NativeWebRequest request, WebDataBinderFactory binderFactory) {
+				return principal();
+			}
+		}).build();
+		String body = new ObjectMapper().writeValueAsString(new HeadOfficeHeartbeatDTO("3.1.1", owners,
+				Collections.singletonList("HEAD_OFFICE")));
+		return mvc.perform(MockMvcRequestBuilders.post("/ho/heartbeat").contentType(MediaType.APPLICATION_JSON)
+				.accept(MediaType.APPLICATION_JSON)
+				.content(body)).andReturn().getResponse();
+	}
+
+	private static Map<String, String> supply(String owner) {
+		return owners("CATALOGUE", "LOCAL", "CUSTOMERS", "LOCAL", "PROMOTIONS", "HEAD_OFFICE", "LOYALTY", "HEAD_OFFICE",
+				"SUPPLY", owner);
+	}
+
+	@Test
+	@DisplayName("3.1.1: NONE refuses a store with ownership.supply=HEAD_OFFICE, 409 {\"error\"}, after recording its contact; LOCAL, an older store and every other head office answer 200")
+	void supplyNoneRefusesSuppliedStore() throws Exception {
+		HeadOfficeHeartbeatAPI none = new HeadOfficeHeartbeatAPI(service(), true);
+		MockHttpServletResponse refused = post(none, supply(" head_office "));
+		assertEquals(409, refused.getStatus());
+		assertEquals(HeadOfficeHeartbeatAPI.SUPPLY_NONE_REFUSAL,
+				new ObjectMapper().readTree(refused.getContentAsString()).get("error").asText());
+		assertEquals("HEAD_OFFICE", row.getOwnerSupply(), "the contact and what the store reported are recorded");
+		assertNotNull(row.getLastContact());
+
+		assertEquals(200, post(none, supply("LOCAL")).getStatus());
+		assertEquals(200, post(none, supply("ERP")).getStatus());
+		assertNotNull(none.heartbeat(principal(), new HeadOfficeHeartbeatDTO("2.1.0")), "an older store sends no owners");
+		assertNotNull(none.heartbeat(principal(), null));
+		assertEquals(200, post(api, supply("HEAD_OFFICE")).getStatus(), "a head office that supplies its stores");
+		assertEquals(0, saves);
+	}
+
+	@Test
+	@DisplayName("3.1.1: round trip, the store's client reads the 409 as REFUSED with the head office's reason; a 409 without one stays an error")
+	void supplyNoneReachesTheStore() throws Exception {
+		MockHttpServletResponse refused = post(new HeadOfficeHeartbeatAPI(service(), true), supply("HEAD_OFFICE"));
+		GeneralSetupService setup = new GeneralSetupService() {
+			@Override
+			public String findValueByCode(String code) {
+				return "RS01";
+			}
+		};
+		RestTemplate restTemplate = new RestTemplate();
+		MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+		server.expect(requestTo("http://ho:888/zsretail/api/ho/heartbeat")).andRespond(withStatus(HttpStatus.CONFLICT)
+				.contentType(MediaType.APPLICATION_JSON).body(refused.getContentAsString()));
+		server.expect(requestTo("http://ho:888/zsretail/api/ho/heartbeat")).andRespond(withStatus(HttpStatus.CONFLICT));
+		HeadOfficeClient client = new HeadOfficeClient(restTemplate, setup, "http://ho:888/zsretail/api", "k", "3.1.1",
+				(ApplicationModeService) null);
+		HeadOfficeCallResult result = client.heartbeat();
+		assertEquals(HeadOfficeLinkState.REFUSED, result.getState());
+		assertEquals(HeadOfficeHeartbeatAPI.SUPPLY_NONE_REFUSAL, result.getMessage());
+		HeadOfficeCallResult bare = client.heartbeat();
+		assertEquals(HeadOfficeLinkState.ERROR, bare.getState());
+		assertEquals("unexpected answer from the head office: HTTP 409", bare.getMessage());
+		server.verify();
 	}
 
 	private static void inject(Object target, String field, Object value) throws Exception {

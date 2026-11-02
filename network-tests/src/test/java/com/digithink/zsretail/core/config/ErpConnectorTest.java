@@ -39,7 +39,7 @@ import com.digithink.zsretail.support.Starts;
 class ErpConnectorTest {
 
 	private static final String CHOSEN_BY = " The ERP connector is chosen by erp.connector only (none | emtop | happyness"
-			+ " | zen; no line: none).";
+			+ " | parafendri | zen; no line: none).";
 
 	@TempDir
 	Path folder;
@@ -107,6 +107,7 @@ class ErpConnectorTest {
 		assertEquals("happyness",
 				ErpConnectorEnvironmentPostProcessor.inEffect(headOfficeWith("erp.connector=Happyness")));
 		assertEquals("zen", ErpConnectorEnvironmentPostProcessor.inEffect(headOfficeWith("erp.connector= ZEN ")));
+		assertEquals("parafendri", ErpConnectorEnvironmentPostProcessor.inEffect(startWith("erp.connector=ParaFendri")));
 		assertEquals("none", ErpConnectorEnvironmentPostProcessor.inEffect(startWith("erp.connector=NONE")));
 		assertEquals("none", ErpConnectorEnvironmentPostProcessor.inEffect(startWith("server.port=1")));
 		List<String> names = new ArrayList<>();
@@ -117,10 +118,10 @@ class ErpConnectorTest {
 	@Test
 	@DisplayName("Unknown value: refused naming the key and the values")
 	void unknown() {
-		assertEquals("Invalid value ' nav ' for property erp.connector: none | emtop | happyness | zen.",
+		assertEquals("Invalid value ' nav ' for property erp.connector: none | emtop | happyness | parafendri | zen.",
 				refusal(() -> ErpConnectorEnvironmentPostProcessor.inEffect(new MockEnvironment()
 						.withProperty("erp.connector", " nav "))));
-		assertEquals("Invalid value '' for property erp.connector: none | emtop | happyness | zen.",
+		assertEquals("Invalid value '' for property erp.connector: none | emtop | happyness | parafendri | zen.",
 				refusal(() -> startWith("erp.connector=")));
 	}
 
@@ -271,5 +272,10 @@ class ErpConnectorTest {
 				"erp.zen.base-url=http://nav.test:7158/ZEN");
 		line = InstallationSummary.summary(zen, NodeOwnership.resolve(zen));
 		assertTrue(line.contains("ERP connector zen, NAV http://nav.test:7158/ZEN"), line);
+
+		// ParaFendri, step 0: a store, the address of its Business Central
+		MockEnvironment parafendri = Installations.machine("customers/parafendri-store.properties");
+		line = InstallationSummary.summary(parafendri, NodeOwnership.resolve(parafendri));
+		assertTrue(line.contains("ERP connector parafendri, BC http://CHANGE_ME:7048/CHANGE_ME"), line);
 	}
 }

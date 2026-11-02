@@ -129,9 +129,9 @@ public class AppConfigDTO {
 	private boolean headOfficeStock;
 
 	/**
-	 * Invoices from the ERP: on a head office, HEAD_OFFICE (its own BLs and supply invoices) or ERP (the stores' invoices
-	 * are read from the ERP); null on a store, which never reads headoffice.supply.source. From
-	 * ApplicationModeService.isSupplyFromErpSource().
+	 * Invoices from the ERP: on a head office, HEAD_OFFICE (its own BLs and supply invoices), ERP (the stores' invoices
+	 * are read from the ERP) or, 3.1.1, NONE (it supplies no store); null on a store, which never reads
+	 * headoffice.supply.source. From ApplicationModeService.isSupplyFromErpSource() and isSupplyNone().
 	 */
 	private String supplySource;
 
@@ -198,4 +198,11 @@ public class AppConfigDTO {
 	 * false when off or absent (a head office). A till that chose with its icon keeps its own choice (the browser).
 	 */
 	private boolean posCatalogueVisible;
+
+	/**
+	 * 3.1.1: the head office keeps points de stock: its catalogue only comes from the ERP and the connector in effect has
+	 * the ability HEAD_OFFICE_STOCK_POINTS (the Stock points API exists exactly then). The frontend shows the points de
+	 * stock pages, the stores' point and the Item cards' point filter on it; always false on a store.
+	 */
+	private boolean headOfficeStockPoints;
 }

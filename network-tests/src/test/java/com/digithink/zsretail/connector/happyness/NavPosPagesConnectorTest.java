@@ -115,7 +115,6 @@ class NavPosPagesConnectorTest {
 		assertTrue(connector.fetchSalesDiscounts(null).isEmpty());
 		assertTrue(connector.fetchDeletionLog(null).isEmpty());
 		List<ErpOperationResult> results = new ArrayList<>();
-		results.add(connector.pushCustomer(null));
 		results.add(connector.pushTicket(null));
 		results.add(connector.pushTicketHeader(null));
 		results.add(connector.pushTicketLine(null, "D1", null));

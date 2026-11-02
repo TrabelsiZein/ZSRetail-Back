@@ -60,9 +60,11 @@ import com.digithink.zsretail.erp.api.ErpAbility;
  * everything else of a head office without an ERP (catalogue feed, price lists, BLs, supply prices and invoices).
  * <p>
  * Invoices from the ERP: on such a head office, {@code headoffice.supply.source=ERP} replaces its BLs and invoices by the
- * ERP's invoices ({@link #isSupplyFromErpSourceSet}); the startup fails with another value than HEAD_OFFICE or ERP, with
- * ERP on any other head office, or with ERP without a connector that reads the ERP's invoices
- * ({@code ErpAbility.SUPPLY_INVOICES}). A store never reads the key.
+ * ERP's invoices ({@link #isSupplyFromErpSourceSet}); the startup fails with another value than HEAD_OFFICE, ERP or NONE,
+ * with ERP on any other head office, or with ERP without a connector that reads the ERP's invoices
+ * ({@code ErpAbility.SUPPLY_INVOICES}). NONE (3.1.1, {@link #isSupplyNoneSet}): the head office supplies no store (no BL,
+ * supply price, supply invoice or network stock); accepted only with {@code headoffice.stock.enabled=false} and without
+ * {@code headoffice.storeorders.post}. A store never reads the key.
  * <p>
  * RFID (RFID step 2): {@code rfid.enabled}, true or false (false when absent); any other value stops the startup, and
  * true on a head office too ({@link #isRfidSet}).
@@ -86,7 +88,8 @@ public final class NodeOwnership {
 	static final String HEADOFFICE_STOCK_KEY = "headoffice.stock.enabled";
 	/**
 	 * Head office only, invoices from the ERP: where the supply documents of the stores come from, HEAD_OFFICE (its own
-	 * BLs and invoices, the default) or ERP (the ERP's invoices, read by a connector with ErpAbility.SUPPLY_INVOICES).
+	 * BLs and invoices, the default) or ERP (the ERP's invoices, read by a connector with ErpAbility.SUPPLY_INVOICES);
+	 * 3.1.1: NONE, the head office supplies no store.
 	 */
 	static final String SUPPLY_SOURCE_KEY = "headoffice.supply.source";
 	/**
@@ -294,28 +297,35 @@ public final class NodeOwnership {
 	 * Throws like the startup on an invalid configuration.
 	 */
 	public static boolean isSupplyFromErpSourceSet(PropertyResolver env) {
-		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && supplyFromErp(env);
+		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && "ERP".equals(supplySource(env));
 	}
 
 	/**
-	 * headoffice.supply.source, trimmed and case-insensitive: HEAD_OFFICE when absent. Any other value than HEAD_OFFICE or
-	 * ERP (blank included) throws {@link IllegalStateException} naming the key. Called on a head office only.
+	 * 3.1.1: true on a head office with headoffice.supply.source=NONE: it supplies no store (accepted only with
+	 * headoffice.stock.enabled=false and without headoffice.storeorders.post). A store never reads the key. Also used by
+	 * {@link Installation#HEAD_OFFICE_OWN_SUPPLY} and {@link Installation#HEAD_OFFICE_SUPPLIES_STORES}. Throws like the
+	 * startup on an invalid value.
 	 */
-	private static boolean supplyFromErp(PropertyResolver env) {
+	public static boolean isSupplyNoneSet(PropertyResolver env) {
+		return nodeTypeOf(env) == NodeType.HEAD_OFFICE && "NONE".equals(supplySource(env));
+	}
+
+	/**
+	 * headoffice.supply.source, trimmed, upper case: HEAD_OFFICE when absent, ERP or NONE. Any other value (blank
+	 * included) throws {@link IllegalStateException} naming the key. Called on a head office only.
+	 */
+	private static String supplySource(PropertyResolver env) {
 		if (!env.containsProperty(SUPPLY_SOURCE_KEY)) {
-			return false;
+			return "HEAD_OFFICE";
 		}
 		String raw = env.getProperty(SUPPLY_SOURCE_KEY);
-		String value = raw == null ? "" : raw.trim();
-		if ("HEAD_OFFICE".equalsIgnoreCase(value)) {
-			return false;
-		}
-		if ("ERP".equalsIgnoreCase(value)) {
-			return true;
+		String value = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT);
+		if ("HEAD_OFFICE".equals(value) || "ERP".equals(value) || "NONE".equals(value)) {
+			return value;
 		}
 		throw new IllegalStateException("Invalid value '" + raw + "' for property " + SUPPLY_SOURCE_KEY
-				+ ": HEAD_OFFICE (the head office makes the BLs and invoices of its stores) or ERP (the stores' invoices are"
-				+ " read from the ERP)");
+				+ ": HEAD_OFFICE (the head office makes the BLs and invoices of its stores), ERP (the stores' invoices are"
+				+ " read from the ERP) or NONE (the head office supplies no store)");
 	}
 
 	/**
@@ -365,7 +375,12 @@ public final class NodeOwnership {
 	 * a connector that reads the invoices (ErpAbility.SUPPLY_INVOICES).
 	 */
 	private static void checkSupplySource(PropertyResolver env, Map<DataDomain, DataOwner> owners) {
-		if (!supplyFromErp(env)) {
+		String source = supplySource(env);
+		if ("NONE".equals(source)) {
+			checkSupplyNone(env);
+			return;
+		}
+		if (!"ERP".equals(source)) {
 			return;
 		}
 		if (!isCatalogueOnly(owners)) {
@@ -379,6 +394,25 @@ public final class NodeOwnership {
 					+ " reads the ERP's invoices: "
 					+ ErpConnectorEnvironmentPostProcessor.howToChoose(ErpAbilities.connectorsWith(ErpAbility.SUPPLY_INVOICES))
 					+ ". Choose it, or set " + SUPPLY_SOURCE_KEY + " to HEAD_OFFICE.");
+		}
+	}
+
+	/**
+	 * 3.1.1: headoffice.supply.source=NONE needs a head office that keeps no stock (headoffice.stock.enabled=false) and
+	 * takes no store order (headoffice.storeorders.post absent): both belong to a head office that supplies its stores.
+	 */
+	private static void checkSupplyNone(PropertyResolver env) {
+		if (headOfficeStockEnabled(env)) {
+			throw new IllegalStateException("Invalid combination: " + SUPPLY_SOURCE_KEY + "=NONE with "
+					+ HEADOFFICE_STOCK_KEY + "=true (or absent). A head office that supplies no store keeps no stock and"
+					+ " makes no purchases; set " + HEADOFFICE_STOCK_KEY + " to false, or set " + SUPPLY_SOURCE_KEY
+					+ " to HEAD_OFFICE.");
+		}
+		String storeOrders = storeOrdersPost(env);
+		if (storeOrders != null) {
+			throw new IllegalStateException("Invalid combination: " + SUPPLY_SOURCE_KEY + "=NONE with "
+					+ STORE_ORDERS_POST_KEY + "=" + storeOrders + ". A head office that supplies no store takes no store"
+					+ " order; remove " + STORE_ORDERS_POST_KEY + ", or set " + SUPPLY_SOURCE_KEY + " to HEAD_OFFICE.");
 		}
 	}
 

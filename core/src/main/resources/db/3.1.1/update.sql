@@ -76,6 +76,16 @@ BEGIN
 END
 GO
 
+-- The ERP jobs (3.1.1): the job type EXPORT_CUSTOMERS is removed (never implemented; a disabled template row on every
+-- installation with an ERP) with its operation EXPORT_CUSTOMER of the communications log: their rows are deleted, else a
+-- read of erp_sync_job or erp_communication would fail on a value the application no longer has. Nothing to do once
+-- they are gone; the application does the same at startup (ErpSyncJobTypesUpgrade.DEAD_ROWS).
+IF OBJECT_ID(N'erp_sync_job', N'U') IS NOT NULL
+	DELETE FROM erp_sync_job WHERE job_type = 'EXPORT_CUSTOMERS';
+IF OBJECT_ID(N'erp_communication', N'U') IS NOT NULL
+	DELETE FROM erp_communication WHERE operation = 'EXPORT_CUSTOMER';
+GO
+
 UPDATE APP_VERSION SET version = '3.1.1';
 
 -- The notes of 3.1.1 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

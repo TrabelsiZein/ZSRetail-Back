@@ -50,9 +50,15 @@ class ErpAbilitiesTest {
 		assertEquals(EnumSet.of(ErpAbility.HEAD_OFFICE_STOCK_POINTS, ErpAbility.SUPPLY_INVOICES, ErpAbility.STORE_ORDERS),
 				ErpAbilities.of("zen"));
 		assertEquals(Arrays.asList("zen"), ErpAbilities.connectorsWith(ErpAbility.STORE_ORDERS));
+		// ParaFendri, step 6: a store connector posting a ticket whole (its lines in the same call); head office catalogue:
+		// the points de stock too (its engine beans only on a head office whose catalogue comes from the ERP)
+		assertEquals(EnumSet.of(ErpAbility.WHOLE_TICKET_EXPORT, ErpAbility.HEAD_OFFICE_STOCK_POINTS),
+				ErpAbilities.of("parafendri"));
+		assertEquals(Arrays.asList("parafendri"), ErpAbilities.connectorsWith(ErpAbility.WHOLE_TICKET_EXPORT));
 		assertThrows(IllegalArgumentException.class, () -> ErpAbilities.of("sap"));
 		assertEquals(Arrays.asList("happyness", "zen"), ErpAbilities.connectorsWith(ErpAbility.SUPPLY_INVOICES));
-		assertEquals(Arrays.asList("happyness", "zen"), ErpAbilities.connectorsWith(ErpAbility.HEAD_OFFICE_STOCK_POINTS));
+		assertEquals(Arrays.asList("happyness", "parafendri", "zen"),
+				ErpAbilities.connectorsWith(ErpAbility.HEAD_OFFICE_STOCK_POINTS));
 	}
 
 	/** A start the way Spring Boot runs it, the outside file holding these lines. */
@@ -114,6 +120,7 @@ class ErpAbilitiesTest {
 		int withPages = 0;
 		int withNav = 0;
 		int withZen = 0;
+		int withParafendri = 0;
 		for (int i = 0; i < machines.size() + configs.size(); i++) {
 			String name = i < machines.size() ? machines.get(i) : configs.get(i - machines.size());
 			MockEnvironment env = i < machines.size() ? Installations.machine(name) : Installations.config(name);
@@ -123,11 +130,15 @@ class ErpAbilitiesTest {
 			boolean zen = "zen".equals(lineOf(env));
 			withPages += pages ? 1 : 0;
 			withNav += nav ? 1 : 0;
+			// ParaFendri: its store has the connector, whose abilities include the points de stock (head office catalogue)
+			boolean parafendri = "parafendri".equals(lineOf(env));
 			withZen += zen ? 1 : 0;
-			assertEquals(pages || zen, ErpAbilities.has(env, ErpAbility.HEAD_OFFICE_STOCK_POINTS), name);
+			withParafendri += parafendri ? 1 : 0;
+			assertEquals(pages || zen || parafendri, ErpAbilities.has(env, ErpAbility.HEAD_OFFICE_STOCK_POINTS), name);
 			assertEquals(pages || zen, ErpAbilities.has(env, ErpAbility.SUPPLY_INVOICES), name);
-			assertEquals(nav || pages || zen, ErpAbilities.hasConnector(env), name);
+			assertEquals(nav || pages || zen || parafendri, ErpAbilities.hasConnector(env), name);
 		}
+		assertEquals(1, withParafendri, "the ParaFendri store of configs/customers");
 		assertEquals(1, withPages, "the Happyness head office of configs/customers");
 		assertEquals(4, withNav, "the NAV files of configs/dev and configs/customers");
 		assertEquals(1, withZen, "the ZEN head office of configs/customers");

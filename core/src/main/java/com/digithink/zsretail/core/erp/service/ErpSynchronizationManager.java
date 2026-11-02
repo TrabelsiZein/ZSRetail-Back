@@ -1,6 +1,7 @@
 package com.digithink.zsretail.core.erp.service;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -14,6 +15,7 @@ import com.digithink.zsretail.core.erp.enumeration.ErpSyncOperation;
 import com.digithink.zsretail.erp.api.ErpConnector;
 import com.digithink.zsretail.erp.api.dto.ErpCustomerDTO;
 import com.digithink.zsretail.erp.api.dto.ErpDeletionLogEntryDTO;
+import com.digithink.zsretail.erp.api.dto.ErpInvoiceResult;
 import com.digithink.zsretail.erp.api.dto.ErpItemBarcodeDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemCategoryDTO;
 import com.digithink.zsretail.erp.api.dto.ErpItemDTO;
@@ -141,11 +143,6 @@ public class ErpSynchronizationManager {
 				() -> erpConnector.fetchDeletionLog(filter));
 	}
 
-	public ErpOperationResult pushCustomer(ErpCustomerDTO customerDTO) {
-		return executePushOperation(ErpSyncOperation.EXPORT_CUSTOMER, customerDTO,
-				() -> erpConnector.pushCustomer(customerDTO));
-	}
-
 	public ErpOperationResult pushTicket(ErpTicketDTO ticketDTO) {
 		return executePushOperation(ErpSyncOperation.EXPORT_TICKET, ticketDTO,
 				() -> erpConnector.pushTicket(ticketDTO));
@@ -206,6 +203,20 @@ public class ErpSynchronizationManager {
 		};
 		return executePushOperation(ErpSyncOperation.UPDATE_TICKET, payload,
 				() -> erpConnector.updateTicketStatus(externalReference, posOrder, posInvoice, fiscalRegistration, billToName2));
+	}
+
+	/**
+	 * 3.1.1 (ParaFendri, step 7): the invoice of a ticket already in the ERP, logged as the other pushes (REQUEST_INVOICE:
+	 * the connector's request and its answer without the PDF); the ERP's answer typed.
+	 */
+	public ErpInvoiceResult requestInvoice(String externalReference, String fiscalRegistration,
+			String invoiceCustomerName) {
+		Map<String, String> payload = new LinkedHashMap<>();
+		payload.put("externalReference", externalReference);
+		payload.put("fiscalRegistration", fiscalRegistration);
+		payload.put("invoiceCustomerName", invoiceCustomerName);
+		return (ErpInvoiceResult) executePushOperation(ErpSyncOperation.REQUEST_INVOICE, payload,
+				() -> erpConnector.requestInvoice(externalReference, fiscalRegistration, invoiceCustomerName));
 	}
 
 	public ErpOperationResult pushPaymentHeader(ErpPaymentHeaderDTO headerDTO) {
