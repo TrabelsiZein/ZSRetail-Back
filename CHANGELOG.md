@@ -12,10 +12,26 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Visual check, running: the clearance range of Item cards (the point's price range, the normal price struck, "N
   soldés") on a ZEN-type head office.
 - The job `IMPORT_CATALOGUE` tested on an ERP store test instance before any ERP-store deployment.
-- A database at 3.1.1: `db/3.1.2/sales-line-unit-cost.sql`, then `db/3.1.2/update.sql`, before the 3.1.2 WAR
-  (`AppVersionGuard`).
+- A database at 3.1.1: `db/3.1.2/sales-line-unit-cost.sql` and `db/3.1.2/item-cost-history.sql`, then
+  `db/3.1.2/update.sql`, before the 3.1.2 WAR (`AppVersionGuard`).
 
 ### Features
+- Stock value at a date: `GET /report/stock?date=yyyy-MM-dd` (optional) gives the stock report at the end of a past
+  day, same grouping (item, family, sub-family), columns and order: qty(D) = the stock now minus the movements after D
+  (one grouped query), CMP(D) = the new cost of the item's last cost change up to D, else the old cost of its first
+  change after D, else its CMP now (counted in `itemsAtCurrentCmp`); value = qty(D) x CMP(D). Four queries whatever
+  the number of items. 400 for a date after today, and for a past date where the installation keeps no stock of its
+  own. No date or today: the report of before. Every active item listed, a stock of 0 included
+  (`docs/modules/reporting.md`, "Stock value at a date").
+- Cost history of the items: table `item_cost_history`, one row per change of an item's CMP (date, old and new cost,
+  source, document type and number, the entry's quantity and unit cost, the user's name), written in the transaction of
+  the change: a local purchase (`LOCAL_PURCHASE`), an ERP invoice received (`INVOICE_RECEPTION`), a BL with its head
+  office invoice (`SUPPLY_INVOICE`), "Ajuster le CMP" (`MANUAL`), a new item of the Excel import (`EXCEL_IMPORT`) and
+  `POST /item` with a cost (`ITEM_CREATION`); none when the cost does not change, none on a sale, nothing where the
+  installation keeps no stock of its own (`CostHistoryService`). The entry's CMP update locks the item's row first
+  and reads the old cost as stored (`ItemRepository.lockForCostChange`, `findCostPriceById`). `GET
+  /item/{id}/cost-history?size` (20, at most 100), newest first, for the item card: 403 without
+  `write:admin-item-cost` or `read:admin-margins`, and where the installation keeps no stock of its own.
 - Head office that supplies no store: `headoffice.supply.source=NONE` beside `HEAD_OFFICE` and `ERP` (unchanged). No
   supply bean: BLs, supply prices, supply invoices, what the stores owe, the ERP invoices, `/ho/supply/**` and the
   network stock (new question `HEAD_OFFICE_SUPPLIES_STORES`); every price list refused on a head office whose
@@ -73,6 +89,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   or delays the start.
 
 ### Enhancements
+- Stock report: items without cost are no longer valued at 0. An item without CMP and with a stock other than 0 has
+  `stockValue` null (was 0) and `itemsWithoutCost` 1; a family or sub-family row counts its items without cost
+  (`itemsWithoutCost`), its value the sum of the others as before. Today's queries are unchanged, one more query finds
+  the items without cost. The same rule at a past date.
 - Item cards list (head office), with a point de stock chosen: `GET /admin/headoffice/item-catalogue` takes
   `stockPointStatus` `ACTIVE` (default, the list as before) | `INACTIVE` | `ALL`, the row at that point, and
   `priceMin` / `priceMax` filter the point's row selling price with VAT (the clearance price when it applies) instead
@@ -174,7 +194,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   that has it stays, unread. Item cards' point filter replaces the page. `GET /config` gains `headOfficeStockPoints`
   (the head office keeps points de stock: catalogue only from the ERP and a connector with `HEAD_OFFICE_STOCK_POINTS`).
 
-### DB script (`db/3.1.2/sales-line-unit-cost.sql`, then `db/3.1.2/update.sql`, store and head office, on a database at 3.1.1)
+### DB script (`db/3.1.2/sales-line-unit-cost.sql` and `db/3.1.2/item-cost-history.sql`, then `db/3.1.2/update.sql`, store and head office, on a database at 3.1.1)
+- `item-cost-history.sql`: table `item_cost_history` (no foreign key to `item`) and its index `ix_item_cost_history_item`
+  `(item_id, changed_at)`, each created when missing (a start creates them too); empty at the start. `update.sql` stops
+  while the table is missing.
+- `update.sql`: index `ix_stock_movement_created` on `stock_movement (created_at) INCLUDE (item_id, direction,
+  quantity)` (re-runnable, store and head office): the movements after a day, summed for the stock value at a date,
+  read through it instead of a scan of every movement.
 - `sales-line-unit-cost.sql`: columns `sales_line.unit_cost` and `return_line.unit_cost` DECIMAL(19,3) NULL, each added
   when missing (a start adds them too); no data changed, the lines of before stay NULL. `update.sql` stops while they
   are missing.

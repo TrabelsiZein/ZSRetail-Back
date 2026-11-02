@@ -3,6 +3,7 @@ package com.digithink.zsretail.core.service;
 import static com.digithink.zsretail.core.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.core.support.InMemoryLoyalty.proxy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
@@ -18,11 +19,13 @@ import org.junit.jupiter.api.Test;
 
 import com.digithink.zsretail.core.dto.ProcessPurchaseRequestDTO;
 import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemCostHistory;
 import com.digithink.zsretail.core.model.PurchaseHeader;
 import com.digithink.zsretail.core.model.PurchaseLine;
 import com.digithink.zsretail.core.model.StockMovement;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model.Vendor;
+import com.digithink.zsretail.core.model.enumeration.CostChangeSource;
 import com.digithink.zsretail.core.model.enumeration.StockMovementType;
 import com.digithink.zsretail.core.repository.PurchaseHeaderRepository;
 import com.digithink.zsretail.core.repository.PurchaseLineRepository;
@@ -116,6 +119,17 @@ class PurchaseHeaderServiceCostTest {
 		assertEquals("buyer", b001.getUpdatedBy());
 		StockMovement movement = stock.movements(StockMovementType.PURCHASE_RECEPTION).get(0);
 		assertEquals(6.0, movement.getUnitPriceHt(), "the net unit cost");
+		// 3.1.2: the change in the cost history, the purchase as its document
+		assertEquals(1, stock.costHistory.size());
+		ItemCostHistory row = stock.costHistory.get(0);
+		assertEquals(CostChangeSource.LOCAL_PURCHASE, row.getSource());
+		assertEquals(9.0, row.getOldCost());
+		assertEquals(8.5, row.getNewCost());
+		assertEquals(0, java.math.BigDecimal.valueOf(2).compareTo(row.getQtyIn()));
+		assertEquals(6.0, row.getUnitCostIn());
+		assertEquals("PURCHASE", row.getDocumentType());
+		assertNotNull(row.getDocumentNumber());
+		assertEquals("buyer", row.getChangedBy());
 	}
 
 	@Test

@@ -69,6 +69,7 @@ import com.digithink.zsretail.core.repository.SalesDiscountRepository;
 import com.digithink.zsretail.core.repository.SalesPriceRepository;
 import com.digithink.zsretail.core.repository.VendorRepository;
 import com.digithink.zsretail.core.service.CatalogueHeadOfficeHooks;
+import com.digithink.zsretail.core.service.CostHistoryService;
 import com.digithink.zsretail.core.service.DataImportService;
 import com.digithink.zsretail.core.service.ItemCompositionService;
 import com.digithink.zsretail.core.service.ReportService;
@@ -265,7 +266,7 @@ class DecimalSafetyNetTest {
 		DataImportService service = new DataImportService(mock(ItemFamilyRepository.class),
 				mock(ItemSubFamilyRepository.class), items, mock(ItemBarcodeRepository.class), mock(VendorRepository.class),
 				mock(CustomerRepository.class), mock(LocationRepository.class), mock(SalesPriceRepository.class),
-				mock(SalesDiscountRepository.class), hooks, mock(StockMovementService.class),
+				mock(SalesDiscountRepository.class), hooks, mock(StockMovementService.class), mock(CostHistoryService.class),
 				mock(PlatformTransactionManager.class));
 
 		byte[] file;

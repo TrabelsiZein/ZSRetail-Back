@@ -277,6 +277,12 @@ public class InMemoryItems {
 					cmpUpdates++;
 					return 1;
 				}
+				case "lockForCostChange": // 3.1.2, the cost history: no lock in memory, 1 when the item exists
+					return items.containsKey(args[0]) ? 1 : 0;
+				case "findCostPriceById": {
+					Item item = items.get(args[0]);
+					return item == null ? null : item.getCostPrice();
+				}
 				case "setCostPrice": {
 					Item item = items.get(args[0]);
 					if (item == null) {

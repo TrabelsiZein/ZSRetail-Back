@@ -38,6 +38,7 @@ import com.digithink.zsretail.core.model.SalesDiscount;
 import com.digithink.zsretail.core.model.SalesPrice;
 import com.digithink.zsretail.core.model.Vendor;
 import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
+import com.digithink.zsretail.core.model.enumeration.CostChangeSource;
 import com.digithink.zsretail.core.model.enumeration.SalesDiscountSalesType;
 import com.digithink.zsretail.core.model.enumeration.SalesDiscountType;
 import com.digithink.zsretail.core.model.enumeration.SalesPriceType;
@@ -78,8 +79,9 @@ public class DataImportService {
     /** Step 6: a head office that sends its catalogue records what an import saved; no bean on a store. */
     private final ObjectProvider<CatalogueHeadOfficeHooks> catalogueHooks;
 
-    /** 3.1.2: the movement of the stock an item import writes, in the row's transaction. */
+    /** 3.1.2: the movement of the stock an item import writes and a new item's first cost, in the row's transaction. */
     private final StockMovementService stockMovementService;
+    private final CostHistoryService costHistoryService;
     private final PlatformTransactionManager transactionManager;
 
     /** Step 6: the codes an import saved go to the stores of a head office (nothing elsewhere). */
@@ -291,8 +293,8 @@ public class DataImportService {
     /**
      * One row of the item import, in its own transaction (an error leaves nothing of the row). 3.1.2, the stock value
      * at a date: the stock column read, its movement with the item: a new item's OPENING_STOCK, an existing item's
-     * difference as ADJUSTMENT_IN / ADJUSTMENT_OUT, note "Import Excel" (nothing when it does not change). Returns the
-     * item code.
+     * difference as ADJUSTMENT_IN / ADJUSTMENT_OUT, note "Import Excel" (nothing when it does not change); a new item's
+     * cost as its first cost history row (EXCEL_IMPORT, by Import). Returns the item code.
      */
     private String importItemRow(Row row, DataFormatter formatter, Map<String, Integer> colIndex,
                                  Map<String, String> fieldMap, int i) {
@@ -366,6 +368,10 @@ public class DataImportService {
         } else if (stockRead) {
             BigDecimal before = stockBefore == null ? BigDecimal.ZERO : stockBefore;
             stockMovementService.recordAdjustment(saved.getId(), saved.getStockQuantity().subtract(before), IMPORT_NOTE);
+        }
+        if (created) {
+            costHistoryService.record(saved.getId(), null, saved.getCostPrice(), saved.getStockQuantity(),
+                    saved.getCostPrice(), CostHistoryService.Origin.of(CostChangeSource.EXCEL_IMPORT, "Import"));
         }
         return saved.getItemCode();
     }

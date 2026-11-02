@@ -36,11 +36,14 @@ import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.dto.ImportFieldMappingDTO;
 import com.digithink.zsretail.core.dto.ImportResultDTO;
 import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemCostHistory;
+import com.digithink.zsretail.core.model.enumeration.CostChangeSource;
 import com.digithink.zsretail.core.model.StockMovement;
 import com.digithink.zsretail.core.model.enumeration.StockMovementDirection;
 import com.digithink.zsretail.core.model.enumeration.StockMovementType;
 import com.digithink.zsretail.core.repository.CustomerRepository;
 import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
+import com.digithink.zsretail.core.repository.ItemCostHistoryRepository;
 import com.digithink.zsretail.core.repository.ItemFamilyRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
@@ -63,6 +66,7 @@ class DataImportStockMovementsTest {
 	private final Map<String, Item> byCode = new HashMap<>();
 	private final Map<Long, Item> byId = new HashMap<>();
 	private final List<StockMovement> movements = new ArrayList<>();
+	private final List<ItemCostHistory> history = new ArrayList<>();
 	private final PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
 	private long nextId = 100;
 
@@ -100,16 +104,28 @@ class DataImportStockMovementsTest {
 		set(stockMovements, "stockMovementRepository", movementRepository);
 		set(stockMovements, "itemRepository", items);
 		set(stockMovements, "stockBatchRepository", mock(StockBatchRepository.class));
+		CostHistoryService costHistory = new CostHistoryService();
+		setField(costHistory, CostHistoryService.class, "applicationModeService", mode);
+		ItemCostHistoryRepository historyRepository = mock(ItemCostHistoryRepository.class);
+		when(historyRepository.save(any(ItemCostHistory.class))).thenAnswer(a -> {
+			history.add(a.getArgument(0));
+			return a.getArgument(0);
+		});
+		setField(costHistory, CostHistoryService.class, "repository", historyRepository);
 		@SuppressWarnings("unchecked")
 		ObjectProvider<CatalogueHeadOfficeHooks> hooks = mock(ObjectProvider.class);
 		return new DataImportService(mock(ItemFamilyRepository.class), mock(ItemSubFamilyRepository.class), items,
 				mock(ItemBarcodeRepository.class), mock(VendorRepository.class), mock(CustomerRepository.class),
 				mock(LocationRepository.class), mock(SalesPriceRepository.class), mock(SalesDiscountRepository.class), hooks,
-				stockMovements, transactions);
+				stockMovements, costHistory, transactions);
 	}
 
 	private static void set(Object target, String name, Object value) throws Exception {
-		Field field = StockMovementService.class.getDeclaredField(name);
+		setField(target, StockMovementService.class, name, value);
+	}
+
+	private static void setField(Object target, Class<?> declaring, String name, Object value) throws Exception {
+		Field field = declaring.getDeclaredField(name);
 		field.setAccessible(true);
 		field.set(target, value);
 	}
@@ -180,6 +196,28 @@ class DataImportStockMovementsTest {
 		assertEquals("Import", opening.getCreatedBy());
 		assertEquals(0, BigDecimal.valueOf(8).compareTo(byCode.get("UP").getStockQuantity()), "the stock as before");
 		verify(transactions, times(5)).commit(any());
+	}
+
+	@Test
+	@DisplayName("Cost history: a new item's cost is its first row (EXCEL_IMPORT, by Import); an existing item's CMP and history untouched")
+	void costOfNewItems() throws Exception {
+		Item before = existing(1L, "OLD", 3);
+		before.setCostPrice(7.0);
+		service(TestModes.standalone()).executeImport(file(new String[] { "Code", "Name", "Price", "Stock", "Cost" },
+				new String[] { "OLD", "Old", "10", "3", "4" }, new String[] { "NEW", "New", "10", "5", "6.5" },
+				new String[] { "FREE", "No cost", "10", "2", "" }), "ITEMS", Arrays.asList(
+						new ImportFieldMappingDTO("itemCode", "Code"), new ImportFieldMappingDTO("name", "Name"),
+						new ImportFieldMappingDTO("unitPrice", "Price"), new ImportFieldMappingDTO("stockQuantity", "Stock"),
+						new ImportFieldMappingDTO("costPrice", "Cost")));
+		assertEquals(1, history.size());
+		ItemCostHistory row = history.get(0);
+		assertEquals(byCode.get("NEW").getId(), row.getItemId());
+		assertEquals(CostChangeSource.EXCEL_IMPORT, row.getSource());
+		assertEquals(null, row.getOldCost());
+		assertEquals(6.5, row.getNewCost());
+		assertEquals(0, BigDecimal.valueOf(5).compareTo(row.getQtyIn()));
+		assertEquals("Import", row.getChangedBy());
+		assertEquals(7.0, byCode.get("OLD").getCostPrice());
 	}
 
 	@Test

@@ -28,8 +28,10 @@ import com.digithink.zsretail.core.controller.ItemAPI;
 import com.digithink.zsretail.core.controller._BaseController;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.core.repository.ItemCostHistoryRepository;
 import com.digithink.zsretail.core.repository.SalesPriceRepository;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.service.CostHistoryService;
 import com.digithink.zsretail.core.service.ItemCompositionService;
 import com.digithink.zsretail.core.service.ItemService;
 import com.digithink.zsretail.core.service.StockMovementService;
@@ -84,6 +86,11 @@ class ItemAPICatalogueGuardTest {
 		StockMovementService stockMovements = new StockMovementService(); // 3.1.2: POST /item, its opening stock
 		set(stockMovements, StockMovementService.class, "applicationModeService", mode);
 		set(service, ItemService.class, "stockMovementService", stockMovements);
+		CostHistoryService costHistory = new CostHistoryService(); // 3.1.2: POST /item, its first cost
+		set(costHistory, CostHistoryService.class, "applicationModeService", mode);
+		set(costHistory, CostHistoryService.class, "repository", proxy(ItemCostHistoryRepository.class,
+				(method, args) -> "save".equals(method) ? args[0] : UNHANDLED));
+		set(service, ItemService.class, "costHistoryService", costHistory);
 		set(service, _BaseService.class, "currentUserProvider", new CurrentUserProvider() {
 			@Override
 			public String getCurrentUserName() {

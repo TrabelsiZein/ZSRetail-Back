@@ -228,6 +228,7 @@ class SaleDecimalQuantityTest {
 		assertQuantity("4.8", stock.quantityOf("VH52-1L"));
 		StockMovement movement = stock.movements(StockMovementType.SALE).get(0);
 		assertQuantity("0.2", movement.getQuantity());
+		assertTrue(stock.costHistory.isEmpty(), "3.1.2: a sale writes no cost history");
 	}
 
 	@Test

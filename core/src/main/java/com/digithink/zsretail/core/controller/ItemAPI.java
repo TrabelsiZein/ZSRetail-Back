@@ -43,6 +43,7 @@ import com.digithink.zsretail.core.model.ItemComposition;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.model.enumeration.StockMovementType;
 import com.digithink.zsretail.core.repository.CustomerRepository;
+import com.digithink.zsretail.core.repository.ItemCostHistoryRepository;
 import com.digithink.zsretail.core.repository.StockMovementRepository;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.CatalogueCodeChangeException;
@@ -702,6 +703,30 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 		int read = Math.min(Math.max(size, 1), MOVEMENTS_MAX);
 		return ResponseEntity.ok(movementsOf(stockMovementRepository.findByItem_IdOrderByIdDesc(id, PageRequest.of(0, read)),
 				mayReadCosts(currentUserProvider)));
+	}
+
+	/** 3.1.2: the cost history of the card. */
+	@Autowired
+	private ItemCostHistoryRepository costHistoryRepository;
+
+	/**
+	 * 3.1.2, the item card's "Historique du coût": GET /item/{id}/cost-history?size (20 by default, at most 100), the
+	 * item's changes of CMP, newest first (date, old and new cost, source, document, user, the entry's quantity and unit
+	 * cost). 403 where this installation keeps no stock of its own, and without write:admin-item-cost or
+	 * read:admin-margins. An empty list for an item without a change (or unknown).
+	 */
+	@GetMapping("/{id}/cost-history")
+	public ResponseEntity<?> costHistory(@PathVariable Long id, @RequestParam(name = "size", defaultValue = "20") int size) {
+		if (!applicationModeService.keepsOwnStock()) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN)
+					.body(createErrorResponse("The average cost is not kept here: this installation keeps no stock of its own."));
+		}
+		if (!mayReadCosts(currentUserProvider)) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(createErrorResponse(
+					"The cost history needs the right " + ADJUST_COST_PERMISSION + " or " + MARGINS_PERMISSION + "."));
+		}
+		int read = Math.min(Math.max(size, 1), MOVEMENTS_MAX);
+		return ResponseEntity.ok(costHistoryRepository.findByItemIdOrderByIdDesc(id, PageRequest.of(0, read)));
 	}
 
 	/** A role that may see costs: "Ajuster le CMP" or the ticket line costs. */

@@ -65,7 +65,7 @@ class DataImportCostTest {
 		DataImportService service = new DataImportService(mock(ItemFamilyRepository.class),
 				mock(ItemSubFamilyRepository.class), items, mock(ItemBarcodeRepository.class), mock(VendorRepository.class),
 				mock(CustomerRepository.class), mock(LocationRepository.class), mock(SalesPriceRepository.class),
-				mock(SalesDiscountRepository.class), hooks, mock(StockMovementService.class),
+				mock(SalesDiscountRepository.class), hooks, mock(StockMovementService.class), mock(CostHistoryService.class),
 				mock(PlatformTransactionManager.class));
 
 		byte[] file;

@@ -3,6 +3,7 @@ package com.digithink.zsretail.core.controller;
 import static com.digithink.zsretail.core.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.core.support.InMemoryLoyalty.proxy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
@@ -19,12 +20,16 @@ import org.springframework.http.ResponseEntity;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemCostHistory;
 import com.digithink.zsretail.core.model.StockMovement;
+import com.digithink.zsretail.core.model.enumeration.CostChangeSource;
 import com.digithink.zsretail.core.model.enumeration.StockMovementDirection;
 import com.digithink.zsretail.core.model.enumeration.StockMovementType;
+import com.digithink.zsretail.core.repository.ItemCostHistoryRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.StockMovementRepository;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.service.CostHistoryService;
 import com.digithink.zsretail.core.service.ItemService;
 import com.digithink.zsretail.core.service.StockMovementService;
 import com.digithink.zsretail.core.service._BaseService;
@@ -39,6 +44,7 @@ class ItemCreationStockTest {
 
 	private final Map<Long, Item> items = new LinkedHashMap<>();
 	private final List<StockMovement> movements = new ArrayList<>();
+	private final List<ItemCostHistory> history = new ArrayList<>();
 	private long nextId = 1;
 
 	private ItemAPI api(ApplicationModeService mode) throws Exception {
@@ -78,6 +84,16 @@ class ItemCreationStockTest {
 		ItemService service = new ItemService();
 		set(service, ItemService.class, "itemRepository", itemRepository);
 		set(service, ItemService.class, "stockMovementService", stockMovements);
+		CostHistoryService costHistory = new CostHistoryService();
+		set(costHistory, CostHistoryService.class, "applicationModeService", mode);
+		set(costHistory, CostHistoryService.class, "repository", proxy(ItemCostHistoryRepository.class, (method, args) -> {
+			if ("save".equals(method)) {
+				history.add((ItemCostHistory) args[0]);
+				return args[0];
+			}
+			return UNHANDLED;
+		}));
+		set(service, ItemService.class, "costHistoryService", costHistory);
 		set(service, _BaseService.class, "currentUserProvider", user);
 		ItemAPI api = new ItemAPI();
 		set(api, _BaseController.class, "service", service);
@@ -124,6 +140,23 @@ class ItemCreationStockTest {
 		assertEquals(201, api.create(item("N1", null)).getStatusCodeValue());
 		assertEquals(201, api.create(item("N2", BigDecimal.ZERO)).getStatusCodeValue());
 		assertTrue(movements.isEmpty());
+		assertTrue(history.isEmpty(), "no cost: no cost history");
+	}
+
+	@Test
+	@DisplayName("POST /item with a cost: its first cost history row (ITEM_CREATION, no old cost, the stock, the user)")
+	void costAtCreation() throws Exception {
+		Item body = item("N1", new BigDecimal("4"));
+		body.setCostPrice(6.5);
+		Item created = (Item) api(TestModes.standalone()).create(body).getBody();
+		assertEquals(1, history.size());
+		ItemCostHistory row = history.get(0);
+		assertEquals(created.getId(), row.getItemId());
+		assertEquals(CostChangeSource.ITEM_CREATION, row.getSource());
+		assertNull(row.getOldCost());
+		assertEquals(6.5, row.getNewCost());
+		assertEquals(0, new BigDecimal("4").compareTo(row.getQtyIn()));
+		assertEquals("manager", row.getChangedBy());
 	}
 
 	@Test

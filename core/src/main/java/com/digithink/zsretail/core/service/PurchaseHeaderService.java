@@ -24,6 +24,7 @@ import com.digithink.zsretail.core.model.PurchaseHeader;
 import com.digithink.zsretail.core.model.PurchaseLine;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model.Vendor;
+import com.digithink.zsretail.core.model.enumeration.CostChangeSource;
 import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
 import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.PurchaseHeaderRepository;
@@ -161,7 +162,8 @@ public class PurchaseHeaderService extends _BaseService<PurchaseHeader, Long> {
 			// entry at its net unit cost (after the line discount, before VAT)
 			stockService.incrementForPurchase(item.getId(), Quantities.normalize(lineDto.getQuantity()));
 			stockService.applyEntryCost(item.getId(), Quantities.normalize(lineDto.getQuantity()), netUnitPrice,
-					costWriter(currentUser));
+					costWriter(currentUser), CostHistoryService.Origin.of(CostChangeSource.LOCAL_PURCHASE, "PURCHASE",
+							purchaseNumber, costWriter(currentUser)));
 			stockMovementService.recordPurchase(
 					item.getId(), Quantities.normalize(lineDto.getQuantity()),
 					netUnitPrice, vatPct, lineTotalTtc / lineDto.getQuantity().intValueExact(),

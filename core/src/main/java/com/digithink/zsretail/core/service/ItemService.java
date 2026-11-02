@@ -32,6 +32,7 @@ import com.digithink.zsretail.core.model.ItemFamily;
 import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
+import com.digithink.zsretail.core.model.enumeration.CostChangeSource;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.repository.ItemBarcodeRepository;
 import com.digithink.zsretail.core.repository.ItemFamilyRepository;
@@ -65,6 +66,10 @@ public class ItemService extends _BaseService<Item, Long> {
 
 	@Autowired
 	private StockMovementService stockMovementService;
+
+	/** 3.1.2: the row of each change of the CMP (by hand, at the creation). */
+	@Autowired
+	private CostHistoryService costHistoryService;
 
 	@Autowired
 	private ItemBarcodeRepository itemBarcodeRepository;
@@ -183,27 +188,34 @@ public class ItemService extends _BaseService<Item, Long> {
 
 	/**
 	 * POST /item: {@link #save} and, since 3.1.2 (the stock value at a date), the stock the item comes with as its
-	 * OPENING_STOCK movement, created by the user, in the same transaction (nothing for a stock of 0 or none).
+	 * OPENING_STOCK movement, created by the user, in the same transaction (nothing for a stock of 0 or none), and the
+	 * cost it comes with as its first cost history row (ITEM_CREATION; nothing without a cost).
 	 */
 	@Transactional(rollbackFor = Exception.class)
 	public Item create(Item item, String user) throws Exception {
 		Item created = save(item);
 		stockMovementService.recordOpeningStock(created.getId(), created.getStockQuantity(), CREATION_NOTE, user);
+		costHistoryService.record(created.getId(), null, created.getCostPrice(), created.getStockQuantity(),
+				created.getCostPrice(), CostHistoryService.Origin.of(CostChangeSource.ITEM_CREATION, user));
 		return created;
 	}
 
 	/**
 	 * CMP: "Ajuster le CMP", the weighted average cost set by hand (ItemAPI checks the value, the reason and the right
 	 * first): the cost price by a bulk update and its COST_ADJUSTMENT movement (old and new CMP, the reason, the user),
-	 * in one transaction. No item save, as {@link #adjustStock}. Returns the CMP before.
+	 * in one transaction. No item save, as {@link #adjustStock}. Returns the CMP before. 3.1.2: the item's row locked
+	 * first, the CMP before read as stored, and the change in the cost history (MANUAL, the user).
 	 */
 	@Transactional(rollbackFor = Exception.class)
 	public Double adjustCost(Long itemId, double newCost, String reason, String user) {
 		Item item = itemRepository.findById(itemId)
 				.orElseThrow(() -> new IllegalArgumentException("Item not found: " + itemId));
-		Double before = item.getCostPrice();
+		itemRepository.lockForCostChange(item.getId());
+		Double before = itemRepository.findCostPriceById(item.getId());
 		itemRepository.setCostPrice(itemId, newCost, user);
 		stockMovementService.recordCostAdjustment(itemId, before, newCost, reason, user);
+		costHistoryService.record(itemId, before, newCost, null, newCost,
+				CostHistoryService.Origin.of(CostChangeSource.MANUAL, user));
 		return before;
 	}
 

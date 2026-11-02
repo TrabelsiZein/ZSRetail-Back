@@ -14,7 +14,7 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
 **Methods:**
 - `getSalesReport(dateFrom, dateTo, groupBy)` — aggregates sales headers by DAY/MONTH/YEAR; returns `SalesReportRowDTO { label, totalHt, totalTtc, nbTickets }`
 - `getPurchaseReport(dateFrom, dateTo, groupBy)` — aggregates purchase headers; returns `PurchaseReportRowDTO { label, totalTtc, nbPurchases }`
-- `getStockReport(dateFrom, dateTo, familyId)` — snapshot of stock quantities per item; returns `StockReportRowDTO { itemCode, itemName, currentQty, ... }`
+- `getStockReport(groupBy, belowMinStock)` — the stock now per item, family or sub-family; `getStockReport(groupBy, belowMinStock, date)` (3.1.2) the same at the end of a past day; returns `StockReportRowDTO { groupLabel, itemCode, currentQty, minStockLevel, stockValue, status, itemsWithoutCost, itemsAtCurrentCmp }` (the last two absent when none)
 - `getStockMovementsReport(dateFrom, dateTo, groupBy)` — stock in/out by label; returns `StockMovementsReportRowDTO { label, qtyIn, qtyOut }`
 - `getLoyaltyReport(dateFrom, dateTo, groupBy)` — loyalty points earned/redeemed; returns `LoyaltyReportRowDTO { label, pointsEarned, pointsRedeemed }`
 - `getSessionReport(dateFrom, dateTo, groupBy)` — session totals; returns `SessionReportRowDTO { label, totalAmount, nbSessions }`
@@ -39,6 +39,35 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
 - Stock report status (`ReportService.stockStatus`, 3.1.0, test log I-52): `NEGATIVE` below 0 (a data problem: a
   missing BL, a wrong count), `OUT` at 0, `LOW` below the minimum, else `OK`; the page shows a negative quantity in red,
   and its "Out of stock" card counts the items at 0 only.
+- **Stock value at a date** (3.1.2, `GET /report/stock?groupBy&belowMinStock&date`, `ReportService.getStockReport`;
+  the page's "Valeur au", today by default). One rule today and at a past date: **an item without cost** (no CMP and a
+  stock other than 0) has no value (`stockValue` null, "—" on the page, an empty Excel cell; before 3.1.2 it counted
+  0) and `itemsWithoutCost` 1; a family or sub-family row counts its items without cost, its value the sum of the
+  others; the page marks the total incomplete with their count. A stock of 0 is worth 0, cost or not. Every active item
+  is listed, a stock of 0 included.
+  - **Today** (no date, or today's): the queries of before, unchanged; one more (`markWithoutCost`) finds the items
+    without cost.
+  - **A past day D** (before today; 400 after today, 400 where the installation keeps no stock of its own): at the end
+    of D (movements and cost changes from D + 1 at 00:00 are after). **qty(D)** = the stock now minus the movements
+    after D (IN minus OUT, `MOVEMENTS_AFTER`, one query grouped by item and direction). **CMP(D)** = the new cost of the
+    item's last change up to D (`COSTS_BEFORE`), else the old cost of its first change after D (`COSTS_FROM`; null
+    when that change gave the item its first cost), else its CMP now, counted in `itemsAtCurrentCmp` (the page's note
+    "n article(s) valorisé(s) au CMP actuel"). **Value** = qty(D) x CMP(D). The rows grouped in Java in the order of the
+    items query (`STOCK_ITEMS` ordered by the grouping's name), the labels of today's report ("No Family", "No
+    Subfamily"); the minimum filter on qty(D).
+  - **Queries**: four, whatever the number of items: the active items, the movements after D (index
+    `ix_stock_movement_created` `(created_at) INCLUDE (item_id, direction, quantity)`, `db/3.1.2/update.sql`), the two
+    ends of the cost history (`MAX(id)` / `MIN(id)` per item on either side of D, index `ix_item_cost_history_item`
+    `(item_id, changed_at)`; the ids follow the time of the changes). Estimate for 12,000 items and a year of
+    movements (about a million rows) on a date a year back: the movements range is a covering index read of the whole
+    year, the heaviest part (under a second), the items and the history a few hundred milliseconds: about 1 s; a recent
+    date reads only its few days of movements.
+  - **Limits**: the stock before 3.1.2 counts back from the movements that exist: the import and `POST /item` wrote
+    none before 3.1.2 (`OPENING_STOCK` since), so a date before an item's import or creation may show its stock then
+    as negative or off. The cost history starts empty at 3.1.2: a day before it takes the old cost of the item's first
+    change, else its CMP now (the note counts them). Split bills write their movements as any sale (3.1.2).
+  - Tests: `StockValueAtDateTest` (the queries on H2: the three CMP rules, qty(D) at the day's edges, the families,
+    today), `ReportStockDateTest` (the 400s), `tools/stock-report-check.mjs` (the page's rules).
 - Statistics KPI deltas (`AnalyticsService.computeDeltaPercent`, 3.1.0, test log I-51): null when the previous period
   is 0 (no comparison); the page shows "—" in grey instead of a green "▲ 0.00%".
 

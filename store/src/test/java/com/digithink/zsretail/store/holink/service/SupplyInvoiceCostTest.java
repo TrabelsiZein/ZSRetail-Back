@@ -16,6 +16,7 @@ import org.springframework.transaction.support.TransactionOperations;
 import com.digithink.zsretail.core.link.dto.DeliveryCopyDTO;
 import com.digithink.zsretail.core.link.dto.SupplyInvoiceCopyDTO;
 import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.enumeration.CostChangeSource;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.core.model.enumeration.StockMovementType;
 import com.digithink.zsretail.core.support.InMemoryItems;
@@ -151,6 +152,12 @@ class SupplyInvoiceCostTest {
 		reception.applyWaitingStock();
 		assertEquals(1, db.cmpUpdates, "written once");
 		assertEquals(7.857, b001().getCostPrice());
+		// 3.1.2: one cost history row, the BL as its document; the cost came with the invoice, no user then
+		assertEquals(1, stock.costHistory.size());
+		assertEquals(CostChangeSource.SUPPLY_INVOICE, stock.costHistory.get(0).getSource());
+		assertEquals("BL", stock.costHistory.get(0).getDocumentType());
+		assertEquals(BL, stock.costHistory.get(0).getDocumentNumber());
+		assertEquals("HEAD_OFFICE", stock.costHistory.get(0).getChangedBy());
 	}
 
 	@Test
@@ -169,6 +176,7 @@ class SupplyInvoiceCostTest {
 		assertEquals(7.857, b001().getCostPrice());
 		assertEquals(5.0, stock.movements(StockMovementType.DELIVERY_IN).get(0).getUnitPriceHt());
 		assertEquals(1, db.costUpdates, "the last costs once, by the invoice; never by the reception of a BL");
+		assertEquals("responsible", stock.costHistory.get(0).getChangedBy(), "3.1.2: received by a user, its cost by them");
 	}
 
 	@Test

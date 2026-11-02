@@ -29,8 +29,10 @@ import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.link.dto.DeliveryCopyDTO;
 import com.digithink.zsretail.core.link.dto.ErpInvoiceCopyDTO;
 import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.enumeration.CostChangeSource;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.core.repository.ItemRepository;
+import com.digithink.zsretail.core.service.CostHistoryService;
 import com.digithink.zsretail.core.service.QuantityPolicy;
 import com.digithink.zsretail.core.service.StockMovementService;
 import com.digithink.zsretail.core.service.StockService;
@@ -259,7 +261,7 @@ public class DeliveryReceptionService {
 		List<Long> toApply = transactions.execute(status -> deliveries.findIdsWithStock(Boolean.FALSE));
 		for (Long id : toApply == null ? new ArrayList<Long>() : toApply) {
 			transactions.executeWithoutResult(status -> deliveries.findForUpdate(id).ifPresent(delivery -> {
-				if (applyStock(delivery)) {
+				if (applyStock(delivery, null)) {
 					deliveries.save(delivery);
 					if (delivery.isErpInvoice() && invoiceWriter != null) {
 						invoiceWriter.attachItems(delivery); // the purchase invoice lines get the items that arrived
@@ -312,7 +314,7 @@ public class DeliveryReceptionService {
 			line.setStockApplied(Boolean.FALSE);
 		}
 		delivery.setStatus(ReceivedDeliveryStatus.RECEIVED); // first: the costs of an ERP invoice go in with the stock
-		applyStock(delivery);
+		applyStock(delivery, user);
 		delivery.setReceivedAt(clock.get());
 		delivery.setReceivedBy(cut(user, ReceivedDelivery.USER_LENGTH));
 		delivery.setStoreNote(note);
@@ -410,7 +412,7 @@ public class DeliveryReceptionService {
 	 * The confirmed lines whose stock is not in yet: with their item here, the quantity goes in with one DELIVERY_IN
 	 * movement and the line is marked applied (0 needs nothing). True when one changed.
 	 */
-	private boolean applyStock(ReceivedDelivery delivery) {
+	private boolean applyStock(ReceivedDelivery delivery, String user) {
 		boolean changed = resolveItems(delivery);
 		for (ReceivedDeliveryLine line : delivery.getLines()) {
 			if (!Boolean.FALSE.equals(line.getStockApplied())) {
@@ -428,7 +430,7 @@ public class DeliveryReceptionService {
 			line.setStockApplied(Boolean.TRUE);
 			changed = true;
 		}
-		return applyCost(delivery) || changed;
+		return applyCost(delivery, user) || changed;
 	}
 
 	/**
@@ -446,8 +448,12 @@ public class DeliveryReceptionService {
 	 * </ul>
 	 * The header discount is never read; the selling price (unit price of the item) is never touched. A line waits until
 	 * its item is here; a BL line without its invoice has no cost yet. True when one changed.
+	 * <p>
+	 * 3.1.2, the cost history: each change of the CMP with the document (an ERP invoice: INVOICE_RECEPTION, document
+	 * ERP_INVOICE; a BL invoiced by the head office: SUPPLY_INVOICE, document BL; its number) and the user who confirmed
+	 * the reception, else HEAD_OFFICE (the costs that came later with the invoice, a line whose item came later).
 	 */
-	private boolean applyCost(ReceivedDelivery delivery) {
+	private boolean applyCost(ReceivedDelivery delivery, String user) {
 		Map<Long, List<ReceivedDeliveryLine>> paidByItem = new LinkedHashMap<>();
 		for (ReceivedDeliveryLine line : delivery.getLines()) {
 			if (costPending(delivery, line) && line.getItemId() != null) {
@@ -455,6 +461,11 @@ public class DeliveryReceptionService {
 			}
 		}
 		boolean changed = false;
+		CostHistoryService.Origin origin = delivery.isErpInvoice()
+				? CostHistoryService.Origin.of(CostChangeSource.INVOICE_RECEPTION, "ERP_INVOICE", delivery.getNumber(),
+						user == null ? SupplyInvoiceWriter.WRITER : user)
+				: CostHistoryService.Origin.of(CostChangeSource.SUPPLY_INVOICE, "BL", delivery.getNumber(),
+						user == null ? SupplyInvoiceWriter.WRITER : user);
 		for (Map.Entry<Long, List<ReceivedDeliveryLine>> item : paidByItem.entrySet()) {
 			List<ReceivedDeliveryLine> paid = item.getValue();
 			if (delivery.isErpInvoice()) {
@@ -475,7 +486,7 @@ public class DeliveryReceptionService {
 			double unitCost = invoiced.signum() > 0
 					? amount.divide(invoiced, COST_SCALE, RoundingMode.HALF_UP).doubleValue()
 					: round(paid.get(paid.size() - 1).getUnitCost());
-			stock.applyEntryCost(item.getKey(), received, unitCost, SupplyInvoiceWriter.WRITER);
+			stock.applyEntryCost(item.getKey(), received, unitCost, SupplyInvoiceWriter.WRITER, origin);
 			paid.forEach(l -> l.setCostApplied(Boolean.TRUE));
 			changed = true;
 		}
@@ -514,7 +525,7 @@ public class DeliveryReceptionService {
 		for (String number : numbers == null ? new ArrayList<String>() : numbers) {
 			Optional<ReceivedDelivery> found = deliveries.findByNumber(number)
 					.flatMap(delivery -> deliveries.findForUpdate(delivery.getId()));
-			if (found.isPresent() && found.get().getStatus() == ReceivedDeliveryStatus.RECEIVED && applyCost(found.get())) {
+			if (found.isPresent() && found.get().getStatus() == ReceivedDeliveryStatus.RECEIVED && applyCost(found.get(), null)) {
 				deliveries.save(found.get());
 				changed++;
 			}
