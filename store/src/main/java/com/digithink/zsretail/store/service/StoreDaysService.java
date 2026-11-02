@@ -118,16 +118,7 @@ public class StoreDaysService {
 
 	/** 3.1.2: each document's gains from its lines (JournalCosts), added up per day; all null on a day without cost. */
 	private void gains(Map<LocalDate, Day> days, LocalDateTime from, LocalDateTime to) {
-		Map<LocalDate, List<JournalCosts.Result>> byDay = new HashMap<>();
-		for (Document document : documents(
-				salesLineRepository.findCostLinesOfFinishedBetween(from, to, SessionReportService.EXCLUDED), true)) {
-			byDay.computeIfAbsent(document.date, d -> new ArrayList<>())
-					.add(JournalCosts.ticket(document.lines, document.amount));
-		}
-		for (Document document : documents(returnLineRepository.findCostLinesOfReturnsBetween(from, to), false)) {
-			byDay.computeIfAbsent(document.date, d -> new ArrayList<>())
-					.add(JournalCosts.returned(document.lines, document.amount));
-		}
+		Map<LocalDate, List<JournalCosts.Result>> byDay = documentsByDay(from, to);
 		byDay.forEach((date, results) -> {
 			Day day = days.get(date);
 			if (day == null) {
@@ -139,6 +130,33 @@ public class StoreDaysService {
 			day.row.setMarginPercent(result.marginPercent);
 			day.row.setLinesWithoutCost(result.linesWithoutCost);
 		});
+	}
+
+	/**
+	 * 3.1.2: the month's gains as one (the .xlsx's total row): every ticket and return of the month by the same rule as a
+	 * day, its lines without cost those of all of them when one line is costed; all null when none is.
+	 */
+	public JournalCosts.Result monthGains(YearMonth month) {
+		LocalDateTime from = month.atDay(1).atStartOfDay();
+		LocalDateTime to = month.plusMonths(1).atDay(1).atStartOfDay();
+		List<JournalCosts.Result> all = new ArrayList<>();
+		documentsByDay(from, to).values().forEach(all::addAll);
+		return JournalCosts.day(all);
+	}
+
+	/** Each ticket's and return's gains (JournalCosts) of [from, to), by its day. */
+	private Map<LocalDate, List<JournalCosts.Result>> documentsByDay(LocalDateTime from, LocalDateTime to) {
+		Map<LocalDate, List<JournalCosts.Result>> byDay = new HashMap<>();
+		for (Document document : documents(
+				salesLineRepository.findCostLinesOfFinishedBetween(from, to, SessionReportService.EXCLUDED), true)) {
+			byDay.computeIfAbsent(document.date, d -> new ArrayList<>())
+					.add(JournalCosts.ticket(document.lines, document.amount));
+		}
+		for (Document document : documents(returnLineRepository.findCostLinesOfReturnsBetween(from, to), false)) {
+			byDay.computeIfAbsent(document.date, d -> new ArrayList<>())
+					.add(JournalCosts.returned(document.lines, document.amount));
+		}
+		return byDay;
 	}
 
 	/** One ticket or return of the projection: its date, its amount (total paid or refund) and its lines. */

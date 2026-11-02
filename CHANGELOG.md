@@ -123,7 +123,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `marginPercent` and `linesWithoutCost`, from the unit costs frozen on the lines (`JournalCosts`): the HT of the
   Journal (ticket discount, cart promotions and loyalty points in it) over the costed lines minus their cost, a return
   negative, the stamp left out, a service or a discount item at 0; all null without a costed line; margin % only when
-  no line is without cost. Only where the store keeps its own stock and for `read:admin-margins`
+  no line is without cost; a day (and the month total of the .xlsx) counts the lines without cost of all its tickets and
+  returns, those without any costed line included. Only where the store keeps its own stock and for `read:admin-margins`
   (`CashierSessionAPI.withMargins`), else not computed and absent. The day list reads the month's lines by one
   projection per kind (`findCostLinesOfFinishedBetween`, `findCostLinesOfReturnsBetween`); the day journal from the
   lines it reads. Nothing existing changes (`JournalMarginsTest`, `JournalCostLinesQueryTest`).

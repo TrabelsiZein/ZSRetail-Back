@@ -276,6 +276,56 @@ class JournalMarginsTest {
 		assertNull(row.getLinesWithoutCost());
 	}
 
+	/**
+	 * A day with 3 tickets without any costed line and 1 costed ticket with one line without cost: T3 two lines of B, T4
+	 * one of B and a service (cost 0 by nature), T5 one of B and the stamp, T6 one of A (cost 6) and one of B.
+	 */
+	private static final LocalDate MIXED_DAY = LocalDate.of(2026, 11, 4);
+
+	private void mixedDay() {
+		SalesHeader t3 = sale("T3", MIXED_DAY.atTime(9, 0), 23.8);
+		line(t3, b, 1, 11.9, null);
+		line(t3, b, 1, 11.9, null);
+		SalesHeader t4 = sale("T4", MIXED_DAY.atTime(10, 0), 17.85);
+		line(t4, b, 1, 11.9, null);
+		line(t4, service, 1, 5.95, null);
+		SalesHeader t5 = sale("T5", MIXED_DAY.atTime(11, 0), 12.0);
+		line(t5, b, 1, 11.9, null);
+		line(t5, stampItem, 1, 0.1, null);
+		SalesHeader t6 = sale("T6", MIXED_DAY.atTime(12, 0), 23.8);
+		line(t6, a, 1, 11.9, "6.000");
+		line(t6, b, 1, 11.9, null);
+	}
+
+	@Test
+	@DisplayName("The day's lines without cost are those of ALL its documents (3 uncosted tickets + 1 costed): 5; a ticket keeps its own rule")
+	void dayCountsEveryLineWithoutCost() {
+		mixedDay();
+		DayJournalDTO dto = journal.build(MIXED_DAY, true);
+		JournalLine t3 = line(dto, "T3");
+		assertNull(t3.getCost(), "a ticket without costed line: the four fields null");
+		assertNull(t3.getLinesWithoutCost());
+		assertEquals(Long.valueOf(1), line(dto, "T6").getLinesWithoutCost());
+		DayJournalDTO.Totals totals = dto.getTotals();
+		assertEquals(6.0, totals.getCost(), 0.0);
+		assertEquals(Long.valueOf(5), totals.getLinesWithoutCost(), "T3 2 + T4 1 (the service not) + T5 1 (the stamp not) + T6 1");
+		assertNull(totals.getMarginPercent());
+		DayRowDTO row = day(days.buildMonth(YearMonth.from(MIXED_DAY), true), MIXED_DAY);
+		assertEquals(totals.getLinesWithoutCost(), row.getLinesWithoutCost(), "the list equal to the journal");
+		assertEquals(totals.getCost(), row.getCost());
+		assertEquals(totals.getMargin(), row.getMargin());
+	}
+
+	@Test
+	@DisplayName("The month (the .xlsx total row): the same rule over every document of the month, the day before 3.1.2 included")
+	void monthGains() {
+		mixedDay();
+		JournalCosts.Result month = days.monthGains(YearMonth.from(DAY));
+		assertEquals(18.0, month.costValue(), 0.0, "12 (the 3rd) + 6 (the 4th)");
+		assertEquals(Long.valueOf(7), month.linesWithoutCost, "1 (T2) + 1 (T0, the 1st) + 5 (the 4th)");
+		assertNull(month.marginPercent);
+	}
+
 	@Test
 	@DisplayName("Without margins (no right, or the ERP keeps the stock): no field, absent from the JSON, the projection never read")
 	void withoutMargins() throws Exception {

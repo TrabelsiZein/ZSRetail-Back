@@ -195,7 +195,7 @@ nothing is computed and the fields are absent from the JSON (`@JsonInclude(NON_N
   return's is the Journal's too (the lines' HT x refund / lines' TTC), negative. Cost = sum of quantity x unit cost;
   margin = HT - cost; both over the costed lines only. The tax stamp is left out of everything; a service or a
   discount item (`ItemType.carriesNoCost`) counts at 0; any other line with a null cost is a line without cost (never
-  0). A ticket, a return or a day without a costed line: the four fields null. Margin % = margin / HT, one decimal,
+  0). A ticket, a return or a day without a costed line: the four fields null. A day (and the .xlsx month total, `StoreDaysService.monthGains`) with a costed line counts the lines without cost of ALL its tickets and returns, those without any costed line included; a ticket or a return keeps its own count. Margin % = margin / HT, one decimal,
   null with a line without cost or an HT of 0. Amounts to the millime, half up.
 - Fields `cost`, `margin`, `marginPercent`, `linesWithoutCost` on each ticket and return (`JournalLine`), on the day's
   `Totals` (tickets and returns) and on each `DayRowDTO`. The day journal computes them from the lines it reads (no

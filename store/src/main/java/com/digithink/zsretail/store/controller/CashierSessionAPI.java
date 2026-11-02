@@ -533,7 +533,7 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 		try {
 			boolean margins = withMargins();
 			byte[] file = com.digithink.zsretail.store.service.JournalExcel.days(yearMonth,
-					storeDaysService.buildMonth(yearMonth, margins), margins);
+					storeDaysService.buildMonth(yearMonth, margins), margins ? storeDaysService.monthGains(yearMonth) : null);
 			return excel(file, com.digithink.zsretail.store.service.JournalExcel.daysFileName(yearMonth));
 		} catch (Exception e) {
 			log.error("CashierSessionAPI::getStoreDaysExcel:error: " + e.getMessage(), e);

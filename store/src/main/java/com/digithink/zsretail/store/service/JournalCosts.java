@@ -23,6 +23,8 @@ import com.digithink.zsretail.core.model.enumeration.ItemType;
  * negative in the day.</li>
  * <li>No costed line (a document or a day, e.g. before 3.1.2): every field null. Margin % = margin / HT, to one decimal,
  * only when no line is without cost and the HT is not 0.</li>
+ * <li>A day (or a month) with a costed line: its lines without cost are those of ALL its documents, a ticket or a return
+ * without any costed line included (a document alone keeps its own rule: null when it has no costed line).</li>
  * </ul>
  * Amounts to the millime, half up, as the Journal's.
  */
@@ -76,6 +78,9 @@ public final class JournalCosts {
 		/** Margin / HT x 100, one decimal; null with a line without cost or an HT of 0. */
 		public Double marginPercent;
 
+		/** The document's lines without cost, counted even when nothing in it is costed (the day's count). */
+		long missing;
+
 		boolean costed() {
 			return cost != null;
 		}
@@ -101,7 +106,7 @@ public final class JournalCosts {
 			}
 		}
 		if (goods.signum() <= 0) {
-			return new Result();
+			return uncosted(lines);
 		}
 		BigDecimal total = totalAmount != null ? big(totalAmount) : goods.add(stamp);
 		BigDecimal factor = total.subtract(stamp).divide(goods, SCALE, RoundingMode.HALF_UP);
@@ -112,7 +117,7 @@ public final class JournalCosts {
 	public static Result returned(List<Line> lines, Double refund) {
 		BigDecimal linesTtc = lines.stream().map(l -> l.ttc).reduce(BigDecimal.ZERO, BigDecimal::add);
 		if (linesTtc.signum() <= 0) {
-			return new Result();
+			return uncosted(lines);
 		}
 		BigDecimal factor = big(refund).divide(linesTtc, SCALE, RoundingMode.HALF_UP);
 		Result result = document(lines, factor, false);
@@ -148,6 +153,7 @@ public final class JournalCosts {
 			cost = cost.add(line.quantity.multiply(unitCost));
 		}
 		Result result = new Result();
+		result.missing = without;
 		if (costed == 0) {
 			return result;
 		}
@@ -162,8 +168,13 @@ public final class JournalCosts {
 	/** A day (or any set of documents): the sums of its costed documents; all null when none is costed. */
 	public static Result day(List<Result> documents) {
 		Result day = new Result();
+		long missing = 0;
 		for (Result document : documents) {
-			if (document == null || !document.costed()) {
+			if (document == null) {
+				continue;
+			}
+			missing += document.missing; // every document's lines without cost, costed or not
+			if (!document.costed()) {
 				continue;
 			}
 			if (!day.costed()) {
@@ -175,12 +186,20 @@ public final class JournalCosts {
 			day.cost = day.cost.add(document.cost);
 			day.margin = day.margin.add(document.margin);
 			day.ht = day.ht.add(document.ht);
-			day.linesWithoutCost += document.linesWithoutCost;
 		}
+		day.missing = missing;
 		if (day.costed()) {
-			day.marginPercent = percent(day.margin, day.ht, day.linesWithoutCost);
+			day.linesWithoutCost = missing;
+			day.marginPercent = percent(day.margin, day.ht, missing);
 		}
 		return day;
+	}
+
+	/** A document whose amounts give no HT (no goods, no lines): nothing costed, its lines without cost counted. */
+	private static Result uncosted(List<Line> lines) {
+		Result result = new Result();
+		result.missing = lines.stream().filter(line -> !line.stamp && line.knownCost() == null).count();
+		return result;
 	}
 
 	private static Double percent(BigDecimal margin, BigDecimal ht, long without) {

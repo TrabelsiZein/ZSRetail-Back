@@ -106,22 +106,21 @@ public final class JournalExcel {
 
 	/** The month's days, newest first, and a totals row. */
 	public static byte[] days(YearMonth month, List<DayRowDTO> days) throws IOException {
-		return days(month, days, false);
+		return days(month, days, null);
 	}
 
 	/**
-	 * 3.1.2: with withMargins, the columns Coût, Marge, Marge % and Lignes sans coût after the others; the total row adds
-	 * up the costed days (its margin % only when no day has a line without cost: HT = margin + cost).
+	 * 3.1.2: with the month's gains (StoreDaysService.monthGains; null: none), the columns Coût, Marge, Marge % and Lignes
+	 * sans coût after the others; the total row is the month's, by the same rule as a day (its lines without cost those
+	 * of all its tickets and returns).
 	 */
-	public static byte[] days(YearMonth month, List<DayRowDTO> days, boolean withMargins) throws IOException {
+	public static byte[] days(YearMonth month, List<DayRowDTO> days, JournalCosts.Result monthGains) throws IOException {
+		boolean withMargins = monthGains != null;
 		try (XSSFWorkbook workbook = new XSSFWorkbook()) {
 			Styles styles = new Styles(workbook);
 			Sheet sheet = workbook.createSheet("Jours " + month);
 			String[] headers = withMargins ? concat(DAYS_HEADERS, DAYS_MARGIN_HEADERS) : DAYS_HEADERS;
 			header(sheet, headers, styles);
-			java.math.BigDecimal monthCost = null;
-			java.math.BigDecimal monthMargin = null;
-			long monthWithout = 0;
 			int r = 1;
 			long[] counts = new long[5];
 			double[] amounts = new double[3];
@@ -147,11 +146,6 @@ public final class JournalExcel {
 					amount(row, 11, day.getMargin(), styles.amount);
 					amount(row, 12, day.getMarginPercent(), styles.percent);
 					count(row, 13, day.getLinesWithoutCost(), null);
-					if (day.getCost() != null) {
-						monthCost = add(monthCost, day.getCost());
-						monthMargin = add(monthMargin, day.getMargin());
-						monthWithout += day.getLinesWithoutCost() != null ? day.getLinesWithoutCost() : 0;
-					}
 				}
 			}
 			Row row = sheet.createRow(r);
@@ -164,15 +158,11 @@ public final class JournalExcel {
 			for (int i = 0; i < amounts.length; i++) {
 				amount(row, 6 + i, amounts[i], styles.boldAmount);
 			}
-			if (withMargins && monthCost != null) {
-				amount(row, 10, monthCost.doubleValue(), styles.boldAmount);
-				amount(row, 11, monthMargin.doubleValue(), styles.boldAmount);
-				java.math.BigDecimal ht = monthMargin.add(monthCost);
-				amount(row, 12, monthWithout == 0 && ht.signum() != 0
-						? monthMargin.multiply(java.math.BigDecimal.valueOf(100)).divide(ht, 1, java.math.RoundingMode.HALF_UP)
-								.doubleValue()
-						: null, styles.boldPercent);
-				count(row, 13, monthWithout, styles.bold);
+			if (withMargins && monthGains.costValue() != null) {
+				amount(row, 10, monthGains.costValue(), styles.boldAmount);
+				amount(row, 11, monthGains.marginValue(), styles.boldAmount);
+				amount(row, 12, monthGains.marginPercent, styles.boldPercent);
+				count(row, 13, monthGains.linesWithoutCost, styles.bold);
 			}
 			autosize(sheet, headers.length);
 			return bytes(workbook);
@@ -202,11 +192,6 @@ public final class JournalExcel {
 				cell.setCellStyle(style);
 			}
 		}
-	}
-
-	private static java.math.BigDecimal add(java.math.BigDecimal sum, Double value) {
-		java.math.BigDecimal v = DayJournalService.bd(value);
-		return sum == null ? v : sum.add(v);
 	}
 
 	private static String[] concat(String[] first, String[] second) {
