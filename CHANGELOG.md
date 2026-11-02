@@ -115,6 +115,15 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   right `read:admin-margins` (checked by the API, listed by `GET /app-roles/permissions`, given to ADMIN at every start
   wherever the stock is kept, with `write:admin-item-cost`). Stock movements unchanged (selling prices). The lines
   written before 3.1.2 stay without cost (no estimate).
+- Store Articles page, the list on every store (docs/admin-pages.md, "Articles"): `GET /item-catalogue` gives each line
+  what the old flat list showed (`ItemCatalogueService.storeDetails`, one read for the page, `ItemCatalogueQuery.details`):
+  a single item's `origin`, `ownPrice` and the head office's price with VAT (`headOfficePrice`), its price before VAT and
+  VAT (`unitPrice`, `vatPercent`), its public price with VAT when it is in clearance below it (`publicPrice`), its
+  `minStockLevel` and the ERP's `maximumAuthorizedDiscount`; and, with `withCost` in the answer, the line's weighted
+  average cost before VAT (`costMin` / `costMax`, a NAV item's range) only where the store keeps its own stock and for a
+  role with `write:admin-item-cost` or `read:admin-margins` (checked by the API). Every new field is left out of the
+  JSON when null (the head office's list answers as before). New sort `stock` (the line's stock, none read as 0), on
+  the store's and the head office's list (`ItemCatalogueStoreDetailsTest`, `StoreItemCatalogueCostTest`).
 
 ### Fixes
 - Store linked to a head office after its database was created (ParaFendri Gremda): its ADMIN role now gets

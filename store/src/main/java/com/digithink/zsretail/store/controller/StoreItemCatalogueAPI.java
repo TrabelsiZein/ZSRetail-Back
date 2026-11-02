@@ -13,16 +13,18 @@ import org.springframework.web.bind.annotation.RestController;
 import com.digithink.zsretail.core.dto.ItemCatalogueFiltersDTO;
 import com.digithink.zsretail.core.dto.ItemCatalogueLineDTO;
 import com.digithink.zsretail.core.repository.ItemCatalogueQuery;
+import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.controller.ItemAPI;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.ItemCatalogueService;
 import com.digithink.zsretail.core.service.NavItemService;
 
 import lombok.RequiredArgsConstructor;
 
 /**
- * 3.1.1, the store's Articles page where items carry NAV numbers (the grouped view, docs/admin-pages.md): the head
+ * 3.1.1, the store's Articles page where items carry NAV numbers; 3.1.2, on every store (docs/admin-pages.md): the head
  * office's item catalogue list (core, {@link ItemCatalogueService}) read at the store. One line per NAV item number,
- * else one per item (the store's own items), with each NAV item's variants read from GET /nav-item/variants. No point de
- * stock at a store.
+ * else one per item, with each NAV item's variants read from GET /nav-item/variants. No point de stock at a store.
  */
 @RestController
 @RequestMapping("item-catalogue")
@@ -31,13 +33,20 @@ public class StoreItemCatalogueAPI {
 
 	private final ItemCatalogueService service;
 
+	private final ApplicationModeService mode;
+
+	private final CurrentUserProvider currentUserProvider;
+
 	/**
 	 * GET /item-catalogue?page&amp;size&amp;search&amp;status&amp;familyId&amp;subFamilyId&amp;categoryCode&amp;sectionCode
-	 * &amp;priceMin&amp;priceMax&amp;sort&amp;dir: {content, page, size, totalElements, totalPages, withStock}. search:
+	 * &amp;priceMin&amp;priceMax&amp;sort&amp;dir: {content, page, size, totalElements, totalPages, withStock, withCost}. search:
 	 * NAV number, item code (a variant's), name or barcode, contains, any case; with it each line gives matchedItemIds,
 	 * its items found. status: ALL (the default, as the Articles page), ACTIVE (the active variants only) or INACTIVE (the
 	 * lines without an active variant); priceMin / priceMax: the item's own price with VAT; sort: code (default), name,
-	 * family, variants, price; dir: asc (default) or desc. Every filter optional.
+	 * family, variants, price, stock (3.1.2); dir: asc (default) or desc. Every filter optional. 3.1.2: each line also gives what
+	 * the page shows beyond the grouped columns (ItemCatalogueService.storeDetails: a single item's origin, own price,
+	 * price before VAT and VAT, clearance public price, minimum stock, maximum discount) and, with withCost, the line's
+	 * weighted average cost (costMin / costMax).
 	 */
 	@GetMapping
 	public ResponseEntity<Map<String, Object>> page(@RequestParam(name = "page", defaultValue = "0") int page,
@@ -65,6 +74,9 @@ public class StoreItemCatalogueAPI {
 		criteria.setSort(sort);
 		criteria.setDescending("desc".equalsIgnoreCase(dir == null ? null : dir.trim()));
 		Page<ItemCatalogueLineDTO> lines = service.page(criteria, page, size);
+		// 3.1.2: what the lines show beyond the grouped columns, the cost only to a role that may see it
+		boolean withCost = withCost();
+		service.storeDetails(lines.getContent(), withCost);
 		Map<String, Object> response = new LinkedHashMap<>();
 		response.put("content", lines.getContent());
 		response.put("page", lines.getNumber());
@@ -72,6 +84,7 @@ public class StoreItemCatalogueAPI {
 		response.put("totalElements", lines.getTotalElements());
 		response.put("totalPages", lines.getTotalPages());
 		response.put("withStock", service.withStock());
+		response.put("withCost", withCost);
 		return ResponseEntity.ok(response);
 	}
 
@@ -79,6 +92,16 @@ public class StoreItemCatalogueAPI {
 	@GetMapping("filters")
 	public ResponseEntity<ItemCatalogueFiltersDTO> filters() {
 		return ResponseEntity.ok(service.filters());
+	}
+
+	/**
+	 * 3.1.2: the lines carry the weighted average cost only where the store keeps its own stock (the CMP is kept there)
+	 * and for a role with write:admin-item-cost ("Ajuster le CMP") or read:admin-margins (the line costs of a ticket).
+	 */
+	boolean withCost() {
+		return mode.keepsOwnStock() && currentUserProvider != null
+				&& (currentUserProvider.currentUserHasPermission(ItemAPI.ADJUST_COST_PERMISSION)
+						|| currentUserProvider.currentUserHasPermission(SalesHeaderAPI.MARGINS_PERMISSION));
 	}
 
 	/** ACTIVE in any case: the active variants only; anything else (absent, ALL, INACTIVE): every variant. */
