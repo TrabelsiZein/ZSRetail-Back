@@ -208,7 +208,8 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 		}
 		try {
 			log.info("ItemAPI::create");
-			Item created = service.save(entity);
+			Item created = service.create(entity,
+					currentUserProvider == null ? null : currentUserProvider.getCurrentUserName());
 			return ResponseEntity.status(HttpStatus.CREATED).body(created);
 		} catch (CatalogueCodeTooLongException e) {
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage())); // step 6, head office

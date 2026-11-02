@@ -54,6 +54,12 @@
 | **Vendors** | `vendorCode`, `name`, `phone` | `email`, `address`, `city`, `country`, `taxId`, `notes` |
 | **Customers** | `customerCode`, `name`, `phone` | `email`, `address`, `city`, `country`, `taxId`, `creditLimit`, `notes` |
 
+**Items, the stock column** (3.1.2): each item row is saved in its own transaction (a row in error leaves nothing of
+itself), with the movement of the stock it sets: a new item's `OPENING_STOCK` (note "Import Excel", created by
+`Import`), an existing item's difference as `ADJUSTMENT_IN` / `ADJUSTMENT_OUT` (note "Import Excel"), nothing when
+the stock does not change or the column is not mapped (`DataImportStockMovementsTest`). The stock value at a date
+(`modules/reporting.md`) counts back from these movements.
+
 ### Frontend — Modified Files
 
 - **`navigation/vertical/index.js`** — Added `admin.dataImportMenu` entry (`DownloadCloudIcon`) under the Administration group

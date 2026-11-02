@@ -178,6 +178,20 @@ public class ItemService extends _BaseService<Item, Long> {
 		stockMovementService.recordAdjustment(itemId, delta, reason);
 	}
 
+	/** 3.1.2: the note of the OPENING_STOCK movement of an item created with a stock (POST /item). */
+	static final String CREATION_NOTE = "Création de l'article";
+
+	/**
+	 * POST /item: {@link #save} and, since 3.1.2 (the stock value at a date), the stock the item comes with as its
+	 * OPENING_STOCK movement, created by the user, in the same transaction (nothing for a stock of 0 or none).
+	 */
+	@Transactional(rollbackFor = Exception.class)
+	public Item create(Item item, String user) throws Exception {
+		Item created = save(item);
+		stockMovementService.recordOpeningStock(created.getId(), created.getStockQuantity(), CREATION_NOTE, user);
+		return created;
+	}
+
 	/**
 	 * CMP: "Ajuster le CMP", the weighted average cost set by hand (ItemAPI checks the value, the reason and the right
 	 * first): the cost price by a bulk update and its COST_ADJUSTMENT movement (old and new CMP, the reason, the user),

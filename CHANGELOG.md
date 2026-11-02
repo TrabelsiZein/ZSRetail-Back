@@ -143,6 +143,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `write:admin-item-cost` or `read:admin-margins`, checked by the API (`ItemStockMovementsTest`).
 
 ### Fixes
+- Stock movements, two gaps (for the stock value at a date): the item import (Excel) writes the movement of the stock
+  it sets, in the row's transaction (a row in error leaves nothing): a new item's `OPENING_STOCK` (note "Import
+  Excel", created by `Import`), an existing item's difference as `ADJUSTMENT_IN` / `ADJUSTMENT_OUT` (note "Import
+  Excel"), nothing when it does not change or without a stock column. `POST /item` with a stock writes its
+  `OPENING_STOCK` (note "Création de l'article", the user) with the item (`ItemService.create`). Before, both set the
+  stock with no movement. Nothing when the supply is the ERP's.
 - Store linked to a head office after its database was created (ParaFendri Gremda): its ADMIN role now gets
   `read:admin-holink-status` (the "Head office" menu: Jobs, Communications, Data exchanged) at the next start; before,
   only a role created with `headoffice.url` already set had it, so the menu stayed hidden. Nothing is removed.
