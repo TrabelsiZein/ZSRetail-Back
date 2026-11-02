@@ -710,7 +710,8 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 	/**
 	 * Split-bill: pay for a subset of lines from a pending table ticket.
-	 * 1. Creates a new COMPLETED SalesHeader with only the selected lines.
+	 * 1. Creates a new COMPLETED SalesHeader with only the selected lines (their discount source and promotion kept),
+	 *    and decrements their stock with their SALE movements, as every completed sale (3.1.1: before, never).
 	 * 2. Removes those lines from the original pending ticket and recalculates its totals.
 	 * 3. If the original ticket has no remaining lines, cancels it (table becomes free).
 	 * Returns the new completed SalesHeader for receipt printing.
@@ -769,6 +770,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		splitHeader = save(splitHeader);
 
 		// 4. Copy selected lines to the new header
+		List<SalesLine> splitLines = new ArrayList<>();
 		for (SalesLine origLine : selectedLines) {
 			SalesLine newLine = new SalesLine();
 			newLine.setSalesHeader(splitHeader);
@@ -783,8 +785,13 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			newLine.setVatAmount(origLine.getVatAmount());
 			newLine.setUnitPriceIncludingVat(origLine.getUnitPriceIncludingVat());
 			newLine.setLineTotalIncludingVat(origLine.getLineTotalIncludingVat());
-			salesLineService.save(newLine);
+			newLine.setDiscountSource(origLine.getDiscountSource());
+			newLine.setPromotion(origLine.getPromotion());
+			splitLines.add(salesLineService.save(newLine));
 		}
+
+		// The stock of the lines paid now, with their SALE movements (the lines left go out when they are paid)
+		decrementStockForSalesLines(splitLines, splitHeader);
 
 		// 5. Create payments for the split header
 		if (request.getPayments() != null) {
@@ -1269,7 +1276,8 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	}
 
 	/**
-	 * Decrement stock for all sale lines (standalone only). Single place used by processCompleteSale and completePendingSale.
+	 * Decrement stock for all sale lines (standalone only). Single place used by processCompleteSale, completePendingSale
+	 * and splitAndPay.
 	 */
 	private void decrementStockForSalesLines(List<SalesLine> salesLines, SalesHeader salesHeader) {
 		for (SalesLine line : salesLines) {

@@ -191,6 +191,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   written before 3.1.1 stay without cost (no estimate).
 
 ### Fixes
+- Split bill of a table ticket (`POST /sales-header/split-and-pay/{id}`, `SalesHeaderService.splitAndPay`): the lines
+  paid apart never left the stock and wrote no SALE movement (the rest, paid later, did): they now go out with their
+  movements as every completed sale (`decrementStockForSalesLines`), and keep their discount source and promotion,
+  which the copy dropped (docs/modules/table-management.md, `SplitBillStockTest`).
 - `GET /sales-header/pending-sales` sends each ticket's `discountSource` (MANUAL or PROMOTION): the till taking a held
   ticket back no longer shows its cart offer a second time as a "Remise" (front CHANGELOG).
 - Copies down, head office: a store's pull of LOYALTY, PROMOTIONS or SUPPLY answered HTTP 500 (query timeout after
