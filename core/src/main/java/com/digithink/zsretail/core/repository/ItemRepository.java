@@ -52,15 +52,43 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 	void decrementStockQuantityUnconditional(@Param("itemId") Long itemId, @Param("quantity") BigDecimal quantity);
 
 	/**
-	 * Invoices from the ERP: the costs of an item received on an ERP invoice, by id: last direct cost = the gross unit
-	 * price, last direct net cost and cost price = the net unit cost. Never the selling price (unit price) nor the stock:
-	 * a bulk update, because the same reception changes the stock by native updates (saving the item entity would put
-	 * back the stock it was loaded with).
+	 * The last costs of an item, by id (informative, the last purchase or invoice): last direct cost = the gross unit
+	 * price, last direct net cost = the net unit cost. Never the cost price (the weighted average, {@link #applyEntryCost}),
+	 * the selling price nor the stock: a bulk update, because the same transaction changes the stock by native updates
+	 * (saving the item entity would put back the stock it was loaded with).
 	 */
 	@Modifying(flushAutomatically = true)
-	@Query("update Item x set x.lastDirectCost = :gross, x.lastDirectNetCost = :net, x.costPrice = :net,"
-			+ " x.updatedBy = :by where x.id = :id")
-	int updateCost(@Param("id") Long id, @Param("gross") Double gross, @Param("net") Double net, @Param("by") String by);
+	@Query("update Item x set x.lastDirectCost = :gross, x.lastDirectNetCost = :net, x.updatedBy = :by where x.id = :id")
+	int updateLastCosts(@Param("id") Long id, @Param("gross") Double gross, @Param("net") Double net,
+			@Param("by") String by);
+
+	/**
+	 * The weighted average cost (CMP, in cost_price) after an entry of qtyIn units at unitCostNet (after the line
+	 * discount, before VAT), in one row update, called after the entry's stock increment in the same transaction: the
+	 * stock before is the stock now minus qtyIn. Computed in DECIMAL(19,5), rounded to 3 decimals. No CMP yet, or a stock
+	 * before at 0 or below: the unit cost. qtyIn 0: unchanged, except a CMP still null, which takes the unit cost.
+	 * Returns the number of rows updated (0 when unchanged).
+	 */
+	String APPLY_ENTRY_COST = "UPDATE item SET cost_price = CASE"
+			+ " WHEN cost_price IS NULL OR COALESCE(stock_quantity, 0) - CAST(:qtyIn AS DECIMAL(18,3)) <= 0"
+			+ " THEN ROUND(CAST(:unitCost AS DECIMAL(19,5)), 3)"
+			+ " ELSE ROUND(((COALESCE(stock_quantity, 0) - CAST(:qtyIn AS DECIMAL(18,3))) * CAST(cost_price AS DECIMAL(19,5))"
+			+ " + CAST(:qtyIn AS DECIMAL(18,3)) * CAST(:unitCost AS DECIMAL(19,5))) / COALESCE(stock_quantity, 0), 3) END,"
+			+ " updated_by = :by"
+			+ " WHERE id = :id AND (CAST(:qtyIn AS DECIMAL(18,3)) > 0 OR cost_price IS NULL)";
+
+	@Modifying(flushAutomatically = true)
+	@Query(value = APPLY_ENTRY_COST, nativeQuery = true)
+	int applyEntryCost(@Param("id") Long id, @Param("qtyIn") BigDecimal qtyIn, @Param("unitCost") Double unitCostNet,
+			@Param("by") String by);
+
+	/**
+	 * "Ajuster le CMP": the cost price set by hand, by id, nothing else (a bulk update, as {@link #updateLastCosts}); the
+	 * persistence context is cleared after it, so the item read back for the answer carries the new value.
+	 */
+	@Modifying(flushAutomatically = true, clearAutomatically = true)
+	@Query("update Item x set x.costPrice = :cost, x.updatedBy = :by where x.id = :id")
+	int setCostPrice(@Param("id") Long id, @Param("cost") Double cost, @Param("by") String by);
 
 	Optional<Item> findByItemCode(String itemCode);
 

@@ -128,6 +128,10 @@ public class SupplyDownHandler implements DownHandler {
 			try {
 				DeliveryReceptionService.Outcome outcome = transactions.execute(status -> {
 					DeliveryReceptionService.Outcome saved = reception.saveReceived(copy);
+					if (saved.isWritten() && invoices != null) {
+						// CMP: a BL whose invoice came first takes its costs from the purchase invoice already here
+						invoices.stampFromInvoice(copy.getNumber());
+					}
 					String info = saved.getMissingItems().isEmpty() ? null
 							: "items not in this store yet: " + String.join(", ", saved.getMissingItems());
 					records.track(DataDomain.SUPPLY, code, copy.getNumber(), DownRecordStatus.APPLIED, null, info,
@@ -186,6 +190,11 @@ public class SupplyDownHandler implements DownHandler {
 			}
 			SupplyInvoiceWriter.Outcome outcome = transactions.execute(status -> {
 				SupplyInvoiceWriter.Outcome saved = invoices.save(copy);
+				if (saved.isWritten()) {
+					// CMP: the BLs already received get the costs the invoice stamped on their lines (the others at their
+					// reception)
+					reception.applyInvoicedCosts(invoices.deliveryNumbers(copy));
+				}
 				String info = saved.getMissingItems().isEmpty() ? null
 						: "items not in this store: " + String.join(", ", saved.getMissingItems());
 				records.track(DataDomain.SUPPLY, code, copy.getInvoiceNumber(), DownRecordStatus.APPLIED, null, info,

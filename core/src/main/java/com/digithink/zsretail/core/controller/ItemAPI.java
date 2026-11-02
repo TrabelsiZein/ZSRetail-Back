@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.dto.AdjustCostRequestDTO;
 import com.digithink.zsretail.core.dto.AdjustStockRequestDTO;
 import com.digithink.zsretail.core.dto.ItemLookupLineDTO;
 import com.digithink.zsretail.core.dto.PosLevelDTO;
@@ -38,6 +39,7 @@ import com.digithink.zsretail.core.model.ItemBarcode;
 import com.digithink.zsretail.core.model.ItemComposition;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.repository.CustomerRepository;
+import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.CatalogueCodeChangeException;
 import com.digithink.zsretail.core.service.CatalogueCodeTooLongException;
 import com.digithink.zsretail.core.service.CatalogueEditGuard;
@@ -84,6 +86,10 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 
 	@Autowired
 	private QuantityPolicy quantityPolicy;
+
+	/** CMP: the user and the right of "Ajuster le CMP". */
+	@Autowired
+	private CurrentUserProvider currentUserProvider;
 
 	@Autowired
 	private PosCatalogueService posCatalogue;
@@ -230,6 +236,10 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			// so we must preserve existing values to avoid wiping them to null.
 			entity.setLastDirectCost(existingItem.getLastDirectCost());
 			entity.setLastDirectNetCost(existingItem.getLastDirectNetCost());
+			// CMP: the cost price is the weighted average written by the entries (read-only on the form, like the stock):
+			// an edit made while a reception writes it must not put back the value the page loaded. "Ajuster le CMP"
+			// (POST /{id}/adjust-cost) is the only hand change after the creation.
+			entity.setCostPrice(existingItem.getCostPrice());
 			// The stock changes only through sales, returns, purchases, adjustments and BLs (the form shows it read-only):
 			// an edit made while the stock moves must not write back the quantity the page loaded
 			entity.setStockQuantity(existingItem.getStockQuantity());
@@ -619,6 +629,47 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
 		} catch (Exception e) {
 			log.error("ItemAPI::adjustStock:error: " + e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/** CMP: the right of "Ajuster le CMP" (the frontend's $can('write', 'admin-item-cost')), checked here too. */
+	public static final String ADJUST_COST_PERMISSION = "write:admin-item-cost";
+
+	/**
+	 * CMP: "Ajuster le CMP", the weighted average cost set by hand. Body {"costPrice": 12.5, "reason": "..."}. 200 the
+	 * item; 403 where this installation keeps no stock of its own (the ERP keeps it, or a head office with
+	 * headoffice.stock.enabled=false) or without the right write:admin-item-cost; 400 for a missing or negative cost, a
+	 * missing reason or an unknown item. Writes the cost (rounded to 3 decimals) and one COST_ADJUSTMENT movement.
+	 */
+	@PostMapping("/{id}/adjust-cost")
+	public ResponseEntity<?> adjustCost(@PathVariable Long id, @RequestBody(required = false) AdjustCostRequestDTO request) {
+		if (!applicationModeService.keepsOwnStock()) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN)
+					.body(createErrorResponse("The average cost is not kept here: this installation keeps no stock of its own."));
+		}
+		if (currentUserProvider == null || !currentUserProvider.currentUserHasPermission(ADJUST_COST_PERMISSION)) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN)
+					.body(createErrorResponse("Adjusting the average cost needs the right " + ADJUST_COST_PERMISSION + "."));
+		}
+		try {
+			if (request == null || request.getCostPrice() == null || request.getCostPrice() < 0
+					|| request.getCostPrice().isNaN() || request.getCostPrice().isInfinite()) {
+				return ResponseEntity.badRequest().body(createErrorResponse("costPrice must be a number, 0 or more."));
+			}
+			String reason = request.getReason() == null ? "" : request.getReason().trim();
+			if (reason.isEmpty()) {
+				return ResponseEntity.badRequest().body(createErrorResponse("A reason is required."));
+			}
+			double cost = BigDecimal.valueOf(request.getCostPrice()).setScale(3, java.math.RoundingMode.HALF_UP)
+					.doubleValue();
+			service.adjustCost(id, cost, reason, currentUserProvider.getCurrentUserName());
+			return service.findById(id).<ResponseEntity<?>>map(ResponseEntity::ok)
+					.orElseGet(() -> ResponseEntity.notFound().build());
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+		} catch (Exception e) {
+			log.error("ItemAPI::adjustCost:error: " + e.getMessage(), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
 		}
 	}

@@ -105,7 +105,7 @@ class HeadOfficeErpJobsTest {
 		HeadOfficeErpJobs zen = jobsOf(Installations.machine(Installations.ZEN_HEAD_OFFICE));
 		assertFalse(zen.refuses(ErpSyncJobType.POST_STORE_ORDERS));
 		assertFalse(zen.refuses(ErpSyncJobType.SYNC_CATALOGUE));
-		assertTrue(zen.refuses(ErpSyncJobType.IMPORT_SUPPLY_INVOICES), "its supply source stays HEAD_OFFICE");
+		assertFalse(zen.refuses(ErpSyncJobType.IMPORT_SUPPLY_INVOICES), "its supply source is the ERP's invoices");
 		MockEnvironment manual = catalogueOnly();
 		manual.setProperty("headoffice.storeorders.post", "MANUAL");
 		MockEnvironment[] others = { manual, catalogueOnly(), erpSupply(), Installations.type("headoffice"),

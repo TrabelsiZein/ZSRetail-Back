@@ -141,17 +141,45 @@ public class StockMovementService {
 
     /**
      * Step 7A: a BL line received by a store (IN, at its confirmation). Reference: the store's received BL
-     * (hol_delivery.id), reference type BL, its number as note.
+     * (hol_delivery.id), reference type BL, its number as note. CMP: unitCostHt = the line's net unit cost when it is
+     * known at the reception (an ERP invoice's paid line, a BL already invoiced), else null (never filled later).
      */
     @Transactional
-    public void recordDeliveryIn(Long itemId, BigDecimal quantity, Long receivedDeliveryId, String deliveryNumber) {
+    public void recordDeliveryIn(Long itemId, BigDecimal quantity, Double unitCostHt, Long receivedDeliveryId,
+                                 String deliveryNumber) {
         if (applicationModeService.isSupplyFromErp()) return;
         if (quantity == null || quantity.signum() <= 0) return;
         stockMovementRepository.save(build(
                 itemId, StockMovementType.DELIVERY_IN, StockMovementDirection.IN,
-                quantity, null, null, null,
+                quantity, unitCostHt, null, null,
                 receivedDeliveryId, "BL", null, deliveryNumber));
         log.debug("Stock movement recorded: DELIVERY_IN itemId={} qty={}", itemId, quantity);
+    }
+
+    /**
+     * CMP: "Ajuster le CMP" on the item card, the weighted average cost set by hand: one COST_ADJUSTMENT movement,
+     * quantity 0 (the stock does not move), direction IN, unitPriceHt = the new CMP, notes "CMP &lt;old&gt; →
+     * &lt;new&gt; : &lt;reason&gt;" (cut to the column), created by the user.
+     */
+    @Transactional
+    public void recordCostAdjustment(Long itemId, Double oldCost, Double newCost, String reason, String user) {
+        if (applicationModeService.isSupplyFromErp()) return;
+        String notes = "CMP " + (oldCost == null ? "-" : plainCost(oldCost)) + " → " + plainCost(newCost) + " : " + reason;
+        StockMovement movement = build(
+                itemId, StockMovementType.COST_ADJUSTMENT, StockMovementDirection.IN,
+                BigDecimal.ZERO, newCost, null, null,
+                null, "COST_ADJUSTMENT", null, notes.length() > 500 ? notes.substring(0, 500) : notes);
+        if (user != null) {
+            movement.setCreatedBy(user);
+            movement.setUpdatedBy(user);
+        }
+        stockMovementRepository.save(movement);
+        log.info("CMP adjusted by {}: itemId={} {}", user, itemId, notes);
+    }
+
+    /** A cost with 3 decimals at most, without trailing zeros (12.5, not 12.500). */
+    private static String plainCost(Double cost) {
+        return BigDecimal.valueOf(cost).setScale(3, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
     }
 
     /**

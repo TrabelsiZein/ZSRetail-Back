@@ -422,7 +422,8 @@ public class DeliveryReceptionService {
 			}
 			if (quantity.signum() > 0) {
 				stock.incrementForDelivery(line.getItemId(), quantity);
-				movements.recordDeliveryIn(line.getItemId(), quantity, delivery.getId(), delivery.getNumber());
+				movements.recordDeliveryIn(line.getItemId(), quantity, knownCost(line), delivery.getId(),
+						delivery.getNumber());
 			}
 			line.setStockApplied(Boolean.TRUE);
 			changed = true;
@@ -431,18 +432,22 @@ public class DeliveryReceptionService {
 	}
 
 	/**
-	 * Invoices from the ERP (rule of the NAV team, 2026-10-09): the costs of each item of the received invoice, written once
-	 * per item, from its paid lines (amount above 0), whatever the quantity received (even 0: the prices are per unit):
-	 * last direct cost = the line's unit price (before the line discount and the VAT); last direct net cost = cost price =
-	 * its net unit cost (line amount / quantity invoiced = unit price x (1 - line discount), before the VAT). The same item
-	 * on several paid lines: the highest line number wins. A line at amount 0 (a tester, a gift) changes no cost; the
-	 * header discount is never read; the selling price (unit price of the item) is never touched. A line waits until its
-	 * item is here; a BL has no cost. True when one changed.
+	 * The costs of each item of a received document, written once per item from its paid lines (amount above 0, net
+	 * unit cost known), right after their stock went in (same transaction):
+	 * <ul>
+	 * <li>the weighted average cost (CMP, StockService.applyEntryCost): quantity = the quantities received on the paid
+	 * lines, unit cost = their amounts / their quantities invoiced (sent). A line at amount 0 (a tester, a gift) changes
+	 * no cost and its quantity stays out (valued at the CMP before). A paid line received at 0 brings no quantity (the CMP
+	 * stays, unless it was still null).</li>
+	 * <li>an invoice of the ERP (rule of the NAV team, 2026-10-09) also writes the last costs: last direct cost = the
+	 * line's unit price (before the line discount and the VAT), last direct net cost = its net unit cost (line amount /
+	 * quantity invoiced), the highest line number winning. A BL invoiced by the head office has its last costs written by
+	 * the invoice ({@link SupplyInvoiceWriter}), never here: a BL received late must not put an older price back.</li>
+	 * </ul>
+	 * The header discount is never read; the selling price (unit price of the item) is never touched. A line waits until
+	 * its item is here; a BL line without its invoice has no cost yet. True when one changed.
 	 */
 	private boolean applyCost(ReceivedDelivery delivery) {
-		if (!delivery.isErpInvoice()) {
-			return false;
-		}
 		Map<Long, List<ReceivedDeliveryLine>> paidByItem = new LinkedHashMap<>();
 		for (ReceivedDeliveryLine line : delivery.getLines()) {
 			if (costPending(delivery, line) && line.getItemId() != null) {
@@ -451,25 +456,70 @@ public class DeliveryReceptionService {
 		}
 		boolean changed = false;
 		for (Map.Entry<Long, List<ReceivedDeliveryLine>> item : paidByItem.entrySet()) {
-			ReceivedDeliveryLine last = item.getValue().stream()
-					.max(java.util.Comparator.comparing(ReceivedDeliveryLine::getLineNo)).get();
-			double net = round(last.getUnitCost());
-			double gross = last.getUnitPrice() == null ? net : round(last.getUnitPrice());
-			items.updateCost(item.getKey(), gross, net, SupplyInvoiceWriter.WRITER);
-			item.getValue().forEach(l -> l.setCostApplied(Boolean.TRUE));
+			List<ReceivedDeliveryLine> paid = item.getValue();
+			if (delivery.isErpInvoice()) {
+				ReceivedDeliveryLine last = paid.stream()
+						.max(java.util.Comparator.comparing(ReceivedDeliveryLine::getLineNo)).get();
+				double net = round(last.getUnitCost());
+				double gross = last.getUnitPrice() == null ? net : round(last.getUnitPrice());
+				items.updateLastCosts(item.getKey(), gross, net, SupplyInvoiceWriter.WRITER);
+			}
+			BigDecimal received = BigDecimal.ZERO;
+			BigDecimal invoiced = BigDecimal.ZERO;
+			BigDecimal amount = BigDecimal.ZERO;
+			for (ReceivedDeliveryLine line : paid) {
+				received = received.add(line.getQuantityReceived() == null ? BigDecimal.ZERO : line.getQuantityReceived());
+				invoiced = invoiced.add(line.getQuantitySent() == null ? BigDecimal.ZERO : line.getQuantitySent());
+				amount = amount.add(BigDecimal.valueOf(line.getLineAmount()));
+			}
+			double unitCost = invoiced.signum() > 0
+					? amount.divide(invoiced, COST_SCALE, RoundingMode.HALF_UP).doubleValue()
+					: round(paid.get(paid.size() - 1).getUnitCost());
+			stock.applyEntryCost(item.getKey(), received, unitCost, SupplyInvoiceWriter.WRITER);
+			paid.forEach(l -> l.setCostApplied(Boolean.TRUE));
 			changed = true;
 		}
 		return changed;
 	}
 
 	/**
-	 * An item line of an ERP invoice whose costs are still to write: a paid line (amount above 0, net unit cost known), not
-	 * done yet, once the invoice is received.
+	 * An item line whose costs are still to write: a paid line (amount above 0, net unit cost known: an ERP invoice's, or
+	 * a BL line stamped by its head office invoice), not done yet, once the document is received.
 	 */
 	private static boolean costPending(ReceivedDelivery delivery, ReceivedDeliveryLine line) {
-		return delivery.isErpInvoice() && delivery.getStatus() == ReceivedDeliveryStatus.RECEIVED && line.isItemLine()
-				&& line.getUnitCost() != null && line.getLineAmount() != null && line.getLineAmount() > 0
+		return delivery.getStatus() == ReceivedDeliveryStatus.RECEIVED && line.isItemLine() && isPaid(line)
 				&& !Boolean.TRUE.equals(line.getCostApplied());
+	}
+
+	/** A line with a cost: net unit cost known and amount above 0. */
+	private static boolean isPaid(ReceivedDeliveryLine line) {
+		return line.getUnitCost() != null && line.getLineAmount() != null && line.getLineAmount() > 0;
+	}
+
+	/** The net unit cost of a DELIVERY_IN movement: the paid line's, else null (a BL received before its invoice). */
+	private static Double knownCost(ReceivedDeliveryLine line) {
+		return isPaid(line) ? round(line.getUnitCost()) : null;
+	}
+
+	/**
+	 * CMP, a BL invoiced by the head office: the BLs of these numbers that are already received get the costs their
+	 * invoice has just stamped on their lines (the lines still to receive get them at their reception). Called by the
+	 * copies down in the invoice's transaction, after {@link SupplyInvoiceWriter#save}. The stock went in at the
+	 * reception, before: the stock before is taken as the stock now minus the quantity received, at 0 at least (part of
+	 * the BL already sold: the CMP becomes the invoice cost, the known compromise). Returns the number of BLs changed.
+	 */
+	@Transactional(rollbackFor = Exception.class)
+	public int applyInvoicedCosts(java.util.Collection<String> numbers) {
+		int changed = 0;
+		for (String number : numbers == null ? new ArrayList<String>() : numbers) {
+			Optional<ReceivedDelivery> found = deliveries.findByNumber(number)
+					.flatMap(delivery -> deliveries.findForUpdate(delivery.getId()));
+			if (found.isPresent() && found.get().getStatus() == ReceivedDeliveryStatus.RECEIVED && applyCost(found.get())) {
+				deliveries.save(found.get());
+				changed++;
+			}
+		}
+		return changed;
 	}
 
 	private static double round(double value) {

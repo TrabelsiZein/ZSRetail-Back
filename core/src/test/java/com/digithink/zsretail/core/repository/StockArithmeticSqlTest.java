@@ -46,7 +46,8 @@ class StockArithmeticSqlTest {
 				checked++;
 			}
 		}
-		assertEquals(4, checked, "addToStockQuantity, decrementStockQuantityIfSufficient (twice), decrementStockQuantityUnconditional");
+		assertEquals(6, checked, "addToStockQuantity, decrementStockQuantityIfSufficient (twice), decrementStockQuantityUnconditional,"
+				+ " applyEntryCost (twice: the CMP reads the stock minus the quantity entered)");
 	}
 
 	@Test

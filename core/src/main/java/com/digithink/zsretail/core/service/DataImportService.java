@@ -278,8 +278,10 @@ public class DataImportService {
                     if (vatStr != null && !vatStr.isEmpty()) {
                         item.setDefaultVAT(parseInteger(vatStr));
                     }
+                    // CMP: the cost of a new item only, its starting weighted average; an item already here keeps the
+                    // average its entries wrote ("Ajuster le CMP" on the item card changes it by hand)
                     String costStr = getOptionalValue(row, formatter, colIndex, fieldMap, "costPrice");
-                    if (costStr != null && !costStr.isEmpty()) {
+                    if (item.getId() == null && costStr != null && !costStr.isEmpty()) {
                         item.setCostPrice(parseDouble(costStr));
                     }
                     String stockStr = getOptionalValue(row, formatter, colIndex, fieldMap, "stockQuantity");

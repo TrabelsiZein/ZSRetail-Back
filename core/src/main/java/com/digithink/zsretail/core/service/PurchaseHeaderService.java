@@ -153,21 +153,28 @@ public class PurchaseHeaderService extends _BaseService<PurchaseHeader, Long> {
 			line.setLineTotalIncludingVat(lineTotalTtc);
 			purchaseLineRepository.save(line);
 
-			// Update item last direct costs
-			item.setLastDirectCost(lineDto.getUnitPrice());
-			item.setLastDirectNetCost(netUnitPrice);
-			itemRepository.save(item);
+			// The last costs by a bulk update, never a save of the item: the item read here keeps the stock it was loaded
+			// with, and a save after the stock increment of an earlier line of the same item put that stock back
+			itemRepository.updateLastCosts(item.getId(), lineDto.getUnitPrice(), netUnitPrice, costWriter(currentUser));
 
-			// Update stock (without an ERP only; single service, atomic updates, concurrency-safe)
+			// Update stock (without an ERP only; single service, atomic updates, concurrency-safe), then the CMP of this
+			// entry at its net unit cost (after the line discount, before VAT)
 			stockService.incrementForPurchase(item.getId(), Quantities.normalize(lineDto.getQuantity()));
+			stockService.applyEntryCost(item.getId(), Quantities.normalize(lineDto.getQuantity()), netUnitPrice,
+					costWriter(currentUser));
 			stockMovementService.recordPurchase(
 					item.getId(), Quantities.normalize(lineDto.getQuantity()),
-					lineDto.getUnitPrice(), vatPct, lineTotalTtc / lineDto.getQuantity().intValueExact(),
+					netUnitPrice, vatPct, lineTotalTtc / lineDto.getQuantity().intValueExact(),
 					header.getId());
 		}
 
 		log.info("Purchase created: {} id={}", purchaseNumber, header.getId());
 		return header;
+	}
+
+	/** The item's updated_by for the costs of a purchase: the user's name, else PURCHASE. */
+	private static String costWriter(UserAccount user) {
+		return user != null && user.getUsername() != null ? user.getUsername() : "PURCHASE";
 	}
 
 	private String generatePurchaseNumber() {

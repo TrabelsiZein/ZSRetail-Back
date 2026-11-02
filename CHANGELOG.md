@@ -165,6 +165,20 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   with 409 and nothing saved; the send refuses a draft with any line above its availability (409). The lines answer
   `availableQty`.
 
+- Item costs, the weighted average cost (docs/modules/head-office.md, "Item costs (CMP)"): `Item.costPrice` is the CMP
+  of an installation that keeps its own stock (no-op where the ERP keeps it and on a head office with
+  `headoffice.stock.enabled=false`), no longer the last net cost; `lastDirectCost` / `lastDirectNetCost` unchanged.
+  `ItemRepository.applyEntryCost` (one native row update, `DECIMAL(19,5)`, 3 decimals) through
+  `StockService.applyEntryCost`, after the stock of every entry that carries a cost: a local purchase (per line, the
+  net price), an ERP invoice received (per item, its paid lines together; a free line's quantity outside the entry, a
+  line received at 0 leaves it), a BL and its head office invoice (the invoice stamps the BL lines' costs; applied at
+  the invoice for a BL received, else at the reception; a BL saved after its invoice takes them from it). `updateCost`
+  renamed `updateLastCosts`, without `costPrice`. `PURCHASE_RECEPTION` and `DELIVERY_IN` movements carry the net unit
+  cost (null on a BL received before its invoice). `PUT /item/{id}` keeps the stored CMP; `POST /item/{id}/adjust-cost`
+  `{costPrice, reason}` ("Ajuster le CMP") with a `COST_ADJUSTMENT` movement (quantity 0, `CMP <old> → <new> :
+  <reason>`, the user), 403 without `write:admin-item-cost` (checked by the API, listed by `GET /app-roles/permissions`,
+  given to ADMIN at every start wherever the stock is kept). The Excel import writes the cost of new items only.
+
 ### Fixes
 - `GET /sales-header/pending-sales` sends each ticket's `discountSource` (MANUAL or PROMOTION): the till taking a held
   ticket back no longer shows its cart offer a second time as a "Remise" (front CHANGELOG).
@@ -191,6 +205,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   value [1] did not match expected type [java.lang.Integer]"): the "every store / every status" flags are `long` and the
   statement compared them with an `int` literal; now `1L`, as the BL reception list. `HoStoreOrderPageQueryTest` and
   `StoreOrderPageQueryTest` run the real statements on H2 with and without each filter.
+- Local purchase with the same item on two lines: the second line saved the item it had loaded (its last costs), which
+  put back the stock of before the first line's increment, so the first line's quantity was lost. The last costs are
+  now a bulk update and the item is never saved (`PurchaseHeaderServiceCostTest`, the mechanism in
+  `EntryCostQueryTest`).
+- Head office invoice at the store: the last costs were written by saving the whole item, which could put back a stock
+  read before a sale made at the same time; now a bulk update (`SupplyInvoiceWriter`).
 
 ### DB script (`db/3.1.1/store-orders.sql`, then `db/3.1.1/update.sql`, store and head office)
 - `store-orders.sql`: tables `hol_order` (unique `number`, index `ix_hol_order_status`, filtered unique index
@@ -239,6 +259,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - `erp.zen.products.url` and `erp.zen.products.api-key` (head office with the connector zen, optional, both or
   neither): ZEN's products API for the item images. Set in `configs/customers/zen-headoffice.properties` (the key
   `CHANGE_ME`: the real one in the installation's file only).
+- `configs/customers/zen-headoffice.properties`: `headoffice.supply.source=ERP` (was `HEAD_OFFICE`, kept until the live
+  test), as the real installation runs it; the records of `ConfigurationKeysProofTest` and `InstallationBeansProofTest`
+  follow (that line only).
 
 ## 3.1.0 — 2026-10-27 (tag `v3.1.0`)
 

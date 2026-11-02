@@ -83,7 +83,7 @@ class StockModeTest {
 		deliveryAnswer[0] = stock.decrementForDelivery(id, BigDecimal.valueOf(4));
 		movements.recordDeliveryOut(id, BigDecimal.valueOf(4), 5L, "BL-000001");
 		stock.incrementForDelivery(id, BigDecimal.valueOf(6));
-		movements.recordDeliveryIn(id, BigDecimal.valueOf(6), 6L, "BL-000002");
+		movements.recordDeliveryIn(id, BigDecimal.valueOf(6), null, 6L, "BL-000002");
 
 		return memory.stockOf("B001") + " "
 				+ memory.movements.stream().map(StockMovement::getMovementType).collect(Collectors.toList());
