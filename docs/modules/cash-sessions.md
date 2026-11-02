@@ -199,7 +199,8 @@ nothing is computed and the fields are absent from the JSON (`@JsonInclude(NON_N
   null with a line without cost or an HT of 0. Amounts to the millime, half up. A day's (and a month's) cost and margin
   are the sums of its tickets' and returns' cost and margin each rounded to the millime as shown, so the day equals the
   sum of its rows (before, the rounding of the unrounded sums could differ by a millime: 28.782 vs 28.781); the day
-  list and the day journal share the rule (`JournalCosts.day`), so the list still equals the detail.
+  list and the day journal share the rule (`JournalCosts.day`), so the list still equals the detail. Statistics' margin
+  of a period runs the same rule over its days (`StoreDaysService.periodGains`, `docs/modules/reporting.md`).
 - Fields `cost`, `margin`, `marginPercent`, `linesWithoutCost` on each ticket and return (`JournalLine`), on the day's
   `Totals` (tickets and returns) and on each `DayRowDTO`. The day journal computes them from the lines it reads (no
   query more); the day list reads the month's lines through one projection per kind

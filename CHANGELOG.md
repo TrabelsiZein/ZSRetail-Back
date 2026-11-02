@@ -16,6 +16,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `db/3.1.2/update.sql`, before the 3.1.2 WAR (`AppVersionGuard`).
 
 ### Features
+- Statistics, the margin: `GET /admin/analytics/summary` adds `margin`, `marginRate` (the Journal's margin %, one
+  decimal; absent with a line without cost or an HT of 0) and `linesWithoutCost`, the Journal's gains over the period's
+  days (`StoreDaysService.periodGains`, the rule of the month total), so the margin is the sum of the Journal's days.
+  Only where the store keeps its own stock and for `read:admin-margins` (`AnalyticsAPI.withMargins`), else absent and
+  the lines not read; absent too for a period without costed line. The other fields unchanged (`JournalMarginsTest`).
 - Stock value at a date: `GET /report/stock?date=yyyy-MM-dd` (optional) gives the stock report at the end of a past
   day, same grouping (item, family, sub-family), columns and order: qty(D) = the stock now minus the movements after D
   (one grouped query), CMP(D) = the new cost of the item's last cost change up to D, else the old cost of its first

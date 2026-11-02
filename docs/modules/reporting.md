@@ -70,6 +70,16 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
     today), `ReportStockDateTest` (the 400s), `tools/stock-report-check.mjs` (the page's rules).
 - Statistics KPI deltas (`AnalyticsService.computeDeltaPercent`, 3.1.0, test log I-51): null when the previous period
   is 0 (no comparison); the page shows "—" in grey instead of a green "▲ 0.00%".
+- **Statistics margin** (3.1.2, `GET /admin/analytics/summary`): `margin`, `marginRate`, `linesWithoutCost`, the
+  Journal's gains over the period's days (`StoreDaysService.periodGains`, the rule of the .xlsx month total, `JournalCosts`;
+  `docs/modules/cash-sessions.md`, "Gains"), so the margin is the sum of the Journal's days from..to. `marginRate` is the
+  Journal's margin % (one decimal), absent with a line without cost or an HT of 0. Only where the store keeps its own
+  stock and for `read:admin-margins` (`AnalyticsAPI.withMargins`, the Journal's rule), else the three are absent and the
+  lines are not read; absent too when the period has no costed line. No previous-period delta. The tickets: the
+  Journal's (not PENDING or CANCELLED), the same as the page's COMPLETED since REFUNDED is never written; every return
+  is COMPLETED. A long period reads all its lines (one projection per kind). Page: a "Marge" card in the KPI row, only
+  when `margin` is sent: the amount, the % beside it, "n ligne(s) sans coût" (`libs/journal-margins.js`). Tests:
+  `JournalMarginsTest` (`statistics*`).
 
 **CRITICAL FIX — CAST for DAY/MONTH grouping:**
 - Bug: `CONCAT(YEAR(date), '-', MONTH(date))` produced arithmetic (2026 + 3 = 2029) because Hibernate treats YEAR()/MONTH()/DAY() as integers.

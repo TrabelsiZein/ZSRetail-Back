@@ -19,6 +19,8 @@ import com.digithink.zsretail.store.analytics.dto.PaymentBreakdownDTO;
 import com.digithink.zsretail.store.analytics.dto.SalesTrendPointDTO;
 import com.digithink.zsretail.store.analytics.dto.TopProductDTO;
 import com.digithink.zsretail.store.analytics.repository.AnalyticsRepository;
+import com.digithink.zsretail.store.service.JournalCosts;
+import com.digithink.zsretail.store.service.StoreDaysService;
 
 @Service
 public class AnalyticsService {
@@ -29,7 +31,12 @@ public class AnalyticsService {
 	@Autowired
 	private AnalyticsRepository analyticsRepository;
 
-	public AnalyticsSummaryDTO getSummary(LocalDate from, LocalDate to) {
+	/** 3.1.2, the margin: the Journal's gains over the period. */
+	@Autowired
+	private StoreDaysService storeDaysService;
+
+	/** The summary; with withMargins (the caller checks the installation and the right read:admin-margins) its margin. */
+	public AnalyticsSummaryDTO getSummary(LocalDate from, LocalDate to, boolean withMargins) {
 		validatePeriod(from, to);
 
 		LocalDate prevFrom = computePreviousFrom(from, to);
@@ -54,7 +61,7 @@ public class AnalyticsService {
 		BigDecimal netRevenueNow = normalizeMoney(revenueNow.subtract(totalReturnsNow));
 		BigDecimal netRevenuePrev = normalizeMoney(revenuePrev.subtract(totalReturnsPrev));
 
-		return AnalyticsSummaryDTO.builder()
+		AnalyticsSummaryDTO summary = AnalyticsSummaryDTO.builder()
 				.revenue(revenueNow)
 				.revenueDelta(computeDeltaPercent(revenueNow, revenuePrev))
 				.transactionCount(transactionCountNow)
@@ -66,6 +73,14 @@ public class AnalyticsService {
 				.netRevenue(netRevenueNow)
 				.netRevenueDelta(computeDeltaPercent(netRevenueNow, netRevenuePrev))
 				.build();
+		if (withMargins) {
+			// 3.1.2: the Journal's rule over the same days (StoreDaysService.periodGains), all null when nothing is costed
+			JournalCosts.Result gains = storeDaysService.periodGains(from, to);
+			summary.setMargin(gains.marginValue());
+			summary.setMarginRate(gains.marginPercent);
+			summary.setLinesWithoutCost(gains.linesWithoutCost);
+		}
+		return summary;
 	}
 
 	public List<SalesTrendPointDTO> getSalesTrend(LocalDate from, LocalDate to) {

@@ -137,10 +137,16 @@ public class StoreDaysService {
 	 * day, its lines without cost those of all of them when one line is costed; all null when none is.
 	 */
 	public JournalCosts.Result monthGains(YearMonth month) {
-		LocalDateTime from = month.atDay(1).atStartOfDay();
-		LocalDateTime to = month.plusMonths(1).atDay(1).atStartOfDay();
+		return periodGains(month.atDay(1), month.atEndOfMonth());
+	}
+
+	/**
+	 * 3.1.2: the gains of the days from..to (both included) as one, by the month's rule (monthGains); Statistics' margin
+	 * (AnalyticsService.getSummary), so it equals the sum of the Journal's days.
+	 */
+	public JournalCosts.Result periodGains(LocalDate from, LocalDate to) {
 		List<JournalCosts.Result> all = new ArrayList<>();
-		documentsByDay(from, to).values().forEach(all::addAll);
+		documentsByDay(from.atStartOfDay(), to.plusDays(1).atStartOfDay()).values().forEach(all::addAll);
 		return JournalCosts.day(all);
 	}
 

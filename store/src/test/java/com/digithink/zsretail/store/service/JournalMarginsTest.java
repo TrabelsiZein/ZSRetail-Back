@@ -51,6 +51,10 @@ import com.digithink.zsretail.core.repository.SalesLineRepository;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.CompanyInformationService;
 import com.digithink.zsretail.core.support.TestModes;
+import com.digithink.zsretail.store.analytics.controller.AnalyticsAPI;
+import com.digithink.zsretail.store.analytics.dto.AnalyticsSummaryDTO;
+import com.digithink.zsretail.store.analytics.repository.AnalyticsRepository;
+import com.digithink.zsretail.store.analytics.service.AnalyticsService;
 import com.digithink.zsretail.store.controller.CashierSessionAPI;
 import com.digithink.zsretail.store.dto.DayJournalDTO;
 import com.digithink.zsretail.store.dto.DayJournalDTO.JournalLine;
@@ -68,6 +72,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * 6.000, margin 3.000, one line without cost, no %.</li>
  * <li>R1: one A of T1 given back, 11.900: HT -10.000, cost -6.000, margin -4.000.</li>
  * </ul>
+ * Statistics' margin (AnalyticsService.getSummary, StoreDaysService.periodGains) over the same data: the Journal's days.
  */
 class JournalMarginsTest {
 
@@ -383,23 +388,94 @@ class JournalMarginsTest {
 		assertEquals(first.costValue() + second.costValue(), day.costValue(), 1e-9);
 	}
 
+	@Test
+	@DisplayName("Statistics: the period's margin is the sum of the Journal's days, its lines without cost all of theirs; no % then")
+	void statisticsEqualsTheJournal() throws Exception {
+		mixedDay();
+		AnalyticsSummaryDTO summary = analytics().getSummary(DAY, MIXED_DAY, true);
+		List<DayRowDTO> rows = days.buildMonth(YearMonth.from(DAY), true);
+		DayRowDTO third = day(rows, DAY);
+		DayRowDTO fourth = day(rows, MIXED_DAY);
+		assertEquals(third.getMargin() + fourth.getMargin(), summary.getMargin(), 1e-9, "the sum of the Journal's days");
+		assertEquals(21.0, summary.getMargin(), 0.0005, "12 (the 3rd) + 9 (the 4th: T6 4, T4's service 5)");
+		assertEquals(Long.valueOf(third.getLinesWithoutCost() + fourth.getLinesWithoutCost()), summary.getLinesWithoutCost(),
+				"1 + 5, the 1st (T0) outside the period");
+		assertNull(summary.getMarginRate(), "a line without cost: no rate, as the Journal");
+	}
+
+	@Test
+	@DisplayName("Statistics: every line costed: the rate = the Journal's margin %; a period without cost: the three absent")
+	void statisticsRate() throws Exception {
+		sales.removeIf(s -> "T2".equals(s.getSalesNumber()));
+		AnalyticsSummaryDTO summary = analytics().getSummary(DAY, DAY, true);
+		assertEquals(9.0, summary.getMargin(), 0.0005, "13 - 4, the return subtracted");
+		assertEquals(60.0, summary.getMarginRate(), 0.0, "9 / (25 - 10)");
+		assertEquals(Long.valueOf(0), summary.getLinesWithoutCost());
+		AnalyticsSummaryDTO before = analytics().getSummary(OLD_DAY, OLD_DAY, true);
+		assertNull(before.getMargin());
+		assertNull(before.getMarginRate());
+		assertNull(before.getLinesWithoutCost(), "no costed line: no marker either");
+	}
+
+	@Test
+	@DisplayName("Statistics without margins: the three fields absent from the JSON, the lines never read; the API's rule is the Journal's")
+	void statisticsWithoutMargins() throws Exception {
+		AnalyticsSummaryDTO summary = analytics().getSummary(DAY, DAY, false);
+		String json = new ObjectMapper().findAndRegisterModules().writeValueAsString(summary);
+		for (String key : new String[] { "\"margin\"", "\"marginRate\"", "\"linesWithoutCost\"" }) {
+			assertFalse(json.contains(key), key);
+		}
+		assertTrue(json.contains("\"revenueDelta\""), "the existing fields unchanged (a null delta still sent)");
+		assertEquals(0, projectionCalls, "no margin asked: the lines are not read");
+		assertTrue(analyticsApi(TestModes.standalone(), "read:admin-margins").withMargins());
+		assertFalse(analyticsApi(TestModes.standalone(), "write:admin-item-cost").withMargins(), "read:admin-margins only");
+		assertFalse(analyticsApi(TestModes.standalone()).withMargins());
+		assertFalse(analyticsApi(TestModes.erp(), "read:admin-margins").withMargins(), "the ERP keeps the stock");
+	}
+
 	// ─── Fixtures ────────────────────────────────────────────────────
 
 	private CashierSessionAPI api(ApplicationModeService mode, String... permissions) throws Exception {
+		CashierSessionAPI api = new CashierSessionAPI();
+		inject(api, CashierSessionAPI.class, "applicationModeService", mode);
+		inject(api, CashierSessionAPI.class, "currentUserProvider", userWith(permissions));
+		return api;
+	}
+
+	private static AnalyticsAPI analyticsApi(ApplicationModeService mode, String... permissions) {
+		return new AnalyticsAPI(null, mode, userWith(permissions));
+	}
+
+	private static CurrentUserProvider userWith(String... permissions) {
 		AppRole role = new AppRole();
 		role.setPermissions(new HashSet<>(Arrays.asList(permissions)));
 		UserAccount user = new UserAccount();
 		user.setUsername("admin");
 		user.setAppRole(role);
-		CashierSessionAPI api = new CashierSessionAPI();
-		inject(api, CashierSessionAPI.class, "applicationModeService", mode);
-		inject(api, CashierSessionAPI.class, "currentUserProvider", new CurrentUserProvider() {
+		return new CurrentUserProvider() {
 			@Override
 			public UserAccount getCurrentUser() {
 				return user;
 			}
+		};
+	}
+
+	/** The Statistics service on the day list's service; its own sums (revenue, returns) empty: not what is tested. */
+	private AnalyticsService analytics() throws Exception {
+		AnalyticsService analytics = new AnalyticsService();
+		inject(analytics, AnalyticsService.class, "analyticsRepository", new AnalyticsRepository() {
+			@Override
+			public Object[] getSalesSummary(LocalDate from, LocalDate to) {
+				return new Object[] { null, 0L };
+			}
+
+			@Override
+			public Object[] getReturnsSummary(LocalDate from, LocalDate to) {
+				return new Object[] { null };
+			}
 		});
-		return api;
+		inject(analytics, AnalyticsService.class, "storeDaysService", days);
+		return analytics;
 	}
 
 	private List<SalesHeader> finished(LocalDateTime from, LocalDateTime to) {

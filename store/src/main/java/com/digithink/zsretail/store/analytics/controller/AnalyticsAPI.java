@@ -11,12 +11,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.store.analytics.dto.AnalyticsSummaryDTO;
 import com.digithink.zsretail.store.analytics.dto.PaymentBreakdownDTO;
 import com.digithink.zsretail.store.analytics.dto.SalesTrendPointDTO;
 import com.digithink.zsretail.store.analytics.dto.TopProductDTO;
 import com.digithink.zsretail.store.analytics.service.AnalyticsService;
+import com.digithink.zsretail.store.controller.SalesHeaderAPI;
 
 @RestController
 @RequestMapping("admin/analytics")
@@ -26,12 +28,26 @@ public class AnalyticsAPI {
 
 	private final AnalyticsService analyticsService;
 
+	/** 3.1.2, the summary's margin: the installation and the right, as the Journal (CashierSessionAPI.withMargins). */
+	private final ApplicationModeService applicationModeService;
+
+	private final CurrentUserProvider currentUserProvider;
+
 	private static LocalDate parseLocalDate(String value) {
 		try {
 			return LocalDate.parse(value); // expects yyyy-MM-dd (ISO_LOCAL_DATE)
 		} catch (DateTimeParseException e) {
 			throw new IllegalArgumentException("Invalid date: '" + value + "'. Expected yyyy-MM-dd.", e);
 		}
+	}
+
+	/**
+	 * 3.1.2: the summary carries the margin only where the store keeps its own stock and for a role with
+	 * read:admin-margins (SalesHeaderAPI.MARGINS_PERMISSION), the Journal's rule; never otherwise, whatever the page shows.
+	 */
+	public boolean withMargins() {
+		return applicationModeService != null && applicationModeService.keepsOwnStock() && currentUserProvider != null
+				&& currentUserProvider.currentUserHasPermission(SalesHeaderAPI.MARGINS_PERMISSION);
 	}
 
 	@GetMapping("/summary")
@@ -41,7 +57,7 @@ public class AnalyticsAPI {
 		try {
 			LocalDate fromDate = parseLocalDate(from);
 			LocalDate toDate = parseLocalDate(to);
-			AnalyticsSummaryDTO dto = analyticsService.getSummary(fromDate, toDate);
+			AnalyticsSummaryDTO dto = analyticsService.getSummary(fromDate, toDate, withMargins());
 			return ResponseEntity.ok(dto);
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(e.getMessage());
