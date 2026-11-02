@@ -162,7 +162,7 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   test), as the real installation runs it; the records of `ConfigurationKeysProofTest` and `InstallationBeansProofTest`
   follow (that line only).
 
-## 3.1.1 — in progress (branch `release/3.1.1`)
+## 3.1.1 — released 2026-10-29 (branch `release/3.1.1`)
 
 ### Features
 - Till's right rail (catalogue hidden): `GET /cashier-session/current/ticket-count` `{"ticketCount": n}`, the tickets of
