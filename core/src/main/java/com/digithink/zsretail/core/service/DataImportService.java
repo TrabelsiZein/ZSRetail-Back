@@ -263,6 +263,7 @@ public class DataImportService {
         int successCount = 0;
         List<String> imported = new ArrayList<>(); // step 6: sent to the stores by a head office
         int totalRows = 0;
+        int[] costsIgnored = { 0 }; // 3.1.2: the costs of items that have a CMP, not imported
 
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
@@ -277,8 +278,10 @@ public class DataImportService {
 
                 try {
                     final int line = i;
+                    int[] rowIgnored = { 0 };
                     imported.add(new TransactionTemplate(transactionManager)
-                            .execute(status -> importItemRow(row, formatter, colIndex, fieldMap, line)));
+                            .execute(status -> importItemRow(row, formatter, colIndex, fieldMap, line, rowIgnored)));
+                    costsIgnored[0] += rowIgnored[0]; // counted once the row is imported
                     successCount++;
                 } catch (Exception e) {
                     errors.add(new RowError(i + 1, e.getMessage()));
@@ -287,17 +290,20 @@ public class DataImportService {
             }
         }
         afterImport(CatalogueKind.ITEM, imported);
-        return new ImportResultDTO(totalRows, successCount, errors.size(), errors);
+        ImportResultDTO result = new ImportResultDTO(totalRows, successCount, errors.size(), errors);
+        result.setCostsIgnored(costsIgnored[0]);
+        return result;
     }
 
     /**
      * One row of the item import, in its own transaction (an error leaves nothing of the row). 3.1.2, the stock value
      * at a date: the stock column read, its movement with the item: a new item's OPENING_STOCK, an existing item's
      * difference as ADJUSTMENT_IN / ADJUSTMENT_OUT, note "Import Excel" (nothing when it does not change); a new item's
-     * cost as its first cost history row (EXCEL_IMPORT, by Import). Returns the item code.
+     * cost as its first cost history row (EXCEL_IMPORT, by Import), and so an existing item's initial cost (3.1.2, no CMP
+     * before); the cost cell of an item with a CMP counted in costsIgnored[0]. Returns the item code.
      */
     private String importItemRow(Row row, DataFormatter formatter, Map<String, Integer> colIndex,
-                                 Map<String, String> fieldMap, int i) {
+                                 Map<String, String> fieldMap, int i, int[] costsIgnored) {
         String itemCode = getRequiredValue(row, formatter, colIndex, fieldMap, "itemCode", i);
         String name = getRequiredValue(row, formatter, colIndex, fieldMap, "name", i);
         String unitPriceStr = getRequiredValue(row, formatter, colIndex, fieldMap, "unitPrice", i);
@@ -315,11 +321,27 @@ public class DataImportService {
         if (vatStr != null && !vatStr.isEmpty()) {
             item.setDefaultVAT(parseInteger(vatStr));
         }
-        // CMP: the cost of a new item only, its starting weighted average; an item already here keeps the
-        // average its entries wrote ("Ajuster le CMP" on the item card changes it by hand)
+        // CMP: the cost of a new item, its starting weighted average. 3.1.2, the initial cost: an item already here
+        // without a CMP takes a cost above 0 as its starting one; an item with a CMP keeps the average its entries wrote
+        // (the cell ignored and counted; "Ajuster le CMP" on the item card changes it by hand)
         String costStr = getOptionalValue(row, formatter, colIndex, fieldMap, "costPrice");
-        if (item.getId() == null && costStr != null && !costStr.isEmpty()) {
+        boolean initialCost = false;
+        if (created && costStr != null && !costStr.isEmpty()) {
             item.setCostPrice(parseDouble(costStr));
+        } else if (costStr != null && !costStr.isEmpty()) {
+            // the CMP as stored, the row locked (ItemService.adjustCost): an entry made since the row was read is kept
+            itemRepository.lockForCostChange(item.getId());
+            Double stored = itemRepository.findCostPriceById(item.getId());
+            item.setCostPrice(stored);
+            if (stored != null) {
+                costsIgnored[0]++;
+            } else {
+                Double cost = initialCostOf(costStr, i);
+                if (cost != null && cost > 0) {
+                    item.setCostPrice(cost);
+                    initialCost = true;
+                }
+            }
         }
         String stockStr = getOptionalValue(row, formatter, colIndex, fieldMap, "stockQuantity");
         if (stockStr != null && !stockStr.isEmpty()) {
@@ -372,8 +394,24 @@ public class DataImportService {
         if (created) {
             costHistoryService.record(saved.getId(), null, saved.getCostPrice(), saved.getStockQuantity(),
                     saved.getCostPrice(), CostHistoryService.Origin.of(CostChangeSource.EXCEL_IMPORT, "Import"));
+        } else if (initialCost) {
+            costHistoryService.record(saved.getId(), null, saved.getCostPrice(), null, saved.getCostPrice(),
+                    CostHistoryService.Origin.of(CostChangeSource.EXCEL_IMPORT, "Import"));
         }
         return saved.getItemCode();
+    }
+
+    /**
+     * 3.1.2: the initial cost of an existing item, or null when the cell is not a number: the row imports as before 3.1.2
+     * (the cell was not read for an existing item), a warning logged.
+     */
+    private Double initialCostOf(String value, int i) {
+        try {
+            return Double.parseDouble(value.replace(",", "."));
+        } catch (NumberFormatException e) {
+            log.warn("Item row {}: cost '{}' is not a number, no initial cost set", i + 1, value);
+            return null;
+        }
     }
 
     // ─── Vendors ──────────────────────────────────────────────────────────────

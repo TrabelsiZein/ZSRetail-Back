@@ -159,13 +159,20 @@ class ItemCostAdjustmentTest {
 	}
 
 	@Test
-	@DisplayName("An item without a CMP yet: the note says -")
+	@DisplayName("An item without a CMP yet (3.1.2, the initial cost): the note says -, the history row null → the value, the reason kept")
 	void firstValue() throws Exception {
 		item.setCostPrice(null);
-		assertEquals(200, api(TestModes.standalone()).adjustCost(item.getId(), request(5.0, "Valeur initiale"))
+		assertEquals(200, api(TestModes.standalone()).adjustCost(item.getId(), request(5.0, "Coût initial"))
 				.getStatusCodeValue());
 		assertEquals(5.0, item.getCostPrice());
-		assertEquals("CMP - → 5 : Valeur initiale", stock.movements.get(0).getNotes());
+		assertEquals("CMP - → 5 : Coût initial", stock.movements.get(0).getNotes());
+		assertEquals(1, stock.costHistory.size());
+		ItemCostHistory row = stock.costHistory.get(0);
+		assertEquals(CostChangeSource.MANUAL, row.getSource());
+		assertNull(row.getOldCost(), "no CMP before");
+		assertEquals(5.0, row.getNewCost());
+		assertEquals("admin", row.getChangedBy());
+		assertEquals("Coût initial", row.getNote());
 	}
 
 	@Test

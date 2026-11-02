@@ -16,6 +16,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `db/3.1.2/update.sql`, before the 3.1.2 WAR (`AppVersionGuard`).
 
 ### Features
+- Initial cost of the items without a CMP: the item import's cost column (`costPrice`) now also gives an existing item
+  without a CMP its starting one (a cost above 0, an `EXCEL_IMPORT` history row, old cost null); an item with a CMP
+  keeps it, the cell ignored and counted in `ImportResultDTO.costsIgnored`; the CMP read as stored, the row locked.
+  A file without the column imports as before (`DataImportCostTest`). `GET /item-catalogue?withoutCost=true`: the
+  items without a CMP, services, discount items and packs left out, only with `withCost` (ignored otherwise,
+  `StoreItemCatalogueCostTest`). "Ajuster le CMP" from no CMP was already allowed (history row old cost null, tested).
 - Statistics, the margin: `GET /admin/analytics/summary` adds `margin`, `marginRate` (the Journal's margin %, one
   decimal; absent with a line without cost or an HT of 0) and `linesWithoutCost`, the Journal's gains over the period's
   days (`StoreDaysService.periodGains`, the rule of the month total), so the margin is the sum of the Journal's days.

@@ -39,7 +39,8 @@ public class StoreItemCatalogueAPI {
 
 	/**
 	 * GET /item-catalogue?page&amp;size&amp;search&amp;status&amp;familyId&amp;subFamilyId&amp;categoryCode&amp;sectionCode
-	 * &amp;priceMin&amp;priceMax&amp;sort&amp;dir: {content, page, size, totalElements, totalPages, withStock, withCost}. search:
+	 * &amp;priceMin&amp;priceMax&amp;sort&amp;dir&amp;withoutCost: {content, page, size, totalElements, totalPages, withStock,
+	 * withCost}. withoutCost (3.1.2): true for the items without a CMP only (WITHOUT_COST), only with withCost. search:
 	 * NAV number, item code (a variant's), name or barcode, contains, any case; with it each line gives matchedItemIds,
 	 * its items found. status: ALL (the default, as the Articles page), ACTIVE (the active variants only) or INACTIVE (the
 	 * lines without an active variant); priceMin / priceMax: the item's own price with VAT; sort: code (default), name,
@@ -60,7 +61,8 @@ public class StoreItemCatalogueAPI {
 			@RequestParam(name = "priceMin", required = false) Double priceMin,
 			@RequestParam(name = "priceMax", required = false) Double priceMax,
 			@RequestParam(name = "sort", required = false) String sort,
-			@RequestParam(name = "dir", required = false) String dir) {
+			@RequestParam(name = "dir", required = false) String dir,
+			@RequestParam(name = "withoutCost", required = false) Boolean withoutCost) {
 		ItemCatalogueQuery.Criteria criteria = new ItemCatalogueQuery.Criteria();
 		criteria.setLike(NavItemService.likeOf(search));
 		criteria.setActiveOnly(activeOnly(status));
@@ -73,9 +75,12 @@ public class StoreItemCatalogueAPI {
 		criteria.setPriceMax(priceMax);
 		criteria.setSort(sort);
 		criteria.setDescending("desc".equalsIgnoreCase(dir == null ? null : dir.trim()));
-		Page<ItemCatalogueLineDTO> lines = service.page(criteria, page, size);
 		// 3.1.2: what the lines show beyond the grouped columns, the cost only to a role that may see it
 		boolean withCost = withCost();
+		if (withCost && Boolean.TRUE.equals(withoutCost)) {
+			criteria.getItemConditions().add(WITHOUT_COST);
+		}
+		Page<ItemCatalogueLineDTO> lines = service.page(criteria, page, size);
 		service.storeDetails(lines.getContent(), withCost);
 		Map<String, Object> response = new LinkedHashMap<>();
 		response.put("content", lines.getContent());
@@ -103,6 +108,13 @@ public class StoreItemCatalogueAPI {
 				&& (currentUserProvider.currentUserHasPermission(ItemAPI.ADJUST_COST_PERMISSION)
 						|| currentUserProvider.currentUserHasPermission(SalesHeaderAPI.MARGINS_PERMISSION));
 	}
+
+	/**
+	 * 3.1.2, the filter "Sans coût" (withoutCost=true, read only with withCost): the items without a CMP whose cost the
+	 * owner can set, a service or a discount item (no cost by nature, ItemType.carriesNoCost; the tax stamp is a service)
+	 * and a pack (its components carry the cost; "Ajuster le CMP" is not offered on it) left out.
+	 */
+	static final String WITHOUT_COST = "({a}.cost_price IS NULL AND ({a}.type IS NULL OR {a}.type NOT IN ('SERVICE', 'DISCOUNT', 'PACKAGE')))";
 
 	/** ACTIVE in any case: the active variants only; anything else (absent, ALL, INACTIVE): every variant. */
 	static boolean activeOnly(String status) {

@@ -85,6 +85,11 @@ class DataImportStockMovementsTest {
 		ItemRepository items = mock(ItemRepository.class);
 		when(items.findByItemCode(anyString())).thenAnswer(a -> Optional.ofNullable(byCode.get(a.getArgument(0))));
 		when(items.findById(anyLong())).thenAnswer(a -> Optional.ofNullable(byId.get(a.getArgument(0))));
+		// 3.1.2, the initial cost: an existing item's CMP as stored (the import decides on it)
+		when(items.findCostPriceById(anyLong())).thenAnswer(a -> {
+			Item item = byId.get(a.getArgument(0));
+			return item == null ? null : item.getCostPrice();
+		});
 		when(items.save(any(Item.class))).thenAnswer(a -> {
 			Item item = a.getArgument(0);
 			if (item.getId() == null) {

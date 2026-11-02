@@ -42,7 +42,8 @@
 - **`DataImportService.java`** (`service/`) — Excel parsing and upsert logic for all 5 entity types; resolves FK for subfamilies (`familyCode` → `ItemFamily`) and items (`familyCode`, `subFamilyCode`)
 - **`ImportPreviewDTO.java`** — `{ columns: List<String>, rows: List<List<String>>, totalRows: int }`
 - **`ImportFieldMappingDTO.java`** — `{ dbField: String, excelColumn: String }`
-- **`ImportResultDTO.java`** — `{ totalRows, successCount, errorCount, errors: List<{ row, message }> }`
+- **`ImportResultDTO.java`** — `{ totalRows, successCount, errorCount, errors: List<{ row, message }>, costsIgnored }`
+  (`costsIgnored` 3.1.2, the item import only, 0 elsewhere)
 
 ### Importable Fields per Entity
 
@@ -59,6 +60,16 @@ itself), with the movement of the stock it sets: a new item's `OPENING_STOCK` (n
 `Import`), an existing item's difference as `ADJUSTMENT_IN` / `ADJUSTMENT_OUT` (note "Import Excel"), nothing when
 the stock does not change or the column is not mapped (`DataImportStockMovementsTest`). The stock value at a date
 (`modules/reporting.md`) counts back from these movements.
+
+**Items, the cost column** (`costPrice`, page label "Cost Price"; 3.1.2, the initial cost): a new item takes the
+row's cost as its starting CMP, with its first history row (`EXCEL_IMPORT`, by `Import`). An existing item **without a
+CMP** takes a cost above 0 as its initial one, with the same history row (old cost null); 0, a cell that is not a
+number (a warning logged, the row imported as before) or an empty cell: nothing. An existing item **with a CMP**
+keeps it: the cell is ignored and counted in `costsIgnored` (the page: "N coûts ignorés, CMP existant"). The decision
+reads the CMP as stored with the item's row locked (`ItemRepository.lockForCostChange`, `findCostPriceById`, as "Ajuster
+le CMP"), so an entry costed since the row was read is kept. A file without the column imports as before
+(`DataImportCostTest`). The page matches the headers "Coût initial" and "Initial cost" to the field too (accents, case,
+spaces, `_` and `-` ignored for every field).
 
 ### Frontend — Modified Files
 
