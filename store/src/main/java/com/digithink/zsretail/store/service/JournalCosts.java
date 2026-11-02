@@ -25,6 +25,9 @@ import com.digithink.zsretail.core.model.enumeration.ItemType;
  * only when no line is without cost and the HT is not 0.</li>
  * <li>A day (or a month) with a costed line: its lines without cost are those of ALL its documents, a ticket or a return
  * without any costed line included (a document alone keeps its own rule: null when it has no costed line).</li>
+ * <li>A day's (or a month's) cost and margin: the sum of its documents' cost and margin each rounded to the millime as
+ * shown (3.1.2), so a day equals the sum of its rows (not the rounding of unrounded sums, which could differ by a
+ * millime); its HT and margin % from the unrounded HT.</li>
  * </ul>
  * Amounts to the millime, half up, as the Journal's.
  */
@@ -183,8 +186,9 @@ public final class JournalCosts {
 				day.ht = BigDecimal.ZERO;
 				day.linesWithoutCost = 0L;
 			}
-			day.cost = day.cost.add(document.cost);
-			day.margin = day.margin.add(document.margin);
+			// each document's cost and margin as shown (to the millime), so the day is the sum of its rows
+			day.cost = day.cost.add(document.cost.setScale(3, RoundingMode.HALF_UP));
+			day.margin = day.margin.add(document.margin.setScale(3, RoundingMode.HALF_UP));
 			day.ht = day.ht.add(document.ht);
 		}
 		day.missing = missing;

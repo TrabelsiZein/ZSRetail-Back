@@ -165,6 +165,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `write:admin-item-cost` or `read:admin-margins`, checked by the API (`ItemStockMovementsTest`).
 
 ### Fixes
+- Journal gains: a day's (and a month's) cost and margin are the sum of its tickets' and returns' figures rounded to
+  the millime as shown, not the rounding of the unrounded sums (could differ by a millime, 28.782 vs 28.781); the day
+  list and the day journal share the rule (`JournalCosts.day`, `JournalMarginsTest.daySumsTheRowsAsShown`).
 - Stock movements, two gaps (for the stock value at a date): the item import (Excel) writes the movement of the stock
   it sets, in the row's transaction (a row in error leaves nothing): a new item's `OPENING_STOCK` (note "Import
   Excel", created by `Import`), an existing item's difference as `ADJUSTMENT_IN` / `ADJUSTMENT_OUT` (note "Import

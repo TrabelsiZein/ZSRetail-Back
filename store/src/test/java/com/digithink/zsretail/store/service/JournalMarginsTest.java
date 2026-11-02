@@ -367,6 +367,22 @@ class JournalMarginsTest {
 		assertEquals(Long.valueOf(0), discountItem.linesWithoutCost);
 	}
 
+	@Test
+	@DisplayName("A day's cost and margin: the sum of its rows as shown (each to the millime), not the rounding of the unrounded sums")
+	void daySumsTheRowsAsShown() {
+		// 0.5 x 2.001 = 1.0005 per ticket, shown 1.001; margin 2 - 1.0005 = 0.9995, shown 1.000
+		JournalCosts.Result first = JournalCosts.ticket(Collections.singletonList(
+				new JournalCosts.Line("A", ItemType.PRODUCT, 2.0, 2.0, 0, new BigDecimal("0.5"), new BigDecimal("2.001"))), 2.0);
+		JournalCosts.Result second = JournalCosts.ticket(Collections.singletonList(
+				new JournalCosts.Line("A", ItemType.PRODUCT, 2.0, 2.0, 0, new BigDecimal("0.5"), new BigDecimal("2.001"))), 2.0);
+		assertEquals(1.001, first.costValue(), 0.0);
+		assertEquals(1.0, first.marginValue(), 0.0);
+		JournalCosts.Result day = JournalCosts.day(Arrays.asList(first, second));
+		assertEquals(2.002, day.costValue(), 0.0, "1.001 + 1.001 (the unrounded 2.001 is what the rows do not show)");
+		assertEquals(2.0, day.marginValue(), 0.0, "1.000 + 1.000 (not 1.999)");
+		assertEquals(first.costValue() + second.costValue(), day.costValue(), 1e-9);
+	}
+
 	// ─── Fixtures ────────────────────────────────────────────────────
 
 	private CashierSessionAPI api(ApplicationModeService mode, String... permissions) throws Exception {

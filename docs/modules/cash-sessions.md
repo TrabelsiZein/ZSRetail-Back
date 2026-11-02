@@ -196,7 +196,10 @@ nothing is computed and the fields are absent from the JSON (`@JsonInclude(NON_N
   margin = HT - cost; both over the costed lines only. The tax stamp is left out of everything; a service or a
   discount item (`ItemType.carriesNoCost`) counts at 0; any other line with a null cost is a line without cost (never
   0). A ticket, a return or a day without a costed line: the four fields null. A day (and the .xlsx month total, `StoreDaysService.monthGains`) with a costed line counts the lines without cost of ALL its tickets and returns, those without any costed line included; a ticket or a return keeps its own count. Margin % = margin / HT, one decimal,
-  null with a line without cost or an HT of 0. Amounts to the millime, half up.
+  null with a line without cost or an HT of 0. Amounts to the millime, half up. A day's (and a month's) cost and margin
+  are the sums of its tickets' and returns' cost and margin each rounded to the millime as shown, so the day equals the
+  sum of its rows (before, the rounding of the unrounded sums could differ by a millime: 28.782 vs 28.781); the day
+  list and the day journal share the rule (`JournalCosts.day`), so the list still equals the detail.
 - Fields `cost`, `margin`, `marginPercent`, `linesWithoutCost` on each ticket and return (`JournalLine`), on the day's
   `Totals` (tickets and returns) and on each `DayRowDTO`. The day journal computes them from the lines it reads (no
   query more); the day list reads the month's lines through one projection per kind
