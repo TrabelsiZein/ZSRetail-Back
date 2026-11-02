@@ -28,10 +28,13 @@ import org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 
+import com.digithink.zsretail.core.dto.report.StockReportFilter;
 import com.digithink.zsretail.core.dto.report.StockReportRowDTO;
 import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemCategory;
 import com.digithink.zsretail.core.model.ItemCostHistory;
 import com.digithink.zsretail.core.model.ItemFamily;
+import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.StockMovement;
 import com.digithink.zsretail.core.model.enumeration.CostChangeSource;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
@@ -49,7 +52,9 @@ import com.digithink.zsretail.core.model.enumeration.StockMovementType;
  * first cost after D gives none, Nouveau), else the CMP now (Charlie, counted at its current CMP);</li>
  * <li>an item without cost (Echo) has no value and is counted; a stock of 0 (Zulu, Nouveau) is listed, worth 0;</li>
  * <li>the families: the same labels and order as today's report, the sums of their items;</li>
- * <li>today: the same rows as before, except an item without cost: no value (not 0), counted.</li>
+ * <li>today: the same rows, labels and order as before, except an item without cost: no value (not 0), counted.</li>
+ * <li>the rebuilt report (3.1.2): the values with VAT and the selling values (rounded once per row), the CATEGORY and
+ * SECTION groupings, the filters in both paths (the status on the item's own qty at the date, before the grouping).</li>
  * </ul>
  */
 class StockValueAtDateTest {
@@ -60,6 +65,7 @@ class StockValueAtDateTest {
 	private static SessionFactory sessions;
 	private static Session session;
 	private static ReportService reports;
+	private static ItemFamily soins;
 
 	@BeforeAll
 	static void database() throws Exception {
@@ -78,9 +84,18 @@ class StockValueAtDateTest {
 		session = sessions.openSession();
 		session.beginTransaction();
 		ItemFamily parfums = family("F1", "Parfums");
-		ItemFamily soins = family("F2", "Soins");
+		soins = family("F2", "Soins");
+		ItemCategory femme = new ItemCategory();
+		femme.setCode("CAT1");
+		femme.setName("Femme");
+		session.persist(femme);
+		ItemSection toilette = new ItemSection();
+		toilette.setCode("S1");
+		toilette.setName("Eau de toilette");
+		session.persist(toilette);
 
 		Item alpha = item("A", "Alpha", parfums, "10", 8.0, 10);
+		sells(alpha, "CAT1", "S1", 12.0, 19);
 		cost(alpha, D.minusDays(5).atTime(9, 0), 5.0, 6.0);
 		cost(alpha, D.plusDays(3).atTime(9, 0), 6.0, 8.0);
 		move(alpha, StockMovementDirection.IN, "1", D.atTime(23, 59)); // on D: in the stock of D
@@ -88,14 +103,16 @@ class StockValueAtDateTest {
 		move(alpha, StockMovementDirection.OUT, "1", D.plusDays(5).atTime(9, 0));
 
 		Item bravo = item("B", "Bravo", parfums, "5", 4.0, 0);
+		sells(bravo, "CAT1", null, 6.0, null); // no VAT: 0, as at the till
 		cost(bravo, D.plusDays(2).atTime(9, 0), 3.0, 4.0);
 		move(bravo, StockMovementDirection.OUT, "2", END); // midnight after D: after
 
-		item("C", "Charlie", soins, "2", 9.0, 0);
-		item("E", "Echo", null, "3", null, 0);
+		sells(item("C", "Charlie", soins, "2", 9.0, 0), "CAT9", null, 18.90756, 19); // a code without its category row
+		item("E", "Echo", null, "3", null, 0); // no cost, no price
 		item("Z", "Zulu", soins, "0", null, 0);
 
 		Item nouveau = item("N", "Nouveau", soins, "4", 5.0, 0);
+		sells(nouveau, "CAT1", null, 10.0, 19);
 		cost(nouveau, D.plusDays(2).atTime(9, 0), null, 5.0);
 		move(nouveau, StockMovementDirection.IN, "4", D.plusDays(2).atTime(9, 0));
 
@@ -134,6 +151,13 @@ class StockValueAtDateTest {
 		item.setMinStockLevel(min);
 		session.persist(item);
 		return item;
+	}
+
+	private static void sells(Item item, String categoryCode, String sectionCode, Double price, Integer vat) {
+		item.setCategoryCode(categoryCode);
+		item.setSectionCode(sectionCode);
+		item.setUnitPrice(price);
+		item.setDefaultVAT(vat);
 	}
 
 	private static void cost(Item item, LocalDateTime at, Double oldCost, double newCost) {
@@ -214,10 +238,106 @@ class StockValueAtDateTest {
 	}
 
 	@Test
-	@DisplayName("Below the minimum at D: on qty(D), the rule of today's report")
+	@DisplayName("Below the minimum at D: on qty(D), the statuses LOW, OUT, NEGATIVE (3.1.2: OUT with no minimum too)")
 	void belowMinimumAtDate() {
-		assertEquals(Arrays.asList("Alpha"), reports.getStockReport("ITEM", true, D).stream()
-				.map(StockReportRowDTO::getGroupLabel).collect(Collectors.toList()));
+		assertEquals(Arrays.asList("Alpha", "Nouveau", "Zulu"), labels(reports.getStockReport("ITEM", true, D)),
+				"Alpha 7 below 10; Nouveau 0 at D and Zulu 0: out of stock");
+	}
+
+	@Test
+	@DisplayName("By item at D: the CMP of D and its value with VAT, the selling value at today's price")
+	void itemValuesAtDate() {
+		Map<String, StockReportRowDTO> row = byLabel(reports.getStockReport("ITEM", false, D));
+		StockReportRowDTO alpha = row.get("Alpha");
+		assertEquals(6.0, alpha.getCostPrice(), "the CMP of D, not today's 8");
+		assertEquals(7.14, alpha.getCostPriceTtc(), 1e-9, "6 x 1.19");
+		assertEquals(49.98, alpha.getStockValueTtc(), 1e-9, "42 x 1.19");
+		assertEquals(84.0, alpha.getSellingValue(), 1e-9, "7 x 12, today's price");
+		assertEquals(99.96, alpha.getSellingValueTtc(), 1e-9);
+		assertEquals(9.0, row.get("Charlie").getCostPrice(), "no history: its CMP now");
+		assertNull(row.get("Echo").getCostPrice());
+		assertNull(row.get("Echo").getStockValueTtc(), "no cost: neither value");
+	}
+
+	@Test
+	@DisplayName("By category at D: the name, else the code, else No Category; the group's four values summed")
+	void categoriesAtDate() {
+		List<StockReportRowDTO> rows = reports.getStockReport("CATEGORY", new StockReportFilter(), D);
+		assertEquals(Arrays.asList("No Category", "CAT9", "Femme"), labels(rows), "by name; CAT9 has no category row");
+		Map<String, StockReportRowDTO> row = byLabel(rows);
+		StockReportRowDTO femme = row.get("Femme");
+		assertNull(femme.getItemCode());
+		assertNull(femme.getCostPrice(), "no price on a group row");
+		assertNull(femme.getUnitPrice());
+		assertEquals("14", qty(femme), "Alpha 7 + Bravo 7 + Nouveau 0");
+		assertEquals(63.0, femme.getStockValue(), 1e-9, "42 + 21");
+		assertEquals(70.98, femme.getStockValueTtc(), 1e-9, "42 x 1.19 + 21 (Bravo: no VAT)");
+		assertEquals(126.0, femme.getSellingValue(), 1e-9, "7 x 12 + 7 x 6");
+		assertEquals(141.96, femme.getSellingValueTtc(), 1e-9, "84 x 1.19 + 42");
+		assertEquals(37.815, row.get("CAT9").getSellingValue(), 1e-9, "2 x 18.90756 = 37.81512, 3 decimals");
+		assertEquals(Long.valueOf(1), row.get("CAT9").getItemsAtCurrentCmp());
+		StockReportRowDTO none = row.get("No Category");
+		assertEquals("3", qty(none), "Echo 3 + Zulu 0");
+		assertEquals(0.0, none.getSellingValue(), "the sum of its items with a price: none");
+		assertEquals(Long.valueOf(1), none.getItemsWithoutPrice(), "Echo");
+		assertEquals(Long.valueOf(1), none.getItemsWithoutCost());
+	}
+
+	@Test
+	@DisplayName("Filters at D: the code and search in the items query, the status on qty(D) before the grouping")
+	void filtersAtDate() {
+		StockReportFilter femmeWithO = new StockReportFilter();
+		femmeWithO.setCategoryCode("CAT1");
+		femmeWithO.setSearch("O");
+		assertEquals(Arrays.asList("Bravo", "Nouveau"), labels(reports.getStockReport("ITEM", femmeWithO, D)),
+				"Femme, an o in the name, case ignored");
+
+		StockReportFilter low = status("LOW");
+		List<StockReportRowDTO> families = reports.getStockReport("FAMILY", low, D);
+		assertEquals(Arrays.asList("Parfums"), labels(families), "Alpha only: 7 below 10 at D");
+		assertEquals("7", qty(families.get(0)), "Bravo (OK) left out of its family's sums");
+		assertEquals(42.0, families.get(0).getStockValue(), 1e-9);
+
+		assertEquals(Arrays.asList("Echo"), labels(reports.getStockReport("ITEM", status("WITHOUT_COST"), D)),
+				"no CMP at D and a stock: Echo; Nouveau has none at D but a stock of 0");
+	}
+
+	@Test
+	@DisplayName("Filters now: search (wildcards as themselves), family, section, status; the SECTION grouping")
+	void filtersToday() {
+		StockReportFilter search = new StockReportFilter();
+		search.setSearch("HA");
+		assertEquals(Arrays.asList("Alpha", "Charlie"), labels(reports.getStockReport("ITEM", search, null)));
+		search.setSearch("a%");
+		assertEquals(Arrays.asList(), labels(reports.getStockReport("ITEM", search, null)), "a typed % is a %");
+
+		StockReportFilter family = new StockReportFilter();
+		family.setFamilyId(soins.getId());
+		assertEquals(Arrays.asList("Charlie", "Nouveau", "Zulu"), labels(reports.getStockReport("ITEM", family, null)));
+
+		assertEquals(Arrays.asList("No Section", "Eau de toilette"),
+				labels(reports.getStockReport("SECTION", new StockReportFilter(), null)));
+		StockReportFilter section = new StockReportFilter();
+		section.setSectionCode("S1");
+		List<StockReportRowDTO> sections = reports.getStockReport("SECTION", section, null);
+		assertEquals(Arrays.asList("Eau de toilette"), labels(sections));
+		assertEquals(120.0, sections.get(0).getSellingValue(), 1e-9, "10 x 12");
+
+		assertEquals(Arrays.asList("Echo"), labels(reports.getStockReport("ITEM", status("WITHOUT_COST"), null)));
+		assertEquals(Arrays.asList("Zulu"), labels(reports.getStockReport("ITEM", true)),
+				"below the minimum now: Zulu out of stock (3.1.2); Alpha 10 is not below 10");
+		assertEquals(Arrays.asList("Echo", "Zulu"), labels(reports.getStockReport("ITEM", status("OUT", "WITHOUT_COST"), null)),
+				"any of the statuses");
+	}
+
+	private static StockReportFilter status(String... statuses) {
+		StockReportFilter filter = new StockReportFilter();
+		filter.getStatuses().addAll(Arrays.asList(statuses));
+		return filter;
+	}
+
+	private static List<String> labels(List<StockReportRowDTO> rows) {
+		return rows.stream().map(StockReportRowDTO::getGroupLabel).collect(Collectors.toList());
 	}
 
 	@Test
@@ -226,8 +346,11 @@ class StockValueAtDateTest {
 		for (List<StockReportRowDTO> rows : Arrays.asList(reports.getStockReport("ITEM", false),
 				reports.getStockReport("ITEM", false, null), reports.getStockReport("ITEM", false, LocalDate.now()))) {
 			Map<String, StockReportRowDTO> row = byLabel(rows);
-			assertEquals(6, rows.size());
+			assertEquals(Arrays.asList("Alpha", "Bravo", "Charlie", "Echo", "Nouveau", "Zulu"), labels(rows),
+					"the active items, by name, as before 3.1.2");
 			assertEquals("10", qty(row.get("Alpha")));
+			assertEquals("OK", row.get("Alpha").getStatus(), "10, the minimum 10");
+			assertEquals("OUT", row.get("Zulu").getStatus());
 			assertEquals(80.0, row.get("Alpha").getStockValue(), 1e-9);
 			assertNull(row.get("Alpha").getItemsWithoutCost());
 			assertNull(row.get("Echo").getStockValue(), "no cost: no value, never 0");
@@ -235,11 +358,35 @@ class StockValueAtDateTest {
 			assertEquals(0.0, row.get("Zulu").getStockValue(), "no cost and a stock of 0: 0");
 			assertNull(row.get("Zulu").getItemsWithoutCost());
 			assertNull(row.get("Charlie").getItemsAtCurrentCmp(), "today: no such note");
+
+			StockReportRowDTO alpha = row.get("Alpha");
+			assertEquals(8.0, alpha.getCostPrice());
+			assertEquals(9.52, alpha.getCostPriceTtc(), 1e-9, "8 x 1.19");
+			assertEquals(12.0, alpha.getUnitPrice());
+			assertEquals(14.28, alpha.getUnitPriceTtc(), 1e-9, "12 x 1.19");
+			assertEquals(95.2, alpha.getStockValueTtc(), 1e-9);
+			assertEquals(120.0, alpha.getSellingValue(), 1e-9);
+			assertEquals(142.8, alpha.getSellingValueTtc(), 1e-9);
+			assertEquals(6.0, row.get("Bravo").getUnitPriceTtc(), 1e-9, "no VAT: 0, as at the till");
+			assertEquals(22.5, row.get("Charlie").getUnitPriceTtc(), 1e-9, "18.90756 x 1.19 = 22.4999964, 3 decimals");
+			assertEquals(45.0, row.get("Charlie").getSellingValueTtc(), 1e-9, "2 x 22.4999964 = 44.9999928, rounded once");
+			assertNull(row.get("Echo").getSellingValue(), "no price: no selling value, never 0");
+			assertNull(row.get("Echo").getSellingValueTtc());
+			assertEquals(Long.valueOf(1), row.get("Echo").getItemsWithoutPrice());
+			assertEquals(0.0, row.get("Zulu").getSellingValue(), "no price and a stock of 0: 0");
+			assertNull(row.get("Zulu").getItemsWithoutPrice());
 		}
-		Map<String, StockReportRowDTO> families = byLabel(reports.getStockReport("FAMILY", false));
+		List<StockReportRowDTO> familyRows = reports.getStockReport("FAMILY", false);
+		assertEquals(Arrays.asList("No Family", "Parfums", "Soins"), labels(familyRows), "as before 3.1.2");
+		Map<String, StockReportRowDTO> families = byLabel(familyRows);
 		assertEquals(Long.valueOf(1), families.get("No Family").getItemsWithoutCost());
 		assertEquals(0.0, families.get("No Family").getStockValue());
 		assertNull(families.get("Parfums").getItemsWithoutCost());
 		assertEquals(100.0, families.get("Parfums").getStockValue(), 1e-9, "10 x 8 + 5 x 4");
+		assertEquals("15", qty(families.get("Parfums")));
+		assertEquals(Long.valueOf(10), families.get("Parfums").getMinStockLevel());
+		assertEquals(38.0, families.get("Soins").getStockValue(), 1e-9, "2 x 9 + 4 x 5 + 0");
+		assertEquals(150.0, families.get("Parfums").getSellingValue(), 1e-9, "10 x 12 + 5 x 6: a group row's selling value");
+		assertEquals(172.8, families.get("Parfums").getSellingValueTtc(), 1e-9, "142.8 + 30");
 	}
 }

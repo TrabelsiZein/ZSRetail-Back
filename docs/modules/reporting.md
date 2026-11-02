@@ -14,7 +14,7 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
 **Methods:**
 - `getSalesReport(dateFrom, dateTo, groupBy)` — aggregates sales headers by DAY/MONTH/YEAR; returns `SalesReportRowDTO { label, totalHt, totalTtc, nbTickets }`
 - `getPurchaseReport(dateFrom, dateTo, groupBy)` — aggregates purchase headers; returns `PurchaseReportRowDTO { label, totalTtc, nbPurchases }`
-- `getStockReport(groupBy, belowMinStock)` — the stock now per item, family or sub-family; `getStockReport(groupBy, belowMinStock, date)` (3.1.2) the same at the end of a past day; returns `StockReportRowDTO { groupLabel, itemCode, currentQty, minStockLevel, stockValue, status, itemsWithoutCost, itemsAtCurrentCmp }` (the last two absent when none)
+- `getStockReport(groupBy, filter, date)` (3.1.2) — the stock now (no date, or today) or at the end of a past day, per item, family, sub-family, category or section, with the filters of `StockReportFilter`; `getStockReport(groupBy, belowMinStock[, date])` delegate to it. Returns `StockReportRowDTO { groupLabel, itemCode, currentQty, minStockLevel, stockValue, stockValueTtc, sellingValue, sellingValueTtc, status, costPrice, costPriceTtc, unitPrice, unitPriceTtc, itemsWithoutCost, itemsWithoutPrice, itemsAtCurrentCmp }` (the prices on an item row only; the three counts absent when none). See "Stock report" below.
 - `getStockMovementsReport(dateFrom, dateTo, groupBy)` — stock in/out by label; returns `StockMovementsReportRowDTO { label, qtyIn, qtyOut }`
 - `getLoyaltyReport(dateFrom, dateTo, groupBy)` — loyalty points earned/redeemed; returns `LoyaltyReportRowDTO { label, pointsEarned, pointsRedeemed }`
 - `getSessionReport(dateFrom, dateTo, groupBy)` — session totals; returns `SessionReportRowDTO { label, totalAmount, nbSessions }`
@@ -39,23 +39,50 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
 - Stock report status (`ReportService.stockStatus`, 3.1.0, test log I-52): `NEGATIVE` below 0 (a data problem: a
   missing BL, a wrong count), `OUT` at 0, `LOW` below the minimum, else `OK`; the page shows a negative quantity in red,
   and its "Out of stock" card counts the items at 0 only.
-- **Stock value at a date** (3.1.2, `GET /report/stock?groupBy&belowMinStock&date`, `ReportService.getStockReport`;
-  the page's "Valeur au", today by default). One rule today and at a past date: **an item without cost** (no CMP and a
-  stock other than 0) has no value (`stockValue` null, "—" on the page, an empty Excel cell; before 3.1.2 it counted
-  0) and `itemsWithoutCost` 1; a family or sub-family row counts its items without cost, its value the sum of the
-  others; the page marks the total incomplete with their count. A stock of 0 is worth 0, cost or not. Every active item
-  is listed, a stock of 0 included.
-  - **Today** (no date, or today's): the queries of before, unchanged; one more (`markWithoutCost`) finds the items
-    without cost.
+- **Stock report** (3.1.2, `GET /report/stock`, `ReportService.getStockReport`; the page's "Valeur au", today by
+  default). **One path in Java for now and a past date** (the rebuild of 3.1.2): the items query `STOCK_ITEMS` with the
+  filters, the rows grouped in Java in its order. Now: qty = the stock now, CMP = `costPrice`, one query, no movement
+  nor history read (before the rebuild: one aggregate query per grouping plus `markWithoutCost`, two; the rows, labels
+  and order are the same, `StockValueAtDateTest.today`). One rule now and at a past date: **an item without cost** (no
+  CMP and a stock other than 0) has no value (`stockValue` null, "—" on the page, an empty Excel cell; before 3.1.2 it
+  counted 0) and `itemsWithoutCost` 1; a group row counts its items without cost, its value the sum of the others; the
+  page marks the total incomplete with their count. A stock of 0 is worth 0, cost or not. Every active item the filters
+  keep is listed, a stock of 0 included.
+  - **Parameters**, all optional: `groupBy` `ITEM` (default) | `FAMILY` | `SUBFAMILY` | `CATEGORY` | `SECTION`;
+    `date` (below); `search` (the item's code or name contains it, case ignored, `%` `_` `[` searched as themselves,
+    `PosItemSearchRepository.escapeLike`); `familyId`; `subFamilyId`; `categoryCode`; `sectionCode`; `status`, a list
+    (`status=LOW,OUT`) of `OK`, `LOW`, `OUT`, `NEGATIVE`, `WITHOUT_COST` (no CMP and a stock other than 0), an item kept
+    when **any** applies, 400 for another value; `belowMinStock=true` adds `LOW`, `OUT`, `NEGATIVE`. Blank values are
+    none. The filters on the item are in the items query's WHERE; the status, which needs qty at the date, is checked
+    in Java on **the item's own status before the grouping**: a family row filtered on `LOW` sums only its low items.
+  - **`belowMinStock` changed meaning (3.1.2 rebuild)**: before, a row was kept when its qty was below its minimum, for
+    a family row its summed qty below its summed minimum; now it is the item's status `LOW`, `OUT` or `NEGATIVE`, so an
+    item at 0 with no minimum is kept (it was not), and a family row holds only its items below the minimum.
+  - **Groupings**: a family / sub-family by its name ("No Family", "No Subfamily"); a category / section by its code,
+    labelled with the name of its `item_category` / `item_section` row (entity join on the unique code), the code when
+    no row has it, "No Category" / "No Section" without a code (a blank code is none); ordered by that name. The group
+    row's status from its summed qty and minimum, as before.
+  - **Values without VAT (HT) and with VAT (Ttc)**: every unsuffixed price or value is HT, as in `Item` (`costPrice`
+    the CMP and `unitPrice` the selling price are both before VAT). `stockValue` = qty x CMP, `stockValueTtc` = qty x
+    CMP x (1 + VAT/100); `sellingValue` = qty x `Item.unitPrice`, `sellingValueTtc` the same with VAT. **The VAT** is
+    the item's `defaultVAT`; none: 0, the till's rule (`ItemAPI` sends 0 and the till sells the item at its HT price;
+    the application has no default VAT of its own, only the connectors' `erp.<name>.default-vat` for the items they
+    create). An item row also carries `costPrice` (the CMP the value used: at a past date the CMP of that day),
+    `costPriceTtc`, `unitPrice`, `unitPriceTtc`; a group row none of them, its four values the sums of its items.
+    **The selling values use today's price, even at a past date** (no price history). Without a CMP and with a stock:
+    both cost values null; without a `unitPrice` and with a stock: both selling values null, the item counted in
+    `itemsWithoutPrice`; each left out of its group's sums. **Rounding**: computed per item in BigDecimal, the row's
+    values (and an item row's two Ttc prices) rounded once at the end to 3 decimals, half up; the prices sent as stored.
+  - **Now** (no date, or today's): one query.
   - **A past day D** (before today; 400 after today, 400 where the installation keeps no stock of its own): at the end
     of D (movements and cost changes from D + 1 at 00:00 are after). **qty(D)** = the stock now minus the movements
     after D (IN minus OUT, `MOVEMENTS_AFTER`, one query grouped by item and direction). **CMP(D)** = the new cost of the
     item's last change up to D (`COSTS_BEFORE`), else the old cost of its first change after D (`COSTS_FROM`; null
     when that change gave the item its first cost), else its CMP now, counted in `itemsAtCurrentCmp` (the page's note
-    "n article(s) valorisé(s) au CMP actuel"). **Value** = qty(D) x CMP(D). The rows grouped in Java in the order of the
-    items query (`STOCK_ITEMS` ordered by the grouping's name), the labels of today's report ("No Family", "No
-    Subfamily"); the minimum filter on qty(D).
-  - **Queries**: four, whatever the number of items: the active items, the movements after D (index
+    "n article(s) valorisé(s) au CMP actuel"). **Value** = qty(D) x CMP(D). The rows grouped as now; the status filter
+    on qty(D) and CMP(D).
+  - **Queries**: now one; at a past date four, whatever the number of items and the filters (the movements and the
+    history are read for every item, the filters apply to the items query): the active items, the movements after D (index
     `ix_stock_movement_created` `(created_at) INCLUDE (item_id, direction, quantity)`, `db/3.1.2/update.sql`), the two
     ends of the cost history (`MAX(id)` / `MIN(id)` per item on either side of D, index `ix_item_cost_history_item`
     `(item_id, changed_at)`; the ids follow the time of the changes). Estimate for 12,000 items and a year of
@@ -67,7 +94,10 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
     as negative or off. The cost history starts empty at 3.1.2: a day before it takes the old cost of the item's first
     change, else its CMP now (the note counts them). Split bills write their movements as any sale (3.1.2).
   - Tests: `StockValueAtDateTest` (the queries on H2: the three CMP rules, qty(D) at the day's edges, the families,
-    today), `ReportStockDateTest` (the 400s), `tools/stock-report-check.mjs` (the page's rules).
+    today's rows, labels and order; the rebuild: the Ttc and selling values and their rounding, CATEGORY at D and
+    SECTION now, the filters in both paths, the status before the grouping), `ReportStockDateTest` (the 400s, the
+    filter handed, an unknown status), `DecimalSafetyNetTest` (the decimal stock), `tools/stock-report-check.mjs` (the
+    page's rules).
 - Statistics KPI deltas (`AnalyticsService.computeDeltaPercent`, 3.1.0, test log I-51): null when the previous period
   is 0 (no comparison); the page shows "—" in grey instead of a green "▲ 0.00%".
 - **Statistics margin** (3.1.2, `GET /admin/analytics/summary`): `margin`, `marginRate`, `linesWithoutCost`, the
@@ -89,7 +119,7 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
 **`ReportAPI.java` and `SalesReportAPI.java`** endpoints (all under `report/`):
 - `GET /report/sales?dateFrom=&dateTo=&groupBy=`
 - `GET /report/purchases?dateFrom=&dateTo=&groupBy=`
-- `GET /report/stock?dateFrom=&dateTo=&familyId=`
+- `GET /report/stock?groupBy=&belowMinStock=&date=&search=&familyId=&subFamilyId=&categoryCode=&sectionCode=&status=` (3.1.2; "Stock report" above)
 - `GET /report/stock-movements?dateFrom=&dateTo=&groupBy=`
 - `GET /report/loyalty?dateFrom=&dateTo=&groupBy=`
 - `GET /report/sessions?dateFrom=&dateTo=&groupBy=`

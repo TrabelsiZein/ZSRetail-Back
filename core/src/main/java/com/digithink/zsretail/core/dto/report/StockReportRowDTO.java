@@ -29,6 +29,30 @@ public class StockReportRowDTO {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Long itemsAtCurrentCmp;
 
+    /*
+     * 3.1.2, the rebuilt report: values without VAT (HT) and with VAT (Ttc), the VAT of each item its defaultVAT (none:
+     * 0, as at the till); computed per item, the row rounded to 3 decimals. An item row only: its prices.
+     */
+
+    /** The CMP of the value (HT; at the date asked, the one the value used); null when none. Item row only. */
+    private Double costPrice;
+    private Double costPriceTtc;
+    /** Item.unitPrice, the selling price without VAT; null when none. Item row only. */
+    private Double unitPrice;
+    private Double unitPriceTtc;
+    /** stockValue with VAT, null in the same case. */
+    private Double stockValueTtc;
+    /**
+     * currentQty x unitPrice (HT), today's price even at a past date; null for an item without price (a stock other
+     * than 0), never 0; a group row: the sum of its items with a price.
+     */
+    private Double sellingValue;
+    private Double sellingValueTtc;
+
+    /** The items of the row without selling price (none, a stock other than 0); absent when none. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Long itemsWithoutPrice;
+
     public StockReportRowDTO(String groupLabel, String itemCode, BigDecimal currentQty, Long minStockLevel,
             Double stockValue, String status) {
         this.groupLabel = groupLabel;

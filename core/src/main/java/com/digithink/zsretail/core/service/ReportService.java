@@ -1,20 +1,20 @@
 package com.digithink.zsretail.core.service;
 
 import static com.digithink.zsretail.core.service.ReportValues.str;
-import static com.digithink.zsretail.core.service.ReportValues.toDouble;
 import static com.digithink.zsretail.core.service.ReportValues.toFrom;
 import static com.digithink.zsretail.core.service.ReportValues.toLong;
 import static com.digithink.zsretail.core.service.ReportValues.toQuantity;
 import static com.digithink.zsretail.core.service.ReportValues.toTo;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -26,8 +26,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.digithink.zsretail.core.dto.report.StockMovementReportRowDTO;
+import com.digithink.zsretail.core.dto.report.StockReportFilter;
 import com.digithink.zsretail.core.dto.report.StockReportRowDTO;
 import com.digithink.zsretail.core.model.enumeration.StockMovementDirection;
+import com.digithink.zsretail.core.repository.PosItemSearchRepository;
 import com.digithink.zsretail.core.utils.Quantities;
 
 import lombok.extern.log4j.Log4j2;
@@ -49,77 +51,32 @@ public class ReportService {
     private EntityManager em;
 
     // ─────────────────────────────────────────────────────────────────────────
-    // STOCK REPORT (snapshot — no date range)
-    // groupBy: ITEM | FAMILY | SUBFAMILY
+    // STOCK REPORT, now or at the end of a past day (3.1.2): docs/modules/reporting.md, "Stock report"
+    // groupBy: ITEM | FAMILY | SUBFAMILY | CATEGORY | SECTION
     // ─────────────────────────────────────────────────────────────────────────
 
+    /** The stock now, the filter of before 3.1.2 (below the minimum: the statuses LOW, OUT, NEGATIVE). */
     @Transactional(readOnly = true)
     public List<StockReportRowDTO> getStockReport(String groupBy, Boolean belowMinStock) {
-        List<StockReportRowDTO> result = new ArrayList<>();
-
-        switch (groupBy.toUpperCase()) {
-            case "FAMILY": {
-                String jpql =
-                        "SELECT COALESCE(f.name, 'No Family'), " +
-                        "SUM(COALESCE(i.stockQuantity, 0)), " +
-                        "SUM(COALESCE(i.minStockLevel, 0)), " +
-                        "SUM(COALESCE(i.stockQuantity, 0) * COALESCE(i.costPrice, 0)) " +
-                        "FROM Item i LEFT JOIN i.itemFamily f " +
-                        "WHERE i.active = true " +
-                        "GROUP BY f.name ORDER BY f.name ASC";
-                for (Object[] r : (List<Object[]>) em.createQuery(jpql).getResultList()) {
-                    BigDecimal qty = toQuantity(r[1]);
-                    long min = toLong(r[2]);
-                    if (Boolean.TRUE.equals(belowMinStock) && qty.compareTo(BigDecimal.valueOf(min)) >= 0) continue;
-                    result.add(new StockReportRowDTO(str(r[0]), null, qty, min, toDouble(r[3]), stockStatus(qty, min)));
-                }
-                break;
-            }
-            case "SUBFAMILY": {
-                String jpql =
-                        "SELECT COALESCE(sf.name, 'No Subfamily'), " +
-                        "SUM(COALESCE(i.stockQuantity, 0)), " +
-                        "SUM(COALESCE(i.minStockLevel, 0)), " +
-                        "SUM(COALESCE(i.stockQuantity, 0) * COALESCE(i.costPrice, 0)) " +
-                        "FROM Item i LEFT JOIN i.itemSubFamily sf " +
-                        "WHERE i.active = true " +
-                        "GROUP BY sf.name ORDER BY sf.name ASC";
-                for (Object[] r : (List<Object[]>) em.createQuery(jpql).getResultList()) {
-                    BigDecimal qty = toQuantity(r[1]);
-                    long min = toLong(r[2]);
-                    if (Boolean.TRUE.equals(belowMinStock) && qty.compareTo(BigDecimal.valueOf(min)) >= 0) continue;
-                    result.add(new StockReportRowDTO(str(r[0]), null, qty, min, toDouble(r[3]), stockStatus(qty, min)));
-                }
-                break;
-            }
-            default: { // ITEM
-                String jpql =
-                        "SELECT i.name, i.itemCode, " +
-                        "COALESCE(i.stockQuantity, 0), " +
-                        "COALESCE(i.minStockLevel, 0), " +
-                        "COALESCE(i.stockQuantity, 0) * COALESCE(i.costPrice, 0) " +
-                        "FROM Item i WHERE i.active = true ORDER BY i.name ASC";
-                for (Object[] r : (List<Object[]>) em.createQuery(jpql).getResultList()) {
-                    BigDecimal qty = toQuantity(r[2]);
-                    long min = toLong(r[3]);
-                    if (Boolean.TRUE.equals(belowMinStock) && qty.compareTo(BigDecimal.valueOf(min)) >= 0) continue;
-                    result.add(new StockReportRowDTO(str(r[0]), str(r[1]), qty, min, toDouble(r[4]), stockStatus(qty, min)));
-                }
-                break;
-            }
-        }
-        markWithoutCost(groupBy.toUpperCase(), result);
-        return result;
+        return getStockReport(groupBy, StockReportFilter.belowMin(belowMinStock), null);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // STOCK VALUE AT A DATE (3.1.2): docs/modules/reporting.md, "Stock report"
-    // ─────────────────────────────────────────────────────────────────────────
+    /** The stock at a date, the filter of before 3.1.2. */
+    @Transactional(readOnly = true)
+    public List<StockReportRowDTO> getStockReport(String groupBy, Boolean belowMinStock, LocalDate date) {
+        return getStockReport(groupBy, StockReportFilter.belowMin(belowMinStock), date);
+    }
 
-    /** The active items with what the past stock and value need, in the order of the report's grouping. */
+    /**
+     * The active items with what the stock and its values need, the category and section names by their codes (unique);
+     * the filters ({@link #where}) and the grouping's order appended.
+     */
     static final String STOCK_ITEMS =
-            "SELECT i.id, i.name, i.itemCode, i.stockQuantity, i.minStockLevel, i.costPrice, f.name, sf.name " +
-            "FROM Item i LEFT JOIN i.itemFamily f LEFT JOIN i.itemSubFamily sf WHERE i.active = true";
+            "SELECT i.id, i.name, i.itemCode, i.stockQuantity, i.minStockLevel, i.costPrice, f.name, sf.name, " +
+            "c.name, i.categoryCode, s.name, i.sectionCode, i.unitPrice, i.defaultVAT " +
+            "FROM Item i LEFT JOIN i.itemFamily f LEFT JOIN i.itemSubFamily sf " +
+            "LEFT JOIN ItemCategory c ON c.code = i.categoryCode LEFT JOIN ItemSection s ON s.code = i.sectionCode " +
+            "WHERE i.active = true";
 
     /** The movements after the day, summed per item and direction (index ix_stock_movement_created). */
     static final String MOVEMENTS_AFTER =
@@ -137,36 +94,45 @@ public class ReportService {
             "(SELECT MIN(x.id) FROM ItemCostHistory x WHERE x.changedAt >= :after GROUP BY x.itemId)";
 
     /**
-     * 3.1.2: the stock report at the end of a day. A date before today: the stock and its value at the end of that day
-     * (ReportAPI refuses a date after today, and a past date where the installation keeps no stock of its own); null or
-     * today: the stock now, {@link #getStockReport(String, Boolean)}. Same grouping, columns and order.
+     * 3.1.2: the stock report, one path for now and a past day. A date before today: the stock and its value at the end
+     * of that day (ReportAPI refuses a date after today, and a past date where the installation keeps no stock of its
+     * own); null or today: the stock now.
      * <ul>
-     * <li>qty(D) = the stock now minus the movements after D (IN minus OUT, one grouped query);</li>
-     * <li>CMP(D) = the new cost of the item's last cost change up to D, else the old cost of its first change after D,
-     * else its CMP now (counted in itemsAtCurrentCmp);</li>
-     * <li>value = qty(D) x CMP(D); without a CMP and with a stock other than 0: no value (null, itemsWithoutCost), a stock
-     * of 0: 0.</li>
+     * <li>qty = the stock now; at a past D minus the movements after D (IN minus OUT, one grouped query);</li>
+     * <li>CMP = the CMP now; at a past D the new cost of the item's last cost change up to D, else the old cost of its
+     * first change after D, else its CMP now (counted in itemsAtCurrentCmp);</li>
+     * <li>value = qty x CMP (HT), with VAT x (1 + defaultVAT / 100), a null VAT 0 as at the till; without a CMP and with a
+     * stock other than 0: no value (null, itemsWithoutCost), a stock of 0: 0. The selling value the same with the
+     * item's unitPrice now (HT; itemsWithoutPrice);</li>
+     * <li>the filters on the item, in the items query; the status (any of the filter's) on the item's own qty and CMP at
+     * the date, before the grouping.</li>
      * </ul>
-     * Four queries whatever the number of items (the items, the movements after D, the two ends of the cost history),
-     * grouped here; every active item is listed, a stock of 0 included, as today.
+     * One query now, four at a past date, whatever the number of items (the items, the movements after D, the two ends of
+     * the cost history), grouped here in the order of the items query; every active item the filter keeps is listed, a
+     * stock of 0 included.
      */
     @Transactional(readOnly = true)
-    public List<StockReportRowDTO> getStockReport(String groupBy, Boolean belowMinStock, LocalDate date) {
-        if (date == null || !date.isBefore(LocalDate.now())) {
-            return getStockReport(groupBy, belowMinStock);
-        }
-        return stockAt(groupBy.toUpperCase(), belowMinStock, date.plusDays(1).atStartOfDay());
+    public List<StockReportRowDTO> getStockReport(String groupBy, StockReportFilter filter, LocalDate date) {
+        LocalDateTime after = date == null || !date.isBefore(LocalDate.now()) ? null : date.plusDays(1).atStartOfDay();
+        return stock(groupBy.toUpperCase(), filter == null ? new StockReportFilter() : filter, after);
     }
 
-    /** One row of the report being summed: an item, or a family / sub-family and its items. */
+    /** One row of the report being summed: an item, or a group and its items. Item row only: its CMP, price and VAT. */
     private static final class StockAt {
         final String label;
         final String code;
         BigDecimal qty = BigDecimal.ZERO;
         long min;
         BigDecimal value = BigDecimal.ZERO;
+        BigDecimal valueTtc = BigDecimal.ZERO;
+        BigDecimal selling = BigDecimal.ZERO;
+        BigDecimal sellingTtc = BigDecimal.ZERO;
         long withoutCost;
+        long withoutPrice;
         long atCurrentCmp;
+        Double cost;
+        Double price;
+        BigDecimal vat;
 
         StockAt(String label, String code) {
             this.label = label;
@@ -174,60 +140,178 @@ public class ReportService {
         }
     }
 
-    private List<StockReportRowDTO> stockAt(String groupBy, Boolean belowMinStock, LocalDateTime after) {
-        String order = "FAMILY".equals(groupBy) ? "f.name" : "SUBFAMILY".equals(groupBy) ? "sf.name" : "i.name";
-        List<Object[]> items = em.createQuery(STOCK_ITEMS + " ORDER BY " + order + " ASC").getResultList();
+    /** after: the end of the past day asked, null for the stock now (no movements nor history read). */
+    private List<StockReportRowDTO> stock(String groupBy, StockReportFilter filter, LocalDateTime after) {
+        Query itemsQuery = em.createQuery(STOCK_ITEMS + where(filter) + " ORDER BY " + order(groupBy) + " ASC");
+        bind(itemsQuery, filter);
+        List<Object[]> items = itemsQuery.getResultList();
         Map<Long, BigDecimal> movedAfter = new HashMap<>();
-        for (Object[] r : (List<Object[]>) em.createQuery(MOVEMENTS_AFTER).setParameter("after", after).getResultList()) {
-            BigDecimal quantity = toQuantity(r[2]);
-            movedAfter.merge(((Number) r[0]).longValue(),
-                    r[1] == StockMovementDirection.OUT ? quantity.negate() : quantity, BigDecimal::add);
+        Map<Long, Double> costBefore = new HashMap<>();
+        Map<Long, Double> costFrom = new HashMap<>();
+        if (after != null) {
+            for (Object[] r : (List<Object[]>) em.createQuery(MOVEMENTS_AFTER).setParameter("after", after).getResultList()) {
+                BigDecimal quantity = toQuantity(r[2]);
+                movedAfter.merge(((Number) r[0]).longValue(),
+                        r[1] == StockMovementDirection.OUT ? quantity.negate() : quantity, BigDecimal::add);
+            }
+            costBefore = costs(COSTS_BEFORE, after);
+            costFrom = costs(COSTS_FROM, after);
         }
-        Map<Long, Double> costBefore = costs(COSTS_BEFORE, after);
-        Map<Long, Double> costFrom = costs(COSTS_FROM, after);
 
         Map<Object, StockAt> rows = new LinkedHashMap<>();
         for (Object[] r : items) {
             Long id = ((Number) r[0]).longValue();
-            StockAt row;
-            if ("FAMILY".equals(groupBy)) {
-                row = rows.computeIfAbsent(r[6], k -> new StockAt(r[6] == null ? "No Family" : str(r[6]), null));
-            } else if ("SUBFAMILY".equals(groupBy)) {
-                row = rows.computeIfAbsent(r[7], k -> new StockAt(r[7] == null ? "No Subfamily" : str(r[7]), null));
-            } else {
-                row = rows.computeIfAbsent(id, k -> new StockAt(str(r[1]), str(r[2])));
-            }
             BigDecimal qty = toQuantity(r[3]).subtract(movedAfter.getOrDefault(id, BigDecimal.ZERO));
-            boolean atCurrent = !costBefore.containsKey(id) && !costFrom.containsKey(id);
+            long min = toLong(r[4]);
+            boolean atCurrent = after != null && !costBefore.containsKey(id) && !costFrom.containsKey(id);
             Double cmp = costBefore.containsKey(id) ? costBefore.get(id)
                     : costFrom.containsKey(id) ? costFrom.get(id) : (r[5] == null ? null : ((Number) r[5]).doubleValue());
+            if (!kept(filter, qty, min, cmp)) {
+                continue;
+            }
+            Double price = r[12] == null ? null : ((Number) r[12]).doubleValue();
+            BigDecimal vat = withVat(r[13]);
+            StockAt row = rows.computeIfAbsent(groupKey(groupBy, r, id), k -> newRow(groupBy, r, cmp, price, vat));
             row.qty = row.qty.add(qty);
-            row.min += toLong(r[4]);
+            row.min += min;
             if (qty.signum() == 0) {
-                continue; // a stock of 0 is worth 0, with or without a cost
+                continue; // a stock of 0 is worth 0, with or without a cost or a price
             }
             if (cmp == null) {
                 row.withoutCost++;
             } else {
-                row.value = row.value.add(qty.multiply(BigDecimal.valueOf(cmp)));
+                BigDecimal value = qty.multiply(BigDecimal.valueOf(cmp));
+                row.value = row.value.add(value);
+                row.valueTtc = row.valueTtc.add(value.multiply(vat));
                 if (atCurrent) {
                     row.atCurrentCmp++;
                 }
+            }
+            if (price == null) {
+                row.withoutPrice++;
+            } else {
+                BigDecimal selling = qty.multiply(BigDecimal.valueOf(price));
+                row.selling = row.selling.add(selling);
+                row.sellingTtc = row.sellingTtc.add(selling.multiply(vat));
             }
         }
 
         List<StockReportRowDTO> result = new ArrayList<>();
         for (StockAt row : rows.values()) {
             BigDecimal qty = Quantities.normalize(row.qty);
-            if (Boolean.TRUE.equals(belowMinStock) && qty.compareTo(BigDecimal.valueOf(row.min)) >= 0) continue;
-            boolean itemWithoutCost = row.code != null && row.withoutCost > 0;
+            boolean itemRow = row.code != null;
+            boolean noValue = itemRow && row.withoutCost > 0;
+            boolean noSelling = itemRow && row.withoutPrice > 0;
             StockReportRowDTO dto = new StockReportRowDTO(row.label, row.code, qty, row.min,
-                    itemWithoutCost ? null : row.value.doubleValue(), stockStatus(qty, row.min));
+                    noValue ? null : rounded(row.value), stockStatus(qty, row.min));
+            dto.setStockValueTtc(noValue ? null : rounded(row.valueTtc));
+            dto.setSellingValue(noSelling ? null : rounded(row.selling));
+            dto.setSellingValueTtc(noSelling ? null : rounded(row.sellingTtc));
+            if (itemRow) {
+                dto.setCostPrice(row.cost);
+                dto.setCostPriceTtc(row.cost == null ? null : rounded(BigDecimal.valueOf(row.cost).multiply(row.vat)));
+                dto.setUnitPrice(row.price);
+                dto.setUnitPriceTtc(row.price == null ? null : rounded(BigDecimal.valueOf(row.price).multiply(row.vat)));
+            }
             dto.setItemsWithoutCost(row.withoutCost > 0 ? row.withoutCost : null);
+            dto.setItemsWithoutPrice(row.withoutPrice > 0 ? row.withoutPrice : null);
             dto.setItemsAtCurrentCmp(row.atCurrentCmp > 0 ? row.atCurrentCmp : null);
             result.add(dto);
         }
         return result;
+    }
+
+    /** The items query's order, the grouping's name (a category or section without a name: its code). */
+    private static String order(String groupBy) {
+        switch (groupBy) {
+            case "FAMILY":    return "f.name";
+            case "SUBFAMILY": return "sf.name";
+            case "CATEGORY":  return "COALESCE(c.name, i.categoryCode)";
+            case "SECTION":   return "COALESCE(s.name, i.sectionCode)";
+            default:          return "i.name"; // ITEM
+        }
+    }
+
+    /** The row of an item: its family / sub-family name, its category / section code, else itself. */
+    private static Object groupKey(String groupBy, Object[] r, Long id) {
+        switch (groupBy) {
+            case "FAMILY":    return r[6];
+            case "SUBFAMILY": return r[7];
+            case "CATEGORY":  return code(r[9]);
+            case "SECTION":   return code(r[11]);
+            default:          return id;
+        }
+    }
+
+    private static StockAt newRow(String groupBy, Object[] r, Double cmp, Double price, BigDecimal vat) {
+        switch (groupBy) {
+            case "FAMILY":    return new StockAt(r[6] == null ? "No Family" : str(r[6]), null);
+            case "SUBFAMILY": return new StockAt(r[7] == null ? "No Subfamily" : str(r[7]), null);
+            case "CATEGORY":  return new StockAt(label(r[8], r[9], "No Category"), null);
+            case "SECTION":   return new StockAt(label(r[10], r[11], "No Section"), null);
+            default: {
+                StockAt item = new StockAt(str(r[1]), str(r[2]));
+                item.cost = cmp;
+                item.price = price;
+                item.vat = vat;
+                return item;
+            }
+        }
+    }
+
+    /** A category or section: its name, else its code (no row of that code), else none. */
+    private static String label(Object name, Object code, String none) {
+        String key = code(code);
+        return key == null ? none : name != null ? str(name) : key;
+    }
+
+    /** A blank code is none. */
+    private static String code(Object code) {
+        return code == null || code.toString().trim().isEmpty() ? null : code.toString();
+    }
+
+    /** The filters on the item, in the items query (the status, which needs the qty at the date, in {@link #kept}). */
+    static String where(StockReportFilter filter) {
+        StringBuilder where = new StringBuilder();
+        if (filter.getSearch() != null) {
+            where.append(" AND (LOWER(i.itemCode) LIKE :search ESCAPE '\\' OR LOWER(i.name) LIKE :search ESCAPE '\\')");
+        }
+        if (filter.getFamilyId() != null) where.append(" AND f.id = :familyId");
+        if (filter.getSubFamilyId() != null) where.append(" AND sf.id = :subFamilyId");
+        if (filter.getCategoryCode() != null) where.append(" AND i.categoryCode = :categoryCode");
+        if (filter.getSectionCode() != null) where.append(" AND i.sectionCode = :sectionCode");
+        return where.toString();
+    }
+
+    private static void bind(Query query, StockReportFilter filter) {
+        if (filter.getSearch() != null) {
+            query.setParameter("search",
+                    "%" + PosItemSearchRepository.escapeLike(filter.getSearch().toLowerCase(Locale.ROOT)) + "%");
+        }
+        if (filter.getFamilyId() != null) query.setParameter("familyId", filter.getFamilyId());
+        if (filter.getSubFamilyId() != null) query.setParameter("subFamilyId", filter.getSubFamilyId());
+        if (filter.getCategoryCode() != null) query.setParameter("categoryCode", filter.getCategoryCode());
+        if (filter.getSectionCode() != null) query.setParameter("sectionCode", filter.getSectionCode());
+    }
+
+    /** The item's own status at the date among the filter's (none: every item); WITHOUT_COST: no CMP, a stock other than 0. */
+    private boolean kept(StockReportFilter filter, BigDecimal qty, long min, Double cmp) {
+        Set<String> statuses = filter.getStatuses();
+        if (statuses == null || statuses.isEmpty()) {
+            return true;
+        }
+        return statuses.contains(stockStatus(qty, min))
+                || statuses.contains(StockReportFilter.WITHOUT_COST) && cmp == null && qty.signum() != 0;
+    }
+
+    /** 1 + defaultVAT / 100; no VAT: 0, as the till sells the item. */
+    private static BigDecimal withVat(Object vat) {
+        return vat == null ? BigDecimal.ONE : BigDecimal.ONE.add(BigDecimal.valueOf(((Number) vat).longValue()).movePointLeft(2));
+    }
+
+    /** A value of the report: computed per item, the row rounded at the end, 3 decimals. */
+    private static Double rounded(BigDecimal value) {
+        return value.setScale(3, RoundingMode.HALF_UP).doubleValue();
     }
 
     /** One end of the cost history, item id to cost (a null old cost kept: the item had none then). */
@@ -237,41 +321,6 @@ public class ReportService {
             costs.put(((Number) r[0]).longValue(), r[1] == null ? null : ((Number) r[1]).doubleValue());
         }
         return costs;
-    }
-
-    /**
-     * 3.1.2, today: the items without cost (no CMP, a stock other than 0), by one more query (the report's own are
-     * unchanged): an item row has no value (null, never 0) and itemsWithoutCost 1; a family or sub-family row the count
-     * of its items, its value the sum of the others as before.
-     */
-    private void markWithoutCost(String groupBy, List<StockReportRowDTO> rows) {
-        String where = " WHERE i.active = true AND i.costPrice IS NULL AND COALESCE(i.stockQuantity, 0) <> 0";
-        if ("FAMILY".equals(groupBy) || "SUBFAMILY".equals(groupBy)) {
-            String jpql = "FAMILY".equals(groupBy)
-                    ? "SELECT COALESCE(f.name, 'No Family'), COUNT(i) FROM Item i LEFT JOIN i.itemFamily f" + where + " GROUP BY f.name"
-                    : "SELECT COALESCE(sf.name, 'No Subfamily'), COUNT(i) FROM Item i LEFT JOIN i.itemSubFamily sf" + where + " GROUP BY sf.name";
-            Map<String, Long> counts = new HashMap<>();
-            for (Object r : em.createQuery(jpql).getResultList()) {
-                if (r instanceof Object[] && ((Object[]) r).length == 2 && ((Object[]) r)[1] instanceof Number) {
-                    counts.merge(str(((Object[]) r)[0]), ((Number) ((Object[]) r)[1]).longValue(), Long::sum);
-                }
-            }
-            for (StockReportRowDTO row : rows) {
-                Long count = counts.get(row.getGroupLabel());
-                if (count != null && count > 0) row.setItemsWithoutCost(count);
-            }
-            return;
-        }
-        Set<String> codes = new HashSet<>();
-        for (Object code : em.createQuery("SELECT i.itemCode FROM Item i" + where).getResultList()) {
-            if (code instanceof String) codes.add((String) code);
-        }
-        for (StockReportRowDTO row : rows) {
-            if (codes.contains(row.getItemCode())) {
-                row.setStockValue(null);
-                row.setItemsWithoutCost(1L);
-            }
-        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

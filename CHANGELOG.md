@@ -33,7 +33,19 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   change after D, else its CMP now (counted in `itemsAtCurrentCmp`); value = qty(D) x CMP(D). Four queries whatever
   the number of items. 400 for a date after today, and for a past date where the installation keeps no stock of its
   own. No date or today: the report of before. Every active item listed, a stock of 0 included
-  (`docs/modules/reporting.md`, "Stock value at a date").
+  (`docs/modules/reporting.md`, "Stock report").
+- Stock report rebuilt (back end, step 1 of 2; the page next): one Java path for now and a past date (now one query,
+  was two; a past date four, as before; same rows, labels and order). `GET /report/stock` adds the groupings `CATEGORY`
+  and `SECTION` (the name of the category / section row, else the code, else "No Category" / "No Section"), the
+  optional filters `search` (code or name contains, case ignored), `familyId`, `subFamilyId`, `categoryCode`,
+  `sectionCode` and `status` (a list of `OK`, `LOW`, `OUT`, `NEGATIVE`, `WITHOUT_COST`, any of them, on the item's own
+  status at the date before the grouping; 400 for another value), and per row `stockValueTtc`, `sellingValue` (qty x
+  `Item.unitPrice`, HT, today's price even at a past date), `sellingValueTtc`, `itemsWithoutPrice`, and on an item row
+  `costPrice` (the CMP the value used), `costPriceTtc`, `unitPrice`, `unitPriceTtc`. VAT: the item's `defaultVAT`, none
+  0 as at the till; values computed per item, the row rounded to 3 decimals. **`belowMinStock=true` now means the
+  statuses `LOW`, `OUT`, `NEGATIVE` of each item**: an item at 0 with no minimum is listed (it was not), and a family
+  row sums only its items below the minimum (it compared its summed qty with its summed minimum)
+  (`docs/modules/reporting.md`, "Stock report").
 - Cost history of the items: table `item_cost_history`, one row per change of an item's CMP (date, old and new cost,
   source, document type and number, the entry's quantity and unit cost, the user's name), written in the transaction of
   the change: a local purchase (`LOCAL_PURCHASE`), an ERP invoice received (`INVOICE_RECEPTION`), a BL with its head

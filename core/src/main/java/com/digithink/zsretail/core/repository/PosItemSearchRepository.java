@@ -60,8 +60,8 @@ public class PosItemSearchRepository {
 		return sql.append(" ORDER BY i.name, i.id").toString();
 	}
 
-	/** A typed % _ [ or \ is searched as itself, never as a wildcard. */
-	static String escapeLike(String word) {
+	/** A typed % _ [ or \ is searched as itself, never as a wildcard (with ESCAPE '\'; the stock report's search too). */
+	public static String escapeLike(String word) {
 		return word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_").replace("[", "\\[");
 	}
 }

@@ -132,8 +132,10 @@ class DecimalSafetyNetTest {
 		assertEquals("12", salesRows.get(1).getTotalQuantity().toPlainString(), "JSON 12, as in 2.2.0");
 		assertEquals("12", MAPPER.valueToTree(salesRows.get(1)).get("totalQuantity").toString());
 
-		List<Object[]> stock = Arrays.asList(new Object[] { "V H 52 1L", "VH52-1L", new BigDecimal("0.200"), 1L, 5.0 },
-				new Object[] { "Empty", "E1", new BigDecimal("0.000"), 0L, 0.0 });
+		// 3.1.2: the columns of ReportService.STOCK_ITEMS (id, name, code, stock, minimum, CMP, family ... VAT)
+		List<Object[]> stock = Arrays.asList(
+				new Object[] { 1L, "V H 52 1L", "VH52-1L", new BigDecimal("0.200"), 1, 5.0, null, null, null, null, null, null, 10.0, 19 },
+				new Object[] { 2L, "Empty", "E1", new BigDecimal("0.000"), 0, 0.0, null, null, null, null, null, null, 10.0, 19 });
 		List<StockReportRowDTO> stockRows = reports(stock).getStockReport("ITEM", false);
 		assertEquals("0.2", stockRows.get(0).getCurrentQty().toPlainString());
 		assertEquals("LOW", stockRows.get(0).getStatus(), "0.2 is in stock, below the minimum 1");
