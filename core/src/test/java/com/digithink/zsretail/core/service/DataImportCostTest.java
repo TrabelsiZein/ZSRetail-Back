@@ -22,6 +22,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import com.digithink.zsretail.core.dto.ImportFieldMappingDTO;
 import com.digithink.zsretail.core.dto.ImportResultDTO;
@@ -64,7 +65,8 @@ class DataImportCostTest {
 		DataImportService service = new DataImportService(mock(ItemFamilyRepository.class),
 				mock(ItemSubFamilyRepository.class), items, mock(ItemBarcodeRepository.class), mock(VendorRepository.class),
 				mock(CustomerRepository.class), mock(LocationRepository.class), mock(SalesPriceRepository.class),
-				mock(SalesDiscountRepository.class), hooks);
+				mock(SalesDiscountRepository.class), hooks, mock(StockMovementService.class), mock(CostHistoryService.class),
+				mock(PlatformTransactionManager.class));
 
 		byte[] file;
 		try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {

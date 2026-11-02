@@ -90,6 +90,18 @@ public interface ItemRepository extends _BaseRepository<Item, Long> {
 	@Query("update Item x set x.costPrice = :cost, x.updatedBy = :by where x.id = :id")
 	int setCostPrice(@Param("id") Long id, @Param("cost") Double cost, @Param("by") String by);
 
+	/**
+	 * 3.1.2, the cost history: the item's row locked for the rest of the transaction (an update that changes nothing), so
+	 * that the cost read next ({@link #findCostPriceById}) is still the cost when it is changed. Returns 0 for no item.
+	 */
+	@Modifying(flushAutomatically = true)
+	@Query("update Item x set x.costPrice = x.costPrice where x.id = :id")
+	int lockForCostChange(@Param("id") Long id);
+
+	/** 3.1.2, the cost history: the item's CMP as stored (not the persistence context's copy); null without one. */
+	@Query("select x.costPrice from Item x where x.id = :id")
+	Double findCostPriceById(@Param("id") Long id);
+
 	Optional<Item> findByItemCode(String itemCode);
 
 	Optional<Item> findByErpExternalId(String erpExternalId);

@@ -42,6 +42,10 @@ public class StockService {
 	@Autowired
 	private StockBatchRepository stockBatchRepository;
 
+	/** 3.1.2: the row of each change of the CMP an entry writes. */
+	@Autowired
+	private CostHistoryService costHistoryService;
+
 	/**
 	 * Decrement stock for a sale (one completed ticket line). Called once per item line.
 	 * When ALLOW_NEGATIVE_STOCK=true in GeneralSetup, stock is decremented unconditionally (may go negative).
@@ -162,9 +166,14 @@ public class StockService {
 	 * at 0 or below: the unit cost; qtyIn 0: unchanged unless the CMP is still null). An entry without a cost and every
 	 * exit never call it. No-op unless this installation keeps its own stock (not where the ERP keeps it, not on a head
 	 * office with headoffice.stock.enabled=false), and without a cost (null or below 0) or a quantity below 0.
+	 * <p>
+	 * 3.1.2, the cost history: the item's row is locked first and its cost read, then, when the update changed it, the
+	 * new cost read back and one item_cost_history row written (CostHistoryService) with the origin's source, document
+	 * and user, in the same transaction.
 	 */
 	@Transactional(rollbackFor = Exception.class)
-	public void applyEntryCost(Long itemId, BigDecimal qtyIn, Double unitCostNet, String by) {
+	public void applyEntryCost(Long itemId, BigDecimal qtyIn, Double unitCostNet, String by,
+			CostHistoryService.Origin origin) {
 		if (!applicationModeService.keepsOwnStock() || itemId == null || unitCostNet == null || unitCostNet < 0) {
 			return;
 		}
@@ -172,7 +181,12 @@ public class StockService {
 		if (quantity.signum() < 0) {
 			return;
 		}
-		itemRepository.applyEntryCost(itemId, quantity, unitCostNet, by);
+		itemRepository.lockForCostChange(itemId);
+		Double before = itemRepository.findCostPriceById(itemId);
+		if (itemRepository.applyEntryCost(itemId, quantity, unitCostNet, by) > 0) {
+			costHistoryService.record(itemId, before, itemRepository.findCostPriceById(itemId), quantity, unitCostNet,
+					origin);
+		}
 		log.debug("CMP after an entry: itemId={}, qtyIn={}, unitCostNet={}", itemId, quantity, unitCostNet);
 	}
 

@@ -125,6 +125,28 @@ public class StockMovementService {
     }
 
     /**
+     * 3.1.2, the stock value at a date: the stock an item starts with (its creation by POST /item, a new item of the Excel
+     * import), one OPENING_STOCK movement: direction IN (OUT for a negative quantity), quantity its absolute value,
+     * reference type OPENING_STOCK, the origin as note, created by the user. Nothing for a stock of 0.
+     */
+    @Transactional
+    public void recordOpeningStock(Long itemId, BigDecimal quantity, String notes, String user) {
+        if (applicationModeService.isSupplyFromErp()) return;
+        if (quantity == null || quantity.signum() == 0) return;
+        StockMovement movement = build(
+                itemId, StockMovementType.OPENING_STOCK,
+                quantity.signum() > 0 ? StockMovementDirection.IN : StockMovementDirection.OUT,
+                quantity.abs(), null, null, null,
+                null, "OPENING_STOCK", null, notes);
+        if (user != null) {
+            movement.setCreatedBy(user);
+            movement.setUpdatedBy(user);
+        }
+        stockMovementRepository.save(movement);
+        log.debug("Stock movement recorded: OPENING_STOCK itemId={} qty={}", itemId, quantity);
+    }
+
+    /**
      * Step 7A: a BL line leaving the head office stock (OUT, at the validation). Reference: the BL (ho_delivery.id),
      * reference type BL, its number as note. No price on a BL.
      */

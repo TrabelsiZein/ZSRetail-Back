@@ -14,10 +14,13 @@ import java.util.stream.Collectors;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemCostHistory;
 import com.digithink.zsretail.core.model.StockMovement;
 import com.digithink.zsretail.core.model.enumeration.StockMovementType;
+import com.digithink.zsretail.core.repository.ItemCostHistoryRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.StockMovementRepository;
+import com.digithink.zsretail.core.service.CostHistoryService;
 import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.core.service.StockMovementService;
 import com.digithink.zsretail.core.service.StockService;
@@ -34,6 +37,8 @@ public final class InMemoryStock {
 	public final InMemoryItems catalogue;
 	public final List<StockMovement> movements = new ArrayList<>();
 	public final List<String> stockUpdates = new ArrayList<>();
+	/** 3.1.2: the item_cost_history rows written, in order. */
+	public final List<ItemCostHistory> costHistory = new ArrayList<>();
 
 	/** ALLOW_NEGATIVE_STOCK of the general setup. */
 	public boolean allowNegative;
@@ -88,12 +93,31 @@ public final class InMemoryStock {
 		StockService service = new StockService();
 		set(service, StockService.class, "applicationModeService", mode);
 		set(service, StockService.class, "itemRepository", items);
+		set(service, StockService.class, "costHistoryService", costHistoryService());
 		set(service, StockService.class, "generalSetupService", new GeneralSetupService() {
 			@Override
 			public String findValueByCode(String code) {
 				return "ALLOW_NEGATIVE_STOCK".equals(code) ? String.valueOf(allowNegative) : null;
 			}
 		});
+		return service;
+	}
+
+	/** 3.1.2: a real CostHistoryService of the installation in {@link #mode}, its rows in {@link #costHistory}. */
+	public CostHistoryService costHistoryService() {
+		CostHistoryService service = new CostHistoryService();
+		set(service, CostHistoryService.class, "applicationModeService", mode);
+		set(service, CostHistoryService.class, "repository", proxy(ItemCostHistoryRepository.class, (method, args) -> {
+			if ("save".equals(method)) {
+				ItemCostHistory row = (ItemCostHistory) args[0];
+				if (row.getId() == null) {
+					row.setId(catalogue.nextId());
+				}
+				costHistory.add(row);
+				return row;
+			}
+			return UNHANDLED;
+		}));
 		return service;
 	}
 

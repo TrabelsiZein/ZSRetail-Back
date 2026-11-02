@@ -23,8 +23,10 @@ import com.digithink.zsretail.core.link.dto.DeliveryConfirmationDTO;
 import com.digithink.zsretail.core.link.dto.DeliveryCopyDTO;
 import com.digithink.zsretail.core.link.dto.ErpInvoiceCopyDTO;
 import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.ItemCostHistory;
 import com.digithink.zsretail.core.model.PurchaseInvoiceHeader;
 import com.digithink.zsretail.core.model.PurchaseInvoiceLine;
+import com.digithink.zsretail.core.model.enumeration.CostChangeSource;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.core.model.enumeration.StockMovementType;
 import com.digithink.zsretail.core.support.InMemoryItems;
@@ -302,6 +304,15 @@ class DeliveryReceptionServiceTest {
 		assertEquals(7.875, item("B001").getCostPrice());
 		assertEquals(6.0, item("B001").getLastDirectNetCost(), "the last costs keep their meaning: the last invoice");
 		assertEquals(6.0, stock.movements(StockMovementType.DELIVERY_IN).get(0).getUnitPriceHt());
+		// 3.1.2: the change in the cost history, the ERP invoice as its document, the user who received it
+		assertEquals(1, stock.costHistory.size());
+		ItemCostHistory row = stock.costHistory.get(0);
+		assertEquals(CostChangeSource.INVOICE_RECEPTION, row.getSource());
+		assertEquals("ERP_INVOICE", row.getDocumentType());
+		assertEquals(NUMBER, row.getDocumentNumber());
+		assertEquals(9.0, row.getOldCost());
+		assertEquals(7.875, row.getNewCost());
+		assertEquals("responsible", row.getChangedBy());
 	}
 
 	@Test

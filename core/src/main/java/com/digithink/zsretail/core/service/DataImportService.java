@@ -1,6 +1,7 @@
 package com.digithink.zsretail.core.service;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -19,6 +20,8 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.digithink.zsretail.core.dto.ImportFieldMappingDTO;
@@ -35,6 +38,7 @@ import com.digithink.zsretail.core.model.SalesDiscount;
 import com.digithink.zsretail.core.model.SalesPrice;
 import com.digithink.zsretail.core.model.Vendor;
 import com.digithink.zsretail.core.model.enumeration.CatalogueKind;
+import com.digithink.zsretail.core.model.enumeration.CostChangeSource;
 import com.digithink.zsretail.core.model.enumeration.SalesDiscountSalesType;
 import com.digithink.zsretail.core.model.enumeration.SalesDiscountType;
 import com.digithink.zsretail.core.model.enumeration.SalesPriceType;
@@ -59,6 +63,9 @@ public class DataImportService {
 
     private static final int PREVIEW_ROW_LIMIT = 5;
 
+    /** 3.1.2: the note of the stock movements an item import writes. */
+    static final String IMPORT_NOTE = "Import Excel";
+
     private final ItemFamilyRepository itemFamilyRepository;
     private final ItemSubFamilyRepository itemSubFamilyRepository;
     private final ItemRepository itemRepository;
@@ -71,6 +78,11 @@ public class DataImportService {
 
     /** Step 6: a head office that sends its catalogue records what an import saved; no bean on a store. */
     private final ObjectProvider<CatalogueHeadOfficeHooks> catalogueHooks;
+
+    /** 3.1.2: the movement of the stock an item import writes and a new item's first cost, in the row's transaction. */
+    private final StockMovementService stockMovementService;
+    private final CostHistoryService costHistoryService;
+    private final PlatformTransactionManager transactionManager;
 
     /** Step 6: the codes an import saved go to the stores of a head office (nothing elsewhere). */
     private void afterImport(CatalogueKind kind, List<String> codes) {
@@ -264,68 +276,9 @@ public class DataImportService {
                 totalRows++;
 
                 try {
-                    String itemCode = getRequiredValue(row, formatter, colIndex, fieldMap, "itemCode", i);
-                    String name = getRequiredValue(row, formatter, colIndex, fieldMap, "name", i);
-                    String unitPriceStr = getRequiredValue(row, formatter, colIndex, fieldMap, "unitPrice", i);
-
-                    Item item = itemRepository.findByItemCode(itemCode).orElse(new Item());
-                    item.setItemCode(itemCode);
-                    item.setName(name);
-                    item.setUnitPrice(parseDouble(unitPriceStr));
-                    item.setDescription(getOptionalValue(row, formatter, colIndex, fieldMap, "description"));
-
-                    String vatStr = getOptionalValue(row, formatter, colIndex, fieldMap, "defaultVAT");
-                    if (vatStr != null && !vatStr.isEmpty()) {
-                        item.setDefaultVAT(parseInteger(vatStr));
-                    }
-                    // CMP: the cost of a new item only, its starting weighted average; an item already here keeps the
-                    // average its entries wrote ("Ajuster le CMP" on the item card changes it by hand)
-                    String costStr = getOptionalValue(row, formatter, colIndex, fieldMap, "costPrice");
-                    if (item.getId() == null && costStr != null && !costStr.isEmpty()) {
-                        item.setCostPrice(parseDouble(costStr));
-                    }
-                    String stockStr = getOptionalValue(row, formatter, colIndex, fieldMap, "stockQuantity");
-                    if (stockStr != null && !stockStr.isEmpty()) {
-                        refuseDecimalStock(getCell(row, colIndex, fieldMap, "stockQuantity"), stockStr);
-                        item.setStockQuantity(Quantities.of(parseInteger(stockStr))); // whole, read as in 2.2.0
-                    }
-                    String minStockStr = getOptionalValue(row, formatter, colIndex, fieldMap, "minStockLevel");
-                    if (minStockStr != null && !minStockStr.isEmpty()) {
-                        item.setMinStockLevel(parseInteger(minStockStr));
-                    }
-                    item.setBarcode(getOptionalValue(row, formatter, colIndex, fieldMap, "barcode"));
-                    item.setUnitOfMeasure(getOptionalValue(row, formatter, colIndex, fieldMap, "unitOfMeasure"));
-                    item.setCategory(getOptionalValue(row, formatter, colIndex, fieldMap, "category"));
-                    item.setBrand(getOptionalValue(row, formatter, colIndex, fieldMap, "brand"));
-
-                    String familyCode = getOptionalValue(row, formatter, colIndex, fieldMap, "familyCode");
-                    if (familyCode != null && !familyCode.isEmpty()) {
-                        Optional<ItemFamily> family = itemFamilyRepository.findByCode(familyCode);
-                        if (family.isPresent()) {
-                            item.setItemFamily(family.get());
-                        } else {
-                            log.warn("Item row {}: family code '{}' not found, skipping family assignment", i + 1, familyCode);
-                        }
-                    }
-                    String subFamilyCode = getOptionalValue(row, formatter, colIndex, fieldMap, "subFamilyCode");
-                    if (subFamilyCode != null && !subFamilyCode.isEmpty()) {
-                        Optional<ItemSubFamily> subFamily = itemSubFamilyRepository.findByCode(subFamilyCode);
-                        if (subFamily.isPresent()) {
-                            item.setItemSubFamily(subFamily.get());
-                        } else {
-                            log.warn("Item row {}: subfamily code '{}' not found, skipping subfamily assignment", i + 1, subFamilyCode);
-                        }
-                    }
-
-                    if (item.getId() == null) {
-                        item.setCreatedAt(LocalDateTime.now());
-                        item.setCreatedBy("Import");
-                        item.setShowInPos(true);
-                    }
-                    item.setUpdatedAt(LocalDateTime.now());
-                    item.setUpdatedBy("Import");
-                    itemRepository.save(item);
-                    imported.add(item.getItemCode());
+                    final int line = i;
+                    imported.add(new TransactionTemplate(transactionManager)
+                            .execute(status -> importItemRow(row, formatter, colIndex, fieldMap, line)));
                     successCount++;
                 } catch (Exception e) {
                     errors.add(new RowError(i + 1, e.getMessage()));
@@ -335,6 +288,92 @@ public class DataImportService {
         }
         afterImport(CatalogueKind.ITEM, imported);
         return new ImportResultDTO(totalRows, successCount, errors.size(), errors);
+    }
+
+    /**
+     * One row of the item import, in its own transaction (an error leaves nothing of the row). 3.1.2, the stock value
+     * at a date: the stock column read, its movement with the item: a new item's OPENING_STOCK, an existing item's
+     * difference as ADJUSTMENT_IN / ADJUSTMENT_OUT, note "Import Excel" (nothing when it does not change); a new item's
+     * cost as its first cost history row (EXCEL_IMPORT, by Import). Returns the item code.
+     */
+    private String importItemRow(Row row, DataFormatter formatter, Map<String, Integer> colIndex,
+                                 Map<String, String> fieldMap, int i) {
+        String itemCode = getRequiredValue(row, formatter, colIndex, fieldMap, "itemCode", i);
+        String name = getRequiredValue(row, formatter, colIndex, fieldMap, "name", i);
+        String unitPriceStr = getRequiredValue(row, formatter, colIndex, fieldMap, "unitPrice", i);
+
+        Item item = itemRepository.findByItemCode(itemCode).orElse(new Item());
+        boolean created = item.getId() == null;
+        BigDecimal stockBefore = item.getStockQuantity();
+        boolean stockRead = false;
+        item.setItemCode(itemCode);
+        item.setName(name);
+        item.setUnitPrice(parseDouble(unitPriceStr));
+        item.setDescription(getOptionalValue(row, formatter, colIndex, fieldMap, "description"));
+
+        String vatStr = getOptionalValue(row, formatter, colIndex, fieldMap, "defaultVAT");
+        if (vatStr != null && !vatStr.isEmpty()) {
+            item.setDefaultVAT(parseInteger(vatStr));
+        }
+        // CMP: the cost of a new item only, its starting weighted average; an item already here keeps the
+        // average its entries wrote ("Ajuster le CMP" on the item card changes it by hand)
+        String costStr = getOptionalValue(row, formatter, colIndex, fieldMap, "costPrice");
+        if (item.getId() == null && costStr != null && !costStr.isEmpty()) {
+            item.setCostPrice(parseDouble(costStr));
+        }
+        String stockStr = getOptionalValue(row, formatter, colIndex, fieldMap, "stockQuantity");
+        if (stockStr != null && !stockStr.isEmpty()) {
+            refuseDecimalStock(getCell(row, colIndex, fieldMap, "stockQuantity"), stockStr);
+            item.setStockQuantity(Quantities.of(parseInteger(stockStr))); // whole, read as in 2.2.0
+            stockRead = true;
+        }
+        String minStockStr = getOptionalValue(row, formatter, colIndex, fieldMap, "minStockLevel");
+        if (minStockStr != null && !minStockStr.isEmpty()) {
+            item.setMinStockLevel(parseInteger(minStockStr));
+        }
+        item.setBarcode(getOptionalValue(row, formatter, colIndex, fieldMap, "barcode"));
+        item.setUnitOfMeasure(getOptionalValue(row, formatter, colIndex, fieldMap, "unitOfMeasure"));
+        item.setCategory(getOptionalValue(row, formatter, colIndex, fieldMap, "category"));
+        item.setBrand(getOptionalValue(row, formatter, colIndex, fieldMap, "brand"));
+
+        String familyCode = getOptionalValue(row, formatter, colIndex, fieldMap, "familyCode");
+        if (familyCode != null && !familyCode.isEmpty()) {
+            Optional<ItemFamily> family = itemFamilyRepository.findByCode(familyCode);
+            if (family.isPresent()) {
+                item.setItemFamily(family.get());
+            } else {
+                log.warn("Item row {}: family code '{}' not found, skipping family assignment", i + 1, familyCode);
+            }
+        }
+        String subFamilyCode = getOptionalValue(row, formatter, colIndex, fieldMap, "subFamilyCode");
+        if (subFamilyCode != null && !subFamilyCode.isEmpty()) {
+            Optional<ItemSubFamily> subFamily = itemSubFamilyRepository.findByCode(subFamilyCode);
+            if (subFamily.isPresent()) {
+                item.setItemSubFamily(subFamily.get());
+            } else {
+                log.warn("Item row {}: subfamily code '{}' not found, skipping subfamily assignment", i + 1, subFamilyCode);
+            }
+        }
+
+        if (created) {
+            item.setCreatedAt(LocalDateTime.now());
+            item.setCreatedBy("Import");
+            item.setShowInPos(true);
+        }
+        item.setUpdatedAt(LocalDateTime.now());
+        item.setUpdatedBy("Import");
+        Item saved = itemRepository.save(item);
+        if (stockRead && created) {
+            stockMovementService.recordOpeningStock(saved.getId(), saved.getStockQuantity(), IMPORT_NOTE, "Import");
+        } else if (stockRead) {
+            BigDecimal before = stockBefore == null ? BigDecimal.ZERO : stockBefore;
+            stockMovementService.recordAdjustment(saved.getId(), saved.getStockQuantity().subtract(before), IMPORT_NOTE);
+        }
+        if (created) {
+            costHistoryService.record(saved.getId(), null, saved.getCostPrice(), saved.getStockQuantity(),
+                    saved.getCostPrice(), CostHistoryService.Origin.of(CostChangeSource.EXCEL_IMPORT, "Import"));
+        }
+        return saved.getItemCode();
     }
 
     // ─── Vendors ──────────────────────────────────────────────────────────────

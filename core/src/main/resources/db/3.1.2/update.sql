@@ -4,15 +4,16 @@
 -- Deployment order (a database at 3.1.1; CHANGELOG.md, 3.1.2, "Before deployment" for the checks first):
 --   1) Run db/3.1.1/store-orders.sql and db/3.1.1/update.sql first if the database is older than 3.1.1 (the scripts of
 --      3.1.2 stop, without changing anything, while APP_VERSION is not 3.1.1 or 3.1.2).
---   2) Run db/3.1.2/sales-line-unit-cost.sql, then this script, against the database (the same scripts on a store and
---      on a head office). The files are UTF-8: with sqlcmd add -f 65001 (sqlcmd ... -f 65001 -i update.sql); in SSMS
+--   2) Run db/3.1.2/sales-line-unit-cost.sql and db/3.1.2/item-cost-history.sql, then this script, against the
+--      database (the same scripts on a store and on a head office). The files are UTF-8: with sqlcmd add -f 65001 (sqlcmd ... -f 65001 -i update.sql); in SSMS
 --      open them as UTF-8.
 --   3) Deploy the WAR of the installation's type as zsretailws.war (docs/deploy-note.md).
 -- The application refuses to start while APP_VERSION differs from its own version, so step 2 must be done before 3.
 --
 -- This script stamps APP_VERSION 3.1.2 and writes the notes of the version; the schema of each feature is in its own
--- file of this folder (sales-line-unit-cost.sql: the unit cost frozen on the ticket lines). It stops, without changing
--- anything, while sales-line-unit-cost.sql has not run (no sales_line.unit_cost column).
+-- file of this folder (sales-line-unit-cost.sql: the unit cost frozen on the ticket lines; item-cost-history.sql: the
+-- cost history of the items). It stops, without changing anything, while one of them has not run (no
+-- sales_line.unit_cost column, no item_cost_history table).
 
 -- The session options are set here (sqlcmd starts with QUOTED_IDENTIFIER OFF); SSMS has them on already.
 
@@ -42,6 +43,13 @@ BEGIN
 END
 GO
 
+IF OBJECT_ID(N'item_cost_history', N'U') IS NULL
+BEGIN
+	RAISERROR(N'3.1.2: run db/3.1.2/item-cost-history.sql first (no item_cost_history table). APP_VERSION not changed.', 16, 1);
+	SET NOEXEC ON;
+END
+GO
+
 -- The ERP jobs (3.1.2): the job type EXPORT_CUSTOMERS is removed (never implemented; a disabled template row on every
 -- installation with an ERP) with its operation EXPORT_CUSTOMER of the communications log: their rows are deleted, else a
 -- read of erp_sync_job or erp_communication would fail on a value the application no longer has. Nothing to do once
@@ -57,6 +65,14 @@ GO
 IF OBJECT_ID(N'stock_movement', N'U') IS NOT NULL
 	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_stock_movement_item' AND object_id = OBJECT_ID(N'stock_movement'))
 	CREATE INDEX ix_stock_movement_item ON stock_movement (item_id, id);
+GO
+
+-- The stock value at a date (3.1.2): the movements after a day, summed per item and direction, read through an index
+-- that holds the columns summed (a range of created_at, no lookup) instead of a scan of every movement. Store and head
+-- office; re-runnable.
+IF OBJECT_ID(N'stock_movement', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_stock_movement_created' AND object_id = OBJECT_ID(N'stock_movement'))
+	CREATE INDEX ix_stock_movement_created ON stock_movement (created_at) INCLUDE (item_id, direction, quantity);
 GO
 
 UPDATE APP_VERSION SET version = '3.1.2';
