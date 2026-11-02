@@ -128,6 +128,19 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   (`CashierSessionAPI.withMargins`), else not computed and absent. The day list reads the month's lines by one
   projection per kind (`findCostLinesOfFinishedBetween`, `findCostLinesOfReturnsBetween`); the day journal from the
   lines it reads. Nothing existing changes (`JournalMarginsTest`, `JournalCostLinesQueryTest`).
+- Store Articles page, the list on every store (docs/admin-pages.md, "Articles"): `GET /item-catalogue` gives each line
+  what the old flat list showed (`ItemCatalogueService.storeDetails`, one read for the page, `ItemCatalogueQuery.details`):
+  a single item's `origin`, `ownPrice` and the head office's price with VAT (`headOfficePrice`), its price before VAT and
+  VAT (`unitPrice`, `vatPercent`), its public price with VAT when it is in clearance below it (`publicPrice`), its
+  `minStockLevel` and the ERP's `maximumAuthorizedDiscount`; and, with `withCost` in the answer, the line's weighted
+  average cost before VAT (`costMin` / `costMax`, a NAV item's range) only where the store keeps its own stock and for a
+  role with `write:admin-item-cost` or `read:admin-margins` (checked by the API). Every new field is left out of the
+  JSON when null (the head office's list answers as before). New sort `stock` (the line's stock, none read as 0), on
+  the store's and the head office's list (`ItemCatalogueStoreDetailsTest`, `StoreItemCatalogueCostTest`).
+- Store item card (docs/admin-pages.md, "Articles"): `GET /item/{id}/stock-movements?size` (20 by default, at most 100),
+  an item's last stock movements newest first (`ItemStockMovementDTO`: date, type, direction, quantity, unit price
+  before VAT, reference, notes, user); the unit prices and the CMP adjustments only for a role with
+  `write:admin-item-cost` or `read:admin-margins`, checked by the API (`ItemStockMovementsTest`).
 
 ### Fixes
 - Store linked to a head office after its database was created (ParaFendri Gremda): its ADMIN role now gets
@@ -164,6 +177,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - `update.sql`: `APP_VERSION` 3.1.1 → 3.1.2 (it stops while APP_VERSION is not 3.1.1 or 3.1.2, and while
   `sales-line-unit-cost.sql` has not run); notes written when the version is closed. `db/3.1.1/` is unchanged, as
   released: the `EXPORT_CUSTOMERS` deletion and the unit cost columns, first put there by the branches, live in 3.1.2.
+- `update.sql`: index `ix_stock_movement_item` on `stock_movement (item_id, id)` (re-runnable, store and head office):
+  an item's last movements (the item card) read through it instead of a scan of every movement.
 
 ### Config
 - `headoffice.supply.source=NONE` (head office): accepted only with `headoffice.stock.enabled=false` and without

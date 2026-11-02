@@ -3,6 +3,7 @@ package com.digithink.zsretail.core.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -205,6 +206,87 @@ public class ItemCatalogueService {
 				line.setMatchedItemIds(byNavItemNo.getOrDefault(line.getNavItemNo(), new ArrayList<>()));
 			}
 		}
+	}
+
+	/**
+	 * 3.1.2, the store's Articles page (every store): what its lines show beyond the grouped columns, one read for the
+	 * page ({@link ItemCatalogueQuery#details}). A single item: its origin, own price (and the head office's price with
+	 * VAT), its price before VAT and VAT %, its public price with VAT when it is in clearance and sold below it, its minimum
+	 * stock level and the ERP's maximum discount. With withCost (the caller checks the installation and the user's right),
+	 * every line: the smallest and largest weighted average cost of its items, before VAT. The head office never calls it.
+	 */
+	public void storeDetails(List<ItemCatalogueLineDTO> content, boolean withCost) {
+		if (content.isEmpty()) {
+			return;
+		}
+		List<String> navItemNos = content.stream().map(ItemCatalogueLineDTO::getNavItemNo).filter(Objects::nonNull)
+				.collect(Collectors.toList());
+		List<Long> itemIds = content.stream().filter(ItemCatalogueLineDTO::isSingle).map(ItemCatalogueLineDTO::getItemId)
+				.collect(Collectors.toList());
+		Map<Long, Object[]> singles = new HashMap<>();
+		Map<String, List<Object[]>> byNavItemNo = new HashMap<>();
+		for (Object[] row : query.detailRows(navItemNos, itemIds)) {
+			String navItemNo = (String) row[ItemCatalogueQuery.DET_NAV_ITEM_NO];
+			if (navItemNo == null) {
+				singles.put(((Number) row[ItemCatalogueQuery.DET_ITEM_ID]).longValue(), row);
+			} else {
+				byNavItemNo.computeIfAbsent(navItemNo, key -> new ArrayList<>()).add(row);
+			}
+		}
+		for (ItemCatalogueLineDTO line : content) {
+			List<Object[]> rows;
+			if (line.isSingle()) {
+				Object[] row = singles.get(line.getItemId());
+				if (row == null) {
+					continue;
+				}
+				single(line, row);
+				rows = Collections.singletonList(row);
+			} else {
+				rows = byNavItemNo.getOrDefault(line.getNavItemNo(), Collections.emptyList());
+			}
+			if (withCost) {
+				rows.stream().map(row -> number(row[ItemCatalogueQuery.DET_COST_PRICE])).filter(Objects::nonNull)
+						.forEach(cost -> {
+							line.setCostMin(line.getCostMin() == null ? cost : Math.min(line.getCostMin(), cost));
+							line.setCostMax(line.getCostMax() == null ? cost : Math.max(line.getCostMax(), cost));
+						});
+			}
+		}
+	}
+
+	/** The fields of a single item's line from its row of {@link ItemCatalogueQuery#details}. */
+	static void single(ItemCatalogueLineDTO line, Object[] row) {
+		Object origin = row[ItemCatalogueQuery.DET_ORIGIN];
+		line.setOrigin(origin == null ? null : origin.toString());
+		Double unitPrice = number(row[ItemCatalogueQuery.DET_UNIT_PRICE]);
+		Double vat = number(row[ItemCatalogueQuery.DET_VAT_PERCENT]);
+		double withVat = 1 + (vat == null ? 0 : vat) / 100.0;
+		line.setUnitPrice(unitPrice);
+		line.setVatPercent(vat == null ? null : vat.intValue());
+		if (truth(row[ItemCatalogueQuery.DET_OWN_PRICE])) {
+			line.setOwnPrice(Boolean.TRUE);
+			Double headOffice = number(row[ItemCatalogueQuery.DET_HEAD_OFFICE_PRICE]);
+			line.setHeadOfficePrice(headOffice == null ? null : price(headOffice * withVat));
+		}
+		// In clearance, sold below the public price (the till's rule, clearanceShown): that price struck
+		Double publicPrice = number(row[ItemCatalogueQuery.DET_PUBLIC_PRICE]);
+		if (truth(row[ItemCatalogueQuery.DET_CLEARANCE]) && publicPrice != null
+				&& publicPrice > (unitPrice == null ? 0 : unitPrice)) {
+			line.setPublicPrice(price(publicPrice * withVat));
+		}
+		Double minStock = number(row[ItemCatalogueQuery.DET_MIN_STOCK_LEVEL]);
+		line.setMinStockLevel(minStock == null ? null : minStock.intValue());
+		line.setMaximumAuthorizedDiscount(number(row[ItemCatalogueQuery.DET_MAX_DISCOUNT]));
+	}
+
+	/** A bit column: SQL Server gives a Boolean, H2 and a CASE a number. */
+	private static boolean truth(Object value) {
+		return value instanceof Boolean ? (Boolean) value : value instanceof Number && ((Number) value).intValue() == 1;
+	}
+
+	private static Double number(Object value) {
+		return value == null ? null : ((Number) value).doubleValue();
 	}
 
 	private static boolean flag(Object value) {

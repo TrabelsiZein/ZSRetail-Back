@@ -3,6 +3,8 @@ package com.digithink.zsretail.core.dto;
 import java.math.BigDecimal;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -78,4 +80,48 @@ public class ItemCatalogueLineDTO {
 	 * page highlights the variants found; null without a search.
 	 */
 	private List<Long> matchedItemIds;
+
+	// 3.1.2, the store's Articles page (every store): what its old flat list showed, read for the page's lines
+	// (ItemCatalogueService.storeDetails); never set on the head office, and left out of the JSON when null.
+
+	/** A single item's origin, HEAD_OFFICE or LOCAL (null when the item has none). */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private String origin;
+
+	/** A single item: true when its price is the store's own price on a head office item. */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Boolean ownPrice;
+
+	/** A single item with its own price: the head office's price with VAT. */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Double headOfficePrice;
+
+	/** A single item: its price before VAT (the price cell's tooltip, with vatPercent). */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Double unitPrice;
+
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Integer vatPercent;
+
+	/** A single item in clearance, sold below its public price: that public price with VAT (struck on the page). */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Double publicPrice;
+
+	/** A single item: its minimum stock level, when it has one (the low stock warning). */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Integer minStockLevel;
+
+	/** A single item: the ERP's maximum discount %, when it has one. */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Double maximumAuthorizedDiscount;
+
+	/**
+	 * The weighted average cost (CMP) before VAT, the smallest and the largest of the line's items: only where the store
+	 * keeps its own stock and for a role with write:admin-item-cost or read:admin-margins; null otherwise or without cost.
+	 */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Double costMin;
+
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Double costMax;
 }

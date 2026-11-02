@@ -52,6 +52,13 @@ IF OBJECT_ID(N'erp_communication', N'U') IS NOT NULL
 	DELETE FROM erp_communication WHERE operation = 'EXPORT_CUSTOMER';
 GO
 
+-- The item card (3.1.2): an item's last stock movements (GET /item/{id}/stock-movements, newest first) read through an
+-- index instead of a scan of every movement (one row per sale line). Store and head office; re-runnable.
+IF OBJECT_ID(N'stock_movement', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_stock_movement_item' AND object_id = OBJECT_ID(N'stock_movement'))
+	CREATE INDEX ix_stock_movement_item ON stock_movement (item_id, id);
+GO
+
 UPDATE APP_VERSION SET version = '3.1.2';
 
 -- The notes of 3.1.2 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

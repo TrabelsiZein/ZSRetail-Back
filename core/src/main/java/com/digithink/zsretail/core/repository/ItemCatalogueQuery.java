@@ -302,7 +302,8 @@ public class ItemCatalogueQuery {
 	}
 
 	/**
-	 * The order: code (natural), name, family (lines without a family last), variants (the line's variant_count) or price
+	 * The order: code (natural), name, family (lines without a family last), variants (the line's variant_count), stock
+	 * (3.1.2, the sum of the line's items, none read as 0) or price
 	 * (its price_min, lines without a price last), each then by code.
 	 */
 	static String order(Criteria c, boolean portable) {
@@ -322,6 +323,10 @@ public class ItemCatalogueQuery {
 		if ("family".equalsIgnoreCase(sort)) {
 			return "CASE WHEN MIN(f.name) IS NULL THEN 1 ELSE 0 END, MIN(f.name)" + dir + ", MIN(sf.name)" + dir + ", "
 					+ codeOrder(" ASC", portable);
+		}
+		if ("stock".equalsIgnoreCase(sort)) {
+			// 3.1.2, the store's Articles page: the line's stock (its items' sum, no stock read as 0)
+			return "SUM(COALESCE(i.stock_quantity, 0))" + dir + ", " + codeOrder(" ASC", portable);
 		}
 		return codeOrder(dir, portable);
 	}
@@ -407,6 +412,66 @@ public class ItemCatalogueQuery {
 		String sql = "SELECT m.id AS item_id, m.nav_item_no AS nav_item_no FROM item m JOIN " + MATCHED_IDS
 				+ " x ON x.id = m.id WHERE " + String.join(" OR ", keys) + " ORDER BY m.id";
 		return new Built(sql, null, parameters);
+	}
+
+	/** The columns of {@link #details}, in this order (read by the index constants below). */
+	public static final List<String> DETAIL_COLUMNS = Collections.unmodifiableList(Arrays.asList("item_id",
+			"nav_item_no", "origin", "own_price", "head_office_price", "clearance", "public_price", "unit_price",
+			"vat_percent", "min_stock_level", "max_discount", "cost_price"));
+
+	public static final int DET_ITEM_ID = 0;
+	public static final int DET_NAV_ITEM_NO = 1;
+	public static final int DET_ORIGIN = 2;
+	public static final int DET_OWN_PRICE = 3;
+	public static final int DET_HEAD_OFFICE_PRICE = 4;
+	public static final int DET_CLEARANCE = 5;
+	public static final int DET_PUBLIC_PRICE = 6;
+	public static final int DET_UNIT_PRICE = 7;
+	public static final int DET_VAT_PERCENT = 8;
+	public static final int DET_MIN_STOCK_LEVEL = 9;
+	public static final int DET_MAX_DISCOUNT = 10;
+	public static final int DET_COST_PRICE = 11;
+
+	/**
+	 * 3.1.2 (the store's Articles page): the fields of a page's items its lines show beyond the grouped columns, every
+	 * status: the items of these NAV item numbers and these single items (ids), one row each ({@link #DETAIL_COLUMNS}).
+	 * Null without a line.
+	 */
+	public static Built details(Collection<String> navItemNos, Collection<Long> itemIds) {
+		Map<String, Object> parameters = new LinkedHashMap<>();
+		List<String> keys = new ArrayList<>();
+		if (navItemNos != null && !navItemNos.isEmpty()) {
+			keys.add("m.nav_item_no IN (:navItemNos)");
+			parameters.put("navItemNos", new ArrayList<>(navItemNos));
+		}
+		if (itemIds != null && !itemIds.isEmpty()) {
+			keys.add("m.id IN (:itemIds)");
+			parameters.put("itemIds", new ArrayList<>(itemIds));
+		}
+		if (keys.isEmpty()) {
+			return null;
+		}
+		String sql = "SELECT m.id AS item_id, m.nav_item_no AS nav_item_no, m.origin AS origin, m.own_price AS own_price,"
+				+ " m.head_office_price AS head_office_price, m.clearance AS clearance, m.public_price AS public_price,"
+				+ " m.unit_price AS unit_price, m.defaultvat AS vat_percent, m.min_stock_level AS min_stock_level,"
+				+ " m.maximum_authorized_discount AS max_discount, m.cost_price AS cost_price FROM item m WHERE "
+				+ String.join(" OR ", keys) + " ORDER BY m.id";
+		return new Built(sql, null, parameters);
+	}
+
+	/** The fields of a page's items ({@link #details}); empty without a line. */
+	public List<Object[]> detailRows(Collection<String> navItemNos, Collection<Long> itemIds) {
+		Built built = details(navItemNos, itemIds);
+		if (built == null) {
+			return new ArrayList<>();
+		}
+		Query query = entityManager.createNativeQuery(built.getLines());
+		built.getParameters().forEach(query::setParameter);
+		List<Object[]> answer = new ArrayList<>();
+		for (Object row : query.getResultList()) {
+			answer.add((Object[]) row);
+		}
+		return answer;
 	}
 
 	/** The items of a page's lines that match the search ({@link #matched}): [item id, nav_item_no]. */
