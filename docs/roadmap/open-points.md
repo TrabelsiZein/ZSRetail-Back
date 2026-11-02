@@ -1,0 +1,24 @@
+# Open points
+
+Gaps seen in the code and decided "not now". Each one names where it lives and what a fix would do; none is built.
+When one is taken, it moves to its module doc and the CHANGELOG, and leaves this file.
+
+## Split bill of a table ticket (`SalesHeaderService.splitAndPay`)
+
+Seen 2026-11-02 (cost topic, step 2). Since 3.1.1 the lines paid apart leave the stock with their SALE movements, keep
+their discount source and promotion, and take their unit cost (`docs/modules/table-management.md`). What the other two
+ways of completing a ticket (`processCompleteSale`, `completePendingSale`) do and the split ticket still does not:
+
+| Gap | Today | What a fix would do |
+|---|---|---|
+| ERP payment export | No `triggerSessionExportForPayments`: the split ticket's payments get no payment headers / lines for the session export | Call it with the split ticket's payments, as the two others do |
+| Loyalty | No `attachLoyaltyMember` / `processLoyaltyPoints`: a split ticket earns and redeems no points (`SplitBillRequestDTO` carries no card) | The card and points in the request, then the same calls |
+| RFID tag hook | No `SaleTagHooks.ticketCompleted`: the tags of the lines paid apart are not marked sold | Hand the hook the split lines with their tags |
+| Tax stamp | No `addTaxStampLineIfEnabled`: a split ticket has no fiscal stamp line | Add it on the split ticket (and decide whether the rest, paid later, still gets one: it does today) |
+
+## Item cost in the till's JSON
+
+Logged 2026-11-02. `Item.costPrice` (the CMP) has no `@JsonIgnore`: every item the till reads (search, the item of
+each ticket line) carries it. The line cost (`SalesLine.unitCost`) is hidden and sent apart behind
+`read:admin-margins`; the item's own cost is not. Hiding it touches the admin item pages, the imports and the head
+office copies, which read it.

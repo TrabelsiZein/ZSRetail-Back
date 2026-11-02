@@ -32,7 +32,7 @@
   - `getTableTicketsForSession()`: uses `TableNumberIsNotNull` query (table tickets only)
   - `updatePendingSale(id, request, user)`: replaces lines + recalculates totals on existing PENDING ticket
   - `transferTable(salesHeaderId, targetTableNumber)`: validates target is free, updates `tableNumber`, saves
-  - `splitAndPay(originalId, SplitBillRequestDTO, user)`: creates new COMPLETED sale from selected lines (each keeps its discount source and promotion, and takes its unit cost), decrements their stock with their SALE movements as every completed sale (3.1.1; before, a table paid in parts never left the stock), removes them from original, recalculates/cancels original; the lines left go out when the rest is paid (`SplitBillStockTest`)
+  - `splitAndPay(originalId, SplitBillRequestDTO, user)`: creates new COMPLETED sale from selected lines (each keeps its discount source and promotion, and takes its unit cost), decrements their stock with their SALE movements as every completed sale (3.1.1; before, a table paid in parts never left the stock), removes them from original, recalculates/cancels original; the lines left go out when the rest is paid (`SplitBillStockTest`); what it still does not do (ERP payment export, loyalty, RFID hook, tax stamp): `docs/roadmap/open-points.md`
 - **`controller/SalesHeaderAPI.java`** — added endpoints:
   - `GET /sales-header/table-tickets` — full pending table tickets with salesLines (used by TableSelection)
   - `GET /sales-header/table-status` — lightweight map `tableNumber → { salesHeaderId, totalAmount, salesNumber }`
