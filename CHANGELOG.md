@@ -178,6 +178,17 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `{costPrice, reason}` ("Ajuster le CMP") with a `COST_ADJUSTMENT` movement (quantity 0, `CMP <old> → <new> :
   <reason>`, the user), 403 without `write:admin-item-cost` (checked by the API, listed by `GET /app-roles/permissions`,
   given to ADMIN at every start wherever the stock is kept). The Excel import writes the cost of new items only.
+- Unit cost frozen on the ticket line, so the margin of a past day never moves with the CMP: `sales_line.unit_cost`
+  (`SalesLine.unitCost`, net, 3 decimals) takes the item's CMP, half up, when its ticket is completed (a sale, a held
+  ticket paid, a split bill paid), the free line of a FREE_QUANTITY promotion included; null on a held ticket, for the
+  tax stamp and for an item without CMP; the same in every configuration (where the ERP keeps the stock the item's
+  cost is copied as it is). A pack's components are lines of their own (the till splits the pack), each with its own
+  CMP. `return_line.unit_cost` takes its sales line's cost, null included. Written on the insert only
+  (`updatable = false`: a later save, the generic `PUT /sales-line/{id}` included, never changes it) and never in
+  JSON (`@JsonIgnore`): `GET /sales-header/{id}/details` sends `lineCosts` (line id to cost) only to a role with the new
+  right `read:admin-margins` (checked by the API, listed by `GET /app-roles/permissions`, given to ADMIN at every start
+  wherever the stock is kept, with `write:admin-item-cost`). Stock movements unchanged (selling prices). The lines
+  written before 3.1.1 stay without cost (no estimate).
 
 ### Fixes
 - `GET /sales-header/pending-sales` sends each ticket's `discountSource` (MANUAL or PROMOTION): the till taking a held
@@ -212,7 +223,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Head office invoice at the store: the last costs were written by saving the whole item, which could put back a stock
   read before a sale made at the same time; now a bulk update (`SupplyInvoiceWriter`).
 
-### DB script (`db/3.1.1/store-orders.sql`, then `db/3.1.1/update.sql`, store and head office)
+### DB script (`db/3.1.1/store-orders.sql`, `db/3.1.1/sales-line-unit-cost.sql`, then `db/3.1.1/update.sql`, store and head office)
+- `sales-line-unit-cost.sql`: columns `sales_line.unit_cost` and `return_line.unit_cost` DECIMAL(19,3) NULL, each added
+  when missing (a start adds them too); no data changed, the lines of before stay NULL. `update.sql` stops while they
+  are missing.
 - `store-orders.sql`: tables `hol_order` (unique `number`, index `ix_hol_order_status`, filtered unique index
   `ux_hol_order_draft`: one DRAFT) and `hol_order_line` (unique `order_id`, `item_id`; FK to `hol_order`) on a store
   only; `item_image` (index `ix_item_image_item`) on both. Re-runnable, no data changed. The filtered index is also made

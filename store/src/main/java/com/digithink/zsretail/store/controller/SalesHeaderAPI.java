@@ -36,6 +36,9 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHeaderService> {
 
+	/** 3.1.1: the right to see the unit costs of the ticket lines (the admin ticket detail). */
+	public static final String MARGINS_PERMISSION = "read:admin-margins";
+
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
 
@@ -718,6 +721,10 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			ticketMap.put("loyaltyMember", ticket.getLoyaltyMember());
 			ticketMap.put("showLoyaltyBalance", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_BALANCE"));
 			ticketMap.put("showLoyaltyEarned", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_EARNED"));
+			// 3.1.1: the unit cost frozen on each line, by line id, only for a user with the margins right
+			if (currentUserProvider != null && currentUserProvider.currentUserHasPermission(MARGINS_PERMISSION)) {
+				ticketMap.put("lineCosts", lineCosts(salesLines));
+			}
 
 			return ResponseEntity.ok(ticketMap);
 		} catch (Exception e) {
@@ -725,5 +732,14 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 					.body(createErrorResponse(getDetailedMessage(e)));
 		}
+	}
+
+	/** Line id → unit cost (null when unknown at the sale), in the lines' order. */
+	static Map<Long, java.math.BigDecimal> lineCosts(java.util.List<SalesLine> salesLines) {
+		Map<Long, java.math.BigDecimal> costs = new java.util.LinkedHashMap<>();
+		for (SalesLine line : salesLines) {
+			costs.put(line.getId(), line.getUnitCost());
+		}
+		return costs;
 	}
 }

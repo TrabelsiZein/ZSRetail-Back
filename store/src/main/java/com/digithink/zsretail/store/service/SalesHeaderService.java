@@ -234,6 +234,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			SalesLine salesLine = new SalesLine();
 			salesLine.setSalesHeader(salesHeader);
 			salesLine.setItem(item);
+			salesLine.setUnitCost(frozenCost(item));
 			salesLine.setQuantity(lineDTO.getQuantity());
 			salesLine.setUnitPrice(lineDTO.getUnitPrice());
 			salesLine.setLineTotal(lineDTO.getLineTotal());
@@ -294,6 +295,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 				SalesLine freeLine = new SalesLine();
 				freeLine.setSalesHeader(salesHeader);
 				freeLine.setItem(item);
+				freeLine.setUnitCost(frozenCost(item));
 				freeLine.setQuantity(Quantities.of(lineDTO.getFreeQuantity()));
 				freeLine.setUnitPrice(lineDTO.getUnitPrice());
 				freeLine.setLineTotal(0.0);
@@ -596,6 +598,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			SalesLine salesLine = new SalesLine();
 			salesLine.setSalesHeader(salesHeader);
 			salesLine.setItem(item);
+			salesLine.setUnitCost(frozenCost(item)); // the ticket is completed now
 			salesLine.setQuantity(lineDTO.getQuantity());
 
 			// Apply pricing from PricingService (SalesPrice/SalesDiscount)
@@ -630,6 +633,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 				SalesLine freeLine = new SalesLine();
 				freeLine.setSalesHeader(salesHeader);
 				freeLine.setItem(item);
+				freeLine.setUnitCost(frozenCost(item));
 				freeLine.setQuantity(Quantities.of(lineDTO.getFreeQuantity()));
 				freeLine.setUnitPrice(lineDTO.getUnitPrice());
 				freeLine.setLineTotal(0.0);
@@ -769,6 +773,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			SalesLine newLine = new SalesLine();
 			newLine.setSalesHeader(splitHeader);
 			newLine.setItem(origLine.getItem());
+			newLine.setUnitCost(frozenCost(origLine.getItem())); // the split ticket is completed here
 			newLine.setQuantity(origLine.getQuantity());
 			newLine.setUnitPrice(origLine.getUnitPrice());
 			newLine.setLineTotal(origLine.getLineTotal());
@@ -1249,6 +1254,18 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 				&& p.getPaymentMethod().getType() == PaymentMethodType.CLIENT_ESPECES);
 		double total = ticket.getTotalAmount() != null ? ticket.getTotalAmount() : 0.0;
 		ticket.setChangeAmount(changeAmount(totalPaid, total, hasCashPayment));
+	}
+
+	/**
+	 * 3.1.1: the unit cost a line of a completed ticket keeps (SalesLine.unitCost): the item's CMP at that instant, half
+	 * up to 3 decimals; null when the item has none and for the tax stamp (no goods). Whatever the configuration: where
+	 * the ERP keeps the stock the item's cost is copied as it is.
+	 */
+	static BigDecimal frozenCost(Item item) {
+		if (item == null || item.getCostPrice() == null || "TAX_STAMP".equals(item.getItemCode())) {
+			return null;
+		}
+		return BigDecimal.valueOf(item.getCostPrice()).setScale(3, RoundingMode.HALF_UP);
 	}
 
 	/**

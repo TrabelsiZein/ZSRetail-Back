@@ -223,6 +223,21 @@ class ReturnRefundLoyaltyTest {
 	}
 
 	@Test
+	@DisplayName("3.1.1: a return line takes the unit cost of its sales line, null included; the item's CMP of today is never read")
+	void returnTakesTheSaleLineCost() throws Exception {
+		SalesHeader sale = sale(null, 0.0, 0, 0.0, 100.0, 50.0);
+		SalesLine costed = linesBySale.get(sale).get(0);
+		SalesLine unknown = linesBySale.get(sale).get(1); // sold before 3.1.1: no cost
+		costed.setUnitCost(new BigDecimal("41.250"));
+		costed.getItem().setCostPrice(60.0); // the CMP moved since the sale
+		unknown.getItem().setCostPrice(30.0);
+
+		assertEquals(new BigDecimal("41.250"), storedLine(returnLines(sale, ReturnType.SIMPLE_RETURN, 0)).getUnitCost());
+		assertNull(storedLine(returnLines(sale, ReturnType.SIMPLE_RETURN, 1)).getUnitCost(),
+				"null stays null: the sale counted no cost");
+	}
+
+	@Test
 	@DisplayName("Percentage discount: the refund applies the ticket's percentage")
 	void percentDiscountRefund() throws Exception {
 		SalesHeader sale = sale(10.0, 0.0, 0, 0.0, 100.0, 50.0);

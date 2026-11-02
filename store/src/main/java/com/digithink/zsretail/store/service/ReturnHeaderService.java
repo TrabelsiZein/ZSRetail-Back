@@ -435,6 +435,7 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 			returnLine.setUnitPriceIncludingVat(unitPriceTTC); // Store TTC unit price
 			returnLine.setLineTotal(lineTotalHT); // Store HT line total
 			returnLine.setLineTotalIncludingVat(lineTotalTTC); // Store TTC line total
+			returnLine.setUnitCost(originalSalesLine.getUnitCost()); // 3.1.1: the sale's cost, null included
 			returnLine.setNotes("");
 
 			returnLines.add(returnLine);

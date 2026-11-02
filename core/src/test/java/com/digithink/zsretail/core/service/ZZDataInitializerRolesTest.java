@@ -487,12 +487,17 @@ class ZZDataInitializerRolesTest {
 	private static final Set<String> STORE_ORDERS = new HashSet<>(
 			java.util.Arrays.asList("read:admin-store-orders", "write:admin-store-orders"));
 
-	/** CMP: "Ajuster le CMP", ADMIN of an installation that keeps its own stock only. */
-	private static final Set<String> COST = Collections.singleton("write:admin-item-cost");
+	/**
+	 * CMP: "Ajuster le CMP" and (3.1.1) the line costs of the ticket detail, ADMIN of an installation that keeps its own
+	 * stock only.
+	 */
+	private static final Set<String> COST = new HashSet<>(
+			java.util.Arrays.asList("write:admin-item-cost", "read:admin-margins"));
 
 	@Test
-	@DisplayName("CMP: write:admin-item-cost to ADMIN where the stock is kept here (a store without the ERP's supply, a head office"
-			+ " with stock), new database or at the next start, once; never where the ERP keeps it nor on a head office without stock")
+	@DisplayName("CMP: write:admin-item-cost and read:admin-margins to ADMIN where the stock is kept here (a store without the ERP's"
+			+ " supply, a head office with stock), new database or at the next start, once; never where the ERP keeps it nor on a"
+			+ " head office without stock; never to RESPONSIBLE or POS_USER")
 	void costRightWhereTheStockIsKept() throws Exception {
 		assertEquals(COST, staticSet("COST_ADMIN_PERMISSIONS"));
 		MockEnvironment headOfficeWithoutStock = headOffice().withProperty("headoffice.stock.enabled", "false");
