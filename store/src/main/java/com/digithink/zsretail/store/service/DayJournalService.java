@@ -85,8 +85,18 @@ public class DayJournalService {
 	@Autowired
 	private CompanyInformationService companyInformationService;
 
+	/** The journal without the gains (as before 3.1.2). */
 	@Transactional(readOnly = true)
 	public DayJournalDTO build(LocalDate date) {
+		return build(date, false);
+	}
+
+	/**
+	 * The journal; with withMargins (the caller checks the installation and the right read:admin-margins) each ticket and
+	 * return, and the totals, carry the gains (JournalCosts) from the lines read here: no other query.
+	 */
+	@Transactional(readOnly = true)
+	public DayJournalDTO build(LocalDate date, boolean withMargins) {
 		LocalDateTime from = date.atStartOfDay();
 		LocalDateTime to = date.plusDays(1).atStartOfDay();
 		List<SalesHeader> finished = salesHeaderRepository.findFinishedBetween(from, to, SessionReportService.EXCLUDED);
@@ -116,20 +126,72 @@ public class DayJournalService {
 		DayJournalDTO dto = new DayJournalDTO();
 		dto.setDate(date);
 		dto.setStoreName(companyInformationService.get().getCompanyName());
+		List<JournalCosts.Result> gains = new ArrayList<>();
 		for (SalesHeader sale : finished) {
-			dto.getLines().add(ticketLine(sale, linesByTicket.getOrDefault(sale.getId(), Collections.emptyList()),
-					paymentsByTicket.getOrDefault(sale.getId(), Collections.emptyList()), methods, passengerCode));
+			List<SalesLine> lines = linesByTicket.getOrDefault(sale.getId(), Collections.emptyList());
+			JournalLine line = ticketLine(sale, lines, paymentsByTicket.getOrDefault(sale.getId(), Collections.emptyList()),
+					methods, passengerCode);
+			if (withMargins) {
+				gains.add(gains(line, JournalCosts.ticket(costLinesOfSale(lines), sale.getTotalAmount())));
+			}
+			dto.getLines().add(line);
 		}
 		for (SalesHeader sale : cancelled) {
 			dto.getLines().add(cancelledLine(sale, passengerCode));
 		}
 		for (ReturnHeader ret : returns) {
-			dto.getLines().add(returnLine(ret, linesByReturn.getOrDefault(ret.getId(), Collections.emptyList()), methods));
+			List<ReturnLine> lines = linesByReturn.getOrDefault(ret.getId(), Collections.emptyList());
+			JournalLine line = returnLine(ret, lines, methods);
+			if (withMargins) {
+				gains.add(gains(line, JournalCosts.returned(costLinesOfReturn(lines), ret.getTotalReturnAmount())));
+			}
+			dto.getLines().add(line);
 		}
 		dto.getLines().sort(Comparator.comparing(JournalLine::getTime, Comparator.nullsLast(Comparator.naturalOrder()))
 				.thenComparing(JournalLine::getNumber, Comparator.nullsLast(Comparator.naturalOrder())));
 		dto.setTotals(totals(dto.getLines(), methods));
+		if (withMargins) {
+			JournalCosts.Result day = JournalCosts.day(gains);
+			DayJournalDTO.Totals totals = dto.getTotals();
+			totals.setCost(day.costValue());
+			totals.setMargin(day.marginValue());
+			totals.setMarginPercent(day.marginPercent);
+			totals.setLinesWithoutCost(day.linesWithoutCost);
+		}
 		return dto;
+	}
+
+	// ─── Gains (3.1.2) ───────────────────────────────────────────────
+
+	/** A document's gains on its journal line; the result for the day's sums. */
+	private static JournalCosts.Result gains(JournalLine line, JournalCosts.Result result) {
+		line.setCost(result.costValue());
+		line.setMargin(result.marginValue());
+		line.setMarginPercent(result.marginPercent);
+		line.setLinesWithoutCost(result.linesWithoutCost);
+		return result;
+	}
+
+	/** A ticket's lines as JournalCosts reads them (the same values as StoreDaysService's projection). */
+	static List<JournalCosts.Line> costLinesOfSale(List<SalesLine> lines) {
+		List<JournalCosts.Line> result = new ArrayList<>();
+		for (SalesLine l : lines) {
+			result.add(new JournalCosts.Line(l.getItem() != null ? l.getItem().getItemCode() : null,
+					l.getItem() != null ? l.getItem().getType() : null, l.getLineTotalIncludingVat(), l.getLineTotal(),
+					l.getVatPercent(), l.getQuantity(), l.getUnitCost()));
+		}
+		return result;
+	}
+
+	/** A return's lines as JournalCosts reads them. */
+	static List<JournalCosts.Line> costLinesOfReturn(List<ReturnLine> lines) {
+		List<JournalCosts.Line> result = new ArrayList<>();
+		for (ReturnLine l : lines) {
+			result.add(new JournalCosts.Line(l.getItem() != null ? l.getItem().getItemCode() : null,
+					l.getItem() != null ? l.getItem().getType() : null, l.getLineTotalIncludingVat(), l.getLineTotal(),
+					null, l.getQuantity(), l.getUnitCost()));
+		}
+		return result;
 	}
 
 	// ─── Lines ───────────────────────────────────────────────────────

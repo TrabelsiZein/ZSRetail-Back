@@ -50,10 +50,16 @@ public final class JournalExcel {
 	 * per method.
 	 */
 	public static byte[] journal(DayJournalDTO journal) throws IOException {
+		return journal(journal, false);
+	}
+
+	/** 3.1.2: with withMargins, the columns Coût, Marge and Lignes sans coût after the others (JournalCosts). */
+	public static byte[] journal(DayJournalDTO journal, boolean withMargins) throws IOException {
 		try (XSSFWorkbook workbook = new XSSFWorkbook()) {
 			Styles styles = new Styles(workbook);
 			Sheet sheet = workbook.createSheet("Journal " + journal.getDate());
-			header(sheet, JOURNAL_HEADERS, styles);
+			String[] headers = withMargins ? concat(JOURNAL_HEADERS, MARGIN_HEADERS) : JOURNAL_HEADERS;
+			header(sheet, headers, styles);
 			int r = 1;
 			for (JournalLine line : journal.getLines()) {
 				Row row = sheet.createRow(r++);
@@ -68,6 +74,9 @@ public final class JournalExcel {
 				amount(row, 8, line.getTaxStamp(), styles.amount);
 				amount(row, 9, line.getTotalTTC(), styles.amount);
 				text(row, 10, payments(line.getPayments()));
+				if (withMargins) {
+					margins(row, 11, line.getCost(), line.getMargin(), line.getLinesWithoutCost(), styles, false);
+				}
 			}
 			DayJournalDTO.Totals totals = journal.getTotals();
 			// the finished tickets' totals
@@ -87,17 +96,31 @@ public final class JournalExcel {
 			amount(net, 8, columnSum(journal, JournalLine::getTaxStamp), styles.boldAmount);
 			amount(net, 9, columnSum(journal, JournalLine::getTotalTTC), styles.boldAmount);
 			text(net, 10, payments(totals.getPayments()), styles.bold);
-			autosize(sheet, JOURNAL_HEADERS.length);
+			if (withMargins) {
+				margins(net, 11, totals.getCost(), totals.getMargin(), totals.getLinesWithoutCost(), styles, true);
+			}
+			autosize(sheet, headers.length);
 			return bytes(workbook);
 		}
 	}
 
 	/** The month's days, newest first, and a totals row. */
 	public static byte[] days(YearMonth month, List<DayRowDTO> days) throws IOException {
+		return days(month, days, null);
+	}
+
+	/**
+	 * 3.1.2: with the month's gains (StoreDaysService.monthGains; null: none), the columns Coût, Marge, Marge % and Lignes
+	 * sans coût after the others; the total row is the month's, by the same rule as a day (its lines without cost those
+	 * of all its tickets and returns).
+	 */
+	public static byte[] days(YearMonth month, List<DayRowDTO> days, JournalCosts.Result monthGains) throws IOException {
+		boolean withMargins = monthGains != null;
 		try (XSSFWorkbook workbook = new XSSFWorkbook()) {
 			Styles styles = new Styles(workbook);
 			Sheet sheet = workbook.createSheet("Jours " + month);
-			header(sheet, DAYS_HEADERS, styles);
+			String[] headers = withMargins ? concat(DAYS_HEADERS, DAYS_MARGIN_HEADERS) : DAYS_HEADERS;
+			header(sheet, headers, styles);
 			int r = 1;
 			long[] counts = new long[5];
 			double[] amounts = new double[3];
@@ -118,6 +141,12 @@ public final class JournalExcel {
 					amounts[i] = DayJournalService.bd(amounts[i]).add(DayJournalService.bd(money[i])).doubleValue();
 				}
 				text(row, 9, day.isInProgress() ? "Oui" : "Non");
+				if (withMargins) {
+					amount(row, 10, day.getCost(), styles.amount);
+					amount(row, 11, day.getMargin(), styles.amount);
+					amount(row, 12, day.getMarginPercent(), styles.percent);
+					count(row, 13, day.getLinesWithoutCost(), null);
+				}
 			}
 			Row row = sheet.createRow(r);
 			text(row, 0, "TOTAL", styles.bold);
@@ -129,9 +158,46 @@ public final class JournalExcel {
 			for (int i = 0; i < amounts.length; i++) {
 				amount(row, 6 + i, amounts[i], styles.boldAmount);
 			}
-			autosize(sheet, DAYS_HEADERS.length);
+			if (withMargins && monthGains.costValue() != null) {
+				amount(row, 10, monthGains.costValue(), styles.boldAmount);
+				amount(row, 11, monthGains.marginValue(), styles.boldAmount);
+				amount(row, 12, monthGains.marginPercent, styles.boldPercent);
+				count(row, 13, monthGains.linesWithoutCost, styles.bold);
+			}
+			autosize(sheet, headers.length);
 			return bytes(workbook);
 		}
+	}
+
+	// ─── Gains (3.1.2) ───────────────────────────────────────────────
+
+	private static final String[] MARGIN_HEADERS = { "Coût", "Marge", "Lignes sans coût" };
+
+	private static final String[] DAYS_MARGIN_HEADERS = { "Coût", "Marge", "Marge %", "Lignes sans coût" };
+
+	/** Cost, margin and the lines without cost from the column given (empty cells when absent). */
+	private static void margins(Row row, int column, Double cost, Double margin, Long without, Styles styles,
+			boolean bold) {
+		amount(row, column, cost, bold ? styles.boldAmount : styles.amount);
+		amount(row, column + 1, margin, bold ? styles.boldAmount : styles.amount);
+		count(row, column + 2, without, bold ? styles.bold : null);
+	}
+
+	/** A count, its cell left empty when 0 or absent. */
+	private static void count(Row row, int column, Long value, CellStyle style) {
+		if (value != null && value > 0) {
+			Cell cell = row.createCell(column);
+			cell.setCellValue(value);
+			if (style != null) {
+				cell.setCellStyle(style);
+			}
+		}
+	}
+
+	private static String[] concat(String[] first, String[] second) {
+		String[] all = java.util.Arrays.copyOf(first, first.length + second.length);
+		System.arraycopy(second, 0, all, first.length, second.length);
+		return all;
 	}
 
 	// ─── Helpers ─────────────────────────────────────────────────────
@@ -143,6 +209,9 @@ public final class JournalExcel {
 		final CellStyle boldAmount;
 		final CellStyle time;
 		final CellStyle date;
+		/** 3.1.2: a margin %, one decimal. */
+		final CellStyle percent;
+		final CellStyle boldPercent;
 
 		Styles(XSSFWorkbook workbook) {
 			Font boldFont = workbook.createFont();
@@ -161,6 +230,12 @@ public final class JournalExcel {
 			time.setDataFormat(workbook.createDataFormat().getFormat("dd/mm/yyyy hh:mm:ss"));
 			date = workbook.createCellStyle();
 			date.setDataFormat(workbook.createDataFormat().getFormat("dd/mm/yyyy"));
+			short oneDecimal = workbook.createDataFormat().getFormat("0.0");
+			percent = workbook.createCellStyle();
+			percent.setDataFormat(oneDecimal);
+			boldPercent = workbook.createCellStyle();
+			boldPercent.setDataFormat(oneDecimal);
+			boldPercent.setFont(boldFont);
 		}
 	}
 

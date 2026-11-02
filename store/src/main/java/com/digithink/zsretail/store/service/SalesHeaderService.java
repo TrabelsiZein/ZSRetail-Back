@@ -26,6 +26,7 @@ import com.digithink.zsretail.core.model.ReturnVoucher;
 import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.SalesLine;
 import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
 import com.digithink.zsretail.core.model.enumeration.SessionStatus;
 import com.digithink.zsretail.core.model.enumeration.SynchronizationStatus;
@@ -1269,7 +1270,14 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	 * the ERP keeps the stock the item's cost is copied as it is.
 	 */
 	static BigDecimal frozenCost(Item item) {
-		if (item == null || item.getCostPrice() == null || "TAX_STAMP".equals(item.getItemCode())) {
+		if (item == null || "TAX_STAMP".equals(item.getItemCode())) {
+			return null;
+		}
+		// 3.1.2: a service or a discount item carries no cost by nature: 0, never unknown (ItemType.carriesNoCost)
+		if (ItemType.noCost(item.getType())) {
+			return BigDecimal.ZERO.setScale(3);
+		}
+		if (item.getCostPrice() == null) {
 			return null;
 		}
 		return BigDecimal.valueOf(item.getCostPrice()).setScale(3, RoundingMode.HALF_UP);

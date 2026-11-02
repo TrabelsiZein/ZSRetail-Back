@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -15,11 +17,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.digithink.zsretail.core.model.CashierSession;
+import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.model.enumeration.SessionStatus;
 import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
 import com.digithink.zsretail.core.repository.CashierSessionRepository;
 import com.digithink.zsretail.core.repository.ReturnHeaderRepository;
+import com.digithink.zsretail.core.repository.ReturnLineRepository;
 import com.digithink.zsretail.core.repository.SalesHeaderRepository;
+import com.digithink.zsretail.core.repository.SalesLineRepository;
 import com.digithink.zsretail.store.dto.DayRowDTO;
 
 /**
@@ -40,10 +45,27 @@ public class StoreDaysService {
 	@Autowired
 	private CashierSessionRepository cashierSessionRepository;
 
+	/** 3.1.2, the gains: the lines of the month's tickets and returns (one projection each). */
+	@Autowired
+	private SalesLineRepository salesLineRepository;
+
+	@Autowired
+	private ReturnLineRepository returnLineRepository;
+
 	/** Today, for inProgress; a test sets its own. */
 	java.time.Clock clock = java.time.Clock.systemDefaultZone();
 
+	/** The days without the gains (as before 3.1.2). */
 	public List<DayRowDTO> buildMonth(YearMonth month) {
+		return buildMonth(month, false);
+	}
+
+	/**
+	 * The days; with withMargins (the caller checks the installation and the right read:admin-margins) each day carries
+	 * the gains of its tickets and returns (JournalCosts), from one projection of their lines per kind: the same numbers
+	 * as the day journal's totals.
+	 */
+	public List<DayRowDTO> buildMonth(YearMonth month, boolean withMargins) {
 		LocalDateTime from = month.atDay(1).atStartOfDay();
 		LocalDateTime to = month.plusMonths(1).atDay(1).atStartOfDay();
 		Map<LocalDate, Day> days = new TreeMap<>(Comparator.reverseOrder());
@@ -80,6 +102,10 @@ public class StoreDaysService {
 			today.row.setInProgress(true);
 		}
 
+		if (withMargins) {
+			gains(days, from, to);
+		}
+
 		List<DayRowDTO> rows = new ArrayList<>();
 		for (Day day : days.values()) {
 			day.row.setTotalTTC(day.ttc.doubleValue());
@@ -88,6 +114,80 @@ public class StoreDaysService {
 			rows.add(day.row);
 		}
 		return rows;
+	}
+
+	/** 3.1.2: each document's gains from its lines (JournalCosts), added up per day; all null on a day without cost. */
+	private void gains(Map<LocalDate, Day> days, LocalDateTime from, LocalDateTime to) {
+		Map<LocalDate, List<JournalCosts.Result>> byDay = documentsByDay(from, to);
+		byDay.forEach((date, results) -> {
+			Day day = days.get(date);
+			if (day == null) {
+				return; // a document of a day the month does not list (cannot happen: the same dates)
+			}
+			JournalCosts.Result result = JournalCosts.day(results);
+			day.row.setCost(result.costValue());
+			day.row.setMargin(result.marginValue());
+			day.row.setMarginPercent(result.marginPercent);
+			day.row.setLinesWithoutCost(result.linesWithoutCost);
+		});
+	}
+
+	/**
+	 * 3.1.2: the month's gains as one (the .xlsx's total row): every ticket and return of the month by the same rule as a
+	 * day, its lines without cost those of all of them when one line is costed; all null when none is.
+	 */
+	public JournalCosts.Result monthGains(YearMonth month) {
+		LocalDateTime from = month.atDay(1).atStartOfDay();
+		LocalDateTime to = month.plusMonths(1).atDay(1).atStartOfDay();
+		List<JournalCosts.Result> all = new ArrayList<>();
+		documentsByDay(from, to).values().forEach(all::addAll);
+		return JournalCosts.day(all);
+	}
+
+	/** Each ticket's and return's gains (JournalCosts) of [from, to), by its day. */
+	private Map<LocalDate, List<JournalCosts.Result>> documentsByDay(LocalDateTime from, LocalDateTime to) {
+		Map<LocalDate, List<JournalCosts.Result>> byDay = new HashMap<>();
+		for (Document document : documents(
+				salesLineRepository.findCostLinesOfFinishedBetween(from, to, SessionReportService.EXCLUDED), true)) {
+			byDay.computeIfAbsent(document.date, d -> new ArrayList<>())
+					.add(JournalCosts.ticket(document.lines, document.amount));
+		}
+		for (Document document : documents(returnLineRepository.findCostLinesOfReturnsBetween(from, to), false)) {
+			byDay.computeIfAbsent(document.date, d -> new ArrayList<>())
+					.add(JournalCosts.returned(document.lines, document.amount));
+		}
+		return byDay;
+	}
+
+	/** One ticket or return of the projection: its date, its amount (total paid or refund) and its lines. */
+	private static final class Document {
+		LocalDate date;
+		Double amount;
+		final List<JournalCosts.Line> lines = new ArrayList<>();
+	}
+
+	/**
+	 * The projection's rows by document, in reading order. A ticket's row: {id, date, total, item code, item type, TTC, HT,
+	 * VAT %, quantity, unit cost}; a return's: the same without the VAT %.
+	 */
+	private static List<Document> documents(List<Object[]> rows, boolean tickets) {
+		Map<Long, Document> byId = new LinkedHashMap<>();
+		for (Object[] row : rows) {
+			Document document = byId.computeIfAbsent(((Number) row[0]).longValue(), id -> new Document());
+			document.date = dateTime(row[1]).toLocalDate();
+			document.amount = number(row[2]);
+			int at = tickets ? 8 : 7;
+			document.lines.add(new JournalCosts.Line((String) row[3], (ItemType) row[4], number(row[5]), number(row[6]),
+					tickets && row[7] != null ? ((Number) row[7]).intValue() : null, decimal(row[at]), decimal(row[at + 1])));
+		}
+		return new ArrayList<>(byId.values());
+	}
+
+	private static BigDecimal decimal(Object value) {
+		if (value == null) {
+			return null;
+		}
+		return value instanceof BigDecimal ? (BigDecimal) value : new BigDecimal(value.toString());
 	}
 
 	private static final class Day {

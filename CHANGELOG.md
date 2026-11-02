@@ -115,6 +115,19 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   right `read:admin-margins` (checked by the API, listed by `GET /app-roles/permissions`, given to ADMIN at every start
   wherever the stock is kept, with `write:admin-item-cost`). Stock movements unchanged (selling prices). The lines
   written before 3.1.2 stay without cost (no estimate).
+- Unit cost on the ticket line: an item that carries no cost by nature, a service or a discount item
+  (`ItemType.carriesNoCost`), freezes 0 on its sale and return lines, never null ("unknown"); a product and a pack keep
+  the rule (the CMP, or null without one), the tax stamp stays null (`SaleUnitCostTest`, `ReturnRefundLoyaltyTest`).
+- Journal, the gains (docs/modules/cash-sessions.md, "Journal", "Gains"): `GET /cashier-session/store-days` (each day),
+  `/day-journal` (each ticket and return, and the day's totals) and their .xlsx carry `cost`, `margin`,
+  `marginPercent` and `linesWithoutCost`, from the unit costs frozen on the lines (`JournalCosts`): the HT of the
+  Journal (ticket discount, cart promotions and loyalty points in it) over the costed lines minus their cost, a return
+  negative, the stamp left out, a service or a discount item at 0; all null without a costed line; margin % only when
+  no line is without cost; a day (and the month total of the .xlsx) counts the lines without cost of all its tickets and
+  returns, those without any costed line included. Only where the store keeps its own stock and for `read:admin-margins`
+  (`CashierSessionAPI.withMargins`), else not computed and absent. The day list reads the month's lines by one
+  projection per kind (`findCostLinesOfFinishedBetween`, `findCostLinesOfReturnsBetween`); the day journal from the
+  lines it reads. Nothing existing changes (`JournalMarginsTest`, `JournalCostLinesQueryTest`).
 
 ### Fixes
 - Store linked to a head office after its database was created (ParaFendri Gremda): its ADMIN role now gets
