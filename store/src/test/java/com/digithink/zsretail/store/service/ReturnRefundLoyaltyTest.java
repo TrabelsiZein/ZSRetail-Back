@@ -238,6 +238,18 @@ class ReturnRefundLoyaltyTest {
 	}
 
 	@Test
+	@DisplayName("3.1.2: a service or a discount item returned takes cost 0 (no cost by nature), even when its sale line has none")
+	void noCostTypeReturned() throws Exception {
+		SalesHeader sale = sale(null, 0.0, 0, 0.0, 100.0, 50.0);
+		SalesLine service = linesBySale.get(sale).get(0);
+		service.getItem().setType(com.digithink.zsretail.core.model.enumeration.ItemType.SERVICE);
+		SalesLine product = linesBySale.get(sale).get(1);
+		assertEquals(new BigDecimal("0.000"), storedLine(returnLines(sale, ReturnType.SIMPLE_RETURN, 0)).getUnitCost());
+		assertNull(storedLine(returnLines(sale, ReturnType.SIMPLE_RETURN, 1)).getUnitCost(), "a product sold without cost: null");
+		assertNull(product.getUnitCost());
+	}
+
+	@Test
 	@DisplayName("Percentage discount: the refund applies the ticket's percentage")
 	void percentDiscountRefund() throws Exception {
 		SalesHeader sale = sale(10.0, 0.0, 0, 0.0, 100.0, 50.0);

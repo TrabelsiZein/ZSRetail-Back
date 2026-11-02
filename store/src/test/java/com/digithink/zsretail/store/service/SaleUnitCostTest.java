@@ -31,6 +31,7 @@ import com.digithink.zsretail.core.model.PaymentMethod;
 import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.SalesLine;
 import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
 import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
 import com.digithink.zsretail.core.repository.CashierSessionRepository;
@@ -277,6 +278,24 @@ class SaleUnitCostTest {
 		sales.processCompleteSale(request(costed), cashier); // the next ticket takes the new CMP
 		assertEquals(new BigDecimal("7.124"), lineOf(sale, costed, 10.0).getUnitCost());
 		assertTrue(savedLines.stream().anyMatch(l -> new BigDecimal("12.000").equals(l.getUnitCost())));
+	}
+
+	@Test
+	@DisplayName("A service and a discount item carry no cost by nature: their lines freeze 0, with or without a CMP; a product and a pack keep the rule")
+	void noCostTypes() throws Exception {
+		Item service = item(30L, null);
+		service.setType(ItemType.SERVICE);
+		Item discount = item(31L, 4.5);
+		discount.setType(ItemType.DISCOUNT);
+		Item pack = item(32L, null);
+		pack.setType(ItemType.PACKAGE);
+		SalesHeader sale = sales.processCompleteSale(request(service, discount, pack), cashier);
+		assertEquals(new BigDecimal("0.000"), lineOf(sale, service, 10.0).getUnitCost());
+		assertEquals(new BigDecimal("0.000"), lineOf(sale, discount, 10.0).getUnitCost(), "even with a CMP: 0");
+		assertNull(lineOf(sale, pack, 10.0).getUnitCost(), "a pack without CMP: unknown, as a product");
+		assertNull(lineOf(sale, stampItem, 0.1).getUnitCost(), "the stamp stays out");
+		assertTrue(ItemType.noCost(ItemType.SERVICE) && ItemType.noCost(ItemType.DISCOUNT));
+		assertTrue(!ItemType.noCost(ItemType.PRODUCT) && !ItemType.noCost(ItemType.PACKAGE) && !ItemType.noCost(null));
 	}
 
 	@Test

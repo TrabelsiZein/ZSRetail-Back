@@ -115,6 +115,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   right `read:admin-margins` (checked by the API, listed by `GET /app-roles/permissions`, given to ADMIN at every start
   wherever the stock is kept, with `write:admin-item-cost`). Stock movements unchanged (selling prices). The lines
   written before 3.1.2 stay without cost (no estimate).
+- Unit cost on the ticket line: an item that carries no cost by nature, a service or a discount item
+  (`ItemType.carriesNoCost`), freezes 0 on its sale and return lines, never null ("unknown"); a product and a pack keep
+  the rule (the CMP, or null without one), the tax stamp stays null (`SaleUnitCostTest`, `ReturnRefundLoyaltyTest`).
 
 ### Fixes
 - Store linked to a head office after its database was created (ParaFendri Gremda): its ADMIN role now gets

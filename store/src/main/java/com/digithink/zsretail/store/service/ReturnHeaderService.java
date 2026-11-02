@@ -26,6 +26,7 @@ import com.digithink.zsretail.core.model.ReturnVoucher;
 import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.SalesLine;
 import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.model.enumeration.ReturnType;
 import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
 import com.digithink.zsretail.core.repository.CashierSessionRepository;
@@ -435,7 +436,9 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 			returnLine.setUnitPriceIncludingVat(unitPriceTTC); // Store TTC unit price
 			returnLine.setLineTotal(lineTotalHT); // Store HT line total
 			returnLine.setLineTotalIncludingVat(lineTotalTTC); // Store TTC line total
-			returnLine.setUnitCost(originalSalesLine.getUnitCost()); // 3.1.2: the sale's cost, null included
+			// 3.1.2: the sale's cost, null included; a service or a discount item 0 (no cost by nature, ItemType.carriesNoCost)
+			returnLine.setUnitCost(originalSalesLine.getItem() != null && ItemType.noCost(originalSalesLine.getItem().getType())
+					? BigDecimal.ZERO.setScale(3) : originalSalesLine.getUnitCost());
 			returnLine.setNotes("");
 
 			returnLines.add(returnLine);
