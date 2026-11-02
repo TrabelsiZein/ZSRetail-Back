@@ -186,6 +186,33 @@ one sheet, a header row (French, as the store's printed tickets), one row per li
 
 No role check, as the session ticket.
 
+**Gains (3.1.2)**: the cost of the goods sold and the gross margin, read from the unit costs frozen on the lines
+(`SalesLine.unitCost`, `ReturnLine.unitCost`); no table, column or setting. Only where the store keeps its own stock
+and for a role with `read:admin-margins` (`CashierSessionAPI.withMargins`, on the four endpoints above): otherwise
+nothing is computed and the fields are absent from the JSON (`@JsonInclude(NON_NULL)`) and from the Excel files.
+- `JournalCosts`, one rule for both pages: a ticket's HT is the Journal's (what was paid: each costed line's TTC before VAT
+  x (total paid - stamp) / goods TTC, so the ticket discount, the cart promotions and the loyalty points are in it); a
+  return's is the Journal's too (the lines' HT x refund / lines' TTC), negative. Cost = sum of quantity x unit cost;
+  margin = HT - cost; both over the costed lines only. The tax stamp is left out of everything; a service or a
+  discount item (`ItemType.carriesNoCost`) counts at 0; any other line with a null cost is a line without cost (never
+  0). A ticket, a return or a day without a costed line: the four fields null. Margin % = margin / HT, one decimal,
+  null with a line without cost or an HT of 0. Amounts to the millime, half up.
+- Fields `cost`, `margin`, `marginPercent`, `linesWithoutCost` on each ticket and return (`JournalLine`), on the day's
+  `Totals` (tickets and returns) and on each `DayRowDTO`. The day journal computes them from the lines it reads (no
+  query more); the day list reads the month's lines through one projection per kind
+  (`SalesLineRepository.findCostLinesOfFinishedBetween`, `ReturnLineRepository.findCostLinesOfReturnsBetween`, no
+  entity) and runs the same rule, so a day's row equals its journal's totals. Nothing existing changes.
+- Excel: the journal adds Coût, Marge, Lignes sans coût (the day's on the Net row); the days add Coût, Marge, Marge %,
+  Lignes sans coût and the month's total (its % only when no day has a line without cost: HT = margin + cost).
+- Front (`StoreDays.vue`, `DayJournalCard.vue`, `printDayJournal.js`, rules in `libs/journal-margins.js`,
+  `tools/journal-margins-check.mjs`): Coût / Marge / Marge % on the days, Coût / Marge per ticket and return and the
+  day's on the Net row, on `$can('read', 'admin-margins')` and own stock; "—" for an absent value, never 0; the marker
+  "n ligne(s) sans coût" when `linesWithoutCost` > 0; tooltips on Coût (the CMP frozen at the sale) and Marge ("Marge
+  brute HT = ventes HT - coût des articles vendus (CMP)"). The print shows them on the same condition.
+- Tests: `JournalMarginsTest` (a day with sales, a service, a ticket discount and a return; a line without cost: the
+  marker, no %; a day before 3.1.2: all null; without margins: absent and the lines never read; the API's rule; the
+  list equal to the journal), `JournalCostLinesQueryTest` (the two projections on H2).
+
 ## Printing (front)
 
 `src/views/admin/session/printSessionReport.js`, the one print code: `printSessionReport(vm, sessionId)` opens the print

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.controller._BaseController;
 import com.digithink.zsretail.core.model.CashierSession;
 import com.digithink.zsretail.core.model.UserAccount;
@@ -48,6 +49,10 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 
 	@Autowired
 	private StoreDaysService storeDaysService;
+
+	/** 3.1.2, the Journal's gains: only where the store keeps its own stock. */
+	@Autowired
+	private ApplicationModeService applicationModeService;
 
 	/**
 	 * Get current user's open session
@@ -511,7 +516,7 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			return ResponseEntity.badRequest().body(createErrorResponse("month: '" + month + "' is not a month YYYY-MM"));
 		}
 		try {
-			return ResponseEntity.ok(storeDaysService.buildMonth(yearMonth));
+			return ResponseEntity.ok(storeDaysService.buildMonth(yearMonth, withMargins()));
 		} catch (Exception e) {
 			log.error("CashierSessionAPI::getStoreDays:error: " + e.getMessage(), e);
 			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
@@ -526,8 +531,9 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			return ResponseEntity.badRequest().body(createErrorResponse("month: '" + month + "' is not a month YYYY-MM"));
 		}
 		try {
+			boolean margins = withMargins();
 			byte[] file = com.digithink.zsretail.store.service.JournalExcel.days(yearMonth,
-					storeDaysService.buildMonth(yearMonth));
+					storeDaysService.buildMonth(yearMonth, margins), margins);
 			return excel(file, com.digithink.zsretail.store.service.JournalExcel.daysFileName(yearMonth));
 		} catch (Exception e) {
 			log.error("CashierSessionAPI::getStoreDaysExcel:error: " + e.getMessage(), e);
@@ -546,7 +552,7 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			return ResponseEntity.badRequest().body(createErrorResponse("date: '" + date + "' is not a date YYYY-MM-DD"));
 		}
 		try {
-			return ResponseEntity.ok(dayJournalService.build(day));
+			return ResponseEntity.ok(dayJournalService.build(day, withMargins()));
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.status(404).body(createErrorResponse(e.getMessage()));
 		} catch (Exception e) {
@@ -563,8 +569,9 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			return ResponseEntity.badRequest().body(createErrorResponse("date: '" + date + "' is not a date YYYY-MM-DD"));
 		}
 		try {
-			com.digithink.zsretail.store.dto.DayJournalDTO journal = dayJournalService.build(day);
-			return excel(com.digithink.zsretail.store.service.JournalExcel.journal(journal),
+			boolean margins = withMargins();
+			com.digithink.zsretail.store.dto.DayJournalDTO journal = dayJournalService.build(day, margins);
+			return excel(com.digithink.zsretail.store.service.JournalExcel.journal(journal, margins),
 					com.digithink.zsretail.store.service.JournalExcel.journalFileName(journal));
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.status(404).body(createErrorResponse(e.getMessage()));
@@ -572,6 +579,15 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			log.error("CashierSessionAPI::getDayJournalExcel:error: " + e.getMessage(), e);
 			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
 		}
+	}
+
+	/**
+	 * 3.1.2: the Journal (days, day journal, their .xlsx) carries the gains only where the store keeps its own stock and
+	 * for a role with read:admin-margins (SalesHeaderAPI.MARGINS_PERMISSION); never otherwise, whatever the page shows.
+	 */
+	public boolean withMargins() {
+		return applicationModeService != null && applicationModeService.keepsOwnStock() && currentUserProvider != null
+				&& currentUserProvider.currentUserHasPermission(SalesHeaderAPI.MARGINS_PERMISSION);
 	}
 
 	private static java.time.LocalDate parseDate(String value) {

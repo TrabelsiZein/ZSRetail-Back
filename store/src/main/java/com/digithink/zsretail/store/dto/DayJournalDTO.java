@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -58,6 +59,25 @@ public class DayJournalDTO {
 		 * return in cash, a return voucher under the voucher method); a cancelled ticket: none.
 		 */
 		private List<MethodAmount> payments = new ArrayList<>();
+
+		// 3.1.2, the gains (JournalCosts): only where the store keeps its own stock and for read:admin-margins, else absent;
+		// absent too when the document has no costed line.
+
+		/** Cost of the goods sold, before VAT, over the costed lines (negative for a return). */
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private Double cost;
+
+		/** Gross margin before VAT: the HT received on the costed lines - their cost (negative for a return). */
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private Double margin;
+
+		/** margin / HT x 100, one decimal; absent with a line without cost or an HT of 0. */
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private Double marginPercent;
+
+		/** Lines with no unit cost (sold before 3.1.2 or an item without CMP); the stamp never counts. */
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private Long linesWithoutCost;
 	}
 
 	@Data
@@ -85,5 +105,24 @@ public class DayJournalDTO {
 		private Double net;
 		/** Per method, the lines' payments added up (returns included): they add up to net. */
 		private List<MethodAmount> payments = new ArrayList<>();
+
+		// 3.1.2, the gains (JournalCosts): only where the store keeps its own stock and for read:admin-margins, else absent;
+		// absent too when the day has no costed line.
+
+		/** Cost of the goods sold, before VAT, over the costed lines (negative for a return). */
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private Double cost;
+
+		/** Gross margin before VAT: the HT received on the costed lines - their cost (negative for a return). */
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private Double margin;
+
+		/** margin / HT x 100, one decimal; absent with a line without cost or an HT of 0. */
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private Double marginPercent;
+
+		/** Lines with no unit cost (sold before 3.1.2 or an item without CMP); the stamp never counts. */
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private Long linesWithoutCost;
 	}
 }

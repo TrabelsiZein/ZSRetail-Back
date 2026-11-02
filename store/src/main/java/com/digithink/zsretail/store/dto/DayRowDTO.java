@@ -3,6 +3,7 @@ package com.digithink.zsretail.store.dto;
 import java.time.LocalDate;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -38,4 +39,23 @@ public class DayRowDTO {
 
 	/** True on today's row while a session is open, whatever its opening day (it sells into today's journal). */
 	private boolean inProgress;
+
+	// 3.1.2, the gains (JournalCosts): only where the store keeps its own stock and for read:admin-margins, else absent;
+	// absent too when the day has no costed line.
+
+	/** Cost of the goods sold, before VAT, over the costed lines (negative for a return). */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Double cost;
+
+	/** Gross margin before VAT: the HT received on the costed lines - their cost (negative for a return). */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Double margin;
+
+	/** margin / HT x 100, one decimal; absent with a line without cost or an HT of 0. */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Double marginPercent;
+
+	/** Lines with no unit cost (sold before 3.1.2 or an item without CMP); the stamp never counts. */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Long linesWithoutCost;
 }
