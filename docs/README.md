@@ -35,6 +35,7 @@ session tickets X and Z) · `store-orders` (3.1.1: the orders of a store to its 
 - `roadmap/regression-checklist.md` — the scenarios replayed by hand before a merge, per installation
 - `roadmap/standalone-tasks.md` — standalone backlog
 - `roadmap/2.3-families-by-stock-point.md` — 2.3 analysis, not built
+- `roadmap/open-points.md` — gaps seen and left for later (split bill, the item cost in the till's JSON)
 
 ## History — `history/`
 

@@ -156,7 +156,7 @@ class SupplySourceBeansTest {
 		expected.put("head office without an ERP, supply source NONE", "[]");
 		expected.put("head office, catalogue only from the ERP, supply source NONE", "[]");
 		expected.put("Happyness head office (configs/customers)", "[HoErpInvoiceService]");
-		expected.put("ZEN head office (configs/customers)", "[HoDeliveryService, HoStoreOrderService]");
+		expected.put("ZEN head office (configs/customers)", "[HoErpInvoiceService, HoStoreOrderService]");
 		for (Map.Entry<String, MockEnvironment> mode : modes().entrySet()) {
 			List<String> present = supplyProviders.stream().filter(p -> registered(mode.getValue(), p))
 					.map(Class::getSimpleName).collect(Collectors.toList());

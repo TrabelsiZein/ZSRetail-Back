@@ -199,6 +199,9 @@ public class ZZDataInitializer {
 			if (applicationModeService.isRfidEnabled()) {
 				wanted.addAll(RFID_ADMIN_PERMISSIONS); // RFID: the readers and POS machines pages
 			}
+			if (applicationModeService.keepsOwnStock()) {
+				wanted.addAll(COST_ADMIN_PERMISSIONS); // CMP: "Ajuster le CMP", a store that keeps its own stock
+			}
 			addMissingPermissions(adminRole, wanted);
 		}
 		// Release 2.2: a head office has no till and no store manager: only ADMIN is created there. A head office database
@@ -260,6 +263,9 @@ public class ZZDataInitializer {
 		}
 		if (applicationModeService.isRfidEnabled()) {
 			permissions.addAll(RFID_ADMIN_PERMISSIONS);
+		}
+		if (applicationModeService.keepsOwnStock()) {
+			permissions.addAll(COST_ADMIN_PERMISSIONS); // CMP: "Ajuster le CMP"
 		}
 		if (applicationModeService.isHeadOfficeLinked()) {
 			permissions.addAll(HEAD_OFFICE_LINK_ADMIN_PERMISSIONS);
@@ -337,14 +343,28 @@ public class ZZDataInitializer {
 	static final Set<String> HEAD_OFFICE_STORE_ORDER_PERMISSIONS = new HashSet<>(
 			Arrays.asList("read:admin-headoffice-store-orders", "write:admin-headoffice-store-orders"));
 
-	/** A head office's ADMIN permissions: every head office page, the stores' orders when it takes them. */
+	/**
+	 * A head office's ADMIN permissions: every head office page, the stores' orders when it takes them, "Ajuster le CMP"
+	 * when it keeps its own stock (headoffice.stock.enabled true).
+	 */
 	private Set<String> headOfficeAdminPermissions() {
 		Set<String> permissions = new HashSet<>(HEAD_OFFICE_ADMIN_PERMISSIONS);
 		if (applicationModeService.getStoreOrdersPost() != null) {
 			permissions.addAll(HEAD_OFFICE_STORE_ORDER_PERMISSIONS);
 		}
+		if (applicationModeService.keepsOwnStock()) {
+			permissions.addAll(COST_ADMIN_PERMISSIONS);
+		}
 		return permissions;
 	}
+
+	/**
+	 * CMP: "Ajuster le CMP" on the item card (the weighted average cost set by hand, ItemAPI.adjustCost checks it too) and
+	 * read:admin-margins, the unit costs of the ticket lines in the admin ticket detail (3.1.1, SalesHeaderAPI checks it);
+	 * given to ADMIN at every start wherever the installation keeps its own stock (a store whose supply is not the ERP's,
+	 * a head office with headoffice.stock.enabled true); never where the ERP keeps the stock.
+	 */
+	static final Set<String> COST_ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("write:admin-item-cost", "read:admin-margins"));
 
 	/** Store with headoffice.url only: the "Head office link" page (task 1.5). */
 	static final Set<String> HEAD_OFFICE_LINK_ADMIN_PERMISSIONS = new HashSet<>(

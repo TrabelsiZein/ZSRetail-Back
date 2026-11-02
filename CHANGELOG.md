@@ -238,6 +238,31 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   with 409 and nothing saved; the send refuses a draft with any line above its availability (409). The lines answer
   `availableQty`.
 
+- Item costs, the weighted average cost (docs/modules/head-office.md, "Item costs (CMP)"): `Item.costPrice` is the CMP
+  of an installation that keeps its own stock (no-op where the ERP keeps it and on a head office with
+  `headoffice.stock.enabled=false`), no longer the last net cost; `lastDirectCost` / `lastDirectNetCost` unchanged.
+  `ItemRepository.applyEntryCost` (one native row update, `DECIMAL(19,5)`, 3 decimals) through
+  `StockService.applyEntryCost`, after the stock of every entry that carries a cost: a local purchase (per line, the
+  net price), an ERP invoice received (per item, its paid lines together; a free line's quantity outside the entry, a
+  line received at 0 leaves it), a BL and its head office invoice (the invoice stamps the BL lines' costs; applied at
+  the invoice for a BL received, else at the reception; a BL saved after its invoice takes them from it). `updateCost`
+  renamed `updateLastCosts`, without `costPrice`. `PURCHASE_RECEPTION` and `DELIVERY_IN` movements carry the net unit
+  cost (null on a BL received before its invoice). `PUT /item/{id}` keeps the stored CMP; `POST /item/{id}/adjust-cost`
+  `{costPrice, reason}` ("Ajuster le CMP") with a `COST_ADJUSTMENT` movement (quantity 0, `CMP <old> → <new> :
+  <reason>`, the user), 403 without `write:admin-item-cost` (checked by the API, listed by `GET /app-roles/permissions`,
+  given to ADMIN at every start wherever the stock is kept). The Excel import writes the cost of new items only.
+- Unit cost frozen on the ticket line, so the margin of a past day never moves with the CMP: `sales_line.unit_cost`
+  (`SalesLine.unitCost`, net, 3 decimals) takes the item's CMP, half up, when its ticket is completed (a sale, a held
+  ticket paid, a split bill paid), the free line of a FREE_QUANTITY promotion included; null on a held ticket, for the
+  tax stamp and for an item without CMP; the same in every configuration (where the ERP keeps the stock the item's
+  cost is copied as it is). A pack's components are lines of their own (the till splits the pack), each with its own
+  CMP. `return_line.unit_cost` takes its sales line's cost, null included. Written on the insert only
+  (`updatable = false`: a later save, the generic `PUT /sales-line/{id}` included, never changes it) and never in
+  JSON (`@JsonIgnore`): `GET /sales-header/{id}/details` sends `lineCosts` (line id to cost) only to a role with the new
+  right `read:admin-margins` (checked by the API, listed by `GET /app-roles/permissions`, given to ADMIN at every start
+  wherever the stock is kept, with `write:admin-item-cost`). Stock movements unchanged (selling prices). The lines
+  written before 3.1.1 stay without cost (no estimate).
+
 ### Fixes
 - Store linked to a head office after its database was created (ParaFendri Gremda): its ADMIN role now gets
   `read:admin-holink-status` (the "Head office" menu: Jobs, Communications, Data exchanged) at the next start; before,
@@ -245,6 +270,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - ERP connector `parafendri`, step 6: `amountIncludingVAT` is no longer sent on `salesOrders`, header nor lines
   (read-only in Business Central: the live POST answered HTTP 400 "Control 'amountIncludingVAT' is read-only"); BC
   computes it, the header's is read back from the answer and shown in the log message next to our total TTC.
+- Split bill of a table ticket (`POST /sales-header/split-and-pay/{id}`, `SalesHeaderService.splitAndPay`): the lines
+  paid apart never left the stock and wrote no SALE movement (the rest, paid later, did): they now go out with their
+  movements as every completed sale (`decrementStockForSalesLines`), and keep their discount source and promotion,
+  which the copy dropped (docs/modules/table-management.md, `SplitBillStockTest`).
 - `GET /sales-header/pending-sales` sends each ticket's `discountSource` (MANUAL or PROMOTION): the till taking a held
   ticket back no longer shows its cart offer a second time as a "Remise" (front CHANGELOG).
 - Copies down, head office: a store's pull of LOYALTY, PROMOTIONS or SUPPLY answered HTTP 500 (query timeout after
@@ -270,6 +299,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   value [1] did not match expected type [java.lang.Integer]"): the "every store / every status" flags are `long` and the
   statement compared them with an `int` literal; now `1L`, as the BL reception list. `HoStoreOrderPageQueryTest` and
   `StoreOrderPageQueryTest` run the real statements on H2 with and without each filter.
+- Local purchase with the same item on two lines: the second line saved the item it had loaded (its last costs), which
+  put back the stock of before the first line's increment, so the first line's quantity was lost. The last costs are
+  now a bulk update and the item is never saved (`PurchaseHeaderServiceCostTest`, the mechanism in
+  `EntryCostQueryTest`).
+- Head office invoice at the store: the last costs were written by saving the whole item, which could put back a stock
+  read before a sale made at the same time; now a bulk update (`SupplyInvoiceWriter`).
 
 ### Removed
 - Head office page "Items by point de stock", back end: `GET /admin/headoffice/stock-points/items` and `/items/{rowId}`,
@@ -279,7 +314,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   that has it stays, unread. Item cards' point filter replaces the page. `GET /config` gains `headOfficeStockPoints`
   (the head office keeps points de stock: catalogue only from the ERP and a connector with `HEAD_OFFICE_STOCK_POINTS`).
 
-### DB script (`db/3.1.1/store-orders.sql`, then `db/3.1.1/update.sql`, store and head office)
+### DB script (`db/3.1.1/store-orders.sql`, `db/3.1.1/sales-line-unit-cost.sql`, then `db/3.1.1/update.sql`, store and head office)
+- `sales-line-unit-cost.sql`: columns `sales_line.unit_cost` and `return_line.unit_cost` DECIMAL(19,3) NULL, each added
+  when missing (a start adds them too); no data changed, the lines of before stay NULL. `update.sql` stops while they
+  are missing.
 - `store-orders.sql`: tables `hol_order` (unique `number`, index `ix_hol_order_status`, filtered unique index
   `ux_hol_order_draft`: one DRAFT) and `hol_order_line` (unique `order_id`, `item_id`; FK to `hol_order`) on a store
   only; `item_image` (index `ix_item_image_item`) on both. Re-runnable, no data changed. The filtered index is also made
@@ -333,6 +371,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - `erp.zen.products.url` and `erp.zen.products.api-key` (head office with the connector zen, optional, both or
   neither): ZEN's products API for the item images. Set in `configs/customers/zen-headoffice.properties` (the key
   `CHANGE_ME`: the real one in the installation's file only).
+- `configs/customers/zen-headoffice.properties`: `headoffice.supply.source=ERP` (was `HEAD_OFFICE`, kept until the live
+  test), as the real installation runs it; the records of `ConfigurationKeysProofTest` and `InstallationBeansProofTest`
+  follow (that line only).
 
 ## 3.1.0 — 2026-10-27 (tag `v3.1.0`)
 

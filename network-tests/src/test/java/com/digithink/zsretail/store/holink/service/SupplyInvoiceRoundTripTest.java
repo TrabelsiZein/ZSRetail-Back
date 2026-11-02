@@ -207,7 +207,7 @@ class SupplyInvoiceRoundTripTest {
 		Item b001 = db.itemByCode("B001").get();
 		assertEquals(6.0, b001.getLastDirectCost());
 		assertEquals(6.0, b001.getLastDirectNetCost());
-		assertEquals(6.0, b001.getCostPrice(), "costPrice too, for a head office item");
+		assertEquals(6.0, b001.getCostPrice(), "the CMP: the BL received before, its cost applied with the invoice");
 		assertEquals("FHO-2026-000001", bl.getInvoiceNumber());
 		assertEquals("FHO-2026-000001", reception.get(bl.getId()).get().getInvoiceNumber());
 		DownRecord tracked = link.downRecords.get("INV:FHO-2026-000001");
@@ -219,6 +219,23 @@ class SupplyInvoiceRoundTripTest {
 		assertEquals(1, headers.size());
 		assertEquals(1, lines.size());
 		assertEquals(1, vendors.size());
+	}
+
+	@Test
+	@DisplayName("CMP: a BL of 10 on a stock of 20 at 9, its invoice at the supply price 6: (20 x 9 + 10 x 6) / 30 = 8; once")
+	void averageCostFromTheInvoice() {
+		Item b001 = db.itemByCode("B001").get();
+		b001.setStockQuantity(BigDecimal.valueOf(20));
+		deliverAndConfirm("B001");
+		assertEquals(30, stock.stockOf("B001"));
+		assertEquals(9.0, b001.getCostPrice(), "the BL brings no cost");
+		pull();
+
+		assertEquals(8.0, b001.getCostPrice());
+		assertEquals(6.0, b001.getLastDirectCost());
+		cursor = "";
+		pull(); // everything again: the invoice is here, nothing applied twice
+		assertEquals(8.0, b001.getCostPrice());
 	}
 
 	@Test
@@ -360,6 +377,10 @@ class SupplyInvoiceRoundTripTest {
 				line.setId(nextId++);
 				lines.add(line);
 				return line;
+			}
+			if ("findByLineDescriptionStartingWith".equals(method)) { // CMP: a BL saved after its invoice
+				return lines.stream().filter(l -> l.getLineDescription() != null
+						&& l.getLineDescription().startsWith((String) args[0])).collect(Collectors.toList());
 			}
 			return UNHANDLED;
 		});

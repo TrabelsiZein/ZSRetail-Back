@@ -148,7 +148,7 @@ class QueryParameterBindingTest {
 			return Boolean.FALSE;
 		}
 		if (type == Double.class || type == double.class) {
-			return 6.8; // invoices from the ERP: ItemRepository.updateCost
+			return 6.8; // the costs: ItemRepository.updateLastCosts, setCostPrice
 		}
 		if (type.isEnum()) {
 			return type.getEnumConstants()[0];

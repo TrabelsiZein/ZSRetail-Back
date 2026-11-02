@@ -72,6 +72,9 @@ public final class InMemoryPurchaseInvoices {
 				}
 				case "findByPurchaseInvoice":
 					return linesOf((PurchaseInvoiceHeader) args[0]);
+				case "findByLineDescriptionStartingWith": // CMP: a BL saved after its invoice
+					return lines.stream().filter(l -> l.getLineDescription() != null
+							&& l.getLineDescription().startsWith((String) args[0])).collect(Collectors.toList());
 				default:
 					return UNHANDLED;
 			}

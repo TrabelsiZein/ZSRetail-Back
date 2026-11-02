@@ -64,6 +64,9 @@ public class AppRoleAPI {
         "read:admin-purchase-invoices",
         // Inventory count (a store that keeps its own stock)
         "read:admin-inventory-counts", "write:admin-inventory-counts",
+        // "Ajuster le CMP" on the item card, the line costs of the ticket detail (an installation that keeps its own stock)
+        "write:admin-item-cost",
+        "read:admin-margins",
         // Orders to the head office (a store whose goods come from the head office, 3.1.1)
         "read:admin-store-orders", "write:admin-store-orders",
         "read:admin-warranty", "write:admin-warranty",

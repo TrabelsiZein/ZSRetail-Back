@@ -178,6 +178,21 @@ public class ItemService extends _BaseService<Item, Long> {
 		stockMovementService.recordAdjustment(itemId, delta, reason);
 	}
 
+	/**
+	 * CMP: "Ajuster le CMP", the weighted average cost set by hand (ItemAPI checks the value, the reason and the right
+	 * first): the cost price by a bulk update and its COST_ADJUSTMENT movement (old and new CMP, the reason, the user),
+	 * in one transaction. No item save, as {@link #adjustStock}. Returns the CMP before.
+	 */
+	@Transactional(rollbackFor = Exception.class)
+	public Double adjustCost(Long itemId, double newCost, String reason, String user) {
+		Item item = itemRepository.findById(itemId)
+				.orElseThrow(() -> new IllegalArgumentException("Item not found: " + itemId));
+		Double before = item.getCostPrice();
+		itemRepository.setCostPrice(itemId, newCost, user);
+		stockMovementService.recordCostAdjustment(itemId, before, newCost, reason, user);
+		return before;
+	}
+
 	@Override
 	protected _BaseRepository<Item, Long> getRepository() {
 		return itemRepository;

@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -41,8 +42,11 @@ import lombok.extern.log4j.Log4j2;
  * API has no edit or delete, and no purchase_header is linked, so the store can never invoice it again). Vendor
  * HEAD_OFFICE, created at the first invoice. Totals copied, never recomputed. Each line names this store's head office
  * item (origin HEAD_OFFICE; the tax stamp: the store's TAX_STAMP item); an item not here: a line without item, its code
- * and name in the description. The supply price becomes the cost of each head office item (lastDirectCost,
- * lastDirectNetCost and costPrice); the store's own items are never touched. The BLs of the invoice get its number.
+ * and name in the description. The supply price becomes the last costs of each head office item (lastDirectCost,
+ * lastDirectNetCost, by a bulk update); the store's own items are never touched. The BLs of the invoice get its number
+ * and, on their lines, its costs (CMP): the reception writes the weighted average cost (costPrice) with the stock, at
+ * once for a BL already received ({@link DeliveryReceptionService#applyInvoicedCosts}), else when it is received. A BL
+ * saved after its invoice takes them from the purchase invoice ({@link #stampFromInvoice}).
  * <p>
  * Invoices from the ERP, step (c): {@link #saveFromErpInvoice} writes the purchase invoice of a received ERP invoice and
  * no cost (the reception writes it, with the stock); {@link #attachItems} gives its lines the items that arrive later.
@@ -117,30 +121,149 @@ public class SupplyInvoiceWriter {
 		header.setUpdatedBy(WRITER);
 		PurchaseInvoiceHeader saved = headers.save(header);
 		Set<String> missing = new LinkedHashSet<>();
+		Map<String, Map<String, BlCost>> costsByBl = new LinkedHashMap<>();
 		for (SupplyInvoiceCopyDTO.Line copyLine : copy.getLines()) {
 			Optional<Item> item = itemOf(copyLine.getItemCode());
 			if (!item.isPresent()) {
 				missing.add(copyLine.getItemCode());
 			}
 			lines.save(line(saved, copyLine, item.orElse(null)));
+			Double net = netUnitCost(copyLine.getQuantity() == null ? null : BigDecimal.valueOf(copyLine.getQuantity()),
+					copyLine.getLineTotal(), copyLine.getUnitPrice());
 			if (item.isPresent() && item.get().getOrigin() == RecordOrigin.HEAD_OFFICE && copyLine.getUnitPrice() != null) {
-				Item cost = item.get();
-				cost.setLastDirectCost(copyLine.getUnitPrice());
-				cost.setLastDirectNetCost(copyLine.getUnitPrice());
-				cost.setCostPrice(copyLine.getUnitPrice());
-				cost.setUpdatedBy(WRITER);
-				items.save(cost);
+				// the last costs, informative (the last invoice), by a bulk update: never a save of the item
+				items.updateLastCosts(item.get().getId(), copyLine.getUnitPrice(), net, WRITER);
+			}
+			if (copyLine.getDeliveryNumber() != null && copyLine.getItemCode() != null && net != null) {
+				costsByBl.computeIfAbsent(copyLine.getDeliveryNumber(), number -> new LinkedHashMap<>())
+						.computeIfAbsent(copyLine.getItemCode(), code -> new BlCost())
+						.add(copyLine.getQuantity() == null ? BigDecimal.ZERO : BigDecimal.valueOf(copyLine.getQuantity()),
+								copyLine.getLineTotal(), copyLine.getUnitPrice(), net);
 			}
 		}
-		for (String number : copy.getDeliveryNumbers()) {
+		for (String number : deliveryNumbers(copy)) {
 			deliveries.findByNumber(number).ifPresent(delivery -> {
 				delivery.setInvoiceNumber(copy.getInvoiceNumber());
+				stamp(delivery, costsByBl.getOrDefault(number, new HashMap<>()));
 				deliveries.save(delivery);
 			});
 		}
 		log.info("Head office link: supply invoice {} received as a purchase invoice ({} lines, total {})",
 				saved.getInvoiceNumber(), copy.getLines().size(), copy.getTotalAmount());
 		return new Outcome(true, new ArrayList<>(missing));
+	}
+
+	// ─── CMP: the costs of the BLs an invoice of the head office covers ───
+
+	/** One item of one BL on an invoice: its quantities, amounts and last prices summed over its invoice lines. */
+	static final class BlCost {
+		private BigDecimal quantity = BigDecimal.ZERO;
+		private BigDecimal amount = BigDecimal.ZERO;
+		private Double unitPrice;
+		private Double lastNet;
+
+		void add(BigDecimal lineQuantity, Double lineTotal, Double lineUnitPrice, double net) {
+			quantity = quantity.add(lineQuantity);
+			amount = amount.add(BigDecimal.valueOf(lineTotal != null ? lineTotal : net * lineQuantity.doubleValue()));
+			unitPrice = lineUnitPrice != null ? lineUnitPrice : net;
+			lastNet = net;
+		}
+
+		/** The net unit cost of the item on that BL: its amounts / its quantities (the last line's when no quantity). */
+		double net() {
+			return quantity.signum() > 0 ? amount.divide(quantity, COST_SCALE, RoundingMode.HALF_UP).doubleValue() : lastNet;
+		}
+	}
+
+	static final int COST_SCALE = 5;
+
+	/** The BLs an invoice covers: its BL numbers, and those its lines name. */
+	public Set<String> deliveryNumbers(SupplyInvoiceCopyDTO copy) {
+		Set<String> numbers = new LinkedHashSet<>(copy.getDeliveryNumbers());
+		for (SupplyInvoiceCopyDTO.Line line : copy.getLines()) {
+			if (line.getDeliveryNumber() != null) {
+				numbers.add(line.getDeliveryNumber());
+			}
+		}
+		return numbers;
+	}
+
+	/**
+	 * The net unit cost of an invoice line (before VAT): its line total / its quantity, else its unit price; null without
+	 * either.
+	 */
+	private static Double netUnitCost(BigDecimal quantity, Double lineTotal, Double unitPrice) {
+		if (quantity != null && quantity.signum() > 0 && lineTotal != null) {
+			return BigDecimal.valueOf(lineTotal).divide(quantity, COST_SCALE, RoundingMode.HALF_UP).doubleValue();
+		}
+		return unitPrice;
+	}
+
+	/**
+	 * The invoice's costs on the lines of a BL (by item code), each line once: unit price, net unit cost, and amount =
+	 * net x quantity sent (an item invoiced at 0: amount 0, no cost, as a free line). The reception applies them with the
+	 * stock ({@link DeliveryReceptionService#applyInvoicedCosts} for a BL already received). A line that already has a
+	 * cost keeps it.
+	 */
+	private static void stamp(ReceivedDelivery delivery, Map<String, BlCost> costsByCode) {
+		for (ReceivedDeliveryLine line : delivery.getLines()) {
+			BlCost cost = line.isItemLine() ? costsByCode.get(line.getItemCode()) : null;
+			if (cost == null || line.getUnitCost() != null || Boolean.TRUE.equals(line.getCostApplied())) {
+				continue;
+			}
+			double net = cost.net();
+			BigDecimal sent = line.getQuantitySent() == null ? BigDecimal.ZERO : line.getQuantitySent();
+			line.setUnitPrice(cost.unitPrice);
+			line.setUnitCost(net);
+			line.setLineAmount(BigDecimal.valueOf(net).multiply(sent).setScale(3, RoundingMode.HALF_UP).doubleValue());
+		}
+	}
+
+	/**
+	 * CMP: a BL saved after the invoice that covers it (its record came late) takes its costs and the invoice number
+	 * from the purchase invoice lines already here, matched by the BL number at the start of their description and the
+	 * item code (lines written by {@link #save}: "&lt;BL&gt; - &lt;code&gt; &lt;name&gt;"). Called by the copies down
+	 * in the BL's transaction, after it is saved TO_RECEIVE: its costs then go in at its reception. True when a cost was
+	 * found.
+	 */
+	@Transactional(rollbackFor = Exception.class)
+	public boolean stampFromInvoice(String deliveryNumber) {
+		Optional<ReceivedDelivery> found = deliveryNumber == null ? Optional.empty() : deliveries.findByNumber(deliveryNumber);
+		if (!found.isPresent()) {
+			return false;
+		}
+		ReceivedDelivery delivery = found.get();
+		String prefix = delivery.getNumber() + " - ";
+		Map<String, BlCost> costsByCode = new LinkedHashMap<>();
+		String invoiceNumber = null;
+		for (PurchaseInvoiceLine line : lines.findByLineDescriptionStartingWith(prefix)) {
+			PurchaseInvoiceHeader header = line.getPurchaseInvoice();
+			if (header == null || header.getOrigin() != RecordOrigin.HEAD_OFFICE || line.getLineDescription() == null) {
+				continue;
+			}
+			String rest = line.getLineDescription().substring(prefix.length());
+			String code = line.getItem() != null && rest.startsWith(line.getItem().getItemCode())
+					? line.getItem().getItemCode() : rest.split(" ", 2)[0];
+			Double net = netUnitCost(line.getQuantity(), line.getSubtotal(), line.getUnitPrice());
+			if (net == null) {
+				continue;
+			}
+			costsByCode.computeIfAbsent(code, c -> new BlCost())
+					.add(line.getQuantity() == null ? BigDecimal.ZERO : line.getQuantity(), line.getSubtotal(),
+							line.getUnitPrice(), net);
+			invoiceNumber = header.getInvoiceNumber();
+		}
+		if (costsByCode.isEmpty()) {
+			return false;
+		}
+		if (delivery.getInvoiceNumber() == null) {
+			delivery.setInvoiceNumber(invoiceNumber);
+		}
+		stamp(delivery, costsByCode);
+		deliveries.save(delivery);
+		log.info("Head office link: BL {} saved after its invoice {}: costs of {} items taken from it",
+				delivery.getNumber(), invoiceNumber, costsByCode.size());
+		return true;
 	}
 
 	/** The vendor HEAD_OFFICE, created with the seller's name and tax number at the first invoice. */

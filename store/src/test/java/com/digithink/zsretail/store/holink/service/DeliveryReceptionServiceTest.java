@@ -26,6 +26,7 @@ import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.PurchaseInvoiceHeader;
 import com.digithink.zsretail.core.model.PurchaseInvoiceLine;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
+import com.digithink.zsretail.core.model.enumeration.StockMovementType;
 import com.digithink.zsretail.core.support.InMemoryItems;
 import com.digithink.zsretail.core.support.InMemoryPurchaseInvoices;
 import com.digithink.zsretail.core.support.InMemoryStock;
@@ -254,7 +255,7 @@ class DeliveryReceptionServiceTest {
 	}
 
 	@Test
-	@DisplayName("The same item on two paid lines: the highest line number wins; a line at amount 0 changes no cost")
+	@DisplayName("The same item on two paid lines: the last costs of the highest line number, the CMP of both lines together; a line at amount 0 changes no cost")
 	void highestLineWinsAndTester() {
 		reception.saveReceived(erpCopy(NUMBER, paidLine(20000, "B001", 4, 12, 25, 36), paidLine(10000, "B001", 6, 10, 40, 36),
 				itemLine(30000, "B002", 1, 0)));
@@ -263,7 +264,8 @@ class DeliveryReceptionServiceTest {
 		assertEquals(10, stock.stockOf("B001"));
 		assertEquals(12.0, item("B001").getLastDirectCost(), "line 20000");
 		assertEquals(9.0, item("B001").getLastDirectNetCost(), "36 / 4");
-		assertEquals(9.0, item("B001").getCostPrice());
+		assertEquals(7.2, item("B001").getCostPrice(), "(36 + 36) / (4 + 6), one entry of 10 on a stock of 0");
+		assertEquals(1, db.cmpUpdates, "one CMP per item");
 		assertEquals(1, stock.stockOf("B002"));
 		assertEquals(9.0, item("B002").getCostPrice(), "a tester at 0 never changes the cost");
 		assertEquals(9.0, item("B002").getLastDirectCost());
@@ -275,15 +277,88 @@ class DeliveryReceptionServiceTest {
 	}
 
 	@Test
-	@DisplayName("Received 0: no stock, the costs are written all the same (the prices are per unit); the selling price untouched")
+	@DisplayName("Received 0: no stock, the last costs are written all the same (the prices are per unit), the CMP stays (no quantity entered); the selling price untouched")
 	void receivedZeroStillCosts() {
 		reception.saveReceived(erpCopy(NUMBER, paidLine(10000, "B001", 6, 10, 40, 36)));
 		reception.receive(invoice().getId(), quantities(10000, 0), "responsible");
 		assertEquals(0, stock.stockOf("B001"));
 		assertEquals(10.0, item("B001").getLastDirectCost());
-		assertEquals(6.0, item("B001").getCostPrice());
+		assertEquals(6.0, item("B001").getLastDirectNetCost());
+		assertEquals(9.0, item("B001").getCostPrice(), "nothing entered: the CMP of before");
 		assertEquals(10.0, item("B001").getUnitPrice(), "never the selling price");
 		assertTrue(invoice().getLines().get(0).getCostApplied());
+	}
+
+	// ─── CMP (weighted average cost) ─────────────────────────────
+
+	@Test
+	@DisplayName("CMP: 6 received at 6 on a stock of 10 at 9: (10 x 9 + 6 x 6) / 16 = 7.875; DELIVERY_IN carries the net cost")
+	void averageOnStock() {
+		item("B001").setStockQuantity(BigDecimal.valueOf(10));
+		reception.saveReceived(erpCopy(NUMBER, itemLine(10000, "B001", 6, 36)));
+		reception.receive(invoice().getId(), null, "responsible");
+
+		assertEquals(16, stock.stockOf("B001"));
+		assertEquals(7.875, item("B001").getCostPrice());
+		assertEquals(6.0, item("B001").getLastDirectNetCost(), "the last costs keep their meaning: the last invoice");
+		assertEquals(6.0, stock.movements(StockMovementType.DELIVERY_IN).get(0).getUnitPriceHt());
+	}
+
+	@Test
+	@DisplayName("CMP: 4 received of 6 invoiced: the quantity received enters, at the invoiced unit cost (10 x 9 + 4 x 6) / 14")
+	void receivedNotInvoiced() {
+		item("B001").setStockQuantity(BigDecimal.valueOf(10));
+		reception.saveReceived(erpCopy(NUMBER, itemLine(10000, "B001", 6, 36)));
+		reception.receive(invoice().getId(), quantities(10000, 4), "responsible");
+
+		assertEquals(14, stock.stockOf("B001"));
+		assertEquals(8.143, item("B001").getCostPrice(), "114 / 14 = 8.142857, 3 decimals");
+	}
+
+	@Test
+	@DisplayName("CMP: a free line of the same item: its units enter the stock but stay out of the entry (valued at the CMP before)")
+	void freeLineOutOfTheEntry() {
+		item("B001").setStockQuantity(BigDecimal.valueOf(10));
+		reception.saveReceived(erpCopy(NUMBER, itemLine(10000, "B001", 2, 12), itemLine(20000, "B001", 3, 0)));
+		reception.receive(invoice().getId(), null, "responsible");
+
+		assertEquals(15, stock.stockOf("B001"));
+		assertEquals(8.6, item("B001").getCostPrice(), "(13 x 9 + 2 x 6) / 15: the 3 free units at 9");
+		assertNull(stock.movements(StockMovementType.DELIVERY_IN).get(1).getUnitPriceHt(), "no cost on the free line");
+	}
+
+	@Test
+	@DisplayName("CMP: written once per document; later cycles and an invoice pass change nothing")
+	void cmpOnce() {
+		item("B001").setStockQuantity(BigDecimal.valueOf(10));
+		reception.saveReceived(erpCopy(NUMBER, itemLine(10000, "B001", 6, 36)));
+		reception.receive(invoice().getId(), null, "responsible");
+		assertEquals(1, db.cmpUpdates);
+
+		reception.applyWaitingStock();
+		assertEquals(0, reception.applyInvoicedCosts(Collections.singletonList(NUMBER)));
+		assertEquals(1, db.cmpUpdates);
+		assertEquals(7.875, item("B001").getCostPrice());
+	}
+
+	@Test
+	@DisplayName("CMP: an item without a CMP yet takes the unit cost, whatever its stock")
+	void firstCost() {
+		item("B001").setCostPrice(null);
+		item("B001").setStockQuantity(BigDecimal.valueOf(10));
+		reception.saveReceived(erpCopy(NUMBER, itemLine(10000, "B001", 6, 36)));
+		reception.receive(invoice().getId(), null, "responsible");
+		assertEquals(6.0, item("B001").getCostPrice());
+	}
+
+	@Test
+	@DisplayName("CMP: a stock below 0 before the entry (negative stock allowed): the unit cost")
+	void negativeStockBefore() {
+		item("B001").setStockQuantity(BigDecimal.valueOf(-2));
+		reception.saveReceived(erpCopy(NUMBER, itemLine(10000, "B001", 6, 36)));
+		reception.receive(invoice().getId(), null, "responsible");
+		assertEquals(4, stock.stockOf("B001"));
+		assertEquals(6.0, item("B001").getCostPrice());
 	}
 
 	@Test
@@ -377,6 +452,8 @@ class DeliveryReceptionServiceTest {
 		assertEquals(4, stock.stockOf("B001"));
 		assertEquals(9.0, item("B001").getCostPrice());
 		assertEquals(0, db.costUpdates);
+		assertEquals(0, db.cmpUpdates, "a BL without its invoice has no cost: the CMP stays");
+		assertNull(stock.movements(StockMovementType.DELIVERY_IN).get(0).getUnitPriceHt());
 		assertTrue(purchases.headers.isEmpty());
 		assertNull(saved.getInvoiceNumber());
 		ReceivedDeliveryDTO view = reception.get(saved.getId()).get();

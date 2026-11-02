@@ -15,5 +15,7 @@ public enum StockMovementType {
     /** Inventory count: the counted quantity above the stock, at the validation of the count. */
     INVENTORY_IN,
     /** Inventory count: the counted quantity below the stock, at the validation of the count. */
-    INVENTORY_OUT
+    INVENTORY_OUT,
+    /** CMP: the weighted average cost set by hand ("Ajuster le CMP"); quantity 0, the stock does not move. */
+    COST_ADJUSTMENT
 }

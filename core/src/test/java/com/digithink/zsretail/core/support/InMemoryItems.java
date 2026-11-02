@@ -4,6 +4,7 @@ import static com.digithink.zsretail.core.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.core.support.InMemoryLoyalty.proxy;
 
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -53,8 +54,30 @@ public class InMemoryItems {
 
 	/** Saves per table, to prove that nothing was written. */
 	public int itemSaves;
-	/** Invoices from the ERP: ItemRepository.updateCost calls. */
+	/** ItemRepository.updateLastCosts calls (the last costs of an invoice). */
 	public int costUpdates;
+	/** ItemRepository.applyEntryCost calls that changed a CMP. */
+	public int cmpUpdates;
+
+	/**
+	 * The CMP after an entry, the rule of ItemRepository.APPLY_ENTRY_COST in Java (stockNow already holds qtyIn): null =
+	 * unchanged (qtyIn 0 and a CMP already there). CmpRuleTest runs the SQL on the same cases.
+	 */
+	public static Double entryCost(Double cmp, BigDecimal stockNow, BigDecimal qtyIn, double unitCost) {
+		BigDecimal quantity = qtyIn == null ? BigDecimal.ZERO : qtyIn;
+		if (quantity.signum() <= 0 && cmp != null) {
+			return null;
+		}
+		BigDecimal stock = stockNow == null ? BigDecimal.ZERO : stockNow;
+		BigDecimal before = stock.subtract(quantity);
+		BigDecimal cost = BigDecimal.valueOf(unitCost).setScale(5, java.math.RoundingMode.HALF_UP);
+		if (cmp == null || before.signum() <= 0) {
+			return cost.setScale(3, java.math.RoundingMode.HALF_UP).doubleValue();
+		}
+		BigDecimal value = before.multiply(BigDecimal.valueOf(cmp).setScale(5, java.math.RoundingMode.HALF_UP))
+				.add(quantity.multiply(cost));
+		return value.divide(stock, 3, java.math.RoundingMode.HALF_UP).doubleValue();
+	}
 	public int barcodeSaves;
 	/** Reads of the old item.barcode field (ItemRepository.findAllByBarcode). */
 	public int legacyBarcodeReads;
@@ -228,16 +251,39 @@ public class InMemoryItems {
 					return items.values().stream().filter(i -> Boolean.TRUE.equals(i.getOwnPrice())).collect(Collectors.toList());
 				case "countByOwnPriceTrue":
 					return items.values().stream().filter(i -> Boolean.TRUE.equals(i.getOwnPrice())).count();
-				case "updateCost": { // invoices from the ERP: the three costs only, never the stock
+				case "updateLastCosts": { // the two last costs only, never the CMP nor the stock
 					Item item = items.get(args[0]);
 					if (item == null) {
 						return 0;
 					}
 					item.setLastDirectCost((Double) args[1]);
 					item.setLastDirectNetCost((Double) args[2]);
-					item.setCostPrice((Double) args[2]);
 					item.setUpdatedBy((String) args[3]);
 					costUpdates++;
+					return 1;
+				}
+				case "applyEntryCost": { // the CMP after an entry, as ItemRepository.APPLY_ENTRY_COST computes it
+					Item item = items.get(args[0]);
+					if (item == null) {
+						return 0;
+					}
+					Double cmp = entryCost(item.getCostPrice(), item.getStockQuantity(), (BigDecimal) args[1],
+							(Double) args[2]);
+					if (cmp == null) {
+						return 0;
+					}
+					item.setCostPrice(cmp);
+					item.setUpdatedBy((String) args[3]);
+					cmpUpdates++;
+					return 1;
+				}
+				case "setCostPrice": {
+					Item item = items.get(args[0]);
+					if (item == null) {
+						return 0;
+					}
+					item.setCostPrice((Double) args[1]);
+					item.setUpdatedBy((String) args[2]);
 					return 1;
 				}
 				case "save":

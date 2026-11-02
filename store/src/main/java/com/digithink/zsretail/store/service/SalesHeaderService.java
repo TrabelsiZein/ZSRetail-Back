@@ -234,6 +234,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			SalesLine salesLine = new SalesLine();
 			salesLine.setSalesHeader(salesHeader);
 			salesLine.setItem(item);
+			salesLine.setUnitCost(frozenCost(item));
 			salesLine.setQuantity(lineDTO.getQuantity());
 			salesLine.setUnitPrice(lineDTO.getUnitPrice());
 			salesLine.setLineTotal(lineDTO.getLineTotal());
@@ -294,6 +295,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 				SalesLine freeLine = new SalesLine();
 				freeLine.setSalesHeader(salesHeader);
 				freeLine.setItem(item);
+				freeLine.setUnitCost(frozenCost(item));
 				freeLine.setQuantity(Quantities.of(lineDTO.getFreeQuantity()));
 				freeLine.setUnitPrice(lineDTO.getUnitPrice());
 				freeLine.setLineTotal(0.0);
@@ -596,6 +598,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			SalesLine salesLine = new SalesLine();
 			salesLine.setSalesHeader(salesHeader);
 			salesLine.setItem(item);
+			salesLine.setUnitCost(frozenCost(item)); // the ticket is completed now
 			salesLine.setQuantity(lineDTO.getQuantity());
 
 			// Apply pricing from PricingService (SalesPrice/SalesDiscount)
@@ -630,6 +633,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 				SalesLine freeLine = new SalesLine();
 				freeLine.setSalesHeader(salesHeader);
 				freeLine.setItem(item);
+				freeLine.setUnitCost(frozenCost(item));
 				freeLine.setQuantity(Quantities.of(lineDTO.getFreeQuantity()));
 				freeLine.setUnitPrice(lineDTO.getUnitPrice());
 				freeLine.setLineTotal(0.0);
@@ -706,7 +710,8 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 	/**
 	 * Split-bill: pay for a subset of lines from a pending table ticket.
-	 * 1. Creates a new COMPLETED SalesHeader with only the selected lines.
+	 * 1. Creates a new COMPLETED SalesHeader with only the selected lines (their discount source and promotion kept),
+	 *    and decrements their stock with their SALE movements, as every completed sale (3.1.1: before, never).
 	 * 2. Removes those lines from the original pending ticket and recalculates its totals.
 	 * 3. If the original ticket has no remaining lines, cancels it (table becomes free).
 	 * Returns the new completed SalesHeader for receipt printing.
@@ -765,10 +770,12 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		splitHeader = save(splitHeader);
 
 		// 4. Copy selected lines to the new header
+		List<SalesLine> splitLines = new ArrayList<>();
 		for (SalesLine origLine : selectedLines) {
 			SalesLine newLine = new SalesLine();
 			newLine.setSalesHeader(splitHeader);
 			newLine.setItem(origLine.getItem());
+			newLine.setUnitCost(frozenCost(origLine.getItem())); // the split ticket is completed here
 			newLine.setQuantity(origLine.getQuantity());
 			newLine.setUnitPrice(origLine.getUnitPrice());
 			newLine.setLineTotal(origLine.getLineTotal());
@@ -778,8 +785,13 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			newLine.setVatAmount(origLine.getVatAmount());
 			newLine.setUnitPriceIncludingVat(origLine.getUnitPriceIncludingVat());
 			newLine.setLineTotalIncludingVat(origLine.getLineTotalIncludingVat());
-			salesLineService.save(newLine);
+			newLine.setDiscountSource(origLine.getDiscountSource());
+			newLine.setPromotion(origLine.getPromotion());
+			splitLines.add(salesLineService.save(newLine));
 		}
+
+		// The stock of the lines paid now, with their SALE movements (the lines left go out when they are paid)
+		decrementStockForSalesLines(splitLines, splitHeader);
 
 		// 5. Create payments for the split header
 		if (request.getPayments() != null) {
@@ -1252,7 +1264,20 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	}
 
 	/**
-	 * Decrement stock for all sale lines (standalone only). Single place used by processCompleteSale and completePendingSale.
+	 * 3.1.1: the unit cost a line of a completed ticket keeps (SalesLine.unitCost): the item's CMP at that instant, half
+	 * up to 3 decimals; null when the item has none and for the tax stamp (no goods). Whatever the configuration: where
+	 * the ERP keeps the stock the item's cost is copied as it is.
+	 */
+	static BigDecimal frozenCost(Item item) {
+		if (item == null || item.getCostPrice() == null || "TAX_STAMP".equals(item.getItemCode())) {
+			return null;
+		}
+		return BigDecimal.valueOf(item.getCostPrice()).setScale(3, RoundingMode.HALF_UP);
+	}
+
+	/**
+	 * Decrement stock for all sale lines (standalone only). Single place used by processCompleteSale, completePendingSale
+	 * and splitAndPay.
 	 */
 	private void decrementStockForSalesLines(List<SalesLine> salesLines, SalesHeader salesHeader) {
 		for (SalesLine line : salesLines) {

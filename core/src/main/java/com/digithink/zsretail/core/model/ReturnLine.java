@@ -52,6 +52,14 @@ public class ReturnLine extends _BaseEntity {
 	@Column(nullable = false)
 	private Double lineTotalIncludingVat; // TTC (including VAT)
 
+	/**
+	 * 3.1.1: the unit cost of the original sales line, null included (a return reverses exactly the cost its sale counted).
+	 * Written once, on the insert; never in JSON.
+	 */
+	@Column(name = "unit_cost", precision = 19, scale = 3, updatable = false)
+	@JsonIgnore
+	private BigDecimal unitCost;
+
 	private String notes;
 
 	// ERP synchronization field

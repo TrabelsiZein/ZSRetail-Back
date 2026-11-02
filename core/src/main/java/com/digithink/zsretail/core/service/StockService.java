@@ -24,6 +24,7 @@ import lombok.extern.log4j.Log4j2;
  * <p>
  * When the supply is the ERP's ({@link ApplicationModeService#isSupplyFromErp()} is true),
  * all methods are no-ops: stock is not updated. In ERP mode, inventory is typically managed by the ERP.
+ * The weighted average cost of an entry ({@link #applyEntryCost}) follows {@link ApplicationModeService#keepsOwnStock()}.
  */
 @Service
 @Log4j2
@@ -152,6 +153,27 @@ public class StockService {
 			stockBatchRepository.addToStockQuantities(nonZero);
 		}
 		log.debug("Stock adjusted by an inventory count: {} items", nonZero.size());
+	}
+
+	/**
+	 * The weighted average cost (CMP, Item.costPrice) after an entry that carries a cost: qtyIn units at unitCostNet
+	 * (after the line discount, before VAT). Called after the entry's stock increment, in the same transaction
+	 * ({@link ItemRepository#applyEntryCost}: the stock before is the stock now minus qtyIn; no CMP yet or a stock before
+	 * at 0 or below: the unit cost; qtyIn 0: unchanged unless the CMP is still null). An entry without a cost and every
+	 * exit never call it. No-op unless this installation keeps its own stock (not where the ERP keeps it, not on a head
+	 * office with headoffice.stock.enabled=false), and without a cost (null or below 0) or a quantity below 0.
+	 */
+	@Transactional(rollbackFor = Exception.class)
+	public void applyEntryCost(Long itemId, BigDecimal qtyIn, Double unitCostNet, String by) {
+		if (!applicationModeService.keepsOwnStock() || itemId == null || unitCostNet == null || unitCostNet < 0) {
+			return;
+		}
+		BigDecimal quantity = qtyIn == null ? BigDecimal.ZERO : qtyIn;
+		if (quantity.signum() < 0) {
+			return;
+		}
+		itemRepository.applyEntryCost(itemId, quantity, unitCostNet, by);
+		log.debug("CMP after an entry: itemId={}, qtyIn={}, unitCostNet={}", itemId, quantity, unitCostNet);
 	}
 
 	/** True when ALLOW_NEGATIVE_STOCK=true in GeneralSetup: a sale or a BL may take the stock below zero. */

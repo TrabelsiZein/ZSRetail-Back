@@ -140,6 +140,7 @@ class ZZDataInitializerRolesTest {
 		expected.addAll(TILL_RIGHTS);
 		if (standalone) {
 			expected.addAll(INVENTORY);
+			expected.addAll(COST); // CMP: "Ajuster le CMP", the stock is kept here
 		}
 		return expected;
 	}
@@ -185,6 +186,7 @@ class ZZDataInitializerRolesTest {
 		assertFalse(HEAD_OFFICE_PERMISSIONS.contains("read:admin-headoffice"), "Network menu permission dropped");
 		Set<String> expected = new HashSet<>(staticSet("ADMIN_PERMISSIONS"));
 		expected.addAll(HEAD_OFFICE_PERMISSIONS);
+		expected.addAll(COST); // a head office that keeps its stock (headoffice.stock.enabled absent: true)
 		assertEquals(expected, roles.get("ADMIN").getPermissions());
 		assertFalse(roles.get("ADMIN").getPermissions().contains(CASHIER_INTERFACE), "a head office never opens the till");
 		assertTrue(java.util.Collections.disjoint(INVENTORY, roles.get("ADMIN").getPermissions()), "no inventory count");
@@ -322,6 +324,7 @@ class ZZDataInitializerRolesTest {
 
 		assertEquals(Collections.singletonList("ADMIN"), saves);
 		Set<String> expected = new HashSet<>(HEAD_OFFICE_PERMISSIONS);
+		expected.addAll(COST);
 		expected.add("read:home");
 		expected.add("read:admin-headoffice");
 		assertEquals(expected, existing.get("ADMIN").getPermissions(), "nothing removed");
@@ -426,6 +429,7 @@ class ZZDataInitializerRolesTest {
 				Set<String> expected = new HashSet<>(java.util.Arrays.asList("read:home", LICENSE));
 				if (flags[0]) {
 					expected.addAll(INVENTORY);
+					expected.addAll(COST);
 				}
 				if (linkedStore) {
 					// 3.1.1: the "Head office" pages, for a store linked after its database was created
@@ -471,6 +475,7 @@ class ZZDataInitializerRolesTest {
 		Set<String> toppedUp = new HashSet<>(java.util.Arrays.asList("read:home", "read:admin-holink-status",
 				"read:admin-holink-deliveries", LICENSE));
 		toppedUp.addAll(INVENTORY);
+		toppedUp.addAll(COST);
 		toppedUp.addAll(STORE_ORDERS);
 		assertEquals(toppedUp, existing.get("ADMIN").getPermissions(), "nothing else added or removed");
 		assertEquals(Collections.singleton("read:home"), existing.get("RESPONSIBLE").getPermissions());
@@ -485,6 +490,52 @@ class ZZDataInitializerRolesTest {
 	/** 3.1.1: the orders to the head office, only on a store whose goods come from the head office. */
 	private static final Set<String> STORE_ORDERS = new HashSet<>(
 			java.util.Arrays.asList("read:admin-store-orders", "write:admin-store-orders"));
+
+	/**
+	 * CMP: "Ajuster le CMP" and (3.1.1) the line costs of the ticket detail, ADMIN of an installation that keeps its own
+	 * stock only.
+	 */
+	private static final Set<String> COST = new HashSet<>(
+			java.util.Arrays.asList("write:admin-item-cost", "read:admin-margins"));
+
+	@Test
+	@DisplayName("CMP: write:admin-item-cost and read:admin-margins to ADMIN where the stock is kept here (a store without the ERP's"
+			+ " supply, a head office with stock), new database or at the next start, once; never where the ERP keeps it nor on a"
+			+ " head office without stock; never to RESPONSIBLE or POS_USER")
+	void costRightWhereTheStockIsKept() throws Exception {
+		assertEquals(COST, staticSet("COST_ADMIN_PERMISSIONS"));
+		MockEnvironment headOfficeWithoutStock = headOffice().withProperty("headoffice.stock.enabled", "false");
+		assertTrue(seedRoles(new MockEnvironment(), true, Collections.emptyMap()).get("ADMIN").getPermissions()
+				.containsAll(COST), "store, new database");
+		assertTrue(seedRoles(suppliedStore(), true, Collections.emptyMap()).get("ADMIN").getPermissions().containsAll(COST),
+				"store supplied by its head office");
+		assertTrue(seedRoles(headOffice(), true, Collections.emptyMap()).get("ADMIN").getPermissions().containsAll(COST),
+				"head office with stock");
+		assertTrue(Collections.disjoint(COST,
+				seedRoles(new MockEnvironment(), false, Collections.emptyMap()).get("ADMIN").getPermissions()),
+				"the ERP keeps the stock");
+		assertTrue(Collections.disjoint(COST,
+				seedRoles(headOfficeWithoutStock, true, Collections.emptyMap()).get("ADMIN").getPermissions()),
+				"head office without stock");
+		for (String set : new String[] { "ADMIN_PERMISSIONS", "RESPONSIBLE_PERMISSIONS", "POS_PERMISSIONS",
+				"HEAD_OFFICE_ADMIN_PERMISSIONS" }) {
+			assertTrue(Collections.disjoint(staticSet(set), COST), set);
+		}
+
+		Map<String, AppRole> store = existingRoles("read:home", LICENSE);
+		store.get("ADMIN").getPermissions().addAll(INVENTORY);
+		List<String> saves = new ArrayList<>();
+		seedRoles(new MockEnvironment(), true, store, saves);
+		assertEquals(Collections.singletonList("ADMIN"), saves, "a database of before: topped up at its start");
+		assertTrue(store.get("ADMIN").getPermissions().containsAll(COST));
+		List<String> nextStart = new ArrayList<>();
+		seedRoles(new MockEnvironment(), true, store, nextStart);
+		assertTrue(nextStart.isEmpty(), "once, saved: " + nextStart);
+
+		Map<String, AppRole> withoutStock = existingRoles("read:home");
+		seedRoles(headOfficeWithoutStock, true, withoutStock, new ArrayList<>());
+		assertTrue(Collections.disjoint(COST, withoutStock.get("ADMIN").getPermissions()));
+	}
 
 	// --- Stubs ---
 
