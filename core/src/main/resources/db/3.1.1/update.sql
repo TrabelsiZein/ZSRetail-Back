@@ -4,16 +4,15 @@
 -- Deployment order:
 --   1) Run db/3.1.0/update.sql first if the database is older than 3.1.0 (the scripts of 3.1.1 stop, without changing
 --      anything, while APP_VERSION is not 3.1.0 or 3.1.1).
---   2) Run db/3.1.1/store-orders.sql, db/3.1.1/sales-line-unit-cost.sql, then this script, against the database (the
---      same scripts on a store and on a head office). The files are UTF-8: with sqlcmd add -f 65001 (sqlcmd ... -f 65001
---      -i update.sql); in SSMS open them as UTF-8.
+--   2) Run db/3.1.1/store-orders.sql, then this script, against the database (the same scripts on a store and on a head
+--      office). The files are UTF-8: with sqlcmd add -f 65001 (sqlcmd ... -f 65001 -i update.sql); in SSMS open them as
+--      UTF-8.
 --   3) Deploy the WAR of the installation's type as zsretailws.war (docs/deploy-note.md).
 -- The application refuses to start while APP_VERSION differs from its own version, so step 2 must be done before 3.
 --
 -- This script stamps APP_VERSION 3.1.1 and writes the notes of the version; the schema of each feature is in its own
--- file of this folder (store-orders.sql: docs/modules/store-orders.md; sales-line-unit-cost.sql: the unit cost frozen
--- on the ticket lines), but for one index of the till (below). It stops, without changing anything, while store-orders.sql
--- has not run (no item_image table) or sales-line-unit-cost.sql has not (no sales_line.unit_cost column).
+-- file of this folder (store-orders.sql: docs/modules/store-orders.md), but for one index of the till (below). It
+-- stops, without changing anything, while store-orders.sql has not run (no item_image table).
 
 -- The session options are set here (sqlcmd starts with QUOTED_IDENTIFIER OFF); SSMS has them on already.
 
@@ -38,14 +37,6 @@ GO
 IF OBJECT_ID(N'item_image', N'U') IS NULL
 BEGIN
 	RAISERROR(N'3.1.1: run db/3.1.1/store-orders.sql first (no item_image table). APP_VERSION not changed.', 16, 1);
-	SET NOEXEC ON;
-END
-GO
-
-IF (OBJECT_ID(N'sales_line', N'U') IS NOT NULL AND COL_LENGTH(N'sales_line', N'unit_cost') IS NULL)
-	OR (OBJECT_ID(N'return_line', N'U') IS NOT NULL AND COL_LENGTH(N'return_line', N'unit_cost') IS NULL)
-BEGIN
-	RAISERROR(N'3.1.1: run db/3.1.1/sales-line-unit-cost.sql first (no unit_cost column). APP_VERSION not changed.', 16, 1);
 	SET NOEXEC ON;
 END
 GO
@@ -83,16 +74,6 @@ BEGIN
 		THROW;
 	END CATCH
 END
-GO
-
--- The ERP jobs (3.1.1): the job type EXPORT_CUSTOMERS is removed (never implemented; a disabled template row on every
--- installation with an ERP) with its operation EXPORT_CUSTOMER of the communications log: their rows are deleted, else a
--- read of erp_sync_job or erp_communication would fail on a value the application no longer has. Nothing to do once
--- they are gone; the application does the same at startup (ErpSyncJobTypesUpgrade.DEAD_ROWS).
-IF OBJECT_ID(N'erp_sync_job', N'U') IS NOT NULL
-	DELETE FROM erp_sync_job WHERE job_type = 'EXPORT_CUSTOMERS';
-IF OBJECT_ID(N'erp_communication', N'U') IS NOT NULL
-	DELETE FROM erp_communication WHERE operation = 'EXPORT_CUSTOMER';
 GO
 
 UPDATE APP_VERSION SET version = '3.1.1';

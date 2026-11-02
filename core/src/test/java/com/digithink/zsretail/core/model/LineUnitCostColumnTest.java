@@ -26,10 +26,10 @@ import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * 3.1.1, the unit cost frozen on the ticket lines (sales_line.unit_cost, return_line.unit_cost), with Hibernate over an
+ * 3.1.2, the unit cost frozen on the ticket lines (sales_line.unit_cost, return_line.unit_cost), with Hibernate over an
  * in-memory H2 database in SQL Server mode (every entity of core, Spring's naming strategy; no Spring context):
  * <ul>
- * <li>the column is DECIMAL(19,3), as db/3.1.1/sales-line-unit-cost.sql adds it;</li>
+ * <li>the column is DECIMAL(19,3), as db/3.1.2/sales-line-unit-cost.sql adds it;</li>
  * <li>it is written on the insert only: a later save of the line (another value, or none, as a whole body sent to the
  * generic PUT /sales-line/{id}) leaves it, while the other columns change;</li>
  * <li>it is never in JSON, and a body that sends one is not read.</li>

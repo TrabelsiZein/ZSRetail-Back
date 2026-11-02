@@ -35,7 +35,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * 3.1.1: the admin ticket detail (GET /sales-header/{id}/details) sends the unit cost of each line apart, as lineCosts
+ * 3.1.2: the admin ticket detail (GET /sales-header/{id}/details) sends the unit cost of each line apart, as lineCosts
  * (line id to cost, null when unknown at the sale), only to a user whose role has read:admin-margins; the lines
  * themselves never carry it.
  */

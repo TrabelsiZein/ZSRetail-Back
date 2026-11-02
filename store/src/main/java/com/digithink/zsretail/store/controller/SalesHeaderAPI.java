@@ -36,7 +36,7 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHeaderService> {
 
-	/** 3.1.1: the right to see the unit costs of the ticket lines (the admin ticket detail). */
+	/** 3.1.2: the right to see the unit costs of the ticket lines (the admin ticket detail). */
 	public static final String MARGINS_PERMISSION = "read:admin-margins";
 
 	@Autowired
@@ -721,7 +721,7 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			ticketMap.put("loyaltyMember", ticket.getLoyaltyMember());
 			ticketMap.put("showLoyaltyBalance", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_BALANCE"));
 			ticketMap.put("showLoyaltyEarned", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_EARNED"));
-			// 3.1.1: the unit cost frozen on each line, by line id, only for a user with the margins right
+			// 3.1.2: the unit cost frozen on each line, by line id, only for a user with the margins right
 			if (currentUserProvider != null && currentUserProvider.currentUserHasPermission(MARGINS_PERMISSION)) {
 				ticketMap.put("lineCosts", lineCosts(salesLines));
 			}

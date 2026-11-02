@@ -8,7 +8,7 @@ the development contract; this file covers backend specifics only.
 - Java 11 · Spring Boot 2.3.9 · two applications, each packaged as a **WAR** (deployed to Tomcat 9)
 - Spring Security + JWT · JPA/Hibernate · SQL Server
 - Maven, several projects under one parent `com.digithink:zsretail-parent` (the `pom.xml` of this folder), one
-  version for all of them: the product version, currently 3.1.1 (release/3.1.0 keeps 3.1.0, release/2.3.0 keeps 2.3.0, release/2.2.2 keeps 2.2.x for hotfixes)
+  version for all of them: the product version, currently 3.1.2 (release/3.1.1 keeps 3.1.1, release/3.1.0 keeps 3.1.0, release/2.3.0 keeps 2.3.0, release/2.2.2 keeps 2.2.x for hotfixes)
 - springdoc-openapi UI for API docs
 - Context path `/zsretail/api`, port `444`
 
@@ -23,7 +23,7 @@ Each folder below is a project with its `pom.xml`; the parent lists them. What g
 | `connectors` | `zsretail-connectors` (pom) | the list of the connector projects, the one dependency of the WARs | |
 | `connectors/happyness` | `zsretail-connector-happyness` | `com.digithink.zsretail.connector.happyness` | erp-api |
 | `connectors/emtop` | `zsretail-connector-emtop` | `com.digithink.zsretail.connector.emtop` | erp-api |
-| `connectors/parafendri` | `zsretail-connector-parafendri` (3.1.1, step 0: settings + connection test; a store connector) | `com.digithink.zsretail.connector.parafendri` | erp-api |
+| `connectors/parafendri` | `zsretail-connector-parafendri` (3.1.2, step 0: settings + connection test; a store connector) | `com.digithink.zsretail.connector.parafendri` | erp-api |
 | `connectors/zen` | `zsretail-connector-zen` (3.1.0, item variants; its own tests on the API samples) | `com.digithink.zsretail.connector.zen` | erp-api |
 | `core` | `zsretail-core` | `com.digithink.zsretail.core` | erp-api |
 | `store` | `zsretail-store` (WAR, main class `StoreApplication`) | `com.digithink.zsretail.store` | core; the connectors at runtime |

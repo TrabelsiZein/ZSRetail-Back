@@ -22,7 +22,7 @@ This folder holds every such file of the repository (code cleanup step 7: deploy
                              zen-headoffice and zen-store (3.1.0): the ZEN head office, configured as Happyness's with
                              erp.connector=zen (supply HEAD_OFFICE until step 9 of the item variants), and a store of
                              its network (erp.connector=none), every value a CHANGE_ME placeholder;
-                             parafendri-store (3.1.1): a store of a ParaFendri point de vente on the ERP as EMTOP's,
+                             parafendri-store (3.1.2): a store of a ParaFendri point de vente on the ERP as EMTOP's,
                              erp.connector=parafendri (step 0: erp.sync.enabled=false), placeholders
   happyness-from-scratch\    the Happyness franchise as first set up on this PC on 2026-10-04: a head office and two
                              stores without the ERP catalogue (ports 889, 557, 558)

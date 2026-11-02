@@ -51,7 +51,7 @@ import com.digithink.zsretail.store.erp.service.SessionExportService;
 import com.digithink.zsretail.store.support.InMemoryTillRights;
 
 /**
- * 3.1.1, the unit cost frozen on the ticket line (SalesLine.unitCost): the item's CMP when the ticket is completed, on
+ * 3.1.2, the unit cost frozen on the ticket line (SalesLine.unitCost): the item's CMP when the ticket is completed, on
  * the three ways a ticket is completed (a sale, a held ticket paid later, a split bill), never on a held ticket, and
  * never moved by a later CMP. Runs the real SalesHeaderService over in-memory stubs (no Spring, no database).
  */

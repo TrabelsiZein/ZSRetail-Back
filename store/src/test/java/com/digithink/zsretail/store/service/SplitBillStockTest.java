@@ -53,7 +53,7 @@ import com.digithink.zsretail.store.erp.service.SessionExportService;
 import com.digithink.zsretail.store.support.InMemoryTillRights;
 
 /**
- * 3.1.1, the split bill of a table ticket (splitAndPay): the lines paid apart are a completed sale like any other, so
+ * 3.1.2, the split bill of a table ticket (splitAndPay): the lines paid apart are a completed sale like any other, so
  * their stock goes out with their SALE movements (before, never: a table paid in parts kept its stock), and they keep
  * their discount source and promotion. The lines left go out when the rest is paid, once. Runs the real
  * SalesHeaderService over in-memory stubs (no Spring, no database).

@@ -711,7 +711,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	/**
 	 * Split-bill: pay for a subset of lines from a pending table ticket.
 	 * 1. Creates a new COMPLETED SalesHeader with only the selected lines (their discount source and promotion kept),
-	 *    and decrements their stock with their SALE movements, as every completed sale (3.1.1: before, never).
+	 *    and decrements their stock with their SALE movements, as every completed sale (3.1.2: before, never).
 	 * 2. Removes those lines from the original pending ticket and recalculates its totals.
 	 * 3. If the original ticket has no remaining lines, cancels it (table becomes free).
 	 * Returns the new completed SalesHeader for receipt printing.
@@ -1264,7 +1264,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	}
 
 	/**
-	 * 3.1.1: the unit cost a line of a completed ticket keeps (SalesLine.unitCost): the item's CMP at that instant, half
+	 * 3.1.2: the unit cost a line of a completed ticket keeps (SalesLine.unitCost): the item's CMP at that instant, half
 	 * up to 3 decimals; null when the item has none and for the tax stamp (no goods). Whatever the configuration: where
 	 * the ERP keeps the stock the item's cost is copied as it is.
 	 */

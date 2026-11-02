@@ -25,14 +25,21 @@ class ErpSyncJobTypesUpgradeTest {
 
 	private static final String SCRIPT = "/db/3.1.1/update.sql";
 
+	/** 3.1.2: the removed EXPORT_CUSTOMERS rows are deleted by the script of 3.1.2 (3.1.1 is released as it was). */
+	private static final String SCRIPT_312 = "/db/3.1.2/update.sql";
+
 	/** Whitespace compacted, comments removed. */
 	private static String compact(String text) {
 		return text.replaceAll("(?m)--.*$", " ").replaceAll("\\s+", " ").trim();
 	}
 
 	private static String script() throws Exception {
-		try (InputStream in = ErpSyncJobTypesUpgradeTest.class.getResourceAsStream(SCRIPT)) {
-			assertNotNull(in, SCRIPT);
+		return script(SCRIPT);
+	}
+
+	private static String script(String path) throws Exception {
+		try (InputStream in = ErpSyncJobTypesUpgradeTest.class.getResourceAsStream(path)) {
+			assertNotNull(in, path);
 			return new String(in.readAllBytes(), StandardCharsets.UTF_8);
 		}
 	}
@@ -110,12 +117,13 @@ class ErpSyncJobTypesUpgradeTest {
 	}
 
 	@Test
-	@DisplayName("The script deletes the removed type's rows with the same statements, before APP_VERSION is stamped")
+	@DisplayName("db/3.1.2/update.sql deletes the removed type's rows with the same statements, before APP_VERSION is stamped; db/3.1.1 as released")
 	void scriptHasTheDeadRows() throws Exception {
-		String sql = compact(script());
+		String sql = compact(script(SCRIPT_312));
 		int at = sql.indexOf(compact(ErpSyncJobTypesUpgrade.DEAD_ROWS) + " GO");
-		assertTrue(at > 0, "ErpSyncJobTypesUpgrade.DEAD_ROWS, then GO, in " + SCRIPT);
-		assertTrue(at < sql.indexOf("UPDATE APP_VERSION SET version = '3.1.1';"));
+		assertTrue(at > 0, "ErpSyncJobTypesUpgrade.DEAD_ROWS, then GO, in " + SCRIPT_312);
+		assertTrue(at < sql.indexOf("UPDATE APP_VERSION SET version = '3.1.2';"));
+		assertTrue(compact(script()).indexOf(compact(ErpSyncJobTypesUpgrade.DEAD_ROWS)) < 0, "3.1.1 stays as released");
 	}
 
 	@Test

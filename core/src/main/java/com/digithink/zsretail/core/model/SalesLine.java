@@ -60,8 +60,8 @@ public class SalesLine extends _BaseEntity {
 	private Double lineTotalIncludingVat;
 
 	/**
-	 * 3.1.1: the item's CMP (net, HT, 3 decimals) when the ticket was completed, so the margin of a past day never moves;
-	 * null on a pending ticket and when the cost was unknown at that time (the lines sold before 3.1.1 included). Written
+	 * 3.1.2: the item's CMP (net, HT, 3 decimals) when the ticket was completed, so the margin of a past day never moves;
+	 * null on a pending ticket and when the cost was unknown at that time (the lines sold before 3.1.2 included). Written
 	 * once, on the insert (never in an UPDATE); never in JSON (the admin ticket detail sends it apart, with the right).
 	 */
 	@Column(name = "unit_cost", precision = 19, scale = 3, updatable = false)

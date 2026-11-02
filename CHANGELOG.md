@@ -4,7 +4,16 @@ One section per product version, newest first. Every commit that changes behavio
 its line here, under the version of its branch. The screens are in `ZSRetail-Front/CHANGELOG.md`. The French notes shown
 in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql` from this file when a version is closed.
 
-## 3.1.1 — in progress (branch `release/3.1.1`)
+## 3.1.2 — in progress (branch `release/3.1.2`)
+
+### Before deployment
+- Visual check, running: the per-point block of the item card ("À ce point", Stock points tab, a point's own name and
+  family when they differ) on a Happyness-type head office (catalogue from the ERP, points de stock whose rows differ).
+- Visual check, running: the clearance range of Item cards (the point's price range, the normal price struck, "N
+  soldés") on a ZEN-type head office.
+- The job `IMPORT_CATALOGUE` tested on an ERP store test instance before any ERP-store deployment.
+- A database at 3.1.1: `db/3.1.2/sales-line-unit-cost.sql`, then `db/3.1.2/update.sql`, before the 3.1.2 WAR
+  (`AppVersionGuard`).
 
 ### Features
 - Head office that supplies no store: `headoffice.supply.source=NONE` beside `HEAD_OFFICE` and `ERP` (unchanged). No
@@ -62,6 +71,100 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   connection check after the start (`ParafendriConnectionCheck`, its own thread): the company and the store's General
   Setup `DEFAULT_LOCATION` checked in Business Central, one INFO line, or one WARNING naming the problem; it never stops
   or delays the start.
+
+### Enhancements
+- Item cards list (head office), with a point de stock chosen: `GET /admin/headoffice/item-catalogue` takes
+  `stockPointStatus` `ACTIVE` (default, the list as before) | `INACTIVE` | `ALL`, the row at that point, and
+  `priceMin` / `priceMax` filter the point's row selling price with VAT (the clearance price when it applies) instead
+  of the item's own price; without a point nothing changes (`HoItemCatalogueQuery.stockPoint`, head office only; core's
+  query and the store's Articles page unchanged). Step 1 of retiring "Items by point de stock".
+- Item cards (head office), step 2: with a point chosen, each list line's `priceMin` / `priceMax` are its rows'
+  selling prices there with VAT (`pointPrice`, the price sort by them), with `clearanceVariants` and the normal range
+  `normalPriceMin` / `normalPriceMax`; core's `ItemCatalogueQuery.Criteria` gains `linePrice` / `linePriceJoin` (unset:
+  the SQL is unchanged). The card's point rows carry the row's own name, description, family and sub-family (codes and
+  names) and `differences` / `differs` against the item's.
+- ERP catalogue import, every connector: the barcodes are imported by windows of 1,000 rows, their items and existing
+  barcodes read in four queries per window, written by JDBC batches of 100, the session emptied after each window
+  (before: three queries per row, each flushing the whole packet; 13,165 ParaFendri barcodes ran more than 27 minutes).
+  Same rules and warnings. New log line `ERP item barcodes import: N rows handed, ...`.
+- ERP jobs: the job type `EXPORT_CUSTOMERS` is removed (never implemented: it only logged "not yet implemented"), with
+  its operation `EXPORT_CUSTOMER`, `ErpConnector.pushCustomer` (and its five stubs) and
+  `ErpSynchronizationManager.pushCustomer`. The rows of that type and operation are deleted at startup
+  (`ErpSyncJobTypesUpgrade`, before any read of the tables) and by `db/3.1.2/update.sql`. `IMPORT_CUSTOMERS` unchanged.
+- Item costs, the weighted average cost (docs/modules/head-office.md, "Item costs (CMP)"): `Item.costPrice` is the CMP
+  of an installation that keeps its own stock (no-op where the ERP keeps it and on a head office with
+  `headoffice.stock.enabled=false`), no longer the last net cost; `lastDirectCost` / `lastDirectNetCost` unchanged.
+  `ItemRepository.applyEntryCost` (one native row update, `DECIMAL(19,5)`, 3 decimals) through
+  `StockService.applyEntryCost`, after the stock of every entry that carries a cost: a local purchase (per line, the
+  net price), an ERP invoice received (per item, its paid lines together; a free line's quantity outside the entry, a
+  line received at 0 leaves it), a BL and its head office invoice (the invoice stamps the BL lines' costs; applied at
+  the invoice for a BL received, else at the reception; a BL saved after its invoice takes them from it). `updateCost`
+  renamed `updateLastCosts`, without `costPrice`. `PURCHASE_RECEPTION` and `DELIVERY_IN` movements carry the net unit
+  cost (null on a BL received before its invoice). `PUT /item/{id}` keeps the stored CMP; `POST /item/{id}/adjust-cost`
+  `{costPrice, reason}` ("Ajuster le CMP") with a `COST_ADJUSTMENT` movement (quantity 0, `CMP <old> → <new> :
+  <reason>`, the user), 403 without `write:admin-item-cost` (checked by the API, listed by `GET /app-roles/permissions`,
+  given to ADMIN at every start wherever the stock is kept). The Excel import writes the cost of new items only.
+- Unit cost frozen on the ticket line, so the margin of a past day never moves with the CMP: `sales_line.unit_cost`
+  (`SalesLine.unitCost`, net, 3 decimals) takes the item's CMP, half up, when its ticket is completed (a sale, a held
+  ticket paid, a split bill paid), the free line of a FREE_QUANTITY promotion included; null on a held ticket, for the
+  tax stamp and for an item without CMP; the same in every configuration (where the ERP keeps the stock the item's
+  cost is copied as it is). A pack's components are lines of their own (the till splits the pack), each with its own
+  CMP. `return_line.unit_cost` takes its sales line's cost, null included. Written on the insert only
+  (`updatable = false`: a later save, the generic `PUT /sales-line/{id}` included, never changes it) and never in
+  JSON (`@JsonIgnore`): `GET /sales-header/{id}/details` sends `lineCosts` (line id to cost) only to a role with the new
+  right `read:admin-margins` (checked by the API, listed by `GET /app-roles/permissions`, given to ADMIN at every start
+  wherever the stock is kept, with `write:admin-item-cost`). Stock movements unchanged (selling prices). The lines
+  written before 3.1.2 stay without cost (no estimate).
+
+### Fixes
+- Store linked to a head office after its database was created (ParaFendri Gremda): its ADMIN role now gets
+  `read:admin-holink-status` (the "Head office" menu: Jobs, Communications, Data exchanged) at the next start; before,
+  only a role created with `headoffice.url` already set had it, so the menu stayed hidden. Nothing is removed.
+- ERP connector `parafendri`, step 6: `amountIncludingVAT` is no longer sent on `salesOrders`, header nor lines
+  (read-only in Business Central: the live POST answered HTTP 400 "Control 'amountIncludingVAT' is read-only"); BC
+  computes it, the header's is read back from the answer and shown in the log message next to our total TTC.
+- Split bill of a table ticket (`POST /sales-header/split-and-pay/{id}`, `SalesHeaderService.splitAndPay`): the lines
+  paid apart never left the stock and wrote no SALE movement (the rest, paid later, did): they now go out with their
+  movements as every completed sale (`decrementStockForSalesLines`), and keep their discount source and promotion,
+  which the copy dropped (docs/modules/table-management.md, `SplitBillStockTest`).
+- Local purchase with the same item on two lines: the second line saved the item it had loaded (its last costs), which
+  put back the stock of before the first line's increment, so the first line's quantity was lost. The last costs are
+  now a bulk update and the item is never saved (`PurchaseHeaderServiceCostTest`, the mechanism in
+  `EntryCostQueryTest`).
+- Head office invoice at the store: the last costs were written by saving the whole item, which could put back a stock
+  read before a sale made at the same time; now a bulk update (`SupplyInvoiceWriter`).
+
+### Removed
+- Head office page "Items by point de stock", back end: `GET /admin/headoffice/stock-points/items` and `/items/{rowId}`,
+  `HoStockPointItemsService`, `StockPointItemDTO`, the queries `findRows` / `findRowsSearched`; the rest of the Stock
+  points API stays. The permission `read:admin-headoffice-stock-point-items` is no longer given to ADMIN (checked first
+  on the ZEN, Happyness and ParaFendri test head offices: only ADMIN had it, with the Items permission); a role row
+  that has it stays, unread. Item cards' point filter replaces the page. `GET /config` gains `headOfficeStockPoints`
+  (the head office keeps points de stock: catalogue only from the ERP and a connector with `HEAD_OFFICE_STOCK_POINTS`).
+
+### DB script (`db/3.1.2/sales-line-unit-cost.sql`, then `db/3.1.2/update.sql`, store and head office, on a database at 3.1.1)
+- `sales-line-unit-cost.sql`: columns `sales_line.unit_cost` and `return_line.unit_cost` DECIMAL(19,3) NULL, each added
+  when missing (a start adds them too); no data changed, the lines of before stay NULL. `update.sql` stops while they
+  are missing.
+- `update.sql`: the rows of the removed job type deleted, `erp_sync_job` of type `EXPORT_CUSTOMERS` and
+  `erp_communication` of operation `EXPORT_CUSTOMER` (each table guarded; re-runnable; the same statements at startup).
+- `update.sql`: `APP_VERSION` 3.1.1 → 3.1.2 (it stops while APP_VERSION is not 3.1.1 or 3.1.2, and while
+  `sales-line-unit-cost.sql` has not run); notes written when the version is closed. `db/3.1.1/` is unchanged, as
+  released: the `EXPORT_CUSTOMERS` deletion and the unit cost columns, first put there by the branches, live in 3.1.2.
+
+### Config
+- `headoffice.supply.source=NONE` (head office): accepted only with `headoffice.stock.enabled=false` and without
+  `headoffice.storeorders.post`, else the startup stops naming both keys.
+- `erp.connector=parafendri` and its keys `erp.parafendri.base-url`, `company-id` (a GUID), `domain`, `username`,
+  `password` (required but domain), `connect-timeout-seconds` (30), `read-timeout-seconds` (600). New file
+  `configs/customers/parafendri-store.properties` (placeholders, `erp.sync.enabled=false`).
+- `configs/customers/zen-headoffice.properties`: `headoffice.supply.source=ERP` (was `HEAD_OFFICE`, kept until the live
+  test), as the real installation runs it; the records of `ConfigurationKeysProofTest` and `InstallationBeansProofTest`
+  follow (that line only).
+
+## 3.1.1 — in progress (branch `release/3.1.1`)
+
+### Features
 - Till's right rail (catalogue hidden): `GET /cashier-session/current/ticket-count` `{"ticketCount": n}`, the tickets of
   the current user's open session (completed, refunded since included; 0 without a session), a count and never an
   amount (the closing count stays blind; `CashierSessionService.countSessionTickets`, `SessionTicketCountTest`).
@@ -186,24 +289,6 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   same transaction.
 
 ### Enhancements
-- Item cards list (head office), with a point de stock chosen: `GET /admin/headoffice/item-catalogue` takes
-  `stockPointStatus` `ACTIVE` (default, the list as before) | `INACTIVE` | `ALL`, the row at that point, and
-  `priceMin` / `priceMax` filter the point's row selling price with VAT (the clearance price when it applies) instead
-  of the item's own price; without a point nothing changes (`HoItemCatalogueQuery.stockPoint`, head office only; core's
-  query and the store's Articles page unchanged). Step 1 of retiring "Items by point de stock".
-- Item cards (head office), step 2: with a point chosen, each list line's `priceMin` / `priceMax` are its rows'
-  selling prices there with VAT (`pointPrice`, the price sort by them), with `clearanceVariants` and the normal range
-  `normalPriceMin` / `normalPriceMax`; core's `ItemCatalogueQuery.Criteria` gains `linePrice` / `linePriceJoin` (unset:
-  the SQL is unchanged). The card's point rows carry the row's own name, description, family and sub-family (codes and
-  names) and `differences` / `differs` against the item's.
-- ERP catalogue import, every connector: the barcodes are imported by windows of 1,000 rows, their items and existing
-  barcodes read in four queries per window, written by JDBC batches of 100, the session emptied after each window
-  (before: three queries per row, each flushing the whole packet; 13,165 ParaFendri barcodes ran more than 27 minutes).
-  Same rules and warnings. New log line `ERP item barcodes import: N rows handed, ...`.
-- ERP jobs: the job type `EXPORT_CUSTOMERS` is removed (never implemented: it only logged "not yet implemented"), with
-  its operation `EXPORT_CUSTOMER`, `ErpConnector.pushCustomer` (and its five stubs) and
-  `ErpSynchronizationManager.pushCustomer`. The rows of that type and operation are deleted at startup
-  (`ErpSyncJobTypesUpgrade`, before any read of the tables) and by `db/3.1.1/update.sql`. `IMPORT_CUSTOMERS` unchanged.
 - ERP jobs, every customer: one job `IMPORT_CATALOGUE` ("catalogue import") replaces `IMPORT_ITEM_FAMILIES`,
   `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS` and `IMPORT_ITEM_BARCODES`. It runs, in this order, catégories, families,
   sub-families, sections, items, barcodes (`ImportCatalogueJob`), each part with today's read, import and checkpoint, and
@@ -238,42 +323,7 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   with 409 and nothing saved; the send refuses a draft with any line above its availability (409). The lines answer
   `availableQty`.
 
-- Item costs, the weighted average cost (docs/modules/head-office.md, "Item costs (CMP)"): `Item.costPrice` is the CMP
-  of an installation that keeps its own stock (no-op where the ERP keeps it and on a head office with
-  `headoffice.stock.enabled=false`), no longer the last net cost; `lastDirectCost` / `lastDirectNetCost` unchanged.
-  `ItemRepository.applyEntryCost` (one native row update, `DECIMAL(19,5)`, 3 decimals) through
-  `StockService.applyEntryCost`, after the stock of every entry that carries a cost: a local purchase (per line, the
-  net price), an ERP invoice received (per item, its paid lines together; a free line's quantity outside the entry, a
-  line received at 0 leaves it), a BL and its head office invoice (the invoice stamps the BL lines' costs; applied at
-  the invoice for a BL received, else at the reception; a BL saved after its invoice takes them from it). `updateCost`
-  renamed `updateLastCosts`, without `costPrice`. `PURCHASE_RECEPTION` and `DELIVERY_IN` movements carry the net unit
-  cost (null on a BL received before its invoice). `PUT /item/{id}` keeps the stored CMP; `POST /item/{id}/adjust-cost`
-  `{costPrice, reason}` ("Ajuster le CMP") with a `COST_ADJUSTMENT` movement (quantity 0, `CMP <old> → <new> :
-  <reason>`, the user), 403 without `write:admin-item-cost` (checked by the API, listed by `GET /app-roles/permissions`,
-  given to ADMIN at every start wherever the stock is kept). The Excel import writes the cost of new items only.
-- Unit cost frozen on the ticket line, so the margin of a past day never moves with the CMP: `sales_line.unit_cost`
-  (`SalesLine.unitCost`, net, 3 decimals) takes the item's CMP, half up, when its ticket is completed (a sale, a held
-  ticket paid, a split bill paid), the free line of a FREE_QUANTITY promotion included; null on a held ticket, for the
-  tax stamp and for an item without CMP; the same in every configuration (where the ERP keeps the stock the item's
-  cost is copied as it is). A pack's components are lines of their own (the till splits the pack), each with its own
-  CMP. `return_line.unit_cost` takes its sales line's cost, null included. Written on the insert only
-  (`updatable = false`: a later save, the generic `PUT /sales-line/{id}` included, never changes it) and never in
-  JSON (`@JsonIgnore`): `GET /sales-header/{id}/details` sends `lineCosts` (line id to cost) only to a role with the new
-  right `read:admin-margins` (checked by the API, listed by `GET /app-roles/permissions`, given to ADMIN at every start
-  wherever the stock is kept, with `write:admin-item-cost`). Stock movements unchanged (selling prices). The lines
-  written before 3.1.1 stay without cost (no estimate).
-
 ### Fixes
-- Store linked to a head office after its database was created (ParaFendri Gremda): its ADMIN role now gets
-  `read:admin-holink-status` (the "Head office" menu: Jobs, Communications, Data exchanged) at the next start; before,
-  only a role created with `headoffice.url` already set had it, so the menu stayed hidden. Nothing is removed.
-- ERP connector `parafendri`, step 6: `amountIncludingVAT` is no longer sent on `salesOrders`, header nor lines
-  (read-only in Business Central: the live POST answered HTTP 400 "Control 'amountIncludingVAT' is read-only"); BC
-  computes it, the header's is read back from the answer and shown in the log message next to our total TTC.
-- Split bill of a table ticket (`POST /sales-header/split-and-pay/{id}`, `SalesHeaderService.splitAndPay`): the lines
-  paid apart never left the stock and wrote no SALE movement (the rest, paid later, did): they now go out with their
-  movements as every completed sale (`decrementStockForSalesLines`), and keep their discount source and promotion,
-  which the copy dropped (docs/modules/table-management.md, `SplitBillStockTest`).
 - `GET /sales-header/pending-sales` sends each ticket's `discountSource` (MANUAL or PROMOTION): the till taking a held
   ticket back no longer shows its cart offer a second time as a "Remise" (front CHANGELOG).
 - Copies down, head office: a store's pull of LOYALTY, PROMOTIONS or SUPPLY answered HTTP 500 (query timeout after
@@ -299,31 +349,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   value [1] did not match expected type [java.lang.Integer]"): the "every store / every status" flags are `long` and the
   statement compared them with an `int` literal; now `1L`, as the BL reception list. `HoStoreOrderPageQueryTest` and
   `StoreOrderPageQueryTest` run the real statements on H2 with and without each filter.
-- Local purchase with the same item on two lines: the second line saved the item it had loaded (its last costs), which
-  put back the stock of before the first line's increment, so the first line's quantity was lost. The last costs are
-  now a bulk update and the item is never saved (`PurchaseHeaderServiceCostTest`, the mechanism in
-  `EntryCostQueryTest`).
-- Head office invoice at the store: the last costs were written by saving the whole item, which could put back a stock
-  read before a sale made at the same time; now a bulk update (`SupplyInvoiceWriter`).
 
-### Removed
-- Head office page "Items by point de stock", back end: `GET /admin/headoffice/stock-points/items` and `/items/{rowId}`,
-  `HoStockPointItemsService`, `StockPointItemDTO`, the queries `findRows` / `findRowsSearched`; the rest of the Stock
-  points API stays. The permission `read:admin-headoffice-stock-point-items` is no longer given to ADMIN (checked first
-  on the ZEN, Happyness and ParaFendri test head offices: only ADMIN had it, with the Items permission); a role row
-  that has it stays, unread. Item cards' point filter replaces the page. `GET /config` gains `headOfficeStockPoints`
-  (the head office keeps points de stock: catalogue only from the ERP and a connector with `HEAD_OFFICE_STOCK_POINTS`).
-
-### DB script (`db/3.1.1/store-orders.sql`, `db/3.1.1/sales-line-unit-cost.sql`, then `db/3.1.1/update.sql`, store and head office)
-- `sales-line-unit-cost.sql`: columns `sales_line.unit_cost` and `return_line.unit_cost` DECIMAL(19,3) NULL, each added
-  when missing (a start adds them too); no data changed, the lines of before stay NULL. `update.sql` stops while they
-  are missing.
+### DB script (`db/3.1.1/store-orders.sql`, then `db/3.1.1/update.sql`, store and head office)
 - `store-orders.sql`: tables `hol_order` (unique `number`, index `ix_hol_order_status`, filtered unique index
   `ux_hol_order_draft`: one DRAFT) and `hol_order_line` (unique `order_id`, `item_id`; FK to `hol_order`) on a store
   only; `item_image` (index `ix_item_image_item`) on both. Re-runnable, no data changed. The filtered index is also made
   at each start when missing (`StoreOrderDraftIndex`: a new database runs no script).
-- `update.sql`: the rows of the removed job type deleted, `erp_sync_job` of type `EXPORT_CUSTOMERS` and
-  `erp_communication` of operation `EXPORT_CUSTOMER` (each table guarded; re-runnable; the same statements at startup).
 - `update.sql`: the ERP jobs' rows `IMPORT_ITEM_FAMILIES`, `IMPORT_ITEM_SUBFAMILIES`, `IMPORT_ITEMS`,
   `IMPORT_ITEM_BARCODES` converted into one `IMPORT_CATALOGUE` (the cron of `IMPORT_ITEMS`, enabled when any of the four
   was, then the four deleted; one transaction, re-runnable; the same batch the application runs at startup).
@@ -356,11 +387,6 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   data changed.
 
 ### Config
-- `headoffice.supply.source=NONE` (head office): accepted only with `headoffice.stock.enabled=false` and without
-  `headoffice.storeorders.post`, else the startup stops naming both keys.
-- `erp.connector=parafendri` and its keys `erp.parafendri.base-url`, `company-id` (a GUID), `domain`, `username`,
-  `password` (required but domain), `connect-timeout-seconds` (30), `read-timeout-seconds` (600). New file
-  `configs/customers/parafendri-store.properties` (placeholders, `erp.sync.enabled=false`).
 - `headoffice.storeorders.post` (head office, optional): `MANUAL` or `ERP` (needs a connector with
   `ErpAbility.STORE_ORDERS`: zen); absent, the head office takes no store order. Set to `ERP` in
   `configs/customers/zen-headoffice.properties`.
@@ -371,9 +397,6 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - `erp.zen.products.url` and `erp.zen.products.api-key` (head office with the connector zen, optional, both or
   neither): ZEN's products API for the item images. Set in `configs/customers/zen-headoffice.properties` (the key
   `CHANGE_ME`: the real one in the installation's file only).
-- `configs/customers/zen-headoffice.properties`: `headoffice.supply.source=ERP` (was `HEAD_OFFICE`, kept until the live
-  test), as the real installation runs it; the records of `ConfigurationKeysProofTest` and `InstallationBeansProofTest`
-  follow (that line only).
 
 ## 3.1.0 — 2026-10-27 (tag `v3.1.0`)
 

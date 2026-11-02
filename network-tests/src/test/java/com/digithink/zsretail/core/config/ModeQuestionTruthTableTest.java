@@ -139,7 +139,7 @@ class ModeQuestionTruthTableTest {
 			assertEquals(Installations.ERP_CATALOGUE_HEAD_OFFICES.stream().anyMatch(
 					file -> installation.getKey().equals("machine " + file)), catalogueOnly(ownership), installation.getKey());
 			// Invoices from the ERP: the head offices of that combination are also the only ones whose supply source is
-			// the ERP (3.1.1: both machine files of configs/customers, as their installations run)
+			// the ERP (3.1.2: both machine files of configs/customers, as their installations run)
 			assertEquals(Installations.ERP_CATALOGUE_HEAD_OFFICES.stream().anyMatch(
 					file -> installation.getKey().equals("machine " + file)),
 					NodeOwnership.isSupplyFromErpSourceSet(installation.getValue()), installation.getKey());

@@ -73,7 +73,7 @@ public class ErpSyncJobTypesUpgrade {
 			+ " + (CASE WHEN OBJECT_ID(N'erp_communication', N'U') IS NULL THEN 0"
 			+ " ELSE (SELECT COUNT(*) FROM erp_communication WHERE operation = 'EXPORT_CUSTOMER') END)";
 
-	/** Their deletion, one T-SQL batch, idempotent; copied as it is into db/3.1.1/update.sql. */
+	/** Their deletion, one T-SQL batch, idempotent; copied as it is into db/3.1.2/update.sql. */
 	public static final String DEAD_ROWS = ""
 			+ "IF OBJECT_ID(N'erp_sync_job', N'U') IS NOT NULL\n"
 			+ "\tDELETE FROM erp_sync_job WHERE job_type = 'EXPORT_CUSTOMERS';\n"

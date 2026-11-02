@@ -492,7 +492,7 @@ class ZZDataInitializerRolesTest {
 			java.util.Arrays.asList("read:admin-store-orders", "write:admin-store-orders"));
 
 	/**
-	 * CMP: "Ajuster le CMP" and (3.1.1) the line costs of the ticket detail, ADMIN of an installation that keeps its own
+	 * CMP: "Ajuster le CMP" and (3.1.2) the line costs of the ticket detail, ADMIN of an installation that keeps its own
 	 * stock only.
 	 */
 	private static final Set<String> COST = new HashSet<>(

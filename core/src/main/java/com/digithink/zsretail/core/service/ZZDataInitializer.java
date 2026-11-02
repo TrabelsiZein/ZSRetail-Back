@@ -360,7 +360,7 @@ public class ZZDataInitializer {
 
 	/**
 	 * CMP: "Ajuster le CMP" on the item card (the weighted average cost set by hand, ItemAPI.adjustCost checks it too) and
-	 * read:admin-margins, the unit costs of the ticket lines in the admin ticket detail (3.1.1, SalesHeaderAPI checks it);
+	 * read:admin-margins, the unit costs of the ticket lines in the admin ticket detail (3.1.2, SalesHeaderAPI checks it);
 	 * given to ADMIN at every start wherever the installation keeps its own stock (a store whose supply is not the ERP's,
 	 * a head office with headoffice.stock.enabled true); never where the ERP keeps the stock.
 	 */

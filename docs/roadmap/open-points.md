@@ -5,7 +5,7 @@ When one is taken, it moves to its module doc and the CHANGELOG, and leaves this
 
 ## Split bill of a table ticket (`SalesHeaderService.splitAndPay`)
 
-Seen 2026-11-02 (cost topic, step 2). Since 3.1.1 the lines paid apart leave the stock with their SALE movements, keep
+Seen 2026-11-02 (cost topic, step 2). Since 3.1.2 the lines paid apart leave the stock with their SALE movements, keep
 their discount source and promotion, and take their unit cost (`docs/modules/table-management.md`). What the other two
 ways of completing a ticket (`processCompleteSale`, `completePendingSale`) do and the split ticket still does not:
 

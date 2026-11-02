@@ -183,7 +183,7 @@ The rows: the job and operation columns are read with `EnumType.STRING`, so a va
 (`No enum constant`) on every read of the table (the scheduler, the jobs page, the communications log). The same
 startup step deletes them (`ErpSyncJobTypesUpgrade.DEAD_ROWS`: `erp_sync_job` rows of type `EXPORT_CUSTOMERS`,
 `erp_communication` rows of operation `EXPORT_CUSTOMER`, each table guarded, only when there are some), and
-`db/3.1.1/update.sql` holds the same statements. Seen 2026-10-31: one disabled row on `pos_db_prod` (EMTOP) and on
+`db/3.1.2/update.sql` holds the same statements (3.1.2: 3.1.1 is released without them). Seen 2026-10-31: one disabled row on `pos_db_prod` (EMTOP) and on
 `pos_headoffice`, no log row anywhere.
 
 **ErpSyncOperation Enum:**
