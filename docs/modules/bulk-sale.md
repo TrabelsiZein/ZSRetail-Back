@@ -111,17 +111,30 @@ answers, which gives the same line when an item has one line.
   last box focused, the quantity at first; the floating keyboard of the till stays as it is (its feature flag is off
   and it follows only the scan and search fields). Validate is off until the choice is good; Cancel adds nothing.
 - **A scan while the popup is open** (`onBulkScanKeydown`, rule `watchScanKey`): a scanner types its characters a few
-  ms apart, then Enter; a character within 30 ms of the previous one continues a burst, and 4 of them (or a fast burst
-  of 2 ended by Enter) make a scan. A burst's characters after its first are kept out, the boxes are put back as they
-  were before its first one, its Enter is swallowed (it would press Validate), no item is added, and the toast
-  "Fermez la vente en vrac avant de scanner" (the quantity error's look) is shown once per scan. A person typing, and
-  the popup's keypad, pass as before; two keys a person presses within 30 ms lose the second. Nothing changes while
-  the popup is closed.
-- **The container** (`containerFor`): a quick quantity's linked item; for a quantity or an amount, the linked item of
-  the smallest active quick quantity at least as large (0.07 L: the 100 ml one's; 0.5 L when the next is "1 L" without
-  one: none); an inactive item never. Shown as a switch "Avec flacon" (on by default, on again for another container).
-  On Validate the container is added after the bulk line by `addToCart` as an ordinary item: quantity 1, its own price
-  and promotions, the one-line-per-item rule (a second flacon goes on the flacon's line), changed or removed as any line.
+  ms apart, then Enter; a character within 30 ms of the previous one continues a burst, and 4 of them (or 3 then a fast
+  Enter) make a scan. Nothing is kept out before that: once the burst is a scan, the boxes are put back as they were
+  before its first character (its first 3 characters stay in a box a few ms), its later keys are kept out, its Enter is
+  swallowed (it would press Validate), no item is added, and the toast "Fermez la vente en vrac avant de scanner" (the
+  quantity error's look) is shown once per scan. A person typing, even quickly on a physical keyboard ("10" with 15 ms
+  between the keys), and the popup's keypad, pass as before. Nothing changes while the popup is closed. (Until
+  2026-11-03 evening every character within 30 ms of the previous one was kept out at once: a quickly typed "10" in the
+  amount or the quantity box became "1".)
+- **The container** (`containerFor`, `libs/bulk-sale.js`), exactly:
+  - a **quick quantity pressed**: its own linked item, if it has one and the item is not inactive; else none;
+  - a **quantity typed, or an amount** (its quantity after rounding): among the **active** quick quantities, the
+    **smallest whose quantity is at least the one chosen** (equal counts); its linked item, if it has one and the item
+    is not inactive; else **none**. The rule does not look further: when that smallest one has no linked item, no
+    container is offered, even if a larger quick quantity has one (with "50 ml" Flacon 50, "100 ml" without a flacon,
+    "250 ml" Flacon 250: 0.08 L gives none, not the Flacon 250);
+  - **above the largest active quick quantity** (0.5 L when the largest is "250 ml", or 2 L when it is "1 L"): no
+    quick quantity is that large, so **no container** is offered: the switch is not shown and Validate adds the bulk
+    line alone (the cashier adds a container by hand if one is needed);
+  - examples with "50 ml" Flacon 50, "100 ml" Flacon 100, "1 L" without one: 0.03 L → Flacon 50; 0.05 L → Flacon 50
+    (equal); 0.07 L → Flacon 100; 0.5 L → none ("1 L" has none); 2 L → none (above every quick quantity).
+  Shown as a switch "Avec flacon" (on by default, on again when the container offered changes). On Validate the
+  container is added after the bulk line by `addToCart` as an ordinary item: quantity 1, its own price and promotions,
+  the one-line-per-item rule (a second flacon goes on the flacon's line), changed or removed as any line. Proved in
+  `tools/bulk-sale-check.mjs` ("container: ...").
 - **A new line at each Validate**: `addToCart(item, quantity, null, { bulkLine: true, bulkLabel })` never looks for a
   line to merge into; the line carries `bulkLine: true`, `lineKey` `bulk-<itemId>-<n>` (a counter of the screen) and
   the quick quantity's label (`bulkLabel`, shown as the line's badge, "Vrac" without one). A line of another kind never
@@ -164,6 +177,8 @@ answers, which gives the same line when an item has one line.
 10. Popup open, the focus in the quantity box, then in the amount box, then on Validate: scan any barcode each time:
     the boxes stay as they were, nothing is added, the popup stays open, the toast "Fermez la vente en vrac avant de
     scanner" once per scan; typing 0,25 by hand afterwards works.
+11. On a physical keyboard, type "10" quickly in the amount box, then "0,25" quickly in the quantity box: every
+    character stays ("10", "0,25"), no toast.
 
 ## Known limits
 
