@@ -28,6 +28,7 @@ import com.digithink.zsretail.store.dto.ProcessSaleRequestDTO;
 import com.digithink.zsretail.store.dto.SplitBillRequestDTO;
 import com.digithink.zsretail.store.exception.TillRightRequiredException;
 import com.digithink.zsretail.store.service.SalesHeaderService;
+import com.digithink.zsretail.store.service.TicketsHistoryExport;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -50,6 +51,9 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 
 	@Autowired
 	private GeneralSetupRepository generalSetupRepository;
+
+	@Autowired
+	private TicketsHistoryExport ticketsHistoryExport;
 
 	private boolean getLoyaltyConfigFlag(String code) {
 		return generalSetupRepository.findByCode(code)
@@ -638,6 +642,38 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			return ResponseEntity.ok(response);
 		} catch (Exception e) {
 			log.error("SalesHeaderAPI::getTicketsHistory:error: " + getDetailedMessage(e), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/**
+	 * 3.1.2, the Excel export of the tickets history: GET /sales-header/history/export with the list's filters (no page):
+	 * {totalTickets, truncated, limit, withCost, paymentMethods, tickets, lines}, the newest
+	 * {@link TicketsHistoryExport#MAX_TICKETS} tickets at most, the lines' unit cost only with read:admin-margins.
+	 */
+	@GetMapping("/history/export")
+	public ResponseEntity<?> exportTicketsHistory(
+			@org.springframework.web.bind.annotation.RequestParam(required = false) String dateFrom,
+			@org.springframework.web.bind.annotation.RequestParam(required = false) String dateTo,
+			@org.springframework.web.bind.annotation.RequestParam(required = false) String status,
+			@org.springframework.web.bind.annotation.RequestParam(required = false) String syncStatus,
+			@org.springframework.web.bind.annotation.RequestParam(required = false) String paymentMethodId,
+			@org.springframework.web.bind.annotation.RequestParam(required = false) String search,
+			@org.springframework.web.bind.annotation.RequestParam(required = false) String minPrice,
+			@org.springframework.web.bind.annotation.RequestParam(required = false) String maxPrice,
+			@org.springframework.web.bind.annotation.RequestParam(required = false) String familyId,
+			@org.springframework.web.bind.annotation.RequestParam(required = false) String subFamilyId,
+			@org.springframework.web.bind.annotation.RequestParam(required = false) String cashierId,
+			@org.springframework.web.bind.annotation.RequestParam(required = false) String sessionNumber) {
+		try {
+			boolean withCost = currentUserProvider != null
+					&& currentUserProvider.currentUserHasPermission(MARGINS_PERMISSION);
+			return ResponseEntity.ok(ticketsHistoryExport.export(SalesHeaderService.ticketsHistorySpec(dateFrom, dateTo,
+					status, syncStatus, paymentMethodId, search, minPrice, maxPrice, familyId, subFamilyId, cashierId,
+					sessionNumber), withCost, TicketsHistoryExport.MAX_TICKETS));
+		} catch (Exception e) {
+			log.error("SalesHeaderAPI::exportTicketsHistory:error: " + getDetailedMessage(e), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 					.body(createErrorResponse(getDetailedMessage(e)));
 		}

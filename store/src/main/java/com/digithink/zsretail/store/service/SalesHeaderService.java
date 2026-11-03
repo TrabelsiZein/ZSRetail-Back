@@ -1511,6 +1511,23 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			String syncStatusStr, String paymentMethodIdStr, String searchStr,
 			String minPriceStr, String maxPriceStr, String familyIdStr, String subFamilyIdStr,
 			String cashierIdStr, String sessionNumberStr, int page, int size) {
+		org.springframework.data.domain.PageRequest pageRequest = org.springframework.data.domain.PageRequest.of(
+				page, size, org.springframework.data.domain.Sort.by(
+						org.springframework.data.domain.Sort.Direction.DESC, "salesDate"));
+		return salesHeaderRepository.findAll(ticketsHistorySpec(dateFromStr, dateToStr, statusStr, syncStatusStr,
+				paymentMethodIdStr, searchStr, minPriceStr, maxPriceStr, familyIdStr, subFamilyIdStr, cashierIdStr,
+				sessionNumberStr), pageRequest);
+	}
+
+	/**
+	 * The filters of the tickets history, the list's and (3.1.2) its Excel export's ({@link TicketsHistoryExport}): the
+	 * request's values as they come, a blank or "all" value no filter, an unreadable one logged and ignored.
+	 */
+	public static org.springframework.data.jpa.domain.Specification<SalesHeader> ticketsHistorySpec(
+			String dateFromStr, String dateToStr, String statusStr,
+			String syncStatusStr, String paymentMethodIdStr, String searchStr,
+			String minPriceStr, String maxPriceStr, String familyIdStr, String subFamilyIdStr,
+			String cashierIdStr, String sessionNumberStr) {
 		// Parse date from — supports datetime (2026-05-16T08:00) and date-only (2026-05-16)
 		java.time.LocalDateTime dateFrom = null;
 		if (dateFromStr != null && !dateFromStr.trim().isEmpty()) {
@@ -1705,11 +1722,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 			return criteriaBuilder.and(predicates.toArray(new javax.persistence.criteria.Predicate[0]));
 		};
-
-		org.springframework.data.domain.PageRequest pageRequest = org.springframework.data.domain.PageRequest.of(
-				page, size, org.springframework.data.domain.Sort.by(
-						org.springframework.data.domain.Sort.Direction.DESC, "salesDate"));
-		return salesHeaderRepository.findAll(spec, pageRequest);
+		return spec;
 	}
 
 	/**

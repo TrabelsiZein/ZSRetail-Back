@@ -127,6 +127,18 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   connection check after the start (`ParafendriConnectionCheck`, its own thread): the company and the store's General
   Setup `DEFAULT_LOCATION` checked in Business Central, one INFO line, or one WARNING naming the problem; it never stops
   or delays the start.
+- Tickets history, Excel export: `GET /sales-header/history/export` with the list's filters (no page): every ticket,
+  newest first, at most 20,000 (`truncated`, `totalTickets`), each with its cashier, session, customer, loyalty card,
+  totals, line count and quantity and its payments by method (`paymentMethods`: the methods in display order), and
+  their lines (item, family, quantity, prices, discount, VAT, totals; the unit cost only with `read:admin-margins`).
+  One query for the tickets, the lines and payments by blocks of 1,000 (`TicketsHistoryExport`); the list's filters
+  moved into `SalesHeaderService.ticketsHistorySpec`, the list unchanged (`TicketsHistoryExportTest`).
+- Store Articles, Excel export: `GET /item-catalogue/export` with the list's filters and sort (no page): the items of the
+  lines the list shows, one row each (a NAV item's variants of the status), at most 60,000 (`truncated`): codes,
+  variant, name, barcode, levels, prices before / with VAT, clearance price, stock and minimum (own stock), CMP (the
+  list's cost right), maximum discount, unit, origin, status. One query (`ItemCatalogueQuery.items`, the list's joins
+  and WHERE, line conditions on window values; 0.22 s for 21,907 ZEN variants); `StoreItemCatalogueAPI.criteria`
+  shared by the list and the export (`ItemCatalogueExportQueryTest`).
 
 ### Enhancements
 - Cost history: the reason typed in "Ajuster le CMP" is kept on its row (`item_cost_history.note`, varchar(500), cut

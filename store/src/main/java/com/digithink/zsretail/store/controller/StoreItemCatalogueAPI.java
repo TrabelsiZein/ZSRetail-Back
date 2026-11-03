@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.core.dto.ItemCatalogueFiltersDTO;
 import com.digithink.zsretail.core.dto.ItemCatalogueLineDTO;
+import com.digithink.zsretail.core.dto.ItemExportDTO;
 import com.digithink.zsretail.core.repository.ItemCatalogueQuery;
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.controller.ItemAPI;
@@ -63,6 +64,50 @@ public class StoreItemCatalogueAPI {
 			@RequestParam(name = "sort", required = false) String sort,
 			@RequestParam(name = "dir", required = false) String dir,
 			@RequestParam(name = "withoutCost", required = false) Boolean withoutCost) {
+		// 3.1.2: what the lines show beyond the grouped columns, the cost only to a role that may see it
+		boolean withCost = withCost();
+		ItemCatalogueQuery.Criteria criteria = criteria(search, status, familyId, subFamilyId, categoryCode, sectionCode,
+				priceMin, priceMax, sort, dir, withCost && Boolean.TRUE.equals(withoutCost));
+		Page<ItemCatalogueLineDTO> lines = service.page(criteria, page, size);
+		service.storeDetails(lines.getContent(), withCost);
+		Map<String, Object> response = new LinkedHashMap<>();
+		response.put("content", lines.getContent());
+		response.put("page", lines.getNumber());
+		response.put("size", lines.getSize());
+		response.put("totalElements", lines.getTotalElements());
+		response.put("totalPages", lines.getTotalPages());
+		response.put("withStock", service.withStock());
+		response.put("withCost", withCost);
+		return ResponseEntity.ok(response);
+	}
+
+	/**
+	 * 3.1.2, the Excel export of the Articles page: GET /item-catalogue/export with the list's filters and sort (no
+	 * page): {limit, truncated, withStock, withCost, rows}, the items of the lines the list shows, one row each (a NAV
+	 * item's variants of the status), at most {@link ItemCatalogueService#EXPORT_MAX}; the cost as the list's.
+	 */
+	@GetMapping("export")
+	public ResponseEntity<ItemExportDTO> export(@RequestParam(name = "search", required = false) String search,
+			@RequestParam(name = "status", required = false) String status,
+			@RequestParam(name = "familyId", required = false) Long familyId,
+			@RequestParam(name = "subFamilyId", required = false) Long subFamilyId,
+			@RequestParam(name = "categoryCode", required = false) String categoryCode,
+			@RequestParam(name = "sectionCode", required = false) String sectionCode,
+			@RequestParam(name = "priceMin", required = false) Double priceMin,
+			@RequestParam(name = "priceMax", required = false) Double priceMax,
+			@RequestParam(name = "sort", required = false) String sort,
+			@RequestParam(name = "dir", required = false) String dir,
+			@RequestParam(name = "withoutCost", required = false) Boolean withoutCost) {
+		boolean withCost = withCost();
+		ItemCatalogueQuery.Criteria criteria = criteria(search, status, familyId, subFamilyId, categoryCode, sectionCode,
+				priceMin, priceMax, sort, dir, withCost && Boolean.TRUE.equals(withoutCost));
+		return ResponseEntity.ok(service.export(criteria, withCost, ItemCatalogueService.EXPORT_MAX));
+	}
+
+	/** The list's criteria of the request's filters, the same for its page and its export. */
+	static ItemCatalogueQuery.Criteria criteria(String search, String status, Long familyId, Long subFamilyId,
+			String categoryCode, String sectionCode, Double priceMin, Double priceMax, String sort, String dir,
+			boolean withoutCost) {
 		ItemCatalogueQuery.Criteria criteria = new ItemCatalogueQuery.Criteria();
 		criteria.setLike(NavItemService.likeOf(search));
 		criteria.setActiveOnly(activeOnly(status));
@@ -75,22 +120,10 @@ public class StoreItemCatalogueAPI {
 		criteria.setPriceMax(priceMax);
 		criteria.setSort(sort);
 		criteria.setDescending("desc".equalsIgnoreCase(dir == null ? null : dir.trim()));
-		// 3.1.2: what the lines show beyond the grouped columns, the cost only to a role that may see it
-		boolean withCost = withCost();
-		if (withCost && Boolean.TRUE.equals(withoutCost)) {
+		if (withoutCost) {
 			criteria.getItemConditions().add(WITHOUT_COST);
 		}
-		Page<ItemCatalogueLineDTO> lines = service.page(criteria, page, size);
-		service.storeDetails(lines.getContent(), withCost);
-		Map<String, Object> response = new LinkedHashMap<>();
-		response.put("content", lines.getContent());
-		response.put("page", lines.getNumber());
-		response.put("size", lines.getSize());
-		response.put("totalElements", lines.getTotalElements());
-		response.put("totalPages", lines.getTotalPages());
-		response.put("withStock", service.withStock());
-		response.put("withCost", withCost);
-		return ResponseEntity.ok(response);
+		return criteria;
 	}
 
 	/** GET /item-catalogue/filters: the page's flags and filter choices, from the data; read once when the page opens. */

@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.dto.ItemCatalogueFiltersDTO;
 import com.digithink.zsretail.core.dto.ItemCatalogueLineDTO;
+import com.digithink.zsretail.core.dto.ItemExportDTO;
 import com.digithink.zsretail.core.model.ItemCategory;
 import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.repository.ItemCatalogueQuery;
@@ -253,6 +254,78 @@ public class ItemCatalogueService {
 						});
 			}
 		}
+	}
+
+	/** Items of one Excel export of the Articles page at most: a large catalogue (Happyness: 40,839 items) whole. */
+	public static final int EXPORT_MAX = 60000;
+
+	/**
+	 * 3.1.2, the Excel export of the store's Articles page: the items of the criteria's lines, one row each
+	 * ({@link ItemCatalogueQuery#items}), at most limit; the stock only where the installation keeps its own, the cost
+	 * only withCost (the caller checks the user's right, as for the list).
+	 */
+	public ItemExportDTO export(ItemCatalogueQuery.Criteria criteria, boolean withCost, int limit) {
+		ItemExportDTO answer = new ItemExportDTO();
+		boolean withStock = withStock();
+		answer.setLimit(limit);
+		answer.setWithStock(withStock);
+		answer.setWithCost(withCost);
+		List<Object[]> rows = query.itemRows(criteria, limit + 1);
+		answer.setTruncated(rows.size() > limit);
+		for (Object[] row : rows.subList(0, Math.min(rows.size(), limit))) {
+			answer.getRows().add(exportRow(row, withStock, withCost));
+		}
+		return answer;
+	}
+
+	/** One row of {@link ItemCatalogueQuery#items}, read in the order of {@link ItemCatalogueQuery#ITEM_COLUMNS}. */
+	static ItemExportDTO.Row exportRow(Object[] row, boolean withStock, boolean withCost) {
+		ItemExportDTO.Row item = new ItemExportDTO.Row();
+		int k = 0;
+		item.setItemId(id(row[k++]));
+		item.setNavItemNo((String) row[k++]);
+		item.setItemCode((String) row[k++]);
+		item.setVariantCode((String) row[k++]);
+		item.setVariantDescription((String) row[k++]);
+		item.setName((String) row[k++]);
+		item.setBarcode((String) row[k++]);
+		item.setFamilyName((String) row[k++]);
+		item.setSubFamilyName((String) row[k++]);
+		item.setCategoryCode((String) row[k++]);
+		item.setCategoryName((String) row[k++]);
+		item.setSectionCode((String) row[k++]);
+		item.setSectionName((String) row[k++]);
+		Double unitPrice = number(row[k++]);
+		Double vat = number(row[k++]);
+		double withVat = 1 + (vat == null ? 0 : vat) / 100.0;
+		item.setUnitPrice(unitPrice);
+		item.setVatPercent(vat == null ? null : vat.intValue());
+		item.setPrice(unitPrice == null ? null : price(unitPrice * withVat));
+		Object stock = row[k++];
+		Object minStock = row[k++];
+		if (withStock) {
+			item.setStockQuantity(stock == null ? null : new BigDecimal(stock.toString()));
+			item.setMinStockLevel(minStock == null ? null : ((Number) minStock).intValue());
+		}
+		Double cost = number(row[k++]);
+		if (withCost) {
+			item.setCost(cost);
+		}
+		item.setMaximumAuthorizedDiscount(number(row[k++]));
+		item.setActive(flag(row[k++]));
+		Object origin = row[k++];
+		item.setOrigin(origin == null ? null : origin.toString());
+		item.setOwnPrice(truth(row[k++]) ? Boolean.TRUE : null);
+		boolean clearance = truth(row[k++]);
+		Double publicPrice = number(row[k++]);
+		// In clearance, sold below the public price (the till's rule, as the list): that price with VAT
+		if (clearance && publicPrice != null && publicPrice > (unitPrice == null ? 0 : unitPrice)) {
+			item.setPublicPrice(price(publicPrice * withVat));
+		}
+		Object type = row[k++];
+		item.setType(type == null ? null : type.toString());
+		item.setUnitOfMeasure((String) row[k++]);
+		return item;
 	}
 
 	/** The fields of a single item's line from its row of {@link ItemCatalogueQuery#details}. */

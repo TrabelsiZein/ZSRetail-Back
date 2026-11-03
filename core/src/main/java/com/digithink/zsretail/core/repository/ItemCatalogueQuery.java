@@ -213,6 +213,25 @@ public class ItemCatalogueQuery {
 	/** The statements of a criteria; portable: the code sort in SQL that H2 knows (the query tests). */
 	public static Built build(Criteria c, boolean portable) {
 		Map<String, Object> parameters = new LinkedHashMap<>();
+		String[] filter = filter(c, parameters);
+		String joins = filter[0];
+		String where = filter[1];
+		List<String> groups = lineConditions(c, "COUNT(*)", "MAX(" + ACTIVE_OF_I + ")");
+		String having = groups.isEmpty() ? "" : " HAVING " + String.join(" AND ", groups);
+		String lines = select(c) + joins + where + GROUP + having + " ORDER BY " + order(c, portable);
+		String count = "SELECT COUNT(*) AS " + COUNT_COLUMN + " FROM (SELECT i.nav_item_no AS n FROM item i" + joins + where
+				+ GROUP + having + ") g";
+		return new Built(lines, count, parameters);
+	}
+
+	/** An item row (alias i) is active: a null active counts as active. */
+	static final String ACTIVE_OF_I = "CASE WHEN i.active IS NULL OR i.active = 1 THEN 1 ELSE 0 END";
+
+	/**
+	 * The joins and the WHERE of a criteria over the item rows (alias i), its parameters added: the rows of the lines
+	 * that match (kn, ki; see {@link #build(Criteria, boolean)}), of the status.
+	 */
+	static String[] filter(Criteria c, Map<String, Object> parameters) {
 		parameters.put("allStatuses", c.isActiveOnly() && !c.isInactiveOnly() ? 0 : 1);
 		List<String> match = conditions(c, "m", parameters);
 		boolean search = c.getLike() != null;
@@ -228,20 +247,111 @@ public class ItemCatalogueQuery {
 					+ " WHERE m.nav_item_no IS NULL" + and(match) + ") ki ON ki.id = i.id";
 			where += " AND (kn.nav IS NOT NULL OR ki.id IS NOT NULL)";
 		}
+		return new String[] { joins, where };
+	}
+
+	/**
+	 * The conditions on a whole line (variants YES / NO, status Inactive), on its number of items of the status and on
+	 * whether one of them is active, as written by the caller (aggregates of the lines, window values of the items).
+	 */
+	static List<String> lineConditions(Criteria c, String itemCount, String anyActive) {
 		List<String> groups = new ArrayList<>();
 		if ("YES".equalsIgnoreCase(trim(c.getVariants()))) {
-			groups.add("COUNT(*) > 1");
+			groups.add(itemCount + " > 1");
 		} else if ("NO".equalsIgnoreCase(trim(c.getVariants()))) {
-			groups.add("COUNT(*) = 1");
+			groups.add(itemCount + " = 1");
 		}
 		if (c.isInactiveOnly()) {
-			groups.add("MAX(CASE WHEN i.active IS NULL OR i.active = 1 THEN 1 ELSE 0 END) = 0");
+			groups.add(anyActive + " = 0");
 		}
-		String having = groups.isEmpty() ? "" : " HAVING " + String.join(" AND ", groups);
-		String lines = select(c) + joins + where + GROUP + having + " ORDER BY " + order(c, portable);
-		String count = "SELECT COUNT(*) AS " + COUNT_COLUMN + " FROM (SELECT i.nav_item_no AS n FROM item i" + joins + where
-				+ GROUP + having + ") g";
-		return new Built(lines, count, parameters);
+		return groups;
+	}
+
+	/**
+	 * 3.1.2, the Excel export of the store's Articles page: the columns of one item row ({@link #items}), in this order
+	 * (ItemCatalogueService.exportRows reads them so).
+	 */
+	public static final List<String> ITEM_COLUMNS = Collections.unmodifiableList(Arrays.asList("item_id", "nav_item_no",
+			"item_code", "variant_code", "variant_description", "item_name", "barcode", "family_name", "sub_family_name",
+			"category_code", "category_name", "section_code", "section_name", "unit_price", "vat_percent",
+			"stock_quantity", "min_stock_level", "cost_price", "max_discount", "active", "origin", "own_price",
+			"clearance", "public_price", "type", "unit_of_measure"));
+
+	/**
+	 * One item's columns: its barcode the primary one of item_barcode, else the item's own, else its first; the names of
+	 * its catégorie and section read by code (a code may repeat in item_section, one per sous-famille).
+	 */
+	static final String ITEM_SELECT = "SELECT i.id AS item_id, i.nav_item_no AS nav_item_no, i.item_code AS item_code,"
+			+ " i.variant_code AS variant_code, i.variant_description AS variant_description, i.name AS item_name,"
+			+ " COALESCE((SELECT MIN(b.barcode) FROM item_barcode b WHERE b.item_id = i.id AND b.is_primary = 1),"
+			+ " NULLIF(i.barcode, ''), (SELECT MIN(b.barcode) FROM item_barcode b WHERE b.item_id = i.id)) AS barcode,"
+			+ " f.name AS family_name, sf.name AS sub_family_name, i.category_code AS category_code,"
+			+ " (SELECT MIN(c.name) FROM item_category c WHERE c.code = i.category_code) AS category_name,"
+			+ " i.section_code AS section_code,"
+			+ " (SELECT MIN(s.name) FROM item_section s WHERE s.code = i.section_code) AS section_name,"
+			+ " i.unit_price AS unit_price, i.defaultvat AS vat_percent, i.stock_quantity AS stock_quantity,"
+			+ " i.min_stock_level AS min_stock_level, i.cost_price AS cost_price,"
+			+ " i.maximum_authorized_discount AS max_discount, " + ACTIVE_OF_I + " AS active, i.origin AS origin,"
+			+ " i.own_price AS own_price, i.clearance AS clearance, i.public_price AS public_price, i.type AS type,"
+			+ " i.unit_of_measure AS unit_of_measure";
+
+	/** One line of the list: its NAV item number, else its one item. */
+	static final String LINE_OF_I = "PARTITION BY i.nav_item_no, CASE WHEN i.nav_item_no IS NULL THEN i.id END";
+
+	/**
+	 * 3.1.2, the Excel export of the store's Articles page: the items of the lines the list shows for a criteria (the
+	 * variants a line opens on, of the status), one row each ({@link #ITEM_COLUMNS}), in the list's sort (by item: the
+	 * stock and the price are the item's own), then by code. The line conditions read window values (the line's items
+	 * of the status, one of them active) in a derived table.
+	 */
+	public static Built items(Criteria c, boolean portable) {
+		Map<String, Object> parameters = new LinkedHashMap<>();
+		String[] filter = filter(c, parameters);
+		List<String> groups = lineConditions(c, "x.line_items", "x.line_active");
+		String inner = ITEM_SELECT + ", COUNT(*) OVER (" + LINE_OF_I + ") AS line_items, MAX(" + ACTIVE_OF_I + ") OVER ("
+				+ LINE_OF_I + ") AS line_active FROM item i LEFT JOIN item_family f ON f.id = i.item_family_id"
+				+ " LEFT JOIN item_sub_family sf ON sf.id = i.item_sub_family_id" + filter[0] + filter[1];
+		String sql = "SELECT x.* FROM (" + inner + ") x" + (groups.isEmpty() ? "" : " WHERE " + String.join(" AND ", groups))
+				+ " ORDER BY " + itemOrder(c, portable);
+		return new Built(sql, null, parameters);
+	}
+
+	/** The order of the item rows: the list's sort on the item's own values, then the line's code and the item code. */
+	static String itemOrder(Criteria c, boolean portable) {
+		String dir = c.isDescending() ? " DESC" : " ASC";
+		String sort = trim(c.getSort());
+		String code = codeOrder("COALESCE(x.nav_item_no, x.item_code)", "x.item_code", " ASC", portable);
+		if ("name".equalsIgnoreCase(sort)) {
+			return "x.item_name" + dir + ", " + code;
+		}
+		if ("price".equalsIgnoreCase(sort)) {
+			return "CASE WHEN x.unit_price IS NULL THEN 1 ELSE 0 END, x.unit_price * (1 + COALESCE(x.vat_percent, 0) / 100.0)"
+					+ dir + ", " + code;
+		}
+		if ("family".equalsIgnoreCase(sort)) {
+			return "CASE WHEN x.family_name IS NULL THEN 1 ELSE 0 END, x.family_name" + dir + ", x.sub_family_name" + dir
+					+ ", " + code;
+		}
+		if ("stock".equalsIgnoreCase(sort)) {
+			return "COALESCE(x.stock_quantity, 0)" + dir + ", " + code;
+		}
+		if ("variants".equalsIgnoreCase(sort)) {
+			return "x.line_items" + dir + ", " + code;
+		}
+		return codeOrder("COALESCE(x.nav_item_no, x.item_code)", "x.item_code", dir, portable);
+	}
+
+	/** The item rows of a criteria ({@link #items}), at most limit of them. */
+	public List<Object[]> itemRows(Criteria criteria, int limit) {
+		Built built = items(criteria, portable);
+		Query query = entityManager.createNativeQuery(built.getLines());
+		built.getParameters().forEach(query::setParameter);
+		query.setMaxResults(limit);
+		List<Object[]> answer = new ArrayList<>();
+		for (Object row : query.getResultList()) {
+			answer.add((Object[]) row);
+		}
+		return answer;
 	}
 
 	/** The lines' SELECT: {@link #SELECT} as it is, or (3.1.1) with the criteria's line price and its join. */
