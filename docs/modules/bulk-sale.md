@@ -104,6 +104,13 @@ answers, which gives the same line when an item has one line.
   0, an amount too small for 0.001, an item without price). A keypad (the payment keypad's keys and C) types into the
   last box focused, the quantity at first; the floating keyboard of the till stays as it is (its feature flag is off
   and it follows only the scan and search fields). Validate is off until the choice is good; Cancel adds nothing.
+- **A scan while the popup is open** (`onBulkScanKeydown`, rule `watchScanKey`): a scanner types its characters a few
+  ms apart, then Enter; a character within 30 ms of the previous one continues a burst, and 4 of them (or a fast burst
+  of 2 ended by Enter) make a scan. A burst's characters after its first are kept out, the boxes are put back as they
+  were before its first one, its Enter is swallowed (it would press Validate), no item is added, and the toast
+  "Fermez la vente en vrac avant de scanner" (the quantity error's look) is shown once per scan. A person typing, and
+  the popup's keypad, pass as before; two keys a person presses within 30 ms lose the second. Nothing changes while
+  the popup is closed.
 - **The container** (`containerFor`): a quick quantity's linked item; for a quantity or an amount, the linked item of
   the smallest active quick quantity at least as large (0.07 L: the 100 ml one's; 0.5 L when the next is "1 L" without
   one: none); an inactive item never. Shown as a switch "Avec flacon" (on by default, on again for another container).
@@ -148,6 +155,9 @@ answers, which gives the same line when an item has one line.
    add one more, save again (update), take it back: three lines; pay: the ticket and the stock take every line.
 8. Table ticket (table management on): the same with a table.
 9. A customer with a price list on the item: the popup's unit price is the engine's; the amount mode uses it.
+10. Popup open, the focus in the quantity box, then in the amount box, then on Validate: scan any barcode each time:
+    the boxes stay as they were, nothing is added, the popup stays open, the toast "Fermez la vente en vrac avant de
+    scanner" once per scan; typing 0,25 by hand afterwards works.
 
 ## Known limits
 
