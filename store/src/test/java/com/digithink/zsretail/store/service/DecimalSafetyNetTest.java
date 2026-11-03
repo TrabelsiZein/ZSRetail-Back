@@ -142,8 +142,10 @@ class DecimalSafetyNetTest {
 		assertEquals("OUT", stockRows.get(1).getStatus());
 		assertEquals(1, reports(stock.subList(0, 1)).getStockReport("ITEM", true).size(), "0.2 < 1: below the minimum");
 
-		List<Object[]> moves = Collections.singletonList(new Object[] { "VH52-1L", new BigDecimal("5.000"), new BigDecimal("0.200"), 2L });
-		StockMovementReportRowDTO move = reports(moves).getStockMovementsReport(LocalDate.now(), LocalDate.now(), "ITEM", null).get(0);
+		// 3.1.2: by item, the id, code, name and family, then in, out, the movements and the distinct items
+		List<Object[]> moves = Collections.singletonList(
+				new Object[] { 7L, "VH52-1L", "V H 52 1L", null, new BigDecimal("5.000"), new BigDecimal("0.200"), 2L, 1L });
+		StockMovementReportRowDTO move = reports(moves).getStockMovementsReport(LocalDate.now(), LocalDate.now(), "ITEM", (String) null).get(0);
 		assertEquals("5", move.getQtyIn().toPlainString());
 		assertEquals("0.2", move.getQtyOut().toPlainString());
 		assertEquals("4.8", move.getNetQty().toPlainString());

@@ -15,7 +15,7 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
 - `getSalesReport(dateFrom, dateTo, groupBy)` — aggregates sales headers by DAY/MONTH/YEAR; returns `SalesReportRowDTO { label, totalHt, totalTtc, nbTickets }`
 - `getPurchaseReport(dateFrom, dateTo, groupBy)` — aggregates purchase headers; returns `PurchaseReportRowDTO { label, totalTtc, nbPurchases }`
 - `getStockReport(groupBy, filter, date)` (3.1.2) — the stock now (no date, or today) or at the end of a past day, per item, family, sub-family, category or section, with the filters of `StockReportFilter`; `getStockReport(groupBy, belowMinStock[, date])` delegate to it. Returns `StockReportRowDTO { groupLabel, itemCode, currentQty, minStockLevel, stockValue, stockValueTtc, sellingValue, sellingValueTtc, status, costPrice, costPriceTtc, unitPrice, unitPriceTtc, itemsWithoutCost, itemsWithoutPrice, itemsAtCurrentCmp, itemCount, itemsLow, itemsOut, familyName, subFamilyName }` (the prices and the two names on an item row only; the first three counts absent when none, the other three always sent). See "Stock report" below.
-- `getStockMovementsReport(dateFrom, dateTo, groupBy)` — stock in/out by label; returns `StockMovementsReportRowDTO { label, qtyIn, qtyOut }`
+- `getStockMovementsReport(dateFrom, dateTo, groupBy, filter)` (3.1.2 rebuild) — the movements of a period per item, family, sub-family, category, section, type, day or month, with the filters of `StockMovementReportFilter`; `getStockMovementsReport(dateFrom, dateTo, groupBy, movementType)` delegates to it. Returns `StockMovementReportRowDTO { groupLabel, qtyIn, qtyOut, netQty, nbMovements, itemCount, itemCode, familyName }` (the last two on an item row only). See "Stock movements report" below.
 - `getLoyaltyReport(dateFrom, dateTo, groupBy)` — loyalty points earned/redeemed; returns `LoyaltyReportRowDTO { label, pointsEarned, pointsRedeemed }`
 - `getSessionReport(dateFrom, dateTo, groupBy)` — session totals; returns `SessionReportRowDTO { label, totalAmount, nbSessions }`
 - `getPromotionReport(dateFrom, dateTo)` — promotion performance; returns `PromotionReportRowDTO { promotionCode, promotionName, promotionType, nbTickets, totalDiscount, revenueInfluenced }`
@@ -117,6 +117,67 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
     only: the API sends them to every role, as the project's rule (no role check in the API). Excel: every row, the
     columns of the grouping, empty cells for "—", `stock-<date>.xlsx`. Print: every row in a print-only table rendered
     while printing, without filters, pages or buttons. Rules in `libs/stock-report.js`.
+- **Stock movements report** (3.1.2 rebuild, `GET /report/stock-movements`, `ReportService.getStockMovementsReport`):
+  the movements of a period, grouped, quantities only (no amount: only sales and returns carry a price, the selling
+  one; inventory counts and adjustments none).
+  - **Parameters**, all optional: `dateFrom`, `dateTo` (none: since 2000 / until now; the page opens on the current
+    month; 400 when `dateFrom` is after `dateTo`); `groupBy` `ITEM` (default) | `FAMILY` | `SUBFAMILY` | `CATEGORY` |
+    `SECTION` | `TYPE` | `DAY` | `MONTH`; `search`, `familyId`, `subFamilyId`, `categoryCode`, `sectionCode` (the item
+    filters of the stock report, the same WHERE: `ReportItemFilter`, `ReportService.where` / `bind`); `types`, a list of
+    movement types, any of them (400 for another value); `movementType` (one type, before 3.1.2) still read, added to
+    `types`.
+  - **`COST_ADJUSTMENT` is never counted**: "Ajuster le CMP" writes it with a quantity of 0 as the trace of a CMP change;
+    it moves no stock (before the rebuild it counted as a movement and had its TYPE row).
+  - **Rows**: `qtyIn`, `qtyOut`, `netQty`, `nbMovements`, `itemCount` (the distinct items moved); an item row's label
+    is the item's name, its `itemCode` and `familyName` apart (before: the label "code - name"). A day is `yyyy-MM-dd`,
+    a month `yyyy-MM`, zero-padded so they sort as text (before: "2026-3-5"), in time order; the other groupings by
+    quantity moved, the largest first. Family / sub-family / category / section labels as the stock report's ("No
+    Family"..., a category or section by its name, else its code); a category or section without a code and one with a
+    blank code are one row.
+  - **Query**: one, grouped; the item joined only for an item filter or an item-level grouping (the dates, types and
+    days read `stock_movement` alone, index `ix_stock_movement_created`).
+  - **Keys of a row** (what the page opens): an item row `itemId`; a group row `groupKey`, the family's or sub-family's
+    id, the category's or section's code, the type, the day, the month, null for the row of the items without a level.
+    Families and sub-families are grouped by id (two of the same name are two rows); a sub-family row also carries its
+    family's name (`familyName`; sub-family names repeat across families), none on the "No Subfamily" row.
+  - **Stock card** (`GET /report/stock-movements/item/{itemId}?dateFrom&dateTo`, `ReportService.getStockCard`,
+    `StockCardDTO` / `StockCardLineDTO`): one item over a period. `closingQty` = the stock now minus the movements after
+    `dateTo` (IN minus OUT), `openingQty` = closing minus the period's (the rule of the stock value at a date);
+    `qtyIn`, `qtyOut`, `movementCount` of the whole period; the lines in time order with `balanceAfter` (the stock after
+    each, counted back from closing), at most `STOCK_CARD_MAX` = 2,000 (the latest; `truncated` then, the opening and
+    the sums still whole). Each line: `type`, `direction`, `quantity`, `reference` as printed (a sale's `salesNumber`,
+    a return's `returnNumber`, a purchase's `purchaseNumber`, read for the card's lines only; a BL's and an inventory
+    count's number are their note), `note` otherwise (an adjustment's reason, an opening stock's origin), `user` (the
+    movement's `createdBy`, or for a till movement written by "System" the cashier of its session: sale movements
+    record no user, their session does). COST_ADJUSTMENT never. 404 for an unknown item, 400 for `dateFrom` after
+    `dateTo`. Queries: the item, the movements after the period, the period's sums, the lines, and one per kind of
+    document referenced (three at most). Tests: `StockMovementsReportTest` (`stockCard*`, `keys`),
+    `ReportStockMovementsTest` (`stockCard`).
+  - Tests: `StockMovementsReportTest` (the query on H2: the period, COST_ADJUSTMENT left out, every grouping, the
+    filters, the call of before), `ReportStockMovementsTest` (the filter handed, the 400s), `DecimalSafetyNetTest`.
+  - **The page** (`views/admin/reports/StockMovementsReport.vue`, same routes, permissions and menu entries; no chart,
+    no "Load" button), the stock report's shell: `AdminListPage`, subtitle the period ("Du 01/11/2026 au 03/11/2026",
+    "Le 03/11/2026"). Filters: search, the levels (`reportItemFilters.js`, a mixin: the choices of Item cards'
+    `…/filters`, the narrowing, the level chips), the period (always set, the current month by default; quick periods
+    Aujourd'hui / 7 derniers jours / Ce mois / Mois dernier; a start after the end refused), the types as chips, entries
+    green and exits red, any of them. Each change reloads (an older answer dropped) and is kept in the address (`q`,
+    `family`, `subFamily`, `category`, `section`, `types`, `from`, `to`, `groupBy`), the filters set as chips beside the
+    grouping (× removes one). Totals strip: entries, exits, net (signed), movements, and the items moved only by item,
+    family, sub-family, category or section (by type, day or month an item moved twice is in two rows). Table: sortable
+    with arrows, quantities largest first on the first click, 50 a page, "—" for no quantity; types, days (dd/mm/yyyy)
+    and months (mm/yyyy) shown in the page's language. Excel: every row, the labels as shown, the quantities as numbers,
+    `stock-movements-<from>_<to>.xlsx`; Print: every row. Rules in `libs/stock-movements-report.js`
+    (`tools/stock-movements-check.mjs`); the look in `report-list.scss` and the level filters in `reportItemFilters.js`,
+    both shared with the stock report.
+  - **A row clicked** (or Enter on it; the hint under the totals says what it does): an item row opens its **stock
+    card** (`StockCardModal.vue`) over the period shown: the stock at the start and the end, the entries and exits, every
+    movement in time order with the stock after it, its document ("Ticket T-000020", "Inventaire INV-000001", "#id" when
+    the number is unknown), who made it, its note (an adjustment's reason translated); a totals line equal to the
+    report's row; Excel of the card (`stock-card-<code>-<from>_<to>.xlsx`, the opening and closing stock around the
+    lines). With a type filter the card still lists every movement (the stock after each needs them), the other types
+    greyed and left out of its totals. A group row **drills down** (`drillDown`): a family, sub-family (with its family),
+    category or section becomes that filter, a type the type filter, a day or a month the period (a month up to today),
+    and the report shows its items; the row of the items without a level opens nothing.
 - Statistics KPI deltas (`AnalyticsService.computeDeltaPercent`, 3.1.0, test log I-51): null when the previous period
   is 0 (no comparison); the page shows "—" in grey instead of a green "▲ 0.00%".
 - **Statistics margin** (3.1.2, `GET /admin/analytics/summary`): `margin`, `marginRate`, `linesWithoutCost`, the
@@ -139,14 +200,14 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
 - `GET /report/sales?dateFrom=&dateTo=&groupBy=`
 - `GET /report/purchases?dateFrom=&dateTo=&groupBy=`
 - `GET /report/stock?groupBy=&belowMinStock=&date=&search=&familyId=&subFamilyId=&categoryCode=&sectionCode=&status=` (3.1.2; "Stock report" above)
-- `GET /report/stock-movements?dateFrom=&dateTo=&groupBy=`
+- `GET /report/stock-movements?dateFrom=&dateTo=&groupBy=&search=&familyId=&subFamilyId=&categoryCode=&sectionCode=&types=&movementType=` (3.1.2; "Stock movements report" above)
 - `GET /report/loyalty?dateFrom=&dateTo=&groupBy=`
 - `GET /report/sessions?dateFrom=&dateTo=&groupBy=`
 - `GET /report/promotions?dateFrom=&dateTo=`
 
 ### Frontend — Report Pages
 
-**Common pattern for the 5 time-based reports (SalesReport, PurchaseReport, StockMovementsReport, LoyaltyReport, SessionReport; StockReport since its 3.1.2 rebuild: "Stock report" above):**
+**Common pattern for the 4 time-based reports (SalesReport, PurchaseReport, LoyaltyReport, SessionReport; StockReport and StockMovementsReport since their 3.1.2 rebuild: "Stock report" and "Stock movements report" above):**
 
 **Data / State:**
 - `currentPage: 1`, `perPage: 50`, `chartType: 'bar'`, `sortBy: 'value_desc'`

@@ -49,6 +49,20 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Stock report rows: `itemCount`, `itemsLow` and `itemsOut` (`OUT` or `NEGATIVE`) on every row, the items the filters
   kept counted by their own status at the date (an item row: 1 and its own); `familyName` and `subFamilyName` on an item
   row. Read in the same loop, no new query (for the page's items column and totals in every grouping).
+- Stock movements report rebuilt (back end): `GET /report/stock-movements` adds the groupings `SUBFAMILY`, `CATEGORY`
+  and `SECTION`, the optional filters `search`, `familyId`, `subFamilyId`, `categoryCode`, `sectionCode` (the stock
+  report's) and `types` (a list, any of them; `movementType` still read), and per row `itemCount`, and on an item row
+  `itemCode` and `familyName` (its label is now the name, was "code - name"). Days `yyyy-MM-dd` and months `yyyy-MM`
+  zero-padded, in time order (were "2026-3-5"). `COST_ADJUSTMENT` ("Ajuster le CMP", quantity 0) is no longer counted
+  as a movement. 400 for an unknown type and for `dateFrom` after `dateTo`. One query (`docs/modules/reporting.md`,
+  "Stock movements report").
+- Stock card of an item: `GET /report/stock-movements/item/{itemId}?dateFrom&dateTo`, its stock at the start and the end
+  of the period (counted back from the stock now), the period's entries and exits, and its movements in time order with
+  the stock after each one (at most 2,000, the latest), each with its document number as printed (ticket, return,
+  purchase, BL, inventory count), its note and who made it (the session's cashier for a sale, whose movement says
+  "System"). 404 for an unknown item. The movements report's rows carry `itemId` (an item row) and `groupKey` (a group
+  row: the family's or sub-family's id, the category's or section's code, the type, the day, the month); families and
+  sub-families are grouped by id, a sub-family row carries its family's name.
 - Cost history of the items: table `item_cost_history`, one row per change of an item's CMP (date, old and new cost,
   source, document type and number, the entry's quantity and unit cost, the user's name), written in the transaction of
   the change: a local purchase (`LOCAL_PURCHASE`), an ERP invoice received (`INVOICE_RECEPTION`), a BL with its head

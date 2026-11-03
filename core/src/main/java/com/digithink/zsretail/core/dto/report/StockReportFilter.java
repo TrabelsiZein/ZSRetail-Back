@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
  */
 @Data
 @NoArgsConstructor
-public class StockReportFilter {
+public class StockReportFilter implements ReportItemFilter {
 
     /** No CMP and a stock other than 0 (an item of any of the other four statuses may also be without cost). */
     public static final String WITHOUT_COST = "WITHOUT_COST";
