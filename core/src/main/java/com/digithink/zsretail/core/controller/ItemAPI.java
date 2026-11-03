@@ -352,11 +352,12 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	}
 
 	/**
-	 * 3.1.2, bulk sale: sets or clears "vendu en vrac" on an item, body {"soldInBulk": true}. Built as the pack flag:
-	 * allowed in every mode (ERP included: no connector reads or writes the field); on a store whose catalogue is the
-	 * head office's, a head office item is refused (409, the head office decides and sends it down); saved through
-	 * ItemService.save, so a head office records the change for its stores. Only this field changes; false is stored as
-	 * null (null = false).
+	 * 3.1.2, bulk sale: sets or clears "vendu en vrac" on an item, body {"soldInBulk": true}. Built as the pack flag,
+	 * allowed in every mode (ERP included: no connector reads or writes the field), but a decision of the installation
+	 * itself: on a store whose catalogue is the head office's, a head office item takes it too (no catalogue guard; the
+	 * copies down never change it once the item is here). Saved through ItemService.save (on a head office: the change
+	 * is recorded for its stores, which take it only for an item they do not have yet). Only this field changes; false
+	 * is stored as null (null = false).
 	 */
 	@PutMapping("/{id}/bulk-flag")
 	public ResponseEntity<?> setBulkFlag(@PathVariable Long id, @RequestBody Map<String, Object> body) {
@@ -366,10 +367,6 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			Optional<Item> existing = service.findById(id);
 			if (!existing.isPresent()) {
 				return ResponseEntity.notFound().build();
-			}
-			CatalogueEditGuard guard = catalogueGuard();
-			if (guard != null && guard.itemWrite(id) != null) { // the head office decides the flag
-				return refused(guard.itemWrite(id));
 			}
 			Item item = existing.get();
 			item.setSoldInBulk(soldInBulk ? Boolean.TRUE : null);

@@ -15,6 +15,9 @@ running yet (the manual tests of step 2 are below).
   ("Flacon 100 ml") the till will add as its own line with the bulk line.
 - **A bulk item scanned twice makes a new line** (till step): each pick is its own line, never "+1" on the line.
 - **Invoices from tickets stay whole**: out of scope, a known limit (below).
+- **The flag is each store's own decision**, a head office item's included (Zein, 2026-11-03, a correction of step 1,
+  which had the head office decide): a store flags any item it sells, and the copies down never change it on an item the
+  store has. The head office's value is only where a new store item starts.
 
 ## Step 1: the item flag `Item.soldInBulk`
 
@@ -24,28 +27,31 @@ running yet (the manual tests of step 2 are below).
   creates the item without it.
 - **`PUT /item/{id}/bulk-flag`** `{"soldInBulk": true}` (`ItemAPI.setBulkFlag`), built as `package-flag`: allowed in
   every mode, **an ERP catalogue included** (the full PUT answers 403 there: no connector reads or writes the field);
-  404 for an unknown id; on a store whose catalogue is the head office's (`CatalogueEditGuard`), a head office item
-  answers 409 ("This item is managed by the head office...": the head office decides). Only this field changes; false is
-  stored as null. Saved through `ItemService.save`, so on a head office the catalogue hooks record the change for its
-  stores (a head office without an ERP, or whose catalogue comes only from the ERP: `HoCatalogueService`). On a head
-  office whose catalogue comes only from the ERP, `HeadOfficeErpCatalogueFilter` leaves `/item/{id}/bulk-flag` open,
-  as the pack flag.
-- **The copies down** (`CatalogueItemCopyDTO.soldInBulk`, the 3.1.1 images model): the head office sends `true` or
-  `false` (`of`: its null is false), on every path (with or without points de stock: `pointCopy` builds on `of`).
-  The store (`CatalogueCopyWriter`) writes it (false as null) and counts it in "unchanged" (`isUnchanged`: the
-  store's null and the copy's false are the same, so a 3.1.2 head office rewrites no item of a store of before). A copy
-  without the field (a head office of an older build) keeps the store's value and never makes the copy look changed.
-  A store of an older build ignores the field (`ignoreUnknown`).
+  404 for an unknown id; **no catalogue guard**: on a store whose catalogue is the head office's, a head office item
+  takes it as an own item does (unlike the pack flag, which stays the head office's there: 409). Only this field
+  changes; false is stored as null. Saved through `ItemService.save`, so on a head office the catalogue hooks record
+  the change for its stores (a head office without an ERP, or whose catalogue comes only from the ERP:
+  `HoCatalogueService`), which take it only for an item they do not have yet (below). On a head office whose catalogue
+  comes only from the ERP, `HeadOfficeErpCatalogueFilter` leaves `/item/{id}/bulk-flag` open, as the pack flag.
+- **The copies down** (`CatalogueItemCopyDTO.soldInBulk`): the head office sends `true` or `false` (`of`: its null is
+  false), on every path (with or without points de stock: `pointCopy` builds on `of`). The store
+  (`CatalogueCopyWriter`) writes it **only on the item it creates** from the copy (true flagged, false or absent: null);
+  an item it has (a head office item, or a local item of the same code taken over) keeps its own value, whatever the
+  copy says. `isUnchanged` never counts it (the copy's value is put in the comparison), so a change of the flag at the
+  head office rewrites no item, and an upgrade from a head office of an older build rewrites nothing. A store of an
+  older build ignores the field (`ignoreUnknown`).
 - **The ERP sync** never touches it: `ErpItemBootstrapService.applyItemValues` sets its fields one by one, so a flag set
   on an ERP store (EMTOP) or an ERP head office (ZEN, Happyness, ParaFendri) survives every import.
 - **The till** receives it with no change: the till's item lists (`/item/pos/*`, `/item-barcode/...`, `/item/{id}`)
   give the `Item` entity; step 2 reads it there (the popup, below).
-- **Screens** (`ZSRetail-Front`): the store's item card (`StoreItemCard`, a switch in the band, saved at once; on a head
-  office item of a store fed by its head office the value only, "Décidé par le siège"; rule `bulkFlagEditable` in
-  `libs/item-card.js`, `tools/store-item-card-check.mjs`), the item form (`ItemManagement`, a box beside "Afficher en
-  caisse", sent by `bulk-flag` after the item's save, only when changed), the head office's item card
+- **Screens** (`ZSRetail-Front`): the store's item card (`StoreItemCard`, a switch at the end of the band's facts line,
+  after "Quantité en stock", in the facts' size, for every item, a head office item's included, saved at once; the
+  General tab's row follows it; "Afficher en caisse" stays plain text), the item form (`ItemManagement`, a box beside
+  "Afficher en caisse", sent by `bulk-flag` after the item's save, only when changed), the head office's item card
   (`ItemCatalogueCard`: a switch for a single item, "Vendu en vrac" in each variant's menu for a NAV item; the card's
-  `Variant.soldInBulk`).
+  `Variant.soldInBulk`; there it sets the head office's own items and the value a new store item starts with, said
+  under the switch and on the menu entry: "Valeur initiale pour les nouveaux magasins — chaque magasin décide
+  ensuite").
 
 ## Step 1: the quick quantities `QuickQuantity` (store only)
 
@@ -78,8 +84,8 @@ changed. `update.sql` stops while the column, or on a store the table, is missin
 ## Customers without the flag
 
 EMTOP, ZEN, ParaFendri (and Happyness until an item is flagged): every item stays null, so nothing changes: the till,
-the sale, the exports, the reports and the copies behave as before (the copy carries `soldInBulk: false`, equal to
-the store's null). No connector reads the flag. The quick quantities page is hidden while `ALLOW_DECIMAL_QUANTITY` is
+the sale, the exports, the reports and the copies behave as before (the copy carries `soldInBulk: false`, never
+compared and never written on an item the store has). No connector reads the flag. The quick quantities page is hidden while `ALLOW_DECIMAL_QUANTITY` is
 off (EMTOP keeps it off); its table stays empty. No permission is added to any role. The only new behaviours anywhere:
 the item card's switch, the form's box, and the 409 on deleting an item used as a linked item (none exists until a
 quick quantity is made). At the till (step 2) an item without the flag, or any item with the setting off, is added as in
@@ -172,12 +178,14 @@ answers, which gives the same line when an item has one line.
 
 ## Tests
 
-`ItemAPICatalogueGuardTest` (`bulkFlagWithTheGuard`: 409 on a head office item, nothing written; an own item set and
-cleared, false as null; 404. `bulkFlagEveryMode`: allowed without the guard and with an ERP catalogue, whose full PUT
-stays 403. `fullUpdateKeepsBulkFlag`: the full PUT keeps it, JSON never read). `CatalogueCopyBulkFlagTest` (written,
-unchanged, cleared; an older head office's copy keeps it and stays unchanged; the upgrade rewrites nothing; `of`).
+`ItemAPICatalogueGuardTest` (`bulkFlagWithTheGuard`: on a store fed by its head office, a head office item set and
+cleared, only the flag changing, its pack flag still 409; an own item set and cleared, false as null; 404.
+`bulkFlagEveryMode`: allowed without the guard and with an ERP catalogue, whose full PUT stays 403.
+`fullUpdateKeepsBulkFlag`: the full PUT keeps it, JSON never read). `CatalogueCopyBulkFlagTest` (a new item takes the
+head office's value; the store's true kept against a copy's false, and its null against a copy's true, the copy
+unchanged each time; another change written with the flag kept; the upgrade rewrites nothing; `of`).
 `QuickQuantityServiceTest` (saved and normalized, the refusals, the API's 400, the deletion check). Step 2:
 `SaleDecimalQuantityTest` (`twoLinesOfOneItemSold`, `twoLinesOfOneItemParkedUpdatedCompleted`). Front:
-`tools/store-item-card-check.mjs` (`bulkFlagEditable`); step 2 `tools/bulk-sale-check.mjs` (when the popup opens, the
+step 2 `tools/bulk-sale-check.mjs` (when the popup opens, the
 quick quantities' order, the amounts, the amount mode and its rounding, the choice, the container, the line keys,
 the cart pass's answers per line).

@@ -195,11 +195,12 @@ public class Item extends _BaseEntity {
 	private Double publicPrice;
 
 	/**
-	 * 3.1.2, bulk sale ("vendu en vrac"): the item is sold by volume or weight (perfume by the litre). The till will offer
-	 * the quick quantities for it (till step still to do); decimals stay allowed by the store setting
-	 * ALLOW_DECIMAL_QUANTITY alone. Null = false. Written only by PUT /item/{id}/bulk-flag (every mode, ERP included) and,
-	 * on a store whose catalogue is the head office's, by the copies down; never read from JSON (a full PUT keeps it). No
-	 * connector reads or writes it. See docs/modules/bulk-sale.md.
+	 * 3.1.2, bulk sale ("vendu en vrac"): the item is sold by volume or weight (perfume by the litre). The till offers
+	 * the quick quantities for it (its bulk popup); decimals stay allowed by the store setting
+	 * ALLOW_DECIMAL_QUANTITY alone. Null = false. A decision of each installation, a head office item on a store
+	 * included: written by PUT /item/{id}/bulk-flag (every mode, ERP included); a copy down sets it only on the item it
+	 * creates, never on an item the store has. Never read from JSON (a full PUT keeps it). No connector reads or writes
+	 * it. See docs/modules/bulk-sale.md.
 	 */
 	@Column(name = "sold_in_bulk")
 	@JsonProperty(access = JsonProperty.Access.READ_ONLY)

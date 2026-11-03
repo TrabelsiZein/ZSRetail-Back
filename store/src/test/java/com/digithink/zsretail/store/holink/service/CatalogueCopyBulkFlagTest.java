@@ -14,10 +14,10 @@ import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.support.InMemoryItems;
 
 /**
- * 3.1.2, bulk sale: "vendu en vrac" (Item.soldInBulk) travels in the item copy as the 3.1.1 images do. The head office
- * sends true or false (its null is false); the store writes it (false as null) and counts it in "unchanged"; a copy
- * without the field (a head office of an older build) keeps the store's value and never makes the copy look changed, so
- * no pull rewrites every item.
+ * 3.1.2, bulk sale: "vendu en vrac" (Item.soldInBulk) is the store's own decision, a head office item's included. The
+ * item copy carries the head office's value (true or false); the store takes it only for an item it creates from the
+ * copy (null or false: not flagged), never writes it on an item it has, and never counts it in "unchanged", so a change
+ * at the head office rewrites no item and never undoes the store's choice.
  */
 class CatalogueCopyBulkFlagTest {
 
@@ -52,40 +52,59 @@ class CatalogueCopyBulkFlagTest {
 	}
 
 	@Test
-	@DisplayName("The head office's flag: true written, the same copy unchanged; false clears it (stored as null)")
-	void writtenUnchangedCleared() {
+	@DisplayName("A new item takes the head office's value: true flagged; false or absent: not flagged (null)")
+	void newItemTakesTheHeadOffice() {
 		assertTrue(writer.saveItem(copy(true)).isWritten());
 		assertEquals(Boolean.TRUE, item().getSoldInBulk());
-		CatalogueCopyWriter.Outcome again = writer.saveItem(copy(true));
-		assertTrue(again.isApplied());
-		assertFalse(again.isWritten(), "the same flag: unchanged");
 
-		assertTrue(writer.saveItem(copy(false)).isWritten(), "the head office cleared it");
+		setUp();
+		writer.saveItem(copy(false));
 		assertNull(item().getSoldInBulk(), "false is stored as null");
-		assertFalse(writer.saveItem(copy(false)).isWritten(), "false and null are the same");
+
+		setUp();
+		writer.saveItem(copy(null));
+		assertNull(item().getSoldInBulk(), "an older head office: not flagged");
 	}
 
 	@Test
-	@DisplayName("An older head office (no field): the store's value kept, the copy unchanged when nothing else moved")
-	void notSentKept() {
-		writer.saveItem(copy(true));
-		CatalogueCopyWriter.Outcome outcome = writer.saveItem(copy(null));
-		assertTrue(outcome.isApplied());
-		assertFalse(outcome.isWritten());
+	@DisplayName("The store flags a head office item: a copy with false never clears it, and is not a change")
+	void storeChoiceKeptAgainstFalse() {
+		writer.saveItem(copy(false));
+		item().setSoldInBulk(Boolean.TRUE); // PUT /item/{id}/bulk-flag on the store
+		CatalogueCopyWriter.Outcome again = writer.saveItem(copy(false));
+		assertTrue(again.isApplied());
+		assertFalse(again.isWritten(), "the flag is not a difference");
 		assertEquals(Boolean.TRUE, item().getSoldInBulk());
-
-		CatalogueItemCopyDTO renamed = copy(null);
-		renamed.setName("V H 52 1 litre");
-		assertTrue(writer.saveItem(renamed).isWritten(), "another change: written");
-		assertEquals(Boolean.TRUE, item().getSoldInBulk(), "still kept");
 	}
 
 	@Test
-	@DisplayName("The upgrade: items written by an older head office, then false from a 3.1.2 one: unchanged, no rewrite")
+	@DisplayName("The store clears a flag the head office sent: a copy with true never sets it again, and is not a change")
+	void storeChoiceKeptAgainstTrue() {
+		writer.saveItem(copy(true));
+		item().setSoldInBulk(null); // the store switched it off
+		assertFalse(writer.saveItem(copy(true)).isWritten());
+		assertNull(item().getSoldInBulk());
+	}
+
+	@Test
+	@DisplayName("Another change of the item is written, the store's flag kept as it is")
+	void otherChangeKeepsTheFlag() {
+		writer.saveItem(copy(false));
+		item().setSoldInBulk(Boolean.TRUE);
+		CatalogueItemCopyDTO renamed = copy(false);
+		renamed.setName("V H 52 1 litre");
+		assertTrue(writer.saveItem(renamed).isWritten());
+		assertEquals("V H 52 1 litre", item().getName());
+		assertEquals(Boolean.TRUE, item().getSoldInBulk(), "kept");
+	}
+
+	@Test
+	@DisplayName("The upgrade: items written by an older head office, then a 3.1.2 copy: unchanged, nothing rewritten")
 	void upgradeRewritesNothing() {
 		writer.saveItem(copy(null));
+		assertFalse(writer.saveItem(copy(false)).isWritten());
+		assertFalse(writer.saveItem(copy(true)).isWritten(), "even a flag at the head office");
 		assertNull(item().getSoldInBulk());
-		assertFalse(writer.saveItem(copy(false)).isWritten(), "false on an item never flagged: unchanged");
 	}
 
 	@Test

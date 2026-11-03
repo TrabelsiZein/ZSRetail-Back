@@ -202,11 +202,16 @@ class ItemAPICatalogueGuardTest {
 	}
 
 	@Test
-	@DisplayName("3.1.2, bulk flag with the guard: a head office item answers 409, nothing written; an own item set and cleared")
+	@DisplayName("3.1.2, bulk flag with the guard: the store's own decision, a head office item set and cleared, an own item too")
 	void bulkFlagWithTheGuard() throws Exception {
 		ItemAPI api = api(true);
-		assertEquals(409, api.setBulkFlag(hoItem.getId(), Collections.singletonMap("soldInBulk", true)).getStatusCodeValue());
-		assertNull(store.items.get(hoItem.getId()).getSoldInBulk(), "the head office decides: nothing written");
+		assertEquals(200, api.setBulkFlag(hoItem.getId(), Collections.singletonMap("soldInBulk", true)).getStatusCodeValue());
+		assertEquals(Boolean.TRUE, store.items.get(hoItem.getId()).getSoldInBulk(), "a head office item takes it");
+		assertEquals(10.0, store.items.get(hoItem.getId()).getUnitPrice(), "only the flag changes");
+		assertEquals(409, api.setPackageFlag(hoItem.getId(), Collections.singletonMap("isPackage", true))
+				.getStatusCodeValue(), "the pack flag stays the head office's");
+		assertEquals(200, api.setBulkFlag(hoItem.getId(), Collections.singletonMap("soldInBulk", false)).getStatusCodeValue());
+		assertNull(store.items.get(hoItem.getId()).getSoldInBulk());
 		assertEquals(200, api.setBulkFlag(ownItem.getId(), Collections.singletonMap("soldInBulk", true)).getStatusCodeValue());
 		assertEquals(Boolean.TRUE, store.items.get(ownItem.getId()).getSoldInBulk());
 		assertEquals(5.0, store.items.get(ownItem.getId()).getUnitPrice(), "only the flag changes");

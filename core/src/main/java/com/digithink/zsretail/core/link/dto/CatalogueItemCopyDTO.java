@@ -82,7 +82,8 @@ public class CatalogueItemCopyDTO {
 
 	/**
 	 * 3.1.2, bulk sale ("vendu en vrac", Item.soldInBulk): true or false as the head office has it (its null is false).
-	 * Null: not sent (a head office of an older build): the store keeps its value. A store of an older build ignores it.
+	 * The flag is the store's own decision: the store takes it only for an item it creates from the copy (null or false:
+	 * not flagged), never on an item it has, and never counts it in "unchanged". A store of an older build ignores it.
 	 */
 	private Boolean soldInBulk;
 

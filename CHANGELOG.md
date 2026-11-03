@@ -18,10 +18,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 ### Features
 - Bulk sale ("vente en vrac"), step 1 (`docs/modules/bulk-sale.md`; the till's popup is step 2): `Item.soldInBulk`
   ("vendu en vrac", null = false, never read from JSON: the full `PUT /item/{id}` keeps it) set by the new
-  `PUT /item/{id}/bulk-flag` `{"soldInBulk": true}`, built as `package-flag` (every mode, an ERP catalogue included; 409
-  on a head office item of a store whose catalogue is the head office's; saved through `ItemService.save`, so a head
-  office sends it down). The item copy carries `soldInBulk` (true or false); a copy without it (an older head office)
-  keeps the store's value and stays "unchanged", and false equals the store's null, so no pull rewrites the catalogue.
+  `PUT /item/{id}/bulk-flag` `{"soldInBulk": true}`, built as `package-flag` (every mode, an ERP catalogue included)
+  but each store's own decision: a head office item of a store fed by its head office takes it too (no catalogue
+  guard). The item copy carries `soldInBulk` (true or false): the store writes it only on an item the copy creates,
+  never on an item it has, and never counts it in "unchanged", so no pull rewrites the catalogue or undoes the store's
+  choice.
   The head office item card gives `soldInBulk` per variant. The store's quick quantities: entity `QuickQuantity`
   (label, quantity with 3 decimals, optional linked container item, active, display order) and `/quick-quantity`, the
   generic CRUD (400 with the reason for no label, a quantity not above 0, a 4th decimal, an unknown item); an item used
