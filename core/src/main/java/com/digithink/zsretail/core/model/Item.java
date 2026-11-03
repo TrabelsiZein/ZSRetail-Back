@@ -194,6 +194,17 @@ public class Item extends _BaseEntity {
 	@JsonProperty(access = JsonProperty.Access.READ_ONLY)
 	private Double publicPrice;
 
+	/**
+	 * 3.1.2, bulk sale ("vendu en vrac"): the item is sold by volume or weight (perfume by the litre). The till will offer
+	 * the quick quantities for it (till step still to do); decimals stay allowed by the store setting
+	 * ALLOW_DECIMAL_QUANTITY alone. Null = false. Written only by PUT /item/{id}/bulk-flag (every mode, ERP included) and,
+	 * on a store whose catalogue is the head office's, by the copies down; never read from JSON (a full PUT keeps it). No
+	 * connector reads or writes it. See docs/modules/bulk-sale.md.
+	 */
+	@Column(name = "sold_in_bulk")
+	@JsonProperty(access = JsonProperty.Access.READ_ONLY)
+	private Boolean soldInBulk;
+
 	/** The stock without trailing zeros (the column has 3 decimals): 5.000 is 5, 0.800 is 0.8. */
 	public BigDecimal getStockQuantity() {
 		return Quantities.normalize(stockQuantity);

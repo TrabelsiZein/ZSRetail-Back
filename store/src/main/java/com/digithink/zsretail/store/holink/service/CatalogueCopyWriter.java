@@ -284,6 +284,10 @@ public class CatalogueCopyWriter {
 		// public price is kept for the till to show it struck through. Always written: null when the clearance ends
 		item.setClearance(copy.getClearance());
 		item.setPublicPrice(copy.getPublicPrice());
+		// 3.1.2, bulk sale: as the head office has it (false stored as null); not sent (an older head office): kept
+		if (copy.getSoldInBulk() != null) {
+			item.setSoldInBulk(Boolean.TRUE.equals(copy.getSoldInBulk()) ? Boolean.TRUE : null);
+		}
 		if (takenOver || !Boolean.TRUE.equals(item.getOwnPrice())) {
 			item.setOwnPrice(null);
 			item.setUnitPrice(copy.getUnitPrice()); // an own price is kept, the head office price saved beside
@@ -325,6 +329,10 @@ public class CatalogueCopyWriter {
 		// 3.1.1: the URL images compared only when the copy carries them (none sent: the store keeps its rows)
 		current.setImages(copy.getImages() == null || images == null ? copy.getImages()
 				: CatalogueItemCopyDTO.imagesOf(images.findOfItem(item.getId())));
+		// 3.1.2, bulk sale: compared only when the copy carries it (current's is true or false: null counts as false)
+		if (copy.getSoldInBulk() == null) {
+			current.setSoldInBulk(null);
+		}
 		return current.equals(copy) && (copy.getBarcode() == null || !legacyBarcodeElsewhere(copy.getBarcode(), item));
 	}
 

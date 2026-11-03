@@ -260,6 +260,8 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			// Item variants (ZEN), clearance: written by the copies down only
 			entity.setClearance(existingItem.getClearance());
 			entity.setPublicPrice(existingItem.getPublicPrice());
+			// 3.1.2, bulk sale: written by PUT /{id}/bulk-flag only (never read from JSON)
+			entity.setSoldInBulk(existingItem.getSoldInBulk());
 			Item updated = service.save(entity);
 			return ResponseEntity.ok(updated);
 		} catch (CatalogueCodeChangeException e) {
@@ -345,6 +347,36 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			return ResponseEntity.ok(updated);
 		} catch (Exception e) {
 			log.error("ItemAPI::setPackageFlag:error: " + getDetailedMessage(e), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/**
+	 * 3.1.2, bulk sale: sets or clears "vendu en vrac" on an item, body {"soldInBulk": true}. Built as the pack flag:
+	 * allowed in every mode (ERP included: no connector reads or writes the field); on a store whose catalogue is the
+	 * head office's, a head office item is refused (409, the head office decides and sends it down); saved through
+	 * ItemService.save, so a head office records the change for its stores. Only this field changes; false is stored as
+	 * null (null = false).
+	 */
+	@PutMapping("/{id}/bulk-flag")
+	public ResponseEntity<?> setBulkFlag(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+		try {
+			log.info("ItemAPI::setBulkFlag::" + id);
+			boolean soldInBulk = Boolean.TRUE.equals(body.get("soldInBulk"));
+			Optional<Item> existing = service.findById(id);
+			if (!existing.isPresent()) {
+				return ResponseEntity.notFound().build();
+			}
+			CatalogueEditGuard guard = catalogueGuard();
+			if (guard != null && guard.itemWrite(id) != null) { // the head office decides the flag
+				return refused(guard.itemWrite(id));
+			}
+			Item item = existing.get();
+			item.setSoldInBulk(soldInBulk ? Boolean.TRUE : null);
+			Item updated = service.save(item);
+			return ResponseEntity.ok(updated);
+		} catch (Exception e) {
+			log.error("ItemAPI::setBulkFlag:error: " + getDetailedMessage(e), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
 		}
 	}

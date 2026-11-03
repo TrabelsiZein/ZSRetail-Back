@@ -3,7 +3,9 @@
 Bulk items sold by the litre or the kilo (Happyness: perfume "V H 52 1L" sold 0.2 or 0.058 at the till). Built in
 steps on `release/2.2.1` (both repos); this page says what each step converted. Steps 1 to 6 are done (2026-10-09 and 10).
 2.2.2 (`release/2.2.2`), step 1: returns with decimal quantities (2026-10-10), see "2.2.2, step 1" below. 3.1.0: stock
-adjustments (2026-10-13), see "3.1.0: stock adjustments".
+adjustments (2026-10-13), see "3.1.0: stock adjustments". 3.1.2: the bulk sale ("vente en vrac": the item flag
+`soldInBulk`, the quick quantities, the till's popup to come) builds on these quantities, see `bulk-sale.md`; its gate is
+still `ALLOW_DECIMAL_QUANTITY` alone, and invoices from tickets stay whole (a known limit there, "Still whole" below).
 
 ## Rules
 
@@ -15,7 +17,8 @@ adjustments (2026-10-13), see "3.1.0: stock adjustments".
 - **Who may use decimals**: the store setting `ALLOW_DECIMAL_QUANTITY` (General Setup, "Allow decimal quantities",
   BOOLEAN, `false`, created at startup on a store only; read by `QuantityPolicy`, sent to the front as
   `/config.allowDecimalQuantity`). Off: front and back behave as 2.2.0 and the back refuses a non-whole quantity with a
-  message naming the item. More than 3 decimals is refused even when on. No per-item flag in this version.
+  message naming the item. More than 3 decimals is refused even when on. No per-item permission: the 3.1.2 flag
+  `Item.soldInBulk` (`bulk-sale.md`) only opens the till's quick quantities, it never allows or refuses a decimal.
 - **Stay whole for good**: cash counts (`SessionCashCount`, `HoSessionCount`), promotion minimum/free quantities,
   warranties (a warranty on a decimal sales line is refused: "A warranty covers whole units").
 - **Rounding, the one place**: `Quantities.lineAmount(unitAmount, quantity)`. A whole quantity gives the plain product of
@@ -258,7 +261,7 @@ fractional could not be corrected on the item page.
 | Place | Reaction |
 |---|---|
 | Returns (`ReturnHeaderService`, `ReturnLine`, `ReturnProducts.vue`) | 2.2.2: converted (above). Until 2.2.1: a line sold with decimals was listed as not returnable; returning it, or asking 0.5 of a whole line: 400 naming the item, nothing written |
-| Invoices from tickets (`InvoiceService`, `InvoiceLine`) | 400 naming the ticket and the item, before the invoice number is taken |
+| Invoices from tickets (`InvoiceService`, `InvoiceLine`) | 400 naming the ticket and the item, before the invoice number is taken; still so in 3.1.2 (out of the bulk sale's scope, `bulk-sale.md`, "Known limits") |
 | Purchases (`PurchaseHeaderService`, `PurchaseLine`) | 400 naming the item (screen and server) |
 | Compositions of a pack (`ItemComposition`) | 400 naming the component (screen and server) |
 | Stock adjustment (`ItemAPI.adjustStock`) | 3.1.0: converted (above). Until 3.0: 400 naming the item (screen and server) |

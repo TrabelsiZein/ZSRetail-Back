@@ -81,6 +81,12 @@ public class CatalogueItemCopyDTO {
 	private Double publicPrice;
 
 	/**
+	 * 3.1.2, bulk sale ("vendu en vrac", Item.soldInBulk): true or false as the head office has it (its null is false).
+	 * Null: not sent (a head office of an older build): the store keeps its value. A store of an older build ignores it.
+	 */
+	private Boolean soldInBulk;
+
+	/**
 	 * 3.1.1 (item images): the item's images given by address (item_image source URL), in order, the main one first;
 	 * empty when it has none. Null: not sent (a head office of an older build): the store keeps its rows. A store of an
 	 * older build ignores it. Files (FILE) never travel.
@@ -165,6 +171,7 @@ public class CatalogueItemCopyDTO {
 		copy.sectionCode = item.getSectionCode();
 		copy.clearance = item.getClearance();
 		copy.publicPrice = item.getPublicPrice();
+		copy.soldInBulk = Boolean.TRUE.equals(item.getSoldInBulk());
 		return copy;
 	}
 }

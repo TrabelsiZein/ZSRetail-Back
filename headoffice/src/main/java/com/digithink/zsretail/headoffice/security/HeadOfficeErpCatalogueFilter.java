@@ -27,7 +27,7 @@ import lombok.extern.log4j.Log4j2;
  * <p>
  * Left to the controllers' own refusal (isCatalogueFromErp, their own message): POST /item, PUT and DELETE /item/{id},
  * POST /item/quick-product, POST /item-family, POST /item-sub-family, POST /admin/import/preview and /execute. Open on
- * purpose: the packs (/item/{id}/package-flag, /item-composition), the item images (/item-image) and the supply prices.
+ * purpose: the packs (/item/{id}/package-flag, /item-composition), 3.1.2 the bulk sale flag (/item/{id}/bulk-flag), the item images (/item-image) and the supply prices.
  * A GET always passes, except on the price lists. Release 2.2: the selling price lists are not used here: the PUT of a
  * store's selling price list is refused ({@link #PRICE_LIST_REFUSAL}); when the supply comes from the ERP, every request
  * on /admin/headoffice/price-lists too (no supply list is used either), and 3.1.1 the same with

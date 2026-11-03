@@ -137,6 +137,9 @@ public class ItemCatalogueCardDTO {
 		/** type PACKAGE, as the pack configuration reads it. */
 		private Boolean isPackage;
 
+		/** 3.1.2, bulk sale ("vendu en vrac"): Item.soldInBulk, null as false. */
+		private boolean soldInBulk;
+
 		private Integer defaultVAT;
 
 		/** Before VAT. */

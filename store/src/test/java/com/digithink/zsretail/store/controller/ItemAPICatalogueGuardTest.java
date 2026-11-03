@@ -80,7 +80,10 @@ class ItemAPICatalogueGuardTest {
 	}
 
 	private ItemAPI api(boolean withGuard) throws Exception {
-		ApplicationModeService mode = TestModes.standalone();
+		return api(withGuard, TestModes.standalone());
+	}
+
+	private ItemAPI api(boolean withGuard, ApplicationModeService mode) throws Exception {
 		ItemService service = new ItemService();
 		set(service, ItemService.class, "itemRepository", store.itemRepository());
 		StockMovementService stockMovements = new StockMovementService(); // 3.1.2: POST /item, its opening stock
@@ -196,6 +199,47 @@ class ItemAPICatalogueGuardTest {
 		assertEquals(Boolean.TRUE, after.getOwnPrice(), "never read from JSON: kept");
 		assertEquals(10.0, after.getHeadOfficePrice());
 		assertEquals(204, api.deleteById(ownItem.getId()).getStatusCodeValue());
+	}
+
+	@Test
+	@DisplayName("3.1.2, bulk flag with the guard: a head office item answers 409, nothing written; an own item set and cleared")
+	void bulkFlagWithTheGuard() throws Exception {
+		ItemAPI api = api(true);
+		assertEquals(409, api.setBulkFlag(hoItem.getId(), Collections.singletonMap("soldInBulk", true)).getStatusCodeValue());
+		assertNull(store.items.get(hoItem.getId()).getSoldInBulk(), "the head office decides: nothing written");
+		assertEquals(200, api.setBulkFlag(ownItem.getId(), Collections.singletonMap("soldInBulk", true)).getStatusCodeValue());
+		assertEquals(Boolean.TRUE, store.items.get(ownItem.getId()).getSoldInBulk());
+		assertEquals(5.0, store.items.get(ownItem.getId()).getUnitPrice(), "only the flag changes");
+		assertEquals(200, api.setBulkFlag(ownItem.getId(), Collections.singletonMap("soldInBulk", false)).getStatusCodeValue());
+		assertNull(store.items.get(ownItem.getId()).getSoldInBulk(), "false is stored as null");
+		assertEquals(404, api.setBulkFlag(999L, Collections.singletonMap("soldInBulk", true)).getStatusCodeValue());
+	}
+
+	@Test
+	@DisplayName("3.1.2, bulk flag without the guard and with an ERP catalogue: allowed on every item (the full PUT is not)")
+	void bulkFlagEveryMode() throws Exception {
+		assertEquals(200, api(false).setBulkFlag(hoItem.getId(), Collections.singletonMap("soldInBulk", true))
+				.getStatusCodeValue());
+		assertEquals(Boolean.TRUE, store.items.get(hoItem.getId()).getSoldInBulk());
+		ItemAPI erp = api(false, TestModes.erp());
+		assertEquals(403, erp.update(ownItem.getId(), body("OWN1", 6.0)).getStatusCodeValue(), "the full PUT stays refused");
+		assertEquals(200, erp.setBulkFlag(ownItem.getId(), Collections.singletonMap("soldInBulk", true)).getStatusCodeValue());
+		assertEquals(Boolean.TRUE, store.items.get(ownItem.getId()).getSoldInBulk());
+	}
+
+	@Test
+	@DisplayName("3.1.2, bulk flag: a full PUT (the item form) keeps it, never read from JSON")
+	void fullUpdateKeepsBulkFlag() throws Exception {
+		ItemAPI api = api(false);
+		api.setBulkFlag(ownItem.getId(), Collections.singletonMap("soldInBulk", true));
+		Item edited = body("OWN1", 6.0); // the form's body: no soldInBulk (READ_ONLY in JSON)
+		assertEquals(200, api.update(ownItem.getId(), edited).getStatusCodeValue());
+		Item after = store.items.get(ownItem.getId());
+		assertEquals(6.0, after.getUnitPrice());
+		assertEquals(Boolean.TRUE, after.getSoldInBulk(), "kept");
+		Item sent = new com.fasterxml.jackson.databind.ObjectMapper()
+				.readValue("{\"itemCode\":\"X\",\"soldInBulk\":true}", Item.class);
+		assertNull(sent.getSoldInBulk(), "never read from JSON");
 	}
 
 	@Test

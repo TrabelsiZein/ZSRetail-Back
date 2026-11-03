@@ -12,10 +12,22 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Visual check, running: the clearance range of Item cards (the point's price range, the normal price struck, "N
   soldés") on a ZEN-type head office.
 - The job `IMPORT_CATALOGUE` tested on an ERP store test instance before any ERP-store deployment.
-- A database at 3.1.1: `db/3.1.2/sales-line-unit-cost.sql` and `db/3.1.2/item-cost-history.sql`, then
-  `db/3.1.2/update.sql`, before the 3.1.2 WAR (`AppVersionGuard`).
+- A database at 3.1.1: `db/3.1.2/sales-line-unit-cost.sql`, `db/3.1.2/item-cost-history.sql` and
+  `db/3.1.2/bulk-sale.sql`, then `db/3.1.2/update.sql`, before the 3.1.2 WAR (`AppVersionGuard`).
 
 ### Features
+- Bulk sale ("vente en vrac"), step 1 (`docs/modules/bulk-sale.md`; the till's popup is step 2): `Item.soldInBulk`
+  ("vendu en vrac", null = false, never read from JSON: the full `PUT /item/{id}` keeps it) set by the new
+  `PUT /item/{id}/bulk-flag` `{"soldInBulk": true}`, built as `package-flag` (every mode, an ERP catalogue included; 409
+  on a head office item of a store whose catalogue is the head office's; saved through `ItemService.save`, so a head
+  office sends it down). The item copy carries `soldInBulk` (true or false); a copy without it (an older head office)
+  keeps the store's value and stays "unchanged", and false equals the store's null, so no pull rewrites the catalogue.
+  The head office item card gives `soldInBulk` per variant. The store's quick quantities: entity `QuickQuantity`
+  (label, quantity with 3 decimals, optional linked container item, active, display order) and `/quick-quantity`, the
+  generic CRUD (400 with the reason for no label, a quantity not above 0, a 4th decimal, an unknown item); an item used
+  as a linked item is not deleted (409, `QuickQuantityItemDeletionCheck`). No connector reads the flag; every item
+  stays null, so EMTOP, ZEN and ParaFendri behave as before (`ItemAPICatalogueGuardTest`, `CatalogueCopyBulkFlagTest`,
+  `QuickQuantityServiceTest`).
 - Initial cost of the items without a CMP: the item import's cost column (`costPrice`) now also gives an existing item
   without a CMP its starting one (a cost above 0, an `EXCEL_IMPORT` history row, old cost null); an item with a CMP
   keeps it, the cell ignored and counted in `ImportResultDTO.costsIgnored`; the CMP read as stored, the row locked.
@@ -251,7 +263,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   that has it stays, unread. Item cards' point filter replaces the page. `GET /config` gains `headOfficeStockPoints`
   (the head office keeps points de stock: catalogue only from the ERP and a connector with `HEAD_OFFICE_STOCK_POINTS`).
 
-### DB script (`db/3.1.2/sales-line-unit-cost.sql` and `db/3.1.2/item-cost-history.sql`, then `db/3.1.2/update.sql`, store and head office, on a database at 3.1.1)
+### DB script (`db/3.1.2/sales-line-unit-cost.sql`, `db/3.1.2/item-cost-history.sql` and `db/3.1.2/bulk-sale.sql`, then `db/3.1.2/update.sql`, store and head office, on a database at 3.1.1)
+- `bulk-sale.sql`: column `item.sold_in_bulk` bit NULL (store and head office) and, on a store only (no `ho_store`),
+  table `quick_quantity` (`label` varchar(100), `quantity` numeric(18,3), `linked_item_id` FK `item`, `display_order`,
+  the base columns), each created when missing (a start creates them too); no data changed. `update.sql` stops while
+  the column, or on a store the table, is missing.
 - `item-cost-history.sql`: column `item_cost_history.note` varchar(500) NULL, in the table and added when missing (a
   database that ran the script before it; a start adds it too).
 - `item-cost-history.sql`: table `item_cost_history` (no foreign key to `item`) and its index `ix_item_cost_history_item`

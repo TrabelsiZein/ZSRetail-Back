@@ -307,6 +307,7 @@ public class HoItemCatalogueService {
 		variant.setActive(isActive(item));
 		variant.setType(item.getType() == null ? null : item.getType().name());
 		variant.setIsPackage(item.getType() == ItemType.PACKAGE);
+		variant.setSoldInBulk(Boolean.TRUE.equals(item.getSoldInBulk()));
 		variant.setDefaultVAT(item.getDefaultVAT());
 		variant.setUnitPrice(item.getUnitPrice());
 		if (withStock) {
