@@ -28,6 +28,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   as a linked item is not deleted (409, `QuickQuantityItemDeletionCheck`). No connector reads the flag; every item
   stays null, so EMTOP, ZEN and ParaFendri behave as before (`ItemAPICatalogueGuardTest`, `CatalogueCopyBulkFlagTest`,
   `QuickQuantityServiceTest`).
+- Bulk sale, step 2 (the till, front end): checked that the four sale paths (sale, park, update, complete parked) take
+  two lines of one item as two lines, never merged, the stock taking both (`SaleDecimalQuantityTest`
+  `twoLinesOfOneItemSold`, `twoLinesOfOneItemParkedUpdatedCompleted`); no server change.
 - Initial cost of the items without a CMP: the item import's cost column (`costPrice`) now also gives an existing item
   without a CMP its starting one (a cost above 0, an `EXCEL_IMPORT` history row, old cost null); an item with a CMP
   keeps it, the cell ignored and counted in `ImportResultDTO.costsIgnored`; the CMP read as stored, the row locked.

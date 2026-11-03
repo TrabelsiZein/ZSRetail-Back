@@ -2,8 +2,9 @@
 
 Items sold by volume or weight at the till (Happyness: perfume "V H 52 1L" sold 0.100 L at a time). The decimal
 quantities themselves exist since 2.2.1 (`decimal-quantities.md`); this feature adds what makes them quick to sell: an
-item flag and a list of quick quantities the till will offer. Built in steps on `release/3.1.2`; **step 1 is done**
-(2026-11-03, back end and admin screens); the till's popup is step 2 (below, "Still to do").
+item flag and a list of quick quantities the till offers. Built in steps on `release/3.1.2`: **step 1** (2026-11-03,
+back end and admin screens) and **step 2** (2026-11-03, the till's popup, below) are done; neither has been seen
+running yet (the manual tests of step 2 are below).
 
 ## Decisions (Zein, 2026-11-03)
 
@@ -38,7 +39,7 @@ item flag and a list of quick quantities the till will offer. Built in steps on 
 - **The ERP sync** never touches it: `ErpItemBootstrapService.applyItemValues` sets its fields one by one, so a flag set
   on an ERP store (EMTOP) or an ERP head office (ZEN, Happyness, ParaFendri) survives every import.
 - **The till** receives it with no change: the till's item lists (`/item/pos/*`, `/item-barcode/...`, `/item/{id}`)
-  give the `Item` entity. Nothing reads it there yet (step 2).
+  give the `Item` entity; step 2 reads it there (the popup, below).
 - **Screens** (`ZSRetail-Front`): the store's item card (`StoreItemCard`, a switch in the band, saved at once; on a head
   office item of a store fed by its head office the value only, "Décidé par le siège"; rule `bulkFlagEditable` in
   `libs/item-card.js`, `tools/store-item-card-check.mjs`), the item form (`ItemManagement`, a box beside "Afficher en
@@ -81,21 +82,72 @@ the sale, the exports, the reports and the copies behave as before (the copy car
 the store's null). No connector reads the flag. The quick quantities page is hidden while `ALLOW_DECIMAL_QUANTITY` is
 off (EMTOP keeps it off); its table stays empty. No permission is added to any role. The only new behaviours anywhere:
 the item card's switch, the form's box, and the 409 on deleting an item used as a linked item (none exists until a
-quick quantity is made).
+quick quantity is made). At the till (step 2) an item without the flag, or any item with the setting off, is added as in
+3.1.1: same merge into its line, same + and -; the only code they pass through anew is the cart pass's pairing of its
+answers, which gives the same line when an item has one line.
 
-## Still to do (step 2, the till)
+## Step 2: the till (`ItemSelection.vue`, rules in `libs/bulk-sale.js`)
 
-- `ItemSelection.addToCart`: an item with `soldInBulk` and `allowDecimalQuantity` on opens a popup before pricing
-  (the line discount modal's look): the active quick quantities by display order (`GET /quick-quantity`, read once per
-  screen) and a free box read by `parseQuantity`; the choice calls the pricing with that quantity. Setting off: the
-  item is added as today (1).
-- A bulk pick is **always a new line** (the merge by item id of `addToCart` skipped for it); `+` / `-` disabled on a
-  bulk line (today `+` turns 0.1 into 1.1); the typed box stays.
-- A quick quantity with a linked item also adds the container as its own line (quantity 1, its own price and
-  promotions), after the bulk line.
-- Pending tickets, split bill and the till's other paths keep a bulk line as any decimal line (already supported).
-- Tests: the popup's rules in a `tools/*.mjs` check (no popup without the flag or the setting, a new line each time,
-  the container line).
+- **When the popup opens** (`opensBulkPopup`): an item with `soldInBulk`, `appConfig.allowDecimalQuantity` on, not a
+  pack, picked by a scan (`handleBarcodeScan`), a tile (`onGridEntryClick`) or Enter in the search (`onSearchEnter`):
+  the three go through `pickItem`, which opens the popup instead of `addToCart`. Setting off, or any other item:
+  `addToCart` as before. A pack's components and an RFID read keep calling `addToCart` with their own quantity (no
+  popup).
+- **The popup** (`#bulk-sale-modal`, the line discount modal's look): the item and its unit price TTC (first the
+  item's own price, then the engine's answer for 1 unit, `POST /price-calculate` unchanged, so a price list or an own
+  price counts), "/ L" when the item has a unit; the active quick quantities as buttons by display order (label and
+  amount; `GET /quick-quantity`, read at the first popup of the screen, again only after a reload); a quantity box
+  (`parseQuantity`: "0,1" or "0.1", above 0, at most 3 decimals); an amount box TTC (`quantityForAmount`: quantity =
+  amount / unit TTC rounded half up to 3 decimals, then the amount of that quantity, as the cart computes it: 10 TND
+  at 50 the litre is "0.200 — 10.000 TND"; 7.33 is 0.147 L, 7.350). The three are alternatives: the last one pressed
+  or typed wins (`bulkChoice`); the summary shows its quantity and amount, a refusal under it (more than 3 decimals,
+  0, an amount too small for 0.001, an item without price). A keypad (the payment keypad's keys and C) types into the
+  last box focused, the quantity at first; the floating keyboard of the till stays as it is (its feature flag is off
+  and it follows only the scan and search fields). Validate is off until the choice is good; Cancel adds nothing.
+- **The container** (`containerFor`): a quick quantity's linked item; for a quantity or an amount, the linked item of
+  the smallest active quick quantity at least as large (0.07 L: the 100 ml one's; 0.5 L when the next is "1 L" without
+  one: none); an inactive item never. Shown as a switch "Avec flacon" (on by default, on again for another container).
+  On Validate the container is added after the bulk line by `addToCart` as an ordinary item: quantity 1, its own price
+  and promotions, the one-line-per-item rule (a second flacon goes on the flacon's line), changed or removed as any line.
+- **A new line at each Validate**: `addToCart(item, quantity, null, { bulkLine: true, bulkLabel })` never looks for a
+  line to merge into; the line carries `bulkLine: true`, `lineKey` `bulk-<itemId>-<n>` (a counter of the screen) and
+  the quick quantity's label (`bulkLabel`, shown as the line's badge, "Vrac" without one). A line of another kind never
+  merges into a bulk line (`findIndex` skips them; for an item without the flag nothing changes). Browser only: the
+  server keeps neither the key nor the label.
+- **On a bulk line**: `+` and `-` are off (`increaseQuantity` / `decreaseQuantity` return); the quantity is typed in
+  its box as any decimal line; discount, removal and the rest as any line. The cart's flash after an add follows the
+  line's key (`highlightedItemId === (lineKey || id)`: an item without the flag as before).
+- **Park / resume, table tickets**: the lines of a pending ticket taken back (`retrievePendingTicket`) or of a table
+  (`TableSelection`) are rebuilt from the saved lines; a bulk item's line (flag and setting on) gets
+  `savedLineBulkFields`: `bulkLine` and the key `bulk-<itemId>-L<sales line id>` (unique; a pending update rebuilds the
+  lines on the server, the next resume gives new keys). The quick quantity's label is not saved: a resumed line shows
+  "Vrac".
+- **The cart pass** (`applyLineResults`): its answers came back to the first line of their item; now `pairLineResults`
+  gives the k-th answer of an item to its k-th line (the cart sends its lines in order, one answer each, never merged:
+  `PromotionCalculationService.cartLines`), so two bulk lines of one item each keep their own. One line per item: the
+  same line as before.
+- **The server** takes two lines of one item on its four paths (sale, park, update, complete parked): each line on its
+  own, no unique constraint on the item of a ticket (`SaleDecimalQuantityTest.twoLinesOfOneItemSold`,
+  `twoLinesOfOneItemParkedUpdatedCompleted`). Nothing changed there. Known nuance, not changed: in the one-line question
+  `POST /price-calculate`, the cart's other lines of the asked item are not counted (`cartLines`, "the line asked
+  counts once"): only quantity promotions read them, and a decimal line is never eligible for those.
+
+### Manual tests (a store with "Autoriser les quantités décimales" on, an item "Vendu en vrac" at 50.000 TTC the litre)
+
+1. Scan the item, click its tile, type its code and Enter: each opens the popup; Cancel adds nothing. An item without
+   the flag: added at once as before (a second scan: quantity 2 on its line). Setting off: the bulk item is added at
+   once with 1, + and - work, as in 3.1.1.
+2. Quick quantity "100 ml" (linked "Flacon 100 ml"): summary "0.100 — 5.000 TND", "Avec flacon" on; Validate: a line
+   0.1 with the badge "100 ml" and a flacon line of 1. Again: a second 0.1 line (not 0.2), the flacon line at 2.
+3. Amount 10: "0.200 — 10.000 TND", the container of the smallest quick quantity at least 0.2 (none if it has none);
+   amount 7.33: 0.147, 7.350; amount 0.01: refused ("Montant trop petit").
+4. Quantity "0,25", then a quick quantity, then the amount: the last one wins each time; "0.1234": refused.
+5. "Avec flacon" off: no flacon line. The flacon line is changed (+, -, typed) and removed as any line.
+6. On a bulk line: + and - are off, the typed quantity works (0.3: amount 15.000), a line discount works.
+7. Two bulk lines of the item, park the ticket, take it back: two lines (badge "Vrac"), still not merged, + and - off;
+   add one more, save again (update), take it back: three lines; pay: the ticket and the stock take every line.
+8. Table ticket (table management on): the same with a table.
+9. A customer with a price list on the item: the popup's unit price is the engine's; the amount mode uses it.
 
 ## Known limits
 
@@ -114,5 +166,8 @@ quick quantity is made).
 cleared, false as null; 404. `bulkFlagEveryMode`: allowed without the guard and with an ERP catalogue, whose full PUT
 stays 403. `fullUpdateKeepsBulkFlag`: the full PUT keeps it, JSON never read). `CatalogueCopyBulkFlagTest` (written,
 unchanged, cleared; an older head office's copy keeps it and stays unchanged; the upgrade rewrites nothing; `of`).
-`QuickQuantityServiceTest` (saved and normalized, the refusals, the API's 400, the deletion check). Front:
-`tools/store-item-card-check.mjs` (`bulkFlagEditable`).
+`QuickQuantityServiceTest` (saved and normalized, the refusals, the API's 400, the deletion check). Step 2:
+`SaleDecimalQuantityTest` (`twoLinesOfOneItemSold`, `twoLinesOfOneItemParkedUpdatedCompleted`). Front:
+`tools/store-item-card-check.mjs` (`bulkFlagEditable`); step 2 `tools/bulk-sale-check.mjs` (when the popup opens, the
+quick quantities' order, the amounts, the amount mode and its rounding, the choice, the container, the line keys,
+the cart pass's answers per line).

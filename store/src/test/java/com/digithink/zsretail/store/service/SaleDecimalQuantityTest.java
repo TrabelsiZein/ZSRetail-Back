@@ -457,6 +457,42 @@ class SaleDecimalQuantityTest {
 		assertQuantity("5", stock.quantityOf("VH52-1L"));
 	}
 
+	// ─── 3.1.2, bulk sale: two lines of one item (the till makes a new line at each pick) ─────
+
+	@Test
+	@DisplayName("3.1.2: two lines of the bulk item (0.1 and 0.2) are sold as two lines, never merged; the stock takes both")
+	void twoLinesOfOneItemSold() throws Exception {
+		SalesHeader sale = sales.processCompleteSale(request(line("0.1", 5.0), line("0.2", 10.0)), cashier);
+		List<SalesLine> lines = linesOf(sale);
+		assertEquals(2, lines.size(), "two lines, not merged");
+		assertQuantity("0.1", lines.get(0).getQuantity());
+		assertQuantity("0.2", lines.get(1).getQuantity());
+		assertEquals(5.0, lines.get(0).getLineTotalIncludingVat(), 0.0);
+		assertEquals(10.0, lines.get(1).getLineTotalIncludingVat(), 0.0);
+		assertQuantity("4.7", stock.quantityOf("VH52-1L"));
+	}
+
+	@Test
+	@DisplayName("3.1.2: two lines of the bulk item parked, updated (0.1 and 0.3), completed: two lines each time")
+	void twoLinesOfOneItemParkedUpdatedCompleted() throws Exception {
+		SalesHeader parked = sales.savePendingSale(request(line("0.1", 5.0), line("0.2", 10.0)), cashier);
+		assertEquals(2, linesOf(parked).size());
+		SalesHeader updated = sales.updatePendingSale(parked.getId(), request(line("0.1", 5.0), line("0.3", 15.0)), cashier);
+		List<SalesLine> lines = linesOf(updated);
+		assertEquals(2, lines.size(), "the update keeps two lines");
+		assertQuantity("0.3", lines.get(1).getQuantity());
+		assertQuantity("5", stock.quantityOf("VH52-1L"), "a parked ticket does not touch the stock");
+
+		SalesHeader sale = sales.completePendingSale(parked.getId(), request(line("0.1", 5.0), line("0.3", 15.0)), cashier);
+		assertEquals(TransactionStatus.COMPLETED, sale.getStatus());
+		assertEquals(2, linesOf(sale).size());
+		assertQuantity("4.6", stock.quantityOf("VH52-1L"));
+	}
+
+	private List<SalesLine> linesOf(SalesHeader sale) {
+		return savedLines.stream().filter(l -> l.getSalesHeader() == sale).collect(Collectors.toList());
+	}
+
 	/** The ticket's lines: the paid line of 3 and the free line of 1 (100%, total 0). */
 	private void assertPaidAndFree(SalesHeader sale) {
 		List<SalesLine> lines = savedLines.stream().filter(l -> l.getSalesHeader() == sale).collect(Collectors.toList());
@@ -481,6 +517,12 @@ class SaleDecimalQuantityTest {
 		line.setUnitPriceIncludingVat(LITRE_TTC);
 		line.setLineTotalIncludingVat(tillTotalIncludingVat);
 		return line;
+	}
+
+	private ProcessSaleRequestDTO request(ProcessSaleRequestDTO.SaleLineDTO line, ProcessSaleRequestDTO.SaleLineDTO more) {
+		ProcessSaleRequestDTO r = request(line);
+		r.getLines().add(more);
+		return r;
 	}
 
 	private ProcessSaleRequestDTO request(ProcessSaleRequestDTO.SaleLineDTO line) {
