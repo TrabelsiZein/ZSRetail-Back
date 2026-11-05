@@ -231,6 +231,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   an item's last stock movements newest first (`ItemStockMovementDTO`: date, type, direction, quantity, unit price
   before VAT, reference, notes, user); the unit prices and the CMP adjustments only for a role with
   `write:admin-item-cost` or `read:admin-margins`, checked by the API (`ItemStockMovementsTest`).
+- Till item tiles, images given by address (ZEN): an item without `Item.imageUrl` is sent with its main URL image of
+  `item_image` (its first URL row, the main one first: ZEN's `frontImg`) in `imageUrl`, a full address, on the six POS
+  reads of `ItemAPI` (`/item/by-sub-family/{id}`, `/item/pos/by-section/{id}`, `/pos/without-section/{id}`,
+  `/pos/without-sub-family/{id}`, `/pos/without-family`, `/pos/search`). An uploaded file stays first; `POS_SHOW_IMAGES`
+  false: no image, `item_image` not read; without `item_image` rows nothing changes. Every item whose `imageUrl` the
+  answer changes is detached first, so the change is never saved (images off included). One rule with the store order
+  catalogue: `core.service.ItemMainImages` (`ItemMainImagesTest`).
 
 ### Fixes
 - Journal gains: a day's (and a month's) cost and margin are the sum of its tickets' and returns' figures rounded to

@@ -58,6 +58,14 @@ nullable (the quantity available the line was ordered against, below), `nav_acce
 item images: on a ZEN head office the catalogue job writes the URL rows from ZEN's products API (`erp-sync.md`, "Item
 images") and the item copies carry them down to the stores (`head-office.md`, "Item images"); no upload writes FILE rows
 yet. `item.image_url` is untouched and keeps meaning "the main image" for the till and the admin pages.
+3.1.2, the till's item tiles: an item without `image_url` shows its main URL image (`core.service.ItemMainImages`, the
+same rule as the order catalogue: its first URL row, the main one first, ZEN's `frontImg`). The six POS reads of
+`ItemAPI` (`/item/by-sub-family/{id}`, `/item/pos/by-section/{id}`, `/pos/without-section/{id}`,
+`/pos/without-sub-family/{id}`, `/pos/without-family`, `/pos/search` `content`) send it in `imageUrl`, a full address,
+the item detached first so the change is never saved; `POS_SHOW_IMAGES` false: no image, `item_image` not read. The till
+(`ItemSelection.vue`) shows an address as it is, else the file at `item-image/item/{id}`; a picture that does not load
+gives way to the grey mark and the item code. Without `item_image` rows nothing changes. Tests: `ItemMainImagesTest`
+(core).
 
 Created by `db/3.1.1/store-orders.sql` (guarded, re-runnable; run before `db/3.1.1/update.sql`, which stamps
 `APP_VERSION` 3.1.1). `ddl-auto` creates the same tables when the script did not run; the filtered index is then made at
@@ -449,11 +457,12 @@ anything else alphabetically; the ERP's `sizeOrder` is not used); a cell with `d
   (`dimensionLabels`: belts with three sizes "TAILLE" show 85, 90, 95).
 - **Totals**: a column and a row "Total" (per colour row, per size, in all), live as the cells are typed (`matrixTotals`,
   the cells counted as the footer counts them).
-- **Prices** (this window only, under the images): purchase net price (`Prix net` of the connector's details, ZEN's
-  `prixNet`), discount (`Remise %`, `remisePourcent`), selling price with VAT (the variant's `price` before VAT ×
-  (1 + `vatRate` %)), margin = selling price before VAT − purchase net price, in TND and in % **of the selling price before
-  VAT**. Each shown once when every variant that has it agrees, else "variable", the values of each variant in its cell's
-  tooltip (`variantPrices`, `priceBlock`, `cellTooltipLines`). Hidden when no variant has any.
+- **Prices** (this window only, under the images): "Prix négoce" (en "Trade price", ar "سعر الجملة"; the `Prix net` of
+  the connector's details, ZEN's `prixNet`), discount (`Remise %`, `remisePourcent`), selling price with VAT (the
+  variant's `price` before VAT × (1 + `vatRate` %)). No margin (removed at 3.1.2). Each shown once when every variant that
+  has it agrees, else "variable", the values of each variant in its cell's tooltip (`variantPrices`, `priceBlock`,
+  `cellTooltipLines`). Hidden when no variant has any. The tooltip lists the connector's details as they come, except
+  `Prix net`, shown under the block's word "Prix négoce" (same value, same word; front only, the detail keeps its name).
 - **Last order**: under the title "Dernière commande : date · number" (`GET /store-order/last`, a link to the order), and in
   each cell the quantity of that variant in it, greyed. Read beside the variants; a failure shows nothing.
 - **Previous / next item**: the catalogue's lines of its current page (its filters, `neighbourItem`), by the footer's

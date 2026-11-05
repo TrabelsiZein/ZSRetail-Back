@@ -16,6 +16,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+import javax.persistence.EntityManager;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,6 +32,7 @@ import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.model._BaseEntity;
 import com.digithink.zsretail.core.repository.ItemCategoryRepository;
 import com.digithink.zsretail.core.repository.ItemFamilyRepository;
+import com.digithink.zsretail.core.repository.ItemImageRepository;
 import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.ItemSectionRepository;
 import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
@@ -137,6 +140,10 @@ class PosSearchResponseTest {
 		set(api, _BaseController.class, "service", items);
 		set(api, ItemAPI.class, "posCatalogue", catalogue);
 		set(api, ItemAPI.class, "generalSetupService", setup);
+		// 3.1.2 (tile images): no item_image row, so nothing changes and no item is detached (any detach fails the test)
+		set(api, ItemAPI.class, "itemImageRepository", proxy(ItemImageRepository.class,
+				(method, args) -> "findOfItems".equals(method) ? List.of() : UNHANDLED));
+		set(api, ItemAPI.class, "entityManager", proxy(EntityManager.class, (method, args) -> UNHANDLED));
 	}
 
 	private static <T extends _BaseEntity> T at(T entity) {

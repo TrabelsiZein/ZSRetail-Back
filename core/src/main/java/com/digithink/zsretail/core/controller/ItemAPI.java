@@ -9,6 +9,9 @@ import java.util.NoSuchElementException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
+
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,6 +47,7 @@ import com.digithink.zsretail.core.model.enumeration.ItemType;
 import com.digithink.zsretail.core.model.enumeration.StockMovementType;
 import com.digithink.zsretail.core.repository.CustomerRepository;
 import com.digithink.zsretail.core.repository.ItemCostHistoryRepository;
+import com.digithink.zsretail.core.repository.ItemImageRepository;
 import com.digithink.zsretail.core.repository.StockMovementRepository;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.CatalogueCodeChangeException;
@@ -54,6 +58,7 @@ import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.core.service.ItemBarcodeService;
 import com.digithink.zsretail.core.service.ItemCompositionService;
 import com.digithink.zsretail.core.service.ItemDeletionCheck;
+import com.digithink.zsretail.core.service.ItemMainImages;
 import com.digithink.zsretail.core.service.ItemService;
 import com.digithink.zsretail.core.service.PosCatalogueService;
 import com.digithink.zsretail.core.service.PricingService;
@@ -103,6 +108,14 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 
 	@Autowired
 	private PosCatalogueService posCatalogue;
+
+	/** 3.1.2: the till tiles' images given by address (item_image, ItemMainImages.forTiles). */
+	@Autowired
+	private ItemImageRepository itemImageRepository;
+
+	/** 3.1.2: a till item whose imageUrl the answer changes is detached first (the change is never saved). */
+	@PersistenceContext
+	private EntityManager entityManager;
 
 	@Value("${pos.pricing.enable-sales-price-group:false}")
 	private boolean priceGroupEnabled;
@@ -460,9 +473,7 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	public ResponseEntity<?> getBySubFamily(@PathVariable Long subFamilyId) {
 		try {
 			List<Item> items = service.findActiveBySubFamilyId(subFamilyId);
-			if (!isPosShowImages()) {
-				items.forEach(i -> i.setImageUrl(null));
-			}
+			tileImages(items);
 			return ResponseEntity.ok(items);
 		} catch (Exception e) {
 			return ResponseEntity.badRequest().body(createErrorResponse(getDetailedMessage(e)));
@@ -490,8 +501,8 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			if (!isPosShowImages()) {
 				found.getFamilies().forEach(f -> f.setImageFilename(null));
 				found.getSubFamilies().forEach(sf -> sf.setImageFilename(null));
-				items.forEach(i -> i.setImageUrl(null));
 			}
+			tileImages(items);
 			Map<String, Object> response = new HashMap<>();
 			response.put("families", hits(found, found.getFamilies()));
 			response.put("subFamilies", hits(found, found.getSubFamilies()));
@@ -546,17 +557,23 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 		return posItems(() -> service.findPosItemsWithoutFamily(category));
 	}
 
-	/** The till's items of one tile, without images when POS_SHOW_IMAGES is off; 400 with the message on an error. */
+	/** The till's items of one tile, their images as tileImages gives them; 400 with the message on an error. */
 	private ResponseEntity<?> posItems(Supplier<List<Item>> items) {
 		try {
 			List<Item> list = items.get();
-			if (!isPosShowImages()) {
-				list.forEach(i -> i.setImageUrl(null));
-			}
+			tileImages(list);
 			return ResponseEntity.ok(list);
 		} catch (Exception e) {
 			return ResponseEntity.badRequest().body(createErrorResponse(getDetailedMessage(e)));
 		}
+	}
+
+	/**
+	 * The till tiles' images (3.1.2, ItemMainImages.forTiles): none when POS_SHOW_IMAGES is off; else Item.imageUrl, and
+	 * for an item without one its main URL image of item_image (ZEN). Each item changed is detached first.
+	 */
+	private void tileImages(List<Item> items) {
+		ItemMainImages.forTiles(items, isPosShowImages(), itemImageRepository, entityManager::detach);
 	}
 
 	private boolean isPosShowImages() {
