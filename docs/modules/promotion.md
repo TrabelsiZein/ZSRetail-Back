@@ -41,6 +41,7 @@
 - **`repository/PromotionRepository.java`** — standard JpaRepository + `GET /promotion/{id}/usage-count` support
 - **`service/PromotionService.java`** — CRUD + `getUsageCount(id)` (counts distinct sales headers linked to promotion)
 - **`controller/PromotionAPI.java`** — full CRUD + `GET /promotion/{id}/usage-count`
+  + `GET /promotion/paginated?page=&size=&search=&active=` (1.12.1: `active=true` = active or null, `false` = inactive, absent = all; one JPA Specification with the search)
 - **`service/PromotionCalculationService.java`** — Core engine:
   - `calculateItemPrice(itemId, quantity, customerId, appliedCodes)`: selects one promotion for the item (see **Resolution order** below), then compares it with ERP pricing
   - `calculateCartDiscount(cartTotal, cartItems, customerId, appliedCodes)`: finds best CART-scope promotion
@@ -74,6 +75,7 @@ When a promotion grants free items (`benefit_type = FREE_QUANTITY`):
 
 - **`src/views/admin/PromotionsManagement.vue`** — Full CRUD admin page:
   - Type picker (3 cards: Simple Discount, Quantity Promotion, Cart Discount)
+  - List filters: search, type (sent inside `search`), status All / Active / Inactive (1.12.1, sent as `active`)
   - Two-column modal with all fields; item search autocomplete for ITEM scope
   - Scope select: Item / Group of items / Family / Subfamily / All items. ALL_ITEMS shows no target picker, only a hint that more specific promotions take precedence (`admin.promotions.fields.allItemsHint`); the list shows just the scope badge
   - Fields locked when `usageCount > 0`: code, requiresCode, scope, item/family/subfamily, min quantity/amount, benefitType, discount/freeQuantity fields (name, dates, active, priority, time/day remain editable)

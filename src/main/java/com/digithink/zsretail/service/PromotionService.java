@@ -173,18 +173,21 @@ public class PromotionService extends _BaseService<Promotion, Long> {
 	}
 
 	/**
-	 * Get paginated promotions with optional full-text search.
-	 * Results are ordered by priority DESC, then createdAt DESC.
+	 * Get paginated promotions with optional full-text search and status.
+	 * active true = the active promotions (active null counts as active, as the page shows it), false = the inactive
+	 * ones, null = all. Results are ordered by priority DESC, then createdAt DESC.
 	 */
-	public Page<Promotion> findAllPaginated(int page, int size, String searchTerm) {
+	public Page<Promotion> findAllPaginated(int page, int size, String searchTerm, Boolean active) {
 		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "priority").and(Sort.by(Sort.Direction.DESC, "createdAt")));
 
-		if (StringUtils.hasText(searchTerm)) {
-			Specification<Promotion> spec = buildSearchSpecification(searchTerm);
-			return promotionRepository.findAll(spec, pageable);
+		Specification<Promotion> spec = StringUtils.hasText(searchTerm) ? buildSearchSpecification(searchTerm) : null;
+		if (active != null) {
+			Specification<Promotion> byActive = (root, query, cb) -> active
+					? cb.or(cb.isNull(root.get("active")), cb.isTrue(root.get("active")))
+					: cb.isFalse(root.get("active"));
+			spec = spec == null ? byActive : spec.and(byActive);
 		}
-
-		return promotionRepository.findAll(pageable);
+		return spec == null ? promotionRepository.findAll(pageable) : promotionRepository.findAll(spec, pageable);
 	}
 
 	/**
