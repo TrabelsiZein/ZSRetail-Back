@@ -240,4 +240,4 @@ The only difference between the lists is `rfid-reader-api-2.11-zs1.jar`, in the 
 
 | Step | Date | Back commits | Result |
 |---|---|---|---|
-| 1.0 | 2026-11-08 | tested `53c8996`, no code change; recorded in the commit that adds this file | 1,884 tests, 0 failures, 0 errors, 3 skipped. Both WARs built. |
+| 1.0 | 2026-11-08 | tested `53c8996`, no code change; recorded in `f15fb36` | 1,884 tests, 0 failures, 0 errors, 3 skipped. Both WARs built. |
