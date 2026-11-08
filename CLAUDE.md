@@ -95,6 +95,12 @@ the guards over every project (`ProjectSortingGuardTest`, `ConnectorNamesGuardTe
 `store.support`, `headoffice.support` (each project publishes its helpers as a test-jar), `support` in network-tests
 (`Installations`, `Starts`, `ClassRenames`).
 
+Since Boot 4 migration step 1.2 the suite really starts both applications (`*StartupTest`, `*SecurityMatrixTest`, embedded
+Tomcat on a free port) on a local throwaway database, `zsretail_migtest`, created and dropped by the tests, skipped when the
+server is unreachable (`-Dzsretail.migtest.required=true`: failed instead), never another database or another machine
+(`core.support.MigTestDatabase`). Golden JSON: `core.support.GoldenJson`, `-Dzsretail.golden.record=true` records it again
+(`docs/migration/boot4-migration.md`, "The safety nets").
+
 ## Commands
 
 Always from this folder (the parent): Maven builds the projects in dependency order.

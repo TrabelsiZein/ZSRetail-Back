@@ -1,0 +1,10 @@
+{
+  "counterType":"counterType",
+  "denominationValue":1.5,
+  "lineNo":7,
+  "lineTotal":1.5,
+  "paymentMethodCode":"paymentMethodCode",
+  "paymentMethodName":"paymentMethodName",
+  "quantity":7,
+  "referenceNumber":"referenceNumber"
+}

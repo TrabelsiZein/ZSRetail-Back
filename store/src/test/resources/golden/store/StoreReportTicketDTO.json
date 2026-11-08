@@ -1,0 +1,67 @@
+{
+  "control":[
+    {
+      "cash":true,
+      "code":"code",
+      "counted":1.5,
+      "difference":1.5,
+      "expected":1.5,
+      "name":"name"
+    }
+  ],
+  "date":"2026-03-04",
+  "modifiedAfterClosingCount":11,
+  "netSales":1.5,
+  "openingCash":1.5,
+  "payments":[
+    {
+      "amount":1.5,
+      "cash":true,
+      "code":"code",
+      "name":"name",
+      "ticketsCount":11
+    }
+  ],
+  "printedAt":"2026-03-04 05:06:07",
+  "printedBy":"printedBy",
+  "returns":{
+    "count":11,
+    "simpleAmount":1.5,
+    "simpleCount":11,
+    "totalAmount":1.5,
+    "voucherAmount":1.5,
+    "voucherCount":11
+  },
+  "sales":{
+    "cancelledCount":11,
+    "lineDiscounts":1.5,
+    "loyaltyDiscounts":1.5,
+    "pendingCount":11,
+    "taxStamp":1.5,
+    "ticketDiscounts":1.5,
+    "ticketsCount":11,
+    "totalHT":1.5,
+    "totalTTC":1.5,
+    "totalVat":1.5,
+    "vatLines":[
+      {
+        "baseHT":1.5,
+        "rate":7,
+        "totalTTC":1.5,
+        "vatAmount":1.5
+      }
+    ]
+  },
+  "sessions":[
+    {
+      "cashierName":"cashierName",
+      "closedAt":"2026-03-04 05:06:07",
+      "id":11,
+      "openedAt":"2026-03-04 05:06:07",
+      "sessionNumber":"sessionNumber",
+      "status":"OPENED"
+    }
+  ],
+  "storeName":"storeName",
+  "type":"type"
+}

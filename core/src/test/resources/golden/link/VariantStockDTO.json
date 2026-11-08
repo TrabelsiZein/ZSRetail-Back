@@ -1,0 +1,12 @@
+{
+  "colisAvailable":7,
+  "details":{
+    "detailsKey":"detailsValue"
+  },
+  "itemNo":"itemNo",
+  "qtyPerColis":7,
+  "quantity":2.50,
+  "sizeOrder":7,
+  "variantCode":"variantCode",
+  "vracAllowed":true
+}

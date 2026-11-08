@@ -1,0 +1,26 @@
+{
+  "customerName":"customerName",
+  "customerNo":"customerNo",
+  "documentDate":"documentDate",
+  "invoiceNumber":"invoiceNumber",
+  "kind":"kind",
+  "lines":[
+    {
+      "description":"description",
+      "itemCode":"itemCode",
+      "lineAmount":1.5,
+      "lineDiscountPercent":1.5,
+      "lineNo":7,
+      "lineType":"lineType",
+      "quantity":2.5,
+      "unitCost":1.5,
+      "unitPrice":1.5
+    }
+  ],
+  "postingDate":"postingDate",
+  "sellerName":"sellerName",
+  "sentAt":"sentAt",
+  "totalExclVat":1.5,
+  "totalInclVat":1.5,
+  "totalVat":1.5
+}

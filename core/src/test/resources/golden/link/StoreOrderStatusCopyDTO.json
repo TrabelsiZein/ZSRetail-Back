@@ -1,0 +1,27 @@
+{
+  "colis":[
+    {
+      "acceptedColis":7,
+      "acceptedQty":2.50,
+      "colisNumber":"colisNumber",
+      "message":"message",
+      "navItemNo":"navItemNo"
+    }
+  ],
+  "deliveredAt":"deliveredAt",
+  "errorMessage":"errorMessage",
+  "invoiceNo":"invoiceNo",
+  "kind":"kind",
+  "lines":[
+    {
+      "acceptedQty":2.50,
+      "itemCode":"itemCode",
+      "message":"message"
+    }
+  ],
+  "navMessage":"navMessage",
+  "navOrderNo":"navOrderNo",
+  "orderNumber":"orderNumber",
+  "status":"status",
+  "statusAt":"statusAt"
+}

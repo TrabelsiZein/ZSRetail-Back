@@ -1,0 +1,37 @@
+{
+  "colis":[
+    {
+      "colisAvailable":7,
+      "colisContent":7,
+      "composition":[
+        {
+          "colorCode":"colorCode",
+          "colorDescription":"colorDescription",
+          "itemCode":"itemCode",
+          "qtyPerColis":7,
+          "sizeCode":"sizeCode",
+          "sizeDescription":"sizeDescription",
+          "variantCode":"variantCode"
+        }
+      ],
+      "description":"description",
+      "navItemNo":"navItemNo",
+      "nbColis":7
+    }
+  ],
+  "createdAt":"createdAt",
+  "lines":[
+    {
+      "description":"description",
+      "itemCode":"itemCode",
+      "navItemNo":"navItemNo",
+      "quantity":2.50,
+      "variantCode":"variantCode",
+      "variantDescription":"variantDescription"
+    }
+  ],
+  "locationCode":"locationCode",
+  "note":"note",
+  "number":"number",
+  "sentAt":"sentAt"
+}

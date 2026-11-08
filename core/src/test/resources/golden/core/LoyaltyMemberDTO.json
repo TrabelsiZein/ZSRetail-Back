@@ -1,0 +1,21 @@
+{
+  "active":true,
+  "birthDate":"birthDate",
+  "cardNumber":"cardNumber",
+  "customerCode":"customerCode",
+  "customerId":11,
+  "customerName":"customerName",
+  "email":"email",
+  "enrolledAt":"enrolledAt",
+  "firstName":"firstName",
+  "fullName":"fullName",
+  "id":11,
+  "lastName":"lastName",
+  "loyaltyPoints":7,
+  "memberFunctionId":11,
+  "memberFunctionName":"memberFunctionName",
+  "phone":"phone",
+  "pointsValueDinars":1.5,
+  "totalPointsEarned":7,
+  "totalPointsRedeemed":7
+}

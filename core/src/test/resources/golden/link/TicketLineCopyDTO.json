@@ -1,0 +1,16 @@
+{
+  "discountAmount":1.5,
+  "discountPercentage":1.5,
+  "discountSource":"discountSource",
+  "itemCode":"itemCode",
+  "itemName":"itemName",
+  "lineNo":7,
+  "lineTotal":1.5,
+  "lineTotalIncludingVat":1.5,
+  "promotionCode":"promotionCode",
+  "quantity":2.50,
+  "unitPrice":1.5,
+  "unitPriceIncludingVat":1.5,
+  "vatAmount":1.5,
+  "vatPercent":7
+}

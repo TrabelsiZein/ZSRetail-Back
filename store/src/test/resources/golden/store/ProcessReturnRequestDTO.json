@@ -1,0 +1,15 @@
+{
+  "notes":"notes",
+  "returnLines":[
+    {
+      "quantity":2.50,
+      "salesLineId":11
+    }
+  ],
+  "returnType":"SIMPLE_RETURN",
+  "returnedEpcs":[
+    "returnedEpcs"
+  ],
+  "ticketNumber":"ticketNumber",
+  "tillGrant":"tillGrant"
+}

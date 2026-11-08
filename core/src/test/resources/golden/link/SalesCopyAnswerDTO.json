@@ -1,0 +1,9 @@
+{
+  "results":[
+    {
+      "accepted":true,
+      "documentNumber":"documentNumber",
+      "message":"message"
+    }
+  ]
+}

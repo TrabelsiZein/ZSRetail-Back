@@ -2,7 +2,7 @@
 
 Branch `feature/boot4-migration`, from `release/3.1.2`. Product version 4.0.0. Plan approved by Zein on 2026-11-08.
 
-**Status: step 1.1 done. Next: step 1.2.** Each step starts only on Zein's go.
+**Status: step 1.2 done. Next: step 1.3.** Each step starts only on Zein's go.
 
 | | Today | Target |
 |---|---|---|
@@ -16,8 +16,9 @@ Branch `feature/boot4-migration`, from `release/3.1.2`. Product version 4.0.0. P
 
 - Every step compiles and the full suite is green before the next one. The two exceptions are stated in the tables.
 - A step with skipped startup tests is **not green**. They skip when `zsretail_migtest` is unreachable, and the
-  `MSSQLSERVER` service on the dev machine is Manual, so a stopped service would otherwise pass unnoticed. The progress
-  log says that they ran.
+  `MSSQLSERVER` service on the dev machine is Manual, so a stopped service would otherwise pass unnoticed. Every suite of
+  a step runs with `-Dzsretail.migtest.required=true`, which turns that skip into a failure. The progress log says that
+  they ran.
 - Before every `mvn`: no `javaw` of ours running on `target/classes`. During a suite: no edit of any file in the repo
   (Eclipse rebuilds with its own JDK and the build then fails on the class version).
 - The progress log below is updated at the end of every step, with the commit hashes.
@@ -26,14 +27,15 @@ Branch `feature/boot4-migration`, from `release/3.1.2`. Product version 4.0.0. P
 
 ## Decisions
 
-Taken by Zein on 2026-11-08, on the inventory and plan of the same day. Rows 4 and 13 to 15 are his second answers.
+Taken by Zein on 2026-11-08, on the inventory and plan of the same day. Rows 4 and 13 to 15 are his second answers; rows
+2 and 13 were changed, and rows 16 and 17 added, by his answers to the report of step 1.1.
 
 **The schema rule, from 4.0.0: a schema change = one V script next to the Java change; never edit an applied script.**
 
 | # | Decision | Step |
 |---|---|---|
 | 1 | Build on Boot 4.0.x as planned. A final step 2.9 bumps to the latest 4.1.x before any deployment. **The first deployment is on 4.1.** | 2.9 |
-| 2 | Every customer gets JDK 25 and Tomcat 11 on its upgrade night, so the current JDK and Tomcat per site do not matter. Every tracked connection string and every customer config example gets `encrypt=true;trustServerCertificate=true`. A startup check logs a clear WARN when SQL Server is below 2014. | 1.3, 1.4 |
+| 2 | Every customer gets JDK 25 and Tomcat 11 on its upgrade night, so the current JDK and Tomcat per site do not matter. Every tracked connection string and every customer config example gets `encrypt=true;trustServerCertificate=true`. **The minimum SQL Server for 4.0.0 is 2017: a startup check refuses to start below it, with a clear message** (this replaces the WARN below 2014). Zein verifies each site's version himself before its upgrade night. | 1.3, 1.4 |
 | 3 | The head office and the stores of one customer upgrade together, the same night. No mixed-version tests; one line in the deploy guide. | 2.8 |
 | 4 | `ddl-auto=validate` in every tracked config, store and head office. Schema changes ship only through V scripts (decision 13). Steps 1.8 and 2.2 produce, with `hibernate.hbm2ddl.scripts.action=update`, the catch-up SQL Hibernate would have run, reviewed, per database type: it becomes the `V4.0.0.x` scripts. Developer-local throwaway databases may keep `update`, documented. Enum CHECK constraints stay out through the review of the baseline and catch-up scripts, confirmed at 1.8. | 1.8, 2.2 |
 | 5 | NTLM on HttpClient 5, registered explicitly in **one shared helper in erp-api**, used by all four connectors. Connect and read timeouts move to the connection manager with today's values: the scheduler-hang fix of 2026-10-22 must keep working. NTLM POST is proved live on ZEN's test NAV (`commandesVente`; orders were posted there on 2026-10-28), no fake server. | 1.7, 2.7 |
@@ -43,9 +45,11 @@ Taken by Zein on 2026-11-08, on the inventory and plan of the same day. Rows 4 a
 | 10 | The 2.7.18 internal stop is approved. Build on JDK 25 with `--release 21`. Lombok goes in the pom at step 1.5, so `-Dlombok.version` disappears. | 1.4, 1.5, 2.6 |
 | 11 | The `spring.jackson.use-jackson2-defaults` decisions are taken at step 2.4. | 2.4 |
 | 12 | The charset of the licence fingerprint is covered by a test at step 2.6. | 2.6 |
-| 13 | **Flyway**, added at step 1.8. `db/migration/V<version>__<description>.sql` in core resources, one script per change. `V4.0.0__baseline.sql` is the full schema, generated per database type at 1.8 (`scripts.action=create`, reviewed), frozen forever. The 4.0.0 catch-up deltas are separate `V4.0.0.x` scripts. `baseline-on-migrate`: an existing 3.1.2 database marks the baseline as applied on its first start. Flyway replaces the manual `update.sql` run and `AppVersionGuard`; the guard stays only for what Flyway cannot check. The `db/<version>` folders stay as history, untouched. | 1.8 |
+| 13 | **Flyway**, added at step 1.8. `db/migration/{common,store,headoffice}/V<version>__<description>.sql` in core resources (split approved: both WARs carry core, and Flyway refuses two scripts of one version in its locations), `spring.flyway.locations` in each type file, one script per change. `V4.0.0__baseline.sql` is the full schema, generated per database type at 1.8 (`scripts.action=create`, reviewed), frozen forever. The 4.0.0 catch-up deltas are separate `V4.0.0.x` scripts. `baseline-on-migrate`: an existing 3.1.2 database marks the baseline as applied on its first start. Flyway replaces the manual `update.sql` run and `AppVersionGuard`; the guard stays only for what Flyway cannot check. The `db/<version>` folders stay as history, untouched. | 1.8 |
 | 14 | ZEN's test NAV (SRV-NAV) allows GET and POST. EMTOP's test NAV is GET only. Production NAV instances are never called, by tests or by Claude. In the root `CLAUDE.md`. | all |
 | 15 | The pom says 4.0.0 from step 1.1, with the CHANGELOG section opened there. | 1.1 |
+| 16 | POI is upgraded at step 1.4, for the jars of open point 8. | 1.4 |
+| 17 | `commons-lang3` stays in the store at `runtime` scope, for the RFID SDK's USB path. | 1.1 |
 
 ## Steps
 
@@ -58,9 +62,9 @@ them one-line edits.
 |---|---|---|---|
 | 1.0 | Record the real baseline: suite per module, WAR jar lists, build command, Java and Maven versions. No code change. | 2.3.9 | 0 |
 | 1.1 | Remove the unused list (decision 7, 8). Version 4.0.0 and its CHANGELOG section. Compare the WAR jars with the baseline. Pin the `Accept` header in the connector tests. | 2.3.9 | 26 |
-| 1.2 | Safety nets: startup tests of both applications on `zsretail_migtest`, a status matrix on the real security chains, golden JSON of key DTOs and entities. | 2.3.9 | 8–12 new |
-| 1.3 | Edits the current API allows: `fromUriString`, `getStatusCode().value()`, company info fix, dead annotations. SQL Server version WARN. | 2.3.9 | ~14 |
-| 1.4 | Boot 2.7.18: config-data tests, naming strategy, H2 2.1, logging keys, bean cycles, connection strings. | 2.7.18 | 40–50 |
+| 1.2 | Safety nets: startup tests of both applications on `zsretail_migtest`, a status matrix on the real security chains, golden JSON of key DTOs and entities. | 2.3.9 | 17 new, 136 golden files |
+| 1.3 | Edits the current API allows: `fromUriString`, `getStatusCode().value()`, company info fix, dead annotations. SQL Server version check: refuses below 2017. | 2.3.9 | ~14 |
+| 1.4 | Boot 2.7.18: config-data tests, naming strategy, H2 2.1, logging keys, bean cycles, connection strings. POI upgrade. | 2.7.18 | 40–50 |
 | 1.5 | Java 21: `release=21`, Lombok in the pom, processor paths, `proc=full`. | 2.7.18 | ~8 |
 | 1.6 | `SecurityFilterChain` and lambda DSL on Security 5.8. ERROR and FORWARD dispatches permitted. | 2.7.18 | ~6 |
 | 1.7 | **Freeze.** Boot 3.5.16: jakarta rename, Hibernate 6.6, Security 6.5, HttpClient 5 with the erp-api helper and the timeouts, dialect keys, `WarLauncher`. | 3.5.16 | ~210 |
@@ -86,20 +90,49 @@ Exception to "green at each step": 1.7 is two commits (mechanical rename, then f
 Exception to "green at each step": 2.3 is two commits (main, then tests) that pass one gate together, because
 `@JsonDeserialize` under the new package is not read by a Jackson 2 test mapper.
 
+## The safety nets (step 1.2)
+
+Written from what 2.3.9 answers: they are the reference for every later step. All of it is test code; no main class changed.
+
+**Startup tests.** `StoreStartupTest`, `RfidStoreStartupTest`, `HeadOfficeStartupTest`, and the two matrix classes below.
+Each class really starts its application in the JVM of the tests, the way `ZsRetailApplication.run` does, on an embedded
+Tomcat on a free port (`core.support.MigTestApplication`), on a `zsretail_migtest` it creates and drops
+(`core.support.MigTestDatabase`, settings in `core/src/test/resources/migtest.properties`, no password in them). They live
+in the store and head office projects because `network-tests` has both applications on its classpath and
+`scanBasePackages` would scan both. They cover: the database reached, no connector, no link, no scheduler; the seeds; the
+indexes of the startup T-SQL (`sys.indexes`: those classes only log a failure); a restart on its own database;
+`HeadOfficeErpGuard` on the runner and on the jobs API. 184 of the 188 `@Query` are built by every start, and the 4 of the
+RFID repositories by `RfidStoreStartupTest`.
+
+**Status matrix.** `StoreSecurityMatrixTest`, `HeadOfficeSecurityMatrixTest`: real HTTP on the real chains. Reading the
+tables: an anonymous call on the main chain gets **403, not 401** (no login form or HTTP Basic, so Spring Security's default
+refusal); 401 is the `/ho/**` chain. A fresh database has no licence, so the licence row is made through the repository:
+`getStatus()` reads the row and the machine, it does not check the signature. Roles are mostly not enforced by the API
+(`CLAUDE.md`): `GET /admin/erp/jobs` is the row where a cashier and an admin differ.
+
+**Golden JSON.** `core.support.GoldenJson`, files under `golden/` in each project's `src/test/resources`,
+`-Dzsretail.golden.record=true` records them again, only when the difference is the intended one, and the diff goes in the
+commit. Every field of a class is filled by `GoldenJson.sample`, so a new field shows as a difference to look at.
+
+| Test | What it pins |
+|---|---|
+| `LinkDtoGoldenJsonTest` | The 36 link messages, Spring MVC's mapper, written and read back. |
+| `LinkMappersGoldenJsonTest` | The same files through `HeadOfficeClient.WIRE_MAPPER` and the client's `RestTemplate`. `SalesPushService.HASH_MAPPER`'s text, **byte for byte**: a change would send every ticket again. |
+| `HeadOfficeGoldenJsonTest` | The 13 copies through their services' `COPY_MAPPER`, as a tree, as they leave for the stores; the admin objects. |
+| `CopiesDownGoldenJsonTest` | Those copies read by the store handlers' mappers, nothing lost (`network-tests`: it needs both applications). |
+| `TillGoldenJsonTest` | What the till sends and reads, the four `@JsonFormat` patterns both ways, a null into a primitive, 1.5 refused on a whole quantity. |
+| `CoreGoldenJsonTest` | 18 entities and 9 DTOs as served. `edges-*.txt`: 43 edge cases per mapper, the table to read at 2.3 and 2.4 (null into a primitive, empty string into a number or a date, decimal into an int, enum, unknown property). |
+| The matrix classes | The error bodies through the real ERROR dispatch, `/config` and an entity as served. |
+
+The order of the properties is left out of the comparison, except for the hashed text. Jackson puts a property that comes
+from a getter alone (`UserAccount.isEnabled`) in the order reflection gives, which **changed between two runs of the JVM**:
+a byte-for-byte file was flaky. The code has one reader that depends on the order, the hash, and its mapper sorts.
+
 ## What each step must not forget
 
-**1.2**
-- Both applications start for real, startup T-SQL included (`OBJECT_ID` and `sys.*`: 18 uses in 7 files), with no ERP
-  connector, no head office link and the jobs off. Today no test starts a context: 0 `@SpringBootTest`, MockMvc only
-  standalone (5). Anything that only fails at startup is invisible otherwise: bean cycles (396 `@Autowired` in 140 files),
-  188 `@Query` validated at startup, aspects that stop applying (`HeadOfficeErpGuard`).
-- The test-only properties file holds no real password. Passwords are read from the machine files at run time, never
-  copied.
-- Only `zsretail_migtest` is created and dropped; no statement acts on the whole instance.
-- The security matrix drives the real chains: anonymous, JWT, store key, licence missing, on `/ho/**` and the rest.
-- The golden JSON includes a null into a primitive, the four `@JsonFormat` patterns and error bodies.
-
 **1.3**
+- The SQL Server check (decision 2): refuses below 2017 (major version 14), with a message that says what to do. Flyway's
+  own floor is the same version. The dev SQL Server is 2019.
 - `fromHttpUrl`: 23 uses in 5 files, gone in Spring 7. `getRawStatusCode` 15, `getStatusCodeValue` 5.
 - `CompanyInformationService.java:83` saves a new entity with `id=1` and no row. Hibernate 6.6 throws
   `OptimisticLockException` there for a generated id, where Hibernate 5 inserted, so a fresh database would break.
@@ -113,6 +146,8 @@ Exception to "green at each step": 2.3 is two commits (main, then tests) that pa
   `logging.logback.rollingpolicy.*`, or 200 MB and 90 days fall back to Boot's defaults.
 - `ConfigFileApplicationListener` is gone (6 test files). `ConfigurationSources.java:47` parses a source name that changes.
 - `SpringPhysicalNamingStrategy` and `SpringImplicitNamingStrategy`: 18 test imports. H2 2.x: 40 test files.
+- POI upgrade (decision 16): then measure the 45 jars of open point 8, and whether commons-io 1.3.1, woodstox 5.2.1 and
+  stax2 4.2 leave. Compare the WAR with `baseline/`.
 - Bean cycles are forbidden from here. The parent's `spring-milestones` repository and `maven-jar-plugin.version` go.
 - `network-tests/src/test/resources/config/*.txt` are records: re-record only when the difference is the intended one.
 
@@ -123,6 +158,7 @@ Exception to "green at each step": 2.3 is two commits (main, then tests) that pa
 **1.6**
 - `SecurityConfig.java:48`, `HeadOfficeApiSecurityConfig.java:43`. Authorization applies to every dispatch type from
   Security 6 and `/error` is not permitted: without ERROR and FORWARD, a real error is expected to come back as 401 or 403.
+  The matrix rows `/no-such-path`, `/location/not-a-number`, bad JSON and `/admin/erp/jobs` are there for this.
 - CORS stays the hand-written headers of `JWTAuthorizationFilter`.
 
 **1.7**
@@ -141,7 +177,10 @@ Exception to "green at each step": 2.3 is two commits (main, then tests) that pa
 **1.8, 2.2**
 - Flyway on Boot 3.5 is `flyway-core` plus `flyway-sqlserver` (11.7.2 in the 3.5.14 BOM): `spring-boot-starter-flyway` exists
   only from Boot 4, so the starter comes at 2.5. The startup tests go through Flyway from here: an empty
-  `zsretail_migtest`, baseline, `validate`. They prove the new-install path.
+  `zsretail_migtest`, baseline, `validate`. They prove the new-install path. Check the floor of open point 1 on 11.7.2.
+- Hibernate warns at the first start that two generated unique keys (`UK3vcep39q1j2ixbg2gqgylr1pk`,
+  `UKqrre1fi800ou4vagktwr92a6q`) can exceed SQL Server's 1,700 bytes: they enter the baseline with the review.
+- The golden `errors/store-api-refusal.json` holds Hibernate's own message: its wording may change, re-record after reading.
 - Casts that may break at run time: `(Long)` 19, `(Double)` 11, `(Integer)` 8, `(BigDecimal)` 10 on `Object[]` rows.
   `(Number)` 106 is safe. `:param is null`: 49 in 17 files, to run on real SQL Server.
 - Hibernate 7's `update` alters existing columns when a type or length differs (`StandardTableMigrator`,
@@ -153,6 +192,8 @@ Exception to "green at each step": 2.3 is two commits (main, then tests) that pa
 
 **2.1**
 - `EnvironmentPostProcessor` moves to `org.springframework.boot` (3 classes, `spring.factories`, tests).
+- `GoldenJson.bootMapper()` names `JacksonAutoConfiguration` and `MigTestApplication` its `SpringApplication` arguments: the
+  test helpers follow the moved packages. `LinkMappersGoldenJsonTest` reads the `RestTemplate` converter by its class.
 - `session.saveOrUpdate` 1 and `session.delete` 2 in tests are gone. `CashierSessionService`, `ReturnHeaderAPI`,
   `CustomerService`, `VendorService` use the criteria types that change in JPA 3.2.
 - `starter-aspectj` explicitly: without it `HeadOfficeErpGuard` could silently stop applying. The startup test must prove it.
@@ -178,15 +219,18 @@ Exception to "green at each step": 2.3 is two commits (main, then tests) that pa
 
 | # | Point | To settle |
 |---|---|---|
-| 1 | **Flyway's SQL Server floor.** Flyway's open-source `SQLServerDatabase` calls `ensureDatabaseNotOlderThanOtherwiseRecommendUpgradeToFlywayEdition("14.0", Tier.PREMIUM, ...)` (read on its main branch, to check on the version Boot manages). 14.0 is SQL Server 2017, while decision 2's WARN is at 2014: a site on 2014 or 2016 would be refused at startup. Needs the SQL Server version per customer, or an upgrade on the night, or a paid Flyway. | Zein, before 1.8 |
-| 2 | **Where the baselines live.** Decision 13 puts the scripts in core resources, and both WARs carry core. Flyway refuses two scripts of one version in its locations, so the store and head office `V4.0.0__baseline.sql` cannot sit side by side. Proposal: `db/migration/store` and `db/migration/headoffice` for what differs, `db/migration/common` for the rest, `spring.flyway.locations` in each type file. | 1.8 |
+| 1 | **Flyway's SQL Server floor.** Flyway's open-source `SQLServerDatabase` calls `ensureDatabaseNotOlderThanOtherwiseRecommendUpgradeToFlywayEdition("14.0", Tier.PREMIUM, ...)` (read on its main branch). 14.0 is SQL Server 2017. | Settled by decision 2: 2017 is the minimum, Zein verifies each site. Still to read on Flyway 11.7.2 at 1.8. |
+| 2 | **Where the baselines live.** Both WARs carry core, and Flyway refuses two scripts of one version in its locations. | Settled by decision 13: `db/migration/{common,store,headoffice}`. |
 | 3 | **Deltas on a new database.** On an empty database Flyway runs the baseline, then the `V4.0.0.x` scripts too, and the baseline already has their result. Each delta must be a guarded no-op there. | 1.8 |
 | 4 | **`AppVersionGuard`.** Answer to decision 13: it can go, except for one check Flyway cannot make, that an existing database really is at 3.1.2 when `baseline-on-migrate` marks it 4.0.0. A `V4.0.0.x` script that fails when `APP_VERSION` is not 3.1.2 does that in SQL, with no Java guard. A database newer than the WAR is Flyway's if `spring.flyway.ignore-migration-patterns` is emptied: its default `*:future` ignores newer scripts. To check at 1.8: who else reads the `APP_VERSION` row, and who writes the release notes of `update.sql`. **Until 1.8 the guard stays**, so this branch stops on any 3.1.2 database and names a `db/4.0.0/update.sql` that does not exist. | 1.8 |
 | 5 | **Source of the catch-up SQL.** It reads the metadata of a database with the old schema, and decision 6 keeps startup tests off existing local databases. A restored copy of a customer backup Zein provides is acceptable, read-only. A script generated from one database may not fit a customer whose schema drifted: each delta has to tolerate that. Proposal due at 1.8. | 1.8 |
 | 6 | **Enum CHECK constraints.** No setting found that disables them (Hibernate forum, one search). Under `validate` Hibernate creates nothing in production, so they can only arrive through the baseline and catch-up scripts, where review keeps them out. Confirmed at 1.8. | 1.8 |
 | 7 | **`Accept`.** `ConnectorAcceptHeaderTest` pins what we send: it failed on the old classpath with `application/xml, text/xml, application/json, application/*+xml, application/*+json` on all four connectors, and passes on the new one. A mock cannot show what NAV answers: live GET at 2.7, or earlier when Zein opens the VPN. | 2.7 |
-| 8 | **POI's jars.** 45 jars of the store WAR come with POI 5.0.0's compile dependencies (batik, pdfbox, xmlsec, bouncycastle...), and our code imports none of them: only POI's `usermodel`. Removing the commons-io 1.4 pin exposed the older versions they ask for: commons-io 1.3.1, woodstox 5.2.1, stax2 4.2. To settle when POI is upgraded. | 1.4 |
+| 8 | **POI's jars.** 45 jars of the store WAR come with POI 5.0.0's compile dependencies (batik, pdfbox, xmlsec, bouncycastle...), and our code imports none of them: only POI's `usermodel`. Removing the commons-io 1.4 pin exposed the older versions they ask for: commons-io 1.3.1, woodstox 5.2.1, stax2 4.2. Whether the upgrade removes them is not verified yet. | Decision 16: POI upgrade at 1.4. |
 | 9 | **This machine for 2.6 and 2.7.** JDK 25 and Tomcat 11 are not installed (JDK 21 and 23; Tomcat 9). Eclipse is `jee-2024-12`, to be checked against JDK 25. Zein is told what to install at 2.6. | 2.6 |
+| 10 | **Shapes the startup tests do not start.** By plan they start with no connector and no link: a store (12 of the 112 beans that depend on the configuration in `installation-beans.txt`, for `store-a`), RFID added, a head office (35). A linked store has 28 to 39, an ERP head office 25 to 50. Those beans are never built by a test, and step 1.4 forbids bean cycles. Proposal: one start per shape before 1.4, the addresses on a closed local port so nothing can leave this machine. | Zein, before 1.4 |
+| 11 | **The password hash reaches the browser.** `UserAccount.password` has no `@JsonIgnore`, and the endpoints that serve entities embed the user. Called on the running application as a cashier: `POST /cashier-session/open`, `GET /cashier-session/current` and `GET /cashier-session` answer with `user.password`, a bcrypt hash; any logged user can list every session. The golden files show the same field in `SalesHeader`, `ReturnHeader` and `Payment`, not called live. `GET /user-account` goes through a DTO and does not leak it. Not changed by this step: the goldens record it as it is. A fix re-records 5 files. | Zein |
+| 12 | **One JWT secret for all.** `SecurityParams.SECRET` is a constant in the source and `JWTAuthorizationFilter` checks only the signature, so a token made by any installation should open the main chain of any other, customers included, for 5 months. Read in the code, not tried. Outside the migration. | Zein |
 
 ## Baseline (step 1.0)
 
@@ -220,7 +264,8 @@ Counts come from the surefire XML reports. They replace the 1,475 of the root `C
 JAVA_HOME="/c/Program Files/Java/jdk-21.0.10" mvn -gs "C:\Users\DELL\.m2\zsretail-settings.xml" -Dlombok.version=1.18.36 clean test --fail-at-end
 ```
 
-The WARs, the same way with `-DskipTests clean package`.
+The WARs, the same way with `-DskipTests clean package`. From step 1.2 a suite of a step adds
+`-Dzsretail.migtest.required=true`, and the suite runs without `-T`: the startup tests share one database.
 
 **Versions**
 

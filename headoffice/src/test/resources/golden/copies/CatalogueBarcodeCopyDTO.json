@@ -1,0 +1,8 @@
+{
+  "active":true,
+  "barcode":"barcode",
+  "description":"description",
+  "isPrimary":true,
+  "itemCode":"itemCode",
+  "kind":"kind"
+}

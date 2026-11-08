@@ -1,0 +1,9 @@
+{
+  "active":true,
+  "categoryCode":"categoryCode",
+  "code":"code",
+  "description":"description",
+  "displayOrder":7,
+  "kind":"kind",
+  "name":"name"
+}

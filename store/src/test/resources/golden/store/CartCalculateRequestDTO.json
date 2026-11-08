@@ -1,0 +1,14 @@
+{
+  "appliedCodes":[
+    "appliedCodes"
+  ],
+  "cartItems":[
+    {
+      "itemId":11,
+      "quantity":2.50,
+      "unitPrice":1.5
+    }
+  ],
+  "cartTotal":1.5,
+  "customerId":11
+}

@@ -1,0 +1,10 @@
+{
+  "canAdjustPoints":true,
+  "canEditMembers":true,
+  "canPurchase":true,
+  "enrolRequiresOnline":true,
+  "mayChangePrices":true,
+  "redeemRequiresOnline":true,
+  "serverTime":"serverTime",
+  "storeCode":"storeCode"
+}

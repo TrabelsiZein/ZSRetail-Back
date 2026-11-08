@@ -1,0 +1,15 @@
+{
+  "actualCash":1.5,
+  "cashCountLines":[
+    {
+      "denominationValue":1.5,
+      "notes":"notes",
+      "paymentMethodId":11,
+      "quantity":7,
+      "referenceNumber":"referenceNumber"
+    }
+  ],
+  "discrepancyConfirmed":true,
+  "notes":"notes",
+  "tillGrant":"tillGrant"
+}

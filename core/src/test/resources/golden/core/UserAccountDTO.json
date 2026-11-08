@@ -1,0 +1,16 @@
+{
+  "active":true,
+  "appRoleId":11,
+  "appRoleLabel":"appRoleLabel",
+  "appRoleName":"appRoleName",
+  "badgeCode":"badgeCode",
+  "badgeExpirationDate":"2026-03-04T05:06:07",
+  "badgeRevokeReason":"badgeRevokeReason",
+  "badgeRevoked":true,
+  "badgeRevokedAt":"2026-03-04T05:06:07",
+  "badgeRevokedById":11,
+  "email":"email",
+  "fullName":"fullName",
+  "id":11,
+  "username":"username"
+}

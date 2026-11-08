@@ -1,0 +1,42 @@
+{
+  "active":true,
+  "appVersion":"appVersion",
+  "billingAddress":"billingAddress",
+  "billingLegalName":"billingLegalName",
+  "billingTaxNumber":"billingTaxNumber",
+  "canAdjustPoints":true,
+  "canEditMembers":true,
+  "canPurchase":true,
+  "code":"code",
+  "createdAt":"2026-03-04 | 05:06:07",
+  "createdBy":"createdBy",
+  "deliveriesInvoiced":true,
+  "enrolRequiresOnline":true,
+  "erpCustomerNo":"erpCustomerNo",
+  "id":11,
+  "invoiceRhythm":"PER_BL",
+  "kind":"OWN",
+  "lastContact":"2026-03-04T05:06:07",
+  "mayChangePrices":true,
+  "name":"name",
+  "ownership":{
+    "CATALOGUE":"ownerCatalogue",
+    "CUSTOMERS":"ownerCustomers",
+    "LOYALTY":"ownerLoyalty",
+    "PROMOTIONS":"ownerPromotions",
+    "SUPPLY":"ownerSupply"
+  },
+  "redeemRequiresOnline":true,
+  "salesUpstreams":[
+    "reportedSalesUpstreams"
+  ],
+  "secondsSinceContact":11,
+  "sellingPriceListId":11,
+  "status":"INACTIVE",
+  "stockPointId":11,
+  "supplyDiscountPercent":1.5,
+  "supplyPriceListId":11,
+  "supplyPriceMode":"PRICE_LIST",
+  "updatedAt":"2026-03-04 | 05:06:07",
+  "updatedBy":"updatedBy"
+}

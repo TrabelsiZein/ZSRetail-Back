@@ -1,0 +1,7 @@
+{
+  "error":"Bad Request",
+  "message":"",
+  "path":"/zsretail/api/sales-header/process-sale",
+  "status":400,
+  "timestamp":"(time)"
+}

@@ -1,0 +1,18 @@
+{
+  "active":true,
+  "code":"code",
+  "createdAt":"2026-03-04 | 05:06:07",
+  "createdBy":"createdBy",
+  "description":"description",
+  "displayOrder":7,
+  "id":11,
+  "name":"name",
+  "requireDrawerName":true,
+  "requireDueDate":true,
+  "requireIssuingBank":true,
+  "requireTitleNumber":true,
+  "requiresConfirmation":true,
+  "type":"CLIENT_ESPECES",
+  "updatedAt":"2026-03-04 | 05:06:07",
+  "updatedBy":"updatedBy"
+}

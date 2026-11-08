@@ -1,0 +1,18 @@
+{
+  "active":true,
+  "code":"CLIENT_ESPECES",
+  "createdAt":"yyyy-MM-dd | HH:mm:ss",
+  "createdBy":"System",
+  "description":"Paiement en espèces du client",
+  "displayOrder":1,
+  "id":1,
+  "name":"Client Espèce",
+  "requireDrawerName":false,
+  "requireDueDate":false,
+  "requireIssuingBank":false,
+  "requireTitleNumber":false,
+  "requiresConfirmation":false,
+  "type":"CLIENT_ESPECES",
+  "updatedAt":"yyyy-MM-dd | HH:mm:ss",
+  "updatedBy":"System"
+}

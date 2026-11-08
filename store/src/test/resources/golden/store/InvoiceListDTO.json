@@ -1,0 +1,16 @@
+{
+  "customer":{
+    "customerCode":"customerCode",
+    "id":11,
+    "name":"name"
+  },
+  "discountAmount":1.5,
+  "id":11,
+  "invoiceDate":"2026-03-04",
+  "invoiceNumber":"invoiceNumber",
+  "lineGroupingMode":"BY_ITEM",
+  "notes":"notes",
+  "subtotal":1.5,
+  "taxAmount":1.5,
+  "totalAmount":1.5
+}

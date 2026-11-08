@@ -1,0 +1,13 @@
+{
+  "lines":[
+    {
+      "itemCode":"itemCode",
+      "lineNo":7,
+      "quantityReceived":2.50
+    }
+  ],
+  "note":"note",
+  "number":"number",
+  "receivedAt":"receivedAt",
+  "receivedBy":"receivedBy"
+}

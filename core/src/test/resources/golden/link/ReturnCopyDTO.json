@@ -1,0 +1,29 @@
+{
+  "cashierLogin":"cashierLogin",
+  "cashierName":"cashierName",
+  "discountPercentage":1.5,
+  "lines":[
+    {
+      "itemCode":"itemCode",
+      "itemName":"itemName",
+      "lineNo":7,
+      "lineTotal":1.5,
+      "lineTotalIncludingVat":1.5,
+      "notes":"notes",
+      "quantity":2.50,
+      "unitPrice":1.5,
+      "unitPriceIncludingVat":1.5
+    }
+  ],
+  "notes":"notes",
+  "originalSalesNumber":"originalSalesNumber",
+  "returnDate":"2026-03-04T05:06:07",
+  "returnNumber":"returnNumber",
+  "returnType":"returnType",
+  "sessionNumber":"sessionNumber",
+  "status":"status",
+  "totalReturnAmount":1.5,
+  "voucherAmount":1.5,
+  "voucherExpiryDate":"2026-03-04",
+  "voucherNumber":"voucherNumber"
+}

@@ -1,0 +1,16 @@
+{
+  "documentDate":"documentDate",
+  "kind":"kind",
+  "lines":[
+    {
+      "itemCode":"itemCode",
+      "itemName":"itemName",
+      "lineNo":7,
+      "quantitySent":2.50
+    }
+  ],
+  "note":"note",
+  "number":"number",
+  "sentAt":"sentAt",
+  "status":"status"
+}

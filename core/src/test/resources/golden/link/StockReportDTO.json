@@ -1,0 +1,14 @@
+{
+  "items":[
+    {
+      "itemCode":"itemCode",
+      "itemName":"itemName",
+      "own":true,
+      "quantity":2.50
+    }
+  ],
+  "removed":[
+    "removed"
+  ],
+  "takenAt":"takenAt"
+}

@@ -1,0 +1,16 @@
+{
+  "cancelledCount":11,
+  "cost":1.5,
+  "date":"2026-03-04",
+  "inProgress":true,
+  "linesWithoutCost":11,
+  "margin":1.5,
+  "marginPercent":1.5,
+  "net":1.5,
+  "returnsAmount":1.5,
+  "returnsCount":11,
+  "sessionsClosed":11,
+  "sessionsOpen":11,
+  "ticketsCount":11,
+  "totalTTC":1.5
+}

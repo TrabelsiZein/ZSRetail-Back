@@ -1,0 +1,17 @@
+{
+  "acrossLines":true,
+  "discountAmount":1.5,
+  "discountPercentage":1.5,
+  "freePromotionId":11,
+  "freePromotionName":"freePromotionName",
+  "freeQuantity":7,
+  "freeQuantityAvailable":7,
+  "itemId":11,
+  "priceIncludesVat":true,
+  "promotionCode":"promotionCode",
+  "promotionId":11,
+  "promotionName":"promotionName",
+  "promotionType":"promotionType",
+  "source":"source",
+  "unitPrice":1.5
+}

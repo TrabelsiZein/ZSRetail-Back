@@ -1,0 +1,22 @@
+{
+  "address":"address",
+  "bankAccount":"bankAccount",
+  "bankName":"bankName",
+  "city":"city",
+  "companyName":"companyName",
+  "country":"country",
+  "email":"email",
+  "fax":"fax",
+  "invoiceFooterNote":"invoiceFooterNote",
+  "logoBase64":"logoBase64",
+  "matriculeFiscal":"matriculeFiscal",
+  "phone":"phone",
+  "postalCode":"postalCode",
+  "receiptFooterText":"receiptFooterText",
+  "receiptPrintAddress":true,
+  "receiptShowSoftwareLabel":true,
+  "receiptShowThankYou":true,
+  "receiptThankYouText":"receiptThankYouText",
+  "rib":"rib",
+  "website":"website"
+}

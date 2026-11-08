@@ -1,0 +1,9 @@
+{
+  "appVersion":"appVersion",
+  "ownership":{
+    "ownershipKey":"ownershipValue"
+  },
+  "salesUpstreams":[
+    "salesUpstreams"
+  ]
+}

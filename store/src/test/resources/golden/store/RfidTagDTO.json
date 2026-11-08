@@ -1,0 +1,15 @@
+{
+  "createdAt":"2026-03-04 | 05:06:07",
+  "createdBy":"createdBy",
+  "epc":"epc",
+  "id":11,
+  "itemCode":"itemCode",
+  "itemId":11,
+  "itemName":"itemName",
+  "soldAt":"2026-03-04 | 05:06:07",
+  "sourceDocument":"sourceDocument",
+  "sourceLine":7,
+  "sourceType":"MANUAL",
+  "status":"IN_STOCK",
+  "ticketNumber":"ticketNumber"
+}

@@ -1,0 +1,33 @@
+{
+  "buyerAddress":"buyerAddress",
+  "buyerName":"buyerName",
+  "buyerTaxNumber":"buyerTaxNumber",
+  "deliveryNumbers":[
+    "deliveryNumbers"
+  ],
+  "invoiceDate":"invoiceDate",
+  "invoiceNumber":"invoiceNumber",
+  "kind":"kind",
+  "lines":[
+    {
+      "deliveryNumber":"deliveryNumber",
+      "itemCode":"itemCode",
+      "itemName":"itemName",
+      "lineNo":7,
+      "lineTotal":1.5,
+      "lineTotalIncludingVat":1.5,
+      "missingPrice":true,
+      "quantity":7,
+      "unitPrice":1.5,
+      "vatAmount":1.5,
+      "vatPercent":7
+    }
+  ],
+  "note":"note",
+  "sellerAddress":"sellerAddress",
+  "sellerName":"sellerName",
+  "sellerTaxNumber":"sellerTaxNumber",
+  "subtotal":1.5,
+  "taxAmount":1.5,
+  "totalAmount":1.5
+}
