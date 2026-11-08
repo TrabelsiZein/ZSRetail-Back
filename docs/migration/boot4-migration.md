@@ -245,4 +245,4 @@ The only difference between the lists is `rfid-reader-api-2.11-zs1.jar`, in the 
 | Step | Date | Back commits | Result |
 |---|---|---|---|
 | 1.0 | 2026-11-08 | tested `53c8996`, no code change; recorded in `f15fb36` | 1,884 tests, 0 failures, 0 errors, 3 skipped. Both WARs built. |
-| 1.1 | 2026-11-08 | recorded in the commit that adds this row | 1,888 tests (the 1,884 and 4 new), 0 failures, 0 errors, the same 3 skipped. Store WAR 263 to 130 jars, 173 to 91 MB; head office WAR 262 to 128, 170 to 88 MB ([store diff](diffs/step-1.1-store-war-jars.diff), [head office diff](diffs/step-1.1-headoffice-war-jars.diff)). `commons-lang3` declared by the store. No instance started. |
+| 1.1 | 2026-11-08 | `0387307` | 1,888 tests (the 1,884 and 4 new), 0 failures, 0 errors, the same 3 skipped. Store WAR 263 to 130 jars, 173 to 91 MB; head office WAR 262 to 128, 170 to 88 MB ([store diff](diffs/step-1.1-store-war-jars.diff), [head office diff](diffs/step-1.1-headoffice-war-jars.diff)). `commons-lang3` declared by the store. No instance started. |
