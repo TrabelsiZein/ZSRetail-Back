@@ -176,3 +176,7 @@ head office database no store-only table (`hol_*`, inventory counts, payment cha
 tables it has. The start-up column check (`DecimalColumnsCheck`) reads core's columns and its application's only. The
 update scripts of the released versions (`core/src/main/resources/db/`) are unchanged: they already skip a table a
 database does not have.
+
+**From 4.0.0, with Flyway (it comes at migration step 1.8, `docs/migration/boot4-migration.md`): a schema change = one V
+script next to the Java change; never edit an applied script.** The scripts are `db/migration/V<version>__<description>.sql`;
+the `db/<version>` folders stay as history. Until that step, the rules above still apply.

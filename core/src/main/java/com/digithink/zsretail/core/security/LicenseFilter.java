@@ -38,9 +38,6 @@ public class LicenseFilter extends OncePerRequestFilter {
             "/company-info",
             "/license",
             "/admin/license",
-            "/v3/api-docs",
-            "/swagger-ui",
-            "/thymeleaf",
             "/sse-endpoint"
     );
 

@@ -4,6 +4,22 @@ One section per product version, newest first. Every commit that changes behavio
 its line here, under the version of its branch. The screens are in `ZSRetail-Front/CHANGELOG.md`. The French notes shown
 in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql` from this file when a version is closed.
 
+## 4.0.0 — in progress (branch `feature/boot4-migration`)
+
+The Spring Boot 4 migration. Decisions, steps and progress: `docs/migration/boot4-migration.md`. Not deployable before its
+last step.
+
+### Enhancements
+- Step 1.1: the WARs lose the libraries nothing used: springdoc, springfox, spring-security-oauth2, JasperReports (with
+  iText, castor, jfreechart), firebase-admin, jsoup, ModelMapper, commons-io 1.4, WebFlux, Reactor, mail, Thymeleaf,
+  jackson-dataformat-xml, and what only they brought. Store WAR from 263 to 130 jars (173 MB to 91 MB), head office WAR from
+  262 to 128 (170 MB to 88 MB). `commons-lang3` is now declared by the store: the RFID SDK's USB path needs it.
+- Step 1.1: no more API documentation pages. `/swagger-ui`, `/v3/api-docs` and `OpenApiConfig` are gone, and the public and
+  licence entries of those paths and of the dead `/thymeleaf`.
+- Step 1.1: the API answers JSON only (a request accepting only XML gets a 406), and the connectors' reads no longer ask the
+  ERP for XML first: `Accept` was `application/xml, text/xml, application/json, ...`, it is now JSON only
+  (`ConnectorAcceptHeaderTest`). NAV's real answer is checked live at step 2.7.
+
 ## 3.1.2 — in progress (branch `release/3.1.2`)
 
 ### Before deployment

@@ -70,12 +70,6 @@ mvn spring-boot:run
 - **Username:** cashier
 - **Password:** Cashier@123
 
-## API Documentation
-Once running, access Swagger UI at:
-```
-http://localhost:444/zsretail/api/swagger-ui.html
-```
-
 ## Role System
 
 ### ADMIN

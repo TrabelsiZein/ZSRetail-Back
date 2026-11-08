@@ -199,8 +199,8 @@ messages.
 `INVALID` 400, `NOT_FOUND` 404, `NOT_READY` 409, `BUSY` 409, `READER_ERROR` 502, `UNREACHABLE` 503. The project's other
 endpoints answer `{"error"}` too; `reason` is added so the frontend can tell a busy reader from a wrong link.
 
-The endpoints answer JSON to a request that asks for it (`Accept: application/json`, as axios sends); `jackson-dataformat-xml`
-is in the WAR, so a request with no `Accept` header may get XML, as for the other endpoints.
+The endpoints answer JSON. Since 4.0.0 `jackson-dataformat-xml` is out of the WAR, so no endpoint answers XML; a request
+that accepts only XML gets a 406.
 
 Tests: `RfidAPITest` (Spring MVC over the controller, standalone `MockMvc`, the remote address set as Tomcat gives it).
 

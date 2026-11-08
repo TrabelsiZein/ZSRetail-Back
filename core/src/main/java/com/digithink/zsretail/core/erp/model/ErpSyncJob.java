@@ -7,7 +7,6 @@ import javax.persistence.Entity;
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
 import javax.persistence.Table;
-import javax.validation.constraints.NotBlank;
 
 import com.digithink.zsretail.core.erp.enumeration.ErpSyncJobType;
 import com.digithink.zsretail.core.model._BaseEntity;
@@ -23,7 +22,6 @@ public class ErpSyncJob extends _BaseEntity {
 	@Column(name = "job_type", nullable = false, length = 64)
 	private ErpSyncJobType jobType;
 
-	@NotBlank
 	@Column(name = "cron_expression", nullable = false, length = 64)
 	private String cronExpression;
 

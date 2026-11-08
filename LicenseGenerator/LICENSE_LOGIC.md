@@ -170,9 +170,6 @@ If status is VALID or WARNING:
 /company-info
 /license
 /admin/license
-/v3/api-docs
-/swagger-ui
-/thymeleaf
 /franchise
 /sse-endpoint
 ```

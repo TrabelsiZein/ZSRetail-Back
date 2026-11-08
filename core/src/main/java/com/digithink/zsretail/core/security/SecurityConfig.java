@@ -49,8 +49,6 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 				.sessionCreationPolicy(SessionCreationPolicy.STATELESS).and().authorizeRequests()
 				.antMatchers("/sse-endpoint/**", "/login/**", "/config", "/company-info",
 						"/license/**",
-						"/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
-						"/thymeleaf/**",
 						// Image serving is public (browser loads directly, no auth header)
 						"/item-image/**")
 				.permitAll().anyRequest().authenticated().and()
