@@ -20,7 +20,10 @@ Branch `feature/boot4-migration`, from `release/3.1.2`. Product version 4.0.0. P
   a step runs with `-Dzsretail.migtest.required=true`, which turns that skip into a failure. The progress log says that
   they ran.
 - Before every `mvn`: no `javaw` of ours running on `target/classes`. During a suite: no edit of any file in the repo
-  (Eclipse rebuilds with its own JDK and the build then fails on the class version).
+  (Eclipse rebuilds with its own JDK and the build then fails on the class version). Eclipse left open holds its JVM inside
+  `eclipse.exe`, so no `javaw` shows, and its automatic build rewrites `target/classes` when files change or a branch
+  switches: a test that then fails on "class path resource [...] does not exist", at a random class, is this. Let it
+  settle and run from `clean` (seen on 2026-11-09: the class file's time was the failure's second).
 - The progress log below is updated at the end of every step, with the commit hashes.
 - `spring-boot-properties-migrator`, the classic starters and `spring-boot-jackson2` are migration aids only: none of
   them stays.
@@ -28,7 +31,8 @@ Branch `feature/boot4-migration`, from `release/3.1.2`. Product version 4.0.0. P
 ## Decisions
 
 Taken by Zein on 2026-11-08, on the inventory and plan of the same day. Rows 4 and 13 to 15 are his second answers; rows
-2 and 13 were changed, and rows 16 and 17 added, by his answers to the report of step 1.1.
+2 and 13 were changed, and rows 16 and 17 added, by his answers to the report of step 1.1; row 18 by his answers to the
+report of step 1.2.
 
 **The schema rule, from 4.0.0: a schema change = one V script next to the Java change; never edit an applied script.**
 
@@ -50,6 +54,7 @@ Taken by Zein on 2026-11-08, on the inventory and plan of the same day. Rows 4 a
 | 15 | The pom says 4.0.0 from step 1.1, with the CHANGELOG section opened there. | 1.1 |
 | 16 | POI is upgraded at step 1.4, for the jars of open point 8. | 1.4 |
 | 17 | `commons-lang3` stays in the store at `runtime` scope, for the RFID SDK's USB path. | 1.1 |
+| 18 | **The JWT secret becomes a per-installation line `security.jwt.secret`, required at startup**, delivered in step 2.8: `SecurityParams.SECRET` was one constant in the source for every installation. Every site is logged out on the upgrade night anyway. Nothing before 2.8. | 2.8 |
 
 ## Steps
 
@@ -84,7 +89,7 @@ Exception to "green at each step": 1.7 is two commits (mechanical rename, then f
 | 2.5 | Classic starters out, explicit starters in, `spring-boot-starter-flyway` among them. | 4.0.x | ~15 |
 | 2.6 | Compile on JDK 25 with `--release 21`, suite on JDK 25, Eclipse launches, devenv. Licence fingerprint charset test (decision 12). | 4.0.x | ~8 |
 | 2.7 | Real proof, only when Zein asks: Tomcat 11, JDK 25, rehearsal databases, L2 scripts, NTLM GET and POST on ZEN's test NAV, RFID, licence, front. | 4.0.x | 0 |
-| 2.8 | Upgrade path: old lines refused at startup, deploy guide (with the one line of decision 3), docs, changelogs, release notes. Merge `release/3.1.2`. | 4.0.x | ~15 |
+| 2.8 | Upgrade path: old lines refused at startup, `security.jwt.secret` (decision 18), deploy guide (with the one line of decision 3), docs, changelogs, release notes. Merge `release/3.1.2`. | 4.0.x | ~15 |
 | 2.9 | Bump to the latest 4.1.x and run the proof of 2.7 again on it: 4.1 is what gets deployed. | 4.1.x | 5–15 |
 
 Exception to "green at each step": 2.3 is two commits (main, then tests) that pass one gate together, because
@@ -103,6 +108,15 @@ in the store and head office projects because `network-tests` has both applicati
 indexes of the startup T-SQL (`sys.indexes`: those classes only log a failure); a restart on its own database;
 `HeadOfficeErpGuard` on the runner and on the jobs API. 184 of the 188 `@Query` are built by every start, and the 4 of the
 RFID repositories by `RfidStoreStartupTest`.
+
+**The other shapes (step 1.2b).** `LinkedStoreStartupTest` (everything from the head office, the lines of
+`customers/zen-store`) and `ErpHeadOfficeStartupTest` in its two forms (`emtop`, full ERP, the lines of
+`dev/headoffice-erp`; `zen`, catalogue only, the lines of `customers/zen-headoffice`), each started and restarted. Every
+connector and link address is on `MigTestApplication.CLOSED_PORT` (`http://127.0.0.1:1`), the scheduler is off, and
+`nothingCanLeave` refuses any other address, from any source, before a bean exists. Compared once on the real contexts:
+**the starts together build all 112 beans that `installation-beans.txt` records as decided by the installation** (a plain
+store 0, RFID 14, a head office 35, a linked store 40, `emtop` 25, `zen` 50). Never started: 18 classes behind
+`@ConditionalOnErpConnector` of `happyness` (10) and `parafendri` (8), which that record does not count.
 
 **Status matrix.** `StoreSecurityMatrixTest`, `HeadOfficeSecurityMatrixTest`: real HTTP on the real chains. Reading the
 tables: an anonymous call on the main chain gets **403, not 401** (no login form or HTTP Basic, so Spring Security's default
@@ -190,6 +204,11 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
   `StoreErpCustomerIndex`, `StoreOrderDraftIndex`, `JdbcCatalogueState`.
 - `devenv/rehearsal.ps1` and `setup-stores.ps1` create databases: they keep `update` by `-Set`. Documented with `configs/local`.
 
+**1.9, 2.8: the merges of `release/3.1.2`**
+- The first brings the password fix (`50a5cb8`). Re-record the 5 goldens that hold the field (`core/UserAccount`,
+  `CashierSession`, `SalesHeader`, `ReturnHeader`, `Payment`) and read the diff: only `password` lines go.
+- A merge leaves every pom at 4.0.0: the poms of `release/3.1.2` say 3.1.2.
+
 **2.1**
 - `EnvironmentPostProcessor` moves to `org.springframework.boot` (3 classes, `spring.factories`, tests).
 - `GoldenJson.bootMapper()` names `JacksonAutoConfiguration` and `MigTestApplication` its `SpringApplication` arguments: the
@@ -215,6 +234,13 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 - `MachineFingerprintService.java:171` reads `vol` with the default charset, which becomes UTF-8. A regex and a WMI
   fallback protect it, but a changed fingerprint would lock a site.
 
+**2.8**
+- `security.jwt.secret` (decision 18): `SecurityParams.SECRET` goes; `JWTAuthorizationFilter` and `JWTAuthenticationFilter`
+  read the key. No line, or a blank one, stops the start with a message that says how to make one. Every tracked config
+  has `CHANGE_ME`, never a real value; `ConfigurationKeysProofTest` records it as `(set)`. `MigTestApplication` gives a test
+  value, and the matrix gains a row: a token signed with another secret gets what the bad token gets. The store keys of
+  `/ho/**` do not use it. The deploy guide says how to generate one per site on the upgrade night.
+
 ## Open points
 
 | # | Point | To settle |
@@ -228,9 +254,10 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 | 7 | **`Accept`.** `ConnectorAcceptHeaderTest` pins what we send: it failed on the old classpath with `application/xml, text/xml, application/json, application/*+xml, application/*+json` on all four connectors, and passes on the new one. A mock cannot show what NAV answers: live GET at 2.7, or earlier when Zein opens the VPN. | 2.7 |
 | 8 | **POI's jars.** 45 jars of the store WAR come with POI 5.0.0's compile dependencies (batik, pdfbox, xmlsec, bouncycastle...), and our code imports none of them: only POI's `usermodel`. Removing the commons-io 1.4 pin exposed the older versions they ask for: commons-io 1.3.1, woodstox 5.2.1, stax2 4.2. Whether the upgrade removes them is not verified yet. | Decision 16: POI upgrade at 1.4. |
 | 9 | **This machine for 2.6 and 2.7.** JDK 25 and Tomcat 11 are not installed (JDK 21 and 23; Tomcat 9). Eclipse is `jee-2024-12`, to be checked against JDK 25. Zein is told what to install at 2.6. | 2.6 |
-| 10 | **Shapes the startup tests do not start.** By plan they start with no connector and no link: a store (12 of the 112 beans that depend on the configuration in `installation-beans.txt`, for `store-a`), RFID added, a head office (35). A linked store has 28 to 39, an ERP head office 25 to 50. Those beans are never built by a test, and step 1.4 forbids bean cycles. Proposal: one start per shape before 1.4, the addresses on a closed local port so nothing can leave this machine. | Zein, before 1.4 |
-| 11 | **The password hash reaches the browser.** `UserAccount.password` has no `@JsonIgnore`, and the endpoints that serve entities embed the user. Called on the running application as a cashier: `POST /cashier-session/open`, `GET /cashier-session/current` and `GET /cashier-session` answer with `user.password`, a bcrypt hash; any logged user can list every session. The golden files show the same field in `SalesHeader`, `ReturnHeader` and `Payment`, not called live. `GET /user-account` goes through a DTO and does not leak it. Not changed by this step: the goldens record it as it is. A fix re-records 5 files. | Zein |
-| 12 | **One JWT secret for all.** `SecurityParams.SECRET` is a constant in the source and `JWTAuthorizationFilter` checks only the signature, so a token made by any installation should open the main chain of any other, customers included, for 5 months. Read in the code, not tried. Outside the migration. | Zein |
+| 10 | **Shapes the startup tests did not start.** | Settled: step 1.2b, "The other shapes". What stays unstarted: 18 classes of the `happyness` and `parafendri` connectors. |
+| 11 | **The password hash reached the browser.** `UserAccount.password` was written in every answer embedding a user. Called on the running application as a cashier: `POST /cashier-session/open`, `GET /cashier-session/current` and `GET /cashier-session`. | Fixed on `release/3.1.2`, `50a5cb8` (2026-11-09). On this branch only after the merge of 1.9: until then the goldens hold the field. |
+| 12 | **One JWT secret for all.** `SecurityParams.SECRET` is a constant in the source and `JWTAuthorizationFilter` checks only the signature, so a token made by any installation should open the main chain of any other, customers included, for 5 months. Read in the code, not tried. | Decision 18: `security.jwt.secret` at 2.8. |
+| 13 | **The badge code travels like the hash did.** `UserAccount.badgeCode` is written in the same answers (seen in the goldens, `CashierSession` among them), and `POST /badge/scan` takes that code to grant a till right: a cashier could read a responsible's code from `GET /cashier-session` once that user has a session or verified one. Read in the code, not tried. The front reads it only from `/user-account`, a DTO. The password's annotation would close it the same way. | Zein |
 
 ## Baseline (step 1.0)
 

@@ -20,7 +20,7 @@ class RfidStoreStartupTest {
 	@Test
 	@DisplayName("With rfid.enabled=true the RFID repositories and their @Query are built on the real SQL Server")
 	void startsWithRfid() {
-		try (MigTestApplication store = MigTestApplication.start(StoreApplication.class, "store", "--rfid.enabled=true")) {
+		try (MigTestApplication store = MigTestApplication.start(StoreApplication.class, "store", "rfid.enabled=true")) {
 			assertEquals(0, store.bean(RfidTagRepository.class).count());
 			assertEquals(0, store.bean(RfidSaleTagRepository.class).count());
 		}
