@@ -21,7 +21,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.context.config.ConfigFileApplicationListener;
 import org.springframework.context.annotation.AnnotatedBeanDefinitionReader;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.stereotype.Component;
@@ -94,7 +93,7 @@ class ThirdConnectorTest {
 		StandardEnvironment env = Starts.environment("store", systemProperties);
 		SpringApplication application = new SpringApplication();
 		new MachineFileEnvironmentPostProcessor().postProcessEnvironment(env, application);
-		new ConfigFileApplicationListener().postProcessEnvironment(env, application);
+		Starts.readConfigFiles(env);
 		new InstallationTypeEnvironmentPostProcessor().postProcessEnvironment(env, application);
 		new ErpConnectorEnvironmentPostProcessor().postProcessEnvironment(env, application);
 		return env;

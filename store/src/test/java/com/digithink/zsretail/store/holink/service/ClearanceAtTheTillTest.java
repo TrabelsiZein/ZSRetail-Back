@@ -125,7 +125,7 @@ class ClearanceAtTheTillTest {
 		assertTrue(scanned.getClearance());
 		assertEquals(19.5, scanned.getPublicPrice());
 		assertEquals(7.0, scanned.getHeadOfficePrice());
-		JsonNode answer = new ObjectMapper().valueToTree(scanned);
+		JsonNode answer = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule()).valueToTree(scanned);
 		assertTrue(answer.get("clearance").asBoolean(), "in the scan's answer (read-only fields are written)");
 		assertEquals(19.5, answer.get("publicPrice").asDouble());
 	}

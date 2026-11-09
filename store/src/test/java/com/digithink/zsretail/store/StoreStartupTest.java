@@ -96,6 +96,15 @@ class StoreStartupTest {
 	}
 
 	@Test
+	@DisplayName("The log's rolling policy reaches Logback: 200 MB, 90 days, 3 GB, the old files cleaned (Boot's own keys since step 1.4)")
+	void logRollingPolicy() {
+		assertEquals(String.valueOf(200L * 1024 * 1024), System.getProperty("LOGBACK_ROLLINGPOLICY_MAX_FILE_SIZE"));
+		assertEquals("90", System.getProperty("LOGBACK_ROLLINGPOLICY_MAX_HISTORY"));
+		assertEquals(String.valueOf(3L * 1024 * 1024 * 1024), System.getProperty("LOGBACK_ROLLINGPOLICY_TOTAL_SIZE_CAP"));
+		assertEquals("true", System.getProperty("LOGBACK_ROLLINGPOLICY_CLEAN_HISTORY_ON_START"));
+	}
+
+	@Test
 	@DisplayName("The SQL Server version check is in the start")
 	void versionCheck() {
 		assertEquals(1, store.context().getBeansOfType(SqlServerVersionCheck.class).size());

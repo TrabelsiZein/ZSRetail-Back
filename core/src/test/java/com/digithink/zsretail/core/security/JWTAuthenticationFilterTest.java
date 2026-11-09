@@ -121,7 +121,7 @@ class JWTAuthenticationFilterTest {
 					cashier());
 
 			assertEquals(200, response.getStatus());
-			assertEquals("application/json", response.getContentType());
+			assertEquals("application/json;charset=UTF-8", response.getContentType());
 			assertEquals("UTF-8", response.getCharacterEncoding());
 			String header = response.getHeader(SecurityParams.JWT_HEADER_NAME);
 			assertTrue(header.startsWith(SecurityParams.HEADER_PREFIX), header);

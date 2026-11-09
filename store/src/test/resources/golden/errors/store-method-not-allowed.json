@@ -1,6 +1,5 @@
 {
   "error":"Method Not Allowed",
-  "message":"",
   "path":"/zsretail/api/config",
   "status":405,
   "timestamp":"(time)"

@@ -17,7 +17,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.context.config.ConfigFileApplicationListener;
 import org.springframework.core.env.StandardEnvironment;
 
 import com.digithink.zsretail.connector.happyness.config.NavPosPagesStartupCheck;
@@ -30,7 +29,7 @@ import com.digithink.zsretail.support.Starts;
  * the values made up), is refused with one message naming every old line, where it is and what to write; the file
  * upgraded as docs/deploy-note.md says ("Upgrade from 2.2.2 to 2.3.0: the outside file", Installations.upgraded) starts, with the
  * same values under the new keys (a dead key dropped: OldLines). Starts run the way Spring Boot runs them (the
- * post-processors around ConfigFileApplicationListener, on the real application.properties and type files).
+ * post-processors around the configuration files, on the real application.properties and type files).
  */
 class OutsideFileUpgradeTest {
 
@@ -73,7 +72,7 @@ class OutsideFileUpgradeTest {
 		StandardEnvironment env = Starts.environment(Starts.applicationOf(systemProperties), systemProperties);
 		SpringApplication application = new SpringApplication();
 		new MachineFileEnvironmentPostProcessor().postProcessEnvironment(env, application);
-		new ConfigFileApplicationListener().postProcessEnvironment(env, application);
+		Starts.readConfigFiles(env);
 		new InstallationTypeEnvironmentPostProcessor().postProcessEnvironment(env, application);
 		new ErpConnectorEnvironmentPostProcessor().postProcessEnvironment(env, application);
 		return env;

@@ -30,7 +30,7 @@ public class InstallationTypeEnvironmentPostProcessor implements EnvironmentPost
 	/** The lines that named the type before the application was the type. */
 	static final List<String> TYPE_KEYS = Arrays.asList(ACTIVE_KEY, NodeOwnership.NODE_TYPE_KEY);
 
-	/** After ConfigFileApplicationListener (HIGHEST_PRECEDENCE + 10), which sets the active profiles. */
+	/** After ConfigDataEnvironmentPostProcessor (HIGHEST_PRECEDENCE + 10), which sets the active profiles. */
 	@Override
 	public int getOrder() {
 		return Ordered.HIGHEST_PRECEDENCE + 20;

@@ -1,6 +1,5 @@
 {
   "error":"Bad Request",
-  "message":"",
   "path":"/zsretail/api/location/not-a-number",
   "status":400,
   "timestamp":"(time)"

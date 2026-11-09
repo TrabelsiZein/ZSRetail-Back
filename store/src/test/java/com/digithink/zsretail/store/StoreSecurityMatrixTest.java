@@ -59,6 +59,7 @@ class StoreSecurityMatrixTest {
 				.row("GET", "/company-info", 200, 403, 200, 200)
 				.row("GET", "/license/status", 200, 403, 200, 200)
 				.row("GET", "/item-image/ITEM/1", 404, 403, 404, 404) // no such image, but the chain let it through
+				.row("GET", "/error", 500, 403, 500, 500) // public since step 1.4 for its bodies; called directly it has no error to show
 				// Any logged user
 				.row("GET", "/location", OK)
 				.row("GET", "/user-account/current", OK)

@@ -20,8 +20,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy;
-import org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy;
+import org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy;
 
+import com.digithink.zsretail.core.support.MigTestDatabase;
 import com.digithink.zsretail.core.dto.ItemCatalogueLineDTO;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ItemBarcode;
@@ -39,7 +40,7 @@ import com.digithink.zsretail.headoffice.service.HoItemCatalogueService;
  * 3.1.1, step 1 of retiring "Items by point de stock": the Item cards list with a point de stock chosen
  * ({@link HoItemCatalogueQuery#stockPoint(ItemCatalogueQuery.Criteria, Long, String)}): the row status at that point and
  * the price range on the point's row selling price with VAT. Run as the page runs it (ItemCatalogueQuery.build) over an
- * in-memory H2 database, as ItemCatalogueQueryTest.
+ * throwaway SQL Server database, as ItemCatalogueQueryTest.
  * <p>
  * Items (own price before VAT, VAT): NAV item 100, 100~A (10, 19 %), 100~B (50, 19 %) and 100~C (30, 19 %); X-1 (30,
  * 0 %), Y-1 (5, no row), Z-1 (7, an inactive item). Point P1: 100~A active 20 (23.8 with VAT); 100~B inactive 50 (59.5);
@@ -51,22 +52,24 @@ import com.digithink.zsretail.headoffice.service.HoItemCatalogueService;
  */
 class StockPointFilterQueryTest {
 
+	private static MigTestDatabase database;
 	private static SessionFactory sessions;
 	private static long p1;
 	private static long p2;
 
 	@BeforeAll
 	static void database() {
+		database = MigTestDatabase.fromSettings();
+		database.recreate();
 		Configuration configuration = new Configuration();
-		configuration.setPhysicalNamingStrategy(new SpringPhysicalNamingStrategy());
+		database.connect(configuration);
+		configuration.setPhysicalNamingStrategy(new CamelCaseToUnderscoresNamingStrategy());
 		configuration.setImplicitNamingStrategy(new SpringImplicitNamingStrategy());
 		sessions = configuration.addAnnotatedClass(ItemFamily.class).addAnnotatedClass(ItemSubFamily.class)
 				.addAnnotatedClass(Item.class).addAnnotatedClass(ItemBarcode.class).addAnnotatedClass(HoStockPoint.class)
 				.addAnnotatedClass(ItemCategory.class).addAnnotatedClass(ItemSection.class)
 				.addAnnotatedClass(HoStockPointItem.class)
-				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
-				.setProperty("hibernate.connection.url", "jdbc:h2:mem:stockpointfilter;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
+				.setProperty("hibernate.dialect", "org.hibernate.dialect.SQLServer2012Dialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
@@ -93,7 +96,10 @@ class StockPointFilterQueryTest {
 
 	@AfterAll
 	static void close() {
-		sessions.close();
+		if (sessions != null) {
+			sessions.close();
+		}
+		database.drop();
 	}
 
 	private static Item item(Session session, String code, String navItemNo, boolean active, double price, int vat) {
@@ -146,7 +152,7 @@ class StockPointFilterQueryTest {
 	}
 
 	private static List<ItemCatalogueLineDTO> lines(ItemCatalogueQuery.Criteria criteria) {
-		ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria, true);
+		ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria, false);
 		try (Session session = sessions.openSession()) {
 			NativeQuery<?> query = session.createNativeQuery(built.getLines());
 			built.getParameters().forEach(query::setParameter);
@@ -267,17 +273,17 @@ class StockPointFilterQueryTest {
 	void lineSqlUnchanged() {
 		ItemCatalogueQuery.Criteria plain = criteria(true, 10.0, null);
 		plain.setSort("price");
-		String own = ItemCatalogueQuery.build(plain, true).getLines();
+		String own = ItemCatalogueQuery.build(plain, false).getLines();
 		assertFalse(own.contains("ho_stock_point_item pr"), own);
 		assertTrue(own.contains("MIN(" + OWN_PRICE + ") AS price_min"), own);
 		assertTrue(own.contains("MIN(" + OWN_PRICE + ") ASC"), own);
 
 		ItemCatalogueQuery.Criteria point = at(criteria(true, 10.0, null), p1, "ACTIVE");
 		point.setSort("price");
-		String withPoint = ItemCatalogueQuery.build(point, true).getLines();
+		String withPoint = ItemCatalogueQuery.build(point, false).getLines();
 		point.setLinePrice(null);
 		point.setLinePriceJoin(null);
-		String withoutHook = ItemCatalogueQuery.build(point, true).getLines();
+		String withoutHook = ItemCatalogueQuery.build(point, false).getLines();
 		assertEquals(withoutHook, withPoint.replace(HoItemCatalogueQuery.LINE_PRICE, OWN_PRICE)
 				.replace(HoItemCatalogueQuery.LINE_PRICE_JOIN + " AND (pr.active IS NULL OR pr.active = 1)", ""));
 	}

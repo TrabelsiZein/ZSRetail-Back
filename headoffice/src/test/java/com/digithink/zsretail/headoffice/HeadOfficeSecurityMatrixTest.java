@@ -92,6 +92,7 @@ class HeadOfficeSecurityMatrixTest {
 				.row("GET", "/config", 200, 403, 200, 200, 200, 200, 200)
 				.row("GET", "/company-info", 200, 403, 200, 200, 200, 200, 200)
 				.row("GET", "/license/status", 200, 403, 200, 200, 200, 200, 200)
+				.row("GET", "/error", 500, 403, 500, 500, 500, 500, 500) // public since step 1.4 for its bodies; called directly it has no error to show
 				// The main chain: a logged user; a store key is nobody here
 				.row("GET", "/location", 403, 403, 200, 403, 403, 403, 403)
 				.row("GET", "/admin/headoffice/stores", 403, 403, 200, 403, 403, 403, 403)

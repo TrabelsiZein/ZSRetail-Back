@@ -24,7 +24,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy;
-import org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy;
+import org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.data.jpa.domain.Specification;
@@ -73,11 +73,11 @@ class TicketsHistoryExportTest {
 		for (BeanDefinition entity : scan.findCandidateComponents("com.digithink.zsretail.core.model")) {
 			configuration.addAnnotatedClass(Class.forName(entity.getBeanClassName()));
 		}
-		configuration.setPhysicalNamingStrategy(new SpringPhysicalNamingStrategy());
+		configuration.setPhysicalNamingStrategy(new CamelCaseToUnderscoresNamingStrategy());
 		configuration.setImplicitNamingStrategy(new SpringImplicitNamingStrategy());
 		sessions = configuration.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", "jdbc:h2:mem:ticketsexport;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
+				.setProperty("hibernate.dialect", "com.digithink.zsretail.core.support.H2SqlServerModeDialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		session = sessions.openSession();
 		session.beginTransaction();

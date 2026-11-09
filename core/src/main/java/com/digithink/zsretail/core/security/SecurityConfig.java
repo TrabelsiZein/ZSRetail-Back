@@ -45,7 +45,10 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 				.antMatchers("/sse-endpoint/**", "/login/**", "/config", "/company-info",
 						"/license/**",
 						// Image serving is public (browser loads directly, no auth header)
-						"/item-image/**")
+						"/item-image/**",
+						// Boot's error page: since Boot 2.6 its body is blanked for whoever may not reach this path, and the
+						// ERROR dispatch has no logged user (a stateless chain), so every error would answer an empty body
+						"/error")
 				.permitAll().anyRequest().authenticated().and()
 				.addFilter(new JWTAuthenticationFilter(authenticationManagerBean(), applicationModeService))
 				.addFilterBefore(new JWTAuthorizationFilter(), UsernamePasswordAuthenticationFilter.class);

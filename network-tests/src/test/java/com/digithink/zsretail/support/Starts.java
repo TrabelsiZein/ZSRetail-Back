@@ -7,6 +7,8 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.springframework.boot.context.config.ConfigDataEnvironmentPostProcessor;
+import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
 
@@ -33,6 +35,14 @@ public final class Starts {
 		profiles.addAll(Arrays.asList(env.getActiveProfiles()));
 		env.setActiveProfiles(profiles.toArray(new String[0]));
 		return env;
+	}
+
+	/**
+	 * The configuration files read as Spring Boot reads them (Boot 4 migration, step 1.4: ConfigDataEnvironmentPostProcessor,
+	 * not the legacy listener of before Boot 2.4), under the profiles the environment holds.
+	 */
+	public static void readConfigFiles(ConfigurableEnvironment environment) {
+		ConfigDataEnvironmentPostProcessor.applyTo(environment);
 	}
 
 	/**

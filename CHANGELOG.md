@@ -30,12 +30,28 @@ last step.
 - Step 1.3: the unused `@EnableGlobalMethodSecurity` (no `@PreAuthorize` exists), the `Principal` bean, the second
   `@EnableScheduling` of each application (`SchedulingConfig` has it) and the head office's `@EnableAsync` (it has no
   `@Async`) are gone. No behaviour change: the security matrix and the startup tests are unchanged.
+- Step 1.4: Spring Boot 2.7.18 (Spring 5.3, Security 5.7, Hibernate 5.6, Jackson 2.13, Tomcat 9.0.83, mssql-jdbc 10.2). An
+  internal stop, never deployed.
+- Step 1.4: POI 5.5.1. The WARs lose what only POI 5.0.0 brought: batik, Bouncy Castle, xmlsec, PDFBox, graphics2d,
+  xmlgraphics, woodstox, stax2. Store WAR from 130 to 76 jars (91 MB to 66 MB), head office WAR from 128 to 75 (88 MB to 63 MB).
+  `commons-lang3` 3.18.0 above Boot's BOM: commons-compress 1.28.0, which POI reads a .xlsx with, calls classes the pinned
+  3.12.0 does not have, and a rare file would have stopped an import on an `Error` (`ExcelLibrariesTest`).
+- Step 1.4: the empty `"message":""` leaves Boot's error answers (Boot 2.5). The front reads the field only when it is a
+  non-empty string, so nothing changes on a screen.
+- Step 1.4: the path `/error` is public on the main chain, or Boot 2.6 would blank the body of every error, the ERROR dispatch
+  having no logged user. Called directly it answers 500 with no error to show.
 
 ### Fixes
 - Step 1.3: the one row of `company_information` is created without an id, so IDENTITY gives it, and is read as the first
   row. It was saved with `id=1` and no row: Hibernate 5 inserted it under a generated id anyway, Hibernate 6.6 refuses that,
   and a new database would not have started. A database with its row at id 1 sees no difference. Step 1.3b: the seller of
   a supply invoice is read the same way, ordered by id (it was the first of an unordered `findAll`).
+
+### Config
+- Step 1.4: `;encrypt=true;trustServerCertificate=true` on every `jdbc:sqlserver` line: the driver encrypts by default since
+  10.2, so a server with its own certificate would refuse the connection. **An installation's outside file needs them too.**
+- Step 1.4: `logging.file.{max-size,max-history,total-size-cap,clean-history-on-start}` become
+  `logging.logback.rollingpolicy.*`, same values (`StoreStartupTest.logRollingPolicy`).
 
 ## 3.1.2 — in progress (branch `release/3.1.2`)
 

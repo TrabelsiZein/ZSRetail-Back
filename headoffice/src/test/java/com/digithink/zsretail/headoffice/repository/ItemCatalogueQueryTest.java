@@ -30,8 +30,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy;
-import org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy;
+import org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy;
 
+import com.digithink.zsretail.core.support.MigTestDatabase;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ItemBarcode;
 import com.digithink.zsretail.core.model.ItemCategory;
@@ -48,7 +49,7 @@ import com.digithink.zsretail.core.service.ItemCatalogueService;
 /**
  * Fiches items (3.1.0), step 1: the native queries of the head office page "Fiches items"
  * (ItemCatalogueQuery.build: the lines and their count, plain and searched; the flags and filter choices) and its point count by item
- * (ITEM_POINT_COUNTS), run as they are with Hibernate over an in-memory H2 database (no Spring context), with the table
+ * (ITEM_POINT_COUNTS), run as they are with Hibernate on the throwaway SQL Server database (MigTestDatabase: H2 2.x does not run these ORDER BY) (no Spring context), with the table
  * and column names of the applications (Spring's naming strategies).
  * <p>
  * NAV item 70061: S (active, barcode 3700000000017), M (active), L (inactive). NAV item DEAD: two inactive variants.
@@ -57,21 +58,23 @@ import com.digithink.zsretail.core.service.ItemCatalogueService;
  */
 class ItemCatalogueQueryTest {
 
+	private static MigTestDatabase database;
 	private static SessionFactory sessions;
 	private static long pack;
 
 	@BeforeAll
 	static void database() {
+		database = MigTestDatabase.fromSettings();
+		database.recreate();
 		Configuration configuration = new Configuration();
-		configuration.setPhysicalNamingStrategy(new SpringPhysicalNamingStrategy());
+		database.connect(configuration);
+		configuration.setPhysicalNamingStrategy(new CamelCaseToUnderscoresNamingStrategy());
 		configuration.setImplicitNamingStrategy(new SpringImplicitNamingStrategy());
 		sessions = configuration.addAnnotatedClass(ItemFamily.class).addAnnotatedClass(ItemSubFamily.class)
 				.addAnnotatedClass(Item.class).addAnnotatedClass(ItemBarcode.class).addAnnotatedClass(HoStockPoint.class)
 				.addAnnotatedClass(ItemCategory.class).addAnnotatedClass(ItemSection.class)
 				.addAnnotatedClass(HoStockPointItem.class)
-				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
-				.setProperty("hibernate.connection.url", "jdbc:h2:mem:itemcatalogue;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
+				.setProperty("hibernate.dialect", "org.hibernate.dialect.SQLServer2012Dialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
@@ -109,7 +112,10 @@ class ItemCatalogueQueryTest {
 
 	@AfterAll
 	static void close() {
-		sessions.close();
+		if (sessions != null) {
+			sessions.close();
+		}
+		database.drop();
 	}
 
 	private static Item item(Session session, String code, String navItemNo, String name, ItemFamily family,
@@ -157,7 +163,7 @@ class ItemCatalogueQueryTest {
 	}
 
 	private static List<ItemCatalogueLineDTO> lines(String search, boolean all, int first, int max) {
-		ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria(search, all), true);
+		ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria(search, all), false);
 		try (Session session = sessions.openSession()) {
 			NativeQuery<?> query = session.createNativeQuery(built.getLines());
 			built.getParameters().forEach(query::setParameter);
@@ -171,7 +177,7 @@ class ItemCatalogueQueryTest {
 	}
 
 	private static long count(String search, boolean all) {
-		ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria(search, all), true);
+		ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria(search, all), false);
 		try (Session session = sessions.openSession()) {
 			NativeQuery<?> query = session.createNativeQuery(built.getCount());
 			built.getParameters().forEach(query::setParameter);
@@ -235,7 +241,7 @@ class ItemCatalogueQueryTest {
 		ItemCatalogueQuery.Criteria criteria = criteria(null, !activeOnly);
 		criteria.setSort(sort);
 		criteria.setDescending(descending);
-		ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria, true);
+		ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria, false);
 		try (Session session = sessions.openSession()) {
 			NativeQuery<?> query = session.createNativeQuery(built.getLines());
 			built.getParameters().forEach(query::setParameter);
@@ -353,7 +359,7 @@ class ItemCatalogueQueryTest {
 		every.setPriceMax(9.0);
 		every.setSort("family");
 		for (ItemCatalogueQuery.Criteria criteria : Arrays.asList(criteria(null, true), criteria("a", false), every)) {
-			ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria, true);
+			ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria, false);
 			assertEquals(ItemCatalogueQuery.LINE_COLUMNS, columnLabels(sessions, built.getLines(), built.getParameters()));
 			assertEquals(Arrays.asList(ItemCatalogueQuery.COUNT_COLUMN),
 					columnLabels(sessions, built.getCount(), built.getParameters()));

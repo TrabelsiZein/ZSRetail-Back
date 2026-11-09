@@ -19,10 +19,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy;
-import org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy;
+import org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 
+import com.digithink.zsretail.core.support.MigTestDatabase;
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.ItemBarcode;
 import com.digithink.zsretail.core.model.ItemCategory;
@@ -40,7 +41,7 @@ import com.digithink.zsretail.headoffice.service.HoItemCatalogueService;
 /**
  * Fiches items (3.1.0): the list's filters, sorts and price columns and the page's flags and filter choices
  * (ItemCatalogueQuery in core with the head office's point de stock, HoItemCatalogueService.filters), the real query
- * over an in-memory H2 database with the applications' naming strategies (a Hibernate session as its EntityManager: the
+ * on the throwaway SQL Server database (MigTestDatabase: H2 2.x does not run these ORDER BY) with the applications' naming strategies (a Hibernate session as its EntityManager: the
  * paging and the count as in the applications).
  * <p>
  * NAV item 70061 (Homme / Chemises, division PAP, catégorie VET, section MANCHE): S 10 + 19 % (11.90), M 20 + 19 %
@@ -50,6 +51,7 @@ import com.digithink.zsretail.headoffice.service.HoItemCatalogueService;
  */
 class ItemCatalogueFiltersQueryTest {
 
+	private static MigTestDatabase database;
 	private static SessionFactory sessions;
 	private static long hom;
 	private static long fem;
@@ -59,16 +61,17 @@ class ItemCatalogueFiltersQueryTest {
 
 	@BeforeAll
 	static void database() {
+		database = MigTestDatabase.fromSettings();
+		database.recreate();
 		Configuration configuration = new Configuration();
-		configuration.setPhysicalNamingStrategy(new SpringPhysicalNamingStrategy());
+		database.connect(configuration);
+		configuration.setPhysicalNamingStrategy(new CamelCaseToUnderscoresNamingStrategy());
 		configuration.setImplicitNamingStrategy(new SpringImplicitNamingStrategy());
 		sessions = configuration.addAnnotatedClass(ItemFamily.class).addAnnotatedClass(ItemSubFamily.class)
 				.addAnnotatedClass(Item.class).addAnnotatedClass(ItemBarcode.class).addAnnotatedClass(ItemCategory.class)
 				.addAnnotatedClass(ItemSection.class).addAnnotatedClass(HoStockPoint.class)
 				.addAnnotatedClass(HoStockPointItem.class)
-				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
-				.setProperty("hibernate.connection.url", "jdbc:h2:mem:itemcataloguefilters;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
+				.setProperty("hibernate.dialect", "org.hibernate.dialect.SQLServer2012Dialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
@@ -112,7 +115,10 @@ class ItemCatalogueFiltersQueryTest {
 
 	@AfterAll
 	static void close() {
-		sessions.close();
+		if (sessions != null) {
+			sessions.close();
+		}
+		database.drop();
 	}
 
 	private static ItemFamily family(Session session, String code, String name) {
@@ -174,7 +180,6 @@ class ItemCatalogueFiltersQueryTest {
 	private static <T> T withQuery(Function<ItemCatalogueQuery, T> work) {
 		try (Session session = sessions.openSession()) {
 			ItemCatalogueQuery query = new ItemCatalogueQuery();
-			query.portable = true; // H2: the code sort in portable SQL
 			Field field = ItemCatalogueQuery.class.getDeclaredField("entityManager");
 			field.setAccessible(true);
 			field.set(query, session);

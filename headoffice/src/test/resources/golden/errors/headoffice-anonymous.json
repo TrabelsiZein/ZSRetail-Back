@@ -1,6 +1,5 @@
 {
   "error":"Forbidden",
-  "message":"",
   "path":"/zsretail/api/location",
   "status":403,
   "timestamp":"(time)"

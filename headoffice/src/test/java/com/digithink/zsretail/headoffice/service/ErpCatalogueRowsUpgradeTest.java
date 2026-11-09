@@ -20,7 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy;
-import org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy;
+import org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.digithink.zsretail.core.model.Item;
@@ -56,7 +56,7 @@ class ErpCatalogueRowsUpgradeTest {
 	void database() {
 		String url = "jdbc:h2:mem:erprowsupgrade;DB_CLOSE_DELAY=-1;MODE=MSSQLServer";
 		Configuration configuration = new Configuration();
-		configuration.setPhysicalNamingStrategy(new SpringPhysicalNamingStrategy()); // the tables as on SQL Server
+		configuration.setPhysicalNamingStrategy(new CamelCaseToUnderscoresNamingStrategy()); // the tables as on SQL Server
 		configuration.setImplicitNamingStrategy(new SpringImplicitNamingStrategy());
 		sessions = configuration.addAnnotatedClass(ItemFamily.class).addAnnotatedClass(ItemSubFamily.class)
 				.addAnnotatedClass(Item.class).addAnnotatedClass(ItemBarcode.class).addAnnotatedClass(Store.class)
@@ -64,7 +64,7 @@ class ErpCatalogueRowsUpgradeTest {
 				.addAnnotatedClass(HoDownSequence.class)
 				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", url).setProperty("hibernate.connection.username", "sa")
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
+				.setProperty("hibernate.dialect", "com.digithink.zsretail.core.support.H2SqlServerModeDialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		JdbcDataSource dataSource = new JdbcDataSource();
 		dataSource.setURL(url);

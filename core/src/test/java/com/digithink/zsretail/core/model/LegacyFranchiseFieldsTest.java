@@ -19,7 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 class LegacyFranchiseFieldsTest {
 
 	/** Stricter than Spring Boot's mapper: an unknown property would fail. */
-	private final ObjectMapper strict = new ObjectMapper().enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+	private final ObjectMapper strict = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule()).enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
 	@Test
 	@DisplayName("An item payload with franchiseSalesPrice and fromFranchiseAdmin is read; the answer has neither")

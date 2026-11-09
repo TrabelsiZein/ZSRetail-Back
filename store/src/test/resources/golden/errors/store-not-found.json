@@ -1,6 +1,5 @@
 {
   "error":"Not Found",
-  "message":"",
   "path":"/zsretail/api/no-such-path",
   "status":404,
   "timestamp":"(time)"

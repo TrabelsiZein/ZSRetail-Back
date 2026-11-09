@@ -22,7 +22,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.context.config.ConfigFileApplicationListener;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.env.SystemEnvironmentPropertySource;
 import org.springframework.mock.env.MockEnvironment;
@@ -34,7 +33,7 @@ import com.digithink.zsretail.support.Starts;
  * Code cleanup, step 1: erp.connector, one line that chooses the ERP connector (ErpConnectorEnvironmentPostProcessor).
  * Code cleanup step 8: the only line. Each value, absent, unknown, the old enabled lines refused wherever they are,
  * every outside file of configs/ starting, and the startup summary. Starts run the way Spring Boot runs them (the
- * post-processors around ConfigFileApplicationListener, on the real application.properties and type files).
+ * post-processors around the configuration files, on the real application.properties and type files).
  */
 class ErpConnectorTest {
 
@@ -56,7 +55,7 @@ class ErpConnectorTest {
 	private static StandardEnvironment start(StandardEnvironment env) {
 		SpringApplication application = new SpringApplication();
 		new MachineFileEnvironmentPostProcessor().postProcessEnvironment(env, application);
-		new ConfigFileApplicationListener().postProcessEnvironment(env, application);
+		Starts.readConfigFiles(env);
 		new InstallationTypeEnvironmentPostProcessor().postProcessEnvironment(env, application);
 		new ErpConnectorEnvironmentPostProcessor().postProcessEnvironment(env, application);
 		return env;

@@ -14,7 +14,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 
+import org.hibernate.cfg.AvailableSettings;
+import org.hibernate.cfg.Configuration;
 import org.junit.jupiter.api.Assumptions;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 /**
  * Boot 4 migration, step 1.2 (decision 6): the throwaway database of the startup tests, on the local SQL Server, described
@@ -137,6 +140,15 @@ public final class MigTestDatabase {
 
 	public String username() {
 		return username;
+	}
+
+	/**
+	 * Hibernate on the throwaway database, through a DataSource. Given the address and the password as settings it would use
+	 * its own pool, which writes the password in the log of the build at INFO (HHH10001001).
+	 */
+	public void connect(Configuration configuration) {
+		configuration.getProperties().put(AvailableSettings.DATASOURCE,
+				new DriverManagerDataSource(url(), username, password()));
 	}
 
 	/** Read from the machine file at each use, never kept or copied. Null when there is none. */

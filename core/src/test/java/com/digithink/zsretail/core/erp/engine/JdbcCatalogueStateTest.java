@@ -112,7 +112,7 @@ class JdbcCatalogueStateTest {
 		assertEquals(Arrays.asList("barcodes.cursor=48213", "items.run=true", "needs-barcodes:A100=1"), db.rows(NEW));
 		assertEquals("48213", state.get("barcodes.cursor"), "read under the new name");
 		assertEquals(Collections.singletonList("pk_" + NEW), db.queryForList("SELECT LOWER(CONSTRAINT_NAME) FROM"
-				+ " INFORMATION_SCHEMA.CONSTRAINTS WHERE LOWER(TABLE_NAME) = '" + NEW + "'", String.class));
+				+ " INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE LOWER(TABLE_NAME) = '" + NEW + "'", String.class));
 	}
 
 	@Test

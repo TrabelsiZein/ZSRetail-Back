@@ -5,7 +5,7 @@ the development contract; this file covers backend specifics only.
 
 ## Stack
 
-- Java 11 · Spring Boot 2.3.9 · two applications, each packaged as a **WAR** (deployed to Tomcat 9)
+- Java 11 · Spring Boot 2.7.18 on `feature/boot4-migration` (2.3.9 on the release branches) · two applications, each packaged as a **WAR** (deployed to Tomcat 9)
 - Spring Security + JWT · JPA/Hibernate · SQL Server
 - Maven, several projects under one parent `com.digithink:zsretail-parent` (the `pom.xml` of this folder), one
   version for all of them: the product version, currently 4.0.0 on `feature/boot4-migration` (`docs/migration/boot4-migration.md`; release/3.1.2 keeps 3.1.2, release/3.1.1 keeps 3.1.1, release/3.1.0 keeps 3.1.0, release/2.3.0 keeps 2.3.0, release/2.2.2 keeps 2.2.x for hotfixes)

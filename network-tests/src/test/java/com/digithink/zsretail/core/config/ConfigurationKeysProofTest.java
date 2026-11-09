@@ -25,9 +25,10 @@ import java.util.TreeSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.boot.DefaultBootstrapContext;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.context.config.ConfigFileApplicationListener;
 import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent;
+import org.springframework.boot.env.EnvironmentPostProcessorApplicationListener;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.env.SystemEnvironmentPropertySource;
@@ -126,7 +127,7 @@ class ConfigurationKeysProofTest {
 
 	/**
 	 * A start of this configuration, as Spring Boot starts: the outside file named as by -Dzsretail.machine-file, then
-	 * every EnvironmentPostProcessor (ConfigFileApplicationListener among them). Before the change (the record): the
+	 * every EnvironmentPostProcessor (since Boot 2.4 the configuration files are one of them, by Spring Boot's listener). Before the change (the record): the
 	 * single application, its type named by the file (or, without a file, by -Dspring.profiles.active=headoffice).
 	 * Since code cleanup step 6.5: the application of the configuration's type, as it prepares a start (its default
 	 * properties and its profile, see support/Starts).
@@ -149,8 +150,9 @@ class ConfigurationKeysProofTest {
 		profiles.addAll(Arrays.asList(env.getActiveProfiles()));
 		env.setActiveProfiles(profiles.toArray(new String[0]));
 		SpringApplication application = new SpringApplication();
-		new ConfigFileApplicationListener()
-				.onApplicationEvent(new ApplicationEnvironmentPreparedEvent(application, new String[0], env));
+		application.setAdditionalProfiles(configuration.type);
+		new EnvironmentPostProcessorApplicationListener().onApplicationEvent(
+				new ApplicationEnvironmentPreparedEvent(new DefaultBootstrapContext(), application, new String[0], env));
 		return env;
 	}
 

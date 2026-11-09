@@ -37,7 +37,7 @@ public class ErpConnectorEnvironmentPostProcessor implements EnvironmentPostProc
 
 	public static final String CONNECTOR_KEY = "erp.connector";
 
-	/** After ConfigFileApplicationListener (HIGHEST_PRECEDENCE + 10), which reads the configuration files. */
+	/** After ConfigDataEnvironmentPostProcessor (HIGHEST_PRECEDENCE + 10), which reads the configuration files. */
 	@Override
 	public int getOrder() {
 		return Ordered.HIGHEST_PRECEDENCE + 30;

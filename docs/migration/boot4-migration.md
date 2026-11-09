@@ -2,7 +2,7 @@
 
 Branch `feature/boot4-migration`, from `release/3.1.2`. Product version 4.0.0. Plan approved by Zein on 2026-11-08.
 
-**Status: step 1.3b done. Next: step 1.4.** Each step starts only on Zein's go.
+**Status: step 1.4 done. Next: step 1.5.** Each step starts only on Zein's go.
 
 | | Today | Target |
 |---|---|---|
@@ -52,7 +52,7 @@ report of step 1.2.
 | 13 | **Flyway**, added at step 1.8. `db/migration/{common,store,headoffice}/V<version>__<description>.sql` in core resources (split approved: both WARs carry core, and Flyway refuses two scripts of one version in its locations), `spring.flyway.locations` in each type file, one script per change. `V4.0.0__baseline.sql` is the full schema, generated per database type at 1.8 (`scripts.action=create`, reviewed), frozen forever. The 4.0.0 catch-up deltas are separate `V4.0.0.x` scripts. `baseline-on-migrate`: an existing 3.1.2 database marks the baseline as applied on its first start. Flyway replaces the manual `update.sql` run and `AppVersionGuard`; the guard stays only for what Flyway cannot check. The `db/<version>` folders stay as history, untouched. | 1.8 |
 | 14 | ZEN's test NAV (SRV-NAV) allows GET and POST. EMTOP's test NAV is GET only. Production NAV instances are never called, by tests or by Claude. In the root `CLAUDE.md`. | all |
 | 15 | The pom says 4.0.0 from step 1.1, with the CHANGELOG section opened there. | 1.1 |
-| 16 | POI is upgraded at step 1.4, for the jars of open point 8. | 1.4 |
+| 16 | POI is upgraded at step 1.4, for the jars of open point 8. Done: 5.5.1, the newest 5.x (6.0.0 not taken), with `commons-lang3` 3.18.0 above Boot's BOM, because commons-compress 1.28.0 calls classes that 3.12.0 does not have. | 1.4 |
 | 17 | `commons-lang3` stays in the store at `runtime` scope, for the RFID SDK's USB path. | 1.1 |
 | 18 | **The JWT secret becomes a per-installation line `security.jwt.secret`, required at startup**, delivered in step 2.8: `SecurityParams.SECRET` was one constant in the source for every installation. Every site is logged out on the upgrade night anyway. Nothing before 2.8. | 2.8 |
 | 19 | **The security fixes of 2026-11-09 live on `release/3.1.2`, no hotfix branches.** The sites on 2.2.2, 3.1.0 and 3.1.1 get them by moving to 3.1.2. | all |
@@ -71,7 +71,7 @@ them one-line edits.
 | 1.1 | Remove the unused list (decision 7, 8). Version 4.0.0 and its CHANGELOG section. Compare the WAR jars with the baseline. Pin the `Accept` header in the connector tests. | 2.3.9 | 26 |
 | 1.2 | Safety nets: startup tests of both applications on `zsretail_migtest`, a status matrix on the real security chains, golden JSON of key DTOs and entities. | 2.3.9 | 17 new, 136 golden files |
 | 1.3 | Edits the current API allows: `fromUriString`, `getStatusCode().value()`, company info fix, dead annotations. SQL Server version check: refuses below 2017. | 2.3.9 | 42 (17 are tests' one-line edits) |
-| 1.4 | Boot 2.7.18: config-data tests, naming strategy, H2 2.1, logging keys, bean cycles, connection strings. POI upgrade. | 2.7.18 | 40–50 |
+| 1.4 | Boot 2.7.18: config-data tests, naming strategy, H2 2.1, logging keys, bean cycles, connection strings. POI upgrade. | 2.7.18 | 100: 53 tests and 3 new, 19 configs, 10 goldens, 5 main classes, 2 poms |
 | 1.5 | Java 21: `release=21`, Lombok in the pom, processor paths, `proc=full`. | 2.7.18 | ~8 |
 | 1.6 | `SecurityFilterChain` and lambda DSL on Security 5.8. ERROR and FORWARD dispatches permitted. | 2.7.18 | ~6 |
 | 1.7 | **Freeze.** Boot 3.5.16: jakarta rename, Hibernate 6.6, Security 6.5, HttpClient 5 with the erp-api helper and the timeouts, dialect keys, `WarLauncher`. | 3.5.16 | ~210 |
@@ -143,23 +143,18 @@ commit. Every field of a class is filled by `GoldenJson.sample`, so a new field 
 | `CoreGoldenJsonTest` | 18 entities and 9 DTOs as served. `edges-*.txt`: 43 edge cases per mapper, the table to read at 2.3 and 2.4 (null into a primitive, empty string into a number or a date, decimal into an int, enum, unknown property). |
 | The matrix classes | The error bodies through the real ERROR dispatch, `/config` and an entity as served. |
 
+**Queries on the real database (step 1.4).** H2 2.1 in SQL Server mode refuses what real SQL Server accepts, so the five test
+classes of the catalogue queries left H2 for `zsretail_migtest` with the SQL Server 2012 dialect and the production SQL:
+`ItemCatalogueStoreQueryTest`, `ItemCatalogueStoreDetailsTest`, `ItemCatalogueQueryTest`, `ItemCatalogueFiltersQueryTest`,
+`StockPointFilterQueryTest`. They test more than before, and skip with the startup tests. They connect through
+`MigTestDatabase.connect`, a DataSource: given the address and the password as settings, Hibernate's own pool writes the
+password in the build's log at INFO. The other H2 tests name `core.support.H2SqlServerModeDialect`.
+
 The order of the properties is left out of the comparison, except for the hashed text. Jackson puts a property that comes
 from a getter alone (`UserAccount.isEnabled`) in the order reflection gives, which **changed between two runs of the JVM**:
 a byte-for-byte file was flaky. The code has one reader that depends on the order, the hash, and its mapper sorts.
 
 ## What each step must not forget
-
-**1.4**
-- 19 of the 20 tracked `spring.datasource.url` lines lack `encrypt` and `trustServerCertificate`. The driver goes to 10.2
-  at this step. `configs/local` is Zein's, upgraded by hand.
-- `logging.file.{max-size,max-history,total-size-cap,clean-history-on-start}` silently stop working: move to
-  `logging.logback.rollingpolicy.*`, or 200 MB and 90 days fall back to Boot's defaults.
-- `ConfigFileApplicationListener` is gone (6 test files). `ConfigurationSources.java:47` parses a source name that changes.
-- `SpringPhysicalNamingStrategy` and `SpringImplicitNamingStrategy`: 18 test imports. H2 2.x: 40 test files.
-- POI upgrade (decision 16): then measure the 45 jars of open point 8, and whether commons-io 1.3.1, woodstox 5.2.1 and
-  stax2 4.2 leave. Compare the WAR with `baseline/`.
-- Bean cycles are forbidden from here. The parent's `spring-milestones` repository and `maven-jar-plugin.version` go.
-- `network-tests/src/test/resources/config/*.txt` are records: re-record only when the difference is the intended one.
 
 **1.5**
 - JDK 23 and later skip annotation processors unless told. `-Dlombok.version` also leaves `devenv/build.ps1:13` and both
@@ -167,11 +162,17 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 
 **1.6**
 - `SecurityConfig.java:48`, `HeadOfficeApiSecurityConfig.java:43`. Authorization applies to every dispatch type from
-  Security 6 and `/error` is not permitted: without ERROR and FORWARD, a real error is expected to come back as 401 or 403.
-  The matrix rows `/no-such-path`, `/location/not-a-number`, bad JSON and `/admin/erp/jobs` are there for this.
+  Security 6: without ERROR and FORWARD, a real error is expected to come back as 401 or 403. The main chain has permitted
+  the path `/error` since 1.4, because Boot 2.6 blanks its body otherwise; the dispatches are still to permit. The matrix rows
+  `/no-such-path`, `/location/not-a-number`, bad JSON, `/admin/erp/jobs` and `/error` are there for this.
 - CORS stays the hand-written headers of `JWTAuthorizationFilter`.
 
 **1.7**
+- `core.support.H2SqlServerModeDialect` goes, and the 38 test files that name it take Hibernate 6's `H2Dialect`, which should
+  write OFFSET/FETCH itself (from memory, to read).
+- The BOM changes the libraries under POI again. `ExcelLibrariesTest` covers the three classes known today. Keep
+  `commons-lang3.version` unless Boot 3.5's BOM reaches 3.18.0. Compare at class and method level, as step 1.4 did, what POI,
+  xmlbeans and commons-compress call with what the WAR holds: a green suite does not see it.
 - Rename only `javax.persistence`, `servlet`, `annotation`, `validation`: 176 files plus 57 inline lines. Never
   `javax.imageio`, `javax.net.ssl` or `libs/hopeland` (`javax.usb`).
 - The helper: `DynamicsNavConfig`, `NavPosPagesConfig`, `ParafendriConfig`, `ZenConfig`, and `ZenProductsClient` (no auth).
@@ -220,7 +221,9 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 - A merge leaves every pom at 4.0.0: the poms of `release/3.1.2` say 3.1.2.
 
 **2.1**
-- `EnvironmentPostProcessor` moves to `org.springframework.boot` (3 classes, `spring.factories`, tests).
+- `EnvironmentPostProcessor` moves to `org.springframework.boot` (3 classes, `spring.factories`, tests). The tests read the
+  configuration through `ConfigDataEnvironmentPostProcessor.applyTo` (`Starts`) and `EnvironmentPostProcessorApplicationListener`
+  (`ConfigurationKeysProofTest`): check where those two go.
 - `GoldenJson.bootMapper()` names `JacksonAutoConfiguration` and `MigTestApplication` its `SpringApplication` arguments: the
   test helpers follow the moved packages. `LinkMappersGoldenJsonTest` reads the `RestTemplate` converter by its class.
 - `session.saveOrUpdate` 1 and `session.delete` 2 in tests are gone. `CashierSessionService`, `ReturnHeaderAPI`,
@@ -245,6 +248,10 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
   fallback protect it, but a changed fingerprint would lock a site.
 
 **2.8**
+- The deploy guide: every site's outside file gets `;encrypt=true;trustServerCertificate=true` on its `jdbc:sqlserver` line.
+  The driver encrypts by default since 10.2, so without them a server with its own certificate refuses the connection and the
+  start fails. `configs/local` is Zein's, by hand. An outside file with `logging.file.*` lines moves them to
+  `logging.logback.rollingpolicy.*`: none is tracked.
 - `security.jwt.secret` (decision 18): `SecurityParams.SECRET` goes; `JWTAuthorizationFilter` and `JWTAuthenticationFilter`
   read the key. No line, or a blank one, stops the start with a message that says how to make one. Every tracked config
   has `CHANGE_ME`, never a real value; `ConfigurationKeysProofTest` records it as `(set)`. `MigTestApplication` gives a test
@@ -262,7 +269,7 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 | 5 | **Source of the catch-up SQL.** It reads the metadata of a database with the old schema, and decision 6 keeps startup tests off existing local databases. A restored copy of a customer backup Zein provides is acceptable, read-only. A script generated from one database may not fit a customer whose schema drifted: each delta has to tolerate that. Proposal due at 1.8. | 1.8 |
 | 6 | **Enum CHECK constraints.** No setting found that disables them (Hibernate forum, one search). Under `validate` Hibernate creates nothing in production, so they can only arrive through the baseline and catch-up scripts, where review keeps them out. Confirmed at 1.8. | 1.8 |
 | 7 | **`Accept`.** `ConnectorAcceptHeaderTest` pins what we send: it failed on the old classpath with `application/xml, text/xml, application/json, application/*+xml, application/*+json` on all four connectors, and passes on the new one. A mock cannot show what NAV answers: live GET at 2.7, or earlier when Zein opens the VPN. | 2.7 |
-| 8 | **POI's jars.** 45 jars of the store WAR come with POI 5.0.0's compile dependencies (batik, pdfbox, xmlsec, bouncycastle...), and our code imports none of them: only POI's `usermodel`. Removing the commons-io 1.4 pin exposed the older versions they ask for: commons-io 1.3.1, woodstox 5.2.1, stax2 4.2. Whether the upgrade removes them is not verified yet. | Decision 16: POI upgrade at 1.4. |
+| 8 | **POI's jars.** 45 jars of the store WAR came with POI 5.0.0's compile dependencies (batik, pdfbox, xmlsec, bouncycastle...), and our code imports none of them. | Settled at 1.4 by POI 5.5.1: batik, bcprov, bcpkix, xmlsec, pdfbox, graphics2d, xmlgraphics, woodstox and stax2 are gone, commons-io is 2.21.0. Store WAR 130 to 76 jars, head office 128 to 75. Boot's BOM still pins commons-codec 1.15 and log4j-api 2.17.2 under what POI asks for: 22,024 calls of POI and its libraries compared with the WAR, none missing in them. commons-lang3 was missing 3 classes, hence 3.18.0. |
 | 9 | **This machine for 2.6 and 2.7.** JDK 25 and Tomcat 11 are not installed (JDK 21 and 23; Tomcat 9). Eclipse is `jee-2024-12`, to be checked against JDK 25. Zein is told what to install at 2.6. | 2.6 |
 | 10 | **Shapes the startup tests did not start.** | Settled: "The other shapes". All 145 recorded beans are built. |
 | 11 | **The password hash reached the browser.** `UserAccount.password` was written in every answer embedding a user. Called on the running application as a cashier: `POST /cashier-session/open`, `GET /cashier-session/current` and `GET /cashier-session`. | Fixed on `release/3.1.2`, `50a5cb8` (2026-11-09). On this branch only after the merge of 1.9: until then the goldens hold the field. |
@@ -332,3 +339,5 @@ The only difference between the lists is `rfid-reader-api-2.11-zs1.jar`, in the 
 | 1.2 | 2026-11-08 | `11c064a` | 2,069 tests (the 1,888 and 181 new), 0 failures, 0 errors, the same 3 skipped, twice in a row, 2 min 10 s, with `-Dzsretail.migtest.required=true`. **The startup tests ran**: `StoreStartupTest` 6, `RfidStoreStartupTest` 1, `HeadOfficeStartupTest` 8, `StoreSecurityMatrixTest` 5, `HeadOfficeSecurityMatrixTest` 5, none skipped, on `zsretail_migtest`, dropped afterwards. Per project: parafendri 91, zen 81, core 516, head office 341, store 667, network-tests 373. No main class changed. |
 | 1.2b | 2026-11-09 | `8a7a668` | 2,078 tests (9 new), 0 failures, 0 errors, the same 3 skipped. `LinkedStoreStartupTest` 5 and `ErpHeadOfficeStartupTest` 2 ran, on the closed local port. All 112 recorded beans built, compared once on the real contexts. Password fix on `release/3.1.2` the same day, `50a5cb8` (1,889 tests there, 0 failures). |
 | 1.3 | 2026-11-09 | `049b59a` | 2,089 tests (11 new), 0 failures, 0 errors, the same 3 skipped, with `-Dzsretail.migtest.required=true`. **The startup tests ran**: store 7, linked 5, RFID 1, refusal 1, head office 8, ERP 2, the two matrices 5 each, none skipped, on `zsretail_migtest`, dropped afterwards. No golden file changed. Per project: parafendri 91, zen 81, core 527, head office 343, store 674, network-tests 373. No instance started outside the tests. |
+| 1.3b | 2026-11-09 | `1e90497` | 2,098 tests, 0 failures, 0 errors, the same 3 skipped. Every connector started on the closed local port (emtop, zen, happyness and parafendri on a head office, parafendri on a store). The record counts 145 beans (112 and 33), all built. The ERROR line of a badly written address. Security fixes on `release/3.1.2` the same day, `2e05b3a` and front `e708da8` (1,902 tests there, 0 failures). |
+| 1.4 | 2026-11-09 | this commit | 2,106 tests (8 new), 0 failures, 0 errors, the same 3 skipped, with `-Dzsretail.migtest.required=true`. **The startup tests ran**: store 8, linked 5, ERP store 1, RFID 1, refusal 1, head office 8, ERP head office 4, the two matrices 5 each, none skipped, on `zsretail_migtest`, dropped afterwards. No bean cycle in any start. Goldens: 10 lines of `"message":""` removed, nothing else. `configuration-keys.txt`: the 4 logging keys renamed in 21 lines and `spring.datasource.url` with the two options in 18, no other value changed. Store WAR 130 to 76 jars, 91 to 66 MB; head office 128 to 75, 88 to 63 MB ([store diff](diffs/step-1.4-store-war-jars.diff), [head office diff](diffs/step-1.4-headoffice-war-jars.diff), against `baseline/`). Per project: erp-api 3, parafendri 91, zen 81, core 534, head office 345, store 677, network-tests 375. No instance started outside the tests. This doc said `ConfigFileApplicationListener` was gone at 2.7: it still exists there, legacy, and the tests moved to the real post-processor anyway. |

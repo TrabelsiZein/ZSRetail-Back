@@ -42,7 +42,7 @@ public class MachineFileEnvironmentPostProcessor implements EnvironmentPostProce
 	public static final String LOADED_KEY = MACHINE_FILE_KEY + ".loaded";
 	static final String PROPERTY_SOURCE_NAME = "machineFile";
 
-	/** Before ConfigFileApplicationListener (HIGHEST_PRECEDENCE + 10), which reads the active profiles. */
+	/** Before ConfigDataEnvironmentPostProcessor (HIGHEST_PRECEDENCE + 10), which reads the active profiles. */
 	@Override
 	public int getOrder() {
 		return Ordered.HIGHEST_PRECEDENCE + 5;

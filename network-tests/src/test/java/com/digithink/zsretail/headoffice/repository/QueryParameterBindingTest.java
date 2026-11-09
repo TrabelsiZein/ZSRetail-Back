@@ -73,7 +73,7 @@ class QueryParameterBindingTest {
 				.applySetting("hibernate.dialect", "org.hibernate.dialect.SQLServer2012Dialect")
 				.applySetting("hibernate.temp.use_jdbc_metadata_defaults", "false")
 				.applySetting("hibernate.physical_naming_strategy",
-						"org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy")
+						"org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy")
 				.applySetting("hibernate.hbm2ddl.auto", "none").build());
 		ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(false);
 		scanner.addIncludeFilter(new AnnotationTypeFilter(Entity.class));

@@ -2,6 +2,8 @@ package com.digithink.zsretail.core.config;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.springframework.boot.context.properties.source.ConfigurationPropertySources;
 import org.springframework.core.env.ConfigurableEnvironment;
@@ -17,6 +19,12 @@ final class ConfigurationSources {
 
 	/** The application's own properties (its type): never a line an installation wrote. */
 	static final String DEFAULTS = "defaultProperties";
+
+	/**
+	 * The name Spring Boot gives a configuration file since 2.4: Config resource 'class path resource
+	 * [application-store.properties]' via location 'optional:classpath:/'. The group: the file.
+	 */
+	private static final Pattern CONFIG_FILE = Pattern.compile("Config resource '(?:.*\\[)?([^\\]']+)\\]?' via location '.*'");
 
 	private ConfigurationSources() {
 	}
@@ -44,8 +52,9 @@ final class ConfigurationSources {
 		if (MachineFileEnvironmentPostProcessor.PROPERTY_SOURCE_NAME.equals(name)) {
 			return "the outside file " + environment.getProperty(MachineFileEnvironmentPostProcessor.LOADED_KEY);
 		}
-		if (name.startsWith("applicationConfig: [") && name.endsWith("]")) {
-			return "the configuration file " + name.substring("applicationConfig: [".length(), name.length() - 1);
+		Matcher configFile = CONFIG_FILE.matcher(name);
+		if (configFile.matches()) {
+			return "the configuration file " + configFile.group(1);
 		}
 		switch (name) {
 		case StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME:

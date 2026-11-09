@@ -50,7 +50,7 @@ class HoStockPointRowsTest {
 				.addAnnotatedClass(Item.class).addAnnotatedClass(HoStockPointItem.class)
 				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", "jdbc:h2:mem:stockpointrows;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
+				.setProperty("hibernate.dialect", "com.digithink.zsretail.core.support.H2SqlServerModeDialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		session = sessions.openSession();
 		session.beginTransaction();

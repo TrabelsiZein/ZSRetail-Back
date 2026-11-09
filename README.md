@@ -23,7 +23,7 @@ Complete Point of Sale (POS) backend application with role-based access control 
 
 ## Technology Stack
 - Java 11
-- Spring Boot 2.3.9
+- Spring Boot 2.7.18 (on its way to 4.x, `docs/migration/boot4-migration.md`)
 - Spring Security with JWT
 - JPA/Hibernate
 - SQL Server
@@ -46,7 +46,7 @@ deployed alone in its Tomcat as `zsretailws.war` (`docs/deploy-note.md`). The ma
 ### Configuration
 Update database configuration in the installation's outside file (`configs/machine-model.properties`, `docs/deployment-modes.md`):
 ```properties
-spring.datasource.url=jdbc:sqlserver://localhost;databaseName=pos_db
+spring.datasource.url=jdbc:sqlserver://localhost;databaseName=pos_db;encrypt=true;trustServerCertificate=true
 spring.datasource.username=your_username
 spring.datasource.password=your_password
 ```

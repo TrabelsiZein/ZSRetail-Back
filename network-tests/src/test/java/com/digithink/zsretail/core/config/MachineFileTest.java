@@ -20,7 +20,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.context.config.ConfigFileApplicationListener;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.PropertySource;
 import org.springframework.core.env.StandardEnvironment;
@@ -35,7 +34,7 @@ import com.digithink.zsretail.support.Starts;
  * (MachineFileEnvironmentPostProcessor) and the installation type in effect (InstallationTypeEnvironmentPostProcessor;
  * code cleanup step 8: the application's, a type line refused).
  * Where the file is found, the refusals, where it sits among the property sources, and starts run the way Spring Boot
- * runs them (the two post-processors around ConfigFileApplicationListener, on the real application.properties and type
+ * runs them (the two post-processors around the configuration files, on the real application.properties and type
  * files).
  */
 class MachineFileTest {
@@ -61,7 +60,7 @@ class MachineFileTest {
 		StandardEnvironment env = Starts.environment(type, systemProperties);
 		SpringApplication application = new SpringApplication();
 		new MachineFileEnvironmentPostProcessor().postProcessEnvironment(env, application);
-		new ConfigFileApplicationListener().postProcessEnvironment(env, application);
+		Starts.readConfigFiles(env);
 		new InstallationTypeEnvironmentPostProcessor().postProcessEnvironment(env, application);
 		return env;
 	}
@@ -185,7 +184,7 @@ class MachineFileTest {
 						Collections.singletonMap("SPRING_PROFILES_ACTIVE", "store")));
 		String message = refusal(() -> {
 			SpringApplication application = new SpringApplication();
-			new ConfigFileApplicationListener().postProcessEnvironment(variable, application);
+			Starts.readConfigFiles(variable);
 			new InstallationTypeEnvironmentPostProcessor().postProcessEnvironment(variable, application);
 		});
 		assertTrue(message.startsWith("Old line no longer read: spring.profiles.active=store in an environment variable."),
@@ -199,7 +198,7 @@ class MachineFileTest {
 		StandardEnvironment env = Starts.environment("headoffice", Map.of("zsretail.machine-file", file.toString()));
 		SpringApplication application = new SpringApplication(HeadOfficeApplication.class);
 		new MachineFileEnvironmentPostProcessor().postProcessEnvironment(env, application);
-		new ConfigFileApplicationListener().postProcessEnvironment(env, application);
+		Starts.readConfigFiles(env);
 		String message = refusal(
 				() -> new InstallationTypeEnvironmentPostProcessor().postProcessEnvironment(env, application));
 		assertTrue(message.contains("(this is the head office application, HeadOfficeApplication)"), message);

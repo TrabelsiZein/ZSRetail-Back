@@ -1,6 +1,5 @@
 {
   "error":"Forbidden",
-  "message":"",
   "path":"/zsretail/api/admin/erp/jobs",
   "status":403,
   "timestamp":"(time)"

@@ -21,7 +21,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy;
-import org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy;
+import org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy;
 
 import com.digithink.zsretail.core.dto.ItemCatalogueLineDTO;
 import com.digithink.zsretail.core.model.Item;
@@ -32,31 +32,34 @@ import com.digithink.zsretail.core.model.ItemSection;
 import com.digithink.zsretail.core.model.ItemSubFamily;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.core.service.ItemCatalogueService;
+import com.digithink.zsretail.core.support.MigTestDatabase;
 import com.digithink.zsretail.core.support.TestModes;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * 3.1.2, the store's Articles page on every store: what its lines show beyond the grouped columns
  * ({@link ItemCatalogueService#storeDetails}, the query {@link ItemCatalogueQuery#details}) and the stock sort, the real
- * statements on an in-memory H2 database with the applications' naming strategies. A NAV item 50A of three variants
+ * statements on the throwaway SQL Server database (MigTestDatabase: H2 2.x does not run these ORDER BY) with the applications' naming strategies. A NAV item 50A of three variants
  * (costs 7.5, 9.25 and none), a head office item with the store's own price, two items in clearance (one sold below its
  * public price, one not), an item with a minimum stock and a maximum discount, and one at a negative stock.
  */
 class ItemCatalogueStoreDetailsTest {
 
+	private static MigTestDatabase database;
 	private static SessionFactory sessions;
 
 	@BeforeAll
 	static void database() {
+		database = MigTestDatabase.fromSettings();
+		database.recreate();
 		Configuration configuration = new Configuration();
-		configuration.setPhysicalNamingStrategy(new SpringPhysicalNamingStrategy());
+		database.connect(configuration);
+		configuration.setPhysicalNamingStrategy(new CamelCaseToUnderscoresNamingStrategy());
 		configuration.setImplicitNamingStrategy(new SpringImplicitNamingStrategy());
 		sessions = configuration.addAnnotatedClass(ItemFamily.class).addAnnotatedClass(ItemSubFamily.class)
 				.addAnnotatedClass(Item.class).addAnnotatedClass(ItemBarcode.class).addAnnotatedClass(ItemCategory.class)
 				.addAnnotatedClass(ItemSection.class)
-				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
-				.setProperty("hibernate.connection.url", "jdbc:h2:mem:storedetails;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
+				.setProperty("hibernate.dialect", "org.hibernate.dialect.SQLServer2012Dialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
@@ -96,7 +99,10 @@ class ItemCatalogueStoreDetailsTest {
 
 	@AfterAll
 	static void close() {
-		sessions.close();
+		if (sessions != null) {
+			sessions.close();
+		}
+		database.drop();
 	}
 
 	/** An item of 10 DT before a VAT of 19 %, active, unless the setup says otherwise. */
@@ -115,7 +121,6 @@ class ItemCatalogueStoreDetailsTest {
 	private static <T> T withService(Function<ItemCatalogueService, T> work) {
 		try (Session session = sessions.openSession()) {
 			ItemCatalogueQuery query = new ItemCatalogueQuery();
-			query.portable = true;
 			Field field = ItemCatalogueQuery.class.getDeclaredField("entityManager");
 			field.setAccessible(true);
 			field.set(query, session);
