@@ -354,13 +354,42 @@ class ZZDataInitializerRolesTest {
 		List<String> saves = new ArrayList<>();
 		seedRoles(new MockEnvironment(), false, store, saves);
 		assertEquals(Collections.singletonList("ADMIN"), saves);
-		assertEquals(new HashSet<>(java.util.Arrays.asList("read:home", "read:admin-company-information", LICENSE)),
-				store.get("ADMIN").getPermissions());
+		Set<String> before = new HashSet<>(java.util.Arrays.asList("read:home", "read:admin-company-information", LICENSE));
+		before.addAll(API_CHECKED);
+		assertEquals(before, store.get("ADMIN").getPermissions());
 
 		// A head office of before (as Happyness): read:admin-headoffice-license with the other missing head office pages
 		Map<String, AppRole> headOffice = existingRoles("read:home", "read:admin-headoffice-company-information");
 		seedRoles(headOffice(), false, headOffice, new ArrayList<>());
 		assertTrue(headOffice.get("ADMIN").getPermissions().contains("read:admin-headoffice-license"));
+	}
+
+	/** 3.1.2: the keys the API checks on the users and on saving the company information. */
+	private static final Set<String> API_CHECKED = new HashSet<>(java.util.Arrays.asList("read:admin-users", "write:admin-users",
+			"delete:admin-users", "read:admin-company-information", "write:admin-company-information"));
+
+	@Test
+	@DisplayName("3.1.2: the keys the API checks reach the ADMIN of a store of before at its start, once, so no administrator is"
+			+ " locked out; other roles untouched; a head office has its own keys")
+	void apiCheckedKeysGivenToAdmin() throws Exception {
+		assertEquals(API_CHECKED, staticSet("API_CHECKED_ADMIN_PERMISSIONS"));
+		assertTrue(staticSet("ADMIN_PERMISSIONS").containsAll(API_CHECKED), "new store database");
+		assertTrue(Collections.disjoint(API_CHECKED, staticSet("RESPONSIBLE_PERMISSIONS")), "never the responsible");
+		assertTrue(Collections.disjoint(API_CHECKED, staticSet("POS_PERMISSIONS")), "never the cashier");
+		assertTrue(staticSet("HEAD_OFFICE_ADMIN_PERMISSIONS").containsAll(java.util.Arrays.asList("read:admin-headoffice-users",
+				"read:admin-headoffice-company-information")), "a head office's own keys");
+
+		Map<String, AppRole> before = existingRoles("read:home");
+		List<String> saves = new ArrayList<>();
+		seedRoles(new MockEnvironment(), false, before, saves);
+		assertEquals(Collections.singletonList("ADMIN"), saves);
+		assertTrue(before.get("ADMIN").getPermissions().containsAll(API_CHECKED));
+		assertEquals(Collections.singleton("read:home"), before.get("RESPONSIBLE").getPermissions());
+		assertEquals(Collections.singleton("read:home"), before.get("POS_USER").getPermissions());
+
+		List<String> nextStart = new ArrayList<>();
+		seedRoles(new MockEnvironment(), false, before, nextStart);
+		assertTrue(nextStart.isEmpty(), "once, saved: " + nextStart);
 	}
 
 	/** The RFID pages (readers, POS machines, tags, tag assignment): ADMIN of a store with rfid.enabled=true only. */
@@ -392,6 +421,7 @@ class ZZDataInitializerRolesTest {
 		seedRoles(new MockEnvironment().withProperty("rfid.enabled", "true"), false, existing, saves);
 		assertEquals(Collections.singletonList("ADMIN"), saves);
 		Set<String> expected = new HashSet<>(java.util.Arrays.asList("read:home", LICENSE));
+		expected.addAll(API_CHECKED);
 		expected.addAll(RFID);
 		assertEquals(expected, existing.get("ADMIN").getPermissions());
 		List<String> nextStart = new ArrayList<>();
@@ -400,6 +430,7 @@ class ZZDataInitializerRolesTest {
 
 		// The same store with RFID off: nothing saved
 		Map<String, AppRole> offStore = existingRoles("read:home", LICENSE);
+		offStore.get("ADMIN").getPermissions().addAll(API_CHECKED);
 		List<String> offSaves = new ArrayList<>();
 		seedRoles(new MockEnvironment(), false, offStore, offSaves);
 		assertTrue(offSaves.isEmpty(), "RFID off, saved: " + offSaves);
@@ -427,6 +458,7 @@ class ZZDataInitializerRolesTest {
 				seedRoles(env, flags[0], existing, saves);
 
 				Set<String> expected = new HashSet<>(java.util.Arrays.asList("read:home", LICENSE));
+				expected.addAll(API_CHECKED);
 				if (flags[0]) {
 					expected.addAll(INVENTORY);
 					expected.addAll(COST);
@@ -474,6 +506,7 @@ class ZZDataInitializerRolesTest {
 		assertEquals(Collections.singletonList("ADMIN"), topUp);
 		Set<String> toppedUp = new HashSet<>(java.util.Arrays.asList("read:home", "read:admin-holink-status",
 				"read:admin-holink-deliveries", LICENSE));
+		toppedUp.addAll(API_CHECKED);
 		toppedUp.addAll(INVENTORY);
 		toppedUp.addAll(COST);
 		toppedUp.addAll(STORE_ORDERS);

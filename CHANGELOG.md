@@ -240,12 +240,27 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   catalogue: `core.service.ItemMainImages` (`ItemMainImagesTest`).
 
 ### Fixes
+- **Security: `/user-account` is behind the permissions of the Users pages.** It checked none: on the running application a
+  cashier read every badge code (`GET /user-account`, then a till right from `POST /badge/scan`), generated the
+  administrator's badge and read it, and set the administrator's password and logged in with it. Now reads need
+  `read:admin-users`, creating, editing, switching off and the badge actions `write:admin-users`, deleting
+  `delete:admin-users`, else 403; on a head office `read:admin-headoffice-users`, its page's one key, opens them too.
+  `/cashiers` (names, for the history filters) and `/current` (one's own account) stay open to any logged user, and so does
+  `POST /badge/scan`: the till needs it with a real badge. No screen lets a normal user change his own password here.
+- **Security: the badge code no longer travels in an entity.** Like the password hash below, `UserAccount.badgeCode` is read
+  from JSON only and left out of `toString`; the Users pages read it through `UserAccountDTO`
+  (`UserAccountApiAccessTest`, `UserAccountSecretsJsonTest`).
+- **Security: `PUT /company-info` needs the page's permission:** `write:admin-company-information` on a store,
+  `read:admin-headoffice-company-information` on a head office, else 403 (`CompanyInformationApiAccessTest`). Any logged user
+  could save, and an anonymous call answered 500. The `GET` stays public. A responsible no longer fills in the company name.
+- The keys the API now checks reach the ADMIN of an older store database at its start (`API_CHECKED_ADMIN_PERMISSIONS`), so
+  no administrator is locked out. Only ADMIN: no other role changes.
 - **Security: the password hash no longer reaches the browser.** `UserAccount.password` was written in every answer that
   serves an entity embedding its user: `POST /cashier-session/open`, `GET /cashier-session/current` and the list
   `GET /cashier-session` (open to any logged user) answered with `cashier.password`, a bcrypt hash, and so did tickets,
   returns, payments, purchases and invoices. It is now read from JSON only (`@JsonProperty(access = WRITE_ONLY)`) and left
   out of `toString`; the front never read it, and no relation to a user cascades, so an entity sent back without it
-  changes no password (`UserAccountPasswordJsonTest`).
+  changes no password (`UserAccountSecretsJsonTest`).
 - Journal gains: a day's (and a month's) cost and margin are the sum of its tickets' and returns' figures rounded to
   the millime as shown, not the rounding of the unrounded sums (could differ by a millime, 28.782 vs 28.781); the day
   list and the day journal share the rule (`JournalCosts.day`, `JournalMarginsTest.daySumsTheRowsAsShown`).
