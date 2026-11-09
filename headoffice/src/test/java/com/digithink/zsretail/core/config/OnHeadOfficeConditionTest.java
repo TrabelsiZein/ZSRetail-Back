@@ -7,14 +7,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.context.annotation.AnnotatedBeanDefinitionReader;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.core.annotation.Order;
 import org.springframework.mock.env.MockEnvironment;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 
 import com.digithink.zsretail.core.link.security.HeadOfficeApiSecurityConfig;
+import com.digithink.zsretail.core.security.LicenseFilter;
 import com.digithink.zsretail.core.security.StoreKeyFilter;
 import com.digithink.zsretail.core.support.Questions;
 import com.digithink.zsretail.headoffice.controller.ConsolidatedSalesAPI;
@@ -106,11 +108,11 @@ class OnHeadOfficeConditionTest {
 				new MockEnvironment().withProperty("node.type", "HEAD_OFFICE") }) {
 			assertTrue(registered(env, HeadOfficeApiSecurityConfig.class));
 		}
-		assertFalse(HeadOfficeApiSecurityConfig.class.getDeclaredField("storeApiKeyFilter").getAnnotation(Autowired.class)
-				.required(), "the filter must be optional");
 		assertTrue(Questions.asks(HeadOfficeApiSecurityConfig.class
 				.getDeclaredMethod("storeApiKeyFilterRegistration", StoreKeyFilter.class), Installation.HEAD_OFFICE));
-		assertEquals(0, HeadOfficeApiSecurityConfig.class.getAnnotation(Order.class).value(),
-				"the /ho/** chain must come before the main chain (order 1)");
+		// The filter's being optional is proved by the store's real start; the order of the two chains by SecurityChains
+		assertEquals(0, HeadOfficeApiSecurityConfig.class
+				.getDeclaredMethod("storeApiChain", HttpSecurity.class, ObjectProvider.class, LicenseFilter.class)
+				.getAnnotation(Order.class).value(), "the /ho/** chain must come before the main chain (order 1)");
 	}
 }

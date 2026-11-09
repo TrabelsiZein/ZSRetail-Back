@@ -1,14 +1,15 @@
 package com.digithink.zsretail.core.link.security;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
@@ -26,29 +27,30 @@ import com.digithink.zsretail.core.security.StoreKeyFilter;
  * a store, where the filter does not exist, /ho/** answers the same 401 to everyone. On a head office the license is
  * checked after the store key (402 when missing or expired). Code cleanup step 5: it names the filter through
  * {@link StoreKeyFilter} and the refusal through {@link StoreApiAccess} (core), never the head office's class.
+ * <p>
+ * No rule for the ERROR dispatch, unlike the main chain: it goes to /error, so it never comes through this chain.
  */
 @Configuration
-@Order(0)
-public class HeadOfficeApiSecurityConfig extends WebSecurityConfigurerAdapter {
+public class HeadOfficeApiSecurityConfig {
 
-	/** Null on a store (the filter is head office only: StoreApiKeyFilter). */
-	@Autowired(required = false)
-	private StoreKeyFilter storeApiKeyFilter;
+	/** @param storeKeyFilter absent on a store (the filter is head office only: StoreApiKeyFilter). */
+	@Bean
+	@Order(0)
+	public SecurityFilterChain storeApiChain(HttpSecurity http, ObjectProvider<StoreKeyFilter> storeKeyFilter,
+			LicenseFilter licenseFilter) throws Exception {
+		http.securityMatcher(AntPathRequestMatcher.antMatcher("/ho/**")).csrf(csrf -> csrf.disable())
+				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+				.exceptionHandling(exceptions -> exceptions
+						.authenticationEntryPoint((request, response, e) -> StoreApiAccess.writeRefusal(response)))
+				.authorizeHttpRequests(authorize -> authorize.shouldFilterAllDispatcherTypes(true).anyRequest()
+						.hasAuthority(StoreApiAccess.STORE_AUTHORITY));
 
-	@Autowired
-	private LicenseFilter licenseFilter;
-
-	@Override
-	protected void configure(HttpSecurity http) throws Exception {
-		http.antMatcher("/ho/**").csrf().disable().sessionManagement()
-				.sessionCreationPolicy(SessionCreationPolicy.STATELESS).and().exceptionHandling()
-				.authenticationEntryPoint((request, response, e) -> StoreApiAccess.writeRefusal(response)).and()
-				.authorizeRequests().anyRequest().hasAuthority(StoreApiAccess.STORE_AUTHORITY);
-
-		if (storeApiKeyFilter != null) {
-			http.addFilterBefore(storeApiKeyFilter, UsernamePasswordAuthenticationFilter.class);
-			http.addFilterAfter(licenseFilter, storeApiKeyFilter.getClass());
+		StoreKeyFilter filter = storeKeyFilter.getIfAvailable();
+		if (filter != null) {
+			http.addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class);
+			http.addFilterAfter(licenseFilter, filter.getClass());
 		}
+		return http.build();
 	}
 
 	/** The filter runs in this chain only, never as a servlet filter on every URL. */

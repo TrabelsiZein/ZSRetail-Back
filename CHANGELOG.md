@@ -43,6 +43,10 @@ last step.
 - Step 1.5: Java 21. The code compiles with `--release 21`, so the WARs need JDK 21 or later. Lombok 1.18.48 is in the pom (no
   more `-Dlombok.version` on this branch), and the annotation processors are named in the parent, so a JDK 23 or later does not
   skip them.
+- Step 1.6: Spring Security 5.8.16. Both chains are `SecurityFilterChain` beans on `authorizeHttpRequests`, every dispatch goes
+  through authorization, and the main chain permits the ERROR and FORWARD dispatches. Nothing changes for a caller: the status
+  matrices, the error bodies and new rows on how a path matches (`/config/`, `/CONFIG`, `/login/x`, `/hox`, `/ho`, written on the
+  old chains) pass unchanged.
 
 ### Fixes
 - Step 1.3: the one row of `company_information` is created without an id, so IDENTITY gives it, and is read as the first

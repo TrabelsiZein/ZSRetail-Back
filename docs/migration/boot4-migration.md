@@ -2,7 +2,7 @@
 
 Branch `feature/boot4-migration`, from `release/3.1.2`. Product version 4.0.0. Plan approved by Zein on 2026-11-08.
 
-**Status: step 1.5 done. Next: step 1.6.** Each step starts only on Zein's go.
+**Status: step 1.6 done. Next: step 1.7.** Each step starts only on Zein's go.
 
 | | At the start (2026-11-08) | Target |
 |---|---|---|
@@ -57,6 +57,7 @@ report of step 1.2.
 | 18 | **The JWT secret becomes a per-installation line `security.jwt.secret`, required at startup**, delivered in step 2.8: `SecurityParams.SECRET` was one constant in the source for every installation. Every site is logged out on the upgrade night anyway. Nothing before 2.8. | 2.8 |
 | 19 | **The security fixes of 2026-11-09 live on `release/3.1.2`, no hotfix branches.** The sites on 2.2.2, 3.1.0 and 3.1.1 get them by moving to 3.1.2. | all |
 | 20 | A badly written address (not empty, not `http://` or `https://`, in any case) of `emtop`, `happyness` or `headoffice.url` gives one ERROR line at the start, naming the key. It refuses nothing. | 1.3b |
+| 21 | **Before each site's upgrade night, a small read-only connection test**, with JDK 25 and the WAR's driver, showing `encrypt_option`. Written at 2.8, nothing before. **The two connection options go in once, on the upgrade night**: never on a site still on 3.1.2. | 2.8 |
 
 ## Steps
 
@@ -73,7 +74,7 @@ them one-line edits.
 | 1.3 | Edits the current API allows: `fromUriString`, `getStatusCode().value()`, company info fix, dead annotations. SQL Server version check: refuses below 2017. | 2.3.9 | 42 (17 are tests' one-line edits) |
 | 1.4 | Boot 2.7.18: config-data tests, naming strategy, H2 2.1, logging keys, bean cycles, connection strings. POI upgrade. | 2.7.18 | 101 (54 tests and 3 new, 19 configs, 10 goldens, 5 main classes, 2 poms, docs) |
 | 1.5 | Java 21: `release=21`, Lombok in the pom, processor paths, `proc=full`. | 2.7.18 | 7, and the root `CLAUDE.md` |
-| 1.6 | `SecurityFilterChain` and lambda DSL on Security 5.8. ERROR and FORWARD dispatches permitted. | 2.7.18 | ~6 |
+| 1.6 | `SecurityFilterChain` and lambda DSL on Security 5.8. ERROR and FORWARD dispatches permitted on the main chain (no such dispatch reaches `/ho/**`). | 2.7.18 | 12 (2 main classes, 5 tests and 1 new, the parent pom, 3 docs) |
 | 1.7 | **Freeze.** Boot 3.5.16: jakarta rename, Hibernate 6.6, Security 6.5, HttpClient 5 with the erp-api helper and the timeouts, dialect keys, `WarLauncher`. | 3.5.16 | ~210 |
 | 1.8 | Behaviour the tests expose (HQL, casts, null parameters). Flyway: baseline per database type, catch-up `V4.0.0.x` scripts, `baseline-on-migrate`, `AppVersionGuard` out. `ddl-auto=validate`. Enum CHECK constraints confirmed. | 3.5.16 | 30–50 |
 | 1.9 | Remove every deprecated call, run the properties migrator once, tag the checkpoint. Merge `release/3.1.2`. | 3.5.16 | 10–20 |
@@ -156,14 +157,16 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 
 ## What each step must not forget
 
-**1.6**
-- `SecurityConfig.java:48`, `HeadOfficeApiSecurityConfig.java:43`. Authorization applies to every dispatch type from
-  Security 6: without ERROR and FORWARD, a real error is expected to come back as 401 or 403. The main chain has permitted
-  the path `/error` since 1.4, because Boot 2.6 blanks its body otherwise; the dispatches are still to permit. The matrix rows
-  `/no-such-path`, `/location/not-a-number`, bad JSON, `/admin/erp/jobs` and `/error` are there for this.
-- CORS stays the hand-written headers of `JWTAuthorizationFilter`.
-
 **1.7**
+- `spring-security.version` leaves the parent: Boot 3.5's BOM pins 6.5. `shouldFilterAllDispatcherTypes(true)` is the default
+  from Security 6: it goes too.
+- **`/error` leaves the path list of `SecurityConfig`.** Boot 3 has no `ErrorPageSecurityFilter`, so the ERROR rule then does the
+  work, and the matrix row `GET /error` becomes 403 for an anonymous caller. Not before: removed on 2.7.18, Security throws
+  `UnsupportedOperationException` from its dummy request and the error bodies are lost (tried 2026-11-09, one golden and that row
+  failed). Until then the ERROR rule does nothing a test can see, since the path rule comes first.
+- From Boot 3 the security filter sees every dispatch type, FORWARD too. The rule is in place, but no code forwards, so no test
+  has run it. No controller is asynchronous either: one returning `SseEmitter`, `Callable` or `DeferredResult` would need ASYNC
+  permitted as well, because the JWT filter runs once per request and the second dispatch has no logged user.
 - `core.support.H2SqlServerModeDialect` goes, and the 38 test files that name it take Hibernate 6's `H2Dialect`, which should
   write OFFSET/FETCH itself (from memory, to read).
 - The BOM changes the libraries under POI again. `ExcelLibrariesTest` covers the three classes known today. Keep
@@ -206,6 +209,13 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 - Under `validate`, the startup T-SQL runs after the check: `TillSchemaUpgrade`, `UserBadgeCodeIndex`,
   `StoreErpCustomerIndex`, `StoreOrderDraftIndex`, `JdbcCatalogueState`.
 - `devenv/rehearsal.ps1` and `setup-stores.ps1` create databases: they keep `update` by `-Set`. Documented with `configs/local`.
+
+**1.9**
+- `AntPathRequestMatcher` should be deprecated in Security 6.5 and gone in 7 (from memory, to read): `SecurityConfig.paths` and
+  `HeadOfficeApiSecurityConfig.storeApiChain` move to `PathPatternRequestMatcher`, one class on an embedded and an external
+  Tomcat. Do not use `requestMatchers(String...)` before 7: on 5.8 it follows Spring MVC's rules and builds another class on
+  an external Tomcat (JSP servlet) than in the tests. The matrix rows `/config/`, `/CONFIG`, `/login/x`, `/hox` and `/ho`, written
+  on the old chains, say whether the matching moved.
 
 **1.9, 2.8: the merges of `release/3.1.2`**
 - The first brings the security fixes (`50a5cb8`, `2e05b3a`; front `e708da8`). Re-record the 5 goldens that hold the fields
@@ -265,12 +275,8 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 - **Encrypted connections against a customer's server cannot be proved from here**: no installation and no test goes there.
   What can differ on a site: an older Windows Server may offer only TLS suites that JDK 25 refuses (from memory, JDK 24 disabled
   `TLS_RSA_*`: to read), SQL Server may force encryption or hold its own certificate. So the guide has a step **before** the
-  night, on each site, with Zein's check of the SQL Server version (decision 2): a small read-only connection with JDK 25 and
-  the WAR's driver, showing `encrypt_option`. A failed handshake is then found the day before. To decide at 2.8: ship that check
-  as a small tool.
-- An earlier signal, if Zein wants it: the two options are harmless on 3.1.2's driver 7.4.1 (2026-11-09: 8 of 8 local lines,
-  encrypted, on JDK 21 and 23, same speed). A site's outside file can take them while it still runs 3.1.2, which shows that
-  its server accepts an encrypted connection. It does not replace the check above: the JDK and the driver differ.
+  night, on each site, with Zein's check of the SQL Server version (decision 2): the read-only connection test of decision 21,
+  written here. A failed handshake is then found the day before. The options themselves go in on the night, not before.
 - `trustServerCertificate=true` encrypts but does not check who answers. It is better than today (nothing encrypted after the
   login), and it is the choice of decision 2. A site with a real certificate can use `trustServerCertificate=false` and
   `hostNameInCertificate` instead: one line in the guide.
@@ -298,6 +304,7 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 | 12 | **One JWT secret for all.** `SecurityParams.SECRET` is a constant in the source and `JWTAuthorizationFilter` checks only the signature, so a token made by any installation should open the main chain of any other, customers included, for 5 months. Read in the code, not tried. | Decision 18: `security.jwt.secret` at 2.8. |
 | 13 | **The badge code travelled like the hash did, and `/user-account` checked nothing.** Called as a cashier: `GET /user-account` gave every badge code, `POST /badge/scan` a till right with one; `POST /user-account/1/badge/generate` the admin's new badge; `PUT /user-account/1` set the admin's password, and logging in with it worked. | Closed on `release/3.1.2`, `2e05b3a` and front `e708da8` (2026-11-09): the permissions of the Users pages on the API, `badgeCode` write-only in the entity, `PUT /company-info` behind the page's permission. Replayed live: all refused. On this branch after the merge of 1.9. Not closed on `hotfix/1.12.1` (EMTOP): same hole, read only, not changed; EMTOP gets it by moving to 3.1.2 (decision 19). |
 | 14 | **The rest of the API.** Most endpoints still ask only for a logged user, though the front shows them to some roles only: a cashier can call them directly. `/user-account` was the worst, because it gave the admin account. A pass over the other writes, endpoint by endpoint, is its own piece of work. | Zein, after the migration |
+| 15 | **`/sse-endpoint/**`.** Public in `SecurityConfig` and let through by `LicenseFilter`, but no handler exists: no `SseEmitter` in the code. A dead entry, harmless today, that would make a future endpoint under that path public without a licence. | Zein: remove it when convenient |
 
 ## Baseline (step 1.0)
 
@@ -364,3 +371,4 @@ The only difference between the lists is `rfid-reader-api-2.11-zs1.jar`, in the 
 | 1.3b | 2026-11-09 | `1e90497` | 2,098 tests, 0 failures, 0 errors, the same 3 skipped. Every connector started on the closed local port (emtop, zen, happyness and parafendri on a head office, parafendri on a store). The record counts 145 beans (112 and 33), all built. The ERROR line of a badly written address. Security fixes on `release/3.1.2` the same day, `2e05b3a` and front `e708da8` (1,902 tests there, 0 failures). |
 | 1.4 | 2026-11-09 | `79eb411` | 2,106 tests (8 new), 0 failures, 0 errors, the same 3 skipped, with `-Dzsretail.migtest.required=true`. **The startup tests ran**: store 8, linked 5, ERP store 1, RFID 1, refusal 1, head office 8, ERP head office 4, the two matrices 5 each, none skipped, on `zsretail_migtest`, dropped afterwards. No bean cycle in any start. Goldens: 10 lines of `"message":""` removed, nothing else. `configuration-keys.txt`: the 4 logging keys renamed in 21 lines and `spring.datasource.url` with the two options in 18, no other value changed. Store WAR 130 to 76 jars, 91 to 66 MB; head office 128 to 75, 88 to 63 MB ([store diff](diffs/step-1.4-store-war-jars.diff), [head office diff](diffs/step-1.4-headoffice-war-jars.diff), against `baseline/`). Per project: erp-api 3, parafendri 91, zen 81, core 534, head office 345, store 677, network-tests 375. No instance started outside the tests. This doc said `ConfigFileApplicationListener` was gone at 2.7: it still exists there, legacy, and the tests moved to the real post-processor anyway. |
 | 1.5 | 2026-11-09 | `eb49d31` | 2,106 tests, 0 failures, 0 errors, the same 3 skipped, twice from clean, with `-Dzsretail.migtest.required=true`. **The startup tests ran**: store 8, linked 5, ERP store 1, RFID 1, refusal 1, head office 8, ERP head office 4, the two matrices 5 each, none skipped, on `zsretail_migtest`, dropped afterwards. javac runs with `--release 21 -proc:full -parameters`. Every class is at version 65, in every project and in the WAR, and nothing that reads class files complained (Spring 5.3's ASM, Byte Buddy 1.12.23, AspectJ 1.9.7, Mockito 4.5). Only Lombok and the configuration processor were on the compile path, and both are named: the compile gives the same files as before, the metadata files identical. The goldens and records did not change. WAR jars the same as step 1.4. The compiler plugin is 3.14.1, ahead of Boot's 3.10.1, because from 3.12 the processor paths take their versions from the BOM. `configs/local`: the two options added on its 8 lines (not in git), harmless on `release/3.1.2`'s driver 7.4.1: 8 of 8 connect encrypted, on JDK 21 and 23, same speed, and `InstallationSummary` still reads the database name. These runs took 12:55 and 12:29, against 4:13 and 5:27 in the morning. **Not this step**: side by side at the same time, the previous commit took 226 and 230 s, this one 223 and 224 s. The laptop was on battery, the CPU at 56% of its performance. No instance started outside the tests. |
+| 1.6 | 2026-11-09 | this commit | 2,108 tests (2 new), 0 failures, 0 errors, the same 3 skipped, with `-Dzsretail.migtest.required=true`, 6:45. **The startup tests ran**: store 9, linked 5, ERP store 1, RFID 1, refusal 1, head office 9, ERP head office 4, the two matrices 5 each, none skipped, on `zsretail_migtest`, dropped afterwards. Security 5.8.16: both chains are `SecurityFilterChain` beans on `authorizeHttpRequests`, and no `WebSecurityConfigurerAdapter` is left. New matrix rows on how a path matches ran first on the old chains, where one expectation of mine proved wrong (`/ho` with a store key is 401, the key's filter reads only `/ho/...`), then passed unchanged on the new ones. No golden and no record changed. `SecurityChains` checks on the real starts: two chains, `/ho/**` first, `AuthorizationFilter` on both. CORS untouched. The matchers are named `AntPathRequestMatcher`, not strings, so the matching is today's on an embedded and an external Tomcat. The ERROR rule is on the main chain only: that dispatch goes to `/error`, and the `/ho/**` rows and goldens pass without it. WARs: the 4 security jars change version, nothing else. No instance started outside the tests. |

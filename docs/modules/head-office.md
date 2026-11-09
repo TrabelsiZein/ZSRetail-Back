@@ -521,7 +521,7 @@ Store-to-head-office calls, server to server: no user, no JWT, no CORS. The stor
 
 **Headers**: `X-Store-Code` (the store's code; trimmed, any case) and `X-Store-Key` (the key shown once on the Stores page).
 
-**Security chain**: `headoffice/security/HeadOfficeApiSecurityConfig`, a Spring Security chain of its own for `/ho/**`, `@Order(0)`, before the main `SecurityConfig` (order 1), which is unchanged for every other path (login, `/franchise/**` and the rest answer as before).
+**Security chain**: `core/link/security/HeadOfficeApiSecurityConfig`, a Spring Security chain of its own for `/ho/**`, `@Order(0)`, before the main `SecurityConfig` (order 1), which is unchanged for every other path (login, `/franchise/**` and the rest answer as before).
 - Stateless, CSRF off (`POST /ho/heartbeat`).
 - No JWT filter in it: a user token never opens `/ho/**`. The main chain ignores the two store headers: a store key opens nothing outside `/ho/**`.
 - Every request needs the authority `HO_STORE`, which only the filter gives: `/ho/**` fails closed.

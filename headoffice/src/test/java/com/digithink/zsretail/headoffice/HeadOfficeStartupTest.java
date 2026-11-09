@@ -15,6 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.web.FilterChainProxy;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.erp.enumeration.ErpSyncJobType;
@@ -36,6 +37,7 @@ import com.digithink.zsretail.core.service.UserBadgeCodeIndex;
 import com.digithink.zsretail.core.support.GoldenJson;
 import com.digithink.zsretail.core.support.MigTestApplication;
 import com.digithink.zsretail.core.support.MigTestDatabase;
+import com.digithink.zsretail.core.support.SecurityChains;
 import com.digithink.zsretail.erp.api.ErpSyncWarningException;
 import com.digithink.zsretail.headoffice.service.HeadOfficeErpGuard;
 import com.digithink.zsretail.headoffice.service.StoreErpCustomerIndex;
@@ -103,6 +105,12 @@ class HeadOfficeStartupTest {
 		assertEquals(headOffice.context().getEnvironment().getProperty("app.version"),
 				headOffice.bean(AppVersionRepository.class).findAll().get(0).getVersion());
 		assertEquals(1, headOffice.bean(CompanyInformationRepository.class).count());
+	}
+
+	@Test
+	@DisplayName("The two security chains, /ho/** first, on AuthorizationFilter")
+	void securityChains() {
+		SecurityChains.assertTheTwoChains(headOffice.bean(FilterChainProxy.class));
 	}
 
 	@Test

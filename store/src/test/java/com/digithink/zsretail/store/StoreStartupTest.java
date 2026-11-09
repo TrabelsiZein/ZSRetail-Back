@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.web.FilterChainProxy;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.config.SqlServerVersionCheck;
@@ -31,6 +32,7 @@ import com.digithink.zsretail.core.service.UserBadgeCodeIndex;
 import com.digithink.zsretail.core.support.GoldenJson;
 import com.digithink.zsretail.core.support.MigTestApplication;
 import com.digithink.zsretail.core.support.MigTestDatabase;
+import com.digithink.zsretail.core.support.SecurityChains;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -102,6 +104,12 @@ class StoreStartupTest {
 		assertEquals("90", System.getProperty("LOGBACK_ROLLINGPOLICY_MAX_HISTORY"));
 		assertEquals(String.valueOf(3L * 1024 * 1024 * 1024), System.getProperty("LOGBACK_ROLLINGPOLICY_TOTAL_SIZE_CAP"));
 		assertEquals("true", System.getProperty("LOGBACK_ROLLINGPOLICY_CLEAN_HISTORY_ON_START"));
+	}
+
+	@Test
+	@DisplayName("The two security chains, /ho/** first, on AuthorizationFilter")
+	void securityChains() {
+		SecurityChains.assertTheTwoChains(store.bean(FilterChainProxy.class));
 	}
 
 	@Test

@@ -93,6 +93,11 @@ class HeadOfficeSecurityMatrixTest {
 				.row("GET", "/company-info", 200, 403, 200, 200, 200, 200, 200)
 				.row("GET", "/license/status", 200, 403, 200, 200, 200, 200, 200)
 				.row("GET", "/error", 500, 403, 500, 500, 500, 500, 500) // public since step 1.4 for its bodies; called directly it has no error to show
+				// How a path matches, written before step 1.6 moved the chains: exactly, whatever Spring MVC would accept
+				.row("GET", "/config/", 403, 403, 200, 403, 403, 403, 403)
+				.row("GET", "/login/x", 404, 403, 404, 404, 404, 404, 404)
+				.row("GET", "/hox", 403, 403, 404, 403, 403, 403, 403)
+				.row("GET", "/ho", 401, 401, 401, 401, 401, 401, 401) // in this chain, but the store key's filter reads only /ho/...
 				// The main chain: a logged user; a store key is nobody here
 				.row("GET", "/location", 403, 403, 200, 403, 403, 403, 403)
 				.row("GET", "/admin/headoffice/stores", 403, 403, 200, 403, 403, 403, 403)

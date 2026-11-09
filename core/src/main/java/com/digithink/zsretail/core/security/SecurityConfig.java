@@ -1,65 +1,73 @@
 package com.digithink.zsretail.core.security;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import java.util.Arrays;
+
+import javax.servlet.DispatcherType;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
 
 @Configuration
-@Order(1)
 @EnableWebSecurity
-public class SecurityConfig extends WebSecurityConfigurerAdapter {
+public class SecurityConfig {
 
-	@Autowired
-	private UserDetailsServiceImpl userDetailsService;
-
-	@Autowired
-	private BCryptPasswordEncoder bCryptPasswordEncoder;
-
-	@Autowired
-	private LicenseFilter licenseFilter;
-
-	@Autowired
-	private ApplicationModeService applicationModeService;
-
-	@Autowired
-	@Override
-	protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-		auth.userDetailsService(userDetailsService).passwordEncoder(bCryptPasswordEncoder);
-	}
-
-	@Override
-	protected void configure(HttpSecurity http) throws Exception {
-		http.csrf().disable().headers().frameOptions().sameOrigin().and().sessionManagement()
-				.sessionCreationPolicy(SessionCreationPolicy.STATELESS).and().authorizeRequests()
-				.antMatchers("/sse-endpoint/**", "/login/**", "/config", "/company-info",
-						"/license/**",
-						// Image serving is public (browser loads directly, no auth header)
-						"/item-image/**",
-						// Boot's error page: since Boot 2.6 its body is blanked for whoever may not reach this path, and the
-						// ERROR dispatch has no logged user (a stateless chain), so every error would answer an empty body
-						"/error")
-				.permitAll().anyRequest().authenticated().and()
-				.addFilter(new JWTAuthenticationFilter(authenticationManagerBean(), applicationModeService))
-				.addFilterBefore(new JWTAuthorizationFilter(), UsernamePasswordAuthenticationFilter.class);
-
-		// License filter runs after JWT auth so we have the authenticated user context when needed
-		http.addFilterAfter(licenseFilter, UsernamePasswordAuthenticationFilter.class);
+	/** The login: this installation's users and their BCrypt hashes. */
+	@Bean
+	public AuthenticationManager authenticationManager(UserDetailsServiceImpl userDetailsService,
+			BCryptPasswordEncoder bCryptPasswordEncoder) {
+		DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+		provider.setUserDetailsService(userDetailsService);
+		provider.setPasswordEncoder(bCryptPasswordEncoder);
+		return new ProviderManager(provider);
 	}
 
 	@Bean
-	@Override
-	public AuthenticationManager authenticationManagerBean() throws Exception {
-		return super.authenticationManagerBean();
+	@Order(1)
+	public SecurityFilterChain mainChain(HttpSecurity http, AuthenticationManager authenticationManager,
+			LicenseFilter licenseFilter, ApplicationModeService applicationModeService) throws Exception {
+		http.csrf(csrf -> csrf.disable()).headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
+				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+				.authorizeHttpRequests(authorize -> authorize.shouldFilterAllDispatcherTypes(true)
+						// Before the dispatcher rule: Boot's ErrorPageSecurityFilter asks about /error with a request that
+						// throws on getDispatcherType
+						.requestMatchers(paths("/sse-endpoint/**", "/login/**", "/config", "/company-info", "/license/**",
+								// Image serving is public (browser loads directly, no auth header)
+								"/item-image/**",
+								// Boot's error page: since Boot 2.6 its body is blanked for whoever may not reach this path,
+								// and the ERROR dispatch has no logged user (a stateless chain), so every error would answer
+								// an empty body
+								"/error"))
+						.permitAll()
+						// The JWT filter runs once per request: a dispatch of the container itself has no logged user
+						.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
+						.anyRequest().authenticated())
+				.addFilter(new JWTAuthenticationFilter(authenticationManager, applicationModeService))
+				.addFilterBefore(new JWTAuthorizationFilter(), UsernamePasswordAuthenticationFilter.class)
+				// License filter runs after JWT auth so we have the authenticated user context when needed
+				.addFilterAfter(licenseFilter, UsernamePasswordAuthenticationFilter.class);
+		return http.build();
+	}
+
+	/**
+	 * Named ant matchers, not requestMatchers(String...): those follow Spring MVC's rules (/config/ would open with /config),
+	 * and build another class on an external Tomcat, whose JSP servlet is a second servlet, than in the embedded Tomcat of
+	 * the tests.
+	 */
+	private static RequestMatcher[] paths(String... patterns) {
+		return Arrays.stream(patterns).map(AntPathRequestMatcher::antMatcher).toArray(RequestMatcher[]::new);
 	}
 }

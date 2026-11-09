@@ -60,6 +60,12 @@ class StoreSecurityMatrixTest {
 				.row("GET", "/license/status", 200, 403, 200, 200)
 				.row("GET", "/item-image/ITEM/1", 404, 403, 404, 404) // no such image, but the chain let it through
 				.row("GET", "/error", 500, 403, 500, 500) // public since step 1.4 for its bodies; called directly it has no error to show
+				// How a path matches, written before step 1.6 moved the chains: exactly, whatever Spring MVC would accept
+				.row("GET", "/config/", 403, 403, 200, 200)
+				.row("GET", "/CONFIG", 403, 403, 404, 404)
+				.row("GET", "/login/x", 404, 403, 404, 404)
+				.row("GET", "/hox", 403, 403, 404, 404)
+				.row("GET", "/ho", 401, 401, 401, 401)
 				// Any logged user
 				.row("GET", "/location", OK)
 				.row("GET", "/user-account/current", OK)
