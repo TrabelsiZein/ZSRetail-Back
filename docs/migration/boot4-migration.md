@@ -2,7 +2,7 @@
 
 Branch `feature/boot4-migration`, from `release/3.1.2`. Product version 4.0.0. Plan approved by Zein on 2026-11-08.
 
-**Status: step 1.2 done. Next: step 1.3.** Each step starts only on Zein's go.
+**Status: step 1.3 done. Next: step 1.4.** Each step starts only on Zein's go.
 
 | | Today | Target |
 |---|---|---|
@@ -68,7 +68,7 @@ them one-line edits.
 | 1.0 | Record the real baseline: suite per module, WAR jar lists, build command, Java and Maven versions. No code change. | 2.3.9 | 0 |
 | 1.1 | Remove the unused list (decision 7, 8). Version 4.0.0 and its CHANGELOG section. Compare the WAR jars with the baseline. Pin the `Accept` header in the connector tests. | 2.3.9 | 26 |
 | 1.2 | Safety nets: startup tests of both applications on `zsretail_migtest`, a status matrix on the real security chains, golden JSON of key DTOs and entities. | 2.3.9 | 17 new, 136 golden files |
-| 1.3 | Edits the current API allows: `fromUriString`, `getStatusCode().value()`, company info fix, dead annotations. SQL Server version check: refuses below 2017. | 2.3.9 | ~14 |
+| 1.3 | Edits the current API allows: `fromUriString`, `getStatusCode().value()`, company info fix, dead annotations. SQL Server version check: refuses below 2017. | 2.3.9 | 42 (17 are tests' one-line edits) |
 | 1.4 | Boot 2.7.18: config-data tests, naming strategy, H2 2.1, logging keys, bean cycles, connection strings. POI upgrade. | 2.7.18 | 40–50 |
 | 1.5 | Java 21: `release=21`, Lombok in the pom, processor paths, `proc=full`. | 2.7.18 | ~8 |
 | 1.6 | `SecurityFilterChain` and lambda DSL on Security 5.8. ERROR and FORWARD dispatches permitted. | 2.7.18 | ~6 |
@@ -318,3 +318,5 @@ The only difference between the lists is `rfid-reader-api-2.11-zs1.jar`, in the 
 | 1.0 | 2026-11-08 | tested `53c8996`, no code change; recorded in `f15fb36` | 1,884 tests, 0 failures, 0 errors, 3 skipped. Both WARs built. |
 | 1.1 | 2026-11-08 | `0387307` | 1,888 tests (the 1,884 and 4 new), 0 failures, 0 errors, the same 3 skipped. Store WAR 263 to 130 jars, 173 to 91 MB; head office WAR 262 to 128, 170 to 88 MB ([store diff](diffs/step-1.1-store-war-jars.diff), [head office diff](diffs/step-1.1-headoffice-war-jars.diff)). `commons-lang3` declared by the store. No instance started. |
 | 1.2 | 2026-11-08 | `11c064a` | 2,069 tests (the 1,888 and 181 new), 0 failures, 0 errors, the same 3 skipped, twice in a row, 2 min 10 s, with `-Dzsretail.migtest.required=true`. **The startup tests ran**: `StoreStartupTest` 6, `RfidStoreStartupTest` 1, `HeadOfficeStartupTest` 8, `StoreSecurityMatrixTest` 5, `HeadOfficeSecurityMatrixTest` 5, none skipped, on `zsretail_migtest`, dropped afterwards. Per project: parafendri 91, zen 81, core 516, head office 341, store 667, network-tests 373. No main class changed. |
+| 1.2b | 2026-11-09 | `8a7a668` | 2,078 tests (9 new), 0 failures, 0 errors, the same 3 skipped. `LinkedStoreStartupTest` 5 and `ErpHeadOfficeStartupTest` 2 ran, on the closed local port. All 112 recorded beans built, compared once on the real contexts. Password fix on `release/3.1.2` the same day, `50a5cb8` (1,889 tests there, 0 failures). |
+| 1.3 | 2026-11-09 | `049b59a` | 2,089 tests (11 new), 0 failures, 0 errors, the same 3 skipped, with `-Dzsretail.migtest.required=true`. **The startup tests ran**: store 7, linked 5, RFID 1, refusal 1, head office 8, ERP 2, the two matrices 5 each, none skipped, on `zsretail_migtest`, dropped afterwards. No golden file changed. Per project: parafendri 91, zen 81, core 527, head office 343, store 674, network-tests 373. No instance started outside the tests. |
