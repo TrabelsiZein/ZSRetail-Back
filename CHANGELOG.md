@@ -240,6 +240,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   catalogue: `core.service.ItemMainImages` (`ItemMainImagesTest`).
 
 ### Fixes
+- **Security: the password hash no longer reaches the browser.** `UserAccount.password` was written in every answer that
+  serves an entity embedding its user: `POST /cashier-session/open`, `GET /cashier-session/current` and the list
+  `GET /cashier-session` (open to any logged user) answered with `cashier.password`, a bcrypt hash, and so did tickets,
+  returns, payments, purchases and invoices. It is now read from JSON only (`@JsonProperty(access = WRITE_ONLY)`) and left
+  out of `toString`; the front never read it, and no relation to a user cascades, so an entity sent back without it
+  changes no password (`UserAccountPasswordJsonTest`).
 - Journal gains: a day's (and a month's) cost and margin are the sum of its tickets' and returns' figures rounded to
   the millime as shown, not the rounding of the unrounded sums (could differ by a millime, 28.782 vs 28.781); the day
   list and the day journal share the rule (`JournalCosts.day`, `JournalMarginsTest.daySumsTheRowsAsShown`).

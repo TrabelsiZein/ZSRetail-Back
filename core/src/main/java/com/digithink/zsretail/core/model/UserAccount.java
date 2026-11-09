@@ -13,10 +13,12 @@ import javax.persistence.Transient;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 /**
  * User account entity with authentication and authorization
@@ -32,6 +34,12 @@ public class UserAccount extends _BaseEntity implements UserDetails {
 	@Column(unique = true, nullable = false)
 	private String username;
 
+	/**
+	 * The bcrypt hash. Read from JSON, never written: every entity that embeds its user (a cashier session, a ticket, a
+	 * return...) carried it to the browser. Never in a toString either.
+	 */
+	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+	@ToString.Exclude
 	@Column(nullable = false)
 	private String password;
 
