@@ -10,7 +10,7 @@ $old = $env:JAVA_HOME
 $env:JAVA_HOME = $DevJdk
 try {
 	Push-Location $DevRepo
-	& mvn -q -gs $DevMvnSettings '-Dlombok.version=1.18.36' -DskipTests clean package
+	& mvn -q -gs $DevMvnSettings -DskipTests clean package
 	if ($LASTEXITCODE -ne 0) { throw "mvn package failed ($LASTEXITCODE)" }
 } finally {
 	Pop-Location

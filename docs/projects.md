@@ -16,11 +16,12 @@ be: `history/project-sorting.md` (code cleanup steps 5 to 7).
 
 ## Java target
 
-The parent's `<java.version>` stays 11, though the build and the customer servers run JDK 21 or later. Spring Boot
-2.3.9 brings Spring Framework 5.2.13, whose ASM copy reads class files up to Java 15 (major version 59): with target 21
-(tried 2026-10-23) the code compiles, but the scanning of components, entities and repositories fails on
-"Unsupported class file major version 65", in the tests and at startup alike. Moving the target needs the Spring Boot
-upgrade, a separate topic after 2026-10-30.
+The parent's `<java.version>` is 21, compiled with `--release 21` (Boot 4 migration, step 1.5), so the WARs need JDK 21 or
+later. The release branches stay at 11: Spring Framework 5.2's ASM copy reads class files up to Java 15, and the scanning of
+components, entities and repositories fails on anything newer.
+
+The annotation processors are named in the parent's `maven-compiler-plugin`: Lombok and the configuration processor. A
+processor that is only on the class path does not run, so a new one goes there too.
 
 ## Where a class goes
 

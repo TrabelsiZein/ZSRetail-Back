@@ -2,9 +2,9 @@
 
 Branch `feature/boot4-migration`, from `release/3.1.2`. Product version 4.0.0. Plan approved by Zein on 2026-11-08.
 
-**Status: step 1.4 done. Next: step 1.5.** Each step starts only on Zein's go.
+**Status: step 1.5 done. Next: step 1.6.** Each step starts only on Zein's go.
 
-| | Today | Target |
+| | At the start (2026-11-08) | Target |
 |---|---|---|
 | Spring Boot | 2.3.9 | 4.0.x, then the latest 4.1.x (the first deployment is on 4.1) |
 | Stops inside the branch, never deployed | | 2.7.18, then 3.5.16 (the compile checkpoint), then 4.0.x |
@@ -46,7 +46,7 @@ report of step 1.2.
 | 6 | Startup tests are allowed, against a throwaway local SQL Server database named `zsretail_migtest` **only**, created and dropped by the tests. Never Store A, never a customer database, never an existing local database. Its connection details are in a test-only properties file. When it is unreachable the startup tests are skipped with a clear message, not failed. | 1.2 |
 | 7, 8 | Removed: springdoc, springfox, spring-security-oauth2, jasperreports (with iText, castor, jfreechart), firebase-admin, jsoup, modelmapper, commons-io 1.4, starter-webflux, reactor-core, starter-mail, starter-thymeleaf (and the `/thymeleaf` entries in `SecurityConfig` and `LicenseFilter`), jackson-dataformat-xml. The lone `@NotBlank` on `ErpSyncJob` is deleted; starter-validation is not added. Nothing is planned for Firebase or Jasper. | 1.1 |
 | 9 | Base branch `feature/boot4-migration` from `release/3.1.2`. Product version 4.0.0. Customer fixes continue on `release/3.1.2` and are merged into this branch at the end of each phase. A freeze applies only during step 1.7. | all |
-| 10 | The 2.7.18 internal stop is approved. Build on JDK 25 with `--release 21`. Lombok goes in the pom at step 1.5, so `-Dlombok.version` disappears. | 1.4, 1.5, 2.6 |
+| 10 | The 2.7.18 internal stop is approved. Build on JDK 25 with `--release 21`. Lombok goes in the pom at step 1.5, so `-Dlombok.version` disappears on this branch (1.18.48). The release branches keep the flag: their Lombok 1.18.18 fails on JDK 21. | 1.4, 1.5, 2.6 |
 | 11 | The `spring.jackson.use-jackson2-defaults` decisions are taken at step 2.4. | 2.4 |
 | 12 | The charset of the licence fingerprint is covered by a test at step 2.6. | 2.6 |
 | 13 | **Flyway**, added at step 1.8. `db/migration/{common,store,headoffice}/V<version>__<description>.sql` in core resources (split approved: both WARs carry core, and Flyway refuses two scripts of one version in its locations), `spring.flyway.locations` in each type file, one script per change. `V4.0.0__baseline.sql` is the full schema, generated per database type at 1.8 (`scripts.action=create`, reviewed), frozen forever. The 4.0.0 catch-up deltas are separate `V4.0.0.x` scripts. `baseline-on-migrate`: an existing 3.1.2 database marks the baseline as applied on its first start. Flyway replaces the manual `update.sql` run and `AppVersionGuard`; the guard stays only for what Flyway cannot check. The `db/<version>` folders stay as history, untouched. | 1.8 |
@@ -72,7 +72,7 @@ them one-line edits.
 | 1.2 | Safety nets: startup tests of both applications on `zsretail_migtest`, a status matrix on the real security chains, golden JSON of key DTOs and entities. | 2.3.9 | 17 new, 136 golden files |
 | 1.3 | Edits the current API allows: `fromUriString`, `getStatusCode().value()`, company info fix, dead annotations. SQL Server version check: refuses below 2017. | 2.3.9 | 42 (17 are tests' one-line edits) |
 | 1.4 | Boot 2.7.18: config-data tests, naming strategy, H2 2.1, logging keys, bean cycles, connection strings. POI upgrade. | 2.7.18 | 101 (54 tests and 3 new, 19 configs, 10 goldens, 5 main classes, 2 poms, docs) |
-| 1.5 | Java 21: `release=21`, Lombok in the pom, processor paths, `proc=full`. | 2.7.18 | ~8 |
+| 1.5 | Java 21: `release=21`, Lombok in the pom, processor paths, `proc=full`. | 2.7.18 | 7, and the root `CLAUDE.md` |
 | 1.6 | `SecurityFilterChain` and lambda DSL on Security 5.8. ERROR and FORWARD dispatches permitted. | 2.7.18 | ~6 |
 | 1.7 | **Freeze.** Boot 3.5.16: jakarta rename, Hibernate 6.6, Security 6.5, HttpClient 5 with the erp-api helper and the timeouts, dialect keys, `WarLauncher`. | 3.5.16 | ~210 |
 | 1.8 | Behaviour the tests expose (HQL, casts, null parameters). Flyway: baseline per database type, catch-up `V4.0.0.x` scripts, `baseline-on-migrate`, `AppVersionGuard` out. `ddl-auto=validate`. Enum CHECK constraints confirmed. | 3.5.16 | 30–50 |
@@ -156,10 +156,6 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 
 ## What each step must not forget
 
-**1.5**
-- JDK 23 and later skip annotation processors unless told. `-Dlombok.version` also leaves `devenv/build.ps1:13` and both
-  `CLAUDE.md`. 15 `Stream.toList()` calls become legal; they compile today only because there is no `--release`.
-
 **1.6**
 - `SecurityConfig.java:48`, `HeadOfficeApiSecurityConfig.java:43`. Authorization applies to every dispatch type from
   Security 6: without ERROR and FORWARD, a real error is expected to come back as 401 or 403. The main chain has permitted
@@ -173,6 +169,8 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 - The BOM changes the libraries under POI again. `ExcelLibrariesTest` covers the three classes known today. Keep
   `commons-lang3.version` unless Boot 3.5's BOM reaches 3.18.0. Compare at class and method level, as step 1.4 did, what POI,
   xmlbeans and commons-compress call with what the WAR holds: a green suite does not see it.
+- `maven-compiler-plugin.version` leaves the parent: Boot 3.5.16's BOM pins the same 3.14.1. `lombok.version` stays (1.18.46
+  there).
 - Rename only `javax.persistence`, `servlet`, `annotation`, `validation`: 176 files plus 57 inline lines. Never
   `javax.imageio`, `javax.net.ssl` or `libs/hopeland` (`javax.usb`).
 - The helper: `DynamicsNavConfig`, `NavPosPagesConfig`, `ParafendriConfig`, `ZenConfig`, and `ZenProductsClient` (no auth).
@@ -246,12 +244,36 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 **2.6**
 - `MachineFingerprintService.java:171` reads `vol` with the default charset, which becomes UTF-8. A regex and a WMI
   fallback protect it, but a changed fingerprint would lock a site.
+- Lombok 1.18.48 should compile on JDK 25 (from memory, to prove here). Eclipse has its own agent, `lombok.jar` 1.18.36, on its
+  own JVM (23): it follows if Eclipse moves to JDK 25.
+
+**2.7: the watch points of the real proof**
+- **POI's libraries on the real WAR.** commons-codec and log4j-api stay at what Boot's BOM pins, below what POI 5.5.1 asks for
+  (1.15 against 1.20.0, 2.17.2 against 2.24.3 at step 1.4; 1.18.0 and 2.24.3 in Boot 3.5.16's BOM; read Boot 4's). 22,024 calls
+  of POI and its libraries were compared with the WAR and none is missing, but that says the methods exist, not that they
+  behave as a newer version would, and only the Excel tests have run them. On the real WAR: a data import of a .xlsx
+  (`DataImportService`), an inventory file (`InventoryFileReader`), the Journal export (`JournalExcel`), a damaged file (a clean
+  error, not a `NoClassDefFoundError` or `NoSuchMethodError`), then read the log.
+- **Encrypted connections, the local case.** On the real start under JDK 25 and Tomcat 11, with the final driver, read
+  `encrypt_option` in `sys.dm_exec_connections`: TRUE. This proves SQL Server 2019 on this Windows 11 only: see 2.8.
 
 **2.8**
 - The deploy guide: every site's outside file gets `;encrypt=true;trustServerCertificate=true` on its `jdbc:sqlserver` line.
   The driver encrypts by default since 10.2, so without them a server with its own certificate refuses the connection and the
-  start fails. `configs/local` is Zein's, by hand. An outside file with `logging.file.*` lines moves them to
-  `logging.logback.rollingpolicy.*`: none is tracked.
+  start fails: seen on 2026-11-09, 8 of 8 local lines on driver 10.2.3. An outside file with `logging.file.*` lines moves them
+  to `logging.logback.rollingpolicy.*`: none is tracked.
+- **Encrypted connections against a customer's server cannot be proved from here**: no installation and no test goes there.
+  What can differ on a site: an older Windows Server may offer only TLS suites that JDK 25 refuses (from memory, JDK 24 disabled
+  `TLS_RSA_*`: to read), SQL Server may force encryption or hold its own certificate. So the guide has a step **before** the
+  night, on each site, with Zein's check of the SQL Server version (decision 2): a small read-only connection with JDK 25 and
+  the WAR's driver, showing `encrypt_option`. A failed handshake is then found the day before. To decide at 2.8: ship that check
+  as a small tool.
+- An earlier signal, if Zein wants it: the two options are harmless on 3.1.2's driver 7.4.1 (2026-11-09: 8 of 8 local lines,
+  encrypted, on JDK 21 and 23, same speed). A site's outside file can take them while it still runs 3.1.2, which shows that
+  its server accepts an encrypted connection. It does not replace the check above: the JDK and the driver differ.
+- `trustServerCertificate=true` encrypts but does not check who answers. It is better than today (nothing encrypted after the
+  login), and it is the choice of decision 2. A site with a real certificate can use `trustServerCertificate=false` and
+  `hostNameInCertificate` instead: one line in the guide.
 - `security.jwt.secret` (decision 18): `SecurityParams.SECRET` goes; `JWTAuthorizationFilter` and `JWTAuthenticationFilter`
   read the key. No line, or a blank one, stops the start with a message that says how to make one. Every tracked config
   has `CHANGE_ME`, never a real value; `ConfigurationKeysProofTest` records it as `(set)`. `MigTestApplication` gives a test
@@ -341,3 +363,4 @@ The only difference between the lists is `rfid-reader-api-2.11-zs1.jar`, in the 
 | 1.3 | 2026-11-09 | `049b59a` | 2,089 tests (11 new), 0 failures, 0 errors, the same 3 skipped, with `-Dzsretail.migtest.required=true`. **The startup tests ran**: store 7, linked 5, RFID 1, refusal 1, head office 8, ERP 2, the two matrices 5 each, none skipped, on `zsretail_migtest`, dropped afterwards. No golden file changed. Per project: parafendri 91, zen 81, core 527, head office 343, store 674, network-tests 373. No instance started outside the tests. |
 | 1.3b | 2026-11-09 | `1e90497` | 2,098 tests, 0 failures, 0 errors, the same 3 skipped. Every connector started on the closed local port (emtop, zen, happyness and parafendri on a head office, parafendri on a store). The record counts 145 beans (112 and 33), all built. The ERROR line of a badly written address. Security fixes on `release/3.1.2` the same day, `2e05b3a` and front `e708da8` (1,902 tests there, 0 failures). |
 | 1.4 | 2026-11-09 | `79eb411` | 2,106 tests (8 new), 0 failures, 0 errors, the same 3 skipped, with `-Dzsretail.migtest.required=true`. **The startup tests ran**: store 8, linked 5, ERP store 1, RFID 1, refusal 1, head office 8, ERP head office 4, the two matrices 5 each, none skipped, on `zsretail_migtest`, dropped afterwards. No bean cycle in any start. Goldens: 10 lines of `"message":""` removed, nothing else. `configuration-keys.txt`: the 4 logging keys renamed in 21 lines and `spring.datasource.url` with the two options in 18, no other value changed. Store WAR 130 to 76 jars, 91 to 66 MB; head office 128 to 75, 88 to 63 MB ([store diff](diffs/step-1.4-store-war-jars.diff), [head office diff](diffs/step-1.4-headoffice-war-jars.diff), against `baseline/`). Per project: erp-api 3, parafendri 91, zen 81, core 534, head office 345, store 677, network-tests 375. No instance started outside the tests. This doc said `ConfigFileApplicationListener` was gone at 2.7: it still exists there, legacy, and the tests moved to the real post-processor anyway. |
+| 1.5 | 2026-11-09 | this commit | 2,106 tests, 0 failures, 0 errors, the same 3 skipped, twice from clean, with `-Dzsretail.migtest.required=true`. **The startup tests ran**: store 8, linked 5, ERP store 1, RFID 1, refusal 1, head office 8, ERP head office 4, the two matrices 5 each, none skipped, on `zsretail_migtest`, dropped afterwards. javac runs with `--release 21 -proc:full -parameters`. Every class is at version 65, in every project and in the WAR, and nothing that reads class files complained (Spring 5.3's ASM, Byte Buddy 1.12.23, AspectJ 1.9.7, Mockito 4.5). Only Lombok and the configuration processor were on the compile path, and both are named: the compile gives the same files as before, the metadata files identical. The goldens and records did not change. WAR jars the same as step 1.4. The compiler plugin is 3.14.1, ahead of Boot's 3.10.1, because from 3.12 the processor paths take their versions from the BOM. `configs/local`: the two options added on its 8 lines (not in git), harmless on `release/3.1.2`'s driver 7.4.1: 8 of 8 connect encrypted, on JDK 21 and 23, same speed, and `InstallationSummary` still reads the database name. These runs took 12:55 and 12:29, against 4:13 and 5:27 in the morning. **Not this step**: side by side at the same time, the previous commit took 226 and 230 s, this one 223 and 224 s. The laptop was on battery, the CPU at 56% of its performance. No instance started outside the tests. |

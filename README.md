@@ -22,7 +22,7 @@ Complete Point of Sale (POS) backend application with role-based access control 
 ✅ **CashCountDetail** - Detailed cash counting at session closure
 
 ## Technology Stack
-- Java 11
+- Java 21
 - Spring Boot 2.7.18 (on its way to 4.x, `docs/migration/boot4-migration.md`)
 - Spring Security with JWT
 - JPA/Hibernate
@@ -39,7 +39,7 @@ deployed alone in its Tomcat as `zsretailws.war` (`docs/deploy-note.md`). The ma
 ## Quick Start
 
 ### Prerequisites
-- Java 11
+- Java 21
 - Maven 3.6+
 - SQL Server Database
 

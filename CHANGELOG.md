@@ -40,6 +40,9 @@ last step.
   non-empty string, so nothing changes on a screen.
 - Step 1.4: the path `/error` is public on the main chain, or Boot 2.6 would blank the body of every error, the ERROR dispatch
   having no logged user. Called directly it answers 500 with no error to show.
+- Step 1.5: Java 21. The code compiles with `--release 21`, so the WARs need JDK 21 or later. Lombok 1.18.48 is in the pom (no
+  more `-Dlombok.version` on this branch), and the annotation processors are named in the parent, so a JDK 23 or later does not
+  skip them.
 
 ### Fixes
 - Step 1.3: the one row of `company_information` is created without an id, so IDENTITY gives it, and is read as the first
