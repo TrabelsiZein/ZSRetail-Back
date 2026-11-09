@@ -24,7 +24,9 @@ last step.
 - Step 1.3: a badly written ERP or head office address (no `http://`, or blank) still fails, but with the HTTP layer's
   message instead of "is not a valid HTTP URL": `UriComponentsBuilder.fromHttpUrl`, gone in Spring 7, became `fromUriString`.
   Every well-formed address builds the same URI. The connectors `zen` and `parafendri` still refuse such an address at
-  startup; `emtop`, `happyness` and `headoffice.url` have no such check.
+  startup; `emtop`, `happyness` and `headoffice.url` refuse nothing, and since step 1.3b write one clear ERROR line at the
+  start naming the key (`ConfiguredAddress`). An empty value stays allowed and silent (`happyness` keeps refusing an empty
+  one, as before), and `HTTP://` in capitals is valid.
 - Step 1.3: the unused `@EnableGlobalMethodSecurity` (no `@PreAuthorize` exists), the `Principal` bean, the second
   `@EnableScheduling` of each application (`SchedulingConfig` has it) and the head office's `@EnableAsync` (it has no
   `@Async`) are gone. No behaviour change: the security matrix and the startup tests are unchanged.
@@ -32,7 +34,8 @@ last step.
 ### Fixes
 - Step 1.3: the one row of `company_information` is created without an id, so IDENTITY gives it, and is read as the first
   row. It was saved with `id=1` and no row: Hibernate 5 inserted it under a generated id anyway, Hibernate 6.6 refuses that,
-  and a new database would not have started. A database with its row at id 1 sees no difference.
+  and a new database would not have started. A database with its row at id 1 sees no difference. Step 1.3b: the seller of
+  a supply invoice is read the same way, ordered by id (it was the first of an unordered `findAll`).
 
 ## 3.1.2 — in progress (branch `release/3.1.2`)
 

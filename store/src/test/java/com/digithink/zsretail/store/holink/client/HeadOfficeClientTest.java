@@ -118,6 +118,32 @@ class HeadOfficeClientTest {
 		assertNull(result.getMessage());
 	}
 
+	/** The ERROR lines of building the client as the application does. */
+	private static java.util.List<String> errorsBuilding(String url) {
+		ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(HeadOfficeClient.class);
+		ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> logs = new ch.qos.logback.core.read.ListAppender<>();
+		logs.start();
+		logger.addAppender(logs);
+		try {
+			new HeadOfficeClient((GeneralSetupService) null, (com.digithink.zsretail.core.config.ApplicationModeService) null, url, "",
+					"4.0.0", 30);
+		} finally {
+			logger.detachAppender(logs);
+		}
+		return logs.list.stream().filter(event -> event.getLevel() == ch.qos.logback.classic.Level.ERROR)
+				.map(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage).collect(java.util.stream.Collectors.toList());
+	}
+
+	@Test
+	@DisplayName("A badly written headoffice.url: one ERROR line naming the key, the client is built; silent when well written, in any case")
+	void badlyWrittenAddress() {
+		java.util.List<String> errors = errorsBuilding("localhost:888/zsretail/api");
+		assertEquals(1, errors.size(), errors.toString());
+		assertTrue(errors.get(0).contains("headoffice.url=localhost:888/zsretail/api"), errors.get(0));
+		assertTrue(errorsBuilding("http://localhost:888/zsretail/api").isEmpty());
+		assertTrue(errorsBuilding("HTTP://LOCALHOST:888/zsretail/api").isEmpty());
+	}
+
 	@Test
 	@DisplayName("401: REFUSED, store code or key refused")
 	void unauthorized() {

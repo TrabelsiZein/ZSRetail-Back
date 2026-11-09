@@ -5,6 +5,8 @@ import org.apache.http.auth.NTCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import java.util.List;
@@ -16,6 +18,7 @@ import org.springframework.web.client.RestTemplate;
 
 import com.digithink.zsretail.connector.emtop.EmtopConnectorDescriptor;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
+import com.digithink.zsretail.erp.api.ConfiguredAddress;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -25,8 +28,17 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 @ConditionalOnErpConnector(EmtopConnectorDescriptor.NAME)
 public class DynamicsNavConfig {
 
+	private static final Logger LOGGER = LoggerFactory.getLogger(DynamicsNavConfig.class);
+
+	static final String BASE_URL_KEY = "erp.emtop.base-url";
+
 	@Bean("dynamicsNavRestTemplate")
 	public RestTemplate dynamicsNavRestTemplate(DynamicsNavProperties properties) {
+		// A badly written address: one clear line at the start, nothing refused (no startup check here)
+		String complaint = ConfiguredAddress.complaint(BASE_URL_KEY, properties.getBaseUrl());
+		if (complaint != null) {
+			LOGGER.error(complaint);
+		}
 		CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
 		credentialsProvider.setCredentials(
 				AuthScope.ANY,

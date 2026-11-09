@@ -112,7 +112,7 @@ class SupplyInvoiceRoundTripTest {
 		company.setMatriculeFiscal("0000001/A/M/000");
 		company.setAddress("1 rue du Lac");
 		CompanyInformationRepository companies = proxy(CompanyInformationRepository.class,
-				(method, args) -> "findAll".equals(method) ? new ArrayList<>(Collections.singletonList(company)) : UNHANDLED);
+				(method, args) -> "findFirstByOrderByIdAsc".equals(method) ? java.util.Optional.of(company) : UNHANDLED);
 		GeneralSetupService setup = new GeneralSetupService() {
 			@Override
 			public String findValueByCode(String code) {

@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.connector.happyness.HappynessConnectorDescriptor;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
+import com.digithink.zsretail.erp.api.ConfiguredAddress;
 import com.digithink.zsretail.erp.api.ErpConnectors;
 
 import lombok.extern.log4j.Log4j2;
@@ -33,6 +34,11 @@ public class NavPosPagesStartupCheck {
 	public NavPosPagesStartupCheck(Environment environment) {
 		check(environment);
 		log.info(summary(environment));
+		// A badly written address: one clear line, nothing refused (an empty one is refused above, as before)
+		String complaint = ConfiguredAddress.complaint(P + "base-url", environment.getProperty(P + "base-url"));
+		if (complaint != null) {
+			log.error(complaint);
+		}
 	}
 
 	/** Throws {@link IllegalStateException} naming the key when the connector cannot start. */

@@ -2,7 +2,7 @@
 
 Branch `feature/boot4-migration`, from `release/3.1.2`. Product version 4.0.0. Plan approved by Zein on 2026-11-08.
 
-**Status: step 1.3 done. Next: step 1.4.** Each step starts only on Zein's go.
+**Status: step 1.3b done. Next: step 1.4.** Each step starts only on Zein's go.
 
 | | Today | Target |
 |---|---|---|
@@ -55,6 +55,8 @@ report of step 1.2.
 | 16 | POI is upgraded at step 1.4, for the jars of open point 8. | 1.4 |
 | 17 | `commons-lang3` stays in the store at `runtime` scope, for the RFID SDK's USB path. | 1.1 |
 | 18 | **The JWT secret becomes a per-installation line `security.jwt.secret`, required at startup**, delivered in step 2.8: `SecurityParams.SECRET` was one constant in the source for every installation. Every site is logged out on the upgrade night anyway. Nothing before 2.8. | 2.8 |
+| 19 | **The security fixes of 2026-11-09 live on `release/3.1.2`, no hotfix branches.** The sites on 2.2.2, 3.1.0 and 3.1.1 get them by moving to 3.1.2. | all |
+| 20 | A badly written address (not empty, not `http://` or `https://`, in any case) of `emtop`, `happyness` or `headoffice.url` gives one ERROR line at the start, naming the key. It refuses nothing. | 1.3b |
 
 ## Steps
 
@@ -109,14 +111,17 @@ indexes of the startup T-SQL (`sys.indexes`: those classes only log a failure); 
 `HeadOfficeErpGuard` on the runner and on the jobs API. 184 of the 188 `@Query` are built by every start, and the 4 of the
 RFID repositories by `RfidStoreStartupTest`.
 
-**The other shapes (step 1.2b).** `LinkedStoreStartupTest` (everything from the head office, the lines of
-`customers/zen-store`) and `ErpHeadOfficeStartupTest` in its two forms (`emtop`, full ERP, the lines of
-`dev/headoffice-erp`; `zen`, catalogue only, the lines of `customers/zen-headoffice`), each started and restarted. Every
-connector and link address is on `MigTestApplication.CLOSED_PORT` (`http://127.0.0.1:1`), the scheduler is off, and
-`nothingCanLeave` refuses any other address, from any source, before a bean exists. Compared once on the real contexts:
-**the starts together build all 112 beans that `installation-beans.txt` records as decided by the installation** (a plain
-store 0, RFID 14, a head office 35, a linked store 40, `emtop` 25, `zen` 50). Never started: 18 classes behind
-`@ConditionalOnErpConnector` of `happyness` (10) and `parafendri` (8), which that record does not count.
+**The other shapes (steps 1.2b, 1.3b).** `LinkedStoreStartupTest` (everything from the head office, the lines of
+`customers/zen-store`), `ErpStoreStartupTest` (a store on an ERP, `parafendri`, the lines of `customers/parafendri-store`) and
+`ErpHeadOfficeStartupTest` in its four forms (`emtop`, full ERP, the lines of `dev/headoffice-erp`; `zen`, `happyness` and
+`parafendri`, catalogue only), each started and restarted. Every connector and link address is on
+`MigTestApplication.CLOSED_PORT` (`http://127.0.0.1:1`), the scheduler is off, and `nothingCanLeave` refuses any other address,
+from any source, before a bean exists.
+
+`installation-beans.txt` now counts the ERP conditions too: 145 decided beans (112 and 33: zen 11, happyness 10, parafendri 8,
+emtop 3, `NoOpErpConnector`). The 10 `@ConditionalOnErpAbility` classes were already counted through their other condition.
+Each line of the file was rewritten, and compared bean by bean: none lost in any of the 31 lines. **Compared once on the real
+contexts of these starts: all 145 are built.** The two catalogue classes of `parafendri` exist only on a head office.
 
 **Status matrix.** `StoreSecurityMatrixTest`, `HeadOfficeSecurityMatrixTest`: real HTTP on the real chains. Reading the
 tables: an anonymous call on the main chain gets **403, not 401** (no login form or HTTP Basic, so Spring Security's default
@@ -204,8 +209,14 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 - `devenv/rehearsal.ps1` and `setup-stores.ps1` create databases: they keep `update` by `-Set`. Documented with `configs/local`.
 
 **1.9, 2.8: the merges of `release/3.1.2`**
-- The first brings the password fix (`50a5cb8`). Re-record the 5 goldens that hold the field (`core/UserAccount`,
-  `CashierSession`, `SalesHeader`, `ReturnHeader`, `Payment`) and read the diff: only `password` lines go.
+- The first brings the security fixes (`50a5cb8`, `2e05b3a`; front `e708da8`). Re-record the 5 goldens that hold the fields
+  (`core/UserAccount`, `CashierSession`, `SalesHeader`, `ReturnHeader`, `Payment`) and read the diff: only `password` and
+  `badgeCode` lines go. Then the matrices gain their rows, and only then does the HTTP proof live in the suite (the fixes were
+  replayed by hand on a real start on 2026-11-09): as a cashier `GET /user-account`, `GET /user-account/2`,
+  `POST /user-account/1/badge/generate`, `PUT /user-account/1` and `PUT /company-info` get 403; as an admin 200; `/cashiers`,
+  `/current` and `POST /badge/scan` with a real badge stay 200; anonymous `PUT /company-info` gets 403. The head office's too,
+  with its keys. `UserAccountApiAccessTest` and `CompanyInformationApiAccessTest` come with the merge.
+- `CompanyInformationAPI` and `UserAccountAPI` merge with this branch's company row (`findFirstByOrderByIdAsc`).
 - A merge leaves every pom at 4.0.0: the poms of `release/3.1.2` say 3.1.2.
 
 **2.1**
@@ -253,10 +264,11 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 | 7 | **`Accept`.** `ConnectorAcceptHeaderTest` pins what we send: it failed on the old classpath with `application/xml, text/xml, application/json, application/*+xml, application/*+json` on all four connectors, and passes on the new one. A mock cannot show what NAV answers: live GET at 2.7, or earlier when Zein opens the VPN. | 2.7 |
 | 8 | **POI's jars.** 45 jars of the store WAR come with POI 5.0.0's compile dependencies (batik, pdfbox, xmlsec, bouncycastle...), and our code imports none of them: only POI's `usermodel`. Removing the commons-io 1.4 pin exposed the older versions they ask for: commons-io 1.3.1, woodstox 5.2.1, stax2 4.2. Whether the upgrade removes them is not verified yet. | Decision 16: POI upgrade at 1.4. |
 | 9 | **This machine for 2.6 and 2.7.** JDK 25 and Tomcat 11 are not installed (JDK 21 and 23; Tomcat 9). Eclipse is `jee-2024-12`, to be checked against JDK 25. Zein is told what to install at 2.6. | 2.6 |
-| 10 | **Shapes the startup tests did not start.** | Settled: step 1.2b, "The other shapes". What stays unstarted: 18 classes of the `happyness` and `parafendri` connectors. |
+| 10 | **Shapes the startup tests did not start.** | Settled: "The other shapes". All 145 recorded beans are built. |
 | 11 | **The password hash reached the browser.** `UserAccount.password` was written in every answer embedding a user. Called on the running application as a cashier: `POST /cashier-session/open`, `GET /cashier-session/current` and `GET /cashier-session`. | Fixed on `release/3.1.2`, `50a5cb8` (2026-11-09). On this branch only after the merge of 1.9: until then the goldens hold the field. |
 | 12 | **One JWT secret for all.** `SecurityParams.SECRET` is a constant in the source and `JWTAuthorizationFilter` checks only the signature, so a token made by any installation should open the main chain of any other, customers included, for 5 months. Read in the code, not tried. | Decision 18: `security.jwt.secret` at 2.8. |
-| 13 | **The badge code travels like the hash did.** `UserAccount.badgeCode` is written in the same answers (seen in the goldens, `CashierSession` among them), and `POST /badge/scan` takes that code to grant a till right: a cashier could read a responsible's code from `GET /cashier-session` once that user has a session or verified one. Read in the code, not tried. The front reads it only from `/user-account`, a DTO. The password's annotation would close it the same way. | Zein |
+| 13 | **The badge code travelled like the hash did, and `/user-account` checked nothing.** Called as a cashier: `GET /user-account` gave every badge code, `POST /badge/scan` a till right with one; `POST /user-account/1/badge/generate` the admin's new badge; `PUT /user-account/1` set the admin's password, and logging in with it worked. | Closed on `release/3.1.2`, `2e05b3a` and front `e708da8` (2026-11-09): the permissions of the Users pages on the API, `badgeCode` write-only in the entity, `PUT /company-info` behind the page's permission. Replayed live: all refused. On this branch after the merge of 1.9. Not closed on `hotfix/1.12.1` (EMTOP): same hole, read only, not changed; EMTOP gets it by moving to 3.1.2 (decision 19). |
+| 14 | **The rest of the API.** Most endpoints still ask only for a logged user, though the front shows them to some roles only: a cashier can call them directly. `/user-account` was the worst, because it gave the admin account. A pass over the other writes, endpoint by endpoint, is its own piece of work. | Zein, after the migration |
 
 ## Baseline (step 1.0)
 

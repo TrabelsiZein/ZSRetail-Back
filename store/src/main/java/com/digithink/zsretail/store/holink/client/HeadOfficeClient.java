@@ -46,6 +46,7 @@ import com.digithink.zsretail.core.link.dto.VariantStockDTO;
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.model.enumeration.SalesUpstream;
 import com.digithink.zsretail.core.service.GeneralSetupService;
+import com.digithink.zsretail.erp.api.ConfiguredAddress;
 import com.digithink.zsretail.store.holink.dto.HeadOfficeCallResult;
 import com.digithink.zsretail.store.holink.dto.LiveAnswer;
 import com.digithink.zsretail.store.holink.dto.LoyaltyMemberPushAnswer;
@@ -60,6 +61,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
+import lombok.extern.log4j.Log4j2;
+
 /**
  * Store side of the head office link (task 1.4): calls the head office on /ho/** with the store code
  * (DEFAULT_LOCATION, read at each call) and the API key. Never throws: every outcome is a
@@ -70,6 +73,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
  */
 @Component
 @ConditionalOnInstallation(Installation.LINKED_TO_HEAD_OFFICE)
+@Log4j2
 public class HeadOfficeClient {
 
 	static final String STORE_CODE_HEADER = "X-Store-Code";
@@ -128,6 +132,11 @@ public class HeadOfficeClient {
 		this(newRestTemplate(), newLiveRestTemplate(), newDownRestTemplate(downReadTimeoutSeconds),
 				positive(downReadTimeoutSeconds), newOrderRestTemplate(), generalSetupService, url, apiKey, appVersion,
 				applicationModeService);
+		// A badly written address: one clear line at the start, nothing refused (the store sells without its head office)
+		String complaint = ConfiguredAddress.complaint("headoffice.url", url);
+		if (complaint != null) {
+			log.error(complaint);
+		}
 	}
 
 	/** With a given RestTemplate: used by the tests (MockRestServiceServer). The heartbeat sends the version only. */

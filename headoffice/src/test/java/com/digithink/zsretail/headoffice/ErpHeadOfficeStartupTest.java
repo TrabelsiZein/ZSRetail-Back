@@ -19,9 +19,9 @@ import com.digithink.zsretail.core.erp.service.ErpSyncJobRunner;
 import com.digithink.zsretail.core.support.MigTestApplication;
 
 /**
- * Boot 4 migration, step 1.2b: a head office with an ERP really starts, in its two forms, the connector's address on the
- * closed local port and the job scheduler off, so no job runs and nothing is called. Its beans exist in no other start, and
- * bean cycles are forbidden from step 1.4.
+ * Boot 4 migration, steps 1.2b and 1.3b: a head office with an ERP really starts, in each of its forms, the connector's address
+ * on the closed local port and the job scheduler off, so no job runs and nothing is called. Their beans exist in no other
+ * start, and bean cycles are forbidden from step 1.4.
  */
 class ErpHeadOfficeStartupTest {
 
@@ -37,6 +37,19 @@ class ErpHeadOfficeStartupTest {
 			"erp.zen.base-url=" + MigTestApplication.CLOSED_PORT + "/ZEN", "erp.zen.company=MIGTEST", "erp.zen.domain=MIGTEST",
 			"erp.zen.username=MIGTEST", "erp.zen.password=not-a-password", "erp.zen.default-vat=19",
 			"erp.zen.products.url=" + MigTestApplication.CLOSED_PORT + "/products", "erp.zen.products.api-key=not-a-key" };
+
+	/** The catalogue only from the ERP, its invoices too, on POS pages (configs/customers/happyness-headoffice.properties). */
+	private static final String[] HAPPYNESS = { "headoffice.stock.enabled=false", "ownership.catalogue=ERP",
+			"headoffice.supply.source=ERP", "erp.connector=happyness",
+			"erp.happyness.base-url=" + MigTestApplication.CLOSED_PORT + "/BC140/ODataV4", "erp.happyness.company=MIGTEST",
+			"erp.happyness.domain=MIGTEST", "erp.happyness.username=MIGTEST", "erp.happyness.password=not-a-password",
+			"erp.happyness.default-vat=19", "erp.happyness.price-includes-vat=true", "erp.happyness.invoices.seller-name=MIGTEST" };
+
+	/** The catalogue only from Business Central: the connector's catalogue source exists only here, not on a store. */
+	private static final String[] PARAFENDRI = { "headoffice.stock.enabled=false", "ownership.catalogue=ERP",
+			"erp.connector=parafendri", "erp.parafendri.base-url=" + MigTestApplication.CLOSED_PORT + "/BC",
+			"erp.parafendri.company-id=00000000-0000-0000-0000-000000000000", "erp.parafendri.domain=MIGTEST",
+			"erp.parafendri.username=MIGTEST", "erp.parafendri.password=not-a-password" };
 
 	private static void startsAndRestarts(boolean catalogueOnly, String... shape) {
 		try (MigTestApplication headOffice = MigTestApplication.start(HeadOfficeApplication.class, "headoffice", shape)) {
@@ -71,5 +84,17 @@ class ErpHeadOfficeStartupTest {
 	@DisplayName("Catalogue only from the ERP, with its invoices and the stores' orders (connector zen): its engine and stock points")
 	void catalogueOnly() {
 		startsAndRestarts(true, CATALOGUE_ONLY);
+	}
+
+	@Test
+	@DisplayName("Catalogue only from the ERP, on POS pages (connector happyness)")
+	void happyness() {
+		startsAndRestarts(true, HAPPYNESS);
+	}
+
+	@Test
+	@DisplayName("Catalogue only from the ERP, on Business Central (connector parafendri)")
+	void parafendri() {
+		startsAndRestarts(true, PARAFENDRI);
 	}
 }

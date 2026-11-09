@@ -88,7 +88,7 @@ class HoSupplyInvoiceServiceTest {
 		company.setAddress("1 rue du Lac");
 		company.setCity("Tunis");
 		CompanyInformationRepository companies = proxy(CompanyInformationRepository.class,
-				(method, args) -> "findAll".equals(method) ? new ArrayList<>(Collections.singletonList(company)) : UNHANDLED);
+				(method, args) -> "findFirstByOrderByIdAsc".equals(method) ? java.util.Optional.of(company) : UNHANDLED);
 		GeneralSetupService setup = new GeneralSetupService() {
 			@Override
 			public String findValueByCode(String code) {

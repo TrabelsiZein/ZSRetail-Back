@@ -46,19 +46,23 @@ import com.digithink.zsretail.support.Installations;
 
 /**
  * Code cleanup step 4, proof: the beans the installation questions decide (the classes and @Bean methods that carry an
- * annotation whose condition is a class of config, apart from the two ERP ones), in every file of configs/,
+ * annotation whose condition is a class of config or of erp-api), in every file of configs/,
  * the six shapes of task 9.3 and a few head office shapes, compared with the record made on the code before the change
  * (src/test/resources/config/installation-beans.txt). Written so that it runs unchanged before and after: it names no
  * annotation. -Dinstallation.proof.write=true writes the record again (only on the code before the change). Code cleanup
- * step 6: the beans are named as before the moves (support/ClassRenames), so the record stays as it was.
+ * step 6: the beans are named as before the moves (support/ClassRenames), so the record stays as it was. Boot 4 migration,
+ * step 1.3b: the two ERP conditions (the connector chosen, its abilities) are questions too, the 42 classes they decide were
+ * left out; the record was written again and every line of before kept every bean it had.
  */
 class InstallationBeansProofTest {
 
 	static final Path RECORD = Paths.get("src", "test", "resources", "config", "installation-beans.txt");
-	static final List<String> ERP_CONDITIONS = Arrays.asList("OnErpAbilityCondition", "OnErpConnectorCondition");
+
+	/** The packages of the conditions that ask about the installation. */
+	static final List<String> QUESTION_PACKAGES = Arrays.asList("com.digithink.zsretail.core.config", "com.digithink.zsretail.erp.api");
 
 	/** Every class and @Bean method these questions decide, by name: a lost or new annotation shows here. */
-	static final int EXPECTED_DECIDED = 112; // RFID: 3 services, the reader, 3 APIs; tags: 2 services, the check, the API;
+	static final int EXPECTED_DECIDED = 145; // Boot 4 migration, step 1.3b: the 33 beans only the ERP conditions decide; RFID: 3 services, the reader, 3 APIs; tags: 2 services, the check, the API;
 	// POS: the sale tags hook, the POS service and its API; item variants (ZEN), step 9: the stores'
 	// ERP customers for the invoices read (HoErpInvoiceCustomers); 3.1.1, orders to the head office: the API, the
 	// service, the status writer, the draft index (store); the reception and admin APIs, the service, the posting
@@ -66,15 +70,14 @@ class InstallationBeansProofTest {
 	// beans of core also need the installation HEAD_OFFICE_ERP_CATALOGUE_ONLY; 3.1.1, Items by point de stock retired:
 	// HoStockPointItemsService gone (113 to 112)
 
-	/** True for an annotation whose condition is an installation question (a class of config, not an ERP one). */
+	/** True for an annotation whose condition is an installation question (a class of config or of erp-api). */
 	static boolean isQuestion(Annotation annotation) {
 		Conditional conditional = annotation.annotationType().getAnnotation(Conditional.class);
 		if (conditional == null) {
 			return false;
 		}
 		for (Class<? extends Condition> condition : conditional.value()) {
-			if (condition.getPackage().getName().equals("com.digithink.zsretail.core.config")
-					&& !ERP_CONDITIONS.contains(condition.getSimpleName())) {
+			if (QUESTION_PACKAGES.contains(condition.getPackage().getName())) {
 				return true;
 			}
 		}
@@ -98,6 +101,9 @@ class InstallationBeansProofTest {
 		Map<String, Object> beans = new java.util.TreeMap<>();
 		for (BeanDefinition candidate : scanner.findCandidateComponents("com.digithink.zsretail")) {
 			Class<?> type = Class.forName(candidate.getBeanClassName());
+			if (ProjectSortingGuardTest.projectOf(type.getName().substring("com.digithink.zsretail.".length())) == null) {
+				continue; // a test's own bean, in no project (ThirdConnectorTest's connector)
+			}
 			if (decided(type.getAnnotations())) {
 				beans.put(ClassRenames.oldName(type.getName()), type);
 			}

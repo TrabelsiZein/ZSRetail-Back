@@ -308,7 +308,7 @@ public class HoSupplyInvoiceService {
 		invoice.setBuyerName(store.getBillingLegalName() != null ? store.getBillingLegalName() : store.getName());
 		invoice.setBuyerTaxNumber(store.getBillingTaxNumber());
 		invoice.setBuyerAddress(store.getBillingAddress());
-		CompanyInformation seller = company.findAll().stream().findFirst().orElse(null);
+		CompanyInformation seller = company.findFirstByOrderByIdAsc().orElse(null); // the one row, as CompanyInformationService reads it
 		if (seller != null) {
 			invoice.setSellerName(seller.getCompanyName());
 			invoice.setSellerTaxNumber(seller.getMatriculeFiscal());

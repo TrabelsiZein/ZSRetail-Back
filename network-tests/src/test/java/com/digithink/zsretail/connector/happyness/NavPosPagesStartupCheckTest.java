@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.connector.happyness.config.NavPosPagesStartupCheck;
+import com.digithink.zsretail.support.ErrorLines;
 import com.digithink.zsretail.support.Installations;
 
 /** ERP catalogue, step 5: each startup refusal of the connector, with its message; the startup line. */
@@ -32,6 +34,20 @@ class NavPosPagesStartupCheckTest {
 			env.setProperty(key, value);
 		}
 		return env;
+	}
+
+	@Test
+	@DisplayName("A badly written address: one ERROR line naming erp.happyness.base-url, the start goes on; silent when well written")
+	void badlyWrittenAddress() throws Exception {
+		MockEnvironment bad = with("erp.happyness.base-url", "192.168.1.124:7048/BC140/ODataV4");
+		List<String> errors = ErrorLines.of(NavPosPagesStartupCheck.class, () -> new NavPosPagesStartupCheck(bad));
+		assertEquals(1, errors.size(), errors.toString());
+		assertTrue(errors.get(0).contains("erp.happyness.base-url=192.168.1.124:7048/BC140/ODataV4"), errors.get(0));
+
+		MockEnvironment capitals = with("erp.happyness.base-url", "HTTP://HOST:7048/BC140/ODataV4");
+		assertTrue(ErrorLines.of(NavPosPagesStartupCheck.class, () -> new NavPosPagesStartupCheck(capitals)).isEmpty());
+		assertTrue(ErrorLines.of(NavPosPagesStartupCheck.class,
+				() -> new NavPosPagesStartupCheck(NavPosPagesTestSupport.validEnvironment())).isEmpty());
 	}
 
 	@Test
