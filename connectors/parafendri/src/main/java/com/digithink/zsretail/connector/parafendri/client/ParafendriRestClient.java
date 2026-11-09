@@ -126,7 +126,7 @@ public class ParafendriRestClient {
 	 * next links followed.
 	 */
 	public List<ParafendriLocationRow> readLocations() {
-		URI uri = UriComponentsBuilder.fromHttpUrl(properties.companyAddress() + LOCATIONS)
+		URI uri = UriComponentsBuilder.fromUriString(properties.companyAddress() + LOCATIONS)
 				.queryParam("$select", LOCATION_FIELDS).build().encode().toUri();
 		return readAll(LOCATIONS, uri, LOCATION_ROWS);
 	}
@@ -165,7 +165,7 @@ public class ParafendriRestClient {
 	 * the import is the same). No $select: the fields not used are ignored.
 	 */
 	public URI stockPointsUri(String locationCode, OffsetDateTime since) {
-		return UriComponentsBuilder.fromHttpUrl(properties.companyAddress() + STOCK_POINTS)
+		return UriComponentsBuilder.fromUriString(properties.companyAddress() + STOCK_POINTS)
 				.queryParam("$filter", stockPointsFilter(locationCode, since)).build().encode().toUri();
 	}
 
@@ -190,7 +190,7 @@ public class ParafendriRestClient {
 
 	/** Step 4: companies(company-id)/barCodes[?$filter=lastModifiedDateTime ge <time in UTC>]. */
 	public URI barcodesUri(OffsetDateTime since) {
-		UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(properties.companyAddress() + BARCODES);
+		UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(properties.companyAddress() + BARCODES);
 		if (since != null) {
 			builder.queryParam("$filter", "lastModifiedDateTime ge " + utc(since));
 		}
@@ -208,7 +208,7 @@ public class ParafendriRestClient {
 		}
 		for (int from = 0; from < itemNos.size(); from += ITEMS_PER_BARCODE_READ) {
 			List<String> batch = itemNos.subList(from, Math.min(from + ITEMS_PER_BARCODE_READ, itemNos.size()));
-			URI uri = UriComponentsBuilder.fromHttpUrl(properties.companyAddress() + BARCODES)
+			URI uri = UriComponentsBuilder.fromUriString(properties.companyAddress() + BARCODES)
 					.queryParam("$filter", itemsFilter(batch)).build().encode().toUri();
 			rows.addAll(readAll(BARCODES, uri, BARCODE_ROWS));
 		}
@@ -231,7 +231,7 @@ public class ParafendriRestClient {
 	 * (same id) once. Checked live on 2026-11-01: orderby, top, gt, lt and eq on a millisecond.
 	 */
 	public List<ParafendriBarcodeRow> readBarcodesAfter(long position) {
-		UriComponentsBuilder first = UriComponentsBuilder.fromHttpUrl(properties.companyAddress() + BARCODES);
+		UriComponentsBuilder first = UriComponentsBuilder.fromUriString(properties.companyAddress() + BARCODES);
 		String filter = barcodesAfterFilter(position);
 		if (filter != null) {
 			first.queryParam("$filter", filter);
@@ -245,7 +245,7 @@ public class ParafendriRestClient {
 		}
 		long last = rows.stream().mapToLong(row -> ParafendriMapper.position(row.getLastModifiedDateTime())).max()
 				.getAsLong();
-		URI rest = UriComponentsBuilder.fromHttpUrl(properties.companyAddress() + BARCODES)
+		URI rest = UriComponentsBuilder.fromUriString(properties.companyAddress() + BARCODES)
 				.queryParam("$filter", barcodesAtFilter(last)).build().encode().toUri();
 		Set<String> seen = rows.stream().map(ParafendriRestClient::rowKey).collect(Collectors.toCollection(HashSet::new));
 		for (ParafendriBarcodeRow row : readAll(BARCODES, rest, BARCODE_ROWS)) {
@@ -299,7 +299,7 @@ public class ParafendriRestClient {
 
 	/** Step 6: the sales orders of one ticket, GET salesOrders?$filter=ticketNo eq 'X' (a quote doubled). */
 	public List<ParafendriSalesOrderRow> readSalesOrdersOfTicket(String ticketNo) {
-		URI uri = UriComponentsBuilder.fromHttpUrl(salesOrdersAddress())
+		URI uri = UriComponentsBuilder.fromUriString(salesOrdersAddress())
 				.queryParam("$filter", "ticketNo eq '" + quoted(ticketNo) + "'").build().encode().toUri();
 		return readAll(ParafendriConfig.SALES_ORDERS, uri, SALES_ORDER_ROWS);
 	}
@@ -318,8 +318,8 @@ public class ParafendriRestClient {
 			return restTemplate.exchange(URI.create(salesOrdersAddress()), HttpMethod.POST,
 					new HttpEntity<>(order, headers), ParafendriSalesOrderRow.class).getBody();
 		} catch (HttpStatusCodeException e) {
-			throw new ParafendriReadException(page, e.getRawStatusCode(), "parafendri: posting the ticket "
-					+ order.getTicketNo() + " to " + page + " failed: HTTP " + e.getRawStatusCode() + " "
+			throw new ParafendriReadException(page, e.getStatusCode().value(), "parafendri: posting the ticket "
+					+ order.getTicketNo() + " to " + page + " failed: HTTP " + e.getStatusCode().value() + " "
 					+ e.getStatusText() + ": " + errorText(e.getResponseBodyAsString()), e);
 		} catch (ResourceAccessException e) {
 			throw new ParafendriReadException(page, null, "parafendri: posting the ticket " + order.getTicketNo()
@@ -360,7 +360,7 @@ public class ParafendriRestClient {
 
 	/** Step 7: the address of the lookup of one sales order's invoice. */
 	public URI shipAndInvoiceUri(String orderNo) {
-		return UriComponentsBuilder.fromHttpUrl(shipAndInvoiceAddress())
+		return UriComponentsBuilder.fromUriString(shipAndInvoiceAddress())
 				.queryParam("$filter", "orderNo eq '" + quoted(orderNo) + "'").build().encode().toUri();
 	}
 
@@ -380,8 +380,8 @@ public class ParafendriRestClient {
 					new HttpEntity<>(shipAndInvoiceRequest(orderNo), headers), ParafendriShipAndInvoiceRow.class)
 					.getBody();
 		} catch (HttpStatusCodeException e) {
-			throw new ParafendriReadException(page, e.getRawStatusCode(), "parafendri: asking the invoice of sales order "
-					+ orderNo + " from " + page + " failed: HTTP " + e.getRawStatusCode() + " " + e.getStatusText() + ": "
+			throw new ParafendriReadException(page, e.getStatusCode().value(), "parafendri: asking the invoice of sales order "
+					+ orderNo + " from " + page + " failed: HTTP " + e.getStatusCode().value() + " " + e.getStatusText() + ": "
 					+ errorText(e.getResponseBodyAsString()), e);
 		} catch (ResourceAccessException e) {
 			throw new ParafendriReadException(page, null, "parafendri: asking the invoice of sales order " + orderNo
@@ -403,7 +403,7 @@ public class ParafendriRestClient {
 	 * (GET stockPoints?$filter=locationCode eq 'X'&$top=1); null when the location has no row or no customerNo.
 	 */
 	public String readCustomerNo(String locationCode) {
-		URI uri = UriComponentsBuilder.fromHttpUrl(properties.companyAddress() + STOCK_POINTS)
+		URI uri = UriComponentsBuilder.fromUriString(properties.companyAddress() + STOCK_POINTS)
 				.queryParam("$filter", stockPointsFilter(locationCode, null)).queryParam("$top", 1).build().encode()
 				.toUri();
 		ParafendriCollection<ParafendriStockPointRow> page = get(STOCK_POINTS, uri, STOCK_POINT_ROWS);
@@ -429,7 +429,7 @@ public class ParafendriRestClient {
 
 	/** companies(company-id)/customers?$filter=number eq 'X' (a quote doubled). */
 	public URI customerUri(String number) {
-		return UriComponentsBuilder.fromHttpUrl(customersAddress())
+		return UriComponentsBuilder.fromUriString(customersAddress())
 				.queryParam("$filter", "number eq '" + quoted(number) + "'").build().encode().toUri();
 	}
 
@@ -498,8 +498,8 @@ public class ParafendriRestClient {
 		try {
 			return restTemplate.exchange(uri, HttpMethod.GET, null, type).getBody();
 		} catch (HttpStatusCodeException e) {
-			throw new ParafendriReadException(page, e.getRawStatusCode(), "parafendri: reading the page " + page
-					+ " failed: HTTP " + e.getRawStatusCode() + " " + e.getStatusText() + " (" + uri + ")", e);
+			throw new ParafendriReadException(page, e.getStatusCode().value(), "parafendri: reading the page " + page
+					+ " failed: HTTP " + e.getStatusCode().value() + " " + e.getStatusText() + " (" + uri + ")", e);
 		} catch (ResourceAccessException e) {
 			throw new ParafendriReadException(page, null, "parafendri: reading the page " + page
 					+ " failed: no answer or timeout (" + e.getMessage() + ")", e);

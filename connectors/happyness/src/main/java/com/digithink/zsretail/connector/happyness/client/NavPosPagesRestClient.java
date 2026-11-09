@@ -233,7 +233,7 @@ public class NavPosPagesRestClient implements NavPosPagesSource {
 			return false;
 		}
 		HttpStatusCodeException http = (HttpStatusCodeException) e.getCause();
-		return http.getRawStatusCode() == 400 && http.getResponseBodyAsString().contains("'" + property + "'");
+		return http.getStatusCode().value() == 400 && http.getResponseBodyAsString().contains("'" + property + "'");
 	}
 
 	@Override
@@ -245,7 +245,7 @@ public class NavPosPagesRestClient implements NavPosPagesSource {
 	private UriComponentsBuilder page(String page) {
 		String base = properties.getBaseUrl().trim();
 		String company = properties.getCompanyUrlSegment();
-		return UriComponentsBuilder.fromHttpUrl(base.endsWith("/") ? base : base + "/")
+		return UriComponentsBuilder.fromUriString(base.endsWith("/") ? base : base + "/")
 				.path((company.isEmpty() ? "" : company + "/") + page.trim());
 	}
 
@@ -270,7 +270,7 @@ public class NavPosPagesRestClient implements NavPosPagesSource {
 			return answer.getBody();
 		} catch (HttpStatusCodeException e) {
 			throw new NavPosPagesReadException(page, "navpospages: reading the page " + page + " failed: HTTP "
-					+ e.getRawStatusCode() + " " + e.getStatusText() + " (" + uri + ")", e);
+					+ e.getStatusCode().value() + " " + e.getStatusText() + " (" + uri + ")", e);
 		} catch (ResourceAccessException e) {
 			throw new NavPosPagesReadException(page, "navpospages: reading the page " + page
 					+ " failed: no answer or timeout (" + e.getMessage() + ")", e);

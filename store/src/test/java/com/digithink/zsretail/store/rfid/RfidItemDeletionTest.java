@@ -84,13 +84,13 @@ class RfidItemDeletionTest {
 		ItemAPI api = api(true);
 
 		ResponseEntity<?> refused = api.deleteById(tagged.getId());
-		assertEquals(409, refused.getStatusCodeValue());
+		assertEquals(409, refused.getStatusCode().value());
 		assertEquals("This item has 2 RFID tags: move them to another item or delete them first (RFID, Tags page).",
 				refused.getBody());
 		assertTrue(rfid.items.items.containsKey(tagged.getId()));
-		assertEquals(409, api.deleteById(sold.getId()).getStatusCodeValue(), "a sold tag holds its item too");
+		assertEquals(409, api.deleteById(sold.getId()).getStatusCode().value(), "a sold tag holds its item too");
 
-		assertEquals(204, api.deleteById(free.getId()).getStatusCodeValue());
+		assertEquals(204, api.deleteById(free.getId()).getStatusCode().value());
 		assertFalse(rfid.items.items.containsKey(free.getId()));
 	}
 
@@ -98,6 +98,6 @@ class RfidItemDeletionTest {
 	@DisplayName("Without the RFID check (RFID off): DELETE /item/{id} as before")
 	void withoutTheCheck() throws Exception {
 		Item item = rfid.items.item("SOCKS", 5.0, null);
-		assertEquals(204, api(false).deleteById(item.getId()).getStatusCodeValue());
+		assertEquals(204, api(false).deleteById(item.getId()).getStatusCode().value());
 	}
 }

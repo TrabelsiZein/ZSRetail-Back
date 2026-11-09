@@ -107,7 +107,7 @@ public class ZenProductsClient {
 			return text == null || text.length == 0 ? null : JSON.readTree(text);
 		} catch (HttpStatusCodeException e) {
 			String detail = e.getResponseBodyAsString(StandardCharsets.UTF_8);
-			throw new ZenReadException(LABEL, "zen: reading the " + LABEL + " failed: HTTP " + e.getRawStatusCode() + " "
+			throw new ZenReadException(LABEL, "zen: reading the " + LABEL + " failed: HTTP " + e.getStatusCode().value() + " "
 					+ e.getStatusText() + " (" + uri + ")" + (detail == null || detail.trim().isEmpty() ? ""
 							: ": " + (detail.length() > 500 ? detail.substring(0, 500) : detail)), e);
 		} catch (ResourceAccessException e) {

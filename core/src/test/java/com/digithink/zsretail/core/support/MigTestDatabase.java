@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Arrays;
@@ -101,6 +102,18 @@ public final class MigTestDatabase {
 			return null;
 		} catch (SQLException e) {
 			return e.getMessage();
+		}
+	}
+
+	/** The user tables of the throwaway database: a start refused before Hibernate leaves none. */
+	public int tableCount() {
+		try (Connection connection = DriverManager.getConnection(url(), username, password());
+				Statement statement = connection.createStatement();
+				ResultSet tables = statement.executeQuery("SELECT COUNT(*) FROM sys.tables")) {
+			tables.next();
+			return tables.getInt(1);
+		} catch (SQLException e) {
+			throw new IllegalStateException("On database " + NAME + ": " + e.getMessage(), e);
 		}
 	}
 

@@ -408,7 +408,7 @@ class HeadOfficeLinkAPITest {
 		assertEquals("{\"PROMOTIONS\":{\"APPLIED\":2,\"WAITING\":1,\"ERROR\":1}}", json.get("received").toString());
 
 		ResponseEntity<?> all = withPull.received("promotions", null, null, null);
-		assertEquals(200, all.getStatusCodeValue());
+		assertEquals(200, all.getStatusCode().value());
 		JsonNode list = mapper.valueToTree(all.getBody());
 		assertEquals("PROMOTIONS", list.get("domain").asText());
 		assertEquals(2, list.get("counts").get("APPLIED").asLong());
@@ -434,11 +434,11 @@ class HeadOfficeLinkAPITest {
 		assertEquals("P-W", secondPage.get("records").get(0).get("code").asText());
 		assertEquals(2, secondPage.get("totalElements").asLong());
 		assertEquals(1, secondPage.get("size").asInt());
-		assertEquals(400, withPull.received("PROMOTIONS", "LATE", null, null).getStatusCodeValue());
-		assertEquals(400, withPull.received("PROMOTIONS", "applied", null, null).getStatusCodeValue(),
+		assertEquals(400, withPull.received("PROMOTIONS", "LATE", null, null).getStatusCode().value());
+		assertEquals(400, withPull.received("PROMOTIONS", "applied", null, null).getStatusCode().value(),
 				"the applied records are not listed");
-		assertEquals(404, withPull.received("LOYALTY", null, null, null).getStatusCodeValue());
-		assertEquals(404, api.received("PROMOTIONS", null, null, null).getStatusCodeValue(), "no pull on this store");
+		assertEquals(404, withPull.received("LOYALTY", null, null, null).getStatusCode().value());
+		assertEquals(404, api.received("PROMOTIONS", null, null, null).getStatusCode().value(), "no pull on this store");
 	}
 
 	private static DownRecord row(String code, DownRecordStatus status, String reason, String info) {

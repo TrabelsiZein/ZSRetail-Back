@@ -50,7 +50,7 @@ class ReportStockDateTest {
 	@Test
 	@DisplayName("A date after today: 400, no report")
 	void future() {
-		assertEquals(400, stock(api(TestModes.standalone()), "ITEM", null, LocalDate.now().plusDays(1)).getStatusCodeValue());
+		assertEquals(400, stock(api(TestModes.standalone()), "ITEM", null, LocalDate.now().plusDays(1)).getStatusCode().value());
 		verify(reports, never()).getStockReport(anyString(), any(StockReportFilter.class), any());
 	}
 
@@ -58,10 +58,10 @@ class ReportStockDateTest {
 	@DisplayName("A past date where the installation keeps no stock of its own: 400")
 	void pastWithoutOwnStock() {
 		LocalDate past = LocalDate.now().minusDays(3);
-		assertEquals(400, stock(api(TestModes.erp()), "ITEM", null, past).getStatusCodeValue());
+		assertEquals(400, stock(api(TestModes.erp()), "ITEM", null, past).getStatusCode().value());
 		MockEnvironment headOfficeWithoutStock = new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")
 				.withProperty("headoffice.stock.enabled", "false");
-		assertEquals(400, stock(api(TestModes.of(headOfficeWithoutStock)), "ITEM", null, past).getStatusCodeValue());
+		assertEquals(400, stock(api(TestModes.of(headOfficeWithoutStock)), "ITEM", null, past).getStatusCode().value());
 		verify(reports, never()).getStockReport(anyString(), any(StockReportFilter.class), any());
 	}
 
@@ -69,13 +69,13 @@ class ReportStockDateTest {
 	@DisplayName("A past date with the stock kept here, and today or no date anywhere: the report")
 	void allowed() {
 		LocalDate past = LocalDate.now().minusDays(3);
-		assertEquals(200, stock(api(TestModes.standalone()), "FAMILY", true, past).getStatusCodeValue());
+		assertEquals(200, stock(api(TestModes.standalone()), "FAMILY", true, past).getStatusCode().value());
 		ArgumentCaptor<StockReportFilter> filter = ArgumentCaptor.forClass(StockReportFilter.class);
 		verify(reports).getStockReport(eq("FAMILY"), filter.capture(), eq(past));
 		assertEquals(new LinkedHashSet<>(StockReportFilter.BELOW_MIN), filter.getValue().getStatuses(),
 				"below the minimum: LOW, OUT, NEGATIVE");
-		assertEquals(200, stock(api(TestModes.erp()), "ITEM", null, LocalDate.now()).getStatusCodeValue());
-		assertEquals(200, stock(api(TestModes.erp()), "ITEM", null, null).getStatusCodeValue());
+		assertEquals(200, stock(api(TestModes.erp()), "ITEM", null, LocalDate.now()).getStatusCode().value());
+		assertEquals(200, stock(api(TestModes.erp()), "ITEM", null, null).getStatusCode().value());
 	}
 
 	@Test
@@ -84,7 +84,7 @@ class ReportStockDateTest {
 		ReportAPI api = api(TestModes.standalone());
 		List<String> statuses = Arrays.asList("low", " WITHOUT_COST ", "");
 		assertEquals(200, api.getStockReport("CATEGORY", null, null, " vani ", 3L, null, "CAT1", "  ", statuses)
-				.getStatusCodeValue());
+				.getStatusCode().value());
 		ArgumentCaptor<StockReportFilter> filter = ArgumentCaptor.forClass(StockReportFilter.class);
 		verify(reports).getStockReport(eq("CATEGORY"), filter.capture(), eq(null));
 		assertEquals("vani", filter.getValue().getSearch());
@@ -95,7 +95,7 @@ class ReportStockDateTest {
 		assertEquals(new LinkedHashSet<>(Arrays.asList("LOW", "WITHOUT_COST")), filter.getValue().getStatuses());
 
 		assertEquals(400, api.getStockReport("ITEM", null, null, null, null, null, null, null, Arrays.asList("OK", "EMPTY"))
-				.getStatusCodeValue());
+				.getStatusCode().value());
 		verify(reports, never()).getStockReport(eq("ITEM"), any(StockReportFilter.class), any());
 	}
 }

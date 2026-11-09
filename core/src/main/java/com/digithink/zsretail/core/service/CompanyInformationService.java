@@ -12,14 +12,12 @@ import com.digithink.zsretail.core.repository.CompanyInformationRepository;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Manages the single CompanyInformation record (id=1).
+ * Manages the single CompanyInformation record: the first row, whatever id IDENTITY gave it (1 on every database so far).
  * Only GET and UPDATE operations are exposed — no create/delete.
  */
 @Service
 @RequiredArgsConstructor
 public class CompanyInformationService {
-
-    private static final Long SINGLETON_ID = 1L;
 
     private final CompanyInformationRepository repository;
 
@@ -28,18 +26,17 @@ public class CompanyInformationService {
      * Guaranteed to exist (seeded by ZZDataInitializer).
      */
     public CompanyInformationDTO get() {
-        CompanyInformation entity = repository.findById(SINGLETON_ID)
+        CompanyInformation entity = repository.findFirstByOrderByIdAsc()
                 .orElseGet(this::createDefaultRecord);
         return toDTO(entity);
     }
 
     /**
-     * Updates the singleton record. Always operates on id=1 regardless of any
-     * id that might be present in the payload.
+     * Updates the singleton record, regardless of any id that might be present in the payload.
      */
     @Transactional
     public CompanyInformationDTO update(CompanyInformationDTO dto, String updatedBy) {
-        CompanyInformation entity = repository.findById(SINGLETON_ID)
+        CompanyInformation entity = repository.findFirstByOrderByIdAsc()
                 .orElseGet(this::createDefaultRecord);
 
         entity.setCompanyName(dto.getCompanyName());
@@ -73,14 +70,17 @@ public class CompanyInformationService {
      */
     @Transactional
     public void ensureExists() {
-        if (!repository.existsById(SINGLETON_ID)) {
+        if (repository.count() == 0) {
             createDefaultRecord();
         }
     }
 
+    /**
+     * No id set: IDENTITY gives it. An id with no row was silently inserted by Hibernate 5 under a generated id anyway, and
+     * Hibernate 6.6 refuses it (OptimisticLockException), so a new database would not start.
+     */
     private CompanyInformation createDefaultRecord() {
         CompanyInformation entity = new CompanyInformation();
-        entity.setId(SINGLETON_ID);
         entity.setCompanyName("");
         entity.setCreatedBy("System");
         entity.setUpdatedBy("System");

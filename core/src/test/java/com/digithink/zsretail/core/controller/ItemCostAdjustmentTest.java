@@ -124,7 +124,7 @@ class ItemCostAdjustmentTest {
 		body.setCostPrice(4.0);
 		item.setCostPrice(7.875); // a reception wrote it after the page was loaded
 
-		assertEquals(200, api(TestModes.standalone()).update(item.getId(), body).getStatusCodeValue());
+		assertEquals(200, api(TestModes.standalone()).update(item.getId(), body).getStatusCode().value());
 
 		Item stored = db.items.get(item.getId());
 		assertEquals("Renamed", stored.getName());
@@ -135,7 +135,7 @@ class ItemCostAdjustmentTest {
 	@DisplayName("Ajuster le CMP: the new value rounded to 3 decimals, one COST_ADJUSTMENT movement with old, new, reason and user; the stock untouched")
 	void adjusted() throws Exception {
 		assertEquals(200, api(TestModes.standalone()).adjustCost(item.getId(), request(8.12345, " Inventaire annuel "))
-				.getStatusCodeValue());
+				.getStatusCode().value());
 
 		assertEquals(8.123, item.getCostPrice());
 		assertEquals(0, BigDecimal.valueOf(10).compareTo(item.getStockQuantity()));
@@ -163,7 +163,7 @@ class ItemCostAdjustmentTest {
 	void firstValue() throws Exception {
 		item.setCostPrice(null);
 		assertEquals(200, api(TestModes.standalone()).adjustCost(item.getId(), request(5.0, "Coût initial"))
-				.getStatusCodeValue());
+				.getStatusCode().value());
 		assertEquals(5.0, item.getCostPrice());
 		assertEquals("CMP - → 5 : Coût initial", stock.movements.get(0).getNotes());
 		assertEquals(1, stock.costHistory.size());
@@ -179,14 +179,14 @@ class ItemCostAdjustmentTest {
 	@DisplayName("Refused, nothing written: no reason or a blank one 400, no cost or below 0 400, unknown item 400, without the right 403")
 	void refusals() throws Exception {
 		ItemAPI api = api(TestModes.standalone());
-		assertEquals(400, api.adjustCost(item.getId(), request(8.0, null)).getStatusCodeValue());
-		assertEquals(400, api.adjustCost(item.getId(), request(8.0, "   ")).getStatusCodeValue());
-		assertEquals(400, api.adjustCost(item.getId(), request(null, "x")).getStatusCodeValue());
-		assertEquals(400, api.adjustCost(item.getId(), request(-1.0, "x")).getStatusCodeValue());
-		assertEquals(400, api.adjustCost(item.getId(), null).getStatusCodeValue());
-		assertEquals(400, api.adjustCost(999L, request(8.0, "x")).getStatusCodeValue());
+		assertEquals(400, api.adjustCost(item.getId(), request(8.0, null)).getStatusCode().value());
+		assertEquals(400, api.adjustCost(item.getId(), request(8.0, "   ")).getStatusCode().value());
+		assertEquals(400, api.adjustCost(item.getId(), request(null, "x")).getStatusCode().value());
+		assertEquals(400, api.adjustCost(item.getId(), request(-1.0, "x")).getStatusCode().value());
+		assertEquals(400, api.adjustCost(item.getId(), null).getStatusCode().value());
+		assertEquals(400, api.adjustCost(999L, request(8.0, "x")).getStatusCode().value());
 		hasRight = false;
-		assertEquals(403, api.adjustCost(item.getId(), request(8.0, "x")).getStatusCodeValue());
+		assertEquals(403, api.adjustCost(item.getId(), request(8.0, "x")).getStatusCode().value());
 		assertEquals(9.0, item.getCostPrice());
 		assertTrue(stock.movements.isEmpty());
 		assertTrue(stock.costHistory.isEmpty());
@@ -195,20 +195,20 @@ class ItemCostAdjustmentTest {
 	@Test
 	@DisplayName("Where the installation keeps no stock of its own (the ERP keeps it, a head office without stock): 403, nothing written")
 	void noStockHere() throws Exception {
-		assertEquals(403, api(TestModes.erp()).adjustCost(item.getId(), request(8.0, "x")).getStatusCodeValue());
+		assertEquals(403, api(TestModes.erp()).adjustCost(item.getId(), request(8.0, "x")).getStatusCode().value());
 		MockEnvironment headOfficeWithoutStock = new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")
 				.withProperty("headoffice.stock.enabled", "false");
 		assertEquals(403, api(TestModes.of(headOfficeWithoutStock)).adjustCost(item.getId(), request(8.0, "x"))
-				.getStatusCodeValue());
+				.getStatusCode().value());
 		assertEquals(200, api(TestModes.of(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")))
-				.adjustCost(item.getId(), request(8.0, "x")).getStatusCodeValue(), "a head office with its stock");
+				.adjustCost(item.getId(), request(8.0, "x")).getStatusCode().value(), "a head office with its stock");
 		assertEquals(8.0, item.getCostPrice());
 	}
 
 	@Test
 	@DisplayName("Ajuster le CMP to the same value: the movement as before, no cost history row (nothing changed)")
 	void sameValueNoHistory() throws Exception {
-		assertEquals(200, api(TestModes.standalone()).adjustCost(item.getId(), request(9.0, "Contrôle")).getStatusCodeValue());
+		assertEquals(200, api(TestModes.standalone()).adjustCost(item.getId(), request(9.0, "Contrôle")).getStatusCode().value());
 		assertEquals(1, stock.movements.size());
 		assertTrue(stock.costHistory.isEmpty());
 	}
@@ -221,7 +221,7 @@ class ItemCostAdjustmentTest {
 			reason.append("Recalcul ");
 		}
 		assertEquals(200, api(TestModes.standalone()).adjustCost(item.getId(), request(8.0, reason.toString()))
-				.getStatusCodeValue());
+				.getStatusCode().value());
 		assertEquals(ItemCostHistory.NOTE_LENGTH, stock.costHistory.get(0).getNote().length());
 	}
 
@@ -233,20 +233,20 @@ class ItemCostAdjustmentTest {
 		api.adjustCost(item.getId(), request(8.0, "a"));
 		api.adjustCost(item.getId(), request(7.0, "b"));
 		ResponseEntity<?> answer = api.costHistory(item.getId(), 20);
-		assertEquals(200, answer.getStatusCodeValue());
+		assertEquals(200, answer.getStatusCode().value());
 		List<ItemCostHistory> rows = (List<ItemCostHistory>) answer.getBody();
 		assertEquals(Arrays.asList(7.0, 8.0), rows.stream().map(ItemCostHistory::getNewCost).collect(Collectors.toList()));
 		assertEquals(1, ((List<?>) api.costHistory(item.getId(), 1).getBody()).size(), "size");
 
 		hasRight = false;
 		readsMargins = true;
-		assertEquals(200, api.costHistory(item.getId(), 20).getStatusCodeValue(), "read:admin-margins is enough");
+		assertEquals(200, api.costHistory(item.getId(), 20).getStatusCode().value(), "read:admin-margins is enough");
 		readsMargins = false;
-		assertEquals(403, api.costHistory(item.getId(), 20).getStatusCodeValue());
+		assertEquals(403, api.costHistory(item.getId(), 20).getStatusCode().value());
 		hasRight = true;
-		assertEquals(403, api(TestModes.erp()).costHistory(item.getId(), 20).getStatusCodeValue());
+		assertEquals(403, api(TestModes.erp()).costHistory(item.getId(), 20).getStatusCode().value());
 		MockEnvironment headOfficeWithoutStock = new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")
 				.withProperty("headoffice.stock.enabled", "false");
-		assertEquals(403, api(TestModes.of(headOfficeWithoutStock)).costHistory(item.getId(), 20).getStatusCodeValue());
+		assertEquals(403, api(TestModes.of(headOfficeWithoutStock)).costHistory(item.getId(), 20).getStatusCode().value());
 	}
 }

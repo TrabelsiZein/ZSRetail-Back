@@ -351,7 +351,7 @@ public class DynamicsNavRestClient {
 		String companySegment = properties.getCompanyUrlSegment();
 		String path = (companySegment.isEmpty() ? "" : "/" + companySegment) + "/" + entityName;
 
-		return UriComponentsBuilder.fromHttpUrl(ensureTrailingSlash(properties.getBaseUrl())).path(path);
+		return UriComponentsBuilder.fromUriString(ensureTrailingSlash(properties.getBaseUrl())).path(path);
 	}
 
 	private String ensureTrailingSlash(String baseUrl) {
@@ -563,7 +563,7 @@ public class DynamicsNavRestClient {
 	 */
 	private String buildCodeUnitEndpointUrl(String endpointName) {
 		String baseUrl = ensureTrailingSlash(properties.getBaseUrl());
-		UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl).path(endpointName);
+		UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(baseUrl).path(endpointName);
 
 		// Add company as query parameter
 		if (properties.getCompany() != null && !properties.getCompany().trim().isEmpty()) {

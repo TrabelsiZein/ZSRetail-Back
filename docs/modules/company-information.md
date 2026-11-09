@@ -3,13 +3,13 @@
 **Status**: ✅ Complete
 
 **Overview:**
-- Dedicated `company_information` DB table (singleton — always exactly one row, `id=1`) storing all company/store profile data used on printed documents.
+- Dedicated `company_information` DB table (singleton — always exactly one row, read as the first row; IDENTITY gives its id, 1 on every database so far) storing all company/store profile data used on printed documents.
 - Replaces the previously hardcoded `receiptBranding.js` static file.
 - Admin-only PUT endpoint; public GET endpoint (loaded at startup alongside `GET /config`).
 
 ### Database — New Table
 
-**`company_information`** (singleton, id=1 always):
+**`company_information`** (singleton):
 - `company_name`, `logo_base64` (TEXT/LOB — base64 data-URL), `matricule_fiscal`
 - `address`, `city`, `postal_code`, `country`
 - `phone`, `fax`, `email`, `website`
@@ -21,8 +21,8 @@
 - **`model/CompanyInformation.java`** — Entity extending `_BaseEntity`
 - **`dto/CompanyInformationDTO.java`** — flat DTO (all fields as Strings)
 - **`repository/CompanyInformationRepository.java`** — standard JpaRepository
-- **`service/CompanyInformationService.java`** — `get()`, `update()`, `ensureExists()`. Always operates on `id=1`; `ensureExists()` called by `ZZDataInitializer` on startup.
-- **`controller/CompanyInformationAPI.java`** — `GET /company-info` (public) + `PUT /company-info` (ADMIN only, `@PreAuthorize("hasRole('ADMIN')")`)
+- **`service/CompanyInformationService.java`** — `get()`, `update()`, `ensureExists()`. Operates on the first row, created without an id (since 4.0.0: Hibernate 6.6 refuses a new row saved with an id); `ensureExists()` called by `ZZDataInitializer` on startup.
+- **`controller/CompanyInformationAPI.java`** — `GET /company-info` (public) + `PUT /company-info` (the page is the admin's, by the front's menu; the API asks only for a logged user: no `@PreAuthorize` exists, see `CLAUDE.md`)
 - **`db/migration/013_add_company_information.sql`** — creates table + inserts default row
 
 ### Backend — Modified Files

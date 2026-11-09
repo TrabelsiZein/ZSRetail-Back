@@ -104,10 +104,10 @@ class PromotionAPIGuardTest {
 			assertConflict(api.deleteById(id), PromotionAPI.OWNED_BY_HEAD_OFFICE);
 		}
 		assertEquals(before, snapshot());
-		assertEquals(404, api.update(99L, body(99L, "X")).getStatusCodeValue());
+		assertEquals(404, api.update(99L, body(99L, "X")).getStatusCode().value());
 
-		assertEquals(200, api.getById(2L).getStatusCodeValue(), "consulting stays allowed");
-		assertEquals(200, api.getAllPaginated(0, 20, null, null).getStatusCodeValue());
+		assertEquals(200, api.getById(2L).getStatusCode().value(), "consulting stays allowed");
+		assertEquals(200, api.getAllPaginated(0, 20, null, null).getStatusCode().value());
 	}
 
 	@Test
@@ -115,27 +115,27 @@ class PromotionAPIGuardTest {
 	void headOfficeRecordOnLocalStore() throws Exception {
 		PromotionAPI api = api(local());
 
-		assertEquals(200, api.update(2L, body(2L, "HO1")).getStatusCodeValue());
+		assertEquals(200, api.update(2L, body(2L, "HO1")).getStatusCode().value());
 		assertEquals("Edited HO1", table.get(2L).getName());
 		assertEquals(RecordOrigin.HEAD_OFFICE, table.get(2L).getOrigin(), "origin kept, for the badge");
 
 		Promotion deactivate = body(2L, "HO1");
 		deactivate.setActive(false);
-		assertEquals(200, api.update(2L, deactivate).getStatusCodeValue());
+		assertEquals(200, api.update(2L, deactivate).getStatusCode().value());
 		assertFalse(table.get(2L).getActive());
 
 		Promotion again = body(2L, "HO1");
 		again.setName("Through the generic create");
-		assertEquals(201, api.create(again).getStatusCodeValue());
+		assertEquals(201, api.create(again).getStatusCode().value());
 		assertEquals(RecordOrigin.HEAD_OFFICE, table.get(2L).getOrigin(), "a create with its id keeps its origin");
 
 		usages.put(2L, 1L);
 		Promotion locked = body(2L, "HO1");
 		locked.setDiscountPercentage(70.0);
-		assertEquals(409, api.update(2L, locked).getStatusCodeValue(), "the usage lock applies as to a local one");
+		assertEquals(409, api.update(2L, locked).getStatusCode().value(), "the usage lock applies as to a local one");
 		usages.remove(2L);
 
-		assertEquals(204, api.deleteById(2L).getStatusCodeValue());
+		assertEquals(204, api.deleteById(2L).getStatusCode().value());
 		assertFalse(table.containsKey(2L));
 	}
 
@@ -149,19 +149,19 @@ class PromotionAPIGuardTest {
 				+ "\"origin\":\"HEAD_OFFICE\"}", Promotion.class);
 		assertNull(created.getOrigin(), "origin is read-only in JSON");
 		ResponseEntity<?> answer = api.create(created);
-		assertEquals(201, answer.getStatusCodeValue());
+		assertEquals(201, answer.getStatusCode().value());
 		assertNull(((Promotion) answer.getBody()).getOrigin());
 		assertNull(table.get(4L).getOrigin());
 
 		Promotion sneaky = body(1L, "LOCAL1");
 		sneaky.setOrigin(RecordOrigin.HEAD_OFFICE); // set in Java, not reachable from JSON
-		assertEquals(200, api.update(1L, sneaky).getStatusCodeValue());
+		assertEquals(200, api.update(1L, sneaky).getStatusCode().value());
 		assertNull(table.get(1L).getOrigin(), "a local promotion stays local");
 		assertEquals("Edited LOCAL1", table.get(1L).getName());
 
 		Promotion deactivate = body(3L, "LOCAL2");
 		deactivate.setActive(false);
-		assertEquals(200, api.update(3L, deactivate).getStatusCodeValue());
+		assertEquals(200, api.update(3L, deactivate).getStatusCode().value());
 		assertFalse(table.get(3L).getActive());
 		assertEquals(RecordOrigin.LOCAL, table.get(3L).getOrigin());
 
@@ -169,14 +169,14 @@ class PromotionAPIGuardTest {
 		Promotion locked = body(1L, "LOCAL1");
 		locked.setDiscountPercentage(50.0);
 		ResponseEntity<?> refused = api.update(1L, locked);
-		assertEquals(409, refused.getStatusCodeValue());
+		assertEquals(409, refused.getStatusCode().value());
 		assertTrue(refused.getBody().toString().startsWith("Promotion has been used in 2 sale(s). Cannot modify"));
 		ResponseEntity<?> deleteUsed = api.deleteById(1L);
-		assertEquals(409, deleteUsed.getStatusCodeValue());
+		assertEquals(409, deleteUsed.getStatusCode().value());
 		assertEquals("This promotion has been used in 2 sale(s) and cannot be deleted. Deactivate it instead.",
 				deleteUsed.getBody());
 
-		assertEquals(204, api.deleteById(3L).getStatusCodeValue());
+		assertEquals(204, api.deleteById(3L).getStatusCode().value());
 		assertFalse(table.containsKey(3L));
 	}
 
@@ -202,7 +202,7 @@ class PromotionAPIGuardTest {
 	// ─── Wiring ───────────────────────────────────────────────────
 
 	private static void assertConflict(ResponseEntity<?> answer, String message) {
-		assertEquals(409, answer.getStatusCodeValue());
+		assertEquals(409, answer.getStatusCode().value());
 		assertEquals(message, answer.getBody());
 	}
 

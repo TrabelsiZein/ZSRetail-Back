@@ -144,15 +144,6 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 
 ## What each step must not forget
 
-**1.3**
-- The SQL Server check (decision 2): refuses below 2017 (major version 14), with a message that says what to do. Flyway's
-  own floor is the same version. The dev SQL Server is 2019.
-- `fromHttpUrl`: 23 uses in 5 files, gone in Spring 7. `getRawStatusCode` 15, `getStatusCodeValue` 5.
-- `CompanyInformationService.java:83` saves a new entity with `id=1` and no row. Hibernate 6.6 throws
-  `OptimisticLockException` there for a generated id, where Hibernate 5 inserted, so a fresh database would break.
-  Still to read: `PromotionDownHandler:387`, `PosMachineAPI:47`, `RfidReaderAPI:56`.
-- `@EnableGlobalMethodSecurity` guards nothing (0 `@PreAuthorize`). `@Bean Principal getPrincipal()` is dead.
-
 **1.4**
 - 19 of the 20 tracked `spring.datasource.url` lines lack `encrypt` and `trustServerCertificate`. The driver goes to 10.2
   at this step. `configs/local` is Zein's, upgraded by hand.
@@ -187,8 +178,16 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 - `SQLServer2012Dialect`: 14 config files and `QueryParameterBindingTest`. `BasicBinder` logger: 5 files.
   `devenv/start.ps1:26` names the old `WarLauncher` package. `getOne`: 3 in `SalesCopyReceiver`.
 - Internal Hibernate API in `QueryParameterBindingTest` and `ItemJsonProxyTest`.
+- `getRawStatusCode` still has 3 uses, `HeadOfficeClient.java:493,575,576`: they catch `RestClientResponseException`, which
+  has no `getStatusCode()` before Spring 6 (step 1.3 changed the 12 on `HttpStatusCodeException`). Change them here.
+- `UriComponentsBuilder.fromUriString` should move to a stricter RFC parser on Spring 6.2 (from memory, to read). Rerun on
+  it the comparison of step 1.3: the 11 addresses of `configs/`, with spaces, accents and quotes in the path.
 
 **1.8, 2.2**
+- The `setId` sites, read at 1.3: all take the id of a row just read, or null, and the DTO ones are not entities, so
+  Hibernate 6.6's refusal of a new row with an id does not reach them. Two to run there: `_BaseController.create` saves
+  whatever id a client sends (an unknown id: inserted today, refused then; the front sends `id: null`), and
+  `GroupItemsDeserializer` builds an `Item` with only an id as a reference for `Promotion.groupItems`.
 - Flyway on Boot 3.5 is `flyway-core` plus `flyway-sqlserver` (11.7.2 in the 3.5.14 BOM): `spring-boot-starter-flyway` exists
   only from Boot 4, so the starter comes at 2.5. The startup tests go through Flyway from here: an empty
   `zsretail_migtest`, baseline, `validate`. They prove the new-install path. Check the floor of open point 1 on 11.7.2.

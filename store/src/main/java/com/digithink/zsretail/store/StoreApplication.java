@@ -3,7 +3,6 @@ package com.digithink.zsretail.store;
 import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableAsync;
-import org.springframework.scheduling.annotation.EnableScheduling;
 
 import com.digithink.zsretail.core.config.ZsRetailApplication;
 
@@ -15,7 +14,6 @@ import com.digithink.zsretail.core.config.ZsRetailApplication;
 @EnableAsync
 @SpringBootApplication(scanBasePackages = "com.digithink.zsretail")
 @AutoConfigurationPackage(basePackages = "com.digithink.zsretail")
-@EnableScheduling
 public class StoreApplication extends ZsRetailApplication {
 
 	public static void main(String[] args) {

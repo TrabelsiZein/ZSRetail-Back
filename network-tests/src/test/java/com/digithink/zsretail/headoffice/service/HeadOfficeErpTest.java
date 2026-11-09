@@ -189,17 +189,17 @@ class HeadOfficeErpTest {
 		refused.add(guarded.updateJob(export, new ErpSyncJobUpdateDTO()));
 		refused.add(guarded.getStatistics(job(ErpSyncJobType.IMPORT_SALES_PRICES_AND_DISCOUNTS).getId(), null, null));
 		for (ResponseEntity<?> answer : refused) {
-			assertEquals(404, answer.getStatusCodeValue());
+			assertEquals(404, answer.getStatusCode().value());
 			assertEquals(Collections.singletonMap("error", "This ERP job does not run on a head office"), answer.getBody());
 		}
 		assertTrue(calls.isEmpty(), calls.toString());
 
 		Long items = job(ErpSyncJobType.IMPORT_CATALOGUE).getId();
-		assertEquals(200, guarded.runJobNow(items).getStatusCodeValue());
+		assertEquals(200, guarded.runJobNow(items).getStatusCode().value());
 		guarded.updateEnabled(items, new ErpSyncJobEnabledDTO());
 		guarded.updateJob(items, new ErpSyncJobUpdateDTO());
 		guarded.getStatistics(items, null, null);
-		assertEquals(200, guarded.runJobNow(999L).getStatusCodeValue(), "unknown id: the controller answers as before");
+		assertEquals(200, guarded.runJobNow(999L).getStatusCode().value(), "unknown id: the controller answers as before");
 		assertEquals(5, calls.size(), calls.toString());
 	}
 
@@ -305,7 +305,7 @@ class HeadOfficeErpTest {
 			answers.add(guarded.updateJob(id, new ErpSyncJobUpdateDTO()));
 			answers.add(guarded.getStatistics(id, null, null));
 			for (ResponseEntity<?> answer : answers) {
-				assertEquals(404, answer.getStatusCodeValue(), type.name());
+				assertEquals(404, answer.getStatusCode().value(), type.name());
 				assertEquals(Collections.singletonMap("error", "This ERP job does not run on a head office"),
 						answer.getBody());
 			}
@@ -314,7 +314,7 @@ class HeadOfficeErpTest {
 
 		for (ErpSyncJobType type : OFFERED) {
 			Long id = job(type).getId();
-			assertEquals(200, guarded.runJobNow(id).getStatusCodeValue(), type.name());
+			assertEquals(200, guarded.runJobNow(id).getStatusCode().value(), type.name());
 			guarded.updateEnabled(id, new ErpSyncJobEnabledDTO());
 			guarded.updateJob(id, new ErpSyncJobUpdateDTO());
 			guarded.getStatistics(id, null, null);

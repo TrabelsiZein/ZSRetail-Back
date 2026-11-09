@@ -357,7 +357,7 @@ public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 	 * whole address as it is (no lookup).
 	 */
 	private UriComponentsBuilder invoicesPage() {
-		return UriComponentsBuilder.fromHttpUrl(
+		return UriComponentsBuilder.fromUriString(
 				properties.invoicesPageAddress(properties.invoicesPageIsAddress() ? null : companyId()));
 	}
 
@@ -365,7 +365,7 @@ public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 	private UriComponentsBuilder page(String page) {
 		String name = page == null ? "" : page.trim();
 		boolean whole = name.startsWith("http://") || name.startsWith("https://");
-		return UriComponentsBuilder.fromHttpUrl(properties.pageAddress(page, whole ? null : companyId()));
+		return UriComponentsBuilder.fromUriString(properties.pageAddress(page, whole ? null : companyId()));
 	}
 
 	/**
@@ -384,7 +384,7 @@ public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 			return configured;
 		}
 		String name = properties.getCompany() == null ? "" : properties.getCompany().trim();
-		URI uri = UriComponentsBuilder.fromHttpUrl(properties.apiAddress() + COMPANIES)
+		URI uri = UriComponentsBuilder.fromUriString(properties.apiAddress() + COMPANIES)
 				.queryParam("$filter", "name eq '" + quoted(name) + "'").build().encode().toUri();
 		ZenCollection<ZenCompanyRow> body = get(COMPANIES, uri, new ParameterizedTypeReference<ZenCollection<ZenCompanyRow>>() {
 		});
@@ -417,7 +417,7 @@ public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 			ResponseEntity<ZenCollection<T>> answer = restTemplate.exchange(uri, HttpMethod.GET, null, type);
 			return answer.getBody();
 		} catch (HttpStatusCodeException e) {
-			throw new ZenReadException(page, "zen: reading the page " + page + " failed: HTTP " + e.getRawStatusCode() + " "
+			throw new ZenReadException(page, "zen: reading the page " + page + " failed: HTTP " + e.getStatusCode().value() + " "
 					+ e.getStatusText() + " (" + uri + ")", e);
 		} catch (ResourceAccessException e) {
 			throw new ZenReadException(page, "zen: reading the page " + page + " failed: no answer or timeout ("
@@ -500,7 +500,7 @@ public class ZenRestClient implements ZenSource, ZenInvoiceSource {
 			return text == null || text.trim().isEmpty() ? null : JSON.readTree(text);
 		} catch (HttpStatusCodeException e) {
 			String detail = e.getResponseBodyAsString();
-			throw new ZenReadException(page, "zen: " + what + " failed: HTTP " + e.getRawStatusCode() + " "
+			throw new ZenReadException(page, "zen: " + what + " failed: HTTP " + e.getStatusCode().value() + " "
 					+ e.getStatusText() + " (" + uri + ")" + (detail == null || detail.trim().isEmpty() ? ""
 							: ": " + (detail.length() > 500 ? detail.substring(0, 500) : detail)), e);
 		} catch (ResourceAccessException e) {

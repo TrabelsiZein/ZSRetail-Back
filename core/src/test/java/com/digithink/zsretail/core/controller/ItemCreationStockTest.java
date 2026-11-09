@@ -121,7 +121,7 @@ class ItemCreationStockTest {
 	@DisplayName("POST /item with a stock: one OPENING_STOCK IN of that quantity, the note, the user")
 	void openingStock() throws Exception {
 		ResponseEntity<?> response = api(TestModes.standalone()).create(item("N1", new BigDecimal("4")));
-		assertEquals(201, response.getStatusCodeValue());
+		assertEquals(201, response.getStatusCode().value());
 		assertEquals(1, movements.size());
 		StockMovement movement = movements.get(0);
 		assertEquals(StockMovementType.OPENING_STOCK, movement.getMovementType());
@@ -137,8 +137,8 @@ class ItemCreationStockTest {
 	@DisplayName("POST /item without a stock or with 0: no movement")
 	void noStock() throws Exception {
 		ItemAPI api = api(TestModes.standalone());
-		assertEquals(201, api.create(item("N1", null)).getStatusCodeValue());
-		assertEquals(201, api.create(item("N2", BigDecimal.ZERO)).getStatusCodeValue());
+		assertEquals(201, api.create(item("N1", null)).getStatusCode().value());
+		assertEquals(201, api.create(item("N2", BigDecimal.ZERO)).getStatusCode().value());
 		assertTrue(movements.isEmpty());
 		assertTrue(history.isEmpty(), "no cost: no cost history");
 	}
@@ -172,7 +172,7 @@ class ItemCreationStockTest {
 	@DisplayName("With an ERP (supply and catalogue): POST /item refused as before, an opening stock writes nothing")
 	void withErp() throws Exception {
 		ApplicationModeService mode = TestModes.erp();
-		assertEquals(403, api(mode).create(item("N1", new BigDecimal("4"))).getStatusCodeValue());
+		assertEquals(403, api(mode).create(item("N1", new BigDecimal("4"))).getStatusCode().value());
 		StockMovementService stockMovements = new StockMovementService();
 		set(stockMovements, StockMovementService.class, "applicationModeService", mode);
 		stockMovements.recordOpeningStock(1L, new BigDecimal("4"), "x", "manager");

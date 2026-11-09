@@ -28,6 +28,7 @@ import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.repository.AppRoleRepository;
 import com.digithink.zsretail.core.repository.AppVersionRepository;
+import com.digithink.zsretail.core.repository.CompanyInformationRepository;
 import com.digithink.zsretail.core.repository.PaymentMethodRepository;
 import com.digithink.zsretail.core.repository.UserAccountRepository;
 import com.digithink.zsretail.core.security.StoreKeyFilter;
@@ -101,6 +102,7 @@ class HeadOfficeStartupTest {
 		assertEquals(10, headOffice.bean(PaymentMethodRepository.class).count());
 		assertEquals(headOffice.context().getEnvironment().getProperty("app.version"),
 				headOffice.bean(AppVersionRepository.class).findAll().get(0).getVersion());
+		assertEquals(1, headOffice.bean(CompanyInformationRepository.class).count());
 	}
 
 	@Test
@@ -162,5 +164,6 @@ class HeadOfficeStartupTest {
 		assertEquals(roles, roles());
 		assertEquals(users, users());
 		assertEquals(methods, headOffice.bean(PaymentMethodRepository.class).count());
+		assertEquals(1, headOffice.bean(CompanyInformationRepository.class).count());
 	}
 }

@@ -565,11 +565,11 @@ class ReturnRefundLoyaltyTest {
 		for (TransactionStatus status : new TransactionStatus[] { TransactionStatus.PENDING, TransactionStatus.CANCELLED }) {
 			sale.setStatus(status);
 			org.springframework.http.ResponseEntity<?> refused = api.getTicketDetails(sale.getSalesNumber());
-			assertEquals(400, refused.getStatusCodeValue(), status.name());
+			assertEquals(400, refused.getStatusCode().value(), status.name());
 			assertEquals("Only completed tickets can be returned", refused.getBody(), status.name());
 		}
 		sale.setStatus(TransactionStatus.COMPLETED);
-		assertEquals(200, api.getTicketDetails(sale.getSalesNumber()).getStatusCodeValue());
+		assertEquals(200, api.getTicketDetails(sale.getSalesNumber()).getStatusCode().value());
 	}
 	// ─── 2.2.2: a whole return gives the values of 2.2.1 ─────────────
 

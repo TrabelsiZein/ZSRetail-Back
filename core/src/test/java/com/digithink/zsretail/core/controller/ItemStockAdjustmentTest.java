@@ -152,7 +152,7 @@ class ItemStockAdjustmentTest {
 		body.setUnitPrice(12.0);
 		body.setStockQuantity(BigDecimal.valueOf(3)); // loaded before a sale took the stock from 13 to 10
 
-		assertEquals(200, api(true).update(7L, body).getStatusCodeValue());
+		assertEquals(200, api(true).update(7L, body).getStatusCode().value());
 
 		Item stored = items.get(7L);
 		assertEquals("Renamed", stored.getName());
@@ -164,7 +164,7 @@ class ItemStockAdjustmentTest {
 	@Test
 	@DisplayName("A positive delta: stock +5 in one update, one ADJUSTMENT_IN movement of 5 with the reason")
 	void positiveDelta() throws Exception {
-		assertEquals(200, api(true).adjustStock(7L, request(5, "count")).getStatusCodeValue());
+		assertEquals(200, api(true).adjustStock(7L, request(5, "count")).getStatusCode().value());
 
 		assertEquals(BigDecimal.valueOf(15), item.getStockQuantity());
 		assertEquals(1, stockUpdates.size(), "one update, as before");
@@ -181,7 +181,7 @@ class ItemStockAdjustmentTest {
 	@Test
 	@DisplayName("A negative delta: stock -3, one ADJUSTMENT_OUT movement of 3; an unknown reason is CORRECTION as before")
 	void negativeDelta() throws Exception {
-		assertEquals(200, api(true).adjustStock(7L, request(-3, "whatever")).getStatusCodeValue());
+		assertEquals(200, api(true).adjustStock(7L, request(-3, "whatever")).getStatusCode().value());
 
 		assertEquals(BigDecimal.valueOf(7), item.getStockQuantity());
 		assertEquals(1, movements.size());
@@ -194,10 +194,10 @@ class ItemStockAdjustmentTest {
 	@Test
 	@DisplayName("Refusals as before: delta 0 or missing 400, unknown item 400, ERP mode 403; nothing written")
 	void refusalsWriteNothing() throws Exception {
-		assertEquals(400, api(true).adjustStock(7L, request(0, "COUNT")).getStatusCodeValue());
-		assertEquals(400, api(true).adjustStock(7L, request(null, "COUNT")).getStatusCodeValue());
-		assertEquals(400, api(true).adjustStock(99L, request(2, "COUNT")).getStatusCodeValue());
-		assertEquals(403, api(false).adjustStock(7L, request(2, "COUNT")).getStatusCodeValue());
+		assertEquals(400, api(true).adjustStock(7L, request(0, "COUNT")).getStatusCode().value());
+		assertEquals(400, api(true).adjustStock(7L, request(null, "COUNT")).getStatusCode().value());
+		assertEquals(400, api(true).adjustStock(99L, request(2, "COUNT")).getStatusCode().value());
+		assertEquals(403, api(false).adjustStock(7L, request(2, "COUNT")).getStatusCode().value());
 
 		assertEquals(BigDecimal.valueOf(10), item.getStockQuantity());
 		assertTrue(stockUpdates.isEmpty());
@@ -209,15 +209,15 @@ class ItemStockAdjustmentTest {
 	void decimalDeltaRefusedWithoutSetting() throws Exception {
 		item.setName("Vanille 1L");
 		org.springframework.http.ResponseEntity<?> refused = api(true).adjustStock(7L, decimal("1.5", "COUNT"));
-		assertEquals(400, refused.getStatusCodeValue());
+		assertEquals(400, refused.getStatusCode().value());
 		assertEquals("Item B001 (Vanille 1L): the quantity 1.5 has decimals, and decimal quantities are not allowed in"
 				+ " this store (General Setup, Allow decimal quantities).", refused.getBody());
-		assertEquals(400, api(true).adjustStock(7L, decimal("0.5", "COUNT")).getStatusCodeValue());
+		assertEquals(400, api(true).adjustStock(7L, decimal("0.5", "COUNT")).getStatusCode().value());
 		assertEquals(BigDecimal.valueOf(10), item.getStockQuantity());
 		assertTrue(stockUpdates.isEmpty());
 		assertTrue(movements.isEmpty());
 
-		assertEquals(200, api(true).adjustStock(7L, decimal("2.0", "COUNT")).getStatusCodeValue());
+		assertEquals(200, api(true).adjustStock(7L, decimal("2.0", "COUNT")).getStatusCode().value());
 		assertEquals(BigDecimal.valueOf(12), item.getStockQuantity());
 		assertEquals(BigDecimal.valueOf(2), movements.get(0).getQuantity());
 	}
@@ -228,19 +228,19 @@ class ItemStockAdjustmentTest {
 		decimalSetting = "true";
 		item.setStockQuantity(BigDecimal.ZERO);
 
-		assertEquals(200, api(true).adjustStock(7L, decimal("1.820", "COUNT")).getStatusCodeValue());
+		assertEquals(200, api(true).adjustStock(7L, decimal("1.820", "COUNT")).getStatusCode().value());
 		assertEquals(new BigDecimal("1.82"), item.getStockQuantity());
 		assertEquals(StockMovementType.ADJUSTMENT_IN, movements.get(0).getMovementType());
 		assertEquals(new BigDecimal("1.82"), movements.get(0).getQuantity());
 
-		assertEquals(200, api(true).adjustStock(7L, decimal("-0.5", "DAMAGE")).getStatusCodeValue());
+		assertEquals(200, api(true).adjustStock(7L, decimal("-0.5", "DAMAGE")).getStatusCode().value());
 		assertEquals(new BigDecimal("1.32"), item.getStockQuantity());
 		assertEquals(StockMovementType.ADJUSTMENT_OUT, movements.get(1).getMovementType());
 		assertEquals(new BigDecimal("0.5"), movements.get(1).getQuantity());
 		assertEquals("DAMAGE", movements.get(1).getNotes());
 
 		org.springframework.http.ResponseEntity<?> refused = api(true).adjustStock(7L, decimal("0.0005", "COUNT"));
-		assertEquals(400, refused.getStatusCodeValue());
+		assertEquals(400, refused.getStatusCode().value());
 		assertTrue(String.valueOf(refused.getBody()).contains("at most 3 decimals"), String.valueOf(refused.getBody()));
 		assertEquals(new BigDecimal("1.32"), item.getStockQuantity());
 		assertEquals(2, movements.size());

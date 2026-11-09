@@ -27,7 +27,7 @@ class CompanyInformationTicketTest {
 				CompanyInformationRepository.class.getClassLoader(), new Class<?>[] { CompanyInformationRepository.class },
 				(proxy, method, args) -> {
 					switch (method.getName()) {
-						case "findById": return Optional.of(row);
+						case "findFirstByOrderByIdAsc": return Optional.of(row);
 						case "save": return args[0];
 						default: throw new UnsupportedOperationException(method.getName());
 					}

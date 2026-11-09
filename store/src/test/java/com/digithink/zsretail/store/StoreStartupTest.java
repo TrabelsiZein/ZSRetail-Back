@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.config.SqlServerVersionCheck;
 import com.digithink.zsretail.core.erp.scheduler.ErpSyncScheduler;
 import com.digithink.zsretail.core.link.dto.TicketCopyDTO;
 import com.digithink.zsretail.core.model.AppRole;
@@ -22,6 +23,7 @@ import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.repository.AppRoleRepository;
 import com.digithink.zsretail.core.repository.AppVersionRepository;
+import com.digithink.zsretail.core.repository.CompanyInformationRepository;
 import com.digithink.zsretail.core.repository.PaymentMethodRepository;
 import com.digithink.zsretail.core.repository.UserAccountRepository;
 import com.digithink.zsretail.core.security.StoreKeyFilter;
@@ -90,6 +92,13 @@ class StoreStartupTest {
 		assertEquals(10, store.bean(PaymentMethodRepository.class).count());
 		assertEquals(store.context().getEnvironment().getProperty("app.version"),
 				store.bean(AppVersionRepository.class).findAll().get(0).getVersion());
+		assertEquals(1, store.bean(CompanyInformationRepository.class).count());
+	}
+
+	@Test
+	@DisplayName("The SQL Server version check is in the start")
+	void versionCheck() {
+		assertEquals(1, store.context().getBeansOfType(SqlServerVersionCheck.class).size());
 	}
 
 	@Test
@@ -120,5 +129,6 @@ class StoreStartupTest {
 		assertEquals(roles, roles());
 		assertEquals(users, users());
 		assertEquals(methods, store.bean(PaymentMethodRepository.class).count());
+		assertEquals(1, store.bean(CompanyInformationRepository.class).count());
 	}
 }

@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.Banner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.logging.LogLevel;
@@ -52,6 +53,7 @@ public final class MigTestApplication implements AutoCloseable {
 
 	private ConfigurableApplicationContext context;
 	private String base;
+	private BeanPostProcessor refuser;
 
 	private MigTestApplication(Class<? extends ZsRetailApplication> application, String type, MigTestDatabase database,
 			String... more) {
@@ -67,10 +69,7 @@ public final class MigTestApplication implements AutoCloseable {
 	 * @param more further settings, key=value; a key of the defaults below takes this value instead
 	 */
 	public static MigTestApplication start(Class<? extends ZsRetailApplication> application, String type, String... more) {
-		String machineFile = System.getProperty(MachineFileEnvironmentPostProcessor.MACHINE_FILE_KEY);
-		if (machineFile != null) {
-			throw new IllegalStateException("The startup tests run on their own database, not on the outside file " + machineFile);
-		}
+		noOutsideFile();
 		MigTestDatabase database = MigTestDatabase.fromSettings();
 		database.recreate();
 		MigTestApplication started = new MigTestApplication(application, type, database, more);
@@ -82,6 +81,48 @@ public final class MigTestApplication implements AutoCloseable {
 			throw e;
 		}
 		return started;
+	}
+
+	private static void noOutsideFile() {
+		String machineFile = System.getProperty(MachineFileEnvironmentPostProcessor.MACHINE_FILE_KEY);
+		if (machineFile != null) {
+			throw new IllegalStateException("The startup tests run on their own database, not on the outside file " + machineFile);
+		}
+	}
+
+	/** What a start meant to be refused ended with. */
+	public static final class Refusal {
+		public final Throwable failure;
+		public final int tablesLeft;
+
+		Refusal(Throwable failure, int tablesLeft) {
+			this.failure = failure;
+			this.tablesLeft = tablesLeft;
+		}
+	}
+
+	/**
+	 * A start on a new empty database that one more post-processor, a bean of that start, is meant to refuse: what it ended
+	 * with and the tables it left, then the database dropped. Fails when the start goes through.
+	 */
+	public static Refusal startRefused(Class<? extends ZsRetailApplication> application, String type, BeanPostProcessor refuser) {
+		noOutsideFile();
+		MigTestDatabase database = MigTestDatabase.fromSettings();
+		database.recreate();
+		MigTestApplication started = new MigTestApplication(application, type, database);
+		started.refuser = refuser;
+		try {
+			started.run();
+		} catch (RuntimeException e) {
+			return new Refusal(e, database.tableCount());
+		} finally {
+			started.restoreLogging();
+			if (started.context != null) {
+				started.context.close();
+			}
+			database.drop();
+		}
+		throw new AssertionError("The start went through");
 	}
 
 	/**
@@ -97,7 +138,12 @@ public final class MigTestApplication implements AutoCloseable {
 		spring.setAdditionalProfiles(type);
 		spring.setDefaultProperties(ZsRetailApplication.defaults(type));
 		spring.setBannerMode(Banner.Mode.OFF);
-		spring.addInitializers(starting -> nothingCanLeave(starting.getEnvironment()));
+		spring.addInitializers(starting -> {
+			nothingCanLeave(starting.getEnvironment());
+			if (refuser != null) {
+				starting.getBeanFactory().addBeanPostProcessor(refuser);
+			}
+		});
 		// A key given twice on a command line reads as "a,b": a shape's value replaces the default here
 		Map<String, String> settings = new LinkedHashMap<>();
 		settings.put("spring.datasource.url", database.url());

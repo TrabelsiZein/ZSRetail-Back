@@ -209,7 +209,7 @@ public class ZenStoreOrders {
 			return false;
 		}
 		HttpStatusCodeException http = (HttpStatusCodeException) e.getCause();
-		if (http.getRawStatusCode() < 400 || http.getRawStatusCode() >= 500) {
+		if (http.getStatusCode().value() < 400 || http.getStatusCode().value() >= 500) {
 			return false;
 		}
 		String answer = http.getResponseBodyAsString().toLowerCase(Locale.ROOT);

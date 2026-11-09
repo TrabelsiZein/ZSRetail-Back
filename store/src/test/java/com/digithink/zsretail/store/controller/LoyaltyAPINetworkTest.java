@@ -64,10 +64,10 @@ class LoyaltyAPINetworkTest {
 		adjust.setDelta(50);
 		adjust.setReason("gift");
 		ResponseEntity<?> refused = api.adjustPoints(member.getId(), adjust);
-		assertEquals(403, refused.getStatusCodeValue());
+		assertEquals(403, refused.getStatusCode().value());
 		assertEquals(Map.of("error", "This store may not adjust points."), refused.getBody());
 		adjust.setDelta(0);
-		assertEquals(400, api.adjustPoints(member.getId(), adjust).getStatusCodeValue(), "checked before the call");
+		assertEquals(400, api.adjustPoints(member.getId(), adjust).getStatusCode().value(), "checked before the call");
 		assertEquals(1, db.programs.size());
 		assertTrue(program.getActive());
 		assertEquals(0, member.getLoyaltyPoints());
@@ -80,10 +80,10 @@ class LoyaltyAPINetworkTest {
 		InMemoryLoyalty.inject(api, "network",
 				network(new StoreLoyaltyNetwork.NetworkException(503, "The head office cannot be reached")));
 		ResponseEntity<?> edit = api.updateMember(1L, new CreateLoyaltyMemberRequestDTO());
-		assertEquals(503, edit.getStatusCodeValue());
+		assertEquals(503, edit.getStatusCode().value());
 		assertEquals(Collections.singletonMap("error", "The head office cannot be reached"), edit.getBody());
-		assertEquals(503, api.toggleMemberActive(1L).getStatusCodeValue());
-		assertEquals(503, api.linkCustomer(1L, Collections.singletonMap("customerId", 3L)).getStatusCodeValue());
+		assertEquals(503, api.toggleMemberActive(1L).getStatusCode().value());
+		assertEquals(503, api.linkCustomer(1L, Collections.singletonMap("customerId", 3L)).getStatusCode().value());
 	}
 
 	@Test
@@ -95,7 +95,7 @@ class LoyaltyAPINetworkTest {
 		request.setPhone("29954290");
 		request.setMemberFunctionId(client.getId());
 		ResponseEntity<?> created = api.createMember(request);
-		assertEquals(200, created.getStatusCodeValue());
+		assertEquals(200, created.getStatusCode().value());
 		LoyaltyMemberDTO member = (LoyaltyMemberDTO) created.getBody();
 		assertEquals("LYL-000001", member.getCardNumber());
 		assertEquals(null, db.card("LYL-000001").get().getOrigin(), "no origin with loyalty LOCAL");
@@ -104,13 +104,13 @@ class LoyaltyAPINetworkTest {
 		program.setName("Local");
 		program.setProgramCode("LOCAL-1");
 		ResponseEntity<?> programAnswer = api.createProgram(program);
-		assertEquals(201, programAnswer.getStatusCodeValue());
+		assertEquals(201, programAnswer.getStatusCode().value());
 		assertEquals("LOCAL-1", ((LoyaltyProgramDTO) programAnswer.getBody()).getProgramCode());
 
 		LoyaltyAdjustmentRequestDTO adjust = new LoyaltyAdjustmentRequestDTO();
 		adjust.setDelta(50);
 		adjust.setReason("gift");
-		assertEquals(200, api.adjustPoints(member.getId(), adjust).getStatusCodeValue());
+		assertEquals(200, api.adjustPoints(member.getId(), adjust).getStatusCode().value());
 		assertEquals(50, db.card("LYL-000001").get().getLoyaltyPoints());
 	}
 
@@ -119,7 +119,7 @@ class LoyaltyAPINetworkTest {
 	void enrolConflictFields() {
 		InMemoryLoyalty.inject(api, "network", network(null));
 		ResponseEntity<?> answer = api.createMember(request("29954290"));
-		assertEquals(409, answer.getStatusCodeValue());
+		assertEquals(409, answer.getStatusCode().value());
 		assertEquals(Map.of("error", "Ce numéro est déjà utilisé par la carte LYL-STORE-B-000001 (SAMI BEN), carte désactivée",
 				"existingCardNumber", "LYL-STORE-B-000001", "existingCardActive", false), answer.getBody());
 	}
@@ -135,7 +135,7 @@ class LoyaltyAPINetworkTest {
 			}
 		});
 		ResponseEntity<?> answer = api.createMember(request("29954290"));
-		assertEquals(503, answer.getStatusCodeValue());
+		assertEquals(503, answer.getStatusCode().value());
 		assertEquals(Map.of("error", StoreLoyaltyNetwork.ENROL_NEEDS_HEAD_OFFICE), answer.getBody());
 	}
 
@@ -144,7 +144,7 @@ class LoyaltyAPINetworkTest {
 	void enrolConflictLocal() {
 		db.member("LYL-000090", "ALI", "KHARAT", "22984935", true, null);
 		ResponseEntity<?> answer = api.createMember(request("22984935"));
-		assertEquals(409, answer.getStatusCodeValue());
+		assertEquals(409, answer.getStatusCode().value());
 		assertEquals(Map.of("error", "Ce numéro est déjà utilisé par la carte LYL-000090 (ALI KHARAT)"), answer.getBody());
 	}
 
@@ -158,7 +158,7 @@ class LoyaltyAPINetworkTest {
 	}
 
 	private static void assertRefused(ResponseEntity<?> answer, String message) {
-		assertEquals(409, answer.getStatusCodeValue());
+		assertEquals(409, answer.getStatusCode().value());
 		assertEquals(Map.of("error", message), answer.getBody());
 	}
 

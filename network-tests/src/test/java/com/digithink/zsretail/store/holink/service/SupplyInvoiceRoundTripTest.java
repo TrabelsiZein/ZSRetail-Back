@@ -290,12 +290,12 @@ class SupplyInvoiceRoundTripTest {
 				new StaticListableBeanFactory(Collections.singletonMap("guard", guard)).getBeanProvider(SupplyVendorGuard.class));
 		Vendor withCode = new Vendor();
 		withCode.setVendorCode("head_office");
-		assertEquals(409, api.create(withCode).getStatusCodeValue());
-		assertEquals(409, api.update(headOffice.getId(), new Vendor()).getStatusCodeValue());
-		assertEquals(409, api.deleteById(headOffice.getId()).getStatusCodeValue());
+		assertEquals(409, api.create(withCode).getStatusCode().value());
+		assertEquals(409, api.update(headOffice.getId(), new Vendor()).getStatusCode().value());
+		assertEquals(409, api.deleteById(headOffice.getId()).getStatusCode().value());
 		Vendor renamed = new Vendor();
 		renamed.setVendorCode("HEAD_OFFICE");
-		assertEquals(409, api.update(other.getId(), renamed).getStatusCodeValue(), "taking its code");
+		assertEquals(409, api.update(other.getId(), renamed).getStatusCode().value(), "taking its code");
 		assertNull(guard.update(other.getId(), new Vendor()));
 		assertNull(guard.delete(other.getId()));
 		assertNull(guard.create(new Vendor()));
@@ -322,12 +322,12 @@ class SupplyInvoiceRoundTripTest {
 		ProcessPurchaseRequestDTO request = new ProcessPurchaseRequestDTO();
 		request.setVendorId(headOffice.getId());
 		ResponseEntity<?> answer = purchases.processPurchase(request);
-		assertEquals(409, answer.getStatusCodeValue());
+		assertEquals(409, answer.getStatusCode().value());
 		assertEquals(SupplyVendorGuard.NO_PURCHASE, answer.getBody());
 		PurchaseHeader onHeadOffice = new PurchaseHeader();
 		onHeadOffice.setVendor(headOffice);
-		assertEquals(409, purchases.create(onHeadOffice).getStatusCodeValue());
-		assertEquals(409, purchases.update(1L, onHeadOffice).getStatusCodeValue(), "moving a purchase onto it");
+		assertEquals(409, purchases.create(onHeadOffice).getStatusCode().value());
+		assertEquals(409, purchases.update(1L, onHeadOffice).getStatusCode().value(), "moving a purchase onto it");
 
 		PurchaseInvoiceAPI purchaseInvoices = new PurchaseInvoiceAPI();
 		set(purchaseInvoices, PurchaseInvoiceAPI.class, "applicationModeService", mode);
@@ -336,7 +336,7 @@ class SupplyInvoiceRoundTripTest {
 		PurchaseInvoiceAPI.CreatePurchaseInvoiceRequest invoice = new PurchaseInvoiceAPI.CreatePurchaseInvoiceRequest();
 		invoice.setVendorId(headOffice.getId());
 		invoice.setPurchaseIds(Collections.singletonList(1L));
-		assertEquals(409, purchaseInvoices.createPurchaseInvoice(invoice).getStatusCodeValue());
+		assertEquals(409, purchaseInvoices.createPurchaseInvoice(invoice).getStatusCode().value());
 
 		assertNull(guard.purchase(other.getId()), "another vendor goes on");
 		assertNull(guard.purchase(null), "no vendor: left to the existing validation");

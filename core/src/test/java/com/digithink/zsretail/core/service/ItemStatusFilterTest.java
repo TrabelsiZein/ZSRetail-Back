@@ -107,7 +107,7 @@ class ItemStatusFilterTest {
 		when(items.findItems(any(), any(), any(), any(), any(), any(), any(), any(Pageable.class))).thenReturn(empty);
 		when(barcodes.getActiveBarcodesForItems(any())).thenReturn(Collections.emptyList());
 
-		assertEquals(200, api.getAllItemsWithBarcodes(0, 20, null, null, null, null, null, null, null).getStatusCodeValue());
+		assertEquals(200, api.getAllItemsWithBarcodes(0, 20, null, null, null, null, null, null, null).getStatusCode().value());
 		verify(items).findItems(eq(ItemStatusFilter.ACTIVE), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
 				any(Pageable.class));
 		api.getAllItemsWithBarcodes(0, 20, null, null, null, null, null, null, " inactive ");
@@ -117,7 +117,7 @@ class ItemStatusFilterTest {
 		verify(items).findItems(eq(ItemStatusFilter.ALL), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
 				any(Pageable.class));
 		ResponseEntity<?> wrong = api.getAllItemsWithBarcodes(0, 20, null, null, null, null, null, null, "DISABLED");
-		assertEquals(400, wrong.getStatusCodeValue());
+		assertEquals(400, wrong.getStatusCode().value());
 		verify(items, never()).findActiveItems(any(), any(), any(), any(), any(), any(), any(Pageable.class));
 	}
 }

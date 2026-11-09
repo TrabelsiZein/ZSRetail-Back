@@ -178,5 +178,9 @@ update scripts of the released versions (`core/src/main/resources/db/`) are unch
 database does not have.
 
 **From 4.0.0, with Flyway (it comes at migration step 1.8, `docs/migration/boot4-migration.md`): a schema change = one V
-script next to the Java change; never edit an applied script.** The scripts are `db/migration/V<version>__<description>.sql`;
-the `db/<version>` folders stay as history. Until that step, the rules above still apply.
+script next to the Java change; never edit an applied script.** The scripts are
+`db/migration/{common,store,headoffice}/V<version>__<description>.sql`; the `db/<version>` folders stay as history. Until
+that step, the rules above still apply.
+
+**From 4.0.0, SQL Server 2017 is the minimum.** On an older server the start stops with a message that says so, before
+Hibernate touches the database (`SqlServerVersionCheck`). Check each site's version before its upgrade night.

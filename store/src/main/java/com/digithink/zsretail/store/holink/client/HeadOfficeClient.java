@@ -280,7 +280,7 @@ public class HeadOfficeClient {
 		URI uri;
 		try {
 			// The cursor is encoded strictly (+, = and & too): the head office reads back exactly what it sent
-			uri = UriComponentsBuilder.fromHttpUrl(baseUrl + DOWN_PATH + "/" + domain.name().toLowerCase(Locale.ROOT))
+			uri = UriComponentsBuilder.fromUriString(baseUrl + DOWN_PATH + "/" + domain.name().toLowerCase(Locale.ROOT))
 					.queryParam("limit", limit).queryParam("cursor", "{cursor}").encode()
 					.buildAndExpand(cursor == null ? "" : cursor).toUri();
 		} catch (RuntimeException e) {
@@ -369,7 +369,7 @@ public class HeadOfficeClient {
 	/** Step 4, live question: the card holding this phone in the network, GET /ho/loyalty/members/by-phone. */
 	public LiveAnswer<LoyaltyPhoneCheckDTO> findLoyaltyMemberByPhone(String phone) {
 		try {
-			URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl + LOYALTY_PATH + "/members/by-phone")
+			URI uri = UriComponentsBuilder.fromUriString(baseUrl + LOYALTY_PATH + "/members/by-phone")
 					.queryParam("phone", "{phone}").encode().buildAndExpand(phone == null ? "" : phone).toUri();
 			return live(HttpMethod.GET, uri, null, LoyaltyPhoneCheckDTO.class);
 		} catch (RuntimeException e) {
@@ -381,7 +381,7 @@ public class HeadOfficeClient {
 	/** Step 4, live question: a member changed at this store, PUT /ho/loyalty/members/{cardNumber}. */
 	public LiveAnswer<LoyaltyMemberCopyDTO> editLoyaltyMember(String cardNumber, LoyaltyMemberEditDTO edit) {
 		try {
-			URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl + LOYALTY_PATH + "/members/{card}").encode()
+			URI uri = UriComponentsBuilder.fromUriString(baseUrl + LOYALTY_PATH + "/members/{card}").encode()
 					.buildAndExpand(cardNumber).toUri();
 			return live(HttpMethod.PUT, uri, edit, LoyaltyMemberCopyDTO.class);
 		} catch (RuntimeException e) {
@@ -393,7 +393,7 @@ public class HeadOfficeClient {
 	/** Step 5, live question: the member as the head office holds it now, GET /ho/loyalty/members/{cardNumber}. */
 	public LiveAnswer<LoyaltyMemberCopyDTO> fetchLoyaltyMember(String cardNumber) {
 		try {
-			URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl + LOYALTY_PATH + "/members/{card}").encode()
+			URI uri = UriComponentsBuilder.fromUriString(baseUrl + LOYALTY_PATH + "/members/{card}").encode()
 					.buildAndExpand(cardNumber).toUri();
 			return live(HttpMethod.GET, uri, null, LoyaltyMemberCopyDTO.class);
 		} catch (RuntimeException e) {
@@ -405,7 +405,7 @@ public class HeadOfficeClient {
 	/** Step 5, live question: a manual adjustment, POST /ho/loyalty/members/{cardNumber}/adjust. */
 	public LiveAnswer<LoyaltyMemberCopyDTO> adjustLoyaltyPoints(String cardNumber, LoyaltyPointsAdjustDTO request) {
 		try {
-			URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl + LOYALTY_PATH + "/members/{card}/adjust").encode()
+			URI uri = UriComponentsBuilder.fromUriString(baseUrl + LOYALTY_PATH + "/members/{card}/adjust").encode()
 					.buildAndExpand(cardNumber).toUri();
 			return live(HttpMethod.POST, uri, request, LoyaltyMemberCopyDTO.class);
 		} catch (RuntimeException e) {
@@ -423,7 +423,7 @@ public class HeadOfficeClient {
 	 */
 	public LiveAnswer<VariantStockDTO[]> variantStock(String navItemNo) {
 		try {
-			URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl + ORDERS_PATH + "/variant-stock")
+			URI uri = UriComponentsBuilder.fromUriString(baseUrl + ORDERS_PATH + "/variant-stock")
 					.queryParam("navItemNo", "{navItemNo}").encode().buildAndExpand(navItemNo == null ? "" : navItemNo)
 					.toUri();
 			return live(orderTemplate, HttpMethod.GET, uri, null, VariantStockDTO[].class);
@@ -439,7 +439,7 @@ public class HeadOfficeClient {
 	 */
 	public LiveAnswer<SalesCopyResultDTO> sendOrder(StoreOrderDTO order) {
 		try {
-			URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl + ORDERS_PATH).build().toUri();
+			URI uri = UriComponentsBuilder.fromUriString(baseUrl + ORDERS_PATH).build().toUri();
 			return live(orderTemplate, HttpMethod.POST, uri, order, SalesCopyResultDTO.class);
 		} catch (RuntimeException e) {
 			return LiveAnswer.notAnswered(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
@@ -479,9 +479,9 @@ public class HeadOfficeClient {
 			HttpEntity<?> entity = body == null ? new HttpEntity<>(headers)
 					: new HttpEntity<>(WIRE_MAPPER.writeValueAsBytes(body), headers);
 			ResponseEntity<T> response = template.exchange(uri, method, entity, answerType);
-			if (response.getStatusCodeValue() != 200 || response.getBody() == null) {
-				return LiveAnswer.notAnswered(response.getStatusCodeValue() != 200
-						? fromStatus(response.getStatusCodeValue())
+			if (response.getStatusCode().value() != 200 || response.getBody() == null) {
+				return LiveAnswer.notAnswered(response.getStatusCode().value() != 200
+						? fromStatus(response.getStatusCode().value())
 						: HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
 								"unreadable answer from the head office (empty body)"));
 			}
@@ -562,8 +562,8 @@ public class HeadOfficeClient {
 					: new HttpEntity<>(WIRE_MAPPER.writeValueAsBytes(body), headers);
 			ResponseEntity<T> response = uri != null ? template.exchange(uri, method, entity, answerType)
 					: template.exchange(baseUrl + path, method, entity, answerType);
-			if (response.getStatusCodeValue() != 200) {
-				return new Answer<>(null, fromStatus(response.getStatusCodeValue()));
+			if (response.getStatusCode().value() != 200) {
+				return new Answer<>(null, fromStatus(response.getStatusCode().value()));
 			}
 			if (response.getBody() == null) {
 				return Answer.failed(HeadOfficeLinkState.ERROR, "unreadable answer from the head office (empty body)");

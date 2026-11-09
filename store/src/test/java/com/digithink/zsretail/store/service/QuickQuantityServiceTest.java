@@ -118,13 +118,13 @@ class QuickQuantityServiceTest {
 	void apiAnswers() throws Exception {
 		QuickQuantityAPI api = new QuickQuantityAPI();
 		set(api, _BaseController.class, "service", service);
-		assertEquals(400, api.create(quick("x", "0.1005", null)).getStatusCodeValue());
-		assertEquals(400, api.create(quick("", "0.1", null)).getStatusCodeValue());
+		assertEquals(400, api.create(quick("x", "0.1005", null)).getStatusCode().value());
+		assertEquals(400, api.create(quick("", "0.1", null)).getStatusCode().value());
 		when(repository.findById(3L)).thenReturn(Optional.of(quick("old", "0.2", null)));
-		assertEquals(400, api.update(3L, quick("x", "0", null)).getStatusCodeValue());
+		assertEquals(400, api.update(3L, quick("x", "0", null)).getStatusCode().value());
 		verify(repository, never()).save(any(QuickQuantity.class));
-		assertEquals(201, api.create(quick("100 ml", "0.1", 7L)).getStatusCodeValue());
-		assertEquals(200, api.update(3L, quick("200 ml", "0.2", null)).getStatusCodeValue());
+		assertEquals(201, api.create(quick("100 ml", "0.1", 7L)).getStatusCode().value());
+		assertEquals(200, api.update(3L, quick("200 ml", "0.2", null)).getStatusCode().value());
 	}
 
 	@Test

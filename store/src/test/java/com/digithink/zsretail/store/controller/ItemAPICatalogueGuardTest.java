@@ -146,14 +146,14 @@ class ItemAPICatalogueGuardTest {
 	@DisplayName("With the guard: a head office item answers 409 on edit, delete and pack flag; an own item is edited")
 	void headOfficeItemConsultOnly() throws Exception {
 		ItemAPI api = api(true);
-		assertEquals(409, api.update(hoItem.getId(), body("B001", 99.0)).getStatusCodeValue());
+		assertEquals(409, api.update(hoItem.getId(), body("B001", 99.0)).getStatusCode().value());
 		assertEquals(10.0, hoItem.getUnitPrice(), "nothing written");
-		assertEquals(409, api.deleteById(hoItem.getId()).getStatusCodeValue());
+		assertEquals(409, api.deleteById(hoItem.getId()).getStatusCode().value());
 		assertTrue(store.items.containsKey(hoItem.getId()));
 		assertEquals(409, api.setPackageFlag(hoItem.getId(), Collections.singletonMap("isPackage", true))
-				.getStatusCodeValue());
+				.getStatusCode().value());
 		ResponseEntity<?> own = api.update(ownItem.getId(), body("OWN1", 6.0));
-		assertEquals(200, own.getStatusCodeValue());
+		assertEquals(200, own.getStatusCode().value());
 		assertEquals(6.0, store.items.get(ownItem.getId()).getUnitPrice());
 	}
 
@@ -161,10 +161,10 @@ class ItemAPICatalogueGuardTest {
 	@DisplayName("With the guard: creating needs the purchase right, and never with a head office code")
 	void createNeedsTheRight() throws Exception {
 		ItemAPI api = api(true);
-		assertEquals(409, api.create(body("NEW1", 1.0)).getStatusCodeValue());
+		assertEquals(409, api.create(body("NEW1", 1.0)).getStatusCode().value());
 		rights.received(false, true, LocalDateTime.now());
-		assertEquals(409, api.create(body("B001", 1.0)).getStatusCodeValue(), "a head office code");
-		assertEquals(201, api.create(body("NEW1", 1.0)).getStatusCodeValue());
+		assertEquals(409, api.create(body("B001", 1.0)).getStatusCode().value(), "a head office code");
+		assertEquals(201, api.create(body("NEW1", 1.0)).getStatusCode().value());
 		Item created = store.itemByCode("NEW1").get();
 		assertNull(created.getOrigin(), "an own item is local");
 	}
@@ -173,14 +173,14 @@ class ItemAPICatalogueGuardTest {
 	@DisplayName("With the guard: own price with the right, given back; an update keeps own price and head office price")
 	void ownPrice() throws Exception {
 		ItemAPI api = api(true);
-		assertEquals(409, api.setOwnPrice(hoItem.getId(), Collections.singletonMap("unitPrice", 12.0)).getStatusCodeValue());
+		assertEquals(409, api.setOwnPrice(hoItem.getId(), Collections.singletonMap("unitPrice", 12.0)).getStatusCode().value());
 		rights.received(true, false, LocalDateTime.now());
-		assertEquals(400, api.setOwnPrice(hoItem.getId(), Collections.singletonMap("unitPrice", "x")).getStatusCodeValue());
-		assertEquals(400, api.setOwnPrice(ownItem.getId(), Collections.singletonMap("unitPrice", 12.0)).getStatusCodeValue());
-		assertEquals(404, api.setOwnPrice(999L, Collections.singletonMap("unitPrice", 12.0)).getStatusCodeValue());
-		assertEquals(200, api.setOwnPrice(hoItem.getId(), Collections.singletonMap("unitPrice", 12.0)).getStatusCodeValue());
+		assertEquals(400, api.setOwnPrice(hoItem.getId(), Collections.singletonMap("unitPrice", "x")).getStatusCode().value());
+		assertEquals(400, api.setOwnPrice(ownItem.getId(), Collections.singletonMap("unitPrice", 12.0)).getStatusCode().value());
+		assertEquals(404, api.setOwnPrice(999L, Collections.singletonMap("unitPrice", 12.0)).getStatusCode().value());
+		assertEquals(200, api.setOwnPrice(hoItem.getId(), Collections.singletonMap("unitPrice", 12.0)).getStatusCode().value());
 		assertEquals(12.0, hoItem.getUnitPrice());
-		assertEquals(200, api.giveBackPrice(hoItem.getId()).getStatusCodeValue());
+		assertEquals(200, api.giveBackPrice(hoItem.getId()).getStatusCode().value());
 		assertEquals(10.0, hoItem.getUnitPrice());
 	}
 
@@ -188,47 +188,47 @@ class ItemAPICatalogueGuardTest {
 	@DisplayName("Without the guard (every other store): as before, whatever the origin")
 	void withoutTheGuard() throws Exception {
 		ItemAPI api = api(false);
-		assertEquals(404, api.setOwnPrice(hoItem.getId(), Collections.singletonMap("unitPrice", 12.0)).getStatusCodeValue());
-		assertEquals(404, api.giveBackPrice(hoItem.getId()).getStatusCodeValue());
-		assertEquals(201, api.create(body("NEW1", 1.0)).getStatusCodeValue());
+		assertEquals(404, api.setOwnPrice(hoItem.getId(), Collections.singletonMap("unitPrice", 12.0)).getStatusCode().value());
+		assertEquals(404, api.giveBackPrice(hoItem.getId()).getStatusCode().value());
+		assertEquals(201, api.create(body("NEW1", 1.0)).getStatusCode().value());
 		hoItem.setOwnPrice(true);
 		ResponseEntity<?> edited = api.update(hoItem.getId(), body("B001", 99.0));
-		assertEquals(200, edited.getStatusCodeValue(), "a store that owns its catalogue edits every item");
+		assertEquals(200, edited.getStatusCode().value(), "a store that owns its catalogue edits every item");
 		Item after = store.items.get(hoItem.getId());
 		assertEquals(99.0, after.getUnitPrice());
 		assertEquals(Boolean.TRUE, after.getOwnPrice(), "never read from JSON: kept");
 		assertEquals(10.0, after.getHeadOfficePrice());
-		assertEquals(204, api.deleteById(ownItem.getId()).getStatusCodeValue());
+		assertEquals(204, api.deleteById(ownItem.getId()).getStatusCode().value());
 	}
 
 	@Test
 	@DisplayName("3.1.2, bulk flag with the guard: the store's own decision, a head office item set and cleared, an own item too")
 	void bulkFlagWithTheGuard() throws Exception {
 		ItemAPI api = api(true);
-		assertEquals(200, api.setBulkFlag(hoItem.getId(), Collections.singletonMap("soldInBulk", true)).getStatusCodeValue());
+		assertEquals(200, api.setBulkFlag(hoItem.getId(), Collections.singletonMap("soldInBulk", true)).getStatusCode().value());
 		assertEquals(Boolean.TRUE, store.items.get(hoItem.getId()).getSoldInBulk(), "a head office item takes it");
 		assertEquals(10.0, store.items.get(hoItem.getId()).getUnitPrice(), "only the flag changes");
 		assertEquals(409, api.setPackageFlag(hoItem.getId(), Collections.singletonMap("isPackage", true))
-				.getStatusCodeValue(), "the pack flag stays the head office's");
-		assertEquals(200, api.setBulkFlag(hoItem.getId(), Collections.singletonMap("soldInBulk", false)).getStatusCodeValue());
+				.getStatusCode().value(), "the pack flag stays the head office's");
+		assertEquals(200, api.setBulkFlag(hoItem.getId(), Collections.singletonMap("soldInBulk", false)).getStatusCode().value());
 		assertNull(store.items.get(hoItem.getId()).getSoldInBulk());
-		assertEquals(200, api.setBulkFlag(ownItem.getId(), Collections.singletonMap("soldInBulk", true)).getStatusCodeValue());
+		assertEquals(200, api.setBulkFlag(ownItem.getId(), Collections.singletonMap("soldInBulk", true)).getStatusCode().value());
 		assertEquals(Boolean.TRUE, store.items.get(ownItem.getId()).getSoldInBulk());
 		assertEquals(5.0, store.items.get(ownItem.getId()).getUnitPrice(), "only the flag changes");
-		assertEquals(200, api.setBulkFlag(ownItem.getId(), Collections.singletonMap("soldInBulk", false)).getStatusCodeValue());
+		assertEquals(200, api.setBulkFlag(ownItem.getId(), Collections.singletonMap("soldInBulk", false)).getStatusCode().value());
 		assertNull(store.items.get(ownItem.getId()).getSoldInBulk(), "false is stored as null");
-		assertEquals(404, api.setBulkFlag(999L, Collections.singletonMap("soldInBulk", true)).getStatusCodeValue());
+		assertEquals(404, api.setBulkFlag(999L, Collections.singletonMap("soldInBulk", true)).getStatusCode().value());
 	}
 
 	@Test
 	@DisplayName("3.1.2, bulk flag without the guard and with an ERP catalogue: allowed on every item (the full PUT is not)")
 	void bulkFlagEveryMode() throws Exception {
 		assertEquals(200, api(false).setBulkFlag(hoItem.getId(), Collections.singletonMap("soldInBulk", true))
-				.getStatusCodeValue());
+				.getStatusCode().value());
 		assertEquals(Boolean.TRUE, store.items.get(hoItem.getId()).getSoldInBulk());
 		ItemAPI erp = api(false, TestModes.erp());
-		assertEquals(403, erp.update(ownItem.getId(), body("OWN1", 6.0)).getStatusCodeValue(), "the full PUT stays refused");
-		assertEquals(200, erp.setBulkFlag(ownItem.getId(), Collections.singletonMap("soldInBulk", true)).getStatusCodeValue());
+		assertEquals(403, erp.update(ownItem.getId(), body("OWN1", 6.0)).getStatusCode().value(), "the full PUT stays refused");
+		assertEquals(200, erp.setBulkFlag(ownItem.getId(), Collections.singletonMap("soldInBulk", true)).getStatusCode().value());
 		assertEquals(Boolean.TRUE, store.items.get(ownItem.getId()).getSoldInBulk());
 	}
 
@@ -238,7 +238,7 @@ class ItemAPICatalogueGuardTest {
 		ItemAPI api = api(false);
 		api.setBulkFlag(ownItem.getId(), Collections.singletonMap("soldInBulk", true));
 		Item edited = body("OWN1", 6.0); // the form's body: no soldInBulk (READ_ONLY in JSON)
-		assertEquals(200, api.update(ownItem.getId(), edited).getStatusCodeValue());
+		assertEquals(200, api.update(ownItem.getId(), edited).getStatusCode().value());
 		Item after = store.items.get(ownItem.getId());
 		assertEquals(6.0, after.getUnitPrice());
 		assertEquals(Boolean.TRUE, after.getSoldInBulk(), "kept");
@@ -260,7 +260,7 @@ class ItemAPICatalogueGuardTest {
 		};
 		set(api, _BaseController.class, "service", search);
 		ResponseEntity<?> answer = api.searchItems("", 0, 10);
-		assertEquals(200, answer.getStatusCodeValue());
+		assertEquals(200, answer.getStatusCode().value());
 		java.util.List<Map<String, Object>> content = (java.util.List<Map<String, Object>>) ((Map<String, Object>) answer
 				.getBody()).get("content");
 		assertEquals("HEAD_OFFICE", content.get(0).get("origin"));

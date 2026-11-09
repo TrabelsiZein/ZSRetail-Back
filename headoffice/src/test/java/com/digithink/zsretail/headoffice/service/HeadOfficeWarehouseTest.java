@@ -192,12 +192,12 @@ class HeadOfficeWarehouseTest {
 
 		PurchaseHeaderAPI purchasesApi = new PurchaseHeaderAPI();
 		set(purchasesApi, PurchaseHeaderAPI.class, "applicationModeService", erp);
-		assertEquals(403, purchasesApi.processPurchase(purchase(b001.getId(), 1, 1.0)).getStatusCodeValue());
-		assertEquals(403, purchasesApi.getHistory(0, 10, null, null, null, null, null).getStatusCodeValue());
+		assertEquals(403, purchasesApi.processPurchase(purchase(b001.getId(), 1, 1.0)).getStatusCode().value());
+		assertEquals(403, purchasesApi.getHistory(0, 10, null, null, null, null, null).getStatusCode().value());
 
 		VendorAPI vendors = new VendorAPI();
 		set(vendors, VendorAPI.class, "applicationModeService", erp);
-		assertEquals(403, vendors.create(new Vendor()).getStatusCodeValue());
+		assertEquals(403, vendors.create(new Vendor()).getStatusCode().value());
 
 		PurchaseInvoiceAPI invoices = new PurchaseInvoiceAPI();
 		set(invoices, PurchaseInvoiceAPI.class, "applicationModeService", erp);

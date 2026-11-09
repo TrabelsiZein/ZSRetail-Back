@@ -43,7 +43,7 @@ class ReportStockMovementsTest {
 		LocalDate from = LocalDate.of(2026, 10, 1);
 		LocalDate to = LocalDate.of(2026, 10, 31);
 		assertEquals(200, api().getStockMovementsReport(from, to, "TYPE", "sale", " vani ", 3L, null, "CAT1", " ",
-				Arrays.asList("inventory_in", "")).getStatusCodeValue());
+				Arrays.asList("inventory_in", "")).getStatusCode().value());
 		ArgumentCaptor<StockMovementReportFilter> filter = ArgumentCaptor.forClass(StockMovementReportFilter.class);
 		verify(reports).getStockMovementsReport(eq(from), eq(to), eq("TYPE"), filter.capture());
 		assertEquals("vani", filter.getValue().getSearch());
@@ -58,9 +58,9 @@ class ReportStockMovementsTest {
 	void refused() {
 		LocalDate day = LocalDate.of(2026, 10, 10);
 		assertEquals(400, api().getStockMovementsReport(null, null, "ITEM", null, null, null, null, null, null,
-				Arrays.asList("SALE", "THEFT")).getStatusCodeValue());
+				Arrays.asList("SALE", "THEFT")).getStatusCode().value());
 		assertEquals(400, api().getStockMovementsReport(day, day.minusDays(1), "ITEM", null, null, null, null, null, null, null)
-				.getStatusCodeValue());
+				.getStatusCode().value());
 		verify(reports, never()).getStockMovementsReport(any(), any(), any(), any(StockMovementReportFilter.class));
 	}
 
@@ -69,9 +69,9 @@ class ReportStockMovementsTest {
 	void stockCard() {
 		LocalDate day = LocalDate.of(2026, 10, 10);
 		when(reports.getStockCard(eq(1L), any(), any(), anyInt())).thenReturn(new StockCardDTO());
-		assertEquals(200, api().getStockCard(1L, day, day).getStatusCodeValue());
+		assertEquals(200, api().getStockCard(1L, day, day).getStatusCode().value());
 		verify(reports).getStockCard(1L, day, day, ReportService.STOCK_CARD_MAX);
-		assertEquals(404, api().getStockCard(2L, day, day).getStatusCodeValue());
-		assertEquals(400, api().getStockCard(1L, day, day.minusDays(1)).getStatusCodeValue());
+		assertEquals(404, api().getStockCard(2L, day, day).getStatusCode().value());
+		assertEquals(400, api().getStockCard(1L, day, day.minusDays(1)).getStatusCode().value());
 	}
 }

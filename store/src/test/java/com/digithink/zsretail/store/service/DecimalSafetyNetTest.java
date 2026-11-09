@@ -248,9 +248,9 @@ class DecimalSafetyNetTest {
 		set(api, com.digithink.zsretail.core.controller._BaseController.class, "service", service);
 		set(api, com.digithink.zsretail.core.controller.ItemCompositionAPI.class, "itemCompositionService", service);
 		org.springframework.http.ResponseEntity<?> created = api.create(decimal);
-		assertEquals(400, created.getStatusCodeValue());
+		assertEquals(400, created.getStatusCode().value());
 		assertEquals(text, created.getBody());
-		assertEquals(400, api.update(8L, decimal).getStatusCodeValue());
+		assertEquals(400, api.update(8L, decimal).getStatusCode().value());
 	}
 
 	// ─── 3. Excel item import ────────────────────────────────────────
