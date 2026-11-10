@@ -177,10 +177,17 @@ tables it has. The start-up column check (`DecimalColumnsCheck`) reads core's co
 update scripts of the released versions (`core/src/main/resources/db/`) are unchanged: they already skip a table a
 database does not have.
 
-**From 4.0.0, with Flyway (it comes at migration step 1.8, `docs/migration/boot4-migration.md`): a schema change = one V
+**From 4.0.0 the schema is Flyway's (migration step 1.8, `docs/migration/boot4-migration.md`): a schema change = one V
 script next to the Java change; never edit an applied script.** The scripts are
-`db/migration/{common,store,headoffice}/V<version>__<description>.sql`; the `db/<version>` folders stay as history. Until
-that step, the rules above still apply.
+`core/src/main/resources/db/migration/{common,store,headoffice}/V<version>__<description>.sql`, run by the start before
+Hibernate, which only checks the tables (`ddl-auto=validate`); the `db/<version>` folders stay as the way up to 3.1.2.
+- A new database gets `V4.0.0__baseline.sql` of its type (the schema of 3.1.2), then the catch-ups.
+- **A database at 3.1.2 is taken over by the 4.0.0 WAR's first start**: no `update.sql` to run by hand. A database at an older
+  version, without `APP_VERSION`, or stamped 3.1.2 without one of its parts is refused before anything is written, with a
+  message that names what to run (`db/migration/common/beforeBaseline.sql`). Bring an older one to 3.1.2 with its
+  `db/<version>/` scripts first. A database a newer version ran on is refused too.
+- An outside file's `spring.jpa.hibernate.ddl-auto=update` line must go: it would win over `validate` (migration step 2.8).
+- `APP_VERSION` holds the version of the WAR that last started; a 3.1.2 WAR put back on an upgraded database refuses it.
 
 **From 4.0.0, SQL Server 2017 is the minimum.** On an older server the start stops with a message that says so, before
 Hibernate touches the database (`SqlServerVersionCheck`). Check each site's version before its upgrade night.

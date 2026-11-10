@@ -3,6 +3,7 @@ package com.digithink.zsretail.core.service;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -169,7 +170,7 @@ public class ZZDataInitializer {
 		// Ensure singleton company information record exists (idempotent)
 		companyInformationService.ensureExists();
 
-		// Ensure APP_VERSION row exists (fresh install only — guard skips when empty)
+		// APP_VERSION: seeded on a fresh install, the version of this WAR after an upgrade
 		ensureAppVersion();
 	}
 
@@ -1319,16 +1320,25 @@ public class ZZDataInitializer {
 	}
 
 	/**
-	 * Seeds APP_VERSION and a single setup record on fresh install. On existing
-	 * installs the row already exists — nothing is written. Detailed release notes
-	 * are managed via db/X.Y.Z/update.sql on upgrades.
+	 * APP_VERSION, the version of the WAR that last started on this database. A fresh install seeds it with a single setup
+	 * note. From 4.0.0 the schema is Flyway's and AppVersionGuard is gone (Boot 4 migration, step 1.8): after an upgrade
+	 * the row is set to this WAR's version here, once Flyway and Hibernate's check have passed. It is read by
+	 * db/migration/common/beforeBaseline.sql (a database is taken over at 3.1.2 only) and by an older WAR's
+	 * AppVersionGuard, which refuses a database a newer version has run on. A version's notes come with its scripts.
 	 */
 	private void ensureAppVersion() {
-		if (appVersionRepository.count() > 0) {
+		List<AppVersion> rows = appVersionRepository.findAll();
+		if (rows.isEmpty()) {
+			appVersionRepository.save(new AppVersion(appVersion));
+			appReleaseNoteRepository.save(new AppReleaseNote(appVersion, "SETUP", "Initial installation"));
 			return;
 		}
-		appVersionRepository.save(new AppVersion(appVersion));
-		appReleaseNoteRepository.save(new AppReleaseNote(appVersion, "SETUP", "Initial installation"));
+		AppVersion row = rows.get(0);
+		if (!appVersion.equals(row.getVersion())) {
+			log.info("APP_VERSION {} -> {}", row.getVersion(), appVersion);
+			row.setVersion(appVersion);
+			appVersionRepository.save(row);
+		}
 	}
 
 	private void createErpJob(String cron, ErpSyncJobType type, String description, boolean enabled) {

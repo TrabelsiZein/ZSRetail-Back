@@ -17,7 +17,7 @@ resolves as before (`ConfigurationKeysProofTest`); the old lines of 2.2.2 and th
 
 | File | Holds |
 |---|---|
-| `application.properties` (core, in both WARs) | common lines: context path, upload limits, SQL Server driver, Hibernate dialect, `ddl-auto=update`, log rotation (until step 6.5 also the default type `spring.profiles.active=store`) |
+| `application.properties` (core, in both WARs) | common lines: context path, upload limits, SQL Server driver, `ddl-auto=validate` and Flyway (from 4.0.0: the schema is Flyway's, `update` and the Hibernate dialect before), log rotation and the log date (until step 6.5 also the default type `spring.profiles.active=store`) |
 | `application-store.properties` (the store WAR) | the type store |
 | `application-headoffice.properties` (the head office WAR) | the type headoffice |
 

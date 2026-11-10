@@ -2,10 +2,14 @@ package com.digithink.zsretail.store.rfid;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.util.Collections;
+import java.util.List;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.digithink.zsretail.core.support.MigTestApplication;
+import com.digithink.zsretail.core.support.QuerySweep;
 import com.digithink.zsretail.store.StoreApplication;
 import com.digithink.zsretail.store.rfid.repository.RfidSaleTagRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidTagRepository;
@@ -23,6 +27,10 @@ class RfidStoreStartupTest {
 		try (MigTestApplication store = MigTestApplication.start(StoreApplication.class, "store", "rfid.enabled=true")) {
 			assertEquals(0, store.bean(RfidTagRepository.class).count());
 			assertEquals(0, store.bean(RfidSaleTagRepository.class).count());
+			// Step 1.8: every @Query of this shape on SQL Server, the RFID ones with it: 80 of core, 41 of the store, twice (QuerySweep)
+			List<String> sweep = QuerySweep.run(store);
+			assertEquals("calls 242", sweep.get(0), String.join("\n", QuerySweep.queries(store)));
+			assertEquals(Collections.emptyList(), sweep.subList(1, sweep.size()), String.join("\n", sweep));
 		}
 	}
 }

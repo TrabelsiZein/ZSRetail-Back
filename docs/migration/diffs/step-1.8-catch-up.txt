@@ -1,0 +1,58 @@
+Boot 4 migration, step 1.8 (decision 4): what Hibernate 6.6's update would still run on a database at 3.1.2, per type, reviewed.
+A real start of this branch on a 3.1.2 database (core.support.Upgrade312) with
+jakarta.persistence.schema-generation.scripts.action=update: Flyway first (baseline marker, catch-up 1), then Hibernate wrote the
+script and ran nothing (ddl-auto=validate). The same on a new 4.0.0 database, whose schema is the same.
+
+VERDICT: nothing to keep. Every statement alters a column to the type it already has: the columns whose entity spells its type
+(columnDefinition NVARCHAR(MAX), varchar(max), NVARCHAR(512)), which 6.6 compares as text with what the server reports. An
+ALTER COLUMN without NULL or NOT NULL makes the column nullable: the first one would turn app_release_notes.description
+(NOT NULL) into a nullable column, and update would run them all again at every start. No unique key and no check comes
+back (step 1.7 expected the unique keys again under 6.6's names: they do not, 6.6 finds them). So no catch-up comes from
+Hibernate; catch-up 1 (V4.0.0.1) holds only the indexes of the old scripts (step-1.8-schema.txt, section 2).
+
+A site whose outside file still says spring.jpa.hibernate.ddl-auto=update would run these at every start of 4.0.0: step 2.8.
+
+################ store (11 statements)
+alter table app_release_notes alter column description NVARCHAR(MAX);
+    the column today: nvarchar(max) not null
+alter table erp_communication alter column error_message varchar(max);
+    the column today: varchar(max) null
+alter table erp_communication alter column request_payload varchar(max);
+    the column today: varchar(max) null
+alter table erp_communication alter column response_payload varchar(max);
+    the column today: varchar(max) null
+alter table general_setup_change_log alter column new_value NVARCHAR(MAX);
+    the column today: nvarchar(max) null
+alter table general_setup_change_log alter column old_value NVARCHAR(MAX);
+    the column today: nvarchar(max) null
+alter table general_setup_change_log alter column reason NVARCHAR(512);
+    the column today: nvarchar(512) null
+alter table hol_down_record alter column payload NVARCHAR(MAX);
+    the column today: nvarchar(max) null
+alter table license_record alter column raw_json NVARCHAR(MAX);
+    the column today: nvarchar(max) null
+alter table payment_change_log alter column reason NVARCHAR(512);
+    the column today: nvarchar(512) null
+alter table promotion alter column description NVARCHAR(MAX);
+    the column today: nvarchar(max) null
+
+################ headoffice (9 statements)
+alter table app_release_notes alter column description NVARCHAR(MAX);
+    the column today: nvarchar(max) not null
+alter table erp_communication alter column error_message varchar(max);
+    the column today: varchar(max) null
+alter table erp_communication alter column request_payload varchar(max);
+    the column today: varchar(max) null
+alter table erp_communication alter column response_payload varchar(max);
+    the column today: varchar(max) null
+alter table general_setup_change_log alter column new_value NVARCHAR(MAX);
+    the column today: nvarchar(max) null
+alter table general_setup_change_log alter column old_value NVARCHAR(MAX);
+    the column today: nvarchar(max) null
+alter table general_setup_change_log alter column reason NVARCHAR(512);
+    the column today: nvarchar(512) null
+alter table license_record alter column raw_json NVARCHAR(MAX);
+    the column today: nvarchar(max) null
+alter table promotion alter column description NVARCHAR(MAX);
+    the column today: nvarchar(max) null
+

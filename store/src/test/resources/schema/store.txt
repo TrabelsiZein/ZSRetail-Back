@@ -1,0 +1,1544 @@
+COLUMN app_release_notes.description nvarchar(max) not null
+COLUMN app_release_notes.id bigint not null identity
+COLUMN app_release_notes.released_at datetime2(7) null
+COLUMN app_release_notes.type varchar(20) not null
+COLUMN app_release_notes.version varchar(20) not null
+COLUMN app_role.active bit null
+COLUMN app_role.created_at datetime2(7) null
+COLUMN app_role.created_by varchar(255) null
+COLUMN app_role.id bigint not null identity
+COLUMN app_role.is_pos_role bit not null
+COLUMN app_role.label varchar(255) not null
+COLUMN app_role.name varchar(255) not null
+COLUMN app_role.updated_at datetime2(7) null
+COLUMN app_role.updated_by varchar(255) null
+COLUMN app_role_permission.permission_key varchar(255) null
+COLUMN app_role_permission.role_id bigint not null
+COLUMN app_version.id bigint not null identity
+COLUMN app_version.version varchar(20) not null
+COLUMN badge_scan_log.active bit null
+COLUMN badge_scan_log.created_at datetime2(7) null
+COLUMN badge_scan_log.created_by varchar(255) null
+COLUMN badge_scan_log.failure_reason varchar(500) null
+COLUMN badge_scan_log.functionality varchar(255) not null
+COLUMN badge_scan_log.granted_by varchar(10) null
+COLUMN badge_scan_log.id bigint not null identity
+COLUMN badge_scan_log.scan_type varchar(20) not null
+COLUMN badge_scan_log.scanned_badge_code varchar(50) null
+COLUMN badge_scan_log.scanned_by_user_id bigint not null
+COLUMN badge_scan_log.scanned_user_id bigint null
+COLUMN badge_scan_log.session_id bigint null
+COLUMN badge_scan_log.success bit not null
+COLUMN badge_scan_log.timestamp datetime2(7) not null
+COLUMN badge_scan_log.updated_at datetime2(7) null
+COLUMN badge_scan_log.updated_by varchar(255) null
+COLUMN cashier_session.active bit null
+COLUMN cashier_session.cashier_id bigint not null
+COLUMN cashier_session.closed_at datetime2(7) null
+COLUMN cashier_session.created_at datetime2(7) null
+COLUMN cashier_session.created_by varchar(255) null
+COLUMN cashier_session.erp_no varchar(255) null
+COLUMN cashier_session.id bigint not null identity
+COLUMN cashier_session.opened_at datetime2(7) not null
+COLUMN cashier_session.opening_cash float(53) not null
+COLUMN cashier_session.pos_user_closure_cash float(53) null
+COLUMN cashier_session.real_cash float(53) null
+COLUMN cashier_session.responsible_closure_cash float(53) null
+COLUMN cashier_session.session_number varchar(255) not null
+COLUMN cashier_session.status varchar(255) null
+COLUMN cashier_session.synchronization_status varchar(255) null
+COLUMN cashier_session.updated_at datetime2(7) null
+COLUMN cashier_session.updated_by varchar(255) null
+COLUMN cashier_session.verification_notes varchar(255) null
+COLUMN cashier_session.verified_at datetime2(7) null
+COLUMN cashier_session.verified_by_user bigint null
+COLUMN company_information.active bit null
+COLUMN company_information.address varchar(500) null
+COLUMN company_information.bank_account varchar(100) null
+COLUMN company_information.bank_name varchar(200) null
+COLUMN company_information.city varchar(100) null
+COLUMN company_information.company_name varchar(200) null
+COLUMN company_information.country varchar(100) null
+COLUMN company_information.created_at datetime2(7) null
+COLUMN company_information.created_by varchar(255) null
+COLUMN company_information.email varchar(200) null
+COLUMN company_information.fax varchar(50) null
+COLUMN company_information.id bigint not null identity
+COLUMN company_information.invoice_footer_note varchar(1000) null
+COLUMN company_information.logo_base64 text null
+COLUMN company_information.matricule_fiscal varchar(100) null
+COLUMN company_information.phone varchar(50) null
+COLUMN company_information.postal_code varchar(20) null
+COLUMN company_information.receipt_footer_text nvarchar(1000) null
+COLUMN company_information.receipt_print_address bit null
+COLUMN company_information.receipt_show_software_label bit null
+COLUMN company_information.receipt_show_thank_you bit null
+COLUMN company_information.receipt_thank_you_text nvarchar(200) null
+COLUMN company_information.rib varchar(100) null
+COLUMN company_information.updated_at datetime2(7) null
+COLUMN company_information.updated_by varchar(255) null
+COLUMN company_information.website varchar(200) null
+COLUMN customer.active bit null
+COLUMN customer.address varchar(255) null
+COLUMN customer.auxiliary_index1 varchar(255) null
+COLUMN customer.city varchar(255) null
+COLUMN customer.country varchar(255) null
+COLUMN customer.created_at datetime2(7) null
+COLUMN customer.created_by varchar(255) null
+COLUMN customer.credit_limit float(53) null
+COLUMN customer.customer_code varchar(255) not null
+COLUMN customer.customer_disc_group varchar(255) null
+COLUMN customer.customer_price_group varchar(255) null
+COLUMN customer.email varchar(255) null
+COLUMN customer.erp_external_id varchar(255) null
+COLUMN customer.id bigint not null identity
+COLUMN customer.is_default bit null
+COLUMN customer.name varchar(255) not null
+COLUMN customer.notes varchar(255) null
+COLUMN customer.phone varchar(255) not null
+COLUMN customer.tax_id varchar(255) null
+COLUMN customer.tax_registration_no varchar(255) null
+COLUMN customer.updated_at datetime2(7) null
+COLUMN customer.updated_by varchar(255) null
+COLUMN erp_communication.active bit null
+COLUMN erp_communication.completed_at datetime2(7) null
+COLUMN erp_communication.created_at datetime2(7) null
+COLUMN erp_communication.created_by varchar(255) null
+COLUMN erp_communication.duration_ms bigint null
+COLUMN erp_communication.error_message varchar(max) null
+COLUMN erp_communication.id bigint not null identity
+COLUMN erp_communication.operation varchar(64) not null
+COLUMN erp_communication.request_payload varchar(max) null
+COLUMN erp_communication.response_payload varchar(max) null
+COLUMN erp_communication.started_at datetime2(7) null
+COLUMN erp_communication.status varchar(32) not null
+COLUMN erp_communication.updated_at datetime2(7) null
+COLUMN erp_communication.updated_by varchar(255) null
+COLUMN erp_communication.url varchar(512) null
+COLUMN erp_sync_job.active bit null
+COLUMN erp_sync_job.created_at datetime2(7) null
+COLUMN erp_sync_job.created_by varchar(255) null
+COLUMN erp_sync_job.cron_expression varchar(64) not null
+COLUMN erp_sync_job.description varchar(256) null
+COLUMN erp_sync_job.enabled bit not null
+COLUMN erp_sync_job.id bigint not null identity
+COLUMN erp_sync_job.job_type varchar(64) not null
+COLUMN erp_sync_job.last_run_at datetime2(7) null
+COLUMN erp_sync_job.last_status varchar(100) null
+COLUMN erp_sync_job.next_run_at datetime2(7) null
+COLUMN erp_sync_job.updated_at datetime2(7) null
+COLUMN erp_sync_job.updated_by varchar(255) null
+COLUMN general_setup.active bit null
+COLUMN general_setup.code varchar(255) not null
+COLUMN general_setup.config_options varchar(255) null
+COLUMN general_setup.config_type varchar(255) not null
+COLUMN general_setup.created_at datetime2(7) null
+COLUMN general_setup.created_by varchar(255) null
+COLUMN general_setup.description varchar(255) null
+COLUMN general_setup.id bigint not null identity
+COLUMN general_setup.read_only bit not null
+COLUMN general_setup.updated_at datetime2(7) null
+COLUMN general_setup.updated_by varchar(255) null
+COLUMN general_setup.valeur varchar(255) not null
+COLUMN general_setup_change_log.active bit null
+COLUMN general_setup_change_log.change_type varchar(20) not null
+COLUMN general_setup_change_log.code varchar(128) not null
+COLUMN general_setup_change_log.created_at datetime2(7) null
+COLUMN general_setup_change_log.created_by varchar(255) null
+COLUMN general_setup_change_log.general_setup_id bigint not null
+COLUMN general_setup_change_log.id bigint not null identity
+COLUMN general_setup_change_log.new_value nvarchar(max) null
+COLUMN general_setup_change_log.old_value nvarchar(max) null
+COLUMN general_setup_change_log.reason nvarchar(512) null
+COLUMN general_setup_change_log.source varchar(20) not null
+COLUMN general_setup_change_log.updated_at datetime2(7) null
+COLUMN general_setup_change_log.updated_by varchar(255) null
+COLUMN hol_delivery.active bit null
+COLUMN hol_delivery.attempts int not null
+COLUMN hol_delivery.created_at datetime2(7) null
+COLUMN hol_delivery.created_by varchar(255) null
+COLUMN hol_delivery.customer_name varchar(200) null
+COLUMN hol_delivery.delivery_number varchar(30) not null
+COLUMN hol_delivery.document_date date null
+COLUMN hol_delivery.document_kind varchar(20) null
+COLUMN hol_delivery.id bigint not null identity
+COLUMN hol_delivery.invoice_number varchar(30) null
+COLUMN hol_delivery.last_error varchar(1000) null
+COLUMN hol_delivery.last_push_date datetime2(7) null
+COLUMN hol_delivery.note varchar(500) null
+COLUMN hol_delivery.push_status varchar(10) null
+COLUMN hol_delivery.received_at datetime2(7) null
+COLUMN hol_delivery.received_by varchar(100) null
+COLUMN hol_delivery.seller_name varchar(200) null
+COLUMN hol_delivery.sent_at datetime2(7) null
+COLUMN hol_delivery.status varchar(20) not null
+COLUMN hol_delivery.store_note varchar(500) null
+COLUMN hol_delivery.total_excl_vat float(53) null
+COLUMN hol_delivery.total_incl_vat float(53) null
+COLUMN hol_delivery.total_vat float(53) null
+COLUMN hol_delivery.updated_at datetime2(7) null
+COLUMN hol_delivery.updated_by varchar(255) null
+COLUMN hol_delivery_line.active bit null
+COLUMN hol_delivery_line.cost_applied bit null
+COLUMN hol_delivery_line.created_at datetime2(7) null
+COLUMN hol_delivery_line.created_by varchar(255) null
+COLUMN hol_delivery_line.delivery_id bigint not null
+COLUMN hol_delivery_line.id bigint not null identity
+COLUMN hol_delivery_line.item_code varchar(100) not null
+COLUMN hol_delivery_line.item_id bigint null
+COLUMN hol_delivery_line.item_name varchar(255) null
+COLUMN hol_delivery_line.line_amount float(53) null
+COLUMN hol_delivery_line.line_discount_percent float(53) null
+COLUMN hol_delivery_line.line_no int not null
+COLUMN hol_delivery_line.line_type varchar(10) null
+COLUMN hol_delivery_line.quantity_received numeric(18,3) null
+COLUMN hol_delivery_line.quantity_sent numeric(18,3) not null
+COLUMN hol_delivery_line.stock_applied bit null
+COLUMN hol_delivery_line.unit_cost float(53) null
+COLUMN hol_delivery_line.unit_price float(53) null
+COLUMN hol_delivery_line.updated_at datetime2(7) null
+COLUMN hol_delivery_line.updated_by varchar(255) null
+COLUMN hol_down_cursor.active bit null
+COLUMN hol_down_cursor.created_at datetime2(7) null
+COLUMN hol_down_cursor.created_by varchar(255) null
+COLUMN hol_down_cursor.cursor_value varchar(200) not null
+COLUMN hol_down_cursor.domain varchar(20) not null
+COLUMN hol_down_cursor.id bigint not null identity
+COLUMN hol_down_cursor.updated_at datetime2(7) null
+COLUMN hol_down_cursor.updated_by varchar(255) null
+COLUMN hol_down_record.active bit null
+COLUMN hol_down_record.created_at datetime2(7) null
+COLUMN hol_down_record.created_by varchar(255) null
+COLUMN hol_down_record.domain varchar(20) not null
+COLUMN hol_down_record.id bigint not null identity
+COLUMN hol_down_record.info varchar(1000) null
+COLUMN hol_down_record.payload nvarchar(max) null
+COLUMN hol_down_record.reason varchar(1000) null
+COLUMN hol_down_record.received_at datetime2(7) null
+COLUMN hol_down_record.record_code varchar(100) not null
+COLUMN hol_down_record.record_name varchar(255) null
+COLUMN hol_down_record.status varchar(10) not null
+COLUMN hol_down_record.status_since datetime2(7) null
+COLUMN hol_down_record.updated_at datetime2(7) null
+COLUMN hol_down_record.updated_by varchar(255) null
+COLUMN hol_exchange_log.active bit null
+COLUMN hol_exchange_log.created_at datetime2(7) null
+COLUMN hol_exchange_log.created_by varchar(255) null
+COLUMN hol_exchange_log.direction varchar(4) not null
+COLUMN hol_exchange_log.duration_ms bigint null
+COLUMN hol_exchange_log.error varchar(1000) null
+COLUMN hol_exchange_log.exchange_date datetime2(7) not null
+COLUMN hol_exchange_log.id bigint not null identity
+COLUMN hol_exchange_log.job varchar(40) not null
+COLUMN hol_exchange_log.record_count int not null
+COLUMN hol_exchange_log.result varchar(10) not null
+COLUMN hol_exchange_log.updated_at datetime2(7) null
+COLUMN hol_exchange_log.updated_by varchar(255) null
+COLUMN hol_job.active bit null
+COLUMN hol_job.code varchar(40) not null
+COLUMN hol_job.created_at datetime2(7) null
+COLUMN hol_job.created_by varchar(255) null
+COLUMN hol_job.id bigint not null identity
+COLUMN hol_job.interval_seconds bigint null
+COLUMN hol_job.last_duration_ms bigint null
+COLUMN hol_job.last_message varchar(1000) null
+COLUMN hol_job.last_result varchar(10) null
+COLUMN hol_job.last_run_at datetime2(7) null
+COLUMN hol_job.updated_at datetime2(7) null
+COLUMN hol_job.updated_by varchar(255) null
+COLUMN hol_link_right.active bit null
+COLUMN hol_link_right.code varchar(50) not null
+COLUMN hol_link_right.created_at datetime2(7) null
+COLUMN hol_link_right.created_by varchar(255) null
+COLUMN hol_link_right.granted bit not null
+COLUMN hol_link_right.id bigint not null identity
+COLUMN hol_link_right.received_at datetime2(7) null
+COLUMN hol_link_right.updated_at datetime2(7) null
+COLUMN hol_link_right.updated_by varchar(255) null
+COLUMN hol_loyalty_member_copy.active bit null
+COLUMN hol_loyalty_member_copy.attempts int not null
+COLUMN hol_loyalty_member_copy.card_number varchar(50) not null
+COLUMN hol_loyalty_member_copy.created_at datetime2(7) null
+COLUMN hol_loyalty_member_copy.created_by varchar(255) null
+COLUMN hol_loyalty_member_copy.id bigint not null identity
+COLUMN hol_loyalty_member_copy.last_error varchar(1000) null
+COLUMN hol_loyalty_member_copy.last_push_date datetime2(7) null
+COLUMN hol_loyalty_member_copy.member_id bigint not null
+COLUMN hol_loyalty_member_copy.outcome varchar(10) null
+COLUMN hol_loyalty_member_copy.status varchar(10) not null
+COLUMN hol_loyalty_member_copy.surviving_card_number varchar(50) null
+COLUMN hol_loyalty_member_copy.updated_at datetime2(7) null
+COLUMN hol_loyalty_member_copy.updated_by varchar(255) null
+COLUMN hol_loyalty_movement_copy.active bit null
+COLUMN hol_loyalty_movement_copy.attempts int not null
+COLUMN hol_loyalty_movement_copy.card_number varchar(50) not null
+COLUMN hol_loyalty_movement_copy.created_at datetime2(7) null
+COLUMN hol_loyalty_movement_copy.created_by varchar(255) null
+COLUMN hol_loyalty_movement_copy.delta int not null
+COLUMN hol_loyalty_movement_copy.id bigint not null identity
+COLUMN hol_loyalty_movement_copy.last_error varchar(1000) null
+COLUMN hol_loyalty_movement_copy.last_push_date datetime2(7) null
+COLUMN hol_loyalty_movement_copy.local_id bigint not null
+COLUMN hol_loyalty_movement_copy.movement_date datetime2(7) null
+COLUMN hol_loyalty_movement_copy.points int not null
+COLUMN hol_loyalty_movement_copy.status varchar(10) not null
+COLUMN hol_loyalty_movement_copy.type varchar(30) not null
+COLUMN hol_loyalty_movement_copy.updated_at datetime2(7) null
+COLUMN hol_loyalty_movement_copy.updated_by varchar(255) null
+COLUMN hol_order.active bit null
+COLUMN hol_order.created_at datetime2(7) null
+COLUMN hol_order.created_by varchar(255) null
+COLUMN hol_order.delivered_at date null
+COLUMN hol_order.error_message varchar(1000) null
+COLUMN hol_order.id bigint not null identity
+COLUMN hol_order.invoice_no varchar(30) null
+COLUMN hol_order.line_count int not null
+COLUMN hol_order.nav_message varchar(500) null
+COLUMN hol_order.nav_order_no varchar(50) null
+COLUMN hol_order.note varchar(500) null
+COLUMN hol_order.number varchar(30) not null
+COLUMN hol_order.sent_at datetime2(7) null
+COLUMN hol_order.status varchar(20) not null
+COLUMN hol_order.total_colis int null
+COLUMN hol_order.total_qty numeric(18,3) not null
+COLUMN hol_order.updated_at datetime2(7) null
+COLUMN hol_order.updated_by varchar(255) null
+COLUMN hol_order_colis.active bit null
+COLUMN hol_order_colis.colis_content int null
+COLUMN hol_order_colis.colis_disponibles int null
+COLUMN hol_order_colis.created_at datetime2(7) null
+COLUMN hol_order_colis.created_by varchar(255) null
+COLUMN hol_order_colis.description varchar(255) null
+COLUMN hol_order_colis.id bigint not null identity
+COLUMN hol_order_colis.nav_accepted_colis int null
+COLUMN hol_order_colis.nav_accepted_qty numeric(18,3) null
+COLUMN hol_order_colis.nav_item_no varchar(255) not null
+COLUMN hol_order_colis.nav_message varchar(500) null
+COLUMN hol_order_colis.nav_numero_colis varchar(50) null
+COLUMN hol_order_colis.nb_colis int not null
+COLUMN hol_order_colis.order_id bigint not null
+COLUMN hol_order_colis.updated_at datetime2(7) null
+COLUMN hol_order_colis.updated_by varchar(255) null
+COLUMN hol_order_colis_detail.active bit null
+COLUMN hol_order_colis_detail.colis_id bigint not null
+COLUMN hol_order_colis_detail.color_code varchar(50) null
+COLUMN hol_order_colis_detail.color_description varchar(255) null
+COLUMN hol_order_colis_detail.created_at datetime2(7) null
+COLUMN hol_order_colis_detail.created_by varchar(255) null
+COLUMN hol_order_colis_detail.id bigint not null identity
+COLUMN hol_order_colis_detail.item_code varchar(100) not null
+COLUMN hol_order_colis_detail.item_id bigint not null
+COLUMN hol_order_colis_detail.qty_per_colis int not null
+COLUMN hol_order_colis_detail.size_code varchar(50) null
+COLUMN hol_order_colis_detail.size_description varchar(255) null
+COLUMN hol_order_colis_detail.updated_at datetime2(7) null
+COLUMN hol_order_colis_detail.updated_by varchar(255) null
+COLUMN hol_order_colis_detail.variant_code varchar(50) null
+COLUMN hol_order_line.active bit null
+COLUMN hol_order_line.available_qty numeric(18,3) null
+COLUMN hol_order_line.created_at datetime2(7) null
+COLUMN hol_order_line.created_by varchar(255) null
+COLUMN hol_order_line.description varchar(255) null
+COLUMN hol_order_line.id bigint not null identity
+COLUMN hol_order_line.item_code varchar(100) not null
+COLUMN hol_order_line.item_id bigint not null
+COLUMN hol_order_line.nav_accepted_qty numeric(18,3) null
+COLUMN hol_order_line.nav_item_no varchar(255) null
+COLUMN hol_order_line.nav_line_message varchar(500) null
+COLUMN hol_order_line.order_id bigint not null
+COLUMN hol_order_line.quantity numeric(18,3) not null
+COLUMN hol_order_line.updated_at datetime2(7) null
+COLUMN hol_order_line.updated_by varchar(255) null
+COLUMN hol_order_line.variant_code varchar(50) null
+COLUMN hol_order_line.variant_description varchar(255) null
+COLUMN hol_order_line.vrac_allowed bit null
+COLUMN hol_sales_copy.active bit null
+COLUMN hol_sales_copy.attempts int not null
+COLUMN hol_sales_copy.content_hash varchar(64) null
+COLUMN hol_sales_copy.created_at datetime2(7) null
+COLUMN hol_sales_copy.created_by varchar(255) null
+COLUMN hol_sales_copy.document_date datetime2(7) null
+COLUMN hol_sales_copy.document_number varchar(255) not null
+COLUMN hol_sales_copy.document_type varchar(10) not null
+COLUMN hol_sales_copy.id bigint not null identity
+COLUMN hol_sales_copy.last_error varchar(1000) null
+COLUMN hol_sales_copy.last_push_date datetime2(7) null
+COLUMN hol_sales_copy.local_id bigint not null
+COLUMN hol_sales_copy.status varchar(10) not null
+COLUMN hol_sales_copy.updated_at datetime2(7) null
+COLUMN hol_sales_copy.updated_by varchar(255) null
+COLUMN hol_sales_cursor.active bit null
+COLUMN hol_sales_cursor.created_at datetime2(7) null
+COLUMN hol_sales_cursor.created_by varchar(255) null
+COLUMN hol_sales_cursor.document_type varchar(10) not null
+COLUMN hol_sales_cursor.id bigint not null identity
+COLUMN hol_sales_cursor.last_changed_at datetime2(7) not null
+COLUMN hol_sales_cursor.last_local_id bigint not null
+COLUMN hol_sales_cursor.updated_at datetime2(7) null
+COLUMN hol_sales_cursor.updated_by varchar(255) null
+COLUMN hol_stock_copy.active bit null
+COLUMN hol_stock_copy.created_at datetime2(7) null
+COLUMN hol_stock_copy.created_by varchar(255) null
+COLUMN hol_stock_copy.id bigint not null identity
+COLUMN hol_stock_copy.item_code varchar(100) not null
+COLUMN hol_stock_copy.item_id bigint not null
+COLUMN hol_stock_copy.quantity_sent numeric(18,3) not null
+COLUMN hol_stock_copy.sent_at datetime2(7) null
+COLUMN hol_stock_copy.updated_at datetime2(7) null
+COLUMN hol_stock_copy.updated_by varchar(255) null
+COLUMN inventory_count.active bit null
+COLUMN inventory_count.count_date date not null
+COLUMN inventory_count.created_at datetime2(7) null
+COLUMN inventory_count.created_by varchar(255) null
+COLUMN inventory_count.file_name varchar(255) null
+COLUMN inventory_count.id bigint not null identity
+COLUMN inventory_count.note varchar(500) null
+COLUMN inventory_count.number varchar(30) not null
+COLUMN inventory_count.rows_read int null
+COLUMN inventory_count.status varchar(20) not null
+COLUMN inventory_count.updated_at datetime2(7) null
+COLUMN inventory_count.updated_by varchar(255) null
+COLUMN inventory_count.validated_at datetime2(7) null
+COLUMN inventory_count.validated_by varchar(100) null
+COLUMN inventory_count_line.active bit null
+COLUMN inventory_count_line.code varchar(100) null
+COLUMN inventory_count_line.count_id bigint not null
+COLUMN inventory_count_line.counted_quantity numeric(18,3) null
+COLUMN inventory_count_line.created_at datetime2(7) null
+COLUMN inventory_count_line.created_by varchar(255) null
+COLUMN inventory_count_line.difference_applied numeric(18,3) null
+COLUMN inventory_count_line.id bigint not null identity
+COLUMN inventory_count_line.item_id bigint null
+COLUMN inventory_count_line.merged_rows int null
+COLUMN inventory_count_line.message varchar(255) null
+COLUMN inventory_count_line.status varchar(20) not null
+COLUMN inventory_count_line.system_quantity_at_import numeric(18,3) null
+COLUMN inventory_count_line.system_quantity_at_validation numeric(18,3) null
+COLUMN inventory_count_line.updated_at datetime2(7) null
+COLUMN inventory_count_line.updated_by varchar(255) null
+COLUMN invoice_header.active bit null
+COLUMN invoice_header.created_at datetime2(7) null
+COLUMN invoice_header.created_by varchar(255) null
+COLUMN invoice_header.created_by_user bigint null
+COLUMN invoice_header.customer_id bigint not null
+COLUMN invoice_header.discount_amount float(53) null
+COLUMN invoice_header.id bigint not null identity
+COLUMN invoice_header.invoice_date date not null
+COLUMN invoice_header.invoice_number varchar(255) not null
+COLUMN invoice_header.line_grouping_mode varchar(255) not null
+COLUMN invoice_header.notes varchar(255) null
+COLUMN invoice_header.snapshot_customer_address varchar(255) null
+COLUMN invoice_header.snapshot_customer_name varchar(255) null
+COLUMN invoice_header.snapshot_customer_phone varchar(255) null
+COLUMN invoice_header.snapshot_customer_tax_reg_no varchar(255) null
+COLUMN invoice_header.subtotal float(53) null
+COLUMN invoice_header.tax_amount float(53) null
+COLUMN invoice_header.total_amount float(53) null
+COLUMN invoice_header.updated_at datetime2(7) null
+COLUMN invoice_header.updated_by varchar(255) null
+COLUMN invoice_line.active bit null
+COLUMN invoice_line.created_at datetime2(7) null
+COLUMN invoice_line.created_by varchar(255) null
+COLUMN invoice_line.id bigint not null identity
+COLUMN invoice_line.invoice_id bigint not null
+COLUMN invoice_line.item_family_id bigint null
+COLUMN invoice_line.item_id bigint null
+COLUMN invoice_line.item_sub_family_id bigint null
+COLUMN invoice_line.line_description varchar(255) null
+COLUMN invoice_line.line_total_including_vat float(53) null
+COLUMN invoice_line.quantity int not null
+COLUMN invoice_line.subtotal float(53) null
+COLUMN invoice_line.tax_amount float(53) null
+COLUMN invoice_line.total_amount float(53) null
+COLUMN invoice_line.unit_price float(53) null
+COLUMN invoice_line.unit_price_including_vat float(53) null
+COLUMN invoice_line.updated_at datetime2(7) null
+COLUMN invoice_line.updated_by varchar(255) null
+COLUMN invoice_line.vat_percent int null
+COLUMN item.active bit null
+COLUMN item.barcode varchar(255) null
+COLUMN item.brand varchar(255) null
+COLUMN item.category varchar(255) null
+COLUMN item.category_code varchar(255) null
+COLUMN item.choice_code varchar(255) null
+COLUMN item.choice_description varchar(255) null
+COLUMN item.clearance bit null
+COLUMN item.color_code varchar(255) null
+COLUMN item.color_description varchar(255) null
+COLUMN item.cost_price float(53) null
+COLUMN item.created_at datetime2(7) null
+COLUMN item.created_by varchar(255) null
+COLUMN item.defaultvat int null
+COLUMN item.description varchar(255) null
+COLUMN item.division_code varchar(255) null
+COLUMN item.erp_external_id varchar(255) null
+COLUMN item.head_office_price float(53) null
+COLUMN item.id bigint not null identity
+COLUMN item.image_url varchar(255) null
+COLUMN item.item_code varchar(255) not null
+COLUMN item.item_disc_group varchar(255) null
+COLUMN item.item_family_id bigint null
+COLUMN item.item_sub_family_id bigint null
+COLUMN item.last_direct_cost float(53) null
+COLUMN item.last_direct_net_cost float(53) null
+COLUMN item.maximum_authorized_discount float(53) null
+COLUMN item.min_stock_level int null
+COLUMN item.name varchar(255) not null
+COLUMN item.nav_item_no varchar(255) null
+COLUMN item.origin varchar(20) null
+COLUMN item.own_price bit null
+COLUMN item.public_price float(53) null
+COLUMN item.season_code varchar(255) null
+COLUMN item.section_code varchar(255) null
+COLUMN item.show_in_pos bit not null
+COLUMN item.size_code varchar(255) null
+COLUMN item.size_description varchar(255) null
+COLUMN item.size_sort_order int null
+COLUMN item.sold_in_bulk bit null
+COLUMN item.stock_quantity numeric(18,3) null
+COLUMN item.type varchar(255) null
+COLUMN item.unit_of_measure varchar(255) null
+COLUMN item.unit_price float(53) null
+COLUMN item.updated_at datetime2(7) null
+COLUMN item.updated_by varchar(255) null
+COLUMN item.variant_code varchar(255) null
+COLUMN item.variant_description varchar(255) null
+COLUMN item_barcode.active bit null
+COLUMN item_barcode.barcode varchar(255) not null
+COLUMN item_barcode.created_at datetime2(7) null
+COLUMN item_barcode.created_by varchar(255) null
+COLUMN item_barcode.description varchar(255) null
+COLUMN item_barcode.erp_external_id varchar(255) null
+COLUMN item_barcode.id bigint not null identity
+COLUMN item_barcode.is_primary bit null
+COLUMN item_barcode.item_id bigint not null
+COLUMN item_barcode.origin varchar(20) null
+COLUMN item_barcode.updated_at datetime2(7) null
+COLUMN item_barcode.updated_by varchar(255) null
+COLUMN item_category.active bit null
+COLUMN item_category.code varchar(255) not null
+COLUMN item_category.created_at datetime2(7) null
+COLUMN item_category.created_by varchar(255) null
+COLUMN item_category.description varchar(255) null
+COLUMN item_category.display_order int null
+COLUMN item_category.erp_external_id varchar(255) null
+COLUMN item_category.id bigint not null identity
+COLUMN item_category.name varchar(255) not null
+COLUMN item_category.origin varchar(20) null
+COLUMN item_category.updated_at datetime2(7) null
+COLUMN item_category.updated_by varchar(255) null
+COLUMN item_composition.active bit null
+COLUMN item_composition.component_item_id bigint not null
+COLUMN item_composition.created_at datetime2(7) null
+COLUMN item_composition.created_by varchar(255) null
+COLUMN item_composition.id bigint not null identity
+COLUMN item_composition.parent_item_id bigint not null
+COLUMN item_composition.quantity int not null
+COLUMN item_composition.updated_at datetime2(7) null
+COLUMN item_composition.updated_by varchar(255) null
+COLUMN item_cost_history.changed_at datetime2(7) not null
+COLUMN item_cost_history.changed_by varchar(100) null
+COLUMN item_cost_history.document_number varchar(100) null
+COLUMN item_cost_history.document_type varchar(20) null
+COLUMN item_cost_history.id bigint not null identity
+COLUMN item_cost_history.item_id bigint not null
+COLUMN item_cost_history.new_cost float(53) not null
+COLUMN item_cost_history.note varchar(500) null
+COLUMN item_cost_history.old_cost float(53) null
+COLUMN item_cost_history.qty_in numeric(18,3) null
+COLUMN item_cost_history.source varchar(30) not null
+COLUMN item_cost_history.unit_cost_in float(53) null
+COLUMN item_family.active bit null
+COLUMN item_family.category_code varchar(255) null
+COLUMN item_family.code varchar(255) not null
+COLUMN item_family.created_at datetime2(7) null
+COLUMN item_family.created_by varchar(255) null
+COLUMN item_family.description varchar(255) null
+COLUMN item_family.display_order int null
+COLUMN item_family.erp_external_id varchar(255) null
+COLUMN item_family.id bigint not null identity
+COLUMN item_family.image_filename varchar(255) null
+COLUMN item_family.name varchar(255) not null
+COLUMN item_family.origin varchar(20) null
+COLUMN item_family.updated_at datetime2(7) null
+COLUMN item_family.updated_by varchar(255) null
+COLUMN item_image.active bit null
+COLUMN item_image.created_at datetime2(7) null
+COLUMN item_image.created_by varchar(255) null
+COLUMN item_image.id bigint not null identity
+COLUMN item_image.is_main bit not null
+COLUMN item_image.item_id bigint not null
+COLUMN item_image.path varchar(1000) not null
+COLUMN item_image.sort_order int not null
+COLUMN item_image.source varchar(10) not null
+COLUMN item_image.updated_at datetime2(7) null
+COLUMN item_image.updated_by varchar(255) null
+COLUMN item_section.active bit null
+COLUMN item_section.code varchar(255) not null
+COLUMN item_section.created_at datetime2(7) null
+COLUMN item_section.created_by varchar(255) null
+COLUMN item_section.description varchar(255) null
+COLUMN item_section.display_order int null
+COLUMN item_section.erp_external_id varchar(255) null
+COLUMN item_section.id bigint not null identity
+COLUMN item_section.name varchar(255) not null
+COLUMN item_section.origin varchar(20) null
+COLUMN item_section.sub_family_code varchar(255) null
+COLUMN item_section.updated_at datetime2(7) null
+COLUMN item_section.updated_by varchar(255) null
+COLUMN item_sub_family.active bit null
+COLUMN item_sub_family.code varchar(255) not null
+COLUMN item_sub_family.created_at datetime2(7) null
+COLUMN item_sub_family.created_by varchar(255) null
+COLUMN item_sub_family.description varchar(255) null
+COLUMN item_sub_family.display_order int null
+COLUMN item_sub_family.erp_external_id varchar(255) null
+COLUMN item_sub_family.id bigint not null identity
+COLUMN item_sub_family.image_filename varchar(255) null
+COLUMN item_sub_family.item_family_id bigint not null
+COLUMN item_sub_family.name varchar(255) not null
+COLUMN item_sub_family.origin varchar(20) null
+COLUMN item_sub_family.updated_at datetime2(7) null
+COLUMN item_sub_family.updated_by varchar(255) null
+COLUMN license_record.active bit null
+COLUMN license_record.company_name varchar(255) null
+COLUMN license_record.created_at datetime2(7) null
+COLUMN license_record.created_by varchar(255) null
+COLUMN license_record.current_license bit null
+COLUMN license_record.expires_at date null
+COLUMN license_record.id bigint not null identity
+COLUMN license_record.installation_id varchar(255) null
+COLUMN license_record.issued_at date null
+COLUMN license_record.raw_json nvarchar(max) null
+COLUMN license_record.updated_at datetime2(7) null
+COLUMN license_record.updated_by varchar(255) null
+COLUMN license_record.uploaded_at datetime2(7) null
+COLUMN license_record.uploaded_by varchar(255) null
+COLUMN location.active bit null
+COLUMN location.address varchar(255) null
+COLUMN location.city varchar(255) null
+COLUMN location.contact_person varchar(255) null
+COLUMN location.country varchar(255) null
+COLUMN location.created_at datetime2(7) null
+COLUMN location.created_by varchar(255) null
+COLUMN location.description varchar(255) null
+COLUMN location.email varchar(255) null
+COLUMN location.erp_external_id varchar(255) null
+COLUMN location.id bigint not null identity
+COLUMN location.is_default bit null
+COLUMN location.location_code varchar(255) not null
+COLUMN location.name varchar(255) not null
+COLUMN location.notes varchar(255) null
+COLUMN location.phone varchar(255) null
+COLUMN location.postal_code varchar(255) null
+COLUMN location.responsibility_center varchar(255) null
+COLUMN location.state varchar(255) null
+COLUMN location.updated_at datetime2(7) null
+COLUMN location.updated_by varchar(255) null
+COLUMN loyalty_member.active bit null
+COLUMN loyalty_member.birth_date date null
+COLUMN loyalty_member.card_number varchar(50) not null
+COLUMN loyalty_member.created_at datetime2(7) null
+COLUMN loyalty_member.created_by varchar(255) null
+COLUMN loyalty_member.customer_id bigint null
+COLUMN loyalty_member.email varchar(150) null
+COLUMN loyalty_member.erp_external_id varchar(255) null
+COLUMN loyalty_member.first_name varchar(100) not null
+COLUMN loyalty_member.id bigint not null identity
+COLUMN loyalty_member.last_name varchar(100) not null
+COLUMN loyalty_member.loyalty_points int not null
+COLUMN loyalty_member.member_function_id bigint null
+COLUMN loyalty_member.origin varchar(20) null
+COLUMN loyalty_member.phone varchar(30) null
+COLUMN loyalty_member.total_points_earned int not null
+COLUMN loyalty_member.total_points_redeemed int not null
+COLUMN loyalty_member.updated_at datetime2(7) null
+COLUMN loyalty_member.updated_by varchar(255) null
+COLUMN loyalty_program.active bit null
+COLUMN loyalty_program.created_at datetime2(7) null
+COLUMN loyalty_program.created_by varchar(255) null
+COLUMN loyalty_program.description text null
+COLUMN loyalty_program.end_date date null
+COLUMN loyalty_program.id bigint not null identity
+COLUMN loyalty_program.maximum_redemption_percentage float(53) not null
+COLUMN loyalty_program.minimum_redemption_points int not null
+COLUMN loyalty_program.name varchar(200) not null
+COLUMN loyalty_program.origin varchar(20) null
+COLUMN loyalty_program.point_value_millimes int not null
+COLUMN loyalty_program.points_expiry_days int null
+COLUMN loyalty_program.points_per_dinar float(53) not null
+COLUMN loyalty_program.program_code varchar(50) not null
+COLUMN loyalty_program.start_date date not null
+COLUMN loyalty_program.updated_at datetime2(7) null
+COLUMN loyalty_program.updated_by varchar(255) null
+COLUMN loyalty_program_tier.loyalty_program_id bigint not null
+COLUMN loyalty_program_tier.points_per_dinar float(53) not null
+COLUMN loyalty_program_tier.threshold_amount float(53) not null
+COLUMN loyalty_transaction.active bit null
+COLUMN loyalty_transaction.balance_after int not null
+COLUMN loyalty_transaction.balance_before int not null
+COLUMN loyalty_transaction.cashier_session_id bigint null
+COLUMN loyalty_transaction.created_at datetime2(7) null
+COLUMN loyalty_transaction.created_by varchar(255) null
+COLUMN loyalty_transaction.description varchar(500) null
+COLUMN loyalty_transaction.expiry_date date null
+COLUMN loyalty_transaction.id bigint not null identity
+COLUMN loyalty_transaction.loyalty_member_id bigint not null
+COLUMN loyalty_transaction.loyalty_program_id bigint null
+COLUMN loyalty_transaction.points int not null
+COLUMN loyalty_transaction.return_header_id bigint null
+COLUMN loyalty_transaction.sales_header_id bigint null
+COLUMN loyalty_transaction.type varchar(30) not null
+COLUMN loyalty_transaction.updated_at datetime2(7) null
+COLUMN loyalty_transaction.updated_by varchar(255) null
+COLUMN member_function.active bit null
+COLUMN member_function.code varchar(50) not null
+COLUMN member_function.created_at datetime2(7) null
+COLUMN member_function.created_by varchar(255) null
+COLUMN member_function.description text null
+COLUMN member_function.display_order int null
+COLUMN member_function.id bigint not null identity
+COLUMN member_function.name varchar(100) not null
+COLUMN member_function.updated_at datetime2(7) null
+COLUMN member_function.updated_by varchar(255) null
+COLUMN payment.active bit null
+COLUMN payment.created_at datetime2(7) null
+COLUMN payment.created_by varchar(255) null
+COLUMN payment.created_by_user bigint null
+COLUMN payment.drawer_name varchar(255) null
+COLUMN payment.due_date date null
+COLUMN payment.id bigint not null identity
+COLUMN payment.issuing_bank varchar(255) null
+COLUMN payment.notes varchar(255) null
+COLUMN payment.payment_date datetime2(7) not null
+COLUMN payment.payment_method_id bigint not null
+COLUMN payment.payment_reference varchar(255) null
+COLUMN payment.sales_header_id bigint not null
+COLUMN payment.status varchar(255) null
+COLUMN payment.synched bit null
+COLUMN payment.title_number varchar(255) null
+COLUMN payment.total_amount float(53) null
+COLUMN payment.updated_at datetime2(7) null
+COLUMN payment.updated_by varchar(255) null
+COLUMN payment_change_log.active bit null
+COLUMN payment_change_log.amount float(53) not null
+COLUMN payment_change_log.change_amount_new float(53) null
+COLUMN payment_change_log.change_amount_old float(53) null
+COLUMN payment_change_log.changed_by_user_id bigint null
+COLUMN payment_change_log.created_at datetime2(7) null
+COLUMN payment_change_log.created_by varchar(255) null
+COLUMN payment_change_log.id bigint not null identity
+COLUMN payment_change_log.new_payment_method_id bigint not null
+COLUMN payment_change_log.old_payment_method_id bigint not null
+COLUMN payment_change_log.payment_id bigint not null
+COLUMN payment_change_log.real_cash_new float(53) null
+COLUMN payment_change_log.real_cash_old float(53) null
+COLUMN payment_change_log.reason nvarchar(512) null
+COLUMN payment_change_log.sales_header_id bigint not null
+COLUMN payment_change_log.session_status varchar(20) null
+COLUMN payment_change_log.updated_at datetime2(7) null
+COLUMN payment_change_log.updated_by varchar(255) null
+COLUMN payment_header.active bit null
+COLUMN payment_header.cashier_session_id bigint not null
+COLUMN payment_header.created_at datetime2(7) null
+COLUMN payment_header.created_by varchar(255) null
+COLUMN payment_header.erp_no varchar(255) null
+COLUMN payment_header.id bigint not null identity
+COLUMN payment_header.payment_class varchar(255) not null
+COLUMN payment_header.post_date date not null
+COLUMN payment_header.synchronization_status varchar(255) not null
+COLUMN payment_header.updated_at datetime2(7) null
+COLUMN payment_header.updated_by varchar(255) null
+COLUMN payment_line.active bit null
+COLUMN payment_line.amount float(53) not null
+COLUMN payment_line.created_at datetime2(7) null
+COLUMN payment_line.created_by varchar(255) null
+COLUMN payment_line.cust_no varchar(255) not null
+COLUMN payment_line.drawer_name varchar(255) null
+COLUMN payment_line.due_date date null
+COLUMN payment_line.fence_no varchar(255) not null
+COLUMN payment_line.id bigint not null identity
+COLUMN payment_line.payment_header_id bigint not null
+COLUMN payment_line.payment_id bigint null
+COLUMN payment_line.synched bit not null
+COLUMN payment_line.ticket_no varchar(255) not null
+COLUMN payment_line.title_number varchar(255) null
+COLUMN payment_line.updated_at datetime2(7) null
+COLUMN payment_line.updated_by varchar(255) null
+COLUMN payment_line_payments.payment_id bigint not null
+COLUMN payment_line_payments.payment_line_id bigint not null
+COLUMN payment_method.active bit null
+COLUMN payment_method.code varchar(255) not null
+COLUMN payment_method.created_at datetime2(7) null
+COLUMN payment_method.created_by varchar(255) null
+COLUMN payment_method.description varchar(255) null
+COLUMN payment_method.display_order int null
+COLUMN payment_method.id bigint not null identity
+COLUMN payment_method.name varchar(255) not null
+COLUMN payment_method.require_drawer_name bit null
+COLUMN payment_method.require_due_date bit null
+COLUMN payment_method.require_issuing_bank bit null
+COLUMN payment_method.require_title_number bit null
+COLUMN payment_method.requires_confirmation bit null
+COLUMN payment_method.type varchar(255) not null
+COLUMN payment_method.updated_at datetime2(7) null
+COLUMN payment_method.updated_by varchar(255) null
+COLUMN pos_machine.active bit null
+COLUMN pos_machine.created_at datetime2(7) null
+COLUMN pos_machine.created_by varchar(255) null
+COLUMN pos_machine.id bigint not null identity
+COLUMN pos_machine.ip_address varchar(45) not null
+COLUMN pos_machine.name varchar(100) not null
+COLUMN pos_machine.reader_id bigint null
+COLUMN pos_machine.updated_at datetime2(7) null
+COLUMN pos_machine.updated_by varchar(255) null
+COLUMN promotion.active bit null
+COLUMN promotion.benefit_type varchar(30) not null
+COLUMN promotion.code varchar(100) not null
+COLUMN promotion.created_at datetime2(7) null
+COLUMN promotion.created_by varchar(255) null
+COLUMN promotion.day_of_week varchar(100) null
+COLUMN promotion.description nvarchar(max) null
+COLUMN promotion.discount_amount float(53) null
+COLUMN promotion.discount_percentage float(53) null
+COLUMN promotion.end_date date null
+COLUMN promotion.free_quantity int null
+COLUMN promotion.get_item_id bigint null
+COLUMN promotion.get_nav_item_no varchar(255) null
+COLUMN promotion.id bigint not null identity
+COLUMN promotion.item_category_id bigint null
+COLUMN promotion.item_family_id bigint null
+COLUMN promotion.item_id bigint null
+COLUMN promotion.item_section_id bigint null
+COLUMN promotion.item_sub_family_id bigint null
+COLUMN promotion.minimum_amount float(53) null
+COLUMN promotion.minimum_quantity int null
+COLUMN promotion.name varchar(255) not null
+COLUMN promotion.nav_item_no varchar(255) null
+COLUMN promotion.origin varchar(20) null
+COLUMN promotion.priority int not null
+COLUMN promotion.promotion_type varchar(30) not null
+COLUMN promotion.requires_code bit not null
+COLUMN promotion.scope varchar(30) not null
+COLUMN promotion.start_date date null
+COLUMN promotion.time_end time(7) null
+COLUMN promotion.time_start time(7) null
+COLUMN promotion.updated_at datetime2(7) null
+COLUMN promotion.updated_by varchar(255) null
+COLUMN promotion_group_item.item_id bigint not null
+COLUMN promotion_group_item.promotion_id bigint not null
+COLUMN promotion_group_nav_item.nav_item_no varchar(255) not null
+COLUMN promotion_group_nav_item.promotion_id bigint not null
+COLUMN purchase_header.active bit null
+COLUMN purchase_header.created_at datetime2(7) null
+COLUMN purchase_header.created_by varchar(255) null
+COLUMN purchase_header.created_by_user bigint null
+COLUMN purchase_header.discount_amount float(53) null
+COLUMN purchase_header.id bigint not null identity
+COLUMN purchase_header.invoiced bit null
+COLUMN purchase_header.notes varchar(255) null
+COLUMN purchase_header.paid_amount float(53) null
+COLUMN purchase_header.paid_date datetime2(7) null
+COLUMN purchase_header.purchase_date datetime2(7) not null
+COLUMN purchase_header.purchase_invoice_id bigint null
+COLUMN purchase_header.purchase_number varchar(255) not null
+COLUMN purchase_header.status varchar(255) null
+COLUMN purchase_header.subtotal float(53) null
+COLUMN purchase_header.tax_amount float(53) null
+COLUMN purchase_header.total_amount float(53) null
+COLUMN purchase_header.updated_at datetime2(7) null
+COLUMN purchase_header.updated_by varchar(255) null
+COLUMN purchase_header.vendor_bl_number varchar(100) null
+COLUMN purchase_header.vendor_id bigint not null
+COLUMN purchase_invoice_header.active bit null
+COLUMN purchase_invoice_header.created_at datetime2(7) null
+COLUMN purchase_invoice_header.created_by varchar(255) null
+COLUMN purchase_invoice_header.created_by_user bigint null
+COLUMN purchase_invoice_header.discount_amount float(53) null
+COLUMN purchase_invoice_header.id bigint not null identity
+COLUMN purchase_invoice_header.invoice_date date not null
+COLUMN purchase_invoice_header.invoice_number varchar(255) not null
+COLUMN purchase_invoice_header.line_grouping_mode varchar(255) not null
+COLUMN purchase_invoice_header.notes varchar(255) null
+COLUMN purchase_invoice_header.origin varchar(20) null
+COLUMN purchase_invoice_header.snapshot_vendor_address varchar(255) null
+COLUMN purchase_invoice_header.snapshot_vendor_name varchar(255) null
+COLUMN purchase_invoice_header.snapshot_vendor_phone varchar(255) null
+COLUMN purchase_invoice_header.snapshot_vendor_tax_reg_no varchar(255) null
+COLUMN purchase_invoice_header.subtotal float(53) null
+COLUMN purchase_invoice_header.tax_amount float(53) null
+COLUMN purchase_invoice_header.total_amount float(53) null
+COLUMN purchase_invoice_header.updated_at datetime2(7) null
+COLUMN purchase_invoice_header.updated_by varchar(255) null
+COLUMN purchase_invoice_header.vendor_id bigint not null
+COLUMN purchase_invoice_line.active bit null
+COLUMN purchase_invoice_line.created_at datetime2(7) null
+COLUMN purchase_invoice_line.created_by varchar(255) null
+COLUMN purchase_invoice_line.id bigint not null identity
+COLUMN purchase_invoice_line.item_family_id bigint null
+COLUMN purchase_invoice_line.item_id bigint null
+COLUMN purchase_invoice_line.item_sub_family_id bigint null
+COLUMN purchase_invoice_line.line_description varchar(255) null
+COLUMN purchase_invoice_line.line_total_including_vat float(53) null
+COLUMN purchase_invoice_line.purchase_invoice_id bigint not null
+COLUMN purchase_invoice_line.quantity numeric(18,3) not null
+COLUMN purchase_invoice_line.subtotal float(53) null
+COLUMN purchase_invoice_line.tax_amount float(53) null
+COLUMN purchase_invoice_line.total_amount float(53) null
+COLUMN purchase_invoice_line.unit_price float(53) null
+COLUMN purchase_invoice_line.unit_price_including_vat float(53) null
+COLUMN purchase_invoice_line.updated_at datetime2(7) null
+COLUMN purchase_invoice_line.updated_by varchar(255) null
+COLUMN purchase_invoice_line.vat_percent int null
+COLUMN purchase_line.active bit null
+COLUMN purchase_line.created_at datetime2(7) null
+COLUMN purchase_line.created_by varchar(255) null
+COLUMN purchase_line.discount_percent float(53) null
+COLUMN purchase_line.id bigint not null identity
+COLUMN purchase_line.item_id bigint not null
+COLUMN purchase_line.line_total float(53) not null
+COLUMN purchase_line.line_total_including_vat float(53) null
+COLUMN purchase_line.purchase_header_id bigint not null
+COLUMN purchase_line.quantity int not null
+COLUMN purchase_line.unit_price float(53) not null
+COLUMN purchase_line.updated_at datetime2(7) null
+COLUMN purchase_line.updated_by varchar(255) null
+COLUMN purchase_line.vat_amount float(53) null
+COLUMN purchase_line.vat_percent int null
+COLUMN quick_quantity.active bit null
+COLUMN quick_quantity.created_at datetime2(7) null
+COLUMN quick_quantity.created_by varchar(255) null
+COLUMN quick_quantity.display_order int null
+COLUMN quick_quantity.id bigint not null identity
+COLUMN quick_quantity.label varchar(100) not null
+COLUMN quick_quantity.linked_item_id bigint null
+COLUMN quick_quantity.quantity numeric(18,3) not null
+COLUMN quick_quantity.updated_at datetime2(7) null
+COLUMN quick_quantity.updated_by varchar(255) null
+COLUMN return_header.active bit null
+COLUMN return_header.cashier_session_id bigint null
+COLUMN return_header.created_at datetime2(7) null
+COLUMN return_header.created_by varchar(255) null
+COLUMN return_header.created_by_user bigint null
+COLUMN return_header.discount_percentage float(53) null
+COLUMN return_header.erp_no varchar(255) null
+COLUMN return_header.id bigint not null identity
+COLUMN return_header.notes varchar(255) null
+COLUMN return_header.original_sales_header_id bigint not null
+COLUMN return_header.return_date datetime2(7) not null
+COLUMN return_header.return_number varchar(255) not null
+COLUMN return_header.return_type varchar(255) null
+COLUMN return_header.return_voucher_id bigint null
+COLUMN return_header.status varchar(255) null
+COLUMN return_header.synchronization_status varchar(255) null
+COLUMN return_header.total_return_amount float(53) null
+COLUMN return_header.updated_at datetime2(7) null
+COLUMN return_header.updated_by varchar(255) null
+COLUMN return_line.active bit null
+COLUMN return_line.created_at datetime2(7) null
+COLUMN return_line.created_by varchar(255) null
+COLUMN return_line.id bigint not null identity
+COLUMN return_line.item_id bigint not null
+COLUMN return_line.line_total float(53) not null
+COLUMN return_line.line_total_including_vat float(53) not null
+COLUMN return_line.notes varchar(255) null
+COLUMN return_line.original_sales_line_id bigint not null
+COLUMN return_line.quantity numeric(18,3) not null
+COLUMN return_line.return_header_id bigint not null
+COLUMN return_line.synched bit null
+COLUMN return_line.unit_cost numeric(19,3) null
+COLUMN return_line.unit_price float(53) not null
+COLUMN return_line.unit_price_including_vat float(53) not null
+COLUMN return_line.updated_at datetime2(7) null
+COLUMN return_line.updated_by varchar(255) null
+COLUMN return_voucher.active bit null
+COLUMN return_voucher.created_at datetime2(7) null
+COLUMN return_voucher.created_by varchar(255) null
+COLUMN return_voucher.customer_id bigint null
+COLUMN return_voucher.expiry_date date not null
+COLUMN return_voucher.id bigint not null identity
+COLUMN return_voucher.notes varchar(255) null
+COLUMN return_voucher.return_header_id bigint not null
+COLUMN return_voucher.status varchar(255) null
+COLUMN return_voucher.updated_at datetime2(7) null
+COLUMN return_voucher.updated_by varchar(255) null
+COLUMN return_voucher.used_amount float(53) null
+COLUMN return_voucher.voucher_amount float(53) not null
+COLUMN return_voucher.voucher_date datetime2(7) not null
+COLUMN return_voucher.voucher_number varchar(255) not null
+COLUMN rfid_reader.active bit null
+COLUMN rfid_reader.created_at datetime2(7) null
+COLUMN rfid_reader.created_by varchar(255) null
+COLUMN rfid_reader.id bigint not null identity
+COLUMN rfid_reader.ip_address varchar(45) not null
+COLUMN rfid_reader.min_signal int not null
+COLUMN rfid_reader.name varchar(100) not null
+COLUMN rfid_reader.port int not null
+COLUMN rfid_reader.power int not null
+COLUMN rfid_reader.read_time_ms int not null
+COLUMN rfid_reader.updated_at datetime2(7) null
+COLUMN rfid_reader.updated_by varchar(255) null
+COLUMN rfid_sale_tag.active bit null
+COLUMN rfid_sale_tag.created_at datetime2(7) null
+COLUMN rfid_sale_tag.created_by varchar(255) null
+COLUMN rfid_sale_tag.epc varchar(128) not null
+COLUMN rfid_sale_tag.id bigint not null identity
+COLUMN rfid_sale_tag.item_id bigint not null
+COLUMN rfid_sale_tag.return_line_id bigint null
+COLUMN rfid_sale_tag.sales_header_id bigint not null
+COLUMN rfid_sale_tag.sales_line_id bigint null
+COLUMN rfid_sale_tag.updated_at datetime2(7) null
+COLUMN rfid_sale_tag.updated_by varchar(255) null
+COLUMN rfid_tag.active bit null
+COLUMN rfid_tag.created_at datetime2(7) null
+COLUMN rfid_tag.created_by varchar(255) null
+COLUMN rfid_tag.epc varchar(128) not null
+COLUMN rfid_tag.id bigint not null identity
+COLUMN rfid_tag.item_id bigint not null
+COLUMN rfid_tag.sold_at datetime2(7) null
+COLUMN rfid_tag.source_document varchar(30) null
+COLUMN rfid_tag.source_line int null
+COLUMN rfid_tag.source_type varchar(10) not null
+COLUMN rfid_tag.status varchar(10) not null
+COLUMN rfid_tag.ticket_number varchar(100) null
+COLUMN rfid_tag.updated_at datetime2(7) null
+COLUMN rfid_tag.updated_by varchar(255) null
+COLUMN sales_discount.active bit null
+COLUMN sales_discount.auxiliary_index1 varchar(255) not null
+COLUMN sales_discount.auxiliary_index2 varchar(255) not null
+COLUMN sales_discount.auxiliary_index3 varchar(255) not null
+COLUMN sales_discount.auxiliary_index4 int not null
+COLUMN sales_discount.code varchar(255) not null
+COLUMN sales_discount.created_at datetime2(7) null
+COLUMN sales_discount.created_by varchar(255) null
+COLUMN sales_discount.ending_date date null
+COLUMN sales_discount.erp_external_id varchar(255) null
+COLUMN sales_discount.id bigint not null identity
+COLUMN sales_discount.line_discount float(53) null
+COLUMN sales_discount.responsibility_center varchar(255) not null
+COLUMN sales_discount.responsibility_center_type varchar(255) null
+COLUMN sales_discount.sales_code varchar(255) not null
+COLUMN sales_discount.sales_type varchar(255) not null
+COLUMN sales_discount.starting_date date not null
+COLUMN sales_discount.type varchar(255) not null
+COLUMN sales_discount.updated_at datetime2(7) null
+COLUMN sales_discount.updated_by varchar(255) null
+COLUMN sales_header.active bit null
+COLUMN sales_header.cashier_session_id bigint null
+COLUMN sales_header.change_amount float(53) null
+COLUMN sales_header.completed_date datetime2(7) null
+COLUMN sales_header.created_at datetime2(7) null
+COLUMN sales_header.created_by varchar(255) null
+COLUMN sales_header.created_by_user bigint null
+COLUMN sales_header.customer_id bigint null
+COLUMN sales_header.discount_amount float(53) null
+COLUMN sales_header.discount_percentage float(53) null
+COLUMN sales_header.discount_source varchar(20) null
+COLUMN sales_header.erp_no varchar(255) null
+COLUMN sales_header.fiscal_registration varchar(255) null
+COLUMN sales_header.id bigint not null identity
+COLUMN sales_header.invoice_customer_name varchar(255) null
+COLUMN sales_header.invoice_id bigint null
+COLUMN sales_header.invoice_number varchar(255) null
+COLUMN sales_header.invoiced bit null
+COLUMN sales_header.loyalty_deduction_amount float(53) null
+COLUMN sales_header.loyalty_member_id bigint null
+COLUMN sales_header.loyalty_points_earned int null
+COLUMN sales_header.loyalty_points_redeemed int null
+COLUMN sales_header.notes varchar(255) null
+COLUMN sales_header.paid_amount float(53) null
+COLUMN sales_header.payment_reference varchar(255) null
+COLUMN sales_header.promotion_id bigint null
+COLUMN sales_header.sales_date datetime2(7) not null
+COLUMN sales_header.sales_number varchar(255) not null
+COLUMN sales_header.status varchar(255) null
+COLUMN sales_header.subtotal float(53) null
+COLUMN sales_header.synchronization_status varchar(255) null
+COLUMN sales_header.table_number int null
+COLUMN sales_header.tax_amount float(53) null
+COLUMN sales_header.total_amount float(53) null
+COLUMN sales_header.updated_at datetime2(7) null
+COLUMN sales_header.updated_by varchar(255) null
+COLUMN sales_line.active bit null
+COLUMN sales_line.created_at datetime2(7) null
+COLUMN sales_line.created_by varchar(255) null
+COLUMN sales_line.discount_amount float(53) null
+COLUMN sales_line.discount_percentage float(53) null
+COLUMN sales_line.discount_source varchar(20) null
+COLUMN sales_line.id bigint not null identity
+COLUMN sales_line.item_id bigint not null
+COLUMN sales_line.line_total float(53) not null
+COLUMN sales_line.line_total_including_vat float(53) not null
+COLUMN sales_line.promotion_id bigint null
+COLUMN sales_line.quantity numeric(18,3) not null
+COLUMN sales_line.sales_header_id bigint not null
+COLUMN sales_line.synched bit not null
+COLUMN sales_line.unit_cost numeric(19,3) null
+COLUMN sales_line.unit_price float(53) not null
+COLUMN sales_line.unit_price_including_vat float(53) not null
+COLUMN sales_line.updated_at datetime2(7) null
+COLUMN sales_line.updated_by varchar(255) null
+COLUMN sales_line.vat_amount float(53) null
+COLUMN sales_line.vat_percent int null
+COLUMN sales_price.active bit null
+COLUMN sales_price.created_at datetime2(7) null
+COLUMN sales_price.created_by varchar(255) null
+COLUMN sales_price.currency_code varchar(255) not null
+COLUMN sales_price.ending_date date null
+COLUMN sales_price.erp_external_id varchar(255) null
+COLUMN sales_price.id bigint not null identity
+COLUMN sales_price.item_no varchar(255) not null
+COLUMN sales_price.minimum_quantity float(53) not null
+COLUMN sales_price.price_includes_vat bit null
+COLUMN sales_price.responsibility_center varchar(255) not null
+COLUMN sales_price.responsibility_center_type varchar(255) null
+COLUMN sales_price.sales_code varchar(255) not null
+COLUMN sales_price.sales_type varchar(255) not null
+COLUMN sales_price.starting_date date not null
+COLUMN sales_price.unit_of_measure_code varchar(255) not null
+COLUMN sales_price.unit_price float(53) null
+COLUMN sales_price.updated_at datetime2(7) null
+COLUMN sales_price.updated_by varchar(255) null
+COLUMN sales_price.variant_code varchar(255) not null
+COLUMN session_cash_count.active bit null
+COLUMN session_cash_count.cashier_session_id bigint not null
+COLUMN session_cash_count.counter_type varchar(255) not null
+COLUMN session_cash_count.created_at datetime2(7) null
+COLUMN session_cash_count.created_by varchar(255) null
+COLUMN session_cash_count.denomination_value float(53) not null
+COLUMN session_cash_count.id bigint not null identity
+COLUMN session_cash_count.line_total float(53) not null
+COLUMN session_cash_count.notes varchar(255) null
+COLUMN session_cash_count.payment_method_id bigint null
+COLUMN session_cash_count.quantity int not null
+COLUMN session_cash_count.reference_number varchar(255) null
+COLUMN session_cash_count.updated_at datetime2(7) null
+COLUMN session_cash_count.updated_by varchar(255) null
+COLUMN stock_movement.active bit null
+COLUMN stock_movement.cashier_session_id bigint null
+COLUMN stock_movement.created_at datetime2(7) null
+COLUMN stock_movement.created_by varchar(255) null
+COLUMN stock_movement.direction varchar(5) not null
+COLUMN stock_movement.id bigint not null identity
+COLUMN stock_movement.item_id bigint not null
+COLUMN stock_movement.movement_type varchar(40) not null
+COLUMN stock_movement.notes varchar(500) null
+COLUMN stock_movement.quantity numeric(18,3) not null
+COLUMN stock_movement.reference_id bigint null
+COLUMN stock_movement.reference_type varchar(20) null
+COLUMN stock_movement.unit_price_ht float(53) null
+COLUMN stock_movement.unit_price_ttc float(53) null
+COLUMN stock_movement.updated_at datetime2(7) null
+COLUMN stock_movement.updated_by varchar(255) null
+COLUMN stock_movement.vat_percent int null
+COLUMN till_grant.action varchar(50) not null
+COLUMN till_grant.active bit null
+COLUMN till_grant.badge_code varchar(50) not null
+COLUMN till_grant.badge_owner_id bigint not null
+COLUMN till_grant.consumed_at datetime2(7) null
+COLUMN till_grant.consumed_by_ref varchar(100) null
+COLUMN till_grant.created_at datetime2(7) null
+COLUMN till_grant.created_by varchar(255) null
+COLUMN till_grant.expires_at datetime2(7) not null
+COLUMN till_grant.id bigint not null identity
+COLUMN till_grant.issued_at datetime2(7) not null
+COLUMN till_grant.scanned_by_user_id bigint not null
+COLUMN till_grant.session_id bigint not null
+COLUMN till_grant.token_hash varchar(64) not null
+COLUMN till_grant.updated_at datetime2(7) null
+COLUMN till_grant.updated_by varchar(255) null
+COLUMN user_account.active bit null
+COLUMN user_account.app_role_id bigint null
+COLUMN user_account.badge_code varchar(255) null
+COLUMN user_account.badge_expiration_date datetime2(7) null
+COLUMN user_account.badge_revoke_reason varchar(500) null
+COLUMN user_account.badge_revoked bit not null
+COLUMN user_account.badge_revoked_at datetime2(7) null
+COLUMN user_account.badge_revoked_by_id bigint null
+COLUMN user_account.created_at datetime2(7) null
+COLUMN user_account.created_by varchar(255) null
+COLUMN user_account.email varchar(255) null
+COLUMN user_account.full_name varchar(255) null
+COLUMN user_account.id bigint not null identity
+COLUMN user_account.password varchar(255) not null
+COLUMN user_account.updated_at datetime2(7) null
+COLUMN user_account.updated_by varchar(255) null
+COLUMN user_account.username varchar(255) not null
+COLUMN vendor.active bit null
+COLUMN vendor.address varchar(255) null
+COLUMN vendor.city varchar(255) null
+COLUMN vendor.country varchar(255) null
+COLUMN vendor.created_at datetime2(7) null
+COLUMN vendor.created_by varchar(255) null
+COLUMN vendor.email varchar(255) null
+COLUMN vendor.erp_external_id varchar(255) null
+COLUMN vendor.id bigint not null identity
+COLUMN vendor.name varchar(255) not null
+COLUMN vendor.notes varchar(255) null
+COLUMN vendor.phone varchar(255) not null
+COLUMN vendor.tax_id varchar(255) null
+COLUMN vendor.tax_registration_no varchar(255) null
+COLUMN vendor.updated_at datetime2(7) null
+COLUMN vendor.updated_by varchar(255) null
+COLUMN vendor.vendor_code varchar(255) not null
+COLUMN warranty.active bit null
+COLUMN warranty.created_at datetime2(7) null
+COLUMN warranty.created_by varchar(255) null
+COLUMN warranty.end_date date not null
+COLUMN warranty.id bigint not null identity
+COLUMN warranty.item_id bigint not null
+COLUMN warranty.notes varchar(255) null
+COLUMN warranty.quantity_covered int not null
+COLUMN warranty.sales_header_id bigint not null
+COLUMN warranty.sales_line_id bigint not null
+COLUMN warranty.start_date date not null
+COLUMN warranty.updated_at datetime2(7) null
+COLUMN warranty.updated_by varchar(255) null
+COLUMN warranty.used bit not null
+FOREIGN KEY app_role_permission (role_id) -> app_role (id) FK7mxlaa4assrcd5k3vfxgl3i5j
+FOREIGN KEY badge_scan_log (scanned_by_user_id) -> user_account (id) FK5nek4xt5twc1judrnkvpi90ya
+FOREIGN KEY badge_scan_log (scanned_user_id) -> user_account (id) FKcs6tsij8ggt192mncwko437tc
+FOREIGN KEY cashier_session (cashier_id) -> user_account (id) FKi45b6oo5h3endug0g3j8f385m
+FOREIGN KEY cashier_session (verified_by_user) -> user_account (id) FKhx9seaoir8x8gg42qngok1vu1
+FOREIGN KEY general_setup_change_log (general_setup_id) -> general_setup (id) FK7as5b5b1yvtmoad2ws9rap951
+FOREIGN KEY hol_delivery_line (delivery_id) -> hol_delivery (id) FKtq0ouhqkh0skt989i77qw8agy
+FOREIGN KEY hol_order_colis (order_id) -> hol_order (id) FK45toh2efmh2g325k1mwu2teit
+FOREIGN KEY hol_order_colis_detail (colis_id) -> hol_order_colis (id) FKkgf7ybak3x6sm47epshuwk3ow
+FOREIGN KEY hol_order_line (order_id) -> hol_order (id) FKf5tukyt0w77wxu75k7ak0g74m
+FOREIGN KEY inventory_count_line (count_id) -> inventory_count (id) fk_inventory_count_line_count
+FOREIGN KEY invoice_header (created_by_user) -> user_account (id) FKs1a3wghglnf6k6a6c3c39bvnf
+FOREIGN KEY invoice_header (customer_id) -> customer (id) FK4kv5q6tbc4lyh88k04xyi95tm
+FOREIGN KEY invoice_line (invoice_id) -> invoice_header (id) FK10lwtrgsl6m2vmog9n61829k5
+FOREIGN KEY invoice_line (item_family_id) -> item_family (id) FKbbl4eio33l74kwlr5kvj693yx
+FOREIGN KEY invoice_line (item_id) -> item (id) FKfns13dxn3xubvu48h2nlv2k4b
+FOREIGN KEY invoice_line (item_sub_family_id) -> item_sub_family (id) FKrxq93pk7pohnqqajwca4gkdum
+FOREIGN KEY item (item_family_id) -> item_family (id) FKh5hfmypmftwqiva92qic4xdr
+FOREIGN KEY item (item_sub_family_id) -> item_sub_family (id) FKbjpro8f1djgrmekpcu1w69pjj
+FOREIGN KEY item_barcode (item_id) -> item (id) FKjm6tuhh4gbdr669175hi7gc75
+FOREIGN KEY item_composition (component_item_id) -> item (id) FKk7e2yymc338pktyx85ndv81yu
+FOREIGN KEY item_composition (parent_item_id) -> item (id) FKnn7kubp2f0ym95e3hjnpivkw9
+FOREIGN KEY item_sub_family (item_family_id) -> item_family (id) FKjepeo0rw6t1l8cq4ej1590m9j
+FOREIGN KEY loyalty_member (customer_id) -> customer (id) FKj2vj0afpmi6naowj5fxifu47k
+FOREIGN KEY loyalty_member (member_function_id) -> member_function (id) FKifvkck8xt4psfvht6mj8ev2wh
+FOREIGN KEY loyalty_program_tier (loyalty_program_id) -> loyalty_program (id) FKss2e1dis8hk1wncpjujx118tr
+FOREIGN KEY loyalty_transaction (cashier_session_id) -> cashier_session (id) FKdsrnqnpruvann2bfjmwc8fwws
+FOREIGN KEY loyalty_transaction (loyalty_member_id) -> loyalty_member (id) FKo0vdowpq02o2ystt3w82b5ey8
+FOREIGN KEY loyalty_transaction (loyalty_program_id) -> loyalty_program (id) FKjk1hqasfeb0mxu7hqeiildfif
+FOREIGN KEY loyalty_transaction (return_header_id) -> return_header (id) FKri2lf818djrk8t9w6ehfe2f9u
+FOREIGN KEY loyalty_transaction (sales_header_id) -> sales_header (id) FKmu253ljokldxnku91iq2ge8fp
+FOREIGN KEY payment (created_by_user) -> user_account (id) FKmb67fmcamhxl0f27v28nlihh7
+FOREIGN KEY payment (payment_method_id) -> payment_method (id) FKjii2n6db6cje3km5ybsbgo8cl
+FOREIGN KEY payment (sales_header_id) -> sales_header (id) FKtrpgjxrbh9ks8dq5o1nio9c6b
+FOREIGN KEY payment_change_log (changed_by_user_id) -> user_account (id) FKna0m28lmawvb2yp93wueccpef
+FOREIGN KEY payment_change_log (new_payment_method_id) -> payment_method (id) FKri3thunvqkdxtw213gnft1642
+FOREIGN KEY payment_change_log (old_payment_method_id) -> payment_method (id) FK20sh83i2afe2xpp5d43euia1a
+FOREIGN KEY payment_change_log (payment_id) -> payment (id) FKtgq7d7mu1hwdc65g1vgosti0t
+FOREIGN KEY payment_change_log (sales_header_id) -> sales_header (id) FKr2tal6g173qlxekba621afn7w
+FOREIGN KEY payment_header (cashier_session_id) -> cashier_session (id) FKbmdrpmsn0e7jorryl95cf9o5o
+FOREIGN KEY payment_line (payment_header_id) -> payment_header (id) FK28d7yabdpto6su4i4l0tejw7n
+FOREIGN KEY payment_line (payment_id) -> payment (id) FKmp4q9wk69t6xeyox4j6kwuh82
+FOREIGN KEY payment_line_payments (payment_id) -> payment (id) FKkqveuoxo5lau0lec3bxcmupqd
+FOREIGN KEY payment_line_payments (payment_line_id) -> payment_line (id) FKbd3fy3eweuwailt79gwjpcw79
+FOREIGN KEY pos_machine (reader_id) -> rfid_reader (id) fk_pos_machine_reader
+FOREIGN KEY promotion (get_item_id) -> item (id) FKqmn9s1dv5q0rbsaoywy3eejj8
+FOREIGN KEY promotion (item_category_id) -> item_category (id) FKnrhr1vq2jr4x50ubkk8axeffl
+FOREIGN KEY promotion (item_family_id) -> item_family (id) FKmak7ukpnnbtwmlt1jigspnvte
+FOREIGN KEY promotion (item_id) -> item (id) FKa73w9n8s733lpqbprqsbuhjbt
+FOREIGN KEY promotion (item_section_id) -> item_section (id) FKrvy04x6gkcffhsn4f8b2a8nlf
+FOREIGN KEY promotion (item_sub_family_id) -> item_sub_family (id) FKh4ww21xok1kcvq2s3mm6dfo4i
+FOREIGN KEY promotion_group_item (item_id) -> item (id) FKl20bx3b2hhse31vvhpg8fuw66
+FOREIGN KEY promotion_group_item (promotion_id) -> promotion (id) FKi06ri0r2dmdq2ku11hopbw1w0
+FOREIGN KEY promotion_group_nav_item (promotion_id) -> promotion (id) FK1plx79i86xnk03hpwb5nieeid
+FOREIGN KEY purchase_header (created_by_user) -> user_account (id) FKpifh5nkckkqjs66riopl2nyiu
+FOREIGN KEY purchase_header (purchase_invoice_id) -> purchase_invoice_header (id) FK55t4kbfgjf6x3sv6wlcwac4oa
+FOREIGN KEY purchase_header (vendor_id) -> vendor (id) FKsuv7ida1idi0owtkej2dwk9tu
+FOREIGN KEY purchase_invoice_header (created_by_user) -> user_account (id) FK3111txokky4gbneqlgi8qfhak
+FOREIGN KEY purchase_invoice_header (vendor_id) -> vendor (id) FK2wcxaynk0i2tfw9gb5da14y04
+FOREIGN KEY purchase_invoice_line (item_family_id) -> item_family (id) FKr01btwhh8oqxxtj7nm6hr4utg
+FOREIGN KEY purchase_invoice_line (item_id) -> item (id) FK4pf8rldyls87ra6c1xcqepc6h
+FOREIGN KEY purchase_invoice_line (item_sub_family_id) -> item_sub_family (id) FKkettkli3k3s6kt6p7t0y4xyd9
+FOREIGN KEY purchase_invoice_line (purchase_invoice_id) -> purchase_invoice_header (id) FKc02x3i8wkeq1bx2b1cq6i4t4u
+FOREIGN KEY purchase_line (item_id) -> item (id) FKrgo7a6dgfscd1o2mw0m4le1mw
+FOREIGN KEY purchase_line (purchase_header_id) -> purchase_header (id) FKev98wchr3bi6sa9o7vwe4y4l7
+FOREIGN KEY quick_quantity (linked_item_id) -> item (id) FK9ttvyuma93sjgfj82evvc92vq
+FOREIGN KEY return_header (cashier_session_id) -> cashier_session (id) FKj82e0prpemfl8wki0ihf8kcc2
+FOREIGN KEY return_header (created_by_user) -> user_account (id) FK3h67nbt10g9ublev3codlocq3
+FOREIGN KEY return_header (original_sales_header_id) -> sales_header (id) FK3s5wecd45hvlsuo1gfgh3c8dq
+FOREIGN KEY return_header (return_voucher_id) -> return_voucher (id) FKnhf0n38olmjc5u5cl1v0fr3ux
+FOREIGN KEY return_line (item_id) -> item (id) FK3xat90o9j12wxgbp8tkqdqge0
+FOREIGN KEY return_line (original_sales_line_id) -> sales_line (id) FKi5874j9oyu70m6w0hbxrd48hn
+FOREIGN KEY return_line (return_header_id) -> return_header (id) FKx2ba61rcyu5dsk98b42tnshv
+FOREIGN KEY return_voucher (customer_id) -> customer (id) FKkbaj5exmvl65nc8xgbxg9gu1q
+FOREIGN KEY return_voucher (return_header_id) -> return_header (id) FK62qdjmd281nyugqteq54litpy
+FOREIGN KEY rfid_sale_tag (item_id) -> item (id) fk_rfid_sale_tag_item
+FOREIGN KEY rfid_sale_tag (return_line_id) -> return_line (id) fk_rfid_sale_tag_return_line
+FOREIGN KEY rfid_sale_tag (sales_header_id) -> sales_header (id) fk_rfid_sale_tag_header
+FOREIGN KEY rfid_sale_tag (sales_line_id) -> sales_line (id) fk_rfid_sale_tag_line
+FOREIGN KEY rfid_tag (item_id) -> item (id) fk_rfid_tag_item
+FOREIGN KEY sales_header (cashier_session_id) -> cashier_session (id) FK7srwd74bppedmrpr8l8trynkr
+FOREIGN KEY sales_header (created_by_user) -> user_account (id) FKqum6qcbh3k8wnhr2q9r4r5bon
+FOREIGN KEY sales_header (customer_id) -> customer (id) FKcesab76o0e60fi1aucvxlmdl7
+FOREIGN KEY sales_header (invoice_id) -> invoice_header (id) FKjmc05x53x8cespb9iac1g5iai
+FOREIGN KEY sales_header (loyalty_member_id) -> loyalty_member (id) FK8ynyhw5stfu3mfla9elk5b6vx
+FOREIGN KEY sales_header (promotion_id) -> promotion (id) FK765gl7pcwj6799pa6rvryo6ky
+FOREIGN KEY sales_line (item_id) -> item (id) FKeucfkbvus3iic1wbo7qqiw5yu
+FOREIGN KEY sales_line (promotion_id) -> promotion (id) FK41xga7pr6aqh0wqhcdwvndyih
+FOREIGN KEY sales_line (sales_header_id) -> sales_header (id) FKpovchq1lx4r77x236vt8wywcv
+FOREIGN KEY session_cash_count (cashier_session_id) -> cashier_session (id) FKhpn25ghtslxxied8npc7n3ti4
+FOREIGN KEY session_cash_count (payment_method_id) -> payment_method (id) FKiu5as62eo6rv5ixl1h9l8e9a4
+FOREIGN KEY stock_movement (cashier_session_id) -> cashier_session (id) FKp5rkb23om8gg6hmsm9a1mp58e
+FOREIGN KEY stock_movement (item_id) -> item (id) FKeevm1rmqccbotn2t0hqig2ev3
+FOREIGN KEY till_grant (badge_owner_id) -> user_account (id) FKo8uvw66ei5jjmh3u6k47fbeim
+FOREIGN KEY till_grant (scanned_by_user_id) -> user_account (id) FKelecw86po8ygl602p3ibxg043
+FOREIGN KEY user_account (app_role_id) -> app_role (id) FKkmcryee6u0er4rrdjgegb644m
+FOREIGN KEY user_account (badge_revoked_by_id) -> user_account (id) FK6laicdnkykffuvn8gv5v3fraw
+FOREIGN KEY warranty (item_id) -> item (id) FK78hxie5j26b8nerhy4n4s0xse
+FOREIGN KEY warranty (sales_header_id) -> sales_header (id) FKkagiygno7e5syk56ka3bx2q5g
+FOREIGN KEY warranty (sales_line_id) -> sales_line (id) FKt9iod68qbohp025pvrtyf0b5m
+INDEX hol_delivery (push_status, attempts) ix_hol_delivery_push
+INDEX hol_exchange_log (exchange_date) ix_hol_exchange_log_date
+INDEX hol_loyalty_member_copy (status, attempts) ix_hol_loyalty_member_copy_queue
+INDEX hol_loyalty_member_copy (surviving_card_number) ix_hol_loyalty_member_copy_surviving
+INDEX hol_loyalty_movement_copy (card_number) ix_hol_loyalty_movement_copy_card
+INDEX hol_loyalty_movement_copy (status, local_id) ix_hol_loyalty_movement_copy_queue
+INDEX hol_order (status, created_at) ix_hol_order_status
+INDEX hol_order_colis_detail (colis_id) ix_hol_order_colis_detail_colis
+INDEX hol_sales_copy (document_type, status, attempts, document_date) ix_hol_sales_copy_queue
+INDEX inventory_count_line (count_id) ix_inventory_count_line_count
+INDEX item (barcode) ix_item_barcode
+INDEX item (erp_external_id) ix_item_erp_external_id
+INDEX item (nav_item_no) ix_item_nav_item_no
+INDEX item_barcode (erp_external_id) ix_item_barcode_erp_external_id
+INDEX item_barcode (item_id) ix_item_barcode_item
+INDEX item_cost_history (item_id, changed_at) ix_item_cost_history_item
+INDEX item_image (item_id, sort_order) ix_item_image_item
+INDEX pos_machine (reader_id) ix_pos_machine_reader
+INDEX promotion (active, start_date, end_date) idx_promotion_active_dates
+INDEX promotion (item_category_id) idx_promotion_item_category_id
+INDEX promotion (item_family_id) idx_promotion_item_family_id
+INDEX promotion (item_id) idx_promotion_item_id
+INDEX promotion (item_section_id) idx_promotion_item_section_id
+INDEX promotion (item_sub_family_id) idx_promotion_item_sub_family_id
+INDEX promotion (nav_item_no) idx_promotion_nav_item_no
+INDEX promotion (scope) idx_promotion_scope
+INDEX promotion_group_item (item_id) idx_promo_group_item_item
+INDEX promotion_group_nav_item (nav_item_no) idx_promo_group_nav_item_nav
+INDEX rfid_sale_tag (epc) ix_rfid_sale_tag_epc
+INDEX rfid_tag (item_id) ix_rfid_tag_item
+INDEX rfid_tag (status) ix_rfid_tag_status
+INDEX sales_discount (starting_date, ending_date) idx_sales_discount_dates
+INDEX sales_discount (type, code, line_discount, starting_date) idx_sales_discount_best_value
+INDEX sales_discount (type, code, sales_type, sales_code) idx_sales_discount_type_code
+INDEX sales_header (cashier_session_id, status) ix_sales_header_session_status
+INDEX sales_price (item_no, sales_type, sales_code) idx_sales_price_type_code
+INDEX sales_price (item_no, unit_price, starting_date) idx_sales_price_best_value
+INDEX sales_price (starting_date, ending_date) idx_sales_price_dates
+INDEX stock_movement (created_at) include (direction, item_id, quantity) ix_stock_movement_created
+INDEX stock_movement (item_id, id) ix_stock_movement_item
+PRIMARY KEY app_release_notes (id)
+PRIMARY KEY app_role (id)
+PRIMARY KEY app_version (id)
+PRIMARY KEY badge_scan_log (id)
+PRIMARY KEY cashier_session (id)
+PRIMARY KEY company_information (id)
+PRIMARY KEY customer (id)
+PRIMARY KEY erp_communication (id)
+PRIMARY KEY erp_sync_job (id)
+PRIMARY KEY general_setup (id)
+PRIMARY KEY general_setup_change_log (id)
+PRIMARY KEY hol_delivery (id)
+PRIMARY KEY hol_delivery_line (id)
+PRIMARY KEY hol_down_cursor (id)
+PRIMARY KEY hol_down_record (id)
+PRIMARY KEY hol_exchange_log (id)
+PRIMARY KEY hol_job (id)
+PRIMARY KEY hol_link_right (id)
+PRIMARY KEY hol_loyalty_member_copy (id)
+PRIMARY KEY hol_loyalty_movement_copy (id)
+PRIMARY KEY hol_order (id)
+PRIMARY KEY hol_order_colis (id)
+PRIMARY KEY hol_order_colis_detail (id)
+PRIMARY KEY hol_order_line (id)
+PRIMARY KEY hol_sales_copy (id)
+PRIMARY KEY hol_sales_cursor (id)
+PRIMARY KEY hol_stock_copy (id)
+PRIMARY KEY inventory_count (id)
+PRIMARY KEY inventory_count_line (id)
+PRIMARY KEY invoice_header (id)
+PRIMARY KEY invoice_line (id)
+PRIMARY KEY item (id)
+PRIMARY KEY item_barcode (id)
+PRIMARY KEY item_category (id)
+PRIMARY KEY item_composition (id)
+PRIMARY KEY item_cost_history (id)
+PRIMARY KEY item_family (id)
+PRIMARY KEY item_image (id)
+PRIMARY KEY item_section (id)
+PRIMARY KEY item_sub_family (id)
+PRIMARY KEY license_record (id)
+PRIMARY KEY location (id)
+PRIMARY KEY loyalty_member (id)
+PRIMARY KEY loyalty_program (id)
+PRIMARY KEY loyalty_transaction (id)
+PRIMARY KEY member_function (id)
+PRIMARY KEY payment (id)
+PRIMARY KEY payment_change_log (id)
+PRIMARY KEY payment_header (id)
+PRIMARY KEY payment_line (id)
+PRIMARY KEY payment_method (id)
+PRIMARY KEY pos_machine (id)
+PRIMARY KEY promotion (id)
+PRIMARY KEY promotion_group_item (promotion_id, item_id)
+PRIMARY KEY promotion_group_nav_item (promotion_id, nav_item_no)
+PRIMARY KEY purchase_header (id)
+PRIMARY KEY purchase_invoice_header (id)
+PRIMARY KEY purchase_invoice_line (id)
+PRIMARY KEY purchase_line (id)
+PRIMARY KEY quick_quantity (id)
+PRIMARY KEY return_header (id)
+PRIMARY KEY return_line (id)
+PRIMARY KEY return_voucher (id)
+PRIMARY KEY rfid_reader (id)
+PRIMARY KEY rfid_sale_tag (id)
+PRIMARY KEY rfid_tag (id)
+PRIMARY KEY sales_discount (id)
+PRIMARY KEY sales_header (id)
+PRIMARY KEY sales_line (id)
+PRIMARY KEY sales_price (id)
+PRIMARY KEY session_cash_count (id)
+PRIMARY KEY stock_movement (id)
+PRIMARY KEY till_grant (id)
+PRIMARY KEY user_account (id)
+PRIMARY KEY vendor (id)
+PRIMARY KEY warranty (id)
+TABLE app_release_notes
+TABLE app_role
+TABLE app_role_permission
+TABLE app_version
+TABLE badge_scan_log
+TABLE cashier_session
+TABLE company_information
+TABLE customer
+TABLE erp_communication
+TABLE erp_sync_job
+TABLE general_setup
+TABLE general_setup_change_log
+TABLE hol_delivery
+TABLE hol_delivery_line
+TABLE hol_down_cursor
+TABLE hol_down_record
+TABLE hol_exchange_log
+TABLE hol_job
+TABLE hol_link_right
+TABLE hol_loyalty_member_copy
+TABLE hol_loyalty_movement_copy
+TABLE hol_order
+TABLE hol_order_colis
+TABLE hol_order_colis_detail
+TABLE hol_order_line
+TABLE hol_sales_copy
+TABLE hol_sales_cursor
+TABLE hol_stock_copy
+TABLE inventory_count
+TABLE inventory_count_line
+TABLE invoice_header
+TABLE invoice_line
+TABLE item
+TABLE item_barcode
+TABLE item_category
+TABLE item_composition
+TABLE item_cost_history
+TABLE item_family
+TABLE item_image
+TABLE item_section
+TABLE item_sub_family
+TABLE license_record
+TABLE location
+TABLE loyalty_member
+TABLE loyalty_program
+TABLE loyalty_program_tier
+TABLE loyalty_transaction
+TABLE member_function
+TABLE payment
+TABLE payment_change_log
+TABLE payment_header
+TABLE payment_line
+TABLE payment_line_payments
+TABLE payment_method
+TABLE pos_machine
+TABLE promotion
+TABLE promotion_group_item
+TABLE promotion_group_nav_item
+TABLE purchase_header
+TABLE purchase_invoice_header
+TABLE purchase_invoice_line
+TABLE purchase_line
+TABLE quick_quantity
+TABLE return_header
+TABLE return_line
+TABLE return_voucher
+TABLE rfid_reader
+TABLE rfid_sale_tag
+TABLE rfid_tag
+TABLE sales_discount
+TABLE sales_header
+TABLE sales_line
+TABLE sales_price
+TABLE session_cash_count
+TABLE stock_movement
+TABLE till_grant
+TABLE user_account
+TABLE vendor
+TABLE warranty
+UNIQUE CONSTRAINT app_role (name) UK_dyf5hu50ddvjoy0pfpleevwfl
+UNIQUE CONSTRAINT cashier_session (session_number) UK_rgyrugw3062scl234bley6e41
+UNIQUE CONSTRAINT customer (customer_code) UK_114lxb57nwilrwigcoi6nm3ln
+UNIQUE CONSTRAINT general_setup (code) UK_mrffnqpcidon02p6ndj01gvo1
+UNIQUE CONSTRAINT hol_delivery (delivery_number) uk_hol_delivery_number
+UNIQUE CONSTRAINT hol_delivery_line (delivery_id, line_no) uk_hol_delivery_line
+UNIQUE CONSTRAINT hol_down_cursor (domain) uk_hol_down_cursor_domain
+UNIQUE CONSTRAINT hol_down_record (domain, record_code) uk_hol_down_record
+UNIQUE CONSTRAINT hol_job (code) uk_hol_job_code
+UNIQUE CONSTRAINT hol_link_right (code) uk_hol_link_right_code
+UNIQUE CONSTRAINT hol_loyalty_member_copy (card_number) uk_hol_loyalty_member_copy_card
+UNIQUE CONSTRAINT hol_loyalty_movement_copy (local_id) uk_hol_loyalty_movement_copy_local
+UNIQUE CONSTRAINT hol_order (number) uk_hol_order_number
+UNIQUE CONSTRAINT hol_order_colis (order_id, nav_item_no) uk_hol_order_colis_order_item
+UNIQUE CONSTRAINT hol_order_line (order_id, item_id) uk_hol_order_line_item
+UNIQUE CONSTRAINT hol_sales_copy (document_type, local_id) uk_hol_sales_copy_document
+UNIQUE CONSTRAINT hol_sales_cursor (document_type) uk_hol_sales_cursor_type
+UNIQUE CONSTRAINT hol_stock_copy (item_id) uk_hol_stock_copy_item
+UNIQUE CONSTRAINT inventory_count (number) uk_inventory_count_number
+UNIQUE CONSTRAINT invoice_header (invoice_number) UK_htjahiytsip5rub6upw6ty4ai
+UNIQUE CONSTRAINT item (item_code) UK_mm7bf7y05rx808c7mw73iiu8q
+UNIQUE CONSTRAINT item_barcode (barcode) UK_hwjplhxwlxgu5xops9wuvx49s
+UNIQUE CONSTRAINT item_category (code) uk_item_category_code
+UNIQUE CONSTRAINT item_composition (parent_item_id, component_item_id) uk_item_composition_parent_component
+UNIQUE CONSTRAINT item_family (code) UK_nw8uubkl7bkhqen5ntgqcnvp3
+UNIQUE CONSTRAINT item_section (code) uk_item_section_code
+UNIQUE CONSTRAINT item_sub_family (code) UK_ae1jivfj8sogf6f14a463a8oi
+UNIQUE CONSTRAINT location (location_code) UK_mar27svme9bekuv7b87jin6sv
+UNIQUE CONSTRAINT loyalty_member (card_number) UK_9o1octcfxe2dcjxitb97aeenf
+UNIQUE CONSTRAINT loyalty_program (program_code) UK_lqhhorj2jo74upuunumot9vjn
+UNIQUE CONSTRAINT member_function (code) UK_42fayxct66nwfo5e6engp2scx
+UNIQUE CONSTRAINT payment_line_payments (payment_id) UK_9khpt2da53lq89bcbqhyqc1t
+UNIQUE CONSTRAINT payment_method (code) UK_kcbcnwt3uvb5aqq02tssfow8d
+UNIQUE CONSTRAINT payment_method (type) UK_drvond376oipl4k39o8kor2e4
+UNIQUE CONSTRAINT pos_machine (ip_address) uk_pos_machine_ip
+UNIQUE CONSTRAINT pos_machine (name) uk_pos_machine_name
+UNIQUE CONSTRAINT promotion (code) UK_lomfalb6gsh66ox4gy0t2g7qw
+UNIQUE CONSTRAINT purchase_header (purchase_number) UK_p554pndjh8r4ko73cf9v4qung
+UNIQUE CONSTRAINT purchase_invoice_header (invoice_number) UK_a5x3h8183lw07u3d9b02e38qb
+UNIQUE CONSTRAINT return_header (return_number) UK_7msv82j3kc2p9dhdmoodykcge
+UNIQUE CONSTRAINT return_voucher (voucher_number) UK_tp40bp65xg9d87xvb8k2oi73v
+UNIQUE CONSTRAINT rfid_reader (ip_address, port) uk_rfid_reader_address
+UNIQUE CONSTRAINT rfid_reader (name) uk_rfid_reader_name
+UNIQUE CONSTRAINT rfid_sale_tag (sales_header_id, epc) uk_rfid_sale_tag_header_epc
+UNIQUE CONSTRAINT rfid_tag (epc) uk_rfid_tag_epc
+UNIQUE CONSTRAINT sales_discount (type, code, sales_type, sales_code, responsibility_center, starting_date, auxiliary_index1, auxiliary_index2, auxiliary_index3, auxiliary_index4) UK3vcep39q1j2ixbg2gqgylr1pk
+UNIQUE CONSTRAINT sales_header (sales_number) UK_p6xjo8qgwojtov9saa1578inh
+UNIQUE CONSTRAINT sales_price (item_no, sales_type, sales_code, responsibility_center, starting_date, currency_code, variant_code, unit_of_measure_code, minimum_quantity) UKqrre1fi800ou4vagktwr92a6q
+UNIQUE CONSTRAINT till_grant (token_hash) UK_nshx88wxsm46jf1qfqujjfa1v
+UNIQUE CONSTRAINT user_account (username) UK_castjbvpeeus0r8lbpehiu0e4
+UNIQUE CONSTRAINT vendor (vendor_code) UK_abema2gvm8psw0jabn5wfd0gd
+UNIQUE INDEX user_account (badge_code) where ([badge_code] IS NOT NULL) ux_user_account_badge_code

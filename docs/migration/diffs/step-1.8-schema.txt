@@ -1,0 +1,49 @@
+Boot 4 migration, step 1.8: the schema of 4.0.0 against 3.1.2's, read with core/src/test/resources/schema/catalog.sql (one line
+per table, column, key, index, foreign key and check of dbo, sorted; the names SQL Server makes up left out). Real starts on
+zsretail_migtest only, dropped afterwards; the other databases below were only read (SELECT on the catalog views).
+
+1. THE BASELINE IS A 3.1.2 DATABASE
+release/3.1.2 at cbae53bb started for real on an empty zsretail_migtest (store, then head office; started twice, as an
+installation is), its schema read. Then Hibernate 5.4's create script of the same code (scripts.action=create) run on an empty
+database, its schema read. The same lines, but for the unique indexes the startup T-SQL of 3.1.2 adds:
+  store:       + UNIQUE INDEX user_account (badge_code) where ([badge_code] IS NOT NULL) ux_user_account_badge_code
+  head office: + the same, and UNIQUE INDEX ho_store (erp_customer_no) where ([erp_customer_no] IS NOT NULL)
+                 ux_ho_store_erp_customer_no
+db/migration/<type>/V4.0.0__baseline.sql = that script and those indexes. Two creations by 3.1.2 the same afternoon gave the
+same lines (store 1,540, head office 1,613). StoreOrderDraftIndex (a store linked to a head office) and JdbcCatalogueState (a
+catalogue connector) make their objects on those shapes only, at the start, as on 3.1.2: not in the baseline.
+
+2. A NEW 4.0.0 DATABASE (Flyway: V4.0.0, then V4.0.0.1; the records store/src/test/resources/schema/store.txt and
+headoffice/src/test/resources/schema/headoffice.txt): the real 3.1.2 database, and catch-up 1's indexes, nothing else.
+  store:       + ix_pos_machine_reader, ix_sales_header_session_status, ix_stock_movement_created, ix_stock_movement_item
+  head office: + ix_ho_store_order_line_order, ix_sales_header_session_status, ix_stock_movement_created, ix_stock_movement_item
+Kept as 3.1.2 has them (Zein, 2026-11-10): promotion_group_item's primary key (promotion_id, item_id); uk_ho_down_change a
+unique constraint (domain, record_code, store_id), so two rows with a NULL store_id are still refused; no enum CHECK
+constraint (Hibernate 6.6's create script had 67 and 56); datetime2(7), not 6.6's datetime2(6). float is the same type as 6.6's
+float(53). Hibernate 6.6's own names of the unique keys (UK... instead of UK_...) are not used.
+
+3. THE REAL 3.1.2 DATABASE, UPGRADED BY 4.0.0 (MigTestApplication.startOnTheDatabaseAsItIs, a one-off test not committed)
+History: 1 4.0.0 BASELINE "a database at 3.1.2", 2 4.0.0.1 SQL "indexes of the old scripts"; Hibernate's validate passed; a
+restart ran nothing more.
+Schema: the same lines as a new 4.0.0 database, store and head office. NO DIFFERENCE LEFT.
+Data, rows and BINARY_CHECKSUM of every table, before and after the 4.0.0 start:
+  app_version             3.1.2 -> 4.0.0 (ZZDataInitializer, once Flyway and Hibernate's check have passed)
+  flyway_schema_history   new, 2 rows
+  head office only: ho_down_change 0 -> 2 rows (CATALOGUE ITEM:MIG-1 and ITEM:MIG-2, the items added after 3.1.2's last start),
+                  ho_down_sequence 2 numbers further: the copies-down backfill of every head office start (CopiesDownFeed). A
+                  restart of 3.1.2 itself writes the same 2 rows, with the same checksum.
+  every other table: the same rows, the same checksum. admin and cashier log in with the passwords 3.1.2 stored.
+
+4. LOCAL DATABASES UPGRADED THROUGH THE SCRIPTS (read only), against a new 3.1.2 database of their type
+At 3.1.2: parafendri_ho, pos_franchise_customer (head offices). At 3.1.1: zen_headoffice, zen_store, parafendri_gremda.
+  Column types: identical on every column both have. Hibernate 6.6's validate would also take varchar for nvarchar, numeric for
+  decimal and real for float (Dialect.equivalentTypes, read in 6.6.53).
+  Key names: the tables the scripts created carry the scripts' names (PK_ho_store_order, fk_promotion_item_category,
+  pk_promotion_group_nav_item) where a database Hibernate made has Hibernate's or SQL Server's, on the same columns. A later
+  script that drops or changes such a key finds it by its columns, not by its name.
+  Indexes only the scripts made: the 5 of catch-up 1 (on pos_franchise_customer and parafendri_ho).
+  ux_ho_store_erp_customer_no missing on pos_franchise_customer: StoreErpCustomerIndex creates it at a start, as on 3.1.2.
+  Extra tables: 30 on each 3.1.2 head office, left by older versions (Hibernate never dropped a table); validate does not read
+  them.
+  parafendri_ho says 3.1.2 but has no item.sold_in_bulk (stamped while 3.1.2 was being built): beforeBaseline.sql refuses it,
+  "run db/3.1.2/bulk-sale.sql". Not started here: HeadOfficeSchemaStartupTest.refusals proves the refusal on that shape.

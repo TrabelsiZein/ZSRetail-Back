@@ -8,8 +8,10 @@ import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.Banner;
@@ -69,10 +71,45 @@ public final class MigTestApplication implements AutoCloseable {
 	 * @param more further settings, key=value; a key of the defaults below takes this value instead
 	 */
 	public static MigTestApplication start(Class<? extends ZsRetailApplication> application, String type, String... more) {
+		return start(application, type, database -> {
+		}, more);
+	}
+
+	/**
+	 * Step 1.8: started on a new database a test first fills (a database at 3.1.2, from {@link Upgrade312}), as an existing
+	 * installation's database is when the new WAR starts on it.
+	 */
+	public static MigTestApplication start(Class<? extends ZsRetailApplication> application, String type,
+			Consumer<MigTestDatabase> prepare, String... more) {
 		noOutsideFile();
 		MigTestDatabase database = MigTestDatabase.fromSettings();
 		database.recreate();
-		MigTestApplication started = new MigTestApplication(application, type, database, more);
+		try {
+			prepare.accept(database);
+		} catch (RuntimeException | Error e) {
+			database.drop();
+			throw e;
+		}
+		return run(new MigTestApplication(application, type, database, more));
+	}
+
+	/**
+	 * Step 1.8, a manual proof only: started on the throwaway database as it is, not emptied first, when another version of
+	 * the application made it there (release/3.1.2's code, for the upgrade from a real 3.1.2 database). The tests' own starts
+	 * always begin on an empty database. Dropped at close, as the others.
+	 */
+	public static MigTestApplication startOnTheDatabaseAsItIs(Class<? extends ZsRetailApplication> application, String type,
+			String... more) {
+		noOutsideFile();
+		MigTestDatabase database = MigTestDatabase.fromSettings();
+		if (database.lines("SELECT DB_NAME()").isEmpty()) {
+			throw new IllegalStateException("No database " + MigTestDatabase.NAME);
+		}
+		return run(new MigTestApplication(application, type, database, more));
+	}
+
+	private static MigTestApplication run(MigTestApplication started) {
+		MigTestDatabase database = started.database;
 		try {
 			started.run();
 		} catch (RuntimeException | Error e) {
@@ -94,11 +131,38 @@ public final class MigTestApplication implements AutoCloseable {
 	public static final class Refusal {
 		public final Throwable failure;
 		public final int tablesLeft;
+		/** Step 1.8: the schema before the start, as {@link SchemaCatalog} reads it, and after the refusal. */
+		public final List<String> schemaBefore;
+		public final List<String> schemaLeft;
+		/** Step 1.8: the rows of flyway_schema_history before the start and after the refusal, empty without the table. */
+		public final List<String> historyBefore;
+		public final List<String> historyLeft;
 
-		Refusal(Throwable failure, int tablesLeft) {
+		Refusal(Throwable failure, int tablesLeft, List<String> schemaBefore, List<String> schemaLeft, List<String> historyBefore,
+				List<String> historyLeft) {
 			this.failure = failure;
 			this.tablesLeft = tablesLeft;
+			this.schemaBefore = schemaBefore;
+			this.schemaLeft = schemaLeft;
+			this.historyBefore = historyBefore;
+			this.historyLeft = historyLeft;
 		}
+
+		/** The messages of the failure and of its causes, in one text. */
+		public String messages() {
+			StringBuilder text = new StringBuilder();
+			for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+				text.append(cause.getMessage()).append('\n');
+			}
+			return text.toString();
+		}
+	}
+
+	/** Step 1.8: the rows of flyway_schema_history, one line each (rank, version, type, success), none without the table. */
+	public static List<String> history(MigTestDatabase database) {
+		return database.lines("IF OBJECT_ID(N'flyway_schema_history', N'U') IS NOT NULL SELECT CONCAT(installed_rank, ' ', version, ' '"
+				+ ", type, ' ', description, ' ', success) FROM flyway_schema_history ORDER BY installed_rank"
+				+ " ELSE SELECT TOP 0 'none'");
 	}
 
 	/**
@@ -106,15 +170,36 @@ public final class MigTestApplication implements AutoCloseable {
 	 * with and the tables it left, then the database dropped. Fails when the start goes through.
 	 */
 	public static Refusal startRefused(Class<? extends ZsRetailApplication> application, String type, BeanPostProcessor refuser) {
+		return startRefused(application, type, database -> {
+		}, refuser);
+	}
+
+	/**
+	 * Step 1.8: a start on a database a test first fills (an older version's, one that is not ZS Retail's...) that is meant
+	 * to be refused: what it ended with, the schema and the history before and after, then the database dropped.
+	 */
+	public static Refusal startRefused(Class<? extends ZsRetailApplication> application, String type,
+			Consumer<MigTestDatabase> prepare) {
+		return startRefused(application, type, prepare, null);
+	}
+
+	private static Refusal startRefused(Class<? extends ZsRetailApplication> application, String type,
+			Consumer<MigTestDatabase> prepare, BeanPostProcessor refuser) {
 		noOutsideFile();
 		MigTestDatabase database = MigTestDatabase.fromSettings();
 		database.recreate();
 		MigTestApplication started = new MigTestApplication(application, type, database);
 		started.refuser = refuser;
 		try {
-			started.run();
-		} catch (RuntimeException e) {
-			return new Refusal(e, database.tableCount());
+			prepare.accept(database);
+			List<String> schemaBefore = SchemaCatalog.of(database);
+			List<String> historyBefore = history(database);
+			try {
+				started.run();
+			} catch (RuntimeException e) {
+				return new Refusal(e, database.tableCount(), schemaBefore, SchemaCatalog.of(database), historyBefore,
+						history(database));
+			}
 		} finally {
 			started.restoreLogging();
 			if (started.context != null) {
@@ -193,6 +278,11 @@ public final class MigTestApplication implements AutoCloseable {
 
 	public ConfigurableApplicationContext context() {
 		return context;
+	}
+
+	/** Step 1.8: the database it runs on, to read its schema and its rows. */
+	public MigTestDatabase database() {
+		return database;
 	}
 
 	public <T> T bean(Class<T> beanClass) {

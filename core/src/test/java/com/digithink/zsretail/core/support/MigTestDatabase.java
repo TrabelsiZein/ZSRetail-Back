@@ -10,6 +10,7 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
@@ -127,6 +128,38 @@ public final class MigTestDatabase {
 		} catch (SQLException e) {
 			throw new IllegalStateException("On database " + NAME + ": " + e.getMessage(), e);
 		}
+	}
+
+	/**
+	 * Step 1.8: SQL run on the throwaway database itself, in batches split at the lines that are only GO (as sqlcmd and
+	 * Flyway do). For a test's own data: a database at 3.1.2, an older one, a refused one.
+	 */
+	public void run(String script) {
+		try (Connection connection = DriverManager.getConnection(url(), username, password());
+				Statement statement = connection.createStatement()) {
+			for (String batch : script.split("(?im)^\\s*GO\\s*$")) {
+				if (!batch.trim().isEmpty()) {
+					statement.execute(batch);
+				}
+			}
+		} catch (SQLException e) {
+			throw new IllegalStateException("On database " + NAME + ": " + e.getMessage(), e);
+		}
+	}
+
+	/** Step 1.8: the first column of each row of a query on the throwaway database, as text (null as "null"). */
+	public List<String> lines(String query) {
+		List<String> lines = new ArrayList<>();
+		try (Connection connection = DriverManager.getConnection(url(), username, password());
+				Statement statement = connection.createStatement();
+				ResultSet rows = statement.executeQuery(query)) {
+			while (rows.next()) {
+				lines.add(String.valueOf(rows.getString(1)));
+			}
+		} catch (SQLException e) {
+			throw new IllegalStateException("On database " + NAME + ": " + e.getMessage(), e);
+		}
+		return lines;
 	}
 
 	private String url(String database) {

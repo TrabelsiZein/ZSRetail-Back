@@ -2,7 +2,7 @@
 
 Branch `feature/boot4-migration`, from `release/3.1.2`. Product version 4.0.0. Plan approved by Zein on 2026-11-08.
 
-**Status: step 1.7 done. Next: step 1.8.** Each step starts only on Zein's go.
+**Status: step 1.8 done. Next: step 1.9.** Each step starts only on Zein's go.
 
 | | At the start (2026-11-08) | Target |
 |---|---|---|
@@ -32,7 +32,7 @@ Branch `feature/boot4-migration`, from `release/3.1.2`. Product version 4.0.0. P
 
 Taken by Zein on 2026-11-08, on the inventory and plan of the same day. Rows 4 and 13 to 15 are his second answers; rows
 2 and 13 were changed, and rows 16 and 17 added, by his answers to the report of step 1.1; row 18 by his answers to the
-report of step 1.2.
+report of step 1.2; rows 22 to 25 by his answers to the report of step 1.7.
 
 **The schema rule, from 4.0.0: a schema change = one V script next to the Java change; never edit an applied script.**
 
@@ -61,6 +61,7 @@ report of step 1.2.
 | 22 | HttpClient 5's retries are accepted as they are (one retry of an idempotent request on an I/O error, one after a 429 or 503, no timeout retried; "2.7: the watch points"). | 1.7 |
 | 23 | **Log lines keep Boot 2's date**, `2026-11-10 12:40:28.064`: `logging.pattern.dateformat` in `application.properties`, so a log reads the same before and after 4.0.0. Boot 3 wrote `2026-11-10T12:40:28.064+01:00`; the rest of the line did not change. | 1.8 |
 | 24 | The trailing slash: `GET /config/` answering 404 since Spring 6 is accepted, no filter brings the old matching back. | 1.7 |
+| 25 | **A new database comes out the same as an existing 3.1.2 database**, wherever the difference is more than an equivalent type: `promotion_group_item` keeps its primary key order, `uk_ho_down_change` stays a plain unique constraint (two rows with a NULL `store_id` still refused), no enum CHECK constraint (decision 4, open point 6). Done at 1.8 by taking each baseline from `release/3.1.2`'s own code, not from Hibernate 6.6: the same by construction, proved object by object ([step-1.8-schema](diffs/step-1.8-schema.txt)). | 1.8 |
 
 ## Steps
 
@@ -79,7 +80,7 @@ them one-line edits.
 | 1.5 | Java 21: `release=21`, Lombok in the pom, processor paths, `proc=full`. | 2.7.18 | 7, and the root `CLAUDE.md` |
 | 1.6 | `SecurityFilterChain` and lambda DSL on Security 5.8. ERROR and FORWARD dispatches permitted on the main chain (no such dispatch reaches `/ho/**`). | 2.7.18 | 12 (2 main classes, 5 tests and 1 new, the parent pom, 3 docs) |
 | 1.7 | **Freeze.** Boot 3.5.16: jakarta rename, Hibernate 6.6, Security 6.5, HttpClient 5 with the erp-api helper and the timeouts, dialect keys, `WarLauncher`. | 3.5.16 | 281: 177 renamed (commit 1), 104 in the fixes (commit 2) |
-| 1.8 | Behaviour the tests expose (HQL, casts, null parameters). Flyway: baseline per database type, catch-up `V4.0.0.x` scripts, `baseline-on-migrate`, `AppVersionGuard` out. `ddl-auto=validate`. Enum CHECK constraints confirmed. | 3.5.16 | 30–50 |
+| 1.8 | Behaviour the tests expose (HQL, casts, null parameters). Flyway: baseline per database type, catch-up `V4.0.0.x` scripts, `baseline-on-migrate`, `AppVersionGuard` out. `ddl-auto=validate`. Enum CHECK constraints confirmed. | 3.5.16 | 48 (4 scripts, 3 property files, 13 configs, 3 main classes, a pom, 11 tests and helpers, 4 records, 9 docs) |
 | 1.9 | Remove every deprecated call, run the properties migrator once, tag the checkpoint. Merge `release/3.1.2`. | 3.5.16 | 10–20 |
 
 Exception to "green at each step": 1.7 is two commits (mechanical rename, then fixes) and compiles only after both.
@@ -154,44 +155,93 @@ classes of the catalogue queries left H2 for `zsretail_migtest` with the SQL Ser
 `MigTestDatabase.connect`, a DataSource: given the address and the password as settings, Hibernate's own pool writes the
 password in the build's log at INFO. The other H2 tests name `core.support.H2SqlServerModeDialect`.
 
+**The schema (step 1.8).** `StoreSchemaStartupTest` and `HeadOfficeSchemaStartupTest`, on `core.support.FlywayStartups`: a new
+database, a database at 3.1.2 (`Upgrade312`: the baseline run as plain SQL, stamped 3.1.2, one item), every refusal and a
+newer database, each a real start. `SchemaCatalog` reads the schema as sorted lines (`schema/catalog.sql`, catalog views only)
+and compares them with the type's record, `schema/store.txt` or `schema/headoffice.txt`: a new and an upgraded database must
+both give it. `-Dzsretail.schema.record=true` writes it again, for a new V script only. `QuerySweep` runs every `@Query` of a
+started application on SQL Server, with nulls and with samples, each call rolled back (the store, the RFID store, the head
+office); `QueryResultTypes` pins the class of each native and HQL result (`schema/result-types.txt`).
+
 The order of the properties is left out of the comparison, except for the hashed text. Jackson puts a property that comes
 from a getter alone (`UserAccount.isEnabled`) in the order reflection gives, which **changed between two runs of the JVM**:
 a byte-for-byte file was flaky. The code has one reader that depends on the order, the hash, and its mapper sorts.
 
 ## What each step must not forget
 
-**1.8, 2.2**
-- The `setId` sites, read at 1.3: all take the id of a row just read, or null, and the DTO ones are not entities, so
-  Hibernate 6.6's refusal of a new row with an id does not reach them. Two to run there: `_BaseController.create` saves
-  whatever id a client sends (an unknown id: inserted today, refused then; the front sends `id: null`), and
-  `GroupItemsDeserializer` builds an `Item` with only an id as a reference for `Promotion.groupItems`.
-- Flyway on Boot 3.5 is `flyway-core` plus `flyway-sqlserver` (11.7.2 in the 3.5.14 BOM): `spring-boot-starter-flyway` exists
-  only from Boot 4, so the starter comes at 2.5. The startup tests go through Flyway from here: an empty
-  `zsretail_migtest`, baseline, `validate`. They prove the new-install path. Check the floor of open point 1 on 11.7.2.
-- Hibernate warns at the first start that two generated unique keys (`UK3vcep39q1j2ixbg2gqgylr1pk`,
-  `UKqrre1fi800ou4vagktwr92a6q`) can exceed SQL Server's 1,700 bytes: they enter the baseline with the review.
+**1.8: how the schema became Flyway's** (done 2026-11-10)
+- **The baseline is a 3.1.2 database** (decision 25). `release/3.1.2`'s own code, started for real on an empty
+  `zsretail_migtest` (a scratch harness in a worktree of that branch: the 1.3b copies of `MigTestDatabase` and
+  `MigTestApplication`, nothing committed there), made the reference database of each type. Hibernate 5.4's create script of
+  the same code, run on an empty database, gave the same schema but for the unique indexes the startup T-SQL adds
+  (`UserBadgeCodeIndex`, and `StoreErpCustomerIndex` on a head office). `db/migration/{store,headoffice}/V4.0.0__baseline.sql`
+  is that script and those indexes, unedited: today's primary key order of `promotion_group_item`, the unique constraint
+  `uk_ho_down_change`, no CHECK constraint, `datetime2(7)`, Hibernate 5's names of the unique keys (the two that can exceed
+  1,700 bytes included, as every 3.1.2 database has them). Taking Hibernate 6.6's create script and editing it back would have
+  been the other way: more edits, each one a chance to miss a difference.
+- **Catch-up 1**, `db/migration/common/V4.0.0.1__indexes_of_the_old_scripts.sql`: the five indexes that only the scripts of
+  `db/<version>/` made (`ix_stock_movement_item`, `ix_stock_movement_created`, `ix_sales_header_session_status`,
+  `ix_ho_store_order_line_order`, `ix_pos_machine_reader`), each where its table is and it is missing. A database upgraded
+  through the scripts has them; a database a version created from empty never had them, and nor would a new 4.0.0 one. Found
+  by comparing the local upgraded databases with a fresh 3.1.2 one (read only). Not a no-op on a new database, on purpose
+  (open point 3): a new database ends as an upgraded one.
+- **Hibernate 6.6's own catch-up, reviewed** (decision 4, [step-1.8-catch-up](diffs/step-1.8-catch-up.txt)): on a 3.1.2
+  database it would run 11 (store) and 9 (head office) `ALTER COLUMN`, each to the type the column already has (the columns
+  whose entity spells its type), without `NOT NULL`: `app_release_notes.description` would become nullable, and update would
+  run them again at every start. Nothing kept. No unique key comes back under 6.6's names, contrary to what 1.7 expected.
+- **Taking over a database**: `spring.flyway.baseline-on-migrate`, `baseline-version=4.0.0`. An empty database gets the
+  baseline and the catch-ups; a database with tables and no history gets a baseline marker, after
+  `db/migration/common/beforeBaseline.sql` has checked that it is at 3.1.2: APP_VERSION and what `db/3.1.2/update.sql` checks
+  before it stamps the version. Flyway runs that callback before it creates its history table (read in 11.7.2's `DbBaseline`),
+  so a refused database is left exactly as it was: no table, no row, no Hibernate. This replaces open point 4's failing V
+  script, which would have left the history table and its baseline row behind. Proved: an older version, an empty
+  APP_VERSION, no APP_VERSION (not a ZS Retail database), and a 3.1.2 stamp without each of its four parts. Seen locally:
+  `parafendri_ho` says 3.1.2 without `item.sold_in_bulk`, and would be told to run `db/3.1.2/bulk-sale.sql`.
+- **A database newer than the WAR**: `spring.flyway.ignore-migration-patterns` emptied, so a script the WAR does not have
+  stops the start at Flyway's check, as `AppVersionGuard` refused a newer database. Flyway's default (`*:future`) would start.
+- `ddl-auto=validate` in `application.properties` and the 13 tracked outside files; `AppVersionGuard` deleted.
+  `ZZDataInitializer` sets APP_VERSION to the WAR's version once the checks have passed: the callback reads it, and a 3.1.2 WAR
+  put back on an upgraded database refuses it (its guard sees 4.0.0). Who else reads the row (open point 4): nobody;
+  `DecimalColumnsCheck` names it in a comment. The release notes of a version (APP_RELEASE_NOTES) come with its scripts: the
+  notes of 4.0.0 are a V script of step 2.8.
+- Flyway on Boot 3.5: `flyway-core` and `flyway-sqlserver` 11.7.2 (Boot's BOM) in core; the starter comes at 2.5. Its floor on
+  11.7.2 is SQL Server 2014 (12.0), not the 2017 read on its main branch (open point 1); `SqlServerVersionCheck` (2017) runs
+  first anyway, on the DataSource.
+- **The proofs**, real starts on `zsretail_migtest` ([step-1.8-schema](diffs/step-1.8-schema.txt)): a new database is the real
+  3.1.2 one and catch-up 1's indexes; the real 3.1.2 database of each type, upgraded by this branch, ends with the very schema
+  of a new one, and every table keeps its rows and their checksum but APP_VERSION and the head office's copies-down backfill
+  (which a 3.1.2 restart writes the same). Permanent: `StoreSchemaStartupTest` and `HeadOfficeSchemaStartupTest`
+  (`core.support.FlywayStartups`, `Upgrade312`, `SchemaCatalog`: the records `schema/store.txt` and `schema/headoffice.txt`,
+  `-Dzsretail.schema.record=true`). Their 3.1.2 database is the baseline run as plain SQL, proved equal to the real one above.
+- **Casts on the rows** ([step-1.8-result-types](diffs/step-1.8-result-types.txt)): the class of every native expression and
+  HQL aggregate our queries use, on real SQL Server, Hibernate 5.4 against 6.6: only a native `bigint` changed, a `Long` instead
+  of a `BigInteger`, and no class of main names `BigInteger`. The casts of the doc's count stay as they were. Pinned by the
+  record `store/.../schema/result-types.txt`, to read again at 2.2.
+- **`:param is null` and every other `@Query`** (`core.support.QuerySweep`): the 189 `@Query` (80 core, 41 store with 4 of
+  RFID, 68 head office; 188 counted before, one is written `@org.springframework.data.jpa.repository.Query`) run on real
+  SQL Server, once with null for every parameter that can be null, once with a sample of each type, each call rolled back:
+  234 calls on a store, 242 with RFID, 296 on a head office, none fails. A native query broken on purpose was reported, alone.
+- The `setId` sites: `_BaseController.create` with an id the table does not have answers 500 and writes nothing (Hibernate
+  6.6's "Row was updated or deleted by another transaction"); `release/3.1.2` answered 201 and inserted a new row under a new
+  id (both run). Without an id, or with `id: null` as the front sends, it creates. `GroupItemsDeserializer`'s items by id: the
+  promotion is saved with its group (`PromotionService.save` loads them). `StoreSchemaStartupTest.clientIds`.
+- Under `validate` the startup T-SQL still runs after the check, as before; on a baseline database its objects are there.
+- `devenv/rehearsal.ps1` and `setup-stores.ps1` create empty databases: Flyway gives them the baseline, no `update` needed.
+
+**2.2** (what 1.8 leaves for Hibernate 7)
 - The golden `errors/store-api-refusal.json` holds Hibernate's own message: its wording may change, re-record after reading.
   (Hibernate 6.6 changed it once at 1.7: "value : com..." became "value: com...".)
-- **What Hibernate 6.6 creates that 5.6 did not** ([diffs/step-1.7-ddl.txt](diffs/step-1.7-ddl.txt), the create script of each
-  application compared column by column): `datetime2(6)` for `datetime2` (183 store, 187 head office columns), `float(53)` for
-  `double precision` (the same type), 67 and 56 enum CHECK constraints (open point 6), new hashed names of the unique keys
-  (`UK_...` to `UK...`, same columns), and two to decide in the baseline: `promotion_group_item`'s primary key in the order
-  `(item_id, promotion_id)` (5.6: `(promotion_id, item_id)`, which a read by promotion seeks on), and `uk_ho_down_change`
-  as a **filtered** unique index `where ... is not null` instead of a unique constraint, which no longer stops two rows of
-  one domain and code with a NULL `store_id`. The baseline keeps 5.6's form of both unless the review says otherwise.
-- On an existing database, 6.6's `update` would add the unique keys again under their new names, next to the old ones. 1.8's
-  `validate` ends that before any site sees it.
+- The safety nets of 1.8 are the reading of 2.2: the schema records (a new database and an upgraded 3.1.2 one must still give
+  `schema/store.txt` and `schema/headoffice.txt`, now that Hibernate 7's `validate` reads them), the result types record, and
+  `QuerySweep` on the three shapes. The update script produced again ([step-1.8-catch-up](diffs/step-1.8-catch-up.txt) is
+  6.6's): Hibernate 7's `update` alters existing columns when a type or length differs (`StandardTableMigrator`,
+  `SQLServerDialect.supportsAlterColumnType()` is true), with no `NULL` or `NOT NULL` clause; 6.6 already does it for the
+  columns whose entity spells its type. Read every `ALTER COLUMN`.
+- Hibernate 6.6's create script (step 1.7, [step-1.7-ddl](diffs/step-1.7-ddl.txt)) is no longer used: the baselines are
+  3.1.2's. A new column of a later V script is written by hand in the form of the baseline (`datetime2`, not
+  `datetime2(6)`; no CHECK constraint for an enum).
 - Behaviour the suite exposed at 1.7, fixed there: two derived queries with a `String` for a `LocalDate` field
-  (`SalesPriceRepository`, `SalesDiscountRepository`, unused, marked "legacy" in the code) stopped every start. The casts
-  and `:param is null` above are still to run.
-- Casts that may break at run time: `(Long)` 19, `(Double)` 11, `(Integer)` 8, `(BigDecimal)` 10 on `Object[]` rows.
-  `(Number)` 106 is safe. `:param is null`: 49 in 17 files, to run on real SQL Server.
-- Hibernate 7's `update` alters existing columns when a type or length differs (`StandardTableMigrator`,
-  `SQLServerDialect.supportsAlterColumnType()` is true), with no `NULL` or `NOT NULL` clause. Read every `ALTER COLUMN` of
-  the catch-up SQL. Hibernate 5 never touched existing columns, so drift has had years to build up.
-- Under `validate`, the startup T-SQL runs after the check: `TillSchemaUpgrade`, `UserBadgeCodeIndex`,
-  `StoreErpCustomerIndex`, `StoreOrderDraftIndex`, `JdbcCatalogueState`.
-- `devenv/rehearsal.ps1` and `setup-stores.ps1` create databases: they keep `update` by `-Set`. Documented with `configs/local`.
+  (`SalesPriceRepository`, `SalesDiscountRepository`, unused, marked "legacy" in the code) stopped every start.
 
 **1.9**
 - `AntPathRequestMatcher` should be deprecated in Security 6.5 and gone in 7 (from memory, to read): `SecurityConfig.paths` and
@@ -266,6 +316,18 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
   scheduler-hang fix holds (`ErpHttpTest.readTimeout`). Watch a NAV that answers 503 under load. Accepted as is (decision 22).
 
 **2.8**
+- **An outside file's `spring.jpa.hibernate.ddl-auto=update` line** (the customer examples had it until 1.8, so sites have it)
+  wins over `validate`: on 4.0.0 Hibernate would then run, at every start, the `ALTER COLUMN` of
+  [step-1.8-catch-up](diffs/step-1.8-catch-up.txt), one of which makes `app_release_notes.description` nullable. Proposal:
+  refused at startup with the other old lines (anything but `validate` or `none`), a developer's throwaway database keeping
+  `update` by a key of its own (decision 4); at least the guide removes the line.
+- The upgrade night, from 3.1.2: nothing to run by hand, the 4.0.0 WAR's start takes the database over (Flyway). From an older
+  version: its `db/<version>/` scripts up to 3.1.2 first, as before; 4.0.0 refuses anything else and says which.
+- The site check before the night (decision 21) can also run, read only, `beforeBaseline.sql`'s checks and the schema query
+  (`core/src/test/resources/schema/catalog.sql`) against the type's record: a site at the wrong version, or one whose schema
+  drifted, is then found the day before, not on the night.
+- The notes of 4.0.0 (APP_RELEASE_NOTES, written from the CHANGELOG when the version closes) are a V script, no longer an
+  `update.sql`.
 - The deploy guide: every site's outside file gets `;encrypt=true;trustServerCertificate=true` on its `jdbc:sqlserver` line.
   The driver encrypts by default since 10.2, so without them a server with its own certificate refuses the connection and the
   start fails: seen on 2026-11-09, 8 of 8 local lines on driver 10.2.3. An outside file with `logging.file.*` lines moves them
@@ -291,12 +353,12 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 
 | # | Point | To settle |
 |---|---|---|
-| 1 | **Flyway's SQL Server floor.** Flyway's open-source `SQLServerDatabase` calls `ensureDatabaseNotOlderThanOtherwiseRecommendUpgradeToFlywayEdition("14.0", Tier.PREMIUM, ...)` (read on its main branch). 14.0 is SQL Server 2017. | Settled by decision 2: 2017 is the minimum, Zein verifies each site. Still to read on Flyway 11.7.2 at 1.8. |
+| 1 | **Flyway's SQL Server floor.** Flyway's open-source `SQLServerDatabase` calls `ensureDatabaseNotOlderThanOtherwiseRecommendUpgradeToFlywayEdition("14.0", Tier.PREMIUM, ...)` (read on its main branch). 14.0 is SQL Server 2017. | Settled by decision 2: 2017 is the minimum, Zein verifies each site. Read on 11.7.2 at 1.8: its floor is 12.0 (2014), 11.0 refused outright; our 2017 check runs first, on the DataSource, with our message. Read again on Boot 4's Flyway. |
 | 2 | **Where the baselines live.** Both WARs carry core, and Flyway refuses two scripts of one version in its locations. | Settled by decision 13: `db/migration/{common,store,headoffice}`. |
-| 3 | **Deltas on a new database.** On an empty database Flyway runs the baseline, then the `V4.0.0.x` scripts too, and the baseline already has their result. Each delta must be a guarded no-op there. | 1.8 |
-| 4 | **`AppVersionGuard`.** Answer to decision 13: it can go, except for one check Flyway cannot make, that an existing database really is at 3.1.2 when `baseline-on-migrate` marks it 4.0.0. A `V4.0.0.x` script that fails when `APP_VERSION` is not 3.1.2 does that in SQL, with no Java guard. A database newer than the WAR is Flyway's if `spring.flyway.ignore-migration-patterns` is emptied: its default `*:future` ignores newer scripts. To check at 1.8: who else reads the `APP_VERSION` row, and who writes the release notes of `update.sql`. **Until 1.8 the guard stays**, so this branch stops on any 3.1.2 database and names a `db/4.0.0/update.sql` that does not exist. | 1.8 |
-| 5 | **Source of the catch-up SQL.** It reads the metadata of a database with the old schema, and decision 6 keeps startup tests off existing local databases. A restored copy of a customer backup Zein provides is acceptable, read-only. A script generated from one database may not fit a customer whose schema drifted: each delta has to tolerate that. Proposal due at 1.8. | 1.8 |
-| 6 | **Enum CHECK constraints.** No setting found that disables them (Hibernate forum, one search). Under `validate` Hibernate creates nothing in production, so they can only arrive through the baseline and catch-up scripts, where review keeps them out. Confirmed at 1.8. Seen at 1.7: Hibernate 6.6 writes 67 (store) and 56 (head office), one per enum column (`diffs/step-1.7-ddl.txt`). | 1.8 |
+| 3 | **Deltas on a new database.** On an empty database Flyway runs the baseline, then the `V4.0.0.x` scripts too. | Settled at 1.8: each catch-up is guarded and re-runnable. Catch-up 1 is not a no-op on a new database, on purpose: the baseline is a 3.1.2 database made from empty, which never had the indexes of the old scripts, and catch-up 1 gives them to every database. |
+| 4 | **`AppVersionGuard`.** Answer to decision 13: it can go, except for one check Flyway cannot make, that an existing database really is at 3.1.2 when `baseline-on-migrate` marks it 4.0.0. A database newer than the WAR is Flyway's if `spring.flyway.ignore-migration-patterns` is emptied: its default `*:future` ignores newer scripts. | Settled at 1.8: the guard is gone. The 3.1.2 check is `beforeBaseline.sql`, a callback Flyway runs before it writes anything (a failing V script, the first idea, would have left its history table and baseline row). The patterns are emptied. Nobody else reads APP_VERSION; `ZZDataInitializer` sets it to the WAR's version. The release notes become V scripts (2.8). |
+| 5 | **Source of the catch-up SQL.** It reads the metadata of a database with the old schema, and decision 6 keeps startup tests off existing local databases. A script generated from one database may not fit a customer whose schema drifted: each delta has to tolerate that. | Settled at 1.8: the old schema is the one `release/3.1.2`'s code makes on `zsretail_migtest`. The drift of sites was read on the local upgraded databases, catalog views only, no start: no column type differs; the scripts' names of keys and five indexes do (catch-up 1). A customer's backup was not needed. 2.8 can read a site's schema the same way before its night. |
+| 6 | **Enum CHECK constraints.** No setting found that disables them (Hibernate forum, one search). Under `validate` Hibernate creates nothing in production, so they can only arrive through the baseline and catch-up scripts, where review keeps them out. Seen at 1.7: Hibernate 6.6 writes 67 (store) and 56 (head office), one per enum column (`diffs/step-1.7-ddl.txt`). | Confirmed at 1.8, decision 25: none in the baselines (3.1.2's own, which has none) nor in the catch-up, and Hibernate 6.6's update script adds none to an existing table. A new enum value needs no script. |
 | 7 | **`Accept`.** `ConnectorAcceptHeaderTest` pins what we send: it failed on the old classpath with `application/xml, text/xml, application/json, application/*+xml, application/*+json` on all four connectors, and passes on the new one. A mock cannot show what NAV answers: live GET at 2.7, or earlier when Zein opens the VPN. | 2.7 |
 | 8 | **POI's jars.** 45 jars of the store WAR came with POI 5.0.0's compile dependencies (batik, pdfbox, xmlsec, bouncycastle...), and our code imports none of them. | Settled at 1.4 by POI 5.5.1: batik, bcprov, bcpkix, xmlsec, pdfbox, graphics2d, xmlgraphics, woodstox and stax2 are gone, commons-io is 2.21.0. Store WAR 130 to 76 jars, head office 128 to 75. Boot's BOM still pins commons-codec 1.15 and log4j-api 2.17.2 under what POI asks for: 22,024 calls of POI and its libraries compared with the WAR, none missing in them. commons-lang3 was missing 3 classes, hence 3.18.0. |
 | 9 | **This machine for 2.6 and 2.7.** JDK 25 and Tomcat 11 are not installed (JDK 21 and 23; Tomcat 9). Eclipse is `jee-2024-12`, to be checked against JDK 25. Zein is told what to install at 2.6. | 2.6 |

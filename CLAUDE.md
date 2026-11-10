@@ -51,7 +51,11 @@ headoffice/src/main/java/com/digithink/zsretail/headoffice/
 
 `core/src/main/resources/` (in both WARs, inside the core jar)
 - `application.properties`: the common keys of both applications
-- `db/<product-version>/` — SQL migration scripts grouped by release (e.g. `db/1.11.0/`)
+- `db/migration/{common,store,headoffice}/` — from 4.0.0 the schema is Flyway's: `V4.0.0__baseline.sql` of each type (the
+  schema of 3.1.2), then `V<version>.<n>__<what>.sql` scripts, run by the start before Hibernate (`ddl-auto=validate`);
+  `common/beforeBaseline.sql` refuses to take over a database that is not at 3.1.2 (`docs/migration/boot4-migration.md`, 1.8)
+- `db/<product-version>/` — the scripts run by hand up to 3.1.2 (e.g. `db/1.11.0/`): history, the way up to 3.1.2, never
+  edited
 - `license/` — public key material for offline licensing (`public_key.pem`, gitignored, kept on the machine)
 - `META-INF/spring.factories`: the configuration's post-processors
 
@@ -73,9 +77,12 @@ without one the type file applies. Step 8: a `spring.profiles.active` or `node.t
 - **Controllers are named `<Entity>API.java`**, not `*Controller`.
 - **A new class goes to its project**: used by both applications, core; only by a store, store; only by a head office,
   headoffice; under that project's package root.
-- **DB changes ship as a numbered SQL script** under `core/src/main/resources/db/<next version>/`
-  and are reflected in the matching module doc. Never edit a released script. A statement on a table of one
-  application only is guarded (`IF OBJECT_ID(...)`): a store database has no head office table, and the reverse.
+- **DB changes ship as a V script** under `core/src/main/resources/db/migration/`: `common/` for both applications, else
+  `store/` or `headoffice/`, the next free version across the three folders (Flyway refuses two scripts of one version), next
+  to the Java change, and reflected in the matching module doc. Never edit an applied script: Flyway's checksum stops the
+  start. A statement in `common/` on a table of one application only is guarded (`IF OBJECT_ID(...)`). A new column is written
+  in the form of the baseline (`datetime2`, no CHECK for an enum), and the records `schema/<type>.txt` are written again with
+  it (`-Dzsretail.schema.record=true`). The release branches (3.1.x) still ship `db/<version>/update.sql`.
 - **Role enforcement** is mostly in the frontend: the menu shows entries by CASL permission, and the route guard checks
   routes with `meta.resource`. The API has no `@PreAuthorize` and the JWT carries no authorities; only some endpoints check
   a permission themselves (`CurrentUserProvider.currentUserHasPermission`), `/user-account` and `PUT /company-info` among
@@ -134,4 +141,5 @@ Keep the relevant `docs/modules/*.md` updated in the same commit as the code cha
 
 **CHANGELOG.md** (root of this repo): every commit that changes behaviour, a DB script or a config key adds its line
 under the version of its branch (Features / Enhancements / Fixes / DB script / Config). When a version is closed, its
-`APP_RELEASE_NOTES` in `db/<version>/update.sql` are written from it.
+`APP_RELEASE_NOTES` are written from it: in `db/<version>/update.sql` up to 3.1.x, in a V script of `db/migration/common/`
+from 4.0.0.

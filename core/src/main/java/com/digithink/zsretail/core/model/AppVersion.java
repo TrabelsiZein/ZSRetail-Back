@@ -11,9 +11,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Singleton table — always exactly one row.
- * Stores the current DB schema version. Must match app.version (pom.xml)
- * or the application refuses to start (AppVersionGuard).
+ * Singleton table — always exactly one row: the version of the WAR that last started on this database (ZZDataInitializer).
+ * Until 3.1.2 it had to match app.version or the start was refused (AppVersionGuard). From 4.0.0 the schema's version is
+ * Flyway's (flyway_schema_history); this row decides only whether an existing database can be taken over
+ * (db/migration/common/beforeBaseline.sql: at 3.1.2 only), and makes an older WAR refuse a database a newer one ran on.
  */
 @Entity
 @Table(name = "APP_VERSION")

@@ -1,0 +1,63 @@
+NATIVE CAST(1 AS bigint) -> java.lang.Long
+NATIVE CAST(1 AS int) -> java.lang.Integer
+NATIVE CAST(1 AS smallint) -> java.lang.Short
+NATIVE CAST(1 AS tinyint) -> java.lang.Byte
+NATIVE CAST(1 AS bit) -> java.lang.Boolean
+NATIVE CAST(1.5 AS float) -> java.lang.Double
+NATIVE CAST(1.5 AS real) -> java.lang.Float
+NATIVE CAST(1.5 AS numeric(18,3)) -> java.math.BigDecimal
+NATIVE CAST(1.5 AS decimal(19,2)) -> java.math.BigDecimal
+NATIVE CAST(1.5 AS numeric(38,5)) -> java.math.BigDecimal
+NATIVE CAST('x' AS varchar(10)) -> java.lang.String
+NATIVE CAST(N'x' AS nvarchar(10)) -> java.lang.String
+NATIVE CAST('x' AS char(1)) -> java.lang.Character
+NATIVE CAST('x' AS varchar(max)) -> java.lang.String
+NATIVE CAST(N'x' AS nvarchar(max)) -> java.lang.String
+NATIVE CAST('2026-01-01' AS date) -> java.sql.Date
+NATIVE CAST('2026-01-01T10:00:00' AS datetime2) -> java.sql.Timestamp
+NATIVE CAST('2026-01-01T10:00:00' AS datetime) -> java.sql.Timestamp
+NATIVE SYSDATETIME() -> java.sql.Timestamp
+NATIVE CAST('10:00' AS time) -> java.sql.Time
+NATIVE CAST('2026-01-01T10:00:00+01:00' AS datetimeoffset) -> microsoft.sql.DateTimeOffset
+NATIVE NEWID() -> java.lang.String
+NATIVE CAST(0x01 AS varbinary(10)) -> [B
+NATIVE (SELECT COUNT(*) FROM item) -> java.lang.Integer
+NATIVE (SELECT COUNT_BIG(*) FROM item) -> java.lang.Long
+NATIVE (SELECT SUM(min_stock_level) FROM item) -> java.lang.Integer
+NATIVE (SELECT SUM(id) FROM item) -> java.lang.Long
+NATIVE (SELECT SUM(unit_price) FROM item) -> java.lang.Double
+NATIVE (SELECT SUM(stock_quantity) FROM item) -> java.math.BigDecimal
+NATIVE (SELECT AVG(min_stock_level) FROM item) -> java.lang.Integer
+NATIVE (SELECT AVG(stock_quantity) FROM item) -> java.math.BigDecimal
+NATIVE (SELECT MAX(created_at) FROM item) -> java.sql.Timestamp
+NATIVE (SELECT SUM(CASE WHEN unit_price > 0 THEN 1 ELSE 0 END) FROM item) -> java.lang.Integer
+NATIVE (SELECT ISNULL(SUM(stock_quantity), 0) FROM item) -> java.math.BigDecimal
+NATIVE (SELECT COALESCE(SUM(unit_price), 0) FROM item) -> java.lang.Double
+NATIVE (SELECT SUM(unit_price * stock_quantity) FROM item) -> java.lang.Double
+NATIVE (SELECT MAX(CAST(show_in_pos AS int)) FROM item) -> java.lang.Integer
+NATIVE (SELECT MAX(show_in_pos) FROM item) -> ERROR SQLServerException: Operand data type bit is invalid for max operator.
+HQL count(i) -> java.lang.Long
+HQL count(distinct i.itemCode) -> java.lang.Long
+HQL sum(i.id) -> java.lang.Long
+HQL sum(i.minStockLevel) -> java.lang.Long
+HQL sum(i.unitPrice) -> java.lang.Double
+HQL sum(i.stockQuantity) -> java.math.BigDecimal
+HQL avg(i.minStockLevel) -> java.lang.Double
+HQL avg(i.unitPrice) -> java.lang.Double
+HQL avg(i.stockQuantity) -> java.lang.Double
+HQL max(i.createdAt) -> java.time.LocalDateTime
+HQL max(i.id) -> java.lang.Long
+HQL min(i.unitPrice) -> java.lang.Double
+HQL max(i.stockQuantity) -> java.math.BigDecimal
+HQL sum(case when i.unitPrice > 0 then 1 else 0 end) -> java.lang.Long
+HQL coalesce(sum(i.stockQuantity), 0) -> java.math.BigDecimal
+HQL coalesce(sum(i.unitPrice), 0) -> java.lang.Double
+HQL coalesce(sum(i.minStockLevel), 0) -> java.lang.Long
+HQL sum(i.unitPrice * i.stockQuantity) -> java.lang.Double
+HQL sum(i.minStockLevel * i.unitPrice) -> java.lang.Double
+HQL sum(i.stockQuantity * i.minStockLevel) -> java.math.BigDecimal
+HQL sum(i.stockQuantity - i.minStockLevel) -> java.math.BigDecimal
+HQL sum(i.unitPrice) / count(i) -> java.lang.Double
+HQL max(i.showInPos) -> ERROR SQLServerException: Operand data type bit is invalid for max operator.
+HQL sum(case when i.showInPos = true then i.stockQuantity else 0 end) -> java.math.BigDecimal
+HQL coalesce(max(i.unitPrice), 0.0) -> java.lang.Double

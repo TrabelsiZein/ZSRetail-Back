@@ -1,0 +1,198 @@
+Boot 4 migration, step 1.8: the Java class each native expression and each HQL aggregate comes back as, on real SQL Server
+(zsretail_migtest, two items), Hibernate 5.4 (release/3.1.2, cbae53bb) against Hibernate 6.6.53 (this branch). The record of 6.6 is
+store/src/test/resources/schema/result-types.txt (StoreSchemaStartupTest.queriesOnSqlServer, core.support.QueryResultTypes).
+A line marked * changed.
+
+* NATIVE CAST(1 AS bigint)
+      5.4: java.math.BigInteger
+      6.6: java.lang.Long
+  NATIVE CAST(1 AS int)
+      5.4: java.lang.Integer
+      6.6: java.lang.Integer
+  NATIVE CAST(1 AS smallint)
+      5.4: java.lang.Short
+      6.6: java.lang.Short
+  NATIVE CAST(1 AS tinyint)
+      5.4: java.lang.Byte
+      6.6: java.lang.Byte
+  NATIVE CAST(1 AS bit)
+      5.4: java.lang.Boolean
+      6.6: java.lang.Boolean
+  NATIVE CAST(1.5 AS float)
+      5.4: java.lang.Double
+      6.6: java.lang.Double
+  NATIVE CAST(1.5 AS real)
+      5.4: java.lang.Float
+      6.6: java.lang.Float
+  NATIVE CAST(1.5 AS numeric(18,3))
+      5.4: java.math.BigDecimal
+      6.6: java.math.BigDecimal
+  NATIVE CAST(1.5 AS decimal(19,2))
+      5.4: java.math.BigDecimal
+      6.6: java.math.BigDecimal
+  NATIVE CAST(1.5 AS numeric(38,5))
+      5.4: java.math.BigDecimal
+      6.6: java.math.BigDecimal
+  NATIVE CAST('x' AS varchar(10))
+      5.4: java.lang.String
+      6.6: java.lang.String
+  NATIVE CAST(N'x' AS nvarchar(10))
+      5.4: java.lang.String
+      6.6: java.lang.String
+  NATIVE CAST('x' AS char(1))
+      5.4: java.lang.Character
+      6.6: java.lang.Character
+  NATIVE CAST('x' AS varchar(max))
+      5.4: java.lang.String
+      6.6: java.lang.String
+  NATIVE CAST(N'x' AS nvarchar(max))
+      5.4: java.lang.String
+      6.6: java.lang.String
+  NATIVE CAST('2026-01-01' AS date)
+      5.4: java.sql.Date
+      6.6: java.sql.Date
+  NATIVE CAST('2026-01-01T10:00:00' AS datetime2)
+      5.4: java.sql.Timestamp
+      6.6: java.sql.Timestamp
+  NATIVE CAST('2026-01-01T10:00:00' AS datetime)
+      5.4: java.sql.Timestamp
+      6.6: java.sql.Timestamp
+  NATIVE SYSDATETIME()
+      5.4: java.sql.Timestamp
+      6.6: java.sql.Timestamp
+  NATIVE CAST('10:00' AS time)
+      5.4: java.sql.Time
+      6.6: java.sql.Time
+* NATIVE CAST('2026-01-01T10:00:00+01:00' AS datetimeoffset)
+      5.4: ERROR MappingException: No Dialect mapping for JDBC type: -155
+      6.6: microsoft.sql.DateTimeOffset
+  NATIVE NEWID()
+      5.4: java.lang.String
+      6.6: java.lang.String
+  NATIVE CAST(0x01 AS varbinary(10))
+      5.4: [B
+      6.6: [B
+  NATIVE (SELECT COUNT(*) FROM item)
+      5.4: java.lang.Integer
+      6.6: java.lang.Integer
+* NATIVE (SELECT COUNT_BIG(*) FROM item)
+      5.4: java.math.BigInteger
+      6.6: java.lang.Long
+  NATIVE (SELECT SUM(min_stock_level) FROM item)
+      5.4: java.lang.Integer
+      6.6: java.lang.Integer
+* NATIVE (SELECT SUM(id) FROM item)
+      5.4: java.math.BigInteger
+      6.6: java.lang.Long
+  NATIVE (SELECT SUM(unit_price) FROM item)
+      5.4: java.lang.Double
+      6.6: java.lang.Double
+  NATIVE (SELECT SUM(stock_quantity) FROM item)
+      5.4: java.math.BigDecimal
+      6.6: java.math.BigDecimal
+  NATIVE (SELECT AVG(min_stock_level) FROM item)
+      5.4: java.lang.Integer
+      6.6: java.lang.Integer
+  NATIVE (SELECT AVG(stock_quantity) FROM item)
+      5.4: java.math.BigDecimal
+      6.6: java.math.BigDecimal
+  NATIVE (SELECT MAX(created_at) FROM item)
+      5.4: java.sql.Timestamp
+      6.6: java.sql.Timestamp
+  NATIVE (SELECT SUM(CASE WHEN unit_price > 0 THEN 1 ELSE 0 END) FROM item)
+      5.4: java.lang.Integer
+      6.6: java.lang.Integer
+  NATIVE (SELECT ISNULL(SUM(stock_quantity), 0) FROM item)
+      5.4: java.math.BigDecimal
+      6.6: java.math.BigDecimal
+  NATIVE (SELECT COALESCE(SUM(unit_price), 0) FROM item)
+      5.4: java.lang.Double
+      6.6: java.lang.Double
+  NATIVE (SELECT SUM(unit_price * stock_quantity) FROM item)
+      5.4: java.lang.Double
+      6.6: java.lang.Double
+  NATIVE (SELECT MAX(CAST(show_in_pos AS int)) FROM item)
+      5.4: java.lang.Integer
+      6.6: java.lang.Integer
+  NATIVE (SELECT MAX(show_in_pos) FROM item)
+      5.4: ERROR SQLServerException: Operand data type bit is invalid for max operator.
+      6.6: ERROR SQLServerException: Operand data type bit is invalid for max operator.
+  HQL count(i)
+      5.4: java.lang.Long
+      6.6: java.lang.Long
+  HQL count(distinct i.itemCode)
+      5.4: java.lang.Long
+      6.6: java.lang.Long
+  HQL sum(i.id)
+      5.4: java.lang.Long
+      6.6: java.lang.Long
+  HQL sum(i.minStockLevel)
+      5.4: java.lang.Long
+      6.6: java.lang.Long
+  HQL sum(i.unitPrice)
+      5.4: java.lang.Double
+      6.6: java.lang.Double
+  HQL sum(i.stockQuantity)
+      5.4: java.math.BigDecimal
+      6.6: java.math.BigDecimal
+  HQL avg(i.minStockLevel)
+      5.4: java.lang.Double
+      6.6: java.lang.Double
+  HQL avg(i.unitPrice)
+      5.4: java.lang.Double
+      6.6: java.lang.Double
+  HQL avg(i.stockQuantity)
+      5.4: java.lang.Double
+      6.6: java.lang.Double
+  HQL max(i.createdAt)
+      5.4: java.time.LocalDateTime
+      6.6: java.time.LocalDateTime
+  HQL max(i.id)
+      5.4: java.lang.Long
+      6.6: java.lang.Long
+  HQL min(i.unitPrice)
+      5.4: java.lang.Double
+      6.6: java.lang.Double
+  HQL max(i.stockQuantity)
+      5.4: java.math.BigDecimal
+      6.6: java.math.BigDecimal
+  HQL sum(case when i.unitPrice > 0 then 1 else 0 end)
+      5.4: java.lang.Long
+      6.6: java.lang.Long
+  HQL coalesce(sum(i.stockQuantity), 0)
+      5.4: java.math.BigDecimal
+      6.6: java.math.BigDecimal
+  HQL coalesce(sum(i.unitPrice), 0)
+      5.4: java.lang.Double
+      6.6: java.lang.Double
+  HQL coalesce(sum(i.minStockLevel), 0)
+      5.4: java.lang.Long
+      6.6: java.lang.Long
+  HQL sum(i.unitPrice * i.stockQuantity)
+      5.4: java.lang.Double
+      6.6: java.lang.Double
+  HQL sum(i.minStockLevel * i.unitPrice)
+      5.4: java.lang.Double
+      6.6: java.lang.Double
+  HQL sum(i.stockQuantity * i.minStockLevel)
+      5.4: java.math.BigDecimal
+      6.6: java.math.BigDecimal
+  HQL sum(i.stockQuantity - i.minStockLevel)
+      5.4: java.math.BigDecimal
+      6.6: java.math.BigDecimal
+  HQL sum(i.unitPrice) / count(i)
+      5.4: java.lang.Double
+      6.6: java.lang.Double
+  HQL max(i.showInPos)
+      5.4: ERROR SQLServerException: Operand data type bit is invalid for max operator.
+      6.6: ERROR SQLServerException: Operand data type bit is invalid for max operator.
+  HQL sum(case when i.showInPos = true then i.stockQuantity else 0 end)
+      5.4: java.math.BigDecimal
+      6.6: java.math.BigDecimal
+  HQL coalesce(max(i.unitPrice), 0.0)
+      5.4: java.lang.Double
+      6.6: java.lang.Double
+
+Only change: a native bigint (and COUNT_BIG, a SUM of bigint) is a Long, not a BigInteger. No class of main names BigInteger:
+the rows are read as Number or Long. Dates of a native query stay java.sql.Date and Timestamp; every HQL aggregate is the same.
+datetimeoffset: 5.4 could not read it at all, 6.6 gives microsoft.sql.DateTimeOffset (no column of ours has the type).

@@ -63,6 +63,23 @@ last step.
   zone as before. An expression may now also use `L`, `#` and the `@daily` forms.
 - Step 1.7: two derived queries that compared a date with text, unused, are gone (Hibernate 6 refused them at the start). A
   refused save's message keeps Hibernate's wording, now without a space before the colon.
+- **Step 1.8: the schema is Flyway's.** The start runs the scripts of `db/migration/common` and of its type's folder before
+  Hibernate, which only checks the entities against the tables (`ddl-auto=validate`); a schema change is a new V script. An
+  empty database gets the baseline, the schema of 3.1.2, then the catch-ups. A database at 3.1.2 is taken over as it is (a
+  baseline marker, then the catch-ups): **no `update.sql` to run by hand**. Any other database is refused before anything is
+  written, with a message that says why and what to run (an older version, an empty or missing `APP_VERSION`, a 3.1.2 stamp
+  without one of its parts); a database a newer version ran on is refused too. `AppVersionGuard` is gone; `APP_VERSION` now
+  holds the version of the WAR that last started. A new database and an upgraded one end with the same schema
+  (`StoreSchemaStartupTest`, `HeadOfficeSchemaStartupTest`, `docs/migration/diffs/step-1.8-schema.txt`).
+- Step 1.8: a record created with an id the table does not have (`POST` of the generic controllers) is refused, 500, nothing
+  written (Hibernate 6.6); 3.1.2 inserted it under a new id. Without an id, or `id: null` as the front sends, it is created.
+
+### DB script
+- Step 1.8, Flyway, run by the start: `db/migration/store/V4.0.0__baseline.sql` and `db/migration/headoffice/V4.0.0__baseline.sql`
+  (a new database only: the schema `release/3.1.2`'s code makes, and its startup T-SQL's unique indexes),
+  `db/migration/common/V4.0.0.1__indexes_of_the_old_scripts.sql` (every database: the five indexes only the scripts of
+  `db/<version>/` made, where missing), `db/migration/common/beforeBaseline.sql` (before a database is taken over: refuses one
+  that is not at 3.1.2). The `db/<version>/` folders stay as they are: the way up to 3.1.2.
 
 ### Fixes
 - Step 1.3: the one row of `company_information` is created without an id, so IDENTITY gives it, and is read as the first
@@ -82,6 +99,11 @@ last step.
   (Hibernate 6's logger of the bound parameters), same values.
 - `logging.pattern.dateformat=yyyy-MM-dd HH:mm:ss.SSS` in `application.properties`: a log line keeps the date Boot 2 wrote
   (`2026-11-10 12:40:28.064`), where Boot 3 writes ISO-8601 with the offset. The rest of the line is unchanged.
+- Step 1.8: `spring.jpa.hibernate.ddl-auto=validate` in `application.properties` and the 13 tracked outside files (`update`
+  before). **A site's outside file must not keep `update`**: it would win, and Hibernate would alter columns at every start
+  (step 2.8). New in `application.properties`: `spring.flyway.baseline-on-migrate=true`, `spring.flyway.baseline-version=4.0.0`,
+  `spring.flyway.baseline-description`, `spring.flyway.ignore-migration-patterns=` (empty: a newer database stops the start);
+  in each type file `spring.flyway.locations` (`db/migration/common` and its type's folder).
 
 ## 3.1.2 — in progress (branch `release/3.1.2`)
 

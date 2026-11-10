@@ -81,6 +81,19 @@
 			<groupId>com.microsoft.sqlserver</groupId>
 			<artifactId>mssql-jdbc</artifactId>
 		</dependency>
+		<!--
+			Boot 4 migration, step 1.8 (decision 13): Flyway owns the schema, db/migration/{common,store,headoffice} in these
+			resources. Boot 3.5 has no Flyway starter (it comes with Boot 4, step 2.5): core and its SQL Server module, the
+			versions of Boot's BOM.
+		-->
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-sqlserver</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-configuration-processor</artifactId>
