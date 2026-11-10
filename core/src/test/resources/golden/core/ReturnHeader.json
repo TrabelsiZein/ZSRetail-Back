@@ -21,7 +21,6 @@
         "updatedBy":"updatedBy"
       },
       "authorities":null,
-      "badgeCode":"badgeCode",
       "badgeExpirationDate":"2026-03-04T05:06:07",
       "badgeRevokeReason":"badgeRevokeReason",
       "badgeRevoked":true,
@@ -35,7 +34,6 @@
       "enabled":true,
       "fullName":"fullName",
       "id":11,
-      "password":"password",
       "updatedAt":"2026-03-04 | 05:06:07",
       "updatedBy":"updatedBy",
       "username":"username"
@@ -76,7 +74,6 @@
         "updatedBy":"updatedBy"
       },
       "authorities":null,
-      "badgeCode":"badgeCode",
       "badgeExpirationDate":"2026-03-04T05:06:07",
       "badgeRevokeReason":"badgeRevokeReason",
       "badgeRevoked":true,
@@ -90,7 +87,6 @@
       "enabled":true,
       "fullName":"fullName",
       "id":11,
-      "password":"password",
       "updatedAt":"2026-03-04 | 05:06:07",
       "updatedBy":"updatedBy",
       "username":"username"
@@ -117,7 +113,6 @@
       "updatedBy":"updatedBy"
     },
     "authorities":null,
-    "badgeCode":"badgeCode",
     "badgeExpirationDate":"2026-03-04T05:06:07",
     "badgeRevokeReason":"badgeRevokeReason",
     "badgeRevoked":true,
@@ -131,7 +126,6 @@
     "enabled":true,
     "fullName":"fullName",
     "id":11,
-    "password":"password",
     "updatedAt":"2026-03-04 | 05:06:07",
     "updatedBy":"updatedBy",
     "username":"username"
@@ -163,7 +157,6 @@
           "updatedBy":"updatedBy"
         },
         "authorities":null,
-        "badgeCode":"badgeCode",
         "badgeExpirationDate":"2026-03-04T05:06:07",
         "badgeRevokeReason":"badgeRevokeReason",
         "badgeRevoked":true,
@@ -177,7 +170,6 @@
         "enabled":true,
         "fullName":"fullName",
         "id":11,
-        "password":"password",
         "updatedAt":"2026-03-04 | 05:06:07",
         "updatedBy":"updatedBy",
         "username":"username"
@@ -218,7 +210,6 @@
           "updatedBy":"updatedBy"
         },
         "authorities":null,
-        "badgeCode":"badgeCode",
         "badgeExpirationDate":"2026-03-04T05:06:07",
         "badgeRevokeReason":"badgeRevokeReason",
         "badgeRevoked":true,
@@ -232,7 +223,6 @@
         "enabled":true,
         "fullName":"fullName",
         "id":11,
-        "password":"password",
         "updatedAt":"2026-03-04 | 05:06:07",
         "updatedBy":"updatedBy",
         "username":"username"
@@ -262,7 +252,6 @@
         "updatedBy":"updatedBy"
       },
       "authorities":null,
-      "badgeCode":"badgeCode",
       "badgeExpirationDate":"2026-03-04T05:06:07",
       "badgeRevokeReason":"badgeRevokeReason",
       "badgeRevoked":true,
@@ -276,7 +265,6 @@
       "enabled":true,
       "fullName":"fullName",
       "id":11,
-      "password":"password",
       "updatedAt":"2026-03-04 | 05:06:07",
       "updatedBy":"updatedBy",
       "username":"username"
@@ -336,7 +324,6 @@
           "updatedBy":"updatedBy"
         },
         "authorities":null,
-        "badgeCode":"badgeCode",
         "badgeExpirationDate":"2026-03-04T05:06:07",
         "badgeRevokeReason":"badgeRevokeReason",
         "badgeRevoked":true,
@@ -350,7 +337,6 @@
         "enabled":true,
         "fullName":"fullName",
         "id":11,
-        "password":"password",
         "updatedAt":"2026-03-04 | 05:06:07",
         "updatedBy":"updatedBy",
         "username":"username"

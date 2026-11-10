@@ -37,6 +37,10 @@ list of its own (labels: i18n `pos.badge.permissions.<code lower case>`).
 
 - A user's badge: `badge_code` (unique when not null, `ux_user_account_badge_code`), an expiry, revoked or not; the
   Users page keeps the code, Generate, the expiry and Revoke / Reactivate. No list per user (step C).
+- The code is a secret: it grants a till right. Since 3.1.2 it is not written in an entity's JSON nor in a `toString`
+  (`UserAccount.badgeCode`), and the Users pages read it from `/user-account`, behind `read:admin-users`
+  (`write:admin-users` for the badge actions; on a head office `read:admin-headoffice-users`). Before, any logged user read
+  every code. `POST /badge/scan` stays open to the till, with a code from a real badge.
 - Scanned at the till (`POST /badge/scan {badgeCode, permission}`), it opens the action when, in this order: the code is
   known (`BADGE_NOT_EXISTS`), not revoked (`BADGE_REVOKED`), not expired (`BADGE_EXPIRED`), its owner active
   (`BADGE_OWNER_INACTIVE`), and its owner's role holds the right (`BADGE_NO_ACCESS`).

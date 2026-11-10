@@ -76,9 +76,11 @@ without one the type file applies. Step 8: a `spring.profiles.active` or `node.t
 - **DB changes ship as a numbered SQL script** under `core/src/main/resources/db/<next version>/`
   and are reflected in the matching module doc. Never edit a released script. A statement on a table of one
   application only is guarded (`IF OBJECT_ID(...)`): a store database has no head office table, and the reverse.
-- **Role enforcement** is in the frontend only: the menu shows entries by CASL permission, and
-  the route guard checks only routes with `meta.resource` (today `/admin/roles`). The API does
-  not check roles: there is no `@PreAuthorize`, and the JWT carries no authorities.
+- **Role enforcement** is mostly in the frontend: the menu shows entries by CASL permission, and the route guard checks
+  routes with `meta.resource`. The API has no `@PreAuthorize` and the JWT carries no authorities; only some endpoints check
+  a permission themselves (`CurrentUserProvider.currentUserHasPermission`), `/user-account` and `PUT /company-info` among
+  them since 3.1.2. Most of the API still asks only for a logged user: a new endpoint that changes something sensitive
+  checks its permission itself.
 - **Money and VAT**: totals are computed VAT-inclusive first, then reduced backwards to
   the excluding-VAT amounts. See `docs/modules/discounts.md`.
 - New public endpoints must be added to `SecurityConfig` `permitAll()` explicitly.

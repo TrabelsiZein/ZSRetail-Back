@@ -13,10 +13,12 @@ import javax.persistence.Transient;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 /**
  * User account entity with authentication and authorization
@@ -32,6 +34,12 @@ public class UserAccount extends _BaseEntity implements UserDetails {
 	@Column(unique = true, nullable = false)
 	private String username;
 
+	/**
+	 * The bcrypt hash. Read from JSON, never written: every entity that embeds its user (a cashier session, a ticket, a
+	 * return...) carried it to the browser. Never in a toString either.
+	 */
+	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+	@ToString.Exclude
 	@Column(nullable = false)
 	private String password;
 
@@ -57,7 +65,11 @@ public class UserAccount extends _BaseEntity implements UserDetails {
 	// Badge fields
 	// Step S (3.1.0): unique when not null, by the filtered index ux_user_account_badge_code (db/3.1.0/update.sql, and
 	// UserBadgeCodeIndex at the start of a new database); never unique = true here: Hibernate would create an unfiltered
-	// index, which refuses a second user without a badge
+	// index, which refuses a second user without a badge. Read from JSON, never written: a badge code grants a till right
+	// (POST /badge/scan), and every entity that embeds its user carried it to any logged user; never in a toString either.
+	// The Users pages read it through UserAccountDTO, behind their permission (UserAccountAPI).
+	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+	@ToString.Exclude
 	@Column(name = "badge_code", nullable = true)
 	private String badgeCode;
 

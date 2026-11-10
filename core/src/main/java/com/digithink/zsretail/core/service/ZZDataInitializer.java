@@ -184,6 +184,8 @@ public class ZZDataInitializer {
 		} else {
 			// The Licence page: a database of before it gets it at its first start, so an admin keeps the licence upload
 			Set<String> wanted = new HashSet<>(LICENSE_ADMIN_PERMISSIONS);
+			// 3.1.2: the keys the API now checks, so that an administrator of an older database is never locked out
+			wanted.addAll(API_CHECKED_ADMIN_PERMISSIONS);
 			// 3.1.1: the "Head office" pages (Jobs, Communications, Data exchanged) on a store linked after its database was
 			// created (its ADMIN role was made without them)
 			if (applicationModeService.isHeadOfficeLinked()) {
@@ -383,6 +385,14 @@ public class ZZDataInitializer {
 	 * read:admin-headoffice-license.
 	 */
 	static final Set<String> LICENSE_ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:admin-license"));
+
+	/**
+	 * 3.1.2: the keys the API checks on the users (UserAccountAPI) and on saving the company information
+	 * (CompanyInformationAPI). In ADMIN_PERMISSIONS for a new database; no script ever added them, so they are given to ADMIN
+	 * at every start for a database of before. A head office's own keys come with HEAD_OFFICE_ADMIN_PERMISSIONS.
+	 */
+	static final Set<String> API_CHECKED_ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:admin-users", "write:admin-users",
+			"delete:admin-users", "read:admin-company-information", "write:admin-company-information"));
 
 	/**
 	 * RFID (3.1.0): the RFID pages (readers, POS machines, tags, tag assignment), on a store with rfid.enabled=true only: in ADMIN's set of a

@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.dto.CreateUserRequestDTO;
 import com.digithink.zsretail.core.dto.UserAccountDTO;
 import com.digithink.zsretail.core.exception.RoleChangeRefusedException;
@@ -29,10 +30,22 @@ import java.util.stream.Collectors;
 
 import lombok.extern.log4j.Log4j2;
 
+/**
+ * The users, behind the permissions of the Users pages: without them any logged user read every badge code, set any password
+ * and generated any badge, the administrator's included. Two calls stay open to any logged user: /cashiers (names, for the
+ * history filters) and /current (one's own account).
+ */
 @RestController
 @RequestMapping("user-account")
 @Log4j2
 public class UserAccountAPI {
+
+	static final String READ_USERS = "read:admin-users";
+	static final String WRITE_USERS = "write:admin-users";
+	static final String DELETE_USERS = "delete:admin-users";
+
+	/** The head office's Users page has this one key, for reading and for its actions. */
+	static final String HEAD_OFFICE_USERS = "read:admin-headoffice-users";
 
 	@Autowired
 	private UserAccountService userAccountService;
@@ -44,7 +57,20 @@ public class UserAccountAPI {
 	private CurrentUserProvider currentUserProvider;
 
 	@Autowired
+	private ApplicationModeService applicationModeService;
+
+	@Autowired
 	private com.digithink.zsretail.core.repository.UserAccountRepository accountRepository;
+
+	/** The 403 of a logged user whose role lacks the key; null when it holds it. */
+	private ResponseEntity<?> refusedWithout(String key) {
+		if (currentUserProvider.currentUserHasPermission(key) || (applicationModeService.isHeadOffice()
+				&& currentUserProvider.currentUserHasPermission(HEAD_OFFICE_USERS))) {
+			return null;
+		}
+		log.warn("UserAccountAPI: refused without the right {}", key);
+		return ResponseEntity.status(HttpStatus.FORBIDDEN).body(createErrorResponse("The users need the right " + key + "."));
+	}
 
 	/**
 	 * Get minimal cashier list (id + names) — accessible to ADMIN and RESPONSIBLE for filter dropdowns
@@ -75,6 +101,10 @@ public class UserAccountAPI {
 	 */
 	@GetMapping
 	public ResponseEntity<?> getAllUsers() {
+		ResponseEntity<?> refused = refusedWithout(READ_USERS);
+		if (refused != null) {
+			return refused;
+		}
 		try {
 			log.info("UserAccountAPI::getAllUsers");
 			return ResponseEntity.ok(userAccountService.getAllUsers());
@@ -90,6 +120,10 @@ public class UserAccountAPI {
 	 */
         @GetMapping("/{id}")
         public ResponseEntity<?> getUserById(@PathVariable Long id) {
+            ResponseEntity<?> refused = refusedWithout(READ_USERS);
+            if (refused != null) {
+                return refused;
+            }
             try {
                 log.info("UserAccountAPI::getUserById: " + id);
                 UserAccountDTO user = userAccountService.getUserById(id);
@@ -125,6 +159,10 @@ public class UserAccountAPI {
 	 */
 	@PostMapping
 	public ResponseEntity<?> createUser(@RequestBody CreateUserRequestDTO request) {
+		ResponseEntity<?> refused = refusedWithout(WRITE_USERS);
+		if (refused != null) {
+			return refused;
+		}
 		try {
 			log.info("UserAccountAPI::createUser");
 
@@ -163,6 +201,10 @@ public class UserAccountAPI {
 	 */
 	@PutMapping("/{id}")
 	public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody Map<String, Object> request) {
+		ResponseEntity<?> refused = refusedWithout(WRITE_USERS);
+		if (refused != null) {
+			return refused;
+		}
 		try {
 			log.info("UserAccountAPI::updateUser: " + id);
 			UserAccount user = userAccountService.findById(id)
@@ -258,6 +300,10 @@ public class UserAccountAPI {
 	 */
 	@DeleteMapping("/{id}")
 	public ResponseEntity<?> deleteUser(@PathVariable Long id) {
+		ResponseEntity<?> refused = refusedWithout(DELETE_USERS);
+		if (refused != null) {
+			return refused;
+		}
 		try {
 			log.info("UserAccountAPI::deleteUser: " + id);
 			UserAccount user = userAccountService.findById(id)
@@ -286,6 +332,10 @@ public class UserAccountAPI {
 	 */
 	@PutMapping("/{id}/toggle-status")
 	public ResponseEntity<?> toggleUserStatus(@PathVariable Long id) {
+		ResponseEntity<?> refused = refusedWithout(WRITE_USERS);
+		if (refused != null) {
+			return refused;
+		}
 		try {
 			log.info("UserAccountAPI::toggleUserStatus: " + id);
 			UserAccountDTO updatedUser = userAccountService.toggleUserStatus(id);
@@ -319,6 +369,10 @@ public class UserAccountAPI {
 	 */
 	@PostMapping("/{id}/badge/generate")
 	public ResponseEntity<?> generateBadgeCode(@PathVariable Long id) {
+		ResponseEntity<?> refused = refusedWithout(WRITE_USERS);
+		if (refused != null) {
+			return refused;
+		}
 		try {
 			log.info("UserAccountAPI::generateBadgeCode: {}", id);
 			UserAccount user = userAccountService.findById(id)
@@ -350,6 +404,10 @@ public class UserAccountAPI {
 	 */
 	@PostMapping("/{id}/badge/revoke")
 	public ResponseEntity<?> revokeBadge(@PathVariable Long id, @RequestBody Map<String, String> request) {
+		ResponseEntity<?> refused = refusedWithout(WRITE_USERS);
+		if (refused != null) {
+			return refused;
+		}
 		try {
 			log.info("UserAccountAPI::revokeBadge: {}", id);
 			UserAccount user = userAccountService.findById(id)
@@ -377,6 +435,10 @@ public class UserAccountAPI {
 	 */
 	@PostMapping("/{id}/badge/reactivate")
 	public ResponseEntity<?> reactivateBadge(@PathVariable Long id) {
+		ResponseEntity<?> refused = refusedWithout(WRITE_USERS);
+		if (refused != null) {
+			return refused;
+		}
 		try {
 			log.info("UserAccountAPI::reactivateBadge: {}", id);
 			UserAccount user = userAccountService.findById(id)
