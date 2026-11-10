@@ -37,8 +37,7 @@ public class LicenseFilter extends OncePerRequestFilter {
             "/config",
             "/company-info",
             "/license",
-            "/admin/license",
-            "/sse-endpoint"
+            "/admin/license"
     );
 
     @Override

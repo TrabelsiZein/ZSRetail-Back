@@ -47,6 +47,8 @@ last step.
   through authorization, and the main chain permits the ERROR and FORWARD dispatches. Nothing changes for a caller: the status
   matrices, the error bodies and new rows on how a path matches (`/config/`, `/CONFIG`, `/login/x`, `/hox`, `/ho`, written on the
   old chains) pass unchanged.
+- `/sse-endpoint/**` is no longer public, nor let through without a licence: no handler ever answered it, and no front calls
+  it. It now answers like any unknown path (403 anonymous, 402 without a licence).
 
 ### Fixes
 - Step 1.3: the one row of `company_information` is created without an id, so IDENTITY gives it, and is read as the first

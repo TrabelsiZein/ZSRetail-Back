@@ -60,6 +60,7 @@ class StoreSecurityMatrixTest {
 				.row("GET", "/company-info", 200, 403, 200, 200)
 				.row("GET", "/license/status", 200, 403, 200, 200)
 				.row("GET", "/item-image/ITEM/1", 404, 403, 404, 404) // no such image, but the chain let it through
+				.row("GET", "/sse-endpoint/x", 403, 403, 404, 404) // public until 2026-11-10 (404 to all, no handler)
 				.row("GET", "/error", 500, 403, 500, 500) // public since step 1.4 for its bodies; called directly it has no error to show
 				// How a path matches, written before step 1.6 moved the chains: exactly, whatever Spring MVC would accept
 				.row("GET", "/config/", 403, 403, 200, 200)
@@ -111,6 +112,7 @@ class StoreSecurityMatrixTest {
 				.row("GET", "/location", 402, 403, 402, 402)
 				.row("GET", "/admin/erp/jobs", 402, 403, 402, 402)
 				.row("GET", "/no-such-path", 402, 403, 402, 402)
+				.row("GET", "/sse-endpoint/x", 402, 403, 402, 402) // no longer let through without a licence (404 before)
 				.row("GET", "/ho/ping", 401, 401, 401, 401)
 				.verify();
 		// Without a licence a user can still sign in, or the licence page could never be reached

@@ -44,7 +44,7 @@ public class SecurityConfig {
 				.authorizeHttpRequests(authorize -> authorize.shouldFilterAllDispatcherTypes(true)
 						// Before the dispatcher rule: Boot's ErrorPageSecurityFilter asks about /error with a request that
 						// throws on getDispatcherType
-						.requestMatchers(paths("/sse-endpoint/**", "/login/**", "/config", "/company-info", "/license/**",
+						.requestMatchers(paths("/login/**", "/config", "/company-info", "/license/**",
 								// Image serving is public (browser loads directly, no auth header)
 								"/item-image/**",
 								// Boot's error page: since Boot 2.6 its body is blanked for whoever may not reach this path,

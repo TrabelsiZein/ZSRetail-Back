@@ -170,8 +170,6 @@ If status is VALID or WARNING:
 /company-info
 /license
 /admin/license
-/franchise
-/sse-endpoint
 ```
 
 These allow the admin to log in and upload a license even when none exists.
