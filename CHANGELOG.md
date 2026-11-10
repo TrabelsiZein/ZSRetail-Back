@@ -80,6 +80,8 @@ last step.
   6.6 (deprecated, with a warning), so a site's file that keeps the line still starts.
 - Step 1.7: `logging.level.org.hibernate.type.descriptor.sql.BasicBinder` becomes `logging.level.org.hibernate.orm.jdbc.bind`
   (Hibernate 6's logger of the bound parameters), same values.
+- `logging.pattern.dateformat=yyyy-MM-dd HH:mm:ss.SSS` in `application.properties`: a log line keeps the date Boot 2 wrote
+  (`2026-11-10 12:40:28.064`), where Boot 3 writes ISO-8601 with the offset. The rest of the line is unchanged.
 
 ## 3.1.2 — in progress (branch `release/3.1.2`)
 

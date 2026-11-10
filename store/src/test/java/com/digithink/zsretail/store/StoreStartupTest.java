@@ -107,6 +107,12 @@ class StoreStartupTest {
 	}
 
 	@Test
+	@DisplayName("A log line's date as Boot 2 wrote it, 2026-11-10 12:40:28.064, not Boot 3's ISO-8601 with the offset (decision 23)")
+	void logDate() {
+		assertEquals("yyyy-MM-dd HH:mm:ss.SSS", System.getProperty("LOG_DATEFORMAT_PATTERN"));
+	}
+
+	@Test
 	@DisplayName("The two security chains, /ho/** first, on AuthorizationFilter")
 	void securityChains() {
 		SecurityChains.assertTheTwoChains(store.bean(FilterChainProxy.class));

@@ -58,6 +58,9 @@ report of step 1.2.
 | 19 | **The security fixes of 2026-11-09 live on `release/3.1.2`, no hotfix branches.** The sites on 2.2.2, 3.1.0 and 3.1.1 get them by moving to 3.1.2. | all |
 | 20 | A badly written address (not empty, not `http://` or `https://`, in any case) of `emtop`, `happyness` or `headoffice.url` gives one ERROR line at the start, naming the key. It refuses nothing. | 1.3b |
 | 21 | **Before each site's upgrade night, a small read-only connection test**, with JDK 25 and the WAR's driver, showing `encrypt_option`. Written at 2.8, nothing before. **The two connection options go in once, on the upgrade night**: never on a site still on 3.1.2. | 2.8 |
+| 22 | HttpClient 5's retries are accepted as they are (one retry of an idempotent request on an I/O error, one after a 429 or 503, no timeout retried; "2.7: the watch points"). | 1.7 |
+| 23 | **Log lines keep Boot 2's date**, `2026-11-10 12:40:28.064`: `logging.pattern.dateformat` in `application.properties`, so a log reads the same before and after 4.0.0. Boot 3 wrote `2026-11-10T12:40:28.064+01:00`; the rest of the line did not change. | 1.8 |
+| 24 | The trailing slash: `GET /config/` answering 404 since Spring 6 is accepted, no filter brings the old matching back. | 1.7 |
 
 ## Steps
 
@@ -196,8 +199,8 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
   Tomcat. Do not use `requestMatchers(String...)` before 7: on 5.8 it follows Spring MVC's rules and builds another class on
   an external Tomcat (JSP servlet) than in the tests. The matrix rows `/config/`, `/CONFIG`, `/login/x`, `/hox` and `/ho`, written
   on the old chains, say whether the matching moved. (At 1.7 `/config/` went from 200 to 404 for a logged user: Spring 6 no
-  longer takes a trailing slash, nothing to do with the chains.) Confirmed at 1.7: `AntPathRequestMatcher` is deprecated for
-  removal in 6.5.
+  longer takes a trailing slash, nothing to do with the chains; accepted, decision 24.) Confirmed at 1.7: `AntPathRequestMatcher`
+  is deprecated for removal in 6.5.
 - `ErpHttp` keeps `NTCredentials` and `NTLMSchemeFactory`, deprecated in HttpClient 5.5 but NTLM is what NAV and BC ask for
   (decision 5): not a deprecation to remove. Compile once with `-Xlint:deprecation` for the rest: the default build shows only
   what is deprecated for removal.
@@ -260,7 +263,7 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
   (`ErpHttpTest`): without NTLM in the preferred schemes, HttpClient 5.5 answered 401.
 - **HttpClient 5's retries differ from 4's.** 4 retried an idempotent request 3 times on an I/O error; 5 retries once, and also
   once on a 429 or 503 answer, after the Retry-After delay (1 s without it). A timeout is retried by neither, so the
-  scheduler-hang fix holds (`ErpHttpTest.readTimeout`). Watch a NAV that answers 503 under load.
+  scheduler-hang fix holds (`ErpHttpTest.readTimeout`). Watch a NAV that answers 503 under load. Accepted as is (decision 22).
 
 **2.8**
 - The deploy guide: every site's outside file gets `;encrypt=true;trustServerCertificate=true` on its `jdbc:sqlserver` line.
