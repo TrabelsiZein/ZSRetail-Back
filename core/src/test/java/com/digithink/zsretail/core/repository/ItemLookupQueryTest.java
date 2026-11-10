@@ -54,7 +54,6 @@ class ItemLookupQueryTest {
 				.addAnnotatedClass(Item.class).addAnnotatedClass(ItemCategory.class).addAnnotatedClass(ItemSection.class)
 				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", "jdbc:h2:mem:itemlookup;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
@@ -199,7 +198,7 @@ class ItemLookupQueryTest {
 			try (Session session = sessions.openSession()) {
 				session.beginTransaction();
 				for (String code : added) {
-					session.delete(session.get(Item.class, ids.remove(code)));
+					session.remove(session.get(Item.class, ids.remove(code)));
 				}
 				session.getTransaction().commit();
 			}

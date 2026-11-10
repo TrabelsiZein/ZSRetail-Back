@@ -11,6 +11,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityManager;
 
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
@@ -101,7 +102,9 @@ class QueryParameterBindingTest {
 					if (annotation == null || annotation.nativeQuery()) {
 						continue;
 					}
-					Query<?> query = session.createQuery(annotation.value());
+					// JPA's createQuery(String), a selection or a mutation alike (Hibernate's own untyped one is deprecated),
+					// then Hibernate's query for its parameter metadata
+					Query<?> query = ((EntityManager) session).createQuery(annotation.value()).unwrap(Query.class);
 					for (Parameter parameter : method.getParameters()) {
 						Param name = parameter.getAnnotation(Param.class);
 						if (name == null) {

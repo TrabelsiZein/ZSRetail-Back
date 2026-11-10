@@ -22,6 +22,7 @@ import com.digithink.zsretail.headoffice.model.HoErpInvoice;
 import com.digithink.zsretail.headoffice.model.HoErpInvoiceLine;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 
 /**
  * 2.2.1, decimal quantities, step 4: with whole quantities, what travels on the supply path is what 2.2.0 sent (the ERP
@@ -32,8 +33,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 class SupplyCopyCompatibilityTest {
 
 	/** The copy mappers of the head office (HoErpInvoiceService / HoDeliveryService.COPY_MAPPER), properties sorted. */
-	private static final ObjectMapper SORTED = new ObjectMapper()
-			.configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true);
+	private static final ObjectMapper SORTED = JsonMapper.builder()
+			.enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY).build();
 
 	static HoErpInvoice wholeInvoice() {
 		HoErpInvoice invoice = new HoErpInvoice();

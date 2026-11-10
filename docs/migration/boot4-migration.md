@@ -2,7 +2,8 @@
 
 Branch `feature/boot4-migration`, from `release/3.1.2`. Product version 4.0.0. Plan approved by Zein on 2026-11-08.
 
-**Status: step 1.8 done. Next: step 1.9.** Each step starts only on Zein's go.
+**Status: phase 1 done (step 1.9, 2026-11-10; tag `boot4-checkpoint-3.5.16`). Next: phase 2, step 2.1.** Each step starts
+only on Zein's go. Where phase 1 stands: "Phase 1 summary" below.
 
 | | At the start (2026-11-08) | Target |
 |---|---|---|
@@ -32,7 +33,8 @@ Branch `feature/boot4-migration`, from `release/3.1.2`. Product version 4.0.0. P
 
 Taken by Zein on 2026-11-08, on the inventory and plan of the same day. Rows 4 and 13 to 15 are his second answers; rows
 2 and 13 were changed, and rows 16 and 17 added, by his answers to the report of step 1.1; row 18 by his answers to the
-report of step 1.2; rows 22 to 25 by his answers to the report of step 1.7.
+report of step 1.2; rows 22 to 25 by his answers to the report of step 1.7; rows 26 to 28 by his answers to the report of
+step 1.8.
 
 **The schema rule, from 4.0.0: a schema change = one V script next to the Java change; never edit an applied script.**
 
@@ -62,6 +64,9 @@ report of step 1.2; rows 22 to 25 by his answers to the report of step 1.7.
 | 23 | **Log lines keep Boot 2's date**, `2026-11-10 12:40:28.064`: `logging.pattern.dateformat` in `application.properties`, so a log reads the same before and after 4.0.0. Boot 3 wrote `2026-11-10T12:40:28.064+01:00`; the rest of the line did not change. | 1.8 |
 | 24 | The trailing slash: `GET /config/` answering 404 since Spring 6 is accepted, no filter brings the old matching back. | 1.7 |
 | 25 | **A new database comes out the same as an existing 3.1.2 database**, wherever the difference is more than an equivalent type: `promotion_group_item` keeps its primary key order, `uk_ho_down_change` stays a plain unique constraint (two rows with a NULL `store_id` still refused), no enum CHECK constraint (decision 4, open point 6). Done at 1.8 by taking each baseline from `release/3.1.2`'s own code, not from Hibernate 6.6: the same by construction, proved object by object ([step-1.8-schema](diffs/step-1.8-schema.txt)). | 1.8 |
+| 26 | **An outside file's `spring.jpa.hibernate.ddl-auto=update` stops the start**, with a message that says which line to remove: under `update` Hibernate would run, at every start, the `ALTER COLUMN` of [step-1.8-catch-up](diffs/step-1.8-catch-up.txt), one of which makes a NOT NULL column nullable. A separate key allows it for a developer's throwaway database only (decision 4). The deploy guide removes the line. | 2.8 |
+| 27 | **The site check before each upgrade night (decision 21) also runs the 3.1.2 checks of `beforeBaseline.sql` and compares the site's schema with the baseline**, read only (`schema/catalog.sql` against the type's record), so a wrong version or a drifted schema shows the day before. | 2.8 |
+| 28 | **A generic create with an id the table does not have answers 400**, nothing written: accepted as a behaviour change (3.1.2 inserted it under a new id; Hibernate 6.6 refuses it). No head office and store call, job or connector posts on that path (checked at 1.9). | 1.9 |
 
 ## Steps
 
@@ -81,7 +86,7 @@ them one-line edits.
 | 1.6 | `SecurityFilterChain` and lambda DSL on Security 5.8. ERROR and FORWARD dispatches permitted on the main chain (no such dispatch reaches `/ho/**`). | 2.7.18 | 12 (2 main classes, 5 tests and 1 new, the parent pom, 3 docs) |
 | 1.7 | **Freeze.** Boot 3.5.16: jakarta rename, Hibernate 6.6, Security 6.5, HttpClient 5 with the erp-api helper and the timeouts, dialect keys, `WarLauncher`. | 3.5.16 | 281: 177 renamed (commit 1), 104 in the fixes (commit 2) |
 | 1.8 | Behaviour the tests expose (HQL, casts, null parameters). Flyway: baseline per database type, catch-up `V4.0.0.x` scripts, `baseline-on-migrate`, `AppVersionGuard` out. `ddl-auto=validate`. Enum CHECK constraints confirmed. | 3.5.16 | 48 (4 scripts, 3 property files, 13 configs, 3 main classes, a pom, 11 tests and helpers, 4 records, 9 docs) |
-| 1.9 | Remove every deprecated call, run the properties migrator once, tag the checkpoint. Merge `release/3.1.2`. | 3.5.16 | 10–20 |
+| 1.9 | Remove every deprecated call, run the properties migrator once, tag the checkpoint. Merge `release/3.1.2`. | 3.5.16 | 61 (7 main classes, 52 tests with 1 new, 38 of them one deleted line, 2 docs) |
 
 Exception to "green at each step": 1.7 is two commits (mechanical rename, then fixes) and compiles only after both.
 
@@ -101,6 +106,46 @@ Exception to "green at each step": 1.7 is two commits (mechanical rename, then f
 
 Exception to "green at each step": 2.3 is two commits (main, then tests) that pass one gate together, because
 `@JsonDeserialize` under the new package is not read by a Jackson 2 test mapper.
+
+## Phase 1 summary (2026-11-10)
+
+Boot 2.3.9 to 3.5.16 in ten steps, 1.0 to 1.9, each a green suite from clean with every startup test run, none deployed.
+Tag `boot4-checkpoint-3.5.16`. The code: Boot 3.5.16, Spring 6.2.19, Security 6.5.11 (two `SecurityFilterChain` beans, path
+pattern matchers), Hibernate 6.6.53 under `validate`, Flyway 11.7.2 owning the schema, Jakarta EE 10, Tomcat 10.1.55 in the
+tests, Jackson 2.21.4, HttpClient 5.5.2 (`erp.api.ErpHttp`, NTLM), mssql-jdbc 12.10.2 with encryption, Java 21 (`--release 21`),
+Lombok 1.18.48, POI 5.5.1; no deprecated call left but `ErpHttp`'s NTLM (decision 5). 2,152 tests, 6 to 9 minutes.
+
+**Proved**, by the suite unless said:
+- Both applications start, and start again, on real SQL Server (`zsretail_migtest`) in every shape: a store, a store linked to
+  its head office, a store on an ERP, a store with RFID, a head office, and the four head offices with an ERP. Every recorded
+  conditional bean is built; no connector or link can reach outside the machine.
+- The security chains answer as on 2.3.9: the status matrices row by row, each change an intended one (`/error`, `/sse-endpoint`,
+  the security fixes of 3.1.2, the trailing slash of decision 24), and the same on the new path matchers.
+- What the API writes and reads: golden JSON of the link messages, the copies, the till and the entities; the ticket hash byte
+  for byte; ERP invoice decimals with their scale.
+- The schema: a new database is a 3.1.2 one and catch-up 1; a 3.1.2 database is taken over and keeps every row, and ends with
+  the schema of a new one (in the suite on the baseline, and twice, at 1.8 and 1.9, on databases the real `release/3.1.2` code
+  made); an older, a foreign or an incomplete database is refused before anything is written, and a newer one too.
+- Every `@Query` on SQL Server with nulls and with samples; the class of every native and HQL result the code casts.
+- The keys and values of the 21 tracked configurations (`configuration-keys.txt`); Boot's properties migrator on them: nothing.
+- The ERP client answers an NTLM challenge (a server of the test JVM) and keeps its timeouts (the scheduler-hang fix).
+- POI and its libraries complete in the WAR, at method level (22,024 calls). Encrypted connections to this machine's SQL
+  Server, on `release/3.1.2`'s driver and this one.
+
+**Not proved yet**, each with its step:
+- NTLM GET and POST on a real NAV: ZEN's test NAV, once Zein opens the VPN (2.7, decision 5); what NAV answers to our `Accept`
+  (open point 7); HttpClient 5's retries on a NAV under load (decision 22).
+- An external Tomcat: the WARs need 10.1 at least, 11 is the target; the suite runs an embedded one (2.7). JDK 25 (2.6).
+- Customer databases: only local upgraded copies were read; each site is checked the day before its night (decisions 21, 27).
+- SQL Server 2017: this machine has 2019. The refusal below 2017 is proved with a raised minimum, not on an older server, and
+  encryption against a customer's server is the site check's (2.8).
+- The real application: the front on the new back, the RFID reader, a licence upload, the Excel imports and exports on the real
+  WAR (2.7's watch points).
+
+**Open points** still open after phase 1 (the table below): 7 (`Accept`, 2.7), 9 (JDK 25 and Tomcat 11 on this machine, 2.6),
+14 (the rest of the API, Zein after the migration), 17 (a committed fixture of a real 3.1.2 database, before 2.2), 18 (customer
+databases, decision 27). Decided and waiting for their step: 11 (Jackson 2 defaults, 2.4), 12 (fingerprint charset, 2.6), 18 (the
+JWT secret, 2.8), 21 and 27 (the site check, 2.8), 26 (`ddl-auto=update` refused, 2.8).
 
 ## The safety nets (step 1.2)
 
@@ -243,17 +288,38 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 - Behaviour the suite exposed at 1.7, fixed there: two derived queries with a `String` for a `LocalDate` field
   (`SalesPriceRepository`, `SalesDiscountRepository`, unused, marked "legacy" in the code) stopped every start.
 
-**1.9**
-- `AntPathRequestMatcher` should be deprecated in Security 6.5 and gone in 7 (from memory, to read): `SecurityConfig.paths` and
-  `HeadOfficeApiSecurityConfig.storeApiChain` move to `PathPatternRequestMatcher`, one class on an embedded and an external
-  Tomcat. Do not use `requestMatchers(String...)` before 7: on 5.8 it follows Spring MVC's rules and builds another class on
-  an external Tomcat (JSP servlet) than in the tests. The matrix rows `/config/`, `/CONFIG`, `/login/x`, `/hox` and `/ho`, written
-  on the old chains, say whether the matching moved. (At 1.7 `/config/` went from 200 to 404 for a logged user: Spring 6 no
-  longer takes a trailing slash, nothing to do with the chains; accepted, decision 24.) Confirmed at 1.7: `AntPathRequestMatcher`
-  is deprecated for removal in 6.5.
-- `ErpHttp` keeps `NTCredentials` and `NTLMSchemeFactory`, deprecated in HttpClient 5.5 but NTLM is what NAV and BC ask for
-  (decision 5): not a deprecation to remove. Compile once with `-Xlint:deprecation` for the rest: the default build shows only
-  what is deprecated for removal.
+**1.9** (done 2026-11-10)
+- **The path matchers**: `SecurityConfig.paths` and `HeadOfficeApiSecurityConfig.storeApiChain` build
+  `PathPatternRequestMatcher`s (one builder, `SecurityConfig.PATHS`), not the ant matchers deprecated for removal in 6.5. Not
+  `requestMatchers(String...)`: named matchers stay one class on an embedded and an external Tomcat. The new matcher reads the
+  path after the context path (read in 6.5.11); the patterns (`/login/**`, `/config`, `/company-info`, `/license/**`,
+  `/item-image/**`, `/ho/**`) are all valid for it. Every matrix row passed unchanged, the edge rows `/config/`, `/CONFIG`,
+  `/login/x`, `/hox` and `/ho` included, and `SecurityChains` on the real starts. (At 1.7 `/config/` went from 200 to 404 for a
+  logged user: Spring 6 no longer takes a trailing slash, nothing to do with the chains; accepted, decision 24.)
+- **Every deprecated call**: a compile with `-Dmaven.compiler.showDeprecation=true` listed 46 (10 in main, 36 in tests), now 0,
+  each replaced by its equal: `DaoAuthenticationProvider(userDetailsService)`; Jackson's `setSerializationInclusion(x)` by
+  `setDefaultPropertyInclusion(JsonInclude.Value.construct(x, x))`, exactly what it did in 2.21.4 (read in its bytecode);
+  `configure(MapperFeature...)` by `JsonMapper.builder()`, the ticket hash mapper included (`LinkMappersGoldenJsonTest` pins
+  its text byte for byte: unchanged); `JsonNodeFactory.withExactBigDecimals(true)` by `JsonNodeFeature.STRIP_TRAILING_BIGDECIMAL_ZEROES`
+  disabled, and `fields()` by `properties()`, in the ZEN and NAV POS pages invoice rows (`InvoiceRowDecimalsTest`, new, run on
+  both: 41.000, 1.50 and 0.000 keep their scale, the fields their order). Tests: Hibernate's untyped query methods by their
+  typed or mutation forms, `delete` and `saveOrUpdate`, `getStatusCodeValue`, `json(String, boolean)`, `NoOpPasswordEncoder`,
+  `FilterSecurityInterceptor` (now named by its name, gone in Security 7), Hibernate's `DATASOURCE` setting (a
+  `ConnectionProvider` in `MigTestDatabase.connect`). At run time: Hibernate's HHH90000025 (a dialect named where the
+  connection gives it) gone from 38 test setups; `QueryParameterBindingTest` keeps its dialect, it builds without a connection.
+  `ErpHttp` keeps `NTCredentials` and `NTLMSchemeFactory` (decision 5), under its `@SuppressWarnings`.
+- **The properties migrator, once** (added in test scope, then removed): Boot 3.5.16's reporter on each tracked outside file,
+  `application.properties` and the two type files, 23 files: nothing renamed, nothing unsupported (it reported the three old
+  keys of a file made to check it). Every real start of the suite with it on the classpath: no report. A site's own outside
+  file is not in the repository: 2.8.
+- **Generic create with an id the table does not have** (decision 28): 400 "Not created: there is no X with the id N. A new
+  record is sent without an id.", nothing written (500 at 1.8). No head office and store call, job or connector posts on that
+  path: the store's client calls `/ho/**` only, no `/ho/**` controller is a generic one, the connectors post to the ERP, the jobs
+  run inside; the front's one generic create (`/member-function`) sends no id.
+- **The four proofs of 1.8 on this code**: the suite's schema tests (a new database, a 3.1.2 one, the same schema, every refusal)
+  and, again, a real 3.1.2 database of each type made by `release/3.1.2`'s code (cbae53bb) and upgraded by this one: the very
+  schema of a new database, every table its rows and checksum but APP_VERSION, a restart runs nothing more.
+- **Merge of `release/3.1.2`**: nothing new since `cbae53bb`, merged at 1.8.
 
 **1.9, 2.8: the merges of `release/3.1.2`**
 - **The security fixes (`50a5cb8`, `2e05b3a`) were merged on 2026-11-10, before step 1.7**, on Zein's word, so that 1.7 renames
@@ -318,14 +384,16 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 **2.8**
 - **An outside file's `spring.jpa.hibernate.ddl-auto=update` line** (the customer examples had it until 1.8, so sites have it)
   wins over `validate`: on 4.0.0 Hibernate would then run, at every start, the `ALTER COLUMN` of
-  [step-1.8-catch-up](diffs/step-1.8-catch-up.txt), one of which makes `app_release_notes.description` nullable. Proposal:
-  refused at startup with the other old lines (anything but `validate` or `none`), a developer's throwaway database keeping
-  `update` by a key of its own (decision 4); at least the guide removes the line.
+  [step-1.8-catch-up](diffs/step-1.8-catch-up.txt), one of which makes `app_release_notes.description` nullable. Decision 26:
+  refused at startup with the other old lines (anything but `validate` or `none`), with a message naming the line; a
+  developer's throwaway database keeps `update` by a key of its own; the guide removes the line.
 - The upgrade night, from 3.1.2: nothing to run by hand, the 4.0.0 WAR's start takes the database over (Flyway). From an older
   version: its `db/<version>/` scripts up to 3.1.2 first, as before; 4.0.0 refuses anything else and says which.
-- The site check before the night (decision 21) can also run, read only, `beforeBaseline.sql`'s checks and the schema query
-  (`core/src/test/resources/schema/catalog.sql`) against the type's record: a site at the wrong version, or one whose schema
-  drifted, is then found the day before, not on the night.
+- The site check before the night (decisions 21 and 27) also runs, read only, `beforeBaseline.sql`'s checks and the schema
+  query (`core/src/test/resources/schema/catalog.sql`) against the type's record: a site at the wrong version, or one whose
+  schema drifted, is found the day before, not on the night. What the comparison may show and is fine: the scripts' names of
+  keys, the leftover tables of older versions ([step-1.8-schema](diffs/step-1.8-schema.txt), section 4). The properties
+  migrator's reporter could read the site's outside file the same way (1.9 ran it on the tracked ones).
 - The notes of 4.0.0 (APP_RELEASE_NOTES, written from the CHANGELOG when the version closes) are a V script, no longer an
   `update.sql`.
 - The deploy guide: every site's outside file gets `;encrypt=true;trustServerCertificate=true` on its `jdbc:sqlserver` line.
@@ -369,6 +437,8 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 | 14 | **The rest of the API.** Most endpoints still ask only for a logged user, though the front shows them to some roles only: a cashier can call them directly. `/user-account` was the worst, because it gave the admin account. A pass over the other writes, endpoint by endpoint, is its own piece of work. | Zein, after the migration |
 | 15 | **`/sse-endpoint/**`.** Public in `SecurityConfig` and let through by `LicenseFilter`, but no handler exists: no `SseEmitter` in the code. A dead entry, harmless today, that would make a future endpoint under that path public without a licence. | Closed 2026-11-10: no branch of the front names it, so the rule and the licence exemption are gone. `GET /sse-endpoint/x` answers 403 to an anonymous caller and 402 without a licence, 404 to everyone before. |
 | 16 | **A user's own badge code in `/user-account/current`.** It answered a `UserAccountDTO`, which carries `badgeCode`, to any logged user about himself. No screen reads it there (the till reads a code only where it is typed, `TillAuthPopup`), and `/current` is called by no screen. A credential sent where nothing uses it. | Closed on `release/3.1.2`, `cbae53bb` (2026-11-10), merged here: `/current` answers `UserAccountDTO.ownAccount`, the account without its code. Not by a write-only field, as first asked: the Users page reads the code from the answers behind `read:admin-users` (its column, Revoke and Reactivate) and sends it back on a save (`badgeCode: userForm.badgeCode \|\| null`), so a hidden code would have removed the badge of every user an admin edits. `StoreSecurityMatrixTest.badgeScan`: the admin's own code not in his `/current`, still in his Users page. |
+| 17 | **The real 3.1.2 proof is a one-off.** The upgrade from a database `release/3.1.2`'s code made was proved twice (1.8, 1.9) with a scratch worktree of that branch; the suite proves it on the baseline run as plain SQL (proved equal to that database), with one item and no 3.1.2 seed rows. A committed fixture of the real database's rows (its seeds, its users' bcrypt hashes of the default passwords) would let the suite prove it at every step of phase 2, Hibernate 7 included. | Zein, before 2.2: such a fixture, hashes of the seed passwords in a test resource |
+| 18 | **Customer databases.** Only local upgraded databases were read (step-1.8-schema, section 4). | Each site, the day before its night (decision 27) |
 
 ## Baseline (step 1.0)
 

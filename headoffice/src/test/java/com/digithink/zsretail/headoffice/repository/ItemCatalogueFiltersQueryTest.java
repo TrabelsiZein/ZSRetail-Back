@@ -71,7 +71,6 @@ class ItemCatalogueFiltersQueryTest {
 				.addAnnotatedClass(Item.class).addAnnotatedClass(ItemBarcode.class).addAnnotatedClass(ItemCategory.class)
 				.addAnnotatedClass(ItemSection.class).addAnnotatedClass(HoStockPoint.class)
 				.addAnnotatedClass(HoStockPointItem.class)
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.SQLServerDialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
@@ -305,7 +304,7 @@ class ItemCatalogueFiltersQueryTest {
 		} finally {
 			try (Session session = sessions.openSession()) {
 				session.beginTransaction();
-				added.forEach(id -> session.delete(session.get(Item.class, id)));
+				added.forEach(id -> session.remove(session.get(Item.class, id)));
 				session.getTransaction().commit();
 			}
 		}

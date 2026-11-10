@@ -36,6 +36,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import lombok.Getter;
@@ -80,9 +81,10 @@ public class SalesPushService {
 	private static final List<SalesCopyStatus> PENDING_ONLY = Arrays.asList(SalesCopyStatus.PENDING);
 
 	/** The copy as JSON with sorted properties: the same content always gives the same hash. */
-	private static final ObjectMapper HASH_MAPPER = new ObjectMapper().registerModule(new JavaTimeModule())
+	private static final ObjectMapper HASH_MAPPER = JsonMapper.builder().addModule(new JavaTimeModule())
 			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-			.configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true);
+			.enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
+			.build();
 
 	private final SalesCopyFinder finder;
 	private final SalesDocumentSource source;

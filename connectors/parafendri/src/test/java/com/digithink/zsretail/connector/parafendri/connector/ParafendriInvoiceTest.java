@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 
@@ -73,7 +74,7 @@ class ParafendriInvoiceTest {
 		server.expect(requestTo(LOOKUP)).andExpect(method(HttpMethod.GET))
 				.andRespond(withSuccess(NONE, MediaType.APPLICATION_JSON));
 		server.expect(requestTo(SHIP_AND_INVOICE)).andExpect(method(HttpMethod.POST))
-				.andExpect(content().json(sample("shipAndInvoice-request.json"), true))
+				.andExpect(content().json(sample("shipAndInvoice-request.json"), JsonCompareMode.STRICT))
 				.andRespond(withSuccess(sample("shipAndInvoice-answer.json"), MediaType.APPLICATION_JSON));
 		ErpInvoiceResult result = connector.requestInvoice("CV-000001", "1234567A/M/000", "Société Test");
 		server.verify();

@@ -11,7 +11,6 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.web.FilterChainProxy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
-import org.springframework.security.web.access.intercept.FilterSecurityInterceptor;
 
 /**
  * Boot 4 migration, step 1.6: the chains a real start built. Each application has the same two, /ho/** first, each authorized
@@ -23,6 +22,9 @@ public final class SecurityChains {
 	private SecurityChains() {
 	}
 
+	/** authorizeRequests() built it; deprecated in Security 6 and gone in 7, so named by its name (step 1.9). */
+	private static final String OLD_INTERCEPTOR = "org.springframework.security.web.access.intercept.FilterSecurityInterceptor";
+
 	public static void assertTheTwoChains(FilterChainProxy proxy) {
 		List<SecurityFilterChain> chains = proxy.getFilterChains();
 		assertEquals(2, chains.size(), "the /ho/** chain and the main chain");
@@ -33,7 +35,7 @@ public final class SecurityChains {
 		for (SecurityFilterChain chain : chains) {
 			List<Class<?>> filters = chain.getFilters().stream().map(Object::getClass).collect(Collectors.toList());
 			assertTrue(filters.contains(AuthorizationFilter.class), "authorized by AuthorizationFilter: " + filters);
-			assertFalse(filters.contains(FilterSecurityInterceptor.class), "not by the old interceptor: " + filters);
+			assertFalse(filters.stream().anyMatch(type -> type.getName().equals(OLD_INTERCEPTOR)), "not by the old interceptor: " + filters);
 		}
 	}
 

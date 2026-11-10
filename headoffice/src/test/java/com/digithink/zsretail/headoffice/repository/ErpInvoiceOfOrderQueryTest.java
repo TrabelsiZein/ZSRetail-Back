@@ -33,7 +33,6 @@ class ErpInvoiceOfOrderQueryTest {
 		sessions = new Configuration().addAnnotatedClass(HoErpInvoice.class).addAnnotatedClass(HoErpInvoiceLine.class)
 				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", "jdbc:h2:mem:erpinvoiceorder;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
@@ -64,7 +63,7 @@ class ErpInvoiceOfOrderQueryTest {
 	@SuppressWarnings("unchecked")
 	private static List<Object[]> rows(String orderNo) {
 		try (Session session = sessions.openSession()) {
-			return session.createNativeQuery(HoErpInvoiceRepository.OF_ORDER).setParameter("orderNo", orderNo).list();
+			return session.createNativeQuery(HoErpInvoiceRepository.OF_ORDER, Object[].class).setParameter("orderNo", orderNo).list();
 		}
 	}
 

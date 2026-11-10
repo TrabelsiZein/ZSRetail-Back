@@ -49,7 +49,6 @@ class DownRecordToCheckQueryTest {
 		sessions = new Configuration().addAnnotatedClass(DownRecord.class)
 				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", "jdbc:h2:mem:downrecords;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop")
 				.setProperty("hibernate.session_factory.statement_inspector", Recorder.class.getName())
 				.buildSessionFactory();

@@ -15,8 +15,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 
+import javax.sql.DataSource;
+
 import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.cfg.Configuration;
+import org.hibernate.engine.jdbc.connections.spi.ConnectionProvider;
+import org.hibernate.service.UnknownUnwrapTypeException;
 import org.junit.jupiter.api.Assumptions;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
@@ -180,8 +184,54 @@ public final class MigTestDatabase {
 	 * its own pool, which writes the password in the log of the build at INFO (HHH10001001).
 	 */
 	public void connect(Configuration configuration) {
-		configuration.getProperties().put(AvailableSettings.DATASOURCE,
-				new DriverManagerDataSource(url(), username, password()));
+		configuration.getProperties().put(AvailableSettings.CONNECTION_PROVIDER,
+				new Connections(new DriverManagerDataSource(url(), username, password())));
+	}
+
+	/**
+	 * Step 1.9: Hibernate's connections, from the DataSource, through its connection provider SPI. Until then the DataSource
+	 * went in the DATASOURCE setting, deprecated in Hibernate 6.6.
+	 */
+	private static final class Connections implements ConnectionProvider {
+
+		private static final long serialVersionUID = 1L;
+
+		private final transient DataSource dataSource;
+
+		Connections(DataSource dataSource) {
+			this.dataSource = dataSource;
+		}
+
+		@Override
+		public Connection getConnection() throws SQLException {
+			return dataSource.getConnection();
+		}
+
+		@Override
+		public void closeConnection(Connection connection) throws SQLException {
+			connection.close();
+		}
+
+		@Override
+		public boolean supportsAggressiveRelease() {
+			return false;
+		}
+
+		@Override
+		public boolean isUnwrappableAs(Class<?> type) {
+			return type.isInstance(this) || type.isInstance(dataSource);
+		}
+
+		@Override
+		public <T> T unwrap(Class<T> type) {
+			if (type.isInstance(this)) {
+				return type.cast(this);
+			}
+			if (type.isInstance(dataSource)) {
+				return type.cast(dataSource);
+			}
+			throw new UnknownUnwrapTypeException(type);
+		}
 	}
 
 	/** Read from the machine file at each use, never kept or copied. Null when there is none. */

@@ -80,12 +80,21 @@ public abstract class _BaseController<T extends _BaseEntity, ID, S extends __Bas
 	}
 
 	/**
-	 * Create new entity
+	 * Create new entity. Sent with an id the table does not have, it is refused with a 400 (Boot 4 migration, step 1.9):
+	 * Hibernate 6.6 refuses to save it (3.1.2's Hibernate 5 inserted it under a new id), and that came back as a 500. A new
+	 * record is sent without an id, as the front does; an id that exists still updates its row, as before.
 	 */
 	@PostMapping
+	@SuppressWarnings("unchecked")
 	public ResponseEntity<?> create(@RequestBody T entity) {
 		try {
 			log.info(this.getClass().getSimpleName() + "::create");
+			if (entity.getId() != null && !service.findById((ID) entity.getId()).isPresent()) {
+				String refusal = "Not created: there is no " + entity.getClass().getSimpleName() + " with the id " + entity.getId()
+						+ ". A new record is sent without an id.";
+				log.warn(this.getClass().getSimpleName() + "::create: " + refusal);
+				return ResponseEntity.badRequest().body(createErrorResponse(refusal));
+			}
 			T createdEntity = service.save(entity);
 			return ResponseEntity.status(HttpStatus.CREATED).body(createdEntity);
 		} catch (Exception e) {

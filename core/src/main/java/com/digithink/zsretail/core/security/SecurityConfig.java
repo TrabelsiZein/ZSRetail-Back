@@ -16,7 +16,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
@@ -29,8 +29,7 @@ public class SecurityConfig {
 	@Bean
 	public AuthenticationManager authenticationManager(UserDetailsServiceImpl userDetailsService,
 			BCryptPasswordEncoder bCryptPasswordEncoder) {
-		DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-		provider.setUserDetailsService(userDetailsService);
+		DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
 		provider.setPasswordEncoder(bCryptPasswordEncoder);
 		return new ProviderManager(provider);
 	}
@@ -59,11 +58,15 @@ public class SecurityConfig {
 	}
 
 	/**
-	 * Named ant matchers, not requestMatchers(String...): those follow Spring MVC's rules (/config/ would open with /config),
-	 * and build another class on an external Tomcat, whose JSP servlet is a second servlet, than in the embedded Tomcat of
-	 * the tests.
+	 * Named path pattern matchers (Boot 4 migration, step 1.9; ant matchers until then, deprecated for removal in Security
+	 * 6.5). They read the path after the context path, whatever servlets the server has: the same class on an external
+	 * Tomcat, with its JSP servlet, as in the embedded Tomcat of the tests. /config does not open /config/, and /login/**
+	 * opens /login (the matrix rows /config/, /CONFIG, /login/x, /hox and /ho, written on the ant matchers).
 	 */
 	private static RequestMatcher[] paths(String... patterns) {
-		return Arrays.stream(patterns).map(AntPathRequestMatcher::antMatcher).toArray(RequestMatcher[]::new);
+		return Arrays.stream(patterns).map(PATHS::matcher).toArray(RequestMatcher[]::new);
 	}
+
+	/** The builder of the path matchers of both chains (HeadOfficeApiSecurityConfig too). */
+	public static final PathPatternRequestMatcher.Builder PATHS = PathPatternRequestMatcher.withDefaults();
 }

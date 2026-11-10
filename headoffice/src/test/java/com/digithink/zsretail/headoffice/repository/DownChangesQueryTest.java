@@ -32,7 +32,6 @@ class DownChangesQueryTest {
 		sessions = new Configuration().addAnnotatedClass(HoDownChange.class)
 				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", "jdbc:h2:mem:downchanges;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
@@ -64,7 +63,7 @@ class DownChangesQueryTest {
 	@SuppressWarnings("unchecked")
 	private static List<String> changed(long after, long upTo, int size) {
 		try (Session session = sessions.openSession()) {
-			List<Object[]> rows = session.createNativeQuery(HoDownChangeRepository.CHANGED)
+			List<Object[]> rows = session.createNativeQuery(HoDownChangeRepository.CHANGED, Object[].class)
 					.setParameter("domain", DataDomain.CATALOGUE.name()).setParameter("storeId", 1L)
 					.setParameter("after", after).setParameter("upTo", upTo).setMaxResults(size).list();
 			return rows.stream().map(row -> row[0] + ":" + ((Number) row[1]).longValue()).collect(Collectors.toList());

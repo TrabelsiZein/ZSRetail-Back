@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.util.StreamUtils;
 import org.springframework.web.client.RestTemplate;
@@ -79,7 +80,7 @@ class ZenProductsClientTest {
 		server.expect(requestTo(URL)).andExpect(method(HttpMethod.POST))
 				.andExpect(header("X-Api-Key", KEY))
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-				.andExpect(content().json("{\"skus\":[\"40ZFEBF07\",\"43ZFCHD17\",\"28EZFDTD02\"]}", true))
+				.andExpect(content().json("{\"skus\":[\"40ZFEBF07\",\"43ZFCHD17\",\"28EZFDTD02\"]}", JsonCompareMode.STRICT))
 				.andExpect(jsonPath("$.updatedAt").doesNotExist())
 				.andRespond(withSuccess(sample(), MediaType.APPLICATION_JSON));
 		List<ErpItemImagesDTO> products = client.bySkus(Arrays.asList("40ZFEBF07", "43ZFCHD17", "28EZFDTD02"));

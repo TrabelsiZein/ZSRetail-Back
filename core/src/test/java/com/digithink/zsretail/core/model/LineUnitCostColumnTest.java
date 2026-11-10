@@ -56,7 +56,6 @@ class LineUnitCostColumnTest {
 		configuration.setImplicitNamingStrategy(new SpringImplicitNamingStrategy());
 		sessions = configuration.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", "jdbc:h2:mem:lineunitcost;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 	}
 
@@ -70,8 +69,8 @@ class LineUnitCostColumnTest {
 	void columnType() {
 		for (String table : new String[] { "SALES_LINE", "RETURN_LINE" }) {
 			try (Session session = sessions.openSession()) {
-				Object[] column = (Object[]) session.createNativeQuery("SELECT NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE "
-						+ "FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = :table AND COLUMN_NAME = 'UNIT_COST'")
+				Object[] column = session.createNativeQuery("SELECT NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE "
+						+ "FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = :table AND COLUMN_NAME = 'UNIT_COST'", Object[].class)
 						.setParameter("table", table).getSingleResult();
 				assertEquals(19, ((Number) column[0]).intValue(), table);
 				assertEquals(3, ((Number) column[1]).intValue(), table);

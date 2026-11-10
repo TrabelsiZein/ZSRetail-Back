@@ -9,7 +9,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
@@ -38,7 +37,7 @@ public class HeadOfficeApiSecurityConfig {
 	@Order(0)
 	public SecurityFilterChain storeApiChain(HttpSecurity http, ObjectProvider<StoreKeyFilter> storeKeyFilter,
 			LicenseFilter licenseFilter) throws Exception {
-		http.securityMatcher(AntPathRequestMatcher.antMatcher("/ho/**")).csrf(csrf -> csrf.disable())
+		http.securityMatcher(SecurityConfig.PATHS.matcher("/ho/**")).csrf(csrf -> csrf.disable())
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.exceptionHandling(exceptions -> exceptions
 						.authenticationEntryPoint((request, response, e) -> StoreApiAccess.writeRefusal(response)))

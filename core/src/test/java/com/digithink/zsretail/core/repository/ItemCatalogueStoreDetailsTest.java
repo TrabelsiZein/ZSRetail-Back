@@ -59,7 +59,6 @@ class ItemCatalogueStoreDetailsTest {
 		sessions = configuration.addAnnotatedClass(ItemFamily.class).addAnnotatedClass(ItemSubFamily.class)
 				.addAnnotatedClass(Item.class).addAnnotatedClass(ItemBarcode.class).addAnnotatedClass(ItemCategory.class)
 				.addAnnotatedClass(ItemSection.class)
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.SQLServerDialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();

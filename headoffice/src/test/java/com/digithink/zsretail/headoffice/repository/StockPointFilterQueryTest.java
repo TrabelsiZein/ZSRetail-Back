@@ -69,7 +69,6 @@ class StockPointFilterQueryTest {
 				.addAnnotatedClass(Item.class).addAnnotatedClass(ItemBarcode.class).addAnnotatedClass(HoStockPoint.class)
 				.addAnnotatedClass(ItemCategory.class).addAnnotatedClass(ItemSection.class)
 				.addAnnotatedClass(HoStockPointItem.class)
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.SQLServerDialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
@@ -154,11 +153,11 @@ class StockPointFilterQueryTest {
 	private static List<ItemCatalogueLineDTO> lines(ItemCatalogueQuery.Criteria criteria) {
 		ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria, false);
 		try (Session session = sessions.openSession()) {
-			NativeQuery<?> query = session.createNativeQuery(built.getLines());
+			NativeQuery<?> query = session.createNativeQuery(built.getLines(), Object[].class);
 			built.getParameters().forEach(query::setParameter);
 			List<ItemCatalogueLineDTO> lines = query.list().stream()
 					.map(row -> ItemCatalogueService.line((Object[]) row, false)).collect(Collectors.toList());
-			NativeQuery<?> count = session.createNativeQuery(built.getCount());
+			NativeQuery<?> count = session.createNativeQuery(built.getCount(), Long.class);
 			built.getParameters().forEach(count::setParameter);
 			assertEquals(lines.size(), ((Number) count.uniqueResult()).intValue(), "the count of the lines");
 			return lines;

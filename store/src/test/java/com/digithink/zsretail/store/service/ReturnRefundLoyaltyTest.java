@@ -623,10 +623,10 @@ class ReturnRefundLoyaltyTest {
 
 		com.digithink.zsretail.core.link.dto.ReturnCopyDTO copy =
 				com.digithink.zsretail.store.holink.service.SalesCopyMapper.returnCopy(header, lines);
-		com.fasterxml.jackson.databind.ObjectMapper sorted = new com.fasterxml.jackson.databind.ObjectMapper()
-				.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
+		com.fasterxml.jackson.databind.ObjectMapper sorted = com.fasterxml.jackson.databind.json.JsonMapper.builder()
+				.addModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
 				.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-				.configure(com.fasterxml.jackson.databind.MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true);
+				.enable(com.fasterxml.jackson.databind.MapperFeature.SORT_PROPERTIES_ALPHABETICALLY).build();
 		java.lang.reflect.Method hash = com.digithink.zsretail.store.holink.service.SalesPushService.class
 				.getDeclaredMethod("hash", Object.class);
 		hash.setAccessible(true);
@@ -652,7 +652,8 @@ class ReturnRefundLoyaltyTest {
 				new com.digithink.zsretail.connector.emtop.mapper.DynamicsNavMapper();
 		com.fasterxml.jackson.databind.ObjectMapper navJson = new com.fasterxml.jackson.databind.ObjectMapper()
 				.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
-				.setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+				.setDefaultPropertyInclusion(com.fasterxml.jackson.annotation.JsonInclude.Value.construct(
+						com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL, com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL))
 				.configure(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
 		pin.append("nav header ").append(navJson.writeValueAsString(nav.toReturnHeaderDTO(
 				(com.digithink.zsretail.erp.api.dto.ErpReturnDTO) toHeader.invoke(export, header)))).append('\n');

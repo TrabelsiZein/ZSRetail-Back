@@ -224,8 +224,19 @@ class ZZDataInitializerRolesTest {
 		inject(initializer, ZZDataInitializer.class, "userRepository", users);
 		inject(initializer, ZZDataInitializer.class, "badgeService", badgeService);
 		inject(initializer, ZZDataInitializer.class, "applicationModeService", mode);
+		// The password as it is: what the deprecated NoOpPasswordEncoder did, for this test only
 		inject(initializer, ZZDataInitializer.class, "passwordEncoder",
-				org.springframework.security.crypto.password.NoOpPasswordEncoder.getInstance());
+				new org.springframework.security.crypto.password.PasswordEncoder() {
+					@Override
+					public String encode(CharSequence raw) {
+						return raw.toString();
+					}
+
+					@Override
+					public boolean matches(CharSequence raw, String encoded) {
+						return raw.toString().equals(encoded);
+					}
+				});
 		Method initUsers = ZZDataInitializer.class.getDeclaredMethod("initUsers");
 		initUsers.setAccessible(true);
 		initUsers.invoke(initializer);

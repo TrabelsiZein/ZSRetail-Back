@@ -71,8 +71,14 @@ last step.
   without one of its parts); a database a newer version ran on is refused too. `AppVersionGuard` is gone; `APP_VERSION` now
   holds the version of the WAR that last started. A new database and an upgraded one end with the same schema
   (`StoreSchemaStartupTest`, `HeadOfficeSchemaStartupTest`, `docs/migration/diffs/step-1.8-schema.txt`).
-- Step 1.8: a record created with an id the table does not have (`POST` of the generic controllers) is refused, 500, nothing
-  written (Hibernate 6.6); 3.1.2 inserted it under a new id. Without an id, or `id: null` as the front sends, it is created.
+- Step 1.8: a record created with an id the table does not have (`POST` of the generic controllers) is refused, nothing
+  written (Hibernate 6.6); 3.1.2 inserted it under a new id. Step 1.9: the answer is a 400 "Not created: there is no X with the
+  id N. A new record is sent without an id." (a 500 at 1.8). Without an id, or `id: null` as the front sends, it is created;
+  no head office and store call, job or connector posts on that path.
+- Step 1.9: both security chains match their paths with Security's path pattern matchers (the ant matchers are deprecated for
+  removal): no answer changed, every matrix row the same. No deprecated call is left but the NTLM classes of HttpClient 5
+  (`ErpHttp`); the replacements are their exact equals, the ticket hash and the ERP invoice decimals included
+  (`InvoiceRowDecimalsTest`). Boot's properties migrator found nothing to rename in the tracked configurations.
 
 ### DB script
 - Step 1.8, Flyway, run by the start: `db/migration/store/V4.0.0__baseline.sql` and `db/migration/headoffice/V4.0.0__baseline.sql`

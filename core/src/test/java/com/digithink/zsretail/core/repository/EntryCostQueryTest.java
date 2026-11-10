@@ -44,7 +44,6 @@ class EntryCostQueryTest {
 				.addAnnotatedClass(ItemSubFamily.class).addAnnotatedClass(Item.class)
 				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", "jdbc:h2:mem:entrycost;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop");
 		configuration.setPhysicalNamingStrategy(new CamelCaseToUnderscoresNamingStrategy());
 		configuration.setImplicitNamingStrategy(new SpringImplicitNamingStrategy());
@@ -102,7 +101,7 @@ class EntryCostQueryTest {
 		int rows;
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
-			rows = session.createNativeQuery(ItemRepository.APPLY_ENTRY_COST).setParameter("id", id)
+			rows = session.createNativeMutationQuery(ItemRepository.APPLY_ENTRY_COST).setParameter("id", id)
 					.setParameter("qtyIn", qtyIn).setParameter("unitCost", unitCost).setParameter("by", "TEST")
 					.executeUpdate();
 			session.getTransaction().commit();
@@ -121,7 +120,7 @@ class EntryCostQueryTest {
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
 			Item loaded = session.get(Item.class, id); // stock 10, as a purchase line reads it
-			session.createNativeQuery(query("addToStockQuantity", Long.class, BigDecimal.class)).setParameter("itemId", id)
+			session.createNativeMutationQuery(query("addToStockQuantity", Long.class, BigDecimal.class)).setParameter("itemId", id)
 					.setParameter("delta", BigDecimal.valueOf(5)).executeUpdate(); // the first line: +5
 			loaded.setLastDirectCost(7.0); // the second line of the same item, at another price
 			session.flush(); // every column written: stock 10
@@ -137,9 +136,9 @@ class EntryCostQueryTest {
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
 			session.get(Item.class, id);
-			session.createNativeQuery(query("addToStockQuantity", Long.class, BigDecimal.class)).setParameter("itemId", id)
+			session.createNativeMutationQuery(query("addToStockQuantity", Long.class, BigDecimal.class)).setParameter("itemId", id)
 					.setParameter("delta", BigDecimal.valueOf(5)).executeUpdate();
-			session.createQuery(query("updateLastCosts", Long.class, Double.class, Double.class, String.class))
+			session.createMutationQuery(query("updateLastCosts", Long.class, Double.class, Double.class, String.class))
 					.setParameter("id", id).setParameter("gross", 7.0).setParameter("net", 6.3).setParameter("by", "TEST")
 					.executeUpdate();
 			session.flush();

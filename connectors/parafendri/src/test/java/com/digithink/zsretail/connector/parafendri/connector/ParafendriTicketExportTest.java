@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 
@@ -83,7 +84,7 @@ class ParafendriTicketExportTest {
 				.andRespond(withSuccess(NONE, MediaType.APPLICATION_JSON));
 		server.expect(requestTo(CUSTOMER)).andRespond(withSuccess(CUSTOMER_ROW, MediaType.APPLICATION_JSON));
 		server.expect(requestTo(SALES_ORDERS)).andExpect(method(HttpMethod.POST))
-				.andExpect(content().json(sample("salesOrder-request.json"), true))
+				.andExpect(content().json(sample("salesOrder-request.json"), JsonCompareMode.STRICT))
 				.andRespond(withSuccess(sample("salesOrder-answer.json"), MediaType.APPLICATION_JSON));
 		ErpOperationResult result = connector.pushTicket(ParafendriTickets.ticket());
 		server.verify();
@@ -121,7 +122,7 @@ class ParafendriTicketExportTest {
 						+ "\"message\":\"Field 'ticketNo' is not filterable.  CorrelationId:  511f6922.\"}}"));
 		server.expect(requestTo(CUSTOMER)).andRespond(withSuccess(CUSTOMER_ROW, MediaType.APPLICATION_JSON));
 		server.expect(requestTo(SALES_ORDERS)).andExpect(method(HttpMethod.POST))
-				.andExpect(content().json(sample("salesOrder-request.json"), true))
+				.andExpect(content().json(sample("salesOrder-request.json"), JsonCompareMode.STRICT))
 				.andRespond(withSuccess(sample("salesOrder-answer.json"), MediaType.APPLICATION_JSON));
 		ErpOperationResult result = connector.pushTicket(ParafendriTickets.ticket());
 		server.verify();

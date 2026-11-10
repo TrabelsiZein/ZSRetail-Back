@@ -78,7 +78,7 @@ class RfidBeansTest {
 		DefaultResourceLoader loader = new DefaultResourceLoader();
 		AnnotationRepositoryConfigurationSource source = new AnnotationRepositoryConfigurationSource(
 				AnnotationMetadata.introspect(RfidRepositoriesScan.class), EnableJpaRepositories.class, loader, env,
-				new DefaultListableBeanFactory());
+				new DefaultListableBeanFactory(), null);
 		Set<String> names = new TreeSet<>();
 		for (BeanDefinition candidate : source.getCandidates(loader)) {
 			names.add(candidate.getBeanClassName());

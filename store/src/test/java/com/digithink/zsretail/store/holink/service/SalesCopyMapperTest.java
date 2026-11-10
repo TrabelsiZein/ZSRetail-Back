@@ -45,6 +45,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 
 /**
  * Head office plan, task 2.2: the copies of a ticket, a return and a session closing. Every reference travels as a
@@ -60,9 +61,9 @@ class SalesCopyMapperTest {
 	private static final LocalDateTime SOLD = LocalDateTime.of(2026, 10, 3, 10, 15, 30);
 
 	/** Like the head office's Spring Boot mapper: java.time as ISO strings, unknown fields ignored. */
-	private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules()
+	private final JsonMapper mapper = JsonMapper.builder().findAndAddModules()
 			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-			.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+			.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build();
 
 	private static UserAccount user(long id, String login, String name) {
 		UserAccount user = new UserAccount();
@@ -505,7 +506,7 @@ class SalesCopyMapperTest {
 	@DisplayName("2.2.1: a ticket with whole quantities only gives the JSON and the copy hash of 2.2.0 (2, never 2.000)")
 	void wholeQuantitiesAsIn220() throws Exception {
 		TicketCopyDTO copy = wholeTicketFromDecimalColumns();
-		String sorted = mapper.copy().configure(com.fasterxml.jackson.databind.MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true)
+		String sorted = mapper.rebuild().enable(com.fasterxml.jackson.databind.MapperFeature.SORT_PROPERTIES_ALPHABETICALLY).build()
 				.writeValueAsString(copy);
 		assertEquals(WHOLE_TICKET_JSON_220, sorted);
 		assertEquals(WHOLE_TICKET_HASH_220, SalesPushService.hash(copy));

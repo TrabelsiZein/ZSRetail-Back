@@ -85,7 +85,7 @@ public class DynamicsNavRestClient {
 		// and serialize LocalDate as ISO date string (YYYY-MM-DD)
 		this.objectMapper = new ObjectMapper();
 		this.objectMapper.registerModule(new JavaTimeModule());
-		this.objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+		this.objectMapper.setDefaultPropertyInclusion(JsonInclude.Value.construct(JsonInclude.Include.NON_NULL, JsonInclude.Include.NON_NULL));
 		this.objectMapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
 	}
 

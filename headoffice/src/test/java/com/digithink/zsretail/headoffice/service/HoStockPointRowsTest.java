@@ -50,7 +50,6 @@ class HoStockPointRowsTest {
 				.addAnnotatedClass(Item.class).addAnnotatedClass(HoStockPointItem.class)
 				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", "jdbc:h2:mem:stockpointrows;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		session = sessions.openSession();
 		session.beginTransaction();
@@ -70,8 +69,13 @@ class HoStockPointRowsTest {
 					if ("saveAll".equals(method.getName())) {
 						List<Object> saved = new ArrayList<>();
 						for (Object entity : (Iterable<?>) args[0]) {
-							session.saveOrUpdate(entity);
-							saved.add(entity);
+							// As Spring Data's save: a new row persisted as it is, a row with an id merged
+							if (((HoStockPointItem) entity).getId() == null) {
+								session.persist(entity);
+								saved.add(entity);
+							} else {
+								saved.add(session.merge(entity));
+							}
 						}
 						return saved;
 					}

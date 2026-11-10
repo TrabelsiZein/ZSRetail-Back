@@ -18,7 +18,8 @@ import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.cfg.JsonNodeFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 
 /**
  * Item variants (ZEN), step 9: a row of the posted sales invoices page of ZEN's franchise API (salesInvoices), kept
@@ -50,10 +51,11 @@ public class ZenInvoiceRow {
 	public static final String CORRECTIVE = "corrective";
 
 	/** Exact decimals: 41.000 stays 41.000 (no double, no trailing zeros stripped). */
-	private static final ObjectMapper DECIMALS = new ObjectMapper()
+	private static final ObjectMapper DECIMALS = JsonMapper.builder()
 			.enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
 			.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-			.setNodeFactory(JsonNodeFactory.withExactBigDecimals(true));
+			.disable(JsonNodeFeature.STRIP_TRAILING_BIGDECIMAL_ZEROES)
+			.build();
 
 	/** Reads a row field by field with {@link #DECIMALS}. */
 	public static class Reader extends JsonDeserializer<ZenInvoiceRow> {
@@ -62,7 +64,7 @@ public class ZenInvoiceRow {
 			JsonNode tree = DECIMALS.readTree(parser);
 			ZenInvoiceRow row = new ZenInvoiceRow();
 			if (tree != null) {
-				tree.fields().forEachRemaining(field -> row.set(field.getKey(), field.getValue()));
+				tree.properties().forEach(field -> row.set(field.getKey(), field.getValue()));
 			}
 			return row;
 		}

@@ -32,7 +32,6 @@ class DownSequenceQueriesTest {
 		sessions = new Configuration().addAnnotatedClass(HoDownSequence.class)
 				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", "jdbc:h2:mem:downsequence;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
@@ -54,7 +53,7 @@ class DownSequenceQueriesTest {
 	@SuppressWarnings("unchecked")
 	private static List<Long> lastVersion(DataDomain domain) {
 		try (Session session = sessions.openSession()) {
-			List<Number> rows = session.createNativeQuery(HoDownSequenceRepository.LAST_VERSION)
+			List<Long> rows = session.createNativeQuery(HoDownSequenceRepository.LAST_VERSION, Long.class)
 					.setParameter("domain", domain.name()).list();
 			return rows.stream().map(Number::longValue).collect(Collectors.toList());
 		}
@@ -63,7 +62,7 @@ class DownSequenceQueriesTest {
 	private static int incrementBy(DataDomain domain, long count) {
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
-			int updated = session.createNativeQuery(HoDownSequenceRepository.INCREMENT_BY)
+			int updated = session.createNativeMutationQuery(HoDownSequenceRepository.INCREMENT_BY)
 					.setParameter("domain", domain.name()).setParameter("count", count).executeUpdate();
 			session.getTransaction().commit();
 			return updated;

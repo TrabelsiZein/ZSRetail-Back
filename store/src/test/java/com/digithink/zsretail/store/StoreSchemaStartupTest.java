@@ -71,17 +71,19 @@ class StoreSchemaStartupTest {
 	}
 
 	@Test
-	@DisplayName("Hibernate 6.6 and a client's ids: an unknown id refused, nothing written (3.1.2 inserted a row); group items by id saved")
+	@DisplayName("Hibernate 6.6 and a client's ids: an unknown id refused with a 400, nothing written (3.1.2 inserted a row); group items by id saved")
 	void clientIds() {
 		try (MigTestApplication started = MigTestApplication.start(StoreApplication.class, "store")) {
 			started.withLicense();
 			String[] admin = started.bearerOf("admin", "P@ssw0rd");
-			// _BaseController.create saves what it is sent. An id the table does not have: release/3.1.2 answered 201 and
-			// inserted a new row under a new id; Hibernate 6.6 refuses the merge. The front sends id: null.
+			// _BaseController.create and an id the table does not have: release/3.1.2 answered 201 and inserted a new row under
+			// a new id; Hibernate 6.6 refuses the save (a 500 at 1.8), so the controller answers 400 first (1.9). The front sends
+			// id: null.
 			MigTestApplication.Answer unknown = started.call("POST", "/member-function", "{\"id\":999999,\"code\":\"MIG-ID\",\"name\":\"x\"}",
 					admin);
-			assertEquals(500, unknown.status, unknown.body);
-			assertTrue(unknown.body.contains("MemberFunction#999999"), unknown.body);
+			assertEquals(400, unknown.status, unknown.body);
+			assertEquals("Not created: there is no MemberFunction with the id 999999. A new record is sent without an id.",
+					unknown.body);
 			assertEquals(201, started.call("POST", "/member-function", "{\"id\":null,\"code\":\"MIG-NULL\",\"name\":\"x\"}", admin).status);
 			assertEquals(201, started.call("POST", "/member-function", "{\"code\":\"MIG-NONE\",\"name\":\"x\"}", admin).status);
 			assertEquals(Arrays.asList("MIG-NONE", "MIG-NULL"),

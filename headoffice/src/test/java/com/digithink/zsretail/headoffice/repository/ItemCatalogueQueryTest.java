@@ -74,7 +74,6 @@ class ItemCatalogueQueryTest {
 				.addAnnotatedClass(Item.class).addAnnotatedClass(ItemBarcode.class).addAnnotatedClass(HoStockPoint.class)
 				.addAnnotatedClass(ItemCategory.class).addAnnotatedClass(ItemSection.class)
 				.addAnnotatedClass(HoStockPointItem.class)
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.SQLServerDialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();
@@ -165,7 +164,7 @@ class ItemCatalogueQueryTest {
 	private static List<ItemCatalogueLineDTO> lines(String search, boolean all, int first, int max) {
 		ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria(search, all), false);
 		try (Session session = sessions.openSession()) {
-			NativeQuery<?> query = session.createNativeQuery(built.getLines());
+			NativeQuery<?> query = session.createNativeQuery(built.getLines(), Object[].class);
 			built.getParameters().forEach(query::setParameter);
 			return query.setFirstResult(first).setMaxResults(max).list().stream()
 					.map(row -> ItemCatalogueService.line((Object[]) row, true)).collect(Collectors.toList());
@@ -179,7 +178,7 @@ class ItemCatalogueQueryTest {
 	private static long count(String search, boolean all) {
 		ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria(search, all), false);
 		try (Session session = sessions.openSession()) {
-			NativeQuery<?> query = session.createNativeQuery(built.getCount());
+			NativeQuery<?> query = session.createNativeQuery(built.getCount(), Long.class);
 			built.getParameters().forEach(query::setParameter);
 			return ((Number) query.uniqueResult()).longValue();
 		}
@@ -243,7 +242,7 @@ class ItemCatalogueQueryTest {
 		criteria.setDescending(descending);
 		ItemCatalogueQuery.Built built = ItemCatalogueQuery.build(criteria, false);
 		try (Session session = sessions.openSession()) {
-			NativeQuery<?> query = session.createNativeQuery(built.getLines());
+			NativeQuery<?> query = session.createNativeQuery(built.getLines(), Object[].class);
 			built.getParameters().forEach(query::setParameter);
 			return codes(query.list().stream().map(row -> ItemCatalogueService.line((Object[]) row, true))
 					.collect(Collectors.toList()));
@@ -395,11 +394,11 @@ class ItemCatalogueQueryTest {
 	@DisplayName("Flags per field: a catégorie without any division or section (ZEN's shape) gives has_category only")
 	void flagsPerField() {
 		try (Session session = sessions.openSession()) {
-			Object[] flags = (Object[]) session.createNativeQuery(ItemCatalogueQuery.FLAGS).uniqueResult();
+			Object[] flags = session.createNativeQuery(ItemCatalogueQuery.FLAGS, Object[].class).uniqueResult();
 			List<Integer> values = Arrays.stream(flags).map(value -> ((Number) value).intValue()).collect(Collectors.toList());
 			// [has_variants, has_families, has_division, has_category, has_section, has_barcodes]
 			assertEquals(Arrays.asList(1, 1, 0, 1, 0, 1), values);
-			assertEquals(2, ((Number) session.createNativeQuery(HoItemCatalogueQuery.STOCK_POINT_COUNT).uniqueResult())
+			assertEquals(2, ((Number) session.createNativeQuery(HoItemCatalogueQuery.STOCK_POINT_COUNT, Long.class).uniqueResult())
 					.intValue(), "the head office counts its points de stock apart");
 		}
 	}

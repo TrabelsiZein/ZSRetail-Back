@@ -39,7 +39,7 @@ class CompanyInformationApiAccessTest {
 		UserAccount user = new UserAccount();
 		user.setUsername("someone");
 		when(current.getCurrentUser()).thenReturn(user);
-		return api.update(new CompanyInformationDTO()).getStatusCodeValue();
+		return api.update(new CompanyInformationDTO()).getStatusCode().value();
 	}
 
 	@Test
@@ -69,7 +69,7 @@ class CompanyInformationApiAccessTest {
 	@DisplayName("Reading stays public: no right asked")
 	void readingStaysPublic() {
 		when(service.get()).thenReturn(new CompanyInformationDTO());
-		assertEquals(200, api.get().getStatusCodeValue());
+		assertEquals(200, api.get().getStatusCode().value());
 		verify(current, never()).currentUserHasPermission(anyString());
 	}
 }
