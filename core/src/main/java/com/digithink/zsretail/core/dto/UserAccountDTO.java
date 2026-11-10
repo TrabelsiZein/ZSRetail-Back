@@ -55,7 +55,18 @@ public class UserAccountDTO {
 			dto.setBadgeRevokedById(user.getBadgeRevokedBy().getId());
 		}
 		dto.setBadgeRevokeReason(user.getBadgeRevokeReason());
-		
+
+		return dto;
+	}
+
+	/**
+	 * One's own account, as GET /user-account/current answers it to any logged user: everything but the badge code. The code
+	 * grants a till right and no screen reads it there (the till reads a code only where it is typed). The Users pages keep it:
+	 * they read it from the answers behind read:admin-users and send it back on a save, so it is not write-only here.
+	 */
+	public static UserAccountDTO ownAccount(UserAccount user) {
+		UserAccountDTO dto = fromEntity(user);
+		dto.setBadgeCode(null);
 		return dto;
 	}
 }

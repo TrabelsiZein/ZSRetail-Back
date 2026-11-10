@@ -72,6 +72,7 @@ class UserAccountApiAccessTest {
 		UserAccount actor = new UserAccount();
 		actor.setId(9L);
 		actor.setUsername("actor");
+		actor.setBadgeCode("MY-OWN-BADGE-CODE");
 		when(current.getCurrentUser()).thenReturn(actor);
 		when(users.findById(any())).thenReturn(Optional.of(target));
 		when(users.save(any())).thenAnswer(call -> call.getArgument(0));
@@ -129,7 +130,12 @@ class UserAccountApiAccessTest {
 		String one = mvc.perform(get("/user-account/1").accept(MediaType.APPLICATION_JSON)).andReturn().getResponse()
 				.getContentAsString();
 		assertTrue(one.contains("THE-BADGE-CODE"), "the Users page reads it here: " + one);
-		assertEquals(200, status(post("/user-account/1/badge/generate")));
+		String list = mvc.perform(get("/user-account").accept(MediaType.APPLICATION_JSON)).andReturn().getResponse()
+				.getContentAsString();
+		assertTrue(list.contains("THE-BADGE-CODE"), "and in the list, for its badge column and buttons: " + list);
+		String generated = mvc.perform(post("/user-account/1/badge/generate").accept(MediaType.APPLICATION_JSON)).andReturn()
+				.getResponse().getContentAsString();
+		assertTrue(generated.contains("\"badgeCode\":\"A-NEW-BADGE-CODE\""), "the new code, to print the badge: " + generated);
 		assertEquals(200, status(json(put("/user-account/1"), NEW_PASSWORD)));
 		assertEquals("probe-password", target.getPassword());
 		assertEquals(200, status(put("/user-account/1/toggle-status")));
@@ -167,14 +173,17 @@ class UserAccountApiAccessTest {
 	}
 
 	@Test
-	@DisplayName("Open to any logged user: the names for the history filters, without a badge, and one's own account")
+	@DisplayName("Open to any logged user: the names for the history filters and one's own account, neither with a badge code")
 	void stayOpen() throws Exception {
 		roleHolds();
 		String names = mvc.perform(get("/user-account/cashiers").accept(MediaType.APPLICATION_JSON)).andReturn().getResponse()
 				.getContentAsString();
 		assertTrue(names.contains("\"username\":\"admin\""), names);
 		assertFalse(names.contains("BADGE"), names);
-		assertEquals(200, status(get("/user-account/current")));
+		String own = mvc.perform(get("/user-account/current").accept(MediaType.APPLICATION_JSON)).andReturn().getResponse()
+				.getContentAsString();
+		assertTrue(own.contains("\"username\":\"actor\""), own);
+		assertFalse(own.contains("MY-OWN-BADGE-CODE"), "one's own code is not sent back either: " + own);
 	}
 
 	@Test

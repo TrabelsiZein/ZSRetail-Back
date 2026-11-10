@@ -145,7 +145,7 @@ public class UserAccountAPI {
                     return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(createErrorResponse("User not authenticated"));
                 }
 
-                UserAccountDTO user = UserAccountDTO.fromEntity(currentUser);
+                UserAccountDTO user = UserAccountDTO.ownAccount(currentUser);
                 return ResponseEntity.ok(user);
             } catch (Exception e) {
                 log.error("UserAccountAPI::getCurrentUser:error: " + e.getMessage(), e);
