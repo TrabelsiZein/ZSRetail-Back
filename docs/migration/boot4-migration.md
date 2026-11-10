@@ -218,15 +218,16 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
   on the old chains, say whether the matching moved.
 
 **1.9, 2.8: the merges of `release/3.1.2`**
-- The first brings the security fixes (`50a5cb8`, `2e05b3a`; front `e708da8`). Re-record the 5 goldens that hold the fields
-  (`core/UserAccount`, `CashierSession`, `SalesHeader`, `ReturnHeader`, `Payment`) and read the diff: only `password` and
-  `badgeCode` lines go. Then the matrices gain their rows, and only then does the HTTP proof live in the suite (the fixes were
-  replayed by hand on a real start on 2026-11-09): as a cashier `GET /user-account`, `GET /user-account/2`,
-  `POST /user-account/1/badge/generate`, `PUT /user-account/1` and `PUT /company-info` get 403; as an admin 200; `/cashiers`,
-  `/current` and `POST /badge/scan` with a real badge stay 200; anonymous `PUT /company-info` gets 403. The head office's too,
-  with its keys. `UserAccountApiAccessTest` and `CompanyInformationApiAccessTest` come with the merge.
-- `CompanyInformationAPI` and `UserAccountAPI` merge with this branch's company row (`findFirstByOrderByIdAsc`).
-- A merge leaves every pom at 4.0.0: the poms of `release/3.1.2` say 3.1.2.
+- **The security fixes (`50a5cb8`, `2e05b3a`) were merged on 2026-11-10, before step 1.7**, on Zein's word, so that 1.7 renames
+  them with the rest. 6 goldens re-recorded, not 5: `core/UserAccount`, `CashierSession`, `SalesHeader`, `ReturnHeader`,
+  `Payment`, and the store's `Warranty`, which embeds a user. Read ignoring line ends, the diff is only 19 `"password"` and 19
+  `"badgeCode"` lines going. The matrices hold the HTTP proof: as a cashier `GET /user-account` and `/user-account/2`,
+  `PUT /user-account/999`, `POST /user-account/999/badge/generate` and `PUT /company-info` get 403, the admin gets 200 (400 for
+  the user who does not exist: the permission let him through, and no row changes); `/cashiers` stays 200; the head office's
+  rows with its keys. `StoreSecurityMatrixTest.badgeScan`: a real badge, made by the admin, scanned by a cashier: 200, a wrong
+  code 400, and the admin's code in no answer to the cashier. The one conflict was the company information doc.
+- At 1.9 and 2.8, what `release/3.1.2` gained since, if anything (the freeze of 1.7 holds it still). A merge leaves every pom
+  at 4.0.0: the poms of `release/3.1.2` say 3.1.2.
 
 **2.1**
 - `EnvironmentPostProcessor` moves to `org.springframework.boot` (3 classes, `spring.factories`, tests). The tests read the
@@ -300,11 +301,12 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 | 8 | **POI's jars.** 45 jars of the store WAR came with POI 5.0.0's compile dependencies (batik, pdfbox, xmlsec, bouncycastle...), and our code imports none of them. | Settled at 1.4 by POI 5.5.1: batik, bcprov, bcpkix, xmlsec, pdfbox, graphics2d, xmlgraphics, woodstox and stax2 are gone, commons-io is 2.21.0. Store WAR 130 to 76 jars, head office 128 to 75. Boot's BOM still pins commons-codec 1.15 and log4j-api 2.17.2 under what POI asks for: 22,024 calls of POI and its libraries compared with the WAR, none missing in them. commons-lang3 was missing 3 classes, hence 3.18.0. |
 | 9 | **This machine for 2.6 and 2.7.** JDK 25 and Tomcat 11 are not installed (JDK 21 and 23; Tomcat 9). Eclipse is `jee-2024-12`, to be checked against JDK 25. Zein is told what to install at 2.6. | 2.6 |
 | 10 | **Shapes the startup tests did not start.** | Settled: "The other shapes". All 145 recorded beans are built. |
-| 11 | **The password hash reached the browser.** `UserAccount.password` was written in every answer embedding a user. Called on the running application as a cashier: `POST /cashier-session/open`, `GET /cashier-session/current` and `GET /cashier-session`. | Fixed on `release/3.1.2`, `50a5cb8` (2026-11-09). On this branch only after the merge of 1.9: until then the goldens hold the field. |
+| 11 | **The password hash reached the browser.** `UserAccount.password` was written in every answer embedding a user. Called on the running application as a cashier: `POST /cashier-session/open`, `GET /cashier-session/current` and `GET /cashier-session`. | Fixed on `release/3.1.2`, `50a5cb8` (2026-11-09). Merged here on 2026-11-10, before step 1.7: the goldens no longer hold the field. |
 | 12 | **One JWT secret for all.** `SecurityParams.SECRET` is a constant in the source and `JWTAuthorizationFilter` checks only the signature, so a token made by any installation should open the main chain of any other, customers included, for 5 months. Read in the code, not tried. | Decision 18: `security.jwt.secret` at 2.8. |
-| 13 | **The badge code travelled like the hash did, and `/user-account` checked nothing.** Called as a cashier: `GET /user-account` gave every badge code, `POST /badge/scan` a till right with one; `POST /user-account/1/badge/generate` the admin's new badge; `PUT /user-account/1` set the admin's password, and logging in with it worked. | Closed on `release/3.1.2`, `2e05b3a` and front `e708da8` (2026-11-09): the permissions of the Users pages on the API, `badgeCode` write-only in the entity, `PUT /company-info` behind the page's permission. Replayed live: all refused. On this branch after the merge of 1.9. Not closed on `hotfix/1.12.1` (EMTOP): same hole, read only, not changed; EMTOP gets it by moving to 3.1.2 (decision 19). |
+| 13 | **The badge code travelled like the hash did, and `/user-account` checked nothing.** Called as a cashier: `GET /user-account` gave every badge code, `POST /badge/scan` a till right with one; `POST /user-account/1/badge/generate` the admin's new badge; `PUT /user-account/1` set the admin's password, and logging in with it worked. | Closed on `release/3.1.2`, `2e05b3a` and front `e708da8` (2026-11-09): the permissions of the Users pages on the API, `badgeCode` write-only in the entity, `PUT /company-info` behind the page's permission. Replayed live: all refused. Merged here on 2026-11-10, with the matrix rows that prove it. Not closed on `hotfix/1.12.1` (EMTOP): same hole, read only, not changed; EMTOP gets it by moving to 3.1.2 (decision 19). |
 | 14 | **The rest of the API.** Most endpoints still ask only for a logged user, though the front shows them to some roles only: a cashier can call them directly. `/user-account` was the worst, because it gave the admin account. A pass over the other writes, endpoint by endpoint, is its own piece of work. | Zein, after the migration |
 | 15 | **`/sse-endpoint/**`.** Public in `SecurityConfig` and let through by `LicenseFilter`, but no handler exists: no `SseEmitter` in the code. A dead entry, harmless today, that would make a future endpoint under that path public without a licence. | Zein: remove it when convenient |
+| 16 | **A user's own badge code in `/user-account/current`.** It answers a `UserAccountDTO`, which carries `badgeCode`, to any logged user about himself; the admin's lists carry every code. No screen reads either (the front reads a code only where it is typed, `TillAuthPopup`), and `/current` is called by no screen. A credential sent where nothing uses it. Not changed by the merge: it was so on `release/3.1.2` after its fix. | Zein: drop `badgeCode` from the DTO's answers, but keep it in the answer of `badge/generate` |
 
 ## Baseline (step 1.0)
 

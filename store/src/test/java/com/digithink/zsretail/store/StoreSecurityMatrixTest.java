@@ -53,6 +53,7 @@ class StoreSecurityMatrixTest {
 	@DisplayName("With a licence: the public paths, the authenticated ones, the admin ones, the errors, /ho/**")
 	void licensed() {
 		store.withLicense();
+		String company = store.call("GET", "/company-info", null).body; // sent back as it is: the row does not change
 		matrix()
 				// Public: open to all, but a token that fails verification is refused whatever the path
 				.row("GET", "/config", 200, 403, 200, 200)
@@ -74,6 +75,15 @@ class StoreSecurityMatrixTest {
 				.row("GET", "/general-setup", OK)
 				// Checked by the endpoint: admin only (a ResponseStatusException, through the ERROR dispatch)
 				.row("GET", "/admin/erp/jobs", 403, 403, 403, 200)
+				// Checked by the endpoint since the security fixes of 2026-11-09 (merged from release/3.1.2 before step 1.7): the
+				// permissions of the Users and company pages. The admin's writes name a user who does not exist, so no row
+				// changes (400: no such user): what counts is that the permission let the admin through
+				.row("GET", "/user-account", 403, 403, 403, 200)
+				.row("GET", "/user-account/2", 403, 403, 403, 200)
+				.row("GET", "/user-account/cashiers", OK)
+				.row("PUT", "/user-account/999", "{\"fullName\":\"x\"}", 403, 403, 403, 400)
+				.row("POST", "/user-account/999/badge/generate", 403, 403, 403, 400)
+				.row("PUT", "/company-info", company, 403, 403, 403, 200)
 				// Errors of a logged user come back as themselves, through the ERROR dispatch
 				.row("GET", "/no-such-path", 403, 403, 404, 404)
 				.row("GET", "/location/not-a-number", 403, 403, 400, 400)
@@ -105,6 +115,32 @@ class StoreSecurityMatrixTest {
 				.verify();
 		// Without a licence a user can still sign in, or the licence page could never be reached
 		assertEquals(200, store.login("admin", "P@ssw0rd").status);
+	}
+
+	@Test
+	@DisplayName("The till's badge scan still works for a cashier with a real badge, though no answer shows a badge code any more")
+	void badgeScan() {
+		store.withLicense();
+		String[] admin = store.bearerOf("admin", "P@ssw0rd");
+		String[] cashier = store.bearerOf("cashier", "cashier");
+		long adminId = new JSONObject(store.call("GET", "/user-account/current", null, admin).body).getLong("id");
+		String generate = "/user-account/" + adminId + "/badge/generate";
+		assertEquals(403, store.call("POST", generate, null, cashier).status, "a cashier makes no badge");
+		MigTestApplication.Answer generated = store.call("POST", generate, null, admin);
+		assertEquals(200, generated.status, generated.body);
+		String code = new JSONObject(generated.body).getString("badgeCode");
+		MigTestApplication.Answer scanned = store.call("POST", "/badge/scan",
+				"{\"badgeCode\":\"" + code + "\",\"permission\":\"MAKE_RETURN\"}", cashier);
+		assertEquals(200, scanned.status, scanned.body);
+		assertEquals(400, store.call("POST", "/badge/scan", "{\"badgeCode\":\"no-such-code\",\"permission\":\"MAKE_RETURN\"}",
+				cashier).status);
+		// The admin's code reaches no cashier. (A user's own code is in his /user-account/current, a UserAccountDTO: no screen
+		// reads it, open point 16 of docs/migration/boot4-migration.md.)
+		for (String path : new String[] { "/user-account/current", "/user-account/cashiers" }) {
+			MigTestApplication.Answer answer = store.call("GET", path, null, cashier);
+			assertEquals(200, answer.status, path);
+			assertFalse(answer.body.contains(code), path + " gives a cashier no one else's badge code");
+		}
 	}
 
 	@Test

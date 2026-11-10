@@ -80,6 +80,7 @@ class HeadOfficeSecurityMatrixTest {
 	@DisplayName("With a licence: /ho/** opens to a store key only, the rest to a logged user only")
 	void licensed() {
 		headOffice.withLicense();
+		String company = headOffice.call("GET", "/company-info", null).body; // sent back as it is: the row does not change
 		matrix()
 				// The store-to-head-office chain: the same 401 for every refusal, a user token opens nothing
 				.row("GET", "/ho/ping", 401, 401, 401, 200, 401, 401, 401)
@@ -102,6 +103,11 @@ class HeadOfficeSecurityMatrixTest {
 				.row("GET", "/location", 403, 403, 200, 403, 403, 403, 403)
 				.row("GET", "/admin/headoffice/stores", 403, 403, 200, 403, 403, 403, 403)
 				.row("GET", "/admin/erp/jobs", 403, 403, 200, 403, 403, 403, 403)
+				// Since the security fixes of 2026-11-09 (merged before step 1.7): the head office's keys of the two pages. The
+				// admin's write names a user who does not exist, so no row changes
+				.row("GET", "/user-account", 403, 403, 200, 403, 403, 403, 403)
+				.row("PUT", "/user-account/999", "{\"fullName\":\"x\"}", 403, 403, 400, 403, 403, 403, 403)
+				.row("PUT", "/company-info", company, 403, 403, 200, 403, 403, 403, 403)
 				// Errors of a logged user come back as themselves, through the ERROR dispatch
 				.row("GET", "/no-such-path", 403, 403, 404, 403, 403, 403, 403)
 				.row("GET", "/location/not-a-number", 403, 403, 400, 403, 403, 403, 403)
