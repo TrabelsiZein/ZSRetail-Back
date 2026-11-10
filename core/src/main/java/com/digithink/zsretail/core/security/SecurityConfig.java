@@ -41,18 +41,14 @@ public class SecurityConfig {
 			LicenseFilter licenseFilter, ApplicationModeService applicationModeService) throws Exception {
 		http.csrf(csrf -> csrf.disable()).headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-				.authorizeHttpRequests(authorize -> authorize.shouldFilterAllDispatcherTypes(true)
-						// Before the dispatcher rule: Boot's ErrorPageSecurityFilter asks about /error with a request that
-						// throws on getDispatcherType
+				.authorizeHttpRequests(authorize -> authorize
 						.requestMatchers(paths("/login/**", "/config", "/company-info", "/license/**",
 								// Image serving is public (browser loads directly, no auth header)
-								"/item-image/**",
-								// Boot's error page: since Boot 2.6 its body is blanked for whoever may not reach this path,
-								// and the ERROR dispatch has no logged user (a stateless chain), so every error would answer
-								// an empty body
-								"/error"))
+								"/item-image/**"))
 						.permitAll()
-						// The JWT filter runs once per request: a dispatch of the container itself has no logged user
+						// Every dispatch is authorized. The JWT filter runs once per request, so a dispatch of the container
+						// itself (the error page, a forward) has no logged user: without this rule every error would answer
+						// 403 with no body. /error is not public: called directly it asks for a logged user, as any path
 						.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
 						.anyRequest().authenticated())
 				.addFilter(new JWTAuthenticationFilter(authenticationManager, applicationModeService))

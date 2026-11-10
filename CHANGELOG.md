@@ -49,6 +49,20 @@ last step.
   old chains) pass unchanged.
 - `/sse-endpoint/**` is no longer public, nor let through without a licence: no handler ever answered it, and no front calls
   it. It now answers like any unknown path (403 anonymous, 402 without a licence).
+- Step 1.7: Spring Boot 3.5.16 (Spring 6.2, Security 6.5, Hibernate 6.6, Jakarta EE, Tomcat 10.1, mssql-jdbc 12.10, HttpClient
+  5). An internal stop, never deployed: the WARs are Jakarta, Tomcat 10.1 or later.
+- Step 1.7: the connectors' HTTP client is `erp.api.ErpHttp`, on HttpClient 5: NTLM registered and preferred by name (5 answers
+  no NTLM challenge by default), the connect and read timeouts on the connections with the same values. HttpClient 5 retries
+  an idempotent call once on an I/O error (4: three times), and once on a 429 or 503 answer. The store's client to its head
+  office gets the same timeouts on HttpClient 5 and still honours the JVM's proxy settings.
+- Step 1.7: `/error` is no longer public: called directly it asks for a logged user (403 anonymous). The bodies of real errors
+  still come, through the rule that lets the ERROR dispatch pass.
+- Step 1.7: a URL with a trailing slash no longer reaches its mapping (Spring 6): `/config/` answers 404 to a logged user (200
+  before). No caller writes one.
+- Step 1.7: the next run of an ERP job comes from `CronExpression` (`CronSequenceGenerator` is gone from Spring 6), in the JVM's
+  zone as before. An expression may now also use `L`, `#` and the `@daily` forms.
+- Step 1.7: two derived queries that compared a date with text, unused, are gone (Hibernate 6 refused them at the start). A
+  refused save's message keeps Hibernate's wording, now without a space before the colon.
 
 ### Fixes
 - Step 1.3: the one row of `company_information` is created without an id, so IDENTITY gives it, and is read as the first
@@ -61,6 +75,11 @@ last step.
   10.2, so a server with its own certificate would refuse the connection. **An installation's outside file needs them too.**
 - Step 1.4: `logging.file.{max-size,max-history,total-size-cap,clean-history-on-start}` become
   `logging.logback.rollingpolicy.*`, same values (`StoreStartupTest.logRollingPolicy`).
+- Step 1.7: the `spring.jpa.properties.hibernate.dialect` line leaves `application.properties` and the 13 tracked outside files:
+  Hibernate 6 picks `SQLServerDialect` from the connection, with the server's version. `SQLServer2012Dialect` still works on
+  6.6 (deprecated, with a warning), so a site's file that keeps the line still starts.
+- Step 1.7: `logging.level.org.hibernate.type.descriptor.sql.BasicBinder` becomes `logging.level.org.hibernate.orm.jdbc.bind`
+  (Hibernate 6's logger of the bound parameters), same values.
 
 ## 3.1.2 — in progress (branch `release/3.1.2`)
 

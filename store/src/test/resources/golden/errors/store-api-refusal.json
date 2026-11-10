@@ -1,1 +1,1 @@
-not-null property references a null or transient value : com.digithink.zsretail.core.model.Location.locationCode
+not-null property references a null or transient value: com.digithink.zsretail.core.model.Location.locationCode

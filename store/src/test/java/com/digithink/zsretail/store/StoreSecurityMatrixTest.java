@@ -61,9 +61,11 @@ class StoreSecurityMatrixTest {
 				.row("GET", "/license/status", 200, 403, 200, 200)
 				.row("GET", "/item-image/ITEM/1", 404, 403, 404, 404) // no such image, but the chain let it through
 				.row("GET", "/sse-endpoint/x", 403, 403, 404, 404) // public until 2026-11-10 (404 to all, no handler)
-				.row("GET", "/error", 500, 403, 500, 500) // public since step 1.4 for its bodies; called directly it has no error to show
+				.row("GET", "/error", 403, 403, 500, 500) // public from step 1.4 to 1.7 for its bodies; now as any path, for a logged user
 				// How a path matches, written before step 1.6 moved the chains: exactly, whatever Spring MVC would accept
-				.row("GET", "/config/", 403, 403, 200, 200)
+				// Spring 6 no longer takes /config/ for /config (step 1.7): no handler, 404 to a logged user (200 before); no caller
+				// writes a trailing slash. The chain still refuses it to an anonymous one
+				.row("GET", "/config/", 403, 403, 404, 404)
 				.row("GET", "/CONFIG", 403, 403, 404, 404)
 				.row("GET", "/login/x", 404, 403, 404, 404)
 				.row("GET", "/hox", 403, 403, 404, 404)

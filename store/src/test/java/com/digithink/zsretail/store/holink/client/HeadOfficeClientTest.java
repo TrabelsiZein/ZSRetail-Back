@@ -18,7 +18,8 @@ import java.net.UnknownHostException;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 
-import org.apache.http.client.config.RequestConfig;
+import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.config.RequestConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -259,12 +260,24 @@ class HeadOfficeClientTest {
 	@Test
 	@DisplayName("Own RestTemplate (Apache HttpClient) with connect 5 s and read 10 s")
 	void timeouts() {
-		Object factory = HeadOfficeClient.newRestTemplate().getRequestFactory();
-		assertTrue(factory instanceof HttpComponentsClientHttpRequestFactory, factory.getClass().getName());
-		RequestConfig config = (RequestConfig) ReflectionTestUtils.getField(factory, "requestConfig");
-		assertEquals(5_000, config.getConnectTimeout());
-		assertEquals(10_000, config.getSocketTimeout());
-		assertEquals(5_000, config.getConnectionRequestTimeout());
+		RestTemplate template = HeadOfficeClient.newRestTemplate();
+		assertTrue(template.getRequestFactory() instanceof HttpComponentsClientHttpRequestFactory,
+				template.getRequestFactory().getClass().getName());
+		assertEquals("connect 5000, read 10000, answer 10000, wait for a connection 5000", timeouts(template));
+	}
+
+	/**
+	 * Boot 4 migration, step 1.7: the timeouts of the HttpClient 5 client under a RestTemplate, read where the client keeps
+	 * them (its connections' config, its default request config).
+	 */
+	private static String timeouts(RestTemplate template) {
+		Object client = ((HttpComponentsClientHttpRequestFactory) template.getRequestFactory()).getHttpClient();
+		RequestConfig request = (RequestConfig) ReflectionTestUtils.getField(client, "defaultConfig");
+		ConnectionConfig connection = ReflectionTestUtils.invokeMethod(ReflectionTestUtils.getField(client, "connManager"),
+				"resolveConnectionConfig", (Object) null);
+		return "connect " + connection.getConnectTimeout().toMilliseconds() + ", read "
+				+ connection.getSocketTimeout().toMilliseconds() + ", answer " + request.getResponseTimeout().toMilliseconds()
+				+ ", wait for a connection " + request.getConnectionRequestTimeout().toMilliseconds();
 	}
 
 	// --- Task 2.4: sales copies ---
@@ -404,12 +417,11 @@ class HeadOfficeClientTest {
 		HeadOfficeClient fromProperty = (HeadOfficeClient) spring.newInstance(null, null, URL, KEY, "3.1.0", 45);
 		assertEquals(45, fromProperty.getDownReadTimeoutSeconds());
 		RestTemplate down = (RestTemplate) ReflectionTestUtils.getField(fromProperty, "downTemplate");
-		RequestConfig config = (RequestConfig) ReflectionTestUtils.getField(down.getRequestFactory(), "requestConfig");
-		assertEquals(45_000, config.getSocketTimeout(), "the read timeout");
-		assertEquals(5_000, config.getConnectTimeout(), "connect unchanged");
+		assertEquals("connect 5000, read 45000, answer 45000, wait for a connection 5000", timeouts(down),
+				"the read timeout, connect unchanged");
 		RestTemplate others = (RestTemplate) ReflectionTestUtils.getField(fromProperty, "restTemplate");
-		assertEquals(10_000, ((RequestConfig) ReflectionTestUtils.getField(others.getRequestFactory(), "requestConfig"))
-				.getSocketTimeout(), "heartbeat and pushes as before");
+		assertEquals("connect 5000, read 10000, answer 10000, wait for a connection 5000", timeouts(others),
+				"heartbeat and pushes as before");
 
 		HeadOfficeClient zero = (HeadOfficeClient) spring.newInstance(null, null, URL, KEY, "3.1.0", 0);
 		assertEquals(60, zero.getDownReadTimeoutSeconds(), "0 or less: the default");

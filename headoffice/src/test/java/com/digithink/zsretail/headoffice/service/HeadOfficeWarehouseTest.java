@@ -203,7 +203,7 @@ class HeadOfficeWarehouseTest {
 		set(invoices, PurchaseInvoiceAPI.class, "applicationModeService", erp);
 		ResponseStatusException refused = assertThrows(ResponseStatusException.class,
 				() -> invoices.createPurchaseInvoice(new PurchaseInvoiceAPI.CreatePurchaseInvoiceRequest()));
-		assertEquals(403, refused.getStatus().value());
+		assertEquals(403, refused.getStatusCode().value());
 
 		assertTrue(stock.movements.isEmpty());
 		assertEquals(0, stock.stockOf("B001"));

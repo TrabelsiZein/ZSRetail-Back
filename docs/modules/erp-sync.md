@@ -334,6 +334,11 @@ read by the single job, the four import jobs are refused on its head office), an
    new connector), named in its `src/main/resources/META-INF/spring.factories`:
    `com.digithink.zsretail.erp.api.ErpConnectorDescriptor=com.digithink.zsretail.connector.<name>.<Name>ConnectorDescriptor`.
 3. Two lines in `connectors/pom.xml`: `<module><name></module>` and its `<dependency>` (one line).
+4. Its HTTP client from `erp.api.ErpHttp` (since 4.0.0, Boot 4 migration step 1.7): `ErpHttp.requestFactory(login,
+   connectSeconds, readSeconds)`, with `ErpHttp.ntlm(user, password, domain)` (and `.onlyFor(host, port)` to give the login
+   to one host only) or `null` for none. HttpClient 5 answers no NTLM challenge by default; `ErpHttp` registers NTLM and
+   names it in the preferred schemes, and puts the timeouts on the connections (`ErpHttpTest`). Do not build a client by
+   hand.
 
 Nothing else changes: `erp.connector=<name>` is accepted, its abilities answer `ErpAbilities`, its beans are
 chosen, the WARs carry it (they depend on `zsretail-connectors`), and the guards find it by its folder and its

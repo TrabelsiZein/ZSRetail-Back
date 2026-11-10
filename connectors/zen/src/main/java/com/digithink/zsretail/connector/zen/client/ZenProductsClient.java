@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.http.impl.client.HttpClientBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -18,7 +17,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.ClientHttpRequestExecution;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.ClientHttpResponse;
-import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
@@ -28,6 +26,7 @@ import org.springframework.web.client.RestTemplate;
 import com.digithink.zsretail.connector.zen.ZenConnectorDescriptor;
 import com.digithink.zsretail.connector.zen.config.ZenProperties;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
+import com.digithink.zsretail.erp.api.ErpHttp;
 import com.digithink.zsretail.erp.api.dto.ErpItemImagesDTO;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -173,11 +172,8 @@ public class ZenProductsClient {
 
 	/** No NAV login, the connector's timeouts, only a POST to the products address. */
 	public static RestTemplate restTemplate(ZenProperties properties) {
-		HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(
-				HttpClientBuilder.create().build());
-		factory.setConnectTimeout(properties.getConnectTimeoutSeconds() * 1000);
-		factory.setReadTimeout(properties.getReadTimeoutSeconds() * 1000);
-		RestTemplate template = new RestTemplate(factory);
+		RestTemplate template = new RestTemplate(
+				ErpHttp.requestFactory(null, properties.getConnectTimeoutSeconds(), properties.getReadTimeoutSeconds()));
 		template.getInterceptors().add(new PostOnlyTo(properties.getProducts().getUrl()));
 		return template;
 	}

@@ -21,14 +21,6 @@ public interface SalesDiscountRepository extends _BaseRepository<SalesDiscount, 
 			LocalDate startingDate, String auxiliaryIndex1, String auxiliaryIndex2, String auxiliaryIndex3,
 			Integer auxiliaryIndex4);
 
-	// Legacy method - note: startingDate parameter is String but entity uses LocalDate
-	// This method may not work correctly and should be updated if used
-	Optional<SalesDiscount> findByTypeAndCodeAndSalesTypeAndSalesCodeAndResponsibilityCenterAndStartingDateAndAuxiliaryIndex1AndAuxiliaryIndex2AndAuxiliaryIndex3AndAuxiliaryIndex4(
-			SalesDiscountType type, String code, 
-			SalesDiscountSalesType salesType, String salesCode, String responsibilityCenter,
-			String startingDate, String auxiliaryIndex1, String auxiliaryIndex2, String auxiliaryIndex3,
-			Integer auxiliaryIndex4);
-
 	/**
 	 * Find SalesDiscount by type, code, salesType, salesCode with date validation
 	 */

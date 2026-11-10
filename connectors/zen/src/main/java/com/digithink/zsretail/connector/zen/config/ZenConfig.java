@@ -3,11 +3,6 @@ package com.digithink.zsretail.connector.zen.config;
 import java.io.IOException;
 import java.util.regex.Pattern;
 
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.NTCredentials;
-import org.apache.http.client.CredentialsProvider;
-import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.http.impl.client.HttpClientBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -15,12 +10,12 @@ import org.springframework.http.HttpRequest;
 import org.springframework.http.client.ClientHttpRequestExecution;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.ClientHttpResponse;
-import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
 import com.digithink.zsretail.connector.zen.ZenConnectorDescriptor;
 import com.digithink.zsretail.connector.zen.mapper.ZenOrderFields;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
+import com.digithink.zsretail.erp.api.ErpHttp;
 
 /**
  * Item variants (ZEN), step 8: the HTTP client of ZEN's connector. NTLM, as the other NAV connectors, with the two
@@ -42,14 +37,9 @@ public class ZenConfig {
 
 	/** The RestTemplate of these settings (also used by the tests). */
 	public static RestTemplate restTemplate(ZenProperties properties) {
-		CredentialsProvider credentials = new BasicCredentialsProvider();
-		credentials.setCredentials(AuthScope.ANY, new NTCredentials(properties.getUsername(), properties.getPassword(),
-				null, properties.getDomain()));
-		HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(
-				HttpClientBuilder.create().setDefaultCredentialsProvider(credentials).build());
-		factory.setConnectTimeout(properties.getConnectTimeoutSeconds() * 1000);
-		factory.setReadTimeout(properties.getReadTimeoutSeconds() * 1000);
-		RestTemplate template = new RestTemplate(factory);
+		RestTemplate template = new RestTemplate(ErpHttp.requestFactory(
+				ErpHttp.ntlm(properties.getUsername(), properties.getPassword(), properties.getDomain()),
+				properties.getConnectTimeoutSeconds(), properties.getReadTimeoutSeconds()));
 		template.getInterceptors().add(new GetOnly(ZenOrderFields.SALES_ORDERS_PAGE));
 		return template;
 	}

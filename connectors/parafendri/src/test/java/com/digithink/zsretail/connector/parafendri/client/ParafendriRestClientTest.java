@@ -18,8 +18,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.apache.http.auth.AuthScope;
-import org.apache.http.client.CredentialsProvider;
+import org.apache.hc.client5.http.auth.AuthScope;
+import org.apache.hc.client5.http.auth.CredentialsProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,6 +33,7 @@ import com.digithink.zsretail.connector.parafendri.config.ParafendriConfig;
 import com.digithink.zsretail.connector.parafendri.config.ParafendriProperties;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCollection;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriCompanyRow;
+import com.digithink.zsretail.erp.api.ErpHttp;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriLocationRow;
 import com.digithink.zsretail.connector.parafendri.dto.ParafendriStockPointRow;
 
@@ -223,16 +224,16 @@ class ParafendriRestClientTest {
 	@Test
 	@DisplayName("The NTLM login: for the host and port of base-url only, never for another host")
 	void credentialsForBaseUrlOnly() {
-		CredentialsProvider credentials = ParafendriConfig.credentials(properties);
-		assertNotNull(credentials.getCredentials(new AuthScope("bc.test", 7048)));
-		assertNotNull(credentials.getCredentials(new AuthScope("BC.TEST", 7048)));
-		assertNull(credentials.getCredentials(new AuthScope("other.test", 7048)));
-		assertNull(credentials.getCredentials(new AuthScope("bc.test", 7049)));
+		CredentialsProvider credentials = ErpHttp.credentials(ParafendriConfig.login(properties));
+		assertNotNull(credentials.getCredentials(new AuthScope("bc.test", 7048), null));
+		assertNotNull(credentials.getCredentials(new AuthScope("BC.TEST", 7048), null));
+		assertNull(credentials.getCredentials(new AuthScope("other.test", 7048), null));
+		assertNull(credentials.getCredentials(new AuthScope("bc.test", 7049), null));
 		// No port in base-url: any port of that host, still no other host
 		properties.setBaseUrl("https://bc.test/BC280");
-		credentials = ParafendriConfig.credentials(properties);
-		assertNotNull(credentials.getCredentials(new AuthScope("bc.test", 443)));
-		assertNull(credentials.getCredentials(new AuthScope("other.test", 443)));
+		credentials = ErpHttp.credentials(ParafendriConfig.login(properties));
+		assertNotNull(credentials.getCredentials(new AuthScope("bc.test", 443), null));
+		assertNull(credentials.getCredentials(new AuthScope("other.test", 443), null));
 	}
 
 	@Test

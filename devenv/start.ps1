@@ -23,7 +23,7 @@ foreach ($name in $Instance) {
 	$artifact = Get-DevArtifact $name
 	$machine = Get-DevMachineFile $name
 	if (-not (Test-Path $machine)) { throw "No machine file for $name : $machine" }
-	$arguments = @("-Dzsretail.machine-file=`"$machine`"", '-cp', "`"$artifact`"", 'org.springframework.boot.loader.WarLauncher')
+	$arguments = @("-Dzsretail.machine-file=`"$machine`"", '-cp', "`"$artifact`"", 'org.springframework.boot.loader.launch.WarLauncher')
 	foreach ($pair in $Set) { $arguments += "--$pair" }
 	$proc = Start-Process -FilePath (Join-Path $DevJdk 'bin\java.exe') -ArgumentList $arguments `
 		-WorkingDirectory (Join-Path $DevRoot "work\$name") -WindowStyle Hidden -PassThru `

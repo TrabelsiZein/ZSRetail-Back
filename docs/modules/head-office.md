@@ -753,7 +753,7 @@ A header owns its lines (`cascade = ALL`, `orphanRemoval`, ordered by `line_no`)
 | `POST /ho/sales/sessions` | JSON array of `SessionCopyDTO` | same |
 
 **Rules** (`headoffice/service/SalesCopyReceiver`):
-- The store is the authenticated principal from `StoreApiKeyFilter`; a store code in the body is ignored. The principal is never saved: new rows reference it by id (`StoreRepository.getOne`).
+- The store is the authenticated principal from `StoreApiKeyFilter`; a store code in the body is ignored. The principal is never saved: new rows reference it by id (`StoreRepository.getReferenceById`, `getOne` before 4.0.0).
 - Each document is saved in its own transaction and gets its own result: a bad document is rejected and the next ones are saved.
 - Saved by store + document number. A document received again replaces its row's content, lines and payments included (cleared and added again): a repeated push leaves one row, a changed document is not duplicated.
 - Rejected (`accepted: false`, the reason in `message`, at most 500 characters): an empty document (`empty document`); a missing number, date or status (`salesNumber is required`, `returnDate is required`...); a line without item code or quantity (`line 2: itemCode is required`); a payment without method code or amount (`payment 1: paymentMethodCode is required`); a session without `openedAt`; anything the database refuses (most specific cause, e.g. `SQLException: String or binary data would be truncated.`).

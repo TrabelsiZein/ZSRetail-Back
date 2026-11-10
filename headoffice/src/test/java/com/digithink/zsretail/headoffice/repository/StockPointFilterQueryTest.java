@@ -69,7 +69,7 @@ class StockPointFilterQueryTest {
 				.addAnnotatedClass(Item.class).addAnnotatedClass(ItemBarcode.class).addAnnotatedClass(HoStockPoint.class)
 				.addAnnotatedClass(ItemCategory.class).addAnnotatedClass(ItemSection.class)
 				.addAnnotatedClass(HoStockPointItem.class)
-				.setProperty("hibernate.dialect", "org.hibernate.dialect.SQLServer2012Dialect")
+				.setProperty("hibernate.dialect", "org.hibernate.dialect.SQLServerDialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		try (Session session = sessions.openSession()) {
 			session.beginTransaction();

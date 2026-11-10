@@ -2,7 +2,7 @@
 
 Branch `feature/boot4-migration`, from `release/3.1.2`. Product version 4.0.0. Plan approved by Zein on 2026-11-08.
 
-**Status: step 1.6 done. Next: step 1.7.** Each step starts only on Zein's go.
+**Status: step 1.7 done. Next: step 1.8.** Each step starts only on Zein's go.
 
 | | At the start (2026-11-08) | Target |
 |---|---|---|
@@ -42,7 +42,7 @@ report of step 1.2.
 | 2 | Every customer gets JDK 25 and Tomcat 11 on its upgrade night, so the current JDK and Tomcat per site do not matter. Every tracked connection string and every customer config example gets `encrypt=true;trustServerCertificate=true`. **The minimum SQL Server for 4.0.0 is 2017: a startup check refuses to start below it, with a clear message** (this replaces the WARN below 2014). Zein verifies each site's version himself before its upgrade night. | 1.3, 1.4 |
 | 3 | The head office and the stores of one customer upgrade together, the same night. No mixed-version tests; one line in the deploy guide. | 2.8 |
 | 4 | `ddl-auto=validate` in every tracked config, store and head office. Schema changes ship only through V scripts (decision 13). Steps 1.8 and 2.2 produce, with `hibernate.hbm2ddl.scripts.action=update`, the catch-up SQL Hibernate would have run, reviewed, per database type: it becomes the `V4.0.0.x` scripts. Developer-local throwaway databases may keep `update`, documented. Enum CHECK constraints stay out through the review of the baseline and catch-up scripts, confirmed at 1.8. | 1.8, 2.2 |
-| 5 | NTLM on HttpClient 5, registered explicitly in **one shared helper in erp-api**, used by all four connectors. Connect and read timeouts move to the connection manager with today's values: the scheduler-hang fix of 2026-10-22 must keep working. NTLM POST is proved live on ZEN's test NAV (`commandesVente`; orders were posted there on 2026-10-28), no fake server. | 1.7, 2.7 |
+| 5 | NTLM on HttpClient 5, registered explicitly in **one shared helper in erp-api**, used by all four connectors. Connect and read timeouts move to the connection manager with today's values: the scheduler-hang fix of 2026-10-22 must keep working. NTLM POST is proved live on ZEN's test NAV (`commandesVente`; orders were posted there on 2026-10-28), no fake server. Done at 1.7: `erp.api.ErpHttp`, `ErpHttpTest`; the live proof waits for 2.7. | 1.7, 2.7 |
 | 6 | Startup tests are allowed, against a throwaway local SQL Server database named `zsretail_migtest` **only**, created and dropped by the tests. Never Store A, never a customer database, never an existing local database. Its connection details are in a test-only properties file. When it is unreachable the startup tests are skipped with a clear message, not failed. | 1.2 |
 | 7, 8 | Removed: springdoc, springfox, spring-security-oauth2, jasperreports (with iText, castor, jfreechart), firebase-admin, jsoup, modelmapper, commons-io 1.4, starter-webflux, reactor-core, starter-mail, starter-thymeleaf (and the `/thymeleaf` entries in `SecurityConfig` and `LicenseFilter`), jackson-dataformat-xml. The lone `@NotBlank` on `ErpSyncJob` is deleted; starter-validation is not added. Nothing is planned for Firebase or Jasper. | 1.1 |
 | 9 | Base branch `feature/boot4-migration` from `release/3.1.2`. Product version 4.0.0. Customer fixes continue on `release/3.1.2` and are merged into this branch at the end of each phase. A freeze applies only during step 1.7. | all |
@@ -75,7 +75,7 @@ them one-line edits.
 | 1.4 | Boot 2.7.18: config-data tests, naming strategy, H2 2.1, logging keys, bean cycles, connection strings. POI upgrade. | 2.7.18 | 101 (54 tests and 3 new, 19 configs, 10 goldens, 5 main classes, 2 poms, docs) |
 | 1.5 | Java 21: `release=21`, Lombok in the pom, processor paths, `proc=full`. | 2.7.18 | 7, and the root `CLAUDE.md` |
 | 1.6 | `SecurityFilterChain` and lambda DSL on Security 5.8. ERROR and FORWARD dispatches permitted on the main chain (no such dispatch reaches `/ho/**`). | 2.7.18 | 12 (2 main classes, 5 tests and 1 new, the parent pom, 3 docs) |
-| 1.7 | **Freeze.** Boot 3.5.16: jakarta rename, Hibernate 6.6, Security 6.5, HttpClient 5 with the erp-api helper and the timeouts, dialect keys, `WarLauncher`. | 3.5.16 | ~210 |
+| 1.7 | **Freeze.** Boot 3.5.16: jakarta rename, Hibernate 6.6, Security 6.5, HttpClient 5 with the erp-api helper and the timeouts, dialect keys, `WarLauncher`. | 3.5.16 | 282: 177 renamed (commit 1), 105 in the fixes (commit 2) |
 | 1.8 | Behaviour the tests expose (HQL, casts, null parameters). Flyway: baseline per database type, catch-up `V4.0.0.x` scripts, `baseline-on-migrate`, `AppVersionGuard` out. `ddl-auto=validate`. Enum CHECK constraints confirmed. | 3.5.16 | 30–50 |
 | 1.9 | Remove every deprecated call, run the properties migrator once, tag the checkpoint. Merge `release/3.1.2`. | 3.5.16 | 10–20 |
 
@@ -157,40 +157,6 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 
 ## What each step must not forget
 
-**1.7**
-- `spring-security.version` leaves the parent: Boot 3.5's BOM pins 6.5. `shouldFilterAllDispatcherTypes(true)` is the default
-  from Security 6: it goes too.
-- **`/error` leaves the path list of `SecurityConfig`.** Boot 3 has no `ErrorPageSecurityFilter`, so the ERROR rule then does the
-  work, and the matrix row `GET /error` becomes 403 for an anonymous caller. Not before: removed on 2.7.18, Security throws
-  `UnsupportedOperationException` from its dummy request and the error bodies are lost (tried 2026-11-09, one golden and that row
-  failed). Until then the ERROR rule does nothing a test can see, since the path rule comes first.
-- From Boot 3 the security filter sees every dispatch type, FORWARD too. The rule is in place, but no code forwards, so no test
-  has run it. No controller is asynchronous either: one returning `SseEmitter`, `Callable` or `DeferredResult` would need ASYNC
-  permitted as well, because the JWT filter runs once per request and the second dispatch has no logged user. (The public
-  `/sse-endpoint/**` that had no handler is gone: open point 15.)
-- `core.support.H2SqlServerModeDialect` goes, and the 38 test files that name it take Hibernate 6's `H2Dialect`, which should
-  write OFFSET/FETCH itself (from memory, to read).
-- The BOM changes the libraries under POI again. `ExcelLibrariesTest` covers the three classes known today. Keep
-  `commons-lang3.version` unless Boot 3.5's BOM reaches 3.18.0. Compare at class and method level, as step 1.4 did, what POI,
-  xmlbeans and commons-compress call with what the WAR holds: a green suite does not see it.
-- `maven-compiler-plugin.version` leaves the parent: Boot 3.5.16's BOM pins the same 3.14.1. `lombok.version` stays (1.18.46
-  there).
-- Rename only `javax.persistence`, `servlet`, `annotation`, `validation`: 176 files plus 57 inline lines. Never
-  `javax.imageio`, `javax.net.ssl` or `libs/hopeland` (`javax.usb`).
-- The helper: `DynamicsNavConfig`, `NavPosPagesConfig`, `ParafendriConfig`, `ZenConfig`, and `ZenProductsClient` (no auth).
-  HttpClient 5's default registry has Basic, Digest and Bearer only; NTLM has been deprecated since 5.3. erp-api takes
-  httpclient5 and spring-web: check `ProjectSortingGuardTest` and `ConnectorDependenciesGuardTest`.
-- ZEN's test NAV answered GET with the username alone (`domain\user` gave 401, 2026-10-27): keep that working.
-- `HeadOfficeClient.java:194` has its own factory, and `:600` classifies a read timeout by `SocketTimeoutException`.
-  `NavPosPagesReadRetryTest` and `RetryingCatalogueSource` depend on the exception classes: retest.
-- `SQLServer2012Dialect`: 14 config files and `QueryParameterBindingTest`. `BasicBinder` logger: 5 files.
-  `devenv/start.ps1:26` names the old `WarLauncher` package. `getOne`: 3 in `SalesCopyReceiver`.
-- Internal Hibernate API in `QueryParameterBindingTest` and `ItemJsonProxyTest`.
-- `getRawStatusCode` still has 3 uses, `HeadOfficeClient.java:493,575,576`: they catch `RestClientResponseException`, which
-  has no `getStatusCode()` before Spring 6 (step 1.3 changed the 12 on `HttpStatusCodeException`). Change them here.
-- `UriComponentsBuilder.fromUriString` should move to a stricter RFC parser on Spring 6.2 (from memory, to read). Rerun on
-  it the comparison of step 1.3: the 11 addresses of `configs/`, with spaces, accents and quotes in the path.
-
 **1.8, 2.2**
 - The `setId` sites, read at 1.3: all take the id of a row just read, or null, and the DTO ones are not entities, so
   Hibernate 6.6's refusal of a new row with an id does not reach them. Two to run there: `_BaseController.create` saves
@@ -202,6 +168,19 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 - Hibernate warns at the first start that two generated unique keys (`UK3vcep39q1j2ixbg2gqgylr1pk`,
   `UKqrre1fi800ou4vagktwr92a6q`) can exceed SQL Server's 1,700 bytes: they enter the baseline with the review.
 - The golden `errors/store-api-refusal.json` holds Hibernate's own message: its wording may change, re-record after reading.
+  (Hibernate 6.6 changed it once at 1.7: "value : com..." became "value: com...".)
+- **What Hibernate 6.6 creates that 5.6 did not** ([diffs/step-1.7-ddl.txt](diffs/step-1.7-ddl.txt), the create script of each
+  application compared column by column): `datetime2(6)` for `datetime2` (183 store, 187 head office columns), `float(53)` for
+  `double precision` (the same type), 67 and 56 enum CHECK constraints (open point 6), new hashed names of the unique keys
+  (`UK_...` to `UK...`, same columns), and two to decide in the baseline: `promotion_group_item`'s primary key in the order
+  `(item_id, promotion_id)` (5.6: `(promotion_id, item_id)`, which a read by promotion seeks on), and `uk_ho_down_change`
+  as a **filtered** unique index `where ... is not null` instead of a unique constraint, which no longer stops two rows of
+  one domain and code with a NULL `store_id`. The baseline keeps 5.6's form of both unless the review says otherwise.
+- On an existing database, 6.6's `update` would add the unique keys again under their new names, next to the old ones. 1.8's
+  `validate` ends that before any site sees it.
+- Behaviour the suite exposed at 1.7, fixed there: two derived queries with a `String` for a `LocalDate` field
+  (`SalesPriceRepository`, `SalesDiscountRepository`, unused, marked "legacy" in the code) stopped every start. The casts
+  and `:param is null` above are still to run.
 - Casts that may break at run time: `(Long)` 19, `(Double)` 11, `(Integer)` 8, `(BigDecimal)` 10 on `Object[]` rows.
   `(Number)` 106 is safe. `:param is null`: 49 in 17 files, to run on real SQL Server.
 - Hibernate 7's `update` alters existing columns when a type or length differs (`StandardTableMigrator`,
@@ -216,7 +195,12 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
   `HeadOfficeApiSecurityConfig.storeApiChain` move to `PathPatternRequestMatcher`, one class on an embedded and an external
   Tomcat. Do not use `requestMatchers(String...)` before 7: on 5.8 it follows Spring MVC's rules and builds another class on
   an external Tomcat (JSP servlet) than in the tests. The matrix rows `/config/`, `/CONFIG`, `/login/x`, `/hox` and `/ho`, written
-  on the old chains, say whether the matching moved.
+  on the old chains, say whether the matching moved. (At 1.7 `/config/` went from 200 to 404 for a logged user: Spring 6 no
+  longer takes a trailing slash, nothing to do with the chains.) Confirmed at 1.7: `AntPathRequestMatcher` is deprecated for
+  removal in 6.5.
+- `ErpHttp` keeps `NTCredentials` and `NTLMSchemeFactory`, deprecated in HttpClient 5.5 but NTLM is what NAV and BC ask for
+  (decision 5): not a deprecation to remove. Compile once with `-Xlint:deprecation` for the rest: the default build shows only
+  what is deprecated for removal.
 
 **1.9, 2.8: the merges of `release/3.1.2`**
 - **The security fixes (`50a5cb8`, `2e05b3a`) were merged on 2026-11-10, before step 1.7**, on Zein's word, so that 1.7 renames
@@ -239,6 +223,9 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 - `session.saveOrUpdate` 1 and `session.delete` 2 in tests are gone. `CashierSessionService`, `ReturnHeaderAPI`,
   `CustomerService`, `VendorService` use the criteria types that change in JPA 3.2.
 - `starter-aspectj` explicitly: without it `HeadOfficeErpGuard` could silently stop applying. The startup test must prove it.
+- `org.hibernate.dialect.SQLServer2012Dialect` is still in Hibernate 6.6 (deprecated, it warns) but may be gone from 7: a
+  site's outside file that names it would then stop the start. The tracked lines left at 1.7 (Hibernate picks the dialect
+  from the connection); check 7, and 2.8's guide removes the line on the sites.
 
 **2.3**
 - **With Jackson 2 still on the classpath (java-jwt keeps it), a `@JsonDeserialize` under its old import is silently
@@ -268,12 +255,21 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
   error, not a `NoClassDefFoundError` or `NoSuchMethodError`), then read the log.
 - **Encrypted connections, the local case.** On the real start under JDK 25 and Tomcat 11, with the final driver, read
   `encrypt_option` in `sys.dm_exec_connections`: TRUE. This proves SQL Server 2019 on this Windows 11 only: see 2.8.
+- **NTLM on HttpClient 5, live** (decision 5): a GET and a POST (`commandesVente`) on ZEN's test NAV through `ErpHttp`, the
+  user name without the domain. At 1.7 only a server of the test JVM proved that the client answers an NTLM challenge
+  (`ErpHttpTest`): without NTLM in the preferred schemes, HttpClient 5.5 answered 401.
+- **HttpClient 5's retries differ from 4's.** 4 retried an idempotent request 3 times on an I/O error; 5 retries once, and also
+  once on a 429 or 503 answer, after the Retry-After delay (1 s without it). A timeout is retried by neither, so the
+  scheduler-hang fix holds (`ErpHttpTest.readTimeout`). Watch a NAV that answers 503 under load.
 
 **2.8**
 - The deploy guide: every site's outside file gets `;encrypt=true;trustServerCertificate=true` on its `jdbc:sqlserver` line.
   The driver encrypts by default since 10.2, so without them a server with its own certificate refuses the connection and the
   start fails: seen on 2026-11-09, 8 of 8 local lines on driver 10.2.3. An outside file with `logging.file.*` lines moves them
   to `logging.logback.rollingpolicy.*`: none is tracked.
+- The guide, from step 1.7: an outside file's `spring.jpa.properties.hibernate.dialect=...SQLServer2012Dialect` line goes
+  (see 2.1), and `logging.level.org.hibernate.type.descriptor.sql.BasicBinder` becomes `logging.level.org.hibernate.orm.jdbc.bind`
+  (the old name logs nothing on Hibernate 6). The WARs are Jakarta from 1.7: Tomcat 10.1 at the least, Tomcat 11 per decision 2.
 - **Encrypted connections against a customer's server cannot be proved from here**: no installation and no test goes there.
   What can differ on a site: an older Windows Server may offer only TLS suites that JDK 25 refuses (from memory, JDK 24 disabled
   `TLS_RSA_*`: to read), SQL Server may force encryption or hold its own certificate. So the guide has a step **before** the
@@ -297,7 +293,7 @@ a byte-for-byte file was flaky. The code has one reader that depends on the orde
 | 3 | **Deltas on a new database.** On an empty database Flyway runs the baseline, then the `V4.0.0.x` scripts too, and the baseline already has their result. Each delta must be a guarded no-op there. | 1.8 |
 | 4 | **`AppVersionGuard`.** Answer to decision 13: it can go, except for one check Flyway cannot make, that an existing database really is at 3.1.2 when `baseline-on-migrate` marks it 4.0.0. A `V4.0.0.x` script that fails when `APP_VERSION` is not 3.1.2 does that in SQL, with no Java guard. A database newer than the WAR is Flyway's if `spring.flyway.ignore-migration-patterns` is emptied: its default `*:future` ignores newer scripts. To check at 1.8: who else reads the `APP_VERSION` row, and who writes the release notes of `update.sql`. **Until 1.8 the guard stays**, so this branch stops on any 3.1.2 database and names a `db/4.0.0/update.sql` that does not exist. | 1.8 |
 | 5 | **Source of the catch-up SQL.** It reads the metadata of a database with the old schema, and decision 6 keeps startup tests off existing local databases. A restored copy of a customer backup Zein provides is acceptable, read-only. A script generated from one database may not fit a customer whose schema drifted: each delta has to tolerate that. Proposal due at 1.8. | 1.8 |
-| 6 | **Enum CHECK constraints.** No setting found that disables them (Hibernate forum, one search). Under `validate` Hibernate creates nothing in production, so they can only arrive through the baseline and catch-up scripts, where review keeps them out. Confirmed at 1.8. | 1.8 |
+| 6 | **Enum CHECK constraints.** No setting found that disables them (Hibernate forum, one search). Under `validate` Hibernate creates nothing in production, so they can only arrive through the baseline and catch-up scripts, where review keeps them out. Confirmed at 1.8. Seen at 1.7: Hibernate 6.6 writes 67 (store) and 56 (head office), one per enum column (`diffs/step-1.7-ddl.txt`). | 1.8 |
 | 7 | **`Accept`.** `ConnectorAcceptHeaderTest` pins what we send: it failed on the old classpath with `application/xml, text/xml, application/json, application/*+xml, application/*+json` on all four connectors, and passes on the new one. A mock cannot show what NAV answers: live GET at 2.7, or earlier when Zein opens the VPN. | 2.7 |
 | 8 | **POI's jars.** 45 jars of the store WAR came with POI 5.0.0's compile dependencies (batik, pdfbox, xmlsec, bouncycastle...), and our code imports none of them. | Settled at 1.4 by POI 5.5.1: batik, bcprov, bcpkix, xmlsec, pdfbox, graphics2d, xmlgraphics, woodstox and stax2 are gone, commons-io is 2.21.0. Store WAR 130 to 76 jars, head office 128 to 75. Boot's BOM still pins commons-codec 1.15 and log4j-api 2.17.2 under what POI asks for: 22,024 calls of POI and its libraries compared with the WAR, none missing in them. commons-lang3 was missing 3 classes, hence 3.18.0. |
 | 9 | **This machine for 2.6 and 2.7.** JDK 25 and Tomcat 11 are not installed (JDK 21 and 23; Tomcat 9). Eclipse is `jee-2024-12`, to be checked against JDK 25. Zein is told what to install at 2.6. | 2.6 |

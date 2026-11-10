@@ -64,7 +64,7 @@ class ErpCatalogueRowsUpgradeTest {
 				.addAnnotatedClass(HoDownSequence.class)
 				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", url).setProperty("hibernate.connection.username", "sa")
-				.setProperty("hibernate.dialect", "com.digithink.zsretail.core.support.H2SqlServerModeDialect")
+				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop").buildSessionFactory();
 		JdbcDataSource dataSource = new JdbcDataSource();
 		dataSource.setURL(url);

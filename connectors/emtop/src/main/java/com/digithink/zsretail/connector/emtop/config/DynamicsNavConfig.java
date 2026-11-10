@@ -1,23 +1,18 @@
 package com.digithink.zsretail.connector.emtop.config;
 
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.NTCredentials;
-import org.apache.http.client.CredentialsProvider;
-import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.http.impl.client.HttpClientBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import java.util.List;
 
-import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
 
 import com.digithink.zsretail.connector.emtop.EmtopConnectorDescriptor;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
+import com.digithink.zsretail.erp.api.ErpHttp;
 import com.digithink.zsretail.erp.api.ConfiguredAddress;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,24 +34,9 @@ public class DynamicsNavConfig {
 		if (complaint != null) {
 			LOGGER.error(complaint);
 		}
-		CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-		credentialsProvider.setCredentials(
-				AuthScope.ANY,
-				new NTCredentials(
-						properties.getUsername(),
-						properties.getPassword(),
-						null,
-						properties.getDomain()));
-
-		HttpClientBuilder clientBuilder = HttpClientBuilder.create()
-				.setDefaultCredentialsProvider(credentialsProvider);
-
-		HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory();
-		requestFactory.setHttpClient(clientBuilder.build());
-		requestFactory.setConnectTimeout(properties.getConnectTimeoutSeconds() * 1000);
-		requestFactory.setReadTimeout(properties.getReadTimeoutSeconds() * 1000);
-
-		RestTemplate restTemplate = new RestTemplate(requestFactory);
+		RestTemplate restTemplate = new RestTemplate(ErpHttp.requestFactory(
+				ErpHttp.ntlm(properties.getUsername(), properties.getPassword(), properties.getDomain()),
+				properties.getConnectTimeoutSeconds(), properties.getReadTimeoutSeconds()));
 		
 		// Configure ObjectMapper for RestTemplate to handle LocalDate correctly
 		// and exclude null fields

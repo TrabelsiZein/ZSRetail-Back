@@ -97,7 +97,7 @@ public class HoErpInvoiceAPI {
 			body.put("summary", service.getLastRun());
 			return ResponseEntity.ok(body);
 		} catch (ResponseStatusException e) {
-			return ResponseEntity.status(e.getStatus()).body(error(e.getReason()));
+			return ResponseEntity.status(e.getStatusCode()).body(error(e.getReason()));
 		}
 	}
 

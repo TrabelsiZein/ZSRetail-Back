@@ -168,7 +168,7 @@ class ModeGateTest {
 	/** PurchaseInvoiceAPI refuses with a ResponseStatusException (403), as before. */
 	private static void forbidden(String gate, Runnable call, String message) {
 		ResponseStatusException e = assertThrows(ResponseStatusException.class, call::run, gate);
-		assertEquals(HttpStatus.FORBIDDEN, e.getStatus(), gate);
+		assertEquals(HttpStatus.FORBIDDEN, e.getStatusCode(), gate);
 		assertTrue(String.valueOf(e.getReason()).contains(message), gate + ": " + e.getReason());
 	}
 }

@@ -9,6 +9,12 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.core5.util.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.NestedExceptionUtils;
@@ -199,12 +205,22 @@ public class HeadOfficeClient {
 		return downReadTimeoutSeconds;
 	}
 
+	/**
+	 * Boot 4 migration, step 1.7: HttpClient 5, the timeouts on the client (Spring 6.2 deprecates those of its factory).
+	 * The JVM's system properties still count (a proxy, a trust store), as with the factory's own client before.
+	 */
 	private static RestTemplate newRestTemplate(int connectMs, int readMs) {
-		HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory();
-		factory.setConnectTimeout(connectMs);
-		factory.setConnectionRequestTimeout(connectMs);
-		factory.setReadTimeout(readMs);
-		return new RestTemplate(factory);
+		Timeout connect = Timeout.ofMilliseconds(connectMs);
+		Timeout read = Timeout.ofMilliseconds(readMs);
+		CloseableHttpClient client = HttpClients.custom().useSystemProperties()
+				.setConnectionManager(PoolingHttpClientConnectionManagerBuilder.create().useSystemProperties()
+						.setDefaultConnectionConfig(
+								ConnectionConfig.custom().setConnectTimeout(connect).setSocketTimeout(read).build())
+						.build())
+				.setDefaultRequestConfig(
+						RequestConfig.custom().setConnectionRequestTimeout(connect).setResponseTimeout(read).build())
+				.build();
+		return new RestTemplate(new HttpComponentsClientHttpRequestFactory(client));
 	}
 
 	/** headoffice.url without its trailing slashes, e.g. http://localhost:888/zsretail/api. */
@@ -499,7 +515,7 @@ public class HeadOfficeClient {
 			return LiveAnswer.notAnswered(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
 					"request could not be written (" + cause(e) + ")"));
 		} catch (RestClientResponseException e) {
-			int status = e.getRawStatusCode();
+			int status = e.getStatusCode().value();
 			if (status == 401 || status == 402 || status >= 500) {
 				return LiveAnswer.notAnswered(fromStatus(status));
 			}
@@ -581,8 +597,8 @@ public class HeadOfficeClient {
 		} catch (JsonProcessingException e) {
 			return Answer.failed(HeadOfficeLinkState.ERROR, "request could not be written (" + cause(e) + ")");
 		} catch (RestClientResponseException e) {
-			return new Answer<>(null, fromStatus(e.getRawStatusCode()),
-					e.getRawStatusCode() == 409 ? errorText(e.getResponseBodyAsString()) : null);
+			return new Answer<>(null, fromStatus(e.getStatusCode().value()),
+					e.getStatusCode().value() == 409 ? errorText(e.getResponseBodyAsString()) : null);
 		} catch (ResourceAccessException e) {
 			if (readTimeoutSeconds != null && isReadTimeout(e)) {
 				return Answer.failed(HeadOfficeLinkState.TIMEOUT, slowAnswer(readTimeoutSeconds));

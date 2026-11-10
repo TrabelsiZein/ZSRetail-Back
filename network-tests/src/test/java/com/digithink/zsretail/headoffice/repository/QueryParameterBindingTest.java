@@ -18,7 +18,8 @@ import org.hibernate.boot.MetadataSources;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.query.Query;
 import org.hibernate.query.spi.QueryParameterBindingValidator;
-import org.hibernate.type.Type;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.query.BindableType;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -70,7 +71,7 @@ class QueryParameterBindingTest {
 	@BeforeAll
 	static void build() throws Exception {
 		MetadataSources sources = new MetadataSources(new StandardServiceRegistryBuilder()
-				.applySetting("hibernate.dialect", "org.hibernate.dialect.SQLServer2012Dialect")
+				.applySetting("hibernate.dialect", "org.hibernate.dialect.SQLServerDialect")
 				.applySetting("hibernate.temp.use_jdbc_metadata_defaults", "false")
 				.applySetting("hibernate.physical_naming_strategy",
 						"org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy")
@@ -115,9 +116,10 @@ class QueryParameterBindingTest {
 							value = sample(parameter.getType());
 						}
 						// The check JPA (and so Spring Data) applies at setParameter; native Hibernate skips it
-						Type expected = query.getParameterMetadata().getQueryParameter(name.value()).getHibernateType();
+						BindableType<?> expected = query.getParameterMetadata().getQueryParameter(name.value()).getHibernateType();
 						try {
-							QueryParameterBindingValidator.INSTANCE.validate(expected, value, null);
+							QueryParameterBindingValidator.INSTANCE.validate(expected, value,
+								sessionFactory.unwrap(SessionFactoryImplementor.class));
 						} catch (IllegalArgumentException e) {
 							throw new AssertionError(repository.getSimpleName() + "." + method.getName() + " :"
 									+ name.value() + ": " + e.getMessage(), e);

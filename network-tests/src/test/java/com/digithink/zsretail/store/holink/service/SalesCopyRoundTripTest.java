@@ -86,7 +86,7 @@ class SalesCopyRoundTripTest {
 		store.setId(3L);
 		store.setCode("SHOWROOM-S");
 		SalesCopyReceiver receiver = new SalesCopyReceiver(headOfficeTickets(), null, null,
-				stub(StoreRepository.class, (m, a) -> "getOne".equals(m) ? store : UNHANDLED),
+				stub(StoreRepository.class, (m, a) -> "getReferenceById".equals(m) ? store : UNHANDLED),
 				TransactionOperations.withoutTransaction());
 
 		RestTemplate restTemplate = new RestTemplate();

@@ -44,7 +44,7 @@ class EntryCostQueryTest {
 				.addAnnotatedClass(ItemSubFamily.class).addAnnotatedClass(Item.class)
 				.setProperty("hibernate.connection.driver_class", "org.h2.Driver")
 				.setProperty("hibernate.connection.url", "jdbc:h2:mem:entrycost;DB_CLOSE_DELAY=-1;MODE=MSSQLServer")
-				.setProperty("hibernate.dialect", "com.digithink.zsretail.core.support.H2SqlServerModeDialect")
+				.setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
 				.setProperty("hibernate.hbm2ddl.auto", "create-drop");
 		configuration.setPhysicalNamingStrategy(new CamelCaseToUnderscoresNamingStrategy());
 		configuration.setImplicitNamingStrategy(new SpringImplicitNamingStrategy());

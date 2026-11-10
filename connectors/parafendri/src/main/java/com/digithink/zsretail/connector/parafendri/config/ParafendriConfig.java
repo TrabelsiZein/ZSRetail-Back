@@ -3,11 +3,6 @@ package com.digithink.zsretail.connector.parafendri.config;
 import java.io.IOException;
 import java.net.URI;
 
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.NTCredentials;
-import org.apache.http.client.CredentialsProvider;
-import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.http.impl.client.HttpClientBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -15,11 +10,11 @@ import org.springframework.http.HttpRequest;
 import org.springframework.http.client.ClientHttpRequestExecution;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.ClientHttpResponse;
-import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
 import com.digithink.zsretail.connector.parafendri.ParafendriConnectorDescriptor;
 import com.digithink.zsretail.erp.api.ConditionalOnErpConnector;
+import com.digithink.zsretail.erp.api.ErpHttp;
 
 /**
  * ParaFendri, step 0: the HTTP client of the connector. NTLM, as the other NAV connectors, with the two timeouts of the
@@ -42,22 +37,17 @@ public class ParafendriConfig {
 
 	/** The RestTemplate of these settings (also used by the tests). */
 	public static RestTemplate restTemplate(ParafendriProperties properties) {
-		HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(
-				HttpClientBuilder.create().setDefaultCredentialsProvider(credentials(properties)).build());
-		factory.setConnectTimeout(properties.getConnectTimeoutSeconds() * 1000);
-		factory.setReadTimeout(properties.getReadTimeoutSeconds() * 1000);
-		RestTemplate template = new RestTemplate(factory);
+		RestTemplate template = new RestTemplate(ErpHttp.requestFactory(login(properties),
+				properties.getConnectTimeoutSeconds(), properties.getReadTimeoutSeconds()));
 		template.getInterceptors().add(new GetOnly());
 		return template;
 	}
 
 	/** The NTLM login, for the host of base-url (and its port when it names one) only. */
-	public static CredentialsProvider credentials(ParafendriProperties properties) {
+	public static ErpHttp.Login login(ParafendriProperties properties) {
 		URI base = URI.create(properties.getBaseUrl().trim());
-		CredentialsProvider credentials = new BasicCredentialsProvider();
-		credentials.setCredentials(new AuthScope(base.getHost(), base.getPort()), new NTCredentials(
-				properties.getUsername(), properties.getPassword(), null, properties.getDomain()));
-		return credentials;
+		return ErpHttp.ntlm(properties.getUsername(), properties.getPassword(), properties.getDomain())
+				.onlyFor(base.getHost(), base.getPort());
 	}
 
 	/** Refuses every request that is not a GET, before it is sent. */

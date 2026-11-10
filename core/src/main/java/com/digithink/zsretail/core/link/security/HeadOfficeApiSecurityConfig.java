@@ -42,7 +42,7 @@ public class HeadOfficeApiSecurityConfig {
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.exceptionHandling(exceptions -> exceptions
 						.authenticationEntryPoint((request, response, e) -> StoreApiAccess.writeRefusal(response)))
-				.authorizeHttpRequests(authorize -> authorize.shouldFilterAllDispatcherTypes(true).anyRequest()
+				.authorizeHttpRequests(authorize -> authorize.anyRequest()
 						.hasAuthority(StoreApiAccess.STORE_AUTHORITY));
 
 		StoreKeyFilter filter = storeKeyFilter.getIfAvailable();

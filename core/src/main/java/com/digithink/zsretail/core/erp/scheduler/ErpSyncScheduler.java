@@ -9,9 +9,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.scheduling.support.CronSequenceGenerator;
+import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Component;
 
+import com.digithink.zsretail.core.erp.util.CronExpressionParser;
 import com.digithink.zsretail.core.erp.model.ErpSyncJob;
 import com.digithink.zsretail.core.erp.service.ErpSyncJobRunner;
 import com.digithink.zsretail.core.erp.service.ErpSyncJobService;
@@ -86,9 +87,8 @@ public class ErpSyncScheduler {
 			}
 
 			// For time-based schedules, use standard CRON calculation
-			CronSequenceGenerator generator = new CronSequenceGenerator(cron);
-			Instant nextInstant = generator.next(toDate(reference)).toInstant();
-			return LocalDateTime.ofInstant(nextInstant, ZoneId.systemDefault());
+			// Boot 4 migration step 1.7: CronExpression (Spring 6), in the zone of the JVM as CronSequenceGenerator did
+			return CronExpressionParser.nextRun(cron, reference);
 		} catch (IllegalArgumentException ex) {
 			LOGGER.error("Invalid cron expression '{}' for job {}. {}", job.getCronExpression(), job.getJobType(),
 					ex.getMessage());
@@ -159,7 +159,4 @@ public class ErpSyncScheduler {
 		return null;
 	}
 
-	private java.util.Date toDate(LocalDateTime dateTime) {
-		return java.util.Date.from(dateTime.atZone(ZoneId.systemDefault()).toInstant());
-	}
 }

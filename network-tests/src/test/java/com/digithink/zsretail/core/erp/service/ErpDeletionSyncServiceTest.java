@@ -89,8 +89,8 @@ class ErpDeletionSyncServiceTest {
 		verify(discounts, times(2)).findByErpExternalId(discountIds.capture());
 		assertEquals(Arrays.asList("Item|ART-001|All Customers||MAG01|2026-02-01|A1|A2|A3|0", "|||||||||"),
 				discountIds.getAllValues());
-		verify(prices, never()).delete(any());
-		verify(discounts, never()).delete(any());
+		verify(prices, never()).delete(any(SalesPrice.class));
+		verify(discounts, never()).delete(any(SalesDiscount.class));
 	}
 
 	@Test

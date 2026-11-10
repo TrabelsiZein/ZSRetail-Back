@@ -163,5 +163,17 @@ public class CronExpressionParser {
 		}
 		return null;
 	}
-}
 
+	/**
+	 * The next run after the reference, in the zone of the JVM, as CronSequenceGenerator gave it until Spring 6 removed it
+	 * (Boot 4 migration step 1.7). An invalid expression, or one with no next time, is an IllegalArgumentException.
+	 */
+	public static java.time.LocalDateTime nextRun(String cron, java.time.LocalDateTime reference) {
+		java.time.ZonedDateTime next = org.springframework.scheduling.support.CronExpression.parse(cron)
+				.next(reference.atZone(java.time.ZoneId.systemDefault()));
+		if (next == null) {
+			throw new IllegalArgumentException("no next time for '" + cron + "'");
+		}
+		return next.toLocalDateTime();
+	}
+}

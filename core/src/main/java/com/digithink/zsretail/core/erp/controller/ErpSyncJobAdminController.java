@@ -12,7 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.support.CronSequenceGenerator;
+import org.springframework.scheduling.support.CronExpression;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -132,7 +132,7 @@ public class ErpSyncJobAdminController {
 		if (updateDto.getCronExpression() != null) {
 			// Validate CRON expression
 			try {
-				new CronSequenceGenerator(updateDto.getCronExpression());
+				CronExpression.parse(updateDto.getCronExpression());
 			} catch (IllegalArgumentException ex) {
 				throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
 						"Invalid CRON expression: " + ex.getMessage());
@@ -208,9 +208,8 @@ public class ErpSyncJobAdminController {
 			}
 			
 			// For time-based schedules, use standard CRON calculation
-			CronSequenceGenerator generator = new CronSequenceGenerator(cron);
-			Instant nextInstant = generator.next(toDate(reference)).toInstant();
-			return LocalDateTime.ofInstant(nextInstant, ZoneId.systemDefault());
+			// Boot 4 migration step 1.7: CronExpression (Spring 6), in the zone of the JVM as CronSequenceGenerator did
+			return CronExpressionParser.nextRun(cron, reference);
 		} catch (IllegalArgumentException ex) {
 			LOGGER.error("Invalid cron expression '{}' for job {}. {}", job.getCronExpression(), job.getJobType(),
 					ex.getMessage());
@@ -280,9 +279,6 @@ public class ErpSyncJobAdminController {
 		return null;
 	}
 
-	private java.util.Date toDate(LocalDateTime dateTime) {
-		return java.util.Date.from(dateTime.atZone(ZoneId.systemDefault()).toInstant());
-	}
 
 	private void ensureAdminAccess() {
 		UserAccount currentUser = currentUserProvider.getCurrentUser();

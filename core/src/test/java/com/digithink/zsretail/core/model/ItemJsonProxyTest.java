@@ -94,7 +94,7 @@ class ItemJsonProxyTest {
 	/** The proxy Hibernate stores in a lazy Item field, once loaded (as an EAGER field sharing it does). */
 	private static Item initializedProxy(Item loaded) throws Exception {
 		ProxyFactory factory = new BytecodeProviderImpl().getProxyFactoryFactory().buildProxyFactory(null);
-		factory.postInstantiate(Item.class.getName(), Item.class, Collections.<Class>singleton(HibernateProxy.class),
+		factory.postInstantiate(Item.class.getName(), Item.class, Collections.<Class<?>>singleton(HibernateProxy.class),
 				Item.class.getMethod("getId"), Item.class.getMethod("setId", Long.class), null);
 		HibernateProxy proxy = factory.getProxy(loaded.getId(), null);
 		proxy.getHibernateLazyInitializer().setImplementation(loaded);

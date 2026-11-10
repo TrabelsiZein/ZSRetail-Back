@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
+import org.springframework.scheduling.support.SimpleTriggerContext;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -154,48 +154,34 @@ class LinkJobSchedulerTest {
 				.collect(Collectors.toList());
 	}
 
-	private static TriggerContext completedAt(Date lastCompletion) {
-		return new TriggerContext() {
-			@Override
-			public Date lastScheduledExecutionTime() {
-				return lastCompletion;
-			}
-
-			@Override
-			public Date lastActualExecutionTime() {
-				return lastCompletion;
-			}
-
-			@Override
-			public Date lastCompletionTime() {
-				return lastCompletion;
-			}
-		};
+	/** Boot 4 migration step 1.7: Spring 6's trigger context speaks Instant, the Date methods are gone from it. */
+	private static TriggerContext completedAt(Instant lastCompletion) {
+		return new SimpleTriggerContext(lastCompletion, lastCompletion, lastCompletion);
 	}
 
 	@Test
 	@DisplayName("Timing: first run at the first delay, then the default frequency after the end of the previous run")
 	void timing() {
 		Instant first = Instant.parse("2026-10-03T10:00:15Z");
-		assertEquals(Date.from(first), scheduler.nextRun(heartbeat, completedAt(null), first));
-		Date end = new Date(1_000_000L);
-		assertEquals(new Date(1_000_000L + 60_000L), scheduler.nextRun(heartbeat, completedAt(end), first));
-		assertEquals(new Date(1_000_000L + 120_000L), scheduler.nextRun(push, completedAt(end), first));
+		assertEquals(first, scheduler.nextRun(heartbeat, completedAt(null), first));
+		Instant end = Instant.ofEpochMilli(1_000_000L);
+		assertEquals(Instant.ofEpochMilli(1_000_000L + 60_000L), scheduler.nextRun(heartbeat, completedAt(end), first));
+		assertEquals(Instant.ofEpochMilli(1_000_000L + 120_000L), scheduler.nextRun(push, completedAt(end), first));
 	}
 
 	@Test
 	@DisplayName("A frequency saved from the page is used by the next run, saved in hol_job; back to the default with null")
 	void frequencyChange() {
-		Date end = new Date(1_000_000L);
+		Instant end = Instant.ofEpochMilli(1_000_000L);
 		jobService.setInterval(push, 300L);
 
-		assertEquals(new Date(1_000_000L + 300_000L), scheduler.nextRun(push, completedAt(end), Instant.now()));
+		assertEquals(Instant.ofEpochMilli(1_000_000L + 300_000L), scheduler.nextRun(push, completedAt(end), Instant.now()));
 		assertEquals(Long.valueOf(300), jobTable.get("SALES_PUSH").getIntervalSeconds());
-		assertEquals(new Date(1_000_000L + 60_000L), scheduler.nextRun(heartbeat, completedAt(end), Instant.now()),
+		assertEquals(Instant.ofEpochMilli(1_000_000L + 60_000L), scheduler.nextRun(heartbeat, completedAt(end), Instant.now()),
 				"the other job keeps its own frequency");
 
 		jobService.setInterval(push, null);
-		assertEquals(new Date(1_000_000L + 120_000L), scheduler.nextRun(push, completedAt(end), Instant.now()));
+		assertEquals(Instant.ofEpochMilli(1_000_000L + 120_000L), scheduler.nextRun(push, completedAt(end), Instant.now()));
 		assertNull(jobTable.get("SALES_PUSH").getIntervalSeconds());
 	}
 

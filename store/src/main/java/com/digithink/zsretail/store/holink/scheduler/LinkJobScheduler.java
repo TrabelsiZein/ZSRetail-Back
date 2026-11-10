@@ -5,7 +5,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -123,12 +122,12 @@ public class LinkJobScheduler {
 		futures.put(job.getCode(), taskScheduler.schedule(() -> execute(job), context -> nextRun(job, context, firstRun)));
 	}
 
-	Date nextRun(LinkJob job, TriggerContext context, Instant firstRun) {
-		Date last = context.lastCompletionTime();
+	Instant nextRun(LinkJob job, TriggerContext context, Instant firstRun) {
+		Instant last = context.lastCompletion();
 		if (last == null) {
-			return Date.from(firstRun);
+			return firstRun;
 		}
-		return new Date(last.getTime() + nextDelay(job).toMillis());
+		return last.plus(nextDelay(job));
 	}
 
 	/**

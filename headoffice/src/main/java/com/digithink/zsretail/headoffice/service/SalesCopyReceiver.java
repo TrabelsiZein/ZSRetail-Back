@@ -127,7 +127,7 @@ public class SalesCopyReceiver {
 		}
 		HoTicket ticket = tickets.findByStoreIdAndSalesNumber(store.getId(), copy.getSalesNumber()).orElseGet(() -> {
 			HoTicket created = new HoTicket();
-			created.setStore(stores.getOne(store.getId()));
+			created.setStore(stores.getReferenceById(store.getId()));
 			return created;
 		});
 		HoSalesCopyMapper.apply(ticket, copy);
@@ -147,7 +147,7 @@ public class SalesCopyReceiver {
 		}
 		HoReturn row = returns.findByStoreIdAndReturnNumber(store.getId(), copy.getReturnNumber()).orElseGet(() -> {
 			HoReturn created = new HoReturn();
-			created.setStore(stores.getOne(store.getId()));
+			created.setStore(stores.getReferenceById(store.getId()));
 			return created;
 		});
 		HoSalesCopyMapper.apply(row, copy);
@@ -161,7 +161,7 @@ public class SalesCopyReceiver {
 		required(copy.getStatus(), "status");
 		HoSession row = sessions.findByStoreIdAndSessionNumber(store.getId(), copy.getSessionNumber()).orElseGet(() -> {
 			HoSession created = new HoSession();
-			created.setStore(stores.getOne(store.getId()));
+			created.setStore(stores.getReferenceById(store.getId()));
 			return created;
 		});
 		HoSalesCopyMapper.apply(row, copy);

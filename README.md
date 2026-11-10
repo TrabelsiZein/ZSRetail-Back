@@ -23,7 +23,7 @@ Complete Point of Sale (POS) backend application with role-based access control 
 
 ## Technology Stack
 - Java 21
-- Spring Boot 2.7.18 (on its way to 4.x, `docs/migration/boot4-migration.md`)
+- Spring Boot 3.5.16 (on its way to 4.x, `docs/migration/boot4-migration.md`), Jakarta EE: Tomcat 10.1 or later
 - Spring Security with JWT
 - JPA/Hibernate
 - SQL Server

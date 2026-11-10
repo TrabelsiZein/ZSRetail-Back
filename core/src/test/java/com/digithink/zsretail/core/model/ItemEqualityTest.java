@@ -105,7 +105,7 @@ class ItemEqualityTest {
 
 	private static ProxyFactory proxyFactory() throws Exception {
 		ProxyFactory factory = new BytecodeProviderImpl().getProxyFactoryFactory().buildProxyFactory(null);
-		factory.postInstantiate(Item.class.getName(), Item.class, Collections.<Class>singleton(HibernateProxy.class),
+		factory.postInstantiate(Item.class.getName(), Item.class, Collections.<Class<?>>singleton(HibernateProxy.class),
 				Item.class.getMethod("getId"), Item.class.getMethod("setId", Long.class), null);
 		return factory;
 	}

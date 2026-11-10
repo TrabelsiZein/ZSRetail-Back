@@ -100,9 +100,9 @@ class SalesCopyReceiverTest {
 					return UNHANDLED;
 			}
 		});
-		// getOne only: the principal is never saved through the store repository
+		// getReferenceById only (getOne until step 1.7): the principal is never saved through the store repository
 		StoreRepository stores = stub(StoreRepository.class, (method, args) -> {
-			if ("getOne".equals(method)) {
+			if ("getReferenceById".equals(method)) {
 				return store((Long) args[0], null);
 			}
 			return UNHANDLED;
