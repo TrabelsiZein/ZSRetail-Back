@@ -40,7 +40,9 @@ list of its own (labels: i18n `pos.badge.permissions.<code lower case>`).
 - The code is a secret: it grants a till right. Since 3.1.2 it is not written in an entity's JSON nor in a `toString`
   (`UserAccount.badgeCode`), and the Users pages read it from `/user-account`, behind `read:admin-users`
   (`write:admin-users` for the badge actions; on a head office `read:admin-headoffice-users`). Before, any logged user read
-  every code. `POST /badge/scan` stays open to the till, with a code from a real badge.
+  every code. `POST /badge/scan` stays open to the till, with a code from a real badge. `GET /user-account/current`, open to
+  any logged user, answers one's own account without its code (`UserAccountDTO.ownAccount`). The Users page needs the code
+  in its answers: it shows it and sends it back on a save, so the DTO's field is not write-only.
 - Scanned at the till (`POST /badge/scan {badgeCode, permission}`), it opens the action when, in this order: the code is
   known (`BADGE_NOT_EXISTS`), not revoked (`BADGE_REVOKED`), not expired (`BADGE_EXPIRED`), its owner active
   (`BADGE_OWNER_INACTIVE`), and its owner's role holds the right (`BADGE_NO_ACCESS`).

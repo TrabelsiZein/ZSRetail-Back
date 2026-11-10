@@ -329,6 +329,9 @@ last step.
 - **Security: the badge code no longer travels in an entity.** Like the password hash below, `UserAccount.badgeCode` is read
   from JSON only and left out of `toString`; the Users pages read it through `UserAccountDTO`
   (`UserAccountApiAccessTest`, `UserAccountSecretsJsonTest`).
+- **Security: `GET /user-account/current` no longer answers one's own badge code.** Open to any logged user, it carried the
+  caller's code, which no screen reads there (`UserAccountDTO.ownAccount`). The answers behind `read:admin-users` keep the
+  code: the Users page shows it, and sends it back on a save (`UserAccountApiAccessTest`).
 - **Security: `PUT /company-info` needs the page's permission:** `write:admin-company-information` on a store,
   `read:admin-headoffice-company-information` on a head office, else 403 (`CompanyInformationApiAccessTest`). Any logged user
   could save, and an anonymous call answered 500. The `GET` stays public. A responsible no longer fills in the company name.

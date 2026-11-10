@@ -138,13 +138,17 @@ class StoreSecurityMatrixTest {
 		assertEquals(200, scanned.status, scanned.body);
 		assertEquals(400, store.call("POST", "/badge/scan", "{\"badgeCode\":\"no-such-code\",\"permission\":\"MAKE_RETURN\"}",
 				cashier).status);
-		// The admin's code reaches no cashier. (A user's own code is in his /user-account/current, a UserAccountDTO: no screen
-		// reads it, open point 16 of docs/migration/boot4-migration.md.)
+		// The admin's code reaches no cashier
 		for (String path : new String[] { "/user-account/current", "/user-account/cashiers" }) {
 			MigTestApplication.Answer answer = store.call("GET", path, null, cashier);
 			assertEquals(200, answer.status, path);
 			assertFalse(answer.body.contains(code), path + " gives a cashier no one else's badge code");
 		}
+		// Nor the admin himself in /current (open point 16, cbae53bb on release/3.1.2); his Users page keeps it
+		MigTestApplication.Answer own = store.call("GET", "/user-account/current", null, admin);
+		assertEquals(200, own.status);
+		assertFalse(own.body.contains(code), "/current answers one's own account without its badge code: " + own.body);
+		assertTrue(store.call("GET", "/user-account/" + adminId, null, admin).body.contains(code), "the Users page reads it");
 	}
 
 	@Test
