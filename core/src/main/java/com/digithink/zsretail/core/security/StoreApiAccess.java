@@ -2,7 +2,7 @@ package com.digithink.zsretail.core.security;
 
 import java.io.IOException;
 
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * The store-to-head-office API (/ho/**): the authority a store gets once its key is accepted, and the refusal every

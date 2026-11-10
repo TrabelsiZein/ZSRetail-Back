@@ -2,7 +2,7 @@ package com.digithink.zsretail.core.security;
 
 import java.util.Arrays;
 
-import javax.servlet.DispatcherType;
+import jakarta.servlet.DispatcherType;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

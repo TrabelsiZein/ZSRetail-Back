@@ -637,7 +637,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 				: null;
 
 		org.springframework.data.jpa.domain.Specification<CashierSession> spec = (root, query, cb) -> {
-			List<javax.persistence.criteria.Predicate> predicates = new ArrayList<>();
+			List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
 			if (finalFrom != null) {
 				predicates.add(cb.greaterThanOrEqualTo(root.get("openedAt"), finalFrom));
 			}
@@ -652,8 +652,8 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			}
 			if (finalSearch != null) {
 				String pattern = "%" + finalSearch.toLowerCase() + "%";
-				javax.persistence.criteria.Join<CashierSession, UserAccount> cashierJoin = root.join("cashier",
-						javax.persistence.criteria.JoinType.LEFT);
+				jakarta.persistence.criteria.Join<CashierSession, UserAccount> cashierJoin = root.join("cashier",
+						jakarta.persistence.criteria.JoinType.LEFT);
 				query.distinct(true);
 				predicates.add(cb.or(cb.like(cb.lower(root.get("sessionNumber")), pattern),
 						cb.like(cb.lower(cashierJoin.get("username")), pattern),
@@ -663,9 +663,9 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 				predicates.add(cb.equal(root.get("cashier").get("id"), fCashierId));
 			}
 			if (fMinSales != null || fMaxSales != null) {
-				javax.persistence.criteria.Subquery<Double> salesSub = query.subquery(Double.class);
-				javax.persistence.criteria.Root<SalesHeader> shRoot = salesSub.from(SalesHeader.class);
-				javax.persistence.criteria.Expression<Double> sumExpr = cb.sum(shRoot.<Double>get("totalAmount"));
+				jakarta.persistence.criteria.Subquery<Double> salesSub = query.subquery(Double.class);
+				jakarta.persistence.criteria.Root<SalesHeader> shRoot = salesSub.from(SalesHeader.class);
+				jakarta.persistence.criteria.Expression<Double> sumExpr = cb.sum(shRoot.<Double>get("totalAmount"));
 				salesSub.select(cb.coalesce(sumExpr, 0.0));
 				salesSub.where(cb.equal(shRoot.get("cashierSession"), root), cb.not(shRoot.get("status")
 						.in(java.util.Arrays.asList(TransactionStatus.PENDING, TransactionStatus.CANCELLED))));
@@ -675,8 +675,8 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 					predicates.add(cb.le(salesSub, fMaxSales));
 			}
 			if (fMinSalesCount != null || fMaxSalesCount != null) {
-				javax.persistence.criteria.Subquery<Long> countSub = query.subquery(Long.class);
-				javax.persistence.criteria.Root<SalesHeader> shCount = countSub.from(SalesHeader.class);
+				jakarta.persistence.criteria.Subquery<Long> countSub = query.subquery(Long.class);
+				jakarta.persistence.criteria.Root<SalesHeader> shCount = countSub.from(SalesHeader.class);
 				countSub.select(cb.count(shCount));
 				countSub.where(cb.equal(shCount.get("cashierSession"), root), cb.not(shCount.get("status")
 						.in(java.util.Arrays.asList(TransactionStatus.PENDING, TransactionStatus.CANCELLED))));
@@ -690,27 +690,27 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 				predicates.add(cb.or(cb.isNotNull(root.get("responsibleClosureCash")),
 						cb.isNotNull(root.get("posUserClosureCash"))));
 				// totalSales subquery
-				javax.persistence.criteria.Subquery<Double> diffSalesSub = query.subquery(Double.class);
-				javax.persistence.criteria.Root<SalesHeader> diffSh = diffSalesSub.from(SalesHeader.class);
+				jakarta.persistence.criteria.Subquery<Double> diffSalesSub = query.subquery(Double.class);
+				jakarta.persistence.criteria.Root<SalesHeader> diffSh = diffSalesSub.from(SalesHeader.class);
 				diffSalesSub.select(cb.coalesce(cb.sum(diffSh.<Double>get("totalAmount")), 0.0));
 				diffSalesSub.where(cb.equal(diffSh.get("cashierSession"), root), cb.not(diffSh.get("status")
 						.in(Arrays.asList(TransactionStatus.PENDING, TransactionStatus.CANCELLED))));
 				// simpleReturns subquery
-				javax.persistence.criteria.Subquery<Double> diffRetSub = query.subquery(Double.class);
-				javax.persistence.criteria.Root<ReturnHeader> diffRh = diffRetSub.from(ReturnHeader.class);
+				jakarta.persistence.criteria.Subquery<Double> diffRetSub = query.subquery(Double.class);
+				jakarta.persistence.criteria.Root<ReturnHeader> diffRh = diffRetSub.from(ReturnHeader.class);
 				diffRetSub.select(cb.coalesce(cb.sum(diffRh.<Double>get("totalReturnAmount")), 0.0));
 				diffRetSub.where(cb.equal(diffRh.get("cashierSession"), root),
 						cb.equal(diffRh.get("returnType"), ReturnType.SIMPLE_RETURN));
 				// totalSystemAmount = openingCash + totalSales - simpleReturns
-				javax.persistence.criteria.Expression<Double> openingExpr = cb.coalesce(root.<Double>get("openingCash"),
+				jakarta.persistence.criteria.Expression<Double> openingExpr = cb.coalesce(root.<Double>get("openingCash"),
 						0.0);
-				javax.persistence.criteria.Expression<Double> totalSystemExpr = cb
+				jakarta.persistence.criteria.Expression<Double> totalSystemExpr = cb
 						.diff(cb.sum(openingExpr, diffSalesSub), diffRetSub);
 				// Use responsibleClosureCash when available (TERMINATED), fall back to
 				// posUserClosureCash
-				javax.persistence.criteria.Expression<Double> effectiveClosure = cb
+				jakarta.persistence.criteria.Expression<Double> effectiveClosure = cb
 						.coalesce(root.<Double>get("responsibleClosureCash"), root.<Double>get("posUserClosureCash"));
-				javax.persistence.criteria.Expression<Double> diff = cb.diff(effectiveClosure, totalSystemExpr);
+				jakarta.persistence.criteria.Expression<Double> diff = cb.diff(effectiveClosure, totalSystemExpr);
 				if ("POSITIVE".equals(fDiffSign))
 					predicates.add(cb.gt(diff, 0.0));
 				else if ("NEGATIVE".equals(fDiffSign))
@@ -718,7 +718,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 				else if ("ZERO".equals(fDiffSign))
 					predicates.add(cb.between(diff, -0.005, 0.005));
 			}
-			return cb.and(predicates.toArray(new javax.persistence.criteria.Predicate[0]));
+			return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
 		};
 
 		org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size,

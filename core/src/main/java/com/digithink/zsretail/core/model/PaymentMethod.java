@@ -1,9 +1,9 @@
 package com.digithink.zsretail.core.model;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.EnumType;
-import javax.persistence.Enumerated;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 
 import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
 

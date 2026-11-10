@@ -3,7 +3,7 @@ package com.digithink.zsretail.store.inventory.repository;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
-import javax.persistence.LockModeType;
+import jakarta.persistence.LockModeType;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

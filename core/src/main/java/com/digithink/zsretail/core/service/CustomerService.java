@@ -95,13 +95,13 @@ public class CustomerService extends _BaseService<Customer, Long> {
 
 		// Use JPA Specification to search across multiple fields
 		org.springframework.data.jpa.domain.Specification<Customer> spec = (root, query, criteriaBuilder) -> {
-			javax.persistence.criteria.Predicate namePredicate = criteriaBuilder
+			jakarta.persistence.criteria.Predicate namePredicate = criteriaBuilder
 					.like(criteriaBuilder.lower(root.get("name")), searchPattern);
-			javax.persistence.criteria.Predicate codePredicate = criteriaBuilder
+			jakarta.persistence.criteria.Predicate codePredicate = criteriaBuilder
 					.like(criteriaBuilder.lower(root.get("customerCode")), searchPattern);
-			javax.persistence.criteria.Predicate phonePredicate = criteriaBuilder
+			jakarta.persistence.criteria.Predicate phonePredicate = criteriaBuilder
 					.like(criteriaBuilder.lower(root.get("phone")), searchPattern);
-			javax.persistence.criteria.Predicate emailPredicate = criteriaBuilder
+			jakarta.persistence.criteria.Predicate emailPredicate = criteriaBuilder
 					.like(criteriaBuilder.lower(root.get("email")), searchPattern);
 
 			// Combine with OR
@@ -120,7 +120,7 @@ public class CustomerService extends _BaseService<Customer, Long> {
 				org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "name"));
 
 		org.springframework.data.jpa.domain.Specification<Customer> spec = (root, query, criteriaBuilder) -> {
-			java.util.List<javax.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
+			java.util.List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
 
 			// Always filter by active = true
 			predicates.add(criteriaBuilder.equal(root.get("active"), true));
@@ -128,19 +128,19 @@ public class CustomerService extends _BaseService<Customer, Long> {
 			// Add search criteria if provided
 			if (searchTerm != null && !searchTerm.trim().isEmpty()) {
 				String searchPattern = "%" + searchTerm.toLowerCase() + "%";
-				javax.persistence.criteria.Predicate namePredicate = criteriaBuilder
+				jakarta.persistence.criteria.Predicate namePredicate = criteriaBuilder
 						.like(criteriaBuilder.lower(root.get("name")), searchPattern);
-				javax.persistence.criteria.Predicate codePredicate = criteriaBuilder
+				jakarta.persistence.criteria.Predicate codePredicate = criteriaBuilder
 						.like(criteriaBuilder.lower(root.get("customerCode")), searchPattern);
-				javax.persistence.criteria.Predicate phonePredicate = criteriaBuilder
+				jakarta.persistence.criteria.Predicate phonePredicate = criteriaBuilder
 						.like(criteriaBuilder.lower(root.get("phone")), searchPattern);
-				javax.persistence.criteria.Predicate emailPredicate = criteriaBuilder
+				jakarta.persistence.criteria.Predicate emailPredicate = criteriaBuilder
 						.like(criteriaBuilder.lower(root.get("email")), searchPattern);
-				javax.persistence.criteria.Predicate cityPredicate = criteriaBuilder
+				jakarta.persistence.criteria.Predicate cityPredicate = criteriaBuilder
 						.like(criteriaBuilder.lower(root.get("city")), searchPattern);
-				javax.persistence.criteria.Predicate countryPredicate = criteriaBuilder
+				jakarta.persistence.criteria.Predicate countryPredicate = criteriaBuilder
 						.like(criteriaBuilder.lower(root.get("country")), searchPattern);
-				javax.persistence.criteria.Predicate taxIdPredicate = criteriaBuilder
+				jakarta.persistence.criteria.Predicate taxIdPredicate = criteriaBuilder
 						.like(criteriaBuilder.lower(root.get("taxId")), searchPattern);
 
 				// Combine search predicates with OR
@@ -148,7 +148,7 @@ public class CustomerService extends _BaseService<Customer, Long> {
 						cityPredicate, countryPredicate, taxIdPredicate));
 			}
 
-			return criteriaBuilder.and(predicates.toArray(new javax.persistence.criteria.Predicate[0]));
+			return criteriaBuilder.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
 		};
 
 		return customerRepository.findAll(spec, pageable);
@@ -163,7 +163,7 @@ public class CustomerService extends _BaseService<Customer, Long> {
 				org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "name"));
 
 		org.springframework.data.jpa.domain.Specification<Customer> spec = (root, query, criteriaBuilder) -> {
-			java.util.List<javax.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
+			java.util.List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
 
 			// Filter by status if provided (all, active, inactive)
 			if (statusFilter != null && !statusFilter.equals("all")) {
@@ -177,19 +177,19 @@ public class CustomerService extends _BaseService<Customer, Long> {
 			// Add search criteria if provided
 			if (searchTerm != null && !searchTerm.trim().isEmpty()) {
 				String searchPattern = "%" + searchTerm.toLowerCase() + "%";
-				javax.persistence.criteria.Predicate namePredicate = criteriaBuilder
+				jakarta.persistence.criteria.Predicate namePredicate = criteriaBuilder
 						.like(criteriaBuilder.lower(root.get("name")), searchPattern);
-				javax.persistence.criteria.Predicate codePredicate = criteriaBuilder
+				jakarta.persistence.criteria.Predicate codePredicate = criteriaBuilder
 						.like(criteriaBuilder.lower(root.get("customerCode")), searchPattern);
-				javax.persistence.criteria.Predicate phonePredicate = criteriaBuilder
+				jakarta.persistence.criteria.Predicate phonePredicate = criteriaBuilder
 						.like(criteriaBuilder.lower(root.get("phone")), searchPattern);
-				javax.persistence.criteria.Predicate emailPredicate = criteriaBuilder
+				jakarta.persistence.criteria.Predicate emailPredicate = criteriaBuilder
 						.like(criteriaBuilder.lower(root.get("email")), searchPattern);
-				javax.persistence.criteria.Predicate cityPredicate = criteriaBuilder
+				jakarta.persistence.criteria.Predicate cityPredicate = criteriaBuilder
 						.like(criteriaBuilder.lower(root.get("city")), searchPattern);
-				javax.persistence.criteria.Predicate countryPredicate = criteriaBuilder
+				jakarta.persistence.criteria.Predicate countryPredicate = criteriaBuilder
 						.like(criteriaBuilder.lower(root.get("country")), searchPattern);
-				javax.persistence.criteria.Predicate taxIdPredicate = criteriaBuilder
+				jakarta.persistence.criteria.Predicate taxIdPredicate = criteriaBuilder
 						.like(criteriaBuilder.lower(root.get("taxId")), searchPattern);
 
 				// Combine search predicates with OR
@@ -197,7 +197,7 @@ public class CustomerService extends _BaseService<Customer, Long> {
 						cityPredicate, countryPredicate, taxIdPredicate));
 			}
 
-			return criteriaBuilder.and(predicates.toArray(new javax.persistence.criteria.Predicate[0]));
+			return criteriaBuilder.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
 		};
 
 		return customerRepository.findAll(spec, pageable);

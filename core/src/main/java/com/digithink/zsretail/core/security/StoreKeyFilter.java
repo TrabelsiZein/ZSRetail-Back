@@ -1,6 +1,6 @@
 package com.digithink.zsretail.core.security;
 
-import javax.servlet.Filter;
+import jakarta.servlet.Filter;
 
 /**
  * The filter that checks a store's key on /ho/**: exists only on a head office (headoffice.security.StoreApiKeyFilter).

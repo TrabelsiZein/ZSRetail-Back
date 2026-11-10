@@ -66,7 +66,7 @@ public class VendorService extends _BaseService<Vendor, Long> {
 		PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "name"));
 
 		Specification<Vendor> spec = (root, query, cb) -> {
-			java.util.List<javax.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
+			java.util.List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
 
 			if (statusFilter != null && !statusFilter.equals("all")) {
 				if (statusFilter.equals("active")) {
@@ -88,7 +88,7 @@ public class VendorService extends _BaseService<Vendor, Long> {
 						cb.like(cb.lower(root.get("taxId")), pattern)));
 			}
 
-			return predicates.isEmpty() ? null : cb.and(predicates.toArray(new javax.persistence.criteria.Predicate[0]));
+			return predicates.isEmpty() ? null : cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
 		};
 
 		return vendorRepository.findAll(spec, pageable);

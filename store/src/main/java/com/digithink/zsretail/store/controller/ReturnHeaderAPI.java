@@ -183,11 +183,11 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 			final String finalSessionNumber = sessionNumber != null && !sessionNumber.trim().isEmpty() ? sessionNumber.trim() : null;
 
 			org.springframework.data.jpa.domain.Specification<ReturnHeader> spec = (root, query, cb) -> {
-				List<javax.persistence.criteria.Predicate> predicates = new ArrayList<>();
+				List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
 
 				// Pre-create LEFT JOINs (reused for both filtering and search)
-				javax.persistence.criteria.Join<?, ?> shJoin = root.join("originalSalesHeader", javax.persistence.criteria.JoinType.LEFT);
-				javax.persistence.criteria.Join<?, ?> vJoin  = root.join("returnVoucher",         javax.persistence.criteria.JoinType.LEFT);
+				jakarta.persistence.criteria.Join<?, ?> shJoin = root.join("originalSalesHeader", jakarta.persistence.criteria.JoinType.LEFT);
+				jakarta.persistence.criteria.Join<?, ?> vJoin  = root.join("returnVoucher",         jakarta.persistence.criteria.JoinType.LEFT);
 
 				if (finalFrom != null) predicates.add(cb.greaterThanOrEqualTo(root.get("returnDate"), finalFrom));
 				if (finalTo   != null) predicates.add(cb.lessThanOrEqualTo(root.get("returnDate"), finalTo));
@@ -220,7 +220,7 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 					predicates.add(cb.equal(root.get("cashierSession").get("sessionNumber"), finalSessionNumber));
 				}
 
-				return cb.and(predicates.toArray(new javax.persistence.criteria.Predicate[0]));
+				return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
 			};
 
 			org.springframework.data.domain.Page<ReturnHeader> resultPage = returnHeaderRepository.findAll(

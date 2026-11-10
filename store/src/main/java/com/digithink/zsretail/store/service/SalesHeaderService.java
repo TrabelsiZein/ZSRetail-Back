@@ -1631,7 +1631,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 		// Build specification for filtering
 		org.springframework.data.jpa.domain.Specification<SalesHeader> spec = (root, query, criteriaBuilder) -> {
-			java.util.List<javax.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
+			java.util.List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
 
 			// Date range filter
 			if (finalDateFrom != null && finalDateTo != null) {
@@ -1656,8 +1656,8 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			// method)
 			if (finalPaymentMethodId != null) {
 				// Use subquery to find tickets with payments matching the payment method
-				javax.persistence.criteria.Subquery<Long> paymentSubquery = query.subquery(Long.class);
-				javax.persistence.criteria.Root<com.digithink.zsretail.core.model.Payment> paymentRoot = paymentSubquery
+				jakarta.persistence.criteria.Subquery<Long> paymentSubquery = query.subquery(Long.class);
+				jakarta.persistence.criteria.Root<com.digithink.zsretail.core.model.Payment> paymentRoot = paymentSubquery
 						.from(com.digithink.zsretail.core.model.Payment.class);
 				paymentSubquery.select(paymentRoot.get("salesHeader").get("id"));
 				paymentSubquery.where(criteriaBuilder.and(
@@ -1669,11 +1669,11 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			// Search filter (by sales number, customer name or ERP document number)
 			if (finalSearchStr != null && !finalSearchStr.trim().isEmpty()) {
 				String searchPattern = "%" + finalSearchStr.trim().toLowerCase() + "%";
-				javax.persistence.criteria.Predicate salesNumberPredicate = criteriaBuilder
+				jakarta.persistence.criteria.Predicate salesNumberPredicate = criteriaBuilder
 						.like(criteriaBuilder.lower(root.get("salesNumber")), searchPattern);
-				javax.persistence.criteria.Predicate customerNamePredicate = criteriaBuilder
-						.like(criteriaBuilder.lower(root.join("customer", javax.persistence.criteria.JoinType.LEFT).get("name")), searchPattern);
-				javax.persistence.criteria.Predicate erpNoPredicate = criteriaBuilder
+				jakarta.persistence.criteria.Predicate customerNamePredicate = criteriaBuilder
+						.like(criteriaBuilder.lower(root.join("customer", jakarta.persistence.criteria.JoinType.LEFT).get("name")), searchPattern);
+				jakarta.persistence.criteria.Predicate erpNoPredicate = criteriaBuilder
 						.like(criteriaBuilder.lower(root.get("erpNo")), searchPattern);
 				predicates.add(criteriaBuilder.or(salesNumberPredicate, customerNamePredicate, erpNoPredicate));
 			}
@@ -1700,8 +1700,8 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 			// Family filter — ticket must have at least one line with item in this family
 			if (finalFamilyId != null) {
-				javax.persistence.criteria.Subquery<Long> familySubquery = query.subquery(Long.class);
-				javax.persistence.criteria.Root<com.digithink.zsretail.core.model.SalesLine> lineRoot = familySubquery.from(com.digithink.zsretail.core.model.SalesLine.class);
+				jakarta.persistence.criteria.Subquery<Long> familySubquery = query.subquery(Long.class);
+				jakarta.persistence.criteria.Root<com.digithink.zsretail.core.model.SalesLine> lineRoot = familySubquery.from(com.digithink.zsretail.core.model.SalesLine.class);
 				familySubquery.select(lineRoot.get("salesHeader").get("id"));
 				familySubquery.where(criteriaBuilder.and(
 						criteriaBuilder.equal(lineRoot.get("salesHeader").get("id"), root.get("id")),
@@ -1711,8 +1711,8 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 			// Subfamily filter
 			if (finalSubFamilyId != null) {
-				javax.persistence.criteria.Subquery<Long> subFamilySubquery = query.subquery(Long.class);
-				javax.persistence.criteria.Root<com.digithink.zsretail.core.model.SalesLine> lineRoot2 = subFamilySubquery.from(com.digithink.zsretail.core.model.SalesLine.class);
+				jakarta.persistence.criteria.Subquery<Long> subFamilySubquery = query.subquery(Long.class);
+				jakarta.persistence.criteria.Root<com.digithink.zsretail.core.model.SalesLine> lineRoot2 = subFamilySubquery.from(com.digithink.zsretail.core.model.SalesLine.class);
 				subFamilySubquery.select(lineRoot2.get("salesHeader").get("id"));
 				subFamilySubquery.where(criteriaBuilder.and(
 						criteriaBuilder.equal(lineRoot2.get("salesHeader").get("id"), root.get("id")),
@@ -1720,7 +1720,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 				predicates.add(criteriaBuilder.exists(subFamilySubquery));
 			}
 
-			return criteriaBuilder.and(predicates.toArray(new javax.persistence.criteria.Predicate[0]));
+			return criteriaBuilder.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
 		};
 		return spec;
 	}

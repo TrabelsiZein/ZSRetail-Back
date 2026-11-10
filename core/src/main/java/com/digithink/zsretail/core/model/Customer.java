@@ -1,7 +1,7 @@
 package com.digithink.zsretail.core.model;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
