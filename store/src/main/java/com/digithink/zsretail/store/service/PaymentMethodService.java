@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import com.digithink.zsretail.core.model.PaymentMethod;
 import com.digithink.zsretail.core.model.enumeration.PaymentMethodBehaviour;
+import com.digithink.zsretail.core.repository.AcceptedTicketRepository;
 import com.digithink.zsretail.core.repository.PaymentMethodRepository;
 import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.core.service._BaseService;
@@ -53,16 +54,24 @@ public class PaymentMethodService extends _BaseService<PaymentMethod, Long> {
 	@Autowired
 	private JdbcTemplate jdbc;
 
+	@Autowired
+	private AcceptedTicketRepository acceptedTicketRepository;
+
 	@Override
 	protected _BaseRepository<PaymentMethod, Long> getRepository() {
 		return paymentMethodRepository;
 	}
 
-	/** A new method from the admin: no type, behaviour AMOUNT, the fields checked. Throws a Refusal. */
+	/**
+	 * A new method from the admin: no type, the behaviour asked (AMOUNT by default; step 3: SCANNED_TICKETS, its N° titre
+	 * and other details then off: the barcode is its title number), the fields checked. Throws a Refusal.
+	 */
 	public PaymentMethod prepareCreate(PaymentMethod method) {
 		method.setId(null);
 		method.setType(null);
-		method.setBehaviour(PaymentMethodBehaviour.AMOUNT);
+		method.setBehaviour(method.getBehaviour() == PaymentMethodBehaviour.SCANNED_TICKETS
+				? PaymentMethodBehaviour.SCANNED_TICKETS : PaymentMethodBehaviour.AMOUNT);
+		clearDetailsOfScannedTickets(method);
 		method.setCode(trim(method.getCode()));
 		method.setName(trim(method.getName()));
 		if (method.getDisplayOrder() == null) {
@@ -76,10 +85,20 @@ public class PaymentMethodService extends _BaseService<PaymentMethod, Long> {
 	}
 
 	/**
-	 * The stored method with what the admin may change from {@code incoming}; type and behaviour kept, the switches only
-	 * on a method without type. Throws a Refusal.
+	 * The stored method with what the admin may change from {@code incoming}; the type kept, the switches only on a method
+	 * without type. Step 3: the behaviour changes only on a method without type that has no payment (nor payment change
+	 * or session count) and no accepted ticket (BEHAVIOUR_LOCKED). Throws a Refusal.
 	 */
 	public PaymentMethod prepareUpdate(PaymentMethod stored, PaymentMethod incoming) {
+		PaymentMethodBehaviour current = behaviour(stored);
+		PaymentMethodBehaviour wanted = incoming.getBehaviour() != null ? incoming.getBehaviour() : current;
+		if (wanted != current) {
+			if (stored.getType() != null || uses(stored) > 0 || acceptedTicketRepository.countByPaymentMethod(stored) > 0) {
+				throw new Refusal("BEHAVIOUR_LOCKED", "The behaviour of the payment method " + stored.getCode()
+						+ " changes only on a method without type, before any payment and any accepted ticket.");
+			}
+			stored.setBehaviour(wanted);
+		}
 		stored.setCode(trim(incoming.getCode()));
 		stored.setName(trim(incoming.getName()));
 		stored.setDescription(incoming.getDescription());
@@ -95,8 +114,32 @@ public class PaymentMethodService extends _BaseService<PaymentMethod, Long> {
 			stored.setRequireDrawerName(Boolean.TRUE.equals(incoming.getRequireDrawerName()));
 			stored.setRequireIssuingBank(Boolean.TRUE.equals(incoming.getRequireIssuingBank()));
 		}
+		clearDetailsOfScannedTickets(stored);
 		check(stored, stored.getId());
 		return stored;
+	}
+
+	/** A method of behaviour null is AMOUNT (every method of before). */
+	static PaymentMethodBehaviour behaviour(PaymentMethod method) {
+		return method.getBehaviour() != null ? method.getBehaviour() : PaymentMethodBehaviour.AMOUNT;
+	}
+
+	/** A scanned-tickets method asks no N° titre, due date, drawer or bank: the barcode is the title number. */
+	private static void clearDetailsOfScannedTickets(PaymentMethod method) {
+		if (method.getBehaviour() == PaymentMethodBehaviour.SCANNED_TICKETS) {
+			method.setRequireTitleNumber(false);
+			method.setAskTitleNumber(false);
+			method.setTitleNumberLength(null);
+			method.setRequireDueDate(false);
+			method.setRequireDrawerName(false);
+			method.setRequireIssuingBank(false);
+		}
+	}
+
+	private int uses(PaymentMethod method) {
+		Long id = method.getId();
+		Integer uses = jdbc.queryForObject(USES, Integer.class, id, id, id, id);
+		return uses != null ? uses : 0;
 	}
 
 	/** Why the method may not be deleted (switch it off instead); empty when it may. */
@@ -105,11 +148,13 @@ public class PaymentMethodService extends _BaseService<PaymentMethod, Long> {
 			return Optional.of(new Refusal("FIXED_TYPE", "The payment method " + method.getCode()
 					+ " is one of the fixed methods: it cannot be deleted, switch it off instead."));
 		}
-		Long id = method.getId();
-		Integer uses = jdbc.queryForObject(USES, Integer.class, id, id, id, id);
-		if (uses != null && uses > 0) {
+		if (uses(method) > 0) {
 			return Optional.of(new Refusal("IN_USE", "The payment method " + method.getCode()
 					+ " is used by payments or session counts: it cannot be deleted, switch it off instead."));
+		}
+		if (acceptedTicketRepository.countByPaymentMethod(method) > 0) {
+			return Optional.of(new Refusal("HAS_TICKETS", "The payment method " + method.getCode()
+					+ " has accepted tickets: delete them first, or switch the method off."));
 		}
 		return Optional.empty();
 	}

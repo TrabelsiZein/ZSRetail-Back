@@ -27,6 +27,7 @@ import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.SalesLine;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
+import com.digithink.zsretail.core.model.enumeration.PaymentMethodBehaviour;
 import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
 import com.digithink.zsretail.core.model.enumeration.SessionStatus;
 import com.digithink.zsretail.core.model.enumeration.SynchronizationStatus;
@@ -799,6 +800,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			for (SplitBillRequestDTO.PaymentDTO payDTO : request.getPayments()) {
 				PaymentMethod method = paymentMethodRepository.findById(payDTO.getPaymentMethodId())
 						.orElseThrow(() -> new IllegalArgumentException("Payment method not found: " + payDTO.getPaymentMethodId()));
+				refuseScannedTickets(method);
 				Payment payment = new Payment();
 				payment.setSalesHeader(splitHeader);
 				payment.setPaymentMethod(method);
@@ -1018,6 +1020,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 			PaymentMethod paymentMethod = paymentMethodRepository.findById(paymentDTO.getPaymentMethodId()).orElseThrow(
 					() -> new IllegalArgumentException("Payment method not found: " + paymentDTO.getPaymentMethodId()));
+			refuseScannedTickets(paymentMethod);
 
 			if (paymentMethod.getType() == PaymentMethodType.RETURN_VOUCHER) {
 				if (paymentDTO.getReference() == null || paymentDTO.getReference().trim().isEmpty()) {
@@ -1166,6 +1169,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		if (!Boolean.TRUE.equals(newMethod.getActive())) {
 			throw new IllegalArgumentException("Selected payment method is not active");
 		}
+		refuseScannedTickets(newMethod);
 		if (newMethod.getType() == PaymentMethodType.RETURN_VOUCHER) {
 			throw new IllegalArgumentException("Cannot change a payment to a return voucher");
 		}
@@ -1349,6 +1353,17 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		if (requireBank && isBlank(paymentDTO.getIssuingBank())) {
 			throw new IllegalArgumentException(
 					"Issuing bank is required for payment method: " + paymentMethod.getName());
+		}
+	}
+
+	/**
+	 * 3.2.0, step 3: a scanned-tickets method pays nothing yet (the till scans the tickets from step 5): a sale, a split
+	 * bill or a payment change on it is refused, before anything is written (the caller's transaction is rolled back).
+	 */
+	static void refuseScannedTickets(PaymentMethod method) {
+		if (method != null && method.getBehaviour() == PaymentMethodBehaviour.SCANNED_TICKETS) {
+			throw new IllegalArgumentException("The payment method " + method.getName()
+					+ " takes scanned tickets: it cannot be used for a payment yet.");
 		}
 	}
 

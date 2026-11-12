@@ -108,6 +108,22 @@ IF OBJECT_ID(N'payment_method', N'U') IS NOT NULL
 	ALTER TABLE payment_method ADD ask_title_number bit NULL
 GO
 
+-- Payment methods, step 3: the tickets a scanned-tickets method accepts (AcceptedTicket): issuer, code (the barcode's
+-- prefix), deduction %, validity (months after the printed year), barcode layout. Created here in the form Hibernate
+-- gives it (the foreign key named as in the entity), so the start finds it whole; on a database without it Hibernate
+-- would create it at the first start too. Store and head office alike (a head office leaves it empty).
+IF OBJECT_ID(N'payment_method', N'U') IS NOT NULL AND OBJECT_ID(N'accepted_ticket', N'U') IS NULL
+BEGIN
+	CREATE TABLE accepted_ticket (id bigint identity not null, active bit, created_at datetime2, created_by varchar(255),
+		updated_at datetime2, updated_by varchar(255), deduction_percent numeric(5,2) not null,
+		issuer_name varchar(255) not null, barcode_length int, serial_length int, serial_start int, value_length int,
+		value_start int, year_length int, year_start int, ticket_code varchar(20) not null, validity_months int,
+		payment_method_id bigint not null, primary key (id));
+	ALTER TABLE accepted_ticket ADD CONSTRAINT fk_accepted_ticket_payment_method FOREIGN KEY (payment_method_id)
+		REFERENCES payment_method;
+END
+GO
+
 UPDATE APP_VERSION SET version = '3.2.0';
 
 -- The notes of 3.2.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

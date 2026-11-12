@@ -28,6 +28,7 @@ import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model.enumeration.BadgePermission;
 import com.digithink.zsretail.core.model.enumeration.ConfigType;
 import com.digithink.zsretail.core.model.enumeration.ItemType;
+import com.digithink.zsretail.core.model.enumeration.PaymentMethodBehaviour;
 import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
 import com.digithink.zsretail.core.repository.AppReleaseNoteRepository;
 import com.digithink.zsretail.core.repository.AppRoleRepository;
@@ -40,6 +41,7 @@ import com.digithink.zsretail.core.repository.ItemRepository;
 import com.digithink.zsretail.core.repository.ItemSubFamilyRepository;
 import com.digithink.zsretail.core.repository.LocationRepository;
 import com.digithink.zsretail.core.repository.PaymentMethodRepository;
+import com.digithink.zsretail.core.repository.AcceptedTicketRepository;
 import com.digithink.zsretail.core.repository.UserAccountRepository;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -76,6 +78,8 @@ public class ZZDataInitializer {
 	private PasswordEncoder passwordEncoder;
 	@Autowired
 	private PaymentMethodRepository paymentMethodRepository;
+	@Autowired
+	private AcceptedTicketRepository acceptedTicketRepository;
 	@Autowired
 	private CustomerRepository customerRepository;
 	@Autowired
@@ -556,9 +560,9 @@ public class ZZDataInitializer {
 		clientTpe.setUpdatedBy("System");
 		paymentMethodRepository.save(clientTpe);
 
-		// 3.2.0: no Ticket Restaurant (order 3) or Chèque Cadeau (order 4) on a new database: they are no longer fixed
-		// types; an existing database keeps its rows, converted by PaymentMethodsUpgrade (this seed runs on an empty
-		// table only)
+		// 3.2.0: Ticket Restaurant (order 3) and Chèque Cadeau (order 4) are no longer fixed types: on a new store they
+		// come at the end, scanned-tickets methods (step 3); an existing database keeps its rows, converted by
+		// PaymentMethodsUpgrade (this seed runs on an empty table only)
 
 		// Client Chèque - Order 5 (3.2.0: the N° titre length 7, before the setting PAYMENT_METHOD_CLIENT_CHEQUE_...)
 		PaymentMethod clientCheque = new PaymentMethod();
@@ -640,6 +644,32 @@ public class ZZDataInitializer {
 		retenueSource.setCreatedBy("System");
 		retenueSource.setUpdatedBy("System");
 		paymentMethodRepository.save(retenueSource);
+
+		// 3.2.0, step 3: a new store gets two scanned-tickets methods, inactive, with the common issuers (inactive too,
+		// CommonTicketIssuers); a head office never sells. An existing database gets nothing: its admin adds the issuers.
+		if (!applicationModeService.isHeadOffice()) {
+			seedScannedTickets("TICKET_RESTAURANT", "Ticket Restaurant", "Paiement par tickets restaurant scannés", 3,
+					CommonTicketIssuers.Kind.MEAL);
+			seedScannedTickets("CHEQUE_CADEAU", "Chèque Cadeau", "Paiement par chèques cadeaux scannés", 4,
+					CommonTicketIssuers.Kind.GIFT);
+		}
+	}
+
+	private void seedScannedTickets(String code, String name, String description, int order,
+			CommonTicketIssuers.Kind kind) {
+		PaymentMethod method = new PaymentMethod();
+		method.setCode(code);
+		method.setName(name);
+		method.setDescription(description);
+		method.setBehaviour(PaymentMethodBehaviour.SCANNED_TICKETS);
+		method.setActive(false);
+		method.setDisplayOrder(order);
+		method.setCreatedBy("System");
+		method.setUpdatedBy("System");
+		method = paymentMethodRepository.save(method);
+		for (CommonTicketIssuers.Issuer issuer : CommonTicketIssuers.of(kind)) {
+			acceptedTicketRepository.save(CommonTicketIssuers.line(issuer, method));
+		}
 	}
 
 	/**

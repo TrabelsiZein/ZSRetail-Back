@@ -43,6 +43,17 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   N° titre given, optional or required, and kept by a payment change. Tests: `PaymentMethodServiceTest`,
   `PaymentMethodAPITest`, `SessionExportMethodWithoutTypeTest`, a method without type in the X/Z, journal and head
   office consolidation tests.
+- Payment methods, step 3 (accepted tickets and the barcode parser; `docs/backend.md`, "Payment methods 3.2.0, step 3"):
+  entity `AcceptedTicket` (table `accepted_ticket`): issuer, ticket code (the barcode's prefix), deduction %, validity
+  in months after the printed year, barcode layout (`BarcodeLayout`), active; only under a method of behaviour
+  `SCANNED_TICKETS`; two overlapping codes of one barcode length refused (any method, active or not).
+  `TicketBarcodeParser` reads a barcode at a date: issuer, face value, year, serial, valid until, value counted, and a
+  status (`OK`, `NOT_DIGITS`, `UNKNOWN_TICKET`, `WRONG_LENGTH`, `OTHER_METHOD`, `LINE_INACTIVE`, `EXPIRED`).
+  `/payment-method/{id}/tickets`: list, add, edit, delete, `common?kind=MEAL|GIFT` (the common issuers, inactive),
+  `test?barcode=` (nothing stored); `/payment-method/ticket-counts`. The behaviour is chosen when a method is created and
+  changes only without type, payment or line; a method with lines is not deleted. A scanned-tickets method cannot pay
+  yet (sale, split bill, payment change refused until step 5). New store: two inactive scanned-tickets methods (Ticket
+  Restaurant, Chèque Cadeau) with the twelve common issuers, inactive; an existing database gets nothing.
 
 ### Fixes
 - Startup order: `ZZDataInitializer` (`@DependsOn`) and `JdbcCatalogueState` (it asks for the guard first) run after
@@ -56,8 +67,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   nullable, the filtered unique index `ux_payment_method_type`, the columns `behaviour` and `title_number_length`, then
   in one transaction the four lengths copied to their methods, Ticket Restaurant and Chèque Cadeau without type
   (behaviour `AMOUNT`), `behaviour` filled, the four settings deleted; step 2: the column `ask_title_number` (bit,
-  nullable); APP_VERSION 3.1.2 -> 3.2.0. The script sets QUOTED_IDENTIFIER and the other options itself: plain sqlcmd
-  (no `-I`) runs it (done so on pos_franchise_customer, 2026-11-12).
+  nullable); step 3: the table `accepted_ticket` (in Hibernate's form, its foreign key named
+  `fk_accepted_ticket_payment_method` as in the entity); APP_VERSION 3.1.2 -> 3.2.0. The script sets QUOTED_IDENTIFIER
+  and the other options itself: plain sqlcmd (no `-I`) runs it (done so on pos_franchise_customer, 2026-11-12, again for
+  each step). It accepts a database already at 3.2.0, so one script brings a 3.1.2 database and a 3.2.0 test database
+  alike.
 
 ### Config
 - General setup: `PAYMENT_METHOD_CLIENT_CHEQUE_TITLE_NUMBER_LENGTH`, `PAYMENT_METHOD_TICKET_RESTAURANT_TITLE_NUMBER_LENGTH`,

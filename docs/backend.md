@@ -49,6 +49,33 @@
   is made when it is sent). Tests: `PaymentMethodServiceTest`, `PaymentMethodAPITest`, `SessionExportMethodWithoutTypeTest`,
   `methodWithoutType` in `SessionReportServiceTest` and `DayJournalServiceTest`, `methodUnknownToTheHeadOffice` in
   `ConsolidatedSalesServiceTest`.
+- **Payment methods 3.2.0, step 3** (accepted tickets, the barcode parser, the admin screen; the till takes them at
+  steps 4-5): a method of behaviour `SCANNED_TICKETS` owns its accepted tickets, `AcceptedTicket` (table
+  `accepted_ticket`, core): issuer, ticket code (digits, the barcode's prefix: positions 1 to its length), deduction
+  (0-100 %, 2 decimals, default 0), validity (`validityMonths` after the end of the printed year, default 1 = until 31
+  January of the next year; null = no check), barcode layout (`BarcodeLayout`, embedded: total length and the
+  position / length of the face value in millimes, the year in 2 or 4 digits, the serial, optional; default 28 digits,
+  4-9, 10-11, 12-28), active. `AcceptedTicketService` (store) keeps the rules: lines only on a scanned-tickets method,
+  two lines of the same total length whose codes are equal or one starts the other refused whatever their method or
+  switch (so a barcode matches one line at most). `TicketBarcodeParser` (core, pure: barcode, date, lines, the method
+  expected) gives the reading: line, method, issuer, face value (TND), year, serial, valid until, value counted (face
+  value minus the deduction, half up to the millime) and a status `OK`, `NOT_DIGITS`, `UNKNOWN_TICKET`, `WRONG_LENGTH`,
+  `OTHER_METHOD` (the line is another method's), `LINE_INACTIVE`, `EXPIRED`; the longest code wins among the lines of
+  the barcode's length (a defence: the rules prevent overlaps). `AcceptedTicketAPI`: `/payment-method/{id}/tickets`
+  (list, add, edit, delete), `/tickets/common?kind=MEAL|GIFT` (the six common issuers of `CommonTicketIssuers`, the one
+  place they are written, added inactive, a code that would overlap skipped), `/tickets/test?barcode=&date=` (the
+  reading, nothing stored); reading and testing need `read:admin-payment-methods` (or the write right), the changes
+  `write:admin-payment-methods`; `GET /payment-method/ticket-counts` (lines per method). The behaviour is chosen at
+  creation and changes only on a method without type with no payment and no line (`BEHAVIOUR_LOCKED`); a
+  scanned-tickets method asks no N° titre or other detail; a method with lines is not deleted (`HAS_TICKETS`). Until
+  step 5 a scanned-tickets method pays nothing: the sale, the split bill and the payment change refuse it
+  (`SalesHeaderService.refuseScannedTickets`) and the till's screens do not offer it. A new store database gets two
+  inactive scanned-tickets methods, Ticket Restaurant (the six repas issuers) and Chèque Cadeau (the six cadeau
+  issuers), lines inactive; a head office does not; an existing database gets nothing (its admin adds the issuers). The
+  table is created by `db/3.2.0/update.sql` (the foreign key `fk_accepted_ticket_payment_method` named as in the
+  entity) and by Hibernate at a start otherwise. Tests: `TicketBarcodeParserTest` (the real tickets 031 Servimax Repas
+  and 042 Sodexo Cadeau), `AcceptedTicketServiceTest`, `CommonTicketIssuersTest`, `PaymentMethodServiceTest`,
+  `ZZDataInitializerPaymentMethodsTest`.
 - Item family/subfamily domain: entities, repositories, services, controllers; `Item` links to both family and subfamily, with legacy `taxable`/`taxRate` flags removed in favor of `defaultVAT`.
 - `ItemBarcodeAPI /items-with-barcodes` now supports pagination + filtering; `ItemService` exposes a spec-based search and `ItemBarcodeService` fetches active barcodes per page.
 - Admin ERP communications endpoint exposes filtered communications (date range, limit) for the new frontend view.
