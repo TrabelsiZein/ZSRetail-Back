@@ -49,6 +49,12 @@ public class PaymentMethod extends _BaseEntity {
 
 	private Boolean requireTitleNumber = false;
 
+	/**
+	 * 3.2.0, step 2: the N° titre asked but optional (a card on a terminal: the slip number); with requireTitleNumber,
+	 * the three states: off (both false), optional (this one), required (requireTitleNumber). Null is false.
+	 */
+	private Boolean askTitleNumber = false;
+
 	private Boolean requireDueDate = false;
 
 	private Boolean requireDrawerName = false;

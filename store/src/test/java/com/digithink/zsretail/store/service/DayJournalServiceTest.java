@@ -311,6 +311,23 @@ class DayJournalServiceTest {
 	}
 
 	@Test
+	@DisplayName("3.2.0: a ticket paid with a method the admin created (no type): under its name, on the line and in the totals")
+	void methodWithoutType() {
+		PaymentMethod admins = method(20L, "TR-SERVIMAX", "Ticket Servimax", null, 11);
+		standardDay();
+		SalesHeader t3 = sale("T3", TransactionStatus.COMPLETED, DAY.atTime(14, 0), DAY.atTime(14, 0), 35.7, sami);
+		line(t3, goods, 19, 35.7);
+		pay(t3, admins, 35.7);
+		DayJournalDTO dto = service.build(DAY);
+
+		assertEquals(35.7, method(line(dto, "T3").getPayments(), "Ticket Servimax"), EPS);
+		DayJournalDTO.Totals totals = dto.getTotals();
+		assertEquals(35.7, method(totals.getPayments(), "Ticket Servimax"), EPS);
+		assertEquals(95.2, method(totals.getPayments(), "Espèces"), EPS, "the cash as before");
+		assertEquals(totals.getNet(), totals.getPayments().stream().mapToDouble(MethodAmount::getAmount).sum(), 1e-6);
+	}
+
+	@Test
 	@DisplayName("Totals: counts, the tickets' HT / VAT / stamp / TTC, the returns, net, and per method (adding up to net)")
 	void totalsAndPerMethod() {
 		standardDay();

@@ -100,6 +100,14 @@ IF COL_LENGTH(N'payment_method', N'behaviour') IS NOT NULL
 	END TRY BEGIN CATCH IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION; THROW; END CATCH')
 GO
 
+-- Payment methods, step 2: the N° titre asked but optional (a card on a terminal: the slip number); with
+-- require_title_number, the three states off / optional / required. Empty is "not asked". The application adds it too, at
+-- its first start (Hibernate), so it is not among the statements run at each start.
+IF OBJECT_ID(N'payment_method', N'U') IS NOT NULL
+	AND COL_LENGTH(N'payment_method', N'ask_title_number') IS NULL
+	ALTER TABLE payment_method ADD ask_title_number bit NULL
+GO
+
 UPDATE APP_VERSION SET version = '3.2.0';
 
 -- The notes of 3.2.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

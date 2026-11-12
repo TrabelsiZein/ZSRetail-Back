@@ -411,6 +411,31 @@ class SessionReportServiceTest {
 	}
 
 	@Test
+	@DisplayName("3.2.0: a method the admin created (no type) has its payment and control lines, as the card, never cash")
+	void methodWithoutType() {
+		PaymentMethod admins = method(20L, "TR-SERVIMAX", "Ticket Servimax", null, 11);
+		standardSession();
+		SalesHeader paidWithIt = sale(TransactionStatus.COMPLETED, 30.0);
+		line(paidWithIt, 19, 30.0, 0);
+		pay(paidWithIt, admins, 30.0);
+		close(376.72);
+		count(CounterType.POS_USER, cash, 376.72);
+		count(CounterType.POS_USER, admins, 30.0);
+		SessionReportTicketDTO dto = service.build(7L);
+
+		PaymentLine line = payment(dto, "TR-SERVIMAX");
+		assertEquals(30.0, line.getAmount(), EPS);
+		assertFalse(line.isCash());
+		assertEquals(1, line.getTicketsCount());
+		assertEquals(296.72, payment(dto, "ESP").getAmount(), EPS, "the cash as before");
+		ControlLine control = control(dto.getControl(), "TR-SERVIMAX");
+		assertEquals(30.0, control.getExpected(), EPS);
+		assertEquals(30.0, control.getCounted(), EPS);
+		assertEquals(0.0, control.getDifference(), EPS);
+		assertEquals(376.72, control(dto.getControl(), "ESP").getExpected(), EPS, "not in the cash expected");
+	}
+
+	@Test
 	@DisplayName("Control on Z: a method the cashier did not declare is null (\"—\"), a method declared with 0 stays 0")
 	void undeclaredMethod() {
 		standardSession();

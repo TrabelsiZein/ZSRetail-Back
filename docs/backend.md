@@ -23,6 +23,32 @@
   `QUOTED_IDENTIFIER` and `ANSI_NULLS` on for every write of the table (JDBC and SSMS have them; `sqlcmd` needs `-I`).
   Back to 3.1.2 on such a database (APP_VERSION set back by hand): see CHANGELOG 3.2.0, "Before deployment". Tests:
   `PaymentMethodsUpgradeTest`, `ZZDataInitializerPaymentMethodsTest`, `SalesTitleNumberLengthTest`.
+- **Startup order (3.2.0)**: `ZZDataInitializer` is `@DependsOn("appVersionGuard")` and `JdbcCatalogueState` asks for the
+  guard first (an `ObjectProvider`, so a test context without the guard keeps working), so a
+  database of another version is refused before the initializer writes anything (before, the order came from the
+  classpath scan, and on a head office `HeadOfficeErpJobs`, which takes the initializer in its constructor, could create
+  it first). Still before the guard, as on every 3.x: Hibernate's `ddl-auto=update` (it adds the new columns, nullable).
+  Proved on a store database at 3.1.2: the 3.2.0 start refused, the payment methods and settings untouched
+  (`StartupOrderTest` pins the annotations).
+- **Payment methods 3.2.0, step 2** (the admin adds and edits methods): `PaymentMethodAPI` puts `PaymentMethodService`'s
+  rules in front of the generic CRUD. POST, PUT and DELETE need `write:admin-payment-methods` (403; ADMIN has it), the
+  reads stay open to a logged user (the till, the closing, the payment change). A created method has no type and the
+  behaviour `AMOUNT`, whatever is sent; an update saves the stored row with what may change: code, name, description,
+  order, active and the N° titre length on every method, the switches (N° titre, due date, drawer name, bank) only on a
+  method without type; never the type or the behaviour. The code is unique. A refusal is 400 (deletion: 409) with
+  `{error, reason}` (`CODE_REQUIRED`, `NAME_REQUIRED`, `CODE_TAKEN`, `LENGTH_INVALID` 1-255, `FIXED_TYPE`, `IN_USE`,
+  `FORBIDDEN`). Deletion is refused for a fixed type and for a method used by a payment, a payment change (old or new)
+  or a session count line: it is switched off. The N° titre has three states with the new `askTitleNumber` (column
+  `ask_title_number`, also added by `db/3.2.0/update.sql`): off, optional (asked, a card's slip number), required
+  (`requireTitleNumber`); the length is checked on a N° titre given in both (`SalesHeaderService.asksTitleNumber`), and
+  a payment change keeps it. A method without type is a non-cash method everywhere: the till, the closing window,
+  tickets X/Z, the journal, the ERP export (a header per code, a line per payment with its N° titre), the head office
+  (the copies carry the code and name; the head office needs no row for it). Changing a code is allowed (no lock, a NAV
+  code is often typed after the first sales); the payment rows already exported or copied keep the old code, the others
+  take the new one (the ERP rows of a session are made at the sale and rebuilt by a payment change; the head office copy
+  is made when it is sent). Tests: `PaymentMethodServiceTest`, `PaymentMethodAPITest`, `SessionExportMethodWithoutTypeTest`,
+  `methodWithoutType` in `SessionReportServiceTest` and `DayJournalServiceTest`, `methodUnknownToTheHeadOffice` in
+  `ConsolidatedSalesServiceTest`.
 - Item family/subfamily domain: entities, repositories, services, controllers; `Item` links to both family and subfamily, with legacy `taxable`/`taxRate` flags removed in favor of `defaultVAT`.
 - `ItemBarcodeAPI /items-with-barcodes` now supports pagination + filtering; `ItemService` exposes a spec-based search and `ItemBarcodeService` fetches active barcodes per page.
 - Admin ERP communications endpoint exposes filtered communications (date range, limit) for the new frontend view.

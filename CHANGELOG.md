@@ -34,12 +34,30 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `PaymentMethodsUpgradeTest`, `ZZDataInitializerPaymentMethodsTest`, `SalesTitleNumberLengthTest`; the statements run
   on a throwaway database (a 3.1.2 one with both rows and payments on them, a second run, a new one, a 3.1.2 start in
   between).
+- Payment methods, step 2 (the admin adds and edits methods; `docs/backend.md`, "Payment methods 3.2.0, step 2"):
+  POST / PUT / DELETE `/payment-method` need `write:admin-payment-methods` (403), the reads stay open. A created method
+  has no type and the behaviour `AMOUNT`; an update never changes the type or the behaviour, and the switches only on a
+  method without type (the N° titre length on every method); the code is unique; refusals answer 400 (deletion 409) with
+  `{error, reason}`. A fixed method, or one used by a payment, a payment change or a session count, is not deleted
+  (switched off). New `PaymentMethod.askTitleNumber`: the N° titre off / optional / required; its length checked on a
+  N° titre given, optional or required, and kept by a payment change. Tests: `PaymentMethodServiceTest`,
+  `PaymentMethodAPITest`, `SessionExportMethodWithoutTypeTest`, a method without type in the X/Z, journal and head
+  office consolidation tests.
+
+### Fixes
+- Startup order: `ZZDataInitializer` (`@DependsOn`) and `JdbcCatalogueState` (it asks for the guard first) run after
+  `AppVersionGuard`. Before, on a
+  head office, `HeadOfficeErpJobs` could create the initializer first, so a database of another version was written
+  (this version: payment methods converted, settings deleted) before the guard refused the start. Proved on a store
+  database at 3.1.2 (refused, untouched but for Hibernate's new nullable columns); `StartupOrderTest`.
 
 ### DB script
 - `db/3.2.0/update.sql` (version 3.2.0): the unique constraint on `payment_method.type` dropped (name read), the column
   nullable, the filtered unique index `ux_payment_method_type`, the columns `behaviour` and `title_number_length`, then
   in one transaction the four lengths copied to their methods, Ticket Restaurant and Chèque Cadeau without type
-  (behaviour `AMOUNT`), `behaviour` filled, the four settings deleted; APP_VERSION 3.1.2 -> 3.2.0.
+  (behaviour `AMOUNT`), `behaviour` filled, the four settings deleted; step 2: the column `ask_title_number` (bit,
+  nullable); APP_VERSION 3.1.2 -> 3.2.0. The script sets QUOTED_IDENTIFIER and the other options itself: plain sqlcmd
+  (no `-I`) runs it (done so on pos_franchise_customer, 2026-11-12).
 
 ### Config
 - General setup: `PAYMENT_METHOD_CLIENT_CHEQUE_TITLE_NUMBER_LENGTH`, `PAYMENT_METHOD_TICKET_RESTAURANT_TITLE_NUMBER_LENGTH`,

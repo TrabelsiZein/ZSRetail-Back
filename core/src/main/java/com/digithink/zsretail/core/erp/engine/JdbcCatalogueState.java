@@ -6,12 +6,15 @@ import java.util.stream.Collectors;
 
 import javax.annotation.PostConstruct;
 
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.core.config.ConditionalOnErpAbility;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.service.AppVersionGuard;
 import com.digithink.zsretail.erp.api.ErpAbility;
 import com.digithink.zsretail.erp.api.ErpConnectorDescriptor;
 import com.digithink.zsretail.erp.api.ErpConnectors;
@@ -34,6 +37,8 @@ import lombok.extern.log4j.Log4j2;
  * <li>neither: the new one is created ({@link #CREATE});</li>
  * <li>the new one alone: nothing to do.</li>
  * </ul>
+ * 3.2.0: after AppVersionGuard ({@link #prepareTable} asks for it first): a database of another version is refused
+ * before its table is created or renamed.
  */
 @Component
 @ConditionalOnErpAbility(ErpAbility.HEAD_OFFICE_STOCK_POINTS)
@@ -49,8 +54,17 @@ public class JdbcCatalogueState implements CatalogueState {
 
 	private final JdbcTemplate jdbc;
 
+	/** 3.2.0: the version guard, asked for first by {@link #prepareTable} (absent from a context without it). */
+	private final ObjectProvider<AppVersionGuard> versionGuard;
+
 	public JdbcCatalogueState(JdbcTemplate jdbc) {
+		this(jdbc, null);
+	}
+
+	@Autowired
+	public JdbcCatalogueState(JdbcTemplate jdbc, ObjectProvider<AppVersionGuard> versionGuard) {
 		this.jdbc = jdbc;
+		this.versionGuard = versionGuard;
 	}
 
 	/** The old names of the table, as the connectors found declare them (a table name: letters, digits, _). */
@@ -88,6 +102,11 @@ public class JdbcCatalogueState implements CatalogueState {
 
 	@PostConstruct
 	void prepareTable() {
+		// 3.2.0: the version guard first (creating it runs its check): a database of another version is refused before
+		// the table is created or renamed. A soft dependency, not @DependsOn: a context without the guard keeps working.
+		if (versionGuard != null) {
+			versionGuard.getIfAvailable();
+		}
 		List<String> tables = new ArrayList<>(oldTables());
 		tables.add(TABLE);
 		List<String> found = jdbc.queryForList(find(tables), String.class);

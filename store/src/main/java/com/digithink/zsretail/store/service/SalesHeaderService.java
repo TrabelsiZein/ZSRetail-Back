@@ -1202,7 +1202,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 		// --- Apply the change (UPDATE in place; amount untouched) ---
 		payment.setPaymentMethod(newMethod);
-		payment.setTitleNumber(Boolean.TRUE.equals(newMethod.getRequireTitleNumber()) ? request.getTitleNumber() : null);
+		payment.setTitleNumber(asksTitleNumber(newMethod) ? request.getTitleNumber() : null);
 		payment.setDueDate(Boolean.TRUE.equals(newMethod.getRequireDueDate()) ? request.getDueDate() : null);
 		payment.setDrawerName(Boolean.TRUE.equals(newMethod.getRequireDrawerName()) ? request.getDrawerName() : null);
 		payment.setIssuingBank(Boolean.TRUE.equals(newMethod.getRequireIssuingBank()) ? request.getIssuingBank() : null);
@@ -1325,8 +1325,9 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 					"Title number is required for payment method: " + paymentMethod.getName());
 		}
 
-		// The N° titre's exact length when the method has one (3.2.0: the method's, no longer a setting per type)
-		if (requireTitle && !isBlank(paymentDTO.getTitleNumber())) {
+		// The N° titre's exact length when the method has one (3.2.0: the method's, no longer a setting per type), checked
+		// on a N° titre given, required or optional (step 2: askTitleNumber, e.g. a card's slip number)
+		if (asksTitleNumber(paymentMethod) && !isBlank(paymentDTO.getTitleNumber())) {
 			Integer requiredLength = paymentMethod.getTitleNumberLength();
 			if (requiredLength != null && requiredLength > 0) {
 				String titleNumber = paymentDTO.getTitleNumber().trim();
@@ -1349,6 +1350,11 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			throw new IllegalArgumentException(
 					"Issuing bank is required for payment method: " + paymentMethod.getName());
 		}
+	}
+
+	/** 3.2.0, step 2: the method asks a N° titre, required or optional. */
+	static boolean asksTitleNumber(PaymentMethod method) {
+		return Boolean.TRUE.equals(method.getRequireTitleNumber()) || Boolean.TRUE.equals(method.getAskTitleNumber());
 	}
 
 	private void populateAdditionalPaymentFields(Payment payment, ProcessSaleRequestDTO.PaymentDTO paymentDTO) {

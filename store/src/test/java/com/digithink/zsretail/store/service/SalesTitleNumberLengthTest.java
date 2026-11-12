@@ -66,10 +66,25 @@ class SalesTitleNumberLengthTest {
 	}
 
 	@Test
-	@DisplayName("A length without the N° titre required checks nothing")
+	@DisplayName("A length without the N° titre asked checks nothing")
 	void lengthWithoutRequiredTitle() {
 		PaymentMethod method = method(null, 7);
 		method.setRequireTitleNumber(false);
 		assertDoesNotThrow(() -> sales.validateAdditionalPaymentFields(method, title("12")));
+	}
+
+	@Test
+	@DisplayName("Step 2, N° titre optional (askTitleNumber, a card's slip): none passes, one given has the method's length")
+	void optionalTitleNumber() {
+		PaymentMethod card = method(null, 6);
+		card.setRequireTitleNumber(false);
+		card.setAskTitleNumber(true);
+		assertDoesNotThrow(() -> sales.validateAdditionalPaymentFields(card, title(null)), "optional");
+		assertDoesNotThrow(() -> sales.validateAdditionalPaymentFields(card, title("")));
+		assertDoesNotThrow(() -> sales.validateAdditionalPaymentFields(card, title("123456")));
+		assertThrows(IllegalArgumentException.class, () -> sales.validateAdditionalPaymentFields(card, title("12345")));
+		assertEquals(true, SalesHeaderService.asksTitleNumber(card));
+		card.setAskTitleNumber(null);
+		assertEquals(false, SalesHeaderService.asksTitleNumber(card), "off: null is false");
 	}
 }

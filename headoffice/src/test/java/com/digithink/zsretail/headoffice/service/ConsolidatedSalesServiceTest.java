@@ -522,6 +522,25 @@ class ConsolidatedSalesServiceTest {
 	}
 
 	@Test
+	@DisplayName("3.2.0: a method the head office does not have (a store admin's new code) consolidates under the store's code and name")
+	void methodUnknownToTheHeadOffice() {
+		HoSession session = session(rs01, "S6", LocalDateTime.of(2026, 10, 2, 8, 0), "CLOSED");
+		session.setOpeningCash(0.0);
+		session.setRealCash(0.0);
+		HoTicket t1 = ticket(rs01, "T-6", LocalDateTime.of(2026, 10, 2, 9, 0), "COMPLETED", 21, "S6");
+		pay(t1, "TR-SERVIMAX", "Ticket Servimax", 21);
+		count(session, "POS_USER", "TR-SERVIMAX", "Ticket Servimax", 21);
+
+		Map<String, Object> meal = summary(session).get("TR-SERVIMAX");
+		assertEquals("Ticket Servimax", meal.get("name"), "the store's name, from the copies");
+		assertEquals(false, meal.get("isEspece"));
+		assertEquals(1L, meal.get("ticketCount"));
+		assertEquals(21.0, meal.get("systemAmount"));
+		assertEquals(21.0, meal.get("posClosureAmount"));
+		assertEquals(0.0, meal.get("deltaPOS"));
+	}
+
+	@Test
 	@DisplayName("Payment summary: cash and other methods, the cashier's count then the responsible's; a count line without a method is cash; same row names as the store")
 	void paymentSummary() {
 		HoSession session = session(rs01, "S5", LocalDateTime.of(2026, 10, 1, 8, 0), "CLOSED");

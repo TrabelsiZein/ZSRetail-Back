@@ -44,10 +44,17 @@ import com.digithink.zsretail.core.repository.UserAccountRepository;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.DependsOn;
 
 import lombok.extern.log4j.Log4j2;
 
+/**
+ * 3.2.0: after AppVersionGuard, always ({@code @DependsOn}): before, the order came from the classpath scan only, and on
+ * a head office HeadOfficeErpJobs, which takes this bean in its constructor, could create it first, so a database of
+ * another version was written (payment methods converted, settings deleted) before the guard refused the start.
+ */
 @Component
+@DependsOn("appVersionGuard")
 @Log4j2
 public class ZZDataInitializer {
 
