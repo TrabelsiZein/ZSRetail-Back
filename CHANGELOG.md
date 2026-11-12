@@ -4,6 +4,49 @@ One section per product version, newest first. Every commit that changes behavio
 its line here, under the version of its branch. The screens are in `ZSRetail-Front/CHANGELOG.md`. The French notes shown
 in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql` from this file when a version is closed.
 
+## 3.2.0 — in progress (branch `release/3.2.0`)
+
+### Before deployment
+- A database at 3.1.2: `db/3.2.0/update.sql`, then the 3.2.0 WAR (`AppVersionGuard`). The script stops, changing
+  nothing, while APP_VERSION is not 3.1.2 or 3.2.0; it may run again.
+- After it, Ticket Restaurant and Chèque Cadeau have no type (the admin page shows "-") and keep their code, name,
+  active switch, order, N° titre and its length; the four settings `PAYMENT_METHOD_*_TITLE_NUMBER_LENGTH` are gone
+  (each length is on its method). `payment_method` has a filtered index: a statement typed by hand in `sqlcmd` on that
+  table needs `sqlcmd -I` (SSMS and the application have the options on).
+- Back to 3.1.2 on a converted database (dev databases shared with 3.1.2 fixes): 3.1.2 refuses to start while
+  APP_VERSION says 3.2.0 (`AppVersionGuard`, as for any version). With APP_VERSION set back to 3.1.2 by hand it starts
+  and sells (tried on a throwaway database): Hibernate fails, quietly, to put back its unique constraint on
+  `payment_method.type` (two NULLs); the till and the server no longer check the length of the N° titre of Ticket
+  Restaurant and Chèque Cadeau (3.1.2 reads it by type); 3.1.2 recreates the four settings at 7, so a cheque or traite
+  length other than 7 is 7 for 3.1.2. Started again, 3.2.0 puts back what it needs (the constraint dropped again, the
+  settings deleted); a method without a length then takes the 7 of the recreated setting (a length set is kept).
+
+### Enhancements
+- Payment methods, step 1 (model and conversion; `docs/backend.md`, "Payment methods 3.2.0"):
+  `PaymentMethod.type` nullable, one row per type kept by the filtered unique index `ux_payment_method_type` (not a JPA
+  constraint any more); `PaymentMethodType` without `TICKET_RESTAURANT` and `CHEQUE_CADEAU` (8 values); new
+  `PaymentMethod.behaviour` (`PaymentMethodBehaviour`: `AMOUNT`, every method; `SCANNED_TICKETS` comes with step 3) and
+  `PaymentMethod.titleNumberLength`, which the sale and the payment change check instead of the setting of the type
+  (`SalesHeaderService.validateAdditionalPaymentFields`; null or 0: any length). `PaymentMethodsUpgrade` runs at each
+  start, before any JPA read of the table, the same six statements as the script. A new database is seeded with the
+  eight fixed methods only (no Ticket Restaurant or Chèque Cadeau), Client Chèque and Client Traite with the length 7 of
+  before; the seed still runs on an empty table only, so a converted row is never recreated or retyped. Tests:
+  `PaymentMethodsUpgradeTest`, `ZZDataInitializerPaymentMethodsTest`, `SalesTitleNumberLengthTest`; the statements run
+  on a throwaway database (a 3.1.2 one with both rows and payments on them, a second run, a new one, a 3.1.2 start in
+  between).
+
+### DB script
+- `db/3.2.0/update.sql` (version 3.2.0): the unique constraint on `payment_method.type` dropped (name read), the column
+  nullable, the filtered unique index `ux_payment_method_type`, the columns `behaviour` and `title_number_length`, then
+  in one transaction the four lengths copied to their methods, Ticket Restaurant and Chèque Cadeau without type
+  (behaviour `AMOUNT`), `behaviour` filled, the four settings deleted; APP_VERSION 3.1.2 -> 3.2.0.
+
+### Config
+- General setup: `PAYMENT_METHOD_CLIENT_CHEQUE_TITLE_NUMBER_LENGTH`, `PAYMENT_METHOD_TICKET_RESTAURANT_TITLE_NUMBER_LENGTH`,
+  `PAYMENT_METHOD_CHEQUE_CADEAU_TITLE_NUMBER_LENGTH`, `PAYMENT_METHOD_CLIENT_TRAITE_TITLE_NUMBER_LENGTH` removed (no
+  longer created, deleted by the script and at startup).
+- Product version 3.2.0 (every pom; `app.version` follows it).
+
 ## 3.1.2 — in progress (branch `release/3.1.2`)
 
 ### Before deployment

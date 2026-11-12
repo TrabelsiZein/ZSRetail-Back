@@ -3,9 +3,26 @@
 - `TransactionStatus` enum removed `DRAFT`; pending/cancelled sales excluded from session totals.
 - Customer API prevents deleting the special PASSENGER customer.
 - General setup API blocks updates to read-only entries.
-- **PaymentMethod Entity**: Added `displayOrder` field (Integer) to control display order in POS. Initializer service sets order: 1=CLIENT_ESPECES, 2=CLIENT_TPE, 3=TICKET_RESTAURANT, 4=CHEQUE_CADEAU, 5=CLIENT_CHEQUE, 6=CLIENT_TRAITE, 7=DEPOT_BANQUE, 8=RETURN_VOUCHER, 9=VIREMENT_BANCAIRE, 10=RETENUE_SOURCE.
-- **Payment methods** (rows of `payment_method`, one per `PaymentMethodType`, `type` unique): the seed (`ZZDataInitializer.initPaymentMethods`, a new database only) uses the type name as the code. The code is what the ERP receives as the payment class (`PaymentHeader.paymentClass`, `SessionExportService`) and what the store sends to its head office; the admin edits it on the Payment Methods page, with the active switch. Every screen that offers a method (payment, split bill, payment change, session closure) keeps only the active ones; the API does not refuse an inactive one. A non-cash payment reaches the ERP only when the ticket has a customer.
+- **PaymentMethod Entity**: Added `displayOrder` field (Integer) to control display order in POS. Initializer service sets order: 1=CLIENT_ESPECES, 2=CLIENT_TPE, (3.2.0: 3 and 4, TICKET_RESTAURANT and CHEQUE_CADEAU, no longer seeded), 5=CLIENT_CHEQUE, 6=CLIENT_TRAITE, 7=DEPOT_BANQUE, 8=RETURN_VOUCHER, 9=VIREMENT_BANCAIRE, 10=RETENUE_SOURCE.
+- **Payment methods** (rows of `payment_method`; 3.2.0: one row at most per `PaymentMethodType`, the filtered unique index `ux_payment_method_type`, and any number without type, see "Payment methods 3.2.0" below): the seed (`ZZDataInitializer.initPaymentMethods`, a new database only) uses the type name as the code. The code is what the ERP receives as the payment class (`PaymentHeader.paymentClass`, `SessionExportService`) and what the store sends to its head office; the admin edits it on the Payment Methods page, with the active switch. Every screen that offers a method (payment, split bill, payment change, session closure) keeps only the active ones; the API does not refuse an inactive one. A non-cash payment reaches the ERP only when the ticket has a customer.
 - **Retenue à la source** (`RETENUE_SOURCE`, 3.1.0): seeded and added by `db/3.1.0/update.sql` **inactive**, with the neutral code `RETENUE_SOURCE`, so nothing changes for an installation until its admin switches it on and types the ERP code (EMTOP: `ENCAISS-RS-CLT`) as its code. The script inserts it only when no row of the type exists (and the code is free): EMTOP's row from hotfix 1.12.1 (active, `ENCAISS-RS-CLT`) stays as it is. No title number. Tests: `ZZDataInitializerPaymentMethodsTest`, `PaymentMethodScriptTest`.
+- **Payment methods 3.2.0, step 1** (model and conversion; the admin screen, the ticket types, the till and the ERP come
+  in the next steps): `PaymentMethod.type` is nullable, a method without type being one the code has no rule for (the
+  admin's, from step 2); the eight types left (`CLIENT_ESPECES`, `CLIENT_CHEQUE`, `CLIENT_TPE`, `CLIENT_TRAITE`,
+  `DEPOT_BANQUE`, `RETURN_VOUCHER`, `VIREMENT_BANCAIRE`, `RETENUE_SOURCE`) stay one row each through the filtered unique
+  index `ux_payment_method_type` (`type IS NOT NULL`), not a JPA constraint (SQL Server's would refuse a second NULL).
+  New columns: `behaviour` (`PaymentMethodBehaviour`: `AMOUNT`, every method of before, null read as it;
+  `SCANNED_TICKETS` from step 3) and `title_number_length` (the exact length of the N° titre when the method requires
+  one, null = any; `SalesHeaderService.validateAdditionalPaymentFields`, `Payment.vue`), which replaces the four settings
+  `PAYMENT_METHOD_<type>_TITLE_NUMBER_LENGTH`. `TICKET_RESTAURANT` and `CHEQUE_CADEAU` are no longer types: a new database
+  does not get them; an existing one keeps its two rows as methods without type, behaviour `AMOUNT`, code, name, active,
+  order, switches and payments untouched, the length of their setting copied. `PaymentMethodsUpgrade` (JDBC, at each
+  start, before any JPA read of the table) and `db/3.2.0/update.sql` run the same six statements: the unique constraint
+  on `type` dropped (its name read), `type` nullable, the index, the two columns, then in one transaction the lengths
+  copied, the two rows converted, `behaviour` filled, the four settings deleted. The filtered index needs
+  `QUOTED_IDENTIFIER` and `ANSI_NULLS` on for every write of the table (JDBC and SSMS have them; `sqlcmd` needs `-I`).
+  Back to 3.1.2 on such a database (APP_VERSION set back by hand): see CHANGELOG 3.2.0, "Before deployment". Tests:
+  `PaymentMethodsUpgradeTest`, `ZZDataInitializerPaymentMethodsTest`, `SalesTitleNumberLengthTest`.
 - Item family/subfamily domain: entities, repositories, services, controllers; `Item` links to both family and subfamily, with legacy `taxable`/`taxRate` flags removed in favor of `defaultVAT`.
 - `ItemBarcodeAPI /items-with-barcodes` now supports pagination + filtering; `ItemService` exposes a spec-based search and `ItemBarcodeService` fetches active barcodes per page.
 - Admin ERP communications endpoint exposes filtered communications (date range, limit) for the new frontend view.

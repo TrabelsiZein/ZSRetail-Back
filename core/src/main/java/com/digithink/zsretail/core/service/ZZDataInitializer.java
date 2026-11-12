@@ -60,6 +60,8 @@ public class ZZDataInitializer {
 	@Autowired
 	private ErpSyncJobTypesUpgrade erpSyncJobTypesUpgrade;
 	@Autowired
+	private PaymentMethodsUpgrade paymentMethodsUpgrade;
+	@Autowired
 	private TillRightsMigration tillRightsMigration;
 	@Autowired
 	private AppRoleRepository appRoleRepository;
@@ -101,6 +103,9 @@ public class ZZDataInitializer {
 		erpSyncJobTypesUpgrade.run();
 		// Till rights (3.1.0): the column changes Hibernate cannot make, before anything is written
 		tillSchemaUpgrade.run();
+		// 3.2.0: payment_method.type nullable with its filtered index, Ticket Restaurant and Chèque Cadeau without type,
+		// the N° titre lengths on the methods; in JDBC, before any JPA read of payment_method
+		paymentMethodsUpgrade.run();
 
 		// Always run — idempotent, seeds default roles if they don't exist yet
 		ensureDefaultRoles();
@@ -544,39 +549,18 @@ public class ZZDataInitializer {
 		clientTpe.setUpdatedBy("System");
 		paymentMethodRepository.save(clientTpe);
 
-		// Ticket Restaurant - Order 3
-		PaymentMethod mealTicket = new PaymentMethod();
-		mealTicket.setCode("TICKET_RESTAURANT");
-		mealTicket.setName("Ticket Restaurant");
-		mealTicket.setType(PaymentMethodType.TICKET_RESTAURANT);
-		mealTicket.setDescription("Paiement via ticket restaurant");
-		mealTicket.setRequireTitleNumber(true);
-		mealTicket.setActive(true);
-		mealTicket.setDisplayOrder(3);
-		mealTicket.setCreatedBy("System");
-		mealTicket.setUpdatedBy("System");
-		paymentMethodRepository.save(mealTicket);
+		// 3.2.0: no Ticket Restaurant (order 3) or Chèque Cadeau (order 4) on a new database: they are no longer fixed
+		// types; an existing database keeps its rows, converted by PaymentMethodsUpgrade (this seed runs on an empty
+		// table only)
 
-		// Chèque Cadeau - Order 4
-		PaymentMethod giftCheck = new PaymentMethod();
-		giftCheck.setCode("CHEQUE_CADEAU");
-		giftCheck.setName("Chèque Cadeau");
-		giftCheck.setType(PaymentMethodType.CHEQUE_CADEAU);
-		giftCheck.setDescription("Paiement par chèque cadeau");
-		giftCheck.setRequireTitleNumber(true);
-		giftCheck.setActive(true);
-		giftCheck.setDisplayOrder(4);
-		giftCheck.setCreatedBy("System");
-		giftCheck.setUpdatedBy("System");
-		paymentMethodRepository.save(giftCheck);
-
-		// Client Chèque - Order 5
+		// Client Chèque - Order 5 (3.2.0: the N° titre length 7, before the setting PAYMENT_METHOD_CLIENT_CHEQUE_...)
 		PaymentMethod clientCheque = new PaymentMethod();
 		clientCheque.setCode("CLIENT_CHEQUE");
 		clientCheque.setName("Client Chèque");
 		clientCheque.setType(PaymentMethodType.CLIENT_CHEQUE);
 		clientCheque.setDescription("Paiement par chèque client");
 		clientCheque.setRequireTitleNumber(true);
+		clientCheque.setTitleNumberLength(7);
 		clientCheque.setRequireDrawerName(true);
 		clientCheque.setRequireIssuingBank(true);
 		clientCheque.setActive(true);
@@ -585,13 +569,14 @@ public class ZZDataInitializer {
 		clientCheque.setUpdatedBy("System");
 		paymentMethodRepository.save(clientCheque);
 
-		// Client Traite - Order 6
+		// Client Traite - Order 6 (3.2.0: the N° titre length 7, before the setting PAYMENT_METHOD_CLIENT_TRAITE_...)
 		PaymentMethod clientTraite = new PaymentMethod();
 		clientTraite.setCode("CLIENT_TRAITE");
 		clientTraite.setName("Client Traite");
 		clientTraite.setType(PaymentMethodType.CLIENT_TRAITE);
 		clientTraite.setDescription("Paiement par traite client");
 		clientTraite.setRequireTitleNumber(true);
+		clientTraite.setTitleNumberLength(7);
 		clientTraite.setRequireDueDate(true);
 		clientTraite.setRequireDrawerName(true);
 		clientTraite.setRequireIssuingBank(true);
@@ -1162,18 +1147,8 @@ public class ZZDataInitializer {
 		ensureConfig("PLAFOND_ESPECE", "",
 				"Plafond espèce (TND). Empty = no limit. When set (e.g. 1000), maximum cash amount allowed per sale in TND.",
 				false, ConfigType.STRING);
-		ensureConfig("PAYMENT_METHOD_CLIENT_CHEQUE_TITLE_NUMBER_LENGTH", "7",
-				"Required length for title number (N° Titre) for CLIENT_CHEQUE payment method. Must be exactly this number of characters.",
-				false, ConfigType.NUMBER);
-		ensureConfig("PAYMENT_METHOD_TICKET_RESTAURANT_TITLE_NUMBER_LENGTH", "7",
-				"Required length for title number (N° Titre) for TICKET_RESTAURANT payment method. Must be exactly this number of characters.",
-				false, ConfigType.NUMBER);
-		ensureConfig("PAYMENT_METHOD_CHEQUE_CADEAU_TITLE_NUMBER_LENGTH", "7",
-				"Required length for title number (N° Titre) for CHEQUE_CADEAU payment method. Must be exactly this number of characters.",
-				false, ConfigType.NUMBER);
-		ensureConfig("PAYMENT_METHOD_CLIENT_TRAITE_TITLE_NUMBER_LENGTH", "7",
-				"Required length for title number (N° Titre) for CLIENT_TRAITE payment method. Must be exactly this number of characters.",
-				false, ConfigType.NUMBER);
+		// 3.2.0: no PAYMENT_METHOD_<type>_TITLE_NUMBER_LENGTH any more: the length is the method's
+		// (payment_method.title_number_length, copied and the four settings deleted by PaymentMethodsUpgrade)
 
 		// ── Tax stamp (timbre fiscal) ─────────────────────────────────────────
 		ensureConfig("ENABLE_TAX_STAMP", "false",

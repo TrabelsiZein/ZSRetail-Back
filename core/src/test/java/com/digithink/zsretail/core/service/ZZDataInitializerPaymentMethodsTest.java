@@ -18,9 +18,11 @@ import com.digithink.zsretail.core.repository.PaymentMethodRepository;
 
 /**
  * 3.1.0, payment method "Retenue à la source": on a new database the seed adds it inactive, with the neutral code
- * RETENUE_SOURCE, after Virement Bancaire; the nine methods of before are seeded exactly as before. Calls the private
- * initPaymentMethods() with an in-memory repository (no Spring context). init() runs it only when the table is empty;
- * that guard is unchanged and not covered here.
+ * RETENUE_SOURCE, after Virement Bancaire. 3.2.0: no Ticket Restaurant or Chèque Cadeau (no longer fixed types), every
+ * row behaviour AMOUNT, the N° titre length 7 on Client Chèque and Client Traite (the default of the settings of
+ * before); the others as before. Calls the private initPaymentMethods() with an in-memory repository (no Spring
+ * context). init() runs it only when the table is empty, so a converted row is never seeded again; that guard is
+ * unchanged and not covered here.
  */
 class ZZDataInitializerPaymentMethodsTest {
 
@@ -45,31 +47,35 @@ class ZZDataInitializerPaymentMethodsTest {
 		return saved;
 	}
 
-	/** code | name | type | active | order | title number, due date, drawer name, issuing bank, confirmation */
+	/**
+	 * code | name | type | active | order | title number, due date, drawer name, issuing bank, confirmation | behaviour
+	 * | title number length
+	 */
 	private static String row(PaymentMethod m) {
 		return m.getCode() + " | " + m.getName() + " | " + m.getType() + " | " + m.getActive() + " | " + m.getDisplayOrder()
 				+ " | " + m.getRequireTitleNumber() + "," + m.getRequireDueDate() + "," + m.getRequireDrawerName() + ","
-				+ m.getRequireIssuingBank() + "," + m.getRequiresConfirmation();
+				+ m.getRequireIssuingBank() + "," + m.getRequiresConfirmation() + " | " + m.getBehaviour() + " | "
+				+ m.getTitleNumberLength();
 	}
 
 	@Test
-	@DisplayName("The nine methods of before are seeded unchanged, then Retenue à la source, inactive, order 10")
-	void seedsRetenueSourceInactiveAfterTheOthers() throws Exception {
+	@DisplayName("Eight methods: no Ticket Restaurant or Chèque Cadeau, length 7 on cheque and traite, Retenue inactive")
+	void seedsTheEightFixedMethods() throws Exception {
 		List<String> rows = new ArrayList<>();
 		for (PaymentMethod method : seedPaymentMethods()) {
 			rows.add(row(method));
 		}
 		assertEquals(Arrays.asList(
-				"CLIENT_ESPECES | Client Espèce | CLIENT_ESPECES | true | 1 | false,false,false,false,false",
-				"CLIENT_TPE | Client TPE | CLIENT_TPE | true | 2 | false,false,false,false,false",
-				"TICKET_RESTAURANT | Ticket Restaurant | TICKET_RESTAURANT | true | 3 | true,false,false,false,false",
-				"CHEQUE_CADEAU | Chèque Cadeau | CHEQUE_CADEAU | true | 4 | true,false,false,false,false",
-				"CLIENT_CHEQUE | Client Chèque | CLIENT_CHEQUE | true | 5 | true,false,true,true,false",
-				"CLIENT_TRAITE | Client Traite | CLIENT_TRAITE | true | 6 | true,true,true,true,false",
-				"DEPOT_BANQUE | Dépôt en banque | DEPOT_BANQUE | true | 7 | false,false,false,false,false",
-				"RETURN_VOUCHER | Bon de Retour | RETURN_VOUCHER | true | 8 | false,false,false,false,false",
-				"VIREMENT_BANCAIRE | Virement Bancaire | VIREMENT_BANCAIRE | true | 9 | false,false,false,false,false",
-				"RETENUE_SOURCE | Retenue à la source | RETENUE_SOURCE | false | 10 | false,false,false,false,false"),
+				"CLIENT_ESPECES | Client Espèce | CLIENT_ESPECES | true | 1 | false,false,false,false,false | AMOUNT | null",
+				"CLIENT_TPE | Client TPE | CLIENT_TPE | true | 2 | false,false,false,false,false | AMOUNT | null",
+				"CLIENT_CHEQUE | Client Chèque | CLIENT_CHEQUE | true | 5 | true,false,true,true,false | AMOUNT | 7",
+				"CLIENT_TRAITE | Client Traite | CLIENT_TRAITE | true | 6 | true,true,true,true,false | AMOUNT | 7",
+				"DEPOT_BANQUE | Dépôt en banque | DEPOT_BANQUE | true | 7 | false,false,false,false,false | AMOUNT | null",
+				"RETURN_VOUCHER | Bon de Retour | RETURN_VOUCHER | true | 8 | false,false,false,false,false | AMOUNT | null",
+				"VIREMENT_BANCAIRE | Virement Bancaire | VIREMENT_BANCAIRE | true | 9 | false,false,false,false,false | AMOUNT"
+						+ " | null",
+				"RETENUE_SOURCE | Retenue à la source | RETENUE_SOURCE | false | 10 | false,false,false,false,false | AMOUNT"
+						+ " | null"),
 				rows);
 	}
 

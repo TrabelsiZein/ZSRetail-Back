@@ -192,6 +192,12 @@ class ZZDataInitializerModeTest {
 			public void run() {
 			}
 		});
+		// 3.2.0: the payment methods' statements have their own test (PaymentMethodsUpgradeTest)
+		set(initializer, "paymentMethodsUpgrade", new PaymentMethodsUpgrade(null) {
+			@Override
+			public void run() {
+			}
+		});
 		Method init = ZZDataInitializer.class.getDeclaredMethod("init");
 		init.invoke(initializer);
 		return writes;
