@@ -41,6 +41,12 @@ public class PaymentMethod extends _BaseEntity {
 	/** 3.2.0: the exact length of the N° titre when the method requires one; null: any length. */
 	private Integer titleNumberLength;
 
+	/**
+	 * 3.2.0, step 3b: the method's payments go to the ERP's payment export (a header per code, the class; lines);
+	 * replaces ERP_SKIP_CHEQUE_PAYMENTS. Never on the return voucher. Null is true (SessionExportService.sentToErp).
+	 */
+	private Boolean sendToErp = true;
+
 	private String description;
 
 	private Boolean requiresConfirmation = false;

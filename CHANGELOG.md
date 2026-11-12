@@ -54,8 +54,17 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   changes only without type, payment or line; a method with lines is not deleted. A scanned-tickets method cannot pay
   yet (sale, split bill, payment change refused until step 5). New store: two inactive scanned-tickets methods (Ticket
   Restaurant, Chèque Cadeau) with the twelve common issuers, inactive; an existing database gets nothing.
+- Payment methods, step 3b (`docs/backend.md`, "Payment methods 3.2.0, step 3b"): the cash and return voucher settings
+  shown on their method's card (`GET / PUT /payment-method/{id}/settings`, the payment methods' right, the values still in
+  `general_setup`). `PaymentMethod.sendToErp` replaces `ERP_SKIP_CHEQUE_PAYMENTS` in the payment export (never the return
+  voucher). A refusal carries its details (the ticket overlapped). `GET /payment-method/{id}/behaviour-locked`;
+  `ticket-counts` gives total and active. Tests: `SessionExportNavSimulationTest` (NAV sync simulated: an added method
+  sent and not sent, a class refused then retried, cheque and voucher, payment changes), `DynamicsNavPaymentLineTest`.
 
 ### Fixes
+- A ticket paid only with a method not sent to the ERP (a cheque with `ERP_SKIP_CHEQUE_PAYMENTS`, step 3b a method switched
+  off), whose payment was then changed in Tickets history to a method that is sent, never reached the ERP: the rebuild
+  made rows only for the tickets that had some. It now makes those of the changed ticket too (never of a split ticket).
 - Startup order: `ZZDataInitializer` (`@DependsOn`) and `JdbcCatalogueState` (it asks for the guard first) run after
   `AppVersionGuard`. Before, on a
   head office, `HeadOfficeErpJobs` could create the initializer first, so a database of another version was written
@@ -71,9 +80,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `fk_accepted_ticket_payment_method` as in the entity); APP_VERSION 3.1.2 -> 3.2.0. The script sets QUOTED_IDENTIFIER
   and the other options itself: plain sqlcmd (no `-I`) runs it (done so on pos_franchise_customer, 2026-11-12, again for
   each step). It accepts a database already at 3.2.0, so one script brings a 3.1.2 database and a 3.2.0 test database
-  alike.
+  alike. Step 3b: the column `send_to_erp` and its conversion (the return voucher off, the cheque off when
+  `ERP_SKIP_CHEQUE_PAYMENTS` was true, the others on), then the setting deleted (checked on a scratch database with the
+  setting true, false and absent, twice each).
 
 ### Config
+- General setup: `ERP_SKIP_CHEQUE_PAYMENTS` removed (no longer created, converted to `send_to_erp` and deleted).
 - General setup: `PAYMENT_METHOD_CLIENT_CHEQUE_TITLE_NUMBER_LENGTH`, `PAYMENT_METHOD_TICKET_RESTAURANT_TITLE_NUMBER_LENGTH`,
   `PAYMENT_METHOD_CHEQUE_CADEAU_TITLE_NUMBER_LENGTH`, `PAYMENT_METHOD_CLIENT_TRAITE_TITLE_NUMBER_LENGTH` removed (no
   longer created, deleted by the script and at startup).

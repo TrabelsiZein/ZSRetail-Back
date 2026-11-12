@@ -89,12 +89,34 @@ public class PaymentMethodsUpgrade {
 			+ " END TRY BEGIN CATCH IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION; THROW; END CATCH')";
 
 	/** The statements in their order: each one a batch of its own (db/3.2.0/update.sql: each followed by GO). */
+	/** Step 3b: "send to the ERP" per method, replacing ERP_SKIP_CHEQUE_PAYMENTS. */
+	static final String SEND_TO_ERP_COLUMN = "IF OBJECT_ID(N'payment_method', N'U') IS NOT NULL"
+			+ " AND COL_LENGTH(N'payment_method', N'send_to_erp') IS NULL"
+			+ " ALTER TABLE payment_method ADD send_to_erp bit NULL";
+
+	/**
+	 * Step 3b, in one transaction, only on the rows not set yet: the return voucher off (never sent), the cheque off when
+	 * ERP_SKIP_CHEQUE_PAYMENTS was true, every other method on; then the setting is deleted (it existed on an
+	 * installation with an ERP only: without it, the cheque is on). In EXEC: compiled once the column exists.
+	 */
+	static final String SEND_TO_ERP_CONVERSION = "IF COL_LENGTH(N'payment_method', N'send_to_erp') IS NOT NULL"
+			+ " AND OBJECT_ID(N'general_setup', N'U') IS NOT NULL"
+			+ " EXEC('BEGIN TRY BEGIN TRANSACTION;"
+			+ " UPDATE payment_method SET send_to_erp = CASE WHEN type = ''RETURN_VOUCHER'' THEN 0"
+			+ " WHEN type = ''CLIENT_CHEQUE'' AND EXISTS (SELECT 1 FROM general_setup"
+			+ " WHERE code = ''ERP_SKIP_CHEQUE_PAYMENTS'' AND LOWER(LTRIM(RTRIM(valeur))) = ''true'') THEN 0 ELSE 1 END"
+			+ " WHERE send_to_erp IS NULL;"
+			+ " DELETE FROM general_setup WHERE code = ''ERP_SKIP_CHEQUE_PAYMENTS'';"
+			+ " COMMIT TRANSACTION;"
+			+ " END TRY BEGIN CATCH IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION; THROW; END CATCH')";
+
 	static final List<String> STATEMENTS = Arrays.asList(DROP_TYPE_UNIQUE_CONSTRAINT, TYPE_NULLABLE, TYPE_INDEX,
-			BEHAVIOUR_COLUMN, TITLE_NUMBER_LENGTH_COLUMN, CONVERSION);
+			BEHAVIOUR_COLUMN, TITLE_NUMBER_LENGTH_COLUMN, CONVERSION, SEND_TO_ERP_COLUMN, SEND_TO_ERP_CONVERSION);
 
 	private static final List<String> NAMES = Arrays.asList("the unique constraint on payment_method.type dropped",
 			"payment_method.type nullable", "the index " + INDEX, "payment_method.behaviour",
-			"payment_method.title_number_length", "Ticket Restaurant and Chèque Cadeau converted, the lengths copied");
+			"payment_method.title_number_length", "Ticket Restaurant and Chèque Cadeau converted, the lengths copied",
+			"payment_method.send_to_erp", "send_to_erp set, ERP_SKIP_CHEQUE_PAYMENTS deleted");
 
 	private final JdbcTemplate jdbc;
 

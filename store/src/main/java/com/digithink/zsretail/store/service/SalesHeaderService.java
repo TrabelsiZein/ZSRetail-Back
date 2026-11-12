@@ -1219,8 +1219,9 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		recomputeChangeAmount(ticket);
 		save(ticket);
 
-		// Rebuild the session's (all NOT_SYNCHED) ERP payment-export rows from current payments.
-		sessionExportService.rebuildSessionPaymentRows(session);
+		// Rebuild the session's (all NOT_SYNCHED) ERP payment-export rows from current payments; 3.2.0, step 3b: this
+		// ticket too when it had none (paid only with a method not sent to the ERP, now changed to one that is).
+		sessionExportService.rebuildSessionPaymentRows(session, ticket);
 
 		// For a CLOSED session the expected cash is frozen — recompute & persist it.
 		Double realCashNew = null;

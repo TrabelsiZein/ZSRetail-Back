@@ -76,6 +76,25 @@
   entity) and by Hibernate at a start otherwise. Tests: `TicketBarcodeParserTest` (the real tickets 031 Servimax Repas
   and 042 Sodexo Cadeau), `AcceptedTicketServiceTest`, `CommonTicketIssuersTest`, `PaymentMethodServiceTest`,
   `ZZDataInitializerPaymentMethodsTest`.
+- **Payment methods 3.2.0, step 3b** (settings on the card, send to the ERP): the cash method's `PLAFOND_ESPECE`,
+  `AUTO_ADD_CASH_PAYMENT_ON_PAYMENT_PAGE` and `ENABLE_CASH_DISCREPANCY_CHECK` and the return voucher's
+  `RETURN_VOUCHER_VALIDITY_DAYS` stay in `general_setup`, read where they always were; General setup no longer shows them,
+  the method's card does: `GET / PUT /payment-method/{id}/settings` (`PaymentMethodService.SETTINGS` by type, the right
+  `write:admin-payment-methods`, only the keys of the method's type, BOOLEAN true / false, NUMBER a whole number from 0,
+  `PLAFOND_ESPECE` a number from 0 or empty, saved by `GeneralSetupService.updateFromAdmin`: read-only rows, value checks
+  and change log as from General setup). `PaymentMethod.sendToErp` (column `send_to_erp`, default on) replaces
+  `ERP_SKIP_CHEQUE_PAYMENTS` and the return voucher's type test in `SessionExportService.createPaymentHeadersAndLines`
+  (`sentToErp`: off, or the return voucher, is not sent; the voucher count of the session DTO stays by type);
+  `PaymentMethodsUpgrade` and `db/3.2.0/update.sql` set it once (the voucher off, the cheque off when the setting was
+  true, the others on) and delete the setting; the initializer no longer creates it; the voucher stays off on update. A
+  switch changed applies to the sales made after: the rows already made in a session not synchronised stay as they
+  are; a payment change rebuilds its session's rows (only while nothing of it is synchronised) with the switches of the
+  moment. The rebuild now also makes the rows of the ticket whose payment changed when it had none (a ticket paid only
+  with a method not sent, changed to one that is, never reached the ERP before), never of a split ticket. A refusal
+  carries its details (`CODE_CONFLICT`: the ticket overlapped, its issuer, code and method); `GET
+  /payment-method/{id}/behaviour-locked`; `/payment-method/ticket-counts` gives `{total, active}` per method. Tests:
+  `SessionExportNavSimulationTest` (the real export and sync manager, a recording NAV that can refuse a class),
+  `DynamicsNavPaymentLineTest` (network-tests: the EMTOP line DTO), `PaymentMethodServiceTest`, `PaymentMethodsUpgradeTest`.
 - Item family/subfamily domain: entities, repositories, services, controllers; `Item` links to both family and subfamily, with legacy `taxable`/`taxRate` flags removed in favor of `defaultVAT`.
 - `ItemBarcodeAPI /items-with-barcodes` now supports pagination + filtering; `ItemService` exposes a spec-based search and `ItemBarcodeService` fetches active barcodes per page.
 - Admin ERP communications endpoint exposes filtered communications (date range, limit) for the new frontend view.

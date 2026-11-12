@@ -1,16 +1,27 @@
 package com.digithink.zsretail.store.service;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import com.digithink.zsretail.core.model.GeneralSetup;
 import com.digithink.zsretail.core.model.PaymentMethod;
+import com.digithink.zsretail.core.model.enumeration.ConfigType;
 import com.digithink.zsretail.core.model.enumeration.PaymentMethodBehaviour;
+import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
 import com.digithink.zsretail.core.repository.AcceptedTicketRepository;
 import com.digithink.zsretail.core.repository.PaymentMethodRepository;
 import com.digithink.zsretail.core.repository._BaseRepository;
+import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.core.service._BaseService;
 
 /**
@@ -33,19 +44,43 @@ public class PaymentMethodService extends _BaseService<PaymentMethod, Long> {
 			+ " + (SELECT COUNT(*) FROM payment_change_log WHERE old_payment_method_id = ? OR new_payment_method_id = ?)"
 			+ " + (SELECT COUNT(*) FROM session_cash_count WHERE payment_method_id = ?)";
 
-	/** A refusal: its reason (the screen's text) and the message in English. */
+	/** A refusal: its reason (the screen's text), the message in English, and (step 3b) details for the screen's text. */
 	public static class Refusal extends RuntimeException {
 		private static final long serialVersionUID = 1L;
 		private final String reason;
+		private final Map<String, String> details;
 
 		public Refusal(String reason, String message) {
+			this(reason, message, Collections.emptyMap());
+		}
+
+		public Refusal(String reason, String message, Map<String, String> details) {
 			super(message);
 			this.reason = reason;
+			this.details = details;
 		}
 
 		public String getReason() {
 			return reason;
 		}
+
+		public Map<String, String> getDetails() {
+			return details;
+		}
+	}
+
+	/**
+	 * 3.2.0, step 3b: the settings of General setup shown on a method's card (the values stay in general_setup, read
+	 * where they always were), by the method's type: the cash method's ceiling, the cash added on the payment page and
+	 * the cash check at closing; the return voucher's validity.
+	 */
+	static final Map<PaymentMethodType, List<String>> SETTINGS;
+	static {
+		Map<PaymentMethodType, List<String>> settings = new EnumMap<>(PaymentMethodType.class);
+		settings.put(PaymentMethodType.CLIENT_ESPECES,
+				Arrays.asList("PLAFOND_ESPECE", "AUTO_ADD_CASH_PAYMENT_ON_PAYMENT_PAGE", "ENABLE_CASH_DISCREPANCY_CHECK"));
+		settings.put(PaymentMethodType.RETURN_VOUCHER, Arrays.asList("RETURN_VOUCHER_VALIDITY_DAYS"));
+		SETTINGS = Collections.unmodifiableMap(settings);
 	}
 
 	@Autowired
@@ -56,6 +91,9 @@ public class PaymentMethodService extends _BaseService<PaymentMethod, Long> {
 
 	@Autowired
 	private AcceptedTicketRepository acceptedTicketRepository;
+
+	@Autowired
+	private GeneralSetupService generalSetupService;
 
 	@Override
 	protected _BaseRepository<PaymentMethod, Long> getRepository() {
@@ -80,6 +118,9 @@ public class PaymentMethodService extends _BaseService<PaymentMethod, Long> {
 		if (method.getActive() == null) {
 			method.setActive(true);
 		}
+		if (method.getSendToErp() == null) {
+			method.setSendToErp(true);
+		}
 		check(method, null);
 		return method;
 	}
@@ -93,7 +134,7 @@ public class PaymentMethodService extends _BaseService<PaymentMethod, Long> {
 		PaymentMethodBehaviour current = behaviour(stored);
 		PaymentMethodBehaviour wanted = incoming.getBehaviour() != null ? incoming.getBehaviour() : current;
 		if (wanted != current) {
-			if (stored.getType() != null || uses(stored) > 0 || acceptedTicketRepository.countByPaymentMethod(stored) > 0) {
+			if (behaviourLocked(stored)) {
 				throw new Refusal("BEHAVIOUR_LOCKED", "The behaviour of the payment method " + stored.getCode()
 						+ " changes only on a method without type, before any payment and any accepted ticket.");
 			}
@@ -107,6 +148,13 @@ public class PaymentMethodService extends _BaseService<PaymentMethod, Long> {
 			stored.setActive(incoming.getActive());
 		}
 		stored.setTitleNumberLength(incoming.getTitleNumberLength());
+		// Step 3b: "send to the ERP", for the sales made after; never on the return voucher
+		if (incoming.getSendToErp() != null) {
+			stored.setSendToErp(incoming.getSendToErp());
+		}
+		if (stored.getType() == PaymentMethodType.RETURN_VOUCHER) {
+			stored.setSendToErp(false);
+		}
 		if (stored.getType() == null) {
 			stored.setRequireTitleNumber(Boolean.TRUE.equals(incoming.getRequireTitleNumber()));
 			stored.setAskTitleNumber(Boolean.TRUE.equals(incoming.getAskTitleNumber()));
@@ -117,6 +165,73 @@ public class PaymentMethodService extends _BaseService<PaymentMethod, Long> {
 		clearDetailsOfScannedTickets(stored);
 		check(stored, stored.getId());
 		return stored;
+	}
+
+	/** Step 3: the behaviour cannot change: a fixed type, or a payment (change, session count) or an accepted ticket. */
+	public boolean behaviourLocked(PaymentMethod method) {
+		return method.getType() != null || uses(method) > 0 || acceptedTicketRepository.countByPaymentMethod(method) > 0;
+	}
+
+	/** Step 3b: the General setup rows shown on the method's card (none for most methods), in their order. */
+	public List<GeneralSetup> settingsOf(PaymentMethod method) {
+		List<GeneralSetup> rows = new ArrayList<>();
+		for (String code : SETTINGS.getOrDefault(method.getType(), Collections.emptyList())) {
+			GeneralSetup row = generalSetupService.findByCode(code);
+			if (row != null) {
+				rows.add(row);
+			}
+		}
+		return rows;
+	}
+
+	/**
+	 * Step 3b: the card's settings saved ({code: value}), as General setup saves them (GeneralSetupService.updateFromAdmin:
+	 * a read-only row refused, the value checks, the change log); only the keys of the method's type, checked by their
+	 * type first: BOOLEAN true / false, NUMBER empty or a whole number from 0, PLAFOND_ESPECE empty or a number from 0.
+	 * Nothing is written when one is refused (SETTING_UNKNOWN, SETTING_INVALID).
+	 */
+	public void saveSettings(PaymentMethod method, Map<String, String> values) throws Exception {
+		List<String> allowed = SETTINGS.getOrDefault(method.getType(), Collections.emptyList());
+		Map<GeneralSetup, String> changes = new LinkedHashMap<>();
+		for (Map.Entry<String, String> entry : values.entrySet()) {
+			if (!allowed.contains(entry.getKey())) {
+				throw new Refusal("SETTING_UNKNOWN", "The setting " + entry.getKey() + " is not one of the payment method "
+						+ method.getCode() + ".");
+			}
+			GeneralSetup row = generalSetupService.findByCode(entry.getKey());
+			if (row == null) {
+				continue;
+			}
+			String value = entry.getValue() == null ? "" : entry.getValue().trim();
+			if (!validSetting(row, value)) {
+				throw new Refusal("SETTING_INVALID", "The value of " + row.getCode() + " is not valid: " + value,
+						Collections.singletonMap("code", row.getCode()));
+			}
+			changes.put(row, value);
+		}
+		for (Map.Entry<GeneralSetup, String> change : changes.entrySet()) {
+			GeneralSetup row = change.getKey();
+			if (change.getValue().equals(row.getValeur())) {
+				continue;
+			}
+			GeneralSetup updated = new GeneralSetup();
+			updated.setValeur(change.getValue());
+			updated.setDescription(row.getDescription());
+			generalSetupService.updateFromAdmin(row.getId(), updated, "Payment method " + method.getCode());
+		}
+	}
+
+	static boolean validSetting(GeneralSetup row, String value) {
+		if (row.getConfigType() == ConfigType.BOOLEAN) {
+			return "true".equals(value) || "false".equals(value);
+		}
+		if (row.getConfigType() == ConfigType.NUMBER) {
+			return value.isEmpty() || value.matches("\\d{1,9}");
+		}
+		if ("PLAFOND_ESPECE".equals(row.getCode())) {
+			return value.isEmpty() || value.matches("\\d{1,12}(\\.\\d{1,3})?");
+		}
+		return true;
 	}
 
 	/** A method of behaviour null is AMOUNT (every method of before). */

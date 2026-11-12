@@ -121,6 +121,15 @@ class ZZDataInitializerPaymentMethodsTest {
 	}
 
 	@Test
+	@DisplayName("Step 3b: every seeded method goes to the ERP but the return voucher")
+	void sendToErp() throws Exception {
+		seed(false);
+		for (PaymentMethod method : methods) {
+			assertEquals(!"RETURN_VOUCHER".equals(method.getCode()), method.getSendToErp(), method.getCode());
+		}
+	}
+
+	@Test
 	@DisplayName("A head office: the eight fixed methods only, no scanned tickets (it never sells)")
 	void headOffice() throws Exception {
 		seed(true);

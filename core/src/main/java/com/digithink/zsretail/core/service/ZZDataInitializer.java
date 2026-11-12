@@ -616,6 +616,7 @@ public class ZZDataInitializer {
 		returnVoucher.setType(PaymentMethodType.RETURN_VOUCHER);
 		returnVoucher.setDescription("Bon de retour émis pour un retour de produit");
 		returnVoucher.setActive(true);
+		returnVoucher.setSendToErp(false); // 3.2.0, step 3b: a return voucher never goes to the ERP's payments
 		returnVoucher.setDisplayOrder(8);
 		returnVoucher.setCreatedBy("System");
 		returnVoucher.setUpdatedBy("System");
@@ -1234,9 +1235,8 @@ public class ZZDataInitializer {
 			ensureConfigWithOptions("ERP_SYNC_TRACKING_LEVEL", "ALL",
 					"ERP communication tracking level (ERRORS_ONLY | ERRORS_AND_WARNINGS | ALL)", false,
 					ConfigType.SELECT, "ERRORS_ONLY,ERRORS_AND_WARNINGS,ALL");
-			ensureConfig("ERP_SKIP_CHEQUE_PAYMENTS", "false",
-					"When enabled, cheque payments (CLIENT_CHEQUE) are excluded from ERP session synchronization. Payment headers and lines for cheques will not be sent to the ERP.",
-					false, ConfigType.BOOLEAN);
+			// 3.2.0, step 3b: no ERP_SKIP_CHEQUE_PAYMENTS any more: each method says whether it goes to the ERP
+			// (payment_method.send_to_erp; PaymentMethodsUpgrade converted the setting and deleted it)
 		}
 	}
 

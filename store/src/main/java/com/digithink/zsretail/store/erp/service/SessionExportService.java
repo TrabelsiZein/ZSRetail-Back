@@ -21,6 +21,7 @@ import com.digithink.zsretail.core.erp.service.ErpExportJob;
 import com.digithink.zsretail.core.erp.service.ErpSynchronizationManager;
 import com.digithink.zsretail.core.model.CashierSession;
 import com.digithink.zsretail.core.model.Payment;
+import com.digithink.zsretail.core.model.PaymentMethod;
 import com.digithink.zsretail.core.model.ReturnHeader;
 import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
@@ -350,11 +351,10 @@ private final PaymentHeaderRepository paymentHeaderRepository;
 		}
 		lockSession(session.getId());
 
-			// Filter out RETURN_VOUCHER payments and optionally CLIENT_CHEQUE payments
-			boolean skipCheque = "true".equalsIgnoreCase(generalSetupService.findValueByCode("ERP_SKIP_CHEQUE_PAYMENTS"));
+			// 3.2.0, step 3b: only the methods sent to the ERP (PaymentMethod.sendToErp, which replaced the return
+			// voucher's type test and ERP_SKIP_CHEQUE_PAYMENTS)
 			List<Payment> paymentsToProcess = payments.stream()
-					.filter(payment -> payment.getPaymentMethod().getType() != PaymentMethodType.RETURN_VOUCHER)
-					.filter(payment -> !skipCheque || payment.getPaymentMethod().getType() != PaymentMethodType.CLIENT_CHEQUE)
+					.filter(payment -> sentToErp(payment.getPaymentMethod()))
 					.collect(Collectors.toList());
 
 			if (paymentsToProcess.isEmpty()) {
@@ -523,6 +523,30 @@ private final PaymentHeaderRepository paymentHeaderRepository;
 	 */
 	@Transactional
 	public void rebuildSessionPaymentRows(CashierSession session) {
+		rebuildSessionPaymentRows(session, null);
+	}
+
+	/**
+	 * 3.2.0, step 3b: a method's payments go to the ERP's payment export unless its "send to the ERP" is off; the return
+	 * voucher never (also when its row says otherwise). Null is on.
+	 */
+	static boolean sentToErp(PaymentMethod method) {
+		return method != null && method.getType() != PaymentMethodType.RETURN_VOUCHER
+				&& !Boolean.FALSE.equals(method.getSendToErp());
+	}
+
+	/** 3.2.0, step 3b: a ticket paid apart from a table (splitAndPay) never gets export rows (open point). */
+	static boolean isSplitTicket(SalesHeader sale) {
+		return sale.getNotes() != null && sale.getNotes().startsWith("Split from ");
+	}
+
+	/**
+	 * As {@link #rebuildSessionPaymentRows(CashierSession)}, the ticket whose payment method changed rebuilt too even when
+	 * it had no rows before (3.2.0, step 3b: a ticket paid only with a method not sent to the ERP, changed to one that
+	 * is, was lost before), unless it is a split ticket.
+	 */
+	@Transactional
+	public void rebuildSessionPaymentRows(CashierSession session, SalesHeader changedTicket) {
 		if (session == null) {
 			return;
 		}
@@ -556,6 +580,9 @@ private final PaymentHeaderRepository paymentHeaderRepository;
 			if (!lines.isEmpty()) {
 				paymentLineRepository.deleteAll(lines);
 			}
+		}
+		if (changedTicket != null && changedTicket.getId() != null && !isSplitTicket(changedTicket)) {
+			exportedSaleIds.add(changedTicket.getId());
 		}
 		paymentLineRepository.flush();
 		if (!headers.isEmpty()) {

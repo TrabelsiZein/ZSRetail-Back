@@ -90,11 +90,14 @@ public class AcceptedTicketService extends _BaseService<AcceptedTicket, Long> {
 		return TicketBarcodeParser.read(barcode, date, acceptedTicketRepository.findAll(), method.getId());
 	}
 
-	/** Per method id: its number of lines. */
-	public Map<Long, Long> countPerMethod() {
-		Map<Long, Long> counts = new HashMap<>();
+	/** Per method id: its number of lines, {total, active} (step 3b: the list shows "1 actif / 6"). */
+	public Map<Long, Map<String, Long>> countPerMethod() {
+		Map<Long, Map<String, Long>> counts = new HashMap<>();
 		for (Object[] row : acceptedTicketRepository.countPerPaymentMethod()) {
-			counts.put((Long) row[0], ((Number) row[1]).longValue());
+			Map<String, Long> count = new LinkedHashMap<>();
+			count.put("total", ((Number) row[1]).longValue());
+			count.put("active", row[2] == null ? 0L : ((Number) row[2]).longValue());
+			counts.put((Long) row[0], count);
 		}
 		return counts;
 	}
@@ -141,9 +144,13 @@ public class AcceptedTicketService extends _BaseService<AcceptedTicket, Long> {
 		}
 		Optional<AcceptedTicket> other = conflict(line, id);
 		if (other.isPresent()) {
+			Map<String, String> details = new LinkedHashMap<>();
+			details.put("issuer", other.get().getIssuerName());
+			details.put("code", other.get().getTicketCode());
+			details.put("method", other.get().getPaymentMethod().getName());
 			throw new Refusal("CODE_CONFLICT", "The code " + code + " (" + line.getLayout().getBarcodeLength()
 					+ " digits) overlaps the code " + other.get().getTicketCode() + " of " + other.get().getIssuerName()
-					+ " (" + other.get().getPaymentMethod().getName() + "): a barcode must match one ticket only.");
+					+ " (" + other.get().getPaymentMethod().getName() + "): a barcode must match one ticket only.", details);
 		}
 	}
 

@@ -14,7 +14,8 @@ public interface AcceptedTicketRepository extends _BaseRepository<AcceptedTicket
 
 	long countByPaymentMethod(PaymentMethod paymentMethod);
 
-	/** Per payment method id: its number of lines ({id, count}). */
-	@Query("SELECT t.paymentMethod.id, COUNT(t) FROM AcceptedTicket t GROUP BY t.paymentMethod.id")
+	/** Per payment method id: its number of lines and of active ones ({id, count, active}). */
+	@Query("SELECT t.paymentMethod.id, COUNT(t), SUM(CASE WHEN t.active = true THEN 1 ELSE 0 END)"
+			+ " FROM AcceptedTicket t GROUP BY t.paymentMethod.id")
 	List<Object[]> countPerPaymentMethod();
 }

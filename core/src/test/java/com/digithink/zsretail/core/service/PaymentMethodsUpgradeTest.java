@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -74,7 +75,7 @@ class PaymentMethodsUpgradeTest {
 	@DisplayName("The order: the constraint dropped, the column nullable, the index, the two columns, the conversion")
 	void statementsInTheirOrder() {
 		List<String> statements = PaymentMethodsUpgrade.STATEMENTS;
-		assertEquals(6, statements.size());
+		assertEquals(8, statements.size());
 		assertTrue(statements.get(0).contains("ALTER TABLE payment_method DROP CONSTRAINT ' + QUOTENAME(@uk)"));
 		assertTrue(statements.get(0).contains("k.type = 'UQ' AND c.name = 'type'"), "a unique constraint on type only");
 		assertTrue(statements.get(1).contains("ALTER TABLE payment_method ALTER COLUMN type ' + @type + ' NULL"));
@@ -129,6 +130,22 @@ class PaymentMethodsUpgradeTest {
 			order.verify(jdbc).execute(statement);
 		}
 		verify(jdbc, times(PaymentMethodsUpgrade.STATEMENTS.size())).execute(anyString());
+	}
+
+	@Test
+	@DisplayName("Step 3b, send to the ERP: the column, then the voucher off, the cheque off if ERP_SKIP_CHEQUE_PAYMENTS was true, the setting deleted")
+	void sendToErp() {
+		assertTrue(PaymentMethodsUpgrade.SEND_TO_ERP_COLUMN.endsWith("COL_LENGTH(N'payment_method', N'send_to_erp') IS NULL"
+				+ " ALTER TABLE payment_method ADD send_to_erp bit NULL"));
+		String sql = compact(PaymentMethodsUpgrade.SEND_TO_ERP_CONVERSION);
+		int update = sql.indexOf("UPDATE payment_method SET send_to_erp = CASE WHEN type = ''RETURN_VOUCHER'' THEN 0"
+				+ " WHEN type = ''CLIENT_CHEQUE'' AND EXISTS (SELECT 1 FROM general_setup WHERE code ="
+				+ " ''ERP_SKIP_CHEQUE_PAYMENTS'' AND LOWER(LTRIM(RTRIM(valeur))) = ''true'') THEN 0 ELSE 1 END"
+				+ " WHERE send_to_erp IS NULL;");
+		int delete = sql.indexOf("DELETE FROM general_setup WHERE code = ''ERP_SKIP_CHEQUE_PAYMENTS'';");
+		assertTrue(update > 0 && delete > update && sql.indexOf("COMMIT TRANSACTION;") > delete, sql);
+		assertEquals(Arrays.asList(PaymentMethodsUpgrade.SEND_TO_ERP_COLUMN, PaymentMethodsUpgrade.SEND_TO_ERP_CONVERSION),
+				PaymentMethodsUpgrade.STATEMENTS.subList(6, 8));
 	}
 
 	@Test

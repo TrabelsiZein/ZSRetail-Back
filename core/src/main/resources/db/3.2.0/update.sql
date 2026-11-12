@@ -100,6 +100,27 @@ IF COL_LENGTH(N'payment_method', N'behaviour') IS NOT NULL
 	END TRY BEGIN CATCH IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION; THROW; END CATCH')
 GO
 
+-- Payment methods, step 3b: "send to the ERP" per method (the payment export), replacing ERP_SKIP_CHEQUE_PAYMENTS.
+-- 6) The column (the application adds it too, at its first start).
+IF OBJECT_ID(N'payment_method', N'U') IS NOT NULL
+	AND COL_LENGTH(N'payment_method', N'send_to_erp') IS NULL
+	ALTER TABLE payment_method ADD send_to_erp bit NULL
+GO
+
+-- 7) In one transaction, only on the rows not set yet: the return voucher off (never sent), the cheque off when
+-- ERP_SKIP_CHEQUE_PAYMENTS was true, every other method on; then the setting deleted (it existed only with an ERP).
+IF COL_LENGTH(N'payment_method', N'send_to_erp') IS NOT NULL
+	AND OBJECT_ID(N'general_setup', N'U') IS NOT NULL
+	EXEC('BEGIN TRY BEGIN TRANSACTION;
+		UPDATE payment_method SET send_to_erp = CASE WHEN type = ''RETURN_VOUCHER'' THEN 0
+			WHEN type = ''CLIENT_CHEQUE'' AND EXISTS (SELECT 1 FROM general_setup
+				WHERE code = ''ERP_SKIP_CHEQUE_PAYMENTS'' AND LOWER(LTRIM(RTRIM(valeur))) = ''true'') THEN 0 ELSE 1 END
+		WHERE send_to_erp IS NULL;
+		DELETE FROM general_setup WHERE code = ''ERP_SKIP_CHEQUE_PAYMENTS'';
+		COMMIT TRANSACTION;
+	END TRY BEGIN CATCH IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION; THROW; END CATCH')
+GO
+
 -- Payment methods, step 2: the N° titre asked but optional (a card on a terminal: the slip number); with
 -- require_title_number, the three states off / optional / required. Empty is "not asked". The application adds it too, at
 -- its first start (Hibernate), so it is not among the statements run at each start.

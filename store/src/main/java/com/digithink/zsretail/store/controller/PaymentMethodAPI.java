@@ -1,5 +1,6 @@
 package com.digithink.zsretail.store.controller;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -8,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -83,6 +85,50 @@ public class PaymentMethodAPI extends _BaseController<PaymentMethod, Long, Payme
 		return super.deleteById(id);
 	}
 
+	/** Step 3: the behaviour of this method cannot change (the dialog greys its choice); a logged user. */
+	@GetMapping("/{id}/behaviour-locked")
+	public ResponseEntity<?> behaviourLocked(@PathVariable Long id) {
+		Optional<PaymentMethod> stored = service.findById(id);
+		if (!stored.isPresent()) {
+			return ResponseEntity.notFound().build();
+		}
+		return ResponseEntity.ok(Collections.singletonMap("locked", service.behaviourLocked(stored.get())));
+	}
+
+	/** Step 3b: the General setup rows shown on the method's card (empty for most methods); a logged user. */
+	@GetMapping("/{id}/settings")
+	public ResponseEntity<?> settings(@PathVariable Long id) {
+		Optional<PaymentMethod> stored = service.findById(id);
+		if (!stored.isPresent()) {
+			return ResponseEntity.notFound().build();
+		}
+		return ResponseEntity.ok(service.settingsOf(stored.get()));
+	}
+
+	/**
+	 * Step 3b: the card's settings saved, {code: value}: the right write:admin-payment-methods (not General setup's), the
+	 * keys of the method's type only, the rules of General setup (PaymentMethodService.saveSettings); 400 when refused.
+	 */
+	@PutMapping("/{id}/settings")
+	public ResponseEntity<?> saveSettings(@PathVariable Long id, @RequestBody Map<String, String> values)
+			throws Exception {
+		if (!canWrite()) {
+			return forbidden();
+		}
+		Optional<PaymentMethod> stored = service.findById(id);
+		if (!stored.isPresent()) {
+			return ResponseEntity.notFound().build();
+		}
+		try {
+			service.saveSettings(stored.get(), values);
+		} catch (Refusal refusal) {
+			return refused(HttpStatus.BAD_REQUEST, refusal);
+		} catch (IllegalStateException readOnlyOrChecked) {
+			return refused(HttpStatus.BAD_REQUEST, new Refusal("SETTING_INVALID", readOnlyOrChecked.getMessage()));
+		}
+		return ResponseEntity.ok(service.settingsOf(stored.get()));
+	}
+
 	private boolean canWrite() {
 		return currentUserProvider.currentUserHasPermission(PaymentMethodService.WRITE_PERMISSION);
 	}
@@ -92,10 +138,13 @@ public class PaymentMethodAPI extends _BaseController<PaymentMethod, Long, Payme
 				"Changing the payment methods needs the right " + PaymentMethodService.WRITE_PERMISSION + "."));
 	}
 
-	private static ResponseEntity<?> refused(HttpStatus status, Refusal refusal) {
-		Map<String, String> body = new LinkedHashMap<>();
+	static ResponseEntity<?> refused(HttpStatus status, Refusal refusal) {
+		Map<String, Object> body = new LinkedHashMap<>();
 		body.put("error", refusal.getMessage());
 		body.put("reason", refusal.getReason());
+		if (!refusal.getDetails().isEmpty()) {
+			body.put("details", refusal.getDetails());
+		}
 		return ResponseEntity.status(status).body(body);
 	}
 }

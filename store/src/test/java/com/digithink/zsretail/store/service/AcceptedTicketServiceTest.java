@@ -51,6 +51,8 @@ class AcceptedTicketServiceTest {
 	void setUp() throws Exception {
 		AcceptedTicketRepository repository = mock(AcceptedTicketRepository.class);
 		when(repository.findAll()).thenAnswer(i -> new ArrayList<>(table));
+		when(repository.countPerPaymentMethod()).thenAnswer(i -> Arrays.asList(new Object[] { 1L, 6L, 1L },
+				new Object[] { 2L, 3L, null }));
 		when(repository.findByPaymentMethodOrderByTicketCode(any())).thenAnswer(i -> table.stream()
 				.filter(l -> l.getPaymentMethod() == i.getArgument(0)).collect(Collectors.toList()));
 		when(repository.save(any(AcceptedTicket.class))).thenAnswer(i -> {
@@ -133,6 +135,10 @@ class AcceptedTicketServiceTest {
 		Refusal longer = assertThrows(Refusal.class, () -> service.add(gift, longerCode));
 		assertEquals("CODE_CONFLICT", longer.getReason());
 		assertTrue(longer.getMessage().contains("031 of Servimax Repas (Ticket Restaurant)"), longer.getMessage());
+		// Step 3b: the ticket it overlaps, for the screen's text
+		assertEquals("Servimax Repas", longer.getDetails().get("issuer"));
+		assertEquals("031", longer.getDetails().get("code"));
+		assertEquals("Ticket Restaurant", longer.getDetails().get("method"));
 		assertEquals("CODE_CONFLICT", reason(() -> service.add(gift, sent("03", "Shorter", "0"))));
 		AcceptedTicket otherLength = sent("031", "Short tickets", "0");
 		otherLength.setLayout(new BarcodeLayout(20, 4, 6, 10, 2, 12, 9));
@@ -163,6 +169,15 @@ class AcceptedTicketServiceTest {
 		assertEquals("NOT_SCANNED_METHOD", reason(() -> service.addCommon(card, CommonTicketIssuers.Kind.GIFT)));
 		Map<String, List<String>> again = service.addCommon(meal, CommonTicketIssuers.Kind.MEAL);
 		assertTrue(again.get("added").isEmpty(), "a second time adds nothing");
+	}
+
+	@Test
+	@DisplayName("Step 3b, the counts per method: total and active (\"1 actif / 6\")")
+	void counts() {
+		Map<Long, Map<String, Long>> counts = service.countPerMethod();
+		assertEquals(6L, counts.get(1L).get("total"));
+		assertEquals(1L, counts.get(1L).get("active"));
+		assertEquals(0L, counts.get(2L).get("active"), "no active line: 0");
 	}
 
 	@Test

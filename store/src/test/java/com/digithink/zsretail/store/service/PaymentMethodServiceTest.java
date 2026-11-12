@@ -5,23 +5,34 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
+
+import org.mockito.ArgumentCaptor;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import com.digithink.zsretail.core.model.GeneralSetup;
 import com.digithink.zsretail.core.model.PaymentMethod;
+import com.digithink.zsretail.core.model.enumeration.ConfigType;
 import com.digithink.zsretail.core.model.enumeration.PaymentMethodBehaviour;
 import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
 import com.digithink.zsretail.core.repository.AcceptedTicketRepository;
 import com.digithink.zsretail.core.repository.PaymentMethodRepository;
+import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.store.service.PaymentMethodService.Refusal;
 
 /**
@@ -34,6 +45,7 @@ class PaymentMethodServiceTest {
 	private final PaymentMethodRepository repository = mock(PaymentMethodRepository.class);
 	private final JdbcTemplate jdbc = mock(JdbcTemplate.class);
 	private final AcceptedTicketRepository tickets = mock(AcceptedTicketRepository.class);
+	private final GeneralSetupService setup = mock(GeneralSetupService.class);
 
 	private final PaymentMethod cheque = method(5L, "ENCAISS-CHEQUE", "Client Chèque", PaymentMethodType.CLIENT_CHEQUE);
 
@@ -42,6 +54,7 @@ class PaymentMethodServiceTest {
 		inject("paymentMethodRepository", repository);
 		inject("jdbc", jdbc);
 		inject("acceptedTicketRepository", tickets);
+		inject("generalSetupService", setup);
 		cheque.setRequireTitleNumber(true);
 		cheque.setRequireDrawerName(true);
 		cheque.setRequireIssuingBank(true);
@@ -223,6 +236,91 @@ class PaymentMethodServiceTest {
 		assertTrue(PaymentMethodService.USES.contains("FROM payment WHERE payment_method_id = ?"));
 		assertTrue(PaymentMethodService.USES.contains("old_payment_method_id = ? OR new_payment_method_id = ?"));
 		assertTrue(PaymentMethodService.USES.contains("FROM session_cash_count WHERE payment_method_id = ?"));
+	}
+
+	@Test
+	@DisplayName("Step 3b, send to the ERP: on by default; changed on update; always off on the return voucher")
+	void sendToErp() {
+		PaymentMethod created = service.prepareCreate(method(null, "TR-SERVIMAX", "Ticket", null));
+		assertTrue(created.getSendToErp());
+		PaymentMethod stored = method(20L, "TR-SERVIMAX", "Ticket", null);
+		PaymentMethod off = method(20L, "TR-SERVIMAX", "Ticket", null);
+		off.setSendToErp(false);
+		assertFalse(service.prepareUpdate(stored, off).getSendToErp());
+		PaymentMethod kept = method(20L, "TR-SERVIMAX", "Ticket", null);
+		kept.setSendToErp(null);
+		assertFalse(service.prepareUpdate(stored, kept).getSendToErp(), "not sent: kept");
+		PaymentMethod voucher = method(8L, "RETURN_VOUCHER", "Bon", PaymentMethodType.RETURN_VOUCHER);
+		when(repository.findByCode("RETURN_VOUCHER")).thenReturn(Optional.of(voucher));
+		PaymentMethod on = method(8L, "RETURN_VOUCHER", "Bon", null);
+		on.setSendToErp(true);
+		assertFalse(service.prepareUpdate(voucher, on).getSendToErp(), "never the voucher");
+	}
+
+	@Test
+	@DisplayName("Step 3b, the card's settings: the keys of the type, checked by type, saved as General setup saves them")
+	void settings() throws Exception {
+		PaymentMethod cash = method(1L, "CLIENT_ESPECES", "Espèces", PaymentMethodType.CLIENT_ESPECES);
+		GeneralSetup plafond = setting(11L, "PLAFOND_ESPECE", ConfigType.STRING, "");
+		GeneralSetup autoAdd = setting(12L, "AUTO_ADD_CASH_PAYMENT_ON_PAYMENT_PAGE", ConfigType.BOOLEAN, "true");
+		GeneralSetup check = setting(13L, "ENABLE_CASH_DISCREPANCY_CHECK", ConfigType.BOOLEAN, "false");
+		GeneralSetup validity = setting(14L, "RETURN_VOUCHER_VALIDITY_DAYS", ConfigType.NUMBER, "30");
+		for (GeneralSetup row : Arrays.asList(plafond, autoAdd, check, validity)) {
+			when(setup.findByCode(row.getCode())).thenReturn(row);
+		}
+		assertEquals(Arrays.asList(plafond, autoAdd, check), service.settingsOf(cash));
+		PaymentMethod voucher = method(8L, "RETURN_VOUCHER", "Bon", PaymentMethodType.RETURN_VOUCHER);
+		assertEquals(Arrays.asList(validity), service.settingsOf(voucher));
+		assertTrue(service.settingsOf(cheque).isEmpty(), "most methods have none");
+
+		Map<String, String> values = new LinkedHashMap<>();
+		values.put("PLAFOND_ESPECE", "1000");
+		values.put("AUTO_ADD_CASH_PAYMENT_ON_PAYMENT_PAGE", "true"); // unchanged: not written
+		values.put("ENABLE_CASH_DISCREPANCY_CHECK", "true");
+		service.saveSettings(cash, values);
+		ArgumentCaptor<GeneralSetup> written = ArgumentCaptor.forClass(GeneralSetup.class);
+		verify(setup).updateFromAdmin(eq(11L), written.capture(), eq("Payment method CLIENT_ESPECES"));
+		assertEquals("1000", written.getValue().getValeur());
+		verify(setup).updateFromAdmin(eq(13L), any(), any());
+		verify(setup, never()).updateFromAdmin(eq(12L), any(), any());
+
+		assertEquals("SETTING_UNKNOWN", reason(() -> {
+			try {
+				service.saveSettings(voucher, java.util.Collections.singletonMap("PLAFOND_ESPECE", "5"));
+			} catch (Refusal refusal) {
+				throw refusal;
+			} catch (Exception e) {
+				throw new IllegalStateException(e);
+			}
+		}));
+		for (String bad : new String[] { "abc", "-5", "1,5" }) {
+			assertFalse(PaymentMethodService.validSetting(plafond, bad), bad);
+		}
+		assertTrue(PaymentMethodService.validSetting(plafond, "") && PaymentMethodService.validSetting(plafond, "1500.5"));
+		assertFalse(PaymentMethodService.validSetting(autoAdd, "yes"));
+		assertFalse(PaymentMethodService.validSetting(validity, "3.5"));
+		assertTrue(PaymentMethodService.validSetting(validity, "") && PaymentMethodService.validSetting(validity, "45"));
+	}
+
+	@Test
+	@DisplayName("Step 3b, behaviourLocked: a fixed type, a payment or an accepted ticket")
+	void behaviourLocked() {
+		assertTrue(service.behaviourLocked(cheque));
+		PaymentMethod fresh = method(30L, "NEW", "New", null);
+		uses(30L, 0);
+		assertFalse(service.behaviourLocked(fresh));
+		uses(30L, 2);
+		assertTrue(service.behaviourLocked(fresh));
+	}
+
+	private static GeneralSetup setting(Long id, String code, ConfigType type, String value) {
+		GeneralSetup row = new GeneralSetup();
+		row.setId(id);
+		row.setCode(code);
+		row.setConfigType(type);
+		row.setValeur(value);
+		row.setDescription("description of " + code);
+		return row;
 	}
 
 	private static String reason(Runnable call) {

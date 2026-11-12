@@ -161,9 +161,6 @@ public class AcceptedTicketAPI {
 	}
 
 	private static ResponseEntity<?> refused(HttpStatus status, Refusal refusal) {
-		Map<String, String> body = new LinkedHashMap<>();
-		body.put("error", refusal.getMessage());
-		body.put("reason", refusal.getReason());
-		return ResponseEntity.status(status).body(body);
+		return PaymentMethodAPI.refused(status, refusal);
 	}
 }
