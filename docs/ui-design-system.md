@@ -28,3 +28,14 @@
 - **Separators**: 2px solid borders between items panel and cart panel, and between actions panel and cart panel
 - **Spacing**: Left padding (10px) on screen, panels use 10px internal padding
 - **Action buttons**: Horizontal layout with 8px gap between buttons
+
+### Admin edit popups (3.2.0, Zein)
+
+- No small popup holding many fields. A form of more than a handful of fields is a **wide popup with titled sections**
+  (`size="xl" centered scrollable`, capped at about 980 px, two columns from `lg`, one on a narrow screen; the header and
+  the footer stay fixed, only the body scrolls), or a full page. Pattern: `ItemManagement.vue` (section cards) and the
+  payment methods dialogs (`PaymentMethodsManagement.vue`, `PaymentMethodTickets.vue`, shared styles
+  `views/admin/payment-method-modal.scss`, every rule under `.pm-modal`: the dialog is rendered in the body, not scoped).
+- Compact fields (`size="sm"`), help texts short and in the screen's language (`description` of the form group), a
+  description is a one-line field. On a 1366 x 768 screen the usual record should fit without scrolling, or nearly.
+- The next screens of the scanned tickets (the POS scan card, "Tickets encaissés", the remise) follow it.
