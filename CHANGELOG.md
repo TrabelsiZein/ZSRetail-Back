@@ -54,6 +54,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   changes only without type, payment or line; a method with lines is not deleted. A scanned-tickets method cannot pay
   yet (sale, split bill, payment change refused until step 5). New store: two inactive scanned-tickets methods (Ticket
   Restaurant, Chèque Cadeau) with the twelve common issuers, inactive; an existing database gets nothing.
+- Payment methods, step 5 (the till's scan card is the front's; `docs/backend.md`, "Payment methods 3.2.0, step 5"): a
+  card on a terminal (Client TPE) asks its slip number, optional (the N° titre, `askTitleNumber`): the seed sets it on a
+  new database, `PaymentMethodsUpgrade` (a tenth statement) and `db/3.2.0/update.sql` (step 9) on an existing one, only
+  where `ask_title_number` is empty (a fixed method's switches are not the admin's). Tests: `PaymentMethodsUpgradeTest`,
+  `ZZDataInitializerPaymentMethodsTest`.
 - Payment methods, step 4 (the sale path of scanned tickets; `docs/backend.md`, "Payment methods 3.2.0, step 4"): a sale
   paid with a scanned-tickets method: the till sends the barcodes, the server reads and counts each ticket (counted = face
   value - deduction, applied = what is left to pay at most, the excess kept by the store, tickets before cash, no change

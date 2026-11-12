@@ -121,15 +121,23 @@ public class PaymentMethodsUpgrade {
 			+ " CREATE UNIQUE INDEX ux_scanned_ticket_live_barcode ON scanned_ticket_payment (live_barcode)"
 			+ " WHERE live_barcode IS NOT NULL";
 
+	/**
+	 * Step 5: a card on a terminal (CLIENT_TPE) asks its slip number, optional (the N° titre, askTitleNumber); a fixed
+	 * method's switches are not the admin's, so the row is set here, only while not set (empty). The column is
+	 * Hibernate's (or update.sql's): read through EXEC, the batch compiles before it exists.
+	 */
+	static final String TPE_SLIP_NUMBER = "IF COL_LENGTH(N'payment_method', N'ask_title_number') IS NOT NULL"
+			+ " EXEC('UPDATE payment_method SET ask_title_number = 1 WHERE type = ''CLIENT_TPE'' AND ask_title_number IS NULL')";
+
 	static final List<String> STATEMENTS = Arrays.asList(DROP_TYPE_UNIQUE_CONSTRAINT, TYPE_NULLABLE, TYPE_INDEX,
 			BEHAVIOUR_COLUMN, TITLE_NUMBER_LENGTH_COLUMN, CONVERSION, SEND_TO_ERP_COLUMN, SEND_TO_ERP_CONVERSION,
-			SCANNED_TICKET_LIVE_INDEX);
+			SCANNED_TICKET_LIVE_INDEX, TPE_SLIP_NUMBER);
 
 	private static final List<String> NAMES = Arrays.asList("the unique constraint on payment_method.type dropped",
 			"payment_method.type nullable", "the index " + INDEX, "payment_method.behaviour",
 			"payment_method.title_number_length", "Ticket Restaurant and Chèque Cadeau converted, the lengths copied",
 			"payment_method.send_to_erp", "send_to_erp set, ERP_SKIP_CHEQUE_PAYMENTS deleted",
-			"the index ux_scanned_ticket_live_barcode");
+			"the index ux_scanned_ticket_live_barcode", "the terminal's slip number asked (optional)");
 
 	private final JdbcTemplate jdbc;
 

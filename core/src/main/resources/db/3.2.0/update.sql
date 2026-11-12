@@ -172,6 +172,12 @@ IF OBJECT_ID(N'scanned_ticket_payment', N'U') IS NOT NULL
 	WHERE live_barcode IS NOT NULL
 GO
 
+-- 9) Step 5: a card on a terminal (CLIENT_TPE) asks its slip number, optional (N° titre); only while not set (a fixed
+-- method's switches are not the admin's). Through EXEC: the column may be added by this script's step above.
+IF COL_LENGTH(N'payment_method', N'ask_title_number') IS NOT NULL
+	EXEC('UPDATE payment_method SET ask_title_number = 1 WHERE type = ''CLIENT_TPE'' AND ask_title_number IS NULL')
+GO
+
 UPDATE APP_VERSION SET version = '3.2.0';
 
 -- The notes of 3.2.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

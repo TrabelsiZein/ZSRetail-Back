@@ -556,6 +556,7 @@ public class ZZDataInitializer {
 		clientTpe.setDescription("Paiement via terminal électronique (TPE)");
 		clientTpe.setActive(true);
 		clientTpe.setDisplayOrder(2);
+		clientTpe.setAskTitleNumber(true); // 3.2.0, step 5: the slip number, optional
 		clientTpe.setCreatedBy("System");
 		clientTpe.setUpdatedBy("System");
 		paymentMethodRepository.save(clientTpe);

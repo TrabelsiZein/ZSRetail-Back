@@ -120,6 +120,15 @@
   255 up to the NAV DTO), amount the part applied; nothing when the method is not sent. Tests: `ScannedTicketSaleTest`
   (the real `processCompleteSale`), `SessionExportNavSimulationTest` (12.000 paid with two Servimax tickets),
   `SessionReportServiceTest`, `AcceptedTicketServiceTest`, `ReturnRefundLoyaltyTest`; the race proved on a scratch database.
+- **Payment methods 3.2.0, step 5** (the till's scan card, front `Payment.vue` and `src/libs/scanned-tickets.js`): the
+  till reads each scan with `tickets/check` (nothing reserved) and computes the parts itself, as `ScannedTicketService.pay`
+  does (after the other non-cash payments, before cash, scan order, the scanned-tickets cards in the order sent); a
+  preview endpoint was not needed: the counted value comes from the check, the rule is one line, and the sale reads the
+  barcodes again anyway (the till's figures are a display, never sent). The sale sends the method and its barcodes, no
+  amount; a refusal names the barcode, the till marks that line. A sale on hold keeps no payment (`save-pending` sends
+  none): the scanned tickets are not kept, the till says so first. Back end: Client TPE asks its slip number, optional
+  (`askTitleNumber`: the seed, `PaymentMethodsUpgrade.TPE_SLIP_NUMBER`, `db/3.2.0/update.sql` step 9, only where empty).
+  Not yet: the closing window has no row for a scanned-tickets method (`ItemSelection.closeCountMethods`).
 - Item family/subfamily domain: entities, repositories, services, controllers; `Item` links to both family and subfamily, with legacy `taxable`/`taxRate` flags removed in favor of `defaultVAT`.
 - `ItemBarcodeAPI /items-with-barcodes` now supports pagination + filtering; `ItemService` exposes a spec-based search and `ItemBarcodeService` fetches active barcodes per page.
 - Admin ERP communications endpoint exposes filtered communications (date range, limit) for the new frontend view.

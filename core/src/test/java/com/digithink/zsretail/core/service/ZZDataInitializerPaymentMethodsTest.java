@@ -121,6 +121,16 @@ class ZZDataInitializerPaymentMethodsTest {
 	}
 
 	@Test
+	@DisplayName("Step 5: the card on a terminal asks its slip number, optional; no other seeded method asks an optional one")
+	void terminalSlipNumber() throws Exception {
+		seed(false);
+		for (PaymentMethod method : methods) {
+			assertEquals("CLIENT_TPE".equals(method.getCode()), Boolean.TRUE.equals(method.getAskTitleNumber()),
+					method.getCode());
+		}
+	}
+
+	@Test
 	@DisplayName("Step 3b: every seeded method goes to the ERP but the return voucher")
 	void sendToErp() throws Exception {
 		seed(false);
