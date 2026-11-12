@@ -4,7 +4,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -74,6 +76,9 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 	@Autowired
 	private PaymentService paymentService;
+
+	@Autowired
+	private ScannedTicketService scannedTicketService;
 
 	@Autowired
 	private ItemRepository itemRepository;
@@ -1010,17 +1015,46 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		List<Payment> payments = new ArrayList<>();
 		Double totalPaid = 0.0;
 
+		// 3.2.0, step 4: the scanned tickets pay after the other non-cash payments and before cash (the change comes
+		// from cash only): what is left for them is the total minus the payments that are neither cash nor tickets
+		BigDecimal ticketsRest = BigDecimal.valueOf(request.getTotalAmount() == null ? 0.0
+				: Quantities.roundAmount(request.getTotalAmount()));
+		for (ProcessSaleRequestDTO.PaymentDTO paymentDTO : request.getPayments()) {
+			PaymentMethod method = paymentDTO.getPaymentMethodId() == null ? null
+					: paymentMethodRepository.findById(paymentDTO.getPaymentMethodId()).orElse(null);
+			if (method != null && !isScannedTickets(method) && method.getType() != PaymentMethodType.CLIENT_ESPECES
+					&& paymentDTO.getAmount() != null && paymentDTO.getAmount() > 0) {
+				ticketsRest = ticketsRest.subtract(BigDecimal.valueOf(Quantities.roundAmount(paymentDTO.getAmount())));
+			}
+		}
+		Set<String> scannedBarcodes = new HashSet<>();
+
 		for (ProcessSaleRequestDTO.PaymentDTO paymentDTO : request.getPayments()) {
 			if (paymentDTO.getPaymentMethodId() == null) {
 				throw new IllegalArgumentException("Payment method ID is required for all payments");
 			}
+			PaymentMethod paymentMethod = paymentMethodRepository.findById(paymentDTO.getPaymentMethodId()).orElseThrow(
+					() -> new IllegalArgumentException("Payment method not found: " + paymentDTO.getPaymentMethodId()));
+
+			// 3.2.0, step 4: a scanned-tickets method: the barcodes only (any amount sent is ignored), read and counted
+			// here, one payment per ticket
+			if (isScannedTickets(paymentMethod)) {
+				List<Payment> ticketPayments = scannedTicketService.pay(salesHeader, paymentMethod,
+						paymentDTO.getBarcodes(), ticketsRest, currentUser, scannedBarcodes);
+				for (Payment ticketPayment : ticketPayments) {
+					ticketsRest = ticketsRest.subtract(BigDecimal.valueOf(ticketPayment.getTotalAmount()));
+					totalPaid += ticketPayment.getTotalAmount();
+					payments.add(ticketPayment);
+				}
+				continue;
+			}
+			if (paymentDTO.getBarcodes() != null && !paymentDTO.getBarcodes().isEmpty()) {
+				throw new IllegalArgumentException("Barcodes are taken by a scanned-tickets method only, not by "
+						+ paymentMethod.getName());
+			}
 			if (paymentDTO.getAmount() == null || paymentDTO.getAmount() <= 0) {
 				throw new IllegalArgumentException("Payment amount must be greater than 0");
 			}
-
-			PaymentMethod paymentMethod = paymentMethodRepository.findById(paymentDTO.getPaymentMethodId()).orElseThrow(
-					() -> new IllegalArgumentException("Payment method not found: " + paymentDTO.getPaymentMethodId()));
-			refuseScannedTickets(paymentMethod);
 
 			if (paymentMethod.getType() == PaymentMethodType.RETURN_VOUCHER) {
 				if (paymentDTO.getReference() == null || paymentDTO.getReference().trim().isEmpty()) {
@@ -1162,6 +1196,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		if (oldMethod != null && oldMethod.getType() == PaymentMethodType.RETURN_VOUCHER) {
 			throw new IllegalStateException("Return voucher payments cannot be changed");
 		}
+		refuseScannedTickets(oldMethod); // 3.2.0, step 4: a scanned ticket stays the ticket it was
 
 		PaymentMethod newMethod = paymentMethodRepository.findById(request.getNewPaymentMethodId())
 				.orElseThrow(() -> new IllegalArgumentException(
@@ -1358,14 +1393,20 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	}
 
 	/**
-	 * 3.2.0, step 3: a scanned-tickets method pays nothing yet (the till scans the tickets from step 5): a sale, a split
-	 * bill or a payment change on it is refused, before anything is written (the caller's transaction is rolled back).
+	 * 3.2.0, steps 3-4: scanned tickets pay a sale only through the sale's own path (ScannedTicketService): a split bill or
+	 * a payment change to or from a scanned-tickets method is refused, before anything is written (the caller's
+	 * transaction is rolled back).
 	 */
 	static void refuseScannedTickets(PaymentMethod method) {
-		if (method != null && method.getBehaviour() == PaymentMethodBehaviour.SCANNED_TICKETS) {
-			throw new IllegalArgumentException("The payment method " + method.getName()
-					+ " takes scanned tickets: it cannot be used for a payment yet.");
+		if (isScannedTickets(method)) {
+			throw new IllegalArgumentException("Le moyen de paiement « " + method.getName()
+					+ " » (tickets scannés) ne s'utilise ni pour une addition partagée ni pour un changement de moyen de"
+					+ " paiement.");
 		}
+	}
+
+	static boolean isScannedTickets(PaymentMethod method) {
+		return method != null && method.getBehaviour() == PaymentMethodBehaviour.SCANNED_TICKETS;
 	}
 
 	/** 3.2.0, step 2: the method asks a N° titre, required or optional. */

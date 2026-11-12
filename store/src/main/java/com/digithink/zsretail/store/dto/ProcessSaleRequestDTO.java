@@ -96,6 +96,11 @@ public class ProcessSaleRequestDTO {
 		private LocalDate dueDate;
 		private String drawerName;
 		private String issuingBank;
+		/**
+		 * 3.2.0, step 4: a scanned-tickets method: its barcodes in scan order (the amount is not sent, or ignored: the
+		 * server reads and counts each ticket, one payment each).
+		 */
+		private java.util.List<String> barcodes;
 	}
 }
 

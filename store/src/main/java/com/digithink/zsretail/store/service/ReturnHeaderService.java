@@ -42,6 +42,7 @@ import com.digithink.zsretail.core.service.StockMovementService;
 import com.digithink.zsretail.core.service.StockService;
 import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.core.utils.Quantities;
+import com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository;
 import com.digithink.zsretail.store.dto.ProcessReturnRequestDTO;
 import com.digithink.zsretail.store.repository.ReturnVoucherRepository;
 
@@ -94,6 +95,9 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 	/** What follows the tagged pieces of the tickets (RFID); none by default. */
 	@Autowired(required = false)
 	private ObjectProvider<SaleTagHooks> saleTagHooks;
+
+	@Autowired
+	private ScannedTicketPaymentRepository scannedTicketPaymentRepository;
 
 	@Override
 	protected _BaseRepository<ReturnHeader, Long> getRepository() {
@@ -332,6 +336,13 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 		// Validate return type
 		if (request.getReturnType() == ReturnType.SIMPLE_RETURN && !isSimpleReturnEnabled()) {
 			throw new IllegalStateException("Simple return is not enabled");
+		}
+		// 3.2.0, step 4: a ticket paid, even in part, with scanned tickets (meal tickets, gift cheques) is never refunded in
+		// cash: a return voucher only (a refund split between cash and voucher is for later)
+		if (request.getReturnType() == ReturnType.SIMPLE_RETURN
+				&& scannedTicketPaymentRepository.existsByPayment_SalesHeader(originalSalesHeader)) {
+			throw new IllegalStateException("Ce ticket a été payé, au moins en partie, par tickets restaurant ou chèques cadeaux :"
+					+ " il ne se rembourse pas en espèces. Faites un bon de retour.");
 		}
 
 		// Validate return lines

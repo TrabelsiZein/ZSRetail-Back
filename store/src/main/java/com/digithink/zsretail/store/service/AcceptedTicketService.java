@@ -21,6 +21,7 @@ import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.core.service.CommonTicketIssuers;
 import com.digithink.zsretail.core.service.TicketBarcodeParser;
 import com.digithink.zsretail.core.service._BaseService;
+import com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository;
 import com.digithink.zsretail.store.service.PaymentMethodService.Refusal;
 
 /**
@@ -39,6 +40,9 @@ public class AcceptedTicketService extends _BaseService<AcceptedTicket, Long> {
 
 	@Autowired
 	private AcceptedTicketRepository acceptedTicketRepository;
+
+	@Autowired
+	private ScannedTicketPaymentRepository scannedTicketPaymentRepository;
 
 	@Override
 	protected _BaseRepository<AcceptedTicket, Long> getRepository() {
@@ -88,6 +92,19 @@ public class AcceptedTicketService extends _BaseService<AcceptedTicket, Long> {
 	/** The reading of a barcode at a date, against every line, the method expected; nothing stored. */
 	public TicketBarcodeParser.Reading test(PaymentMethod method, String barcode, LocalDate date) {
 		return TicketBarcodeParser.read(barcode, date, acceptedTicketRepository.findAll(), method.getId());
+	}
+
+	/**
+	 * Step 4: a line that paid sales is never deleted, only switched off (its payments point to it; their copies keep the
+	 * past sales as they were). French message: the screen shows it as it is.
+	 */
+	public Optional<Refusal> deletionRefusal(AcceptedTicket line) {
+		long used = scannedTicketPaymentRepository.countByAcceptedTicket(line);
+		if (used > 0) {
+			return Optional.of(new Refusal("USED_BY_SALES", "Le ticket « " + line.getIssuerName() + " » (" + line.getTicketCode()
+					+ ") a déjà payé " + used + " vente(s) : il ne se supprime pas, désactivez-le."));
+		}
+		return Optional.empty();
 	}
 
 	/** Per method id: its number of lines, {total, active} (step 3b: the list shows "1 actif / 6"). */

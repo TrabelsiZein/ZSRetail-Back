@@ -436,6 +436,28 @@ class SessionReportServiceTest {
 	}
 
 	@Test
+	@DisplayName("3.2.0, step 4: a ticket paid with two scanned tickets (6.300 + 5.700): one payment line of 12, one ticket, no double count")
+	void scannedTickets() {
+		PaymentMethod meal = method(21L, "TICKET_RESTAURANT", "Ticket Restaurant", null, 3);
+		meal.setBehaviour(com.digithink.zsretail.core.model.enumeration.PaymentMethodBehaviour.SCANNED_TICKETS);
+		standardSession();
+		SalesHeader paid = sale(TransactionStatus.COMPLETED, 12.0);
+		line(paid, 19, 12.0, 0);
+		pay(paid, meal, 6.3);
+		pay(paid, meal, 5.7);
+		close(376.72);
+		SessionReportTicketDTO dto = service.build(7L);
+
+		PaymentLine tickets = payment(dto, "TICKET_RESTAURANT");
+		assertEquals(12.0, tickets.getAmount(), EPS, "the parts applied: the excess is never counted");
+		assertEquals(1, tickets.getTicketsCount(), "one sale, two tickets");
+		assertFalse(tickets.isCash());
+		assertEquals(296.72, payment(dto, "ESP").getAmount(), EPS, "no change from the tickets");
+		double paidTotal = dto.getPayments().stream().mapToDouble(PaymentLine::getAmount).sum();
+		assertEquals(dto.getSales().getTotalTTC(), paidTotal, 1e-6, "the payments still add up to the TTC");
+	}
+
+	@Test
 	@DisplayName("Control on Z: a method the cashier did not declare is null (\"—\"), a method declared with 0 stays 0")
 	void undeclaredMethod() {
 		standardSession();

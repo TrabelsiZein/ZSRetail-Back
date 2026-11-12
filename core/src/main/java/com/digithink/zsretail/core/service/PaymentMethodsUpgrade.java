@@ -110,13 +110,26 @@ public class PaymentMethodsUpgrade {
 			+ " COMMIT TRANSACTION;"
 			+ " END TRY BEGIN CATCH IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION; THROW; END CATCH')";
 
+	/**
+	 * Step 4, a store: a scanned ticket is held by one sale at most, across tills (the database decides when two scan it at
+	 * the same moment); the rows that gave the ticket back (live_barcode null) are left out. Hibernate creates the table
+	 * (an entity of the store), not a filtered index.
+	 */
+	static final String SCANNED_TICKET_LIVE_INDEX = "IF OBJECT_ID(N'scanned_ticket_payment', N'U') IS NOT NULL"
+			+ " AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ux_scanned_ticket_live_barcode'"
+			+ " AND object_id = OBJECT_ID(N'scanned_ticket_payment'))"
+			+ " CREATE UNIQUE INDEX ux_scanned_ticket_live_barcode ON scanned_ticket_payment (live_barcode)"
+			+ " WHERE live_barcode IS NOT NULL";
+
 	static final List<String> STATEMENTS = Arrays.asList(DROP_TYPE_UNIQUE_CONSTRAINT, TYPE_NULLABLE, TYPE_INDEX,
-			BEHAVIOUR_COLUMN, TITLE_NUMBER_LENGTH_COLUMN, CONVERSION, SEND_TO_ERP_COLUMN, SEND_TO_ERP_CONVERSION);
+			BEHAVIOUR_COLUMN, TITLE_NUMBER_LENGTH_COLUMN, CONVERSION, SEND_TO_ERP_COLUMN, SEND_TO_ERP_CONVERSION,
+			SCANNED_TICKET_LIVE_INDEX);
 
 	private static final List<String> NAMES = Arrays.asList("the unique constraint on payment_method.type dropped",
 			"payment_method.type nullable", "the index " + INDEX, "payment_method.behaviour",
 			"payment_method.title_number_length", "Ticket Restaurant and Chèque Cadeau converted, the lengths copied",
-			"payment_method.send_to_erp", "send_to_erp set, ERP_SKIP_CHEQUE_PAYMENTS deleted");
+			"payment_method.send_to_erp", "send_to_erp set, ERP_SKIP_CHEQUE_PAYMENTS deleted",
+			"the index ux_scanned_ticket_live_barcode");
 
 	private final JdbcTemplate jdbc;
 

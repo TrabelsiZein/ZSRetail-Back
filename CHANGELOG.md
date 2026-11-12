@@ -54,6 +54,16 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   changes only without type, payment or line; a method with lines is not deleted. A scanned-tickets method cannot pay
   yet (sale, split bill, payment change refused until step 5). New store: two inactive scanned-tickets methods (Ticket
   Restaurant, Chèque Cadeau) with the twelve common issuers, inactive; an existing database gets nothing.
+- Payment methods, step 4 (the sale path of scanned tickets; `docs/backend.md`, "Payment methods 3.2.0, step 4"): a sale
+  paid with a scanned-tickets method: the till sends the barcodes, the server reads and counts each ticket (counted = face
+  value - deduction, applied = what is left to pay at most, the excess kept by the store, tickets before cash, no change
+  from tickets): one payment per ticket (title number = the barcode) and a `ScannedTicketPayment` with the copies of the
+  sale. Refused, with the whole sale and a French message naming the barcode: unknown, another method, switched off, wrong
+  length, not digits, expired, twice in the sale, used by another sale (its number and date), nothing left to pay; two
+  tills at once: the database decides. `GET /payment-method/{id}/tickets/check` (the till's check, ALREADY_USED with the
+  sale, session and cashier). Split bill and payment change refuse scanned tickets. A line that paid sales is not deleted.
+  A return of a ticket paid with scanned tickets is refused in cash (return voucher only). Tests:
+  `ScannedTicketSaleTest`, the NAV simulation of 12.000 paid with two Servimax tickets.
 - Payment methods, step 3b (`docs/backend.md`, "Payment methods 3.2.0, step 3b"): the cash and return voucher settings
   shown on their method's card (`GET / PUT /payment-method/{id}/settings`, the payment methods' right, the values still in
   `general_setup`). `PaymentMethod.sendToErp` replaces `ERP_SKIP_CHEQUE_PAYMENTS` in the payment export (never the return
@@ -82,7 +92,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   each step). It accepts a database already at 3.2.0, so one script brings a 3.1.2 database and a 3.2.0 test database
   alike. Step 3b: the column `send_to_erp` and its conversion (the return voucher off, the cheque off when
   `ERP_SKIP_CHEQUE_PAYMENTS` was true, the others on), then the setting deleted (checked on a scratch database with the
-  setting true, false and absent, twice each).
+  setting true, false and absent, twice each). Step 4: the table `scanned_ticket_payment` (a store: it has `quick_quantity`;
+  in Hibernate's form, constraints named as in the entity) and the filtered unique index `ux_scanned_ticket_live_barcode`
+  (`live_barcode IS NOT NULL`, also created at each start); the race of two tills proved on a scratch database (the second
+  insert waits for the first, then fails on the index).
 
 ### Config
 - General setup: `ERP_SKIP_CHEQUE_PAYMENTS` removed (no longer created, converted to `send_to_erp` and deleted).

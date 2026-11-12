@@ -25,6 +25,7 @@ import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.CommonTicketIssuers;
 import com.digithink.zsretail.store.service.AcceptedTicketService;
 import com.digithink.zsretail.store.service.PaymentMethodService;
+import com.digithink.zsretail.store.service.ScannedTicketService;
 import com.digithink.zsretail.store.service.PaymentMethodService.Refusal;
 
 import lombok.extern.log4j.Log4j2;
@@ -49,6 +50,9 @@ public class AcceptedTicketAPI {
 
 	@Autowired
 	private PaymentMethodService methods;
+
+	@Autowired
+	private ScannedTicketService scannedTickets;
 
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
@@ -77,7 +81,22 @@ public class AcceptedTicketAPI {
 		if (!method.isPresent()) {
 			return ResponseEntity.notFound().build();
 		}
-		return ResponseEntity.ok(service.test(method.get(), barcode, date != null ? date : LocalDate.now()));
+		// step 4: the sale that holds the barcode given beside (usedSaleNumber...)
+		return ResponseEntity.ok(scannedTickets.test(method.get(), barcode, date != null ? date : LocalDate.now()));
+	}
+
+	/**
+	 * 3.2.0, step 4: the till's check of a scanned ticket for the method, today: the reading and, when a sale holds the
+	 * barcode, ALREADY_USED with its sale number, date, session and cashier. Reserves nothing (the sale decides). Any
+	 * logged user, as a sale.
+	 */
+	@GetMapping("/{methodId}/tickets/check")
+	public ResponseEntity<?> check(@PathVariable Long methodId, @RequestParam String barcode) {
+		Optional<PaymentMethod> method = methods.findById(methodId);
+		if (!method.isPresent()) {
+			return ResponseEntity.notFound().build();
+		}
+		return ResponseEntity.ok(scannedTickets.check(method.get(), barcode));
 	}
 
 	@PostMapping("/{methodId}/tickets")
@@ -121,6 +140,10 @@ public class AcceptedTicketAPI {
 		Optional<AcceptedTicket> stored = lineOf(methodId, id);
 		if (!stored.isPresent()) {
 			return ResponseEntity.notFound().build();
+		}
+		Optional<Refusal> refusal = service.deletionRefusal(stored.get());
+		if (refusal.isPresent()) {
+			return refused(HttpStatus.CONFLICT, refusal.get());
 		}
 		service.deleteById(id);
 		return ResponseEntity.noContent().build();

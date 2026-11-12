@@ -134,6 +134,8 @@ class ReturnRefundLoyaltyTest {
 
 		returns = new ReturnHeaderService();
 		inject(returns, ReturnHeaderService.class, "tillRightsGuard", InMemoryTillRights.allowAll()); // step D
+		// 3.2.0, step 4: no ticket paid with scanned tickets here
+		inject(returns, ReturnHeaderService.class, "scannedTicketPaymentRepository", scannedTickets);
 		inject(returns, _BaseService.class, "currentUserProvider", new CurrentUserProvider() {
 			@Override
 			public String getCurrentUserName() {
@@ -209,6 +211,23 @@ class ReturnRefundLoyaltyTest {
 				// stock is not under test
 			}
 		});
+	}
+
+	/** 3.2.0, step 4: the sales paid with scanned tickets (none unless a test says so). */
+	private final com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository scannedTickets = org.mockito.Mockito
+			.mock(com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository.class);
+
+	@Test
+	@DisplayName("3.2.0, step 4: a ticket paid with scanned tickets is never refunded in cash; a return voucher is")
+	void scannedTicketsNeverInCash() throws Exception {
+		SalesHeader sale = sale(null, 0.0, 0, 0.0, 100.0, 50.0);
+		org.mockito.Mockito.when(scannedTickets.existsByPayment_SalesHeader(sale)).thenReturn(true);
+		IllegalStateException refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+				() -> returnLines(sale, ReturnType.SIMPLE_RETURN, 1));
+		org.junit.jupiter.api.Assertions.assertTrue(refused.getMessage().contains("il ne se rembourse pas en espèces"),
+				refused.getMessage());
+		ReturnHeader voucher = returnLines(sale, ReturnType.RETURN_VOUCHER, 1);
+		assertEquals(50.0, voucher.getTotalReturnAmount().doubleValue(), 1e-6);
 	}
 
 	// ─── Tickets without loyalty points: refund rules unchanged ──────

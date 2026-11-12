@@ -41,6 +41,8 @@ class AcceptedTicketServiceTest {
 
 	private final AcceptedTicketService service = new AcceptedTicketService();
 	private final List<AcceptedTicket> table = new ArrayList<>();
+	private final com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository scanned = mock(
+			com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository.class);
 	private long nextId = 100;
 
 	private final PaymentMethod meal = method(1L, "TICKET_RESTAURANT", "Ticket Restaurant", PaymentMethodBehaviour.SCANNED_TICKETS);
@@ -66,6 +68,9 @@ class AcceptedTicketServiceTest {
 		Field field = AcceptedTicketService.class.getDeclaredField("acceptedTicketRepository");
 		field.setAccessible(true);
 		field.set(service, repository);
+		Field scannedField = AcceptedTicketService.class.getDeclaredField("scannedTicketPaymentRepository");
+		scannedField.setAccessible(true);
+		scannedField.set(service, scanned);
 		Field users = _BaseService.class.getDeclaredField("currentUserProvider");
 		users.setAccessible(true);
 		users.set(service, mock(CurrentUserProvider.class));
@@ -169,6 +174,19 @@ class AcceptedTicketServiceTest {
 		assertEquals("NOT_SCANNED_METHOD", reason(() -> service.addCommon(card, CommonTicketIssuers.Kind.GIFT)));
 		Map<String, List<String>> again = service.addCommon(meal, CommonTicketIssuers.Kind.MEAL);
 		assertTrue(again.get("added").isEmpty(), "a second time adds nothing");
+	}
+
+	@Test
+	@DisplayName("Step 4: a line that paid sales is not deleted (switch it off), French message; one that did not may be")
+	void deletionOfAUsedLine() throws Exception {
+		AcceptedTicket servimax = service.add(meal, sent("031", "Servimax Repas", "10"));
+		AcceptedTicket sodexo = service.add(gift, sent("042", "Sodexo Cadeau", "0"));
+		when(scanned.countByAcceptedTicket(servimax)).thenReturn(3L);
+		Refusal refusal = service.deletionRefusal(servimax).get();
+		assertEquals("USED_BY_SALES", refusal.getReason());
+		assertEquals("Le ticket « Servimax Repas » (031) a déjà payé 3 vente(s) : il ne se supprime pas, désactivez-le.",
+				refusal.getMessage());
+		assertFalse(service.deletionRefusal(sodexo).isPresent());
 	}
 
 	@Test

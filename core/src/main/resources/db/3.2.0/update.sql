@@ -145,6 +145,33 @@ BEGIN
 END
 GO
 
+-- Payment methods, step 4, a store only (it has quick_quantity, a head office never): the scanned tickets that paid sales,
+-- one row per ticket beside its payment (one to one), with the copies taken at the sale; in Hibernate's form, the
+-- constraints named as in the entity. On a store without it Hibernate creates it at the first start.
+IF OBJECT_ID(N'quick_quantity', N'U') IS NOT NULL AND OBJECT_ID(N'scanned_ticket_payment', N'U') IS NULL
+BEGIN
+	CREATE TABLE scanned_ticket_payment (id bigint identity not null, active bit, created_at datetime2,
+		created_by varchar(255), updated_at datetime2, updated_by varchar(255), applied_amount numeric(12,3) not null,
+		barcode varchar(64) not null, counted_value numeric(12,3) not null, deduction_percent numeric(5,2) not null,
+		excess_amount numeric(12,3) not null, face_value numeric(12,3) not null, issuer_name varchar(255) not null,
+		live_barcode varchar(64), printed_year int, ticket_code varchar(20) not null, accepted_ticket_id bigint not null,
+		payment_id bigint not null, primary key (id));
+	ALTER TABLE scanned_ticket_payment ADD CONSTRAINT uk_scanned_ticket_payment_payment UNIQUE (payment_id);
+	ALTER TABLE scanned_ticket_payment ADD CONSTRAINT fk_scanned_ticket_payment_payment FOREIGN KEY (payment_id)
+		REFERENCES payment;
+	ALTER TABLE scanned_ticket_payment ADD CONSTRAINT fk_scanned_ticket_payment_ticket FOREIGN KEY (accepted_ticket_id)
+		REFERENCES accepted_ticket;
+END
+GO
+
+-- 8) A scanned ticket is held by one sale at most, across tills: the barcode while it counts (live_barcode), unique among
+-- the rows that have it (the application creates it at each start too).
+IF OBJECT_ID(N'scanned_ticket_payment', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ux_scanned_ticket_live_barcode' AND object_id = OBJECT_ID(N'scanned_ticket_payment'))
+	CREATE UNIQUE INDEX ux_scanned_ticket_live_barcode ON scanned_ticket_payment (live_barcode)
+	WHERE live_barcode IS NOT NULL
+GO
+
 UPDATE APP_VERSION SET version = '3.2.0';
 
 -- The notes of 3.2.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

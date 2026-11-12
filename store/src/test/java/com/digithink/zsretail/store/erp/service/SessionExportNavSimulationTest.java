@@ -353,4 +353,100 @@ class SessionExportNavSimulationTest {
 				navHeaders.stream().map(ErpPaymentHeaderDTO::getPaymentClass).collect(Collectors.toList()));
 		assertEquals(SynchronizationStatus.TOTALLY_SYNCHED, session.getSynchronizationStatus());
 	}
+	// ─── 3.2.0, step 4: scanned tickets ──────────────────────────────
+
+	private static final String SERVIMAX_1 = "0310070002600002897009796069";
+	private static final String SERVIMAX_2 = "0310070002600002897009796070";
+
+	/** The real ScannedTicketService: the Servimax Repas line (10 %), its payments into this test's rows, clock 2026-11-12. */
+	private com.digithink.zsretail.store.service.ScannedTicketService ticketService(PaymentMethod method) throws Exception {
+		com.digithink.zsretail.core.model.AcceptedTicket servimax = new com.digithink.zsretail.core.model.AcceptedTicket();
+		servimax.setId(30L);
+		servimax.setPaymentMethod(method);
+		servimax.setTicketCode("031");
+		servimax.setIssuerName("Servimax Repas");
+		servimax.setDeductionPercent(BigDecimal.TEN);
+		servimax.setValidityMonths(1);
+		servimax.setLayout(com.digithink.zsretail.core.model.BarcodeLayout.standard());
+		servimax.setActive(true);
+		com.digithink.zsretail.core.repository.AcceptedTicketRepository lineRepository = mock(
+				com.digithink.zsretail.core.repository.AcceptedTicketRepository.class);
+		when(lineRepository.findAll()).thenReturn(Arrays.asList(servimax));
+		com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository scannedRepository = mock(
+				com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository.class);
+		when(scannedRepository.findFirstByLiveBarcode(any())).thenReturn(Optional.empty());
+		when(scannedRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
+		com.digithink.zsretail.store.service.PaymentService paymentService = new com.digithink.zsretail.store.service.PaymentService() {
+			@Override
+			public Payment save(Payment payment) {
+				payment.setId(nextId++);
+				payments.add(payment);
+				return payment;
+			}
+		};
+		com.digithink.zsretail.store.service.ScannedTicketService tickets = new com.digithink.zsretail.store.service.ScannedTicketService();
+		for (Object[] field : new Object[][] { { "acceptedTicketRepository", lineRepository },
+				{ "scannedTicketPaymentRepository", scannedRepository }, { "paymentService", paymentService },
+				{ "clock", java.time.Clock.fixed(java.time.Instant.parse("2026-11-12T09:00:00Z"), java.time.ZoneOffset.UTC) } }) {
+			java.lang.reflect.Field f = com.digithink.zsretail.store.service.ScannedTicketService.class
+					.getDeclaredField((String) field[0]);
+			f.setAccessible(true);
+			f.set(tickets, field[1]);
+		}
+		return tickets;
+	}
+
+	private SalesHeader openSale(String number, double total) {
+		SalesHeader sale = new SalesHeader();
+		sale.setId(nextId++);
+		sale.setSalesNumber(number);
+		sale.setCashierSession(session);
+		sale.setCustomer(passenger);
+		sale.setStatus(TransactionStatus.COMPLETED);
+		sale.setChangeAmount(0.0);
+		sale.setTotalAmount(total);
+		sales.add(sale);
+		return sale;
+	}
+
+	@Test
+	@DisplayName("E. 12.000 paid with two Servimax 7.000 of 2026: one header of the method, two lines 6.300 and 5.700, titleNo the barcodes")
+	void scannedTicketsToNav() throws Exception {
+		PaymentMethod meal = method("TICKET_RESTAURANT", null, true);
+		meal.setId(3L);
+		meal.setBehaviour(com.digithink.zsretail.core.model.enumeration.PaymentMethodBehaviour.SCANNED_TICKETS);
+		SalesHeader sale = openSale("T-1", 12.0);
+		List<Payment> paid = ticketService(meal).pay(sale, meal, Arrays.asList(SERVIMAX_1, SERVIMAX_2),
+				new BigDecimal("12.000"), null, new HashSet<>());
+		service.createPaymentHeadersAndLinesAsync(paid, sale);
+		service.exportSessions();
+
+		assertEquals(Arrays.asList("TICKET_RESTAURANT"),
+				navHeaders.stream().map(ErpPaymentHeaderDTO::getPaymentClass).collect(Collectors.toList()));
+		assertEquals(2, navLines.size(), "one line per ticket");
+		assertEquals(Arrays.asList(SERVIMAX_1, SERVIMAX_2),
+				navLines.stream().map(ErpPaymentLineDTO::getTitleNo).collect(Collectors.toList()));
+		assertEquals(28, navLines.get(0).getTitleNo().length(), "the whole barcode, never cut on our side");
+		assertEquals(0, new BigDecimal("6.3").compareTo(navLines.get(0).getAmount()));
+		assertEquals(0, new BigDecimal("5.7").compareTo(navLines.get(1).getAmount()), "the part applied, not the 6.300 counted");
+		assertEquals("PASSAGER", navLines.get(1).getCustNo());
+		assertEquals("T-1", navLines.get(1).getTicketNo());
+		assertEquals("SESSION261112001", navLines.get(1).getFenceNo());
+		assertEquals(SynchronizationStatus.TOTALLY_SYNCHED, session.getSynchronizationStatus());
+	}
+
+	@Test
+	@DisplayName("E. Scanned tickets of a method not sent to the ERP: no header, no line; the session TOTALLY_SYNCHED")
+	void scannedTicketsNotSent() throws Exception {
+		PaymentMethod meal = method("TICKET_RESTAURANT", null, false);
+		meal.setId(3L);
+		meal.setBehaviour(com.digithink.zsretail.core.model.enumeration.PaymentMethodBehaviour.SCANNED_TICKETS);
+		SalesHeader sale = openSale("T-1", 12.0);
+		List<Payment> paid = ticketService(meal).pay(sale, meal, Arrays.asList(SERVIMAX_1, SERVIMAX_2),
+				new BigDecimal("12.000"), null, new HashSet<>());
+		service.createPaymentHeadersAndLinesAsync(paid, sale);
+		service.exportSessions();
+		assertTrue(navHeaders.isEmpty() && navLines.isEmpty());
+		assertEquals(SynchronizationStatus.TOTALLY_SYNCHED, session.getSynchronizationStatus());
+	}
 }

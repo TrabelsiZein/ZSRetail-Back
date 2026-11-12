@@ -118,7 +118,9 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 					return ResponseEntity.badRequest()
 							.body(createErrorResponse("Payment method is required for all payments"));
 				}
-				if (payment.getAmount() == null || payment.getAmount() <= 0) {
+				// 3.2.0, step 4: scanned tickets come with their barcodes and no amount (the service counts them)
+				boolean scannedTickets = payment.getBarcodes() != null && !payment.getBarcodes().isEmpty();
+				if (!scannedTickets && (payment.getAmount() == null || payment.getAmount() <= 0)) {
 					return ResponseEntity.badRequest()
 							.body(createErrorResponse("Payment amount must be greater than 0"));
 				}
@@ -425,7 +427,9 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 					return ResponseEntity.badRequest()
 							.body(createErrorResponse("Payment method is required for all payments"));
 				}
-				if (payment.getAmount() == null || payment.getAmount() <= 0) {
+				// 3.2.0, step 4: scanned tickets come with their barcodes and no amount (the service counts them)
+				boolean scannedTickets = payment.getBarcodes() != null && !payment.getBarcodes().isEmpty();
+				if (!scannedTickets && (payment.getAmount() == null || payment.getAmount() <= 0)) {
 					return ResponseEntity.badRequest()
 							.body(createErrorResponse("Payment amount must be greater than 0"));
 				}

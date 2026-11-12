@@ -34,8 +34,9 @@ import lombok.Data;
  */
 public final class TicketBarcodeParser {
 
+	/** ALREADY_USED (step 4): never given here, by the store's check (a sale holds the barcode). */
 	public enum Status {
-		OK, NOT_DIGITS, UNKNOWN_TICKET, WRONG_LENGTH, OTHER_METHOD, LINE_INACTIVE, EXPIRED
+		OK, NOT_DIGITS, UNKNOWN_TICKET, WRONG_LENGTH, OTHER_METHOD, LINE_INACTIVE, EXPIRED, ALREADY_USED
 	}
 
 	static final int MAX_BARCODE_LENGTH = 64;
@@ -58,6 +59,11 @@ public final class TicketBarcodeParser {
 		private LocalDate validUntil;
 		private BigDecimal deductionPercent;
 		private BigDecimal countedValue;
+		/** Step 4: the sale that holds this barcode (ScannedTicketService), else null. */
+		private String usedSaleNumber;
+		private java.time.LocalDateTime usedAt;
+		private String usedSessionNumber;
+		private String usedCashier;
 	}
 
 	private TicketBarcodeParser() {

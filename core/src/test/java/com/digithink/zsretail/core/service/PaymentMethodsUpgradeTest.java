@@ -75,7 +75,7 @@ class PaymentMethodsUpgradeTest {
 	@DisplayName("The order: the constraint dropped, the column nullable, the index, the two columns, the conversion")
 	void statementsInTheirOrder() {
 		List<String> statements = PaymentMethodsUpgrade.STATEMENTS;
-		assertEquals(8, statements.size());
+		assertEquals(9, statements.size());
 		assertTrue(statements.get(0).contains("ALTER TABLE payment_method DROP CONSTRAINT ' + QUOTENAME(@uk)"));
 		assertTrue(statements.get(0).contains("k.type = 'UQ' AND c.name = 'type'"), "a unique constraint on type only");
 		assertTrue(statements.get(1).contains("ALTER TABLE payment_method ALTER COLUMN type ' + @type + ' NULL"));

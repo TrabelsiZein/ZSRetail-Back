@@ -95,6 +95,31 @@
   /payment-method/{id}/behaviour-locked`; `/payment-method/ticket-counts` gives `{total, active}` per method. Tests:
   `SessionExportNavSimulationTest` (the real export and sync manager, a recording NAV that can refuse a class),
   `DynamicsNavPaymentLineTest` (network-tests: the EMTOP line DTO), `PaymentMethodServiceTest`, `PaymentMethodsUpgradeTest`.
+- **Payment methods 3.2.0, step 4** (the sale path of scanned tickets; the till's scan card is step 5): a payment entry of a
+  `SCANNED_TICKETS` method carries `barcodes` in scan order and no amount (one sent is ignored; the API no longer asks one
+  there). `ScannedTicketService.pay` reads each barcode again (`TicketBarcodeParser`, today), then counted = face value -
+  deduction (to the millime), applied = min(counted, what is left to pay), excess = counted - applied (kept by the store:
+  no change, cash back or voucher): one payment per ticket (title number = the barcode, amount = applied) and its
+  `ScannedTicketPayment` (table `scanned_ticket_payment`, store, one to one with the payment): the barcode, the live
+  barcode, the accepted ticket, and copies taken at the sale (issuer, code, printed year, face value, deduction, counted,
+  applied, excess), so a later edit of the line changes no past sale. What is left for the tickets is the total minus the
+  payments that are neither cash nor tickets (`SalesHeaderService.createAndSavePaymentsForSale`): tickets before cash, the
+  change from cash only. Refused, the whole sale with it (French message naming the barcode): unknown, another method's,
+  switched off, wrong length, not digits, expired, twice in the sale, held by another sale (its number and date), nothing
+  left to pay. Used once: the filtered unique index `ux_scanned_ticket_live_barcode` (`live_barcode IS NOT NULL`,
+  `PaymentMethodsUpgrade` and `db/3.2.0/update.sql`); two tills at the same moment, the second insert fails (the
+  database waits for the first) and is answered "déjà utilisé : il vient d'être encaissé sur une autre caisse". A sale
+  that gives its tickets back would clear `live_barcode` (no such path today: only a pending sale, without payments, is
+  cancelled). `GET /payment-method/{id}/tickets/check?barcode=` (any logged user, nothing reserved): the reading and
+  `ALREADY_USED` with the sale number, date, session and cashier (no till id exists); the admin's `test` carries the
+  same sale beside its reading. A split bill and a payment change refuse a scanned-tickets method, to and from. A line
+  that paid sales is not deleted (`USED_BY_SALES`, French message); its code, deduction or layout may change (past sales
+  keep their copies; the new values apply to the next tickets). A return of a ticket paid, even in part, with scanned
+  tickets is refused in cash (`ReturnHeaderService`: a return voucher only; a refund split between cash and voucher is for
+  later). The ERP export needed no change: one line per ticket, title number the barcode (28 digits, never cut: varchar
+  255 up to the NAV DTO), amount the part applied; nothing when the method is not sent. Tests: `ScannedTicketSaleTest`
+  (the real `processCompleteSale`), `SessionExportNavSimulationTest` (12.000 paid with two Servimax tickets),
+  `SessionReportServiceTest`, `AcceptedTicketServiceTest`, `ReturnRefundLoyaltyTest`; the race proved on a scratch database.
 - Item family/subfamily domain: entities, repositories, services, controllers; `Item` links to both family and subfamily, with legacy `taxable`/`taxRate` flags removed in favor of `defaultVAT`.
 - `ItemBarcodeAPI /items-with-barcodes` now supports pagination + filtering; `ItemService` exposes a spec-based search and `ItemBarcodeService` fetches active barcodes per page.
 - Admin ERP communications endpoint exposes filtered communications (date range, limit) for the new frontend view.
