@@ -249,7 +249,7 @@ The page keeps the key of 3.1.0, `read:admin-rfid-pos-machines` (decision of 202
 name is only a key). `ZZDataInitializer.POS_MACHINES_ADMIN_PERMISSIONS`: in ADMIN's set of a new store database and given
 to ADMIN at every start of a store (`addMissingPermissions`: a database of before gets it once; an RFID store's ADMIN has
 it already and is not saved again). Never on a head office. RESPONSIBLE and the other roles: ticked on the Roles page,
-which lists it on every store (group "Vente", "Postes de caisse"); `AppRoleAPI` lists it apart from the RFID keys. As
+which lists it on every store (group "Caisse" since the 3.2.0 names cleanup, "Postes de caisse"); `AppRoleAPI` lists it apart from the RFID keys. As
 everywhere, the API does not check roles: the permission drives the menu and the route guard. Test:
 `ZZDataInitializerRolesTest.posMachinesPageGivenToAdmin`.
 
@@ -257,7 +257,7 @@ everywhere, the API does not check roles: the permission drives the menu and the
 
 Route `admin-pos-machines`, path `/admin/pos-machines` (the 3.1.0 path `/admin/rfid/pos-machines` sends to it), view
 `views/admin/session/PosMachines.vue`, permission `read:admin-rfid-pos-machines`. Menu **Caisse**
-(`admin.cashRegisterMenu`), after Sessions; on every store (not in `RFID_ROUTES` any more: the router guard, the menu
+(`admin.cashRegisterMenu`), last (Sessions, Journal, Tickets resto / cadeau encaissés, Postes de caisse, 3.2.0 names cleanup); on every store (not in `RFID_ROUTES` any more: the router guard, the menu
 and the search bar agree); a head office never (its own menu; a store route there goes to the head office home).
 
 - The admin list page (gradient banner, the list with name, IP address, active, and the reader column only with

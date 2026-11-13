@@ -332,10 +332,10 @@ reads on them). Its payments stay the net (the parts applied), in PAIEMENTS, the
 
 ## Scanned tickets taken (3.2.0, step 7)
 
-Admin page "Tickets resto / cadeau encaissés" (menu Caisse, beside Sessions and Journal; not the sale tickets of the
+Admin page "Tickets resto / cadeau encaissés" (menu Caisse, after Sessions and Journal; not the sale tickets of the
 tickets history), read-only, over `scanned_ticket_payment` and its copies taken at the sale. Store only.
 
-- **Access**: `read:admin-scanned-tickets` (Roles page, "Vente"); in ADMIN's set of a new database and given to ADMIN at
+- **Access**: `read:admin-scanned-tickets` (Roles page, group "Caisse" since the 3.2.0 names cleanup); in ADMIN's set of a new database and given to ADMIN at
   every start of a store (a database of before gets it once); RESPONSIBLE has it on a new database, else ticked on the
   Roles page. The API checks it itself (403); the route and the menu carry it.
 - **API** (`ScannedTicketsHistoryAPI`, `ScannedTicketsHistoryService`): `GET /scanned-tickets?dateFrom&dateTo&issuer&
