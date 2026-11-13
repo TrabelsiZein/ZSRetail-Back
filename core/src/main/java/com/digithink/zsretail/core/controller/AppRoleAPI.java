@@ -74,6 +74,8 @@ public class AppRoleAPI {
         "read:admin-erp-communications",
         "read:admin-invoices",
         "read:admin-badge-scan-history",
+        // 3.2.0, step 7: the scanned meal tickets and gift cheques taken (a store)
+        "read:admin-scanned-tickets",
         "read:admin-loyalty-members", "write:admin-loyalty-members",
         "read:admin-loyalty-programs", "write:admin-loyalty-programs",
         "read:admin-loyalty-transactions",

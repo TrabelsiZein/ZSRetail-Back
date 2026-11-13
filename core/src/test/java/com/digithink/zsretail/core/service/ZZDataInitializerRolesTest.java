@@ -341,6 +341,9 @@ class ZZDataInitializerRolesTest {
 	/** The Licence page of a store (the licence upload, also while the licence is blocked). */
 	private static final String LICENSE = "read:admin-license";
 
+	/** 3.2.0, step 7: the scanned tickets taken, a page of every store, given to ADMIN at every start. */
+	private static final Set<String> SCANNED_TICKETS = Collections.singleton("read:admin-scanned-tickets");
+
 	@Test
 	@DisplayName("Licence page: ADMIN of a new store has it, and of a new head office the head office one; a store and a head office"
 			+ " of before (EMTOP, Happyness) get it at their first start, without anything else changed")
@@ -356,6 +359,7 @@ class ZZDataInitializerRolesTest {
 		assertEquals(Collections.singletonList("ADMIN"), saves);
 		Set<String> before = new HashSet<>(java.util.Arrays.asList("read:home", "read:admin-company-information", LICENSE));
 		before.addAll(API_CHECKED);
+		before.addAll(SCANNED_TICKETS);
 		assertEquals(before, store.get("ADMIN").getPermissions());
 
 		// A head office of before (as Happyness): read:admin-headoffice-license with the other missing head office pages
@@ -422,6 +426,7 @@ class ZZDataInitializerRolesTest {
 		assertEquals(Collections.singletonList("ADMIN"), saves);
 		Set<String> expected = new HashSet<>(java.util.Arrays.asList("read:home", LICENSE));
 		expected.addAll(API_CHECKED);
+		expected.addAll(SCANNED_TICKETS);
 		expected.addAll(RFID);
 		assertEquals(expected, existing.get("ADMIN").getPermissions());
 		List<String> nextStart = new ArrayList<>();
@@ -431,6 +436,7 @@ class ZZDataInitializerRolesTest {
 		// The same store with RFID off: nothing saved
 		Map<String, AppRole> offStore = existingRoles("read:home", LICENSE);
 		offStore.get("ADMIN").getPermissions().addAll(API_CHECKED);
+		offStore.get("ADMIN").getPermissions().addAll(SCANNED_TICKETS);
 		List<String> offSaves = new ArrayList<>();
 		seedRoles(new MockEnvironment(), false, offStore, offSaves);
 		assertTrue(offSaves.isEmpty(), "RFID off, saved: " + offSaves);
@@ -459,6 +465,7 @@ class ZZDataInitializerRolesTest {
 
 				Set<String> expected = new HashSet<>(java.util.Arrays.asList("read:home", LICENSE));
 				expected.addAll(API_CHECKED);
+				expected.addAll(SCANNED_TICKETS);
 				if (flags[0]) {
 					expected.addAll(INVENTORY);
 					expected.addAll(COST);
@@ -507,6 +514,7 @@ class ZZDataInitializerRolesTest {
 		Set<String> toppedUp = new HashSet<>(java.util.Arrays.asList("read:home", "read:admin-holink-status",
 				"read:admin-holink-deliveries", LICENSE));
 		toppedUp.addAll(API_CHECKED);
+		toppedUp.addAll(SCANNED_TICKETS);
 		toppedUp.addAll(INVENTORY);
 		toppedUp.addAll(COST);
 		toppedUp.addAll(STORE_ORDERS);

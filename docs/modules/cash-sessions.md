@@ -307,6 +307,34 @@ reads on them). Its payments stay the net (the parts applied), in PAIEMENTS, the
 - **The admin dashboard's verification** (polish): its older form sends a total only; a session with a scanned-tickets
   method shows a link to the session history's form instead (number of tickets and face total per method).
 
+## Scanned tickets taken (3.2.0, step 7)
+
+Admin page "Tickets resto / cadeau encaissés" (menu Caisse, beside Sessions and Journal; not the sale tickets of the
+tickets history), read-only, over `scanned_ticket_payment` and its copies taken at the sale. Store only.
+
+- **Access**: `read:admin-scanned-tickets` (Roles page, "Vente"); in ADMIN's set of a new database and given to ADMIN at
+  every start of a store (a database of before gets it once); RESPONSIBLE has it on a new database, else ticked on the
+  Roles page. The API checks it itself (403); the route and the menu carry it.
+- **API** (`ScannedTicketsHistoryAPI`, `ScannedTicketsHistoryService`): `GET /scanned-tickets?dateFrom&dateTo&issuer&
+  paymentMethodId&cashierId&barcode&page&size` → `{content, totalElements, totalPages, number, size, totals}`;
+  `GET /scanned-tickets/export` (same filters, no page) → `{rows, total, truncated, limit, totals}`, the newest 20,000
+  at most (the tickets history's limit); `GET /scanned-tickets/issuers` → the issuers met.
+- **Rules**: one row per ticket, newest first by the payment's time (when the ticket was taken). The period is on that
+  time (the tickets history's format: `2026-11-13T00:00`, or a day). The issuer is the copy's name, the cashier the user
+  who took the payment. A barcode search matches the whole barcode or its last digits (`LIKE '%digits'`, no wildcard
+  typed) and leaves the period out. The totals are those of the whole filtered result: tickets, face total, deduction
+  (face - counted), counted, applied (what entered the sales), excess kept. One projection query for the rows (no entity
+  per row), one for the count and the sums. Every sale status counts (the ticket was taken).
+- **Page** (`views/admin/session/ScannedTicketsHistory.vue`): the AdminListPage banner and filters (barcode, dates, issuer,
+  method, cashier), the totals above the table, the table (date and time, sale number linking to the sale's details in
+  the tickets history `?ticketId=`, session, cashier, method, issuer and code, the barcode in groups of 4 with a copy
+  button, printed year, face value, deduction and its %, counted, applied, excess). Excel: the whole filtered result,
+  `libs/scanned-tickets-export.js` (`tools/excel-exports-check.mjs`), the barcode kept as text.
+- **Later** (the remise step): a status per ticket (in the store, sent, repaid) is a column of `scanned_ticket_payment`
+  or a row of a remise table pointing to it; the projection, the filters and the page take one column more.
+- **Tests**: `ScannedTicketsHistoryServiceTest` (H2: every ticket and its fields, the period, issuer, method and cashier,
+  the barcode whole and by its end, paging, the export and its limit, the issuers, the dates, the 403).
+
 ## Closed points
 
 - **The FREE_QUANTITY line stored an HT discount (fixed in 3.1.0).** For a "X bought, Y free" promotion the server adds

@@ -54,6 +54,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   changes only without type, payment or line; a method with lines is not deleted. A scanned-tickets method cannot pay
   yet (sale, split bill, payment change refused until step 5). New store: two inactive scanned-tickets methods (Ticket
   Restaurant, Chèque Cadeau) with the twelve common issuers, inactive; an existing database gets nothing.
+- Payment methods, step 7 (`docs/modules/cash-sessions.md`, "Scanned tickets taken"): the scanned tickets taken,
+  read-only: `GET /scanned-tickets` (filters: period, issuer, payment method, cashier; a barcode, whole or its last
+  digits, leaves the period out; server paging; the totals of the filtered result), `/scanned-tickets/export` (every
+  row, 20,000 at most), `/scanned-tickets/issuers`. New permission `read:admin-scanned-tickets` (403 without it): in
+  ADMIN's set, given to ADMIN at every start of a store, RESPONSIBLE on a new database. The split bill's payment gaps are
+  confirmed and stay open (`docs/roadmap/open-points.md`). Tests: `ScannedTicketsHistoryServiceTest`,
+  `ZZDataInitializerRolesTest`.
 - Payment methods, step 6 polish: `GET /cashier-session/current/payment-methods` (the open session's methods, switched
   off ones included, no amount) for the closing window's rows; the head office shows a scanned-tickets row (known by
   its own method's code) with the declared face total and tickets and no difference (sending the expected values is

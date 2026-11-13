@@ -202,6 +202,7 @@ public class ZZDataInitializer {
 			Set<String> wanted = new HashSet<>(LICENSE_ADMIN_PERMISSIONS);
 			// 3.1.2: the keys the API now checks, so that an administrator of an older database is never locked out
 			wanted.addAll(API_CHECKED_ADMIN_PERMISSIONS);
+			wanted.addAll(SCANNED_TICKETS_ADMIN_PERMISSIONS); // 3.2.0, step 7: the scanned tickets taken
 			// 3.1.1: the "Head office" pages (Jobs, Communications, Data exchanged) on a store linked after its database was
 			// created (its ADMIN role was made without them)
 			if (applicationModeService.isHeadOfficeLinked()) {
@@ -419,6 +420,14 @@ public class ZZDataInitializer {
 			Arrays.asList("read:admin-rfid-readers", "read:admin-rfid-pos-machines", "read:admin-rfid-tags",
 					"read:admin-rfid-assignment"));
 
+	/**
+	 * 3.2.0, step 7: the page of the scanned tickets taken (meal tickets, gift cheques): in ADMIN's set of a new database,
+	 * given to ADMIN at every start of a store (a database of before gets it once); RESPONSIBLE has it on a new database,
+	 * else ticked on the Roles page.
+	 */
+	static final Set<String> SCANNED_TICKETS_ADMIN_PERMISSIONS = new HashSet<>(
+			Arrays.asList("read:admin-scanned-tickets"));
+
 	/** Store whose goods come from the head office (step 7A): the BL reception page; given to ADMIN at every start. */
 	static final Set<String> SUPPLY_ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:admin-holink-deliveries"));
 
@@ -448,7 +457,7 @@ public class ZZDataInitializer {
 			"read:admin-report-sessions", "read:admin-report-promotions",
 			"read:admin-company-information", "write:admin-company-information", "read:admin-license", "read:admin-roles",
 			"write:admin-roles", "delete:admin-roles", "read:change-payment-method", "read:view-session-amounts",
-			"read:verify-session", "read:prepare-invoice"));
+			"read:verify-session", "read:prepare-invoice", "read:admin-scanned-tickets"));
 
 	private static final java.util.Set<String> RESPONSIBLE_PERMISSIONS = new java.util.HashSet<>(
 			java.util.Arrays.asList("read:home", "read:responsible-sessions", "write:responsible-sessions",
@@ -464,7 +473,7 @@ public class ZZDataInitializer {
 					"read:admin-loyalty-transactions", "read:admin-loyalty-member-functions",
 					"write:admin-loyalty-member-functions", "read:admin-report-sales", "read:admin-report-loyalty",
 					"read:admin-report-sessions", "read:admin-report-promotions",
-					"read:verify-session"));
+					"read:verify-session", "read:admin-scanned-tickets"));
 	static {
 		RESPONSIBLE_PERMISSIONS.addAll(TILL_PERMISSIONS); // step C: a role of a store only
 	}
