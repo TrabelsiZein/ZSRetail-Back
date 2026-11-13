@@ -404,8 +404,8 @@ router guard (home) and the search bar hide them, like the other store-mode page
   characters, trimmed. Messages `common.validation.*` in the five languages.
 - Every request passes `skipErrorPopup` (`components/admin/rfid/rfid-api.js`, timeout 30 s): the page shows the back
   end's `{"error"}` itself, once.
-- Labels: `admin.rfid.*` in en, fr, ar, de, pt (Reader / Lecteur / قارئ / Lesegerät / Leitor; POS machine / Poste de
-  caisse / جهاز نقطة البيع / Kassenplatz / Posto de caixa; Tag / Étiquette / وسم / Tag / Etiqueta). The Roles page
+- Labels: `admin.rfid.*` in en, fr, ar (Reader / Lecteur / قارئ; POS machine / Poste de caisse / جهاز نقطة البيع; Tag /
+  Étiquette / وسم; de and pt removed in 3.2.0). The Roles page
   (fixed French labels, like its other groups): group RFID, "Lecteurs RFID", "Postes de caisse RFID", only when
   `rfidEnabled`.
 - **Tags**: a page of tags (newest first) with the filters item (`components/inputs/ItemPicker.vue`), status, a part of

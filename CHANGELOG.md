@@ -101,6 +101,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   sent and not sent, a class refused then retried, cheque and voucher, payment changes), `DynamicsNavPaymentLineTest`.
 
 ### Fixes
+- Sessions list (and the admin dashboard's cards): "Diff." and "Diff. Resp" of a session with scanned tickets compared the
+  declared face total with the net sales (a right count showed deduction + excess, e.g. +3.80): the system side now adds
+  the tickets' face - net (`CashierSessionService.scannedFaceGap`), as the details do. The head office's sessions list
+  still shows the gap (its copies hold no scanned ticket). Test: `ScannedTicketsClosingTest`.
+- Languages: the product has French, English and Arabic only; German and Portuguese removed in 3.2.0 (front files; the
+  back end had none). Docs updated.
 - A ticket paid only with a method not sent to the ERP (a cheque with `ERP_SKIP_CHEQUE_PAYMENTS`, step 3b a method switched
   off), whose payment was then changed in Tickets history to a method that is sent, never reached the ERP: the rebuild
   made rows only for the tickets that had some. It now makes those of the changed ticket too (never of a split ticket).

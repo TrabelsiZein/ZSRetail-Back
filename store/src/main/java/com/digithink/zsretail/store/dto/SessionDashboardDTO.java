@@ -51,6 +51,18 @@ public class SessionDashboardDTO {
 	public static SessionDashboardDTO fromEntity(CashierSession session, Long salesCount, Double totalSalesAmount,
 			Long returnsCount, Double totalReturnsAmount, Double simpleReturnsAmount, Double voucherReturnsAmount,
 			Double calculatedRealCash) {
+		return fromEntity(session, salesCount, totalSalesAmount, returnsCount, totalReturnsAmount, simpleReturnsAmount,
+				voucherReturnsAmount, calculatedRealCash, 0.0);
+	}
+
+	/**
+	 * 3.2.0: {@code scannedFaceGap} = the session's scanned tickets' face total - their net (deduction + excess kept). A
+	 * scanned-tickets method is declared at its face total and the sales hold its net: the system side gets the gap, so the
+	 * list's differences follow the session details' rule (face against face) and a right count reads 0.
+	 */
+	public static SessionDashboardDTO fromEntity(CashierSession session, Long salesCount, Double totalSalesAmount,
+			Long returnsCount, Double totalReturnsAmount, Double simpleReturnsAmount, Double voucherReturnsAmount,
+			Double calculatedRealCash, double scannedFaceGap) {
 		SessionDashboardDTO dto = new SessionDashboardDTO();
 		dto.setId(session.getId());
 		dto.setSessionNumber(session.getSessionNumber());
@@ -83,7 +95,7 @@ public class SessionDashboardDTO {
 		double openingCashVal = session.getOpeningCash() != null ? session.getOpeningCash() : 0.0;
 		double salesVal = totalSalesAmount != null ? totalSalesAmount : 0.0;
 		double simpleRetVal = simpleReturnsAmount != null ? simpleReturnsAmount : 0.0;
-		double totalSystemAmount = openingCashVal + salesVal - simpleRetVal;
+		double totalSystemAmount = openingCashVal + salesVal - simpleRetVal + scannedFaceGap;
 		if (session.getPosUserClosureCash() != null) {
 			dto.setCashDifference(Math.round((session.getPosUserClosureCash() - totalSystemAmount) * 100.0) / 100.0);
 		}

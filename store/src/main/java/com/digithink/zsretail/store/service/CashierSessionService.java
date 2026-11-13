@@ -1,5 +1,6 @@
 package com.digithink.zsretail.store.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -391,6 +392,22 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	}
 
 	/**
+	 * 3.2.0: the session's scanned tickets' face total minus their net (deduction + excess kept), sales PENDING and
+	 * CANCELLED left out: the sessions list adds it to its system amount, as the session details compare a scanned-tickets
+	 * method on its face total (SessionDashboardDTO.fromEntity). 0 without scanned tickets.
+	 */
+	double scannedFaceGap(CashierSession session) {
+		BigDecimal gap = BigDecimal.ZERO;
+		for (ScannedTicketsSummary.Method method : ScannedTicketsSummary
+				.byMethodCode(scannedTicketPaymentRepository.findByCashierSession(session,
+						Arrays.asList(TransactionStatus.PENDING, TransactionStatus.CANCELLED)))
+				.values()) {
+			gap = gap.add(method.getFace().subtract(method.getNet()));
+		}
+		return gap.doubleValue();
+	}
+
+	/**
 	 * A count row's total: denomination x quantity. Step 6: a scanned-tickets method's row holds the face total the
 	 * cashier read on the tickets as its denomination and their number as its quantity, so its total is the face total.
 	 */
@@ -598,7 +615,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 					: calculatedRealCash;
 
 			return SessionDashboardDTO.fromEntity(session, salesCount, totalSalesAmount, returnsCount,
-					totalReturnsAmount, simpleReturnsAmount, voucherReturnsAmount, realCash);
+					totalReturnsAmount, simpleReturnsAmount, voucherReturnsAmount, realCash, scannedFaceGap(session));
 		}).collect(Collectors.toList());
 	}
 
@@ -793,7 +810,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 					? session.getRealCash()
 					: calculatedRealCash;
 			return SessionDashboardDTO.fromEntity(session, salesCount, totalSalesAmount, returnsCount,
-					totalReturnsAmount, simpleReturnsAmount, voucherReturnsAmount, realCash);
+					totalReturnsAmount, simpleReturnsAmount, voucherReturnsAmount, realCash, scannedFaceGap(session));
 		}).collect(Collectors.toList());
 
 		Map<String, Object> result = new HashMap<>();
@@ -977,7 +994,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		// Build response
 		Map<String, Object> response = new HashMap<>();
 		response.put("session", SessionDashboardDTO.fromEntity(session, salesCount, totalSalesAmount, returnsCount,
-				totalReturnsAmount, simpleReturnsAmount, voucherReturnsAmount, realCash));
+				totalReturnsAmount, simpleReturnsAmount, voucherReturnsAmount, realCash, scannedFaceGap(session)));
 		response.put("salesCount", salesCount);
 		response.put("totalSalesAmount", totalSalesAmount); // Gross sales (sum of all sales)
 		response.put("returnsCount", returnsCount);

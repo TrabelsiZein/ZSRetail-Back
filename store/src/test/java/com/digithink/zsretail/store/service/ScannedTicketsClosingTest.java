@@ -51,6 +51,7 @@ import com.digithink.zsretail.core.service.CompanyInformationService;
 import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.store.dto.CloseSessionRequestDTO;
 import com.digithink.zsretail.store.dto.SessionCloseTicketDTO;
+import com.digithink.zsretail.store.dto.SessionDashboardDTO;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO.ControlLine;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO.ScannedTickets;
@@ -469,6 +470,23 @@ class ScannedTicketsClosingTest {
 				.filter(r -> "ESP".equals(r.get("code"))).findFirst().get();
 		assertEquals(false, esp.get("scanned"));
 		assertFalse(esp.containsKey("systemCount"));
+	}
+
+	@Test
+	@DisplayName("Final pass: the sessions list's differences follow the details' rule: a right count with scanned tickets is 0")
+	void listDifferences() {
+		// declared: cash 112.600 + the tickets' face 19.000 = 131.600; system: opening 100 + sales 28.900 + the tickets'
+		// face - net (19.000 - 16.300 = 2.700) = 131.600
+		session.setPosUserClosureCash(131.6);
+		session.setResponsibleClosureCash(131.6);
+		SessionDashboardDTO right = (SessionDashboardDTO) sessions.getSessionDetails(7L).get("session");
+		assertEquals(0.0, right.getCashDifference(), 1e-9, "the cashier's count");
+		assertEquals(0.0, right.getResponsibleDifference(), 1e-9, "the responsible's count");
+		assertEquals(2.7, sessions.scannedFaceGap(session), 1e-9, "deduction 1.400 + excess kept 1.300");
+
+		session.setPosUserClosureCash(130.6);
+		SessionDashboardDTO short1 = (SessionDashboardDTO) sessions.getSessionDetails(7L).get("session");
+		assertEquals(-1.0, short1.getCashDifference(), 1e-9, "1.000 missing");
 	}
 
 	@Test

@@ -225,7 +225,7 @@ window first (a popup is allowed only then), calls the endpoint, writes the 80 m
 style of the cashier's closing ticket, store name and logo from `appConfig/companyInfo`, amounts with 3 decimals) and
 prints. It never throws: a blocked popup or a failed request shows a toast and the window closes. It takes `$i18n`,
 `$http`, `$toast` and the company info from the page before the request, so the ticket still prints when the page is
-gone by then. Labels: `admin.sessionReport.*`, five locales.
+gone by then. Labels: `admin.sessionReport.*`, fr, en, ar (de and pt removed in 3.2.0).
 
 - Order of the blocks: header (title from `type`), VENTES, RETOURS and the net line, PAIEMENTS, CONTRÔLE, the
   responsible's verification, "Modifié après clôture", "Imprimé le … par …".
@@ -304,6 +304,13 @@ reads on them). Its payments stay the net (the parts applied), in PAIEMENTS, the
   totals row's differences too). A method the head office does not have under that code shows as before. **For
   later**: the store sends the expected face total and number of tickets with the session, so the head office can show
   the differences.
+- **The sessions list** (final pass): its "Diff." and "Diff. Resp" (`SessionDashboardDTO.cashDifference`,
+  `responsibleDifference`: the closure total - (opening cash + sales - cash returns)) add to the system side the
+  session's scanned tickets' face - net (`CashierSessionService.scannedFaceGap`), as the details compare a scanned
+  method face against face: a right count reads 0 (before, deduction + excess, e.g. +3.80). The admin dashboard's
+  cards read the same DTO. The sessions report has no difference. The head office's sessions list computes the same
+  difference from the copies, which hold no scanned ticket: it still shows the gap for such a session (the "for later"
+  above: the store sends its expected face total).
 - **The admin dashboard's verification** (polish): its older form sends a total only; a session with a scanned-tickets
   method shows a link to the session history's form instead (number of tickets and face total per method).
 
