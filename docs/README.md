@@ -25,7 +25,8 @@ repositories.
 `promotion` · `discounts` · `pricing` · `loyalty` · `franchise` · `head-office` · `licensing` ·
 `erp-sync` (the ERP jobs, the connectors, how to add one) · `reporting` · `global-search` · `i18n` · `data-import` ·
 `customers` · `company-information` · `general-setup` · `table-management` · `badge-permissions` · `inventory-count` ·
-`decimal-quantities` · `rfid` (3.1.0: the store's RFID readers and POS machines) · `cash-sessions` (3.1.0: the
+`decimal-quantities` · `rfid` (3.1.0: the store's RFID readers, tags and reads) · `pos-machines` (3.2.0: the POS
+machines of every store) · `cash-sessions` (3.1.0: the
 session tickets X and Z) · `store-orders` (3.1.1: the orders of a store to its head office, "Commandes centrale") ·
 `bulk-sale` (3.1.2: "vente en vrac", the item flag and the quick quantities; the till step to come)
 

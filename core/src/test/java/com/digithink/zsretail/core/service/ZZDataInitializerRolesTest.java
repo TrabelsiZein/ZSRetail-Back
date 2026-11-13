@@ -138,6 +138,7 @@ class ZZDataInitializerRolesTest {
 		Set<String> expected = new HashSet<>(staticSet("ADMIN_PERMISSIONS"));
 		expected.add(CASHIER_INTERFACE);
 		expected.addAll(TILL_RIGHTS);
+		expected.addAll(POS_MACHINES); // 3.2.0: the POS machines page, every store
 		if (standalone) {
 			expected.addAll(INVENTORY);
 			expected.addAll(COST); // CMP: "Ajuster le CMP", the stock is kept here
@@ -344,6 +345,9 @@ class ZZDataInitializerRolesTest {
 	/** 3.2.0, step 7: the scanned tickets taken, a page of every store, given to ADMIN at every start. */
 	private static final Set<String> SCANNED_TICKETS = Collections.singleton("read:admin-scanned-tickets");
 
+	/** 3.2.0: the POS machines page, every store, given to ADMIN at every start (the key keeps its 3.1.0 name). */
+	private static final Set<String> POS_MACHINES = Collections.singleton("read:admin-rfid-pos-machines");
+
 	@Test
 	@DisplayName("Licence page: ADMIN of a new store has it, and of a new head office the head office one; a store and a head office"
 			+ " of before (EMTOP, Happyness) get it at their first start, without anything else changed")
@@ -360,6 +364,7 @@ class ZZDataInitializerRolesTest {
 		Set<String> before = new HashSet<>(java.util.Arrays.asList("read:home", "read:admin-company-information", LICENSE));
 		before.addAll(API_CHECKED);
 		before.addAll(SCANNED_TICKETS);
+		before.addAll(POS_MACHINES);
 		assertEquals(before, store.get("ADMIN").getPermissions());
 
 		// A head office of before (as Happyness): read:admin-headoffice-license with the other missing head office pages
@@ -396,10 +401,42 @@ class ZZDataInitializerRolesTest {
 		assertTrue(nextStart.isEmpty(), "once, saved: " + nextStart);
 	}
 
-	/** The RFID pages (readers, POS machines, tags, tag assignment): ADMIN of a store with rfid.enabled=true only. */
+	/** The RFID pages (readers, tags, tag assignment): ADMIN of a store with rfid.enabled=true only. */
 	private static final Set<String> RFID = new HashSet<>(
-			java.util.Arrays.asList("read:admin-rfid-readers", "read:admin-rfid-pos-machines", "read:admin-rfid-tags",
-					"read:admin-rfid-assignment"));
+			java.util.Arrays.asList("read:admin-rfid-readers", "read:admin-rfid-tags", "read:admin-rfid-assignment"));
+
+	@Test
+	@DisplayName("3.2.0, POS machines: ADMIN of every new store has the page (RFID or not, the key of 3.1.0); a store of"
+			+ " before gets it at its start, once; an RFID store's ADMIN that has it is not saved again; never on a head"
+			+ " office, never in RESPONSIBLE or POS_USER")
+	void posMachinesPageGivenToAdmin() throws Exception {
+		assertEquals(POS_MACHINES, staticSet("POS_MACHINES_ADMIN_PERMISSIONS"));
+		assertTrue(Collections.disjoint(POS_MACHINES, staticSet("RFID_ADMIN_PERMISSIONS")), "no longer RFID's");
+		for (String rfid : new String[] { "false", "true" }) {
+			for (boolean[] flags : STORE_PROFILES) {
+				Map<String, AppRole> roles = seedRoles(new MockEnvironment().withProperty("rfid.enabled", rfid), flags[0],
+						Collections.emptyMap());
+				assertTrue(roles.get("ADMIN").getPermissions().containsAll(POS_MACHINES), "new store, RFID " + rfid);
+				assertTrue(Collections.disjoint(POS_MACHINES, roles.get("RESPONSIBLE").getPermissions()));
+				assertTrue(Collections.disjoint(POS_MACHINES, roles.get("POS_USER").getPermissions()));
+			}
+		}
+		Map<String, AppRole> headOffice = seedRoles(headOffice(), false, Collections.emptyMap());
+		assertTrue(Collections.disjoint(POS_MACHINES, headOffice.get("ADMIN").getPermissions()), "new head office");
+		Map<String, AppRole> headOfficeBefore = existingRoles("read:home");
+		seedRoles(headOffice(), false, headOfficeBefore, new ArrayList<>());
+		assertTrue(Collections.disjoint(POS_MACHINES, headOfficeBefore.get("ADMIN").getPermissions()), "head office of before");
+
+		// An RFID store of 3.1.x: its ADMIN already has the key with the other start keys: nothing saved
+		Map<String, AppRole> rfidStore = existingRoles("read:home", LICENSE);
+		rfidStore.get("ADMIN").getPermissions().addAll(API_CHECKED);
+		rfidStore.get("ADMIN").getPermissions().addAll(SCANNED_TICKETS);
+		rfidStore.get("ADMIN").getPermissions().addAll(RFID);
+		rfidStore.get("ADMIN").getPermissions().addAll(POS_MACHINES);
+		List<String> saves = new ArrayList<>();
+		seedRoles(new MockEnvironment().withProperty("rfid.enabled", "true"), false, rfidStore, saves);
+		assertTrue(saves.isEmpty(), "saved: " + saves);
+	}
 
 	@Test
 	@DisplayName("RFID pages: ADMIN of a new store with rfid.enabled=true has them; a store of before gets them at its first start"
@@ -427,6 +464,7 @@ class ZZDataInitializerRolesTest {
 		Set<String> expected = new HashSet<>(java.util.Arrays.asList("read:home", LICENSE));
 		expected.addAll(API_CHECKED);
 		expected.addAll(SCANNED_TICKETS);
+		expected.addAll(POS_MACHINES);
 		expected.addAll(RFID);
 		assertEquals(expected, existing.get("ADMIN").getPermissions());
 		List<String> nextStart = new ArrayList<>();
@@ -437,6 +475,7 @@ class ZZDataInitializerRolesTest {
 		Map<String, AppRole> offStore = existingRoles("read:home", LICENSE);
 		offStore.get("ADMIN").getPermissions().addAll(API_CHECKED);
 		offStore.get("ADMIN").getPermissions().addAll(SCANNED_TICKETS);
+		offStore.get("ADMIN").getPermissions().addAll(POS_MACHINES);
 		List<String> offSaves = new ArrayList<>();
 		seedRoles(new MockEnvironment(), false, offStore, offSaves);
 		assertTrue(offSaves.isEmpty(), "RFID off, saved: " + offSaves);
@@ -466,6 +505,7 @@ class ZZDataInitializerRolesTest {
 				Set<String> expected = new HashSet<>(java.util.Arrays.asList("read:home", LICENSE));
 				expected.addAll(API_CHECKED);
 				expected.addAll(SCANNED_TICKETS);
+				expected.addAll(POS_MACHINES);
 				if (flags[0]) {
 					expected.addAll(INVENTORY);
 					expected.addAll(COST);
@@ -515,6 +555,7 @@ class ZZDataInitializerRolesTest {
 				"read:admin-holink-deliveries", LICENSE));
 		toppedUp.addAll(API_CHECKED);
 		toppedUp.addAll(SCANNED_TICKETS);
+		toppedUp.addAll(POS_MACHINES);
 		toppedUp.addAll(INVENTORY);
 		toppedUp.addAll(COST);
 		toppedUp.addAll(STORE_ORDERS);

@@ -22,17 +22,16 @@ import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.support.Questions;
-import com.digithink.zsretail.store.rfid.controller.PosMachineAPI;
+import com.digithink.zsretail.store.posmachine.controller.PosMachineAPI;
+import com.digithink.zsretail.store.posmachine.service.PosMachineService;
 import com.digithink.zsretail.store.rfid.controller.RfidAPI;
 import com.digithink.zsretail.store.rfid.controller.RfidPosAPI;
 import com.digithink.zsretail.store.rfid.controller.RfidReaderAPI;
 import com.digithink.zsretail.store.rfid.controller.RfidTagAPI;
 import com.digithink.zsretail.store.rfid.reader.HopelandRfidReader;
-import com.digithink.zsretail.store.rfid.repository.PosMachineRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidReaderRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidSaleTagRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidTagRepository;
-import com.digithink.zsretail.store.rfid.service.PosMachineService;
 import com.digithink.zsretail.store.rfid.service.RfidReadService;
 import com.digithink.zsretail.store.rfid.service.RfidAssignmentService;
 import com.digithink.zsretail.store.rfid.service.RfidItemDeletionCheck;
@@ -49,8 +48,8 @@ import com.digithink.zsretail.store.rfid.service.RfidTagService;
 class RfidBeansTest {
 
 	/** The RFID beans (InstallationBeansProofTest records them in every configuration). */
-	static final List<Class<?>> SERVICES = Arrays.asList(RfidReaderService.class, PosMachineService.class,
-			RfidReadService.class, HopelandRfidReader.class, RfidAPI.class, RfidReaderAPI.class, PosMachineAPI.class,
+	static final List<Class<?>> SERVICES = Arrays.asList(RfidReaderService.class,
+			RfidReadService.class, HopelandRfidReader.class, RfidAPI.class, RfidReaderAPI.class,
 			RfidTagService.class, RfidItemDeletionCheck.class, RfidTagAPI.class, RfidAssignmentService.class,
 			RfidSaleTags.class, RfidPosService.class, RfidPosAPI.class);
 
@@ -99,13 +98,13 @@ class RfidBeansTest {
 	}
 
 	@Test
-	@DisplayName("On: the services and the four repositories exist")
+	@DisplayName("On: the services and the three repositories exist")
 	void on() {
 		MockEnvironment env = store("true");
 		for (Class<?> service : SERVICES) {
 			assertTrue(registered(env, service), service.getSimpleName());
 		}
-		assertEquals(new TreeSet<>(Arrays.asList(PosMachineRepository.class.getName(), RfidReaderRepository.class.getName(),
+		assertEquals(new TreeSet<>(Arrays.asList(RfidReaderRepository.class.getName(),
 				RfidTagRepository.class.getName(), RfidSaleTagRepository.class.getName())),
 				repositories(env));
 	}
@@ -113,12 +112,25 @@ class RfidBeansTest {
 	@Test
 	@DisplayName("Each service and repository asks Installation.RFID")
 	void question() {
-		for (Class<?> type : Arrays.asList(RfidReaderService.class, PosMachineService.class, RfidReadService.class,
-				HopelandRfidReader.class, RfidAPI.class, RfidReaderAPI.class, PosMachineAPI.class, RfidReaderRepository.class,
+		for (Class<?> type : Arrays.asList(RfidReaderService.class, RfidReadService.class,
+				HopelandRfidReader.class, RfidAPI.class, RfidReaderAPI.class, RfidReaderRepository.class,
 				RfidTagService.class, RfidItemDeletionCheck.class, RfidTagAPI.class, RfidAssignmentService.class,
-				RfidSaleTags.class, RfidPosService.class, RfidPosAPI.class, RfidTagRepository.class, RfidSaleTagRepository.class,
-				PosMachineRepository.class)) {
+				RfidSaleTags.class, RfidPosService.class, RfidPosAPI.class, RfidTagRepository.class, RfidSaleTagRepository.class)) {
 			assertTrue(Questions.asks(type, Installation.RFID), type.getSimpleName());
+		}
+	}
+
+	@Test
+	@DisplayName("3.2.0: the POS machines exist on every store, RFID off or on, and ask no installation question")
+	void posMachinesWithoutRfid() {
+		for (String value : Arrays.asList(null, "false", "true")) {
+			for (Class<?> type : Arrays.<Class<?>>asList(PosMachineService.class, PosMachineAPI.class)) {
+				assertTrue(registered(store(value), type), type.getSimpleName() + " with " + value);
+			}
+		}
+		for (Class<?> type : Arrays.<Class<?>>asList(PosMachineService.class, PosMachineAPI.class,
+				com.digithink.zsretail.store.posmachine.repository.PosMachineRepository.class)) {
+			assertTrue(!Questions.asks(type, Installation.RFID), type.getSimpleName());
 		}
 	}
 }

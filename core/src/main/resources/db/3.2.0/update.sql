@@ -208,6 +208,56 @@ IF OBJECT_ID(N'app_role_permission', N'U') IS NOT NULL
 	WHERE permission_key IN ('read:admin-sessions', 'read:responsible-sessions', 'write:responsible-sessions');
 GO
 
+-- 13) POS machines on every store (docs/modules/pos-machines.md), a store only (it has quick_quantity, a head office
+-- never). db/3.1.0 made rfid_reader and pos_machine only where ho_store was missing, but a store database of the single
+-- WAR era has an empty ho_store: there the two tables came from Hibernate at a start, without ix_pos_machine_reader.
+-- Created here when missing, as 3.1.0 made them (rfid_reader first: the machine's reader is a foreign key to it; it
+-- stays empty without RFID); then the index where it is missing. No data changed.
+IF OBJECT_ID(N'quick_quantity', N'U') IS NOT NULL AND OBJECT_ID(N'rfid_reader', N'U') IS NULL
+BEGIN
+	CREATE TABLE rfid_reader (
+		id bigint IDENTITY(1,1) NOT NULL,
+		active bit NULL,
+		created_at datetime2 NULL,
+		created_by varchar(255) NULL,
+		updated_at datetime2 NULL,
+		updated_by varchar(255) NULL,
+		name varchar(100) NOT NULL,
+		ip_address varchar(45) NOT NULL,
+		port int NOT NULL,
+		power int NOT NULL,
+		read_time_ms int NOT NULL,
+		min_signal int NOT NULL CONSTRAINT df_rfid_reader_min_signal DEFAULT -50,
+		CONSTRAINT PK_rfid_reader PRIMARY KEY (id),
+		CONSTRAINT uk_rfid_reader_name UNIQUE (name),
+		CONSTRAINT uk_rfid_reader_address UNIQUE (ip_address, port)
+	);
+END
+GO
+IF OBJECT_ID(N'quick_quantity', N'U') IS NOT NULL AND OBJECT_ID(N'pos_machine', N'U') IS NULL
+BEGIN
+	CREATE TABLE pos_machine (
+		id bigint IDENTITY(1,1) NOT NULL,
+		active bit NULL,
+		created_at datetime2 NULL,
+		created_by varchar(255) NULL,
+		updated_at datetime2 NULL,
+		updated_by varchar(255) NULL,
+		name varchar(100) NOT NULL,
+		ip_address varchar(45) NOT NULL,
+		reader_id bigint NULL,
+		CONSTRAINT PK_pos_machine PRIMARY KEY (id),
+		CONSTRAINT uk_pos_machine_name UNIQUE (name),
+		CONSTRAINT uk_pos_machine_ip UNIQUE (ip_address),
+		CONSTRAINT fk_pos_machine_reader FOREIGN KEY (reader_id) REFERENCES rfid_reader (id)
+	);
+END
+GO
+IF OBJECT_ID(N'pos_machine', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_pos_machine_reader' AND object_id = OBJECT_ID(N'pos_machine'))
+	CREATE INDEX ix_pos_machine_reader ON pos_machine (reader_id);
+GO
+
 UPDATE APP_VERSION SET version = '3.2.0';
 
 -- The notes of 3.2.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

@@ -1,4 +1,4 @@
-package com.digithink.zsretail.store.rfid.service;
+package com.digithink.zsretail.store.posmachine.service;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -12,12 +12,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 
-import com.digithink.zsretail.store.rfid.RfidException;
-import com.digithink.zsretail.store.rfid.model.PosMachine;
+import com.digithink.zsretail.store.posmachine.PosMachineException;
+import com.digithink.zsretail.store.posmachine.model.PosMachine;
 import com.digithink.zsretail.store.rfid.model.RfidReader;
 import com.digithink.zsretail.store.support.InMemoryRfid;
 
-/** RFID step 3: the rules of a POS machine (PosMachineService) over the in-memory tables. */
+/**
+ * The rules of a POS machine (PosMachineService, RFID step 3; every store since 3.2.0) over the in-memory tables: with
+ * RFID (the reader taken, checked) and without (the reader ignored, the one saved kept).
+ */
 class PosMachineServiceTest {
 
 	private final InMemoryRfid rfid = new InMemoryRfid();
@@ -31,8 +34,8 @@ class PosMachineServiceTest {
 	}
 
 	private static void assertRefused(String message, Executable save) {
-		RfidException e = assertThrows(RfidException.class, save);
-		assertEquals(RfidException.Reason.INVALID, e.getReason());
+		PosMachineException e = assertThrows(PosMachineException.class, save);
+		assertEquals(PosMachineException.Reason.INVALID, e.getReason());
 		assertEquals(message, e.getMessage());
 	}
 
@@ -100,5 +103,32 @@ class PosMachineServiceTest {
 		assertSame(local, rfid.machineService.findByRequestAddress("::1").get());
 		assertSame(lan, rfid.machineService.findByRequestAddress("::ffff:192.168.1.11").get());
 		assertFalse(rfid.machineService.findByRequestAddress("192.168.1.99").isPresent());
+		assertSame(lan, rfid.machineServiceWithoutRfid.findByRequestAddress("192.168.1.11").get(), "without RFID too");
+	}
+
+	@Test
+	@DisplayName("Without RFID: the same rules; a reader sent is ignored, a new machine has none, a machine saved again keeps"
+			+ " the one it has (a store that turned RFID off)")
+	void withoutRfid() throws Exception {
+		PosMachineService service = rfid.machineServiceWithoutRfid;
+		RfidReader any = new RfidReader();
+		any.setId(42L);
+		PosMachine created = service.save(machine(" PC caisse 1 ", "::ffff:192.168.1.11", any));
+		assertEquals("PC caisse 1", created.getName());
+		assertEquals("192.168.1.11", created.getIpAddress());
+		assertNull(created.getReader(), "never checked, never taken");
+		assertTrue(created.getActive());
+
+		// A machine linked while RFID was on, saved again with RFID off (the page sends no reader)
+		RfidReader desk = rfid.reader("Caisse 2", "192.168.100.201", 9090);
+		PosMachine linked = rfid.machine("PC caisse 2", "192.168.1.12", desk);
+		PosMachine renamed = machine("PC caisse 2 bis", "192.168.1.12", null);
+		renamed.setId(linked.getId());
+		assertSame(desk, service.save(renamed).getReader(), "its reader kept");
+
+		assertRefused("A POS machine is already named 'PC caisse 1'.",
+				() -> service.save(machine("pc caisse 1", "192.168.1.13", null)));
+		assertRefused("'caisse-3' is not an IP address: write an IPv4 address such as 192.168.1.20 (or an IPv6 address).",
+				() -> service.save(machine("PC caisse 3", "caisse-3", null)));
 	}
 }

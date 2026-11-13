@@ -203,6 +203,7 @@ public class ZZDataInitializer {
 			// 3.1.2: the keys the API now checks, so that an administrator of an older database is never locked out
 			wanted.addAll(API_CHECKED_ADMIN_PERMISSIONS);
 			wanted.addAll(SCANNED_TICKETS_ADMIN_PERMISSIONS); // 3.2.0, step 7: the scanned tickets taken
+			wanted.addAll(POS_MACHINES_ADMIN_PERMISSIONS); // 3.2.0: the POS machines page, RFID or not
 			// 3.1.1: the "Head office" pages (Jobs, Communications, Data exchanged) on a store linked after its database was
 			// created (its ADMIN role was made without them)
 			if (applicationModeService.isHeadOfficeLinked()) {
@@ -277,6 +278,7 @@ public class ZZDataInitializer {
 		}
 		permissions.add("read:cashier-interface");
 		permissions.addAll(TILL_PERMISSIONS); // step C: the five till rights, on every role of a new store
+		permissions.addAll(POS_MACHINES_ADMIN_PERMISSIONS); // 3.2.0: the POS machines page, RFID or not
 		if (!applicationModeService.isSupplyFromErp()) {
 			permissions.addAll(INVENTORY_ADMIN_PERMISSIONS);
 		}
@@ -412,13 +414,21 @@ public class ZZDataInitializer {
 			"delete:admin-users", "read:admin-company-information", "write:admin-company-information"));
 
 	/**
-	 * RFID (3.1.0): the RFID pages (readers, POS machines, tags, tag assignment), on a store with rfid.enabled=true only: in ADMIN's set of a
-	 * new database, given to ADMIN at the first start with RFID on for a database of before. With RFID off nothing is
-	 * added (an EMTOP or Happyness role table does not change).
+	 * RFID (3.1.0): the RFID pages (readers, tags, tag assignment), on a store with rfid.enabled=true only: in ADMIN's set
+	 * of a new database, given to ADMIN at the first start with RFID on for a database of before. With RFID off nothing is
+	 * added. The POS machines page left this set in 3.2.0 (POS_MACHINES_ADMIN_PERMISSIONS).
 	 */
 	static final Set<String> RFID_ADMIN_PERMISSIONS = new HashSet<>(
-			Arrays.asList("read:admin-rfid-readers", "read:admin-rfid-pos-machines", "read:admin-rfid-tags",
-					"read:admin-rfid-assignment"));
+			Arrays.asList("read:admin-rfid-readers", "read:admin-rfid-tags", "read:admin-rfid-assignment"));
+
+	/**
+	 * 3.2.0, POS machines step 1: the POS machines page, on every store (RFID or not; docs/modules/pos-machines.md). The key
+	 * keeps its 3.1.0 name, so the roles that have it (ADMIN of an RFID store, a role ticked by hand) keep it as it is. In
+	 * ADMIN's set of a new store database (adminPermissions), given to ADMIN at every start of a store (a database of
+	 * before gets it once); other roles are ticked on the Roles page. Never on a head office.
+	 */
+	static final Set<String> POS_MACHINES_ADMIN_PERMISSIONS = new HashSet<>(
+			Arrays.asList("read:admin-rfid-pos-machines"));
 
 	/**
 	 * 3.2.0, step 7: the page of the scanned tickets taken (meal tickets, gift cheques): in ADMIN's set of a new database,

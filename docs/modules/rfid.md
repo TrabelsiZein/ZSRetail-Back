@@ -15,11 +15,17 @@ store's database.
 | Payment and pending tickets: the cart's tags sent with the ticket, a recalled pending ticket's tags (front 9656b58); a pending ticket paid with its tags (back 59aff36) | done ("POS: payment and pending tickets", "At the POS") |
 | The Read button of the return screen (`ReturnProducts.vue`, front 3a68335); the RFID texts checked in five languages and right to left (front 2e5395c) | done ("POS: the Read button of the return screen") |
 
-**Package map** (store project, `com.digithink.zsretail.store.rfid`): `model` (`RfidReader`, `PosMachine`), `repository`,
-`service` (`RfidReaderService`, `PosMachineService`, `RfidReadService`, `RfidAddresses`), `reader` (`RfidReaderDevice`,
-`HopelandRfidReader`, `RfidTag`, `RfidTagCollector`), `controller` (`RfidReaderAPI`, `PosMachineAPI`, `RfidAPI`,
+**Package map** (store project, `com.digithink.zsretail.store.rfid`): `model` (`RfidReader`), `repository`,
+`service` (`RfidReaderService`, `RfidReadService`, `RfidAddresses`), `reader` (`RfidReaderDevice`,
+`HopelandRfidReader`, `RfidTag`, `RfidTagCollector`), `controller` (`RfidReaderAPI`, `RfidAPI`,
 `RfidErrors`), `dto`, `RfidException`. In core: the key and the question (`NodeOwnership`, `Installation.RFID`),
 `GET /config` `rfidEnabled`, the summary word.
+
+**3.2.0: the POS machines left RFID** (`pos-machines.md`). `PosMachine`, its repository, service and API moved to
+`com.digithink.zsretail.store.posmachine` and exist on every store, RFID on or off; the page moved to the Caisse menu.
+What stays RFID's: the machine's reader (set only with RFID on), `GET /rfid/my-machine`, the reads. Every RFID behaviour
+is unchanged: the same endpoints, answers and messages (the "add this machine on the RFID POS machines page" of a read
+included). Below, "the POS machines page" is that page.
 
 ## Turning RFID on in a store
 
@@ -45,8 +51,8 @@ store's database.
   readers belong to a store). Remove the line.` `false` on a head office is accepted.
 - Read by `NodeOwnership.isRfidSet` (core), checked in `NodeOwnership.resolve` like the other keys.
 - `true` gives the installation question `Installation.RFID`. Every RFID bean (the services, the Hopeland reader, the
-  three controllers, the two repositories) carries `@ConditionalOnInstallation(Installation.RFID)`: with `false`, none
-  of them exists (the endpoints answer 404), and
+  controllers, the repositories) carries `@ConditionalOnInstallation(Installation.RFID)`: with `false`, none
+  of them exists (the endpoints answer 404; since 3.2.0 the POS machines are not RFID beans: `pos-machines.md`), and
   `InstallationBeansProofTest` shows it in every file of `configs/` (its shape `store, RFID on` lists them).
 - `GET /config` field `rfidEnabled` (last); the frontend shows the RFID pages and buttons only when it is `true`.
 - Startup summary: `RFID on` (after the supply words, before the ERP connector) only when on; nothing when off, so an
@@ -58,9 +64,11 @@ Tests: `RfidKeyTest` (network-tests), `AppConfigAPITest` (the field), the two pr
 
 ## Readers and POS machines (RFID step 3)
 
-Package `com.digithink.zsretail.store.rfid` (store project): `model`, `repository`, `service`. Both entities extend
+Package `com.digithink.zsretail.store.rfid` (store project): `model`, `repository`, `service` (the POS machine in
+`store.posmachine` since 3.2.0). Both entities extend
 `_BaseEntity` (`id`, `active`, `created_*`, `updated_*`). Created by `db/3.1.0/update.sql` on a store database only (a
-database with `ho_store` is a head office), and by `ddl-auto` with the same names and types.
+database with `ho_store` is a head office; but a store database of the single WAR era has an empty `ho_store` too:
+`db/3.2.0/update.sql` creates them there, `pos-machines.md`), and by `ddl-auto` with the same names and types.
 
 `rfid_reader` (`RfidReader`):
 
@@ -77,7 +85,7 @@ database with `ho_store` is a head office), and by `ddl-auto` with the same name
 A reader still linked to a POS machine is not deleted: `This reader is used by the POS machines A, B: give them another
 reader, or none, first.` Antenna 1 is a constant of the reading, not a column.
 
-`pos_machine` (`PosMachine`):
+`pos_machine` (`PosMachine`; every store since 3.2.0, `pos-machines.md`):
 
 | Column | Type | Rule (`PosMachineService`) |
 |---|---|---|
@@ -206,7 +214,9 @@ Tests: `RfidAPITest` (Spring MVC over the controller, standalone `MockMvc`, the 
 
 ## The endpoints (RFID step 7)
 
-All exist only with `rfid.enabled=true` (otherwise 404), for logged users (none is in `SecurityConfig`'s `permitAll`).
+All exist only with `rfid.enabled=true` (otherwise 404), except `/pos-machine` (every store since 3.2.0, with
+`GET /pos-machine/my-machine`; with RFID off a reader sent is ignored: `pos-machines.md`), for logged users (none is in
+`SecurityConfig`'s `permitAll`).
 Under the context path: `/zsretailws/...` in Tomcat, `/zsretail/api/...` from the IDE. Refusals: `{"error", "reason"}`
 (above).
 
@@ -372,15 +382,16 @@ pending ticket deleted), `RfidPosAPITest`; the hook calls in `SaleCompletionLoya
 
 ## The front pages (ZSRetail-Front)
 
-A store menu **RFID** (after Inventory, icon Radio) with two pages, only when `GET /config` `rfidEnabled` is true
+A store menu **RFID** (after Inventory, icon Radio) with its pages, only when `GET /config` `rfidEnabled` is true
 (never on a head office: its menu is its own, and the getter `appConfig/rfidEnabled` is false there).
 `RFID_ROUTES` (`navigation/store-mode-routes.js`): the menu (`VerticalNavMenu`, the group removed when empty), the
-router guard (home) and the search bar hide them, like the other store-mode pages.
+router guard (home) and the search bar hide them, like the other store-mode pages. The POS machines page left this menu
+in 3.2.0 (Caisse menu, every store, route `admin-pos-machines`: `pos-machines.md`); the description below is of 3.1.0,
+its reader parts shown only with `rfidEnabled`.
 
 | Route | Path | Page | Permission |
 |---|---|---|---|
 | `admin-rfid-readers` | `/admin/rfid/readers` | `views/admin/rfid/RfidReaders.vue` | `read:admin-rfid-readers` |
-| `admin-rfid-pos-machines` | `/admin/rfid/pos-machines` | `views/admin/rfid/RfidPosMachines.vue` | `read:admin-rfid-pos-machines` |
 | `admin-rfid-tags` | `/admin/rfid/tags` | `views/admin/rfid/RfidTags.vue` | `read:admin-rfid-tags` |
 | `admin-rfid-assignment` | `/admin/rfid/assignment` | `views/admin/rfid/RfidTagAssignment.vue` | `read:admin-rfid-assignment` |
 
@@ -404,10 +415,10 @@ router guard (home) and the search bar hide them, like the other store-mode page
   characters, trimmed. Messages `common.validation.*` in the five languages.
 - Every request passes `skipErrorPopup` (`components/admin/rfid/rfid-api.js`, timeout 30 s): the page shows the back
   end's `{"error"}` itself, once.
-- Labels: `admin.rfid.*` in en, fr, ar (Reader / Lecteur / قارئ; POS machine / Poste de caisse / جهاز نقطة البيع; Tag /
-  Étiquette / وسم; de and pt removed in 3.2.0). The Roles page
-  (fixed French labels, like its other groups): group RFID, "Lecteurs RFID", "Postes de caisse RFID", only when
-  `rfidEnabled`.
+- Labels: `admin.rfid.*` in en, fr, ar (Reader / Lecteur / قارئ; Tag / Étiquette / وسم; de and pt removed in 3.2.0;
+  the POS machine texts moved to `admin.posMachines.*` in 3.2.0). The Roles page
+  (fixed French labels, like its other groups): group RFID, "Lecteurs RFID", "Étiquettes RFID", "Affectation des
+  étiquettes RFID", only when `rfidEnabled`; "Postes de caisse" is in the group Vente on every store since 3.2.0.
 - **Tags**: a page of tags (newest first) with the filters item (`components/inputs/ItemPicker.vue`), status, a part of
   the EPC; Move to another item (a popup with the item picker) and Delete, both off for a sold tag (tooltip: kept as the
   record of the piece sold).
@@ -479,14 +490,17 @@ router guard (home) and the search bar hide them, like the other store-mode page
 
 ## Permissions (the front pages)
 
-Four role permissions, one per page: `read:admin-rfid-readers` (RFID readers), `read:admin-rfid-pos-machines` (POS
-machines), `read:admin-rfid-tags` (Tags) and `read:admin-rfid-assignment` (Tag assignment, also the tag button of a
-delivery reception line). Like the Licence page, ADMIN gets them without anyone ticking them (`ZZDataInitializer`,
-`RFID_ADMIN_PERMISSIONS`), but only on a store with `rfid.enabled=true`: in ADMIN's set of a new database, and given to
-ADMIN at the first start with RFID on for a database of before (once; nothing else added or removed). With RFID off
-nothing is added, so an EMTOP or Happyness role table does not change. The Roles page lists them (group RFID) only when
-`rfidEnabled`; `AppRoleAPI` lists them. As everywhere, the API does not check roles: the permissions drive the menu and
-the route guard. Test: `ZZDataInitializerRolesTest.rfidPagesGivenToAdmin`.
+Three role permissions, one per page: `read:admin-rfid-readers` (RFID readers), `read:admin-rfid-tags` (Tags) and
+`read:admin-rfid-assignment` (Tag assignment, also the tag button of a delivery reception line). Like the Licence page,
+ADMIN gets them without anyone ticking them (`ZZDataInitializer`, `RFID_ADMIN_PERMISSIONS`), but only on a store with
+`rfid.enabled=true`: in ADMIN's set of a new database, and given to ADMIN at the first start with RFID on for a database
+of before (once; nothing else added or removed). With RFID off nothing RFID's is added. The Roles page lists them (group
+RFID) only when `rfidEnabled`; `AppRoleAPI` lists them. As everywhere, the API does not check roles: the permissions
+drive the menu and the route guard. Test: `ZZDataInitializerRolesTest.rfidPagesGivenToAdmin`.
+
+`read:admin-rfid-pos-machines` (the POS machines page) was the fourth until 3.2.0; it keeps its key but is no longer
+RFID's: every store's ADMIN gets it, so an EMTOP or Happyness ADMIN role gains this one key at its first 3.2.0 start
+(`pos-machines.md`, "Permission").
 
 ## The SDK
 
@@ -503,7 +517,8 @@ address with no reader fails after 5 s (the SDK's own timeout, with a stack trac
   configurations, `(none)` in the 6 head office ones); no other line changed.
 - `InstallationBeansProofTest`: the 7 RFID beans are decided by `Installation.RFID` (`decided 90`; 14 and `decided 97`
   since the tags and POS steps), present only in the
-  shape `store, RFID on`; every file of `configs/` and every other shape has none of them (each row unchanged).
+  shape `store, RFID on`; every file of `configs/` and every other shape has none of them (each row unchanged). 3.2.0:
+  `PosMachineAPI` and `PosMachineService` left them (every store): `store, RFID on | 12`, `decided 110`.
 - `RfidSdkConfinementGuardTest`, and the existing guards (`ProjectSortingGuardTest`: every RFID class under the store's
   package root).
 - Store tests: `HopelandSdkJarTest`, `RfidBeansTest`, `RfidAddressesTest`, `RfidReaderServiceTest`,

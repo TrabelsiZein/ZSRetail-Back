@@ -21,7 +21,7 @@ import com.digithink.zsretail.store.rfid.RfidException;
 import com.digithink.zsretail.store.rfid.RfidException.Reason;
 import com.digithink.zsretail.store.rfid.dto.RfidConnectionResult;
 import com.digithink.zsretail.store.rfid.dto.RfidReadResult;
-import com.digithink.zsretail.store.rfid.model.PosMachine;
+import com.digithink.zsretail.store.posmachine.model.PosMachine;
 import com.digithink.zsretail.store.rfid.model.RfidReader;
 import com.digithink.zsretail.store.rfid.reader.RfidTag;
 import com.digithink.zsretail.store.support.FakeRfidReader;

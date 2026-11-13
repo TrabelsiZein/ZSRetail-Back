@@ -9,6 +9,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.support.TransactionOperations;
 
 import com.digithink.zsretail.core.controller._BaseController;
+import com.digithink.zsretail.store.posmachine.controller.PosMachineAPI;
 import com.digithink.zsretail.store.rfid.service.RfidAssignmentService;
 import com.digithink.zsretail.store.rfid.service.RfidReadService;
 import com.digithink.zsretail.store.support.FakeRfidReader;

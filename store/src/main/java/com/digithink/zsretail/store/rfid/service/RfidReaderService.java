@@ -12,9 +12,9 @@ import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.store.rfid.RfidException;
 import com.digithink.zsretail.store.rfid.RfidException.Reason;
-import com.digithink.zsretail.store.rfid.model.PosMachine;
+import com.digithink.zsretail.store.posmachine.model.PosMachine;
 import com.digithink.zsretail.store.rfid.model.RfidReader;
-import com.digithink.zsretail.store.rfid.repository.PosMachineRepository;
+import com.digithink.zsretail.store.posmachine.repository.PosMachineRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidReaderRepository;
 
 /**
@@ -60,7 +60,7 @@ public class RfidReaderService extends _BaseService<RfidReader, Long> {
 
 	/** The rules of a reader about to be saved; trims its texts and gives the defaults of what is empty. */
 	void check(RfidReader reader) {
-		String name = PosMachineService.requiredName(reader.getName(), "reader");
+		String name = requiredName(reader.getName());
 		reader.setName(name);
 		readers.findFirstByNameIgnoreCase(name).filter(other -> !other.getId().equals(reader.getId()))
 				.ifPresent(other -> {
@@ -123,5 +123,17 @@ public class RfidReaderService extends _BaseService<RfidReader, Long> {
 					+ ": give them another reader, or none, first.");
 		}
 		super.deleteById(id);
+	}
+
+	/** A reader's name, trimmed: required, at most 100 characters (a POS machine has its own rule, PosMachineService). */
+	private static String requiredName(String raw) {
+		String name = raw == null ? "" : raw.trim();
+		if (name.isEmpty()) {
+			throw new RfidException(Reason.INVALID, "The reader needs a name.");
+		}
+		if (name.length() > MAX_NAME_LENGTH) {
+			throw new RfidException(Reason.INVALID, "The reader's name has at most " + MAX_NAME_LENGTH + " characters.");
+		}
+		return name;
 	}
 }

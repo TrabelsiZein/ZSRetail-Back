@@ -119,6 +119,21 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   database (`ZZDataInitializer`), from the Roles page's list (`AppRoleAPI`) and from the existing roles (DB script, step
   12); a start never gives them back. The Sessions page and its verification form keep `read:admin-sessions-history`
   and `read:verify-session`. Test: `ZZDataInitializerRolesTest.sessionsDashboardPermissionsGone`.
+- POS machines, step 1 of 5 (`docs/modules/pos-machines.md`): the POS machine (table `pos_machine`, 3.1.0) exists on
+  every store, with or without RFID. `PosMachine`, `PosMachineRepository`, `PosMachineService`, `PosMachineAPI` moved
+  from `store.rfid` to `store.posmachine` and lost `@ConditionalOnInstallation(Installation.RFID)`; new
+  `PosMachineException` (INVALID 400, NOT_FOUND 404, the same `{error, reason}` body and messages as before) and
+  `PosMachineAddresses` (the address rules; `RfidAddresses` keeps them for RFID with its own exception). The machine's
+  reader stays RFID's: the service takes the RFID reader repository when it exists (RFID on: as in 3.1.0); without RFID
+  a reader sent is ignored, a new machine has none and a machine saved again keeps the one it has. New
+  `GET /pos-machine/my-machine` (any logged user, every store): the address seen and the machine recorded there
+  (`MyPosMachine`); `/rfid/my-machine` and every RFID endpoint unchanged. The page's permission keeps its key
+  `read:admin-rfid-pos-machines`: it leaves `RFID_ADMIN_PERMISSIONS` for `POS_MACHINES_ADMIN_PERMISSIONS`, in ADMIN's
+  set of a new store and given to ADMIN at every start of a store (an RFID store's ADMIN has it already: nothing saved),
+  never on a head office; `AppRoleAPI` lists it apart from RFID. Head office untouched; selling unchanged. Tests:
+  `PosMachineServiceTest`, `PosMachineAPITest` (with and without RFID, my-machine), `PosMachineAddressesTest`,
+  `RfidBeansTest.posMachinesWithoutRfid`, `ZZDataInitializerRolesTest.posMachinesPageGivenToAdmin`;
+  `installation-beans.txt`: `PosMachineAPI` and `PosMachineService` no longer decided (`decided 110`, `store, RFID on | 12`).
 
 ### Fixes
 - Sessions list: "Diff." and "Diff. Resp" of a session with scanned tickets compared the declared face total with the
@@ -162,7 +177,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   table `ho_session_scanned` (in Hibernate's form, its foreign key `fk_ho_session_scanned_session` as in the entity);
   Hibernate creates it too at the first start. Step 12, store and head office: the rows of `read:admin-sessions`,
   `read:responsible-sessions` and `write:responsible-sessions` deleted from `app_role_permission` (every role; safe to
-  run twice).
+  run twice). Step 13, a store (it has `quick_quantity`): `rfid_reader` and `pos_machine` created when missing, as
+  `db/3.1.0` made them, then the index `ix_pos_machine_reader` where missing. `db/3.1.0` created them only where
+  `ho_store` was missing, but a store database of the single WAR era has an empty `ho_store` (`pos_db_prod`, the
+  Happyness stores, `pos_franchise_customer`): there the tables came from Hibernate at a start, without the index.
 
 ### Config
 - Table management leaves General setup (`docs/modules/table-management.md`): the properties

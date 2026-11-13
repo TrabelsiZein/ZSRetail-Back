@@ -88,8 +88,10 @@ public class AppRoleAPI {
         "read:admin-report-promotions",
         "read:admin-company-information", "write:admin-company-information",
         "read:admin-license",
+        // 3.2.0: the POS machines page, every store (the key keeps its 3.1.0 name)
+        "read:admin-rfid-pos-machines",
         // RFID (a store with rfid.enabled=true)
-        "read:admin-rfid-readers", "read:admin-rfid-pos-machines", "read:admin-rfid-tags", "read:admin-rfid-assignment",
+        "read:admin-rfid-readers", "read:admin-rfid-tags", "read:admin-rfid-assignment",
         // Role management
         "read:admin-roles", "write:admin-roles", "delete:admin-roles",
         // Feature-level actions

@@ -20,16 +20,16 @@ import org.springframework.data.domain.Pageable;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.support.InMemoryItems;
 import com.digithink.zsretail.core.service._BaseService;
-import com.digithink.zsretail.store.rfid.model.PosMachine;
+import com.digithink.zsretail.store.posmachine.model.PosMachine;
 import com.digithink.zsretail.store.rfid.model.RfidReader;
 import com.digithink.zsretail.store.rfid.model.RfidSaleTag;
 import com.digithink.zsretail.store.rfid.model.RfidTag;
 import com.digithink.zsretail.store.rfid.model.RfidTagStatus;
-import com.digithink.zsretail.store.rfid.repository.PosMachineRepository;
+import com.digithink.zsretail.store.posmachine.repository.PosMachineRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidReaderRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidSaleTagRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidTagRepository;
-import com.digithink.zsretail.store.rfid.service.PosMachineService;
+import com.digithink.zsretail.store.posmachine.service.PosMachineService;
 import com.digithink.zsretail.store.rfid.service.RfidReaderService;
 import com.digithink.zsretail.store.rfid.service.RfidTagService;
 
@@ -178,7 +178,10 @@ public final class InMemoryRfid {
 			() -> now);
 
 	public final RfidReaderService readerService = user(new RfidReaderService(readerRepository, machineRepository));
-	public final PosMachineService machineService = user(new PosMachineService(machineRepository, readerRepository));
+	public final PosMachineService machineService = user(new PosMachineService(machineRepository, java.util.Optional.of(readerRepository)));
+	/** 3.2.0: the POS machines of a store without RFID (rfid.enabled=false: no RFID reader repository). */
+	public final PosMachineService machineServiceWithoutRfid = user(
+			new PosMachineService(machineRepository, java.util.Optional.empty()));
 
 	/** A reader saved through the service: the given name, address and port, the defaults for the rest. */
 	public RfidReader reader(String name, String ipAddress, int port) {
