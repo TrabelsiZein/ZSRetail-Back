@@ -107,6 +107,48 @@ class PosMachineServiceTest {
 	}
 
 	@Test
+	@DisplayName("Step 2: every refusal has its code and the values of its message (the front's serverErrors.<code>)")
+	void codes() {
+		rfid.machine("PC caisse 1", "192.168.1.11", null);
+		PosMachineException taken = assertThrows(PosMachineException.class,
+				() -> rfid.machineService.save(machine("pc caisse 1", "192.168.1.12", null)));
+		assertEquals("POS_MACHINE_NAME_TAKEN", taken.getCode());
+		assertEquals("PC caisse 1", taken.getParams().get("name"));
+		PosMachineException address = assertThrows(PosMachineException.class,
+				() -> rfid.machineService.save(machine("PC caisse 2", "::ffff:192.168.1.11", null)));
+		assertEquals("POS_MACHINE_ADDRESS_TAKEN", address.getCode());
+		assertEquals("192.168.1.11", address.getParams().get("address"));
+		assertEquals("POS_MACHINE_ADDRESS_INVALID", assertThrows(PosMachineException.class,
+				() -> rfid.machineService.save(machine("PC caisse 2", "caisse-2", null))).getCode());
+		assertEquals("POS_MACHINE_NAME_REQUIRED", assertThrows(PosMachineException.class,
+				() -> rfid.machineService.save(machine(" ", "192.168.1.12", null))).getCode());
+		PosMachineException tooLong = assertThrows(PosMachineException.class, () -> rfid.machineService
+				.save(machine(new String(new char[101]).replace('\0', 'x'), "192.168.1.12", null)));
+		assertEquals("POS_MACHINE_NAME_TOO_LONG", tooLong.getCode());
+		assertEquals(100, tooLong.getParams().get("max"));
+		PosMachineException notFound = assertThrows(PosMachineException.class, () -> rfid.machineService.get(99L));
+		assertEquals("POS_MACHINE_NOT_FOUND", notFound.getCode());
+		assertEquals(99L, notFound.getParams().get("id"));
+	}
+
+	@Test
+	@DisplayName("Step 2: a machine a session was opened on cannot be deleted (deactivate it); one without sessions can")
+	void deleteWithSessions() {
+		PosMachine used = rfid.machine("PC caisse 1", "192.168.1.11", null);
+		PosMachine unused = rfid.machine("PC caisse 2", "192.168.1.12", null);
+		rfid.session(7L, "amira", com.digithink.zsretail.core.model.enumeration.SessionStatus.TERMINATED, used);
+		PosMachineException e = assertThrows(PosMachineException.class, () -> rfid.machineService.deleteById(used.getId()));
+		assertEquals(PosMachineException.Reason.INVALID, e.getReason());
+		assertEquals("POS_MACHINE_HAS_SESSIONS", e.getCode());
+		assertEquals("The POS machine 'PC caisse 1' has sessions: it cannot be deleted. Deactivate it instead.",
+				e.getMessage());
+		assertEquals("PC caisse 1", e.getParams().get("name"));
+		assertTrue(rfid.machines.containsKey(used.getId()), "still there");
+		rfid.machineService.deleteById(unused.getId());
+		assertFalse(rfid.machines.containsKey(unused.getId()));
+	}
+
+	@Test
 	@DisplayName("Without RFID: the same rules; a reader sent is ignored, a new machine has none, a machine saved again keeps"
 			+ " the one it has (a store that turned RFID off)")
 	void withoutRfid() throws Exception {

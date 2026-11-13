@@ -63,6 +63,7 @@ import com.digithink.zsretail.store.repository.PaymentChangeLogRepository;
 import com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository;
 import com.digithink.zsretail.store.repository.SessionCashCountRepository;
 import com.digithink.zsretail.store.support.InMemoryTillRights;
+import com.digithink.zsretail.store.support.InMemoryRfid;
 
 /**
  * 3.2.0, step 6: a scanned-tickets method at closing and on the tickets X / Z. The cashier declares the number of
@@ -207,8 +208,11 @@ class ScannedTicketsClosingTest {
 			}
 		};
 		set(sessions, CashierSessionService.class, "sessionCashCountService", countService);
+		// 3.2.0, POS machines step 2: no POS machine for these sessions
+		set(sessions, CashierSessionService.class, "sessionPosMachineService", new InMemoryRfid().sessionMachineService);
 
 		reports = new SessionReportService();
+		set(reports, SessionReportService.class, "sessionPosMachineService", new InMemoryRfid().sessionMachineService);
 		set(reports, SessionReportService.class, "cashierSessionRepository", sessionRepo);
 		set(reports, SessionReportService.class, "cashierSessionService", sessions);
 		set(reports, SessionReportService.class, "salesHeaderRepository", salesRepo);

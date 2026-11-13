@@ -49,6 +49,7 @@ import com.digithink.zsretail.store.model.SessionCashCount;
 import com.digithink.zsretail.store.repository.PaymentChangeLogRepository;
 import com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository;
 import com.digithink.zsretail.store.repository.SessionCashCountRepository;
+import com.digithink.zsretail.store.support.InMemoryRfid;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -145,6 +146,9 @@ class SessionReportServiceTest {
 		// step 6: no scanned ticket in these sessions (ScannedTicketsClosingTest has them)
 		inject(service, "scannedTicketPaymentRepository", proxy(ScannedTicketPaymentRepository.class,
 				(m, a) -> "findByCashierSession".equals(m) ? new ArrayList<>() : UNHANDLED));
+		// 3.2.0, POS machines step 2: no POS machine for these sessions
+		inject(service, "sessionPosMachineService", new InMemoryRfid().sessionMachineService);
+		inject(sessionService, "sessionPosMachineService", new InMemoryRfid().sessionMachineService);
 	}
 
 	// ─── Fixtures ────────────────────────────────────────────────────

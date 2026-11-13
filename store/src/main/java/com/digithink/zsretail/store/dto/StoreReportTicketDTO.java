@@ -83,5 +83,8 @@ public class StoreReportTicketDTO {
 		private LocalDateTime closedAt;
 
 		private SessionStatus status;
+
+		/** 3.2.0, POS machines step 2: the POS machine the session was opened on; null without one. */
+		private String posMachineName;
 	}
 }

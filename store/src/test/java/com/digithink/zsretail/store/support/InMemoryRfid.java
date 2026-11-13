@@ -30,6 +30,9 @@ import com.digithink.zsretail.store.rfid.repository.RfidReaderRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidSaleTagRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidTagRepository;
 import com.digithink.zsretail.store.posmachine.service.PosMachineService;
+import com.digithink.zsretail.store.posmachine.service.SessionPosMachineService;
+import com.digithink.zsretail.store.posmachine.model.SessionPosMachine;
+import com.digithink.zsretail.store.posmachine.repository.SessionPosMachineRepository;
 import com.digithink.zsretail.store.rfid.service.RfidReaderService;
 import com.digithink.zsretail.store.rfid.service.RfidTagService;
 
@@ -98,6 +101,51 @@ public final class InMemoryRfid {
 			throw new UnsupportedOperationException(method);
 		}
 	});
+
+	/** 3.2.0, POS machines step 2: the machine of each session, by the session's id. */
+	public final Map<Long, SessionPosMachine> sessionMachines = new LinkedHashMap<>();
+
+	public final SessionPosMachineRepository sessionMachineRepository = proxy(SessionPosMachineRepository.class,
+			(method, args) -> {
+				switch (method) {
+				case "save": {
+					SessionPosMachine row = (SessionPosMachine) args[0];
+					row.setSessionId(row.getSession().getId());
+					sessionMachines.put(row.getSessionId(), row);
+					return row;
+				}
+				case "findById":
+					return Optional.ofNullable(sessionMachines.get(args[0]));
+				case "findBySessionIdIn":
+					return sessionMachines.values().stream().filter(r -> ((Collection<?>) args[0]).contains(r.getSessionId()))
+							.collect(Collectors.toList());
+				case "existsByPosMachine_Id":
+					return sessionMachines.values().stream().anyMatch(r -> r.getPosMachine().getId().equals(args[0]));
+				case "findFirstByPosMachine_IdAndSession_Status":
+					return sessionMachines.values().stream().filter(
+							r -> r.getPosMachine().getId().equals(args[0]) && r.getSession().getStatus() == args[1])
+							.findFirst();
+				default:
+					throw new UnsupportedOperationException(method);
+				}
+			});
+
+	/** A session of this cashier and status opened on this machine (null: none), recorded in memory. */
+	public com.digithink.zsretail.core.model.CashierSession session(long id, String cashier,
+			com.digithink.zsretail.core.model.enumeration.SessionStatus status, PosMachine machine) {
+		com.digithink.zsretail.core.model.CashierSession session = new com.digithink.zsretail.core.model.CashierSession();
+		session.setId(id);
+		session.setSessionNumber("SESSION" + id);
+		com.digithink.zsretail.core.model.UserAccount user = new com.digithink.zsretail.core.model.UserAccount();
+		user.setUsername(cashier);
+		user.setFullName(cashier);
+		session.setCashier(user);
+		session.setStatus(status);
+		if (machine != null) {
+			sessionMachineRepository.save(new SessionPosMachine(session, machine));
+		}
+		return session;
+	}
 
 	public final RfidTagRepository tagRepository = proxy(RfidTagRepository.class, (method, args) -> {
 		switch (method) {
@@ -178,10 +226,14 @@ public final class InMemoryRfid {
 			() -> now);
 
 	public final RfidReaderService readerService = user(new RfidReaderService(readerRepository, machineRepository));
-	public final PosMachineService machineService = user(new PosMachineService(machineRepository, java.util.Optional.of(readerRepository)));
+	public final PosMachineService machineService = user(new PosMachineService(machineRepository,
+			sessionMachineRepository, java.util.Optional.of(readerRepository)));
 	/** 3.2.0: the POS machines of a store without RFID (rfid.enabled=false: no RFID reader repository). */
 	public final PosMachineService machineServiceWithoutRfid = user(
-			new PosMachineService(machineRepository, java.util.Optional.empty()));
+			new PosMachineService(machineRepository, sessionMachineRepository, java.util.Optional.empty()));
+	/** 3.2.0, POS machines step 2: the machine of each session. */
+	public final SessionPosMachineService sessionMachineService = new SessionPosMachineService(machineRepository,
+			sessionMachineRepository);
 
 	/** A reader saved through the service: the given name, address and port, the defaults for the rest. */
 	public RfidReader reader(String name, String ipAddress, int port) {

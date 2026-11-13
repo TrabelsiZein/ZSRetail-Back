@@ -74,12 +74,17 @@ public class PosMachineAPI extends _BaseController<PosMachine, Long, PosMachineS
 		return ResponseEntity.noContent().build();
 	}
 
-	/** {"error": its message, "reason": its reason}: INVALID 400, NOT_FOUND 404 (as the RFID endpoints answer). */
+	/**
+	 * {"error": its message, "reason": its reason, "code", "params"}: INVALID 400, NOT_FOUND 404 (as the RFID endpoints
+	 * answer). Step 2: the code and the values, which the front shows in the language of the screen.
+	 */
 	@ExceptionHandler(PosMachineException.class)
-	public ResponseEntity<Map<String, String>> refused(PosMachineException e) {
-		Map<String, String> body = new LinkedHashMap<>();
+	public ResponseEntity<Map<String, Object>> refused(PosMachineException e) {
+		Map<String, Object> body = new LinkedHashMap<>();
 		body.put("error", e.getMessage());
 		body.put("reason", e.getReason().name());
+		body.put("code", e.getCode());
+		body.put("params", e.getParams());
 		HttpStatus status = e.getReason() == PosMachineException.Reason.NOT_FOUND ? HttpStatus.NOT_FOUND
 				: HttpStatus.BAD_REQUEST;
 		return ResponseEntity.status(status).body(body);

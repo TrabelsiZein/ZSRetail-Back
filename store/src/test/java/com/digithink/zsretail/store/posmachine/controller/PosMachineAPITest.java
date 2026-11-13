@@ -84,7 +84,9 @@ class PosMachineAPITest {
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.error").value("'caisse-1' is not an IP address: write an IPv4 address such as"
 						+ " 192.168.1.20 (or an IPv6 address)."))
-				.andExpect(jsonPath("$.reason").value("INVALID"));
+				.andExpect(jsonPath("$.reason").value("INVALID"))
+				.andExpect(jsonPath("$.code").value("POS_MACHINE_ADDRESS_INVALID"))
+				.andExpect(jsonPath("$.params.address").value("caisse-1"));
 		rfid.machine("PC caisse 1", "192.168.1.11", null);
 		mvc.perform(json(post("/pos-machine"), "{\"name\":\"PC caisse 2\",\"ipAddress\":\"::ffff:192.168.1.11\"}"))
 				.andExpect(status().isBadRequest())
@@ -116,7 +118,24 @@ class PosMachineAPITest {
 		mvc.perform(from("192.168.1.50", delete("/pos-machine/" + machine.getId()))).andExpect(status().isNoContent());
 		assertTrue(rfid.machines.isEmpty());
 		mvc.perform(from("192.168.1.50", delete("/pos-machine/" + machine.getId()))).andExpect(status().isNotFound())
-				.andExpect(jsonPath("$.reason").value("NOT_FOUND"));
+				.andExpect(jsonPath("$.reason").value("NOT_FOUND"))
+				.andExpect(jsonPath("$.code").value("POS_MACHINE_NOT_FOUND"))
+				.andExpect(jsonPath("$.params.id").value(machine.getId()));
+	}
+
+	@Test
+	@DisplayName("Step 2, DELETE of a machine a session was opened on: 400 {error, reason INVALID, code"
+			+ " POS_MACHINE_HAS_SESSIONS, params.name}, the machine kept")
+	void deleteWithSessions() throws Exception {
+		PosMachine machine = rfid.machine("PC caisse 1", "192.168.1.11", null);
+		rfid.session(3L, "amira", com.digithink.zsretail.core.model.enumeration.SessionStatus.CLOSED, machine);
+		mvc.perform(from("192.168.1.50", delete("/pos-machine/" + machine.getId()))).andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error")
+						.value("The POS machine 'PC caisse 1' has sessions: it cannot be deleted. Deactivate it instead."))
+				.andExpect(jsonPath("$.reason").value("INVALID"))
+				.andExpect(jsonPath("$.code").value("POS_MACHINE_HAS_SESSIONS"))
+				.andExpect(jsonPath("$.params.name").value("PC caisse 1"));
+		assertEquals(1, rfid.machines.size());
 	}
 
 	@Test

@@ -11,6 +11,7 @@ import com.digithink.zsretail.store.posmachine.PosMachineException;
 import com.digithink.zsretail.store.posmachine.PosMachineException.Reason;
 import com.digithink.zsretail.store.posmachine.model.PosMachine;
 import com.digithink.zsretail.store.posmachine.repository.PosMachineRepository;
+import com.digithink.zsretail.store.posmachine.repository.SessionPosMachineRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidReaderRepository;
 
 /**
@@ -22,6 +23,9 @@ import com.digithink.zsretail.store.rfid.repository.RfidReaderRepository;
  * The reader is RFID's: the RFID reader repository exists only with rfid.enabled=true. With it, a machine's reader, when
  * it has one, must exist (as in 3.1.0). Without it, the reader sent is ignored: a new machine has none, a machine saved
  * again keeps the one it has (a store that turned RFID off loses no link by renaming a machine).
+ * <p>
+ * Step 2: a machine a session was opened on cannot be deleted (it is deactivated instead); every refusal has its code
+ * (serverErrors.&lt;code&gt; of the front) and the values of its message.
  */
 @Service
 public class PosMachineService extends _BaseService<PosMachine, Long> {
@@ -30,11 +34,14 @@ public class PosMachineService extends _BaseService<PosMachine, Long> {
 	public static final int MAX_NAME_LENGTH = 100;
 
 	private final PosMachineRepository machines;
+	private final SessionPosMachineRepository sessionMachines;
 	/** Present only with rfid.enabled=true. */
 	private final Optional<RfidReaderRepository> readers;
 
-	public PosMachineService(PosMachineRepository machines, Optional<RfidReaderRepository> readers) {
+	public PosMachineService(PosMachineRepository machines, SessionPosMachineRepository sessionMachines,
+			Optional<RfidReaderRepository> readers) {
 		this.machines = machines;
+		this.sessionMachines = sessionMachines;
 		this.readers = readers;
 	}
 
@@ -46,14 +53,20 @@ public class PosMachineService extends _BaseService<PosMachine, Long> {
 	/** The machine of this id; NOT_FOUND when there is none. */
 	public PosMachine get(Long id) {
 		return machines.findById(id)
-				.orElseThrow(() -> new PosMachineException(Reason.NOT_FOUND, "No POS machine number " + id + "."));
+				.orElseThrow(() -> new PosMachineException(Reason.NOT_FOUND, "POS_MACHINE_NOT_FOUND",
+						"No POS machine number " + id + ".", "id", id));
 	}
 
-	/** NOT_FOUND when there is none. */
+	/** NOT_FOUND when there is none; INVALID when a session was opened on it (step 2: deactivate it instead). */
 	@Override
 	@Transactional
 	public void deleteById(Long id) {
-		get(id);
+		PosMachine machine = get(id);
+		if (sessionMachines.existsByPosMachine_Id(id)) {
+			throw new PosMachineException(Reason.INVALID, "POS_MACHINE_HAS_SESSIONS", "The POS machine '"
+					+ machine.getName() + "' has sessions: it cannot be deleted. Deactivate it instead.", "name",
+					machine.getName());
+		}
 		super.deleteById(id);
 	}
 
@@ -75,23 +88,25 @@ public class PosMachineService extends _BaseService<PosMachine, Long> {
 		machine.setName(name);
 		machines.findFirstByNameIgnoreCase(name).filter(other -> !other.getId().equals(machine.getId()))
 				.ifPresent(other -> {
-					throw new PosMachineException(Reason.INVALID,
-							"A POS machine is already named '" + other.getName() + "'.");
+					throw new PosMachineException(Reason.INVALID, "POS_MACHINE_NAME_TAKEN",
+							"A POS machine is already named '" + other.getName() + "'.", "name", other.getName());
 				});
 
 		String address = PosMachineAddresses.normalise(machine.getIpAddress());
 		machine.setIpAddress(address);
 		machines.findFirstByIpAddress(address).filter(other -> !other.getId().equals(machine.getId()))
 				.ifPresent(other -> {
-					throw new PosMachineException(Reason.INVALID, "The POS machine '" + other.getName()
-							+ "' already has the address " + address + ".");
+					throw new PosMachineException(Reason.INVALID, "POS_MACHINE_ADDRESS_TAKEN", "The POS machine '"
+							+ other.getName() + "' already has the address " + address + ".", "name", other.getName(),
+							"address", address);
 				});
 
 		if (readers.isPresent()) {
 			if (machine.getReader() != null) {
 				Long readerId = machine.getReader().getId();
 				machine.setReader(readerId == null ? null : readers.get().findById(readerId).orElseThrow(
-						() -> new PosMachineException(Reason.INVALID, "No RFID reader number " + readerId + ".")));
+						() -> new PosMachineException(Reason.INVALID, "POS_MACHINE_READER_NOT_FOUND",
+								"No RFID reader number " + readerId + ".", "id", readerId)));
 			}
 		} else {
 			// No RFID: the reader is not this page's; the machine keeps the one it has (none when new)
@@ -107,11 +122,11 @@ public class PosMachineService extends _BaseService<PosMachine, Long> {
 	private static String requiredName(String raw) {
 		String name = raw == null ? "" : raw.trim();
 		if (name.isEmpty()) {
-			throw new PosMachineException(Reason.INVALID, "The POS machine needs a name.");
+			throw new PosMachineException(Reason.INVALID, "POS_MACHINE_NAME_REQUIRED", "The POS machine needs a name.");
 		}
 		if (name.length() > MAX_NAME_LENGTH) {
-			throw new PosMachineException(Reason.INVALID,
-					"The POS machine's name has at most " + MAX_NAME_LENGTH + " characters.");
+			throw new PosMachineException(Reason.INVALID, "POS_MACHINE_NAME_TOO_LONG",
+					"The POS machine's name has at most " + MAX_NAME_LENGTH + " characters.", "max", MAX_NAME_LENGTH);
 		}
 		return name;
 	}

@@ -29,6 +29,7 @@ import com.digithink.zsretail.store.dto.SplitBillRequestDTO;
 import com.digithink.zsretail.store.exception.TillRightRequiredException;
 import com.digithink.zsretail.store.service.SalesHeaderService;
 import com.digithink.zsretail.store.service.TicketsHistoryExport;
+import com.digithink.zsretail.store.posmachine.service.SessionPosMachineService;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -54,6 +55,10 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 
 	@Autowired
 	private TicketsHistoryExport ticketsHistoryExport;
+
+	/** 3.2.0, POS machines step 2: the POS machine of each ticket's session (the history's column). */
+	@Autowired
+	private SessionPosMachineService sessionPosMachineService;
 
 	private boolean getLoyaltyConfigFlag(String code) {
 		return generalSetupRepository.findByCode(code)
@@ -595,12 +600,17 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			@org.springframework.web.bind.annotation.RequestParam(required = false) String subFamilyId,
 			@org.springframework.web.bind.annotation.RequestParam(required = false) String cashierId,
 			@org.springframework.web.bind.annotation.RequestParam(required = false) String sessionNumber,
+			@org.springframework.web.bind.annotation.RequestParam(required = false) String posMachineId,
 			@org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") int page,
 			@org.springframework.web.bind.annotation.RequestParam(defaultValue = "10") int size) {
 		try {
 			org.springframework.data.domain.Page<SalesHeader> ticketPage = service.getTicketsHistory(
 					dateFrom, dateTo, status, syncStatus, paymentMethodId, search,
-					minPrice, maxPrice, familyId, subFamilyId, cashierId, sessionNumber, page, size);
+					minPrice, maxPrice, familyId, subFamilyId, cashierId, sessionNumber, posMachineId, page, size);
+			// 3.2.0, POS machines step 2: the POS machine of each ticket's session, one query for the page
+			Map<Long, String> machineNames = sessionPosMachineService.namesBySession(ticketPage.getContent().stream()
+					.filter(t -> t.getCashierSession() != null).map(t -> t.getCashierSession().getId())
+					.collect(java.util.stream.Collectors.toSet()));
 
 			java.util.List<Map<String, Object>> content = new java.util.ArrayList<>();
 			for (SalesHeader ticket : ticketPage.getContent()) {
@@ -622,6 +632,8 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 				ticketMap.put("notes", ticket.getNotes());
 				ticketMap.put("createdByUser", ticket.getCreatedByUser());
 				ticketMap.put("cashierSession", ticket.getCashierSession());
+				ticketMap.put("posMachineName", ticket.getCashierSession() == null ? null
+						: machineNames.get(ticket.getCashierSession().getId()));
 				ticketMap.put("customer", ticket.getCustomer());
 				// I-54: the loyalty card of the sale, for the list's column
 				ticketMap.put("loyaltyCardNumber",
@@ -669,13 +681,16 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			@org.springframework.web.bind.annotation.RequestParam(required = false) String familyId,
 			@org.springframework.web.bind.annotation.RequestParam(required = false) String subFamilyId,
 			@org.springframework.web.bind.annotation.RequestParam(required = false) String cashierId,
-			@org.springframework.web.bind.annotation.RequestParam(required = false) String sessionNumber) {
+			@org.springframework.web.bind.annotation.RequestParam(required = false) String sessionNumber,
+			@org.springframework.web.bind.annotation.RequestParam(required = false) String posMachineId) {
 		try {
 			boolean withCost = currentUserProvider != null
 					&& currentUserProvider.currentUserHasPermission(MARGINS_PERMISSION);
+			// 3.2.0, POS machines step 2: the list's POS machine filter too
 			return ResponseEntity.ok(ticketsHistoryExport.export(SalesHeaderService.ticketsHistorySpec(dateFrom, dateTo,
 					status, syncStatus, paymentMethodId, search, minPrice, maxPrice, familyId, subFamilyId, cashierId,
-					sessionNumber), withCost, TicketsHistoryExport.MAX_TICKETS));
+					sessionNumber).and(SessionPosMachineService.ofSessionOn(posMachineId)), withCost,
+					TicketsHistoryExport.MAX_TICKETS));
 		} catch (Exception e) {
 			log.error("SalesHeaderAPI::exportTicketsHistory:error: " + getDetailedMessage(e), e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

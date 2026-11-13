@@ -1,6 +1,6 @@
 # POS machines
 
-**Status**: 3.2.0, step 1 of 5 (branch `release/3.2.0`). A POS machine ("poste de caisse", the physical PC a cashier
+**Status**: 3.2.0, steps 1 and 2 of 5 (branch `release/3.2.0`). A POS machine ("poste de caisse", the physical PC a cashier
 works on) declared with a name and the address the back end sees for it. It came with RFID in 3.1.0 (`rfid.md`), where
 it links a PC to its reader; since 3.2.0 it exists on **every store**, with or without RFID. First customer asking for
 it beyond RFID: ZEN.
@@ -10,12 +10,60 @@ it beyond RFID: ZEN.
 | Step | What | State |
 |---|---|---|
 | 1 | POS machines on every store (this page) | done |
-| 2 | The session and each ticket keep the POS machine they were made on | to come |
+| 2 | A: the session keeps the POS machine it was opened on (its tickets and returns through it) | done |
 | 3 | Tickets X and Z per POS machine | to come |
 | 4 | Optional controls in General setup (which user on which machine, declared machines only, one open session per machine) | to come |
 | 5 | Cash taken out of the drawer | to come |
 
-Step 1 changes no session, ticket, ticket X or Z, or POS screen: selling behaves as before.
+Step 1 changes no session, ticket, ticket X or Z, or POS screen: selling behaves as before. Step 2 part A records and
+shows the machine of each session and refuses nothing at the till.
+
+## The session's POS machine (step 2, part A)
+
+**When a session is opened** (`POST /cashier-session/open`, `CashierSessionService.openSession(cashier, openingCash,
+remoteAddress)`), it keeps the POS machine registered at the request's address (`SessionPosMachineService
+.machineForOpening`: active or not, the machine is information); none when that PC is not registered (or the address
+cannot be read). Nothing is added on the sale or the return: they get their machine **through their session**. The
+sessions opened before 3.2.0 have none. The cashier's closing, the responsible's verification, the tickets, the returns
+and the till are unchanged.
+
+**Where it is kept: its own store table, the link and not a copy of the name.** `cashier_session_pos_machine`
+(`store.posmachine.model.SessionPosMachine`): `cashier_session_id` (the key, `fk_cashier_session_pos_machine_session` →
+`cashier_session`), `pos_machine_id` (`fk_cashier_session_pos_machine_machine` → `pos_machine`), index
+`ix_cashier_session_pos_machine_machine`; one row per session that has a machine. Why not a column of `cashier_session`:
+`CashierSession` is core's and the head office has it too (its copies), `PosMachine` is the store's, and core never sees
+an application (`ProjectSortingGuardTest`); a column would also have been added to every head office's table. So the
+head office, its tables and the session copies it receives are unchanged. The link, not the name: a machine renamed shows
+its new name everywhere, and a machine with sessions cannot be deleted (below). `db/3.2.0/update.sql` step 14 creates
+the table and its index on a store (with `quick_quantity` and `pos_machine`); Hibernate creates it at a start too
+(without the index). No data changed.
+
+**A machine with sessions cannot be deleted**: `DELETE /pos-machine/{id}` answers 400 `POS_MACHINE_HAS_SESSIONS` ("The
+POS machine 'X' has sessions: it cannot be deleted. Deactivate it instead."). One without sessions is deleted as before.
+
+**Where the machine is shown** (store admin and responsible screens; never on the sale receipt):
+
+| Screen | Back end | Front |
+|---|---|---|
+| Sessions list | `GET /cashier-session/history`: `posMachineName` per row (`SessionDashboardDTO`), filter `posMachineId` | `SessionHistory.vue`: column "Poste de caisse" and a filter |
+| Session details | `GET /cashier-session/{id}/details`: `session.posMachineName` | a line "Poste de caisse" |
+| Ticket X and Z of a session | `GET /cashier-session/{id}/report-ticket`: `posMachineName` (`SessionReportTicketDTO`) | `printSessionReport.js`: a header line when there is one (the Z printed at the closing too) |
+| Sales history | `GET /sales-header/history`: `posMachineName` per ticket, filter `posMachineId` (also `/history/export`) | `TicketsHistory.vue`: column and filter |
+| Returns list | `GET /return-header/history`: `posMachineName` per return | `ReturnsManagement.vue`: column |
+| Journal, a day | the store ticket's `sessions[].posMachineName` (`StoreReportTicketDTO.SessionRow`) | `StoreDay.vue`, "Sessions du jour": column |
+
+An empty machine is shown as "—". The columns and the filters appear only on a store that has registered a POS machine
+(`loadPosMachines`, `GET /pos-machine`): a store without one sees its lists as before. The names of a page come in one
+query (`SessionPosMachineService.namesBySession`). The filter is a subquery on the link table (`openedOn`,
+`ofSessionOn`): the machine's sessions, then the sales through `ix_sales_header_session_status` (3.1.1); the history list
+has no index on `sales_date` anyway, so the filter makes the query smaller, not larger.
+
+**Refusals in the language of the screen.** Every refusal of the POS machines page now carries a code and its values
+(`PosMachineException`: `{"error", "reason", "code", "params"}`): `POS_MACHINE_NAME_REQUIRED`, `_NAME_TOO_LONG` (max),
+`_NAME_TAKEN` (name), `_ADDRESS_INVALID` (address), `_ADDRESS_TAKEN` (name, address), `_READER_NOT_FOUND` (id),
+`_NOT_FOUND` (id), `_HAS_SESSIONS` (name). The front's API client translates a coded refusal before any screen reads it
+(`libs/server-messages.js`, registered in `libs/axios.js`): `data.error` becomes `serverErrors.<code>` with the values,
+in fr, en or ar; a code without a text keeps the English message (the logs keep it too).
 
 ## The table and the rules
 
@@ -45,8 +93,9 @@ reverse proxy in front of Tomcat would give every machine the proxy's address: n
 gives the same answers with its own exception.
 
 **Refusals** (`PosMachineException`): `INVALID` 400 (a name missing, too long or taken, not an IP address, an address
-taken, a reader that does not exist), `NOT_FOUND` 404 (`No POS machine number N.`); the body `{"error", "reason"}` as the
-RFID endpoints, the same messages as in 3.1.0.
+taken, a reader that does not exist; step 2: a machine with sessions deleted), `NOT_FOUND` 404 (`No POS machine number
+N.`); the body `{"error", "reason"}` as the RFID endpoints, the same messages as in 3.1.0, plus `code` and `params` since
+step 2 (above).
 
 ## The reader: RFID's
 
@@ -70,7 +119,7 @@ RFID endpoints, the same messages as in 3.1.0.
 | `GET /pos-machine/{id}` | one machine; 404 when none |
 | `POST /pos-machine` | 201 and the machine saved (address normalised); 400 |
 | `PUT /pos-machine/{id}` | 200 and the machine saved; 400; 404 |
-| `DELETE /pos-machine/{id}` | 204; 404 when none |
+| `DELETE /pos-machine/{id}` | 204; 404 when none; 400 `POS_MACHINE_HAS_SESSIONS` (step 2) |
 | `GET /pos-machine/my-machine` | `MyPosMachine`: `address` (the request's, normalised), `posMachineId`, `posMachineName`, `posMachineActive` (null when no machine has that address) |
 
 Plus the generic reads of `_BaseController` (`/findByField`, `/{id}/exists`, `/count`). `GET /pos-machine/my-machine` is
@@ -112,3 +161,8 @@ and the search bar agree); a head office never (its own menu; a store route ther
 or on and ask no installation question); the RFID tests unchanged (`RfidAPITest`, `RfidReadServiceTest`,
 `RfidReaderServiceTest`, `RfidAddressesTest`...). Proof record `installation-beans.txt`: `PosMachineAPI` and
 `PosMachineService` are no longer decided by a question (`decided 110`, `store, RFID on | 12`); no other line changed.
+
+Step 2, part A: `CashierSessionPosMachineTest` (opened from a registered machine, from an address not registered, from an
+inactive machine; the names of a page), `PosMachineServiceTest.codes` and `.deleteWithSessions`,
+`PosMachineAPITest.deleteWithSessions` (and the codes in the bodies); `CashierSessionHeadOfficeTest` opens with an
+address. `InMemoryRfid` holds the links in memory (`sessionMachines`, `session(...)`).

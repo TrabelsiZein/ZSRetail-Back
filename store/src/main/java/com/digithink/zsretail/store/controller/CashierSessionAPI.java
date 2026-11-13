@@ -4,6 +4,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import javax.servlet.http.HttpServletRequest;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -112,7 +114,7 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	 * Open a new cashier session
 	 */
 	@PostMapping("/open")
-	public ResponseEntity<?> openSession(@RequestBody Map<String, Object> request) {
+	public ResponseEntity<?> openSession(@RequestBody Map<String, Object> request, HttpServletRequest http) {
 		try {
 			log.info("CashierSessionAPI::openSession");
 			UserAccount currentUser = currentUserProvider.getCurrentUser();
@@ -128,7 +130,8 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 				return ResponseEntity.badRequest().body(createErrorResponse("Opening cash must be a positive number"));
 			}
 
-			CashierSession session = service.openSession(currentUser, openingCash);
+			// 3.2.0, POS machines step 2: the session keeps the POS machine of this PC (its address)
+			CashierSession session = service.openSession(currentUser, openingCash, http.getRemoteAddr());
 			return ResponseEntity.ok(session);
 		} catch (IllegalStateException e) {
 			log.error("CashierSessionAPI::openSession:error: " + e.getMessage(), e);
@@ -423,11 +426,12 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			@RequestParam(required = false) String minSalesCount,
 			@RequestParam(required = false) String maxSalesCount,
 			@RequestParam(required = false) String differenceSign,
+			@RequestParam(required = false) String posMachineId,
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "10") int size) {
 		try {
 			log.info("CashierSessionAPI::getSessionHistory");
-			return ResponseEntity.ok(service.getSessionHistory(search, dateFrom, dateTo, status, syncStatus, cashierId, minTotalSales, maxTotalSales, minSalesCount, maxSalesCount, differenceSign, page, size));
+			return ResponseEntity.ok(service.getSessionHistory(search, dateFrom, dateTo, status, syncStatus, cashierId, minTotalSales, maxTotalSales, minSalesCount, maxSalesCount, differenceSign, posMachineId, page, size));
 		} catch (Exception e) {
 			log.error("CashierSessionAPI::getSessionHistory:error: " + e.getMessage(), e);
 			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));

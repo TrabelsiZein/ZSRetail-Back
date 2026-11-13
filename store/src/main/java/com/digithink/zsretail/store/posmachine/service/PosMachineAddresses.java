@@ -57,7 +57,9 @@ public final class PosMachineAddresses {
 	}
 
 	private static PosMachineException invalid(String address) {
-		return new PosMachineException(Reason.INVALID, "'" + (address == null ? "" : address.trim())
-				+ "' is not an IP address: write an IPv4 address such as 192.168.1.20 (or an IPv6 address).");
+		String text = address == null ? "" : address.trim();
+		return new PosMachineException(Reason.INVALID, "POS_MACHINE_ADDRESS_INVALID", "'" + text
+				+ "' is not an IP address: write an IPv4 address such as 192.168.1.20 (or an IPv6 address).", "address",
+				text);
 	}
 }

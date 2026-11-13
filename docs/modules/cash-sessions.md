@@ -354,6 +354,15 @@ tickets history), read-only, over `scanned_ticket_payment` and its copies taken 
 - **Tests**: `ScannedTicketsHistoryServiceTest` (H2: every ticket and its fields, the period, issuer, method and cashier,
   the barcode whole and by its end, paging, the export and its limit, the issuers, the dates, the 403).
 
+## The session's POS machine (3.2.0, POS machines step 2)
+
+`docs/modules/pos-machines.md`, "The session's POS machine". A session keeps the POS machine registered at the address of
+its opening request (none from a PC that is not registered, none for the sessions of before), in the store table
+`cashier_session_pos_machine` (not a column of `cashier_session`: the head office and its copies are unchanged). Its
+tickets and returns get it through the session. The ticket X / Z of a session prints it in its header (the Z of the
+closing too); the sessions list, the session details, the sales history, the returns list and the Journal's day show it
+("—" without one), on a store that has registered a POS machine.
+
 ## Closed points
 
 - **The FREE_QUANTITY line stored an HT discount (fixed in 3.1.0).** For a "X bought, Y free" promotion the server adds

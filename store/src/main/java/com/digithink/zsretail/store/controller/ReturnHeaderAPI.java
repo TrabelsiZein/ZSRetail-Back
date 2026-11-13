@@ -34,6 +34,7 @@ import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.store.dto.ProcessReturnRequestDTO;
 import com.digithink.zsretail.store.exception.TillRightRequiredException;
 import com.digithink.zsretail.store.service.ReturnHeaderService;
+import com.digithink.zsretail.store.posmachine.service.SessionPosMachineService;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -59,6 +60,10 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 
 	@Autowired
 	private QuantityPolicy quantityPolicy;
+
+	/** 3.2.0, POS machines step 2: the POS machine of each return's session (the history's column). */
+	@Autowired
+	private SessionPosMachineService sessionPosMachineService;
 
 	/**
 	 * List all return headers as summary maps to avoid Jackson circular reference
@@ -227,8 +232,17 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 					spec, org.springframework.data.domain.PageRequest.of(page, size,
 							org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "returnDate")));
 
+			// 3.2.0, POS machines step 2: the POS machine of each return's session, one query for the page
+			Map<Long, String> machineNames = sessionPosMachineService.namesBySession(resultPage.getContent().stream()
+					.filter(h -> h.getCashierSession() != null).map(h -> h.getCashierSession().getId())
+					.collect(java.util.stream.Collectors.toSet()));
 			List<Map<String, Object>> content = new ArrayList<>();
-			for (ReturnHeader h : resultPage.getContent()) content.add(toListMap(h));
+			for (ReturnHeader h : resultPage.getContent()) {
+				Map<String, Object> row = toListMap(h);
+				row.put("posMachineName", h.getCashierSession() == null ? null
+						: machineNames.get(h.getCashierSession().getId()));
+				content.add(row);
+			}
 
 			Map<String, Object> response = new HashMap<>();
 			response.put("content", content);

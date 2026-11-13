@@ -48,6 +48,7 @@ import com.digithink.zsretail.store.model.SessionCashCount;
 import com.digithink.zsretail.store.repository.PaymentChangeLogRepository;
 import com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository;
 import com.digithink.zsretail.store.repository.SessionCashCountRepository;
+import com.digithink.zsretail.store.posmachine.service.SessionPosMachineService;
 
 /**
  * 3.1.0: the session ticket X (session OPENED) and Z (CLOSED or TERMINATED), read-only: nothing is written, and the
@@ -105,6 +106,10 @@ public class SessionReportService {
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
 
+	/** 3.2.0, POS machines step 2: the POS machine of the session, in the ticket's header. */
+	@Autowired
+	private SessionPosMachineService sessionPosMachineService;
+
 	/** The ticket X or Z of a session; IllegalArgumentException when the session does not exist. */
 	@Transactional(readOnly = true)
 	public SessionReportTicketDTO build(Long sessionId) {
@@ -128,6 +133,7 @@ public class SessionReportService {
 		dto.setSessionNumber(session.getSessionNumber());
 		dto.setStatus(session.getStatus());
 		dto.setCashierName(displayName(session.getCashier()));
+		dto.setPosMachineName(sessionPosMachineService.nameOf(session.getId()));
 		dto.setOpenedAt(session.getOpenedAt());
 		dto.setClosedAt(open ? null : session.getClosedAt());
 		dto.setOpeningCash(millimes(session.getOpeningCash()));

@@ -40,6 +40,8 @@ import com.digithink.zsretail.store.dto.SessionDashboardDTO;
 import com.digithink.zsretail.store.erp.repository.PaymentHeaderRepository;
 import com.digithink.zsretail.store.exception.CashDiscrepancyException;
 import com.digithink.zsretail.store.model.SessionCashCount;
+import com.digithink.zsretail.store.posmachine.model.PosMachine;
+import com.digithink.zsretail.store.posmachine.service.SessionPosMachineService;
 import com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository;
 import com.digithink.zsretail.store.repository.SessionCashCountRepository;
 
@@ -96,6 +98,10 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	@Autowired
 	private ApplicationModeService applicationModeService;
 
+	/** 3.2.0, POS machines step 2: the POS machine of each session. */
+	@Autowired
+	private SessionPosMachineService sessionPosMachineService;
+
 	static final String HEAD_OFFICE_REFUSAL = "This installation is a head office: cashier sessions cannot be opened.";
 
 	@Override
@@ -139,11 +145,14 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	}
 
 	/**
-	 * Create a new cashier session with opening cash
-	 * 
+	 * Create a new cashier session with opening cash. 3.2.0, POS machines step 2: the session keeps the POS machine
+	 * registered at the address of the request (remoteAddress, request.getRemoteAddr()); none when that PC is not
+	 * registered.
+	 *
 	 * @throws Exception
 	 */
-	public CashierSession openSession(UserAccount cashier, Double openingCash) throws Exception {
+	@Transactional(rollbackFor = Exception.class)
+	public CashierSession openSession(UserAccount cashier, Double openingCash, String remoteAddress) throws Exception {
 		refuseOnHeadOffice();
 
 		// Check if cashier already has an open session
@@ -151,6 +160,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		if (existingSession.isPresent()) {
 			throw new IllegalStateException("Cashier already has an open session");
 		}
+		PosMachine machine = sessionPosMachineService.machineForOpening(remoteAddress);
 
 		CashierSession session = new CashierSession();
 		session.setCashier(cashier);
@@ -164,7 +174,9 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		String sessionNumber = "SESSION" + dateStr + String.format("%03d", count + 1);
 		session.setSessionNumber(sessionNumber);
 
-		return save(session);
+		CashierSession saved = save(session);
+		sessionPosMachineService.record(saved, machine);
+		return saved;
 	}
 
 	/**
@@ -578,7 +590,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	public Map<String, Object> getSessionHistory(String searchStr, String dateFromStr, String dateToStr,
 			String statusStr, String syncStatusStr, String cashierIdStr, String minTotalSalesStr,
 			String maxTotalSalesStr, String minSalesCountStr, String maxSalesCountStr, String differenceSignStr,
-			int page, int size) {
+			String posMachineIdStr, int page, int size) {
 
 		LocalDateTime from = null;
 		if (dateFromStr != null && !dateFromStr.trim().isEmpty()) {
@@ -649,6 +661,15 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		final Long fMaxSalesCount = finalMaxSalesCount;
 		final String fDiffSign = (differenceSignStr != null && !differenceSignStr.equals("all")) ? differenceSignStr
 				: null;
+		// 3.2.0, POS machines step 2: the sessions opened on this POS machine
+		Long finalPosMachineId = null;
+		if (posMachineIdStr != null && !posMachineIdStr.trim().isEmpty()) {
+			try {
+				finalPosMachineId = Long.parseLong(posMachineIdStr.trim());
+			} catch (Exception e) {
+				/* ignore */ }
+		}
+		final Long fPosMachineId = finalPosMachineId;
 
 		org.springframework.data.jpa.domain.Specification<CashierSession> spec = (root, query, cb) -> {
 			List<javax.persistence.criteria.Predicate> predicates = new ArrayList<>();
@@ -675,6 +696,9 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			}
 			if (fCashierId != null) {
 				predicates.add(cb.equal(root.get("cashier").get("id"), fCashierId));
+			}
+			if (fPosMachineId != null) {
+				predicates.add(SessionPosMachineService.openedOn(root.get("id"), fPosMachineId, query, cb));
 			}
 			if (fMinSales != null || fMaxSales != null) {
 				javax.persistence.criteria.Subquery<Double> salesSub = query.subquery(Double.class);
@@ -765,6 +789,10 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			return SessionDashboardDTO.fromEntity(session, salesCount, totalSalesAmount, returnsCount,
 					totalReturnsAmount, simpleReturnsAmount, voucherReturnsAmount, realCash, scannedFaceGap(session));
 		}).collect(Collectors.toList());
+		// 3.2.0, POS machines step 2: the POS machine of each session of the page, one query
+		Map<Long, String> machineNames = sessionPosMachineService
+				.namesBySession(dtos.stream().map(SessionDashboardDTO::getId).collect(Collectors.toList()));
+		dtos.forEach(dto -> dto.setPosMachineName(machineNames.get(dto.getId())));
 
 		Map<String, Object> result = new HashMap<>();
 		result.put("content", dtos);
@@ -946,8 +974,11 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 
 		// Build response
 		Map<String, Object> response = new HashMap<>();
-		response.put("session", SessionDashboardDTO.fromEntity(session, salesCount, totalSalesAmount, returnsCount,
-				totalReturnsAmount, simpleReturnsAmount, voucherReturnsAmount, realCash, scannedFaceGap(session)));
+		SessionDashboardDTO sessionDto = SessionDashboardDTO.fromEntity(session, salesCount, totalSalesAmount,
+				returnsCount, totalReturnsAmount, simpleReturnsAmount, voucherReturnsAmount, realCash,
+				scannedFaceGap(session));
+		sessionDto.setPosMachineName(sessionPosMachineService.nameOf(session.getId())); // 3.2.0, POS machines step 2
+		response.put("session", sessionDto);
 		response.put("salesCount", salesCount);
 		response.put("totalSalesAmount", totalSalesAmount); // Gross sales (sum of all sales)
 		response.put("returnsCount", returnsCount);

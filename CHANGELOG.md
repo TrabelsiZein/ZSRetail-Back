@@ -134,6 +134,19 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `PosMachineServiceTest`, `PosMachineAPITest` (with and without RFID, my-machine), `PosMachineAddressesTest`,
   `RfidBeansTest.posMachinesWithoutRfid`, `ZZDataInitializerRolesTest.posMachinesPageGivenToAdmin`;
   `installation-beans.txt`: `PosMachineAPI` and `PosMachineService` no longer decided (`decided 110`, `store, RFID on | 12`).
+- POS machines, step 2, part A (`docs/modules/pos-machines.md`, "The session's POS machine"): a session keeps the POS
+  machine registered at the address of its opening request (`openSession(cashier, openingCash, remoteAddress)`; none
+  from a PC not registered; active or not, it is information), in the store table `cashier_session_pos_machine`
+  (`SessionPosMachine`, the session's id as key, the link to the machine; `SessionPosMachineService`): core's
+  `CashierSession`, the head office and the session copies unchanged. The sales and returns get it through their
+  session; nothing added on them. Shown by `GET /cashier-session/history` (`posMachineName`, filter `posMachineId`),
+  `/{id}/details` (`session.posMachineName`), `/{id}/report-ticket` (`posMachineName`), the store ticket's
+  `sessions[].posMachineName`, `GET /sales-header/history` (`posMachineName`, filter `posMachineId`, also on
+  `/history/export`) and `GET /return-header/history` (`posMachineName`); the names of a page in one query, the filter a
+  subquery on the link table. A POS machine with sessions cannot be deleted (400 `POS_MACHINE_HAS_SESSIONS`,
+  "deactivate it"). Every refusal of the POS machines page gains `code` and `params` (`PosMachineException`), which the
+  front shows in the language of the screen; the English `error` stays. Tests: `CashierSessionPosMachineTest`,
+  `PosMachineServiceTest.codes` / `.deleteWithSessions`, `PosMachineAPITest.deleteWithSessions`.
 
 ### Fixes
 - Sessions list: "Diff." and "Diff. Resp" of a session with scanned tickets compared the declared face total with the
@@ -181,6 +194,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `db/3.1.0` made them, then the index `ix_pos_machine_reader` where missing. `db/3.1.0` created them only where
   `ho_store` was missing, but a store database of the single WAR era has an empty `ho_store` (`pos_db_prod`, the
   Happyness stores, `pos_franchise_customer`): there the tables came from Hibernate at a start, without the index.
+  Step 14, a store (it has `quick_quantity` and `pos_machine`): the table `cashier_session_pos_machine` (the POS machine
+  of each session; in Hibernate's form, its foreign keys named as in the entity) and its index
+  `ix_cashier_session_pos_machine_machine`, when missing; Hibernate creates the table at a start too (without the index).
+  No data changed.
 
 ### Config
 - Table management leaves General setup (`docs/modules/table-management.md`): the properties

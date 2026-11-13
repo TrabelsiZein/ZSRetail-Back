@@ -56,6 +56,7 @@ import com.digithink.zsretail.store.model.SessionCashCount;
 import com.digithink.zsretail.store.repository.PaymentChangeLogRepository;
 import com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository;
 import com.digithink.zsretail.store.repository.SessionCashCountRepository;
+import com.digithink.zsretail.store.support.InMemoryRfid;
 
 /**
  * 3.1.0: the store ticket X / Z (StoreReportService): the real SessionReportService (and CashierSessionService for an
@@ -168,6 +169,9 @@ class StoreReportServiceTest {
 		// step 6: no scanned ticket here (ScannedTicketsClosingTest adds up two sessions' blocks)
 		inject(sessionReports, "scannedTicketPaymentRepository", proxy(ScannedTicketPaymentRepository.class,
 				(m, a) -> "findByCashierSession".equals(m) ? new ArrayList<>() : UNHANDLED));
+		// 3.2.0, POS machines step 2: no POS machine for these sessions
+		inject(sessionReports, "sessionPosMachineService", new InMemoryRfid().sessionMachineService);
+		inject(sessionService, "sessionPosMachineService", new InMemoryRfid().sessionMachineService);
 
 		service = new StoreReportService();
 		inject(service, "cashierSessionRepository", sessionRepo);

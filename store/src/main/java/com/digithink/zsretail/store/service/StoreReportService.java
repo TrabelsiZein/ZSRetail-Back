@@ -104,7 +104,7 @@ public class StoreReportService {
 		dto.setStoreName(companyInformationService.get().getCompanyName());
 		for (SessionReportTicketDTO r : reports) {
 			dto.getSessions().add(new SessionRow(r.getSessionId(), r.getSessionNumber(), r.getCashierName(),
-					r.getOpenedAt(), r.getClosedAt(), r.getStatus()));
+					r.getOpenedAt(), r.getClosedAt(), r.getStatus(), r.getPosMachineName()));
 		}
 		dto.setSales(sales(reports, z));
 		dto.setReturns(returns(reports));

@@ -258,6 +258,30 @@ IF OBJECT_ID(N'pos_machine', N'U') IS NOT NULL
 	CREATE INDEX ix_pos_machine_reader ON pos_machine (reader_id);
 GO
 
+-- 14) POS machines step 2, a store only (it has quick_quantity and, after step 13, pos_machine): the POS machine a
+-- session was opened on, one row per session that has one (none for the sessions before 3.2.0, none for a PC not
+-- registered), the session's id as key; a store table, so cashier_session (core's, a head office has it too) is not
+-- changed. In Hibernate's form, the foreign keys named as in the entity (SessionPosMachine); the index serves "this
+-- machine's sessions" (the lists' filter, a machine's open session, the delete refused). On a store without it Hibernate
+-- creates it at the first start, without the index. No data changed.
+IF OBJECT_ID(N'quick_quantity', N'U') IS NOT NULL AND OBJECT_ID(N'pos_machine', N'U') IS NOT NULL
+	AND OBJECT_ID(N'cashier_session_pos_machine', N'U') IS NULL
+BEGIN
+	CREATE TABLE cashier_session_pos_machine (
+		cashier_session_id bigint NOT NULL,
+		pos_machine_id bigint NOT NULL,
+		CONSTRAINT PK_cashier_session_pos_machine PRIMARY KEY (cashier_session_id),
+		CONSTRAINT fk_cashier_session_pos_machine_session FOREIGN KEY (cashier_session_id) REFERENCES cashier_session (id),
+		CONSTRAINT fk_cashier_session_pos_machine_machine FOREIGN KEY (pos_machine_id) REFERENCES pos_machine (id)
+	);
+END
+GO
+IF OBJECT_ID(N'cashier_session_pos_machine', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_cashier_session_pos_machine_machine'
+		AND object_id = OBJECT_ID(N'cashier_session_pos_machine'))
+	CREATE INDEX ix_cashier_session_pos_machine_machine ON cashier_session_pos_machine (pos_machine_id);
+GO
+
 UPDATE APP_VERSION SET version = '3.2.0';
 
 -- The notes of 3.2.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

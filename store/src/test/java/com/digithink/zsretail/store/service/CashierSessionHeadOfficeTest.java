@@ -24,6 +24,7 @@ import com.digithink.zsretail.core.repository.CashierSessionRepository;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.core.support.TestModes;
+import com.digithink.zsretail.store.support.InMemoryRfid;
 
 /**
  * Head office plan, task 1.1: a head office opens no cashier session, through openSession or through a
@@ -74,6 +75,9 @@ class CashierSessionHeadOfficeTest {
 		inject(service, CashierSessionService.class, "cashierSessionRepository", repository);
 		inject(service, CashierSessionService.class, "applicationModeService", mode);
 		inject(service, _BaseService.class, "currentUserProvider", currentUser);
+		// 3.2.0, POS machines step 2: no machine registered (the PC of the request is not one)
+		inject(service, CashierSessionService.class, "sessionPosMachineService",
+				new InMemoryRfid().sessionMachineService);
 		return service;
 	}
 
@@ -92,7 +96,7 @@ class CashierSessionHeadOfficeTest {
 	void headOfficeRefusesOpenSession() throws Exception {
 		CashierSessionService service = headOffice();
 		IllegalStateException e = assertThrows(IllegalStateException.class,
-				() -> service.openSession(cashier(), 100.0));
+				() -> service.openSession(cashier(), 100.0, "192.168.1.20"));
 		assertEquals(CashierSessionService.HEAD_OFFICE_REFUSAL, e.getMessage());
 		assertTrue(repositoryCalls.isEmpty(), "repository calls: " + repositoryCalls);
 	}
@@ -129,7 +133,7 @@ class CashierSessionHeadOfficeTest {
 			CashierSessionService service = service(new MockEnvironment(), flags[0]);
 			UserAccount cashier = cashier();
 
-			CashierSession session = service.openSession(cashier, 100.0);
+			CashierSession session = service.openSession(cashier, 100.0, "192.168.1.20");
 
 			assertSame(cashier, session.getCashier());
 			assertEquals(Double.valueOf(100.0), session.getOpeningCash());
@@ -149,7 +153,7 @@ class CashierSessionHeadOfficeTest {
 						? Optional.of(new CashierSession())
 						: UNHANDLED));
 		IllegalStateException e = assertThrows(IllegalStateException.class,
-				() -> service.openSession(cashier(), 100.0));
+				() -> service.openSession(cashier(), 100.0, "192.168.1.20"));
 		assertEquals("Cashier already has an open session", e.getMessage());
 	}
 

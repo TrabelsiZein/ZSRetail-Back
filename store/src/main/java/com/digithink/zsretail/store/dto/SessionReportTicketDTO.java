@@ -27,6 +27,8 @@ public class SessionReportTicketDTO {
 	private String sessionNumber;
 	private SessionStatus status;
 	private String cashierName;
+	/** 3.2.0, POS machines step 2: the POS machine the session was opened on (its header); null without one. */
+	private String posMachineName;
 
 	@JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
 	private LocalDateTime openedAt;

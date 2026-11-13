@@ -58,6 +58,7 @@ import com.digithink.zsretail.store.dto.ProcessSaleRequestDTO;
 import com.digithink.zsretail.store.dto.SplitBillRequestDTO;
 import com.digithink.zsretail.store.model.PaymentChangeLog;
 import com.digithink.zsretail.store.repository.PaymentChangeLogRepository;
+import com.digithink.zsretail.store.posmachine.service.SessionPosMachineService;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -1545,19 +1546,20 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	}
 
 	/**
-	 * Get tickets history with filters
+	 * Get tickets history with filters. 3.2.0, POS machines step 2: posMachineIdStr, the tickets of the sessions opened
+	 * on that POS machine.
 	 */
 	public org.springframework.data.domain.Page<SalesHeader> getTicketsHistory(
 			String dateFromStr, String dateToStr, String statusStr,
 			String syncStatusStr, String paymentMethodIdStr, String searchStr,
 			String minPriceStr, String maxPriceStr, String familyIdStr, String subFamilyIdStr,
-			String cashierIdStr, String sessionNumberStr, int page, int size) {
+			String cashierIdStr, String sessionNumberStr, String posMachineIdStr, int page, int size) {
 		org.springframework.data.domain.PageRequest pageRequest = org.springframework.data.domain.PageRequest.of(
 				page, size, org.springframework.data.domain.Sort.by(
 						org.springframework.data.domain.Sort.Direction.DESC, "salesDate"));
 		return salesHeaderRepository.findAll(ticketsHistorySpec(dateFromStr, dateToStr, statusStr, syncStatusStr,
 				paymentMethodIdStr, searchStr, minPriceStr, maxPriceStr, familyIdStr, subFamilyIdStr, cashierIdStr,
-				sessionNumberStr), pageRequest);
+				sessionNumberStr).and(SessionPosMachineService.ofSessionOn(posMachineIdStr)), pageRequest);
 	}
 
 	/**
