@@ -147,6 +147,22 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   "deactivate it"). Every refusal of the POS machines page gains `code` and `params` (`PosMachineException`), which the
   front shows in the language of the screen; the English `error` stays. Tests: `CashierSessionPosMachineTest`,
   `PosMachineServiceTest.codes` / `.deleteWithSessions`, `PosMachineAPITest.deleteWithSessions`.
+- POS machines, step 2, part B (`docs/modules/pos-machines.md`, "The drawer belongs to"): one store choice,
+  `CASH_DRAWER_OWNER` (below). `CASHIER` (the default) refuses nothing, as before. `POS_MACHINE`, fixed rules: a session
+  opens only from a registered, active POS machine (409 `POS_MACHINE_NOT_REGISTERED` with the address the server sees,
+  `POS_MACHINE_INACTIVE`), one open session per machine (409 `POS_MACHINE_IN_USE` naming the cashier); selling, putting
+  on hold and returns only from the session's machine, its current address (409 `OTHER_POS_MACHINE` with the machine's
+  name), checked by one store `HandlerInterceptor`, `PosMachineSellingGuard`, on `/sales-header/**` and
+  `/return-header/**` before the controller: the sale and return code is not touched; every write endpoint of the two
+  controllers is classed restricted or not (`PosMachineSellingGuardTest` fails on one not classed); closing and verifying
+  are never restricted (`CashierSessionAPI`, outside the guard); the choice does not change while a session is open
+  (`CashDrawerSettingCheck`, 400 `CASH_DRAWER_OWNER_SESSIONS_OPEN`) and a machine with an open session is not deactivated
+  (400 `POS_MACHINE_OPEN_SESSION`). New `GET /cashier-session/current/pos-machine` (`TillPosMachine`: the drawer, the
+  address, the session's machine, blocked) for the till. Core: `PUT /general-setup/{id}` answers a refusal that carries a
+  code (`core.exception.CodedRefusal`) with `{error, code, params}`; other refusals unchanged. A reverse proxy is not
+  supported with `POS_MACHINE`. Tests: `PosMachineSellingGuardTest`, `CashDrawerSettingCheckTest`,
+  `GeneralSetupCodedRefusalTest`, `CashierSessionPosMachineTest` (rules 1, 2, the till's question),
+  `PosMachineServiceTest.deactivateWithOpenSession`.
 
 ### Fixes
 - Sessions list: "Diff." and "Diff. Resp" of a session with scanned tickets compared the declared face total with the
@@ -210,6 +226,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - General setup: `PAYMENT_METHOD_CLIENT_CHEQUE_TITLE_NUMBER_LENGTH`, `PAYMENT_METHOD_TICKET_RESTAURANT_TITLE_NUMBER_LENGTH`,
   `PAYMENT_METHOD_CHEQUE_CADEAU_TITLE_NUMBER_LENGTH`, `PAYMENT_METHOD_CLIENT_TRAITE_TITLE_NUMBER_LENGTH` removed (no
   longer created, deleted by the script and at startup).
+- General setup, a store only: `CASH_DRAWER_OWNER` (SELECT `CASHIER,POS_MACHINE`, `CASHIER`), created at start-up
+  (`ZZDataInitializer`, the store block); "Le tiroir-caisse appartient", POS machines step 2 B. Not changed while a
+  session is open.
 - Product version 3.2.0 (every pom; `app.version` follows it).
 
 ## 3.1.2 — in progress (branch `release/3.1.2`)

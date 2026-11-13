@@ -31,6 +31,7 @@ import com.digithink.zsretail.store.rfid.repository.RfidSaleTagRepository;
 import com.digithink.zsretail.store.rfid.repository.RfidTagRepository;
 import com.digithink.zsretail.store.posmachine.service.PosMachineService;
 import com.digithink.zsretail.store.posmachine.service.SessionPosMachineService;
+import com.digithink.zsretail.store.posmachine.service.CashDrawerSetting;
 import com.digithink.zsretail.store.posmachine.model.SessionPosMachine;
 import com.digithink.zsretail.store.posmachine.repository.SessionPosMachineRepository;
 import com.digithink.zsretail.store.rfid.service.RfidReaderService;
@@ -133,19 +134,56 @@ public final class InMemoryRfid {
 	/** A session of this cashier and status opened on this machine (null: none), recorded in memory. */
 	public com.digithink.zsretail.core.model.CashierSession session(long id, String cashier,
 			com.digithink.zsretail.core.model.enumeration.SessionStatus status, PosMachine machine) {
-		com.digithink.zsretail.core.model.CashierSession session = new com.digithink.zsretail.core.model.CashierSession();
-		session.setId(id);
-		session.setSessionNumber("SESSION" + id);
 		com.digithink.zsretail.core.model.UserAccount user = new com.digithink.zsretail.core.model.UserAccount();
 		user.setUsername(cashier);
 		user.setFullName(cashier);
-		session.setCashier(user);
+		return session(id, user, status, machine);
+	}
+
+	/** A session of this user and status opened on this machine (null: none), recorded in memory. */
+	public com.digithink.zsretail.core.model.CashierSession session(long id,
+			com.digithink.zsretail.core.model.UserAccount cashier,
+			com.digithink.zsretail.core.model.enumeration.SessionStatus status, PosMachine machine) {
+		com.digithink.zsretail.core.model.CashierSession session = new com.digithink.zsretail.core.model.CashierSession();
+		session.setId(id);
+		session.setSessionNumber("SESSION" + id);
+		session.setCashier(cashier);
 		session.setStatus(status);
+		cashierSessions.add(session);
 		if (machine != null) {
 			sessionMachineRepository.save(new SessionPosMachine(session, machine));
 		}
 		return session;
 	}
+
+	/** 3.2.0, POS machines step 2, part B: the sessions of the store (session(...)), the cashier read by username. */
+	public final List<com.digithink.zsretail.core.model.CashierSession> cashierSessions = new ArrayList<>();
+
+	public final com.digithink.zsretail.core.repository.CashierSessionRepository cashierSessionRepository = proxy(
+			com.digithink.zsretail.core.repository.CashierSessionRepository.class, (method, args) -> {
+				switch (method) {
+				case "findByCashierAndStatus": {
+					com.digithink.zsretail.core.model.UserAccount user = (com.digithink.zsretail.core.model.UserAccount) args[0];
+					return cashierSessions.stream().filter(s -> s.getCashier() != null && user != null
+							&& Objects.equals(s.getCashier().getUsername(), user.getUsername()) && s.getStatus() == args[1])
+							.findFirst();
+				}
+				case "countByStatus":
+					return cashierSessions.stream().filter(s -> s.getStatus() == args[0]).count();
+				default:
+					throw new UnsupportedOperationException(method);
+				}
+			});
+
+	/** 3.2.0, POS machines step 2, part B: who the drawer belongs to (CASHIER until a test sets it). */
+	public com.digithink.zsretail.store.posmachine.DrawerOwner drawerOwner = com.digithink.zsretail.store.posmachine.DrawerOwner.CASHIER;
+
+	public final CashDrawerSetting drawer = new CashDrawerSetting(null) {
+		@Override
+		public com.digithink.zsretail.store.posmachine.DrawerOwner owner() {
+			return drawerOwner;
+		}
+	};
 
 	public final RfidTagRepository tagRepository = proxy(RfidTagRepository.class, (method, args) -> {
 		switch (method) {
@@ -227,13 +265,13 @@ public final class InMemoryRfid {
 
 	public final RfidReaderService readerService = user(new RfidReaderService(readerRepository, machineRepository));
 	public final PosMachineService machineService = user(new PosMachineService(machineRepository,
-			sessionMachineRepository, java.util.Optional.of(readerRepository)));
+			sessionMachineRepository, java.util.Optional.of(readerRepository), drawer));
 	/** 3.2.0: the POS machines of a store without RFID (rfid.enabled=false: no RFID reader repository). */
 	public final PosMachineService machineServiceWithoutRfid = user(
-			new PosMachineService(machineRepository, sessionMachineRepository, java.util.Optional.empty()));
-	/** 3.2.0, POS machines step 2: the machine of each session. */
+			new PosMachineService(machineRepository, sessionMachineRepository, java.util.Optional.empty(), drawer));
+	/** 3.2.0, POS machines step 2: the machine of each session, and the drawer's rules. */
 	public final SessionPosMachineService sessionMachineService = new SessionPosMachineService(machineRepository,
-			sessionMachineRepository);
+			sessionMachineRepository, cashierSessionRepository, drawer);
 
 	/** A reader saved through the service: the given name, address and port, the defaults for the rest. */
 	public RfidReader reader(String name, String ipAddress, int port) {

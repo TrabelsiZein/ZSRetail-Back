@@ -10,13 +10,15 @@ it beyond RFID: ZEN.
 | Step | What | State |
 |---|---|---|
 | 1 | POS machines on every store (this page) | done |
-| 2 | A: the session keeps the POS machine it was opened on (its tickets and returns through it) | done |
+| 2 | A: the session keeps the POS machine it was opened on (its tickets and returns through it); B: one choice, "the drawer belongs to" the cashier or the POS machine | done |
 | 3 | Tickets X and Z per POS machine | to come |
-| 4 | Optional controls in General setup (which user on which machine, declared machines only, one open session per machine) | to come |
+| 4 | Optional controls in General setup (which user on which machine) | to come; "declared machines only" and "one open session per machine" came with step 2 B, as fixed rules of one choice |
 | 5 | Cash taken out of the drawer | to come |
 
 Step 1 changes no session, ticket, ticket X or Z, or POS screen: selling behaves as before. Step 2 part A records and
-shows the machine of each session and refuses nothing at the till.
+shows the machine of each session and refuses nothing at the till. Part B refuses only when a store chooses "the drawer
+belongs to the POS machine"; with the default (the cashier) nothing changes, and a store that registered no POS machine
+sees no difference at all.
 
 ## The session's POS machine (step 2, part A)
 
@@ -64,6 +66,73 @@ has no index on `sales_date` anyway, so the filter makes the query smaller, not 
 `_NOT_FOUND` (id), `_HAS_SESSIONS` (name). The front's API client translates a coded refusal before any screen reads it
 (`libs/server-messages.js`, registered in `libs/axios.js`): `data.error` becomes `serverErrors.<code>` with the values,
 in fr, en or ar; a code without a text keeps the English message (the logs keep it too).
+
+## The drawer belongs to (step 2, part B)
+
+One General setup choice of a store, tab "Caisse et clôture" (`CASH_DRAWER_OWNER`, `general-setup.md`): "Le
+tiroir-caisse appartient" **au caissier** (`CASHIER`, the default) or **au poste de caisse** (`POS_MACHINE`). No other
+switch: the rules of `POS_MACHINE` go together, none is configurable alone.
+
+**`CASHIER`**: exactly the behaviour of before. Nothing is refused; the session follows the cashier on any PC; the POS
+machine of the opening (part A) is information only. A store that registered no POS machine sees no difference.
+
+**`POS_MACHINE`**, the fixed rules:
+
+| Rule | Where | Refusal (code, values) |
+|---|---|---|
+| 1. A session opens only from a registered, **active** POS machine | `SessionPosMachineService.machineForOpening`, from `openSession` | 409 `POS_MACHINE_NOT_REGISTERED` (address: the one the server sees, to register or correct) or `POS_MACHINE_INACTIVE` (name, address) |
+| 2. One OPENED session per POS machine | same | 409 `POS_MACHINE_IN_USE` (name, cashier: whose session holds it) |
+| 3. Selling, putting on hold and returning only from the session's POS machine | `PosMachineSellingGuard` (below) | 409 `OTHER_POS_MACHINE` (name; also `posMachineName`) |
+| 4. Closing is never restricted: the cashier closes their own session from any PC, a responsible or an admin closes and verifies from any PC | `CashierSessionAPI` is outside the guard | — |
+| 5. The choice does not change while any session is open; a POS machine with an open session is not deactivated (nor deleted: it has sessions); its address can be corrected | `CashDrawerSettingCheck`; `PosMachineService.check` | 400 `CASH_DRAWER_OWNER_SESSIONS_OPEN` (count); 400 `POS_MACHINE_OPEN_SESSION` (name, cashier) |
+
+The opening checks the cashier's own open session first (as before: "Cashier already has an open session"), then rules 1
+and 2; a refusal opens nothing. The body of every refusal: `{error (English), reason (the code), code, params}`; the
+front shows `serverErrors.<code>` in the language of the screen.
+
+**Rule 3: one check in front of the selling endpoints, the sale code untouched.** `PosMachineSellingGuard`, a Spring MVC
+`HandlerInterceptor` of the store (registered by `PosMachineWebConfig` on `/sales-header/**` and `/return-header/**`; a
+head office never has it), runs after the JWT filter and before the controller. It refuses only when all hold: the
+method is one of `RESTRICTED`; the drawer belongs to the POS machine; the logged user has an OPENED session; that session
+has a POS machine; the request's address (normalised) is not that machine's **current** address (an address corrected on
+the POS machines page counts at once). Otherwise the request goes on as before (no user read, no session: the endpoint
+answers as it always did).
+
+| Endpoint (method) | Restricted? |
+|---|---|
+| `POST /sales-header/process-sale` (`processSale`), `/complete-pending/{id}`, `/split-and-pay/{id}` | yes: selling |
+| `POST /sales-header/save-pending`, `/update-pending/{id}`, `/cancel-pending/{id}`, `PATCH /{id}/table-number` (`transferTable`) | yes: a sale on hold (moving a held table ticket included) |
+| `POST /return-header/process-return` (`processReturn`) | yes: a return |
+| `POST /sales-header/{id}/change-payment-method`, `/{id}/prepare-invoice` | no: after the sale (admin) |
+| the generic `POST`, `PUT /{id}`, `DELETE /{id}` of both controllers (`_BaseController`) | no: not used by the till |
+| every read (`GET`), and all of `CashierSessionAPI` (open, close, verify...), RFID, badges | no |
+
+The endpoint guard: `PosMachineSellingGuardTest.everyEndpointClassed` reads every mapped method of `SalesHeaderAPI` and
+`ReturnHeaderAPI` but the reads; each must be in `RESTRICTED` or `NOT_RESTRICTED` (not both), and every name classed must
+be an endpoint, so a new endpoint is classed when it is written. The classes are by method name, not by path: a path
+changed keeps its class.
+
+**The till** (`GET /cashier-session/current/pos-machine`, `TillPosMachine`: `drawerOwner`, `address`, `posMachineName`
+of the open session, `blocked`): the POS screen, the payment screen and the return screen ask it when they open
+(`services/posMachines.js` `loadTillMachineRefusal`). Blocked: a red line at the top of the POS screen (an alert on the
+return screen, the reason under the pay button) says on which POS machine the session is; Paiement, Retours, "Retour aux
+tables" with a ticket in progress, the hold button, split-and-pay, the pay button (and its Enter key) and the return
+button are greyed. Closing the session stays available. The guard refuses anyway if the screen did not ask (an old
+screen, a refresh). The session opening page shows a refusal of rules 1 and 2 in a red alert above the form.
+
+**The admin selling through the POS button** (till mode) follows the same rules as any user: the guard and the opening
+look at the user's session and the request's address, never at the role.
+
+**Not supported with `POS_MACHINE`: a reverse proxy** in front of Tomcat. Every request would carry the proxy's address:
+all sessions would be on the proxy's machine (rule 1 needs it registered) and rule 3 would never refuse. The POS machines
+need the address Tomcat sees directly, fixed (a DHCP reservation); the POS is opened by the server's IPv4 address.
+
+**Sessions opened before this step** have no POS machine; rule 3 never refuses a session without one. Rule 5 makes sure
+none is open when a store chooses `POS_MACHINE`, so every session opened under the rules has its machine.
+
+**Known limits.** Two openings on the same machine at the same instant could both pass rule 2 (the check and the save
+are not one statement); one PC opens one session at a time, so it is not guarded further. `split-and-pay` puts the
+split sale in the session of the table ticket (as before); the till only shows a cashier the tables of their own session.
 
 ## The table and the rules
 
@@ -120,6 +189,7 @@ step 2 (above).
 | `POST /pos-machine` | 201 and the machine saved (address normalised); 400 |
 | `PUT /pos-machine/{id}` | 200 and the machine saved; 400; 404 |
 | `DELETE /pos-machine/{id}` | 204; 404 when none; 400 `POS_MACHINE_HAS_SESSIONS` (step 2) |
+| `PUT /pos-machine/{id}` with `active: false` | step 2 B, the drawer of the POS machine: 400 `POS_MACHINE_OPEN_SESSION` while it has an open session |
 | `GET /pos-machine/my-machine` | `MyPosMachine`: `address` (the request's, normalised), `posMachineId`, `posMachineName`, `posMachineActive` (null when no machine has that address) |
 
 Plus the generic reads of `_BaseController` (`/findByField`, `/{id}/exists`, `/count`). `GET /pos-machine/my-machine` is
@@ -166,3 +236,11 @@ Step 2, part A: `CashierSessionPosMachineTest` (opened from a registered machine
 inactive machine; the names of a page), `PosMachineServiceTest.codes` and `.deleteWithSessions`,
 `PosMachineAPITest.deleteWithSessions` (and the codes in the bodies); `CashierSessionHeadOfficeTest` opens with an
 address. `InMemoryRfid` holds the links in memory (`sessionMachines`, `session(...)`).
+
+Step 2, part B: `CashierSessionPosMachineTest` (the drawer of the cashier refuses nothing; rule 1 unregistered and
+inactive, rule 2 with the cashier named and free again once closed, the cashier's own session first, the till's
+question), `PosMachineSellingGuardTest` (the endpoint guard; the drawer of the cashier; the same machine; another machine:
+every restricted endpoint 409 with its body, the not restricted ones pass; the address corrected; a session without a
+machine, a user without a session, an admin; rule 4: closing and verifying outside the guard, its paths),
+`PosMachineServiceTest.deactivateWithOpenSession` (rule 5), `CashDrawerSettingCheckTest` (rule 5, the setting read),
+`GeneralSetupCodedRefusalTest` (core).

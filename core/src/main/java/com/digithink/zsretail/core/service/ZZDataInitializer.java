@@ -1172,6 +1172,10 @@ public class ZZDataInitializer {
 			ensureConfig("TILL_GRANT_MAX_MINUTES", "240",
 					"Minutes a badge scan's authorisation stays good at the till when no ticket used it (one action, once, while the cashier's session is open). Not a positive number: 240.",
 					false, ConfigType.NUMBER);
+			// 3.2.0, POS machines step 2: who the cash drawer belongs to (docs/modules/pos-machines.md); a store only
+			ensureConfigWithOptions(AppConfigAPI.CASH_DRAWER_OWNER, "CASHIER",
+					"Who the cash drawer belongs to. CASHIER: the session follows the cashier on any PC, nothing is refused (the POS machine of the opening is information). POS_MACHINE: a session opens only on a registered, active POS machine, one open session per POS machine, selling, putting on hold and returns only from the session's POS machine; closing from any PC. Not changed while a session is open.",
+					false, ConfigType.SELECT, "CASHIER,POS_MACHINE");
 		}
 
 		// Table management: the properties pos.table-management.* since 3.2.0 (AppConfigAPI), no General setup row (the

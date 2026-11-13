@@ -149,6 +149,44 @@ class PosMachineServiceTest {
 	}
 
 	@Test
+	@DisplayName("Part B, rule 5: the drawer of the POS machine, a machine with an open session is not deactivated (its"
+			+ " address can be corrected); once closed it is; the drawer of the cashier refuses nothing")
+	void deactivateWithOpenSession() throws Exception {
+		PosMachine caisse1 = rfid.machine("Caisse 1", "192.168.1.11", null);
+		com.digithink.zsretail.core.model.CashierSession open = rfid.session(5L, "Amira",
+				com.digithink.zsretail.core.model.enumeration.SessionStatus.OPENED, caisse1);
+		rfid.drawerOwner = com.digithink.zsretail.store.posmachine.DrawerOwner.POS_MACHINE;
+
+		PosMachine off = machine("Caisse 1", "192.168.1.11", null);
+		off.setId(caisse1.getId());
+		off.setActive(false);
+		PosMachineException e = assertThrows(PosMachineException.class, () -> rfid.machineService.save(off));
+		assertEquals("POS_MACHINE_OPEN_SESSION", e.getCode());
+		assertEquals("Amira", e.getParams().get("cashier"));
+		assertEquals("The POS machine 'Caisse 1' has an open session, of Amira: it cannot be deactivated before that"
+				+ " session is closed.", e.getMessage());
+		assertTrue(caisse1.getActive());
+
+		PosMachine moved = machine("Caisse 1", "192.168.1.21", null);
+		moved.setId(caisse1.getId());
+		assertEquals("192.168.1.21", rfid.machineService.save(moved).getIpAddress(), "the address corrected");
+
+		open.setStatus(com.digithink.zsretail.core.model.enumeration.SessionStatus.CLOSED);
+		PosMachine offAgain = machine("Caisse 1", "192.168.1.21", null);
+		offAgain.setId(caisse1.getId());
+		offAgain.setActive(false);
+		assertFalse(rfid.machineService.save(offAgain).getActive(), "no open session: deactivated");
+
+		PosMachine caisse2 = rfid.machine("Caisse 2", "192.168.1.12", null);
+		rfid.session(6L, "Sami", com.digithink.zsretail.core.model.enumeration.SessionStatus.OPENED, caisse2);
+		rfid.drawerOwner = com.digithink.zsretail.store.posmachine.DrawerOwner.CASHIER;
+		PosMachine off2 = machine("Caisse 2", "192.168.1.12", null);
+		off2.setId(caisse2.getId());
+		off2.setActive(false);
+		assertFalse(rfid.machineService.save(off2).getActive(), "the drawer of the cashier: deactivated");
+	}
+
+	@Test
 	@DisplayName("Without RFID: the same rules; a reader sent is ignored, a new machine has none, a machine saved again keeps"
 			+ " the one it has (a store that turned RFID off)")
 	void withoutRfid() throws Exception {

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
@@ -24,13 +25,17 @@ import com.digithink.zsretail.core.model.enumeration.SessionStatus;
 import com.digithink.zsretail.core.repository.CashierSessionRepository;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service._BaseService;
+import com.digithink.zsretail.store.posmachine.DrawerOwner;
+import com.digithink.zsretail.store.posmachine.DrawerRuleException;
+import com.digithink.zsretail.store.posmachine.dto.TillPosMachine;
 import com.digithink.zsretail.store.posmachine.model.PosMachine;
 import com.digithink.zsretail.store.support.InMemoryRfid;
 
 /**
  * 3.2.0, POS machines step 2, part A: a session keeps the POS machine registered at the address of its opening request
- * (CashierSessionService.openSession); none from a PC that is not registered. Plain JUnit, the machines and the links in
- * memory (InMemoryRfid), the sessions in a stub repository.
+ * (CashierSessionService.openSession); none from a PC that is not registered. Part B: the drawer of the cashier refuses
+ * nothing; the drawer of the POS machine opens only on a registered, active machine (rule 1), one open session per
+ * machine (rule 2). Plain JUnit, the machines and the links in memory (InMemoryRfid), the sessions in a stub repository.
  */
 class CashierSessionPosMachineTest {
 
@@ -130,6 +135,119 @@ class CashierSessionPosMachineTest {
 		caisse1.setActive(false);
 		CashierSession session = service().openSession(cashier("amira"), 100.0, "192.168.1.11");
 		assertSame(caisse1, rfid.sessionMachineService.machineOf(session.getId()).get());
+	}
+
+	// ─── Part B: who the drawer belongs to ───────────────────────────────────
+
+	@Test
+	@DisplayName("Drawer of the cashier (the default): nothing refused, from an unregistered PC, an inactive machine, two"
+			+ " sessions on one machine")
+	void cashierDrawerRefusesNothing() throws Exception {
+		rfid.drawerOwner = DrawerOwner.CASHIER;
+		PosMachine caisse1 = rfid.machine("Caisse 1", "192.168.1.11", null);
+		CashierSessionService service = service();
+		assertFalse(rfid.sessionMachineService.machineOf(
+				service.openSession(cashier("amira"), 100.0, "192.168.1.99").getId()).isPresent());
+		CashierSession first = service.openSession(cashier("sami"), 100.0, "192.168.1.11");
+		CashierSession second = service.openSession(cashier("nour"), 100.0, "192.168.1.11");
+		assertSame(caisse1, rfid.sessionMachineService.machineOf(first.getId()).get());
+		assertSame(caisse1, rfid.sessionMachineService.machineOf(second.getId()).get(), "two open sessions, one machine");
+		caisse1.setActive(false);
+		assertTrue(rfid.sessionMachineService.machineOf(
+				service.openSession(cashier("lina"), 100.0, "192.168.1.11").getId()).isPresent());
+	}
+
+	@Test
+	@DisplayName("Drawer of the POS machine, rule 1: opened from a registered, active machine only; the refusal says the"
+			+ " address the server sees")
+	void rule1RegisteredActiveMachine() throws Exception {
+		rfid.drawerOwner = DrawerOwner.POS_MACHINE;
+		PosMachine caisse1 = rfid.machine("Caisse 1", "192.168.1.11", null);
+		CashierSessionService service = service();
+
+		DrawerRuleException unregistered = assertThrows(DrawerRuleException.class,
+				() -> service.openSession(cashier("amira"), 100.0, "::ffff:192.168.1.99"));
+		assertEquals("POS_MACHINE_NOT_REGISTERED", unregistered.getCode());
+		assertEquals("192.168.1.99", unregistered.getParams().get("address"));
+		assertEquals("This PC (address 192.168.1.99) is not a registered POS machine: the drawer belongs to the POS"
+				+ " machine, so a session opens only on one. Ask an administrator to add this address on the POS machines"
+				+ " page.", unregistered.getMessage());
+		assertTrue(sessions.isEmpty(), "nothing opened");
+
+		caisse1.setActive(false);
+		DrawerRuleException inactive = assertThrows(DrawerRuleException.class,
+				() -> service.openSession(cashier("amira"), 100.0, "192.168.1.11"));
+		assertEquals("POS_MACHINE_INACTIVE", inactive.getCode());
+		assertEquals("Caisse 1", inactive.getParams().get("name"));
+		assertEquals("192.168.1.11", inactive.getParams().get("address"));
+		assertTrue(sessions.isEmpty());
+
+		caisse1.setActive(true);
+		CashierSession session = service.openSession(cashier("amira"), 100.0, "192.168.1.11");
+		assertSame(caisse1, rfid.sessionMachineService.machineOf(session.getId()).get());
+	}
+
+	@Test
+	@DisplayName("Drawer of the POS machine, rule 2: one open session per machine, the refusal names the cashier who holds"
+			+ " it; free again once that session is closed")
+	void rule2OneOpenSessionPerMachine() throws Exception {
+		rfid.drawerOwner = DrawerOwner.POS_MACHINE;
+		rfid.machine("Caisse 1", "192.168.1.11", null);
+		rfid.machine("Caisse 2", "192.168.1.12", null);
+		CashierSessionService service = service();
+		CashierSession amira = service.openSession(cashier("Amira Ben Salah"), 100.0, "192.168.1.11");
+
+		DrawerRuleException inUse = assertThrows(DrawerRuleException.class,
+				() -> service.openSession(cashier("sami"), 50.0, "192.168.1.11"));
+		assertEquals("POS_MACHINE_IN_USE", inUse.getCode());
+		assertEquals("Caisse 1", inUse.getParams().get("name"));
+		assertEquals("Amira Ben Salah", inUse.getParams().get("cashier"));
+		assertEquals("The POS machine 'Caisse 1' already has an open session, of Amira Ben Salah: it must be closed"
+				+ " first.", inUse.getMessage());
+		assertEquals(1, sessions.size(), "nothing opened");
+		assertEquals("{error=" + inUse.getMessage() + ", reason=POS_MACHINE_IN_USE, code=POS_MACHINE_IN_USE,"
+				+ " params={name=Caisse 1, cashier=Amira Ben Salah}}", inUse.body().toString(), "the 409 body");
+
+		assertTrue(rfid.sessionMachineService.machineOf(
+				service.openSession(cashier("sami"), 50.0, "192.168.1.12").getId()).isPresent(), "another machine");
+		amira.setStatus(SessionStatus.CLOSED);
+		assertTrue(rfid.sessionMachineService.machineOf(
+				service.openSession(cashier("nour"), 80.0, "192.168.1.11").getId()).isPresent(), "free again");
+	}
+
+	@Test
+	@DisplayName("Drawer of the POS machine: the cashier's own open session is still refused with today's message first")
+	void alreadyOpenFirst() throws Exception {
+		rfid.drawerOwner = DrawerOwner.POS_MACHINE;
+		rfid.machine("Caisse 1", "192.168.1.11", null);
+		CashierSessionService service = service();
+		UserAccount amira = cashier("amira");
+		service.openSession(amira, 100.0, "192.168.1.11");
+		IllegalStateException e = assertThrows(IllegalStateException.class,
+				() -> service.openSession(amira, 100.0, "192.168.1.99"));
+		assertEquals("Cashier already has an open session", e.getMessage());
+	}
+
+	@Test
+	@DisplayName("The till's question: the drawer, the address, the session's machine and whether this PC is refused")
+	void tillPosMachine() throws Exception {
+		PosMachine caisse1 = rfid.machine("Caisse 1", "192.168.1.11", null);
+		UserAccount amira = cashier("amira");
+		rfid.session(1L, amira, SessionStatus.OPENED, caisse1);
+		rfid.drawerOwner = DrawerOwner.CASHIER;
+		TillPosMachine cashierDrawer = rfid.sessionMachineService.tillPosMachine(amira, "192.168.1.12");
+		assertEquals("CASHIER", cashierDrawer.getDrawerOwner());
+		assertEquals("Caisse 1", cashierDrawer.getPosMachineName());
+		assertFalse(cashierDrawer.isBlocked());
+		rfid.drawerOwner = DrawerOwner.POS_MACHINE;
+		TillPosMachine other = rfid.sessionMachineService.tillPosMachine(amira, "192.168.1.12");
+		assertEquals("POS_MACHINE", other.getDrawerOwner());
+		assertEquals("192.168.1.12", other.getAddress());
+		assertTrue(other.isBlocked());
+		assertFalse(rfid.sessionMachineService.tillPosMachine(amira, "192.168.1.11").isBlocked());
+		TillPosMachine none = rfid.sessionMachineService.tillPosMachine(cashier("sami"), "192.168.1.12");
+		assertNull(none.getPosMachineName());
+		assertFalse(none.isBlocked());
 	}
 
 	@Test

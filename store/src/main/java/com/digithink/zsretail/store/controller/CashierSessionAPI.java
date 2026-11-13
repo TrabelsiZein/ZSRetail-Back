@@ -24,6 +24,8 @@ import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.utils.Quantities;
 import com.digithink.zsretail.store.exception.CashDiscrepancyException;
 import com.digithink.zsretail.store.exception.TillRightRequiredException;
+import com.digithink.zsretail.store.posmachine.DrawerRuleException;
+import com.digithink.zsretail.store.posmachine.service.SessionPosMachineService;
 import com.digithink.zsretail.store.service.CashierSessionService;
 import com.digithink.zsretail.store.service.SessionReportService;
 import com.digithink.zsretail.store.service.StoreReportService;
@@ -55,6 +57,10 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	/** 3.1.2, the Journal's gains: only where the store keeps its own stock. */
 	@Autowired
 	private ApplicationModeService applicationModeService;
+
+	/** 3.2.0, POS machines step 2, part B: the till's question about its POS machine. */
+	@Autowired
+	private SessionPosMachineService sessionPosMachineService;
 
 	/**
 	 * Get current user's open session
@@ -98,6 +104,22 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 		}
 	}
 
+	/**
+	 * 3.2.0, POS machines step 2, part B: what the till reads when its screens open (TillPosMachine): who the drawer
+	 * belongs to, the address seen, the POS machine of the current user's open session, and whether this PC is refused
+	 * selling, holding and returning for it (rule 3). Any logged user; refuses nothing itself.
+	 */
+	@GetMapping("/current/pos-machine")
+	public ResponseEntity<?> getCurrentPosMachine(HttpServletRequest http) {
+		try {
+			UserAccount currentUser = currentUserProvider.getCurrentUser();
+			return ResponseEntity.ok(sessionPosMachineService.tillPosMachine(currentUser, http.getRemoteAddr()));
+		} catch (Exception e) {
+			log.error("CashierSessionAPI::getCurrentPosMachine:error: " + e.getMessage(), e);
+			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
 	@GetMapping("/current/ticket-count")
 	public ResponseEntity<?> getCurrentTicketCount() {
 		try {
@@ -133,6 +155,10 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			// 3.2.0, POS machines step 2: the session keeps the POS machine of this PC (its address)
 			CashierSession session = service.openSession(currentUser, openingCash, http.getRemoteAddr());
 			return ResponseEntity.ok(session);
+		} catch (DrawerRuleException e) {
+			// 3.2.0, POS machines step 2, part B: the drawer of the POS machine, rules 1 and 2 (409, its code and values)
+			log.info("CashierSessionAPI::openSession refused: {}", e.getMessage());
+			return ResponseEntity.status(409).body(e.body());
 		} catch (IllegalStateException e) {
 			log.error("CashierSessionAPI::openSession:error: " + e.getMessage(), e);
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));

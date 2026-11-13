@@ -54,6 +54,13 @@ public class AppConfigAPI {
 	 */
 	public static final String CASHIER_CLOSING_TICKET = "CASHIER_CLOSING_TICKET";
 
+	/**
+	 * 3.2.0, POS machines step 2: a store setting, who the cash drawer belongs to: "CASHIER" (the default, also when the
+	 * row is absent: nothing refused) or "POS_MACHINE" (a session per registered POS machine, selling only from it).
+	 * Read and checked by the store (CashDrawerSetting, CashDrawerSettingCheck); docs/modules/pos-machines.md.
+	 */
+	public static final String CASH_DRAWER_OWNER = "CASH_DRAWER_OWNER";
+
 	/** CASHIER_CLOSING_TICKET read: "DECLARED" in any case, else "Z"; null on a head office (no till). */
 	String cashierClosingTicket() {
 		if (applicationModeService.isHeadOffice()) {

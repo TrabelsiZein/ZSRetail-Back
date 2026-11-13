@@ -17,7 +17,7 @@ Added two columns to `general_setup`:
 | BOOLEAN | `ENABLE_SIMPLE_RETURN`, `AUTO_ADD_CASH_PAYMENT_ON_PAYMENT_PAGE`, `ENABLE_CASH_DISCREPANCY_CHECK`, `ENABLE_TAX_STAMP`, `LOYALTY_ENABLED`, `ALLOW_NEGATIVE_STOCK`, `POS_SHOW_IMAGES`, `ALLOW_DECIMAL_QUANTITY` (2.2.1, stores only, see `decimal-quantities.md`), `POS_HIDE_EMPTY_FAMILIES`, `POS_HIDE_EMPTY_SUB_FAMILIES`, `POS_AMOUNTS_3_DECIMALS` (2.2.2, stores only, see below), `POS_CATALOGUE_VISIBLE` (3.1.1, stores only, see below) (`ALWAYS_SHOW_BADGE_SCAN_POPUP` retired at 3.1.0, step C: `badge-permissions.md`) |
 | NUMBER | `MAX_DAYS_FOR_RETURN`, `RETURN_VOUCHER_VALIDITY_DAYS`, `TAX_STAMP_VALUE_MILLIMES`, `TILL_GRANT_MAX_MINUTES` (3.1.0, step D, stores only, `badge-permissions.md`) |
 | DATETIME | All `ERP_SYNC_LAST_*` checkpoints (×9) (the two `FRANCHISE_LAST_*` rows of an older install stay, unused since step 9) |
-| SELECT | `ERP_SYNC_TRACKING_LEVEL` (options: `ERRORS_ONLY,ERRORS_AND_WARNINGS,ALL`), `CASHIER_CLOSING_TICKET` (3.1.0, stores only, options `Z,DECLARED`, see below) |
+| SELECT | `ERP_SYNC_TRACKING_LEVEL` (options: `ERRORS_ONLY,ERRORS_AND_WARNINGS,ALL`), `CASHIER_CLOSING_TICKET` (3.1.0, stores only, options `Z,DECLARED`, see below), `CASH_DRAWER_OWNER` (3.2.0, stores only, options `CASHIER,POS_MACHINE`, see below) |
 | STRING | Default — all other codes not listed above |
 
 ## POS screen: catalogue visible by default (3.1.1)
@@ -75,6 +75,21 @@ values as before). Sent by `GET /config` as `cashierClosingTicket` (`DECLARED` i
 is absent; null on a head office), read in the front through the getter `appConfig/closingPrintsTicketZ`; saving the
 setting refreshes `/config`, and a till reads it again at its next login. What the till prints with each value:
 `cash-sessions.md`, "The cashier's closing ticket". Test: `AppConfigAPITest#cashierClosingTicket`.
+
+## The cash drawer belongs to (3.2.0)
+
+A store setting (General Setup, tab "Caisse et clôture", SELECT, created at start-up on a store only, `CASHIER`; never on
+a head office): `CASH_DRAWER_OWNER` (`AppConfigAPI.CASH_DRAWER_OWNER`), label "Le tiroir-caisse appartient", options
+`CASHIER` "au caissier" and `POS_MACHINE` "au poste de caisse", a help text under it (`fields.cashDrawerOwnerHelp`).
+`CASHIER` (also no row, a blank or unknown value) is the behaviour of before: nothing refused. `POS_MACHINE` sets the
+fixed rules of `pos-machines.md`, "The drawer belongs to" (a session per registered, active POS machine, selling only
+from it). Read by the store at each use (`CashDrawerSetting`), not sent by `/config`. Its value is checked
+(`CashDrawerSettingCheck`, a `GeneralSetupValueCheck`): `CASHIER` or `POS_MACHINE`, and **not changed while any session
+is open** (either way; saving the value it has passes): 400 `{error, code: CASH_DRAWER_OWNER_SESSIONS_OPEN, params:
+{count}}`. Since 3.2.0 `PUT /general-setup/{id}` answers a refusal that carries a code (`core.exception.CodedRefusal`)
+with `{error, code, params}` (any other refusal keeps its plain message), and the page shows why each row was refused,
+in the language of the screen (before: only the codes of the rows). Tests: `CashDrawerSettingCheckTest`,
+`GeneralSetupCodedRefusalTest`.
 
 ## POS screens: amounts with 3 decimals (2.2.2)
 

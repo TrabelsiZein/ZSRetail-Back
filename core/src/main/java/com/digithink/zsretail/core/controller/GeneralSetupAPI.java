@@ -1,5 +1,8 @@
 package com.digithink.zsretail.core.controller;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.digithink.zsretail.core.exception.CodedRefusal;
 import com.digithink.zsretail.core.model.GeneralSetup;
 import com.digithink.zsretail.core.service.CustomerService;
 import com.digithink.zsretail.core.service.GeneralSetupService;
@@ -71,6 +75,16 @@ public class GeneralSetupAPI extends _BaseController<GeneralSetup, Long, General
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(createErrorResponse(e.getMessage()));
         } catch (IllegalStateException e) {
+            if (e instanceof CodedRefusal) {
+                // 3.2.0: a refusal with a code (e.g. the store's drawer choice): {error, code, params}, shown by the
+                // front in the language of the screen
+                CodedRefusal refusal = (CodedRefusal) e;
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("error", e.getMessage());
+                body.put("code", refusal.getCode());
+                body.put("params", refusal.getParams());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+            }
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {

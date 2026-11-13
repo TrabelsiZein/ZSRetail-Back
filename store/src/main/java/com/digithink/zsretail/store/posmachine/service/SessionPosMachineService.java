@@ -17,7 +17,13 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import com.digithink.zsretail.core.model.CashierSession;
+import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.model.enumeration.SessionStatus;
+import com.digithink.zsretail.core.repository.CashierSessionRepository;
+import com.digithink.zsretail.store.posmachine.DrawerOwner;
+import com.digithink.zsretail.store.posmachine.DrawerRuleException;
 import com.digithink.zsretail.store.posmachine.PosMachineException;
+import com.digithink.zsretail.store.posmachine.dto.TillPosMachine;
 import com.digithink.zsretail.store.posmachine.model.PosMachine;
 import com.digithink.zsretail.store.posmachine.model.SessionPosMachine;
 import com.digithink.zsretail.store.posmachine.repository.PosMachineRepository;
@@ -34,10 +40,21 @@ public class SessionPosMachineService {
 
 	private final PosMachineRepository machines;
 	private final SessionPosMachineRepository sessionMachines;
+	private final CashierSessionRepository sessions;
+	/** Part B: who the drawer belongs to (CASHIER: the rules below refuse nothing). */
+	private final CashDrawerSetting drawer;
 
-	public SessionPosMachineService(PosMachineRepository machines, SessionPosMachineRepository sessionMachines) {
+	public SessionPosMachineService(PosMachineRepository machines, SessionPosMachineRepository sessionMachines,
+			CashierSessionRepository sessions, CashDrawerSetting drawer) {
 		this.machines = machines;
 		this.sessionMachines = sessionMachines;
+		this.sessions = sessions;
+		this.drawer = drawer;
+	}
+
+	/** Who the drawer belongs to now (General setup CASH_DRAWER_OWNER). */
+	public DrawerOwner drawerOwner() {
+		return drawer.owner();
 	}
 
 	/**
@@ -49,9 +66,84 @@ public class SessionPosMachineService {
 		return address == null ? Optional.empty() : machines.findFirstByIpAddress(address);
 	}
 
-	/** The machine a session is opened on, from the opening request's address: the registered one, else none. */
+	/**
+	 * The machine a session is opened on, from the opening request's address: the registered one, else none. Part B,
+	 * when the drawer belongs to the POS machine: rule 1, only from a registered, active machine (the refusal says the
+	 * address the server sees, POS_MACHINE_NOT_REGISTERED or POS_MACHINE_INACTIVE); rule 2, one open session per machine
+	 * (POS_MACHINE_IN_USE names the cashier whose session holds it).
+	 */
 	public PosMachine machineForOpening(String remoteAddress) {
-		return machineAt(remoteAddress).orElse(null);
+		Optional<PosMachine> found = machineAt(remoteAddress);
+		if (!drawer.toPosMachine()) {
+			return found.orElse(null);
+		}
+		String address = addressOrNull(remoteAddress);
+		String shown = address != null ? address : (remoteAddress == null ? "" : remoteAddress.trim());
+		if (!found.isPresent()) {
+			throw new DrawerRuleException("POS_MACHINE_NOT_REGISTERED", "This PC (address " + shown + ") is not a"
+					+ " registered POS machine: the drawer belongs to the POS machine, so a session opens only on one."
+					+ " Ask an administrator to add this address on the POS machines page.", "address", shown);
+		}
+		PosMachine machine = found.get();
+		if (!Boolean.TRUE.equals(machine.getActive())) {
+			throw new DrawerRuleException("POS_MACHINE_INACTIVE", "The POS machine '" + machine.getName() + "' (address "
+					+ shown + ") is inactive: a session cannot be opened on it.", "name", machine.getName(), "address",
+					shown);
+		}
+		openSessionOn(machine.getId()).ifPresent(open -> {
+			String cashier = cashierName(open);
+			throw new DrawerRuleException("POS_MACHINE_IN_USE", "The POS machine '" + machine.getName() + "' already has"
+					+ " an open session, of " + cashier + ": it must be closed first.", "name", machine.getName(),
+					"cashier", cashier);
+		});
+		return machine;
+	}
+
+	/** The OPENED session on this machine, if any (rule 2; a machine with one is not deactivated, rule 5). */
+	public Optional<CashierSession> openSessionOn(Long posMachineId) {
+		return posMachineId == null ? Optional.empty()
+				: sessionMachines.findFirstByPosMachine_IdAndSession_Status(posMachineId, SessionStatus.OPENED)
+						.map(SessionPosMachine::getSession);
+	}
+
+	/**
+	 * Part B, rule 3: the machine of the user's open session when the drawer belongs to the POS machine and the request
+	 * comes from another address (its machine's current address: an address corrected on the POS machines page counts).
+	 * Empty, never refused: the drawer of the cashier, no open session, a session without a machine, the right address.
+	 */
+	public Optional<PosMachine> otherMachine(UserAccount user, String remoteAddress) {
+		if (user == null || !drawer.toPosMachine()) {
+			return Optional.empty();
+		}
+		Optional<PosMachine> machine = sessions.findByCashierAndStatus(user, SessionStatus.OPENED)
+				.flatMap(session -> machineOf(session.getId()));
+		if (!machine.isPresent()) {
+			return Optional.empty();
+		}
+		String address = addressOrNull(remoteAddress);
+		return address != null && address.equals(machine.get().getIpAddress()) ? Optional.empty() : machine;
+	}
+
+	/**
+	 * What the till asks when its screens open (GET /cashier-session/current/pos-machine): who the drawer belongs to, the
+	 * address seen, the machine of the user's open session (null without one) and whether this PC may sell for it.
+	 */
+	public TillPosMachine tillPosMachine(UserAccount user, String remoteAddress) {
+		String address = addressOrNull(remoteAddress);
+		Optional<CashierSession> open = user == null ? Optional.empty()
+				: sessions.findByCashierAndStatus(user, SessionStatus.OPENED);
+		String sessionMachine = open.map(CashierSession::getId).map(this::nameOf).orElse(null);
+		boolean blocked = otherMachine(user, remoteAddress).isPresent();
+		return new TillPosMachine(drawer.owner().name(), address, sessionMachine, blocked);
+	}
+
+	private static String cashierName(CashierSession session) {
+		UserAccount cashier = session.getCashier();
+		if (cashier == null) {
+			return "?";
+		}
+		String fullName = cashier.getFullName();
+		return fullName != null && !fullName.trim().isEmpty() ? fullName.trim() : cashier.getUsername();
 	}
 
 	/** Records the machine a session was opened on (nothing without a machine). */

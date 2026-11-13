@@ -363,6 +363,14 @@ tickets and returns get it through the session. The ticket X / Z of a session pr
 closing too); the sessions list, the session details, the sales history, the returns list and the Journal's day show it
 ("—" without one), on a store that has registered a POS machine.
 
+Part B, General setup "Le tiroir-caisse appartient" (`CASH_DRAWER_OWNER`): **au caissier** (the default) changes nothing.
+**Au poste de caisse**: a session opens only on a registered, active POS machine, one open session per machine, and
+selling, putting on hold and returns only from the session's machine (409 `OTHER_POS_MACHINE`, one check in front of the
+sales and returns endpoints: the sale, return and closing code is unchanged). **Closing is never restricted**: the
+cashier closes their own session from any PC (`POST /cashier-session/close`), a responsible or an admin closes
+(`/{id}/close`) and verifies (`/verify`) from any PC. The choice does not change while a session is open. Details and the
+endpoint table: `pos-machines.md`, "The drawer belongs to".
+
 ## Closed points
 
 - **The FREE_QUANTITY line stored an HT discount (fixed in 3.1.0).** For a "X bought, Y free" promotion the server adds

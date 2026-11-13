@@ -5,6 +5,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.digithink.zsretail.core.model.enumeration.SessionStatus;
 import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.store.posmachine.PosMachineException;
@@ -38,11 +39,15 @@ public class PosMachineService extends _BaseService<PosMachine, Long> {
 	/** Present only with rfid.enabled=true. */
 	private final Optional<RfidReaderRepository> readers;
 
+	/** Part B: who the drawer belongs to (rule 5: a machine with an open session is not deactivated). */
+	private final CashDrawerSetting drawer;
+
 	public PosMachineService(PosMachineRepository machines, SessionPosMachineRepository sessionMachines,
-			Optional<RfidReaderRepository> readers) {
+			Optional<RfidReaderRepository> readers, CashDrawerSetting drawer) {
 		this.machines = machines;
 		this.sessionMachines = sessionMachines;
 		this.readers = readers;
+		this.drawer = drawer;
 	}
 
 	@Override
@@ -115,6 +120,20 @@ public class PosMachineService extends _BaseService<PosMachine, Long> {
 		}
 		if (machine.getActive() == null) {
 			machine.setActive(true);
+		}
+		// Part B, rule 5: the drawer of the POS machine, a machine with an open session stays active (its address can be
+		// corrected); a delete is refused anyway (it has a session)
+		if (!machine.getActive() && machine.getId() != null && drawer.toPosMachine()) {
+			sessionMachines.findFirstByPosMachine_IdAndSession_Status(machine.getId(), SessionStatus.OPENED)
+					.ifPresent(open -> {
+						String cashier = open.getSession().getCashier() == null ? "?"
+								: (open.getSession().getCashier().getFullName() != null
+										? open.getSession().getCashier().getFullName()
+										: open.getSession().getCashier().getUsername());
+						throw new PosMachineException(Reason.INVALID, "POS_MACHINE_OPEN_SESSION", "The POS machine '"
+								+ machine.getName() + "' has an open session, of " + cashier + ": it cannot be deactivated"
+								+ " before that session is closed.", "name", machine.getName(), "cashier", cashier);
+					});
 		}
 	}
 
