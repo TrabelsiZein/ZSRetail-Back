@@ -54,6 +54,7 @@ import com.digithink.zsretail.store.dto.SessionReportTicketDTO.VatLine;
 import com.digithink.zsretail.store.dto.StoreReportTicketDTO;
 import com.digithink.zsretail.store.model.SessionCashCount;
 import com.digithink.zsretail.store.repository.PaymentChangeLogRepository;
+import com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository;
 import com.digithink.zsretail.store.repository.SessionCashCountRepository;
 
 /**
@@ -164,6 +165,9 @@ class StoreReportServiceTest {
 				(m, a) -> "countBySalesHeaderCashierSessionAndCreatedAtAfter".equals(m)
 						? (modifiedAfterClosing.contains(a[0]) ? 2L : 0L)
 						: UNHANDLED));
+		// step 6: no scanned ticket here (ScannedTicketsClosingTest adds up two sessions' blocks)
+		inject(sessionReports, "scannedTicketPaymentRepository", proxy(ScannedTicketPaymentRepository.class,
+				(m, a) -> "findByCashierSession".equals(m) ? new ArrayList<>() : UNHANDLED));
 
 		service = new StoreReportService();
 		inject(service, "cashierSessionRepository", sessionRepo);

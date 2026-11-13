@@ -49,6 +49,9 @@ public class SessionReportTicketDTO {
 	/** CONTRÔLE: per method, expected; on a ticket Z also the cashier's count and the difference. */
 	private List<ControlLine> control = new ArrayList<>();
 
+	/** Step 6: one block per scanned-tickets method with tickets in the session, in the till's order. */
+	private List<ScannedTickets> scannedTickets = new ArrayList<>();
+
 	/** The responsible's verification, only for a TERMINATED session. */
 	private Verification verification;
 
@@ -125,12 +128,54 @@ public class SessionReportTicketDTO {
 		private String code;
 		private String name;
 		private boolean cash;
-		/** Cash: opening cash + cash sales - change - cash refunds; other methods: their payments. */
+		/**
+		 * Cash: opening cash + cash sales - change - cash refunds; other methods: their payments; a scanned-tickets method
+		 * (step 6): the tickets' face total, what the cashier declares.
+		 */
 		private Double expected;
 		/** Null on a ticket X, or when nothing was declared for the method. */
 		private Double counted;
 		/** counted - expected; null when counted is null. */
 		private Double difference;
+		/** Step 6: a scanned-tickets method; the three counts below are its number of tickets (null elsewhere). */
+		private boolean scanned;
+		private Long expectedCount;
+		/** Null as counted. */
+		private Long countedCount;
+		/** countedCount - expectedCount; null when countedCount is null. */
+		private Long countDifference;
+
+		public ControlLine(String code, String name, boolean cash, Double expected, Double counted, Double difference) {
+			this(code, name, cash, expected, counted, difference, false, null, null, null);
+		}
+	}
+
+	/**
+	 * Step 6: a scanned-tickets method's tickets in the session (sales PENDING and CANCELLED left out): face total =
+	 * deduction + excess kept + net, the net being the payments' amount (the PAIEMENTS line of the method).
+	 */
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class ScannedTickets {
+		private String code;
+		private String name;
+		private long ticketsCount;
+		private Double faceTotal;
+		private Double deduction;
+		private Double excess;
+		private Double net;
+		private List<Issuer> issuers = new ArrayList<>();
+	}
+
+	/** Step 6: one issuer's tickets inside a method. */
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class Issuer {
+		private String issuerName;
+		private long ticketsCount;
+		private Double faceTotal;
 	}
 
 	@Data

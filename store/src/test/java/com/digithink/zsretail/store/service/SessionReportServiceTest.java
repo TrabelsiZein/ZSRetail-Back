@@ -47,6 +47,7 @@ import com.digithink.zsretail.store.dto.SessionReportTicketDTO.PaymentLine;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO.VatLine;
 import com.digithink.zsretail.store.model.SessionCashCount;
 import com.digithink.zsretail.store.repository.PaymentChangeLogRepository;
+import com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository;
 import com.digithink.zsretail.store.repository.SessionCashCountRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -141,6 +142,9 @@ class SessionReportServiceTest {
 				return user("resp1", "Karim Responsable");
 			}
 		});
+		// step 6: no scanned ticket in these sessions (ScannedTicketsClosingTest has them)
+		inject(service, "scannedTicketPaymentRepository", proxy(ScannedTicketPaymentRepository.class,
+				(m, a) -> "findByCashierSession".equals(m) ? new ArrayList<>() : UNHANDLED));
 	}
 
 	// ─── Fixtures ────────────────────────────────────────────────────

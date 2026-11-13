@@ -54,6 +54,16 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   changes only without type, payment or line; a method with lines is not deleted. A scanned-tickets method cannot pay
   yet (sale, split bill, payment change refused until step 5). New store: two inactive scanned-tickets methods (Ticket
   Restaurant, Chèque Cadeau) with the twelve common issuers, inactive; an existing database gets nothing.
+- Payment methods, step 6 (`docs/modules/cash-sessions.md`, "Scanned tickets"): a scanned-tickets method is declared at
+  closing as a number of tickets and a face total, in the existing count row (quantity = tickets, amount = line total
+  = face total; `CashierSessionService.countLineTotal`; no new column), at the cashier's closing and the responsible's
+  verification (`count` beside `amount`). Expected = the session's tickets (`ScannedTicketsSummary`,
+  `ScannedTicketPaymentRepository.findByCashierSession`). The session's details give the face total, the net and the
+  numbers of tickets; the tickets X / Z (session and store) check the method on its face total and number of tickets
+  (`ControlLine.scanned`, `expectedCount`, `countedCount`, `countDifference`) and add a block per method
+  (`scannedTickets`: tickets, face total, deduction, excess kept, net, per issuer); PAIEMENTS unchanged (the net). The
+  declared closing ticket gives the number of tickets (`PaymentMethodAmount.ticketsCount`). The cash check at closing
+  still compares the cash only. Tests: `ScannedTicketsClosingTest`.
 - Payment methods, step 5 (the till's scan card is the front's; `docs/backend.md`, "Payment methods 3.2.0, step 5"): a
   card on a terminal (Client TPE) asks its slip number, optional (the N° titre, `askTitleNumber`): the seed sets it on a
   new database, `PaymentMethodsUpgrade` (a tenth statement) and `db/3.2.0/update.sql` (step 9) on an existing one, only

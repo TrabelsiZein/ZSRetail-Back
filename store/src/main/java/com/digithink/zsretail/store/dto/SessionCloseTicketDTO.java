@@ -46,5 +46,11 @@ public class SessionCloseTicketDTO {
 	public static class PaymentMethodAmount {
 		private String paymentMethodName;
 		private Double amount;
+		/** Step 6: a scanned-tickets method: the number of tickets declared (the amount is their face total); else null. */
+		private Long ticketsCount;
+
+		public PaymentMethodAmount(String paymentMethodName, Double amount) {
+			this(paymentMethodName, amount, null);
+		}
 	}
 }

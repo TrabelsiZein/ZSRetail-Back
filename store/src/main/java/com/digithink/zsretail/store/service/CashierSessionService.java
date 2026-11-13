@@ -39,6 +39,7 @@ import com.digithink.zsretail.store.dto.SessionDashboardDTO;
 import com.digithink.zsretail.store.erp.repository.PaymentHeaderRepository;
 import com.digithink.zsretail.store.exception.CashDiscrepancyException;
 import com.digithink.zsretail.store.model.SessionCashCount;
+import com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository;
 import com.digithink.zsretail.store.repository.SessionCashCountRepository;
 
 import java.util.Arrays;
@@ -74,6 +75,9 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 
 	@Autowired
 	private SessionCashCountRepository sessionCashCountRepository;
+
+	@Autowired
+	private ScannedTicketPaymentRepository scannedTicketPaymentRepository;
 
 	@Autowired
 	private ReturnHeaderRepository returnHeaderRepository;
@@ -294,12 +298,23 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		session.setRealCash(realCash);
 		log.info("Real cash calculated: " + realCash + " for session: " + session.getSessionNumber());
 
+		// The methods of the count lines, read once (step 6: a scanned-tickets row's total is its face total)
+		Map<Long, PaymentMethod> lineMethods = new HashMap<>();
+		if (request.getCashCountLines() != null) {
+			for (CloseSessionRequestDTO.CashCountLineDTO line : request.getCashCountLines()) {
+				if (line.getPaymentMethodId() != null && !lineMethods.containsKey(line.getPaymentMethodId())) {
+					lineMethods.put(line.getPaymentMethodId(),
+							paymentMethodRepository.findById(line.getPaymentMethodId()).orElse(null));
+				}
+			}
+		}
+
 		// Calculate POS user closure cash from cash count lines if provided
 		Double calculatedPosUserCash = null;
 		if (request.getCashCountLines() != null && !request.getCashCountLines().isEmpty()) {
 			calculatedPosUserCash = request.getCashCountLines().stream()
-					.mapToDouble(line -> (line.getDenominationValue() != null ? line.getDenominationValue() : 0.0)
-							* (line.getQuantity() != null ? line.getQuantity() : 0))
+					.mapToDouble(line -> countLineTotal(line.getDenominationValue(), line.getQuantity(),
+							line.getPaymentMethodId() != null ? lineMethods.get(line.getPaymentMethodId()) : null))
 					.sum();
 		}
 
@@ -335,17 +350,15 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 				cashCount.setQuantity(lineDTO.getQuantity());
 				cashCount.setCounterType(CounterType.POS_USER);
 
-				// Calculate line total
-				Double lineTotal = (lineDTO.getDenominationValue() != null ? lineDTO.getDenominationValue() : 0.0)
-						* (lineDTO.getQuantity() != null ? lineDTO.getQuantity() : 0);
-				cashCount.setLineTotal(lineTotal);
-
 				// Set payment method if provided
-				if (lineDTO.getPaymentMethodId() != null) {
-					PaymentMethod paymentMethod = paymentMethodRepository.findById(lineDTO.getPaymentMethodId())
-							.orElse(null);
-					cashCount.setPaymentMethod(paymentMethod);
-				}
+				PaymentMethod paymentMethod = lineDTO.getPaymentMethodId() != null
+						? lineMethods.get(lineDTO.getPaymentMethodId())
+						: null;
+				cashCount.setPaymentMethod(paymentMethod);
+
+				// Calculate line total (step 6: a scanned-tickets row, its face total)
+				cashCount.setLineTotal(
+						countLineTotal(lineDTO.getDenominationValue(), lineDTO.getQuantity(), paymentMethod));
 
 				cashCount.setReferenceNumber(lineDTO.getReferenceNumber());
 				cashCount.setNotes(lineDTO.getNotes());
@@ -360,6 +373,18 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		}
 
 		return session;
+	}
+
+	/**
+	 * A count row's total: denomination x quantity. Step 6: a scanned-tickets method's row holds the face total the
+	 * cashier read on the tickets as its denomination and their number as its quantity, so its total is the face total.
+	 */
+	static double countLineTotal(Double denomination, Integer quantity, PaymentMethod method) {
+		double value = denomination != null ? denomination : 0.0;
+		if (ScannedTicketsSummary.isScanned(method)) {
+			return value;
+		}
+		return value * (quantity != null ? quantity : 0);
 	}
 
 	/**
@@ -494,6 +519,10 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 					log.info("[verifySession] non-cash code={}, paymentMethod found={}", code, found);
 				} else {
 					log.info("[verifySession] cash code={}, paymentMethod stays null", code);
+				}
+				// Step 6: a scanned-tickets method: the amount is the face total, "count" the number of tickets
+				if (ScannedTicketsSummary.isScanned(scc.getPaymentMethod())) {
+					scc.setQuantity(detail.get("count") instanceof Number ? ((Number) detail.get("count")).intValue() : 0);
 				}
 				SessionCashCount saved = sessionCashCountRepository.save(scc);
 				log.info("[verifySession] saved SCC id={}, counterType={}, lineTotal={}, paymentMethod={}",
@@ -847,6 +876,25 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 				respClosureByCode.merge(code, scc.getLineTotal() != null ? scc.getLineTotal() : 0.0, Double::sum);
 			}
 		}
+		// Step 6: a scanned-tickets method is checked on its papers: the system's number of tickets and face total, the
+		// numbers of tickets declared (the count rows' quantity)
+		Map<String, ScannedTicketsSummary.Method> scanned = ScannedTicketsSummary
+				.byMethodCode(scannedTicketPaymentRepository.findByCashierSession(session, excluded));
+		Set<String> scannedCodes = new HashSet<>(scanned.keySet());
+		Map<String, Long> posTicketsByCode = new HashMap<>();
+		Map<String, Long> respTicketsByCode = new HashMap<>();
+		for (SessionCashCount scc : cashCountLines) {
+			if (!ScannedTicketsSummary.isScanned(scc.getPaymentMethod())) {
+				continue;
+			}
+			String code = scc.getPaymentMethod().getCode();
+			scannedCodes.add(code);
+			codeToName.putIfAbsent(code, scc.getPaymentMethod().getName());
+			long tickets = scc.getQuantity() != null ? scc.getQuantity() : 0L;
+			(scc.getCounterType() == CounterType.POS_USER ? posTicketsByCode : respTicketsByCode).merge(code, tickets,
+					Long::sum);
+		}
+
 		// Expose whether per-method responsible data exists (false = only session-level
 		// total available)
 		boolean hasPerMethodRespClosure = !respClosureByCode.isEmpty();
@@ -869,8 +917,15 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			// sales)
 			// Other methods = raw sum of payment amounts
 			double sysAmount = isEspece ? (realCash != null ? realCash : 0.0) : codeToRawAmount.getOrDefault(code, 0.0);
+			// Step 6: a scanned-tickets method: the face total (what is declared), the net stays its payments
+			boolean isScanned = scannedCodes.contains(code);
+			if (isScanned) {
+				sysAmount = scanned.containsKey(code) ? scanned.get(code).getFace().doubleValue() : 0.0;
+				row.put("netAmount", codeToRawAmount.getOrDefault(code, 0.0));
+			}
 			row.put("systemAmount", sysAmount);
 			row.put("isEspece", isEspece);
+			row.put("scanned", isScanned);
 
 			Double posClosure = posClosureByCode.get(code);
 			row.put("posClosureAmount", posClosure);
@@ -879,6 +934,17 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			Double respClosure = respClosureByCode.get(code);
 			row.put("respClosureAmount", respClosure);
 			row.put("deltaResp", respClosure != null ? respClosure - sysAmount : null);
+
+			if (isScanned) {
+				long systemCount = scanned.containsKey(code) ? scanned.get(code).getCount() : 0L;
+				row.put("systemCount", systemCount);
+				Long posCount = posClosure != null ? posTicketsByCode.getOrDefault(code, 0L) : null;
+				row.put("posClosureCount", posCount);
+				row.put("deltaCountPOS", posCount != null ? posCount - systemCount : null);
+				Long respCount = respClosure != null ? respTicketsByCode.getOrDefault(code, 0L) : null;
+				row.put("respClosureCount", respCount);
+				row.put("deltaCountResp", respCount != null ? respCount - systemCount : null);
+			}
 
 			com.digithink.zsretail.store.erp.model.PaymentHeader matchedHeader = paymentHeaders.stream()
 					.filter(h -> code.equals(h.getPaymentClass())).findFirst().orElse(null);
@@ -950,6 +1016,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		// Group by payment method — null-payment lines (fond de caisse) count toward
 		// especeTotal (they are cash) but are not shown separately in the display list
 		Map<String, Double> methodToAmount = new HashMap<>();
+		Map<String, Long> methodToTickets = new HashMap<>();
 		double especeTotal = 0.0;
 		if (cashCountLines != null) {
 			for (SessionCashCount line : cashCountLines) {
@@ -962,6 +1029,11 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 						? line.getPaymentMethod().getName()
 						: "Cash";
 				methodToAmount.merge(name, amount, Double::sum);
+				// step 6: a scanned-tickets method: its number of tickets beside the face total
+				if (ScannedTicketsSummary.isScanned(line.getPaymentMethod())) {
+					methodToTickets.merge(name, line.getQuantity() != null ? line.getQuantity().longValue() : 0L,
+							Long::sum);
+				}
 				if (PaymentMethodType.CLIENT_ESPECES.equals(line.getPaymentMethod().getType())) {
 					especeTotal += amount;
 				}
@@ -972,7 +1044,8 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 
 		List<SessionCloseTicketDTO.PaymentMethodAmount> paymentMethodAmounts = methodToAmount.entrySet().stream()
 				.sorted(Comparator.comparing(Map.Entry::getKey))
-				.map(e -> new SessionCloseTicketDTO.PaymentMethodAmount(e.getKey(), e.getValue()))
+				.map(e -> new SessionCloseTicketDTO.PaymentMethodAmount(e.getKey(), e.getValue(),
+						methodToTickets.get(e.getKey())))
 				.collect(Collectors.toList());
 
 		String cashierName = session.getCashier() != null

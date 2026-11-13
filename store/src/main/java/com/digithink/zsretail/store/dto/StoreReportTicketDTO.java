@@ -10,6 +10,7 @@ import com.digithink.zsretail.store.dto.SessionReportTicketDTO.ControlLine;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO.PaymentLine;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO.Returns;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO.Sales;
+import com.digithink.zsretail.store.dto.SessionReportTicketDTO.ScannedTickets;
 import com.fasterxml.jackson.annotation.JsonFormat;
 
 import lombok.AllArgsConstructor;
@@ -52,6 +53,9 @@ public class StoreReportTicketDTO {
 	 * X and when a session declared nothing for the method; difference = counted - expected.
 	 */
 	private List<ControlLine> control = new ArrayList<>();
+
+	/** Step 6: the sessions' scanned-tickets blocks added up per method, the issuers merged by name. */
+	private List<ScannedTickets> scannedTickets = new ArrayList<>();
 
 	/**
 	 * Z only (null on a ticket X): how many of the sessions had a payment method changed after their closing (the

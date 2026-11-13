@@ -2,6 +2,7 @@
 
 **Status**: 3.1.0. Step A (backend, `478ed95`) and step B (the print code and the buttons of the two session pages,
 front `45cfd32`) done; step 2: the cashier's closing ticket is the ticket Z (setting `CASHIER_CLOSING_TICKET`).
+3.2.0, step 6: scanned-tickets methods at closing and on the tickets X / Z ("Scanned tickets" below).
 
 A cashier session (`CashierSession`) is `OPENED` by the cashier, `CLOSED` by the cashier with the count of the till
 (`SessionCashCount` rows `POS_USER`), then `TERMINATED` when a responsible verifies it (rows `RESPONSIBLE`,
@@ -262,6 +263,41 @@ compares it with the cash expected and the till only says there is a difference.
 returns in money shown at the till would let the cashier work the expected cash out; they stay on the session's tickets
 X / Z and the reports.
 
+## Scanned tickets (3.2.0, step 6)
+
+A scanned-tickets method (meal tickets, gift cheques, `PaymentMethod.behaviour` `SCANNED_TICKETS`) is declared and
+checked on its papers, never on its counted value: the **number of tickets** and their **face total** (what the cashier
+reads on them). Its payments stay the net (the parts applied), in PAIEMENTS, the sales and the ERP as before.
+
+- **Storage, no new column.** The closing row of such a method (`SessionCashCount`): `quantity` = the number of tickets,
+  `denominationValue` = `lineTotal` = the face total (`CashierSessionService.countLineTotal`: denomination x quantity for
+  every other row). The same at the responsible's verification: the form's line sends `count` beside `amount`
+  (`verifySession`). `posUserClosureCash` (and the verification total) add every row's total, so they hold the face
+  totals; the per-method comparisons use the face total as expected too, so a total compares like with like.
+- **Expected.** `ScannedTicketsSummary.byMethodCode` over the session's `ScannedTicketPayment` rows
+  (`ScannedTicketPaymentRepository.findByCashierSession`, sales `PENDING` and `CANCELLED` left out): per method the
+  number, the face total, the deduction (face - counted), the excess kept (counted - applied), the net (applied); per
+  issuer the number and the face total. face = deduction + excess + net.
+- **The till's closing window** (`ItemSelection.vue`): one row per active scanned-tickets method, two fields: the number
+  of tickets and the face total. Sent as one row (amount = face total, quantity = tickets). The cash check
+  (`ENABLE_CASH_DISCREPANCY_CHECK`) compares the cash only, as for every other method: a difference on tickets never
+  stops the closing; it shows on the session's pages and tickets. `CASHIER_CLOSING_TICKET`: `Z` prints the ticket Z
+  below; `DECLARED` prints the declared face total with "(n tickets)" (`SessionCloseTicketDTO.PaymentMethodAmount.ticketsCount`).
+- **The session's details** (`getSessionDetails`, history and verification pages): a scanned row has `scanned`,
+  `systemAmount` = the face total, `netAmount` = its payments, `systemCount`, `posClosureCount` / `respClosureCount`
+  (null when the amount was not declared), `deltaCountPOS` / `deltaCountResp`.
+- **Tickets X / Z** (session and store, the Journal's day page, the print): CONTRÔLE: the method's line is on the face
+  total (expected, counted, difference) with `scanned`, `expectedCount`, `countedCount`, `countDifference` (the second
+  line of the method on the print, "n ticket(s)"). A new block per method with tickets, `scannedTickets[]`: `ticketsCount`,
+  `faceTotal`, `deduction`, `excess`, `net`, `issuers[]` (`issuerName`, `ticketsCount`, `faceTotal`); printed after
+  PAIEMENTS. The store X / Z add the sessions' blocks per method, the issuers merged by name, and the counts of
+  CONTRÔLE (counted null when a session did not declare the method).
+- **Sessions closed before step 6**: the method has no row: counted and its number null ("—"), the expected shown.
+- **Not changed**: the head office copy of the count rows (`SalesCopyMapper`) carries quantity and line total as before,
+  but the head office has no scanned tickets to compare with: its session pages compare the face total declared with
+  the net payments (a difference of deduction + excess). The admin dashboard's older verification form sends a total
+  only.
+
 ## Closed points
 
 - **The FREE_QUANTITY line stored an HT discount (fixed in 3.1.0).** For a "X bought, Y free" promotion the server adds
@@ -289,6 +325,12 @@ voucher; the passenger customer gives null; a ticket parked before midnight on t
 refused; the Excel file. `StoreDaysServiceTest`: two days newest first with their counts and net; inProgress on today's row only, with any
 session open (one opened the day before too); a session closed the next day; an empty month; the Excel file. `FreeLineDiscountTest`: the free line's
 discount TTC.
+
+`ScannedTicketsClosingTest` (3.2.0, step 6): a session with three scanned tickets (two issuers, an excess kept, a
+cancelled sale's ticket left out): declared as expected, a wrong face total, a wrong number of tickets, a session closed
+before step 6 (not declared), a ticket X, the block (face = deduction + excess + net, PAIEMENTS the net), the
+responsible's verification per method, the closing (the row's total is the face total, the cash check ignores it), the
+session's details, the verification form's count, the declared closing ticket, the store Z adding two sessions up.
 
 `store/src/test/.../service/StoreReportServiceTest` (the real SessionReportService over several sessions in memory):
 Z sums two sessions closed the same day (sales, returns, net, payments, control, float); VAT lines of the same rate

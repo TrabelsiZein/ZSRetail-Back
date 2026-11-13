@@ -46,6 +46,7 @@ import com.digithink.zsretail.store.dto.SessionReportTicketDTO.VatLine;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO.Verification;
 import com.digithink.zsretail.store.model.SessionCashCount;
 import com.digithink.zsretail.store.repository.PaymentChangeLogRepository;
+import com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository;
 import com.digithink.zsretail.store.repository.SessionCashCountRepository;
 
 /**
@@ -99,6 +100,9 @@ public class SessionReportService {
 	private PaymentChangeLogRepository paymentChangeLogRepository;
 
 	@Autowired
+	private ScannedTicketPaymentRepository scannedTicketPaymentRepository;
+
+	@Autowired
 	private CurrentUserProvider currentUserProvider;
 
 	/** The ticket X or Z of a session; IllegalArgumentException when the session does not exist. */
@@ -145,8 +149,21 @@ public class SessionReportService {
 		}
 		expected.put(methods.cashKey(), expectedCash != null ? expectedCash : 0.0);
 
+		// Step 6: a scanned-tickets method is declared and checked on its papers: the number of tickets and their face
+		// total (the payments stay the net, PAIEMENTS); its block gives face = deduction + excess kept + net
+		Map<String, ScannedTicketsSummary.Method> scanned = ScannedTicketsSummary
+				.byMethodCode(scannedTicketPaymentRepository.findByCashierSession(session, EXCLUDED));
+		scanned.forEach((code, s) -> expected.put(methods.add(s.getMethod()), s.getFace().doubleValue()));
+		for (String key : methods.ordered(scanned.keySet())) {
+			dto.getScannedTickets().add(scannedBlock(scanned.get(key)));
+		}
+
 		Map<String, Double> posCounted = countsByMethod(counts, CounterType.POS_USER, methods);
 		Map<String, Double> respCounted = countsByMethod(counts, CounterType.RESPONSIBLE, methods);
+		Map<String, Long> posTickets = ticketsByMethod(counts, CounterType.POS_USER, methods);
+		Map<String, Long> respTickets = ticketsByMethod(counts, CounterType.RESPONSIBLE, methods);
+		Map<String, Long> expectedTickets = new HashMap<>();
+		scanned.forEach((code, s) -> expectedTickets.put(code, s.getCount()));
 		List<String> keys = methods.ordered(expected.keySet(), posCounted.keySet(), respCounted.keySet());
 
 		boolean declared = !posCounted.isEmpty();
@@ -162,11 +179,15 @@ public class SessionReportService {
 					counted = session.getPosUserClosureCash();
 				}
 			}
-			dto.getControl().add(controlLine(key, methods, expected.getOrDefault(key, 0.0), counted));
+			dto.getControl().add(withTickets(controlLine(key, methods, expected.getOrDefault(key, 0.0), counted),
+					methods, expectedTickets, counted != null ? posTickets : null));
 		}
 
 		if (session.getStatus() == SessionStatus.TERMINATED) {
-			dto.setVerification(verification(session, keys, methods, expected, respCounted));
+			Verification verification = verification(session, keys, methods, expected, respCounted);
+			verification.getLines().forEach(line -> withTickets(line, methods, expectedTickets,
+					line.getCounted() != null ? respTickets : null));
+			dto.setVerification(verification);
 		}
 
 		if (!open && session.getClosedAt() != null) {
@@ -369,6 +390,56 @@ public class SessionReportService {
 		return result;
 	}
 
+	/**
+	 * Step 6: the number of tickets declared per scanned-tickets method (the count row's quantity); only those methods.
+	 */
+	private static Map<String, Long> ticketsByMethod(List<SessionCashCount> counts, CounterType counter,
+			Methods methods) {
+		Map<String, Long> result = new HashMap<>();
+		for (SessionCashCount count : counts) {
+			if (count.getCounterType() == counter && ScannedTicketsSummary.isScanned(count.getPaymentMethod())) {
+				result.merge(methods.add(count.getPaymentMethod()),
+						count.getQuantity() != null ? count.getQuantity().longValue() : 0L, Long::sum);
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Step 6: a scanned-tickets method's line gets its numbers of tickets: expected (the session's), counted ({@code
+	 * declared} null: not declared, null) and their difference. Another method's line is left as it is.
+	 */
+	private static ControlLine withTickets(ControlLine line, Methods methods, Map<String, Long> expected,
+			Map<String, Long> declared) {
+		if (!methods.isScanned(line.getCode())) {
+			return line;
+		}
+		long expectedCount = expected.getOrDefault(line.getCode(), 0L);
+		line.setScanned(true);
+		line.setExpectedCount(expectedCount);
+		if (declared != null) {
+			long countedCount = declared.getOrDefault(line.getCode(), 0L);
+			line.setCountedCount(countedCount);
+			line.setCountDifference(countedCount - expectedCount);
+		}
+		return line;
+	}
+
+	/** Step 6: the block of a scanned-tickets method, amounts to the millime, the issuers in the order first met. */
+	static SessionReportTicketDTO.ScannedTickets scannedBlock(ScannedTicketsSummary.Method s) {
+		SessionReportTicketDTO.ScannedTickets block = new SessionReportTicketDTO.ScannedTickets();
+		block.setCode(s.getMethod().getCode());
+		block.setName(s.getMethod().getName());
+		block.setTicketsCount(s.getCount());
+		block.setFaceTotal(s.getFace().doubleValue());
+		block.setDeduction(s.getDeduction().doubleValue());
+		block.setExcess(s.getExcess().doubleValue());
+		block.setNet(s.getNet().doubleValue());
+		s.getIssuers().values().forEach(i -> block.getIssuers()
+				.add(new SessionReportTicketDTO.Issuer(i.getName(), i.getCount(), i.getFace().doubleValue())));
+		return block;
+	}
+
 	private static ControlLine controlLine(String key, Methods methods, double expected, Double counted) {
 		Double expectedRounded = millimes(expected);
 		Double countedRounded = counted != null ? millimes(counted) : null;
@@ -459,6 +530,11 @@ public class SessionReportService {
 
 		boolean isCash(String key) {
 			return cashKey.equals(key);
+		}
+
+		/** Step 6: a scanned-tickets method (declared as a number of tickets and a face total). */
+		boolean isScanned(String key) {
+			return ScannedTicketsSummary.isScanned(byKey.get(key));
 		}
 
 		String name(String key) {

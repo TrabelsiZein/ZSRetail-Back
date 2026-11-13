@@ -28,7 +28,9 @@ import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.CompanyInformationService;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO.ControlLine;
+import com.digithink.zsretail.store.dto.SessionReportTicketDTO.Issuer;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO.PaymentLine;
+import com.digithink.zsretail.store.dto.SessionReportTicketDTO.ScannedTickets;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO.VatLine;
 import com.digithink.zsretail.store.dto.StoreReportTicketDTO;
 import com.digithink.zsretail.store.dto.StoreReportTicketDTO.SessionRow;
@@ -112,6 +114,7 @@ public class StoreReportService {
 		Map<String, Integer> order = order();
 		dto.setPayments(payments(reports, order));
 		dto.setControl(control(reports, order, z));
+		dto.setScannedTickets(scannedTickets(reports, order));
 		if (z) {
 			dto.setModifiedAfterClosingCount(reports.stream().filter(SessionReportTicketDTO::isModifiedAfterClosing).count());
 		}
@@ -197,30 +200,93 @@ public class StoreReportService {
 		Map<String, ControlLine> byCode = new LinkedHashMap<>();
 		Map<String, BigDecimal> expected = new HashMap<>();
 		Map<String, BigDecimal> counted = new HashMap<>();
+		Map<String, Long> expectedTickets = new HashMap<>();
+		Map<String, Long> countedTickets = new HashMap<>();
 		Map<String, Boolean> undeclared = new HashMap<>();
 		for (SessionReportTicketDTO r : reports) {
 			boolean open = r.getStatus() == SessionStatus.OPENED;
 			for (ControlLine c : r.getControl()) {
-				byCode.computeIfAbsent(c.getCode(), k -> new ControlLine(c.getCode(), c.getName(), c.isCash(), null,
-						null, null));
+				ControlLine line = byCode.computeIfAbsent(c.getCode(), k -> new ControlLine(c.getCode(), c.getName(),
+						c.isCash(), null, null, null));
 				expected.merge(c.getCode(), bd(c.getExpected()), BigDecimal::add);
+				// step 6: a scanned-tickets method also adds up its numbers of tickets (expected, and declared as counted)
+				if (c.isScanned()) {
+					line.setScanned(true);
+					expectedTickets.merge(c.getCode(), c.getExpectedCount() != null ? c.getExpectedCount() : 0L, Long::sum);
+				}
 				if (open || c.getCounted() == null) {
 					undeclared.put(c.getCode(), true);
 				} else {
 					counted.merge(c.getCode(), bd(c.getCounted()), BigDecimal::add);
+					if (c.isScanned()) {
+						countedTickets.merge(c.getCode(), c.getCountedCount() != null ? c.getCountedCount() : 0L, Long::sum);
+					}
 				}
 			}
 		}
 		byCode.forEach((code, line) -> {
 			BigDecimal exp = expected.get(code);
 			line.setExpected(exp.doubleValue());
+			if (line.isScanned()) {
+				line.setExpectedCount(expectedTickets.getOrDefault(code, 0L));
+			}
 			if (z && !undeclared.containsKey(code)) {
 				BigDecimal cnt = counted.getOrDefault(code, BigDecimal.ZERO.setScale(3));
 				line.setCounted(cnt.doubleValue());
 				line.setDifference(cnt.subtract(exp).doubleValue());
+				if (line.isScanned()) {
+					long tickets = countedTickets.getOrDefault(code, 0L);
+					line.setCountedCount(tickets);
+					line.setCountDifference(tickets - line.getExpectedCount());
+				}
 			}
 		});
 		return sorted(byCode, order, ControlLine::isCash);
+	}
+
+	/**
+	 * Step 6: the scanned-tickets blocks of the sessions added up per method (counts and amounts), the issuers merged by
+	 * name in the order first met; the methods in the till's order.
+	 */
+	private static List<ScannedTickets> scannedTickets(List<SessionReportTicketDTO> reports,
+			Map<String, Integer> order) {
+		Map<String, ScannedTickets> byCode = new LinkedHashMap<>();
+		Map<String, BigDecimal[]> amounts = new HashMap<>();
+		Map<String, Map<String, Issuer>> issuers = new HashMap<>();
+		Map<String, Map<String, BigDecimal>> issuerFaces = new HashMap<>();
+		for (SessionReportTicketDTO r : reports) {
+			for (ScannedTickets s : r.getScannedTickets()) {
+				ScannedTickets block = byCode.computeIfAbsent(s.getCode(),
+						k -> new ScannedTickets(s.getCode(), s.getName(), 0, null, null, null, null, new ArrayList<>()));
+				block.setTicketsCount(block.getTicketsCount() + s.getTicketsCount());
+				BigDecimal[] sums = amounts.computeIfAbsent(s.getCode(), k -> new BigDecimal[] {
+						BigDecimal.ZERO.setScale(3), BigDecimal.ZERO.setScale(3), BigDecimal.ZERO.setScale(3),
+						BigDecimal.ZERO.setScale(3) });
+				sums[0] = sums[0].add(bd(s.getFaceTotal()));
+				sums[1] = sums[1].add(bd(s.getDeduction()));
+				sums[2] = sums[2].add(bd(s.getExcess()));
+				sums[3] = sums[3].add(bd(s.getNet()));
+				for (Issuer i : s.getIssuers()) {
+					Issuer issuer = issuers.computeIfAbsent(s.getCode(), k -> new LinkedHashMap<>())
+							.computeIfAbsent(i.getIssuerName(), k -> new Issuer(k, 0, null));
+					issuer.setTicketsCount(issuer.getTicketsCount() + i.getTicketsCount());
+					issuerFaces.computeIfAbsent(s.getCode(), k -> new HashMap<>()).merge(i.getIssuerName(),
+							bd(i.getFaceTotal()), BigDecimal::add);
+				}
+			}
+		}
+		byCode.forEach((code, block) -> {
+			BigDecimal[] sums = amounts.get(code);
+			block.setFaceTotal(sums[0].doubleValue());
+			block.setDeduction(sums[1].doubleValue());
+			block.setExcess(sums[2].doubleValue());
+			block.setNet(sums[3].doubleValue());
+			issuers.getOrDefault(code, new LinkedHashMap<>()).forEach((name, issuer) -> {
+				issuer.setFaceTotal(issuerFaces.get(code).get(name).doubleValue());
+				block.getIssuers().add(issuer);
+			});
+		});
+		return sorted(byCode, order, s -> false);
 	}
 
 	// ─── Helpers ─────────────────────────────────────────────────────
