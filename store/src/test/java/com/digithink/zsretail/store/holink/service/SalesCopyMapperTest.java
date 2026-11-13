@@ -21,6 +21,7 @@ import com.digithink.zsretail.core.link.dto.PaymentCopyDTO;
 import com.digithink.zsretail.core.link.dto.ReturnCopyDTO;
 import com.digithink.zsretail.core.link.dto.SessionCopyDTO;
 import com.digithink.zsretail.core.link.dto.SessionCountCopyDTO;
+import com.digithink.zsretail.core.link.dto.SessionScannedCopyDTO;
 import com.digithink.zsretail.core.link.dto.TicketCopyDTO;
 import com.digithink.zsretail.core.link.dto.TicketLineCopyDTO;
 import com.digithink.zsretail.core.model.CashierSession;
@@ -37,10 +38,13 @@ import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.SalesLine;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model.enumeration.CounterType;
+import com.digithink.zsretail.core.model.enumeration.PaymentMethodBehaviour;
 import com.digithink.zsretail.core.model.enumeration.ReturnType;
 import com.digithink.zsretail.core.model.enumeration.SessionStatus;
 import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
+import com.digithink.zsretail.store.model.ScannedTicketPayment;
 import com.digithink.zsretail.store.model.SessionCashCount;
+import com.digithink.zsretail.store.service.ScannedTicketsSummary;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -460,6 +464,64 @@ class SalesCopyMapperTest {
 		assertEquals("CLOSED", closedCopy.getStatus());
 		assertNull(closedCopy.getVerifiedByLogin());
 		assertTrue(closedCopy.getCounts().isEmpty());
+		assertTrue(closedCopy.getScannedTickets().isEmpty(), "sent empty: no scanned-tickets method in the session");
+	}
+
+	@Test
+	@DisplayName("3.2.0: per scanned-tickets method, the expected tickets, face and net; a method declared without ticket: zeros")
+	void sessionScannedTickets() throws Exception {
+		PaymentMethod meal = method(IDS[5], "TR", "Ticket Restaurant");
+		meal.setBehaviour(PaymentMethodBehaviour.SCANNED_TICKETS);
+		PaymentMethod gift = method(IDS[7], "CC", "Chèque cadeau");
+		gift.setBehaviour(PaymentMethodBehaviour.SCANNED_TICKETS);
+		List<ScannedTicketPayment> tickets = Arrays.asList(scannedTicket(meal, "10.000", "9.000", "9.000"),
+				scannedTicket(meal, "5.000", "4.500", "4.000"));
+		SessionCashCount mealCount = new SessionCashCount();
+		mealCount.setId(IDS[3]);
+		mealCount.setCounterType(CounterType.POS_USER);
+		mealCount.setPaymentMethod(meal);
+		mealCount.setQuantity(2);
+		mealCount.setLineTotal(15.0);
+		SessionCashCount giftCount = new SessionCashCount();
+		giftCount.setId(IDS[4]);
+		giftCount.setCounterType(CounterType.POS_USER);
+		giftCount.setPaymentMethod(gift);
+		giftCount.setQuantity(1);
+		giftCount.setLineTotal(20.0);
+
+		SessionCopyDTO copy = SalesCopyMapper.session(session(IDS[0], "SES-2026-0115"),
+				Arrays.asList(mealCount, giftCount), ScannedTicketsSummary.byMethodCode(tickets));
+
+		assertEquals(2, copy.getScannedTickets().size());
+		SessionScannedCopyDTO mealEntry = copy.getScannedTickets().get(0);
+		assertEquals("TR", mealEntry.getPaymentMethodCode());
+		assertEquals(2, mealEntry.getTicketCount());
+		assertEquals(15.0, mealEntry.getFaceTotal(), 0.0);
+		assertEquals(13.0, mealEntry.getNetTotal(), 0.0, "the parts applied: 9.000 + 4.000");
+		SessionScannedCopyDTO giftEntry = copy.getScannedTickets().get(1);
+		assertEquals("CC", giftEntry.getPaymentMethodCode());
+		assertEquals(0, giftEntry.getTicketCount());
+		assertEquals(0.0, giftEntry.getFaceTotal(), 0.0);
+		assertEquals(0.0, giftEntry.getNetTotal(), 0.0);
+		assertNoDatabaseId(copy, mapper);
+
+		// An older store sends no field: read as null (unknown), not as an empty list (none)
+		String old = mapper.writeValueAsString(copy).replaceAll(",\"scannedTickets\":\\[[^\\]]*\\]", "");
+		assertFalse(old.contains("scannedTickets"), old);
+		assertNull(mapper.readValue(old, SessionCopyDTO.class).getScannedTickets());
+	}
+
+	private static ScannedTicketPayment scannedTicket(PaymentMethod method, String face, String counted, String applied) {
+		Payment payment = new Payment();
+		payment.setPaymentMethod(method);
+		ScannedTicketPayment ticket = new ScannedTicketPayment();
+		ticket.setPayment(payment);
+		ticket.setIssuerName("Edenred");
+		ticket.setFaceValue(new BigDecimal(face));
+		ticket.setCountedValue(new BigDecimal(counted));
+		ticket.setAppliedAmount(new BigDecimal(applied));
+		ticket.setExcessAmount(new BigDecimal(counted).subtract(new BigDecimal(applied)));
+		return ticket;
 	}
 
 	// --- JSON ---

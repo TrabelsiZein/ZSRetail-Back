@@ -20,6 +20,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   Restaurant and Chèque Cadeau (3.1.2 reads it by type); 3.1.2 recreates the four settings at 7, so a cheque or traite
   length other than 7 is 7 for 3.1.2. Started again, 3.2.0 puts back what it needs (the constraint dropped again, the
   settings deleted); a method without a length then takes the 7 of the recreated setting (a length set is kept).
+- Head office and stores: a session copy from a store before 3.2.0 (or sent before this version) holds no scanned-tickets
+  values; when it declared a scanned-tickets method, the head office shows "—" for its differences. No session is sent
+  again for them: the store sends a session again only when it changes (a CLOSED session verified after the upgrade
+  arrives with them). No production session has scanned tickets before 3.2.0.
 - Table management: a customer that had `TABLE_MANAGEMENT_ENABLED` true in General setup adds
   `pos.table-management.enabled=true` and its `pos.table-management.table-count` to its installation file (the script
   prints a warning for such a database; none of the current customers, pos_franchise_customer had false / 10).
@@ -99,12 +103,31 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   voucher). A refusal carries its details (the ticket overlapped). `GET /payment-method/{id}/behaviour-locked`;
   `ticket-counts` gives total and active. Tests: `SessionExportNavSimulationTest` (NAV sync simulated: an added method
   sent and not sent, a class refused then retried, cheque and voucher, payment changes), `DynamicsNavPaymentLineTest`.
+- Head office sessions, scanned tickets: the session copy gains one optional field, `scannedTickets`
+  (`SessionScannedCopyDTO`: per scanned-tickets method of the session, `paymentMethodCode`, `ticketCount`,
+  `faceTotal`, `netTotal`, the values of the store's session details; a method declared at the closing without a
+  ticket: zeros). The head office stores them (`HoSessionScanned`, table `ho_session_scanned`, replaced with the
+  session) and applies the store's rule: its sessions list adds face - net to the system side, its details check a
+  scanned-tickets row face against face and tickets against tickets (the net beside). A copy without the field (a store
+  before 3.2.0, or a session sent before) that declared a scanned-tickets method shows "—" (no difference) in the list
+  and the details, never a figure. Tests: `SalesCopyMapperTest.sessionScannedTickets`, `ConsolidatedSalesServiceTest`
+  (`scannedTicketsChecked`, `scannedTicketsDeclaredNoDifference`).
+- Sessions dashboard removed (`SessionDashboard.vue`, in no menu; `/admin/sessions` and `/responsible/sessions` open the
+  Sessions page): `GET /cashier-session/dashboard` and `CashierSessionService.getSessionDashboard` removed (it read
+  every session of the store, several queries each). The permissions `read:admin-sessions`, `read:responsible-sessions`
+  and `write:responsible-sessions` stay (roles, seed and role page unchanged); they open nothing now.
 
 ### Fixes
-- Sessions list (and the admin dashboard's cards): "Diff." and "Diff. Resp" of a session with scanned tickets compared the
-  declared face total with the net sales (a right count showed deduction + excess, e.g. +3.80): the system side now adds
-  the tickets' face - net (`CashierSessionService.scannedFaceGap`), as the details do. The head office's sessions list
-  still shows the gap (its copies hold no scanned ticket). Test: `ScannedTicketsClosingTest`.
+- Sessions list: "Diff." and "Diff. Resp" of a session with scanned tickets compared the declared face total with the
+  net sales (a right count showed deduction + excess, e.g. +3.80): the system side now adds the tickets' face - net
+  (`CashierSessionService.scannedFaceGap`), as the details do. Test: `ScannedTicketsClosingTest`. The head office: see
+  Enhancements, "Head office sessions, scanned tickets".
+- Sale note "Payment via N method(s)": the till no longer saves it (an English text on every sale, 0 methods counted for
+  scanned tickets). Older sales keep it in the database; the sale details (store, head office, the invoice's ticket
+  window) and the Excel "Notes" column show it empty (front `sale-note.js`). No person types a sale's note (the till's
+  automatic texts only; the server's "Split from ..." is kept). A parked sale paid without a note no longer keeps its
+  automatic "Pending sale - customer will return" (`SalesHeaderService.completePendingSale`; the till's "Payment via"
+  covered it before). Test: `SaleDecimalQuantityTest.parkedTicketNote`.
 - Languages: the product has French, English and Arabic only; German and Portuguese removed in 3.2.0 (front files; the
   back end had none). Docs updated.
 - A ticket paid only with a method not sent to the ERP (a cheque with `ERP_SKIP_CHEQUE_PAYMENTS`, step 3b a method switched
@@ -132,7 +155,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   (`live_barcode IS NOT NULL`, also created at each start); the race of two tills proved on a scratch database (the second
   insert waits for the first, then fails on the index). Step 10: the two table management settings deleted
   (`TABLE_MANAGEMENT_ENABLED`, `TABLE_MANAGEMENT_TABLE_COUNT`, store and head office; a PRINT when it was on), also at
-  each start (`PaymentMethodsUpgrade.TABLE_MANAGEMENT_SETTINGS`).
+  each start (`PaymentMethodsUpgrade.TABLE_MANAGEMENT_SETTINGS`). Step 11, a head office (it has `ho_session`): the
+  table `ho_session_scanned` (in Hibernate's form, its foreign key `fk_ho_session_scanned_session` as in the entity);
+  Hibernate creates it too at the first start.
 
 ### Config
 - Table management leaves General setup (`docs/modules/table-management.md`): the properties

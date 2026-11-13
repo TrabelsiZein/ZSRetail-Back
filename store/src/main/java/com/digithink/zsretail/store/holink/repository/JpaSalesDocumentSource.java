@@ -2,6 +2,7 @@ package com.digithink.zsretail.store.holink.repository;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Repository;
 
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
 import com.digithink.zsretail.core.repository.CashierSessionRepository;
 import com.digithink.zsretail.core.repository.PaymentRepository;
 import com.digithink.zsretail.core.repository.ReturnHeaderRepository;
@@ -23,7 +25,9 @@ import com.digithink.zsretail.store.holink.dto.SalesDocumentRef;
 import com.digithink.zsretail.store.holink.enumeration.SalesCopyType;
 import com.digithink.zsretail.store.holink.service.SalesCopyMapper;
 import com.digithink.zsretail.store.holink.service.SalesDocumentSource;
+import com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository;
 import com.digithink.zsretail.store.repository.SessionCashCountRepository;
+import com.digithink.zsretail.store.service.ScannedTicketsSummary;
 
 /**
  * The store's documents read for the sales copies (tasks 2.1, 2.4): SalesHeader, ReturnHeader, CashierSession and
@@ -55,10 +59,12 @@ public class JpaSalesDocumentSource implements SalesDocumentSource {
 	private final ReturnLineRepository returnLines;
 	private final CashierSessionRepository sessions;
 	private final SessionCashCountRepository cashCounts;
+	private final ScannedTicketPaymentRepository scannedTickets;
 
 	public JpaSalesDocumentSource(SalesHeaderRepository salesHeaders, SalesLineRepository salesLines,
 			PaymentRepository payments, ReturnHeaderRepository returnHeaders, ReturnLineRepository returnLines,
-			CashierSessionRepository sessions, SessionCashCountRepository cashCounts) {
+			CashierSessionRepository sessions, SessionCashCountRepository cashCounts,
+			ScannedTicketPaymentRepository scannedTickets) {
 		this.salesHeaders = salesHeaders;
 		this.salesLines = salesLines;
 		this.payments = payments;
@@ -66,6 +72,7 @@ public class JpaSalesDocumentSource implements SalesDocumentSource {
 		this.returnLines = returnLines;
 		this.sessions = sessions;
 		this.cashCounts = cashCounts;
+		this.scannedTickets = scannedTickets;
 	}
 
 	/** Keyset query on (change time, id); the change time is updated_at, or the document date when it is empty. */
@@ -110,7 +117,10 @@ public class JpaSalesDocumentSource implements SalesDocumentSource {
 						.orElse(null);
 			default:
 				return sessions.findById(localId)
-						.map(session -> SalesCopyMapper.session(session, cashCounts.findByCashierSession(session)))
+						// 3.2.0: with the expected values of its scanned tickets, as the session details read them
+						.map(session -> SalesCopyMapper.session(session, cashCounts.findByCashierSession(session),
+								ScannedTicketsSummary.byMethodCode(scannedTickets.findByCashierSession(session,
+										Arrays.asList(TransactionStatus.PENDING, TransactionStatus.CANCELLED)))))
 						.orElse(null);
 		}
 	}

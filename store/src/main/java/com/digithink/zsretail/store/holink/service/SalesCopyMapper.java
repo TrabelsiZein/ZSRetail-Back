@@ -1,14 +1,18 @@
 package com.digithink.zsretail.store.holink.service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.digithink.zsretail.core.link.dto.PaymentCopyDTO;
 import com.digithink.zsretail.core.link.dto.ReturnCopyDTO;
 import com.digithink.zsretail.core.link.dto.ReturnLineCopyDTO;
 import com.digithink.zsretail.core.link.dto.SessionCopyDTO;
 import com.digithink.zsretail.core.link.dto.SessionCountCopyDTO;
+import com.digithink.zsretail.core.link.dto.SessionScannedCopyDTO;
 import com.digithink.zsretail.core.link.dto.TicketCopyDTO;
 import com.digithink.zsretail.core.link.dto.TicketLineCopyDTO;
 import com.digithink.zsretail.core.model.CashierSession;
@@ -26,6 +30,7 @@ import com.digithink.zsretail.core.model.SalesLine;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model._BaseEntity;
 import com.digithink.zsretail.store.model.SessionCashCount;
+import com.digithink.zsretail.store.service.ScannedTicketsSummary;
 
 /**
  * Builds the copies sent to the head office (task 2.2) from the store's entities. Pure mapping, no database access:
@@ -165,7 +170,17 @@ public final class SalesCopyMapper {
 		return copy;
 	}
 
+	/** A session without scanned tickets (its scanned-tickets entries: only the methods declared at its closing). */
 	public static SessionCopyDTO session(CashierSession session, List<SessionCashCount> counts) {
+		return session(session, counts, Collections.emptyMap());
+	}
+
+	/**
+	 * 3.2.0: with the session's scanned tickets per method (ScannedTicketsSummary, sales PENDING and CANCELLED left out,
+	 * as the session details): one scannedTickets entry per method met in them or declared at the closing (zeros then).
+	 */
+	public static SessionCopyDTO session(CashierSession session, List<SessionCashCount> counts,
+			Map<String, ScannedTicketsSummary.Method> scanned) {
 		SessionCopyDTO copy = new SessionCopyDTO();
 		copy.setSessionNumber(session.getSessionNumber());
 		copy.setStatus(name(session.getStatus()));
@@ -204,7 +219,33 @@ public final class SalesCopyMapper {
 			countCopy.setReferenceNumber(count.getReferenceNumber());
 			copy.getCounts().add(countCopy);
 		}
+
+		Map<String, SessionScannedCopyDTO> scannedCopies = new LinkedHashMap<>();
+		for (ScannedTicketsSummary.Method method : (scanned == null ? Collections
+				.<String, ScannedTicketsSummary.Method>emptyMap() : scanned).values()) {
+			SessionScannedCopyDTO entry = scannedEntry(method.getMethod().getCode());
+			entry.setTicketCount((int) method.getCount());
+			entry.setFaceTotal(method.getFace().doubleValue());
+			entry.setNetTotal(method.getNet().doubleValue());
+			scannedCopies.put(entry.getPaymentMethodCode(), entry);
+		}
+		for (SessionCashCount count : inStoreOrder(counts)) {
+			if (ScannedTicketsSummary.isScanned(count.getPaymentMethod())) {
+				scannedCopies.putIfAbsent(count.getPaymentMethod().getCode(),
+						scannedEntry(count.getPaymentMethod().getCode()));
+			}
+		}
+		copy.setScannedTickets(new ArrayList<>(scannedCopies.values()));
 		return copy;
+	}
+
+	private static SessionScannedCopyDTO scannedEntry(String code) {
+		SessionScannedCopyDTO entry = new SessionScannedCopyDTO();
+		entry.setPaymentMethodCode(code);
+		entry.setTicketCount(0);
+		entry.setFaceTotal(0.0);
+		entry.setNetTotal(0.0);
+		return entry;
 	}
 
 	private static <T extends _BaseEntity> List<T> inStoreOrder(List<T> rows) {

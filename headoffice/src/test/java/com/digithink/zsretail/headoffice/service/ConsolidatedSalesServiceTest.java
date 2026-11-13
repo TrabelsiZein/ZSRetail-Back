@@ -30,6 +30,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import com.digithink.zsretail.core.dto.DashboardTodayDTO;
+import com.digithink.zsretail.core.link.dto.SessionCopyDTO;
+import com.digithink.zsretail.core.link.dto.SessionCountCopyDTO;
+import com.digithink.zsretail.core.link.dto.SessionScannedCopyDTO;
 import com.digithink.zsretail.core.model.PaymentMethod;
 import com.digithink.zsretail.core.model.enumeration.PaymentMethodBehaviour;
 import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
@@ -531,11 +534,13 @@ class ConsolidatedSalesServiceTest {
 	}
 
 	@Test
-	@DisplayName("3.2.0, step 6 polish: a scanned-tickets method shows the declared face total and tickets, no difference")
+	@DisplayName("3.2.0: a copy without the store's expected values (older store): the declared face total and tickets, no difference, none in the list")
 	void scannedTicketsDeclaredNoDifference() {
 		HoSession session = session(rs01, "S7", LocalDateTime.of(2026, 11, 13, 8, 0), "TERMINATED");
 		session.setOpeningCash(0.0);
 		session.setRealCash(0.0);
+		session.setPosUserClosureCash(19.0);
+		session.setResponsibleClosureCash(19.0);
 		pay(ticket(rs01, "T-7", LocalDateTime.of(2026, 11, 13, 9, 0), "COMPLETED", 18.9, "S7"), "TICKET_RESTAURANT",
 				"Ticket Restaurant", 16.3);
 		count(session, "POS_USER", "TICKET_RESTAURANT", "Ticket Restaurant", 19);
@@ -552,6 +557,67 @@ class ConsolidatedSalesServiceTest {
 		assertEquals(19.0, meal.get("respClosureAmount"));
 		assertEquals(2L, meal.get("respClosureCount"));
 		assertNull(meal.get("deltaResp"));
+		assertNull(meal.get("systemCount"), "not sent: not shown");
+
+		Map<String, Object> row = content(service.sessions(query(1L, null, null, "S7", null))).get(0);
+		assertNull(row.get("cashDifference"), "19 face against 16.3 net would be a false 2.70");
+		assertNull(row.get("responsibleDifference"));
+	}
+
+	@Test
+	@DisplayName("3.2.0: with the store's expected values, face against face and tickets against tickets, in the list and the details")
+	void scannedTicketsChecked() {
+		HoSession session = session(rs01, "S8", LocalDateTime.of(2026, 11, 13, 8, 0), "CLOSED");
+		pay(ticket(rs01, "T-8", LocalDateTime.of(2026, 11, 13, 9, 0), "COMPLETED", 16.3, "S8"), "TICKET_RESTAURANT",
+				"Ticket Restaurant", 16.3);
+		SessionCopyDTO copy = new SessionCopyDTO();
+		copy.setSessionNumber("S8");
+		copy.setStatus("TERMINATED");
+		copy.setOpenedAt(session.getOpenedAt());
+		copy.setOpeningCash(0.0);
+		copy.setRealCash(0.0);
+		copy.setPosUserClosureCash(19.0);
+		copy.setResponsibleClosureCash(18.0);
+		copy.getCounts().add(countCopy("POS_USER", "TICKET_RESTAURANT", 3, 19.0));
+		copy.getCounts().add(countCopy("RESPONSIBLE", "TICKET_RESTAURANT", 2, 18.0));
+		SessionScannedCopyDTO expected = new SessionScannedCopyDTO();
+		expected.setPaymentMethodCode("TICKET_RESTAURANT");
+		expected.setTicketCount(3);
+		expected.setFaceTotal(19.0);
+		expected.setNetTotal(16.3);
+		copy.setScannedTickets(Arrays.asList(expected));
+		HoSalesCopyMapper.apply(session, copy); // as the receiver stores it
+		assertEquals(1, session.getScanned().size());
+
+		Map<String, Object> row = content(service.sessions(query(1L, null, null, "S8", null))).get(0);
+		assertEquals(0.0, row.get("cashDifference"), "19 counted against 0 + 16.3 + (19 - 16.3)");
+		assertEquals(-1.0, row.get("responsibleDifference"));
+
+		Map<String, Object> meal = summary(session).get("TICKET_RESTAURANT");
+		assertEquals(true, meal.get("scanned"));
+		assertEquals(19.0, meal.get("systemAmount"), "the face total, as on the store");
+		assertEquals(16.3, meal.get("netAmount"));
+		assertEquals(3L, meal.get("systemCount"));
+		assertEquals(0.0, meal.get("deltaPOS"));
+		assertEquals(0L, meal.get("deltaCountPOS"));
+		assertEquals(-1.0, meal.get("deltaResp"));
+		assertEquals(-1L, meal.get("deltaCountResp"));
+
+		// The copy sent again without them (a store put back to an older version): the values go, no difference
+		copy.setScannedTickets(null);
+		HoSalesCopyMapper.apply(session, copy);
+		assertTrue(session.getScanned().isEmpty());
+		assertNull(content(service.sessions(query(1L, null, null, "S8", null))).get(0).get("cashDifference"));
+	}
+
+	private static SessionCountCopyDTO countCopy(String counterType, String code, int quantity, double total) {
+		SessionCountCopyDTO count = new SessionCountCopyDTO();
+		count.setCounterType(counterType);
+		count.setPaymentMethodCode(code);
+		count.setPaymentMethodName("Ticket Restaurant");
+		count.setQuantity(quantity);
+		count.setLineTotal(total);
+		return count;
 	}
 
 	@Test

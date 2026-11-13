@@ -15,8 +15,8 @@ closing code is unchanged. One General setup row (step 2) chooses the ticket the
 ## Endpoint
 
 `GET /cashier-session/{id}/report-ticket` (`CashierSessionAPI`), read-only, 404 when the session does not exist.
-Like the rest of the API it checks no role: the two admin pages that print it (`SessionDashboard.vue`,
-`SessionHistory.vue`, admin and responsible) are guarded by the frontend.
+Like the rest of the API it checks no role: the admin page that prints it (`SessionHistory.vue`, admin and
+responsible; the sessions dashboard `SessionDashboard.vue` was removed in 3.2.0) is guarded by the frontend.
 
 Built by `store.service.SessionReportService` into `store.dto.SessionReportTicketDTO`:
 
@@ -232,8 +232,8 @@ gone by then. Labels: `admin.sessionReport.*`, fr, en, ar (de and pt removed in 
 - CONTRÔLE and the verification per method: two lines per method (the name, then the amounts in three columns of a
   third of the width each under a header line "Attendu / Compté / Écart"; "Attendu" only on a ticket X), 12 px; the
   name beside three amounts did not fit 80 mm.
-- The admin pages: a button in the session details of `SessionDashboard.vue` and `SessionHistory.vue`, "Imprimer
-  ticket X" for an open session, "Imprimer ticket Z" otherwise (`admin.sessionReport.printX` / `printZ`).
+- The admin page: a button in the session details of `SessionHistory.vue`, "Imprimer ticket X" for an open session,
+  "Imprimer ticket Z" otherwise (`admin.sessionReport.printX` / `printZ`).
 
 ## The cashier's closing ticket (step 2)
 
@@ -297,22 +297,32 @@ reads on them). Its payments stay the net (the parts applied), in PAIEMENTS, the
 - **The closing window's rows** (polish): the active methods and every method of the session's sales, a switched-off
   one included (`GET /cashier-session/current/payment-methods`, `CashierSessionService.sessionPaymentMethods`: methods
   only, never an amount, so the count stays blind).
-- **Head office** (polish): the store sends what it sent before (the count rows with quantity and line total, the
-  payments' net). The head office knows a scanned-tickets method by its own method of the same code
-  (`ConsolidatedSalesService`, behaviour `SCANNED_TICKETS`): its row shows the declared face total and number of
-  tickets (`scanned`, `posClosureCount`, `respClosureCount`) and no difference (`deltaPOS` / `deltaResp` null, "—"; the
-  totals row's differences too). A method the head office does not have under that code shows as before. **For
-  later**: the store sends the expected face total and number of tickets with the session, so the head office can show
-  the differences.
+- **Head office** (3.2.0, last step): the session copy carries one optional field, `scannedTickets`
+  (`SessionScannedCopyDTO`, built by `SalesCopyMapper.session` from `ScannedTicketsSummary`, sales PENDING and
+  CANCELLED left out as in the details): per scanned-tickets method, `paymentMethodCode`, `ticketCount`, `faceTotal`,
+  `netTotal`; a method declared at the closing without a scanned ticket comes with zeros. The head office keeps them in
+  `ho_session_scanned` (`HoSessionScanned`, replaced with the session, as its count lines) and applies the store's rule
+  (`ConsolidatedSalesService`): a scanned-tickets row (a method of the same code with behaviour `SCANNED_TICKETS`, or a
+  code sent by the store) has the face total as `systemAmount`, `netAmount` and `systemCount` beside, `deltaPOS` /
+  `deltaResp` face against face and `deltaCountPOS` / `deltaCountResp` tickets against tickets; the totals row's
+  differences are shown. The list's "Diff." adds face - net to the system side (`scannedFaceGap`, as on the store).
+  **A copy without the field** (a store before 3.2.0, or a session sent before): the row shows the declared face total
+  and number of tickets and no difference ("—"; the totals row's too), and the list shows no difference ("—") for a
+  session that declared a scanned-tickets method: never a figure computed on the payments' net. Such a session is not
+  sent again for it: the store sends a session again only when it changes (a CLOSED session verified later arrives
+  with the values); no production session has scanned tickets before 3.2.0. The list reads the count lines and the
+  values of its page in batches (`@BatchSize` on `HoSession`).
 - **The sessions list** (final pass): its "Diff." and "Diff. Resp" (`SessionDashboardDTO.cashDifference`,
   `responsibleDifference`: the closure total - (opening cash + sales - cash returns)) add to the system side the
   session's scanned tickets' face - net (`CashierSessionService.scannedFaceGap`), as the details compare a scanned
-  method face against face: a right count reads 0 (before, deduction + excess, e.g. +3.80). The admin dashboard's
-  cards read the same DTO. The sessions report has no difference. The head office's sessions list computes the same
-  difference from the copies, which hold no scanned ticket: it still shows the gap for such a session (the "for later"
-  above: the store sends its expected face total).
-- **The admin dashboard's verification** (polish): its older form sends a total only; a session with a scanned-tickets
-  method shows a link to the session history's form instead (number of tickets and face total per method).
+  method face against face: a right count reads 0 (before, deduction + excess, e.g. +3.80). The sessions report has no
+  difference. The head office's sessions list: the rule above (Head office).
+- **The sessions dashboard removed** (3.2.0, last step): `SessionDashboard.vue` (in no menu, its own older verification
+  form) and its `GET /cashier-session/dashboard` (`getSessionDashboard`, every session of the store read) are gone; its
+  addresses `/admin/sessions` and `/responsible/sessions` open the Sessions page (`SessionHistory.vue`), where the
+  Responsable verifies (menu Caisse > Sessions, `read:admin-sessions-history`; the form for a CLOSED session not yet
+  verified). The search's "Sessions" opens it too (its duplicate "Historique Sessions" removed). The permissions
+  `read:admin-sessions`, `read:responsible-sessions`, `write:responsible-sessions` stay in the roles; they open nothing.
 
 ## Scanned tickets taken (3.2.0, step 7)
 

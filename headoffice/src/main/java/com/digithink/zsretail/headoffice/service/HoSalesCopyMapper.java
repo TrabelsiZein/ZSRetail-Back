@@ -8,12 +8,14 @@ import com.digithink.zsretail.core.link.dto.ReturnCopyDTO;
 import com.digithink.zsretail.core.link.dto.ReturnLineCopyDTO;
 import com.digithink.zsretail.core.link.dto.SessionCopyDTO;
 import com.digithink.zsretail.core.link.dto.SessionCountCopyDTO;
+import com.digithink.zsretail.core.link.dto.SessionScannedCopyDTO;
 import com.digithink.zsretail.core.link.dto.TicketCopyDTO;
 import com.digithink.zsretail.core.link.dto.TicketLineCopyDTO;
 import com.digithink.zsretail.headoffice.model.HoReturn;
 import com.digithink.zsretail.headoffice.model.HoReturnLine;
 import com.digithink.zsretail.headoffice.model.HoSession;
 import com.digithink.zsretail.headoffice.model.HoSessionCount;
+import com.digithink.zsretail.headoffice.model.HoSessionScanned;
 import com.digithink.zsretail.headoffice.model.HoTicket;
 import com.digithink.zsretail.headoffice.model.HoTicketLine;
 import com.digithink.zsretail.headoffice.model.HoTicketPayment;
@@ -159,6 +161,21 @@ final class HoSalesCopyMapper {
 			row.setLineTotal(count.getLineTotal());
 			row.setReferenceNumber(count.getReferenceNumber());
 			target.getCounts().add(row);
+		}
+
+		// 3.2.0: the expected values of the scanned-tickets methods; an older copy has none
+		target.getScanned().clear();
+		for (SessionScannedCopyDTO scanned : orEmpty(copy.getScannedTickets())) {
+			if (scanned.getPaymentMethodCode() == null) {
+				continue;
+			}
+			HoSessionScanned row = new HoSessionScanned();
+			row.setSession(target);
+			row.setPaymentMethodCode(scanned.getPaymentMethodCode());
+			row.setTicketCount(scanned.getTicketCount());
+			row.setFaceTotal(scanned.getFaceTotal());
+			row.setNetTotal(scanned.getNetTotal());
+			target.getScanned().add(row);
 		}
 	}
 

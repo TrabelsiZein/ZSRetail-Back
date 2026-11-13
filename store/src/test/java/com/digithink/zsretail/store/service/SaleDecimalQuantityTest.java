@@ -304,6 +304,24 @@ class SaleDecimalQuantityTest {
 	}
 
 	@Test
+	@DisplayName("3.2.0: the parked sale's automatic note goes when it is paid without a note; a note sent is kept")
+	void parkedTicketNote() throws Exception {
+		ProcessSaleRequestDTO park = request(line("0.2", 10.0));
+		park.setNotes(SalesHeaderService.PENDING_SALE_NOTE);
+		SalesHeader parked = sales.savePendingSale(park, cashier);
+		assertEquals(SalesHeaderService.PENDING_SALE_NOTE, parked.getNotes());
+		SalesHeader sale = sales.completePendingSale(parked.getId(), request(line("0.2", 10.0)), cashier);
+		assertNull(sale.getNotes(), "the till sends no note any more: the parked sale's text is not left on the paid one");
+
+		ProcessSaleRequestDTO parkAgain = request(line("0.2", 10.0));
+		parkAgain.setNotes(SalesHeaderService.PENDING_SALE_NOTE);
+		SalesHeader parkedAgain = sales.savePendingSale(parkAgain, cashier);
+		ProcessSaleRequestDTO pay = request(line("0.2", 10.0));
+		pay.setNotes("Livraison mardi");
+		assertEquals("Livraison mardi", sales.completePendingSale(parkedAgain.getId(), pay, cashier).getNotes());
+	}
+
+	@Test
 	@DisplayName("Stock 0.1 without negative stock: selling 0.2 is refused with the quantities written plainly")
 	void insufficientDecimalStock() {
 		settings.put("ALLOW_NEGATIVE_STOCK", "false");

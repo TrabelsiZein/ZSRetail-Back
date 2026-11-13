@@ -577,6 +577,10 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		salesHeader.setTotalAmount(request.getTotalAmount());
 		if (request.getNotes() != null) {
 			salesHeader.setNotes(request.getNotes());
+		} else if (PENDING_SALE_NOTE.equals(salesHeader.getNotes())) {
+			// 3.2.0: the till's automatic text of a parked sale does not stay on the paid one (the till sent the
+			// automatic "Payment via N method(s)" over it until 3.2.0)
+			salesHeader.setNotes(null);
 		}
 
 		// Discount source tracking (header level)
@@ -1107,6 +1111,9 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 	/** The till's own tolerance: a ticket is paid when at most 0.010 remains (Payment.vue, isFullyPaid). */
 	static final double PAID_SHORT_TOLERANCE = 0.010;
+
+	/** The note the till writes on a parked sale (Payment.vue); cleared when the sale is paid without a note of its own. */
+	static final String PENDING_SALE_NOTE = "Pending sale - customer will return";
 
 	/**
 	 * 3.1.0 (test log I-07): refuses a sale whose payments, rounded to the millime, fall short of the rounded total by

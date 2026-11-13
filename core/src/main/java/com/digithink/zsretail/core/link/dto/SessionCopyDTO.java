@@ -52,4 +52,11 @@ public class SessionCopyDTO {
 
 	/** Cash count lines, of the cashier then of the responsible, in the store's order. */
 	private List<SessionCountCopyDTO> counts = new ArrayList<>();
+
+	/**
+	 * 3.2.0: the expected values of each scanned-tickets method (face total and number of tickets, as the store's session
+	 * details check them). Null from a store before 3.2.0 or a copy sent before: the head office shows no scanned-ticket
+	 * difference then. Empty: no scanned-tickets method in the session.
+	 */
+	private List<SessionScannedCopyDTO> scannedTickets;
 }

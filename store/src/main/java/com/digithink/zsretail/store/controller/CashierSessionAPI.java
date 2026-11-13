@@ -435,21 +435,6 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	}
 
 	/**
-	 * Get session dashboard - list all sessions with statistics (admin & responsible)
-	 */
-	@GetMapping("/dashboard")
-	public ResponseEntity<?> getSessionDashboard() {
-		try {
-			log.info("CashierSessionAPI::getSessionDashboard");
-
-			return ResponseEntity.ok(service.getSessionDashboard());
-		} catch (Exception e) {
-			log.error("CashierSessionAPI::getSessionDashboard:error: " + e.getMessage(), e);
-			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
-		}
-	}
-
-	/**
 	 * Get session by ID with full details including cash count lines (admin & responsible)
 	 */
 	@GetMapping("/{id}/details")

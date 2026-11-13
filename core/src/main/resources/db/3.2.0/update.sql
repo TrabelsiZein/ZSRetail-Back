@@ -188,6 +188,19 @@ IF OBJECT_ID(N'general_setup', N'U') IS NOT NULL BEGIN
 END
 GO
 
+-- 11) A head office only (it has ho_session): the expected values of a session's scanned-tickets methods, sent by the
+-- store with the session copy (number of tickets, face total, net); in Hibernate's form, the foreign key named as in the
+-- entity. On a head office without it Hibernate creates it at the first start.
+IF OBJECT_ID(N'ho_session', N'U') IS NOT NULL AND OBJECT_ID(N'ho_session_scanned', N'U') IS NULL
+BEGIN
+	CREATE TABLE ho_session_scanned (id bigint identity not null, active bit, created_at datetime2,
+		created_by varchar(255), updated_at datetime2, updated_by varchar(255), face_total float, net_total float,
+		payment_method_code varchar(255), ticket_count int, session_id bigint not null, primary key (id));
+	ALTER TABLE ho_session_scanned ADD CONSTRAINT fk_ho_session_scanned_session FOREIGN KEY (session_id)
+		REFERENCES ho_session;
+END
+GO
+
 UPDATE APP_VERSION SET version = '3.2.0';
 
 -- The notes of 3.2.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

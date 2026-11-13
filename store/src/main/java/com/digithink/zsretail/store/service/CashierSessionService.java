@@ -573,53 +573,6 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	}
 
 	/**
-	 * Get session dashboard - list all sessions with statistics
-	 */
-	public List<SessionDashboardDTO> getSessionDashboard() {
-		List<CashierSession> sessions = cashierSessionRepository.findAll();
-
-		return sessions.stream().map(session -> {
-			// Get sales count and total amount for this session (gross sales - no returns
-			// subtracted)
-			// Exclude PENDING and CANCELLED sales
-			List<SalesHeader> allSales = salesHeaderRepository.findByCashierSession(session);
-			List<SalesHeader> sales = allSales.stream().filter(sale -> sale.getStatus() != TransactionStatus.PENDING
-					&& sale.getStatus() != TransactionStatus.CANCELLED).collect(Collectors.toList());
-			Long salesCount = (long) sales.size();
-			Double totalSalesAmount = sales.stream()
-					.mapToDouble(sale -> sale.getTotalAmount() != null ? sale.getTotalAmount() : 0.0).sum();
-
-			// Get returns for this session
-			List<ReturnHeader> returns = returnHeaderRepository.findByCashierSession(session);
-			Long returnsCount = (long) returns.size();
-
-			// Calculate total return amounts by type
-			Double totalReturnsAmount = returns.stream()
-					.mapToDouble(ret -> ret.getTotalReturnAmount() != null ? ret.getTotalReturnAmount() : 0.0).sum();
-
-			Double simpleReturnsAmount = returns.stream().filter(ret -> ret.getReturnType() == ReturnType.SIMPLE_RETURN)
-					.mapToDouble(ret -> ret.getTotalReturnAmount() != null ? ret.getTotalReturnAmount() : 0.0).sum();
-
-			Double voucherReturnsAmount = returns.stream()
-					.filter(ret -> ret.getReturnType() == ReturnType.RETURN_VOUCHER)
-					.mapToDouble(ret -> ret.getTotalReturnAmount() != null ? ret.getTotalReturnAmount() : 0.0).sum();
-
-			// Calculate real cash for this session (even if open)
-			// Real cash = openingCash + cash sales - change given - simple returns
-			Double calculatedRealCash = calculateRealCash(session);
-
-			// For closed sessions, use stored realCash if available, otherwise calculate
-			// For open sessions, always calculate
-			Double realCash = session.getRealCash() != null && session.getStatus() == SessionStatus.CLOSED
-					? session.getRealCash()
-					: calculatedRealCash;
-
-			return SessionDashboardDTO.fromEntity(session, salesCount, totalSalesAmount, returnsCount,
-					totalReturnsAmount, simpleReturnsAmount, voucherReturnsAmount, realCash, scannedFaceGap(session));
-		}).collect(Collectors.toList());
-	}
-
-	/**
 	 * Get paginated session history with filters (server-side pagination)
 	 */
 	public Map<String, Object> getSessionHistory(String searchStr, String dateFromStr, String dateToStr,

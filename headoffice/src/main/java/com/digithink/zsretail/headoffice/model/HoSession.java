@@ -15,6 +15,8 @@ import javax.persistence.OrderBy;
 import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
 
+import org.hibernate.annotations.BatchSize;
+
 import com.digithink.zsretail.core.model._BaseEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -75,5 +77,12 @@ public class HoSession extends _BaseEntity {
 
 	@OneToMany(mappedBy = "session", cascade = CascadeType.ALL, orphanRemoval = true)
 	@OrderBy("lineNo")
+	@BatchSize(size = 100) // 3.2.0: the sessions list reads them (scannedFaceGap), a page in one query
 	private List<HoSessionCount> counts = new ArrayList<>();
+
+	/** 3.2.0: the store's expected values per scanned-tickets method (none from an older copy). */
+	@OneToMany(mappedBy = "session", cascade = CascadeType.ALL, orphanRemoval = true)
+	@OrderBy("id")
+	@BatchSize(size = 100)
+	private List<HoSessionScanned> scanned = new ArrayList<>();
 }

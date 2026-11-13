@@ -111,7 +111,7 @@ Prepare: "buy 2, get 1 free" on item A; an ERP or manual 10% on A is a plus; a c
 - [ ] "Fermer la session" → declare the count per payment method → close.
 - [ ] Expected: "CLÔTURE DE SESSION" ticket printed (opening float, declared per method, net cash, ticket and return counts); the user is logged out.
 - [ ] Where: `cashier_session` → `status=CLOSED`, `real_cash` = float + cash payments − change − cash refunds, `pos_user_closure_cash` = declared total; one `session_cash_count` row per declared line.
-- [ ] Responsible: `/admin/sessions` → verify the session.
+- [ ] Responsible: Caisse > Sessions (`/admin/sessions/history`) → the session's details → verify it.
 - [ ] Where: `status=TERMINATED`, `responsible_closure_cash`, `verified_by`.
 
 **C9 — Printing and reprint**

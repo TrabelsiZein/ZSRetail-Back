@@ -40,6 +40,7 @@ import com.digithink.zsretail.headoffice.model.HoReturn;
 import com.digithink.zsretail.headoffice.model.HoReturnLine;
 import com.digithink.zsretail.headoffice.model.HoSession;
 import com.digithink.zsretail.headoffice.model.HoSessionCount;
+import com.digithink.zsretail.headoffice.model.HoSessionScanned;
 import com.digithink.zsretail.headoffice.model.HoTicket;
 import com.digithink.zsretail.headoffice.model.HoTicketLine;
 import com.digithink.zsretail.headoffice.model.HoTicketPayment;
@@ -122,9 +123,11 @@ public class ConsolidatedSalesService {
 				query.pageable(Sort.by(Sort.Order.desc("openedAt"), Sort.Order.desc("id"))));
 		Map<Long, Store> storesById = storesById();
 		Map<String, SessionTotals> totals = sessionTotals(page.getContent());
+		Set<String> scannedCodes = scannedMethodCodes();
 		List<Map<String, Object>> rows = new ArrayList<>();
 		for (HoSession session : page.getContent()) {
-			rows.add(sessionRow(session, storesById, totals.getOrDefault(key(session), new SessionTotals())));
+			rows.add(sessionRow(session, storesById, totals.getOrDefault(key(session), new SessionTotals()),
+					scannedFaceGap(session, scannedCodes)));
 		}
 		return pageOf(page, rows);
 	}
@@ -203,7 +206,7 @@ public class ConsolidatedSalesService {
 			SessionTotals totals = sessionTotals(Collections.singletonList(session)).getOrDefault(key(session),
 					new SessionTotals());
 			Map<String, Object> detail = new LinkedHashMap<>();
-			detail.put("session", sessionRow(session, storesById(), totals));
+			detail.put("session", sessionRow(session, storesById(), totals, scannedFaceGap(session, scannedMethodCodes())));
 			detail.put("salesCount", totals.salesCount);
 			detail.put("totalSalesAmount", totals.salesAmount);
 			detail.put("returnsCount", totals.returnsCount);
@@ -227,6 +230,35 @@ public class ConsolidatedSalesService {
 			putPaymentSummary(detail, session);
 			return detail;
 		});
+	}
+
+	/** The codes of the head office's scanned-tickets methods (behaviour SCANNED_TICKETS). */
+	private Set<String> scannedMethodCodes() {
+		return paymentMethods.findAll().stream()
+				.filter(m -> m.getBehaviour() == PaymentMethodBehaviour.SCANNED_TICKETS).map(PaymentMethod::getCode)
+				.collect(Collectors.toSet());
+	}
+
+	/**
+	 * 3.2.0, as the store's CashierSessionService.scannedFaceGap: the face total minus the net of the session's scanned
+	 * tickets, from the expected values the store sent. Null (no difference shown) when the copy has none and the
+	 * session declared a scanned-tickets method at its closing (a store before 3.2.0, or a copy sent before): the figure
+	 * would be wrong. 0 without scanned tickets.
+	 */
+	static Double scannedFaceGap(HoSession session, Set<String> scannedCodes) {
+		if (!session.getScanned().isEmpty()) {
+			double gap = 0.0;
+			for (HoSessionScanned scanned : session.getScanned()) {
+				gap += doubleOf(scanned.getFaceTotal()) - doubleOf(scanned.getNetTotal());
+			}
+			return gap;
+		}
+		for (HoSessionCount count : session.getCounts()) {
+			if (count.getPaymentMethodCode() != null && scannedCodes.contains(count.getPaymentMethodCode())) {
+				return null;
+			}
+		}
+		return 0.0;
 	}
 
 	/**
@@ -259,12 +291,15 @@ public class ConsolidatedSalesService {
 		// Count lines by method and counter: POS_USER the cashier's, RESPONSIBLE the responsible's
 		Map<String, Double> posClosureByCode = new LinkedHashMap<>();
 		Map<String, Double> respClosureByCode = new LinkedHashMap<>();
-		// 3.2.0, step 6 polish: a scanned-tickets method (known here by its code) is declared as a number of tickets and
-		// a face total; the head office has no scanned tickets to compare them with (the store sends the payments' net
-		// only): it shows what was declared and no difference
-		Set<String> scannedCodes = paymentMethods.findAll().stream()
-				.filter(m -> m.getBehaviour() == PaymentMethodBehaviour.SCANNED_TICKETS).map(PaymentMethod::getCode)
-				.collect(Collectors.toSet());
+		// 3.2.0: a scanned-tickets method (known here by its code, or sent by the store) is declared as a number of
+		// tickets and a face total, checked against the store's expected values (the face total and the number of
+		// tickets, as on the store's details); a copy without them: what was declared, no difference
+		Map<String, HoSessionScanned> expectedByCode = new LinkedHashMap<>();
+		for (HoSessionScanned scanned : session.getScanned()) {
+			expectedByCode.put(scanned.getPaymentMethodCode(), scanned);
+		}
+		Set<String> scannedCodes = scannedMethodCodes();
+		scannedCodes.addAll(expectedByCode.keySet());
 		Map<String, Long> posTicketsByCode = new LinkedHashMap<>();
 		Map<String, Long> respTicketsByCode = new LinkedHashMap<>();
 		for (HoSessionCount count : session.getCounts()) {
@@ -311,12 +346,28 @@ public class ConsolidatedSalesService {
 			row.put("respClosureAmount", respClosure);
 			row.put("deltaResp", respClosure != null ? respClosure - sysAmount : null);
 			if (scannedCodes.contains(code)) {
-				// the declared face total and number of tickets; no difference: the expected values stay on the store
 				row.put("scanned", true);
-				row.put("deltaPOS", null);
-				row.put("deltaResp", null);
-				row.put("posClosureCount", posClosure != null ? posTicketsByCode.getOrDefault(code, 0L) : null);
-				row.put("respClosureCount", respClosure != null ? respTicketsByCode.getOrDefault(code, 0L) : null);
+				Long posCount = posClosure != null ? posTicketsByCode.getOrDefault(code, 0L) : null;
+				Long respCount = respClosure != null ? respTicketsByCode.getOrDefault(code, 0L) : null;
+				row.put("posClosureCount", posCount);
+				row.put("respClosureCount", respCount);
+				HoSessionScanned expected = expectedByCode.get(code);
+				if (expected != null) {
+					// face against face, tickets against tickets; the net beside
+					double face = doubleOf(expected.getFaceTotal());
+					long systemCount = expected.getTicketCount() != null ? expected.getTicketCount().longValue() : 0L;
+					row.put("systemAmount", face);
+					row.put("netAmount", doubleOf(expected.getNetTotal()));
+					row.put("systemCount", systemCount);
+					row.put("deltaPOS", posClosure != null ? posClosure - face : null);
+					row.put("deltaResp", respClosure != null ? respClosure - face : null);
+					row.put("deltaCountPOS", posCount != null ? posCount - systemCount : null);
+					row.put("deltaCountResp", respCount != null ? respCount - systemCount : null);
+				} else {
+					// not sent by the store: the declared face total and number of tickets, no difference
+					row.put("deltaPOS", null);
+					row.put("deltaResp", null);
+				}
 			}
 			boolean hasSystem = codeToRawAmount.containsKey(code) || (isEspece && sysAmount > 0);
 			boolean hasClosure = posClosureByCode.containsKey(code) || respClosureByCode.containsKey(code);
@@ -411,7 +462,7 @@ public class ConsolidatedSalesService {
 	}
 
 	private static Map<String, Object> sessionRow(HoSession session, Map<Long, Store> storesById,
-			SessionTotals totals) {
+			SessionTotals totals, Double scannedFaceGap) {
 		Map<String, Object> row = new LinkedHashMap<>();
 		row.put("id", session.getId());
 		putStore(row, session.getStore(), storesById);
@@ -431,12 +482,14 @@ public class ConsolidatedSalesService {
 		row.put("totalReturnsAmount", totals.returnsAmount);
 		row.put("simpleReturnsAmount", totals.simpleReturnsAmount);
 		row.put("voucherReturnsAmount", totals.voucherReturnsAmount);
-		// Same as the store's session history: system = opening cash + sales - simple returns, rounded to 2 decimals
+		// Same as the store's session history: system = opening cash + sales - simple returns + the scanned tickets' face
+		// minus net (3.2.0: they are counted on their face), rounded to 2 decimals; no difference when the store did not
+		// send its scanned tickets' expected values (scannedFaceGap null)
 		double system = (session.getOpeningCash() == null ? 0.0 : session.getOpeningCash()) + totals.salesAmount
-				- totals.simpleReturnsAmount;
-		row.put("cashDifference", session.getPosUserClosureCash() == null ? null
+				- totals.simpleReturnsAmount + (scannedFaceGap == null ? 0.0 : scannedFaceGap);
+		row.put("cashDifference", session.getPosUserClosureCash() == null || scannedFaceGap == null ? null
 				: Math.round((session.getPosUserClosureCash() - system) * 100.0) / 100.0);
-		row.put("responsibleDifference", session.getResponsibleClosureCash() == null ? null
+		row.put("responsibleDifference", session.getResponsibleClosureCash() == null || scannedFaceGap == null ? null
 				: Math.round((session.getResponsibleClosureCash() - system) * 100.0) / 100.0);
 		row.put("verificationNotes", session.getVerificationNotes());
 		row.put("verifiedByName",
