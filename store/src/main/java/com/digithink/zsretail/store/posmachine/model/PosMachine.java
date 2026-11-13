@@ -1,7 +1,12 @@
 package com.digithink.zsretail.store.posmachine.model;
 
+import java.util.Set;
+
+import javax.persistence.CollectionTable;
 import javax.persistence.Column;
+import javax.persistence.ElementCollection;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
 import javax.persistence.ForeignKey;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
@@ -44,4 +49,30 @@ public class PosMachine extends _BaseEntity {
 	@ManyToOne
 	@JoinColumn(name = "reader_id", foreignKey = @ForeignKey(name = "fk_pos_machine_reader"))
 	private RfidReader reader;
+
+	/**
+	 * 3.2.0, POS machines step 4: "Seulement" (true): only the users of {@link #allowedUserIds} open a session on it,
+	 * when the drawer belongs to the POS machine; "Tous les utilisateurs" (false, the default; null on a row Hibernate
+	 * added before db/3.2.0 step 15 reads as false). Sent null (an older screen): the machine keeps what it has
+	 * (PosMachineService.check): no save turns "Seulement" into "Tous" by itself.
+	 */
+	@Column(name = "users_restricted")
+	private Boolean usersRestricted;
+
+	/**
+	 * 3.2.0, POS machines step 4: the users allowed with "Seulement", by their id (pos_machine_user). No foreign key to
+	 * user_account: a user is core's and is deleted by core, which knows no store table; a user deleted or deactivated
+	 * stops counting and leaves the list at the machine's next save. Sent null: the machine keeps its list. Read with the
+	 * machine (a few rows).
+	 */
+	@ElementCollection(fetch = FetchType.EAGER)
+	@CollectionTable(name = "pos_machine_user", joinColumns = @JoinColumn(name = "pos_machine_id"),
+			foreignKey = @ForeignKey(name = "fk_pos_machine_user_machine"))
+	@Column(name = "user_account_id", nullable = false)
+	private Set<Long> allowedUserIds;
+
+	/** "Seulement": the list applies (null reads as "Tous"). */
+	public boolean restrictsUsers() {
+		return Boolean.TRUE.equals(usersRestricted);
+	}
 }

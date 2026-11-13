@@ -1,11 +1,15 @@
 package com.digithink.zsretail.store.posmachine.service;
 
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model.enumeration.SessionStatus;
+import com.digithink.zsretail.core.repository.UserAccountRepository;
 import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.store.posmachine.PosMachineException;
@@ -42,12 +46,16 @@ public class PosMachineService extends _BaseService<PosMachine, Long> {
 	/** Part B: who the drawer belongs to (rule 5: a machine with an open session is not deactivated). */
 	private final CashDrawerSetting drawer;
 
+	/** Step 4: the users of a "Seulement" list (core's), read to keep only those that exist and are active. */
+	private final UserAccountRepository users;
+
 	public PosMachineService(PosMachineRepository machines, SessionPosMachineRepository sessionMachines,
-			Optional<RfidReaderRepository> readers, CashDrawerSetting drawer) {
+			Optional<RfidReaderRepository> readers, CashDrawerSetting drawer, UserAccountRepository users) {
 		this.machines = machines;
 		this.sessionMachines = sessionMachines;
 		this.readers = readers;
 		this.drawer = drawer;
+		this.users = users;
 	}
 
 	@Override
@@ -121,6 +129,7 @@ public class PosMachineService extends _BaseService<PosMachine, Long> {
 		if (machine.getActive() == null) {
 			machine.setActive(true);
 		}
+		checkUsers(machine);
 		// Part B, rule 5: the drawer of the POS machine, a machine with an open session stays active (its address can be
 		// corrected); a delete is refused anyway (it has a session)
 		if (!machine.getActive() && machine.getId() != null && drawer.toPosMachine()) {
@@ -134,6 +143,47 @@ public class PosMachineService extends _BaseService<PosMachine, Long> {
 								+ machine.getName() + "' has an open session, of " + cashier + ": it cannot be deactivated"
 								+ " before that session is closed.", "name", machine.getName(), "cashier", cashier);
 					});
+		}
+	}
+
+	/**
+	 * Step 4, the users of the machine: "Tous les utilisateurs" (usersRestricted false) or "Seulement" (true) with its
+	 * list. A field sent null (an older screen) keeps what the machine has, so no save turns "Seulement" into "Tous" by
+	 * itself. A list sent keeps only the users that exist and are active (a user deleted or deactivated leaves it).
+	 * "Seulement" with nobody left is refused (POS_MACHINE_USERS_REQUIRED); a list kept as it is (not sent) is not
+	 * checked again: a machine whose listed users all left keeps its restriction (nobody opens a session on it). "Tous"
+	 * keeps no list.
+	 */
+	private void checkUsers(PosMachine machine) {
+		Optional<PosMachine> stored = machine.getId() == null ? Optional.empty() : machines.findById(machine.getId());
+		boolean listSent = machine.getAllowedUserIds() != null;
+		if (machine.getUsersRestricted() == null) {
+			machine.setUsersRestricted(stored.map(PosMachine::getUsersRestricted).orElse(false));
+		}
+		if (!listSent) {
+			machine.setAllowedUserIds(new HashSet<>(
+					stored.map(PosMachine::getAllowedUserIds).orElse(java.util.Collections.emptySet())));
+		}
+		if (!machine.restrictsUsers()) {
+			machine.setUsersRestricted(false);
+			machine.setAllowedUserIds(new HashSet<>());
+			return;
+		}
+		if (listSent) {
+			Set<Long> active = new HashSet<>();
+			Set<Long> sent = new HashSet<>(machine.getAllowedUserIds());
+			sent.remove(null);
+			for (UserAccount user : users.findAllById(sent)) {
+				if (!Boolean.FALSE.equals(user.getActive())) {
+					active.add(user.getId());
+				}
+			}
+			machine.setAllowedUserIds(active);
+		}
+		if (machine.getAllowedUserIds().isEmpty()) {
+			throw new PosMachineException(Reason.INVALID, "POS_MACHINE_USERS_REQUIRED", "The POS machine '"
+					+ machine.getName() + "' is for some users only: choose at least one active user, or every user.",
+					"name", machine.getName());
 		}
 	}
 

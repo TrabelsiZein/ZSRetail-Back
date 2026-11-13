@@ -160,7 +160,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		if (existingSession.isPresent()) {
 			throw new IllegalStateException("Cashier already has an open session");
 		}
-		PosMachine machine = sessionPosMachineService.machineForOpening(remoteAddress);
+		PosMachine machine = sessionPosMachineService.machineForOpening(cashier, remoteAddress);
 
 		CashierSession session = new CashierSession();
 		session.setCashier(cashier);

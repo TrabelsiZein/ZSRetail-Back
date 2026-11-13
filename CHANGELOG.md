@@ -175,6 +175,16 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   sheet is unchanged. Nothing at the head office, on the sale receipt, in the amounts or the closing. Tests:
   `StoreReportServiceTest` (CASHIER unchanged, the groups and their subtotals adding up to the store, the X and Z of one
   machine, the 404s, the Excel sheet).
+- POS machines, step 4 (`docs/modules/pos-machines.md`, "The users of a POS machine"): each machine has "Tous les
+  utilisateurs" (default, every existing machine) or "Seulement" with its users (`PosMachine.usersRestricted`,
+  `allowedUserIds`, table `pos_machine_user`). With `CASH_DRAWER_OWNER` = `POS_MACHINE`, a session opens on a
+  "Seulement" machine only for a listed, active user: 409 `POS_MACHINE_USER_NOT_ALLOWED` (name), checked after rule 1 and
+  before rule 2, at the opening only (a user removed keeps the open session; closing and verifying unrestricted; the admin
+  too). A machine whose listed users all left opens for nobody. With `CASHIER` the list is information only. Saving:
+  "Seulement" with no active user is refused (400 `POS_MACHINE_USERS_REQUIRED`, name); a list sent keeps only existing,
+  active users; a field not sent keeps the machine's value, so no save (a rename included) turns "Seulement" into "Tous";
+  "Tous" keeps no list. No foreign key to `user_account` (core deletes a user and knows no store table). Tests:
+  `CashierSessionPosMachineTest` (+7).
 
 ### Fixes
 - `POST /cashier-session/close` with a body without `cashCountLines` (the old `{"actualCash": 50, "notes": "..."}`, or
@@ -232,7 +242,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   Step 14, a store (it has `quick_quantity` and `pos_machine`): the table `cashier_session_pos_machine` (the POS machine
   of each session; in Hibernate's form, its foreign keys named as in the entity) and its index
   `ix_cashier_session_pos_machine_machine`, when missing; Hibernate creates the table at a start too (without the index).
-  No data changed.
+  No data changed. Step 15, a store (`quick_quantity` and `pos_machine`): `pos_machine.users_restricted` (bit NOT NULL,
+  default 0, "Tous les utilisateurs" for every existing machine; when Hibernate added it first, nullable, its empty rows
+  are set to 0, then the default and NOT NULL) and the table `pos_machine_user` (`pos_machine_id`, `user_account_id`,
+  primary key on both, `fk_pos_machine_user_machine` to `pos_machine`, no foreign key to `user_account`). Separate
+  batches; parsed with `SET PARSEONLY ON`, not run.
 
 ### Config
 - Table management leaves General setup (`docs/modules/table-management.md`): the properties

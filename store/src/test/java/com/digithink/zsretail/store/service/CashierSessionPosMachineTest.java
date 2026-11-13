@@ -27,6 +27,7 @@ import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service._BaseService;
 import com.digithink.zsretail.store.posmachine.DrawerOwner;
 import com.digithink.zsretail.store.posmachine.DrawerRuleException;
+import com.digithink.zsretail.store.posmachine.PosMachineException;
 import com.digithink.zsretail.store.posmachine.dto.TillPosMachine;
 import com.digithink.zsretail.store.posmachine.model.PosMachine;
 import com.digithink.zsretail.store.support.InMemoryRfid;
@@ -265,5 +266,140 @@ class CashierSessionPosMachineTest {
 		assertEquals("Caisse 2", names.get(b));
 		assertFalse(names.containsKey(c));
 		assertEquals(Optional.empty(), rfid.sessionMachineService.machineOf(null));
+	}
+
+	// ─── Step 4: the users of a POS machine ──────────────────────────────────
+
+	/** The machine saved again as the page sends it: these fields, the others as they are. */
+	PosMachine saved(PosMachine machine, String name, Boolean restricted, Long... userIds) throws Exception {
+		PosMachine sent = new PosMachine();
+		sent.setId(machine.getId());
+		sent.setName(name);
+		sent.setIpAddress(machine.getIpAddress());
+		sent.setActive(machine.getActive());
+		sent.setUsersRestricted(restricted);
+		sent.setAllowedUserIds(userIds == null ? null : new java.util.HashSet<>(java.util.Arrays.asList(userIds)));
+		return rfid.machineServiceWithoutRfid.save(sent);
+	}
+
+	@Test
+	@DisplayName("Step 4, 'Tous les utilisateurs' (the default, and a machine saved without the fields): every user opens")
+	void allUsers() throws Exception {
+		rfid.drawerOwner = DrawerOwner.POS_MACHINE;
+		PosMachine caisse1 = rfid.machine("Caisse 1", "192.168.1.11", null);
+		assertEquals(Boolean.FALSE, caisse1.getUsersRestricted());
+		assertTrue(caisse1.getAllowedUserIds().isEmpty());
+		CashierSession session = service().openSession(rfid.storeUser(7, "amira", true), 100.0, "192.168.1.11");
+		assertSame(caisse1, rfid.sessionMachineService.machineOf(session.getId()).get());
+	}
+
+	@Test
+	@DisplayName("Step 4, 'Seulement': a listed user opens; one not listed is refused, the machine named, nothing opened")
+	void listedAndNotListed() throws Exception {
+		rfid.drawerOwner = DrawerOwner.POS_MACHINE;
+		UserAccount amira = rfid.storeUser(7, "amira", true);
+		UserAccount sami = rfid.storeUser(8, "sami", true);
+		PosMachine caisse1 = saved(rfid.machine("Caisse 1", "192.168.1.11", null), "Caisse 1", true, 7L);
+		CashierSessionService service = service();
+
+		DrawerRuleException refused = assertThrows(DrawerRuleException.class,
+				() -> service.openSession(sami, 50.0, "192.168.1.11"));
+		assertEquals("POS_MACHINE_USER_NOT_ALLOWED", refused.getCode());
+		assertEquals("Caisse 1", refused.getParams().get("name"));
+		assertEquals("You are not among the users of the POS machine 'Caisse 1': a session cannot be opened on it. Ask an"
+				+ " administrator to add you to its users on the POS machines page.", refused.getMessage());
+		assertTrue(sessions.isEmpty(), "nothing opened");
+
+		CashierSession session = service.openSession(amira, 100.0, "192.168.1.11");
+		assertSame(caisse1, rfid.sessionMachineService.machineOf(session.getId()).get());
+	}
+
+	@Test
+	@DisplayName("Step 4, 'Seulement' whose listed users all left (one inactive, one deleted): refused for everyone")
+	void everyListedUserLeft() throws Exception {
+		rfid.drawerOwner = DrawerOwner.POS_MACHINE;
+		UserAccount amira = rfid.storeUser(7, "amira", true);
+		rfid.storeUser(8, "sami", true);
+		PosMachine caisse1 = saved(rfid.machine("Caisse 1", "192.168.1.11", null), "Caisse 1", true, 7L, 8L);
+		amira.setActive(false); // deactivated
+		rfid.users.remove(8L); // deleted
+		UserAccount nour = rfid.storeUser(9, "nour", true);
+		CashierSessionService service = service();
+
+		assertEquals("POS_MACHINE_USER_NOT_ALLOWED",
+				assertThrows(DrawerRuleException.class, () -> service.openSession(nour, 50.0, "192.168.1.11")).getCode());
+		assertEquals("POS_MACHINE_USER_NOT_ALLOWED",
+				assertThrows(DrawerRuleException.class, () -> service.openSession(amira, 50.0, "192.168.1.11")).getCode(),
+				"a listed user deactivated");
+		assertTrue(sessions.isEmpty());
+		assertTrue(caisse1.restrictsUsers(), "the restriction stays");
+	}
+
+	@Test
+	@DisplayName("Step 4: 'Seulement' with nobody (or only users who left) is not saved; 'Tous' keeps no list")
+	void seulementNeedsAUser() throws Exception {
+		rfid.storeUser(7, "amira", false);
+		PosMachine caisse1 = rfid.machine("Caisse 1", "192.168.1.11", null);
+
+		PosMachineException none = assertThrows(PosMachineException.class, () -> saved(caisse1, "Caisse 1", true));
+		assertEquals("POS_MACHINE_USERS_REQUIRED", none.getCode());
+		assertEquals("Caisse 1", none.getParams().get("name"));
+		PosMachineException left = assertThrows(PosMachineException.class,
+				() -> saved(caisse1, "Caisse 1", true, 7L, 99L));
+		assertEquals("POS_MACHINE_USERS_REQUIRED", left.getCode(), "an inactive user and a deleted one count for nobody");
+
+		rfid.storeUser(8, "sami", true);
+		PosMachine restricted = saved(caisse1, "Caisse 1", true, 7L, 8L, 99L);
+		assertEquals(java.util.Collections.singleton(8L), restricted.getAllowedUserIds(), "the users who left leave");
+		PosMachine all = saved(restricted, "Caisse 1", false, 8L);
+		assertFalse(all.restrictsUsers());
+		assertTrue(all.getAllowedUserIds().isEmpty(), "'Tous' keeps no list");
+	}
+
+	@Test
+	@DisplayName("Step 4: a rename (the users not sent) keeps 'Seulement' and its list, even when its users all left")
+	void renameKeepsRestriction() throws Exception {
+		UserAccount amira = rfid.storeUser(7, "amira", true);
+		PosMachine caisse1 = saved(rfid.machine("Caisse 1", "192.168.1.11", null), "Caisse 1", true, 7L);
+
+		PosMachine renamed = saved(caisse1, "Caisse A", null, (Long[]) null);
+		assertEquals("Caisse A", renamed.getName());
+		assertTrue(renamed.restrictsUsers());
+		assertEquals(java.util.Collections.singleton(7L), renamed.getAllowedUserIds());
+
+		amira.setActive(false);
+		PosMachine again = saved(renamed, "Caisse B", null, (Long[]) null);
+		assertTrue(again.restrictsUsers(), "never 'Tous' by itself");
+		assertEquals(java.util.Collections.singleton(7L), again.getAllowedUserIds());
+		// the page sends its list (the users who left are not shown): refused, so it never becomes 'Tous' either
+		assertEquals("POS_MACHINE_USERS_REQUIRED",
+				assertThrows(PosMachineException.class, () -> saved(again, "Caisse C", true)).getCode());
+		assertTrue(rfid.machines.get(again.getId()).restrictsUsers());
+	}
+
+	@Test
+	@DisplayName("Step 4, drawer of the cashier: the list is information only, an unlisted user opens")
+	void cashierDrawerIgnoresTheList() throws Exception {
+		rfid.drawerOwner = DrawerOwner.CASHIER;
+		rfid.storeUser(7, "amira", true);
+		PosMachine caisse1 = saved(rfid.machine("Caisse 1", "192.168.1.11", null), "Caisse 1", true, 7L);
+		CashierSession session = service().openSession(rfid.storeUser(8, "sami", true), 50.0, "192.168.1.11");
+		assertSame(caisse1, rfid.sessionMachineService.machineOf(session.getId()).get());
+	}
+
+	@Test
+	@DisplayName("Step 4: a user removed from the list while their session is open keeps it (checked at the opening only)")
+	void removedKeepsOpenSession() throws Exception {
+		rfid.drawerOwner = DrawerOwner.POS_MACHINE;
+		UserAccount amira = rfid.storeUser(7, "amira", true);
+		rfid.storeUser(8, "sami", true);
+		PosMachine caisse1 = saved(rfid.machine("Caisse 1", "192.168.1.11", null), "Caisse 1", true, 7L, 8L);
+		CashierSession session = service().openSession(amira, 100.0, "192.168.1.11");
+
+		saved(caisse1, "Caisse 1", true, 8L); // amira removed
+		assertEquals(SessionStatus.OPENED, session.getStatus());
+		rfid.cashierSessions.add(session); // the till's question reads the store's sessions
+		assertTrue(rfid.sessionMachineService.otherMachine(amira, "192.168.1.99").isPresent(), "the session is found");
+		assertFalse(rfid.sessionMachineService.otherMachine(amira, "192.168.1.11").isPresent(), "she still sells there");
 	}
 }

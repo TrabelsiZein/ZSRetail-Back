@@ -282,6 +282,41 @@ IF OBJECT_ID(N'cashier_session_pos_machine', N'U') IS NOT NULL
 	CREATE INDEX ix_cashier_session_pos_machine_machine ON cashier_session_pos_machine (pos_machine_id);
 GO
 
+-- 15) POS machines step 4, a store only (quick_quantity and pos_machine): the users of a POS machine. users_restricted:
+-- "Tous les utilisateurs" (0, the default, every existing machine) or "Seulement" (1, the users of pos_machine_user).
+-- Hibernate may have added the column first (nullable, empty on the existing rows): its empty rows are set to 0, then
+-- the default and NOT NULL as on a new column. pos_machine_user: one row per machine and user allowed; no foreign key to
+-- user_account (a user is deleted by core, which knows no store table: a deleted user only stops counting); a machine
+-- deleted takes its rows (Hibernate deletes them first). Separate batches: a batch naming a column that is not there yet
+-- does not compile.
+IF OBJECT_ID(N'quick_quantity', N'U') IS NOT NULL AND OBJECT_ID(N'pos_machine', N'U') IS NOT NULL
+	AND COL_LENGTH('pos_machine', 'users_restricted') IS NULL
+	ALTER TABLE pos_machine ADD users_restricted bit NOT NULL
+		CONSTRAINT df_pos_machine_users_restricted DEFAULT 0;
+GO
+IF COL_LENGTH('pos_machine', 'users_restricted') IS NOT NULL
+	UPDATE pos_machine SET users_restricted = 0 WHERE users_restricted IS NULL;
+GO
+IF COL_LENGTH('pos_machine', 'users_restricted') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.default_constraints WHERE parent_object_id = OBJECT_ID(N'pos_machine')
+		AND parent_column_id = COLUMNPROPERTY(OBJECT_ID(N'pos_machine'), 'users_restricted', 'ColumnId'))
+	ALTER TABLE pos_machine ADD CONSTRAINT df_pos_machine_users_restricted DEFAULT 0 FOR users_restricted;
+GO
+IF COLUMNPROPERTY(OBJECT_ID(N'pos_machine'), 'users_restricted', 'AllowsNull') = 1
+	ALTER TABLE pos_machine ALTER COLUMN users_restricted bit NOT NULL;
+GO
+IF OBJECT_ID(N'quick_quantity', N'U') IS NOT NULL AND OBJECT_ID(N'pos_machine', N'U') IS NOT NULL
+	AND OBJECT_ID(N'pos_machine_user', N'U') IS NULL
+BEGIN
+	CREATE TABLE pos_machine_user (
+		pos_machine_id bigint NOT NULL,
+		user_account_id bigint NOT NULL,
+		CONSTRAINT PK_pos_machine_user PRIMARY KEY (pos_machine_id, user_account_id),
+		CONSTRAINT fk_pos_machine_user_machine FOREIGN KEY (pos_machine_id) REFERENCES pos_machine (id)
+	);
+END
+GO
+
 UPDATE APP_VERSION SET version = '3.2.0';
 
 -- The notes of 3.2.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

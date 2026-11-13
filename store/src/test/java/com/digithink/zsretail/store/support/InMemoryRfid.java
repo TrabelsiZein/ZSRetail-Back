@@ -264,11 +264,44 @@ public final class InMemoryRfid {
 			() -> now);
 
 	public final RfidReaderService readerService = user(new RfidReaderService(readerRepository, machineRepository));
+	/** 3.2.0, POS machines step 4: the store's users by id (a user deleted: removed from the map). */
+	public final Map<Long, com.digithink.zsretail.core.model.UserAccount> users = new LinkedHashMap<>();
+
+	public final com.digithink.zsretail.core.repository.UserAccountRepository userRepository = proxy(
+			com.digithink.zsretail.core.repository.UserAccountRepository.class, (method, args) -> {
+				switch (method) {
+				case "findAllById": {
+					List<com.digithink.zsretail.core.model.UserAccount> found = new ArrayList<>();
+					for (Object id : (Iterable<?>) args[0]) {
+						if (users.containsKey(id)) {
+							found.add(users.get(id));
+						}
+					}
+					return found;
+				}
+				case "findById":
+					return Optional.ofNullable(users.get(args[0]));
+				default:
+					throw new UnsupportedOperationException(method);
+				}
+			});
+
+	/** A user of the store with this id, active or not (step 4). */
+	public com.digithink.zsretail.core.model.UserAccount storeUser(long id, String username, boolean active) {
+		com.digithink.zsretail.core.model.UserAccount user = new com.digithink.zsretail.core.model.UserAccount();
+		user.setId(id);
+		user.setUsername(username);
+		user.setFullName(username);
+		user.setActive(active);
+		users.put(id, user);
+		return user;
+	}
+
 	public final PosMachineService machineService = user(new PosMachineService(machineRepository,
-			sessionMachineRepository, java.util.Optional.of(readerRepository), drawer));
+			sessionMachineRepository, java.util.Optional.of(readerRepository), drawer, userRepository));
 	/** 3.2.0: the POS machines of a store without RFID (rfid.enabled=false: no RFID reader repository). */
-	public final PosMachineService machineServiceWithoutRfid = user(
-			new PosMachineService(machineRepository, sessionMachineRepository, java.util.Optional.empty(), drawer));
+	public final PosMachineService machineServiceWithoutRfid = user(new PosMachineService(machineRepository,
+			sessionMachineRepository, java.util.Optional.empty(), drawer, userRepository));
 	/** 3.2.0, POS machines step 2: the machine of each session, and the drawer's rules. */
 	public final SessionPosMachineService sessionMachineService = new SessionPosMachineService(machineRepository,
 			sessionMachineRepository, cashierSessionRepository, drawer);

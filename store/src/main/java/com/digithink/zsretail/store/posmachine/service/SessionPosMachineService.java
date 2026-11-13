@@ -70,9 +70,11 @@ public class SessionPosMachineService {
 	 * The machine a session is opened on, from the opening request's address: the registered one, else none. Part B,
 	 * when the drawer belongs to the POS machine: rule 1, only from a registered, active machine (the refusal says the
 	 * address the server sees, POS_MACHINE_NOT_REGISTERED or POS_MACHINE_INACTIVE); rule 2, one open session per machine
-	 * (POS_MACHINE_IN_USE names the cashier whose session holds it).
+	 * (POS_MACHINE_IN_USE names the cashier whose session holds it). Step 4, between the two: a machine for some users
+	 * only ("Seulement") opens only for a listed, active user (POS_MACHINE_USER_NOT_ALLOWED names the machine); with
+	 * nobody active left in its list, it opens for nobody. Checked at the opening only.
 	 */
-	public PosMachine machineForOpening(String remoteAddress) {
+	public PosMachine machineForOpening(UserAccount user, String remoteAddress) {
 		Optional<PosMachine> found = machineAt(remoteAddress);
 		if (!drawer.toPosMachine()) {
 			return found.orElse(null);
@@ -90,6 +92,11 @@ public class SessionPosMachineService {
 					+ shown + ") is inactive: a session cannot be opened on it.", "name", machine.getName(), "address",
 					shown);
 		}
+		if (machine.restrictsUsers() && !allowedOn(machine, user)) {
+			throw new DrawerRuleException("POS_MACHINE_USER_NOT_ALLOWED", "You are not among the users of the POS machine '"
+					+ machine.getName() + "': a session cannot be opened on it. Ask an administrator to add you to its"
+					+ " users on the POS machines page.", "name", machine.getName());
+		}
 		openSessionOn(machine.getId()).ifPresent(open -> {
 			String cashier = cashierName(open);
 			throw new DrawerRuleException("POS_MACHINE_IN_USE", "The POS machine '" + machine.getName() + "' already has"
@@ -97,6 +104,12 @@ public class SessionPosMachineService {
 					"cashier", cashier);
 		});
 		return machine;
+	}
+
+	/** Step 4: the user is in the machine's list and active (a deleted user cannot log in). */
+	static boolean allowedOn(PosMachine machine, UserAccount user) {
+		return user != null && user.getId() != null && !Boolean.FALSE.equals(user.getActive())
+				&& machine.getAllowedUserIds() != null && machine.getAllowedUserIds().contains(user.getId());
 	}
 
 	/** The OPENED session on this machine, if any (rule 2; a machine with one is not deactivated, rule 5). */

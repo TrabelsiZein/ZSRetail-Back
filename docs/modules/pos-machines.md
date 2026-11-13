@@ -1,6 +1,6 @@
 # POS machines
 
-**Status**: 3.2.0, steps 1 to 3 of 5 (branch `release/3.2.0`). A POS machine ("poste de caisse", the physical PC a cashier
+**Status**: 3.2.0, steps 1 to 4 of 5 (branch `release/3.2.0`). A POS machine ("poste de caisse", the physical PC a cashier
 works on) declared with a name and the address the back end sees for it. It came with RFID in 3.1.0 (`rfid.md`), where
 it links a PC to its reader; since 3.2.0 it exists on **every store**, with or without RFID. First customer asking for
 it beyond RFID: ZEN.
@@ -12,7 +12,7 @@ it beyond RFID: ZEN.
 | 1 | POS machines on every store (this page) | done |
 | 2 | A: the session keeps the POS machine it was opened on (its tickets and returns through it); B: one choice, "the drawer belongs to" the cashier or the POS machine | done |
 | 3 | The day per POS machine: the Journal's day grouped, the store ticket X / Z of one machine | done |
-| 4 | Optional controls in General setup (which user on which machine) | to come; "declared machines only" and "one open session per machine" came with step 2 B, as fixed rules of one choice |
+| 4 | The users of a POS machine ("Tous les utilisateurs" or "Seulement" with its list), applied at the opening with the drawer of the POS machine | done; "declared machines only" and "one open session per machine" came with step 2 B, as fixed rules of one choice |
 | 5 | Cash taken out of the drawer | to come |
 
 Step 1 changes no session, ticket, ticket X or Z, or POS screen: selling behaves as before. Step 2 part A records and
@@ -86,8 +86,8 @@ machine of the opening (part A) is information only. A store that registered no 
 | 4. Closing is never restricted: the cashier closes their own session from any PC, a responsible or an admin closes and verifies from any PC | `CashierSessionAPI` is outside the guard | — |
 | 5. The choice does not change while any session is open; a POS machine with an open session is not deactivated (nor deleted: it has sessions); its address can be corrected | `CashDrawerSettingCheck`; `PosMachineService.check` | 400 `CASH_DRAWER_OWNER_SESSIONS_OPEN` (count); 400 `POS_MACHINE_OPEN_SESSION` (name, cashier) |
 
-The opening checks the cashier's own open session first (as before: "Cashier already has an open session"), then rules 1
-and 2; a refusal opens nothing. The body of every refusal: `{error (English), reason (the code), code, params}`; the
+The opening checks the cashier's own open session first (as before: "Cashier already has an open session"), then rule 1,
+then the machine's users (step 4, below: 409 `POS_MACHINE_USER_NOT_ALLOWED`), then rule 2; a refusal opens nothing. The body of every refusal: `{error (English), reason (the code), code, params}`; the
 front shows `serverErrors.<code>` in the language of the screen.
 
 **Rule 3: one check in front of the selling endpoints, the sale code untouched.** `PosMachineSellingGuard`, a Spring MVC
@@ -133,6 +133,45 @@ none is open when a store chooses `POS_MACHINE`, so every session opened under t
 **Known limits.** Two openings on the same machine at the same instant could both pass rule 2 (the check and the save
 are not one statement); one PC opens one session at a time, so it is not guarded further. `split-and-pay` puts the
 split sale in the session of the table ticket (as before); the till only shows a cashier the tables of their own session.
+
+## The users of a POS machine (step 4)
+
+**The rule**: a restriction the admin put stays until the admin changes it. Each machine is either **"Tous les
+utilisateurs"** (the default, every existing machine) or **"Seulement : …"** with its users. Applied only with the drawer
+of the POS machine (`CASH_DRAWER_OWNER` = `POS_MACHINE`); with "au caissier" the switch and the list are information only.
+
+**At the opening** (`SessionPosMachineService.machineForOpening(user, address)`, after rule 1, before rule 2): on a
+"Seulement" machine only a listed, active user opens a session; anyone else gets 409 `POS_MACHINE_USER_NOT_ALLOWED`
+(name of the machine), shown on the opening page like rules 1 and 2 (`serverErrors`, fr, en, ar). The admin too (an admin
+not listed can still edit the list). A machine whose listed users have all left (deactivated or deleted) opens for
+**nobody** until its list is edited. Checked at the opening only: a user removed from the list while their session is
+open keeps it until they close; closing and verifying are never restricted; rule 3 (selling) does not look at the list.
+
+**Storage**: `pos_machine.users_restricted` (bit, default 0) and `pos_machine_user` (`pos_machine_id`,
+`user_account_id`; `PosMachine.allowedUserIds`, an element collection read with the machine). No foreign key to
+`user_account`: a user is core's and core deletes it without knowing the store's tables; with a foreign key, deleting a
+listed user would fail. A user who left only stops counting. `db/3.2.0/update.sql` step 15; Hibernate creates both at a
+start too (the column nullable: an empty value reads as "Tous").
+
+**Saving** (`PosMachineService.checkUsers`):
+- A field not sent (an older screen, `usersRestricted` or `allowedUserIds` null) keeps the machine's value: no save, a
+  rename included, turns "Seulement" into "Tous" by itself.
+- A list sent keeps only the users that exist and are active (the users who left leave the list at that save).
+- "Seulement" with no user left: 400 `POS_MACHINE_USERS_REQUIRED` (name). So the page cannot save a machine whose listed
+  users all left until the admin picks a user or "Tous" (its list shows no one): the restriction stays meanwhile.
+- "Tous" keeps no list.
+
+**The page** (`PosMachines.vue`): the popup (xl, sections) has a full-width section "Utilisateurs autorisés": the two
+choices, then the store's active users in a grid of checkboxes (`GET /user-account/cashiers`), the count selected, and
+"Choisissez au moins un utilisateur…" (save off) when "Seulement" has none. The users who left are not shown, so not sent.
+When the users did not load, the page sends neither field (the backend keeps them). The list's column "Utilisateurs
+autorisés": "Tous", the number of active users listed (their names in a tooltip), or the red "Aucun utilisateur actif"
+with a tooltip: nobody can open a session on this machine until the list is edited.
+
+**Tests** (`CashierSessionPosMachineTest`): "Tous"; a listed user opens and one not listed is refused, the machine named;
+"Seulement" whose users all left (one inactive, one deleted) refused for everyone; "Seulement" with nobody (or only users
+who left) not saved, "Tous" keeps no list; a rename keeps the restriction, even when its users all left; the drawer of
+the cashier never refuses; a user removed keeps their open session.
 
 ## The day per POS machine (step 3)
 
@@ -235,6 +274,7 @@ step 2 (above).
 | `POST /pos-machine` | 201 and the machine saved (address normalised); 400 |
 | `PUT /pos-machine/{id}` | 200 and the machine saved; 400; 404 |
 | `DELETE /pos-machine/{id}` | 204; 404 when none; 400 `POS_MACHINE_HAS_SESSIONS` (step 2) |
+| `POST`, `PUT /pos-machine/{id}` with `usersRestricted`, `allowedUserIds` | step 4: 400 `POS_MACHINE_USERS_REQUIRED` for "Seulement" with no active user; a field not sent keeps the machine's value |
 | `PUT /pos-machine/{id}` with `active: false` | step 2 B, the drawer of the POS machine: 400 `POS_MACHINE_OPEN_SESSION` while it has an open session |
 | `GET /pos-machine/my-machine` | `MyPosMachine`: `address` (the request's, normalised), `posMachineId`, `posMachineName`, `posMachineActive` (null when no machine has that address) |
 
