@@ -232,6 +232,7 @@ class HeadOfficeStockKeyTest {
 		};
 		AppConfigAPI api = new AppConfigAPI(TestModes.of(env), license, setup);
 		inject(api, "appVersion", "test");
+		inject(api, "environment", env); // 3.2.0: pos.table-management.*
 		inject(api, "loyaltyService", loyalty);
 		inject(api, "taxStampRule", TaxStampRuleTest.rule(null, true)); // 2.2.1: no ENABLE_TAX_STAMP row
 		return api.getConfig().getBody();

@@ -75,7 +75,12 @@ class PaymentMethodsUpgradeTest {
 	@DisplayName("The order: the constraint dropped, the column nullable, the index, the two columns, the conversion")
 	void statementsInTheirOrder() {
 		List<String> statements = PaymentMethodsUpgrade.STATEMENTS;
-		assertEquals(10, statements.size());
+		assertEquals(11, statements.size());
+		// 3.2.0: the table management settings leave General setup (now the properties pos.table-management.*)
+		assertEquals(PaymentMethodsUpgrade.TABLE_MANAGEMENT_SETTINGS, statements.get(10));
+		assertTrue(statements.get(10).contains(
+				"DELETE FROM general_setup WHERE code IN ('TABLE_MANAGEMENT_ENABLED', 'TABLE_MANAGEMENT_TABLE_COUNT');"));
+		assertTrue(statements.get(10).startsWith("IF OBJECT_ID(N'general_setup', N'U') IS NOT NULL"), "guarded");
 		// Step 5: the terminal's slip number, optional, only on a row not set yet
 		assertEquals(PaymentMethodsUpgrade.TPE_SLIP_NUMBER, statements.get(9));
 		assertTrue(statements.get(9).endsWith("EXEC('UPDATE payment_method SET ask_title_number = 1"

@@ -14,8 +14,8 @@ Added two columns to `general_setup`:
 
 | Type | Codes |
 |---|---|
-| BOOLEAN | `ENABLE_SIMPLE_RETURN`, `AUTO_ADD_CASH_PAYMENT_ON_PAYMENT_PAGE`, `ENABLE_CASH_DISCREPANCY_CHECK`, `ENABLE_TAX_STAMP`, `LOYALTY_ENABLED`, `ALLOW_NEGATIVE_STOCK`, `POS_SHOW_IMAGES`, `TABLE_MANAGEMENT_ENABLED`, `ALLOW_DECIMAL_QUANTITY` (2.2.1, stores only, see `decimal-quantities.md`), `POS_HIDE_EMPTY_FAMILIES`, `POS_HIDE_EMPTY_SUB_FAMILIES`, `POS_AMOUNTS_3_DECIMALS` (2.2.2, stores only, see below), `POS_CATALOGUE_VISIBLE` (3.1.1, stores only, see below) (`ALWAYS_SHOW_BADGE_SCAN_POPUP` retired at 3.1.0, step C: `badge-permissions.md`) |
-| NUMBER | `MAX_DAYS_FOR_RETURN`, `RETURN_VOUCHER_VALIDITY_DAYS`, `TAX_STAMP_VALUE_MILLIMES`, `TABLE_MANAGEMENT_TABLE_COUNT`, `TILL_GRANT_MAX_MINUTES` (3.1.0, step D, stores only, `badge-permissions.md`) |
+| BOOLEAN | `ENABLE_SIMPLE_RETURN`, `AUTO_ADD_CASH_PAYMENT_ON_PAYMENT_PAGE`, `ENABLE_CASH_DISCREPANCY_CHECK`, `ENABLE_TAX_STAMP`, `LOYALTY_ENABLED`, `ALLOW_NEGATIVE_STOCK`, `POS_SHOW_IMAGES`, `ALLOW_DECIMAL_QUANTITY` (2.2.1, stores only, see `decimal-quantities.md`), `POS_HIDE_EMPTY_FAMILIES`, `POS_HIDE_EMPTY_SUB_FAMILIES`, `POS_AMOUNTS_3_DECIMALS` (2.2.2, stores only, see below), `POS_CATALOGUE_VISIBLE` (3.1.1, stores only, see below) (`ALWAYS_SHOW_BADGE_SCAN_POPUP` retired at 3.1.0, step C: `badge-permissions.md`) |
+| NUMBER | `MAX_DAYS_FOR_RETURN`, `RETURN_VOUCHER_VALIDITY_DAYS`, `TAX_STAMP_VALUE_MILLIMES`, `TILL_GRANT_MAX_MINUTES` (3.1.0, step D, stores only, `badge-permissions.md`) |
 | DATETIME | All `ERP_SYNC_LAST_*` checkpoints (×9) (the two `FRANCHISE_LAST_*` rows of an older install stay, unused since step 9) |
 | SELECT | `ERP_SYNC_TRACKING_LEVEL` (options: `ERRORS_ONLY,ERRORS_AND_WARNINGS,ALL`), `CASHIER_CLOSING_TICKET` (3.1.0, stores only, options `Z,DECLARED`, see below) |
 | STRING | Default — all other codes not listed above |
@@ -33,7 +33,7 @@ below): `POS_CATALOGUE_VISIBLE` "Catalogue visible by default in the POS screen"
 - **Which state opens**: the till's own choice when it has one (the cashier tapped the icon once: the browser keeps it,
   `localStorage` key `zsretail.pos.catalogueOpen`), else this setting. Changing the setting does not override a till
   that already chose.
-- **Table management** (`TABLE_MANAGEMENT_ENABLED`) always shows the catalogue, without the icon (table service works
+- **Table management** (`pos.table-management.enabled`, a property since 3.2.0, `table-management.md`) always shows the catalogue, without the icon (table service works
   from the tiles).
 - Default `false`: after the upgrade to 3.1.1 a till with no choice opens on the ticket alone (a scanning till sees more
   ticket lines); a store that sells from the tiles sets it to yes, or each till taps the icon once.

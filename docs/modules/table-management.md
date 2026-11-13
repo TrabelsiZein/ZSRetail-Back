@@ -2,7 +2,15 @@
 
 **Status**: ✅ Complete (coffee-shop mode)
 
-**Config gate**: `TABLE_MANAGEMENT_ENABLED` in `general_setup` (BOOLEAN, default `false`). When disabled, ALL table management UI and flows are hidden — zero regression for regular POS use.
+**Config gate** (3.2.0): the installation's properties `pos.table-management.enabled` (absent or anything but `true`:
+off) and `pos.table-management.table-count` (absent, not a number or not positive: 10), read by `AppConfigAPI` into the
+same `/config` fields (`tableManagementEnabled`, `tableManagementTableCount`). The store type file
+(`application-store.properties`) states the defaults; an installation file needs no line: no line, table management off.
+Before 3.2.0 they were the General setup rows `TABLE_MANAGEMENT_ENABLED` and `TABLE_MANAGEMENT_TABLE_COUNT`, shown to
+every customer (a head office too) though no current customer uses table management: `db/3.2.0/update.sql` (step 10)
+and `PaymentMethodsUpgrade.TABLE_MANAGEMENT_SETTINGS` at each start delete them (the script prints a warning when the
+row was on: that installation needs the two lines). When disabled, ALL table management UI and flows are hidden — zero
+regression for regular POS use.
 
 ### Overview
 
@@ -15,14 +23,15 @@
 
 **Migration `025_add_table_management.sql`** (SQL Server T-SQL):
 - `ALTER TABLE [sales_header] ADD [table_number] INT NULL`
-- Inserts `TABLE_MANAGEMENT_ENABLED=false` (BOOLEAN) and `TABLE_MANAGEMENT_TABLE_COUNT=10` (NUMBER) into `general_setup`
+- Inserted `TABLE_MANAGEMENT_ENABLED=false` (BOOLEAN) and `TABLE_MANAGEMENT_TABLE_COUNT=10` (NUMBER) into `general_setup`
+  (removed in 3.2.0: the properties above)
 
 ### Backend — Modified Files
 
 - **`model/SalesHeader.java`** — added `@Column(name = "table_number") private Integer tableNumber`
 - **`dto/ProcessSaleRequestDTO.java`** — added `private Integer tableNumber`
 - **`dto/AppConfigDTO.java`** — added `tableManagementEnabled` (boolean), `tableManagementTableCount` (int)
-- **`controller/AppConfigAPI.java`** — reads both new GeneralSetup keys, populates AppConfigDTO
+- **`controller/AppConfigAPI.java`** — reads both settings (3.2.0: the properties `pos.table-management.*`), populates AppConfigDTO
 - **`repository/SalesHeaderRepository.java`** — added:
   - `findByCashierSessionAndStatusAndTableNumberIsNull(...)` — for regular pending panel (excludes table tickets)
   - `findByCashierSessionAndStatusAndTableNumberIsNotNull(...)` — for table grid

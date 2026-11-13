@@ -60,6 +60,10 @@ import com.digithink.zsretail.support.Installations;
  * <p>
  * Item variants (ZEN), step 9: erp.zen.company of configs/customers/zen-headoffice.properties is ESP, ZEN's company
  * (the invoices page is under Company('ESP')), was CHANGE_ME; every other line unchanged.
+ * <p>
+ * 3.2.0, table management out of General setup: the record gained pos.table-management.enabled and
+ * pos.table-management.table-count (the store type file says false and 10): "keys 68" and two lines per configuration,
+ * false and 10 on a store, (none) on a head office; every other line unchanged.
  */
 class ConfigurationKeysProofTest {
 

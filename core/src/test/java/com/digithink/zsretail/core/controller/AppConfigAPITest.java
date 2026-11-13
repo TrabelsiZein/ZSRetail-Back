@@ -75,8 +75,6 @@ class AppConfigAPITest {
 		Map<String, String> values = new HashMap<>();
 		values.put("POS_SHOW_IMAGES", "false");
 		values.put("POS_SHOW_STOCK", "true");
-		values.put("TABLE_MANAGEMENT_ENABLED", "true");
-		values.put("TABLE_MANAGEMENT_TABLE_COUNT", "7");
 		values.put("TOMBOLA_ENABLED", "true");
 		values.put(TaxStampRule.SETTING, "true");
 		values.put(AppConfigAPI.POS_AMOUNTS_THREE_DECIMALS, "TRUE");
@@ -153,6 +151,7 @@ class AppConfigAPITest {
 		AppConfigAPI api = new AppConfigAPI(mode, license, generalSetupService);
 		inject(api, AppConfigAPI.class, "enableSalesPriceGroup", enableSalesPriceGroup);
 		inject(api, AppConfigAPI.class, "appVersion", APP_VERSION);
+		inject(api, AppConfigAPI.class, "environment", env); // 3.2.0: pos.table-management.*
 		inject(api, AppConfigAPI.class, "loyaltyService", loyalty);
 		inject(api, AppConfigAPI.class, "taxStampRule", TaxStampRuleTest.rule(setup.get(TaxStampRule.SETTING), true));
 		inject(api, AppConfigAPI.class, "navItemService", NAV_ITEM_SERVICE[0]);
@@ -169,8 +168,9 @@ class AppConfigAPITest {
 		assertEquals(LICENSE_DAYS, c.getLicenseDaysUntilExpiry(), "licenseDaysUntilExpiry");
 		assertFalse(c.isPosShowImages(), "posShowImages");
 		assertTrue(c.isPosShowStock(), "posShowStock");
-		assertTrue(c.isTableManagementEnabled(), "tableManagementEnabled");
-		assertEquals(7, c.getTableManagementTableCount(), "tableManagementTableCount");
+		// 3.2.0: the properties pos.table-management.*; no line in these profiles: off, 10 tables
+		assertFalse(c.isTableManagementEnabled(), "tableManagementEnabled");
+		assertEquals(10, c.getTableManagementTableCount(), "tableManagementTableCount");
 		assertEquals(APP_VERSION, c.getAppVersion(), "appVersion");
 		assertTrue(c.isTombolaEnabled(), "tombolaEnabled");
 	}
@@ -189,6 +189,35 @@ class AppConfigAPITest {
 		assertEquals(new ArrayList<>(owners.keySet()), new ArrayList<>(c.getOwnership().keySet()),
 				"ownership key order");
 		assertEquals(Arrays.asList(upstreams), c.getSalesUpstreams(), "salesUpstreams");
+	}
+
+	@Test
+	@DisplayName("3.2.0: table management from the properties: no line, off and 10 tables; the lines, on and their count;"
+			+ " a count missing, not a number or not positive is 10; anything but true is off; a General setup row ignored")
+	void tableManagementFromProperties() throws Exception {
+		AppConfigDTO none = config(new MockEnvironment(), true, true);
+		assertFalse(none.isTableManagementEnabled());
+		assertEquals(10, none.getTableManagementTableCount());
+
+		AppConfigDTO on = config(new MockEnvironment().withProperty("pos.table-management.enabled", " TRUE ")
+				.withProperty("pos.table-management.table-count", "24"), true, true);
+		assertTrue(on.isTableManagementEnabled());
+		assertEquals(24, on.getTableManagementTableCount());
+
+		for (String count : new String[] { "abc", "0", "-3", "" }) {
+			AppConfigDTO bad = config(new MockEnvironment().withProperty("pos.table-management.enabled", "true")
+					.withProperty("pos.table-management.table-count", count), true, true);
+			assertEquals(10, bad.getTableManagementTableCount(), "count [" + count + "]");
+		}
+		assertFalse(config(new MockEnvironment().withProperty("pos.table-management.enabled", "yes"), true, true)
+				.isTableManagementEnabled());
+
+		// a General setup row of before is no longer read
+		SETUP_OVERRIDES.put("TABLE_MANAGEMENT_ENABLED", "true");
+		SETUP_OVERRIDES.put("TABLE_MANAGEMENT_TABLE_COUNT", "7");
+		AppConfigDTO rows = config(new MockEnvironment(), true, true);
+		assertFalse(rows.isTableManagementEnabled());
+		assertEquals(10, rows.getTableManagementTableCount());
 	}
 
 	@Test

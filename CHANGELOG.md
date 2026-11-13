@@ -20,6 +20,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   Restaurant and Chèque Cadeau (3.1.2 reads it by type); 3.1.2 recreates the four settings at 7, so a cheque or traite
   length other than 7 is 7 for 3.1.2. Started again, 3.2.0 puts back what it needs (the constraint dropped again, the
   settings deleted); a method without a length then takes the 7 of the recreated setting (a length set is kept).
+- Table management: a customer that had `TABLE_MANAGEMENT_ENABLED` true in General setup adds
+  `pos.table-management.enabled=true` and its `pos.table-management.table-count` to its installation file (the script
+  prints a warning for such a database; none of the current customers, pos_franchise_customer had false / 10).
 
 ### Enhancements
 - Payment methods, step 1 (model and conversion; `docs/backend.md`, "Payment methods 3.2.0"):
@@ -121,9 +124,17 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   setting true, false and absent, twice each). Step 4: the table `scanned_ticket_payment` (a store: it has `quick_quantity`;
   in Hibernate's form, constraints named as in the entity) and the filtered unique index `ux_scanned_ticket_live_barcode`
   (`live_barcode IS NOT NULL`, also created at each start); the race of two tills proved on a scratch database (the second
-  insert waits for the first, then fails on the index).
+  insert waits for the first, then fails on the index). Step 10: the two table management settings deleted
+  (`TABLE_MANAGEMENT_ENABLED`, `TABLE_MANAGEMENT_TABLE_COUNT`, store and head office; a PRINT when it was on), also at
+  each start (`PaymentMethodsUpgrade.TABLE_MANAGEMENT_SETTINGS`).
 
 ### Config
+- Table management leaves General setup (`docs/modules/table-management.md`): the properties
+  `pos.table-management.enabled` (absent: false) and `pos.table-management.table-count` (absent or not a positive number:
+  10), read by `AppConfigAPI` into the same `/config` fields; the store type file states the defaults, an installation
+  file needs no line. `TABLE_MANAGEMENT_ENABLED` and `TABLE_MANAGEMENT_TABLE_COUNT` no longer created, deleted by the
+  script and at startup (they showed on every General setup, a head office's too). Tests: `AppConfigAPITest`,
+  `PaymentMethodsUpgradeTest`, `HeadOfficeStockKeyTest`; `configuration-keys.txt` gains the two keys (keys 68).
 - General setup: `ERP_SKIP_CHEQUE_PAYMENTS` removed (no longer created, converted to `send_to_erp` and deleted).
 - General setup: `PAYMENT_METHOD_CLIENT_CHEQUE_TITLE_NUMBER_LENGTH`, `PAYMENT_METHOD_TICKET_RESTAURANT_TITLE_NUMBER_LENGTH`,
   `PAYMENT_METHOD_CHEQUE_CADEAU_TITLE_NUMBER_LENGTH`, `PAYMENT_METHOD_CLIENT_TRAITE_TITLE_NUMBER_LENGTH` removed (no

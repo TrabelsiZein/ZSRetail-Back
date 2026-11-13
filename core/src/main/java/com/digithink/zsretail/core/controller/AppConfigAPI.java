@@ -8,6 +8,7 @@ import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -72,6 +73,33 @@ public class AppConfigAPI {
 	@Value("${app.version:unknown}")
 	private String appVersion;
 
+	/**
+	 * 3.2.0: table management (restaurants, coffee shops) is an installation's choice, no longer a General setup row:
+	 * {@link #TABLE_MANAGEMENT_ENABLED} (absent or anything but true: off) and {@link #TABLE_MANAGEMENT_TABLE_COUNT}
+	 * (absent, not a number or not positive: 10). Read through the Environment, so an installation file needs no line.
+	 */
+	@Autowired
+	private Environment environment;
+
+	static final String TABLE_MANAGEMENT_ENABLED = "pos.table-management.enabled";
+	static final String TABLE_MANAGEMENT_TABLE_COUNT = "pos.table-management.table-count";
+	static final int DEFAULT_TABLE_COUNT = 10;
+
+	static boolean tableManagementEnabled(Environment environment) {
+		String value = environment.getProperty(TABLE_MANAGEMENT_ENABLED);
+		return value != null && "true".equalsIgnoreCase(value.trim());
+	}
+
+	static int tableManagementTableCount(Environment environment) {
+		String value = environment.getProperty(TABLE_MANAGEMENT_TABLE_COUNT);
+		try {
+			int count = value == null ? DEFAULT_TABLE_COUNT : Integer.parseInt(value.trim());
+			return count > 0 ? count : DEFAULT_TABLE_COUNT;
+		} catch (NumberFormatException e) {
+			return DEFAULT_TABLE_COUNT;
+		}
+	}
+
 	@Autowired
 	private LoyaltyService loyaltyService;
 
@@ -100,13 +128,8 @@ public class AppConfigAPI {
 		boolean posShowImages = posShowImagesVal == null || !"false".equalsIgnoreCase(posShowImagesVal);
 		String posShowStockVal = generalSetupService.findValueByCode("POS_SHOW_STOCK");
 		boolean posShowStock = "true".equalsIgnoreCase(posShowStockVal);
-		String tableEnabledVal = generalSetupService.findValueByCode("TABLE_MANAGEMENT_ENABLED");
-		boolean tableManagementEnabled = "true".equalsIgnoreCase(tableEnabledVal);
-		String tableCountVal = generalSetupService.findValueByCode("TABLE_MANAGEMENT_TABLE_COUNT");
-		int tableManagementTableCount = 10;
-		if (tableCountVal != null) {
-			try { tableManagementTableCount = Integer.parseInt(tableCountVal); } catch (NumberFormatException ignored) {}
-		}
+		boolean tableManagementEnabled = tableManagementEnabled(environment);
+		int tableManagementTableCount = tableManagementTableCount(environment);
 		boolean tombolaEnabled = "true".equalsIgnoreCase(generalSetupService.findValueByCode("TOMBOLA_ENABLED"));
 		return ResponseEntity.ok(new AppConfigDTO(
 				!applicationModeService.hasErp(), // step 9: the field keeps its name and value (no ERP)

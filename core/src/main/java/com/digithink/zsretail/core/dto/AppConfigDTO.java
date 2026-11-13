@@ -59,13 +59,13 @@ public class AppConfigDTO {
 
 	/**
 	 * True when table management mode is enabled in POS.
-	 * Controlled by GeneralSetup TABLE_MANAGEMENT_ENABLED.
+	 * 3.2.0: the property pos.table-management.enabled (absent: false), no longer a General setup row.
 	 */
 	private boolean tableManagementEnabled;
 
 	/**
 	 * Number of tables shown in the table selection grid.
-	 * Controlled by GeneralSetup TABLE_MANAGEMENT_TABLE_COUNT.
+	 * 3.2.0: the property pos.table-management.table-count (absent, not a number or not positive: 10).
 	 */
 	private int tableManagementTableCount;
 

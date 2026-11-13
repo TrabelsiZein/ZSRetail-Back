@@ -178,6 +178,16 @@ IF COL_LENGTH(N'payment_method', N'ask_title_number') IS NOT NULL
 	EXEC('UPDATE payment_method SET ask_title_number = 1 WHERE type = ''CLIENT_TPE'' AND ask_title_number IS NULL')
 GO
 
+-- 10) Table management is the installation's properties since 3.2.0 (pos.table-management.enabled, .table-count; no line:
+-- off, 10 tables): its two General setup rows go, on a store and on a head office. A row that was on is said here: that
+-- installation needs the two lines in its file.
+IF OBJECT_ID(N'general_setup', N'U') IS NOT NULL BEGIN
+	IF EXISTS (SELECT 1 FROM general_setup WHERE code = 'TABLE_MANAGEMENT_ENABLED' AND LOWER(LTRIM(RTRIM(valeur))) = 'true')
+		PRINT 'Table management was on: add pos.table-management.enabled=true and pos.table-management.table-count to the installation file.';
+	DELETE FROM general_setup WHERE code IN ('TABLE_MANAGEMENT_ENABLED', 'TABLE_MANAGEMENT_TABLE_COUNT');
+END
+GO
+
 UPDATE APP_VERSION SET version = '3.2.0';
 
 -- The notes of 3.2.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

@@ -129,15 +129,30 @@ public class PaymentMethodsUpgrade {
 	static final String TPE_SLIP_NUMBER = "IF COL_LENGTH(N'payment_method', N'ask_title_number') IS NOT NULL"
 			+ " EXEC('UPDATE payment_method SET ask_title_number = 1 WHERE type = ''CLIENT_TPE'' AND ask_title_number IS NULL')";
 
+	/**
+	 * 3.2.0, not a payment method change but run with the version's other start statements: table management is the
+	 * installation's properties (pos.table-management.*, AppConfigAPI), its two General setup rows go (store and head
+	 * office alike). A row that was on is said by the script (PRINT; the application cannot say it through JDBC): that
+	 * installation needs pos.table-management.enabled=true and its count in its file.
+	 */
+	static final String TABLE_MANAGEMENT_SETTINGS = "IF OBJECT_ID(N'general_setup', N'U') IS NOT NULL BEGIN"
+			+ " IF EXISTS (SELECT 1 FROM general_setup WHERE code = 'TABLE_MANAGEMENT_ENABLED'"
+			+ " AND LOWER(LTRIM(RTRIM(valeur))) = 'true')"
+			+ " PRINT 'Table management was on: add pos.table-management.enabled=true and pos.table-management.table-count"
+			+ " to the installation file.';"
+			+ " DELETE FROM general_setup WHERE code IN ('TABLE_MANAGEMENT_ENABLED', 'TABLE_MANAGEMENT_TABLE_COUNT');"
+			+ " END";
+
 	static final List<String> STATEMENTS = Arrays.asList(DROP_TYPE_UNIQUE_CONSTRAINT, TYPE_NULLABLE, TYPE_INDEX,
 			BEHAVIOUR_COLUMN, TITLE_NUMBER_LENGTH_COLUMN, CONVERSION, SEND_TO_ERP_COLUMN, SEND_TO_ERP_CONVERSION,
-			SCANNED_TICKET_LIVE_INDEX, TPE_SLIP_NUMBER);
+			SCANNED_TICKET_LIVE_INDEX, TPE_SLIP_NUMBER, TABLE_MANAGEMENT_SETTINGS);
 
 	private static final List<String> NAMES = Arrays.asList("the unique constraint on payment_method.type dropped",
 			"payment_method.type nullable", "the index " + INDEX, "payment_method.behaviour",
 			"payment_method.title_number_length", "Ticket Restaurant and Chèque Cadeau converted, the lengths copied",
 			"payment_method.send_to_erp", "send_to_erp set, ERP_SKIP_CHEQUE_PAYMENTS deleted",
-			"the index ux_scanned_ticket_live_barcode", "the terminal's slip number asked (optional)");
+			"the index ux_scanned_ticket_live_barcode", "the terminal's slip number asked (optional)",
+			"the table management settings deleted (now pos.table-management.*)");
 
 	private final JdbcTemplate jdbc;
 

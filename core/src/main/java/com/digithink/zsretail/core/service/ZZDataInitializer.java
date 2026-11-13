@@ -1165,11 +1165,8 @@ public class ZZDataInitializer {
 					false, ConfigType.NUMBER);
 		}
 
-		// ── Table management ──────────────────────────────────────────────────
-		ensureConfig("TABLE_MANAGEMENT_ENABLED", "false", "Enable table management mode in POS", false,
-				ConfigType.BOOLEAN);
-		ensureConfig("TABLE_MANAGEMENT_TABLE_COUNT", "10", "Number of tables to display in the table selection grid",
-				false, ConfigType.NUMBER);
+		// Table management: the properties pos.table-management.* since 3.2.0 (AppConfigAPI), no General setup row (the
+		// rows of before are deleted by PaymentMethodsUpgrade.TABLE_MANAGEMENT_SETTINGS and db/3.2.0/update.sql)
 
 		// ── Returns ───────────────────────────────────────────────────────────
 		ensureConfig("MAX_DAYS_FOR_RETURN", "10", "Maximum number of days allowed for product returns", false,
