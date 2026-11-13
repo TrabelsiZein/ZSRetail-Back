@@ -201,6 +201,13 @@ BEGIN
 END
 GO
 
+-- 12) The three permissions of the sessions dashboard removed in 3.2.0 (SessionDashboard.vue): they open nothing; their
+-- rows go from every role (a role's permissions are the rows of app_role_permission). Run twice: nothing left to delete.
+IF OBJECT_ID(N'app_role_permission', N'U') IS NOT NULL
+	DELETE FROM app_role_permission
+	WHERE permission_key IN ('read:admin-sessions', 'read:responsible-sessions', 'write:responsible-sessions');
+GO
+
 UPDATE APP_VERSION SET version = '3.2.0';
 
 -- The notes of 3.2.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

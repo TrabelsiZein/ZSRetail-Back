@@ -321,8 +321,10 @@ reads on them). Its payments stay the net (the parts applied), in PAIEMENTS, the
   form) and its `GET /cashier-session/dashboard` (`getSessionDashboard`, every session of the store read) are gone; its
   addresses `/admin/sessions` and `/responsible/sessions` open the Sessions page (`SessionHistory.vue`), where the
   Responsable verifies (menu Caisse > Sessions, `read:admin-sessions-history`; the form for a CLOSED session not yet
-  verified). The search's "Sessions" opens it too (its duplicate "Historique Sessions" removed). The permissions
-  `read:admin-sessions`, `read:responsible-sessions`, `write:responsible-sessions` stay in the roles; they open nothing.
+  verified). The search's "Sessions" opens it too (its duplicate "Historique Sessions" removed). Its permissions
+  `read:admin-sessions`, `read:responsible-sessions`, `write:responsible-sessions` are removed too: no longer seeded
+  (`ZZDataInitializer`) nor listed on the Roles page (`AppRoleAPI`, `RoleManagement.vue`), and deleted from the existing
+  roles by `db/3.2.0/update.sql` step 12 (a start never adds them back).
 
 ## Scanned tickets taken (3.2.0, step 7)
 

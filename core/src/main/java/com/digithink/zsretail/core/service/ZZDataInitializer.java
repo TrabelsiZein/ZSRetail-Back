@@ -439,8 +439,7 @@ public class ZZDataInitializer {
 			Arrays.asList("read:admin-store-orders", "write:admin-store-orders"));
 
 	private static final Set<String> ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:home",
-			"read:admin-users", "write:admin-users", "delete:admin-users", "read:admin-sessions",
-			"read:admin-sessions-history", "read:tickets-history", "read:admin-item-barcodes",
+			"read:admin-users", "write:admin-users", "delete:admin-users", "read:admin-sessions-history", "read:tickets-history", "read:admin-item-barcodes",
 			"read:admin-item-management", "read:admin-print-product-labels", "read:admin-item-families",
 			"read:admin-item-subfamilies", "read:admin-customers", "write:admin-customers", "delete:admin-customers",
 			"read:admin-vendors", "write:admin-vendors", "read:admin-locations", "read:admin-sales-prices",
@@ -460,7 +459,7 @@ public class ZZDataInitializer {
 			"read:verify-session", "read:prepare-invoice", "read:admin-scanned-tickets"));
 
 	private static final java.util.Set<String> RESPONSIBLE_PERMISSIONS = new java.util.HashSet<>(
-			java.util.Arrays.asList("read:home", "read:responsible-sessions", "write:responsible-sessions",
+			java.util.Arrays.asList("read:home",
 					"read:admin-sessions-history", "read:tickets-history", "read:admin-item-barcodes",
 					"read:admin-item-management", "read:admin-item-families", "read:admin-item-subfamilies",
 					"read:admin-print-product-labels", "read:admin-sales-prices", "read:admin-sales-discounts",

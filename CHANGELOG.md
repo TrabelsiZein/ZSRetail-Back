@@ -114,8 +114,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   (`scannedTicketsChecked`, `scannedTicketsDeclaredNoDifference`).
 - Sessions dashboard removed (`SessionDashboard.vue`, in no menu; `/admin/sessions` and `/responsible/sessions` open the
   Sessions page): `GET /cashier-session/dashboard` and `CashierSessionService.getSessionDashboard` removed (it read
-  every session of the store, several queries each). The permissions `read:admin-sessions`, `read:responsible-sessions`
-  and `write:responsible-sessions` stay (roles, seed and role page unchanged); they open nothing now.
+  every session of the store, several queries each). Its permissions `read:admin-sessions`, `read:responsible-sessions`
+  and `write:responsible-sessions` (no endpoint, route or menu checked them) are removed: from the roles of a new
+  database (`ZZDataInitializer`), from the Roles page's list (`AppRoleAPI`) and from the existing roles (DB script, step
+  12); a start never gives them back. The Sessions page and its verification form keep `read:admin-sessions-history`
+  and `read:verify-session`. Test: `ZZDataInitializerRolesTest.sessionsDashboardPermissionsGone`.
 
 ### Fixes
 - Sessions list: "Diff." and "Diff. Resp" of a session with scanned tickets compared the declared face total with the
@@ -157,7 +160,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   (`TABLE_MANAGEMENT_ENABLED`, `TABLE_MANAGEMENT_TABLE_COUNT`, store and head office; a PRINT when it was on), also at
   each start (`PaymentMethodsUpgrade.TABLE_MANAGEMENT_SETTINGS`). Step 11, a head office (it has `ho_session`): the
   table `ho_session_scanned` (in Hibernate's form, its foreign key `fk_ho_session_scanned_session` as in the entity);
-  Hibernate creates it too at the first start.
+  Hibernate creates it too at the first start. Step 12, store and head office: the rows of `read:admin-sessions`,
+  `read:responsible-sessions` and `write:responsible-sessions` deleted from `app_role_permission` (every role; safe to
+  run twice).
 
 ### Config
 - Table management leaves General setup (`docs/modules/table-management.md`): the properties

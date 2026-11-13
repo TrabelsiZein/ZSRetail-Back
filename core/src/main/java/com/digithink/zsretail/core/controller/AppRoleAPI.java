@@ -37,9 +37,7 @@ public class AppRoleAPI {
         // Admin panel — menus
         "read:home",
         "read:admin-users", "write:admin-users", "delete:admin-users",
-        "read:admin-sessions",
         "read:admin-sessions-history",
-        "read:responsible-sessions", "write:responsible-sessions",
         "read:tickets-history",
         "read:admin-item-barcodes",
         "read:admin-item-management",

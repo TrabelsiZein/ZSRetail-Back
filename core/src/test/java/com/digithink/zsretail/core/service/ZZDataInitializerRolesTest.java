@@ -578,6 +578,27 @@ class ZZDataInitializerRolesTest {
 		assertTrue(Collections.disjoint(COST, withoutStock.get("ADMIN").getPermissions()));
 	}
 
+	/** 3.2.0: the permissions of the sessions dashboard (SessionDashboard.vue, removed); db/3.2.0 step 12 deletes their rows. */
+	private static final Set<String> SESSIONS_DASHBOARD = new HashSet<>(java.util.Arrays.asList("read:admin-sessions",
+			"read:responsible-sessions", "write:responsible-sessions"));
+
+	@Test
+	@DisplayName("3.2.0: the sessions dashboard's permissions are seeded nowhere and listed nowhere; ADMIN and RESPONSIBLE keep"
+			+ " the Sessions page and its verification form")
+	void sessionsDashboardPermissionsGone() throws Exception {
+		for (String set : new String[] { "ADMIN_PERMISSIONS", "RESPONSIBLE_PERMISSIONS", "POS_PERMISSIONS",
+				"HEAD_OFFICE_ADMIN_PERMISSIONS" }) {
+			assertTrue(Collections.disjoint(staticSet(set), SESSIONS_DASHBOARD), set);
+		}
+		assertTrue(Collections.disjoint(new com.digithink.zsretail.core.controller.AppRoleAPI().getAllPermissions(),
+				SESSIONS_DASHBOARD), "the Roles page's list");
+		Map<String, AppRole> roles = seedRoles(new MockEnvironment(), true, Collections.emptyMap());
+		for (String role : new String[] { "ADMIN", "RESPONSIBLE" }) {
+			assertTrue(roles.get(role).getPermissions().containsAll(
+					java.util.Arrays.asList("read:admin-sessions-history", "read:verify-session")), role);
+		}
+	}
+
 	// --- Stubs ---
 
 	private interface Handler {
