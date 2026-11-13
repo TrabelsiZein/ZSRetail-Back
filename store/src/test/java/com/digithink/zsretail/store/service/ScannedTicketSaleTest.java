@@ -349,6 +349,29 @@ class ScannedTicketSaleTest {
 	}
 
 	@Test
+	@DisplayName("Step 5 fix, seen at the till: 18.900 paid by a ticket (6.300) and 20.000 cash, 7.400 back from the cash")
+	void ticketAndCashAboveTheRest() throws Exception {
+		SalesHeader sale = sell(18.9, scan(meal, VALID), amount(cash, 20.0));
+		List<Payment> payments = paymentsOf(sale);
+		assertEquals(2, payments.size());
+		Payment ticket = payments.stream().filter(p -> p.getPaymentMethod() == meal).findFirst().get();
+		Payment received = payments.stream().filter(p -> p.getPaymentMethod() == cash).findFirst().get();
+		assertEquals(6.3, ticket.getTotalAmount(), 1e-9, "the ticket applies all its counted value");
+		assertEquals(new BigDecimal("0.000"), ticketOf(ticket).getExcessAmount());
+		assertEquals(20.0, received.getTotalAmount(), 1e-9, "the cash received, as typed");
+		assertEquals(26.3, sale.getPaidAmount(), 1e-9);
+		assertEquals(7.4, sale.getChangeAmount(), 1e-9, "the change, never more than the cash received");
+	}
+
+	@Test
+	@DisplayName("Step 5 fix: a card of 5.000 and 20.000 cash on 18.900: accepted, 6.100 back from the cash")
+	void cardAndCashAboveTheRest() throws Exception {
+		SalesHeader sale = sell(18.9, amount(card, 5.0), amount(cash, 20.0));
+		assertEquals(25.0, sale.getPaidAmount(), 1e-9);
+		assertEquals(6.1, sale.getChangeAmount(), 1e-9);
+	}
+
+	@Test
 	@DisplayName("The amount the till sends for the tickets is ignored: the server counts them")
 	void amountIgnored() throws Exception {
 		ProcessSaleRequestDTO.PaymentDTO tickets = scan(meal, VALID);
