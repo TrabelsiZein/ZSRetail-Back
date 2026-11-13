@@ -1174,7 +1174,8 @@ public class ZZDataInitializer {
 					false, ConfigType.NUMBER);
 			// 3.2.0, POS machines step 2: who the cash drawer belongs to (docs/modules/pos-machines.md); a store only
 			ensureConfigWithOptions(AppConfigAPI.CASH_DRAWER_OWNER, "CASHIER",
-					"Who the cash drawer belongs to. CASHIER: the session follows the cashier on any PC, nothing is refused (the POS machine of the opening is information). POS_MACHINE: a session opens only on a registered, active POS machine, one open session per POS machine, selling, putting on hold and returns only from the session's POS machine; closing from any PC. Not changed while a session is open.",
+					// description: general_setup.description is varchar(255); the full text is the page's help
+					"Who the cash drawer belongs to: CASHIER (nothing refused) or POS_MACHINE (sessions only on registered, active POS machines, one each; selling only on the session's one). Not changed while a session is open.",
 					false, ConfigType.SELECT, "CASHIER,POS_MACHINE");
 		}
 
