@@ -1,6 +1,6 @@
 # POS machines
 
-**Status**: 3.2.0, steps 1 and 2 of 5 (branch `release/3.2.0`). A POS machine ("poste de caisse", the physical PC a cashier
+**Status**: 3.2.0, steps 1 to 3 of 5 (branch `release/3.2.0`). A POS machine ("poste de caisse", the physical PC a cashier
 works on) declared with a name and the address the back end sees for it. It came with RFID in 3.1.0 (`rfid.md`), where
 it links a PC to its reader; since 3.2.0 it exists on **every store**, with or without RFID. First customer asking for
 it beyond RFID: ZEN.
@@ -11,7 +11,7 @@ it beyond RFID: ZEN.
 |---|---|---|
 | 1 | POS machines on every store (this page) | done |
 | 2 | A: the session keeps the POS machine it was opened on (its tickets and returns through it); B: one choice, "the drawer belongs to" the cashier or the POS machine | done |
-| 3 | Tickets X and Z per POS machine | to come |
+| 3 | The day per POS machine: the Journal's day grouped, the store ticket X / Z of one machine | done |
 | 4 | Optional controls in General setup (which user on which machine) | to come; "declared machines only" and "one open session per machine" came with step 2 B, as fixed rules of one choice |
 | 5 | Cash taken out of the drawer | to come |
 
@@ -134,6 +134,52 @@ none is open when a store chooses `POS_MACHINE`, so every session opened under t
 are not one statement); one PC opens one session at a time, so it is not guarded further. `split-and-pay` puts the
 split sale in the session of the table ticket (as before); the till only shows a cashier the tables of their own session.
 
+## The day per POS machine (step 3)
+
+**Only with the drawer of the POS machine** (`CASH_DRAWER_OWNER` = `POS_MACHINE`, read as it is now, not as it was on
+that day: a day before the switch is grouped too, its sessions of before 3.2.0 under "—"; back to `CASHIER`, every day
+as before). With `CASHIER` no screen, ticket or file changes and the store ticket's JSON is the one of before. Nothing at
+the head office, on the sale receipt, in the amounts or in the closing.
+
+**The store ticket grouped** (`StoreReportService`, `StoreReportTicketDTO.posMachines`, absent from the JSON otherwise):
+the store ticket X or Z of the day (the sessions of "Store ticket X / Z", `cash-sessions.md`) gives its sessions grouped
+per POS machine, `PosMachineGroup`: `posMachineId`, `posMachineName` (both null for the sessions without a machine, the
+last group, "—"), `sessions`, and the blocks of the ticket over them (`sales`, `returns`, `netSales`, `payments`,
+`openingCash`, `control`, `scannedTickets`, `modifiedAfterClosingCount` on a Z). The machines by name, the sessions by
+opening. The groups are added up by the ticket's own code (`blocks`) from the session tickets already built, and the
+machines read in one query (`SessionPosMachineService.machinesBySession`): no query per group; they add up to the
+store's blocks, which are unchanged.
+
+**The X / Z of one POS machine**: `GET /cashier-session/store-report-ticket/x?posMachineId=` and
+`/z?date=&posMachineId=` (`buildX(id)`, `buildZ(date, id)`): the same ticket over that machine's sessions (the same date
+rules), `posMachineId` and `posMachineName` in its header, no groups. 404 with the reason for an unknown machine ("No POS
+machine number N.") or one without a session that day ("No cashier session of the POS machine 'X' closed on D: no ticket
+Z."). It answers whatever the drawer (the page offers it only with `POS_MACHINE`).
+
+**The Journal's day** (`StoreDay.vue`):
+- "Sessions de la journée": one group per POS machine (name, number of sessions, its sessions, then its subtotal:
+  Ventes (tickets, TTC, retours, net), Paiements per method, Contrôle (fond de caisse, attendu / compté / écart per
+  method)); "—" for the sessions without one. The store's cards below (Ventes, Paiements, Contrôle) stay the total.
+- Before the print buttons, a choice: "Tout le magasin" (the default, the ticket of before) or a POS machine that has a
+  session in the ticket shown ("—" is not offered: under the rules every new session has a machine). A machine chosen,
+  its X (today) and Z are loaded at once, so the print window opens on the click; the 80 mm ticket names the machine
+  under the date (`printSessionReport.js`). The Z of one machine waits only for that machine's open sessions (I-19, by
+  the machine's name on the X's session rows).
+- The journal's A4 print (`printDayJournal.js`, `machineGroupsHtml`) adds, after the totals per method, the block "Par
+  poste de caisse" (ticket X or Z of the day): per machine its sessions, a line (tickets, TTC, retours, net, fond de
+  caisse) and a table per method (paiements, attendu, compté, écart), then "Total magasin". The journal's lines are
+  unchanged.
+- The day's Excel (`GET /cashier-session/day-journal/excel`, `JournalExcel`): a second sheet "Postes de caisse"
+  (`StoreReportService.dayTicketByMachine`: the X on today, the Z on another day, as the page; none without a session or
+  with `CASHIER`): three tables, the sessions per machine; the subtotals per machine (sessions, tickets, annulés, HT, TVA,
+  timbre, TTC, retours, net, fond de caisse) and "Total magasin"; the payments and the control per machine and method
+  (paiements, attendu, compté, écart, and for a scanned-tickets method the numbers of tickets) and the store's. The
+  journal sheet is unchanged.
+
+**Two date rules on one page.** The groups follow the store ticket (sessions by their closing); the journal's lines
+follow their own date (`cash-sessions.md`, "Journal"). A session crossing midnight is whole in the groups of its closing
+day and split in the journals: the block and the sheet are the page's subtotals, not the lines added up.
+
 ## The table and the rules
 
 `pos_machine` (`store.posmachine.model.PosMachine`, extends `_BaseEntity`), unchanged since 3.1.0:
@@ -244,3 +290,8 @@ every restricted endpoint 409 with its body, the not restricted ones pass; the a
 machine, a user without a session, an admin; rule 4: closing and verifying outside the guard, its paths),
 `PosMachineServiceTest.deactivateWithOpenSession` (rule 5), `CashDrawerSettingCheckTest` (rule 5, the setting read),
 `GeneralSetupCodedRefusalTest` (core).
+
+Step 3: `StoreReportServiceTest` (`cashierUnchanged`: no group and no machine in the JSON, the Excel's journal alone;
+`groupsAndSubtotals`: two machines and "—", each group's figures, the groups adding up to the store; `zOfOneMachine`,
+`xOfOneMachine` (closed today and open now, counted null); `machineWithoutSession`: the 404s; `excelPerMachine`: the sheet
+and its subtotal rows, the X today and the Z another day).

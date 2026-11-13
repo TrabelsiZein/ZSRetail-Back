@@ -83,7 +83,9 @@ a head office): `CASH_DRAWER_OWNER` (`AppConfigAPI.CASH_DRAWER_OWNER`), label "L
 `CASHIER` "au caissier" and `POS_MACHINE` "au poste de caisse", a help text under it (`fields.cashDrawerOwnerHelp`).
 `CASHIER` (also no row, a blank or unknown value) is the behaviour of before: nothing refused. `POS_MACHINE` sets the
 fixed rules of `pos-machines.md`, "The drawer belongs to" (a session per registered, active POS machine, selling only
-from it). Read by the store at each use (`CashDrawerSetting`), not sent by `/config`. Its value is checked
+from it); since POS machines step 3 it also shows the Journal's day per POS machine (the groups of the store ticket X / Z,
+its print and Excel, the X / Z of one machine: `pos-machines.md`, "The day per POS machine"), read as it is now, not as
+it was on that day. Read by the store at each use (`CashDrawerSetting`), not sent by `/config`. Its value is checked
 (`CashDrawerSettingCheck`, a `GeneralSetupValueCheck`): `CASHIER` or `POS_MACHINE`, and **not changed while any session
 is open** (either way; saving the value it has passes): 400 `{error, code: CASH_DRAWER_OWNER_SESSIONS_OPEN, params:
 {count}}`. Since 3.2.0 `PUT /general-setup/{id}` answers a refusal that carries a code (`core.exception.CodedRefusal`)

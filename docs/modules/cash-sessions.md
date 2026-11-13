@@ -100,6 +100,10 @@ stored, and the selling and session code is untouched.
 - `GET /cashier-session/store-report-ticket/z?date=YYYY-MM-DD`: the store ticket Z of that date; 400 for a date that
   does not parse.
 - 404 with the reason when no session matches. No role check, as the session ticket.
+- 3.2.0, POS machines step 3: `?posMachineId=` on both, the same ticket over that POS machine's sessions (the machine in
+  its header; 404 for an unknown machine or one without a session that day); with the drawer of the POS machine the
+  store's ticket also carries `posMachines`, its sessions grouped per machine with their blocks
+  (`pos-machines.md`, "The day per POS machine").
 - Test log I-19 (2026-10-17, front only): the Journal's day page does not print the store Z while a session opened on
   or before that day is still open (the X of today lists the sessions open now); it names them ("Sessions still open:
   ..."). The Z itself is unchanged and still shown.
@@ -370,6 +374,20 @@ sales and returns endpoints: the sale, return and closing code is unchanged). **
 cashier closes their own session from any PC (`POST /cashier-session/close`), a responsible or an admin closes
 (`/{id}/close`) and verifies (`/verify`) from any PC. The choice does not change while a session is open. Details and the
 endpoint table: `pos-machines.md`, "The drawer belongs to".
+
+Step 3, the day per POS machine, only with the drawer of the POS machine: the Journal's day groups "Sessions de la
+journée" per POS machine with a subtotal each ("—" without one), the store's cards staying the total; its print buttons
+print the store's ticket X / Z or one machine's (`?posMachineId=`); the journal's A4 print adds the block "Par poste de
+caisse" and its Excel a sheet "Postes de caisse", with the page's subtotals (the store ticket's sessions, by their
+closing; the journal's lines are unchanged). With the drawer of the cashier, nothing changes. `pos-machines.md`, "The
+day per POS machine".
+
+**The closing body (fixed in step 3).** `POST /cashier-session/close` reads every body the same way: the counted lines
+(`cashCountLines`, optional), `actualCash` (optional), `notes`, `tillGrant`, `discrepancyConfirmed`, then
+`closeSessionWithCashCount`. Until then a body without `cashCountLines` (the old `{actualCash, notes}`, or the till's
+`{notes}` when its closing window has no row because its payment methods did not load) went through a closing method
+that called the transactional one from inside the service, outside its transaction: the closing's row lock (1.8.0)
+answered 500 "no transaction is in progress". That method is removed. `CloseSessionBodyTest`.
 
 ## Closed points
 

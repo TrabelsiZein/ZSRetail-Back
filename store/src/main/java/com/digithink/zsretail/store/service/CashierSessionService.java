@@ -180,19 +180,6 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	}
 
 	/**
-	 * Close a cashier session (legacy method for backward compatibility)
-	 * 
-	 * @throws Exception
-	 */
-	public CashierSession closeSession(Long sessionId, Double actualCash, String notes) throws Exception {
-		CloseSessionRequestDTO request = new CloseSessionRequestDTO();
-		request.setActualCash(actualCash);
-		request.setNotes(notes);
-		request.setCashCountLines(new ArrayList<>());
-		return closeSessionWithCashCount(sessionId, request);
-	}
-
-	/**
 	 * Get expected cash (real cash) for a session by ID This is a public method
 	 * that exposes the calculated expected cash amount.
 	 * 

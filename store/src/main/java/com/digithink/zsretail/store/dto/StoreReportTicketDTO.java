@@ -12,6 +12,7 @@ import com.digithink.zsretail.store.dto.SessionReportTicketDTO.Returns;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO.Sales;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO.ScannedTickets;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -66,6 +67,47 @@ public class StoreReportTicketDTO {
 	@JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
 	private LocalDateTime printedAt;
 	private String printedBy;
+
+	/**
+	 * 3.2.0, POS machines step 3: the ticket of one POS machine (?posMachineId=): the same ticket limited to its
+	 * sessions, the machine in the header. Absent from the JSON on the store's ticket.
+	 */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Long posMachineId;
+
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private String posMachineName;
+
+	/**
+	 * 3.2.0, POS machines step 3: the store's ticket only, and only when the drawer belongs to the POS machine
+	 * (CASH_DRAWER_OWNER = POS_MACHINE): the sessions grouped per POS machine, each group with the blocks of this ticket
+	 * over its sessions; the machines by name, the sessions without a machine last (posMachineId null). Absent from the
+	 * JSON otherwise, so the answer with CASHIER is the one of before.
+	 */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private List<PosMachineGroup> posMachines;
+
+	/**
+	 * 3.2.0, POS machines step 3: one POS machine's sessions of the ticket and their blocks, added up as the ticket's own
+	 * (StoreReportService): the same rules, so the groups add up to the ticket.
+	 */
+	@Data
+	@NoArgsConstructor
+	public static class PosMachineGroup {
+		/** null: the sessions without a POS machine ("—"). */
+		private Long posMachineId;
+		private String posMachineName;
+		private List<SessionRow> sessions = new ArrayList<>();
+		private Sales sales;
+		private Returns returns;
+		private Double netSales;
+		private List<PaymentLine> payments = new ArrayList<>();
+		private Double openingCash;
+		private List<ControlLine> control = new ArrayList<>();
+		private List<ScannedTickets> scannedTickets = new ArrayList<>();
+		/** Z only, null on a ticket X. */
+		private Long modifiedAfterClosingCount;
+	}
 
 	@Data
 	@NoArgsConstructor

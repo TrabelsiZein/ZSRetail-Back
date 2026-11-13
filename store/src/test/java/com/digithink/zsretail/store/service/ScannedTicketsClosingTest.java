@@ -578,6 +578,7 @@ class ScannedTicketsClosingTest {
 				(m, a) -> m.startsWith("findByStatusIn") ? Arrays.asList(session, other) : UNHANDLED));
 		set(store, StoreReportService.class, "paymentMethodRepository", proxy(PaymentMethodRepository.class,
 				(m, a) -> "findAll".equals(m) ? Arrays.asList(cash, meal) : UNHANDLED));
+		set(store, StoreReportService.class, "sessionPosMachineService", new InMemoryRfid().sessionMachineService);
 		set(store, StoreReportService.class, "currentUserProvider", new CurrentUserProvider() {
 			@Override
 			public UserAccount getCurrentUser() {

@@ -177,6 +177,25 @@ public class SessionPosMachineService {
 	}
 
 	/**
+	 * Step 3: the machines of these sessions (one query), by session id; a session without a machine is not in it.
+	 */
+	public Map<Long, PosMachine> machinesBySession(Collection<Long> sessionIds) {
+		if (sessionIds == null || sessionIds.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		Map<Long, PosMachine> found = new HashMap<>();
+		for (SessionPosMachine row : sessionMachines.findBySessionIdIn(sessionIds)) {
+			found.put(row.getSessionId(), row.getPosMachine());
+		}
+		return found;
+	}
+
+	/** Step 3: a POS machine by its id; empty when none. */
+	public Optional<PosMachine> machine(Long posMachineId) {
+		return posMachineId == null ? Optional.empty() : machines.findById(posMachineId);
+	}
+
+	/**
 	 * A filter of a list: the session id is one of the sessions opened on this machine (a subquery on the link table's
 	 * pos_machine_id; the sales then come through ix_sales_header_session_status).
 	 */

@@ -4,6 +4,7 @@ import static com.digithink.zsretail.core.support.InMemoryLoyalty.UNHANDLED;
 import static com.digithink.zsretail.core.support.InMemoryLoyalty.inject;
 import static com.digithink.zsretail.core.support.InMemoryLoyalty.proxy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -52,6 +53,19 @@ import com.digithink.zsretail.store.dto.SessionReportTicketDTO.ControlLine;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO.PaymentLine;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO.VatLine;
 import com.digithink.zsretail.store.dto.StoreReportTicketDTO;
+import com.digithink.zsretail.store.dto.StoreReportTicketDTO.PosMachineGroup;
+import com.digithink.zsretail.store.dto.DayJournalDTO;
+import com.digithink.zsretail.store.posmachine.DrawerOwner;
+import com.digithink.zsretail.store.posmachine.model.PosMachine;
+import com.digithink.zsretail.store.posmachine.model.SessionPosMachine;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import java.io.ByteArrayInputStream;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import com.digithink.zsretail.store.model.SessionCashCount;
 import com.digithink.zsretail.store.repository.PaymentChangeLogRepository;
 import com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository;
@@ -82,6 +96,9 @@ class StoreReportServiceTest {
 	/** The sessions with payment method changes after their closing (PaymentChangeLog). */
 	private final List<CashierSession> modifiedAfterClosing = new ArrayList<>();
 	private long nextId = 1;
+
+	/** 3.2.0, POS machines: the machines, the sessions' links and who the drawer belongs to (CASHIER by default). */
+	private final InMemoryRfid rfid = new InMemoryRfid();
 
 	private StoreReportService service;
 
@@ -169,15 +186,16 @@ class StoreReportServiceTest {
 		// step 6: no scanned ticket here (ScannedTicketsClosingTest adds up two sessions' blocks)
 		inject(sessionReports, "scannedTicketPaymentRepository", proxy(ScannedTicketPaymentRepository.class,
 				(m, a) -> "findByCashierSession".equals(m) ? new ArrayList<>() : UNHANDLED));
-		// 3.2.0, POS machines step 2: no POS machine for these sessions
-		inject(sessionReports, "sessionPosMachineService", new InMemoryRfid().sessionMachineService);
-		inject(sessionService, "sessionPosMachineService", new InMemoryRfid().sessionMachineService);
+		// 3.2.0, POS machines step 2: no POS machine for these sessions until a test links them (step 3, rfid.link)
+		inject(sessionReports, "sessionPosMachineService", rfid.sessionMachineService);
+		inject(sessionService, "sessionPosMachineService", rfid.sessionMachineService);
 
 		service = new StoreReportService();
 		inject(service, "cashierSessionRepository", sessionRepo);
 		inject(service, "sessionReportService", sessionReports);
 		inject(service, "paymentMethodRepository", methodRepo);
 		inject(service, "currentUserProvider", user);
+		inject(service, "sessionPosMachineService", rfid.sessionMachineService);
 		inject(service, "companyInformationService", new CompanyInformationService(null) {
 			@Override
 			public CompanyInformationDTO get() {
@@ -527,5 +545,225 @@ class StoreReportServiceTest {
 		assertNull(control(dto, "TPE").getCounted(), "L1 declared no card");
 		assertNull(control(dto, "TPE").getDifference());
 		assertEquals(319.0, control(dto, "ESP").getCounted(), EPS, "the cash: 219 + 100 + 0");
+	}
+
+	// ─── 3.2.0, POS machines step 3: the day per POS machine ─────────
+
+	private PosMachine caisse1;
+	private PosMachine caisse2;
+
+	/**
+	 * twoClosedSessions with S1 on "Caisse 2" and S2 on "Caisse 1", and S4 closed on DAY without a machine (opening 20,
+	 * a ticket of 40 at 19 % in cash, expected cash 60, counted 60).
+	 */
+	private CashierSession[] threeSessionsOnMachines() {
+		CashierSession[] two = twoClosedSessions();
+		caisse2 = rfid.machine("Caisse 2", "192.168.1.12", null);
+		caisse1 = rfid.machine("Caisse 1", "192.168.1.11", null);
+		link(two[0], caisse2);
+		link(two[1], caisse1);
+		CashierSession s4 = session("S4", DAY.atTime(13, 0), DAY.atTime(21, 0), 20.0, 60.0);
+		sale(s4, 19, 40.0, cash);
+		count(s4, cash, 60.0);
+		return new CashierSession[] { two[0], two[1], s4 };
+	}
+
+	private void link(CashierSession session, PosMachine machine) {
+		rfid.sessionMachineRepository.save(new SessionPosMachine(session, machine));
+	}
+
+	private static List<String> numbers(List<StoreReportTicketDTO.SessionRow> rows) {
+		return rows.stream().map(StoreReportTicketDTO.SessionRow::getSessionNumber).collect(Collectors.toList());
+	}
+
+	private static ControlLine control(PosMachineGroup group, String code) {
+		return group.getControl().stream().filter(c -> code.equals(c.getCode())).findFirst().orElse(null);
+	}
+
+	private static PaymentLine payment(PosMachineGroup group, String code) {
+		return group.getPayments().stream().filter(p -> code.equals(p.getCode())).findFirst().orElse(null);
+	}
+
+	@Test
+	@DisplayName("Step 3, CASHIER: the store ticket is the one of before, no group and no machine in its JSON")
+	void cashierUnchanged() throws Exception {
+		threeSessionsOnMachines();
+		StoreReportTicketDTO z = service.buildZ(DAY);
+
+		assertNull(z.getPosMachines());
+		assertNull(z.getPosMachineId());
+		assertNull(z.getPosMachineName());
+		assertEquals(Arrays.asList("S1", "S2", "S4"), numbers(z.getSessions()));
+		assertEquals(325.5, z.getSales().getTotalTTC(), EPS);
+		JsonNode json = new ObjectMapper().registerModule(new JavaTimeModule()).valueToTree(z);
+		assertFalse(json.has("posMachines"), json.toString());
+		assertFalse(json.has("posMachineId"));
+		assertFalse(json.has("posMachineName"));
+		// the day's Excel: the journal alone
+		assertNull(service.dayTicketByMachine(DAY));
+		assertNull(service.buildX().getPosMachines());
+	}
+
+	@Test
+	@DisplayName("Step 3, POS_MACHINE: the sessions grouped per machine by name, '—' last, each with its subtotals")
+	void groupsAndSubtotals() {
+		rfid.drawerOwner = DrawerOwner.POS_MACHINE;
+		threeSessionsOnMachines();
+		StoreReportTicketDTO z = service.buildZ(DAY);
+
+		List<PosMachineGroup> groups = z.getPosMachines();
+		assertEquals(3, groups.size());
+		assertEquals(Arrays.asList("Caisse 1", "Caisse 2", null),
+				groups.stream().map(PosMachineGroup::getPosMachineName).collect(Collectors.toList()));
+		assertNull(groups.get(2).getPosMachineId(), "the sessions without a machine");
+		assertNull(z.getPosMachineName(), "the store's ticket names no machine");
+
+		PosMachineGroup c1 = groups.get(0);
+		assertEquals(caisse1.getId(), c1.getPosMachineId());
+		assertEquals(Arrays.asList("S2"), numbers(c1.getSessions()));
+		assertEquals(2, c1.getSales().getTicketsCount());
+		assertEquals(166.5, c1.getSales().getTotalTTC(), EPS);
+		assertEquals(10.0, c1.getReturns().getTotalAmount(), EPS);
+		assertEquals(156.5, c1.getNetSales(), EPS);
+		assertEquals(59.5, payment(c1, "ESP").getAmount(), EPS);
+		assertEquals(107.0, payment(c1, "TPE").getAmount(), EPS);
+		assertEquals(50.0, c1.getOpeningCash(), EPS);
+		assertEquals(99.5, control(c1, "ESP").getExpected(), EPS);
+		assertEquals(100.0, control(c1, "ESP").getCounted(), EPS);
+		assertEquals(0.5, control(c1, "ESP").getDifference(), EPS);
+		assertEquals(0.0, control(c1, "TPE").getDifference(), EPS);
+		assertEquals(0L, c1.getModifiedAfterClosingCount());
+
+		PosMachineGroup c2 = groups.get(1);
+		assertEquals(Arrays.asList("S1"), numbers(c2.getSessions()));
+		assertEquals(119.0, c2.getSales().getTotalTTC(), EPS);
+		assertEquals(219.0, control(c2, "ESP").getExpected(), EPS);
+		assertEquals(0.0, control(c2, "ESP").getDifference(), EPS);
+
+		PosMachineGroup none = groups.get(2);
+		assertEquals(Arrays.asList("S4"), numbers(none.getSessions()));
+		assertEquals(40.0, none.getSales().getTotalTTC(), EPS);
+		assertEquals(60.0, control(none, "ESP").getCounted(), EPS);
+
+		// the groups add up to the store's ticket, which is the one of before
+		assertEquals(325.5, z.getSales().getTotalTTC(), EPS);
+		assertEquals(z.getSales().getTotalTTC(), groups.stream().mapToDouble(g -> g.getSales().getTotalTTC()).sum(), EPS);
+		assertEquals(z.getNetSales(), groups.stream().mapToDouble(PosMachineGroup::getNetSales).sum(), EPS);
+		assertEquals(z.getOpeningCash(), groups.stream().mapToDouble(PosMachineGroup::getOpeningCash).sum(), EPS);
+		assertEquals(control(z, "ESP").getExpected(),
+				groups.stream().mapToDouble(g -> control(g, "ESP").getExpected()).sum(), EPS);
+		assertEquals(control(z, "ESP").getCounted(),
+				groups.stream().mapToDouble(g -> control(g, "ESP").getCounted()).sum(), EPS);
+		assertEquals(payment(z, "ESP").getAmount(),
+				groups.stream().mapToDouble(g -> payment(g, "ESP").getAmount()).sum(), EPS);
+	}
+
+	@Test
+	@DisplayName("Step 3: the Z of one POS machine is the same ticket over its sessions, the machine in the header")
+	void zOfOneMachine() {
+		rfid.drawerOwner = DrawerOwner.POS_MACHINE;
+		threeSessionsOnMachines();
+		StoreReportTicketDTO z = service.buildZ(DAY, caisse1.getId());
+
+		assertEquals("Z", z.getType());
+		assertEquals(caisse1.getId(), z.getPosMachineId());
+		assertEquals("Caisse 1", z.getPosMachineName());
+		assertNull(z.getPosMachines(), "no groups on a machine's ticket");
+		assertEquals(Arrays.asList("S2"), numbers(z.getSessions()));
+		assertEquals(166.5, z.getSales().getTotalTTC(), EPS);
+		assertEquals(156.5, z.getNetSales(), EPS);
+		assertEquals(0.5, control(z, "ESP").getDifference(), EPS);
+		assertEquals("PARA FENDRI", z.getStoreName());
+
+		// the same with the drawer of the cashier: the parameter alone decides
+		rfid.drawerOwner = DrawerOwner.CASHIER;
+		assertEquals(Arrays.asList("S1"), numbers(service.buildZ(DAY, caisse2.getId()).getSessions()));
+	}
+
+	@Test
+	@DisplayName("Step 3: the X of one POS machine holds its sessions closed today and open now, counted null")
+	void xOfOneMachine() {
+		rfid.drawerOwner = DrawerOwner.POS_MACHINE;
+		threeSessionsOnMachines();
+		CashierSession open = session("S3", DAY.atTime(14, 0), null, 30.0, null);
+		sale(open, 19, 40.0, cash);
+		link(open, caisse1);
+
+		StoreReportTicketDTO x = service.buildX(caisse1.getId());
+		assertEquals("X", x.getType());
+		assertEquals("Caisse 1", x.getPosMachineName());
+		assertEquals(Arrays.asList("S2", "S3"), numbers(x.getSessions()));
+		assertEquals(206.5, x.getSales().getTotalTTC(), EPS);
+		assertNull(control(x, "ESP").getCounted(), "a ticket X counts nothing");
+
+		StoreReportTicketDTO store = service.buildX();
+		assertEquals(Arrays.asList("S2", "S3"), numbers(store.getPosMachines().get(0).getSessions()));
+		assertNull(store.getPosMachines().get(0).getModifiedAfterClosingCount(), "X");
+	}
+
+	@Test
+	@DisplayName("Step 3: 404 for a POS machine that does not exist or has no session that day")
+	void machineWithoutSession() {
+		rfid.drawerOwner = DrawerOwner.POS_MACHINE;
+		threeSessionsOnMachines();
+		PosMachine caisse3 = rfid.machine("Caisse 3", "192.168.1.13", null);
+
+		IllegalArgumentException unknown = assertThrows(IllegalArgumentException.class, () -> service.buildZ(DAY, 999L));
+		assertEquals("No POS machine number 999.", unknown.getMessage());
+		IllegalArgumentException empty = assertThrows(IllegalArgumentException.class,
+				() -> service.buildZ(DAY, caisse3.getId()));
+		assertEquals("No cashier session of the POS machine 'Caisse 3' closed on " + DAY + ": no ticket Z.",
+				empty.getMessage());
+		assertThrows(IllegalArgumentException.class, () -> service.buildZ(DAY.minusDays(1), caisse1.getId()));
+		IllegalArgumentException noX = assertThrows(IllegalArgumentException.class,
+				() -> service.buildX(caisse3.getId()));
+		assertTrue(noX.getMessage().contains("'Caisse 3'"), noX.getMessage());
+	}
+
+	@Test
+	@DisplayName("Step 3: the day's Excel gains the sheet 'Postes de caisse' with the page's subtotals (X today, Z else)")
+	void excelPerMachine() throws Exception {
+		rfid.drawerOwner = DrawerOwner.POS_MACHINE;
+		threeSessionsOnMachines();
+		assertEquals("X", service.dayTicketByMachine(DAY).getType(), "today: the X, as the page");
+		assertNull(service.dayTicketByMachine(DAY.minusDays(1)), "no session that day: no sheet");
+		CashierSession before = session("S0", DAY.minusDays(1).atTime(8, 0), DAY.minusDays(1).atTime(19, 0), 80.0, 80.0);
+		link(before, caisse2);
+		assertEquals("Z", service.dayTicketByMachine(DAY.minusDays(1)).getType(), "another day: the Z");
+
+		DayJournalDTO journal = new DayJournalDTO();
+		journal.setDate(DAY);
+		journal.setTotals(new DayJournalDTO.Totals());
+		StoreReportTicketDTO z = service.buildZ(DAY);
+		try (XSSFWorkbook book = new XSSFWorkbook(
+				new ByteArrayInputStream(JournalExcel.journal(journal, false, z)))) {
+			assertEquals(2, book.getNumberOfSheets());
+			Sheet sheet = book.getSheet("Postes de caisse");
+			assertNotNull(sheet);
+			List<String> labels = new ArrayList<>();
+			double caisse1TTC = -1;
+			double storeTTC = -1;
+			for (Row row : sheet) {
+				if (row.getCell(0) == null || row.getCell(7) == null) {
+					continue;
+				}
+				String label = row.getCell(0).getStringCellValue();
+				if (row.getCell(7).getCellType() == CellType.NUMERIC && row.getCell(2).getCellType() == CellType.NUMERIC
+						&& row.getCell(1).getCellType() == CellType.NUMERIC) {
+					labels.add(label);
+					if ("Caisse 1".equals(label)) caisse1TTC = row.getCell(7).getNumericCellValue();
+					if ("Total magasin".equals(label)) storeTTC = row.getCell(7).getNumericCellValue();
+				}
+			}
+			assertEquals(Arrays.asList("Caisse 1", "Caisse 2", "—", "Total magasin"), labels, "the subtotal rows");
+			assertEquals(166.5, caisse1TTC, EPS);
+			assertEquals(325.5, storeTTC, EPS);
+		}
+		// with the drawer of the cashier (no groups): the journal alone
+		rfid.drawerOwner = DrawerOwner.CASHIER;
+		try (XSSFWorkbook book = new XSSFWorkbook(
+				new ByteArrayInputStream(JournalExcel.journal(journal, false, service.buildZ(DAY))))) {
+			assertEquals(1, book.getNumberOfSheets());
+		}
 	}
 }

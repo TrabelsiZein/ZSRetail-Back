@@ -33,7 +33,11 @@ import com.digithink.zsretail.store.dto.SessionReportTicketDTO.PaymentLine;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO.ScannedTickets;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO.VatLine;
 import com.digithink.zsretail.store.dto.StoreReportTicketDTO;
+import com.digithink.zsretail.store.dto.StoreReportTicketDTO.PosMachineGroup;
 import com.digithink.zsretail.store.dto.StoreReportTicketDTO.SessionRow;
+import com.digithink.zsretail.store.posmachine.DrawerOwner;
+import com.digithink.zsretail.store.posmachine.model.PosMachine;
+import com.digithink.zsretail.store.posmachine.service.SessionPosMachineService;
 
 /**
  * 3.1.0: the store ticket X (today) and Z (one day): the session ticket of each session of the day
@@ -67,61 +71,183 @@ public class StoreReportService {
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
 
+	/** 3.2.0, POS machines step 3: the machine of each session and who the drawer belongs to. */
+	@Autowired
+	private SessionPosMachineService sessionPosMachineService;
+
 	/** The day of a ticket X; a test sets its own. */
 	Clock clock = Clock.systemDefaultZone();
 
 	/** The store ticket X of today. */
 	public StoreReportTicketDTO buildX() {
+		return buildX(null);
+	}
+
+	/**
+	 * 3.2.0, POS machines step 3: the ticket X of today of one POS machine (its sessions only, the machine in the
+	 * header); posMachineId null: the store's.
+	 */
+	public StoreReportTicketDTO buildX(Long posMachineId) {
 		LocalDate today = LocalDate.now(clock);
-		List<CashierSession> sessions = cashierSessionRepository
+		PosMachine machine = machine(posMachineId);
+		List<CashierSession> sessions = onMachine(cashierSessionRepository
 				.findByStatusInAndClosedAtGreaterThanEqualAndClosedAtLessThanOrStatusOrderByOpenedAtAsc(CLOSED,
-						today.atStartOfDay(), today.plusDays(1).atStartOfDay(), SessionStatus.OPENED);
+						today.atStartOfDay(), today.plusDays(1).atStartOfDay(), SessionStatus.OPENED), machine);
 		if (sessions.isEmpty()) {
-			throw new IllegalArgumentException("No cashier session closed today (" + today + ") or open now: no store ticket X.");
+			throw new IllegalArgumentException(machine == null
+					? "No cashier session closed today (" + today + ") or open now: no store ticket X."
+					: "No cashier session of the POS machine '" + machine.getName() + "' closed today (" + today
+							+ ") or open now: no ticket X.");
 		}
-		return sum("X", today, sessions);
+		return ticket("X", today, sessions, machine);
 	}
 
 	/** The store ticket Z of a date. */
 	public StoreReportTicketDTO buildZ(LocalDate date) {
-		List<CashierSession> sessions = cashierSessionRepository
-				.findByStatusInAndClosedAtGreaterThanEqualAndClosedAtLessThanOrderByOpenedAtAsc(CLOSED,
-						date.atStartOfDay(), date.plusDays(1).atStartOfDay());
-		if (sessions.isEmpty()) {
-			throw new IllegalArgumentException("No cashier session closed on " + date + ": no store ticket Z.");
-		}
-		return sum("Z", date, sessions);
+		return buildZ(date, null);
 	}
 
-	private StoreReportTicketDTO sum(String type, LocalDate date, List<CashierSession> sessions) {
+	/**
+	 * 3.2.0, POS machines step 3: the ticket Z of a date of one POS machine (its sessions only, the machine in the
+	 * header); posMachineId null: the store's.
+	 */
+	public StoreReportTicketDTO buildZ(LocalDate date, Long posMachineId) {
+		PosMachine machine = machine(posMachineId);
+		List<CashierSession> sessions = onMachine(cashierSessionRepository
+				.findByStatusInAndClosedAtGreaterThanEqualAndClosedAtLessThanOrderByOpenedAtAsc(CLOSED,
+						date.atStartOfDay(), date.plusDays(1).atStartOfDay()), machine);
+		if (sessions.isEmpty()) {
+			throw new IllegalArgumentException(machine == null
+					? "No cashier session closed on " + date + ": no store ticket Z."
+					: "No cashier session of the POS machine '" + machine.getName() + "' closed on " + date
+							+ ": no ticket Z.");
+		}
+		return ticket("Z", date, sessions, machine);
+	}
+
+	/**
+	 * 3.2.0, POS machines step 3: the store ticket the Journal shows for a date (the X on today, the Z on another day),
+	 * for the block "Par poste de caisse" of the day's Excel; null when the drawer does not belong to the POS machine or
+	 * no session matches.
+	 */
+	public StoreReportTicketDTO dayTicketByMachine(LocalDate date) {
+		if (sessionPosMachineService.drawerOwner() != DrawerOwner.POS_MACHINE) {
+			return null;
+		}
+		try {
+			return date.equals(LocalDate.now(clock)) ? buildX() : buildZ(date);
+		} catch (IllegalArgumentException e) {
+			return null;
+		}
+	}
+
+	/** The machine asked; null for the store; IllegalArgumentException (404) for an id that is no machine. */
+	private PosMachine machine(Long posMachineId) {
+		if (posMachineId == null) {
+			return null;
+		}
+		return sessionPosMachineService.machine(posMachineId)
+				.orElseThrow(() -> new IllegalArgumentException("No POS machine number " + posMachineId + "."));
+	}
+
+	/** The sessions opened on this machine (one query); all of them for the store (machine null). */
+	private List<CashierSession> onMachine(List<CashierSession> sessions, PosMachine machine) {
+		if (machine == null || sessions.isEmpty()) {
+			return sessions;
+		}
+		Map<Long, PosMachine> machines = sessionPosMachineService
+				.machinesBySession(sessions.stream().map(CashierSession::getId).collect(Collectors.toList()));
+		return sessions.stream().filter(s -> machines.containsKey(s.getId())
+				&& machine.getId().equals(machines.get(s.getId()).getId())).collect(Collectors.toList());
+	}
+
+	private StoreReportTicketDTO ticket(String type, LocalDate date, List<CashierSession> sessions, PosMachine machine) {
 		boolean z = "Z".equals(type);
 		List<SessionReportTicketDTO> reports = sessions.stream().map(s -> sessionReportService.build(s.getId()))
 				.collect(Collectors.toList());
+		Map<String, Integer> order = order();
 
 		StoreReportTicketDTO dto = new StoreReportTicketDTO();
 		dto.setType(type);
 		dto.setDate(date);
 		dto.setStoreName(companyInformationService.get().getCompanyName());
-		for (SessionReportTicketDTO r : reports) {
-			dto.getSessions().add(new SessionRow(r.getSessionId(), r.getSessionNumber(), r.getCashierName(),
-					r.getOpenedAt(), r.getClosedAt(), r.getStatus(), r.getPosMachineName()));
-		}
-		dto.setSales(sales(reports, z));
-		dto.setReturns(returns(reports));
-		dto.setNetSales(total(reports, SessionReportTicketDTO::getNetSales));
-		dto.setOpeningCash(total(reports, SessionReportTicketDTO::getOpeningCash));
-
-		Map<String, Integer> order = order();
-		dto.setPayments(payments(reports, order));
-		dto.setControl(control(reports, order, z));
-		dto.setScannedTickets(scannedTickets(reports, order));
-		if (z) {
-			dto.setModifiedAfterClosingCount(reports.stream().filter(SessionReportTicketDTO::isModifiedAfterClosing).count());
+		PosMachineGroup all = blocks(reports, z, order);
+		dto.setSessions(all.getSessions());
+		dto.setSales(all.getSales());
+		dto.setReturns(all.getReturns());
+		dto.setNetSales(all.getNetSales());
+		dto.setOpeningCash(all.getOpeningCash());
+		dto.setPayments(all.getPayments());
+		dto.setControl(all.getControl());
+		dto.setScannedTickets(all.getScannedTickets());
+		dto.setModifiedAfterClosingCount(all.getModifiedAfterClosingCount());
+		if (machine != null) {
+			dto.setPosMachineId(machine.getId());
+			dto.setPosMachineName(machine.getName());
+		} else if (sessionPosMachineService.drawerOwner() == DrawerOwner.POS_MACHINE) {
+			dto.setPosMachines(groups(sessions, reports, z, order));
 		}
 
 		dto.setPrintedAt(LocalDateTime.now(clock));
 		dto.setPrintedBy(printedBy());
 		return dto;
+	}
+
+	/**
+	 * 3.2.0, POS machines step 3: the sessions grouped per POS machine (one query for the links), each group added up as
+	 * the ticket from the session tickets already built; the machines by name, the sessions without one last.
+	 */
+	private List<PosMachineGroup> groups(List<CashierSession> sessions, List<SessionReportTicketDTO> reports,
+			boolean z, Map<String, Integer> order) {
+		Map<Long, PosMachine> machines = sessionPosMachineService
+				.machinesBySession(sessions.stream().map(CashierSession::getId).collect(Collectors.toList()));
+		Map<Long, PosMachine> byId = new HashMap<>();
+		Map<Long, List<SessionReportTicketDTO>> byMachine = new LinkedHashMap<>();
+		List<SessionReportTicketDTO> without = new ArrayList<>();
+		for (SessionReportTicketDTO r : reports) {
+			PosMachine m = machines.get(r.getSessionId());
+			if (m == null) {
+				without.add(r);
+			} else {
+				byId.putIfAbsent(m.getId(), m);
+				byMachine.computeIfAbsent(m.getId(), k -> new ArrayList<>()).add(r);
+			}
+		}
+		List<PosMachineGroup> groups = new ArrayList<>();
+		byMachine.entrySet().stream()
+				.sorted(Comparator.comparing((Map.Entry<Long, List<SessionReportTicketDTO>> e) -> String
+						.valueOf(byId.get(e.getKey()).getName()).toLowerCase()).thenComparing(Map.Entry::getKey))
+				.forEach(e -> {
+					PosMachineGroup group = blocks(e.getValue(), z, order);
+					group.setPosMachineId(e.getKey());
+					group.setPosMachineName(byId.get(e.getKey()).getName());
+					groups.add(group);
+				});
+		if (!without.isEmpty()) {
+			groups.add(blocks(without, z, order));
+		}
+		return groups;
+	}
+
+	/** The blocks of a ticket over these session tickets: the sessions, VENTES, RETOURS, PAIEMENTS, CONTRÔLE. */
+	private static PosMachineGroup blocks(List<SessionReportTicketDTO> reports, boolean z, Map<String, Integer> order) {
+		PosMachineGroup block = new PosMachineGroup();
+		for (SessionReportTicketDTO r : reports) {
+			block.getSessions().add(new SessionRow(r.getSessionId(), r.getSessionNumber(), r.getCashierName(),
+					r.getOpenedAt(), r.getClosedAt(), r.getStatus(), r.getPosMachineName()));
+		}
+		block.setSales(sales(reports, z));
+		block.setReturns(returns(reports));
+		block.setNetSales(total(reports, SessionReportTicketDTO::getNetSales));
+		block.setOpeningCash(total(reports, SessionReportTicketDTO::getOpeningCash));
+		block.setPayments(payments(reports, order));
+		block.setControl(control(reports, order, z));
+		block.setScannedTickets(scannedTickets(reports, order));
+		if (z) {
+			block.setModifiedAfterClosingCount(
+					reports.stream().filter(SessionReportTicketDTO::isModifiedAfterClosing).count());
+		}
+		return block;
 	}
 
 	// ─── VENTES ──────────────────────────────────────────────────────

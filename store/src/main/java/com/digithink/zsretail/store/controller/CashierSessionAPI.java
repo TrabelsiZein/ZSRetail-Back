@@ -169,7 +169,9 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	}
 
 	/**
-	 * Close current session (supports both old format and new cash count format)
+	 * Close the current user's session: the counted lines (cashCountLines, optional), actualCash (optional), notes, the
+	 * badge grant (tillGrant) and the confirmation of a cash difference (discrepancyConfirmed); one path for every body
+	 * (3.2.0, POS machines step 3).
 	 */
 	@PostMapping("/close")
 	public ResponseEntity<?> closeSession(@RequestBody Map<String, Object> request) {
@@ -182,103 +184,89 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 				return ResponseEntity.badRequest().body(createErrorResponse("No open session found"));
 			}
 
-			// Check if new format with cash count lines
-			if (request.containsKey("cashCountLines")) {
-				// New format with detailed cash count
-				com.digithink.zsretail.store.dto.CloseSessionRequestDTO closeRequest = new com.digithink.zsretail.store.dto.CloseSessionRequestDTO();
+			// 3.2.0, POS machines step 3: one closing path. A body without cashCountLines (the old {actualCash, notes},
+			// or the till's {notes} when its closing window has no row) closes as the till's body, with no counted line:
+			// the old path called the closing from this class, outside its transaction, and its row lock answered 500
+			// "no transaction is in progress" (since 1.8.0)
+			com.digithink.zsretail.store.dto.CloseSessionRequestDTO closeRequest = new com.digithink.zsretail.store.dto.CloseSessionRequestDTO();
+			
+			Double actualCash = null;
+			if (request.get("actualCash") instanceof Number) {
+				actualCash = ((Number) request.get("actualCash")).doubleValue();
+			} else if (request.get("actualCash") instanceof String) {
+				actualCash = Double.parseDouble((String) request.get("actualCash"));
+			}
+			closeRequest.setActualCash(actualCash);
+			
+			String notes = (String) request.get("notes");
+			closeRequest.setNotes(notes);
+			
+			// Step D (3.1.0): the grant of the badge scan for a close with a cash difference (badgeCode and
+			// badgePermission are no longer read)
+			if (request.get("tillGrant") != null) {
+				closeRequest.setTillGrant(String.valueOf(request.get("tillGrant")));
+			}
+			// The user saw the difference warning and confirmed it: counts when his role holds the right (step C)
+			closeRequest.setDiscrepancyConfirmed(Boolean.TRUE.equals(request.get("discrepancyConfirmed")));
+			
+			// Parse cash count lines
+			@SuppressWarnings("unchecked")
+			java.util.List<Map<String, Object>> cashCountLinesData = 
+				(java.util.List<Map<String, Object>>) request.get("cashCountLines");
+			
+			if (cashCountLinesData != null) {
+				java.util.List<com.digithink.zsretail.store.dto.CloseSessionRequestDTO.CashCountLineDTO> cashCountLines = 
+					new java.util.ArrayList<>();
 				
-				Double actualCash = null;
-				if (request.get("actualCash") instanceof Number) {
-					actualCash = ((Number) request.get("actualCash")).doubleValue();
-				} else if (request.get("actualCash") instanceof String) {
-					actualCash = Double.parseDouble((String) request.get("actualCash"));
-				}
-				closeRequest.setActualCash(actualCash);
-				
-				String notes = (String) request.get("notes");
-				closeRequest.setNotes(notes);
-				
-				// Step D (3.1.0): the grant of the badge scan for a close with a cash difference (badgeCode and
-				// badgePermission are no longer read)
-				if (request.get("tillGrant") != null) {
-					closeRequest.setTillGrant(String.valueOf(request.get("tillGrant")));
-				}
-				// The user saw the difference warning and confirmed it: counts when his role holds the right (step C)
-				closeRequest.setDiscrepancyConfirmed(Boolean.TRUE.equals(request.get("discrepancyConfirmed")));
-				
-				// Parse cash count lines
-				@SuppressWarnings("unchecked")
-				java.util.List<Map<String, Object>> cashCountLinesData = 
-					(java.util.List<Map<String, Object>>) request.get("cashCountLines");
-				
-				if (cashCountLinesData != null) {
-					java.util.List<com.digithink.zsretail.store.dto.CloseSessionRequestDTO.CashCountLineDTO> cashCountLines = 
-						new java.util.ArrayList<>();
+				for (Map<String, Object> lineData : cashCountLinesData) {
+					com.digithink.zsretail.store.dto.CloseSessionRequestDTO.CashCountLineDTO lineDTO = 
+						new com.digithink.zsretail.store.dto.CloseSessionRequestDTO.CashCountLineDTO();
 					
-					for (Map<String, Object> lineData : cashCountLinesData) {
-						com.digithink.zsretail.store.dto.CloseSessionRequestDTO.CashCountLineDTO lineDTO = 
-							new com.digithink.zsretail.store.dto.CloseSessionRequestDTO.CashCountLineDTO();
-						
-						// Denomination value
-						if (lineData.get("denominationValue") instanceof Number) {
-							lineDTO.setDenominationValue(((Number) lineData.get("denominationValue")).doubleValue());
-						} else if (lineData.get("denominationValue") instanceof String) {
-							lineDTO.setDenominationValue(Double.parseDouble((String) lineData.get("denominationValue")));
-						}
-						
-						// Quantity
-						if (lineData.get("quantity") instanceof Number) {
-							lineDTO.setQuantity(cashCountQuantity((Number) lineData.get("quantity")));
-						} else if (lineData.get("quantity") instanceof String) {
-							lineDTO.setQuantity(Integer.parseInt((String) lineData.get("quantity")));
-						}
-						
-						// Payment method ID (optional)
-						if (lineData.get("paymentMethodId") != null) {
-							if (lineData.get("paymentMethodId") instanceof Number) {
-								lineDTO.setPaymentMethodId(((Number) lineData.get("paymentMethodId")).longValue());
-							} else if (lineData.get("paymentMethodId") instanceof String) {
-								lineDTO.setPaymentMethodId(Long.parseLong((String) lineData.get("paymentMethodId")));
-							}
-						}
-						
-						// Reference number (optional)
-						if (lineData.get("referenceNumber") != null) {
-							lineDTO.setReferenceNumber((String) lineData.get("referenceNumber"));
-						}
-						
-						// Notes (optional)
-						if (lineData.get("notes") != null) {
-							lineDTO.setNotes((String) lineData.get("notes"));
-						}
-						
-						cashCountLines.add(lineDTO);
+					// Denomination value
+					if (lineData.get("denominationValue") instanceof Number) {
+						lineDTO.setDenominationValue(((Number) lineData.get("denominationValue")).doubleValue());
+					} else if (lineData.get("denominationValue") instanceof String) {
+						lineDTO.setDenominationValue(Double.parseDouble((String) lineData.get("denominationValue")));
 					}
 					
-					closeRequest.setCashCountLines(cashCountLines);
-				} else {
-					closeRequest.setCashCountLines(new java.util.ArrayList<>());
+					// Quantity
+					if (lineData.get("quantity") instanceof Number) {
+						lineDTO.setQuantity(cashCountQuantity((Number) lineData.get("quantity")));
+					} else if (lineData.get("quantity") instanceof String) {
+						lineDTO.setQuantity(Integer.parseInt((String) lineData.get("quantity")));
+					}
+					
+					// Payment method ID (optional)
+					if (lineData.get("paymentMethodId") != null) {
+						if (lineData.get("paymentMethodId") instanceof Number) {
+							lineDTO.setPaymentMethodId(((Number) lineData.get("paymentMethodId")).longValue());
+						} else if (lineData.get("paymentMethodId") instanceof String) {
+							lineDTO.setPaymentMethodId(Long.parseLong((String) lineData.get("paymentMethodId")));
+						}
+					}
+					
+					// Reference number (optional)
+					if (lineData.get("referenceNumber") != null) {
+						lineDTO.setReferenceNumber((String) lineData.get("referenceNumber"));
+					}
+					
+					// Notes (optional)
+					if (lineData.get("notes") != null) {
+						lineDTO.setNotes((String) lineData.get("notes"));
+					}
+					
+					cashCountLines.add(lineDTO);
 				}
 				
-				CashierSession closedSession = service.closeSessionWithCashCount(
-					currentSession.get().getId(), closeRequest);
-				com.digithink.zsretail.store.dto.SessionCloseTicketDTO ticketData = service.getSessionCloseTicketData(closedSession.getId());
-				return ResponseEntity.ok(java.util.Map.of("session", closedSession, "sessionCloseTicket", ticketData));
+				closeRequest.setCashCountLines(cashCountLines);
 			} else {
-				// Legacy format (backward compatibility)
-				Double actualCash = null;
-				if (request.get("actualCash") instanceof Number) {
-					actualCash = ((Number) request.get("actualCash")).doubleValue();
-				} else if (request.get("actualCash") instanceof String) {
-					actualCash = Double.parseDouble((String) request.get("actualCash"));
-				}
-
-				String notes = (String) request.get("notes");
-
-				CashierSession closedSession = service.closeSession(currentSession.get().getId(), actualCash, notes);
-				com.digithink.zsretail.store.dto.SessionCloseTicketDTO ticketData = service.getSessionCloseTicketData(closedSession.getId());
-				return ResponseEntity.ok(java.util.Map.of("session", closedSession, "sessionCloseTicket", ticketData));
+				closeRequest.setCashCountLines(new java.util.ArrayList<>());
 			}
+			
+			CashierSession closedSession = service.closeSessionWithCashCount(
+				currentSession.get().getId(), closeRequest);
+			com.digithink.zsretail.store.dto.SessionCloseTicketDTO ticketData = service.getSessionCloseTicketData(closedSession.getId());
+			return ResponseEntity.ok(java.util.Map.of("session", closedSession, "sessionCloseTicket", ticketData));
 		} catch (TillRightRequiredException e) {
 			log.warn("CashierSessionAPI::closeSession:till right required: " + e.getMessage());
 			return e.response();
@@ -501,10 +489,11 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	 * (docs/modules/cash-sessions.md, "Store ticket X / Z"). 404 when there is none.
 	 */
 	@GetMapping("/store-report-ticket/x")
-	public ResponseEntity<?> getStoreReportTicketX() {
+	public ResponseEntity<?> getStoreReportTicketX(@RequestParam(required = false) Long posMachineId) {
 		try {
-			log.info("CashierSessionAPI::getStoreReportTicketX");
-			return ResponseEntity.ok(storeReportService.buildX());
+			log.info("CashierSessionAPI::getStoreReportTicketX" + (posMachineId != null ? ": POS machine " + posMachineId : ""));
+			// 3.2.0, POS machines step 3: posMachineId, the ticket of that POS machine's sessions (404 without one)
+			return ResponseEntity.ok(storeReportService.buildX(posMachineId));
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.status(404).body(createErrorResponse(e.getMessage()));
 		} catch (Exception e) {
@@ -518,7 +507,8 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	 * date that does not parse, 404 when no session was closed that day.
 	 */
 	@GetMapping("/store-report-ticket/z")
-	public ResponseEntity<?> getStoreReportTicketZ(@RequestParam String date) {
+	public ResponseEntity<?> getStoreReportTicketZ(@RequestParam String date,
+			@RequestParam(required = false) Long posMachineId) {
 		java.time.LocalDate day;
 		try {
 			day = java.time.LocalDate.parse(date);
@@ -526,8 +516,9 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			return ResponseEntity.badRequest().body(createErrorResponse("date: '" + date + "' is not a date YYYY-MM-DD"));
 		}
 		try {
-			log.info("CashierSessionAPI::getStoreReportTicketZ: " + day);
-			return ResponseEntity.ok(storeReportService.buildZ(day));
+			log.info("CashierSessionAPI::getStoreReportTicketZ: " + day
+					+ (posMachineId != null ? ", POS machine " + posMachineId : ""));
+			return ResponseEntity.ok(storeReportService.buildZ(day, posMachineId));
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.status(404).body(createErrorResponse(e.getMessage()));
 		} catch (Exception e) {
@@ -602,7 +593,10 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 		try {
 			boolean margins = withMargins();
 			com.digithink.zsretail.store.dto.DayJournalDTO journal = dayJournalService.build(day, margins);
-			return excel(com.digithink.zsretail.store.service.JournalExcel.journal(journal, margins),
+			// 3.2.0, POS machines step 3: with the drawer of the POS machine, a second sheet "Postes de caisse", the
+			// page's per-machine subtotals (the store ticket the page shows: the X today, the Z another day)
+			return excel(com.digithink.zsretail.store.service.JournalExcel.journal(journal, margins,
+					storeReportService.dayTicketByMachine(day)),
 					com.digithink.zsretail.store.service.JournalExcel.journalFileName(journal));
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.status(404).body(createErrorResponse(e.getMessage()));

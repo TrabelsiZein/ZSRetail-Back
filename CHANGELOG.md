@@ -163,8 +163,27 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   supported with `POS_MACHINE`. Tests: `PosMachineSellingGuardTest`, `CashDrawerSettingCheckTest`,
   `GeneralSetupCodedRefusalTest`, `CashierSessionPosMachineTest` (rules 1, 2, the till's question),
   `PosMachineServiceTest.deactivateWithOpenSession`.
+- POS machines, step 3 (`docs/modules/pos-machines.md`, "The day per POS machine"): with `CASH_DRAWER_OWNER` =
+  `POS_MACHINE` the store ticket X / Z (`GET /cashier-session/store-report-ticket/x`, `/z`) carries `posMachines`: the
+  sessions grouped per POS machine (by name, the sessions without one last, `posMachineId` null), each group with the
+  ticket's blocks over its sessions (sales, returns, net, payments, float, control, scanned tickets), added up from the
+  session tickets already built (no query per group); the store's blocks are unchanged. With `CASHIER` the field is
+  absent and the answer is the one of before. Both endpoints take `posMachineId`: the same ticket over that machine's
+  sessions, `posMachineId` / `posMachineName` in its header (404 for an unknown machine or one without a session that
+  day). The day's Excel (`GET /cashier-session/day-journal/excel`) gains a sheet "Postes de caisse" with the same
+  subtotals (the X on today, the Z on another day, as the page; `StoreReportService.dayTicketByMachine`); the journal
+  sheet is unchanged. Nothing at the head office, on the sale receipt, in the amounts or the closing. Tests:
+  `StoreReportServiceTest` (CASHIER unchanged, the groups and their subtotals adding up to the store, the X and Z of one
+  machine, the 404s, the Excel sheet).
 
 ### Fixes
+- `POST /cashier-session/close` with a body without `cashCountLines` (the old `{"actualCash": 50, "notes": "..."}`, or
+  the till's `{notes}` when its closing window has no row) answered 500 "no transaction is in progress" since 1.8.0: that
+  path called the closing from inside `CashierSessionService`, outside its transaction, and the closing's row lock needs
+  one. One path now: every body builds the same request (counted lines when sent, `actualCash`, notes, badge grant,
+  confirmed difference) for `closeSessionWithCashCount`; the old `closeSession(id, actualCash, notes)` is removed. The
+  till's body is read as before. Test: `CloseSessionBodyTest` (the body `{notes}`, the old body, the till's body, every
+  closing method transactional).
 - Sessions list: "Diff." and "Diff. Resp" of a session with scanned tickets compared the declared face total with the
   net sales (a right count showed deduction + excess, e.g. +3.80): the system side now adds the tickets' face - net
   (`CashierSessionService.scannedFaceGap`), as the details do. Test: `ScannedTicketsClosingTest`. The head office: see

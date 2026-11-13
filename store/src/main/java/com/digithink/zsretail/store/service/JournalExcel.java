@@ -3,7 +3,11 @@ package com.digithink.zsretail.store.service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.YearMonth;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.poi.ss.usermodel.Cell;
@@ -15,7 +19,14 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import com.digithink.zsretail.store.dto.DayJournalDTO;
 import com.digithink.zsretail.store.dto.DayJournalDTO.JournalLine;
+import com.digithink.zsretail.core.model.enumeration.SessionStatus;
 import com.digithink.zsretail.store.dto.DayRowDTO;
+import com.digithink.zsretail.store.dto.SessionReportTicketDTO;
+import com.digithink.zsretail.store.dto.SessionReportTicketDTO.ControlLine;
+import com.digithink.zsretail.store.dto.SessionReportTicketDTO.PaymentLine;
+import com.digithink.zsretail.store.dto.StoreReportTicketDTO;
+import com.digithink.zsretail.store.dto.StoreReportTicketDTO.PosMachineGroup;
+import com.digithink.zsretail.store.dto.StoreReportTicketDTO.SessionRow;
 
 /**
  * 3.1.0: the day journal and the month's days as .xlsx (Apache POI, in core): one sheet, a header row, one row per
@@ -55,6 +66,16 @@ public final class JournalExcel {
 
 	/** 3.1.2: with withMargins, the columns Coût, Marge and Lignes sans coût after the others (JournalCosts). */
 	public static byte[] journal(DayJournalDTO journal, boolean withMargins) throws IOException {
+		return journal(journal, withMargins, null);
+	}
+
+	/**
+	 * 3.2.0, POS machines step 3: with the day's store ticket grouped per POS machine (byMachine.posMachines, the drawer
+	 * of the POS machine), a second sheet "Postes de caisse" with the page's per-machine subtotals; the journal sheet
+	 * unchanged. byMachine null or without groups: the journal alone, as before.
+	 */
+	public static byte[] journal(DayJournalDTO journal, boolean withMargins, StoreReportTicketDTO byMachine)
+			throws IOException {
 		try (XSSFWorkbook workbook = new XSSFWorkbook()) {
 			Styles styles = new Styles(workbook);
 			Sheet sheet = workbook.createSheet("Journal " + journal.getDate());
@@ -100,7 +121,150 @@ public final class JournalExcel {
 				margins(net, 11, totals.getCost(), totals.getMargin(), totals.getLinesWithoutCost(), styles, true);
 			}
 			autosize(sheet, headers.length);
+			if (byMachine != null && byMachine.getPosMachines() != null) {
+				posMachines(workbook.createSheet("Postes de caisse"), byMachine, styles);
+			}
 			return bytes(workbook);
+		}
+	}
+
+	// ─── Par poste de caisse (3.2.0, POS machines step 3) ────────────
+
+	/** The label of a POS machine; "—" for the sessions without one. */
+	private static String machineLabel(String name) {
+		return name != null ? name : "—";
+	}
+
+	/**
+	 * The sheet "Postes de caisse": the store ticket's groups (the X today, the Z another day), three tables one under
+	 * the other: the sessions of each machine; the subtotals per machine and the store's total; the payments and the
+	 * control per machine and method and the store's.
+	 */
+	private static void posMachines(Sheet sheet, StoreReportTicketDTO ticket, Styles styles) {
+		int r = 0;
+		text(sheet.createRow(r++), 0, "Ticket " + ticket.getType() + " du " + ticket.getDate() + " par poste de caisse",
+				styles.bold);
+		r++;
+
+		// the sessions
+		r = headerAt(sheet, r, new String[] { "Poste de caisse", "Session", "Caissier", "Ouverture", "Clôture",
+				"Statut" }, styles);
+		for (PosMachineGroup group : ticket.getPosMachines()) {
+			for (SessionRow s : group.getSessions()) {
+				Row row = sheet.createRow(r++);
+				text(row, 0, machineLabel(group.getPosMachineName()));
+				text(row, 1, s.getSessionNumber());
+				text(row, 2, s.getCashierName());
+				date(row, 3, s.getOpenedAt(), styles.time);
+				date(row, 4, s.getClosedAt(), styles.time);
+				text(row, 5, statusLabel(s.getStatus()));
+			}
+		}
+		r++;
+
+		// the subtotals
+		r = headerAt(sheet, r, new String[] { "Poste de caisse", "Sessions", "Tickets", "Annulés", "Total HT", "TVA",
+				"Timbre", "Total TTC", "Retours", "Net", "Fond de caisse" }, styles);
+		for (PosMachineGroup group : ticket.getPosMachines()) {
+			r = subtotal(sheet.createRow(r), r, machineLabel(group.getPosMachineName()), group.getSessions().size(),
+					group.getSales(), group.getReturns(), group.getNetSales(), group.getOpeningCash(), styles, false);
+		}
+		r = subtotal(sheet.createRow(r), r, "Total magasin", ticket.getSessions().size(), ticket.getSales(),
+				ticket.getReturns(), ticket.getNetSales(), ticket.getOpeningCash(), styles, true);
+		r++;
+
+		// the payments and the control per method
+		r = headerAt(sheet, r, new String[] { "Poste de caisse", "Mode de paiement", "Paiements", "Attendu",
+				"Compté", "Écart", "Tickets attendus", "Tickets comptés", "Écart tickets" },
+				styles);
+		for (PosMachineGroup group : ticket.getPosMachines()) {
+			r = methods(sheet, r, machineLabel(group.getPosMachineName()), group.getPayments(), group.getControl(),
+					styles, false);
+		}
+		methods(sheet, r, "Total magasin", ticket.getPayments(), ticket.getControl(), styles, true);
+		autosize(sheet, 11);
+	}
+
+	private static int headerAt(Sheet sheet, int r, String[] headers, Styles styles) {
+		Row row = sheet.createRow(r);
+		for (int i = 0; i < headers.length; i++) {
+			text(row, i, headers[i], styles.header);
+		}
+		return r + 1;
+	}
+
+	private static int subtotal(Row row, int r, String label, int sessions, SessionReportTicketDTO.Sales sales,
+			SessionReportTicketDTO.Returns returns, Double net, Double openingCash, Styles styles, boolean bold) {
+		CellStyle amount = bold ? styles.boldAmount : styles.amount;
+		text(row, 0, label, bold ? styles.bold : null);
+		count(row, 1, (long) sessions, bold ? styles.bold : null);
+		row.createCell(2).setCellValue(sales.getTicketsCount());
+		row.createCell(3).setCellValue(sales.getCancelledCount());
+		amount(row, 4, sales.getTotalHT(), amount);
+		amount(row, 5, sales.getTotalVat(), amount);
+		amount(row, 6, sales.getTaxStamp(), amount);
+		amount(row, 7, sales.getTotalTTC(), amount);
+		amount(row, 8, returns.getTotalAmount(), amount);
+		amount(row, 9, net, amount);
+		amount(row, 10, openingCash, amount);
+		return r + 1;
+	}
+
+	/**
+	 * One row per method of a group: the control's methods in the till's order, then a method paid but not in the
+	 * control; an empty cell for a value absent (counted on a ticket X, a method not declared).
+	 */
+	private static int methods(Sheet sheet, int r, String label, List<PaymentLine> payments, List<ControlLine> control,
+			Styles styles, boolean bold) {
+		CellStyle amount = bold ? styles.boldAmount : styles.amount;
+		Map<String, PaymentLine> paid = new LinkedHashMap<>();
+		payments.forEach(p -> paid.put(p.getCode(), p));
+		Set<String> done = new HashSet<>();
+		for (ControlLine c : control) {
+			done.add(c.getCode());
+			Row row = sheet.createRow(r++);
+			text(row, 0, label, bold ? styles.bold : null);
+			text(row, 1, c.getName(), bold ? styles.bold : null);
+			PaymentLine p = paid.get(c.getCode());
+			amount(row, 2, p != null ? p.getAmount() : null, amount);
+			amount(row, 3, c.getExpected(), amount);
+			amount(row, 4, c.getCounted(), amount);
+			amount(row, 5, c.getDifference(), amount);
+			if (c.isScanned()) {
+				number(row, 6, c.getExpectedCount());
+				number(row, 7, c.getCountedCount());
+				number(row, 8, c.getCountDifference());
+			}
+		}
+		for (PaymentLine p : payments) {
+			if (!done.contains(p.getCode())) {
+				Row row = sheet.createRow(r++);
+				text(row, 0, label, bold ? styles.bold : null);
+				text(row, 1, p.getName(), bold ? styles.bold : null);
+				amount(row, 2, p.getAmount(), amount);
+			}
+		}
+		return r;
+	}
+
+	/** A count kept as it is (0 and negative included); an empty cell when absent. */
+	private static void number(Row row, int column, Long value) {
+		if (value != null) {
+			row.createCell(column).setCellValue(value);
+		}
+	}
+
+	private static String statusLabel(SessionStatus status) {
+		if (status == null) {
+			return null;
+		}
+		switch (status) {
+			case OPENED:
+				return "Ouvert";
+			case CLOSED:
+				return "Fermé";
+			default:
+				return "Terminé";
 		}
 	}
 
